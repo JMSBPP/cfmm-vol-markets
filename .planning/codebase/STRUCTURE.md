@@ -57,9 +57,9 @@ cfmm-replicationPlank/
 └── README.md                   # Foundry boilerplate (not project-specific)
 ```
 
-External module (outside this repo):
+Vendored GAMS module (`model/`):
 ```
-/home/jmsbpp/cfmms-playground/experiments/gams/
+model/
 ├── primitives.gms              # Shared scalars: unity=1e18, uintMax, tick bounds
 ├── PricingKernel.gms           # Price grid: lambda^(tick * tickSpacing) over [-120, 120]
 ├── LiquidityKernel.gms         # Geometric LDF: xi^k / sum(xi^k) normalization
@@ -210,7 +210,7 @@ External module (outside this repo):
 - GAMS equivalent (if applicable): add set/parameter in the relevant `.gms` file
 
 **New GAMS module:**
-- Add to `/home/jmsbpp/cfmms-playground/experiments/gams/`
+- Add to `model/`
 - Include `primitives.gms` at top: `$include primitives.gms`
 - Use `unity = 1e18` for all WAD-denominated values
 

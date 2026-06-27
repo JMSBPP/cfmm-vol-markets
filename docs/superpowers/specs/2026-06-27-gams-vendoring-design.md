@@ -10,7 +10,7 @@ MAJOR/MINOR findings from the 2026-06-27 review pass.
 ## Overview
 
 The GAMS optimization track currently lives **outside** the repository at the sibling
-path `../experiments/gams/` (i.e. `/home/jmsbpp/cfmms-playground/experiments/gams/`).
+path `../experiments/gams/` (the pre-vendor source location).
 A clone of this repo cannot see or run the GAMS model, and any future CI workflow that
 compiles GAMS has nothing in-tree to act on.
 

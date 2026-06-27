@@ -9,14 +9,14 @@
 **Key Characteristics:**
 - All on-chain CFMM logic is written in `.plk` (Plank language), compiled to raw EVM bytecode at test time via FFI
 - Solidity files exist only as thin glue: test harnesses, script scaffolding, and the `PlankDeployer` FFI bridge
-- The GAMS module (at `/home/jmsbpp/cfmms-playground/experiments/gams/`) is the algebraic "solver" that determines optimal parameter values — currently separate from the on-chain code with no automated bridge yet
+- The GAMS module (vendored in-repo at `model/`) is the algebraic "solver" that determines optimal parameter values — currently separate from the on-chain code with no automated bridge yet
 - `spec/entities/Types.md` is the shared type kernel that defines the formal type system used by both tracks
 
 ## Layers
 
 **Layer 1 — GAMS Algebraic Model:**
 - Purpose: Symbolic / numeric computation of CFMM primitives and optimal control parameters
-- Location: `/home/jmsbpp/cfmms-playground/experiments/gams/` (outside this repo)
+- Location: `model/` (vendored in-repo)
 - Contains: `primitives.gms`, `PricingKernel.gms`, `LiquidityKernel.gms`, `TradingRegion.gms`, `PayoffModule.gms`, `dynamic/InitState.gms`
 - Depends on: nothing in this repo
 - Used by: (intended) Plank layer for parameter seeding; currently manual

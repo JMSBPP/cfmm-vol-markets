@@ -26,9 +26,9 @@
   workspace inside `lib/plank-monorepo/plankc/`. Not used for any on-chain code.
 
 **Secondary / Research:**
-- **GAMS** (General Algebraic Modeling System) - Used in the sibling companion at
-  `/home/jmsbpp/cfmms-playground/experiments/gams/` for mathematical modeling of CFMM
-  payoff structures. Not compiled into or called from this Foundry project.
+- **GAMS** (General Algebraic Modeling System) - Used in the vendored `model/` track
+  for mathematical modeling of CFMM payoff structures. Not compiled into or called from
+  this Foundry project.
 
 ## Runtime
 

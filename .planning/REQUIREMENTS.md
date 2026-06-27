@@ -14,7 +14,7 @@ Each maps to exactly one roadmap phase.
 - [ ] **REPO-02**: `JMSBPP/cfmm-replicationPlank` is a fork of the `wvs-finance` canonical, achieved via a **documented, reversible migration sequence** (backup → create canonical → retire/rename the existing standalone `JMSBPP` repo → fork); the destructive step is called out and confirmed before execution
 - [ ] **REPO-03**: local git remotes reflect the topology (`upstream` = wvs-finance, `origin` = JMSBPP fork)
 - [ ] **REPO-04**: a project `README.md` (replacing the Foundry boilerplate) describes the Plank/GAMS dual-track and setup
-- [ ] **REPO-05**: **publish-readiness sanitization** before the public flip — remove `refs/` `node_modules` and the `Counter` scaffold, fix-or-disable the broken CI, **scrub all local absolute paths** (no `/home/jmsbpp/...` in tracked files), and ensure `.gitignore` covers `node_modules`/build artifacts
+- [ ] **REPO-05**: **publish-readiness sanitization** before the public flip — remove `refs/` `node_modules` and the `Counter` scaffold, fix-or-disable the broken CI, **scrub all local absolute paths** (no `$HOME/...` local home-absolute path in tracked files), and ensure `.gitignore` covers `node_modules`/build artifacts
 
 ### Toolchain & Reproducibility
 

@@ -72,7 +72,7 @@ None yet.
 [From codebase concerns audit — affect future phases]
 
 - **Repo ownership inverted + destructive migration** (Phase 1): `JMSBPP` is standalone origin; `wvs-finance` repo does not yet exist. The public flip and the destructive fork-migration step (REPO-02) are outward-facing and MUST be confirmed with the user at execution (Concern 11, PROJECT constraints).
-- **Publish-readiness leaks** (Phase 1): tracked `refs/` Next.js app + `node_modules`, `Counter` scaffold, broken CI, and absolute `/home/jmsbpp/...` paths must be scrubbed before the public flip (REPO-05; Concerns 7, 9, 10).
+- **Publish-readiness leaks** (Phase 1): tracked `refs/` Next.js app + `node_modules`, `Counter` scaffold, broken CI, and absolute `$HOME/...` (local home-absolute) paths must be scrubbed before the public flip (REPO-05; Concerns 7, 9, 10).
 - **Plank toolchain unpinned + silent-zero FFI** (Phase 2): `plank v0.1.1` via curl-bash with no lockfile; deployer/`plankified-univ3` on floating HEAD. Pin and add loud FFI guards before relying on builds (TOOL-01/02; Concern 3).
 - **Plank sources are stubs/parse-errors** (Phase 4): `VolatilityTermStructure.plk`, `IMarketDynamicsLens.plk`, `Numerics.plk` have empty selectors/untyped fields/`u265` typo. Phase 4 must implement AND compile the bridge surface (PLNK-04; Concern 2).
 - **Bridge is a zero-line gap** (Phase 6): GAMS↔Plank integration does not exist; the exchange format + per-hop encoding (Phase 3) gate the wiring (Concern 4).

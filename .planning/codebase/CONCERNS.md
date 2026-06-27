@@ -65,14 +65,14 @@ The vast majority of the Plank source tree is placeholder code that will not com
 
 **Issue:** The stated goal of this repo is to build adaptive feedback controllers that map GAMS-derived parameter bounds and behavioral theorems back to Plank CFMM contracts. This integration layer does not exist in any form.
 
-- The GAMS files live entirely outside the repository at `/home/jmsbpp/cfmms-playground/experiments/gams/`. They are not tracked by this git repo, not referenced by any file in `src/`, `test/`, or `script/`, and have no shared data format with the Plank side.
+- The GAMS files were vendored into `model/` from the external `experiments/gams/` sibling. They are not yet referenced by any file in `src/`, `test/`, or `script/`, and have no shared data format with the Plank side.
 - The central GAMS module, `PayoffModule.gms`, is 2 lines: `$include primitives.gms` and a blank line. It is the stub for the entire payoff-replication logic.
 - `dynamic/InitState.gms` is 6 lines of parameter initializations with no optimization model or constraint structure.
 - `TradingRegion.gms` and `LiquidityKernel.gms` define GAMS equations and parameter grids but produce no output artifacts (no CSV, no JSON, no ABI-compatible encoding) that the Plank side can consume.
 - The parameter mapping problem is unresolved: `VolatilityTermStructure` (in `src/types/VolatilityTermStructure.plk`) requires `priceElasticity` (xi in `TradingRegion.gms`), `statePartitionDelta` (iota in `LiquidityKernel.gms`), and `baseTick`. These names exist in both worlds but the mapping from GAMS floating-point scalars to Plank `u256` fixed-point values (WAD/Q64.96) is undefined. The `primitives.gms` file encodes `unity = 1e18` and `precision = 1e12` suggesting awareness of EVM fixed-point, but there is no serialization code.
 - There is no described mechanism (script, bridge contract, oracle, off-chain relay) for conveying GAMS optimization outputs to the on-chain Plank contracts.
 
-**Files:** `/home/jmsbpp/cfmms-playground/experiments/gams/PayoffModule.gms`, `/home/jmsbpp/cfmms-playground/experiments/gams/dynamic/InitState.gms`, `src/types/VolatilityTermStructure.plk`, `src/interfaces/IMarketDynamics.plk`, `src/interfaces/IMarketDynamicsLens.plk`
+**Files:** `model/PayoffModule.gms`, `model/dynamic/InitState.gms`, `src/types/VolatilityTermStructure.plk`, `src/interfaces/IMarketDynamics.plk`, `src/interfaces/IMarketDynamicsLens.plk`
 **Impact:** The bridge between the mathematical model (GAMS) and the on-chain implementation (Plank) is the entire research contribution. It is currently a zero-line gap. All downstream phases depend on first defining this interface.
 **Fix approach:** Define a concrete data exchange format (e.g., JSON parameter file, Solidity ABI-encoded calldata, or a foundry script that reads GAMS `.lst` output). Add the GAMS directory as a tracked git submodule or symlink. Define the fixed-point encoding for each GAMS scalar before writing any Plank type implementations.
 

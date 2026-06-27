@@ -17,7 +17,7 @@ Stand up the canonical public repository under the `wvs-finance` org with `JMSBP
 
 ### Migration mechanics — Transfer, then fork back
 - **Method:** GitHub-**transfer** the existing `JMSBPP/cfmm-replicationPlank` into the `wvs-finance` org (JMSBPP is admin), make it **public**, then **fork it back** to `JMSBPP`.
-- **Git history:** **Squash to one clean, sanitized baseline commit** before going public — the public repo's history must NOT contain the local `/home/jmsbpp/...` paths currently in the committed `.planning` docs.
+- **Git history:** **Squash to one clean, sanitized baseline commit** before going public — the public repo's history must NOT contain the local `$HOME/...` home-absolute paths currently in the committed `.planning` docs.
 - **Final remote topology (REPO-03):** `origin` → `JMSBPP/cfmm-replicationPlank` (the fork), `upstream` → `wvs-finance/cfmm-replicationPlank` (canonical).
 - **Recommended execution sequence:**
   1. Sanitize the working tree (REPO-05): remove `refs/`, remove the `Counter` scaffold, disable CI, scrub local paths, fix `.gitignore`.
@@ -40,7 +40,7 @@ Stand up the canonical public repository under the `wvs-finance` org with `JMSBP
 ### Sanitization scope (REPO-05)
 - Remove the default Foundry scaffold `src/Counter.sol` and `script/Counter.s.sol` (`CONCERNS.md` §9).
 - Ensure `.gitignore` covers `node_modules/`, Foundry build artifacts (`out/`, `cache/`), and other local junk.
-- **Scrub local absolute paths from tracked file contents** — replace `/home/jmsbpp/learning/cfmm-theory` references with the cfmm-theory **URL** (per the link-by-URL decision) and `/home/jmsbpp/.../experiments/gams` with the in-repo `model/` path. (Note: GAMS is actually vendored in Phase 2 per the roadmap; in Phase 1, at minimum the `.planning` docs should not embed local user paths. The squash baseline means history won't carry them either.)
+- **Scrub local absolute paths from tracked file contents** — replace the local `$HOME/learning/cfmm-theory` references with the cfmm-theory **URL** (per the link-by-URL decision) and `$HOME/.../experiments/gams` with the in-repo `model/` path. (Note: GAMS is actually vendored in Phase 2 per the roadmap; in Phase 1, at minimum the `.planning` docs should not embed local user paths. The squash baseline means history won't carry them either.)
 
 ### README (REPO-04)
 - Replace the Foundry boilerplate `README.md` with project-specific content: the Plank/GAMS dual-track overview, the open-loop-plumbing milestone goal, prerequisites (Foundry, `plank`, GAMS), and how to run. Keep it honest about early/research maturity.
@@ -60,7 +60,7 @@ Stand up the canonical public repository under the `wvs-finance` org with `JMSBP
 
 ### Phase requirements & scope
 - `.planning/REQUIREMENTS.md` — REPO-01..05 (the five acceptance criteria for this phase)
-- `.planning/ROADMAP.md` — Phase 1 details + the "Deferred Review Findings" note (REPO-05 should use a content scan `git grep -I '/home/jmsbpp'`, and vendor GAMS before the flip)
+- `.planning/ROADMAP.md` — Phase 1 details + the "Deferred Review Findings" note (REPO-05 should use a content scan `git grep -InE '/home/[a-z0-9_-]+/'`, and vendor GAMS before the flip)
 - `.planning/PROJECT.md` — Constraints: "Repository ownership" (wvs-finance canonical public + JMSBPP fork) and the link-by-URL cfmm-theory decision
 
 ### Repo state / what to sanitize
@@ -80,7 +80,7 @@ Stand up the canonical public repository under the `wvs-finance` org with `JMSBP
 - `src/Counter.sol`, `script/Counter.s.sol` — Foundry scaffold to delete
 - `README.md` — Foundry boilerplate to replace
 - `.gitignore` (156 bytes, minimal), `.gitmodules` (8 tracked submodules) — to update/leave per decisions
-- `.planning/PROJECT.md`, `.planning/codebase/*.md` — tracked docs currently containing `/home/jmsbpp/...` paths to scrub
+- `.planning/PROJECT.md`, `.planning/codebase/*.md` — tracked docs currently containing `$HOME/...` (local home-absolute) paths to scrub
 
 ### Established patterns
 - Git ops via `gh` CLI (authed as `JMSBPP`, scopes include `repo`, `delete_repo`, `read:org`, `workflow`); `JMSBPP` is `admin` on `wvs-finance`.

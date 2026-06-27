@@ -153,7 +153,7 @@ on the fly using Foundry's FFI mechanism.
 
 ## GAMS Companion (External Research Tool)
 
-- Location: `/home/jmsbpp/cfmms-playground/experiments/gams/` (OUTSIDE this git repo)
+- Location: `model/` (vendored in-repo)
 - Files: `LiquidityKernel.gms`, `PayoffModule.gms`, `PriceKernel.gms`,
   `PricingKernel.gms`, `primitives.gms`, `TradingRegion.gms`,
   `dynamic/InitState.gms`
