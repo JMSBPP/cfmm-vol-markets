@@ -20,3 +20,14 @@ model/**/*.g00
 model/**/*.lxi
 model/**/*.gdx
 model/225*/
+
+# Node / embedded reference apps
+node_modules/
+/refs/
+
+# Untracked NON-submodule lib/ trees — unpublished IP, never publish.
+# The 8 real submodules in .gitmodules are unaffected by these path-anchored ignores.
+/lib/mochi-yield/
+/lib/shizo/
+/lib/unistrata/
+/lib/v4-core/
