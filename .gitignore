@@ -1,0 +1,22 @@
+# Compiler files
+cache/
+out/
+
+# Ignores development broadcast logs
+!/broadcast
+/broadcast/*/31337/
+/broadcast/**/dry-run/
+
+# Docs (ignore everything except the superpowers spec/plan subtree)
+docs/*
+!docs/superpowers/
+
+# Dotenv file
+.env
+
+# GAMS generated artifacts under model/ (listings, save/work files, scratch)
+model/**/*.lst
+model/**/*.g00
+model/**/*.lxi
+model/**/*.gdx
+model/225*/
