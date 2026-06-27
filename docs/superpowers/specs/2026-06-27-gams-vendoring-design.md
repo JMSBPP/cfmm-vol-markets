@@ -144,10 +144,14 @@ Nothing in this spec implements CI.
    `model/dynamic/InitState.gms`. `PriceKernel.gms` is **absent**.
 2. No `.lst` file and no listing-content-as-`.gms` is tracked; `.gitignore` ignores GAMS
    artifacts.
-3. `grep -rIn 'experiments/gams' model/` returns **nothing** — no file references the
-   external dir in **any** form (relative `../experiments/gams` or absolute
-   `/home/.../experiments/gams`). (Hardened from the earlier `../experiments/gams`-only
-   grep that BLOCKER B1 showed was gameable.)
+3. `grep -rIn 'experiments/gams' model/ --include='*.gms'` returns **nothing** — no GAMS
+   **source/pipeline** file references the external dir in **any** form (relative
+   `../experiments/gams` or absolute `/home/.../experiments/gams`). This is GAMS-01's "no
+   pipeline file references `../experiments/gams`" guarantee. (Scoped to `*.gms`: the
+   `model/BUILD.md` manifest intentionally records provenance — "Vendored from
+   `../experiments/gams/`" — which is documentation, not a build-time dependency, and is an
+   accepted reference. The earlier `../experiments/gams`-only grep was hardened to catch the
+   absolute form too, per BLOCKER B1.)
 4. Include graph intact: every `$include` target exists as a sibling in `model/`
    (existence check only — resolution additionally requires `model/` as working dir, per
    above; not a resolution guarantee).
@@ -164,7 +168,8 @@ Nothing in this spec implements CI.
 - `ls -R model/` shows the 6-file manifest + `BUILD.md`; `PriceKernel.gms` absent.
 - `git status` shows new `model/**` files, modified `.gitignore`, the now-tracked spec, and
   **no** change under `.github/`.
-- `grep -rIn 'experiments/gams' model/` → empty (criterion #3).
+- `grep -rIn 'experiments/gams' model/ --include='*.gms'` → empty (criterion #3). (An
+  all-files grep matches only the intentional `model/BUILD.md` provenance note.)
 - `git check-ignore docs/superpowers/2026-06-27-gams-vendoring-design.md` → no match
   (criterion #7).
 - Optional (local, licensed GAMS 54.1): `cd model && gams PricingKernel.gms action=c` and

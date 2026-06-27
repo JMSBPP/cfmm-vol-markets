@@ -264,7 +264,7 @@ Expected: commit succeeds with `model/BUILD.md`.
 ```bash
 echo "C1 file count:"; ls model/*.gms | wc -l; test -f model/dynamic/InitState.gms && echo "InitState present"; test ! -e model/PriceKernel.gms && echo "PriceKernel absent"
 echo "C2 no tracked lst:"; git ls-files 'model/*.lst' | wc -l
-echo "C3 external path:"; grep -rIn 'experiments/gams' model/; echo "grep exit=$?"
+echo "C3 external path (source files only):"; grep -rIn 'experiments/gams' model/ --include='*.gms'; echo "grep exit=$?"  # exit=1 clean; model/BUILD.md provenance note is an accepted non-.gms reference
 echo "C5 workflow untouched (untracked-aware):"; git status --short --untracked-files=no -- .github/
 echo "C6 BUILD.md tracked:"; git ls-files model/BUILD.md
 echo "C7 spec committable:"; git check-ignore docs/superpowers/specs/2026-06-27-gams-vendoring-design.md; echo "exit=$?"
