@@ -50,7 +50,7 @@ Each maps to exactly one roadmap phase.
 
 ### GAMS Plumbing (stub solver)
 
-- [ ] **GAMS-01**: GAMS sources are vendored into `model/` inside the repo and the pipeline references that location (not `../experiments/gams`)
+- [x] **GAMS-01**: GAMS sources are vendored into `model/` inside the repo and the pipeline references that location (not `../experiments/gams`) — ✓ **DONE** (already vendored: `model/*.gms`, `model/dynamic/InitState.gms`, `model/spec/*`, `model/BUILD.md` tracked). Residual `../experiments/gams` text references in `model/BUILD.md` + `docs/superpowers/` get cleaned in the Phase 1 path scrub.
 - [ ] **GAMS-02**: the GAMS model **runs from `model/` and emits the parameter-output artifact** the bridge consumes, using a **stub/placeholder objective** (a trivial or fixed map is acceptable this milestone); the real optimization model is deferred to v2
 
 ### Open-Loop Runtime Bridge
@@ -115,7 +115,7 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | REPO-03 | Phase 1 | Pending |
 | REPO-04 | Phase 1 | Pending |
 | REPO-05 | Phase 1 | Pending |
-| GAMS-01 | Phase 2 | Pending |
+| GAMS-01 | Phase 2 | ✓ Complete (pre-done — vendored to model/) |
 | KERN-01 | Phase 2 | Pending |
 | KERN-02 | Phase 2 | Pending |
 | KERN-03 | Phase 2 | Pending |
