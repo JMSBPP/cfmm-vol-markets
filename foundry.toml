@@ -4,6 +4,7 @@ out = "out"
 test = "test"
 libs = ["lib"]
 ffi = true
+fs_permissions = [{ access = "read", path = "./test/gamsDiff/fixtures" }]
 
 
 [fuzz]

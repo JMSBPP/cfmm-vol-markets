@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
+import {stdMath} from "forge-std/StdMath.sol";
 import {PlankDeployer, BuildOptions, Dependency} from "plank-foundry-deployer/PlankDeployer.sol";
 import {LibCall} from "bunni-v2/lib/solady/src/utils/LibCall.sol";
 
@@ -15,9 +16,9 @@ contract PricingKernelPlankdiffTest is Test, PlankDeployer {
     bytes4 constant SEL_GET_SQRT_RATIO_AT_TICK = 0x986cfba3;
 
     address public PRICE_KERNEL;
-    BuildOptions opts;
 
     function setUp() public {
+        BuildOptions memory opts;
         opts.backend = "sona";
         Dependency[] memory deps = new Dependency[](1);
         deps[0] = Dependency("v3", "lib/plankified-univ3/plank/lib");
@@ -36,5 +37,26 @@ contract PricingKernelPlankdiffTest is Test, PlankDeployer {
             ),
             (uint256)
         );
+    }
+
+    // EPS = 1e3  (1e-15 relative; float64 noise floor ~2.2e-16 -> ~4x headroom)
+    uint256 constant EPS = 1e3;
+    uint256 constant TWO_96 = 79228162514264337593543950336; // 2^96
+
+    function test_PricingKernel_matches_getSqrtRatioAtTick() public view {
+        string memory json = vm.readFile("test/gamsDiff/fixtures/pricing_kernel.json");
+        int256[] memory ticks = vm.parseJsonIntArray(json, ".ticks");
+        uint256[] memory expected = vm.parseJsonUintArray(json, ".expectedSqrtPriceX96");
+        assertEq(ticks.length, expected.length, "fixture array length mismatch");
+        assertEq(ticks.length, 241, "expected 241 ticks (s1 slice)");
+
+        // sign-extension regression guard: endpoints straddle 2^96
+        assertLt(_getSqrtRatioAtTick(-120), TWO_96, "tick -120 should be < 2^96");
+        assertGt(_getSqrtRatioAtTick(int24(120)), TWO_96, "tick 120 should be > 2^96");
+
+        for (uint256 i = 0; i < ticks.length; i++) {
+            uint256 actual = _getSqrtRatioAtTick(int24(ticks[i]));
+            assertApproxEqRel(actual, expected[i], EPS);
+        }
     }
 }
