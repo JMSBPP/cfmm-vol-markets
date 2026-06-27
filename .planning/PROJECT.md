@@ -45,7 +45,7 @@ A target contingent payoff can flow end-to-end — **payoff → GAMS solves opti
 ## Context
 
 - **Two-language duality is the defining trait.** On-chain CFMM logic is written in **Plank** (`.plk`, custom EVM language with its own compiler at `lib/plank-monorepo/plankc/`, `v0.1.1`), compiled to bytecode via FFI at test time; Solidity/Foundry is thin glue. GAMS is the off-chain algebraic solver. The research contribution lives in the bridge between them.
-- **The shared "file kernel"** is `spec/entities/Types.md` — the formal type system both tracks reference.
+- **The shared "file kernel"** is `spec/entities/Types.md` — the formal type system both tracks reference. The parameter→behavior grounding connects out to the **`cfmm-theory`** knowledge base (`/home/jmsbpp/learning/cfmm-theory`), whose root **`KERNEL.md`** is the primary upstream reference (extensible to notes like `cfmm-control/ELASTICITY_CONTROL.md`, `cfmm-options/PAYOFF.md`, `cfmm-options/FEE_PREMIUM.md`). The link is **by URL/citekey only** (no submodule/code dependency, because this repo is public); the reference markdown lives under `spec/refs/`, separate from the existing `refs/` Plank-playground web app.
 - **Stochastic model** (`NOTES.md`): swap direction `I_{n,t} ∈ {-1,+1}` (P=½ each), counts `N_t ~ Poisson(λ_t)`, amounts `Δy_{n,t} ~ LogNormal(μ_t, σ²)`, with deterministic proxy `Δy(t) = 19 + 1.0001^{η·t⁴}`. Canonical start state: `(di=20, i=100, i_l=-120, i_u=120, L=1e18, Y=100e18)`.
 - **Maturity is early.** Per the codebase map (`.planning/codebase/CONCERNS.md`), most `.plk` files are stubs or have parse/type errors; tests are largely empty shells; the Plank↔GAMS bridge is a zero-line gap (the core deliverable). The repo had no history before this initialization.
 - **Reference ecosystem** in `lib/`: bunni-v2 (LDF interface + Geometric reference), Uniswap v3/v4 core, panoptic-v2-core, plankified-univ3 (Plank UniV3 math), plus Unistrata/Shizo/Mochi-Yield/Centrifuge references cited in `NOTES.md`.
@@ -68,6 +68,7 @@ A target contingent payoff can flow end-to-end — **payoff → GAMS solves opti
 | Literature = supporting input only (no formal review) | Notes + key references suffice to ground parameter→behavior mapping now | — Pending |
 | Vendor GAMS into `model/` inside the repo | Single-repo dual-track; bridge work needs both sides co-located | — Pending |
 | `wvs-finance` owns canonical public repo; `JMSBPP` forks | Org ownership / public visibility requirement | — Pending |
+| Theory grounding links to `cfmm-theory` `KERNEL.md` by URL/citekey (no submodule); refs under `spec/refs/` | Repo is public — cfmm-theory is local-only, so cite rather than depend | — Pending |
 
 ---
 *Last updated: 2026-06-27 after initialization*
