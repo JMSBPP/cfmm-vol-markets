@@ -4,6 +4,13 @@ import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+# Elasticity (eta = eta_x_y / unity) of the GAMS tunablePricingKernel macro.
+# eta = 1/2 is the balanced 50/50 pool, where tunablePricingKernel reduces to the
+# fixed sqrt priceKernel == the EVM getSqrtRatioAtTick. It is the ONLY weight with
+# an on-chain counterpart, so the differential test is pinned here; eta != 1/2
+# gives an asymmetric bonding curve that can only be checked off-chain.
+BALANCED_ETA = 0.5
+
 
 def to_sqrt_price_x96(value: float) -> int:
     """Round a GAMS float64 value (already scaled by 2^96) to its nearest integer.
@@ -65,13 +72,22 @@ def points_to_fixture(
     spacing: int,
     gams_version: str,
     platform: str,
+    eta: float,
 ) -> dict:
-    """Build the forge-friendly fixture dict (uint256 as decimal strings)."""
+    """Build the forge-friendly fixture dict (uint256 as decimal strings).
+
+    ``eta`` is the tunablePricingKernel elasticity this fixture was tabulated at.
+    For the EVM differential test it must be ``BALANCED_ETA`` (1/2); the field is
+    metadata only (the Solidity test never reads it for math) and records which
+    weight the reference corresponds to.
+    """
     return {
         "symbol": symbol,
         "source": source,
         "scale": "Q64.96",
         "spacing": spacing,
+        "eta": eta,
+        "kernel": f"tunablePricingKernel(eta={eta})",
         "gamsVersion": gams_version,
         "platform": platform,
         "count": len(points),

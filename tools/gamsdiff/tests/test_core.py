@@ -9,6 +9,8 @@ from gamsdiff.core import tick_from_grid
 from gamsdiff.core import GridRecord, KernelPoint, records_to_points
 # Task 6
 from gamsdiff.core import points_to_fixture, to_json
+# Tunable kernel (elasticity-aware): balanced 50/50 weight, the only EVM-testable eta
+from gamsdiff.core import BALANCED_ETA
 
 def test_to_sqrt_price_x96_q96_value_is_rounded_to_int():
     # tick 0 reference: 2^96
@@ -46,15 +48,24 @@ _PTS = (
     KernelPoint(tick=0, expected_sqrt_price_x96=79228162514264337593543950336),
 )
 
+def test_balanced_eta_is_one_half():
+    # The balanced 50/50 pool weight (eta_x_y/unity = 1/2): the only elasticity the
+    # EVM getSqrtRatioAtTick represents, so the only one the diff test can verify.
+    assert BALANCED_ETA == 0.5
+
 def test_points_to_fixture_schema():
     fx = points_to_fixture(_PTS, symbol="priceKernel", source="model/PricingKernel.gms",
-                           spacing=1, gams_version="54.1.0", platform="linux-x86_64")
+                           spacing=1, gams_version="54.1.0", platform="linux-x86_64",
+                           eta=BALANCED_ETA)
     assert fx["symbol"] == "priceKernel"
     assert fx["scale"] == "Q64.96"
     assert fx["spacing"] == 1
     assert fx["gamsVersion"] == "54.1.0"
     assert fx["platform"] == "linux-x86_64"
     assert fx["source"] == "model/PricingKernel.gms"
+    # tunable-kernel elasticity: the balanced-pool weight pinned for the EVM diff
+    assert fx["eta"] == 0.5
+    assert fx["kernel"] == "tunablePricingKernel(eta=0.5)"
     assert fx["count"] == 2
     assert fx["ticks"] == [-120, 0]
     # uint256 as decimal strings; index 0 is tick -120
@@ -64,6 +75,6 @@ def test_points_to_fixture_schema():
 
 def test_to_json_roundtrips_and_lengths_agree():
     fx = points_to_fixture(_PTS, symbol="priceKernel", source="s", spacing=1,
-                           gams_version="54.1.0", platform="linux-x86_64")
+                           gams_version="54.1.0", platform="linux-x86_64", eta=BALANCED_ETA)
     parsed = json.loads(to_json(fx))
     assert len(parsed["ticks"]) == len(parsed["expectedSqrtPriceX96"]) == parsed["count"]

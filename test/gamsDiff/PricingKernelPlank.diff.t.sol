@@ -11,6 +11,10 @@ import {LibCall} from "bunni-v2/lib/solady/src/utils/LibCall.sol";
 ///         on-chain Uniswap V3 reference exposed by `PriceKernelHarness.plk`.
 /// @dev The harness is a pure reader (`getSqrtRatioAtTick(int24) returns (uint256)`),
 ///      so no fork is required: it is deployed locally and queried directly.
+///      The fixture is the GAMS tunablePricingKernel at the balanced weight eta = 1/2
+///      (fixture field "eta": 0.5), which reduces to the fixed sqrt priceKernel ==
+///      getSqrtRatioAtTick. eta = 1/2 is the ONLY elasticity with an on-chain
+///      counterpart, so this diff is pinned there; eta != 1/2 is off-chain only.
 contract PricingKernelPlankdiffTest is Test, PlankDeployer {
     // getSqrtRatioAtTick(int24)
     bytes4 constant SEL_GET_SQRT_RATIO_AT_TICK = 0x986cfba3;
