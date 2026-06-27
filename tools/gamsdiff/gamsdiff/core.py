@@ -1,5 +1,6 @@
 """Pure transforms for the GAMS pricing-kernel diff fixture. No I/O."""
 
+import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -54,3 +55,31 @@ def records_to_points(
             )
         )
     return tuple(points)
+
+
+def points_to_fixture(
+    points: tuple[KernelPoint, ...],
+    *,
+    symbol: str,
+    source: str,
+    spacing: int,
+    gams_version: str,
+    platform: str,
+) -> dict:
+    """Build the forge-friendly fixture dict (uint256 as decimal strings)."""
+    return {
+        "symbol": symbol,
+        "source": source,
+        "scale": "Q64.96",
+        "spacing": spacing,
+        "gamsVersion": gams_version,
+        "platform": platform,
+        "count": len(points),
+        "ticks": [p.tick for p in points],
+        "expectedSqrtPriceX96": [str(p.expected_sqrt_price_x96) for p in points],
+    }
+
+
+def to_json(fixture: dict) -> str:
+    """Serialize the fixture to deterministic JSON text."""
+    return json.dumps(fixture, indent=2) + "\n"
