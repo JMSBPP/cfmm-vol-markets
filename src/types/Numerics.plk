@@ -1,0 +1,40 @@
+
+import std::type:sizeof;
+import std::mem::unsafe_mem_write;
+
+// note: These are provisional keys
+const NATURAL = 0x10a5ba217f6b440535520478051b9ff4b393b94a8a1145c46b7b5c0acd14e1e0;
+const RATIONAL = 0x5e6a45145f16b747bf37a75bbc8df20929098d743932f300f054010100547a44;
+const Q64_96 = 0xb69c783505e4dd6c327f94a47dc65b3c3bd66d2112b8cbad69c95b957559abe3;
+const Q128_128 = 0x5e79a28d704441be9cf19068c5678ec846ffe9903623f82196ee0fe176c457e9; 
+
+const NumberGroupSpec = fn (_min: u256, _max: u265, _step: u256) type {
+      struct { min: _min, max : _max, step : _step }
+};
+
+
+// note: This is a simplified direct address map Key, the thing is you are returing a pointer
+// to such type
+
+const NumberFormat = fn(key:u256) NumberGroupSpec {
+      if key == NATURAL {
+      	 let ptr = @malloc_uninit(32);
+	 let naturalNumberGroupSpec = NumberGroupSpec(
+			0,
+			0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe,
+			1
+	 );
+         unsafe_mem_write(
+		NumberGroupSpec,
+		ptr, // this is a memory ptr
+		0, // this is the init offset
+		naturalNumberGroupSpec
+	);
+      }     
+};
+
+const BoundedValue = fn(numberFormat:NumberFormat, lowerBound:u256, upperBound :u256) type {
+      struct {
+      	     value: u256
+      }
+};

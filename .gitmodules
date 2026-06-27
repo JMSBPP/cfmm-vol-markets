@@ -1,0 +1,25 @@
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "lib/plankified-univ3"]
+	path = lib/plankified-univ3
+	url = https://github.com/plankevm/plankified-univ3
+[submodule "lib/bunni-v2"]
+	path = lib/bunni-v2
+	url = https://github.com/Bunniapp/bunni-v2
+[submodule "lib/plank-foundry-deployer"]
+	path = lib/plank-foundry-deployer
+	url = https://github.com/plankevm/plank-foundry-deployer
+[submodule "lib/panoptic-v2-core"]
+	path = lib/panoptic-v2-core
+	url = https://github.com/panoptic-labs/panoptic-v2-core
+[submodule "lib/protocol"]
+	path = lib/protocol
+	url = https://github.com/centrifuge/protocol
+[submodule "lib/v3-core"]
+	path = lib/v3-core
+	url = https://github.com/uniswap/v3-core
+	branch = 0.8
+[submodule "lib/plank-monorepo"]
+	path = lib/plank-monorepo
+	url = https://github.com/plankevm/plank-monorepo

@@ -1,0 +1,34 @@
+import v3::util::{revert_empty, revert_with_return_data, revert_R, revert_LOK, revert_IIA, revert_L, revert_SPL, return_u256};
+
+
+
+const return_runtime = fn () never {
+    let buf = @malloc_uninit(@runtime_length());
+    @evm_codecopy(buf, @runtime_start_offset(), @runtime_length());
+    @evm_return(buf, @runtime_length());
+};
+
+
+
+init {
+    return_runtime();
+}
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    if selector == 0x612800c5 {
+
+    } else if selector == 0x785e884d {
+      
+    } else if selector == 0xc1abdc8d {
+
+    } else if selector == 0x8bc5a2da {
+
+    } else if selector == 0xa7173ece {
+
+    }
+    
+    revert_empty();
+    
+}

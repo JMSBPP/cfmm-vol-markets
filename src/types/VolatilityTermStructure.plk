@@ -1,0 +1,19 @@
+import types::numerics::BoundedValue;
+
+const VolatilityTermStructure =
+      fn(
+	 _priceElasticity: BoundedValue,
+	 _statePartitionDelta: BoundedValue,
+	 _baseTick: BoundedValue
+	 )
+      type {
+
+      struct {
+      	     priceElasticity:
+	     statePartitionDelta:
+	     baseTick:
+      }
+};
+
+// 
+const read = fn(_volStructState:VolatilityTermStructure) 

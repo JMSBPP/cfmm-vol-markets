@@ -1,0 +1,27 @@
+import v3::util::return_u256;
+
+const return_runtime = fn () never {
+    let buf = @malloc_uninit(@runtime_length());
+    @evm_codecopy(buf, @runtime_start_offset(), @runtime_length());
+    @evm_return(buf, @runtime_length());
+};
+
+
+init { return_runtime();}
+
+const gen_rand = fn (seed:u256) u256 {
+  if @evm_and(seed,1) == 0 {
+     return_u256(0);
+  }
+  return_u256(1);
+
+};
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == 0x5c36b186 {
+       let seed = @evm_difficulty();
+       gen_rand(seed);
+    }   
+    @evm_stop();            
+}

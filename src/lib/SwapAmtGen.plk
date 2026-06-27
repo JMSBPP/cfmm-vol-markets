@@ -1,0 +1,70 @@
+import v3::util::return_u256;
+
+// 19e18
+const LOWER_BOUND = 0x00000000000000000000000000000000000000000000000107ad8f556c6c0000;
+// 21e18
+const UPPER_BOUND = 0x00000000000000000000000000000000000000000000000b6255df5f50080000;
+
+// 1e14
+const KERNEL = 0x00000000000000000000000000000000000000000000000000005af3107a4000;
+// 1e18
+const UNITY = 0x0000000000000000000000000000000000000000000000000de0b6b3a7640000;
+
+// keccak("...")
+const SLOT_TIME_DECAY = 0xdf6c7b601d0068930567d0950948b9aadfd6e8d41c6187c76aad8b18deeab757;
+
+// -10000e18
+const INIT_TIME_DECAY = 0xfffffffffffffffffffffffffffffffffffffffffffffde1e61f36454dc00000;
+
+const return_runtime = fn () never {
+    let buf = @malloc_uninit(@runtime_length());
+    @evm_codecopy(buf, @runtime_start_offset(), @runtime_length());
+    @evm_return(buf, @runtime_length());
+};
+
+
+const setDecay = fn(newDecay: u256) void {
+      @evm_sstore(SLOT_TIME_DECAY, newDecay);
+};
+
+const timeDecay = fn() u256 {
+      return_u256(@evm_sload(SLOT_TIME_DECAY));
+};
+
+// note: The simplest is block.numnber
+const swapAmount = fn (timeIndex:u256) u256 {
+      let timeIndex = timeDecay();
+      let val =  @evm_add(LOWER_BOUND, @evm_mul(2,
+							@evm_exp(
+								KERNEL,
+								@evm_mul(
+									@evm_exp(timeIndex,4),
+									@evm_sload(SLOT_TIME_DECAY))
+								)
+							)
+      );      
+      return_u256(val);
+};
+
+
+init {
+     setDecay(INIT_TIME_DECAY);
+     return_runtime();     
+}
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    
+    if selector == 0xbc4af3dc {
+       let timeIndex = @evm_calldataload(4);
+       swapAmount(timeIndex);              
+    } else if selector == 0xcaaedea1{
+      // timeDecay
+      timeDecay();   
+      // setDecay
+    } else if selector == 0x03ec5467{
+        let newDecay = @evm_calldataload(4);
+	setDecay(newDecay);
+    }
+   @evm_stop();
+}

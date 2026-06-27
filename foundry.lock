@@ -1,0 +1,41 @@
+{
+  "lib/bunni-v2": {
+    "tag": {
+      "name": "v1.2.1",
+      "rev": "000f79a38bdd3fb2b314dc8c108b2a3d1ca1d440"
+    }
+  },
+  "lib/forge-std": {
+    "tag": {
+      "name": "v1.16.1",
+      "rev": "620536fa5277db4e3fd46772d5cbc1ea0696fb43"
+    }
+  },
+  "lib/panoptic-v2-core": {
+    "rev": "5555b320663385f0ab0c8fa511c74d4f0e34cb80"
+  },
+  "lib/plank-foundry-deployer": {
+    "rev": "24fe42f1021f956838504fcad40a90f45e8ee218"
+  },
+  "lib/plank-monorepo": {
+    "tag": {
+      "name": "v0.1.1",
+      "rev": "c6f969fae95a23805d9a3fc55ea46a513d4463c9"
+    }
+  },
+  "lib/plankified-univ3": {
+    "rev": "9a89319ccb01cc61e8a698c089133e7084605150"
+  },
+  "lib/protocol": {
+    "tag": {
+      "name": "v3.2.0",
+      "rev": "41e19975946ac60927f3db7087f6c0b67bf752bb"
+    }
+  },
+  "lib/v3-core": {
+    "branch": {
+      "name": "0.8",
+      "rev": "6562c52e8f75f0c10f9deaf44861847585fc8129"
+    }
+  }
+}
