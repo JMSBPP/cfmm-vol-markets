@@ -1,4 +1,5 @@
-from gamsdiff.core import to_sqrt_price_x96, tick_from_grid
+import pytest
+from gamsdiff.core import to_sqrt_price_x96, tick_from_grid, GridRecord, KernelPoint, records_to_points
 
 def test_to_sqrt_price_x96_q96_value_is_rounded_to_int():
     # tick 0 reference: 2^96
@@ -18,3 +19,13 @@ def test_tick_from_grid_maps_gams_ordinal_to_int24_tick():
 def test_tick_from_grid_scales_by_spacing():
     # spacing is the GAMS ord(s) multiplier, not a label index
     assert tick_from_grid(241, spacing=2) == 240
+
+def test_records_to_points_maps_ordinal_and_value():
+    rows = [GridRecord(tick_index=121, value=79228162514264337593543950336.0)]
+    assert records_to_points(rows) == (
+        KernelPoint(tick=0, expected_sqrt_price_x96=79228162514264337593543950336),
+    )
+
+def test_records_to_points_rejects_non_positive_value():
+    with pytest.raises(ValueError):
+        records_to_points([GridRecord(tick_index=121, value=0.0)])
