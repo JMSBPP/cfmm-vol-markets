@@ -1,0 +1,31 @@
+# tools/gamsdiff/gamsdiff/__main__.py
+"""CLI: wire shell -> pure core -> shell. Regenerates the committed fixture."""
+import platform as _platform
+
+from gamsdiff import shell
+from gamsdiff.core import points_to_fixture, records_to_points, to_json
+
+_SPACING_INDEX = 1  # v1: s1 slice
+
+
+def main() -> None:
+    records = shell.load_grid_records(
+        model_workdir=shell.DEFAULT_MODEL_WORKDIR,
+        sysdir=shell.DEFAULT_SYSDIR,
+        spacing_index=_SPACING_INDEX,
+    )
+    points = records_to_points(records, spacing=_SPACING_INDEX)
+    fixture = points_to_fixture(
+        points,
+        symbol="priceKernel",
+        source="model/PricingKernel.gms",
+        spacing=_SPACING_INDEX,
+        gams_version="54.1.0",
+        platform=f"{_platform.system().lower()}-{_platform.machine()}",
+    )
+    shell.write_fixture(shell.DEFAULT_OUTPUT, to_json(fixture))
+    print(f"wrote {len(points)} points -> {shell.DEFAULT_OUTPUT}")
+
+
+if __name__ == "__main__":
+    main()
