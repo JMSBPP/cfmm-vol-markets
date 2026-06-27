@@ -1,6 +1,14 @@
 import json
 import pytest
-from gamsdiff.core import to_sqrt_price_x96, tick_from_grid, GridRecord, KernelPoint, records_to_points, points_to_fixture, to_json
+
+# Task 3
+from gamsdiff.core import to_sqrt_price_x96
+# Task 4
+from gamsdiff.core import tick_from_grid
+# Task 5
+from gamsdiff.core import GridRecord, KernelPoint, records_to_points
+# Task 6
+from gamsdiff.core import points_to_fixture, to_json
 
 def test_to_sqrt_price_x96_q96_value_is_rounded_to_int():
     # tick 0 reference: 2^96
@@ -30,6 +38,8 @@ def test_records_to_points_maps_ordinal_and_value():
 def test_records_to_points_rejects_non_positive_value():
     with pytest.raises(ValueError):
         records_to_points([GridRecord(tick_index=121, value=0.0)])
+    with pytest.raises(ValueError):
+        records_to_points([GridRecord(tick_index=121, value=-1.0)])
 
 _PTS = (
     KernelPoint(tick=-120, expected_sqrt_price_x96=78754240422857016427656773632),
@@ -44,6 +54,7 @@ def test_points_to_fixture_schema():
     assert fx["spacing"] == 1
     assert fx["gamsVersion"] == "54.1.0"
     assert fx["platform"] == "linux-x86_64"
+    assert fx["source"] == "model/PricingKernel.gms"
     assert fx["count"] == 2
     assert fx["ticks"] == [-120, 0]
     # uint256 as decimal strings; index 0 is tick -120
