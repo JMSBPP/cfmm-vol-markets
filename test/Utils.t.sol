@@ -41,7 +41,7 @@ contract UtilsTest is Test, PlankDeployer {
     address public CASH_FLOW_GEN;
     address REFERENCE_MARKET;
     BuildOptions opts;
-<
+
     uint256 INIT_BLOCK = 25_298_856;
     uint256 REFERENCE_BLOCK = 25_390_770;
     uint256 SEED;

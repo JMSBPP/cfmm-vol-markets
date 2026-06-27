@@ -21,6 +21,9 @@ model/**/*.lxi
 model/**/*.gdx
 model/225*/
 
+# Plank compiled bytecode (make compile-plank)
+/build/plank/
+
 # Node / embedded reference apps
 node_modules/
 /refs/
@@ -31,3 +34,7 @@ node_modules/
 /lib/shizo/
 /lib/unistrata/
 /lib/v4-core/
+
+# Python caches
+__pycache__/
+*.pyc
