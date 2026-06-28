@@ -111,24 +111,29 @@ noncomputable def sigmaVTS (delta lam : ℝ) (eta : ℝ) (i : Int) (Δi : ℝ) :
 noncomputable def L_eta (eta X Y : ℝ) : ℝ :=
   X ^ eta * Y ^ (1 - eta)
 
-/-- **σ-only redundancy of (η, Δᵢ).**
+/-
+**σ-only redundancy of (η, Δᵢ).**
     The vol term structure depends on (η, Δᵢ) only through the product
-    η·Δᵢ, so the rescaling (η, Δᵢ) ↦ (c·η, Δᵢ/c) leaves σ invariant. -/
+    η·Δᵢ, so the rescaling (η, Δᵢ) ↦ (c·η, Δᵢ/c) leaves σ invariant.
+-/
 theorem sigmaVTS_invariant_under_eta_Δi_rescaling
     (delta lam : ℝ) (hlam : 0 < lam)
     (i : Int) (eta Δi : ℝ)
     (c : ℝ) (hc : 0 < c) :
     sigmaVTS delta lam eta i Δi
       = sigmaVTS delta lam (c * eta) i (Δi / c) := by
-  sorry
+  unfold sigmaVTS;
+  grind
 
-/-- **Joint independence of (η, Δᵢ) in (σ, L_η)-space.**
+/-
+**Joint independence of (η, Δᵢ) in (σ, L_η)-space.**
 
     On the σ-invariant manifold (witnessed by the rescaling (η,Δᵢ)↦(c·η,Δᵢ/c)
     above), the trading function L_η still varies with η whenever X ≠ Y
     and the rescaling factor c ≠ 1. So (η, Δᵢ) have INDEPENDENT effects
     in the joint observable — the σ projection collapses them but the
-    L_η projection separates them. -/
+    L_η projection separates them.
+-/
 theorem eta_Δi_independent_in_sigma_and_L_eta
     (delta lam : ℝ) (hlam : 0 < lam) (i : Int)
     (eta : ℝ) (heta_pos : 0 < eta) (heta_lt : eta < 1)
@@ -138,6 +143,13 @@ theorem eta_Δi_independent_in_sigma_and_L_eta
     (X Y : ℝ) (hX : 0 < X) (hY : 0 < Y) (hXY : X ≠ Y) :
     sigmaVTS delta lam eta i Δi = sigmaVTS delta lam (c * eta) i (Δi / c)
       ∧ L_eta eta X Y ≠ L_eta (c * eta) X Y := by
-  sorry
+  refine ⟨?_, ?_⟩
+  · exact sigmaVTS_invariant_under_eta_Δi_rescaling delta lam hlam i eta Δi c hc_pos
+  · unfold L_eta
+    simp_all +decide [Real.rpow_def_of_pos]
+    norm_num [← Real.exp_add]
+    intro H
+    exact hXY <| Real.log_injOn_pos hX hY <|
+      mul_left_cancel₀ (sub_ne_zero_of_ne hc_ne) <| by nlinarith
 
 end CFMM.Eta
