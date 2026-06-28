@@ -28,12 +28,14 @@ jobs:
         with:
           submodules: false
           persist-credentials: false
-      # init ONLY the forge closure (panoptic-safe)
-      - run: git submodule update --init --recursive lib/bunni-v2 lib/forge-std lib/plank-foundry-deployer lib/plankified-univ3 lib/v3-core
-      # forge test auto-runs `git submodule update --init --recursive` (even with --offline) and HANGS on
-      # panoptic-v2-core's self-recursion. Remove the non-closure gitlinks from the INDEX so that auto-init
-      # (and ours) has nothing to clone for them. They are unused by the compile closure.
-      - run: git rm --cached -q lib/panoptic-v2-core lib/protocol lib/plank-monorepo 2>/dev/null || true
+      # forge needs lib/panoptic-v2-core's nested v4-core + solady (remappings @uniswap/v4-core/ and
+      # solady/ point into them). The ONLY pathological part is panoptic-helper (it contains
+      # panoptic-v2-core -> infinite recursion). Init panoptic one level, block panoptic-helper, then
+      # full recursive init; forge test --offline then finds everything present (no re-init hang).
+      - run: |
+          git submodule update --init lib/panoptic-v2-core
+          git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
+          git submodule update --init --recursive
       - run: forge test --via-ir --offline
 
   gams:
