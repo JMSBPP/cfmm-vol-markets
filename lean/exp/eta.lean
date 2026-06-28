@@ -621,21 +621,112 @@ theorem pi_trader_half_band_max_large_trade
       lam hlam i hi_pos L_bar hL_bar Delta_I hDelta_I hDI Δi Δi_max hΔi_pos h)
   · rw [h]
 
-/-- **Small-trade band MAXIMIZATION (max-payoff at endpoint farthest from Δᵢ⋆).**
+/-- **Monotonicity (antitone) of the squared-slippage residual in Δᵢ**, in the
+    small-trade regime under the "golden" bound `Δ^I² + Δ^I·L̄ ≤ L̄²`.
+
+    The residual `P·Δᴵ − Δᴼ` has closed form
+    `Δᴵ·P·(L̄ + P·(Δᴵ − L̄))/(L̄ + Δᴵ·P)` with `P = λ^{i·Δᵢ} > 1`.
+    The cross-multiplied difference of residuals at `x ≤ y`
+    (so `P := P(x) < P(y) =: P'`) factors as
+    `Δᴵ·(P − P')·[L̄² − (L̄−Δᴵ)·L̄·(P+P') − Δᴵ·(L̄−Δᴵ)·P·P']`.
+    Since `P, P' > 1`, the bracket is `< Δ^I² + Δ^I·L̄ − L̄² ≤ 0` (this is
+    exactly the golden bound), and `P − P' < 0`, so the difference is `≥ 0`;
+    i.e. the residual is decreasing in Δᵢ. -/
+lemma residual_antitone
+    (lam : ℝ) (hlam : 1 < lam)
+    (i : Int) (hi_pos : 0 < i)
+    (L_bar : ℝ) (hL_bar : 0 < L_bar)
+    (Delta_I : ℝ) (hDelta_I_pos : 0 < Delta_I) (hDelta_I_lt : Delta_I < L_bar)
+    (hgolden : Delta_I ^ 2 + Delta_I * L_bar ≤ L_bar ^ 2)
+    (x y : ℝ) (hx_pos : 0 < x) (hxy : x ≤ y) :
+    P_half lam y i * Delta_I - Delta_O_half lam y i L_bar Delta_I
+      ≤ P_half lam x i * Delta_I - Delta_O_half lam x i L_bar Delta_I := by
+  rcases eq_or_lt_of_le hxy with h | h
+  · rw [h]
+  · have hy_pos : 0 < y := lt_trans hx_pos h
+    set P := P_half lam x i with hPdef
+    set P' := P_half lam y i with hP'def
+    have hP1 : 1 < P := one_lt_P_half lam x hlam i hi_pos hx_pos
+    have hP'1 : 1 < P' := one_lt_P_half lam y hlam i hi_pos hy_pos
+    have hPP : P < P' := P_half_strictMono lam x y hlam i hi_pos h
+    have hPpos : 0 < P := lt_trans one_pos hP1
+    have hP'pos : 0 < P' := lt_trans one_pos hP'1
+    have hc : 0 < L_bar - Delta_I := sub_pos.mpr hDelta_I_lt
+    have hD : L_bar + Delta_I * P ≠ 0 := by positivity
+    have hD' : L_bar + Delta_I * P' ≠ 0 := by positivity
+    have hDpos : 0 < L_bar + Delta_I * P := by positivity
+    have hD'pos : 0 < L_bar + Delta_I * P' := by positivity
+    have hr : P * Delta_I - Delta_O_half lam x i L_bar Delta_I
+        = Delta_I * P * (L_bar + P * (Delta_I - L_bar)) / (L_bar + Delta_I * P) :=
+      slippage_residual lam x i L_bar Delta_I (by rw [← hPdef] at *; exact hD)
+    have hr' : P' * Delta_I - Delta_O_half lam y i L_bar Delta_I
+        = Delta_I * P' * (L_bar + P' * (Delta_I - L_bar)) / (L_bar + Delta_I * P') :=
+      slippage_residual lam y i L_bar Delta_I (by rw [← hP'def] at *; exact hD')
+    have hbracket :
+        L_bar ^ 2 - (L_bar - Delta_I) * L_bar * (P + P')
+          - Delta_I * (L_bar - Delta_I) * P * P' ≤ 0 := by
+      nlinarith [hgolden, mul_pos hc hL_bar, mul_pos hDelta_I_pos hc,
+        mul_nonneg (mul_pos hc hL_bar).le (by linarith : (0:ℝ) ≤ P + P' - 2),
+        mul_nonneg (mul_pos hDelta_I_pos hc).le
+          (by nlinarith [mul_pos hPpos hP'pos] : (0:ℝ) ≤ P * P' - 1)]
+    rw [show P_half lam y i * Delta_I - Delta_O_half lam y i L_bar Delta_I
+          = P' * Delta_I - Delta_O_half lam y i L_bar Delta_I from rfl,
+        show P_half lam x i * Delta_I - Delta_O_half lam x i L_bar Delta_I
+          = P * Delta_I - Delta_O_half lam x i L_bar Delta_I from rfl,
+        hr', hr, div_le_div_iff₀ hD'pos hDpos]
+    nlinarith [hbracket, mul_nonneg hDelta_I_pos.le (sub_nonneg.mpr hPP.le)]
+
+/-- **Small-trade band MAXIMIZATION (max-payoff at an endpoint).**
     In the small-trade regime Δ^I < L̄, the trader payoff is U-shaped
     in Δᵢ with global minimum 0 at Δᵢ⋆ = log(L̄/(L̄−Δ^I))/(log λ · i).
     Hence on any admissible band [Δᵢ_min, Δᵢ_max], the max-payoff
-    achievable is the larger of the two endpoint values. -/
+    achievable is the larger of the two endpoint values.
+
+    NARROWING NOTE: the bare small-trade hypothesis `Δ^I < L̄` is *not*
+    enough — the payoff `π(Δᵢ) = residual²` is genuinely U-shaped (so the
+    band-max is an endpoint) only when the residual itself is monotone in
+    Δᵢ. The residual's closed form develops an interior hump on the
+    "left" branch `Δᵢ < Δᵢ⋆` exactly when `Δ^I² + Δ^I·L̄ > L̄²` (i.e. `Δ^I`
+    exceeds the golden-ratio fraction `(√5−1)/2 ≈ 0.618` of `L̄`); there π
+    attains an interior maximum strictly above both endpoints, so the bare
+    statement is false. A concrete counterexample: `L̄ = 1, Δ^I = 0.9`,
+    with the band realizing `P = λ^{i·Δᵢ} ∈ {1.5, 2, 4}` gives
+    `π ≈ (0.238, 0.265, 0.220)` — the interior value `0.265` beats both
+    endpoints.
+
+    We therefore add the precondition `hgolden : Δ^I² + Δ^I·L̄ ≤ L̄²`, the
+    *tight* condition guaranteeing the residual stays monotone (antitone)
+    over the whole admissible range and hence that π is U-shaped. (This
+    bound already implies `Δ^I < L̄`.) -/
 theorem pi_trader_half_band_max_small_trade
     (lam : ℝ) (hlam : 1 < lam)
     (i : Int) (hi_pos : 0 < i)
     (L_bar : ℝ) (hL_bar : 0 < L_bar)
     (Delta_I : ℝ) (hDelta_I_pos : 0 < Delta_I) (hDelta_I_lt : Delta_I < L_bar)
+    (hgolden : Delta_I ^ 2 + Delta_I * L_bar ≤ L_bar ^ 2)
     (Δi_min Δi_max : ℝ) (hΔi_min_pos : 0 < Δi_min) (hΔi_lt : Δi_min ≤ Δi_max)
     (Δi : ℝ) (hΔi_ge : Δi_min ≤ Δi) (hΔi_le : Δi ≤ Δi_max) :
     pi_trader_half lam Δi i L_bar Delta_I
       ≤ max (pi_trader_half lam Δi_min i L_bar Delta_I)
             (pi_trader_half lam Δi_max i L_bar Delta_I) := by
-  sorry
+  have hΔi_pos : 0 < Δi := lt_of_lt_of_le hΔi_min_pos hΔi_ge
+  have hle_min :
+      P_half lam Δi i * Delta_I - Delta_O_half lam Δi i L_bar Delta_I
+        ≤ P_half lam Δi_min i * Delta_I - Delta_O_half lam Δi_min i L_bar Delta_I :=
+    residual_antitone lam hlam i hi_pos L_bar hL_bar Delta_I hDelta_I_pos hDelta_I_lt
+      hgolden Δi_min Δi hΔi_min_pos hΔi_ge
+  have hmax_le :
+      P_half lam Δi_max i * Delta_I - Delta_O_half lam Δi_max i L_bar Delta_I
+        ≤ P_half lam Δi i * Delta_I - Delta_O_half lam Δi i L_bar Delta_I :=
+    residual_antitone lam hlam i hi_pos L_bar hL_bar Delta_I hDelta_I_pos hDelta_I_lt
+      hgolden Δi Δi_max hΔi_pos hΔi_le
+  have key : ∀ r rmin rmax : ℝ, rmax ≤ r → r ≤ rmin →
+      r ^ 2 ≤ max (rmin ^ 2) (rmax ^ 2) := by
+    intro r rmin rmax h1 h2
+    rcases le_or_gt 0 r with hr | hr
+    · exact le_trans (by nlinarith) (le_max_left _ _)
+    · exact le_trans (by nlinarith) (le_max_right _ _)
+  unfold pi_trader_half
+  exact key _ _ _ hmax_le hle_min
 
 end CFMM.Eta
