@@ -519,14 +519,42 @@ noncomputable def sigma_xs_poly (n : ℕ) (d Δi : ℝ) : ℝ :=
        + Δi^2 * (n : ℝ) * ((n : ℝ) - 1) * (2 * (n : ℝ) - 1) / 6
 
 /-- **Variance-target tick spacing (# held fixed at n).**
-    For n ≥ 2 and any σ_target ≥ d², there exists a positive Δᵢ achieving
+    For n ≥ 2 and any σ_target > d², there exists a positive Δᵢ achieving
     sigma_xs_poly n d Δᵢ = σ_target (closed form via the quadratic
     formula's positive-root branch). The protocol can therefore "set
-    cross-section volatility" by inverting σ_xs at fixed n. -/
+    cross-section volatility" by inverting σ_xs at fixed n.
+
+    NARROWING NOTE: the hypothesis was tightened from `d² ≤ σ_target` to
+    `d² < σ_target`. With only the non-strict bound the positive-root
+    branch can collapse to `Δᵢ = 0` (e.g. `d = 0, σ_target = 0`, or any
+    `d < 0` with `σ_target = d²`), so a *strictly* positive root need not
+    exist; the strict bound `d² < σ_target` makes the discriminant exceed
+    `c₁²`, forcing `√disc > |c₁| ≥ c₁` and hence the positive root
+    `(-c₁ + √disc)/(2c₂) > 0`.
+-/
 theorem sigma_xs_poly_target_exists
     (n : ℕ) (hn : 2 ≤ n)
-    (d σ_target : ℝ) (h_target_ge : d^2 ≤ σ_target) :
+    (d σ_target : ℝ) (h_target_gt : d^2 < σ_target) :
     ∃ Δi : ℝ, 0 < Δi ∧ sigma_xs_poly n d Δi = σ_target := by
-  sorry
+  -- Set up the quadratic equation in terms of Δi.
+  set c2 := (n : ℝ) * ((n : ℝ) - 1) * (2 * (n : ℝ) - 1) / 6
+  set c1 := -(d * (n : ℝ) * ((n : ℝ) - 1))
+  set c0 := d^2 - σ_target
+  have h_discriminant : 0 < c1^2 - 4 * c2 * c0 := by
+    simp +zetaDelta at *;
+    nlinarith [ show ( n : ℝ ) ≥ 2 by norm_cast, show ( n : ℝ ) * ( n - 1 ) * ( 2 * n - 1 ) > 0 by exact mul_pos ( mul_pos ( by positivity ) ( by linarith [ show ( n : ℝ ) ≥ 2 by norm_cast ] ) ) ( by linarith [ show ( n : ℝ ) ≥ 2 by norm_cast ] ) ];
+  -- By the quadratic formula, there exists a positive root for the equation $c2 * Δi^2 + c1 * Δi + c0 = 0$.
+  obtain ⟨Δi, hΔi⟩ : ∃ Δi : ℝ, c2 * Δi^2 + c1 * Δi + c0 = 0 ∧ 0 < Δi := by
+    by_cases hc2 : c2 = 0;
+    · exact absurd hc2 ( by exact ne_of_gt ( div_pos ( mul_pos ( mul_pos ( by positivity ) ( by linarith [ show ( n : ℝ ) ≥ 2 by norm_cast ] ) ) ( by linarith [ show ( n : ℝ ) ≥ 2 by norm_cast ] ) ) ( by positivity ) ) );
+    · refine' ⟨ ( -c1 + Real.sqrt ( c1^2 - 4 * c2 * c0 ) ) / ( 2 * c2 ), _, _ ⟩;
+      · field_simp
+        ring;
+        rw [ Real.sq_sqrt ] <;> linarith;
+      · refine' div_pos _ _ <;> norm_num at *;
+        · refine' Real.lt_sqrt_of_sq_lt _;
+          nlinarith [ show 0 < c2 by exact div_pos ( mul_pos ( mul_pos ( Nat.cast_pos.mpr ( by linarith ) ) ( sub_pos.mpr ( Nat.one_lt_cast.mpr ( by linarith ) ) ) ) ( sub_pos.mpr ( by norm_cast; linarith ) ) ) ( by norm_num ) ];
+        · exact lt_of_le_of_ne ( div_nonneg ( mul_nonneg ( mul_nonneg ( Nat.cast_nonneg _ ) ( sub_nonneg.mpr ( Nat.one_le_cast.mpr ( by linarith ) ) ) ) ( sub_nonneg.mpr ( by norm_cast; linarith ) ) ) ( by norm_num ) ) ( Ne.symm hc2 );
+  exact ⟨ Δi, hΔi.2, by unfold sigma_xs_poly; linear_combination hΔi.1 ⟩
 
 end CFMM.Eta
