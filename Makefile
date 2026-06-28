@@ -156,13 +156,7 @@ payoff-fixtures:
 spec-preflight:
 	@mkdir -p $(GAMS_DIR)/$(GAMS_BUILD)/spec
 	@SPEC=docs/superpowers/specs/2026-06-28-payoff-zero-slippage-design.md; \
-	python3 -c "import re, sys; \
-text = open('$$SPEC').read(); \
-secs = re.split(r'^(## \d+\.[^\n]*)\n', text, flags=re.M); \
-out5 = '$(GAMS_DIR)/$(GAMS_BUILD)/spec/_PayoffScaffolding.gms'; \
-out6 = '$(GAMS_DIR)/$(GAMS_BUILD)/spec/eta_pi_trader_zero_slippage.gms'; \
-[open(out5,'w').write(re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', secs[i+1], re.S).group(1)) for i in range(1,len(secs),2) if secs[i].startswith('## 5.')]; \
-[open(out6,'w').write(re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', secs[i+1], re.S).group(1)) for i in range(1,len(secs),2) if secs[i].startswith('## 6.')]"; \
+	python3 -c "import re; text = open('$$SPEC').read(); secs = re.split(r'^(## \d+\.[^\n]*)\n', text, flags=re.M); out5 = '$(GAMS_DIR)/$(GAMS_BUILD)/spec/_PayoffScaffolding.gms'; out6 = '$(GAMS_DIR)/$(GAMS_BUILD)/spec/eta_pi_trader_zero_slippage.gms'; body5 = next((secs[i+1] for i in range(1,len(secs),2) if secs[i].startswith('## 5.')), None); body6 = next((secs[i+1] for i in range(1,len(secs),2) if secs[i].startswith('## 6.')), None); assert body5 is not None, 'spec section missing: ## 5.'; assert body6 is not None, 'spec section missing: ## 6.'; m5 = re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', body5, re.S); m6 = re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', body6, re.S); assert m5 is not None, 'no gams code block in section: ## 5.'; assert m6 is not None, 'no gams code block in section: ## 6.'; open(out5,'w').write(m5.group(1)); open(out6,'w').write(m6.group(1))"; \
 	cp $(GAMS_DIR)/PricingKernel.gms $(GAMS_DIR)/primitives.gms $(GAMS_DIR)/$(GAMS_BUILD)/spec/; \
 	cd $(GAMS_DIR)/$(GAMS_BUILD)/spec && \
 	$(GAMS) eta_pi_trader_zero_slippage.gms action=ce o=run.lst scrdir=. lo=0 >/dev/null 2>&1 ; \
