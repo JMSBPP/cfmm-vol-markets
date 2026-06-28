@@ -158,18 +158,18 @@ payoff-fixtures:
 .PHONY: spec-preflight
 spec-preflight:
 	@rm -rf $(GAMS_DIR)/$(GAMS_BUILD)/spec
-	@mkdir -p $(GAMS_DIR)/$(GAMS_BUILD)/spec/payoff
+	@mkdir -p $(GAMS_DIR)/$(GAMS_BUILD)/spec/payoff $(GAMS_DIR)/$(GAMS_BUILD)/spec/test
 	@SPEC=docs/superpowers/specs/2026-06-28-payoff-zero-slippage-design.md; \
 	ROOT=$(GAMS_DIR)/$(GAMS_BUILD)/spec; \
-	python3 -c "import re; text = open('$$SPEC').read(); secs = re.split(r'^(## \d+\.[^\n]*)\n', text, flags=re.M); body = {n: next((secs[i+1] for i in range(1,len(secs),2) if secs[i].startswith('## %s.' % n)), None) for n in (5,6,7)}; missing = [n for n,b in body.items() if b is None]; assert not missing, 'spec sections missing: %s' % missing; blocks = {n: re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', b, re.S) for n,b in body.items()}; missing = [n for n,m in blocks.items() if m is None]; assert not missing, 'no gams code block in sections: %s' % missing; open('$$ROOT/payoff/_PayoffScaffolding.gms','w').write(blocks[5].group(1)); open('$$ROOT/payoff/eta_pi_trader_zero_slippage.gms','w').write(blocks[6].group(1)); open('$$ROOT/PayoffModule.gms','w').write(blocks[7].group(1))"; \
+	python3 -c "import re; text = open('$$SPEC').read(); secs = re.split(r'^(## \d+\.[^\n]*)\n', text, flags=re.M); body = {n: next((secs[i+1] for i in range(1,len(secs),2) if secs[i].startswith('## %s.' % n)), None) for n in (5,6,7,8)}; missing = [n for n,b in body.items() if b is None]; assert not missing, 'spec sections missing: %s' % missing; blocks = {n: re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', b, re.S) for n,b in body.items()}; missing = [n for n,m in blocks.items() if m is None]; assert not missing, 'no gams code block in sections: %s' % missing; open('$$ROOT/payoff/_PayoffScaffolding.gms','w').write(blocks[5].group(1)); open('$$ROOT/payoff/eta_pi_trader_zero_slippage.gms','w').write(blocks[6].group(1)); open('$$ROOT/PayoffModule.gms','w').write(blocks[7].group(1)); open('$$ROOT/test/PayoffModuleTest.gms','w').write(blocks[8].group(1))"; \
 	cp $(GAMS_DIR)/PricingKernel.gms $(GAMS_DIR)/primitives.gms $(GAMS_DIR)/$(GAMS_BUILD)/spec/; \
 	cd $(GAMS_DIR)/$(GAMS_BUILD)/spec && \
-	$(GAMS) PayoffModule.gms action=ce o=run.lst scrdir=. lo=0 >/dev/null 2>&1 ; \
+	$(GAMS) test/PayoffModuleTest.gms action=ce o=run.lst scrdir=. lo=0 >/dev/null 2>&1 ; \
 	if grep -qE 'Status: (Compilation|Execution) error' run.lst; then \
 		printf 'spec-preflight FAIL: see $(GAMS_DIR)/$(GAMS_BUILD)/spec/run.lst\n'; \
 		grep -A1 '^\*\*\*\*' run.lst | head -10; exit 1; \
 	else \
-		printf 'spec-preflight OK (production layout: model/PayoffModule.gms → payoff/*)\n'; \
+		printf 'spec-preflight OK (production layout: test/PayoffModuleTest.gms → PayoffModule.gms → payoff/*)\n'; \
 	fi
 
 # gams-fixtures: regenerate committed GAMS->Solidity diff fixtures (read-only GAMS run).

@@ -341,12 +341,13 @@ $include payoff/eta_pi_trader_zero_slippage.gms
 
 ```gams
 $title PayoffModule rolled-up assertion test
-$eolcom #
-# action=ce (from `make test-gams`) drives per-program asserts.
-# Invokes a real NLP Solve (CONOPT). make test-gams now requires CONOPT.
+* action=ce (from `make test-gams`) drives per-program asserts.
+* Invokes a real NLP Solve (CONOPT). make test-gams now requires CONOPT.
 $include PayoffModule.gms
 display "PASS: all PayoffModule per-program asserts cleared.";
 ```
+
+Why no `$eolcom #` here: the included `PayoffModule.gms` already declares it (which in turn includes the per-theorem file's own `$offeolcom`/`$eolcom #` pair). Re-declaring the delimiter in the includer triggers GAMS error 286 (duplicate delimiter). Column-1 `*` comments are universally available without setup and match the other `test/` drivers.
 
 ## 9. GDX schema
 
