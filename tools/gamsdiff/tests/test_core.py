@@ -11,6 +11,8 @@ from gamsdiff.core import GridRecord, KernelPoint, records_to_points
 from gamsdiff.core import points_to_fixture, to_json
 # Tunable kernel (elasticity-aware): balanced 50/50 weight, the only EVM-testable eta
 from gamsdiff.core import BALANCED_ETA
+# Task 2: ImpactRecord + impact_records_to_fixture
+from gamsdiff.core import ImpactRecord, impact_records_to_fixture
 
 def test_to_sqrt_price_x96_q96_value_is_rounded_to_int():
     # tick 0 reference: 2^96
@@ -80,9 +82,6 @@ def test_to_json_roundtrips_and_lengths_agree():
     assert len(parsed["ticks"]) == len(parsed["expectedSqrtPriceX96"]) == parsed["count"]
 
 
-# Task 2: ImpactRecord + impact_records_to_fixture
-from gamsdiff.core import ImpactRecord, impact_records_to_fixture
-
 _IMPACT = (
     ImpactRecord(tick=0, sqrt_p_x96=79228162514264337593543950336, amount0_in=100000000000000000,
                  expected_sqrt_price_x96=72025602285694800000000000000),
@@ -99,6 +98,7 @@ def test_impact_fixture_schema():
     assert fx["add"] is True
     assert fx["liquidity"] == "1000000000000000000"
     assert fx["gamsVersion"] == "54.1.0"
+    assert fx["source"] == "model/PriceImpactKernelFixture.gms"
     assert fx["count"] == 2
     assert fx["ticks"] == [0, 0]
     assert fx["sqrtPX96In"] == ["79228162514264337593543950336", "79228162514264337593543950336"]
@@ -107,11 +107,18 @@ def test_impact_fixture_schema():
 
 def test_impact_fixture_rejects_expected_ge_sqrt_p():
     bad = (ImpactRecord(tick=0, sqrt_p_x96=10, amount0_in=5, expected_sqrt_price_x96=10),)
-    import pytest
     with pytest.raises(ValueError):
         impact_records_to_fixture(bad, liquidity=10**18, eta=0.5, gams_version="x", platform="y")
 
 def test_impact_fixture_rejects_empty():
-    import pytest
     with pytest.raises(ValueError):
         impact_records_to_fixture((), liquidity=10**18, eta=0.5, gams_version="x", platform="y")
+
+def test_impact_fixture_rejects_non_positive_liquidity():
+    with pytest.raises(ValueError):
+        impact_records_to_fixture(_IMPACT, liquidity=0, eta=0.5, gams_version="x", platform="y")
+
+def test_impact_fixture_rejects_non_positive_row_value():
+    bad = (ImpactRecord(tick=0, sqrt_p_x96=100, amount0_in=0, expected_sqrt_price_x96=50),)
+    with pytest.raises(ValueError):
+        impact_records_to_fixture(bad, liquidity=10**18, eta=0.5, gams_version="x", platform="y")

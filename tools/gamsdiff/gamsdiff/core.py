@@ -131,7 +131,10 @@ def impact_records_to_fixture(
         raise ValueError(f"non-positive liquidity: {liquidity}")
     for r in records:
         if min(r.sqrt_p_x96, r.amount0_in, r.expected_sqrt_price_x96) <= 0:
-            raise ValueError(f"non-positive value at tick={r.tick}, amount0_in={r.amount0_in}")
+            raise ValueError(
+                f"non-positive value in row (tick={r.tick}): sqrt_p_x96={r.sqrt_p_x96}, "
+                f"amount0_in={r.amount0_in}, expected_sqrt_price_x96={r.expected_sqrt_price_x96}"
+            )
         if r.expected_sqrt_price_x96 >= r.sqrt_p_x96:
             raise ValueError(
                 f"expected ({r.expected_sqrt_price_x96}) must be < sqrt_p ({r.sqrt_p_x96}) "
