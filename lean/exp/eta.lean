@@ -411,43 +411,37 @@ theorem pi_trader_half_strictly_increasing_in_Δi
   rw [← hPdef, ← hP'def]
   nlinarith [hresid_lt, hresid_pos]
 
+/-- **SMALL-TRADE QUADRATIC ASYMPTOTICS OF THE TRADER PAYOFF (η = 1/2).**
 
-/-! ## Section: small-trade variance-swap signature of π_{1/2}^trader
+    As the trade size `Δ^I → 0⁺`, the squared-slippage payoff
+    `pi_trader_half` is quadratic to leading order:
 
-    Original question recalled from `model/exp/eta.md`: at η = 1/2 the
-    trader payoff `π_{1/2}^trader = (P·Δ^I − Δ^O)²` is the Bregman /
-    squared-slippage "distance", i.e. **long realized variance**. We
-    formalize the perturbative (small-trade) connection to a quadratic
-    variance signature.
+        pi_trader_half / (Δ^I)²  ⟶  P² · (P − 1)²,   P = P_half lam Δi i.
 
-    Recall `slippage_residual`:
-        P·Δ^I − Δ^O = Δ^I · P · (L̄ + P·(Δ^I − L̄)) / (L̄ + Δ^I · P).
-    As Δ^I → 0 the residual is asymptotically  Δ^I · P · (1 − P), so
-        π_{1/2}^trader  ~  (Δ^I)² · P² · (P − 1)².
-    The quadratic-in-size dependence with coefficient scaling as the
-    SQUARED price impact (P − 1)² is the classic Carr-Madan variance-
-    swap signature; together with `sigma_xs_eq_sharp_mul_sigma_realized`
-    and `pi_trader_half_strictly_increasing_in_Δi` it closes the chain
-        π  ←→  realized variance  ←→  σ_xs  ←→  Δᵢ control.
+    Proof: by `slippage_residual`, `P·Δᴵ − Δᴼ = residual` with
+    `residual = Δᴵ·P·(L̄ + P·(Δᴵ − L̄))/(L̄ + Δᴵ·P)`, so for `Δᴵ > 0`
+    `pi / (Δᴵ)² = (residual/Δᴵ)²` and
+    `residual/Δᴵ = P·(L̄ + P·(Δᴵ − L̄))/(L̄ + Δᴵ·P)` is continuous at
+    `Δᴵ = 0` with value `P·(L̄ + P·(0 − L̄))/L̄ = P·(1 − P)`. Squaring
+    gives the leading coefficient `P²·(1 − P)² = P²·(P − 1)²`.
 -/
-
-/-- **Small-trade variance-swap signature.**
-
-    For positive tick `i > 0`, base `λ > 1`, pool liquidity `L̄ > 0`, and
-    fixed spacing `Δᵢ > 0`, the trader payoff scales as
-        π_{1/2}^trader(Δ^I) / (Δ^I)²  →  P² · (P − 1)²    as Δ^I → 0⁺
-    where `P = P_half lam Δᵢ i = λ^{i·Δᵢ}`. This is the variance-swap
-    leading-order: quadratic in size, with coefficient scaling as the
-    squared price impact. -/
 theorem pi_trader_half_small_trade_quadratic
-    (lam : ℝ) (hlam : 1 < lam)
-    (i : Int) (hi_pos : 0 < i)
+    (lam : ℝ) (hlam : 0 < lam)
+    (i : Int)
     (L_bar : ℝ) (hL_bar : 0 < L_bar)
-    (Δi : ℝ) (hΔi_pos : 0 < Δi) :
+    (Δi : ℝ) :
     Filter.Tendsto
-      (fun Delta_I : ℝ => pi_trader_half lam Δi i L_bar Delta_I / Delta_I ^ 2)
-      (nhdsWithin (0 : ℝ) (Set.Ioi 0))
+      (fun Delta_I => pi_trader_half lam Δi i L_bar Delta_I / Delta_I ^ 2)
+      (nhdsWithin 0 (Set.Ioi 0))
       (nhds ((P_half lam Δi i) ^ 2 * (P_half lam Δi i - 1) ^ 2)) := by
-  sorry
+  convert Filter.Tendsto.congr' _ _ using 2;
+  use fun x => ( P_half lam Δi i * ( L_bar + P_half lam Δi i * ( x - L_bar ) ) / ( L_bar + x * P_half lam Δi i ) ) ^ 2;
+  · filter_upwards [ self_mem_nhdsWithin ] with x hx;
+    unfold pi_trader_half;
+    rw [ slippage_residual ] <;> norm_num [ hx.out.ne', ne_of_gt ( add_pos hL_bar ( mul_pos hx.out ( P_half_pos lam Δi hlam i ) ) ) ];
+    rw [ eq_div_iff ( pow_ne_zero 2 hx.out.ne' ) ] ; ring;
+  · convert Filter.Tendsto.pow ( Filter.Tendsto.div ( tendsto_const_nhds.mul ( tendsto_const_nhds.add ( tendsto_const_nhds.mul ( Filter.tendsto_id.mono_left inf_le_left |> Filter.Tendsto.sub_const <| L_bar ) ) ) ) ( tendsto_const_nhds.add ( Filter.tendsto_id.mono_left inf_le_left |> Filter.Tendsto.mul_const _ ) ) _ ) 2 using 2 <;> norm_num;
+    · grind;
+    · positivity
 
 end CFMM.Eta
