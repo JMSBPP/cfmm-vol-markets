@@ -1,5 +1,12 @@
 import v3::util::{revert_empty, return_u256};
-import std:constructor:return_runtime;
+import std::constructor::return_runtime;
+
+// Storage slots for the reference market's flat state layout.
+const SLOT_LIQUIDITY = 0;
+const SLOT_TICK_SPACING = 1;
+const SLOT_CURRENT_TICK = 2;
+const SLOT_TICK_LOWER = 3;
+const SLOT_TICK_UPPER = 4;
 
 init {
      // At init time the init value of the vol termStructure is given and
@@ -71,10 +78,10 @@ const handle_state = fn (selector: u256) never {
 	  @evm_return(ptr, 0);
       } else if selector == 0x04211dd1 {
        	  let _tickLower = @evm_calldataload(4);
-	  // NOTE: We set the tickMin to be the tick lower
-	  uint256 _tickSpacing = @evm_sload(SLOT_TICK_SPACING);
+	  // NOTE: We snap the tick lower down to the nearest multiple of the tick spacing.
+	  let _tickSpacing = @evm_sload(SLOT_TICK_SPACING);
 	  let minTick = @evm_sdiv(_tickLower, _tickSpacing) *% _tickSpacing;
-	  @evm_sstore(SLOT_TICK_LOWER, _tickLower);
+	  @evm_sstore(SLOT_TICK_LOWER, minTick);
 	  let ptr = @malloc_uninit(0);
 	  @evm_return(ptr, 0);
       } else if selector == 0x37969917 {
