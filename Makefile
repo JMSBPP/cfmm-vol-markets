@@ -4,6 +4,9 @@ test-utils:
 test-pricing-kernel-diff:
 	forge clean && forge test --match-contract PricingKernelPlankdiffTest -vvvv --via-ir
 
+test-price-impact-diff:
+	forge clean && forge test --match-contract PriceImpactKernelPlankdiffTest -vvvv --via-ir
+
 
 build-random:
 	@plank build src/lib/BinomialProxy.plk --dep v3=lib/plankified-univ3/plank/lib/ --backend 'sona'
