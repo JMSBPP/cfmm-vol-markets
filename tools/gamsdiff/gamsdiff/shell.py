@@ -1,6 +1,7 @@
 """Imperative shell: the only side effects (GAMS execution, GDX read, file write)."""
 import os
 import re
+from dataclasses import dataclass
 
 from gams import GamsWorkspace, GamsOptions
 import gams.transfer as gt
@@ -62,9 +63,6 @@ def write_fixture(path: str, text: str) -> None:
         fh.write(text)
 
 
-from dataclasses import dataclass
-
-
 @dataclass(frozen=True)
 class ImpactGrid:
     """Result of a price-impact GAMS run: the diff rows plus the shared liquidity Lbar."""
@@ -87,6 +85,8 @@ def load_impact_records(*, model_workdir: str, sysdir: str) -> ImpactGrid:
     for sym in ("priceImpact", "priceKernel", "Lbar", "dxVal", "etaWeight"):
         if sym not in c.data:
             raise KeyError(f"symbol {sym!r} not found in {gdx_path}")
+        if c.data[sym].records is None or len(c.data[sym].records) == 0:
+            raise ValueError(f"symbol {sym!r} has no records in {gdx_path}")
 
     eta = float(c.data["etaWeight"].records["value"].iloc[0])
     if eta != 0.5:
@@ -94,36 +94,35 @@ def load_impact_records(*, model_workdir: str, sysdir: str) -> ImpactGrid:
     liquidity = round(float(c.data["Lbar"].records["value"].iloc[0]))
 
     dx_df = c.data["dxVal"].records
-    dx_cols = list(dx_df.columns)
-    dxmap = {str(row[dx_cols[0]]): round(float(row[dx_cols[-1]])) for _, row in dx_df.iterrows()}
+    dxmap = {str(row["dxD"]): round(float(row["value"])) for _, row in dx_df.iterrows()}
 
     pk = c.data["priceKernel"].records
-    pk_cols = list(pk.columns)
-    pk_s1 = pk[pk[pk_cols[0]].astype(str) == "s1"]
+    pk_s1 = pk[pk["tickSpacingDomain"].astype(str) == "s1"]
     sqrtp: dict[int, int] = {}
     for _, row in pk_s1.iterrows():
-        m = _LABEL_RE.match(str(row[pk_cols[1]]))
+        m = _LABEL_RE.match(str(row["tick"]))
         if not m:
-            raise ValueError(f"unexpected priceKernel tick label: {row[pk_cols[1]]!r}")
-        sqrtp[int(m.group(1))] = round(float(row[pk_cols[-1]]))
+            raise ValueError(f"unexpected priceKernel tick label: {row['tick']!r}")
+        sqrtp[int(m.group(1))] = round(float(row["value"]))
+    if not sqrtp:
+        raise ValueError("priceKernel has no records for s1 — cannot build sqrtP lookup")
 
     pi = c.data["priceImpact"].records
-    pi_cols = list(pi.columns)
-    pi_s1 = pi[pi[pi_cols[0]].astype(str) == "s1"]
+    pi_s1 = pi[pi["s"].astype(str) == "s1"]
     if len(pi_s1) == 0:
         raise ValueError("no priceImpact records for s1")
     records: list[ImpactRecord] = []
     for _, row in pi_s1.iterrows():
-        m = _LABEL_RE.match(str(row[pi_cols[1]]))
+        m = _LABEL_RE.match(str(row["tick"]))
         if not m:
-            raise ValueError(f"unexpected priceImpact tick label: {row[pi_cols[1]]!r}")
+            raise ValueError(f"unexpected priceImpact tick label: {row['tick']!r}")
         n = int(m.group(1))
         records.append(
             ImpactRecord(
                 tick=tick_from_grid(n),
                 sqrt_p_x96=sqrtp[n],
-                amount0_in=dxmap[str(row[pi_cols[2]])],
-                expected_sqrt_price_x96=round(float(row[pi_cols[-1]])),
+                amount0_in=dxmap[str(row["dxD"])],
+                expected_sqrt_price_x96=round(float(row["value"])),
             )
         )
     records.sort(key=lambda r: (r.tick, r.amount0_in))
