@@ -582,4 +582,60 @@ theorem sigma_xs_poly_target_exists
         · exact lt_of_le_of_ne ( div_nonneg ( mul_nonneg ( mul_nonneg ( Nat.cast_nonneg _ ) ( sub_nonneg.mpr ( Nat.one_le_cast.mpr ( by linarith ) ) ) ) ( sub_nonneg.mpr ( by norm_cast; linarith ) ) ) ( by norm_num ) ) ( Ne.symm hc2 );
   exact ⟨ Δi, hΔi.2, by unfold sigma_xs_poly; linear_combination hΔi.1 ⟩
 
+
+/-! ## Section: trader-payoff MAXIMIZATION (band-max companions)
+
+    Per the variance-swap framing (`eta_pi_trader_zero_slippage.md`), the
+    trader is LONG realized variance; the trader-welfare optimization is
+    therefore MAX over Δᵢ, not min. These companion theorems give the
+    max-side answer on a bounded admissible band [Δᵢ_min, Δᵢ_max]:
+
+      • LARGE-trade regime (L̄ ≤ Δ^I): π monotonic-increasing in Δᵢ, so
+        max π over the band is at the RIGHT endpoint Δᵢ_max. Trivial
+        corollary of `pi_trader_half_strictly_increasing_in_Δi`, proved
+        inline.
+
+      • SMALL-trade regime (Δ^I < L̄): π is U-shaped in Δᵢ with global
+        minimum at Δᵢ⋆ (from `pi_trader_half_zero_at_deltaI_star`).
+        Max π over the band is at the endpoint FARTHEST from Δᵢ⋆ —
+        equivalently, π(Δᵢ) is bounded above by max(π(Δᵢ_min), π(Δᵢ_max)).
+        Substantive; left as `sorry` for Aristotle.
+-/
+
+/-- **Large-trade band MAXIMIZATION (max-payoff companion to band-min).**
+    Dual of `pi_trader_half_band_min_at_left`: on the band, π is bounded
+    ABOVE by π(Δᵢ_max). Trader-favored Δᵢ choice in this regime is the
+    right endpoint of the band. -/
+theorem pi_trader_half_band_max_large_trade
+    (lam : ℝ) (hlam : 1 < lam)
+    (i : Int) (hi_pos : 0 < i)
+    (L_bar : ℝ) (hL_bar : 0 < L_bar)
+    (Delta_I : ℝ) (hDelta_I : 0 < Delta_I) (hDI : L_bar ≤ Delta_I)
+    (Δi_min : ℝ) (hΔi_min_pos : 0 < Δi_min)
+    (Δi Δi_max : ℝ) (hΔi_ge : Δi_min ≤ Δi) (hΔi_le : Δi ≤ Δi_max) :
+    pi_trader_half lam Δi i L_bar Delta_I
+      ≤ pi_trader_half lam Δi_max i L_bar Delta_I := by
+  have hΔi_pos : 0 < Δi := lt_of_lt_of_le hΔi_min_pos hΔi_ge
+  rcases lt_or_eq_of_le hΔi_le with h | h
+  · exact le_of_lt (pi_trader_half_strictly_increasing_in_Δi
+      lam hlam i hi_pos L_bar hL_bar Delta_I hDelta_I hDI Δi Δi_max hΔi_pos h)
+  · rw [h]
+
+/-- **Small-trade band MAXIMIZATION (max-payoff at endpoint farthest from Δᵢ⋆).**
+    In the small-trade regime Δ^I < L̄, the trader payoff is U-shaped
+    in Δᵢ with global minimum 0 at Δᵢ⋆ = log(L̄/(L̄−Δ^I))/(log λ · i).
+    Hence on any admissible band [Δᵢ_min, Δᵢ_max], the max-payoff
+    achievable is the larger of the two endpoint values. -/
+theorem pi_trader_half_band_max_small_trade
+    (lam : ℝ) (hlam : 1 < lam)
+    (i : Int) (hi_pos : 0 < i)
+    (L_bar : ℝ) (hL_bar : 0 < L_bar)
+    (Delta_I : ℝ) (hDelta_I_pos : 0 < Delta_I) (hDelta_I_lt : Delta_I < L_bar)
+    (Δi_min Δi_max : ℝ) (hΔi_min_pos : 0 < Δi_min) (hΔi_lt : Δi_min ≤ Δi_max)
+    (Δi : ℝ) (hΔi_ge : Δi_min ≤ Δi) (hΔi_le : Δi ≤ Δi_max) :
+    pi_trader_half lam Δi i L_bar Delta_I
+      ≤ max (pi_trader_half lam Δi_min i L_bar Delta_I)
+            (pi_trader_half lam Δi_max i L_bar Delta_I) := by
+  sorry
+
 end CFMM.Eta
