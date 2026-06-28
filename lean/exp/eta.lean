@@ -72,6 +72,12 @@ theorem eta_split_kernel_identity
     (hi_plus  : IsInt24 (tickSplit_plus η i)) :
     P_half lam Δi (tickSplit_minus η i) * P_half lam Δi (tickSplit_plus η i)
       = P_half lam Δi i := by
-  sorry
+  unfold P_half
+  rw [← Real.rpow_add hlam]
+  congr 1
+  have hi2 : (i : ℝ) = (tickSplit_minus η i : ℝ) + (tickSplit_plus η i : ℝ) := by
+    rw [← Int.cast_add, tickSplit_sum]
+  rw [hi2]
+  ring
 
 end CFMM.Eta

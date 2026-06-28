@@ -38,3 +38,9 @@ node_modules/
 # Python caches
 __pycache__/
 *.pyc
+
+# Aristotle result archives (from `aristotle submit/download` to lean/)
+lean/.aristotle-*.tar.gz
+lean/.aristotle-out/
+# Lake build artifacts (lean/)
+lean/.lake/
