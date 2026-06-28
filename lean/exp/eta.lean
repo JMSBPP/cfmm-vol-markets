@@ -444,4 +444,89 @@ theorem pi_trader_half_small_trade_quadratic
     · grind;
     · positivity
 
+
+/-! ## Section: tick-spacing optimization programs
+
+    The protocol chooses Δᵢ to optimize the trader's distance/payoff
+    π_{1/2}^trader, subject to the η = 1/2 trading invariant (encoded
+    implicitly in `pi_trader_half` via the Plank-derived `Delta_O_half`).
+
+    Three optimization sub-questions, parallel (no internal dependencies
+    other than already-proven theorems):
+
+      (1) Small-trade regime (Δ^I < L̄): closed-form Δᵢ⋆ that ZEROES the
+          slippage. Theorem `pi_trader_half_zero_at_deltaI_star`.
+
+      (2) Large-trade regime (L̄ ≤ Δ^I): trivial corollary of monotonicity
+          (the band-minimum is the left endpoint). Theorem
+          `pi_trader_half_band_min_at_left` — proved here inline.
+
+      (3) Variance-target Δᵢ: invert the σ_xs polynomial (with # held
+          fixed as a free parameter `n` decoupled from the `sharp` floor)
+          to hit a desired σ_target. Theorem `sigma_xs_poly_target_exists`.
+
+    All three give the protocol an explicit Δᵢ policy as a function of
+    the observable state, enabling feedback control.
+-/
+
+/-- **Large-trade band minimization (corollary of monotonicity).**
+    On the controllable regime (i > 0, λ > 1, L̄ > 0, L̄ ≤ Δ^I), trader
+    payoff is monotonic-increasing in Δᵢ; over any bounded band
+    [Δᵢ_min, Δᵢ_max] with Δᵢ_min > 0, the minimizer is at the left
+    endpoint Δᵢ_min. -/
+theorem pi_trader_half_band_min_at_left
+    (lam : ℝ) (hlam : 1 < lam)
+    (i : Int) (hi_pos : 0 < i)
+    (L_bar : ℝ) (hL_bar : 0 < L_bar)
+    (Delta_I : ℝ) (hDelta_I : 0 < Delta_I) (hDI : L_bar ≤ Delta_I)
+    (Δi_min : ℝ) (hΔi_min : 0 < Δi_min)
+    (Δi : ℝ) (hΔi_ge : Δi_min ≤ Δi) :
+    pi_trader_half lam Δi_min i L_bar Delta_I
+      ≤ pi_trader_half lam Δi i L_bar Delta_I := by
+  rcases lt_or_eq_of_le hΔi_ge with h | h
+  · exact le_of_lt (pi_trader_half_strictly_increasing_in_Δi
+      lam hlam i hi_pos L_bar hL_bar Delta_I hDelta_I hDI Δi_min Δi hΔi_min h)
+  · rw [← h]
+
+/-- The **closed-form zero-slippage tick spacing** in the small-trade regime:
+        Δᵢ⋆(λ, i, L̄, Δ^I)  :=  log(L̄ / (L̄ − Δ^I)) / (log λ · i).
+    At this Δᵢ⋆, the pricing kernel `P = λ^{i·Δᵢ⋆}` equals `L̄/(L̄ − Δ^I)`,
+    which is precisely the root of the slippage residual (cf.
+    `slippage_residual`). -/
+noncomputable def deltaI_star (lam : ℝ) (i : Int) (L_bar Delta_I : ℝ) : ℝ :=
+  Real.log (L_bar / (L_bar - Delta_I)) / (Real.log lam * (i : ℝ))
+
+/-- **Small-trade zero-slippage optimum.**
+    For 0 < Δ^I < L̄, i > 0, λ > 1, the tick spacing `Δᵢ⋆` defined above
+    drives trader slippage to zero:
+        pi_trader_half lam (deltaI_star ...) i L̄ Δ^I = 0.
+    Since π ≥ 0 always (it is a square), Δᵢ⋆ is a global minimizer. -/
+theorem pi_trader_half_zero_at_deltaI_star
+    (lam : ℝ) (hlam : 1 < lam)
+    (i : Int) (hi_pos : 0 < i)
+    (L_bar : ℝ) (hL_bar : 0 < L_bar)
+    (Delta_I : ℝ) (hDelta_I_pos : 0 < Delta_I) (hDelta_I_lt : Delta_I < L_bar) :
+    pi_trader_half lam (deltaI_star lam i L_bar Delta_I) i L_bar Delta_I = 0 := by
+  sorry
+
+/-- The σ_xs polynomial in Δᵢ with the tick count `n` held as a FREE
+    parameter (decoupled from the `sharp` floor). This is the algebraic
+    skeleton of `sigma_xs` once `#` is treated as decoupled from Δᵢ:
+        sigma_xs_poly(n, d, Δᵢ) = d² − Δᵢ·d·n·(n−1) + Δᵢ²·n·(n−1)·(2n−1)/6
+    where d = (i_- − i_μ). -/
+noncomputable def sigma_xs_poly (n : ℕ) (d Δi : ℝ) : ℝ :=
+  d^2 - Δi * d * (n : ℝ) * ((n : ℝ) - 1)
+       + Δi^2 * (n : ℝ) * ((n : ℝ) - 1) * (2 * (n : ℝ) - 1) / 6
+
+/-- **Variance-target tick spacing (# held fixed at n).**
+    For n ≥ 2 and any σ_target ≥ d², there exists a positive Δᵢ achieving
+    sigma_xs_poly n d Δᵢ = σ_target (closed form via the quadratic
+    formula's positive-root branch). The protocol can therefore "set
+    cross-section volatility" by inverting σ_xs at fixed n. -/
+theorem sigma_xs_poly_target_exists
+    (n : ℕ) (hn : 2 ≤ n)
+    (d σ_target : ℝ) (h_target_ge : d^2 ≤ σ_target) :
+    ∃ Δi : ℝ, 0 < Δi ∧ sigma_xs_poly n d Δi = σ_target := by
+  sorry
+
 end CFMM.Eta
