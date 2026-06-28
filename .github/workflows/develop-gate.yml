@@ -28,8 +28,14 @@ jobs:
         with:
           submodules: false
           persist-credentials: false
-      # targeted closure init (panoptic-safe; NOT recursive-all). Heavy on a cold runner; idempotent after.
-      - run: git submodule update --init --recursive lib/bunni-v2 lib/forge-std lib/plank-foundry-deployer lib/plankified-univ3
+      # forge auto-runs `git submodule update --init --recursive` (even with --offline) and HANGS on
+      # panoptic-v2-core's self-recursive nesting. Strip the 3 NON-closure submodules from .gitmodules so the
+      # auto-init only touches the safe closure (bunni-v2/forge-std/plank-foundry-deployer/plankified-univ3/v3-core).
+      - run: |
+          for s in panoptic-v2-core protocol plank-monorepo; do
+            git config -f .gitmodules --remove-section "submodule.lib/$s" 2>/dev/null || true
+          done
+          git submodule update --init --recursive
       - run: forge test --via-ir --offline
 
   gams:
