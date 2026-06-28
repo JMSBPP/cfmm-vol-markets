@@ -496,6 +496,20 @@ theorem pi_trader_half_band_min_at_left
 noncomputable def deltaI_star (lam : ℝ) (i : Int) (L_bar Delta_I : ℝ) : ℝ :=
   Real.log (L_bar / (L_bar - Delta_I)) / (Real.log lam * (i : ℝ))
 
+/-- At the zero-slippage spacing `Δᵢ⋆`, the η = 1/2 pricing kernel
+    evaluates to `P = L̄/(L̄ − Δ^I)`. -/
+lemma P_half_at_deltaI_star
+    (lam : ℝ) (hlam : 1 < lam)
+    (i : Int) (hi_pos : 0 < i)
+    (L_bar : ℝ) (hL_bar : 0 < L_bar)
+    (Delta_I : ℝ) (hDelta_I_lt : Delta_I < L_bar) :
+    P_half lam (deltaI_star lam i L_bar Delta_I) i = L_bar / (L_bar - Delta_I) := by
+  unfold P_half deltaI_star
+  rw [mul_div, mul_comm, mul_div_mul_right _ _ (by positivity),
+      Real.rpow_def_of_pos (by positivity), mul_comm,
+      div_mul_cancel₀ _ (ne_of_gt (Real.log_pos hlam)),
+      Real.exp_log (div_pos hL_bar (sub_pos.mpr hDelta_I_lt))]
+
 /-- **Small-trade zero-slippage optimum.**
     For 0 < Δ^I < L̄, i > 0, λ > 1, the tick spacing `Δᵢ⋆` defined above
     drives trader slippage to zero:
@@ -507,7 +521,18 @@ theorem pi_trader_half_zero_at_deltaI_star
     (L_bar : ℝ) (hL_bar : 0 < L_bar)
     (Delta_I : ℝ) (hDelta_I_pos : 0 < Delta_I) (hDelta_I_lt : Delta_I < L_bar) :
     pi_trader_half lam (deltaI_star lam i L_bar Delta_I) i L_bar Delta_I = 0 := by
-  sorry
+  have hlam0 : 0 < lam := by linarith
+  have hP := P_half_at_deltaI_star lam hlam i hi_pos L_bar hL_bar Delta_I hDelta_I_lt
+  have hPpos := P_half_pos lam (deltaI_star lam i L_bar Delta_I) hlam0 i
+  have hden : L_bar + Delta_I * P_half lam (deltaI_star lam i L_bar Delta_I) i ≠ 0 := by
+    positivity
+  have hne : L_bar - Delta_I ≠ 0 := by linarith
+  unfold pi_trader_half
+  rw [slippage_residual lam (deltaI_star lam i L_bar Delta_I) i L_bar Delta_I hden, hP]
+  have hbracket : L_bar + L_bar / (L_bar - Delta_I) * (Delta_I - L_bar) = 0 := by
+    field_simp; ring
+  rw [hbracket]
+  simp
 
 /-- The σ_xs polynomial in Δᵢ with the tick count `n` held as a FREE
     parameter (decoupled from the `sharp` floor). This is the algebraic
