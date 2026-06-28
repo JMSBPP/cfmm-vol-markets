@@ -3,6 +3,8 @@
   "source": "model/PricingKernel.gms",
   "scale": "Q64.96",
   "spacing": 1,
+  "eta": 0.5,
+  "kernel": "tunablePricingKernel(eta=0.5)",
   "gamsVersion": "54.1.0",
   "platform": "linux-x86_64",
   "count": 241,

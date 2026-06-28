@@ -19,6 +19,7 @@ model/**/*.lst
 model/**/*.g00
 model/**/*.lxi
 model/**/*.gdx
+!model/price_impact_kernel.gdx
 model/225*/
 
 # Plank compiled bytecode (make compile-plank)
@@ -44,3 +45,6 @@ lean/.aristotle-*.tar.gz
 lean/.aristotle-out/
 # Lake build artifacts (lean/)
 lean/.lake/
+
+# gamsdiff: transient all-symbols GDX from the price-impact driver run
+model/price_impact_all.gdx

@@ -87,7 +87,7 @@ GAMS_SKIP  :=
 compile-gams:
 	@mkdir -p $(GAMS_DIR)/$(GAMS_BUILD)
 	@cd $(GAMS_DIR) && rc=0; ok=0; fail=0; skip=0; \
-	for f in $$(find . -name '*.gms' | sed 's|^\./||' | sort); do \
+	for f in $$(find . -name '*.gms' -not -path './test/*' -not -path './build/*' | sed 's|^\./||' | sort); do \
 		case " $(GAMS_SKIP) " in \
 			*" $$f "*) printf '   SKIP %s  (fragment/stub — BUILD.md)\n' "$$f"; skip=$$((skip+1)); continue;; \
 		esac; \
@@ -103,6 +103,25 @@ compile-gams:
 	printf '\ncompile-gams: %s ok, %s failed, %s skipped\n' "$$ok" "$$fail" "$$skip"; \
 	exit $$rc
 
+# test-gams: run GAMS assertion tests under model/test/ with action=ce (execute,
+# so `abort$$(...)` checks actually fire). A failing assertion returns a non-zero
+# GAMS exit code, which fails the build. No Model/Solve -> no solver/license.
+test-gams:
+	@mkdir -p $(GAMS_DIR)/$(GAMS_BUILD)
+	@cd $(GAMS_DIR) && rc=0; ok=0; fail=0; \
+	for f in $$(find test -name '*.gms' 2>/dev/null | sed 's|^\./||' | sort); do \
+		out="$(GAMS_BUILD)/$$(echo "$$f" | tr / _ | sed 's/\.gms$$//').lst"; \
+		printf '>> testing %s\n' "$$f"; \
+		if $(GAMS) "$$f" action=ce o="$$out" scrdir="$(GAMS_BUILD)" lo=0 >/dev/null 2>&1; then \
+			printf '   PASS %s\n' "$$f"; ok=$$((ok+1)); \
+		else \
+			printf '   FAIL %s  (gams rc=%s) -> %s/%s\n' "$$f" "$$?" "$(GAMS_DIR)" "$$out"; \
+			fail=$$((fail+1)); rc=1; \
+		fi; \
+	done; \
+	printf '\ntest-gams: %s passed, %s failed\n' "$$ok" "$$fail"; \
+	exit $$rc
+
 # clean-gams: remove GAMS listings, save/scratch, and build artifacts.
 clean-gams:
 	@rm -rf $(GAMS_DIR)/$(GAMS_BUILD) $(GAMS_DIR)/225* \
@@ -113,4 +132,4 @@ clean-gams:
 gams-fixtures:
 	uv run --project tools/gamsdiff gamsdiff
 
-.PHONY: compile-plank clean-plank compile-gams clean-gams
+.PHONY: compile-plank clean-plank compile-gams test-gams clean-gams

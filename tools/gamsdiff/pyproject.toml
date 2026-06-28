@@ -10,6 +10,7 @@ dependencies = [
 
 [project.scripts]
 gamsdiff = "gamsdiff.__main__:main"
+gamsdiff-impact = "gamsdiff.__main__:main_impact"
 
 [dependency-groups]
 dev = ["pytest"]
