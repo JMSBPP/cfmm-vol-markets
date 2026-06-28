@@ -152,4 +152,79 @@ theorem eta_Δi_independent_in_sigma_and_L_eta
     exact hXY <| Real.log_injOn_pos hX hY <|
       mul_left_cancel₀ (sub_ne_zero_of_ne hc_ne) <| by nlinarith
 
+/-! ## Section: tick-spacing as a control knob for trader payoff (fixed η = 1/2)
+
+    Open question forwarded from `model/exp/eta.md`: at fixed η = 1/2, the
+    trader payoff is `π_{1/2}^trader = (P_{1/2}(i)·Δ^I − Δ^O)²` (squared
+    slippage / variance-swap). With Δ^O the Plank-derived output, this
+    becomes a function of Δᵢ via `P_{1/2}(i) = λ^{i·Δᵢ}`. What is the
+    formal connection to `σ_{Δᵢ}` (KERNEL.md cross-section vol-term-
+    structure), and can the protocol control π by adaptively choosing Δᵢ?
+
+    Below we define:
+      • `P_half_post` — new sqrt-price after a Δ^I swap (Plank's
+        getNextSqrtPriceFromAmount0RoundingUp), and
+      • `Delta_O_half`  — output amount (Plank's getAmount1DeltaUnsigned),
+      • `pi_trader_half` — the η = 1/2 trader payoff,
+      • `sigma_xs`      — KERNEL.md cross-section vol (quadratic in Δᵢ).
+
+    The control theorem `pi_trader_half_strictly_increasing_in_Δi` then
+    asserts that for i > 0 and λ > 1, π is strictly monotonic in Δᵢ — so
+    the protocol can deterministically move the trader's payoff by
+    adjusting tick spacing. Since `sigma_xs` is also a polynomial in Δᵢ,
+    both observables move together with Δᵢ; that is the formal connection.
+-/
+
+/-- New sqrt-price after a Δ^I-of-X swap, η = 1/2 (Plank's
+    `getNextSqrtPriceFromAmount0RoundingUp` after Q96 factors cancel):
+        P' = L̄ · P(i) / (L̄ + Δ^I · P(i))
+    where `P(i) = P_half lam Δi i` is the pre-trade sqrt-price. -/
+noncomputable def P_half_post (lam Δi : ℝ) (i : Int) (L_bar Delta_I : ℝ) : ℝ :=
+  let P := P_half lam Δi i
+  L_bar * P / (L_bar + Delta_I * P)
+
+/-- Output Y amount for a Δ^I-of-X swap, η = 1/2 (Plank's
+    `getAmount1DeltaUnsigned`):
+        Δ^O = L̄ · (P(i) − P'(Δ^I)). -/
+noncomputable def Delta_O_half (lam Δi : ℝ) (i : Int) (L_bar Delta_I : ℝ) : ℝ :=
+  L_bar * (P_half lam Δi i - P_half_post lam Δi i L_bar Delta_I)
+
+/-- Trader payoff at η = 1/2 (Carr-Madan variance / squared-slippage form):
+        π_{1/2}^trader = (P(i) · Δ^I − Δ^O)². -/
+noncomputable def pi_trader_half (lam Δi : ℝ) (i : Int) (L_bar Delta_I : ℝ) : ℝ :=
+  (P_half lam Δi i * Delta_I - Delta_O_half lam Δi i L_bar Delta_I)^2
+
+/-- KERNEL.md cross-section volatility-term-structure σ(Δᵢ), the
+    closed-form geometric-sum reduction:
+      σ_xs(Δᵢ; i_-, i_μ, #) =
+        (i_- − i_μ)²
+        − Δᵢ · (i_- − i_μ) · # · (# − 1)
+        + Δᵢ² · # · (# − 1) · (2# − 1) / 6.
+    (Quadratic in Δᵢ; coefficient of Δᵢ² is positive for # ≥ 2.) -/
+noncomputable def sigma_xs (Δi : ℝ) (i_minus i_mu : Int) (sharp : ℕ) : ℝ :=
+  let d := ((i_minus - i_mu : Int) : ℝ)
+  let n := (sharp : ℝ)
+  d^2 - Δi * d * n * (n - 1) + Δi^2 * n * (n - 1) * (2 * n - 1) / 6
+
+/-- **CONTROL VIA TICK SPACING (fixed η = 1/2).**
+
+    For positive tick i > 0, base λ > 1, pool liquidity L̄ > 0, and trade
+    size Δ^I > 0, the trader payoff `pi_trader_half` is strictly
+    increasing in Δᵢ over Δᵢ > 0.
+
+    Hence tick spacing is a one-parameter control knob for trader payoff:
+    by adaptively choosing Δᵢ, the protocol monotonically moves π. Since
+    `sigma_xs` is also a polynomial function of Δᵢ, both observables move
+    together with Δᵢ — that is the formal connection between π and σ_{Δᵢ}
+    posed in `model/exp/eta.md`. -/
+theorem pi_trader_half_strictly_increasing_in_Δi
+    (lam : ℝ) (hlam : 1 < lam)
+    (i : Int) (hi_pos : 0 < i)
+    (L_bar : ℝ) (hL_bar : 0 < L_bar)
+    (Delta_I : ℝ) (hDelta_I : 0 < Delta_I)
+    (Δi Δi' : ℝ) (hΔi_pos : 0 < Δi) (hΔi_lt : Δi < Δi') :
+    pi_trader_half lam Δi  i L_bar Delta_I
+      < pi_trader_half lam Δi' i L_bar Delta_I := by
+  sorry
+
 end CFMM.Eta
