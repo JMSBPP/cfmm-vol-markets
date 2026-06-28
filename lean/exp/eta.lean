@@ -20,8 +20,10 @@
   λ^{a·Δ_i} · λ^{b·Δ_i} = λ^{(a+b)·Δ_i}.
 -/
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import Mathlib.Algebra.BigOperators.Group.Finset
 
 open Real
+open scoped BigOperators
 
 namespace CFMM.Eta
 
@@ -194,17 +196,74 @@ noncomputable def Delta_O_half (lam Δi : ℝ) (i : Int) (L_bar Delta_I : ℝ) :
 noncomputable def pi_trader_half (lam Δi : ℝ) (i : Int) (L_bar Delta_I : ℝ) : ℝ :=
   (P_half lam Δi i * Delta_I - Delta_O_half lam Δi i L_bar Delta_I)^2
 
+/-- KERNEL.md tick count: `# = (i_+ − i_−) / Δᵢ`.
+
+    Implemented as the floor of the rational quotient cast to `ℕ`. The
+    floor is exact (and `toNat` is the identity) under the typical
+    KERNEL.md regime where `Δᵢ` evenly divides `(i_+ − i_−)`; for
+    misaligned spacings the floor under-counts by at most one tick. By
+    construction this is **always** the `#` of KERNEL.md when the inputs
+    are well-formed (i.e. `i_minus ≤ i_plus` and `Δᵢ > 0`), so any
+    downstream theorem about `sigma_xs` automatically binds `#` to the
+    spec — no separate consistency precondition needed. -/
+noncomputable def sharp (i_minus i_plus : Int) (Δi : ℝ) : ℕ :=
+  ⌊((i_plus - i_minus : Int) : ℝ) / Δi⌋.toNat
+
 /-- KERNEL.md cross-section volatility-term-structure σ(Δᵢ), the
-    closed-form geometric-sum reduction:
-      σ_xs(Δᵢ; i_-, i_μ, #) =
+    closed-form geometric-sum reduction, with `#` derived from
+    `(i_-, i_+, Δᵢ)` per KERNEL.md (`sharp` above):
+      σ_xs(i_-, i_+, i_μ, Δᵢ) =
         (i_- − i_μ)²
         − Δᵢ · (i_- − i_μ) · # · (# − 1)
         + Δᵢ² · # · (# − 1) · (2# − 1) / 6.
-    (Quadratic in Δᵢ; coefficient of Δᵢ² is positive for # ≥ 2.) -/
-noncomputable def sigma_xs (Δi : ℝ) (i_minus i_mu : Int) (sharp : ℕ) : ℝ :=
+    Quadratic in Δᵢ; coefficient of Δᵢ² is positive for `# ≥ 2`. -/
+noncomputable def sigma_xs (i_minus i_plus i_mu : Int) (Δi : ℝ) : ℝ :=
+  let n := (sharp i_minus i_plus Δi : ℝ)
   let d := ((i_minus - i_mu : Int) : ℝ)
-  let n := (sharp : ℝ)
   d^2 - Δi * d * n * (n - 1) + Δi^2 * n * (n - 1) * (2 * n - 1) / 6
+
+/-- Realized (averaged) cross-section variance over the `#` discrete tick
+    positions of the span. With `i_k = i_- + k·Δᵢ` for `k = 0, …, # − 1`:
+
+        σ_realized = (1/#) · Σ_{k=0}^{#-1} (i_- + k·Δᵢ − i_μ)².
+
+    User-posed (in `model/exp/eta.md`) as a candidate restatement of the
+    KERNEL.md cross-section vol-term-structure `sigma_xs`. -/
+noncomputable def sigma_realized (i_minus i_plus i_mu : Int) (Δi : ℝ) : ℝ :=
+  let n := sharp i_minus i_plus Δi
+  (1 / (n : ℝ)) * ∑ k ∈ Finset.range n,
+    ((i_minus : ℝ) + (k : ℝ) * Δi - (i_mu : ℝ))^2
+
+/-- **Connection between `sigma_xs` (KERNEL.md closed form) and
+    `sigma_realized` (user-posed averaged-variance form).**
+
+    Most natural candidate identity:
+        sigma_xs = # · sigma_realized.
+
+    If this exact equality fails on the stated preconditions, Aristotle
+    may narrow by adding hypotheses, OR replace the RHS with the correct
+    closed-form algebraic relation between `sigma_xs` and `sigma_realized`
+    (e.g. `sigma_xs = a · sigma_realized + b` for some `a, b` polynomial
+    in `i_-, i_+, i_μ, Δᵢ`). In either case the theorem name and the
+    spirit (sigma_xs is some explicit function of sigma_realized) should
+    survive — adjust the conclusion to state whatever identity holds.
+
+    Hypotheses:
+      • `Δᵢ > 0`,
+      • `i_minus < i_plus`     (`i_+ > i_-`, strict),
+      • `i_minus ≤ i_mu`, `i_mu ≤ i_plus`  (i_μ free in [i_-, i_+]),
+      • `0 < sharp i_minus i_plus Δi`  (`# ≥ 1`, the sum is non-empty
+        and the `1/#` is well-defined). -/
+theorem sigma_xs_eq_sharp_mul_sigma_realized
+    (i_minus i_plus i_mu : Int) (Δi : ℝ)
+    (hΔi : 0 < Δi)
+    (hi_lt : i_minus < i_plus)
+    (hi_mu_lo : i_minus ≤ i_mu) (hi_mu_hi : i_mu ≤ i_plus)
+    (h_sharp_pos : 0 < sharp i_minus i_plus Δi) :
+    sigma_xs i_minus i_plus i_mu Δi
+      = (sharp i_minus i_plus Δi : ℝ)
+          * sigma_realized i_minus i_plus i_mu Δi := by
+  sorry
 
 /-- The pricing kernel is strictly positive whenever the base is. -/
 lemma P_half_pos (lam Δi : ℝ) (hlam : 0 < lam) (i : Int) :
