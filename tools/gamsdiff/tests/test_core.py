@@ -78,3 +78,40 @@ def test_to_json_roundtrips_and_lengths_agree():
                            gams_version="54.1.0", platform="linux-x86_64", eta=BALANCED_ETA)
     parsed = json.loads(to_json(fx))
     assert len(parsed["ticks"]) == len(parsed["expectedSqrtPriceX96"]) == parsed["count"]
+
+
+# Task 2: ImpactRecord + impact_records_to_fixture
+from gamsdiff.core import ImpactRecord, impact_records_to_fixture
+
+_IMPACT = (
+    ImpactRecord(tick=0, sqrt_p_x96=79228162514264337593543950336, amount0_in=100000000000000000,
+                 expected_sqrt_price_x96=72025602285694800000000000000),
+    ImpactRecord(tick=0, sqrt_p_x96=79228162514264337593543950336, amount0_in=1000000000000000000,
+                 expected_sqrt_price_x96=39614081257132200000000000000),
+)
+
+def test_impact_fixture_schema():
+    fx = impact_records_to_fixture(_IMPACT, liquidity=10**18, eta=0.5,
+                                   gams_version="54.1.0", platform="linux-x86_64")
+    assert fx["symbol"] == "priceImpact"
+    assert fx["scale"] == "Q64.96"
+    assert fx["eta"] == 0.5
+    assert fx["add"] is True
+    assert fx["liquidity"] == "1000000000000000000"
+    assert fx["gamsVersion"] == "54.1.0"
+    assert fx["count"] == 2
+    assert fx["ticks"] == [0, 0]
+    assert fx["sqrtPX96In"] == ["79228162514264337593543950336", "79228162514264337593543950336"]
+    assert fx["amount0In"] == ["100000000000000000", "1000000000000000000"]
+    assert fx["expectedSqrtPriceX96"] == ["72025602285694800000000000000", "39614081257132200000000000000"]
+
+def test_impact_fixture_rejects_expected_ge_sqrt_p():
+    bad = (ImpactRecord(tick=0, sqrt_p_x96=10, amount0_in=5, expected_sqrt_price_x96=10),)
+    import pytest
+    with pytest.raises(ValueError):
+        impact_records_to_fixture(bad, liquidity=10**18, eta=0.5, gams_version="x", platform="y")
+
+def test_impact_fixture_rejects_empty():
+    import pytest
+    with pytest.raises(ValueError):
+        impact_records_to_fixture((), liquidity=10**18, eta=0.5, gams_version="x", platform="y")
