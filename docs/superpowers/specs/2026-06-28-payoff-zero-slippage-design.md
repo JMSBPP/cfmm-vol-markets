@@ -128,8 +128,9 @@ Scalar tieBreaking   / 1 /;
 
 ```gams
 $title Zero-slippage Δᵢ⋆ — Lean `pi_trader_half_zero_at_deltaI_star` + Plank cesLongPayoff zero
+$offeolcom
 $eolcom #
-$include _PayoffScaffolding.gms
+$include payoff/_PayoffScaffolding.gms
 
 # Canonical single config (Q128.128 amounts).
 Scalar iCfg        / 60 /;

@@ -149,22 +149,27 @@ payoff-fixtures:
 	done; \
 	exit $$rc
 
-# spec-preflight: extract code blocks from the rev-4 spec MD and verify they
-# compile + run clean. Codifies the rev-4 discipline: before any spec commit,
-# this target must pass. Uses Python regex to extract §5 + §6 verbatim.
+# spec-preflight: extract code blocks from the rev-4 spec MD into a mirror of
+# the production layout (model/payoff/* + model/PayoffModule.gms) and drive
+# the orchestrator the way production does. Catches divergences in include
+# paths, file boundaries, and orchestrator wiring that a flat-concat preflight
+# would miss. Codifies the rev-4 discipline: before any spec commit, this
+# target must pass.
 .PHONY: spec-preflight
 spec-preflight:
-	@mkdir -p $(GAMS_DIR)/$(GAMS_BUILD)/spec
+	@rm -rf $(GAMS_DIR)/$(GAMS_BUILD)/spec
+	@mkdir -p $(GAMS_DIR)/$(GAMS_BUILD)/spec/payoff
 	@SPEC=docs/superpowers/specs/2026-06-28-payoff-zero-slippage-design.md; \
-	python3 -c "import re; text = open('$$SPEC').read(); secs = re.split(r'^(## \d+\.[^\n]*)\n', text, flags=re.M); out5 = '$(GAMS_DIR)/$(GAMS_BUILD)/spec/_PayoffScaffolding.gms'; out6 = '$(GAMS_DIR)/$(GAMS_BUILD)/spec/eta_pi_trader_zero_slippage.gms'; body5 = next((secs[i+1] for i in range(1,len(secs),2) if secs[i].startswith('## 5.')), None); body6 = next((secs[i+1] for i in range(1,len(secs),2) if secs[i].startswith('## 6.')), None); assert body5 is not None, 'spec section missing: ## 5.'; assert body6 is not None, 'spec section missing: ## 6.'; m5 = re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', body5, re.S); m6 = re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', body6, re.S); assert m5 is not None, 'no gams code block in section: ## 5.'; assert m6 is not None, 'no gams code block in section: ## 6.'; open(out5,'w').write(m5.group(1)); open(out6,'w').write(m6.group(1))"; \
+	ROOT=$(GAMS_DIR)/$(GAMS_BUILD)/spec; \
+	python3 -c "import re; text = open('$$SPEC').read(); secs = re.split(r'^(## \d+\.[^\n]*)\n', text, flags=re.M); body = {n: next((secs[i+1] for i in range(1,len(secs),2) if secs[i].startswith('## %s.' % n)), None) for n in (5,6,7)}; missing = [n for n,b in body.items() if b is None]; assert not missing, 'spec sections missing: %s' % missing; blocks = {n: re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', b, re.S) for n,b in body.items()}; missing = [n for n,m in blocks.items() if m is None]; assert not missing, 'no gams code block in sections: %s' % missing; open('$$ROOT/payoff/_PayoffScaffolding.gms','w').write(blocks[5].group(1)); open('$$ROOT/payoff/eta_pi_trader_zero_slippage.gms','w').write(blocks[6].group(1)); open('$$ROOT/PayoffModule.gms','w').write(blocks[7].group(1))"; \
 	cp $(GAMS_DIR)/PricingKernel.gms $(GAMS_DIR)/primitives.gms $(GAMS_DIR)/$(GAMS_BUILD)/spec/; \
 	cd $(GAMS_DIR)/$(GAMS_BUILD)/spec && \
-	$(GAMS) eta_pi_trader_zero_slippage.gms action=ce o=run.lst scrdir=. lo=0 >/dev/null 2>&1 ; \
+	$(GAMS) PayoffModule.gms action=ce o=run.lst scrdir=. lo=0 >/dev/null 2>&1 ; \
 	if grep -qE 'Status: (Compilation|Execution) error' run.lst; then \
 		printf 'spec-preflight FAIL: see $(GAMS_DIR)/$(GAMS_BUILD)/spec/run.lst\n'; \
 		grep -A1 '^\*\*\*\*' run.lst | head -10; exit 1; \
 	else \
-		printf 'spec-preflight OK (canonical config: diStarInt=35)\n'; \
+		printf 'spec-preflight OK (production layout: model/PayoffModule.gms → payoff/*)\n'; \
 	fi
 
 # gams-fixtures: regenerate committed GAMS->Solidity diff fixtures (read-only GAMS run).
