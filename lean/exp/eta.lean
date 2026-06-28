@@ -411,4 +411,43 @@ theorem pi_trader_half_strictly_increasing_in_Δi
   rw [← hPdef, ← hP'def]
   nlinarith [hresid_lt, hresid_pos]
 
+
+/-! ## Section: small-trade variance-swap signature of π_{1/2}^trader
+
+    Original question recalled from `model/exp/eta.md`: at η = 1/2 the
+    trader payoff `π_{1/2}^trader = (P·Δ^I − Δ^O)²` is the Bregman /
+    squared-slippage "distance", i.e. **long realized variance**. We
+    formalize the perturbative (small-trade) connection to a quadratic
+    variance signature.
+
+    Recall `slippage_residual`:
+        P·Δ^I − Δ^O = Δ^I · P · (L̄ + P·(Δ^I − L̄)) / (L̄ + Δ^I · P).
+    As Δ^I → 0 the residual is asymptotically  Δ^I · P · (1 − P), so
+        π_{1/2}^trader  ~  (Δ^I)² · P² · (P − 1)².
+    The quadratic-in-size dependence with coefficient scaling as the
+    SQUARED price impact (P − 1)² is the classic Carr-Madan variance-
+    swap signature; together with `sigma_xs_eq_sharp_mul_sigma_realized`
+    and `pi_trader_half_strictly_increasing_in_Δi` it closes the chain
+        π  ←→  realized variance  ←→  σ_xs  ←→  Δᵢ control.
+-/
+
+/-- **Small-trade variance-swap signature.**
+
+    For positive tick `i > 0`, base `λ > 1`, pool liquidity `L̄ > 0`, and
+    fixed spacing `Δᵢ > 0`, the trader payoff scales as
+        π_{1/2}^trader(Δ^I) / (Δ^I)²  →  P² · (P − 1)²    as Δ^I → 0⁺
+    where `P = P_half lam Δᵢ i = λ^{i·Δᵢ}`. This is the variance-swap
+    leading-order: quadratic in size, with coefficient scaling as the
+    squared price impact. -/
+theorem pi_trader_half_small_trade_quadratic
+    (lam : ℝ) (hlam : 1 < lam)
+    (i : Int) (hi_pos : 0 < i)
+    (L_bar : ℝ) (hL_bar : 0 < L_bar)
+    (Δi : ℝ) (hΔi_pos : 0 < Δi) :
+    Filter.Tendsto
+      (fun Delta_I : ℝ => pi_trader_half lam Δi i L_bar Delta_I / Delta_I ^ 2)
+      (nhdsWithin (0 : ℝ) (Set.Ioi 0))
+      (nhds ((P_half lam Δi i) ^ 2 * (P_half lam Δi i - 1) ^ 2)) := by
+  sorry
+
 end CFMM.Eta
