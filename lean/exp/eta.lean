@@ -19,8 +19,7 @@
   Sum = i by construction; multiplicative identity follows from
   λ^{a·Δ_i} · λ^{b·Δ_i} = λ^{(a+b)·Δ_i}.
 -/
-import Mathlib.Analysis.SpecialFunctions.Pow.Real
-import Mathlib.Algebra.BigOperators.Group.Finset
+import Mathlib
 
 open Real
 open scoped BigOperators
@@ -234,26 +233,56 @@ noncomputable def sigma_realized (i_minus i_plus i_mu : Int) (Δi : ℝ) : ℝ :
   (1 / (n : ℝ)) * ∑ k ∈ Finset.range n,
     ((i_minus : ℝ) + (k : ℝ) * Δi - (i_mu : ℝ))^2
 
-/-- **Connection between `sigma_xs` (KERNEL.md closed form) and
+/-
+Closed form for the arithmetic-progression sum of squares
+    `Σ_{k=0}^{n-1} (d + k·Δᵢ)²`, used to relate `sigma_realized` (a finite
+    average of squares) to `sigma_xs` (its closed form).
+-/
+lemma sum_sq_arith (n : ℕ) (d Δi : ℝ) :
+    ∑ k ∈ Finset.range n, (d + (k : ℝ) * Δi)^2
+      = (n : ℝ) * d^2
+        + d * Δi * (n : ℝ) * ((n : ℝ) - 1)
+        + Δi^2 * (n : ℝ) * ((n : ℝ) - 1) * (2 * (n : ℝ) - 1) / 6 := by
+  induction n <;> simp_all +decide [ Finset.sum_range_succ ] ; ring
+
+/-
+**Connection between `sigma_xs` (KERNEL.md closed form) and
     `sigma_realized` (user-posed averaged-variance form).**
 
-    Most natural candidate identity:
-        sigma_xs = # · sigma_realized.
+    The candidate identity `sigma_xs = # · sigma_realized` is FALSE in
+    general: it holds only when `i_- = i_μ` (i.e. `d := i_- − i_μ = 0`).
+    For nonzero `d` the two quantities differ by an explicit polynomial
+    correction.  Concretely, writing `n := #` and `d := i_- − i_μ`, the
+    averaged variance expands (via `sum_sq_arith`) to
 
-    If this exact equality fails on the stated preconditions, Aristotle
-    may narrow by adding hypotheses, OR replace the RHS with the correct
-    closed-form algebraic relation between `sigma_xs` and `sigma_realized`
-    (e.g. `sigma_xs = a · sigma_realized + b` for some `a, b` polynomial
-    in `i_-, i_+, i_μ, Δᵢ`). In either case the theorem name and the
-    spirit (sigma_xs is some explicit function of sigma_realized) should
-    survive — adjust the conclusion to state whatever identity holds.
+        # · sigma_realized = n·d² + d·Δᵢ·n·(n−1) + Δᵢ²·n·(n−1)·(2n−1)/6,
 
-    Hypotheses:
+    whereas
+
+        sigma_xs = d² − Δᵢ·d·n·(n−1) + Δᵢ²·n·(n−1)·(2n−1)/6.
+
+    Subtracting gives the corrected, **provably true** closed-form
+    relation discharged below:
+
+        sigma_xs = # · sigma_realized
+                   − (# − 1)·d²
+                   − 2·d·Δᵢ·#·(# − 1).
+
+    This keeps the theorem name and its spirit (`sigma_xs` as an explicit
+    function of `sigma_realized`); only the conclusion was corrected from
+    the naive product form.
+
+    Hypotheses (as originally requested; only `h_sharp_pos` is actually
+    load-bearing — it makes `# · (1/#) = 1` so the average inverts. The
+    sign/spacing/ordering hypotheses `hΔi`, `hi_lt`, `hi_mu_lo`,
+    `hi_mu_hi` are not needed for the algebraic identity and are kept only
+    because they were part of the requested statement):
       • `Δᵢ > 0`,
       • `i_minus < i_plus`     (`i_+ > i_-`, strict),
       • `i_minus ≤ i_mu`, `i_mu ≤ i_plus`  (i_μ free in [i_-, i_+]),
       • `0 < sharp i_minus i_plus Δi`  (`# ≥ 1`, the sum is non-empty
-        and the `1/#` is well-defined). -/
+        and the `1/#` is well-defined).
+-/
 theorem sigma_xs_eq_sharp_mul_sigma_realized
     (i_minus i_plus i_mu : Int) (Δi : ℝ)
     (hΔi : 0 < Δi)
@@ -262,8 +291,18 @@ theorem sigma_xs_eq_sharp_mul_sigma_realized
     (h_sharp_pos : 0 < sharp i_minus i_plus Δi) :
     sigma_xs i_minus i_plus i_mu Δi
       = (sharp i_minus i_plus Δi : ℝ)
-          * sigma_realized i_minus i_plus i_mu Δi := by
-  sorry
+          * sigma_realized i_minus i_plus i_mu Δi
+        - ((sharp i_minus i_plus Δi : ℝ) - 1) * ((i_minus - i_mu : Int) : ℝ)^2
+        - 2 * ((i_minus - i_mu : Int) : ℝ) * Δi
+            * (sharp i_minus i_plus Δi : ℝ)
+            * ((sharp i_minus i_plus Δi : ℝ) - 1) := by
+  -- Unfold the definitions of `sigma_xs` and `sigma_realized`.
+  simp [sigma_xs, sigma_realized];
+  -- Apply the sum_sq_arith lemma to expand the sum.
+  have h_sum : ∑ k ∈ Finset.range (sharp i_minus i_plus Δi), (↑i_minus + ↑k * Δi - ↑i_mu) ^ 2 = (sharp i_minus i_plus Δi : ℝ) * (↑i_minus - ↑i_mu) ^ 2 + (↑i_minus - ↑i_mu) * Δi * (sharp i_minus i_plus Δi : ℝ) * ((sharp i_minus i_plus Δi : ℝ) - 1) + Δi ^ 2 * (sharp i_minus i_plus Δi : ℝ) * ((sharp i_minus i_plus Δi : ℝ) - 1) * (2 * (sharp i_minus i_plus Δi : ℝ) - 1) / 6 := by
+    convert sum_sq_arith ( sharp i_minus i_plus Δi ) ( ( i_minus - i_mu : ℝ ) ) Δi using 1 ; ring;
+    exact Finset.sum_congr rfl fun _ _ => by ring;
+  grind
 
 /-- The pricing kernel is strictly positive whenever the base is. -/
 lemma P_half_pos (lam Δi : ℝ) (hlam : 0 < lam) (i : Int) :
