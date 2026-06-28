@@ -80,4 +80,64 @@ theorem eta_split_kernel_identity
   rw [hi2]
   ring
 
+
+/-! ## Section: are η and Δᵢ independent dimensions of the parameter space?
+
+    Open question forwarded from `model/exp/eta.md`: in the pricing kernel
+    P(i) = λ^{i · Δᵢ} and the KERNEL.md volatility term structure
+    σ(η, ·) = δ · P^η = δ · λ^{η · i · Δᵢ}, the exponent on λ is the
+    THREE-WAY PRODUCT  η · i · Δᵢ. So in σ ALONE, the parameters (η, Δᵢ)
+    collapse to a single 1-D degree of freedom (their product). The
+    question: is there any observable in which (η, Δᵢ) act independently
+    — i.e. a place where one is NOT a rescaling of the other — or are
+    they always functionally equivalent?
+
+    The two theorems below answer it precisely:
+      • `sigmaVTS_invariant_under_eta_Δi_rescaling`  — they ARE redundant
+        if you only look at σ (1-D manifold {η · Δᵢ = const}).
+      • `eta_Δi_independent_in_sigma_and_L_eta`     — they are NOT
+        redundant in the joint observable (σ, L_η): on the σ-invariant
+        manifold the η-CES trading function L_η = X^η · Y^{1-η} still
+        varies with η whenever X ≠ Y. So tick-spacing and elasticity have
+        independent effects in the joint (σ, L_η) projection.
+-/
+
+/-- Volatility term structure (KERNEL.md vol-term-structure σ(η,·) = δ·P^η)
+    evaluated at the pricing kernel P(i) = λ^{i · Δᵢ}. -/
+noncomputable def sigmaVTS (delta lam : ℝ) (eta : ℝ) (i : Int) (Δi : ℝ) : ℝ :=
+  delta * lam ^ (eta * (i : ℝ) * Δi)
+
+/-- The η-CES trading function L_η = X^η · Y^{1-η} (no Δᵢ dependence). -/
+noncomputable def L_eta (eta X Y : ℝ) : ℝ :=
+  X ^ eta * Y ^ (1 - eta)
+
+/-- **σ-only redundancy of (η, Δᵢ).**
+    The vol term structure depends on (η, Δᵢ) only through the product
+    η·Δᵢ, so the rescaling (η, Δᵢ) ↦ (c·η, Δᵢ/c) leaves σ invariant. -/
+theorem sigmaVTS_invariant_under_eta_Δi_rescaling
+    (delta lam : ℝ) (hlam : 0 < lam)
+    (i : Int) (eta Δi : ℝ)
+    (c : ℝ) (hc : 0 < c) :
+    sigmaVTS delta lam eta i Δi
+      = sigmaVTS delta lam (c * eta) i (Δi / c) := by
+  sorry
+
+/-- **Joint independence of (η, Δᵢ) in (σ, L_η)-space.**
+
+    On the σ-invariant manifold (witnessed by the rescaling (η,Δᵢ)↦(c·η,Δᵢ/c)
+    above), the trading function L_η still varies with η whenever X ≠ Y
+    and the rescaling factor c ≠ 1. So (η, Δᵢ) have INDEPENDENT effects
+    in the joint observable — the σ projection collapses them but the
+    L_η projection separates them. -/
+theorem eta_Δi_independent_in_sigma_and_L_eta
+    (delta lam : ℝ) (hlam : 0 < lam) (i : Int)
+    (eta : ℝ) (heta_pos : 0 < eta) (heta_lt : eta < 1)
+    (Δi : ℝ) (hΔi : 0 < Δi)
+    (c : ℝ) (hc_pos : 0 < c) (hc_ne : c ≠ 1)
+    (hc_eta_pos : 0 < c * eta) (hc_eta_lt : c * eta < 1)
+    (X Y : ℝ) (hX : 0 < X) (hY : 0 < Y) (hXY : X ≠ Y) :
+    sigmaVTS delta lam eta i Δi = sigmaVTS delta lam (c * eta) i (Δi / c)
+      ∧ L_eta eta X Y ≠ L_eta (c * eta) X Y := by
+  sorry
+
 end CFMM.Eta
