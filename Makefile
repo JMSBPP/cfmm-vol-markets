@@ -130,9 +130,52 @@ clean-gams:
 	@rm -rf $(GAMS_DIR)/$(GAMS_BUILD) $(GAMS_DIR)/225* \
 		$(GAMS_DIR)/*.lst $(GAMS_DIR)/*.g00 $(GAMS_DIR)/*.lxi
 
+# payoff-fixtures: regenerate committed per-theorem payoff GDX(s).
+# Detects compile/execution errors by post-grepping the .lst — `gams` exits 0
+# even on compile errors, so the recipe MUST grep, not rely on exit code alone.
+.PHONY: payoff-fixtures
+payoff-fixtures:
+	@mkdir -p $(GAMS_DIR)/$(GAMS_BUILD)
+	@cd $(GAMS_DIR) && rc=0; \
+	for f in $$(find payoff -name 'eta_*.gms' 2>/dev/null | sort); do \
+		out="$(GAMS_BUILD)/$$(echo "$$f" | tr / _ | sed 's/\.gms$$//').lst"; \
+		printf '>> regenerating fixture from %s\n' "$$f"; \
+		$(GAMS) "$$f" action=ce o="$$out" scrdir="$(GAMS_BUILD)" lo=0 >/dev/null 2>&1 ; \
+		if grep -qE 'Status: (Compilation|Execution) error' "$$out"; then \
+			printf '   FAIL %s -> %s/%s (status line indicates error)\n' "$$f" "$(GAMS_DIR)" "$$out"; rc=1; \
+		else \
+			printf '   OK %s\n' "$$f"; \
+		fi; \
+	done; \
+	exit $$rc
+
+# spec-preflight: extract code blocks from the rev-4 spec MD and verify they
+# compile + run clean. Codifies the rev-4 discipline: before any spec commit,
+# this target must pass. Uses Python regex to extract §5 + §6 verbatim.
+.PHONY: spec-preflight
+spec-preflight:
+	@mkdir -p $(GAMS_DIR)/$(GAMS_BUILD)/spec
+	@SPEC=docs/superpowers/specs/2026-06-28-payoff-zero-slippage-design.md; \
+	python3 -c "import re, sys; \
+text = open('$$SPEC').read(); \
+secs = re.split(r'^(## \d+\.[^\n]*)\n', text, flags=re.M); \
+out5 = '$(GAMS_DIR)/$(GAMS_BUILD)/spec/_PayoffScaffolding.gms'; \
+out6 = '$(GAMS_DIR)/$(GAMS_BUILD)/spec/eta_pi_trader_zero_slippage.gms'; \
+[open(out5,'w').write(re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', secs[i+1], re.S).group(1)) for i in range(1,len(secs),2) if secs[i].startswith('## 5.')]; \
+[open(out6,'w').write(re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', secs[i+1], re.S).group(1)) for i in range(1,len(secs),2) if secs[i].startswith('## 6.')]"; \
+	cp $(GAMS_DIR)/PricingKernel.gms $(GAMS_DIR)/primitives.gms $(GAMS_DIR)/$(GAMS_BUILD)/spec/; \
+	cd $(GAMS_DIR)/$(GAMS_BUILD)/spec && \
+	$(GAMS) eta_pi_trader_zero_slippage.gms action=ce o=run.lst scrdir=. lo=0 >/dev/null 2>&1 ; \
+	if grep -qE 'Status: (Compilation|Execution) error' run.lst; then \
+		printf 'spec-preflight FAIL: see $(GAMS_DIR)/$(GAMS_BUILD)/spec/run.lst\n'; \
+		grep -A1 '^\*\*\*\*' run.lst | head -10; exit 1; \
+	else \
+		printf 'spec-preflight OK (canonical config: diStarInt=35)\n'; \
+	fi
+
 # gams-fixtures: regenerate committed GAMS->Solidity diff fixtures (read-only GAMS run).
 .PHONY: gams-fixtures
 gams-fixtures:
 	uv run --project tools/gamsdiff gamsdiff
 
-.PHONY: compile-plank clean-plank compile-gams test-gams clean-gams
+.PHONY: compile-plank clean-plank compile-gams test-gams clean-gams payoff-fixtures spec-preflight

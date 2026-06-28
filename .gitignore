@@ -20,6 +20,7 @@ model/**/*.g00
 model/**/*.lxi
 model/**/*.gdx
 !model/price_impact_kernel.gdx
+!model/payoff_zero_slippage.gdx
 model/225*/
 
 # Plank compiled bytecode (make compile-plank)
