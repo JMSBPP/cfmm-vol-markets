@@ -206,6 +206,45 @@ noncomputable def sigma_xs (Δi : ℝ) (i_minus i_mu : Int) (sharp : ℕ) : ℝ 
   let n := (sharp : ℝ)
   d^2 - Δi * d * n * (n - 1) + Δi^2 * n * (n - 1) * (2 * n - 1) / 6
 
+/-- The pricing kernel is strictly positive whenever the base is. -/
+lemma P_half_pos (lam Δi : ℝ) (hlam : 0 < lam) (i : Int) :
+    0 < P_half lam Δi i := by
+  unfold P_half
+  exact Real.rpow_pos_of_pos hlam _
+
+/-- For a positive tick and base `> 1` the kernel exceeds one. -/
+lemma one_lt_P_half (lam Δi : ℝ) (hlam : 1 < lam) (i : Int)
+    (hi_pos : 0 < i) (hΔi_pos : 0 < Δi) :
+    1 < P_half lam Δi i := by
+  unfold P_half
+  apply (Real.one_lt_rpow_iff_of_pos (by linarith)).mpr
+  refine Or.inl ⟨hlam, ?_⟩
+  have : (0:ℝ) < (i:ℝ) := by exact_mod_cast hi_pos
+  positivity
+
+/-- Strict monotonicity of the kernel in the spacing (positive tick, base `> 1`). -/
+lemma P_half_strictMono (lam Δi Δi' : ℝ) (hlam : 1 < lam) (i : Int)
+    (hi_pos : 0 < i) (hΔi_lt : Δi < Δi') :
+    P_half lam Δi i < P_half lam Δi' i := by
+  unfold P_half
+  apply (Real.rpow_lt_rpow_left_iff hlam).mpr
+  have : (0:ℝ) < (i:ℝ) := by exact_mod_cast hi_pos
+  nlinarith
+
+/-- Closed form for the squared-slippage residual `P·Δᴵ − Δᴼ`:
+    after the division cancels it equals
+    `Δᴵ·P·(L̄ + P·(Δᴵ−L̄)) / (L̄ + Δᴵ·P)`. -/
+lemma slippage_residual (lam Δi : ℝ) (i : Int) (L_bar Delta_I : ℝ)
+    (hD : L_bar + Delta_I * P_half lam Δi i ≠ 0) :
+    P_half lam Δi i * Delta_I - Delta_O_half lam Δi i L_bar Delta_I
+      = Delta_I * P_half lam Δi i
+          * (L_bar + P_half lam Δi i * (Delta_I - L_bar))
+        / (L_bar + Delta_I * P_half lam Δi i) := by
+  unfold Delta_O_half P_half_post
+  simp only []
+  rw [eq_div_iff hD, sub_mul, mul_assoc, mul_assoc, sub_mul, div_mul_cancel₀ _ hD]
+  ring
+
 /-- **CONTROL VIA TICK SPACING (fixed η = 1/2).**
 
     For positive tick i > 0, base λ > 1, pool liquidity L̄ > 0, and trade
@@ -216,15 +255,62 @@ noncomputable def sigma_xs (Δi : ℝ) (i_minus i_mu : Int) (sharp : ℕ) : ℝ 
     by adaptively choosing Δᵢ, the protocol monotonically moves π. Since
     `sigma_xs` is also a polynomial function of Δᵢ, both observables move
     together with Δᵢ — that is the formal connection between π and σ_{Δᵢ}
-    posed in `model/exp/eta.md`. -/
+    posed in `model/exp/eta.md`.
+
+    NOTE (restriction on the statement). Global monotonicity over all
+    Δᴵ > 0 does *not* hold: the squared-slippage residual simplifies to
+    `Δᴵ·P·(L̄ + P·(Δᴵ−L̄))/(L̄ + Δᴵ·P)` with `P = λ^{i·Δᵢ} > 1`, and the
+    factor `L̄ + P·(Δᴵ−L̄)` changes sign once `P > L̄/(L̄−Δᴵ)` when
+    `Δᴵ < L̄`, so π first decreases to zero then increases. We therefore
+    add the precondition `L̄ ≤ Δᴵ` (trade size at least the pool
+    liquidity), under which the residual stays positive and strictly
+    increasing in Δᵢ, giving genuine monotonicity of π. -/
 theorem pi_trader_half_strictly_increasing_in_Δi
     (lam : ℝ) (hlam : 1 < lam)
     (i : Int) (hi_pos : 0 < i)
     (L_bar : ℝ) (hL_bar : 0 < L_bar)
     (Delta_I : ℝ) (hDelta_I : 0 < Delta_I)
+    (hDI : L_bar ≤ Delta_I)
     (Δi Δi' : ℝ) (hΔi_pos : 0 < Δi) (hΔi_lt : Δi < Δi') :
     pi_trader_half lam Δi  i L_bar Delta_I
       < pi_trader_half lam Δi' i L_bar Delta_I := by
-  sorry
+  have hΔi'_pos : 0 < Δi' := lt_trans hΔi_pos hΔi_lt
+  set P := P_half lam Δi i with hPdef
+  set P' := P_half lam Δi' i with hP'def
+  have hP1 : 1 < P := one_lt_P_half lam Δi hlam i hi_pos hΔi_pos
+  have hP'1 : 1 < P' := one_lt_P_half lam Δi' hlam i hi_pos hΔi'_pos
+  have hPP : P < P' := P_half_strictMono lam Δi Δi' hlam i hi_pos hΔi_lt
+  have hPpos : 0 < P := lt_trans one_pos hP1
+  have hP'pos : 0 < P' := lt_trans one_pos hP'1
+  have ha : 0 ≤ Delta_I - L_bar := sub_nonneg.mpr hDI
+  have hD : L_bar + Delta_I * P ≠ 0 := by positivity
+  have hD' : L_bar + Delta_I * P' ≠ 0 := by positivity
+  have hDpos : 0 < L_bar + Delta_I * P := by positivity
+  have hD'pos : 0 < L_bar + Delta_I * P' := by positivity
+  -- residual closed forms
+  have hr : P * Delta_I - Delta_O_half lam Δi i L_bar Delta_I
+      = Delta_I * P * (L_bar + P * (Delta_I - L_bar)) / (L_bar + Delta_I * P) :=
+    slippage_residual lam Δi i L_bar Delta_I (by rw [← hPdef] at *; exact hD)
+  have hr' : P' * Delta_I - Delta_O_half lam Δi' i L_bar Delta_I
+      = Delta_I * P' * (L_bar + P' * (Delta_I - L_bar)) / (L_bar + Delta_I * P') :=
+    slippage_residual lam Δi' i L_bar Delta_I (by rw [← hP'def] at *; exact hD')
+  -- residual is positive
+  have hresid_pos : 0 < P * Delta_I - Delta_O_half lam Δi i L_bar Delta_I := by
+    rw [hr]; positivity
+  -- residual is strictly increasing in the spacing
+  have hresid_lt : P * Delta_I - Delta_O_half lam Δi i L_bar Delta_I
+      < P' * Delta_I - Delta_O_half lam Δi' i L_bar Delta_I := by
+    rw [hr, hr', div_lt_div_iff₀ hDpos hD'pos]
+    have hbr : 0 < L_bar^2 + (Delta_I-L_bar)*L_bar*(P'+P) + (Delta_I-L_bar)*Delta_I*P*P' := by
+      have t1 : 0 ≤ (Delta_I-L_bar)*L_bar*(P'+P) :=
+        mul_nonneg (mul_nonneg ha hL_bar.le) (add_pos hP'pos hPpos).le
+      have t2 : 0 ≤ (Delta_I-L_bar)*Delta_I*P*P' :=
+        mul_nonneg (mul_nonneg (mul_nonneg ha hDelta_I.le) hPpos.le) hP'pos.le
+      nlinarith [mul_pos hL_bar hL_bar]
+    nlinarith [mul_pos (mul_pos hDelta_I (sub_pos.mpr hPP)) hbr]
+  -- square the strictly-increasing positive residual
+  unfold pi_trader_half
+  rw [← hPdef, ← hP'def]
+  nlinarith [hresid_lt, hresid_pos]
 
 end CFMM.Eta
