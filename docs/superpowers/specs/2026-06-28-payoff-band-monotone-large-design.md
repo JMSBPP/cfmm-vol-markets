@@ -545,7 +545,7 @@ spec-preflight-band:
 		if [ -z "$$START" ]; then printf 'spec-preflight-band FAIL: theorem %s not found in %s\n' "$$ID" "$$LEAN"; exit 1; fi; \
 		END=$$(awk -v s="$$START" 'NR>s && /^(theorem |lemma |def |noncomputable def |namespace |end )/ {print NR; exit}' "$$LEAN"); \
 		if [ -z "$$END" ]; then END=$$(wc -l < "$$LEAN"); fi; \
-		if sed -n "$${START},$${END}p" "$$LEAN" | grep -qE '\bsorry\b|\badmit\b' | grep -v '^--' | grep -v '^/-'; then \
+		if sed -n "$${START},$${END}p" "$$LEAN" | grep -vE '^\s*(--|/-)' | grep -qE '\bsorry\b|\badmit\b'; then \
 			printf 'spec-preflight-band FAIL: theorem %s body contains sorry/admit\n' "$$ID"; exit 1; \
 		fi; \
 	done; \
