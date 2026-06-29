@@ -37,7 +37,8 @@ noncomputable def pi_eta_trader
   let q : ℝ := η / (1 - η)
   a ^ p - b ^ p - p * b ^ q * (a - b)
 
-/-- **π_{1/2} is the η = 1/2 specialization of π_η.**
+/-
+**π_{1/2} is the η = 1/2 specialization of π_η.**
 
     Direct algebraic specialization: at η = 1/2 the Bregman exponents
     are p = 2 and q = 1, so
@@ -48,12 +49,14 @@ noncomputable def pi_eta_trader
     the rpow at non-integer exponents in the general definition; at
     η = 1/2 the exponents reduce to natural numbers so positivity is
     not strictly load-bearing, but kept for compatibility with the
-    general statement). -/
+    general statement).
+-/
 theorem pi_eta_extends_half
     (lam : ℝ) (hlam : 0 < lam)
     (Δi : ℝ) (i : Int) (L_bar Delta_I : ℝ) :
     pi_eta_trader (1/2) lam Δi i L_bar Delta_I
       = pi_trader_half lam Δi i L_bar Delta_I := by
-  sorry
+  unfold pi_eta_trader pi_trader_half;
+  norm_num [ sq ] ; ring
 
 end CFMM.Eta
