@@ -1,12 +1,5 @@
-
-
-TickGrid{
-	statePartitionDelta: [1,200] 
-	bounds:Bound
-	size() Number{
-		abs(bound.low - bound.up)/statePartitionDelta
-	}
-}
+TickGrid{ statePartitionDelta: [1,200] bounds:Bound size() Number{
+	abs(bound.low - bound.up)/statePartitionDelta } }
 
 TickGridMetrics<TickGrid>{
 	ref: TickGrid
@@ -69,3 +62,33 @@ Weights<TickGrid>{
 ExchangeRate<Cash*:Numeraire,Asset*:Underlying> {
 	
 }
+
+
+VarianceMarketPlant {
+
+- 
+\[
+	\begin{aligned}
+		p_{\bar \eta} \, (\cdot ; i , \Delta^{I}, \bar L) \, &= \frac{\bar L \, p_{\bar \eta} \, (\cdot ; i)}{\bar L\, + \, p_{\bar \eta} \, (\cdot ; i)\, \Delta^I}
+	\end{aligned}
+\]
+
+- \[
+	\begin{aligned}
+		\Delta^O \, \, (\cdot ; i , \Delta^{I}) &= \, L \, (p_{\bar \eta} \, (\cdot ; i , \Delta^{I}, \bar L)\, - \, p_{\bar \eta} \, (\Delta_i ;i) \,)
+	\end{aligned}
+\]
+
+}
+## COMMUNICATION 
+
+VarianceMarketLens { 
+	currentTick:int  \( i  (p_{\bar \eta} \, (\cdot ; i , \Delta^{I}, \bar L))\)
+    varianceTracker: Accumulator<TickGrid,step : \(j: j\, \Delta_i\)>	 
+}
+
+
+
+
+
+

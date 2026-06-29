@@ -1,14 +1,4 @@
 
-
-Consider a sequence of ticks generated after \(N\) events \( \{i_j\}_{j=1}^{N}\) given by the generating f
-such that for fixed integers \(i_{-}, i_{+} \in \mathbb{Z} \):
-
-\[
-	\begin{aligned}
-		\forall_{j} \, i_j \, \in [i_{-}, i_{+} ]
-	\end{aligned}
-\]
-
 Consider a fixed initial state-partition delta \(\bar \Delta_i \in \mathbb{N}\) and define:
 
 \[
@@ -216,7 +206,71 @@ Then define the liquidity payoff by
 \]
 
 
+## VOLATILTIY TERM STRUCTURES
+
+\[
+	\begin{aligned}
+		\sigma_{\eta} \,(\cdot) = \delta \cdot P_{(\eta, \Delta_i)} (i)^\eta
+	\end{aligned}
+\]
+
+where the return volatility is given by:
+
+\[
+	\begin{aligned}
+		σ_{\eta}^{(-1)}(\cdot) = \delta P_{(\eta, \Delta_i)}^{\eta -1} \, (i)^{\eta -1}
+	\end{aligned}
+\]
+
+
 ## DYNAMICS
+Consider a sequence of ticks generated after \(N\) events/agents we need to see what are the most meaningfull indexin initially  \( \{i_j\}_{j=1}^{N}\) 
+such that for fixed integers \(i_{-}, i_{+} \in \mathbb{Z} \):
+
+\[
+	\begin{aligned}
+		\forall_{j} \, i_j \, \in [i_{-}, i_{+} ]
+	\end{aligned}
+\]
+
+It can enter as from \(i_{\mu}\): 
+
+\[
+	\begin{aligned}
+		i_j = i_{\mu} \, + \alpha_j \, \Delta_i
+	\end{aligned}
+\]
+
+Which defines:
+
+\[
+	\begin{aligned}
+		\Delta_i (j) = \frac{i_j - i_\mu}{\alpha_j}
+	\end{aligned}
+\]
+
+
+And thus we have the payoffs sequence \( \{\pi \, (\Delta_i (j))\}_{j=1}^{N}\) and we have \( \{\tilde \eta_j \}\)
+(This seems to call from the definition above \[
+	\begin{aligned}
+		\#_{\bar \Delta_i} \, \sigma_{\bar \Delta_i} \, (\Delta_i;\cdot) \, &\equiv \, \sum_{j=1}^{\#_{\bar \Delta_i}-1} \, \bar \eta_j  \, (i_{-} \, + j \, \bar \Delta_i  \, - i_{\mu})^2
+	\end{aligned}
+\];
+that there must be a mappping from N to #) to be consistent. What does this mena at the choice of indexes, with economic meaning and considering the constrains we have already exposed?
+
+
+\[
+	\begin{aligned}
+        \mathbb{E}^{\tilde \eta} \, \Big [ \pi \Big] \, &= \, \sum_{j=1}^N \, \tilde \eta_j \, \pi_j \, \quad \, \sigma^{(\tilde \eta)} \, = \, \sum_{j}^{N}\tilde \eta_j \Big (\pi_j \, - \, \mathbb{E}^{\tilde \eta} \, \Big [ \pi \Big]\Big)^2
+	\end{aligned}
+\]
+
+
+\[
+	\begin{aligned}
+		MV_{\gamma} \Big [\pi \Big] \, &= \, \mathbb{E}^{\tilde \eta} \, \Big [ \pi \Big] \, - \, \gamma/2 \, \sigma^{(\tilde \eta)}
+	\end{aligned}
+\]
 
 (di = 20 ,i = 100, i_l = -120, i_u = 120, L(i) = 1e18, Y = 100e18)
 
