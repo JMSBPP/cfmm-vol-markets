@@ -172,9 +172,45 @@ spec-preflight:
 		printf 'spec-preflight OK (production layout: test/PayoffModuleTest.gms → PayoffModule.gms → payoff/*)\n'; \
 	fi
 
+# spec-preflight-band: Cycle 2 spec-as-truth gate. Re-runs the sorry/admit grep
+# on the 3 cited theorems in eta.lean BEFORE extracting GAMS code, then mirrors
+# the spec MD into the production layout (next to already-shipped Cycle 1
+# substrate) and drives via the orchestrator.
+LEAN4_SPEC_DIR ?= $(GAMS_DIR)/../../lean4-spec
+.PHONY: spec-preflight-band
+spec-preflight-band:
+	@rm -rf $(GAMS_DIR)/$(GAMS_BUILD)/spec-band
+	@mkdir -p $(GAMS_DIR)/$(GAMS_BUILD)/spec-band/payoff $(GAMS_DIR)/$(GAMS_BUILD)/spec-band/test
+	@LEAN=$(LEAN4_SPEC_DIR)/lean/exp/eta.lean; \
+	if [ ! -f "$$LEAN" ]; then printf 'spec-preflight-band FAIL: %s not found (set LEAN4_SPEC_DIR)\n' "$$LEAN"; exit 1; fi; \
+	for ID in pi_trader_half_strictly_increasing_in_ pi_trader_half_band_min_at_left pi_trader_half_band_max_large_trade; do \
+		START=$$(grep -nE "^theorem $$ID" "$$LEAN" | head -1 | cut -d: -f1); \
+		if [ -z "$$START" ]; then printf 'spec-preflight-band FAIL: theorem %s not found in %s\n' "$$ID" "$$LEAN"; exit 1; fi; \
+		END=$$(awk -v s="$$START" 'NR>s && /^(theorem |lemma |def |noncomputable def |namespace |end )/ {print NR; exit}' "$$LEAN"); \
+		if [ -z "$$END" ]; then END=$$(wc -l < "$$LEAN"); fi; \
+		if sed -n "$${START},$${END}p" "$$LEAN" | grep -vE '^\s*(--|/-)' | grep -qE '\bsorry\b|\badmit\b'; then \
+			printf 'spec-preflight-band FAIL: theorem %s body contains sorry/admit\n' "$$ID"; exit 1; \
+		fi; \
+	done; \
+	printf 'spec-preflight-band: Lean substrate OK (3 theorems sorry/admit-free)\n'
+	@SPEC=docs/superpowers/specs/2026-06-28-payoff-band-monotone-large-design.md; \
+	ROOT=$(GAMS_DIR)/$(GAMS_BUILD)/spec-band; \
+	python3 -c "import re; text = open('$$SPEC').read(); secs = re.split(r'^(## \d+\.[^\n]*)\n', text, flags=re.M); body6 = next((secs[i+1] for i in range(1,len(secs),2) if secs[i].startswith('## 6.')), None); body7 = next((secs[i+1] for i in range(1,len(secs),2) if secs[i].startswith('## 7.')), None); assert body6 is not None and body7 is not None, 'spec sections missing: ## 6. and/or ## 7.'; m6 = re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', body6, re.S); m7 = re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', body7, re.S); assert m6 is not None and m7 is not None, 'no gams code block in section: ## 6. and/or ## 7.'; open('$$ROOT/payoff/eta_pi_trader_band_monotone_large.gms','w').write(m6.group(1)); open('$$ROOT/PayoffModule.gms','w').write(m7.group(1))"; \
+	cp $(GAMS_DIR)/PricingKernel.gms $(GAMS_DIR)/primitives.gms $(GAMS_DIR)/$(GAMS_BUILD)/spec-band/; \
+	cp $(GAMS_DIR)/payoff/_PayoffScaffolding.gms $(GAMS_DIR)/payoff/eta_pi_trader_zero_slippage.gms $(GAMS_DIR)/$(GAMS_BUILD)/spec-band/payoff/; \
+	cp $(GAMS_DIR)/test/PayoffModuleTest.gms $(GAMS_DIR)/$(GAMS_BUILD)/spec-band/test/; \
+	cd $(GAMS_DIR)/$(GAMS_BUILD)/spec-band && \
+	$(GAMS) test/PayoffModuleTest.gms action=ce o=run.lst scrdir=. lo=0 >/dev/null 2>&1 ; \
+	if grep -qE 'Status: (Compilation|Execution) error' run.lst; then \
+		printf 'spec-preflight-band FAIL: see $(GAMS_DIR)/$(GAMS_BUILD)/spec-band/run.lst\n'; \
+		grep -A1 '^\*\*\*\*' run.lst | head -10; exit 1; \
+	else \
+		printf 'spec-preflight-band OK (Lean sorry-grep + GAMS extract+compile+execute via production layout)\n'; \
+	fi
+
 # gams-fixtures: regenerate committed GAMS->Solidity diff fixtures (read-only GAMS run).
 .PHONY: gams-fixtures
 gams-fixtures:
 	uv run --project tools/gamsdiff gamsdiff
 
-.PHONY: compile-plank clean-plank compile-gams test-gams clean-gams payoff-fixtures spec-preflight
+.PHONY: compile-plank clean-plank compile-gams test-gams clean-gams payoff-fixtures spec-preflight spec-preflight-band
