@@ -20,4 +20,4 @@ rev = "ab5e33949f9053a494b05ab0143f9ca92567eb4a"
 [[lean_lib]]
 name = "cfmmReplicationPlank"
 srcDir = "."
-roots = ["exp.eta"]
+roots = ["exp.eta", "exp.CESLongVolPayoff"]
