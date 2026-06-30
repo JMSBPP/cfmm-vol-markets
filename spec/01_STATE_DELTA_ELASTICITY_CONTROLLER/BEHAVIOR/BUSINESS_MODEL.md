@@ -60,7 +60,6 @@ And define a custom payoff:
 		\pi^{+} \, (\Delta_i;\cdot) \, &\equiv \, \#_{\bar \Delta_i} \, \sigma_{\bar \Delta_i} \, (\Delta_i;\cdot) 
 	\end{aligned} \tag{1}
 \]
-> ENTITITIES
 
 With replication argument, for \(\Delta_i \, \in \mathbb{N}; \, \Delta_i \in [1,200]\), with:
 \[
@@ -102,6 +101,7 @@ and output rule:
 		\Delta^O \, \, (\cdot ; i , \Delta^{I}) &= \, L \, (p_{\bar \eta} \, (\cdot ; i , \Delta^{I}, \bar L)\, - \, p_{\bar \eta} \, (\Delta_i ;i) \,)
 	\end{aligned}
 \]
+
 
 
 Structurally we require:
@@ -224,7 +224,7 @@ where the return volatility is given by:
 
 
 ## DYNAMICS
-Consider a sequence of ticks generated after \(N\) events/agents we need to see what are the most meaningfull indexin initially  \( \{i_j\}_{j=1}^{N}\) 
+Consider a sequence of ticks generated after \(\mathcal{E}:= \{ 1,\cdots ,N\} \) events the event-indexed tick sequence \( \{i_j\}_{j=1}^{N}\) 
 such that for fixed integers \(i_{-}, i_{+} \in \mathbb{Z} \):
 
 \[
@@ -256,8 +256,79 @@ And thus we have the payoffs sequence \( \{\pi \, (\Delta_i (j))\}_{j=1}^{N}\) a
 		\#_{\bar \Delta_i} \, \sigma_{\bar \Delta_i} \, (\Delta_i;\cdot) \, &\equiv \, \sum_{j=1}^{\#_{\bar \Delta_i}-1} \, \bar \eta_j  \, (i_{-} \, + j \, \bar \Delta_i  \, - i_{\mu})^2
 	\end{aligned}
 \];
-that there must be a mappping from N to #) to be consistent. What does this mena at the choice of indexes, with economic meaning and considering the constrains we have already exposed?
+Define the occupation (binning) map
 
+\[
+\begin{aligned}
+    b
+    \,:\,
+    \mathcal{E}
+    \,\longrightarrow\,
+    \{1\, \cdots \, \#_{\Delta_i}\},
+\end{aligned}
+\]
+
+where \(b(j)\) denotes the admissible tick occupied by the \(j\)-th event. The induced tick probability measure is
+
+\[
+\begin{aligned}
+    \bar\eta_k
+    \,&\equiv\,
+    \sum_{j\,:\,b(j)=k}
+    \tilde\eta_j,
+    \qquad
+    k\in \, \{1\, \cdots \, \#_{\Delta_i}\}.
+\end{aligned}
+\]
+
+By construction,
+
+\[
+\begin{aligned}
+    \sum_{k=1}^{\#_{\bar\Delta_i}-1}
+    \bar\eta_k
+    =
+    \sum_{j=1}^{N}
+    \tilde\eta_j
+    =
+    1.
+\end{aligned}
+\]
+
+Consequently, it preserves expectations
+
+\[
+\begin{aligned}
+    \sum_{j=1}^{N}
+    \tilde\eta_j
+    \pi\!\left(b(j)\right)
+    =
+    \sum_{k=1}^{\#_{\bar\Delta_i}-1}
+    \bar\eta_k
+    \pi(k).
+\end{aligned}
+\]
+
+Hence the weighted tick dispersion may be written equivalently as
+
+\[
+\begin{aligned}
+    \#_{\bar\Delta_i}
+    \sigma_{\bar\Delta_i}(\Delta_i;\cdot)
+    &=
+    \sum_{k=1}^{\#_{\bar\Delta_i}-1}
+    \bar\eta_k
+    \left(
+        i_-
+        +
+        k\,\bar\Delta_i
+        -
+        i_\mu
+    \right)^2.
+\end{aligned}
+\]
+
+The moments are:
 
 \[
 	\begin{aligned}
@@ -266,13 +337,269 @@ that there must be a mappping from N to #) to be consistent. What does this mena
 \]
 
 
+Since 
+
 \[
 	\begin{aligned}
-		MV_{\gamma} \Big [\pi \Big] \, &= \, \mathbb{E}^{\tilde \eta} \, \Big [ \pi \Big] \, - \, \gamma/2 \, \sigma^{(\tilde \eta)}
+	\forall_{i \in \mathcal{E}} \, \quad 
+		\eta_i \, &= \, \frac{O}{O\, + p (i)\, I}; \quad 1 \, - \eta_i = \, \frac{p(i)\, I}{O\, + \,p(i)\, I}
 	\end{aligned}
 \]
 
-(di = 20 ,i = 100, i_l = -120, i_u = 120, L(i) = 1e18, Y = 100e18)
+
+Let, we introduce the intended multivariable feedback
+
+\[ 
+	\begin{aligned}
+		I = I(\Delta i\, , \eta; \pi^{+}), \quad O = O(\Delta i\, , \eta\, ; \pi^{+}) 
+	\end{aligned}
+\]
+
+on which agents rebalance inventories after observing payoff through trading.
+
+Then
+
+
+\[
+	\begin{aligned}
+		\eta_i \, &= \, \eta_{i} \, (\Delta_i , \eta; \hat \pi^{+})
+	\end{aligned}
+\]
+
+
+And from the normalized
+
+\[
+	\begin{aligned}
+		\tilde \eta_i \, &= \, \frac{\eta_i}{\sum_{j\neq i} \eta_j} \\
+		\\
+		\implies \\
+		\\
+		\tilde \eta_i &= \tilde \eta_i \, (\Delta_i , \eta, \hat \pi^{+}) 
+	\end{aligned}
+\]
+
+
+Let:
+
+\[
+	\begin{aligned}
+		i_{\mu} \, &= \, \mathbb{E}^{(\tilde \eta)} [i] \\
+		\\
+		&= \, \sum_{b(j)} \tilde \eta_i \, (\Delta_i , \eta; \hat \pi^{+})  \, i_j \\
+		\\
+		\implies \\
+		\\
+		i_{\mu} \, &= \, i_{\mu} \, + \, \Delta_i \, \sum_{j}^{N} \, \tilde \eta_i \, (\Delta_i , \eta; \hat \pi^{+})  \, \alpha_j
+	\end{aligned}
+\]
+
+
+Which induces  the rational-expectations restriction:
+
+\[
+	\begin{aligned}
+		\sum_{j}^{N} \, \tilde \eta_i \, (\Delta_i , \eta; \hat \pi^{+})  \, \alpha_j \, &= \,  0
+	\end{aligned}
+\]
+The expected signed displacement from \(i_{\mu}\) is zero under the trader’s inventory-induced probability measure.
+
+Under which, given \(\alpha := \{\alpha_j\}_{j=1}^N, \tilde \eta := \{\tilde \eta_j\}_{j=1}^N\):
+:
+\[
+\begin{aligned}
+    \pi^+
+    &=
+    \sum_{j=1}^{N}
+    \tilde \eta_i \, (\Delta_i , \eta; \hat \pi^{+}) \, \left(
+        i_j-i_\mu
+    \right)^2 \\
+    &=
+    \Delta_i^2
+    \sum_{j=1}^{N}
+    \, \tilde \eta_i \, (\Delta_i , \eta; \hat \pi^{+})  \,
+    \alpha_j^2
+\end{aligned}
+\]
+
+
+Define **variance capacity** as:
+
+\[
+	\begin{aligned}
+		\Sigma ( \Delta_i , \eta \, ; \, \alpha, \tilde \eta, \pi^{+}) \, &= \, \sum_{j=1}^{N}
+    \, \tilde \eta_i \, (\Delta_i , \eta; \hat \pi^{+})  \,
+    \alpha_j^2 
+	\end{aligned}
+\]
+Now:
+
+\[
+	\begin{aligned}
+		\frac{\partial \pi^+}{\partial \Delta_i} \, &= \, 2\, \Delta_i \, \Sigma \, ( \Delta_i , \eta \, ; \cdot ) \, + \, \Delta_i^2 \, \frac{\partial \Sigma \, ( \Delta_i , \eta \, ; \cdot )}{\partial \Delta_i}
+	\end{aligned}
+\]
+
+
+To start indetifying the structure of the relations of the parameters with the 
+From the output rule we define the bonding curve curvature:
+
+\[
+	\begin{aligned}
+		\kappa \, &\equiv \frac{\partial^2 \Delta^O}{\partial p_{(\eta, \Delta_i )} \, (i)^2} 
+	\end{aligned}
+\]
+
+From where:
+
+\[
+	\begin{aligned}
+		\frac{\partial^2 \Delta^O}{\partial p_{(\eta, \Delta_i )} \, (i)^2} \, &=  \frac{2\, \Delta^I \, \bar L^3}{ (\bar L \, + \, \Delta^I \, p_{(\eta, \Delta_i )} \, (i) )^3} \\
+		\\
+		\iff \\
+		\kappa \, &= \, \frac{2\, \Delta^I \, \bar L^3}{ (\bar L \, + \, \Delta^I \, p_{(\eta, \Delta_i )} \, (i) )^3} \\ 
+		\\
+		\implies  \\
+		\\
+		\frac{\partial| \kappa |}{\partial \Delta_i} < 0
+	\end{aligned}
+\]
+
+
+From there since \(\frac{\partial \Delta^O}{\partial |\kappa|} < 0\) then: \(\frac{\partial \Delta^O}{\partial \Delta_i} > 0\)
+
+Since:
+
+\[ 
+	\begin{aligned}
+		I' = I - \Delta^I, \quad O' = O + \Delta^O. 
+	\end{aligned}
+\]
+
+Large slippage changes the inventory ratio \( \frac{O'}{I'}\); then for *manby states* we have:
+
+\[
+	\begin{aligned}
+		\frac{\partial \tilde \eta_i }{\Delta_i} < 0
+	\end{aligned}
+\]
+
+Thus there exists regions where:
+
+\[
+	\begin{aligned}
+		\frac{\partial \pi^+}{\partial \Delta_i} \, \equiv  \, 2\, \Sigma \, + \Delta_i \, \frac{\partial \Sigma}{\partial \Delta_i} \, &= \, 0 
+	\end{aligned}
+	
+\]
+
+
+Since \(\tilde \eta_j\) is a latent state, we approximate by the iventory implied observer:
+
+\[
+	\begin{aligned}
+		\tilde \eta_j \, &\sim \, \frac{\frac{O}{O \, + p_{(\Delta_i , \eta)} (j)\, I}}{\sum_{m \neq j} \Big [ \frac{O}{  \, O \, + p_{(\Delta_i , \eta)} (m)\, I}\Big]}
+	\end{aligned}
+\]
+
+
+From setting \(\tilde \eta_j \) such that:
+
+\[
+	\begin{aligned}
+		\frac{\partial \tilde \eta_i }{\Delta_i} < 0 \\
+		\\
+		\tilde \eta_i \propto \exp{(-\beta \mathcal{C}_{\kappa}\, (\Delta_i ; i))}
+	\end{aligned}
+\]
+
+
+Starting from: 
+
+\[
+	\begin{aligned}
+	    \mathcal{C}_{\kappa} \, (\Delta_i ) \, & = \mathcal{C} \, (\Delta_i )
+	\end{aligned}
+\]
+
+such that:
+
+\[
+	\begin{aligned}
+		\frac{\partial^2 \mathcal{C}_{\kappa} }{(\partial \Delta^O )^2} \, = |\kappa|
+	\end{aligned}
+\]
+
+Where:
+
+
+\[
+	\begin{aligned}
+		\mathcal{C}_{\kappa}\, (\Delta_i; j, \eta^{\star}) = \frac{\kappa(\Delta_i)}{2}(\Delta O(\Delta_i))^2 + \chi(\eta_j(\Delta_i) - \eta_j^\star)^2
+	\end{aligned}
+\]	
+
+The problem is:
+\[
+	\begin{aligned}
+		(\Delta_i^{\star} \, , \, \eta^{\star}) \, &\equiv \, \arg \max \Big [ \pi^{+} \, (\Delta_i , \eta ; \alpha) \, - \mathcal{C} \, (\Delta_i )\Big ]
+	\end{aligned}
+\]
+
+
+Then \(\eta^{\star}\) solves:
+
+
+\[
+	\begin{aligned}
+		\Sigma ( \Delta_i ,  \eta^{\star} \, ;\cdot) \, &= \, \sum_{j=1}^{N}
+    \, \tilde \eta_i \, (\Delta_i , \eta^{\star} \, ;\cdot)  \,
+    \alpha_j^2 
+	\end{aligned}
+\]
+
+
+
+And \(\Delta_i^{\star}\) solves:
+
+\[
+    \begin{aligned}
+		2\Delta_i^{\star} \Sigma (\Delta_i^{\star}) + (\Delta_i^{\star})^2 \Sigma (\Delta_i^{\star}) = \frac{\partial \mathcal{C}_{\kappa}}{\partial \Delta_i} (\Delta_i^{\star}) 
+	\end{aligned}
+\]
+
+
+Gives:
+
+
+\[
+	\begin{aligned}
+		\pi^{+} \, (\cdot)^{\star} &\equiv \,  \pi^{+} \, (\eta^{\star}, \Delta_i^{\star})
+	\end{aligned}
+\]
+
+
+Define:
+\[
+	\begin{aligned}
+		\mathcal{G}_{\Delta_i} \, &\equiv \, \frac{\partial \pi^+}{\partial \Delta_i}; \, \mathcal{G}_{\eta} \, \equiv \, \frac{\partial \pi^{+}}{\partial \eta} \\
+		\\
+		\mathcal{G}_{ff} \, &\equiv \mathcal{G}_{\Delta_i} \, + \, \mathcal{G}_{\eta}
+	\end{aligned}
+\]
+
+And since the obrserved payoff before the input is \(\hat \pi^{+}\).
+
+We have:
+
+\[
+	\begin{aligned}
+		\mathcal{G}_{fb} \, &\equiv \, \frac{\partial \pi^+}{\pi^{+} \, (\cdot)^{\star}}
+	\end{aligned}
+\]
+
+
+
 
 Then we stabish that
 
@@ -341,46 +668,4 @@ The deterministic proxy for this is:
 	\end{aligned}
 \]
 
-
-
-## IMPLEMENTATION DETAILS
-
-[]~/cfmms-playground/cfmm-replicationPlank/lib/plankified-univ3/plank/lib/math/sqrt_price_math.plk
-
-getNextSqrtPriceFromAmount0RoundingUp = fn (sqrtPX96: u256, liquidity: u256, amount: u256, add: bool) {}
-
-
-getNextSqrtPriceFromAmount0RoundingUp(uint160 sqrtPX96, uint128 liquidity, uint256 amount, bool add)
-
-Unistrata {
- 
-`src/UnistrataHook.sol` {
-			 `src/libraries/VarianceLib.sol`, 
-			 `NavLib.sol`, 
-			 `WaterfallLib.sol`
-		  } ---> PositionManager --> tokenId. {
-			   - deposit ->  { RangeFeeAccrual ; ShortCallIl}
-			   
-	       }
-	
-	Shizo  {
-		
-	
-	}
-	
-	Mochi-Yiedld {}
-	
-	Centrifuge {
-		test/core/spoke/unit/BalanceSheet.t.sol:: BalanceSheetTestDeposit{ 
-		    testDepositERC6909
- 	 		
-			 testDepositERC20
-
-	    }
-	}
-	
-}
-	
-
-#
 
