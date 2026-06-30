@@ -1,0 +1,6 @@
+
+import std::constructor::return_runtime;
+
+init {}
+
+run{}
