@@ -61,6 +61,8 @@ And define a custom payoff:
 	\end{aligned} \tag{1}
 \]
 
+> ENTITIES
+
 With replication argument, for \(\Delta_i \, \in \mathbb{N}; \, \Delta_i \in [1,200]\), with:
 \[
 	\begin{aligned}
@@ -149,8 +151,6 @@ If the agent enters its \(\eta_i\) inventory-weighted split define:
 		i^{\star} \, = \, \lfloor \eta_i \, \frac{2\, i \, \Delta_i \eta}{\bar \Delta_i} \rfloor; \quad i^{\circ} \, = \, \lfloor \frac{2\, i \, \Delta_i \eta}{\bar \Delta_i} \rfloor \, - \, i^{\star}
 	\end{aligned}
 \]
-
-> ENTITITIES
 
 
 Now the above \(\bar L\) satisfies:
@@ -250,7 +250,7 @@ Which defines:
 \]
 
 
-And thus we have the payoffs sequence \( \{\pi \, (\Delta_i (j))\}_{j=1}^{N}\) and we have \( \{\tilde \eta_j \}\)
+And thus we have the payoffs sequence \( \{\pi \, (\Delta_i (j))\}_{j=1}^{N}\) and we have \( \{\tilde \eta_j \}_{j=1}^{N}\)
 (This seems to call from the definition above \[
 	\begin{aligned}
 		\#_{\bar \Delta_i} \, \sigma_{\bar \Delta_i} \, (\Delta_i;\cdot) \, &\equiv \, \sum_{j=1}^{\#_{\bar \Delta_i}-1} \, \bar \eta_j  \, (i_{-} \, + j \, \bar \Delta_i  \, - i_{\mu})^2
@@ -405,7 +405,7 @@ Which induces  the rational-expectations restriction:
 The expected signed displacement from \(i_{\mu}\) is zero under the trader’s inventory-induced probability measure.
 
 Under which, given \(\alpha := \{\alpha_j\}_{j=1}^N, \tilde \eta := \{\tilde \eta_j\}_{j=1}^N\):
-:
+
 \[
 \begin{aligned}
     \pi^+
@@ -557,8 +557,6 @@ Then \(\eta^{\star}\) solves:
     \alpha_j^2 
 	\end{aligned}
 \]
-
-
 
 And \(\Delta_i^{\star}\) solves:
 
