@@ -5,5 +5,3 @@ const Portafolio = struct {
 
 }
 
-const value = fn() u256{
-};

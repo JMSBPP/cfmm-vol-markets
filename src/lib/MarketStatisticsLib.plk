@@ -1,0 +1,3 @@
+
+const calculateVariance
+ = fn( strikeDiffAccum :u256, strikeDiffAccumSqx : u256,tickSpacingu256, centeredTick : u256) u256 {};

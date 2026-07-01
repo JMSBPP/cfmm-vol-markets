@@ -1,0 +1,14 @@
+import types::Portafolio::Portafolio;
+import types::PortafolioId::PortafolioId;
+import std::addr::addr;
+
+// TODO: Once the language supports hash tables this
+
+// are maps from an portafolioId -> portafolioData
+
+
+// portafolioId => Portafolio
+// portafolioId => inventorySplit
+
+
+

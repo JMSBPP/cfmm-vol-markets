@@ -1,0 +1,9 @@
+import types::Portafolio::Portafolio;
+import types::Liquidity::ConcentratedLiquidity
+
+const valueAtTick = fn() u56 {}
+const inventorySplitAtTick = fn() {};
+
+
+const fromPortafolioToLiquidity = fn(:Portafolio) ConcentratedLiduidity {};
+const fromConcentratedLiquidityToPortafolio = fn(concentratedLiquidity :ConcentratedLiquidity) Portafolio {}

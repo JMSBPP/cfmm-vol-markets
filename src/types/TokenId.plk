@@ -1,0 +1,5 @@
+
+
+const TokenId = struct {
+      val:u256
+};

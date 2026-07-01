@@ -1,0 +1,12 @@
+
+
+// TODO: Once the language supports hash tables this
+
+// are maps from an account / agentId
+
+// a => #_{\sigma} TokenId
+// a => lastStrikeDiff
+// a => portafolioId []
+
+const SLOT_MARKET_ID =
+const SLOT_PORTAFOLIO_MANAGER_ID = 
