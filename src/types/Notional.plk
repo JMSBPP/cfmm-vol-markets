@@ -1,4 +1,4 @@
-import types::Numerics::{Q24,SQ24.24);
+import types::Numerics::{Q24,SQ24.24, Q24.24);
 
 const Notional = struct {
       size :SQ24.24,
@@ -25,15 +25,30 @@ const build(comptime T: type, val: T , tickStrike: u256) Notional {
 };
 
 
+// @dev: Calculates the difference between the size values ONLY of 2 notionals
+const diffSizeSQ24_24 = fn (n1: Notional, n2: Notional) SQ24.24 {
+};
 
+// @dev: Calculates the abs difference betwween the size values ONLY of 2 notionals
+const absDiffSizeQ24_24 = fn(n1: Notional, n2: Notional) Q24.24 {}
+
+// @dev: Calculetes the raw signed difference of the strikes between two notionals 
+// deflated by the SAME tickSpacing
 const signedDiffX24 = fn (n1: Notional, n2: Notional, tickSpacing:u256) Notional {
 };
+
+// @dev: Calculates the abs value unsigned difference of the strikes between two notionals 
+// deflated by the SAME tickSpacing
 
 const usignedDiffX24 = fn (n1: Notional, n2: Notional, tickSpacing:u256) Notional {
 };
 
+// @dev: Calculates the raw signed difference of a notional with respect to a reference tick
+// deflated by the SAME tickSpacing
 const signedExpX24 = fn (n: Notional, tickSpacing:u256, tick: u256) Notional {
 };
 
+// @dev: Calculates the abs difference of a notional with respect to a reference tick
+// deflated by the SAME tickSpacing
 const usignedExpX24 = fn (n: Notional, tickSpacing:u256, tick: u256) Notional {
 };

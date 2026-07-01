@@ -1,0 +1,15 @@
+import types::Numerics::Q64.96;
+import types::Asset::Asset;
+
+struct PriceAmt = struct {
+       amt: Q64.96
+};
+
+struct PriceGrid = struct {
+       numeraire: Asset,
+       underlying: Asset
+};
+
+const price(priceGeometry: PriceGrid, tick: u256) PriceAmt {
+};
+

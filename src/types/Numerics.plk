@@ -1,6 +1,26 @@
 import std::type:sizeof;
 
 const Q24 = 0xFFFFFF;
+
+const Q24.24 = struct {
+      val: u256
+};
+
 const SQ24.24 = struct {
      val: u256 // maps u48
+};
+
+const Q128 = 
+const Q128.128 = struct {
+      val: u256
+};
+const Q96 = 
+const R64 =
+
+const Q64.96 = struct {
+      val: u256
+};
+
+const SQ128.128 = struct {
+      val: u256
 };

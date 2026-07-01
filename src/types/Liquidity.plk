@@ -1,0 +1,15 @@
+import types::Numerics::{SQ128.128, Q128.128};
+
+const LiquidityStock {
+      size : Q128.128
+};
+
+const LiquidityFlow {
+      delta: SQ128.128
+};
+
+const Liquidity {
+      stock: LiquidityStock
+      flow: LiquidityFlow
+};
+
