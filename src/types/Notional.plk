@@ -1,0 +1,39 @@
+import types::Numerics::{Q24,SQ24.24);
+
+const Notional = struct {
+      size :SQ24.24,
+      tickStrike:u256
+};
+
+const build(comptime T: type, val: T , tickStrike: u256) Notional {
+      if T == SQ24.24{
+          Notional {
+	  	   size: val,
+		   tickStrike: tickStrike
+	  };
+      } else if T == u256 {
+      	   Notional {
+	   	    size: SQ24.24{val},
+		    tickStrike: tickStrike
+	   };
+      } else {
+      	Notional {
+		 size: SQ24.24{0},
+		 tickStrike: 0
+	}
+      } 
+};
+
+
+
+const signedDiffX24 = fn (n1: Notional, n2: Notional, tickSpacing:u256) Notional {
+};
+
+const usignedDiffX24 = fn (n1: Notional, n2: Notional, tickSpacing:u256) Notional {
+};
+
+const signedExpX24 = fn (n: Notional, tickSpacing:u256, tick: u256) Notional {
+};
+
+const usignedExpX24 = fn (n: Notional, tickSpacing:u256, tick: u256) Notional {
+};

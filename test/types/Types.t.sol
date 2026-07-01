@@ -11,7 +11,10 @@ contract OrderTest is Test, PlankDeployer {
     bytes4 SELECTOR_INIT_ORDER = 0xc566b5c5;
     BuildOptions opts;
 
-
+    struct Notional {
+	int24 tickStrike;
+        uint48 size;
+    }
     struct Order {
 	int24 tickLower;
 	int24 tickUpper;
@@ -28,7 +31,7 @@ contract OrderTest is Test, PlankDeployer {
 	ORDER_HARNESS = plankDeployFFI("test/types/OrderHelper.plk", opts);
     }
 
-    function test__fuzz__OrderOfTicksEnforced (int24 tickLower, int24 tickUpper, uint88 varianceExposure) public {
+    function test__fuzz__OrderMakeSucceed (int24 tickLower, int24 tickUpper, uint88 varianceExposure) public {
 	if (tickUpper == tickUpper ) {
 	    vm.expectRevert();
 	}
@@ -46,9 +49,17 @@ contract OrderTest is Test, PlankDeployer {
 					),
 					(Order)
 	);
-
 	
+    }
 
-	
-    } 
+    
+    function test__fuzz__NotionalBuildSuceeds(
+					      int24 tickStrike,
+					      uint48 size
+     ) public {
+
+	     
+     }
+
+
 }
