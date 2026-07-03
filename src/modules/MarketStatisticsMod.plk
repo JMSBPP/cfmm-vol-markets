@@ -28,8 +28,50 @@ const initialize_timepoint_buffer = fn (time: u256) MarketStatisticsInitResult {
     MarketStatisticsInitResult { currentSampleSize: MIN_SAMPLE_SIZE, nextTargetedSampleSize: MIN_SAMPLE_SIZE }
 };
 
-const write_timepoint =
-fn (
+const read_tick_bounds_from_positions = fn(selector: u256) u256 {
+    let ptr = @malloc_uninit(32);
+
+    @mstore4(ptr, selector);
+
+    let succ = @evm_staticcall(
+        @evm_gas(),
+        @evm_sload(SLOT_POSITIONS_STATE_ID),
+        ptr,
+        SELECTOR_SIZE,
+        ptr,
+        WORD_SIZE
+    );
+
+    if !succ { revert_empty(); }
+
+    decode_int24(@mload32(ptr))
+};
+
+// TODO: This needs adjustments
+const fetch_mean_tick =
+      fn( ss_index: u256, ss_indexUpdated: u256, blockTimestamp: u256, prev_blockTimestamp: u256,
+      tick:u256, prevTickCummulative :u256) u256 {
+      		 let dt = @evm_sub(blockTimestamp, prev_blockTimestamp);
+      		 int56 currentTickCumulative = @evm_add(prevTickCumulative, @evm_mul(tick, dt));
+		 return @evm_div(@evm_sub(currentTickCumulative,prevTickCummulative),dt);
+}
+
+const fetch_realized_volatility = fn(dt:u256, tickMean:u256, tick: u256) u256 {
+      let tickDiff = @evm_sub(tick,tickMean);
+      let tickDiffPerDt =  @evm_mul(tickDiff,dt);
+      let sumOfSequence = @evm_mul(d1, @evm_add(dt,1));
+      let sumOfSquares = @evm_mul(sumOfSequence,@evm_mul(2, @evm_add(dt,1));
+      // let realizedVol = @evm_div();
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // int256 sumOfSquares = sumOfSequence * (2 * dt + 1); // sumOfSquares * 6				   //
+    //   volatility = uint256((k ** 2 * sumOfSquares + 6 * b * k * sumOfSequence + 6 * dt * b ** 2)	   //
+    // 			   / ( 6 * dt ** 2));								   //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////
+  
+};
+
+const write_timepoint = fn (
    ss_Index: u256,
    blockTimestamp: u256,
    tick: u256,
@@ -65,31 +107,19 @@ fn (
     let tickMean = fetch_mean_tick(
     	ss_index, ss_indexUpdated, blockTimestamp, prev_blockTimestamp, tick, tickCummulative);
     // ================================ TICK_MIN_UPDATE ===================================
-    // TODO: I might be overwriting the pointers
-    let in_ptr = @malloc_uninit(4);
-    @mstore4(in_ptr,READ_TICK_MIN_SELECTOR);
-    let succ = @evm_staticcall(@evm_gas(),
-    @evm_sload(SLOT_POSITIONS_STATE_ID),in_ptr,SELECTOR_SIZE,in_ptr,WORD_SIZE);
-    let out_ptr = @malloc_uninit(32);
-    let tickMin = decode_int24(@mload32(out_ptr));
-
+    let tickMin = read_tick_bounds_from_positions(READ_TICK_MIN_SELECTOR);
     // ================================ TICK_MAX_UPDATE ====================================
-
-    // NOTE: These values are known and handled by the positionsState module
-    let in_ptr = @malloc_uninit(4);
-    @mstore4(in_ptr,READ_TICK_MAX_SELECTOR);
-    let succ = @evm_staticcall(@evm_gas(),
-    	@evm_sload(SLOT_POSITIONS_STATE_ID),in_ptr,SELECTOR_SIZE,in_ptr,WORD_SIZE);
-    let out_ptr = @malloc_uninit(32);
-    let tickMax = decode_int24(@mload32(out_ptr));
+    let tickMax = read_tick_bounds_from_positions(READ_TICK_MAX_SELECTOR);
     
     // ================================ REALIZED_TICK_VOL_UPDATE============================
+    // TODO: placeholder
+    let realizedTickVol = fetch_realized_vol(dt, tickMean, tick);
     //======================================= SSTORE ================================= 
     let newSlot = array_slot(SLOT_OBSERVATIONS_BASE, ss_indexUpdated);
-    @evm_sstore(newSlot, pack(TimeTickObservation, blockTimestamp, tickCumulative, ping_initialized()));
+    @evm_sstore(newSlot, pack_time_tick_observation(blockTimestamp,tickCumulative,tickMean, tickMin, tickMax,realizedTickVol, ping_initialized()));
 
     //======================================= RETURN =========================================
-    MarketStatisticsWriteResult { indexUpdated: indexUpdated, cardinalityUpdated: cardinalityUpdated }
+    MarketStatisticsWriteResult { indexUpdated: indexUpdated, currentSampleSizeUpdated: sampleSizeOnUpdate }
 };
 
 
@@ -106,7 +136,7 @@ const ssindex_grow = fn (current: u256, next: u256) u256 {
     next
 };
 
-const marketStatistics_observeSingle = fn (time: u256, secondsAgo: u256, tick: u256, index: u256, cardinality: u256) TimeIntegratedTickBucket {
+const fetch_single_timepoint = fn (time: u256, secondsAgo: u256, tick: u256, index: u256, cardinality: u256) TimeIntegratedTickBucket {
     if secondsAgo == 0 {
         let slot = array_slot(SLOT_OBSERVATIONS_BASE, index);
         let last = unpack(TimeTickObservation,@evm_sload(slot));
