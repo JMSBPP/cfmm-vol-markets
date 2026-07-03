@@ -1,3 +1,15 @@
+import types::MarketStatisticsTypes;
+
+const OracleInitResult = struct { cardinality: u256, cardinalityNext: u256 };
+const OracleWriteResult = struct { indexUpdated: u256, cardinalityUpdated: u256 };
+
+const oracle_lte = fn (time: u256, a: u256, b: u256) bool {
+    if (a <= time) and (b <= time) { return a <= b; }
+    let aAdjusted = if a > time { a } else { a +% (1 << 32) };
+    let bAdjusted = if b > time { b } else { b +% (1 << 32) };
+    aAdjusted <= bAdjusted
+};
+
 
 const calculateVariance
  = fn( strikeDiffAccum :u256, strikeDiffAccumSqx : u256,tickSpacingu256, centeredTick : u256) u256 {};

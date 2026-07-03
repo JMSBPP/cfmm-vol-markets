@@ -1,8 +1,130 @@
+import types::MarketStatisticsTypes::*;
+import v3::storage:: {array_slot};
+import v3::util::{revert_empty};
 
 
-const SLOT_TICK_MEAN =
-const SLOT_MARKET_STATE_ID =
-const SLOT_POSITIONS_STATE_ID =
-const SLOT_STRIKE_DIFFS_ACCUM =
-const SLOT_STRIKE_DIFFS_ACCUM_SQX =
-const SLOT_INVENTORY_SPLIT_WEIGHTED_STRIKE_DIFFS_ACCUM =
+const SLOT_OBSERVATIONS_BASE = 14;
+
+// const SLOT_MARKET_STATE_ID =
+// const SLOT_POSITIONS_STATE_ID =
+// const SLOT_STRIKE_DIFFS_ACCUM =
+// const SLOT_STRIKE_DIFFS_ACCUM_SQX =
+// const SLOT_INVENTORY_SPLIT_WEIGHTED_STRIKE_DIFFS_ACCUM =
+
+const MarketStatisticsInitResult = struct { cardinality: u256, cardinalityNext: u256 };
+const MarketStatisticsWriteResult = struct { indexUpdated: u256, cardinalityUpdated: u256 };
+
+const marketStatistics_initialize = fn (time: u256) MarketStatisticsInitResult {
+    let slot = array_slot(SLOT_OBSERVATIONS_BASE, 0);
+    @evm_sstore(slot, pack(TimeTickObservation,time, 0, true));
+    MarketStatisticsInitResult { cardinality: 1, cardinalityNext: 1 }
+};
+
+const marketStatistics_write = fn (index: u256, blockTimestamp: u256, tick: u256, cardinality: u256, cardinalityNext: u256) MarketStatisticsWriteResult {
+    let slot = array_slot(SLOT_OBSERVATIONS_BASE, index);
+    let last = unpack(TimeTickObservation,@evm_sload(slot));
+    if last.blockTimestamp == blockTimestamp {
+        return MarketStatisticsWriteResult { indexUpdated: index, cardinalityUpdated: cardinality };
+    }
+    let mut cardinalityUpdated = cardinality;
+    if (cardinalityNext > cardinality) and (index == (cardinality - 1)) {
+        cardinalityUpdated = cardinalityNext;
+    }
+    let indexUpdated = (index + 1) % cardinalityUpdated;
+    let delta = blockTimestamp -% last.blockTimestamp;
+    let tickCumulative = last.tickCumulative +% (tick *% delta);
+    let secondsPerLiquidityCumulativeX128 = last.secondsPerLiquidityCumulativeX128 +% ((delta << 128) </ if liquidity > 0 { liquidity } else { 1 });
+    let newSlot = array_slot(SLOT_OBSERVATIONS_BASE, indexUpdated);
+    @evm_sstore(newSlot, pack(TimeTickObservation, blockTimestamp, tickCumulative, true));
+    MarketStatisticsWriteResult { indexUpdated: indexUpdated, cardinalityUpdated: cardinalityUpdated }
+};
+
+const marketStatistics_grow = fn (current: u256, next: u256) u256 {
+    if current == 0 { revert_empty(); }
+    if next <= current { return current; }
+    let mut i = current;
+    while i < next {
+        let slot = array_slot(SLOT_OBSERVATIONS_BASE, i);
+        @evm_sstore(slot, 1); // set blockTimestamp to 1 to prevent fresh SSTOREs
+        i = i + 1;
+    }
+    next
+};
+
+const marketStatistics_observeSingle = fn (time: u256, secondsAgo: u256, tick: u256, index: u256, cardinality: u256) TimeIntegratedTickBucket {
+    if secondsAgo == 0 {
+        let slot = array_slot(SLOT_OBSERVATIONS_BASE, index);
+        let last = unpack(TimeTickObservation,@evm_sload(slot));
+        let mut resultTickCumulative = last.tickCumulative;
+        if last.blockTimestamp != time {
+            let delta = time -% last.blockTimestamp;
+            resultTickCumulative = last.tickCumulative +% (tick *% delta);
+        }
+        return TimeIntegratedTickBucket { tickCumulative: resultTickCumulative};
+    }
+    
+    let target = time -% secondsAgo;
+
+    // binary search or direct lookup
+    let mut l = (index + 1) % cardinality;
+    let mut r = l + cardinality - 1;
+    let mut i = 0;
+
+    // first check if target is at or after newest
+    let newestSlot = array_slot(SLOT_OBSERVATIONS_BASE, index);
+    let newest = unpack(TimeTickObservation,@evm_sload(newestSlot));
+    if oracle_lte(time, newest.blockTimestamp, target) {
+        if newest.blockTimestamp == target {
+            return TimeIntegratedTickBucket { tickCumulative: newest.tickCumulative };
+        } else {
+            let delta = target -% newest.blockTimestamp;
+            let tickCumulative = newest.tickCumulative +% (tick *% delta);
+            return TimeIntegratedTickBucket { tickCumulative: tickCumulative };
+        }
+    }
+
+    // check oldest
+    let oldestSlot = array_slot(SLOT_OBSERVATIONS_BASE, l % cardinality);
+    let mut oldest = unpack(TimeTickObservation ,@evm_sload(oldestSlot));
+    if !oldest.initialized {
+        oldest = unpack(TimeTickObservation, @evm_sload(array_slot(SLOT_OBSERVATIONS_BASE, 0)));
+    }
+    if !oracle_lte(time, oldest.blockTimestamp, target) {
+        revert_empty();
+    }
+
+    // binary search
+    let mut beforeOrAt = newest;
+    let mut atOrAfter = newest;
+    let mut found = false;
+    while !found {
+        i = (l + r) </ 2;
+        beforeOrAt = unpack(TimeTickObservation,@evm_sload(array_slot(SLOT_OBSERVATIONS_BASE, i % cardinality)));
+        if beforeOrAt.initialized {
+            atOrAfter = unpack(TimeTickObservation, @evm_sload(array_slot(SLOT_OBSERVATIONS_BASE, (i + 1) % cardinality)));
+            let targetAtOrAfter = oracle_lte(time, beforeOrAt.blockTimestamp, target);
+            if targetAtOrAfter and oracle_lte(time, target, atOrAfter.blockTimestamp) {
+                found = true;
+            } else if !targetAtOrAfter {
+                r = i - 1;
+            } else {
+                l = i + 1;
+            }
+        } else {
+            l = i + 1;
+        }
+    }
+
+    if target == beforeOrAt.blockTimestamp {
+        return TimeIntegratedTickBucket { tickCumulative: beforeOrAt.tickCumulative };
+    } else if target == atOrAfter.blockTimestamp {
+        return TimeIntegratedTickBucket { tickCumulative: atOrAfter.tickCumulative  };
+    } else {
+        let observationTimeDelta = atOrAfter.blockTimestamp -% beforeOrAt.blockTimestamp;
+        let targetDelta = target -% beforeOrAt.blockTimestamp;
+        let tickCumulativeDelta = atOrAfter.tickCumulative -% beforeOrAt.tickCumulative;
+
+        let tickCumulative = beforeOrAt.tickCumulative +% ((tickCumulativeDelta </ observationTimeDelta) *% targetDelta);
+        return TimeIntegratedTickBucket { tickCumulative: tickCumulative };
+    }
+};
