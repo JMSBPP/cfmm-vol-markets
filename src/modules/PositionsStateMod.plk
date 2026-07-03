@@ -9,4 +9,10 @@
 // a => portafolioId []
 
 const SLOT_MARKET_ID =
-const SLOT_PORTAFOLIO_MANAGER_ID = 
+const SLOT_PORTAFOLIO_MANAGER_ID =
+const SLOT_TICK_MIN =
+const SLOT_TICK_MAX =
+
+const read_tick_min = fn() u256 {}
+const read_tick_max = fn() u256 {}
+const read_tick_min_and_max = fn() u256 {}

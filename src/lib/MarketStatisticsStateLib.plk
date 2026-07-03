@@ -1,0 +1,4 @@
+const MarketStatisticsInitResult = struct { currentSampleSize: u256, nextTargetedSampleSize: u256 };
+const MarketStatisticsWriteResult = struct { indexUpdated: u256, currentSampleSizeUpdated: u256 };
+
+ 

@@ -1,9 +1,20 @@
 import types::MarketStatisticsTypes::*;
+import lib::MarketStatisticsStateLib::*;
+import lib::MarketStatisticsLib::*;
+import interfaces::ABI_PositionsState::*;
 import v3::storage:: {array_slot};
 import v3::util::{revert_empty};
 
+const INIT_STORAGE_INDEX = 0;
+// TODO: This next TWO go in a more generic utils file
+const SELECTOR_SIZE = 4;
+const WORD_SIZE = 32;
+const ZERO_OFFSET = 0;
+// keccak256("MarketStatistics.TimepointBuffer")
+const SLOT_TIMEPOINT_BUFFER_BASE = 0xebcc1c85998b5d57b50ec9abef805c95e52fe44b384a65c3105984469083819e;
 
-const SLOT_OBSERVATIONS_BASE = 14;
+// keccak256("MarketStatistics.ImpliedStatsBuffer")
+const SLOT_IMPLIED_STATS_BUFFER_BASE = 0x67ee822f163614d994d5baa76f89d7060161a55c849af93d19712d3f85b60c0c;
 
 // const SLOT_MARKET_STATE_ID =
 // const SLOT_POSITIONS_STATE_ID =
@@ -11,35 +22,79 @@ const SLOT_OBSERVATIONS_BASE = 14;
 // const SLOT_STRIKE_DIFFS_ACCUM_SQX =
 // const SLOT_INVENTORY_SPLIT_WEIGHTED_STRIKE_DIFFS_ACCUM =
 
-const MarketStatisticsInitResult = struct { cardinality: u256, cardinalityNext: u256 };
-const MarketStatisticsWriteResult = struct { indexUpdated: u256, cardinalityUpdated: u256 };
-
-const marketStatistics_initialize = fn (time: u256) MarketStatisticsInitResult {
-    let slot = array_slot(SLOT_OBSERVATIONS_BASE, 0);
-    @evm_sstore(slot, pack(TimeTickObservation,time, 0, true));
-    MarketStatisticsInitResult { cardinality: 1, cardinalityNext: 1 }
+const initialize_timepoint_buffer = fn (time: u256) MarketStatisticsInitResult {
+    let slot = array_slot(SLOT_TIMEPOINT_BUFFER_BASE, INIT_STORAGE_INDEX);
+    @evm_sstore(slot, pack_time_tick_observation(time, INIT_TICK_CUMMULATIVE, ping_initialized()));
+    MarketStatisticsInitResult { currentSampleSize: MIN_SAMPLE_SIZE, nextTargetedSampleSize: MIN_SAMPLE_SIZE }
 };
 
-const marketStatistics_write = fn (index: u256, blockTimestamp: u256, tick: u256, cardinality: u256, cardinalityNext: u256) MarketStatisticsWriteResult {
-    let slot = array_slot(SLOT_OBSERVATIONS_BASE, index);
-    let last = unpack(TimeTickObservation,@evm_sload(slot));
-    if last.blockTimestamp == blockTimestamp {
-        return MarketStatisticsWriteResult { indexUpdated: index, cardinalityUpdated: cardinality };
+const write_timepoint =
+fn (
+   ss_Index: u256,
+   blockTimestamp: u256,
+   tick: u256,
+   currentSampleSize: u256,
+   nextTargetedSampleSize: u256
+ ) MarketStatisticsWriteResult {
+     //  ==================================== SLOAD ======================
+    let slot = array_slot(SLOT_OBSERVATIONS_BASE, ss_index);
+    let prev_timepoint = unpack_time_tick_observation(@evm_sload(slot));
+ 
+    // ============================== TIME =================================
+    if prev_timepoint.blockTimestamp == blockTimestamp {
+        return MarketStatisticsWriteResult { indexUpdated: ss_index, currentSampleSizeUpdated: currentSampleSize };
     }
-    let mut cardinalityUpdated = cardinality;
-    if (cardinalityNext > cardinality) and (index == (cardinality - 1)) {
-        cardinalityUpdated = cardinalityNext;
+    let prev_blockTimestamp = prev_timepoint.blockTimestamp
+    let dt = blockTimestamp -% prev_blockTimestamp;
+    
+    // ===========================================================================
+
+    // ========================== SAMPLE & SS_INDEX ==================================
+    // TODO: This needs to be refactored on the type Size 
+    let mut sampleSizeOnUpdate = currentSampleSize;
+    if (nextTargetedSampleSize > currentSampleSize) and (ss_index == (currentSampleSize - 1)) {
+        sampleSizeOnUpdate = nextTargetedSampleSize;
     }
-    let indexUpdated = (index + 1) % cardinalityUpdated;
-    let delta = blockTimestamp -% last.blockTimestamp;
-    let tickCumulative = last.tickCumulative +% (tick *% delta);
-    let secondsPerLiquidityCumulativeX128 = last.secondsPerLiquidityCumulativeX128 +% ((delta << 128) </ if liquidity > 0 { liquidity } else { 1 });
-    let newSlot = array_slot(SLOT_OBSERVATIONS_BASE, indexUpdated);
-    @evm_sstore(newSlot, pack(TimeTickObservation, blockTimestamp, tickCumulative, true));
+    let ss_indexUpdated = (ss_index + 1) % sampleSizeOnUpdate;
+    // ===============================================================================
+
+    // =================================== TICK_CUMM_UPDATE ======================
+    let tickCumulative = last.tickCumulative +% (tick *% dt);
+
+    // ================================ TICK_MEAN_UPDATE ===================================
+    let tickMean = fetch_mean_tick(
+    	ss_index, ss_indexUpdated, blockTimestamp, prev_blockTimestamp, tick, tickCummulative);
+    // ================================ TICK_MIN_UPDATE ===================================
+    // TODO: I might be overwriting the pointers
+    let in_ptr = @malloc_uninit(4);
+    @mstore4(in_ptr,READ_TICK_MIN_SELECTOR);
+    let succ = @evm_staticcall(@evm_gas(),
+    @evm_sload(SLOT_POSITIONS_STATE_ID),in_ptr,SELECTOR_SIZE,in_ptr,WORD_SIZE);
+    let out_ptr = @malloc_uninit(32);
+    let tickMin = decode_int24(@mload32(out_ptr));
+
+    // ================================ TICK_MAX_UPDATE ====================================
+
+    // NOTE: These values are known and handled by the positionsState module
+    let in_ptr = @malloc_uninit(4);
+    @mstore4(in_ptr,READ_TICK_MAX_SELECTOR);
+    let succ = @evm_staticcall(@evm_gas(),
+    	@evm_sload(SLOT_POSITIONS_STATE_ID),in_ptr,SELECTOR_SIZE,in_ptr,WORD_SIZE);
+    let out_ptr = @malloc_uninit(32);
+    let tickMax = decode_int24(@mload32(out_ptr));
+    
+    // ================================ REALIZED_TICK_VOL_UPDATE============================
+    //======================================= SSTORE ================================= 
+    let newSlot = array_slot(SLOT_OBSERVATIONS_BASE, ss_indexUpdated);
+    @evm_sstore(newSlot, pack(TimeTickObservation, blockTimestamp, tickCumulative, ping_initialized()));
+
+    //======================================= RETURN =========================================
     MarketStatisticsWriteResult { indexUpdated: indexUpdated, cardinalityUpdated: cardinalityUpdated }
 };
 
-const marketStatistics_grow = fn (current: u256, next: u256) u256 {
+
+// TODO: This needs to be related with the sample size and encapsulated probably on its own type
+const ssindex_grow = fn (current: u256, next: u256) u256 {
     if current == 0 { revert_empty(); }
     if next <= current { return current; }
     let mut i = current;
@@ -64,7 +119,7 @@ const marketStatistics_observeSingle = fn (time: u256, secondsAgo: u256, tick: u
     }
     
     let target = time -% secondsAgo;
-
+ 
     // binary search or direct lookup
     let mut l = (index + 1) % cardinality;
     let mut r = l + cardinality - 1;

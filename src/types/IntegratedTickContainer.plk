@@ -1,0 +1,26 @@
+
+const TimeTickObservation = struct {
+    blockTimestamp: u256,
+    tickCumulative: u256,
+    initialized: bool
+};
+
+const observation_pack = fn (
+    blockTimestamp: u256,
+    tickCumulative: u256,
+    secondsPerLiquidityCumulativeX128: u256,
+    initialized: bool
+) u256 {
+    (blockTimestamp & 0xFFFFFFFF)
+        | ((tickCumulative & 0xFFFFFFFFFFFFFF) << 32)
+        | ((if initialized { 1 } else { 0 }) << 248)
+};
+
+const OracleInitResult = struct { cardinality: u256, cardinalityNext: u256 };
+const OracleWriteResult = struct { indexUpdated: u256, cardinalityUpdated: u256 };
+
+
+const TimeIntegratedTickBucket = struct { tickCumulative: u256, secondsPerLiquidityCumulativeX128: u256 };
+
+
+const oracle_observeSingle = fn (time: u256, secondsAgo: u256, tick: u256, index: u256, liquidity: u256, cardinality: u256) OracleObserveResult {
