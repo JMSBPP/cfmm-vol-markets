@@ -1,0 +1,4 @@
+// sig:: initializeTWAP(uint32,int24)
+const SELECTOR_INITIALIZE_TWAP = 0xed64c40a;
+// sig:: getTwapTick(uint32,int24,uint32)
+const SELECTOR_GET_TWAP_TICK = 0x1a72d0df;

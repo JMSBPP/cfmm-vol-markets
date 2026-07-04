@@ -2,19 +2,27 @@ import types::MarketStatisticsTypes::*;
 import lib::MarketStatisticsStateLib::*;
 import lib::MarketStatisticsLib::*;
 import interfaces::ABI_PositionsState::*;
+import interfaces::ABI_MarketStatistics::*;
 import v3::storage:: {array_slot};
 import v3::util::{revert_empty};
+import std::constructor::return_runtime;
 
 const INIT_STORAGE_INDEX = 0;
+
+
 // TODO: This next TWO go in a more generic utils file
 const SELECTOR_SIZE = 4;
 const WORD_SIZE = 32;
 const ZERO_OFFSET = 0;
+
 // keccak256("MarketStatistics.TimepointBuffer")
 const SLOT_TIMEPOINT_BUFFER_BASE = 0xebcc1c85998b5d57b50ec9abef805c95e52fe44b384a65c3105984469083819e;
 
 // keccak256("MarketStatistics.ImpliedStatsBuffer")
+// todo: strike diffs accum and strike diffs accum sqx go inside this module
 const SLOT_IMPLIED_STATS_BUFFER_BASE = 0x67ee822f163614d994d5baa76f89d7060161a55c849af93d19712d3f85b60c0c;
+// keccak256("MarketStatistics.State")
+const SLOT_MARKET_STATISTICS_STATE = 0xf5f8ef95fe6b67aa10e883adef5a415b2cdb947e2e191e22a4a8606966821744;
 
 // const SLOT_MARKET_STATE_ID =
 // const SLOT_POSITIONS_STATE_ID =
@@ -22,7 +30,44 @@ const SLOT_IMPLIED_STATS_BUFFER_BASE = 0x67ee822f163614d994d5baa76f89d7060161a55
 // const SLOT_STRIKE_DIFFS_ACCUM_SQX =
 // const SLOT_INVENTORY_SPLIT_WEIGHTED_STRIKE_DIFFS_ACCUM =
 
+
+
+const initializeTWAP = fn(currentTimestamp :u256, tick :u256) never {
+      let initRes = initialize_timepoint_buffer(currentTimestamp);
+      @evm_sstore(SLOT_MARKET_STATISTICS_STATE, pack_market_statistics_state(INIT_STORAGE_INDEX,currentTimestamp,true));
+};
+
+const write_ss_index = fn(_ss_index:u256) void {
+
+};
+
+const write_last_timepoint_timestamp = fn(_last_timepoint_timestamp: u256) void {
+
+};
+
+const ss_index = fn() u256 {
+      unpack_market_statistics_state(@evm_sload(SLOT_MARKET_STATISTICS_STATE)).ss_index;
+};
+
+const last_timepoint_timestamp = fn() u256 {
+      unpack_market_statistics_state(@evm_sload(SLOT_MARKET_STATISTICS_STATE)).lastTimepointTimestamp;
+};
+
+const getTwapTick = fn(dt:u256, tick :u256, currentTimestamp) never {
+
+let twapTick = _getTwapTick(dt,tick,currentTimestamp);
+      let out_ptr = @malloc_uninit(32);
+      @mstore32(out_ptr, twapTick);
+      @evm_return(out_ptr, 32);
+};
+
+const _getTwapTick = fn(dt:u256, tick :u256, currentTimestamp) u256 {
+            
+};
+
+
 const initialize_timepoint_buffer = fn (time: u256) MarketStatisticsInitResult {
+
     let slot = array_slot(SLOT_TIMEPOINT_BUFFER_BASE, INIT_STORAGE_INDEX);
     @evm_sstore(slot, pack_time_tick_observation(time, INIT_TICK_CUMMULATIVE, ping_initialized()));
     MarketStatisticsInitResult { currentSampleSize: MIN_SAMPLE_SIZE, nextTargetedSampleSize: MIN_SAMPLE_SIZE }
@@ -49,19 +94,21 @@ const read_tick_bounds_from_positions = fn(selector: u256) u256 {
 
 // TODO: This needs adjustments
 const fetch_mean_tick =
-      fn( ss_index: u256, ss_indexUpdated: u256, blockTimestamp: u256, prev_blockTimestamp: u256,
+      fn(ss_indexUpdated: u256, blockTimestamp: u256, prev_blockTimestamp: u256,
       tick:u256, prevTickCummulative :u256) u256 {
       		 let dt = @evm_sub(blockTimestamp, prev_blockTimestamp);
       		 int56 currentTickCumulative = @evm_add(prevTickCumulative, @evm_mul(tick, dt));
 		 return @evm_div(@evm_sub(currentTickCumulative,prevTickCummulative),dt);
 }
 
-const fetch_realized_volatility = fn(dt:u256, tickMean:u256, tick: u256) u256 {
-      let tickDiff = @evm_sub(tick,tickMean);
-      let tickDiffPerDt =  @evm_mul(tickDiff,dt);
-      let sumOfSequence = @evm_mul(d1, @evm_add(dt,1));
-      let sumOfSquares = @evm_mul(sumOfSequence,@evm_mul(2, @evm_add(dt,1));
-      // let realizedVol = @evm_div();
+/////////////////////////////////////////////////////////////////////////////////////
+// const fetch_realized_volatility = fn(dt:u256, tickMean:u256, tick: u256) u256 { //
+//       let tickDiff = @evm_sub(tick,tickMean);				   //
+//       let tickDiffPerDt =  @evm_mul(tickDiff,dt);				   //
+//       let sumOfSequence = @evm_mul(d1, @evm_add(dt,1));			   //
+//       let sumOfSquares = @evm_mul(sumOfSequence,@evm_mul(2, @evm_add(dt,1));	   //
+//       // let realizedVol = @evm_div();					   //
+/////////////////////////////////////////////////////////////////////////////////////
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
     // int256 sumOfSquares = sumOfSequence * (2 * dt + 1); // sumOfSquares * 6				   //
@@ -113,10 +160,17 @@ const write_timepoint = fn (
     
     // ================================ REALIZED_TICK_VOL_UPDATE============================
     // TODO: placeholder
-    let realizedTickVol = fetch_realized_vol(dt, tickMean, tick);
+    let realizedTickVol = 0;
+    // let realizedTickVol = fetch_realized_vol(dt, tickMean, tick);
     //======================================= SSTORE ================================= 
     let newSlot = array_slot(SLOT_OBSERVATIONS_BASE, ss_indexUpdated);
-    @evm_sstore(newSlot, pack_time_tick_observation(blockTimestamp,tickCumulative,tickMean, tickMin, tickMax,realizedTickVol, ping_initialized()));
+    @evm_sstore(
+	newSlot,
+	pack_time_tick_observation(
+		blockTimestamp,tickCumulative,tickMean, tickMin,
+		tickMax,realizedTickVol, ping_initialized()
+	)
+     );
 
     //======================================= RETURN =========================================
     MarketStatisticsWriteResult { indexUpdated: indexUpdated, currentSampleSizeUpdated: sampleSizeOnUpdate }
@@ -136,7 +190,7 @@ const ssindex_grow = fn (current: u256, next: u256) u256 {
     next
 };
 
-const fetch_single_timepoint = fn (time: u256, secondsAgo: u256, tick: u256, index: u256, cardinality: u256) TimeIntegratedTickBucket {
+const fetch_tick_time_integrated = fn (time: u256, secondsAgo: u256, tick: u256, index: u256, cardinality: u256) TimeIntegratedTickBucket {
     if secondsAgo == 0 {
         let slot = array_slot(SLOT_OBSERVATIONS_BASE, index);
         let last = unpack(TimeTickObservation,@evm_sload(slot));
@@ -213,3 +267,35 @@ const fetch_single_timepoint = fn (time: u256, secondsAgo: u256, tick: u256, ind
         return TimeIntegratedTickBucket { tickCumulative: tickCumulative };
     }
 };
+
+
+init {
+      
+     return_runtime();
+}
+
+
+run{
+
+	let selector = @evm_shr(224, @evm_calldataload(0));
+	if selector == SELECTOR_INITIALIZE_TWAP {
+	   let mut blockTimestamp = @evm_calldataload(4);
+	   let mut tick = @evm_calldataload(36);
+	   blockTimestamp =
+	   tick = 
+	   initializeTWAP(blockTimestamp, tick);
+	} else if selector == SELECTOR_GET_TWAP_TICK {
+	       let mut dt = @evm_calldataload(4);
+	       let mut tick = @evm_calldataload(36);
+	       let mut blockTimestamp = @evm_calldataload(68);
+	       dt = 
+	       tick =
+	       blockTimestamp =
+	       getTwapTick(dt, tick, blockTimestamp);
+	}
+
+	@evm_stop();
+}
+
+
+
