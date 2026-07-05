@@ -1,45 +1,55 @@
 
-
-=======================================
-
-type NumberFormat DirectAddressMap {
-	Natural -> {min,max,step}
-	Rational -> {min,max,step}
-    Q64.96 -> {min,max,step}
-	Q128.128 -> {min,max,step}
-	RAY -> {min,max,step}
-	WAD -> {min,max,step}
+type VolRangeWidth {
+	width:u24,
+	tickSpacing: u24
 }
 
-type NumberGroupSpec { min; max; step}
+fn (tickSpacing:u24) -> (tsAwareMinVolRangeWidth:u24, tsAwareMaxVolRangeWidth:u24)
 
-type BoundedValue<NumberFormat, lowerBound, upperBound>
-type Set<size:Natural> {}
+fn (tickSpacing:u24 ,tickLower: i24, tickUpper:24) -> (volRangeWidth:VolRangeWidth)
 
-type Grid is Set {}
+========================================================================
 
-====================================
-
-
-type Asset
-type Currency 
-
-type AssetPricer<Currency> -> (Currency/Asset){}
-
-=====================================================
-// note: These are control params
-
-type VolatilityTermStructure {
-	priceElasticity: BoundedValue<Q64x96, 0, Q96_ONE>; // this number format is to be revised
-	statePartitionDelta: BoundedValue<Natural,1,200>; // tickSpacing u24 [1,200]
-	baseTick: BoundedValue<Integer, -, ...>
+type SpreadTickAssimetry {
+	spread :u16
 }
 
-type VolatilityGrid is Grid {}
+fn ( self :SpreadTickAssimetry, tick:i24) -> [tick << self.spread , tick << (type(u16).max - self.spread) ]
 
-type VolatilityGridLens <VolatilityTermStructure, MarketLens, VolatilityGrid> {
-     crossSectionVolatilityValue : calculateValue(VolatilityTermStructure,MarketLens,VolatilityGrid)
+fn (self: SpreadTickAssimetry, tickLower: u24, tickUpper: u24 , dir :bool ) -> [[dir](tickLower << self.spread, tickUpper<< (type(u16).max - self.spread) || (backwards))]
+
+fn (self: SpreadTickAssimetry, tickLower: u24, tickUpper: u24 , dir :bool ) - [[dir] (i = tickLower << self.spread + tickUpper<< (type(u16).max - self.spread) || (backwards))]
+
+
+=====================================================================================
+
+type TickVolatility {
+	vol: u88
+}
+
+fn (self: TickVolatility) -> (volX96:Q64.96)
+fn (self: TickVolatility) -> (volWAD: WAD)
+lnVolX96 = fn (self: TickVolatility) -> (lnVolX96Val: Q64.96)
+lnVolWAD = fn (self: TickVolatility) -> (lnVolWADVal : WAD)
+
+
+======================================================
+
+type VolOrder {
+	 rangeWidth:VolRangeWidth;
+ 	 volStrike:TickVolatility;
+	 skew : SpreadTickAssymetry
 }
 
 
-==============================================
+setVolStrike = fn (volStrikeVal:u88) -> VolOrder
+
+setSkew = fn (skewVal:u16) -> VolOrder
+
+setRangeWidthTickSpacing = fn(tickSpacing:u24) -> VolOrder
+setRangeWidthVal = fn(width:u24) -> VolOrder
+setRangeWidthTickSpacing = fn(tickSpacing :u24) -> VolOrder
+setRangeWidth = fn(width: u24, tickSpacing: u24) -> VolOrder
+
+
+==========================================================
