@@ -1,0 +1,43 @@
+import std::error::require;
+
+const VolRangeWidth = struct {
+	width:u256, //  u24
+	tickSpacing: u256 // u24
+};
+
+const VolRangeWidthInterval = struct {
+      lowBound :VolRangeWidth,
+      upBound: VolRangeWidth
+};
+
+const type_check_vol_range_width = fn (_volRangeWidth:VolRangeWidth) void {
+      require(_volRangeWidth.width > 0xffffff);
+      require(_volRangeWidth.tickSpacing > 0xffffff);
+};
+
+// note: optimistically paccking			 
+
+const pack_vol_range_width = fn (_volRangeWidth:VolRangeWidth) u256 {
+      (_volRangeWidth.width & 0xFFFFFF)
+      | ((_volRangeWidth.tickSpacing & 0xFFFFFF) << 32)
+};
+
+const unpack_vol_range_width = fn (_packed_volRangeWidth : u256) VolRangeWidth {
+      VolRangeWidth{ width: _packed_volRangeWidth & 0xFFFFFF, tickSpacing: @evm_shr(32, _packed_volRangeWidth) & 0xFFFFFF}
+};
+
+
+
+// note: input_type :: u24
+const vol_range_width_bounds = fn (tickSpacing:u256) VolRangeWidthInterval {
+
+};
+
+// note: input_types:  u24, i24, i24
+const build_vol_range_width = fn (tickSpacing:u256 ,tickLower: u256, tickUpper:u256) VolRangeWidth {
+
+};
+
+const add = fn(v1 :VolRangeWidth, v2VolRangeWidth: VolRangeWidth) VolRangeWidth {};
+const sub = fn(v1 :VolRangeWidth, v2VolRangeWidth: VolRangeWidth) VolRangeWidth {};
+

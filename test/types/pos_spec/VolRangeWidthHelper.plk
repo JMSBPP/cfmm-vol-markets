@@ -1,0 +1,54 @@
+import pos_spec::VolRangeWidth::*;
+import std::constructor::return_runtime;
+
+// signature :: pack_vol_range_width(uint24,uint24)
+
+const SELECTOR_PACK_VOL_RANGE_WIDTH = 0xa4614a1;
+
+
+// signature :: unpack_vol_range_width(bytes32)
+
+const SELECTOR_UNPACK_VOL_RANGE_WIDTH = 0xe3241c91;
+
+
+/////////////////////////////////////////////
+// const SELECTOR_VOL_RANGE_WIDTH_BOUNDS = //
+// const SELECTOR_BUILD_VOL_RANGE_WIDTH =  //
+// const SELECTOR_ADD_VOL_RANGE_WIDTH =	   //
+// const SELECTOR_SUB_VOL_RANGE_WIDTH =	   //
+/////////////////////////////////////////////
+
+const return_pack_vol_range_width = fn(volRangeWidth :VolRangeWidth) never {
+      type_check_vol_range_width(volRangeWidth);      
+      let res = pack_vol_range_width(volRangeWidth);
+      let out_ptr = @malloc_uninit(32);
+      @mstore32(out_ptr, res);
+      @evm_return(out_ptr, 32);
+
+};
+
+const return_unpack_vol_range_width = fn(_packed:u256) never {
+      let res = unpack_vol_range_width(_packed);
+      return_pack_vol_range_width(res);
+};
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SELECTOR_PACK_VOL_RANGE_WIDTH {
+        let width = @evm_calldataload(4);
+	let tickSpacing = @evm_calldataload(36);
+	let volRangeWidth = VolRangeWidth {
+	     width: width,
+	     tickSpacing: tickSpacing 
+	};
+	return_pack_vol_range_width(volRangeWidth);
+    } else if selector == SELECTOR_UNPACK_VOL_RANGE_WIDTH {
+      	   let _packed = @evm_calldataload(4);
+      	   return_unpack_vol_range_width(_packed);      
+    }
+    @evm_stop();
+}
+
+init {
+     return_runtime();
+}

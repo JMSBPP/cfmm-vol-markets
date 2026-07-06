@@ -113,10 +113,21 @@ contract MarketStatisticsTest is Test {
     MarketStatisticsAlgebraRef marketStatisticsAlgebraRef;
     MarketStatisticsUniV3Ref marketStatisticsUniV3Ref;
 
+    bool forked;
+    uint256 forkId;
+    
     function  setUp() public {
-	marketStatisticsAlgebraRef = new MarketStatisticsAlgebraRef(new VolatilityOraclePluginImplementation());
-	marketStatisticsUniV3Ref = new MarketStatisticsUniV3Ref();
-	
+	try vm.rpcUrl("local") returns(string memory url) {
+	     forkId = vm.createSelectFork(url);
+	     marketStatisticsAlgebraRef = new MarketStatisticsAlgebraRef(new VolatilityOraclePluginImplementation());
+	     marketStatisticsUniV3Ref = new MarketStatisticsUniV3Ref();
+	     vm.makePersistent(address(marketStatisticsAlgebraRef), address(marketStatisticsUniV3Ref));
+	} catch {
+	    marketStatisticsAlgebraRef = new MarketStatisticsAlgebraRef(new VolatilityOraclePluginImplementation());
+	    marketStatisticsUniV3Ref = new MarketStatisticsUniV3Ref();
+	    forked = false;
+	}
+
     }
 
     function test__fuzz__algebraOneObsTickAvgEqObs(int24 tickInit, uint32 _init_timeStamp) public {
@@ -286,6 +297,8 @@ contract MarketStatisticsTest is Test {
 	       
 	    } while (index < numberOfTicksToWrite);
 	}
+
+	
 	
     }
 
