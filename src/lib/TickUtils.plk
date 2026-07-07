@@ -1,39 +1,13 @@
-/// @title TickUtils
-/// @notice Tick helpers ported from Uniswap V4 `TickMath` (`minUsableTick`/`maxUsableTick`),
-///         which do not exist in the V3-based `plankified-univ3` `tick_math.plk`.
-/// @dev Plank has no native signed or fixed-width integer types: its only numeric
-///      primitive is `u256`. A `tick` (Solidity `int24`) is therefore represented as a
-///      two's-complement value held in a `u256`, and signed arithmetic is performed with
-///      the EVM signed builtins (`@evm_sdiv`, `@evm_slt`, ...). The `Tick` alias below
-///      documents that contract at the type level.
 
-/// @notice An `int24` tick encoded as a two's-complement value inside a `u256`.
-/// @dev Valid range is [MIN_TICK, MAX_TICK]. Bit patterns outside that range are invalid.
-const Tick = u256;
-
-/// @dev The minimum tick. Mirrors `TickMath.MIN_TICK` (V3 and V4): log base 1.0001 of 2**-128.
-const MIN_TICK: Tick = -887272;
-/// @dev The maximum tick. Mirrors `TickMath.MAX_TICK` (V3 and V4): log base 1.0001 of 2**128.
-const MAX_TICK: Tick = 887272;
-
-/// @notice Given a tickSpacing, the minimum tick that can be initialized for that spacing.
-/// @dev Faithful port of Uniswap V4 `TickMath.minUsableTick`:
-///      `(MIN_TICK / tickSpacing) * tickSpacing`. Division is signed and truncates toward
-///      zero (EVM `SDIV`), so for the negative `MIN_TICK` the quotient rounds toward zero.
-///      The wrapping multiply `*%` is exact here: the product is within int24 range and the
-///      two's-complement signed product equals the unsigned wrapping product bit-for-bit.
-/// @param tickSpacing The tick spacing (a positive `int24`).
-/// @return The greatest multiple of `tickSpacing` that is >= MIN_TICK.
-const minUsableTick = fn (tickSpacing: Tick) Tick {
-    @evm_sdiv(MIN_TICK, tickSpacing) *% tickSpacing
+const round_tick = fn(tick:u256, tickSpacing: u256) u256 {
+      let rounded_tick = @evm_mul(compress(tick, tickSpacing),tickSpacing);
+      rounded_tick
 };
 
-/// @notice Given a tickSpacing, the maximum tick that can be initialized for that spacing.
-/// @dev Faithful port of Uniswap V4 `TickMath.maxUsableTick`:
-///      `(MAX_TICK / tickSpacing) * tickSpacing`. `MAX_TICK` is positive so signed and
-///      unsigned division coincide; `@evm_sdiv` is used for symmetry with `minUsableTick`.
-/// @param tickSpacing The tick spacing (a positive `int24`).
-/// @return The least multiple of `tickSpacing` that is <= MAX_TICK.
-const maxUsableTick = fn (tickSpacing: Tick) Tick {
-    @evm_sdiv(MAX_TICK, tickSpacing) *% tickSpacing
+const compress = fn(tick:u256, tickSpacing: u256) u256 {
+    let mut compressed = @evm_sdiv(tick, tickSpacing);
+    if @evm_slt(tick, 0) & (@evm_smod(tick, tickSpacing) != 0) {
+        compressed = compressed -% 1;
+    }
+    compressed
 };
