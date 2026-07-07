@@ -1,0 +1,14 @@
+
+
+const TickVolatility = struct {
+      vol:u256
+};
+
+const volQ64X96 = fn(self: TickVolatility) TickVolatility {
+
+};
+
+const volWAD = fn(self: TickVolatility) TickVolatility {
+
+};
+

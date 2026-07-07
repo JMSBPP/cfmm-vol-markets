@@ -1,0 +1,27 @@
+import lib::pos_spec::TickVolatility::*;
+import pos_spec::TickVolatility::*;
+import std::constructor::return_runtime;
+
+
+//signature:: volQ64x96(uint256)
+const SELECTOR_VOL_Q64_X_96 =
+
+// signature :: volWAD(uint256)
+const SELECTOR_VOL_WAD =
+
+
+run {
+
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SELECTOR_VOL_Q64_X_96{
+
+    } else if selector == SELECTOR_VOL_WAD {
+
+    }
+    @evm_stop();
+}
+
+
+init {
+     return_runtime();
+}
