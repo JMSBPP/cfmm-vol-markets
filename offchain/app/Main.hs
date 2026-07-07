@@ -1,8 +1,6 @@
-module Main (main) where
+module Main where
 
-import qualified MyLib (someFunc)
+import qualified Network.Ethereum.Api.Eth as GLOBAL_STATE
 
 main :: IO ()
-main = do
-  putStrLn "Hello, Haskell!"
-  MyLib.someFunc
+main = putStrLn "web3-ethereum is visible"
