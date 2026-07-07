@@ -1,4 +1,18 @@
 
+const TickBucket = struct {
+     low :u256,
+     tickSpacing: u256,
+     up: u256
+};
+
+const unpack_tick_bucket = fn(_packed: u256) TickBucket {
+      TickBucket {
+      		 low: _packed & 0xFFFFFF,
+		 tickSpacing: @evm_shr(24, _packed & 0xFFFFFF),
+		 up: @evm_shr(72, _packed & 0xFFFFFF) // 24 + 24 + 24
+      }
+};
+
 const round_tick = fn(tick:u256, tickSpacing: u256) u256 {
       let rounded_tick = @evm_mul(compress(tick, tickSpacing),tickSpacing);
       rounded_tick
