@@ -1,0 +1,104 @@
+import pos_spec::TickVolatility::*;
+import std::addr::*;
+import v3::math::tick_math::{getSqrtRatioAtTick, getTickAtSqrtRatio};
+import v3::util::revert_empty;
+
+// singature::lnWad(int256)
+const SELECTOR_LN_VOL_WAD = 0x620ef2b4;
+
+// signature:: lnQ96(int256)
+const SELECTOR_LN_VOL_X96 = 0x33db569b;
+
+const return_lnVolX96 = fn(expMathImpl: addr, self: TickVolatility) never {
+    let call_ptr = @malloc_uninit(36);
+
+    @mstore4(call_ptr, SELECTOR_LN_VOL_X96);
+
+    let volXQ64x96 = volQ64X96(self);
+
+    // arg goes immediately after selector
+    @mstore32(call_ptr +% 4, volXQ64x96.vol);
+
+    let out_ptr = @malloc_uninit(32);
+
+    let succ = @evm_staticcall(
+        @evm_gas(),
+        expMathImpl.raw,
+        call_ptr,
+        36,
+        out_ptr,
+        32
+    );
+
+    if !succ {
+        revert_empty();
+    }
+
+    @evm_return(out_ptr, 32);
+};
+
+const return_lnVolWAD = fn(expMathImpl: addr, self: TickVolatility) never {
+    let call_ptr = @malloc_uninit(36);
+
+    @mstore4(call_ptr, SELECTOR_LN_VOL_WAD);
+
+    let volWad = volWAD(self);
+
+    // ABI arg starts after 4-byte selector
+    @mstore32(call_ptr +% 4, volWad.vol);
+
+    let out_ptr = @malloc_uninit(32);
+
+    let succ = @evm_staticcall(
+        @evm_gas(),
+        expMathImpl.raw,
+        call_ptr,
+        36,
+        out_ptr,
+        32
+    );
+
+    if !succ {
+        revert_empty();
+    }
+
+    @evm_return(out_ptr, 32);
+};
+////////////////////////////////////////////////////////////////////////
+// const lnVolX96 = fn(expMathImpl :addr,self: TickVolatility) u256{  //
+//  								      //
+// };								      //
+// 								      //
+// const lnVolWAD = fn(expMathImpl: addr ,self: TickVolatility) u256{ //
+// 								      //
+// };								      //
+////////////////////////////////////////////////////////////////////////
+
+
+// note: returns the uint160 corresponds to the sqrtPrice of the tick vol
+const tick_volatility_sqrt_price_X64x96 = fn(self: TickVolatility) u256 {
+      let volXQ64x96 = volQ64X96(self);
+      volXQ64x96.vol
+};
+// note: returns the tick associated with the tickVolatility
+const tick_volatility_tick = fn (self: TickVolatility) u256 {
+      getTickAtSqrtRatio(tick_volatility_sqrt_price_X64x96(self))          
+      
+};
+
+
+// note: returns the uint160 corresponds to the sqrtPrice of the tick vol
+const return_tick_volatility_sqrt_price_X64x96 = fn(self: TickVolatility) never {
+      let res = tick_volatility_sqrt_price_X64x96(self);
+      let out_ptr = @malloc_uninit(32);
+      @mstore32(out_ptr, res);
+      @evm_return(out_ptr, 32);
+};
+
+// note: returns the tick associated with the tickVolatility
+const return_tick_volatility_tick = fn (self: TickVolatility) never {
+      let res = tick_volatility_tick(self);
+      let out_ptr = @malloc_uninit(32);
+      @mstore32(out_ptr, res);
+      @evm_return(out_ptr, 32);      
+};

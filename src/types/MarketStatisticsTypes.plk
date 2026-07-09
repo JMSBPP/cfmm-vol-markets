@@ -20,7 +20,7 @@ const TimeIntegratedTickBucket = struct { tickCumulative: u256  };
 
 
 // todo: We need to correct the types of tick when they exceed 24 bytes
-const pack_time_tick_observation = fn (
+con st pack_time_tick_observation = fn (
     blockTimestamp: u256,
     tickCumulative: u256,
     tickMean: u256,

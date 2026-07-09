@@ -1,9 +1,0 @@
-import pos_spec::TickVolatility::*;
-
-const lnVolX96 = fn(self: TickVolatility) u256{
-
-};
-
-const lnVolWAD = fn(self: TickVolatility) u256{
-
-};

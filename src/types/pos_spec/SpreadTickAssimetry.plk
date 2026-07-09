@@ -55,3 +55,24 @@ const tick_from_splitted_tick_bucket = fn(
 
     @evm_add(low_part, up_part)
 };
+
+const return_split_tick = fn(self: SpreadTickAssimetry, volRangeWidth: VolRangeWidth, tick: u256
+) never{
+	check_cross_types(self,volRangeWidth);
+	let res = split_tick(self, volRangeWidth, tick);
+	let out_ptr = @malloc_uninit(96);
+	@mstore32(out_ptr, res.low);
+	@mstore32(out_ptr +% 32, res.tickSpacing);
+	@mstore32(out_ptr +% 32, res.up);
+	@evm_return(out_ptr, 96);
+};
+
+const return_tick_from_splitted_tick_bucket = fn(self: SpreadTickAssimetry,volRangeWidth: VolRangeWidth,tick_bucket: TickBucket ) never {
+      	check_cross_types(self,volRangeWidth);
+	let tick = tick_from_splitted_tick_bucket(self, volRangeWidth, tick_bucket);
+	let out_ptr = @malloc_uninit(32);
+	@mstore32(out_ptr, tick);
+	@evm_return(out_ptr, 32);
+       
+};
+

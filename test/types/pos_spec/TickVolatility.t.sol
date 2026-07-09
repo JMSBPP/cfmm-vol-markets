@@ -8,56 +8,42 @@ import {ExpMath} from "bunni-v2/src/lib/ExpMath.sol";
 struct TickVolatility {
     uint256 vol;
 }
-interface ITickVolatilityType{
-    function volQ64x96(TickVolatility memory tick_volatility) external returns(TickVolatility memory q64x96TickVol);
-
-    function volWAD(TickVolatility memory tick_volatility) external returns(TickVolatility memory wadTickVol);
-
-}
-
-contract TickVolatilityLibHarness {
-    function lnVolX96(TickVolatility memory tick_volatility) internal pure returns(uint160){
-
-    }
-    function lnVolWAD(TickVolatility memory tick_volatility) internal pure returns(uint160){
-
-    }
-
-    function tickVolatilitySqrtPriceX64x96(TickVolatility memory tick_volatility) internal pure returns(uint160){
-
-    }
-
-    function tickVolatilityTick(TickVolatility memory tick_volatility) internal pure returns(int24){
-
-    }
     
+interface ITickVolatilityType{
+    function volQ64x96(uint256) external returns(TickVolatility memory q64x96TickVol);
+
+    function volWAD(uint256) external returns(TickVolatility memory wadTickVol);
+
 }
+
 
 contract TickVolatilityTest is Test, PlankDeployer {
     ITickVolatilityType tickVolatilityImpl;
-    TickVolatilityLibHarness tickVolatilityLib;
     BuildOptions opts;
 
     function setUp() public {
 	opts.backend = "sona";
-        Dependency[] memory deps = new Dependency[](4);
+        Dependency[] memory deps = new Dependency[](5);
         deps[0] = Dependency("v3", "lib/plankified-univ3/plank/lib");
 	deps[1] = Dependency("std", "lib/plank-monorepo/std/");
 	deps[2] = Dependency("pos_spec", "src/types/pos_spec");
 	deps[3] = Dependency("lib","src/lib");
+	deps[4] = Dependency("types", "src/types");
 	opts.dependencies = deps;
 
 	tickVolatilityImpl = ITickVolatilityType(plankDeployFFI("test/types/pos_spec/TickVolatilityHelper.plk", opts));
-
-	
 						 
 
     }
 
-    function test__fuzz__tickVolatilityVolQ64x96__Valid(uint88 tickVol) public {
-	uint160 expectedVolQ64x96 = uint160(tickVol*ExpMath.Q96);
-	TickVolatility memory tick_volatility = TickVolatility(uint256(tickVol));
-	TickVolatility memory actualVolQ64x96 = tickVolatilityImpl.volQ64x96(tick_volatility);
-	assertEq(uint160(actualVolQ64x96.vol), expectedVolQ64x96);
+    function test__fuzz__tickVolatilityVolQ64x96Wad__Valid(uint88 tickVol) public {
+	vm.assume(uint256(tickVol) <= type(uint64).max);
+	uint256 expectedVolQ64x96 = uint256(tickVol)<< 96;
+	uint256 expectedVolWAD = uint256(tickVol) * 1e18;
+	TickVolatility memory actualVolQ64x96 = tickVolatilityImpl.volQ64x96(uint256(tickVol));
+	TickVolatility memory actualVolWAD = tickVolatilityImpl.volWAD(uint256(tickVol));
+	assertEq(actualVolQ64x96.vol, expectedVolQ64x96);
+	assertEq(actualVolWAD.vol, expectedVolWAD);
+	
     }
 }

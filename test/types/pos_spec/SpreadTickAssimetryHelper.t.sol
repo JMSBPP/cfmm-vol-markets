@@ -33,7 +33,7 @@ contract SpreadTickAssimetryTest is Test, PlankDeployer {
 	 assertEq(_tickSpacing, tickSpacing);
 	 int256 right = int256(FixedPointMathLib.mulDiv(uint256(rangeWidth),uint256(spread),type(uint16).max));
 	 int24 expectedTickLower = BunniMathV2.roundTickSingle(tick - int24(int256(int256(uint256(rangeWidth)) - right)), int24(_tickSpacing));
-	 assertEq(expectedTickLower, tickLower);
+ 	 assertEq(expectedTickLower, tickLower);
 	 int24 expectedTickUp = BunniMathV2.roundTickSingle(tick + int24(right), int24(_tickSpacing));
 
      }
@@ -71,3 +71,4 @@ contract SpreadTickAssimetryTest is Test, PlankDeployer {
      
      
 }
+  

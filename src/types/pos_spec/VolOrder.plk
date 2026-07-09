@@ -1,0 +1,29 @@
+import lib::TickUtils::TickBucket;
+import pos_spec::VolRangeWidth::*;
+import pos_spec::SpreadTickAssimetry::*;
+import pos_spec::TickVolatility::*;
+
+
+const VolOrder = struct {
+      rangeWidth: VolRangeWidth,
+      volStrike: TickVolatility,
+      skew: SpreadTickAssimetry
+};
+
+const set_vol_strike = fn(volStrike:TickVolatility) VolOrder{
+};
+
+const set_skew = fn(skew:SpreadTickAssimetry) VolOrder{
+};
+
+const set_range_width = fn(vol_range_width :VolRangeWidth) VolOrder {
+};
+
+const set_range_width_tick_spacing(tickSpacing :u256) VolOrder {
+};
+
+const set_range_width_val(_range_width_val:u256) VolOrder {
+};
+
+const tick_bucket_from_vol_order (volOrder:VolOrder) TickBucket{
+};
