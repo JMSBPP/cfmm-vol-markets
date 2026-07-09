@@ -64,6 +64,8 @@ const return_lnVolWAD = fn(expMathImpl: addr, self: TickVolatility) never {
 
     @evm_return(out_ptr, 32);
 };
+
+
 ////////////////////////////////////////////////////////////////////////
 // const lnVolX96 = fn(expMathImpl :addr,self: TickVolatility) u256{  //
 //  								      //

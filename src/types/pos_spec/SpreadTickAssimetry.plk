@@ -6,6 +6,11 @@ const SpreadTickAssimetry = struct {
       spread : u256 // u16
 };
 
+const spread_tick_assimetry_is_complete = fn(self:SpreadTickAssimetry) bool {
+      let res = (self.spread > 0) & (self.spread < 0xffff);
+      res
+};
+
 const unpack_spread_tick_assimetry = fn(_packed:u256) SpreadTickAssimetry { SpreadTickAssimetry { spread: _packed & 0xFFFF } };
 
 const pack_spread_tick_assimetry = fn(_spreadTickAssimetry :SpreadTickAssimetry) u256 {
@@ -13,9 +18,7 @@ const pack_spread_tick_assimetry = fn(_spreadTickAssimetry :SpreadTickAssimetry)
 	    packed
 };
 
-const check_spread = fn(self: SpreadTickAssimetry) void {
-      require( (self.spread > 0) & (self.spread < 0xffff));
-};
+const check_spread = fn(self: SpreadTickAssimetry) void { require( spread_tick_assimetry_is_complete(self));};
 
 const check_cross_types = fn (self: SpreadTickAssimetry, volRangeWidth: VolRangeWidth) void {
       type_check_vol_range_width(volRangeWidth);

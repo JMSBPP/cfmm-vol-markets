@@ -1,0 +1,47 @@
+import pos_spec::VolOrder::*;
+import std::constructor::return_runtime;
+import pos_spec::TickVolatility::wrap_tick_volatility;
+
+// signature :: set_vol_order_vol_strike(uint88)
+const SELECTOR_VOL_ORDER_SET_VOL_STRIKE = 0xdefde212;
+ 
+// signature :: set_vol_order_skew(uint16)
+const SELECTOR_VOL_ORDER_SET_SKEW = 0x9c56b9f3;
+
+// signature:: set_vol_order_range_width(uint24,uint24)
+const SELECTOR_VOL_ORDER_SET_RANGE_WIDTH = 0x1a98dad6;
+
+// todo: set vol width args
+/////////////////////////////////////////
+// const SELECTOR_VOL_ORDER_SET_RANGE_ //
+/////////////////////////////////////////
+
+// signature:: tick_bucket_from_vol_order(uint88,uint16,uint24,uint24)
+const SELECTOR_VOL_ORDER_TICK_BUCKET_FROM_VOL_ORDER = 0xdeb67fb3;
+
+init { return_runtime();}
+
+run{
+	let selector = @evm_shr(224,@evm_calldataload(0));
+	let mut res: type = None(T);
+	if selector == SELECTOR_VOL_ORDER_SET_VOL_STRIKE {
+	   let _input = @evm_calldataload(4);
+	   // note: now the next thing is 152 bits after the selector
+	   let prev_vol_order = @evm_shr()
+	   // then the vol_strike 
+	   let vol_strike = @evm_shr(64, _input);
+	   let vol_order = set_vol_order_vol_strike(wrap_tick_volatility(vol_strike));
+	   return_vol_order_incomplete(vol_order);
+	   
+	} else if selector == SELECTOR_VOL_ORDER_SET_SKEW {
+	   
+
+	} else if selector == SELECTOR_VOL_ORDER_SET_RANGE_WIDTH {
+
+	} else if selector == SELECTOR_VOL_ORDER_TICK_BUCKET_FROM_VOL_ORDER {
+
+	}
+
+
+	@evm_stop();
+}
