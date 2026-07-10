@@ -1,10 +1,10 @@
 
 const RiskDiscount = struct {
-      price: u256;
-       factor: u256
+      price: u256,
+      factor: u256
 };
 // note: Since the type attr fill over 32 bytes there is a return pack/unpakc helper
-const factor_from_haircut_and_price = fn (haricut: u256, price: u256) RiskDiscount {
+const factor_from_haircut_and_price = fn (haircut: u256, price: u256) RiskDiscount {
 
 };
 

@@ -1,0 +1,3 @@
+import risk::RiskDiscount::*;
+
+const risk_measure = fn(risk_discount: RiskDiscount: price: u256) u256{};

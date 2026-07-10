@@ -1,0 +1,13 @@
+
+
+
+const Timepooint = struct {
+      initialized: bool,
+      timestamp: u256,
+      realizedVolatility :TickVolatility,
+      tick: u256,
+      avg_tick: u256,
+      min_tick: u256,
+      max_tick: u256,
+      time_window_start_index: u256
+};
