@@ -6,6 +6,8 @@ const SpreadTickAssimetry = struct {
       spread : u256 // u16
 };
 
+const wrap_spread_tick_assimetry = fn (rawSpread :u256) SpreadTickAssimetry { SpreadTickAssimetry { spread : rawSpread << 0xffff } };
+
 const spread_tick_assimetry_is_complete = fn(self:SpreadTickAssimetry) bool {
       let res = (self.spread > 0) & (self.spread < 0xffff);
       res

@@ -22,13 +22,13 @@ run{
 	let tick_vol =  @evm_calldataload(4);
 
 	if selector == SELECTOR_LN_VOL_WAD {
-	   return_lnVolWAD(addr_from_u256(@evm_sload(SLOT_EXP_MATH_IMPL)),wrap_tick_volatility(tick_vol));   
+	   return_lnVolWAD(addr_from_u256(@evm_sload(SLOT_EXP_MATH_IMPL)),unpack_tick_volatility(tick_vol));   
 	} else if selector == SELECTOR_LN_VOL_X96 {
- 	   return_lnVolX96(addr_from_u256(@evm_sload(SLOT_EXP_MATH_IMPL)),wrap_tick_volatility(tick_vol));	
+ 	   return_lnVolX96(addr_from_u256(@evm_sload(SLOT_EXP_MATH_IMPL)),unpack_tick_volatility(tick_vol));	
 	} else if selector == SELECTOR_TICK_VOLATILITY_TICK {
-	    return_tick_volatility_tick(wrap_tick_volatility(tick_vol));
+	    return_tick_volatility_tick(unpack_tick_volatility(tick_vol));
 	} else if selector == SELECTOR_TICK_VOLATILITY_SQRT_PRICE_X64x96{
-	    return_tick_volatility_sqrt_price_X64x96(wrap_tick_volatility(tick_vol));
+	    return_tick_volatility_sqrt_price_X64x96(unpack_tick_volatility(tick_vol));
 	} else if selector == SELECTOR_SET_IMPL {
 	       let impl = @evm_calldataload(4);
 	       @evm_sstore(SLOT_EXP_MATH_IMPL, impl);

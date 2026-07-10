@@ -28,11 +28,11 @@ const type_check_vol_range_width = fn (_volRangeWidth:VolRangeWidth) void {requi
 
 const pack_vol_range_width = fn (_volRangeWidth:VolRangeWidth) u256 {
       (_volRangeWidth.width & 0xFFFFFF)
-      | ((_volRangeWidth.tickSpacing & 0xFFFFFF) << 32)
+      | ((_volRangeWidth.tickSpacing & 0xFFFFFF) << 24)
 };
 
 const unpack_vol_range_width = fn (_packed_volRangeWidth : u256) VolRangeWidth {
-      VolRangeWidth{ width: _packed_volRangeWidth & 0xFFFFFF, tickSpacing: @evm_shr(32, _packed_volRangeWidth) & 0xFFFFFF}
+      VolRangeWidth{ width: _packed_volRangeWidth & 0xFFFFFF, tickSpacing: @evm_shr(24, _packed_volRangeWidth) & 0xFFFFFF}
 };
 
 

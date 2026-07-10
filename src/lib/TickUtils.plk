@@ -1,15 +1,23 @@
 
+// 72 bits
 const TickBucket = struct {
      low :u256,
      tickSpacing: u256,
      up: u256
 };
 
+
+const pack_tick_bucket = fn(self: TickBucket) u256 {
+      (self.low & 0xffffff)
+      | ((self.tickSpacing & 0xffffff) << 24)
+      | ((self.up & 0xffffff) << 48)
+};
+
 const unpack_tick_bucket = fn(_packed: u256) TickBucket {
       TickBucket {
-      		 low: _packed & 0xFFFFFF,
-		 tickSpacing: @evm_shr(24, _packed & 0xFFFFFF),
-		 up: @evm_shr(72, _packed & 0xFFFFFF) // 24 + 24 + 24
+         low: _packed & 0xffffff,
+         tickSpacing: (@evm_shr(24, _packed)) & 0xffffff,
+         up: (@evm_shr(48, _packed)) & 0xffffff
       }
 };
 

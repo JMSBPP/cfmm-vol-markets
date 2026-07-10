@@ -9,7 +9,7 @@ const tick_volatility_is_complete = fn(self:TickVolatility) bool {
       res
 };
 
-const wrap_tick_volatility = fn(vol: u256) TickVolatility {
+const unpack_tick_volatility = fn(vol: u256) TickVolatility {
       TickVolatility{
 		vol:vol
       }
