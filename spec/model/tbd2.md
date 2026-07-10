@@ -1,4 +1,4 @@
-import [\(\Delta Q_M, \Delta Q_{v}\)](./tbd.md)
+ import [\(\Delta Q_M, \Delta Q_{v}\)](./tbd.md)
 import [\((p (i), p (i_l), p(i_u))\)](./pos_spec.md)
 
 ```
