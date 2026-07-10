@@ -1,0 +1,16 @@
+
+const StorageIndex = struct {
+      current: u256
+};
+
+const initialize_storage_index = fn() StorageIndex {
+      StorageIndex {
+      		   current: 0
+      }
+};
+
+const next = fn(self:StorageIndex) StorageIndex {
+      StorageIndex {
+      		   current: self.current +% 1
+      }
+};

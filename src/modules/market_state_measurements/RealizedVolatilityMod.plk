@@ -1,6 +1,68 @@
 import std::constructor::return_runtime;
+import market_state_measurements::types::Timepoint::*;
+import market_state_measurements::lib::RealizedVolatilityLib::*;
+import market_state_measurements::interface::RealizedVolatilityInterface::*;
+import types::StorageIndex::*;
 
-init{return_runtime();}
+import v3::storage:: {array_slot};
+
+// "RealizedVolMod.TimepointBuffer"
+const SLOT_TIMEPOINT_BUFFER_BASE = 0xe4a8c01f6be955d80963b8d318701ba0c1b7e6a0d74e5ed3ee42ad38f22da431;
+
+// "RealizedVolMod.RealizedVolState"
+const SLOT_REALIZED_VOL_STATE = 0x66d25f45c9eb3ca9255387e4a0842bb72d450363ab922011aef46dbadb163e9e;
+
+const RealizedVolatilityState = struct {
+     ss_index: StorageIndex,               // u16
+     lastTimepointTimestamp: u256, // u32
+     isInitialized: bool
+};
+
+const pack_realized_volatility_state = fn(
+    self: RealizedVolatilityState
+) u256 {
+    (self.ss_index.current & 0xFFFF)
+    | @evm_shl(
+        16,
+        self.lastTimepointTimestamp & 0xFFFFFFFF
+    )
+    | @evm_shl(
+        48,
+        bool_to_u256(self.isInitialized)
+    )
+};
+
+const unpack_realized_volatility_state = fn(_packed: u256) RealizedVolatilityState {
+    RealizedVolatilityState {
+        ss_index:
+            StorageIndex{ current: _packed & 0xFFFF },
+
+        lastTimepointTimestamp:
+            @evm_shr(16, _packed)
+            & 0xFFFFFFFF,
+
+        isInitialized:
+            @evm_eq(
+                @evm_shr(48, _packed) & 1,
+                1
+            )
+    }
+};
+
+const initialize_timepoint_buffer = fn(tick: u256) void {
+     let ss_index = initialize_storage_index();
+     let slot = array_slot(SLOT_TIMEPOINT_BUFFER_BASE, ss_index.current);
+     let avg_tick = tick;
+     let realizedVolatility = calculate_realized_volatility(avg_tick, avg_tick, tick, tick, INIT_TIME_WINDOW);
+     let packed_timepoint = pack_timepoint(@evm_timestamp(), realizedVolatility, tick, avg_tick, tick, tick,  ,true);
+     let current_timepoint_at_slot = unpack_timepoint(@evm_sload(slot));
+     require(@evm_not(current_timepoint_at_slot.initialized));
+     
+     @evm_sstore(slot, packed_timepoint);
+     @evm_sstore(SLOT_REALIZED_VOL_STATE, pack_realized_volatility_state(RealizedVolatilityState{ss_index: next(ss_index), lastTimepointTimestamp: @evm_timestamp(), isInitialized: true}));
+};
+	
+init{ return_runtime();}
 
 run{
 	@evm_stop();

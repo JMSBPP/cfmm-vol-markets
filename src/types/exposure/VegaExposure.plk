@@ -1,5 +1,5 @@
 
-const VegaExposure= struct{
+const VegaExposure = struct{
       collateralUnits:u256,
       priceVol: u256
 };

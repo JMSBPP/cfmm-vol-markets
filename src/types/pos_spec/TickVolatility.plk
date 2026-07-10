@@ -14,6 +14,10 @@ const unpack_tick_volatility = fn(vol: u256) TickVolatility {
 		vol:vol
       }
 };
+const pack_tick_volatility = fn(self :TickVolatility) u256 {
+      let res = self.vol;
+      res
+};
 
 const volQ64X96 = fn(self: TickVolatility) TickVolatility {
       TickVolatility {

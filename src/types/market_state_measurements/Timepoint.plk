@@ -1,13 +1,129 @@
 
+import pos_spec::types::TickVolatility::*;
+import market_state_measurement::RealizedVolatilityLib::*;
+
+const INIT_STORAGE_INDEX = 0;
+const INIT_TIME_WINDOW = 0; 
+
+// 242 bits
+const Timepoint = struct {
+      timestamp: u256, // 32
+      realizedVolatility :TickVolatility, // 88
+      tick: u256,  // 24
+      avg_tick: u256,  // 24
+      min_tick: u256,  // 24
+      tick_cumulative: u256,  // 24
+      time_window_start_index: u256, // 16
+      initialized: bool
+};
+
+const pack_timepoint = fn(
+    timestamp: u256,
+    realizedVolatility: TickVolatility,
+    tick: u256,
+    avg_tick: u256,
+    min_tick: u256,
+    max_tick: u256,
+    time_window_start_index: u256,
+    initialized: bool
+) u256 {
+    (timestamp & 0xFFFFFFFF)
+    | @evm_shl(32, realizedVolatility.vol & 0xFFFFFFFFFFFFFFFFFFFFFF)
+    | @evm_shl(120, tick & 0xFFFFFF)
+    | @evm_shl(144, avg_tick & 0xFFFFFF)
+    | @evm_shl(168, min_tick & 0xFFFFFF)
+    | @evm_shl(192, tick_cumulative & 0xFFFFFF)
+    | @evm_shl(216, time_window_start_index & 0xFFFF)
+    | @evm_shl(232, bool_to_u256(initialized))
+};
 
 
-const Timepooint = struct {
-      initialized: bool,
-      timestamp: u256,
-      realizedVolatility :TickVolatility,
-      tick: u256,
-      avg_tick: u256,
-      min_tick: u256,
-      max_tick: u256,
-      time_window_start_index: u256
+const unpack_timepoint = fn(packed: u256) Timepoint {
+    Timepoint {
+        timestamp:
+            packed & 0xFFFFFFFF,
+
+        realizedVolatility: TickVolatility {
+            vol:
+                @evm_shr(32, packed)
+                & 0xFFFFFFFFFFFFFFFFFFFFFF
+        },
+
+        tick:
+            @evm_shr(120, packed)
+            & 0xFFFFFF,
+
+        avg_tick:
+            @evm_shr(144, packed)
+            & 0xFFFFFF,
+
+        min_tick:
+            @evm_shr(168, packed)
+            & 0xFFFFFF,
+
+        tick_cumulative:
+            @evm_shr(192, packed)
+            & 0xFFFFFF,
+
+        time_window_start_index:
+            @evm_shr(216, packed)
+            & 0xFFFF,
+
+        initialized:
+            @evm_eq(
+                @evm_shr(232, packed) & 1,
+                1
+            )
+    }
+};
+
+const next_timepoint = fn(
+    current: Timepoint,
+    last_timestamp: u256,
+    tick: u256,
+    avg_tick: u256,
+    window_start_index: u256
+) Timepoint {
+    
+    let delta = @evm_sub(last_timestamp, current.timestamp);
+
+    let realized_vol_delta = calculate_realized_volatility(
+        current.avg_tick,
+        avg_tick,
+        tick,
+        tick,
+        delta
+    );
+
+    let next_realized_volatility = TickVolatility {
+        vol: @evm_add(
+            current.realizedVolatility.vol,
+            realized_vol_delta.vol
+        )
+    };
+
+    let next_min_tick =
+        if @evm_slt(tick, current.min_tick) {
+            tick
+        } else {
+            current.min_tick
+        };
+
+    let next_max_tick =
+        if @evm_sgt(tick, current.max_tick) {
+            tick
+        } else {
+            current.max_tick
+        };
+
+    Timepoint {
+        timestamp: last_timestamp,
+        realizedVolatility: next_realized_volatility,
+        tick: tick,
+        avg_tick: avg_tick,
+        min_tick: next_min_tick,
+        max_tick: next_max_tick,
+        time_window_start_index: window_start_index,
+        initialized: true
+    }
 };

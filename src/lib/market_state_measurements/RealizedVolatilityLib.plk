@@ -1,0 +1,12 @@
+
+import pos_spec::types::TickVolatility::*;
+
+const calculate_realized_volatility = fn(avg_tick0:u256, avg_tick1: u256, tick0:u256, tick1:u256, dt :u256) TickVolatility {
+      let k =(tick1 -% tick0) -% (avg_tick1 -% avg_tick0);
+      let b = (tick0 - avg_tick0) *% dt;
+      let sumOfSequence = dt *% (dt +% 1);
+      let sumOfSquares = sumOfSequence *% (2 *% dt +% 1); // sumOfSquares * 6
+      let volatility = @evm_sdiv(@evm_exp(k,2) *% sumOfSquares + 6 *% b *% k *% sumOfSequence +% 6 *% dt *% @evm_exp(b,2), 6 *% @evm_exp(dt,2));
+      volatility;
+      
+};

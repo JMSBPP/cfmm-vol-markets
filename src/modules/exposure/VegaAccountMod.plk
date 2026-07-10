@@ -5,6 +5,7 @@ const SLOT_COLLATERAL =
 const SLOT_VEGA_EXPOSURE =
 const SLOT_RISK_ORACLE_ID =
 const SLOT_UNDERLYING_MARKET_ID = 
+
 // signature: deposit(collateralAmt) -> vegaExposure
 const SELECTOR_DEPOSIT =
 
