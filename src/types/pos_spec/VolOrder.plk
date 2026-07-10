@@ -1,4 +1,5 @@
 import lib::TickUtils::TickBucket;
+import lib::pos_spec::TickVolatilityLib::*;
 import pos_spec::VolRangeWidth::*;
 import pos_spec::SpreadTickAssimetry::*;
 import pos_spec::TickVolatility::*;
@@ -95,7 +96,9 @@ const set_vol_order_range_width = fn(self: VolOrder ,vol_range_width :VolRangeWi
 //////////////////////////////////////////////////////////////////////
 
 // note: This can use the return function for tickbuckert instead of its own
-const tick_bucket_from_vol_order = fn(volOrder:VolOrder, tick: u256) TickBucket{
-      let bucket = split_tick(volOrder.skew, volOrder.rangeWidth, tick);
+const tick_bucket_from_vol_order = fn(volOrder:VolOrder) TickBucket{
+      // 1. get the tick for the volOrder
+      let tick_volatility = tick_volatility_tick(volOrder.volStrike);      
+      let bucket = split_tick(volOrder.skew, volOrder.rangeWidth, tick_volatility);
       bucket
 };
