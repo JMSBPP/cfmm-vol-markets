@@ -17,6 +17,8 @@ const Timepoint = struct {
       initialized: bool
 };
 
+const pack_timepoint = fn(self: Timepoint) u256 {};
+
 const pack_timepoint = fn(
     timestamp: u256,
     realizedVolatility: TickVolatility,
@@ -77,7 +79,7 @@ const unpack_timepoint = fn(packed: u256) Timepoint {
     }
 };
 
-const next_timepoint = fn(
+const create_timepoint = fn(
     current: Timepoint,
     last_timestamp: u256,
     tick: u256,
@@ -87,42 +89,19 @@ const next_timepoint = fn(
     
     let delta = @evm_sub(last_timestamp, current.timestamp);
 
-    let realized_vol_delta = calculate_realized_volatility(
-        current.avg_tick,
-        avg_tick,
-        tick,
-        tick,
-        delta
-    );
+    let realized_vol_delta = calculate_realized_volatility( current.avg_tick, avg_tick,tick,tick,delta);
 
-    let next_realized_volatility = TickVolatility {
-        vol: @evm_add(
-            current.realizedVolatility.vol,
-            realized_vol_delta.vol
-        )
-    };
+    let next_realized_volatility = TickVolatility { vol: @evm_add(current.realizedVolatility.vol,realized_vol_delta.vol)};
 
-    let next_min_tick =
-        if @evm_slt(tick, current.min_tick) {
-            tick
-        } else {
-            current.min_tick
-        };
-
-    let next_max_tick =
-        if @evm_sgt(tick, current.max_tick) {
-            tick
-        } else {
-            current.max_tick
-        };
-
+    let next_min_tick = if @evm_slt(tick, current.min_tick) { tick } else { current.min_tick };
+    next_tick_cumulative = @evm_mul(tick, delta);
     Timepoint {
         timestamp: last_timestamp,
         realizedVolatility: next_realized_volatility,
         tick: tick,
         avg_tick: avg_tick,
         min_tick: next_min_tick,
-        max_tick: next_max_tick,
+        tick_cumulative: next_tick_cumulative,
         time_window_start_index: window_start_index,
         initialized: true
     }

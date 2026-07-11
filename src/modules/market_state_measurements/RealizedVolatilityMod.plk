@@ -3,6 +3,9 @@ import market_state_measurements::types::Timepoint::*;
 import market_state_measurements::lib::RealizedVolatilityLib::*;
 import market_state_measurements::interface::RealizedVolatilityInterface::*;
 import types::StorageIndex::*;
+import types::TimeWindow::*;
+import v3::util::return_u256;
+import std::error::require;
 
 import v3::storage:: {array_slot};
 
@@ -11,6 +14,19 @@ const SLOT_TIMEPOINT_BUFFER_BASE = 0xe4a8c01f6be955d80963b8d318701ba0c1b7e6a0d74
 
 // "RealizedVolMod.RealizedVolState"
 const SLOT_REALIZED_VOL_STATE = 0x66d25f45c9eb3ca9255387e4a0842bb72d450363ab922011aef46dbadb163e9e;
+
+// "RealizedVolMod.WindowSize"
+const SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE = 0x326d117cb3406827d1b11b11d5b767896bd9ad554682ba4c03289854d62c5973;
+
+const EMPTY = 0;
+const ZERO = 0;
+// todo: window is of type timeWindow which also needs to be designed
+// tod: The selectors of these functions must be included on the interface
+const write_window = fn(window: TimeWindow) void {
+};
+
+const read_window = fn() TimeWindow {
+};
 
 const RealizedVolatilityState = struct {
      ss_index: StorageIndex,               // u16
@@ -52,16 +68,54 @@ const unpack_realized_volatility_state = fn(_packed: u256) RealizedVolatilitySta
 const initialize_timepoint_buffer = fn(tick: u256) void {
      let ss_index = initialize_storage_index();
      let slot = array_slot(SLOT_TIMEPOINT_BUFFER_BASE, ss_index.current);
+
      let avg_tick = tick;
      let realizedVolatility = calculate_realized_volatility(avg_tick, avg_tick, tick, tick, INIT_TIME_WINDOW);
      let packed_timepoint = pack_timepoint(@evm_timestamp(), realizedVolatility, tick, avg_tick, tick, tick,  ,true);
+
      let current_timepoint_at_slot = unpack_timepoint(@evm_sload(slot));
+
      require(@evm_not(current_timepoint_at_slot.initialized));
      
      @evm_sstore(slot, packed_timepoint);
-     @evm_sstore(SLOT_REALIZED_VOL_STATE, pack_realized_volatility_state(RealizedVolatilityState{ss_index: next(ss_index), lastTimepointTimestamp: @evm_timestamp(), isInitialized: true}));
+     @evm_sstore(SLOT_REALIZED_VOL_STATE, pack_realized_volatility_state(RealizedVolatilityState{ss_index: ss_index, lastTimepointTimestamp: @evm_timestamp(), isInitialized: true}));
 };
-	
+
+const write_timepoint = fn(tick: u256) void {
+      let vol_state = unpack_realized_volatility_state(@evm_sload(SLOT_REALIZED_VOL_STATE));
+      require(vol_state.initialized);
+      if vol_state.lastTimepointTimestamp == @evm_timestamp() & 0xFFFFFFFF { return_u256(EMPTY);}
+      
+      let last_timepoint = unpack_timepoint(array_slot(SLOT_TIMEPOINT_BUFFER_BASE,vol_state.ss_index));         
+      vol_state.ss_index = next(vol_state.ss_index);
+      let mut avg_tick_res:: AvgTickRes = calculate_avg_tick(last_timepoint ,@evm_timestamp(), tick, vol_state.ss_index);
+      if avg_tick_res.window_start_index == next(vol_state.ss_index) {avg_tick_res.window_start_index = next(avg_tick_res.window_start_index);}
+            
+      // check if we have overflow in the past
+      let mut _next_timepoint = next_timepoint(last_timepoint, @evm_timestamp(), tick, avg_tick,);
+      @evm_sstore(array_slot(SLOT_TIMEPOINT_BUFFER_BASE,next(vol_state.ss_index)), pack_timepoint(next_timepoint(last_timepoint, @evm_timestamp(), tick, avg_tick_res.avg_tick, avg_tick_res.window_start_index)));
+};
+
+// todo: We need to enforce typing as much as possible, expample Tick must be a type on its own
+// todo: replace next_timepoint with create_timepoint
+// todo: Fix import issues on keeping notation <sun-dir>::<type/lib/ ...>:: <file_name>:: ...
+// todo: Enforce type annotations :: on the rputine body
+const read_timepoint(tick: u256, dt: u256) Timepoint {
+      let target = @evm_sub(@evm_timestamp(), dt);
+      let vol_state::VolState = unpack_realized_volatility_state(@evm_sload(SLOT_REALIZED_VOL_STATE));
+      let last_timepoint::Timepoint = unpack_timepoint(array_slot(SLOT_TIMEPOINT_BUFFER_BASE,vol_state.ss_index));
+      let updated_avg_tick_res::AvgTickRes = calculate_avg_tick(last_timepoint,@evm_timestamp(), tick, vol_state.ss_index);
+      
+      let res::Timepoint = create_timepoint(last_timepoint, @evm_timestamp(), tick, updated_avg_tick_res.avg_tick,updated_avg_tick_res.window_start_index);
+      
+      res
+};
+
+const return_read_timepoint(tick: u256, dt: u256) never {
+      let res: Timepoint =  read_timepoint(tick,dt);
+      // todo: res logic to return
+};
+
 init{ return_runtime();}
 
 run{

@@ -1,12 +1,55 @@
 
 import pos_spec::types::TickVolatility::*;
+import market_state_measurements::types::Timepoint;
+import types::StorageIndex::*;
 
 const calculate_realized_volatility = fn(avg_tick0:u256, avg_tick1: u256, tick0:u256, tick1:u256, dt :u256) TickVolatility {
       let k =(tick1 -% tick0) -% (avg_tick1 -% avg_tick0);
       let b = (tick0 - avg_tick0) *% dt;
       let sumOfSequence = dt *% (dt +% 1);
       let sumOfSquares = sumOfSequence *% (2 *% dt +% 1); // sumOfSquares * 6
-      let volatility = @evm_sdiv(@evm_exp(k,2) *% sumOfSquares + 6 *% b *% k *% sumOfSequence +% 6 *% dt *% @evm_exp(b,2), 6 *% @evm_exp(dt,2));
+     let volatility = @evm_sdiv(@evm_exp(k,2) *% sumOfSquares + 6 *% b *% k *% sumOfSequence +% 6 *% dt *% @evm_exp(b,2), 6 *% @evm_exp(dt,2));
       volatility;
-      
+};
+
+const AvgTickRes = struct {
+      avg_tick :u256,
+      window_start_index: StorageIndex
+};
+
+const calculate_avg_tick = fn(last_timepoint:Timepoint, ref_index :StorageIndex,timestamp: u256, tick: u256, avg_tick: u256) AvgTickRes {
+      // todo: Does plank supports type declarations without seeding init values ?
+      let mut avg_tick_res::AvgTickRes;
+      (uint32 oldestTimestamp, int56 oldestTickCumulative) = (self[oldestIndex].blockTimestamp, self[oldestIndex].tickCumulative);
+	 let dt = (@evm_timestamp() & 0xFFFFFFFF ) -% last_timepoint.timestamp;
+	 let current_tick_cumulative = last_timepoint.tick_cumulative +% ( tick *% dt );
+	 // todo: timestamp is also a type that fits 32 bytes
+	 if @evm_timestamp() & 0xFFFFFFFF  == last_timepoint.timestamp {avg_tick_res = AvgTickRes{avg_tick: tick, window_start_index: ref_index};};
+
+        avg_tick_res = AvgTickRes{avg_tick: @evm_div(current_tick_cumulative -% last_timepoint.tick_cumulative,dt), window_start_index: ref_index};
+	
+	// todo: This needs to be implemented using the plank equivalent implementation  
+      //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      // if (_lteConsideringOverflow(lastTimestamp, currentTime - WINDOW, currentTime)) {					      //
+      //   // if last timepoint is older or equal than WINDOW ago								      //
+      //   return (tick, lastIndex);												      //
+      // } else {														      //
+      //   int56 tickCumulativeAtStart;												      //
+      //   (tickCumulativeAtStart, windowStartIndex) = _getTickCumulativeAt(self, currentTime, WINDOW, tick, lastIndex, oldestIndex); //
+      // 															      //
+      //   //    current-WINDOW  last   current											      //
+      //   // _________*____________*_______*_											      //
+      //   //          ||||||||||||||||||||||											      //
+      //   avgTick = (currentTickCumulative - tickCumulativeAtStart) / int56(uint56(WINDOW));					      //
+      // }															      //
+      //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    }
+  }
+
+//   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+   // unchecked {															 //
+   //    (avgTick, windowStartIndex) = (int24(_avgTick), uint16(_windowStartIndex)); // overflow in uint16(_windowStartIndex) is desired //
+   //  }																 //
+   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+ 
 };
