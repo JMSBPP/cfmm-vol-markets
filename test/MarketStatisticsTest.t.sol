@@ -120,10 +120,11 @@ contract MarketStatisticsUniV3Ref{
     /// @dev Only (blockTimestamp, tickCumulative, initialized) are comparable against Algebra
     ///      and Plank; UniV3's Observation carries secondsPerLiquidityCumulativeX128 instead of
     ///      Algebra's volatility/tick/averageTick/windowStartIndex fields.
-    /// @dev NOTE the ring sizes DIFFER: this ref passes TOTAL_SAMPLE_SIZE = 65535 as cardinality
-    ///      to Oracle.write, so UniV3 indexes mod 65535, while Algebra and Plank use
-    ///      UINT16_MODULO = 65536. The three necessarily diverge at wrap. Unreachable in fuzz,
-    ///      but it is a real semantic difference, not a port bug.
+    /// @dev NOTE the ring sizes DIFFER: this ref indexes mod `cardinality` (grown to
+    ///      CARDINALITY_TARGET = 512), while Algebra and Plank use UINT16_MODULO = 65536. The
+    ///      three necessarily diverge at wrap. The differential suite must therefore stay in the
+    ///      NO-WRAP regime -- keep writes < CARDINALITY_TARGET and assert it, so a future bump
+    ///      that silently wraps UniV3 fails loudly instead of being blamed on the Plank port.
     function getTimepoint(uint16 index)
 	public
 	view
@@ -136,6 +137,18 @@ contract MarketStatisticsUniV3Ref{
 
     function lastIndex() public view returns (uint16) {
 	return getStorage().timepointIndex;
+    }
+
+    /// @dev UniV3's oldest observation is (index + 1) % cardinality, falling back to slot 0 when
+    ///      that slot has not been written yet -- the same rule Algebra's getOldestIndex uses.
+    function oldestIndex() public view returns (uint16) {
+	MarketStatisticsUniV3RefStorage storage $ = getStorage();
+	uint16 next = (($.timepointIndex + 1) % $.cardinality);
+	return $.timepoints[next].initialized ? next : 0;
+    }
+
+    function cardinality() public view returns (uint16) {
+	return getStorage().cardinality;
     }
 }
 
@@ -164,6 +177,25 @@ contract MarketStatisticsAlgebraRef {
 	 uint16 lastIndex = layout.timepointIndex;
 	 uint16 oldestIndex = VolatilityOracle.getOldestIndex(layout.timepoints,lastIndex);
 	 return VolatilityOracle.getAverageVolatility(layout.timepoints, blockTimestamp, tick ,lastIndex, oldestIndex);
+    }
+
+    /// @notice Raw accumulator at `currentTimestamp - dt`.
+    /// @dev The three-way differential surface. getSingleTimepoint(...).tickCumulative is exactly
+    ///      equivalent to UniV3's observeSingle(...).tickCumulative and to Plank's
+    ///      tick_cumulative_at, on all four branches (left boundary / samePoint / right boundary
+    ///      / interpolation). WINDOW never touches tickCumulative, so this must agree EXACTLY
+    ///      across Algebra, UniV3 and Plank for every dt -- tolerance zero.
+    function getTickCumulative(uint32 dt, int24 tick, uint32 currentTimestamp) public view returns (int56) {
+	VolatilityOracleStorage.Layout storage l = VolatilityOracleStorage.layout();
+	uint16 li = l.timepointIndex;
+	return VolatilityOracle.getSingleTimepoint(
+	    l.timepoints,
+	    currentTimestamp,
+	    dt,
+	    tick,
+	    li,
+	    VolatilityOracle.getOldestIndex(l.timepoints, li)
+	).tickCumulative;
     }
 
     /// @notice Full timepoint at `index`, for differential assertions.
@@ -210,6 +242,15 @@ contract MarketStatisticsTest is Test {
 
 
     struct TickHistory {int24[] ticks;}
+
+    /// @dev Division flooring toward -infinity. EVM SDIV and Solidity `/` truncate toward ZERO;
+    ///      Algebra, UniV3 and Plank all apply an explicit negative-remainder decrement to floor.
+    ///      Any expectation compared against them must floor too, or it is off by one for every
+    ///      negative, non-exact quotient.
+    function _floorDiv(int256 a, int256 b) internal pure returns (int256 q) {
+	q = a / b;
+	if (a < 0 && a % b != 0) q--;
+    }
 
     TickHistory path;
     uint32 constant DEFAULT_DELTA_SECONDS = 30 seconds;
@@ -326,17 +367,19 @@ contract MarketStatisticsTest is Test {
 	uint32 total_delta_t = uint32(vm.getBlockTimestamp()) - init_timestamp;
 	int24 tickMean = marketStatisticsAlgebraRef.getTwapTick(total_delta_t, tickOutlier , uint32(vm.getBlockTimestamp()));
 
-	int256 expectedMean =
-    (
-        int256(tick) * int256(uint256(total_delta_t - DEFAULT_DELTA_SECONDS))
-        + int256(tickOutlier) * int256(uint256(DEFAULT_DELTA_SECONDS))
-    ) / int256(uint256(total_delta_t));
-
-        assertApproxEqAbs(
-			  int256(tickMean),
-			  expectedMean,
-			  1
+	// FLOOR toward -infinity, matching the implementations. This previously used Solidity `/`
+	// (truncate toward zero) and papered over the mismatch with assertApproxEqAbs(..., 1).
+	// That tolerance is exactly the width of the negative-remainder correction that Algebra,
+	// UniV3 and Plank all apply -- so the reference was green under a SYSTEMATIC 1-tick error
+	// on every negative mean, i.e. it never asserted the one behaviour it most needed to.
+	// Tolerance is now ZERO.
+	int256 expectedMean = _floorDiv(
+	    int256(tick) * int256(uint256(total_delta_t - DEFAULT_DELTA_SECONDS))
+	    + int256(tickOutlier) * int256(uint256(DEFAULT_DELTA_SECONDS)),
+	    int256(uint256(total_delta_t))
 	);
+
+        assertEq(int256(tickMean), expectedMean);
         
     }
 
@@ -364,17 +407,19 @@ contract MarketStatisticsTest is Test {
 	uint32 total_delta_t = uint32(vm.getBlockTimestamp()) - init_timestamp;
 	int24 tickMean = marketStatisticsUniV3Ref.getTwapTick(total_delta_t, tickOutlier , uint32(vm.getBlockTimestamp()));
 
-	int256 expectedMean =
-    (
-        int256(tick) * int256(uint256(total_delta_t - DEFAULT_DELTA_SECONDS))
-        + int256(tickOutlier) * int256(uint256(DEFAULT_DELTA_SECONDS))
-    ) / int256(uint256(total_delta_t));
-
-        assertApproxEqAbs(
-			  int256(tickMean),
-			  expectedMean,
-			  1
+	// FLOOR toward -infinity, matching the implementations. This previously used Solidity `/`
+	// (truncate toward zero) and papered over the mismatch with assertApproxEqAbs(..., 1).
+	// That tolerance is exactly the width of the negative-remainder correction that Algebra,
+	// UniV3 and Plank all apply -- so the reference was green under a SYSTEMATIC 1-tick error
+	// on every negative mean, i.e. it never asserted the one behaviour it most needed to.
+	// Tolerance is now ZERO.
+	int256 expectedMean = _floorDiv(
+	    int256(tick) * int256(uint256(total_delta_t - DEFAULT_DELTA_SECONDS))
+	    + int256(tickOutlier) * int256(uint256(DEFAULT_DELTA_SECONDS)),
+	    int256(uint256(total_delta_t))
 	);
+
+        assertEq(int256(tickMean), expectedMean);
     
     }
 

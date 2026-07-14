@@ -271,6 +271,25 @@ run{
 	   let tick = @evm_calldataload(4);
 	   let block_timestamp = @evm_calldataload(36) & MASK_U32;
 	   return_u256(get_average_volatility(tick, block_timestamp));
+
+	} else if selector == SELECTOR_GET_TIMEPOINT_PACKED {
+	   // getTimepointPacked(uint16 index) -> uint256 (raw packed word)
+	   let index = @evm_calldataload(4) & TIMEPOINT_INDEX_MASK;
+	   return_u256(@evm_sload(array_slot(SLOT_TIMEPOINT_BUFFER_BASE, index)));
+
+	} else if selector == SELECTOR_LAST_INDEX {
+	   // lastIndex() -> uint16
+	   let vol_state = unpack_realized_volatility_state(@evm_sload(SLOT_REALIZED_VOL_STATE));
+	   return_u256(vol_state.ss_index.current & TIMEPOINT_INDEX_MASK);
+
+	} else if selector == SELECTOR_OLDEST_INDEX {
+	   // oldestIndex() -> uint16
+	   let vol_state = unpack_realized_volatility_state(@evm_sload(SLOT_REALIZED_VOL_STATE));
+	   return_u256(oldest_index_of(vol_state.ss_index).current & TIMEPOINT_INDEX_MASK);
+
+	} else if selector == SELECTOR_READ_WINDOW {
+	   // readWindow() -> uint32
+	   return_u256(pack_time_window(read_window()));
 	}
 
 	// Unknown selector: no fallback behaviour is defined for this module.
