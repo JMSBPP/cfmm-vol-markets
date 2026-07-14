@@ -1,3 +1,0 @@
-
-// signature:: initVolTerm(uint256,uint256,uint256)
-const SELECTOR_INIT_VOL_TERM_STRUCTURE = 0xd9c112ef;

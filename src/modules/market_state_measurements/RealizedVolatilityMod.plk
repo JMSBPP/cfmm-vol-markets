@@ -1,11 +1,13 @@
 import std::constructor::return_runtime;
-import market_state_measurements::types::Timepoint::*;
-import market_state_measurements::lib::RealizedVolatilityLib::*;
-import market_state_measurements::interface::RealizedVolatilityInterface::*;
+import types::market_state_measurements::Timepoint::*;
+import lib::market_state_measurements::RealizedVolatilityLib::*;
+import interfaces::market_state_measurements::RealizedVolatilityInterface::*;
 import types::StorageIndex::*;
 import types::TimeWindow::*;
+import pos_spec::TickVolatility::*;
 import v3::util::return_u256;
 import std::error::require;
+import std::core_ops::bool_to_u256;
 
 import v3::storage:: {array_slot};
 
@@ -20,12 +22,17 @@ const SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE = 0x326d117cb3406827d1b11b11d5b767896bd9
 
 const EMPTY = 0;
 const ZERO = 0;
-// todo: window is of type timeWindow which also needs to be designed
-// tod: The selectors of these functions must be included on the interface
+
+// The averaging window (seconds) lives at SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE. Algebra fixes
+// this as `uint32 constant WINDOW = 1 days`; here it is stored so it can be tuned per market.
+// See types/TimeWindow.plk.
+// todo: The selectors of these functions must be included on the interface
 const write_window = fn(window: TimeWindow) void {
+      @evm_sstore(SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE, pack_time_window(window));
 };
 
 const read_window = fn() TimeWindow {
+      unpack_time_window(@evm_sload(SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE))
 };
 
 const RealizedVolatilityState = struct {
@@ -65,55 +72,117 @@ const unpack_realized_volatility_state = fn(_packed: u256) RealizedVolatilitySta
     }
 };
 
+// getOldestIndex: the oldest timepoint still retained in the ring. Algebra:
+//   uint16 nextIndex = lastIndex + 1;
+//   if (self[nextIndex].initialized) oldestIndex = nextIndex;   // else 0
+// i.e. if the slot we are about to overwrite is already written, the buffer has wrapped and
+// that slot holds the oldest sample; otherwise nothing has been overwritten yet and the
+// oldest sample is at index 0.
+const oldest_index_of = fn(last_index: StorageIndex) StorageIndex {
+      let candidate = next(last_index);
+      let candidate_timepoint = load_timepoint(SLOT_TIMEPOINT_BUFFER_BASE, candidate.current);
+      if candidate_timepoint.initialized { candidate } else { StorageIndex { current: ZERO } }
+};
+
 const initialize_timepoint_buffer = fn(tick: u256) void {
      let ss_index = initialize_storage_index();
      let slot = array_slot(SLOT_TIMEPOINT_BUFFER_BASE, ss_index.current);
 
-     let avg_tick = tick;
-     let realizedVolatility = calculate_realized_volatility(avg_tick, avg_tick, tick, tick, INIT_TIME_WINDOW);
-     let packed_timepoint = pack_timepoint(@evm_timestamp(), realizedVolatility, tick, avg_tick, tick, tick,  ,true);
-
      let current_timepoint_at_slot = unpack_timepoint(@evm_sload(slot));
-
      require(@evm_not(current_timepoint_at_slot.initialized));
-     
-     @evm_sstore(slot, packed_timepoint);
-     @evm_sstore(SLOT_REALIZED_VOL_STATE, pack_realized_volatility_state(RealizedVolatilityState{ss_index: ss_index, lastTimepointTimestamp: @evm_timestamp(), isInitialized: true}));
+
+     // The first sample has zero elapsed time, so it carries no realized variance and a zero
+     // tick accumulator; avg_tick and min_tick both seed from the current tick.
+     let seed = Timepoint {
+         timestamp: @evm_timestamp() & 0xFFFFFFFF,
+         realizedVolatility: TickVolatility { vol: ZERO },
+         tick: tick,
+         avg_tick: tick,
+         min_tick: tick,
+         tick_cumulative: ZERO,
+         time_window_start_index: ss_index.current,
+         initialized: true
+     };
+
+     @evm_sstore(slot, pack_timepoint(seed));
+     @evm_sstore(SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE, pack_time_window(TimeWindow { window: DEFAULT_TIME_WINDOW }));
+     @evm_sstore(SLOT_REALIZED_VOL_STATE, pack_realized_volatility_state(RealizedVolatilityState{ss_index: ss_index, lastTimepointTimestamp: @evm_timestamp() & 0xFFFFFFFF, isInitialized: true}));
 };
 
+// write_timepoint mirrors Algebra VolatilityOracle.write:
+//   indexUpdated = lastIndex + 1
+//   if (self[indexUpdated].initialized) oldestIndex = indexUpdated
+//   (avgTick, windowStartIndex) = _getAverageTickCasted(..., lastIndex, oldestIndex, ...)
+//   if (windowStartIndex == indexUpdated) windowStartIndex++
+//   self[indexUpdated] = _createNewTimepoint(last, ts, tick, avgTick, windowStartIndex)
 const write_timepoint = fn(tick: u256) void {
       let vol_state = unpack_realized_volatility_state(@evm_sload(SLOT_REALIZED_VOL_STATE));
-      require(vol_state.initialized);
-      if vol_state.lastTimepointTimestamp == @evm_timestamp() & 0xFFFFFFFF { return_u256(EMPTY);}
-      
-      let last_timepoint = unpack_timepoint(array_slot(SLOT_TIMEPOINT_BUFFER_BASE,vol_state.ss_index));         
-      vol_state.ss_index = next(vol_state.ss_index);
-      let mut avg_tick_res:: AvgTickRes = calculate_avg_tick(last_timepoint ,@evm_timestamp(), tick, vol_state.ss_index);
-      if avg_tick_res.window_start_index == next(vol_state.ss_index) {avg_tick_res.window_start_index = next(avg_tick_res.window_start_index);}
-            
-      // check if we have overflow in the past
-      let mut _next_timepoint = next_timepoint(last_timepoint, @evm_timestamp(), tick, avg_tick,);
-      @evm_sstore(array_slot(SLOT_TIMEPOINT_BUFFER_BASE,next(vol_state.ss_index)), pack_timepoint(next_timepoint(last_timepoint, @evm_timestamp(), tick, avg_tick_res.avg_tick, avg_tick_res.window_start_index)));
+      require(vol_state.isInitialized);
+
+      let now = @evm_timestamp() & 0xFFFFFFFF;
+      // at most one timepoint per block
+      if vol_state.lastTimepointTimestamp == now { return_u256(EMPTY); }
+
+      let last_index = vol_state.ss_index;
+      let last_timepoint = load_timepoint(SLOT_TIMEPOINT_BUFFER_BASE, last_index.current);
+
+      // the slot we are about to write; also the oldest sample once the ring has wrapped
+      let index_updated = next(last_index);
+      let oldest_index = oldest_index_of(last_index);
+
+      let window = read_window();
+
+      // NOTE: the average is computed from `last_index`, NOT from `index_updated`. The
+      // advanced index is only the write target. (The previous code passed the advanced
+      // index here, which shifted the whole window by one sample.)
+      let avg = calculate_avg_tick(
+          SLOT_TIMEPOINT_BUFFER_BASE, now, tick, last_index, oldest_index, last_timepoint, window
+      );
+
+      // If the window start would land on the slot we are about to overwrite, push it one
+      // forward -- otherwise the narrowed search in timepoints_at could read the sample we
+      // just clobbered.
+      let window_start_index = if avg.window_start_index.current == index_updated.current {
+          next(avg.window_start_index)
+      } else {
+          avg.window_start_index
+      };
+
+      let updated = create_timepoint(last_timepoint, now, tick, avg.avg_tick, window_start_index.current);
+
+      @evm_sstore(array_slot(SLOT_TIMEPOINT_BUFFER_BASE, index_updated.current), pack_timepoint(updated));
+      @evm_sstore(SLOT_REALIZED_VOL_STATE, pack_realized_volatility_state(
+          RealizedVolatilityState { ss_index: index_updated, lastTimepointTimestamp: now, isInitialized: true }
+      ));
 };
 
-// todo: We need to enforce typing as much as possible, expample Tick must be a type on its own
-// todo: replace next_timepoint with create_timepoint
-// todo: Fix import issues on keeping notation <sun-dir>::<type/lib/ ...>:: <file_name>:: ...
-// todo: Enforce type annotations :: on the rputine body
-const read_timepoint(tick: u256, dt: u256) Timepoint {
-      let target = @evm_sub(@evm_timestamp(), dt);
-      let vol_state::VolState = unpack_realized_volatility_state(@evm_sload(SLOT_REALIZED_VOL_STATE));
-      let last_timepoint::Timepoint = unpack_timepoint(array_slot(SLOT_TIMEPOINT_BUFFER_BASE,vol_state.ss_index));
-      let updated_avg_tick_res::AvgTickRes = calculate_avg_tick(last_timepoint,@evm_timestamp(), tick, vol_state.ss_index);
-      
-      let res::Timepoint = create_timepoint(last_timepoint, @evm_timestamp(), tick, updated_avg_tick_res.avg_tick,updated_avg_tick_res.window_start_index);
-      
-      res
+// todo: We need to enforce typing as much as possible, example Tick must be a type on its own
+const read_timepoint = fn(tick: u256, dt: u256) Timepoint {
+      let vol_state = unpack_realized_volatility_state(@evm_sload(SLOT_REALIZED_VOL_STATE));
+      require(vol_state.isInitialized);
+
+      let now = @evm_timestamp() & 0xFFFFFFFF;
+      let last_index = vol_state.ss_index;
+      let last_timepoint = load_timepoint(SLOT_TIMEPOINT_BUFFER_BASE, last_index.current);
+      let oldest_index = oldest_index_of(last_index);
+      let window = read_window();
+
+      let avg = calculate_avg_tick(
+          SLOT_TIMEPOINT_BUFFER_BASE, now, tick, last_index, oldest_index, last_timepoint, window
+      );
+
+      create_timepoint(last_timepoint, now -% dt, tick, avg.avg_tick, avg.window_start_index.current)
 };
 
-const return_read_timepoint(tick: u256, dt: u256) never {
-      let res: Timepoint =  read_timepoint(tick,dt);
-      // todo: res logic to return
+// ABI-returns the timepoint as its packed u256 word, matching the return_* convention used
+// by the pos_spec types (see TickVolatility::return_volQ64X96).
+// (This was `const return_read_timepoint(...)` -- missing its `= fn` -- and had no
+// terminator despite being declared `never`.)
+const return_read_timepoint = fn(tick: u256, dt: u256) never {
+      let res = read_timepoint(tick, dt);
+      let out_ptr = @malloc_uninit(32);
+      @mstore32(out_ptr, pack_timepoint(res));
+      @evm_return(out_ptr, 32);
 };
 
 init{ return_runtime();}

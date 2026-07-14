@@ -1,7 +1,0 @@
-import types::Nominal::Nominal;
-
-// TODO: Trnsfer the fucntions athat do not validate or buidl the type here
-
-const makeNotionalSize = fn (tickLow:u256, tickUpper: u256, tickSpacing:u256) Notional {
-};
-

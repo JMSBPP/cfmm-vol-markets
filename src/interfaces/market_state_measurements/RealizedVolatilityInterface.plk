@@ -1,3 +1,14 @@
+// ABI selectors for RealizedVolatilityMod.
+//
+// This file was previously truncated mid-declaration (`const SELECTOR_INITIALIZE_VOL_STATE`
+// with no value and no terminator), which is why every module importing it failed with
+// "unexpected EOF". Values are keccak256(signature)[0:4].
 
 // signature:: initialize_vol_state()
-const SELECTOR_INITIALIZE_VOL_STATE
+const SELECTOR_INITIALIZE_VOL_STATE = 0xbc6a6c1c;
+
+// signature:: write_timepoint(uint256)
+const SELECTOR_WRITE_TIMEPOINT = 0x5a329a74;
+
+// signature:: read_timepoint(uint256,uint256)
+const SELECTOR_READ_TIMEPOINT = 0xed7ec66e;

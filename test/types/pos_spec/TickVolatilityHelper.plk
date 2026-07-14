@@ -16,10 +16,10 @@ run {
        
     if selector == SELECTOR_VOL_Q64_X_96{
        let tick_vol = @evm_calldataload(4);
-       return_volQ64X96(wrap_tick_volatility(tick_vol));
+       return_volQ64X96(unpack_tick_volatility(tick_vol));
     } else if selector == SELECTOR_VOL_WAD {
        let tick_vol = @evm_calldataload(4);
-       return_volWAD(wrap_tick_volatility(tick_vol));
+       return_volWAD(unpack_tick_volatility(tick_vol));
     }
     @evm_stop();
 }

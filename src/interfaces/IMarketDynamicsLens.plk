@@ -1,5 +1,0 @@
-
-// signature:: getStatePartitionDelta()
-const SELECTOR_GET_STATE_PARTITION_DELTA =;
-// signature: getBaseTick()
-const SELECTOR_GET_BASE_TICK =;

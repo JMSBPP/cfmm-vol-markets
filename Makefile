@@ -1,3 +1,10 @@
+sol-build:
+	forge build --via-ir --optimize
+
+sol-test:
+	forge test --match-contract VolOrderTest --via-ir --optimize 
+
+
 test-utils:
 	forge clean && forge test --match-contract UtilsTest -vvvv --via-ir
 
@@ -32,13 +39,30 @@ build-pool:
 # .plk files have no init block (they would fail with "missing init
 # block") and are instead pulled in transitively via their importers.
 PLANK         ?= plank
-PLANK_DEP     := --dep v3=lib/plankified-univ3/plank/lib/
+# Module roots. The `.plk` sources import by layer root (`lib::`, `types::`,
+# `interfaces::`), so each layer under src/ must be declared as a dep or every
+# import fails with "unknown module". `pos_spec` stays declared separately
+# because 16 imports still reference it bare (`pos_spec::X`) rather than via
+# `types::pos_spec::X`.
+PLANK_DEP := --dep v3=lib/plankified-univ3/plank/lib/ --dep std=lib/plank-monorepo/std/ --dep pos_spec=src/types/pos_spec \
+             --dep lib=src/lib --dep types=src/types --dep interfaces=src/interfaces
 PLANK_BACKEND := sona
 PLANK_BUILD   := build/plank
-# Entrypoints are auto-discovered as any .plk under src/ or test/ that
-# contains an `init` block. Add space-separated paths (relative to the
-# repo root) here to skip a known-WIP entrypoint.
-PLANK_SKIP    :=
+# Entrypoints are auto-discovered as any .plk under src/ or test/ that contains
+# an `init` block -- EXCEPT anything under an `exp/` directory. `exp/` holds
+# throwaway experiments (CESLongPayoff, VarianceMarketPlant); they are kept on
+# disk but must never redden the gate, so discovery skips the directory outright
+# rather than listing each file in PLANK_SKIP.
+PLANK_EXCLUDE_DIR := exp
+#
+# PLANK_SKIP is the *rescue queue*: entrypoints that belong to the project and
+# are meant to compile, but are still blocked on authoring. Delete a line the
+# moment its file goes green -- this list should only ever shrink.
+#
+#   VegaAccountMod         - RESCUING. Pure skeleton: SLOT_* / SELECTOR_DEPOSIT consts have
+#                            no values, and it does not yet import VegaExposure. Needs the
+#                            deposit(collateral) -> vegaExposure logic authored.
+PLANK_SKIP    := src/modules/exposure/VegaAccountMod.plk
 
 # compile-plank: compile every Plank entrypoint to EVM bytecode, writing
 # build/plank/<name>.hex on success and <name>.hex.err on failure. Fails
@@ -47,13 +71,13 @@ PLANK_SKIP    :=
 compile-plank:
 	@mkdir -p $(PLANK_BUILD)
 	@rc=0; ok=0; fail=0; skip=0; \
-	for f in $$(grep -rlE '^[[:space:]]*init[[:space:]]*\{' --include='*.plk' src test | sort); do \
+	for f in $$(grep -rlE '^[[:space:]]*init[[:space:]]*\{' --include='*.plk' --exclude-dir='$(PLANK_EXCLUDE_DIR)' src test | sort); do \
 		case " $(PLANK_SKIP) " in \
 			*" $$f "*) printf '   SKIP %s  (WIP)\n' "$$f"; skip=$$((skip+1)); continue;; \
 		esac; \
 		out="$(PLANK_BUILD)/$$(echo "$$f" | tr / _ | sed 's/\.plk$$//').hex"; \
 		printf '>> compiling %s\n' "$$f"; \
-		if $(PLANK) build "$$f" $(PLANK_DEP) --backend '$(PLANK_BACKEND)' >"$$out" 2>"$$out.err"; then \
+		if $(PLANK) build "$$f" $(PLANK_DEP) --backend '$(PLANK_BACKEND)' > "$$out" 2>"$$out.err"; then \
 			rm -f "$$out.err"; printf '   OK   %s -> %s\n' "$$f" "$$out"; ok=$$((ok+1)); \
 		else \
 			rm -f "$$out"; printf '   FAIL %s -> %s.err\n' "$$f" "$$out"; fail=$$((fail+1)); rc=1; \

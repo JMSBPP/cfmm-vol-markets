@@ -1,6 +1,7 @@
 
-import pos_spec::types::TickVolatility::*;
-import market_state_measurement::RealizedVolatilityLib::*;
+import pos_spec::TickVolatility::*;
+import lib::market_state_measurements::RealizedVolatilityLib::*;
+import std::core_ops::bool_to_u256;
 
 const INIT_STORAGE_INDEX = 0;
 const INIT_TIME_WINDOW = 0; 
@@ -17,26 +18,26 @@ const Timepoint = struct {
       initialized: bool
 };
 
-const pack_timepoint = fn(self: Timepoint) u256 {};
-
-const pack_timepoint = fn(
-    timestamp: u256,
-    realizedVolatility: TickVolatility,
-    tick: u256,
-    avg_tick: u256,
-    min_tick: u256,
-    max_tick: u256,
-    time_window_start_index: u256,
-    initialized: bool
-) u256 {
-    (timestamp & 0xFFFFFFFF)
-    | @evm_shl(32, realizedVolatility.vol & 0xFFFFFFFFFFFFFFFFFFFFFF)
-    | @evm_shl(120, tick & 0xFFFFFF)
-    | @evm_shl(144, avg_tick & 0xFFFFFF)
-    | @evm_shl(168, min_tick & 0xFFFFFF)
-    | @evm_shl(192, tick_cumulative & 0xFFFFFF)
-    | @evm_shl(216, time_window_start_index & 0xFFFF)
-    | @evm_shl(232, bool_to_u256(initialized))
+// pack_timepoint is the exact inverse of unpack_timepoint: Timepoint -> u256.
+//
+// This previously existed twice -- once as an empty `fn(self: Timepoint) u256 {}` stub and
+// once as an 8-arg field-wise variant. Plank has no overloading, so that was a hard
+// "duplicate definition". The struct-taking form is kept (it mirrors unpack_timepoint, and
+// it is the shape the callers in RealizedVolatilityMod actually want); callers that used
+// the field-wise form now build a Timepoint literal and pack that.
+//
+// The old 8-arg signature also declared a `max_tick` parameter while its body packed
+// `tick_cumulative` -- `max_tick` was never used and `tick_cumulative` was unbound. The
+// struct field is `tick_cumulative`, so that is what is packed here.
+const pack_timepoint = fn(self: Timepoint) u256 {
+    (self.timestamp & 0xFFFFFFFF)
+    | @evm_shl(32, self.realizedVolatility.vol & 0xFFFFFFFFFFFFFFFFFFFFFF)
+    | @evm_shl(120, self.tick & 0xFFFFFF)
+    | @evm_shl(144, self.avg_tick & 0xFFFFFF)
+    | @evm_shl(168, self.min_tick & 0xFFFFFF)
+    | @evm_shl(192, self.tick_cumulative & 0xFFFFFF)
+    | @evm_shl(216, self.time_window_start_index & 0xFFFF)
+    | @evm_shl(232, bool_to_u256(self.initialized))
 };
 
 
@@ -94,7 +95,13 @@ const create_timepoint = fn(
     let next_realized_volatility = TickVolatility { vol: @evm_add(current.realizedVolatility.vol,realized_vol_delta.vol)};
 
     let next_min_tick = if @evm_slt(tick, current.min_tick) { tick } else { current.min_tick };
-    next_tick_cumulative = @evm_mul(tick, delta);
+    // tick_cumulative ACCUMULATES -- it is a running integral of tick over time, so the new
+    // value is the previous cumulative plus this interval's contribution. Algebra:
+    //   last.tickCumulative += int56(tick) * int56(uint56(delta));
+    // (this line previously read `next_tick_cumulative = @evm_mul(tick, delta)` -- missing
+    // both the `let` binding and the carry-forward of current.tick_cumulative, which would
+    // have reset the integral on every write.)
+    let next_tick_cumulative = @evm_add(current.tick_cumulative, @evm_mul(tick, delta));
     Timepoint {
         timestamp: last_timestamp,
         realizedVolatility: next_realized_volatility,

@@ -1,8 +1,0 @@
-
-
-// sig :: read_tick_min
-const READ_TICK_MIN_SELECTOR = 0xfe278725;
-// sig :: read_tick_max
-const READ_TICK_MAX_SELECTOR = 0xafefbeca;
-// sig :: read_tick_min_and_max
-const READ_TICK_MIN_AND_TICK_MAX_SELECTOR = 0x51d83e9c;
