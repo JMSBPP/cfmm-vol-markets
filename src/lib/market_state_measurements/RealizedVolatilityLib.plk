@@ -13,12 +13,26 @@ const TIMEPOINT_INDEX_MASK = 0xFFFF;
 
 // _volatilityOnRange: the realized-variance contribution of one interval.
 // Ported from Algebra VolatilityOracle._volatilityOnRange.
+//
+// EVERY operator here MUST be wrapping. Algebra's whole _volatilityOnRange body sits inside
+// `unchecked`, and these are two's-complement signed values carried in u256:
+//   * `b = (tick0 - avg_tick0)` is NEGATIVE whenever the tick sits below its trailing average.
+//     With Plank's CHECKED `-` that underflows and REVERTS -- i.e. the oracle would panic on
+//     the second write of any decreasing tick path. (Plank's `-` emits a revert path; `-%` does not.)
+//   * the middle term `6*b*k*sumOfSequence` is negative when sign(b) != sign(k), so a CHECKED
+//     `+` against a positive term overflows and panics too.
+// Do not "tidy" any of these back to bare -/+.
 const calculate_realized_volatility = fn(avg_tick0:u256, avg_tick1: u256, tick0:u256, tick1:u256, dt :u256) TickVolatility {
-      let k =(tick1 -% tick0) -% (avg_tick1 -% avg_tick0);
-      let b = (tick0 - avg_tick0) *% dt;
+      let k = (tick1 -% tick0) -% (avg_tick1 -% avg_tick0);
+      let b = (tick0 -% avg_tick0) *% dt;
       let sumOfSequence = dt *% (dt +% 1);
       let sumOfSquares = sumOfSequence *% (2 *% dt +% 1); // sumOfSquares * 6
-     let volatility = @evm_sdiv(@evm_exp(k,2) *% sumOfSquares + 6 *% b *% k *% sumOfSequence +% 6 *% dt *% @evm_exp(b,2), 6 *% @evm_exp(dt,2));
+      let volatility = @evm_sdiv(
+            (k *% k) *% sumOfSquares
+            +% 6 *% b *% k *% sumOfSequence
+            +% 6 *% dt *% (b *% b),
+            6 *% (dt *% dt)
+      );
       TickVolatility { vol: volatility }
 };
 
@@ -42,9 +56,24 @@ const TickCumulativeAt = struct {
       index_before: u256
 };
 
+// u32_sub: wrapping subtraction TRUNCATED BACK TO 32 BITS.
+//
+// This is load-bearing, not cosmetic. Algebra gets uint32 wraparound for free from its types
+// (`uint32 target = time - secondsAgo;` wraps mod 2^32). Plank carries timestamps in u256, so a
+// bare `-%` wraps mod 2^256 instead and produces a ~2^256 value where Algebra produces a small
+// uint32. Feeding that to oracle_lte INVERTS the comparison:
+//   current_time=1000, WINDOW=86400  ->  Algebra: uint32(1000-86400) = 4294881896
+//                                        Plank (unmasked): 2^256 - 85400
+// oracle_lte then takes the opposite branch and calculate_avg_tick returns the raw current tick
+// instead of a real average. Every timestamp below WINDOW hits this.
+const u32_sub = fn(a: u256, b: u256) u256 {
+      (a -% b) & 0xFFFFFFFF
+};
+
 // _lteConsideringOverflow: 32-bit timestamp comparator that stays correct across one
 // wrap of the uint32 clock. Answers "is `a` chronologically <= `b`, as seen from `time`".
-// Both `a` and `b` must be chronologically at or before `time`.
+// Both `a` and `b` must be chronologically at or before `time`, and BOTH MUST ALREADY BE
+// REDUCED MOD 2^32 -- see u32_sub.
 const oracle_lte = fn (time: u256, a: u256, b: u256) bool {
     if (a <= time) and (b <= time) { return a <= b; }
     let aAdjusted = if a > time { a } else { a +% (1 << 32) };
@@ -75,9 +104,9 @@ const binary_search_timepoints = fn(
       lower_index: u256
 ) TimepointsAt {
       let mut left = lower_index;
-      let mut right = if upper_index < lower_index { upper_index + UINT16_MODULO } else { upper_index };
+      let mut right = if upper_index < lower_index { upper_index +% UINT16_MODULO } else { upper_index };
 
-      let mut index_before = (left + right) </ 2;
+      let mut index_before = (left +% right) </ 2;
       let mut before = load_timepoint(buffer_base, index_before);
       let mut after = before;
       let mut done = false;
@@ -86,13 +115,13 @@ const binary_search_timepoints = fn(
             if before.initialized {
                   if oracle_lte(current_time, before.timestamp, target) {
                         // `before` is at or before target; check the next point.
-                        after = load_timepoint(buffer_base, index_before + 1);
+                        after = load_timepoint(buffer_base, index_before +% 1);
                         if after.initialized {
                               if oracle_lte(current_time, target, after.timestamp) {
                                     // target is bracketed: this is the only fully correct exit.
                                     done = true;
                               } else {
-                                    left = index_before + 1;
+                                    left = index_before +% 1;
                               }
                         } else {
                               // `before` is initialized and <= target but the next slot is not
@@ -101,15 +130,15 @@ const binary_search_timepoints = fn(
                               done = true;
                         }
                   } else {
-                        right = index_before - 1;
+                        right = index_before -% 1;
                   }
             } else {
                   // landed on an unwritten slot: keep searching higher.
-                  left = index_before + 1;
+                  left = index_before +% 1;
             }
 
             if !done {
-                  index_before = (left + right) </ 2;
+                  index_before = (left +% right) </ 2;
                   before = load_timepoint(buffer_base, index_before);
             }
       }
@@ -148,7 +177,7 @@ const timepoints_at = fn(
       // start: when the ring overflows, window_start_index is guaranteed not to point at an
       // overwritten timepoint.
       let mut lower = oldest_index.current;
-      if (last_timepoint.timestamp -% target) <= window.window {
+      if u32_sub(last_timepoint.timestamp, target) <= window.window {
             lower = last_timepoint.time_window_start_index;
       }
 
@@ -189,7 +218,7 @@ const tick_cumulative_at = fn(
       oldest_index: StorageIndex,
       window: TimeWindow
 ) TickCumulativeAt {
-      let target = time -% seconds_ago;
+      let target = u32_sub(time, seconds_ago);
       let found = timepoints_at(buffer_base, time, target, last_index, oldest_index, window);
 
       let timestamp_before = found.before.timestamp;
@@ -203,7 +232,7 @@ const tick_cumulative_at = fn(
       // target is newer than the last timepoint: extrapolate forward at the current tick.
       if found.same_point {
             return TickCumulativeAt {
-                  tick_cumulative: cumulative_before +% (tick *% (target -% timestamp_before)),
+                  tick_cumulative: cumulative_before +% (tick *% u32_sub(target, timestamp_before)),
                   index_before: found.index_before
             };
       }
@@ -220,13 +249,51 @@ const tick_cumulative_at = fn(
       }
 
       // strictly inside: linear interpolation between the two timepoints.
-      let timepoint_delta = timestamp_after -% timestamp_before;
-      let target_delta = target -% timestamp_before;
+      let timepoint_delta = u32_sub(timestamp_after, timestamp_before);
+      let target_delta = u32_sub(target, timestamp_before);
       TickCumulativeAt {
             tick_cumulative:
                   cumulative_before
                   +% (@evm_sdiv(cumulative_after -% cumulative_before, timepoint_delta) *% target_delta),
             index_before: found.index_before
+      }
+};
+
+// twap_tick: the time-weighted average tick over an ARBITRARY lookback `dt`.
+//
+// This is NOT calculate_avg_tick. calculate_avg_tick is Algebra's _getAverageTick, which
+// averages over the fixed WINDOW and is what feeds the volatility accumulator. twap_tick is
+// the Uniswap-V3 `observeSingle` quantity -- the caller picks the lookback -- and it is what
+// both Solidity references expose as `getTwapTick(dt, tick, currentTimestamp)`.
+//
+// UniV3 rounds toward negative infinity for negative accumulator deltas:
+//   timeWeightedAverageTick = delta / dt;
+//   if (delta < 0 && delta % dt != 0) timeWeightedAverageTick--;
+// EVM SDIV truncates toward zero, so that correction is reproduced explicitly here.
+// Without it this is systematically off by one for negative average ticks.
+const twap_tick = fn(
+      buffer_base: u256,
+      current_time: u256,
+      dt: u256,
+      tick: u256,
+      last_index: StorageIndex,
+      oldest_index: StorageIndex,
+      window: TimeWindow
+) u256 {
+      let cumulative_now =
+            tick_cumulative_at(buffer_base, current_time, 0, tick, last_index, oldest_index, window);
+      let cumulative_then =
+            tick_cumulative_at(buffer_base, current_time, dt, tick, last_index, oldest_index, window);
+
+      let delta = cumulative_now.tick_cumulative -% cumulative_then.tick_cumulative;
+
+      let quotient = @evm_sdiv(delta, dt);
+      let remainder = @evm_smod(delta, dt);
+
+      if @evm_slt(delta, 0) and (remainder != 0) {
+            @evm_sub(quotient, 1)
+      } else {
+            quotient
       }
 };
 
@@ -249,9 +316,9 @@ const calculate_avg_tick = fn(
 
       // Carry the accumulator forward to `current_time` before averaging.
       let current_tick_cumulative =
-            last_timepoint.tick_cumulative +% (tick *% (current_time -% last_timepoint.timestamp));
+            last_timepoint.tick_cumulative +% (tick *% u32_sub(current_time, last_timepoint.timestamp));
 
-      let window_start = current_time -% window.window;
+      let window_start = u32_sub(current_time, window.window);
 
       // The oldest retained timepoint is NEWER than one window ago: average over everything
       // we actually have rather than over the (partly missing) window.
@@ -262,7 +329,7 @@ const calculate_avg_tick = fn(
             return AvgTickRes {
                   avg_tick: @evm_sdiv(
                         current_tick_cumulative -% oldest.tick_cumulative,
-                        current_time -% oldest.timestamp
+                        u32_sub(current_time, oldest.timestamp)
                   ),
                   window_start_index: oldest_index
             };
