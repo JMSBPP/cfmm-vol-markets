@@ -4,6 +4,14 @@ out = "out"
 test = "test"
 libs = ["lib", "node_modules"]
 ffi = true
+# This project ONLY compiles via the IR pipeline with the optimizer on: the reference
+# contracts (VolatilityOracleStorage.layout(), the UniV3 oracle wrappers) hit "stack too deep"
+# under legacy codegen or IR-without-optimizer. Every Makefile target already passes
+# `--via-ir --optimize`; setting it here makes plain `forge test`/`forge build` -- and the CI
+# gate's `forge test --via-ir --offline`, which does NOT pass --optimize -- consistent, instead
+# of relying on every caller to remember the flags.
+via_ir = true
+optimizer = true
 fs_permissions = [{ access = "read", path = "./test/gamsDiff/fixtures" }]
 
 remappings = [
