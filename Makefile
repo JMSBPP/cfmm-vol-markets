@@ -6,10 +6,27 @@ sol-test:
 
 
 test-utils:
-	forge clean && forge test --match-contract UtilsTest -vvvv --via-ir
+	forge clean && forge test --match-contract UtilsTest -vvvv --via-ir --optimize
 
 test-pricing-kernel-diff:
-	forge clean && forge test --match-contract PricingKernelPlankdiffTest -vvvv --via-ir
+	forge clean && forge test --match-contract PricingKernelPlankdiffTest -vvvv --via-ir --optimize
+
+# The Solidity oracle references (Algebra + UniV3). This is the baseline the Plank
+# differential test diffs against, so it must be green before that work means anything.
+test-market-statistics:
+	forge test --match-contract MarketStatisticsTest --via-ir --optimize
+
+# Proves RealizedVolatilityMod.plk is deployable and its ABI dispatch is live.
+# NOTE: `make compile-plank` passing does NOT prove this. plank does not type-check code
+# unreachable from run{}, so a module with an empty run{} compiles green while every
+# function in it is dead. Only calling it proves anything.
+test-realized-vol-smoke:
+	forge test --match-contract RealizedVolatilitySmokeTest --via-ir --optimize
+
+# Everything that must be green before the Plank<->Algebra<->UniV3 diff test is written.
+test-vol-prereqs: test-market-statistics test-realized-vol-smoke
+
+.PHONY: test-market-statistics test-realized-vol-smoke test-vol-prereqs
 
 
 build-random:
