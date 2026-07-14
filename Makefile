@@ -23,10 +23,15 @@ test-market-statistics:
 test-realized-vol-smoke:
 	forge test --match-contract RealizedVolatilitySmokeTest --via-ir --optimize
 
-# Everything that must be green before the Plank<->Algebra<->UniV3 diff test is written.
-test-vol-prereqs: test-market-statistics test-realized-vol-smoke
+# The Plank<->Algebra<->UniV3 differential test (Phase 0-1): one driver, three targets,
+# exact agreement on the accumulator, the TWAP, and the stored state. No-wrap regime.
+test-vol-diff:
+	forge test --match-contract RealizedVolatilityDiffTest --via-ir --optimize
 
-.PHONY: test-market-statistics test-realized-vol-smoke test-vol-prereqs
+# Everything that must be green for the oracle: baseline refs, Plank smoke, and the diff test.
+test-vol-prereqs: test-market-statistics test-realized-vol-smoke test-vol-diff
+
+.PHONY: test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-prereqs
 
 
 build-random:
