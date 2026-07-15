@@ -2,27 +2,7 @@ import std::constructor::return_runtime;
 import v3::math::sqrt_price_math::getNextSqrtPriceFromAmount0RoundingUp;
 import v3::util::return_u256;
 
-/// @title PriceImpactKernelHarness
-/// @notice Minimal reader harness exposing Uniswap V3 `getNextSqrtPriceFromAmount0RoundingUp`
-///         as a single external entrypoint, so the GAMS price-impact kernel can diff its
-///         post-trade price against the on-chain reference implementation. Companion to
-///         `PriceKernelHarness` (which exposes the `getSqrtRatioAtTick` pricing kernel).
-/// @dev Pure reader: no constructor state, nothing to persist. ABI surface is exactly
-///      `getNextSqrtPriceFromAmount0RoundingUp(uint160 sqrtPX96, uint128 liquidity,
-///       uint256 amount, bool add) returns (uint256)`.
-///
-///      With `add = true` the callee's exact-rounding path computes
-///          sqrtQ = L * sqrtP / (L + amount * sqrtP)
-///      i.e. the spec's ½-pricing-kernel price impact
 ///          P_{1/2}(Δ^I) = (L̄ · P_{1/2}(i)) / (L̄ + Δ^I · P_{1/2}(i))
-///      with sqrtP = P_{1/2}(i) = sqrtPX96, L̄ = liquidity, Δ^I = amount. See
-///      model/exp/eta.md. The callee reverts (`util::revert_empty`) on the `add = false`
-///      overflow guards, which is the desired strict behaviour for a diff harness.
-///
-///      ABI words are 32 bytes each; uint160/uint128 args are left-padded, so the raw
-///      calldata words are forwarded unchanged. The `bool` is decoded as nonzero, matching
-///      the `mock_time_pool` idiom (`@evm_calldataload(off) > 0`).
-
 /// @dev keccak256("getNextSqrtPriceFromAmount0RoundingUp(uint160,uint128,uint256,bool)")[0..4]
 const GET_NEXT_SQRT_PRICE_FROM_AMOUNT0_ROUNDING_UP_SELECTOR = 0x157f652f;
 

@@ -1,0 +1,47 @@
+import types::Numerics::{WAD,Q64_96_RESOLUTION};
+
+const TickVolatility = struct {
+      vol:u256
+};
+
+const tick_volatility_is_complete = fn(self:TickVolatility) bool {
+      let res = self.vol > 0;
+      res
+};
+
+const unpack_tick_volatility = fn(vol: u256) TickVolatility {
+      TickVolatility{
+		vol:vol
+      }
+};
+const pack_tick_volatility = fn(self :TickVolatility) u256 {
+      let res = self.vol;
+      res
+};
+
+const volQ64X96 = fn(self: TickVolatility) TickVolatility {
+      TickVolatility {
+      		     // once it arrives is uint256 bounded to uint88 ideally
+      		     vol: @evm_shl(Q64_96_RESOLUTION, self.vol)
+      }
+};
+
+const volWAD = fn(self: TickVolatility) TickVolatility {
+      TickVolatility {
+      		     vol: @evm_mul(self.vol, WAD)
+      }
+};
+
+const return_volQ64X96 = fn(self: TickVolatility) never {
+      let res = volQ64X96(self);
+      let out_ptr = @malloc_uninit(32);
+      @mstore32(out_ptr, res.vol);
+      @evm_return(out_ptr, 32);
+};
+
+const return_volWAD = fn(self: TickVolatility) never {
+      let res = volWAD(self);
+      let out_ptr = @malloc_uninit(32);
+      @mstore32(out_ptr, res.vol);
+      @evm_return(out_ptr, 32);
+};

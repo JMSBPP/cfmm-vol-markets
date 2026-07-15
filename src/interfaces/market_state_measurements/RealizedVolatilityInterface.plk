@@ -1,0 +1,56 @@
+// ABI selectors for RealizedVolatilityMod.
+//
+// These are NOT invented for the port: initializeTWAP and getTwapTick are the exact selectors
+// Algebra's VolatilityOraclePluginImplementation is called with in
+// test/MarketStatisticsTest.t.sol:86,91. Keeping the same ABI makes RealizedVolatilityMod
+// call-compatible with MarketStatisticsAlgebraRef / MarketStatisticsUniV3Ref by construction,
+// so ONE Solidity interface can drive all three implementations in the differential test.
+//
+// Values are keccak256(signature)[0:4].
+//
+// (This file was previously truncated mid-declaration -- `const SELECTOR_INITIALIZE_VOL_STATE`
+// with no value and no terminator -- which is why every importer failed with "unexpected EOF".)
+
+// signature:: initializeTWAP(uint32,int24)
+const SELECTOR_INITIALIZE_TWAP = 0xed64c40a;
+
+// signature:: writeTimepoint(uint32,int24)
+const SELECTOR_WRITE_TIMEPOINT = 0xb09b2297;
+
+// signature:: getTwapTick(uint32,int24,uint32) -> int24
+const SELECTOR_GET_TWAP_TICK = 0x1a72d0df;
+
+// signature:: getTickCumulative(uint32,int24,uint32) -> int56
+// Not part of Algebra's plugin ABI; exposed because the raw accumulator is the most primitive
+// quantity Algebra and UniV3 share, and therefore the sharpest surface to diff on -- it
+// isolates the ring search + interpolation from the averaging and rounding layered on top.
+const SELECTOR_GET_TICK_CUMULATIVE = 0xec7136cd;
+
+// signature:: getAverageVolatility(int24,uint32) -> uint88
+// NOTE: this is NOT Algebra's getAverageVolatility (which is window-normalised). It returns the
+// last timepoint's RAW volatilityCumulative. Do not diff it against
+// MarketStatisticsAlgebraRef.getAverageVolatilityLast -- they are different quantities.
+const SELECTOR_GET_AVERAGE_VOLATILITY = 0x8171455c;
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+// State readers. Without these the module is a black box: getTwapTick is a QUOTIENT, so a
+// truncated accumulator and a wrong oldest-index cancel and a TWAP-only assertion passes.
+// Exposing the stored state directly is what lets the differential test pin the implementation
+// down -- and it means the test does NOT have to mirror Plank's storage-slot derivation
+// (array_slot = keccak256(abi.encode(base)) + i) or the packed state word in Solidity, which
+// would be two more unverified mirrors checking an unverified implementation.
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+// signature:: getTimepointPacked(uint16) -> uint256   (the raw packed Timepoint word)
+const SELECTOR_GET_TIMEPOINT_PACKED = 0xbf15969d;
+
+// signature:: lastIndex() -> uint16
+const SELECTOR_LAST_INDEX = 0xf3f6f0d7;
+
+// signature:: oldestIndex() -> uint16
+const SELECTOR_OLDEST_INDEX = 0x1637e8ad;
+
+// signature:: readWindow() -> uint32   (Algebra's WINDOW is a constant; ours is storage, so the
+// differential test must be able to assert they agree -- if init is ever skipped this reads 0
+// and every windowed comparison silently diverges)
+const SELECTOR_READ_WINDOW = 0x0a9ae2f7;

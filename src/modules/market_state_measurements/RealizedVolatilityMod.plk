@@ -1,0 +1,297 @@
+import std::constructor::return_runtime;
+import types::market_state_measurements::Timepoint::*;
+import lib::market_state_measurements::RealizedVolatilityLib::*;
+import interfaces::market_state_measurements::RealizedVolatilityInterface::*;
+import types::StorageIndex::*;
+import types::TimeWindow::*;
+import pos_spec::TickVolatility::*;
+import v3::util::{return_u256, revert_empty};
+import std::error::require;
+import std::core_ops::bool_to_u256;
+
+import v3::storage:: {array_slot};
+
+// "RealizedVolMod.TimepointBuffer"
+const SLOT_TIMEPOINT_BUFFER_BASE = 0xe4a8c01f6be955d80963b8d318701ba0c1b7e6a0d74e5ed3ee42ad38f22da431;
+
+// "RealizedVolMod.RealizedVolState"
+const SLOT_REALIZED_VOL_STATE = 0x66d25f45c9eb3ca9255387e4a0842bb72d450363ab922011aef46dbadb163e9e;
+
+// "RealizedVolMod.WindowSize"
+const SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE = 0x326d117cb3406827d1b11b11d5b767896bd9ad554682ba4c03289854d62c5973;
+
+const EMPTY = 0;
+const ZERO = 0;
+
+// The averaging window (seconds) lives at SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE. Algebra fixes
+// this as `uint32 constant WINDOW = 1 days`; here it is stored so it can be tuned per market.
+// See types/TimeWindow.plk.
+// todo: The selectors of these functions must be included on the interface
+const write_window = fn(window: TimeWindow) void {
+      @evm_sstore(SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE, pack_time_window(window));
+};
+
+const read_window = fn() TimeWindow {
+      unpack_time_window(@evm_sload(SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE))
+};
+
+const RealizedVolatilityState = struct {
+     ss_index: StorageIndex,               // u16
+     lastTimepointTimestamp: u256, // u32
+     isInitialized: bool
+};
+
+const pack_realized_volatility_state = fn(
+    self: RealizedVolatilityState
+) u256 {
+    (self.ss_index.current & 0xFFFF)
+    | @evm_shl(
+        16,
+        self.lastTimepointTimestamp & 0xFFFFFFFF
+    )
+    | @evm_shl(
+        48,
+        bool_to_u256(self.isInitialized)
+    )
+};
+
+const unpack_realized_volatility_state = fn(_packed: u256) RealizedVolatilityState {
+    RealizedVolatilityState {
+        ss_index:
+            StorageIndex{ current: _packed & 0xFFFF },
+
+        lastTimepointTimestamp:
+            @evm_shr(16, _packed)
+            & 0xFFFFFFFF,
+
+        isInitialized:
+            @evm_eq(
+                @evm_shr(48, _packed) & 1,
+                1
+            )
+    }
+};
+
+// getOldestIndex: the oldest timepoint still retained in the ring. Algebra:
+//   uint16 nextIndex = lastIndex + 1;
+//   if (self[nextIndex].initialized) oldestIndex = nextIndex;   // else 0
+// i.e. if the slot we are about to overwrite is already written, the buffer has wrapped and
+// that slot holds the oldest sample; otherwise nothing has been overwritten yet and the
+// oldest sample is at index 0.
+const oldest_index_of = fn(last_index: StorageIndex) StorageIndex {
+      let candidate = next(last_index);
+      let candidate_timepoint = load_timepoint(SLOT_TIMEPOINT_BUFFER_BASE, candidate.current);
+      if candidate_timepoint.initialized { candidate } else { StorageIndex { current: ZERO } }
+};
+
+// `block_timestamp` is taken as an explicit argument rather than read from @evm_timestamp().
+// This is faithful to Algebra -- VolatilityOracle.initialize / .write are both handed the
+// timestamp by the pool -- and it is what makes the module drivable by the same test harness
+// as MarketStatisticsAlgebraRef / MarketStatisticsUniV3Ref, whose ABI takes uint32 blockTimestamp.
+const initialize_timepoint_buffer = fn(block_timestamp: u256, tick: u256) void {
+     let ss_index = initialize_storage_index();
+     let slot = array_slot(SLOT_TIMEPOINT_BUFFER_BASE, ss_index.current);
+
+     let current_timepoint_at_slot = unpack_timepoint(@evm_sload(slot));
+     // Logical `!`, NOT @evm_not. @evm_not is EVM bitwise NOT: NOT(0)=2^256-1 and NOT(1)=2^256-2
+     // are BOTH truthy, so `require(@evm_not(initialized))` could never fire and double-init
+     // silently re-seeded slot 0. Algebra reverts here (volatilityOracleAlreadyInitialized).
+     require(!current_timepoint_at_slot.initialized);
+
+     let now = block_timestamp & MASK_U32;
+
+     // The first sample has zero elapsed time, so it carries no realized variance and a zero
+     // tick accumulator; avg_tick seeds from the current tick.
+     let seed = Timepoint {
+         timestamp: now,
+         realizedVolatility: TickVolatility { vol: ZERO },
+         tick: tick,
+         avg_tick: tick,
+         tick_cumulative: ZERO,
+         time_window_start_index: ss_index.current,
+         initialized: true
+     };
+
+     @evm_sstore(slot, pack_timepoint(seed));
+     @evm_sstore(SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE, pack_time_window(TimeWindow { window: DEFAULT_TIME_WINDOW }));
+     @evm_sstore(SLOT_REALIZED_VOL_STATE, pack_realized_volatility_state(RealizedVolatilityState{ss_index: ss_index, lastTimepointTimestamp: now, isInitialized: true}));
+};
+
+// write_timepoint mirrors Algebra VolatilityOracle.write:
+//   indexUpdated = lastIndex + 1
+//   if (self[indexUpdated].initialized) oldestIndex = indexUpdated
+//   (avgTick, windowStartIndex) = _getAverageTickCasted(..., lastIndex, oldestIndex, ...)
+//   if (windowStartIndex == indexUpdated) windowStartIndex++
+//   self[indexUpdated] = _createNewTimepoint(last, ts, tick, avgTick, windowStartIndex)
+const write_timepoint = fn(block_timestamp: u256, tick: u256) void {
+      let vol_state = unpack_realized_volatility_state(@evm_sload(SLOT_REALIZED_VOL_STATE));
+      require(vol_state.isInitialized);
+
+      let now = block_timestamp & MASK_U32;
+      // at most one timepoint per block
+      if vol_state.lastTimepointTimestamp == now { return_u256(EMPTY); }
+
+      let last_index = vol_state.ss_index;
+      let last_timepoint = load_timepoint(SLOT_TIMEPOINT_BUFFER_BASE, last_index.current);
+
+      // the slot we are about to write; also the oldest sample once the ring has wrapped
+      let index_updated = next(last_index);
+      let oldest_index = oldest_index_of(last_index);
+
+      let window = read_window();
+
+      // NOTE: the average is computed from `last_index`, NOT from `index_updated`. The
+      // advanced index is only the write target. (The previous code passed the advanced
+      // index here, which shifted the whole window by one sample.)
+      let avg = calculate_avg_tick(
+          SLOT_TIMEPOINT_BUFFER_BASE, now, tick, last_index, oldest_index, last_timepoint, window
+      );
+
+      // If the window start would land on the slot we are about to overwrite, push it one
+      // forward -- otherwise the narrowed search in timepoints_at could read the sample we
+      // just clobbered.
+      let window_start_index = if avg.window_start_index.current == index_updated.current {
+          next(avg.window_start_index)
+      } else {
+          avg.window_start_index
+      };
+
+      let updated = create_timepoint(last_timepoint, now, tick, avg.avg_tick, window_start_index.current);
+
+      @evm_sstore(array_slot(SLOT_TIMEPOINT_BUFFER_BASE, index_updated.current), pack_timepoint(updated));
+      @evm_sstore(SLOT_REALIZED_VOL_STATE, pack_realized_volatility_state(
+          RealizedVolatilityState { ss_index: index_updated, lastTimepointTimestamp: now, isInitialized: true }
+      ));
+};
+
+// RingState bundles the three values every read path needs from storage, so the getters below
+// do not each re-derive them.
+const RingState = struct {
+      last_index: StorageIndex,
+      oldest_index: StorageIndex,
+      last_timepoint: Timepoint,
+      window: TimeWindow
+};
+
+const load_ring_state = fn() RingState {
+      let vol_state = unpack_realized_volatility_state(@evm_sload(SLOT_REALIZED_VOL_STATE));
+      require(vol_state.isInitialized);
+      let last_index = vol_state.ss_index;
+      RingState {
+          last_index: last_index,
+          oldest_index: oldest_index_of(last_index),
+          last_timepoint: load_timepoint(SLOT_TIMEPOINT_BUFFER_BASE, last_index.current),
+          window: read_window()
+      }
+};
+
+// getTwapTick(dt, tick, currentTimestamp) -> int24.
+// The Uniswap-V3 `observeSingle` quantity: the average tick over an arbitrary lookback `dt`.
+// This is what BOTH Solidity references expose, so it is the primary differential surface.
+const get_twap_tick = fn(dt: u256, tick: u256, current_timestamp: u256) u256 {
+      // Both references reject a zero period (Algebra: require(period != 0);
+      // UniV3 ref: require(dt != 0, 'Period is zero')). Without this, EVM SDIV by zero
+      // returns 0 SILENTLY and Plank would answer 0 where the references revert.
+      require(dt != 0);
+      let s = load_ring_state();
+      twap_tick(
+          SLOT_TIMEPOINT_BUFFER_BASE, current_timestamp & MASK_U32, dt, tick,
+          s.last_index, s.oldest_index, s.window
+      )
+};
+
+// getTickCumulative(dt, tick, currentTimestamp) -> int56.
+// The raw accumulator at `currentTimestamp - dt`. Exposed because it is the most primitive
+// shared quantity between Algebra and UniV3 and therefore the sharpest thing to diff on:
+// it isolates the ring-search + interpolation from the averaging/rounding on top.
+const get_tick_cumulative = fn(dt: u256, tick: u256, current_timestamp: u256) u256 {
+      let s = load_ring_state();
+      let res = tick_cumulative_at(
+          SLOT_TIMEPOINT_BUFFER_BASE, current_timestamp & MASK_U32, dt, tick,
+          s.last_index, s.oldest_index, s.window
+      );
+      res.tick_cumulative
+};
+
+// getAverageVolatility(tick, blockTimestamp) -> uint88.
+// Algebra's window-averaged volatility accumulator.
+// todo: this currently returns the raw accumulated volatilityCumulative of the last
+// timepoint, NOT Algebra's window-normalised getAverageVolatility. Diffing the volatility
+// surface is todo.md items 6-9; do not treat this as reference-equal yet.
+const get_average_volatility = fn(tick: u256, block_timestamp: u256) u256 {
+      let s = load_ring_state();
+      s.last_timepoint.realizedVolatility.vol & MASK_U88
+};
+
+init{ return_runtime();}
+
+// ABI dispatch. Selectors are declared in
+// interfaces/market_state_measurements/RealizedVolatilityInterface.plk and match the ABI of
+// MarketStatisticsAlgebraRef / MarketStatisticsUniV3Ref exactly -- initializeTWAP and
+// getTwapTick are the very selectors Algebra's plugin is called with
+// (test/MarketStatisticsTest.t.sol:86,91), so this module is call-compatible with the
+// reference by construction and one Solidity interface can drive all three implementations.
+//
+// Calldata note: Solidity ABI-encodes int24/int56 SIGN-EXTENDED into the full 32-byte word,
+// so the signed args are used as loaded -- masking them here would destroy the sign. Only the
+// unsigned args (uint32) are masked.
+run{
+	let selector = @evm_shr(224, @evm_calldataload(0));
+
+	if selector == SELECTOR_INITIALIZE_TWAP {
+	   // initializeTWAP(uint32 blockTimestamp, int24 tick)
+	   let block_timestamp = @evm_calldataload(4) & MASK_U32;
+	   let tick = @evm_calldataload(36);
+	   initialize_timepoint_buffer(block_timestamp, tick);
+	   @evm_stop();
+
+	} else if selector == SELECTOR_WRITE_TIMEPOINT {
+	   // writeTimepoint(uint32 blockTimestamp, int24 tick)
+	   let block_timestamp = @evm_calldataload(4) & MASK_U32;
+	   let tick = @evm_calldataload(36);
+	   write_timepoint(block_timestamp, tick);
+	   @evm_stop();
+
+	} else if selector == SELECTOR_GET_TWAP_TICK {
+	   // getTwapTick(uint32 dt, int24 tick, uint32 currentTimestamp) -> int24
+	   let dt = @evm_calldataload(4) & MASK_U32;
+	   let tick = @evm_calldataload(36);
+	   let current_timestamp = @evm_calldataload(68) & MASK_U32;
+	   return_u256(get_twap_tick(dt, tick, current_timestamp));
+
+	} else if selector == SELECTOR_GET_TICK_CUMULATIVE {
+	   // getTickCumulative(uint32 dt, int24 tick, uint32 currentTimestamp) -> int56
+	   let dt = @evm_calldataload(4) & MASK_U32;
+	   let tick = @evm_calldataload(36);
+	   let current_timestamp = @evm_calldataload(68) & MASK_U32;
+	   return_u256(get_tick_cumulative(dt, tick, current_timestamp));
+
+	} else if selector == SELECTOR_GET_AVERAGE_VOLATILITY {
+	   // getAverageVolatility(int24 tick, uint32 blockTimestamp) -> uint88
+	   let tick = @evm_calldataload(4);
+	   let block_timestamp = @evm_calldataload(36) & MASK_U32;
+	   return_u256(get_average_volatility(tick, block_timestamp));
+
+	} else if selector == SELECTOR_GET_TIMEPOINT_PACKED {
+	   // getTimepointPacked(uint16 index) -> uint256 (raw packed word)
+	   let index = @evm_calldataload(4) & TIMEPOINT_INDEX_MASK;
+	   return_u256(@evm_sload(array_slot(SLOT_TIMEPOINT_BUFFER_BASE, index)));
+
+	} else if selector == SELECTOR_LAST_INDEX {
+	   // lastIndex() -> uint16
+	   let vol_state = unpack_realized_volatility_state(@evm_sload(SLOT_REALIZED_VOL_STATE));
+	   return_u256(vol_state.ss_index.current & TIMEPOINT_INDEX_MASK);
+
+	} else if selector == SELECTOR_OLDEST_INDEX {
+	   // oldestIndex() -> uint16
+	   let vol_state = unpack_realized_volatility_state(@evm_sload(SLOT_REALIZED_VOL_STATE));
+	   return_u256(oldest_index_of(vol_state.ss_index).current & TIMEPOINT_INDEX_MASK);
+
+	} else if selector == SELECTOR_READ_WINDOW {
+	   // readWindow() -> uint32
+	   return_u256(pack_time_window(read_window()));
+	}
+
+	// Unknown selector: no fallback behaviour is defined for this module.
+	revert_empty();
+}
