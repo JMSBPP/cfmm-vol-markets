@@ -74,17 +74,17 @@ requirements above. Reference of record: Algebra `VolatilityOracle`. Phase numbe
 
 ### Reference Integrity
 
-- [ ] **VDIFF-01**: The Algebra `VolatilityOracle` reference the diff test compiles against is protected from silent replacement — vendored under `lib/` (or checksum-pinned with a build/CI check) so a `npm ci` cannot swap the differential baseline out from under the suite
+- [ ] **VDIFF-01**: The Algebra reference the diff test compiles against is protected from silent replacement — NOT just `libraries/VolatilityOracle.sol` but the full baseline the harness links: `VolatilityOraclePluginImplementation.sol` (the delegatecall target driving Algebra in VDIFF-04), `libraries/VolatilityOracleStorage.sol`, and their transitive imports — pinned as a whole (vendored under `lib/`, or a package-tarball / per-file checksum gate). A build/CI check FAILS LOUDLY when the `node_modules` copy diverges from the pin (verified by deliberately editing a reference file and observing red). The mock and vendored reference compile under `solc =0.8.20` (Algebra's pinned pragma).
 
 ### Variance Kernel Diff
 
-- [ ] **VDIFF-02**: Plank's `calculate_realized_volatility` is differentially tested against Algebra's `_volatilityOnRange` directly, over a fuzzed `(dt, tick0, tick1, avgTick0, avgTick1)` domain, asserting exact `uint88` equality, via a `MockVolatilityOracle` that exposes the internal function
-- [ ] **VDIFF-03**: Plank exposes a scalar volatility read that is the SAME quantity as Algebra's window-normalized `getAverageVolatility` (implement the window normalization on the Plank side, or expose the raw stored accumulator matched to Algebra's stored field) so a scalar diff compares like-for-like — the current `getAverageVolatility` returns the raw accumulator and must not be diffed against Algebra's normalized getter
+- [ ] **VDIFF-02**: Plank's `calculate_realized_volatility` is differentially tested against Algebra's `_volatilityOnRange` directly, over a fuzzed `(dt, tick0, tick1, avgTick0, avgTick1)` domain with `dt` bounded to `[1, 2^32)` (Solidity `/` reverts on `dt=0` even under `unchecked`, while EVM SDIV returns 0 — an excluded, known divergence), ticks bounded to int24, asserting exact **full uint256** equality (stronger than the production uint88 truncation, on a free axis), via a mock (distinct name — the package already ships a `MockVolatilityOracle`) that exposes the `internal pure` `_volatilityOnRange`
+- [ ] **VDIFF-03**: The incorrect assertion diffing Plank's RAW `get_average_volatility` accumulator against Algebra's window-normalized `getAverageVolatility` is removed, and the in-file docs state these are DIFFERENT quantities (Algebra's is Bessel-corrected + WINDOW-normalized). Any scalar volatility comparison instead uses the stored `volatilityCumulative` field (VDIFF-04). Porting Algebra's window-normalized `getAverageVolatility` to Plank (its own interpolation + Bessel branches) is a production task explicitly DEFERRED to a follow-on — not in this milestone.
 
 ### Full-Timepoint Diff
 
-- [ ] **VDIFF-04**: After every write in a shared-driver sequence, Algebra and Plank agree exactly on the full stored timepoint — `volatilityCumulative`, `averageTick`, `windowStartIndex`, and `oldestIndex` — asserted field-by-field
-- [ ] **VDIFF-05**: The differential corpus is CONSTRUCTED (not `vm.assume`-filtered) with total span `> 2×WINDOW`, and the test body asserts the span, so the binary search, the `tick_cumulative_at` interpolation branch, and `window_start_index` are actually executed (the existing corpus spans ≤ 2970 s against an 86400 s window and never runs them)
+- [ ] **VDIFF-04**: After every write in a shared **Algebra-vs-Plank-only** driver sequence (the volatility surface has no UniV3 counterpart, so the UniV3 ref is NOT driven here), Algebra and Plank agree exactly on the stored timepoint fields `volatilityCumulative`, `averageTick`, and `windowStartIndex`, asserted field-by-field via the `getTimepoint` / `getTimepointPacked` getters (needs test-side unpack of the vol/avgTick/windowStartIndex offsets, added here). `oldestIndex` is EXCLUDED from this differential — it is vacuously `0` on both sides below 2^16 writes, so a corpus of ≤480 writes cannot exercise it; ring-wrap `oldestIndex` behavior is covered Plank-side by the VDIFF-07 unit test. Exactness (tolerance 0) is guaranteed within the int24×uint32 regime (max |tickCumulative| ≈ 3.8e15 < int56 max 3.6e16); it is NOT claimed in Algebra's deliberate int56-overflow regime, which Plank's full-width in-flight accumulator does not replicate.
+- [ ] **VDIFF-05**: The differential corpus is CONSTRUCTED (not `vm.assume`-filtered) with total span `> 2×WINDOW` so `calculate_avg_tick`'s WINDOW-interpolation branch and `window_start_index` selection execute INSIDE the write sequence (the existing Phase-0/1 assertions never touch `volatilityCumulative`/`averageTick`/`windowStartIndex` at all). The corpus forces ≥1 strict tick rise and ≥1 strict fall by construction (so `avg_tick ≠ tick`, kernel `k`/`b` nonzero — non-vacuous) and keeps strictly-increasing distinct timestamps (`delta ≥ 1`, on which the heuristic-free `window_start_index` equivalence depends). Coverage of those paths is evidenced by a **targeted mutant KILL** in them — `forge coverage` cannot instrument FFI-deployed Plank bytecode under via-IR, so coverage/trace is NOT an option.
 - [ ] **VDIFF-06**: A SEPARATE sub-WINDOW corpus (`init_timestamp < WINDOW`) exercises the `u32_sub` regime — the only regime in which that fix is reachable — kept distinct from VDIFF-05 (whose span forces `currentTime > WINDOW`)
 
 ### Edges & Falsifiability
@@ -167,12 +167,21 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | BRDG-04 | Phase 6 | Pending |
 | PIPE-01 | Phase 7 | Pending |
 | PIPE-02 | Phase 7 | Pending |
+| VDIFF-01 | Phase 8 | Pending |
+| VDIFF-03 | Phase 8 | Pending |
+| VDIFF-02 | Phase 9 | Pending |
+| VDIFF-04 | Phase 9 | Pending |
+| VDIFF-05 | Phase 10 | Pending |
+| VDIFF-06 | Phase 10 | Pending |
+| VDIFF-07 | Phase 11 | Pending |
+| VDIFF-08 | Phase 11 | Pending |
 
 **Coverage:**
-- v1 requirements: 30 total
-- Mapped to phases: 30 ✓
-- Unmapped: 0
+- v1 requirements: 30 total — mapped to Phases 1–7: 30 ✓
+- v2.0 requirements (VDIFF-01..08): 8 total — mapped to Phases 8–11: 8 ✓
+- Total mapped: 38/38 — Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-27*
 *Last updated: 2026-06-27 — traceability populated against plumbing-first 7-phase roadmap (30/30 mapped)*
+*Last updated: 2026-07-15 — appended milestone v2.0 (VDIFF-01..08) traceability, Phases 8–11 (8/8 mapped)*
