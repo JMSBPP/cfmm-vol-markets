@@ -139,7 +139,10 @@ function test__fuzz__volWidthRangeSub_valid(
     uint24 w2
 ) public {
     ts = uint24(bound(ts, 1, 200));
-    w1 = uint24(bound(w1, 1, type(uint24).max));
+    // Bound w1 to leave headroom so w1 + w2 cannot overflow uint24 AND the w2 bound stays
+    // well-formed. Previously w1 could reach type(uint24).max, making the w2 bound
+    // `bound(w2, 1, max - w1)` collapse to bound(_, 1, 0) -> "Max is less than min".
+    w1 = uint24(bound(w1, 1, type(uint24).max - 1));
     w2 = uint24(bound(w2, 1, type(uint24).max - w1));
 
     (uint24 wAdd, uint24 tsAdd) =
