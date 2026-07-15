@@ -46,7 +46,11 @@ contract VolRangeWidthTest is Test , PlankDeployer{
 	_width = uint24(bound(_width, 1, type(uint24).max));
 	_tickSpacing = uint24(bound(_tickSpacing, 1, 200));
 
-	bytes32 packed = bytes32(uint256(_width) | (uint256(_tickSpacing) << 32));
+	// tickSpacing packs at bit 24 (width is the low 24-bit field), matching the canonical
+	// pack_vol_range_width: (width & 0xFFFFFF) | ((tickSpacing & 0xFFFFFF) << 24). This test
+	// previously shifted by 32, so unpack read a garbage tickSpacing (>200) and the helper's
+	// completeness check reverted.
+	bytes32 packed = bytes32(uint256(_width) | (uint256(_tickSpacing) << 24));
 
 	(uint24 width, uint24 tickSpacing) =
 	    volRangeWidthImpl.unpack_vol_range_width(packed);
