@@ -8,6 +8,22 @@ A research-engineering framework for replicating **arbitrary contingent payoffs*
 
 A target contingent payoff can flow end-to-end — **payoff → GAMS solves optimal parameters → parameters encoded → Plank CFMM simulates** — with the two tracks agreeing on one authoritative type/parameter kernel. If everything else is deferred, this open-loop bridge plus shared kernel must work for at least one contingent payoff.
 
+## Current Milestone: v2.0 — Realized-Volatility Oracle Differential Testing
+
+**Goal:** Prove the Plank realized-volatility oracle's **variance surface** (`volatilityCumulative` / `averageTick`) is bit-exact against Algebra's `VolatilityOracle` — the reference of record — the way the tick-average surface already was.
+
+**Track note:** This is a **separate, parallel track** from the v1.0 GAMS-plumbing milestone (which remains incomplete/paused). The realized-volatility oracle (`src/modules/market_state_measurements/RealizedVolatilityMod.plk`) is a Plank port of Algebra's `VolatilityOracle`, already merged to `develop`. The **tick-average** differential surface (`getTickCumulative` / `getTwapTick`, three-way exact vs Algebra + UniV3) is DONE and merged (Phase 0–1 of `.planning/plank-voldiff-plan.md`). This milestone finishes the **variance** half (todo.md items 8–9 = Phases 2/3/3b/4 of that plan).
+
+**Target features:**
+- Vendor/checksum-pin the Algebra reference so `npm ci` cannot silently swap the differential baseline
+- Unit-diff Plank's `calculate_realized_volatility` vs Algebra's `_volatilityOnRange` directly (Mock exposing the internal fn)
+- Full-timepoint Algebra-vs-Plank diff (`volatilityCumulative`, `averageTick`, `windowStartIndex`, `oldestIndex`) after every write
+- A constructed `span > 2×WINDOW` corpus that actually exercises the binary search / interpolation / window-start paths
+- A separate sub-WINDOW corpus for the `u32_sub` regime, plus edge cases (dt-too-old, same-block, uint32 wrap, ring wrap)
+- Every test **mutation-verified falsifiable** before it is trusted
+
+**Explicitly deferred (items 6–7):** a Uniswap-V3 `OracleLib`-based volatility reference. UniV3's `Oracle` has no native volatility accumulator, so it would re-derive Algebra's own `_volatilityOnRange` on the same tick data and diff against itself — low value.
+
 ## Requirements
 
 ### Validated
@@ -71,4 +87,4 @@ A target contingent payoff can flow end-to-end — **payoff → GAMS solves opti
 | Theory grounding links to `cfmm-theory` `KERNEL.md` by URL/citekey (no submodule); refs under `spec/refs/` | Repo is public — cfmm-theory is local-only, so cite rather than depend | — Pending |
 
 ---
-*Last updated: 2026-06-27 after initialization*
+*Last updated: 2026-07-15 — started milestone v2.0 (Realized-Volatility Oracle Differential Testing); v1.0 plumbing paused/parallel*

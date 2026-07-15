@@ -65,6 +65,33 @@ Each maps to exactly one roadmap phase.
 - [ ] **PIPE-01**: a single command runs the full open-loop **plumbing** path end-to-end — payoff spec → (stub) GAMS solve → encode → Plank write → read-back — exiting success **only if** the FFI guards (TOOL-02) and the round-trip (BRDG-03) pass
 - [ ] **PIPE-02**: an **open-loop guard** — the swap-replay/simulate step performs **no in-loop parameter updates** (keeping the closed-loop controller out of this milestone)
 
+---
+
+## Milestone v2.0 Requirements — Realized-Volatility Oracle Differential Testing
+
+Scoped requirements for the v2.0 oracle track (todo.md items 8–9). Separate from the v1 plumbing
+requirements above. Reference of record: Algebra `VolatilityOracle`. Phase numbering continues at 8.
+
+### Reference Integrity
+
+- [ ] **VDIFF-01**: The Algebra `VolatilityOracle` reference the diff test compiles against is protected from silent replacement — vendored under `lib/` (or checksum-pinned with a build/CI check) so a `npm ci` cannot swap the differential baseline out from under the suite
+
+### Variance Kernel Diff
+
+- [ ] **VDIFF-02**: Plank's `calculate_realized_volatility` is differentially tested against Algebra's `_volatilityOnRange` directly, over a fuzzed `(dt, tick0, tick1, avgTick0, avgTick1)` domain, asserting exact `uint88` equality, via a `MockVolatilityOracle` that exposes the internal function
+- [ ] **VDIFF-03**: Plank exposes a scalar volatility read that is the SAME quantity as Algebra's window-normalized `getAverageVolatility` (implement the window normalization on the Plank side, or expose the raw stored accumulator matched to Algebra's stored field) so a scalar diff compares like-for-like — the current `getAverageVolatility` returns the raw accumulator and must not be diffed against Algebra's normalized getter
+
+### Full-Timepoint Diff
+
+- [ ] **VDIFF-04**: After every write in a shared-driver sequence, Algebra and Plank agree exactly on the full stored timepoint — `volatilityCumulative`, `averageTick`, `windowStartIndex`, and `oldestIndex` — asserted field-by-field
+- [ ] **VDIFF-05**: The differential corpus is CONSTRUCTED (not `vm.assume`-filtered) with total span `> 2×WINDOW`, and the test body asserts the span, so the binary search, the `tick_cumulative_at` interpolation branch, and `window_start_index` are actually executed (the existing corpus spans ≤ 2970 s against an 86400 s window and never runs them)
+- [ ] **VDIFF-06**: A SEPARATE sub-WINDOW corpus (`init_timestamp < WINDOW`) exercises the `u32_sub` regime — the only regime in which that fix is reachable — kept distinct from VDIFF-05 (whose span forces `currentTime > WINDOW`)
+
+### Edges & Falsifiability
+
+- [ ] **VDIFF-07**: Edge cases hold across Algebra and Plank — a lookback older than the oldest retained timepoint reverts on both; a same-block double write is idempotent (no second timepoint, no revert); a uint32 timestamp wraparound is handled; and ring-buffer wrap is covered by a direct unit assertion (`vm.store` the index, not 65536 writes)
+- [ ] **VDIFF-08**: Every new test is proven falsifiable by a mutation battery (deliberate bugs in the variance kernel, the packing, and the accumulator are all KILLED) before it is trusted, and the suite is wired into a `make` target folded into `test-vol-prereqs`
+
 ## v2 Requirements
 
 Deferred to future milestones. Tracked but not in current roadmap.
