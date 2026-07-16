@@ -63,6 +63,7 @@ library
                     , VolOrder.Encoding
                     , VolOrder.Decode
                     , VolOrder.Report
+                    , VolOrder.Rpc
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -74,6 +75,7 @@ library
     build-depends:    base ^>=4.20.2.0,
                       web3-ethereum,
                       web3-solidity,
+                      web3-provider,
                       memory-hexstring,
                       process,
                       bytestring,
