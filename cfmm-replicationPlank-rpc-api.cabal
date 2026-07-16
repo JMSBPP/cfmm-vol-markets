@@ -62,6 +62,7 @@ library
     exposed-modules:  VolOrder.Types
                     , VolOrder.Encoding
                     , VolOrder.Decode
+                    , VolOrder.Report
 
     -- Modules included in this library but not exported.
     -- other-modules:
