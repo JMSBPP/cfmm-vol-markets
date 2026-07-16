@@ -131,6 +131,15 @@ system rather than the test. `make compile-plank` was run between mutation and p
 RED above is genuine. **Phase 9's mutation battery must recompile Plank between every mutant** or
 its kills are fiction.
 
+> **[CORRECTED after execution — this diagnosis is FALSE.]** `deployPlank` →
+> `plankBuildFFI` shells out to `plank build` over FFI **at test time**; it never reads
+> `build/plank/*.hex` (nothing in the test path does). Proven empirically: the kernel
+> coefficient mutant (`6→7`) went RED (`729013 != 819430`) with **no `make compile-plank`**.
+> The recompile was harmless but unnecessary, and the Phase 9 carry-forward derived from it
+> has been corrected in STATE.md. The kept lesson: a mutant must reach the DEPLOYED
+> bytecode — here FFI guarantees it does.
+
+
 **08-03 non-regression triggered a false alarm, resolved by checking rather than assuming.**
 `grep -c "getAverageVolatility" RealizedVolatilitySmoke.t.sol` returns **5**, which looks like
 08-03's removal was reverted. It was not: all 5 are 08-03's explanatory comments;

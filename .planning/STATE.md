@@ -92,10 +92,29 @@ summaries. VDIFF-01 is marked complete. Next action: verify Phase 8, then plan P
 the 5-D kernel fuzz over `(dt, tick0, tick1, avgTick0, avgTick1)`), which starts from the
 proven-wired kernel pair 08-02 delivered (`make test-vol-kernel-probe`).
 
-**Carry into Phase 9 (learned in 08-02, load-bearing):** the probe deploys Plank from
-`build/plank/*.hex`, so a `.plk` source edit is INVISIBLE to forge until `make compile-plank` is
-re-run. The mutation battery MUST recompile Plank between every mutant or its "kills" are fiction —
-a mutant that never reaches bytecode tests the stale build, not the change.
+**Carry into Phase 9 — CORRECTED (the 08-02 claim was a MISDIAGNOSIS; do not act on it):**
+08-02's SUMMARY warns that the probe deploys from `build/plank/*.hex`, that a `.plk` edit is
+invisible until `make compile-plank` re-runs, and that the mutation battery must therefore
+recompile between every mutant "or its kills are fiction". **This is FALSE.** Verified two ways:
+
+1. *Code:* `deployPlank` → `PlankDeployer.plankDeployFFI` → `plankBuildFFI`, which shells out to
+   `plank build <root> --backend sona …` over FFI **at test time**. It never reads
+   `build/plank/*.hex`. That directory is written by `make compile-plank` and is read by
+   **nothing in the test path** — `compile-plank` is a standalone gate, not a test input.
+2. *Empirically (decisive):* mutated the kernel coefficient (`6→7`) in
+   `RealizedVolatilityLib.plk`, ran `forge test --match-contract RealizedVolatilityKernelProbe`
+   with **no `make compile-plank`** — probe went **RED** (`729013 != 819430`). Restored →
+   byte-identical → **GREEN**. Every `deployPlank` compiles the `.plk` fresh on every run.
+
+**Therefore:** Phase 9's battery does NOT need to recompile between mutants. Recompiling is
+harmless but pointless. More importantly, the false premise is corrosive — it would invite
+someone to distrust VALID mutant kills (including the already-verified Phase 0-1 batteries, which
+never ran `compile-plank` between mutants and were correct precisely because FFI recompiles).
+
+The *underlying* instinct 08-02 had is still right and worth keeping: **a mutant that never
+reaches the deployed bytecode proves nothing.** Here FFI guarantees it reaches. If a future test
+ever deploys from a prebuilt artifact instead of `deployPlank`, this concern becomes real again —
+check the deploy path before trusting a kill.
 
 - Deferred items discovered during Phase 8 execution are logged in
   `.planning/phases/08-reference-integrity-kernel-mock/deferred-items.md` (not fixed in-phase).
