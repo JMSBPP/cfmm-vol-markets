@@ -211,10 +211,20 @@ Phase numbering **continues at Phase 8**. These four phases derive solely from t
   1. The pin covers the WHOLE baseline the harness links — `VolatilityOraclePluginImplementation.sol` (the delegatecall target driving Algebra in VDIFF-04), `libraries/VolatilityOracle.sol`, `libraries/VolatilityOracleStorage.sol`, and their transitive imports — vendored under `lib/` or checksum/tarball-pinned. A build/CI check FAILS LOUDLY when the `node_modules` copy diverges — verified by deliberately editing a reference file and observing red. (VDIFF-01)
   2. A mock with a DISTINCT name (the package already ships a `MockVolatilityOracle` — do not shadow it) wraps Algebra's `internal pure` `_volatilityOnRange` (storage-free, value args — trivially exposable) as an external function, compiling under `solc =0.8.20`. A probe DIFFERENTIALLY asserts the mock's output against Plank's `calculate_realized_volatility` on a non-degenerate input (`tick0 ≠ tick1`, `b ≠ 0`) — proving it is CALLED and correct in one shot, not merely returns nonzero. (VDIFF-01 scaffolding)
   3. The incorrect assertion diffing Plank's raw `get_average_volatility` accumulator against Algebra's window-normalized `getAverageVolatility` is REMOVED, and the test file documents they are different quantities (Algebra's is Bessel-corrected + WINDOW-normalized). Any scalar vol check instead uses the stored `volatilityCumulative` field (VDIFF-04). Porting Algebra's `getAverageVolatility` to Plank is DEFERRED to a follow-on. (VDIFF-03)
-**Plans**: TBD
+**Plans**: 3 plans (2 waves)
 
 Plans:
-- [ ] 08-01: TBD
+- [ ] 08-01-PLAN.md — Pin the 4-file Algebra reference closure via a sha256 manifest + closure-drift guard; wire into `make test-vol-prereqs`; PROVE red on divergence with 3 observed mutants (VDIFF-01) [wave 1]
+- [ ] 08-02-PLAN.md — `AlgebraVolatilityKernelMock` exposing `_volatilityOnRange` + a Plank harness for `calculate_realized_volatility` + a non-degenerate differential probe (tolerance 0, k!=0, b!=0) (VDIFF-01 scaffolding) [wave 2, depends 08-01]
+- [ ] 08-03-PLAN.md — Remove the raw-vs-window-normalized scalar-vol diff surface and document why the quantities differ; no `getAverageVolatility` port (VDIFF-03) [wave 1]
+
+**Planning note (VDIFF-03):** the "incorrect assertion" this phase was chartered to delete does
+not exist in the tree — the planner grepped every `.sol`/`.plk` under `test/` and `src/` and found
+no site diffing Plank's raw `get_average_volatility` against Algebra's window-normalized
+`getAverageVolatility`. What DOES exist is the surface that invites it: an unused
+`getAverageVolatility` declaration in `RealizedVolatilitySmoke.t.sol`'s `IRealizedVolatility`
+(declared, never called), one `assertEq` from the mistake. 08-03 removes that surface and documents
+the trap — the faithful reading of VDIFF-03's intent against the actual code.
 
 ### Phase 9: Variance Kernel Unit-Diff & Full-Timepoint Diff
 **Goal**: The variance kernel is proven bit-exact against Algebra in isolation, and the full stored timepoint is proven bit-exact after every write in the shared-driver sequence — with both proofs demonstrated falsifiable, not merely green.
@@ -265,7 +275,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 8. Reference Integrity & Kernel Mock | 0/TBD | Not started | - |
+| 8. Reference Integrity & Kernel Mock | 0/3 | Planned | - |
 | 9. Variance Kernel Unit-Diff & Full-Timepoint Diff | 0/TBD | Not started | - |
 | 10. Discriminating Corpora (span>2×WINDOW + sub-WINDOW) | 0/TBD | Not started | - |
 | 11. Edges, Mutation Battery & Make Wire-Up | 0/TBD | Not started | - |
