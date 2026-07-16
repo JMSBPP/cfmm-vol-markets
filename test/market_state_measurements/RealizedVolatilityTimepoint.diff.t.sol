@@ -82,23 +82,46 @@ interface IPlankOracle {
 // calculate_avg_tick's WINDOW-interpolation branch, and no assertion here should be read as
 // covering it.
 //
-// WHAT THIS KILLS -- PENDING OBSERVATION (09-02 Task 3 fills this in with the OBSERVED results).
-//
-// This section deliberately does NOT yet claim any kill. The mutants below are the ones Task 3
-// will APPLY and RUN; until that has actually happened and the failure output has been recorded,
-// asserting a kill here would be the precise failure mode this whole phase exists to prevent --
-// a green/red claim written from reasoning rather than from observation.
+// WHAT THIS KILLS -- OBSERVED (09-02 Task 3). Both mutants were APPLIED, RUN, and seen RED; the
+// failure output was recorded, then each was restored byte-identical and re-run green. Nothing
+// below is inferred from reading the code.
 //
 //   * MUTANT A -- timepoint PACKING corruption. Timepoint.plk:32, OFF_AVG_TICK 144 -> 145,
 //     shifting the packed avg_tick field off its layout. Plank's own pack/unpack stay
 //     self-consistent (both read the constant), which is the point: only a test that reads the
 //     STORED WORD at the real offset and diffs it against Algebra can see this. getTwapTick
 //     cannot.
+//     OBSERVED: exit 2, failing the averageTick assertion (algebra vs plank, tolerance 0) with
+//     `100 != 200` on the fixed anchor. The verbatim FAIL lines are in 09-02-SUMMARY.md -- they
+//     are deliberately not reproduced character-for-character here, because the assertion
+//     messages are grep-asserted to appear exactly ONCE in this file.
+//     The stored field reads back exactly DOUBLED (100 -> 200): packed one bit high, decoded at
+//     the true offset, i.e. left-shifted by one. Restored -> exit 0.
+//
 //   * MUTANT B -- accumulation STOPPED. Timepoint.plk:115, the running sum
 //     add(current vol, delta vol) reduced to the newest delta alone, i.e. Algebra's `+=` turned
-//     into `=`. INVISIBLE on a single write; it can only diverge from the SECOND write onward --
-//     which is why this driver asserts after EVERY write against a >= 2-write sequence rather
-//     than once at the end.
+//     into `=`. INVISIBLE on a single write; it can only diverge from the SECOND write onward.
+//     OBSERVED: exit 2, failing the volatilityCumulative assertion (algebra vs plank, tolerance
+//     0) with `9612287 != 7235899` on the fixed anchor.
+//     THIS IS WHY THE ASSERTION LIVES INSIDE THE DRIVER. Those numbers are the state after the
+//     SECOND write of the fixed anchor -- 9612287 is Algebra's running cumulative
+//     (2376388 + 7235899), 7235899 is that write's delta ALONE. The test aborts at the earliest
+//     write at which this mutant is capable of diverging at all. A driver that only asserted
+//     once at the end would still have gone red here, but it would have been comparing the
+//     third write's state and would have said nothing about WHERE the accumulator first broke.
+//     Restored -> exit 0.
+//
+// Both kills were run against a CLEARED cache/fuzz (rm -rf cache/fuzz). This is not ceremony:
+// in 09-01 a mutant's first "kill" came back with runs: 0 because Foundry REPLAYED the previous
+// mutant's cached counterexample instead of fuzzing -- the mutant looked killed while the fuzz
+// had never run. A runs: 0 kill means REPLAY, not proof. Note that both mutants here are also
+// caught by the NON-fuzz unit anchor above, which is cache-independent by construction.
+//
+// No `make compile-plank` was run at any point in this battery, and none is needed: deployPlank
+// -> plankDeployFFI -> plankBuildFFI shells out to `plank build` over FFI AT TEST TIME, so a
+// .plk edit reaches the deployed bytecode on the very next `forge test`. build/plank/*.hex is
+// read by NOTHING in the test path. (08-02's SUMMARY claims the opposite; that claim is FALSE
+// and STATE.md carries the correction.)
 // ===========================================================================================
 contract RealizedVolatilityTimepointDiffTest is PlankTestBase {
     MarketStatisticsAlgebraRef alg;
