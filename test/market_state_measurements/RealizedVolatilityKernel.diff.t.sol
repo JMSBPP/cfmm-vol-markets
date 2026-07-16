@@ -74,19 +74,30 @@ interface IPlankVolKernel {
 ///      accumulator to 88 bits, but comparing the WHOLE returned word is strictly stronger on a
 ///      free axis: it catches high-bit divergence that truncation would hide from us.
 ///
-/// @dev WHAT THIS KILLS -- APPLIED AND OBSERVED RED, NOT ASSERTED (09-01 Task 2; the verbatim
-///      failure output is recorded in 09-01-SUMMARY.md):
+/// @dev WHAT THIS KILLS -- APPLIED AND OBSERVED RED, NOT ASSERTED FROM REASONING (09-01 Task 2;
+///      the verbatim failure output is recorded in 09-01-SUMMARY.md):
 ///        * MUTANT A -- the parameter-order footgun. Swapping the harness's single re-order call
 ///          site (RealizedVolatilityKernelHarness.plk:49) from Plank's order
 ///          `calculate_realized_volatility(avg_tick0, avg_tick1, tick0, tick1, dt)` to Algebra's
-///          `(dt, tick0, tick1, avg_tick0, avg_tick1)` made this fuzz FAIL (exit != 0). Restored
-///          byte-identical -> green.
+///          `(dt, tick0, tick1, avg_tick0, avg_tick1)` made this fuzz FAIL, exit 2:
+///            "115792089237316195423570985008687907853269984665640564039457584003616512485613
+///             != 787251601984"  (note the ~2^256 left side: the swap feeds dt where a tick is
+///             expected, so the wrapping operators produce a near-full-width word -- exactly the
+///             high-bit divergence the FULL-uint256 assertion exists to catch).
+///          Restored byte-identical -> green.
 ///        * MUTANT B -- the kernel middle-term coefficient. Changing
 ///          RealizedVolatilityLib.plk:32 from `+% 6 *% b *% k *% sumOfSequence` to `+% 7 *% ...`
-///          made this fuzz FAIL (exit != 0). Restored byte-identical -> green.
-///      Both mutants reached the DEPLOYED bytecode without any `make compile-plank`: `deployPlank`
-///      -> `plankDeployFFI` -> `plankBuildFFI` shells out to `plank build` over FFI AT TEST TIME.
-///      `build/plank/*.hex` is read by NOTHING in this path.
+///          made this fuzz FAIL, exit 2, on a FRESH corpus (fuzz failure cache cleared first, so
+///          this is a kill on its own merits and not a replay of Mutant A's cached
+///          counterexample): "857507691265 != 857256149370" at
+///          args=[dtRaw=887272, t0Raw=-887272, t1Raw=2820, a0Raw=-887272, a1Raw=4522].
+///          Restored byte-identical -> green.
+///      Both mutants reached the DEPLOYED bytecode with NO `make compile-plank` anywhere in the
+///      battery: `deployPlank` -> `plankDeployFFI` -> `plankBuildFFI` shells out to `plank build`
+///      over FFI AT TEST TIME. `build/plank/*.hex` is written by `make compile-plank` and read by
+///      NOTHING in this path. (08-02's SUMMARY claims a recompile is mandatory "or the kills are
+///      fiction"; that claim is FALSE, STATE.md carries the correction, and Mutant B re-confirms
+///      it decisively -- a numeric divergence appeared from a `.plk` edit alone.)
 ///
 /// @dev WHAT THIS DOES NOT REPLACE: RealizedVolatilityKernel.probe.t.sol's independent anchor
 ///      819430. This fuzz is PURELY DIFFERENTIAL, and a purely differential assertion would be
