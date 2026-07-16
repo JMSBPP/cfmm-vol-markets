@@ -1,23 +1,34 @@
 name = "cfmmReplicationPlank"
-defaultTargets = ["cfmmReplicationPlank"]
+defaultTargets = ["exp", "vol_markets", "tao"]
 
-# Pinned to v4.30.0 to match Philogy/LeanEVM (toolchain must agree).
 [[require]]
 name = "mathlib"
 git = "https://github.com/leanprover-community/mathlib4.git"
-rev = "v4.30.0"
+rev = "v4.28.0"
 
-# Executable formal EVM model — scaffolding for later proofs about the
-# on-chain Plank/Solidity implementation. NOTE: builds native artifacts
-# (FFI .c sources for SHA-2 and Keccak; a Rust helper `tools/evmrs`), so
-# the build host needs `cc` and `cargo`. `exp/eta.lean` does NOT import it,
-# so the η-refutation can prove even if this dependency fails to build.
-[[require]]
-name = "evm"
-git = "https://github.com/Philogy/LeanEVM.git"
-rev = "ab5e33949f9053a494b05ab0143f9ca92567eb4a"
+# LeanEVM (Philogy/LeanEVM @ ab5e33949f9053a494b05ab0143f9ca92567eb4a) removed
+# 2026-07-16: nothing imports it and its pinned rev requires toolchain v4.30.0.
+# Restore both together when on-chain proofs begin.
 
 [[lean_lib]]
-name = "cfmmReplicationPlank"
+name = "exp"
 srcDir = "."
-roots = ["exp.eta", "exp.CESLongVolPayoff"]
+roots = ["exp.eta", "exp.CESLongVolPayoff", "exp.EtaReplication",
+  "exp.EtaPartitionChange", "exp.EtaLiquidityPayoff",
+  "exp.SocialChoiceParameters", "exp.MeanVarianceEta",
+  "exp.EtaIndexConsistency", "exp.MeanVarianceOptimization",
+  "exp.ComparativeStatics", "exp.EnvelopeTheorem",
+  "exp.DynamicsOptimization", "exp.BondingCurveCurvature",
+  "exp.InventoryObserverDynamics"]
+
+[[lean_lib]]
+name = "vol_markets"
+srcDir = "."
+roots = ["vol_markets.Main", "vol_markets.PosSpec", "vol_markets.Flow",
+  "vol_markets.RiskDesign"]
+
+[[lean_lib]]
+name = "tao"
+srcDir = "."
+roots = ["tao.AMM", "tao.Injection", "tao.Halving", "tao.Rewards",
+  "tao.GBM", "tao.APY", "tao.Model", "tao.Main"]
