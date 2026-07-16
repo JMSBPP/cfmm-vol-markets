@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.0
-milestone_name: Realized-Volatility Oracle Differential Testing
+milestone_name: milestone
 status: executing
-stopped_at: Roadmap created for milestone v2.0 (Phases 8–11)
-last_updated: "2026-07-15T00:00:00.000Z"
-last_activity: "2026-07-15 — milestone v2.0 roadmap appended: Phases 8–11 derived from VDIFF-01..08, 8/8 mapped; v1.0 Phases 1–7 preserved/paused"
+stopped_at: Completed 08-01-PLAN.md (Algebra reference pin, 4 mutants observed RED)
+last_updated: "2026-07-16T12:52:21.609Z"
+last_activity: "2026-07-16 — 08-01 executed: Algebra 4-file reference closure pinned + wired first into `make test-vol-prereqs`; 4 mutants OBSERVED red and restored green"
 progress:
-  total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 11
+  completed_phases: 1
+  total_plans: 5
+  completed_plans: 4
 ---
 
 # Project State
@@ -28,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-07-15)
 ## Current Position
 
 Phase: 8 of 11 (Reference Integrity & Kernel Mock) — first v2.0 phase
-Plan: none yet (Phase 8 not yet planned)
-Status: Not started — roadmap approved/created; next step `/gsd:plan-phase 8`
-Last activity: 2026-07-15 — milestone v2.0 roadmap appended (Phases 8–11 from VDIFF-01..08, 8/8 mapped)
+Plan: 3 of 3 in Phase 8 (08-01 and 08-03 COMPLETE; 08-02 in flight)
+Status: Executing — 08-01 (pin) and 08-03 (VDIFF-03) closed; Phase 8 completes when 08-02 (mock) lands its summary
+Last activity: 2026-07-16 — 08-01 executed: Algebra 4-file reference closure pinned + wired first into `make test-vol-prereqs`; 4 mutants OBSERVED red and restored green
 
-Progress (v2.0 milestone): [░░░░░░░░░░] 0% (0/4 phases)
+Progress (v2.0 milestone): [█████░░░░░] Phase 8 — 2 of 3 plans complete (08-01, 08-03)
 
 ## Performance Metrics
 
@@ -52,6 +51,8 @@ Progress (v2.0 milestone): [░░░░░░░░░░] 0% (0/4 phases)
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 08 P03 | 11min | 1 tasks | 1 files |
+| Phase 08 P01 | 12m | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -75,10 +76,18 @@ Recent decisions affecting current work:
 - Phases 1 and 2 serialized (no parallelism) to avoid the repo-identity race during the public flip / fork migration.
 - Theory grounding links to cfmm-theory `KERNEL.md` by URL/citekey (no submodule); refs under `spec/refs/`.
 - [Phase 01]: 01-01 executed — MIT LICENSE (wvs-finance); orphan-branch squash to one sanitized baseline; GAMS paths relativized to in-repo `model/`; recovery bundle + backup/pre-squash captured before rewrite.
+- [Phase 08]: [Phase 08 / VDIFF-03]: the 'incorrect assertion' diffing Plank's raw get_average_volatility against Algebra's window-normalized getAverageVolatility NEVER EXISTED — re-verified by grep before editing. The real target was an unused declaration in IRealizedVolatility (loaded gun, never called). Removed + documented; smoke suite unchanged 11/11. Algebra's window-normalized getter was NOT ported (deferred, verified: no Bessel in any .plk).
+- [Phase 08]: [Phase 08]: 08-01 — pin mechanism is a sha256 manifest over the node_modules copy (the bytes foundry.toml:18 actually compiles), NOT vendoring under lib/: vendoring would guard a copy nothing links (pin theatre). Pinned bytes == compiled bytes by construction.
+- [Phase 08]: [Phase 08]: 08-01 — the pin covers the WHOLE 4-file import closure, not just VolatilityOracle.sol. Proven necessary: Mutant A (transitive-only IVolatilityOraclePluginImplementation.sol) went RED where a single-file pin would have stayed green.
+- [Phase 08]: [Phase 08]: 08-01 — checker accumulates failures instead of short-circuiting, so the closure-drift guard is observable independently of the content hash (resolved the plan's '(drift guard OR sha)' hedge to AND).
 
 ### Pending Todos
 
-None yet for v2.0. Next action: `/gsd:plan-phase 8`.
+Phase 8 is planned (3 plans) and executing. 08-03 (VDIFF-03) is complete; 08-01 (reference pin) and
+08-02 (`_volatilityOnRange` mock) are in flight. Next action: land 08-01/08-02, then verify Phase 8.
+
+- Deferred items discovered during Phase 8 execution are logged in
+  `.planning/phases/08-reference-integrity-kernel-mock/deferred-items.md` (not fixed in-phase).
 
 ### Blockers/Concerns
 
@@ -94,6 +103,6 @@ None yet for v2.0. Next action: `/gsd:plan-phase 8`.
 
 ## Session Continuity
 
-Last session: 2026-07-15
-Stopped at: Milestone v2.0 roadmap created (Phases 8–11)
-Resume file: None — next step is `/gsd:plan-phase 8`
+Last session: 2026-07-16T12:51:46.269Z
+Stopped at: Completed 08-01-PLAN.md (Algebra reference pin, 4 mutants observed RED)
+Resume file: None
