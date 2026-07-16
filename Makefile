@@ -28,6 +28,12 @@ test-realized-vol-smoke:
 test-vol-diff:
 	forge test --match-contract RealizedVolatilityDiffTest --via-ir --optimize
 
+# The variance-kernel probe: Algebra's _volatilityOnRange (via AlgebraVolatilityKernelMock)
+# against Plank's calculate_realized_volatility on a non-degenerate input, tolerance 0. Proves
+# the kernel pair is WIRED and agrees before Phase 9 fuzzes it over 5 dimensions.
+test-vol-kernel-probe:
+	forge test --match-contract RealizedVolatilityKernelProbeTest --via-ir --optimize
+
 # The Algebra reference the whole differential exercise is measured against lives in
 # node_modules -- untracked (.gitignore:2) and silently rewritten by `npm ci`. It was already
 # corrupted once by an editor auto-fill (tickCumulative -> tickC umulative). This pins the whole
@@ -39,9 +45,9 @@ check-algebra-ref-pin:
 
 # Everything that must be green for the oracle: baseline refs, Plank smoke, and the diff test.
 # The pin runs FIRST: verifying the baseline after diffing against it proves nothing.
-test-vol-prereqs: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff
+test-vol-prereqs: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-kernel-probe
 
-.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-prereqs
+.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-kernel-probe test-vol-prereqs
 
 
 build-random:
