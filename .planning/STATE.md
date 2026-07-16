@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-07-15)
 
 ## Current Position
 
-Phase: 8 of 11 (Reference Integrity & Scalar-Vol Reconciliation) — first v2.0 phase
+Phase: 8 of 11 (Reference Integrity & Kernel Mock) — first v2.0 phase
 Plan: none yet (Phase 8 not yet planned)
 Status: Not started — roadmap approved/created; next step `/gsd:plan-phase 8`
 Last activity: 2026-07-15 — milestone v2.0 roadmap appended (Phases 8–11 from VDIFF-01..08, 8/8 mapped)
