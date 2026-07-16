@@ -34,6 +34,13 @@ test-vol-diff:
 test-vol-kernel-probe:
 	forge test --match-contract RealizedVolatilityKernelProbeTest --via-ir --optimize
 
+# The 5-D variance-kernel differential fuzz (VDIFF-02): ONE (dt, tick0, tick1, avgTick0, avgTick1)
+# tuple through Algebra's _volatilityOnRange (AlgebraVolatilityKernelMock) and Plank's
+# calculate_realized_volatility (RealizedVolatilityKernelHarness.plk), full uint256, tolerance 0.
+# The probe is ONE point; this is the domain. dt in [1, 2^32) -- dt=0 is a known excluded divergence.
+test-vol-kernel-fuzz:
+	forge test --match-contract RealizedVolatilityKernelDiffTest --via-ir --optimize
+
 # The Algebra reference the whole differential exercise is measured against lives in
 # node_modules -- untracked (.gitignore:2) and silently rewritten by `npm ci`. It was already
 # corrupted once by an editor auto-fill (tickCumulative -> tickC umulative). This pins the whole
@@ -45,9 +52,9 @@ check-algebra-ref-pin:
 
 # Everything that must be green for the oracle: baseline refs, Plank smoke, and the diff test.
 # The pin runs FIRST: verifying the baseline after diffing against it proves nothing.
-test-vol-prereqs: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-kernel-probe
+test-vol-prereqs: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-kernel-probe test-vol-kernel-fuzz
 
-.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-kernel-probe test-vol-prereqs
+.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-kernel-probe test-vol-kernel-fuzz test-vol-prereqs
 
 
 build-random:
