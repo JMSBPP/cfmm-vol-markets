@@ -48,3 +48,9 @@ lean/.lake/
 
 # gamsdiff: transient all-symbols GDX from the price-impact driver run
 model/price_impact_all.gdx
+
+# Aristotle archive: only the canonical latest tarball per proof family is tracked
+lean/archive/*
+!lean/archive/aristotleFOCThree.tar.gz
+!lean/archive/9804c2b5-a6a5-4a7f-a67b-89119b4b7bfb-aristotle.tar.gz
+!lean/archive/arsitotleTaoCFMM.tar.gz
