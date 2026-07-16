@@ -12,7 +12,26 @@ interface IRealizedVolatility {
     function writeTimepoint(uint32 blockTimestamp, int24 tick) external;
     function getTwapTick(uint32 dt, int24 tick, uint32 currentTimestamp) external view returns (int24);
     function getTickCumulative(uint32 dt, int24 tick, uint32 currentTimestamp) external view returns (int56);
-    function getAverageVolatility(int24 tick, uint32 blockTimestamp) external view returns (uint88);
+    // getAverageVolatility(int24,uint32) is DELIBERATELY NOT DECLARED HERE (VDIFF-03).
+    //
+    // Plank's getAverageVolatility returns the last timepoint's RAW volatilityCumulative
+    // accumulator (RealizedVolatilityMod.plk:221-224). Algebra's getAverageVolatility
+    // (VolatilityOracle.sol:195-242) is Bessel-corrected AND WINDOW-normalised. These are
+    // DIFFERENT QUANTITIES -- diffing them is not a strict test, it is a wrong one, and any
+    // green it produced would be meaningless.
+    //
+    // The selectors differ too (0x8171455c vs Algebra's getAverageVolatilityLast 0xc3c8050a),
+    // so a shared-interface call would revert rather than mis-compare -- but do not rely on
+    // that: the surface is removed so the mistake cannot be made in the first place.
+    //
+    // The CORRECT scalar-volatility check is the stored volatilityCumulative field, read via
+    // getTimepointPacked and unpacked at OFF_VOL -- see
+    // test__unit__negativeAvgTickVolatilityIsExact below, and VDIFF-04 (Phase 9) which
+    // generalises it to a field-by-field Algebra-vs-Plank differential.
+    //
+    // Porting Algebra's window-normalised getAverageVolatility to Plank (its own
+    // _getVolatilityCumulativeAt binary search, windowed interpolation, and Bessel branch) is
+    // production work, explicitly DEFERRED out of this milestone -- and redundant with VDIFF-04.
     // State readers -- without these the module is a black box and getTwapTick (a QUOTIENT)
     // lets compensating internal errors cancel.
     function getTimepointPacked(uint16 index) external view returns (uint256);
