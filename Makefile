@@ -28,10 +28,20 @@ test-realized-vol-smoke:
 test-vol-diff:
 	forge test --match-contract RealizedVolatilityDiffTest --via-ir --optimize
 
-# Everything that must be green for the oracle: baseline refs, Plank smoke, and the diff test.
-test-vol-prereqs: test-market-statistics test-realized-vol-smoke test-vol-diff
+# The Algebra reference the whole differential exercise is measured against lives in
+# node_modules -- untracked (.gitignore:2) and silently rewritten by `npm ci`. It was already
+# corrupted once by an editor auto-fill (tickCumulative -> tickC umulative). This pins the whole
+# 4-file import closure the harness links, NOT just VolatilityOracle.sol: pinning one file of a
+# closure is false assurance. Red here means the baseline moved -- every "bit-exact vs Algebra"
+# claim downstream is void until it is restored or deliberately re-pinned.
+check-algebra-ref-pin:
+	@bash script/check-algebra-ref-pin.sh
 
-.PHONY: test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-prereqs
+# Everything that must be green for the oracle: baseline refs, Plank smoke, and the diff test.
+# The pin runs FIRST: verifying the baseline after diffing against it proves nothing.
+test-vol-prereqs: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff
+
+.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-prereqs
 
 
 build-random:
