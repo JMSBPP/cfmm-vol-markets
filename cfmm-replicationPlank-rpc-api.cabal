@@ -61,6 +61,7 @@ library
     -- Modules exported by the library.
     exposed-modules:  VolOrder.Types
                     , VolOrder.Encoding
+                    , VolOrder.Decode
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -73,7 +74,9 @@ library
                       web3-ethereum,
                       web3-solidity,
                       memory-hexstring,
-                      process
+                      process,
+                      bytestring,
+                      time
 
     -- Directories containing source files.
     hs-source-dirs:   offchain/lib/

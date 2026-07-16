@@ -334,8 +334,10 @@ the pure decoder round-trips a synthetic `Change` before it's wired into anythin
 ```bash
 cd /home/jmsbpp/cfmms-playground/cfmm-wt/rpc_api
 cabal repl lib:cfmm-replicationPlank-rpc-api <<'EOF'
+:set -XOverloadedStrings
 import VolOrder.Decode
 import Network.Ethereum.Api.Types (Change(..))
+import Data.ByteArray.HexString (HexString)
 let topic0 = "0x00000000000000000000000000000000000000000000000000000000a8892769" :: HexString
 let ownerTopic = "0x00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c8" :: HexString
 let tsTopic = "0x0000000000000000000000000000000000000000000000000000000042d4a2f1" :: HexString
