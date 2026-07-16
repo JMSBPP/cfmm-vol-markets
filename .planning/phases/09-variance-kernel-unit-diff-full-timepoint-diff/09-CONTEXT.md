@@ -53,9 +53,15 @@ proved it independently:
   `k = 0` AND `b = 0`, the kernel returns 0, and `calculate_avg_tick` short-circuits — such a test
   passes against an oracle that ignores storage entirely.
 
-### Assert the FULL uint256, not just uint88
-Production truncates to uint88, but comparing the whole returned word is strictly stronger on a free
-axis — it catches high-bit divergence a mutant could introduce. Do the same in the fuzz.
+### Assert the FULL uint256, not just uint88 — this is LOAD-BEARING, not a free extra
+Production truncates to uint88, but assert the whole returned word.
+
+**Upgraded from evidence (09-01):** this was originally framed as "strictly stronger on a free axis".
+It is stronger than that. The argument-order mutant failed with
+`115792089237316195423570985008687907853269984665640564039457584003616512485613 != 787251601984`
+— a near-full-width word, because swapping feeds `dt` where a tick is expected and the wrapping
+operators propagate into the high bits. **The divergence lives exactly in the bits a `uint88`
+comparison would discard.** A uint88-only assertion could have let that mutant survive.
 
 ### VDIFF-04's field list is exactly: volatilityCumulative, averageTick, windowStartIndex
 - **`oldestIndex` is EXCLUDED — it is VACUOUS.** It only becomes non-zero after the ring is
@@ -100,11 +106,26 @@ bounds keep the corpus out of that regime; say so rather than implying universal
   externally. solc `=0.8.20`. Name deliberately distinct from the package's shipped
   `MockVolatilityOracle`.
 - `test/market_state_measurements/RealizedVolatilityKernelHarness.plk` — Plank ABI harness over
-  `calculate_realized_volatility`. **Selector `0xc6342af0` = `volatilityOnRange(uint32,int24,int24,int24,int24)`**,
-  calldata read at offsets 4/36/68/100/132 as `dt, tick0, tick1, avg_tick0, avg_tick1` — i.e. it takes
+  `calculate_realized_volatility`. **Selector `0xc6342af0` = `volatilityOnRange(int256,int256,int256,int256,int256)`**
+  (all int256 — confirmed `cast sig`, and the Solidity interfaces in
+  `RealizedVolatilityKernel.probe.t.sol:11` / `.diff.t.sol:20` declare exactly that).
+  Calldata read at offsets 4/36/68/100/132 as `dt, tick0, tick1, avg_tick0, avg_tick1` — i.e. it takes
   **ALGEBRA's argument order**, so ONE tuple drives both sides and the Algebra→Plank re-order is
-  isolated to a SINGLE commented call site (that is what makes the parameter-order footgun mutable in
-  one place, hence falsifiable).
+  isolated to a SINGLE commented call site (line 49) — that is what makes the parameter-order footgun
+  mutable in one place, hence falsifiable.
+
+  > **[CORRECTED 2026-07-16 — this file previously asserted the signature was
+  > `volatilityOnRange(uint32,int24,int24,int24,int24)`. That is FALSE:** that form hashes to
+  > `0x5fb3d926`, a DIFFERENT selector. Caught by the 09-01 executor running `cast sig` instead of
+  > trusting this doc. The selector *constant* was always right, so nothing broke — but anyone
+  > re-deriving the selector from the false signature would have produced `0x5fb3d926` and the
+  > dispatch would have silently missed.
+  >
+  > **How the error happened, because the pattern matters:** the harness's OWN header comment
+  > (lines 23-24) states the correct signature and says "Verified with: cast sig". The grep used to
+  > "verify" it (`SELECTOR|const .* = fn|calldataload`) filtered those comment lines out; the
+  > signature was then *inferred* from the parameter names and written here as verified fact.
+  > **A grep that excludes the answer is not verification.** Read the file.
 - `test/market_state_measurements/RealizedVolatilityKernel.probe.t.sol` + `make test-vol-kernel-probe`
   — the single-point wiring proof (anchor 819430). Phase 9 generalises this to a fuzz.
 - `test/refs/algebra-volatility-oracle.sha256` + `script/check-algebra-ref-pin.sh` — the pin. Runs
@@ -143,6 +164,16 @@ bounds keep the corpus out of that regime; say so rather than implying universal
   **nothing** in the test path. Proven empirically: kernel coefficient `6→7` with NO compile-plank →
   probe RED (`729013 != 819430`); restored → GREEN. **Kept lesson:** a mutant must reach the DEPLOYED
   bytecode — FFI guarantees it here; if a test ever deploys from a prebuilt artifact, re-check.
+
+- **CLEAR `cache/fuzz` WHEN PROVING A KILL — a "kill" can be a cached REPLAY.** (Found in 09-01,
+  load-bearing for Phases 10-11, which rest entirely on mutant kills.) Mutant B's first RED came back
+  with **`runs: 0`** — Foundry had replayed the *previous* mutant's cached counterexample rather than
+  fuzzing. The mutant appeared killed while the fuzz had not executed at all. Clearing `cache/fuzz`
+  and re-running produced a genuine RED on a NEW, independent counterexample.
+  **`runs: 0` on a "kill" means replay, not proof.** This is the same family as the vacuous compile
+  gate: a green/red signal produced without the work behind it actually running.
+  (Note: `cache/fuzz/failures` also holds pre-existing cached counterexamples for `OrderTest`,
+  `SpreadTickAssimetryTest`, `VolRangeWidthTest` — the known-red pos_spec suites, unrelated.)
 - **The stored-field unpacker already exists — reuse, don't write a third copy.**
   `test/market_state_measurements/RealizedVolatilitySmoke.t.sol` has a full `_timepoint()` with all
   offsets: `OFF_VOL=32`, `OFF_TICK=120`, `OFF_AVG_TICK=144`, `OFF_TICK_CUM=168`, `OFF_WSI=224`,
