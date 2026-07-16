@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 08-02-PLAN.md — Phase 8 COMPLETE (kernel mock + probe; arg-order mutant observed RED)
-last_updated: "2026-07-16T13:16:06.313Z"
-last_activity: "2026-07-16 — 08-02 executed: Algebra kernel mock + Plank ABI harness + differential probe (tolerance 0, anchor 819430); argument-order mutant OBSERVED red and restored green"
+status: executing
+stopped_at: Completed 09-01-PLAN.md — VDIFF-02 discharged (5-D kernel fuzz green at 1024 runs, tolerance 0); Mutants A + B OBSERVED red and restored green
+last_updated: "2026-07-16T17:28:25.614Z"
+last_activity: "2026-07-16 — 09-01 executed: the 5-D variance-kernel differential fuzz (VDIFF-02); zero counterexamples in 1024 runs; both mutants OBSERVED red and restored green; no `make compile-plank` needed anywhere in the battery (FFI recompiles at test time — re-confirmed)"
 progress:
   total_phases: 11
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 7
+  completed_plans: 6
 ---
 
 # Project State
@@ -20,18 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-15)
 
 **Core value (v2.0):** The Plank realized-volatility oracle's variance surface (`volatilityCumulative` / `averageTick`) is proven bit-exact against Algebra's `VolatilityOracle` — the reference of record — the way the tick-average surface already is (Phase 0–1, merged). Every proof is a passing/failing test or a killed mutation; `make compile-plank` green is NOT evidence.
-**Current focus:** Phase 8 — Reference Integrity & Scalar-Vol Reconciliation
+**Current focus:** Phase 9 — Variance Kernel Unit-Diff & Full-Timepoint Diff (09-01/VDIFF-02 done; 09-02/VDIFF-04 next)
 
 **Track note:** v2.0 is a separate, parallel track from the v1.0 GAMS-plumbing milestone (Phases 1–7), which remains incomplete/paused. The v1.0 core value and 30-requirement plumbing roadmap are preserved intact in ROADMAP.md and REQUIREMENTS.md.
 
 ## Current Position
 
-Phase: 8 of 11 (Reference Integrity & Kernel Mock) — first v2.0 phase
-Plan: 3 of 3 in Phase 8 — ALL COMPLETE (08-01 pin, 08-02 mock+probe, 08-03 VDIFF-03)
-Status: Phase 8 COMPLETE — all 3 plans landed their summaries. VDIFF-01 marked complete (pin half by 08-01, mock half by 08-02). Ready for Phase 9 (VDIFF-02, the 5-D kernel fuzz).
-Last activity: 2026-07-16 — 08-02 executed: Algebra kernel mock + Plank ABI harness + differential probe (tolerance 0, anchor 819430); argument-order mutant OBSERVED red and restored green
+Phase: 9 of 11 (Variance Kernel Unit-Diff & Full-Timepoint Diff) — the phase the v2.0 milestone exists for
+Plan: 1 of 2 in Phase 9 — 09-01 COMPLETE (VDIFF-02, the 5-D kernel fuzz). NEXT: 09-02 (VDIFF-04, the full-timepoint diff).
+Status: Phase 9 IN PROGRESS. VDIFF-02 discharged: `make test-vol-kernel-fuzz` green at 1024 runs, tolerance 0 on the FULL uint256, corpus CONSTRUCTED (k!=0 AND b!=0 asserted every run, no assume-filtering), dt bounded [1, 2^32). Falsifiability proven by OBSERVATION, not assertion: Mutant A (harness arg-order swap) and Mutant B (kernel coefficient 6->7) each made the fuzz exit 2 with a recorded counterexample; both restored byte-identical and green. Algebra pin still exits 0 — the baseline did not move.
+Last activity: 2026-07-16 — 09-01 executed: the 5-D variance-kernel differential fuzz (VDIFF-02); zero counterexamples in 1024 runs; both mutants OBSERVED red and restored green; no `make compile-plank` needed anywhere in the battery (FFI recompiles at test time — re-confirmed)
 
-Progress (v2.0 milestone): [██████████] Phase 8 — 3 of 3 plans complete (08-01, 08-02, 08-03)
+Progress (v2.0 milestone): [███████░░░] Phase 8 COMPLETE (3/3) — Phase 9: 1 of 2 plans complete (09-01)
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress (v2.0 milestone): [██████████] Phase 8 — 3 of 3 p
 | Phase 08 P03 | 11min | 1 tasks | 1 files |
 | Phase 08 P01 | 12m | 3 tasks | 4 files |
 | Phase 08 P02 | 10m | 3 tasks | 4 files |
+| Phase 09 P01 | 6min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,11 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-02 — the Plank kernel harness takes calldata in ALGEBRA's argument order, so ONE tuple drives both sides and the Algebra->Plank re-order is isolated to a SINGLE commented call site. That makes the parameter-order footgun mutable-in-one-place and therefore falsifiable; the swap-order mutant was OBSERVED red (exit 2) and restored green (exit 0).
 - [Phase 08]: 08-02 — the probe asserts BOTH mock==Plank (tolerance 0) AND ==819430 (independently derived 3x). The differential assertion ALONE is insufficient: a mock that merely echoed Plank would satisfy it. The anchor pins Algebra to a value neither implementation can influence.
 - [Phase 08]: 08-02 — non-degeneracy requires k!=0 AND b!=0. 08-CONTEXT phrases it as tick0!=tick1, which only secures k; b!=0 additionally needs tick0!=avgTick0. dt=30,tick0=100,tick1=-400,avgTick0=50,avgTick1=-100 satisfies both (k=-350,b=1500).
+- [Phase 09]: 09-01 — VDIFF-02 DISCHARGED: the 5-D kernel fuzz is green at 1024 runs, tolerance 0 on the FULL uint256, with ZERO counterexamples. Nothing was hedged: no tolerance added, no domain shrunk. Consistent with the review's proof that exactness is GUARANTEED within int24 x uint32 (matching operator trees; numerator peaks ~2^149 << 2^256 so neither side wraps; evm_sdiv IS SDIV).
+- [Phase 09]: 09-01 — DOC ERROR FOUND: 09-CONTEXT.md records selector 0xc6342af0 as volatilityOnRange(uint32,int24,int24,int24,int24). That is FALSE — verified by execution: int256x5 -> 0xc6342af0; the uint32/int24 form -> 0x5fb3d926. The harness's own header comment is authoritative. int256 is also semantically right (the harness reads whole 32-byte words as sign-extended two's-complement). Treat the harness header over 09-CONTEXT.md on this point.
+- [Phase 09]: 09-01 — Mutant A's failure value was ~2^256 (115792...485613 != 787251601984). This is DIRECT EVIDENCE that asserting the FULL uint256 rather than the 88-bit production width is LOAD-BEARING, not merely 'stronger on a free axis' as 09-CONTEXT frames it: the divergence lives exactly in the high bits a uint88 comparison would discard.
+- [Phase 09]: 09-01 — Mutant B's first RED came from the CACHED fuzz failure corpus (runs: 0, replaying Mutant A's counterexample), which is a weaker claim than it looks. cache/fuzz was cleared and Mutant B re-run: it died again on a NEW independent counterexample (857507691265 != 857256149370). PATTERN for Phases 10-11: clear cache/fuzz when proving a mutant kill, or the kill may be a replay.
+- [Phase 09]: 09-01 — the FFI/compile-plank correction is now confirmed a THIRD time: Mutant B produced a numeric divergence from a .plk edit with NO make compile-plank anywhere in the battery. 08-02's contrary SUMMARY claim stays FALSE. Kept caveat: a mutant must reach the DEPLOYED bytecode; FFI guarantees it here, but re-check the deploy path if a future test ever deploys from a prebuilt artifact.
 
 ### Pending Todos
 
@@ -134,6 +140,6 @@ check the deploy path before trusting a kill.
 
 ## Session Continuity
 
-Last session: 2026-07-16T13:02:37.167Z
-Stopped at: Completed 08-02-PLAN.md — Phase 8 COMPLETE (kernel mock + probe; arg-order mutant observed RED)
+Last session: 2026-07-16T17:27:28.471Z
+Stopped at: Completed 09-01-PLAN.md — VDIFF-02 discharged (5-D kernel fuzz green at 1024 runs, tolerance 0); Mutants A + B OBSERVED red and restored green
 Resume file: None

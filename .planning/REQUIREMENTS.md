@@ -78,7 +78,7 @@ requirements above. Reference of record: Algebra `VolatilityOracle`. Phase numbe
 
 ### Variance Kernel Diff
 
-- [ ] **VDIFF-02**: Plank's `calculate_realized_volatility` is differentially tested against Algebra's `_volatilityOnRange` directly, over a fuzzed `(dt, tick0, tick1, avgTick0, avgTick1)` domain with `dt` bounded to `[1, 2^32)` (Solidity `/` reverts on `dt=0` even under `unchecked`, while EVM SDIV returns 0 — an excluded, known divergence), ticks bounded to int24, asserting exact **full uint256** equality (stronger than the production uint88 truncation, on a free axis), via a mock (distinct name — the package already ships a `MockVolatilityOracle`) that exposes the `internal pure` `_volatilityOnRange`
+- [x] **VDIFF-02**: Plank's `calculate_realized_volatility` is differentially tested against Algebra's `_volatilityOnRange` directly, over a fuzzed `(dt, tick0, tick1, avgTick0, avgTick1)` domain with `dt` bounded to `[1, 2^32)` (Solidity `/` reverts on `dt=0` even under `unchecked`, while EVM SDIV returns 0 — an excluded, known divergence), ticks bounded to int24, asserting exact **full uint256** equality (stronger than the production uint88 truncation, on a free axis), via a mock (distinct name — the package already ships a `MockVolatilityOracle`) that exposes the `internal pure` `_volatilityOnRange`
 - [x] **VDIFF-03**: The incorrect assertion diffing Plank's RAW `get_average_volatility` accumulator against Algebra's window-normalized `getAverageVolatility` is removed, and the in-file docs state these are DIFFERENT quantities (Algebra's is Bessel-corrected + WINDOW-normalized). Any scalar volatility comparison instead uses the stored `volatilityCumulative` field (VDIFF-04). Porting Algebra's window-normalized `getAverageVolatility` to Plank (its own interpolation + Bessel branches) is a production task explicitly DEFERRED to a follow-on — not in this milestone.
   - **AS-BUILT CORRECTION (08-03, 2026-07-16):** the "incorrect assertion" this requirement names **never existed** — re-verified by grep before editing (no `assertEq` anywhere had Plank's raw accumulator on one side and Algebra's window-normalized getter on the other). The actual risk was a *loaded gun*: an unused `getAverageVolatility(int24,uint32)` **declaration** in `RealizedVolatilitySmoke.t.sol`'s `IRealizedVolatility` — declared, never called, one `assertEq` from the mistake. **What shipped:** that declaration removed + the trap documented in-file; smoke suite unchanged 11/11; no port (verified: no Bessel in any `.plk`). The requirement's *intent* ("removed, and the docs state they are different quantities") is met; its *premise* was wrong. See `08-03-SUMMARY.md`.
 
@@ -170,7 +170,7 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | PIPE-02 | Phase 7 | Pending |
 | VDIFF-01 | Phase 8 | Complete |
 | VDIFF-03 | Phase 8 | Complete |
-| VDIFF-02 | Phase 9 | Pending |
+| VDIFF-02 | Phase 9 | Complete |
 | VDIFF-04 | Phase 9 | Pending |
 | VDIFF-05 | Phase 10 | Pending |
 | VDIFF-06 | Phase 10 | Pending |
