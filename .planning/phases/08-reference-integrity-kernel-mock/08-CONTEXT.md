@@ -40,9 +40,18 @@ It does **NOT** implement the variance diff itself (that is Phase 9) and does **
 - **Bound `dt >= 1`.** `dt = 0` is a KNOWN, excluded divergence: Solidity `/` reverts on div-by-zero **even under `unchecked`** (Panic 0x12), while EVM `SDIV(N,0)` returns **0 silently**.
 
 ### VDIFF-03 (DESCOPED by review — this is the whole requirement now)
-- **Remove** the incorrect assertion diffing Plank's **raw** `get_average_volatility` (`RealizedVolatilityMod.plk:221-224`, returns the last timepoint's raw `volatilityCumulative`) against Algebra's **window-normalized** `getAverageVolatility` (`VolatilityOracle.sol:195-242` — Bessel-corrected + WINDOW-normalized).
-- **Document in-file** that these are DIFFERENT quantities and must not be diffed. Any scalar vol check instead uses the stored `volatilityCumulative` field (that is Phase 9 / VDIFF-04).
-- Note: the selectors even differ (`getAverageVolatility` = 0x8171455c vs `getAverageVolatilityLast` = 0xc3c8050a), so a shared-interface call would revert rather than mis-compare.
+
+**CORRECTION (2026-07-15, found by the planner and verified):** the earlier framing below — inherited from the reviewers' wording "delete the current wrong assertion" and written here as fact **without verification** — was WRONG. **No such assertion exists.** `grep -rn "getAverageVolatility" test/ --include=*.sol` returns only:
+  - `RealizedVolatilitySmoke.t.sol:15` — a **declaration** in `IRealizedVolatility`, **never called**
+  - `MarketStatisticsTest.t.sol:175-179` — the Algebra ref's own `getAverageVolatilityLast` getter
+  - `MarketStatisticsTest.t.sol:440` — used in the zero-assertion `console.log` term-structure test
+There is **no assertion on it anywhere**. Planning a deletion of a non-existent assertion would be a fantasy task that "completes" vacuously.
+
+**What VDIFF-03 actually is:** the risk is a *loaded gun*, not an existing bug. `RealizedVolatilitySmoke.t.sol:15` declares `getAverageVolatility(int24,uint32)` on `IRealizedVolatility` — declared, unused, one `assertEq` away from the mistake. So:
+- **Remove that unused declaration surface** so the wrong diff cannot be written by reflex.
+- **Document** that Plank's raw `get_average_volatility` (`RealizedVolatilityMod.plk:221-224`, the last timepoint's raw `volatilityCumulative`) and Algebra's window-normalized `getAverageVolatility` (`VolatilityOracle.sol:195-242` — Bessel-corrected + WINDOW-normalized) are **DIFFERENT quantities** and must not be diffed. Any scalar vol check uses the stored `volatilityCumulative` field (Phase 9 / VDIFF-04).
+- The executor MUST **re-verify this survey before editing** and branch if reality differs again.
+- Note: the selectors differ (`getAverageVolatility` = 0x8171455c vs `getAverageVolatilityLast` = 0xc3c8050a), so a shared-interface call would revert rather than mis-compare — which is *why* the mistake hasn't bitten yet.
 
 ### Claude's Discretion
 - Pin mechanism: vendored copy under `lib/` vs checksum manifest vs tarball hash — pick whichever most simply achieves "red on divergence" without breaking import resolution.
