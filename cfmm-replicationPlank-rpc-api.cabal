@@ -90,16 +90,11 @@ library
 executable cfmm-replicationPlank-rpc-api
     import:           warnings
     main-is:          Main.hs
+    other-modules:    Sample
     build-depends:
         base ^>=4.20.2.0,
         cfmm-replicationPlank-rpc-api,
-        web3-provider,
-        web3-solidity,
-        memory-hexstring,
-        process,
-        bytestring,
-        time,
-        web3-ethereum
+        web3-solidity
     hs-source-dirs:   offchain/app
     default-language: Haskell2010
 
