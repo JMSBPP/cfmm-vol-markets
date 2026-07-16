@@ -84,7 +84,7 @@ requirements above. Reference of record: Algebra `VolatilityOracle`. Phase numbe
 
 ### Full-Timepoint Diff
 
-- [ ] **VDIFF-04**: After every write in a shared **Algebra-vs-Plank-only** driver sequence (the volatility surface has no UniV3 counterpart, so the UniV3 ref is NOT driven here), Algebra and Plank agree exactly on the stored timepoint fields `volatilityCumulative`, `averageTick`, and `windowStartIndex`, asserted field-by-field via the `getTimepoint` / `getTimepointPacked` getters (needs test-side unpack of the vol/avgTick/windowStartIndex offsets, added here). `oldestIndex` is EXCLUDED from this differential — it is vacuously `0` on both sides below 2^16 writes, so a corpus of ≤480 writes cannot exercise it; ring-wrap `oldestIndex` behavior is covered Plank-side by the VDIFF-07 unit test. Exactness (tolerance 0) is guaranteed within the int24×uint32 regime (max |tickCumulative| ≈ 3.8e15 < int56 max 3.6e16); it is NOT claimed in Algebra's deliberate int56-overflow regime, which Plank's full-width in-flight accumulator does not replicate.
+- [x] **VDIFF-04**: After every write in a shared **Algebra-vs-Plank-only** driver sequence (the volatility surface has no UniV3 counterpart, so the UniV3 ref is NOT driven here), Algebra and Plank agree exactly on the stored timepoint fields `volatilityCumulative`, `averageTick`, and `windowStartIndex`, asserted field-by-field via the `getTimepoint` / `getTimepointPacked` getters (needs test-side unpack of the vol/avgTick/windowStartIndex offsets, added here). `oldestIndex` is EXCLUDED from this differential — it is vacuously `0` on both sides below 2^16 writes, so a corpus of ≤480 writes cannot exercise it; ring-wrap `oldestIndex` behavior is covered Plank-side by the VDIFF-07 unit test. Exactness (tolerance 0) is guaranteed within the int24×uint32 regime (max |tickCumulative| ≈ 3.8e15 < int56 max 3.6e16); it is NOT claimed in Algebra's deliberate int56-overflow regime, which Plank's full-width in-flight accumulator does not replicate.
 - [ ] **VDIFF-05**: The differential corpus is CONSTRUCTED (not `vm.assume`-filtered) with total span `> 2×WINDOW` so `calculate_avg_tick`'s WINDOW-interpolation branch and `window_start_index` selection execute INSIDE the write sequence (the existing Phase-0/1 assertions never touch `volatilityCumulative`/`averageTick`/`windowStartIndex` at all). The corpus forces ≥1 strict tick rise and ≥1 strict fall by construction (so `avg_tick ≠ tick`, kernel `k`/`b` nonzero — non-vacuous) and keeps strictly-increasing distinct timestamps (`delta ≥ 1`, on which the heuristic-free `window_start_index` equivalence depends). Coverage of those paths is evidenced by a **targeted mutant KILL** in them — `forge coverage` cannot instrument FFI-deployed Plank bytecode under via-IR, so coverage/trace is NOT an option.
 - [ ] **VDIFF-06**: A SEPARATE sub-WINDOW corpus (`init_timestamp < WINDOW`) exercises the `u32_sub` regime — the only regime in which that fix is reachable — kept distinct from VDIFF-05 (whose span forces `currentTime > WINDOW`)
 
@@ -171,7 +171,7 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | VDIFF-01 | Phase 8 | Complete |
 | VDIFF-03 | Phase 8 | Complete |
 | VDIFF-02 | Phase 9 | Complete |
-| VDIFF-04 | Phase 9 | Pending |
+| VDIFF-04 | Phase 9 | Complete |
 | VDIFF-05 | Phase 10 | Pending |
 | VDIFF-06 | Phase 10 | Pending |
 | VDIFF-07 | Phase 11 | Pending |

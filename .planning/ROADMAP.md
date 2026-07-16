@@ -276,7 +276,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 8. Reference Integrity & Kernel Mock | 0/3 | Planned | - |
-| 9. Variance Kernel Unit-Diff & Full-Timepoint Diff | 0/TBD | Not started | - |
+| 9. Variance Kernel Unit-Diff & Full-Timepoint Diff | 2/2 | Complete | 2026-07-16 |
 | 10. Discriminating Corpora (span>2×WINDOW + sub-WINDOW) | 0/TBD | Not started | - |
 | 11. Edges, Mutation Battery & Make Wire-Up | 0/TBD | Not started | - |
 

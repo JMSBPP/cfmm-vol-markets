@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-01-PLAN.md — VDIFF-02 discharged (5-D kernel fuzz green at 1024 runs, tolerance 0); Mutants A + B OBSERVED red and restored green
-last_updated: "2026-07-16T17:28:25.614Z"
-last_activity: "2026-07-16 — 09-01 executed: the 5-D variance-kernel differential fuzz (VDIFF-02); zero counterexamples in 1024 runs; both mutants OBSERVED red and restored green; no `make compile-plank` needed anywhere in the battery (FFI recompiles at test time — re-confirmed)"
+stopped_at: Completed 09-02-PLAN.md — VDIFF-04 discharged (full-timepoint variance diff green, tolerance 0, after EVERY write); SC-4's remaining two mutants OBSERVED red and restored green; Phase 9 COMPLETE
+last_updated: "2026-07-16T17:50:45.395Z"
+last_activity: "2026-07-16 — 09-02 executed: VDIFF-04, the full-timepoint variance diff; zero divergences; SC-4's remaining two mutants OBSERVED red and restored green; the timepoint unpacker extracted to ONE shared TimepointDecoder (smoke suite unchanged 11/11)"
 progress:
   total_phases: 11
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -20,18 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-15)
 
 **Core value (v2.0):** The Plank realized-volatility oracle's variance surface (`volatilityCumulative` / `averageTick`) is proven bit-exact against Algebra's `VolatilityOracle` — the reference of record — the way the tick-average surface already is (Phase 0–1, merged). Every proof is a passing/failing test or a killed mutation; `make compile-plank` green is NOT evidence.
-**Current focus:** Phase 9 — Variance Kernel Unit-Diff & Full-Timepoint Diff (09-01/VDIFF-02 done; 09-02/VDIFF-04 next)
+**Current focus:** Phase 9 COMPLETE (09-01/VDIFF-02 + 09-02/VDIFF-04 both discharged). NEXT: Phase 10 — the CONSTRUCTED span > 2×WINDOW corpus and the sub-WINDOW `u32_sub` corpus (VDIFF-05/06).
 
 **Track note:** v2.0 is a separate, parallel track from the v1.0 GAMS-plumbing milestone (Phases 1–7), which remains incomplete/paused. The v1.0 core value and 30-requirement plumbing roadmap are preserved intact in ROADMAP.md and REQUIREMENTS.md.
 
 ## Current Position
 
-Phase: 9 of 11 (Variance Kernel Unit-Diff & Full-Timepoint Diff) — the phase the v2.0 milestone exists for
-Plan: 1 of 2 in Phase 9 — 09-01 COMPLETE (VDIFF-02, the 5-D kernel fuzz). NEXT: 09-02 (VDIFF-04, the full-timepoint diff).
-Status: Phase 9 IN PROGRESS. VDIFF-02 discharged: `make test-vol-kernel-fuzz` green at 1024 runs, tolerance 0 on the FULL uint256, corpus CONSTRUCTED (k!=0 AND b!=0 asserted every run, no assume-filtering), dt bounded [1, 2^32). Falsifiability proven by OBSERVATION, not assertion: Mutant A (harness arg-order swap) and Mutant B (kernel coefficient 6->7) each made the fuzz exit 2 with a recorded counterexample; both restored byte-identical and green. Algebra pin still exits 0 — the baseline did not move.
-Last activity: 2026-07-16 — 09-01 executed: the 5-D variance-kernel differential fuzz (VDIFF-02); zero counterexamples in 1024 runs; both mutants OBSERVED red and restored green; no `make compile-plank` needed anywhere in the battery (FFI recompiles at test time — re-confirmed)
+Phase: 9 of 11 (Variance Kernel Unit-Diff & Full-Timepoint Diff) — COMPLETE. This was the phase the v2.0 milestone exists for.
+Plan: 2 of 2 in Phase 9 — BOTH COMPLETE (09-01 VDIFF-02, the 5-D kernel fuzz; 09-02 VDIFF-04, the full-timepoint diff). NEXT: Phase 10 (VDIFF-05/06, the constructed corpora).
+Status: Phase 9 COMPLETE. **VDIFF-02** discharged: `make test-vol-kernel-fuzz` green at 1024 runs, tolerance 0 on the FULL uint256, corpus CONSTRUCTED (k!=0 AND b!=0 every run), dt bounded [1, 2^32). **VDIFF-04** discharged: `make test-vol-timepoint-diff` green (fixed anchor + 256-run constructed fuzz) — an Algebra-vs-Plank-ONLY driver asserting volatilityCumulative/averageTick/windowStartIndex at tolerance 0 after init and after EVERY write, read via getTimepointPacked; oldestIndex excluded as vacuous; UniV3 not driven. ZERO divergences found, and nothing was hedged to get there. Falsifiability proven by OBSERVATION: all THREE of SC-4's named mutants are killed — 09-01's kernel coefficient 6->7, plus 09-02's OFF_AVG_TICK 144->145 (RED on averageTick, 100 != 200) and the stopped vol accumulation (RED on volatilityCumulative, 9612287 != 7235899). Every mutant restored byte-identical and green. Algebra pin still exits 0 — the baseline did not move.
+Last activity: 2026-07-16 — 09-02 executed: VDIFF-04, the full-timepoint variance diff; zero divergences; SC-4's remaining two mutants OBSERVED red and restored green; the timepoint unpacker extracted to ONE shared TimepointDecoder (smoke suite unchanged 11/11)
 
-Progress (v2.0 milestone): [███████░░░] Phase 8 COMPLETE (3/3) — Phase 9: 1 of 2 plans complete (09-01)
+Progress (v2.0 milestone): [████████░░] Phase 8 COMPLETE (3/3) — Phase 9 COMPLETE (2/2). NEXT: Phase 10.
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Progress (v2.0 milestone): [███████░░░] Phase 8 COMPLETE (3/
 | Phase 08 P01 | 12m | 3 tasks | 4 files |
 | Phase 08 P02 | 10m | 3 tasks | 4 files |
 | Phase 09 P01 | 6min | 2 tasks | 2 files |
+| Phase 09 P02 | 13min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -90,13 +91,28 @@ Recent decisions affecting current work:
 - [Phase 09]: 09-01 — Mutant A's failure value was ~2^256 (115792...485613 != 787251601984). This is DIRECT EVIDENCE that asserting the FULL uint256 rather than the 88-bit production width is LOAD-BEARING, not merely 'stronger on a free axis' as 09-CONTEXT frames it: the divergence lives exactly in the high bits a uint88 comparison would discard.
 - [Phase 09]: 09-01 — Mutant B's first RED came from the CACHED fuzz failure corpus (runs: 0, replaying Mutant A's counterexample), which is a weaker claim than it looks. cache/fuzz was cleared and Mutant B re-run: it died again on a NEW independent counterexample (857507691265 != 857256149370). PATTERN for Phases 10-11: clear cache/fuzz when proving a mutant kill, or the kill may be a replay.
 - [Phase 09]: 09-01 — the FFI/compile-plank correction is now confirmed a THIRD time: Mutant B produced a numeric divergence from a .plk edit with NO make compile-plank anywhere in the battery. 08-02's contrary SUMMARY claim stays FALSE. Kept caveat: a mutant must reach the DEPLOYED bytecode; FFI guarantees it here, but re-check the deploy path if a future test ever deploys from a prebuilt artifact.
+- [Phase 09]: 09-02 — VDIFF-04 DISCHARGED: an Algebra-vs-Plank-ONLY driver asserts volatilityCumulative/averageTick/windowStartIndex at tolerance 0 after init and after EVERY write (fixed anchor + 256-run constructed fuzz). ZERO divergences; no tolerance added, no field dropped, no assertion relaxed. UniV3 not driven (no volatility accumulator, ~11.5M gas/run for data never compared, bogus 512 write-cap); oldestIndex excluded as VACUOUS (0 on both sides below 2^16 writes).
+- [Phase 09]: 09-02 — the ASSERTION LIVES INSIDE the driver, and that is load-bearing, not stylistic. PROOF: Mutant B (accumulation stopped) failed with 9612287 != 7235899, which is the state after the SECOND write (9612287 = Algebra's cumulative 2376388 + 7235899; 7235899 = that write's delta ALONE). The test aborts at the EARLIEST write at which the mutant can diverge at all. An end-only assertion would still redden but would say nothing about where the accumulator first broke.
+- [Phase 09]: 09-02 — VERIFY-THEN-CLAIM. (a) The hand-derived anchor (avgTick1=-400, vol=2,376,388 at write 1) was CHECKED with a temporary exact assertion before being written into the docblock as fact, then relaxed to the mandated assertGt(volA,0). (b) An inference that write 2 accrued ZERO vol was WRONG and was checked before it reached the SUMMARY (per-write accrual is 2376388/7235899/12625 — all non-zero). A derivation or inference written down unverified is just a plausible-looking claim.
+- [Phase 09]: 09-02 — PATTERN for Phase 11's battery: keep a NON-FUZZ unit anchor alongside each fuzz. Both 09-02 mutants reddened the unit anchor as well as the fuzz, and a unit assertion is cache-independent BY CONSTRUCTION — it cannot be a cached replay even in principle. This is strictly stronger than 09-01's fuzz-only kills. (cache/fuzz was still cleared before each kill; note runs: 0 here meant 'died on the first generated input', not replay — the independent counterexamples and the unit REDs distinguish the two.)
+- [Phase 09]: 09-02 — the timepoint unpacker now exists in exactly ONE place: test/market_state_measurements/TimepointDecoder.sol (library TimepointDecoder + struct PlankTimepoint). It existed twice and VDIFF-04 would have made a third. Offsets verified by READING Timepoint.plk:30-35, not trusted from a doc. Phase 10/11 must REUSE it, not copy it. Phase 0-1's RealizedVolatility.diff.t.sol keeps its partial 3-field inline unpack by deliberate scope decision (untouched).
 
 ### Pending Todos
 
-Phase 8 is COMPLETE — all 3 plans (08-01 pin, 08-02 mock+probe, 08-03 VDIFF-03) landed their
-summaries. VDIFF-01 is marked complete. Next action: verify Phase 8, then plan Phase 9 (VDIFF-02 —
-the 5-D kernel fuzz over `(dt, tick0, tick1, avgTick0, avgTick1)`), which starts from the
-proven-wired kernel pair 08-02 delivered (`make test-vol-kernel-probe`).
+**Phase 9 is COMPLETE — both plans landed their summaries.** VDIFF-02 (09-01, the 5-D kernel fuzz)
+and VDIFF-04 (09-02, the full-timepoint variance diff) are both marked complete, and ALL THREE of
+ROADMAP SC-4's named mutants are killed BY OBSERVATION. The variance surface is now proven
+bit-exact against Algebra at tolerance 0 in both the FORMULA (kernel, 1024 runs) and the STATE
+(stored fields, after every write) — over a NON-VACUOUS corpus.
+
+**Next action: verify Phase 9, then plan Phase 10 (VDIFF-05/06).** Phase 10 owns what Phase 9
+deliberately did NOT do, and this boundary must not be blurred:
+- the CONSTRUCTED `span > 2×WINDOW` corpus — the ONLY thing that executes `calculate_avg_tick`'s
+  WINDOW-interpolation branch and `window_start_index` selection inside `write_timepoint`;
+- the SEPARATE sub-WINDOW corpus — the only regime reaching `u32_sub`.
+Phase 9's green is explicitly NOT a claim about either. Phase 10 starts from
+`make test-vol-timepoint-diff` and should EXTEND its driver rather than write a new one, and MUST
+reuse `test/market_state_measurements/TimepointDecoder.sol` rather than copy the offsets.
 
 **Carry into Phase 9 — CORRECTED (the 08-02 claim was a MISDIAGNOSIS; do not act on it):**
 08-02's SUMMARY warns that the probe deploys from `build/plank/*.hex`, that a `.plk` edit is
@@ -140,6 +156,6 @@ check the deploy path before trusting a kill.
 
 ## Session Continuity
 
-Last session: 2026-07-16T17:27:28.471Z
-Stopped at: Completed 09-01-PLAN.md — VDIFF-02 discharged (5-D kernel fuzz green at 1024 runs, tolerance 0); Mutants A + B OBSERVED red and restored green
+Last session: 2026-07-16T17:49:40.523Z
+Stopped at: Completed 09-02-PLAN.md — VDIFF-04 discharged (full-timepoint variance diff green, tolerance 0, after EVERY write); SC-4's remaining two mutants OBSERVED red and restored green; Phase 9 COMPLETE
 Resume file: None
