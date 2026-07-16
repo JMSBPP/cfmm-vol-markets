@@ -197,7 +197,7 @@ Phase numbering **continues at Phase 8**. These four phases derive solely from t
 ## Phases
 
 - [x] **Phase 8: Reference Integrity & Kernel Mock** - Pin the WHOLE Algebra baseline closure (plugin impl + storage lib + transitive) against silent `npm ci` swaps, stand up a distinctly-named mock exposing `_volatilityOnRange` (probe-diffed vs Plank), and remove the one wrong raw-vs-normalized scalar-vol assertion (window-normalized `getAverageVolatility` port deferred) (completed 2026-07-16)
-- [ ] **Phase 9: Variance Kernel Unit-Diff & Full-Timepoint Diff** - Fuzz `calculate_realized_volatility` vs Algebra's `_volatilityOnRange` for exact `uint88` equality, and after every write assert Algebra-vs-Plank agree field-by-field on the full stored timepoint — each mutation-verified falsifiable
+- [x] **Phase 9: Variance Kernel Unit-Diff & Full-Timepoint Diff** - Fuzz `calculate_realized_volatility` vs Algebra's `_volatilityOnRange` for exact **full-uint256** equality (NOT uint88 — 09-01 showed the arg-order divergence lives in the high bits a uint88 compare discards), and after every write assert Algebra-vs-Plank agree field-by-field on the stored timepoint — each mutation-verified falsifiable (completed 2026-07-16)
 - [ ] **Phase 10: Discriminating Corpora (span>2×WINDOW + sub-WINDOW)** - Construct the `span > 2×WINDOW` corpus that actually exercises the binary search / interpolation / `window_start_index`, plus a distinct sub-WINDOW corpus for the `u32_sub` regime — both non-vacuous and mutation-verified
 - [ ] **Phase 11: Edges, Mutation Battery & Make Wire-Up** - Edge cases (dt-too-old revert, same-block idempotency, uint32 wrap, ring wrap via `vm.store`), the full mutation battery proving every new test falsifiable, and the suite folded into `test-vol-prereqs`
 
@@ -275,7 +275,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 8. Reference Integrity & Kernel Mock | 0/3 | Planned | - |
+| 8. Reference Integrity & Kernel Mock | 3/3 | Complete | 2026-07-16 |
 | 9. Variance Kernel Unit-Diff & Full-Timepoint Diff | 2/2 | Complete | 2026-07-16 |
 | 10. Discriminating Corpora (span>2×WINDOW + sub-WINDOW) | 0/TBD | Not started | - |
 | 11. Edges, Mutation Battery & Make Wire-Up | 0/TBD | Not started | - |
