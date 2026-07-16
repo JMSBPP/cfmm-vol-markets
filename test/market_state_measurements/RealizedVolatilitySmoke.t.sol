@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {console2} from "forge-std/console2.sol";
 import {PlankTestBase} from "../PlankTestBase.sol";
+import {TimepointDecoder, PlankTimepoint} from "./TimepointDecoder.sol";
 
 /// @notice The ABI RealizedVolatilityMod.plk dispatches on. `initializeTWAP` and `getTwapTick`
 ///         are deliberately the SAME selectors Algebra's plugin uses, so one interface can
@@ -71,38 +72,18 @@ contract RealizedVolatilitySmokeTest is PlankTestBase {
     // ONLY regime in which the u32_sub fix is reachable, and the old suite never entered it.
     uint32 constant T_LOW = 500;
 
-    // Timepoint bit layout (src/types/market_state_measurements/Timepoint.plk). Mirrored here
-    // ONLY to read the stored word back; the field WIDTHS are what must match Algebra, not these
-    // offsets (Plank's packing order is not Solidity's struct packing order).
-    uint256 constant OFF_VOL = 32;
-    uint256 constant OFF_TICK = 120;
-    uint256 constant OFF_AVG_TICK = 144;
-    uint256 constant OFF_TICK_CUM = 168;
-    uint256 constant OFF_WSI = 224;
-    uint256 constant OFF_INIT = 240;
+    // Timepoint bit layout (src/types/market_state_measurements/Timepoint.plk). The offsets and the
+    // decoded struct live in ONE place -- ./TimepointDecoder.sol -- because this unpacker is needed
+    // by the VDIFF-04 differential too, and three copies of a bit layout is three chances to
+    // desynchronise from Timepoint.plk. Reading the stored word back is what pins the packing; the
+    // field WIDTHS are what must match Algebra, not the offsets (Plank's packing order is not
+    // Solidity's struct packing order).
 
-    struct TP {
-        uint32 timestamp;
-        uint88 volatilityCumulative;
-        int24 tick;
-        int24 avgTick;
-        int56 tickCumulative;
-        uint16 windowStartIndex;
-        bool initialized;
+    function _timepoint(uint16 index) internal view returns (PlankTimepoint memory) {
+        return TimepointDecoder.decode(oracle.getTimepointPacked(index));
     }
 
-    function _timepoint(uint16 index) internal view returns (TP memory t) {
-        uint256 w = oracle.getTimepointPacked(index);
-        t.timestamp = uint32(w & 0xFFFFFFFF);
-        t.volatilityCumulative = uint88((w >> OFF_VOL) & 0xFFFFFFFFFFFFFFFFFFFFFF);
-        t.tick = int24(uint24((w >> OFF_TICK) & 0xFFFFFF));
-        t.avgTick = int24(uint24((w >> OFF_AVG_TICK) & 0xFFFFFF));
-        t.tickCumulative = int56(uint56((w >> OFF_TICK_CUM) & 0xFFFFFFFFFFFFFF));
-        t.windowStartIndex = uint16((w >> OFF_WSI) & 0xFFFF);
-        t.initialized = ((w >> OFF_INIT) & 1) == 1;
-    }
-
-    function _last() internal view returns (TP memory) {
+    function _last() internal view returns (PlankTimepoint memory) {
         return _timepoint(oracle.lastIndex());
     }
 
@@ -134,7 +115,7 @@ contract RealizedVolatilitySmokeTest is PlankTestBase {
         int24 tick = int24(-200);
         oracle.initializeTWAP(T_HIGH, tick);
 
-        TP memory t = _last();
+        PlankTimepoint memory t = _last();
         assertEq(t.tick, tick, "stored tick must sign-extend");
         assertEq(t.avgTick, tick, "stored avg_tick must sign-extend");
         assertTrue(t.initialized);
@@ -149,7 +130,7 @@ contract RealizedVolatilitySmokeTest is PlankTestBase {
         oracle.writeTimepoint(T_HIGH + DT, tick);
         oracle.writeTimepoint(T_HIGH + 2 * DT, tick);
 
-        TP memory t = _last();
+        PlankTimepoint memory t = _last();
         // tick_cumulative = sum(tick * dt) = -500 * 60
         assertEq(t.tickCumulative, int56(-500) * int56(60), "negative accumulator must sign-extend");
     }
@@ -161,7 +142,7 @@ contract RealizedVolatilitySmokeTest is PlankTestBase {
         oracle.writeTimepoint(T_HIGH + DT, int24(100)); // strictly below the running average
         oracle.writeTimepoint(T_HIGH + 2 * DT, int24(-300)); // and again, through zero
 
-        TP memory t = _last();
+        PlankTimepoint memory t = _last();
         // tick_cumulative accrues the tick that was CURRENT over each elapsed interval:
         //   [T0, T0+30) at tick 100  -> 100*30
         //   [T0+30, T0+60) at tick -300 -> -300*30
@@ -180,13 +161,13 @@ contract RealizedVolatilitySmokeTest is PlankTestBase {
         oracle.initializeTWAP(T_LOW, int24(1000));
         oracle.writeTimepoint(T_LOW + DT, int24(2000));
 
-        TP memory t = _last();
+        PlankTimepoint memory t = _last();
         // With a correct uint32 window_start, the oldest timepoint is NEWER than one window ago,
         // so avg_tick = (cum_now - cum_oldest) / (now - oldest) = (2000*30 - 0) / 30 = 2000.
         // With the mask deleted, oracle_lte inverts and avg_tick collapses to the spot tick --
         // which here is ALSO 2000, so the average must be checked where it differs from spot:
         oracle.writeTimepoint(T_LOW + 2 * DT, int24(0));
-        TP memory t2 = _last();
+        PlankTimepoint memory t2 = _last();
         // now: cumulative = 2000*30 + 0*30 = 60000 over 60s from T_LOW -> average 1000, spot 0.
         assertEq(t2.tick, int24(0), "spot");
         assertEq(t2.avgTick, int24(1000), "avg must be the time-weighted mean, not the spot tick");
@@ -217,7 +198,7 @@ contract RealizedVolatilitySmokeTest is PlankTestBase {
         oracle.initializeTWAP(T_HIGH, int24(-1000));
         oracle.writeTimepoint(T_HIGH + DT, int24(-2000));
 
-        TP memory t = _last();
+        PlankTimepoint memory t = _last();
         assertEq(t.avgTick, int24(-2000), "avg_tick over the interval");
         assertEq(
             uint256(t.volatilityCumulative),
@@ -279,7 +260,7 @@ contract RealizedVolatilitySmokeTest is PlankTestBase {
         // The advanced index must WRAP to 0, and slot 0 must hold the NEW timepoint -- not the
         // genesis one.
         assertEq(oracle.lastIndex(), uint16(0), "index must wrap to 0");
-        TP memory t = _timepoint(0);
+        PlankTimepoint memory t = _timepoint(0);
         assertEq(t.timestamp, T_HIGH + DT, "slot 0 must hold the NEW timepoint, not genesis");
         assertEq(t.tick, int24(300), "slot 0 must hold the NEW tick, not genesis");
     }
