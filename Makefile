@@ -41,6 +41,13 @@ test-vol-kernel-probe:
 test-vol-kernel-fuzz:
 	forge test --match-contract RealizedVolatilityKernelDiffTest --via-ir --optimize
 
+# The Algebra-vs-Plank-ONLY full-timepoint variance diff (VDIFF-04): after EVERY write, exact
+# agreement (tolerance 0) on the stored volatilityCumulative, averageTick and windowStartIndex.
+# The UniV3 ref is deliberately NOT driven -- it has no volatility accumulator. The oldest-index is
+# deliberately NOT asserted -- vacuously 0 on both sides below 2^16 writes.
+test-vol-timepoint-diff:
+	forge test --match-contract RealizedVolatilityTimepointDiffTest --via-ir --optimize
+
 # The Algebra reference the whole differential exercise is measured against lives in
 # node_modules -- untracked (.gitignore:2) and silently rewritten by `npm ci`. It was already
 # corrupted once by an editor auto-fill (tickCumulative -> tickC umulative). This pins the whole
@@ -52,9 +59,9 @@ check-algebra-ref-pin:
 
 # Everything that must be green for the oracle: baseline refs, Plank smoke, and the diff test.
 # The pin runs FIRST: verifying the baseline after diffing against it proves nothing.
-test-vol-prereqs: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-kernel-probe test-vol-kernel-fuzz
+test-vol-prereqs: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-kernel-probe test-vol-kernel-fuzz test-vol-timepoint-diff
 
-.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-kernel-probe test-vol-kernel-fuzz test-vol-prereqs
+.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-kernel-probe test-vol-kernel-fuzz test-vol-timepoint-diff test-vol-prereqs
 
 
 build-random:
