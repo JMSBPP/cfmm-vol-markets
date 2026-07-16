@@ -148,7 +148,7 @@ All 30 v1 requirements in REQUIREMENTS.md are mapped to exactly one phase:
 | 1 | REPO-01, REPO-02, REPO-03, REPO-04, REPO-05 | 5 |
 | 2 | GAMS-01, KERN-01, KERN-02, KERN-03, TOOL-01, TOOL-02 | 6 |
 | 3 | MAP-01, MAP-02, MAP-03, MAP-04, MAP-05, MAP-06, REF-01, REF-02 | 8 |
-| 4 | PLNK-01, PLNK-02, PLNK-03, PLNK-04 | 4 |
+| Complete    | 2026-07-16 | 4 |
 | 5 | GAMS-02 | 1 |
 | 6 | BRDG-01, BRDG-02, BRDG-03, BRDG-04 | 4 |
 | 7 | PIPE-01, PIPE-02 | 2 |
@@ -196,7 +196,7 @@ Phase numbering **continues at Phase 8**. These four phases derive solely from t
 
 ## Phases
 
-- [ ] **Phase 8: Reference Integrity & Kernel Mock** - Pin the WHOLE Algebra baseline closure (plugin impl + storage lib + transitive) against silent `npm ci` swaps, stand up a distinctly-named mock exposing `_volatilityOnRange` (probe-diffed vs Plank), and remove the one wrong raw-vs-normalized scalar-vol assertion (window-normalized `getAverageVolatility` port deferred)
+- [x] **Phase 8: Reference Integrity & Kernel Mock** - Pin the WHOLE Algebra baseline closure (plugin impl + storage lib + transitive) against silent `npm ci` swaps, stand up a distinctly-named mock exposing `_volatilityOnRange` (probe-diffed vs Plank), and remove the one wrong raw-vs-normalized scalar-vol assertion (window-normalized `getAverageVolatility` port deferred) (completed 2026-07-16)
 - [ ] **Phase 9: Variance Kernel Unit-Diff & Full-Timepoint Diff** - Fuzz `calculate_realized_volatility` vs Algebra's `_volatilityOnRange` for exact `uint88` equality, and after every write assert Algebra-vs-Plank agree field-by-field on the full stored timepoint — each mutation-verified falsifiable
 - [ ] **Phase 10: Discriminating Corpora (span>2×WINDOW + sub-WINDOW)** - Construct the `span > 2×WINDOW` corpus that actually exercises the binary search / interpolation / `window_start_index`, plus a distinct sub-WINDOW corpus for the `u32_sub` regime — both non-vacuous and mutation-verified
 - [ ] **Phase 11: Edges, Mutation Battery & Make Wire-Up** - Edge cases (dt-too-old revert, same-block idempotency, uint32 wrap, ring wrap via `vm.store`), the full mutation battery proving every new test falsifiable, and the suite folded into `test-vol-prereqs`
