@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 08-01-PLAN.md (Algebra reference pin, 4 mutants observed RED)
-last_updated: "2026-07-16T12:52:21.609Z"
-last_activity: "2026-07-16 — 08-01 executed: Algebra 4-file reference closure pinned + wired first into `make test-vol-prereqs`; 4 mutants OBSERVED red and restored green"
+status: completed
+stopped_at: Completed 08-02-PLAN.md — Phase 8 COMPLETE (kernel mock + probe; arg-order mutant observed RED)
+last_updated: "2026-07-16T13:02:37.170Z"
+last_activity: "2026-07-16 — 08-02 executed: Algebra kernel mock + Plank ABI harness + differential probe (tolerance 0, anchor 819430); argument-order mutant OBSERVED red and restored green"
 progress:
   total_phases: 11
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -27,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-07-15)
 ## Current Position
 
 Phase: 8 of 11 (Reference Integrity & Kernel Mock) — first v2.0 phase
-Plan: 3 of 3 in Phase 8 (08-01 and 08-03 COMPLETE; 08-02 in flight)
-Status: Executing — 08-01 (pin) and 08-03 (VDIFF-03) closed; Phase 8 completes when 08-02 (mock) lands its summary
-Last activity: 2026-07-16 — 08-01 executed: Algebra 4-file reference closure pinned + wired first into `make test-vol-prereqs`; 4 mutants OBSERVED red and restored green
+Plan: 3 of 3 in Phase 8 — ALL COMPLETE (08-01 pin, 08-02 mock+probe, 08-03 VDIFF-03)
+Status: Phase 8 COMPLETE — all 3 plans landed their summaries. VDIFF-01 marked complete (pin half by 08-01, mock half by 08-02). Ready for Phase 9 (VDIFF-02, the 5-D kernel fuzz).
+Last activity: 2026-07-16 — 08-02 executed: Algebra kernel mock + Plank ABI harness + differential probe (tolerance 0, anchor 819430); argument-order mutant OBSERVED red and restored green
 
-Progress (v2.0 milestone): [█████░░░░░] Phase 8 — 2 of 3 plans complete (08-01, 08-03)
+Progress (v2.0 milestone): [██████████] Phase 8 — 3 of 3 plans complete (08-01, 08-02, 08-03)
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress (v2.0 milestone): [█████░░░░░] Phase 8 — 2 of 3 p
 *Updated after each plan completion*
 | Phase 08 P03 | 11min | 1 tasks | 1 files |
 | Phase 08 P01 | 12m | 3 tasks | 4 files |
+| Phase 08 P02 | 10m | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -80,11 +81,21 @@ Recent decisions affecting current work:
 - [Phase 08]: [Phase 08]: 08-01 — pin mechanism is a sha256 manifest over the node_modules copy (the bytes foundry.toml:18 actually compiles), NOT vendoring under lib/: vendoring would guard a copy nothing links (pin theatre). Pinned bytes == compiled bytes by construction.
 - [Phase 08]: [Phase 08]: 08-01 — the pin covers the WHOLE 4-file import closure, not just VolatilityOracle.sol. Proven necessary: Mutant A (transitive-only IVolatilityOraclePluginImplementation.sol) went RED where a single-file pin would have stayed green.
 - [Phase 08]: [Phase 08]: 08-01 — checker accumulates failures instead of short-circuiting, so the closure-drift guard is observable independently of the content hash (resolved the plan's '(drift guard OR sha)' hedge to AND).
+- [Phase 08]: 08-02 — the Plank kernel harness takes calldata in ALGEBRA's argument order, so ONE tuple drives both sides and the Algebra->Plank re-order is isolated to a SINGLE commented call site. That makes the parameter-order footgun mutable-in-one-place and therefore falsifiable; the swap-order mutant was OBSERVED red (exit 2) and restored green (exit 0).
+- [Phase 08]: 08-02 — the probe asserts BOTH mock==Plank (tolerance 0) AND ==819430 (independently derived 3x). The differential assertion ALONE is insufficient: a mock that merely echoed Plank would satisfy it. The anchor pins Algebra to a value neither implementation can influence.
+- [Phase 08]: 08-02 — non-degeneracy requires k!=0 AND b!=0. 08-CONTEXT phrases it as tick0!=tick1, which only secures k; b!=0 additionally needs tick0!=avgTick0. dt=30,tick0=100,tick1=-400,avgTick0=50,avgTick1=-100 satisfies both (k=-350,b=1500).
 
 ### Pending Todos
 
-Phase 8 is planned (3 plans) and executing. 08-03 (VDIFF-03) is complete; 08-01 (reference pin) and
-08-02 (`_volatilityOnRange` mock) are in flight. Next action: land 08-01/08-02, then verify Phase 8.
+Phase 8 is COMPLETE — all 3 plans (08-01 pin, 08-02 mock+probe, 08-03 VDIFF-03) landed their
+summaries. VDIFF-01 is marked complete. Next action: verify Phase 8, then plan Phase 9 (VDIFF-02 —
+the 5-D kernel fuzz over `(dt, tick0, tick1, avgTick0, avgTick1)`), which starts from the
+proven-wired kernel pair 08-02 delivered (`make test-vol-kernel-probe`).
+
+**Carry into Phase 9 (learned in 08-02, load-bearing):** the probe deploys Plank from
+`build/plank/*.hex`, so a `.plk` source edit is INVISIBLE to forge until `make compile-plank` is
+re-run. The mutation battery MUST recompile Plank between every mutant or its "kills" are fiction —
+a mutant that never reaches bytecode tests the stale build, not the change.
 
 - Deferred items discovered during Phase 8 execution are logged in
   `.planning/phases/08-reference-integrity-kernel-mock/deferred-items.md` (not fixed in-phase).
@@ -96,7 +107,7 @@ Phase 8 is planned (3 plans) and executing. 08-03 (VDIFF-03) is complete; 08-01 
 - **NEW — `package-lock.json` is UNTRACKED** (found by 08-01 Mutant D; CI/reproducibility track): the pin checker's own remediation, "run `npm ci` to restore", is **NOT executable on a fresh clone** — `npm ci` requires a lockfile, and the lockfile is not committed (the whole npm/hardhat surface is untracked on `feat/plank`). Pin checks #1 (sha over the actually-compiled bytes) and #2 (closure drift) are load-bearing and unaffected; check #3 (package identity) reads the untracked lockfile. **Must be resolved BEFORE Phase 9 relies on `make test-vol-prereqs` in CI.** See `.planning/phases/08-reference-integrity-kernel-mock/deferred-items.md`.
 - **Falsifiability debt** (Phases 9–11 / VDIFF-08): a prior smoke suite was 6/6 green under deliberate bugs. No green is trusted until the mutation battery kills every mutant.
 - **Vacuous-test traps** (Phases 9–10): constant-tick paths and `tick == 0` make assertions vacuous; corpora must force strict rises/falls by construction. `getTwapTick`-only assertions cancel compensating errors.
-- **Parameter-order footgun** (Phase 9 / VDIFF-02): `calculate_realized_volatility` arg order differs from Algebra's `_volatilityOnRange`; the kernel diff must guard it with a swap-order mutant.
+- **Parameter-order footgun** (Phase 9 / VDIFF-02) — **DE-RISKED, not closed, by 08-02.** The arg orders genuinely differ (`calculate_realized_volatility(avg_tick0, avg_tick1, tick0, tick1, dt)` vs `_volatilityOnRange(dt, tick0, tick1, avgTick0, avgTick1)`), but the re-order is now isolated to ONE commented call site in `RealizedVolatilityKernelHarness.plk`, and `make test-vol-kernel-probe` was OBSERVED red under the swap-order mutant. Phase 9's fuzz inherits that guard at a single point — it still owns the swap-order mutant across the 5-D domain, since one point cannot prove agreement everywhere.
 - **Existing corpus never runs the windowed paths** (Phase 10 / VDIFF-05): the ≤2970 s corpus vs an 86400 s window never executes the binary search / interpolation / `window_start_index`; span > 2×WINDOW must be constructed and asserted.
 
 **v1.0 (paused — carried forward):**
@@ -104,6 +115,6 @@ Phase 8 is planned (3 plans) and executing. 08-03 (VDIFF-03) is complete; 08-01 
 
 ## Session Continuity
 
-Last session: 2026-07-16T12:51:46.269Z
-Stopped at: Completed 08-01-PLAN.md (Algebra reference pin, 4 mutants observed RED)
+Last session: 2026-07-16T13:02:37.167Z
+Stopped at: Completed 08-02-PLAN.md — Phase 8 COMPLETE (kernel mock + probe; arg-order mutant observed RED)
 Resume file: None

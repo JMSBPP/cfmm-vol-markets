@@ -74,7 +74,7 @@ requirements above. Reference of record: Algebra `VolatilityOracle`. Phase numbe
 
 ### Reference Integrity
 
-- [ ] **VDIFF-01**: The Algebra reference the diff test compiles against is protected from silent replacement — NOT just `libraries/VolatilityOracle.sol` but the full baseline the harness links: `VolatilityOraclePluginImplementation.sol` (the delegatecall target driving Algebra in VDIFF-04), `libraries/VolatilityOracleStorage.sol`, and their transitive imports — pinned as a whole (vendored under `lib/`, or a package-tarball / per-file checksum gate). A build/CI check FAILS LOUDLY when the `node_modules` copy diverges from the pin (verified by deliberately editing a reference file and observing red). The mock and vendored reference compile under `solc =0.8.20` (Algebra's pinned pragma).
+- [x] **VDIFF-01**: The Algebra reference the diff test compiles against is protected from silent replacement — NOT just `libraries/VolatilityOracle.sol` but the full baseline the harness links: `VolatilityOraclePluginImplementation.sol` (the delegatecall target driving Algebra in VDIFF-04), `libraries/VolatilityOracleStorage.sol`, and their transitive imports — pinned as a whole (vendored under `lib/`, or a package-tarball / per-file checksum gate). A build/CI check FAILS LOUDLY when the `node_modules` copy diverges from the pin (verified by deliberately editing a reference file and observing red). The mock and vendored reference compile under `solc =0.8.20` (Algebra's pinned pragma).
 
 ### Variance Kernel Diff
 
@@ -168,7 +168,7 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | BRDG-04 | Phase 6 | Pending |
 | PIPE-01 | Phase 7 | Pending |
 | PIPE-02 | Phase 7 | Pending |
-| VDIFF-01 | Phase 8 | Pending |
+| VDIFF-01 | Phase 8 | Complete |
 | VDIFF-03 | Phase 8 | Complete |
 | VDIFF-02 | Phase 9 | Pending |
 | VDIFF-04 | Phase 9 | Pending |
