@@ -1,12 +1,59 @@
+#####################################################################
+# THE TWO COMMANDS                                                  #
+#####################################################################
+#
+#   make test      -- every test in the repo, one run.
+#   make compile   -- every Plank entrypoint, compiled to EVM bytecode.
+#
+# Everything below those two is a focused SUBSET, kept for iterating on one
+# surface without paying for the whole suite. Nothing below is a substitute for
+# `make test` -- a subset going green says nothing about the subsets you skipped.
+.DEFAULT_GOAL := test
+
+# test: the whole Solidity/Plank test surface in a single forge invocation.
+#
+# The Algebra reference pin runs FIRST and gates the rest: every "bit-exact vs
+# Algebra" claim in the vol suite is measured against bytes that live in
+# node_modules (untracked, silently rewritable by `npm ci`, and corrupted once
+# already by an editor auto-fill). Diffing against a baseline and THEN checking
+# the baseline proves nothing about the run you just did.
+#
+# This compiles and runs the `.plk` sources too, and is the ONLY thing that does
+# so meaningfully: `make compile` proving a module builds does NOT prove its code
+# runs. `plank build` does not type-check anything unreachable from run{}, so a
+# module with an empty run{} compiles green while every function in it is dead.
+# This repo shipped exactly that gate. Only calling a function proves it exists.
+#
+# THIS TARGET IS CURRENTLY RED, AND THAT IS THE TRUTH, NOT A DEFECT IN THE TARGET.
+# As of the merge to a single vol test file: 50 pass, 5 fail (55 total).
+# The 5 are pre-existing and all in the pos_spec type track:
+#   VolRangeWidthTest         volWidthRangeSub_valid, volWidthRangeBuildVolRangeWidth_valid
+#   SpreadTickAssimetryTest   spreadTickAssimetrySplitTick__Valid, tickFromSplittedTickBucket__Valid
+#   OrderTest                 OrderMakeSucceed
+# All five are diagnosed as bugs in the TEST HARNESSES (not the .plk under test)
+# and are owned by the vol-type-system track. They are deliberately NOT skipped,
+# excluded, or filtered out to make this target green: a suite that lies about
+# what passes is worth less than no suite. Fix them or leave them visible.
+test: check-algebra-ref-pin
+	forge test --via-ir --optimize
+
+# compile: every Plank entrypoint -> EVM bytecode. A PRECONDITION, never acceptance.
+# See compile-plank below for what "entrypoint" means and why it is not literally
+# every .plk file.
+compile: compile-plank
+
+.PHONY: test compile
+
+#####################################################################
+# Focused subsets                                                   #
+#####################################################################
+
 sol-build:
 	forge build --via-ir --optimize
 
 sol-test:
-	forge test --match-contract VolOrderTest --via-ir --optimize 
+	forge test --match-contract VolOrderTest --via-ir --optimize
 
-
-test-utils:
-	forge clean && forge test --match-contract UtilsTest -vvvv --via-ir --optimize
 
 test-pricing-kernel-diff:
 	forge clean && forge test --match-contract PricingKernelPlankdiffTest -vvvv --via-ir --optimize
@@ -16,37 +63,20 @@ test-pricing-kernel-diff:
 test-market-statistics:
 	forge test --match-contract MarketStatisticsTest --via-ir --optimize
 
-# Proves RealizedVolatilityMod.plk is deployable and its ABI dispatch is live.
-# NOTE: `make compile-plank` passing does NOT prove this. plank does not type-check code
-# unreachable from run{}, so a module with an empty run{} compiles green while every
-# function in it is dead. Only calling it proves anything.
-test-realized-vol-smoke:
-	forge test --match-contract RealizedVolatilitySmokeTest --via-ir --optimize
-
-# The Plank<->Algebra<->UniV3 differential test (Phase 0-1): one driver, three targets,
-# exact agreement on the accumulator, the TWAP, and the stored state. No-wrap regime.
-test-vol-diff:
-	forge test --match-contract RealizedVolatilityDiffTest --via-ir --optimize
-
-# The variance-kernel probe: Algebra's _volatilityOnRange (via AlgebraVolatilityKernelMock)
-# against Plank's calculate_realized_volatility on a non-degenerate input, tolerance 0. Proves
-# the kernel pair is WIRED and agrees before Phase 9 fuzzes it over 5 dimensions.
-test-vol-kernel-probe:
-	forge test --match-contract RealizedVolatilityKernelProbeTest --via-ir --optimize
-
-# The 5-D variance-kernel differential fuzz (VDIFF-02): ONE (dt, tick0, tick1, avgTick0, avgTick1)
-# tuple through Algebra's _volatilityOnRange (AlgebraVolatilityKernelMock) and Plank's
-# calculate_realized_volatility (RealizedVolatilityKernelHarness.plk), full uint256, tolerance 0.
-# The probe is ONE point; this is the domain. dt in [1, 2^32) -- dt=0 is a known excluded divergence.
-test-vol-kernel-fuzz:
-	forge test --match-contract RealizedVolatilityKernelDiffTest --via-ir --optimize
-
-# The Algebra-vs-Plank-ONLY full-timepoint variance diff (VDIFF-04): after EVERY write, exact
-# agreement (tolerance 0) on the stored volatilityCumulative, averageTick and windowStartIndex.
-# The UniV3 ref is deliberately NOT driven -- it has no volatility accumulator. The oldest-index is
-# deliberately NOT asserted -- vacuously 0 on both sides below 2^16 writes.
-test-vol-timepoint-diff:
-	forge test --match-contract RealizedVolatilityTimepointDiffTest --via-ir --optimize
+# The WHOLE realized-volatility differential suite -- all five contracts, which now live in the
+# single file test/market_state_measurements/RealizedVolatility.diff.t.sol:
+#
+#   RealizedVolatilityKernelProbeTest    the kernel pair on ONE point, vs a hand-derived anchor
+#   RealizedVolatilityKernelDiffTest     VDIFF-02: the 5-D kernel fuzz, full uint256, tolerance 0
+#   RealizedVolatilitySmokeTest          the module deploys, dispatches, and each past bug is
+#                                        falsifiable
+#   RealizedVolatilityDiffTest           Algebra vs UniV3 vs Plank on the TICK surface
+#   RealizedVolatilityTimepointDiffTest  VDIFF-04: Algebra vs Plank on the VARIANCE surface,
+#                                        asserted after EVERY write
+#
+# `make compile` passing proves NONE of this -- see the note on `test` above.
+test-realized-vol:
+	forge test --match-path 'test/market_state_measurements/RealizedVolatility.diff.t.sol' --via-ir --optimize
 
 # The Algebra reference the whole differential exercise is measured against lives in
 # node_modules -- untracked (.gitignore:2) and silently rewritten by `npm ci`. It was already
@@ -57,30 +87,11 @@ test-vol-timepoint-diff:
 check-algebra-ref-pin:
 	@bash script/check-algebra-ref-pin.sh
 
-# Everything that must be green for the oracle: baseline refs, Plank smoke, and the diff test.
-# The pin runs FIRST: verifying the baseline after diffing against it proves nothing.
-test-vol-prereqs: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-kernel-probe test-vol-kernel-fuzz test-vol-timepoint-diff
+# Everything that must be green for the oracle: the pinned baseline refs, then the whole vol
+# suite. The pin runs FIRST: verifying the baseline after diffing against it proves nothing.
+test-vol-prereqs: check-algebra-ref-pin test-market-statistics test-realized-vol
 
-.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol-smoke test-vol-diff test-vol-kernel-probe test-vol-kernel-fuzz test-vol-timepoint-diff test-vol-prereqs
-
-
-build-random:
-	@plank build src/lib/BinomialProxy.plk --dep v3=lib/plankified-univ3/plank/lib/ --backend 'sona'
-
-build-cash:
-	@plank build src/lib/SwapAmtGen.plk --dep v3=lib/plankified-univ3/plank/lib/ --backend 'sona'	
-
-build-pool:
-	@plank build src/ReferenceMarket.plk --dep v3=lib/plankified-univ3/plank/lib/ --backend 'sona'
-
-
-#####################################################################
-# build-pool:							    #
-# 	@plank build src/ReferenceMarket.plk \			    #
-# 		--dep v3=lib/plankified-univ3/plank/lib/ \	    #
-# 		--dep le_proj=test/le-proj \			    #
-# 		--backend sona					    #
-#####################################################################
+.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs
 
 
 #####################################################################
@@ -100,12 +111,11 @@ PLANK_DEP := --dep v3=lib/plankified-univ3/plank/lib/ --dep std=lib/plank-monore
              --dep lib=src/lib --dep types=src/types --dep interfaces=src/interfaces
 PLANK_BACKEND := sona
 PLANK_BUILD   := build/plank
-# Entrypoints are auto-discovered as any .plk under src/ or test/ that contains
-# an `init` block -- EXCEPT anything under an `exp/` directory. `exp/` holds
-# throwaway experiments (CESLongPayoff, VarianceMarketPlant); they are kept on
-# disk but must never redden the gate, so discovery skips the directory outright
-# rather than listing each file in PLANK_SKIP.
-PLANK_EXCLUDE_DIR := exp
+# Entrypoints are auto-discovered as any .plk under src/ or test/ that contains an
+# `init` block. There is no exclusion list: `src/exp/` (throwaway experiments) and
+# `src/ldf/` were DELETED rather than skipped, because a directory permanently
+# excluded from the gate is not code the gate covers -- it is unmaintained code
+# wearing a checkout. Recover from git history if ever needed.
 #
 # PLANK_SKIP is the *rescue queue*: entrypoints that belong to the project and
 # are meant to compile, but are still blocked on authoring. Delete a line the
@@ -120,10 +130,30 @@ PLANK_SKIP    := src/modules/exposure/VegaAccountMod.plk
 # build/plank/<name>.hex on success and <name>.hex.err on failure. Fails
 # (non-zero) if any entrypoint does not compile, so broken contracts
 # redden the build instead of hiding.
+#
+# TWO THINGS THIS DOES NOT DO, both of which it is routinely mistaken for:
+#
+#  1. It does not compile every .plk FILE, and cannot. `plank build` requires an
+#     entry file with an `init` block; pure library/type/interface sources have
+#     none and fail outright with "missing init block". They are compiled
+#     TRANSITIVELY, as imports of the entrypoints below -- which is full coverage
+#     of the tree, reached from its roots.
+#  2. It does not prove the compiled code WORKS, or even that it type-checks.
+#     plank does not type-check anything unreachable from run{}. A module whose
+#     run{} is empty compiles green with every function in it dead. That is not a
+#     hypothetical: this repo shipped a "13 ok / 0 failed" gate that was green on
+#     an EMPTY module. Green here is a precondition for `make test`, never a
+#     substitute for it.
+#
+# Nor does `make test` depend on this target: deployPlank -> plankDeployFFI ->
+# plankBuildFFI shells out to `plank build` over FFI AT TEST TIME, so a .plk edit
+# reaches the deployed bytecode on the very next `forge test`. build/plank/*.hex
+# is written here and read by NOTHING in the test path. The value of this target
+# is that it compiles the entrypoints `make test` never deploys.
 compile-plank:
 	@mkdir -p $(PLANK_BUILD)
 	@rc=0; ok=0; fail=0; skip=0; \
-	for f in $$(grep -rlE '^[[:space:]]*init[[:space:]]*\{' --include='*.plk' --exclude-dir='$(PLANK_EXCLUDE_DIR)' src test | sort); do \
+	for f in $$(grep -rlE '^[[:space:]]*init[[:space:]]*\{' --include='*.plk' src test | sort); do \
 		case " $(PLANK_SKIP) " in \
 			*" $$f "*) printf '   SKIP %s  (WIP)\n' "$$f"; skip=$$((skip+1)); continue;; \
 		esac; \
