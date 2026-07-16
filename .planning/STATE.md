@@ -1,37 +1,37 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: milestone
-status: executing
-stopped_at: Completed 09-02-PLAN.md — VDIFF-04 discharged (full-timepoint variance diff green, tolerance 0, after EVERY write); SC-4's remaining two mutants OBSERVED red and restored green; Phase 9 COMPLETE
-last_updated: "2026-07-16T17:50:45.395Z"
-last_activity: "2026-07-16 — 09-02 executed: VDIFF-04, the full-timepoint variance diff; zero divergences; SC-4's remaining two mutants OBSERVED red and restored green; the timepoint unpacker extracted to ONE shared TimepointDecoder (smoke suite unchanged 11/11)"
+milestone: v3.0
+milestone_name: VegaAccountMod Vault (H1 issuance, exogenous risk price)
+status: defining-requirements
+stopped_at: Milestone v3.0 started — defining requirements; v2.0 PAUSED after Phase 9 (Phases 10–11 pending, untouched)
+last_updated: "2026-07-16"
+last_activity: "2026-07-16 — Milestone v3.0 started: VegaAccountMod vault, H1-only issuance, exogenous p_risk; design authority is the machine-checked Lean at ../cfmm-wt/lean4-spec (vol_markets)"
 progress:
-  total_phases: 11
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-15)
+See: .planning/PROJECT.md (updated 2026-07-16)
 
-**Core value (v2.0):** The Plank realized-volatility oracle's variance surface (`volatilityCumulative` / `averageTick`) is proven bit-exact against Algebra's `VolatilityOracle` — the reference of record — the way the tick-average surface already is (Phase 0–1, merged). Every proof is a passing/failing test or a killed mutation; `make compile-plank` green is NOT evidence.
-**Current focus:** Phase 9 COMPLETE (09-01/VDIFF-02 + 09-02/VDIFF-04 both discharged). NEXT: Phase 10 — the CONSTRUCTED span > 2×WINDOW corpus and the sub-WINDOW `u32_sub` corpus (VDIFF-05/06).
+**Core value (v3.0):** `VegaAccountMod.plk` is a working vault — deposit collateral, receive vega-exposure shares — whose issuance arithmetic (`ΔQ_v = ΔQ_M / p_risk`, `p_risk = oracle/(1−h)`, division-free admissibility guard, three distinct state variables) is implemented and proven against the machine-checked Lean lemmas in `../cfmm-wt/lean4-spec/lean/vol_markets/`. Every proof is a passing/failing test or a killed mutation; compiling is NOT evidence; the module leaves `PLANK_SKIP` only when its dispatch is CALLED green.
+**Current focus:** Defining v3.0 requirements. First deliverable is the spec correction: `spec/entities/types/risk.md` carries the REFUTED `price/haircut` formula.
 
-**Track note:** v2.0 is a separate, parallel track from the v1.0 GAMS-plumbing milestone (Phases 1–7), which remains incomplete/paused. The v1.0 core value and 30-requirement plumbing roadmap are preserved intact in ROADMAP.md and REQUIREMENTS.md.
+**Track note:** Third parallel track. v1.0 (GAMS plumbing, Phases 1–7) paused. v2.0 (vol-oracle differential, Phases 8–11) PAUSED AFTER PHASE 9 — VDIFF-01..04 discharged and pushed (`9e57a0d`, single-file merge `ead50b8`); Phases 10–11 (VDIFF-05..08: constructed corpora, edges, mutation battery) remain pending and are NOT part of v3.0. Resuming v2.0 = `/gsd:plan-phase 10`.
 
 ## Current Position
 
-Phase: 9 of 11 (Variance Kernel Unit-Diff & Full-Timepoint Diff) — COMPLETE. This was the phase the v2.0 milestone exists for.
-Plan: 2 of 2 in Phase 9 — BOTH COMPLETE (09-01 VDIFF-02, the 5-D kernel fuzz; 09-02 VDIFF-04, the full-timepoint diff). NEXT: Phase 10 (VDIFF-05/06, the constructed corpora).
-Status: Phase 9 COMPLETE. **VDIFF-02** discharged: `make test-vol-kernel-fuzz` green at 1024 runs, tolerance 0 on the FULL uint256, corpus CONSTRUCTED (k!=0 AND b!=0 every run), dt bounded [1, 2^32). **VDIFF-04** discharged: `make test-vol-timepoint-diff` green (fixed anchor + 256-run constructed fuzz) — an Algebra-vs-Plank-ONLY driver asserting volatilityCumulative/averageTick/windowStartIndex at tolerance 0 after init and after EVERY write, read via getTimepointPacked; oldestIndex excluded as vacuous; UniV3 not driven. ZERO divergences found, and nothing was hedged to get there. Falsifiability proven by OBSERVATION: all THREE of SC-4's named mutants are killed — 09-01's kernel coefficient 6->7, plus 09-02's OFF_AVG_TICK 144->145 (RED on averageTick, 100 != 200) and the stopped vol accumulation (RED on volatilityCumulative, 9612287 != 7235899). Every mutant restored byte-identical and green. Algebra pin still exits 0 — the baseline did not move.
-Last activity: 2026-07-16 — 09-02 executed: VDIFF-04, the full-timepoint variance diff; zero divergences; SC-4's remaining two mutants OBSERVED red and restored green; the timepoint unpacker extracted to ONE shared TimepointDecoder (smoke suite unchanged 11/11)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements for milestone v3.0
+Last activity: 2026-07-16 — Milestone v3.0 started (VegaAccountMod vault: H1-only issuance, exogenous p_risk, Lean lemmas as the test oracle)
 
-Progress (v2.0 milestone): [████████░░] Phase 8 COMPLETE (3/3) — Phase 9 COMPLETE (2/2). NEXT: Phase 10.
+**v2.0 pause point (for resumption):** Phase 9 complete — variance surface bit-exact vs Algebra at tolerance 0 in FORMULA (5-D kernel fuzz, 1024 runs) and STATE (full-timepoint diff after every write); all SC-4 mutants observed red and restored; Algebra pin exits 0. The whole vol suite now lives in ONE file (`test/market_state_measurements/RealizedVolatility.diff.t.sol`, 5 contracts, 17 tests) run by `make test-realized-vol`; repo-wide gates are `make test` (currently 50 pass / 5 pre-existing pos_spec harness failures, documented in the Makefile) and `make compile` (10 ok / 1 skipped: VegaAccountMod).
 
 ## Performance Metrics
 
