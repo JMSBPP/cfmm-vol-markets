@@ -99,28 +99,28 @@ Design authority: machine-checked Lean at `../cfmm-wt/lean4-spec/lean/vol_market
 
 ### Spec & Type Correction
 
-- [ ] **RISK-01**: `spec/entities/types/risk.md` states the issuance risk price as `p_risk = oracle/(1−h)` — citing `issuance_haircut_equiv` and `haircutRiskPrice_ge_oracle` — pins the per-operation fixed-point convention (Q64.96 price, Q0.96 haircut, `p_risk` rounds UP, shares round DOWN) and the `p_risk` quote convention, and no longer contains the refuted `price/haircut` expression anywhere
+- [ ] **RISK-01**: `spec/entities/types/risk.md` states the issuance risk price as `p_risk = oracle/(1−h)` — citing `issuance_haircut_equiv` and `haircutRiskPrice_ge_oracle`, and RECORDING that `issuance_haircut_equiv` holds over ℝ ONLY: the two integer paths round at different points, so exact cross-path equality is FALSE (verified counterexample: `deposit=10, oracleX96=10·2^92, hX96=3·2^92` → 12 vs 13); only the one-sided `composed ≤ direct` transfers. It pins the per-operation integer realization — Q64.96 price; Q0.96 haircut (REPLACING the draft's `Q0.64`); `p_risk = mulDivRoundingUp(oracleX96, 2^96, 2^96 − hX96)` with a CHECKED (non-wrapping) subtraction; `shares = mulDiv(deposit, 2^96, pRiskX96)` rounding DOWN; the direct path's realization `mulDiv(deposit, 2^96 − hX96, oracleX96)` rounding DOWN — plus the `p_risk` quote convention AND the share unit/decimals, and the refuted `price/haircut` expression (verbatim `collateralAmount* (self.price/haircut)`) no longer appears anywhere under `spec/` or `src/`
 - [ ] **RISK-02**: `src/types/exposure/VegaExposure.plk` is the live-fields-only record (`exposure` u128-bounded, `priceVolX96` u160-bounded carrying the exogenous `p_risk`), and `spec/entities/types/exposure.md` records that `collateralToken`/`underlyingToken`/`riskOracleId` return with the oracle-wiring milestone
 
 ### Issuance Library (pure, no storage)
 
-- [ ] **VLIB-01**: A pure `haircut_risk_price(oracleX96, hX96)` returns `mulDivRoundingUp(oracleX96, 2^96, 2^96 − hX96)`, reverting for `hX96 ≥ 2^96` or `oracleX96 == 0`; fuzz asserts `p_risk ≥ oracle` (`haircutRiskPrice_ge_oracle`) — no silent-zero division path exists
+- [ ] **VLIB-01**: A pure `haircut_risk_price(oracleX96, hX96)` returns `mulDivRoundingUp(oracleX96, 2^96, 2^96 − hX96)` with a CHECKED subtraction, reverting for `hX96 ≥ 2^96` or `oracleX96 == 0`; fuzz asserts `p_risk ≥ oracle` (`haircutRiskPrice_ge_oracle` — NOTE this fuzz alone cannot kill a ceil→floor mutant, since floor also satisfies ≥ oracle; the rounding is pinned by VLIB-04's inexact-division anchor) — no silent-zero division path exists
 - [ ] **VLIB-02**: A pure `issue_shares(deposit, pRiskX96)` returns `mulDiv(deposit, 2^96, pRiskX96)` rounding DOWN, reverting for `pRiskX96 == 0`, composing the existing `v3::math::full_math::mulDiv` (no reimplementation)
-- [ ] **VLIB-03**: Fuzz properties pin the rounding direction: the backing invariant `shares · pRisk ≤ deposit · 2^96` holds on every run (`mulX96Down_le` mirror) and the weight-one identity is exact (`mulX96Down_one` mirror), on a CONSTRUCTED corpus (no assume-filtering)
-- [ ] **VLIB-04**: The two-path equivalence `issue_shares(deposit, haircut_risk_price(oracle, h))` vs `deposit·(1−h)/oracle` (`issuance_haircut_equiv`) is diffed against a Solidity reference mock composing solady `fullMulDiv`, tolerance 0, via a Plank kernel harness deployed over FFI — before any module exists
+- [ ] **VLIB-03**: Fuzz properties pin the rounding direction: the backing invariant `shares · pRisk ≤ deposit · 2^96` holds on every run — a plain floor-division property (NOT `mulX96Down_le`, which is the weight-clamp lemma for the deferred distance pipeline and proves a different statement), asserted with genuine 512-bit arithmetic on BOTH sides since each product exceeds 2^256 above `deposit ≈ 2^160` — and the weight-one identity `issue_shares(deposit, 2^96) == deposit` is exact (`mulX96Down_one` mirror), on a CONSTRUCTED corpus (no assume-filtering)
+- [ ] **VLIB-04**: The composed issuance path `issue_shares(deposit, haircut_risk_price(oracle, h))` is diffed against a Solidity reference mock computing the IDENTICAL ceil-then-floor composition (solady `fullMulDiv`-based round-up then floor), tolerance 0, via a Plank kernel harness deployed over FFI — before any module exists. SEPARATELY, a fuzz asserts the one-sided integer transfer of `issuance_haircut_equiv`: composed path ≤ direct path `mulDiv(deposit, 2^96 − hX96, oracleX96)` (exact cross-path equality is FALSE in integers — see RISK-01). The non-fuzz unit anchor sits at an INEXACT-division point (an anchor at `h = 0` or any exact division kills no rounding mutant)
 
 ### Vault Module
 
 - [ ] **VMOD-01**: `deposit(collateralAmt)` mints `issue_shares(collateralAmt, storedRiskPrice)` and updates all three accumulators (`totalDeposits`, `totalShares`, `riskWeightedShares` with d ≡ 1) in distinct storage slots; it reverts on `collateralAmt == 0` and on `sharesMinted == 0` (dust cannot bank collateral for zero shares)
-- [ ] **VMOD-02**: `setRiskPrice(pRiskX96)` stores the exogenous price and reverts on 0; `deposit` before any `setRiskPrice` reverts (the unset-slot default-0 cannot silently mint via EVM DIV-by-zero-returns-0)
-- [ ] **VMOD-03**: Dispatched view selectors expose `previewDeposit(amt)` (pure issuance, no state change) and `previewRiskPrice(oracleX96, hX96)` (the H1 computation with `h < 1` enforced on-chain), each verified by CALLING the selector
-- [ ] **VMOD-04**: State readers expose every stored field (`totalDeposits`, `totalShares`, `riskWeightedShares`, `riskPrice`) — the module is not a black box, and quotient-only assertions are impossible by construction
-- [ ] **VMOD-05**: The admissibility guard is implemented in its collapsed money-side form (`deposit ≤ post-deposit Q_M^Σ`, per `deltaShares_admissible_iff` — never the ~2^160-overflowing cross-product) and a test asserts both the guard's presence and that the three accumulators never alias
+- [ ] **VMOD-02**: `setRiskPrice(pRiskX96)` stores the exogenous price and reverts on 0; `deposit` before any `setRiskPrice` reverts. The deposit-time `storedRiskPrice != 0` check is equivalent to "set at least once" ONLY because the setter rejects 0 — that coupling is documented, since deleting the setter's zero-guard silently changes the deposit check's meaning. The setter is deliberately UNAUTHENTICATED in v1 (recorded in scope: no asset custody, no redemption, test scaffold — authorization arrives with oracle wiring)
+- [ ] **VMOD-03**: Dispatched view selectors expose `previewDeposit(amt)` (pure issuance, no state change) and `previewRiskPrice(oracleX96, hX96)` (the H1 computation with `h < 1` enforced on-chain), each verified by CALLING the selector; and `previewDeposit(amt)` EQUALS the observed `totalShares` delta of an immediately following `deposit(amt)` under identical stored state (preview/action divergence is the canonical vault bug class)
+- [ ] **VMOD-04**: State readers expose every stored field (`totalDeposits`, `totalShares`, `riskWeightedShares`, `riskPrice`) — the module is not a black box, and quotient-only assertions are impossible by construction; every selector is declared in an `interfaces/exposure/` Plank interface file with its EXACT Solidity signature string (the `RealizedVolatilityInterface` pattern), so module selectors and the reference mock's ABI are computed from the SAME strings
+- [ ] **VMOD-05**: The admissibility guard exists in its collapsed money-side form, instantiating Flow.lean's `Q_M^Σ` as the POST-deposit `totalDeposits` — in deposit-only v1 this is TRIVIALLY SATISFIED and can never fire; it is declared INERT SCAFFOLDING for the deferred flow milestone, not presented as a live safety property. Its presence/form is verified solely by mutation (the raw CHECKED cross-product `deposit · pRisk` variant is OBSERVED RED via overflow revert at `deposit ≈ 2^200`; the u128 bound on `VegaExposure.exposure` is a type-level bound not enforced on the u256 accumulator slots, so the kill path is unobstructed), and the FOUR keccak-derived slots (three accumulators + `riskPrice`) are proven distinct by raw `vm.load` assertions at the precomputed slot addresses
 
 ### Verification & Exit
 
 - [ ] **VVER-01**: An end-to-end differential test drives identical `(setRiskPrice, deposit)` sequences into `VegaAccountMod` and the Solidity reference mock, asserting all three accumulators equal at tolerance 0 after EVERY write, in ONE test file per module with a non-fuzz unit anchor alongside every fuzz
-- [ ] **VVER-02**: Every new test is proven falsifiable by an observed-RED mutation battery (rounding-direction flip, accumulator conflation, guard deletion, h-bound removal — each KILLED with `cache/fuzz` cleared); `VegaAccountMod` leaves `PLANK_SKIP` only after `deposit` is CALLED green; the suite is wired into a dedicated `make` target and folded into `make test`
+- [ ] **VVER-02**: Every new test is proven falsifiable by an observed-RED mutation battery of KILLABLE mutants: rounding-direction flips (`p_risk` ceil→floor, shares floor→ceil) killed at the inexact-division anchor; SLOT-CONSTANT aliasing (`SLOT_RISK_WEIGHTED_SHARES := SLOT_TOTAL_SHARES` — the shared slot double-increments, reddening the differential AND the `vm.load` assertions; the read-conflation variant is BEHAVIORALLY UNKILLABLE in v1 where d ≡ 1 and is killed only by the raw `vm.load` slot assertion); dust-guard deletion (killed on state); the raw checked cross-product guard (killed by overflow revert). Mutants PROVEN equivalent by the lib's defense-in-depth — h-bound `<`→`<=` (masked by `full_math`'s zero-denominator revert) and unset-`p_risk` module-guard deletion (masked by the lib's own zero-price revert) — are DOCUMENTED as equivalence-checked, never counted as kills. Each kill with `cache/fuzz` cleared or a cache-independent unit anchor; `VegaAccountMod` leaves `PLANK_SKIP` only after `deposit` is CALLED green; the suite is wired into a dedicated `make` target and folded into `make test`
 
 ## v2 Requirements
 
@@ -208,13 +208,28 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | VDIFF-06 | Phase 10 | Pending |
 | VDIFF-07 | Phase 11 | Pending |
 | VDIFF-08 | Phase 11 | Pending |
+| RISK-01 | Phase 12 | Pending |
+| RISK-02 | Phase 12 | Pending |
+| VLIB-01 | Phase 13 | Pending |
+| VLIB-02 | Phase 13 | Pending |
+| VLIB-03 | Phase 13 | Pending |
+| VLIB-04 | Phase 13 | Pending |
+| VMOD-01 | Phase 14 | Pending |
+| VMOD-02 | Phase 14 | Pending |
+| VMOD-03 | Phase 14 | Pending |
+| VMOD-04 | Phase 14 | Pending |
+| VMOD-05 | Phase 14 | Pending |
+| VVER-01 | Phase 15 | Pending |
+| VVER-02 | Phase 15 | Pending |
 
 **Coverage:**
 - v1 requirements: 30 total — mapped to Phases 1–7: 30 ✓
 - v2.0 requirements (VDIFF-01..08): 8 total — mapped to Phases 8–11: 8 ✓
-- Total mapped: 38/38 — Unmapped: 0
+- v3.0 requirements (RISK-01/02, VLIB-01..04, VMOD-01..05, VVER-01/02): 13 total — mapped to Phases 12–15: 13 ✓
+- Total mapped: 51/51 — Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-27*
 *Last updated: 2026-06-27 — traceability populated against plumbing-first 7-phase roadmap (30/30 mapped)*
 *Last updated: 2026-07-15 — appended milestone v2.0 (VDIFF-01..08) traceability, Phases 8–11 (8/8 mapped)*
+*Last updated: 2026-07-16 — appended milestone v3.0 (RISK/VLIB/VMOD/VVER, 13 reqs) traceability, Phases 12–15 (13/13 mapped); total 51/51*
