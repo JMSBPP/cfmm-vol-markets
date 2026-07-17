@@ -337,10 +337,10 @@ Phase numbering **continues at Phase 12**. v2.0's Phases 10–11 are pending on 
 
 **Note (no mutation gate here):** Phase 12 is DOC + type-declaration only; it produces no CALLED test, so the mutation-falsifiability gate does not apply. Its outputs (`git grep` empties, prose conventions, a typed record) are the labelled preconditions the arithmetic phases 13–15 prove by observed test. Type completion is compile-only — "it compiles" is explicitly NOT a success claim; the type is proven only by being imported and exercised in Phase 13.
 
-**Plans**: TBD
+**Plans**: 1 plan (one wave — doc + type-declaration only)
 
 Plans:
-- [ ] 12-01: TBD
+- [ ] 12-01-PLAN.md — Rewrite risk.md to the machine-checked H1 issuance spec (oracle/(1−h), integer realization, ℝ-only counterexample); DELETE the refuted RiskDiscount.plk/RiskMeasureLib.plk embodiment; complete VegaExposure.plk (2 live fields + RiskPriceX96/Haircut newtypes); sync exposure.md; scoped-grep gate + labelled compile precondition
 
 ### Phase 13: Issuance Library (VegaIssuanceLib)
 **Goal**: The pure issuance library — `haircut_risk_price`, `issue_shares`, and the Lean-lemma fuzz battery — is proven bit-exact against a Solidity reference mock via an FFI-deployed kernel harness, **before any module or storage exists**, composing the existing `v3::math::full_math::mulDiv` (never reimplemented). This is the highest-value independently-testable unit — the same pattern that proved the vol oracle's variance kernel ahead of its module.
