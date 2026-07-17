@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: milestone
-status: planning
-stopped_at: Completed 12-01-PLAN.md
-last_updated: "2026-07-17T13:09:22.936Z"
+milestone: v3.0
+milestone_name: VegaAccountMod Vault (H1 issuance, exogenous risk price)
+status: executing
+stopped_at: Phase 12 COMPLETE + verified (6/6); next /gsd:plan-phase 13. NOTE: gsd-tools `phase complete` re-normalizes this frontmatter to `milestone: v2.0` from a stale source — re-check these 4 lines after every run of it
+last_updated: "2026-07-17T13:14:18.139Z"
 last_activity: "2026-07-17 — executed 12-01: risk.md corrected to `p_risk = oracle/(1−h)` (integer realization + ℝ-only counterexample); refuted RiskDiscount/RiskMeasureLib .plk deleted (concept gone from src/); VegaExposure completed as two-live-field record + RiskPriceX96/Haircut newtypes; scoped grep gate empty; compile-plank stayed green (10 ok, 0 failed, 1 skipped) — a labelled PRECONDITION, not acceptance (no CALLED test this phase)"
 progress:
   total_phases: 15
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-16)
 
 **Core value (v3.0):** `VegaAccountMod.plk` is a working vault — deposit collateral, receive vega-exposure shares — whose issuance arithmetic (`ΔQ_v = ΔQ_M / p_risk`, `p_risk = oracle/(1−h)`, division-free admissibility guard, three distinct state variables) is implemented and proven against the machine-checked Lean lemmas in `../cfmm-wt/lean4-spec/lean/vol_markets/`. Every proof is a passing/failing test or a killed mutation; compiling is NOT evidence; the module leaves `PLANK_SKIP` only when its dispatch is CALLED green.
-**Current focus:** v3.0 roadmap is complete (Phases 12–15, 13/13 reqs mapped). Next action is `/gsd:plan-phase 12`. Phase 12 (Spec Correction & Type Completion) BLOCKS 13–15: `spec/entities/types/risk.md` still carries the Lean-REFUTED `price/haircut` formula, so no arithmetic may be written until it is corrected to `p_risk = oracle/(1−h)` and the fixed-point convention (Q64.96 price, Q0.96 haircut, p_risk UP, shares FLOOR) is pinned.
+**Current focus:** Phase 12 COMPLETE — risk.md now carries the machine-checked H1 spec (integer realization, quote convention, ℝ-only counterexample), the refuted RiskDiscount/RiskMeasureLib .plk embodiment is DELETED, and VegaExposure + RiskPriceX96/Haircut newtypes exist. Phases 13–15 are UNBLOCKED. Next action: `/gsd:plan-phase 13` (Issuance Library, VLIB-01..04).
 
 **Track note:** Third parallel track. v1.0 (GAMS plumbing, Phases 1–7) paused. v2.0 (vol-oracle differential, Phases 8–11) PAUSED AFTER PHASE 9 — VDIFF-01..04 discharged and pushed (`9e57a0d`, single-file merge `ead50b8`); Phases 10–11 (VDIFF-05..08: constructed corpora, edges, mutation battery) remain pending and are NOT part of v3.0. Resuming v2.0 = `/gsd:plan-phase 10`.
 
