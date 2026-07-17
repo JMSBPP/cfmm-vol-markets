@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: VegaAccountMod Vault (H1 issuance, exogenous risk price)
 status: executing
-stopped_at: Phase 12 COMPLETE + verified (6/6); next /gsd:plan-phase 13. NOTE: gsd-tools `phase complete` re-normalizes this frontmatter to `milestone: v2.0` from a stale source — re-check these 4 lines after every run of it
-last_updated: "2026-07-17T13:14:18.139Z"
-last_activity: "2026-07-17 — executed 12-01: risk.md corrected to `p_risk = oracle/(1−h)` (integer realization + ℝ-only counterexample); refuted RiskDiscount/RiskMeasureLib .plk deleted (concept gone from src/); VegaExposure completed as two-live-field record + RiskPriceX96/Haircut newtypes; scoped grep gate empty; compile-plank stayed green (10 ok, 0 failed, 1 skipped) — a labelled PRECONDITION, not acceptance (no CALLED test this phase)"
+stopped_at: "Phase 13 IN PROGRESS — 13-01 complete (VLIB-01/02 CALLED-green); next 13-02 (VLIB-03/04 fuzz battery + mutation gate). NOTE: gsd-tools re-normalizes these 4 frontmatter lines to `milestone: v2.0` / `milestone_name: milestone` / `status: completed|planning` from a stale source — re-check after every state/roadmap tool run. Blocker: untracked src/modules/protocol_integrations/PriceSetterHook.sol breaks `forge build` — use --skip until the owning track fixes it."
+last_updated: "2026-07-17T22:31:15.359Z"
+last_activity: "2026-07-17 — executed 13-01: pure VegaIssuanceLib.plk (haircut_risk_price ceil + issue_shares floor composing v3::math::full_math, typed by RiskPriceX96/Haircut, checked ASCII `-`); FFI harness (cast-verified selectors 0x00213e88/0x636ae14a); IssuanceRefMock.sol over solady fullMulDivUp (confirmed identical round-up primitive to full_math mulDivRoundingUp); VegaIssuance.diff.t.sol 7/7 CALLED-green — anchor probe (pRisk=60944740395587951995033807951, composed shares=12, tol-0 vs mock + external pin), 5 constructed reverts under vm.expectRevert, p_risk>=oracle fuzz runs:512, zero vm.assume. Blocker: untracked PriceSetterHook.sol (another track) breaks `forge build` — ran with --skip (logged to phase deferred-items.md)."
 progress:
   total_phases: 15
   completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 10
+  completed_plans: 9
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-07-16)
 
 ## Current Position
 
-Phase: 12 — Spec Correction & Type Completion (COMPLETE — 1/1 plan)
-Plan: 12-01 complete (RISK-01, RISK-02 discharged)
-Status: Phase 12 done; ready to plan Phase 13 (Issuance Library, VLIB-01..04)
-Last activity: 2026-07-17 — executed 12-01: risk.md corrected to `p_risk = oracle/(1−h)` (integer realization + ℝ-only counterexample); refuted RiskDiscount/RiskMeasureLib .plk deleted (concept gone from src/); VegaExposure completed as two-live-field record + RiskPriceX96/Haircut newtypes; scoped grep gate empty; compile-plank stayed green (10 ok, 0 failed, 1 skipped) — a labelled PRECONDITION, not acceptance (no CALLED test this phase)
+Phase: 13 — Issuance Library (VegaIssuanceLib) (IN PROGRESS — 1/2 plans)
+Plan: 13-01 complete (VLIB-01, VLIB-02 discharged CALLED-green); 13-02 pending (VLIB-03, VLIB-04)
+Status: 13-01 done; next `/gsd:execute-phase 13` continues with 13-02 (fuzz battery + observed-RED mutation gate)
+Last activity: 2026-07-17 — executed 13-01: pure VegaIssuanceLib.plk (haircut_risk_price ceil + issue_shares floor composing v3::math::full_math, typed by RiskPriceX96/Haircut, checked ASCII `-`); FFI harness (cast-verified selectors 0x00213e88/0x636ae14a); IssuanceRefMock.sol over solady fullMulDivUp (confirmed identical round-up primitive to full_math mulDivRoundingUp); VegaIssuance.diff.t.sol 7/7 CALLED-green — anchor probe (pRisk=60944740395587951995033807951, composed shares=12, tol-0 vs mock + external pin), 5 constructed reverts under vm.expectRevert, p_risk>=oracle fuzz runs:512, zero vm.assume. Blocker: untracked PriceSetterHook.sol (another track) breaks `forge build` — ran with --skip (logged to phase deferred-items.md).
 
 **v2.0 pause point (for resumption):** Phase 9 complete — variance surface bit-exact vs Algebra at tolerance 0 in FORMULA (5-D kernel fuzz, 1024 runs) and STATE (full-timepoint diff after every write); all SC-4 mutants observed red and restored; Algebra pin exits 0. The whole vol suite now lives in ONE file (`test/market_state_measurements/RealizedVolatility.diff.t.sol`, 5 contracts, 17 tests) run by `make test-realized-vol`; repo-wide gates are `make test` (currently 50 pass / 5 pre-existing pos_spec harness failures, documented in the Makefile) and `make compile` (10 ok / 1 skipped: VegaAccountMod).
 
@@ -57,6 +57,7 @@ Last activity: 2026-07-17 — executed 12-01: risk.md corrected to `p_risk = ora
 | Phase 09 P01 | 6min | 2 tasks | 2 files |
 | Phase 09 P02 | 13min | 3 tasks | 4 files |
 | Phase 12 P01 | 3min | 4 tasks | 5 files |
+| Phase 13 P01 | 5min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,8 @@ Recent decisions affecting current work:
 - [Phase 09]: 09-02 — the timepoint unpacker now exists in exactly ONE place: test/market_state_measurements/TimepointDecoder.sol (library TimepointDecoder + struct PlankTimepoint). It existed twice and VDIFF-04 would have made a third. Offsets verified by READING Timepoint.plk:30-35, not trusted from a doc. Phase 10/11 must REUSE it, not copy it. Phase 0-1's RealizedVolatility.diff.t.sol keeps its partial 3-field inline unpack by deliberate scope decision (untouched).
 - [Phase 12]: 12-01 — RISK-01/02 discharged: risk.md now states p_risk=oracle/(1−h) with lemma citations, integer realization (p_risk ceil, shares floor), and the ℝ-only 12-vs-13 counterexample; the refuted price-over-haircut formula is gone from prose AND code (RiskDiscount.plk/RiskMeasureLib.plk deleted — empty-bodied, zero importers, git-history recovery).
 - [Phase 12]: 12-01 — VegaExposure is a two-live-field record (exposure u128, priceVolX96 u160) + RiskPriceX96/Haircut newtypes co-located in the same file; v1 priceVolX96 carries exogenous p_risk (not p_vol(σ̄)) — the tension is stated in exposure.md, not silently renamed. Phase 12 shipped NO CALLED test; 'it compiles' is a PRECONDITION, not acceptance — the type is proven only when Phase 13 imports it.
+- [Phase 13]: 13-01 — VLIB-01/02 discharged CALLED-green: VegaIssuanceLib.plk (haircut_risk_price ceil, issue_shares floor) composes v3::math::full_math and never reimplements 512-bit math; proven at the inexact-both-hops anchor (pRisk=60944740395587951995033807951, composed shares=12), tolerance-0 vs a solady fullMulDivUp mock, 5 constructed reverts (vm.expectRevert), and a runs:512 p_risk>=oracle fuzz (no vm.assume).
+- [Phase 13]: 13-01 — solady fullMulDivUp CONFIRMED identical round-up primitive to full_math mulDivRoundingUp (floor then +1 iff mulmod!=0; revert on d==0; revert on 2^256 overflow) — read before claiming 'identical algorithm', no mock adaptation. Both harness selectors RECOMPUTED with cast sig (0x00213e88 / 0x636ae14a), matching the plan.
 
 ### Pending Todos
 
@@ -156,9 +159,10 @@ check the deploy path before trusting a kill.
 
 **v1.0 (paused — carried forward):**
 - Repo ownership inverted + destructive migration (Phase 1); publish-readiness leaks (Phase 1); Plank toolchain unpinned + silent-zero FFI (Phase 2); Plank sources stubs/parse-errors (Phase 4); bridge zero-line gap (Phase 6); GAMS solver deliberate stub (Phase 5).
+- Untracked src/modules/protocol_integrations/PriceSetterHook.sol (parallel track) has an empty Solidity import path that breaks forge build for the whole src/ tree. 13-01 routed around it with forge test --skip on that path. Owning track must fix/remove it; until then forge targets here need --skip. See phase deferred-items.md.
 
 ## Session Continuity
 
-Last session: 2026-07-17T13:08:21.612Z
-Stopped at: Completed 12-01-PLAN.md
+Last session: 2026-07-17T22:29:27.036Z
+Stopped at: Completed 13-01-PLAN.md
 Resume file: None

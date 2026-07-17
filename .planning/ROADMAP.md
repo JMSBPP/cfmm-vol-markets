@@ -355,7 +355,7 @@ Plans:
 **Plans**: 2 plans (2 waves)
 
 Plans:
-- [ ] 13-01-PLAN.md — VegaIssuanceLib.plk (haircut_risk_price + issue_shares composing v3::math::full_math) + FFI kernel harness + IssuanceRefMock.sol; proven CALLED-green by the inexact anchor probe (tol-0 vs mock + external anchor 12), the p_risk>=oracle fuzz, and the constructed reverting corpora (VLIB-01, VLIB-02) [wave 1]
+- [x] 13-01-PLAN.md — VegaIssuanceLib.plk (haircut_risk_price + issue_shares composing v3::math::full_math) + FFI kernel harness + IssuanceRefMock.sol; proven CALLED-green by the inexact anchor probe (tol-0 vs mock + external anchor 12), the p_risk>=oracle fuzz, and the constructed reverting corpora (VLIB-01, VLIB-02) [wave 1]
 - [ ] 13-02-PLAN.md — Lean-lemma fuzz battery (backing invariant shares*pRisk<=deposit*2^96 in 512-bit both sides, weight-one identity, composed==mock tol-0, composed<=direct one-sided) + observed-RED mutation gate (p_risk ceil->floor, shares floor->ceil, mulDiv arg-swap each RED at the anchor; h-bound relaxation documented-equivalent) + focused make target (VLIB-03, VLIB-04) [wave 2, depends 13-01]
 
 ### Phase 14: Module Dispatch, Storage Layout & State Readers
@@ -396,7 +396,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 12. Spec Correction & Type Completion | 1/1 | Complete    | 2026-07-17 |
-| 13. Issuance Library (VegaIssuanceLib) | 0/2 | Not started | - |
+| 13. Issuance Library (VegaIssuanceLib) | 1/2 | In Progress|  |
 | 14. Module Dispatch, Storage & State Readers | 0/TBD | Not started | - |
 | 15. Differential Verification & Mutation Battery, PLANK_SKIP Exit | 0/TBD | Not started | - |
 
