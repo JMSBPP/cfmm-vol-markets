@@ -93,6 +93,35 @@ requirements above. Reference of record: Algebra `VolatilityOracle`. Phase numbe
 - [ ] **VDIFF-07**: Edge cases hold across Algebra and Plank — a lookback older than the oldest retained timepoint reverts on both; a same-block double write is idempotent (no second timepoint, no revert); a uint32 timestamp wraparound is handled; and ring-buffer wrap is covered by a direct unit assertion (`vm.store` the index, not 65536 writes)
 - [ ] **VDIFF-08**: Every new test is proven falsifiable by a mutation battery (deliberate bugs in the variance kernel, the packing, and the accumulator are all KILLED) before it is trusted, and the suite is wired into a `make` target folded into `test-vol-prereqs`
 
+## Milestone v3.0 Requirements — VegaAccountMod Vault (H1 Issuance, Exogenous Risk Price)
+
+Design authority: machine-checked Lean at `../cfmm-wt/lean4-spec/lean/vol_markets/{RiskDesign,Flow,Main}.lean` (no `sorry`) + `../cfmm-wt/lean4-spec/model/vol_markets/RISK_ALTERNATIVES.md`. Each cited lemma is the requirement's test oracle. Fixed-point conventions: prices Q64.96 (`X96`), haircut Q0.96 (`hX96 < 2^96`), shares floor, `p_risk` rounds up.
+
+### Spec & Type Correction
+
+- [ ] **RISK-01**: `spec/entities/types/risk.md` states the issuance risk price as `p_risk = oracle/(1−h)` — citing `issuance_haircut_equiv` and `haircutRiskPrice_ge_oracle` — pins the per-operation fixed-point convention (Q64.96 price, Q0.96 haircut, `p_risk` rounds UP, shares round DOWN) and the `p_risk` quote convention, and no longer contains the refuted `price/haircut` expression anywhere
+- [ ] **RISK-02**: `src/types/exposure/VegaExposure.plk` is the live-fields-only record (`exposure` u128-bounded, `priceVolX96` u160-bounded carrying the exogenous `p_risk`), and `spec/entities/types/exposure.md` records that `collateralToken`/`underlyingToken`/`riskOracleId` return with the oracle-wiring milestone
+
+### Issuance Library (pure, no storage)
+
+- [ ] **VLIB-01**: A pure `haircut_risk_price(oracleX96, hX96)` returns `mulDivRoundingUp(oracleX96, 2^96, 2^96 − hX96)`, reverting for `hX96 ≥ 2^96` or `oracleX96 == 0`; fuzz asserts `p_risk ≥ oracle` (`haircutRiskPrice_ge_oracle`) — no silent-zero division path exists
+- [ ] **VLIB-02**: A pure `issue_shares(deposit, pRiskX96)` returns `mulDiv(deposit, 2^96, pRiskX96)` rounding DOWN, reverting for `pRiskX96 == 0`, composing the existing `v3::math::full_math::mulDiv` (no reimplementation)
+- [ ] **VLIB-03**: Fuzz properties pin the rounding direction: the backing invariant `shares · pRisk ≤ deposit · 2^96` holds on every run (`mulX96Down_le` mirror) and the weight-one identity is exact (`mulX96Down_one` mirror), on a CONSTRUCTED corpus (no assume-filtering)
+- [ ] **VLIB-04**: The two-path equivalence `issue_shares(deposit, haircut_risk_price(oracle, h))` vs `deposit·(1−h)/oracle` (`issuance_haircut_equiv`) is diffed against a Solidity reference mock composing solady `fullMulDiv`, tolerance 0, via a Plank kernel harness deployed over FFI — before any module exists
+
+### Vault Module
+
+- [ ] **VMOD-01**: `deposit(collateralAmt)` mints `issue_shares(collateralAmt, storedRiskPrice)` and updates all three accumulators (`totalDeposits`, `totalShares`, `riskWeightedShares` with d ≡ 1) in distinct storage slots; it reverts on `collateralAmt == 0` and on `sharesMinted == 0` (dust cannot bank collateral for zero shares)
+- [ ] **VMOD-02**: `setRiskPrice(pRiskX96)` stores the exogenous price and reverts on 0; `deposit` before any `setRiskPrice` reverts (the unset-slot default-0 cannot silently mint via EVM DIV-by-zero-returns-0)
+- [ ] **VMOD-03**: Dispatched view selectors expose `previewDeposit(amt)` (pure issuance, no state change) and `previewRiskPrice(oracleX96, hX96)` (the H1 computation with `h < 1` enforced on-chain), each verified by CALLING the selector
+- [ ] **VMOD-04**: State readers expose every stored field (`totalDeposits`, `totalShares`, `riskWeightedShares`, `riskPrice`) — the module is not a black box, and quotient-only assertions are impossible by construction
+- [ ] **VMOD-05**: The admissibility guard is implemented in its collapsed money-side form (`deposit ≤ post-deposit Q_M^Σ`, per `deltaShares_admissible_iff` — never the ~2^160-overflowing cross-product) and a test asserts both the guard's presence and that the three accumulators never alias
+
+### Verification & Exit
+
+- [ ] **VVER-01**: An end-to-end differential test drives identical `(setRiskPrice, deposit)` sequences into `VegaAccountMod` and the Solidity reference mock, asserting all three accumulators equal at tolerance 0 after EVERY write, in ONE test file per module with a non-fuzz unit anchor alongside every fuzz
+- [ ] **VVER-02**: Every new test is proven falsifiable by an observed-RED mutation battery (rounding-direction flip, accumulator conflation, guard deletion, h-bound removal — each KILLED with `cache/fuzz` cleared); `VegaAccountMod` leaves `PLANK_SKIP` only after `deposit` is CALLED green; the suite is wired into a dedicated `make` target and folded into `make test`
+
 ## v2 Requirements
 
 Deferred to future milestones. Tracked but not in current roadmap.
@@ -105,7 +134,7 @@ Deferred to future milestones. Tracked but not in current roadmap.
 
 ### Simulation Correctness
 
-- **LDF-01**: `src/ldf/GeometricDistribution.plk` passes the bunni-v2 LDF conformance suite (normalization, monotonicity, inverse functions)
+- **LDF-01**: a Geometric-distribution LDF passes the bunni-v2 LDF conformance suite (normalization, monotonicity, inverse functions) — NOTE: `src/ldf/GeometricDistribution.plk` and its empty test scaffold were DELETED 2026-07-16 (`ead50b8`) as unmaintained; recover from git history when this requirement is picked up
 - **LDF-02**: `SwapAmtGen` arithmetic is overflow-bounded over the tested `timeIndex` range; fuzz runs raised to ≥ 1000
 
 ### Adaptive Control
@@ -125,6 +154,9 @@ Explicitly excluded this milestone.
 
 | Feature | Reason |
 |---------|--------|
+| **v3.0 vault:** withdraw/redeem, per-account share ledger | The Lean corpus formalizes only the forward map — redemption now would be an UNVERIFIED surface; per-account bookkeeping is a dependency of redemption. Revisit note: a pool-derived redemption rate re-opens the first-depositor/donation analysis ruled N/A for v1 |
+| **v3.0 vault:** ERC-20 transferability / ERC-4626 conformance | `exposure.md`: VegaExposure is internal accounting, not a traded token; 4626 mandates pool-ratio pricing — the wrong semantics for an exogenous `p_risk` |
+| **v3.0 vault:** distance pipeline D2, risk-price composition P0/P2, stateful `setHaircut`, oracle wiring to `RealizedVolatilityMod`, `p_vol(σ̄)` from pos_spec | H1-only v1 per user decision; a stored `h` with no oracle is inert; pos_spec's type layer still has 5 red harness tests (vol-type-system track) |
 | Correct payoff **replication** proof (metric + tolerance) | Plumbing-first milestone; replication correctness is v2 (`PROOF-*`) |
 | Real GAMS optimization model | Stub solver this milestone; real model is v2 (`PAY-01`) |
 | LDF conformance / `SwapAmtGen` overflow fix | Deferred to v2 (`LDF-*`); not on the plumbing critical path |
