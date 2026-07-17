@@ -156,3 +156,148 @@ contract VegaIssuanceMonotonicityTest is PlankTestBase {
         assertGe(pRisk, oracleX96, "haircutRiskPrice_ge_oracle: p_risk >= oracle on every run");
     }
 }
+
+// ===========================================================================================
+// 13-02 EXTENSION: the Lean-lemma fuzz battery (VLIB-03 backing invariant + weight-one;
+// VLIB-04 composed==mock tolerance-0 + one-sided composed<=direct). Each contract reuses the
+// SAME harness (deployPlank) and mock (IssuanceRefMock) as the 13-01 contracts above; corpora
+// are CONSTRUCTED via bound() only (never assume-filtered); forge runs --via-ir --optimize.
+//
+// Overflow-safety of the corpora (machine-verified this phase):
+//   issue_shares = mulDiv(deposit, 2^96, pRisk) reverts (result >= 2^256) IFF deposit >= 2^160*pRisk.
+//   With oracleX96 >= 2^96 the haircut raises pRisk >= oracle >= 2^96, so 2^160*pRisk >= 2^256 >
+//   deposit for ANY deposit < 2^256 -- issue_shares NEVER overflows and `deposit` can be full u256.
+//   direct = mulDiv(deposit, 2^96-hX96, oracleX96) likewise never overflows when oracleX96 >= 2^96.
+//   => bound oracleX96 in [2^96, 2^160], hX96 in [0, 2^96), deposit full u256 (or [2^160, 2^256)
+//      on the backing corpus so BOTH products cross 2^256 and the 512-bit path is genuinely run).
+// ===========================================================================================
+
+/// @title VegaIssuanceBackingTest
+/// @notice VLIB-03 backing invariant `shares*pRisk <= deposit*2^96`, a PLAIN floor-division
+///         property (NOT mulX96Down_le -- that is the deferred distance-pipeline weight clamp).
+///         Both sides are computed in GENUINE 512-bit arithmetic (mulmod identity + lexicographic
+///         (hi,lo) compare); there is NO raw `shares*pRisk` / `deposit*Q96` in the assertion,
+///         because above deposit ~ 2^160 both products exceed 2^256 and a raw `*` would wrap.
+///
+/// @dev The corpus draws deposit in [2^160, 2^256) so the invariant is exercised in a regime the
+///      512-bit path is REQUIRED for; assertGt(hiL, 0) proves that regime is genuinely reached
+///      (a vacuous 256-bit corpus would leave hiL == 0 and prove nothing about 512-bit backing).
+contract VegaIssuanceBackingTest is PlankTestBase {
+    IVegaIssuanceKernel plk;
+
+    uint256 constant Q96 = 1 << 96;
+
+    function setUp() public {
+        plk = IVegaIssuanceKernel(deployPlank("test/exposure/VegaIssuanceKernelHarness.plk"));
+    }
+
+    /// @dev Full 512-bit product (hi, lo) = a*b via the mulmod identity. NO raw a*b comparison.
+    function _mul512(uint256 a, uint256 b) internal pure returns (uint256 hi, uint256 lo) {
+        assembly {
+            let mm := mulmod(a, b, not(0))
+            lo := mul(a, b)
+            hi := sub(sub(mm, lo), lt(mm, lo))
+        }
+    }
+
+    /// @dev (hiA,loA) <= (hiB,loB), unsigned lexicographic.
+    function _le512(uint256 hiA, uint256 loA, uint256 hiB, uint256 loB) internal pure returns (bool) {
+        return hiA < hiB || (hiA == hiB && loA <= loB);
+    }
+
+    /// forge-config: default.fuzz.runs = 512
+    function test__fuzz__backingInvariant(uint256 oRaw, uint256 hRaw, uint256 dRaw) public {
+        // Upper bound 2^160-1 (NOT 2^160): at oracleX96==2^160 AND denom==1 (hX96==2^96-1)
+        // haircut_risk_price computes 2^160*2^96 = 2^256 and mulDivRoundingUp OVERFLOW-reverts.
+        // 2^160-1 keeps pRisk in-range for every hX96 while deposit>=2^160 still crosses 2^256.
+        uint256 oracleX96 = bound(oRaw, Q96, 2 ** 160 - 1); // >= 2^96 => pRisk >= 2^96 => no overflow
+        uint256 hX96 = bound(hRaw, 0, Q96 - 1);
+        uint256 deposit = bound(dRaw, 2 ** 160, type(uint256).max); // force both products past 2^256
+        uint256 pRisk = plk.haircutRiskPrice(oracleX96, hX96);
+        uint256 shares = plk.issueShares(deposit, pRisk);
+        (uint256 hiL, uint256 loL) = _mul512(shares, pRisk); // shares * pRisk
+        (uint256 hiR, uint256 loR) = _mul512(deposit, Q96); // deposit * 2^96
+        assertTrue(_le512(hiL, loL, hiR, loR), "backing: shares*pRisk <= deposit*2^96 (512-bit)");
+        assertGt(hiR, 0, "backing corpus must genuinely exceed 2^256 (else 512-bit path is vacuous)");
+    }
+}
+
+/// @title VegaIssuanceWeightOneTest
+/// @notice VLIB-03 weight-one identity (`mulX96Down_one` mirror): with pRisk == 2^96 the Q96 scale
+///         cancels exactly, so `issue_shares(deposit, 2^96) == deposit` for EVERY deposit.
+contract VegaIssuanceWeightOneTest is PlankTestBase {
+    IVegaIssuanceKernel plk;
+
+    function setUp() public {
+        plk = IVegaIssuanceKernel(deployPlank("test/exposure/VegaIssuanceKernelHarness.plk"));
+    }
+
+    /// forge-config: default.fuzz.runs = 512
+    function test__fuzz__weightOneIdentity(uint256 dRaw) public {
+        uint256 deposit = bound(dRaw, 0, type(uint256).max);
+        assertEq(plk.issueShares(deposit, 1 << 96), deposit, "issue_shares(deposit, 2^96) == deposit");
+    }
+}
+
+/// @title VegaIssuanceDiffTest
+/// @notice VLIB-04 tolerance-0 composed differential. The Plank composed path
+///         (ceil p_risk then floor shares) equals IssuanceRefMock.composed (the IDENTICAL
+///         ceil-then-floor over solady fullMulDiv(Up)) at tolerance 0 across the whole domain.
+///
+/// @dev IDENTICAL-ALGORITHM ONLY. The tolerance-0 claim is made vs `mock.composed` alone (same
+///      rounding at the same two sites both sides). It is NEVER made vs `mock.direct` -- that path
+///      rounds at a DIFFERENT point (risk.md §4) and its exact equality is FALSE (the 12-vs-13
+///      counterexample). Asserting tolerance-0 vs direct re-introduces review BLOCKER B1; the
+///      direct path lives ONLY in VegaIssuanceOneSidedTest below as a `<=` bound.
+contract VegaIssuanceDiffTest is PlankTestBase {
+    IVegaIssuanceKernel plk;
+    IssuanceRefMock mock;
+
+    function setUp() public {
+        plk = IVegaIssuanceKernel(deployPlank("test/exposure/VegaIssuanceKernelHarness.plk"));
+        mock = new IssuanceRefMock();
+    }
+
+    /// forge-config: default.fuzz.runs = 1024
+    function test__fuzz__composedEqualsMock(uint256 oRaw, uint256 hRaw, uint256 dRaw) public {
+        // 2^160-1 upper bound: oracleX96==2^160 with denom==1 overflow-reverts haircut_risk_price.
+        uint256 oracleX96 = bound(oRaw, 1 << 96, 2 ** 160 - 1);
+        uint256 hX96 = bound(hRaw, 0, (1 << 96) - 1);
+        uint256 deposit = bound(dRaw, 0, type(uint256).max);
+        uint256 pRisk = plk.haircutRiskPrice(oracleX96, hX96);
+        uint256 shares = plk.issueShares(deposit, pRisk);
+        assertEq(shares, mock.composed(deposit, oracleX96, hX96), "composed: plank vs mock, tolerance 0");
+    }
+}
+
+/// @title VegaIssuanceOneSidedTest
+/// @notice VLIB-04 one-sided `issuance_haircut_equiv` integer transfer. `issuance_haircut_equiv`
+///         is proven over ℝ only; in integers the composed path (ceil then floor) and the direct
+///         path (single floor) round at different points, so exact equality is FALSE (risk.md §4).
+///         Only the one-sided bound `composed <= direct` holds -- the anchor point (12 < 13) is
+///         itself an inexact witness that this is a STRICT inequality somewhere, not vacuous.
+///
+/// @dev This is the ONLY place `mock.direct` appears. Getting (C) and (D) backwards -- claiming
+///      tolerance-0 vs direct instead of a <= bound -- is review BLOCKER B1 (the 12-vs-13
+///      counterexample). direct = mulDiv(deposit, 2^96-hX96, oracleX96).
+contract VegaIssuanceOneSidedTest is PlankTestBase {
+    IVegaIssuanceKernel plk;
+    IssuanceRefMock mock;
+
+    function setUp() public {
+        plk = IVegaIssuanceKernel(deployPlank("test/exposure/VegaIssuanceKernelHarness.plk"));
+        mock = new IssuanceRefMock();
+    }
+
+    /// forge-config: default.fuzz.runs = 1024
+    function test__fuzz__composedLeDirect(uint256 oRaw, uint256 hRaw, uint256 dRaw) public {
+        // 2^160-1 upper bound: oracleX96==2^160 with denom==1 overflow-reverts haircut_risk_price.
+        uint256 oracleX96 = bound(oRaw, 1 << 96, 2 ** 160 - 1);
+        uint256 hX96 = bound(hRaw, 0, (1 << 96) - 1);
+        uint256 deposit = bound(dRaw, 0, type(uint256).max);
+        uint256 pRisk = plk.haircutRiskPrice(oracleX96, hX96);
+        uint256 composed = plk.issueShares(deposit, pRisk);
+        uint256 direct = mock.direct(deposit, oracleX96, hX96);
+        assertLe(composed, direct, "one-sided: composed <= direct (exact equality is FALSE in integers)");
+    }
+}
