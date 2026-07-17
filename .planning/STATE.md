@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: VegaAccountMod Vault (H1 issuance, exogenous risk price)
-status: roadmap-complete
-stopped_at: v3.0 roadmap complete — Phases 12–15 defined (13/13 reqs mapped); Phase 12 not started; v2.0 PAUSED after Phase 9 (Phases 10–11 pending, untouched)
-last_updated: "2026-07-16"
-last_activity: "2026-07-16 — v3.0 roadmap written: Phases 12 (Spec Correction & Type Completion) → 13 (Issuance Library) → 14 (Module Dispatch, Storage & Readers) → 15 (Differential Verification & PLANK_SKIP Exit); 13 reqs (RISK/VLIB/VMOD/VVER) mapped to exactly one phase each"
+milestone: v2.0
+milestone_name: milestone
+status: planning
+stopped_at: Completed 12-01-PLAN.md
+last_updated: "2026-07-17T13:09:22.936Z"
+last_activity: "2026-07-17 — executed 12-01: risk.md corrected to `p_risk = oracle/(1−h)` (integer realization + ℝ-only counterexample); refuted RiskDiscount/RiskMeasureLib .plk deleted (concept gone from src/); VegaExposure completed as two-live-field record + RiskPriceX96/Haircut newtypes; scoped grep gate empty; compile-plank stayed green (10 ok, 0 failed, 1 skipped) — a labelled PRECONDITION, not acceptance (no CALLED test this phase)"
 progress:
-  total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 15
+  completed_phases: 4
+  total_plans: 8
+  completed_plans: 8
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-07-16)
 
 ## Current Position
 
-Phase: 12 — Spec Correction & Type Completion (not started)
-Plan: —
-Status: v3.0 roadmap complete; ready to plan Phase 12
-Last activity: 2026-07-16 — v3.0 roadmap written (Phases 12–15); RISK-01/02 → 12, VLIB-01..04 → 13, VMOD-01..05 → 14, VVER-01/02 → 15
+Phase: 12 — Spec Correction & Type Completion (COMPLETE — 1/1 plan)
+Plan: 12-01 complete (RISK-01, RISK-02 discharged)
+Status: Phase 12 done; ready to plan Phase 13 (Issuance Library, VLIB-01..04)
+Last activity: 2026-07-17 — executed 12-01: risk.md corrected to `p_risk = oracle/(1−h)` (integer realization + ℝ-only counterexample); refuted RiskDiscount/RiskMeasureLib .plk deleted (concept gone from src/); VegaExposure completed as two-live-field record + RiskPriceX96/Haircut newtypes; scoped grep gate empty; compile-plank stayed green (10 ok, 0 failed, 1 skipped) — a labelled PRECONDITION, not acceptance (no CALLED test this phase)
 
 **v2.0 pause point (for resumption):** Phase 9 complete — variance surface bit-exact vs Algebra at tolerance 0 in FORMULA (5-D kernel fuzz, 1024 runs) and STATE (full-timepoint diff after every write); all SC-4 mutants observed red and restored; Algebra pin exits 0. The whole vol suite now lives in ONE file (`test/market_state_measurements/RealizedVolatility.diff.t.sol`, 5 contracts, 17 tests) run by `make test-realized-vol`; repo-wide gates are `make test` (currently 50 pass / 5 pre-existing pos_spec harness failures, documented in the Makefile) and `make compile` (10 ok / 1 skipped: VegaAccountMod).
 
@@ -56,6 +56,7 @@ Last activity: 2026-07-16 — v3.0 roadmap written (Phases 12–15); RISK-01/02 
 | Phase 08 P02 | 10m | 3 tasks | 4 files |
 | Phase 09 P01 | 6min | 2 tasks | 2 files |
 | Phase 09 P02 | 13min | 3 tasks | 4 files |
+| Phase 12 P01 | 3min | 4 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,8 @@ Recent decisions affecting current work:
 - [Phase 09]: 09-02 — VERIFY-THEN-CLAIM. (a) The hand-derived anchor (avgTick1=-400, vol=2,376,388 at write 1) was CHECKED with a temporary exact assertion before being written into the docblock as fact, then relaxed to the mandated assertGt(volA,0). (b) An inference that write 2 accrued ZERO vol was WRONG and was checked before it reached the SUMMARY (per-write accrual is 2376388/7235899/12625 — all non-zero). A derivation or inference written down unverified is just a plausible-looking claim.
 - [Phase 09]: 09-02 — PATTERN for Phase 11's battery: keep a NON-FUZZ unit anchor alongside each fuzz. Both 09-02 mutants reddened the unit anchor as well as the fuzz, and a unit assertion is cache-independent BY CONSTRUCTION — it cannot be a cached replay even in principle. This is strictly stronger than 09-01's fuzz-only kills. (cache/fuzz was still cleared before each kill; note runs: 0 here meant 'died on the first generated input', not replay — the independent counterexamples and the unit REDs distinguish the two.)
 - [Phase 09]: 09-02 — the timepoint unpacker now exists in exactly ONE place: test/market_state_measurements/TimepointDecoder.sol (library TimepointDecoder + struct PlankTimepoint). It existed twice and VDIFF-04 would have made a third. Offsets verified by READING Timepoint.plk:30-35, not trusted from a doc. Phase 10/11 must REUSE it, not copy it. Phase 0-1's RealizedVolatility.diff.t.sol keeps its partial 3-field inline unpack by deliberate scope decision (untouched).
+- [Phase 12]: 12-01 — RISK-01/02 discharged: risk.md now states p_risk=oracle/(1−h) with lemma citations, integer realization (p_risk ceil, shares floor), and the ℝ-only 12-vs-13 counterexample; the refuted price-over-haircut formula is gone from prose AND code (RiskDiscount.plk/RiskMeasureLib.plk deleted — empty-bodied, zero importers, git-history recovery).
+- [Phase 12]: 12-01 — VegaExposure is a two-live-field record (exposure u128, priceVolX96 u160) + RiskPriceX96/Haircut newtypes co-located in the same file; v1 priceVolX96 carries exogenous p_risk (not p_vol(σ̄)) — the tension is stated in exposure.md, not silently renamed. Phase 12 shipped NO CALLED test; 'it compiles' is a PRECONDITION, not acceptance — the type is proven only when Phase 13 imports it.
 
 ### Pending Todos
 
@@ -156,6 +159,6 @@ check the deploy path before trusting a kill.
 
 ## Session Continuity
 
-Last session: 2026-07-16T17:49:40.523Z
-Stopped at: Completed 09-02-PLAN.md — VDIFF-04 discharged (full-timepoint variance diff green, tolerance 0, after EVERY write); SC-4's remaining two mutants OBSERVED red and restored green; Phase 9 COMPLETE
+Last session: 2026-07-17T13:08:21.612Z
+Stopped at: Completed 12-01-PLAN.md
 Resume file: None
