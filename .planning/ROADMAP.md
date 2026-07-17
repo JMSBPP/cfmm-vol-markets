@@ -352,10 +352,11 @@ Plans:
   3. Constructed reverting corpora are OBSERVED: `hX96 ∈ {2^96, 2^96+1, 2^256−1}` all REVERT (strict `h < 1`, not `<=`); `oracleX96 == 0` REVERTS; `pRiskX96 == 0` REVERTS — no silent-zero division path (`x/0 == 0` on the EVM) is reachable from the harness `run{}`, and reverts are asserted, not inferred from an empty return (VLIB-01, VLIB-02).
   4. **Mutation-falsifiability gate:** flipping `p_risk` to floor (`mulDivRoundingUp`→`mulDiv`), flipping issuance to ceil, and swapping the `mulDiv` argument order EACH produce an OBSERVED RED at the inexact-division anchor (with `cache/fuzz` cleared before each kill, or killed by the cache-independent non-fuzz anchor); baseline and restored source are green. The h-bound relaxation `<`→`<=` is NOT in the kill list: it is PROVEN EQUIVALENT on the corpus (`hX96 == 2^96` gives a zero denominator, and `full_math.plk:13–24` reverts on zero denominator regardless — both baseline and mutant revert empty) and is DOCUMENTED as equivalence-checked defense-in-depth instead; counting it as a kill would be the false-verification pattern this project catalogues (VLIB-03, VLIB-04).
 
-**Plans**: TBD
+**Plans**: 2 plans (2 waves)
 
 Plans:
-- [ ] 13-01: TBD
+- [ ] 13-01-PLAN.md — VegaIssuanceLib.plk (haircut_risk_price + issue_shares composing v3::math::full_math) + FFI kernel harness + IssuanceRefMock.sol; proven CALLED-green by the inexact anchor probe (tol-0 vs mock + external anchor 12), the p_risk>=oracle fuzz, and the constructed reverting corpora (VLIB-01, VLIB-02) [wave 1]
+- [ ] 13-02-PLAN.md — Lean-lemma fuzz battery (backing invariant shares*pRisk<=deposit*2^96 in 512-bit both sides, weight-one identity, composed==mock tol-0, composed<=direct one-sided) + observed-RED mutation gate (p_risk ceil->floor, shares floor->ceil, mulDiv arg-swap each RED at the anchor; h-bound relaxation documented-equivalent) + focused make target (VLIB-03, VLIB-04) [wave 2, depends 13-01]
 
 ### Phase 14: Module Dispatch, Storage Layout & State Readers
 **Goal**: `VegaAccountMod.plk` becomes a live vault — selector dispatch mirroring `RealizedVolatilityMod` verbatim, three distinct accumulator slots, a validated `setRiskPrice`, both zero guards and the unset-`p_risk` revert, preview views, and state readers for every stored field — with `deposit` proven CALLED green through deployed bytecode (never on compile alone).
@@ -395,7 +396,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 12. Spec Correction & Type Completion | 1/1 | Complete    | 2026-07-17 |
-| 13. Issuance Library (VegaIssuanceLib) | 0/TBD | Not started | - |
+| 13. Issuance Library (VegaIssuanceLib) | 0/2 | Not started | - |
 | 14. Module Dispatch, Storage & State Readers | 0/TBD | Not started | - |
 | 15. Differential Verification & Mutation Battery, PLANK_SKIP Exit | 0/TBD | Not started | - |
 
