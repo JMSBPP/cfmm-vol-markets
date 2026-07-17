@@ -91,7 +91,19 @@ check-algebra-ref-pin:
 # suite. The pin runs FIRST: verifying the baseline after diffing against it proves nothing.
 test-vol-prereqs: check-algebra-ref-pin test-market-statistics test-realized-vol
 
-.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs
+# Phase 13 issuance library differential + fuzz battery (the single file
+# test/exposure/VegaIssuance.diff.t.sol -- probe + reverts + monotonicity from 13-01, plus the
+# 512-bit backing invariant, weight-one identity, composed==mock tolerance-0, and composed<=direct
+# one-sided fuzzes from 13-02). Folded into `make test` in Phase 15, NOT here.
+#
+# --skip routes around an UNTRACKED parallel-track file
+# (src/modules/protocol_integrations/PriceSetterHook.sol) whose empty imports break `forge build`
+# for the whole src/ tree. It is not this suite's file; skipping it is a no-op once the owning
+# track fixes/removes it. See the phase deferred-items.md.
+test-vega-issuance:
+	forge test --match-path 'test/exposure/VegaIssuance.diff.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+
+.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance
 
 
 #####################################################################
