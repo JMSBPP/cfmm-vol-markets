@@ -54,6 +54,10 @@ Progress: [█████░░░░░] 50%
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- Phase 8 added (2026-07-18): panoptic vol-claim lean4 formalization — formalize `spec/panoptic.md` (vol-option payoff, replication-cost pricing, υ identification) in the `lean/` Lake project. Lean4-track phase, independent of Phases 2–7.
+
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
