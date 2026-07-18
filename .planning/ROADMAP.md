@@ -320,7 +320,7 @@ Phase numbering **continues at Phase 12**. v2.0's Phases 10–11 are pending on 
 
 - [x] **Phase 12: Spec Correction & Type Completion** - Kill the Lean-refuted `price/haircut` formula in `risk.md`, pin the fixed-point/quote conventions, and complete `VegaExposure.plk` (2 live fields + risk Q-types) — BLOCKS 13–15; no arithmetic against a refuted spec (completed 2026-07-17)
 - [x] **Phase 13: Issuance Library (VegaIssuanceLib)** - The pure `haircut_risk_price` / `issue_shares` unit, diffed vs a Solidity mock via an FFI kernel harness BEFORE any module exists, with the Lean-lemma fuzz battery mutation-verified (completed 2026-07-17)
-- [ ] **Phase 14: Module Dispatch, Storage & State Readers** - `VegaAccountMod.plk` live: verbatim `RealizedVolatilityMod` dispatch, three distinct accumulator slots, validated `setRiskPrice`, both zero guards + unset-`p_risk` revert, preview views, readers — `deposit` CALLED green
+- [x] **Phase 14: Module Dispatch, Storage & State Readers** - `VegaAccountMod.plk` live: verbatim `RealizedVolatilityMod` dispatch, three distinct accumulator slots, validated `setRiskPrice`, both zero guards + unset-`p_risk` revert, preview views, readers — `deposit` CALLED green (completed 2026-07-18)
 - [ ] **Phase 15: Differential Verification & Mutation Battery, PLANK_SKIP Exit** - The acceptance bar: end-to-end three-accumulator differential (tolerance 0, after EVERY write, assertion INSIDE the driver), observed-RED mutation battery, `PLANK_SKIP` removed, `make` target folded into `make test`
 
 ## Phase Details
@@ -372,8 +372,8 @@ Plans:
 **Plans**: 2 plans (2 waves)
 
 Plans:
-- [ ] 14-01-PLAN.md — Interface file (8 cast-sig-verified selectors) + live VegaAccountMod (verbatim dispatch, 4 keccak slots, deposit+3 guards, setRiskPrice, previews, readers, inert admissibility guard; zero math) + smoke/guard/preview CALLED-green suite; PLANK_SKIP untouched (VMOD-01, VMOD-02, VMOD-03, VMOD-04) [wave 1]
-- [ ] 14-02-PLAN.md — Raw vm.load slot-distinctness at 4 recomputed keccak preimages + inert-guard falsification via the cross-product mutant + observed-RED mutation gate (slot-aliasing, dust-guard deletion, raw cross-product; unset-price documented equivalence-checked) (VMOD-05) [wave 2, depends 14-01]
+- [x] 14-01-PLAN.md — Interface file (8 cast-sig-verified selectors) + live VegaAccountMod (verbatim dispatch, 4 keccak slots, deposit+3 guards, setRiskPrice, previews, readers, inert admissibility guard; zero math) + smoke/guard/preview CALLED-green suite; PLANK_SKIP untouched (VMOD-01, VMOD-02, VMOD-03, VMOD-04) [wave 1]
+- [x] 14-02-PLAN.md — Raw vm.load slot-distinctness at 4 recomputed keccak preimages + inert-guard falsification via the cross-product mutant + observed-RED mutation gate (slot-aliasing, dust-guard deletion, raw cross-product; unset-price documented equivalence-checked) (VMOD-05) [wave 2, depends 14-01]
 
 ### Phase 15: Differential Verification & Mutation Battery, PLANK_SKIP Exit
 **Goal**: The milestone acceptance bar — an end-to-end differential driving identical `(setRiskPrice, deposit)` sequences into `VegaAccountMod` and the Solidity reference mock with three accumulators equal at tolerance 0 after EVERY write, the full observed-RED mutation battery, and `VegaAccountMod` leaving `PLANK_SKIP` only after `deposit` is CALLED green — folded into `make test`.
@@ -398,7 +398,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 12. Spec Correction & Type Completion | 1/1 | Complete    | 2026-07-17 |
 | 13. Issuance Library (VegaIssuanceLib) | 2/2 | Complete    | 2026-07-18 |
-| 14. Module Dispatch, Storage & State Readers | 1/2 | In Progress|  |
+| 14. Module Dispatch, Storage & State Readers | 2/2 | Complete   | 2026-07-18 |
 | 15. Differential Verification & Mutation Battery, PLANK_SKIP Exit | 0/TBD | Not started | - |
 
 ## Coverage (Milestone v3.0)

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: VegaAccountMod Vault (H1 issuance, exogenous risk price)
 status: executing
-stopped_at: Completed 14-01-PLAN.md
-last_updated: "2026-07-18T11:26:34.979Z"
-last_activity: "2026-07-18 — executed 14-01: VegaAccountMod.plk is now a LIVE deposit-only vault (verbatim RealizedVolatilityMod dispatch, 4 cast-keccak-verified scalar slots, deposit/setRiskPrice/previewDeposit/previewRiskPrice/4 readers, inert admissibility guard, ZERO arithmetic composing VegaIssuanceLib). 8 selectors pinned in new interfaces/exposure/VegaAccountInterface.plk (all cast-sig-matched the plan reference). test/exposure/VegaAccount.t.sol 9/9 CALLED-green through FFI-deployed bytecode; make test-vega-account 9/9, test-vega-issuance 11/11 unregressed; compile-plank 11 ok / 0 failed / 1 skipped (baseline corrected from the plan's stale 10 — Phase-13's VegaIssuanceKernelHarness is the 11th entrypoint), VegaAccountMod stays the 1 skipped, PLANK_SKIP untouched (exit is Phase 15/VVER-02). Blocker: untracked PriceSetterHook.sol (another track) still needs --skip (logged to phase deferred-items.md)."
+stopped_at: Completed 14-02-PLAN.md
+last_updated: "2026-07-18T11:37:54.204Z"
+last_activity: "2026-07-18 — executed 14-02: four keccak-derived slots proven DISTINCT by raw vm.load at four independently-recomputed addresses (reader assertions structurally cannot prove this under d==1 read-conflation invisibility — the read-conflation reader variant is UNKILLABLE and stated in-file, killable only by the raw slot read). Mutation gate OBSERVED: (a) SLOT-const alias → totalShares 2000!=1000 & raw vm.load slot 4!=2; (b) dust-guard delete → deposit no longer reverts (banks collateral for 0 shares); (c) raw-checked cross-product admissibility → overflow panic 0x11 at ~2^200 deposit where baseline accepts. Each restored sha256-identical (module net-unchanged, baseline 555a7a10…818120). Unset-price guard deletion DOCUMENTED equivalence-checked (masked by lib mulDiv zero-denominator revert), NOT a kill. make test-vega-account 12/12, test-vega-issuance 11/11 unregressed, compile-plank 11 ok / 0 failed / 1 skipped (VegaAccountMod stays the 1 skipped, PLANK_SKIP untouched). Blocker: untracked PriceSetterHook.sol (another track) still needs --skip (logged to phase deferred-items.md)."
 progress:
   total_phases: 15
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 12
-  completed_plans: 11
+  completed_plans: 12
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-07-16)
 
 ## Current Position
 
-Phase: 14 — Module Dispatch, Storage Layout, State Readers (IN PROGRESS — 1/2 plans)
-Plan: 14-01 complete (VMOD-01..04 discharged CALLED-green); 14-02 pending (slot-distinctness vm.load + cross-product mutation gate)
-Status: 14-01 done; next `/gsd:execute-phase 14` continues with 14-02
-Last activity: 2026-07-18 — executed 14-01: VegaAccountMod.plk is now a LIVE deposit-only vault (verbatim RealizedVolatilityMod dispatch, 4 cast-keccak-verified scalar slots, deposit/setRiskPrice/previewDeposit/previewRiskPrice/4 readers, inert admissibility guard, ZERO arithmetic composing VegaIssuanceLib). 8 selectors pinned in new interfaces/exposure/VegaAccountInterface.plk (all cast-sig-matched the plan reference). test/exposure/VegaAccount.t.sol 9/9 CALLED-green through FFI-deployed bytecode; make test-vega-account 9/9, test-vega-issuance 11/11 unregressed; compile-plank 11 ok / 0 failed / 1 skipped (baseline corrected from the plan's stale 10 — Phase-13's VegaIssuanceKernelHarness is the 11th entrypoint), VegaAccountMod stays the 1 skipped, PLANK_SKIP untouched (exit is Phase 15/VVER-02). Blocker: untracked PriceSetterHook.sol (another track) still needs --skip (logged to phase deferred-items.md).
+Phase: 14 — Module Dispatch, Storage Layout, State Readers (COMPLETE — 2/2 plans)
+Plan: 14-01 complete (VMOD-01..04 CALLED-green); 14-02 complete (VMOD-05 — slot distinctness by raw vm.load + falsifiability mutation gate)
+Status: Phase 14 done; next `/gsd:plan-phase 15` (VVER-02 — the PLANK_SKIP exit gated on this CALLED-green + mutation-verified deposit surface)
+Last activity: 2026-07-18 — executed 14-02: four keccak-derived slots proven DISTINCT by raw vm.load at four independently-recomputed addresses (reader assertions structurally cannot prove this under d==1 read-conflation invisibility — the read-conflation reader variant is UNKILLABLE and stated in-file, killable only by the raw slot read). Mutation gate OBSERVED: (a) SLOT-const alias → totalShares 2000!=1000 & raw vm.load slot 4!=2; (b) dust-guard delete → deposit no longer reverts (banks collateral for 0 shares); (c) raw-checked cross-product admissibility → overflow panic 0x11 at ~2^200 deposit where baseline accepts. Each restored sha256-identical (module net-unchanged, baseline 555a7a10…818120). Unset-price guard deletion DOCUMENTED equivalence-checked (masked by lib mulDiv zero-denominator revert), NOT a kill. make test-vega-account 12/12, test-vega-issuance 11/11 unregressed, compile-plank 11 ok / 0 failed / 1 skipped (VegaAccountMod stays the 1 skipped, PLANK_SKIP untouched). Blocker: untracked PriceSetterHook.sol (another track) still needs --skip (logged to phase deferred-items.md).
 
 **v2.0 pause point (for resumption):** Phase 9 complete — variance surface bit-exact vs Algebra at tolerance 0 in FORMULA (5-D kernel fuzz, 1024 runs) and STATE (full-timepoint diff after every write); all SC-4 mutants observed red and restored; Algebra pin exits 0. The whole vol suite now lives in ONE file (`test/market_state_measurements/RealizedVolatility.diff.t.sol`, 5 contracts, 17 tests) run by `make test-realized-vol`; repo-wide gates are `make test` (currently 50 pass / 5 pre-existing pos_spec harness failures, documented in the Makefile) and `make compile` (10 ok / 1 skipped: VegaAccountMod).
 
@@ -60,6 +60,7 @@ Last activity: 2026-07-18 — executed 14-01: VegaAccountMod.plk is now a LIVE d
 | Phase 13 P01 | 5min | 3 tasks | 4 files |
 | Phase 13 P02 | 8min | 2 tasks | 2 files |
 | Phase 14 P01 | 5min | 3 tasks | 5 files |
+| Phase 14 P02 | 6min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,7 @@ Recent decisions affecting current work:
 - [Phase 13]: 13-02: fixed two latent corpus bugs in the plan's fuzz bounds — backing non-vacuity asserted on deposit*2^96 (hiR>0, provably >=2^256) not shares*pRisk (hiL can be 0 under floor div); oracle upper bound narrowed 2^160->2^160-1 (joint corner oracle=2^160 & denom=1 overflow-reverts haircut_risk_price, empirically confirmed).
 - [Phase 14]: 14-01 — VMOD-01..04 discharged CALLED-green: VegaAccountMod is a live deposit-only vault with verbatim RealizedVolatilityMod dispatch over 4 cast-keccak-verified scalar slots, deposit(3 guards)/setRiskPrice/2 previews/4 readers, inert admissibility guard, ZERO arithmetic (all math via VegaIssuanceLib). 9/9 tests CALLED-green through FFI; guards asserted ON STATE; previewDeposit==deposit-delta.
 - [Phase 14]: 14-01 — compile-plank baseline is 11 ok / 0 failed / 1 skipped, NOT the plan/STATE stale '10'. The 11th OK entrypoint is Phase-13's test/exposure/VegaIssuanceKernelHarness.plk (commit 12bb9d7); VegaAccountMod remains the 1 skipped, PLANK_SKIP untouched. Measured value wins per the phase's own 'cross-checks not authoritative' rule.
+- [Phase 14]: 14-02 — VMOD-05 discharged: 4 keccak slots proven distinct by raw vm.load (reader assertions cannot, d==1 read-conflation invisible); mutation gate observed 3 killable mutants red then restored sha256-identical (slot-alias, dust-guard delete, raw-checked cross-product@2^200 overflow 0x11); unset-price guard deletion documented equivalence-checked (masked by lib mulDiv zero-denom revert), NOT a kill; read-conflation reader variant UNKILLABLE, stated in-file.
 
 ### Pending Todos
 
@@ -169,6 +171,6 @@ check the deploy path before trusting a kill.
 
 ## Session Continuity
 
-Last session: 2026-07-18T11:25:29.713Z
-Stopped at: Completed 14-01-PLAN.md
+Last session: 2026-07-18T11:36:29.337Z
+Stopped at: Completed 14-02-PLAN.md
 Resume file: None
