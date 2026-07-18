@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: VegaAccountMod Vault (H1 issuance, exogenous risk price)
 status: executing
-stopped_at: Completed 13-02-PLAN.md — Phase 13 complete (VLIB-01..04 discharged); next /gsd:plan-phase 14
-last_updated: "2026-07-17T22:45:00.788Z"
+stopped_at: Phase 13 COMPLETE + verified (5/5, incl. independent mutant re-kill); next /gsd:plan-phase 14
+last_updated: "2026-07-18T11:02:25.697Z"
 last_activity: "2026-07-17 — executed 13-01: pure VegaIssuanceLib.plk (haircut_risk_price ceil + issue_shares floor composing v3::math::full_math, typed by RiskPriceX96/Haircut, checked ASCII `-`); FFI harness (cast-verified selectors 0x00213e88/0x636ae14a); IssuanceRefMock.sol over solady fullMulDivUp (confirmed identical round-up primitive to full_math mulDivRoundingUp); VegaIssuance.diff.t.sol 7/7 CALLED-green — anchor probe (pRisk=60944740395587951995033807951, composed shares=12, tol-0 vs mock + external pin), 5 constructed reverts under vm.expectRevert, p_risk>=oracle fuzz runs:512, zero vm.assume. Blocker: untracked PriceSetterHook.sol (another track) breaks `forge build` — ran with --skip (logged to phase deferred-items.md)."
 progress:
   total_phases: 15

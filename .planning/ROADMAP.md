@@ -396,7 +396,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 12. Spec Correction & Type Completion | 1/1 | Complete    | 2026-07-17 |
-| 13. Issuance Library (VegaIssuanceLib) | 2/2 | Complete   | 2026-07-17 |
+| 13. Issuance Library (VegaIssuanceLib) | 2/2 | Complete    | 2026-07-18 |
 | 14. Module Dispatch, Storage & State Readers | 0/TBD | Not started | - |
 | 15. Differential Verification & Mutation Battery, PLANK_SKIP Exit | 0/TBD | Not started | - |
 
