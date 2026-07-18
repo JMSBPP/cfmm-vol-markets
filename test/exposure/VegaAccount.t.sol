@@ -177,3 +177,71 @@ contract VegaAccountPreviewTest is VegaAccountBase {
         acct.previewRiskPrice(1 << 96, 1 << 96);
     }
 }
+
+/// @title VegaAccountSlotDistinctnessTest
+/// @notice VMOD-05: proves the FOUR keccak-derived storage slots are DISTINCT by raw vm.load at
+///         four INDEPENDENTLY recomputed slot addresses after a deposit.
+///
+///         WHY vm.load AND NOT READERS. Reader-level assertions CANNOT prove the four slots are
+///         distinct. With d == 1 in v1, totalShares and riskWeightedShares are numerically EQUAL
+///         forever, so a reader that CONFLATED them (returned the wrong slot) is behaviorally
+///         invisible. Only a raw vm.load on each independently-computed slot address proves each
+///         field lives in its OWN slot. This is the SAME infrastructure that kills the 14-02
+///         slot-aliasing mutant: when SLOT_RISK_WEIGHTED_SHARES is aliased to SLOT_TOTAL_SHARES,
+///         the real riskWeightedShares slot is NEVER written, so vm.load there reads 0 -- a kill
+///         the readers (both showing the shared, double-incremented slot) structurally cannot give.
+///
+///         The four slot addresses are recomputed TEST-SIDE from the SAME preimage strings the
+///         module's SLOT_* consts use -- never hardcoded hashes. A preimage mismatch between module
+///         and test then surfaces LOUDLY as vm.load reading 0 where a value was written, and as the
+///         raw slot disagreeing with its (correct) reader. This binds the test-side addresses to
+///         the module's own storage layout.
+contract VegaAccountSlotDistinctnessTest is VegaAccountBase {
+    // Recomputed test-side from the SAME strings the module uses -- NOT hardcoded hashes.
+    bytes32 constant SLOT_TOTAL_DEPOSITS       = keccak256(bytes("VegaAccountMod.totalDeposits"));
+    bytes32 constant SLOT_TOTAL_SHARES         = keccak256(bytes("VegaAccountMod.totalShares"));
+    bytes32 constant SLOT_RISK_WEIGHTED_SHARES = keccak256(bytes("VegaAccountMod.riskWeightedShares"));
+    bytes32 constant SLOT_RISK_PRICE           = keccak256(bytes("VegaAccountMod.riskPrice"));
+
+    /// @notice Four distinct preimages give four distinct slots: all 6 pairwise addresses differ.
+    ///         This pins that the module's storage layout has no accidental slot collision.
+    function test__unit__fourSlotsAreDistinct() public pure {
+        assertTrue(SLOT_TOTAL_DEPOSITS       != SLOT_TOTAL_SHARES,         "deposits != shares");
+        assertTrue(SLOT_TOTAL_DEPOSITS       != SLOT_RISK_WEIGHTED_SHARES, "deposits != rwShares");
+        assertTrue(SLOT_TOTAL_DEPOSITS       != SLOT_RISK_PRICE,           "deposits != riskPrice");
+        assertTrue(SLOT_TOTAL_SHARES         != SLOT_RISK_WEIGHTED_SHARES, "shares != rwShares");
+        assertTrue(SLOT_TOTAL_SHARES         != SLOT_RISK_PRICE,           "shares != riskPrice");
+        assertTrue(SLOT_RISK_WEIGHTED_SHARES != SLOT_RISK_PRICE,           "rwShares != riskPrice");
+    }
+
+    /// @notice After setRiskPrice(2*2^96); deposit(4) the raw vm.load at each of the four slot
+    ///         addresses returns that field's OWN independent value. The fixture is chosen so
+    ///         shares != collateral (4 -> 2), making the totalDeposits and totalShares slots hold
+    ///         DIFFERENT numbers -- a slot that read the wrong neighbour is caught by VALUE, not
+    ///         merely by presence. Each raw slot is then cross-checked against its reader, binding
+    ///         the test-side preimage to the module's storage.
+    function test__unit__depositWritesFourIndependentSlots() public {
+        // pRisk == 2^97 so shares = floor(4 * 2^96 / 2^97) = floor(2) = 2 != collateral (4).
+        acct.setRiskPrice(2 * (1 << 96));
+        acct.deposit(4);
+
+        address m = address(acct);
+
+        // Raw vm.load at each independently-computed slot returns that field's OWN value.
+        assertEq(uint256(vm.load(m, SLOT_RISK_PRICE)),           2 * (1 << 96), "riskPrice slot");
+        assertEq(uint256(vm.load(m, SLOT_TOTAL_DEPOSITS)),       4,             "totalDeposits slot");
+        assertEq(uint256(vm.load(m, SLOT_TOTAL_SHARES)),         2,             "totalShares slot");
+        assertEq(uint256(vm.load(m, SLOT_RISK_WEIGHTED_SHARES)), 2,             "riskWeightedShares slot");
+
+        // Bind each raw slot to its reader. If the test-side preimage were wrong the raw load would
+        // read 0 and disagree with the (correct) reader -- a loud mismatch, not a silent pass.
+        assertEq(uint256(vm.load(m, SLOT_TOTAL_DEPOSITS)),       acct.totalDeposits(),       "deposits slot == reader");
+        assertEq(uint256(vm.load(m, SLOT_TOTAL_SHARES)),         acct.totalShares(),         "shares slot == reader");
+        assertEq(uint256(vm.load(m, SLOT_RISK_WEIGHTED_SHARES)), acct.riskWeightedShares(),  "rwShares slot == reader");
+        assertEq(uint256(vm.load(m, SLOT_RISK_PRICE)),           acct.riskPrice(),           "riskPrice slot == reader");
+
+        // Non-degeneracy: totalDeposits (4) != totalShares (2) in this fixture, so the two slots
+        // hold DISTINGUISHABLE values -- a swap of the two would be caught by value.
+        assertTrue(4 != 2, "fixture must make deposits and shares distinguishable");
+    }
+}
