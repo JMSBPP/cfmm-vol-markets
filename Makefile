@@ -103,7 +103,13 @@ test-vol-prereqs: check-algebra-ref-pin test-market-statistics test-realized-vol
 test-vega-issuance:
 	forge test --match-path 'test/exposure/VegaIssuance.diff.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
 
-.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance
+# test-vega-account: the VegaAccountMod module surface (dispatch/storage/guards/previews/readers
+# + 14-02's slot-distinctness vm.load and mutation gate). Folded into `make test` in Phase 15,
+# NOT here. --skip routes around the untracked PriceSetterHook.sol (another track's broken file).
+test-vega-account:
+	forge test --match-path 'test/exposure/VegaAccount.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+
+.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account
 
 
 #####################################################################
