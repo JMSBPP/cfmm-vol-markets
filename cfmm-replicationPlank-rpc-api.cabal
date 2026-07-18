@@ -66,6 +66,7 @@ library
                     , VolOrder.Rpc
                     , PriceSetter.Encoding
                     , PriceSetter.Decode
+                    , PriceSetter.Report
 
     -- Modules included in this library but not exported.
     -- other-modules:
