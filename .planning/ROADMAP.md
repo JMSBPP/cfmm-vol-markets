@@ -385,10 +385,11 @@ Plans:
   3. **Observed-RED mutation battery — killable mutants only:** rounding-direction flips (`p_risk` ceil→floor, shares floor→ceil, at the inexact-division anchor), slot-constant aliasing (killed by the double-increment differential + `vm.load`), dust-guard deletion (killed on state), and the raw checked cross-product guard (killed by overflow revert) are EACH killed with `cache/fuzz` cleared (or a cache-independent non-fuzz anchor reddened); baseline and restored source are green. The two equivalence-masked mutants (h-bound `<`→`<=`; unset-`p_risk` guard deletion) are documented as defense-in-depth equivalents, never counted as kills — no green is trusted until every KILLABLE mutant is observed red (VVER-02).
   4. `VegaAccountMod.plk` is removed from `PLANK_SKIP` ONLY after `deposit` is CALLED green through deployed bytecode (never on compile alone); the suite is wired into a dedicated `make` target folded into `make test`, which runs green under `--via-ir --optimize` (VVER-02).
 
-**Plans**: TBD
+**Plans**: 2 plans (2 waves)
 
 Plans:
-- [ ] 15-01: TBD
+- [ ] 15-01-PLAN.md — End-to-end (setRiskPrice, deposit) sequence differential: VegaAccountMod vs an IssuanceRefMock-backed mirror, all three accumulators tol-0 after EVERY write (assertion inside the driver), fixed Phase-12 anchor + constructed fuzz (VVER-01) [wave 1]
+- [ ] 15-02-PLAN.md — Observed-RED mutation battery (5 killable mutants, cache-cleared, restored sha256-identical; 2 equivalence-masked non-kills) + PLANK_SKIP exit (12 ok/0 skipped) + make test fold-in (PriceSetterHook skip) + make compile/make test runs of record (VVER-02) [wave 2, depends 15-01]
 
 ## Progress (Milestone v3.0)
 
@@ -399,7 +400,7 @@ Plans:
 | 12. Spec Correction & Type Completion | 1/1 | Complete    | 2026-07-17 |
 | 13. Issuance Library (VegaIssuanceLib) | 2/2 | Complete    | 2026-07-18 |
 | 14. Module Dispatch, Storage & State Readers | 2/2 | Complete    | 2026-07-18 |
-| 15. Differential Verification & Mutation Battery, PLANK_SKIP Exit | 0/TBD | Not started | - |
+| 15. Differential Verification & Mutation Battery, PLANK_SKIP Exit | 0/2 | Not started | - |
 
 ## Coverage (Milestone v3.0)
 
