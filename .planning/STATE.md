@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: VegaAccountMod Vault (H1 issuance, exogenous risk price)
 status: executing
-stopped_at: Phase 14 COMPLETE + verified (6/6, slot-aliasing mutant independently re-killed); next /gsd:plan-phase 15
-last_updated: "2026-07-18T11:42:59.613Z"
-last_activity: "2026-07-18 — executed 14-02: four keccak-derived slots proven DISTINCT by raw vm.load at four independently-recomputed addresses (reader assertions structurally cannot prove this under d==1 read-conflation invisibility — the read-conflation reader variant is UNKILLABLE and stated in-file, killable only by the raw slot read). Mutation gate OBSERVED: (a) SLOT-const alias → totalShares 2000!=1000 & raw vm.load slot 4!=2; (b) dust-guard delete → deposit no longer reverts (banks collateral for 0 shares); (c) raw-checked cross-product admissibility → overflow panic 0x11 at ~2^200 deposit where baseline accepts. Each restored sha256-identical (module net-unchanged, baseline 555a7a10…818120). Unset-price guard deletion DOCUMENTED equivalence-checked (masked by lib mulDiv zero-denominator revert), NOT a kill. make test-vega-account 12/12, test-vega-issuance 11/11 unregressed, compile-plank 11 ok / 0 failed / 1 skipped (VegaAccountMod stays the 1 skipped, PLANK_SKIP untouched). Blocker: untracked PriceSetterHook.sol (another track) still needs --skip (logged to phase deferred-items.md)."
+stopped_at: Completed 15-01-PLAN.md
+last_updated: "2026-07-18T16:20:09.145Z"
+last_activity: "2026-07-18 — executed 15-01: built VegaAccountE2EDiffTest (test/exposure/VegaAccount.e2e.t.sol, 246 lines) — the milestone acceptance driver. Drives IDENTICAL (setRiskPrice, deposit) sequences into the FFI-deployed VegaAccountMod and a trivially-simple IssuanceRefMock-backed mirror (three uint256 accumulators updated ONLY via mock.issueShares floor / haircutRiskPrice ceil), asserting totalDeposits/totalShares/riskWeightedShares equal at TOLERANCE 0 AFTER EVERY write, INSIDE _setPriceBoth/_depositBoth/_depositExpectRevertBoth (abort-at-earliest-divergence). Fixed anchor reproduces the inherited Phase-12/13 anchor exactly (p12=60944740395587951995033807951 via previewRiskPrice diffed tol-0 vs mock.haircutRiskPrice; deposit=10 mints 12 shares; 2.5→2 point; mid-sequence dust revert leaves state synced; ~2^200 weight-one deposit baseline accepts). 256-run constructed fuzz (bound() only, NO vm.assume) with a NEW price each iteration (mid-sequence re-pricing → stale-price guard), zero counterexamples. All four 15-02 kill sites sensitized (p_risk ceil, shares floor, dust guard, cross-product overflow). Source-file guard checked FIRST: module sha256 555a7a10…818120 and lib 2ee07162…c7e3 both == HEAD (WIP-edit note RESOLVED). Baselines unregressed: test-vega-account 12/12, test-vega-issuance 11/11; compile-plank unaffected (added a .sol only). Blocker: untracked PriceSetterHook.sol (another track) still needs --skip (logged to phase deferred-items.md)."
 progress:
   total_phases: 15
   completed_phases: 6
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 14
+  completed_plans: 13
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-07-16)
 
 ## Current Position
 
-Phase: 14 — Module Dispatch, Storage Layout, State Readers (COMPLETE — 2/2 plans)
-Plan: 14-01 complete (VMOD-01..04 CALLED-green); 14-02 complete (VMOD-05 — slot distinctness by raw vm.load + falsifiability mutation gate)
-Status: Phase 14 done; next `/gsd:plan-phase 15` (VVER-02 — the PLANK_SKIP exit gated on this CALLED-green + mutation-verified deposit surface)
-Last activity: 2026-07-18 — executed 14-02: four keccak-derived slots proven DISTINCT by raw vm.load at four independently-recomputed addresses (reader assertions structurally cannot prove this under d==1 read-conflation invisibility — the read-conflation reader variant is UNKILLABLE and stated in-file, killable only by the raw slot read). Mutation gate OBSERVED: (a) SLOT-const alias → totalShares 2000!=1000 & raw vm.load slot 4!=2; (b) dust-guard delete → deposit no longer reverts (banks collateral for 0 shares); (c) raw-checked cross-product admissibility → overflow panic 0x11 at ~2^200 deposit where baseline accepts. Each restored sha256-identical (module net-unchanged, baseline 555a7a10…818120). Unset-price guard deletion DOCUMENTED equivalence-checked (masked by lib mulDiv zero-denominator revert), NOT a kill. make test-vega-account 12/12, test-vega-issuance 11/11 unregressed, compile-plank 11 ok / 0 failed / 1 skipped (VegaAccountMod stays the 1 skipped, PLANK_SKIP untouched). Blocker: untracked PriceSetterHook.sol (another track) still needs --skip (logged to phase deferred-items.md).
+Phase: 15 — Differential Verification, Mutation Battery, PLANK_SKIP Exit (IN PROGRESS — 1/2 plans)
+Plan: 15-01 complete (VVER-01 — e2e (setRiskPrice, deposit) sequence differential, module vs IssuanceRefMock mirror, tol-0 after every write, fixed anchor + 256-run fuzz, CALLED-green); 15-02 pending (VVER-02 — mutation battery + PLANK_SKIP exit)
+Status: 15-01 done; next execute 15-02 (apply the five named mutants against BOTH VegaAccount.t.sol and VegaAccount.e2e.t.sol, verify each reddens, restore sha256-identical, then gate the PLANK_SKIP exit)
+Last activity: 2026-07-18 — executed 15-01: built VegaAccountE2EDiffTest (test/exposure/VegaAccount.e2e.t.sol, 246 lines) — the milestone acceptance driver. Drives IDENTICAL (setRiskPrice, deposit) sequences into the FFI-deployed VegaAccountMod and a trivially-simple IssuanceRefMock-backed mirror (three uint256 accumulators updated ONLY via mock.issueShares floor / haircutRiskPrice ceil), asserting totalDeposits/totalShares/riskWeightedShares equal at TOLERANCE 0 AFTER EVERY write, INSIDE _setPriceBoth/_depositBoth/_depositExpectRevertBoth (abort-at-earliest-divergence). Fixed anchor reproduces the inherited Phase-12/13 anchor exactly (p12=60944740395587951995033807951 via previewRiskPrice diffed tol-0 vs mock.haircutRiskPrice; deposit=10 mints 12 shares; 2.5→2 point; mid-sequence dust revert leaves state synced; ~2^200 weight-one deposit baseline accepts). 256-run constructed fuzz (bound() only, NO vm.assume) with a NEW price each iteration (mid-sequence re-pricing → stale-price guard), zero counterexamples. All four 15-02 kill sites sensitized (p_risk ceil, shares floor, dust guard, cross-product overflow). Source-file guard checked FIRST: module sha256 555a7a10…818120 and lib 2ee07162…c7e3 both == HEAD (WIP-edit note RESOLVED). Baselines unregressed: test-vega-account 12/12, test-vega-issuance 11/11; compile-plank unaffected (added a .sol only). Blocker: untracked PriceSetterHook.sol (another track) still needs --skip (logged to phase deferred-items.md).
 
 **v2.0 pause point (for resumption):** Phase 9 complete — variance surface bit-exact vs Algebra at tolerance 0 in FORMULA (5-D kernel fuzz, 1024 runs) and STATE (full-timepoint diff after every write); all SC-4 mutants observed red and restored; Algebra pin exits 0. The whole vol suite now lives in ONE file (`test/market_state_measurements/RealizedVolatility.diff.t.sol`, 5 contracts, 17 tests) run by `make test-realized-vol`; repo-wide gates are `make test` (currently 50 pass / 5 pre-existing pos_spec harness failures, documented in the Makefile) and `make compile` (10 ok / 1 skipped: VegaAccountMod).
 
@@ -61,6 +61,7 @@ Last activity: 2026-07-18 — executed 14-02: four keccak-derived slots proven D
 | Phase 13 P02 | 8min | 2 tasks | 2 files |
 | Phase 14 P01 | 5min | 3 tasks | 5 files |
 | Phase 14 P02 | 6min | 2 tasks | 1 files |
+| Phase 15 P01 | 4min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -110,6 +111,8 @@ Recent decisions affecting current work:
 - [Phase 14]: 14-01 — VMOD-01..04 discharged CALLED-green: VegaAccountMod is a live deposit-only vault with verbatim RealizedVolatilityMod dispatch over 4 cast-keccak-verified scalar slots, deposit(3 guards)/setRiskPrice/2 previews/4 readers, inert admissibility guard, ZERO arithmetic (all math via VegaIssuanceLib). 9/9 tests CALLED-green through FFI; guards asserted ON STATE; previewDeposit==deposit-delta.
 - [Phase 14]: 14-01 — compile-plank baseline is 11 ok / 0 failed / 1 skipped, NOT the plan/STATE stale '10'. The 11th OK entrypoint is Phase-13's test/exposure/VegaIssuanceKernelHarness.plk (commit 12bb9d7); VegaAccountMod remains the 1 skipped, PLANK_SKIP untouched. Measured value wins per the phase's own 'cross-checks not authoritative' rule.
 - [Phase 14]: 14-02 — VMOD-05 discharged: 4 keccak slots proven distinct by raw vm.load (reader assertions cannot, d==1 read-conflation invisible); mutation gate observed 3 killable mutants red then restored sha256-identical (slot-alias, dust-guard delete, raw-checked cross-product@2^200 overflow 0x11); unset-price guard deletion documented equivalence-checked (masked by lib mulDiv zero-denom revert), NOT a kill; read-conflation reader variant UNKILLABLE, stated in-file.
+- [Phase 15]: 15-01 — VVER-01 discharged CALLED-green: an e2e (setRiskPrice, deposit) SEQUENCE differential (test/exposure/VegaAccount.e2e.t.sol) drives identical sequences into VegaAccountMod (FFI) and a trivially-simple IssuanceRefMock-backed mirror (three uint256 accumulators via mock.issueShares floor / haircutRiskPrice ceil ONLY), asserting all three accumulators tol-0 AFTER EVERY write INSIDE the driver helpers (abort-at-earliest-divergence). Fixed Phase-12/13 anchor (p12=60944740395587951995033807951; shares=12) + 256-run constructed fuzz (bound() only, NO vm.assume), zero divergence.
+- [Phase 15]: 15-01 — new THIRD test file (not folded into VegaAccount.t.sol module surface nor VegaIssuance.diff.t.sol lib surface): the stateful sequence differential is a distinct surface; two SEPARATE mirror accumulators keep riskWeightedShares==totalShares a genuine d==1 cross-check not a shared-storage tautology; all four 15-02 kill sites (p_risk ceil, shares floor, dust guard, cross-product overflow@2^200) sensitized.
 
 ### Pending Todos
 
@@ -171,6 +174,6 @@ check the deploy path before trusting a kill.
 
 ## Session Continuity
 
-Last session: 2026-07-18T11:36:29.337Z
-Stopped at: Completed 14-02-PLAN.md
+Last session: 2026-07-18T16:18:50.115Z
+Stopped at: Completed 15-01-PLAN.md
 Resume file: None
