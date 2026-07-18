@@ -319,7 +319,7 @@ Phase numbering **continues at Phase 12**. v2.0's Phases 10–11 are pending on 
 ## Phases
 
 - [x] **Phase 12: Spec Correction & Type Completion** - Kill the Lean-refuted `price/haircut` formula in `risk.md`, pin the fixed-point/quote conventions, and complete `VegaExposure.plk` (2 live fields + risk Q-types) — BLOCKS 13–15; no arithmetic against a refuted spec (completed 2026-07-17)
-- [ ] **Phase 13: Issuance Library (VegaIssuanceLib)** - The pure `haircut_risk_price` / `issue_shares` unit, diffed vs a Solidity mock via an FFI kernel harness BEFORE any module exists, with the Lean-lemma fuzz battery mutation-verified
+- [x] **Phase 13: Issuance Library (VegaIssuanceLib)** - The pure `haircut_risk_price` / `issue_shares` unit, diffed vs a Solidity mock via an FFI kernel harness BEFORE any module exists, with the Lean-lemma fuzz battery mutation-verified (completed 2026-07-17)
 - [ ] **Phase 14: Module Dispatch, Storage & State Readers** - `VegaAccountMod.plk` live: verbatim `RealizedVolatilityMod` dispatch, three distinct accumulator slots, validated `setRiskPrice`, both zero guards + unset-`p_risk` revert, preview views, readers — `deposit` CALLED green
 - [ ] **Phase 15: Differential Verification & Mutation Battery, PLANK_SKIP Exit** - The acceptance bar: end-to-end three-accumulator differential (tolerance 0, after EVERY write, assertion INSIDE the driver), observed-RED mutation battery, `PLANK_SKIP` removed, `make` target folded into `make test`
 
@@ -396,7 +396,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 12. Spec Correction & Type Completion | 1/1 | Complete    | 2026-07-17 |
-| 13. Issuance Library (VegaIssuanceLib) | 1/2 | In Progress|  |
+| 13. Issuance Library (VegaIssuanceLib) | 2/2 | Complete   | 2026-07-17 |
 | 14. Module Dispatch, Storage & State Readers | 0/TBD | Not started | - |
 | 15. Differential Verification & Mutation Battery, PLANK_SKIP Exit | 0/TBD | Not started | - |
 

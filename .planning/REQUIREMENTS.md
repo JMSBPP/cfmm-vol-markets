@@ -106,8 +106,8 @@ Design authority: machine-checked Lean at `../cfmm-wt/lean4-spec/lean/vol_market
 
 - [x] **VLIB-01**: A pure `haircut_risk_price(oracleX96, hX96)` returns `mulDivRoundingUp(oracleX96, 2^96, 2^96 − hX96)` with a CHECKED subtraction, reverting for `hX96 ≥ 2^96` or `oracleX96 == 0`; fuzz asserts `p_risk ≥ oracle` (`haircutRiskPrice_ge_oracle` — NOTE this fuzz alone cannot kill a ceil→floor mutant, since floor also satisfies ≥ oracle; the rounding is pinned by VLIB-04's inexact-division anchor) — no silent-zero division path exists
 - [x] **VLIB-02**: A pure `issue_shares(deposit, pRiskX96)` returns `mulDiv(deposit, 2^96, pRiskX96)` rounding DOWN, reverting for `pRiskX96 == 0`, composing the existing `v3::math::full_math::mulDiv` (no reimplementation)
-- [ ] **VLIB-03**: Fuzz properties pin the rounding direction: the backing invariant `shares · pRisk ≤ deposit · 2^96` holds on every run — a plain floor-division property (NOT `mulX96Down_le`, which is the weight-clamp lemma for the deferred distance pipeline and proves a different statement), asserted with genuine 512-bit arithmetic on BOTH sides since each product exceeds 2^256 above `deposit ≈ 2^160` — and the weight-one identity `issue_shares(deposit, 2^96) == deposit` is exact (`mulX96Down_one` mirror), on a CONSTRUCTED corpus (no assume-filtering)
-- [ ] **VLIB-04**: The composed issuance path `issue_shares(deposit, haircut_risk_price(oracle, h))` is diffed against a Solidity reference mock computing the IDENTICAL ceil-then-floor composition (solady `fullMulDiv`-based round-up then floor), tolerance 0, via a Plank kernel harness deployed over FFI — before any module exists. SEPARATELY, a fuzz asserts the one-sided integer transfer of `issuance_haircut_equiv`: composed path ≤ direct path `mulDiv(deposit, 2^96 − hX96, oracleX96)` (exact cross-path equality is FALSE in integers — see RISK-01). The non-fuzz unit anchor sits at an INEXACT-division point (an anchor at `h = 0` or any exact division kills no rounding mutant)
+- [x] **VLIB-03**: Fuzz properties pin the rounding direction: the backing invariant `shares · pRisk ≤ deposit · 2^96` holds on every run — a plain floor-division property (NOT `mulX96Down_le`, which is the weight-clamp lemma for the deferred distance pipeline and proves a different statement), asserted with genuine 512-bit arithmetic on BOTH sides since each product exceeds 2^256 above `deposit ≈ 2^160` — and the weight-one identity `issue_shares(deposit, 2^96) == deposit` is exact (`mulX96Down_one` mirror), on a CONSTRUCTED corpus (no assume-filtering)
+- [x] **VLIB-04**: The composed issuance path `issue_shares(deposit, haircut_risk_price(oracle, h))` is diffed against a Solidity reference mock computing the IDENTICAL ceil-then-floor composition (solady `fullMulDiv`-based round-up then floor), tolerance 0, via a Plank kernel harness deployed over FFI — before any module exists. SEPARATELY, a fuzz asserts the one-sided integer transfer of `issuance_haircut_equiv`: composed path ≤ direct path `mulDiv(deposit, 2^96 − hX96, oracleX96)` (exact cross-path equality is FALSE in integers — see RISK-01). The non-fuzz unit anchor sits at an INEXACT-division point (an anchor at `h = 0` or any exact division kills no rounding mutant)
 
 ### Vault Module
 
@@ -212,8 +212,8 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | RISK-02 | Phase 12 | Complete |
 | VLIB-01 | Phase 13 | Complete |
 | VLIB-02 | Phase 13 | Complete |
-| VLIB-03 | Phase 13 | Pending |
-| VLIB-04 | Phase 13 | Pending |
+| VLIB-03 | Phase 13 | Complete |
+| VLIB-04 | Phase 13 | Complete |
 | VMOD-01 | Phase 14 | Pending |
 | VMOD-02 | Phase 14 | Pending |
 | VMOD-03 | Phase 14 | Pending |

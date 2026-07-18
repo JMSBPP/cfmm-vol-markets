@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: VegaAccountMod Vault (H1 issuance, exogenous risk price)
 status: executing
-stopped_at: "Phase 13 IN PROGRESS — 13-01 complete (VLIB-01/02 CALLED-green); next 13-02 (VLIB-03/04 fuzz battery + mutation gate). NOTE: gsd-tools re-normalizes these 4 frontmatter lines to `milestone: v2.0` / `milestone_name: milestone` / `status: completed|planning` from a stale source — re-check after every state/roadmap tool run. Blocker: untracked src/modules/protocol_integrations/PriceSetterHook.sol breaks `forge build` — use --skip until the owning track fixes it."
-last_updated: "2026-07-17T22:31:15.359Z"
+stopped_at: Completed 13-02-PLAN.md — Phase 13 complete (VLIB-01..04 discharged); next /gsd:plan-phase 14
+last_updated: "2026-07-17T22:45:00.788Z"
 last_activity: "2026-07-17 — executed 13-01: pure VegaIssuanceLib.plk (haircut_risk_price ceil + issue_shares floor composing v3::math::full_math, typed by RiskPriceX96/Haircut, checked ASCII `-`); FFI harness (cast-verified selectors 0x00213e88/0x636ae14a); IssuanceRefMock.sol over solady fullMulDivUp (confirmed identical round-up primitive to full_math mulDivRoundingUp); VegaIssuance.diff.t.sol 7/7 CALLED-green — anchor probe (pRisk=60944740395587951995033807951, composed shares=12, tol-0 vs mock + external pin), 5 constructed reverts under vm.expectRevert, p_risk>=oracle fuzz runs:512, zero vm.assume. Blocker: untracked PriceSetterHook.sol (another track) breaks `forge build` — ran with --skip (logged to phase deferred-items.md)."
 progress:
   total_phases: 15
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -58,6 +58,7 @@ Last activity: 2026-07-17 — executed 13-01: pure VegaIssuanceLib.plk (haircut_
 | Phase 09 P02 | 13min | 3 tasks | 4 files |
 | Phase 12 P01 | 3min | 4 tasks | 5 files |
 | Phase 13 P01 | 5min | 3 tasks | 4 files |
+| Phase 13 P02 | 8min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,8 @@ Recent decisions affecting current work:
 - [Phase 12]: 12-01 — VegaExposure is a two-live-field record (exposure u128, priceVolX96 u160) + RiskPriceX96/Haircut newtypes co-located in the same file; v1 priceVolX96 carries exogenous p_risk (not p_vol(σ̄)) — the tension is stated in exposure.md, not silently renamed. Phase 12 shipped NO CALLED test; 'it compiles' is a PRECONDITION, not acceptance — the type is proven only when Phase 13 imports it.
 - [Phase 13]: 13-01 — VLIB-01/02 discharged CALLED-green: VegaIssuanceLib.plk (haircut_risk_price ceil, issue_shares floor) composes v3::math::full_math and never reimplements 512-bit math; proven at the inexact-both-hops anchor (pRisk=60944740395587951995033807951, composed shares=12), tolerance-0 vs a solady fullMulDivUp mock, 5 constructed reverts (vm.expectRevert), and a runs:512 p_risk>=oracle fuzz (no vm.assume).
 - [Phase 13]: 13-01 — solady fullMulDivUp CONFIRMED identical round-up primitive to full_math mulDivRoundingUp (floor then +1 iff mulmod!=0; revert on d==0; revert on 2^256 overflow) — read before claiming 'identical algorithm', no mock adaptation. Both harness selectors RECOMPUTED with cast sig (0x00213e88 / 0x636ae14a), matching the plan.
+- [Phase 13]: 13-02: VLIB-03/04 discharged CALLED-green — 512-bit backing invariant (mulmod _mul512/_le512, no raw *), weight-one identity, tolerance-0 composed==mock, one-sided composed<=direct; 3 killable mutants (p_risk ceil->floor, shares floor->ceil, mulDiv arg swap) OBSERVED red at the cache-independent inexact anchor (…950, 13, 7 vs 12) and restored byte-identical; h-bound >=->> relaxation documented equivalence-checked (masked by full_math zero-denominator revert), NOT a kill.
+- [Phase 13]: 13-02: fixed two latent corpus bugs in the plan's fuzz bounds — backing non-vacuity asserted on deposit*2^96 (hiR>0, provably >=2^256) not shares*pRisk (hiL can be 0 under floor div); oracle upper bound narrowed 2^160->2^160-1 (joint corner oracle=2^160 & denom=1 overflow-reverts haircut_risk_price, empirically confirmed).
 
 ### Pending Todos
 
@@ -163,6 +166,6 @@ check the deploy path before trusting a kill.
 
 ## Session Continuity
 
-Last session: 2026-07-17T22:29:27.036Z
-Stopped at: Completed 13-01-PLAN.md
+Last session: 2026-07-17T22:45:00.784Z
+Stopped at: Completed 13-02-PLAN.md
 Resume file: None
