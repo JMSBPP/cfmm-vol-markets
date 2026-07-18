@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: VegaAccountMod Vault (H1 issuance, exogenous risk price)
 status: executing
-stopped_at: Completed 14-02-PLAN.md
-last_updated: "2026-07-18T11:37:54.204Z"
+stopped_at: Phase 14 COMPLETE + verified (6/6, slot-aliasing mutant independently re-killed); next /gsd:plan-phase 15
+last_updated: "2026-07-18T11:42:59.613Z"
 last_activity: "2026-07-18 — executed 14-02: four keccak-derived slots proven DISTINCT by raw vm.load at four independently-recomputed addresses (reader assertions structurally cannot prove this under d==1 read-conflation invisibility — the read-conflation reader variant is UNKILLABLE and stated in-file, killable only by the raw slot read). Mutation gate OBSERVED: (a) SLOT-const alias → totalShares 2000!=1000 & raw vm.load slot 4!=2; (b) dust-guard delete → deposit no longer reverts (banks collateral for 0 shares); (c) raw-checked cross-product admissibility → overflow panic 0x11 at ~2^200 deposit where baseline accepts. Each restored sha256-identical (module net-unchanged, baseline 555a7a10…818120). Unset-price guard deletion DOCUMENTED equivalence-checked (masked by lib mulDiv zero-denominator revert), NOT a kill. make test-vega-account 12/12, test-vega-issuance 11/11 unregressed, compile-plank 11 ok / 0 failed / 1 skipped (VegaAccountMod stays the 1 skipped, PLANK_SKIP untouched). Blocker: untracked PriceSetterHook.sol (another track) still needs --skip (logged to phase deferred-items.md)."
 progress:
   total_phases: 15
