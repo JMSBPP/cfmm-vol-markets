@@ -25,17 +25,30 @@
 # This repo shipped exactly that gate. Only calling a function proves it exists.
 #
 # THIS TARGET IS CURRENTLY RED, AND THAT IS THE TRUTH, NOT A DEFECT IN THE TARGET.
-# As of the merge to a single vol test file: 50 pass, 5 fail (55 total).
-# The 5 are pre-existing and all in the pos_spec type track:
+# As of Phase 15 (the vega + e2e suites folded in via the PriceSetterHook --skip below):
+# MEASURED 74 pass, 5 fail (79 total). The +24 over the prior 50/5 is the now-counted
+# VegaIssuance.diff (11) + VegaAccount (12) + the new VegaAccount.e2e (2) exposure suites,
+# which `make test` could not even build before the --skip un-broke the tree.
+# The 5 failures are pre-existing and all in the pos_spec type track:
 #   VolRangeWidthTest         volWidthRangeSub_valid, volWidthRangeBuildVolRangeWidth_valid
 #   SpreadTickAssimetryTest   spreadTickAssimetrySplitTick__Valid, tickFromSplittedTickBucket__Valid
-#   OrderTest                 OrderMakeSucceed
-# All five are diagnosed as bugs in the TEST HARNESSES (not the .plk under test)
+#   OrderTest                 OrderMakeSucceed  (now fails at its FFI `plank build` step: its harness
+#                             test/types/OrderHelper.plk imports src/types/Order.plk, which the
+#                             OrderType track has DELETED from the working tree -- HEAD still has it.
+#                             Same root cause also reddens `make compile-plank` on OrderHelper.plk;
+#                             see the phase deferred-items.md. Out of scope for VegaAccountMod.)
+# All five are diagnosed as bugs/blockers in the TEST HARNESSES (not the .plk under test)
 # and are owned by the vol-type-system track. They are deliberately NOT skipped,
 # excluded, or filtered out to make this target green: a suite that lies about
 # what passes is worth less than no suite. Fix them or leave them visible.
 test: check-algebra-ref-pin
-	forge test --via-ir --optimize
+	# --skip routes around an UNTRACKED parallel-track stray:
+	# src/modules/protocol_integrations/PriceSetterHook.sol (PR #11). Its empty Solidity import
+	# path breaks `forge build` of the WHOLE src/ tree, which breaks `make test` for EVERYONE
+	# here -- not just its own suite. This skip un-breaks make test for the local tree WITHOUT
+	# touching another track's file; it is a NO-OP the moment the owning track removes the file.
+	# It does NOT hide any test failure: no test is filtered, only a non-compiling stray source.
+	forge test --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
 
 # compile: every Plank entrypoint -> EVM bytecode. A PRECONDITION, never acceptance.
 # See compile-plank below for what "entrypoint" means and why it is not literally
@@ -109,7 +122,16 @@ test-vega-issuance:
 test-vega-account:
 	forge test --match-path 'test/exposure/VegaAccount.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
 
-.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account
+# test-vega-e2e: the end-to-end (setRiskPrice, deposit) SEQUENCE differential (VVER-01) --
+# VegaAccountE2EDiffTest drives identical sequences into the FFI-deployed VegaAccountMod and a
+# trivially-simple IssuanceRefMock-backed mirror, asserting all three accumulators tol-0 after
+# EVERY write. This is the milestone acceptance driver the 15-02 mutation battery reddens. Folded
+# into `make test` in Phase 15, kept here as a focused target. --skip routes around the untracked
+# PriceSetterHook.sol (another track's broken file); a no-op once that track removes it.
+test-vega-e2e:
+	forge test --match-path 'test/exposure/VegaAccount.e2e.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+
+.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e
 
 
 #####################################################################
@@ -139,10 +161,15 @@ PLANK_BUILD   := build/plank
 # are meant to compile, but are still blocked on authoring. Delete a line the
 # moment its file goes green -- this list should only ever shrink.
 #
-#   VegaAccountMod         - RESCUING. Pure skeleton: SLOT_* / SELECTOR_DEPOSIT consts have
-#                            no values, and it does not yet import VegaExposure. Needs the
-#                            deposit(collateral) -> vegaExposure logic authored.
-PLANK_SKIP    := src/modules/exposure/VegaAccountMod.plk
+# THE QUEUE IS NOW EMPTY. VegaAccountMod was the last entry; it left in Phase 15
+# (VVER-02) after its deposit dispatch was proven CALLED-green (Phase 14) AND every
+# killable mutant in it was OBSERVED red by the 15-02 mutation battery (rounding-
+# direction flips in the lib, slot-constant aliasing, dust-guard deletion, and the
+# raw checked cross-product guard). PLANK_SKIP shrinks only when the module is
+# PROVEN, never on compile alone -- this is the moment the "should only ever shrink"
+# comment was written for. Add a line here ONLY to rescue a new blocked-on-authoring
+# entrypoint, and delete it the moment that file goes green.
+PLANK_SKIP    :=
 
 # compile-plank: compile every Plank entrypoint to EVM bytecode, writing
 # build/plank/<name>.hex on success and <name>.hex.err on failure. Fails
