@@ -101,6 +101,16 @@ contract VegaAccountGuardTest is VegaAccountBase {
     /// @notice Guard 2 (unset price): with no setRiskPrice, storedRiskPrice == 0 reverts. That
     ///         "set at least once" reading is valid ONLY because setRiskPrice rejects 0 -- the
     ///         documented coupling. totalDeposits unmoved.
+    ///
+    ///         EQUIVALENCE-CHECKED NON-KILL (14-02 mutation gate). Deleting the module's unset-price
+    ///         guard (the iszero-storedRiskPrice revert branch) is PROVEN EQUIVALENT, NOT
+    ///         a kill: with the guard gone, a deposit before any setRiskPrice has storedRiskPrice ==
+    ///         0, so issue_shares(collateral, RiskPriceX96 { val: 0 }) reverts via the LIB's own
+    ///         mulDiv zero-denominator check. BOTH baseline and mutant revert empty with
+    ///         totalDeposits unchanged -- same observable. This test STAYS GREEN under that mutant.
+    ///         The module guard is defense-in-depth (fails fast before the lib call); counting its
+    ///         deletion as a kill would be the false-verification pattern this project catalogues.
+    ///         So it is documented equivalence-checked and NOT counted among the three kills.
     function test__unit__depositBeforeSetRiskPriceReverts() public {
         vm.expectRevert();
         acct.deposit(COLLATERAL);
@@ -243,5 +253,35 @@ contract VegaAccountSlotDistinctnessTest is VegaAccountBase {
         // Non-degeneracy: totalDeposits (4) != totalShares (2) in this fixture, so the two slots
         // hold DISTINGUISHABLE values -- a swap of the two would be caught by value.
         assertTrue(4 != 2, "fixture must make deposits and shares distinguishable");
+    }
+}
+
+/// @title VegaAccountCrossProductMutantTest
+/// @notice VMOD-05 (falsifiability of the inert admissibility guard). The admissibility guard
+///         `require(new_total_deposits >= collateral)` is INERT SCAFFOLDING: in deposit-only v1
+///         new_total_deposits = old + collateral >= collateral ALWAYS (collateral > 0 by Guard 1),
+///         so it can NEVER fire behaviorally. A guard that can never fire cannot be proven present
+///         by any live-path test (a boundary-match test would be vacuous). Its presence and its
+///         collapsed money-side FORM are therefore verified SOLELY by the 14-02 cross-product
+///         mutant (c): replacing the guard with a raw CHECKED cross-product
+///         `collateral * storedRiskPrice` overflow-reverts at a ~2^200 deposit where the collapsed
+///         baseline ACCEPTS. This contract pins the baseline's ACCEPT so that mutant has a green to
+///         redden.
+contract VegaAccountCrossProductMutantTest is VegaAccountBase {
+    /// @notice The BASELINE accepts a ~2^200 deposit at weight-one. The u128 bound on
+    ///         VegaExposure.exposure is a TYPE-LEVEL doc bound, NOT enforced on the u256 accumulator
+    ///         slots, so this path is unobstructed. The baseline collapsed guard
+    ///         (new_total_deposits >= collateral) has NO multiply and accepts.
+    ///
+    ///         14-02 mutant (c) replaces the guard with a raw CHECKED cross-product
+    ///         `collateral * storedRiskPrice`, which overflow-reverts here (2^200 * 2^96 = 2^296 >
+    ///         2^256) -- killed ON STATE (mutant reverts so totalDeposits stays 0 where baseline ==
+    ///         2^200). This assertion is that mutant's kill site.
+    function test__unit__crossProductOverflowsAtLargeDeposit() public {
+        acct.setRiskPrice(1 << 96);          // weight-one: shares == collateral
+        uint256 big = 1 << 200;              // ~2^200
+        acct.deposit(big);                   // BASELINE must ACCEPT (u256 accumulators unobstructed)
+        assertEq(acct.totalDeposits(), big, "baseline accepts a ~2^200 deposit");
+        assertEq(acct.totalShares(), big, "shares == collateral at weight-one");
     }
 }
