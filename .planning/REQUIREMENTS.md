@@ -111,10 +111,10 @@ Design authority: machine-checked Lean at `../cfmm-wt/lean4-spec/lean/vol_market
 
 ### Vault Module
 
-- [ ] **VMOD-01**: `deposit(collateralAmt)` mints `issue_shares(collateralAmt, storedRiskPrice)` and updates all three accumulators (`totalDeposits`, `totalShares`, `riskWeightedShares` with d ≡ 1) in distinct storage slots; it reverts on `collateralAmt == 0` and on `sharesMinted == 0` (dust cannot bank collateral for zero shares)
-- [ ] **VMOD-02**: `setRiskPrice(pRiskX96)` stores the exogenous price and reverts on 0; `deposit` before any `setRiskPrice` reverts. The deposit-time `storedRiskPrice != 0` check is equivalent to "set at least once" ONLY because the setter rejects 0 — that coupling is documented, since deleting the setter's zero-guard silently changes the deposit check's meaning. The setter is deliberately UNAUTHENTICATED in v1 (recorded in scope: no asset custody, no redemption, test scaffold — authorization arrives with oracle wiring)
-- [ ] **VMOD-03**: Dispatched view selectors expose `previewDeposit(amt)` (pure issuance, no state change) and `previewRiskPrice(oracleX96, hX96)` (the H1 computation with `h < 1` enforced on-chain), each verified by CALLING the selector; and `previewDeposit(amt)` EQUALS the observed `totalShares` delta of an immediately following `deposit(amt)` under identical stored state (preview/action divergence is the canonical vault bug class)
-- [ ] **VMOD-04**: State readers expose every stored field (`totalDeposits`, `totalShares`, `riskWeightedShares`, `riskPrice`) — the module is not a black box, and quotient-only assertions are impossible by construction; every selector is declared in an `interfaces/exposure/` Plank interface file with its EXACT Solidity signature string (the `RealizedVolatilityInterface` pattern), so module selectors and the reference mock's ABI are computed from the SAME strings
+- [x] **VMOD-01**: `deposit(collateralAmt)` mints `issue_shares(collateralAmt, storedRiskPrice)` and updates all three accumulators (`totalDeposits`, `totalShares`, `riskWeightedShares` with d ≡ 1) in distinct storage slots; it reverts on `collateralAmt == 0` and on `sharesMinted == 0` (dust cannot bank collateral for zero shares)
+- [x] **VMOD-02**: `setRiskPrice(pRiskX96)` stores the exogenous price and reverts on 0; `deposit` before any `setRiskPrice` reverts. The deposit-time `storedRiskPrice != 0` check is equivalent to "set at least once" ONLY because the setter rejects 0 — that coupling is documented, since deleting the setter's zero-guard silently changes the deposit check's meaning. The setter is deliberately UNAUTHENTICATED in v1 (recorded in scope: no asset custody, no redemption, test scaffold — authorization arrives with oracle wiring)
+- [x] **VMOD-03**: Dispatched view selectors expose `previewDeposit(amt)` (pure issuance, no state change) and `previewRiskPrice(oracleX96, hX96)` (the H1 computation with `h < 1` enforced on-chain), each verified by CALLING the selector; and `previewDeposit(amt)` EQUALS the observed `totalShares` delta of an immediately following `deposit(amt)` under identical stored state (preview/action divergence is the canonical vault bug class)
+- [x] **VMOD-04**: State readers expose every stored field (`totalDeposits`, `totalShares`, `riskWeightedShares`, `riskPrice`) — the module is not a black box, and quotient-only assertions are impossible by construction; every selector is declared in an `interfaces/exposure/` Plank interface file with its EXACT Solidity signature string (the `RealizedVolatilityInterface` pattern), so module selectors and the reference mock's ABI are computed from the SAME strings
 - [ ] **VMOD-05**: The admissibility guard exists in its collapsed money-side form, instantiating Flow.lean's `Q_M^Σ` as the POST-deposit `totalDeposits` — in deposit-only v1 this is TRIVIALLY SATISFIED and can never fire; it is declared INERT SCAFFOLDING for the deferred flow milestone, not presented as a live safety property. Its presence/form is verified solely by mutation (the raw CHECKED cross-product `deposit · pRisk` variant is OBSERVED RED via overflow revert at `deposit ≈ 2^200`; the u128 bound on `VegaExposure.exposure` is a type-level bound not enforced on the u256 accumulator slots, so the kill path is unobstructed), and the FOUR keccak-derived slots (three accumulators + `riskPrice`) are proven distinct by raw `vm.load` assertions at the precomputed slot addresses
 
 ### Verification & Exit
@@ -214,10 +214,10 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | VLIB-02 | Phase 13 | Complete |
 | VLIB-03 | Phase 13 | Complete |
 | VLIB-04 | Phase 13 | Complete |
-| VMOD-01 | Phase 14 | Pending |
-| VMOD-02 | Phase 14 | Pending |
-| VMOD-03 | Phase 14 | Pending |
-| VMOD-04 | Phase 14 | Pending |
+| VMOD-01 | Phase 14 | Complete |
+| VMOD-02 | Phase 14 | Complete |
+| VMOD-03 | Phase 14 | Complete |
+| VMOD-04 | Phase 14 | Complete |
 | VMOD-05 | Phase 14 | Pending |
 | VVER-01 | Phase 15 | Pending |
 | VVER-02 | Phase 15 | Pending |

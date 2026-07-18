@@ -398,7 +398,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 12. Spec Correction & Type Completion | 1/1 | Complete    | 2026-07-17 |
 | 13. Issuance Library (VegaIssuanceLib) | 2/2 | Complete    | 2026-07-18 |
-| 14. Module Dispatch, Storage & State Readers | 0/TBD | Not started | - |
+| 14. Module Dispatch, Storage & State Readers | 1/2 | In Progress|  |
 | 15. Differential Verification & Mutation Battery, PLANK_SKIP Exit | 0/TBD | Not started | - |
 
 ## Coverage (Milestone v3.0)

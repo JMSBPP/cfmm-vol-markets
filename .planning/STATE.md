@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: VegaAccountMod Vault (H1 issuance, exogenous risk price)
 status: executing
-stopped_at: Phase 13 COMPLETE + verified (5/5, incl. independent mutant re-kill); next /gsd:plan-phase 14
-last_updated: "2026-07-18T11:02:25.697Z"
-last_activity: "2026-07-17 — executed 13-01: pure VegaIssuanceLib.plk (haircut_risk_price ceil + issue_shares floor composing v3::math::full_math, typed by RiskPriceX96/Haircut, checked ASCII `-`); FFI harness (cast-verified selectors 0x00213e88/0x636ae14a); IssuanceRefMock.sol over solady fullMulDivUp (confirmed identical round-up primitive to full_math mulDivRoundingUp); VegaIssuance.diff.t.sol 7/7 CALLED-green — anchor probe (pRisk=60944740395587951995033807951, composed shares=12, tol-0 vs mock + external pin), 5 constructed reverts under vm.expectRevert, p_risk>=oracle fuzz runs:512, zero vm.assume. Blocker: untracked PriceSetterHook.sol (another track) breaks `forge build` — ran with --skip (logged to phase deferred-items.md)."
+stopped_at: Completed 14-01-PLAN.md
+last_updated: "2026-07-18T11:26:34.979Z"
+last_activity: "2026-07-18 — executed 14-01: VegaAccountMod.plk is now a LIVE deposit-only vault (verbatim RealizedVolatilityMod dispatch, 4 cast-keccak-verified scalar slots, deposit/setRiskPrice/previewDeposit/previewRiskPrice/4 readers, inert admissibility guard, ZERO arithmetic composing VegaIssuanceLib). 8 selectors pinned in new interfaces/exposure/VegaAccountInterface.plk (all cast-sig-matched the plan reference). test/exposure/VegaAccount.t.sol 9/9 CALLED-green through FFI-deployed bytecode; make test-vega-account 9/9, test-vega-issuance 11/11 unregressed; compile-plank 11 ok / 0 failed / 1 skipped (baseline corrected from the plan's stale 10 — Phase-13's VegaIssuanceKernelHarness is the 11th entrypoint), VegaAccountMod stays the 1 skipped, PLANK_SKIP untouched (exit is Phase 15/VVER-02). Blocker: untracked PriceSetterHook.sol (another track) still needs --skip (logged to phase deferred-items.md)."
 progress:
   total_phases: 15
   completed_phases: 5
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 12
+  completed_plans: 11
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-07-16)
 
 ## Current Position
 
-Phase: 13 — Issuance Library (VegaIssuanceLib) (IN PROGRESS — 1/2 plans)
-Plan: 13-01 complete (VLIB-01, VLIB-02 discharged CALLED-green); 13-02 pending (VLIB-03, VLIB-04)
-Status: 13-01 done; next `/gsd:execute-phase 13` continues with 13-02 (fuzz battery + observed-RED mutation gate)
-Last activity: 2026-07-17 — executed 13-01: pure VegaIssuanceLib.plk (haircut_risk_price ceil + issue_shares floor composing v3::math::full_math, typed by RiskPriceX96/Haircut, checked ASCII `-`); FFI harness (cast-verified selectors 0x00213e88/0x636ae14a); IssuanceRefMock.sol over solady fullMulDivUp (confirmed identical round-up primitive to full_math mulDivRoundingUp); VegaIssuance.diff.t.sol 7/7 CALLED-green — anchor probe (pRisk=60944740395587951995033807951, composed shares=12, tol-0 vs mock + external pin), 5 constructed reverts under vm.expectRevert, p_risk>=oracle fuzz runs:512, zero vm.assume. Blocker: untracked PriceSetterHook.sol (another track) breaks `forge build` — ran with --skip (logged to phase deferred-items.md).
+Phase: 14 — Module Dispatch, Storage Layout, State Readers (IN PROGRESS — 1/2 plans)
+Plan: 14-01 complete (VMOD-01..04 discharged CALLED-green); 14-02 pending (slot-distinctness vm.load + cross-product mutation gate)
+Status: 14-01 done; next `/gsd:execute-phase 14` continues with 14-02
+Last activity: 2026-07-18 — executed 14-01: VegaAccountMod.plk is now a LIVE deposit-only vault (verbatim RealizedVolatilityMod dispatch, 4 cast-keccak-verified scalar slots, deposit/setRiskPrice/previewDeposit/previewRiskPrice/4 readers, inert admissibility guard, ZERO arithmetic composing VegaIssuanceLib). 8 selectors pinned in new interfaces/exposure/VegaAccountInterface.plk (all cast-sig-matched the plan reference). test/exposure/VegaAccount.t.sol 9/9 CALLED-green through FFI-deployed bytecode; make test-vega-account 9/9, test-vega-issuance 11/11 unregressed; compile-plank 11 ok / 0 failed / 1 skipped (baseline corrected from the plan's stale 10 — Phase-13's VegaIssuanceKernelHarness is the 11th entrypoint), VegaAccountMod stays the 1 skipped, PLANK_SKIP untouched (exit is Phase 15/VVER-02). Blocker: untracked PriceSetterHook.sol (another track) still needs --skip (logged to phase deferred-items.md).
 
 **v2.0 pause point (for resumption):** Phase 9 complete — variance surface bit-exact vs Algebra at tolerance 0 in FORMULA (5-D kernel fuzz, 1024 runs) and STATE (full-timepoint diff after every write); all SC-4 mutants observed red and restored; Algebra pin exits 0. The whole vol suite now lives in ONE file (`test/market_state_measurements/RealizedVolatility.diff.t.sol`, 5 contracts, 17 tests) run by `make test-realized-vol`; repo-wide gates are `make test` (currently 50 pass / 5 pre-existing pos_spec harness failures, documented in the Makefile) and `make compile` (10 ok / 1 skipped: VegaAccountMod).
 
@@ -59,6 +59,7 @@ Last activity: 2026-07-17 — executed 13-01: pure VegaIssuanceLib.plk (haircut_
 | Phase 12 P01 | 3min | 4 tasks | 5 files |
 | Phase 13 P01 | 5min | 3 tasks | 4 files |
 | Phase 13 P02 | 8min | 2 tasks | 2 files |
+| Phase 14 P01 | 5min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,8 @@ Recent decisions affecting current work:
 - [Phase 13]: 13-01 — solady fullMulDivUp CONFIRMED identical round-up primitive to full_math mulDivRoundingUp (floor then +1 iff mulmod!=0; revert on d==0; revert on 2^256 overflow) — read before claiming 'identical algorithm', no mock adaptation. Both harness selectors RECOMPUTED with cast sig (0x00213e88 / 0x636ae14a), matching the plan.
 - [Phase 13]: 13-02: VLIB-03/04 discharged CALLED-green — 512-bit backing invariant (mulmod _mul512/_le512, no raw *), weight-one identity, tolerance-0 composed==mock, one-sided composed<=direct; 3 killable mutants (p_risk ceil->floor, shares floor->ceil, mulDiv arg swap) OBSERVED red at the cache-independent inexact anchor (…950, 13, 7 vs 12) and restored byte-identical; h-bound >=->> relaxation documented equivalence-checked (masked by full_math zero-denominator revert), NOT a kill.
 - [Phase 13]: 13-02: fixed two latent corpus bugs in the plan's fuzz bounds — backing non-vacuity asserted on deposit*2^96 (hiR>0, provably >=2^256) not shares*pRisk (hiL can be 0 under floor div); oracle upper bound narrowed 2^160->2^160-1 (joint corner oracle=2^160 & denom=1 overflow-reverts haircut_risk_price, empirically confirmed).
+- [Phase 14]: 14-01 — VMOD-01..04 discharged CALLED-green: VegaAccountMod is a live deposit-only vault with verbatim RealizedVolatilityMod dispatch over 4 cast-keccak-verified scalar slots, deposit(3 guards)/setRiskPrice/2 previews/4 readers, inert admissibility guard, ZERO arithmetic (all math via VegaIssuanceLib). 9/9 tests CALLED-green through FFI; guards asserted ON STATE; previewDeposit==deposit-delta.
+- [Phase 14]: 14-01 — compile-plank baseline is 11 ok / 0 failed / 1 skipped, NOT the plan/STATE stale '10'. The 11th OK entrypoint is Phase-13's test/exposure/VegaIssuanceKernelHarness.plk (commit 12bb9d7); VegaAccountMod remains the 1 skipped, PLANK_SKIP untouched. Measured value wins per the phase's own 'cross-checks not authoritative' rule.
 
 ### Pending Todos
 
@@ -166,6 +169,6 @@ check the deploy path before trusting a kill.
 
 ## Session Continuity
 
-Last session: 2026-07-17T22:45:00.784Z
-Stopped at: Completed 13-02-PLAN.md
+Last session: 2026-07-18T11:25:29.713Z
+Stopped at: Completed 14-01-PLAN.md
 Resume file: None
