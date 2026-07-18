@@ -224,3 +224,23 @@ gams-fixtures:
 	uv run --project tools/gamsdiff gamsdiff
 
 .PHONY: compile-plank clean-plank compile-gams test-gams clean-gams payoff-fixtures spec-preflight
+
+# --- PriceSetterHook: local tick-experiment rig -------------------------------
+# Stands up PoolManager + a flag-mined PriceSetterHook + a bound (liquidity-free) pool
+# on a local anvil. Prints the PriceSetterHook address and its verified slot0 slot.
+# Requires `anvil` running: anvil --silent
+price-setter-deploy:
+	forge script foundry-scripts/PriceSetterHook.s.sol --broadcast --rpc-url local --via-ir --optimize
+
+# Impose a tick on the bound pool: make price-setter-set-tick HOOK=0x.. TICK=-8888
+# This is the off-chain entry point -- a single anvil_setStorageAt of the value the hook
+# packs (tick + matching sqrtPriceX96, fee bits preserved). A stochastic driver issues
+# exactly this per step.
+price-setter-set-tick:
+	@test -n "$(HOOK)" || (echo "usage: make price-setter-set-tick HOOK=0x.. TICK=<n>"; exit 1)
+	cast rpc --rpc-url local anvil_setStorageAt \
+		$$(cast call --rpc-url local $(HOOK) 'poolManager()(address)') \
+		$$(cast call --rpc-url local $(HOOK) 'slot0Slot()(bytes32)') \
+		$$(cast call --rpc-url local $(HOOK) 'packSlot0For(int24)(bytes32)' -- $(TICK))
+	@echo "tick  = $$(cast call --rpc-url local $(HOOK) 'readTick()(int24)')"
+	@echo "sqrtP = $$(cast call --rpc-url local $(HOOK) 'readSqrtPriceX96()(uint160)')"
