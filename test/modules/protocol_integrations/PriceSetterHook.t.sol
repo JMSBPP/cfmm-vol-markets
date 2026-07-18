@@ -97,4 +97,69 @@ contract PriceSetterHookTest is Test {
         vm.expectRevert(abi.encodeWithSelector(TickMath.InvalidTick.selector, TickMath.MIN_TICK - 1));
         hook.packSlot0For(TickMath.MIN_TICK - 1);
     }
+
+    function test_secondInitialize_revertsAlreadyBound_wrapped() public {
+        PoolKey memory key2 = PoolKey({
+            currency0: Currency.wrap(address(0x1111)),
+            currency1: Currency.wrap(address(0x2222)),
+            fee: LP_FEE,
+            tickSpacing: 10, // different key, same hook
+            hooks: IHooks(HOOK_ADDRESS)
+        });
+        // ERC-7751: PoolManager wraps hook reverts; second field is the hook FUNCTION
+        // selector (bytes4 of the call payload), inner reason is the raw custom error.
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                HOOK_ADDRESS,
+                IHooks.beforeInitialize.selector,
+                abi.encodeWithSelector(PriceSetterHook.AlreadyBound.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
+        manager.initialize(key2, TickMath.getSqrtPriceAtTick(0));
+    }
+
+    function test_unboundHook_readsAndPackRevert_NotBound() public {
+        PriceSetterHook fresh = new PriceSetterHook(IPoolManager(address(manager)));
+        vm.expectRevert(PriceSetterHook.NotBound.selector);
+        fresh.readTick();
+        vm.expectRevert(PriceSetterHook.NotBound.selector);
+        fresh.readSqrtPriceX96();
+        vm.expectRevert(PriceSetterHook.NotBound.selector);
+        fresh.packSlot0For(0);
+    }
+
+    function test_directCalls_revertNotPoolManager() public {
+        vm.expectRevert(PriceSetterHook.NotPoolManager.selector);
+        hook.beforeInitialize(address(this), key, 0);
+        vm.expectRevert(PriceSetterHook.NotPoolManager.selector);
+        hook.afterInitialize(address(this), key, 0, 0);
+    }
+
+    // Defensive branches unreachable through manager.initialize (AlreadyBound fires
+    // first); exercised via direct pranked calls for branch coverage.
+    function test_afterInitialize_wrongKey_revertsWrongPool() public {
+        PoolKey memory other = PoolKey({
+            currency0: Currency.wrap(address(0x1111)),
+            currency1: Currency.wrap(address(0x2222)),
+            fee: LP_FEE,
+            tickSpacing: 10,
+            hooks: IHooks(HOOK_ADDRESS)
+        });
+        vm.prank(address(manager));
+        vm.expectRevert(PriceSetterHook.WrongPool.selector);
+        hook.afterInitialize(address(this), other, 0, 0);
+    }
+
+    function test_afterInitialize_mismatchedValues_revertsSlotVerificationFailed() public {
+        // Bound pool's stored tick is INIT_TICK; claim a different tick/price.
+        vm.prank(address(manager));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                PriceSetterHook.SlotVerificationFailed.selector, INIT_TICK + 1, INIT_TICK
+            )
+        );
+        hook.afterInitialize(address(this), key, TickMath.getSqrtPriceAtTick(INIT_TICK + 1), INIT_TICK + 1);
+    }
 }
