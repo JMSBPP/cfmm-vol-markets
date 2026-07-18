@@ -300,6 +300,8 @@ which behavior actually occurs.
 - [ ] **Step 1: Create `PriceSetter.Rpc`**
 
 ```haskell
+{-# LANGUAGE OverloadedStrings #-}
+
 module PriceSetter.Rpc
   ( write_price
   , write_price_and_report
