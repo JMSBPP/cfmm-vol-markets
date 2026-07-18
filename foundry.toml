@@ -3,7 +3,6 @@ src = "src"
 out = "out"
 script = "foundry-scripts"
 test = "test"
-script = "foundry-scripts"
 libs = ["lib", "node_modules"]
 ffi = true
 # This project ONLY compiles via the IR pipeline with the optimizer on: the reference
