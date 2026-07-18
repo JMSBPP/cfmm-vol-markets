@@ -10,9 +10,14 @@ price to a given address). Adds a `PriceSetter.*` library targeting the now-merg
 `foundry-scripts/PriceSetterHook.s.sol` are already merged on `develop` (Plank/Solidity
 tracks) and are consumed here read-only — nothing under `src/` or `foundry-scripts/`
 changes as part of this spec.
-**Status:** design drafted via interactive brainstorming; pending two-step review
-(Reality Checker + Solidity Smart Contract Engineer, matching the pairing the original
-`PriceSetterHook` design spec used) before being treated as ready to plan/implement.
+**Status:** two-step reviewed (Reality Checker + Solidity Smart Contract Engineer,
+matching the pairing the original `PriceSetterHook` design spec used). Four MAJOR
+findings folded in below (deploy-order fragility, address-determinism overclaim,
+untested error-handling claim, no negative-path verification); two MINORs folded in
+(`Sample.hs` export list, `todo.md` not updated). No BLOCKERs — the core protocol
+(`eth_call` + `anvil_setStorageAt`, ABI encoding including negative ticks, return
+decoding) was independently confirmed correct against the real merged contract and a
+live anvil/cast test.
 
 ## Ground truth (verified, not assumed)
 
@@ -27,15 +32,44 @@ changes as part of this spec.
   `sendTransaction`-based mechanism, only its *code-shape* (a reusable `Web3 a` action +
   a thin `IO ()` wrapper, calldata-encoded via `cast`).
 - **`foundry-scripts/PriceSetterHook.s.sol`** (`develop`, merged after the design
-  question above was resolved): deploys `PoolManager`, CREATE2-mines the hook to a
-  flag-carrying address (`BEFORE_INITIALIZE_FLAG | AFTER_INITIALIZE_FLAG`), and
-  initializes one pool bound to it (no liquidity, `tick = 0` initially, `tickSpacing =
-  60`). Its own doc comment confirms the write protocol verbatim: `cast rpc --rpc-url
-  local anvil_setStorageAt <PoolManager> <slot> <value>`. It also exposes a read-only
+  question above was resolved): deploys `PoolManager` (plain `new PoolManager(...)`,
+  nonce-dependent address), CREATE2-mines the hook to a flag-carrying address
+  (`BEFORE_INITIALIZE_FLAG | AFTER_INITIALIZE_FLAG`) via `HookMiner.find(...,
+  type(PriceSetterHook).creationCode, abi.encode(poolManager))`, and initializes one
+  pool bound to it (no liquidity, `tick = 0` initially, `tickSpacing = 60`). Its own doc
+  comment confirms the write protocol verbatim: `cast rpc --rpc-url local
+  anvil_setStorageAt <PoolManager> <slot> <value>`. It also exposes a read-only
   `tick_payload(address hookAddress, int24 newTick)` entry (`forge script --sig`) that
   prints the exact `(poolManager, slot, value)` triple for a tick without writing
   anything — usable as an independent oracle to cross-check this implementation during
   verification (same role `vm.load` plays in the hook's own test suite).
+- **Deploy-order dependency (found in review — not previously flagged).**
+  `PriceSetterHookScript` uses the identical deployer as `VolOrderManagerScript`
+  (`ANVIL_MNEMONIC`/`DEPLOYER_INDEX = 0`, same mnemonic, same index) — both scripts
+  share one deployer's nonce sequence on a given chain. `Main.hs` now runs
+  `create_order` (against `VolOrderManager`) and `write_price` (against
+  `PriceSetterHook`) together, so whichever script deploys first on a fresh anvil chain
+  determines the nonce at which the *other* script's contracts land — `PoolManager`'s
+  address is nonce-dependent (plain `CREATE`), and the CREATE2-mined hook address is
+  derived from `abi.encode(poolManager)`, so it shifts too if `PoolManager`'s address
+  shifts. **This spec fixes the deploy order as an explicit runbook contract**: on a
+  fresh chain, always run `foundry-scripts/VolOrderManager.s.sol` first, then
+  `foundry-scripts/PriceSetterHook.s.sol` second (this is also the order used during
+  this spec's verification — see Testing/Verification). The hardcoded `Sample.hs`
+  addresses are only valid for a chain deployed in exactly this order; redeploying out
+  of order, or deploying either script twice, invalidates them and requires
+  re-capturing.
+- **Address determinism is weaker for the hook than for `order_manager`.**
+  `order_manager`'s address (`VolOrderManagerScript`, plain `CREATE`) is deterministic
+  given only the deployer and nonce — invariant to the contract's compiled bytecode.
+  `PriceSetterHook`'s address is CREATE2-mined against
+  `type(PriceSetterHook).creationCode`, so it additionally depends on the *exact*
+  compiled bytecode: solc version, optimizer settings, and the `--via-ir` flag this
+  spec's own verification requires. A future recompile of `PriceSetterHook.sol` under
+  different build settings would silently change the mined address and invalidate the
+  hardcoded `Sample.hs` value in a way `order_manager` never would — re-capture the
+  address from a live deploy any time the build settings or contract source change, not
+  just once at implementation time.
 - **`Network.Ethereum.Api.Eth.call :: JsonRpc m => Call -> DefaultBlock -> m HexString`**
   (`web3-ethereum`, already a library dependency) — the `eth_call` binding, reused for
   the three read-only calls (`poolManager()`, `slot0Slot()`, `packSlot0For(tick)`).
@@ -127,12 +161,15 @@ Four new library modules under `offchain/lib/PriceSetter/`, alongside the existi
 
 ## `Main.hs` and `Sample.hs`
 
-`Sample.hs` gains two values, captured from a real deploy (see Verification): a hardcoded
-`price_setter_hook :: Address` (the hook address printed by
-`foundry-scripts/PriceSetterHook.s.sol`'s `run()` on a fresh anvil chain — deterministic
-there the same way `order_manager`'s address already is) and `sample_tick :: Integer`
-(a nonzero demo tick, e.g. `60` — matching the pool's `tickSpacing` — chosen so the demo
-visibly moves state away from the script's initial `tick = 0`).
+`Sample.hs` gains two values, captured from a real deploy on a chain seeded in the fixed
+order documented above (VolOrderManager first, PriceSetterHook second — see Ground
+truth): a hardcoded `price_setter_hook :: Address` (the hook address printed by
+`foundry-scripts/PriceSetterHook.s.sol`'s `run()`) and `sample_tick :: Integer` (a
+nonzero demo tick, e.g. `60` — matching the pool's `tickSpacing` — chosen so the demo
+visibly moves state away from the script's initial `tick = 0`). `Sample.hs`'s existing
+explicit export list, `(account, order_manager, sample_order)`, must be extended to
+`(account, order_manager, price_setter_hook, sample_order, sample_tick)` — otherwise
+`Main.hs`'s import of the two new names fails to compile.
 
 `Main.hs` becomes:
 
@@ -167,6 +204,11 @@ not removed — it's a legitimate standalone entry point other future callers ma
 want, exactly like `write_price_and_report`). The stale comment on `main` is deleted as
 part of this rewrite.
 
+`offchain/todo.md` is updated in the same change to mark both items resolved (matching
+this branch's existing convention of annotating completed items in place, e.g. `todo.md`
+item 1's `(done:: ...)` suffix from the earlier `VolOrder` extraction work), so the todo
+file doesn't drift out of sync with what's actually shipped.
+
 ## Cabal changes
 
 `library` stanza:
@@ -186,13 +228,37 @@ needed for `Address` in `Sample.hs`) are unchanged.
 
 ## Error handling
 
-Identical shape to `VolOrder.Rpc`: `write_price` surfaces failures (decode errors,
-`NotBound`/`WrongPool`-style contract reverts surfacing as `eth_call` JSON-RPC errors,
-the storage-cheat call failing) as a thrown/`fail`ed `Web3` action, caught by whichever
-`runWeb3'` call wraps it — in `Main`, the single session-wide `runWeb3'` around both
-`create_order` and `write_price`; in `write_price_and_report`, its own `runWeb3'`. Neither
-`Main` nor `write_price` ever pattern-matches a `Web3Error` directly other than at the
-outermost `runWeb3'` boundary.
+`write_price`'s only realistic on-chain failure mode is `NotBound` (the `onlyBound`
+modifier gating `readSlot0`, which `packSlot0For` calls internally) — if `price_setter_hook`
+ever pointed at an unbound hook (wrong address, or a hook whose pool was never
+initialized), `packSlot0For(tick)`'s `eth_call` reverts. (`WrongPool` and
+`SlotVerificationFailed` are *not* reachable from `write_price` — both only fire inside
+`beforeInitialize`/`afterInitialize`, i.e. during pool creation, which `write_price`
+never calls; an earlier draft of this spec incorrectly listed `WrongPool` here.)
+
+**How that failure actually surfaces is not fully verified, and this spec says so
+explicitly rather than assuming the `VolOrder` precedent transfers cleanly.**
+`Network.JsonRpc.TinyClient.remote` throws JSON-RPC-level failures as
+`JsonRpcException` via `MonadThrow`, but `runWeb3'`'s implementation is `liftIO . try
+. ...` where `try :: Exception e => IO a -> IO (Either e a)` is pinned to `e ~
+Web3Error` by `runWeb3'`'s own type signature (`m (Either Web3Error a)`). `try`
+constrained to one exception type does not catch a *different* exception type — so a
+real `eth_call` revert propagating as `JsonRpcException` could come out as an uncaught
+exception (crashing the process) rather than `runWeb3'`'s `Left`. This is **inherited,
+pre-existing behavior**, not something `write_price` introduces — `create_order`'s own
+`sendTransaction`/`getTransactionReceipt` calls go through the identical `remote`
+mechanism and would have the same exposure — but neither this spec nor the `VolOrder`
+work that preceded it has ever actually triggered a real revert to observe which
+behavior occurs. See Testing/Verification step 6 below, added specifically to close this
+gap empirically rather than leave it asserted.
+
+**Liquidity-coherence precondition (caller obligation, not enforced by the type
+system).** Per `PriceSetterHook.sol`'s own doc comment, a `slot0` write is only coherent
+for pools with no liquidity or full-range-only liquidity — an imposed tick crossing an
+initialized interior tick leaves liquidity/fee accounting stale. `write_price` has no
+way to check this on-chain (it isn't the hook's job either); `PriceSetter.Rpc`'s
+`write_price` documentation must restate this as a caller obligation, matching what the
+deploy script's own pool (no liquidity, by construction) satisfies today.
 
 ## Testing / verification
 
@@ -201,10 +267,13 @@ is new functionality (unlike that refactor), so verification is a real, live run
 a freshly deployed rig rather than a smoke test:
 
 1. `cabal build` succeeds with the new modules and no `-Wall` warnings.
-2. Start `anvil`, run `forge script foundry-scripts/PriceSetterHook.s.sol --rpc-url
-   http://127.0.0.1:8545 --broadcast --ffi --via-ir`, capture the printed `PoolManager`,
-   `PriceSetterHook`, initial `tick` (expect `0`), and `slot0Slot` — confirm the hook
-   address matches what gets hardcoded into `Sample.hs`.
+2. Start `anvil` fresh. Deploy in the fixed order documented above: first `forge script
+   foundry-scripts/VolOrderManager.s.sol --rpc-url http://127.0.0.1:8545 --broadcast
+   --ffi --via-ir` (confirm `order_manager` lands at the existing hardcoded
+   `Sample.hs` address — if it doesn't, the deploy order or chain state is wrong, stop
+   and fix before continuing), then `forge script foundry-scripts/PriceSetterHook.s.sol
+   --rpc-url http://127.0.0.1:8545 --broadcast --ffi --via-ir`, capturing the printed
+   `PoolManager`, `PriceSetterHook`, initial `tick` (expect `0`), and `slot0Slot`.
 3. Independently compute the expected write via the script's own oracle:
    `forge script foundry-scripts/PriceSetterHook.s.sol --sig "tick_payload(address,int24)"
    <hookAddress> <sampleTick> --rpc-url http://127.0.0.1:8545` and record its printed
@@ -216,6 +285,14 @@ a freshly deployed rig rather than a smoke test:
 5. Confirm the write actually landed: `cast storage <PoolManager> <slot0Slot> --rpc-url
    http://127.0.0.1:8545` (or `hook.readTick()` via `cast call`) shows the new tick, not
    the script's initial `0`.
+6. **Negative-path check (closes the Error Handling gap above).** Deliberately call
+   `write_price` (e.g. via `cabal repl`) with a hook address that is *not* bound — any
+   address with no deployed `PriceSetterHook` code, or a freshly-`deployCodeTo`'d hook
+   whose pool was never initialized — and observe what actually happens: does the
+   process crash with an uncaught `JsonRpcException`, or does it come back as
+   `runWeb3'`'s `Left`? Record the observed behavior in the implementation (a code
+   comment on `write_price`, not a spec amendment) rather than leaving the Error
+   Handling section's claim unverified.
 
 ## Out of scope (explicit)
 
@@ -234,14 +311,17 @@ a freshly deployed rig rather than a smoke test:
 
 1. `offchain/lib/PriceSetter/{Encoding,Decode,Report,Rpc}.hs` exist with the exports
    described above; `PriceSetter.Decode.decode_address` has no `IO` in its type.
-2. `offchain/todo.md`'s "correct the create_order comments" item is resolved: `grep -rn
-   "create_order" offchain/` shows no leftover placeholder/TODO-style comment (the
-   `-- this needs to change...` line on `main` is gone).
+2. The stale `create_order` comment on `main` is gone (`grep -rn "this needs to change"
+   offchain/` finds nothing), and `offchain/todo.md` marks both items 1 and 2 resolved.
 3. `Main.hs` runs `create_order` and `write_price` inside one `runWeb3'` call as shown
    above, with a single `Left`/`Right` match reporting both on success.
-4. `cabal build` succeeds cleanly (no warnings) with the cabal diff described above
+4. `Sample.hs`'s export list includes `price_setter_hook` and `sample_tick` alongside
+   the existing three names.
+5. `cabal build` succeeds cleanly (no warnings) with the cabal diff described above
    (library gains `jsonrpc-tinyclient` and `aeson`; executable gains `web3-provider`).
-5. A live run against the deployed `PriceSetterHookScript` rig shows `write_price`'s
-   written `(poolManager, slot, value)` exactly matching the script's own
-   `tick_payload`-computed values, and the storage write is independently confirmed via
-   `cast storage`/`hook.readTick()`.
+6. A live run — chain deployed in the fixed order (`VolOrderManager.s.sol` then
+   `PriceSetterHook.s.sol`) — shows `write_price`'s written `(poolManager, slot, value)`
+   exactly matching the script's own `tick_payload`-computed values, and the storage
+   write is independently confirmed via `cast storage`/`hook.readTick()`.
+7. The negative-path check (Testing/Verification step 6) has been run at least once and
+   its observed behavior (crash vs. `Left`) is recorded as a comment on `write_price`.
