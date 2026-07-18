@@ -3,14 +3,32 @@ src = "src"
 out = "out"
 script = "foundry-scripts"
 test = "test"
-libs = ["lib"]
+script = "foundry-scripts"
+libs = ["lib", "node_modules"]
 ffi = true
+# This project ONLY compiles via the IR pipeline with the optimizer on: the reference
+# contracts (VolatilityOracleStorage.layout(), the UniV3 oracle wrappers) hit "stack too deep"
+# under legacy codegen or IR-without-optimizer. Every Makefile target already passes
+# `--via-ir --optimize`; setting it here makes plain `forge test`/`forge build` -- and the CI
+# gate's `forge test --via-ir --offline`, which does NOT pass --optimize -- consistent, instead
+# of relying on every caller to remember the flags.
+via_ir = true
+optimizer = true
 fs_permissions = [{ access = "read", path = "./test/gamsDiff/fixtures" }]
+
+remappings = [
+	   "@cryptoalgebra/volatility-oracle-plugin/=node_modules/@cryptoalgebra/volatility-oracle-plugin/contracts",
+	   "@cryptoalgebra/integral-core/=node_modules/@cryptoalgebra/integral-core/contracts",
+	   "@solady/=lib/bunni-v2/lib/solady/src/"
+]
 
 
 [fuzz]
-runs = 10
-fail_on_revert = false
+# 10 runs is not a test, it is a coin flip. The differential suite fuzzes over
+# (init_timestamp x N_writes x tick x outlier x dt) -- a 5-dimensional space -- so a low run
+# count is green by luck, not by coverage. Raised for the diff work.
+runs = 256
+# note: fail_on_revert is an [invariant] key, not a [fuzz] key -- it was inert here. Removed.
 
 [rpc_endpoints]
 mainnet = "https://eth-mainnet.g.alchemy.com/v2/${API_KEY}"

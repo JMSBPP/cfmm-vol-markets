@@ -1,0 +1,30 @@
+//import lib::pos_spec::TickVolatilityLib::*;
+import pos_spec::TickVolatility::*;
+import std::constructor::return_runtime;
+
+
+//signature:: volQ64x96(uint256)
+const SELECTOR_VOL_Q64_X_96 = 0x82a4b0ce;
+
+// signature :: volWAD(uint256)
+const SELECTOR_VOL_WAD = 0x6c2442b9;
+
+
+run {
+
+    let selector = @evm_shr(224, @evm_calldataload(0));
+       
+    if selector == SELECTOR_VOL_Q64_X_96{
+       let tick_vol = @evm_calldataload(4);
+       return_volQ64X96(unpack_tick_volatility(tick_vol));
+    } else if selector == SELECTOR_VOL_WAD {
+       let tick_vol = @evm_calldataload(4);
+       return_volWAD(unpack_tick_volatility(tick_vol));
+    }
+    @evm_stop();
+}
+
+
+init {
+     return_runtime();
+}

@@ -50,3 +50,6 @@ lean/.lake/
 
 # gamsdiff: transient all-symbols GDX from the price-impact driver run
 model/price_impact_all.gdx
+
+# forge script deploy artifacts (local anvil runs)
+broadcast/

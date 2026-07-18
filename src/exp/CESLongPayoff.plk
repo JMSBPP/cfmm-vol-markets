@@ -4,46 +4,15 @@ import v3::math::full_math::mulDiv;
 import v3::math::fixed_point_96::Q96;
 import v3::util::return_u256;
 
-/// @title CESLongPayoff
-/// @notice Stateless CES "long" trader payoff for the ½-pricing kernel:
-///
-///         π_{1/2}^{trader} = ( P_{1/2}(i)·Δ^I − Δ^O )²
-///
-///         computed by reusing the Uniswap V3 `sqrt_price_math` formulas. The trade
-///         direction is FIXED: deposit token0 (Δ^I), expect token1 (Δ^O).
-/// @dev No storage; the contract only reads its calldata. Following `model/exp/eta.md`:
-///        - P_{1/2}(i)   ≡ sqrtPX96                       (the ½ pricing kernel value)
-///        - P_{1/2}(Δ^I) ≡ getNextSqrtPriceFromAmount0RoundingUp(sqrtPX96, L̄, Δ^I, add=true)
-///                          = L̄·sqrtP / (L̄ + Δ^I·sqrtP)  (post-trade sqrt price)
-///        - Δ^O          ≡ getAmount1DeltaUnsigned(sqrtQ, sqrtP, L̄, roundUp=false)
-///                          = L̄·(P_{1/2}(i) − P_{1/2}(Δ^I)) / Q96   (token1 out, rounded down)
-///        - term         ≡ mulDiv(sqrtPX96, Δ^I, Q96)    (P_{1/2}(i)·Δ^I, ½-kernel convention)
-///
-///      The two squared terms are Q96-normalised so the subtraction is commensurate.
-///      The final square uses wrapping multiply (`*%`) — for the sqrt-price convention
-///      `term` can reach ~2^192, so its square overflows u256 for large inputs; callers /
-///      the differential-test layer must keep the shortfall within ~2^128 (or rescale).
-///      `add=true` has no revert path; `Δ^I = 0` yields sqrtQ = sqrtP ⇒ Δ^O = 0.
+/// @dev signature:: "cesLongPayoff(uint160,uint128,uint256)"
+const CES_LONG_PAYOFF_SELECTOR = 0x1dbad771;
 
-/// @notice CES long payoff π_{1/2}^{trader} = (P_{1/2}(i)·Δ^I − Δ^O)² for a token0→token1 trade.
-/// @param sqrtPX96 The current ½-pricing-kernel value P_{1/2}(i) as a Q64.96 sqrt price.
-/// @param liquidity The pool liquidity L̄ (uint128 range).
-/// @param amount0In The input Δ^I, an amount of token0 deposited.
-/// @return The squared shortfall (P_{1/2}(i)·Δ^I − Δ^O)² (Q96² scale; see overflow note).
+///         π_{1/2}^{trader} = ( P_{1/2}(i)·Δ^I − Δ^O )²
 const cesLongPayoff = fn (sqrtPX96: u256, liquidity: u256, amount0In: u256) u256 {
-    // P_{1/2}(Δ^I): post-trade sqrt price after depositing amount0In token0.
-    let sqrtQX96 = getNextSqrtPriceFromAmount0RoundingUp(sqrtPX96, liquidity, amount0In, true);
-    // Δ^O: token1 received = L̄·(P_{1/2}(i) − P_{1/2}(Δ^I))/Q96 (round down, swap-output convention).
-    let amount1Out = getAmount1DeltaUnsigned(sqrtQX96, sqrtPX96, liquidity, false);
-    // P_{1/2}(i)·Δ^I, Q96-normalised to be commensurate with Δ^O.
     let term = mulDiv(sqrtPX96, amount0In, Q96);
-    // Absolute shortfall (sign is irrelevant under the square), then square it.
     let shortfall = if term >= amount1Out { term - amount1Out } else { amount1Out - term };
     shortfall *% shortfall
 };
-
-/// @dev keccak256("cesLongPayoff(uint160,uint128,uint256)")[0..4]
-const CES_LONG_PAYOFF_SELECTOR = 0x1dbad771;
 
 init {
     return_runtime();

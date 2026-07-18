@@ -1,0 +1,13 @@
+import std::constructor::return_runtime;
+
+
+// keccak256("VarianceMarketPlant.RealizedVariance")
+const SLOT_REALIZED_VARIANCE = 0x8a6f7e904cb8f65307bc9ee1c57df986c19644142fb429c2bd09248513272a39;
+
+init{
+	return_runtime();
+}
+
+run{
+	
+}
