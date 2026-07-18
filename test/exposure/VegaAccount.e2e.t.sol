@@ -199,4 +199,48 @@ contract VegaAccountE2EDiffTest is PlankTestBase {
         // non-vacuity: at least one nonzero mint happened
         assertTrue(acct.totalShares() != 0, "corpus non-vacuous: shares minted");
     }
+
+    // ---- Test B: the constructed fuzz -- distinct sequences, mid-sequence re-pricing --------
+
+    /// @notice A CONSTRUCTED (setRiskPrice, deposit) sequence differential. Every input is derived
+    ///         via bound() over keccak-mixed seed material (repair-not-reject: no assume-filtering
+    ///         cheatcode), so every run is a LIVE assertion -- an assume-filtered corpus can
+    ///         silently shrink to near-zero effective runs and hide a coverage hole behind a green.
+    ///
+    ///         A NEW price is set every iteration, so later deposits price at the NEW price -- this
+    ///         catches any stale-price caching in the module's write path (a mutant that read a
+    ///         cached price instead of the freshly stored one would diverge from the mirror).
+    ///
+    ///         OVERFLOW SAFETY OF THE BOUNDS (why every run is live, no dust, no repair needed).
+    ///         With price in [2^96, 2^120] and deposit in [2^120, 2^160]:
+    ///           * shares = mulDiv(deposit, 2^96, price) >= 2^120*2^96/2^120 = 2^96 >> 0, so shares
+    ///             is ALWAYS >= 1 -- never dust, never a revert.
+    ///           * the intermediate product deposit*2^96 <= 2^160*2^96 = 2^256... which would touch
+    ///             the boundary, but full_math/mulDiv is 512-bit and the QUOTIENT is
+    ///             <= 2^160*2^96/2^96 = 2^160 < 2^256 -- no result overflow, no revert.
+    ///           * the mirror totals over <= 8 iterations of shares <= 2^160 stay < 2^164 < 2^256.
+    ///         Every run therefore asserts the three accumulators live, tolerance 0, after every
+    ///         write -- and because they are asserted INDEPENDENTLY (never a quotient) inside every
+    ///         _depositBoth, compensating errors in two fields cannot cancel.
+    ///
+    /// forge-config: default.fuzz.runs = 256
+    function test__fuzz__randomSequenceDiffers(uint256 seed, uint8 nRaw) public {
+        uint256 n = bound(uint256(nRaw), 2, 8); // small: FFI deploy is once per test; keeps 256 runs tractable
+
+        for (uint256 i = 0; i < n; i++) {
+            // A NEW price each iteration so later deposits price differently (stale-price guard):
+            uint256 price = bound(uint256(keccak256(abi.encode(seed, i, "price"))), 1 << 96, 2 ** 120);
+            _setPriceBoth(price);
+
+            // Deposit LARGE relative to price so shares >= 1 ALWAYS (no dust, no repair):
+            //   deposit in [2^120, 2^160], price <= 2^120  =>  shares = deposit*2^96/price >= 2^96.
+            uint256 deposit = bound(uint256(keccak256(abi.encode(seed, i, "amt"))), 2 ** 120, 2 ** 160);
+            _depositBoth(deposit); // assertion INSIDE
+        }
+
+        // Non-vacuity: at least one nonzero mint happened over the sequence. The three accumulators
+        // were asserted INDEPENDENTLY (never a quotient) inside every _depositBoth above, so
+        // compensating errors cannot cancel.
+        assertTrue(acct.totalShares() != 0, "fuzz corpus non-vacuous: >=1 nonzero mint");
+    }
 }
