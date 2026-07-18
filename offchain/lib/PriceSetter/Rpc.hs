@@ -35,6 +35,16 @@ import PriceSetter.Report (report_price_write)
 -- liquidity. Do not call this against a hook bound to a pool with interior
 -- initialized-tick liquidity -- an imposed tick crossing such a boundary leaves
 -- liquidity/fee accounting stale.
+--
+-- Observed (2026-07-18, against a hook address with no deployed code): throws an
+-- uncaught exception, crashing the process/session -- "user error (Incorrect
+-- address length: 0)". This comes from decode_address's `either fail pure` above:
+-- an eth_call against an address with no code returns empty calldata ("0x"), which
+-- decode_address cannot parse as an address, so it fails; that failure surfaces via
+-- the Web3 monad's MonadFail instance as an IO exception that is NOT a Web3Error,
+-- so it escapes runWeb3'/write_price_and_report's `Left` handling entirely. Not the
+-- NotBound/eth_call-JsonRpcException path hypothesized above -- a different,
+-- earlier failure point with the same practical consequence (uncaught, not Left).
 write_price :: Address -> Integer -> Web3 (Address, HexString, HexString)
 write_price hook tick = do
   pool_manager_raw <- eth_call_hook hook =<< liftIO encode_pool_manager
