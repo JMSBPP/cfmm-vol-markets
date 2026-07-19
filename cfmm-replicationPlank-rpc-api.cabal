@@ -106,7 +106,8 @@ executable cfmm-replicationPlank-rpc-api
         base ^>=4.20.2.0,
         cfmm-replicationPlank-rpc-api,
         web3-solidity,
-        web3-provider
+        web3-provider,
+        mwc-random
     hs-source-dirs:   offchain/app
     default-language: Haskell2010
 
