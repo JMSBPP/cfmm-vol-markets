@@ -85,4 +85,14 @@ def ATMOTMNullHypothesis (υfun : ℤ → ℝ) (Δi : ℝ) (iK : ℤ) (c : ℝ) 
           * Real.exp (-c * (max ((i:ℝ) - iK) (-((i:ℝ) - iK) - 1))))
   -- Aristotle fallback envelope (Option A): Real.exp (-c * (max 0 (|(i:ℝ) - (iK:ℝ)| - 1)))
 
+/-- BRIDGING LEMMA (statement only; proof via a single serial Aristotle task, plan 09-06).
+The exponential-moneyness vega family `υfun i = υ₀ · exp(−κ·Δi·|i − iK|)` with κ > 0
+witnesses `ATMOTMNullHypothesis` at decay rate `c = κ·Δi`. So a fitted κ̂ > 0 makes the
+estimated profile a formal witness of the Lean conjecture. -/
+theorem exp_family_witnesses_ATMOTM
+    (υ₀ κ Δi : ℝ) (iK : ℤ) (hυ : 0 < υ₀) (hκ : 0 < κ) (hΔ : 0 < Δi) :
+    ATMOTMNullHypothesis
+      (fun i => υ₀ * Real.exp (-κ * Δi * |(i:ℝ) - (iK:ℝ)|)) Δi iK (κ*Δi) := by
+  sorry
+
 end Upsilon
