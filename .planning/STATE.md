@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 9 context gathered
-last_updated: "2026-07-19T17:59:48.622Z"
-last_activity: "2026-07-19 — 08-02 executed: created lean/vol_markets/Panoptic.lean + wired lakefile root; lake build vol_markets green with exactly 2 reserved sorries (centralBinom_isEquivalent, theta_atm_closed_form)"
+stopped_at: Completed 09-03-PLAN.md
+last_updated: "2026-07-19T18:19:13.884Z"
+last_activity: "2026-07-19 — 09-03 executed: corrected ATMOTMNullHypothesis conjunct 3 to the slope-centered envelope + stated sorry'd exp_family_witnesses_ATMOTM; lake build vol_markets green with exactly one new bridging-lemma sorry"
 progress:
   total_phases: 9
   completed_phases: 2
-  total_plans: 11
-  completed_plans: 7
-  percent: 57
+  total_plans: 18
+  completed_plans: 8
+  percent: 44
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-06-27)
 
 ## Current Position
 
-Phase: 8 of 8 (Panoptic Vol-Claim Lean4 Formalization) — Lean4-track, independent of Phases 2–7
-Plan: 2 of 5 in current phase (08-01, 08-02 complete)
-Status: In Progress — Panoptic.lean analytical core landed (π^σ, ΔQ_v, replication, premium sum, CRR, center-column θ); θ_ATM closed form isolated behind a sorry'd statement for Aristotle (08-05). 08-03 running in parallel (notes only); 08-04/08-05 pending
-Last activity: 2026-07-19 — 08-02 executed: created lean/vol_markets/Panoptic.lean + wired lakefile root; lake build vol_markets green with exactly 2 reserved sorries (centralBinom_isEquivalent, theta_atm_closed_form)
+Phase: 9 of 9 (Upsilon Econometric Estimation — Lean-Aware) — Lean4 + Haskell econometrics track
+Plan: 03 of 11 in current phase (09-03 complete; sibling wave-1 plans run in parallel)
+Status: In Progress — 09-03 landed the Lean-side bridge correction: ATMOTMNullHypothesis conjunct 3 is now a PROVABLE slope-centered envelope and the sorry'd witness theorem exp_family_witnesses_ATMOTM (exp-moneyness family, c = κ·Δi) is pinned locally — the exact goal the single serial Aristotle task (09-06) will discharge. Option A fallback envelope recorded in-file.
+Last activity: 2026-07-19 — 09-03 executed: corrected ATMOTMNullHypothesis conjunct 3 to the slope-centered envelope + stated sorry'd exp_family_witnesses_ATMOTM; lake build vol_markets green with exactly one new bridging-lemma sorry
 
-Progress: [██████░░░░] 57%
+Progress: [████░░░░░░] 44%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [██████░░░░] 57%
 | Phase 01 P01 | 11 | 3 tasks | 14 files |
 | Phase 08 P01 | 12 | 2 tasks | 8 files |
 | Phase 08 P02 | 4 | 2 tasks | 2 files |
+| Phase 09 P03 | 2 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,7 @@ Recent decisions affecting current work:
 - [Phase ?]: User-directed: no hand-proving. Upsilon.lean statements + conjecture drafted locally; one Aristotle submission (project 6bda0e2c-cc54-4663-9a4f-ffeada3bda6f, task 2c102a3e) covers all 4 sorry'd goals; integrate from returned archive.
 - [Phase ?]: First submission sat QUEUED with zero events; user chose cancel+resubmit. Same bundle, same 4 goals. Single in-flight task preserved.
 - [Phase ?]: Full estimator (hmatrix-gsl LM after user installed GSL 2.8, hand-rolled clustered sandwich SEs, tests, EIV-IV) in Haskell; GAMS replicates only the 3-variable NLS point estimates as a non-blocking differential check, coordinated to the GAMS session (PID 175812) via claude-peers per the ownership map.
+- [Phase 09]: 09-03: corrected ATMOTMNullHypothesis conjunct 3 to slope-centered envelope exp(-c·max(i-iK, -(i-iK)-1)) (forward-difference is symmetric about iK-½, so exp(-c|i-iK|) was param-independently false on the left branch); sorry'd exp_family_witnesses_ATMOTM (exp family, c=κ·Δi) pinned for the single Aristotle task 09-06; Option A fallback recorded
 
 ### Pending Todos
 
@@ -93,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-19T17:39:41.762Z
-Stopped at: Phase 9 context gathered
-Resume file: .planning/phases/09-upsilon-econometric-estimation-lean-aware/09-CONTEXT.md
+Last session: 2026-07-19T18:18:32.272Z
+Stopped at: Completed 09-03-PLAN.md
+Resume file: None
