@@ -15,7 +15,7 @@ simulate_path gen config = do
 generate_prices :: GenIO -> StochasticPriceGen -> Double -> IO [Double]
 generate_prices gen config = go (size config)
   where
-    go 0 _ = pure []
+    go n _ | n <= 0 = pure []
     go n p_current = do
       p_next <- euler_step gen config p_current
       rest <- go (n - 1) p_next
