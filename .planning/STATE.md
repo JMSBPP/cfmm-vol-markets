@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-07-19T13:10:45.101Z"
+last_updated: "2026-07-19T13:41:17.185Z"
 last_activity: "2026-07-19 — 08-02 executed: created lean/vol_markets/Panoptic.lean + wired lakefile root; lake build vol_markets green with exactly 2 reserved sorries (centralBinom_isEquivalent, theta_atm_closed_form)"
 progress:
   total_phases: 8
@@ -72,6 +72,7 @@ Recent decisions affecting current work:
 - [Phase 01]: 01-01: MIT LICENSE (wvs-finance); orphan-branch squash to one sanitized baseline; GAMS paths relativized to in-repo model/; recovery bundle + backup/pre-squash captured before rewrite
 - [Phase 08]: 08-01: negated θ kernel exponent (Gaussian must decay), Demeterfi cited by URL/citekey not vendored PDF, six cfmm-discrete notes vendored under spec/refs/
 - [Phase 08]: 08-02: renamed lattice value binder π→pl (π is reserved Mathlib notation for Real.pi); θ_ATM=kσ/√(8πτ) stated as τ→0⁺ asymptotic with hΘ pinning, sole Aristotle obligation is centralBinom_isEquivalent (sharp central-binomial asymptotic)
+- [Phase ?]: User-directed: no hand-proving. Upsilon.lean statements + conjecture drafted locally; one Aristotle submission (project 6bda0e2c-cc54-4663-9a4f-ffeada3bda6f, task 2c102a3e) covers all 4 sorry'd goals; integrate from returned archive.
 
 ### Pending Todos
 
