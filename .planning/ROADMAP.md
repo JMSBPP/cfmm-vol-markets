@@ -147,7 +147,7 @@ All 30 v1 requirements in REQUIREMENTS.md are mapped to exactly one phase:
 |-------|--------------|-------|
 | 1 | REPO-01, REPO-02, REPO-03, REPO-04, REPO-05 | 5 |
 | 2 | GAMS-01, KERN-01, KERN-02, KERN-03, TOOL-01, TOOL-02 | 6 |
-| 3 | MAP-01, MAP-02, MAP-03, MAP-04, MAP-05, MAP-06, REF-01, REF-02 | 8 | 3/5 | In Progress|  | 4 |
+| 3 | MAP-01, MAP-02, MAP-03, MAP-04, MAP-05, MAP-06, REF-01, REF-02 | 8 | 5/5 | Complete   | 2026-07-19 | 4 |
 | 5 | GAMS-02 | 1 |
 | 6 | BRDG-01, BRDG-02, BRDG-03, BRDG-04 | 4 |
 | 7 | PIPE-01, PIPE-02 | 2 |
@@ -179,7 +179,7 @@ The two-step review confirmed all original BLOCKERs/MAJORs resolved. The followi
 **Goal:** Formalize `spec/panoptic.md` in the `lean/` Lake project: the contract as a volatility option (payoff π^σ = ΔQ_v·(σ²(i(t)) − σ²_K)⁺), the vol-claim price as an option-replication cost (Demeterfi et al. variance-swap decomposition + Panoptic streaming-premium θ kernel), and identification of the vega-like greek υ ≡ Δπ/Δσ² in its analytical/contract-level form (econometric identification via the Panoptic subgraph is scoped during discussion). Owned by the Lean4+math session (worktree `lean4-spec`, branch `feat/lean4-spec`).
 **Requirements**: no formal REQ-IDs — the locked decisions in `08-CONTEXT.md` are the requirements (CTX-HYGIENE, CTX-VENDOR, CTX-PAYOFF, CTX-REPLIC, CTX-PREMIUM, CTX-CRR-THETA, CTX-UPSILON, CTX-CONJ, CTX-ECONO, CTX-THETA-PROOF)
 **Depends on:** Phase 1 only (Lean4 track — builds on the conglomerated `lean/` Lake project, independent of Phases 2–7 owned by other sessions)
-**Plans:** 3/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [ ] 08-01-PLAN.md — Spec hygiene (fix θ sign, Demeterfi citekey, de-path NOTE) + vendor cfmm-discrete notes; commit the pinned spec [Wave 1]
