@@ -69,6 +69,7 @@ library
                     , PriceSetter.Report
                     , PriceSetter.Rpc
                     , StochasticPriceGen.Types
+                    , StochasticPriceGen.Simulate
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -86,7 +87,8 @@ library
                       bytestring,
                       time,
                       jsonrpc-tinyclient,
-                      aeson
+                      aeson,
+                      mwc-random
 
     -- Directories containing source files.
     hs-source-dirs:   offchain/lib/
