@@ -25,7 +25,7 @@ roots = ["exp.eta", "exp.CESLongVolPayoff", "exp.EtaReplication",
 name = "vol_markets"
 srcDir = "."
 roots = ["vol_markets.Main", "vol_markets.PosSpec", "vol_markets.Flow",
-  "vol_markets.RiskDesign"]
+  "vol_markets.RiskDesign", "vol_markets.Panoptic"]
 
 [[lean_lib]]
 name = "tao"
