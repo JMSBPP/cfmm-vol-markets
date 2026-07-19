@@ -25,22 +25,18 @@
 # This repo shipped exactly that gate. Only calling a function proves it exists.
 #
 # THIS TARGET IS CURRENTLY RED, AND THAT IS THE TRUTH, NOT A DEFECT IN THE TARGET.
-# As of Phase 15 (the vega + e2e suites folded in via the PriceSetterHook --skip below):
-# MEASURED 74 pass, 5 fail (79 total). The +24 over the prior 50/5 is the now-counted
-# VegaIssuance.diff (11) + VegaAccount (12) + the new VegaAccount.e2e (2) exposure suites,
-# which `make test` could not even build before the --skip un-broke the tree.
-# The 5 failures are pre-existing and all in the pos_spec type track:
+# The Order/VolOrder closure (Order.plk + OrderHelper + VolOrder + its helper/tests) was
+# DELETED outright at user direction -- Order.plk had already been working-tree-deleted by
+# the OrderType track, and the project deletes orphaned closures rather than skipping them
+# (recover from git history if that track resurrects the type).
+# MEASURED after the closure deletion: 70 pass, 4 fail (74 total); compile-plank 10 ok,
+# 0 failed, 0 skipped -- both commands of record fully truthful, no skips, no exclusions.
+# The 4 remaining failures are pre-existing and all in the pos_spec type track:
 #   VolRangeWidthTest         volWidthRangeSub_valid, volWidthRangeBuildVolRangeWidth_valid
 #   SpreadTickAssimetryTest   spreadTickAssimetrySplitTick__Valid, tickFromSplittedTickBucket__Valid
-#   OrderTest                 OrderMakeSucceed  (now fails at its FFI `plank build` step: its harness
-#                             test/types/OrderHelper.plk imports src/types/Order.plk, which the
-#                             OrderType track has DELETED from the working tree -- HEAD still has it.
-#                             Same root cause also reddens `make compile-plank` on OrderHelper.plk;
-#                             see the phase deferred-items.md. Out of scope for VegaAccountMod.)
-# All five are diagnosed as bugs/blockers in the TEST HARNESSES (not the .plk under test)
-# and are owned by the vol-type-system track. They are deliberately NOT skipped,
-# excluded, or filtered out to make this target green: a suite that lies about
-# what passes is worth less than no suite. Fix them or leave them visible.
+# All are diagnosed as bugs in the TEST HARNESSES (not the .plk under test) and are owned by
+# the vol-type-system track. They are deliberately NOT skipped, excluded, or filtered out to
+# make this target green: a suite that lies about what passes is worth less than no suite.
 test: check-algebra-ref-pin
 	# --skip routes around an UNTRACKED parallel-track stray:
 	# src/modules/protocol_integrations/PriceSetterHook.sol (PR #11). Its empty Solidity import
@@ -63,9 +59,6 @@ compile: compile-plank
 
 sol-build:
 	forge build --via-ir --optimize
-
-sol-test:
-	forge test --match-contract VolOrderTest --via-ir --optimize
 
 
 test-pricing-kernel-diff:
