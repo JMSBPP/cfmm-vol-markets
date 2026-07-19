@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 8 context gathered
-last_updated: "2026-07-18T16:36:12.043Z"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-07-19T13:03:09.292Z"
 last_activity: "2026-06-27 — 01-01 executed: history squashed to one clean sanitized baseline, recovery bundle + backup/pre-squash captured"
 progress:
   total_phases: 8
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 7
+  completed_plans: 3
   percent: 50
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-27)
 
 ## Current Position
 
-Phase: 1 of 7 (Repository Restructure & Sanitize)
-Plan: 1 of 2 in current phase (01-01 complete)
-Status: In Progress — sanitized baseline ready; 01-02 (migration / public flip) pending
-Last activity: 2026-06-27 — 01-01 executed: history squashed to one clean sanitized baseline, recovery bundle + backup/pre-squash captured
+Phase: 8 of 8 (Panoptic Vol-Claim Lean4 Formalization) — Lean4-track, independent of Phases 2–7
+Plan: 1 of 5 in current phase (08-01 complete)
+Status: In Progress — spec/panoptic.md pinned & sign-corrected; cfmm-discrete notes vendored; 08-02+ (Lean formalization) pending
+Last activity: 2026-07-19 — 08-01 executed: fixed θ sign typo, Demeterfi URL/citekey, de-pathed NOTE, committed spec, vendored six cfmm-discrete proof-source notes under spec/refs/
 
 Progress: [█████░░░░░] 50%
 
@@ -51,6 +51,7 @@ Progress: [█████░░░░░] 50%
 
 *Updated after each plan completion*
 | Phase 01 P01 | 11 | 3 tasks | 14 files |
+| Phase 08 P01 | 12 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,7 @@ Recent decisions affecting current work:
 - Phases 1 and 2 are serialized (no parallelism) to avoid the repo-identity race during the public flip / fork migration.
 - Theory grounding links to cfmm-theory `KERNEL.md` by URL/citekey (no submodule); refs under `spec/refs/`.
 - [Phase 01]: 01-01: MIT LICENSE (wvs-finance); orphan-branch squash to one sanitized baseline; GAMS paths relativized to in-repo model/; recovery bundle + backup/pre-squash captured before rewrite
+- [Phase 08]: 08-01: negated θ kernel exponent (Gaussian must decay), Demeterfi cited by URL/citekey not vendored PDF, six cfmm-discrete notes vendored under spec/refs/
 
 ### Pending Todos
 
@@ -86,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-18T16:36:12.041Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-panoptic-vol-claim-lean4-formalization/08-CONTEXT.md
+Last session: 2026-07-19T13:02:58.555Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None
