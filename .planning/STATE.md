@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-07-19T18:25:35.249Z"
+stopped_at: "Phase 9 Wave 1: 09-01 done, 09-03 done, 09-02 checkpoint RESOLVED by user (Base V4 market, RPC variance route) but continuation agent halted before recording it — resume by re-spawning the 09-02 continuation, then Wave 2 (09-04, 09-05 with RPC override, 09-06 Aristotle)"
+last_updated: "2026-07-19T18:28:44.676Z"
 last_activity: "2026-07-19 — 09-03 executed: corrected ATMOTMNullHypothesis conjunct 3 to the slope-centered envelope + stated sorry'd exp_family_witnesses_ATMOTM; lake build vol_markets green with exactly one new bridging-lemma sorry"
 progress:
   total_phases: 9
@@ -99,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-19T18:24:59.693Z
-Stopped at: Completed 09-01-PLAN.md
-Resume file: None
+Last session: 2026-07-19T18:28:44.674Z
+Stopped at: Phase 9 Wave 1: 09-01 done, 09-03 done, 09-02 checkpoint RESOLVED by user (Base V4 market, RPC variance route) but continuation agent halted before recording it — resume by re-spawning the 09-02 continuation, then Wave 2 (09-04, 09-05 with RPC override, 09-06 Aristotle)
+Resume file: .planning/phases/09-upsilon-econometric-estimation-lean-aware/09-02-PLAN.md
