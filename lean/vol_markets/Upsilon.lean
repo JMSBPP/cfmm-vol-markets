@@ -27,9 +27,9 @@ where it is the parameter test κ > 0) tests it; Lean only fixes the statement.
 On the EVM the vega is a Lens read over RAY/X96 accumulators; all quantities
 here are over `ℝ` (real-first; EVM-image lemmas are separate, per house style).
 
-Proof status: the two lemmas below carry `sorry` bodies by design — proofs are
-produced by Aristotle (project `panoptic-upsilon`) and integrated from the
-returned archive, per the phase's Aristotle-heavy workflow.
+Proof status: the two lemmas below were proved by Aristotle (project
+`aristotle-panoptic-upsilon`, task 1991ca47) and integrated from the returned
+archive, per the phase's Aristotle-heavy workflow.
 -/
 
 namespace Upsilon
@@ -44,7 +44,7 @@ noncomputable def upsilon (pl : ℝ → ℝ) (sig2 Δs : ℝ) : ℝ :=
 lemma upsilon_volOption (dQv sig2 Δs sig2K : ℝ) (hΔ : 0 < Δs)
     (h1 : sig2K ≤ sig2) (h2 : sig2K ≤ sig2 + Δs) :
     upsilon (fun s => Panoptic.volOptionPayoff dQv s sig2K) sig2 Δs = dQv := by
-  sorry
+  convert Panoptic.deltaQv_of_payoff dQv sig2 Δs sig2K hΔ h1 h2 using 1
 
 /-- Dimensional bridge: υ occupies the ΔQ_v slot. On the in-the-money region,
 υ(π^σ) = `Flow.deltaShares dQv 1` — the same object ΔQ_v = ΔQ_M/p_risk lives in. -/
@@ -52,7 +52,8 @@ lemma upsilon_eq_deltaShares_slot (dQv sig2 Δs sig2K : ℝ) (hΔ : 0 < Δs)
     (h1 : sig2K ≤ sig2) (h2 : sig2K ≤ sig2 + Δs) :
     upsilon (fun s => Panoptic.volOptionPayoff dQv s sig2K) sig2 Δs
       = Flow.deltaShares dQv 1 := by
-  sorry
+  convert upsilon_volOption dQv sig2 Δs sig2K hΔ h1 h2 using 1;
+  unfold Flow.deltaShares; norm_num;
 
 /-! ## ATM/OTM null hypothesis (Prop conjecture — no proof, no axiom) -/
 

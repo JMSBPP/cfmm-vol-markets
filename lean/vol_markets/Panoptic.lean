@@ -122,7 +122,14 @@ theorem centralBinom_isEquivalent :
     Filter.Tendsto
       (fun m : ℕ => (Nat.centralBinom m : ℝ) * Real.sqrt (Real.pi * m) / 4 ^ m)
       Filter.atTop (nhds 1) := by
-  sorry
+  suffices h_even : ∀ m : ℕ, m ≠ 0 → (Nat.centralBinom m : ℝ) * Real.sqrt (Real.pi * m) / 4 ^ m = Stirling.stirlingSeq (2 * m) * Real.sqrt Real.pi / (Stirling.stirlingSeq m)^2 by
+    have h_limit : Filter.Tendsto (fun m : ℕ => Stirling.stirlingSeq (2 * m) * Real.sqrt Real.pi / (Stirling.stirlingSeq m)^2) Filter.atTop (nhds (Real.sqrt Real.pi * Real.sqrt Real.pi / (Real.sqrt Real.pi)^2)) := by
+      convert Filter.Tendsto.div ( Filter.Tendsto.mul ( Stirling.tendsto_stirlingSeq_sqrt_pi.comp ( Filter.tendsto_id.nsmul_atTop two_pos ) ) tendsto_const_nhds ) ( Filter.Tendsto.pow ( Stirling.tendsto_stirlingSeq_sqrt_pi ) 2 ) _ using 2 ; norm_num [ Real.pi_pos.le ];
+    exact Filter.Tendsto.congr' ( by filter_upwards [ Filter.eventually_ne_atTop 0 ] with m hm; rw [ h_even m hm ] ) ( h_limit.trans ( by norm_num [ Real.pi_pos.le, ne_of_gt Real.pi_pos ] ) );
+  intro m hm_ne; simp +decide [ Stirling.stirlingSeq, hm_ne, Nat.cast_choose ] ; ring;
+  norm_num [ Nat.centralBinom, Nat.cast_choose, hm_ne, pow_mul', mul_assoc, mul_comm, mul_left_comm, ne_of_gt ( Nat.factorial_pos _ ) ] ; ring;
+  rw [ Nat.cast_choose ] <;> try linarith;
+  grind
 
 /-- TARGET (Aristotle, Stage-2): the ATM lattice-theta closed form
 `Θ_ATM(τ) = kσ/√(8πτ)`, stated as the `τ→0⁺` limit `Θ_ATM(τ)·√(8πτ) → kσ`. The
@@ -133,6 +140,6 @@ theorem theta_atm_closed_form (k σ : ℝ) (Θ_ATM : ℝ → ℝ)
     (hΘ : ∀ τ, 0 < τ → Θ_ATM τ = k * σ / Real.sqrt (8 * Real.pi * τ)) :
     Filter.Tendsto (fun τ => Θ_ATM τ * Real.sqrt (8 * Real.pi * τ))
       (nhdsWithin 0 (Set.Ioi 0)) (nhds (k * σ)) := by
-  sorry
+  exact Filter.Tendsto.congr' ( Filter.eventuallyEq_of_mem self_mem_nhdsWithin fun x hx => by rw [ hΘ x hx, div_mul_cancel₀ _ <| ne_of_gt <| Real.sqrt_pos.mpr <| mul_pos ( by positivity ) hx.out ] ) tendsto_const_nhds
 
 end Panoptic
