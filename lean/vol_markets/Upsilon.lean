@@ -64,12 +64,25 @@ noncomputable def upsilonTickSlope (υfun : ℤ → ℝ) (Δi : ℝ) (i : ℤ) :
 /-- NULL HYPOTHESIS (Prop conjecture, no proof — tested by the econometric track).
 At the strike tick `i_K` the |tick-slope of υ| is maximal (ATM peak) and, for a
 decay rate `c > 0`, dominated by an exponentially decreasing envelope in
-tick-distance from `i_K` (OTM exponential decay). Lean pins the statement; it is
-NOT proved here. -/
+tick-distance from the peak (OTM exponential decay). Lean pins the statement; it is
+NOT proved here.
+
+Conjunct 3 uses a SLOPE-CENTERED envelope, not `|i − iK|`. The FORWARD difference
+`(υ(i+1) − υ(i))/Δi` is inherently right-shifted by one index, so for the symmetric
+vega family `υ(i) = υ₀·exp(−κ·Δi·|i − iK|)` the |tick-slope| magnitude profile is
+symmetric about `iK − ½` (it peaks equally at the pair `{iK−1, iK}`), NOT about `iK`.
+An `exp(−c·|i − iK|)` envelope (c > 0) is therefore FALSE on the entire left branch
+`i < iK` for every c > 0 — a parameter-independent obstruction. The honest discrete
+envelope is centered on the peak-pair `{iK−1, iK}`: distance
+`g(i) = max(i − iK, −(i − iK) − 1)` (Option B, tight). With `c = κ·Δi` the symmetric
+exponential family satisfies it exactly, since `|slope| = peak·β^{g(i)}` with
+`β = exp(−c)`. -/
 def ATMOTMNullHypothesis (υfun : ℤ → ℝ) (Δi : ℝ) (iK : ℤ) (c : ℝ) : Prop :=
   (0 < c) ∧
   (∀ i : ℤ, |upsilonTickSlope υfun Δi i| ≤ |upsilonTickSlope υfun Δi iK|) ∧
   (∀ i : ℤ, |upsilonTickSlope υfun Δi i|
-      ≤ |upsilonTickSlope υfun Δi iK| * Real.exp (-c * |(i : ℝ) - (iK : ℝ)|))
+      ≤ |upsilonTickSlope υfun Δi iK|
+          * Real.exp (-c * (max ((i:ℝ) - iK) (-((i:ℝ) - iK) - 1))))
+  -- Aristotle fallback envelope (Option A): Real.exp (-c * (max 0 (|(i:ℝ) - (iK:ℝ)| - 1)))
 
 end Upsilon
