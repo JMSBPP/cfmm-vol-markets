@@ -1,8 +1,8 @@
 ---
 phase: 8
 slug: panoptic-vol-claim-lean4-formalization
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-19
 ---
@@ -78,11 +78,11 @@ Framework install: none needed (toolchain, Mathlib `.lake` prebuilt, aristotleli
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 300s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies (plan-checker verified: every non-checkpoint task carries an automated verify)
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify (checker check 8c: no gap window in any wave)
+- [x] Wave 0 covers all MISSING references (checker check 8d: no MISSING-tagged automated refs)
+- [x] No watch-mode flags
+- [x] Feedback latency < 300s — **known exception**: `lake build vol_markets` incremental builds run up to ~300s (Mathlib-backed Lean project; inherent, accepted per checker warning #3)
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-07-19 (plan-checker: 0 blockers; 6 warnings resolved in-place)
