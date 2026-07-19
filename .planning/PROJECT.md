@@ -8,23 +8,11 @@ A research-engineering framework for replicating **arbitrary contingent payoffs*
 
 A target contingent payoff can flow end-to-end — **payoff → GAMS solves optimal parameters → parameters encoded → Plank CFMM simulates** — with the two tracks agreeing on one authoritative type/parameter kernel. If everything else is deferred, this open-loop bridge plus shared kernel must work for at least one contingent payoff.
 
-## Current Milestone: v3.0 — VegaAccountMod Vault (H1 Issuance, Exogenous Risk Price)
+## Current State (v3.0 shipped 2026-07-19)
 
-**Goal:** Complete `src/modules/exposure/VegaAccountMod.plk` — today a non-compiling skeleton, the last file in `PLANK_SKIP` — as a **vault**: deposit collateral (a unit-of-account payment), receive vega-exposure units, with the issuance arithmetic taken verbatim from the machine-checked Lean risk-design exercise.
+**v3.0 — VegaAccountMod Vault (H1 issuance, exogenous risk price): SHIPPED.** `VegaAccountMod.plk` is a live, proven deposit-only vault: deposit collateral → vega-exposure shares at `p_risk = oracle/(1−h)`, every claim a CALLED test or an OBSERVED mutation kill, verified phase-by-phase with independent mutant re-kills against the machine-checked Lean authority. `PLANK_SKIP` is empty; commands of record: `make compile` 11 ok/0/0, `make test` 74 pass / 4 pre-existing pos_spec fails (vol-type track's). Details: `.planning/MILESTONES.md`, tag `v3.0`.
 
-**Track note:** Third parallel track. v1.0 (GAMS plumbing, Phases 1–7) remains paused. v2.0 (realized-vol oracle differential) is **paused after Phase 9** — its core deliverable (variance surface bit-exact vs Algebra: VDIFF-01..04) is discharged; Phases 10–11 (discriminating corpora, edges/mutation battery) remain pending and untouched by this milestone.
-
-**Design authority (machine-checked, no `sorry`):** `../cfmm-wt/lean4-spec/lean/vol_markets/{RiskDesign,Flow,Main}.lean` + EVM notes `../cfmm-wt/lean4-spec/model/vol_markets/RISK_ALTERNATIVES.md`. Three load-bearing facts: (1) issuance is `ΔQ_v = ΔQ_M / p_risk` with the haircut embedded as `p_risk = oracle/(1−h)` (`issuance_haircut_equiv`) — the draft `price/haircut` formula in `spec/entities/types/risk.md` is **refuted** (singular at h=0, wrong monotonicity) and must be corrected first; (2) the admissibility guard is division-free (`admissible_iff_mul`, and `deltaShares_admissible_iff` collapses it to `ΔQ_M ≤ Q_M^Σ`); (3) a nontrivial distance d ∈ [0,1] gives a risk-adjusted *subtotal*, not `totalShares` (`discounted_claim_counterexample`) — so `totalDeposits`, `totalShares`, `riskWeightedShares` are three distinct state variables, never conflated.
-
-**Target features:**
-- Correct `spec/entities/types/risk.md` (kill `price/haircut`; adopt `oracle/(1−h)`) and sync `exposure.md` with RiskDesign.lean
-- Complete the `VegaExposure` type (stub has 2 of the 5 spec'd fields) plus the Q0.96/X96 risk types
-- Pure lib: `mulDiv`-floor issuance, haircut risk price with `h < 1` enforced, division-free admissibility guard
-- `VegaAccountMod.plk` module: selector dispatch (`deposit`), settable validated `p_risk`, three state variables, state readers
-- Each Lean lemma becomes a fuzz property (`mulX96Down_le/one`, `issuance_haircut_equiv`, `haircutRiskPrice_ge_oracle`, `deltaShares_admissible_iff`) diffed against a Solidity reference mock — tolerance 0, mutation-verified, one test file per module
-- `VegaAccountMod` leaves `PLANK_SKIP` only when its dispatch is **called** green — never on compile alone
-
-**Explicitly deferred:** the distance pipeline D2 (clipped-linear weight — `riskWeightedShares` is scaffolded with d ≡ 1), risk-price composition P0/P2 (max(spot,TWAP), premium), oracle wiring to `RealizedVolatilityMod` (p_risk is exogenous per `spec/model/tbd.md`'s stated assumption), and the vol-strike price coordinate `p_vol(σ̄)` from pos_spec (its type layer still has 5 red harness tests owned by the vol-type-system track).
+**Next milestone: not yet defined.** Candidate directions (pick via `/gsd:new-milestone`): resume v2.0 Phases 10–11 (vol-oracle discriminating corpora + edges); vault v2 (withdraw/redeem + per-account ledger — reopens the first-depositor/donation analysis); oracle wiring (endogenous p_risk + setter auth, D2/P0/P2); resume v1.0 GAMS plumbing.
 
 ## Requirements
 
@@ -35,9 +23,8 @@ A target contingent payoff can flow end-to-end — **payoff → GAMS solves opti
 - ✓ Plank→EVM FFI build/deploy bridge (`lib/plank-foundry-deployer/src/PlankDeployer.sol`, `plankDeployFFI`) — existing
 - ✓ Draft shared type kernel (`spec/entities/Types.md`: `NumberFormat`, `BoundedValue`, `VolatilityTermStructure`, `Grid`/`Lens` types) — existing
 - ✓ GAMS algebraic model skeleton (`primitives.gms`, `PricingKernel.gms`, `LiquidityKernel.gms`, `TradingRegion.gms`, `PayoffModule.gms`, `dynamic/InitState.gms`) — existing, outside repo at `../experiments/gams`
-- ✓ bunni-v2 LDF conformance test harness wired (`test/LiquidityDensityFunctionPlankTest.t.sol` against `ILiquidityDensityFunction`) — existing, test bodies stubbed
-- ✓ Stochastic swap-flow proxy design per `NOTES.md` (`src/lib/BinomialProxy.plk` direction `I_{n,t}`, `src/lib/SwapAmtGen.plk` amount `ΔY(t)`) — existing, needs hardening
-- ✓ Canonical Plank market-state contract (`src/ReferenceMarket.plk`, `src/MarketState.plk`) — existing, partial
+- ✓ ~~bunni-v2 LDF conformance harness~~ — DELETED 2026-07-16 (`ead50b8`, empty scaffold); recover from git history with LDF-01
+- ✓ ~~Stochastic swap-flow proxy (`BinomialProxy.plk`/`SwapAmtGen.plk`) and canonical market-state (`ReferenceMarket.plk`)~~ — DELETED 2026-07-16 (`ead50b8`) as unmaintained; recover from git history when the v1.0 pipeline resumes
 
 ### Active
 
@@ -87,10 +74,10 @@ A target contingent payoff can flow end-to-end — **payoff → GAMS solves opti
 | Vendor GAMS into `model/` inside the repo | Single-repo dual-track; bridge work needs both sides co-located | — Pending |
 | `wvs-finance` owns canonical public repo; `JMSBPP` forks | Org ownership / public visibility requirement | — Pending |
 | Theory grounding links to `cfmm-theory` `KERNEL.md` by URL/citekey (no submodule); refs under `spec/refs/` | Repo is public — cfmm-theory is local-only, so cite rather than depend | — Pending |
-| v3.0 vault pipeline is **H1 only** (`p_risk = oracle/(1−h)`, `h<1` enforced); distance D2 and P0/P2 composition deferred | Smallest proven core first — mirrors how the oracle track grew; the Lean decision table's issuance row backs H1 | — Pending |
-| v3.0 `p_risk` is **exogenous/settable** (validated > 0); RealizedVolatilityMod wiring deferred | tbd.md's own stated assumption; keeps the vault testable in isolation; vol→price conversion depends on pos_spec types that still have 5 red harness tests | — Pending |
-| v3.0 keeps `totalDeposits` / `totalShares` / `riskWeightedShares` as **three distinct state variables** (d ≡ 1 in v1) | Lean `discounted_claim_counterexample` refutes conflating the risk-adjusted subtotal with the accounting total | — Pending |
-| Lean lemmas are the v3.0 test oracle (each lemma → a fuzz property vs a Solidity reference mock) | Same differential discipline that proved the vol oracle; the lemmas are machine-checked so the properties are not aspirational | — Pending |
+| v3.0 vault pipeline is **H1 only** (`p_risk = oracle/(1−h)`, `h<1` enforced); distance D2 and P0/P2 composition deferred | Smallest proven core first — mirrors how the oracle track grew; the Lean decision table's issuance row backs H1 | ✓ Good — shipped v3.0 in 3 days, 0 arithmetic defects found |
+| v3.0 `p_risk` is **exogenous/settable** (validated > 0); RealizedVolatilityMod wiring deferred | tbd.md's own stated assumption; keeps the vault testable in isolation; vol→price conversion depends on pos_spec types that still have red harness tests | ✓ Good — isolation made the e2e differential and battery cheap |
+| v3.0 keeps `totalDeposits` / `totalShares` / `riskWeightedShares` as **three distinct state variables** (d ≡ 1 in v1) | Lean `discounted_claim_counterexample` refutes conflating the risk-adjusted subtotal with the accounting total | ✓ Good — read-conflation proved unkillable except by raw vm.load, vindicating the slot discipline |
+| Lean lemmas are the v3.0 test oracle (each lemma → a fuzz property vs a Solidity reference mock) | Same differential discipline that proved the vol oracle; the lemmas are machine-checked so the properties are not aspirational | ✓ Good — with one honest carve-out: issuance_haircut_equiv is ℝ-only; integers get the one-sided transfer |
 
 ---
-*Last updated: 2026-07-16 — started milestone v3.0 (VegaAccountMod vault); v2.0 paused after Phase 9 (Phases 10–11 pending); v1.0 plumbing paused/parallel*
+*Last updated: 2026-07-19 — v3.0 milestone SHIPPED and archived; v2.0 paused after Phase 9; v1.0 paused*
