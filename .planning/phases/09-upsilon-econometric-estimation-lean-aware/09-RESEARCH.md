@@ -412,3 +412,11 @@ theorem exp_family_witnesses_ATMOTM
 
 **Research date:** 2026-07-19
 **Valid until:** ~2026-08-18 for the toolchain/lemma findings; ~7 days for the subgraph-endpoint question (deployment state moves fast).
+
+---
+
+## ADDENDUM (2026-07-19, post-research)
+
+**SUPERSEDED FINDING — GSL.** The "GSL ABSENT → avoid hmatrix-gsl" finding above was correct at research time but was superseded minutes later: the user installed **GSL 2.8-1** via pacman (verified: `gsl-config --version` → 2.8, headers at /usr/include/gsl/). Current constraint (authoritative, reflected in the plans): **hmatrix-gsl is REQUIRED** — `Numeric.GSL.Fitting` LM is the PRIMARY NLS optimizer; the `ad`-based hand-rolled loop is retained only as a cross-check golden. Sandwich SEs / Wald tests / EIV-IV remain hand-rolled as recommended.
+
+**ARCHITECTURE ADDITION.** User decision post-research: Haskell-primary + **GAMS point-estimate differential cross-check** (CTX-XCHECK, plan 09-10) — panel CSV + verbatim NLS objective handed to the GAMS-development session via claude-peers; no `.gms` authored in this session; non-blocking for phase completion.
