@@ -120,7 +120,7 @@ Design authority: machine-checked Lean at `../cfmm-wt/lean4-spec/lean/vol_market
 ### Verification & Exit
 
 - [x] **VVER-01**: An end-to-end differential test drives identical `(setRiskPrice, deposit)` sequences into `VegaAccountMod` and the Solidity reference mock, asserting all three accumulators equal at tolerance 0 after EVERY write, in ONE test file per module with a non-fuzz unit anchor alongside every fuzz
-- [ ] **VVER-02**: Every new test is proven falsifiable by an observed-RED mutation battery of KILLABLE mutants: rounding-direction flips (`p_risk` ceil→floor, shares floor→ceil) killed at the inexact-division anchor; SLOT-CONSTANT aliasing (`SLOT_RISK_WEIGHTED_SHARES := SLOT_TOTAL_SHARES` — the shared slot double-increments, reddening the differential AND the `vm.load` assertions; the read-conflation variant is BEHAVIORALLY UNKILLABLE in v1 where d ≡ 1 and is killed only by the raw `vm.load` slot assertion); dust-guard deletion (killed on state); the raw checked cross-product guard (killed by overflow revert). Mutants PROVEN equivalent by the lib's defense-in-depth — h-bound `<`→`<=` (masked by `full_math`'s zero-denominator revert) and unset-`p_risk` module-guard deletion (masked by the lib's own zero-price revert) — are DOCUMENTED as equivalence-checked, never counted as kills. Each kill with `cache/fuzz` cleared or a cache-independent unit anchor; `VegaAccountMod` leaves `PLANK_SKIP` only after `deposit` is CALLED green; the suite is wired into a dedicated `make` target and folded into `make test`
+- [x] **VVER-02**: Every new test is proven falsifiable by an observed-RED mutation battery of KILLABLE mutants: rounding-direction flips (`p_risk` ceil→floor, shares floor→ceil) killed at the inexact-division anchor; SLOT-CONSTANT aliasing (`SLOT_RISK_WEIGHTED_SHARES := SLOT_TOTAL_SHARES` — the shared slot double-increments, reddening the differential AND the `vm.load` assertions; the read-conflation variant is BEHAVIORALLY UNKILLABLE in v1 where d ≡ 1 and is killed only by the raw `vm.load` slot assertion); dust-guard deletion (killed on state); the raw checked cross-product guard (killed by overflow revert). Mutants PROVEN equivalent by the lib's defense-in-depth — h-bound `<`→`<=` (masked by `full_math`'s zero-denominator revert) and unset-`p_risk` module-guard deletion (masked by the lib's own zero-price revert) — are DOCUMENTED as equivalence-checked, never counted as kills. Each kill with `cache/fuzz` cleared or a cache-independent unit anchor; `VegaAccountMod` leaves `PLANK_SKIP` only after `deposit` is CALLED green; the suite is wired into a dedicated `make` target and folded into `make test`
 
 ## v2 Requirements
 
@@ -220,7 +220,7 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | VMOD-04 | Phase 14 | Complete |
 | VMOD-05 | Phase 14 | Complete |
 | VVER-01 | Phase 15 | Complete |
-| VVER-02 | Phase 15 | Pending |
+| VVER-02 | Phase 15 | Complete |
 
 **Coverage:**
 - v1 requirements: 30 total — mapped to Phases 1–7: 30 ✓

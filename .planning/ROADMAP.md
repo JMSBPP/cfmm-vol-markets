@@ -389,7 +389,7 @@ Plans:
 
 Plans:
 - [ ] 15-01-PLAN.md — End-to-end (setRiskPrice, deposit) sequence differential: VegaAccountMod vs an IssuanceRefMock-backed mirror, all three accumulators tol-0 after EVERY write (assertion inside the driver), fixed Phase-12 anchor + constructed fuzz (VVER-01) [wave 1]
-- [ ] 15-02-PLAN.md — Observed-RED mutation battery (5 killable mutants, cache-cleared, restored sha256-identical; 2 equivalence-masked non-kills) + PLANK_SKIP exit (12 ok/0 skipped) + make test fold-in (PriceSetterHook skip) + make compile/make test runs of record (VVER-02) [wave 2, depends 15-01]
+- [x] 15-02-PLAN.md — Observed-RED mutation battery (5 killable mutants, cache-cleared, restored sha256-identical; 2 equivalence-masked non-kills) + PLANK_SKIP exit (12 ok/0 skipped) + make test fold-in (PriceSetterHook skip) + make compile/make test runs of record (VVER-02) [wave 2, depends 15-01]
 
 ## Progress (Milestone v3.0)
 
@@ -400,7 +400,7 @@ Plans:
 | 12. Spec Correction & Type Completion | 1/1 | Complete    | 2026-07-17 |
 | 13. Issuance Library (VegaIssuanceLib) | 2/2 | Complete    | 2026-07-18 |
 | 14. Module Dispatch, Storage & State Readers | 2/2 | Complete    | 2026-07-18 |
-| 15. Differential Verification & Mutation Battery, PLANK_SKIP Exit | 1/2 | In Progress|  |
+| 15. Differential Verification & Mutation Battery, PLANK_SKIP Exit | 2/2 | Complete    | 2026-07-19 |
 
 ## Coverage (Milestone v3.0)
 
