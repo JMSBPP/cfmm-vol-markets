@@ -70,6 +70,7 @@ library
                     , PriceSetter.Rpc
                     , StochasticPriceGen.Types
                     , StochasticPriceGen.Simulate
+                    , StochasticPriceGen.Report
 
     -- Modules included in this library but not exported.
     -- other-modules:
