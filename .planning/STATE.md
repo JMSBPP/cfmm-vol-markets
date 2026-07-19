@@ -4,12 +4,12 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 9 context gathered
-last_updated: "2026-07-19T17:39:41.765Z"
+last_updated: "2026-07-19T17:59:48.622Z"
 last_activity: "2026-07-19 — 08-02 executed: created lean/vol_markets/Panoptic.lean + wired lakefile root; lake build vol_markets green with exactly 2 reserved sorries (centralBinom_isEquivalent, theta_atm_closed_form)"
 progress:
   total_phases: 9
   completed_phases: 2
-  total_plans: 7
+  total_plans: 11
   completed_plans: 7
   percent: 57
 ---
@@ -74,6 +74,7 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-02: renamed lattice value binder π→pl (π is reserved Mathlib notation for Real.pi); θ_ATM=kσ/√(8πτ) stated as τ→0⁺ asymptotic with hΘ pinning, sole Aristotle obligation is centralBinom_isEquivalent (sharp central-binomial asymptotic)
 - [Phase ?]: User-directed: no hand-proving. Upsilon.lean statements + conjecture drafted locally; one Aristotle submission (project 6bda0e2c-cc54-4663-9a4f-ffeada3bda6f, task 2c102a3e) covers all 4 sorry'd goals; integrate from returned archive.
 - [Phase ?]: First submission sat QUEUED with zero events; user chose cancel+resubmit. Same bundle, same 4 goals. Single in-flight task preserved.
+- [Phase ?]: Full estimator (hmatrix-gsl LM after user installed GSL 2.8, hand-rolled clustered sandwich SEs, tests, EIV-IV) in Haskell; GAMS replicates only the 3-variable NLS point estimates as a non-blocking differential check, coordinated to the GAMS session (PID 175812) via claude-peers per the ownership map.
 
 ### Pending Todos
 
