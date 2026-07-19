@@ -147,7 +147,7 @@ All 30 v1 requirements in REQUIREMENTS.md are mapped to exactly one phase:
 |-------|--------------|-------|
 | 1 | REPO-01, REPO-02, REPO-03, REPO-04, REPO-05 | 5 |
 | 2 | GAMS-01, KERN-01, KERN-02, KERN-03, TOOL-01, TOOL-02 | 6 |
-| 3 | MAP-01, MAP-02, MAP-03, MAP-04, MAP-05, MAP-06, REF-01, REF-02 | 8 | 5/5 | Complete   | 2026-07-19 | 4 |
+| 3 | MAP-01, MAP-02, MAP-03, MAP-04, MAP-05, MAP-06, REF-01, REF-02 | 8 | 5/5 | Complete    | 2026-07-19 | 4 |
 | 5 | GAMS-02 | 1 |
 | 6 | BRDG-01, BRDG-02, BRDG-03, BRDG-04 | 4 |
 | 7 | PIPE-01, PIPE-02 | 2 |

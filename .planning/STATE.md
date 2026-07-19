@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-07-19T14:18:29.394Z"
+last_updated: "2026-07-19T15:20:16.041Z"
 last_activity: "2026-07-19 — 08-02 executed: created lean/vol_markets/Panoptic.lean + wired lakefile root; lake build vol_markets green with exactly 2 reserved sorries (centralBinom_isEquivalent, theta_atm_closed_form)"
 progress:
   total_phases: 8
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 7
   percent: 57
 ---
 
