@@ -321,7 +321,7 @@ Phase numbering **continues at Phase 12**. v2.0's Phases 10–11 are pending on 
 - [x] **Phase 12: Spec Correction & Type Completion** - Kill the Lean-refuted `price/haircut` formula in `risk.md`, pin the fixed-point/quote conventions, and complete `VegaExposure.plk` (2 live fields + risk Q-types) — BLOCKS 13–15; no arithmetic against a refuted spec (completed 2026-07-17)
 - [x] **Phase 13: Issuance Library (VegaIssuanceLib)** - The pure `haircut_risk_price` / `issue_shares` unit, diffed vs a Solidity mock via an FFI kernel harness BEFORE any module exists, with the Lean-lemma fuzz battery mutation-verified (completed 2026-07-17)
 - [x] **Phase 14: Module Dispatch, Storage & State Readers** - `VegaAccountMod.plk` live: verbatim `RealizedVolatilityMod` dispatch, three distinct accumulator slots, validated `setRiskPrice`, both zero guards + unset-`p_risk` revert, preview views, readers — `deposit` CALLED green (completed 2026-07-18)
-- [ ] **Phase 15: Differential Verification & Mutation Battery, PLANK_SKIP Exit** - The acceptance bar: end-to-end three-accumulator differential (tolerance 0, after EVERY write, assertion INSIDE the driver), observed-RED mutation battery, `PLANK_SKIP` removed, `make` target folded into `make test`
+- [x] **Phase 15: Differential Verification & Mutation Battery, PLANK_SKIP Exit** - The acceptance bar: end-to-end three-accumulator differential (tolerance 0, after EVERY write, assertion INSIDE the driver), observed-RED mutation battery, `PLANK_SKIP` removed, `make` target folded into `make test` (completed 2026-07-19)
 
 ## Phase Details
 
@@ -388,7 +388,7 @@ Plans:
 **Plans**: 2 plans (2 waves)
 
 Plans:
-- [ ] 15-01-PLAN.md — End-to-end (setRiskPrice, deposit) sequence differential: VegaAccountMod vs an IssuanceRefMock-backed mirror, all three accumulators tol-0 after EVERY write (assertion inside the driver), fixed Phase-12 anchor + constructed fuzz (VVER-01) [wave 1]
+- [x] 15-01-PLAN.md — End-to-end (setRiskPrice, deposit) sequence differential: VegaAccountMod vs an IssuanceRefMock-backed mirror, all three accumulators tol-0 after EVERY write (assertion inside the driver), fixed Phase-12 anchor + constructed fuzz (VVER-01) [wave 1]
 - [x] 15-02-PLAN.md — Observed-RED mutation battery (5 killable mutants, cache-cleared, restored sha256-identical; 2 equivalence-masked non-kills) + PLANK_SKIP exit (12 ok/0 skipped) + make test fold-in (PriceSetterHook skip) + make compile/make test runs of record (VVER-02) [wave 2, depends 15-01]
 
 ## Progress (Milestone v3.0)

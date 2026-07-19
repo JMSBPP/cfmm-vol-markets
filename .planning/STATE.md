@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: VegaAccountMod Vault (H1 issuance, exogenous risk price)
-status: executing
-stopped_at: Completed 15-02-PLAN.md — Phase 15 execution done (VVER-01/02 discharged); phase verifier + milestone close pending
-last_updated: "2026-07-18T16:37:58.187Z"
+status: milestone-complete
+stopped_at: Phase 15 COMPLETE + verified (10/10, e2e mutant re-kill byte-identical) — ALL v3.0 phases done (12-15); milestone close via /gsd:complete-milestone is the remaining user decision
+last_updated: "2026-07-19T12:45:02.060Z"
 last_activity: "2026-07-18 — executed 15-01: built VegaAccountE2EDiffTest (test/exposure/VegaAccount.e2e.t.sol, 246 lines) — the milestone acceptance driver. Drives IDENTICAL (setRiskPrice, deposit) sequences into the FFI-deployed VegaAccountMod and a trivially-simple IssuanceRefMock-backed mirror (three uint256 accumulators updated ONLY via mock.issueShares floor / haircutRiskPrice ceil), asserting totalDeposits/totalShares/riskWeightedShares equal at TOLERANCE 0 AFTER EVERY write, INSIDE _setPriceBoth/_depositBoth/_depositExpectRevertBoth (abort-at-earliest-divergence). Fixed anchor reproduces the inherited Phase-12/13 anchor exactly (p12=60944740395587951995033807951 via previewRiskPrice diffed tol-0 vs mock.haircutRiskPrice; deposit=10 mints 12 shares; 2.5→2 point; mid-sequence dust revert leaves state synced; ~2^200 weight-one deposit baseline accepts). 256-run constructed fuzz (bound() only, NO vm.assume) with a NEW price each iteration (mid-sequence re-pricing → stale-price guard), zero counterexamples. All four 15-02 kill sites sensitized (p_risk ceil, shares floor, dust guard, cross-product overflow). Source-file guard checked FIRST: module sha256 555a7a10…818120 and lib 2ee07162…c7e3 both == HEAD (WIP-edit note RESOLVED). Baselines unregressed: test-vega-account 12/12, test-vega-issuance 11/11; compile-plank unaffected (added a .sol only). Blocker: untracked PriceSetterHook.sol (another track) still needs --skip (logged to phase deferred-items.md)."
 progress:
   total_phases: 15
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-07-16)
 
 ## Current Position
 
-Phase: 15 — Differential Verification, Mutation Battery, PLANK_SKIP Exit (IN PROGRESS — 1/2 plans)
-Plan: 15-01 complete (VVER-01 — e2e (setRiskPrice, deposit) sequence differential, module vs IssuanceRefMock mirror, tol-0 after every write, fixed anchor + 256-run fuzz, CALLED-green); 15-02 pending (VVER-02 — mutation battery + PLANK_SKIP exit)
-Status: 15-01 done; next execute 15-02 (apply the five named mutants against BOTH VegaAccount.t.sol and VegaAccount.e2e.t.sol, verify each reddens, restore sha256-identical, then gate the PLANK_SKIP exit)
+Phase: 15 — Differential Verification & Mutation Battery, PLANK_SKIP Exit (COMPLETE — 2/2 plans, verified 10/10)
+Plan: all v3.0 plans complete (12-01, 13-01/02, 14-01/02, 15-01/02)
+Status: MILESTONE v3.0 EXECUTION COMPLETE — VVER-01/02 discharged; /gsd:complete-milestone pending user decision
 Last activity: 2026-07-18 — executed 15-01: built VegaAccountE2EDiffTest (test/exposure/VegaAccount.e2e.t.sol, 246 lines) — the milestone acceptance driver. Drives IDENTICAL (setRiskPrice, deposit) sequences into the FFI-deployed VegaAccountMod and a trivially-simple IssuanceRefMock-backed mirror (three uint256 accumulators updated ONLY via mock.issueShares floor / haircutRiskPrice ceil), asserting totalDeposits/totalShares/riskWeightedShares equal at TOLERANCE 0 AFTER EVERY write, INSIDE _setPriceBoth/_depositBoth/_depositExpectRevertBoth (abort-at-earliest-divergence). Fixed anchor reproduces the inherited Phase-12/13 anchor exactly (p12=60944740395587951995033807951 via previewRiskPrice diffed tol-0 vs mock.haircutRiskPrice; deposit=10 mints 12 shares; 2.5→2 point; mid-sequence dust revert leaves state synced; ~2^200 weight-one deposit baseline accepts). 256-run constructed fuzz (bound() only, NO vm.assume) with a NEW price each iteration (mid-sequence re-pricing → stale-price guard), zero counterexamples. All four 15-02 kill sites sensitized (p_risk ceil, shares floor, dust guard, cross-product overflow). Source-file guard checked FIRST: module sha256 555a7a10…818120 and lib 2ee07162…c7e3 both == HEAD (WIP-edit note RESOLVED). Baselines unregressed: test-vega-account 12/12, test-vega-issuance 11/11; compile-plank unaffected (added a .sol only). Blocker: untracked PriceSetterHook.sol (another track) still needs --skip (logged to phase deferred-items.md).
 
 **v2.0 pause point (for resumption):** Phase 9 complete — variance surface bit-exact vs Algebra at tolerance 0 in FORMULA (5-D kernel fuzz, 1024 runs) and STATE (full-timepoint diff after every write); all SC-4 mutants observed red and restored; Algebra pin exits 0. The whole vol suite now lives in ONE file (`test/market_state_measurements/RealizedVolatility.diff.t.sol`, 5 contracts, 17 tests) run by `make test-realized-vol`; repo-wide gates are `make test` (currently 50 pass / 5 pre-existing pos_spec harness failures, documented in the Makefile) and `make compile` (10 ok / 1 skipped: VegaAccountMod).
