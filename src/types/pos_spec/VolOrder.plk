@@ -1,0 +1,104 @@
+import lib::TickUtils::TickBucket;
+import lib::pos_spec::TickVolatilityLib::*;
+import pos_spec::VolRangeWidth::*;
+import pos_spec::SpreadTickAssimetry::*;
+import pos_spec::TickVolatility::*;
+import std::error::require;
+
+// note: It fits on 152 bits
+const VolOrder = struct {
+      rangeWidth: VolRangeWidth,
+      volStrike: TickVolatility,
+      skew: SpreadTickAssimetry
+};
+
+const return_vol_order_incomplete = fn(self:VolOrder) never {
+      let packed = pack_vol_order(self);
+      let out_ptr = @malloc_uninit(32);
+      @mstore32(out_ptr, packed);
+      @evm_return(out_ptr,32);
+};
+
+const return_vol_order = fn (self:VolOrder) never {
+      vol_order_revert_incomplete(self);
+      return_vol_order_incomplete(self);
+};
+
+// todo: This calls for a bool function on each of the dependent types to check they are complete
+const vol_order_is_complete = fn (volOrder :VolOrder) bool {
+      let res = (vol_range_width_is_complete(volOrder.rangeWidth)) & (spread_tick_assimetry_is_complete(volOrder.skew)) & (tick_volatility_is_complete(volOrder.volStrike));
+      res
+};
+
+const vol_order_revert_incomplete = fn(volOrder:VolOrder) void {require(vol_order_is_complete(volOrder))};
+
+const pack_vol_order = fn(self: VolOrder) u256 {
+    @evm_shl(128, self.rangeWidth.width & 0xFFFFFF)
+    | @evm_shl(104, self.rangeWidth.tickSpacing & 0xFFFFFF)
+    | @evm_shl(16, self.volStrike.vol & 0xFFFFFFFFFFFFFFFFFFFFFF)
+    | (self.skew.spread & 0xFFFF)
+};
+
+const unpack_vol_order = fn(_packed: u256) VolOrder {
+    let width       = @evm_shr(128, _packed) & 0xffffff;  // 128 + 24 = 152
+    let tickSpacing = @evm_shr(104, _packed) & 0xffffff;  // 104 + 48 = 152 
+    let volStrike   = @evm_shr(16, _packed) & 0xffffffffffffffffffffff; // 16 + 88 + 48 = 152
+    let skew        = _packed & 0xffff;
+
+    VolOrder {
+        rangeWidth: VolRangeWidth {
+            width: width,
+            tickSpacing: tickSpacing
+        },
+        volStrike: TickVolatility {
+            vol: volStrike
+        },
+        skew: SpreadTickAssimetry {
+            spread: skew
+        }
+    }
+};
+
+// note: This calls for type checks on each of the dependant types
+const set_vol_order_vol_strike = fn(self: VolOrder, volStrike:TickVolatility) VolOrder {
+      VolOrder {
+      	       rangeWidth: self.rangeWidth,
+	       volStrike: volStrike,
+	       skew: self.skew	       
+      }
+};
+
+
+const set_vol_order_skew = fn(self: VolOrder ,skew:SpreadTickAssimetry) VolOrder {
+      VolOrder {
+      	       rangeWidth: self.rangeWidth,
+	       volStrike: self.volStrike,
+	       skew : skew
+      }    
+};
+
+
+const set_vol_order_range_width = fn(self: VolOrder ,vol_range_width :VolRangeWidth) VolOrder {
+      VolOrder {
+      	       rangeWidth: vol_range_width,
+	       volStrike: self.volStrike,
+	       skew: self.skew
+      }
+};
+
+
+//////////////////////////////////////////////////////////////////////
+// const set_range_width_tick_spacing(tickSpacing :u256) VolOrder { //
+// };								    //
+// 								    //
+// const set_range_width_val(_range_width_val:u256) VolOrder {	    //
+// };								    //
+//////////////////////////////////////////////////////////////////////
+
+// note: This can use the return function for tickbuckert instead of its own
+const tick_bucket_from_vol_order = fn(volOrder:VolOrder) TickBucket{
+      // 1. get the tick for the volOrder
+      let tick_volatility = tick_volatility_tick(volOrder.volStrike);      
+      let bucket = split_tick(volOrder.skew, volOrder.rangeWidth, tick_volatility);
+      bucket
+};

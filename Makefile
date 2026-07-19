@@ -25,12 +25,15 @@
 # This repo shipped exactly that gate. Only calling a function proves it exists.
 #
 # THIS TARGET IS CURRENTLY RED, AND THAT IS THE TRUTH, NOT A DEFECT IN THE TARGET.
-# The Order/VolOrder closure (Order.plk + OrderHelper + VolOrder + its helper/tests) was
-# DELETED outright at user direction -- Order.plk had already been working-tree-deleted by
-# the OrderType track, and the project deletes orphaned closures rather than skipping them
-# (recover from git history if that track resurrects the type).
-# MEASURED after the closure deletion: 70 pass, 4 fail (74 total); compile-plank 10 ok,
-# 0 failed, 0 skipped -- both commands of record fully truthful, no skips, no exclusions.
+# The Order closure (Order.plk + its OrderHelper harness + OrderTest) was DELETED outright
+# at user direction -- Order.plk had already been working-tree-deleted by the OrderType
+# track, and the project deletes orphaned closures rather than skipping them (recover from
+# git history if that track resurrects the type). VolOrder + VolOrderHelper + VolOrderTest
+# are KEPT: they are live pos_spec surface and never depended on Order.
+# MEASURED after the Order deletion (VolOrder chain KEPT — it never imported Order; an
+# earlier substring-matched grep claimed otherwise): 74 pass, 4 fail (78 total);
+# compile-plank 11 ok, 0 failed, 0 skipped -- both commands of record fully truthful,
+# no skips, no exclusions.
 # The 4 remaining failures are pre-existing and all in the pos_spec type track:
 #   VolRangeWidthTest         volWidthRangeSub_valid, volWidthRangeBuildVolRangeWidth_valid
 #   SpreadTickAssimetryTest   spreadTickAssimetrySplitTick__Valid, tickFromSplittedTickBucket__Valid
@@ -59,6 +62,9 @@ compile: compile-plank
 
 sol-build:
 	forge build --via-ir --optimize
+
+sol-test:
+	forge test --match-contract VolOrderTest --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
 
 
 test-pricing-kernel-diff:
