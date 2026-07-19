@@ -54,3 +54,4 @@ lean/archive/*
 !lean/archive/aristotleFOCThree.tar.gz
 !lean/archive/9804c2b5-a6a5-4a7f-a67b-89119b4b7bfb-aristotle.tar.gz
 !lean/archive/arsitotleTaoCFMM.tar.gz
+scratch/
