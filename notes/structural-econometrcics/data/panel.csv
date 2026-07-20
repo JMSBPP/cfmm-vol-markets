@@ -1,0 +1,4 @@
+tokenId,epoch,premium_delta,strike_tick,pool_tick,sigma2_placeholder
+0xa1,19807,30.0,488,490,NaN
+0xa1,19808,45.0,488,500,NaN
+0xb2,19807,40.0,-305,-310,NaN
