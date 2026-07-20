@@ -51,6 +51,13 @@ module Panel.Variance
   , decodeSqrtPriceX96
     -- * CSV ingestion
   , loadSwapTicks
+    -- * Variance math (CTX-VAR)
+  , Epoch
+  , dailyEpoch
+  , tickToLogPrice
+  , realizedVariance
+  , instrumentVariance
+  , writeVarianceCsv
     -- * Historical / superseded
   , historicalBigQuerySql
   ) where
@@ -62,10 +69,13 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Csv as Csv
 import           Data.List (sortOn)
+import           Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import           Data.Time.Clock (UTCTime)
+import           Data.Time.Calendar (toModifiedJulianDay)
+import           Data.Time.Clock (UTCTime (utctDay))
 import           Data.Time.Clock.POSIX (posixSecondsToUTCTime,
                                         utcTimeToPOSIXSeconds)
 import qualified Data.Vector as V
@@ -305,6 +315,28 @@ stripHexPrefix s                  = s
 
 utcToUnix :: UTCTime -> Integer
 utcToUnix = round . utcTimeToPOSIXSeconds
+
+-- ---------------------------------------------------------------------------
+-- Variance math (CTX-VAR)  [RED stubs — real bodies land in the GREEN step]
+-- ---------------------------------------------------------------------------
+
+-- | Daily epoch index. See the GREEN implementation for the boundary contract.
+type Epoch = Int
+
+dailyEpoch :: UTCTime -> Epoch
+dailyEpoch = const 0
+
+tickToLogPrice :: Int -> Double
+tickToLogPrice = const 0
+
+realizedVariance :: [(UTCTime, Int)] -> Map Epoch Double
+realizedVariance = const Map.empty
+
+instrumentVariance :: [(UTCTime, Int)] -> Map Epoch Double
+instrumentVariance = const Map.empty
+
+writeVarianceCsv :: FilePath -> Map Epoch Double -> Map Epoch Double -> IO ()
+writeVarianceCsv _ _ _ = pure ()
 
 -- ---------------------------------------------------------------------------
 -- Historical / superseded BigQuery reference (NOT the live path)

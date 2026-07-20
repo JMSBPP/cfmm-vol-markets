@@ -58,6 +58,7 @@ tests:
     other-modules:
       - Golden.SandwichFixture
       - Panel.BuildSpec
+      - Panel.VarianceSpec
     ghc-options:
       - -threaded
       - -rtsopts
@@ -67,3 +68,5 @@ tests:
       - hspec
       - text
       - bytestring
+      - containers
+      - time
