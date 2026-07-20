@@ -1,0 +1,64 @@
+{
+  "data": {
+    "tokenIds": [
+      {
+        "id": "0xa1",
+        "pool": "0xb50e8bb68f5855da742f4579274902a20454174a",
+        "legs": [
+          { "strike": "1.05", "width": "10", "isLong": "0", "tokenType": "0", "optionRatio": "1" }
+        ],
+        "snapshots": [
+          {
+            "timestamp": "1711238400",
+            "blockNumber": "43781657",
+            "premiaSettledInUsdTotal": "100.0",
+            "premiaSettled0Total": "0.05",
+            "premiaSettled1Total": "100.0",
+            "poolTick": "480"
+          },
+          {
+            "timestamp": "1711324800",
+            "blockNumber": "43800000",
+            "premiaSettledInUsdTotal": "130.0",
+            "premiaSettled0Total": "0.065",
+            "premiaSettled1Total": "130.0",
+            "poolTick": "490"
+          },
+          {
+            "timestamp": "1711411200",
+            "blockNumber": "43820000",
+            "premiaSettledInUsdTotal": "175.0",
+            "premiaSettled0Total": "0.0875",
+            "premiaSettled1Total": "175.0",
+            "poolTick": "500"
+          }
+        ]
+      },
+      {
+        "id": "0xb2",
+        "pool": "0xb50e8bb68f5855da742f4579274902a20454174a",
+        "legs": [
+          { "strike": "0.97", "width": "10", "isLong": "0", "tokenType": "1", "optionRatio": "1" }
+        ],
+        "snapshots": [
+          {
+            "timestamp": "1711238400",
+            "blockNumber": "43781657",
+            "premiaSettledInUsdTotal": "50.0",
+            "premiaSettled0Total": "0.025",
+            "premiaSettled1Total": "50.0",
+            "poolTick": "-300"
+          },
+          {
+            "timestamp": "1711324800",
+            "blockNumber": "43800000",
+            "premiaSettledInUsdTotal": "90.0",
+            "premiaSettled0Total": "0.045",
+            "premiaSettled1Total": "90.0",
+            "poolTick": "-310"
+          }
+        ]
+      }
+    ]
+  }
+}
