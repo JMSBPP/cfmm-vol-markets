@@ -1,7 +1,7 @@
 ---
 phase: 10
 slug: streaming-premium-reconstruction-and-reestimation
-status: draft
+status: approved
 nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-20
@@ -93,4 +93,4 @@ No new system deps: GHC/Stack/GSL present; the keyless Base endpoint already ser
 - [ ] No network calls inside the hspec suite (frozen fixtures only)
 - [ ] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending (set at plan-check)
+**Approval:** approved 2026-07-20 (plan-checker: 0 blockers; 3 warnings resolved in-place, incl. the Wave-0 threshold reframing)
