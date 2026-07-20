@@ -19,13 +19,17 @@ import qualified Data.Vector             as V
 import           Options.Applicative
 import           Text.Read               (readMaybe)
 
-import           Numeric.AD         (grad)
+import           Numeric.AD           (grad)
+import           Numeric.GSL.Fitting  (fitModel)
 
 import           Econ.Types         (Obs (..), Panel, Theta (..))
 import           Model.EIV          (ivFit)
-import           Model.NLS          (designPoints, fitGSL, fitGSLCov)
+import           Model.NLS          (designPoints, fitGSLCov)
 import           Model.SandwichSE   (clusterSandwich, standardErrors)
-import           Model.Upsilon      (model, moneyness)
+import           Model.Upsilon      (model, modelSplit, moneyness, signedMoneyness)
+import           Tests.Specification
+                   ( TestResult (..), Theta4 (..)
+                   , testUpsilonPos, testKappaPos, testSymmetry )
 import           Panel.Build        (assemble, writePanelCsv)
 import           Panel.Subgraph     (Endpoint (..), PoolAddr (..), fetchPositions)
 import           Panel.Variance     (RpcConfig (..), cacheSwapTicks,
@@ -195,6 +199,18 @@ runEstimate eo = do
                  ++ show (length jRows) ++ " obs)")
       putStrLn ("  SE(b0) = " ++ show seB ++ "  SE(u0) = " ++ show seU
                  ++ "  SE(kappa) = " ++ show seK)
+      -- The three committed specification tests (spec §5) on the clustered
+      -- covariance: υ₀>0, κ>0 (THE null test), and κ⁺=κ⁻ (split-fit Wald).
+      let rU = testUpsilonPos thetaG vCov
+          rK = testKappaPos   thetaG vCov
+          rS = splitSymmetryTest panel
+      putStrLn "estimate: specification tests (spec §5, tokenId-clustered)"
+      putStrLn ("  υ₀>0  : z = " ++ show (statistic rU) ++ "  p = " ++ show (pValue rU)
+                 ++ "  reject = " ++ show (reject rU))
+      putStrLn ("  κ>0   : z = " ++ show (statistic rK) ++ "  p = " ++ show (pValue rK)
+                 ++ "  reject = " ++ show (reject rK) ++ "   (THE null-hypothesis test)")
+      putStrLn ("  κ⁺=κ⁻ : W = " ++ show (statistic rS) ++ "  p = " ++ show (pValue rS)
+                 ++ "  reject = " ++ show (reject rS))
 
 -- | Build the sandwich-SE inputs at a fitted θ: for every usable observation
 -- (finite σ̂² and premium, matching 'designPoints'), the row-gradient ∂f/∂θ (via
@@ -207,12 +223,52 @@ sandwichInputs (Theta b0' u0' k') panel = unzip3
   , let d  = moneyness (obsStrikeTick o) (obsPoolTick o)
         s2 = obsSigma2 o
         y  = obsPremium o
-  , isFinite s2, isFinite y
+  , finiteD s2, finiteD y
   , let gradRow = grad (\p -> model p (realToFrac d, realToFrac s2)) [b0', u0', k']
         resid   = y - model [b0', u0', k'] (d, s2)
   ]
+
+-- | A finite (non-NaN, non-∞) Double — used to drop un-joined placeholder rows.
+finiteD :: Double -> Bool
+finiteD x = not (isNaN x || isInfinite x)
+
+-- | Symmetry Wald κ⁺ = κ⁻ (spec §5, test 3) end-to-end from a panel: fit the split
+-- (4-param) model 'Model.Upsilon.modelSplit' by GSL Levenberg–Marquardt (analytic
+-- split Jacobian), form its tokenId-clustered CR0 covariance (gradient rows via
+-- @ad@ on 'modelSplit' at the fit), and run 'testSymmetry' on the 2×2 κ sub-block.
+-- The split model's local identification (needs OTM mass on BOTH sides of the
+-- money) is a live-data concern deferred to plan 09-09.
+splitSymmetryTest :: Panel -> TestResult
+splitSymmetryTest panel = testSymmetry (Theta4 b0s u0s kps kms) vSplit
   where
-    isFinite x = not (isNaN x || isInfinite x)
+    pts =
+      [ ((dP, dM, s2), y, obsTokenId o)
+      | o <- panel
+      , let s  = signedMoneyness (obsStrikeTick o) (obsPoolTick o)
+            dP = max 0 s
+            dM = max 0 (negate s)
+            s2 = obsSigma2 o
+            y  = obsPremium o
+      , finiteD s2, finiteD y
+      ]
+    dat = [ (x, [y]) | (x, y, _) <- pts ]
+    modelF ps x = [modelSplit ps x]
+    jacF [_b0, u0', kp', km'] (dP, dM, s2') =
+      let ep = exp (negate kp' * dP)
+          em = exp (negate km' * dM)
+      in [[ 1
+          , (ep + em - 1) * s2'
+          , u0' * (negate dP * ep) * s2'
+          , u0' * (negate dM * em) * s2' ]]
+    jacF ps _ = error ("Main.splitSymmetryTest: bad param length " ++ show (length ps))
+    (sol, _cov) = fitModel 1e-9 1e-9 200 (modelF, jacF) dat [0.0, 1.0, 0.2, 0.2]
+    [b0s, u0s, kps, kms] = sol
+    jRows =
+      [ grad (\p -> modelSplit p (realToFrac dP, realToFrac dM, realToFrac s2)) sol
+      | ((dP, dM, s2), _, _) <- pts ]
+    resids   = [ y - modelSplit sol (dP, dM, s2) | ((dP, dM, s2), y, _) <- pts ]
+    clusters = [ c | (_, _, c) <- pts ]
+    vSplit   = clusterSandwich jRows resids clusters
 
 -- | Distinct labels, order-independent (for the cluster count report).
 dedup :: Ord a => [a] -> [a]
