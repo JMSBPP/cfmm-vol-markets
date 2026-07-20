@@ -1,0 +1,19 @@
+# Frozen Base V4 Swap-tick fixture for Panel.Variance tests (CTX-VAR).
+# Two UTC days of within-day ticks so realizedVariance / instrumentVariance /
+# dailyEpoch can be golden-tested deterministically (no network in CI).
+# columns: timestamp_unix,tick   (tick = V4 Swap log data word 4, sign-extended)
+#
+# Day A = 2021-01-01 UTC (unix 1609459200, MJD epoch 59215): 6 swaps.
+# Day B = 2021-01-02 UTC (unix 1609545600, MJD epoch 59216): 4 swaps.
+# Ticks chosen as small integers so hand-computed log-price variances are exact.
+timestamp_unix,tick
+1609462800,100
+1609466400,110
+1609470000,90
+1609473600,130
+1609477200,120
+1609480800,140
+1609549200,200
+1609552800,180
+1609556400,220
+1609560000,210
