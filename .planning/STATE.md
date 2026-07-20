@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Phase 9 Wave 1: 09-01 done, 09-03 done, 09-02 checkpoint RESOLVED by user (Base V4 market, RPC variance route) but continuation agent halted before recording it — resume by re-spawning the 09-02 continuation, then Wave 2 (09-04, 09-05 with RPC override, 09-06 Aristotle)"
-last_updated: "2026-07-19T18:28:44.676Z"
-last_activity: "2026-07-19 — 09-03 executed: corrected ATMOTMNullHypothesis conjunct 3 to the slope-centered envelope + stated sorry'd exp_family_witnesses_ATMOTM; lake build vol_markets green with exactly one new bridging-lemma sorry"
+stopped_at: "Phase 9 Wave 1 COMPLETE (09-01, 09-02, 09-03 done); 09-02 checkpoint resolved + recorded (Base V4 market, RPC variance route). Next: Wave 2 — 09-04 panel, 09-05 variance (RPC eth_getLogs override, not BigQuery), 09-06 Aristotle"
+last_updated: "2026-07-20T02:00:21.182Z"
+last_activity: "2026-07-19 — 09-02 continuation: recorded checkpoint resolution in DATA-SOURCES.md §4 (Base V4 market + RPC variance route), verified endpoint live via _meta probe (block 48,861,639, no indexing errors)"
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 18
-  completed_plans: 9
-  percent: 44
+  completed_plans: 10
+  percent: 56
 ---
 
 # Project State
@@ -26,12 +26,12 @@ See: .planning/PROJECT.md (updated 2026-06-27)
 ## Current Position
 
 Phase: 9 of 9 (Upsilon Econometric Estimation — Lean-Aware) — Lean4 + Haskell econometrics track
-Plan: wave 1 of 11 in current phase (09-01 + 09-03 complete; 09-02 discovery gate runs in parallel)
-Plan (09-01): econometrics/ Stack scaffold GREEN — lts-24.50 + hmatrix-gsl (system GSL 2.8) builds, hspec suite runs, sandwich-SE golden fixture frozen for 09-08
-Status: In Progress — 09-03 landed the Lean-side bridge correction: ATMOTMNullHypothesis conjunct 3 is now a PROVABLE slope-centered envelope and the sorry'd witness theorem exp_family_witnesses_ATMOTM (exp-moneyness family, c = κ·Δi) is pinned locally — the exact goal the single serial Aristotle task (09-06) will discharge. Option A fallback envelope recorded in-file.
-Last activity: 2026-07-19 — 09-03 executed: corrected ATMOTMNullHypothesis conjunct 3 to the slope-centered envelope + stated sorry'd exp_family_witnesses_ATMOTM; lake build vol_markets green with exactly one new bridging-lemma sorry
+Plan: Wave 1 COMPLETE (09-01, 09-02, 09-03 all done); Wave 2 next (09-04 panel, 09-05 variance, 09-06 Aristotle)
+Plan (09-02): data-source discovery GATE resolved — confirmed Base V4 ETH/USDC market (chainId 8453, keyless Goldsky base/dev subgraph) for the panel; variance from direct RPC eth_getLogs on Base V4 Swap logs. BigQuery dropped (project suspended, CONSUMER_SUSPENDED). Endpoint verified-live at resolution.
+Status: In Progress — Wave 1 done. 09-02 checkpoint closed by user ("accept base"): panel reads keyless Base subgraph (panopticPool 0xb50e...174a, poolId 0x96d4...288c0a); 09-05 variance builder must use RPC eth_getLogs (V4 topic0 + poolId topic1), NOT BigQuery SQL; 09-04 unaffected except market ids. Concern: thin cross-section (~7 panopticPoolAccounts).
+Last activity: 2026-07-19 — 09-02 continuation: recorded checkpoint resolution in DATA-SOURCES.md §4 (Base V4 market + RPC variance route), verified endpoint live via _meta probe (block 48,861,639, no indexing errors)
 
-Progress: [████░░░░░░] 44%
+Progress: [██████░░░░] 56%
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Progress: [████░░░░░░] 44%
 | Phase 08 P02 | 4 | 2 tasks | 2 files |
 | Phase 09 P03 | 2 | 2 tasks | 1 files |
 | Phase 09 P01 | 9 | 2 tasks | 8 files |
+| Phase 09 P02 | 6 | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,7 @@ Recent decisions affecting current work:
 - [Phase 09]: 09-03: corrected ATMOTMNullHypothesis conjunct 3 to slope-centered envelope exp(-c·max(i-iK, -(i-iK)-1)) (forward-difference is symmetric about iK-½, so exp(-c|i-iK|) was param-independently false on the left branch); sorry'd exp_family_witnesses_ATMOTM (exp family, c=κ·Δi) pinned for the single Aristotle task 09-06; Option A fallback recorded
 - [Phase 09]: 09-01: pinned econometrics/ to lts-24.50 (GHC 9.10.3 = system GHC, no download) + hmatrix-gsl-0.19.0.1 extra-dep (Numeric.GSL.Fitting = primary NLS LM); stack build/test green, system GSL 2.8 linked
 - [Phase 09]: 09-01: froze CR0 sandwich-SE golden fixture (orthogonal-J 2-cluster/3-obs toy: V=[[2.25,.75,0],[.75,.25,0],[0,0,2.25]], SE=[1.5,.5,1.5]) with hand arithmetic in-file for 09-08 to implement against
+- [Phase 09]: 09-02: data-source gate resolved — accept Base V4 ETH/USDC (chainId 8453, panopticPool 0xb50e...174a, poolId 0x96d4...288c0a) via keyless Goldsky base/dev subgraph; GRAPH_API_KEY not needed (public); variance from direct RPC eth_getLogs on Base V4 Swap logs (V4 topic0 + poolId topic1) — BigQuery dropped (project thetaswap-research suspended, 403 CONSUMER_SUSPENDED); 09-05 consumes RPC logs not BigQuery SQL, 09-04 unaffected except market ids
 
 ### Pending Todos
 
@@ -99,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-19T18:28:44.674Z
-Stopped at: Phase 9 Wave 1: 09-01 done, 09-03 done, 09-02 checkpoint RESOLVED by user (Base V4 market, RPC variance route) but continuation agent halted before recording it — resume by re-spawning the 09-02 continuation, then Wave 2 (09-04, 09-05 with RPC override, 09-06 Aristotle)
-Resume file: .planning/phases/09-upsilon-econometric-estimation-lean-aware/09-02-PLAN.md
+Last session: 2026-07-20T01:59:48.461Z
+Stopped at: Phase 9 Wave 1 COMPLETE (09-01, 09-02, 09-03 done); 09-02 checkpoint resolved + recorded (Base V4 market, RPC variance route). Next: Wave 2 — 09-04 panel, 09-05 variance (RPC eth_getLogs override, not BigQuery), 09-06 Aristotle
+Resume file: None
