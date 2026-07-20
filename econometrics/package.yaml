@@ -57,6 +57,8 @@ executables:
       - ad
       - hmatrix
       - hmatrix-gsl
+      - time
+      - filepath
 
 tests:
   unit:

@@ -186,23 +186,67 @@ instance FromJSON a => FromJSON (RpcResponse a) where
 -- from the inline @blockTimestamp@ when present; any log missing it is dropped
 -- from the tick series with a note (the estimation window in 09-09 uses an
 -- endpoint that supplies it — verified on @mainnet.base.org@).
-fetchSwapTicks :: RpcConfig -> IO [(UTCTime, Int)]
-fetchSwapTicks cfg = do
+-- | Current chain head via @eth_blockNumber@.
+currentHeadBlock :: String -> IO Integer
+currentHeadBlock url = do
+  req0 <- parseRequest ("POST " ++ url)
+  let body = object [ "jsonrpc" .= ("2.0" :: Text), "id" .= (1 :: Int)
+                    , "method" .= ("eth_blockNumber" :: Text)
+                    , "params" .= ([] :: [Value]) ]
+  resp <- httpLBS (setRequestBodyJSON body req0)
+  case eitherDecode (getResponseBody resp) :: Either String (RpcResponse Text) of
+    Right (RpcResponse (Just h) _) -> pure (hexToInteger h)
+    _                              -> pure 0
+
+-- | Blocks kept back from the head, so a chunk boundary can never land past the
+-- tip while the fetch is in flight (the node advances during a multi-hour pull)
+-- and so no reorg-able block enters the series.
+headSafetyMargin :: Integer
+headSafetyMargin = 60
+
+-- | Fetch the pool's V4 Swap ticks over the configured window, optionally
+-- STREAMING each chunk to a cache file as it arrives.
+--
+-- Two robustness properties the 09-09 full-history pull needs, both learned the
+-- hard way:
+--
+--   * __The end block is clamped to the chain head__ (less 'headSafetyMargin').
+--     A @--to@ beyond the tip makes the node reject the range outright
+--     (@block range extends beyond current head block@), and retrying cannot
+--     help because the condition is not transient.
+--   * __Chunks are appended to the cache as they arrive__ when a path is given.
+--     A ~500-call pull that only writes at the end throws away hours of work if
+--     the final call fails.
+fetchSwapTicks :: RpcConfig -> Maybe FilePath -> IO [(UTCTime, Int)]
+fetchSwapTicks cfg0 mcache = do
+  head' <- currentHeadBlock (rpcUrl cfg0)
+  let capped = if head' > 0 then min (rpcToBlock cfg0) (head' - headSafetyMargin)
+                            else rpcToBlock cfg0
+      cfg    = cfg0 { rpcToBlock = capped }
+  if capped /= rpcToBlock cfg0
+    then putStrLn ("  toBlock clamped " ++ show (rpcToBlock cfg0) ++ " -> "
+                    ++ show capped ++ " (head " ++ show head' ++ " less "
+                    ++ show headSafetyMargin ++ " safety blocks)")
+    else pure ()
+  case mcache of
+    Just path -> writeFile path cacheBanner
+    Nothing   -> pure ()
   let chunks = blockChunks cfg
       total  = length chunks
-  logs <- concat <$> mapM (fetchOne total) (zip [1 :: Int ..] chunks)
-  let decoded =
-        [ (posixSecondsToUTCTime (fromInteger ts), decodeTick (TE.encodeUtf8 d))
-        | SwapLog { slTimestampMay = Just ts, slDataHex = d } <- logs
-        ]
+  decoded <- concat <$> mapM (fetchOne cfg total) (zip [1 :: Int ..] chunks)
   putStrLn ("  fetched " ++ show (length decoded) ++ " ticks from "
              ++ show total ++ " chunks")
   pure (sortOn fst decoded)
   where
-    -- Progress is reported every 25 chunks: the 09-09 full-history pull is ~500
-    -- sequential public-RPC calls and a silent multi-hour run is undebuggable.
-    fetchOne total (i, (lo, hi)) = do
+    -- Progress is reported every 25 chunks: a silent multi-hour run is
+    -- undebuggable.
+    fetchOne cfg total (i, (lo, hi)) = do
       ls <- getLogsChunk cfg lo hi
+      let ticks = [ (posixSecondsToUTCTime (fromInteger ts), decodeTick (TE.encodeUtf8 d))
+                  | SwapLog { slTimestampMay = Just ts, slDataHex = d } <- ls ]
+      case mcache of
+        Just path -> appendFile path (renderTicks ticks)
+        Nothing   -> pure ()
       if i `mod` 25 == 0 || i == total
         then do
           putStrLn ("  chunk " ++ show i ++ "/" ++ show total
@@ -210,7 +254,7 @@ fetchSwapTicks cfg = do
                      ++ " (+" ++ show (length ls) ++ " logs)")
           hFlush stdout
         else pure ()
-      pure ls
+      pure ticks
 
 -- | Block ranges @[(lo,hi), ...]@ covering @[from,to]@ in @chunk@-sized steps.
 blockChunks :: RpcConfig -> [(Integer, Integer)]
@@ -282,12 +326,19 @@ getLogsChunk cfg lo hi = go (0 :: Int)
 -- Format: a comment banner + @timestamp_unix,tick@ rows (unix seconds keep the
 -- round-trip unambiguous, independent of locale/timezone parsing).
 cacheSwapTicks :: FilePath -> [(UTCTime, Int)] -> IO ()
-cacheSwapTicks path rows = writeFile path (banner ++ body)
-  where
-    banner = "# Base V4 Swap ticks cache (poolId " <> T.unpack basePoolId <> ")\n"
-          <> "# columns: timestamp_unix,tick  (decoded from V4 Swap log data word 4)\n"
-          <> "timestamp_unix,tick\n"
-    body = unlines [ show (utcToUnix t) ++ "," ++ show tk | (t, tk) <- rows ]
+cacheSwapTicks path rows = writeFile path (cacheBanner ++ renderTicks rows)
+
+-- | Header of the tick cache. Shared by the streaming and whole-file writers so
+-- the two cannot drift.
+cacheBanner :: String
+cacheBanner =
+  "# Base V4 Swap ticks cache (poolId " <> T.unpack basePoolId <> ")\n"
+    <> "# columns: timestamp_unix,tick  (decoded from V4 Swap log data word 4)\n"
+    <> "timestamp_unix,tick\n"
+
+-- | Render tick rows as CSV lines.
+renderTicks :: [(UTCTime, Int)] -> String
+renderTicks rows = unlines [ show (utcToUnix t) ++ "," ++ show tk | (t, tk) <- rows ]
 
 -- ---------------------------------------------------------------------------
 -- ABI decode

@@ -1,78 +1,94 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Fixture-driven tests for the panel assembler (CTX-PANEL, plan 09-04).
+-- | Fixture-driven tests for the accrual-spell assembler (CTX-PANEL, rebuilt at
+-- plan 09-09 against the REAL Panoptic subgraph schema).
 --
--- Exercises the three load-bearing behaviours against the frozen subgraph
--- response @test/fixtures/subgraph-sample.json@:
+-- The fixture @test/fixtures/subgraph-sample.json@ mirrors the live response
+-- shape for @optionMints@, @optionBurns@ and @tokenIds { legs }@. The behaviours
+-- under test are exactly the ones the live run depends on:
 --
---   1. cumulative @premiaSettledInUsdTotal@ diffs to the correct per-epoch delta
---      (π_it is a FLOW, never the raw cumulative — RESEARCH Pitfall 2);
---   2. i_K = round(log strike / log 1.0001) on the λ=1.0001 grid (PosSpec.lam);
---   3. one panel row per (tokenId, epoch): N daily snapshots yield N−1 rows.
+--   1. each burn pairs with the LATEST preceding mint of the same
+--      (tokenId, account) — that pair is the accrual spell;
+--   2. @Leg.strike@ is carried through as an int24 TICK, NOT log-converted
+--      (09-04's @round(log K \/ log 1.0001)@ was a bug: live strikes are negative
+--      and the logarithm produced NaN);
+--   3. π is a per-day RATE (spell premium / spell days), with long positions
+--      sign-flipped to the seller-side convention;
+--   4. burns with a zero premium, or with no prior mint, are dropped.
 module Panel.BuildSpec (spec) where
 
 import qualified Data.ByteString.Lazy as BL
 import           Data.List            (sortOn)
 import           Test.Hspec
 
-import           Econ.Types           (obsPremium, obsStrikeTick, obsTokenId)
-import           Panel.Build          (assemble, deltaPremia, strikeToTick)
-import           Panel.Subgraph       (RawPosition (..), parsePositions)
+import           Panel.Build          (Spell (..), assembleSpells, premiumUsd,
+                                       tickToPrice)
+import           Panel.Subgraph       (BurnEvent (..), parseBurns, parseLegs,
+                                       parseMints)
 
 fixturePath :: FilePath
 fixturePath = "test/fixtures/subgraph-sample.json"
 
-loadPositions :: IO [RawPosition]
-loadPositions = do
-  bytes <- BL.readFile fixturePath
-  case parsePositions bytes of
-    Left err -> error ("fixture parse failed: " ++ err)
-    Right ps -> pure ps
+-- | token0 decimals − token1 decimals for ETH(18)/USDC(6).
+shift :: Int
+shift = 12
 
-byId :: String -> [RawPosition] -> RawPosition
-byId tid ps =
-  case filter ((== tid) . show . rpTokenId) ps of
-    (p : _) -> p
-    []      -> error ("tokenId not in fixture: " ++ tid)
+fixtureSpells :: IO [Spell]
+fixtureSpells = do
+  bytes <- BL.readFile fixturePath
+  mints <- either fail pure (parseMints bytes)
+  burns <- either fail pure (parseBurns bytes)
+  legs  <- either fail pure (parseLegs bytes)
+  pure (assembleSpells shift mints burns legs)
 
 spec :: Spec
-spec = describe "Panel.Build (CTX-PANEL)" $ do
+spec = describe "Panel.Build (CTX-PANEL, accrual spells)" $ do
 
-  it "diffs cumulative premia into per-epoch flows (not the raw cumulative)" $ do
-    ps <- loadPositions
-    let posA   = byId "\"0xa1\"" ps
-        deltas = map snd (deltaPremia (rpSnapshots posA))
-    -- cumulative 100 -> 130 -> 175  ==>  flows 30, 45  (NOT 130, 175)
-    deltas `shouldBe` [30.0, 45.0]
+  it "converts a pool tick to a USDC-per-ETH price on the λ=1.0001 grid" $
+    -- tick −200,340 on an 18/6-decimal pair is ≈ 1992 USDC per ETH
+    tickToPrice shift (-200340) `shouldSatisfy` (\x -> x > 1900 && x < 2100)
 
-  it "emits epochs in ascending order aligned to the ENDING snapshot" $ do
-    ps <- loadPositions
-    let posA    = byId "\"0xa1\"" ps
-        epochs  = map fst (deltaPremia (rpSnapshots posA))
-    epochs `shouldBe` sortOn id epochs
-    length epochs `shouldBe` 2
+  it "carries Leg.strike through as a TICK (no log conversion, no NaN)" $ do
+    spells <- fixtureSpells
+    let ticks = map spStrikeTick spells
+    ticks `shouldSatisfy` all (< 0)
+    ticks `shouldSatisfy` all (\t -> t > -210000 && t < -190000)
 
-  it "maps strike price to the λ=1.0001 tick (i_K = round(log K / log 1.0001))" $ do
-    strikeToTick 1.05 `shouldBe` 488
-    strikeToTick 0.97 `shouldBe` (-305)
+  it "pairs each burn with the LATEST preceding mint of the same position" $ do
+    spells <- fixtureSpells
+    -- tokenId 1001 is minted twice; the burn attaches to the SECOND mint, so the
+    -- spell is 1 day, not the 3 days the first mint would give.
+    map spDays (filter ((== "1001") . spTokenId) spells) `shouldBe` [1.0]
 
-  it "emits N−1 rows for a tokenId with N daily snapshots" $ do
-    ps <- loadPositions
-    let panel     = assemble ps
-        rowsFor t = length (filter ((== t) . obsTokenId) panel)
-    -- 0xa1 has 3 snapshots -> 2 rows ; 0xb2 has 2 snapshots -> 1 row
-    rowsFor "0xa1" `shouldBe` 2
-    rowsFor "0xb2" `shouldBe` 1
-    length panel   `shouldBe` 3
+  it "expresses pi as a per-day rate over the spell" $ do
+    spells <- fixtureSpells
+    spells `shouldSatisfy` all
+      (\s -> abs (spPremiumRate s * spDays s - spPremiumUsd s) < 1e-12)
 
-  it "carries the strike tick onto assembled rows" $ do
-    ps <- loadPositions
-    let panel = assemble ps
-        tickA = map obsStrikeTick (filter ((== "0xa1") . obsTokenId) panel)
-    tickA `shouldBe` [488, 488]
+  it "sign-flips LONG positions to the seller-side premium convention" $ do
+    -- the protocol emits a NEGATIVE premium0 for a long position; after the flip
+    -- the spell's premium is positive, on the same scale as a short's.
+    let b = BurnEvent { beTokenId = "x", beAccount = "a", beTimestamp = 0
+                      , beBlock = 0, beTickAt = -200000
+                      , bePremium0 = -1.0e12, bePremium1 = 0, bePositionSize = 1 }
+    premiumUsd shift True  b `shouldSatisfy` (> 0)
+    premiumUsd shift False b `shouldSatisfy` (< 0)
 
-  it "assembled premia are the per-epoch flows for 0xb2" $ do
-    ps <- loadPositions
-    let panel = assemble ps
-        premB = map obsPremium (filter ((== "0xb2") . obsTokenId) panel)
-    premB `shouldBe` [40.0]
+  it "yields a positive premium for the long spell in the fixture" $ do
+    spells <- fixtureSpells
+    let longs = filter spIsLong spells
+    length longs `shouldBe` 1
+    map spPremiumUsd longs `shouldSatisfy` all (> 0)
+
+  it "drops zero-premium burns and burns with no prior mint" $ do
+    bytes  <- BL.readFile fixturePath
+    burns  <- either fail pure (parseBurns bytes)
+    spells <- fixtureSpells
+    -- 4 burns: one zero-premium (1003), one orphan (1004), two good.
+    length burns  `shouldBe` 4
+    length spells `shouldBe` 2
+
+  it "emits spells ordered by burn epoch" $ do
+    spells <- fixtureSpells
+    let es = map spBurnEpoch spells
+    es `shouldBe` sortOn id es
