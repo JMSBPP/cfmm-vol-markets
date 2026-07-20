@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Phase 9 HALTED after Wave 5 by user decision: live run returned an honest NULL (upsilon0 ~ 0 -> kappa unidentified, formal witness does not obtain). User chose 'halt and reassess the market' over running Wave 6. 09-10 (GAMS handoff) and 09-11 (audit-econ) NOT run. Blocking question: is any Panoptic deployment able to identify upsilon, given premiaSettled* are identically zero on Base and no per-epoch premium series exists?"
-last_updated: "2026-07-20T14:00:52.280Z"
+stopped_at: Phase 10 context gathered
+last_updated: "2026-07-20T16:36:54.229Z"
 last_activity: "2026-07-20 — 09-09: CTX-ALT + the LIVE RUN — four locked alternatives; 632,315 V4 swaps + 61 accrual spells pulled; NULL result (υ̂₀≈0 ⇒ κ unidentified, witness does NOT obtain); suite 59/0, lake build green."
 progress:
-  total_phases: 9
+  total_phases: 10
   completed_phases: 2
   total_plans: 18
   completed_plans: 16
@@ -122,6 +122,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-20T14:00:52.227Z
-Stopped at: Phase 9 HALTED after Wave 5 by user decision: live run returned an honest NULL (upsilon0 ~ 0 -> kappa unidentified, formal witness does not obtain). User chose 'halt and reassess the market' over running Wave 6. 09-10 (GAMS handoff) and 09-11 (audit-econ) NOT run. Blocking question: is any Panoptic deployment able to identify upsilon, given premiaSettled* are identically zero on Base and no per-epoch premium series exists?
-Resume file: notes/structural-econometrcics/analysis/2026-07-20-upsilon-estimates.md
+Last session: 2026-07-20T16:36:54.224Z
+Stopped at: Phase 10 context gathered
+Resume file: .planning/phases/10-streaming-premium-reconstruction-and-reestimation/10-CONTEXT.md
