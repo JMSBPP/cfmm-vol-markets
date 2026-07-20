@@ -54,6 +54,8 @@ executables:
       - bytestring
       - cassava
       - vector
+      - ad
+      - hmatrix
 
 tests:
   unit:
@@ -65,6 +67,7 @@ tests:
       - Panel.VarianceSpec
       - Model.UpsilonSpec
       - Model.NLSSpec
+      - Model.SandwichSpec
     ghc-options:
       - -threaded
       - -rtsopts
@@ -76,3 +79,4 @@ tests:
       - bytestring
       - containers
       - time
+      - hmatrix

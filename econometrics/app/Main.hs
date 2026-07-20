@@ -19,9 +19,13 @@ import qualified Data.Vector             as V
 import           Options.Applicative
 import           Text.Read               (readMaybe)
 
+import           Numeric.AD         (grad)
+
 import           Econ.Types         (Obs (..), Panel, Theta (..))
 import           Model.EIV          (ivFit)
-import           Model.NLS          (designPoints, fitGSL)
+import           Model.NLS          (designPoints, fitGSL, fitGSLCov)
+import           Model.SandwichSE   (clusterSandwich, standardErrors)
+import           Model.Upsilon      (model, moneyness)
 import           Panel.Build        (assemble, writePanelCsv)
 import           Panel.Subgraph     (Endpoint (..), PoolAddr (..), fetchPositions)
 import           Panel.Variance     (RpcConfig (..), cacheSwapTicks,
@@ -173,12 +177,46 @@ runEstimate eo = do
   if n < 3
     then putStrLn "estimate: too few usable observations (σ̂² un-joined?) — run `variance` and 09-09 join first."
     else do
-      let Theta bg ug kg = fitGSL panel
-          Theta bi ui ki = ivFit panel
+      let (thetaG, _gslCov) = fitGSLCov panel
+          Theta bg ug kg    = thetaG
+          Theta bi ui ki    = ivFit panel
       putStrLn "estimate: PRIMARY GSL Levenberg–Marquardt fit  pi = b0 + u0*exp(-k*d)*sigma2"
       putStrLn ("  b0 = " ++ show bg ++ "  u0 = " ++ show ug ++ "  kappa = " ++ show kg)
       putStrLn "estimate: two-noisy-measures IV (sigma~^2 instruments sigma^2, EIV remedy)"
       putStrLn ("  b0 = " ++ show bi ++ "  u0 = " ++ show ui ++ "  kappa = " ++ show ki)
+      -- Cluster-robust (by tokenId) CR0 sandwich SEs at the fitted θ. The
+      -- per-obs gradient rows ∂f/∂θ come from Model.Upsilon.model via `ad`, the
+      -- residuals from y − f(θ̂), and the cluster labels are the tokenIds.
+      let (jRows, resids, clusters) = sandwichInputs thetaG panel
+          vCov = clusterSandwich jRows resids clusters
+          [seB, seU, seK] = standardErrors vCov
+      putStrLn ("estimate: tokenId-clustered CR0 sandwich SEs ("
+                 ++ show (length (dedup clusters)) ++ " clusters, "
+                 ++ show (length jRows) ++ " obs)")
+      putStrLn ("  SE(b0) = " ++ show seB ++ "  SE(u0) = " ++ show seU
+                 ++ "  SE(kappa) = " ++ show seK)
+
+-- | Build the sandwich-SE inputs at a fitted θ: for every usable observation
+-- (finite σ̂² and premium, matching 'designPoints'), the row-gradient ∂f/∂θ (via
+-- @ad@ on 'Model.Upsilon.model'), the residual @y − f(θ̂)@, and the tokenId cluster
+-- label. Observation-aligned across the three lists.
+sandwichInputs :: Theta -> Panel -> ([[Double]], [Double], [T.Text])
+sandwichInputs (Theta b0' u0' k') panel = unzip3
+  [ (gradRow, resid, obsTokenId o)
+  | o <- panel
+  , let d  = moneyness (obsStrikeTick o) (obsPoolTick o)
+        s2 = obsSigma2 o
+        y  = obsPremium o
+  , isFinite s2, isFinite y
+  , let gradRow = grad (\p -> model p (realToFrac d, realToFrac s2)) [b0', u0', k']
+        resid   = y - model [b0', u0', k'] (d, s2)
+  ]
+  where
+    isFinite x = not (isNaN x || isInfinite x)
+
+-- | Distinct labels, order-independent (for the cluster count report).
+dedup :: Ord a => [a] -> [a]
+dedup = Map.keys . Map.fromList . map (\x -> (x, ()))
 
 -- | Load the panel CSV as raw rows. Columns (with header, per "Panel.Build"):
 -- @tokenId,epoch,premium_delta,strike_tick,pool_tick,sigma2_placeholder@. The
