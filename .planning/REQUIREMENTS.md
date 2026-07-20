@@ -98,6 +98,34 @@ requirements above. Reference of record: Algebra `VolatilityOracle`. Phase numbe
 All 13 requirements (RISK-01/02, VLIB-01..04, VMOD-01..05, VVER-01/02) complete and verified.
 Archived in full: `.planning/milestones/v3.0-REQUIREMENTS.md` · `.planning/MILESTONES.md` · tag `v3.0`.
 
+## Milestone v4.0 Requirements — VolOrderManagerMod + Best-Effort Multicall
+
+Peer-requested (rpc_api track `mv15a18k`, StochasticOrderGen consumer). Design authority: the research synthesis (`.planning/research/SUMMARY.md`, all-HIGH confidence) — Lean-grounded validation bounds, the Plank v0.1.1 capability audit (runtime `while`, computed-offset calldata, no native arrays), and the five cross-resolutions (128-bit stored subset, reduced width check, calldatasize-revert truncation defence, batch shape B, typed-pair return pending peer). Two peer-dependent placeholders carried, not blocking: the `MAX_BATCH` value and the return-shape confirmation.
+
+### Registry Core
+
+- [ ] **VORD-01**: `create_order(uint88,uint24,uint16)` — selector `0x6501fe94` cast-sig-pinned in an `interfaces/` file shared with the Haskell consumer — validates via the pure lib and REVERTS on any invalid tuple (strict single-call path; the batch is the lenient one)
+- [ ] **VORD-02**: A pure `validate_order` lib composes the EXISTING Lean-grounded predicates: strike > 0; width in (0, 0xffffff] (the REDUCED check — no `tickSpacing` operand; the full `vol_range_width_is_complete` is deferred with pricing, decision of record); skew in the OPEN interval [1, 65534] — BOTH endpoints revert, per `PosSpec.lean` `skewTick_one`/`skewTick_zero` (endpoint skew collapses the position to a degenerate one-sided range); dirty high bits above u88/u24/u16 widths REJECTED
+- [ ] **VORD-03**: Sequential `uint256` order ids from 1 (0 = null sentinel); `orderCount` advances ONLY on success, so `orderCount` ≡ latest id ≡ live order count (no gaps from failures)
+- [ ] **VORD-04**: Orders stored at `array_slot(SLOT_ORDERS_BASE, id)` (= keccak(base)+id, reused verbatim from `v3::storage`) — MONOTONIC, the ring's 16-bit wraparound mask explicitly NOT imported; the stored word is the 128-bit create_order-native subset (skew|strike|width at offsets 0/16/104, bits 128–151 zeroed)
+- [ ] **VORD-05**: Readers expose every stored field — `orderCount()`, `getOrderPacked(uint256)` (returns 0 for nonexistent ids, no revert) — module-not-a-black-box; zero arithmetic in the module (all bounds in the lib, packing in the type)
+
+### Best-Effort Batch
+
+- [ ] **MCAL-01**: Batch entrypoint is shape B — explicit `count` argument + `MAX_BATCH` named placeholder constant (value pending peer); `count > MAX_BATCH` reverts BEFORE any work; `N = MAX_BATCH` is gas-measured under the block limit
+- [ ] **MCAL-02**: A mandatory `calldatasize >= HEADER + count·STRIDE` guard — a truncated/malformed batch REVERTS the whole transaction (structural failure, never a silent per-call skip; calldataload past end reads zero-padded words silently, so length must be checked, not inferred)
+- [ ] **MCAL-03**: Per-tuple best-effort via pure-validation pre-check: an invalid tuple is SKIPPED with zero state footprint (proven by raw `vm.load` on the touched slot set, not getters); valid tuples persist; empty batch and all-fail batches return well-formed results and never revert
+- [ ] **MCAL-04**: TOTALITY (the milestone's flagship property): for ALL full-width uint256 tuple values, a size-valid batch NEVER batch-reverts — proven by fuzz — plus the completeness differential: batch flags a tuple as failed ⟺ standalone `create_order` reverts on that tuple (validation is complete w.r.t. every store-path revert)
+- [ ] **MCAL-05**: The batch returns hand-rolled ABI `(bool success, uint256 orderId)[]`, positionally aligned to input, with the `N=0` edge well-formed (typed-pair shape is the working design, flagged for peer confirmation — a change is a late adjustment, not a rework)
+- [ ] **MCAL-06**: Batch ≡ N-fold composition of the SAME internal create_order: a batch-of-1 produces identical state and id to a standalone `create_order` call (differential, prevents batch/single logic drift)
+
+### Verification & Exit
+
+- [ ] **MVER-01**: An independently-simple Solidity reference mock (never echoing Plank's output) mirrors single-call AND batch semantics; an after-every-write driver asserts `orderCount`, the stored packed word (raw `vm.load` at derived slots + a single test-side `VolOrderDecoder`), and returned ids/results at tolerance 0
+- [ ] **MVER-02**: Observed-RED mutation battery, each killable mutant applied → cache cleared → verbatim RED recorded → restored sha256-identical → green: deleted validation branch (killed by the totality fuzz as a BATCH REVERT), count-advance-on-failure (killed by id-density), ring-mask reintroduction (killed by the slot differential), calldatasize-guard deletion (killed by the truncation corpus), return-encoding off-by-one (killed by the mock differential incl. N=0); equivalence-masked mutants documented, never counted
+- [ ] **MVER-03**: A consumer golden fixture — captured calldata/return bytes from the rpc_api side (their PR #9 tooling) — pins `0x6501fe94` and the batch ABI in BOTH directions, plus a cast-sig test for every selector string in the interface file
+- [ ] **MVER-04**: `VolOrderManagerMod` leaves `PLANK_SKIP` only after the batch dispatch is CALLED green through FFI-deployed bytecode; the suite is wired into a dedicated `make` target and folded into `make test`
+
 ## v2 Requirements
 
 Deferred to future milestones. Tracked but not in current roadmap.
