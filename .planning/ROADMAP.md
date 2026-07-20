@@ -345,7 +345,7 @@ Phase numbering continues at 16 (v3.0 ended at 15). v1.0 Phases 1–7 and v2.0 P
 ## Phase Details
 
 ### Phase 16: Type Packing & Validation Foundation
-**Goal**: The pure validation surface exists and is proven falsifiable in isolation — reusing the two sound predicates verbatim, authoring the one bound that is genuinely missing, over the existing 152-bit packer used AS-IS.
+**Goal**: The pure validation surface exists and is proven falsifiable in isolation — reusing the two sound predicates verbatim, authoring the one bound that is genuinely missing, over the existing 152-bit packer used AS-IS. **Correction to the pre-review draft:** this phase DOES require an FFI-deployed harness. The research claimed pure libs are "independently fuzz-testable with no FFI deploy" — that is false for Plank: there is no path from Foundry to a `.plk` pure function except `deployPlank` through a `run{}` entrypoint, and `plank build` does not type-check anything unreachable from `run{}`. Phase 13's harness header states this explicitly. A `VolOrderValidationHarness.plk` is therefore a deliverable of this phase.
 **Depends on**: Nothing new (first v4.0 phase).
 **Requirements**: VORD-02
 **Success Criteria** (what must be TRUE):
