@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Completed 09-07-PLAN.md (estimator core: GSL-LM NLS + ad cross-check + two-noisy-measures EIV; 31/0 green)"
-last_updated: "2026-07-20T02:48:54.752Z"
-last_activity: "2026-07-20 — 09-07: estimator core (CTX-EST) — GSL-LM NLS primary + ad cross-check + two-noisy-measures EIV-IV, Lean-mirrored model + cross-walk table; stack test 31/0 green."
+stopped_at: Completed 09-08-PLAN.md (cluster-robust CR0 sandwich SEs + the three committed spec tests; 40/0 green)
+last_updated: "2026-07-20T03:03:26.363Z"
+last_activity: "2026-07-20 — 09-08: CTX-EST SE + CTX-TEST — hand-rolled tokenId-clustered CR0 sandwich SE (golden 1e-9) + the three committed spec tests (υ₀>0, κ>0, κ⁺=κ⁻); stack test 40/0 green."
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 18
-  completed_plans: 14
-  percent: 72
+  completed_plans: 15
+  percent: 83
 ---
 
 # Project State
@@ -26,14 +26,15 @@ See: .planning/PROJECT.md (updated 2026-06-27)
 ## Current Position
 
 Phase: 9 of 9 (Upsilon Econometric Estimation — Lean-Aware) — Lean4 + Haskell econometrics track
-Plan: 09-07 COMPLETE (estimator core CTX-EST). 09-04 (panel) + 09-05 (variance) + 09-06 (Aristotle bridging lemma) COMPLETE. Wave 3 remaining: 09-08 (spec tests + sandwich SEs), 09-09 (live estimation), 09-10 (GAMS differential).
+Plan: 09-08 COMPLETE (CTX-EST SE + CTX-TEST — clustered sandwich SEs + the three spec tests). 09-04 (panel) + 09-05 (variance) + 09-06 (Aristotle bridging lemma) + 09-07 (estimator core) COMPLETE. Wave remaining: 09-09 (live estimation), 09-10 (GAMS differential), 09-11.
+Plan (09-08): Model.SandwichSE.clusterSandwich = hand-rolled tokenId-clustered CR0 sandwich (bread·meat·bread, bread=(JᵀJ)⁻¹, meat=Σ_g s_g s_gᵀ) — reproduces the frozen 09-01 golden V/SE to 1e-9 and collapses to HC0 under singleton clusters; pure CR0 (no finite-sample correction) with clusterCR1Factor exposed. Tests.Specification = the three committed §5 tests: testUpsilonPos/testKappaPos one-sided Normal on the clustered covariance (κ>0 = THE null test H₀:κ=0), testSymmetry χ²₁ Wald on the 2×2 κ⁺/κ⁻ sub-block; excluded restrictions absent; p-values from statistics. estimate CLI wires clustered SEs + all three tests (split-model Wald fit inline in Main). Full suite 40/0 (commits 416e9b2, 4f7085e).
 Plan (09-07): estimator core (CTX-EST) — Model.Upsilon mirrors Lean upsilon/PosSpec.lam byte-for-byte (model = b0+u0·exp(−k·d)·s2, moneyness |iK−it|, tickBase 1.0001, modelSplit κ⁺/κ⁻); Model.NLS.fitGSL = hmatrix-gsl Numeric.GSL.Fitting Levenberg-Marquardt PRIMARY (analytic Jacobian + covariance handle for 09-08 SEs), fitAD = ad Gauss-Newton/LM cross-check (both recover planted params 1e-2, agree 1e-3); Model.EIV.ivFit = two-step two-noisy-measures IV (κ̂ from NLS, then (ZᵀX)⁻¹Zᵀy instrumenting σ̂² with σ̃², reduces attenuation); estimate CLI joins panel.csv⋈variance.csv; lean-haskell-crosswalk.md is the witness fidelity table. Full suite 31/0 (commits af84dc1, 2de090a).
 Plan (09-06): exp_family_witnesses_ATMOTM proved by single serial Aristotle task (new project f9865d3a, task 84b02173, server commit 7ccd814) AS STATED (Option-B slope-centered envelope, not weakened); integrated sorry-free into lean/vol_markets/Upsilon.lean. lake build vol_markets exit 0 (8032 jobs), zero sorries; #print axioms = [propext, Classical.choice, Quot.sound] on the bridging lemma and all re-checked Phase-8/upsilon theorems. κ̂>0 now formally witnesses ATMOTMNullHypothesis (commit c087ec8).
 Plan (09-05): variance regressor σ̂²_t + EIV instrument σ̃²_t built (CTX-VAR) — Panel.Variance ingests Base V4 Swap logs via chunked eth_getLogs RPC (USER-DIRECTED OVERRIDE; BigQuery dropped, project suspended), decodes int24 tick/uint160 sqrtPriceX96 from log data; realizedVariance = within-day RV of tick log-price increments, instrument = disjoint even-swap sub-window (two-noisy-measures IV); reuses Panel.Build.dailyEpoch (unix-day index) so variance.csv joins panel.csv. Live proof: 2136 real swaps, blocks 48768127..48775327, 2 epochs (20651/20652) → notes/.../variance.csv + swap-ticks cache. Full suite 18/0.
-Status: In Progress — Wave 3: estimator core DONE (09-07). Next: 09-08 (κ>0/υ₀>0/κ⁺=κ⁻ spec tests + clustered sandwich SEs against the 09-01 CR0 golden; fitGSLCov exposes the GSL covariance handle, modelSplit ready for symmetry), 09-09 (live estimation — widen variance CLI to full history first OptionMint 43,781,657 → tip and populate panel.csv's σ̂² column so the epoch join yields usable obs), 09-10 (GAMS differential cross-check). Concern: thin cross-section (~7 accounts / 1000+ OptionMints, ~4 months) — no synthetic padding.
-Last activity: 2026-07-20 — 09-07: estimator core (CTX-EST) — GSL-LM NLS primary + ad cross-check + two-noisy-measures EIV-IV, Lean-mirrored model + cross-walk table; stack test 31/0 green.
+Status: In Progress — inference layer DONE (09-08): clustered CR0 sandwich SEs (golden 1e-9) + the three committed spec tests. Next: 09-09 (live estimation — widen variance CLI to full history first OptionMint 43,781,657 → tip and populate panel.csv's σ̂² column so the epoch join yields usable obs; the SandwichSE + Specification machinery is ready to consume the real fitted θ), 09-10 (GAMS differential cross-check), 09-11. Concern: thin cross-section (~7 accounts / 1000+ OptionMints, ~4 months) — no synthetic padding; and the split-model symmetry fit needs OTM mass on BOTH sides of the money to be locally identified (a 09-09 live-data robustness concern).
+Last activity: 2026-07-20 — 09-08: CTX-EST SE + CTX-TEST — hand-rolled tokenId-clustered CR0 sandwich SE (golden 1e-9) + the three committed spec tests (υ₀>0, κ>0, κ⁺=κ⁻); stack test 40/0 green.
 
-Progress: [███████░░░] 72%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
@@ -63,6 +64,7 @@ Progress: [███████░░░] 72%
 | Phase 09 P05 | 28 | 2 tasks | 8 files |
 | Phase 09 P06 | 30 | 2 tasks | 1 files |
 | Phase 09 P07 | 9 | 2 tasks | 9 files |
+| Phase 09 P08 | 8 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -94,6 +96,8 @@ Recent decisions affecting current work:
 - [Phase 09]: 09-06: bridging lemma exp_family_witnesses_ATMOTM proved by single serial Aristotle task (new project f9865d3a, task 84b02173, server commit 7ccd814) AS STATED (Option-B slope-centered envelope); integrated sorry-free + axiom-clean; κ̂>0 now formally witnesses ATMOTMNullHypothesis
 - [Phase 09]: 09-07: estimator core (CTX-EST) — hmatrix-gsl fitModel Levenberg-Marquardt is PRIMARY NLS (analytic Jacobian + covariance handle for 09-08 SEs); ad Gauss-Newton/LM retained as synthetic cross-check; both recover planted (β₀,υ₀,κ) within 1e-2
 - [Phase 09]: 09-07: EIV ivFit = two-step two-noisy-measures IV — κ̂ from NLS (identified off moneyness), then just-identified IV (ZᵀX)⁻¹Zᵀy instruments σ̂² with σ̃²; reduces υ̂₀ attenuation. Model.Upsilon mirrors Lean upsilon/PosSpec.lam byte-for-byte, backed by lean-haskell-crosswalk.md
+- [Phase 09]: 09-08: clusterSandwich = pure CR0 (bread·meat·bread, no finite-sample correction) to match the frozen 09-01 golden to 1e-9; Stata CR1 factor (G/(G−1))·((N−1)/(N−k)) exposed as clusterCR1Factor but not baked in
+- [Phase 09]: 09-08: the three committed §5 tests use the CLUSTERED covariance (not naive OLS SEs) — υ₀>0/κ>0 one-sided Normal upper tail (κ>0 is THE null test), κ⁺=κ⁻ χ²₁ Wald on the 2×2 split sub-block; deliberately-excluded J-test/β₀=0 absent; split-model Wald fit inlined in Main (Model.NLS out of files_modified)
 
 ### Pending Todos
 
@@ -112,6 +116,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-20T02:48:01.853Z
-Stopped at: Completed 09-07-PLAN.md (estimator core: GSL-LM NLS + ad cross-check + two-noisy-measures EIV; 31/0 green)
+Last session: 2026-07-20T03:02:22.722Z
+Stopped at: Completed 09-08-PLAN.md (cluster-robust CR0 sandwich SEs + the three committed spec tests; 40/0 green)
 Resume file: None
