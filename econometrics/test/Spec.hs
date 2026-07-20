@@ -10,6 +10,7 @@ import Test.Hspec
 import qualified Golden.SandwichFixture as F
 import qualified Panel.BuildSpec
 import qualified Panel.VarianceSpec
+import qualified Model.UpsilonSpec
 
 -- | Diagonal of a square matrix given as a list of rows.
 diagonal :: [[Double]] -> [Double]
@@ -19,6 +20,7 @@ main :: IO ()
 main = hspec $ do
   Panel.BuildSpec.spec
   Panel.VarianceSpec.spec
+  Model.UpsilonSpec.spec
   describe "sandwich golden fixture" $ do
     it "has matching obs counts across J rows, residuals, and clusters" $ do
       length F.toyJacobianRows `shouldBe` 3

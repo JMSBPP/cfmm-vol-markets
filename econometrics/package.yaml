@@ -60,6 +60,7 @@ tests:
       - Golden.SandwichFixture
       - Panel.BuildSpec
       - Panel.VarianceSpec
+      - Model.UpsilonSpec
     ghc-options:
       - -threaded
       - -rtsopts
