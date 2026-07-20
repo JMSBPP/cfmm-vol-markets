@@ -220,3 +220,114 @@ contract VolOrderValidationPackingTest is VolOrderValidationBase {
         assertEq(kOut, A_SKEW, "anchor skew");
     }
 }
+
+// ===========================================================================================
+// MUTATION BATTERY -- SC 4. OBSERVED RED, not reasoned about.
+//
+// Six mutants, applied ONE AT A TIME to src/lib/pos_spec/VolOrderValidationLib.plk. For each:
+// sha256 recorded -> single-line edit applied -> `rm -rf cache/fuzz` -> `make
+// test-vol-order-validation` RUN and its RED READ -> verbatim [FAIL] line(s) pasted below ->
+// `git checkout --` -> sha256 re-verified byte-identical -> target re-run GREEN (13/13).
+// Every kill below is carried by a NON-FUZZ `test__unit__*` assertion, so no kill depends on a
+// fuzz seed; a `runs: 0` kill would be a replay, not proof. All six mutants were killed; none
+// was equivalence-masked.
+//
+// PRE-MUTATION / RESTORED sha256 of src/lib/pos_spec/VolOrderValidationLib.plk (identical for
+// all six restorations):
+//   5fe71f30e4820d230a6d15b30e440ae78a33875d0d9a66e60f4e0d7d73fe8f35
+//
+// WHY M3 IS APPLIED AT OUR CALL SITE. ROADMAP Phase 16 SC 4 names "flipping either skew
+// boundary comparison (`>` <-> `>=`)". That comparison's home is SpreadTickAssimetry.plk:12 --
+// the vol-type track's file, which this phase must not modify, not even transiently. M3 applies
+// the identical semantic flip inside OUR validate_order by inlining the flipped predicate. It
+// has exactly the same falsification power (it admits both degenerate endpoints, skew 0 and
+// 65535) while leaving their tree byte-untouched. `git status --porcelain src/types/pos_spec/`
+// was checked during M3 and produced no output.
+//
+// -------------------------------------------------------------------------------------------
+// M1 -- delete the authored strike bound (ROADMAP SC 4, first named mutant)
+//   in strike_fits_packed:
+//     -  let res = tick_volatility_is_complete(self) & (self.vol <= MAX_STRIKE);
+//     +  let res = tick_volatility_is_complete(self);
+//   OBSERVED RED (1 failed, 12 passed):
+//     [FAIL: strike >= 2^88 must be REJECTED: 1 != 0] test__unit__strikeBoundBlocksSilentMasking() (gas: 14229)
+//   Killed by: test__unit__strikeBoundBlocksSilentMasking, "strike >= 2^88 must be REJECTED".
+//   Restored sha256 5fe71f30... (identical); target green 13/13.
+//
+// -------------------------------------------------------------------------------------------
+// M2 -- tighten the strike bound off its endpoint (`<=` -> `<`)
+//     -  (self.vol <= MAX_STRIKE);
+//     +  (self.vol < MAX_STRIKE);
+//   OBSERVED RED (2 failed, 11 passed):
+//     [FAIL: strike 2^88-1 must be ACCEPTED: 0 != 1] test__unit__strikeMaxAcceptedAndRoundTripsExactly() (gas: 10499)
+//     [FAIL: every constructed-valid tuple must be ACCEPTED: 0 != 1; counterexample: args=[115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77], 3, 1424282538433016240232290851766794577237363 [1.424e42]]] test__fuzz__validTuplesAcceptedAndRoundTrip(uint256,uint256,uint256) (runs: 116)
+//   Killed by (non-fuzz): test__unit__strikeMaxAcceptedAndRoundTripsExactly,
+//   "strike 2^88-1 must be ACCEPTED". This is the companion that pins the bound to the exact
+//   value pack stores faithfully -- M1 alone leaves `<` and `<=` indistinguishable.
+//   Restored sha256 5fe71f30... (identical); target green 13/13.
+//
+// -------------------------------------------------------------------------------------------
+// M3 -- flip BOTH skew boundary comparisons, at our call site (ROADMAP SC 4, second named)
+//   in validate_order:
+//     -  & spread_tick_assimetry_is_complete(self.skew) &
+//     +  & ((self.skew.spread >= 0) & (self.skew.spread <= 0xffff)) &
+//   OBSERVED RED (2 failed, 11 passed):
+//     [FAIL: skew 0 must be REJECTED: 1 != 0] test__unit__skewZeroRejected() (gas: 10760)
+//     [FAIL: skew 65535 must be REJECTED: 1 != 0] test__unit__skew65535Rejected() (gas: 10631)
+//   Killed by: both named tests, as required. Restored sha256 5fe71f30...; target green 13/13.
+//
+// -------------------------------------------------------------------------------------------
+// M4 -- the all-reject sentinel (THE most important mutant in this phase)
+//   in validate_order:
+//     -  let res = vol_range_width_is_complete(self.rangeWidth) & spread_tick_assimetry_is_complete(self.skew) & strike_fits_packed(self.volStrike);
+//     +  let res = false;
+//   OBSERVED RED (6 failed, 7 passed):
+//     [FAIL: anchor tuple must be ACCEPTED (all-reject validator fails here): 0 != 1] test__unit__anchorValidTupleAccepted() (gas: 9284)
+//     [FAIL: every constructed-valid tuple must be ACCEPTED: 0 != 1; ...] test__fuzz__validTuplesAcceptedAndRoundTrip(uint256,uint256,uint256)
+//     [FAIL: skew 1 must be ACCEPTED: 0 != 1] test__unit__skewOneAccepted() (gas: 9588)
+//     [FAIL: skew 65534 must be ACCEPTED: 0 != 1] test__unit__skew65534Accepted() (gas: 9477)
+//     [FAIL: strike 2^88-1 must be ACCEPTED: 0 != 1] test__unit__strikeMaxAcceptedAndRoundTripsExactly() (gas: 9456)
+//     [FAIL: width 0xffffff must be ACCEPTED: 0 != 1] test__unit__widthMaxAccepted() (gas: 9265)
+//   Killed by: test__unit__anchorValidTupleAccepted, "anchor tuple must be ACCEPTED
+//   (all-reject validator fails here)". An all-reject validator satisfies every OTHER criterion
+//   in this phase -- it is precisely what the pre-review design would have shipped. This
+//   observation is the proof that SC 1's ACCEPT criterion is live rather than decorative.
+//   Restored sha256 5fe71f30... (identical); target green 13/13.
+//
+// -------------------------------------------------------------------------------------------
+// M5 -- unpin TICK_SPACING
+//     -  const TICK_SPACING = 20;
+//     +  const TICK_SPACING = 0;
+//   OBSERVED RED (7 failed, 6 passed):
+//     [FAIL: anchor layout word: 40833884030512615615605007035409039327231 != 40833884436160807688638415514354065047551] test__unit__anchorRoundTrip() (gas: 10126)
+//     [FAIL: anchor tuple must be ACCEPTED (all-reject validator fails here): 0 != 1] test__unit__anchorValidTupleAccepted() (gas: 10356)
+//     [FAIL: skew 1 must be ACCEPTED: 0 != 1] test__unit__skewOneAccepted() (gas: 10660)
+//     [FAIL: skew 65534 must be ACCEPTED: 0 != 1] test__unit__skew65534Accepted() (gas: 10549)
+//     [FAIL: strike 2^88-1 must be ACCEPTED: 0 != 1] test__unit__strikeMaxAcceptedAndRoundTripsExactly() (gas: 10528)
+//     [FAIL: width 0xffffff must be ACCEPTED: 0 != 1] test__unit__widthMaxAccepted() (gas: 10337)
+//     [FAIL: every constructed-valid tuple must be ACCEPTED: 0 != 1; ...] test__fuzz__validTuplesAcceptedAndRoundTrip(uint256,uint256,uint256)
+//   Killed by TWO independent mechanisms, as designed:
+//     (i)  SATISFIABILITY -- vol_range_width_is_complete ANDs `tickSpacing > 0`, so a zeroed
+//          constant makes validate_order identically FALSE:
+//          test__unit__anchorValidTupleAccepted.
+//     (ii) LAYOUT -- test__unit__anchorRoundTrip reddens. NOTE: it fails one assertion EARLIER
+//          than the plan predicted, on "anchor layout word" rather than on "anchor tickSpacing
+//          == 20", because _expectedWord composes the Solidity-side TICK_SPACING (20) into bits
+//          104..127 while the mutated pack writes 0 there. The word differs by exactly
+//          20 << 104 = 405648192073033408478945025720320 (the two numbers above differ by
+//          precisely that; verified). The tickSpacing assertion is unreachable in the same run because
+//          Foundry stops the test at the first failing assertion. Recorded as observed, not as
+//          predicted.
+//   Restored sha256 5fe71f30... (identical); target green 13/13.
+//
+// -------------------------------------------------------------------------------------------
+// M6 -- drop the width conjunct (proves the FULL predicate is reused, not a reduced check)
+//   in validate_order:
+//     -  let res = vol_range_width_is_complete(self.rangeWidth) & spread_tick_assimetry_is_complete(self.skew) & strike_fits_packed(self.volStrike);
+//     +  let res = spread_tick_assimetry_is_complete(self.skew) & strike_fits_packed(self.volStrike);
+//   OBSERVED RED (2 failed, 11 passed):
+//     [FAIL: width 0 must be REJECTED: 1 != 0] test__unit__widthZeroRejected() (gas: 10355)
+//     [FAIL: width 2^24 must be REJECTED: 1 != 0] test__unit__widthAbove24BitsRejected() (gas: 10080)
+//   Killed by: test__unit__widthZeroRejected, "width 0 must be REJECTED".
+//   Restored sha256 5fe71f30... (identical); target green 13/13.
+// ===========================================================================================
