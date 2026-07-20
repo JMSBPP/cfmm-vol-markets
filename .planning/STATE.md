@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: VolOrderManagerMod + Multicall
-status: in-progress
-stopped_at: Completed 16-01-PLAN.md (Phase 16 COMPLETE — VORD-02). Next /gsd:plan-phase 17
-last_updated: "2026-07-20T16:28:00.190Z"
-last_activity: 2026-07-20 — executed 16-01: pure VolOrderValidationLib (bool core + reverting wrapper + authored strike<=2^88-1 bound), 4-selector FFI harness, 13 CALLED-green tests, six-mutant battery all observed RED and restored sha256-identical.
+status: executing
+stopped_at: Phase 16 COMPLETE + verified (6/6, two mutants independently re-killed); next /gsd:plan-phase 17
+last_updated: "2026-07-20T16:34:52.516Z"
+last_activity: "2026-07-20 — 16-01 executed: pure validation surface CALLED-green through FFI-deployed bytecode; six-mutant battery observed RED; src/types/pos_spec/ byte-untouched."
 progress:
-  total_phases: 4
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  total_phases: 16
+  completed_phases: 4
+  total_plans: 8
+  completed_plans: 8
 ---
 
 # Project State
