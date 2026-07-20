@@ -29,6 +29,7 @@ library:
     - math-functions
     - vector
     - containers
+    - time
     - cassava
     - aeson
     - req
@@ -56,6 +57,7 @@ tests:
     source-dirs:         test
     other-modules:
       - Golden.SandwichFixture
+      - Panel.BuildSpec
     ghc-options:
       - -threaded
       - -rtsopts
@@ -64,3 +66,4 @@ tests:
       - econometrics
       - hspec
       - text
+      - bytestring
