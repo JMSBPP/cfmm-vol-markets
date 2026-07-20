@@ -50,6 +50,7 @@ executables:
       - econometrics
       - optparse-applicative
       - text
+      - containers
 
 tests:
   unit:

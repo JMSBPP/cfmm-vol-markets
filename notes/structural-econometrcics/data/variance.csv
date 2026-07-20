@@ -1,0 +1,11 @@
+# Panoptic υ variance regressor σ̂²_t and EIV instrument σ̃²_t (CTX-VAR)
+# σ̂²_t (sigma2)            = daily realized variance of within-day V4
+#   tick-implied log-price increments over the FULL within-day Swap series.
+# σ̃²_t (sigma2_instrument) = the SAME estimator on the DISJOINT even-swap
+#   intraday sub-window (0-based even positions) — the two-noisy-measures IV.
+# epoch = UTC-day Modified-Julian-Day index (same boundary as the panel).
+# Source: Uniswap V4 PoolManager Swap logs on Base via chunked eth_getLogs
+#   (poolId 0x96d4…288c0a); BigQuery path retired (project suspended).
+epoch,sigma2,sigma2_instrument
+20651,2.4097590220896527e-5,2.103789619284908e-5
+20652,1.4710528934848207e-4,1.4579542033647314e-4

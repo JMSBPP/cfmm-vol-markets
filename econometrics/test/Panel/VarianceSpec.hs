@@ -11,9 +11,13 @@
 --
 --   RV_day = (ln 1.0001)² · Σ_k (Δtick_k)²
 --
--- Day A (epoch 59215) ticks 100,110,90,130,120,140 → Δ 10,-20,40,-10,20
+-- Epoch = the panel's dailyEpoch (Panel.Build): whole UTC days since the Unix
+-- epoch, i.e. floor(unixSeconds / 86400). Day A = 2021-01-01 → epoch 18628,
+-- Day B = 2021-01-02 → epoch 18629.
+--
+-- Day A (epoch 18628) ticks 100,110,90,130,120,140 → Δ 10,-20,40,-10,20
 --   → Σ Δ² = 2600.       Even-swap sub-window 100,90,120 → Δ -10,30 → Σ Δ² = 1000.
--- Day B (epoch 59216) ticks 200,180,220,210 → Δ -20,40,-10
+-- Day B (epoch 18629) ticks 200,180,220,210 → Δ -20,40,-10
 --   → Σ Δ² = 2100.       Even-swap sub-window 200,220 → Δ 20 → Σ Δ² = 400.
 module Panel.VarianceSpec (spec) where
 
@@ -61,30 +65,30 @@ spec = describe "Panel.Variance (CTX-VAR)" $ do
     it "matches the hand-computed sum of squared log-price increments per day" $ do
       ticks <- loadSwapTicks fixturePath
       let rv = realizedVariance ticks
-      get 59215 rv `shouldSatisfy` approx (c * c * 2600)
-      get 59216 rv `shouldSatisfy` approx (c * c * 2100)
+      get 18628 rv `shouldSatisfy` approx (c * c * 2600)
+      get 18629 rv `shouldSatisfy` approx (c * c * 2100)
 
   describe "instrumentVariance σ̃²_t (disjoint even-swap sub-window)" $ do
     it "matches its own hand-computed value on the even-swap sub-window" $ do
       ticks <- loadSwapTicks fixturePath
       let iv = instrumentVariance ticks
-      get 59215 iv `shouldSatisfy` approx (c * c * 1000)
-      get 59216 iv `shouldSatisfy` approx (c * c * 400)
+      get 18628 iv `shouldSatisfy` approx (c * c * 1000)
+      get 18629 iv `shouldSatisfy` approx (c * c * 400)
     it "differs from σ̂²_t (a genuinely different tick subset)" $ do
       ticks <- loadSwapTicks fixturePath
       let rv = realizedVariance ticks
           iv = instrumentVariance ticks
-      abs (get 59215 iv - get 59215 rv) `shouldSatisfy` (> 1e-9)
-      abs (get 59216 iv - get 59216 rv) `shouldSatisfy` (> 1e-9)
+      abs (get 18628 iv - get 18628 rv) `shouldSatisfy` (> 1e-9)
+      abs (get 18629 iv - get 18629 rv) `shouldSatisfy` (> 1e-9)
 
   describe "dailyEpoch boundary (SAME UTC-midnight bucket as the panel)" $ do
-    it "buckets by UTC calendar day (MJD index)" $ do
-      dailyEpoch (utc 1609459200) `shouldBe` 59215   -- 2021-01-01 00:00:00Z
-      dailyEpoch (utc 1609459199) `shouldBe` 59214   -- 2020-12-31 23:59:59Z
-      dailyEpoch (utc 1609545600) `shouldBe` 59216   -- 2021-01-02 00:00:00Z
+    it "buckets by whole UTC days since the Unix epoch (Panel.Build convention)" $ do
+      dailyEpoch (utc 1609459200) `shouldBe` 18628   -- 2021-01-01 00:00:00Z
+      dailyEpoch (utc 1609459199) `shouldBe` 18627   -- 2020-12-31 23:59:59Z
+      dailyEpoch (utc 1609545600) `shouldBe` 18629   -- 2021-01-02 00:00:00Z
     it "a tick exactly at the day boundary lands in the expected epoch" $ do
       let boundaryTicks = [(utc 1609459200, 10), (utc 1609460000, 20), (utc 1609460100, 30)]
-      Map.member 59215 (realizedVariance boundaryTicks) `shouldBe` True
+      Map.member 18628 (realizedVariance boundaryTicks) `shouldBe` True
 
   describe "tickToLogPrice" $
     it "is tick · ln(1.0001)" $

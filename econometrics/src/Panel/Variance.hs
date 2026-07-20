@@ -74,14 +74,19 @@ import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import           Data.Time.Calendar (toModifiedJulianDay)
-import           Data.Time.Clock (UTCTime (utctDay))
+import           Data.Time.Clock (UTCTime)
 import           Data.Time.Clock.POSIX (posixSecondsToUTCTime,
                                         utcTimeToPOSIXSeconds)
 import qualified Data.Vector as V
 import           Network.HTTP.Simple (getResponseBody, httpLBS, parseRequest,
                                       setRequestBodyJSON)
 import           Numeric (readHex)
+
+-- | The daily epoch boundary is the panel's SINGLE SOURCE OF TRUTH: this module
+-- imports and re-exports @Panel.Build.dailyEpoch@ (owned by plan 09-04) rather
+-- than defining its own, guaranteeing σ̂²_t/σ̃²_t bucket on exactly the same
+-- integer epoch index as the panel so the two CSVs join cleanly in 09-09.
+import           Panel.Build (Epoch, dailyEpoch)
 
 -- ---------------------------------------------------------------------------
 -- Confirmed market constants (DATA-SOURCES.md §2, §4)
@@ -317,26 +322,60 @@ utcToUnix :: UTCTime -> Integer
 utcToUnix = round . utcTimeToPOSIXSeconds
 
 -- ---------------------------------------------------------------------------
--- Variance math (CTX-VAR)  [RED stubs — real bodies land in the GREEN step]
+-- Variance math (CTX-VAR)
 -- ---------------------------------------------------------------------------
 
--- | Daily epoch index. See the GREEN implementation for the boundary contract.
-type Epoch = Int
-
-dailyEpoch :: UTCTime -> Epoch
-dailyEpoch = const 0
-
+-- | Tick → log-price on the λ = 1.0001 grid: @log(1.0001^tick) = tick·ln 1.0001@.
 tickToLogPrice :: Int -> Double
-tickToLogPrice = const 0
+tickToLogPrice t = fromIntegral t * log 1.0001
 
+-- | Group ticks into per-day chronological series, bucketed by 'dailyEpoch'.
+byEpoch :: [(UTCTime, Int)] -> Map Epoch [Int]
+byEpoch ticks =
+  fmap reverse $ Map.fromListWith (++)
+    [ (dailyEpoch t, [tk]) | (t, tk) <- sortOn fst ticks ]
+
+-- | Realized variance of a within-day series: the sum of squared log-price
+-- increments (standard RV, no mean removal).
+rvOfSeries :: [Int] -> Double
+rvOfSeries ticks =
+  let ps   = map tickToLogPrice ticks
+      incs = zipWith (-) (drop 1 ps) ps
+  in sum (map (\x -> x * x) incs)
+
+-- | σ̂²_t: per-epoch realized variance over the FULL within-day tick series.
 realizedVariance :: [(UTCTime, Int)] -> Map Epoch Double
-realizedVariance = const Map.empty
+realizedVariance = Map.map rvOfSeries . byEpoch
 
+-- | σ̃²_t: the EIV instrument. The SAME realized-variance estimator applied to a
+-- DISJOINT intraday sub-window — the even-position swaps (0-based) within each
+-- day. Being an independent noisy measure of the same daily σ², it instruments
+-- σ̂²_t and corrects the attenuation bias on υ̂₀ (spec §4.3, two noisy measures).
 instrumentVariance :: [(UTCTime, Int)] -> Map Epoch Double
-instrumentVariance = const Map.empty
+instrumentVariance = Map.map (rvOfSeries . evens) . byEpoch
+  where evens xs = [ x | (i, x) <- zip [0 :: Int ..] xs, even i ]
 
+-- | Write the per-epoch @(σ̂²_t, σ̃²_t)@ join to CSV, with a banner documenting
+-- the window definitions. Columns: @epoch,sigma2,sigma2_instrument@.
 writeVarianceCsv :: FilePath -> Map Epoch Double -> Map Epoch Double -> IO ()
-writeVarianceCsv _ _ _ = pure ()
+writeVarianceCsv path sig2 sig2i = writeFile path (banner ++ rows)
+  where
+    epochs = Map.keys (Map.union sig2 sig2i)
+    look m e = Map.findWithDefault (0 / 0) e m
+    rows = unlines
+      [ show e ++ "," ++ show (look sig2 e) ++ "," ++ show (look sig2i e)
+      | e <- epochs ]
+    banner = unlines
+      [ "# Panoptic υ variance regressor σ̂²_t and EIV instrument σ̃²_t (CTX-VAR)"
+      , "# σ̂²_t (sigma2)            = daily realized variance of within-day V4"
+      , "#   tick-implied log-price increments over the FULL within-day Swap series."
+      , "# σ̃²_t (sigma2_instrument) = the SAME estimator on the DISJOINT even-swap"
+      , "#   intraday sub-window (0-based even positions) — the two-noisy-measures IV."
+      , "# epoch = UTC-day Modified-Julian-Day index (same boundary as the panel)."
+      , "# Source: Uniswap V4 PoolManager Swap logs on Base via chunked eth_getLogs"
+      , "#   (poolId 0x96d4…288c0a); BigQuery path retired (project suspended)."
+      , "epoch,sigma2,sigma2_instrument"
+      ]
 
 -- ---------------------------------------------------------------------------
 -- Historical / superseded BigQuery reference (NOT the live path)
