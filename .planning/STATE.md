@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: VolOrderManagerMod + Multicall
 status: executing
-stopped_at: Completed 17-01-PLAN.md
-last_updated: "2026-07-20T17:05:57.188Z"
+stopped_at: Phase 17 COMPLETE + verified (7/7; M1 independently re-killed, flake root-caused as pre-existing). Next /gsd:plan-phase 18a — THE MULTICALL
+last_updated: "2026-07-20T17:25:40.408Z"
 last_activity: "2026-07-20 — 17-01 executed: create_order/orderCount/getOrderPacked CALLED-green over FFI-deployed bytecode; 4 observed mutation REDs + 1 equivalence-checked non-kill; array_slot checked-add id bound MEASURED; src/types/pos_spec/ byte-untouched."
 progress:
   total_phases: 16

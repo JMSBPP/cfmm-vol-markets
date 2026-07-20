@@ -434,7 +434,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 16. Type Packing & Validation Foundation | 1/1 | Complete    | 2026-07-20 |
-| 17. Interface & Single-Call Module | 1/1 | Complete   | 2026-07-20 |
+| 17. Interface & Single-Call Module | 1/1 | Complete    | 2026-07-20 |
 | 18a. Batch Input & State Effects | 0/TBD | Not started | - |
 | 18b. Typed Return Encoding | 0/TBD | Not started | - |
 | 19. Differential, Mutation Battery & Consumer Fixture | 0/TBD | Not started | - |
