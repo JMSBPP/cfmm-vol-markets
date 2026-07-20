@@ -70,6 +70,7 @@ tests:
       - Model.NLSSpec
       - Model.SandwichSpec
       - Tests.SpecificationSpec
+      - AlternativesSpec
     ghc-options:
       - -threaded
       - -rtsopts
