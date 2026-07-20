@@ -1,0 +1,85 @@
+// VolOrderManagerMod (VORD-01/03/04/05): the vol-order REGISTRY.
+//
+// ZERO DOMAIN ARITHMETIC. This module owns dispatch, ids and slots -- nothing else. Every
+// domain operation is delegated:
+//   build_vol_order        (VolOrderValidationLib) -- constructs the struct, pins TICK_SPACING
+//   validate_order_strict  (VolOrderValidationLib) -- the REVERTING wrapper over validate_order
+//   pack_vol_order         (pos_spec::VolOrder)    -- the verbatim 152-bit packer
+//   array_slot             (v3::storage)           -- keccak256(base) + index
+// The ONLY arithmetic in this file is the id increment `+ 1`. Do not hand-build the VolOrder
+// struct here and do not inline any bound: that is what "zero arithmetic" means (REQUIREMENTS
+// VORD-05).
+//
+// Phase 18a's batch will call validate_order (the bool CORE) so an invalid tuple SKIPS; this
+// strict path calls validate_order_strict so an invalid tuple REVERTS. Both descend from the
+// same core, which is what makes MCAL-04's "strict and batch agree" true by construction.
+//
+// MONOTONIC IDS, NO RING. array_slot applies NO mask. The 16-bit wraparound mask used by the
+// realized-volatility ring lives in a DIFFERENT file (src/types/StorageIndex.plk) and is
+// deliberately NOT imported here: it is load-bearing for a 2^16 ring and CORRUPTING for a
+// monotonic registry, where it would fold order 65536 back onto slot 0. Killed by
+// test__unit__idAt65536IsNotMaskedIntoSlotZero.
+
+import std::constructor::return_runtime;
+import interfaces::pos_spec::VolOrderManagerInterface::*;
+import lib::pos_spec::VolOrderValidationLib::{build_vol_order, validate_order_strict};
+import pos_spec::VolOrder::{pack_vol_order};
+import v3::storage::{array_slot};
+import v3::util::{return_u256, revert_empty};
+
+// TWO keccak-derived slots, both computed with `cast keccak`, preimage strings RESTATED
+// test-side so vm.load addresses are computable in Solidity.
+//
+// COLLISION SAFETY IS A COMPILE-TIME VALUE, NOT A PROBABILITY. Orders live at
+// keccak256(SLOT_ORDERS_BASE) + id. The scalar slot below is more than 2^64 away from that
+// region base (asserted by test__unit__scalarSlotFarFromOrdersRegion), so no id reachable in
+// this universe can alias it.
+//
+// "VolOrderManagerMod.orderCount"
+const SLOT_ORDER_COUNT = 0x92967cb44e7866428adae18aad4bf59a10fb8d4c189b2b0e8bfe6f2a2469b5c7;
+// "VolOrderManagerMod.orders"   (the ARRAY BASE -- hashed again by array_slot, never written to)
+const SLOT_ORDERS_BASE = 0x68fef5d6c1ef01f93bf897a4ffcaa37fbdc39061144008f6edd91f64b7b199cb;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    if selector == SELECTOR_CREATE_ORDER {
+        // create_order(uint88 strike, uint24 width, uint16 skew). Standard ABI: three
+        // right-aligned 32-byte words at 4 / 36 / 68. Whole-word reads, no masking -- dirty
+        // high bits are rejected by validation, not truncated.
+        let order = build_vol_order(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68));
+
+        // VALIDATE FIRST. Everything below is unreachable for an invalid tuple, so orderCount
+        // cannot advance on failure and the registry has no gaps (VORD-03).
+        validate_order_strict(order);
+
+        // Ids are sequential from 1 and orderCount IS the id source: id = count + 1, then the
+        // count becomes that id. Slot keccak(base)+0 is therefore NEVER written and stays
+        // permanently zero.
+        //
+        // THE 0-SENTINEL IS SOUND, NOT LUCKY (VORD-05). A valid order always has strike > 0
+        // (strike_fits_packed) and skew > 0 (spread_tick_assimetry_is_complete), and both
+        // occupy nonzero bit positions in the packed word, so a validly packed word is NEVER
+        // zero. Therefore `packed == 0` <=> "no order at this id", and getOrderPacked can
+        // return 0 for a nonexistent id without reverting and without ambiguity.
+        let id = @evm_sload(SLOT_ORDER_COUNT) + 1;
+        @evm_sstore(array_slot(SLOT_ORDERS_BASE, id), pack_vol_order(order));
+        @evm_sstore(SLOT_ORDER_COUNT, id);
+        @evm_stop();
+
+    } else if selector == SELECTOR_ORDER_COUNT {
+        // orderCount() -> uint256. Equals the latest id AND the live order count: they cannot
+        // diverge because the counter only advances on a successful store.
+        return_u256(@evm_sload(SLOT_ORDER_COUNT));
+
+    } else if selector == SELECTOR_GET_ORDER_PACKED {
+        // getOrderPacked(uint256 id) -> uint256. Raw packed word, NO bounds check: an unwritten
+        // slot reads zero, which is exactly the sentinel. No revert path (VORD-05).
+        return_u256(@evm_sload(array_slot(SLOT_ORDERS_BASE, @evm_calldataload(4))));
+    }
+
+    // Unknown selector -- including SELECTOR_CREATE_ORDERS until Phase 18a implements it.
+    revert_empty();
+}

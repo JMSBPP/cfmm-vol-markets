@@ -1,0 +1,26 @@
+// ABI selectors for VolOrderManagerMod. Declared here so BOTH the module's dispatch constants
+// AND the Solidity test ABI (test/pos_spec/VolOrderManager.t.sol) AND the rpc_api Haskell
+// consumer are computed from the SAME signature strings. Values are keccak256(signature)[0:4],
+// recomputed with `cast sig` (never hand-derived).
+//
+// ARGUMENT ORDER is create_order-native everywhere: (strike, width, skew). The narrow ABI types
+// (uint88/uint24/uint16) are the DECLARED consumer-facing types; the module reads whole 32-byte
+// calldata words with no masking. A caller who dirties the high bits of a word does not slip
+// through: strike > 2^88-1, width > 0xffffff and skew > 65534 are all REJECTED by
+// validate_order, so a dirty word reverts rather than being silently truncated.
+
+// signature:: create_order(uint88,uint24,uint16)   (strike, width, skew; write, ends @evm_stop)
+const SELECTOR_CREATE_ORDER = 0x6501fe94;
+
+// signature:: create_orders(uint256,uint256[])     (count, packed tuples; BATCH -- Phase 18a)
+// DECLARED HERE, NOT DISPATCHED HERE. Pinning the batch signature now breaks the 17<->18a
+// circular dependency: Phase 17 could not otherwise pin a signature Phase 18a had not designed.
+// Until 18a implements it, this selector falls through to revert_empty() -- pinned by
+// test__unit__batchSelectorNotYetDispatched.
+const SELECTOR_CREATE_ORDERS = 0x81357911;
+
+// signature:: orderCount() -> uint256              (latest id == live order count)
+const SELECTOR_ORDER_COUNT = 0x2453ffa8;
+
+// signature:: getOrderPacked(uint256) -> uint256   (the raw 152-bit word; 0 == nonexistent)
+const SELECTOR_GET_ORDER_PACKED = 0xa9bcabc1;
