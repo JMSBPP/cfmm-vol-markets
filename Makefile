@@ -130,7 +130,14 @@ test-vega-account:
 test-vega-e2e:
 	forge test --match-path 'test/exposure/VegaAccount.e2e.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
 
-.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e
+# test-vol-order-validation: the PURE VolOrderValidationLib surface (VORD-02) -- accept/reject
+# boundaries, the authored strike <= 2^88-1 bound, and the 152-bit pack/unpack round-trip,
+# all CALLED through the FFI-deployed VolOrderValidationHarness. --skip routes around the
+# untracked PriceSetterHook.sol (another track's broken file); a no-op once that track fixes it.
+test-vol-order-validation:
+	forge test --match-path 'test/types/pos_spec/VolOrderValidation.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+
+.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation
 
 
 #####################################################################
