@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-05-PLAN.md (variance σ̂²/σ̃² via Base V4 eth_getLogs RPC override)
-last_updated: "2026-07-20T02:30:00.080Z"
-last_activity: "2026-07-19 — 09-04: built the tokenId×daily panel (Panel.Subgraph paginated fetch + Panel.Build cumulative→delta assembly + panel.csv); stack build/test green."
+stopped_at: Completed 09-06-PLAN.md (Aristotle bridging lemma integrated, sorry-free + axiom-clean)
+last_updated: "2026-07-20T02:42:34.100Z"
+last_activity: "2026-07-20 — 09-05: built σ̂²_t + disjoint-window EIV instrument σ̃²_t from live Base V4 eth_getLogs (RPC override, not BigQuery); golden-tested to 1e-9, variance.csv over a bounded live sample; stack build/test green (18/0)."
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 18
-  completed_plans: 12
-  percent: 61
+  completed_plans: 13
+  percent: 72
 ---
 
 # Project State
@@ -26,12 +26,13 @@ See: .planning/PROJECT.md (updated 2026-06-27)
 ## Current Position
 
 Phase: 9 of 9 (Upsilon Econometric Estimation — Lean-Aware) — Lean4 + Haskell econometrics track
-Plan: 09-04 COMPLETE (panel) and 09-05 COMPLETE (variance) — Wave 2 remaining: 09-06 Aristotle bridging lemma.
+Plan: 09-06 COMPLETE (Aristotle bridging lemma integrated) — Wave 2 done. 09-04 (panel) + 09-05 (variance) COMPLETE. Sibling 09-07 running.
+Plan (09-06): exp_family_witnesses_ATMOTM proved by single serial Aristotle task (new project f9865d3a, task 84b02173, server commit 7ccd814) AS STATED (Option-B slope-centered envelope, not weakened); integrated sorry-free into lean/vol_markets/Upsilon.lean. lake build vol_markets exit 0 (8032 jobs), zero sorries; #print axioms = [propext, Classical.choice, Quot.sound] on the bridging lemma and all re-checked Phase-8/upsilon theorems. κ̂>0 now formally witnesses ATMOTMNullHypothesis (commit c087ec8).
 Plan (09-05): variance regressor σ̂²_t + EIV instrument σ̃²_t built (CTX-VAR) — Panel.Variance ingests Base V4 Swap logs via chunked eth_getLogs RPC (USER-DIRECTED OVERRIDE; BigQuery dropped, project suspended), decodes int24 tick/uint160 sqrtPriceX96 from log data; realizedVariance = within-day RV of tick log-price increments, instrument = disjoint even-swap sub-window (two-noisy-measures IV); reuses Panel.Build.dailyEpoch (unix-day index) so variance.csv joins panel.csv. Live proof: 2136 real swaps, blocks 48768127..48775327, 2 epochs (20651/20652) → notes/.../variance.csv + swap-ticks cache. Full suite 18/0.
-Status: In Progress — Wave 2: only 09-06 (Aristotle) remains. 09-09 live estimation will widen the variance CLI block window to full history (first OptionMint 43,781,657 → tip) and join σ̂²_t/σ̃²_t into panel.csv's placeholder column. Concern: thin cross-section (~7 accounts / 1000+ OptionMints, ~4 months) — no synthetic padding.
+Status: In Progress — Wave 2 Aristotle bridging lemma DONE (09-06). 09-09 live estimation will widen the variance CLI block window to full history (first OptionMint 43,781,657 → tip) and join σ̂²_t/σ̃²_t into panel.csv's placeholder column. Concern: thin cross-section (~7 accounts / 1000+ OptionMints, ~4 months) — no synthetic padding.
 Last activity: 2026-07-20 — 09-05: built σ̂²_t + disjoint-window EIV instrument σ̃²_t from live Base V4 eth_getLogs (RPC override, not BigQuery); golden-tested to 1e-9, variance.csv over a bounded live sample; stack build/test green (18/0).
 
-Progress: [██████░░░░] 61%
+Progress: [███████░░░] 72%
 
 ## Performance Metrics
 
@@ -59,6 +60,7 @@ Progress: [██████░░░░] 61%
 | Phase 09 P02 | 6 | 3 tasks | 1 files |
 | Phase 09 P04 | 6 | 2 tasks | 8 files |
 | Phase 09 P05 | 28 | 2 tasks | 8 files |
+| Phase 09 P06 | 30 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -87,6 +89,7 @@ Recent decisions affecting current work:
 - [Phase 09]: 09-02: data-source gate resolved — accept Base V4 ETH/USDC (chainId 8453, panopticPool 0xb50e...174a, poolId 0x96d4...288c0a) via keyless Goldsky base/dev subgraph; GRAPH_API_KEY not needed (public); variance from direct RPC eth_getLogs on Base V4 Swap logs (V4 topic0 + poolId topic1) — BigQuery dropped (project thetaswap-research suspended, 403 CONSUMER_SUSPENDED); 09-05 consumes RPC logs not BigQuery SQL, 09-04 unaffected except market ids
 - [Phase 09]: 09-04: panel π_it = per-epoch DELTA of cumulative premiaSettledInUsdTotal (tag to ENDING epoch, N snapshots→N−1 rows); i_K=round(log strike/log 1.0001) mirrors PosSpec.lam; dailyEpoch=floor(unixSec/86400) 00:00 UTC bucket shared with 09-05 variance window; σ̂² emitted as NaN placeholder for 09-05 join
 - [Phase 09]: 09-05: variance built from Base V4 Swap logs via chunked eth_getLogs RPC (BigQuery dropped, project suspended); instrument σ̃²_t = disjoint even-swap sub-window (two-noisy-measures IV); reuse Panel.Build.dailyEpoch (unix-day index) as single source of truth so variance.csv joins panel.csv
+- [Phase 09]: 09-06: bridging lemma exp_family_witnesses_ATMOTM proved by single serial Aristotle task (new project f9865d3a, task 84b02173, server commit 7ccd814) AS STATED (Option-B slope-centered envelope); integrated sorry-free + axiom-clean; κ̂>0 now formally witnesses ATMOTMNullHypothesis
 
 ### Pending Todos
 
@@ -105,6 +108,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-20T02:29:22.537Z
-Stopped at: Completed 09-05-PLAN.md (variance σ̂²/σ̃² via Base V4 eth_getLogs RPC override)
+Last session: 2026-07-20T02:42:34.096Z
+Stopped at: Completed 09-06-PLAN.md (Aristotle bridging lemma integrated, sorry-free + axiom-clean)
 Resume file: None
