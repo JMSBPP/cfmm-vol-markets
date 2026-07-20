@@ -100,31 +100,37 @@ Archived in full: `.planning/milestones/v3.0-REQUIREMENTS.md` · `.planning/MILE
 
 ## Milestone v4.0 Requirements — VolOrderManagerMod + Best-Effort Multicall
 
-Peer-requested (rpc_api track `mv15a18k`, StochasticOrderGen consumer). Design authority: the research synthesis (`.planning/research/SUMMARY.md`, all-HIGH confidence) — Lean-grounded validation bounds, the Plank v0.1.1 capability audit (runtime `while`, computed-offset calldata, no native arrays), and the five cross-resolutions (128-bit stored subset, reduced width check, calldatasize-revert truncation defence, batch shape B, typed-pair return pending peer). Two peer-dependent placeholders carried, not blocking: the `MAX_BATCH` value and the return-shape confirmation.
+Peer-requested (rpc_api track `mv15a18k`, StochasticOrderGen consumer). **This section is post-review**: a two-step parallel review (Reality Checker + Solidity Smart Contract Engineer) found 2 BLOCKERs and 6 MAJORs in the pre-review draft — the packed-layout offsets were transcribed backwards from `VolOrder.plk:35-40`, the batch guard formula assumed a flat calldata layout incompatible with any standard ABI encoder, and a "reduced width check" would have made the composed validator identically false. All are resolved below; the decisions of record are stated inline so no downstream phase re-derives them.
+
+**Decisions of record (do not re-litigate):**
+- **Stored word = the FULL 152-bit `pack_vol_order` output, reused VERBATIM** (`width@128 | tickSpacing@104 | strike@16 | skew@0` — verified against `VolOrder.plk:35-40`). The module pins `TICK_SPACING = 20` as a constant (the corpus convention at `VolOrder.t.sol:102`; satisfies the real `<= 0xc8` bound). This keeps `vol_range_width_is_complete` usable AS-IS, requires no new packer or decoder, and avoids a forward-compat trap (a stored `tickSpacing = 0` would fail any future full validation).
+- **Batch ABI = `create_orders(uint256 count, uint256[] packedOrders)`, selector `0x81357911`** (`cast sig`-verified), one packed 128-bit word per order (`strike88|width24|skew16` — exactly one word). Standard ABI, not a flat hand-rolled layout: a flat layout cannot be expressed as a Solidity signature at all, which would make the shared `interfaces/` file and every cast-sig test unsatisfiable for the batch.
+- **Return = `(bool success, uint256 orderId)[]` in standard ABI: head `0x40`, stride `0x40`, total `64 + 64N`** (outer offset word + length word + N inlined static pairs). Writing head `0x20` — emitting the length word but forgetting the outer offset — is the single likeliest bug on this surface.
+- **`MAX_BATCH` default 128** (~3.0M gas, comfortably includable), **hard admissibility ceiling 512** (~12M). A peer-supplied value above the ceiling is CAPPED and reported back, never silently adopted.
 
 ### Registry Core
 
-- [ ] **VORD-01**: `create_order(uint88,uint24,uint16)` — selector `0x6501fe94` cast-sig-pinned in an `interfaces/` file shared with the Haskell consumer — validates via the pure lib and REVERTS on any invalid tuple (strict single-call path; the batch is the lenient one)
-- [ ] **VORD-02**: A pure `validate_order` lib composes the EXISTING Lean-grounded predicates: strike > 0; width in (0, 0xffffff] (the REDUCED check — no `tickSpacing` operand; the full `vol_range_width_is_complete` is deferred with pricing, decision of record); skew in the OPEN interval [1, 65534] — BOTH endpoints revert, per `PosSpec.lean` `skewTick_one`/`skewTick_zero` (endpoint skew collapses the position to a degenerate one-sided range); dirty high bits above u88/u24/u16 widths REJECTED
-- [ ] **VORD-03**: Sequential `uint256` order ids from 1 (0 = null sentinel); `orderCount` advances ONLY on success, so `orderCount` ≡ latest id ≡ live order count (no gaps from failures)
-- [ ] **VORD-04**: Orders stored at `array_slot(SLOT_ORDERS_BASE, id)` (= keccak(base)+id, reused verbatim from `v3::storage`) — MONOTONIC, the ring's 16-bit wraparound mask explicitly NOT imported; the stored word is the 128-bit create_order-native subset (skew|strike|width at offsets 0/16/104, bits 128–151 zeroed)
-- [ ] **VORD-05**: Readers expose every stored field — `orderCount()`, `getOrderPacked(uint256)` (returns 0 for nonexistent ids, no revert) — module-not-a-black-box; zero arithmetic in the module (all bounds in the lib, packing in the type)
+- [ ] **VORD-01**: `create_order(uint88,uint24,uint16)` — selector `0x6501fe94` cast-sig-pinned in an `interfaces/` file shared with the Haskell consumer — validates via the pure lib and REVERTS on any invalid tuple (strict single-call path; the batch is the lenient one). The strict and batch paths call the SAME `validate_order` function, so their accept/reject agreement holds by construction, not by coincidence
+- [ ] **VORD-02**: A pure `validate_order` lib reuses `spread_tick_assimetry_is_complete` and `vol_range_width_is_complete` VERBATIM (the latter is satisfiable because `TICK_SPACING = 20` is pinned) and AUTHORS one new bound: `strike > 0 & strike <= 2^88-1`. The new bound is load-bearing, not hygiene — `tick_volatility_is_complete` is only `vol > 0` (no upper bound), so an oversized strike would pass validation and then be SILENTLY MASKED to 88 bits by `pack_vol_order`, storing a different value than the caller supplied. Skew semantics stated unambiguously: **valid range is [1, 65534]; 0 and 65535 REVERT; 1 and 65534 are ACCEPTED** — all four boundaries asserted (`PosSpec.lean:52,56` `skewTick_one`/`skewTick_zero` justify why the u16 endpoints are degenerate)
+- [ ] **VORD-03**: Sequential `uint256` order ids from 1 (0 = null sentinel); `orderCount` advances ONLY on success, so `orderCount` ≡ latest id ≡ live order count (no gaps from failures). The sentinel is SOUND, not lucky: a valid order always has `strike > 0` and `skew > 0`, so a validly packed word is never 0 — therefore `packed == 0 ⟺ nonexistent`
+- [ ] **VORD-04**: Orders stored at `array_slot(SLOT_ORDERS_BASE, id)` (= `keccak(base) + id`, reused verbatim from `v3::storage`) — MONOTONIC, the ring's 16-bit wraparound mask explicitly NOT imported (it lives in the separate `StorageIndex.plk`, not in `array_slot`). Slot `keccak(base)+0` is never written (ids start at 1) and stays permanently zero, which is what makes `getOrderPacked(0)` return 0 for free. Intra-contract collision safety is asserted at COMPILE-TIME values, not argued probabilistically: `|S − keccak(SLOT_ORDERS_BASE)| > 2^64` for every scalar slot `S` in the module
+- [ ] **VORD-05**: Readers expose every stored field — `orderCount()`, `getOrderPacked(uint256)` (returns 0 for nonexistent ids, no revert) — module-not-a-black-box. **"Zero arithmetic in the module" means: no DOMAIN arithmetic.** The only permitted operations are the id increment, the loop counter, and the `array_slot` call; all bounds live in the lib, all packing in the type
 
 ### Best-Effort Batch
 
-- [ ] **MCAL-01**: Batch entrypoint is shape B — explicit `count` argument + `MAX_BATCH` named placeholder constant (value pending peer); `count > MAX_BATCH` reverts BEFORE any work; `N = MAX_BATCH` is gas-measured under the block limit
-- [ ] **MCAL-02**: A mandatory `calldatasize >= HEADER + count·STRIDE` guard — a truncated/malformed batch REVERTS the whole transaction (structural failure, never a silent per-call skip; calldataload past end reads zero-padded words silently, so length must be checked, not inferred)
-- [ ] **MCAL-03**: Per-tuple best-effort via pure-validation pre-check: an invalid tuple is SKIPPED with zero state footprint (proven by raw `vm.load` on the touched slot set, not getters); valid tuples persist; empty batch and all-fail batches return well-formed results and never revert
-- [ ] **MCAL-04**: TOTALITY (the milestone's flagship property): for ALL full-width uint256 tuple values, a size-valid batch NEVER batch-reverts — proven by fuzz — plus the completeness differential: batch flags a tuple as failed ⟺ standalone `create_order` reverts on that tuple (validation is complete w.r.t. every store-path revert)
-- [ ] **MCAL-05**: The batch returns hand-rolled ABI `(bool success, uint256 orderId)[]`, positionally aligned to input, with the `N=0` edge well-formed (typed-pair shape is the working design, flagged for peer confirmation — a change is a late adjustment, not a rework)
-- [ ] **MCAL-06**: Batch ≡ N-fold composition of the SAME internal create_order: a batch-of-1 produces identical state and id to a standalone `create_order` call (differential, prevents batch/single logic drift)
+- [ ] **MCAL-01**: Batch is `create_orders(uint256 count, uint256[] packedOrders)` (`0x81357911`) with `MAX_BATCH = 128`; `count > MAX_BATCH` reverts BEFORE any work. The gas criterion is a real threshold, not a gesture: measured `N = MAX_BATCH` cost **≤ 10,000,000 gas** (not "under the block limit" — a transaction consuming a whole block is not reliably includable)
+- [ ] **MCAL-02**: THREE independent calldata guards, each separately mutable and separately killed: (1) `@evm_calldataload(36) == 0x40` — the array offset is canonical, so a client or attacker cannot point the loop at a different calldata region and fabricate phantom orders from zero-padded space; (2) `@evm_calldataload(68) == count` — the array's own length agrees with the count argument (they are independent numbers in the ABI); (3) `@evm_calldatasize() >= 100 + 32*count`. A malformed batch REVERTS the whole transaction — structural failure, never a silent per-call skip
+- [ ] **MCAL-03**: Per-tuple best-effort via pure-validation pre-check: an invalid tuple is SKIPPED with zero state footprint; valid tuples persist. The footprint assertion is concrete: for `k ∈ [orderCount_before+1, orderCount_before+N]`, raw `vm.load(keccak(base)+k)` is nonzero exactly for the ids assigned to successful positions and zero for every `k > orderCount_after`
+- [ ] **MCAL-04**: Best-effort containment is established PRIMARILY by a structural enumeration of the post-validation store path — a written argument naming each step and its revert status: `orderCount + 1` (checked add, u256, unreachable); `pack_vol_order` (**no revert** — pure masking, no `require`, no smart constructor: this is the fact that makes pre-validation containment viable at all); `array_slot`'s `keccak + index` (checked add, documented-unreachable at ~2^-192); `@evm_sstore` (cannot revert outside staticcall). Fuzz over a CONSTRUCTED corpus is CORROBORATION, not proof — the criterion is "no batch-revert OBSERVED over N runs", never "proven for all 2^256 values". The completeness differential (batch flags a tuple failed ⟺ standalone `create_order` reverts on it) is a regression guard on top of the by-construction shared-`validate_order` property
+- [ ] **MCAL-05**: The batch returns hand-rolled ABI `(bool success, uint256 orderId)[]`, positionally aligned to input, with head `0x40`, stride `0x40`, total `64 + 64N`; `success` words are canonically 0 or 1 (a non-canonical bool is rejected by Solidity's `abi.decode` but may pass a Haskell decoder — silent disagreement); a failed tuple returns `(false, 0)`. The results buffer is `@malloc_uninit`'d BEFORE the loop, because `array_slot` itself mallocs 32 bytes every iteration (`storage.plk:232`) and interleaving those with the results buffer under a bump allocator is a live corruption path
+- [ ] **MCAL-06**: Batch ≡ N-fold composition of the SAME internal create_order: a batch-of-1 produces identical state and id to a standalone `create_order` call. `N = 0` returns a well-formed EMPTY result (exactly 64 bytes: offset `0x20`, length `0`) and never reverts — the governing principle is **structurally impossible → revert; semantically empty → well-formed empty result**. A zero-arrival tick is an in-distribution Poisson sample, not a client bug
 
 ### Verification & Exit
 
-- [ ] **MVER-01**: An independently-simple Solidity reference mock (never echoing Plank's output) mirrors single-call AND batch semantics; an after-every-write driver asserts `orderCount`, the stored packed word (raw `vm.load` at derived slots + a single test-side `VolOrderDecoder`), and returned ids/results at tolerance 0
-- [ ] **MVER-02**: Observed-RED mutation battery, each killable mutant applied → cache cleared → verbatim RED recorded → restored sha256-identical → green: deleted validation branch (killed by the totality fuzz as a BATCH REVERT), count-advance-on-failure (killed by id-density), ring-mask reintroduction (killed by the slot differential), calldatasize-guard deletion (killed by the truncation corpus), return-encoding off-by-one (killed by the mock differential incl. N=0); equivalence-masked mutants documented, never counted
-- [ ] **MVER-03**: A consumer golden fixture — captured calldata/return bytes from the rpc_api side (their PR #9 tooling) — pins `0x6501fe94` and the batch ABI in BOTH directions, plus a cast-sig test for every selector string in the interface file
-- [ ] **MVER-04**: `VolOrderManagerMod` leaves `PLANK_SKIP` only after the batch dispatch is CALLED green through FFI-deployed bytecode; the suite is wired into a dedicated `make` target and folded into `make test`
+- [ ] **MVER-01**: An independent Solidity reference mock encodes its results with **`abi.encode` (the standard encoder)** while Plank hand-rolls, and the differential asserts **raw byte equality** (`keccak256(plankReturndata) == keccak256(abi.encode(mockResults))`), including the `N=0` case. Decoded-value comparison is NOT sufficient — it compares semantics while leaving the hand-rolled encoder unconstrained; byte equality makes solc an independent oracle for the one surface with no in-repo precedent. An after-every-write driver additionally asserts `orderCount` and the stored packed word via raw `vm.load` + a single test-side `VolOrderDecoder`
+- [ ] **MVER-02**: Observed-RED mutation battery, each killable mutant applied → cache cleared → verbatim RED recorded → restored sha256-identical → green: deleted validation branch; missing strike upper bound (silent truncation); count-advance-on-failure; ring-mask reintroduction; EACH of the three calldata guards deleted independently; return-head `0x40`→`0x20`; non-canonical success word. Equivalence-masked mutants documented, never counted
+- [ ] **MVER-03**: A consumer golden fixture FILE exists containing byte strings produced by an encoder OUTSIDE this repo. If peer bytes are unavailable, a self-encoded stand-in is committed and explicitly marked `NOT-PEER-VERIFIED`, and that gap is listed in the milestone exit record — the criterion is falsifiable either way and cannot be satisfied by doing nothing. Plus a cast-sig test for every selector string in the interface file
+- [ ] **MVER-04**: `VolOrderManagerMod` enters `PLANK_SKIP` when created (Phase 17) and leaves it only after the batch dispatch is CALLED green through FFI-deployed bytecode; the suite is wired into a dedicated `make` target and folded into `make test`
 
 ## v2 Requirements
 
@@ -225,15 +231,33 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | VMOD-05 | Phase 14 | Complete |
 | VVER-01 | Phase 15 | Complete |
 | VVER-02 | Phase 15 | Complete |
+| VORD-02 | Phase 16 | Pending |
+| VORD-01 | Phase 17 | Pending |
+| VORD-03 | Phase 17 | Pending |
+| VORD-04 | Phase 17 | Pending |
+| VORD-05 | Phase 17 | Pending |
+| MCAL-01 | Phase 18a | Pending |
+| MCAL-02 | Phase 18a | Pending |
+| MCAL-03 | Phase 18a | Pending |
+| MCAL-04 | Phase 18a | Pending |
+| MCAL-05 | Phase 18b | Pending |
+| MCAL-06 | Phase 18a | Pending |
+| MVER-01 | Phase 19 | Pending |
+| MVER-02 | Phase 19 | Pending |
+| MVER-03 | Phase 19 | Pending |
+| MVER-04 | Phase 19 | Pending |
 
 **Coverage:**
 - v1 requirements: 30 total — mapped to Phases 1–7: 30 ✓
 - v2.0 requirements (VDIFF-01..08): 8 total — mapped to Phases 8–11: 8 ✓
 - v3.0 requirements (RISK-01/02, VLIB-01..04, VMOD-01..05, VVER-01/02): 13 total — mapped to Phases 12–15: 13 ✓
-- Total mapped: 51/51 — Unmapped: 0
+- v4.0 requirements (VORD-01..05, MCAL-01..06, MVER-01..04): 15 total — mapped to Phases 16–19: 15 ✓
+- Total mapped: 66/66 — Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-27*
 *Last updated: 2026-06-27 — traceability populated against plumbing-first 7-phase roadmap (30/30 mapped)*
 *Last updated: 2026-07-15 — appended milestone v2.0 (VDIFF-01..08) traceability, Phases 8–11 (8/8 mapped)*
 *Last updated: 2026-07-16 — appended milestone v3.0 (RISK/VLIB/VMOD/VVER, 13 reqs) traceability, Phases 12–15 (13/13 mapped); total 51/51*
+*Last updated: 2026-07-19 — appended milestone v4.0 (VORD/MCAL/MVER, 15 reqs) traceability, Phases 16–19 (15/15 mapped); total 66/66*
+*Last updated: 2026-07-20 — v4.0 POST-REVIEW: 2 BLOCKERs + 6 MAJORs resolved (packing layout corrected against VolOrder.plk:35-40, standard-ABI batch 0x81357911 with 3 guards, new strike u88 bound authored, MCAL-04 demoted from proof to evidence); Phase 18 SPLIT into 18a (input+state) / 18b (return encoding) — now 5 phases, still 15/15 mapped*
