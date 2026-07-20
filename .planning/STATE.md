@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-08-PLAN.md (cluster-robust CR0 sandwich SEs + the three committed spec tests; 40/0 green)
-last_updated: "2026-07-20T03:03:26.363Z"
+stopped_at: "Phase 9 halted after Wave 4 per user: 09-01..09-08 complete (8/11), suite 40/0, Lean lib zero-sorry incl. proved bridging lemma. Resume: /gsd:execute-phase 9 → Wave 5 (09-09 live estimation run) then Wave 6 checkpoints (09-10 GAMS handoff, 09-11 audit-econ)"
+last_updated: "2026-07-20T03:04:36.651Z"
 last_activity: "2026-07-20 — 09-08: CTX-EST SE + CTX-TEST — hand-rolled tokenId-clustered CR0 sandwich SE (golden 1e-9) + the three committed spec tests (υ₀>0, κ>0, κ⁺=κ⁻); stack test 40/0 green."
 progress:
   total_phases: 9
@@ -116,6 +116,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-20T03:02:22.722Z
-Stopped at: Completed 09-08-PLAN.md (cluster-robust CR0 sandwich SEs + the three committed spec tests; 40/0 green)
-Resume file: None
+Last session: 2026-07-20T03:04:36.648Z
+Stopped at: Phase 9 halted after Wave 4 per user: 09-01..09-08 complete (8/11), suite 40/0, Lean lib zero-sorry incl. proved bridging lemma. Resume: /gsd:execute-phase 9 → Wave 5 (09-09 live estimation run) then Wave 6 checkpoints (09-10 GAMS handoff, 09-11 audit-econ)
+Resume file: .planning/phases/09-upsilon-econometric-estimation-lean-aware/09-09-PLAN.md
