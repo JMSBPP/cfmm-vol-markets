@@ -4,8 +4,11 @@
 position-epoch panel (Panoptic subgraph) and the underlying-pool variance source
 (BigQuery swap logs). Discovery gate for CTX-PANEL / CTX-VAR.
 
-**Status:** DISCOVERY COMPLETE — awaiting user endpoint decision (checkpoint,
-Task 3). See "Open Decision for the Checkpoint" at the bottom.
+**Status:** RESOLVED — checkpoint (Task 3) closed by user decision on
+2026-07-19 ("accept base"). Confirmed market = Base V4 ETH/USDC; variance route =
+direct RPC `eth_getLogs` (BigQuery dropped, CONSUMER_SUSPENDED). See §4
+"DECISION (resolved checkpoint)" at the bottom — it supersedes the "Open Decision
+for the Checkpoint" (§3), which is retained as the discovery record.
 
 **Discovery date:** 2026-07-19
 **Docs entry point (user-directed):** `https://panoptic.xyz/docs/subgraph/schema`
@@ -157,3 +160,63 @@ The plan assumed a *mainnet or production-L2 ETH/USDC market with a clean v3 +
 Reply e.g.: "endpoint confirmed: base V4 (chainId 8453)" and, if applicable,
 "GRAPH_API_KEY added" / "BigQuery Base dataset = <name>, dry-run returns rows".
 ```
+
+---
+
+## 4. DECISION (resolved checkpoint) — 2026-07-19
+
+The checkpoint (Task 3) was resolved by the user with **"accept base"**. This
+section is authoritative; §3 above is retained as the discovery/alternatives
+record only.
+
+### 4.1 Confirmed panel market — Base V4 ETH/USDC
+
+- **Chain:** Base mainnet (L2), **chainId 8453** (production L2, non-Sepolia).
+- **panopticPool:** `0xb50e8bb68f5855da742f4579274902a20454174a`
+  (fee tier 500 = **0.05%**, tickSpacing 10).
+- **token0:** ETH (native, `0x0000000000000000000000000000000000000000`, 18 dec).
+- **token1:** USDC (`0x833589fcd6edb6e08f4c7c32d4f71b54bda02913`, Base USDC, 6 dec).
+- **underlyingPool:** Uniswap **V4** pool (PoolManager singleton, keyed by poolId)
+  - poolId (`id`): `0x96d4b53a38337a5733179751781178a2613306063c511b78cd02684739288c0a`
+  - `isV4Pool: true`, `hooks: 0x0000…0000` (no hook), tickSpacing 10.
+- **Subgraph endpoint:** `https://api.goldsky.com/api/public/project_cl9gc21q105380hxuh8ks53k3/subgraphs/panoptic-subgraph-base/dev/gn`
+  (keyless Goldsky `panoptic-subgraph-base/dev/gn`).
+- **Verified-live at resolution:** a `_meta` GraphQL probe at 2026-07-19 returned
+  block **48,861,639** (2026-07-20T01:57:05Z), `hasIndexingErrors: false`.
+
+### 4.2 GRAPH_API_KEY — NOT required
+
+The confirmed Base endpoint is a **public** Goldsky endpoint. **No
+`GRAPH_API_KEY` is needed** and none was added. (If a gateway-hosted subgraph is
+ever substituted, the key would live ONLY in the worktree `.env` as
+`GRAPH_API_KEY` — never printed or committed — but that is not the case here.)
+
+### 4.3 Variance route — DIRECT RPC `eth_getLogs` (BigQuery dropped)
+
+The σ̂²_t series and the EIV second window are built from Uniswap **V4
+PoolManager `Swap` logs** pulled via **chunked `eth_getLogs`** against a **Base
+RPC endpoint** (public by default; a paid RPC key may go into the worktree `.env`
+later if rate limits demand — never committed).
+
+- **Filter:** the V4 Swap `topic0`
+  `0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f`
+  (computed + cross-verified in Task 2), with the **poolId as the indexed topic**
+  `topics[1] = 0x96d4b53a38337a5733179751781178a2613306063c511b78cd02684739288c0a`,
+  emitted by the Base V4 PoolManager singleton.
+- **BigQuery is UNUSABLE — dropped.** The GCP project `thetaswap-research` is
+  **suspended**: every query returns `403 CONSUMER_SUSPENDED`. Verified from the
+  parent session on 2026-07-19. Option (a) (fix/authorize a BigQuery project) was
+  **not** taken by the user. The reference SQL in §2 (mainnet-v3 `crypto_ethereum`
+  path) is retained as **historical / alternative only** — it is not the path the
+  pipeline uses.
+
+### 4.4 Downstream implications for Wave-2 plans
+
+- **09-05 (variance builder):** consumes **Base V4 `Swap` logs via RPC
+  `eth_getLogs`** (chunked over block ranges), NOT BigQuery SQL. The `crypto_ethereum`
+  reference SQL in §2 is historical/alternative and must not be wired as the live
+  source. σ̂²_t and the EIV second window derive from these RPC-pulled V4 swaps.
+- **09-04 (panel):** **unaffected** except for the market identifiers — it reads
+  positions/premia/strikes from the confirmed keyless Base subgraph above
+  (panopticPool `0xb50e8bb68f5855da742f4579274902a20454174a`, poolId
+  `0x96d4…288c0a`).
