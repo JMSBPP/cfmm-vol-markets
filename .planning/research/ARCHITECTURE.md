@@ -1,334 +1,334 @@
 # Architecture Research
 
-**Domain:** VegaAccountMod vault — collateral→vega-exposure issuance module inside an existing layered Plank/Foundry codebase (milestone v3.0)
-**Researched:** 2026-07-16
-**Confidence:** HIGH (every integration claim below is quoted from a file actually read: `RealizedVolatilityMod.plk`, `Timepoint.plk`, `RealizedVolatilityInterface.plk`, `RealizedVolatilityLib.plk`, `TimepointDecoder.sol`, `RealizedVolatility.diff.t.sol`, `std/constructor.plk`, `PlankTestBase.sol`, `Makefile`, `v3 full_math.plk`, `StorageIndex.plk`, `TimeWindow.plk`)
+**Domain:** Plank EVM on-chain module — dynamic-registry + best-effort multicall (VolOrderManagerMod, milestone v4.0)
+**Researched:** 2026-07-19
+**Confidence:** HIGH (all mechanisms transcribed from repo source; only the batch-calldata shape and tuple-array ABI depend on the parallel STACK capability audit, and are flagged not resolved)
 
 ---
 
 ## Standard Architecture
 
-The vault is NOT a new architecture — it is a fifth vertical slice through the four layers the oracle already occupies. The layering is authoritative and enforced by `PlankTestBase.sol`/`Makefile:PLANK_DEP` (six module roots: `v3`, `std`, `pos_spec`, `lib`, `types`, `interfaces`).
+The milestone mirrors the v3.0-proven layering exactly. Nothing here is new *shape*; the two genuinely new elements are (a) a **derived-slot dynamic registry** (the ring's slot-per-index mechanism, minus the wraparound), and (b) a **best-effort batch loop** over calldata.
 
 ### System Overview
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  test/exposure/VegaAccount.diff.t.sol   (Foundry, one file per module) │
-│  ┌───────────────┐ ┌──────────────────┐ ┌───────────────────────────┐ │
-│  │ VegaExposure  │ │ IssuanceRefMock  │ │ VegaAccountKernelHarness  │ │
-│  │ Decoder.sol   │ │ .sol (FullMath)  │ │ .plk (pure-lib ABI probe) │ │
-│  │ (ONLY if pkd) │ │                  │ │                           │ │
-│  └───────────────┘ └──────────────────┘ └───────────────────────────┘ │
+│  src/interfaces/pos_spec/VolOrderManagerInterface.plk                  │
+│  cast-sig-pinned SELECTOR_* strings (create_order 0x6501fe94 + batch)  │
 ├──────────────────────────────────────────────────────────────────────┤
-│  MODULE (stateful entrypoint)   src/modules/exposure/VegaAccountMod.plk│
-│  ┌────────────────────────────────────────────────────────────────┐  │
-│  │ init{ return_runtime(); }   run{ selector dispatch }             │  │
-│  │  SELECTOR_DEPOSIT · SELECTOR_SET_PRISK · state-reader selectors   │  │
-│  │  SLOT_* (keccak-derived) reads/writes · p_risk setter+validate   │  │
-│  └────────────────────────────────────────────────────────────────┘  │
-├──────────────────────────────────────────────────────────────────────┤
-│  INTERFACE   src/interfaces/exposure/VegaAccountInterface.plk          │
-│  const SELECTOR_DEPOSIT = 0x… ; SELECTOR_SET_PRISK ; reader selectors  │
-├──────────────────────────────────────────────────────────────────────┤
-│  LIB (pure, no storage)   src/lib/exposure/VegaIssuanceLib.plk         │
-│  haircut_risk_price(oracle,h) · issue(dM,pRiskX96) · admissible(dM,QΣ) │
-│         └── reuses v3::math::full_math::{mulDiv, mulDivRoundingUp}      │
-├──────────────────────────────────────────────────────────────────────┤
-│  TYPES (packed / record)   src/types/exposure/VegaExposure.plk         │
-│  VegaExposure record · risk Q-types (RiskPrice X96, Haircut Q0.64)     │
-└──────────────────────────────────────────────────────────────────────┘
-        SLOTs (module storage):  totalDeposits · totalShares ·
-                                 riskWeightedShares · pRisk   (4 words)
+│  src/modules/…/VolOrderManagerMod.plk                   (STATEFUL)     │
+│  ┌────────────┐  ┌──────────────┐  ┌────────────────────────────────┐ │
+│  │ dispatch   │  │ id assignment│  │ batch loop (validate-then-commit│ │
+│  │ shr-224    │  │ orderCount++ │  │  per-call, best-effort skip)    │ │
+│  └─────┬──────┘  └──────┬───────┘  └───────────────┬────────────────┘ │
+│        │                │  sstore/sload ONLY — ZERO arithmetic         │
+├────────┴────────────────┴──────────────────────────┴──────────────────┤
+│  src/lib/… (PURE)                     src/types/pos_spec/VolOrder.plk  │
+│  ┌───────────────────────┐            ┌──────────────────────────────┐│
+│  │ validate_order bounds  │            │ pack_vol_order / unpack       ││
+│  │ (compose is_complete)  │            │ (152-bit packing precedent)   ││
+│  └───────────────────────┘            └──────────────────────────────┘│
+│  v3::storage::array_slot  ── keccak256(base)+index  (slot derivation)  │
+├────────────────────────────────────────────────────────────────────────┤
+│  STORAGE  keccak-derived scalar slot + a keccak-base derived array      │
+│  ┌─────────────────┐   ┌──────────────────────────────────────────────┐│
+│  │ SLOT_ORDER_COUNT│   │ orders[id] @ keccak256(SLOT_ORDERS_BASE)+id   ││
+│  │  (scalar u256)  │   │  one packed VolOrder word per id (128–152 bit) ││
+│  └─────────────────┘   └──────────────────────────────────────────────┘│
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Component Responsibilities
 
-| Component | Responsibility | Mirrors / Source |
-|-----------|----------------|------------------|
-| `src/types/exposure/VegaExposure.plk` | The issuance record + risk fixed-point types. **Record, not a ring-packed word** (see tension §Types). | analogue of `Timepoint.plk`, but does NOT fit one word |
-| `src/lib/exposure/VegaIssuanceLib.plk` | ALL pure math: haircut price `oracle/(1−h)`, `ΔQ_v = mulDiv(ΔM, Q96, pRiskX96)` floor, division-free admissibility. No storage. | analogue of `RealizedVolatilityLib.plk` (module holds zero math) |
-| `src/interfaces/exposure/VegaAccountInterface.plk` | `const SELECTOR_* = keccak256(sig)[0:4]` declarations only. | analogue of `RealizedVolatilityInterface.plk` |
-| `src/modules/exposure/VegaAccountMod.plk` | `init{return_runtime();}` + `run{}` selector dispatch; SLOT reads/writes; `p_risk` setter+validation; three state-var updates; state readers. | analogue of `RealizedVolatilityMod.plk` |
-| `test/exposure/VegaAccount.diff.t.sol` | One file, several contracts: lib-kernel probe, lib fuzz vs Solidity mock, module smoke (dispatch called green), admissibility. | analogue of `RealizedVolatility.diff.t.sol` |
+| Component | Responsibility | Precedent it mirrors |
+|-----------|----------------|----------------------|
+| `VolOrderManagerInterface.plk` | cast-sig-pinned selector strings, shared by module dispatch + Solidity test ABI | `VegaAccountInterface.plk` |
+| `VolOrderManagerMod.plk` | dispatch, `orderCount` id assignment, sstore at derived slot, batch loop, best-effort skip — **no arithmetic, no pricing** | `VegaAccountMod.plk` (module) + `RealizedVolatilityMod.plk` (ring writes) |
+| `validate_order` (new pure lib) | bounds check composed from the existing `*_is_complete` fns; explicit zero-width revert | `vol_order_is_complete` in `VolOrder.plk` |
+| `VolOrder.plk` type | `pack_vol_order`/`unpack_vol_order`; the packed word stored per id | already exists (KEPT type) |
+| `v3::storage::array_slot` | `keccak256(base)+index` slot derivation | already exists (used by the ring) |
 
 ---
 
-## (1) The dispatch pattern VegaAccountMod mirrors — quoted from `RealizedVolatilityMod.plk`
+## The slot-per-index mechanism (transcribed from actual source)
 
-**Constructor (`init` block).** The skeleton is already correct here:
+**Quality-gate item.** The registry stores one order per derived slot using the *exact* helper the RealizedVolatility ring uses. The helper is `array_slot`, from `lib/plankified-univ3/plank/lib/storage.plk:230-235`:
 
-```
-import std::constructor::return_runtime;   // std/constructor.plk
-init{ return_runtime(); }
-```
-
-`return_runtime` (`lib/plank-monorepo/std/constructor.plk`) is:
-```
-const return_runtime = fn () never {
-    let buf = @malloc_uninit(@runtime_length());
-    @evm_codecopy(buf, @runtime_start_offset(), @runtime_length());
-    @evm_return(buf, @runtime_length());
+```plank
+const array_slot = fn (base_slot: u256, index: u256) u256 {
+    // keccak256(base_slot) + index
+    let buf = @malloc_uninit(32);
+    @mstore32(buf, base_slot);
+    @evm_keccak256(buf, 32) + index
 };
 ```
-It is the standard deployment constructor — copies the runtime section and returns it as the deployed code. `Makefile:102` confirms every entrypoint MUST have an `init` block ("`.plk` files have no init block would fail with 'missing init'"). **The skeleton's `import` + `init{ return_runtime(); }` need no change.** No new `std` capability is required; `std` already provides it.
 
-**Selector extraction — identical first line of `run{}`:**
-```
-let selector = @evm_shr(224, @evm_calldataload(0));
-```
+So the slot is `keccak256(base_slot) + index`, where `base_slot` is itself a named-string keccak constant (e.g. `SLOT_TIMEPOINT_BUFFER_BASE = 0xe4a8c01f…` = keccak of `"RealizedVolMod.TimepointBuffer"`). It is a **double keccak** at the base plus a linear offset — `@mstore32` writes the u256 as one big-endian 32-byte word, then `@evm_keccak256(buf,32)` hashes that word.
 
-**Dispatch — if/else-if chain against `const SELECTOR_*`,** terminating each write branch with `@evm_stop()` and each view branch with `return_u256(...)`, unknown selector falls through to `revert_empty()`:
-```
-if selector == SELECTOR_INITIALIZE_TWAP {
-   let block_timestamp = @evm_calldataload(4) & MASK_U32;   // arg0 at 4
-   let tick            = @evm_calldataload(36);              // arg1 at 36 (signed → unmasked)
-   ...
-   @evm_stop();
-} else if selector == SELECTOR_GET_TWAP_TICK {
-   ...
-   return_u256(get_twap_tick(dt, tick, current_timestamp));
-}
-...
-revert_empty();
-```
+The ring reads through `load_timepoint` (`src/lib/market_state_measurements/RealizedVolatilityLib.plk:84-86`):
 
-**Calldata word offsets:** arg *n* is at `4 + 32*n` → `4, 36, 68, …`. Unsigned args are masked (`& MASK_U32`); signed args are left as loaded (Solidity sign-extends into the full word). **For the vault everything is unsigned** (collateral amount, share amounts, an X96 price), so the signed-masking footgun the oracle documents does not apply — a genuine simplification.
-
-**What VegaAccountMod copies, one-for-one:**
-
-| Oracle piece | Vault equivalent |
-|--------------|------------------|
-| `let selector = @evm_shr(224, @evm_calldataload(0));` | same, verbatim |
-| `SELECTOR_INITIALIZE_TWAP` write branch → `@evm_stop()` | `SELECTOR_DEPOSIT`: read `dM = @evm_calldataload(4)` (u256, no mask), compute+store, `return_u256(exposure)` (deposit returns the issued units) |
-| `write_window`/`read_window` settable-param pattern | `SELECTOR_SET_PRISK`: read `pRisk = @evm_calldataload(4)`, **validate then sstore** |
-| state-reader selectors (`lastIndex`, `readWindow`, `getTimepointPacked`) → `return_u256` | `totalDeposits()`, `totalShares()`, `riskWeightedShares()`, `pRisk()` readers |
-| `SLOT_* = 0x…` keccak of a namespaced string | `SLOT_* = keccak256("VegaAccountMod.<Field>")` |
-
-**How the settable `p_risk` should be stored & validated — mirror `write_window`/`read_window`:**
-```
-// oracle's settable window (RealizedVolatilityMod.plk:30-36)
-const write_window = fn(window: TimeWindow) void {
-      @evm_sstore(SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE, pack_time_window(window));
+```plank
+const load_timepoint = fn(buffer_base: u256, index: u256) Timepoint {
+      unpack_timepoint(@evm_sload(array_slot(buffer_base, index & TIMEPOINT_INDEX_MASK)))
 };
-const read_window = fn() TimeWindow { unpack_time_window(@evm_sload(SLOT_...)) };
 ```
-Vault version: `SLOT_P_RISK = keccak256("VegaAccountMod.PRisk")`. The setter validates with `require` from `std::error`:
-```
-const require = fn (condition: bool) void { if !condition { @evm_revert(@malloc_uninit(0), 0); } };
-```
-Validation gates, both machine-checked in Lean:
-- `require(pRisk > 0)` — exogenous-price sanity (PROJECT.md key decision: "validated > 0").
-- If `p_risk` is set from `(oracle, h)` on-chain: enforce `h < 1` inside `haircut_risk_price` (Lean `haircutRiskPrice_ge_oracle`). In v1 with a directly-set exogenous `pRisk`, the `h<1` guard lives in the *lib* and is exercised by the lib fuzz, not necessarily by the setter — a scope choice to make explicit in the plan.
 
-**Storage: packed word vs separate slots.** The oracle packs `ss_index|timestamp|isInitialized` into ONE word (`pack_realized_volatility_state`) because they are all small (≤48 bits) and co-updated. The vault's three balances are full-width `u256` accounting totals → **they do NOT co-pack; use one keccak-derived SLOT each** (`SLOT_TOTAL_DEPOSITS`, `SLOT_TOTAL_SHARES`, `SLOT_RISK_WEIGHTED_SHARES`), plus `SLOT_P_RISK`. This is simpler than the oracle's packed-state word and is the right call — do not invent a packed state word where the fields are word-sized.
+and writes through the same slot in `RealizedVolatilityMod.plk:161`:
+
+```plank
+@evm_sstore(array_slot(SLOT_TIMEPOINT_BUFFER_BASE, index_updated.current), pack_timepoint(updated));
+```
+
+**The critical difference for a registry vs. a ring.** The ring MASKS the index to 16 bits (`& TIMEPOINT_INDEX_MASK`, `& INDEX_MODULO_MASK` in `StorageIndex::next`) so it wraps at 2^16 — the mask is documented as *load-bearing, not defensive* (`StorageIndex.plk:19-34`): without it a write at index 65536 lands at `keccak(base)+65536`, OUTSIDE the ring, while reads masked back to 0 and "the oracle silently rewound to its initialization state on wrap." **The registry must NOT mask** — `orderId` is monotonic (`orderCount` only ever increments, never wraps), so `array_slot(SLOT_ORDERS_BASE, orderId)` walks `keccak(base)+0, +1, +2, …`. Because `keccak(base)` is a pseudo-random 256-bit point, linear offsets up to any realistic `orderCount` never collide with each other or with the scalar slot. **Do not import the ring's mask; that is the one line of the ring mechanism that is wrong for a registry.**
+
+### VolOrder packing (transcribed + summed)
+
+**Quality-gate item.** `pack_vol_order` (`src/types/pos_spec/VolOrder.plk:35-40`) packs FOUR fields:
+
+```plank
+@evm_shl(128, self.rangeWidth.width       & 0xFFFFFF)                 // 24 bits @ 128-151
+| @evm_shl(104, self.rangeWidth.tickSpacing & 0xFFFFFF)               // 24 bits @ 104-127
+| @evm_shl(16,  self.volStrike.vol & 0xFFFFFFFFFFFFFFFFFFFFFF)         // 88 bits @  16-103
+| (self.skew.spread & 0xFFFF)                                         // 16 bits @   0- 15
+```
+
+Width sum: `24 (tickSpacing) + 24 (width) + 88 (vol) + 16 (skew) = 152 bits`. The type header comment already states "It fits on 152 bits." **Packing into ONE 256-bit word: YES**, with 104 bits to spare.
+
+**Design tension to surface (do not silently resolve):** the KEPT `VolOrder` packs **four** fields (152 bits, includes `tickSpacing`), but the peer-confirmed `create_order(uint88,uint24,uint16)` selector `0x6501fe94` supplies **three** — strike (u88) + width (u24) + skew (u16) = **128 bits**, NO `tickSpacing`. Two options, each with a downstream consequence:
+
+- **Store the create_order-native 128-bit subset** (`skew | volStrike | width`, offsets 0/16/104, `tickSpacing` bits 128-151 left zero). Matches exactly what the registry receives; `tickSpacing`/pricing is explicitly OUT of scope this milestone (PROJECT.md line 20). Recommended for the registry.
+- **Store the full 152-bit `VolOrder`** — requires a `tickSpacing` source, and `vol_range_width_is_complete` *requires* `tickSpacing ∈ (0, 0xc8]`, so a defaulted 0 would fail the existing validator. This couples the registry to pricing bounds it should not own.
+
+Recommendation: **store the 128-bit subset**, mirror `pack_vol_order`'s offsets for the three shared fields (16/104 unchanged), and add a test-side `VolOrderDecoder` per the `TimepointDecoder` precedent. Flag the 152-vs-128 divergence in the plan so the roadmapper decides whether `tickSpacing` re-enters when pricing lands.
 
 ---
 
-## (2) `src/types/exposure/VegaExposure.plk` — LIVE fields, and the spec/scope tension
+## Layer split (the v3.0 zero-math-in-module rule)
 
-The spec (`spec/entities/types/exposure.md`) declares five fields:
+The rule that made v3.0 cheap to prove: **the module holds ZERO arithmetic** (`VegaAccountMod.plk:39` — "ALL issuance math routes through the lib"). Applied here:
+
+| Concern | Layer | Rationale |
+|---------|-------|-----------|
+| `validate_order` bounds (strike>0, width∈(0,0xffffff], skew∈(0,0xffff)), zero-width revert | **pure lib** (`src/lib/pos_spec/VolOrderManagerLib.plk`, new) | Composes the existing `tick_volatility_is_complete` / `spread_tick_assimetry_is_complete` and a **reduced** width check (NOT `vol_range_width_is_complete`, which needs `tickSpacing`). Independently fuzz-testable with no deploy. |
+| `pack_vol_order` / `unpack_vol_order` | **type** (`VolOrder.plk`, exists) | Already the packing precedent. |
+| Slot derivation `array_slot(base, id)` | **pure lib** (`v3::storage`, exists) | Reuse verbatim — no new slot math in the module. |
+| `orders[id] = packed`, `orderCount++`, id assignment, batch loop, best-effort skip | **module** | Only `sstore`/`sload`/dispatch, exactly like the ring's write path and the vault's accumulators. |
+
+**What made v3.0 cheap to prove and must be preserved:** every stored field has a reader (module-not-a-black-box), the module reverts through lib guards (the guard's revert "comes free"), and the differential asserts against a Solidity reference mock at tolerance 0. `validate_order` living in a pure lib means the bounds battery is a pure-function fuzz with no FFI deploy — the fastest surface to redden.
+
+**Bounds precedents (already in the type layer, ready to compose):**
+- `tick_volatility_is_complete` — `self.vol > 0` (strike must be nonzero).
+- `spread_tick_assimetry_is_complete` — `spread > 0 & spread < 0xffff` (skew bounds).
+- `vol_range_width_is_complete` — `width>0 & width<=0xffffff & tickSpacing>0 & tickSpacing<=0xc8`. The registry needs only the **width** half of this (the `tickSpacing` half depends on data create_order does not carry), so `validate_order` calls a *reduced* width check plus the explicit zero-width revert PROJECT.md line 20 mandates.
+
+---
+
+## Storage layout for the dynamic registry
+
+```
+SLOT_ORDER_COUNT   = keccak256("VolOrderManagerMod.orderCount")   // scalar u256, next id
+SLOT_ORDERS_BASE   = keccak256("VolOrderManagerMod.orders")       // array base (a keccak-of-string const)
+
+orders[id]  @  array_slot(SLOT_ORDERS_BASE, id) = keccak256(SLOT_ORDERS_BASE) + id
+            holds ONE packed VolOrder word:
+              bits  0- 15  skew        (u16)
+              bits 16-103  volStrike   (u88)
+              bits104-127  width       (u24)          } create_order supplies these three
+              bits128-151  tickSpacing (u24)  ← zero this milestone (deferred with pricing)
+```
+
+The scalar slot (`SLOT_ORDER_COUNT`) follows the `VegaAccountMod` precedent verbatim (`VegaAccountMod.plk:11-17`): a keccak-of-named-string constant holding a plain u256, **preimage string restated test-side** so `vm.load` addresses are computable in Solidity. The derived array base is the same construction, consumed through `array_slot`.
+
+---
+
+## Best-effort multicall — the semantics that make it provable
+
+PROJECT.md line 21: *"failed orders are skipped without reverting the batch, per-call success/order-id results returned; a failed call leaves NO partial state, successful calls persist."*
+
+**Critical architectural decision: validate-BEFORE-commit, not write-then-rollback.** A single Plank call frame has no sub-call try/catch to roll back one order's writes. The way to guarantee "a failed call leaves NO partial state" cheaply is to **validate each order's bounds first, and only `sstore`+`orderCount++` if it passes**. A failing order never touches storage, so "no partial state" is true by construction — no rollback machinery, no self-`CALL`. This mirrors the vault's guard-then-write ordering (`VegaAccountMod.plk`: guards fire *before* the three accumulator writes) and is the reason it stayed cheap to prove.
+
+Per-call result: accumulate a `(success, orderId)` array in memory and ABI-return it. Consumer contract (rpc_api track `mv15a18k`) has confirmed the create_order selector but the **return shape and batch-size bound are still open** (PROJECT.md line 25) — requirements assume `(success, orderId)` pairs until the peer answers.
+
+---
+
+## Batch entrypoint — calldata layout options (BOTH presented; capability dependency stated, not resolved)
+
+**Quality-gate item.** Which of these is buildable depends on the STACK capability audit running in parallel (PROJECT.md line 22 names dynamic-array ABI decoding as *"the milestone's main technical risk"* — every existing module selector takes fixed words). Present both; the roadmapper resolves after STACK reports.
+
+### Option A — head-count-then-tuples (dynamic array)
+
+Signature candidates: `create_orders(uint256 count, bytes packed)` **or** `create_orders((uint88,uint24,uint16)[])`.
+
+Calldata (standard ABI dynamic): `selector | offset-word | length-word | element[0] | element[1] | …`. Plank must: read the offset word, follow it to the length word, loop `length` times reading `32*i` strides.
+
+- **Pros:** unbounded N (up to gas/calldata limit); idiomatic ABI; a Solidity/`cast`/Haskell client encodes it natively.
+- **Cons:** Plank calldata decoding of a *dynamic* array is unproven in this codebase — genuinely new ground. The **`(uint88,uint24,uint16)[]` tuple-array encoding in particular may exceed what Plank-side decoding supports** (a tuple array adds head/tail indirection on top of the length prefix). **Flag, do not resolve** — pending STACK.
+
+### Option B — fixed-max-with-count
+
+Signature: `create_orders(uint256 count, uint256[N] packedOrders)` with a compile-time `N` (e.g. 8 or 16), `count ≤ N` valid entries, each entry a pre-packed 128-bit word.
+
+Calldata: `selector | count | word[0] | … | word[N-1]` — **all fixed offsets, no indirection.** Plank reads `@evm_calldataload(4 + 32*i)` in a bounded loop, exactly the fixed-word access every existing selector already uses (`RealizedVolatilityMod.plk` run block, `VegaAccountMod.plk` run block).
+
+- **Pros:** decodable with the calldata primitives already proven in-repo; no dynamic-offset arithmetic; caps gas by construction (bounds the batch-size the consumer asked about).
+- **Cons:** wastes calldata for partial batches; hard N ceiling; the client must pre-pack each order into a word (moves packing off-chain, or requires a 3-arg fixed tuple `(uint88,uint24,uint16)[N]`).
+
+**Dependency statement (unresolved):** if the STACK audit finds Plank cannot decode a dynamic array / tuple array, Option B is the fallback and the peer's batch-size bound becomes the compile-time `N`. If dynamic decoding is supported, Option A with `create_orders(uint256,bytes)` (client packs, Plank slices fixed 16-byte strides out of `bytes`) is the middle path — dynamic length, but each element is fixed-width so no per-element tuple indirection. The `(uint88,uint24,uint16)[]` fully-typed variant is the highest-risk and should not be assumed buildable. **This is the milestone's main technical risk (PROJECT.md line 22) and is deliberately left for STACK to resolve.**
+
+---
+
+## Test-side architecture
+
+### Reference mock (mirror the registry)
+
+A trivially-simple Solidity mirror: a `mapping(uint256 => VolOrder)` (or a growable array) + `uint256 count`, plus the **same** `validate_order` bounds re-expressed in Solidity. Precedent: `IssuanceRefMock` behind `VegaAccountE2EDiffTest` — "three uint256 accumulators… A mirror with any arithmetic of its OWN would be a second implementation to distrust." The registry mirror does no math beyond bounds checks and id increment.
+
+### Driver pattern (after-every-write, from v2.0/v3.0)
+
+From `VegaAccount.e2e.t.sol`: the assertion lives **INSIDE** the driver helper (`_depositBoth`/`_setPriceBoth`) so "after every write cannot be forgotten at a call site, and the driver aborts at the EARLIEST write a mutant can diverge." For the registry: a `_createOrderBoth(strike,width,skew)` helper that calls the module, updates the mirror, and asserts `orderCount` + the stored packed word + the returned id all match — every call, tolerance 0. For the batch: a `_batchBoth(orders[])` that runs the same sequence one-at-a-time in the mirror (skipping invalid) and asserts the surviving set + count match the module's best-effort result.
+
+### `vm.load` raw-slot assertions for DERIVED (not constant) slots
+
+The vault raw-loads its four **constant** scalar slots. For the registry's **derived** slots the test computes the same double-keccak the module does:
+
 ```solidity
-struct VegaExposure { uint128 exposure; uint160 priceVolX96; address collateralToken; address underlyingToken; uint16 riskOracleId; }
-```
-The current stub has two, **mis-named** relative to the spec:
-```
-const VegaExposure = struct{ collateralUnits:u256, priceVol: u256 };
+bytes32 SLOT_ORDERS_BASE = keccak256("VolOrderManagerMod.orders"); // restate the preimage
+uint256 slot = uint256(keccak256(abi.encode(SLOT_ORDERS_BASE))) + orderId; // == array_slot(base, id)
+uint256 word = uint256(vm.load(address(mod), bytes32(slot)));
+VolOrder memory got = VolOrderDecoder.decode(word); // TimepointDecoder-style mirror
 ```
 
-**Structural fact (blocks any "pack like Timepoint" instinct):** `exposure` (128) + `priceVolX96` (160) = **288 bits > 256** before the two 160-bit addresses and the u16 are even counted. Unlike `Timepoint` (241 bits, fits one word and lives in a ring read via `getTimepointPacked`), **`VegaExposure` cannot be a single packed word.** It is a plain multi-field record. Consequence: it needs neither a ring `array_slot` layout nor a bit-offset `pack/unpack` pair, and (see §4) **no Solidity decoder** unless a branch deliberately ABI-returns a packed word.
+Note the **double keccak**: `array_slot` hashes the base *word*, so the test side must `keccak256(abi.encode(SLOT_ORDERS_BASE))` (hash the 32-byte base again), then add `orderId`. This is exactly `@mstore32(buf, base); @evm_keccak256(buf,32)+index`. The `VolOrderDecoder` library restates `VolOrder.plk`'s offsets by hand (offsets 0/16/104[/128]) — the `TimepointDecoder` precedent: *"THE single test-side unpacker… The offsets are mirrored, not shared… If Timepoint.plk moves a field, this file must move with it — and the differential is what makes that failure loud."* The existing `test/types/pos_spec/VolOrder.t.sol` already carries `packVolOrder`/`unpackVolOrder` at these exact offsets — promote them into a shared `VolOrderDecoder` rather than a fourth copy.
 
-**Field-by-field liveness under the v1 scope** (PROJECT.md: exogenous/settable `p_risk`, no oracle wiring, no token transfers, H1 only):
-
-| Field | Live in v1? | Reasoning / tension |
-|-------|-------------|---------------------|
-| `exposure` (u128 = `N_v = ΔM/p`) | **LIVE** | The issuance output. This is the vault's reason to exist. |
-| `priceVolX96` (u160) | **LIVE**, but re-interpreted | Spec ties it to `p_vol(σ̄)`; v1 has **no** `p_vol` (its pos_spec type still has 5 red harness tests, explicitly deferred). In v1 this field carries the **exogenous `p_risk`** (X96). Name it `priceVolX96` to honor the spec, but document that in v1 it is `p_risk`, not `p_vol(σ̄)`. **State the tension, don't silently rename.** |
-| `collateralToken` (address) | **DEAD in v1** | "no token transfers" ⇒ no `transferFrom`, no address is dereferenced. Scaffold as a field only if per-market identity is needed; otherwise defer. |
-| `underlyingToken` (address) | **DEAD in v1** | same as above. |
-| `riskOracleId` (u16) | **DEAD in v1** | **Direct conflict:** exogenous `p_risk` means there is no oracle to look up, so an oracle id indexes nothing. The stub's `SLOT_RISK_ORACLE_ID` and `SLOT_UNDERLYING_MARKET_ID` are pre-scaffolding for a v2 wiring that PROJECT.md explicitly defers ("oracle wiring to RealizedVolatilityMod deferred"). **Flag: `riskOracleId` is dead code in v1.** |
-
-**Recommended v1 type (2 LIVE fields, addresses/oracleId deferred with a comment):**
-```
-// v1: exogenous p_risk, no token transfers. Address / oracleId fields are
-// SCAFFOLDED-DEFERRED (dead until oracle wiring lands in a later milestone).
-const VegaExposure = struct {
-    exposure:     u256,   // u128  N_v = ΔM / p_risk   (issued vega units)
-    priceVolX96:  u256    // u160  Q64.96 price used   (v1: the exogenous p_risk, NOT p_vol(σ̄))
-    // collateralToken / underlyingToken / riskOracleId  -> deferred (no transfers, no oracle in v1)
-};
-```
-Rename note: the stub's `collateralUnits` conflates the *input* `ΔM` with the *output* exposure — the spec's `exposure` is `N_v`. Fix the name when completing the type. Also add the risk fixed-point companions the milestone lists ("Q0.96/X96 risk types"): a `RiskPriceX96` (Q64.96) and a `Haircut` (Q0.64) newtype so the lib signatures are typed rather than bare `u256`.
-
-**Where the three STATE variables live (not in VegaExposure):** `totalDeposits`, `totalShares`, `riskWeightedShares` are *module* storage scalars (own SLOTs), kept distinct per Lean `discounted_claim_counterexample`. `VegaExposure` is the per-deposit computed record / return value, not the module's balance sheet.
+Complementary reader path: expose `getOrderPacked(uint256 id) -> uint256` (mirror of `getTimepointPacked(uint16)` in `RealizedVolatilityMod.plk:275-278`), so the differential can read through the ABI *and* raw-`vm.load` the same slot — the two must agree, which kills any reader that lies about storage.
 
 ---
 
-## (3) Lib vs module split — mirror `RealizedVolatilityLib` (module holds zero math)
+## Suggested build order
 
-`RealizedVolatilityMod` delegates every arithmetic step to `RealizedVolatilityLib` (`calculate_realized_volatility`, `calculate_avg_tick`, `twap_tick`). The vault follows the same discipline.
+Each step is independently testable; the arrow marks the dependency.
 
-**`src/lib/exposure/VegaIssuanceLib.plk` — PURE, no `@evm_sload/sstore`:**
+1. **Type packing** — `VolOrder.plk` pack/unpack (EXISTS; only decide 128-bit subset vs 152-bit full). *Test:* `VolOrder.t.sol` already round-trips pack/unpack. Independently testable, no module.
+2. **Lib validation** — `validate_order` composing `tick_volatility_is_complete` + a reduced width check + `spread_tick_assimetry_is_complete`, with the explicit zero-width revert. *Test:* pure fuzz, no FFI deploy. Independently testable.
+3. **Interface** — `VolOrderManagerInterface.plk` with ALL selectors: `create_order` (`0x6501fe94`, cast-sig re-verified), readers (`getOrderPacked`, `orderCount`), and the batch selector (shape pending STACK — see below). *Test:* `cast sig` each string.
+4. **Module single-call** — `create_order`: dispatch, validate via lib, pack via type, `orderCount++`, `sstore` at `array_slot(base,id)`. *Test:* selector dispatch + raw-`vm.load` at the derived slot + reader round-trip.
+5. **Module batch** — best-effort loop, validate-before-commit, per-call `(success,orderId)` return. Depends on 4 and on the STACK calldata decision. *Test:* mixed valid/invalid batch, assert survivors persist, invalids leave no state.
+6. **Differential + battery** — reference-mock mirror + after-every-write driver + observed-RED mutation battery, single-call then batch. *Test:* the acceptance surface.
 
-| Function | Signature (sketch) | Lean lemma it discharges | Notes |
-|----------|--------------------|--------------------------|-------|
-| floor mulDiv | reuse `v3::math::full_math::mulDiv(a,b,denom)` | `mulX96Down_le` / `mulX96Down_one` | **Already exists** at `lib/plankified-univ3/plank/lib/math/full_math.plk` (`mulDiv`, `mulDivRoundingUp`). Do NOT reimplement — import `import v3::math::full_math::{mulDiv};` and `v3::math::fixed_point_96::{Q96}`. |
-| haircut risk price | `haircut_risk_price(oracleX96, h) -> RiskPriceX96` = `oracle/(1−h)` | `issuance_haircut_equiv`, `haircutRiskPrice_ge_oracle` | Enforce `require(h < ONE)`. **`risk.md`'s current `price/haircut` formula is REFUTED in Lean** (singular at h=0, wrong monotonicity) — must be corrected to `oracle/(1−h)` BEFORE this lib is written (see build order step 0). |
-| issuance | `issue(dM, pRiskX96) -> u256` = `mulDiv(dM, Q96, pRiskX96)` (floor) | `mulX96Down_le/one` | `ΔQ_v = ΔM / p_risk` with X96 scaling. |
-| admissibility | `admissible(dM, totalDepositsSigma) -> bool` | `admissible_iff_mul`, `deltaShares_admissible_iff` | **Division-free** predicate; collapses to `ΔM ≤ Q_M^Σ`. Pure boolean, no revert (module decides whether to `require` it). |
-
-**`src/modules/exposure/VegaAccountMod.plk` — stateful ONLY:** selector dispatch, SLOT reads/writes, `p_risk` setter+validation, the three state-var updates, state readers. It *calls* the lib for the numbers, exactly as `write_timepoint` calls `calculate_avg_tick`. Keeping the admissibility `require` in the module (not the lib) mirrors how the oracle keeps `require(dt != 0)` at the `get_twap_tick` entrypoint while the lib stays total.
-
----
-
-## (4) Solidity test-side mirror
-
-Follows `RealizedVolatility.diff.t.sol` exactly: **one file, several contracts, weakest→strongest claim**, driven by `PlankTestBase.deployPlank(path)`.
-
-**Reference mock (analogue of `test/mocks/AlgebraVolatilityKernelMock.sol`):** `IssuanceRefMock.sol` re-implements the H1 pipeline in Solidity using a `mulDiv` — either `v3-core/contracts/libraries/FullMath.sol` (present in `lib/`) or solady's `FullMathLib`. It computes `p_risk = oracle*1e?/(1−h)`, `N_v = mulDiv(dM, Q96, pRisk)`, and the admissibility bool, tolerance 0, as the differential oracle for each Lean-lemma fuzz property.
-
-**Plank kernel harness (analogue of `RealizedVolatilityKernelHarness.plk`):** `test/exposure/VegaAccountKernelHarness.plk` — a TEST-ONLY ABI wrapper over the pure lib so `issue`/`haircut_risk_price`/`admissible` can be fuzzed **without** the storage/dispatch path. This is what lets the lib be tested before the module compiles (see build order).
-
-**Decoder — likely NOT needed in v1 (contrast with `TimepointDecoder.sol`).** `TimepointDecoder.sol` exists because the oracle returns a *packed 241-bit word* via `getTimepointPacked`. The vault's state readers return **scalars** (`totalDeposits`, `totalShares`, `riskWeightedShares`, `pRisk`, and `deposit`'s `exposure`), so there is nothing to decode. The interface author's own rationale applies verbatim: exposing scalars means the test "does NOT have to mirror Plank's storage-slot derivation … which would be two more unverified mirrors checking an unverified implementation." **Add a `VegaExposureDecoder.sol` only if a branch deliberately ABI-returns a packed multi-field `VegaExposure` word — do not build it speculatively.**
-
-**Lean-lemma → fuzz-property map (the test oracle):**
-
-| Property | Contract in the diff file |
-|----------|---------------------------|
-| `mulX96Down_le` / `mulX96Down_one` | `VegaIssuanceKernelDiffTest` (lib vs mock, N-D fuzz) |
-| `issuance_haircut_equiv` | same |
-| `haircutRiskPrice_ge_oracle` (with `h<1`) | same, + a probe point with an external hand-derived anchor |
-| `deltaShares_admissible_iff` | `VegaAccountAdmissibilityTest` |
-| dispatch is live / deposit changes state / three vars stay distinct | `VegaAccountSmokeTest` (module deploy + **called** green) |
-
-**Acceptance rule inherited from the oracle file (GLOBAL RULE):** "it compiles" is never acceptance — `plank build` does not type-check code unreachable from `run{}`. `VegaAccountMod` leaves `PLANK_SKIP` only when a `deposit`/`setPRisk` call returns green, never on compile alone.
-
----
-
-## (5) Suggested build order (dependency-respecting; independently-testable units flagged)
-
-```
-0. Correct spec/entities/types/risk.md   (kill price/haircut → oracle/(1−h)) + sync exposure.md
-      └─ DOC ONLY. BLOCKS step 2 (the lib formula is refuted until this is fixed). No test.
-1. src/types/exposure/VegaExposure.plk   (2 live fields + RiskPriceX96 / Haircut Q-types)
-      └─ compile-only; independently "testable" only by being imported. No decoder needed.
-2. src/lib/exposure/VegaIssuanceLib.plk   (haircut price, issue=mulDiv floor, admissible)
-      └─ ★ HIGHEST-VALUE INDEPENDENTLY TESTABLE UNIT. Test via VegaAccountKernelHarness.plk
-         + IssuanceRefMock.sol BEFORE any module/storage exists — exactly how the oracle
-         proved its variance kernel (RealizedVolatilityKernelDiffTest) ahead of the module.
-         Reuses v3::math::full_math::mulDiv (no new math to verify).
-3. src/interfaces/exposure/VegaAccountInterface.plk   (SELECTOR_DEPOSIT, SET_PRISK, readers)
-      └─ declaration only; `cast sig` each selector (the interface file's VDIFF note warns a
-         wrong selector const silently mis-dispatches).
-4. src/modules/exposure/VegaAccountMod.plk   (dispatch + SLOTs + setter/validate + readers)
-      └─ testable only end-to-end (VegaAccountSmokeTest). Leaves PLANK_SKIP when CALLED green.
-5. Makefile + PlankTestBase parity check.
-```
-
-**Dependency notes for the roadmapper:**
-- Steps 1–3 are each independently *authored*; step 2 is the one that is independently *tested* with a full differential (the others are compile/decl-only). Sequence the Lean-lemma fuzz battery entirely inside step 2 — it does not need the module.
-- **No new `PLANK_DEP` root is required.** `exposure/` is a subfolder under the existing `types` root (`src/types`) and `lib` root (`src/lib`), so imports resolve as `types::exposure::VegaExposure::*` and `lib::exposure::VegaIssuanceLib::*`. `PlankTestBase.sol`'s six-root list (v3, std, pos_spec, lib, types, interfaces) already covers every import the vault needs — **confirm, don't add.** The only Makefile change is **removing** `src/modules/exposure/VegaAccountMod.plk` from `PLANK_SKIP` at the end of step 4.
-- The stub currently imports only `std::constructor::return_runtime` — correct and sufficient for the constructor. The module will additionally need `std::error::require`, `v3::util::{return_u256, revert_empty}`, `v3::math::full_math::mulDiv`, `types::exposure::VegaExposure::*`, `lib::exposure::VegaIssuanceLib::*`, `interfaces::exposure::VegaAccountInterface::*` — all under already-declared roots.
+**Independently testable without the module:** steps 1 (type), 2 (lib) — pure functions, fuzzed with no deploy. **Requires FFI deploy:** 4, 5, 6. **Blocked on STACK:** the batch signature string in 3, and step 5's calldata decoding.
 
 ---
 
 ## Data Flow
 
-### `deposit(collateralAmt)` → issued vega units
-```
-caller ──deposit(ΔM)──▶ run{}: selector==SELECTOR_DEPOSIT
-   ├─ dM        = @evm_calldataload(4)                     (u256, unsigned, no mask)
-   ├─ pRisk     = @evm_sload(SLOT_P_RISK)                  ; require(pRisk > 0)
-   ├─ QΣ        = @evm_sload(SLOT_TOTAL_DEPOSITS)
-   ├─ require( admissible(dM, QΣ) )                        (lib, division-free)
-   ├─ Nv        = issue(dM, pRisk) = mulDiv(dM, Q96, pRisk)  (lib, floor)
-   ├─ sstore SLOT_TOTAL_DEPOSITS       = QΣ + dM
-   ├─ sstore SLOT_TOTAL_SHARES         = shares + Nv
-   ├─ sstore SLOT_RISK_WEIGHTED_SHARES = rws  + Nv          (d ≡ 1 in v1; kept DISTINCT)
-   └─ return_u256(Nv)
-```
-Three writes to three distinct SLOTs — the Lean `discounted_claim_counterexample` invariant that `totalShares` ≠ `riskWeightedShares` is preserved structurally even though `d ≡ 1` makes them numerically equal in v1.
+### create_order (single)
 
-### `setPRisk(pRiskX96)` (settable exogenous parameter)
 ```
-caller ──setPRisk(p)──▶ selector==SELECTOR_SET_PRISK
-   ├─ p = @evm_calldataload(4) ; require(p > 0)     (mirror write_window)
-   └─ sstore SLOT_P_RISK = p ; @evm_stop()
+create_order(strike,width,skew)  [selector 0x6501fe94]
+    ↓ dispatch (shr-224)
+validate_order(strike,width,skew)          — pure lib, revert on zero-width / out-of-bounds
+    ↓ ok
+pack_vol_order(...)                          — type: one 128-bit word
+    ↓
+id = sload(SLOT_ORDER_COUNT)
+sstore(array_slot(SLOT_ORDERS_BASE, id), packed)
+sstore(SLOT_ORDER_COUNT, id + 1)
+    ↓
+return id
+```
+
+### create_orders (batch, best-effort)
+
+```
+create_orders(<count-then-tuples | fixed-max>)
+    ↓ decode count + elements  (Option A dynamic | Option B fixed — pending STACK)
+for each element:
+    validate_order(...)  →  FAIL: record (false, 0), CONTINUE  (no sstore, no state)
+                            OK:   pack, id=sload(count), sstore slot, sstore count+1,
+                                  record (true, id)
+    ↓
+ABI-return [(success, orderId), …]
 ```
 
 ---
 
-## Anti-Patterns (specific to this integration)
+## Scaling Considerations
 
-### Packing `VegaExposure` into one word "like Timepoint"
-**What people do:** copy `Timepoint.plk`'s bit-offset `pack/unpack` for `VegaExposure`.
-**Why it's wrong:** the two live fields alone are 128+160 = 288 bits > 256; it does not fit, and unlike `Timepoint` it is not a ring entry read as a packed word. Forcing a pack either truncates `priceVolX96` or spills to a second word for no benefit.
-**Do instead:** a plain multi-field record; word-sized state totals in separate SLOTs; scalar state readers → no Solidity decoder.
+| Scale | Architecture note |
+|-------|-------------------|
+| tens of orders (StochasticOrderGen Poisson batches) | the intended regime; any layout works, gas is dominated by `sstore` (20k/order), not decoding |
+| thousands of orders | monotonic ids never collide; no ring wrap concern; batch gas caps naturally under the block limit — Option B's `N` or Option A's implicit gas ceiling is the real bound |
+| beyond one contract's storage | not a concern for a research registry; sharding is out of scope |
 
-### Wiring `riskOracleId` / oracle lookup in v1
-**What people do:** honor all five spec fields and thread `riskOracleId` into a price lookup.
-**Why it's wrong:** v1 `p_risk` is exogenous (`setPRisk`); there is no oracle to index. PROJECT.md defers oracle wiring. The id would index nothing — dead state, dead branch.
-**Do instead:** carry `p_risk` in `priceVolX96` / `SLOT_P_RISK`; leave `riskOracleId` and the token addresses as commented-deferred scaffolding.
+The only real bottleneck is **calldata decoding cost/complexity of the batch**, which is a correctness/feasibility question (Option A vs B) rather than a throughput one.
 
-### Reimplementing `mulDiv`
-**What people do:** hand-roll a 512-bit `mulDiv` in the exposure lib.
-**Why it's wrong:** `v3::math::full_math::{mulDiv, mulDivRoundingUp}` already exists, already backs the UniV3 port, and is the same Chinese-remainder `FullMath` the Solidity mock will use — reimplementing adds an *unverified* mirror on the Plank side.
-**Do instead:** `import v3::math::full_math::{mulDiv};`.
+---
 
-### Treating a green compile as done
-**What people do:** remove `VegaAccountMod.plk` from `PLANK_SKIP` when it compiles.
-**Why it's wrong:** `plank build` doesn't type-check code unreachable from `run{}` (documented in `RealizedVolatility.diff.t.sol`: a "13 ok" gate once passed on an empty module).
-**Do instead:** leave `PLANK_SKIP` only when a `deposit` call executes green in the smoke test.
+## Anti-Patterns
 
-### `risk.md`'s `price/haircut` as the formula
-**What people do:** implement the lib from `spec/entities/types/risk.md` as written.
-**Why it's wrong:** Lean refutes `price/haircut` (singular at h=0, wrong monotonicity). The machine-checked form is `p_risk = oracle/(1−h)` (`issuance_haircut_equiv`).
-**Do instead:** correct `risk.md` first (build-order step 0), then implement `oracle/(1−h)` with `require(h < 1)`.
+### Anti-Pattern 1: importing the ring's index mask into the registry
+
+**What people do:** reuse `StorageIndex::next` / `& INDEX_MODULO_MASK` because the slot helper came from the ring.
+**Why it's wrong:** the mask makes ids wrap at 2^16; the registry needs monotonic ids. The ring's own comments call the mask "load-bearing" *for a ring* — for a registry it silently overwrites order 0 with order 65536.
+**Do this instead:** monotonic `orderCount`, no mask; `array_slot(base, id)` directly.
+
+### Anti-Pattern 2: arithmetic in the module
+
+**What people do:** inline the bounds check or the id-derivation math in the dispatch body.
+**Why it's wrong:** breaks the zero-math-in-module rule that made v3.0's mutation battery cheap — arithmetic in the module is a surface the pure-lib fuzz can't reach.
+**Do this instead:** `validate_order` in a pure lib, packing in the type, slot in `v3::storage`. Module = sstore/sload/dispatch only.
+
+### Anti-Pattern 3: write-then-rollback for best-effort batch
+
+**What people do:** try to `sstore` each order and undo on failure.
+**Why it's wrong:** a single call frame has no partial rollback; "no partial state" becomes unprovable.
+**Do this instead:** validate-before-commit — a failing order never writes.
+
+### Anti-Pattern 4: a fourth copy of the VolOrder bit layout
+
+**What people do:** re-inline `packVolOrder` offsets in the new differential.
+**Why it's wrong:** the `TimepointDecoder` post-mortem — three copies of a bit layout is three chances to desync from the `.plk` source.
+**Do this instead:** one `VolOrderDecoder` library, offsets restated once, the differential makes any future drift loud.
 
 ---
 
 ## Integration Points
 
-### Internal boundaries
+### Internal Boundaries
 
 | Boundary | Communication | Notes |
 |----------|---------------|-------|
-| module ↔ lib | direct `import` + call | module holds zero math; lib holds zero storage (mirrors Mod↔Lib in the oracle) |
-| module ↔ types | `import types::exposure::VegaExposure::*` | record + risk Q-types; resolves under existing `types` root |
-| module ↔ std | `std::constructor::return_runtime`, `std::error::require` | already available; skeleton's constructor import is correct |
-| module ↔ v3 | `v3::util::{return_u256, revert_empty}`, `v3::math::full_math::mulDiv`, `v3::math::fixed_point_96::Q96` | reuse; no new math |
-| test ↔ module | `PlankTestBase.deployPlank(path)` → FFI `plank build` at test time | no `make compile-plank` needed to reach a `.plk` edit |
-| test ↔ lib | `VegaAccountKernelHarness.plk` (ABI over pure lib) | lets step-2 lib be diffed before the module exists |
+| module ↔ pure lib | direct `import` of `validate_order` | ALL bounds/reverts here; module holds none |
+| module ↔ type | direct `import` of `pack_vol_order` | one packed word per id |
+| module ↔ `v3::storage` | `array_slot(base, id)` | reuse verbatim; DO NOT re-derive, DO NOT mask |
+| module ↔ Solidity test | `VolOrderManagerInterface` selector strings | pinned once, drive module dispatch AND test ABI |
+| module ↔ rpc_api track (`mv15a18k`) | `create_order` selector `0x6501fe94` (confirmed) | batch return-shape + size-bound OPEN, awaiting peer |
 
-### New vs modified (explicit)
+### External / cross-track dependency (unresolved by design)
 
-**NEW files:** `src/lib/exposure/VegaIssuanceLib.plk`, `src/interfaces/exposure/VegaAccountInterface.plk`, `test/exposure/VegaAccount.diff.t.sol`, `test/exposure/VegaAccountKernelHarness.plk`, `test/mocks/IssuanceRefMock.sol` (and `test/exposure/VegaExposureDecoder.sol` **only if** a packed word is returned).
-
-**MODIFIED files:** `src/types/exposure/VegaExposure.plk` (complete the record + add risk Q-types), `src/modules/exposure/VegaAccountMod.plk` (fill dispatch/storage/readers — the skeleton's `import`/`init` stay), `spec/entities/types/risk.md` (correct the formula), `spec/entities/types/exposure.md` (sync to RiskDesign.lean / annotate deferred fields), `Makefile` (drop `VegaAccountMod.plk` from `PLANK_SKIP`).
-
-**UNCHANGED / confirm-only:** `PlankTestBase.sol` and `Makefile:PLANK_DEP` roots — the six existing roots already cover `exposure/` as a subfolder of `types`/`lib`. No new root.
+| Dependency | Status | Blocks |
+|------------|--------|--------|
+| Plank dynamic-array / tuple-array calldata decoding | pending STACK capability audit (parallel) | the batch calldata layout (Option A vs B) and the batch signature string |
+| Peer batch-size bound + per-call return shape | open (PROJECT.md line 25) | Option B's compile-time `N`; the return ABI |
 
 ---
-
-## Confidence & Open Questions
-
-- **HIGH** on dispatch/constructor/lib-split/storage/test patterns — all quoted from read files.
-- **HIGH** that `mulDiv` and `return_runtime` exist and are the right primitives — files read directly.
-- **MEDIUM** on the exact liveness call for the two token-address fields: "no token transfers" is stated in the milestone context, so they are functionally dead, but whether v1 wants them as inert *identity* metadata (single-market vs multi-market vault) is a product choice the roadmap/plan should settle. The oracle-id field is unambiguously dead under exogenous `p_risk`.
-- **Open (needs the Lean source, not read here):** the precise fixed-point convention of `haircut_risk_price` (is `h` a Q0.64 fraction, and is `p_risk` returned Q64.96?) and the exact scaling in `issue` (`Q96` numerator vs a WAD) — resolve against `../cfmm-wt/lean4-spec/lean/vol_markets/RiskDesign.lean` before writing step 2. This is the one arithmetic detail this architecture pass could not pin from repo files alone.
 
 ## Sources
 
-- `src/modules/market_state_measurements/RealizedVolatilityMod.plk` (dispatch, settable-param, state-reader, packed-state patterns)
-- `src/types/market_state_measurements/Timepoint.plk` (packed-word layout contrast)
-- `src/lib/market_state_measurements/RealizedVolatilityLib.plk` (pure-lib discipline)
-- `src/interfaces/market_state_measurements/RealizedVolatilityInterface.plk` (selector-const pattern)
-- `test/market_state_measurements/RealizedVolatility.diff.t.sol`, `TimepointDecoder.sol`, `test/mocks/AlgebraVolatilityKernelMock.sol` (test-side mirror pattern)
-- `lib/plank-monorepo/std/{constructor,error,storage,math}.plk` (constructor, require, map_slot_hash)
-- `lib/plankified-univ3/plank/lib/math/full_math.plk` (mulDiv availability), `.../storage.plk` (array_slot), `v3/util.plk` (return_u256/revert_empty)
-- `test/PlankTestBase.sol`, `Makefile` (module roots, PLANK_SKIP, FFI-at-test-time)
-- `spec/entities/types/exposure.md`, `spec/entities/types/risk.md`, `.planning/PROJECT.md` (scope, deferred items, Lean design authority)
+- `lib/plankified-univ3/plank/lib/storage.plk:230-235` — `array_slot` = `keccak256(base)+index` — HIGH (quoted verbatim)
+- `src/lib/market_state_measurements/RealizedVolatilityLib.plk:84-86` — `load_timepoint` — HIGH (quoted verbatim)
+- `src/modules/market_state_measurements/RealizedVolatilityMod.plk` — ring write/read path, `getTimepointPacked` reader — HIGH (repo source)
+- `src/types/StorageIndex.plk:19-34` — the load-bearing wraparound mask (the one line a registry must drop) — HIGH
+- `src/types/pos_spec/VolOrder.plk:35-60` — `pack_vol_order`/`unpack_vol_order`, 152-bit sum — HIGH
+- `src/types/pos_spec/{VolRangeWidth,TickVolatility,SpreadTickAssimetry}.plk` — the `*_is_complete` bounds the lib validator composes — HIGH
+- `src/types/market_state_measurements/Timepoint.plk` + `test/market_state_measurements/TimepointDecoder.sol` — packing + test-decoder precedent — HIGH
+- `src/modules/exposure/VegaAccountMod.plk` + `src/interfaces/exposure/VegaAccountInterface.plk` — zero-math-in-module, scalar-slot + selector-pinning pattern — HIGH
+- `test/exposure/VegaAccount.e2e.t.sol` — after-every-write driver, trivially-simple mirror, tolerance-0 differential — HIGH
+- `test/types/pos_spec/VolOrder.t.sol` — existing test-side `packVolOrder` offsets (promote to a shared decoder) — HIGH
+- `test/PlankTestBase.sol` — `deployPlank` / module-root deps — HIGH
+- `.planning/PROJECT.md` (v4.0 milestone) — best-effort semantics, dynamic-array-ABI risk flag, peer consumer contract — HIGH
 
 ---
-*Architecture research for: VegaAccountMod vault (H1 issuance, exogenous risk price) — milestone v3.0*
-*Researched: 2026-07-16*
+*Architecture research for: Plank dynamic-registry + best-effort multicall module (VolOrderManagerMod, v4.0)*
+*Researched: 2026-07-19*
