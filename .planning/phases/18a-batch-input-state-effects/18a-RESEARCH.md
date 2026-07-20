@@ -1,3 +1,52 @@
+> # ⚠ ORCHESTRATOR CORRECTION — READ BEFORE USING THIS FILE
+>
+> This research contains a **fabricated backbone**. Every citation to `mock_time_pool.plk`
+> is INVENTED — that file does not exist. The diff-test examples directory contains exactly
+> three Plank programs: `erc20.plk`, `merkle_airdrop.plk`, `minimal_proxy.plk`. There is no
+> `oracle_grow` symbol anywhere in the tree. Specifically fabricated:
+> `mock_time_pool.plk:903-905` (the "third cross-check" of the guard constants),
+> `oracle_grow:386-396` (the "literally the 18a loop" precedent), and
+> `mock_time_pool.plk:912-917` (the "dynamic-array return" claim).
+>
+> This is the FOURTH fabricated citation in milestone v4.0 (after the inverted packing layout,
+> the invented merkle dynamic-return, and the false "no FFI needed"). The pattern is consistent:
+> a plausible-sounding filename with precise line numbers. Treat any uncited claim below as
+> unverified.
+>
+> ## What survives — independently re-verified by the orchestrator
+>
+> 1. **The three MCAL-02 guard constants are CORRECT.** Verified directly with `cast calldata
+>    "create_orders(uint256,uint256[])"`: N=0/1/2 produce exactly 100/132/164 bytes; the offset
+>    word `0x40` sits at byte 36; the length word sits at byte 68; element `i` at `100 + 32*i`.
+>    This was the highest-risk item and it is clean — but it is clean because `cast` says so,
+>    not because of the fabricated third cross-check.
+> 2. **`@evm_calldatasize` is real and usable.** 5 live usages in `plankc/plank-diff-tests/src/std/`
+>    (`addr_test`, `abi_stress_test`, `abi_encode_pair`, `abi_dynamic`, `abi_nested_struct`).
+>    Exact form confirmed at `abi_dynamic.plk:7` — `let size = @evm_calldatasize();` (parens, returns
+>    a value). No pre-write compile-check task is needed.
+> 3. **The merkle_airdrop offset-transcription warning is CORRECT and valuable.** Confirmed at
+>    `merkle_airdrop.plk:45`: `let offset = 4 + @evm_calldataload(68);`. Its head is THREE words
+>    (address@4, amount@36, offset@68); ours is TWO (count@4, offset@36). Copying `68` into our
+>    layout is a live transcription error. This is the single most useful thing the research
+>    produced and it stands on a real citation.
+> 4. **A dynamic-length return precedent DOES exist** — but at `abi_dynamic.plk:14`
+>    (`@evm_return(out, written)` with a computed length), NOT in the fabricated file. Better still,
+>    it reaches that via `std::abi`'s `abi_encoded_size` + `unsafe_abi_encode` — which is exactly
+>    the partial-reuse path the roadmap's Phase 18b research flag asked about. Real 18b risk
+>    reduction, correct conclusion, wrong citation.
+> 5. **Open Question 1 is a REAL planning blocker** (see below). `REQUIREMENTS.md:107` names the
+>    input word's fields and widths (`strike88|width24|skew16`) but states NO bit offsets.
+>
+> ## What is DISCARDED
+>
+> - "`mock_time_pool.plk` is the better precedent" — there is no such file. `merkle_airdrop.plk`
+>   remains the only in-repo runtime-`while` + computed-offset-`calldataload` example, and must be
+>   read as a PARTIAL pattern (no calldatasize guard, no offset check, different head width).
+> - The gas model, allocator disassembly, and "compiled a probe, exit 0, CALLDATASIZE at PC 0x5e"
+>   claims are UNVERIFIED by the orchestrator. The allocator conclusion may well be right, but its
+>   stated evidence sits beside fabricated evidence, so the plan must not depend on it. If loop
+>   memory behaviour matters, re-derive it.
+
 # Phase 18a: Batch Input & State Effects — Research
 
 **Researched:** 2026-07-20
