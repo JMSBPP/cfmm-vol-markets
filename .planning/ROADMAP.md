@@ -336,7 +336,9 @@ Phase numbering continues at 16 (v3.0 ended at 15). v1.0 Phases 1–7 and v2.0 P
 
 ## Phases
 
-- [ ] **Phase 16: Type Packing & Validation Foundation** - Pure `validate_order` lib (reused predicates + the NEW strike upper bound) over the verbatim 152-bit `pack_vol_order`, proven falsifiable with no FFI deploy (VORD-02)
+- [x] **Phase 16: Type Packing & Validation Foundation** - Pure `validate_order` lib (reused predicates + the NEW strike upper bound) over the verbatim 152-bit `pack_vol_order`, proven falsifiable through a 4-selector FFI harness (VORD-02) (completed 2026-07-20)
+
+  > Correction, recorded at execution: the original "proven falsifiable with no FFI deploy" was FALSE — Plank does not type-check code unreachable from `run{}`, so a pure lib with no harness is unprovable. The harness was a required deliverable, not optional scaffolding (16-CONTEXT.md).
 - [ ] **Phase 17: Interface & Single-Call Module** - `create_order` CALLED-green: validate via lib, pack via type with `TICK_SPACING` pinned, sequential id, unmasked derived-slot store, readers, cast-sig-pinned selectors for BOTH entrypoints (VORD-01, VORD-03, VORD-04, VORD-05)
 - [ ] **Phase 18a: Batch Input & State Effects** - Standard-ABI decode behind three guards, bounded `while`, validation-skip, MAX_BATCH, totality by structural enumeration + corroborating fuzz, zero-footprint proof — returns ONE word, so state effects are proven without trusting any encoder (MCAL-01, MCAL-02, MCAL-03, MCAL-04, MCAL-06)
 - [ ] **Phase 18b: Typed Return Encoding** - The hand-rolled `(bool,uint256)[]` head/tail encoder (head `0x40`, stride `0x40`, total `64+64N`), N=0 edge, byte-level differential against `abi.encode` (MCAL-05)
@@ -431,7 +433,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 16. Type Packing & Validation Foundation | 0/1 | Planned | - |
+| 16. Type Packing & Validation Foundation | 1/1 | Complete   | 2026-07-20 |
 | 17. Interface & Single-Call Module | 0/TBD | Not started | - |
 | 18a. Batch Input & State Effects | 0/TBD | Not started | - |
 | 18b. Typed Return Encoding | 0/TBD | Not started | - |
