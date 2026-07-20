@@ -356,10 +356,10 @@ Phase numbering continues at 16 (v3.0 ended at 15). v1.0 Phases 1–7 and v2.0 P
 
 **Note:** This phase AUTHORS a new predicate. The pre-review draft classified it "standard pattern, no new mechanism" — that was wrong and is corrected here.
 
-**Plans**: TBD
+**Plans**: 1 plan (1 wave)
 
 Plans:
-- [ ] 16-01: TBD
+- [ ] 16-01-PLAN.md — Pure `VolOrderValidationLib` (two predicates reused verbatim + the authored `strike <= 2^88-1` bound, `TICK_SPACING = 20` pinned, bool core + reverting wrapper), its FFI `VolOrderValidationHarness.plk`, the CALLED-green boundary/strike/round-trip suite, and a six-mutant observed-RED gate (VORD-02) [wave 1]
 
 ### Phase 17: Interface & Single-Call Module
 **Goal**: `create_order` is a live, CALLED-green registry entrypoint — the base case the batch will compose N times — with both selectors pinned so the peer contract cannot drift silently.
@@ -431,7 +431,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 16. Type Packing & Validation Foundation | 0/TBD | Not started | - |
+| 16. Type Packing & Validation Foundation | 0/1 | Planned | - |
 | 17. Interface & Single-Call Module | 0/TBD | Not started | - |
 | 18a. Batch Input & State Effects | 0/TBD | Not started | - |
 | 18b. Typed Return Encoding | 0/TBD | Not started | - |
