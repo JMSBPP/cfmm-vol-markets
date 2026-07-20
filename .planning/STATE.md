@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Phase 9 Wave 1 COMPLETE (09-01, 09-02, 09-03 done); 09-02 checkpoint resolved + recorded (Base V4 market, RPC variance route). Next: Wave 2 — 09-04 panel, 09-05 variance (RPC eth_getLogs override, not BigQuery), 09-06 Aristotle"
-last_updated: "2026-07-20T02:00:21.182Z"
+stopped_at: "Completed 09-04-PLAN.md (panel: Panel.Subgraph + Panel.Build + panel.csv). Wave 2 continues: 09-05 variance (parallel), 09-06 Aristotle."
+last_updated: "2026-07-20T02:13:15.137Z"
 last_activity: "2026-07-19 — 09-02 continuation: recorded checkpoint resolution in DATA-SOURCES.md §4 (Base V4 market + RPC variance route), verified endpoint live via _meta probe (block 48,861,639, no indexing errors)"
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 18
-  completed_plans: 10
-  percent: 56
+  completed_plans: 11
+  percent: 61
 ---
 
 # Project State
@@ -26,12 +26,12 @@ See: .planning/PROJECT.md (updated 2026-06-27)
 ## Current Position
 
 Phase: 9 of 9 (Upsilon Econometric Estimation — Lean-Aware) — Lean4 + Haskell econometrics track
-Plan: Wave 1 COMPLETE (09-01, 09-02, 09-03 all done); Wave 2 next (09-04 panel, 09-05 variance, 09-06 Aristotle)
-Plan (09-02): data-source discovery GATE resolved — confirmed Base V4 ETH/USDC market (chainId 8453, keyless Goldsky base/dev subgraph) for the panel; variance from direct RPC eth_getLogs on Base V4 Swap logs. BigQuery dropped (project suspended, CONSUMER_SUSPENDED). Endpoint verified-live at resolution.
-Status: In Progress — Wave 1 done. 09-02 checkpoint closed by user ("accept base"): panel reads keyless Base subgraph (panopticPool 0xb50e...174a, poolId 0x96d4...288c0a); 09-05 variance builder must use RPC eth_getLogs (V4 topic0 + poolId topic1), NOT BigQuery SQL; 09-04 unaffected except market ids. Concern: thin cross-section (~7 panopticPoolAccounts).
-Last activity: 2026-07-19 — 09-02 continuation: recorded checkpoint resolution in DATA-SOURCES.md §4 (Base V4 market + RPC variance route), verified endpoint live via _meta probe (block 48,861,639, no indexing errors)
+Plan: 09-04 COMPLETE (panel: Panel.Subgraph + Panel.Build + panel.csv). Wave 2 in progress: 09-05 variance (parallel), 09-06 Aristotle.
+Plan (09-04): position-epoch panel built (CTX-PANEL) — paginated Base subgraph client; cumulative→per-epoch delta π_it; i_K=round(log strike/log 1.0001) mirrors PosSpec.lam; dailyEpoch=floor(unixSec/86400) 00:00 UTC bucket (shared with 09-05 variance window); panel.csv written with σ̂² NaN placeholder for the 09-05 join. stack test 10/10.
+Status: In Progress — Wave 2 running. 09-04 delivers the panel LHS/moneyness inputs; 09-05 joins σ̂²_t + EIV instrument (RPC eth_getLogs on Base V4 Swap logs, NOT BigQuery) into the placeholder column; 09-06 is the Aristotle bridging lemma. Concern: thin cross-section (~7 accounts / 1000+ OptionMints, ~4 months) — no synthetic padding.
+Last activity: 2026-07-19 — 09-04: built the tokenId×daily panel (Panel.Subgraph paginated fetch + Panel.Build cumulative→delta assembly + panel.csv); stack build/test green.
 
-Progress: [██████░░░░] 56%
+Progress: [██████░░░░] 61%
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [██████░░░░] 56%
 | Phase 09 P03 | 2 | 2 tasks | 1 files |
 | Phase 09 P01 | 9 | 2 tasks | 8 files |
 | Phase 09 P02 | 6 | 3 tasks | 1 files |
+| Phase 09 P04 | 6 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,7 @@ Recent decisions affecting current work:
 - [Phase 09]: 09-01: pinned econometrics/ to lts-24.50 (GHC 9.10.3 = system GHC, no download) + hmatrix-gsl-0.19.0.1 extra-dep (Numeric.GSL.Fitting = primary NLS LM); stack build/test green, system GSL 2.8 linked
 - [Phase 09]: 09-01: froze CR0 sandwich-SE golden fixture (orthogonal-J 2-cluster/3-obs toy: V=[[2.25,.75,0],[.75,.25,0],[0,0,2.25]], SE=[1.5,.5,1.5]) with hand arithmetic in-file for 09-08 to implement against
 - [Phase 09]: 09-02: data-source gate resolved — accept Base V4 ETH/USDC (chainId 8453, panopticPool 0xb50e...174a, poolId 0x96d4...288c0a) via keyless Goldsky base/dev subgraph; GRAPH_API_KEY not needed (public); variance from direct RPC eth_getLogs on Base V4 Swap logs (V4 topic0 + poolId topic1) — BigQuery dropped (project thetaswap-research suspended, 403 CONSUMER_SUSPENDED); 09-05 consumes RPC logs not BigQuery SQL, 09-04 unaffected except market ids
+- [Phase 09]: 09-04: panel π_it = per-epoch DELTA of cumulative premiaSettledInUsdTotal (tag to ENDING epoch, N snapshots→N−1 rows); i_K=round(log strike/log 1.0001) mirrors PosSpec.lam; dailyEpoch=floor(unixSec/86400) 00:00 UTC bucket shared with 09-05 variance window; σ̂² emitted as NaN placeholder for 09-05 join
 
 ### Pending Todos
 
@@ -101,6 +103,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-20T01:59:48.461Z
-Stopped at: Phase 9 Wave 1 COMPLETE (09-01, 09-02, 09-03 done); 09-02 checkpoint resolved + recorded (Base V4 market, RPC variance route). Next: Wave 2 — 09-04 panel, 09-05 variance (RPC eth_getLogs override, not BigQuery), 09-06 Aristotle
+Last session: 2026-07-20T02:13:03.005Z
+Stopped at: Completed 09-04-PLAN.md (panel: Panel.Subgraph + Panel.Build + panel.csv). Wave 2 continues: 09-05 variance (parallel), 09-06 Aristotle.
 Resume file: None
