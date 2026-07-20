@@ -21,11 +21,14 @@ module Main (main) where
 import           Control.Exception        (IOException, try)
 import qualified Data.ByteString.Lazy    as BL
 import qualified Data.Csv                as Csv
-import           Data.List               (intercalate, isPrefixOf, nub, sortOn)
+import           Data.List               (intercalate, isPrefixOf, nub, sort,
+                                          sortOn)
 import qualified Data.Map.Strict         as Map
 import           Data.Maybe              (mapMaybe)
+import qualified Data.Set                as Set
 import qualified Data.Text               as T
 import           Data.Time.Clock         (getCurrentTime)
+import           Data.Time.Clock.POSIX   (posixSecondsToUTCTime)
 import           Data.Time.Format        (defaultTimeLocale, formatTime)
 import qualified Data.Vector             as V
 import           Options.Applicative
@@ -44,11 +47,14 @@ import           Model.EIV               (ivFit)
 import           Model.NLS               (designPoints, fitGSLCov)
 import           Model.SandwichSE        (clusterSandwich, standardErrors)
 import           Model.Upsilon           (model, modelSplit, moneyness, signedMoneyness)
-import           Panel.Build             (Spell (..), assembleSpells, writePanelCsv)
-import           Panel.Subgraph          (CollateralFlow (..), Endpoint (..),
-                                          PoolAddr (..), fetchBurns,
-                                          fetchCollateralFlows, fetchLegs,
-                                          fetchMints)
+import           Panel.Build             (Spell (..), assembleSpells, dailyEpoch,
+                                          writePanelCsv)
+import           Panel.Subgraph          (Chunk (..), ChunkPull (..),
+                                          CollateralFlow (..), Endpoint (..),
+                                          Leg (..), MintEvent (..),
+                                          PoolAddr (..), chunkKey, fetchBurns,
+                                          fetchChunksRaw, fetchCollateralFlows,
+                                          fetchLegs, fetchMints, legChunkKey)
 import           Panel.Variance          (RpcConfig (..),
                                           defaultBaseRpc, fetchSwapTicks,
                                           instrumentVariance, loadSwapTicks,
@@ -116,10 +122,22 @@ data EstimateOpts = EstimateOpts
   , eoTicksCsv      :: FilePath
   }
 
+-- | WAVE-0 BLOCKER options (plan 10-01): the width census + achievable panel size.
+data SampleSizeOpts = SampleSizeOpts
+  { ssEndpoint   :: String
+  , ssPool       :: String
+  , ssPanelCsv   :: FilePath
+  , ssVarianceCsv:: FilePath
+  , ssLegsOut    :: FilePath
+  , ssReport     :: FilePath
+  , ssFixtureOut :: FilePath
+  }
+
 data Command
   = BuildPanel BuildPanelOpts
   | Variance VarianceOpts
   | Estimate EstimateOpts
+  | SampleSize SampleSizeOpts
 
 buildPanelOpts :: Parser BuildPanelOpts
 buildPanelOpts =
@@ -169,6 +187,29 @@ estimateOptsParser =
     <*> strOption ( long "ticks-csv" <> metavar "PATH" <> value defaultTicksCsv
                  <> showDefault <> help "swap-tick cache path, recorded in the lineage section" )
 
+defaultChunkLegsCsv, defaultSizeAudit, defaultChunksFixture :: FilePath
+defaultChunkLegsCsv  = defaultDataDir </> "chunk-legs.csv"
+defaultSizeAudit     = defaultDataDir </> "panel-size-audit.md"
+defaultChunksFixture = "econometrics/test/fixtures/chunks-sample.json"
+
+sampleSizeOptsParser :: Parser SampleSizeOpts
+sampleSizeOptsParser =
+  SampleSizeOpts
+    <$> strOption ( long "endpoint" <> metavar "URL"
+                 <> help "Panoptic subgraph GraphQL endpoint (from DATA-SOURCES.md)" )
+    <*> strOption ( long "pool" <> metavar "POOL"
+                 <> help "underlying Pool.id (V4 poolId) to filter on" )
+    <*> strOption ( long "panel" <> metavar "PATH" <> value defaultPanelCsv <> showDefault
+                 <> help "spell-panel CSV (row count recorded in the lineage header)" )
+    <*> strOption ( long "variance" <> metavar "PATH" <> value defaultVarianceCsv
+                 <> showDefault <> help "variance CSV supplying THE joinable epoch set" )
+    <*> strOption ( long "legs-out" <> metavar "PATH" <> value defaultChunkLegsCsv
+                 <> showDefault <> help "per-leg chunk-identity census CSV" )
+    <*> strOption ( long "report" <> metavar "PATH" <> value defaultSizeAudit
+                 <> showDefault <> help "audit report with the STOP/GO recommendation" )
+    <*> strOption ( long "fixture-out" <> metavar "PATH" <> value defaultChunksFixture
+                 <> showDefault <> help "frozen raw Chunk subgraph response (offline fixture)" )
+
 commandParser :: Parser Command
 commandParser =
   hsubparser
@@ -181,6 +222,9 @@ commandParser =
    <> command "estimate"
         (info (Estimate <$> estimateOptsParser)
               (progDesc "Fit the profile, run the tests and alternatives, write the analysis output"))
+   <> command "sample-size"
+        (info (SampleSize <$> sampleSizeOptsParser)
+              (progDesc "WAVE-0 BLOCKER: census width/=0 legs and the achievable position-epoch panel size"))
     )
 
 opts :: ParserInfo Command
@@ -194,9 +238,10 @@ main :: IO ()
 main = execParser opts >>= run
 
 run :: Command -> IO ()
-run (BuildPanel o) = runBuildPanel o
-run (Variance vo)  = runVariance vo
-run (Estimate eo)  = runEstimate eo
+run (BuildPanel o)  = runBuildPanel o
+run (Variance vo)   = runVariance vo
+run (Estimate eo)   = runEstimate eo
+run (SampleSize so) = runSampleSize so
 
 -- ---------------------------------------------------------------------------
 -- build-panel
@@ -241,6 +286,331 @@ writeCollateralCsv fp flows = writeFile fp (banner ++ body)
       [ T.unpack (cfOwner f) ++ "," ++ show (cfTimestamp f) ++ ","
           ++ show (cfIndex f) ++ "," ++ show (cfShares f)
       | f <- sortOn cfTimestamp flows ]
+
+-- ---------------------------------------------------------------------------
+-- sample-size (plan 10-01: THE WAVE-0 BLOCKER)
+-- ---------------------------------------------------------------------------
+
+-- | The Uniswap V4 tick spacing of the confirmed market (fee tier 500).
+marketTickSpacing :: Int
+marketTickSpacing = 10
+
+-- | Phase 9's realized sample: the number this phase must MATERIALLY beat.
+phase9BaselineRows :: Int
+phase9BaselineRows = 61
+
+-- | PRE-COMMITTED GO thresholds. Stated in plan 10-01 BEFORE the measurement and
+-- not to be adjusted after seeing it (@anti-fishing-replication@).
+goRowThreshold, goWithinEpochThreshold :: Int
+goRowThreshold         = 300
+goWithinEpochThreshold = 5
+
+-- | Epoch of a unix timestamp. Delegates to 'Panel.Build.dailyEpoch' — the
+-- SINGLE source of truth for the epoch grid (RESEARCH Pitfall 4; the 09-05
+-- 40587-offset trap). Never redefine the arithmetic here.
+epochOfUnix :: Integer -> Int
+epochOfUnix = dailyEpoch . posixSecondsToUTCTime . fromInteger
+
+-- | One (spell, leg) census row.
+data LegRow = LegRow
+  { lrTokenId   :: !T.Text
+  , lrLegIndex  :: !Int
+  , lrStrike    :: !Int
+  , lrWidth     :: !Int
+  , lrTokenType :: !Int
+  , lrIsLong    :: !Bool
+  , lrRatio     :: !Int
+  , lrTickLower :: !Int
+  , lrTickUpper :: !Int
+  , lrMatched   :: !Bool
+  , lrNetLiq    :: !Integer
+  , lrTotalLiq  :: !Integer
+  , lrPosSize   :: !Double
+  , lrEpochMint :: !Int
+  , lrEpochBurn :: !Int
+  }
+
+runSampleSize :: SampleSizeOpts -> IO ()
+runSampleSize so = do
+  let ep   = Endpoint (T.pack (ssEndpoint so))
+      pool = PoolAddr (T.pack (ssPool so))
+  now <- getCurrentTime
+  let dateStr = formatTime defaultTimeLocale "%Y-%m-%d" now
+
+  mints <- fetchMints ep pool
+  burns <- fetchBurns ep pool
+  legs  <- fetchLegs ep pool
+  pull  <- fetchChunksRaw ep pool >>= either (ioError . userError) pure
+  varMap <- loadVarianceCsv (ssVarianceCsv so)
+
+  let chunks   = cpChunks pull
+      spells   = assembleSpells ethUsdcDecimalShift mints burns legs
+      legMap   = Map.fromList legs
+      chunkMap = Map.fromList [ (chunkKey c, c) | c <- chunks ]
+      varEpochs = Map.keysSet varMap
+      -- positionSize of the mint that OPENED each spell, keyed by
+      -- (tokenId, mint epoch) so the join uses the shared epoch grid.
+      sizeMap  = Map.fromList
+        [ ((meTokenId m, epochOfUnix (meTimestamp m)), mePositionSize m) | m <- mints ]
+
+      rows =
+        [ LegRow
+            { lrTokenId = spTokenId s, lrLegIndex = i
+            , lrStrike = legStrikeTick l, lrWidth = legWidth l
+            , lrTokenType = legTokenType l, lrIsLong = legIsLong l
+            , lrRatio = legOptionRatio l
+            , lrTickLower = tl, lrTickUpper = tu
+            , lrMatched = matched
+            , lrNetLiq = maybe 0 chNetLiquidity mc
+            , lrTotalLiq = maybe 0 chTotalLiquidity mc
+            , lrPosSize = Map.findWithDefault (0 / 0)
+                            (spTokenId s, spMintEpoch s) sizeMap
+            , lrEpochMint = spMintEpoch s, lrEpochBurn = spBurnEpoch s
+            }
+        | s <- spells
+        , (i, l) <- zip [0 ..] (Map.findWithDefault [] (spTokenId s) legMap)
+        , let (_, tl, tu) = legChunkKey (legStrikeTick l) (legWidth l)
+                                        (legTokenType l) marketTickSpacing
+              mc      = Map.lookup (legTokenType l, tl, tu) chunkMap
+              matched = maybe False (const True) mc
+        ]
+
+      -- A leg with width == 0 accrues NO premium: PanopticPool._getPremia
+      -- (L2250) skips it outright. Such legs cannot contribute a panel row.
+      nonzero      = [ r | r <- rows, lrWidth r /= 0 ]
+      usableToks   = Set.fromList (map lrTokenId nonzero)
+      usableSpells = [ s | s <- spells, spTokenId s `Set.member` usableToks ]
+
+      -- The joinable epochs of one spell: days in its accrual window that the
+      -- variance series actually covers.
+      spellEpochs s =
+        Set.fromList [ e | e <- [spMintEpoch s .. spBurnEpoch s]
+                     , e `Set.member` varEpochs ]
+
+      achievableRows = sum (map (Set.size . spellEpochs) usableSpells)
+
+      -- CLUSTER-level within-position variation: distinct joinable epochs per
+      -- usable tokenId, unioned over that tokenId's spells. This is the
+      -- quantity Phase 9 had exactly ZERO of (one window-averaged sigma^2 per
+      -- spell), and restoring it is the phase's real identification claim.
+      perTokenEpochs =
+        Map.fromListWith Set.union
+          [ (spTokenId s, spellEpochs s) | s <- usableSpells ]
+      withinCounts = map Set.size (Map.elems perTokenEpochs)
+      withinMedian = medianI withinCounts
+
+      -- getTicks cross-check. Computed over width /= 0 legs only: a width-0 leg
+      -- maps to the degenerate range [strike, strike], which is not a real chunk
+      -- and would drag the rate down without telling us anything.
+      matchRate
+        | null nonzero = 0 / 0
+        | otherwise    = fromIntegral (length [ () | r <- nonzero, lrMatched r ])
+                           / fromIntegral (length nonzero) :: Double
+      distinctChunks = Set.size
+        (Set.fromList [ (lrTokenType r, lrTickLower r, lrTickUpper r)
+                      | r <- nonzero, lrMatched r ])
+      gainFactor = fromIntegral achievableRows
+                     / fromIntegral phase9BaselineRows :: Double
+      metrics =
+        [ ("TOTAL_LEGS",                   show (length rows))
+        , ("WIDTH_NONZERO_LEGS",           show (length nonzero))
+        , ("WIDTH_NONZERO_TOKENIDS",       show (Set.size usableToks))
+        , ("WIDTH_NONZERO_SPELLS",         show (length usableSpells))
+        , ("USABLE_TOKENID_COUNT",         show (Map.size perTokenEpochs))
+        , ("DISTINCT_CHUNKS",              show distinctChunks)
+        , ("GETTICKS_MATCH_RATE",          fmtG matchRate)
+        , ("VARIANCE_EPOCHS",              show (Set.size varEpochs))
+        , ("ACHIEVABLE_PANEL_ROWS",        show achievableRows)
+        , ("WITHIN_POSITION_EPOCHS_MEDIAN", fmtG withinMedian)
+        , ("PHASE9_BASELINE_ROWS",         show phase9BaselineRows)
+        , ("GAIN_FACTOR",                  fmtG gainFactor)
+        ]
+
+  writeChunkLegsCsv (ssLegsOut so) rows
+  BL.writeFile (ssFixtureOut so) (cpRaw pull)
+
+  putStrLn ("sample-size: " ++ show (length mints) ++ " mints, "
+             ++ show (length burns) ++ " burns, " ++ show (length legs)
+             ++ " tokenIds with legs, " ++ show (length chunks)
+             ++ " chunks (" ++ T.unpack (cpPath pull) ++ ")")
+  putStrLn ("sample-size: " ++ show (length spells) ++ " accrual spells")
+  mapM_ (\(k, v) -> putStrLn (k ++ ": " ++ v)) metrics
+
+  writeFile (ssReport so)
+    (renderSizeAudit so dateStr metrics spells chunks nonzero
+                     achievableRows withinMedian (cpPath pull))
+  putStrLn ("sample-size: wrote " ++ ssLegsOut so)
+  putStrLn ("sample-size: wrote " ++ ssFixtureOut so)
+  putStrLn ("sample-size: wrote " ++ ssReport so)
+
+-- | The audit report. The VERDICT is derived MECHANICALLY from the thresholds
+-- pre-committed in plan 10-01 — no hand is laid on the rule after the numbers
+-- are in.
+renderSizeAudit
+  :: SampleSizeOpts -> String -> [(String, String)] -> [Spell] -> [Chunk]
+  -> [LegRow] -> Int -> Double -> T.Text -> String
+renderSizeAudit so dateStr metrics spells chunks nonzero achievableRows withinMedian path =
+  unlines $
+    [ "# Panel-size audit — Phase 10 Wave-0 blocker"
+    , ""
+    , "**Measured:** " ++ dateStr ++ ". Generated by"
+    , "`econometrics sample-size`; every number below is a QUERY RESULT, not an"
+    , "estimate or an assumption."
+    , ""
+    , "## Lineage"
+    , ""
+    , "| what | value |"
+    , "|---|---|"
+    , "| subgraph endpoint | `" ++ ssEndpoint so ++ "` (keyless public Goldsky; no API key used) |"
+    , "| underlying pool (V4 poolId) | `" ++ ssPool so ++ "` |"
+    , "| PanopticPool | `0xb50e8bb68f5855da742f4579274902a20454174a` (ETH/USDC, fee 500) |"
+    , "| tickSpacing | " ++ show marketTickSpacing ++ " |"
+    , "| chunk query path | `" ++ T.unpack path ++ "` |"
+    , "| accrual spells rebuilt (`Panel.Build.assembleSpells`) | " ++ show (length spells) ++ " |"
+    , "| `Chunk` records pulled | " ++ show (length chunks) ++ " |"
+    , "| panel CSV read | `" ++ ssPanelCsv so ++ "` |"
+    , "| variance CSV read (THE joinable epoch set) | `" ++ ssVarianceCsv so ++ "` |"
+    , "| per-leg census written | `" ++ ssLegsOut so ++ "` |"
+    , "| frozen chunk fixture | `" ++ ssFixtureOut so ++ "` |"
+    , ""
+    , "Epoch grid: `floor(unixSeconds / 86400)`, via `Panel.Build.dailyEpoch` —"
+    , "the single source of truth, never redefined here (the 09-05 offset trap)."
+    , ""
+    , "## The census"
+    , ""
+    , "| metric | value |"
+    , "|---|---|"
+    ] ++
+    [ "| `" ++ k ++ "` | " ++ v ++ " |" | (k, v) <- metrics ] ++
+    [ ""
+    , "`ACHIEVABLE_PANEL_ROWS` counts, over every spell whose tokenId carries at"
+    , "least one `width /= 0` leg, the daily epochs in `[epoch_mint, epoch_burn]`"
+    , "that the variance series actually covers. It is the number of position-epoch"
+    , "rows this market can supply — the ceiling, before any further attrition."
+    , ""
+    , "`WIDTH_NONZERO_*` matter because `PanopticPool._getPremia` (L2250) SKIPS"
+    , "every leg with `width == 0`: such legs accrue no premium at all and can"
+    , "never contribute a panel row."
+    , ""
+    , "## getTicks cross-check"
+    , ""
+    , "Each `width /= 0` leg's `(strike, width, tokenType)` is mapped to a chunk"
+    , "range by `Panel.Subgraph.legChunkKey` (floor down / ceil up — asymmetric for"
+    , "odd `width * tickSpacing`) and looked up against the `Chunk` records the"
+    , "subgraph reports. A match confirms the formula reproduces the protocol's own"
+    , "range arithmetic."
+    , ""
+    ] ++ getTicksSection ++
+    [ ""
+    , "## VERDICT"
+    , ""
+    , "Pre-committed rule (stated in plan 10-01 BEFORE this measurement, and NOT"
+    , "adjusted after it). `GO` requires BOTH:"
+    , ""
+    , "- (a) `ACHIEVABLE_PANEL_ROWS >= " ++ show goRowThreshold ++ "` — measured **"
+        ++ show achievableRows ++ "** -> " ++ passLabel condA
+    , "- (b) `WITHIN_POSITION_EPOCHS_MEDIAN >= " ++ show goWithinEpochThreshold
+        ++ "` — measured **" ++ fmtG withinMedian ++ "** -> " ++ passLabel condB
+    , ""
+    , "`STOP` if either fails."
+    , ""
+    , "RECOMMENDATION: " ++ (if condA && condB then "GO" else "STOP")
+    , ""
+    ] ++ verdictProse ++
+    [ ""
+    , "### What this threshold is and is NOT"
+    , ""
+    , "**This is a NECESSARY-condition floor, NOT a sufficient one.** It does not"
+    , "compute, and does not promise, the achievable confidence interval."
+    , ""
+    , "Reason: the standard errors are **tokenId-clustered**. Adding epochs to"
+    , "existing positions multiplies ROWS without multiplying CLUSTERS, and under"
+    , "cluster-robust inference precision is bounded by the cluster count — so a"
+    , "naive `1/sqrt(rows)` contraction argument would OVERSTATE the gain. That is"
+    , "why `USABLE_TOKENID_COUNT` (the cluster count) is reported alongside the row"
+    , "count and must be read with it."
+    , ""
+    , "Condition (b) exists because the phase's real identification gain is"
+    , "qualitative, not arithmetic. In Phase 9 each spell carried ONE"
+    , "window-averaged `sigma^2`, so within-position regressor variation was exactly"
+    , "ZERO and `upsilon_0` was identified purely cross-sectionally. Restoring"
+    , "within-position covariation is what spec 4.4 actually intends."
+    , ""
+    , "The genuine arbiter of success remains plan 10-10's result-blind stopping"
+    , "rule (clustered CI half-width <= 6.2e-5). A `GO` here means \"worth"
+    , "attempting\", NOT \"will succeed\"."
+    ]
+  where
+    condA = achievableRows >= goRowThreshold
+    condB = not (isNaN withinMedian)
+              && withinMedian >= fromIntegral goWithinEpochThreshold
+    passLabel True  = "**PASS**"
+    passLabel False = "**FAIL**"
+
+    failures = [ (lrStrike r, lrWidth r, lrTokenType r)
+               | r <- nonzero, not (lrMatched r) ]
+
+    getTicksSection
+      | null nonzero =
+          [ "No `width /= 0` legs exist across the spells, so the cross-check has"
+          , "no input. This is itself the headline finding — see the verdict." ]
+      | null failures =
+          [ "**All " ++ show (length nonzero) ++ " `width /= 0` spell-legs matched a"
+          , "`Chunk` record exactly (`GETTICKS_MATCH_RATE` = 1.0).** The formula"
+          , "reproduces the protocol's range arithmetic on every leg in the sample." ]
+      | otherwise =
+          [ "**" ++ show (length failures) ++ " of " ++ show (length nonzero)
+              ++ " `width /= 0` spell-legs did NOT match a `Chunk` record.**"
+          , "Unmatched `(strike, width, tokenType)` triples:"
+          , ""
+          , "| strike | width | tokenType |"
+          , "|---|---|---|"
+          ] ++
+          [ "| " ++ show s ++ " | " ++ show w ++ " | " ++ show tt ++ " |"
+          | (s, w, tt) <- nub failures ]
+
+    verdictProse
+      | condA && condB =
+          [ "Both pre-committed conditions hold: the achievable panel is materially"
+          , "larger than Phase 9's " ++ show phase9BaselineRows ++ " spells AND the"
+          , "regressor genuinely varies within a position. The phase's power goal is"
+          , "not ruled out on sample-size grounds." ]
+      | otherwise =
+          [ "At least one pre-committed condition FAILS. **The phase's power goal is"
+          , "unreachable on this market's data, and the correct outcome is to REPORT"
+          , "that rather than to proceed.**"
+          , ""
+          , "A STOP verdict here is a legitimate, publishable phase outcome — \"this"
+          , "market's `width /= 0` population is too thin to identify `upsilon`\" is a"
+          , "real finding — not a failure, and not an invitation to move the"
+          , "threshold." ]
+
+-- | Median of a list of counts (NaN on empty — an honest "no data", not a 0).
+medianI :: [Int] -> Double
+medianI [] = 0 / 0
+medianI xs
+  | odd n     = fromIntegral (s !! (n `div` 2))
+  | otherwise = fromIntegral (s !! (n `div` 2 - 1) + s !! (n `div` 2)) / 2
+  where s = sort xs
+        n = length xs
+
+-- | Per-leg chunk identity for every leg of every accrual spell.
+writeChunkLegsCsv :: FilePath -> [LegRow] -> IO ()
+writeChunkLegsCsv fp rows = writeFile fp (csvHeader ++ body)
+  where
+    csvHeader = "token_id,leg_index,strike,width,token_type,is_long,option_ratio,\
+             \tick_lower,tick_upper,chunk_matched,net_liquidity,total_liquidity,\
+             \position_size,epoch_mint,epoch_burn\n"
+    body = unlines
+      [ intercalate ","
+          [ T.unpack (lrTokenId r), show (lrLegIndex r), show (lrStrike r)
+          , show (lrWidth r), show (lrTokenType r)
+          , show (if lrIsLong r then 1 :: Int else 0), show (lrRatio r)
+          , show (lrTickLower r), show (lrTickUpper r)
+          , show (if lrMatched r then 1 :: Int else 0)
+          , show (lrNetLiq r), show (lrTotalLiq r)
+          , show (lrPosSize r), show (lrEpochMint r), show (lrEpochBurn r) ]
+      | r <- rows ]
 
 -- ---------------------------------------------------------------------------
 -- variance

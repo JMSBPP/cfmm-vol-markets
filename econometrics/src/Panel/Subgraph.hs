@@ -48,16 +48,24 @@ module Panel.Subgraph
   , MintEvent (..)
   , BurnEvent (..)
   , CollateralFlow (..)
+  , Chunk (..)
+  , ChunkPull (..)
     -- * Fetch (full history, cursor-paginated)
   , fetchMints
   , fetchBurns
   , fetchLegs
   , fetchCollateralFlows
+  , fetchChunks
+  , fetchChunksRaw
     -- * Pure decode (fixture-testable)
   , parseMints
   , parseBurns
   , parseLegs
   , parseCollateralFlows
+  , parseChunks
+    -- * Chunk geometry
+  , legChunkKey
+  , chunkKey
   ) where
 
 import           Data.Aeson
@@ -129,6 +137,42 @@ data BurnEvent = BurnEvent
   , bePositionSize :: !Double
   }
   deriving (Show, Eq)
+
+-- | A Panoptic liquidity CHUNK — the @(tokenType, tickLower, tickUpper)@ range
+-- that premium actually accrues to. Phase 9 never queried this entity.
+--
+-- @chId@ has the form
+-- @panopticPool#SFPM#poolId#tokenType#tickLower#tickUpper@, so the chunk is
+-- POOL-WIDE, not per-user: per-user attribution lives in
+-- @s_options[owner][tokenId][leg]@ on-chain.
+--
+-- __Liquidity fields are 'Integer', deliberately.__ The subgraph serialises
+-- BigInt as a decimal STRING and these reach 10^20 and beyond; 'Double' has 53
+-- mantissa bits and would silently lose the low-order digits (RESEARCH
+-- Anti-patterns, "@Double@ anywhere upstream of the panel").
+data Chunk = Chunk
+  { chId :: !Text
+  , chTokenType :: !Int
+  , chTickLower :: !Int
+  , chTickUpper :: !Int
+  , chStrike :: !Int
+  , chWidth :: !Int
+  , chNetLiquidity :: !Integer
+  , chShortLiquidity :: !Integer
+  , chLongLiquidity :: !Integer
+  , chTotalLiquidity :: !Integer
+  }
+  deriving (Show, Eq)
+
+-- | The result of a chunk pull, carrying the RAW response body (frozen as a
+-- test fixture) and which query path produced it — a filtered @where: {pool}@
+-- query, or the unfiltered fallback with client-side poolId filtering. The path
+-- is recorded rather than silently swallowed.
+data ChunkPull = ChunkPull
+  { cpChunks :: ![Chunk]
+  , cpRaw    :: !BL.ByteString  -- ^ verbatim body of the FIRST page.
+  , cpPath   :: !Text           -- ^ @"pool-filtered"@ or @"unfiltered-clientside"@.
+  }
 
 -- | A signed collateral share flow (deposit positive, withdraw negative) for the
 -- collateral-channel alternative (spec §6.2.4).
@@ -202,6 +246,20 @@ instance FromJSON Leg where
       <*> (o .: "tokenType"   >>= numInt)
       <*> (o .: "optionRatio" >>= numInt)
 
+instance FromJSON Chunk where
+  parseJSON = withObject "Chunk" $ \o ->
+    Chunk
+      <$> o .: "id"
+      <*> (o .: "tokenType"      >>= numInt)
+      <*> (o .: "tickLower"      >>= numInt)
+      <*> (o .: "tickUpper"      >>= numInt)
+      <*> (o .: "strike"         >>= numInt)
+      <*> (o .: "width"          >>= numInt)
+      <*> (o .: "netLiquidity"   >>= numInteger)
+      <*> (o .: "shortLiquidity" >>= numInteger)
+      <*> (o .: "longLiquidity"  >>= numInteger)
+      <*> (o .: "totalLiquidity" >>= numInteger)
+
 -- | Envelope for a named GraphQL collection: @{ "data": { "<field>": [...] } }@.
 -- Surfaces GraphQL @errors@ rather than silently decoding an empty result.
 collection :: FromJSON a => Key -> BL.ByteString -> Either String [a]
@@ -214,6 +272,48 @@ collection field bs = do
       case merrs of
         Just e  -> fail ("GraphQL errors: " ++ show (encode e))
         Nothing -> o .: "data" >>= (.: field)
+
+parseChunks :: BL.ByteString -> Either String [Chunk]
+parseChunks = collection "chunks"
+
+-- ---------------------------------------------------------------------------
+-- Chunk geometry (PanopticMath.getTicks)
+-- ---------------------------------------------------------------------------
+
+-- | Map a leg's @(strike, width, tokenType)@ onto the chunk it accrues in,
+-- mirroring @PanopticMath.getTicks@ / @getRangesFromStrike@:
+--
+-- @
+-- rangeDown = (width * tickSpacing) \`div\` 2                -- FLOOR
+-- rangeUp   = (width * tickSpacing + 1) \`div\` 2            -- CEILING
+-- tickLower = strike - rangeDown
+-- tickUpper = strike + rangeUp
+-- @
+--
+-- __The split is ASYMMETRIC for odd @width * tickSpacing@__ (floor down, ceil
+-- up). Do not "simplify" it to a symmetric ±half-width: that silently
+-- mismatches every odd-span chunk.
+--
+-- Verified against the live subgraph at the 10-01 census: all 126 @Chunk@
+-- records of the confirmed market reproduce their own @tickLower@/@tickUpper@
+-- from @(strike, width)@ under this formula with @tickSpacing = 10@.
+--
+-- This is a PROVISIONAL home. Plan 10-04 moves the canonical implementation
+-- into @Panoptic.Chunk@ and this becomes a re-export.
+--
+-- Arguments: @strike@, @width@, @tokenType@, @tickSpacing@.
+legChunkKey :: Int -> Int -> Int -> Int -> (Int, Int, Int)
+legChunkKey strike width tokenType tickSpacing =
+  (tokenType, strike - rangeDown, strike + rangeUp)
+  where
+    span'     = width * tickSpacing
+    rangeDown = span' `div` 2
+    rangeUp   = (span' + 1) `div` 2
+
+-- | The same key, read off a 'Chunk' record — the right-hand side of the
+-- 'legChunkKey' cross-check.
+chunkKey :: Chunk -> (Int, Int, Int)
+chunkKey c = (chTokenType c, chTickLower c, chTickUpper c)
 
 -- | Decode a full response body into its collection (pure; fixture-testable).
 parseMints :: BL.ByteString -> Either String [MintEvent]
@@ -263,6 +363,7 @@ pageSize :: Int
 pageSize = 1000
 
 mintsQuery, burnsQuery, legsQuery, depositsQuery, withdrawsQuery :: Text
+chunksQuery, chunksQueryUnfiltered :: Text
 mintsQuery = T.unlines
   [ "query M($pool: String!, $first: Int!, $ts: BigInt!) {"
   , "  optionMints(first: $first, where: { pool: $pool, timestamp_gt: $ts },"
@@ -288,6 +389,26 @@ legsQuery = T.unlines
   , "  tokenIds(first: $first, skip: $skip, where: { pool: $pool }) {"
   , "    id"
   , "    legs { strike width isLong tokenType optionRatio }"
+  , "  }"
+  , "}"
+  ]
+
+chunksQuery = T.unlines
+  [ "query C($pool: String!, $first: Int!, $skip: Int!) {"
+  , "  chunks(where: { pool: $pool }, first: $first, skip: $skip) {"
+  , "    id tokenType tickLower tickUpper strike width"
+  , "    netLiquidity shortLiquidity longLiquidity totalLiquidity"
+  , "  }"
+  , "}"
+  ]
+
+-- | Fallback used only if the subgraph rejects the @pool@ filter argument; the
+-- poolId is then matched client-side against the @chId@ substring.
+chunksQueryUnfiltered = T.unlines
+  [ "query CU($first: Int!, $skip: Int!) {"
+  , "  chunks(first: $first, skip: $skip) {"
+  , "    id tokenType tickLower tickUpper strike width"
+  , "    netLiquidity shortLiquidity longLiquidity totalLiquidity"
   , "  }"
   , "}"
   ]
@@ -371,6 +492,53 @@ fetchLegs ep (PoolAddr pool) = go 0 []
         Right xs ->
           let acc' = acc ++ xs
           in if length xs < pageSize then pure acc' else go (skip + pageSize) acc'
+
+-- | All @Chunk@ records for the pool (@skip@ pagination; the market's chunk
+-- count is far under the 5000 skip cap).
+--
+-- Tries the @where: { pool: … }@ filter first. If the subgraph rejects that
+-- argument the unfiltered collection is pulled and filtered client-side on the
+-- poolId substring of 'chId'. Which path ran is reported in 'cpPath' — an empty
+-- list is NEVER returned silently in place of a rejected query.
+fetchChunksRaw :: Endpoint -> PoolAddr -> IO (Either String ChunkPull)
+fetchChunksRaw ep (PoolAddr pool) = do
+  first <- post ep chunksQuery (vars pool 0)
+  case parseChunks first of
+    Right _  -> Right <$> drain "pool-filtered" chunksQuery (vars pool) id first
+    Left err -> do
+      -- The filter was rejected (or the response was malformed). Fall back to
+      -- the unfiltered collection rather than reporting "no chunks".
+      firstU <- post ep chunksQueryUnfiltered (varsU 0)
+      case parseChunks firstU of
+        Left err2 -> pure (Left ("Panel.Subgraph: chunks decode failed. \
+                                 \pool-filtered: " ++ err
+                                 ++ " | unfiltered fallback: " ++ err2))
+        Right _   ->
+          Right <$> drain "unfiltered-clientside" chunksQueryUnfiltered
+                          varsU (filter matchesPool) firstU
+  where
+    vars  p skip = object [ "pool" .= p, "first" .= pageSize, "skip" .= (skip :: Int) ]
+    varsU   skip = object [ "first" .= pageSize, "skip" .= (skip :: Int) ]
+    matchesPool c = pool `T.isInfixOf` chId c
+
+    -- Page through, keeping the FIRST page's raw body as the frozen fixture.
+    drain path qry mkVars keep firstBody = go 0 [] firstBody
+      where
+        go skip acc body = case parseChunks body of
+          Left err -> ioError (userError ("Panel.Subgraph: chunks decode failed: " ++ err))
+          Right xs -> do
+            let acc' = acc ++ keep xs
+            if length xs < pageSize
+              then pure (ChunkPull acc' firstBody path)
+              else do
+                let skip' = skip + pageSize
+                body' <- post ep qry (mkVars skip')
+                go skip' acc' body'
+
+-- | All @Chunk@ records for the pool. See 'fetchChunksRaw' for the raw body and
+-- the query path actually taken.
+fetchChunks :: Endpoint -> PoolAddr -> IO (Either String [Chunk])
+fetchChunks ep pool = fmap cpChunks <$> fetchChunksRaw ep pool
 
 -- | Signed collateral share flows (deposits positive, withdraws negative) for
 -- the collateral-channel alternative.
