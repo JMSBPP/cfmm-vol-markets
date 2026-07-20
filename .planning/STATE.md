@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Phase 9 halted after Wave 4 per user: 09-01..09-08 complete (8/11), suite 40/0, Lean lib zero-sorry incl. proved bridging lemma. Resume: /gsd:execute-phase 9 → Wave 5 (09-09 live estimation run) then Wave 6 checkpoints (09-10 GAMS handoff, 09-11 audit-econ)"
-last_updated: "2026-07-20T03:04:36.651Z"
-last_activity: "2026-07-20 — 09-08: CTX-EST SE + CTX-TEST — hand-rolled tokenId-clustered CR0 sandwich SE (golden 1e-9) + the three committed spec tests (υ₀>0, κ>0, κ⁺=κ⁻); stack test 40/0 green."
+stopped_at: "Completed 09-09-PLAN.md (live estimation run — NULL result, honestly reported). Next: 09-10 (GAMS differential cross-check, consumes estimation-panel.csv), 09-11 (audit-econ gate)"
+last_updated: "2026-07-20T12:26:41.603Z"
+last_activity: "2026-07-20 — 09-09: CTX-ALT + the LIVE RUN — four locked alternatives; 632,315 V4 swaps + 61 accrual spells pulled; NULL result (υ̂₀≈0 ⇒ κ unidentified, witness does NOT obtain); suite 59/0, lake build green."
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 18
-  completed_plans: 15
-  percent: 83
+  completed_plans: 16
+  percent: 89
 ---
 
 # Project State
@@ -26,15 +26,16 @@ See: .planning/PROJECT.md (updated 2026-06-27)
 ## Current Position
 
 Phase: 9 of 9 (Upsilon Econometric Estimation — Lean-Aware) — Lean4 + Haskell econometrics track
-Plan: 09-08 COMPLETE (CTX-EST SE + CTX-TEST — clustered sandwich SEs + the three spec tests). 09-04 (panel) + 09-05 (variance) + 09-06 (Aristotle bridging lemma) + 09-07 (estimator core) COMPLETE. Wave remaining: 09-09 (live estimation), 09-10 (GAMS differential), 09-11.
+Plan: 09-09 COMPLETE (CTX-ALT + the LIVE ESTIMATION RUN). 09-04..09-08 COMPLETE. Wave remaining: 09-10 (GAMS differential cross-check), 09-11 (audit-econ gate).
+Plan (09-09): CTX-ALT + THE LIVE RUN. Alternatives.hs = the four LOCKED spec §6.2 alternatives (semiparametric degree-0 B-spline vega profile on moneyness quantile knots; seed tick-linearization centered at ī; tokenId-FE within estimator with κ concentrated over a grid; collateral channel) — each reports estIdentified=False WITH A REASON rather than a meaningless number. SCHEMA CORRECTION (Rule 1+3, forced): 09-04's Panel.Subgraph/Panel.Build queried a schema that does not exist — TokenId has no `snapshots`, `premiumSettleds` is EMPTY, premiaSettled*Total is IDENTICALLY ZERO market-wide, and Leg.strike is already an int24 TICK (the round(log K/log 1.0001) map produced NaN on negative strikes). Unit of observation therefore forced to the ACCRUAL SPELL (mint→burn, π = USD/day, σ̂² averaged over the spell window); spreading premium across days REJECTED as manufacturing a mechanical null. LIVE DATA: 632,315 V4 Swap logs (blocks 43,781,657..48,879,461, 510 chunked calls) → 119 daily epochs; 1447 mints + 1432 burns + 768 tokenIds → 61 accrual spells / 55 tokenIds / 4 accounts (34 above the money, 27 below). NLS BUG FIXED: κ enters as exp(−κ·d) with d in TICKS (median 153), so the fixed start κ=0.2 gives exp(−0.2·153)≈5e−14 — numerically dead, Jacobian vanishes, and the first live run reported a SPURIOUS κ=0.384; Model.NLS now multi-starts from data-scaled values and keeps the lowest SSE (regression test at live tick scale added). RESULT = NULL: υ̂₀=2.27e−9 (clustered SE 1.26e−4) is numerically ZERO ⇒ κ STRUCTURALLY UNIDENTIFIED (SE 18.8) and the κ>0 test is VACUOUS (not fails-to-reject); best fit is a constant β̂₀=2.36e−4 USD/day (SE 8.8e−5). Formal witness of exp_family_witnesses_ATMOTM does NOT obtain — the Lean theorem stays proved/axiom-clean and the conjecture stays OPEN; this cross-section carries no information about it. Alternatives: semiparametric NOT INTERPRETABLE (non-monotone, SE-dominated), seed-linear γ=+5.5e−4 (OPPOSITE sign to κ>0), position-FE NOT IDENTIFIED (11 obs / 5 multi-spell tokenIds, boundary minimizer ⇒ selection threat UNRESOLVED), collateral estimated but on DEPOSITED collateral not required Q_M. Self-describing analysis output + estimation-panel.csv (61 rows) exported for 09-10. Suite 59/0; lake build vol_markets exit 0 (commits e32e179, dab55c7, b8b49aa, c9f16c1, bb15a96).
 Plan (09-08): Model.SandwichSE.clusterSandwich = hand-rolled tokenId-clustered CR0 sandwich (bread·meat·bread, bread=(JᵀJ)⁻¹, meat=Σ_g s_g s_gᵀ) — reproduces the frozen 09-01 golden V/SE to 1e-9 and collapses to HC0 under singleton clusters; pure CR0 (no finite-sample correction) with clusterCR1Factor exposed. Tests.Specification = the three committed §5 tests: testUpsilonPos/testKappaPos one-sided Normal on the clustered covariance (κ>0 = THE null test H₀:κ=0), testSymmetry χ²₁ Wald on the 2×2 κ⁺/κ⁻ sub-block; excluded restrictions absent; p-values from statistics. estimate CLI wires clustered SEs + all three tests (split-model Wald fit inline in Main). Full suite 40/0 (commits 416e9b2, 4f7085e).
 Plan (09-07): estimator core (CTX-EST) — Model.Upsilon mirrors Lean upsilon/PosSpec.lam byte-for-byte (model = b0+u0·exp(−k·d)·s2, moneyness |iK−it|, tickBase 1.0001, modelSplit κ⁺/κ⁻); Model.NLS.fitGSL = hmatrix-gsl Numeric.GSL.Fitting Levenberg-Marquardt PRIMARY (analytic Jacobian + covariance handle for 09-08 SEs), fitAD = ad Gauss-Newton/LM cross-check (both recover planted params 1e-2, agree 1e-3); Model.EIV.ivFit = two-step two-noisy-measures IV (κ̂ from NLS, then (ZᵀX)⁻¹Zᵀy instrumenting σ̂² with σ̃², reduces attenuation); estimate CLI joins panel.csv⋈variance.csv; lean-haskell-crosswalk.md is the witness fidelity table. Full suite 31/0 (commits af84dc1, 2de090a).
 Plan (09-06): exp_family_witnesses_ATMOTM proved by single serial Aristotle task (new project f9865d3a, task 84b02173, server commit 7ccd814) AS STATED (Option-B slope-centered envelope, not weakened); integrated sorry-free into lean/vol_markets/Upsilon.lean. lake build vol_markets exit 0 (8032 jobs), zero sorries; #print axioms = [propext, Classical.choice, Quot.sound] on the bridging lemma and all re-checked Phase-8/upsilon theorems. κ̂>0 now formally witnesses ATMOTMNullHypothesis (commit c087ec8).
 Plan (09-05): variance regressor σ̂²_t + EIV instrument σ̃²_t built (CTX-VAR) — Panel.Variance ingests Base V4 Swap logs via chunked eth_getLogs RPC (USER-DIRECTED OVERRIDE; BigQuery dropped, project suspended), decodes int24 tick/uint160 sqrtPriceX96 from log data; realizedVariance = within-day RV of tick log-price increments, instrument = disjoint even-swap sub-window (two-noisy-measures IV); reuses Panel.Build.dailyEpoch (unix-day index) so variance.csv joins panel.csv. Live proof: 2136 real swaps, blocks 48768127..48775327, 2 epochs (20651/20652) → notes/.../variance.csv + swap-ticks cache. Full suite 18/0.
-Status: In Progress — inference layer DONE (09-08): clustered CR0 sandwich SEs (golden 1e-9) + the three committed spec tests. Next: 09-09 (live estimation — widen variance CLI to full history first OptionMint 43,781,657 → tip and populate panel.csv's σ̂² column so the epoch join yields usable obs; the SandwichSE + Specification machinery is ready to consume the real fitted θ), 09-10 (GAMS differential cross-check), 09-11. Concern: thin cross-section (~7 accounts / 1000+ OptionMints, ~4 months) — no synthetic padding; and the split-model symmetry fit needs OTM mass on BOTH sides of the money to be locally identified (a 09-09 live-data robustness concern).
-Last activity: 2026-07-20 — 09-08: CTX-EST SE + CTX-TEST — hand-rolled tokenId-clustered CR0 sandwich SE (golden 1e-9) + the three committed spec tests (υ₀>0, κ>0, κ⁺=κ⁻); stack test 40/0 green.
+Status: In Progress — THE LIVE RUN IS DONE (09-09) and the answer is an honest NULL: the Base ETH/USDC market yields 61 accrual spells over 4 accounts, on which the vega term is numerically extinguished (υ̂₀≈0), κ is structurally unidentified, and the Lean witness does not obtain. Next: 09-10 (GAMS differential cross-check — consumes notes/structural-econometrcics/data/estimation-panel.csv), 09-11 (audit-econ gate). AUDIT FLAG for 09-11: the unit of observation was changed from position-epoch to accrual spell because the spec's object is not constructible from the live subgraph — a genuine spec departure, documented in DATA-SOURCES.md §5 and §1/threat-1 of the analysis output, that the audit should scrutinize specifically. Resolved 09-08 concern: OTM mass EXISTS on both sides (34/27), so the κ⁺/κ⁻ symmetry fit is locally identified — it is uninformative here only because υ̂₀≈0.
+Last activity: 2026-07-20 — 09-09: CTX-ALT + the LIVE RUN — four locked alternatives; 632,315 V4 swaps + 61 accrual spells pulled; NULL result (υ̂₀≈0 ⇒ κ unidentified, witness does NOT obtain); suite 59/0, lake build green.
 
-Progress: [████████░░] 83%
+Progress: [█████████░] 89%
 
 ## Performance Metrics
 
@@ -65,6 +66,7 @@ Progress: [████████░░] 83%
 | Phase 09 P06 | 30 | 2 tasks | 1 files |
 | Phase 09 P07 | 9 | 2 tasks | 9 files |
 | Phase 09 P08 | 8 | 2 tasks | 7 files |
+| Phase 09 P09 | 195 | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -98,6 +100,9 @@ Recent decisions affecting current work:
 - [Phase 09]: 09-07: EIV ivFit = two-step two-noisy-measures IV — κ̂ from NLS (identified off moneyness), then just-identified IV (ZᵀX)⁻¹Zᵀy instruments σ̂² with σ̃²; reduces υ̂₀ attenuation. Model.Upsilon mirrors Lean upsilon/PosSpec.lam byte-for-byte, backed by lean-haskell-crosswalk.md
 - [Phase 09]: 09-08: clusterSandwich = pure CR0 (bread·meat·bread, no finite-sample correction) to match the frozen 09-01 golden to 1e-9; Stata CR1 factor (G/(G−1))·((N−1)/(N−k)) exposed as clusterCR1Factor but not baked in
 - [Phase 09]: 09-08: the three committed §5 tests use the CLUSTERED covariance (not naive OLS SEs) — υ₀>0/κ>0 one-sided Normal upper tail (κ>0 is THE null test), κ⁺=κ⁻ χ²₁ Wald on the 2×2 split sub-block; deliberately-excluded J-test/β₀=0 absent; split-model Wald fit inlined in Main (Model.NLS out of files_modified)
+- [Phase 09]: 09-09: unit of observation forced to the ACCRUAL SPELL (mint→burn) — the live subgraph has NO per-epoch premium series (TokenId.snapshots absent, premiumSettleds empty, premiaSettled*Total identically zero); spreading spell premium across days rejected as manufacturing a mechanical null. Flagged for the 09-11 audit.
+- [Phase 09]: 09-09: Model.NLS multi-starts from data-scaled values — a fixed kappa=0.2 start is numerically dead when moneyness is in ticks (exp(-0.2*153)~5e-14), and produced a spurious kappa=0.384 on the first live run
+- [Phase 09]: 09-09: LIVE RESULT is a NULL — upsilon0-hat=2.3e-9 (SE 1.3e-4) is numerically zero, so kappa is STRUCTURALLY UNIDENTIFIED (SE 18.8) and the kappa>0 test is VACUOUS, not fails-to-reject. The exp_family_witnesses_ATMOTM witness does NOT obtain; the Lean conjecture remains open and untouched.
 
 ### Pending Todos
 
@@ -116,6 +121,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-20T03:04:36.648Z
-Stopped at: Phase 9 halted after Wave 4 per user: 09-01..09-08 complete (8/11), suite 40/0, Lean lib zero-sorry incl. proved bridging lemma. Resume: /gsd:execute-phase 9 → Wave 5 (09-09 live estimation run) then Wave 6 checkpoints (09-10 GAMS handoff, 09-11 audit-econ)
-Resume file: .planning/phases/09-upsilon-econometric-estimation-lean-aware/09-09-PLAN.md
+Last session: 2026-07-20T12:26:41.600Z
+Stopped at: Completed 09-09-PLAN.md (live estimation run — NULL result, honestly reported). Next: 09-10 (GAMS differential cross-check, consumes estimation-panel.csv), 09-11 (audit-econ gate)
+Resume file: None
