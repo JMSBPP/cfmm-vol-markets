@@ -118,3 +118,37 @@ spec = describe "Model.NLS / Model.EIV (CTX-EST synthetic recovery)" $ do
       let Theta _ u0Naive _ = fitGSL attenuationPanel
           Theta _ u0IV    _ = ivFit  attenuationPanel
       relErr plantedU0 u0IV `shouldSatisfy` (< relErr plantedU0 u0Naive)
+
+  -- REGRESSION (plan 09-09): the live Base market has moneyness distances of
+  -- O(10^2)-O(10^3) TICKS, where the old fixed start kappa = 0.2 evaluates
+  -- exp(-0.2*153) ~ 5e-14. The model is numerically zero there, the Jacobian
+  -- vanishes, and LM "converges" to an artifact of the start value. The
+  -- data-scaled multi-start must recover the planted parameters at that scale.
+  describe "fitGSL at LIVE tick scale (multi-start regression)" $ do
+    let bTrue = 3.0e-4
+        uTrue = 5.0e-2
+        kTrue = 4.0e-3          -- e-folding over 250 ticks
+        tickScalePanel =
+          [ Obs { obsTokenId = T.pack ("t" <> show j)
+                , obsEpoch = 20600 + j
+                , obsPremium = bTrue + uTrue * exp (negate kTrue * d) * s2
+                , obsStrikeTick = -200000 + dev
+                , obsPoolTick = -200000
+                , obsSigma2 = s2
+                , obsSigma2Instr = s2 }
+          | (j, dev) <- zip [0 ..] [ 13, 40, 90, 153, 240, 380, 600, 900
+                                   , 1400, 2100, 2954, -20, -75, -160, -310
+                                   , -520, -880, -1300, -2000, -2800 ]
+          , let d  = fromIntegral (abs dev) :: Double
+                s2 = 3.13e-4 * (1 + 0.2 * fromIntegral (j `mod` 5))
+          ]
+
+    it "recovers the planted params where a fixed kappa=0.2 start cannot" $ do
+      let Theta b0 u0 k = fitGSL tickScalePanel
+      relErr bTrue b0 `shouldSatisfy` (< 1.0e-2)
+      relErr uTrue u0 `shouldSatisfy` (< 1.0e-2)
+      relErr kTrue k  `shouldSatisfy` (< 1.0e-2)
+
+    it "returns a POSITIVE kappa on a genuinely decaying profile" $ do
+      let Theta _ _ k = fitGSL tickScalePanel
+      k `shouldSatisfy` (> 0)

@@ -496,7 +496,7 @@ writeVarianceCsv path sig2 sig2i tickM = writeFile path (banner ++ rows)
       , "# epoch = UTC-day index floor(unixSeconds/86400) (same boundary as the panel)."
       , "# Source: Uniswap V4 PoolManager Swap logs on Base via chunked eth_getLogs"
       , "#   (poolId 0x96d4…288c0a); BigQuery path retired (project suspended)."
-      , "epoch,sigma2,sigma2_instrument,pool_tick_mean,reserved"
+      , "epoch,sigma2,sigma2_instrument,pool_tick_mean"
       ]
 
 -- ---------------------------------------------------------------------------

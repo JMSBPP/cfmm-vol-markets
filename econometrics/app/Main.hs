@@ -313,7 +313,7 @@ runEstimate eo = do
       let (thetaG, _) = fitGSLCov panel
           thetaIV     = ivFit panel
           tokCl       = [ obsTokenId o | o <- usable ]
-          acctCl      = [ obsEpochAccount o | o <- usable ]
+          acctCl      = [ obsAccount o | o <- usable ]
           (jRows, resids) = sandwichInputs thetaG usable
           vTok  = clusterSandwich jRows resids tokCl
           vAcct = clusterSandwich jRows resids acctCl
@@ -329,11 +329,11 @@ runEstimate eo = do
                         vTok vAcct rU rK rS symNote alts collat)
       putStrLn ("estimate: wrote " ++ outPath)
 
--- | The account label, carried through 'Obs' via the epoch-account encoding set
--- up by 'joinSpells' (see 'obsEpochAccount').
-obsEpochAccount :: Obs -> T.Text
-obsEpochAccount = obsSigma2InstrAccount
-  where obsSigma2InstrAccount o = T.takeWhile (/= '#') (obsTokenId o)
+-- | The ACCOUNT label of an observation. 'joinSpells' encodes 'obsTokenId' as
+-- @account#tokenId@ so a single 'Obs' carries both clustering levels; the
+-- account is the prefix before the @#@.
+obsAccount :: Obs -> T.Text
+obsAccount = T.takeWhile (/= '#') . obsTokenId
 
 finiteD :: Double -> Bool
 finiteD x = not (isNaN x || isInfinite x)
@@ -445,7 +445,9 @@ joinSpells varMap = map toObs
 -- available proxy and must be read as such.
 collateralObs :: [CollateralFlow] -> Map.Map Int VarRow -> [CollateralObs]
 collateralObs flows varMap =
-  [ CollateralObs owner ep bal (vrSigma2 vr)
+  -- Shares are reported in 1e18-scaled raw units; dividing by 1e18 puts Q_M on a
+  -- human scale so the fitted coefficients are readable rather than ~1e22.
+  [ CollateralObs owner ep (bal / 1e18) (vrSigma2 vr)
   | (owner, series) <- Map.toList byOwner
   , (ep, bal) <- balancesByEpoch series
   , Just vr <- [Map.lookup ep varMap]
@@ -570,7 +572,7 @@ reportToStdout
   :: Theta -> Theta -> LA.Matrix Double -> LA.Matrix Double
   -> TestResult -> TestResult -> TestResult -> [(T.Text, Estimates)] -> Panel -> IO ()
 reportToStdout (Theta bg ug kg) (Theta bi ui ki) vTok vAcct rU rK rS alts usable = do
-  let [seB, seU, seK] = take 3 (standardErrors vTok ++ repeat (0 / 0))
+  let (seB : seU : seK : _) = take 3 (standardErrors vTok ++ repeat (0 / 0))
   putStrLn "estimate: PRIMARY GSL Levenberg-Marquardt  pi = b0 + u0*exp(-k*d)*sigma2"
   printf "  b0 = %.6g (SE %.3g)   u0 = %.6g (SE %.3g)   kappa = %.6g (SE %.3g)\n"
          bg seB ug seU kg seK
@@ -613,7 +615,7 @@ renderAnalysis
   -> TestResult -> TestResult -> TestResult -> String
   -> [(T.Text, Estimates)] -> [CollateralObs] -> String
 renderAnalysis eo dateStr spells varMap usable
-               (Theta bg ug kg) (Theta bi ui ki) vTok vAcct rU rK rS symNote alts collat =
+               (Theta bg ug kg) (Theta bi ui ki) vTok vAcct rU rK rS symNote alts _collat =
   unlines $
     [ "# Panoptic vol-claim upsilon: live estimates — " ++ dateStr
     , ""
@@ -710,6 +712,8 @@ renderAnalysis eo dateStr spells varMap usable
     , ""
     , "Test 3 identification: " ++ symNote ++ "."
     , ""
+    ] ++ degeneracyWarning ++
+    [ ""
     , "Test 2 is the econometric twin of the Lean conjecture"
     , "`Upsilon.ATMOTMNullHypothesis`: H0 kappa = 0 (flat vega profile) versus"
     , "H1 kappa > 0 (maximal at the money, exponential decay out of the money)."
@@ -775,7 +779,45 @@ renderAnalysis eo dateStr spells varMap usable
     upsilonPositive = ug > 0 && not (isNaN ug)
     kappaSignificant = kappaPositive && reject rK
 
+    -- THE DEGENERACY CHECK. kappa only enters the model through the term
+    -- upsilon0 * exp(-kappa*d) * sigma2. If upsilon0-hat is numerically zero, that
+    -- whole term vanishes and kappa has NO effect on the fit at any value: it is
+    -- structurally unidentified and its point estimate, SE and test are vacuous.
+    -- Yardstick: the largest contribution the vega term can make to pi, relative
+    -- to the fitted intercept.
+    maxVegaContribution =
+      abs ug * maximum (1e-300 : [ obsSigma2 o | o <- usable, finiteD (obsSigma2 o) ])
+    upsilonDegenerate = maxVegaContribution < 1e-6 * abs bg
+
+    degeneracyWarning
+      | not upsilonDegenerate = []
+      | otherwise =
+          [ "> **kappa IS NOT IDENTIFIED ON THIS SAMPLE — read test 2 as vacuous.**"
+          , ">"
+          , "> kappa enters the model ONLY through `upsilon0 * exp(-kappa*d) * sigma2`."
+          , "> The fitted `upsilon0-hat = " ++ fmtG ug ++ "` is numerically zero: the"
+          , "> largest contribution the vega term can make to `pi` anywhere in the"
+          , "> sample is " ++ fmtG maxVegaContribution ++ ", against a fitted intercept"
+          , "> of " ++ fmtG bg ++ ". With the vega term extinguished, kappa has NO"
+          , "> effect on the fit at ANY value — which is exactly why its standard error"
+          , "> is " ++ fmtG seK ++ ", orders of magnitude larger than the estimate."
+          , ">"
+          , "> The honest reading is that the best fit to this cross-section is a"
+          , "> CONSTANT premium rate `pi = beta0`, with no detectable variance-times-"
+          , "> moneyness structure at all. The `kappa > 0` test statistic is reported"
+          , "> above for completeness but carries no information, and neither"
+          , "> rejecting nor failing to reject it says anything about the conjecture."
+          ]
+
     headline
+      | upsilonDegenerate =
+          "**NULL RESULT: no vega structure is detectable in this cross-section.**"
+            ++ " The fitted vega level upsilon0-hat = " ++ fmtG ug ++ " is numerically"
+            ++ " zero, so the moneyness decay kappa is STRUCTURALLY UNIDENTIFIED"
+            ++ " (SE " ++ fmtG seK ++ ") and its test is vacuous. The best fit to the"
+            ++ " " ++ show (length usable) ++ " observations is a constant premium rate"
+            ++ " beta0-hat = " ++ fmtG bg ++ " USD/day (clustered SE " ++ fmtG seB
+            ++ "). The formal witness does NOT obtain; see sections 3 and 6."
       | kappaSignificant && upsilonPositive =
           "**kappa-hat = " ++ fmtG kg ++ " (clustered SE " ++ fmtG seK ++ ", p = "
             ++ fmtG (pValue rK) ++ ") — H0: kappa = 0 is REJECTED in favour of"
@@ -793,6 +835,11 @@ renderAnalysis eo dateStr spells varMap usable
             ++ " the conjecture.** The formal witness does NOT obtain; see section 6."
 
     kappaVerdict
+      | upsilonDegenerate =
+          "**Verdict: the null test is VACUOUS on this sample.** kappa is not"
+            ++ " identified (see the box above), so H0: kappa = 0 can be neither"
+            ++ " rejected nor sustained. This is a NULL RESULT about the data's"
+            ++ " information content, not evidence about the vega profile."
       | kappaSignificant =
           "**Verdict: H0 (kappa = 0) is REJECTED** at the 5% level in favour of"
             ++ " kappa > 0, on the tokenId-clustered covariance."
@@ -818,8 +865,8 @@ renderAnalysis eo dateStr spells varMap usable
       , "`hd : 0 < Delta_i` (the tick spacing, 10 on this market, so `hd` holds by"
       , "inspection). The fitted values are:"
       , ""
-      , "- `upsilon0-hat = " ++ fmtG ug ++ "`  ->  `hu` " ++ satisfied upsilonPositive
-      , "- `kappa-hat = " ++ fmtG kg ++ "`  ->  `hk` " ++ satisfied kappaPositive
+      , "- `upsilon0-hat = " ++ fmtG ug ++ "`  ->  `hu` " ++ huStatus
+      , "- `kappa-hat = " ++ fmtG kg ++ "`  ->  `hk` " ++ hkStatus
       , "- `Delta_i = 10` (pool tickSpacing)  ->  `hd` SATISFIED"
       , ""
       , verdict
@@ -827,7 +874,29 @@ renderAnalysis eo dateStr spells varMap usable
       where
         satisfied True  = "SATISFIED."
         satisfied False = "**NOT satisfied.**"
+        -- A point estimate that is positive only in sign, while numerically zero,
+        -- does NOT satisfy a strict-positivity hypothesis in any usable sense.
+        huStatus
+          | upsilonDegenerate =
+              "**NOT usable** — positive in sign but numerically zero, so the strict"
+              ++ " inequality is satisfied only vacuously."
+          | otherwise = satisfied upsilonPositive
+        hkStatus
+          | upsilonDegenerate =
+              "**cannot be evaluated** — kappa is unidentified once the vega term"
+              ++ " vanishes."
+          | otherwise = satisfied kappaPositive
         verdict
+          | upsilonDegenerate =
+              "**The witness does NOT obtain.** The theorem's hypothesis"
+              ++ " `hu : 0 < upsilon0` fails at the point estimate (upsilon0-hat = "
+              ++ fmtG ug ++ ", numerically zero), and because the vega term is"
+              ++ " extinguished `kappa` is not identified at all, so `hk : 0 < kappa`"
+              ++ " cannot be evaluated against the data either. The fitted profile is"
+              ++ " NOT a witness of `ATMOTMNullHypothesis`. Note what this does and"
+              ++ " does NOT say: the Lean theorem remains proved and axiom-clean, and"
+              ++ " the conjecture remains open. This cross-section simply carries no"
+              ++ " information about it."
           | kappaSignificant && upsilonPositive =
               "**The witness OBTAINS.** All three hypotheses are satisfied by the"
               ++ " point estimates and `kappa > 0` is statistically significant at"
@@ -877,7 +946,7 @@ renderAnalysis eo dateStr spells varMap usable
                     , "|---|---|"
                     ] ++
                     [ "| " ++ fmtG d ++ " | " ++ fmtG u ++ " |" | (d, u) <- estCurve e ] ++
-                    [ "", shapeReadOff (estCurve e) ]) ++
+                    [ "", shapeReadOff e ]) ++
              [ "", "Note: " ++ T.unpack (estNote e) ]
         else [ "**NOT IDENTIFIED / NOT ESTIMABLE.**"
              , ""
@@ -888,16 +957,35 @@ renderAnalysis eo dateStr spells varMap usable
              ]) ++
       [ "" ]
 
-    shapeReadOff curve
-      | length curve < 2 = ""
-      | snd (head curve) > snd (last curve) =
-          "Shape read-off: the profile DECLINES from the money outward — the"
-          ++ " direction the conjecture (kappa > 0) predicts."
+    -- The read-off is only meaningful if the estimated curve is (a) monotone in
+    -- moneyness and (b) resolved above its own standard errors. A non-monotone
+    -- curve whose bins are dwarfed by their SEs shows nothing, and saying
+    -- otherwise would be reading a trend out of noise.
+    shapeReadOff e
+      | length us < 2 = ""
+      | not resolved =
+          "Shape read-off: **NONE AVAILABLE.** Every bin's coefficient is smaller"
+          ++ " than its own clustered standard error, so the estimated profile is"
+          ++ " indistinguishable from noise. No shape — declining, flat or"
+          ++ " otherwise — can be read off it."
+      | not monotone =
+          "Shape read-off: **NOT INTERPRETABLE.** The estimated profile is"
+          ++ " NON-MONOTONE in moneyness (bin values "
+          ++ intercalate ", " (map fmtG us) ++ "), so it exhibits neither the"
+          ++ " exponential decay of H1 nor the flat profile of H0."
+      | head us > last us =
+          "Shape read-off: the profile declines monotonically from the money"
+          ++ " outward — the direction the conjecture (kappa > 0) predicts."
       | otherwise =
           "Shape read-off: the profile does NOT decline from the money outward —"
           ++ " no unrestricted evidence for an at-the-money vega peak."
+      where
+        us      = map snd (estCurve e)
+        binSEs  = [ se | (n, se) <- estSEs e, T.isPrefixOf "upsilon_bin" n ]
+        resolved = or (zipWith (\u se -> abs u > se) us (binSEs ++ repeat (1 / 0)))
+        monotone = and (zipWith (>=) us (drop 1 us))
+                     || and (zipWith (<=) us (drop 1 us))
 
-    _unusedCollat = length collat
 
 -- | The audit trail: everything needed to trace every number backward to raw
 -- chain data. No credentials, no absolute paths.
@@ -986,7 +1074,3 @@ lineageSection eo dateStr nSpells nEpochs nUsable = unlines
   ]
   where
     show' s = if null s then "(not recorded on this run)" else s
-
--- Silence unused-import warnings for helpers used only in some branches.
-_unusedIntercalate :: [String] -> String
-_unusedIntercalate = intercalate ", "

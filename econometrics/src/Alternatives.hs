@@ -15,7 +15,7 @@
 --   2. __seed-linear__ — the ORIGINAL @spec/panoptic.md@ tick linearization
 --      @π = β₀ + υ(ī)·σ̂² + γ·((i_K − ī)·σ̂²)@, the reduced-form benchmark. It is the
 --      first-order expansion of the exponential profile around the mean tick ī,
---      so @γ < 0@ is the linear-benchmark echo of @κ > 0@.
+--      so the SIGN of @γ@ is the linear-benchmark echo of @κ@ (@γ < 0@ ⇔ @κ > 0@).
 --   3. __position-FE__ — tokenId fixed effects (within transformation). A material
 --      move in κ̂ versus the primary indicates strike-composition SELECTION was
 --      doing work (spec §6.1 sensitivity 2, §6.2 diagnostic 3).
@@ -271,9 +271,26 @@ seedLinearSpec panel
           , estClusters   = nG
           , estIdentified = True
           , estNote       =
-              T.pack ("seed tick-linearization, strike centered at mean pool tick i-bar = "
-                      <> show (round iBar :: Int)
-                      <> "; gamma<0 is the linear echo of kappa>0 (cannot express an ATM peak)")
+              let gHat = case drop 2 coefs of { (g : _) -> g; [] -> 0 / 0 }
+                  gSE  = case drop 2 ses   of { (g : _) -> g; [] -> 0 / 0 }
+                  gRead
+                    | isNaN gHat = "gamma was not estimated."
+                    | abs gHat <= gSE =
+                        "gamma = " <> show gHat <> " is SMALLER than its clustered SE ("
+                          <> show gSE <> "), i.e. indistinguishable from zero: the linear "
+                          <> "benchmark detects no strike tilt in either direction."
+                    | gHat < 0 =
+                        "gamma = " <> show gHat <> " < 0 - the linear echo of kappa > 0 "
+                          <> "(vega falling as the strike moves above the money)."
+                    | otherwise =
+                        "gamma = " <> show gHat <> " > 0 - the OPPOSITE sign to the one "
+                          <> "kappa > 0 predicts (vega RISING with the strike). Read "
+                          <> "alongside the semiparametric profile before concluding "
+                          <> "anything from it."
+              in T.pack ("seed tick-linearization, strike centered at the mean pool tick "
+                         <> "i-bar = " <> show (round iBar :: Int)
+                         <> ". This form cannot express an ATM PEAK (it is monotone in "
+                         <> "the tick), so it detects only a local slope. " <> gRead)
           , estCurve      = []
           }
   where
@@ -335,12 +352,19 @@ positionFESpec panel
           , estSEs        = [("kappa_FE", 0 / 0)] <> zip names ses
           , estNobs       = nObs
           , estClusters   = nG
-          , estIdentified = True
-          , estNote       =
-              T.pack ("within (tokenId-FE) estimator, kappa concentrated over a grid; "
-                      <> "SE(kappa_FE) is NaN by construction — kappa is profiled, not "
-                      <> "jointly estimated. Compare kappa_FE with the primary kappa: a "
-                      <> "material move indicates strike-composition selection")
+          , estIdentified = not kAtBoundary
+          , estNote       = T.pack $
+              if kAtBoundary
+                then "kappa_FE = " <> show kHat <> " sits ON THE BOUNDARY of the search "
+                     <> "grid, so the within objective is FLAT in kappa: the within "
+                     <> "variation (only " <> show nObs <> " observations across "
+                     <> show nG <> " multi-spell tokenIds) does not identify the decay "
+                     <> "rate. The no-selection diagnostic is therefore UNAVAILABLE and "
+                     <> "the strike-composition threat is UNRESOLVED, not cleared."
+                else "within (tokenId-FE) estimator, kappa concentrated over a grid; "
+                     <> "SE(kappa_FE) is NaN by construction — kappa is profiled, not "
+                     <> "jointly estimated. Compare kappa_FE with the primary kappa: a "
+                     <> "material move indicates strike-composition selection"
           , estCurve      = []
           }
   where
@@ -359,8 +383,13 @@ positionFESpec panel
     -- Concentrated grid search over kappa (log-spaced; ticks are O(10^3) here so
     -- the informative kappa range is small).
     kGrid    = [ 10 ** e | e <- [-6, -5.75 .. -1] ] :: [Double]
-    kHat     = if null ds then 0 / 0
-               else fst (head (sortOn snd [ (k, withinSSE k) | k <- kGrid ]))
+    kHat     = case sortOn snd [ (k, withinSSE k) | k <- kGrid ] of
+                 ((k, _) : _) -> k
+                 []           -> 0 / 0
+    -- A minimizer sitting on an endpoint of the grid is not an interior optimum:
+    -- the within objective is flat in kappa and the value carries no information.
+    kAtBoundary = not (null kGrid)
+                    && (kHat <= minimum kGrid * 1.001 || kHat >= maximum kGrid * 0.999)
 
     withinD k = demeanBy clusters [ exp (negate k * d) * s2
                                   | (_, d, _, _, s2, _) <- ds ]
@@ -422,8 +451,14 @@ collateralSpec obs
           , estNobs       = length usable
           , estClusters   = nG
           , estIdentified = True
-          , estNote       = "collateral-channel upsilon; compare with the \
-                            \premium-channel upsilon0. Clustered by ACCOUNT."
+          , estNote       = "CAVEAT FIRST: Q_M here is DEPOSITED collateral shares \
+                            \reconstructed from CollateralDeposit/Withdraw events, NOT \
+                            \the protocol's required margin. The subgraph exposes no \
+                            \per-position collateral requirement (collateral*Shares is a \
+                            \CURRENT snapshot only; CollateralDayData is vault-level), so \
+                            \this is a behavioural quantity and is NOT the spec's Q_M. \
+                            \Any comparison with the premium-channel upsilon0 is \
+                            \suggestive at best. Clustered by ACCOUNT."
           , estCurve      = []
           }
   where
