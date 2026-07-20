@@ -339,7 +339,7 @@ Phase numbering continues at 16 (v3.0 ended at 15). v1.0 Phases 1–7 and v2.0 P
 - [x] **Phase 16: Type Packing & Validation Foundation** - Pure `validate_order` lib (reused predicates + the NEW strike upper bound) over the verbatim 152-bit `pack_vol_order`, proven falsifiable through a 4-selector FFI harness (VORD-02) (completed 2026-07-20)
 
   > Correction, recorded at execution: the original "proven falsifiable with no FFI deploy" was FALSE — Plank does not type-check code unreachable from `run{}`, so a pure lib with no harness is unprovable. The harness was a required deliverable, not optional scaffolding (16-CONTEXT.md).
-- [ ] **Phase 17: Interface & Single-Call Module** - `create_order` CALLED-green: validate via lib, pack via type with `TICK_SPACING` pinned, sequential id, unmasked derived-slot store, readers, cast-sig-pinned selectors for BOTH entrypoints (VORD-01, VORD-03, VORD-04, VORD-05)
+- [x] **Phase 17: Interface & Single-Call Module** - `create_order` CALLED-green: validate via lib, pack via type with `TICK_SPACING` pinned, sequential id, unmasked derived-slot store, readers, cast-sig-pinned selectors for BOTH entrypoints (VORD-01, VORD-03, VORD-04, VORD-05) (completed 2026-07-20)
 - [ ] **Phase 18a: Batch Input & State Effects** - Standard-ABI decode behind three guards, bounded `while`, validation-skip, MAX_BATCH, totality by structural enumeration + corroborating fuzz, zero-footprint proof — returns ONE word, so state effects are proven without trusting any encoder (MCAL-01, MCAL-02, MCAL-03, MCAL-04, MCAL-06)
 - [ ] **Phase 18b: Typed Return Encoding** - The hand-rolled `(bool,uint256)[]` head/tail encoder (head `0x40`, stride `0x40`, total `64+64N`), N=0 edge, byte-level differential against `abi.encode` (MCAL-05)
 - [ ] **Phase 19: Differential, Mutation Battery & Consumer Fixture** - Full reference-mock differential, observed-RED battery, consumer golden fixture, `PLANK_SKIP` exit gated on CALLED-green batch dispatch (MVER-01..04)
@@ -377,7 +377,7 @@ Plans:
 **Plans**: 1 plan (1 wave)
 
 Plans:
-- [ ] 17-01-PLAN.md — `VolOrderManagerInterface` (both entrypoint selectors + both readers, cast-sig-pinned), `VolOrderManagerMod` (validate-then-id-then-unmasked-derived-slot store, zero domain arithmetic), the CALLED-green module suite incl. the id-65536 ring-mask discriminator, and a four-mutant observed-RED gate (VORD-01, VORD-03, VORD-04, VORD-05) [wave 1]
+- [x] 17-01-PLAN.md — `VolOrderManagerInterface` (both entrypoint selectors + both readers, cast-sig-pinned), `VolOrderManagerMod` (validate-then-id-then-unmasked-derived-slot store, zero domain arithmetic), the CALLED-green module suite incl. the id-65536 ring-mask discriminator, and a four-mutant observed-RED gate (VORD-01, VORD-03, VORD-04, VORD-05) [wave 1] — COMPLETE 2026-07-20 (17-01-SUMMARY.md)
 
 ### Phase 18a: Batch Input & State Effects
 **Goal**: The batch decodes standard-ABI calldata behind three independent guards, loops with a bounded runtime `while`, skips invalid tuples with zero state footprint, and is bounded by `MAX_BATCH` — with all state effects proven via raw `vm.load` while returning only ONE word, so nothing here is observed through an untested encoder.
@@ -434,7 +434,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 16. Type Packing & Validation Foundation | 1/1 | Complete    | 2026-07-20 |
-| 17. Interface & Single-Call Module | 0/TBD | Not started | - |
+| 17. Interface & Single-Call Module | 1/1 | Complete   | 2026-07-20 |
 | 18a. Batch Input & State Effects | 0/TBD | Not started | - |
 | 18b. Typed Return Encoding | 0/TBD | Not started | - |
 | 19. Differential, Mutation Battery & Consumer Fixture | 0/TBD | Not started | - |
