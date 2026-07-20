@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Completed 09-04-PLAN.md (panel: Panel.Subgraph + Panel.Build + panel.csv). Wave 2 continues: 09-05 variance (parallel), 09-06 Aristotle."
-last_updated: "2026-07-20T02:13:15.137Z"
-last_activity: "2026-07-19 — 09-02 continuation: recorded checkpoint resolution in DATA-SOURCES.md §4 (Base V4 market + RPC variance route), verified endpoint live via _meta probe (block 48,861,639, no indexing errors)"
+stopped_at: Completed 09-05-PLAN.md (variance σ̂²/σ̃² via Base V4 eth_getLogs RPC override)
+last_updated: "2026-07-20T02:30:00.080Z"
+last_activity: "2026-07-19 — 09-04: built the tokenId×daily panel (Panel.Subgraph paginated fetch + Panel.Build cumulative→delta assembly + panel.csv); stack build/test green."
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 18
-  completed_plans: 11
+  completed_plans: 12
   percent: 61
 ---
 
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-06-27)
 ## Current Position
 
 Phase: 9 of 9 (Upsilon Econometric Estimation — Lean-Aware) — Lean4 + Haskell econometrics track
-Plan: 09-04 COMPLETE (panel: Panel.Subgraph + Panel.Build + panel.csv). Wave 2 in progress: 09-05 variance (parallel), 09-06 Aristotle.
-Plan (09-04): position-epoch panel built (CTX-PANEL) — paginated Base subgraph client; cumulative→per-epoch delta π_it; i_K=round(log strike/log 1.0001) mirrors PosSpec.lam; dailyEpoch=floor(unixSec/86400) 00:00 UTC bucket (shared with 09-05 variance window); panel.csv written with σ̂² NaN placeholder for the 09-05 join. stack test 10/10.
-Status: In Progress — Wave 2 running. 09-04 delivers the panel LHS/moneyness inputs; 09-05 joins σ̂²_t + EIV instrument (RPC eth_getLogs on Base V4 Swap logs, NOT BigQuery) into the placeholder column; 09-06 is the Aristotle bridging lemma. Concern: thin cross-section (~7 accounts / 1000+ OptionMints, ~4 months) — no synthetic padding.
-Last activity: 2026-07-19 — 09-04: built the tokenId×daily panel (Panel.Subgraph paginated fetch + Panel.Build cumulative→delta assembly + panel.csv); stack build/test green.
+Plan: 09-04 COMPLETE (panel) and 09-05 COMPLETE (variance) — Wave 2 remaining: 09-06 Aristotle bridging lemma.
+Plan (09-05): variance regressor σ̂²_t + EIV instrument σ̃²_t built (CTX-VAR) — Panel.Variance ingests Base V4 Swap logs via chunked eth_getLogs RPC (USER-DIRECTED OVERRIDE; BigQuery dropped, project suspended), decodes int24 tick/uint160 sqrtPriceX96 from log data; realizedVariance = within-day RV of tick log-price increments, instrument = disjoint even-swap sub-window (two-noisy-measures IV); reuses Panel.Build.dailyEpoch (unix-day index) so variance.csv joins panel.csv. Live proof: 2136 real swaps, blocks 48768127..48775327, 2 epochs (20651/20652) → notes/.../variance.csv + swap-ticks cache. Full suite 18/0.
+Status: In Progress — Wave 2: only 09-06 (Aristotle) remains. 09-09 live estimation will widen the variance CLI block window to full history (first OptionMint 43,781,657 → tip) and join σ̂²_t/σ̃²_t into panel.csv's placeholder column. Concern: thin cross-section (~7 accounts / 1000+ OptionMints, ~4 months) — no synthetic padding.
+Last activity: 2026-07-20 — 09-05: built σ̂²_t + disjoint-window EIV instrument σ̃²_t from live Base V4 eth_getLogs (RPC override, not BigQuery); golden-tested to 1e-9, variance.csv over a bounded live sample; stack build/test green (18/0).
 
 Progress: [██████░░░░] 61%
 
@@ -58,6 +58,7 @@ Progress: [██████░░░░] 61%
 | Phase 09 P01 | 9 | 2 tasks | 8 files |
 | Phase 09 P02 | 6 | 3 tasks | 1 files |
 | Phase 09 P04 | 6 | 2 tasks | 8 files |
+| Phase 09 P05 | 28 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,7 @@ Recent decisions affecting current work:
 - [Phase 09]: 09-01: froze CR0 sandwich-SE golden fixture (orthogonal-J 2-cluster/3-obs toy: V=[[2.25,.75,0],[.75,.25,0],[0,0,2.25]], SE=[1.5,.5,1.5]) with hand arithmetic in-file for 09-08 to implement against
 - [Phase 09]: 09-02: data-source gate resolved — accept Base V4 ETH/USDC (chainId 8453, panopticPool 0xb50e...174a, poolId 0x96d4...288c0a) via keyless Goldsky base/dev subgraph; GRAPH_API_KEY not needed (public); variance from direct RPC eth_getLogs on Base V4 Swap logs (V4 topic0 + poolId topic1) — BigQuery dropped (project thetaswap-research suspended, 403 CONSUMER_SUSPENDED); 09-05 consumes RPC logs not BigQuery SQL, 09-04 unaffected except market ids
 - [Phase 09]: 09-04: panel π_it = per-epoch DELTA of cumulative premiaSettledInUsdTotal (tag to ENDING epoch, N snapshots→N−1 rows); i_K=round(log strike/log 1.0001) mirrors PosSpec.lam; dailyEpoch=floor(unixSec/86400) 00:00 UTC bucket shared with 09-05 variance window; σ̂² emitted as NaN placeholder for 09-05 join
+- [Phase 09]: 09-05: variance built from Base V4 Swap logs via chunked eth_getLogs RPC (BigQuery dropped, project suspended); instrument σ̃²_t = disjoint even-swap sub-window (two-noisy-measures IV); reuse Panel.Build.dailyEpoch (unix-day index) as single source of truth so variance.csv joins panel.csv
 
 ### Pending Todos
 
@@ -103,6 +105,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-20T02:13:03.005Z
-Stopped at: Completed 09-04-PLAN.md (panel: Panel.Subgraph + Panel.Build + panel.csv). Wave 2 continues: 09-05 variance (parallel), 09-06 Aristotle.
+Last session: 2026-07-20T02:29:22.537Z
+Stopped at: Completed 09-05-PLAN.md (variance σ̂²/σ̃² via Base V4 eth_getLogs RPC override)
 Resume file: None
