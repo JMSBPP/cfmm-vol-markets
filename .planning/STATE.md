@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Completed 09-09-PLAN.md (live estimation run — NULL result, honestly reported). Next: 09-10 (GAMS differential cross-check, consumes estimation-panel.csv), 09-11 (audit-econ gate)"
-last_updated: "2026-07-20T12:26:41.603Z"
+stopped_at: "Phase 9 HALTED after Wave 5 by user decision: live run returned an honest NULL (upsilon0 ~ 0 -> kappa unidentified, formal witness does not obtain). User chose 'halt and reassess the market' over running Wave 6. 09-10 (GAMS handoff) and 09-11 (audit-econ) NOT run. Blocking question: is any Panoptic deployment able to identify upsilon, given premiaSettled* are identically zero on Base and no per-epoch premium series exists?"
+last_updated: "2026-07-20T14:00:52.280Z"
 last_activity: "2026-07-20 — 09-09: CTX-ALT + the LIVE RUN — four locked alternatives; 632,315 V4 swaps + 61 accrual spells pulled; NULL result (υ̂₀≈0 ⇒ κ unidentified, witness does NOT obtain); suite 59/0, lake build green."
 progress:
   total_phases: 9
@@ -103,6 +103,7 @@ Recent decisions affecting current work:
 - [Phase 09]: 09-09: unit of observation forced to the ACCRUAL SPELL (mint→burn) — the live subgraph has NO per-epoch premium series (TokenId.snapshots absent, premiumSettleds empty, premiaSettled*Total identically zero); spreading spell premium across days rejected as manufacturing a mechanical null. Flagged for the 09-11 audit.
 - [Phase 09]: 09-09: Model.NLS multi-starts from data-scaled values — a fixed kappa=0.2 start is numerically dead when moneyness is in ticks (exp(-0.2*153)~5e-14), and produced a spurious kappa=0.384 on the first live run
 - [Phase 09]: 09-09: LIVE RESULT is a NULL — upsilon0-hat=2.3e-9 (SE 1.3e-4) is numerically zero, so kappa is STRUCTURALLY UNIDENTIFIED (SE 18.8) and the kappa>0 test is VACUOUS, not fails-to-reject. The exp_family_witnesses_ATMOTM witness does NOT obtain; the Lean conjecture remains open and untouched.
+- [Phase ?]: Live Base run produced a structural null (no settled-premia data market-wide; unit of observation forced from position-epoch to accrual spell). User halted rather than spend the audit-econ gate on a spec-departed null.
 
 ### Pending Todos
 
@@ -121,6 +122,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-20T12:26:41.600Z
-Stopped at: Completed 09-09-PLAN.md (live estimation run — NULL result, honestly reported). Next: 09-10 (GAMS differential cross-check, consumes estimation-panel.csv), 09-11 (audit-econ gate)
-Resume file: None
+Last session: 2026-07-20T14:00:52.227Z
+Stopped at: Phase 9 HALTED after Wave 5 by user decision: live run returned an honest NULL (upsilon0 ~ 0 -> kappa unidentified, formal witness does not obtain). User chose 'halt and reassess the market' over running Wave 6. 09-10 (GAMS handoff) and 09-11 (audit-econ) NOT run. Blocking question: is any Panoptic deployment able to identify upsilon, given premiaSettled* are identically zero on Base and no per-epoch premium series exists?
+Resume file: notes/structural-econometrcics/analysis/2026-07-20-upsilon-estimates.md
