@@ -55,3 +55,8 @@ lean/archive/*
 !lean/archive/9804c2b5-a6a5-4a7f-a67b-89119b4b7bfb-aristotle.tar.gz
 !lean/archive/arsitotleTaoCFMM.tar.gz
 scratch/
+
+# Raw Base V4 Swap-log tick cache (phase 09 econometrics): ~570k rows / ~11 MB,
+# fully regenerable via `econometrics variance --from <n> --to <n>`. The derived
+# per-epoch series (variance.csv) IS tracked; the raw cache is not.
+notes/structural-econometrcics/data/swap-ticks-base-v4-full.csv

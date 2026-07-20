@@ -220,3 +220,79 @@ later if rate limits demand — never committed).
   positions/premia/strikes from the confirmed keyless Base subgraph above
   (panopticPool `0xb50e8bb68f5855da742f4579274902a20454174a`, poolId
   `0x96d4…288c0a`).
+
+---
+
+## 5. SCHEMA FINDINGS AT THE LIVE RUN (plan 09-09, 2026-07-20)
+
+§4 resolved *which* endpoint and market to use. It did **not** verify that the
+entities the specification depends on actually exist. They largely do not.
+Introspection and live queries at the 09-09 estimation run established the
+following; this section is authoritative over any earlier assumption about the
+subgraph's shape.
+
+### 5.1 What does NOT exist
+
+| Assumed by | Object | Reality |
+|---|---|---|
+| plan 09-04 | `TokenId.snapshots` | **No such field.** `TokenId` is `id, idHexString, pool, tokenCount, accountBalances, legs`. There is no per-epoch premium series anywhere in the schema. |
+| plan 09-04 / spec §4.3 | `premiaSettledInUsdTotal` | **Does not exist.** `AccountBalance` has `premiaSettled0Total` / `premiaSettled1Total` only. |
+| spec §4.3 | a non-trivial settled-premia series | **Identically ZERO.** Every `AccountBalance` on this market reports `premiaSettled0Total = premiaSettled1Total = 0`, and the `premiumSettleds` event collection is **EMPTY**. The settled-premia channel carries no signal on this deployment. |
+| plan 09-04 | `Leg.strike` as a PRICE | **It is already an int24 TICK** (observed range −202,990 … −197,280). `round(log K / log 1.0001)` took the logarithm of a negative number and produced NaN. |
+
+### 5.2 What the premium channel actually is
+
+`OptionBurn` carries `premium0`, `premium1`, `premiaByLeg` and `tickAt` — the
+premium **realized when a position is closed**, over that position's entire life.
+Paired with the position's `OptionMint` (`tickAt`, `timestamp`) this yields an
+**accrual spell**, which is the unit of observation the 09-09 panel is built on.
+
+Live counts for the confirmed market (full history, 2026-03-27 → 2026-07-20):
+
+| quantity | count |
+|---|---|
+| `optionMints` | 1,447 |
+| `optionBurns` | 1,432 |
+| `tokenIds` with legs | 768 |
+| burns with **non-zero** `premium0` | 61 |
+| burns with non-zero `premium1` | 38 (USDC's 6 decimals truncate small premia to 0) |
+| → accrual spells (non-zero premium, paired to a mint) | **61** |
+| distinct tokenIds among them | 55 |
+| distinct accounts among them | **4** |
+| moneyness support | 34 legs above the money, 34 below |
+
+`premium0` (ETH, 18 decimals) is the premium series used, converted to USD at the
+pool price implied by `tickAt`. Where both are non-zero, `premium0` and `premium1`
+agree to within a few tenths of a percent — confirming they are one premium in two
+denominations, not two separate flows.
+
+Sign: the protocol emits premium **positive for short** positions and **negative
+for long** ones. Verified exhaustively on the 61: all-short tokens (53) have
+positive `premium0`, all-long tokens (8) negative, with no mixed-sign token.
+
+### 5.3 Collateral channel (spec §6.2.4)
+
+The per-position collateral **requirement** `Q_M` is **not in the subgraph**:
+
+- `PanopticPoolAccount.collateral{0,1}Shares` is a **current snapshot only** — no
+  historical series.
+- `CollateralDayData` carries only `date` and `totalShares`, at **vault level**,
+  with no per-account or per-position breakdown.
+
+The closest available series is a reconstruction of per-account **deposited**
+collateral share balances from `CollateralDeposit` / `CollateralWithdraw` events
+(62 deposits + 45 withdraws across 7 owners, 107 flows total). That is a
+*behavioural* quantity, not the protocol's margin requirement, and the 09-09
+analysis output labels it as such.
+
+### 5.4 Variance route (unchanged, confirmed working)
+
+Chunked `eth_getLogs` against the public Base RPC, as decided in §4.3. Two
+operational constraints discovered at the full-history pull:
+
+- A 10,000-block chunk is accepted and returns ~1,100 logs; `blockTimestamp` is
+  present on each log, saving an `eth_getBlockByNumber` round trip per block.
+- `toBlock` must be clamped to the current head (the pipeline keeps a 60-block
+  safety margin). A range past the tip is rejected with
+  `block range extends beyond current head block` — a **non-transient** error that
+  retrying cannot clear.
