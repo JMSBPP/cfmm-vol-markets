@@ -51,6 +51,9 @@ executables:
       - optparse-applicative
       - text
       - containers
+      - bytestring
+      - cassava
+      - vector
 
 tests:
   unit:
@@ -61,6 +64,7 @@ tests:
       - Panel.BuildSpec
       - Panel.VarianceSpec
       - Model.UpsilonSpec
+      - Model.NLSSpec
     ghc-options:
       - -threaded
       - -rtsopts

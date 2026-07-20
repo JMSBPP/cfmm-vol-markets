@@ -9,10 +9,19 @@
 -- paths; the endpoint is supplied on the command line, never hardcoded.
 module Main (main) where
 
-import qualified Data.Map.Strict    as Map
-import qualified Data.Text          as T
+import qualified Data.ByteString.Lazy    as BL
+import qualified Data.Csv                as Csv
+import           Data.List               (isPrefixOf)
+import qualified Data.Map.Strict         as Map
+import           Data.Maybe              (mapMaybe)
+import qualified Data.Text               as T
+import qualified Data.Vector             as V
 import           Options.Applicative
+import           Text.Read               (readMaybe)
 
+import           Econ.Types         (Obs (..), Panel, Theta (..))
+import           Model.EIV          (ivFit)
+import           Model.NLS          (designPoints, fitGSL)
 import           Panel.Build        (assemble, writePanelCsv)
 import           Panel.Subgraph     (Endpoint (..), PoolAddr (..), fetchPositions)
 import           Panel.Variance     (RpcConfig (..), cacheSwapTicks,
@@ -32,8 +41,15 @@ data Command
   = Fetch                        -- ^ Pull raw positions/premia from the subgraph.
   | BuildPanel BuildPanelOpts    -- ^ Assemble the tokenId × daily-epoch panel.
   | Variance VarianceOpts        -- ^ Construct sigma^2_t and the EIV instrument.
-  | Estimate                     -- ^ Run the NLS/GMM estimator.
+  | Estimate EstimateOpts        -- ^ Run the NLS/GMM estimator.
   | Test                         -- ^ Compute specification test statistics.
+
+-- | Options for the @estimate@ stage: the panel and the variance CSVs to join on
+-- the shared daily epoch (paths are repo-root anchored; nothing hardcoded absolute).
+data EstimateOpts = EstimateOpts
+  { eoPanelCsv    :: FilePath
+  , eoVarianceCsv :: FilePath
+  }
 
 -- | Options for the @variance@ stage. Supplying @--from@/@--to@ triggers a live
 -- chunked @eth_getLogs@ pull of Base V4 Swap logs (cached to @--ticks-csv@);
@@ -69,6 +85,17 @@ defaultTicksCsv = "notes/structural-econometrcics/data/swap-ticks-base-v4-sample
 defaultVarianceCsv :: FilePath
 defaultVarianceCsv = "notes/structural-econometrcics/data/variance.csv"
 
+estimateOptsParser :: Parser EstimateOpts
+estimateOptsParser =
+  EstimateOpts
+    <$> strOption
+          ( long "panel" <> metavar "PATH"
+         <> value "notes/structural-econometrcics/data/panel.csv" <> showDefault
+         <> help "panel CSV (tokenId,epoch,premium_delta,strike_tick,pool_tick,sigma2_placeholder)" )
+    <*> strOption
+          ( long "variance" <> metavar "PATH" <> value defaultVarianceCsv <> showDefault
+         <> help "variance CSV (epoch,sigma2,sigma2_instrument) to join on epoch" )
+
 varianceOptsParser :: Parser VarianceOpts
 varianceOptsParser =
   VarianceOpts
@@ -103,8 +130,8 @@ commandParser =
         (info (Variance <$> varianceOptsParser)
               (progDesc "Build sigma^2_t and the disjoint-window EIV instrument from Base V4 Swap logs"))
    <> command "estimate"
-        (info (pure Estimate)
-              (progDesc "Run the NLS/GMM estimator with clustered sandwich SEs"))
+        (info (Estimate <$> estimateOptsParser)
+              (progDesc "Fit pi = b0 + u0*exp(-k*d)*sigma2 by GSL LM (+ two-noisy-measures IV)"))
    <> command "test"
         (info (pure Test)
               (progDesc "Compute committed specification test statistics"))
@@ -125,9 +152,87 @@ run (BuildPanel o) = do
   writePanelCsv (bpOut o) panel
   putStrLn ("build-panel: wrote " ++ show (length panel) ++ " rows to " ++ bpOut o)
 run (Variance vo) = runVariance vo
+run (Estimate eo) = runEstimate eo
 run Fetch    = putStrLn "fetch: not yet implemented"
-run Estimate = putStrLn "estimate: not yet implemented"
 run Test     = putStrLn "test: not yet implemented"
+
+-- | Run the @estimate@ stage: load the panel and variance CSVs, join σ̂²_t/σ̃²_t
+-- onto each position-epoch by the shared daily epoch, then report the PRIMARY
+-- GSL Levenberg–Marquardt fit and the two-noisy-measures IV estimate. The full
+-- analysis write-up (clustered SEs, spec tests, cross-walk) is plan 09-09; this
+-- stage prints the point estimates so the machinery is runnable end-to-end.
+runEstimate :: EstimateOpts -> IO ()
+runEstimate eo = do
+  rawPanel <- loadPanelCsv (eoPanelCsv eo)
+  varMap   <- loadVarianceCsv (eoVarianceCsv eo)
+  let panel = joinVariance varMap rawPanel
+      n     = length (designPoints panel)
+  putStrLn ("estimate: " ++ show (length rawPanel) ++ " panel rows, "
+             ++ show (Map.size varMap) ++ " variance epochs, "
+             ++ show n ++ " usable observations after the σ̂² join")
+  if n < 3
+    then putStrLn "estimate: too few usable observations (σ̂² un-joined?) — run `variance` and 09-09 join first."
+    else do
+      let Theta bg ug kg = fitGSL panel
+          Theta bi ui ki = ivFit panel
+      putStrLn "estimate: PRIMARY GSL Levenberg–Marquardt fit  pi = b0 + u0*exp(-k*d)*sigma2"
+      putStrLn ("  b0 = " ++ show bg ++ "  u0 = " ++ show ug ++ "  kappa = " ++ show kg)
+      putStrLn "estimate: two-noisy-measures IV (sigma~^2 instruments sigma^2, EIV remedy)"
+      putStrLn ("  b0 = " ++ show bi ++ "  u0 = " ++ show ui ++ "  kappa = " ++ show ki)
+
+-- | Load the panel CSV as raw rows. Columns (with header, per "Panel.Build"):
+-- @tokenId,epoch,premium_delta,strike_tick,pool_tick,sigma2_placeholder@. The
+-- placeholder σ̂² column is discarded; the real σ̂²/σ̃² come from the variance join.
+loadPanelCsv :: FilePath -> IO [(T.Text, Int, Double, Int, Int)]
+loadPanelCsv fp = do
+  bs <- BL.readFile fp
+  -- The placeholder σ̂² column is literally "NaN" until the 09-05/09-09 variance
+  -- join, which the Double reader rejects — decode it as Text and discard it (the
+  -- real σ̂²/σ̃² arrive via 'joinVariance').
+  case Csv.decode Csv.HasHeader bs
+         :: Either String (V.Vector (T.Text, Int, Double, Int, Int, T.Text)) of
+    Left err   -> ioError (userError ("panel CSV parse error: " ++ err))
+    Right rows -> pure
+      [ (tok, ep, prem, st, pt)
+      | (tok, ep, prem, st, pt, _sig) <- V.toList rows ]
+
+-- | Load the per-epoch variance CSV into @epoch → (σ̂², σ̃²)@. The file carries a
+-- @#@-prefixed banner and an @epoch,sigma2,sigma2_instrument@ header, so parse by
+-- hand: skip comment/header lines, split on commas.
+loadVarianceCsv :: FilePath -> IO (Map.Map Int (Double, Double))
+loadVarianceCsv fp = do
+  txt <- readFile fp
+  let dataLines = filter keep (lines txt)
+      keep l = not ("#" `isPrefixOf` l) && not ("epoch" `isPrefixOf` l) && not (null l)
+  pure (Map.fromList (mapMaybe parseRow dataLines))
+  where
+    parseRow l = case splitOn ',' l of
+      (e : s2 : s2i : _) -> (\ep a b -> (ep, (a, b)))
+                              <$> readMaybe e <*> readMaybe s2 <*> readMaybe s2i
+      _                  -> Nothing
+
+-- | Split a string on a delimiter (no escaping — the variance CSV is plain).
+splitOn :: Char -> String -> [String]
+splitOn d s = case break (== d) s of
+  (a, [])      -> [a]
+  (a, _ : rest) -> a : splitOn d rest
+
+-- | Join σ̂²_t/σ̃²_t onto each raw panel row by epoch, producing the estimation
+-- 'Panel'. Rows whose epoch has no variance entry get NaN σ̂² and are dropped by
+-- the estimator's 'designPoints' filter.
+joinVariance :: Map.Map Int (Double, Double) -> [(T.Text, Int, Double, Int, Int)] -> Panel
+joinVariance varMap = map toObs
+  where
+    toObs (tok, ep, prem, st, pt) =
+      let (s2, s2i) = Map.findWithDefault (0 / 0, 0 / 0) ep varMap
+      in Obs { obsTokenId     = tok
+             , obsEpoch       = ep
+             , obsPremium     = prem
+             , obsStrikeTick  = st
+             , obsPoolTick    = pt
+             , obsSigma2      = s2
+             , obsSigma2Instr = s2i
+             }
 
 -- | Run the variance stage: obtain the tick series (live RPC or cache), compute
 -- σ̂²_t and the disjoint-window instrument σ̃²_t, and write the joined CSV.
