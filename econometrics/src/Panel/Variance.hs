@@ -56,12 +56,15 @@ module Panel.Variance
   , dailyEpoch
   , tickToLogPrice
   , realizedVariance
+  , meanPoolTick
   , instrumentVariance
   , writeVarianceCsv
     -- * Historical / superseded
   , historicalBigQuerySql
   ) where
 
+import           Control.Concurrent (threadDelay)
+import           Control.Exception (SomeException, try)
 import           Data.Aeson (FromJSON (..), Value, eitherDecode, object,
                              withObject, (.:), (.:?), (.=))
 import qualified Data.ByteString.Char8 as BC
@@ -81,6 +84,7 @@ import qualified Data.Vector as V
 import           Network.HTTP.Simple (getResponseBody, httpLBS, parseRequest,
                                       setRequestBodyJSON)
 import           Numeric (readHex)
+import           System.IO (hFlush, hPutStrLn, stderr, stdout)
 
 -- | The daily epoch boundary is the panel's SINGLE SOURCE OF TRUTH: this module
 -- imports and re-exports @Panel.Build.dailyEpoch@ (owned by plan 09-04) rather
@@ -184,12 +188,29 @@ instance FromJSON a => FromJSON (RpcResponse a) where
 -- endpoint that supplies it — verified on @mainnet.base.org@).
 fetchSwapTicks :: RpcConfig -> IO [(UTCTime, Int)]
 fetchSwapTicks cfg = do
-  logs <- concat <$> mapM (uncurry (getLogsChunk cfg)) (blockChunks cfg)
+  let chunks = blockChunks cfg
+      total  = length chunks
+  logs <- concat <$> mapM (fetchOne total) (zip [1 :: Int ..] chunks)
   let decoded =
         [ (posixSecondsToUTCTime (fromInteger ts), decodeTick (TE.encodeUtf8 d))
         | SwapLog { slTimestampMay = Just ts, slDataHex = d } <- logs
         ]
+  putStrLn ("  fetched " ++ show (length decoded) ++ " ticks from "
+             ++ show total ++ " chunks")
   pure (sortOn fst decoded)
+  where
+    -- Progress is reported every 25 chunks: the 09-09 full-history pull is ~500
+    -- sequential public-RPC calls and a silent multi-hour run is undebuggable.
+    fetchOne total (i, (lo, hi)) = do
+      ls <- getLogsChunk cfg lo hi
+      if i `mod` 25 == 0 || i == total
+        then do
+          putStrLn ("  chunk " ++ show i ++ "/" ++ show total
+                     ++ " blocks " ++ show lo ++ ".." ++ show hi
+                     ++ " (+" ++ show (length ls) ++ " logs)")
+          hFlush stdout
+        else pure ()
+      pure ls
 
 -- | Block ranges @[(lo,hi), ...]@ covering @[from,to]@ in @chunk@-sized steps.
 blockChunks :: RpcConfig -> [(Integer, Integer)]
@@ -201,28 +222,60 @@ blockChunks cfg = go (rpcFromBlock cfg)
       | lo > to   = []
       | otherwise = let hi = min to (lo + chunk - 1) in (lo, hi) : go (hi + 1)
 
--- | One @eth_getLogs@ call for a single block range.
+-- | One @eth_getLogs@ call for a single block range, with bounded exponential
+-- backoff. The 09-09 full-history pull issues ~500 sequential calls against a
+-- PUBLIC Base RPC, where a transient 429/5xx or a dropped connection is expected
+-- rather than exceptional; without a retry a single blip would abort a multi-hour
+-- fetch. Retries on both transport exceptions and JSON-RPC @error@ payloads,
+-- sleeping @backoffBase * 2^attempt@ seconds (capped) between attempts, and only
+-- fails after 'maxRetries' consecutive failures.
 getLogsChunk :: RpcConfig -> Integer -> Integer -> IO [SwapLog]
-getLogsChunk cfg lo hi = do
-  let filterObj = object
-        [ "address"   .= rpcPoolMgr cfg
-        , "fromBlock" .= toHexQuantity lo
-        , "toBlock"   .= toHexQuantity hi
-        , "topics"    .= [rpcTopic0 cfg, rpcPoolId cfg]
-        ]
-      body = object
-        [ "jsonrpc" .= ("2.0" :: Text)
-        , "id"      .= (1 :: Int)
-        , "method"  .= ("eth_getLogs" :: Text)
-        , "params"  .= [filterObj]
-        ]
-  req0 <- parseRequest ("POST " ++ rpcUrl cfg)
-  resp <- httpLBS (setRequestBodyJSON body req0)
-  case eitherDecode (getResponseBody resp) :: Either String (RpcResponse [SwapLog]) of
-    Left err                          -> fail ("eth_getLogs JSON decode: " ++ err)
-    Right (RpcResponse (Just logs) _) -> pure logs
-    Right (RpcResponse _ (Just e))    -> fail ("eth_getLogs RPC error: " ++ show e)
-    Right _                           -> pure []
+getLogsChunk cfg lo hi = go (0 :: Int)
+  where
+    maxRetries  = 6
+    backoffBase = 2.0 :: Double   -- seconds
+
+    go attempt = do
+      r <- try (attemptOnce) :: IO (Either SomeException (Either String [SwapLog]))
+      case r of
+        Right (Right logs) -> pure logs
+        Right (Left err)
+          | attempt >= maxRetries -> fail ("eth_getLogs (blocks " ++ show lo ++ ".."
+                                            ++ show hi ++ ") gave up: " ++ err)
+          | otherwise -> backoff attempt err >> go (attempt + 1)
+        Left e
+          | attempt >= maxRetries -> fail ("eth_getLogs (blocks " ++ show lo ++ ".."
+                                            ++ show hi ++ ") gave up: " ++ show e)
+          | otherwise -> backoff attempt (show e) >> go (attempt + 1)
+
+    backoff attempt why = do
+      let secs = min 60 (backoffBase * (2 ^^ attempt))
+      hPutStrLn stderr ("  [retry " ++ show (attempt + 1) ++ "/" ++ show maxRetries
+                         ++ "] blocks " ++ show lo ++ ".." ++ show hi
+                         ++ " after " ++ show secs ++ "s: " ++ take 160 why)
+      threadDelay (round (secs * 1e6))
+
+    attemptOnce = do
+      let filterObj = object
+            [ "address"   .= rpcPoolMgr cfg
+            , "fromBlock" .= toHexQuantity lo
+            , "toBlock"   .= toHexQuantity hi
+            , "topics"    .= [rpcTopic0 cfg, rpcPoolId cfg]
+            ]
+          body = object
+            [ "jsonrpc" .= ("2.0" :: Text)
+            , "id"      .= (1 :: Int)
+            , "method"  .= ("eth_getLogs" :: Text)
+            , "params"  .= [filterObj]
+            ]
+      req0 <- parseRequest ("POST " ++ rpcUrl cfg)
+      resp <- httpLBS (setRequestBodyJSON body req0)
+      pure $ case eitherDecode (getResponseBody resp)
+                  :: Either String (RpcResponse [SwapLog]) of
+        Left err                          -> Left ("JSON decode: " ++ err)
+        Right (RpcResponse (Just logs) _) -> Right logs
+        Right (RpcResponse _ (Just e))    -> Left ("RPC error: " ++ show e)
+        Right _                           -> Right []
 
 -- | Serialize a @(utc-time, tick)@ series to a CSV cache under
 -- @notes/structural-econometrcics/data/@ so re-runs (and 09-09) never re-fetch.
@@ -355,26 +408,44 @@ instrumentVariance :: [(UTCTime, Int)] -> Map Epoch Double
 instrumentVariance = Map.map (rvOfSeries . evens) . byEpoch
   where evens xs = [ x | (i, x) <- zip [0 :: Int ..] xs, even i ]
 
+-- | i_t: the per-epoch MEAN underlying pool tick, from the same V4 Swap series
+-- that produces σ̂²_t. This is the panel's moneyness anchor: an accrual spell's
+-- pool tick is the average of these daily means over the spell (see
+-- "Panel.Build"), so @d = |i_K − i_t|@ measures moneyness over the window the
+-- premium actually accrued in — not at a single instant.
+--
+-- Deriving i_t from the SAME tick series as σ̂² (rather than from the subgraph's
+-- @tickAt@ event field) keeps regressor and moneyness on one provenance chain.
+meanPoolTick :: [(UTCTime, Int)] -> Map Epoch Double
+meanPoolTick = Map.map avg . byEpoch
+  where
+    avg [] = 0 / 0
+    avg xs = sum (map fromIntegral xs) / fromIntegral (length xs)
+
 -- | Write the per-epoch @(σ̂²_t, σ̃²_t)@ join to CSV, with a banner documenting
 -- the window definitions. Columns: @epoch,sigma2,sigma2_instrument@.
-writeVarianceCsv :: FilePath -> Map Epoch Double -> Map Epoch Double -> IO ()
-writeVarianceCsv path sig2 sig2i = writeFile path (banner ++ rows)
+writeVarianceCsv
+  :: FilePath -> Map Epoch Double -> Map Epoch Double -> Map Epoch Double -> IO ()
+writeVarianceCsv path sig2 sig2i tickM = writeFile path (banner ++ rows)
   where
-    epochs = Map.keys (Map.union sig2 sig2i)
+    epochs = Map.keys (Map.unions [sig2, sig2i, tickM])
     look m e = Map.findWithDefault (0 / 0) e m
     rows = unlines
       [ show e ++ "," ++ show (look sig2 e) ++ "," ++ show (look sig2i e)
+                ++ "," ++ show (look tickM e)
       | e <- epochs ]
     banner = unlines
-      [ "# Panoptic υ variance regressor σ̂²_t and EIV instrument σ̃²_t (CTX-VAR)"
+      [ "# Panoptic υ variance regressor σ̂²_t, EIV instrument σ̃²_t, pool tick i_t (CTX-VAR)"
       , "# σ̂²_t (sigma2)            = daily realized variance of within-day V4"
       , "#   tick-implied log-price increments over the FULL within-day Swap series."
       , "# σ̃²_t (sigma2_instrument) = the SAME estimator on the DISJOINT even-swap"
       , "#   intraday sub-window (0-based even positions) — the two-noisy-measures IV."
-      , "# epoch = UTC-day Modified-Julian-Day index (same boundary as the panel)."
+      , "# i_t (pool_tick_mean)     = mean underlying pool tick over the same day,"
+      , "#   from the SAME Swap series (the panel's moneyness anchor)."
+      , "# epoch = UTC-day index floor(unixSeconds/86400) (same boundary as the panel)."
       , "# Source: Uniswap V4 PoolManager Swap logs on Base via chunked eth_getLogs"
       , "#   (poolId 0x96d4…288c0a); BigQuery path retired (project suspended)."
-      , "epoch,sigma2,sigma2_instrument"
+      , "epoch,sigma2,sigma2_instrument,pool_tick_mean,reserved"
       ]
 
 -- ---------------------------------------------------------------------------

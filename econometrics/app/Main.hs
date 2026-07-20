@@ -35,7 +35,8 @@ import           Panel.Subgraph     (Endpoint (..), PoolAddr (..), fetchPosition
 import           Panel.Variance     (RpcConfig (..), cacheSwapTicks,
                                      defaultBaseRpc, fetchSwapTicks,
                                      instrumentVariance, loadSwapTicks,
-                                     realizedVariance, writeVarianceCsv)
+                                     meanPoolTick, realizedVariance,
+                                     writeVarianceCsv)
 
 -- | Options for the @build-panel@ stage.
 data BuildPanelOpts = BuildPanelOpts
@@ -351,7 +352,8 @@ runVariance vo = do
       loadSwapTicks (voTicksCsv vo)
   let rv = realizedVariance ticks
       iv = instrumentVariance ticks
-  writeVarianceCsv (voOutCsv vo) rv iv
+      mt = meanPoolTick ticks
+  writeVarianceCsv (voOutCsv vo) rv iv mt
   putStrLn ("variance: wrote " ++ voOutCsv vo
              ++ " (" ++ show (Map.size rv) ++ " epochs, "
              ++ show (length ticks) ++ " ticks)")
