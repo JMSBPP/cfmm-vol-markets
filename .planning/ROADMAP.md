@@ -374,10 +374,10 @@ Plans:
   4. Both selectors are recomputed with `cast sig` from the exact signature strings in `interfaces/exposure/` — `create_order(uint88,uint24,uint16)` = `0x6501fe94` AND `create_orders(uint256,uint256[])` = `0x81357911` (the batch signature is a decision of record in the Overview, so this phase can pin it without waiting on Phase 18a); a compile-time test asserts `|S − keccak(SLOT_ORDERS_BASE)| > 2^64` for every scalar slot `S` (VORD-04).
   5. **Mutation gate:** reintroducing the ring's index mask into the slot derivation, moving the `orderCount` increment before validation, and aliasing a scalar slot onto the orders base EACH produce an OBSERVED RED; restored → green (VORD-03, VORD-04).
 
-**Plans**: TBD
+**Plans**: 1 plan (1 wave)
 
 Plans:
-- [ ] 17-01: TBD
+- [ ] 17-01-PLAN.md — `VolOrderManagerInterface` (both entrypoint selectors + both readers, cast-sig-pinned), `VolOrderManagerMod` (validate-then-id-then-unmasked-derived-slot store, zero domain arithmetic), the CALLED-green module suite incl. the id-65536 ring-mask discriminator, and a four-mutant observed-RED gate (VORD-01, VORD-03, VORD-04, VORD-05) [wave 1]
 
 ### Phase 18a: Batch Input & State Effects
 **Goal**: The batch decodes standard-ABI calldata behind three independent guards, loops with a bounded runtime `while`, skips invalid tuples with zero state footprint, and is bounded by `MAX_BATCH` — with all state effects proven via raw `vm.load` while returning only ONE word, so nothing here is observed through an untested encoder.
