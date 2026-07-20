@@ -12,7 +12,18 @@ A target contingent payoff can flow end-to-end — **payoff → GAMS solves opti
 
 **v3.0 — VegaAccountMod Vault (H1 issuance, exogenous risk price): SHIPPED.** `VegaAccountMod.plk` is a live, proven deposit-only vault: deposit collateral → vega-exposure shares at `p_risk = oracle/(1−h)`, every claim a CALLED test or an OBSERVED mutation kill, verified phase-by-phase with independent mutant re-kills against the machine-checked Lean authority. `PLANK_SKIP` is empty; commands of record: `make compile` 11 ok/0/0, `make test` 74 pass / 4 pre-existing pos_spec fails (vol-type track's). Details: `.planning/MILESTONES.md`, tag `v3.0`.
 
-**Next milestone: not yet defined.** Candidate directions (pick via `/gsd:new-milestone`): resume v2.0 Phases 10–11 (vol-oracle discriminating corpora + edges); vault v2 (withdraw/redeem + per-account ledger — reopens the first-depositor/donation analysis); oracle wiring (endogenous p_risk + setter auth, D2/P0/P2); resume v1.0 GAMS plumbing.
+## Current Milestone: v4.0 — VolOrderManagerMod + Multicall
+
+**Goal:** A new `VolOrderManagerMod.plk` module — a vol-order REGISTRY (`create_order(uint88,uint24,uint16)` = strike/width/skew, selector `0x6501fe94`, independently cast-sig-verified) plus a BEST-EFFORT multicall entrypoint batching N create_order calls in one tx — built for the rpc_api Haskell track's StochasticOrderGen (Poisson-arrival order batching; their PR #9 shipped create_order/write_price/StochasticPriceGen offchain and awaits this on-chain surface).
+
+**Target features:**
+- `create_order`: validate bounds (strike u88, width u24, skew u16; revert on zero-width), construct the KEPT pos_spec `VolOrder` type, assign sequential order id, store at keccak-derived slot, `orderCount` accumulator — registry ONLY, no tick/price computation (pos_spec pricing has 4 red harness tests on the vol-type track and stays out)
+- Multicall: BEST-EFFORT per-call semantics — failed orders are skipped without reverting the batch, per-call success/order-id results returned; a failed call leaves NO partial state, successful calls persist
+- Dynamic-array ABI in Plank (calldata array in, results out) — genuinely new ground: every existing module selector takes fixed words; this is the milestone's main technical risk
+- Readers for every stored field (module-not-a-black-box rule); interface file with cast-sig-verified signature strings; v3.0's full discipline (CALLED-green, constructed corpora, observed-RED mutation battery, Solidity reference mock differential)
+
+**Consumer contract (from peer coordination, rpc_api track `mv15a18k`):** create_order selector 0x6501fe94 confirmed both sides; batch-size bound and per-call return shape to be confirmed when the peer answers the open semantics message — requirements assume per-call (success, orderId) pairs until then.
+
 
 ## Requirements
 
@@ -80,4 +91,4 @@ A target contingent payoff can flow end-to-end — **payoff → GAMS solves opti
 | Lean lemmas are the v3.0 test oracle (each lemma → a fuzz property vs a Solidity reference mock) | Same differential discipline that proved the vol oracle; the lemmas are machine-checked so the properties are not aspirational | ✓ Good — with one honest carve-out: issuance_haircut_equiv is ℝ-only; integers get the one-sided transfer |
 
 ---
-*Last updated: 2026-07-19 — v3.0 milestone SHIPPED and archived; v2.0 paused after Phase 9; v1.0 paused*
+*Last updated: 2026-07-19 — started milestone v4.0 (VolOrderManagerMod + Multicall, peer-requested by rpc_api track)*

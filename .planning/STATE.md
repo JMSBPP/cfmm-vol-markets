@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: VegaAccountMod Vault (H1 issuance, exogenous risk price)
-status: shipped
-stopped_at: v3.0 SHIPPED + archived 2026-07-19 (tag v3.0). Next milestone undefined — /gsd:new-milestone. Paused tracks intact: v2.0 resume = /gsd:plan-phase 10; v1.0 = phases 1-7
+milestone: v4.0
+milestone_name: VolOrderManagerMod + Multicall
+status: defining-requirements
+stopped_at: Milestone v4.0 started (peer-requested: rpc_api StochasticOrderGen needs on-chain create_order + best-effort multicall) — defining requirements
 last_updated: "2026-07-19T12:57:05.626Z"
 last_activity: "2026-07-18 — executed 15-01: built VegaAccountE2EDiffTest (test/exposure/VegaAccount.e2e.t.sol, 246 lines) — the milestone acceptance driver. Drives IDENTICAL (setRiskPrice, deposit) sequences into the FFI-deployed VegaAccountMod and a trivially-simple IssuanceRefMock-backed mirror (three uint256 accumulators updated ONLY via mock.issueShares floor / haircutRiskPrice ceil), asserting totalDeposits/totalShares/riskWeightedShares equal at TOLERANCE 0 AFTER EVERY write, INSIDE _setPriceBoth/_depositBoth/_depositExpectRevertBoth (abort-at-earliest-divergence). Fixed anchor reproduces the inherited Phase-12/13 anchor exactly (p12=60944740395587951995033807951 via previewRiskPrice diffed tol-0 vs mock.haircutRiskPrice; deposit=10 mints 12 shares; 2.5→2 point; mid-sequence dust revert leaves state synced; ~2^200 weight-one deposit baseline accepts). 256-run constructed fuzz (bound() only, NO vm.assume) with a NEW price each iteration (mid-sequence re-pricing → stale-price guard), zero counterexamples. All four 15-02 kill sites sensitized (p_risk ceil, shares floor, dust guard, cross-product overflow). Source-file guard checked FIRST: module sha256 555a7a10…818120 and lib 2ee07162…c7e3 both == HEAD (WIP-edit note RESOLVED). Baselines unregressed: test-vega-account 12/12, test-vega-issuance 11/11; compile-plank unaffected (added a .sol only). Blocker: untracked PriceSetterHook.sol (another track) still needs --skip (logged to phase deferred-items.md)."
 progress:
