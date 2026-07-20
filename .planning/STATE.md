@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-06-PLAN.md (Aristotle bridging lemma integrated, sorry-free + axiom-clean)
-last_updated: "2026-07-20T02:42:34.100Z"
-last_activity: "2026-07-20 — 09-05: built σ̂²_t + disjoint-window EIV instrument σ̃²_t from live Base V4 eth_getLogs (RPC override, not BigQuery); golden-tested to 1e-9, variance.csv over a bounded live sample; stack build/test green (18/0)."
+stopped_at: "Completed 09-07-PLAN.md (estimator core: GSL-LM NLS + ad cross-check + two-noisy-measures EIV; 31/0 green)"
+last_updated: "2026-07-20T02:48:54.752Z"
+last_activity: "2026-07-20 — 09-07: estimator core (CTX-EST) — GSL-LM NLS primary + ad cross-check + two-noisy-measures EIV-IV, Lean-mirrored model + cross-walk table; stack test 31/0 green."
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 18
-  completed_plans: 13
+  completed_plans: 14
   percent: 72
 ---
 
@@ -26,11 +26,12 @@ See: .planning/PROJECT.md (updated 2026-06-27)
 ## Current Position
 
 Phase: 9 of 9 (Upsilon Econometric Estimation — Lean-Aware) — Lean4 + Haskell econometrics track
-Plan: 09-06 COMPLETE (Aristotle bridging lemma integrated) — Wave 2 done. 09-04 (panel) + 09-05 (variance) COMPLETE. Sibling 09-07 running.
+Plan: 09-07 COMPLETE (estimator core CTX-EST). 09-04 (panel) + 09-05 (variance) + 09-06 (Aristotle bridging lemma) COMPLETE. Wave 3 remaining: 09-08 (spec tests + sandwich SEs), 09-09 (live estimation), 09-10 (GAMS differential).
+Plan (09-07): estimator core (CTX-EST) — Model.Upsilon mirrors Lean upsilon/PosSpec.lam byte-for-byte (model = b0+u0·exp(−k·d)·s2, moneyness |iK−it|, tickBase 1.0001, modelSplit κ⁺/κ⁻); Model.NLS.fitGSL = hmatrix-gsl Numeric.GSL.Fitting Levenberg-Marquardt PRIMARY (analytic Jacobian + covariance handle for 09-08 SEs), fitAD = ad Gauss-Newton/LM cross-check (both recover planted params 1e-2, agree 1e-3); Model.EIV.ivFit = two-step two-noisy-measures IV (κ̂ from NLS, then (ZᵀX)⁻¹Zᵀy instrumenting σ̂² with σ̃², reduces attenuation); estimate CLI joins panel.csv⋈variance.csv; lean-haskell-crosswalk.md is the witness fidelity table. Full suite 31/0 (commits af84dc1, 2de090a).
 Plan (09-06): exp_family_witnesses_ATMOTM proved by single serial Aristotle task (new project f9865d3a, task 84b02173, server commit 7ccd814) AS STATED (Option-B slope-centered envelope, not weakened); integrated sorry-free into lean/vol_markets/Upsilon.lean. lake build vol_markets exit 0 (8032 jobs), zero sorries; #print axioms = [propext, Classical.choice, Quot.sound] on the bridging lemma and all re-checked Phase-8/upsilon theorems. κ̂>0 now formally witnesses ATMOTMNullHypothesis (commit c087ec8).
 Plan (09-05): variance regressor σ̂²_t + EIV instrument σ̃²_t built (CTX-VAR) — Panel.Variance ingests Base V4 Swap logs via chunked eth_getLogs RPC (USER-DIRECTED OVERRIDE; BigQuery dropped, project suspended), decodes int24 tick/uint160 sqrtPriceX96 from log data; realizedVariance = within-day RV of tick log-price increments, instrument = disjoint even-swap sub-window (two-noisy-measures IV); reuses Panel.Build.dailyEpoch (unix-day index) so variance.csv joins panel.csv. Live proof: 2136 real swaps, blocks 48768127..48775327, 2 epochs (20651/20652) → notes/.../variance.csv + swap-ticks cache. Full suite 18/0.
-Status: In Progress — Wave 2 Aristotle bridging lemma DONE (09-06). 09-09 live estimation will widen the variance CLI block window to full history (first OptionMint 43,781,657 → tip) and join σ̂²_t/σ̃²_t into panel.csv's placeholder column. Concern: thin cross-section (~7 accounts / 1000+ OptionMints, ~4 months) — no synthetic padding.
-Last activity: 2026-07-20 — 09-05: built σ̂²_t + disjoint-window EIV instrument σ̃²_t from live Base V4 eth_getLogs (RPC override, not BigQuery); golden-tested to 1e-9, variance.csv over a bounded live sample; stack build/test green (18/0).
+Status: In Progress — Wave 3: estimator core DONE (09-07). Next: 09-08 (κ>0/υ₀>0/κ⁺=κ⁻ spec tests + clustered sandwich SEs against the 09-01 CR0 golden; fitGSLCov exposes the GSL covariance handle, modelSplit ready for symmetry), 09-09 (live estimation — widen variance CLI to full history first OptionMint 43,781,657 → tip and populate panel.csv's σ̂² column so the epoch join yields usable obs), 09-10 (GAMS differential cross-check). Concern: thin cross-section (~7 accounts / 1000+ OptionMints, ~4 months) — no synthetic padding.
+Last activity: 2026-07-20 — 09-07: estimator core (CTX-EST) — GSL-LM NLS primary + ad cross-check + two-noisy-measures EIV-IV, Lean-mirrored model + cross-walk table; stack test 31/0 green.
 
 Progress: [███████░░░] 72%
 
@@ -61,6 +62,7 @@ Progress: [███████░░░] 72%
 | Phase 09 P04 | 6 | 2 tasks | 8 files |
 | Phase 09 P05 | 28 | 2 tasks | 8 files |
 | Phase 09 P06 | 30 | 2 tasks | 1 files |
+| Phase 09 P07 | 9 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -90,6 +92,8 @@ Recent decisions affecting current work:
 - [Phase 09]: 09-04: panel π_it = per-epoch DELTA of cumulative premiaSettledInUsdTotal (tag to ENDING epoch, N snapshots→N−1 rows); i_K=round(log strike/log 1.0001) mirrors PosSpec.lam; dailyEpoch=floor(unixSec/86400) 00:00 UTC bucket shared with 09-05 variance window; σ̂² emitted as NaN placeholder for 09-05 join
 - [Phase 09]: 09-05: variance built from Base V4 Swap logs via chunked eth_getLogs RPC (BigQuery dropped, project suspended); instrument σ̃²_t = disjoint even-swap sub-window (two-noisy-measures IV); reuse Panel.Build.dailyEpoch (unix-day index) as single source of truth so variance.csv joins panel.csv
 - [Phase 09]: 09-06: bridging lemma exp_family_witnesses_ATMOTM proved by single serial Aristotle task (new project f9865d3a, task 84b02173, server commit 7ccd814) AS STATED (Option-B slope-centered envelope); integrated sorry-free + axiom-clean; κ̂>0 now formally witnesses ATMOTMNullHypothesis
+- [Phase 09]: 09-07: estimator core (CTX-EST) — hmatrix-gsl fitModel Levenberg-Marquardt is PRIMARY NLS (analytic Jacobian + covariance handle for 09-08 SEs); ad Gauss-Newton/LM retained as synthetic cross-check; both recover planted (β₀,υ₀,κ) within 1e-2
+- [Phase 09]: 09-07: EIV ivFit = two-step two-noisy-measures IV — κ̂ from NLS (identified off moneyness), then just-identified IV (ZᵀX)⁻¹Zᵀy instruments σ̂² with σ̃²; reduces υ̂₀ attenuation. Model.Upsilon mirrors Lean upsilon/PosSpec.lam byte-for-byte, backed by lean-haskell-crosswalk.md
 
 ### Pending Todos
 
@@ -108,6 +112,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-20T02:42:34.096Z
-Stopped at: Completed 09-06-PLAN.md (Aristotle bridging lemma integrated, sorry-free + axiom-clean)
+Last session: 2026-07-20T02:48:01.853Z
+Stopped at: Completed 09-07-PLAN.md (estimator core: GSL-LM NLS + ad cross-check + two-noisy-measures EIV; 31/0 green)
 Resume file: None
