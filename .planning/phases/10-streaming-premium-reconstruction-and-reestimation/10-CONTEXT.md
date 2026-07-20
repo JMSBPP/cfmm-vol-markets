@@ -13,18 +13,28 @@ Fix the **measurement failure** that made Phase 9's estimate uninformative. Reco
 <decisions>
 ## Implementation Decisions
 
-### Reconstruction fidelity — FULL V4 REPLAY
-- Reproduce Uniswap's exact `feeGrowthInside` identity: track `feeGrowthGlobal` increments (fee/liquidity per swap) **and** `feeGrowthOutside` at **every tick boundary crossed**, from the cached swap stream.
-- The in-range-fraction approximation is **rejected**: it reintroduces LHS measurement error, which is precisely the defect that killed Phase 9.
-- This is the heaviest module of the phase; budget accordingly. Correct-by-construction, and its correctness is checkable against ground truth (see validation gate).
+### Reconstruction fidelity — ~~FULL V4 REPLAY~~ → **SFPM `getAccountPremium` READ** (AMENDED 2026-07-20)
+
+**SUPERSEDED.** The original decision (full V4 replay from cached swap logs) rested on a false premise and is **withdrawn** after research (`10-RESEARCH.md`, commit `b51d58a`):
+- `swap-ticks-base-v4-full.csv` is a two-column `timestamp_unix,tick` file — `Panel.Variance` discards `amount0/amount1/liquidity/fee/sqrtPriceX96/blockNumber` at decode time. **Nothing to replay from.**
+- Even after a full re-pull, exact replay from events alone is **impossible**: `feeGrowthGlobal` updates per swap *step* with a step-varying liquidity divisor (`Pool.sol` L400-407), while the `Swap` event exposes only post-swap aggregates. True replay needs every `ModifyLiquidity` since pool init plus bit-exact Haskell ports of `SwapMath`/`SqrtPriceMath`/`TickMath`/`FullMath` — 3-4 weeks.
+
+**AMENDED DECISION (user-approved):** read the exact per-liquidity Panoptic premium accumulator from the **deployed** `SemiFungiblePositionManagerV4.getAccountPremium(...)` (SFPM `0x8dcAa08c…33af`, reachable via `PanopticPool.SFPM()`) using **archive `eth_call`s** on the existing keyless Base endpoint.
+- This **preserves the fidelity intent** of the original decision — exact identity, zero approximation — by evaluating the identity *inside the contract that defines it*, rather than re-deriving it off-chain. Approximation remains rejected.
+- The accumulator is X64 and **already includes the utilization multiplier** (ν = 1/VEGOID = 1/8, `RiskEngine.sol` L104). The `atTick` argument extrapolates via a live `feeGrowthInside` read, which is what makes a **daily** panel possible (stored accumulators only jump at chunk touches).
+- Verified live during research: `extsload` succeeds at block 44,000,000 and `getAccountPremium` returns monotone-increasing values across blocks 44.5M/47M/latest with owed > gross, matching the ν·R/N spread.
+- Budget: ~8k-15k `eth_call`s, 30-60 min of RPC time.
+- Full replay is **demoted to an optional narrow-window cross-check** — nice-to-have, not required for phase success.
 
 ### Premium definition — PANOPTIC PREMIUM (not raw fees)
 - π_it = fee growth **× Panoptic's utilization-based multiplier/spread** — the quantity buyers actually pay, and the same object `OptionBurn.premium` aggregates. This is what makes the validation gate meaningful.
 - Consequence to state explicitly in the analysis: π_it is then Panoptic's premium, **not** the bare `streamingPremium`/STREAMING_PREMIUM.md fee-revenue identity that Lean models. The multiplier is a documented wedge between the Lean object and the estimated object — the cross-walk table must record it rather than paper over it.
 - The exact multiplier formula must be sourced from Panoptic's contracts/docs during research, not guessed.
 
-### Validation gate — HARD, median relative error ≤ 10%
-- **Estimation does not run** until reconstructed-Σ-over-spell reconciles with observed `OptionBurn.premium` across the 61 Phase-9 spells at **median relative error ≤ 10%**.
+### Validation gate — HARD, median relative error ≤ 1%, in ETH WEI, stratified (TIGHTENED 2026-07-20)
+- **Estimation does not run** until reconstructed-Σ-over-spell reconciles with observed `OptionBurn.premium` across the 61 Phase-9 spells at **median relative error ≤ 1%** (tightened from 10% on research recommendation: the reconstructed panel *telescopes into* the ground truth rather than independently estimating it, so 10% would let real errors through).
+- **Units: ETH wei, not USD** — no price-conversion noise in the gate.
+- **Stratified short vs long** — `_getAvailablePremium` caps settled long premium, so the two strata must be reported separately rather than pooled.
 - The full error distribution (not just the median) is reported: quantiles, worst cases, and any systematic sign bias.
 - If the gate fails: diagnose and fix the reconstruction — do NOT proceed to estimation, and do NOT relax the tolerance to pass. A failed gate is a legitimate phase outcome.
 - Rationale: this is the discipline Phase 9 lacked; it converts "did we measure the right thing?" from a post-hoc audit question into a pre-estimation blocker.
@@ -34,8 +44,12 @@ Fix the **measurement failure** that made Phase 9's estimate uninformative. Reco
 - If κ̂ > 0 with adequate precision: state that the fitted profile satisfies the hypotheses of the **proved, axiom-clean** `Upsilon.exp_family_witnesses_ATMOTM` and therefore witnesses `ATMOTMNullHypothesis` at c = κ̂·Δi.
 - If the interval remains uninformative after a passing validation gate: **report that this market cannot identify υ, and STOP.** No respecification, no subsample hunting, no alternative-estimator fishing. (See `anti-fishing-replication` skill — invoke it if anyone, human or agent, proposes moving the goalposts mid-run.)
 
+### WAVE-0 BLOCKER — the `width == 0` sample-gain risk (ADDED 2026-07-20)
+- `_getPremia` **skips legs with `width == 0`**, and many sampled legs in this market have width 0. The phase's premise — a ~×100 sample gain (≈55 positions × ~119 epochs vs. 61 spells) — is therefore **UNVERIFIED**.
+- **Wave 0 must measure this before any estimation work is planned or run:** count legs/positions with `width ≠ 0`, and derive the achievable panel size. If the usable panel is not materially larger than Phase 9's 61 observations, the phase cannot deliver its power goal and must **stop and report** rather than proceed — same discipline as the stopping rule below.
+
 ### Claude's Discretion
-- Haskell module layout for the replay engine; caching/checkpointing strategy for the tick-crossing state machine.
+- Haskell module layout for the SFPM read path (`eth_call` batching, block-height schedule, caching/checkpointing of accumulator reads); the optional replay cross-check if attempted.
 - Whether the reconciliation runs on all 61 spells or a stratified subsample first (as a fast pre-check) before the full gate.
 - Epoch alignment details, so long as `Panel.Build.dailyEpoch` remains the single source of truth for the join (the 40587-offset trap 09-05 caught).
 
