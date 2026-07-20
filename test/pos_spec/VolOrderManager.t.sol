@@ -308,3 +308,62 @@ contract VolOrderManagerBoundaryTest is VolOrderManagerBase {
         assertEq(mgr.orderCount(), 0, "an undispatched selector touches no state");
     }
 }
+
+/// @title VolOrderManagerConformanceTest
+/// @notice VORD-04. Two compile-time-value properties, both asserted on VALUES rather than
+///         argued probabilistically. These are `pure` -- no deploy, so no wasted FFI compile.
+contract VolOrderManagerConformanceTest is Test {
+    /// @notice Every selector constant equals keccak(its documented signature string)[:4].
+    ///         The strings here are byte-identical to the `// signature::` comments in
+    ///         src/interfaces/pos_spec/VolOrderManagerInterface.plk. Both entrypoints are
+    ///         pinned HERE -- the batch is declared in Phase 17 and implemented in Phase 18a,
+    ///         which is what breaks the 17<->18a circular dependency.
+    ///
+    ///         If an assertion here fails, the CONSTANT is wrong -- never the string.
+    function test__unit__selectorsMatchTheirSignatureStrings() public pure {
+        assertEq(
+            bytes4(keccak256(bytes("create_order(uint88,uint24,uint16)"))), bytes4(0x6501fe94), "create_order"
+        );
+        assertEq(
+            bytes4(keccak256(bytes("create_orders(uint256,uint256[])"))),
+            bytes4(0x81357911),
+            "create_orders (Phase 18a)"
+        );
+        assertEq(bytes4(keccak256(bytes("orderCount()"))), bytes4(0x2453ffa8), "orderCount");
+        assertEq(bytes4(keccak256(bytes("getOrderPacked(uint256)"))), bytes4(0xa9bcabc1), "getOrderPacked");
+    }
+
+    /// @notice |S - keccak(SLOT_ORDERS_BASE)| > 2^64 for every scalar slot S in the module.
+    ///         Orders occupy keccak(base) + id, so an order could only reach the scalar slot
+    ///         after more than 2^64 orders -- unreachable, and asserted as a NUMBER, not a
+    ///         birthday-bound argument. The module has exactly ONE scalar slot; if a future
+    ///         phase adds another, it is added to this test.
+    ///
+    ///         LIMITATION, stated so it is not over-read: this test asserts the real
+    ///         preimage-derived constants, so it stays GREEN under mutant M3 (which edits the
+    ///         module's constant to alias the orders region). It DOCUMENTS the invariant;
+    ///         test__unit__sequentialIdsOneThenTwo is what proves a violation is OBSERVABLE.
+    function test__unit__scalarSlotFarFromOrdersRegion() public pure {
+        uint256 region = uint256(keccak256(abi.encode(keccak256(bytes("VolOrderManagerMod.orders")))));
+        uint256 s = uint256(keccak256(bytes("VolOrderManagerMod.orderCount")));
+        uint256 d = s > region ? s - region : region - s;
+        assertGt(d, 1 << 64, "orderCount slot must be > 2^64 from the orders region base");
+        assertTrue(s != region, "scalar slot is not the region base itself");
+    }
+
+    /// @notice The two slot constants hardcoded in the module are exactly the keccaks of their
+    ///         documented preimage strings. Pins the module's literals against drift the same
+    ///         way the selector test pins the interface's.
+    function test__unit__slotConstantsMatchTheirPreimages() public pure {
+        assertEq(
+            keccak256(bytes("VolOrderManagerMod.orderCount")),
+            bytes32(0x92967cb44e7866428adae18aad4bf59a10fb8d4c189b2b0e8bfe6f2a2469b5c7),
+            "SLOT_ORDER_COUNT"
+        );
+        assertEq(
+            keccak256(bytes("VolOrderManagerMod.orders")),
+            bytes32(0x68fef5d6c1ef01f93bf897a4ffcaa37fbdc39061144008f6edd91f64b7b199cb),
+            "SLOT_ORDERS_BASE"
+        );
+    }
+}

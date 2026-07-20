@@ -30,16 +30,27 @@
 # track, and the project deletes orphaned closures rather than skipping them (recover from
 # git history if that track resurrects the type). VolOrder + VolOrderHelper + VolOrderTest
 # are KEPT: they are live pos_spec surface and never depended on Order.
-# MEASURED after the Order deletion (VolOrder chain KEPT — it never imported Order; an
-# earlier substring-matched grep claimed otherwise): 74 pass, 4 fail (78 total);
-# compile-plank 11 ok, 0 failed, 0 skipped -- both commands of record fully truthful,
-# no skips, no exclusions.
-# The 4 remaining failures are pre-existing and all in the pos_spec type track:
+# MEASURED AT 17-01 (2026-07-20), cold `cache/fuzz`, this exact target:
+#   make test          96 pass, 4 fail (100 total)
+#   make compile-plank 13 ok, 0 failed, 0 skipped
+# Prior records, kept for the trend: 74 pass / 4 fail + 11 ok (after the Order deletion);
+# 87 pass / 4 fail + 12 ok (16-01). 17-01 adds 9 module tests and the 13th entrypoint.
+#
+# The 4 failures are pre-existing and all in the pos_spec TYPE track:
 #   VolRangeWidthTest         volWidthRangeSub_valid, volWidthRangeBuildVolRangeWidth_valid
 #   SpreadTickAssimetryTest   spreadTickAssimetrySplitTick__Valid, tickFromSplittedTickBucket__Valid
 # All are diagnosed as bugs in the TEST HARNESSES (not the .plk under test) and are owned by
 # the vol-type-system track. They are deliberately NOT skipped, excluded, or filtered out to
 # make this target green: a suite that lies about what passes is worth less than no suite.
+#
+# THE FAILURE COUNT IS NOT FULLY DETERMINISTIC — measured, not assumed. A FIFTH failure,
+#   TickVolatilityLibTest  test__fuzz__tickVolatilitySqrtPriceX64x96AndTickSuccess
+# surfaces on roughly 1 cold-cache run in 4, always at the same counterexample 2^64-1. It is
+# PRE-EXISTING (reproduced with all 17-01 files stashed out: 86 pass / 5 fail) and belongs to
+# the TickVolatility track, NOT to src/types/pos_spec/. Foundry seeds each fuzz campaign
+# randomly, so whether the fuzzer reaches 2^64-1 varies run to run. Re-run before treating a
+# 5th failure as a regression. See .planning/phases/17-interface-single-call-module/
+# deferred-items.md (D1).
 test: check-algebra-ref-pin
 	# --skip routes around an UNTRACKED parallel-track stray:
 	# src/modules/protocol_integrations/PriceSetterHook.sol (PR #11). Its empty Solidity import
@@ -137,7 +148,16 @@ test-vega-e2e:
 test-vol-order-validation:
 	forge test --match-path 'test/types/pos_spec/VolOrderValidation.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
 
-.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation
+# test-vol-order-manager: the VolOrderManagerMod MODULE surface (VORD-01/03/04/05) -- create_order
+# dispatch, the two keccak-derived slots, the unmasked derived-slot store, monotonic ids, the
+# state-asserted invalid-tuple guard, both readers with the zero sentinel, and the selector +
+# slot-distance conformance checks. Distinct from test-vol-order-validation, which owns the PURE
+# lib surface (Phase 16). One file per surface. --skip routes around the untracked
+# PriceSetterHook.sol (another track's broken file); a no-op once that track fixes it.
+test-vol-order-manager:
+	forge test --match-path 'test/pos_spec/VolOrderManager.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+
+.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation test-vol-order-manager
 
 
 #####################################################################
