@@ -580,10 +580,27 @@ renderSizeAudit so dateStr metrics spells chunks nonzero achievableRows withinMe
           , "unreachable on this market's data, and the correct outcome is to REPORT"
           , "that rather than to proceed.**"
           , ""
-          , "A STOP verdict here is a legitimate, publishable phase outcome — \"this"
-          , "market's `width /= 0` population is too thin to identify `upsilon`\" is a"
-          , "real finding — not a failure, and not an invitation to move the"
-          , "threshold." ]
+          , "What specifically failed:"
+          , ""
+          ] ++ concat
+          [ [ "- **(a) row count.** The achievable panel supplies " ++ show achievableRows
+            , "  rows against a floor of " ++ show goRowThreshold ++ ". This market simply"
+            , "  does not have enough premium-bearing position-days." ]
+          | not condA ] ++ concat
+          [ [ "- **(b) within-position variation.** The median usable tokenId spans "
+                ++ fmtG withinMedian ++ " joinable"
+            , "  epoch(s), against a floor of " ++ show goWithinEpochThreshold ++ ". The"
+            , "  regressor does NOT genuinely vary within a position, which is the very"
+            , "  defect the reconstruction was meant to repair. Rebuilding the LHS at daily"
+            , "  resolution cannot create within-position variation in positions that do"
+            , "  not survive a day." ]
+          | not condB ] ++
+          [ ""
+          , "A STOP verdict here is a legitimate, publishable phase outcome — not a"
+          , "failure, and not an invitation to move the threshold. The finding is that"
+          , "this market's positions are too SHORT-LIVED and too few in number to"
+          , "identify `upsilon` from a position-epoch panel, however exactly the"
+          , "premium is reconstructed." ]
 
 -- | Median of a list of counts (NaN on empty — an honest "no data", not a 0).
 medianI :: [Int] -> Double
