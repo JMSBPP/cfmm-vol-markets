@@ -40,6 +40,5 @@ univ3-periphery/=lib/panoptic-v2-core/lib/v3-periphery/contracts/
 univ4-core/=lib/panoptic-v2-core/lib/v4-core/src/
 v3-core/=lib/panoptic-v2-core/lib/v3-core/contracts/
 v3-periphery/=lib/panoptic-v2-core/lib/v3-periphery/contracts/
-v4-core/=lib/v4-core/src/
 v4-periphery/=lib/unistrata/lib/uniswap-hooks/lib/v4-periphery/
 utils/=src/lib/

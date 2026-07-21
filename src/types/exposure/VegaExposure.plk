@@ -1,5 +1,20 @@
+// VegaExposure: internal accounting record for the deposit-only vault (v1, H1 issuance).
+//
+// Live fields only. No packing: 128 + 160 = 288 bits > 256, so this is a PLAIN record, not a
+// bit-packed slot (contrast Timepoint.plk, which packs 241 bits into one u256). Plank struct
+// fields are u256; the u128 / u160 widths below are DOCUMENTED semantic bounds, not enforced by
+// the type -- the same convention Timepoint.plk uses for its sub-word fields.
+const VegaExposure = struct {
+      exposure: u256,     // u128 -- issued vega-exposure shares N_v
+      priceVolX96: u256   // u160 -- Q64.96; carries the exogenous p_risk in v1 (see exposure.md v1 note)
+};
 
-const VegaExposure = struct{
-      collateralUnits:u256,
-      priceVol: u256
+// Risk Q-type newtypes, so Phase 13 lib signatures are typed rather than bare u256.
+// Same newtype shape as Numerics.plk's Q64_96 / Q128_128.
+const RiskPriceX96 = struct {
+      val: u256   // Q64.96 -- the haircut-adjusted risk price p_risk = oracle/(1-h)
+};
+
+const Haircut = struct {
+      val: u256   // Q0.96 -- hX96 < 2^96
 };

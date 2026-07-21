@@ -8,6 +8,23 @@ A research-engineering framework for replicating **arbitrary contingent payoffs*
 
 A target contingent payoff can flow end-to-end — **payoff → GAMS solves optimal parameters → parameters encoded → Plank CFMM simulates** — with the two tracks agreeing on one authoritative type/parameter kernel. If everything else is deferred, this open-loop bridge plus shared kernel must work for at least one contingent payoff.
 
+## Current State (v3.0 shipped 2026-07-19)
+
+**v3.0 — VegaAccountMod Vault (H1 issuance, exogenous risk price): SHIPPED.** `VegaAccountMod.plk` is a live, proven deposit-only vault: deposit collateral → vega-exposure shares at `p_risk = oracle/(1−h)`, every claim a CALLED test or an OBSERVED mutation kill, verified phase-by-phase with independent mutant re-kills against the machine-checked Lean authority. `PLANK_SKIP` is empty; commands of record: `make compile` 11 ok/0/0, `make test` 74 pass / 4 pre-existing pos_spec fails (vol-type track's). Details: `.planning/MILESTONES.md`, tag `v3.0`.
+
+## Current Milestone: v4.0 — VolOrderManagerMod + Multicall
+
+**Goal:** A new `VolOrderManagerMod.plk` module — a vol-order REGISTRY (`create_order(uint88,uint24,uint16)` = strike/width/skew, selector `0x6501fe94`, independently cast-sig-verified) plus a BEST-EFFORT multicall entrypoint batching N create_order calls in one tx — built for the rpc_api Haskell track's StochasticOrderGen (Poisson-arrival order batching; their PR #9 shipped create_order/write_price/StochasticPriceGen offchain and awaits this on-chain surface).
+
+**Target features:**
+- `create_order`: validate bounds (strike u88, width u24, skew u16; revert on zero-width), construct the KEPT pos_spec `VolOrder` type, assign sequential order id, store at keccak-derived slot, `orderCount` accumulator — registry ONLY, no tick/price computation (pos_spec pricing has 4 red harness tests on the vol-type track and stays out)
+- Multicall: BEST-EFFORT per-call semantics — failed orders are skipped without reverting the batch, per-call success/order-id results returned; a failed call leaves NO partial state, successful calls persist
+- Dynamic-array ABI in Plank (calldata array in, results out) — genuinely new ground: every existing module selector takes fixed words; this is the milestone's main technical risk
+- Readers for every stored field (module-not-a-black-box rule); interface file with cast-sig-verified signature strings; v3.0's full discipline (CALLED-green, constructed corpora, observed-RED mutation battery, Solidity reference mock differential)
+
+**Consumer contract (from peer coordination, rpc_api track `mv15a18k`):** create_order selector 0x6501fe94 confirmed both sides; batch-size bound and per-call return shape to be confirmed when the peer answers the open semantics message — requirements assume per-call (success, orderId) pairs until then.
+
+
 ## Requirements
 
 ### Validated
@@ -17,9 +34,8 @@ A target contingent payoff can flow end-to-end — **payoff → GAMS solves opti
 - ✓ Plank→EVM FFI build/deploy bridge (`lib/plank-foundry-deployer/src/PlankDeployer.sol`, `plankDeployFFI`) — existing
 - ✓ Draft shared type kernel (`spec/entities/Types.md`: `NumberFormat`, `BoundedValue`, `VolatilityTermStructure`, `Grid`/`Lens` types) — existing
 - ✓ GAMS algebraic model skeleton (`primitives.gms`, `PricingKernel.gms`, `LiquidityKernel.gms`, `TradingRegion.gms`, `PayoffModule.gms`, `dynamic/InitState.gms`) — existing, outside repo at `../experiments/gams`
-- ✓ bunni-v2 LDF conformance test harness wired (`test/LiquidityDensityFunctionPlankTest.t.sol` against `ILiquidityDensityFunction`) — existing, test bodies stubbed
-- ✓ Stochastic swap-flow proxy design per `NOTES.md` (`src/lib/BinomialProxy.plk` direction `I_{n,t}`, `src/lib/SwapAmtGen.plk` amount `ΔY(t)`) — existing, needs hardening
-- ✓ Canonical Plank market-state contract (`src/ReferenceMarket.plk`, `src/MarketState.plk`) — existing, partial
+- ✓ ~~bunni-v2 LDF conformance harness~~ — DELETED 2026-07-16 (`ead50b8`, empty scaffold); recover from git history with LDF-01
+- ✓ ~~Stochastic swap-flow proxy (`BinomialProxy.plk`/`SwapAmtGen.plk`) and canonical market-state (`ReferenceMarket.plk`)~~ — DELETED 2026-07-16 (`ead50b8`) as unmaintained; recover from git history when the v1.0 pipeline resumes
 
 ### Active
 
@@ -69,6 +85,10 @@ A target contingent payoff can flow end-to-end — **payoff → GAMS solves opti
 | Vendor GAMS into `model/` inside the repo | Single-repo dual-track; bridge work needs both sides co-located | — Pending |
 | `wvs-finance` owns canonical public repo; `JMSBPP` forks | Org ownership / public visibility requirement | — Pending |
 | Theory grounding links to `cfmm-theory` `KERNEL.md` by URL/citekey (no submodule); refs under `spec/refs/` | Repo is public — cfmm-theory is local-only, so cite rather than depend | — Pending |
+| v3.0 vault pipeline is **H1 only** (`p_risk = oracle/(1−h)`, `h<1` enforced); distance D2 and P0/P2 composition deferred | Smallest proven core first — mirrors how the oracle track grew; the Lean decision table's issuance row backs H1 | ✓ Good — shipped v3.0 in 3 days, 0 arithmetic defects found |
+| v3.0 `p_risk` is **exogenous/settable** (validated > 0); RealizedVolatilityMod wiring deferred | tbd.md's own stated assumption; keeps the vault testable in isolation; vol→price conversion depends on pos_spec types that still have red harness tests | ✓ Good — isolation made the e2e differential and battery cheap |
+| v3.0 keeps `totalDeposits` / `totalShares` / `riskWeightedShares` as **three distinct state variables** (d ≡ 1 in v1) | Lean `discounted_claim_counterexample` refutes conflating the risk-adjusted subtotal with the accounting total | ✓ Good — read-conflation proved unkillable except by raw vm.load, vindicating the slot discipline |
+| Lean lemmas are the v3.0 test oracle (each lemma → a fuzz property vs a Solidity reference mock) | Same differential discipline that proved the vol oracle; the lemmas are machine-checked so the properties are not aspirational | ✓ Good — with one honest carve-out: issuance_haircut_equiv is ℝ-only; integers get the one-sided transfer |
 
 ---
-*Last updated: 2026-06-27 after initialization*
+*Last updated: 2026-07-19 — started milestone v4.0 (VolOrderManagerMod + Multicall, peer-requested by rpc_api track)*

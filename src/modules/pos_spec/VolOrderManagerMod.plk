@@ -1,0 +1,271 @@
+// VolOrderManagerMod (VORD-01/03/04/05): the vol-order REGISTRY.
+//
+// ZERO DOMAIN ARITHMETIC. This module owns dispatch, ids and slots -- nothing else. Every
+// domain operation is delegated:
+//   build_vol_order        (VolOrderValidationLib) -- constructs the struct, pins TICK_SPACING
+//   validate_order_strict  (VolOrderValidationLib) -- the REVERTING wrapper over validate_order
+//   pack_vol_order         (pos_spec::VolOrder)    -- the verbatim 152-bit packer
+//   array_slot             (v3::storage)           -- keccak256(base) + index
+// The ONLY arithmetic in this file is the id increment `+ 1`. Do not hand-build the VolOrder
+// struct here and do not inline any bound: that is what "zero arithmetic" means (REQUIREMENTS
+// VORD-05).
+//
+// Phase 18a's batch (create_orders, below) calls validate_order (the bool CORE) so an invalid
+// tuple SKIPS; this strict path calls validate_order_strict so an invalid tuple REVERTS. Both
+// descend from the same core, which is what makes MCAL-04's "strict and batch agree" true by
+// construction rather than tested into existence. The batch branch carries the MCAL-04
+// STRUCTURAL ENUMERATION of its post-validation store path in-file -- that enumeration is the
+// PRIMARY containment argument; the totality fuzz is corroboration only.
+//
+// Phase 18b (MCAL-05) replaced 18a's deliberate ONE-WORD success count with the hand-rolled
+// ABI `(bool success, uint256 orderId)[]` return: outer offset 0x20, length in ELEMENTS, then
+// STATIC tuples inlined at stride 0x40, total exactly 64 + 64*count bytes. Results are
+// positionally aligned to the input array (a failed tuple is exactly `(false, 0)` and does not
+// shift its successors) and success words are canonically 0 or 1. N=0 returns a well-formed
+// EMPTY result of exactly 64 bytes rather than 0 or 32 -- the clause MCAL-06 carried into 18b.
+// The encoder is proven byte-exact against solc's STANDARD abi.encode in
+// test/pos_spec/VolOrderManagerBatch.t.sol :: VolOrderManagerReturnEncodingTest.
+//
+// MONOTONIC IDS, NO RING. array_slot applies NO mask. The 16-bit wraparound mask used by the
+// realized-volatility ring lives in a DIFFERENT file (src/types/StorageIndex.plk) and is
+// deliberately NOT imported here: it is load-bearing for a 2^16 ring and CORRUPTING for a
+// monotonic registry, where it would fold order 65536 back onto slot 0. Killed by
+// test__unit__idAt65536IsNotMaskedIntoSlotZero.
+
+import std::constructor::return_runtime;
+import interfaces::pos_spec::VolOrderManagerInterface::*;
+import lib::pos_spec::VolOrderValidationLib::{build_vol_order, validate_order_strict, validate_order};
+import pos_spec::VolOrder::{pack_vol_order};
+import v3::storage::{array_slot};
+import v3::util::{return_u256, revert_empty};
+import std::error::require;
+
+// TWO keccak-derived slots, both computed with `cast keccak`, preimage strings RESTATED
+// test-side so vm.load addresses are computable in Solidity.
+//
+// COLLISION SAFETY IS A COMPILE-TIME VALUE, NOT A PROBABILITY. Orders live at
+// keccak256(SLOT_ORDERS_BASE) + id. The scalar slot below is more than 2^64 away from that
+// region base (asserted by test__unit__scalarSlotFarFromOrdersRegion), so no id reachable in
+// this universe can alias it.
+//
+// "VolOrderManagerMod.orderCount"
+const SLOT_ORDER_COUNT = 0x92967cb44e7866428adae18aad4bf59a10fb8d4c189b2b0e8bfe6f2a2469b5c7;
+// "VolOrderManagerMod.orders"   (the ARRAY BASE -- hashed again by array_slot, never written to)
+const SLOT_ORDERS_BASE = 0x68fef5d6c1ef01f93bf897a4ffcaa37fbdc39061144008f6edd91f64b7b199cb;
+
+// MAX_BATCH (MCAL-01). Plank enforces NO loop bound and NO gas guard -- the `while` lowerer has
+// no loop_bound / max_iter / unroll machinery -- so this constant is LOAD-BEARING, not hygiene:
+// it is the only thing standing between a caller-supplied count and an unbounded loop. 128 is the
+// decision of record; the hard admissibility ceiling is 512, and a peer value above it is CAPPED
+// and reported, never silently adopted. Pinned behaviourally by
+// test__unit__maxBatchExactlyOneTwoEightSucceeds and test__unit__overMaxBatchRevertsNoStateChange.
+const MAX_BATCH = 128;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    if selector == SELECTOR_CREATE_ORDER {
+        // create_order(uint88 strike, uint24 width, uint16 skew). Standard ABI: three
+        // right-aligned 32-byte words at 4 / 36 / 68. Whole-word reads, no masking -- dirty
+        // high bits are rejected by validation, not truncated.
+        let order = build_vol_order(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68));
+
+        // VALIDATE FIRST. Everything below is unreachable for an invalid tuple, so orderCount
+        // cannot advance on failure and the registry has no gaps (VORD-03).
+        validate_order_strict(order);
+
+        // Ids are sequential from 1 and orderCount IS the id source: id = count + 1, then the
+        // count becomes that id. Slot keccak(base)+0 is therefore NEVER written and stays
+        // permanently zero.
+        //
+        // THE 0-SENTINEL IS SOUND, NOT LUCKY (VORD-05). A valid order always has strike > 0
+        // (strike_fits_packed) and skew > 0 (spread_tick_assimetry_is_complete), and both
+        // occupy nonzero bit positions in the packed word, so a validly packed word is NEVER
+        // zero. Therefore `packed == 0` <=> "no order at this id", and getOrderPacked can
+        // return 0 for a nonexistent id without reverting and without ambiguity.
+        let id = @evm_sload(SLOT_ORDER_COUNT) + 1;
+        @evm_sstore(array_slot(SLOT_ORDERS_BASE, id), pack_vol_order(order));
+        @evm_sstore(SLOT_ORDER_COUNT, id);
+        @evm_stop();
+
+    } else if selector == SELECTOR_ORDER_COUNT {
+        // orderCount() -> uint256. Equals the latest id AND the live order count: they cannot
+        // diverge because the counter only advances on a successful store.
+        return_u256(@evm_sload(SLOT_ORDER_COUNT));
+
+    } else if selector == SELECTOR_GET_ORDER_PACKED {
+        // getOrderPacked(uint256 id) -> uint256. Raw packed word, NO bounds check: an unwritten
+        // slot reads zero, which is exactly the sentinel. No revert path (VORD-05).
+        return_u256(@evm_sload(array_slot(SLOT_ORDERS_BASE, @evm_calldataload(4))));
+
+    } else if selector == SELECTOR_CREATE_ORDERS {
+        // ---------------------------------------------------------------------------------
+        // MCAL-04 CONTAINMENT -- STRUCTURAL ENUMERATION OF THE POST-VALIDATION STORE PATH.
+        // The PRIMARY argument. The fuzz in VolOrderManagerBatch.t.sol is CORROBORATION
+        // ("no batch-revert OBSERVED over N runs"), never "proven for all 2^256 values".
+        //
+        //  1. build_vol_order(strike, width, skew)      NO REVERT. Three nested plain struct
+        //     literals (VolOrderValidationLib.plk:51-57). Plank struct literals have no smart
+        //     constructors; the require-bearing functions on those types (type_check_vol_range_
+        //     width, check_spread) are separate and are NOT invoked by literal construction.
+        //  2. validate_order(order)                     NO REVERT. A conjunction of three pure
+        //     predicates (VolOrderValidationLib.plk:67-70), each a chain of comparisons and `&`
+        //     with no require, no division, no subtraction. Total on all of u256.
+        //  3. id = id + 1                               CHECKED add, UNREACHABLE. id is bounded
+        //     by orderCount_before + 128; overflow needs id ~ 2^256.
+        //  4. pack_vol_order(order)                     NO REVERT. Pure @evm_shl / & / |
+        //     (VolOrder.plk:35-40). No require, no smart constructor, no trapping arithmetic.
+        //     THIS IS THE FACT THAT MAKES PRE-VALIDATION CONTAINMENT VIABLE AT ALL.
+        //  5. array_slot(SLOT_ORDERS_BASE, id)          CHECKED add, DOCUMENTED-UNREACHABLE.
+        //     keccak256(base) + index under Plank's checked `+` (17-01 MEASURED: it panics 0x11
+        //     rather than wrapping). Panics only for id > 2^256-1 - keccak(base) ~ 6.5e74;
+        //     counter-assigned ids advance by at most 128 per tx.
+        //  6. @evm_sstore(slot, packed)                 NO REVERT. SSTORE cannot revert outside a
+        //     staticcall context, and this branch is reached by a state-changing CALL.
+        //     (Out-of-gas is orthogonal and bounded by MAX_BATCH; gas exhaustion is not a
+        //     containment failure.)
+        //
+        // CONCLUSION: no step on the post-validation path can revert for any input that passed
+        // validate_order. Containment holds STRUCTURALLY, not statistically.
+        // ---------------------------------------------------------------------------------
+        //
+        // create_orders(uint256 count, uint256[] packedOrders) -- THE BATCH (MCAL-01/02/03/04/06).
+        //
+        // CALLDATA LAYOUT, verified by executing `cast calldata "create_orders(uint256,uint256[])"`
+        // (N=0/1/2 produce exactly 100/132/164 bytes):
+        //
+        //     byte   0   selector 0x81357911
+        //     byte   4   count
+        //     byte  36   array offset   (canonical 0x40)
+        //     byte  68   array length
+        //     byte 100 + 32*i   element i
+        //     calldatasize == 100 + 32*count
+        //
+        // DO NOT TRANSCRIBE OFFSETS FROM merkle_airdrop.plk:45. Its signature has a THREE-word
+        // head so its offset word sits at 68; ours has TWO words so ours sits at 36 and 68 is our
+        // LENGTH word. The two constants appear in both files with swapped meanings. Reading the
+        // offset at 68 here would spuriously pass only when count == 64.
+        let count = @evm_calldataload(4);
+
+        // FOUR GUARDS. Every one REVERTS the whole tx: a structurally malformed payload is not a
+        // per-call skip. ORDER IS LOAD-BEARING -- MAX_BATCH is checked FIRST because Plank's `*`
+        // and `+` are CHECKED, so with an adversarial count near 2^256 the size arithmetic below
+        // would PANIC (0x11) before the size comparison was ever evaluated. Under count <= 128,
+        // 32 * count <= 4096 and overflow is structurally impossible.
+        require(count <= MAX_BATCH);
+        require(@evm_calldataload(36) == 0x40);
+        require(@evm_calldataload(68) == count);
+        require(@evm_calldatasize() >= 100 + 32 * count);
+
+        // WHY ELEMENTS ARE READ AT A FIXED 100 + 32*i RATHER THAN FROM THE OFFSET WORD: this is
+        // sound ONLY because the offset guard pins the offset to its canonical 0x40. Delete that
+        // guard and a caller whose encoder places the array elsewhere has our loop read a fixed
+        // region of zero-padded space instead of their tuples -- the PHANTOM-ORDER attack. That is
+        // exactly why a non-canonical offset REVERTS instead of being followed.
+        //
+        // INPUT WORD:  skew@0..15 | strike@16..103 | width@104..127 | bits >=128 MUST BE ZERO.
+        // Bits 0..103 are identical to the stored word, so Phase 16's masks apply unchanged; only
+        // width moves (104 here, 128 in storage) because build_vol_order inserts TICK_SPACING = 20
+        // at 104..127 on the way to pack_vol_order.
+        //
+        // width IS DELIBERATELY UNMASKED. It is the TOP field, so any bit >= 128 inflates it past
+        // 0xffffff, where vol_range_width_is_complete rejects it -- that IS the dirty-high-bit
+        // rejection, achieved with zero new arithmetic and matching the module's existing stance
+        // (VolOrderManagerInterface.plk:6-10: whole-word reads, dirty bits rejected by validation).
+        // Masking it to `& 0xFFFFFF` would map two distinct calldata words onto the same stored
+        // order -- a malleability seam for the Haskell consumer and the Phase 19 differential.
+        // skew and strike DO get masks because a field sits above each of them.
+        // ------------------------------------------------------------------------------------
+        // THE (bool success, uint256 orderId)[] RETURN BUFFER (MCAL-05).
+        //
+        // ALLOCATED HERE, BEFORE THE LOOP, AND THIS ORDERING IS LOAD-BEARING. `array_slot` calls
+        // @malloc_uninit(32) on EVERY invocation (v3 storage.plk:232), i.e. once per iteration.
+        // A buffer whose size is not reserved up front, or which is under-sized, has those
+        // per-iteration allocations land inside the region this branch writes -- the results and
+        // array_slot's keccak scratch then alias. Reserving the exact final size in one call
+        // before any iteration runs makes that structurally impossible.
+        //
+        // SIZE ARITHMETIC CANNOT PANIC HERE. Plank's `*` and `+` are CHECKED, but the MAX_BATCH
+        // guard above already ran, so count <= 128 and 64 + 64*count <= 8256.
+        //
+        // LAYOUT (a STATIC tuple, so elements are inlined in the tail with no per-element
+        // offsets -- head 0x40, stride 0x40):
+        //     0x00  0x20        outer offset word to the array
+        //     0x20  count       length in ELEMENTS (not bytes -- this is where a membytes-shaped
+        //                       workaround would have gone wrong: bytes counts BYTES)
+        //     0x40  success[0] / 0x60 orderId[0] / 0x80 success[1] / ...
+        // TOTAL = 64 + 64*count. N=0 is exactly 64 bytes, NOT zero and NOT 32.
+        //
+        // std::abi CANNOT produce this. abi_encoded_size (std/abi.plk:22-58) branches on exactly
+        // void | u256 | bool | membytes | @is_struct(T) and type-errors on everything else; there
+        // is no array case and Plank has no array type. Only the MECHANISM is borrowed, from
+        // plank-diff-tests/src/std/abi_dynamic.plk:11-14.
+        let out = @malloc_zeroed(64 + 64 * count);
+        @mstore32(out +% 0, 0x20);
+        @mstore32(out +% 32, count);
+
+        let mut i = 0;
+        let mut id = @evm_sload(SLOT_ORDER_COUNT);
+        while i < count {
+            let word = @evm_calldataload(100 + i * 32);
+            let order = build_vol_order(
+                @evm_shr(16, word) & 0xFFFFFFFFFFFFFFFFFFFFFF,
+                @evm_shr(104, word),
+                word & 0xFFFF
+            );
+
+            // BEST-EFFORT = VALIDATE BEFORE WRITE (MCAL-03). A single Plank frame has no per-tuple
+            // rollback, so an invalid tuple is skipped by never being written. This calls the BOOL
+            // CORE; the single-call path above calls the reverting wrapper. Both descend from the
+            // same function, which is what makes MCAL-04's "strict and batch agree" true by
+            // construction rather than tested into existence.
+            //
+            // Plank has NO `continue`, so the skip MUST be this `if` WRAPPING the store, never an
+            // early jump -- a jump past the increment below is an infinite loop, i.e. out-of-gas
+            // rather than a failed assertion.
+            // POSITIONAL ALIGNMENT: result i is written at head + 64*i on BOTH paths, so the
+            // results array is index-parallel to the input array by construction rather than by
+            // accumulation. A failing tuple does not shift its successors.
+            let base = 64 + 64 * i;
+
+            if validate_order(order) {
+                id = id + 1;
+                @evm_sstore(array_slot(SLOT_ORDERS_BASE, id), pack_vol_order(order));
+                // CANONICAL BOOL. Exactly 1, never a truthy nonzero: Solidity's abi.decode REJECTS
+                // a non-canonical bool while a lenient Haskell decoder may accept it, so a
+                // non-canonical word makes the two consumers silently disagree about the same
+                // bytes. Named mutant.
+                @mstore32(out +% base, 1);
+                @mstore32(out +% (base + 32), id);
+            } else {
+                // A FAILED TUPLE IS EXACTLY (false, 0). Not (false, id), not a skipped slot.
+                @mstore32(out +% base, 0);
+                @mstore32(out +% (base + 32), 0);
+            }
+            i = i + 1;
+        }
+
+        // ONCE, after the loop. The intermediate counter value is unobservable within one tx, and
+        // hoisting the advance INTO the failure path is mutant M5: a skipped tuple would consume
+        // an id, gapping the sequence so a later valid order lands at the wrong slot. That mutant
+        // was EQUIVALENCE-MASKED in Phase 17 (the strict path's revert rolled the store back) and
+        // is a REAL kill here.
+        @evm_sstore(SLOT_ORDER_COUNT, id);
+
+        // THE TYPED RETURN (MCAL-05, and MCAL-06's carried return-bytes clause). Replaces 18a's
+        // deliberate one-word success count: return_u256 emits exactly 32 bytes and structurally
+        // CANNOT satisfy the N=0 64-byte encoding.
+        //
+        // N=0 RETURNS 64 BYTES AND NEVER REVERTS. Governing principle: structurally impossible ->
+        // revert; semantically empty -> well-formed empty result. A zero-arrival Poisson tick is an
+        // in-distribution sample, not a client error. Returning 0 or 32 bytes here would make the
+        // consumer's abi.decode revert -- a failure INVISIBLE on-chain that lands in the Haskell
+        // client. Pinned by test__unit__emptyReturnIsExactlySixtyFourBytes.
+        @evm_return(out, 64 + 64 * count);
+    }
+
+    // Unknown selector. SELECTOR_CREATE_ORDERS is now DISPATCHED above (Phase 18a).
+    revert_empty();
+}
