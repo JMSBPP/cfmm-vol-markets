@@ -52,13 +52,7 @@
 # 5th failure as a regression. See .planning/phases/17-interface-single-call-module/
 # deferred-items.md (D1).
 test: check-algebra-ref-pin
-	# --skip routes around an UNTRACKED parallel-track stray:
-	# src/modules/protocol_integrations/PriceSetterHook.sol (PR #11). Its empty Solidity import
-	# path breaks `forge build` of the WHOLE src/ tree, which breaks `make test` for EVERYONE
-	# here -- not just its own suite. This skip un-breaks make test for the local tree WITHOUT
-	# touching another track's file; it is a NO-OP the moment the owning track removes the file.
-	# It does NOT hide any test failure: no test is filtered, only a non-compiling stray source.
-	forge test --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+	forge test --via-ir --optimize
 
 # compile: every Plank entrypoint -> EVM bytecode. A PRECONDITION, never acceptance.
 # See compile-plank below for what "entrypoint" means and why it is not literally
@@ -75,7 +69,7 @@ sol-build:
 	forge build --via-ir --optimize
 
 sol-test:
-	forge test --match-contract VolOrderTest --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+	forge test --match-contract VolOrderTest --via-ir --optimize
 
 
 test-pricing-kernel-diff:
@@ -118,59 +112,50 @@ test-vol-prereqs: check-algebra-ref-pin test-market-statistics test-realized-vol
 # test/exposure/VegaIssuance.diff.t.sol -- probe + reverts + monotonicity from 13-01, plus the
 # 512-bit backing invariant, weight-one identity, composed==mock tolerance-0, and composed<=direct
 # one-sided fuzzes from 13-02). Folded into `make test` in Phase 15, NOT here.
-#
-# --skip routes around an UNTRACKED parallel-track file
-# (src/modules/protocol_integrations/PriceSetterHook.sol) whose empty imports break `forge build`
-# for the whole src/ tree. It is not this suite's file; skipping it is a no-op once the owning
-# track fixes/removes it. See the phase deferred-items.md.
 test-vega-issuance:
-	forge test --match-path 'test/exposure/VegaIssuance.diff.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+	forge test --match-path 'test/exposure/VegaIssuance.diff.t.sol' --via-ir --optimize
 
 # test-vega-account: the VegaAccountMod module surface (dispatch/storage/guards/previews/readers
 # + 14-02's slot-distinctness vm.load and mutation gate). Folded into `make test` in Phase 15,
-# NOT here. --skip routes around the untracked PriceSetterHook.sol (another track's broken file).
+# NOT here.
 test-vega-account:
-	forge test --match-path 'test/exposure/VegaAccount.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+	forge test --match-path 'test/exposure/VegaAccount.t.sol' --via-ir --optimize
 
 # test-vega-e2e: the end-to-end (setRiskPrice, deposit) SEQUENCE differential (VVER-01) --
 # VegaAccountE2EDiffTest drives identical sequences into the FFI-deployed VegaAccountMod and a
 # trivially-simple IssuanceRefMock-backed mirror, asserting all three accumulators tol-0 after
 # EVERY write. This is the milestone acceptance driver the 15-02 mutation battery reddens. Folded
-# into `make test` in Phase 15, kept here as a focused target. --skip routes around the untracked
-# PriceSetterHook.sol (another track's broken file); a no-op once that track removes it.
+# into `make test` in Phase 15, kept here as a focused target.
 test-vega-e2e:
-	forge test --match-path 'test/exposure/VegaAccount.e2e.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+	forge test --match-path 'test/exposure/VegaAccount.e2e.t.sol' --via-ir --optimize
 
 # test-vol-order-validation: the PURE VolOrderValidationLib surface (VORD-02) -- accept/reject
 # boundaries, the authored strike <= 2^88-1 bound, and the 152-bit pack/unpack round-trip,
-# all CALLED through the FFI-deployed VolOrderValidationHarness. --skip routes around the
-# untracked PriceSetterHook.sol (another track's broken file); a no-op once that track fixes it.
+# all CALLED through the FFI-deployed VolOrderValidationHarness.
 test-vol-order-validation:
-	forge test --match-path 'test/types/pos_spec/VolOrderValidation.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+	forge test --match-path 'test/types/pos_spec/VolOrderValidation.t.sol' --via-ir --optimize
 
 # test-vol-order-manager: the VolOrderManagerMod MODULE surface (VORD-01/03/04/05) -- create_order
 # dispatch, the two keccak-derived slots, the unmasked derived-slot store, monotonic ids, the
 # state-asserted invalid-tuple guard, both readers with the zero sentinel, and the selector +
 # slot-distance conformance checks. Distinct from test-vol-order-validation, which owns the PURE
-# lib surface (Phase 16). One file per surface. --skip routes around the untracked
-# PriceSetterHook.sol (another track's broken file); a no-op once that track fixes it.
+# lib surface (Phase 16). One file per surface.
 test-vol-order-manager:
-	forge test --match-path 'test/pos_spec/VolOrderManager.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+	forge test --match-path 'test/pos_spec/VolOrderManager.t.sol' --via-ir --optimize
 
 # test-vol-order-batch: the create_orders BATCH surface (MCAL-01/02/03/04/06) -- the three calldata
 # guards, MAX_BATCH, per-tuple validate-then-skip with contiguous ids, batch-of-1 equivalence and
 # the N=0 no-op. Distinct from test-vol-order-manager, which owns the SINGLE-CALL surface: this file
 # needs hand-rolled MALFORMED calldata over low-level .call, which a typed interface cannot express.
-# --skip routes around the untracked PriceSetterHook.sol (another track's broken file).
 test-vol-order-batch:
-	forge test --match-path 'test/pos_spec/VolOrderManagerBatch.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+	forge test --match-path 'test/pos_spec/VolOrderManagerBatch.t.sol' --via-ir --optimize
 
 # test-vol-order-return: the hand-rolled (bool,uint256)[] RETURN ENCODER (MCAL-05) -- head 0x40,
 # stride 0x40, total 64+64N, the N=0 64-byte edge, canonical bools, (false,0) failures and the
 # N=128 allocation probe, all compared BYTE FOR BYTE against solc's standard abi.encode. Distinct
 # from test-vol-order-batch, which owns the INPUT half (guards, MAX_BATCH, state effects).
 test-vol-order-return:
-	forge test --match-contract VolOrderManagerReturnEncodingTest --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+	forge test --match-contract VolOrderManagerReturnEncodingTest --via-ir --optimize
 
 .PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation test-vol-order-manager test-vol-order-batch test-vol-order-return
 
