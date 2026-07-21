@@ -391,10 +391,10 @@ Plans:
   5. Batch-of-1 produces state and id identical to a standalone `create_order`; `N = 0` completes without reverting and without touching state (MCAL-06).
   6. **Mutation gate:** deleting EACH of the three guards independently, deleting the validation branch (must redden the totality fuzz as a BATCH REVERT, not a wrong value), and advancing `orderCount` on failure EACH produce an OBSERVED RED; restored → green (MCAL-02, MCAL-04).
 
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 18a-01: TBD
+- [ ] 18a-01-PLAN.md — create_orders dispatch branch (4 guards, bounded while, validate-then-skip, one-word return) + batch test surface + measured N=128 gas + 7-mutant gate
 
 ### Phase 18b: Typed Return Encoding
 **Goal**: The hand-rolled `(bool,uint256)[]` return encoder — the one surface in this milestone with ZERO precedent anywhere in the repo — is byte-exact against the standard encoder.
@@ -435,7 +435,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 16. Type Packing & Validation Foundation | 1/1 | Complete    | 2026-07-20 |
 | 17. Interface & Single-Call Module | 1/1 | Complete    | 2026-07-20 |
-| 18a. Batch Input & State Effects | 0/TBD | Not started | - |
+| 18a. Batch Input & State Effects | 0/1 | Planned     | - |
 | 18b. Typed Return Encoding | 0/TBD | Not started | - |
 | 19. Differential, Mutation Battery & Consumer Fixture | 0/TBD | Not started | - |
 
