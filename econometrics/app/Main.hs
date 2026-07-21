@@ -19,15 +19,17 @@
 module Main (main) where
 
 import           Control.Exception        (IOException, try)
+import           Control.Monad            (foldM, when)
+import           Data.IORef               (modifyIORef', newIORef, readIORef)
 import qualified Data.ByteString.Lazy    as BL
 import qualified Data.Csv                as Csv
-import           Data.List               (intercalate, isPrefixOf, nub, sort,
-                                          sortOn)
+import           Data.List               (intercalate, isInfixOf, isPrefixOf,
+                                          nub, sort, sortOn)
 import qualified Data.Map.Strict         as Map
 import           Data.Maybe              (mapMaybe)
 import qualified Data.Set                as Set
 import qualified Data.Text               as T
-import           Data.Time.Clock         (getCurrentTime)
+import           Data.Time.Clock         (diffUTCTime, getCurrentTime)
 import           Data.Time.Clock.POSIX   (posixSecondsToUTCTime)
 import           Data.Time.Format        (defaultTimeLocale, formatTime)
 import qualified Data.Vector             as V
@@ -42,6 +44,10 @@ import           Numeric.GSL.Fitting     (fitModel)
 import qualified Numeric.LinearAlgebra   as LA
 
 import           Alternatives
+import           Chain.BlockIndex        (EpochBlock (..), buildBlockIndexWith,
+                                          estimationWindowBlocks)
+import           Chain.Rpc               (BlockHeader (..), RpcEnv (..),
+                                          ethGetBlockByNumber)
 import           Econ.Types              (Obs (..), Panel, Theta (..))
 import           Model.EIV               (ivFit)
 import           Model.NLS               (designPoints, fitGSLCov)
@@ -136,11 +142,21 @@ data SampleSizeOpts = SampleSizeOpts
   , ssTicksCsv   :: FilePath  -- ^ cached swap ticks, for sub-daily σ̂² estimability.
   }
 
+-- | Epoch↔block index options (plan 10-03): build the map every accumulator
+-- read is keyed on, and measure the free endpoint's sustained throughput.
+data BlockIndexOpts = BlockIndexOpts
+  { biRpc      :: String    -- ^ Base JSON-RPC endpoint.
+  , biVariance :: FilePath  -- ^ variance CSV supplying the epoch set / window.
+  , biOut      :: FilePath  -- ^ output epoch-blocks CSV (streamed, resumable).
+  , biProbe    :: Int       -- ^ >0 ⇒ run the throughput probe of N calls and exit.
+  }
+
 data Command
   = BuildPanel BuildPanelOpts
   | Variance VarianceOpts
   | Estimate EstimateOpts
   | SampleSize SampleSizeOpts
+  | BlockIndex BlockIndexOpts
 
 buildPanelOpts :: Parser BuildPanelOpts
 buildPanelOpts =
@@ -236,7 +252,26 @@ commandParser =
    <> command "sample-size"
         (info (SampleSize <$> sampleSizeOptsParser)
               (progDesc "WAVE-0 BLOCKER: census width/=0 legs and the achievable position-epoch panel size"))
+   <> command "block-index"
+        (info (BlockIndex <$> blockIndexOptsParser)
+              (progDesc "Build the epoch->block map (hourly boundaries) by bisection; or --probe N to measure RPC throughput"))
     )
+
+defaultEpochBlocksCsv :: FilePath
+defaultEpochBlocksCsv = defaultDataDir </> "epoch-blocks.csv"
+
+blockIndexOptsParser :: Parser BlockIndexOpts
+blockIndexOptsParser =
+  BlockIndexOpts
+    <$> strOption ( long "rpc" <> metavar "URL" <> value "https://mainnet.base.org"
+                 <> showDefault <> help "Base JSON-RPC endpoint (archive-capable)" )
+    <*> strOption ( long "variance" <> metavar "PATH" <> value defaultVarianceCsv
+                 <> showDefault <> help "variance CSV supplying the epoch set (daily epochs -> hourly grid)" )
+    <*> strOption ( long "out" <> metavar "PATH" <> value defaultEpochBlocksCsv
+                 <> showDefault <> help "output epoch-blocks CSV (streamed; resumes if present)" )
+    <*> option auto ( long "probe" <> metavar "N" <> value 0 <> showDefault
+                 <> help "if >0, issue N sequential eth_getBlockByNumber calls across the window, \
+                         \report throughput/429/projected bulk minutes, and exit without building" )
 
 opts :: ParserInfo Command
 opts =
@@ -253,6 +288,7 @@ run (BuildPanel o)  = runBuildPanel o
 run (Variance vo)   = runVariance vo
 run (Estimate eo)   = runEstimate eo
 run (SampleSize so) = runSampleSize so
+run (BlockIndex bo) = runBlockIndex bo
 
 -- ---------------------------------------------------------------------------
 -- build-panel
@@ -760,6 +796,194 @@ writeChunkLegsCsv fp rows = writeFile fp (csvHeader ++ body)
           , show (lrNetLiq r), show (lrTotalLiq r)
           , show (lrPosSize r), show (lrEpochMint r), show (lrEpochBurn r) ]
       | r <- rows ]
+
+-- ---------------------------------------------------------------------------
+-- block-index (plan 10-03: the epoch<->block map + the RPC throughput probe)
+-- ---------------------------------------------------------------------------
+
+-- | Hourly epoch grid (the Wave-0 HOURLY re-scope): the index maps HOURLY
+-- boundaries, not the 119 DAILY epochs the plan text was drafted against. The
+-- boundary instant of hourly epoch @h@ is @h * 3600@.
+blockIndexEpochSeconds :: Int
+blockIndexEpochSeconds = 3600
+
+-- | Base nominal head-retry env for the index build and the probe. Archive
+-- reads are cheap @eth_getBlockByNumber@ calls; keep the retry budget modest so
+-- the throughput figure reflects the endpoint, not a long backoff tail.
+blockIndexEnv :: String -> RpcEnv
+blockIndexEnv url = RpcEnv { reUrl = T.pack url, reMaxRetries = 4, reBackoffMicros = 1000000 }
+
+runBlockIndex :: BlockIndexOpts -> IO ()
+runBlockIndex bo
+  | biProbe bo > 0 = runThroughputProbe bo
+  | otherwise      = runIndexBuild bo
+
+-- | Build the hourly epoch→block index over the estimation window, streaming to
+-- the CSV. Re-probes archive availability at the window's earliest block first
+-- (RESEARCH: the free endpoint's archive availability is the volatile
+-- assumption); if BOTH the primary and the failover fail, it aborts rather than
+-- silently narrowing the window.
+runIndexBuild :: BlockIndexOpts -> IO ()
+runIndexBuild bo = do
+  let (wLo, wHi) = estimationWindowBlocks
+      primary    = blockIndexEnv (biRpc bo)
+      failover   = blockIndexEnv "https://base.drpc.org"
+
+  -- 1. Re-probe archive availability at the window's earliest block.
+  putStrLn ("block-index: re-probing archive availability at block " ++ show wLo)
+  mEnvLo <- firstAnswering [("primary/" ++ biRpc bo, primary), ("failover/base.drpc.org", failover)] wLo
+  (env, loHdr) <- case mEnvLo of
+    Nothing -> ioError (userError
+      ("ABORT: neither the primary endpoint nor base.drpc.org served archive block "
+        ++ show wLo ++ ". Not narrowing the estimation window — re-probe later."))
+    Just (label, e, h) -> do
+      putStrLn ("block-index: archive OK via " ++ label ++ " (block " ++ show wLo
+                 ++ " ts " ++ show (bhTimestamp h) ++ ")")
+      pure (e, h)
+
+  -- 2. Fetch the window's end block and derive the in-window HOURLY epoch set.
+  eHiHdr <- ethGetBlockByNumber env wHi
+  hiHdr <- either (\err -> ioError (userError ("end block " ++ show wHi ++ ": " ++ err))) pure eHiHdr
+  let startTs = bhTimestamp loHdr
+      endTs   = bhTimestamp hiHdr
+      es      = fromIntegral blockIndexEpochSeconds :: Integer
+      firstE  = fromIntegral ((startTs + es - 1) `div` es)          -- ceil(startTs / 3600)
+      lastE   = fromIntegral (endTs `div` es)                       -- floor(endTs / 3600)
+      hourlyEpochs = [firstE .. lastE]
+
+  -- 3. Cross-check the block window against variance.csv's DAILY epoch set — the
+  --    plan's stated "source of the epoch set" — so the two can never drift.
+  varMap <- loadVarianceCsv (biVariance bo)
+  let dailyEps = Map.keys varMap
+      dLo = dailyEpoch (posixSecondsToUTCTime (fromIntegral startTs))
+      dHi = dailyEpoch (posixSecondsToUTCTime (fromIntegral endTs))
+  putStrLn ("block-index: window ts " ++ show startTs ++ ".." ++ show endTs
+             ++ " -> hourly epochs " ++ show firstE ++ ".." ++ show lastE
+             ++ " (" ++ show (length hourlyEpochs) ++ " boundaries)")
+  putStrLn ("block-index: variance.csv daily epochs "
+             ++ show (minimumOr0 dailyEps) ++ ".." ++ show (maximumOr0 dailyEps)
+             ++ " (" ++ show (length dailyEps) ++ "); window maps to daily "
+             ++ show dLo ++ ".." ++ show dHi)
+  when (not (null dailyEps) && (dLo /= minimumOr0 dailyEps || dHi /= maximumOr0 dailyEps)) $
+    putStrLn "block-index: WARNING — window daily epochs differ from variance.csv range"
+
+  -- 4. Build (streaming + resumable), counting every eth_getBlockByNumber call.
+  callRef <- newIORef (0 :: Int)
+  let countedFetch b = modifyIORef' callRef (+ 1) >> ethGetBlockByNumber env b
+  memo <- newIORef (Map.empty :: Map.Map Integer BlockHeader)
+  let fetch b = do
+        m <- readIORef memo
+        case Map.lookup b m of
+          Just h  -> pure (Right h)
+          Nothing -> do
+            r <- countedFetch b
+            case r of Right h -> modifyIORef' memo (Map.insert b h) >> pure (Right h)
+                      Left e  -> pure (Left e)
+  now <- getCurrentTime
+  let date = formatTime defaultTimeLocale "%Y-%m-%d" now
+      provenance =
+        [ "epoch-blocks.csv — HOURLY epoch -> first Base block at or after epoch*3600"
+        , "RPC: " ++ T.unpack (reUrl env) ++ "   built: " ++ date
+        , "epoch rule: Panel.Build.epochOfSeconds " ++ show blockIndexEpochSeconds
+            ++ " (single source of truth); boundary instant = epoch * "
+            ++ show blockIndexEpochSeconds
+        , "window blocks " ++ show wLo ++ ".." ++ show wHi
+            ++ "; columns: epoch, block_number, block_timestamp (unix seconds)" ]
+  res <- buildBlockIndexWith fetch (wLo, wHi) provenance blockIndexEpochSeconds (biOut bo) hourlyEpochs
+  calls <- readIORef callRef
+  case res of
+    Left err -> ioError (userError ("block-index build failed: " ++ err))
+    Right rows -> do
+      let firstBlk = if null rows then 0 else ebBlockNumber (head rows)
+          lastBlk  = if null rows then 0 else ebBlockNumber (last rows)
+      putStrLn ("EPOCHS_INDEXED: " ++ show (length rows))
+      putStrLn ("FIRST_BLOCK: " ++ show firstBlk)
+      putStrLn ("LAST_BLOCK: " ++ show lastBlk)
+      putStrLn ("PROBE_CALLS: " ++ show calls)
+      putStrLn ("block-index: wrote " ++ biOut bo)
+
+-- | Try each labelled endpoint at a block in order; return the first that
+-- answers with a header, or 'Nothing' if all fail.
+firstAnswering
+  :: [(String, RpcEnv)] -> Integer -> IO (Maybe (String, RpcEnv, BlockHeader))
+firstAnswering [] _ = pure Nothing
+firstAnswering ((label, env) : rest) blk = do
+  r <- ethGetBlockByNumber env blk
+  case r of
+    Right h -> pure (Just (label, env, h))
+    Left e  -> do
+      putStrLn ("block-index: " ++ label ++ " did not answer (" ++ take 120 e ++ ")")
+      firstAnswering rest blk
+
+-- | The RPC throughput probe (RESEARCH Open Question 3). Issues N sequential
+-- @eth_getBlockByNumber@ calls at evenly spaced blocks across the estimation
+-- window and reports the sustained rate, error/429 counts, and the projected
+-- bulk-read wall time. This SIZES the bulk read (10-06); it is NOT the bulk read.
+runThroughputProbe :: BlockIndexOpts -> IO ()
+runThroughputProbe bo = do
+  let n          = biProbe bo
+      env        = blockIndexEnv (biRpc bo)
+      (wLo, wHi) = estimationWindowBlocks
+      step       = max 1 ((wHi - wLo) `div` fromIntegral (max 1 (n - 1)))
+      blocks     = take n [ wLo, wLo + step .. wHi ]
+  putStrLn ("block-index probe: " ++ show n ++ " sequential eth_getBlockByNumber calls across blocks "
+             ++ show wLo ++ ".." ++ show wHi ++ " via " ++ biRpc bo)
+  t0 <- getCurrentTime
+  (okN, errN, r429) <- foldM (probeStep env) (0 :: Int, 0 :: Int, 0 :: Int) blocks
+  t1 <- getCurrentTime
+  let elapsed = realToFrac (diffUTCTime t1 t0) :: Double
+      rate    = if elapsed > 0 then fromIntegral okN / elapsed else 0 :: Double
+      projected15k = if rate > 0 then 15000 / rate / 60 else 0 :: Double
+  putStrLn ("PROBE_CALLS: " ++ show n)
+  putStrLn ("PROBE_OK_COUNT: " ++ show okN)
+  putStrLn ("PROBE_ERROR_COUNT: " ++ show errN)
+  putStrLn ("PROBE_429_COUNT: " ++ show r429)
+  putStrLn ("PROBE_ELAPSED_S: " ++ printf "%.3f" elapsed)
+  putStrLn ("PROBE_CALLS_PER_S: " ++ printf "%.3f" rate)
+  putStrLn ("PROJECTED_BULK_MINUTES: " ++ printf "%.2f" projected15k)
+  when (r429 > 0) $
+    putStrLn "PROBE_NOTE: 429s were absorbed by rpcPost backoff; PROBE_CALLS_PER_S is the post-backoff effective rate."
+  -- Write the small report the 10-04/10-06 schedule consumes.
+  let reportPath = defaultDataDir </> "rpc-throughput-probe.md"
+  writeFile reportPath (renderProbeReport bo n okN errN r429 elapsed rate projected15k)
+  putStrLn ("block-index probe: wrote " ++ reportPath)
+
+-- | One probe call: fetch, classify the outcome (ok / error / 429-tagged error).
+probeStep :: RpcEnv -> (Int, Int, Int) -> Integer -> IO (Int, Int, Int)
+probeStep env (ok, err, r429) blk = do
+  r <- ethGetBlockByNumber env blk
+  pure $ case r of
+    Right _ -> (ok + 1, err, r429)
+    Left e
+      | "429" `isInfixOf` e -> (ok, err + 1, r429 + 1)
+      | otherwise           -> (ok, err + 1, r429)
+
+renderProbeReport
+  :: BlockIndexOpts -> Int -> Int -> Int -> Int -> Double -> Double -> Double -> String
+renderProbeReport bo n okN errN r429 elapsed rate projected15k =
+  unlines
+    [ "# RPC throughput probe — Phase 10 Wave-2 (plan 10-03)"
+    , ""
+    , "Answers RESEARCH Open Question 3 (can `mainnet.base.org` sustain the bulk"
+    , "archive read?). This is the SIZING probe; the bulk read itself is 10-06."
+    , ""
+    , "| metric | value |"
+    , "|---|---|"
+    , "| endpoint | `" ++ biRpc bo ++ "` |"
+    , "| PROBE_CALLS | " ++ show n ++ " |"
+    , "| PROBE_OK_COUNT | " ++ show okN ++ " |"
+    , "| PROBE_ERROR_COUNT | " ++ show errN ++ " |"
+    , "| PROBE_429_COUNT | " ++ show r429 ++ " |"
+    , "| PROBE_ELAPSED_S | " ++ printf "%.3f" elapsed ++ " |"
+    , "| PROBE_CALLS_PER_S | " ++ printf "%.3f" rate ++ " |"
+    , "| PROJECTED_BULK_MINUTES (15k calls) | " ++ printf "%.2f" projected15k ++ " |"
+    , ""
+    , "`PROBE_CALLS_PER_S` is the post-backoff effective rate: `rpcPost` retries"
+    , "transient 429s internally, so a 429 that eventually succeeded is counted OK."
+    , "`PROJECTED_BULK_MINUTES` uses the RESEARCH 15,000-call (daily-sized) figure;"
+    , "the HOURLY re-scope makes the bulk read larger — see the plan SUMMARY for the"
+    , "hourly-adjusted projection 10-06 must budget against."
+    ]
 
 -- ---------------------------------------------------------------------------
 -- variance
