@@ -67,7 +67,6 @@ import           Control.Concurrent (threadDelay)
 import           Control.Exception (SomeException, try)
 import           Data.Aeson (FromJSON (..), Value, eitherDecode, object,
                              withObject, (.:), (.:?), (.=))
-import qualified Data.ByteString.Char8 as BC
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Csv as Csv
@@ -91,6 +90,11 @@ import           System.IO (hFlush, hPutStrLn, stderr, stdout)
 -- than defining its own, guaranteeing σ̂²_t/σ̃²_t bucket on exactly the same
 -- integer epoch index as the panel so the two CSVs join cleanly in 09-09.
 import           Panel.Build (Epoch, dailyEpoch)
+
+-- | ABI word arithmetic (sign-extended 'decodeWordAt', 'hexToBytes') lives in
+-- 'Chain.Abi' as the single implementation — this module no longer carries its
+-- own @wordAt@ (the 09-05 fork-divergence lesson).
+import           Chain.Abi (decodeWordAt, hexToBytes)
 
 -- ---------------------------------------------------------------------------
 -- Confirmed market constants (DATA-SOURCES.md §2, §4)
@@ -347,26 +351,16 @@ renderTicks rows = unlines [ show (utcToUnix t) ++ "," ++ show tk | (t, tk) <- r
 -- | Decode the pool tick from a V4 Swap log @data@ (ASCII hex, @0x@ optional).
 -- The tick is word 4 (int24), sign-extended by the ABI across the whole 256-bit
 -- word, so a full-word two's-complement read yields the signed tick directly.
+--
+-- The word arithmetic is now the single implementation in 'Chain.Abi'
+-- ('decodeWordAt' operates on RAW returndata bytes); this decodes the ASCII-hex
+-- log @data@ to bytes once at the boundary, then reads word 4.
 decodeTick :: ByteString -> Int
-decodeTick = fromInteger . wordAt True 4
+decodeTick = fromInteger . decodeWordAt True 4 . hexToBytes . TE.decodeUtf8
 
 -- | Decode @sqrtPriceX96@ (word 2, uint160) from a V4 Swap log @data@.
 decodeSqrtPriceX96 :: ByteString -> Integer
-decodeSqrtPriceX96 = wordAt False 2
-
--- | Read the @i@-th 32-byte word of an ABI @data@ blob as an integer. When
--- @signed@ is set, values in the top half of the 256-bit range are read as
--- negative two's-complement (this is exactly how the ABI sign-extends int24).
-wordAt :: Bool -> Int -> ByteString -> Integer
-wordAt signed i bs =
-  case readHex wordHex of
-    ((v, _) : _)
-      | signed && v >= twoPow255 -> v - twoPow256
-      | otherwise                -> v
-    _ -> 0
-  where
-    s       = stripHexPrefix (BC.unpack bs)
-    wordHex = take 64 (drop (i * 64) s)
+decodeSqrtPriceX96 = decodeWordAt False 2 . hexToBytes . TE.decodeUtf8
 
 -- ---------------------------------------------------------------------------
 -- CSV ingestion (cassava)
@@ -394,10 +388,6 @@ loadSwapTicks path = do
 -- ---------------------------------------------------------------------------
 -- Hex / time helpers
 -- ---------------------------------------------------------------------------
-
-twoPow255, twoPow256 :: Integer
-twoPow255 = 2 ^ (255 :: Int)
-twoPow256 = 2 ^ (256 :: Int)
 
 -- | Parse a @0x@-prefixed hex quantity (e.g. @blockNumber@) to an 'Integer'.
 hexToInteger :: Text -> Integer

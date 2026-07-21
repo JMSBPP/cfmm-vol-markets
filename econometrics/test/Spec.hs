@@ -15,6 +15,7 @@ import qualified Model.NLSSpec
 import qualified Model.SandwichSpec
 import qualified Tests.SpecificationSpec
 import qualified AlternativesSpec
+import qualified Chain.AbiSpec
 
 -- | Diagonal of a square matrix given as a list of rows.
 diagonal :: [[Double]] -> [Double]
@@ -29,6 +30,7 @@ main = hspec $ do
   Model.SandwichSpec.spec
   Tests.SpecificationSpec.spec
   AlternativesSpec.spec
+  Chain.AbiSpec.spec
   describe "sandwich golden fixture" $ do
     it "has matching obs counts across J rows, residuals, and clusters" $ do
       length F.toyJacobianRows `shouldBe` 3

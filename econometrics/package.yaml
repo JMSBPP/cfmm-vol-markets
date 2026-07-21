@@ -37,6 +37,8 @@ library:
     - bytestring
     - text
     - optparse-applicative
+    - crypton
+    - memory
 
 executables:
   econometrics:
@@ -73,6 +75,7 @@ tests:
       - Model.SandwichSpec
       - Tests.SpecificationSpec
       - AlternativesSpec
+      - Chain.AbiSpec
     ghc-options:
       - -threaded
       - -rtsopts
