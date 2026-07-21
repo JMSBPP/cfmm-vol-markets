@@ -45,17 +45,24 @@ import qualified Numeric.LinearAlgebra   as LA
 
 import           Alternatives
 import           Chain.BlockIndex        (EpochBlock (..), buildBlockIndexWith,
-                                          estimationWindowBlocks)
-import           Chain.Rpc               (BlockHeader (..), RpcEnv (..),
-                                          ethGetBlockByNumber)
+                                          epochBlockMap, estimationWindowBlocks,
+                                          loadBlockIndex)
+import           Chain.Rpc               (BlockHeader (..), BlockTag (..),
+                                          RpcEnv (..), ethGetBlockByNumber)
 import           Econ.Types              (Obs (..), Panel, Theta (..))
 import           Model.EIV               (ivFit)
 import           Model.NLS               (designPoints, fitGSLCov)
 import           Model.SandwichSE        (clusterSandwich, standardErrors)
 import           Model.Upsilon           (model, modelSplit, moneyness, signedMoneyness)
-import           Panel.Build             (Spell (..), assembleSpells,
+import           Panel.Build             (Spell (..), assembleSpellRaws,
+                                          assembleSpells,
                                           assembleSpellsWithWindows, dailyEpoch,
                                           epochOfSeconds, writePanelCsv)
+import           Panoptic.Chunk          (ReadRow (..), buildReadSchedule,
+                                          readScheduleRaw, resolveLegChunks,
+                                          storedValueTick)
+import           Panoptic.ReadDriver     (ReadStats (..), runReadSchedule)
+import           Panoptic.Sfpm           (getAccountPremium)
 import           Panel.Subgraph          (Chunk (..), ChunkPull (..),
                                           CollateralFlow (..), Endpoint (..),
                                           Leg (..), MintEvent (..),
@@ -151,12 +158,26 @@ data BlockIndexOpts = BlockIndexOpts
   , biProbe    :: Int       -- ^ >0 ⇒ run the throughput probe of N calls and exit.
   }
 
+-- | Bulk accumulator-read options (plan 10-06): drive @SFPM.getAccountPremium@
+-- over the deduplicated read schedule, checkpointing each row to disk.
+data ReadPremiaOpts = ReadPremiaOpts
+  { rpEndpoint    :: String    -- ^ subgraph endpoint (mints/burns/legs).
+  , rpPool        :: String    -- ^ underlying poolId.
+  , rpRpc         :: String    -- ^ primary Base archive RPC.
+  , rpRpcFailover :: String    -- ^ failover Base archive RPC.
+  , rpBlockIndex  :: FilePath  -- ^ epoch->block CSV (from 10-03).
+  , rpVariance    :: FilePath  -- ^ variance CSV (source of the per-epoch pool tick).
+  , rpOut         :: FilePath  -- ^ output premium-accumulators CSV (streamed, resumable).
+  , rpDryRun      :: Bool      -- ^ build + size the schedule, make ZERO eth_calls.
+  }
+
 data Command
   = BuildPanel BuildPanelOpts
   | Variance VarianceOpts
   | Estimate EstimateOpts
   | SampleSize SampleSizeOpts
   | BlockIndex BlockIndexOpts
+  | ReadPremia ReadPremiaOpts
 
 buildPanelOpts :: Parser BuildPanelOpts
 buildPanelOpts =
@@ -255,10 +276,36 @@ commandParser =
    <> command "block-index"
         (info (BlockIndex <$> blockIndexOptsParser)
               (progDesc "Build the epoch->block map (hourly boundaries) by bisection; or --probe N to measure RPC throughput"))
+   <> command "read-premia"
+        (info (ReadPremia <$> readPremiaOptsParser)
+              (progDesc "Bulk getAccountPremium read over the deduplicated schedule, checkpointed to disk (--dry-run to size only)"))
     )
+
+readPremiaOptsParser :: Parser ReadPremiaOpts
+readPremiaOptsParser =
+  ReadPremiaOpts
+    <$> strOption ( long "endpoint" <> metavar "URL"
+                 <> help "Panoptic subgraph GraphQL endpoint (mints/burns/legs)" )
+    <*> strOption ( long "pool" <> metavar "POOL"
+                 <> help "underlying Pool.id (V4 poolId) to filter on" )
+    <*> strOption ( long "rpc" <> metavar "URL" <> value "https://mainnet.base.org"
+                 <> showDefault <> help "primary Base JSON-RPC endpoint (archive-capable)" )
+    <*> strOption ( long "rpc-failover" <> metavar "URL" <> value "https://base.drpc.org"
+                 <> showDefault <> help "failover Base JSON-RPC endpoint" )
+    <*> strOption ( long "block-index" <> metavar "PATH" <> value defaultEpochBlocksCsv
+                 <> showDefault <> help "epoch->block CSV from block-index (hourly boundaries)" )
+    <*> strOption ( long "variance" <> metavar "PATH" <> value defaultVarianceCsv
+                 <> showDefault <> help "variance CSV (per-epoch pool tick, for atTick extrapolation)" )
+    <*> strOption ( long "out" <> metavar "PATH" <> value defaultPremiumAccumulatorsCsv
+                 <> showDefault <> help "output premium-accumulators CSV (streamed; resumes if present)" )
+    <*> switch ( long "dry-run"
+                 <> help "build and size the schedule, print counts, make ZERO eth_calls" )
 
 defaultEpochBlocksCsv :: FilePath
 defaultEpochBlocksCsv = defaultDataDir </> "epoch-blocks.csv"
+
+defaultPremiumAccumulatorsCsv :: FilePath
+defaultPremiumAccumulatorsCsv = defaultDataDir </> "premium-accumulators.csv"
 
 blockIndexOptsParser :: Parser BlockIndexOpts
 blockIndexOptsParser =
@@ -289,6 +336,7 @@ run (Variance vo)   = runVariance vo
 run (Estimate eo)   = runEstimate eo
 run (SampleSize so) = runSampleSize so
 run (BlockIndex bo) = runBlockIndex bo
+run (ReadPremia o)  = runReadPremia o
 
 -- ---------------------------------------------------------------------------
 -- build-panel
@@ -984,6 +1032,140 @@ renderProbeReport bo n okN errN r429 elapsed rate projected15k =
     , "the HOURLY re-scope makes the bulk read larger — see the plan SUMMARY for the"
     , "hourly-adjusted projection 10-06 must budget against."
     ]
+
+-- ---------------------------------------------------------------------------
+-- read-premia (plan 10-06: the bulk accumulator read)
+-- ---------------------------------------------------------------------------
+
+-- | The bulk-read budget CEILING (rows). The RESEARCH 8k–15k figure was sized
+-- against the DAILY grid; the HOURLY re-scope (10-01) revised the envelope to
+-- ~30k–60k reads (10-03/10-04 SUMMARYs). A distinct-read count materially past
+-- this is a bug upstream (the schedule is deterministic), not a bigger market, so
+-- the run aborts rather than launching an oversized pull.
+readBudgetCeiling :: Int
+readBudgetCeiling = 60000
+
+-- | Retry policy for the bulk read: a generous budget for a multi-hour sequential
+-- archive pull on a free endpoint.
+readPremiaEnv :: String -> RpcEnv
+readPremiaEnv url = RpcEnv { reUrl = T.pack url, reMaxRetries = 6, reBackoffMicros = 2000000 }
+
+runReadPremia :: ReadPremiaOpts -> IO ()
+runReadPremia o = do
+  let ep          = Endpoint (T.pack (rpEndpoint o))
+      pool        = PoolAddr (T.pack (rpPool o))
+      primaryEnv  = readPremiaEnv (rpRpc o)
+      failoverEnv = readPremiaEnv (rpRpcFailover o)
+
+  -- 1. Assemble the schedule inputs from the subgraph.
+  putStrLn ("read-premia: endpoint " ++ rpEndpoint o)
+  mints <- fetchMints ep pool
+  burns <- fetchBurns ep pool
+  legs  <- fetchLegs ep pool
+  putStrLn ("read-premia: " ++ show (length mints) ++ " mints, "
+             ++ show (length burns) ++ " burns, " ++ show (length legs)
+             ++ " tokenIds with legs")
+
+  let legMap = Map.fromList legs
+      raws   = assembleSpellRaws ethUsdcDecimalShift mints burns legs
+      -- Resolve each paired spell's legs to chunks, using the OPENING mint's
+      -- positionSize (round to Integer at the boundary — no Double downstream).
+      spellsWithLegs =
+        [ (tid, m, b, resolveLegChunks marketTickSpacing (round (mePositionSize m))
+                        (Map.findWithDefault [] tid legMap))
+        | (tid, m, b) <- raws ]
+  putStrLn ("read-premia: " ++ show (length raws) ++ " paired accrual spells")
+
+  -- 2. Load the hourly epoch->block index (10-03) and derive the atTick index.
+  --    variance.csv supplies a DAILY mean pool tick; the schedule is HOURLY, so
+  --    each hourly epoch e maps to its containing day's tick (e `div` 24). Where a
+  --    day has no variance row the read falls back to the stored-value sentinel.
+  ebs <- loadBlockIndex (rpBlockIndex o)
+  varMap <- loadVarianceCsv (rpVariance o)
+  let blockIx   = epochBlockMap ebs
+      dailyTick = Map.map (round . vrTick) varMap :: Map.Map Int Int
+      tickIx    = Map.fromList
+        [ (e, t) | e <- Map.keys blockIx, Just t <- [Map.lookup (e `div` 24) dailyTick] ]
+
+  -- 3. Build the deduplicated read schedule and size it.
+  let scheduleRaw = readScheduleRaw blockIx tickIx spellsWithLegs
+      schedule    = buildReadSchedule blockIx tickIx spellsWithLegs
+      scheduleRows = length scheduleRaw
+      distinct     = length schedule
+      blocks       = map rrBlock schedule
+      (loBlk, hiBlk) = if null blocks then (0, 0) else (minimum blocks, maximum blocks)
+  putStrLn ("SCHEDULE_ROWS: " ++ show scheduleRows)
+  putStrLn ("DISTINCT_READS: " ++ show distinct)
+  putStrLn ("BLOCK_RANGE: " ++ show loBlk ++ ".." ++ show hiBlk)
+  putStrLn ("READ_BUDGET_CEILING: " ++ show readBudgetCeiling)
+
+  -- Oversize abort: a deterministic schedule past the ceiling is an upstream bug.
+  when (distinct > readBudgetCeiling) $
+    ioError (userError
+      ("ABORT: DISTINCT_READS " ++ show distinct ++ " exceeds the ceiling "
+        ++ show readBudgetCeiling ++ ". The schedule is deterministic, so an "
+        ++ "unexpected count is a bug upstream, not a bigger market. Not launching."))
+
+  if null schedule
+    then ioError (userError "ABORT: empty schedule — no spells resolved to any read.")
+    else pure ()
+
+  if rpDryRun o
+    then putStrLn "read-premia: --dry-run — schedule sized, ZERO eth_calls made."
+    else do
+      -- 4. Re-probe archive availability at the EARLIEST scheduled block. If both
+      --    endpoints fail, abort — do NOT silently narrow the window.
+      let probeRow = minimumOnBlock schedule
+      putStrLn ("read-premia: re-probing archive availability at block "
+                 ++ show (rrBlock probeRow))
+      probed <- probeArchiveAt primaryEnv failoverEnv probeRow
+      case probed of
+        Left err -> ioError (userError
+          ("ABORT: archive re-probe failed on BOTH endpoints at block "
+            ++ show (rrBlock probeRow) ++ ": " ++ err
+            ++ " — the free-endpoint archive retention is the volatile assumption. "
+            ++ "Re-probe later; not narrowing the window."))
+        Right lbl -> putStrLn ("read-premia: archive OK via " ++ lbl)
+
+      -- 5. Run the bulk read (checkpointed per row; a re-run resumes).
+      putStrLn ("read-premia: starting bulk read -> " ++ rpOut o)
+      res <- runReadSchedule primaryEnv failoverEnv (rpOut o) schedule
+      case res of
+        Left err -> ioError (userError ("read-premia: " ++ err))
+        Right st -> do
+          let (emptyN, frozenN) = rsFlagged st
+          putStrLn  "read-premia: DONE"
+          putStrLn ("SCHEDULE_ROWS: "        ++ show scheduleRows)
+          putStrLn ("DISTINCT_READS: "       ++ show distinct)
+          putStrLn ("CALLS_MADE: "           ++ show (rsCalls st))
+          putStrLn ("ROWS_SKIPPED_RESUMED: " ++ show (rsSkipped st))
+          putStrLn ("ELAPSED_S: "            ++ printf "%.1f" (rsElapsedS st))
+          putStrLn ("FAILOVER_CALLS: "       ++ show (rsFailoverCalls st))
+          putStrLn ("CHUNK_EMPTY_ROWS: "     ++ show emptyN)
+          putStrLn ("ACC_FROZEN_ROWS: "      ++ show frozenN)
+          putStrLn ("BLOCK_RANGE: "          ++ show loBlk ++ ".." ++ show hiBlk)
+          putStrLn ("read-premia: wrote "    ++ rpOut o)
+
+-- | The scheduled row at the earliest block — the probe target.
+minimumOnBlock :: [ReadRow] -> ReadRow
+minimumOnBlock = foldr1 (\a b -> if rrBlock a <= rrBlock b then a else b)
+
+-- | Probe @getAccountPremium@ for one row on the primary, then the failover.
+-- Returns the endpoint label that answered, or 'Left' if BOTH fail.
+probeArchiveAt :: RpcEnv -> RpcEnv -> ReadRow -> IO (Either String String)
+probeArchiveAt primaryEnv failoverEnv row = do
+  let ck     = rrChunkKey row
+      atTick = if rrAtTick row == storedValueTick then Nothing else Just (rrAtTick row)
+      tag    = BlockNumber (rrBlock row)
+  rp <- getAccountPremium primaryEnv ck atTick (rrIsLong row) tag
+  case rp of
+    Right _ -> pure (Right ("primary/" ++ T.unpack (reUrl primaryEnv)))
+    Left e1 -> do
+      putStrLn ("read-premia: primary did not answer (" ++ take 120 e1 ++ ")")
+      rf <- getAccountPremium failoverEnv ck atTick (rrIsLong row) tag
+      pure $ case rf of
+        Right _ -> Right ("failover/" ++ T.unpack (reUrl failoverEnv))
+        Left e2 -> Left ("primary: " ++ e1 ++ " | failover: " ++ e2)
 
 -- ---------------------------------------------------------------------------
 -- variance

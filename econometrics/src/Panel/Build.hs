@@ -45,6 +45,7 @@ module Panel.Build
   , Spell (..)
   , assembleSpells
   , assembleSpellsWithWindows
+  , assembleSpellRaws
   , tickToPrice
   , premiumUsd
   , writePanelCsv
@@ -168,7 +169,28 @@ assembleSpells decimalShift mints burns legs =
 assembleSpellsWithWindows
   :: Int -> [MintEvent] -> [BurnEvent] -> [(Text, [Leg])] -> [(Spell, (Integer, Integer))]
 assembleSpellsWithWindows decimalShift mints burns legs =
-  sortOn (spBurnEpoch . fst) (mapMaybe toSpell burns)
+  [ (sp, win) | (sp, win, _, _) <- assembleSpellFull decimalShift mints burns legs ]
+
+-- | The mint↔burn pairing with the RAW paired events retained, keyed by tokenId.
+-- Consumed by the 10-06 read driver, which needs the actual 'MintEvent' /
+-- 'BurnEvent' blocks and ticks (not the derived 'Spell') to build the accumulator
+-- read schedule. A projection of 'assembleSpellFull', so there is still exactly
+-- ONE pairing rule shared with 'assembleSpellsWithWindows'.
+assembleSpellRaws
+  :: Int -> [MintEvent] -> [BurnEvent] -> [(Text, [Leg])] -> [(Text, MintEvent, BurnEvent)]
+assembleSpellRaws decimalShift mints burns legs =
+  [ (spTokenId sp, m, b) | (sp, _, m, b) <- assembleSpellFull decimalShift mints burns legs ]
+
+-- | The single pairing implementation: for each burn, its position's legs, the
+-- last mint before it (same tokenId+account), and the derived 'Spell', the
+-- second-resolution @(mintUnix, burnUnix)@ window, and the raw paired events.
+-- 'assembleSpellsWithWindows' and 'assembleSpellRaws' are projections of this, so
+-- the pairing and the @days>0 ∧ usd≠0@ acceptance filter are defined exactly once.
+assembleSpellFull
+  :: Int -> [MintEvent] -> [BurnEvent] -> [(Text, [Leg])]
+  -> [(Spell, (Integer, Integer), MintEvent, BurnEvent)]
+assembleSpellFull decimalShift mints burns legs =
+  sortOn (\(sp, _, _, _) -> spBurnEpoch sp) (mapMaybe toSpell burns)
   where
     legMap = Map.fromList legs
 
@@ -184,22 +206,23 @@ assembleSpellsWithWindows decimalShift mints burns legs =
       let days   = fromInteger (beTimestamp b - meTimestamp m) / 86400
           isLong = legIsLong l
           usd    = premiumUsd decimalShift isLong b
-      let window = (meTimestamp m, beTimestamp b)
+          window = (meTimestamp m, beTimestamp b)
+          sp = Spell
+                 { spTokenId     = beTokenId b
+                 , spAccount     = beAccount b
+                 , spMintEpoch   = epochOfUnix (meTimestamp m)
+                 , spBurnEpoch   = epochOfUnix (beTimestamp b)
+                 , spDays        = days
+                 , spPremiumUsd  = usd
+                 , spPremiumRate = usd / days
+                 , spStrikeTick  = legStrikeTick l
+                 , spTickAtMint  = meTickAt m
+                 , spTickAtBurn  = beTickAt b
+                 , spIsLong      = isLong
+                 }
       if days <= 0 || usd == 0 || isNaN usd || isInfinite usd
         then Nothing
-        else Just $ flip (,) window Spell
-          { spTokenId     = beTokenId b
-          , spAccount     = beAccount b
-          , spMintEpoch   = epochOfUnix (meTimestamp m)
-          , spBurnEpoch   = epochOfUnix (beTimestamp b)
-          , spDays        = days
-          , spPremiumUsd  = usd
-          , spPremiumRate = usd / days
-          , spStrikeTick  = legStrikeTick l
-          , spTickAtMint  = meTickAt m
-          , spTickAtBurn  = beTickAt b
-          , spIsLong      = isLong
-          }
+        else Just (sp, window, m, b)
 
     lastMay [] = Nothing
     lastMay xs = Just (last xs)
