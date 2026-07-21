@@ -255,6 +255,11 @@ PLANK_BUILD   := build/plank
 # PROVEN, never on compile alone -- this is the moment the "should only ever shrink"
 # comment was written for. Add a line here ONLY to rescue a new blocked-on-authoring
 # entrypoint, and delete it the moment that file goes green.
+#
+# CHECKED AT 19-05 (MVER-04): the queue is still empty and VolOrderManagerMod was never in it.
+# A module dispatching a subset of its declared selectors COMPILES, so it never met the entry
+# condition. The v4.0 gate was always the CALLED batch dispatch, proven in
+# test/pos_spec/VolOrderManagerBatch.t.sol -- not an entry in this list.
 PLANK_SKIP    :=
 
 # compile-plank: compile every Plank entrypoint to EVM bytecode, writing

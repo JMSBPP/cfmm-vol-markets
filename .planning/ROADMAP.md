@@ -342,7 +342,7 @@ Phase numbering continues at 16 (v3.0 ended at 15). v1.0 Phases 1–7 and v2.0 P
 - [x] **Phase 17: Interface & Single-Call Module** - `create_order` CALLED-green: validate via lib, pack via type with `TICK_SPACING` pinned, sequential id, unmasked derived-slot store, readers, cast-sig-pinned selectors for BOTH entrypoints (VORD-01, VORD-03, VORD-04, VORD-05) (completed 2026-07-20)
 - [x] **Phase 18a: Batch Input & State Effects** - Standard-ABI decode behind three guards, bounded `while`, validation-skip, MAX_BATCH, totality by structural enumeration + corroborating fuzz, zero-footprint proof — returns ONE word, so state effects are proven without trusting any encoder (MCAL-01, MCAL-02, MCAL-03, MCAL-04, MCAL-06) (completed 2026-07-20)
 - [x] **Phase 18b: Typed Return Encoding** - The hand-rolled `(bool,uint256)[]` head/tail encoder (head `0x40`, stride `0x40`, total `64+64N`), N=0 edge, byte-level differential against `abi.encode` (MCAL-05) (completed 2026-07-21)
-- [ ] **Phase 19: Differential, Mutation Battery & Consumer Fixture** - Full reference-mock differential, observed-RED battery, consumer golden fixture, `PLANK_SKIP` exit gated on CALLED-green batch dispatch (MVER-01..04)
+- [x] **Phase 19: Differential, Mutation Battery & Consumer Fixture** - Full reference-mock differential, observed-RED battery, consumer golden fixture, CALLED-green batch dispatch through FFI-deployed bytecode (MVER-01..04) (completed 2026-07-21)
 
 ## Phase Details
 
@@ -413,14 +413,14 @@ Plans:
 - [x] 18b-01-PLAN.md — hand-rolled `(bool,uint256)[]` return encoder: the Plank encoder (buffer before the loop, head 0x40 / stride 0x40 / total 64+64N), the byte-level differential against solc's standard `abi.encode` incl. the N=0 64-byte edge and the N=128 allocation probe, and a six-mutant observed-RED gate (completed 2026-07-21 — 8 CALLED-green tests, 6/6 observed mutation REDs, N=128 gas re-measured at 3,275,765, M7 equivalence-checked and excluded)
 
 ### Phase 19: Differential, Mutation Battery & Consumer Fixture
-**Goal**: The milestone acceptance bar — a full independent-mock differential over sequences, the complete observed-RED battery, a consumer fixture that cannot be satisfied by doing nothing, and `PLANK_SKIP` exit.
+**Goal**: The milestone acceptance bar — a full independent-mock differential over sequences, the complete observed-RED battery, a consumer fixture that cannot be satisfied by doing nothing, and a CALLED-green batch dispatch through FFI-deployed bytecode.
 **Depends on**: Phases 17, 18a, 18b.
 **Requirements**: MVER-01, MVER-02, MVER-03, MVER-04
 **Success Criteria** (what must be TRUE):
   1. An after-every-write driver runs identical `(create_order | create_orders)` sequences into the FFI-deployed module and an INDEPENDENT Solidity mock (standard `abi.encode`, never mirroring Plank's manual encoding), asserting `orderCount`, each stored packed word via raw `vm.load` + a single test-side `VolOrderDecoder`, and raw return-byte equality — at tolerance 0, after every write (MVER-01).
   2. The complete observed-RED battery runs with verbatim FAIL lines recorded and sources restored sha256-identical: deleted validation branch, missing strike upper bound, count-advance-on-failure, ring-mask reintroduction, each of the three calldata guards, return-head `0x40`→`0x20`, non-canonical success word. Equivalence-masked mutants documented and explicitly NOT counted as kills (MVER-02).
   3. A consumer golden fixture FILE exists containing byte strings produced by an encoder OUTSIDE this repo. If peer bytes are unavailable, a self-encoded stand-in is committed marked `NOT-PEER-VERIFIED` and the gap is listed in the milestone exit record — falsifiable either way, never satisfiable by inaction. Plus a cast-sig test for every selector string in the interface file (MVER-03).
-  4. `VolOrderManagerMod` leaves `PLANK_SKIP` only after the BATCH dispatch is CALLED green through FFI-deployed bytecode; `make compile-plank` reports 0 failed; the suite has its own `make` target and is folded into `make test`, whose comment block is updated to the newly MEASURED counts (MVER-04).
+  4. `VolOrderManagerMod`'s BATCH dispatch is CALLED green through FFI-deployed bytecode -- the real gate, and the one MVER-04's 2026-07-20 correction left standing. **CORRECTED at 19-05:** the pre-correction wording said the module "leaves `PLANK_SKIP`"; there is no exit to perform, because `PLANK_SKIP` is the Makefile's rescue queue for entrypoints that do NOT compile (Makefile:186-198) and a module dispatching a subset of its declared selectors compiles fine. The queue has been empty since Phase 15 and stays empty. `make compile-plank` reports 0 failed FOR THE POS_SPEC SURFACES this milestone owns; the suite has its own `make` target (`test-vol-order-acceptance`) and is folded into `make test`, whose comment block is updated to the newly MEASURED counts (MVER-04).
 
 **Plans**: TBD
 
@@ -428,6 +428,8 @@ Plans:
 - [x] 19-01: Interleaved sequence differential vs independent mock (MVER-01) — anchor ends at id 12, fuzz `runs: 256` cold-cache, module and mock agree at tol 0, `src/` sha256-identical
 - [x] 19-02: Consumer golden fixture + selector completeness (MVER-03) — 5 `cast abi-encode` (alloy) cases re-derived and diffed against the committed file, all 4 `cast sig` outputs matched the pinned constants, 3 falsifiability modes OBSERVED (not the 1 mandated); alloy independently confirms 18b's layout incl. the N=0 64-byte edge. Cross-language peer gap remains OPEN and marked `NOT-PEER-VERIFIED`
 - [x] 19-03: Mutation battery part A (MVER-02) — 5 observed REDs (M1a, M1b, M2, M3, M4), **0 survivors**, 0 unconstructible, each restored sha256-identical. Finding F1: M2 dies ONLY in the Phase-16 harness — no pos_spec test delivers an oversized strike, and on the batch path M2 is genuinely EQUIVALENT (strike masked to 88 bits before validation), so the strike bound at the `create_order` entrypoint is UNPROVEN. Reported, not fixed (this phase builds nothing)
+- [x] 19-04: Mutation battery part B (MVER-02) — 5 observed REDs (M5/M6/M7 the three calldata guards deleted INDEPENDENTLY, M8 return element-base shift, M9 non-canonical success word), each restored sha256-identical. **Consolidated MVER-02: 10 applications, 10 REDs, 0 SURVIVORS, 0 unconstructible.** Guard 3's kill taken from the REVERT assertion with its state-invisibility RE-MEASURED. Finding: four mutants (M2, M4, M5/M6/M7) have a SINGLE point of failure — wave 1 structurally cannot cover the malformed-input or large-id surfaces
+- [x] 19-05: Dedicated `make` target + re-measured counts (MVER-04) — `test-vol-order-acceptance` (plus `test-vol-order-diff`, `test-vol-order-fixture`) passes; fold-in PROVEN by observing all three Phase 19 contract names in plain `make test`; comment block re-MEASURED cold at **102 passed / 18 failed / 120 total (44 suites)** and **compile-plank 11 ok / 2 failed**, every red attributed (14 exposure draft, 4 vol-type track, **0 in `test/pos_spec/`**); the CALLED-green batch dispatch VERIFIED by three named passing tests through FFI-deployed bytecode; `PLANK_SKIP` verified byte-identically empty and the stale SC-4 "exit" wording corrected
 
 ## Progress (Milestone v4.0)
 
@@ -439,7 +441,7 @@ Plans:
 | 17. Interface & Single-Call Module | 1/1 | Complete    | 2026-07-20 |
 | 18a. Batch Input & State Effects | 1/1 | Complete    | 2026-07-20 |
 | 18b. Typed Return Encoding | 1/1 | Complete    | 2026-07-21 |
-| 19. Differential, Mutation Battery & Consumer Fixture | 4/5 | In Progress|  |
+| 19. Differential, Mutation Battery & Consumer Fixture | 5/5 | Complete    | 2026-07-21 |
 
 ## Coverage (Milestone v4.0)
 
