@@ -80,6 +80,7 @@ tests:
       - Chain.BlockIndexSpec
       - Panoptic.ChunkSpec
       - Panoptic.SfpmSpec
+      - Panoptic.PremiumSpec
     ghc-options:
       - -threaded
       - -rtsopts
