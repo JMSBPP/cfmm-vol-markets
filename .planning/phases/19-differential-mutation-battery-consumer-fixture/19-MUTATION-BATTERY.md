@@ -562,3 +562,190 @@ to satisfy the literal grep. This is the sixth instance of the self-contradictin
 
 Also present and NOT ours: untracked `src/lib/protocol_integrations/` and
 `src/types/protocol_integrations/` directories, from another track. Named here, untouched.
+
+---
+
+# PART B — The three calldata guards and the two return-encoder mutants
+
+**Observed on the CURRENT tree on 2026-07-21, continuing Part A's protocol unchanged.** Part A's
+restoration audit was re-verified before anything was applied here:
+
+```
+$ sha256sum src/modules/pos_spec/VolOrderManagerMod.plk
+be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787  src/modules/pos_spec/VolOrderManagerMod.plk
+```
+
+EQUAL to baseline — 19-03's restoration held across its mid-flight session death. No mutant was left
+applied. `git status --short` on all three pos_spec trees is empty.
+
+**GREEN BASELINE re-measured cold for Part B:**
+
+```
+Ran 15 test suites in 6.31s (7.66s CPU time): 40 tests passed, 0 failed, 0 skipped (40 total tests)
+```
+
+The three guards are named per the project-wide fixed convention: **guard 1 = offset, guard 2 =
+length, guard 3 = calldatasize.** `MAX_BATCH` is NOT one of MCAL-02's three calldata guards and is
+named separately. Each guard was deleted INDEPENDENTLY — never two in one run — so every red is
+attributable to a single deletion.
+
+---
+
+## M5 — GUARD 1 DELETED (canonical array offset)
+
+**File:** `src/modules/pos_spec/VolOrderManagerMod.plk:158`
+**PRE sha256:** `be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787`
+
+**Edit applied** — the line deleted:
+
+```diff
+-        require(@evm_calldataload(36) == 0x40);
+```
+
+**Result: KILLED — exactly 1 red in 40.**
+
+```
+Ran 15 test suites in 4.93s (6.31s CPU time): 39 tests passed, 1 failed, 0 skipped (40 total tests)
+```
+
+VERBATIM FAIL LINE:
+
+```
+[FAIL: guard 1: non-canonical offset must revert the whole tx] test__unit__nonCanonicalOffsetReverts() (gas: 58705)
+```
+
+The red is on the test's FIRST assertion, `assertFalse(ok, ...)` — a revert-shaped red, exactly as
+predicted. The corpus is `encodeBatchRaw(1, 0x2000, 1, words)`: a hostile offset pointing far past
+the array. With the guard gone, guards 2 and 3 are both still satisfied (length == count == 1,
+calldatasize 132 >= 132), so the call SUCCEEDS and the loop stores a tuple read from the fixed
+byte-100 region that the caller's encoder never placed there. **That is the PHANTOM-ORDER hole, and
+the observation confirms it is a live one:** the mutant does not merely accept a wrong value, it
+fabricates an order. `ok` came back true, which is what reddened the assertion.
+
+No `runs: 0` line appeared. The kill is NON-FUZZ and cache-independent by construction.
+
+**POST-RESTORATION sha256:** `be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787` — EQUAL to PRE.
+
+---
+
+## M6 — GUARD 2 DELETED (array length agrees with count)
+
+**File:** `src/modules/pos_spec/VolOrderManagerMod.plk:159`
+**PRE sha256:** `be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787`
+
+**Edit applied** — the line deleted:
+
+```diff
+-        require(@evm_calldataload(68) == count);
+```
+
+Post-edit the guard block read (confirmed by grep before running, so the deletion is the one
+intended and not an adjacent line):
+
+```
+157:        require(count <= MAX_BATCH);
+158:        require(@evm_calldataload(36) == 0x40);
+159:        require(@evm_calldatasize() >= 100 + 32 * count);
+```
+
+**Result: KILLED — exactly 1 red in 40.**
+
+```
+Ran 15 test suites in 6.81s (7.84s CPU time): 39 tests passed, 1 failed, 0 skipped (40 total tests)
+```
+
+VERBATIM FAIL LINE:
+
+```
+[FAIL: guard 2: array length must agree with count] test__unit__lengthCountMismatchReverts() (gas: 85078)
+```
+
+**THE ISOLATION IS WHAT MAKES THIS ATTRIBUTABLE, and it held under measurement.** The corpus is
+`count = 2`, `length = 1`, with a FULL 164-byte payload, and the test asserts
+`assertEq(cd.length, 164, "guard 3 is satisfied: the payload is fully present")` as a PRECONDITION
+before the call. Guard 3 requires `calldatasize >= 100 + 32*2 = 164`, which 164 satisfies, so guard 3
+structurally cannot be what fired. The remaining guards 1 and MAX_BATCH are both satisfied by the
+corpus too. The red is guard 2's alone.
+
+No `runs: 0` line appeared. NON-FUZZ.
+
+**POST-RESTORATION sha256:** `be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787` — EQUAL to PRE.
+
+---
+
+## M7 — GUARD 3 DELETED (calldatasize covers the elements)
+
+**File:** `src/modules/pos_spec/VolOrderManagerMod.plk:160`
+**PRE sha256:** `be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787`
+
+**Edit applied** — the line deleted:
+
+```diff
+-        require(@evm_calldatasize() >= 100 + 32 * count);
+```
+
+**Result: KILLED — exactly 1 red in 40, and the FAIL line is the REVERT assertion.**
+
+```
+Ran 15 test suites in 6.54s (7.73s CPU time): 39 tests passed, 1 failed, 0 skipped (40 total tests)
+```
+
+VERBATIM FAIL LINE — **the kill site, and it is the `assertFalse` revert assertion**:
+
+```
+[FAIL: guard 3: calldatasize must cover 100 + 32*count] test__unit__truncatedCalldataReverts() (gas: 39217)
+```
+
+The recorded FAIL line contains the string `guard 3: calldatasize`, i.e. it is
+`assertFalse(ok, "guard 3: calldatasize must cover 100 + 32*count")`. It is **NOT** the
+`"guard 3: completeness only -- NOT the kill site"` orderCount assertion that follows it in the same
+test. Had the recorded line been the orderCount one, the observation would have been wrong and would
+have needed redoing. It was not.
+
+### The state-invisibility claim, RE-MEASURED rather than repeated from the ledger
+
+Ledger entry 4 asserts that guard 3's deletion is invisible to every STATE assertion. Rather than
+cite it, it was measured under this very mutant:
+
+```
+$ forge test --match-contract VolOrderManagerBatchStateTest --via-ir --optimize
+Ran 2 tests for test/pos_spec/VolOrderManagerBatch.t.sol:VolOrderManagerBatchStateTest
+[PASS] test__unit__dirtyHighBitsAreSkippedNotStored() (gas: 17021)
+[PASS] test__unit__mixedBatchFootprintAndContiguity() (gas: 67955)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 27.79ms (427.49µs CPU time)
+Ran 1 test suite in 28.69ms (27.79ms CPU time): 2 tests passed, 0 failed, 0 skipped (2 total tests)
+```
+
+**GREEN, 2 passed / 0 failed, WITH THE MUTANT APPLIED.** That measured green is the evidence for the
+claim. The mechanism is confirmed: a `calldataload` past the end of calldata returns ZERO-PADDED
+words, `build_vol_order(0, 0, 0)` fails validation, the tuple is SKIPPED, and state stays clean — so
+a state assertion is structurally incapable of distinguishing this mutant and would have recorded a
+FAKE KILL. **Only the revert assertion discriminates.**
+
+This is the one mutant in the whole battery where choosing the wrong assertion inside the *correct*
+test would still have produced a green-looking "kill". The distinction is preserved here by
+measurement on both sides.
+
+No `runs: 0` line appeared. NON-FUZZ.
+
+**POST-RESTORATION sha256:** `be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787` — EQUAL to PRE.
+**Post-restoration suite:** `40 tests passed, 0 failed, 0 skipped (40 total tests)` — GREEN, cold cache.
+
+---
+
+## HONEST NEGATIVE — wave 1 added NO kill site for ANY of the three guards
+
+Each of M5, M6 and M7 produced **exactly one red in forty**, and in all three cases that red was the
+guard's own dedicated test in `VolOrderManagerBatchGuardTest`. **19-01's `VolOrderManager.diff.t.sol`
+and 19-02's `VolOrderManagerFixture.t.sol` stayed GREEN under all three guard mutants.**
+
+This is expected rather than a defect, and the reason is worth recording so a later phase does not
+read the green as coverage: both wave-1 suites drive the module through WELL-FORMED calldata built by
+`encodeBatch`, and the guards only fire on MALFORMED encodings. A differential against a Solidity
+mock and a golden-bytes fixture are both structurally unable to express a non-canonical offset, a
+length/count mismatch, or a truncated payload — a typed encoder cannot emit them. Only the raw
+low-level `.call` corpora in `VolOrderManagerBatchGuardTest` can.
+
+**Consequence: each of the three guards has a SINGLE point of failure in the suite.** Delete
+`VolOrderManagerBatchGuardTest` and all three guards become unprotected, with 39 of 40 tests still
+green. Recorded, not fixed — this phase builds nothing.
