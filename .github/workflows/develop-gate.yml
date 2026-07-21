@@ -1,0 +1,110 @@
+name: develop-gate
+on:
+  pull_request:
+    branches: [develop]          # PR-only; merges go through PRs (no double-approval from a push trigger)
+concurrency:
+  group: develop-gate-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+
+jobs:
+  approve:                       # the ONLY environment reference -> exactly one approval, BEFORE untrusted code runs
+    runs-on: ubuntu-latest       # hosted: no toolchain, no untrusted code, frees the self-hosted executor
+    environment: develop-gate
+    timeout-minutes: 5
+    steps:
+      - run: echo "approved — heavy jobs may start"
+
+  forge:
+    needs: [approve]
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 25
+    env:
+      API_KEY: ${{ secrets.API_KEY }}
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+      # forge needs lib/panoptic-v2-core's nested v4-core + solady (remappings @uniswap/v4-core/ and
+      # solady/ point into them). The ONLY pathological part is panoptic-helper (it contains
+      # panoptic-v2-core -> infinite recursion). Init panoptic one level, block panoptic-helper, then
+      # full recursive init; forge test --offline then finds everything present (no re-init hang).
+      - run: |
+          git submodule update --init lib/panoptic-v2-core
+          git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
+          git submodule update --init --recursive
+      - run: forge test --via-ir --offline
+
+  gams:
+    needs: [approve]
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 10
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+      - run: make compile-gams
+
+  plank:
+    needs: [approve]
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 15
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+      - run: git submodule update --init lib/plankified-univ3
+      - run: make compile-plank
+
+  gamsdiff:
+    needs: [approve]
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+      - run: cd tools/gamsdiff && uv sync --frozen && uv run pytest
+
+  lean:
+    needs: [approve]
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 20
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+      - run: |
+          if [ ! -f lean/lakefile.toml ] && [ ! -f lean/lakefile.lean ]; then
+            echo "::notice::no Lean project on develop yet (PR #2 pending) — lean gate passes (nothing to check)"; exit 0
+          fi
+          elan show >/dev/null 2>&1 || curl -sSf https://elan.lean-lang.org/elan-init.sh | sh -s -- -y
+          out="$(cd lean && lake build 2>&1)"; echo "$out"
+          # no-sorry guard via Lean's OWN compiler warning (comment/identifier-safe, unlike a source grep)
+          echo "$out" | grep -qE "declaration uses '(sorry|admit)'" && { echo "::error::Lean proof uses sorry/admit"; exit 1; }
+          echo "lean: lake build clean, no sorry/admit"
+
+  gate:                          # the SOLE required check. Do NOT add `name:` (would change the context string)
+    needs: [approve, forge, gams, plank, gamsdiff, lean]
+    if: always()
+    runs-on: ubuntu-latest       # hosted: only reads results, needs no toolchain
+    timeout-minutes: 5
+    steps:
+      - run: |
+          for x in '${{ needs.forge.result }}' '${{ needs.gams.result }}' '${{ needs.plank.result }}' '${{ needs.gamsdiff.result }}' '${{ needs.lean.result }}'; do
+            case "$x" in success|skipped) ;; *) echo "::error::a gate job result was '$x'"; exit 1;; esac
+          done
+          echo "all gate jobs green"

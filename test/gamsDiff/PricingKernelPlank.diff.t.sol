@@ -11,6 +11,10 @@ import {LibCall} from "bunni-v2/lib/solady/src/utils/LibCall.sol";
 ///         on-chain Uniswap V3 reference exposed by `PriceKernelHarness.plk`.
 /// @dev The harness is a pure reader (`getSqrtRatioAtTick(int24) returns (uint256)`),
 ///      so no fork is required: it is deployed locally and queried directly.
+///      The fixture is the GAMS tunablePricingKernel at the balanced weight eta = 1/2
+///      (fixture field "eta": 0.5), which reduces to the fixed sqrt priceKernel ==
+///      getSqrtRatioAtTick. eta = 1/2 is the ONLY elasticity with an on-chain
+///      counterpart, so this diff is pinned there; eta != 1/2 is off-chain only.
 contract PricingKernelPlankdiffTest is Test, PlankDeployer {
     // getSqrtRatioAtTick(int24)
     bytes4 constant SEL_GET_SQRT_RATIO_AT_TICK = 0x986cfba3;
@@ -43,8 +47,29 @@ contract PricingKernelPlankdiffTest is Test, PlankDeployer {
     uint256 constant EPS = 1e3;
     uint256 constant TWO_96 = 79228162514264337593543950336; // 2^96
 
+    string constant FIXTURE = "test/gamsDiff/fixtures/pricing_kernel.json";
+
+    // The on-chain harness only implements getSqrtRatioAtTick, i.e. tunablePricingKernel
+    // at the balanced weight eta = 1/2. Diffing against any other elasticity would be
+    // apples-to-oranges, so the differential fixture MUST be pinned to eta = 1/2.
+    string constant BALANCED_KERNEL = "tunablePricingKernel(eta=0.5)";
+
+    /// @notice The tunablePricingKernel collapses to the on-chain getSqrtRatioAtTick
+    ///         only at eta = 1/2. Guard that the committed fixture is pinned to that
+    ///         balanced weight, so the numeric diff below stays semantically valid: a
+    ///         regeneration at eta != 1/2 (off-chain only) must redden this test rather
+    ///         than silently diff a weighted curve against the on-chain sqrt kernel.
+    function test_fixturePinnedToBalancedEta() public view {
+        string memory json = vm.readFile(FIXTURE);
+        assertEq(
+            vm.parseJsonString(json, ".kernel"),
+            BALANCED_KERNEL,
+            "fixture must be tunablePricingKernel(eta=0.5) to diff against getSqrtRatioAtTick"
+        );
+    }
+
     function test_PricingKernel_matches_getSqrtRatioAtTick() public view {
-        string memory json = vm.readFile("test/gamsDiff/fixtures/pricing_kernel.json");
+        string memory json = vm.readFile(FIXTURE);
         int256[] memory ticks = vm.parseJsonIntArray(json, ".ticks");
         uint256[] memory expected = vm.parseJsonUintArray(json, ".expectedSqrtPriceX96");
         assertEq(ticks.length, expected.length, "fixture array length mismatch");

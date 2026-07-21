@@ -1,62 +1,105 @@
+# ARCHITECTURE
+
+
+
 # AGENTS
 
 Shared discrete setup over the tick span \(i \in \{i_l, \dots, i_u\}\) with spacing
 \(\Delta_i\), reusing the spec layer:
 
-- pricing kernel \(P_X(i) = \lambda^{\, i \, \Delta_i}\) (price of \(X\) in \(Y\));
+- pricing kernel \(P_{1/2}(i) = \lambda^{\, i \, \Delta_i}\) (price of \(X\) in \(Y\));
 - per-tick liquidity \(L(i) = \bar L \, \ell(i)\), with \(\ell(i)\) the liquidity kernel weight;
 - elasticity \(\eta \in (0,1)\), the trading-function exponent \(L = X^{\eta} Y^{1-\eta}\).
 
-Pinning the local price to \(P_X(i)\) on the \(\eta\)-CES curve gives each tick's reserves
-(the one place \(\eta\) enters):
+The [(\1/2\)-pricing kernel](~/cfmms-playground/cfmm-replicationPlank/lib/plankified-univ3/plank/lib/math/sqrt_price_math.plk) gives a price impact function implemented as `getNextSqrtPriceFromAmount0RoundingUp` given pool liquidity \(\bar L\)
+
 
 \[
 	\begin{aligned}
-		x(i;\eta) \, &= \, L(i) \, \Big(\tfrac{\eta}{1-\eta}\Big)^{1-\eta} \, P_X(i)^{-(1-\eta)} \\
-		y(i;\eta) \, &= \, L(i) \, \Big(\tfrac{1-\eta}{\eta}\Big)^{\eta} \, P_X(i)^{\eta}
+		P_{1/2} \, (\Delta^I) \, &= \, \frac{\bar L \, P_{1/2}(i)}{\bar L + \Delta^I \,P_{1/2}(i)}
 	\end{aligned}
 \]
 
-Both payoffs factor through one \(\eta\)-weighted liquidity–price aggregate over the span:
+If we were to implement a generic \(\eta - \) price impact funcion, we need the \(\eta - \) pricing kernel  to stay on the \(1/2 - \) kernel:
+
+This is we need to prove: 
+\[
+	\begin{aligned}
+		\exists_{i_{-}, i_{+} \, \text{Ticks}} \quad \,  P_{\eta} \, (i) \ \, = P_{1/2} \, (i_{-}) \, P_{1/2} \, (i_{+}) = P_{1/2} \, (i)
+	\end{aligned}
+\]
+
+
+### [Proven — `lean/exp/eta.lean` :: `CFMM.Eta.eta_split_kernel_identity`](https://aristotle.harmonic.fun/projects/160ce65d-9e86-4bd3-a59b-527b02fa896f)
+
 
 \[
 	\begin{aligned}
-		S(\eta) \, &= \, \sum_{i=i_l}^{i_u} \ell(i) \, P_X(i)^{\eta}
-				   \, = \, \sum_{i=i_l}^{i_u} \ell(i) \, \lambda^{\, \eta \, i \, \Delta_i}
+		i_{-}(\eta) \, &= \, \lfloor \eta \, i \rfloor , \qquad
+		i_{+}(\eta) \, = \, i \, - \, i_{-}(\eta)
+	\end{aligned}
+\]
+
+**Reproduce** (one-shot, ~35 min on Aristotle):
+
+```bash
+# set ARISTOTLE_API_KEY in your shell first (do NOT paste inline)
+cd lean4-spec
+aristotle submit "Discharge the sorry in exp/eta.lean: theorem \
+  eta_split_kernel_identity in namespace CFMM.Eta." \
+  --project-dir ./lean --wait --destination ./lean/.aristotle-out.tar.gz
+```
+
+
+Then the [output](~/cfmms-playground/cfmm-replicationPlank/lib/plankified-univ3/plank/lib/math/sqrt_price_math.plk) following :
+
+```
+const getAmount1DeltaUnsigned = fn (sqrtRatioAX96: u256, sqrtRatioBX96: u256, liquidity: u256, roundUp: bool) u256
+```
+
+\[
+	\begin{aligned}
+		\Delta^O \, (P_{\eta} \, (\Delta^I), \Delta^I; i) \, &= \, \bar L \, \big( P_{\eta} \, (i) \, - \, P_{\eta} \, (\Delta^I) \big)
 	\end{aligned}
 \]
 
 
 ## TRADER
 
-Consider a trader who always enter a fixed amount of input \(\Delta^I\) which is known to span a tick range 
-\(i_l, i_u\). The trader sells \(X\) for \(Y\) (\(\Delta^I = \Delta X\)), valued in \(Y\).
-
-We define the trader payoff as the total \(Y\) released by the crossed ticks:
 
 \[
 	\begin{aligned}
-		\pi^{\text{trader}}(\eta) \, &= \, \sum_{i=i_l}^{i_u} y(i;\eta)
-		\, = \, \Big(\tfrac{1-\eta}{\eta}\Big)^{\eta} \, \bar L \, S(\eta) ,
-		\qquad \text{s.t. } \sum_{i=i_l}^{i_u} x(i;\eta) = \Delta^I
+		\pi_{\eta}^{\text{trader}}(\cdot) \, &= \, d (P_{\eta} \, (i) \, \Delta^I\, , \, \Delta^O \, (P_{\eta} \, (\Delta^I), \Delta^I; i) ) \propto \sigma 
 	\end{aligned}
 \]
 
+The [(\1/2\)-pricing kernel](~/cfmms-playground/cfmm-replicationPlank/lib/plankified-univ3/plank/lib/math/sqrt_price_math.plk) gives a price impact function implemented as `getNextSqrtPriceFromAmount0RoundingUp` given pool liquidity \(\bar L\)
 
-## LP
+Working out the explicit design with $f(x) = x^{1/(1-\eta)}$ and σ(η) = δ·P^η. Showing each piece before I touch the file.
 
-Consider an LP who has fixed liquidity \(\bar L\) which is fixed at spans \(i_u, i_l\).
+##  Trader (long-vol, convex in input)
 
-We define the LP payoff as the mark-to-market inventory value in \(Y\),
-\(\sum_i \big[y(i;\eta) + P_X(i)\, x(i;\eta)\big]\):
+$$\pi_\eta^{\text{trader}} = d \big(P_\eta(i)\cdot \Delta^I,\ \Delta^O\big)$$
+
+###  CES LONG PAYOFF
+$$\pi_\eta^{\text{trader}} \;=\; (P_\eta(i)\Delta^I)^{\frac{1}{1-\eta}} - (\Delta^O)^{\frac{1}{1-\eta}} - \frac{1}{1-\eta}\,(\Delta^O)^{\frac{\eta}{1-\eta}}\big(P_\eta(i)\Delta^I - \Delta^O\big)$$
+
+For \(η = 1/2\) 
+ $\pi_{1/2}^{\text{trader}} = \big(P_{1/2}(i)\Delta^I - \Delta^O\big)^2$ 
+
+
+$$\pi_\eta^{\text{trader}} \;\propto\; (\Delta^O - P_\eta(i)\Delta^I)^{1/(1-\eta)} \cdot (\text{coeff in }\eta) \;\propto\; \sigma(\eta) \cdot (\text{size factor})$$
+
+
+###  CES SHORT PAYOFF
+
+If:
+$$\pi^{\text{lp}}(\eta) \;=\; \frac{1}{\sigma(\eta,\cdot)} \;=\; \frac{1}{\delta}\,P_\eta(i)^{-\eta}$$
+
+For \(η = 1/2\) 
 
 \[
 	\begin{aligned}
-		\pi^{\text{lp}}(\eta) \, &= \, c(\eta) \, \bar L \, S(\eta) ,
-		\qquad c(\eta) = \Big(\tfrac{1-\eta}{\eta}\Big)^{\eta} + \Big(\tfrac{\eta}{1-\eta}\Big)^{1-\eta}
+		\pi^{\text{lp}}_{1/2} \propto P^{-1/2} = 1/\sqrt{P}
 	\end{aligned}
-\]
-
-> Common parameter. Both payoffs are scalar \(\eta\)-functions times the same
-> \(\bar L \, S(\eta)\). At \(\eta = \tfrac12\) (constant product) \(c=2\) and the trader
-> prefactor is \(1\), so \(\pi^{\text{lp}} = 2\,\pi^{\text{trader}}\).
+\]	

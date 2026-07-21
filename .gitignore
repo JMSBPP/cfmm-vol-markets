@@ -19,7 +19,10 @@ model/**/*.lst
 model/**/*.g00
 model/**/*.lxi
 model/**/*.gdx
+!model/price_impact_kernel.gdx
+!model/payoff_zero_slippage.gdx
 model/225*/
+model/build/
 
 # Plank compiled bytecode (make compile-plank)
 /build/plank/
@@ -38,3 +41,15 @@ node_modules/
 # Python caches
 __pycache__/
 *.pyc
+
+# Aristotle result archives (from `aristotle submit/download` to lean/)
+lean/.aristotle-*.tar.gz
+lean/.aristotle-out/
+# Lake build artifacts (lean/)
+lean/.lake/
+
+# gamsdiff: transient all-symbols GDX from the price-impact driver run
+model/price_impact_all.gdx
+
+# forge script deploy artifacts (local anvil runs)
+broadcast/

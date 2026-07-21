@@ -4,3 +4,4 @@ plank	feat/plank	yes
 sol-tests	feat/sol-tests	yes
 gamsdiff	feat/gamsdiff	no
 ci	feat/ci	no
+evm-controller	feat/evm-controller	no
