@@ -165,7 +165,14 @@ test-vol-order-manager:
 test-vol-order-batch:
 	forge test --match-path 'test/pos_spec/VolOrderManagerBatch.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
 
-.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation test-vol-order-manager test-vol-order-batch
+# test-vol-order-return: the hand-rolled (bool,uint256)[] RETURN ENCODER (MCAL-05) -- head 0x40,
+# stride 0x40, total 64+64N, the N=0 64-byte edge, canonical bools, (false,0) failures and the
+# N=128 allocation probe, all compared BYTE FOR BYTE against solc's standard abi.encode. Distinct
+# from test-vol-order-batch, which owns the INPUT half (guards, MAX_BATCH, state effects).
+test-vol-order-return:
+	forge test --match-contract VolOrderManagerReturnEncodingTest --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+
+.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation test-vol-order-manager test-vol-order-batch test-vol-order-return
 
 
 #####################################################################

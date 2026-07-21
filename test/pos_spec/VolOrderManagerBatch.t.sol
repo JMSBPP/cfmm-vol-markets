@@ -129,6 +129,28 @@ abstract contract VolOrderManagerBatchBase is VolOrderManagerBase {
     function callBatchRaw(bytes memory cd) internal returns (bool ok, bytes memory ret) {
         (ok, ret) = address(mgr).call(cd);
     }
+
+    /// @dev THE ORACLE SIDE. Deliberately the STANDARD encoder and nothing else: no manual word
+    ///      writes, no mirroring of the module's arithmetic. If this function ever grows an
+    ///      mstore or a hand-computed offset, the differential becomes VACUOUS -- it would then be
+    ///      comparing the module against a restatement of the module. solc is the independent
+    ///      oracle precisely because it was written by someone else.
+    function expectedReturn(BatchResult[] memory rs) internal pure returns (bytes memory) {
+        return abi.encode(rs);
+    }
+
+    /// @dev Builds a BatchResult[] from parallel arrays, so a test states its expectation as data.
+    function results(bool[] memory oks, uint256[] memory ids)
+        internal
+        pure
+        returns (BatchResult[] memory rs)
+    {
+        require(oks.length == ids.length, "test bug: ragged expectation");
+        rs = new BatchResult[](oks.length);
+        for (uint256 j = 0; j < oks.length; j++) {
+            rs[j] = BatchResult({success: oks[j], orderId: ids[j]});
+        }
+    }
 }
 
 /// @title VolOrderManagerBatchEncodingTest
@@ -508,5 +530,309 @@ contract VolOrderManagerBatchTotalityTest is VolOrderManagerBatchBase {
         assertTrue(ok, "MCAL-04: no batch-revert observed");
         assertEq(ret, expectedOk, "the success count equals the constructed valid count");
         assertEq(mgr.orderCount(), expectedOk, "orderCount advances by the constructed valid count");
+    }
+}
+
+/// @title VolOrderManagerReturnEncodingTest
+/// @notice MCAL-05 (SC-1..SC-4) + MCAL-06's carried return-bytes clause. The hand-rolled
+///         (bool,uint256)[] encoder, compared BYTE FOR BYTE against solc's standard abi.encode.
+///
+///         WHY BYTES AND NOT DECODED VALUES. A decoded comparison compares SEMANTICS and leaves
+///         the encoder unconstrained: a consistent head or stride error can round-trip through
+///         abi.decode and never surface. Byte equality makes solc an independent oracle for the
+///         one surface in this milestone with zero in-repo precedent. The expected side is built
+///         ONLY with abi.encode -- never by mirroring the module's manual writes, which would make
+///         the whole differential vacuous.
+///
+///         ASSERTION ORDER IS MUTATION-EVIDENCE DESIGN (18a-01 FINDING): forge reports only the
+///         FIRST failing assertion per test, so the keccak byte-equality assertion comes FIRST
+///         among the discriminating assertions in every test below. Length and word-level reads
+///         follow as LOCALISATION AIDS, not as the kill site.
+contract VolOrderManagerReturnEncodingTest is VolOrderManagerBatchBase {
+    /// @notice PIN THE ORACLE BEFORE PINNING THE MODULE, mirroring VolOrderManagerBatchEncodingTest's
+    ///         discipline for the input half. This proves the <pinned_byte_layout> IS what solc
+    ///         emits, independently of anything the module does -- so an oracle bug can never be
+    ///         mistaken for a module bug and burn the mutation evidence.
+    function test__unit__returnBuildersMatchTheStandardEncoder() public pure {
+        assertEq(abi.encode(new BatchResult[](0)).length, 64, "N=0 encodes to exactly 64 bytes");
+
+        bool[] memory oks1 = new bool[](1);
+        uint256[] memory ids1 = new uint256[](1);
+        oks1[0] = true;
+        ids1[0] = 6;
+        assertEq(abi.encode(results(oks1, ids1)).length, 128, "N=1 encodes to exactly 128 bytes");
+
+        bool[] memory oks = new bool[](2);
+        uint256[] memory ids = new uint256[](2);
+        oks[0] = true;
+        ids[0] = 6;
+        oks[1] = false;
+        ids[1] = 0;
+        bytes memory enc = abi.encode(results(oks, ids));
+
+        assertEq(enc.length, 192, "N=2 encodes to exactly 192 bytes");
+        assertEq(wordAt(enc, 0), 0x20, "the outer offset word is 0x20");
+        assertEq(wordAt(enc, 32), 2, "the length word counts ELEMENTS, not bytes");
+        assertEq(wordAt(enc, 64), 1, "success[0] is a canonical 1");
+        assertEq(wordAt(enc, 96), 6, "orderId[0] -- head 0x40, so element 0 starts at byte 64");
+        assertEq(wordAt(enc, 128), 0, "success[1] -- stride 0x40, no per-element offsets");
+        assertEq(wordAt(enc, 160), 0, "orderId[1]");
+    }
+
+    /// @notice THE N=0 EDGE. It gets its own named test because its failure mode is INVISIBLE
+    ///         on-chain: a 0- or 32-byte return does not revert here, it reverts in the Haskell
+    ///         client's abi.decode. Governing principle: structurally impossible -> revert;
+    ///         semantically empty -> well-formed empty result. A zero-arrival Poisson tick is an
+    ///         in-distribution sample, not a client error.
+    ///
+    ///         This test is what discharges MCAL-06's carried "exactly 64 bytes: offset 0x20,
+    ///         length 0" clause, which 18a's one-word return structurally could not satisfy.
+    function test__unit__emptyReturnIsExactlySixtyFourBytes() public {
+        (bool ok, bytes memory ret) = callBatchRaw(encodeBatch(new uint256[](0)));
+
+        assertTrue(ok, "N=0 is semantically empty, not structurally impossible -- it must not revert");
+        assertEq(
+            keccak256(ret),
+            keccak256(expectedReturn(new BatchResult[](0))),
+            "N=0 bytes must equal abi.encode of an empty BatchResult[]"
+        );
+        assertEq(ret.length, 64, "N=0 returns EXACTLY 64 bytes -- not 0, not 32");
+        assertEq(wordAt(ret, 0), 0x20, "N=0: outer offset word");
+        assertEq(wordAt(ret, 32), 0, "N=0: length word is zero ELEMENTS");
+
+        // THE CONSUMER-SIDE CHECK. This is the failure that lands in the Haskell client rather
+        // than here: a 0- or 32-byte return decodes to a revert, not to an empty list.
+        BatchResult[] memory decoded = abi.decode(ret, (BatchResult[]));
+        assertEq(decoded.length, 0, "abi.decode succeeds and yields an empty array");
+
+        // And from a SEEDED counter, so "N=0 works" cannot hide behind a fresh registry.
+        vm.store(address(mgr), SLOT_ORDER_COUNT, bytes32(uint256(5)));
+        (bool ok2, bytes memory ret2) = callBatchRaw(encodeBatch(new uint256[](0)));
+        assertTrue(ok2, "N=0 from a seeded counter also succeeds");
+        assertEq(keccak256(ret2), keccak256(ret), "the seeded counter does not change the N=0 bytes");
+    }
+
+    /// @notice The two SMALLEST non-empty totals, asserted against the MODULE rather than only
+    ///         against the oracle. Without this, N=1 and N=2 were pinned only inside
+    ///         test__unit__returnBuildersMatchTheStandardEncoder -- which pins solc, not the
+    ///         encoder. N=1 is also the only N at which the stride is unobservable (i=0 makes
+    ///         `64 + stride*i` independent of the stride), so it is recorded here as the boundary
+    ///         BELOW which the M3 stride mutant is blind.
+    function test__unit__oneAndTwoElementReturnsAreByteExact() public {
+        vm.store(address(mgr), SLOT_ORDER_COUNT, bytes32(uint256(5)));
+
+        uint256[] memory one = new uint256[](1);
+        one[0] = packInput(STRIKE, WIDTH, SKEW);
+
+        bool[] memory oks1 = new bool[](1);
+        uint256[] memory ids1 = new uint256[](1);
+        oks1[0] = true;
+        ids1[0] = 6;
+
+        (bool ok1, bytes memory ret1) = callBatchRaw(encodeBatch(one));
+        assertTrue(ok1, "N=1 succeeds");
+        assertEq(
+            keccak256(ret1), keccak256(expectedReturn(results(oks1, ids1))), "N=1: byte-exact"
+        );
+        assertEq(ret1.length, 128, "N=1 returns exactly 128 bytes");
+
+        uint256[] memory two = new uint256[](2);
+        two[0] = packInput(999, 7, 3);
+        two[1] = packInput(1234, 56, 78);
+
+        bool[] memory oks2 = new bool[](2);
+        uint256[] memory ids2 = new uint256[](2);
+        oks2[0] = true;
+        ids2[0] = 7;
+        oks2[1] = true;
+        ids2[1] = 8;
+
+        (bool ok2, bytes memory ret2) = callBatchRaw(encodeBatch(two));
+        assertTrue(ok2, "N=2 succeeds");
+        assertEq(
+            keccak256(ret2), keccak256(expectedReturn(results(oks2, ids2))), "N=2: byte-exact"
+        );
+        assertEq(ret2.length, 192, "N=2 returns exactly 192 bytes");
+    }
+
+    /// @notice THE FLAGSHIP, and the named NON-FUZZ ANCHOR for
+    ///         test__fuzz__returnBytesMatchStandardEncoder.
+    ///
+    ///         ONE keccak assertion covers THREE properties simultaneously: positional alignment
+    ///         (the failure sits strictly in the MIDDLE, so a shifted successor is visible), the
+    ///         (false, 0) failure shape, and the 0x40 stride. Reuses 18a's mixed corpus: skew
+    ///         65535 is one of only TWO rejected skews, so EXACTLY ONE conjunct fails and the
+    ///         failure is named rather than incidental. The counter is SEEDED to C=5 so a
+    ///         "results always start at id 1" bug cannot hide behind a fresh registry.
+    function test__unit__mixedBatchReturnIsByteExact() public {
+        vm.store(address(mgr), SLOT_ORDER_COUNT, bytes32(uint256(5)));
+
+        uint256[] memory words = new uint256[](3);
+        words[0] = packInput(STRIKE, WIDTH, SKEW);
+        words[1] = packInput(STRIKE, WIDTH, 65535);
+        words[2] = packInput(999, 7, 3);
+
+        bool[] memory oks = new bool[](3);
+        uint256[] memory ids = new uint256[](3);
+        oks[0] = true;
+        ids[0] = 6;
+        oks[1] = false;
+        ids[1] = 0;
+        oks[2] = true;
+        ids[2] = 7;
+
+        (bool ok, bytes memory ret) = callBatchRaw(encodeBatch(words));
+
+        assertTrue(ok, "a mixed batch never reverts");
+        // THE KILL SITE. First among the discriminating assertions, deliberately.
+        assertEq(
+            keccak256(ret),
+            keccak256(expectedReturn(results(oks, ids))),
+            "N=3 mixed: returndata must be byte-exact"
+        );
+        assertEq(ret.length, 256, "N=3 returns exactly 256 bytes");
+
+        // Localisation aids only -- everything below is already implied by the keccak above.
+        assertEq(wordAt(ret, 0), 0x20, "outer offset");
+        assertEq(wordAt(ret, 32), 3, "length in elements");
+        assertEq(wordAt(ret, 64), 1, "success[0]");
+        assertEq(wordAt(ret, 96), 6, "orderId[0] == C+1");
+        assertEq(wordAt(ret, 128), 0, "success[1] -- the skipped tuple");
+        assertEq(wordAt(ret, 160), 0, "orderId[1] is 0, NOT the running counter");
+        assertEq(wordAt(ret, 192), 1, "success[2]");
+        assertEq(wordAt(ret, 224), 7, "orderId[2] == C+2 -- the failure did not shift it");
+    }
+
+    /// @notice Guards against an encoder that only writes the SUCCESS path and leaves failures as
+    ///         unwritten -- and therefore accidentally-correct -- zeros from malloc_zeroed. This
+    ///         is the kill site for the M5 (false, id) mutant's all-invalid half.
+    function test__unit__allInvalidBatchReturnsAllFalseZero() public {
+        uint256[] memory words = new uint256[](3);
+        words[0] = packInput(STRIKE, WIDTH, 0); // rejected skew endpoint
+        words[1] = packInput(STRIKE, WIDTH, 65535); // the other rejected skew endpoint
+        words[2] = packInput(0, WIDTH, SKEW); // strike_fits_packed lower bound
+
+        (bool ok, bytes memory ret) = callBatchRaw(encodeBatch(words));
+
+        assertTrue(ok, "an all-invalid batch never reverts");
+        assertEq(
+            keccak256(ret),
+            keccak256(expectedReturn(new BatchResult[](3))),
+            "three failures encode as three (false, 0) tuples"
+        );
+        assertEq(ret.length, 256, "N=3 returns exactly 256 bytes regardless of outcome");
+        assertEq(mgr.orderCount(), 0, "no tuple was stored");
+    }
+
+    /// @notice CANONICAL BOOLS, read as RAW WORDS. This must NOT go through `bool`: decoding to
+    ///         bool is exactly what would hide a non-canonical word, and solc's decoder REVERTING
+    ///         on it is a DIFFERENT failure than the one being pinned here. A lenient Haskell
+    ///         decoder would accept a truthy 2 while abi.decode rejects it -- the two consumers
+    ///         would then disagree about the same bytes. That divergence IS the requirement.
+    function test__unit__successWordsAreCanonicallyZeroOrOne() public {
+        uint256[] memory words = new uint256[](3);
+        words[0] = packInput(STRIKE, WIDTH, SKEW);
+        words[1] = packInput(STRIKE, WIDTH, 65535);
+        words[2] = packInput(999, 7, 3);
+
+        (bool ok, bytes memory ret) = callBatchRaw(encodeBatch(words));
+        assertTrue(ok, "the mixed batch succeeds");
+
+        for (uint256 j = 0; j < 3; j++) {
+            uint256 w = wordAt(ret, 64 + 64 * j);
+            assertTrue(w < 2, "success word must be canonically 0 or 1, never a truthy nonzero");
+        }
+    }
+
+    /// @notice THE ALLOCATION-ORDERING PROBE, at N = MAX_BATCH = 128 where array_slot performs 128
+    ///         interleaved malloc_uninit(32) calls against an 8256-byte results buffer. If the
+    ///         results buffer were sized or ordered wrongly, those per-iteration scratch
+    ///         allocations would alias the region this branch writes.
+    ///
+    ///         The storage assertion at the end is what DISTINGUISHES "the results were corrupted"
+    ///         from "the slot derivation was corrupted" -- both are informative and they are
+    ///         different bugs.
+    function test__unit__maxBatchReturnIsByteExactAndUncorrupted() public {
+        uint256[] memory words = new uint256[](MAX_BATCH);
+        bool[] memory oks = new bool[](MAX_BATCH);
+        uint256[] memory ids = new uint256[](MAX_BATCH);
+        for (uint256 j = 0; j < MAX_BATCH; j++) {
+            words[j] = packInput(1000 + j, 100 + j, 50 + j);
+            oks[j] = true;
+            ids[j] = j + 1;
+        }
+
+        (bool ok, bytes memory ret) = callBatchRaw(encodeBatch(words));
+
+        assertTrue(ok, "the N=128 batch succeeds");
+        assertEq(
+            keccak256(ret),
+            keccak256(expectedReturn(results(oks, ids))),
+            "N=128: returndata must be byte-exact"
+        );
+        assertEq(ret.length, 64 + 64 * MAX_BATCH, "N=128 returns exactly 8256 bytes");
+
+        // The two words a mid-loop allocation is most likely to step on.
+        assertEq(wordAt(ret, 64 + 64 * 127 + 32), 128, "the LAST orderId is uncorrupted");
+        assertEq(wordAt(ret, 32), MAX_BATCH, "the length word is uncorrupted");
+
+        // Storage corruption vs return corruption, distinguished.
+        assertEq(
+            uint256(vm.load(address(mgr), orderSlot(128))),
+            expectedPacked(1127, 227, 177),
+            "the 128th order really landed, so the slot derivation is uncorrupted too"
+        );
+    }
+
+    /// @notice Corpus CONSTRUCTED with `bound`; assumption-based filtering appears nowhere in
+    ///         this file, so no draw is ever discarded and no run is ever silently empty. N=0 is
+    ///         INCLUDED in the draw range so the empty encoding is covered by the fuzz too. The
+    ///         expectation is computed TEST-SIDE from the constructed shapes and is NEVER read
+    ///         back from the module, which is what keeps the differential non-vacuous.
+    ///         Non-fuzz anchor: test__unit__mixedBatchReturnIsByteExact.
+    /// forge-config: default.fuzz.runs = 256
+    function test__fuzz__returnBytesMatchStandardEncoder(
+        uint256 nSeed,
+        uint256 seedSeed,
+        uint256 shapeSeed,
+        uint256 valSeed
+    ) public {
+        uint256 n = bound(nSeed, 0, 16); // 0 INCLUDED -- N=0 must be in the corpus
+        uint256 c = bound(seedSeed, 0, 1000);
+        vm.store(address(mgr), SLOT_ORDER_COUNT, bytes32(c));
+
+        uint256[] memory words = new uint256[](n);
+        BatchResult[] memory expected = new BatchResult[](n);
+        uint256 nextId = c;
+
+        for (uint256 j = 0; j < n; j++) {
+            uint256 shape = bound(uint256(keccak256(abi.encode(shapeSeed, j))), 0, 3);
+            uint256 r = uint256(keccak256(abi.encode(valSeed, j)));
+
+            uint256 strike = bound(r, 1, uint256(type(uint88).max));
+            uint256 width = bound(uint256(keccak256(abi.encode(r, "w"))), 1, uint256(type(uint24).max));
+            uint256 skew = bound(uint256(keccak256(abi.encode(r, "k"))), 1, 65534);
+
+            if (shape == 0) {
+                words[j] = packInput(strike, width, skew); // VALID
+                nextId++;
+                expected[j] = BatchResult({success: true, orderId: nextId});
+            } else if (shape == 1) {
+                words[j] = packInput(strike, width, 0); // rejected skew endpoint
+                expected[j] = BatchResult({success: false, orderId: 0});
+            } else if (shape == 2) {
+                words[j] = packInput(strike, width, 65535); // the other rejected skew endpoint
+                expected[j] = BatchResult({success: false, orderId: 0});
+            } else {
+                words[j] = packInput(strike, width, skew) | (uint256(1) << 200); // dirty high bits
+                expected[j] = BatchResult({success: false, orderId: 0});
+            }
+        }
+
+        (bool ok, bytes memory ret) = callBatchRaw(encodeBatch(words));
+
+        assertTrue(ok, "the batch never reverts");
+        assertEq(keccak256(ret), keccak256(expectedReturn(expected)), "returndata must be byte-exact");
+        assertEq(ret.length, 64 + 64 * n, "total is exactly 64 + 64N");
     }
 }
