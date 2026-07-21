@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: VolOrderManagerMod + Multicall
 status: executing
-stopped_at: Phase 18a COMPLETE (18a-01; 7/7 observed mutation REDs, N=128 gas MEASURED at 3,247,452). Next /gsd:plan-phase 18b — Typed Return Encoding (needs a research pass first).
+stopped_at: Phase 18a COMPLETE + verified (6/6; 3 mutants independently re-killed, gas reproduced exactly). THE MULTICALL'S INPUT HALF WORKS. Next /gsd:plan-phase 18b (return encoding)
 last_updated: "2026-07-21T02:38:54.168Z"
 last_activity: "2026-07-20 — 18a-01 executed: create_orders batch dispatch CALLED-green over FFI-deployed bytecode; 4 guards each independently killed; M5 counter-hoist converted from a Phase-17 equivalence-masked non-kill into a REAL contiguity kill; SC-6's batch-revert wording empirically refuted (M-VAL stores wrong, never reverts)."
 progress:
