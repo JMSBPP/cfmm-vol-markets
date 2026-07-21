@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: VolOrderManagerMod + Multicall
 status: executing
-stopped_at: Phase 18a COMPLETE + verified (6/6; 3 mutants independently re-killed, gas reproduced exactly). THE MULTICALL'S INPUT HALF WORKS. Next /gsd:plan-phase 18b (return encoding)
-last_updated: "2026-07-21T02:38:54.168Z"
-last_activity: "2026-07-20 — 18a-01 executed: create_orders batch dispatch CALLED-green over FFI-deployed bytecode; 4 guards each independently killed; M5 counter-hoist converted from a Phase-17 equivalence-masked non-kill into a REAL contiguity kill; SC-6's batch-revert wording empirically refuted (M-VAL stores wrong, never reverts)."
+stopped_at: Phase 18b COMPLETE (18b-01; 6/6 observed mutation REDs, M7 equivalence-checked and excluded). THE MULTICALL IS FEATURE-COMPLETE — input half (18a) + typed return (18b). Next /gsd:plan-phase 19 (differential, mutation battery, consumer fixture)
+last_updated: "2026-07-21T12:23:05Z"
+last_activity: "2026-07-21 — 18b-01 executed: hand-rolled (bool,uint256)[] return encoder byte-exact vs solc's STANDARD abi.encode across N=0/1/2/3-mixed/3-all-invalid/128 + a 256-run constructed fuzz; N=0 64-byte edge discharges MCAL-06's carried clause; 6 mutants observed RED; M1's N=0 and M3's N<=1 blindness MEASURED, not argued; M7 proven unconstructible at the SCOPING level."
 progress:
   total_phases: 16
-  completed_phases: 6
-  total_plans: 10
-  completed_plans: 10
+  completed_phases: 7
+  total_plans: 11
+  completed_plans: 11
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 
 ## Current Position
 
-Phase: 18a — Batch Input & State Effects (MCAL-01/02/03/04/06) — COMPLETE
-Plan: 18a-01 COMPLETE (18a-01-SUMMARY.md)
-Status: Phase 18a done — `create_orders` is a live batch entrypoint. Phase 18b (Typed Return Encoding, MCAL-05) is next and NEEDS a research pass first: there is no dynamic-array return anywhere in this repo.
-Last activity: 2026-07-20 — 18a-01 executed: create_orders batch dispatch CALLED-green over FFI-deployed bytecode; 7/7 observed mutation REDs; N=128 gas MEASURED at 3,247,452; src/types/pos_spec/ byte-untouched.
+Phase: 18b — Typed Return Encoding (MCAL-05) — COMPLETE
+Plan: 18b-01 COMPLETE (18b-01-SUMMARY.md)
+Status: Phase 18b done — `create_orders` returns the hand-rolled `(bool,uint256)[]`, byte-exact against solc. MCAL-05 Complete and MCAL-06's carried return-bytes clause DISCHARGED. Phase 19 (Differential, Mutation Battery & Consumer Fixture, MVER-01..04) is next — a coordination checkpoint with peer `mv15a18k`, NOT a research gap.
+Last activity: 2026-07-21 — 18b-01 executed: 8 CALLED-green return-encoding tests; 6/6 observed mutation REDs each restored sha256-identical; N=128 gas RE-MEASURED at 3,275,765 (+28,313 vs 18a); src/types/pos_spec/ byte-untouched.
 
-Progress (v4.0): [██████░░░░] 60% — 3/5 phases (16, 17, 18a), 3 plans complete
+Progress (v4.0): [████████░░] 80% — 4/5 phases (16, 17, 18a, 18b), 4 plans complete
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed (v4.0): 3
-- Average duration: 50 min
+- Total plans completed (v4.0): 4
+- Average duration: 44 min
 
 **By Phase:**
 
@@ -46,6 +46,7 @@ Progress (v4.0): [██████░░░░] 60% — 3/5 phases (16, 17, 18
 | 16 — Type Packing & Validation | 1 | 118 min | 118 min |
 | 17 — Interface & Single-Call Module | 1 | 11 min | 11 min |
 | 18a — Batch Input & State Effects | 1 | 21 min | 21 min |
+| 18b — Typed Return Encoding | 1 | 27 min | 27 min |
 
 *Updated after each plan completion*
 
@@ -55,14 +56,20 @@ Progress (v4.0): [██████░░░░] 60% — 3/5 phases (16, 17, 18
 
 Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecting v4.0:
 
-- [18a-01 MEASURED, binds 18b/19 and the Haskell peer]: N=128 batch gas is **execGas 3,203,452 + intrinsic 21,000 + EIP-2028 calldata 23,000 = 3,247,452 TOTAL**, against MCAL-01's 10,000,000 ceiling (3.08x headroom). This is 1.10x the research's UNVERIFIED ~2.94M estimate — same order of magnitude, so the loop does no unintended work. Pinned by `test__unit__maxBatchGasUnderBudget`, whose success/count/slot assertions all precede the threshold check so a passing `assertLe` cannot certify an early revert.
+- [18b-01 MEASURED, supersedes 18a's number]: N=128 batch gas is now **execGas 3,231,765 + intrinsic 21,000 + EIP-2028 calldata 23,000 = 3,275,765 TOTAL**, a **+28,313 (+0.87%)** move from 18a's 3,247,452. The encoder adds 2 mstores per element plus memory expansion for the 8256-byte buffer; calldata gas is unchanged (the INPUT did not change). Still 3.05x under MCAL-01's 10,000,000 ceiling and well inside the plan's 3,400,000 stop-and-investigate band.
+- [18b-01 MEASURED, the honest negatives — record these rather than the kill count alone]: (a) the **element-base-shift mutant (`base = 32 + 64*i`) is BLIND at N=0** — `test__unit__emptyReturnIsExactlySixtyFourBytes` stayed GREEN under it, because with no elements there is nothing to misplace and the total is 64 bytes either way. Killable only at N >= 1. (b) The **stride mutant (`64 + 32*i`) is blind at N <= 1** — OBSERVED directly: `test__unit__oneAndTwoElementReturnsAreByteExact` reddened at its **N=2** assertion while its N=1 assertion passed, since i=0 makes `64 + stride*i` independent of the stride. (c) The **dropped-outer-offset-word mutant IS killable at N=0** (32 bytes vs 64) — it and the base-shift mutant are COMPLEMENTARY, which is why both are run. A corpus that is N=0-only, or N<=1-only, would silently miss real encoder bugs.
+- [18b-01 MEASURED, binds any future all-invalid corpus]: the `(false, id)` leak mutant is **NOT killable by an all-invalid batch on a fresh registry** — `test__unit__allInvalidBatchReturnsAllFalseZero` stayed GREEN under it, because `id` never leaves 0 there, so `(false, id)` IS `(false, 0)`. The SEEDED mixed corpus is the SOLE kill site. An all-invalid corpus alone would have recorded a fake pass.
+- [18b-01 DECIDED, equivalence-checked and NOT counted as a kill]: the pure allocation-REORDERING mutant is **unconstructible**, and for a stronger reason than the bump-allocator argument the plan anticipated: moving the buffer allocation inside the loop makes the trailing `@evm_return(out, ...)` fail to compile with `error: unresolved identifier 'out'` (OBSERVED). Any reordering that keeps the return reachable requires `out` in the outer scope before the loop, so the before-the-loop ordering is enforced by SCOPING, not merely by convention. The under-allocated-buffer mutant carries the allocation-hazard evidence instead. **Kill count is 6, not 7.**
+- [18b-01 CORROBORATED, HARD REQUIREMENT for the Haskell peer]: solc's `abi.decode` **REJECTS a non-canonical success word outright** — under the `success = 2` mutant the entire 18a suite reddens with `EvmError: Revert`, not with wrong values. A lenient Haskell decoder would accept a truthy 2. The two consumers would then disagree about the same bytes, which is exactly why the canonical-bool guarantee is a CONSUMER-SIDE CONTRACT and not a test detail.
+- [18a-01 MEASURED, gas number SUPERSEDED at 18b-01 — see above]: N=128 batch gas is **execGas 3,203,452 + intrinsic 21,000 + EIP-2028 calldata 23,000 = 3,247,452 TOTAL**, against MCAL-01's 10,000,000 ceiling (3.08x headroom). This is 1.10x the research's UNVERIFIED ~2.94M estimate — same order of magnitude, so the loop does no unintended work. Pinned by `test__unit__maxBatchGasUnderBudget`, whose success/count/slot assertions all precede the threshold check so a passing `assertLe` cannot certify an early revert.
 - [18a-01 DISCHARGED, was ACTION REQUIRED]: the M5 counter-hoist mutant is now a **REAL KILL**, exactly as 17-01 predicted. Observed RED: `id contiguity: third valid order at C+2: 0 != 2381976974094761317277030730967468670979` — slot C+2 holds ZERO because the skipped middle tuple consumed the id and pushed valid_B to C+3. The `orderCount` assertion also reddens (8 != 7) but is NOT discriminating; a count-only corpus would not have pinned where the order landed.
 - [18a-01 FINDING, binds every future mutation gate]: **forge reports only the FIRST failing assertion per test**, so assertion ORDER is mutation-evidence design. The plan's original ordering had `orderCount` mask the contiguity red under M5, which would have been recorded as a count-only kill. Place the DISCRIMINATING assertion first. Fixed at `eac83f7`.
 - [18a-01 EMPIRICAL, supersedes SC-6's original wording]: deleting the validation branch **cannot** produce a batch revert — `pack_vol_order` is pure shl/&/| and `@evm_sstore` cannot revert here, so an unvalidated tuple is STORED WRONG and COUNTED. Observed: `assertTrue(ok, "MCAL-04: no batch-revert observed")` stayed GREEN under M-VAL while three value assertions reddened. This also CORROBORATES the MCAL-04 structural enumeration: M-VAL drove arbitrary unvalidated tuples through the entire post-validation path and produced no revert, so no step's totality was contradicted. SC-6 was corrected at `56c4721` before execution; the correction is now backed by measurement.
 - [18a-01 DECIDED, HARD REQUIREMENT for the Haskell peer]: guard 1 requires the **CANONICAL array offset `0x40` at byte 36**. The ABI spec permits a non-minimal offset, so a bespoke encoder that legally pads the head is REJECTED with an empty revert. Deliberate — it closes the PHANTOM-ORDER hole: the module reads elements at a fixed `100 + 32*i`, which is sound ONLY because the offset is pinned.
 - [18a-01 DECIDED]: `width` is read UNMASKED. It is the TOP input field, so any bit >= 128 inflates it past `0xffffff` and validation rejects it — dirty-high-bit rejection with zero new arithmetic. Masking to `& 0xFFFFFF` would map two distinct calldata words onto one stored order, a malleability seam for the Phase 19 differential.
 - [18a-01 DECIDED]: MAX_BATCH (128) is checked FIRST, before the three calldata guards, because Plank's `*` and `+` are CHECKED — an adversarial `count` near 2^256 would panic 0x11 inside `32 * count` before the size comparison ran, muddying MCAL-02's mutation evidence with panic data instead of an empty revert.
-- [18a-01 baselines]: `make compile-plank` 13 ok / 0 failed / 0 skipped (UNCHANGED — the batch adds no new entrypoint); `make test` **112 pass / 4 pre-existing fails** (was 99 / 4).
+- [18b-01 baselines]: `make compile-plank` 13 ok / 0 failed / 0 skipped (UNCHANGED — the return type adds no entrypoint); `make test` **120 pass / 4 pre-existing fails** (was 112 / 4; +8 = the new `VolOrderManagerReturnEncodingTest`). The 4 reds are the vol-type track's `src/types/pos_spec/` harness failures, unchanged and not ours.
+- [18a-01 baselines, count SUPERSEDED at 18b-01]: `make compile-plank` 13 ok / 0 failed / 0 skipped (UNCHANGED — the batch adds no new entrypoint); `make test` **112 pass / 4 pre-existing fails** (was 99 / 4).
 - [17-01 MEASURED, binds 18a/19]: `v3::storage::array_slot` uses Plank's CHECKED `+`, so `keccak(base) + id` PANICS (0x11) rather than wrapping. Addressable ids cap at `2^256-1 - keccak(SLOT_ORDERS_BASE)` (~6.5e74). VORD-05's "no revert for a nonexistent id" therefore holds for every REACHABLE id (counter-assigned, +1/tx), which is the property it exists to establish. NOT worked around: `array_slot` is another track's file and masking the id module-side is exactly the ring-mask corruption M1 forbids. Boundary pinned as a VALUE instead.
 - [17-01 DECIDED, ACTION REQUIRED IN 18a]: the "counter store hoisted above validation" mutant (M5) is an EQUIVALENCE-CHECKED NON-KILL in the strict path — `validate_order_strict` reverts, and a revert rolls back the prior SSTORE, so the hoist is unobservable. It becomes NON-equivalent in 18a, where the batch SKIPS instead of reverting: a hoisted store would advance the id on a skipped tuple. **18a MUST re-run this mutant and expect a RED.**
 - [17-01 DECIDED]: both entrypoint selectors pinned in `src/interfaces/pos_spec/VolOrderManagerInterface.plk` — `create_order(uint88,uint24,uint16)`=0x6501fe94 (dispatched) and `create_orders(uint256,uint256[])`=0x81357911 (DECLARED, falls through to `revert_empty()` until 18a). This is what breaks the 17<->18a circular dependency. `test__unit__batchSelectorNotYetDispatched` locks the current fall-through and must be updated when 18a dispatches it.
@@ -87,9 +94,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ### Pending Todos
 
-**Next action: `/gsd:research-phase 18b`.** Phases 16 (VORD-02), 17 (VORD-01/03/04/05) and 18a (MCAL-01/02/03/04/06) are DONE. **Phase 18b NEEDS a focused `/gsd:research-phase` pass before planning** — there is NO dynamic-array return anywhere in this repo (all 11 `@evm_return` sites in `src/` are 32/64/96/0 bytes). 18a-01 surfaced a REAL precedent the earlier research missed: `plank-diff-tests/src/std/abi_dynamic.plk:14` reaches `@evm_return(out, written)` with a COMPUTED length via `std::abi`'s `abi_encoded_size` + `unsafe_abi_encode` — evaluate that as a partial reuse path before encoding the `(bool,uint256)[]` head/tail by hand. Phase 19 fixture pinning remains a coordination checkpoint, not a research gap.
+**Next action: `/gsd:plan-phase 19`.** Phases 16 (VORD-02), 17 (VORD-01/03/04/05), 18a (MCAL-01/02/03/04/06) and 18b (MCAL-05 + MCAL-06's carried clause) are DONE — the multicall is feature-complete. Phase 19 (MVER-01..04) is a **coordination checkpoint, NOT a research gap**: proceed on the placeholder + a `NOT-PEER-VERIFIED` stand-in fixture if the peer has not answered. The 18b research question is CLOSED — `std::abi` provably cannot encode an array (`abi_encoded_size` has no array case and Plank has no array type), so the head/tail was hand-rolled and proven byte-exact against solc.
 
-**Peer hand-off ready for `mv15a18k`:** the input-word layout, the canonical-offset hard requirement and the skip-vs-revert semantics are all written up in `18a-01-SUMMARY.md` under CARRY-FORWARD section 2. Send it.
+**Peer hand-off ready for `mv15a18k` — now TWO documents.** 18a-01-SUMMARY.md CARRY-FORWARD section 2 has the input-word layout, the canonical-offset hard requirement and skip-vs-revert semantics. **18b-01-SUMMARY.md adds the RETURN side**: the exact `64 + 64N` byte layout, the N=0-returns-64-bytes clause (the one most likely to break a Haskell decoder, and invisible on-chain), and the canonical-bool divergence (solc REJECTS a non-canonical success word; a lenient Haskell decoder may accept it). Send both.
 
 ### Blockers/Concerns
 
@@ -97,11 +104,12 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - **4 pre-existing pos_spec harness failures** (vol-type-system track) remain visible in `make test` — not v4.0 defects; the v4.0 suite must not filter them.
 - **[17-01] The `make test` failure count is NOT deterministic.** A FIFTH failure, `TickVolatilityLibTest::test__fuzz__tickVolatilitySqrtPriceX64x96AndTickSuccess`, surfaces on roughly 1 cold-cache run in 4, always at counterexample `2^64-1`. PROVEN pre-existing (reproduced with all 17-01 files stashed: 86 pass / 5 fail) and owned by the TickVolatility track — it is NOT one of the 4 known `src/types/pos_spec/` reds. Re-run before treating a 5th failure as a regression. See `.planning/phases/17-interface-single-call-module/deferred-items.md` (D1); worth reporting `2^64-1` upstream as a genuine latent bug.
 - **[17-01 MEASURED, binds 18a/19 and the Haskell consumer] `array_slot`'s add is CHECKED.** `v3::storage::array_slot` is `keccak256(base) + index` under Plank's checked `+`, so it PANICS (0x11) instead of wrapping. Addressable ids are capped at `2^256-1 - keccak(SLOT_ORDERS_BASE)` ≈ 6.5e74; above that `getOrderPacked` reverts rather than returning the 0 sentinel. Unreachable for counter-assigned ids, but relevant to any path accepting caller-supplied ids. Pinned by `test__unit__getOrderPackedOverflowBoundaryIsExactlyWhereCheckedAddSaturates`.
-- **Peer coordination:** `MAX_BATCH` value and return-shape confirmation still pending peer `mv15a18k`. 18a-01 shipped with MAX_BATCH = **128** (hard admissibility ceiling 512; a peer value above it is CAPPED and reported, never silently adopted) and a ONE-WORD return. Neither blocks 18b: the one-word return is deliberate so 18a's state effects are proven without trusting any encoder, and 18b replaces it with `(bool,uint256)[]` inheriting every 18a state assertion unchanged.
+- **Peer coordination:** `MAX_BATCH` value and return-shape confirmation still pending peer `mv15a18k`. 18a-01 shipped MAX_BATCH = **128** (hard admissibility ceiling 512; a peer value above it is CAPPED and reported, never silently adopted). **18b-01 shipped the return shape** as `(bool,uint256)[]` at `64 + 64N` bytes; every 18a state assertion was inherited unchanged and now flows through `abi.decode`, so they got strictly stronger. Does not block Phase 19.
+- **[18b-01] The N=0 64-byte return is a HARD ENCODING REQUIREMENT on the consumer, and its failure is INVISIBLE on-chain.** A zero-arrival Poisson tick returns 64 bytes (offset `0x20`, length `0`), never 0 and never 32. A decoder that treats an empty batch as an empty returndata will revert in the Haskell client, not here. This is the single clause in the return contract most likely to break `StochasticOrderGen`.
 - **[18a-01] The canonical-offset guard is a HARD ENCODING REQUIREMENT on the consumer**, not a soft convention. Solidity/`cast`/ethers/web3.py all emit `0x40` at byte 36, but a bespoke Haskell encoder that legally pads the head will be rejected with an empty revert. Flagged to the peer; if they cannot emit canonical offsets this becomes a real integration blocker rather than a test detail.
 
 ## Session Continuity
 
-Last session: 2026-07-21T02:38:54.163Z
-Stopped at: Completed 18a-01-PLAN.md
+Last session: 2026-07-21T12:23:05Z
+Stopped at: Completed 18b-01-PLAN.md
 Resume file: None

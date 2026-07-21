@@ -341,7 +341,7 @@ Phase numbering continues at 16 (v3.0 ended at 15). v1.0 Phases 1–7 and v2.0 P
   > Correction, recorded at execution: the original "proven falsifiable with no FFI deploy" was FALSE — Plank does not type-check code unreachable from `run{}`, so a pure lib with no harness is unprovable. The harness was a required deliverable, not optional scaffolding (16-CONTEXT.md).
 - [x] **Phase 17: Interface & Single-Call Module** - `create_order` CALLED-green: validate via lib, pack via type with `TICK_SPACING` pinned, sequential id, unmasked derived-slot store, readers, cast-sig-pinned selectors for BOTH entrypoints (VORD-01, VORD-03, VORD-04, VORD-05) (completed 2026-07-20)
 - [x] **Phase 18a: Batch Input & State Effects** - Standard-ABI decode behind three guards, bounded `while`, validation-skip, MAX_BATCH, totality by structural enumeration + corroborating fuzz, zero-footprint proof — returns ONE word, so state effects are proven without trusting any encoder (MCAL-01, MCAL-02, MCAL-03, MCAL-04, MCAL-06) (completed 2026-07-20)
-- [ ] **Phase 18b: Typed Return Encoding** - The hand-rolled `(bool,uint256)[]` head/tail encoder (head `0x40`, stride `0x40`, total `64+64N`), N=0 edge, byte-level differential against `abi.encode` (MCAL-05)
+- [x] **Phase 18b: Typed Return Encoding** - The hand-rolled `(bool,uint256)[]` head/tail encoder (head `0x40`, stride `0x40`, total `64+64N`), N=0 edge, byte-level differential against `abi.encode` (MCAL-05) (completed 2026-07-21)
 - [ ] **Phase 19: Differential, Mutation Battery & Consumer Fixture** - Full reference-mock differential, observed-RED battery, consumer golden fixture, `PLANK_SKIP` exit gated on CALLED-green batch dispatch (MVER-01..04)
 
 ## Phase Details
@@ -410,7 +410,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 18b-01-PLAN.md — hand-rolled `(bool,uint256)[]` return encoder: the Plank encoder (buffer before the loop, head 0x40 / stride 0x40 / total 64+64N), the byte-level differential against solc's standard `abi.encode` incl. the N=0 64-byte edge and the N=128 allocation probe, and a six-mutant observed-RED gate
+- [x] 18b-01-PLAN.md — hand-rolled `(bool,uint256)[]` return encoder: the Plank encoder (buffer before the loop, head 0x40 / stride 0x40 / total 64+64N), the byte-level differential against solc's standard `abi.encode` incl. the N=0 64-byte edge and the N=128 allocation probe, and a six-mutant observed-RED gate (completed 2026-07-21 — 8 CALLED-green tests, 6/6 observed mutation REDs, N=128 gas re-measured at 3,275,765, M7 equivalence-checked and excluded)
 
 ### Phase 19: Differential, Mutation Battery & Consumer Fixture
 **Goal**: The milestone acceptance bar — a full independent-mock differential over sequences, the complete observed-RED battery, a consumer fixture that cannot be satisfied by doing nothing, and `PLANK_SKIP` exit.
@@ -436,7 +436,7 @@ Plans:
 | 16. Type Packing & Validation Foundation | 1/1 | Complete    | 2026-07-20 |
 | 17. Interface & Single-Call Module | 1/1 | Complete    | 2026-07-20 |
 | 18a. Batch Input & State Effects | 1/1 | Complete    | 2026-07-20 |
-| 18b. Typed Return Encoding | 0/TBD | Not started | - |
+| 18b. Typed Return Encoding | 1/1 | Complete    | 2026-07-21 |
 | 19. Differential, Mutation Battery & Consumer Fixture | 0/TBD | Not started | - |
 
 ## Coverage (Milestone v4.0)
