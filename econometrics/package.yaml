@@ -39,6 +39,7 @@ library:
     - optparse-applicative
     - crypton
     - memory
+    - directory
 
 executables:
   econometrics:
@@ -81,6 +82,7 @@ tests:
       - Panoptic.ChunkSpec
       - Panoptic.SfpmSpec
       - Panoptic.PremiumSpec
+      - Panoptic.ReadDriverSpec
     ghc-options:
       - -threaded
       - -rtsopts
