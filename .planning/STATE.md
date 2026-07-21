@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: VolOrderManagerMod + Multicall
 status: executing
-stopped_at: Phase 18b COMPLETE (18b-01; 6/6 observed mutation REDs, M7 equivalence-checked and excluded). THE MULTICALL IS FEATURE-COMPLETE — input half (18a) + typed return (18b). Next /gsd:plan-phase 19 (differential, mutation battery, consumer fixture)
-last_updated: "2026-07-21T12:23:05Z"
-last_activity: "2026-07-21 — 18b-01 executed: hand-rolled (bool,uint256)[] return encoder byte-exact vs solc's STANDARD abi.encode across N=0/1/2/3-mixed/3-all-invalid/128 + a 256-run constructed fuzz; N=0 64-byte edge discharges MCAL-06's carried clause; 6 mutants observed RED; M1's N=0 and M3's N<=1 blindness MEASURED, not argued; M7 proven unconstructible at the SCOPING level."
+stopped_at: Phase 19 context gathered
+last_updated: "2026-07-21T17:05:59.199Z"
+last_activity: "2026-07-21 — 18b-01 executed: 8 CALLED-green return-encoding tests; 6/6 observed mutation REDs each restored sha256-identical; N=128 gas RE-MEASURED at 3,275,765 (+28,313 vs 18a); src/types/pos_spec/ byte-untouched."
 progress:
   total_phases: 16
   completed_phases: 7
@@ -110,6 +110,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-07-21T12:23:05Z
-Stopped at: Completed 18b-01-PLAN.md
-Resume file: None
+Last session: 2026-07-21T17:05:59.195Z
+Stopped at: Phase 19 context gathered
+Resume file: .planning/phases/19-differential-mutation-battery-consumer-fixture/19-CONTEXT.md
