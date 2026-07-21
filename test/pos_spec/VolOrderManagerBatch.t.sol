@@ -168,19 +168,24 @@ contract VolOrderManagerBatchStateTest is VolOrderManagerBatchBase {
 
         assertTrue(ok, "a mixed batch never reverts");
         assertEq(ret, 2, "returns the success count");
-        assertEq(mgr.orderCount(), 7, "orderCount advances by the success count, not by N");
         assertEq(
             uint256(vm.load(address(mgr), orderSlot(6))),
             expectedPacked(STRIKE, WIDTH, SKEW),
             "valid_A at C+1"
         );
-        // <- THE LOAD-BEARING ASSERTION (M5 kill site).
+        // <- THE LOAD-BEARING ASSERTION (M5 kill site). ORDERED DELIBERATELY BEFORE THE
+        //    orderCount CHECK BELOW: forge reports only the FIRST failing assertion in a test,
+        //    and under the M5 counter-hoist mutant BOTH redden. If the count assertion came
+        //    first it would mask this one, and the mutation record would read as a count-only
+        //    kill -- which is exactly the non-discriminating evidence this corpus exists to
+        //    avoid, since a count red alone does not pin WHERE the misplaced order landed.
         assertEq(
             uint256(vm.load(address(mgr), orderSlot(7))),
             expectedPacked(999, 7, 3),
             "id contiguity: third valid order at C+2"
         );
         assertEq(uint256(vm.load(address(mgr), orderSlot(8))), 0, "no order beyond orderCount");
+        assertEq(mgr.orderCount(), 7, "orderCount advances by the success count, not by N");
     }
 
     /// @notice Dirty high bits are a SKIP, not a revert. `width` is read UNMASKED, so any bit
