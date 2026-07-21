@@ -367,6 +367,63 @@ contract VolOrderManagerBatchEquivalenceTest is VolOrderManagerBatchBase {
     }
 }
 
+/// @title VolOrderManagerBatchGasTest
+/// @notice MCAL-01 (SC-3). The N = MAX_BATCH cost is MEASURED, PRINTED and asserted against a
+///         hard 10,000,000 gas ceiling.
+///
+///         WHY 10M AND NOT THE BLOCK LIMIT. MCAL-01 says "measured N = MAX_BATCH cost
+///         <= 10,000,000 gas", explicitly NOT "under the block limit". A transaction that
+///         consumes an entire block is not reliably includable -- builders deprioritise it and
+///         it competes with nothing else in the block -- so a 30M ceiling would certify a
+///         batch nobody can actually land. 10M leaves the tx comfortably includable.
+///
+///         The research's ~2.94M estimate is UNVERIFIED and sat beside fabricated citations.
+///         It is NOT carried forward as fact; it is used only as an order-of-magnitude sanity
+///         reference against the number measured below.
+contract VolOrderManagerBatchGasTest is VolOrderManagerBatchBase {
+    function test__unit__maxBatchGasUnderBudget() public {
+        uint256[] memory words = new uint256[](MAX_BATCH);
+        for (uint256 j = 0; j < MAX_BATCH; j++) {
+            // Distinct tuples so every SSTORE is a cold zero->nonzero write -- the honest worst
+            // case. Identical tuples would still hit distinct slots (ids differ), but distinct
+            // values also rule out any accidental value-dependent short-circuit.
+            words[j] = packInput(1000 + j, 100 + j, 50 + j);
+        }
+        bytes memory cd = encodeBatch(words);
+
+        uint256 g0 = gasleft();
+        (bool ok, bytes memory r) = address(mgr).call(cd);
+        uint256 execGas = g0 - gasleft();
+
+        // A GAS NUMBER FOR A REVERTED CALL IS MEANINGLESS. Prove the work actually happened
+        // FIRST -- this is what stops a passing gas assertion from silently certifying an early
+        // revert. All four assertions below precede the threshold check deliberately.
+        assertTrue(ok, "the N=128 batch must SUCCEED for its gas number to mean anything");
+        assertEq(abi.decode(r, (uint256)), MAX_BATCH, "all 128 tuples stored");
+        assertEq(mgr.orderCount(), MAX_BATCH, "orderCount advanced by 128");
+        assertEq(
+            uint256(vm.load(address(mgr), orderSlot(MAX_BATCH))),
+            expectedPacked(1000 + 127, 100 + 127, 50 + 127),
+            "the 128th order really landed"
+        );
+
+        // MCAL-01's threshold is about what a REAL TRANSACTION costs, so the intrinsic cost that
+        // a `.call` does not incur is added back explicitly rather than quietly omitted:
+        //   21,000 base + EIP-2028 calldata (16 gas per nonzero byte, 4 per zero byte).
+        uint256 calldataGas = 0;
+        for (uint256 j = 0; j < cd.length; j++) {
+            calldataGas += (cd[j] == 0 ? 4 : 16);
+        }
+        uint256 totalGas = execGas + 21_000 + calldataGas;
+
+        emit log_named_uint("MCAL-01 execGas   (N=128)", execGas);
+        emit log_named_uint("MCAL-01 calldataGas", calldataGas);
+        emit log_named_uint("MCAL-01 TOTAL     (N=128)", totalGas);
+
+        assertLe(totalGas, 10_000_000, "MCAL-01: N=MAX_BATCH must cost <= 10,000,000 gas");
+    }
+}
+
 /// @title VolOrderManagerBatchTotalityTest
 /// @notice MCAL-04 (SC-4). CORROBORATION ONLY. The PRIMARY containment argument is the
 ///         six-step structural enumeration written into VolOrderManagerMod.plk immediately
