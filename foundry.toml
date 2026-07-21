@@ -15,6 +15,7 @@ optimizer = true
 fs_permissions = [
     { access = "read", path = "./test/gamsDiff/fixtures" },
     { access = "read", path = "./test/pos_spec/fixtures" },
+    { access = "read", path = "./src/interfaces/pos_spec" },
 ]
 
 remappings = [

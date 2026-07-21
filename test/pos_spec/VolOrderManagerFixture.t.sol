@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import {Test} from "forge-std/Test.sol";
 import {VolOrderManagerBatchBase} from "./VolOrderManagerBatch.t.sol";
 
 // ===========================================================================================
@@ -132,6 +133,63 @@ contract VolOrderManagerFixtureTest is VolOrderManagerBatchBase {
                 "PLACEHOLDER -- NOT-PEER-VERIFIED",
                 "peer bytes undelivered: alloy confirms STANDARD ABI, not the consumer's decoder"
             );
+        }
+    }
+}
+
+/// @title VolOrderManagerSelectorCompletenessTest
+/// @notice MVER-03's COMPLETENESS half. Reads the interface source as DATA; edits nothing.
+contract VolOrderManagerSelectorCompletenessTest is Test {
+    string internal constant IFACE = "src/interfaces/pos_spec/VolOrderManagerInterface.plk";
+
+    /// @notice MVER-03's completeness half. The four selector VALUES are already pinned in
+    ///         VolOrderManagerConformanceTest::test__unit__selectorsMatchTheirSignatureStrings.
+    ///         What is pinned HERE is that those four are ALL of them: a fifth entrypoint added
+    ///         to the interface without a matching pinned pair reddens this test.
+    ///
+    ///         All four values below were RECOMPUTED with `cast sig` at execution time (2026-07-21)
+    ///         and agreed with the constants in the interface file. They are never hand-derived --
+    ///         the v2.0 selector-doc error is the standing cautionary tale.
+    function test__unit__everyInterfaceSignatureStringIsPinned() public view {
+        string memory src = vm.readFile(IFACE);
+
+        string[4] memory sigs = [
+            "create_order(uint88,uint24,uint16)",
+            "create_orders(uint256,uint256[])",
+            "orderCount()",
+            "getOrderPacked(uint256)"
+        ];
+        bytes4[4] memory sels =
+            [bytes4(0x6501fe94), bytes4(0x81357911), bytes4(0x2453ffa8), bytes4(0xa9bcabc1)];
+
+        for (uint256 i = 0; i < 4; i++) {
+            // The signature string is PRESENT in the interface source (comment drift fails loudly).
+            assertTrue(
+                vm.contains(src, string.concat("signature:: ", sigs[i])),
+                string.concat("interface must carry the exact signature string: ", sigs[i])
+            );
+            // And the selector recomputed from that exact string is the pinned value.
+            assertEq(bytes4(keccak256(bytes(sigs[i]))), sels[i], sigs[i]);
+        }
+
+        // COMPLETENESS: exactly four `signature::` markers, no more. A fifth entrypoint that
+        // nobody pinned reddens here rather than shipping unverified.
+        assertEq(_count(src, "signature::"), 4, "MVER-03: all interface signature strings are pinned");
+    }
+
+    function _count(string memory hay, string memory needle) internal pure returns (uint256 n) {
+        bytes memory h = bytes(hay);
+        bytes memory nd = bytes(needle);
+        if (nd.length == 0 || h.length < nd.length) return 0;
+        for (uint256 i = 0; i + nd.length <= h.length; i++) {
+            bool hit = true;
+            for (uint256 j = 0; j < nd.length; j++) {
+                if (h[i + j] != nd[j]) {
+                    hit = false;
+                    break;
+                }
+            }
+            if (hit) n++;
         }
     }
 }
