@@ -297,15 +297,26 @@ contract VolOrderManagerReaderTest is VolOrderManagerBase {
 }
 
 /// @title VolOrderManagerBoundaryTest
-/// @notice Pins the 17 <-> 18a phase boundary: create_orders is DECLARED in the interface but
-///         NOT dispatched here, so it must fall through to revert_empty().
+/// @notice Pins the 17 <-> 18a phase boundary from the SINGLE-CALL side.
+///
+///         THIS TEST FLIPPED WHEN 18a LANDED, AND THE FLIP WAS EXPECTED. Through Phase 17 it
+///         asserted that create_orders was DECLARED in the interface but NOT dispatched, so it
+///         fell through to revert_empty() -- and it was flagged in STATE.md at 17-01 as the
+///         test that must be updated the moment 18a dispatches the selector. Phase 18a added
+///         the dispatch branch, so the assertion was INVERTED in place rather than deleted:
+///         deleting it would have silently discarded the boundary pin, whereas inverting it
+///         keeps a live assertion on which side of the boundary the module is on.
+///
+///         The BATCH surface itself is not tested here -- it lives in
+///         test/pos_spec/VolOrderManagerBatch.t.sol, which owns the hand-rolled malformed
+///         calldata a typed interface cannot express.
 contract VolOrderManagerBoundaryTest is VolOrderManagerBase {
-    function test__unit__batchSelectorNotYetDispatched() public {
+    function test__unit__batchSelectorIsNowDispatched() public {
         (bool ok,) = address(mgr).call(
             abi.encodeWithSelector(bytes4(0x81357911), uint256(0), new uint256[](0))
         );
-        assertFalse(ok, "create_orders is DECLARED in the interface but not dispatched until Phase 18a");
-        assertEq(mgr.orderCount(), 0, "an undispatched selector touches no state");
+        assertTrue(ok, "create_orders is dispatched as of Phase 18a");
+        assertEq(mgr.orderCount(), 0, "an empty batch touches no state");
     }
 }
 

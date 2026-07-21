@@ -157,7 +157,15 @@ test-vol-order-validation:
 test-vol-order-manager:
 	forge test --match-path 'test/pos_spec/VolOrderManager.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
 
-.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation test-vol-order-manager
+# test-vol-order-batch: the create_orders BATCH surface (MCAL-01/02/03/04/06) -- the three calldata
+# guards, MAX_BATCH, per-tuple validate-then-skip with contiguous ids, batch-of-1 equivalence and
+# the N=0 no-op. Distinct from test-vol-order-manager, which owns the SINGLE-CALL surface: this file
+# needs hand-rolled MALFORMED calldata over low-level .call, which a typed interface cannot express.
+# --skip routes around the untracked PriceSetterHook.sol (another track's broken file).
+test-vol-order-batch:
+	forge test --match-path 'test/pos_spec/VolOrderManagerBatch.t.sol' --skip 'src/modules/protocol_integrations/PriceSetterHook.sol' --via-ir --optimize
+
+.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation test-vol-order-manager test-vol-order-batch
 
 
 #####################################################################
