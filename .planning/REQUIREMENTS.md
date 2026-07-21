@@ -132,7 +132,7 @@ Peer-requested (rpc_api track `mv15a18k`, StochasticOrderGen consumer). **This s
 - [x] **MVER-01**: An independent Solidity reference mock encodes its results with **`abi.encode` (the standard encoder)** while Plank hand-rolls, and the differential asserts **raw byte equality** (`keccak256(plankReturndata) == keccak256(abi.encode(mockResults))`), including the `N=0` case. Decoded-value comparison is NOT sufficient — it compares semantics while leaving the hand-rolled encoder unconstrained; byte equality makes solc an independent oracle for the one surface with no in-repo precedent. An after-every-write driver additionally asserts `orderCount` and the stored packed word via raw `vm.load` + a single test-side `VolOrderDecoder`
 - [x] **MVER-02**: Observed-RED mutation battery, each killable mutant applied → cache cleared → verbatim RED recorded → restored sha256-identical → green: deleted validation branch; missing strike upper bound (silent truncation); count-advance-on-failure; ring-mask reintroduction; EACH of the three calldata guards deleted independently; return-head `0x40`→`0x20`; non-canonical success word. Equivalence-masked mutants documented, never counted
 - [x] **MVER-03**: A consumer golden fixture FILE exists containing byte strings produced by an encoder OUTSIDE this repo. If peer bytes are unavailable, a self-encoded stand-in is committed and explicitly marked `NOT-PEER-VERIFIED`, and that gap is listed in the milestone exit record — the criterion is falsifiable either way and cannot be satisfied by doing nothing. Plus a cast-sig test for every selector string in the interface file
-- [ ] **MVER-04**: `VolOrderManagerMod` is CALLED green on its BATCH dispatch through FFI-deployed bytecode before the milestone closes; the suite is wired into a dedicated `make` target and folded into `make test`. **Corrected 2026-07-20:** the pre-review draft said the module "enters `PLANK_SKIP` when created (Phase 17)" — that rests on a false premise. `PLANK_SKIP` is the Makefile's *rescue queue* for entrypoints that do NOT yet compile; a module dispatching a subset of its declared selectors compiles fine, so it never belongs there. `PLANK_SKIP` stays EMPTY (as Phase 15 left it) and `make compile-plank` simply counts one more entrypoint. Compile-green was never the gate here anyway — the gate is the CALLED batch dispatch, which is unchanged.
+- [x] **MVER-04**: `VolOrderManagerMod` is CALLED green on its BATCH dispatch through FFI-deployed bytecode before the milestone closes; the suite is wired into a dedicated `make` target and folded into `make test`. **Corrected 2026-07-20:** the pre-review draft said the module "enters `PLANK_SKIP` when created (Phase 17)" — that rests on a false premise. `PLANK_SKIP` is the Makefile's *rescue queue* for entrypoints that do NOT yet compile; a module dispatching a subset of its declared selectors compiles fine, so it never belongs there. `PLANK_SKIP` stays EMPTY (as Phase 15 left it) and `make compile-plank` simply counts one more entrypoint. Compile-green was never the gate here anyway — the gate is the CALLED batch dispatch, which is unchanged.
 
 ## v2 Requirements
 
@@ -247,7 +247,7 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | MVER-01 | Phase 19 | Complete |
 | MVER-02 | Phase 19 | Complete |
 | MVER-03 | Phase 19 | Complete |
-| MVER-04 | Phase 19 | Pending |
+| MVER-04 | Phase 19 | Complete |
 
 **Coverage:**
 - v1 requirements: 30 total — mapped to Phases 1–7: 30 ✓

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: VolOrderManagerMod + Multicall
-status: executing
-stopped_at: Completed 19-04-PLAN.md (MVER-02 part B: 5 observed REDs, 0 survivors; consolidated tally 10 applications / 10 killed). Next: 19-05 (make targets + re-measure). OPEN FINDING F1 — strike bound unproven at the create_order entrypoint
-last_updated: "2026-07-21T21:52:13.045Z"
-last_activity: "2026-07-21 — 19-04 executed: MVER-02 part B — the three calldata guards deleted INDEPENDENTLY (each 1 red in 40) plus the two return-encoder mutants; guard 3's kill taken from the REVERT assertion with its state-invisibility RE-MEASURED (BatchStateTest green 2/0 under the mutant); M8's N=0 blindness re-measured and the element-base-shift vs head-drop mapping settled by measuring BOTH variants; M9 killed by the raw-word canonicality assertion with the abi.decode revert cascade recorded separately as the consumer-side contract. Consolidated MVER-02: 10 applications, 0 SURVIVORS, every source restored sha256 byte-identical."
+status: completed
+stopped_at: Completed 19-05-PLAN.md (MVER-04). PHASE 19 COMPLETE — MILESTONE v4.0 COMPLETE. make test re-MEASURED cold: 102 passed / 18 failed / 120 total (44 suites); compile-plank 11 ok / 2 failed — every red attributed, ZERO under test/pos_spec/. CALLED-green batch dispatch VERIFIED through FFI-deployed bytecode. OPEN for the exit record: F1 (strike bound unproven at the create_order entrypoint) and the four single-point-of-failure mutants.
+last_updated: "2026-07-21T22:02:30.011Z"
+last_activity: "2026-07-21 — 19-05 executed: three dedicated make targets (test-vol-order-diff/-fixture/-acceptance, the last passing exit 0); fold-in PROVEN by OBSERVING all three Phase 19 contract names in plain make test rather than by adding a prerequisite (which would double-run pos_spec and inflate the tally); the stale MEASURED AT 17-01 block (96 pass / 4 fail, 13 ok — both wrong) REPLACED with counts measured cold at execution time, every red attributed to a NAMED cause: 14 exposure setUp() reverts from the uncommitted VegaIssuanceLib.plk draft, 4 vol-type track under test/types/pos_spec/, 0 under test/pos_spec/, 0 TickVolatility (did not surface). The real MVER-04 gate VERIFIED not inferred: three named tests CALLED green through deployPlank/FFI bytecode. PLANK_SKIP confirmed byte-identically empty with no exit ceremony invented; roadmap SC-4, the Goal line and the Phase 19 one-liner corrected off the stale PLANK_SKIP-exit wording. src/ byte-untouched (both sha256 pins match)."
 progress:
   total_phases: 16
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 16
-  completed_plans: 15
+  completed_plans: 16
 ---
 
 # Project State
@@ -19,27 +19,29 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-07-19)
 
-**Core value (v4.0):** `VolOrderManagerMod.plk` is a vol-order REGISTRY — `create_order(uint88,uint24,uint16)` (strike/width/skew, selector `0x6501fe94`) validating against the machine-checked `vol_order_is_complete` predicates, assigning a sequential id, storing a packed `VolOrder` word — plus a BEST-EFFORT batch entrypoint running N create_order calls in one tx (invalid tuples skipped, batch never reverts). Built for the rpc_api Haskell `StochasticOrderGen` consumer (PR #9 awaits this surface). Every claim is a CALLED test or an OBSERVED mutation kill; compiling is NOT evidence; the module leaves `PLANK_SKIP` only when its batch dispatch is CALLED green.
-**Current focus:** Phase 17 (VORD-01/03/04/05) COMPLETE — `create_order` is a live registry entrypoint, both entrypoint selectors pinned, four mutants observed RED. Phase 18a (Batch Input & State Effects, MCAL-01/02/03/04/06) is next. **Phase 18 NEEDS `/gsd:research-phase` before planning** (dynamic-array ABI in Plank is new ground). Next action: `/gsd:research-phase 18a`.
+**Core value (v4.0):** `VolOrderManagerMod.plk` is a vol-order REGISTRY — `create_order(uint88,uint24,uint16)` (strike/width/skew, selector `0x6501fe94`) validating against the machine-checked `vol_order_is_complete` predicates, assigning a sequential id, storing a packed `VolOrder` word — plus a BEST-EFFORT batch entrypoint running N create_order calls in one tx (invalid tuples skipped, batch never reverts). Built for the rpc_api Haskell `StochasticOrderGen` consumer (PR #9 awaits this surface). Every claim is a CALLED test or an OBSERVED mutation kill; compiling is NOT evidence; the gate is the batch dispatch being CALLED green through FFI-deployed bytecode (**CORRECTED at 19-05** — `PLANK_SKIP` is the rescue queue for entrypoints that do NOT compile, so this module never belonged there; the queue is empty and there was no exit to perform).
+**Current focus:** **MILESTONE v4.0 COMPLETE (2026-07-21).** All five phases (16, 17, 18a, 18b, 19) and all 15 requirements shipped. `VolOrderManagerMod.plk` is a proven vol-order registry: `create_order` and `create_orders` both CALLED green through FFI-deployed bytecode, a 10-application mutation battery with ZERO survivors, an independent-mock sequence differential at tol 0, and a consumer golden fixture from an encoder outside this repo. Next action: tag v4.0 and hand off to peer `mv15a18k`, OR resume v2.0 (`/gsd:plan-phase 10`).
 
 **Track note:** Fourth milestone. v3.0 (VegaAccountMod vault, Phases 12–15) SHIPPED 2026-07-19 (tag `v3.0`). v1.0 (GAMS plumbing, Phases 1–7) PAUSED. v2.0 (vol-oracle differential, Phases 8–11) PAUSED after Phase 9 — VDIFF-05..08 (Phases 10–11) remain pending, NOT part of v4.0. Resuming v2.0 = `/gsd:plan-phase 10`. These phase ranges are separate tracks — never renumbered.
 
 ## Current Position
 
-Phase: 19 — Differential, Mutation Battery & Consumer Fixture (MVER-01..04) — IN PROGRESS
-Plan: 19-01 COMPLETE (MVER-01), 19-02 COMPLETE (MVER-03), 19-03 COMPLETE (MVER-02 part A), 19-04 COMPLETE (MVER-02 part B — **MVER-02 now fully satisfied**). Only 19-05 remains (MVER-04: make targets + re-measured counts).
+Phase: 19 — Differential, Mutation Battery & Consumer Fixture (MVER-01..04) — **COMPLETE**
+Milestone: **v4.0 COMPLETE** — all five phases (16, 17, 18a, 18b, 19) and all 15 requirements (VORD-01..05, MCAL-01..06, MVER-01..04) done.
+Plan: 19-01 COMPLETE (MVER-01), 19-02 COMPLETE (MVER-03), 19-03 COMPLETE (MVER-02 part A), 19-04 COMPLETE (MVER-02 part B — **MVER-02 fully satisfied**), 19-05 COMPLETE (MVER-04).
+Status: 19-05 done — MVER-04 satisfied. `test-vol-order-acceptance` (plus `test-vol-order-diff`, `test-vol-order-fixture`) exists and exits 0; the fold-in is an OBSERVATION (all three Phase 19 contract names seen in plain `make test`), not a prerequisite — `make test` is already a whole-tree `forge test`, and a prerequisite would double-run pos_spec and inflate the tally. **Counts re-MEASURED cold at execution time and every red ATTRIBUTED:** `make test` **102 passed / 18 failed / 120 total (44 suites)**, `make compile-plank` **11 ok / 2 failed** — 14 exposure `setUp()` reverts (the uncommitted `VegaIssuanceLib.plk` draft, `unresolved identifier 'VolOrder'`), 4 vol-type track under `test/types/pos_spec/`, **0 under `test/pos_spec/`**, 0 TickVolatility (did not surface). The stale `MEASURED AT 17-01` block (96 pass / 4 fail, 13 ok — both wrong) was REPLACED, not amended. The real gate is VERIFIED not inferred: `batchSelectorIsNowDispatched`, `mixedBatchFootprintAndContiguity`, `mixedBatchReturnIsByteExact` all CALLED green through `deployPlank`/FFI bytecode. `PLANK_SKIP` byte-identically empty; no exit ceremony invented. `src/` byte-untouched.
 Status: 19-04 done — the consolidated MVER-02 battery is complete. **10 mutant applications across parts A and B, 10 observed REDs, SURVIVOR COUNT ZERO**, every mutated source restored sha256 byte-identical (`be196dcb…cc9b8787`, `5fe71f30…73fe8f35`). Guard 3's kill was taken from the REVERT assertion, never a state check, and its state-invisibility was RE-MEASURED (`VolOrderManagerBatchStateTest` green 2/0 under the mutant). M8's N=0 blindness re-measured GREEN; the element-base-shift (N=0-BLIND) vs head-drop (N=0-VISIBLE) mapping settled by measuring BOTH variants rather than inheriting 18b's. M9 killed by the raw-word canonicality assertion, with the `abi.decode` `EvmError: Revert` cascade recorded separately as the Haskell-consumer contract. **Four mutants have a SINGLE point of failure** (M2 outside pos_spec entirely; M4's 65536 test; M5/M6/M7's `VolOrderManagerBatchGuardTest`) — wave 1 structurally cannot cover the malformed-input or large-id surfaces.
 Status: 19-01 done — the interleaved sequence differential is green and the module AGREES with an independent Solidity mock at tol 0 across mixed `(create_order | create_orders)` sequences. No disagreement observed. `src/` byte-untouched (both sha256 pins match the 18b baseline).
 Status: 19-02 done — MVER-03 satisfied. The consumer golden fixture is committed with bytes produced by `cast abi-encode` (alloy), an encoder OUTSIDE this repo; the module's returndata matches it byte-for-byte across 5 cases including N=0, INDEPENDENTLY CONFIRMING 18b's 64+64N layout from a third encoder. All four interface selectors recomputed with `cast sig` and matching, plus a completeness gate that reddens on an unpinned fifth. **The cross-language gap is NOT closed:** alloy proves STANDARD-ABI conformance only; peer `mv15a18k`'s Haskell decoder remains unexercised and is marked per-case in the fixture.
-Last activity: 2026-07-21 — 19-01 executed: 3 CALLED-green differential tests (anchor ends at id 12 from a counter seeded to 5; fuzz `runs: 256` cold-cache); harness liveness proven by a mock-side negative control (`6 != 7`) restored clean; two plan-level defects auto-fixed (NatSpec doc-tag Error 6546; seeded-region live-order assertions).
+Last activity: 2026-07-21 — 19-05 executed: three dedicated make targets (acceptance target exits 0); the stale `MEASURED AT 17-01` block replaced with cold-measured counts, every red attributed to a named cause; the CALLED-green batch dispatch verified by three named tests; `PLANK_SKIP` confirmed empty and the roadmap's stale exit wording corrected. `src/` byte-untouched.
 
-Progress (v4.0): [████████░░] 80% — 4/5 phases (16, 17, 18a, 18b), 4 plans complete
+Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 18a, 18b, 19), 9 plans complete. **MILESTONE COMPLETE.**
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed (v4.0): 4
-- Average duration: 44 min
+- Total plans completed (v4.0): 9
+- Average duration: 29 min
 
 **By Phase:**
 
@@ -53,7 +55,9 @@ Progress (v4.0): [████████░░] 80% — 4/5 phases (16, 17, 18
 *Updated after each plan completion*
 | Phase 19 P01 | 6 | 3 tasks | 3 files |
 | Phase 19 P02 | 33 | 3 tasks | 3 files |
+| Phase 19 P03 | 24 | 3 tasks | 1 files |
 | Phase 19 P04 | 21 | 2 tasks | 1 files |
+| Phase 19 P05 | 5 | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -106,16 +110,27 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 19]: M8's N=0 blindness belongs to the ELEMENT-BASE SHIFT, not the head-drop — established by measuring BOTH variants
 - [Phase 19]: M9 is also N=0-blind and all-invalid-blind; its kill needs an N>=1 corpus containing a VALID tuple
 - [Phase 19]: The three calldata guards have a SINGLE point of failure in VolOrderManagerBatchGuardTest; wave 1 structurally cannot cover them
+- [Phase 19]: [19-05 MEASURED, replaces the stale 17-01 record] `make test` = 102 passed / 18 failed / 120 total (44 suites); `make compile-plank` = 11 ok / 2 failed. Every red ATTRIBUTED: 14 exposure setUp() reverts (the uncommitted src/lib/exposure/VegaIssuanceLib.plk draft, `unresolved identifier 'VolOrder'`, propagating through deployPlank/FFI), 4 vol-type track under test/types/pos_spec/, **0 under test/pos_spec/**, 0 TickVolatility. The 13->11 entrypoint drop and 4->18 fail rise vs 18b are the exposure draft landing in between, NOT a Phase 19 regression: Phase 19 moved the pass count 95->102 and added zero failures.
+- [Phase 19]: [19-05 FINDING, will fire on every future run] the acceptance criterion `grep 'FAIL' <output> | grep -c 'pos_spec'` == 0 is a FALSE POSITIVE — it matches the `--dep pos_spec=src/types/pos_spec` flag echoed inside `[FAIL: vm.ffi: ffi command [...]]` lines from the EXPOSURE suites, not any failing test. It measured 28 while the real count of reds under test/pos_spec/ was ZERO. Scope such gates to `test/pos_spec/`, and note that test/types/pos_spec/ is the vol-type TYPE track — a different owner.
+- [Phase 19]: [19-05 VERIFIED, the real MVER-04 gate] the BATCH dispatch is CALLED green through FFI-deployed bytecode, not inferred from compile-green: batchSelectorIsNowDispatched (selector 0x81357911 reaches a dispatch branch rather than revert_empty), mixedBatchFootprintAndContiguity (the branch does real work — state effects at raw vm.load addresses from a seeded counter), mixedBatchReturnIsByteExact (the return half). All reach the module via deployPlank -> plank build over FFI AT TEST TIME.
+- [Phase 19]: [19-05 CORRECTED, fourth stale-criterion fix in this milestone] roadmap SC-4, the Phase 19 Goal line and the one-line entry all asserted a `PLANK_SKIP` exit that does not exist. PLANK_SKIP is the rescue queue for entrypoints that do NOT compile; a module dispatching a subset of its declared selectors compiles fine, so VolOrderManagerMod never met the entry condition. Queue verified byte-identically empty. Like the previous three, resolved by fixing the DOCUMENT, never the code.
 
 ### Pending Todos
 
-**Next action: `/gsd:plan-phase 19`.** Phases 16 (VORD-02), 17 (VORD-01/03/04/05), 18a (MCAL-01/02/03/04/06) and 18b (MCAL-05 + MCAL-06's carried clause) are DONE — the multicall is feature-complete. Phase 19 (MVER-01..04) is a **coordination checkpoint, NOT a research gap**: proceed on the placeholder + a `NOT-PEER-VERIFIED` stand-in fixture if the peer has not answered. The 18b research question is CLOSED — `std::abi` provably cannot encode an array (`abi_encoded_size` has no array case and Plank has no array type), so the head/tail was hand-rolled and proven byte-exact against solc.
+**Next action: tag `v4.0` and send the peer hand-off.** Phase 19 is COMPLETE and the milestone is closed. Phases 16 (VORD-02), 17 (VORD-01/03/04/05), 18a (MCAL-01/02/03/04/06) and 18b (MCAL-05 + MCAL-06's carried clause) are DONE — the multicall is feature-complete. Phase 19 (MVER-01..04) is a **coordination checkpoint, NOT a research gap**: proceed on the placeholder + a `NOT-PEER-VERIFIED` stand-in fixture if the peer has not answered. The 18b research question is CLOSED — `std::abi` provably cannot encode an array (`abi_encoded_size` has no array case and Plank has no array type), so the head/tail was hand-rolled and proven byte-exact against solc.
 
 **Peer hand-off ready for `mv15a18k` — now TWO documents.** 18a-01-SUMMARY.md CARRY-FORWARD section 2 has the input-word layout, the canonical-offset hard requirement and skip-vs-revert semantics. **18b-01-SUMMARY.md adds the RETURN side**: the exact `64 + 64N` byte layout, the N=0-returns-64-bytes clause (the one most likely to break a Haskell decoder, and invisible on-chain), and the canonical-bool divergence (solc REJECTS a non-canonical success word; a lenient Haskell decoder may accept it). Send both.
 
+### MILESTONE v4.0 EXIT RECORD — OPEN ITEMS (none blocking)
+
+- **F1 — the strike bound is UNPROVEN at the `create_order` entrypoint.** Mutant M2 dies ONLY in the Phase-16 pure-lib harness. No pos_spec test can express `strike >= 2^88` (the whole corpus is uint88-bounded), and on the BATCH path M2 is genuinely EQUIVALENT because `create_orders` masks the strike to 88 bits BEFORE validation, making `<= MAX_STRIKE` dead code there. The STRICT path reads the strike unmasked, so it IS killable: one `create_order` call with `strike = (1 << 88) + 7` asserting a revert would close it. Reported, not fixed — Phase 19 builds nothing.
+- **Four mutants have a SINGLE POINT OF FAILURE.** Survivor count is genuinely 0 of 10, but M2 (only outside `test/pos_spec/`), M4 (the 65536 test alone) and M5/M6/M7 (`VolOrderManagerBatchGuardTest` alone) each rest on one test. Wave 1 is a kill site on 5/10 (19-01) and 4/10 (19-02) — real strengthening — but structurally CANNOT cover these: a typed Solidity mock and a golden-bytes fixture cannot emit a non-canonical offset or a truncated payload, and neither reaches id 65536. Delete any one of those tests and a real mutant survives with 39/40 still green.
+- **[19-02 honest negative] `test__unit__externalEncoderConfirmsTheEmptyEncodingIsSixtyFourBytes` is NOT an anti-inaction gate** — it reads `expected[0]` only and stayed GREEN under a 5-to-4 fixture case-count drop. The count gate lives solely in the differential and the peer-gap tests.
+- **Cross-language gap still OPEN.** alloy proves STANDARD-ABI conformance; it does NOT exercise peer `mv15a18k`'s Haskell decoder. Two different claims — the exit record must not conflate them.
+
 ### Blockers/Concerns
 
-- **Untracked `src/modules/protocol_integrations/PriceSetterHook.sol` (another track)** has an empty Solidity import path that breaks bare `forge build` across the whole `src/` tree. Every `forge` invocation in v4.0 must carry the documented `--skip` for that path (as v3.0's Phase 13+ did) until the owning track fixes/removes it. `forge` runs under `--via-ir --optimize`.
+- **[RESOLVED at `8b11d73`, verified again at 19-05] The `--skip 'src/modules/protocol_integrations/PriceSetterHook.sol'` flag NO LONGER EXISTS.** The untracked sketch was deleted and the flag removed from all NINE Makefile recipes. Every prior phase's documented forge command is STALE on this point. Do NOT reintroduce it. Verified at 19-05: `grep -c -- '--skip' Makefile` = 0 and `grep -c 'PriceSetterHook' Makefile` = 0.
 - **4 pre-existing pos_spec harness failures** (vol-type-system track) remain visible in `make test` — not v4.0 defects; the v4.0 suite must not filter them.
 - **[17-01] The `make test` failure count is NOT deterministic.** A FIFTH failure, `TickVolatilityLibTest::test__fuzz__tickVolatilitySqrtPriceX64x96AndTickSuccess`, surfaces on roughly 1 cold-cache run in 4, always at counterexample `2^64-1`. PROVEN pre-existing (reproduced with all 17-01 files stashed: 86 pass / 5 fail) and owned by the TickVolatility track — it is NOT one of the 4 known `src/types/pos_spec/` reds. Re-run before treating a 5th failure as a regression. See `.planning/phases/17-interface-single-call-module/deferred-items.md` (D1); worth reporting `2^64-1` upstream as a genuine latent bug.
 - **[17-01 MEASURED, binds 18a/19 and the Haskell consumer] `array_slot`'s add is CHECKED.** `v3::storage::array_slot` is `keccak256(base) + index` under Plank's checked `+`, so it PANICS (0x11) instead of wrapping. Addressable ids are capped at `2^256-1 - keccak(SLOT_ORDERS_BASE)` ≈ 6.5e74; above that `getOrderPacked` reverts rather than returning the 0 sentinel. Unreachable for counter-assigned ids, but relevant to any path accepting caller-supplied ids. Pinned by `test__unit__getOrderPackedOverflowBoundaryIsExactlyWhereCheckedAddSaturates`.
