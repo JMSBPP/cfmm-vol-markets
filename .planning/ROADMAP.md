@@ -425,7 +425,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 19-01: TBD
+- [x] 19-01: Interleaved sequence differential vs independent mock (MVER-01) — anchor ends at id 12, fuzz `runs: 256` cold-cache, module and mock agree at tol 0, `src/` sha256-identical
 
 ## Progress (Milestone v4.0)
 
@@ -437,7 +437,7 @@ Plans:
 | 17. Interface & Single-Call Module | 1/1 | Complete    | 2026-07-20 |
 | 18a. Batch Input & State Effects | 1/1 | Complete    | 2026-07-20 |
 | 18b. Typed Return Encoding | 1/1 | Complete    | 2026-07-21 |
-| 19. Differential, Mutation Battery & Consumer Fixture | 0/TBD | Not started | - |
+| 19. Differential, Mutation Battery & Consumer Fixture | 2/5 | In Progress|  |
 
 ## Coverage (Milestone v4.0)
 

@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: VolOrderManagerMod + Multicall
-status: executing
-stopped_at: Phase 19 context gathered
-last_updated: "2026-07-21T17:05:59.199Z"
+milestone: v2.0
+milestone_name: milestone
+status: completed
+stopped_at: Completed 19-02-PLAN.md (MVER-03)
+last_updated: "2026-07-21T18:25:03.422Z"
 last_activity: "2026-07-21 — 18b-01 executed: 8 CALLED-green return-encoding tests; 6/6 observed mutation REDs each restored sha256-identical; N=128 gas RE-MEASURED at 3,275,765 (+28,313 vs 18a); src/types/pos_spec/ byte-untouched."
 progress:
   total_phases: 16
   completed_phases: 7
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 16
+  completed_plans: 13
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 
 ## Current Position
 
-Phase: 18b — Typed Return Encoding (MCAL-05) — COMPLETE
-Plan: 18b-01 COMPLETE (18b-01-SUMMARY.md)
-Status: Phase 18b done — `create_orders` returns the hand-rolled `(bool,uint256)[]`, byte-exact against solc. MCAL-05 Complete and MCAL-06's carried return-bytes clause DISCHARGED. Phase 19 (Differential, Mutation Battery & Consumer Fixture, MVER-01..04) is next — a coordination checkpoint with peer `mv15a18k`, NOT a research gap.
-Last activity: 2026-07-21 — 18b-01 executed: 8 CALLED-green return-encoding tests; 6/6 observed mutation REDs each restored sha256-identical; N=128 gas RE-MEASURED at 3,275,765 (+28,313 vs 18a); src/types/pos_spec/ byte-untouched.
+Phase: 19 — Differential, Mutation Battery & Consumer Fixture (MVER-01..04) — IN PROGRESS
+Plan: 19-01 COMPLETE (19-01-SUMMARY.md); MVER-01 satisfied. 19-02..05 remain.
+Status: 19-01 done — the interleaved sequence differential is green and the module AGREES with an independent Solidity mock at tol 0 across mixed `(create_order | create_orders)` sequences. No disagreement observed. `src/` byte-untouched (both sha256 pins match the 18b baseline).
+Last activity: 2026-07-21 — 19-01 executed: 3 CALLED-green differential tests (anchor ends at id 12 from a counter seeded to 5; fuzz `runs: 256` cold-cache); harness liveness proven by a mock-side negative control (`6 != 7`) restored clean; two plan-level defects auto-fixed (NatSpec doc-tag Error 6546; seeded-region live-order assertions).
 
 Progress (v4.0): [████████░░] 80% — 4/5 phases (16, 17, 18a, 18b), 4 plans complete
 
@@ -49,6 +49,8 @@ Progress (v4.0): [████████░░] 80% — 4/5 phases (16, 17, 18
 | 18b — Typed Return Encoding | 1 | 27 min | 27 min |
 
 *Updated after each plan completion*
+| Phase 19 P01 | 6 | 3 tasks | 3 files |
+| Phase 19 P02 | 33 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -91,6 +93,13 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [carried, v3.0]: `deployPlank` recompiles the `.plk` fresh on every test run via FFI — a mutation battery does NOT need `make compile-plank` between mutants; the mutant reaches the deployed bytecode as long as tests use `deployPlank` (re-check if any test ever deploys from a prebuilt artifact).
 - [carried, v3.0]: observed-RED discipline — mutant applied → cache/fuzz cleared → verbatim RED recorded → restored sha256-identical → green; equivalence-masked mutants documented, never counted. Keep a NON-FUZZ unit anchor alongside each fuzz (cache-independent by construction). Reference mock must NEVER echo Plank's own output (vacuous differential).
 - [carried, v3.0]: one shared decoder, not a fourth copy — `test/.../TimepointDecoder.sol` precedent; v4.0 promotes a single `VolOrderDecoder` and reuses it.
+- [Phase 19]: [19-01 MEASURED] The module and the independent mock AGREE at tol 0 across interleaved (create_order | create_orders) sequences — orderCount, every stored word, and return bytes — over a seeded 8-step anchor ending at id 12 and a 256-run cold-cache fuzz. Step 3 (strict path resuming on a BATCH-advanced counter) is the property 18a/18b structurally could not test; VolOrderManagerMod satisfies it. No disagreement observed.
+- [Phase 19]: [19-01 FINDING, binds every seeded differential] vm.store seeding moves the COUNTER, not the orders: ids in [1, seedBase] are legitimately EMPTY on both sides. The plan's after-every-write helper asserted 'pw != 0' and 'tickSpacing == 20' over all of [1, pc] and would have failed on every seeded test. Agreement is asserted over the full range; live-order SHAPE only for id > seedBase, with assertEq(pw, 0) below it (which also catches phantom-order seeding bugs).
+- [Phase 19]: [19-01 BLOCKING, affects any test-side NatSpec] solc parses a leading at-sign + word in NatSpec as a doc tag: the field-at-bit layout shorthand triggers 'Error (6546): Documentation tag @128 not valid for contracts' and the file will not compile. Use prose in NatSpec; the shorthand survives in string literals, which is where failure messages need it.
+- [Phase 19]: [19-02 CONFIRMED, the milestone's strongest encoder evidence] cast abi-encode (alloy) INDEPENDENTLY confirms 18b's pinned return layout from a THIRD encoder outside this repo: offset 0x20 at byte 0, length in ELEMENTS, static tuples at stride 0x40, total exactly 64+64N, and the N=0 case at exactly 64 bytes. Two independent encoders (solc at 18b, alloy here) now agree with the hand-rolled Plank encoder.
+- [Phase 19]: [19-02 SCOPE, must NOT be blurred in the exit record] alloy proves the return bytes are STANDARD-ABI CONFORMANT. It does NOT exercise the Haskell consumer's decoder. The cross-language gap with peer mv15a18k remains OPEN and is kept visible in four places: the fixture's _scope_limit and _peer_status fields, 5 NOT-PEER-VERIFIED placeholders, and the dedicated test__unit__peerHaskellBytesAreStillAnOpenGap.
+- [Phase 19]: [19-02 MEASURED, honest negative] test__unit__externalEncoderConfirmsTheEmptyEncodingIsSixtyFourBytes is NOT an anti-inaction gate — it stayed GREEN under a 5-to-4 fixture case-count drop because it reads expected[0] only. The count gate lives solely in the differential and the peer-gap tests. A refactor keeping only the N=0 test would silently lose falsifiability.
+- [Phase 19]: [19-02 FINDING, binds remaining Phase 19 plans] the acceptance criterion 'git diff --stat src/ produces NO output' is UNSATISFIABLE at execution time — the pre-existing uncommitted src/lib/exposure/VegaIssuanceLib.plk draft (which CONTEXT itself defers) always shows. Fifth instance of the self-contradicting-criterion pattern. Scope the criterion to src/**/pos_spec instead; the real property (pos_spec byte-untouched, module sha256 be196dcb...cc9b8787) was verified directly.
 
 ### Pending Todos
 
@@ -110,6 +119,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-07-21T17:05:59.195Z
-Stopped at: Phase 19 context gathered
-Resume file: .planning/phases/19-differential-mutation-battery-consumer-fixture/19-CONTEXT.md
+Last session: 2026-07-21T18:25:03.383Z
+Stopped at: Completed 19-02-PLAN.md (MVER-03)
+Resume file: None
