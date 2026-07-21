@@ -115,3 +115,38 @@ within-position covariation is what spec 4.4 actually intends.
 The genuine arbiter of success remains plan 10-10's result-blind stopping
 rule (clustered CI half-width <= 6.2e-5). A `GO` here means "worth
 attempting", NOT "will succeed".
+
+## FINAL DECISION: PROCEED (hourly design)
+
+Recorded 2026-07-21. This is the user's adjudication of the Task-3 decision
+checkpoint. The full trail, in order:
+
+1. **Daily design STOP — HONORED.** On the original daily epoch grid the
+   pre-committed rule returned `STOP`: the median was 1 epoch/position against
+   the floor of 5. The rule was applied as written, not adjusted after the
+   number was seen. The daily design is closed on that verdict.
+
+2. **User re-scoped to HOURLY epochs BEFORE any estimation.** The epoch width
+   was changed from daily to hourly (`EPOCH_HOURS = 1`) prior to running any
+   estimator. The GO/STOP thresholds themselves were left untouched
+   (`JOINABLE_ROWS >= 300` and `WITHIN_POSITION_EPOCHS_MEDIAN >= 5`).
+
+3. **Hourly re-measurement — GO on both conditions,** scored on the stricter
+   `JOINABLE_ROWS` reading: 6,764 joinable rows; median 10 epochs/position;
+   `sigma^2` estimable in 2832/2832 hours; cluster count unchanged at 55
+   `USABLE_TOKENID`s.
+
+4. **User selected `proceed`** to Wave 2 (plans 10-02 .. 10-11), accepting the
+   two recorded residual risks:
+   - (a) the cluster count is unchanged at 55, which bounds clustered precision
+     regardless of how many rows the hourly grid adds;
+   - (b) hourly `sigma^2` is noisier (~177 vs ~5209 increments/window), so EIV
+     attenuation worsens and the even-swap instrument thins (~88 increments).
+
+   Both residual risks are adjudicated **empirically** by the unchanged
+   controls: the <= 1% reconciliation gate and the unchanged result-blind
+   stopping rule (clustered CI half-width <= 6.2e-5) in plan 10-10. Neither
+   control was relaxed to accommodate the hourly re-scope.
+
+**Verdict: PROCEED on the hourly-re-scoped design.** Wave 2 executes on hourly
+epochs.
