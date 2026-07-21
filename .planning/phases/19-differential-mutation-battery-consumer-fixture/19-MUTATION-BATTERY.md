@@ -417,5 +417,148 @@ SMALL-ID observations that are equivalence-masked. That distinction is preserved
 
 ---
 
-</content>
-</invoke>
+# THE EQUIVALENCE-MASKED LEDGER
+
+These mutants are DOCUMENTED and explicitly **NOT COUNTED** as kills. Each entry states the mutant,
+why it is masked, and that it must not be quietly re-counted in a later phase. The whole point of
+this ledger is that a masked mutant produces a GREEN suite, and a green suite is indistinguishable
+from "no bug" unless the mask is written down somewhere durable.
+
+**1. v3.0 — h-bound `<` → `<=`.** Masked by `full_math`'s zero-denominator revert: the mutant's
+effect is preempted by a revert that fires first, so no assertion can distinguish it. **NOT COUNTED.**
+
+**2. v3.0 — unset-`p_risk` guard.** Same mask, same reason — `full_math`'s zero-denominator revert
+fires before the guard's absence becomes observable. **NOT COUNTED.**
+
+**3. Phase 17 / re-measured here as M4 — the ring-mask AT SMALL IDS.** `1 & 0xFFFF = 1`, so the mask
+is a NO-OP below 65536. **The mutant ITSELF is a real kill and IS counted (see M4).** What is
+excluded is any SMALL-ID OBSERVATION of it: measured again on this tree at 39 passed / 1 failed, the
+sole red being `test__unit__idAt65536IsNotMaskedIntoSlotZero`, which reaches id 65536 by
+`vm.store`-ing the counter to 65535. **A future phase may NOT claim an M4 kill from a small-id test.**
+Note also that 19-01's and 19-02's new suites stayed GREEN under M4 — breadth at small ids is not
+coverage of this hazard. **SMALL-ID OBSERVATIONS NOT COUNTED.**
+
+**4. Phase 18a — guard-3's deletion is invisible to STATE assertions.** A `calldataload` past the end
+of calldata returns zero-padded words, so `build_vol_order(0,0,0)` fails validation, the tuple is
+skipped, and state stays clean. A state assertion therefore stays GREEN under the mutant and would
+record a FAKE kill. Killable ONLY by the REVERT assertion in `test__unit__truncatedCalldataReverts`.
+(The guard mutants are owned by plan 19-04; this entry exists so the constraint is stated once, in
+one place.) **STATE-ASSERTION OBSERVATIONS NOT COUNTED.**
+
+**5. Phase 18b — M7, pure allocation reordering.** UNCONSTRUCTIBLE at the SCOPING level, not merely
+equivalent: moving the buffer allocation inside the loop makes the trailing `@evm_return(out, ...)`
+fail to compile with `error: unresolved identifier 'out'`. Any reordering that keeps the return
+reachable requires `out` in the outer scope before the loop, so the ordering is enforced by scoping
+rather than convention. **18b's count reads 6, NOT 7. NOT COUNTED.**
+
+**6. Phase 18b — the element-base-shift mutant is BLIND at N=0, and the stride mutant is BLIND at
+N ≤ 1.** Both MEASURED. With no elements there is nothing to misplace (total is 64 bytes either way);
+and at i=0, `64 + stride*i` is independent of the stride. A kill for either must come from an N ≥ 1
+and N ≥ 2 corpus respectively. **Plan 19-04 may NOT accept an N=0 green as evidence. NOT COUNTED at
+those sizes.**
+
+**7. Phase 18b — the `(false, id)` leak mutant is NOT killable by an all-invalid batch on a fresh
+registry**, because `id` never leaves 0 there, so `(false, id)` IS `(false, 0)`. The SEEDED mixed
+corpus is the SOLE kill site. **ALL-INVALID-ON-FRESH OBSERVATIONS NOT COUNTED.**
+
+---
+
+# PART A TALLY
+
+| Outcome | Count | Mutants |
+| --- | --- | --- |
+| **Attempted** | **5** | M1a, M1b, M2, M3, M4 |
+| **OBSERVED RED (counted as kills)** | **5** | M1a, M1b, M2, M3, M4 |
+| **SURVIVORS** | **0** | — |
+| **UNCONSTRUCTIBLE** | **0** | — (M1a's primary form `if 1 == 1 {` compiled; no fallback needed) |
+
+**The survivor count is ZERO.** Stated explicitly, as required, rather than left implicit in a
+kill count. Every one of the four semantic mutants named by MVER-02 (counting M1's two independent
+applications separately) reddened on the CURRENT tree with a cold fuzz cache, and every mutated
+source was restored sha256 byte-identical.
+
+## Findings carried out of Part A
+
+Part A produced two findings that are NOT kill-count entries and must not be lost in it:
+
+**F1 — M2's kill site is narrower than the plan predicted (coverage gap, REPORTED not fixed).**
+The plan predicted 19-01's differential would kill M2. It does not and structurally cannot: every
+strike in `test/pos_spec/` is `uint88`-bounded, so an oversized strike is unrepresentable in the
+corpus; and on the BATCH path the mutant is genuinely EQUIVALENT because the module masks the strike
+to 88 bits before validation, making `<= MAX_STRIKE` dead code there. M2 is killed only by the
+Phase-16 pure-lib harness. **The strike bound's enforcement through the `create_order` ENTRYPOINT is
+unproven.** No test was added to close this — Phase 19 mutates and observes; it builds nothing.
+
+**F2 — the `runs: 0` acceptance criterion conflates two distinct conditions.** `grep -c 'runs: 0'`
+== 0 is unsatisfiable for any mutant broad enough to be killed by the first fuzz input. Measured:
+with `cache/fuzz` provably absent, two runs produced two DIFFERENT counterexamples, which a replay
+cannot do. The criterion's real property — no kill rests on a replayed corpus — holds, and is
+independently secured by the fact that every kill in Part A stands on NON-FUZZ anchors.
+
+## Wave-1 tests as kill sites (direct evidence 19-01 and 19-02 strengthened the suite)
+
+| Mutant | 19-01 `VolOrderManager.diff.t.sol` | 19-02 `VolOrderManagerFixture.t.sol` |
+| --- | --- | --- |
+| M1a | **KILL SITE** — `test__unit__fixedAnchorSequenceDiffers` (step 2 mixed batch) | **KILL SITE** — `N2_success_then_fail` |
+| M1b | **KILL SITE** — `test__unit__fixedAnchorSequenceDiffers` (`_singleExpectRevertBoth`) | green |
+| M2  | green (structurally cannot kill — see F1) | green |
+| M3  | **KILL SITE** — anchor step 2 + fuzz `orderCount 452 != 450` | **KILL SITE** — `N3_mixed_seeded_C5`, the exact case the plan named |
+| M4  | green (small ids only) | green (small ids only) |
+
+**Both wave-1 plans added real kill sites** — 19-01 on three mutants, 19-02 on two — rather than
+merely adding green tests. The honest counterpart: **neither added any coverage against M4**, whose
+sole kill site remains the 65536 test.
+
+---
+
+# RESTORATION AUDIT (Part A close-out)
+
+```
+$ sha256sum src/modules/pos_spec/VolOrderManagerMod.plk src/lib/pos_spec/VolOrderValidationLib.plk
+be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787  src/modules/pos_spec/VolOrderManagerMod.plk
+5fe71f30e4820d230a6d15b30e440ae78a33875d0d9a66e60f4e0d7d73fe8f35  src/lib/pos_spec/VolOrderValidationLib.plk
+```
+
+Both EQUAL to their baselines. Every mutant applied in this plan was restored; none was left in the tree.
+
+```
+$ git diff --stat src/modules/pos_spec/ src/lib/pos_spec/
+(no output)
+
+$ git status --short src/types/pos_spec/
+(no output)
+```
+
+Cold-cache green, both suites:
+
+```
+$ rm -rf cache/fuzz && forge test --match-path 'test/pos_spec/*' --via-ir --optimize
+Ran 15 test suites in 4.88s (6.02s CPU time): 40 tests passed, 0 failed, 0 skipped (40 total tests)   [exit 0]
+
+$ forge test --match-path 'test/types/pos_spec/VolOrderValidation.t.sol' --via-ir --optimize
+Ran 3 test suites in 43.89ms (98.82ms CPU time): 13 tests passed, 0 failed, 0 skipped (13 total tests) [exit 0]
+```
+
+## The `git diff --stat src/` criterion — UNSATISFIABLE, resolved by verifying the property
+
+Tasks 1-3 each carry the criterion "`git diff --stat src/` produces NO output". It cannot pass, and
+not because of anything this plan did. Both wave-1 executors hit the same wall independently:
+
+```
+ src/lib/exposure/VegaIssuanceLib.plk | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+```
+
+This is the user's uncommitted `calculate_vega_nominal` draft (`error: unresolved identifier
+'VolOrder'` at :44), which `19-CONTEXT.md` names as the cause of the 14 exposure `setUp()` reverts
+and explicitly DEFERS as out of scope. It was not touched.
+
+**Resolution (the established precedent from 19-01 and 19-02):** verify the PROPERTY the criterion
+exists to establish — *this plan modified no pos_spec source* — via `git status --short` scoped to
+the pos_spec trees (empty, above) plus the two sha256 pins (matching, above). Nothing was contorted
+to satisfy the literal grep. This is the sixth instance of the self-contradicting-criterion pattern
+`19-CONTEXT.md` `<specifics>` warns about. **Future plans should scope the criterion to
+`src/**/pos_spec`.**
+
+Also present and NOT ours: untracked `src/lib/protocol_integrations/` and
+`src/types/protocol_integrations/` directories, from another track. Named here, untouched.
