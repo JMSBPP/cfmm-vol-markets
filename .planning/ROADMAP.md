@@ -426,6 +426,8 @@ Plans:
 
 Plans:
 - [x] 19-01: Interleaved sequence differential vs independent mock (MVER-01) — anchor ends at id 12, fuzz `runs: 256` cold-cache, module and mock agree at tol 0, `src/` sha256-identical
+- [x] 19-02: Consumer golden fixture + selector completeness (MVER-03) — 5 `cast abi-encode` (alloy) cases re-derived and diffed against the committed file, all 4 `cast sig` outputs matched the pinned constants, 3 falsifiability modes OBSERVED (not the 1 mandated); alloy independently confirms 18b's layout incl. the N=0 64-byte edge. Cross-language peer gap remains OPEN and marked `NOT-PEER-VERIFIED`
+- [x] 19-03: Mutation battery part A (MVER-02) — 5 observed REDs (M1a, M1b, M2, M3, M4), **0 survivors**, 0 unconstructible, each restored sha256-identical. Finding F1: M2 dies ONLY in the Phase-16 harness — no pos_spec test delivers an oversized strike, and on the batch path M2 is genuinely EQUIVALENT (strike masked to 88 bits before validation), so the strike bound at the `create_order` entrypoint is UNPROVEN. Reported, not fixed (this phase builds nothing)
 
 ## Progress (Milestone v4.0)
 

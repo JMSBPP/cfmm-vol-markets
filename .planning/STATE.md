@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: VolOrderManagerMod + Multicall
 status: executing
-stopped_at: Completed 19-02-PLAN.md (MVER-03)
+stopped_at: Completed 19-03-PLAN.md (MVER-02 part A: 5 observed REDs, 0 survivors). Next: 19-04 (battery part B), then 19-05 (make targets + re-measure). OPEN FINDING F1 — strike bound unproven at the create_order entrypoint
 last_updated: "2026-07-21T18:25:03.422Z"
 last_activity: "2026-07-21 — 19-02 executed: 4 CALLED-green tests; cast abi-encode (alloy) golden fixture confirms 18b's 64+64N layout from a THIRD encoder; falsifiability OBSERVED in 3 modes (file removed / case count dropped / unpinned 5th selector); all 4 selectors recomputed with cast sig and matching; src/**/pos_spec byte-untouched."
 progress:
