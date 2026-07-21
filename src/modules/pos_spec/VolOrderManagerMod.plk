@@ -17,6 +17,15 @@
 // STRUCTURAL ENUMERATION of its post-validation store path in-file -- that enumeration is the
 // PRIMARY containment argument; the totality fuzz is corroboration only.
 //
+// Phase 18b (MCAL-05) replaced 18a's deliberate ONE-WORD success count with the hand-rolled
+// ABI `(bool success, uint256 orderId)[]` return: outer offset 0x20, length in ELEMENTS, then
+// STATIC tuples inlined at stride 0x40, total exactly 64 + 64*count bytes. Results are
+// positionally aligned to the input array (a failed tuple is exactly `(false, 0)` and does not
+// shift its successors) and success words are canonically 0 or 1. N=0 returns a well-formed
+// EMPTY result of exactly 64 bytes rather than 0 or 32 -- the clause MCAL-06 carried into 18b.
+// The encoder is proven byte-exact against solc's STANDARD abi.encode in
+// test/pos_spec/VolOrderManagerBatch.t.sol :: VolOrderManagerReturnEncodingTest.
+//
 // MONOTONIC IDS, NO RING. array_slot applies NO mask. The 16-bit wraparound mask used by the
 // realized-volatility ring lives in a DIFFERENT file (src/types/StorageIndex.plk) and is
 // deliberately NOT imported here: it is load-bearing for a 2^16 ring and CORRUPTING for a
@@ -168,9 +177,37 @@ run {
         // Masking it to `& 0xFFFFFF` would map two distinct calldata words onto the same stored
         // order -- a malleability seam for the Haskell consumer and the Phase 19 differential.
         // skew and strike DO get masks because a field sits above each of them.
+        // ------------------------------------------------------------------------------------
+        // THE (bool success, uint256 orderId)[] RETURN BUFFER (MCAL-05).
+        //
+        // ALLOCATED HERE, BEFORE THE LOOP, AND THIS ORDERING IS LOAD-BEARING. `array_slot` calls
+        // @malloc_uninit(32) on EVERY invocation (v3 storage.plk:232), i.e. once per iteration.
+        // A buffer whose size is not reserved up front, or which is under-sized, has those
+        // per-iteration allocations land inside the region this branch writes -- the results and
+        // array_slot's keccak scratch then alias. Reserving the exact final size in one call
+        // before any iteration runs makes that structurally impossible.
+        //
+        // SIZE ARITHMETIC CANNOT PANIC HERE. Plank's `*` and `+` are CHECKED, but the MAX_BATCH
+        // guard above already ran, so count <= 128 and 64 + 64*count <= 8256.
+        //
+        // LAYOUT (a STATIC tuple, so elements are inlined in the tail with no per-element
+        // offsets -- head 0x40, stride 0x40):
+        //     0x00  0x20        outer offset word to the array
+        //     0x20  count       length in ELEMENTS (not bytes -- this is where a membytes-shaped
+        //                       workaround would have gone wrong: bytes counts BYTES)
+        //     0x40  success[0] / 0x60 orderId[0] / 0x80 success[1] / ...
+        // TOTAL = 64 + 64*count. N=0 is exactly 64 bytes, NOT zero and NOT 32.
+        //
+        // std::abi CANNOT produce this. abi_encoded_size (std/abi.plk:22-58) branches on exactly
+        // void | u256 | bool | membytes | @is_struct(T) and type-errors on everything else; there
+        // is no array case and Plank has no array type. Only the MECHANISM is borrowed, from
+        // plank-diff-tests/src/std/abi_dynamic.plk:11-14.
+        let out = @malloc_zeroed(64 + 64 * count);
+        @mstore32(out +% 0, 0x20);
+        @mstore32(out +% 32, count);
+
         let mut i = 0;
         let mut id = @evm_sload(SLOT_ORDER_COUNT);
-        let mut ok = 0;
         while i < count {
             let word = @evm_calldataload(100 + i * 32);
             let order = build_vol_order(
@@ -188,10 +225,24 @@ run {
             // Plank has NO `continue`, so the skip MUST be this `if` WRAPPING the store, never an
             // early jump -- a jump past the increment below is an infinite loop, i.e. out-of-gas
             // rather than a failed assertion.
+            // POSITIONAL ALIGNMENT: result i is written at head + 64*i on BOTH paths, so the
+            // results array is index-parallel to the input array by construction rather than by
+            // accumulation. A failing tuple does not shift its successors.
+            let base = 64 + 64 * i;
+
             if validate_order(order) {
                 id = id + 1;
                 @evm_sstore(array_slot(SLOT_ORDERS_BASE, id), pack_vol_order(order));
-                ok = ok + 1;
+                // CANONICAL BOOL. Exactly 1, never a truthy nonzero: Solidity's abi.decode REJECTS
+                // a non-canonical bool while a lenient Haskell decoder may accept it, so a
+                // non-canonical word makes the two consumers silently disagree about the same
+                // bytes. Named mutant.
+                @mstore32(out +% base, 1);
+                @mstore32(out +% (base + 32), id);
+            } else {
+                // A FAILED TUPLE IS EXACTLY (false, 0). Not (false, id), not a skipped slot.
+                @mstore32(out +% base, 0);
+                @mstore32(out +% (base + 32), 0);
             }
             i = i + 1;
         }
@@ -203,11 +254,16 @@ run {
         // is a REAL kill here.
         @evm_sstore(SLOT_ORDER_COUNT, id);
 
-        // ONE WORD: the success count. Deliberate -- the typed (bool,uint256)[] encoder is Phase
-        // 18b and has zero in-repo precedent, so 18a's state effects are proven against raw
-        // vm.load slots and a scalar the test computes itself, with no untested encoder in
-        // between. return_u256 returns `never`, terminating the branch.
-        return_u256(ok);
+        // THE TYPED RETURN (MCAL-05, and MCAL-06's carried return-bytes clause). Replaces 18a's
+        // deliberate one-word success count: return_u256 emits exactly 32 bytes and structurally
+        // CANNOT satisfy the N=0 64-byte encoding.
+        //
+        // N=0 RETURNS 64 BYTES AND NEVER REVERTS. Governing principle: structurally impossible ->
+        // revert; semantically empty -> well-formed empty result. A zero-arrival Poisson tick is an
+        // in-distribution sample, not a client error. Returning 0 or 32 bytes here would make the
+        // consumer's abi.decode revert -- a failure INVISIBLE on-chain that lands in the Haskell
+        // client. Pinned by test__unit__emptyReturnIsExactlySixtyFourBytes.
+        @evm_return(out, 64 + 64 * count);
     }
 
     // Unknown selector. SELECTOR_CREATE_ORDERS is now DISPATCHED above (Phase 18a).

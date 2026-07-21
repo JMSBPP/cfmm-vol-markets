@@ -32,6 +32,15 @@ import {IVolOrderManager, VolOrderManagerBase} from "./VolOrderManager.t.sol";
 // three calldata guards and is named separately.
 // ===========================================================================================
 
+/// @dev The Solidity mirror of the module's hand-rolled return element. As a struct with fields
+///      (bool, uint256), `abi.encode(BatchResult[])` emits EXACTLY the layout the module
+///      hand-rolls: outer offset 0x20, length in ELEMENTS, then static tuples inlined at stride
+///      0x40 with no per-element offsets. That is what makes solc usable as an INDEPENDENT oracle.
+struct BatchResult {
+    bool success;
+    uint256 orderId;
+}
+
 abstract contract VolOrderManagerBatchBase is VolOrderManagerBase {
     bytes4 internal constant SEL_CREATE_ORDERS = bytes4(0x81357911);
 
@@ -96,10 +105,29 @@ abstract contract VolOrderManagerBatchBase is VolOrderManagerBase {
     ///      criterion exists to establish, "the guards are exercised through low-level calls
     ///      rather than the typed interface", is what is actually true here, and is stronger
     ///      for being unavoidable: there is no typed batch entrypoint to accidentally use.)
+    ///
+    ///      PHASE 18b: the signature is deliberately UNCHANGED. `ret` still means "how many
+    ///      tuples succeeded", so every 18a assertion is preserved verbatim while now being
+    ///      routed through the typed encoder. The 18a assertions therefore got STRICTLY
+    ///      STRONGER for free -- they previously read one raw word, and now they only hold if
+    ///      abi.decode accepts the hand-rolled bytes. Tests that need the RAW bytes use
+    ///      callBatchRaw below.
     function callBatch(bytes memory cd) internal returns (bool ok, uint256 ret) {
         bytes memory r;
         (ok, r) = address(mgr).call(cd);
-        if (ok && r.length == 32) ret = abi.decode(r, (uint256));
+        if (ok) {
+            BatchResult[] memory rs = abi.decode(r, (BatchResult[]));
+            for (uint256 j = 0; j < rs.length; j++) {
+                if (rs[j].success) ret++;
+            }
+        }
+    }
+
+    /// @dev Raw returndata, undecoded. The byte-level differential and every returndatasize
+    ///      assertion go through THIS -- decoding first would discard exactly the evidence those
+    ///      tests exist to produce.
+    function callBatchRaw(bytes memory cd) internal returns (bool ok, bytes memory ret) {
+        (ok, ret) = address(mgr).call(cd);
     }
 }
 
@@ -404,7 +432,11 @@ contract VolOrderManagerBatchGasTest is VolOrderManagerBatchBase {
         // FIRST -- this is what stops a passing gas assertion from silently certifying an early
         // revert. All four assertions below precede the threshold check deliberately.
         assertTrue(ok, "the N=128 batch must SUCCEED for its gas number to mean anything");
-        assertEq(abi.decode(r, (uint256)), MAX_BATCH, "all 128 tuples stored");
+        // PHASE 18b: the return is no longer one word. `abi.decode(r, (uint256))` would now
+        // silently decode the OUTER OFFSET WORD and yield 32, certifying nothing.
+        BatchResult[] memory rs = abi.decode(r, (BatchResult[]));
+        assertEq(rs.length, MAX_BATCH, "all 128 results returned");
+        assertEq(r.length, 64 + 64 * MAX_BATCH, "N=128 returns exactly 8256 bytes");
         assertEq(mgr.orderCount(), MAX_BATCH, "orderCount advanced by 128");
         assertEq(
             uint256(vm.load(address(mgr), orderSlot(MAX_BATCH))),
