@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: VolOrderManagerMod + Multicall
 status: executing
-stopped_at: Completed 19-03-PLAN.md (MVER-02 part A: 5 observed REDs, 0 survivors). Next: 19-04 (battery part B), then 19-05 (make targets + re-measure). OPEN FINDING F1 — strike bound unproven at the create_order entrypoint
-last_updated: "2026-07-21T18:25:03.422Z"
-last_activity: "2026-07-21 — 19-02 executed: 4 CALLED-green tests; cast abi-encode (alloy) golden fixture confirms 18b's 64+64N layout from a THIRD encoder; falsifiability OBSERVED in 3 modes (file removed / case count dropped / unpinned 5th selector); all 4 selectors recomputed with cast sig and matching; src/**/pos_spec byte-untouched."
+stopped_at: Completed 19-04-PLAN.md (MVER-02 part B: 5 observed REDs, 0 survivors; consolidated tally 10 applications / 10 killed). Next: 19-05 (make targets + re-measure). OPEN FINDING F1 — strike bound unproven at the create_order entrypoint
+last_updated: "2026-07-21T21:52:13.045Z"
+last_activity: "2026-07-21 — 19-04 executed: MVER-02 part B — the three calldata guards deleted INDEPENDENTLY (each 1 red in 40) plus the two return-encoder mutants; guard 3's kill taken from the REVERT assertion with its state-invisibility RE-MEASURED (BatchStateTest green 2/0 under the mutant); M8's N=0 blindness re-measured and the element-base-shift vs head-drop mapping settled by measuring BOTH variants; M9 killed by the raw-word canonicality assertion with the abi.decode revert cascade recorded separately as the consumer-side contract. Consolidated MVER-02: 10 applications, 0 SURVIVORS, every source restored sha256 byte-identical."
 progress:
   total_phases: 16
   completed_phases: 7
   total_plans: 16
-  completed_plans: 13
+  completed_plans: 15
 ---
 
 # Project State
@@ -27,7 +27,8 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 ## Current Position
 
 Phase: 19 — Differential, Mutation Battery & Consumer Fixture (MVER-01..04) — IN PROGRESS
-Plan: 19-01 COMPLETE (19-01-SUMMARY.md, MVER-01) and 19-02 COMPLETE (19-02-SUMMARY.md, MVER-03) — same wave, parallel agents. 19-03/04/05 remain.
+Plan: 19-01 COMPLETE (MVER-01), 19-02 COMPLETE (MVER-03), 19-03 COMPLETE (MVER-02 part A), 19-04 COMPLETE (MVER-02 part B — **MVER-02 now fully satisfied**). Only 19-05 remains (MVER-04: make targets + re-measured counts).
+Status: 19-04 done — the consolidated MVER-02 battery is complete. **10 mutant applications across parts A and B, 10 observed REDs, SURVIVOR COUNT ZERO**, every mutated source restored sha256 byte-identical (`be196dcb…cc9b8787`, `5fe71f30…73fe8f35`). Guard 3's kill was taken from the REVERT assertion, never a state check, and its state-invisibility was RE-MEASURED (`VolOrderManagerBatchStateTest` green 2/0 under the mutant). M8's N=0 blindness re-measured GREEN; the element-base-shift (N=0-BLIND) vs head-drop (N=0-VISIBLE) mapping settled by measuring BOTH variants rather than inheriting 18b's. M9 killed by the raw-word canonicality assertion, with the `abi.decode` `EvmError: Revert` cascade recorded separately as the Haskell-consumer contract. **Four mutants have a SINGLE point of failure** (M2 outside pos_spec entirely; M4's 65536 test; M5/M6/M7's `VolOrderManagerBatchGuardTest`) — wave 1 structurally cannot cover the malformed-input or large-id surfaces.
 Status: 19-01 done — the interleaved sequence differential is green and the module AGREES with an independent Solidity mock at tol 0 across mixed `(create_order | create_orders)` sequences. No disagreement observed. `src/` byte-untouched (both sha256 pins match the 18b baseline).
 Status: 19-02 done — MVER-03 satisfied. The consumer golden fixture is committed with bytes produced by `cast abi-encode` (alloy), an encoder OUTSIDE this repo; the module's returndata matches it byte-for-byte across 5 cases including N=0, INDEPENDENTLY CONFIRMING 18b's 64+64N layout from a third encoder. All four interface selectors recomputed with `cast sig` and matching, plus a completeness gate that reddens on an unpinned fifth. **The cross-language gap is NOT closed:** alloy proves STANDARD-ABI conformance only; peer `mv15a18k`'s Haskell decoder remains unexercised and is marked per-case in the fixture.
 Last activity: 2026-07-21 — 19-01 executed: 3 CALLED-green differential tests (anchor ends at id 12 from a counter seeded to 5; fuzz `runs: 256` cold-cache); harness liveness proven by a mock-side negative control (`6 != 7`) restored clean; two plan-level defects auto-fixed (NatSpec doc-tag Error 6546; seeded-region live-order assertions).
@@ -52,6 +53,7 @@ Progress (v4.0): [████████░░] 80% — 4/5 phases (16, 17, 18
 *Updated after each plan completion*
 | Phase 19 P01 | 6 | 3 tasks | 3 files |
 | Phase 19 P02 | 33 | 3 tasks | 3 files |
+| Phase 19 P04 | 21 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -101,6 +103,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 19]: [19-02 SCOPE, must NOT be blurred in the exit record] alloy proves the return bytes are STANDARD-ABI CONFORMANT. It does NOT exercise the Haskell consumer's decoder. The cross-language gap with peer mv15a18k remains OPEN and is kept visible in four places: the fixture's _scope_limit and _peer_status fields, 5 NOT-PEER-VERIFIED placeholders, and the dedicated test__unit__peerHaskellBytesAreStillAnOpenGap.
 - [Phase 19]: [19-02 MEASURED, honest negative] test__unit__externalEncoderConfirmsTheEmptyEncodingIsSixtyFourBytes is NOT an anti-inaction gate — it stayed GREEN under a 5-to-4 fixture case-count drop because it reads expected[0] only. The count gate lives solely in the differential and the peer-gap tests. A refactor keeping only the N=0 test would silently lose falsifiability.
 - [Phase 19]: [19-02 FINDING, binds remaining Phase 19 plans] the acceptance criterion 'git diff --stat src/ produces NO output' is UNSATISFIABLE at execution time — the pre-existing uncommitted src/lib/exposure/VegaIssuanceLib.plk draft (which CONTEXT itself defers) always shows. Fifth instance of the self-contradicting-criterion pattern. Scope the criterion to src/**/pos_spec instead; the real property (pos_spec byte-untouched, module sha256 be196dcb...cc9b8787) was verified directly.
+- [Phase 19]: M8's N=0 blindness belongs to the ELEMENT-BASE SHIFT, not the head-drop — established by measuring BOTH variants
+- [Phase 19]: M9 is also N=0-blind and all-invalid-blind; its kill needs an N>=1 corpus containing a VALID tuple
+- [Phase 19]: The three calldata guards have a SINGLE point of failure in VolOrderManagerBatchGuardTest; wave 1 structurally cannot cover them
 
 ### Pending Todos
 

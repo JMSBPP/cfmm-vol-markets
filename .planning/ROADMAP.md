@@ -439,7 +439,7 @@ Plans:
 | 17. Interface & Single-Call Module | 1/1 | Complete    | 2026-07-20 |
 | 18a. Batch Input & State Effects | 1/1 | Complete    | 2026-07-20 |
 | 18b. Typed Return Encoding | 1/1 | Complete    | 2026-07-21 |
-| 19. Differential, Mutation Battery & Consumer Fixture | 2/5 | In Progress|  |
+| 19. Differential, Mutation Battery & Consumer Fixture | 4/5 | In Progress|  |
 
 ## Coverage (Milestone v4.0)
 
