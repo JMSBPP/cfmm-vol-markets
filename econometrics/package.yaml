@@ -79,6 +79,7 @@ tests:
       - Chain.RpcSpec
       - Chain.BlockIndexSpec
       - Panoptic.ChunkSpec
+      - Panoptic.SfpmSpec
     ghc-options:
       - -threaded
       - -rtsopts
