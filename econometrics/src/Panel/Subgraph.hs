@@ -100,12 +100,18 @@ newtype PoolAddr = PoolAddr Text
 --   * 'legIsLong'      — long (buyer, PAYS premium) / short (seller, RECEIVES).
 --   * 'legTokenType'   — 0/1 token-type selector.
 --   * 'legOptionRatio' — the option ratio multiplier.
+--   * 'legAsset'       — the token side (@0@ = token0, @1@ = token1) that
+--                        @PanopticMath.getLiquidityChunk@ selects between
+--                        @getLiquidityForAmount0@ / @getLiquidityForAmount1@.
+--                        Distinct from 'legTokenType'; consumed by
+--                        'Panoptic.Chunk.legLiquidity'.
 data Leg = Leg
   { legStrikeTick  :: !Int
   , legWidth       :: !Int
   , legIsLong      :: !Bool
   , legTokenType   :: !Int
   , legOptionRatio :: !Int
+  , legAsset       :: !Int
   }
   deriving (Show, Eq)
 
@@ -238,13 +244,17 @@ instance FromJSON BurnEvent where
       <*> (o .: "positionSize" >>= numDouble)
 
 instance FromJSON Leg where
-  parseJSON = withObject "Leg" $ \o ->
-    Leg
-      <$> (o .: "strike"      >>= numInt)   -- ALREADY a tick
-      <*> (o .: "width"       >>= numInt)
-      <*> (o .: "isLong"      >>= numBool)
-      <*> (o .: "tokenType"   >>= numInt)
-      <*> (o .: "optionRatio" >>= numInt)
+  parseJSON = withObject "Leg" $ \o -> do
+    strike <- o .: "strike"      >>= numInt   -- ALREADY a tick
+    width  <- o .: "width"       >>= numInt
+    isLong <- o .: "isLong"      >>= numBool
+    tt     <- o .: "tokenType"   >>= numInt
+    ratio  <- o .: "optionRatio" >>= numInt
+    -- 'asset' selects the token side (token0/token1) for getLiquidityChunk.
+    -- Frozen fixtures predating the field default to the tokenType selector.
+    masset <- o .:? "asset"
+    asset  <- maybe (pure tt) numInt masset
+    pure (Leg strike width isLong tt ratio asset)
 
 instance FromJSON Chunk where
   parseJSON = withObject "Chunk" $ \o ->
@@ -298,8 +308,12 @@ parseChunks = collection "chunks"
 -- records of the confirmed market reproduce their own @tickLower@/@tickUpper@
 -- from @(strike, width)@ under this formula with @tickSpacing = 10@.
 --
--- This is a PROVISIONAL home. Plan 10-04 moves the canonical implementation
--- into @Panoptic.Chunk@ and this becomes a re-export.
+-- This is the CANONICAL tick arithmetic and the single source of truth for it.
+-- @Panoptic.Chunk.getTicks@ / @getRangesFromStrike@ (plan 10-04, the tested
+-- public geometry) DELEGATE here and @Panoptic.Chunk@ re-exports this function,
+-- so the two can never diverge. The arithmetic stays in this leaf module because
+-- @Panoptic.Chunk@ depends on @Panel.Subgraph@ for the @Leg@\/@Chunk@ types — a
+-- literal move upward would form an import cycle.
 --
 -- Arguments: @strike@, @width@, @tokenType@, @tickSpacing@.
 legChunkKey :: Int -> Int -> Int -> Int -> (Int, Int, Int)
@@ -388,7 +402,7 @@ legsQuery = T.unlines
   [ "query L($pool: String!, $first: Int!, $skip: Int!) {"
   , "  tokenIds(first: $first, skip: $skip, where: { pool: $pool }) {"
   , "    id"
-  , "    legs { strike width isLong tokenType optionRatio }"
+  , "    legs { strike width isLong tokenType optionRatio asset }"
   , "  }"
   , "}"
   ]

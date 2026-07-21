@@ -18,6 +18,7 @@ import qualified AlternativesSpec
 import qualified Chain.AbiSpec
 import qualified Chain.RpcSpec
 import qualified Chain.BlockIndexSpec
+import qualified Panoptic.ChunkSpec
 
 -- | Diagonal of a square matrix given as a list of rows.
 diagonal :: [[Double]] -> [Double]
@@ -35,6 +36,7 @@ main = hspec $ do
   Chain.AbiSpec.spec
   Chain.RpcSpec.spec
   Chain.BlockIndexSpec.spec
+  Panoptic.ChunkSpec.spec
   describe "sandwich golden fixture" $ do
     it "has matching obs counts across J rows, residuals, and clusters" $ do
       length F.toyJacobianRows `shouldBe` 3
