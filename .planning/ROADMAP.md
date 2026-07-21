@@ -407,10 +407,10 @@ Plans:
   4. The results buffer is allocated BEFORE the loop, and a test with `N = MAX_BATCH` confirms no corruption — `array_slot` mallocs 32 bytes every iteration (`storage.plk:232`), so interleaving allocations under a bump allocator is a live corruption path (MCAL-05).
   5. **Mutation gate:** head `0x40`→`0x20` (the likeliest real bug — emitting the length word but forgetting the outer offset), stride off-by-one-word, and emitting a non-canonical success word EACH produce an OBSERVED RED against the byte-equality assertion; restored → green (MCAL-05).
 
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 18b-01: TBD
+- [ ] 18b-01-PLAN.md — hand-rolled `(bool,uint256)[]` return encoder: the Plank encoder (buffer before the loop, head 0x40 / stride 0x40 / total 64+64N), the byte-level differential against solc's standard `abi.encode` incl. the N=0 64-byte edge and the N=128 allocation probe, and a six-mutant observed-RED gate
 
 ### Phase 19: Differential, Mutation Battery & Consumer Fixture
 **Goal**: The milestone acceptance bar — a full independent-mock differential over sequences, the complete observed-RED battery, a consumer fixture that cannot be satisfied by doing nothing, and `PLANK_SKIP` exit.
