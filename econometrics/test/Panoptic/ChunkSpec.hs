@@ -9,9 +9,14 @@
 module Panoptic.ChunkSpec (spec) where
 
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.Map.Strict      as Map
+import           Data.Maybe           (isJust, isNothing)
+import           Data.Text            (Text)
 import           Test.Hspec
 
-import           Panel.Subgraph  (Leg (..), parseChunks)
+import           Chain.BlockIndex (EpochBlock (..))
+import           Panel.Subgraph   (BurnEvent (..), Leg (..), MintEvent (..),
+                                   parseChunks)
 import           Panoptic.Chunk
 
 -- Market tick spacing (poolKey fee = 500).
@@ -28,6 +33,15 @@ mkLeg strike width optionRatio asset =
       , legOptionRatio = optionRatio
       , legAsset       = asset
       }
+
+-- | A mint at a given block and pool tick (other fields irrelevant to the
+-- schedule, which takes resolved legs directly).
+mkMint :: Text -> Integer -> Int -> MintEvent
+mkMint tid blk tick = MintEvent tid "acct" 0 blk tick 0
+
+-- | A burn at a given block and pool tick.
+mkBurn :: Text -> Integer -> Int -> BurnEvent
+mkBurn tid blk tick = BurnEvent tid "acct" 0 blk tick 0 0 0
 
 -- | Representative substantial @(strike, width, optionRatio, positionSize)@ rows
 -- drawn from the 10-01 census
@@ -123,3 +137,53 @@ spec = do
       map lcLegIndex resolved    `shouldBe` [0, 1, 2, 3]
       map (ckTickLower . lcChunkKey) resolved
         `shouldBe` [ -200880, -199680, -201360, -198660 ]
+
+  describe "read schedule" $ do
+    -- Synthetic block index: epochs 100..105 at blocks 1000,1100,..,1500.
+    let blockIx = Map.fromList
+          [ (e, EpochBlock e (fromIntegral (1000 + (e - 100) * 100)) 0)
+          | e <- [100 .. 105] ]
+        tickIx  = Map.fromList [ (e, -200000 - (e - 100)) | e <- [100 .. 105] ]
+        legA    = mkLeg (-199680) 240 1 0     -- shared between spells A and C
+        legsB   = [ mkLeg (-198480) 240 1 0   -- kept
+                  , mkLeg (-199680)   0 1 0 ]  -- width 0 -> dropped
+        chunksA = resolveLegChunks ts 1000000000000000 [legA]
+        chunksB = resolveLegChunks ts 1000000000000000 legsB
+        -- (tokenId, mint block/tick, burn block/tick, resolved legs)
+        spellA  = ("A", mkMint "A" 1050 (-200000), mkBurn "A" 1350 (-200100), chunksA)
+        spellB  = ("B", mkMint "B" 1050 (-200000), mkBurn "B" 1150 (-200050), chunksB)
+        spellC  = ("C", mkMint "C" 1050 (-200000), mkBurn "C" 1350 (-200100), chunksA)
+
+    it "emits one interior row per (leg, epoch) for epochs in [mint..burn]" $ do
+      let rows      = buildReadSchedule blockIx tickIx [spellA]
+          interior  = filter (isNothing . rrEndpoint) rows
+      -- epochs whose boundary block lies in [1050, 1350] = 101, 102, 103
+      map rrEpoch interior     `shouldBe` [101, 102, 103]
+      map rrBlock interior     `shouldBe` [1100, 1200, 1300]
+      -- interior atTick comes from the tick index, never the stored-value sentinel
+      map rrAtTick interior    `shouldBe` [-200001, -200002, -200003]
+
+    it "emits the two exact-block spell endpoints, tagged mint/burn" $ do
+      let rows      = buildReadSchedule blockIx tickIx [spellA]
+          endpoints = filter (isJust . rrEndpoint) rows
+      map rrEndpoint endpoints `shouldBe` [Just "mint", Just "burn"]
+      map rrBlock endpoints    `shouldBe` [1050, 1350]
+      map rrAtTick endpoints   `shouldBe` [-200000, -200100]
+
+    it "excludes width == 0 legs entirely" $ do
+      let rows = buildReadSchedule blockIx tickIx [spellB]
+      -- only the kept (width 240) chunk appears; no degenerate zero-width chunk
+      rows `shouldSatisfy` all (\r -> ckTickLower (rrChunkKey r)
+                                        <  ckTickUpper (rrChunkKey r))
+      -- the kept chunk of B is getTicks (-198480) 240 -> (-199680, -197280)
+      map (ckTickLower . rrChunkKey) rows `shouldSatisfy` all (== (-199680))
+
+    it "dedups distinct (chunk, block, isLong, atTick) reads across spells" $ do
+      -- A and C share one chunk over identical blocks: raw fans out to 2x, the
+      -- pool-wide dedup collapses them back to one read each.
+      let raw   = readScheduleRaw   blockIx tickIx [spellA, spellC]
+          sched = buildReadSchedule blockIx tickIx [spellA, spellC]
+      length raw   `shouldBe` 10    -- (3 interior + 2 endpoint) x 2 spells
+      length sched `shouldBe` 5     -- deduplicated to a single spell's worth
+      -- and the DISTINCT read count stays well within the RESEARCH ~15000 budget
+      length sched `shouldSatisfy` (< 15000)

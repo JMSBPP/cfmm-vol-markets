@@ -49,12 +49,24 @@ module Panoptic.Chunk
     -- * Leg -> chunk resolution
   , LegChunk (..)          -- lcLegIndex, lcChunkKey, lcIsLong, lcLiquidity, lcStrike, lcWidth
   , resolveLegChunks       -- Int {-tickSpacing-} -> Integer {-positionSize-} -> [Leg] -> [LegChunk]
+    -- * Read schedule
+  , ReadRow (..)
+  , storedValueTick        -- Int : type(int24).max sentinel
+  , readScheduleRaw        -- full (tokenId, leg) fan-out (un-deduplicated)
+  , buildReadSchedule      -- deduplicated on the pool-wide (chunk, block, isLong, atTick)
   ) where
 
-import           Data.Bits   (shiftR, (.&.))
-import           Data.List   (partition)
+import           Data.Bits       (shiftR, (.&.))
+import           Data.List       (partition)
+import           Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+import qualified Data.Set        as Set
+import           Data.Text       (Text)
 
-import           Panel.Subgraph (Chunk (..), Leg (..), legChunkKey)
+import           Chain.BlockIndex (EpochBlock (..))
+import           Panel.Build      (Epoch)
+import           Panel.Subgraph   (BurnEvent (..), Chunk (..), Leg (..),
+                                   MintEvent (..), legChunkKey)
 
 -- ---------------------------------------------------------------------------
 -- Constants
@@ -264,3 +276,107 @@ resolveLegChunks tickSpacing positionSize legs =
   , legWidth leg /= 0            -- PanopticPool._getPremia L2250 skips width==0 legs
   , let (tickLower, tickUpper) = getTicks (legStrikeTick leg) (legWidth leg) tickSpacing
   ]
+
+-- ---------------------------------------------------------------------------
+-- Read schedule
+-- ---------------------------------------------------------------------------
+
+-- | @type(int24).max@ — the @atTick@ sentinel that tells
+-- @SFPM.getAccountPremium@ to return the STORED accumulator value rather than
+-- do a live @feeGrowthInside@ extrapolation.
+storedValueTick :: Int
+storedValueTick = 8388607
+
+-- | One accumulator read to issue against @SFPM.getAccountPremium@: which chunk,
+-- at which block, which side, extrapolated to which pool tick. An @rrEndpoint@
+-- of @Just \"mint\"@ / @Just \"burn\"@ marks a SPELL-ENDPOINT read at the exact
+-- mint\/burn block (the gate reads accumulators there, not at the nearest epoch
+-- boundary); @Nothing@ marks an interior epoch-boundary read.
+data ReadRow = ReadRow
+  { rrTokenId  :: !Text
+  , rrLegIndex :: !Int
+  , rrChunkKey :: !ChunkKey
+  , rrIsLong   :: !Bool           -- ^ False -> gross (short\/seller); True -> owed (long\/buyer).
+  , rrEpoch    :: !Integer
+  , rrBlock    :: !Integer
+  , rrAtTick   :: !Int            -- ^ pool tick at 'rrBlock'; 'storedValueTick' = use stored value.
+  , rrEndpoint :: !(Maybe Text)   -- ^ @Just "mint" | Just "burn"@ endpoint, else @Nothing@.
+  }
+  deriving (Show, Eq)
+
+-- | The FULL, un-deduplicated read fan-out: one interior row per
+-- @(tokenId, leg, epoch-in-[mint..burn])@ present in the block index, plus the
+-- two spell-endpoint rows at the exact mint\/burn block. 10-05 uses this to fan
+-- the pool-wide reads back out to individual positions.
+--
+--   * __Interior rows__ (@rrEndpoint = Nothing@): for each epoch whose boundary
+--     block lies within the spell's @[meBlock, beBlock]@, tagged with that
+--     epoch's pool tick from the tick index (so @getAccountPremium@ extrapolates
+--     to a smooth series rather than a step function). A missing tick falls back
+--     to 'storedValueTick'.
+--   * __Endpoint rows__ (@rrEndpoint = Just …@): at the EXACT @meBlock@ / @beBlock@
+--     with @rrAtTick@ from @meTickAt@ / @beTickAt@.
+readScheduleRaw
+  :: Map Epoch EpochBlock                            -- ^ epoch -> boundary block (Chain.BlockIndex).
+  -> Map Epoch Int                                   -- ^ epoch -> pool tick.
+  -> [(Text, MintEvent, BurnEvent, [LegChunk])]      -- ^ spells with resolved legs.
+  -> [ReadRow]
+readScheduleRaw blockIx tickIx = concatMap spellRows
+  where
+    epochRows = Map.toAscList blockIx
+    spellRows (tid, me, be, legChunks) =
+      let mb = meBlock me
+          bb = beBlock be
+          interior =
+            [ ReadRow tid (lcLegIndex lc) (lcChunkKey lc) (lcIsLong lc)
+                      (fromIntegral e) (ebBlockNumber eb)
+                      (Map.findWithDefault storedValueTick e tickIx)
+                      Nothing
+            | (e, eb) <- epochRows
+            , ebBlockNumber eb >= mb, ebBlockNumber eb <= bb
+            , lc <- legChunks
+            ]
+          endpoints =
+            [ ReadRow tid (lcLegIndex lc) (lcChunkKey lc) (lcIsLong lc)
+                      (fromIntegral (epochOfBlock blockIx blk)) blk atTick (Just tag)
+            | (tag, blk, atTick) <- [ ("mint", mb, meTickAt me)
+                                    , ("burn", bb, beTickAt be) ]
+            , lc <- legChunks
+            ]
+      in interior ++ endpoints
+
+-- | The deduplicated read schedule the driver actually issues: distinct on
+-- @(rrChunkKey, rrBlock, rrIsLong, rrAtTick)@. The chunk accumulator is
+-- POOL-WIDE (@owner@ = the @PanopticPool@, RESEARCH "Chunk identity"), so two
+-- positions in the same chunk at the same block need ONE read; attribution back
+-- to positions happens later via 'legLiquidity' over 'readScheduleRaw'.
+buildReadSchedule
+  :: Map Epoch EpochBlock
+  -> Map Epoch Int
+  -> [(Text, MintEvent, BurnEvent, [LegChunk])]
+  -> [ReadRow]
+buildReadSchedule blockIx tickIx spells =
+  dedupOn dedupKey (readScheduleRaw blockIx tickIx spells)
+  where
+    dedupKey r = (rrChunkKey r, rrBlock r, rrIsLong r, rrAtTick r)
+
+-- | The epoch whose boundary block is the greatest at or below @blk@ (the epoch
+-- @blk@ falls in). Falls back to the earliest indexed epoch if @blk@ precedes
+-- the whole index.
+epochOfBlock :: Map Epoch EpochBlock -> Integer -> Epoch
+epochOfBlock blockIx blk =
+  case [ e | (e, eb) <- Map.toDescList blockIx, ebBlockNumber eb <= blk ] of
+    (e : _) -> e
+    []      -> case Map.toAscList blockIx of
+                 ((e, _) : _) -> e
+                 []           -> 0
+
+-- | Keep the first element for each key, preserving order.
+dedupOn :: Ord k => (a -> k) -> [a] -> [a]
+dedupOn f = go Set.empty
+  where
+    go _ [] = []
+    go seen (x : xs)
+      | k `Set.member` seen = go seen xs
+      | otherwise           = x : go (Set.insert k seen) xs
+      where k = f x
