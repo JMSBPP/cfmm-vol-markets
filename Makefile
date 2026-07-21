@@ -30,27 +30,58 @@
 # track, and the project deletes orphaned closures rather than skipping them (recover from
 # git history if that track resurrects the type). VolOrder + VolOrderHelper + VolOrderTest
 # are KEPT: they are live pos_spec surface and never depended on Order.
-# MEASURED AT 17-01 (2026-07-20), cold `cache/fuzz`, this exact target:
-#   make test          96 pass, 4 fail (100 total)
-#   make compile-plank 13 ok, 0 failed, 0 skipped
-# Prior records, kept for the trend: 74 pass / 4 fail + 11 ok (after the Order deletion);
-# 87 pass / 4 fail + 12 ok (16-01). 17-01 adds 9 module tests and the 13th entrypoint.
+# MEASURED AT 19-05 (2026-07-21), cold `cache/fuzz`, these exact targets:
+#   make test          102 passed, 18 failed, 120 total (44 suites)
+#   make compile-plank 11 ok, 2 failed, 0 skipped
+# Prior records, kept for the trend: 74/4 + 11 ok (after the Order deletion); 87/4 + 12 ok (16-01);
+# 96/4 + 13 ok (17-01); 112/4 (18a-01); 120/4 (18b-01); 95/18 + 11 ok (2026-07-21, pre-Phase-19).
+# NOTE the entrypoint count fell 13 -> 11 and the fail count rose 4 -> 18 between 18b and here.
+# That is NOT a Phase 19 regression: it is the exposure draft below, which landed in the working
+# tree in between. Phase 19 itself ADDED 7 passing tests (95 -> 102) and no failures.
 #
-# The 4 failures are pre-existing and all in the pos_spec TYPE track:
-#   VolRangeWidthTest         volWidthRangeSub_valid, volWidthRangeBuildVolRangeWidth_valid
-#   SpreadTickAssimetryTest   spreadTickAssimetrySplitTick__Valid, tickFromSplittedTickBucket__Valid
-# All are diagnosed as bugs in the TEST HARNESSES (not the .plk under test) and are owned by
-# the vol-type-system track. They are deliberately NOT skipped, excluded, or filtered out to
-# make this target green: a suite that lies about what passes is worth less than no suite.
+# EVERY RED IS ATTRIBUTED. A bare count is not a record:
+#   14 x exposure setUp() reverts  -- the uncommitted draft in src/lib/exposure/VegaIssuanceLib.plk
+#                                     (`error: unresolved identifier 'VolOrder'`, plus 'Option' and
+#                                     'LDFParams'). Its `plank build` failure propagates through
+#                                     deployPlank/FFI, so all 14 suites die in setUp() before any
+#                                     assertion runs: VegaAccount* (7), VegaIssuance* (7).
+#                                     ANOTHER TRACK's in-progress work. Deliberately NOT skipped,
+#                                     filtered or excluded: a suite that lies about what passes is
+#                                     worth less than no suite.
+#    4 x vol-type track             -- VolRangeWidthTest volWidthRangeSub_valid,
+#                                      volWidthRangeBuildVolRangeWidth_valid;
+#                                      SpreadTickAssimetryTest spreadTickAssimetrySplitTick__Valid,
+#                                      tickFromSplittedTickBucket__Valid. Owned elsewhere; one
+#                                      traces to a diagnosed real bug (return_split_tick writes
+#                                      `out_ptr +% 32` twice) that is REPORTED, not fixed here.
+#                                      These live under test/types/pos_spec/ -- the vol-type TYPE
+#                                      track, NOT the pos_spec MODULE surface below.
+#    0 x test/pos_spec/             -- MEASURED: the module surface this milestone owns is
+#                                      ZERO-RED. All 40 of its tests pass.
 #
-# THE FAILURE COUNT IS NOT FULLY DETERMINISTIC — measured, not assumed. A FIFTH failure,
+# compile-plank's 2 failures are the SAME exposure draft: src/modules/exposure/VegaAccountMod.plk
+# and test/exposure/VegaIssuanceKernelHarness.plk both import it. VolOrderManagerMod.plk compiles
+# OK (verified in this same run). MVER-04's "0 failed" clause is scoped to the pos_spec surfaces
+# this milestone owns; it is not a claim about another track's uncommitted work, and closure is
+# not blocked on it.
+#
+# PHASE 19 SUITES NOW COVERED BY THIS TARGET (the MVER-04 fold-in, stated rather than implicit --
+# `make test` is a whole-tree `forge test`, so these are included WITHOUT a prerequisite, and
+# adding one would double-run them and inflate the tally above). All three contract names were
+# OBSERVED in this target's own output, not assumed:
+#   test/pos_spec/VolOrderManager.diff.t.sol     VolOrderManagerSequenceDiffTest        (MVER-01)
+#   test/pos_spec/VolOrderManagerFixture.t.sol   VolOrderManagerFixtureTest,
+#                                                VolOrderManagerSelectorCompletenessTest (MVER-03)
+# Run them alone with `make test-vol-order-acceptance`.
+#
+# THE FAILURE COUNT IS NOT FULLY DETERMINISTIC -- measured, not assumed. A further failure,
 #   TickVolatilityLibTest  test__fuzz__tickVolatilitySqrtPriceX64x96AndTickSuccess
-# surfaces on roughly 1 cold-cache run in 4, always at the same counterexample 2^64-1. It is
-# PRE-EXISTING (reproduced with all 17-01 files stashed out: 86 pass / 5 fail) and belongs to
-# the TickVolatility track, NOT to src/types/pos_spec/. Foundry seeds each fuzz campaign
-# randomly, so whether the fuzzer reaches 2^64-1 varies run to run. Re-run before treating a
-# 5th failure as a regression. See .planning/phases/17-interface-single-call-module/
-# deferred-items.md (D1).
+# surfaces on roughly 1 cold-cache run in 4, always at the same counterexample 2^64-1. It did NOT
+# surface in the 19-05 run above (TickVolatilityLibTest: 2 passed, 0 failed), which is why the
+# total reads 18 and not 19. It is PRE-EXISTING (reproduced with all 17-01 files stashed out:
+# 86 pass / 5 fail) and belongs to the TickVolatility track, NOT to src/types/pos_spec/. Re-run
+# before treating an extra failure as a regression.
+# See .planning/phases/17-interface-single-call-module/deferred-items.md (D1).
 test: check-algebra-ref-pin
 	forge test --via-ir --optimize
 
