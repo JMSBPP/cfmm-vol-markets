@@ -283,5 +283,139 @@ equivalence and the entrypoint coverage gap are recorded above rather than folde
 
 ---
 
+## M3 — COUNT-ADVANCE-ON-FAILURE
+
+**File:** `src/modules/pos_spec/VolOrderManagerMod.plk:231-234`
+**PRE sha256:** `be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787`
+
+**Edit applied** — the id increment hoisted out of the success branch, so a SKIPPED tuple consumes an id:
+
+```diff
+             let base = 64 + 64 * i;
++            id = id + 1;
+ 
+             if validate_order(order) {
+-                id = id + 1;
+                 @evm_sstore(...)
+```
+
+**Result: KILLED — 9 tests red.**
+
+```
+Ran 15 test suites in 173.11ms (922.98ms CPU time): 31 tests passed, 9 failed, 0 skipped (40 total tests)
+```
+
+VERBATIM FAIL LINE — **the CONTIGUITY red, which is the discriminating one**:
+
+```
+[FAIL: id contiguity: third valid order at C+2: 0 != 2381976974094761317277030730967468670979] test__unit__mixedBatchFootprintAndContiguity() (gas: 66823)
+```
+
+The observation is the STRONG one, not the weak count-only variant. Slot C+2 holds ZERO because the
+skipped middle tuple consumed the id and pushed valid_B to C+3. 18a's finding — forge reports only
+the FIRST failing assertion per test, so `test__unit__mixedBatchFootprintAndContiguity` deliberately
+orders contiguity BEFORE `orderCount` — is confirmed to still hold on the current tree: the
+contiguity assertion is the one that surfaced.
+
+Other verbatim reds:
+
+```
+[FAIL: orderCount unchanged by a skipped tuple: 1 != 0] test__unit__dirtyHighBitsAreSkippedNotStored() (gas: 36777)
+```
+
+```
+[FAIL: no tuple was stored: 3 != 0] test__unit__allInvalidBatchReturnsAllFalseZero() (gas: 42483)
+```
+
+VERBATIM FAIL LINE — **19-01's NEW differential** (wave-1 kill site, as predicted):
+
+```
+[FAIL: step 2 mixed batch: return bytes module vs abi.encode(mock results), tol 0: 0x7aa8eb84742e74ce9a66d740bbc3adec72d9326fc04afd743a630a5d1bb01e91 != 0x5dddf750de5b7dba85e71aefa6e33feddf24709698be070df1e9ee502be7d26e] test__unit__fixedAnchorSequenceDiffers() (gas: 342086)
+```
+
+Its fuzz sibling reddened on the COUNT with an exact off-by-the-skip-count signature — 452 vs 450,
+i.e. the module consumed 2 extra ids for 2 skipped tuples:
+
+```
+[FAIL: fuzz step 1 batch: orderCount module vs mock, tol 0: 452 != 450; counterexample: calldata=0x36d6e44d00000000000001d94f658b8fa8139a5da90ef05e297474fd31fcf6bae7abf6ba000000000000000000000000000000000000000000000000000000000000001b00000000000000000000000000000000000000000000000000000000000024f1 args=[2971015921295684745266700481383519480534277033986524747396794 [2.971e60], 27, 9457]] test__fuzz__randomSequenceDiffers(uint256,uint8,uint16) (runs: 0, μ: 0, ~: 0)
+```
+
+VERBATIM FAIL LINE — **19-02's NEW fixture, and the plan named the exact case in advance**
+(`N3_mixed_seeded_C5`, whose golden bytes pin `(true,6)`, `(false,0)`, `(true,7)`; the mutant emits
+`(true,6)`, `(false,0)`, `(true,8)`):
+
+```
+[FAIL: N3_mixed_seeded_C5: module returndata vs cast(alloy) golden bytes, tol 0: 0x4d1956f6a849688798be0f8aa4ceda23cbc07e92d0d17f6f87b7fa06dfc58805 != 0xddf3f6c74ec7e88090d96d277d18a346c47f3b15b7339111a1571ee3c702c5b6] test__unit__moduleReturnMatchesExternalEncoderFixture() (gas: 2291292)
+```
+
+Also red: `test__unit__mixedBatchReturnIsByteExact`, `test__fuzz__returnBytesMatchStandardEncoder`,
+`test__fuzz__batchNeverReverts`. The two `runs: 0` fuzz lines are subject to the same first-input
+analysis recorded under M1a; M3's kill rests entirely on NON-FUZZ anchors regardless.
+
+**POST-RESTORATION sha256:** `be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787` — EQUAL to PRE.
+**Post-restoration suite:** `40 tests passed, 0 failed, 0 skipped (40 total tests)` — GREEN.
+
+---
+
+## M4 — RING-MASK REINTRODUCTION
+
+**File:** `src/modules/pos_spec/VolOrderManagerMod.plk:89` (strict) and `:235` (batch) — BOTH
+`array_slot` call sites.
+**PRE sha256:** `be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787`
+
+**Edit applied at both sites:**
+
+```diff
+-        @evm_sstore(array_slot(SLOT_ORDERS_BASE, id), pack_vol_order(order));
++        @evm_sstore(array_slot(SLOT_ORDERS_BASE, id & 0xFFFF), pack_vol_order(order));
+```
+
+**Result: KILLED — and the sole-kill-site claim is MEASURED, not asserted.**
+
+### Observation (a) — the 65536 test: RED
+
+```
+[FAIL: order 65536 stored at the UNMASKED slot keccak(base)+65536: 0 != 204169420558211270151058172938006761635917] test__unit__idAt65536IsNotMaskedIntoSlotZero() (gas: 33892)
+```
+
+### Observation (b) — `VolOrderManagerBatchStateTest` under the SAME mutant: GREEN
+
+```
+Ran 2 tests for test/pos_spec/VolOrderManagerBatch.t.sol:VolOrderManagerBatchStateTest
+[PASS] test__unit__dirtyHighBitsAreSkippedNotStored() (gas: 17278)
+[PASS] test__unit__mixedBatchFootprintAndContiguity() (gas: 68230)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 24.39ms (299.21µs CPU time)
+```
+
+### Observation (c) — the FULL sweep under the same mutant: EXACTLY ONE RED IN FORTY
+
+Stronger than the plan required, and worth the extra run:
+
+```
+Ran 15 test suites in 3.51s (4.43s CPU time): 39 tests passed, 1 failed, 0 skipped (40 total tests)
+```
+
+`test__unit__idAt65536IsNotMaskedIntoSlotZero` is the **only** failure. This is the measured proof
+that small-id tests are provably insufficient: `1 & 0xFFFF = 1`, so the mask is a NO-OP below 65536
+and only bites where an order folds onto slot 0. The test reaches id 65536 by `vm.store`-ing the
+counter to 65535 rather than issuing 65536 transactions.
+
+### HONEST NEGATIVE — wave 1 added NO new kill site for M4
+
+Observation (c) now covers 19-01's differential and 19-02's fixture, and **both stayed GREEN**.
+Unlike M1a, M1b and M3 — where wave-1 tests appeared as kill sites — neither new suite strengthens
+coverage against M4, because both operate entirely at small ids. The 65536 test remains the single
+point of failure for this property. Recorded so no later phase mistakes wave 1's breadth for
+coverage of the ring-mask hazard.
+
+**M4 IS COUNTED AS A KILL.** It is a real kill (the 65536 test genuinely reddens); it is only its
+SMALL-ID observations that are equivalence-masked. That distinction is preserved in the ledger below
+— entry 3 excludes small-id *observations*, not the mutant.
+
+**POST-RESTORATION sha256:** `be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787` — EQUAL to PRE.
+**Post-restoration suite:** `40 tests passed, 0 failed, 0 skipped (40 total tests)` — GREEN.
+
+---
+
 </content>
 </invoke>
