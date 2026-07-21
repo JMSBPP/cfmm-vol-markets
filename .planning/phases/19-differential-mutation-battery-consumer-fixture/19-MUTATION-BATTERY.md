@@ -749,3 +749,309 @@ low-level `.call` corpora in `VolOrderManagerBatchGuardTest` can.
 **Consequence: each of the three guards has a SINGLE point of failure in the suite.** Delete
 `VolOrderManagerBatchGuardTest` and all three guards become unprotected, with 39 of 40 tests still
 green. Recorded, not fixed — this phase builds nothing.
+
+---
+
+## M8 — THE ELEMENT-BASE SHIFT (`base = 64 + 64*i` -> `32 + 64*i`)
+
+**File:** `src/modules/pos_spec/VolOrderManagerMod.plk:231`
+**PRE sha256:** `be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787`
+
+**A NAMING CORRECTION, RESOLVED BY MEASUREMENT.** The plan heads this mutant "RETURN HEAD
+`0x40` -> `0x20`", but the edit it specifies is the ELEMENT-BASE SHIFT, not a change to the head
+word. The two are different mutants with different blindness profiles, and the execution constraints
+required the mapping be established by measurement rather than inherited from 18b. Both were
+measured; see the supplementary observation below. The mutant recorded as M8 is the one the plan's
+edit text specifies.
+
+**Edit applied:**
+
+```diff
+-            let base = 64 + 64 * i;
++            let base = 32 + 64 * i;
+```
+
+The length word is still emitted at `out + 32`, but element 0's success word is now written ON TOP
+of it. The buffer size and the return length are unchanged, so the corruption is purely positional.
+
+### Observation (a) — N=0: GREEN. **THE BLINDNESS IS RE-MEASURED, NOT CITED.**
+
+```
+$ rm -rf cache/fuzz && forge test --match-test test__unit__emptyReturnIsExactlySixtyFourBytes --via-ir --optimize
+Ran 1 test for test/pos_spec/VolOrderManagerBatch.t.sol:VolOrderManagerReturnEncodingTest
+[PASS] test__unit__emptyReturnIsExactlySixtyFourBytes() (gas: 18228)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 28.29ms (131.84µs CPU time)
+Ran 1 test suite in 29.14ms (28.29ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)
+```
+
+**GREEN under the mutant — NO DIVERGENCE from 18b's measurement.** The mechanism: with no elements
+the loop body never executes, so there is nothing to misplace; the buffer is `[0x20, 0]` and the
+total is 64 bytes either way. **This is the measured proof that an N=0-only corpus would miss a real
+encoder bug** — the corpus-design lesson is now evidence on this tree rather than folklore.
+
+### Observation (b) — the full sweep: **KILLED, 13 reds.**
+
+```
+Ran 15 test suites in 139.03ms (1.01s CPU time): 27 tests passed, 13 failed, 0 skipped (40 total tests)
+```
+
+VERBATIM FAIL LINE — **the kill site, a KECCAK BYTE-EQUALITY assertion at N >= 1**:
+
+```
+[FAIL: N=1: byte-exact: 0xb54c356165b0dc1456087c20a87c126abce58ad004a572e29fe802a011256a79 != 0x18b736a4cc581998ccb120c45ffaa318666044b237d0a4edf541a6cea7b9dadf] test__unit__oneAndTwoElementReturnsAreByteExact() (gas: 36555)
+```
+
+Note this is `N=1` — the SMALLEST non-empty corpus already kills it, so the N >= 1 requirement is
+tight rather than merely sufficient. Further keccak byte-equality reds:
+
+```
+[FAIL: N=3 mixed: returndata must be byte-exact: 0xd9063a42f54ca53ee58d96b559e100a74f5c99198ad0f467e5b9308c100c749b != 0xddf3f6c74ec7e88090d96d277d18a346c47f3b15b7339111a1571ee3c702c5b6] test__unit__mixedBatchReturnIsByteExact() (gas: 66138)
+```
+
+```
+[FAIL: N=128: returndata must be byte-exact: 0x211b608e41c9706b577f428de4f5a70d7ac5d324468bf11a75fd80111df49227 != 0x71bd6c0cb9830da1685ddcf3047520ef7dcbc6f8fc41e15b313e0c2964e35e7d] test__unit__maxBatchReturnIsByteExactAndUncorrupted() (gas: 3445748)
+```
+
+VERBATIM FAIL LINE — **19-01's NEW differential** (wave-1 kill site):
+
+```
+[FAIL: step 2 mixed batch: return bytes module vs abi.encode(mock results), tol 0: 0xc66e8ead32b621075e83dcde9fa76fa6c565e56775433eadb149661c19920132 != 0x5dddf750de5b7dba85e71aefa6e33feddf24709698be070df1e9ee502be7d26e] test__unit__fixedAnchorSequenceDiffers() (gas: 342028)
+```
+
+VERBATIM FAIL LINE — **19-02's NEW fixture** (wave-1 kill site; the plan predicted "`N1_success`
+onward" and `N1_success` is exactly the case that fired):
+
+```
+[FAIL: N1_success: module returndata vs cast(alloy) golden bytes, tol 0: 0x1c03887ee20a78d097bb09731ffccd2411b8e2ec5a6deb850851928f23de7c3c != 0x67396fff0f9b763850745a130ba186b583f49523ce4836e3283169a94a18a59c] test__unit__moduleReturnMatchesExternalEncoderFixture() (gas: 1130440)
+```
+
+Also red, as LOCALISATION AIDS rather than kill sites: `test__unit__allInvalidBatchReturnsAllFalseZero`,
+`test__unit__maxBatchExactlyOneTwoEightSucceeds` (`1 != 128` — the clobbered length word),
+`test__unit__maxBatchGasUnderBudget`, `test__unit__mixedBatchFootprintAndContiguity`
+(`EvmError: Revert`, the consumer's decode failing on a length word of 1 with 128 elements' worth of
+tail), `test__unit__successWordsAreCanonicallyZeroOrOne`, `test__fuzz__batchNeverReverts`,
+`test__fuzz__returnBytesMatchStandardEncoder`, `test__fuzz__randomSequenceDiffers`.
+
+### SUPPLEMENTARY — WHICH FORMULATION IS N=0-BLIND, ESTABLISHED BY MEASURING BOTH
+
+The execution constraints required that the N=0-blindness be attached to whichever mutant actually
+needs it, verified by measurement rather than by inheriting 18b's mapping. So the OTHER formulation
+was applied and measured too — the head-drop, which removes the outer offset word entirely and makes
+the total `32 + 64N`:
+
+```diff
+-        let out = @malloc_zeroed(64 + 64 * count);
+-        @mstore32(out +% 0, 0x20);
+-        @mstore32(out +% 32, count);
++        let out = @malloc_zeroed(32 + 64 * count);
++        @mstore32(out +% 0, count);
+...
+-        @evm_return(out, 64 + 64 * count);
++        @evm_return(out, 32 + 64 * count);
+```
+
+```
+$ rm -rf cache/fuzz && forge test --match-test test__unit__emptyReturnIsExactlySixtyFourBytes --via-ir --optimize
+[FAIL: N=0 bytes must equal abi.encode of an empty BatchResult[]: 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563 != 0x569e75fc77c1a856f6daaf9e69d8a9566ca34aa47f9133711ce065a571af0cfd] test__unit__emptyReturnIsExactlySixtyFourBytes() (gas: 13386)
+Ran 1 test suite in 29.98ms (28.94ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+```
+
+**MEASURED RESULT — the mapping is confirmed, and it is now evidence:**
+
+| Formulation | Total bytes at N=0 | N=0 test | Verdict |
+| --- | --- | --- | --- |
+| **Element-base shift** (`64+64*i` -> `32+64*i`) — recorded as M8 | 64 (unchanged) | **GREEN** | **N=0-BLIND** |
+| **Head-drop** (outer offset removed, total `32+64N`) | 32 | **RED** | **N=0-VISIBLE** |
+
+Ledger entry 6's mapping is CORRECT and now rests on measurement taken on this tree. The N >= 1
+requirement belongs to the ELEMENT-BASE SHIFT, and only to it. The head-drop is caught at N=0 because
+it changes the total length, which the N=0 test asserts directly. **A later phase must not swap
+these two.** Both variants were restored; neither was left applied.
+
+**POST-RESTORATION sha256:** `be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787` — EQUAL to PRE.
+
+---
+
+## M9 — NON-CANONICAL SUCCESS WORD (`1` -> `2`)
+
+**File:** `src/modules/pos_spec/VolOrderManagerMod.plk:240`
+**PRE sha256:** `be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787`
+
+**Edit applied:**
+
+```diff
+-                @mstore32(out +% base, 1);
++                @mstore32(out +% base, 2);
+```
+
+**Result: KILLED — 13 reds.**
+
+```
+Ran 15 test suites in 143.19ms (988.86ms CPU time): 27 tests passed, 13 failed, 0 skipped (40 total tests)
+```
+
+VERBATIM FAIL LINE — **THE DISCRIMINATING KILL SITE**, the raw-word canonicality assertion:
+
+```
+[FAIL: success word must be canonically 0 or 1, never a truthy nonzero] test__unit__successWordsAreCanonicallyZeroOrOne() (gas: 85728)
+```
+
+This test reads RAW WORDS via `wordAt` and asserts `w < 2`. It deliberately does NOT go through
+`bool`, precisely so the pinned property is **"the word is canonical"** and not **"solc's decoder
+rejected it"**. Those are different failures and only the former is the requirement.
+
+### CORROBORATION (recorded separately, NOT as the kill) — the `abi.decode` cascade
+
+18b-01's finding that solc's `abi.decode` REJECTS a non-canonical bool outright is re-confirmed on
+this tree. Every test that decodes through `callBatch` reverts rather than reporting wrong values:
+
+```
+[FAIL: EvmError: Revert] test__unit__batchOfOneEqualsSingleCall() (gas: 623873)
+[FAIL: EvmError: Revert] test__unit__maxBatchExactlyOneTwoEightSucceeds() (gas: 3278928)
+[FAIL: EvmError: Revert] test__unit__maxBatchGasUnderBudget() (gas: 3277384)
+[FAIL: EvmError: Revert] test__unit__mixedBatchFootprintAndContiguity() (gas: 62296)
+[FAIL: EvmError: Revert; counterexample: calldata=0xb6b5b139000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000016cb0000000000000000000000000000000000000000000000000000000000002000 args=[65536 [6.553e4], 5835, 8192]] test__fuzz__batchNeverReverts(uint256,uint256,uint256) (runs: 0, μ: 0, ~: 0)
+```
+
+**This cascade is corroboration, not the kill.** Had the suite relied on it alone, the property under
+test would silently have become "solc refuses to decode our bytes" — which would still hold if the
+module emitted some *other* malformed word, and would stop holding the moment a consumer used a
+lenient decoder. The raw-word test is what pins the actual invariant.
+
+Byte-equality reds also fired at N >= 1, including both wave-1 suites:
+
+```
+[FAIL: N=1: byte-exact: 0x5310983a56ac168fba81ce3b2b3454d51fa0e84b69dc2f89e8d17e08df97527b != 0x18b736a4cc581998ccb120c45ffaa318666044b237d0a4edf541a6cea7b9dadf] test__unit__oneAndTwoElementReturnsAreByteExact() (gas: 36555)
+```
+
+```
+[FAIL: step 2 mixed batch: return bytes module vs abi.encode(mock results), tol 0: 0x646cc4622fe8d3cabb3b970c8f5134cd82ea17cbe61796d53ac32b4b4fdfc312 != 0x5dddf750de5b7dba85e71aefa6e33feddf24709698be070df1e9ee502be7d26e] test__unit__fixedAnchorSequenceDiffers() (gas: 342028)
+```
+
+```
+[FAIL: N1_success: module returndata vs cast(alloy) golden bytes, tol 0: 0xc06b9b1fc828a6a10cd8af1ab67200594342bbd2a2497789431e003fc05152a4 != 0x67396fff0f9b763850745a130ba186b583f49523ce4836e3283169a94a18a59c] test__unit__moduleReturnMatchesExternalEncoderFixture() (gas: 1130440)
+```
+
+### OBSERVED — M9 IS ALSO N=0-BLIND (a third blindness, not previously recorded)
+
+`test__unit__emptyReturnIsExactlySixtyFourBytes` did NOT appear among M9's 13 reds. It stays GREEN
+under this mutant for a structural reason: at N=0 the success branch never executes, so no success
+word — canonical or otherwise — is ever written. **A THIRD entry for the blindness ledger:** M9, like
+M8, requires an N >= 1 corpus *containing at least one VALID tuple*. An all-invalid batch is also
+blind to it, since the mutated line sits in the success branch only.
+
+### THE CONSUMER-SIDE CONTRACT — this is a hand-off item, not a test detail
+
+M9 is the milestone's **HARD REQUIREMENT ON THE HASKELL CONSUMER**, and it belongs in the peer
+hand-off rather than in this file alone. A lenient Haskell decoder would accept a truthy `2` as
+`True`, while solc's `abi.decode` REVERTS on it — as the cascade above measures directly. **The two
+consumers would then disagree about the same bytes**: one sees a successful order, the other sees a
+malformed payload. That divergence is not a decoder preference, it is a consensus-relevant
+disagreement about what an order registry did.
+
+The module's guarantee is therefore stronger than "decodes correctly in Solidity": **success words
+are canonically 0 or 1**, and a consumer in any language may rely on it. Peer `mv15a18k`'s decoder
+should assert the same `w < 2` property rather than coercing truthiness, so that a future encoder
+regression fails loudly on BOTH sides instead of only in solc.
+
+**POST-RESTORATION sha256:** `be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787` — EQUAL to PRE.
+**Post-restoration suite:** `40 tests passed, 0 failed, 0 skipped (40 total tests)` — GREEN, cold cache, exit 0.
+
+---
+
+# PART B TALLY
+
+| Outcome | Count | Mutants |
+| --- | --- | --- |
+| **Attempted** | **5** | M5, M6, M7, M8, M9 |
+| **OBSERVED RED (counted as kills)** | **5** | M5, M6, M7, M8, M9 |
+| **SURVIVORS** | **0** | — |
+| **UNCONSTRUCTIBLE** | **0** | — |
+
+Plus ONE supplementary mutant applied and measured but **NOT COUNTED**: the M8 head-drop variant,
+applied solely to establish which formulation is N=0-blind. It is a measurement instrument, not a
+battery entry, and counting it would inflate the tally.
+
+---
+
+# CONSOLIDATED MVER-02 TALLY (PARTS A + B)
+
+All NINE mutants named by MVER-02, each re-applied and re-observed on the CURRENT tree. **Nothing is
+cited from a prior phase.**
+
+| # | Mutant | Part | Status | Killed by |
+| --- | --- | --- | --- | --- |
+| 1 | Deleted validation branch — BATCH path (M1a) | A | **OBSERVED RED** | `test__unit__mixedBatchFootprintAndContiguity` (`3 != 2`) + 4 more incl. both wave-1 suites |
+| 2 | Deleted validation branch — STRICT path (M1b) | A | **OBSERVED RED** | `test__unit__invalidSkewRevertsAndLeavesStateUntouched` |
+| 3 | Missing strike upper bound (M2) | A | **OBSERVED RED** | `test__unit__strikeBoundBlocksSilentMasking` (Phase-16 harness ONLY — see F1) |
+| 4 | Count-advance-on-failure (M3) | A | **OBSERVED RED** | `test__unit__mixedBatchFootprintAndContiguity` (CONTIGUITY assertion) |
+| 5 | Ring-mask reintroduction (M4) | A | **OBSERVED RED** | `test__unit__idAt65536IsNotMaskedIntoSlotZero` (SOLE kill site, 1 red in 40) |
+| 6 | Calldata **guard 1** deleted — offset (M5) | B | **OBSERVED RED** | `test__unit__nonCanonicalOffsetReverts` (1 red in 40) |
+| 7 | Calldata **guard 2** deleted — length (M6) | B | **OBSERVED RED** | `test__unit__lengthCountMismatchReverts` (1 red in 40) |
+| 8 | Calldata **guard 3** deleted — calldatasize (M7) | B | **OBSERVED RED** | `test__unit__truncatedCalldataReverts` — the **REVERT** assertion only (1 red in 40) |
+| 9 | Return element-base shift `0x40` -> `0x20` (M8) | B | **OBSERVED RED** | `test__unit__oneAndTwoElementReturnsAreByteExact` (keccak, N >= 1) |
+| 10 | Non-canonical success word (M9) | B | **OBSERVED RED** | `test__unit__successWordsAreCanonicallyZeroOrOne` (raw words) |
+
+Ten rows for nine named mutants: MVER-02's "deleted validation branch" was applied INDEPENDENTLY to
+the batch and strict paths (M1a / M1b), and both are recorded separately because neither masks the
+other.
+
+**Every mutated source restored sha256 byte-identical:**
+
+```
+be196dcb0a524ea548480cdbd55f0f70d458fe3cbead078d9fed27d1cc9b8787  src/modules/pos_spec/VolOrderManagerMod.plk
+5fe71f30e4820d230a6d15b30e440ae78a33875d0d9a66e60f4e0d7d73fe8f35  src/lib/pos_spec/VolOrderValidationLib.plk
+```
+
+---
+
+# SURVIVORS
+
+**THE SURVIVOR COUNT IS ZERO — 0 of 10 applications.**
+
+Stated explicitly and separately rather than left implicit in a kill count, because a survivor is the
+single most important thing this battery could report and it must not be inferable only by
+subtraction. Every mutant attempted in parts A and B produced an OBSERVED RED on the current tree
+with a cold fuzz cache. **No test was weakened, reshaped or added to manufacture any kill.**
+
+The zero is a real result, but it is NOT a claim that the suite is complete. Three measured facts
+qualify it, and each is a single-point-of-failure rather than a survivor:
+
+- **M2 is killed only outside `test/pos_spec/`** — by the Phase-16 pure-lib harness. The strike
+  bound's enforcement through the `create_order` ENTRYPOINT remains UNPROVEN (finding F1).
+- **M4's sole kill site is the 65536 test.** Wave 1 added nothing here.
+- **M5/M6/M7's sole kill sites are the three tests in `VolOrderManagerBatchGuardTest`.** Wave 1 added
+  nothing here either, and structurally could not.
+
+Delete any one of those four tests and a real mutant survives silently.
+
+---
+
+# NEW KILL SITES FROM WAVE 1 (19-01 and 19-02)
+
+Direct evidence on whether wave 1 STRENGTHENED the suite or merely added green. Measured across all
+ten applications — **this is worth more than the kill count itself.**
+
+| Mutant | 19-01 `VolOrderManager.diff.t.sol` | 19-02 `VolOrderManagerFixture.t.sol` |
+| --- | --- | --- |
+| M1a | **KILL SITE** — `test__unit__fixedAnchorSequenceDiffers` (step 2) | **KILL SITE** — `N2_success_then_fail` |
+| M1b | **KILL SITE** — `_singleExpectRevertBoth` | green |
+| M2  | green — structurally cannot kill (F1) | green |
+| M3  | **KILL SITE** — anchor step 2 + fuzz `orderCount 452 != 450` | **KILL SITE** — `N3_mixed_seeded_C5` |
+| M4  | green — small ids only | green — small ids only |
+| M5  | green — a typed encoder cannot emit a non-canonical offset | green — same |
+| M6  | green — cannot emit a length/count mismatch | green — same |
+| M7  | green — cannot emit a truncated payload | green — same |
+| M8  | **KILL SITE** — `test__unit__fixedAnchorSequenceDiffers` | **KILL SITE** — `N1_success` |
+| M9  | **KILL SITE** — `test__unit__fixedAnchorSequenceDiffers` | **KILL SITE** — `N1_success` |
+
+**19-01's differential is a kill site on 5 of 10 mutants; 19-02's fixture on 4 of 10.** Both plans
+added genuine mutation coverage rather than green tests.
+
+**The honest counterpart, and it is a clean structural boundary rather than an oversight:** neither
+wave-1 suite kills M4 (ring mask) or ANY of the three calldata guards. Both drive the module through
+WELL-FORMED calldata at SMALL IDS. A differential against a typed Solidity mock and a golden-bytes
+fixture are both structurally incapable of expressing a malformed encoding — you cannot ask a typed
+encoder for a non-canonical offset — and neither reaches id 65536. **Wave 1 strengthened the
+RETURN-ENCODING and SEQUENCE-SEMANTICS surfaces; it left the MALFORMED-INPUT and LARGE-ID surfaces
+exactly as they were.** Breadth on the happy path is not coverage of the hostile path.
