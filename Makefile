@@ -157,7 +157,36 @@ test-vol-order-batch:
 test-vol-order-return:
 	forge test --match-contract VolOrderManagerReturnEncodingTest --via-ir --optimize
 
-.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation test-vol-order-manager test-vol-order-batch test-vol-order-return
+# test-vol-order-diff: the MVER-01 after-every-write SEQUENCE DIFFERENTIAL. Interleaved
+# (create_order | create_orders) sequences driven into the FFI-deployed module AND an independent
+# Solidity reference mock, asserting orderCount, every stored packed word via raw vm.load + the
+# single VolOrderDecoder, and raw return-byte equality against solc's STANDARD abi.encode -- at
+# tolerance 0, after EVERY write. Distinct from test-vol-order-batch and test-vol-order-return,
+# which test the two entrypoints in ISOLATION: the interleave is the one thing they structurally
+# could not cover, and it is where an id-allocation disagreement between the two paths surfaces.
+test-vol-order-diff:
+	forge test --match-path 'test/pos_spec/VolOrderManager.diff.t.sol' --via-ir --optimize
+
+# test-vol-order-fixture: the MVER-03 CONSUMER GOLDEN FIXTURE. The module's returndata compared
+# byte-for-byte against bytes produced by `cast abi-encode` (alloy) -- an encoder OUTSIDE this
+# repo and a different implementation from solc's -- plus the selector-completeness gate over
+# every `signature::` string in src/interfaces/pos_spec/VolOrderManagerInterface.plk.
+# SCOPE LIMIT, recorded so the exit record cannot conflate two claims: alloy confirms the bytes
+# are STANDARD ABI. It does NOT exercise the Haskell consumer's decoder. That gap is tracked as a
+# per-case placeholder inside the fixture file itself.
+test-vol-order-fixture:
+	forge test --match-path 'test/pos_spec/VolOrderManagerFixture.t.sol' --via-ir --optimize
+
+# test-vol-order-acceptance: THE PHASE 19 ACCEPTANCE BAR (MVER-01/03/04) in one invocation --
+# the whole pos_spec surface: validation lib, single-call module, batch input, return encoder,
+# sequence differential and consumer fixture. This is the dedicated target MVER-04 asks for.
+#
+# IT IS A SUBSET, NEVER A SUBSTITUTE FOR `make test`. Green here says nothing about the suites it
+# skips, and MVER-02's mutation evidence is not reproducible from any target -- it lives in
+# .planning/phases/19-*/19-MUTATION-BATTERY.md as recorded OBSERVATIONS.
+test-vol-order-acceptance: test-vol-order-validation test-vol-order-manager test-vol-order-batch test-vol-order-return test-vol-order-diff test-vol-order-fixture
+
+.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation test-vol-order-manager test-vol-order-batch test-vol-order-return test-vol-order-diff test-vol-order-fixture test-vol-order-acceptance
 
 
 #####################################################################
