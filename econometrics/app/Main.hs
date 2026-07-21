@@ -47,8 +47,9 @@ import           Model.EIV               (ivFit)
 import           Model.NLS               (designPoints, fitGSLCov)
 import           Model.SandwichSE        (clusterSandwich, standardErrors)
 import           Model.Upsilon           (model, modelSplit, moneyness, signedMoneyness)
-import           Panel.Build             (Spell (..), assembleSpells, dailyEpoch,
-                                          writePanelCsv)
+import           Panel.Build             (Spell (..), assembleSpells,
+                                          assembleSpellsWithWindows, dailyEpoch,
+                                          epochOfSeconds, writePanelCsv)
 import           Panel.Subgraph          (Chunk (..), ChunkPull (..),
                                           CollateralFlow (..), Endpoint (..),
                                           Leg (..), MintEvent (..),
@@ -131,6 +132,8 @@ data SampleSizeOpts = SampleSizeOpts
   , ssLegsOut    :: FilePath
   , ssReport     :: FilePath
   , ssFixtureOut :: FilePath
+  , ssEpochHours :: Int       -- ^ bucket width in hours; 24 = the daily design.
+  , ssTicksCsv   :: FilePath  -- ^ cached swap ticks, for sub-daily σ̂² estimability.
   }
 
 data Command
@@ -209,6 +212,14 @@ sampleSizeOptsParser =
                  <> showDefault <> help "audit report with the STOP/GO recommendation" )
     <*> strOption ( long "fixture-out" <> metavar "PATH" <> value defaultChunksFixture
                  <> showDefault <> help "frozen raw Chunk subgraph response (offline fixture)" )
+    <*> option auto ( long "epoch-hours" <> metavar "N" <> value 24 <> showDefault
+                 <> help "epoch bucket width in HOURS (24 = the daily design; \
+                         \<24 re-measures the census at a finer resolution)" )
+    <*> strOption ( long "ticks-csv" <> metavar "PATH" <> value defaultTicksCsv
+                 <> showDefault
+                 <> help "cached (unix,tick) swap CSV; supplies the per-epoch swap \
+                         \counts that decide whether sigma^2-hat is estimable at \
+                         \sub-daily resolution" )
 
 commandParser :: Parser Command
 commandParser =
@@ -311,6 +322,22 @@ goWithinEpochThreshold = 5
 epochOfUnix :: Integer -> Int
 epochOfUnix = dailyEpoch . posixSecondsToUTCTime . fromInteger
 
+-- | Bucket a unix timestamp at an arbitrary epoch width, via
+-- 'Panel.Build.epochOfSeconds'. At @epochSeconds = 86400@ this is 'epochOfUnix'
+-- (pinned by a spec in "Panel.BuildSpec").
+bucketOfUnix :: Int -> Integer -> Int
+bucketOfUnix epochSeconds =
+  epochOfSeconds epochSeconds . posixSecondsToUTCTime . fromInteger
+
+-- | Minimum swaps in an epoch for the realized variance to be ESTIMABLE at all.
+--
+-- σ̂² is the sum of squared log-price INCREMENTS, so @n@ swaps give @n − 1@
+-- increments: a window with 0 or 1 swap yields σ̂² = 0 by construction — not a
+-- small variance, but NO measurement. This bites only at sub-daily resolution;
+-- at daily resolution every covered epoch has thousands of swaps.
+minSwapsForVariance :: Int
+minSwapsForVariance = 2
+
 -- | One (spell, leg) census row.
 data LegRow = LegRow
   { lrTokenId   :: !T.Text
@@ -343,11 +370,33 @@ runSampleSize so = do
   pull  <- fetchChunksRaw ep pool >>= either (ioError . userError) pure
   varMap <- loadVarianceCsv (ssVarianceCsv so)
 
+  -- Sub-daily resolution needs the per-epoch SWAP COUNT, which variance.csv
+  -- (daily, pre-aggregated) cannot supply. Read it from the cached tick stream —
+  -- never re-fetch from RPC.
+  let epochHours = max 1 (ssEpochHours so)
+      epochSecs  = epochHours * 3600
+      isDaily    = epochHours == 24
+  ticks <- loadSwapTicks (ssTicksCsv so)
+  let swapCounts :: Map.Map Int Int
+      swapCounts = Map.fromListWith (+)
+        [ (epochOfSeconds epochSecs t, 1 :: Int) | (t, _) <- ticks ]
+      coveredFromTicks = Map.keysSet swapCounts
+      estimableSet     = Map.keysSet
+        (Map.filter (>= minSwapsForVariance) swapCounts)
+
   let chunks   = cpChunks pull
-      spells   = assembleSpells ethUsdcDecimalShift mints burns legs
+      withWins = assembleSpellsWithWindows ethUsdcDecimalShift mints burns legs
+      spells   = map fst withWins
       legMap   = Map.fromList legs
       chunkMap = Map.fromList [ (chunkKey c, c) | c <- chunks ]
       varEpochs = Map.keysSet varMap
+
+      -- THE covered epoch set. At daily resolution this stays variance.csv, so
+      -- the committed daily census reproduces byte-for-byte; at any finer
+      -- resolution variance.csv has no rows to offer and the covered set comes
+      -- from the tick cache at that width.
+      coveredSet | isDaily   = varEpochs
+                 | otherwise = coveredFromTicks
       -- positionSize of the mint that OPENED each spell, keyed by
       -- (tokenId, mint epoch) so the join uses the shared epoch grid.
       sizeMap  = Map.fromList
@@ -379,25 +428,55 @@ runSampleSize so = do
       -- (L2250) skips it outright. Such legs cannot contribute a panel row.
       nonzero      = [ r | r <- rows, lrWidth r /= 0 ]
       usableToks   = Set.fromList (map lrTokenId nonzero)
-      usableSpells = [ s | s <- spells, spTokenId s `Set.member` usableToks ]
+      usableWins   = [ sw | sw@(s, _) <- withWins
+                     , spTokenId s `Set.member` usableToks ]
+      usableSpells = map fst usableWins
 
-      -- The joinable epochs of one spell: days in its accrual window that the
-      -- variance series actually covers.
-      spellEpochs s =
-        Set.fromList [ e | e <- [spMintEpoch s .. spBurnEpoch s]
-                     , e `Set.member` varEpochs ]
+      -- The epochs of one spell, at the configured bucket width, intersected
+      -- with a given epoch set. The window is the EXACT (mint, burn) unix pair
+      -- from the pairing rule — at sub-daily resolution the spell's daily
+      -- endpoints are far too coarse to bucket from.
+      spellEpochsIn epochSet (_, (mintU, burnU)) =
+        Set.fromList [ e | e <- [bucketOfUnix epochSecs mintU
+                                  .. bucketOfUnix epochSecs burnU]
+                     , e `Set.member` epochSet ]
 
-      achievableRows = sum (map (Set.size . spellEpochs) usableSpells)
+      -- Epochs the variance series COVERS at all.
+      achievableRows = sum (map (Set.size . spellEpochsIn coveredSet) usableWins)
+      -- Epochs that carry BOTH a position observation AND an ESTIMABLE sigma^2.
+      -- This, not the raw count above, is the real panel size: an epoch whose
+      -- variance cannot be measured supplies no regressor.
+      joinableRows   = sum (map (Set.size . spellEpochsIn estimableSet) usableWins)
 
       -- CLUSTER-level within-position variation: distinct joinable epochs per
       -- usable tokenId, unioned over that tokenId's spells. This is the
       -- quantity Phase 9 had exactly ZERO of (one window-averaged sigma^2 per
       -- spell), and restoring it is the phase's real identification claim.
+      -- Measured on the ESTIMABLE set for the same reason as 'joinableRows'.
       perTokenEpochs =
         Map.fromListWith Set.union
-          [ (spTokenId s, spellEpochs s) | s <- usableSpells ]
+          [ (spTokenId s, spellEpochsIn estimableSet sw) | sw@(s, _) <- usableWins ]
       withinCounts = map Set.size (Map.elems perTokenEpochs)
       withinMedian = medianI withinCounts
+
+      -- Concentration diagnostics. A median can pass while almost all rows sit
+      -- in a handful of long-lived positions, which under tokenId-CLUSTERED
+      -- inference buys far less than the row count suggests. Both numbers are
+      -- reported so the verdict is read against the same scrutiny the daily
+      -- design got.
+      toksMeetingThreshold =
+        length [ () | c <- withinCounts, c >= goWithinEpochThreshold ]
+      top10Share =
+        fracOf (sum (take 10 (reverse (sort withinCounts)))) (sum withinCounts)
+
+      -- Swap-count diagnostics: at sub-daily resolution sigma^2 is rebuilt from
+      -- however many swaps land in each bucket, so the density of the swap
+      -- stream is what decides whether the finer grid is measurable at all.
+      swapCountsInWindows =
+        [ Map.findWithDefault 0 e swapCounts
+        | sw <- usableWins, e <- Set.toList (spellEpochsIn coveredSet sw) ]
+      thinEpochs = length [ () | c <- swapCountsInWindows, c < minSwapsForVariance ]
+      allCounts  = Map.elems swapCounts
 
       -- getTicks cross-check. Computed over width /= 0 legs only: a width-0 leg
       -- maps to the degenerate range [strike, strike], which is not a real chunk
@@ -409,10 +488,19 @@ runSampleSize so = do
       distinctChunks = Set.size
         (Set.fromList [ (lrTokenType r, lrTickLower r, lrTickUpper r)
                       | r <- nonzero, lrMatched r ])
-      gainFactor = fromIntegral achievableRows
+      gainFactor = fromIntegral joinableRows
                      / fromIntegral phase9BaselineRows :: Double
+
+      -- Label suffix so a re-scoped run can never be confused with the daily
+      -- one in the audit trail.
+      sfx | isDaily        = ""
+          | epochHours == 1 = "_HOURLY"
+          | otherwise       = "_" ++ show epochHours ++ "H"
+      lbl k = k ++ sfx
+
       metrics =
-        [ ("TOTAL_LEGS",                   show (length rows))
+        [ ("EPOCH_HOURS",                  show epochHours)
+        , ("TOTAL_LEGS",                   show (length rows))
         , ("WIDTH_NONZERO_LEGS",           show (length nonzero))
         , ("WIDTH_NONZERO_TOKENIDS",       show (Set.size usableToks))
         , ("WIDTH_NONZERO_SPELLS",         show (length usableSpells))
@@ -420,8 +508,23 @@ runSampleSize so = do
         , ("DISTINCT_CHUNKS",              show distinctChunks)
         , ("GETTICKS_MATCH_RATE",          fmtG matchRate)
         , ("VARIANCE_EPOCHS",              show (Set.size varEpochs))
-        , ("ACHIEVABLE_PANEL_ROWS",        show achievableRows)
-        , ("WITHIN_POSITION_EPOCHS_MEDIAN", fmtG withinMedian)
+        , (lbl "COVERED_EPOCHS",           show (Set.size coveredSet))
+        , (lbl "ESTIMABLE_SIGMA2_EPOCHS",  show (Set.size estimableSet))
+        , (lbl "ACHIEVABLE_PANEL_ROWS",    show achievableRows)
+        , (lbl "JOINABLE_ROWS",            show joinableRows)
+        , (lbl "WITHIN_POSITION_EPOCHS_MEDIAN", fmtG withinMedian)
+        , (lbl "WITHIN_POSITION_EPOCHS_MIN",    show (minimumOr0 withinCounts))
+        , (lbl "WITHIN_POSITION_EPOCHS_P25",    fmtG (quantileI 0.25 withinCounts))
+        , (lbl "WITHIN_POSITION_EPOCHS_P75",    fmtG (quantileI 0.75 withinCounts))
+        , (lbl "WITHIN_POSITION_EPOCHS_MAX",    show (maximumOr0 withinCounts))
+        , (lbl "TOKENIDS_MEETING_WITHIN_THRESHOLD", show toksMeetingThreshold)
+        , (lbl "TOP10_TOKENID_ROW_SHARE",       fmtG top10Share)
+        , (lbl "SWAPS_PER_EPOCH_MIN",      show (minimumOr0 allCounts))
+        , (lbl "SWAPS_PER_EPOCH_P25",      fmtG (quantileI 0.25 allCounts))
+        , (lbl "SWAPS_PER_EPOCH_MEDIAN",   fmtG (medianI allCounts))
+        , (lbl "SWAPS_PER_EPOCH_P75",      fmtG (quantileI 0.75 allCounts))
+        , (lbl "SWAPS_PER_EPOCH_MAX",      show (maximumOr0 allCounts))
+        , (lbl "THIN_EPOCH_FRACTION",      fmtG (fracOf thinEpochs (length swapCountsInWindows)))
         , ("PHASE9_BASELINE_ROWS",         show phase9BaselineRows)
         , ("GAIN_FACTOR",                  fmtG gainFactor)
         ]
@@ -436,9 +539,16 @@ runSampleSize so = do
   putStrLn ("sample-size: " ++ show (length spells) ++ " accrual spells")
   mapM_ (\(k, v) -> putStrLn (k ++ ": " ++ v)) metrics
 
+  -- The VERDICT's condition (a) is scored on JOINABLE rows, not merely covered
+  -- ones: an epoch whose sigma^2 is not estimable contributes no regressor and
+  -- therefore no panel row. At daily resolution the two coincide (every covered
+  -- day carries thousands of swaps), so the committed daily verdict is
+  -- unaffected by this refinement.
   writeFile (ssReport so)
     (renderSizeAudit so dateStr metrics spells chunks nonzero
-                     achievableRows withinMedian (cpPath pull))
+                     joinableRows (lbl "JOINABLE_ROWS")
+                     withinMedian (lbl "WITHIN_POSITION_EPOCHS_MEDIAN")
+                     (cpPath pull))
   putStrLn ("sample-size: wrote " ++ ssLegsOut so)
   putStrLn ("sample-size: wrote " ++ ssFixtureOut so)
   putStrLn ("sample-size: wrote " ++ ssReport so)
@@ -448,8 +558,9 @@ runSampleSize so = do
 -- are in.
 renderSizeAudit
   :: SampleSizeOpts -> String -> [(String, String)] -> [Spell] -> [Chunk]
-  -> [LegRow] -> Int -> Double -> T.Text -> String
-renderSizeAudit so dateStr metrics spells chunks nonzero achievableRows withinMedian path =
+  -> [LegRow] -> Int -> String -> Double -> String -> T.Text -> String
+renderSizeAudit so dateStr metrics spells chunks nonzero
+                achievableRows rowLabel withinMedian medianLabel path =
   unlines $
     [ "# Panel-size audit — Phase 10 Wave-0 blocker"
     , ""
@@ -507,9 +618,9 @@ renderSizeAudit so dateStr metrics spells chunks nonzero achievableRows withinMe
     , "Pre-committed rule (stated in plan 10-01 BEFORE this measurement, and NOT"
     , "adjusted after it). `GO` requires BOTH:"
     , ""
-    , "- (a) `ACHIEVABLE_PANEL_ROWS >= " ++ show goRowThreshold ++ "` — measured **"
+    , "- (a) `" ++ rowLabel ++ " >= " ++ show goRowThreshold ++ "` — measured **"
         ++ show achievableRows ++ "** -> " ++ passLabel condA
-    , "- (b) `WITHIN_POSITION_EPOCHS_MEDIAN >= " ++ show goWithinEpochThreshold
+    , "- (b) `" ++ medianLabel ++ " >= " ++ show goWithinEpochThreshold
         ++ "` — measured **" ++ fmtG withinMedian ++ "** -> " ++ passLabel condB
     , ""
     , "`STOP` if either fails."
@@ -610,6 +721,27 @@ medianI xs
   | otherwise = fromIntegral (s !! (n `div` 2 - 1) + s !! (n `div` 2)) / 2
   where s = sort xs
         n = length xs
+
+-- | Nearest-rank quantile of a list of counts (NaN on empty). Reported alongside
+-- the median because a median alone HIDES concentration: a handful of long-lived
+-- positions can carry most of the rows while the typical position carries one.
+quantileI :: Double -> [Int] -> Double
+quantileI _ [] = 0 / 0
+quantileI q xs = fromIntegral (s !! idx)
+  where s   = sort xs
+        n   = length xs
+        idx = min (n - 1) (max 0 (ceiling (q * fromIntegral n) - 1 :: Int))
+
+minimumOr0, maximumOr0 :: [Int] -> Int
+minimumOr0 [] = 0
+minimumOr0 xs = minimum xs
+maximumOr0 [] = 0
+maximumOr0 xs = maximum xs
+
+-- | @num \/ den@ as a fraction, NaN on an empty denominator.
+fracOf :: Int -> Int -> Double
+fracOf _ 0 = 0 / 0
+fracOf a b = fromIntegral a / fromIntegral b
 
 -- | Per-leg chunk identity for every leg of every accrual spell.
 writeChunkLegsCsv :: FilePath -> [LegRow] -> IO ()

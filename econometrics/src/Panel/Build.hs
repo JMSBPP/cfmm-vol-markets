@@ -40,8 +40,11 @@
 module Panel.Build
   ( Epoch
   , dailyEpoch
+  , epochOfSeconds
+  , hourlyEpoch
   , Spell (..)
   , assembleSpells
+  , assembleSpellsWithWindows
   , tickToPrice
   , premiumUsd
   , writePanelCsv
@@ -65,6 +68,29 @@ type Epoch = Int
 -- SAME definition is used by the variance window in "Panel.Variance".
 dailyEpoch :: UTCTime -> Int
 dailyEpoch t = floor (realToFrac (utcTimeToPOSIXSeconds t) / (86400 :: Double))
+
+-- | Bucket a UTC instant into an epoch of arbitrary width, @epochSeconds@ wide,
+-- anchored at the Unix epoch. This GENERALIZES 'dailyEpoch' — it does not
+-- replace it.
+--
+-- 'dailyEpoch' remains the single source of truth for the DAILY grid, and its
+-- body is deliberately left untouched: Phase 9's @variance.csv@, @panel.csv@ and
+-- @estimation-panel.csv@ are all keyed on it, and the 09-05 40587-offset trap was
+-- exactly what happens when a second definition of the day index is introduced.
+-- @epochOfSeconds 86400@ is required to agree with 'dailyEpoch' pointwise, and
+-- "Panel.BuildSpec" asserts that agreement so the two can never drift.
+--
+-- Introduced by plan 10-01 for the HOURLY re-scope of the Wave-0 census: the
+-- daily design was closed by its own pre-committed rule (median accrual spell
+-- 0.25 days cannot vary within a daily bucket), and re-measuring at a finer
+-- resolution requires the bucket width to be a parameter rather than a constant.
+epochOfSeconds :: Int -> UTCTime -> Epoch
+epochOfSeconds epochSeconds t =
+  floor (realToFrac (utcTimeToPOSIXSeconds t) / (fromIntegral epochSeconds :: Double))
+
+-- | Hourly epoch index: whole hours since the Unix epoch. @epochOfSeconds 3600@.
+hourlyEpoch :: UTCTime -> Epoch
+hourlyEpoch = epochOfSeconds 3600
 
 -- | Epoch of a unix-second timestamp.
 epochOfUnix :: Integer -> Epoch
@@ -128,7 +154,21 @@ premiumUsd decimalShift isLong b =
 -- @decimalShift@ = token0 decimals − token1 decimals (12 for ETH/USDC).
 assembleSpells :: Int -> [MintEvent] -> [BurnEvent] -> [(Text, [Leg])] -> [Spell]
 assembleSpells decimalShift mints burns legs =
-  sortOn spBurnEpoch (mapMaybe toSpell burns)
+  map fst (assembleSpellsWithWindows decimalShift mints burns legs)
+
+-- | 'assembleSpells', but each spell is paired with the EXACT @(mintUnix,
+-- burnUnix)@ second-resolution window the pairing rule selected.
+--
+-- 'assembleSpells' is defined as @map fst@ of this function, so there is exactly
+-- ONE implementation of the mint↔burn pairing rule. Callers that need sub-daily
+-- resolution (the 10-01 hourly census) take the raw window from here rather than
+-- re-deriving the pairing, and callers that only need the daily panel keep the
+-- original signature. @spMintEpoch@/@spBurnEpoch@ of the returned 'Spell' remain
+-- DAILY indices — the window is the extra information, not a replacement.
+assembleSpellsWithWindows
+  :: Int -> [MintEvent] -> [BurnEvent] -> [(Text, [Leg])] -> [(Spell, (Integer, Integer))]
+assembleSpellsWithWindows decimalShift mints burns legs =
+  sortOn (spBurnEpoch . fst) (mapMaybe toSpell burns)
   where
     legMap = Map.fromList legs
 
@@ -144,9 +184,10 @@ assembleSpells decimalShift mints burns legs =
       let days   = fromInteger (beTimestamp b - meTimestamp m) / 86400
           isLong = legIsLong l
           usd    = premiumUsd decimalShift isLong b
+      let window = (meTimestamp m, beTimestamp b)
       if days <= 0 || usd == 0 || isNaN usd || isInfinite usd
         then Nothing
-        else Just Spell
+        else Just $ flip (,) window Spell
           { spTokenId     = beTokenId b
           , spAccount     = beAccount b
           , spMintEpoch   = epochOfUnix (meTimestamp m)

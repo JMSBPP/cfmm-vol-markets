@@ -21,7 +21,11 @@ import qualified Data.ByteString.Lazy as BL
 import           Data.List            (sortOn)
 import           Test.Hspec
 
-import           Panel.Build          (Spell (..), assembleSpells, premiumUsd,
+import           Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+
+import           Panel.Build          (Spell (..), assembleSpells,
+                                       assembleSpellsWithWindows, dailyEpoch,
+                                       epochOfSeconds, hourlyEpoch, premiumUsd,
                                        tickToPrice)
 import           Panel.Subgraph       (BurnEvent (..), parseBurns, parseLegs,
                                        parseMints)
@@ -92,3 +96,34 @@ spec = describe "Panel.Build (CTX-PANEL, accrual spells)" $ do
     spells <- fixtureSpells
     let es = map spBurnEpoch spells
     es `shouldBe` sortOn id es
+
+  -- The 09-05 40587-offset trap: a second definition of the day index silently
+  -- de-aligned the panel from the variance series. 'epochOfSeconds' generalizes
+  -- the bucket width for the 10-01 hourly census, so it must be pinned to agree
+  -- with 'dailyEpoch' at 86400 — otherwise the generalization reintroduces
+  -- exactly the drift 'dailyEpoch' exists to prevent.
+  it "epochOfSeconds 86400 agrees with dailyEpoch (the single source of truth)" $ do
+    let instants = [ 0, 1, 86399, 86400, 86401, 1774352661, 1774352661 + 3599
+                   , 1739059200, 2147483647 ] :: [Integer]
+        t u = posixSecondsToUTCTime (fromInteger u)
+    map (epochOfSeconds 86400 . t) instants `shouldBe` map (dailyEpoch . t) instants
+
+  it "hourlyEpoch refines dailyEpoch exactly 24-to-1" $ do
+    let instants = [ 0, 3599, 3600, 86399, 86400, 1774352661 ] :: [Integer]
+        t u = posixSecondsToUTCTime (fromInteger u)
+    map ((`div` 24) . hourlyEpoch . t) instants `shouldBe` map (dailyEpoch . t) instants
+
+  -- The hourly census reads its sub-daily windows from here rather than
+  -- re-deriving the mint<->burn pairing; if the two ever diverged the census
+  -- would be measuring a different spell set than the panel.
+  it "assembleSpellsWithWindows agrees with assembleSpells and carries the raw window" $ do
+    bytes  <- BL.readFile fixturePath
+    mints  <- either fail pure (parseMints bytes)
+    burns  <- either fail pure (parseBurns bytes)
+    legs   <- either fail pure (parseLegs bytes)
+    spells <- fixtureSpells
+    let withWins = assembleSpellsWithWindows shift mints burns legs
+    map fst withWins `shouldBe` spells
+    -- the window is second-resolution and reproduces the spell's own duration
+    map (\(s, (m, b)) -> abs (fromInteger (b - m) / 86400 - spDays s) < 1e-9) withWins
+      `shouldSatisfy` and
