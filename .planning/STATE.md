@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: milestone
-status: completed
+milestone: v4.0
+milestone_name: VolOrderManagerMod + Multicall
+status: executing
 stopped_at: Completed 19-02-PLAN.md (MVER-03)
 last_updated: "2026-07-21T18:25:03.422Z"
-last_activity: "2026-07-21 — 18b-01 executed: 8 CALLED-green return-encoding tests; 6/6 observed mutation REDs each restored sha256-identical; N=128 gas RE-MEASURED at 3,275,765 (+28,313 vs 18a); src/types/pos_spec/ byte-untouched."
+last_activity: "2026-07-21 — 19-02 executed: 4 CALLED-green tests; cast abi-encode (alloy) golden fixture confirms 18b's 64+64N layout from a THIRD encoder; falsifiability OBSERVED in 3 modes (file removed / case count dropped / unpinned 5th selector); all 4 selectors recomputed with cast sig and matching; src/**/pos_spec byte-untouched."
 progress:
   total_phases: 16
   completed_phases: 7
@@ -27,8 +27,9 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 ## Current Position
 
 Phase: 19 — Differential, Mutation Battery & Consumer Fixture (MVER-01..04) — IN PROGRESS
-Plan: 19-01 COMPLETE (19-01-SUMMARY.md); MVER-01 satisfied. 19-02..05 remain.
+Plan: 19-01 COMPLETE (19-01-SUMMARY.md, MVER-01) and 19-02 COMPLETE (19-02-SUMMARY.md, MVER-03) — same wave, parallel agents. 19-03/04/05 remain.
 Status: 19-01 done — the interleaved sequence differential is green and the module AGREES with an independent Solidity mock at tol 0 across mixed `(create_order | create_orders)` sequences. No disagreement observed. `src/` byte-untouched (both sha256 pins match the 18b baseline).
+Status: 19-02 done — MVER-03 satisfied. The consumer golden fixture is committed with bytes produced by `cast abi-encode` (alloy), an encoder OUTSIDE this repo; the module's returndata matches it byte-for-byte across 5 cases including N=0, INDEPENDENTLY CONFIRMING 18b's 64+64N layout from a third encoder. All four interface selectors recomputed with `cast sig` and matching, plus a completeness gate that reddens on an unpinned fifth. **The cross-language gap is NOT closed:** alloy proves STANDARD-ABI conformance only; peer `mv15a18k`'s Haskell decoder remains unexercised and is marked per-case in the fixture.
 Last activity: 2026-07-21 — 19-01 executed: 3 CALLED-green differential tests (anchor ends at id 12 from a counter seeded to 5; fuzz `runs: 256` cold-cache); harness liveness proven by a mock-side negative control (`6 != 7`) restored clean; two plan-level defects auto-fixed (NatSpec doc-tag Error 6546; seeded-region live-order assertions).
 
 Progress (v4.0): [████████░░] 80% — 4/5 phases (16, 17, 18a, 18b), 4 plans complete
