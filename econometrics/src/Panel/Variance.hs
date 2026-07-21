@@ -63,9 +63,7 @@ module Panel.Variance
   , historicalBigQuerySql
   ) where
 
-import           Control.Concurrent (threadDelay)
-import           Control.Exception (SomeException, try)
-import           Data.Aeson (FromJSON (..), Value, eitherDecode, object,
+import           Data.Aeson (FromJSON (..), Result (..), fromJSON, object,
                              withObject, (.:), (.:?), (.=))
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as BL
@@ -80,10 +78,8 @@ import           Data.Time.Clock (UTCTime)
 import           Data.Time.Clock.POSIX (posixSecondsToUTCTime,
                                         utcTimeToPOSIXSeconds)
 import qualified Data.Vector as V
-import           Network.HTTP.Simple (getResponseBody, httpLBS, parseRequest,
-                                      setRequestBodyJSON)
 import           Numeric (readHex)
-import           System.IO (hFlush, hPutStrLn, stderr, stdout)
+import           System.IO (hFlush, stdout)
 
 -- | The daily epoch boundary is the panel's SINGLE SOURCE OF TRUTH: this module
 -- imports and re-exports @Panel.Build.dailyEpoch@ (owned by plan 09-04) rather
@@ -95,6 +91,11 @@ import           Panel.Build (Epoch, dailyEpoch)
 -- 'Chain.Abi' as the single implementation — this module no longer carries its
 -- own @wordAt@ (the 09-05 fork-divergence lesson).
 import           Chain.Abi (decodeWordAt, hexToBytes)
+
+-- | JSON-RPC transport (the retry/backoff loop) is LIFTED into 'Chain.Rpc';
+-- @getLogsChunk@ and @currentHeadBlock@ call it rather than carrying their own
+-- @httpLBS@/retry code — the single-transport rule (09-05 divergence lesson).
+import           Chain.Rpc (RpcEnv (..), defaultBaseEnv, ethBlockNumber, rpcPost)
 
 -- ---------------------------------------------------------------------------
 -- Confirmed market constants (DATA-SOURCES.md §2, §4)
@@ -174,13 +175,6 @@ instance FromJSON SwapLog where
       , slDataHex      = d
       }
 
--- | @{ "result": [...], "error": {...} }@ wrapper.
-data RpcResponse a = RpcResponse (Maybe a) (Maybe Value)
-
-instance FromJSON a => FromJSON (RpcResponse a) where
-  parseJSON = withObject "resp" $ \o ->
-    RpcResponse <$> o .:? "result" <*> o .:? "error"
-
 -- ---------------------------------------------------------------------------
 -- Fetch
 -- ---------------------------------------------------------------------------
@@ -190,17 +184,11 @@ instance FromJSON a => FromJSON (RpcResponse a) where
 -- from the inline @blockTimestamp@ when present; any log missing it is dropped
 -- from the tick series with a note (the estimation window in 09-09 uses an
 -- endpoint that supplies it — verified on @mainnet.base.org@).
--- | Current chain head via @eth_blockNumber@.
+-- | Current chain head via @eth_blockNumber@, through the lifted 'Chain.Rpc'
+-- transport. Preserves the previous "0 on failure" fallback.
 currentHeadBlock :: String -> IO Integer
-currentHeadBlock url = do
-  req0 <- parseRequest ("POST " ++ url)
-  let body = object [ "jsonrpc" .= ("2.0" :: Text), "id" .= (1 :: Int)
-                    , "method" .= ("eth_blockNumber" :: Text)
-                    , "params" .= ([] :: [Value]) ]
-  resp <- httpLBS (setRequestBodyJSON body req0)
-  case eitherDecode (getResponseBody resp) :: Either String (RpcResponse Text) of
-    Right (RpcResponse (Just h) _) -> pure (hexToInteger h)
-    _                              -> pure 0
+currentHeadBlock url =
+  either (const 0) id <$> ethBlockNumber (defaultBaseEnv { reUrl = T.pack url })
 
 -- | Blocks kept back from the head, so a chunk boundary can never land past the
 -- tip while the fetch is in flight (the node advances during a multi-hour pull)
@@ -270,60 +258,29 @@ blockChunks cfg = go (rpcFromBlock cfg)
       | lo > to   = []
       | otherwise = let hi = min to (lo + chunk - 1) in (lo, hi) : go (hi + 1)
 
--- | One @eth_getLogs@ call for a single block range, with bounded exponential
--- backoff. The 09-09 full-history pull issues ~500 sequential calls against a
--- PUBLIC Base RPC, where a transient 429/5xx or a dropped connection is expected
--- rather than exceptional; without a retry a single blip would abort a multi-hour
--- fetch. Retries on both transport exceptions and JSON-RPC @error@ payloads,
--- sleeping @backoffBase * 2^attempt@ seconds (capped) between attempts, and only
--- fails after 'maxRetries' consecutive failures.
+-- | One @eth_getLogs@ call for a single block range. The retry/backoff loop is
+-- now the single implementation in 'Chain.Rpc.rpcPost' (this module no longer
+-- forks it): @rpcPost@ handles the ~500 sequential public-RPC calls of the 09-09
+-- pull, retrying transient 429/5xx and JSON-RPC errors with bounded exponential
+-- backoff, and returning 'Left' only after giving up. On give-up this call
+-- 'fail's with the block range, exactly as before.
 getLogsChunk :: RpcConfig -> Integer -> Integer -> IO [SwapLog]
-getLogsChunk cfg lo hi = go (0 :: Int)
-  where
-    maxRetries  = 6
-    backoffBase = 2.0 :: Double   -- seconds
-
-    go attempt = do
-      r <- try (attemptOnce) :: IO (Either SomeException (Either String [SwapLog]))
-      case r of
-        Right (Right logs) -> pure logs
-        Right (Left err)
-          | attempt >= maxRetries -> fail ("eth_getLogs (blocks " ++ show lo ++ ".."
-                                            ++ show hi ++ ") gave up: " ++ err)
-          | otherwise -> backoff attempt err >> go (attempt + 1)
-        Left e
-          | attempt >= maxRetries -> fail ("eth_getLogs (blocks " ++ show lo ++ ".."
-                                            ++ show hi ++ ") gave up: " ++ show e)
-          | otherwise -> backoff attempt (show e) >> go (attempt + 1)
-
-    backoff attempt why = do
-      let secs = min 60 (backoffBase * (2 ^^ attempt))
-      hPutStrLn stderr ("  [retry " ++ show (attempt + 1) ++ "/" ++ show maxRetries
-                         ++ "] blocks " ++ show lo ++ ".." ++ show hi
-                         ++ " after " ++ show secs ++ "s: " ++ take 160 why)
-      threadDelay (round (secs * 1e6))
-
-    attemptOnce = do
-      let filterObj = object
-            [ "address"   .= rpcPoolMgr cfg
-            , "fromBlock" .= toHexQuantity lo
-            , "toBlock"   .= toHexQuantity hi
-            , "topics"    .= [rpcTopic0 cfg, rpcPoolId cfg]
-            ]
-          body = object
-            [ "jsonrpc" .= ("2.0" :: Text)
-            , "id"      .= (1 :: Int)
-            , "method"  .= ("eth_getLogs" :: Text)
-            , "params"  .= [filterObj]
-            ]
-      req0 <- parseRequest ("POST " ++ rpcUrl cfg)
-      resp <- httpLBS (setRequestBodyJSON body req0)
-      pure $ case eitherDecode (getResponseBody resp)
-                  :: Either String (RpcResponse [SwapLog]) of
-        Left err                          -> Left ("JSON decode: " ++ err)
-        Right (RpcResponse (Just logs) _) -> Right logs
-        Right (RpcResponse _ (Just e))    -> Left ("RPC error: " ++ show e)
-        Right _                           -> Right []
+getLogsChunk cfg lo hi = do
+  let filterObj = object
+        [ "address"   .= rpcPoolMgr cfg
+        , "fromBlock" .= toHexQuantity lo
+        , "toBlock"   .= toHexQuantity hi
+        , "topics"    .= [rpcTopic0 cfg, rpcPoolId cfg]
+        ]
+      env = defaultBaseEnv { reUrl = T.pack (rpcUrl cfg) }
+  r <- rpcPost env "eth_getLogs" [filterObj]
+  case r of
+    Left err -> fail ("eth_getLogs (blocks " ++ show lo ++ ".." ++ show hi
+                       ++ ") gave up: " ++ err)
+    Right v  -> case fromJSON v of
+      Success logs -> pure logs
+      Error e      -> fail ("eth_getLogs decode (blocks " ++ show lo ++ ".."
+                             ++ show hi ++ "): " ++ e)
 
 -- | Serialize a @(utc-time, tick)@ series to a CSV cache under
 -- @notes/structural-econometrcics/data/@ so re-runs (and 09-09) never re-fetch.

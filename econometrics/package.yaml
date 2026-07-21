@@ -76,6 +76,7 @@ tests:
       - Tests.SpecificationSpec
       - AlternativesSpec
       - Chain.AbiSpec
+      - Chain.RpcSpec
     ghc-options:
       - -threaded
       - -rtsopts
@@ -88,3 +89,4 @@ tests:
       - containers
       - time
       - hmatrix
+      - aeson
