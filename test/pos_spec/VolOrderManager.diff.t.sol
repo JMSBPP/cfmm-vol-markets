@@ -270,4 +270,69 @@ contract VolOrderManagerSequenceDiffTest is VolOrderManagerDiffBase {
         assertEq(expectedCount, 12, "and the test's own third opinion agrees");
     }
 
+    /// @notice Corpus CONSTRUCTED with `bound` only -- assumption-based filtering appears nowhere
+    ///         in this file. A rejection-sampling cheatcode exhausts the rejection budget and
+    ///         converts a coverage hole into a green run; every draw here is a LIVE assertion
+    ///         instead.
+    ///         Non-fuzz anchor: test__unit__fixedAnchorSequenceDiffers.
+    ///
+    ///         WHY THE SEQUENCE IS SHORT (2-6 steps): deployPlank shells out to `plank build` over
+    ///         FFI ONCE PER TEST, not per step, so 256 runs stay tractable while every run still
+    ///         interleaves both entrypoints at least once by construction (step 0 is forced
+    ///         single, step 1 is forced batch).
+    ///
+    /// forge-config: default.fuzz.runs = 256
+    function test__fuzz__randomSequenceDiffers(uint256 seed, uint8 nRaw, uint16 seedCountRaw) public {
+        _seedBoth(bound(uint256(seedCountRaw), 0, 1000));
+
+        uint256 n = bound(uint256(nRaw), 2, 6);
+        for (uint256 i = 0; i < n; i++) {
+            // Steps 0 and 1 are FORCED to single / batch respectively, so every run interleaves
+            // both entrypoints. Beyond that the kind is drawn.
+            uint256 kind =
+                i == 0 ? 0 : (i == 1 ? 1 : bound(uint256(keccak256(abi.encode(seed, i, "kind"))), 0, 2));
+
+            if (kind == 0) {
+                // A VALID single. Bounds are the MEASURED accept sets (16-01), so every draw stores.
+                uint88 s = uint88(bound(uint256(keccak256(abi.encode(seed, i, "s"))), 1, uint256(type(uint88).max)));
+                uint24 w = uint24(bound(uint256(keccak256(abi.encode(seed, i, "w"))), 1, uint256(type(uint24).max)));
+                uint16 k = uint16(bound(uint256(keccak256(abi.encode(seed, i, "k"))), 1, 65534));
+                _singleBoth(s, w, k, string.concat("fuzz step ", vm.toString(i), " single"));
+            } else if (kind == 1) {
+                // A MIXED batch. Shapes 0..3 exactly mirror the constructed shapes 18b used, so the
+                // corpus covers valid, both rejected skew endpoints, and dirty high bits.
+                uint256 m = bound(uint256(keccak256(abi.encode(seed, i, "m"))), 0, 8); // 0 INCLUDED: N=0 in-corpus
+                uint256[] memory words = new uint256[](m);
+                for (uint256 j = 0; j < m; j++) {
+                    uint256 r = uint256(keccak256(abi.encode(seed, i, j)));
+                    uint256 shape = bound(uint256(keccak256(abi.encode(r, "shape"))), 0, 3);
+                    uint256 st = bound(r, 1, uint256(type(uint88).max));
+                    uint256 wd = bound(uint256(keccak256(abi.encode(r, "w"))), 1, uint256(type(uint24).max));
+                    uint256 sk = bound(uint256(keccak256(abi.encode(r, "k"))), 1, 65534);
+                    if (shape == 0) {
+                        words[j] = packInput(st, wd, sk); // VALID
+                    } else if (shape == 1) {
+                        words[j] = packInput(st, wd, 0); // rejected skew endpoint
+                    } else if (shape == 2) {
+                        words[j] = packInput(st, wd, 65535); // the other one
+                    } else {
+                        words[j] = packInput(st, wd, sk) | (uint256(1) << 200); // dirty high bits
+                    }
+                }
+                _batchBoth(words, string.concat("fuzz step ", vm.toString(i), " batch"));
+            } else {
+                // A STRICT REVERT mid-sequence: state must stay synced across it.
+                uint88 s = uint88(bound(uint256(keccak256(abi.encode(seed, i, "rs"))), 1, uint256(type(uint88).max)));
+                uint24 w = uint24(bound(uint256(keccak256(abi.encode(seed, i, "rw"))), 1, uint256(type(uint24).max)));
+                _singleExpectRevertBoth(s, w, 65535, string.concat("fuzz step ", vm.toString(i), " revert"));
+            }
+        }
+
+        // Non-vacuity: the sync assertions were REACHED on this run. syncChecks counts one per
+        // _assertSynced PLUS one per stored-word comparison, and every run performs at least the
+        // two forced steps.
+        assertGt(syncChecks, 2, "fuzz corpus non-vacuous: sync assertions reached");
+        assertEq(mgr.orderCount(), ref.orderCount(), "final: module and mock agree");
+        assertEq(mgr.orderCount(), expectedCount, "final: and the test's third opinion agrees");
+    }
 }
