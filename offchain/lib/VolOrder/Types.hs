@@ -9,3 +9,4 @@ data VolOrder = VolOrder
   , range_width :: Quantity
   , skew        :: Quantity
   }
+  deriving (Eq, Show)
