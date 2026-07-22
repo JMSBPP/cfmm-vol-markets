@@ -74,6 +74,7 @@ library
                     , StochasticPriceGen.Rpc
                     , StochasticOrderGen.Types
                     , StochasticOrderGen.Simulate
+                    , StochasticOrderGen.Report
 
     -- Modules included in this library but not exported.
     -- other-modules:
