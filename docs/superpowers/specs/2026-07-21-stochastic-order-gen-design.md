@@ -7,8 +7,14 @@ size and drives it through a new `VolOrder.Rpc.create_orders` multicall primitiv
 **Scope track:** rpc_api offchain (Haskell) only. `VolOrderManagerMod.plk`'s
 `create_orders` entrypoint is already merged to `develop` (Plank track) — consumed here
 read-only, not touched by this spec.
-**Status:** design drafted via interactive brainstorming; pending two-step review
-(Reality Checker + a specialist) before being treated as ready to plan/implement.
+**Status:** two-step reviewed (Reality Checker + Solidity Smart Contract Engineer). Reality
+Checker found no BLOCKER/MAJOR (spec called "unusually well-verified"), three MINORs
+folded in. Solidity Smart Contract Engineer found no Critical, three Important findings
+folded in — most notably a genuine silent-data-corruption risk: the packing formula as
+originally specified combines fields with `|`/`<<` with no width validation, so an
+out-of-range `vol_target` in `[2^88, 2^104)` would bleed into `range_width` with **zero
+on-chain signal** (not a revert, not `(false, 0)`) — serious for a tool whose entire
+purpose is generating trustworthy test data, even at "local dev tool" stakes.
 
 ## Motivation
 
@@ -53,10 +59,26 @@ generator pattern) driving the new batch primitive.
   in one run.
 - **`create_orders`'s return value is not in the transaction receipt.** A receipt only
   carries logs/status/gas — a state-changing function's ABI return value is never part of
-  it. To actually decode the per-order `(bool, orderId)` results, the offchain side must
-  `eth_call` the exact same calldata (a read-only simulation) either before or instead of
-  `sendTransaction`. On this project's local single-writer `anvil` dev chain, an `eth_call`
-  preview immediately followed by `sendTransaction` cannot practically diverge.
+  it. The standard, portable way to see it is an `eth_call` of the exact same calldata
+  (a read-only simulation) either before or instead of `sendTransaction` — an earlier
+  draft of this spec overstated this as "the only way" (node-specific
+  `debug_traceTransaction`/trace namespaces can sometimes recover post-hoc return data,
+  but aren't portable/standard, so `eth_call` remains the right choice regardless).
+  **Review-corrected:** the earlier draft additionally asserted, without evidence, that
+  "an `eth_call` preview immediately followed by `sendTransaction` cannot practically
+  diverge" on this project's local single-writer `anvil` chain — true in the common case,
+  but stated as fact rather than an assumption. Decision 9 below removes the need to rely
+  on this assumption at all, by pairing the preview with a readback of what was actually
+  mined.
+- **`getOrderPacked(id)` returns the contract's *storage*-layout packed word, not the
+  *input*-layout word `create_orders`/`pack_vol_order_input` (decision 1 below) produce.**
+  Storage layout inserts the hardcoded `TICK_SPACING = 20` at bits 104–127 and shifts
+  `width` to bits 128–151 (`pack_vol_order`/`unpack_vol_order` in
+  `src/types/pos_spec/VolOrder.plk`) — a **third**, distinct bit layout from both the
+  `create_order(uint88,uint24,uint16)` ABI-word format and the `create_orders` input-word
+  format. Any code reading `getOrderPacked` back (decision 9) needs its own unpack
+  function using this layout — reusing `pack_vol_order_input`'s inverse would silently
+  misread every field.
 - **`System.Random.MWC.Distributions.poisson :: StatefulGen g m => Double -> g -> m Int`**
   (verified against the real `mwc-random-0.15.3.0` source, same package/version already a
   dependency via `StochasticPriceGen`) — draws a Poisson-distributed count given rate
@@ -112,35 +134,99 @@ generator pattern) driving the new batch primitive.
 8. **Sequential, non-concurrent chunk sends** when `N > 128` requires multiple
    `create_orders` calls — simplest default, consistent with every other RPC orchestration
    module in this codebase; no strong reason for concurrency here either.
+9. **`pack_vol_order_input` validates each field's bit-width and fails clearly on
+   overflow — it does not silently mask (added in review).** The contract's own decode
+   deliberately leaves `width` unmasked so overflow ≥ `2^104` gets rejected by
+   `vol_range_width_is_complete` — but review found this only catches large overflows: a
+   `strike`/`vol_target` in `[2^88, 2^104)` shifts left by 16 and lands entirely within
+   `width`'s own 24-bit slot, OR-ing in as a plausible-looking width with **no on-chain
+   signal at all** (not a revert, not `(false, 0)`) — silent data corruption. Masking each
+   field before combining (mirroring the contract's own storage-side `pack_vol_order`,
+   which does mask each field) would only relocate the same silent-corruption risk from
+   on-chain to off-chain. Instead, `pack_vol_order_input` explicitly validates
+   `0 < vol_target < 2^88`, `0 < range_width < 2^24`, `0 < skew < 2^16` and fails with a
+   clear, distinguishing error before ever combining the fields — mirroring
+   `StochasticPriceGen.Simulate`'s "fail loudly, don't silently corrupt" domain-guard
+   discipline exactly.
+10. **The `eth_call` preview is paired with a post-hoc `orderCount()`-delta +
+    `getOrderPacked(id)` readback, not relied on alone (added in review).** This removes
+    the "preview cannot practically diverge from the mined result" assumption entirely,
+    rather than merely asserting it: `create_orders` snapshots `orderCount()` immediately
+    before `sendTransaction`, waits for the receipt, reads `orderCount()` again, then
+    reads back every `getOrderPacked(id)` in the delta range — ground truth from what was
+    actually mined, independent of whatever the `eth_call` preview predicted. The `eth_call`
+    preview is kept (it's still the only way to see *which specific positions* in the
+    batch failed, since a skipped order consumes no id and leaves no storage trace to read
+    back), but the delta-readback is the authoritative confirmation of what landed.
+11. **`create_orders` uses `callGas = Nothing` (dynamic node gas estimation), never a
+    fixed/reused gas limit (clarified in review).** A full 128-order chunk measures ~10M
+    gas in the Plank track's own test suite — roughly two orders of magnitude more than a
+    single `create_order`. Reusing a fixed gas limit tuned for one order would silently
+    under-provision a full batch, causing an out-of-gas failure independent of what the
+    `eth_call` preview (which typically gets a much higher default gas cap from the node
+    than a real `sendTransaction` would use) showed. `callGas = Nothing` on the
+    `sendTransaction` `Call` record — same field, same value, `create_order` already uses
+    today — defers gas selection to the node's own estimation for every call, single or
+    batched, so this isn't new complexity, just confirming the existing pattern is safe to
+    keep unchanged for `create_orders` too.
+12. **`decode_create_orders_result` enforces strict bool canonicality (added in review).**
+    The contract always emits canonical `0`/`1` success words (never a truthy nonzero) —
+    confirmed by its own dedicated test and an explicit "named mutant" comment warning
+    that a lenient decoder accepting non-canonical truthy words would silently disagree
+    with what a real `abi.decode` (which rejects non-canonical bools) reports for the same
+    bytes. The Haskell decoder matches that strictness: exactly `0` or `1`, anything else
+    is a decode failure, not a lenient "nonzero = true."
 
 ## Module breakdown
 
 ### Layer 1 — extend `VolOrder.*` (existing library, `offchain/lib/VolOrder/`)
 
 - **`VolOrder.Encoding`** gains:
-  - `pack_vol_order_input :: VolOrder -> Integer` — pure, `skew | (strike << 16) | (width
-    << 104)`, exactly matching the verified `packInput` reference. (Lives in `Encoding`
-    rather than a new module — it's a small pure helper feeding directly into calldata
-    construction, matching this module's existing scope.)
+  - `pack_vol_order_input :: VolOrder -> Either String Integer` — pure, validates each
+    field's bit-width first (decision 9: `0 < vol_target < 2^88`, `0 < range_width <
+    2^24`, `0 < skew < 2^16`, failing with a specific message identifying which field and
+    why), then combines exactly as `packInput` does: `skew | (strike << 16) | (width <<
+    104)`. Returns `Either` rather than a bare `Integer` specifically so a caller must
+    handle the validation failure rather than it being silently possible to ignore.
+    (Lives in `Encoding` rather than a new module — it's a small pure helper feeding
+    directly into calldata construction, matching this module's existing scope.)
   - `encode_create_orders :: [VolOrder] -> IO HexString` — packs every order via
-    `pack_vol_order_input`, then shells out to `cast calldata
-    "create_orders(uint256,uint256[])" <count> "[<packed1>,<packed2>,...]"` (same
-    `readProcess "cast"` pattern already used throughout this codebase).
-- **`VolOrder.Decode`** gains a pure decoder for the `(bool,uint256)[]` return blob:
-  `decode_create_orders_result :: HexString -> [(Bool, Integer)]` — reads the offset/length
-  header then walks `count` stride-`0x40` `(bool, uint256)` pairs. (Separate from the
-  existing `decode_order_created`/event-decoding code in the same module — different
-  concern, same file, since both are "pure decode of raw returned bytes.")
+    `pack_vol_order_input` (propagating any field-validation failure as a clear `IO`
+    failure, same `fail`-in-`IO` idiom used throughout this codebase), then shells out to
+    `cast calldata "create_orders(uint256,uint256[])" <count>
+    "[<packed1>,<packed2>,...]"` (same `readProcess "cast"` pattern already used
+    throughout this codebase).
+- **`VolOrder.Decode`** gains two pure decoders, distinct in purpose from the existing
+  event-decoding code in the same module (different call sites — `eth_call` return
+  values vs. log topics/data — sharing the file for its existing byte-slicing helpers,
+  not because they're conceptually the same kind of decode):
+  - `decode_create_orders_result :: HexString -> Either String [(Bool, Integer)]` — reads
+    the offset/length header then walks `count` stride-`0x40` `(bool, uint256)` pairs,
+    enforcing strict bool canonicality (decision 12: exactly `0`/`1`, anything else is a
+    decode failure, not a lenient "nonzero = true").
+  - `unpack_vol_order_storage :: Integer -> VolOrder` — the storage-layout unpacker
+    (decision 10's readback path needs this): `width` at bits 128–151, `tickSpacing` at
+    104–127 (read and discarded — it's always the contract's hardcoded `20`, not part of
+    `VolOrder`), `vol_target` at bits 16–103, `skew` at bits 0–15. **Not** the same
+    function as `pack_vol_order_input`'s inverse — a third, distinct bit layout (Ground
+    truth) from both the single-order ABI-word format and the `create_orders` input-word
+    format; conflating them would silently misread every field.
 - **`VolOrder.Rpc`** gains:
   - `create_orders :: Address -> Address -> [VolOrder] -> Web3 (TxReceipt, [(Bool,
     Integer)])` — validates `length orders <= 128` (fails clearly, mirroring
     `StochasticPriceGen`'s domain-guard discipline, otherwise the on-chain `require`
-    would revert anyway but with a less specific message); builds calldata via
-    `encode_create_orders`; does the `eth_call` preview via the same `Call` record shape
-    already used in `PriceSetter.Rpc.eth_call_hook` and decodes it via
-    `decode_create_orders_result`; then `sendTransaction` + `wait_for_receipt` (reusing
-    the existing function) to actually commit; returns both the receipt and the
-    eth_call-previewed per-order outcomes.
+    would revert anyway but with a less specific, empty-data message — Error handling
+    below); builds calldata via `encode_create_orders` (which itself fails clearly on any
+    field-width violation, decision 9); does the `eth_call` preview via the same `Call`
+    record shape already used in `PriceSetter.Rpc.eth_call_hook` and decodes it via
+    `decode_create_orders_result`; reads `orderCount()` before `sendTransaction`
+    (`callGas = Nothing`, decision 11) and `wait_for_receipt` (reusing the existing
+    function); reads `orderCount()` again and `getOrderPacked(id)` for every id in the
+    delta range, decoding each via `unpack_vol_order_storage` (decision 10); returns the
+    receipt and the eth_call-previewed per-order outcomes. The delta-readback isn't part
+    of this function's return type — it exists to let the implementation *assert*
+    consistency between preview and mined result (Testing step 7), not to add a second
+    return channel the caller must reconcile.
   - **Not** a `create_orders_and_report` wrapper in this layer — reporting happens at the
     `StochasticOrderGen.Report` layer instead, since the batch-splitting orchestration
     (layer 2) is what actually decides how many `create_orders` calls happen per run.
@@ -192,14 +278,25 @@ prints a per-chunk summary.
 
 `create_orders`'s own on-chain best-effort semantics mean an individual bad order never
 reverts its chunk — that's already handled by the contract, not something this spec's
-Haskell needs to re-implement. What *can* fail at the Haskell layer: the `N > length
-orders` guard (decision 4, fails immediately, no RPC calls made yet); a chunk exceeding
-128 (structurally impossible given the chunking logic, but if it ever happened the
-on-chain `require` would revert — inherits the same partially-unknown
+Haskell needs to re-implement. What *can* fail at the Haskell layer: field-width
+validation in `pack_vol_order_input` (decision 9, fails before any calldata is even
+built); the `N > length orders` guard (decision 4, fails immediately, no RPC calls made
+yet); a chunk exceeding 128 (structurally impossible given the chunking logic, but if it
+ever happened the on-chain `require` would revert — inherits the same partially-unknown
 `Left`-vs-uncaught-exception characteristic already documented for `write_price` and
 `StochasticPriceGen`, not re-litigated here); and ordinary RPC-level failures
 (`eth_call`/`sendTransaction` errors), which propagate the same way they already do
 throughout this codebase.
+
+**All four of the contract's structural guards (`count <= MAX_BATCH`, the calldata
+offset/length/size checks) are empty-data reverts with no distinguishing reason string
+(review finding).** An `eth_call` preview failing against any of them is detectable (the
+call reverts) but not attributable to a specific guard from the revert alone. This
+spec's own pre-flight `length orders <= 128` check (and correct-by-construction calldata
+from `cast calldata`) means these guards should never actually fire in practice — but if
+`encode_create_orders` ever produces malformed calldata some other way, the resulting
+failure will be undifferentiated. Worth knowing, not worth building reason-string
+recovery for at this stage.
 
 ## Testing / verification
 
@@ -223,6 +320,21 @@ Verification plan:
    fires before any RPC call.
 6. A deliberate `> 128`-order config, confirming the chunking logic actually splits into
    multiple `create_orders` calls rather than attempting one oversized call.
+7. **Field-width validation test (added in review, closes the silent-corruption gap):**
+   a deliberate `vol_target` in `[2^88, 2^104)` (e.g. `2^88 + 1`) passed to
+   `pack_vol_order_input`, confirming it fails clearly with a field-specific message
+   **before** any calldata is built — not that it produces a plausible-looking-but-wrong
+   packed word. This is the one test that would have caught the review's central finding;
+   it must exist before this spec is considered verified, not merely designed correctly.
+8. **Preview-vs-mined consistency test (added in review, closes the "cannot practically
+   diverge" assumption gap):** in the same live run as step 4, confirm the
+   `orderCount()`-delta + `getOrderPacked` readback (decoded via
+   `unpack_vol_order_storage`) matches the `eth_call` preview's successful entries
+   exactly — this is what actually verifies decision 10's readback path is correct, not
+   just present.
+9. A deliberate non-canonical bool word (e.g. hand-constructed `HexString` with a success
+   field of `2` instead of `0`/`1`) fed to `decode_create_orders_result`, confirming it
+   fails rather than lenient-accepting it as truthy (decision 12).
 
 ## Out of scope (explicit)
 
@@ -231,7 +343,11 @@ Verification plan:
   integration module connecting this to `StochasticPriceGen`/other models is separate,
   unscoped work.
 - No fix for the dead `VolOrder.Decode`/`Report` event-based reporting (Ground truth) —
-  filed as its own follow-up spec.
+  filed as its own follow-up spec. That follow-up should reuse `unpack_vol_order_storage`
+  (this spec introduces it for the delta-readback, decision 10) rather than re-deriving
+  the storage bit layout independently.
+- No reason-string recovery for the contract's four empty-data structural-guard reverts
+  (Error handling) — an undifferentiated failure is acceptable at this stage.
 - No changes to `VolOrderManagerMod.plk` or any other Plank/Solidity source — consumed
   read-only, already merged.
 - No atomic-batch mode — the contract is best-effort only; this spec doesn't add an
@@ -240,8 +356,8 @@ Verification plan:
 ## Success criteria (what must be TRUE)
 
 1. `offchain/lib/VolOrder/{Encoding,Decode,Rpc}.hs` gain `pack_vol_order_input`,
-   `encode_create_orders`, `decode_create_orders_result`, `create_orders` respectively,
-   with the exact signatures described above.
+   `encode_create_orders`, `decode_create_orders_result`, `unpack_vol_order_storage`,
+   `create_orders` respectively, with the exact signatures described above.
 2. `offchain/lib/StochasticOrderGen/{Types,Simulate,Report,Rpc}.hs` exist with the exports
    described above, including `run_order_gen_and_report`.
 3. `pack_vol_order_input`'s bit layout is verified against `packInput`'s reference formula
@@ -253,4 +369,13 @@ Verification plan:
 6. `create_orders`'s `eth_call`-previewed per-order results match what actually landed
    on-chain, including at least one deliberately-invalid order surfacing as `(false, 0)`
    without reverting the rest of the chunk (Testing step 4).
-7. `cabal build` succeeds cleanly (no warnings).
+7. An out-of-range `vol_target` (specifically in `[2^88, 2^104)`) fails clearly in
+   `pack_vol_order_input`, before any calldata is built — never silently corrupts
+   `range_width` (decision 9, Testing step 7). This is the review's central finding and
+   the most load-bearing criterion in this spec.
+8. The `orderCount()`-delta + `getOrderPacked` readback (via `unpack_vol_order_storage`)
+   matches the `eth_call` preview's successful entries exactly in a live run (decision 10,
+   Testing step 8).
+9. `decode_create_orders_result` rejects a non-canonical bool word rather than
+   lenient-accepting it (decision 12, Testing step 9).
+10. `cabal build` succeeds cleanly (no warnings).
