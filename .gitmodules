@@ -7,7 +7,7 @@
 [submodule "lib/bunni-v2"]
 	path = lib/bunni-v2
 	url = https://github.com/Bunniapp/bunni-v2
-[submodule "lib/plank-foundry-deployer"]
+	[submodule "lib/plank-foundry-deployer"]
 	path = lib/plank-foundry-deployer
 	url = https://github.com/JMSBPP/plank-foundry-deployer
 	branch = feat/constructor-args
@@ -24,3 +24,4 @@
 [submodule "lib/plank-monorepo"]
 	path = lib/plank-monorepo
 	url = https://github.com/plankevm/plank-monorepo
+	branch = feat/arrays
