@@ -5,23 +5,9 @@ import types::TimeWindow::*;
 import v3::storage::{array_slot};
 import v3::util::{revert_empty};
 
-// The timepoint ring buffer is a fixed circular array of 2^16 slots, exactly as in
-// Algebra's `Timepoint[UINT16_MODULO]`. Indices are therefore taken mod 2^16, which is a
-// mask rather than a division.
 const UINT16_MODULO = 65536;
 const TIMEPOINT_INDEX_MASK = 0xFFFF;
 
-// _volatilityOnRange: the realized-variance contribution of one interval.
-// Ported from Algebra VolatilityOracle._volatilityOnRange.
-//
-// EVERY operator here MUST be wrapping. Algebra's whole _volatilityOnRange body sits inside
-// `unchecked`, and these are two's-complement signed values carried in u256:
-//   * `b = (tick0 - avg_tick0)` is NEGATIVE whenever the tick sits below its trailing average.
-//     With Plank's CHECKED `-` that underflows and REVERTS -- i.e. the oracle would panic on
-//     the second write of any decreasing tick path. (Plank's `-` emits a revert path; `-%` does not.)
-//   * the middle term `6*b*k*sumOfSequence` is negative when sign(b) != sign(k), so a CHECKED
-//     `+` against a positive term overflows and panics too.
-// Do not "tidy" any of these back to bare -/+.
 const calculate_realized_volatility = fn(avg_tick0:u256, avg_tick1: u256, tick0:u256, tick1:u256, dt :u256) TickVolatility {
       let k = (tick1 -% tick0) -% (avg_tick1 -% avg_tick0);
       let b = (tick0 -% avg_tick0) *% dt;
@@ -41,9 +27,6 @@ const AvgTickRes = struct {
       window_start_index: StorageIndex
 };
 
-// The pair of timepoints bracketing a target timestamp, plus the index of the earlier one.
-// `same_point` means before == after (target is at/after the newest timepoint, or exactly
-// on the oldest), mirroring Algebra's `samePoint` flag.
 const TimepointsAt = struct {
       before: Timepoint,
       after: Timepoint,
@@ -55,17 +38,6 @@ const TickCumulativeAt = struct {
       tick_cumulative: u256,
       index_before: u256
 };
-
-// u32_sub: wrapping subtraction TRUNCATED BACK TO 32 BITS.
-//
-// This is load-bearing, not cosmetic. Algebra gets uint32 wraparound for free from its types
-// (`uint32 target = time - secondsAgo;` wraps mod 2^32). Plank carries timestamps in u256, so a
-// bare `-%` wraps mod 2^256 instead and produces a ~2^256 value where Algebra produces a small
-// uint32. Feeding that to oracle_lte INVERTS the comparison:
-//   current_time=1000, WINDOW=86400  ->  Algebra: uint32(1000-86400) = 4294881896
-//                                        Plank (unmasked): 2^256 - 85400
-// oracle_lte then takes the opposite branch and calculate_avg_tick returns the raw current tick
-// instead of a real average. Every timestamp below WINDOW hits this.
 const u32_sub = fn(a: u256, b: u256) u256 {
       (a -% b) & 0xFFFFFFFF
 };

@@ -1,0 +1,9 @@
+
+
+
+// todo: The protocol derives the strike, tickSpacing and width from the VolOrder type
+// note: This is the panoptic token Id
+const PanopticTokenId = struct {
+      tokenId:u256
+};
+

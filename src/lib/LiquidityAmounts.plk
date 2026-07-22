@@ -1,0 +1,16 @@
+import types::ldf::LDFParams::*;
+import types::ldf::LiquidityChunk::*;
+import types::PricePair::*;
+import types::PriceBucket::*;
+import types::exposure::VegaNominal::*;
+import types::Collateral::*;
+import types::Portafolio::*
+// todo: We need to type sqrtPriceX96 AND VegaNotional
+
+const liquidity_for_vega = fn(ldf_params: LDFParams, liquidity_density : function, price_pair:PricePair, vega_nominal: VegaNominal) LiquidityChunk {};
+
+const liquidity_for_collateral = fn(ldf_params: LDFParams, liquidity_density : function, price_pair:PricePair,collateral:Collateral) LiquidityChunk{};
+
+const liquidity_for_portafolio = fn (ldf_params: LDFParams, liquidity_density : function,price_bucket:PriceBucket, portafolio:Portafolio) LiquidityChunk{};
+
+const portafolio_for_liquidity = fn(ldf_params: LDFParams, liquidity_density : function,liquidity: LiquidityChunk) Portafolio {};

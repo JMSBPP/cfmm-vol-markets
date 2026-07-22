@@ -1,0 +1,22 @@
+import pos_spec::TickVolatility::*;
+
+
+// todo: The protocol derives the strike, tickSpacing and width from the VolOrder type
+// note: This is the panoptic token Id
+
+// todo: This needs to consider AND mathc the actual encoding ordering of each arg on TokenId from
+// panoptic type
+
+const PanopticTokenId = struct {
+      tokenId:u256,
+      leg_index: u256
+};
+
+
+// NOTE: This is to be abstracted from the clients as it is internally set from the volOrder
+// todo: THis assumes the underlying token is vol token
+
+const panoptic_token_id_set_vol_strike = fn(self: PanopticTokenId,vol_strike:TickVolatility) PanopticTokenId {};
+const panoptic_token_id_set_tick_spacing = fn(self: PanopticTokenId,vol_range_width: VolRangeWidth) PanopticTokenId {};
+
+const panoptic_token_id_set_width = fn(self: PanopticTokenId,rangeWidth: VolRangeWidth) PanopticTokenId {};
