@@ -1,0 +1,69 @@
+
+import types::protocol_integrations::MarketId::*;
+import std::constructor::return_runtime;
+import std::error::require;
+import std::addr::addr;
+import std::calldata::*;
+import interfaces::protocol_integrations::IMarketStateSocket.plk;
+
+const SLOT_REACTIVE_NETWORK_BASE =
+const SLOT_REACTIVE_VM_BASE =
+
+const SLOT_CALLBACK = ;
+const SLOT_MARKET_STATE_SOCKET_LIVENESS = ;
+
+const REACTIVE_IGNORE = 0xa65f96fc951c35ead38878e0f0b7a3c744a6f5ccc1476b313353ce31712313ad;
+
+const MarketStateSocketLiveness = struct {
+      initialized :bool
+};
+
+// note: This contract lives on the reactive network
+const start_socket = fn(marketId: MarketId) never {
+      // todo: Is this unpack/pack pattern required for all types. Or there are ways to simplify it, or make it more elegant
+      require(@evm_not(unpack_market_state_socket_liveness(@evm_sload(SLOT_MARKET_STATE_SOCKET_LIVENESS)).initialized));
+
+      // todo: It subscribes to the Swap event. The market ID has a MarketIdEventsLib which
+      // from the type, it offers the risght topic 0
+      // todo: Use type annotaions
+      // note: For the UniV4 price_update_event == Swap 
+      let price_update_topic0::bytes4 = price_update_event(marketId);
+    
+      // todo Call the system contract on the subscribe event
+};
+
+const stop_socket = fn(marketId: MarketId)  never {
+      require(unpack_market_state_socket_liveness(@evm_sload(SLOT_MARKET_STATE_SOCKET_LIVENESS)).initialized);
+      
+};
+
+// todo: It guards react if callback is not set
+const guard_react = fn() void {
+      
+}
+
+const read_callback = fn () addr {
+
+};
+const set_callback = fn (callback :addr) void {
+
+}
+
+init{
+	// todo: it needs to cjech is on the reactive network
+	// todo: It receives the address of the system contract as first arg
+	// todo: The following shos the preceding order of the args received
+return_runtime();}
+
+run{
+	let selector = @evm_shr(224, @evm_calldataload(0));
+	if selector == SELECTOR_REACT{
+	   guard_react();
+	   // todo: Uses unsafe_calldata_read from the calldata std lib to read the LogRecord and
+	   // send the tick, sqrtPrice and
+	   // reac reads from calldata directly
+	} else if selector == {
+
+	}
+	@evm_stop();
+}

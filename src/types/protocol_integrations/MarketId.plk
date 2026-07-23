@@ -1,0 +1,10 @@
+
+import std::fixedbytes::bytes32;
+
+
+// note: This type encodes the POolId on Unisewap V4 and address of the poiol ofor algebra and uni v3
+const MarketId = fn(comptime T: type) type {
+      struct {
+      	     id:bytes32
+      }
+};

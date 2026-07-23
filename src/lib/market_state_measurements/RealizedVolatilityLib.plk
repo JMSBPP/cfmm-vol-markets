@@ -38,6 +38,8 @@ const TickCumulativeAt = struct {
       tick_cumulative: u256,
       index_before: u256
 };
+
+// todo: This goes on a separate file
 const u32_sub = fn(a: u256, b: u256) u256 {
       (a -% b) & 0xFFFFFFFF
 };
@@ -57,17 +59,6 @@ const load_timepoint = fn(buffer_base: u256, index: u256) Timepoint {
       unpack_timepoint(@evm_sload(array_slot(buffer_base, index & TIMEPOINT_INDEX_MASK)))
 };
 
-// _binarySearch / _binarySearchInternal.
-//
-// Searches the ring for the two timepoints bracketing `target`. `left` starts at the
-// oldest index and `right` at the newest; when the ring has wrapped (upper < lower) the
-// upper bound is lifted by one modulo so the interval stays monotonic, and every actual
-// load masks back down to 16 bits.
-//
-// NOTE: Algebra additionally takes a `withHeuristic` first guess (left+1) when the target
-// is expected to sit near `currentTime - WINDOW`. That is a pure search-time optimization
-// with no effect on the result, so it is deliberately omitted here; this is the plain
-// bisection and returns the same bracket.
 const binary_search_timepoints = fn(
       buffer_base: u256,
       current_time: u256,
@@ -123,8 +114,6 @@ const binary_search_timepoints = fn(
       }
 };
 
-// _getTimepointsAt: resolve the bracket around `target`, short-circuiting the cases where
-// no search is needed.
 const timepoints_at = fn(
       buffer_base: u256,
       current_time: u256,
@@ -231,18 +220,6 @@ const tick_cumulative_at = fn(
       }
 };
 
-// twap_tick: the time-weighted average tick over an ARBITRARY lookback `dt`.
-//
-// This is NOT calculate_avg_tick. calculate_avg_tick is Algebra's _getAverageTick, which
-// averages over the fixed WINDOW and is what feeds the volatility accumulator. twap_tick is
-// the Uniswap-V3 `observeSingle` quantity -- the caller picks the lookback -- and it is what
-// both Solidity references expose as `getTwapTick(dt, tick, currentTimestamp)`.
-//
-// UniV3 rounds toward negative infinity for negative accumulator deltas:
-//   timeWeightedAverageTick = delta / dt;
-//   if (delta < 0 && delta % dt != 0) timeWeightedAverageTick--;
-// EVM SDIV truncates toward zero, so that correction is reproduced explicitly here.
-// Without it this is systematically off by one for negative average ticks.
 const twap_tick = fn(
       buffer_base: u256,
       current_time: u256,
@@ -269,12 +246,6 @@ const twap_tick = fn(
       }
 };
 
-// _getAverageTick: the time-weighted average tick over the trailing `window`.
-//
-// Signature note: this previously took (last_timepoint, ref_index, timestamp, tick, avg_tick)
-// -- which could not express the algorithm at all: it had no oldest_index and no window, and
-// `avg_tick` was an *output* being passed as an input. It now mirrors Algebra's
-// _getAverageTick(self, currentTime, tick, lastIndex, oldestIndex, lastTimestamp, lastTickCumulative).
 const calculate_avg_tick = fn(
       buffer_base: u256,
       current_time: u256,
