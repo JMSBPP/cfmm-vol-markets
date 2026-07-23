@@ -1,27 +1,9 @@
-// RealizedVolatilityKernelHarness: makes Plank's variance kernel reachable over the ABI.
-//
-// WHY THIS FILE EXISTS: `calculate_realized_volatility` lives in RealizedVolatilityLib and is
-// only ever called from inside RealizedVolatilityMod's write path, tangled with the timepoint
-// ring buffer and storage. Plank does NOT type-check code unreachable from a `run{}` block, so
-// without an entrypoint the kernel is neither provable nor callable in isolation. This harness
-// exposes it alone, storage-free, so Phase 9 can fuzz it directly against Algebra's
-// _volatilityOnRange (see test/mocks/AlgebraVolatilityKernelMock.sol).
-//
-// Calldata note: Solidity ABI-encodes int256 SIGN-EXTENDED into the full 32-byte word, and the
-// kernel's operators are wrapping two's-complement over u256. The args are therefore used AS
-// LOADED -- masking them here would destroy the sign. Mirrors RealizedVolatilityMod.plk:235-237.
-//
-// The returned value is the full u256, NOT truncated to uint88. Algebra's "always fits 88 bits"
-// is a claim conditional on the int24/uint32 preconditions; returning the wider value lets the
-// Phase 9 fuzz assert on the strictly stronger surface.
-
 import std::constructor::return_runtime;
 import lib::market_state_measurements::RealizedVolatilityLib::*;
 import pos_spec::TickVolatility::*;
 import v3::util::{return_u256};
 
 // signature:: volatilityOnRange(int256,int256,int256,int256,int256) -> uint256
-// Verified with: cast sig "volatilityOnRange(int256,int256,int256,int256,int256)" -> 0xc6342af0
 const SELECTOR_VOLATILITY_ON_RANGE = 0xc6342af0;
 
 init { return_runtime(); }
@@ -30,22 +12,11 @@ run {
 	let selector = @evm_shr(224, @evm_calldataload(0));
 
 	if selector == SELECTOR_VOLATILITY_ON_RANGE {
-	   // Calldata arrives in ALGEBRA'S order: (dt, tick0, tick1, avgTick0, avgTick1).
-	   // The probe passes ONE identical tuple to both kernels; this harness owns the re-order.
 	   let dt        = @evm_calldataload(4);
 	   let tick0     = @evm_calldataload(36);
 	   let tick1     = @evm_calldataload(68);
 	   let avg_tick0 = @evm_calldataload(100);
 	   let avg_tick1 = @evm_calldataload(132);
-
-	   // >>> THE RE-ORDER. Plank's kernel is (avg_tick0, avg_tick1, tick0, tick1, dt);
-	   // Algebra's is (dt, tick0, tick1, avgTick0, avgTick1). These are NOT the same order.
-	   // This single call site is the parameter-order footgun STATE.md flags as an open risk.
-	   // RealizedVolatilityKernel.probe.t.sol pins it: swapping to Algebra's order here makes
-	   // the probe go red (OBSERVED, not assumed).
-	   //
-	   // dt MUST be >= 1. dt = 0 is a KNOWN, EXCLUDED divergence: @evm_sdiv returns 0 silently
-	   // where Solidity's `/` reverts with Panic 0x12 even under `unchecked`.
 	   let res = calculate_realized_volatility(avg_tick0, avg_tick1, tick0, tick1, dt);
 	   return_u256(res.vol);
 	}
