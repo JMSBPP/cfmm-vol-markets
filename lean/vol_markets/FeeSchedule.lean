@@ -27,21 +27,32 @@ theorems, and nothing here constrains the floor/plateau values themselves
 
 We parametrize the schedule as the sigmoid family
 
-  `fee(σ) = η_min + (η_max - η_min) · logistic ((σ - c) / s)`
+  `fee(σ) = f_min + (f_max - f_min) · logistic ((σ - σ̄_f) / s_f)`
 
-with parameters `θ = (η_min, η_max, c, s)`.  The *algebraic structure* of the
-parameter space, stated below:
+with parameters `θ = (f_min, f_max, σ̄_f, s_f)`.
 
-* `(c, s)` carry a right action of the affine group `ℝ* ⋉ ℝ` of the
+Notation (aligned with `model/vol_markets/*.md`; see `LEAN_TRACEABILITY.md`):
+`f_min`/`f_max` (`feeMin`/`feeMax`) are the fee floor/plateau — the paper's
+`η¹` bounds, renamed because `η` is reserved project-wide for the pricing
+kernel (`exp/eta`); the paper's CEX fee `η⁰` is `cexFee`.  `σ̄_f`
+(`volStrike`) is the fee-transition volatility strike — the same object
+family as the position vol strike `σ̄` of `tbd2.md`/`SCHEDULE.md`; coupling
+the schedule to a position sets `σ̄_f = σ̄`, and the `s_f → 0⁺` limit then
+recovers the bang-bang threshold of `SCHEDULE.md`.  `s_f` (`steepness`) is
+the sigmoid steepness, `s_f > 0` in the monotone regime.
+
+The *algebraic structure* of the parameter space, stated below:
+
+* `(σ̄_f, s_f)` carry a right action of the affine group `ℝ* ⋉ ℝ` of the
   volatility line — `fee_rescale` (equivariance) + `rescale_id`,
   `rescale_comp` (action laws).  Only `α ≠ 0` is required; `α < 0` stays in
-  the family but reverses orientation (a positive-slope schedule maps to a
-  negative-slope one), so the monotone regime is the `α > 0` sub-action;
-* `(η_min, η_max)` transform under the affine reparametrization `scaleOut`
+  the family but reverses orientation (a positive-steepness schedule maps to a
+  negative-steepness one), so the monotone regime is the `α > 0` sub-action;
+* `(f_min, f_max)` transform under the affine reparametrization `scaleOut`
   of the output axis — `fee_scaleOut` (equivariance), `scaleOut_id`,
   `scaleOut_comp` (action laws), `scaleOut_ordered` (the ordered half-plane
-  `{η_min ≤ η_max}` is preserved iff the scale is nonnegative);
-* the threshold ("bang-bang fee") rule is the degenerate `s → 0⁺` boundary of
+  `{f_min ≤ f_max}` is preserved iff the scale is nonnegative);
+* the threshold ("bang-bang fee") rule is the degenerate `s_f → 0⁺` boundary of
   the family — `feeRaw_tendsto_high` / `feeRaw_tendsto_low`;
 * the family calibrates the optimal-fee curve at any two volatility levels,
   and the calibration is unique — `feeRaw_interpolate`,
@@ -51,7 +62,7 @@ parameter space, stated below:
   generic extreme value theorem, recorded as the interface for fitting);
 * the schedule plugs into the vol-instrument risk-price layer, typed
   against `RiskDesign` (`RISK_ALTERNATIVES.md` P1, and P2 by instantiating
-  the oracle with `riskPriceMax`): a sigmoid fee with `η_max ≤ 1` passes
+  the oracle with `riskPriceMax`): a sigmoid fee with `f_max ≤ 1` passes
   the premium clamp unchanged, and the resulting `p_risk` is monotone in
   realized volatility — `fee_mem_unit`, `riskPriceBuffered_fee`,
   `riskPrice_sigmoid_mono`, `riskPriceP2_sigmoid_mono`.
@@ -117,29 +128,29 @@ lemma logistic_tendsto_atBot :
 
 /-! ## 2. The sigmoid fee family -/
 
-/-- Parameter vector `θ = (η_min, η_max, c, s)` of the sigmoid fee family:
-fee floor, fee plateau, volatility center, and steepness. -/
+/-- Parameter vector `θ = (f_min, f_max, σ̄_f, s_f)` of the sigmoid fee family:
+fee floor `f_min`, fee plateau `f_max`, fee-transition volatility strike `σ̄_f` (`volStrike`), and steepness `s_f > 0` (`steepness`). -/
 structure Params where
-  etaMin : ℝ
-  etaMax : ℝ
-  center : ℝ
-  slope : ℝ
+  feeMin : ℝ
+  feeMax : ℝ
+  volStrike : ℝ
+  steepness : ℝ
 
 /-- Raw sigmoid fee schedule (explicit parameters). -/
-noncomputable def feeRaw (ηmin ηmax c s σ : ℝ) : ℝ :=
-  ηmin + (ηmax - ηmin) * logistic ((σ - c) / s)
+noncomputable def feeRaw (fMin fMax σf sf σ : ℝ) : ℝ :=
+  fMin + (fMax - fMin) * logistic ((σ - σf) / sf)
 
 /-- Sigmoid fee schedule of a parameter vector. -/
 noncomputable def fee (P : Params) (σ : ℝ) : ℝ :=
-  feeRaw P.etaMin P.etaMax P.center P.slope σ
+  feeRaw P.feeMin P.feeMax P.volStrike P.steepness σ
 
 /-
 **Range.**  For an ordered parameter pair the fee stays in
-`[η_min, η_max]`.
+`[f_min, f_max]`.
 -/
-lemma fee_mem_Icc (P : Params) (σ : ℝ) (hle : P.etaMin ≤ P.etaMax) :
-    fee P σ ∈ Set.Icc P.etaMin P.etaMax := by
-  obtain ⟨hl, hu⟩ := logistic_mem_Ioo ((σ - P.center) / P.slope)
+lemma fee_mem_Icc (P : Params) (σ : ℝ) (hle : P.feeMin ≤ P.feeMax) :
+    fee P σ ∈ Set.Icc P.feeMin P.feeMax := by
+  obtain ⟨hl, hu⟩ := logistic_mem_Ioo ((σ - P.volStrike) / P.steepness)
   rw [fee, feeRaw]
   constructor <;> nlinarith
 
@@ -148,12 +159,12 @@ lemma fee_mem_Icc (P : Params) (σ : ℝ) (hle : P.etaMin ≤ P.etaMax) :
 the fee is monotone increasing in `σ` — the moderate-to-high-demand shape of
 the optimal-fee curve.
 -/
-lemma fee_monotone (P : Params) (hle : P.etaMin ≤ P.etaMax)
-    (hs : 0 < P.slope) :
+lemma fee_monotone (P : Params) (hle : P.feeMin ≤ P.feeMax)
+    (hs : 0 < P.steepness) :
     Monotone (fee P) := by
   intro x y hxy
   rw [fee, fee, feeRaw, feeRaw]
-  have harg : (x - P.center) / P.slope ≤ (y - P.center) / P.slope :=
+  have harg : (x - P.volStrike) / P.steepness ≤ (y - P.volStrike) / P.steepness :=
     div_le_div_of_nonneg_right (sub_le_sub_right hxy _) (le_of_lt hs)
   have hlog := logistic_strictMono.monotone harg
   nlinarith
@@ -162,22 +173,22 @@ lemma fee_monotone (P : Params) (hle : P.etaMin ≤ P.etaMax)
 **Undercutting.**  If the plateau is strictly below the CEX fee `η⁰`, the
 schedule undercuts the CEX at every volatility level.
 -/
-lemma fee_lt_cex (P : Params) (η0 σ : ℝ) (hle : P.etaMin ≤ P.etaMax)
-    (hmax : P.etaMax < η0) :
-    fee P σ < η0 := by
+lemma fee_lt_cex (P : Params) (cexFee σ : ℝ) (hle : P.feeMin ≤ P.feeMax)
+    (hmax : P.feeMax < cexFee) :
+    fee P σ < cexFee := by
   exact lt_of_le_of_lt (fee_mem_Icc P σ hle).2 hmax
 
 /-! ## 3. Algebraic structure: affine actions on the parameter space -/
 
 /-- Pullback of the schedule along the affine reparametrization
-`σ ↦ α·σ + β` of the volatility line: `(c, s) ↦ ((c - β)/α, s/α)`. -/
+`σ ↦ α·σ + β` of the volatility line: `(σ̄_f, s_f) ↦ ((σ̄_f - β)/α, s_f/α)`. -/
 noncomputable def rescale (P : Params) (α β : ℝ) : Params :=
-  ⟨P.etaMin, P.etaMax, (P.center - β) / α, P.slope / α⟩
+  ⟨P.feeMin, P.feeMax, (P.volStrike - β) / α, P.steepness / α⟩
 
 /-- Affine action on the output (fee) axis:
-`(η_min, η_max) ↦ (a·η_min + b, a·η_max + b)`. -/
+`(f_min, f_max) ↦ (a·f_min + b, a·f_max + b)`. -/
 noncomputable def scaleOut (P : Params) (a b : ℝ) : Params :=
-  ⟨a * P.etaMin + b, a * P.etaMax + b, P.center, P.slope⟩
+  ⟨a * P.feeMin + b, a * P.feeMax + b, P.volStrike, P.steepness⟩
 
 /-
 **Equivariance.**  The rescaled parameters implement precisely the affine
@@ -185,8 +196,8 @@ change of volatility variable: `fee_{θ·(α,β)}(σ) = fee_θ(α·σ + β)`.
 -/
 lemma fee_rescale (P : Params) (α β σ : ℝ) (hα : α ≠ 0) :
     fee (rescale P α β) σ = fee P (α * σ + β) := by
-  have heq : (σ - (P.center - β) / α) / (P.slope / α) =
-      (α * σ + β - P.center) / P.slope := by
+  have heq : (σ - (P.volStrike - β) / α) / (P.steepness / α) =
+      (α * σ + β - P.volStrike) / P.steepness := by
     field_simp
     ring
   simp only [fee, rescale, feeRaw]
@@ -207,13 +218,13 @@ through the group law of `Aff(ℝ) = ℝ₊ ⋉ ℝ`:
 lemma rescale_comp (P : Params) (α β α' β' : ℝ) (hα : α ≠ 0) (hα' : α' ≠ 0) :
     rescale (rescale P α β) α' β' = rescale P (α * α') (β + α * β') := by
   cases P with
-  | mk emin emax center slope =>
+  | mk emin emax volStrike steepness =>
     simp only [rescale]
-    have hc : ((center - β) / α - β') / α' =
-        (center - (β + α * β')) / (α * α') := by
+    have hc : ((volStrike - β) / α - β') / α' =
+        (volStrike - (β + α * β')) / (α * α') := by
       field_simp
       ring
-    have hs : slope / α / α' = slope / (α * α') := by
+    have hs : steepness / α / α' = steepness / (α * α') := by
       field_simp
     rw [hc, hs]
 
@@ -241,31 +252,31 @@ scaleOut θ (a'·a) (a'·b + b')`.
 lemma scaleOut_comp (P : Params) (a b a' b' : ℝ) :
     scaleOut (scaleOut P a b) a' b' = scaleOut P (a' * a) (a' * b + b') := by
   cases P with
-  | mk emin emax center slope =>
+  | mk emin emax volStrike steepness =>
     simp only [scaleOut]
     congr 1 <;> ring
 
 /-
 **Order preservation.**  A nonnegative output scale preserves the ordered
-half-plane `{η_min ≤ η_max}` of admissible parameter pairs.
+half-plane `{f_min ≤ f_max}` of admissible parameter pairs.
 -/
 lemma scaleOut_ordered (P : Params) (a b : ℝ) (ha : 0 ≤ a)
-    (hle : P.etaMin ≤ P.etaMax) :
-    (scaleOut P a b).etaMin ≤ (scaleOut P a b).etaMax := by
+    (hle : P.feeMin ≤ P.feeMax) :
+    (scaleOut P a b).feeMin ≤ (scaleOut P a b).feeMax := by
   simp only [scaleOut]
   have := mul_le_mul_of_nonneg_left hle ha
   linarith
 
-/-! ## 4. The threshold schedule as the `s → 0⁺` boundary -/
+/-! ## 4. The threshold schedule as the `s_f → 0⁺` boundary -/
 
 /-
-**High branch.**  Above the center (`c < σ`) the fee tends to the plateau
-`η_max` as the steepness degenerates, `s → 0⁺`.
+**High branch.**  Above the fee-transition strike (`σ̄_f < σ`) the fee tends to the plateau
+`f_max` as the steepness degenerates, `s_f → 0⁺`.
 -/
-lemma feeRaw_tendsto_high (ηmin ηmax c σ : ℝ) (h : c < σ) :
-    Filter.Tendsto (fun s => feeRaw ηmin ηmax c s σ)
-      (𝓝[>] (0 : ℝ)) (𝓝 ηmax) := by
-  have harg : Filter.Tendsto (fun s => (σ - c) / s) (𝓝[>] (0 : ℝ)) Filter.atTop := by
+lemma feeRaw_tendsto_high (fMin fMax σf σ : ℝ) (h : σf < σ) :
+    Filter.Tendsto (fun sf => feeRaw fMin fMax σf sf σ)
+      (𝓝[>] (0 : ℝ)) (𝓝 fMax) := by
+  have harg : Filter.Tendsto (fun sf => (σ - σf) / sf) (𝓝[>] (0 : ℝ)) Filter.atTop := by
     have h1 : Filter.Tendsto (fun s : ℝ => s⁻¹) (𝓝[>] 0) Filter.atTop := by
       refine Filter.tendsto_atTop.mpr ?_
       intro b
@@ -283,24 +294,24 @@ lemma feeRaw_tendsto_high (ηmin ηmax c σ : ℝ) (h : c < σ) :
     have h2 : ∀ᶠ s in 𝓝[>] (0 : ℝ), s ≠ 0 := by
       filter_upwards [self_mem_nhdsWithin] with x hx
       exact ne_of_gt hx.out
-    simpa [div_eq_mul_inv] using Filter.Tendsto.const_mul_atTop (by linarith : 0 < σ - c) h1
+    simpa [div_eq_mul_inv] using Filter.Tendsto.const_mul_atTop (by linarith : 0 < σ - σf) h1
   have hlog : Filter.Tendsto logistic Filter.atTop (𝓝 (1 : ℝ)) := logistic_tendsto_atTop
-  have hcomp : Filter.Tendsto (fun s => logistic ((σ - c) / s)) (𝓝[>] (0 : ℝ)) (𝓝 1) :=
+  have hcomp : Filter.Tendsto (fun sf => logistic ((σ - σf) / sf)) (𝓝[>] (0 : ℝ)) (𝓝 1) :=
     hlog.comp harg
-  have hfee : Filter.Tendsto (fun s => feeRaw ηmin ηmax c s σ) (𝓝[>] (0 : ℝ)) (𝓝 (ηmin + (ηmax - ηmin) * 1)) :=
-    Filter.Tendsto.add tendsto_const_nhds (hcomp.const_mul (ηmax - ηmin))
+  have hfee : Filter.Tendsto (fun sf => feeRaw fMin fMax σf sf σ) (𝓝[>] (0 : ℝ)) (𝓝 (fMin + (fMax - fMin) * 1)) :=
+    Filter.Tendsto.add tendsto_const_nhds (hcomp.const_mul (fMax - fMin))
   convert hfee using 1
   ring_nf
 
 /-
-**Low branch.**  Below the center (`σ < c`) the fee tends to the floor
-`η_min` as `s → 0⁺`.  Together with `feeRaw_tendsto_high` this exhibits the
+**Low branch.**  Below the fee-transition strike (`σ < σ̄_f`) the fee tends to the floor
+`f_min` as `s_f → 0⁺`.  Together with `feeRaw_tendsto_high` this exhibits the
 threshold-type fee rule as the degenerate boundary of the sigmoid family.
 -/
-lemma feeRaw_tendsto_low (ηmin ηmax c σ : ℝ) (h : σ < c) :
-    Filter.Tendsto (fun s => feeRaw ηmin ηmax c s σ)
-      (𝓝[>] (0 : ℝ)) (𝓝 ηmin) := by
-  have harg : Filter.Tendsto (fun s => (σ - c) / s) (𝓝[>] (0 : ℝ)) Filter.atBot := by
+lemma feeRaw_tendsto_low (fMin fMax σf σ : ℝ) (h : σ < σf) :
+    Filter.Tendsto (fun sf => feeRaw fMin fMax σf sf σ)
+      (𝓝[>] (0 : ℝ)) (𝓝 fMin) := by
+  have harg : Filter.Tendsto (fun sf => (σ - σf) / sf) (𝓝[>] (0 : ℝ)) Filter.atBot := by
     have h1 : Filter.Tendsto (fun s : ℝ => s⁻¹) (𝓝[>] 0) Filter.atTop := by
       refine Filter.tendsto_atTop.mpr ?_
       intro b
@@ -318,12 +329,12 @@ lemma feeRaw_tendsto_low (ηmin ηmax c σ : ℝ) (h : σ < c) :
     have h2 : ∀ᶠ s in 𝓝[>] (0 : ℝ), s ≠ 0 := by
       filter_upwards [self_mem_nhdsWithin] with x hx
       exact ne_of_gt hx.out
-    simpa [div_eq_mul_inv] using Filter.Tendsto.const_mul_atTop_of_neg (by linarith : σ - c < 0) h1
+    simpa [div_eq_mul_inv] using Filter.Tendsto.const_mul_atTop_of_neg (by linarith : σ - σf < 0) h1
   have hlog : Filter.Tendsto logistic Filter.atBot (𝓝 (0 : ℝ)) := logistic_tendsto_atBot
-  have hcomp : Filter.Tendsto (fun s => logistic ((σ - c) / s)) (𝓝[>] (0 : ℝ)) (𝓝 0) :=
+  have hcomp : Filter.Tendsto (fun sf => logistic ((σ - σf) / sf)) (𝓝[>] (0 : ℝ)) (𝓝 0) :=
     hlog.comp harg
-  have hfee : Filter.Tendsto (fun s => feeRaw ηmin ηmax c s σ) (𝓝[>] (0 : ℝ)) (𝓝 (ηmin + (ηmax - ηmin) * 0)) :=
-    Filter.Tendsto.add tendsto_const_nhds (hcomp.const_mul (ηmax - ηmin))
+  have hfee : Filter.Tendsto (fun sf => feeRaw fMin fMax σf sf σ) (𝓝[>] (0 : ℝ)) (𝓝 (fMin + (fMax - fMin) * 0)) :=
+    Filter.Tendsto.add tendsto_const_nhds (hcomp.const_mul (fMax - fMin))
   convert hfee using 1
   ring_nf
 
@@ -332,16 +343,16 @@ lemma feeRaw_tendsto_low (ηmin ηmax c σ : ℝ) (h : σ < c) :
 /-
 **Two-point calibration.**  The family is rich enough to match the optimal
 fee at any two volatility levels: for any `σ₁ < σ₂` and target fees strictly
-inside `(η_min, η_max)`, some `(c, s)` with `s > 0` interpolates both.
+inside `(f_min, f_max)`, some `(σ̄_f, s_f)` with `s_f > 0` interpolates both.
 -/
-lemma feeRaw_interpolate (ηmin ηmax σ₁ σ₂ y₁ y₂ : ℝ) (hσ : σ₁ < σ₂)
-    (h1 : ηmin < y₁) (h12 : y₁ < y₂) (h2 : y₂ < ηmax) :
-    ∃ c s : ℝ, 0 < s ∧
-      feeRaw ηmin ηmax c s σ₁ = y₁ ∧ feeRaw ηmin ηmax c s σ₂ = y₂ := by
+lemma feeRaw_interpolate (fMin fMax σ₁ σ₂ y₁ y₂ : ℝ) (hσ : σ₁ < σ₂)
+    (h1 : fMin < y₁) (h12 : y₁ < y₂) (h2 : y₂ < fMax) :
+    ∃ σf sf : ℝ, 0 < sf ∧
+      feeRaw fMin fMax σf sf σ₁ = y₁ ∧ feeRaw fMin fMax σf sf σ₂ = y₂ := by
   -- Define the target logistic values (normalized fees)
-  have hdiff : ηmax - ηmin > 0 := by linarith
-  let r₁ := (y₁ - ηmin) / (ηmax - ηmin)
-  let r₂ := (y₂ - ηmin) / (ηmax - ηmin)
+  have hdiff : fMax - fMin > 0 := by linarith
+  let r₁ := (y₁ - fMin) / (fMax - fMin)
+  let r₂ := (y₂ - fMin) / (fMax - fMin)
   -- Show r₁, r₂ ∈ (0, 1)
   have hr1_pos : 0 < r₁ := div_pos (by linarith) hdiff
   have hr1_lt_one : r₁ < 1 := by rw [div_lt_one hdiff]; linarith
@@ -390,9 +401,9 @@ lemma feeRaw_interpolate (ηmin ηmax σ₁ σ₂ y₁ y₂ : ℝ) (hσ : σ₁ 
   let c := σ₁ - s * logit r₁
   use c, s
   refine ⟨hs_pos, ?_, ?_⟩
-  · -- Verify feeRaw ηmin ηmax c s σ₁ = y₁
+  · -- Verify feeRaw fMin fMax σf sf σ₁ = y₁
     simp only [feeRaw]
-    have hne : ηmax - ηmin ≠ 0 := ne_of_gt hdiff
+    have hne : fMax - fMin ≠ 0 := ne_of_gt hdiff
     have harg : (σ₁ - c) / s = logit r₁ := by
       simp only [c]
       field_simp
@@ -401,9 +412,9 @@ lemma feeRaw_interpolate (ηmin ηmax σ₁ σ₂ y₁ y₂ : ℝ) (hσ : σ₁ 
     simp only [r₁]
     field_simp [hne]
     ring
-  · -- Verify feeRaw ηmin ηmax c s σ₂ = y₂
+  · -- Verify feeRaw fMin fMax σf sf σ₂ = y₂
     simp only [feeRaw]
-    have hne : ηmax - ηmin ≠ 0 := ne_of_gt hdiff
+    have hne : fMax - fMin ≠ 0 := ne_of_gt hdiff
     have harg : (σ₂ - c) / s = logit r₂ := by
       simp only [c]
       have hsne : s ≠ 0 := ne_of_gt hs_pos
@@ -420,61 +431,61 @@ lemma feeRaw_interpolate (ηmin ηmax σ₁ σ₂ y₁ y₂ : ℝ) (hσ : σ₁ 
 /-
 **Calibration is exactly identified.**  The two-point calibration of the
 previous lemma is unique: with the floor/plateau fixed and strictly
-interior targets, exactly one `(c, s)` with `s > 0` fits.  (Targets *equal*
-to `η_min`/`η_max` are unreachable — the open-interval constraint is
+interior targets, exactly one `(σ̄_f, s_f)` with `s_f > 0` fits.  (Targets *equal*
+to `f_min`/`f_max` are unreachable — the open-interval constraint is
 inherent to the sigmoid family, not incidental.)
 -/
-lemma feeRaw_interpolate_unique (ηmin ηmax σ₁ σ₂ y₁ y₂ : ℝ) (hσ : σ₁ < σ₂)
-    (h1 : ηmin < y₁) (h12 : y₁ < y₂) (h2 : y₂ < ηmax) :
+lemma feeRaw_interpolate_unique (fMin fMax σ₁ σ₂ y₁ y₂ : ℝ) (hσ : σ₁ < σ₂)
+    (h1 : fMin < y₁) (h12 : y₁ < y₂) (h2 : y₂ < fMax) :
     ∃! cs : ℝ × ℝ, 0 < cs.2 ∧
-      feeRaw ηmin ηmax cs.1 cs.2 σ₁ = y₁ ∧
-      feeRaw ηmin ηmax cs.1 cs.2 σ₂ = y₂ := by
+      feeRaw fMin fMax cs.1 cs.2 σ₁ = y₁ ∧
+      feeRaw fMin fMax cs.1 cs.2 σ₂ = y₂ := by
   -- Define the target logistic values
-  let r₁ := (y₁ - ηmin) / (ηmax - ηmin)
-  let r₂ := (y₂ - ηmin) / (ηmax - ηmin)
-  have hdiff : ηmax - ηmin > 0 := by linarith
+  let r₁ := (y₁ - fMin) / (fMax - fMin)
+  let r₂ := (y₂ - fMin) / (fMax - fMin)
+  have hdiff : fMax - fMin > 0 := by linarith
   have hr1_pos : 0 < r₁ := div_pos (by linarith) hdiff
   have hr1_lt_one : r₁ < 1 := by rw [div_lt_one hdiff]; linarith
   have hr2_pos : 0 < r₂ := div_pos (by linarith) hdiff
   have hr2_lt_one : r₂ < 1 := by rw [div_lt_one hdiff]; linarith
   have hr1_lt_r2 : r₁ < r₂ := by
-    have : (y₁ - ηmin) / (ηmax - ηmin) < (y₂ - ηmin) / (ηmax - ηmin) :=
-      div_lt_div_of_pos_right (by linarith : y₁ - ηmin < y₂ - ηmin) hdiff
+    have : (y₁ - fMin) / (fMax - fMin) < (y₂ - fMin) / (fMax - fMin) :=
+      div_lt_div_of_pos_right (by linarith : y₁ - fMin < y₂ - fMin) hdiff
     exact this
   -- Get existence from feeRaw_interpolate
-  obtain ⟨c, s, hs, hσ1, hσ2⟩ := feeRaw_interpolate ηmin ηmax σ₁ σ₂ y₁ y₂ hσ h1 h12 h2
+  obtain ⟨c, s, hs, hσ1, hσ2⟩ := feeRaw_interpolate fMin fMax σ₁ σ₂ y₁ y₂ hσ h1 h12 h2
   use (c, s)
   constructor
   · exact ⟨hs, hσ1, hσ2⟩
   · -- Prove uniqueness
     intro ⟨c', s'⟩ ⟨hs', hσ1', hσ2'⟩
-    -- From feeRaw definition: feeRaw ηmin ηmax c s σ = ηmin + (ηmax - ηmin) * logistic((σ - c) / s)
+    -- From feeRaw definition: feeRaw fMin fMax σf sf σ = fMin + (fMax - fMin) * logistic((σ - σf) / sf)
     have hr1_eq : logistic ((σ₁ - c) / s) = r₁ := by
       have h := hσ1
       simp only [feeRaw] at h
-      have hne : ηmax - ηmin ≠ 0 := ne_of_gt hdiff
-      have h2 : (ηmax - ηmin) * logistic ((σ₁ - c) / s) = y₁ - ηmin := by linarith
+      have hne : fMax - fMin ≠ 0 := ne_of_gt hdiff
+      have h2 : (fMax - fMin) * logistic ((σ₁ - c) / s) = y₁ - fMin := by linarith
       rw [mul_comm] at h2
       exact eq_div_of_mul_eq hne h2
     have hr1_eq' : logistic ((σ₁ - c') / s') = r₁ := by
       have h := hσ1'
       simp only [feeRaw] at h
-      have hne : ηmax - ηmin ≠ 0 := ne_of_gt hdiff
-      have h2 : (ηmax - ηmin) * logistic ((σ₁ - c') / s') = y₁ - ηmin := by linarith
+      have hne : fMax - fMin ≠ 0 := ne_of_gt hdiff
+      have h2 : (fMax - fMin) * logistic ((σ₁ - c') / s') = y₁ - fMin := by linarith
       rw [mul_comm] at h2
       exact eq_div_of_mul_eq hne h2
     have hr2_eq : logistic ((σ₂ - c) / s) = r₂ := by
       have h := hσ2
       simp only [feeRaw] at h
-      have hne : ηmax - ηmin ≠ 0 := ne_of_gt hdiff
-      have h2 : (ηmax - ηmin) * logistic ((σ₂ - c) / s) = y₂ - ηmin := by linarith
+      have hne : fMax - fMin ≠ 0 := ne_of_gt hdiff
+      have h2 : (fMax - fMin) * logistic ((σ₂ - c) / s) = y₂ - fMin := by linarith
       rw [mul_comm] at h2
       exact eq_div_of_mul_eq hne h2
     have hr2_eq' : logistic ((σ₂ - c') / s') = r₂ := by
       have h := hσ2'
       simp only [feeRaw] at h
-      have hne : ηmax - ηmin ≠ 0 := ne_of_gt hdiff
-      have h2 : (ηmax - ηmin) * logistic ((σ₂ - c') / s') = y₂ - ηmin := by linarith
+      have hne : fMax - fMin ≠ 0 := ne_of_gt hdiff
+      have h2 : (fMax - fMin) * logistic ((σ₂ - c') / s') = y₂ - fMin := by linarith
       rw [mul_comm] at h2
       exact eq_div_of_mul_eq hne h2
     -- By injectivity of logistic (from strict monotonicity)
@@ -525,18 +536,18 @@ lemma exists_optimal_params (Θ : Set (ℝ × ℝ × ℝ × ℝ)) (hΘ : IsCompa
 /-! ## 6. Halt extension and the bridge to the risk-price layer -/
 
 /-- Fee schedule with a halt threshold: past `σ_halt` the fee jumps to the
-prohibitive level `η_halt` (the paper's `η¹ = ∞` regime, encoded finitely). -/
-noncomputable def feeHalt (P : Params) (σhalt ηhalt : ℝ) (σ : ℝ) : ℝ :=
-  if σ < σhalt then fee P σ else ηhalt
+prohibitive level `f_halt` (the paper's `η¹ = ∞` regime, encoded finitely). -/
+noncomputable def feeHalt (P : Params) (σhalt fHalt : ℝ) (σ : ℝ) : ℝ :=
+  if σ < σhalt then fee P σ else fHalt
 
 /-
 **Monotone halt schedule.**  If the prohibitive level dominates the plateau,
 the halted schedule remains monotone in `σ`.
 -/
-lemma feeHalt_monotone (P : Params) (σhalt ηhalt : ℝ)
-    (hle : P.etaMin ≤ P.etaMax) (hs : 0 < P.slope)
-    (hhalt : P.etaMax ≤ ηhalt) :
-    Monotone (feeHalt P σhalt ηhalt) := by
+lemma feeHalt_monotone (P : Params) (σhalt fHalt : ℝ)
+    (hle : P.feeMin ≤ P.feeMax) (hs : 0 < P.steepness)
+    (hhalt : P.feeMax ≤ fHalt) :
+    Monotone (feeHalt P σhalt fHalt) := by
   intro x y hxy
   by_cases hx : x < σhalt
   · by_cases hy : y < σhalt
@@ -549,12 +560,12 @@ lemma feeHalt_monotone (P : Params) (σhalt ηhalt : ℝ)
     exact le_rfl
 
 /-
-**Admissible premium.**  A sigmoid fee with `0 ≤ η_min` and `η_max ≤ 1` takes
+**Admissible premium.**  A sigmoid fee with `0 ≤ f_min` and `f_max ≤ 1` takes
 values in `[0,1]`, hence is an admissible premium for the buffered risk price
 (`RISK_ALTERNATIVES.md`, P1: `p_risk = oracle · (1 + premium)`).
 -/
-lemma fee_mem_unit (P : Params) (σ : ℝ) (h0 : 0 ≤ P.etaMin)
-    (hle : P.etaMin ≤ P.etaMax) (h1 : P.etaMax ≤ 1) :
+lemma fee_mem_unit (P : Params) (σ : ℝ) (h0 : 0 ≤ P.feeMin)
+    (hle : P.feeMin ≤ P.feeMax) (h1 : P.feeMax ≤ 1) :
     fee P σ ∈ Set.Icc (0 : ℝ) 1 := by
   obtain ⟨hl, hu⟩ := fee_mem_Icc P σ hle
   exact ⟨h0.trans hl, hu.trans h1⟩
@@ -565,8 +576,8 @@ lemma fee_mem_unit (P : Params) (σ : ℝ) (h0 : 0 ≤ P.etaMin)
 schedule composes with the *formalized* risk price, not a lookalike:
 `riskPriceBuffered oracle (fee P σ) = oracle · (1 + fee P σ)`.
 -/
-lemma riskPriceBuffered_fee (P : Params) (oracle σ : ℝ) (h0 : 0 ≤ P.etaMin)
-    (hle : P.etaMin ≤ P.etaMax) (h1 : P.etaMax ≤ 1) :
+lemma riskPriceBuffered_fee (P : Params) (oracle σ : ℝ) (h0 : 0 ≤ P.feeMin)
+    (hle : P.feeMin ≤ P.feeMax) (h1 : P.feeMax ≤ 1) :
     RiskDesign.riskPriceBuffered oracle (fee P σ)
       = oracle * (1 + fee P σ) := by
   rw [RiskDesign.riskPriceBuffered,
@@ -581,7 +592,7 @@ a `p_risk` monotone in `σ` — the vol-instrument coupling of the schedule.
 monotone.)
 -/
 lemma riskPrice_sigmoid_mono (P : Params) (oracle : ℝ) (h0 : 0 ≤ oracle)
-    (hle : P.etaMin ≤ P.etaMax) (hs : 0 < P.slope) :
+    (hle : P.feeMin ≤ P.feeMax) (hs : 0 < P.steepness) :
     Monotone (fun σ => RiskDesign.riskPriceBuffered oracle (fee P σ)) := by
   intro x y hxy
   simp only [RiskDesign.riskPriceBuffered]
@@ -596,7 +607,7 @@ is P1 with the oracle instantiated at `riskPriceMax spot twap`; the
 monotone response to realized volatility carries over.
 -/
 lemma riskPriceP2_sigmoid_mono (P : Params) (spot twap : ℝ) (h0 : 0 ≤ spot)
-    (hle : P.etaMin ≤ P.etaMax) (hs : 0 < P.slope) :
+    (hle : P.feeMin ≤ P.feeMax) (hs : 0 < P.steepness) :
     Monotone (fun σ =>
       RiskDesign.riskPriceBuffered (RiskDesign.riskPriceMax spot twap)
         (fee P σ)) := by

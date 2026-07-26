@@ -26,15 +26,15 @@ Main claims (statements only; proofs are for Aristotle):
 * `geomWeight_tendsto_uniform` — the `ξ → 1` limit recovers the uniform
   profile `1/ι`;
 * `varswapWeight_geometric`, `varswapWeight_normalized` — on the price grid
-  `K_i = 1.0001^(i·Δ)`, the discretized Carr–Madan *strike-notional* weights
+  `K_i = 1.0001^(i·Δi)`, the discretized Carr–Madan *strike-notional* weights
   `(K_{i+1} - K_i)/K_i²` of the log contract are exactly geometric with
-  ratio `1.0001^(-Δ)`, and normalize to `geomWeight (1.0001^(-Δ)) ι`.
+  ratio `1.0001^(-Δi)`, and normalize to `geomWeight (1.0001^(-Δi)) ι`.
   These are option notionals per strike, NOT per-tick v3 liquidity;
 * `logContractLiquidity_geometric` — the Uniswap-v3 *liquidity* profile
   replicating the log contract, `ℓ(K) ∝ K^(-1/2)` (from the curvature
   relation `ℓ(P) = -2·P^(3/2)·V''(P)` with `V''(P) = -1/P²`), sampled on the
-  price grid is geometric with ratio `ξ* = 1.0001^(-Δ/2)`.  This — not
-  `1.0001^(-Δ)` — is the GDF ratio that positions the profile as a
+  price grid is geometric with ratio `ξ* = 1.0001^(-Δi/2)`.  This — not
+  `1.0001^(-Δi)` — is the GDF ratio that positions the profile as a
   variance-swap-style instrument; the payoff-level curvature bridge itself
   is future work, not part of this module;
 * `priceGrid_eq_tickPrice_sq` — convention bridge: `priceGrid` is the
@@ -197,51 +197,51 @@ lemma geomWeight_tendsto_uniform (ι : ℕ) (i : ℕ) (hι : 0 < ι) :
 
 The Carr–Madan static replication of the log contract weights each strike
 `K` by the option *notional* `dK / K²`.  On the price grid
-`K_i = 1.0001^(i·Δ)` the discretized strike weight of tick `i` is
-`(K_{i+1} - K_i) / K_i²`, exactly geometric with ratio `1.0001^(-Δ)`.
+`K_i = 1.0001^(i·Δi)` the discretized strike weight of tick `i` is
+`(K_{i+1} - K_i) / K_i²`, exactly geometric with ratio `1.0001^(-Δi)`.
 
 Separately, the Uniswap-v3 per-tick *liquidity* replicating the log
 contract is `ℓ(K) ∝ K^(-1/2)` (curvature relation
 `ℓ(P) = -2·P^(3/2)·V''(P)` applied to `V''(P) = -1/P²`), which sampled on
-the same grid is geometric with ratio `ξ* = 1.0001^(-Δ/2)`.  The two ratios
+the same grid is geometric with ratio `ξ* = 1.0001^(-Δi/2)`.  The two ratios
 differ by the tranche-gamma Jacobian; do not conflate them.
 -/
 
-/-- Price grid `K_i = 1.0001^(i·Δ)` (real-exponent power).  NOTE the
+/-- Price grid `K_i = 1.0001^(i·Δi)` (real-exponent power).  NOTE the
 convention change: this is the *price* grid, the square of the sqrt-price
 grid `PosSpec.tickPrice` used by `Flow` (`priceGrid_eq_tickPrice_sq`). -/
-noncomputable def priceGrid (Δ : ℝ) (i : ℕ) : ℝ :=
-  (1.0001 : ℝ) ^ ((i : ℝ) * Δ)
+noncomputable def priceGrid (Δi : ℝ) (i : ℕ) : ℝ :=
+  (1.0001 : ℝ) ^ ((i : ℝ) * Δi)
 
 /-
-**Convention bridge.**  `priceGrid Δ i = (PosSpec.tickPrice Δ i)²`: the
+**Convention bridge.**  `priceGrid Δi i = (PosSpec.tickPrice Δi i)²`: the
 price grid is the square of the sqrt-price grid of `pos_spec.md`.
 -/
-lemma priceGrid_eq_tickPrice_sq (Δ : ℝ) (i : ℕ) :
-    priceGrid Δ i = (PosSpec.tickPrice Δ (i : ℝ)) ^ 2 := by
+lemma priceGrid_eq_tickPrice_sq (Δi : ℝ) (i : ℕ) :
+    priceGrid Δi i = (PosSpec.tickPrice Δi (i : ℝ)) ^ 2 := by
   unfold priceGrid PosSpec.tickPrice PosSpec.lam
   rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 1.0001)]
   ring_nf
 
 /-- Discretized variance-swap weight of tick `i`: `(K_{i+1} - K_i)/K_i²`. -/
-noncomputable def varswapWeight (Δ : ℝ) (i : ℕ) : ℝ :=
-  (priceGrid Δ (i + 1) - priceGrid Δ i) / (priceGrid Δ i) ^ 2
+noncomputable def varswapWeight (Δi : ℝ) (i : ℕ) : ℝ :=
+  (priceGrid Δi (i + 1) - priceGrid Δi i) / (priceGrid Δi i) ^ 2
 
 /-
 **Exact geometricity of the strike weights.**  The discretized Carr–Madan
 strike-notional weights satisfy
-`w_i^varswap = (1.0001^Δ - 1) · (1.0001^(-Δ))^i` — a geometric sequence in
-`i` with ratio `1.0001^(-Δ)`.  (Strike notionals, not v3 liquidity; see
+`w_i^varswap = (1.0001^Δi - 1) · (1.0001^(-Δi))^i` — a geometric sequence in
+`i` with ratio `1.0001^(-Δi)`.  (Strike notionals, not v3 liquidity; see
 `logContractLiquidity_geometric` for the liquidity-profile ratio.)
 -/
-lemma varswapWeight_geometric (Δ : ℝ) (i : ℕ) :
-    varswapWeight Δ i
-      = ((1.0001 : ℝ) ^ Δ - 1) * ((1.0001 : ℝ) ^ (-Δ)) ^ i := by
+lemma varswapWeight_geometric (Δi : ℝ) (i : ℕ) :
+    varswapWeight Δi i
+      = ((1.0001 : ℝ) ^ Δi - 1) * ((1.0001 : ℝ) ^ (-Δi)) ^ i := by
   simp [varswapWeight, priceGrid]
-  rw [show ((i : ℝ) + 1) * Δ = (i : ℝ) * Δ + Δ by ring]
+  rw [show ((i : ℝ) + 1) * Δi = (i : ℝ) * Δi + Δi by ring]
   rw [Real.rpow_add (by norm_num : (1.0001 : ℝ) > 0)]
-  have hpos : (0 : ℝ) < (1.0001 : ℝ) ^ ((i : ℝ) * Δ) := Real.rpow_pos_of_pos (by norm_num) _
-  have hrewrite : ((1.0001 : ℝ) ^ (-Δ)) ^ i = (1.0001 : ℝ) ^ (-Δ * (i : ℝ)) := by
+  have hpos : (0 : ℝ) < (1.0001 : ℝ) ^ ((i : ℝ) * Δi) := Real.rpow_pos_of_pos (by norm_num) _
+  have hrewrite : ((1.0001 : ℝ) ^ (-Δi)) ^ i = (1.0001 : ℝ) ^ (-Δi * (i : ℝ)) := by
     rw [← Real.rpow_natCast]
     rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 1.0001)]
   rw [hrewrite]
@@ -250,33 +250,33 @@ lemma varswapWeight_geometric (Δ : ℝ) (i : ℕ) :
   field_simp [hpos.ne']
 
 /-
-**Normalization identification (strike weights).**  For `Δ > 0`, the
+**Normalization identification (strike weights).**  For `Δi > 0`, the
 normalized strike-notional weights over `ι` ticks coincide with the GDF
-weights at ratio `1.0001^(-Δ)`.  This identifies the GDF family with the
+weights at ratio `1.0001^(-Δi)`.  This identifies the GDF family with the
 discretized `dK/K²` strike density — the option-notional layer of the
 replication, not the per-tick liquidity layer.
 -/
-lemma varswapWeight_normalized (Δ : ℝ) (hΔ : 0 < Δ) (ι : ℕ) (hι : 0 < ι)
+lemma varswapWeight_normalized (Δi : ℝ) (hΔi : 0 < Δi) (ι : ℕ) (hι : 0 < ι)
     (i : ℕ) :
-    varswapWeight Δ i / (∑ j ∈ Finset.range ι, varswapWeight Δ j)
-      = geomWeight ((1.0001 : ℝ) ^ (-Δ)) ι i := by
-  -- Let ξ = 1.0001 ^ (-Δ)
-  set ξ := (1.0001 : ℝ) ^ (-Δ) with hξ_def
+    varswapWeight Δi i / (∑ j ∈ Finset.range ι, varswapWeight Δi j)
+      = geomWeight ((1.0001 : ℝ) ^ (-Δi)) ι i := by
+  -- Let ξ = 1.0001 ^ (-Δi)
+  set ξ := (1.0001 : ℝ) ^ (-Δi) with hξ_def
   -- Rewrite varswapWeight using varswapWeight_geometric
   simp [varswapWeight_geometric]
   -- Rewrite geomWeight
   rw [geomWeight]
-  -- ξ = 1.0001 ^ (-Δ) is positive and not equal to 1
+  -- ξ = 1.0001 ^ (-Δi) is positive and not equal to 1
   have hξ0 : 0 < ξ := by positivity
   have hξ1 : ξ ≠ 1 := by
     simp [hξ_def]
     rw [Real.rpow_def_of_pos] <;> norm_num
     linarith
-  -- 1.0001 ^ Δ - 1 ≠ 0
-  have hfact : (1.0001 : ℝ) ^ Δ - 1 ≠ 0 := by
-    have : (1.0001 : ℝ) ^ Δ > 1 := Real.one_lt_rpow (by norm_num : (1 : ℝ) < 1.0001) (by linarith)
+  -- 1.0001 ^ Δi - 1 ≠ 0
+  have hfact : (1.0001 : ℝ) ^ Δi - 1 ≠ 0 := by
+    have : (1.0001 : ℝ) ^ Δi > 1 := Real.one_lt_rpow (by norm_num : (1 : ℝ) < 1.0001) (by linarith)
     linarith
-  -- Factor out (1.0001 ^ Δ - 1) from the sum
+  -- Factor out (1.0001 ^ Δi - 1) from the sum
   rw [← Finset.mul_sum]
   -- Use geometric series formula: ∑ j in range ι, ξ^j = (1 - ξ^ι) / (1 - ξ)
   rw [geom_sum_eq hξ1]
@@ -285,7 +285,7 @@ lemma varswapWeight_normalized (Δ : ℝ) (hΔ : 0 < Δ) (ι : ℕ) (hι : 0 < �
     rw [← neg_div_neg_eq]
     ring
   rw [hgeo]
-  -- Cancel (1.0001 ^ Δ - 1) from numerator and denominator
+  -- Cancel (1.0001 ^ Δi - 1) from numerator and denominator
   rw [mul_div_mul_left _ _ hfact]
   -- Now we need: ξ^i / ((1 - ξ^ι) / (1 - ξ)) = ξ^i * (1 - ξ) / (1 - ξ^ι)
   field_simp
@@ -294,13 +294,13 @@ lemma varswapWeight_normalized (Δ : ℝ) (hΔ : 0 < Δ) (ι : ℕ) (hι : 0 < �
 /-
 **Log-contract liquidity profile.**  The v3 liquidity density replicating
 the log contract, `ℓ(K) = K^(-1/2)` up to a constant, sampled on the price
-grid, is geometric with ratio `ξ* = 1.0001^(-(Δ/2))`.  This is the GDF
+grid, is geometric with ratio `ξ* = 1.0001^(-(Δi/2))`.  This is the GDF
 ratio that positions the profile as a variance-swap-style instrument (the
 payoff-level curvature bridge `ℓ(P) = -2·P^(3/2)·V''(P)` is future work).
 -/
-lemma logContractLiquidity_geometric (Δ : ℝ) (i : ℕ) :
-    (priceGrid Δ i) ^ (-(1 / 2 : ℝ))
-      = ((1.0001 : ℝ) ^ (-(Δ / 2))) ^ i := by
+lemma logContractLiquidity_geometric (Δi : ℝ) (i : ℕ) :
+    (priceGrid Δi i) ^ (-(1 / 2 : ℝ))
+      = ((1.0001 : ℝ) ^ (-(Δi / 2))) ^ i := by
   unfold priceGrid
   norm_cast
   simp only [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 1.0001)]
@@ -326,16 +326,16 @@ lemma geom_terminalPayoff_total (Lbar ξ : ℝ) (ι : ℕ) (p : ℕ → ℝ) :
 boundaries on the `PosSpec.tickPrice` sqrt-price grid — the convention
 `Flow.terminalPayoff` expects.  This is the named bridge into the
 `Flow`/`SCHEDULE.md` pipeline; use this, not `geom_terminalPayoff_total`
-with `p := priceGrid Δ`, which would feed prices where sqrt-prices are
+with `p := priceGrid Δi`, which would feed prices where sqrt-prices are
 expected.
 -/
-lemma geom_terminalPayoff_total_tickPrice (Lbar ξ Δ : ℝ) (ι : ℕ) :
+lemma geom_terminalPayoff_total_tickPrice (Lbar ξ Δi : ℝ) (ι : ℕ) :
     ∑ i ∈ Finset.range ι,
         Flow.terminalPayoff (geomLiquidity Lbar ξ ι i)
-          (PosSpec.tickPrice Δ (i : ℝ)) (PosSpec.tickPrice Δ ((i : ℝ) + 1))
+          (PosSpec.tickPrice Δi (i : ℝ)) (PosSpec.tickPrice Δi ((i : ℝ) + 1))
       = Lbar * ∑ i ∈ Finset.range ι,
           geomWeight ξ ι i
-            * (PosSpec.tickPrice Δ ((i : ℝ) + 1) - PosSpec.tickPrice Δ (i : ℝ)) := by
+            * (PosSpec.tickPrice Δi ((i : ℝ) + 1) - PosSpec.tickPrice Δi (i : ℝ)) := by
   simp_rw [Flow.terminalPayoff, geomLiquidity, Finset.mul_sum]
   ring
 

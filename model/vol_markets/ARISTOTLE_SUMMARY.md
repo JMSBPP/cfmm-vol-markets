@@ -68,3 +68,28 @@ The informal "admissibility" claim — that `d ∈ [0,1]` implies `Σ Qᵥⁱ·d
 - **Design space for `∂_(M,v)` (the flow `Δ`):** carry it in RAY (`1e27`) to match the state accumulator; it is nonnegative and upper-bounded, so an unsigned RAY slot suffices. Compute `Q_M^Σ/p_risk` as a single fused `mulDiv` rounding **down**, and enforce admissibility via the cross-multiplied guard `Δ·p_risk ≤ Q_M^Σ` to avoid a rounding division (both properties are the proved `admissible_iff_mul` / `admissible_state_bounds`).
 
 The document maps each recommendation to the corresponding verified lemma and includes the fixed-point conventions (X96 = `2^96`, WAD = `1e18`, RAY = `1e27`).
+# Summary of changes for run 664d9abb (task 6240b273)
+Aristotle proved all 35 sorry'd lemmas in `GeomProfile.lean` (11) and
+`FeeSchedule.lean` (24); integrated, lake build green, axiom-clean.
+
+- GDF profile (tbd2.md): partition of unity, positivity (both branches),
+  strict concentration for ξ<1, uniform 1/ι limit as ξ→1; payoff
+  decomposition into `Flow.terminalPayoff` (plus the sqrt-price-grid
+  instantiation).
+- Variance-swap identification, with the review-caught correction: the
+  Carr–Madan strike-notional weights `dK/K²` on `K_i = 1.0001^(i·Δ_i)` are
+  geometric with ratio `1.0001^(-Δ_i)`; the v3 *liquidity* profile
+  replicating the log contract is geometric with ratio
+  `ξ* = 1.0001^(-Δ_i/2)`. Convention bridge `priceGrid = tickPrice²`.
+- Sigmoid fee schedule (arXiv:2508.08152 / FLAIR 2306.09421):
+  range/monotonicity/undercutting; `ℝ*⋉ℝ` action on `(σ̄_f, s_f)` and output
+  affine action with order preservation; `s_f → 0⁺` threshold limits;
+  two-point calibration existence AND uniqueness; EVT optimizer interface;
+  halt-regime monotonicity; typed `RiskDesign` P1/P2 bridges (`clamp01`
+  identity on `[0,1]`, `p_risk` monotone in realized vol).
+
+Post-integration notation alignment (see `LEAN_TRACEABILITY.md` §0): fee
+parameters renamed off `η` (reserved for the pricing kernel) to
+`feeMin`/`feeMax`/`cexFee`; sigmoid center/steepness named
+`volStrike` (σ̄_f) / `steepness` (s_f); tick spacing uniformly `Δi` matching
+`PosSpec`/`tbd.md`.
