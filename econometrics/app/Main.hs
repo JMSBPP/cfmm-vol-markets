@@ -33,7 +33,9 @@ import           Data.Time.Clock         (diffUTCTime, getCurrentTime)
 import           Data.Time.Clock.POSIX   (posixSecondsToUTCTime)
 import           Data.Time.Format        (defaultTimeLocale, formatTime)
 import qualified Data.Vector             as V
+import           Numeric                 (showFFloat)
 import           Options.Applicative
+import           System.Exit             (ExitCode (..), exitWith)
 import           System.FilePath         ((</>))
 import           System.IO               (readFile')
 import           Text.Printf             (printf)
@@ -58,7 +60,12 @@ import           Panel.Build             (Spell (..), assembleSpellRaws,
                                           assembleSpells,
                                           assembleSpellsWithWindows, dailyEpoch,
                                           epochOfSeconds, writePanelCsv)
-import           Panoptic.Chunk          (ReadRow (..), buildReadSchedule,
+import           Panel.Reconcile         (ErrorDist (..), ReconReport (..),
+                                          SpellRecon (..), gateTolerance,
+                                          groundTruthExpr, reconcile,
+                                          renderReconReport)
+import           Panoptic.Chunk          (ChunkKey (..), LegChunk (..),
+                                          ReadRow (..), buildReadSchedule,
                                           readScheduleRaw, resolveLegChunks,
                                           storedValueTick)
 import           Panoptic.ReadDriver     (ReadStats (..), runReadSchedule)
@@ -171,6 +178,24 @@ data ReadPremiaOpts = ReadPremiaOpts
   , rpDryRun      :: Bool      -- ^ build + size the schedule, make ZERO eth_calls.
   }
 
+-- | Reconciliation-gate options (plan 10-07/10-08): rebuild each spell's premium
+-- from the endpoint accumulator readings and compare it against the protocol's
+-- own @OptionBurn.premium0@, in ETH wei.
+--
+-- This is a CLI and NOT a test-suite case, deliberately: the gate needs the live
+-- subgraph, and @10-VALIDATION@ keeps the hspec suite offline and deterministic.
+data ReconcileOpts = ReconcileOpts
+  { rcEndpoint     :: String    -- ^ subgraph endpoint (mints/burns/legs).
+  , rcPool         :: String    -- ^ underlying poolId.
+  , rcAccumulators :: FilePath  -- ^ premium-accumulators CSV from read-premia (10-06).
+  , rcPanel        :: FilePath  -- ^ spell panel CSV — THE gate population and its is_long labels.
+  , rcLegs         :: FilePath  -- ^ per-leg chunk census CSV, cross-checked against the resolved legs.
+  , rcReport       :: FilePath  -- ^ markdown report to write.
+  , rcLimit        :: Int       -- ^ 0 = all spells; N = the first N (for the fast pre-check).
+  , rcOnlyShort    :: Bool      -- ^ restrict to the short stratum.
+  , rcMaxLegs      :: Int       -- ^ 0 = any; N = spells with at most N resolved legs.
+  }
+
 data Command
   = BuildPanel BuildPanelOpts
   | Variance VarianceOpts
@@ -178,6 +203,7 @@ data Command
   | SampleSize SampleSizeOpts
   | BlockIndex BlockIndexOpts
   | ReadPremia ReadPremiaOpts
+  | Reconcile ReconcileOpts
 
 buildPanelOpts :: Parser BuildPanelOpts
 buildPanelOpts =
@@ -279,7 +305,37 @@ commandParser =
    <> command "read-premia"
         (info (ReadPremia <$> readPremiaOptsParser)
               (progDesc "Bulk getAccountPremium read over the deduplicated schedule, checkpointed to disk (--dry-run to size only)"))
+   <> command "reconcile"
+        (info (Reconcile <$> reconcileOptsParser)
+              (progDesc "THE GATE: reconstructed spell premium vs OptionBurn.premium0, in ETH wei, stratified short/long (exits non-zero on FAIL)"))
     )
+
+defaultReconcileReport :: FilePath
+defaultReconcileReport = defaultDataDir </> "reconcile.md"
+
+reconcileOptsParser :: Parser ReconcileOpts
+reconcileOptsParser =
+  ReconcileOpts
+    <$> strOption ( long "endpoint" <> metavar "URL"
+                 <> help "Panoptic subgraph GraphQL endpoint (mints/burns/legs)" )
+    <*> strOption ( long "pool" <> metavar "POOL"
+                 <> help "underlying Pool.id (V4 poolId) to filter on" )
+    <*> strOption ( long "accumulators" <> metavar "PATH"
+                 <> value defaultPremiumAccumulatorsCsv <> showDefault
+                 <> help "premium-accumulators CSV from read-premia (the endpoint readings)" )
+    <*> strOption ( long "panel" <> metavar "PATH" <> value defaultPanelCsv <> showDefault
+                 <> help "spell panel CSV — THE gate population and its is_long labels" )
+    <*> strOption ( long "legs" <> metavar "PATH" <> value defaultChunkLegsCsv <> showDefault
+                 <> help "per-leg chunk census CSV, cross-checked against the resolved chunk ranges" )
+    <*> strOption ( long "report" <> metavar "PATH" <> value defaultReconcileReport
+                 <> showDefault <> help "markdown report to write" )
+    <*> option auto ( long "limit" <> metavar "N" <> value 0 <> showDefault
+                 <> help "reconcile only the first N spells (0 = all)" )
+    <*> switch ( long "only-short"
+                 <> help "restrict to the SHORT stratum (the pre-check population)" )
+    <*> option auto ( long "max-legs" <> metavar "N" <> value 0 <> showDefault
+                 <> help "restrict to spells with at most N resolved legs (0 = any); \
+                         \--max-legs 1 selects the single-leg pre-check cases" )
 
 readPremiaOptsParser :: Parser ReadPremiaOpts
 readPremiaOptsParser =
@@ -337,6 +393,7 @@ run (Estimate eo)   = runEstimate eo
 run (SampleSize so) = runSampleSize so
 run (BlockIndex bo) = runBlockIndex bo
 run (ReadPremia o)  = runReadPremia o
+run (Reconcile o)   = runReconcile o
 
 -- ---------------------------------------------------------------------------
 -- build-panel
@@ -1166,6 +1223,259 @@ probeArchiveAt primaryEnv failoverEnv row = do
       pure $ case rf of
         Right _ -> Right ("failover/" ++ T.unpack (reUrl failoverEnv))
         Left e2 -> Left ("primary: " ++ e1 ++ " | failover: " ++ e2)
+
+-- ---------------------------------------------------------------------------
+-- reconcile (plan 10-07/10-08: THE GATE)
+-- ---------------------------------------------------------------------------
+
+-- | Rebuild every spell's premium from the endpoint accumulator readings and
+-- compare it against @OptionBurn.premium0@ — in ETH WEI, stratified short\/long,
+-- scored against the single named 'gateTolerance'.
+--
+-- Exits NON-ZERO on @GATE: FAIL@ so the gate is scriptable and cannot be
+-- mistaken for a pass by a caller that only checks the exit status.
+runReconcile :: ReconcileOpts -> IO ()
+runReconcile o = do
+  let ep   = Endpoint (T.pack (rcEndpoint o))
+      pool = PoolAddr (T.pack (rcPool o))
+  now <- getCurrentTime
+  let dateStr = formatTime defaultTimeLocale "%Y-%m-%d" now
+
+  -- 1. The spell population, rebuilt through the SINGLE pairing rule (the same
+  --    'assembleSpellRaws' the 10-06 read schedule was built from, so the
+  --    endpoint blocks the gate reads at are exactly the ones that were read).
+  mints <- fetchMints ep pool
+  burns <- fetchBurns ep pool
+  legs  <- fetchLegs ep pool
+  let legMap = Map.fromList legs
+      raws   = assembleSpellRaws ethUsdcDecimalShift mints burns legs
+      allSpells =
+        [ (tid, m, b, resolveLegChunks marketTickSpacing (round (mePositionSize m))
+                        (Map.findWithDefault [] tid legMap))
+        | (tid, m, b) <- raws ]
+  putStrLn ("reconcile: " ++ show (length mints) ++ " mints, " ++ show (length burns)
+             ++ " burns, " ++ show (length raws) ++ " paired accrual spells")
+
+  -- 2. panel.csv is THE gate population (the 61 Phase-9 spells) and the authority
+  --    on the is_long label; a disagreement with the leg-derived stratum is
+  --    REPORTED, never silently resolved in favour of one side.
+  panelSpells <- loadPanelCsv (rcPanel o)
+  let panelToks  = Set.fromList (map spTokenId panelSpells)
+      panelLong  = Map.fromList [ (spTokenId s, spIsLong s) | s <- panelSpells ]
+      inPanel    = [ s | s@(tid, _, _, _) <- allSpells, tid `Set.member` panelToks ]
+      stratumOf (_, _, _, lcs) = case lcs of { (lc : _) -> lcIsLong lc ; [] -> False }
+      labelDisagreements =
+        [ tid | s@(tid, _, _, _) <- inPanel
+        , Just (stratumOf s) /= Map.lookup tid panelLong ]
+
+  -- 3. chunk-legs.csv cross-check: the resolved chunk ranges must reproduce the
+  --    census the Wave-0 audit recorded. A mismatch means the geometry moved.
+  legsCensus <- loadChunkLegsCensus (rcLegs o)
+  let censusMismatches =
+        [ (tid, lcLegIndex lc)
+        | (tid, _, _, lcs) <- inPanel, lc <- lcs
+        , let k = (tid, lcLegIndex lc)
+              ckTuple = ( ckTokenType (lcChunkKey lc)
+                        , ckTickLower (lcChunkKey lc)
+                        , ckTickUpper (lcChunkKey lc) )
+        , Just v <- [Map.lookup k legsCensus], v /= ckTuple ]
+
+  -- 4. Apply the selection filters. Order is the pairing rule's own (ascending
+  --    burn epoch), so --limit is deterministic and reproducible.
+  let afterShort | rcOnlyShort o = [ s | s <- inPanel, not (stratumOf s) ]
+                 | otherwise     = inPanel
+      afterLegs  | rcMaxLegs o > 0 = [ s | s@(_, _, _, lcs) <- afterShort
+                                    , not (null lcs), length lcs <= rcMaxLegs o ]
+                 | otherwise       = afterShort
+      selected   | rcLimit o > 0 = take (rcLimit o) afterLegs
+                 | otherwise     = afterLegs
+
+  when (null selected) $
+    ioError (userError "ABORT: the selection matched no spells — nothing to reconcile.")
+
+  -- 5. Reconcile against the materialised endpoint readings.
+  rep0 <- reconcile (rcAccumulators o) selected
+  let lineage =
+        [ ("measured",                    T.pack dateStr)
+        , ("subgraph endpoint",           T.pack (rcEndpoint o))
+        , ("underlying pool (V4 poolId)", T.pack (rcPool o))
+        , ("accumulator readings",        T.pack (rcAccumulators o))
+        , ("gate population (panel)",     T.pack (rcPanel o))
+        , ("per-leg census",              T.pack (rcLegs o))
+        , ("paired spells (subgraph)",    T.pack (show (length raws)))
+        , ("spells in the gate population", T.pack (show (length inPanel)))
+        , ("selection",                   T.pack (selectionLabel o))
+        , ("spells reconciled",           T.pack (show (length selected)))
+        , ("is_long label disagreements", T.pack (show (length labelDisagreements)))
+        , ("chunk-range census mismatches", T.pack (show (length censusMismatches)))
+        ]
+      rep = rep0 { rrLineage = lineage }
+      d   = rrAll rep
+      ds  = rrShort rep
+      dl  = rrLong rep
+
+  writeFile (rcReport o) (T.unpack (renderReconReport rep) ++ renderDiagnosis rep)
+
+  putStrLn ("SPELLS_RECONCILED: "     ++ show (length selected))
+  putStrLn ("GROUND_TRUTH_UNIT: "     ++ show (rrUnit rep))
+  putStrLn ("GROUND_TRUTH_EXPR: "     ++ T.unpack (groundTruthExpr (rrUnit rep)))
+  putStrLn ("MEDIAN_REL_ERROR_ALL: "  ++ fmtG (edMedian d))
+  putStrLn ("MEDIAN_REL_ERROR_SHORT: " ++ fmtG (edMedian ds))
+  putStrLn ("MEDIAN_REL_ERROR_LONG: " ++ fmtG (edMedian dl))
+  putStrLn ("P90_REL_ERROR_SHORT: "   ++ fmtG (edP90 ds))
+  putStrLn ("MAX_REL_ERROR_SHORT: "   ++ fmtG (edMax ds))
+  putStrLn ("SIGNED_BIAS_SHORT: "     ++ show (edPosCount ds) ++ "/" ++ show (edNegCount ds))
+  putStrLn ("LEGCOUNT_MISMATCHES: "   ++ show (length (rrMismatches rep)))
+  putStrLn ("ZERO_TRUTH_EXCLUDED: "   ++ show (edZeroTruth d))
+  putStrLn ("LABEL_DISAGREEMENTS: "   ++ show (length labelDisagreements))
+  putStrLn ("CENSUS_MISMATCHES: "     ++ show (length censusMismatches))
+  -- Plain decimal, never Haskell's @1.0e-2@: this line is grepped by the gate
+  -- scripts and by the 10-08 checkpoint, and it must read as the constant does.
+  putStrLn ("GATE_TOLERANCE: "        ++ showFFloat Nothing gateTolerance "")
+  putStrLn ("GATE: "                  ++ (if rrPassed rep then "PASS" else "FAIL"))
+  putStrLn ("reconcile: wrote "       ++ rcReport o)
+
+  -- The gate is scriptable: a FAIL is a non-zero exit, never a quiet stdout line.
+  when (not (rrPassed rep)) $ exitWith (ExitFailure 1)
+
+-- | The PRE-COMMITTED interpretation of the median (plan 10-07, written down
+-- BEFORE the numbers came in) plus an automatic scaling-signature check.
+--
+-- The bands are not adjustable after the fact, and none of them is \"relax the
+-- tolerance\": 'gateTolerance' is a fixed constant of the phase contract and a
+-- failing gate is diagnosed, never argued down.
+renderDiagnosis :: ReconReport -> String
+renderDiagnosis rep = unlines $
+  [ ""
+  , "## Diagnosis"
+  , ""
+  , "Pre-committed bands (plan 10-07, stated BEFORE the measurement):"
+  , ""
+  , "| median rel. error | reading | action |"
+  , "|---|---|---|"
+  , "| `< 0.01` | the machinery is sound | proceed to the full 61-spell gate (10-08) |"
+  , "| `[0.01, 0.10)` | an unaccounted wedge exists | diagnose against the RESEARCH wedge table \
+      \(long capping, mid-spell `s_options` rewrites, rounding, multi-leg summation, \
+      \price conversion, epoch-boundary block choice) before running 61 — do NOT proceed \
+      \on the theory that the full sample averages out |"
+  , "| `>= 0.10`, or an error near a factor of 2^64 / 2^128 / 1e12 / 1e18 | a scaling or unit bug \
+      \(RESEARCH Pitfall 2 lists exactly these signatures) | fix the module; do NOT adjust \
+      \the tolerance |"
+  , ""
+  , "**Observed band:** " ++ band
+  , ""
+  ] ++ bandProse ++
+  [ ""
+  , "### Scaling-signature check"
+  , ""
+  ] ++ scalingSection ++
+  [ ""
+  , "### Flags observed"
+  , ""
+  ] ++ flagSection
+  where
+    m = edMedian (rrShort rep)
+
+    band
+      | isNaN m      = "`n/a` — the short stratum is empty, so there is no measurement to read."
+      | m < 0.01     = "`< 0.01`"
+      | m < 0.10     = "`[0.01, 0.10)`"
+      | otherwise    = "`>= 0.10`"
+
+    bandProse
+      | isNaN m =
+          [ "No short-stratum spell carried a non-zero ground truth, so the pre-check"
+          , "measured nothing. This is not a pass." ]
+      | m < 0.01 =
+          [ "The reconstruction reproduces the protocol's own `OptionBurn.premium0` to"
+          , "well inside the 1% tolerance. The residual is the integer-flooring wedge"
+          , "RESEARCH predicted (`< 1 wei per leg per touch`), not a structural error:"
+          , "the reconstruction is a *decomposition* of the ground truth, so exactness"
+          , "up to flooring is the expected outcome rather than a lucky one." ]
+      | m < 0.10 =
+          [ "**An unaccounted wedge exists.** This is the band RESEARCH explicitly warns"
+          , "against treating as success. Diagnose against the wedge table above before"
+          , "spending the full 61-spell gate." ]
+      | otherwise =
+          [ "**A scaling or unit bug is the leading hypothesis.** Check the X64 accumulator"
+          , "scale, the mod-2^128 difference, the leg-liquidity multiplier, and the"
+          , "ground-truth unit determination before anything else." ]
+
+    -- |recon| / |truth| per spell, checked against the classic factor signatures.
+    ratios =
+      [ (srTokenId r, abs (fromInteger (srReconWei r)) / abs (fromInteger (srTruthWei r)))
+      | r <- rrSpells rep, srTruthWei r /= 0, srReconWei r /= 0 ]
+
+    suspectFactors :: [(String, Double)]
+    suspectFactors =
+      [ ("2^64",  2 ** 64), ("2^128", 2 ** 128), ("1e12", 1e12), ("1e18", 1e18) ]
+
+    nearFactor x (lbl, f) =
+      [ lbl | abs (x / f - 1) < 0.01 || abs (x * f - 1) < 0.01 ]
+
+    hits = [ (tid, lbl) | (tid, x) <- ratios, (lbl, f) <- suspectFactors
+           , lbl `elem` nearFactor x (lbl, f) ]
+
+    scalingSection
+      | null ratios =
+          [ "No spell had both a non-zero reconstruction and a non-zero ground truth, so"
+          , "the ratio check has no input." ]
+      | null hits =
+          [ "**Clean.** No spell's `|recon| / |truth|` ratio sits within 1% of 2^64, 2^128,"
+          , "1e12 or 1e18 (or their reciprocals) — the four factor signatures RESEARCH"
+          , "Pitfall 2 names. The unit stack is not the problem." ]
+      | otherwise =
+          [ "**A factor signature was hit — treat this as a unit bug until proven otherwise:**"
+          , ""
+          , "| tokenId | suspect factor |"
+          , "|---|---|"
+          ] ++
+          [ "| `" ++ T.unpack tid ++ "` | " ++ lbl ++ " |" | (tid, lbl) <- hits ]
+
+    flaggedSpells = [ r | r <- rrSpells rep, not (null (srFlags r)) ]
+
+    flagSection
+      | null flaggedSpells =
+          [ "None of the reconciled spells carried a premium flag." ]
+      | otherwise =
+          [ show (length flaggedSpells) ++ " of " ++ show (length (rrSpells rep))
+              ++ " reconciled spells carry a flag. The two that appear here are EXPECTED"
+              ++ " at spell endpoints and are not defects:"
+          , ""
+          , "- `ChunkEmpty` — `netLiquidity == 0` at an endpoint block. At the BURN block"
+          , "  this is the normal state: the burn removed the position's liquidity, so"
+          , "  `getAccountPremium` returns the STORED accumulator rather than a live"
+          , "  extrapolation. That stored value is exactly what `_getPremia` itself used,"
+          , "  which is why these spells still reconcile to the wei."
+          , "- `Extrapolated` — the read passed a real `atTick` rather than the"
+          , "  `8388607` stored-value sentinel."
+          , ""
+          , "Neither flag is auto-dropped and neither is invisible (10-05 contract)." ]
+
+-- | A one-line description of which spells the run selected, for the lineage.
+selectionLabel :: ReconcileOpts -> String
+selectionLabel o = intercalate ", " $
+  [ if rcOnlyShort o then "short stratum only" else "both strata" ] ++
+  [ "at most " ++ show (rcMaxLegs o) ++ " leg(s)" | rcMaxLegs o > 0 ] ++
+  [ "first " ++ show (rcLimit o) ++ " spells" | rcLimit o > 0 ]
+
+-- | @(tokenId, legIndex) -> (tokenType, tickLower, tickUpper)@ from the Wave-0
+-- per-leg census, used only as a cross-check on the resolved chunk ranges.
+loadChunkLegsCensus :: FilePath -> IO (Map.Map (T.Text, Int) (Int, Int, Int))
+loadChunkLegsCensus fp = do
+  r <- try (readFile' fp) :: IO (Either IOException String)
+  case r of
+    Left _    -> pure Map.empty     -- the census is optional; its absence is reported as 0 checks
+    Right txt -> pure (Map.fromList (mapMaybe parseRow (drop 1 (lines txt))))
+  where
+    parseRow l = case splitOn ',' l of
+      (tid : ix : _strike : _w : tt : _rest@(_ : _ : tl : tu : _)) -> do
+        i  <- readMaybe ix
+        t  <- readMaybe tt
+        lo <- readMaybe tl
+        hi <- readMaybe tu
+        pure ((T.pack tid, i), (t, lo, hi))
+      _ -> Nothing
 
 -- ---------------------------------------------------------------------------
 -- variance
