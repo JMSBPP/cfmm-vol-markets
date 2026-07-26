@@ -10,6 +10,7 @@ import Test.Hspec
 import qualified Golden.SandwichFixture as F
 import qualified Panel.BuildSpec
 import qualified Panel.VarianceSpec
+import qualified Panel.ReconcileSpec
 import qualified Model.UpsilonSpec
 import qualified Model.NLSSpec
 import qualified Model.SandwichSpec
@@ -31,6 +32,7 @@ main :: IO ()
 main = hspec $ do
   Panel.BuildSpec.spec
   Panel.VarianceSpec.spec
+  Panel.ReconcileSpec.spec
   Model.UpsilonSpec.spec
   Model.NLSSpec.spec
   Model.SandwichSpec.spec

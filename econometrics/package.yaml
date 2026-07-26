@@ -71,6 +71,7 @@ tests:
       - Golden.SandwichFixture
       - Panel.BuildSpec
       - Panel.VarianceSpec
+      - Panel.ReconcileSpec
       - Model.UpsilonSpec
       - Model.NLSSpec
       - Model.SandwichSpec
