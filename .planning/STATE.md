@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 10-05-PLAN.md
-last_updated: "2026-07-21T17:17:03.975Z"
+stopped_at: "10-06 complete (8910/8910 dataset committed); next: 10-07 reconcile module + 5-spell pre-check, then the 10-08 hard gate checkpoint"
+last_updated: "2026-07-26T01:39:43.494Z"
 last_activity: "2026-07-21 — 10-05: Panoptic.Sfpm getAccountPremium calldata (poolKey keccak==known poolId, derived selector, dynamic bytes 0x100 offset, 452B) + returndata decode; Panoptic.Premium X64 premiumWei/long-negate, accDelta mod-2^128, EXACT telescoping, ChunkEmpty/AccFrozen/Extrapolated flags, nu=1/8 multiplierWedge; suite 117->147/0. Commits 6360ffd, 56e0f49."
 progress:
   total_phases: 10
   completed_phases: 2
   total_plans: 30
-  completed_plans: 21
+  completed_plans: 22
   percent: 70
 ---
 
@@ -143,6 +143,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-21T17:16:47.134Z
-Stopped at: Completed 10-05-PLAN.md
-Resume file: None
+Last session: 2026-07-26T01:39:43.489Z
+Stopped at: 10-06 complete (8910/8910 dataset committed); next: 10-07 reconcile module + 5-spell pre-check, then the 10-08 hard gate checkpoint
+Resume file: .planning/phases/10-streaming-premium-reconstruction-and-reestimation/10-07-PLAN.md
