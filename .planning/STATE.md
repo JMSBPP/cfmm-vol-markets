@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "10-07 complete (Panel.Reconcile + reconcile CLI; 5-spell pre-check median rel error 0.0, GATE PASS); next: 10-08 the full 61-spell hard gate checkpoint"
-last_updated: "2026-07-26T12:29:09.597Z"
+stopped_at: "HALTED after 10-08 gate PASS + user 'proceed' decision (recorded, not yet executed). Resume: spawn the 10-08 closing continuation with user_response=proceed (write 10-08-SUMMARY, state/roadmap), then Wave 9 (10-09 hourly panel), Wave 10 (10-10 re-estimation + stopping-rule checkpoint), Wave 11 (10-11 close-out || 10-12 optional)"
+last_updated: "2026-07-26T12:45:37.079Z"
 last_activity: "2026-07-26 — 10-07: Panel.Reconcile (Integer-wei reconstruction from exact-block endpoint accumulators, stratified error distribution with sign counts, leg-count mismatch = gate failure, gateTolerance=0.01 as one named untouched constant) + reconcile CLI (non-zero exit on FAIL). 5-spell pre-check: median 0.0, max 2.18e-9, GATE PASS. Suite 156->176/0. Commits a2ad4b6, c7c1bfc."
 progress:
   total_phases: 10
@@ -133,6 +133,7 @@ Recent decisions affecting current work:
 - [Phase 10]: 10-07: gateTolerance = 0.01 lives as ONE named top-level constant in Panel.Reconcile, referenced by the CLI, the report and the spec; reportOf is the SINGLE verdict rule shared by the gate and its test. The task-2 commit leaves Reconcile.hs byte-identical (0 diff lines matching gateTolerance.*=) — the diagnosis renderer was deliberately placed in app/Main.hs to preserve that auditability.
 - [Phase 10]: 10-07: a leg-count mismatch FAILS the gate rather than merely being reported — a like-for-unlike comparison that happens to be close is worse than one that is loudly wrong (RESEARCH Pitfall 7).
 - [Phase 10]: 10-07 PRE-CHECK RESULT: 5 short single-leg spells, median relative error 0.0 (3 exact to the wei), max 2.18e-9, signed bias 0/2 (one-signed -286/-239 wei flooring residual on ~1e11 wei premia), scaling-signature check clean, GATE PASS. The telescoping decomposition is confirmed sound; proceed to the full 61-spell gate in 10-08 with gateTolerance unchanged.
+- [Phase ?]: Full 61-spell reconciliation: median 0.0 both strata, 53/61 exact to wei, all 8 long spells exact, worst 5.45e-4 (18x inside 0.01), residuals diagnosed as irreducible sub-block eth_call read wedge (both pre-registered suspects refuted). User adjudicated: proceed to 10-09/10-10. Execution HALTED by user before the 10-08 closing continuation ran.
 
 ### Pending Todos
 
@@ -151,6 +152,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-26T12:27:38.430Z
-Stopped at: 10-07 complete (Panel.Reconcile + reconcile CLI; 5-spell pre-check median rel error 0.0, GATE PASS); next: 10-08 the full 61-spell hard gate checkpoint
-Resume file: None
+Last session: 2026-07-26T12:45:37.076Z
+Stopped at: HALTED after 10-08 gate PASS + user 'proceed' decision (recorded, not yet executed). Resume: spawn the 10-08 closing continuation with user_response=proceed (write 10-08-SUMMARY, state/roadmap), then Wave 9 (10-09 hourly panel), Wave 10 (10-10 re-estimation + stopping-rule checkpoint), Wave 11 (10-11 close-out || 10-12 optional)
+Resume file: .planning/phases/10-streaming-premium-reconstruction-and-reestimation/10-08-PLAN.md
