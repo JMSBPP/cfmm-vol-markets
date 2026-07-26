@@ -35,9 +35,11 @@ import           Data.Time.Format        (defaultTimeLocale, formatTime)
 import qualified Data.Vector             as V
 import           Numeric                 (showFFloat)
 import           Options.Applicative
+import           System.Environment      (getArgs)
 import           System.Exit             (ExitCode (..), exitWith)
 import           System.FilePath         ((</>))
 import           System.IO               (readFile')
+import           System.Process          (readProcessWithExitCode)
 import           Text.Printf             (printf)
 import           Text.Read               (readMaybe)
 
@@ -68,8 +70,9 @@ import           Panoptic.Chunk          (ChunkKey (..), LegChunk (..),
                                           ReadRow (..), buildReadSchedule,
                                           readScheduleRaw, resolveLegChunks,
                                           storedValueTick)
-import           Panoptic.ReadDriver     (ReadStats (..), runReadSchedule)
-import           Panoptic.Sfpm           (getAccountPremium)
+import           Panoptic.ReadDriver     (AccRow (..), ReadStats (..),
+                                          loadAccumulators, runReadSchedule)
+import           Panoptic.Sfpm           (getAccountPremium, sfpmAddress)
 import           Panel.Subgraph          (Chunk (..), ChunkPull (..),
                                           CollateralFlow (..), Endpoint (..),
                                           Leg (..), MintEvent (..),
@@ -191,6 +194,7 @@ data ReconcileOpts = ReconcileOpts
   , rcPanel        :: FilePath  -- ^ spell panel CSV — THE gate population and its is_long labels.
   , rcLegs         :: FilePath  -- ^ per-leg chunk census CSV, cross-checked against the resolved legs.
   , rcReport       :: FilePath  -- ^ markdown report to write.
+  , rcErrorsCsv    :: FilePath  -- ^ machine-readable per-spell error CSV to write.
   , rcLimit        :: Int       -- ^ 0 = all spells; N = the first N (for the fast pre-check).
   , rcOnlyShort    :: Bool      -- ^ restrict to the short stratum.
   , rcMaxLegs      :: Int       -- ^ 0 = any; N = spells with at most N resolved legs.
@@ -313,6 +317,12 @@ commandParser =
 defaultReconcileReport :: FilePath
 defaultReconcileReport = defaultDataDir </> "reconcile.md"
 
+-- | The machine-readable companion to the gate report: one row per reconciled
+-- spell, so 10-09 and any later audit can filter on the reconciliation error
+-- without parsing markdown.
+defaultReconcileErrorsCsv :: FilePath
+defaultReconcileErrorsCsv = defaultDataDir </> "reconcile-errors.csv"
+
 reconcileOptsParser :: Parser ReconcileOpts
 reconcileOptsParser =
   ReconcileOpts
@@ -329,6 +339,9 @@ reconcileOptsParser =
                  <> help "per-leg chunk census CSV, cross-checked against the resolved chunk ranges" )
     <*> strOption ( long "report" <> metavar "PATH" <> value defaultReconcileReport
                  <> showDefault <> help "markdown report to write" )
+    <*> strOption ( long "errors-csv" <> metavar "PATH" <> value defaultReconcileErrorsCsv
+                 <> showDefault
+                 <> help "machine-readable per-spell reconciliation error CSV to write" )
     <*> option auto ( long "limit" <> metavar "N" <> value 0 <> showDefault
                  <> help "reconcile only the first N spells (0 = all)" )
     <*> switch ( long "only-short"
@@ -1295,48 +1308,133 @@ runReconcile o = do
 
   -- 5. Reconcile against the materialised endpoint readings.
   rep0 <- reconcile (rcAccumulators o) selected
+
+  -- 6. Provenance the report cannot reconstruct for itself: the commit the gate
+  --    ran at, the exact argument vector, and the extent of the readings it
+  --    consumed. A gate result without its lineage is not auditable.
+  argv     <- getArgs
+  commit   <- gitHeadCommit
+  accCache <- loadAccumulators (rcAccumulators o)
+  let accBlocks = map acBlock (Map.elems accCache)
+      blockRange
+        | null accBlocks = "n/a (no readings loaded)"
+        | otherwise      = show (minimum accBlocks) ++ ".." ++ show (maximum accBlocks)
+
   let lineage =
         [ ("measured",                    T.pack dateStr)
+        , ("git commit",                  T.pack commit)
+        , ("command line",                T.pack ("econometrics " ++ unwords argv))
+        , ("working directory",           "repository root (all paths below are repo-relative)")
         , ("subgraph endpoint",           T.pack (rcEndpoint o))
         , ("underlying pool (V4 poolId)", T.pack (rcPool o))
+        , ("SFPM read target",            sfpmAddress)
+        , ("VEGOID / nu",                 "8 / 0.125 — applied INSIDE the contract's X64 accumulator; \
+                                          \never re-applied here")
         , ("accumulator readings",        T.pack (rcAccumulators o))
+        , ("accumulator rows loaded",     T.pack (show (Map.size accCache)))
+        , ("accumulator block range",     T.pack blockRange)
         , ("gate population (panel)",     T.pack (rcPanel o))
         , ("per-leg census",              T.pack (rcLegs o))
+        , ("epoch definition",            "floor(unixSeconds/86400) — Panel.Build.dailyEpoch, the \
+                                          \panel.csv grid that ORDERS spells. The gate itself compares \
+                                          \SPELL-ENDPOINT totals and uses no epoch grid.")
         , ("paired spells (subgraph)",    T.pack (show (length raws)))
         , ("spells in the gate population", T.pack (show (length inPanel)))
         , ("selection",                   T.pack (selectionLabel o))
         , ("spells reconciled",           T.pack (show (length selected)))
         , ("is_long label disagreements", T.pack (show (length labelDisagreements)))
         , ("chunk-range census mismatches", T.pack (show (length censusMismatches)))
+        , ("per-spell error CSV",         T.pack (rcErrorsCsv o))
         ]
       rep = rep0 { rrLineage = lineage }
       d   = rrAll rep
       ds  = rrShort rep
       dl  = rrLong rep
 
-  writeFile (rcReport o) (T.unpack (renderReconReport rep) ++ renderDiagnosis rep)
+  -- The verdict labels are built ONCE and used for BOTH stdout and the report,
+  -- so the captured stdout and the published artifact cannot disagree about the
+  -- verdict. @GATE_TOLERANCE@ prints as a plain decimal, never Haskell's
+  -- @1.0e-2@: this line is grepped by the gate scripts and by the checkpoint.
+  let labelLines =
+        [ "SPELLS_RECONCILED: "      ++ show (length selected)
+        , "GROUND_TRUTH_UNIT: "      ++ show (rrUnit rep)
+        , "GROUND_TRUTH_EXPR: "      ++ T.unpack (groundTruthExpr (rrUnit rep))
+        , "MEDIAN_REL_ERROR_ALL: "   ++ fmtG (edMedian d)
+        , "N_SHORT: "                ++ show (edN ds)
+        , "MEDIAN_REL_ERROR_SHORT: " ++ fmtG (edMedian ds)
+        , "P25_REL_ERROR_SHORT: "    ++ fmtG (edP25 ds)
+        , "P75_REL_ERROR_SHORT: "    ++ fmtG (edP75 ds)
+        , "P90_REL_ERROR_SHORT: "    ++ fmtG (edP90 ds)
+        , "MAX_REL_ERROR_SHORT: "    ++ fmtG (edMax ds)
+        , "SIGNED_BIAS_SHORT: "      ++ show (edPosCount ds) ++ "/" ++ show (edNegCount ds)
+        , "N_LONG: "                 ++ show (edN dl)
+        , "MEDIAN_REL_ERROR_LONG: "  ++ fmtG (edMedian dl)
+        , "P25_REL_ERROR_LONG: "     ++ fmtG (edP25 dl)
+        , "P75_REL_ERROR_LONG: "     ++ fmtG (edP75 dl)
+        , "P90_REL_ERROR_LONG: "     ++ fmtG (edP90 dl)
+        , "MAX_REL_ERROR_LONG: "     ++ fmtG (edMax dl)
+        , "SIGNED_BIAS_LONG: "       ++ show (edPosCount dl) ++ "/" ++ show (edNegCount dl)
+        , "LEGCOUNT_MISMATCHES: "    ++ show (length (rrMismatches rep))
+        , "ZERO_TRUTH_EXCLUDED: "    ++ show (edZeroTruth d)
+        , "LABEL_DISAGREEMENTS: "    ++ show (length labelDisagreements)
+        , "CENSUS_MISMATCHES: "      ++ show (length censusMismatches)
+        , "GATE_TOLERANCE: "         ++ showFFloat Nothing gateTolerance ""
+        , "GATE: "                   ++ (if rrPassed rep then "PASS" else "FAIL")
+        ]
 
-  putStrLn ("SPELLS_RECONCILED: "     ++ show (length selected))
-  putStrLn ("GROUND_TRUTH_UNIT: "     ++ show (rrUnit rep))
-  putStrLn ("GROUND_TRUTH_EXPR: "     ++ T.unpack (groundTruthExpr (rrUnit rep)))
-  putStrLn ("MEDIAN_REL_ERROR_ALL: "  ++ fmtG (edMedian d))
-  putStrLn ("MEDIAN_REL_ERROR_SHORT: " ++ fmtG (edMedian ds))
-  putStrLn ("MEDIAN_REL_ERROR_LONG: " ++ fmtG (edMedian dl))
-  putStrLn ("P90_REL_ERROR_SHORT: "   ++ fmtG (edP90 ds))
-  putStrLn ("MAX_REL_ERROR_SHORT: "   ++ fmtG (edMax ds))
-  putStrLn ("SIGNED_BIAS_SHORT: "     ++ show (edPosCount ds) ++ "/" ++ show (edNegCount ds))
-  putStrLn ("LEGCOUNT_MISMATCHES: "   ++ show (length (rrMismatches rep)))
-  putStrLn ("ZERO_TRUTH_EXCLUDED: "   ++ show (edZeroTruth d))
-  putStrLn ("LABEL_DISAGREEMENTS: "   ++ show (length labelDisagreements))
-  putStrLn ("CENSUS_MISMATCHES: "     ++ show (length censusMismatches))
-  -- Plain decimal, never Haskell's @1.0e-2@: this line is grepped by the gate
-  -- scripts and by the 10-08 checkpoint, and it must read as the constant does.
-  putStrLn ("GATE_TOLERANCE: "        ++ showFFloat Nothing gateTolerance "")
-  putStrLn ("GATE: "                  ++ (if rrPassed rep then "PASS" else "FAIL"))
+      -- Spliced in directly after the lineage table so the artifact reads
+      -- lineage -> verdict -> strata -> per-spell -> mismatches -> diagnosis.
+      rendered     = lines (T.unpack (renderReconReport rep))
+      verdictBlock = [ "## Verdict labels (verbatim CLI stdout)", "", "```" ]
+                       ++ labelLines ++ [ "```", "" ]
+      (beforeStrata, fromStrata) = break (== "## Strata") rendered
+      reportLines
+        | null fromStrata = rendered ++ [""] ++ verdictBlock
+        | otherwise       = beforeStrata ++ verdictBlock ++ fromStrata
+
+  writeFile (rcReport o)    (unlines reportLines ++ renderDiagnosis rep)
+  writeFile (rcErrorsCsv o) (unlines (reconErrorsCsv rep))
+
+  mapM_ putStrLn labelLines
   putStrLn ("reconcile: wrote "       ++ rcReport o)
+  putStrLn ("reconcile: wrote "       ++ rcErrorsCsv o)
 
   -- The gate is scriptable: a FAIL is a non-zero exit, never a quiet stdout line.
   when (not (rrPassed rep)) $ exitWith (ExitFailure 1)
+
+-- | The commit the gate ran at, for the report lineage. A checkout without git
+-- is reported as such rather than silently omitted — an unattributable gate
+-- result is worth less than one that says so.
+gitHeadCommit :: IO String
+gitHeadCommit = do
+  r <- try (readProcessWithExitCode "git" ["rev-parse", "--short", "HEAD"] "")
+         :: IO (Either IOException (ExitCode, String, String))
+  pure $ case r of
+    Right (ExitSuccess, out, _) | not (null (takeWhile (/= '\n') out))
+      -> takeWhile (/= '\n') out
+    _ -> "unknown (not a git checkout)"
+
+-- | One CSV row per reconciled spell — the machine-readable companion to the
+-- markdown report, in the SAME order as its per-spell table.
+--
+-- @rel_error@ is @NA@ exactly when the ground truth is zero (the spell is
+-- excluded from every distribution); it is never a 0 that would read as a
+-- perfect reconstruction. Flags are @;@-separated so the field stays one column.
+reconErrorsCsv :: ReconReport -> [String]
+reconErrorsCsv rep =
+  "token_id,is_long,leg_count,leg_count_truth,recon_wei,truth_wei,rel_error,signed_error_wei,flags"
+    : [ intercalate ","
+          [ T.unpack (srTokenId r)
+          , if srIsLong r then "1" else "0"
+          , show (srLegCount r)
+          , show (srLegCountTruth r)
+          , show (srReconWei r)
+          , show (srTruthWei r)
+          , maybe "NA" (\x -> printf "%.12e" x :: String) (srRelError r)
+          , show (srSignedErrorWei r)
+          , intercalate ";" (map show (srFlags r))
+          ]
+      | r <- sortOn srTokenId (rrSpells rep) ]
 
 -- | The PRE-COMMITTED interpretation of the median (plan 10-07, written down
 -- BEFORE the numbers came in) plus an automatic scaling-signature check.
@@ -1366,6 +1464,10 @@ renderDiagnosis rep = unlines $
   , ""
   ] ++ bandProse ++
   [ ""
+  , "### Worst 5 spells by relative error"
+  , ""
+  ] ++ worstSection ++
+  [ ""
   , "### Scaling-signature check"
   , ""
   ] ++ scalingSection ++
@@ -1375,6 +1477,34 @@ renderDiagnosis rep = unlines $
   ] ++ flagSection
   where
     m = edMedian (rrShort rep)
+
+    -- The tail, named. A median inside the tolerance says nothing about which
+    -- spells missed or why, and the CONTEXT decision requires the distribution
+    -- rather than its centre.
+    worst = take 5
+              (sortOn (negate . maybe (-1) id . srRelError) (rrSpells rep))
+
+    nonZeroCount = length [ () | r <- rrSpells rep, srSignedErrorWei r /= 0 ]
+
+    worstSection
+      | null worst = [ "No spells were reconciled." ]
+      | otherwise =
+          [ show nonZeroCount ++ " of " ++ show (length (rrSpells rep))
+              ++ " reconciled spells differ from the ground truth by any amount at all; "
+              ++ show (length (rrSpells rep) - nonZeroCount)
+              ++ " reproduce `OptionBurn.premium0` EXACTLY, to the wei."
+          , ""
+          , "| tokenId | stratum | legs | rel error | signed error wei | flags |"
+          , "|---|---|---|---|---|---|"
+          ] ++
+          [ "| `" ++ T.unpack (srTokenId r) ++ "` | "
+              ++ (if srIsLong r then "long" else "short") ++ " | "
+              ++ show (srLegCount r) ++ " | "
+              ++ maybe "n/a (zero truth)" fmtG (srRelError r) ++ " | "
+              ++ show (srSignedErrorWei r) ++ " | "
+              ++ (if null (srFlags r) then "—"
+                    else intercalate "," (map show (srFlags r))) ++ " |"
+          | r <- worst ]
 
     band
       | isNaN m      = "`n/a` — the short stratum is empty, so there is no measurement to read."
