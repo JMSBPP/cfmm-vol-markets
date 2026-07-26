@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "HALTED after 10-08 gate PASS + user 'proceed' decision (recorded, not yet executed). Resume: spawn the 10-08 closing continuation with user_response=proceed (write 10-08-SUMMARY, state/roadmap), then Wave 9 (10-09 hourly panel), Wave 10 (10-10 re-estimation + stopping-rule checkpoint), Wave 11 (10-11 close-out || 10-12 optional)"
-last_updated: "2026-07-26T12:45:37.079Z"
+stopped_at: "HALTED after 10-08 gate PASS + user 'proceed' decision (saved, not executed). RESUME PROTOCOL (user-directed): FIRST launch independent anti-fabrication reviewers over the 10-06/10-07/10-08 artifacts — verify no hardcoded/artificially-generated values (premium-accumulators.csv provenance vs live chain spot-checks, reconcile.md numbers recomputable from the CSV, gate verdict derived not asserted, spot re-run of the reconcile CLI) — THEN close 10-08 with user_response=proceed and continue Wave 9 (10-09) onward"
+last_updated: "2026-07-26T12:46:26.083Z"
 last_activity: "2026-07-26 — 10-07: Panel.Reconcile (Integer-wei reconstruction from exact-block endpoint accumulators, stratified error distribution with sign counts, leg-count mismatch = gate failure, gateTolerance=0.01 as one named untouched constant) + reconcile CLI (non-zero exit on FAIL). 5-spell pre-check: median 0.0, max 2.18e-9, GATE PASS. Suite 156->176/0. Commits a2ad4b6, c7c1bfc."
 progress:
   total_phases: 10
@@ -152,6 +152,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-26T12:45:37.076Z
-Stopped at: HALTED after 10-08 gate PASS + user 'proceed' decision (recorded, not yet executed). Resume: spawn the 10-08 closing continuation with user_response=proceed (write 10-08-SUMMARY, state/roadmap), then Wave 9 (10-09 hourly panel), Wave 10 (10-10 re-estimation + stopping-rule checkpoint), Wave 11 (10-11 close-out || 10-12 optional)
+Last session: 2026-07-26T12:46:26.078Z
+Stopped at: HALTED after 10-08 gate PASS + user 'proceed' decision (saved, not executed). RESUME PROTOCOL (user-directed): FIRST launch independent anti-fabrication reviewers over the 10-06/10-07/10-08 artifacts — verify no hardcoded/artificially-generated values (premium-accumulators.csv provenance vs live chain spot-checks, reconcile.md numbers recomputable from the CSV, gate verdict derived not asserted, spot re-run of the reconcile CLI) — THEN close 10-08 with user_response=proceed and continue Wave 9 (10-09) onward
 Resume file: .planning/phases/10-streaming-premium-reconstruction-and-reestimation/10-08-PLAN.md
