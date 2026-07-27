@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: "**PHASE 10 CLOSED (11/12 plans; 10-12 skipped as optional and non-blocking).** The fidelity record is now accurate INCLUDING where it is imperfect: the Panoptic-vs-Lean multiplier wedge is documented in the cross-walk as a measured distribution, its consequence for the level-vs-shape reading of the witness claim is stated in both directions without overclaiming, and the seller-side sign convention that caused the 10-10 HALT is recorded so no future consumer repeats it. What follows is the prior wave's status, retained verbatim."
 stopped_at: Completed 10-11-PLAN.md — PHASE 10 CLOSED. Cross-walk carries the MEASURED multiplier wedge, the terminal witness status (does NOT obtain; ATMOTMNullHypothesis OPEN) and the seller-side sign convention. 10-12 SKIPPED; CTX-REPLAY-OPT unsatisfied.
-last_updated: "2026-07-27T17:59:32.023Z"
+last_updated: "2026-07-27T18:04:46.899Z"
 last_activity: 2026-07-27 — 10-11 COMPLETE; **PHASE 10 CLOSED**. Cross-walk extended with the MEASURED multiplier wedge (median 1.112500, p90 1.291667, max R/N 2.333333; the 1.125 bound corrected), the terminal witness status (does NOT obtain; conjecture OPEN) and the seller-side sign convention. ROADMAP + STATE closed out; 10-12 SKIPPED with the reason recorded and CTX-REPLAY-OPT marked unsatisfied. Commits 8cba914, plus this close-out. No Lean file touched. Suite 215/0.
 progress:
   total_phases: 10
