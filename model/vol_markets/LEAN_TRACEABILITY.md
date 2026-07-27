@@ -115,9 +115,10 @@ Parametrizes the paper's threshold-type dynamic fee; couples into §2's P1/P2.
 - `pos_spec.md` EVM type layer (u24/u16/u88 builders). **OPEN.**
 - Integer/rounding quantification beyond `mulX96Down_*` (accumulated floor
   error over N positions). **OPEN.**
-- `VOLATILITY_INSTRUMENTS.md`'s `λ_FLAIR` path-integral functional and the
-  abstract `𝓖_φ` group beyond the `probOr` monoid core. **OPEN** (sup over
-  compact `Θ_λ ⊂ Θ_φ` is the `FeeSchedule.exists_optimal_params` interface).
+- The abstract `𝓖_φ` group beyond the `probOr` monoid core, and the MEV
+  section (empty in the doc). **OPEN.**  (`λ_FLAIR` is now formalized and
+  solved — see §7 / `FlairOptimization.lean`; the continuum path-integral
+  form remains the limit of the proven discrete functional.)
 - `Panoptic.lean`/`Upsilon.lean` trace to the phase docs under
   `.planning/phases/08-*` and `09-*` and to §7 below.
 
@@ -148,4 +149,7 @@ Additional notation for this doc: `p_(η,Δ_i)(i) = λ^((i/2)·Δ_i·η)` →
 | `υ(Π + σ²t/2) = t/2` price-independent; `Id_{N_σ} = 2/t` unit vega | `variancePortfolio_upsilon`, `_unit_upsilon` (via `Upsilon.upsilon`) | **PROVEN** |
 | `π^σ = (σ²_R − σ²_K)⁺` | `realizedVariancePayoff_bridge` (= `Panoptic.volOptionPayoff 1`) | **PROVEN** |
 | Strike weights `ℓ(ξ,ι;i_K)` | `strikeWeight_bridge` (= `GeomProfile.geomWeight`) | **PROVEN** |
-| `λ_FLAIR` integral, `𝓖_φ` beyond the monoid core, MEV section | — | **OPEN** (see §6) |
+| `λ_FLAIR` functional (discrete) | `FlairOptimization.flairHazard`, `flairMulti`, `capitalDenominator_pos` | **PROVEN** |
+| `∃ Θ_λ ⊂ Θ_φ, sup λ_FLAIR` — identification | `flairMulti_affine` (`λ = φ̄·W + u·Σ α_j·W_j`), `_mono_phibar` (strict), `_mono_alpha`, `_mono_u`, `_anti_beta`, `W_j_le_W`, `W_j_lt_W` ⟹ `Θ_λ = {φ̄, α, u}`; `(β, γ)` reallocation-only | **PROVEN** |
+| `sup λ_FLAIR` — solved | `flairMulti_le_corner` (uniform bound `(φ̄max + umax·Σαmax)·W`), `_corner_attained_levels` (bang-bang), `_saturation_limit` (`β → −∞` Tendsto, sup not attained), `_strict_below_saturation`, `_exists_max_compact`, `Theta_lambda_identification` | **PROVEN** (no demand elasticity in this functional — caveat in module docstring) |
+| `𝓖_φ` beyond the monoid core, MEV section | — | **OPEN** (see §6) |

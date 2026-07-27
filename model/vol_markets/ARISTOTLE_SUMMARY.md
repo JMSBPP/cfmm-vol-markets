@@ -117,3 +117,27 @@ sorry-free, axiom-clean; none of the 8 existing files modified.
   `Upsilon.upsilon (Π + σ²t/2) = t/2` (price-independent), unit-vega `2/t`.
 - Bridges: `realizedVariancePayoff_bridge` (= `Panoptic.volOptionPayoff 1`),
   `strikeWeight_bridge` (doc's ℓ(ξ,ι;i_K) = `GeomProfile.geomWeight`).
+
+# Summary of changes for run 78bac8dd (task beed2796)
+Aristotle formalized AND SOLVED the FLAIR sup of VOLATILITY_INSTRUMENTS.md
+(`∃ Θ_λ ⊂ Θ_φ, sup λ_FLAIR`) in `vol_markets/FlairOptimization.lean`
+(439 lines, 4 defs + 15 theorems, sorry-free, axiom-clean; 9 existing files
+untouched).
+
+- Discrete functional: `flairHazard φfun σpath w D T = Σ_t φ(σ_t)·w_t/D_t`,
+  `flairMulti` = instantiation at `VolInstrument.multiFee`; capital
+  denominator lemma `D_t = QM·(p_t+1) > 0`.
+- IDENTIFICATION (`flairMulti_affine`): exact affine decomposition
+  `λ_FLAIR = φ̄·W + u·Σ_j α_j·W_j`, W = pathWeight, W_j = shapeWeight;
+  strict monotone in φ̄, monotone in α/u, ANTI-monotone in β;
+  `0 ≤ W_j ≤ W` with strict `W_j < W` under any positive flow step.
+  ⟹ Θ_λ = {φ̄, α, u} is the controlling level block; (β, γ) reallocate only.
+- SOLUTION: uniform corner bound
+  `λ_FLAIR ≤ (φ̄max + umax·Σ αmax_j)·W` for ALL shapes; bang-bang corner
+  attainment in the level block; single-term `β → −∞` saturation Tendsto
+  with STRICT inequality at every finite β (strictness needs uMax > 0,
+  αmax0 > 0 — Aristotle-added necessary hypotheses); compact-box maximizer
+  existence via `FeeSchedule.exists_optimal_params`;
+  `Theta_lambda_identification` packages strict-below-saturation + limit.
+- Docstring caveats recorded: traded-volume reading of `dp`; no demand
+  elasticity in this functional (volume trade-off = FeeSchedule layer).
