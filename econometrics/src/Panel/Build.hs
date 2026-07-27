@@ -94,7 +94,6 @@ import           Data.List              (intercalate, nub, sort, sortOn)
 import           Data.Map.Strict        (Map)
 import qualified Data.Map.Strict        as Map
 import           Data.Maybe             (mapMaybe)
-import qualified Data.Set               as Set
 import           Data.Text              (Text)
 import qualified Data.Text              as T
 import           Data.Time.Clock        (UTCTime)
@@ -256,10 +255,10 @@ assembleSpellFull decimalShift mints burns legs =
 -- | One row of the variance series, as the panel consumes it: σ̂²_t, the EIV
 -- instrument σ̃²_t, the mean pool tick i_t, and the swap count behind them.
 data VarianceRow = VarianceRow
-  { vrSigma2      :: !Double
-  , vrSigma2Instr :: !Double
-  , vrPoolTick    :: !Int     -- ^ i_t, ROUNDED to the tick grid the strike lives on.
-  , vrNSwaps      :: !Int     -- ^ increments behind σ̂² is @vrNSwaps − 1@.
+  { varSigma2      :: !Double
+  , varSigma2Instr :: !Double
+  , varPoolTick    :: !Int     -- ^ i_t, ROUNDED to the tick grid the strike lives on.
+  , varNSwaps      :: !Int     -- ^ increments behind σ̂² is @varNSwaps − 1@.
   }
   deriving (Show, Eq)
 
@@ -375,7 +374,7 @@ assembleEpochPanel epochSeconds varMap spells obs = (rows, unmatched)
     mkRow tid e os vr =
       let wei          = sum (map poPremiumWei0 os)
           (ik, isLong) = Map.findWithDefault (0, False) tid firstLegOf
-          it           = vrPoolTick vr
+          it           = varPoolTick vr
       in EpochObs
            { eoTokenId     = tid
            , eoAccount     = Map.findWithDefault "" tid accountOf
@@ -390,9 +389,9 @@ assembleEpochPanel epochSeconds varMap spells obs = (rows, unmatched)
            , eoIsLong      = isLong
            , eoLegCount    = length (nub (map poLegIndex os))
            , eoFlags       = map (T.pack . show) (nub (sort (concatMap poFlags os)))
-           , eoSigma2      = vrSigma2 vr
-           , eoSigma2Instr = vrSigma2Instr vr
-           , eoNSwaps      = vrNSwaps vr
+           , eoSigma2      = varSigma2 vr
+           , eoSigma2Instr = varSigma2Instr vr
+           , eoNSwaps      = varNSwaps vr
            }
 
 -- | The position-epoch panel's column header. A single definition, so the writer
