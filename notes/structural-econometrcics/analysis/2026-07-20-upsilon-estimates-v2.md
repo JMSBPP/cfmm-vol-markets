@@ -1,3 +1,11 @@
+# CORRECTIONS
+
+- HALT triggered 2026-07-27: post-verdict discovery of an LHS sign-convention construction defect (33.7% of rows opposite-signed vs the Phase-9 locked seller-side convention; attenuation bias on the adjudicated quantity).
+- This analysis is FROZEN at the realized result. Do NOT cite as confirmatory.
+- Disposition memo: .planning/phases/10-streaming-premium-reconstruction-and-reestimation/10-10-DISPOSITION-MEMO.md
+- User-enumerated pivot LOCKED before any re-run: .planning/phases/10-streaming-premium-reconstruction-and-reestimation/10-10-PIVOT-LOCK.md (single fix: seller-side LHS normalization; bar, estimator, tests, sample all unchanged; terminal iteration).
+- No post-hoc changes (control set, lag, SE, transform, exclusion, geometry, bar) were applied between lock and HALT.
+
 # Panoptic vol-claim upsilon: re-estimation on the POSITION-EPOCH panel (v2)
 
 **Phase 10, plan 10-10.** Supersedes
