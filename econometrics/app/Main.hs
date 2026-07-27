@@ -65,8 +65,10 @@ import           Panel.Build             (EpochObs (..), Spell (..),
                                           epochOfSeconds, writeEpochPanelCsv,
                                           writePanelCsv)
 import           Panel.Reconcile         (ErrorDist (..), ReconReport (..),
-                                          SpellRecon (..), gateTolerance,
-                                          groundTruthExpr, reconcile,
+                                          SpellRecon (..),
+                                          classifyGroundTruthUnit,
+                                          gateTolerance, groundTruthExpr,
+                                          groundTruthWei, reconcile,
                                           renderReconReport)
 import           Panoptic.Chunk          (ChunkKey (..), LegChunk (..),
                                           ReadRow (..), buildReadSchedule,
@@ -131,6 +133,11 @@ defaultVarianceHourlyCsv = defaultDataDir </> "variance-hourly.csv"
 -- observation, restored on the hourly grid the 10-01 census selected.
 defaultEpochPanelCsv :: FilePath
 defaultEpochPanelCsv = defaultDataDir </> "panel-epoch.csv"
+
+-- | The FROZEN per-spell OptionBurn ground truth (plan 10-09). See
+-- 'BurnTruthOpts' for why it exists as an input rather than only as gate output.
+defaultBurnTruthCsv :: FilePath
+defaultBurnTruthCsv = defaultDataDir </> "burn-truth.csv"
 
 -- ---------------------------------------------------------------------------
 -- Options
@@ -245,6 +252,25 @@ data EpochPanelOpts = EpochPanelOpts
   , epEpochHours   :: Int       -- ^ grid width in hours (1 = the 10-01 re-scope).
   }
 
+-- | Ground-truth freeze options (plan 10-09, provenance hardening).
+--
+-- The 10-08 anti-fabrication review recorded one limitation it could not close:
+-- @truth_wei@ — the protocol's own @OptionBurn.premium0@, the quantity the gate
+-- is scored AGAINST — was fetched live at reconcile time and materialised only in
+-- @reconcile-errors.csv@, which is the gate's OUTPUT. A ground truth that exists
+-- only inside the artifact it validates cannot be re-checked independently.
+--
+-- This freezes it as an INPUT: one committed row per accrual spell, carrying the
+-- raw event fields, cross-checked against the gate's own @truth_wei@ before it is
+-- written.
+data BurnTruthOpts = BurnTruthOpts
+  { btEndpoint    :: String
+  , btPool        :: String
+  , btPanel       :: FilePath  -- ^ spell panel CSV — THE population.
+  , btReconErrors :: FilePath  -- ^ gate error CSV — the cross-check.
+  , btOut         :: FilePath
+  }
+
 data Command
   = BuildPanel BuildPanelOpts
   | Variance VarianceOpts
@@ -254,6 +280,7 @@ data Command
   | ReadPremia ReadPremiaOpts
   | Reconcile ReconcileOpts
   | EpochPanel EpochPanelOpts
+  | BurnTruth BurnTruthOpts
 
 buildPanelOpts :: Parser BuildPanelOpts
 buildPanelOpts =
@@ -366,10 +393,28 @@ commandParser =
    <> command "reconcile"
         (info (Reconcile <$> reconcileOptsParser)
               (progDesc "THE GATE: reconstructed spell premium vs OptionBurn.premium0, in ETH wei, stratified short/long (exits non-zero on FAIL)"))
+   <> command "burn-truth"
+        (info (BurnTruth <$> burnTruthOptsParser)
+              (progDesc "Freeze the per-spell OptionBurn ground truth as a committed INPUT artifact, cross-checked against the gate's own truth_wei"))
    <> command "epoch-panel"
         (info (EpochPanel <$> epochPanelOptsParser)
               (progDesc "Assemble the position-epoch panel from the gate-validated accumulators and join it to the hourly variance series (exits non-zero on any unmatched epoch or telescoping mismatch)"))
     )
+
+burnTruthOptsParser :: Parser BurnTruthOpts
+burnTruthOptsParser =
+  BurnTruthOpts
+    <$> strOption ( long "endpoint" <> metavar "URL"
+                 <> help "Panoptic subgraph GraphQL endpoint (mints/burns/legs)" )
+    <*> strOption ( long "pool" <> metavar "POOL"
+                 <> help "underlying Pool.id (V4 poolId) to filter on" )
+    <*> strOption ( long "panel" <> metavar "PATH" <> value defaultPanelCsv <> showDefault
+                 <> help "spell panel CSV — THE population" )
+    <*> strOption ( long "recon-errors" <> metavar "PATH"
+                 <> value defaultReconcileErrorsCsv <> showDefault
+                 <> help "gate error CSV whose truth_wei this artifact must reproduce" )
+    <*> strOption ( long "out" <> metavar "PATH" <> value defaultBurnTruthCsv
+                 <> showDefault <> help "output frozen ground-truth CSV" )
 
 epochPanelOptsParser :: Parser EpochPanelOpts
 epochPanelOptsParser =
@@ -490,6 +535,7 @@ run (BlockIndex bo) = runBlockIndex bo
 run (ReadPremia o)  = runReadPremia o
 run (Reconcile o)   = runReconcile o
 run (EpochPanel o)  = runEpochPanel o
+run (BurnTruth o)   = runBurnTruth o
 
 -- ---------------------------------------------------------------------------
 -- build-panel
@@ -1688,6 +1734,132 @@ loadChunkLegsCensus fp = do
         lo <- readMaybe tl
         hi <- readMaybe tu
         pure ((T.pack tid, i), (t, lo, hi))
+      _ -> Nothing
+
+-- ---------------------------------------------------------------------------
+-- burn-truth (plan 10-09: freeze the ground truth as an INPUT)
+-- ---------------------------------------------------------------------------
+
+runBurnTruth :: BurnTruthOpts -> IO ()
+runBurnTruth o = do
+  let ep   = Endpoint (T.pack (btEndpoint o))
+      pool = PoolAddr (T.pack (btPool o))
+  now <- getCurrentTime
+  let dateStr = formatTime defaultTimeLocale "%Y-%m-%d" now
+
+  mints <- fetchMints ep pool
+  burns <- fetchBurns ep pool
+  legs  <- fetchLegs ep pool
+  let legMap = Map.fromList legs
+      raws   = assembleSpellRaws ethUsdcDecimalShift mints burns legs
+  panelSpells <- loadPanelCsv (btPanel o)
+  let panelToks = Set.fromList (map spTokenId panelSpells)
+      selected  = [ (tid, m, b) | (tid, m, b) <- raws, tid `Set.member` panelToks ]
+
+      -- The unit is DETERMINED by the gate's own classifier over the same burns,
+      -- never assumed here: a 1e18 unit error is the single most likely way a
+      -- frozen ground truth could be frozen wrong.
+      unit  = classifyGroundTruthUnit [ b | (_, _, b) <- selected ]
+      rows  = sortOn (\(tid, _, b) -> (tid, beBlock b)) selected
+      truthOf b = groundTruthWei unit b
+      legsOf tid m = resolveLegChunks marketTickSpacing (round (mePositionSize m))
+                       (Map.findWithDefault [] tid legMap)
+
+      maxAbs = maximumOrI [ abs (truthOf b) | (_, _, b) <- rows ]
+      -- BigInt -> Double -> Integer is exact only below 2^53. Checked rather than
+      -- assumed, so a future population that breaks it is caught at freeze time.
+      exactInDouble = maxAbs < 2 ^ (53 :: Int)
+
+  -- THE cross-check: this artifact must reproduce, per tokenId and to the wei,
+  -- the truth_wei the gate scored against. If it does not, the freeze is of a
+  -- different quantity than the one that was validated.
+  reconTruth <- loadReconTruth (btReconErrors o)
+  let frozenByTok = Map.fromListWith (+) [ (tid, truthOf b) | (tid, _, b) <- rows ]
+      truthMismatches =
+        [ (tid, f, g)
+        | (tid, g) <- Map.toList reconTruth
+        , let f = Map.findWithDefault 0 tid frozenByTok, f /= g ]
+
+  mapM_ putStrLn
+    [ "BURN_TRUTH_ROWS: "      ++ show (length rows)
+    , "BURN_TRUTH_TOKENIDS: "  ++ show (Set.size (Set.fromList [ t | (t, _, _) <- rows ]))
+    , "GROUND_TRUTH_UNIT: "    ++ show unit
+    , "MAX_ABS_PREMIUM0_WEI: " ++ show maxAbs
+    , "EXACT_IN_DOUBLE: "      ++ (if exactInDouble then "1" else "0")
+    , "TRUTH_MISMATCHES: "     ++ show (length truthMismatches)
+    ]
+  mapM_ (\(tid, f, g) -> putStrLn ("  MISMATCH " ++ T.unpack tid
+                                    ++ " frozen=" ++ show f ++ " gate=" ++ show g))
+        (take 10 truthMismatches)
+
+  argv   <- getArgs
+  commit <- gitHeadCommit
+  let banner = map ("# " ++)
+        [ "burn-truth.csv — the FROZEN per-spell OptionBurn ground truth, plan 10-09"
+        , ""
+        , "measured: " ++ dateStr ++ "   git commit: " ++ commit
+        , "command: econometrics " ++ unwords argv
+        , "subgraph endpoint: " ++ btEndpoint o ++ " (keyless public Goldsky; no API key used)"
+        , "underlying pool (V4 poolId): " ++ btPool o
+        , "population: " ++ btPanel o ++ " (" ++ show (Set.size panelToks) ++ " tokenIds)"
+        , ""
+        , "WHY THIS FILE EXISTS. The 10-08 anti-fabrication review recorded one"
+        , "limitation it could not close: truth_wei — the protocol's own"
+        , "OptionBurn.premium0, the quantity the reconciliation gate is scored"
+        , "AGAINST — was fetched live at reconcile time and materialised only in"
+        , "reconcile-errors.csv, which is the gate's OUTPUT. A ground truth that"
+        , "exists only inside the artifact it validates cannot be independently"
+        , "re-checked. This file is that ground truth as a committed INPUT."
+        , ""
+        , "UNIT: " ++ show unit ++ " — determined by Panel.Reconcile."
+        , "  classifyGroundTruthUnit over these same burns, the SAME classifier the"
+        , "  gate used; never assumed here."
+        , "  " ++ T.unpack (groundTruthExpr unit)
+        , "max |premium0| = " ++ show maxAbs ++ " wei, "
+          ++ (if exactInDouble then "BELOW" else "ABOVE") ++ " 2^53 = 9007199254740992,"
+        , "  so the subgraph BigInt -> Double -> Integer round-trip is "
+          ++ (if exactInDouble then "EXACT" else "LOSSY — DO NOT TRUST THESE VALUES")
+        , "  on every row of this population."
+        , ""
+        , "CROSS-CHECK: summed per tokenId, this file reproduces reconcile-errors.csv"
+        , "  truth_wei with TRUTH_MISMATCHES = " ++ show (length truthMismatches)
+          ++ " over " ++ show (Map.size reconTruth) ++ " tokenIds."
+        , ""
+        , "SIGN CONVENTION: as the protocol emits it — POSITIVE for short positions"
+        , "  (the seller receives), NEGATIVE for long ones (the buyer pays). No"
+        , "  seller-side flip is applied here; premium_usd in panel.csv applies one."
+        , "premium0_wei / premium1_wei are raw 18-decimal (ETH) and 6-decimal (USDC)"
+        , "  token units respectively. premium0 is the gate's ground truth: 61 burns"
+        , "  carry a non-zero premium0 against 38 non-zero premium1."
+        ]
+      header = "token_id,account,mint_block,burn_block,mint_timestamp,burn_timestamp,\
+               \premium0_wei,premium1_wei,position_size,is_long,leg_count"
+      body = unlines
+        [ intercalate ","
+            [ T.unpack tid, T.unpack (beAccount b)
+            , show (meBlock m), show (beBlock b)
+            , show (meTimestamp m), show (beTimestamp b)
+            , show (truthOf b), show (round (bePremium1 b) :: Integer)
+            , show (round (bePositionSize b) :: Integer)
+            , if isLong then "1" else "0", show (length lcs) ]
+        | (tid, m, b) <- rows
+        , let lcs    = legsOf tid m
+              isLong = case lcs of { (lc : _) -> lcIsLong lc ; [] -> False }
+        ]
+  writeFile (btOut o) (unlines banner ++ header ++ "\n" ++ body)
+  putStrLn ("burn-truth: wrote " ++ btOut o)
+
+  when (not (null truthMismatches) || not exactInDouble) $ exitWith (ExitFailure 1)
+
+-- | @tokenId -> Σ truth_wei@ from @reconcile-errors.csv@ (column 6).
+loadReconTruth :: FilePath -> IO (Map.Map T.Text Integer)
+loadReconTruth fp = do
+  txt <- readFile' fp
+  pure (Map.fromListWith (+) (mapMaybe parseRow (drop 1 (lines txt))))
+  where
+    parseRow l = case splitOn ',' l of
+      (tid : _isLong : _lc : _lct : _recon : truth : _) ->
+        (\w -> (T.pack tid, w)) <$> readMaybe truth
       _ -> Nothing
 
 -- ---------------------------------------------------------------------------
