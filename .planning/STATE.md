@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: "Completed 10-11-PLAN.md — PHASE 10 CLOSED. Cross-walk carries the MEASURED multiplier wedge (median 1.112500, p90 1.291667, 38.9% exactly 1, max R/N 2.333333; the 1.125 bound corrected), the terminal witness status (witness does NOT obtain, ATMOTMNullHypothesis OPEN) and the seller-side sign convention. 10-12 SKIPPED as optional/non-blocking; CTX-REPLAY-OPT recorded unsatisfied."
-last_updated: "2026-07-27T18:30:00.000Z"
-last_activity: "2026-07-27 — 10-11 COMPLETE, PHASE 10 CLOSED. The Lean/Haskell cross-walk now records the Panoptic multiplier wedge as a MEASURED distribution over all 8,910 accumulator readings (median 1.112500, p25 1.000000, p75 1.204167, p90 1.291667, max 1.291667, mean 1.117256, 3467/8910 exactly 1, long max 1.291667 / short max 1.204167, implied max R/N 2.333333) rather than the false 1.125 bound; states the level-vs-shape consequence without overclaiming (shape contamination NOT negligible — Pearson 0.143545 / Spearman 0.122141 on a chunk-level moneyness proxy, non-monotone quintile medians — flagged as a threat to validity, with its direction biasing kappa toward zero so the kappa>0 rejection is conservative w.r.t. it); records the terminal witness status (theorem proved+axiom-clean, hk supported, hu sign-only, witness does NOT obtain, conjecture OPEN); and adds the seller-side sign-convention note plus six verified fidelity anchors. 10-12 SKIPPED (optional, non-blocking; the wei-exact gate and two CLEAN anti-fabrication reviews already serve its purpose) and CTX-REPLAY-OPT recorded as UNSATISFIED, not as done. No Lean file touched; no econometrics source changed; suite 215/0."
+status: "**PHASE 10 CLOSED (11/12 plans; 10-12 skipped as optional and non-blocking).** The fidelity record is now accurate INCLUDING where it is imperfect: the Panoptic-vs-Lean multiplier wedge is documented in the cross-walk as a measured distribution, its consequence for the level-vs-shape reading of the witness claim is stated in both directions without overclaiming, and the seller-side sign convention that caused the 10-10 HALT is recorded so no future consumer repeats it. What follows is the prior wave's status, retained verbatim."
+stopped_at: Completed 10-11-PLAN.md — PHASE 10 CLOSED. Cross-walk carries the MEASURED multiplier wedge, the terminal witness status (does NOT obtain; ATMOTMNullHypothesis OPEN) and the seller-side sign convention. 10-12 SKIPPED; CTX-REPLAY-OPT unsatisfied.
+last_updated: "2026-07-27T17:59:32.023Z"
+last_activity: 2026-07-27 — 10-11 COMPLETE; **PHASE 10 CLOSED**. Cross-walk extended with the MEASURED multiplier wedge (median 1.112500, p90 1.291667, max R/N 2.333333; the 1.125 bound corrected), the terminal witness status (does NOT obtain; conjecture OPEN) and the seller-side sign convention. ROADMAP + STATE closed out; 10-12 SKIPPED with the reason recorded and CTX-REPLAY-OPT marked unsatisfied. Commits 8cba914, plus this close-out. No Lean file touched. Suite 215/0.
 progress:
   total_phases: 10
   completed_phases: 2
   total_plans: 30
-  completed_plans: 26
-  percent: 87
+  completed_plans: 27
+  percent: 90
 ---
 
 # Project State
@@ -49,7 +49,7 @@ Superseded status (Wave 10) — Phase 10 Wave 10 COMPLETE: **the estimation ques
 Superseded status (Wave 7) — 10-06 materialised the 8,910-row accumulator dataset and 10-07 built the gate machinery (`Panel.Reconcile` + the `reconcile` CLI) and ran the prescribed 5-spell PRE-CHECK: median relative error 0.0 in ETH wei, three of five spells exact to the wei, worst 2.18e-9, one-signed flooring residual only, scaling-signature check clean, GATE PASS. The telescoping decomposition is confirmed — the reconstructed panel really is a decomposition of `OptionBurn.premium0`, not an independent estimate. Ground-truth unit MEASURED (premium0 is already raw 18-decimal units; no 1e18 factor). Next: 10-08 runs the FULL 61-spell hard gate as a CHECKPOINT — same CLI, no selection flags, `gateTolerance` stays 0.01; read the two strata separately (the short stratum is the verdict; the 8 long spells carry the expected `_getAvailablePremium` settlement-cap wedge and are reported, not pooled). Any short-stratum spell materially above the ~1e-9 flooring floor is a multi-leg summation or a mid-spell `s_options` rewrite — the two wedges the single-leg pre-check could not exercise. Residual risks (55-cluster ceiling; noisier hourly sigma^2 / thinner even-swap instrument) adjudicated at the 10-10 stopping rule.
 Last activity: 2026-07-27 — 10-11 COMPLETE; **PHASE 10 CLOSED**. Cross-walk extended with the MEASURED multiplier wedge (median 1.112500, p90 1.291667, max R/N 2.333333; the 1.125 bound corrected), the terminal witness status (does NOT obtain; conjecture OPEN) and the seller-side sign convention. ROADMAP + STATE closed out; 10-12 SKIPPED with the reason recorded and CTX-REPLAY-OPT marked unsatisfied. Commits 8cba914, plus this close-out. No Lean file touched. Suite 215/0.
 
-Progress: [█████████░] 87%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
@@ -90,6 +90,7 @@ Progress: [█████████░] 87%
 | Phase 10 P08 | 60 | 2 tasks | 5 files |
 | Phase 10 P09 | ~3h | 5 tasks | 14 files |
 | Phase 10 P10 | 240 | 4 tasks | 5 files |
+| Phase 10 P11 | 35 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -191,7 +192,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-27T18:30:00.000Z
-Stopped at: Completed 10-11-PLAN.md — **PHASE 10 CLOSED**. The cross-walk records the measured multiplier wedge, the terminal witness status and the seller-side sign convention; ROADMAP and STATE are closed out; 10-12 is SKIPPED (optional, non-blocking) with CTX-REPLAY-OPT recorded as unsatisfied rather than done.
+Last session: 2026-07-27T17:59:01.927Z
+Stopped at: Completed 10-11-PLAN.md — PHASE 10 CLOSED. Cross-walk carries the MEASURED multiplier wedge, the terminal witness status (does NOT obtain; ATMOTMNullHypothesis OPEN) and the seller-side sign convention. 10-12 SKIPPED; CTX-REPLAY-OPT unsatisfied.
 Next: nothing is scheduled in Phase 10. If the user wants 10-12 later, the plan file is in place and unexecuted. Any future work on υ identification must add INDEPENDENT positions — the 55-cluster ceiling, not the LHS, is the binding constraint.
 Resume file: None
