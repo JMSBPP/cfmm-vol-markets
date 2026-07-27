@@ -58,10 +58,12 @@ import           Model.EIV               (ivFit)
 import           Model.NLS               (designPoints, fitGSLCov)
 import           Model.SandwichSE        (clusterSandwich, standardErrors)
 import           Model.Upsilon           (model, modelSplit, moneyness, signedMoneyness)
-import           Panel.Build             (Spell (..), assembleSpellRaws,
-                                          assembleSpells,
+import           Panel.Build             (EpochObs (..), Spell (..),
+                                          VarianceRow (..), assembleEpochPanel,
+                                          assembleSpellRaws, assembleSpells,
                                           assembleSpellsWithWindows, dailyEpoch,
-                                          epochOfSeconds, writePanelCsv)
+                                          epochOfSeconds, writeEpochPanelCsv,
+                                          writePanelCsv)
 import           Panel.Reconcile         (ErrorDist (..), ReconReport (..),
                                           SpellRecon (..), gateTolerance,
                                           groundTruthExpr, reconcile,
@@ -70,10 +72,13 @@ import           Panoptic.Chunk          (ChunkKey (..), LegChunk (..),
                                           ReadRow (..), buildReadSchedule,
                                           readScheduleRaw, resolveLegChunks,
                                           storedValueTick)
+import           Panoptic.Premium        (AccReading (..), PremiumObs (..),
+                                          buildSpellPremiumObs)
 import           Panoptic.ReadDriver     (AccRow (..), ReadStats (..),
                                           loadAccumulators, runReadSchedule)
 import           Panoptic.Sfpm           (getAccountPremium, sfpmAddress)
-import           Panel.Subgraph          (Chunk (..), ChunkPull (..),
+import           Panel.Subgraph          (BurnEvent (..), Chunk (..),
+                                          ChunkPull (..),
                                           CollateralFlow (..), Endpoint (..),
                                           Leg (..), MintEvent (..),
                                           PoolAddr (..), chunkKey, fetchBurns,
@@ -84,9 +89,9 @@ import           Panel.Variance          (RpcConfig (..), cacheSwapTicks,
                                           instrumentVariance,
                                           instrumentVarianceAt, loadSwapTicks,
                                           meanPoolTick, meanPoolTickAt,
-                                          realizedVariance, realizedVarianceAt,
-                                          swapCountsAt, writeVarianceCsv,
-                                          writeVarianceCsvAt)
+                                          fillQuietEpochs, realizedVariance,
+                                          realizedVarianceAt, swapCountsAt,
+                                          writeVarianceCsv, writeVarianceCsvAt)
 import           Tests.Specification     (TestResult (..), Theta4 (..),
                                           testKappaPos, testSymmetry,
                                           testUpsilonPos)
@@ -218,6 +223,28 @@ data ReconcileOpts = ReconcileOpts
   , rcMaxLegs      :: Int       -- ^ 0 = any; N = spells with at most N resolved legs.
   }
 
+-- | Position-epoch panel options (plan 10-09): assemble the spec §1 unit of
+-- observation from the gate-validated accumulator readings and join it to the
+-- hourly variance series.
+--
+-- Deliberately a SEPARATE subcommand rather than a flag on @build-panel@:
+-- @build-panel@ rewrites @panel.csv@, which is THE frozen 61-spell gate
+-- population that 10-08's verdict and this plan's own telescoping cross-check are
+-- both defined against. Re-running it now, against a subgraph that has advanced
+-- since the gate, would silently move the population under the check that is
+-- supposed to validate the panel.
+data EpochPanelOpts = EpochPanelOpts
+  { epEndpoint     :: String    -- ^ subgraph endpoint (mints/burns/legs).
+  , epPool         :: String    -- ^ underlying poolId.
+  , epAccumulators :: FilePath  -- ^ premium-accumulators CSV from read-premia (10-06).
+  , epPanel        :: FilePath  -- ^ spell panel CSV — THE population and its is_long labels.
+  , epVariance     :: FilePath  -- ^ HOURLY variance CSV (the join's right-hand side).
+  , epReconErrors  :: FilePath  -- ^ reconcile-errors CSV — the telescoping cross-check.
+  , epGateReport   :: FilePath  -- ^ reconcile.md; must carry GATE: PASS.
+  , epOut          :: FilePath  -- ^ output position-epoch panel CSV.
+  , epEpochHours   :: Int       -- ^ grid width in hours (1 = the 10-01 re-scope).
+  }
+
 data Command
   = BuildPanel BuildPanelOpts
   | Variance VarianceOpts
@@ -226,6 +253,7 @@ data Command
   | BlockIndex BlockIndexOpts
   | ReadPremia ReadPremiaOpts
   | Reconcile ReconcileOpts
+  | EpochPanel EpochPanelOpts
 
 buildPanelOpts :: Parser BuildPanelOpts
 buildPanelOpts =
@@ -338,7 +366,35 @@ commandParser =
    <> command "reconcile"
         (info (Reconcile <$> reconcileOptsParser)
               (progDesc "THE GATE: reconstructed spell premium vs OptionBurn.premium0, in ETH wei, stratified short/long (exits non-zero on FAIL)"))
+   <> command "epoch-panel"
+        (info (EpochPanel <$> epochPanelOptsParser)
+              (progDesc "Assemble the position-epoch panel from the gate-validated accumulators and join it to the hourly variance series (exits non-zero on any unmatched epoch or telescoping mismatch)"))
     )
+
+epochPanelOptsParser :: Parser EpochPanelOpts
+epochPanelOptsParser =
+  EpochPanelOpts
+    <$> strOption ( long "endpoint" <> metavar "URL"
+                 <> help "Panoptic subgraph GraphQL endpoint (mints/burns/legs)" )
+    <*> strOption ( long "pool" <> metavar "POOL"
+                 <> help "underlying Pool.id (V4 poolId) to filter on" )
+    <*> strOption ( long "accumulators" <> metavar "PATH"
+                 <> value defaultPremiumAccumulatorsCsv <> showDefault
+                 <> help "premium-accumulators CSV from read-premia (10-06)" )
+    <*> strOption ( long "panel" <> metavar "PATH" <> value defaultPanelCsv <> showDefault
+                 <> help "spell panel CSV — THE population and its is_long labels" )
+    <*> strOption ( long "variance" <> metavar "PATH" <> value defaultVarianceHourlyCsv
+                 <> showDefault <> help "HOURLY variance CSV (the join's right-hand side)" )
+    <*> strOption ( long "recon-errors" <> metavar "PATH"
+                 <> value defaultReconcileErrorsCsv <> showDefault
+                 <> help "per-spell reconciliation error CSV — the telescoping cross-check" )
+    <*> strOption ( long "gate-report" <> metavar "PATH" <> value defaultReconcileReport
+                 <> showDefault <> help "gate report; must carry 'GATE: PASS'" )
+    <*> strOption ( long "out" <> metavar "PATH" <> value defaultEpochPanelCsv
+                 <> showDefault <> help "output position-epoch panel CSV" )
+    <*> option auto ( long "epoch-hours" <> metavar "N" <> value 1 <> showDefault
+                 <> help "grid width in HOURS (1 = the 10-01 re-scope; must match \
+                         \the grid the accumulators were read on)" )
 
 defaultReconcileReport :: FilePath
 defaultReconcileReport = defaultDataDir </> "reconcile.md"
@@ -433,6 +489,7 @@ run (SampleSize so) = runSampleSize so
 run (BlockIndex bo) = runBlockIndex bo
 run (ReadPremia o)  = runReadPremia o
 run (Reconcile o)   = runReconcile o
+run (EpochPanel o)  = runEpochPanel o
 
 -- ---------------------------------------------------------------------------
 -- build-panel
@@ -1634,6 +1691,261 @@ loadChunkLegsCensus fp = do
       _ -> Nothing
 
 -- ---------------------------------------------------------------------------
+-- epoch-panel (plan 10-09: the spec §1 position-epoch unit, restored)
+-- ---------------------------------------------------------------------------
+
+runEpochPanel :: EpochPanelOpts -> IO ()
+runEpochPanel o = do
+  -- 0. PRECONDITION. The panel is a decomposition of a validated quantity; on an
+  --    unvalidated LHS it would be a decomposition of nothing.
+  gateTxt <- readFile' (epGateReport o)
+  when (not (any (== "GATE: PASS") (lines gateTxt))) $
+    ioError (userError ("ABORT: no line-anchored 'GATE: PASS' in " ++ epGateReport o
+                         ++ " — this plan does not run on an unvalidated LHS."))
+  putStrLn ("epoch-panel: gate precondition OK (GATE: PASS in " ++ epGateReport o ++ ")")
+
+  let ep       = Endpoint (T.pack (epEndpoint o))
+      pool     = PoolAddr (T.pack (epPool o))
+      epochSecs = max 1 (epEpochHours o) * 3600
+  now <- getCurrentTime
+  let dateStr = formatTime defaultTimeLocale "%Y-%m-%d" now
+
+  -- 1. The spell population, through the SINGLE pairing rule the read schedule
+  --    and the gate both used.
+  mints <- fetchMints ep pool
+  burns <- fetchBurns ep pool
+  legs  <- fetchLegs ep pool
+  let legMap = Map.fromList legs
+      raws   = assembleSpellRaws ethUsdcDecimalShift mints burns legs
+      allSpells =
+        [ (tid, m, b, resolveLegChunks marketTickSpacing (round (mePositionSize m))
+                        (Map.findWithDefault [] tid legMap))
+        | (tid, m, b) <- raws ]
+
+  -- 2. panel.csv is THE population, exactly as in the gate. The subgraph advances;
+  --    the population the gate scored does not.
+  panelSpells <- loadPanelCsv (epPanel o)
+  let panelToks = Set.fromList (map spTokenId panelSpells)
+      spells    = [ s | s@(tid, _, _, _) <- allSpells, tid `Set.member` panelToks ]
+  putStrLn ("epoch-panel: " ++ show (length raws) ++ " paired spells on the subgraph, "
+             ++ show (length spells) ++ " in the gate population ("
+             ++ show (Set.size panelToks) ++ " tokenIds)")
+
+  -- 3. The accumulator readings, grouped by the POOL-WIDE (chunk, side) identity.
+  accCache <- loadAccumulators (epAccumulators o)
+  let readings = map accRowToReading (Map.elems accCache)
+      byChunk  = Map.fromListWith (++)
+        [ ((arChunkKey r, arIsLong r), [r]) | r <- readings ]
+      accBlocks = map arBlock readings
+      accEpochs = map arEpoch readings
+  putStrLn ("epoch-panel: " ++ show (length readings) ++ " accumulator readings over "
+             ++ show (Map.size byChunk) ++ " (chunk, side) series")
+
+  -- 4. Decompose each spell into per-(leg, epoch) premium observations.
+  let perSpell =
+        [ buildSpellPremiumObs tid (meBlock m, beBlock b) lcs byChunk
+        | (tid, m, b, lcs) <- spells ]
+      obs       = concatMap fst perSpell
+      legHoles  = sum (map snd perSpell)
+
+  -- 5. The variance series and THE join.
+  varMap <- loadVarianceRows (epVariance o)
+  let (rows, unmatched) = assembleEpochPanel epochSecs varMap spells obs
+
+  -- 6. Metrics.
+  let tokIds        = nub (map eoTokenId rows)
+      epochs        = nub (map eoEpoch rows)
+      perTok        = Map.fromListWith (+) [ (eoTokenId r, 1 :: Int) | r <- rows ]
+      multiEpochTok = length [ () | c <- Map.elems perTok, c > 1 ]
+      flaggedRows   = length [ () | r <- rows, not (null (eoFlags r)) ]
+      quietRows     = length [ () | r <- rows, eoNSwaps r == 0 ]
+      gain          = fromIntegral (length rows)
+                        / fromIntegral phase9BaselineRows :: Double
+
+      -- The 10-01 census counted joinable epochs PER SPELL and summed. This panel
+      -- is keyed on (tokenId, epoch), so a tokenId holding two spells that share
+      -- an hour contributes ONE row where the census counted two. Reporting the
+      -- census-comparable number alongside the panel's own makes the difference a
+      -- measured collapse rather than an unexplained shortfall.
+      matchedEpochs = Set.fromList (map eoEpoch rows)
+      spellEpochRows = sum
+        [ Set.size (Set.fromList
+            [ e | ob <- os, let e = fromIntegral (poEpoch ob) :: Int
+                , e `Set.member` matchedEpochs ])
+        | (os, _) <- perSpell ]
+
+      -- Concentration. Under tokenId-CLUSTERED inference a row count concentrated
+      -- in a few long-lived positions buys far less than it looks like it does, so
+      -- the share is published next to the count rather than left to be found.
+      sortedCounts = reverse (sort (Map.elems perTok))
+      top10Share   = fracOf (sum (take 10 sortedCounts)) (sum sortedCounts)
+
+      -- The telescoping cross-check, per tokenId, against the gate's own
+      -- per-spell reconstruction. EXACT is the bar: the panel is a decomposition
+      -- of that number, not an independent estimate of it.
+      panelByTok = Map.fromListWith (+) [ (eoTokenId r, eoPremiumWei r) | r <- rows ]
+      obsByTok   = Map.fromListWith (+) [ (poTokenId r, poPremiumWei0 r) | r <- obs ]
+  reconByTok <- loadReconErrors (epReconErrors o)
+  let telescopeCmp =
+        [ (tid, Map.findWithDefault 0 tid obsByTok
+              , Map.findWithDefault 0 tid panelByTok, recon)
+        | (tid, recon) <- Map.toList reconByTok ]
+      obsMismatches   = [ t | t@(_, d, _, r) <- telescopeCmp, d /= r ]
+      panelMismatches = [ t | t@(_, _, p, r) <- telescopeCmp, p /= r ]
+
+  mapM_ putStrLn
+    [ "PANEL_ROWS: "            ++ show (length rows)
+    , "PANEL_TOKENIDS: "        ++ show (length tokIds)
+    , "PANEL_EPOCHS: "          ++ show (length epochs)
+    , "SPELL_EPOCH_ROWS: "      ++ show spellEpochRows
+    , "UNMATCHED_EPOCHS: "      ++ show (length unmatched)
+    , "MULTI_EPOCH_TOKENIDS: "  ++ show multiEpochTok
+    , "WITHIN_POSITION_EPOCHS_MEDIAN: " ++ fmtG (medianI (Map.elems perTok))
+    , "WITHIN_POSITION_EPOCHS_MAX: "    ++ show (maximumOr0 (Map.elems perTok))
+    , "TOP10_TOKENID_ROW_SHARE: "       ++ fmtG top10Share
+    , "FLAGGED_ROWS: "          ++ show flaggedRows
+    , "QUIET_EPOCH_ROWS: "      ++ show quietRows
+    , "LEG_READ_HOLES: "        ++ show legHoles
+    , "TELESCOPE_MISMATCHES: "  ++ show (length obsMismatches)
+    , "PANEL_SUM_MISMATCHES: "  ++ show (length panelMismatches)
+    , "PHASE9_BASELINE_ROWS: "  ++ show phase9BaselineRows
+    , "GAIN_FACTOR: "           ++ fmtG gain
+    ]
+  when (not (null unmatched)) $
+    putStrLn ("  unmatched epochs: " ++ show (take 20 unmatched))
+  mapM_ (\(tid, d, p, r) ->
+           putStrLn ("  MISMATCH " ++ T.unpack tid ++ " decomposed=" ++ show d
+                      ++ " panel=" ++ show p ++ " gate_recon=" ++ show r))
+        (take 10 (nub (obsMismatches ++ panelMismatches)))
+
+  -- 7. Write the artifact with the lineage it cannot reconstruct for itself.
+  argv   <- getArgs
+  commit <- gitHeadCommit
+  let banner = map ("# " ++)
+        [ "panel-epoch.csv — THE position-epoch panel (spec §1 unit), plan 10-09"
+        , ""
+        , "measured: " ++ dateStr ++ "   git commit: " ++ commit
+        , "command: econometrics " ++ unwords argv
+        , "working directory: repository root (all paths below are repo-relative)"
+        , ""
+        , "subgraph endpoint: " ++ epEndpoint o
+        , "underlying pool (V4 poolId): " ++ epPool o
+        , "PanopticPool: 0xb50e8bb68f5855da742f4579274902a20454174a (ETH/USDC, fee 500)"
+        , "SFPM read target: " ++ T.unpack sfpmAddress
+        , "VEGOID / nu: 8 / 0.125 — applied INSIDE the contract's X64 accumulator, never re-applied here"
+        , ""
+        , "accumulator readings: " ++ epAccumulators o
+          ++ " (" ++ show (length readings) ++ " rows, blocks "
+          ++ show (minimumOrI accBlocks) ++ ".." ++ show (maximumOrI accBlocks)
+          ++ ", epochs " ++ show (minimumOrI accEpochs) ++ ".."
+          ++ show (maximumOrI accEpochs) ++ ")"
+        , "gate population: " ++ epPanel o ++ " (" ++ show (Set.size panelToks) ++ " tokenIds)"
+        , "gate verdict: " ++ epGateReport o
+          ++ " — GATE: PASS, short-stratum median rel error 0.0, worst 5.447268e-4, tolerance 0.01"
+        , "telescoping cross-check: " ++ epReconErrors o
+          ++ " — TELESCOPE_MISMATCHES " ++ show (length obsMismatches)
+          ++ ", PANEL_SUM_MISMATCHES " ++ show (length panelMismatches)
+        , "variance series: " ++ epVariance o ++ " (hourly)"
+        , ""
+        , "epoch rule: floor(unixSeconds / " ++ show epochSecs ++ ") via"
+        , "  Panel.Epoch.epochOfSeconds — the SAME function the variance series uses."
+        , "  The join is an exact INTEGER match; UNMATCHED_EPOCHS = "
+          ++ show (length unmatched) ++ "."
+        , "epoch attribution: a row's premium is the accumulator difference over the"
+        , "  interval STARTING at that epoch's boundary block, so it accrued during"
+        , "  epoch e and is regressed on sigma^2_e measured over the same hour."
+        , ""
+        , "premium_wei: Integer, currency0 (ETH), seller-side sign as the protocol emits it."
+        , "  CANONICAL. premium_eth = premium_wei / 1e18 is the regression LHS."
+        , "  Summing premium_wei over a tokenId's rows reproduces that spell's"
+        , "  gate-validated recon_wei EXACTLY (Panoptic.Premium.decomposePremium)."
+        , "strike_tick: Leg.strike, ALREADY an int24 tick — no round(log K / log 1.0001)."
+        , "pool_tick: the epoch's mean pool tick from the same V4 Swap series as sigma^2."
+        , "moneyness: Model.Upsilon.moneyness strike_tick pool_tick = |i_K - i_t|."
+        , "flags: ';'-separated Panoptic.Premium.PremiumFlag values; rows are RETAINED."
+        , "n_swaps: swaps behind this epoch's sigma^2. n_swaps = 0 marks an hour in"
+        , "  which the pool saw no trade at all (sigma^2 = 0 measured, pool tick carried"
+        , "  forward); " ++ show quietRows ++ " such row(s) here."
+        , ""
+        , "PANEL_ROWS " ++ show (length rows)
+          ++ " / PANEL_TOKENIDS " ++ show (length tokIds)
+          ++ " / PANEL_EPOCHS " ++ show (length epochs)
+          ++ " / MULTI_EPOCH_TOKENIDS " ++ show multiEpochTok
+          ++ " / FLAGGED_ROWS " ++ show flaggedRows
+        , "SPELL_EPOCH_ROWS " ++ show spellEpochRows
+          ++ " (the 10-01 census's per-SPELL count; PANEL_ROWS is per"
+          ++ " (tokenId, epoch), so a tokenId holding two spells that share an hour"
+          ++ " contributes one row where the census counted two)"
+        , "within-position epochs: median " ++ fmtG (medianI (Map.elems perTok))
+          ++ ", max " ++ show (maximumOr0 (Map.elems perTok))
+          ++ "; top-10 tokenId row share " ++ fmtG top10Share
+          ++ " — precision is bounded by the 55 CLUSTERS, not by the row count."
+        , "Phase-9 baseline 61 spell rows; GAIN_FACTOR " ++ fmtG gain
+        ]
+  writeEpochPanelCsv (epOut o) banner rows
+  putStrLn ("epoch-panel: wrote " ++ epOut o)
+
+  -- 8. Fail loud. An unmatched epoch or a telescoping mismatch is a bug in the
+  --    reconstruction, not a tolerance to absorb.
+  when (not (null unmatched) || not (null obsMismatches) || not (null panelMismatches)) $
+    exitWith (ExitFailure 1)
+
+-- | An 'AccRow' from the committed CSV as the premium arithmetic's 'AccReading'.
+-- A pure re-labelling: no field is derived, defaulted or dropped.
+accRowToReading :: AccRow -> AccReading
+accRowToReading r = AccReading
+  { arChunkKey         = ChunkKey (acTokenType r) (acTickLower r) (acTickUpper r)
+  , arBlock            = acBlock r
+  , arEpoch            = acEpoch r
+  , arIsLong           = acIsLong r
+  , arAtTick           = acAtTick r
+  , arAcc0             = acAcc0 r
+  , arAcc1             = acAcc1 r
+  , arNetLiquidity     = acNetLiq r
+  , arRemovedLiquidity = acRemovedLiq r
+  , arEndpoint         = acEndpoint r
+  }
+
+-- | @tokenId -> Σ recon_wei@ from @reconcile-errors.csv@ (the gate's own
+-- per-spell reconstruction). Summed because a tokenId can carry more than one
+-- spell — 61 spells over 55 tokenIds.
+loadReconErrors :: FilePath -> IO (Map.Map T.Text Integer)
+loadReconErrors fp = do
+  txt <- readFile' fp
+  pure (Map.fromListWith (+) (mapMaybe parseRow (drop 1 (lines txt))))
+  where
+    parseRow l = case splitOn ',' l of
+      (tid : _isLong : _lc : _lct : recon : _) ->
+        (\w -> (T.pack tid, w)) <$> readMaybe recon
+      _ -> Nothing
+
+-- | Load a variance CSV (daily 4-column or hourly 5-column) into the panel's
+-- 'VarianceRow'. @n_swaps@ defaults to 0 when the file predates the column.
+loadVarianceRows :: FilePath -> IO (Map.Map Int VarianceRow)
+loadVarianceRows fp = do
+  txt <- readFile' fp
+  let keep l = not ("#" `isPrefixOf` l) && not ("epoch" `isPrefixOf` l) && not (null l)
+  pure (Map.fromList (mapMaybe parseRow (filter keep (lines txt))))
+  where
+    parseRow l = case splitOn ',' l of
+      (e : s2 : s2i : tk : rest) -> do
+        ep  <- readMaybe e
+        a   <- readMaybe s2
+        b   <- readMaybe s2i
+        t   <- readMaybe tk :: Maybe Double
+        let n = case rest of
+                  (x : _) -> maybe 0 id (readMaybe x)
+                  []      -> 0
+        pure (ep, VarianceRow a b (round t) n)
+      _ -> Nothing
+
+minimumOrI, maximumOrI :: [Integer] -> Integer
+minimumOrI [] = 0
+minimumOrI xs = minimum xs
+maximumOrI [] = 0
+maximumOrI xs = maximum xs
+
+-- ---------------------------------------------------------------------------
 -- variance
 -- ---------------------------------------------------------------------------
 
@@ -1671,10 +1983,11 @@ runVariance vo = do
       -- The 10-01 HOURLY re-scope: the SAME estimators at a finer bucket, plus
       -- the per-epoch swap count, so a constructed zero can be told apart from a
       -- measured one.
-      let rv = realizedVarianceAt   epochSecs ticks
-          iv = instrumentVarianceAt epochSecs ticks
-          mt = meanPoolTickAt       epochSecs ticks
-          ns = swapCountsAt         epochSecs ticks
+      let rv0 = realizedVarianceAt   epochSecs ticks
+          iv0 = instrumentVarianceAt epochSecs ticks
+          mt0 = meanPoolTickAt       epochSecs ticks
+          ns0 = swapCountsAt         epochSecs ticks
+          (rv, iv, mt, ns, quiet) = fillQuietEpochs rv0 iv0 mt0 ns0
           counts = Map.elems ns
           thin   = length [ () | c <- counts, c < minSwapsForVariance ]
       writeVarianceCsvAt epochSecs (voOutCsv vo) rv iv mt ns
@@ -1686,6 +1999,8 @@ runVariance vo = do
       putStrLn ("EPOCH_RANGE: "        ++ show (minimumOr0 (Map.keys rv)) ++ ".."
                                         ++ show (maximumOr0 (Map.keys rv)))
       putStrLn ("EPOCH_GAPS: "         ++ show (epochGapCount (Map.keys rv)))
+      putStrLn ("QUIET_EPOCHS_FILLED: " ++ show (length quiet)
+                 ++ (if null quiet then "" else " " ++ show quiet))
       putStrLn ("SWAPS_PER_EPOCH_MIN: "    ++ show (minimumOr0 counts))
       putStrLn ("SWAPS_PER_EPOCH_MEDIAN: " ++ fmtG (medianI counts))
       putStrLn ("SWAPS_PER_EPOCH_MAX: "    ++ show (maximumOr0 counts))

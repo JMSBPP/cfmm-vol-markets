@@ -149,6 +149,41 @@ spec = describe "Panel.Variance (CTX-VAR)" $ do
       rolled `shouldBe` daily
       sum (Map.elems hourly) `shouldBe` length ticks
 
+  -- One hour of the Base ETH/USDC estimation window (epoch 495112) carries zero
+  -- swaps between neighbours carrying 700+. A re-fetch of that block range
+  -- reproduced the cache byte-identically, so the hour was still on chain rather
+  -- than missed by the pull — and a panel row for it must be able to join.
+  describe "quiet-epoch completion" $ do
+    let s2   = Map.fromList [(10, 5.0), (12, 7.0)]
+        s2i  = Map.fromList [(10, 4.0), (12, 6.0)]
+        tick = Map.fromList [(10, -200100), (12, -200300)]
+        n    = Map.fromList [(10, 300 :: Int), (12, 400)]
+        (s2', s2i', tick', n', quiet) = fillQuietEpochs s2 s2i tick n
+
+    it "fills interior epochs that carry no swap at all" $
+      quiet `shouldBe` [11]
+
+    it "gives a quiet epoch sigma2 = 0 (no swap ⇒ no increment ⇒ no movement)" $ do
+      Map.lookup 11 s2'  `shouldBe` Just 0
+      Map.lookup 11 s2i' `shouldBe` Just 0
+
+    it "carries the pool tick FORWARD (it is a state variable, not a flow)" $
+      Map.lookup 11 tick' `shouldBe` Just (-200100)
+
+    it "marks the quiet epoch with n_swaps = 0 so it stays isolable downstream" $
+      Map.lookup 11 n' `shouldBe` Just 0
+
+    it "never invents epochs outside the observed range" $ do
+      Map.member 9  n' `shouldBe` False
+      Map.member 13 n' `shouldBe` False
+
+    it "leaves an already-complete series untouched" $ do
+      let full = Map.fromList [(10, 1 :: Int), (11, 2), (12, 3)]
+          (a, _, _, d, q) = fillQuietEpochs s2 s2i tick full
+      q `shouldBe` []
+      a `shouldBe` s2
+      d `shouldBe` full
+
   describe "V4 Swap-log ABI decode" $ do
     it "decodeTick reads the int24 tick (word 4, sign-extended) from live data" $
       decodeTick (BC.pack liveSwapData) `shouldBe` (-201156)

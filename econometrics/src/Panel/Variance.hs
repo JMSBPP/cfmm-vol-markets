@@ -65,6 +65,7 @@ module Panel.Variance
   , meanPoolTickAt
   , instrumentVarianceAt
   , swapCountsAt
+  , fillQuietEpochs
   , writeVarianceCsvAt
     -- * Historical / superseded
   , historicalBigQuerySql
@@ -402,9 +403,6 @@ byEpochAt epochSeconds ticks =
   fmap reverse $ Map.fromListWith (++)
     [ (epochOfSeconds epochSeconds t, [tk]) | (t, tk) <- sortOn fst ticks ]
 
--- | Group ticks into per-day chronological series, bucketed by 'dailyEpoch'.
-byEpoch :: [(UTCTime, Int)] -> Map Epoch [Int]
-byEpoch = byEpochAt 86400
 
 -- | Realized variance of a within-day series: the sum of squared log-price
 -- increments (standard RV, no mean removal).
@@ -475,6 +473,58 @@ meanPoolTickAt epochSeconds = Map.map avg . byEpochAt epochSeconds
 -- without re-deriving them from the tick cache.
 swapCountsAt :: Int -> [(UTCTime, Int)] -> Map Epoch Int
 swapCountsAt epochSeconds = Map.map length . byEpochAt epochSeconds
+
+-- | Complete the series across the closed epoch range it already spans, giving a
+-- row to every interior epoch in which the pool saw __no swap at all__.
+--
+-- Returns the four completed maps and the list of epochs that were filled.
+--
+-- == Why this is a measurement and not an interpolation
+--
+-- At the daily grid this never fires — every covered day carries thousands of
+-- swaps. At the hourly grid the ETH/USDC Base market has exactly one such hour in
+-- the estimation window (epoch 495112), sitting between neighbours carrying 700+
+-- swaps each. Re-fetching that block range reproduced the cached tick series
+-- BYTE-IDENTICALLY, so the hour is empty in the data because it was empty on
+-- chain, not because the pull missed it.
+--
+-- Given that, each field has one correct value and none of them is invented:
+--
+--   * __σ̂² = 0 and σ̃² = 0.__ Realized variance is the sum of squared log-price
+--     increments. With no swap there is no increment and the tick at the end of
+--     the hour is the tick at its start: the price did not move, so the realized
+--     variance over the window is zero. This is a DIFFERENT object from the
+--     \"0 or 1 swap ⇒ σ̂² = 0 by construction\" case a reader should distrust —
+--     that one is a window we failed to observe, this one is a window we observed
+--     to be still.
+--   * __i_t is carried forward from the last epoch that had a swap.__ The pool
+--     tick is a STATE variable, not a flow: with no trade it is, identically, the
+--     tick left by the previous trade. Carrying it forward is the measurement;
+--     leaving it NaN would be the error.
+--   * __n_swaps = 0__, so any downstream consumer can isolate or drop these rows
+--     with a single predicate, and none of them can be mistaken for a busy hour.
+--
+-- Epochs OUTSIDE the observed range are never invented — the fill runs strictly
+-- between the first and last epoch that actually carry swaps.
+fillQuietEpochs
+  :: Map Epoch Double -> Map Epoch Double -> Map Epoch Double -> Map Epoch Int
+  -> (Map Epoch Double, Map Epoch Double, Map Epoch Double, Map Epoch Int, [Epoch])
+fillQuietEpochs sig2 sig2i tickM nSwaps
+  | Map.null nSwaps = (sig2, sig2i, tickM, nSwaps, [])
+  | otherwise       = (fill 0 sig2, fill 0 sig2i, tickFilled, fill 0 nSwaps, quiet)
+  where
+    lo    = minimum (Map.keys nSwaps)
+    hi    = maximum (Map.keys nSwaps)
+    quiet = [ e | e <- [lo .. hi], not (Map.member e nSwaps) ]
+
+    fill :: a -> Map Epoch a -> Map Epoch a
+    fill v m = foldr (\e acc -> Map.insert e v acc) m quiet
+
+    -- The pool tick is a state: a quiet epoch inherits the last observed one.
+    tickFilled = snd (foldl step (0 / 0, tickM) [lo .. hi])
+    step (lastTick, m) e = case Map.lookup e tickM of
+      Just t  -> (t, m)
+      Nothing -> (lastTick, Map.insert e lastTick m)
 
 -- | Write the per-epoch @(σ̂²_t, σ̃²_t)@ join to CSV, with a banner documenting
 -- the window definitions. Columns: @epoch,sigma2,sigma2_instrument@.
