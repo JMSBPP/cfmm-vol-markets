@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "10-08 COMPLETE — full 61-spell gate GATE: PASS (short median 0.0, 53/61 exact to wei, worst 5.447268e-4), USER adjudicated PROCEED after a CLEAN x2 anti-fabrication review; next: 10-09 panel construction"
-last_updated: "2026-07-26T17:41:14.466Z"
+stopped_at: "10-09 executor running (resumed after session limit). PROTOCOL when it completes: FIRST dispatch anti-fabrication reviewers over the 10-09 artifacts (hourly variance CSV, premium panel, burn-truth.csv, estimation-ready panel) — priority check: every value computed/extracted from committed raw data (premium-accumulators.csv, cached swap ticks, subgraph burns), none hardcoded; recompute joins/aggregates independently; grep for planted literals — THEN, if CLEAN, launch 10-10 (re-estimation + stopping-rule checkpoint)"
+last_updated: "2026-07-27T12:44:05.586Z"
 last_activity: "2026-07-26 — 10-08: the full 61-spell hard gate. GATE: PASS (short median 0.0, long median 0.0, 53/61 exact to the wei, worst 5.447268e-4, LEGCOUNT_MISMATCHES 0, gateTolerance = 0.01 untouched). Both 10-07 suspects refuted; residual = an irreducible sub-block end-of-block-vs-at-transaction eth_call wedge. USER adjudicated PROCEED after a CLEAN x2 anti-fabrication review. Suite 176/0. Commits 63a3fa2, 9ad94b2."
 progress:
   total_phases: 10
@@ -159,6 +159,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-26T17:39:50.786Z
-Stopped at: 10-08 COMPLETE — full 61-spell gate GATE: PASS (short median 0.0, 53/61 exact to wei, worst 5.447268e-4), USER adjudicated PROCEED after a CLEAN x2 anti-fabrication review; next: 10-09 panel construction
-Resume file: None
+Last session: 2026-07-27T12:44:05.582Z
+Stopped at: 10-09 executor running (resumed after session limit). PROTOCOL when it completes: FIRST dispatch anti-fabrication reviewers over the 10-09 artifacts (hourly variance CSV, premium panel, burn-truth.csv, estimation-ready panel) — priority check: every value computed/extracted from committed raw data (premium-accumulators.csv, cached swap ticks, subgraph burns), none hardcoded; recompute joins/aggregates independently; grep for planted literals — THEN, if CLEAN, launch 10-10 (re-estimation + stopping-rule checkpoint)
+Resume file: .planning/phases/10-streaming-premium-reconstruction-and-reestimation/10-09-PLAN.md
