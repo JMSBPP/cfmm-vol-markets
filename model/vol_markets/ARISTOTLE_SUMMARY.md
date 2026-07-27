@@ -93,3 +93,27 @@ parameters renamed off `η` (reserved for the pricing kernel) to
 `feeMin`/`feeMax`/`cexFee`; sigmoid center/steepness named
 `volStrike` (σ̄_f) / `steepness` (s_f); tick spacing uniformly `Δi` matching
 `PosSpec`/`tbd.md`.
+
+# Summary of changes for run da1c9fce (task 5dc95184)
+Workflow change (user rule): the reference doc itself — plank's
+`notes/VOLATILITY_INSTRUMENTS.md` — was bundled with the 8 proved modules and
+Aristotle authored BOTH statements and proofs (no locally drafted sorries).
+Result: `vol_markets/VolInstrument.lean`, 36 proved lemmas/theorems + 8 defs,
+sorry-free, axiom-clean; none of the 8 existing files modified.
+
+- §1 pricing-kernel geometry `priceEta η Δi i = λ^((i/2)·Δi·η)` (Θ_p = {η, Δ_i});
+  positivity, strict monotonicity for η·Δi > 0, and `priceEta 1 = tickPrice`.
+- §2 per-tick amounts `deltaQM`/`deltaQX` (token0 identity, nonnegativity —
+  Aristotle added the mathematically necessary `Δi ≥ 0` alongside η·Δi > 0),
+  cumulatives with succ/monotone/constant-L telescoping laws, and the
+  least-step inverse cumulative (`exists_least_reaching`).
+- §3 flow region `flowRegion`/`tickFlowRegion` (square identity, monotone).
+- §4 multi-sigmoid fee `multiFee` over Θ_φ = {γ, φ̄, β, α} with `utilization`;
+  bounds, monotonicity, and the exact single-term bridge
+  `multiFee 1 ... = FeeSchedule.feeRaw φ̄ (φ̄+α₀) β₀ γ₀⁻¹` (s_f = 1/γ).
+- §5 `probOr` (⊗_φ): abelian-monoid laws, [0,1] closure, monotonicity, and the
+  hazard correspondence `probOr (1−e^{−λM}) (1−e^{−λX}) = 1 − e^{−(λM+λX)}`.
+- §6 Demeterfi `logPortfolio`/`variancePortfolio`: nonnegativity, ATM zero,
+  `Upsilon.upsilon (Π + σ²t/2) = t/2` (price-independent), unit-vega `2/t`.
+- Bridges: `realizedVariancePayoff_bridge` (= `Panoptic.volOptionPayoff 1`),
+  `strikeWeight_bridge` (doc's ℓ(ξ,ι;i_K) = `GeomProfile.geomWeight`).

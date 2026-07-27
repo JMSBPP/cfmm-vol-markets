@@ -1,6 +1,9 @@
 # LEAN_TRACEABILITY.md — vol-instruments markdown ↔ Aristotle-proved Lean
 
-The reference documents are the markdowns in this directory. This file maps
+**Master reference: `VOLATILITY_INSTRUMENTS.md`** (plank worktree,
+`notes/VOLATILITY_INSTRUMENTS.md`; a copy ships in each Aristotle bundle).
+Its claim-by-claim map is §7. The supporting reference documents are the
+markdowns in this directory. This file maps
 every claim in them to the machine-checked Lean layer
 (`lean/vol_markets/*.lean`, mirrored at `JMSBPP/cfmm-lean4-spec`), and fixes
 the shared notation. Statuses: **PROVEN** (sorry-free, axiom-clean:
@@ -108,9 +111,41 @@ Parametrizes the paper's threshold-type dynamic fee; couples into §2's P1/P2.
 ## 6. Not covered by any Lean module yet
 
 - `exposure.md` — `VegaExposure`, `N_v = ΔM/p_vol(σ̄)`: the `p_vol` map should
-  go through `PosSpec.tickPrice` (σ → tick → Q64.96). **OPEN.**
+  go through `VolInstrument.priceEta` (σ → tick → Q64.96). **OPEN.**
 - `pos_spec.md` EVM type layer (u24/u16/u88 builders). **OPEN.**
 - Integer/rounding quantification beyond `mulX96Down_*` (accumulated floor
   error over N positions). **OPEN.**
+- `VOLATILITY_INSTRUMENTS.md`'s `λ_FLAIR` path-integral functional and the
+  abstract `𝓖_φ` group beyond the `probOr` monoid core. **OPEN** (sup over
+  compact `Θ_λ ⊂ Θ_φ` is the `FeeSchedule.exists_optimal_params` interface).
 - `Panoptic.lean`/`Upsilon.lean` trace to the phase docs under
-  `.planning/phases/08-*` and `09-*`, not to this directory.
+  `.planning/phases/08-*` and `09-*` and to §7 below.
+
+## 7. `VOLATILITY_INSTRUMENTS.md` — master instrument doc (module `VolInstrument.lean` + bridges)
+
+Additional notation for this doc: `p_(η,Δ_i)(i) = λ^((i/2)·Δ_i·η)` →
+`VolInstrument.priceEta η Δi i` (η = pricing-kernel eta, ONLY use of η);
+`Θ_φ = {γ, φ̄, β, α}` → `multiFee` arguments (`γ β α : ℕ → ℝ`, `φbar`);
+`⊗_φ` → `probOr`; `Π` → `logPortfolio`/`variancePortfolio`;
+`ΔQ_M^L`/`ΔQ_X^L` → `deltaQM`/`deltaQX`. `FeeSchedule`'s `s_f = 1/γ`.
+
+| Doc claim | Lean | Status |
+|---|---|---|
+| `π^σ = ΔQ_v·(σ²(i(t)) − σ²_K)⁺`, `ΔQ_v` as difference quotient | `Panoptic.volOptionPayoff`, `deltaQv_of_payoff` | **PROVEN** (phase 08) |
+| `p_{π^σ} = p₀ + α₁·p_call + α₂·p_put` | `Panoptic.replicationPrice` + `_call_only`, `_shift` | **PROVEN** |
+| `p_call\|put = ∫θ dt` (discrete) and θ closed form | `Panoptic.streamingPremium`, `theta_atm_closed_form`, `centralBinom_isEquivalent` | **PROVEN** (ATM lattice form) |
+| `υ ≡ Δπ/Δσ²` lives in the `ΔQ_v` slot | `Upsilon.upsilon`, `upsilon_volOption`, `upsilon_eq_deltaShares_slot` | **PROVEN** |
+| υ econometric API `υ(t) = υ(ī) + (Δυ/Δi)·i(t)`, ATM/OTM decay | `Upsilon.upsilonTickSlope`, `ATMOTMNullHypothesis`, `exp_family_witnesses_ATMOTM` | **PROVEN** (statement + exp-family witness; estimation = phase 09) |
+| Pricing geometry `p_(η,Δ_i)`, `Θ_p = {η, Δ_i}` | `VolInstrument.priceEta` + `_pos`, `_strictMono` (η·Δi > 0), `priceEta_one` (= `tickPrice` at η = 1) | **PROVEN** |
+| `ΔQ_M^L`, `ΔQ_X^L` on `(X, M)` | `deltaQM`, `deltaQX`, `deltaQM_token0`, `_nonneg` (needs `Δi ≥ 0` too — Aristotle-caught) | **CORRECTED → PROVEN** |
+| Cumulatives `Q_M^L`, `Q_X^L` + inverse cumulatives | `cumulativeQM/QX` + `_succ`, `_monotone`, `_const` telescoping, `exists_least_reaching` | **PROVEN** |
+| Region `φ(i_K; ΔQ, L)` | `flowRegion`, `tickFlowRegion` + `_sq`, `_mono_left/right` | **PROVEN** |
+| Multi-sigmoid `φ(σ)`, `Θ_φ = {γ, φ̄, β, α}` | `utilization` + `_mem`, `multiFee` + `_bounds`, `_monotone` | **PROVEN** |
+| `FeeSchedule` = single-term case | `multiFee_single_bridge` (`s_f = 1/γ`) | **PROVEN** |
+| `⊗_φ = 1−(1−φ_M)(1−φ_X)` abelian monoid, `[0,1]` closure | `probOr` + `_eq`, `_comm`, `_assoc`, `_zero`, `zero_probOr`, `_mem_Icc`, `_mono` | **PROVEN** (max/min semilattice rows are Mathlib instances) |
+| `λ ≡ λ_M + λ_X` ↔ `⊗_φ` | `probOr_hazard` (`φ = 1 − e^{−λ}`) | **PROVEN** |
+| Demeterfi `Π = (p−p*)/p* − log(p/p*)` ≥ 0, `Π(p*) = 0` | `logPortfolio` + `_nonneg`, `_atm` | **PROVEN** |
+| `υ(Π + σ²t/2) = t/2` price-independent; `Id_{N_σ} = 2/t` unit vega | `variancePortfolio_upsilon`, `_unit_upsilon` (via `Upsilon.upsilon`) | **PROVEN** |
+| `π^σ = (σ²_R − σ²_K)⁺` | `realizedVariancePayoff_bridge` (= `Panoptic.volOptionPayoff 1`) | **PROVEN** |
+| Strike weights `ℓ(ξ,ι;i_K)` | `strikeWeight_bridge` (= `GeomProfile.geomWeight`) | **PROVEN** |
+| `λ_FLAIR` integral, `𝓖_φ` beyond the monoid core, MEV section | — | **OPEN** (see §6) |
