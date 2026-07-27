@@ -198,9 +198,9 @@ spec-preflight-band:
 	python3 -c "import re; text = open('$$SPEC').read(); secs = re.split(r'^(## \d+\.[^\n]*)\n', text, flags=re.M); body6 = next((secs[i+1] for i in range(1,len(secs),2) if secs[i].startswith('## 6.')), None); body7 = next((secs[i+1] for i in range(1,len(secs),2) if secs[i].startswith('## 7.')), None); assert body6 is not None and body7 is not None, 'spec sections missing: ## 6. and/or ## 7.'; m6 = re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', body6, re.S); m7 = re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', body7, re.S); assert m6 is not None and m7 is not None, 'no gams code block in section: ## 6. and/or ## 7.'; open('$$ROOT/payoff/eta_pi_trader_band_monotone_large.gms','w').write(m6.group(1)); open('$$ROOT/PayoffModule.gms','w').write(m7.group(1))"; \
 	cp $(GAMS_DIR)/PricingKernel.gms $(GAMS_DIR)/primitives.gms $(GAMS_DIR)/$(GAMS_BUILD)/spec-band/; \
 	cp $(GAMS_DIR)/payoff/_PayoffScaffolding.gms $(GAMS_DIR)/payoff/eta_pi_trader_zero_slippage.gms $(GAMS_DIR)/$(GAMS_BUILD)/spec-band/payoff/; \
-	cp $(GAMS_DIR)/test/PayoffModuleTest.gms $(GAMS_DIR)/$(GAMS_BUILD)/spec-band/test/; \
+	cp $(GAMS_DIR)/test/PayoffBandMonotoneLargeTest.gms $(GAMS_DIR)/$(GAMS_BUILD)/spec-band/test/; \
 	cd $(GAMS_DIR)/$(GAMS_BUILD)/spec-band && \
-	$(GAMS) test/PayoffModuleTest.gms action=ce o=run.lst scrdir=. lo=0 >/dev/null 2>&1 ; \
+	$(GAMS) test/PayoffBandMonotoneLargeTest.gms action=ce o=run.lst scrdir=. lo=0 >/dev/null 2>&1 ; \
 	if grep -qE 'Status: (Compilation|Execution) error' run.lst; then \
 		printf 'spec-preflight-band FAIL: see $(GAMS_DIR)/$(GAMS_BUILD)/spec-band/run.lst\n'; \
 		grep -A1 '^\*\*\*\*' run.lst | head -10; exit 1; \
