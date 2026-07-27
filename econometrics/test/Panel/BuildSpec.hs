@@ -18,17 +18,24 @@
 module Panel.BuildSpec (spec) where
 
 import qualified Data.ByteString.Lazy as BL
-import           Data.List            (sortOn)
+import           Data.List            (nub, sortOn)
+import qualified Data.Map.Strict      as Map
+import           Data.Text            (Text)
 import           Test.Hspec
 
 import           Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 
-import           Panel.Build          (Spell (..), assembleSpells,
+import           Model.Upsilon        (moneyness)
+import           Panel.Build          (EpochObs (..), Spell (..),
+                                       VarianceRow (..), assembleEpochPanel,
+                                       assembleSpells,
                                        assembleSpellsWithWindows, dailyEpoch,
-                                       epochOfSeconds, hourlyEpoch, premiumUsd,
-                                       tickToPrice)
-import           Panel.Subgraph       (BurnEvent (..), parseBurns, parseLegs,
-                                       parseMints)
+                                       epochOfSeconds, epochPanelHeader,
+                                       hourlyEpoch, premiumUsd, tickToPrice)
+import           Panel.Subgraph       (BurnEvent (..), MintEvent (..),
+                                       parseBurns, parseLegs, parseMints)
+import           Panoptic.Chunk       (ChunkKey (..), LegChunk (..))
+import           Panoptic.Premium     (PremiumFlag (..), PremiumObs (..))
 
 fixturePath :: FilePath
 fixturePath = "test/fixtures/subgraph-sample.json"
@@ -113,6 +120,8 @@ spec = describe "Panel.Build (CTX-PANEL, accrual spells)" $ do
         t u = posixSecondsToUTCTime (fromInteger u)
     map ((`div` 24) . hourlyEpoch . t) instants `shouldBe` map (dailyEpoch . t) instants
 
+  panelJoinSpec
+
   -- The hourly census reads its sub-daily windows from here rather than
   -- re-deriving the mint<->burn pairing; if the two ever diverged the census
   -- would be measuring a different spell set than the panel.
@@ -127,3 +136,158 @@ spec = describe "Panel.Build (CTX-PANEL, accrual spells)" $ do
     -- the window is second-resolution and reproduces the spell's own duration
     map (\(s, (m, b)) -> abs (fromInteger (b - m) / 86400 - spDays s) < 1e-9) withWins
       `shouldSatisfy` and
+
+-- ---------------------------------------------------------------------------
+-- The position-epoch panel and its variance join (plan 10-09)
+-- ---------------------------------------------------------------------------
+
+-- | Synthetic three-epoch position on the HOURLY grid (epoch = hour since the
+-- Unix epoch). Epochs 100, 101, 102; the position is open across all three.
+--
+-- Everything here is constructed rather than fixture-loaded because the property
+-- under test is the JOIN, not the parse: what matters is that a premium
+-- observation lands on the variance row for the epoch it accrued in, that a
+-- missing variance row is REPORTED instead of silently dropping the observation,
+-- and that the epoch rows sum back to the spell total.
+hourSecs :: Int
+hourSecs = 3600
+
+synthMint :: Text -> Integer -> MintEvent
+synthMint tid e = MintEvent
+  { meTokenId = tid, meAccount = "0xacct"
+  , meTimestamp = e * fromIntegral hourSecs, meBlock = e
+  , meTickAt = -200000, mePositionSize = 1.0e15 }
+
+synthBurn :: Text -> Integer -> BurnEvent
+synthBurn tid e = BurnEvent
+  { beTokenId = tid, beAccount = "0xacct"
+  , beTimestamp = e * fromIntegral hourSecs, beBlock = e
+  , beTickAt = -200000, bePremium0 = 3.0e12, bePremium1 = 0
+  , bePositionSize = 1.0e15 }
+
+synthLeg :: Int -> Int -> Bool -> LegChunk
+synthLeg ix strike isLong =
+  LegChunk { lcLegIndex = ix
+           , lcChunkKey = ChunkKey 0 (strike - 1200) (strike + 1200)
+           , lcIsLong = isLong, lcLiquidity = 1000, lcStrike = strike
+           , lcWidth = 240 }
+
+-- | A premium observation for @(tokenId, legIndex, epoch)@ carrying @wei@.
+synthObs :: Text -> Int -> Integer -> Integer -> [PremiumFlag] -> PremiumObs
+synthObs tid ix e wei flags = PremiumObs
+  { poTokenId = tid, poLegIndex = ix, poEpoch = e
+  , poPremiumWei0 = wei, poPremiumWei1 = 0
+  , poIsLong = False, poStrikeTick = -199920, poFlags = flags }
+
+varRow :: Double -> Double -> Int -> Int -> VarianceRow
+varRow s2 s2i tick n = VarianceRow s2 s2i tick n
+
+-- | Variance rows for epochs 100..102.
+synthVar :: Map.Map Int VarianceRow
+synthVar = Map.fromList
+  [ (100, varRow 1.0e-4 1.2e-4 (-200100) 150)
+  , (101, varRow 2.0e-4 2.2e-4 (-200200) 160)
+  , (102, varRow 3.0e-4 3.2e-4 (-200300) 170)
+  ]
+
+-- | One three-hour position with a single short leg at strike −199920.
+synthSpells :: [(Text, MintEvent, BurnEvent, [LegChunk])]
+synthSpells = [("tok1", synthMint "tok1" 100, synthBurn "tok1" 102,
+                [synthLeg 0 (-199920) False])]
+
+synthObsList :: [PremiumObs]
+synthObsList =
+  [ synthObs "tok1" 0 100 1000 []
+  , synthObs "tok1" 0 101 2000 [ChunkEmpty]
+  , synthObs "tok1" 0 102 3000 []
+  ]
+
+panelJoinSpec :: Spec
+panelJoinSpec = describe "panel join" $ do
+
+  it "produces one row per (tokenId, epoch)" $ do
+    let (rows, _) = assembleEpochPanel hourSecs synthVar synthSpells synthObsList
+    length rows `shouldBe` 3
+    map (\r -> (eoTokenId r, eoEpoch r)) rows
+      `shouldBe` [("tok1", 100), ("tok1", 101), ("tok1", 102)]
+
+  it "reports ZERO unmatched epochs when every epoch has a variance row" $ do
+    let (_, unmatched) = assembleEpochPanel hourSecs synthVar synthSpells synthObsList
+    unmatched `shouldBe` []
+
+  -- The 09-05 40587-offset trap, in the form it would take here: a premium epoch
+  -- with no variance row must SURFACE, not vanish into a smaller clean panel.
+  it "REPORTS an epoch missing from the variance map instead of dropping it silently" $ do
+    let gappy      = Map.delete 101 synthVar
+        (rows, um) = assembleEpochPanel hourSecs gappy synthSpells synthObsList
+    um `shouldBe` [101]
+    map eoEpoch rows `shouldBe` [100, 102]
+
+  it "excludes epochs outside the position's [epoch_mint, epoch_burn] window" $ do
+    let outside = synthObsList ++ [ synthObs "tok1" 0 99  500 []
+                                  , synthObs "tok1" 0 103 500 [] ]
+        wider   = Map.insert 99 (varRow 1 1 (-200000) 10)
+                    (Map.insert 103 (varRow 1 1 (-200000) 10) synthVar)
+        (rows, um) = assembleEpochPanel hourSecs wider synthSpells outside
+    um `shouldBe` []
+    map eoEpoch rows `shouldBe` [100, 101, 102]
+
+  -- The telescoping property, now at PANEL level: the per-epoch rows are a
+  -- decomposition of the spell total the 10-08 gate validated.
+  it "sums premium_wei over a tokenId's epoch rows to the spell total EXACTLY" $ do
+    let (rows, _) = assembleEpochPanel hourSecs synthVar synthSpells synthObsList
+    sum (map eoPremiumWei rows) `shouldBe` (1000 + 2000 + 3000 :: Integer)
+
+  it "sums legs within an epoch and records the leg count" $ do
+    let twoLeg = [("tok1", synthMint "tok1" 100, synthBurn "tok1" 102,
+                   [synthLeg 0 (-199920) False, synthLeg 1 (-198960) False])]
+        obs    = [ synthObs "tok1" 0 100 1000 []
+                 , synthObs "tok1" 1 100  250 [] ]
+        (rows, _) = assembleEpochPanel hourSecs synthVar twoLeg obs
+    map eoPremiumWei rows `shouldBe` [1250]
+    map eoLegCount   rows `shouldBe` [2]
+
+  it "computes moneyness with Model.Upsilon.moneyness, not a local reimplementation" $ do
+    let (rows, _) = assembleEpochPanel hourSecs synthVar synthSpells synthObsList
+    map eoMoneyness rows
+      `shouldBe` [ moneyness (-199920) t | t <- [-200100, -200200, -200300] ]
+
+  it "carries Leg.strike straight through as an int24 tick (no log remap, no NaN)" $ do
+    let (rows, _) = assembleEpochPanel hourSecs synthVar synthSpells synthObsList
+    map eoStrikeTick rows `shouldBe` [-199920, -199920, -199920]
+    map eoMoneyness  rows `shouldSatisfy` all (not . isNaN)
+
+  it "retains flagged rows and marks them rather than dropping them" $ do
+    let (rows, _) = assembleEpochPanel hourSecs synthVar synthSpells synthObsList
+        flagged   = [ r | r <- rows, not (null (eoFlags r)) ]
+    length flagged `shouldBe` 1
+    map eoEpoch flagged `shouldBe` [101]
+    map eoFlags flagged `shouldBe` [["ChunkEmpty"]]
+
+  -- The identification claim of the whole phase: WITHIN-position variation.
+  -- Phase 9 had exactly zero of it (one window-averaged sigma^2 per spell).
+  it "gives at least one tokenId more than one epoch row (within-position variation)" $ do
+    let (rows, _) = assembleEpochPanel hourSecs synthVar synthSpells synthObsList
+        perTok    = Map.fromListWith (+) [ (eoTokenId r, 1 :: Int) | r <- rows ]
+    length [ () | c <- Map.elems perTok, c > 1 ] `shouldSatisfy` (> 0)
+    -- and the regressor genuinely MOVES across those rows
+    length (nub (map eoSigma2 rows)) `shouldSatisfy` (> 1)
+
+  it "carries the epoch's sigma2 / instrument / swap count onto the row" $ do
+    let (rows, _) = assembleEpochPanel hourSecs synthVar synthSpells synthObsList
+    map eoSigma2      rows `shouldBe` [1.0e-4, 2.0e-4, 3.0e-4]
+    map eoSigma2Instr rows `shouldBe` [1.2e-4, 2.2e-4, 3.2e-4]
+    map eoNSwaps      rows `shouldBe` [150, 160, 170]
+
+  it "carries the holding account (the coarser cluster) onto every row" $ do
+    let (rows, _) = assembleEpochPanel hourSecs synthVar synthSpells synthObsList
+    map eoAccount rows `shouldBe` ["0xacct", "0xacct", "0xacct"]
+
+  it "premium_eth is premium_wei / 1e18" $ do
+    let (rows, _) = assembleEpochPanel hourSecs synthVar synthSpells synthObsList
+    map eoPremiumEth rows `shouldBe` [1000 / 1e18, 2000 / 1e18, 3000 / 1e18]
+
+  it "the header names the columns the artifact and its readers agree on" $
+    epochPanelHeader `shouldBe`
+      "token_id,account,epoch,premium_wei,premium_eth,strike_tick,pool_tick,\
+      \moneyness,is_long,leg_count,flags,sigma2,sigma2_instrument,n_swaps"

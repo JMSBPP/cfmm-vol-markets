@@ -90,6 +90,103 @@ spec = do
     it "a single-reading chain contributes zero" $
       telescope [42 * q64] l False `shouldBe` 0
 
+  -- 10-09: the panel is licensed ONLY as a decomposition of the gate-validated
+  -- endpoint total, so its per-epoch rows must sum back to that total EXACTLY —
+  -- for the REAL leg liquidities, which are not multiples of 2^64.
+  describe "exact decomposition" $ do
+    let a0    = 100 * q64 + 17
+        chain = [a0, 250 * q64 + 7, 900 * q64 + 3, 1500 * q64 + 42, 4096 * q64 + 5]
+        aN    = last chain
+        -- A REAL leg liquidity from chunk-legs.csv, deliberately NOT a multiple
+        -- of 2^64: this is exactly the case 'telescope' cannot handle.
+        lReal = 761939137362 :: Integer
+
+    it "sums to the endpoint premium EXACTLY for a liquidity that is not a multiple of 2^64" $
+      sum (decomposePremium chain lReal False) `shouldBe` premiumWei aN a0 lReal False
+
+    it "holds EXACTLY on the long side" $
+      sum (decomposePremium chain lReal True) `shouldBe` premiumWei aN a0 lReal True
+
+    it "yields one increment per interval" $
+      length (decomposePremium chain lReal False) `shouldBe` length chain - 1
+
+    -- The motivating defect, demonstrated rather than asserted: per-interval
+    -- flooring loses wei, and the loss is bounded by the number of intervals.
+    it "telescope UNDERSHOOTS for such a liquidity, which is why this exists" $ do
+      let viaTelescope = telescope chain lReal False
+          exact        = premiumWei aN a0 lReal False
+      viaTelescope `shouldSatisfy` (< exact)
+      (exact - viaTelescope) `shouldSatisfy` (<= fromIntegral (length chain - 1))
+
+    it "agrees with telescope when L IS a multiple of 2^64 (no flooring residue)" $
+      decomposePremium chain q64 False
+        `shouldBe` zipWith (\lo hi -> premiumWei hi lo q64 False) chain (drop 1 chain)
+
+    it "a chain of 0 or 1 readings decomposes to no intervals (never a fabricated zero)" $ do
+      decomposePremium []          lReal False `shouldBe` []
+      decomposePremium [42 * q64]  lReal False `shouldBe` []
+
+  -- The accrual-interval epoch convention. Chain.BlockIndex maps epoch e to the
+  -- block at the START of e, so the delta between boundary(e) and boundary(e+1)
+  -- is the premium that accrued DURING hour e and must be tagged e — not e+1, or
+  -- the panel regresses hour e's premium on hour e+1's variance.
+  describe "accrual-interval epoch tagging" $ do
+    let ck  = ChunkKey 0 (-199680) (-197280)
+        lc  = LegChunk 0 ck False q64 (-198000) 240
+        r e a = (mkReading e a 10) { arBlock = e }
+        chain = [r 100 (5 * q64), r 101 (9 * q64), r 102 (20 * q64)]
+
+    it "tags each interval with the epoch it ACCRUED IN (the starting reading)" $
+      map poEpoch (premiumObsChain "tok" lc chain) `shouldBe` [100, 101]
+
+    it "carries the tokenId the pool-wide fan-out cannot know" $
+      map poTokenId (premiumObsChain "tok" lc chain) `shouldBe` ["tok", "tok"]
+
+    it "orders by BLOCK, not by list order, and sums to the endpoint premium" $ do
+      let shuffled = [chain !! 2, chain !! 0, chain !! 1]
+          os       = premiumObsChain "tok" lc shuffled
+      map poEpoch os `shouldBe` [100, 101]
+      sum (map poPremiumWei0 os) `shouldBe` premiumWei (20 * q64) (5 * q64) q64 False
+
+    it "unions the flags of BOTH endpoints of an interval" $ do
+      let withEmpty = [ r 100 (5 * q64), (r 101 (9 * q64)) { arNetLiquidity = 0 } ]
+      case premiumObsChain "tok" lc withEmpty of
+        [o] -> poFlags o `shouldContain` [ChunkEmpty]
+        _   -> expectationFailure "expected exactly one observation"
+
+  -- The chunk accumulator is POOL-WIDE, so the reading cache holds other
+  -- positions' windows in the same chunk. Attributing those to this position
+  -- would both invent premium and break the sum-back-to-the-gate identity.
+  describe "spell window restriction" $ do
+    let ck  = ChunkKey 0 (-199680) (-197280)
+        lc  = LegChunk 0 ck False q64 (-198000) 240
+        r e a = (mkReading e a 10) { arBlock = e }
+        pool  = [ r 98 q64, r 99 (2 * q64)          -- before the mint (another position)
+                , r 100 (5 * q64), r 101 (9 * q64), r 102 (20 * q64)
+                , r 103 (99 * q64) ]                -- after the burn (another position)
+        byChunk = Map.fromList [((ck, False), pool)]
+
+    it "uses only readings inside [mintBlock, burnBlock]" $ do
+      let (os, holes) = buildSpellPremiumObs "tok" (100, 102) [lc] byChunk
+      holes `shouldBe` 0
+      map poEpoch os `shouldBe` [100, 101]
+      sum (map poPremiumWei0 os)
+        `shouldBe` premiumWei (20 * q64) (5 * q64) q64 False
+
+    it "COUNTS a leg whose window holds fewer than two readings instead of zeroing it" $ do
+      let (os, holes) = buildSpellPremiumObs "tok" (100, 100) [lc] byChunk
+      os    `shouldBe` []
+      holes `shouldBe` 1
+
+    it "prefers the spell-endpoint row when two readings share a block" $ do
+      let dup = [ (r 100 (5 * q64)) { arEndpoint = Just "mint" }
+                , (r 100 (77 * q64))                       -- interior row, same block
+                , r 101 (9 * q64) ]
+          (os, _) = buildSpellPremiumObs "tok" (100, 101) [lc]
+                      (Map.fromList [((ck, False), dup)])
+      sum (map poPremiumWei0 os)
+        `shouldBe` premiumWei (9 * q64) (5 * q64) q64 False
+
   describe "frozen and empty-chunk detection" $ do
     it "isFrozenAcc is True within 1% of 2^128 - 1, False well below" $ do
       isFrozenAcc (q128 - 1)          `shouldBe` True

@@ -1,9 +1,38 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Position-spell panel assembler (CTX-PANEL, plan 09-04; rebuilt at the 09-09
--- live run against the real subgraph schema).
+-- | Position panel assembler (CTX-PANEL, plan 09-04; rebuilt at the 09-09 live
+-- run against the real subgraph schema; the position-epoch unit RESTORED at
+-- plan 10-09).
 --
--- == The unit of observation (CHANGED at 09-09 — read this)
+-- == PHASE 10 RESTORED THE POSITION-EPOCH UNIT (read this first)
+--
+-- The 09-09 note below is retained verbatim because it records a real constraint
+-- that was real at the time — but it is __no longer the binding one__. Phase 10
+-- obtained the per-epoch premium series that the subgraph could not supply, by
+-- reading the accumulator off CHAIN STATE instead:
+--
+--   * @SFPM.getAccountPremium@ was read at every HOURLY epoch boundary inside
+--     each spell's block window, plus the exact mint and burn blocks
+--     (8,910 archive @eth_call@s, plan 10-06);
+--   * the per-epoch premium is the X64 accumulator difference times the leg
+--     liquidity ('Panoptic.Premium.premiumWei'), the SAME arithmetic
+--     @PanopticPool._getPremia@ uses;
+--   * that reconstruction was scored against the protocol's own
+--     @OptionBurn.premium0@ on all 61 spells in Integer wei and __PASSED__ at a
+--     short-stratum median relative error of exactly 0.0, 53 of 61 exact to the
+--     wei (plan 10-08, @gateTolerance = 0.01@ untouched).
+--
+-- So 'assembleEpochPanel' below produces the spec §1 unit — one row per
+-- (tokenId, epoch) — on the HOURLY grid the 10-01 census selected, and the
+-- within-position time variation that Phase 9 had exactly zero of exists again.
+--
+-- __'assembleSpells' is retained and is still THE gate's ground truth.__ The
+-- spell panel is the population the 1%-wei gate reconciles against, and
+-- 'assembleEpochPanel' is validated by summing its rows back to that panel's
+-- endpoint totals. Do not delete the spell path to \"clean up\" the module: it is
+-- the independent check on the thing that replaced it.
+--
+-- == The unit of observation (CHANGED at 09-09, SUPERSEDED at 10-09)
 --
 -- The spec (§1) asks for a POSITION-EPOCH panel: one π_it per tokenId per daily
 -- epoch, built by diffing cumulative settled-premia snapshots. The live Panoptic
@@ -38,10 +67,12 @@
 --     the variance window in "Panel.Variance", so σ̂²_t lines up with the spell
 --     windows (RESEARCH Pitfall 4).
 module Panel.Build
-  ( Epoch
+  ( -- * The epoch grid (re-exported from "Panel.Epoch", the leaf that owns it)
+    Epoch
   , dailyEpoch
   , epochOfSeconds
   , hourlyEpoch
+    -- * The accrual spell (Phase 9; retained as the gate's ground truth)
   , Spell (..)
   , assembleSpells
   , assembleSpellsWithWindows
@@ -49,49 +80,40 @@ module Panel.Build
   , tickToPrice
   , premiumUsd
   , writePanelCsv
+    -- * The position-epoch panel (Phase 10; the spec §1 unit, restored)
+  , EpochObs (..)
+  , VarianceRow (..)
+  , assembleEpochPanel
+  , epochPanelHeader
+  , writeEpochPanelCsv
   ) where
 
 import qualified Data.ByteString.Lazy   as BL
 import qualified Data.Csv               as Csv
-import           Data.List              (sortOn)
+import           Data.List              (intercalate, nub, sort, sortOn)
+import           Data.Map.Strict        (Map)
 import qualified Data.Map.Strict        as Map
 import           Data.Maybe             (mapMaybe)
+import qualified Data.Set               as Set
 import           Data.Text              (Text)
+import qualified Data.Text              as T
 import           Data.Time.Clock        (UTCTime)
 import           Data.Time.Clock.POSIX  (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 
+import           Model.Upsilon          (moneyness)
+import           Panel.Epoch            (Epoch, epochOfSeconds, hourlyEpoch)
 import           Panel.Subgraph         (BurnEvent (..), Leg (..), MintEvent (..))
-
--- | Daily epoch index: whole UTC days since the Unix epoch (00:00 UTC bucket).
-type Epoch = Int
+import           Panoptic.Chunk         (LegChunk (..))
+import           Panoptic.Premium       (PremiumObs (..))
 
 -- | Bucket a UTC instant into its daily epoch. Boundary fixed at 00:00 UTC; the
 -- SAME definition is used by the variance window in "Panel.Variance".
+--
+-- __Deliberately defined here and nowhere else, byte-identical since 09-04.__
+-- The generalized 'Panel.Epoch.epochOfSeconds' (re-exported above) must agree
+-- with it pointwise at width 86400, and "Panel.BuildSpec" asserts that.
 dailyEpoch :: UTCTime -> Int
 dailyEpoch t = floor (realToFrac (utcTimeToPOSIXSeconds t) / (86400 :: Double))
-
--- | Bucket a UTC instant into an epoch of arbitrary width, @epochSeconds@ wide,
--- anchored at the Unix epoch. This GENERALIZES 'dailyEpoch' — it does not
--- replace it.
---
--- 'dailyEpoch' remains the single source of truth for the DAILY grid, and its
--- body is deliberately left untouched: Phase 9's @variance.csv@, @panel.csv@ and
--- @estimation-panel.csv@ are all keyed on it, and the 09-05 40587-offset trap was
--- exactly what happens when a second definition of the day index is introduced.
--- @epochOfSeconds 86400@ is required to agree with 'dailyEpoch' pointwise, and
--- "Panel.BuildSpec" asserts that agreement so the two can never drift.
---
--- Introduced by plan 10-01 for the HOURLY re-scope of the Wave-0 census: the
--- daily design was closed by its own pre-committed rule (median accrual spell
--- 0.25 days cannot vary within a daily bucket), and re-measuring at a finer
--- resolution requires the bucket width to be a parameter rather than a constant.
-epochOfSeconds :: Int -> UTCTime -> Epoch
-epochOfSeconds epochSeconds t =
-  floor (realToFrac (utcTimeToPOSIXSeconds t) / (fromIntegral epochSeconds :: Double))
-
--- | Hourly epoch index: whole hours since the Unix epoch. @epochOfSeconds 3600@.
-hourlyEpoch :: UTCTime -> Epoch
-hourlyEpoch = epochOfSeconds 3600
 
 -- | Epoch of a unix-second timestamp.
 epochOfUnix :: Integer -> Epoch
@@ -226,6 +248,192 @@ assembleSpellFull decimalShift mints burns legs =
 
     lastMay [] = Nothing
     lastMay xs = Just (last xs)
+
+-- ---------------------------------------------------------------------------
+-- The position-epoch panel (plan 10-09) — the spec §1 unit of observation
+-- ---------------------------------------------------------------------------
+
+-- | One row of the variance series, as the panel consumes it: σ̂²_t, the EIV
+-- instrument σ̃²_t, the mean pool tick i_t, and the swap count behind them.
+data VarianceRow = VarianceRow
+  { vrSigma2      :: !Double
+  , vrSigma2Instr :: !Double
+  , vrPoolTick    :: !Int     -- ^ i_t, ROUNDED to the tick grid the strike lives on.
+  , vrNSwaps      :: !Int     -- ^ increments behind σ̂² is @vrNSwaps − 1@.
+  }
+  deriving (Show, Eq)
+
+-- | One position-epoch observation: the spec §1 unit. @π_it@ with its moneyness
+-- anchor and the epoch's variance regressors, ready for @Model.Upsilon.model@.
+data EpochObs = EpochObs
+  { eoTokenId     :: !Text
+  , eoAccount     :: !Text
+  , eoEpoch       :: !Epoch
+  , eoPremiumWei  :: !Integer  -- ^ CANONICAL. Integer wei, currency0 (ETH).
+  , eoPremiumEth  :: !Double   -- ^ @eoPremiumWei \/ 1e18@ — the regression LHS.
+  , eoStrikeTick  :: !Int      -- ^ i_K. 'Leg.strike' IS an int24 tick already.
+  , eoPoolTick    :: !Int      -- ^ i_t, from the epoch's mean pool tick.
+  , eoMoneyness   :: !Double   -- ^ @Model.Upsilon.moneyness eoStrikeTick eoPoolTick@.
+  , eoIsLong      :: !Bool
+  , eoLegCount    :: !Int      -- ^ legs contributing to this row's premium.
+  , eoFlags       :: ![Text]
+  , eoSigma2      :: !Double   -- ^ σ̂²_t for this epoch.
+  , eoSigma2Instr :: !Double   -- ^ σ̃²_t, the disjoint-window EIV instrument.
+  , eoNSwaps      :: !Int      -- ^ swaps behind this epoch's σ̂².
+  }
+  deriving (Show, Eq)
+
+-- | __Assemble the position-epoch panel and join it to the variance series.__
+--
+-- Inputs:
+--
+--   * @epochSeconds@ — the grid width. 3600 for Phase 10 (the 10-01 HOURLY
+--     re-scope); 86400 reproduces the daily design. Bucketing goes through
+--     'Panel.Epoch.epochOfSeconds', never a local divisor.
+--   * the variance series, keyed on the SAME integer epoch index;
+--   * the spells, for each position's account, stratum, strike and epoch window;
+--   * the per-(leg, epoch) premium observations — produced by
+--     'Panoptic.Premium.buildSpellPremiumObs' (which decomposes the SAME X64
+--     accumulator arithmetic 'Panoptic.Premium.buildPremiumObs' /
+--     @PanopticPool._getPremia@ use). This function does __no premium arithmetic
+--     of its own__; it aggregates and joins.
+--
+-- Returns @(rows, unmatchedEpochs)@.
+--
+-- == The unmatched list is RETURNED, not filtered
+--
+-- @unmatchedEpochs@ is every distinct epoch that carried a premium observation
+-- but has NO variance row. It is surfaced rather than quietly dropped because a
+-- silent drop is precisely how the 09-05 40587-offset bug survived: the two sides
+-- bucketed onto different grids, the join threw away everything that did not
+-- match, and what came out the far end looked like a small clean panel instead of
+-- like a catastrophe. __The caller must treat a non-empty list as a hard error.__
+--
+-- == Two independent window guards
+--
+-- A premium observation is admitted only if its epoch lies inside one of its
+-- position's @[epoch_mint, epoch_burn]@ windows. That is deliberately redundant
+-- with the block-window restriction in 'Panoptic.Premium.buildSpellPremiumObs':
+-- the block guard uses the read schedule's blocks, this one uses the subgraph's
+-- event timestamps, and they can only agree if the epoch↔block index is sound.
+--
+-- == Multi-leg positions
+--
+-- Premium is SUMMED over the position's legs within the epoch (that is what the
+-- scalar @OptionBurn.premium0@ ground truth also is), and @eoLegCount@ records
+-- how many contributed. @eoStrikeTick@ and @eoIsLong@ come from the position's
+-- FIRST resolved leg — the same rule 'assembleSpells' and the 10-08 gate's
+-- stratum use, so the three cannot disagree. For a genuine two-strike position
+-- that single strike is an approximation of the position's moneyness, which is
+-- why @leg_count@ is carried in the artifact rather than dropped.
+assembleEpochPanel
+  :: Int
+  -> Map Epoch VarianceRow
+  -> [(Text, MintEvent, BurnEvent, [LegChunk])]
+  -> [PremiumObs]
+  -> ([EpochObs], [Epoch])
+assembleEpochPanel epochSeconds varMap spells obs = (rows, unmatched)
+  where
+    epochOfUnix' :: Integer -> Epoch
+    epochOfUnix' = epochOfSeconds epochSeconds . posixSecondsToUTCTime . fromInteger
+
+    -- tokenId -> the account that held it (the coarser cluster).
+    accountOf = Map.fromList [ (tid, meAccount m) | (tid, m, _, _) <- spells ]
+
+    -- tokenId -> every [mintEpoch, burnEpoch] window it was open in. A tokenId
+    -- can be minted and burned more than once (61 spells over 55 tokenIds), so
+    -- this is a LIST of windows, not one interval.
+    windowsOf = Map.fromListWith (++)
+      [ (tid, [(epochOfUnix' (meTimestamp m), epochOfUnix' (beTimestamp b))])
+      | (tid, m, b, _) <- spells ]
+
+    -- tokenId -> (strike tick, is_long) of its FIRST resolved leg.
+    firstLegOf = Map.fromList
+      [ (tid, (lcStrike lc, lcIsLong lc))
+      | (tid, _, _, lcs) <- spells, lc <- take 1 (sortOn lcLegIndex lcs) ]
+
+    inWindow tid e = case Map.lookup tid windowsOf of
+      Nothing -> False
+      Just ws -> or [ e >= lo && e <= hi | (lo, hi) <- ws ]
+
+    admitted = [ o | o <- obs
+               , let e = fromIntegral (poEpoch o)
+               , inWindow (poTokenId o) e ]
+
+    grouped :: Map (Text, Epoch) [PremiumObs]
+    grouped = Map.fromListWith (++)
+      [ ((poTokenId o, fromIntegral (poEpoch o)), [o]) | o <- admitted ]
+
+    unmatched = sort (nub [ e | ((_, e), _) <- Map.toList grouped
+                          , not (Map.member e varMap) ])
+
+    rows =
+      [ mkRow tid e os vr
+      | ((tid, e), os) <- Map.toAscList grouped
+      , Just vr <- [Map.lookup e varMap] ]
+
+    mkRow tid e os vr =
+      let wei          = sum (map poPremiumWei0 os)
+          (ik, isLong) = Map.findWithDefault (0, False) tid firstLegOf
+          it           = vrPoolTick vr
+      in EpochObs
+           { eoTokenId     = tid
+           , eoAccount     = Map.findWithDefault "" tid accountOf
+           , eoEpoch       = e
+           , eoPremiumWei  = wei
+           , eoPremiumEth  = fromInteger wei / 1e18
+           , eoStrikeTick  = ik
+           , eoPoolTick    = it
+             -- THE estimator's own function, never a local |iK - it|: the panel
+             -- and Model.Upsilon.model cannot drift apart if they share it.
+           , eoMoneyness   = moneyness ik it
+           , eoIsLong      = isLong
+           , eoLegCount    = length (nub (map poLegIndex os))
+           , eoFlags       = map (T.pack . show) (nub (sort (concatMap poFlags os)))
+           , eoSigma2      = vrSigma2 vr
+           , eoSigma2Instr = vrSigma2Instr vr
+           , eoNSwaps      = vrNSwaps vr
+           }
+
+-- | The position-epoch panel's column header. A single definition, so the writer
+-- and any acceptance grep read the same string.
+epochPanelHeader :: String
+epochPanelHeader =
+  "token_id,account,epoch,premium_wei,premium_eth,strike_tick,pool_tick,\
+  \moneyness,is_long,leg_count,flags,sigma2,sigma2_instrument,n_swaps"
+
+-- | Write the position-epoch panel, preceded by a caller-supplied @#@ provenance
+-- banner.
+--
+-- @premium_wei@ is written as an exact 'Integer' — it is the canonical quantity
+-- and the one that must sum back to the gate. @premium_eth@ is the 'Double'
+-- convenience column the regression reads. σ̂² and σ̃² ARE stored here (unlike the
+-- Phase-9 spell panel, which joined them at estimation time) because the join is
+-- exactly what this plan validates: freezing the joined result is what makes
+-- @UNMATCHED_EPOCHS@ a property of the committed artifact rather than of a
+-- re-run.
+writeEpochPanelCsv :: FilePath -> [String] -> [EpochObs] -> IO ()
+writeEpochPanelCsv fp bannerLines rows =
+  writeFile fp (unlines bannerLines ++ epochPanelHeader ++ "\n" ++ body)
+  where
+    body = unlines
+      [ intercalate ","
+          [ T.unpack (eoTokenId r)
+          , T.unpack (eoAccount r)
+          , show (eoEpoch r)
+          , show (eoPremiumWei r)
+          , show (eoPremiumEth r)
+          , show (eoStrikeTick r)
+          , show (eoPoolTick r)
+          , show (eoMoneyness r)
+          , if eoIsLong r then "1" else "0"
+          , show (eoLegCount r)
+          , intercalate ";" (map T.unpack (eoFlags r))
+          , show (eoSigma2 r)
+          , show (eoSigma2Instr r)
+          , show (eoNSwaps r)
+          ]
+      | r <- rows ]
 
 -- ---------------------------------------------------------------------------
 -- CSV output

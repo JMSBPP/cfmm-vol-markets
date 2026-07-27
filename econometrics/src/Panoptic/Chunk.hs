@@ -64,7 +64,7 @@ import qualified Data.Set        as Set
 import           Data.Text       (Text)
 
 import           Chain.BlockIndex (EpochBlock (..))
-import           Panel.Build      (Epoch)
+import           Panel.Epoch      (Epoch)   -- the leaf that owns the grid (see Panel.Epoch)
 import           Panel.Subgraph   (BurnEvent (..), Chunk (..), Leg (..),
                                    MintEvent (..), legChunkKey)
 

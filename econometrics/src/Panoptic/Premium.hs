@@ -36,11 +36,14 @@ module Panoptic.Premium
   , telescope       -- [Integer] -> Integer -> Bool -> Integer
   , isFrozenAcc     -- Integer -> Bool
   , multiplierWedge -- Integer -> Integer -> Bool -> Rational
+  , decomposePremium -- [Integer] -> Integer -> Bool -> [Integer]  (EXACT decomposition)
     -- * Fan-out
   , buildPremiumObs -- [LegChunk] -> Map (ChunkKey, Integer, Bool) AccReading -> [PremiumObs]
+  , premiumObsChain -- Text -> LegChunk -> [AccReading] -> [PremiumObs]
+  , buildSpellPremiumObs
   ) where
 
-import           Data.List       (sortOn)
+import           Data.List       (nub, sort, sortOn)
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import           Data.Ratio      ((%))
@@ -138,6 +141,48 @@ telescope readings legLiquidity isLong =
   where
     step lo hi = premiumWei hi lo legLiquidity isLong
 
+-- | __The EXACT per-interval decomposition__ of a chain of accumulator readings
+-- @a0, a1, …, aN@ into @N@ premium increments in token wei.
+--
+-- @
+-- sum (decomposePremium [a0..aN] L s) == premiumWei aN a0 L s     -- ALWAYS, for any L
+-- @
+--
+-- == Why this is not @zipWith premiumWei@ ('telescope')
+--
+-- 'telescope' floors EACH interval separately:
+-- @Σ_k floor(Δ_k · L / 2^64)@. Summing floors is not the floor of the sum, so it
+-- undershoots @floor((Σ_k Δ_k) · L / 2^64)@ by up to @N − 1@ wei — exact only
+-- when @L@ is a multiple of @2^64@, which the real leg liquidities are not.
+--
+-- A sub-wei-per-interval discrepancy is numerically trivial and
+-- __methodologically fatal__: the whole claim licensing this panel is that it is
+-- a /decomposition/ of the gate-validated ground truth, so its rows must sum back
+-- to that ground truth EXACTLY, not approximately. \"Close enough\" would make
+-- the 10-08 gate result non-transferable to the panel.
+--
+-- So the increments are taken as differences of the CUMULATIVE premium measured
+-- from the chain's first reading:
+--
+-- @
+-- P_k = ((a_k - a_0) \`mod\` 2^128) * L \`div\` 2^64        -- negated for long legs
+-- increment_k = P_k - P_(k-1)
+-- @
+--
+-- which telescopes to @P_N − P_0 = P_N@ identically, whatever @L@ is. Each
+-- increment is still the correctly-rounded premium accrued over its interval; the
+-- flooring residue is carried forward instead of being discarded @N@ times.
+--
+-- Chains of 0 or 1 reading decompose to @[]@ — no interval, therefore no premium,
+-- never a fabricated zero.
+decomposePremium :: [Integer] -> Integer -> Bool -> [Integer]
+decomposePremium readings legLiquidity isLong = case readings of
+  []       -> []
+  (a0 : _) ->
+    let cum a = premiumWei a a0 legLiquidity isLong   -- P_k, exact, mod-2^128 inside
+        ps    = map cum readings                      -- P_0 = 0, P_1, …, P_N
+    in zipWith subtract ps (drop 1 ps)
+
 -- | True when an accumulator is within 1% of @2^128 - 1@ — the paired-freeze cap
 -- (@LeftRightLibrary.addCapped@, RESEARCH Pitfall 6). Any observation whose
 -- reading trips this must carry 'AccFrozen'.
@@ -205,3 +250,108 @@ buildPremiumObs legChunks accMap =
       , [AccFrozen    | isFrozenAcc (arAcc0 r) || isFrozenAcc (arAcc1 r)]
       , [Extrapolated | arAtTick r /= storedValueTick]
       ]
+
+-- | One leg's readings → its per-epoch 'PremiumObs', using the EXACT
+-- 'decomposePremium' and the ACCRUAL-INTERVAL epoch convention.
+--
+-- == The epoch a premium belongs to (plan 10-09; this CORRECTS 'buildPremiumObs')
+--
+-- 'buildPremiumObs' tags each delta with @arEpoch@ of the LATER reading (\"the
+-- ENDING epoch\", the 09-04 convention). On the hourly grid that is off by one
+-- window, and it would de-align the panel from σ̂² in exactly the way the 09-05
+-- 40587-offset trap did:
+--
+-- @Chain.BlockIndex@ maps epoch @e@ to the first block at or after @e * 3600@ —
+-- the START of hour @e@. So the accumulator difference between the boundary of
+-- @e@ and the boundary of @e+1@ is the premium that accrued DURING hour @e@,
+-- while @σ̂²_e@ is the realized variance measured over that same hour @e@. Tagging
+-- the difference @e+1@ would regress hour @e@'s premium on hour @e+1@'s variance.
+--
+-- This function therefore tags each interval with the epoch of its STARTING
+-- reading, which is the epoch the premium actually accrued in. It holds at the
+-- spell endpoints too: the mint-block reading sits inside hour @m@ and its
+-- interval runs to the boundary of @m+1@, so the partial hour is attributed to
+-- @m@; the last interval runs from the boundary of @n@ to the burn block inside
+-- hour @n@ and is attributed to @n@.
+--
+-- 'buildPremiumObs' is left exactly as 10-05 wrote it (its ending-epoch tag is
+-- harmless for the fan-out shape it is tested on, and "Panoptic.PremiumSpec"
+-- pins it).
+--
+-- Readings are ordered by BLOCK, not by epoch: two readings can share an epoch (a
+-- mint landing on an hour boundary), and block order is the physical order in
+-- which the accumulator advanced.
+--
+-- Flags are taken from BOTH endpoints of the interval, because either one can be
+-- the reading that makes the difference ambiguous.
+premiumObsChain :: Text -> LegChunk -> [AccReading] -> [PremiumObs]
+premiumObsChain tokenId lc readings =
+  [ PremiumObs
+      { poTokenId     = tokenId
+      , poLegIndex    = lcLegIndex lc
+      , poEpoch       = arEpoch rLo          -- the epoch the premium ACCRUED IN
+      , poPremiumWei0 = w0
+      , poPremiumWei1 = w1
+      , poIsLong      = lcIsLong lc
+      , poStrikeTick  = lcStrike lc
+      , poFlags       = nubSort (flagsOf rLo ++ flagsOf rHi)
+      }
+  | ((rLo, rHi), w0, w1) <- zip3 pairs wei0 wei1
+  ]
+  where
+    ordered = sortOn arBlock readings
+    pairs   = zip ordered (drop 1 ordered)
+    wei0    = decomposePremium (map arAcc0 ordered) (lcLiquidity lc) (lcIsLong lc)
+    wei1    = decomposePremium (map arAcc1 ordered) (lcLiquidity lc) (lcIsLong lc)
+    flagsOf r = concat
+      [ [ChunkEmpty   | arNetLiquidity r == 0]
+      , [AccFrozen    | isFrozenAcc (arAcc0 r) || isFrozenAcc (arAcc1 r)]
+      , [Extrapolated | arAtTick r /= storedValueTick]
+      ]
+    nubSort = nub . sort
+
+-- | Every leg of ONE spell → its per-epoch 'PremiumObs', restricted to the
+-- spell's own @[mintBlock, burnBlock]@ block window.
+--
+-- The window restriction is load-bearing. The chunk accumulator is __pool-wide__
+-- (@owner@ = the PanopticPool), so the reading cache holds readings for OTHER
+-- positions' windows in the same chunk. Including them would attribute premium to
+-- a position that did not hold the leg, and would break the sum-back-to-the-gate
+-- identity.
+--
+-- Returns @(observations, legs that could not be decomposed)@. A leg with fewer
+-- than two readings inside its window yields NO observation and is COUNTED — a
+-- hole in the reading cache must be visible, never a silent zero (RESEARCH
+-- Pitfall 5).
+--
+-- Summing @poPremiumWei0@ over everything this returns equals, EXACTLY, the
+-- endpoint reconstruction the 10-08 gate scored:
+-- @Σ_legs premiumWei acc(burnBlock) acc(mintBlock) L isLong@ — provided the
+-- window's first and last readings are the mint- and burn-block ones, which the
+-- 10-06 schedule guarantees by construction (it reads both endpoints explicitly).
+buildSpellPremiumObs
+  :: Text                              -- ^ tokenId.
+  -> (Integer, Integer)                -- ^ @(mintBlock, burnBlock)@, inclusive.
+  -> [LegChunk]                        -- ^ the position's resolved legs.
+  -> Map (ChunkKey, Bool) [AccReading] -- ^ pool-wide readings, grouped by (chunk, side).
+  -> ([PremiumObs], Int)
+buildSpellPremiumObs tokenId (mintBlock, burnBlock) legChunks byChunk =
+  (concat obsPerLeg, length [ () | c <- chains, length c < 2 ])
+  where
+    chains =
+      [ dedupOnBlock
+          [ r | r <- Map.findWithDefault [] (lcChunkKey lc, lcIsLong lc) byChunk
+              , arBlock r >= mintBlock, arBlock r <= burnBlock ]
+      | lc <- legChunks ]
+    obsPerLeg = zipWith (premiumObsChain tokenId) legChunks chains
+
+    -- One reading per block. The 10-06 schedule can carry BOTH an interior
+    -- epoch-boundary row and a spell-endpoint row at the same block (a mint that
+    -- lands exactly on an hour boundary); the endpoint-tagged row is preferred,
+    -- mirroring 'Panel.Reconcile.lookupAt', so the panel's chain starts and ends
+    -- on exactly the readings the gate scored.
+    dedupOnBlock rs =
+      Map.elems (Map.fromListWith preferEndpoint [ (arBlock r, r) | r <- sortOn arBlock rs ])
+    preferEndpoint new old = case arEndpoint old of
+      Just _  -> old
+      Nothing -> new

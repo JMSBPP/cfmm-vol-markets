@@ -65,7 +65,11 @@ import qualified Data.Text             as T
 
 import           Chain.Rpc             (BlockHeader (..), RpcEnv (..),
                                         ethGetBlockByNumber)
-import           Panel.Build           (Epoch, epochOfSeconds)
+-- The epoch grid comes from the LEAF module that owns it ("Panel.Epoch"), not
+-- from "Panel.Build": 10-09 needs Panel.Build to depend on Panoptic.Chunk, and
+-- Panoptic.Chunk depends on this module, so borrowing the grid from Panel.Build
+-- would close an import cycle. Same arithmetic, same single source of truth.
+import           Panel.Epoch           (Epoch, epochOfSeconds)
 
 -- ---------------------------------------------------------------------------
 -- The index row
