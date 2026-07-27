@@ -296,3 +296,171 @@ operational constraints discovered at the full-history pull:
   safety margin). A range past the tip is rejected with
   `block range extends beyond current head block` — a **non-transient** error that
   retrying cannot clear.
+
+---
+
+## 6. PHASE 10 — the restored position-epoch unit (plan 10-09, 2026-07-27)
+
+**§5 is not superseded. It is extended.** Every finding in §5 still holds *of the
+subgraph*: `TokenId` has no `snapshots` field, `premiumSettleds` is empty, and
+`AccountBalance.premiaSettled{0,1}Total` is identically zero on this market.
+There is still no per-epoch premium series in the subgraph, and this section does
+not claim otherwise.
+
+What changed is the **route**. Phase 10 stopped asking the subgraph for the
+series and read it off **chain state** instead.
+
+### 6.1 The route: `SFPM.getAccountPremium` archive `eth_call`s
+
+| what | value |
+|---|---|
+| contract | `SemiFungiblePositionManager` (SFPM) |
+| address | `0x8dcAa08cF298F8b4830FAf56d47930981AdE33af` (Base) |
+| function | `getAccountPremium(address univ3pool, address owner, uint256 tokenType, int24 tickLower, int24 tickUpper, int24 atTick, uint256 isLong)` |
+| returns | `(uint128 premiumOwed, uint128 premiumGross)` — X64-scaled accumulators |
+| `owner` | the **PanopticPool** `0xb50e8bb68f5855da742f4579274902a20454174a`, NOT the user — the accumulator is **pool-wide per chunk** |
+| `vegoid` (ν) | **8** (ν = 1/8), applied INSIDE the contract's accumulator and never re-applied off-chain |
+| scale | **X64** (`2^64`) — not X128 (`feeGrowth`), not X96 (`sqrtPrice`) |
+| `atTick` | the epoch's pool tick, so the read extrapolates `feeGrowthInside`; `8388607` (`type(int24).max`) requests the STORED value instead |
+| endpoints | `https://mainnet.base.org` (primary), `https://base.drpc.org` (failover) — both **archive-capable and keyless** |
+| reads issued | **8,910**, deduplicated pool-wide to 52 distinct chunks, blocks 43,781,657 – 48,157,721 |
+| artifact | `premium-accumulators.csv` + `premium-accumulators-lineage.md` |
+
+Per-leg premium in token wei, mirroring `PanopticPool._getPremia` L2296-2298:
+
+```
+premium = ((acc(t_end) - acc(t_start)) mod 2^128) * legLiquidity / 2^64      (negated for long legs)
+```
+
+The `mod 2^128` is load-bearing (the accumulators are `uint128` under Solidity
+`unchecked`; a bare `hi - lo` returns ~1.15e77 whenever the value wrapped).
+
+### 6.2 `Leg.width` exists — §5 failed to record it
+
+§5's field inventory omitted `Leg.width`. It **is** in the schema, and it is
+selection-relevant: `PanopticPool._getPremia` (L2250) **skips every leg with
+`width == 0`**, so such a leg accrues nothing and can never contribute a panel
+row. The 10-01 census measured the real population rather than assuming it:
+**68 of 68 spell-legs on this market carry `width != 0`**, so the skip does not
+thin the usable panel here. `chunk-legs.csv` carries the per-leg census.
+
+`width` also determines the chunk range through `PanopticMath.getTicks`:
+
+```
+tickLower = strike - (width * tickSpacing) / 2          -- FLOOR down
+tickUpper = strike + (width * tickSpacing + 1) / 2      -- CEIL up
+```
+
+The floor/ceil asymmetry matters whenever `width * tickSpacing` is odd; the map
+reproduces the protocol's own `Chunk` records on **68/68** legs
+(`GETTICKS_MATCH_RATE = 1.0`).
+
+### 6.3 The gate verdict
+
+The reconstruction was scored against the protocol's own `OptionBurn.premium0` on
+**all 61 spells**, in Integer ETH wei, stratified short/long
+(`reconcile.md`, `reconcile-errors.csv`):
+
+| stratum | n | median rel. error | max |
+|---|---|---|---|
+| **short** (THE verdict) | 53 | **0.000000** | 5.447268e-4 |
+| **long** (reported, not scored) | 8 | **0.000000** | 0.0 |
+
+`GATE: PASS`, `LEGCOUNT_MISMATCHES: 0`, `GATE_TOLERANCE: 0.01` unmodified.
+**53 of 61 spells reproduce the ground truth exactly, to the wei.** The residual
+on the other 8 is an end-of-block vs at-transaction `eth_call` read wedge,
+sub-block on every one of them and irreducible at `eth_call` granularity.
+
+The ground truth is now also frozen as a committed **input**:
+`burn-truth.csv`, 61 rows / 55 tokenIds, whose per-tokenId `premium0_wei`
+reproduces `reconcile-errors.csv`'s `truth_wei` with **0 mismatches**.
+
+### 6.4 The epoch grid is HOURLY, not daily
+
+The 10-01 Wave-0 census returned **STOP** on the daily grid under its own
+pre-committed rule (median 1 usable epoch per position, against a floor of 5):
+the median accrual spell is 0.25 days and cannot vary within a daily bucket. The
+user re-scoped the phase to `EPOCH_HOURS = 1` **before any estimation**, with the
+GO/STOP thresholds untouched, and the hourly re-measurement returned **GO**.
+
+Consequently:
+
+- `variance.csv` (daily, 119 epochs) is **retained unchanged** — the block index
+  and the 10-08 gate lineage both reference it.
+- `variance-hourly.csv` is the **new** series the panel joins to: **2,833 hourly
+  epochs**, the same estimators at a finer bucket, plus an `n_swaps` column.
+  Median 177 swaps per hour, max 1,985.
+- Exactly **one** hour in the window (epoch 495112) saw **no swap at all**,
+  between neighbours carrying 700+. Re-fetching that block range reproduced the
+  cached tick series **byte-identically**, so the hour was still on chain rather
+  than missed by the pull. It is carried with σ̂² = 0 (no swap ⇒ no increment ⇒ no
+  price movement — a *measured* zero), the pool tick carried forward (it is a
+  state variable, not a flow), and `n_swaps = 0` so the 3 affected panel rows stay
+  isolable downstream.
+
+### 6.5 Row counts: 61 spells → 6,760 position-hour observations
+
+`panel-epoch.csv`, one row per `(tokenId, hourly epoch)`:
+
+| metric | value |
+|---|---|
+| `PANEL_ROWS` | **6,760** |
+| `PANEL_TOKENIDS` (the CLUSTER count) | **55** |
+| `PANEL_EPOCHS` | 1,887 |
+| `UNMATCHED_EPOCHS` | **0** |
+| `TELESCOPE_MISMATCHES` / `PANEL_SUM_MISMATCHES` | **0** / **0** |
+| `MULTI_EPOCH_TOKENIDS` | 52 of 55 |
+| within-position epochs, median / max | 10 / 1,176 |
+| `TOP10_TOKENID_ROW_SHARE` | 0.841 |
+| `LEG_READ_HOLES` | 0 |
+| Phase-9 baseline / `GAIN_FACTOR` | 61 / **110.8x** |
+
+Reconciliation against the 10-01 census's projected 6,764:
+
+```
+6764  (census, per SPELL, hours with >= 2 swaps)
+  +3  hour 495112 — excluded by the census as non-estimable, now a measured quiet hour
+  -1  hour 492875 — the tick cache's partial leading hour, which has no boundary
+      block in the 10-03 index (one spell mints at block 43,781,657, before the
+      index's first boundary 43,782,127)
+= 6766  SPELL_EPOCH_ROWS
+  -6  (tokenId, epoch) collisions: 61 spells over 55 tokenIds, and six of the
+      duplicate-tokenId spell pairs share an hour
+= 6760  PANEL_ROWS
+```
+
+**The row count is not the precision.** Standard errors are tokenId-clustered,
+and the cluster count is **unchanged at 55**; 84% of the rows sit in ten
+positions. Adding hours to existing positions multiplies rows without multiplying
+clusters. Whether this panel identifies υ at the pre-committed CI half-width
+(≤ 6.2e-5) is decided in plan 10-10, and a 110x row gain does not prejudge it.
+
+### 6.6 Epoch attribution (the one convention a reader must know)
+
+`Chain.BlockIndex` maps hourly epoch `e` to the first block at or after
+`e * 3600` — the **START** of hour `e`. So the accumulator difference between
+`boundary(e)` and `boundary(e+1)` is the premium that accrued **during** hour `e`,
+and it is tagged `e` — the same hour `σ̂²_e` is measured over. Tagging it `e+1`
+(10-05's "ending epoch" convention, correct for the fan-out shape it was written
+for) would regress hour `e`'s premium on hour `e+1`'s variance: the 09-05
+40587-offset trap, one grid finer.
+
+Both sides bucket through the single `Panel.Epoch.epochOfSeconds`, so the join is
+an exact **integer** match — never a timestamp comparison, never an offset
+adjustment. Epochs that carry a premium observation but no variance row are
+**returned** by the assembler and treated as a hard error by the CLI, not
+filtered: silently dropping them is how the 09-05 bug produced a small,
+clean-looking, wrong panel.
+
+### 6.7 Artifact index (Phase 10)
+
+| file | what |
+|---|---|
+| `chunk-legs.csv` | per-(tokenId, leg) census: strike, width, tokenType, chunk range, match flag |
+| `panel-size-audit.md` / `panel-size-audit-hourly.md` | the daily STOP and the hourly GO |
+| `epoch-blocks.csv` | hourly epoch → first Base block at or after `epoch * 3600` |
+| `premium-accumulators.csv` (+ `-lineage.md`) | 8,910 SFPM X64 accumulator readings |
+| `reconcile.md` / `reconcile-errors.csv` | THE gate: verdict, both stratum distributions, 61 per-spell rows |
+| `burn-truth.csv` | the ground truth frozen as an INPUT (61 rows / 55 tokenIds) |
+| `variance-hourly.csv` | σ̂²_t, σ̃²_t, i_t, n_swaps at 2,833 hourly epochs |
+| `panel-epoch.csv` | **THE estimation-ready position-hour panel** (6,760 rows) |
