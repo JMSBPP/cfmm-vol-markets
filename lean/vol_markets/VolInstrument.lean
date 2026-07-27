@@ -187,9 +187,12 @@ lemma flowRegion_mono_right {a b b' : ℝ} (hbb : b ≤ b') :
 
 /-! ## Multi-sigmoid fees (`Θ_φ = {γ, φbar, β, α}`) -/
 
-/-- Utilization multiplier.  The ratio argument `x` remains abstract because the
+/-- The doc's R-sigmoid factor `α_R/(1+exp(γ_R·(β_R − x)))` (unnamed in
+`VOLATILITY_INSTRUMENTS.md`; identifier from its subscript-R parameters
+`(α_R, γ_R, β_R)`).  Its argument is the flow-region ratio
+`x = φ(i_K; ΔQ, 0; t)/φ(i_K; 0, L; t)`; `x` remains abstract because the
 document does not specify behavior when its flow-region denominator vanishes. -/
-noncomputable def utilization (αR γR βR x : ℝ) : ℝ :=
+noncomputable def sigmoidR (αR γR βR x : ℝ) : ℝ :=
   αR * FeeSchedule.logistic (γR * (x - βR))
 
 /-- Finite multi-sigmoid schedule, indexed by `Finset.range n`. -/
@@ -197,10 +200,10 @@ noncomputable def multiFee (n : ℕ) (γ β α : ℕ → ℝ) (φbar u σ : ℝ)
   φbar + (∑ j ∈ Finset.range n,
     α j * FeeSchedule.logistic (γ j * (σ - β j))) * u
 
-lemma utilization_mem (αR γR βR x : ℝ) (hαR : 0 ≤ αR) :
-    utilization αR γR βR x ∈ Set.Icc 0 αR := by
+lemma sigmoidR_mem (αR γR βR x : ℝ) (hαR : 0 ≤ αR) :
+    sigmoidR αR γR βR x ∈ Set.Icc 0 αR := by
   obtain ⟨h0, h1⟩ := FeeSchedule.logistic_mem_Ioo (γR * (x - βR))
-  unfold utilization
+  unfold sigmoidR
   constructor <;> nlinarith
 
 lemma multiFee_bounds (n : ℕ) (γ β α : ℕ → ℝ) (φbar u σ : ℝ)

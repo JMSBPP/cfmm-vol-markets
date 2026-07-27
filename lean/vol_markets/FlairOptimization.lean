@@ -124,7 +124,7 @@ theorem flairMulti_mono_alpha (n : ℕ) (γ β α α' : ℕ → ℝ) (φbar u : 
     · exact le_of_lt (hD t (Finset.mem_range.mp ht))
   exact mul_le_mul_of_nonneg_right hαj hW_nonneg
 
-/-- Utilization is monotone when amplitudes are nonnegative. -/
+/-- The fee is monotone in the R-sigmoid factor value `u` when amplitudes are nonnegative. -/
 theorem flairMulti_mono_u (n : ℕ) (γ β α : ℕ → ℝ) (φbar u u' : ℝ)
     (σpath w D : ℕ → ℝ) (T : ℕ)
     (hu : u ≤ u') (hα : ∀ j < n, 0 ≤ α j)

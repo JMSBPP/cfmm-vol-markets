@@ -141,7 +141,7 @@ Additional notation for this doc: `p_(η,Δ_i)(i) = λ^((i/2)·Δ_i·η)` →
 | `ΔQ_M^L`, `ΔQ_X^L` on `(X, M)` | `deltaQM`, `deltaQX`, `deltaQM_token0`, `_nonneg` (needs `Δi ≥ 0` too — Aristotle-caught) | **CORRECTED → PROVEN** |
 | Cumulatives `Q_M^L`, `Q_X^L` + inverse cumulatives | `cumulativeQM/QX` + `_succ`, `_monotone`, `_const` telescoping, `exists_least_reaching` | **PROVEN** |
 | Region `φ(i_K; ΔQ, L)` | `flowRegion`, `tickFlowRegion` + `_sq`, `_mono_left/right` | **PROVEN** |
-| Multi-sigmoid `φ(σ)`, `Θ_φ = {γ, φ̄, β, α}` | `utilization` + `_mem`, `multiFee` + `_bounds`, `_monotone` | **PROVEN** |
+| Multi-sigmoid `φ(σ)`, `Θ_φ = {γ, φ̄, β, α}`; second factor `α_R/(1+exp(γ_R(β_R − x)))`, `x = φ(i_K;ΔQ,0)/φ(i_K;0,L)` | `sigmoidR` + `_mem` (unnamed in the doc; identifier from its subscript-R parameters — no interpretive naming), `multiFee` + `_bounds`, `_monotone` | **PROVEN** |
 | `FeeSchedule` = single-term case | `multiFee_single_bridge` (`s_f = 1/γ`) | **PROVEN** |
 | `⊗_φ = 1−(1−φ_M)(1−φ_X)` abelian monoid, `[0,1]` closure | `probOr` + `_eq`, `_comm`, `_assoc`, `_zero`, `zero_probOr`, `_mem_Icc`, `_mono` | **PROVEN** (max/min semilattice rows are Mathlib instances) |
 | `λ ≡ λ_M + λ_X` ↔ `⊗_φ` | `probOr_hazard` (`φ = 1 − e^{−λ}`) | **PROVEN** |
