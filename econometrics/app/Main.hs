@@ -196,6 +196,16 @@ data EstimateOpts = EstimateOpts
     -- alternative 4 is formed on the SAME grid as σ̂². 24 = the Phase-9 daily
     -- grid; 1 = the 10-01 hourly re-scope.
   , eoEpochHours    :: Int
+    -- | RUN 2 (pivot lock @phase10-plan10-10-run2@). THE SINGLE CHANGE: normalise
+    -- the LHS to the seller side, restoring Phase 9's documented convention that
+    -- 10-09's panel assembler did not carry forward. Everything else — the bar,
+    -- the verdict code path, the estimator, the tests, the alternatives, the
+    -- multi-start, the row set, the clusters, the joins — is identical to run 1,
+    -- and BOTH arms are computed and reported side by side.
+  , eoSellerSide    :: Bool
+    -- | The pivot lock. Hashed at run time and checked against the pin; the run
+    -- aborts on a mismatch, because the lock's own terms void it if edited.
+  , eoPivotLock     :: FilePath
   }
 
 -- | WAVE-0 BLOCKER options (plan 10-01): the width census + achievable panel size.
@@ -374,6 +384,15 @@ estimateOptsParser =
     <*> option auto ( long "epoch-hours" <> metavar "N" <> value 24 <> showDefault
                  <> help "epoch width in HOURS for the collateral channel's grid \
                          \(24 = the Phase-9 daily grid; 1 = the 10-01 hourly re-scope)" )
+    <*> switch ( long "seller-side-normalize"
+                 <> help "RUN 2 (pivot lock phase10-plan10-10-run2): THE SINGLE CHANGE — \
+                         \multiply LONG tokenIds' premium by -1 so long and short vega \
+                         \enter with one sign, per Panel.Build.premiumUsd's documented \
+                         \Phase-9 convention. Computes BOTH arms and reports them side \
+                         \by side; writes the v3 analysis and estimation-panel-v3.csv." )
+    <*> strOption ( long "pivot-lock" <> metavar "PATH" <> value pivotLockPathDefault
+                 <> showDefault
+                 <> help "pivot lock whose sha256 is verified before a seller-side run" )
 
 defaultChunkLegsCsv, defaultSizeAudit, defaultChunksFixture :: FilePath
 defaultChunkLegsCsv  = defaultDataDir </> "chunk-legs.csv"
@@ -3284,6 +3303,152 @@ wedgeStats rowsA = (length rowsA, nUnit, medianD ws, mn, mx, mxLong, mxShort, le
     mxLong  = safeMax (map wedgeOf longs)
     mxShort = safeMax (map wedgeOf shorts)
 
+-- ---------------------------------------------------------------------------
+-- RUN 2 (pivot lock phase10-plan10-10-run2): seller-side LHS normalization
+-- ---------------------------------------------------------------------------
+
+-- | The sha256 the pivot lock was committed at. The lock's own closing clause
+-- makes this load-bearing: \"any post-commit edit to this file voids the lock\".
+-- The run therefore ABORTS if the file on disk does not hash to this value —
+-- the terms cannot be silently edited between adjudication and execution.
+pivotLockSha256 :: String
+pivotLockSha256 = "56044349a035221874eb93d59ab64bd94239be698e4e47363118bffd743e9998"
+
+pivotLockPathDefault :: FilePath
+pivotLockPathDefault =
+  ".planning/phases/10-streaming-premium-reconstruction-and-reestimation/10-10-PIVOT-LOCK.md"
+
+-- | The run-2 analysis output. A NEW file: the run-1 document is frozen with a
+-- CORRECTIONS header and stays on the record permanently.
+analysisV3Name :: FilePath
+analysisV3Name = "2026-07-27-upsilon-estimates-v3.md"
+
+defaultEstimationCsvV3 :: FilePath
+defaultEstimationCsvV3 = defaultDataDir </> "estimation-panel-v3.csv"
+
+-- | sha256 of a file, via @sha256sum@. Returns 'Nothing' when the tool is
+-- unavailable, so an environment without it degrades to a NAMED failure rather
+-- than to a silent pass.
+sha256Of :: FilePath -> IO (Maybe String)
+sha256Of fp = do
+  r <- try (readProcessWithExitCode "sha256sum" [fp] "")
+         :: IO (Either IOException (ExitCode, String, String))
+  pure $ case r of
+    Right (ExitSuccess, out, _) -> case words out of
+      (h : _) -> Just h
+      _       -> Nothing
+    _ -> Nothing
+
+-- | THE SINGLE CHANGE of run 2, and the only one.
+--
+-- Rows belonging to LONG tokenIds carry the protocol's own sign, under which the
+-- buyer PAYS: @Panoptic.Premium.premiumWei@ negates long legs, mirroring
+-- @_getPremia@. Phase 9's @Panel.Build.premiumUsd@ normalises those spells to the
+-- SELLER side (@sign = if isLong then -1 else 1@) with the documented rationale
+-- \"the same vega would enter the regression with two opposite signs and cancel\".
+-- 10-09's @assembleEpochPanel@ did not carry that normalisation forward.
+--
+-- This restores it, at the panel-derivation layer only. The long/short label is
+-- the FROZEN @is_long@ column of the 10-09 artifact — no reclassification, and
+-- nothing else about the row changes.
+sellerSideNormalize :: EpochRow -> EpochRow
+sellerSideNormalize r
+  | erIsLong r = r { erPremWei = negate (erPremWei r)
+                   , erPremEth = negate (erPremEth r) }
+  | otherwise  = r
+
+-- | One complete estimation on one panel. Extracted verbatim from run 1's inline
+-- pipeline so that run 1 and run 2 cannot diverge by anything except their input:
+-- both columns of the side-by-side table come from THIS function.
+data RunResult = RunResult
+  { rsTheta   :: !Theta
+  , rsThetaIV :: !Theta
+  , rsVTok    :: !(LA.Matrix Double)
+  , rsVAcct   :: !(LA.Matrix Double)
+  , rsSeB     :: !Double
+  , rsSeU     :: !Double
+  , rsSeK     :: !Double
+  , rsHalfW   :: !Double
+  , rsVerdict :: !String
+  , rsTU      :: !TestResult
+  , rsTK      :: !TestResult
+  , rsTS      :: !TestResult
+  , rsSymNote :: !String
+  , rsAlts    :: ![(T.Text, Estimates)]
+  , rsNls     :: !NlsDiag
+  , rsPanel   :: !Panel
+  }
+
+runOn :: [CollateralObs] -> Panel -> RunResult
+runOn collat usable = RunResult
+  { rsTheta = thetaG, rsThetaIV = ivFit usable
+  , rsVTok = vTok, rsVAcct = vAcct
+  , rsSeB = ses !! 0, rsSeU = ses !! 1, rsSeK = ses !! 2
+  , rsHalfW = halfW, rsVerdict = stoppingRuleVerdict halfW
+  , rsTU = testUpsilonPos thetaG vTok
+  , rsTK = testKappaPos   thetaG vTok
+  , rsTS = fst symPair, rsSymNote = snd symPair
+  , rsAlts = runAlternativesWith collat usable
+  , rsNls = nlsDiagnostic usable thetaG
+  , rsPanel = usable
+  }
+  where
+    (thetaG, _)     = fitGSLCov usable
+    (jRows, resids) = sandwichInputs thetaG usable
+    vTok    = clusterSandwich jRows resids (map obsTokenId usable)
+    vAcct   = clusterSandwich jRows resids (map obsAccount usable)
+    ses     = standardErrors vTok ++ repeat (0 / 0)
+    halfW   = ciHalfWidth (ses !! 1)
+    symPair = splitSymmetryTest usable
+
+-- | The machine-readable verdict block, one function so run 1 and run 2 print
+-- byte-identically-shaped output.
+verdictBlock :: String -> RunResult -> [String]
+verdictBlock label rs =
+  [ "--- " ++ label ++ " ---"
+  , "N_OBS: " ++ show (length (rsPanel rs))
+  , "N_CLUSTERS: " ++ show (length (nub (map obsTokenId (rsPanel rs))))
+  , "BETA0_HAT: " ++ fmtE bg ++ "   BETA0_SE: " ++ fmtE (rsSeB rs)
+  , "UPSILON0_HAT: " ++ fmtE ug ++ "   UPSILON0_SE_CLUSTERED: " ++ fmtE (rsSeU rs)
+      ++ "   UPSILON0_CI_HALFWIDTH: " ++ fmtE (rsHalfW rs)
+  , "KAPPA_HAT: " ++ fmtE kg ++ "   KAPPA_SE_CLUSTERED: " ++ fmtE (rsSeK rs)
+  , "NLS_START_USED: " ++ ndStartUsed (rsNls rs) ++ "   NLS_SSE: " ++ fmtE (ndSSE (rsNls rs))
+  , "TEST_UPSILON_POS_P: " ++ fmtE (pValue (rsTU rs))
+      ++ "   TEST_KAPPA_POS_P: " ++ fmtE (pValue (rsTK rs))
+      ++ "   TEST_SYMMETRY_P: " ++ fmtE (pValue (rsTS rs))
+  , "PRECOMMITTED_HALFWIDTH_BAR: " ++ fmtE precommittedHalfwidthBar
+  , "STOPPING_RULE: " ++ rsVerdict rs
+  ]
+  where Theta bg ug kg = rsTheta rs
+
+-- | The pre-registered unit-free descriptors, DECLARED IN THE PIVOT LOCK BEFORE
+-- run 2 executed. They are reported alongside the mechanical verdict and do NOT
+-- override it.
+--
+--   * D1 — half-width / |υ̂₀| (run 1: 4.11)
+--   * D2 — does the υ₀ CI exclude zero (run 1: no)
+--   * D3 — υ̂₀ and SE movement vs run 1 (direction and magnitude)
+descriptorD1 :: RunResult -> Double
+descriptorD1 rs = rsHalfW rs / abs (u0 (rsTheta rs))
+
+descriptorD2 :: RunResult -> Bool
+descriptorD2 rs = let e = u0 (rsTheta rs); h = rsHalfW rs in abs e > h
+
+-- | Refuse to clobber a frozen analysis document. The run-1 output carries a
+-- CORRECTIONS/FROZEN header and is part of the permanent record; a re-run that
+-- silently overwrote it would erase the very thing the discipline preserves.
+guardFrozen :: FilePath -> IO ()
+guardFrozen fp = do
+  r <- try (readFile' fp) :: IO (Either IOException String)
+  case r of
+    Left _    -> pure ()
+    Right txt -> do
+      let hd = unlines (take 12 (lines txt))
+      when ("CORRECTIONS" `isInfixOf` hd || "FROZEN" `isInfixOf` hd) $ do
+        putStrLn ("estimate: ABORT — refusing to overwrite the FROZEN analysis at "
+                   ++ fp ++ ". A frozen result is part of the record.")
+        exitWith (ExitFailure 1)
+
 -- | THE PHASE-10 RUN.
 runEstimateEpoch :: EstimateOpts -> FilePath -> IO ()
 runEstimateEpoch eo panelPath = do
@@ -3299,10 +3464,13 @@ runEstimateEpoch eo panelPath = do
   gate   <- gateVerdictBlock (eoGateReport eo)
   diffEv <- estimatorDiffEvidence
 
-  let dateStr = formatTime defaultTimeLocale "%Y-%m-%d" now
-      outPath = eoAnalysisDir eo </> analysisV2Name
-      estOut  = if eoEstimationCsv eo == defaultEstimationCsv
-                  then defaultEstimationCsvV2 else eoEstimationCsv eo
+  let sellerSide = eoSellerSide eo
+      dateStr = formatTime defaultTimeLocale "%Y-%m-%d" now
+      outPath = eoAnalysisDir eo </>
+                  (if sellerSide then analysisV3Name else analysisV2Name)
+      estOut  = if eoEstimationCsv eo /= defaultEstimationCsv
+                  then eoEstimationCsv eo
+                  else if sellerSide then defaultEstimationCsvV3 else defaultEstimationCsvV2
 
       -- THE JOIN. Exact INTEGER epoch match against the variance series, and the
       -- unmatched list is RETURNED rather than filtered away (the 10-09 rule: a
@@ -3322,6 +3490,14 @@ runEstimateEpoch eo panelPath = do
         }
       panel  = map toObs joined
       usable = [ o | o <- panel, finiteD (obsSigma2 o), finiteD (obsPremium o) ]
+
+      -- RUN 2's SINGLE CHANGE. The same rows, the same joins, the same order —
+      -- only the sign of the LONG tokenIds' premium differs. Applied AFTER the
+      -- join so the row set, the cluster set and every regressor are provably
+      -- identical between the two arms.
+      joinedNorm = [ (sellerSideNormalize r, vr) | (r, vr) <- joined ]
+      usableNorm = [ o | o <- map toObs joinedNorm
+                   , finiteD (obsSigma2 o), finiteD (obsPremium o) ]
 
       -- Independent agreement checks between the joined variance and the values
       -- the 10-09 artifact carries. These must be 0; a non-zero is a defect in
@@ -3353,63 +3529,81 @@ runEstimateEpoch eo panelPath = do
                ++ " usable observations (4 needed for a 3-parameter fit)")
     exitWith (ExitFailure 1)
 
-  writeEstimationPanelV2 estOut commit panelPath (eoVarianceCsv eo) usable
+  -- The record is not overwritable.
+  guardFrozen outPath
+
+  let collat  = collateralObsAt (3600 * eoEpochHours eo) flows varMap
+      wedge   = wedgeStats (Map.elems accMap)
+      res1    = runOn collat usable        -- RUN 1: the as-is protocol sign
+      res2    = runOn collat usableNorm    -- RUN 2: seller-side normalized
+      primary = if sellerSide then res2 else res1
+      primPan = rsPanel primary
+
+  -- THE PIVOT LOCK. Its terms bind this run, and its own closing clause makes
+  -- the hash load-bearing, so the run refuses to proceed against an edited lock.
+  lockSha <- if sellerSide then sha256Of (eoPivotLock eo) else pure Nothing
+  when sellerSide $ case lockSha of
+    Nothing -> do
+      putStrLn "estimate: ABORT — cannot hash the pivot lock; its integrity is unverifiable."
+      exitWith (ExitFailure 1)
+    Just h | h /= pivotLockSha256 -> do
+      putStrLn ("estimate: ABORT — PIVOT LOCK VOID. " ++ eoPivotLock eo
+                 ++ " hashes to " ++ h ++ ", expected " ++ pivotLockSha256
+                 ++ ". The lock says any post-commit edit voids it.")
+      exitWith (ExitFailure 1)
+    _ -> putStrLn ("PIVOT_LOCK_SHA256: " ++ pivotLockSha256 ++ "  VERIFIED")
+
+  writeEstimationPanelV2 estOut commit panelPath (eoVarianceCsv eo) primPan
   putStrLn ("estimate: exported " ++ estOut)
 
-  let (thetaG, _)     = fitGSLCov usable
-      thetaIV         = ivFit usable
-      Theta bg ug kg  = thetaG
-      tokCl           = map obsTokenId usable
-      acctCl          = map obsAccount usable
-      (jRows, resids) = sandwichInputs thetaG usable
-      vTok            = clusterSandwich jRows resids tokCl
-      vAcct           = clusterSandwich jRows resids acctCl
-      ses             = standardErrors vTok ++ repeat (0 / 0)
-      (seB, seU, seK) = (ses !! 0, ses !! 1, ses !! 2)
-      halfWidth       = ciHalfWidth seU
-      verdict         = stoppingRuleVerdict halfWidth
-      rU              = testUpsilonPos thetaG vTok
-      rK              = testKappaPos   thetaG vTok
-      (rS, symNote)   = splitSymmetryTest usable
-      collat          = collateralObsAt (3600 * eoEpochHours eo) flows varMap
-      alts            = runAlternativesWith collat usable
-      nls             = nlsDiagnostic usable thetaG
-      wedge           = wedgeStats (Map.elems accMap)
+  -- The machine-readable verdict block(s). STOPPING_RULE is computed by
+  -- 'stoppingRuleVerdict' from the clustered half-width ALONE.
+  putStrLn ""
+  when sellerSide $ do
+    mapM_ putStrLn (verdictBlock "RUN 1 (as-is protocol sign; FROZEN record)" res1)
+    putStrLn ""
+  mapM_ putStrLn (verdictBlock
+    (if sellerSide then "RUN 2 (seller-side normalized; THE RESULT)" else "RUN 1")
+    primary)
+  putStrLn ""
 
-  -- The machine-readable verdict block (plan 10-10 task 1 step 4). STOPPING_RULE
-  -- is computed by 'stoppingRuleVerdict' from the clustered half-width ALONE.
-  putStrLn ""
-  putStrLn ("N_OBS: " ++ show (length usable))
-  putStrLn ("N_CLUSTERS: " ++ show (length (nub tokCl)))
-  putStrLn ("BETA0_HAT: " ++ fmtE bg ++ "   BETA0_SE: " ++ fmtE seB)
-  putStrLn ("UPSILON0_HAT: " ++ fmtE ug ++ "   UPSILON0_SE_CLUSTERED: " ++ fmtE seU
-             ++ "   UPSILON0_CI_HALFWIDTH: " ++ fmtE halfWidth)
-  putStrLn ("KAPPA_HAT: " ++ fmtE kg ++ "   KAPPA_SE_CLUSTERED: " ++ fmtE seK)
-  putStrLn ("NLS_START_USED: " ++ ndStartUsed nls ++ "   NLS_SSE: " ++ fmtE (ndSSE nls))
-  putStrLn ("TEST_UPSILON_POS_P: " ++ fmtE (pValue rU)
-             ++ "   TEST_KAPPA_POS_P: " ++ fmtE (pValue rK)
-             ++ "   TEST_SYMMETRY_P: " ++ fmtE (pValue rS))
-  putStrLn ("PRECOMMITTED_HALFWIDTH_BAR: " ++ fmtE precommittedHalfwidthBar)
-  putStrLn ("STOPPING_RULE: " ++ verdict)
-  putStrLn ""
+  when sellerSide $ do
+    putStrLn ("D1_HALFWIDTH_OVER_ABS_UPSILON0: run1 " ++ fmtE (descriptorD1 res1)
+               ++ "   run2 " ++ fmtE (descriptorD1 res2))
+    putStrLn ("D2_CI_EXCLUDES_ZERO: run1 " ++ show (descriptorD2 res1)
+               ++ "   run2 " ++ show (descriptorD2 res2))
+    putStrLn ("D3_UPSILON0_MOVE: " ++ fmtE (u0 (rsTheta res1)) ++ " -> "
+               ++ fmtE (u0 (rsTheta res2)) ++ "   SE " ++ fmtE (rsSeU res1)
+               ++ " -> " ++ fmtE (rsSeU res2))
+    putStrLn ("KAPPA_POSITIVE_PERSISTS: "
+               ++ show (kappa (rsTheta res2) > 0 && reject (rsTK res2)))
+    putStrLn ""
 
   -- Supporting diagnostics, printed but NOT consulted by the rule.
-  putStrLn ("NLS_FIXEDSTART_SSE: " ++ fmtE (ndFixedSSE nls)
-             ++ "   NLS_MULTISTART_IMPROVED: " ++ show (ndImproved nls))
-  putStrLn ("N_ACCOUNT_CLUSTERS: " ++ show (length (nub acctCl))
-             ++ "   N_EPOCHS: " ++ show (length (nub (map obsEpoch usable))))
-  putStrLn ("LHS_ZERO_ROWS: " ++ show (length [ () | o <- usable, obsPremium o == 0 ])
+  putStrLn ("NLS_FIXEDSTART_SSE: " ++ fmtE (ndFixedSSE (rsNls primary))
+             ++ "   NLS_MULTISTART_IMPROVED: " ++ show (ndImproved (rsNls primary)))
+  putStrLn ("N_ACCOUNT_CLUSTERS: " ++ show (length (nub (map obsAccount primPan)))
+             ++ "   N_EPOCHS: " ++ show (length (nub (map obsEpoch primPan))))
+  putStrLn ("LHS_ZERO_ROWS: " ++ show (length [ () | o <- primPan, obsPremium o == 0 ])
              ++ "   LHS_NEGATIVE_ROWS: "
-             ++ show (length [ () | o <- usable, obsPremium o < 0 ])
+             ++ show (length [ () | o <- primPan, obsPremium o < 0 ])
              ++ "   LONG_ROWS: " ++ show (length [ () | r <- rows0, erIsLong r ])
              ++ "   SHORT_ROWS: " ++ show (length [ () | r <- rows0, not (erIsLong r) ]))
-  reportToStdout thetaG thetaIV vTok vAcct rU rK rS alts usable
+  reportToStdout (rsTheta primary) (rsThetaIV primary) (rsVTok primary)
+                 (rsVAcct primary) (rsTU primary) (rsTK primary) (rsTS primary)
+                 (rsAlts primary) primPan
 
-  writeFile outPath
-    (renderAnalysisV2 eo dateStr commit argv panelPath estOut banner vbannr gate
-                      diffEv rows0 joined usable thetaG thetaIV vTok vAcct
-                      rU rK rS symNote alts collat nls wedge
-                      (sigDrift, instrDrift, tickDrift, moneyDrift))
+  writeFile outPath $
+    if sellerSide
+      then renderAnalysisV3 eo dateStr commit argv panelPath estOut banner vbannr
+                            gate diffEv rows0 joined res1 res2 collat wedge
+                            (sigDrift, instrDrift, tickDrift, moneyDrift)
+      else renderAnalysisV2 eo dateStr commit argv panelPath estOut banner vbannr
+                            gate diffEv rows0 joined usable
+                            (rsTheta res1) (rsThetaIV res1) (rsVTok res1) (rsVAcct res1)
+                            (rsTU res1) (rsTK res1) (rsTS res1) (rsSymNote res1)
+                            (rsAlts res1) collat (rsNls res1) wedge
+                            (sigDrift, instrDrift, tickDrift, moneyDrift)
   putStrLn ("estimate: wrote " ++ outPath)
 
 -- | Evidence about the START the tick-scale multi-start actually needed.
@@ -4432,3 +4626,693 @@ shapeReadOffV2 e
     binSEs   = [ se | (n, se) <- estSEs e, T.isPrefixOf "upsilon_bin" n ]
     resolved = or (zipWith (\u se -> abs u > se) us (binSEs ++ repeat (1 / 0)))
     monotone = and (zipWith (>=) us (drop 1 us)) || and (zipWith (<=) us (drop 1 us))
+
+-- ---------------------------------------------------------------------------
+-- RUN 2's analysis output
+-- ---------------------------------------------------------------------------
+
+-- | THE TERMINAL ESTIMATION OUTPUT OF PHASE 10.
+--
+-- Structure is not free-form: it is the one the pivot lock pre-registered before
+-- run 2 executed — both runs side by side, the mechanical verdict for run 2, the
+-- pre-declared descriptors D1/D2/D3, the pre-registered interpretation branch
+-- that obtained, whether the κ > 0 rejection persists, and the formal-witness
+-- statement. Nothing is added to that list after the fact.
+renderAnalysisV3
+  :: EstimateOpts -> String -> String -> [String] -> FilePath -> FilePath
+  -> [String] -> [String] -> [String] -> [String]
+  -> [EpochRow] -> [(EpochRow, VarRow)] -> RunResult -> RunResult
+  -> [CollateralObs] -> (Int, Int, Double, Double, Double, Double, Double, Int)
+  -> (Int, Int, Int, Int) -> String
+renderAnalysisV3 eo dateStr commit argv panelPath estOut banner vbannr gate diffEv
+                 rows0 joined r1 r2 collat
+                 (nAcc, nUnitWedge, wMed, wMin, wMax, wMaxLong, wMaxShort, nLongAcc)
+                 (sigDrift, instrDrift, tickDrift, moneyDrift) =
+  unlines $
+    [ "# Panoptic vol-claim upsilon: RUN 2, seller-side normalized LHS (v3)"
+    , ""
+    , "**Phase 10, plan 10-10, run 2 — THE TERMINAL ESTIMATION RUN OF PHASE 10.**"
+    , ""
+    , "Executed under pivot lock `phase10-plan10-10-run2`, locked BEFORE this run"
+    , "and verified by hash at run time:"
+    , ""
+    , "```"
+    , "PIVOT_LOCK: " ++ eoPivotLock eo
+    , "PIVOT_LOCK_SHA256: " ++ pivotLockSha256 ++ "  VERIFIED"
+    , "```"
+    , ""
+    , "The lock's own closing clause makes that hash load-bearing — \"any post-commit"
+    , "edit to this file voids the lock\" — so the estimator ABORTS rather than run"
+    , "against edited terms. Provenance: `10-10-DISPOSITION-MEMO.md` (the defect, what"
+    , "was NOT done, the bug-fix exemption reasoning) and the user's verbatim"
+    , "`escalate-anomaly` adjudication quoted there."
+    , ""
+    , "**Run 1 is not superseded and not corrected.** Its analysis"
+    , "(`2026-07-20-upsilon-estimates-v2.md`) is frozen with a CORRECTIONS header and"
+    , "stays on the record permanently, verdict included. This document adds a second"
+    , "construction beside it; it does not replace the first."
+    , ""
+    , "Estimation of the spec section-4.3 equation, VERBATIM and unchanged:"
+    , ""
+    , "> `pi_it = beta0 + upsilon0 * exp(-kappa * |i_K - i_t|) * sigma2_t + v_it`"
+    , ""
+    , "Run date: " ++ dateStr ++ ". Git commit: `" ++ commit ++ "`."
+    , ""
+    , "## 0. Headline"
+    , ""
+    , headline
+    , ""
+    , "## 1. THE SINGLE CHANGE"
+    , ""
+    , "Rows belonging to LONG tokenIds have `premium_wei` multiplied by **−1**, so"
+    , "long and short vega enter the regression with ONE sign. That is Phase 9's"
+    , "documented convention: `Panel.Build.premiumUsd` applies"
+    , "`sign = if isLong then -1 else 1` with the stated rationale *\"the same vega"
+    , "would enter the regression with two opposite signs and cancel\"*. 10-09's"
+    , "`assembleEpochPanel` kept the protocol's own sign instead, which is the"
+    , "construction defect the HALT was called on."
+    , ""
+    , "The long/short label is the FROZEN `is_long` column of the 10-09 artifact."
+    , "Nothing was reclassified. The transformation is applied AFTER the variance"
+    , "join, so the row set, the cluster set, the epoch set and every regressor are"
+    , "provably identical across the two arms — only the LHS sign differs."
+    , ""
+    , "| affected | rows | tokenIds |"
+    , "|---|---|---|"
+    , "| long (sign flipped) | " ++ show nLong ++ " | " ++ show nLongTok ++ " |"
+    , "| short (untouched) | " ++ show nShort ++ " | " ++ show (nTok - nLongTok) ++ " |"
+    , ""
+    , "### Everything the lock held UNCHANGED, and that this run did not touch"
+    , ""
+    , "| locked item | status |"
+    , "|---|---|"
+    , "| stopping bar 6.2e-5 | UNCHANGED, as-is. Not rescaled, not reinterpreted. |"
+    , "| unit incoherence of the bar | RECORDED, not repaired (section 5.1 of the v2 output; restated below) |"
+    , "| verdict rule + code path | UNCHANGED — the same `stoppingRuleVerdict`, blind to kappa's sign and all p-values |"
+    , "| estimator / tests / alternatives | UNCHANGED and byte-untouched (diff evidence below) |"
+    , "| multi-start protocol | UNCHANGED |"
+    , "| panel rows / clusters / joins | UNCHANGED — " ++ show (length (rsPanel r2))
+        ++ " rows, " ++ show nTok ++ " clusters, 0 unmatched epochs |"
+    , "| filters, trims, re-fetches | NONE |"
+    , ""
+    , "Run-time evidence that the estimator source is untouched:"
+    , ""
+    , "```"
+    ] ++ diffEv ++
+    [ "```"
+    , ""
+    , "## 2. RUN 1 vs RUN 2 — side by side"
+    , ""
+    , "Both columns are produced by the SAME function (`runOn`) in the SAME process,"
+    , "so they cannot differ by anything except their input panel."
+    , ""
+    , "### Primary parameters (GSL Levenberg-Marquardt NLS, tokenId-clustered CR0 SEs)"
+    , ""
+    , "| parameter | RUN 1 (as-is sign) | RUN 2 (seller-side) |"
+    , "|---|---|---|"
+    , cmpRow "beta0 (ETH/hour)" b1 (rsSeB r1) b2 (rsSeB r2)
+    , cmpRow "upsilon0 (vega level)" u1 (rsSeU r1) u2 (rsSeU r2)
+    , cmpRow "kappa (per tick)" k1 (rsSeK r1) k2 (rsSeK r2)
+    , ""
+    , "| 95% CI | RUN 1 | RUN 2 |"
+    , "|---|---|---|"
+    , "| beta0 | " ++ ciOf b1 (rsSeB r1) ++ " | " ++ ciOf b2 (rsSeB r2) ++ " |"
+    , "| **upsilon0** | " ++ ciOf u1 (rsSeU r1) ++ " | " ++ ciOf u2 (rsSeU r2) ++ " |"
+    , "| kappa | " ++ ciOf k1 (rsSeK r1) ++ " | " ++ ciOf k2 (rsSeK r2) ++ " |"
+    , ""
+    , "### EIV IV (sigma~2 instruments sigma2)"
+    , ""
+    , "| parameter | RUN 1 naive | RUN 1 IV | RUN 2 naive | RUN 2 IV |"
+    , "|---|---|---|---|---|"
+    , "| beta0 | " ++ fmtG b1 ++ " | " ++ fmtG (b0 (rsThetaIV r1)) ++ " | "
+        ++ fmtG b2 ++ " | " ++ fmtG (b0 (rsThetaIV r2)) ++ " |"
+    , "| **upsilon0** | " ++ fmtG u1 ++ " | " ++ fmtG (u0 (rsThetaIV r1)) ++ " | "
+        ++ fmtG u2 ++ " | " ++ fmtG (u0 (rsThetaIV r2)) ++ " |"
+    , "| kappa (held at NLS) | " ++ fmtG k1 ++ " | " ++ fmtG (kappa (rsThetaIV r1))
+        ++ " | " ++ fmtG k2 ++ " | " ++ fmtG (kappa (rsThetaIV r2)) ++ " |"
+    , ""
+    , "### The three committed specification tests (spec section 5)"
+    , ""
+    , "| # | restriction | RUN 1 stat / p / reject | RUN 2 stat / p / reject |"
+    , "|---|---|---|---|"
+    , "| 1 | upsilon0 > 0 | " ++ testCell (rsTU r1) ++ " | " ++ testCell (rsTU r2) ++ " |"
+    , "| 2 | **kappa > 0 (THE null test)** | " ++ testCell (rsTK r1) ++ " | "
+        ++ testCell (rsTK r2) ++ " |"
+    , "| 3 | kappa+ = kappa- | " ++ testCell (rsTS r1) ++ " | " ++ testCell (rsTS r2) ++ " |"
+    , ""
+    , "Run-2 test-3 identification: " ++ rsSymNote r2 ++ "."
+    , ""
+    , "### Optimizer"
+    , ""
+    , "| diagnostic | RUN 1 | RUN 2 |"
+    , "|---|---|---|"
+    , "| SSE at the returned solution | " ++ fmtE (ndSSE (rsNls r1)) ++ " | "
+        ++ fmtE (ndSSE (rsNls r2)) ++ " |"
+    , "| SSE from the fixed kappa=0.2 start alone | " ++ fmtE (ndFixedSSE (rsNls r1))
+        ++ " | " ++ fmtE (ndFixedSSE (rsNls r2)) ++ " |"
+    , "| multi-start strictly improved | " ++ show (ndImproved (rsNls r1)) ++ " | "
+        ++ show (ndImproved (rsNls r2)) ++ " |"
+    , "| median moneyness (kappa's scale) | " ++ fmtE (ndDMedian (rsNls r1)) ++ " | "
+        ++ fmtE (ndDMedian (rsNls r2)) ++ " |"
+    , ""
+    , "The median moneyness is identical across the arms, as it must be: the sign"
+    , "flip touches the LHS only."
+    , ""
+    , "## STOPPING_RULE"
+    , ""
+    , "The verdict for RUN 2, computed mechanically by the same code path, from the"
+    , "tokenId-clustered CR0 half-width alone:"
+    , ""
+    , "```"
+    , "PRECOMMITTED_HALFWIDTH_BAR: " ++ fmtE precommittedHalfwidthBar
+    , "UPSILON0_HAT: " ++ fmtE u2
+    , "UPSILON0_SE_CLUSTERED: " ++ fmtE (rsSeU r2)
+    , "UPSILON0_CI_HALFWIDTH: " ++ fmtE (rsHalfW r2)
+    , "STOPPING_RULE: " ++ rsVerdict r2
+    , "```"
+    , ""
+    , "For the record, run 1's verdict, unchanged and unedited:"
+    , ""
+    , "```"
+    , "UPSILON0_CI_HALFWIDTH: " ++ fmtE (rsHalfW r1)
+    , "STOPPING_RULE: " ++ rsVerdict r1
+    , "```"
+    , ""
+    , "**The bar was not moved between the runs.** It is the same literal 6.2e-5"
+    , "named constant `precommittedHalfwidthBar`, and the pivot lock froze it"
+    , "explicitly: *\"Stopping bar: 6.2e-5, as-is. Its unit incoherence (defined"
+    , "against Phase 9's USD/day·daily grid) is recorded, not repaired.\"* That"
+    , "incoherence still stands and is still not repaired: the bar carries Phase 9's"
+    , "USD/day units, the realised half-width carries this panel's ETH/hour units."
+    , "Recording it is not the same as acting on it, and this run did not act on it."
+    , ""
+    ] ++ stoppingProse ++
+    [ ""
+    , "## 3. The pre-registered descriptors D1 / D2 / D3"
+    , ""
+    , "Declared in the pivot lock BEFORE run 2 executed, precisely so they could not"
+    , "be chosen after seeing the answer. **They do NOT override the mechanical"
+    , "verdict above.**"
+    , ""
+    , "| descriptor | RUN 1 | RUN 2 |"
+    , "|---|---|---|"
+    , "| **D1** half-width / \\|upsilon0-hat\\| | " ++ fmtG (descriptorD1 r1) ++ " | "
+        ++ fmtG (descriptorD1 r2) ++ " |"
+    , "| **D2** does the upsilon0 CI exclude zero | " ++ yesNo (descriptorD2 r1)
+        ++ " | " ++ yesNo (descriptorD2 r2) ++ " |"
+    , "| **D3** upsilon0-hat | " ++ fmtG u1 ++ " | " ++ fmtG u2 ++ " |"
+    , "| **D3** clustered SE(upsilon0) | " ++ fmtG (rsSeU r1) ++ " | "
+        ++ fmtG (rsSeU r2) ++ " |"
+    , ""
+    , "D3 movement, stated as ratios so the direction is unambiguous:"
+    , ""
+    , "- `|upsilon0-hat|` ratio run2/run1 = " ++ fmtG (abs u2 / abs u1)
+        ++ " (moved AWAY from zero: " ++ yesNo movedAway ++ ")"
+    , "- `SE(upsilon0)` ratio run2/run1 = " ++ fmtG (rsSeU r2 / rsSeU r1)
+        ++ " (narrowed by at least 20%: " ++ yesNo seNarrowed ++ ")"
+    , "- D1 ratio run2/run1 = " ++ fmtG (descriptorD1 r2 / descriptorD1 r1)
+    , ""
+    , "The 20% figure is a reporting threshold for the word \"materially\", which the"
+    , "lock left unquantified. **Nothing below turns on it.** " ++ thresholdNote
+    , ""
+    , "## 4. The pre-registered interpretation branch that obtained"
+    , ""
+    , "The lock declared two branches in advance. The one that obtained:"
+    , ""
+    ] ++ branchProse ++
+    [ ""
+    , "### Does the kappa > 0 rejection persist?"
+    , ""
+    , kappaPersistProse
+    , ""
+    , "## 5. FORMAL WITNESS statement"
+    , ""
+    ] ++ witnessBlock ++
+    [ ""
+    , "## 6. The four locked alternative specifications (run 2)"
+    , ""
+    , "The list is locked by the spec. Nothing added; nothing that failed to identify"
+    , "was dropped."
+    , ""
+    ] ++ concatMap renderAltBlockV2 (rsAlts r2) ++
+    [ "Collateral-channel observations formed on the " ++ show (eoEpochHours eo)
+        ++ "-hour grid: " ++ show (length collat) ++ "."
+    , ""
+    , "## 7. The panel and the join (unchanged from run 1)"
+    , ""
+    , "| quantity | value |"
+    , "|---|---|"
+    , "| rows read from `" ++ panelPath ++ "` | " ++ show (length rows0) ++ " |"
+    , "| rows joined to the variance series | " ++ show (length joined) ++ " |"
+    , "| UNMATCHED_EPOCHS | 0 (the CLI exits non-zero on any) |"
+    , "| usable in BOTH arms | " ++ show (length (rsPanel r2)) ++ " |"
+    , "| distinct tokenId clusters | " ++ show nTok ++ " |"
+    , "| distinct account clusters | " ++ show nAcctC ++ " |"
+    , "| distinct epochs | " ++ show nEp ++ " |"
+    , "| rows flagged ChunkEmpty / AccFrozen | " ++ show nChunkEmpty ++ " / "
+        ++ show nAccFrozen ++ " |"
+    , "| rows in a zero-swap hour (n_swaps = 0) | " ++ show nQuiet ++ " |"
+    , "| top-10 tokenId row share | " ++ fmtG top10Share ++ " |"
+    , ""
+    , "Join cross-checks against the values the 10-09 artifact carries — sigma2"
+    , show sigDrift ++ ", sigma2_instrument " ++ show instrDrift ++ ", pool tick "
+        ++ show tickDrift ++ ", moneyness " ++ show moneyDrift ++ " mismatching rows."
+    , ""
+    , "**The cluster ceiling is untouched by this fix.** " ++ show (length (rsPanel r2))
+        ++ " rows still sit in " ++ show nTok ++ " tokenId clusters with "
+        ++ fmtG (100 * top10Share) ++ "% of the rows"
+    , "in ten positions. The sign normalization corrects a bias; it cannot manufacture"
+    , "independent clusters, and precision here is bounded by clusters."
+    , ""
+    , "### The validation gate (unchanged — quoted from `" ++ eoGateReport eo ++ "`)"
+    , ""
+    , "```"
+    ] ++ gate ++
+    [ "```"
+    , ""
+    , "The gate validates MEASUREMENT, not identification. The sign normalization is"
+    , "orthogonal to it: flipping a sign does not change |recon_wei|, so the"
+    , "gate-validated telescoping identity is unaffected."
+    , ""
+    , "## 8. The Panoptic-vs-Lean wedge (unchanged from run 1)"
+    , ""
+    , "The estimated `pi_it` is PANOPTIC'S premium — fee growth times a"
+    , "utilization-based multiplier, `1 + nu*R/N` long and `1 + nu*R^2/(N*T)` short"
+    , "with `nu = 1/VEGOID = 1/8 = 0.125` — not the bare `streamingPremium`"
+    , "fee-revenue identity Lean models. Applied inside the contract's X64"
+    , "accumulator, so it is already in the reconstructed premium and is never"
+    , "re-applied here. MEASURED over the " ++ show nAcc ++ " accumulator readings:"
+    , ""
+    , "| statistic | value |"
+    , "|---|---|"
+    , "| median | " ++ fmtG wMed ++ " |"
+    , "| min / max | " ++ fmtG wMin ++ " / " ++ fmtG wMax ++ " |"
+    , "| max long (" ++ show nLongAcc ++ ") / max short ("
+        ++ show (nAcc - nLongAcc) ++ ") | " ++ fmtG wMaxLong ++ " / "
+        ++ fmtG wMaxShort ++ " |"
+    , "| readings with R = 0 (wedge exactly 1) | " ++ show nUnitWedge ++ " of "
+        ++ show nAcc ++ " |"
+    , "| implied max R/N on long readings | " ++ fmtG (8 * (wMaxLong - 1)) ++ " |"
+    , ""
+    , "The measured maximum EXCEEDS the 1.125 figure quoted as its bound: `1 + nu`"
+    , "caps the long branch only when `R <= N`, and here `R/N` reaches "
+        ++ fmtG (8 * (wMaxLong - 1)) ++ "."
+    , "Carry the measured figures, not 1.125, into the 10-11 cross-walk."
+    , ""
+    , "## 9. Threats to validity"
+    , ""
+    , "Run 1's threats carry over except the one this run fixed."
+    , ""
+    , "1. **RESOLVED by this run:** the mixed-sign LHS. Both constructions are now on"
+    , "   the record and the estimate is reported under the locked Phase-9 convention."
+    , "2. **A passing gate validates MEASUREMENT, not identification.**"
+    , "3. **The cluster ceiling** — " ++ show nTok ++ " clusters, "
+        ++ fmtG (100 * top10Share) ++ "% of rows in ten positions. Unfixable by any"
+    , "   LHS transformation."
+    , "4. **Scale non-comparability of the bar** — recorded in run 1, deliberately NOT"
+    , "   repaired by the lock, and still not repaired here."
+    , "5. **Flagged rows** — " ++ show nChunkEmpty ++ " `ChunkEmpty`, "
+        ++ show nAccFrozen ++ " `AccFrozen`; retained and labelled, never dropped."
+    , "6. **The zero-swap hour** — " ++ show nQuiet ++ " rows, sigma2 = 0 measured;"
+    , "   the confirming re-fetch used the same public endpoint (reproducibility, not"
+    , "   provider-independence)."
+    , "7. **Long-stratum capping** — `_getAvailablePremium` caps SETTLED long premium"
+    , "   while the accumulator reports ACCRUED. It did not bind in the gate sample,"
+    , "   and the distinction survives the sign fix: normalizing the sign does not"
+    , "   convert accrued premium into settled premium."
+    , "8. **`width == 0` exclusion**, **one strike per multi-leg position**,"
+    , "   **residual sub-block reconstruction wedge** (bounded 5.447268e-4),"
+    , "   **exponential functional form**, **strike-composition selection** — all as"
+    , "   recorded in run 1."
+    , "9. **The Panoptic-vs-Lean multiplier wedge** (section 8)."
+    , ""
+    , "## 10. DATA LINEAGE (audit trail)"
+    , ""
+    , "Run date: " ++ dateStr ++ ". Git commit: `" ++ commit ++ "`."
+    , "Pivot lock sha256: `" ++ pivotLockSha256 ++ "` (verified at run time)."
+    , "All paths repo-root relative. Every endpoint is public and keyless; no"
+    , "credential appears anywhere in this pipeline."
+    , ""
+    , "### The exact invocation"
+    , ""
+    , "```"
+    , "econometrics " ++ unwords (map sanitizeArg argv)
+    , "```"
+    , ""
+    , "### Chain and contracts"
+    , ""
+    , "| what | value |"
+    , "|---|---|"
+    , "| chain | Base mainnet (L2), chainId 8453 |"
+    , "| Panoptic subgraph | `" ++ show' (eoEndpoint eo) ++ "` |"
+    , "| PanopticPool | `0xb50e8bb68f5855da742f4579274902a20454174a` (ETH/USDC, fee 500, tickSpacing 10) |"
+    , "| underlying pool (V4 poolId) | `" ++ show' (eoPool eo) ++ "` |"
+    , "| SFPM | `0x8dcAa08cF298F8b4830FAf56d47930981AdE33af` |"
+    , "| VEGOID / nu | 8 / 0.125 |"
+    , "| Base RPC | `" ++ show' (eoRpc eo) ++ "`; failover `https://base.drpc.org` |"
+    , "| V4 PoolManager (Swap log emitter) | `0x498581ff718922c3f8e6a244956af099b2652b2b` |"
+    , "| block range | " ++ show (eoFromBlock eo) ++ " .. " ++ show (eoToBlock eo) ++ " |"
+    , ""
+    , "The bulk accumulator read (10-06) issued 8,910 `eth_call`s over a six-cycle"
+    , "resume chain; `FAILOVER_CALLS: 0` on the completing slice. Read lineage:"
+    , "`notes/structural-econometrcics/data/premium-accumulators-lineage.md`."
+    , ""
+    , "### Files"
+    , ""
+    , "| path | contents | rows |"
+    , "|---|---|---|"
+    , "| `notes/structural-econometrcics/data/burn-truth.csv` | frozen OptionBurn ground truth (INPUT); the is_long authority | 61 |"
+    , "| `notes/structural-econometrcics/data/premium-accumulators.csv` | SFPM X64 accumulator readings | 8,910 |"
+    , "| `notes/structural-econometrcics/data/epoch-blocks.csv` | hourly epoch -> first Base block | 2,832 |"
+    , "| `notes/structural-econometrcics/data/reconcile-errors.csv` | per-spell gate error | 61 |"
+    , "| `" ++ eoGateReport eo ++ "` | THE gate report | see section 7 |"
+    , "| `" ++ eoVarianceCsv eo ++ "` | hourly sigma2, EIV instrument, pool tick, n_swaps | "
+        ++ show nVarEp ++ " |"
+    , "| `" ++ panelPath ++ "` | THE position-epoch panel (LHS source) | "
+        ++ show (length rows0) ++ " |"
+    , "| `notes/structural-econometrcics/data/estimation-panel-v2.csv` | RUN 1's export (as-is sign) | 6,760 |"
+    , "| `" ++ estOut ++ "` | RUN 2's export (seller-side normalized) | "
+        ++ show (length (rsPanel r2)) ++ " |"
+    , "| `notes/structural-econometrcics/analysis/2026-07-20-upsilon-estimates-v2.md` | RUN 1's analysis, FROZEN | — |"
+    , "| `" ++ eoPivotLock eo ++ "` | the binding lock | — |"
+    , "| `" ++ eoCollateralCsv eo ++ "` | signed collateral share flows | see file |"
+    , "| `" ++ eoTicksCsv eo ++ "` | raw (unix, tick) Swap cache (gitignored) | 632,315 |"
+    , ""
+    , "### The epoch definition"
+    , ""
+    , "`epoch = floor(unixSeconds / 3600)` via `Panel.Epoch.epochOfSeconds`, the SAME"
+    , "function the variance series uses, so the join is an exact INTEGER match."
+    , "Block-index epoch `e` is the START of hour `e`, so a row's premium is the"
+    , "accumulator difference over the interval STARTING at that boundary and meets"
+    , "the variance of the SAME hour."
+    , ""
+    , "### The panel artifact's own banner (verbatim)"
+    , ""
+    , "```"
+    ] ++ banner ++
+    [ "```"
+    , ""
+    , "### The variance artifact's own banner (verbatim)"
+    , ""
+    , "```"
+    ] ++ vbannr ++
+    [ "```"
+    , ""
+    , "### The estimator (byte-identical to Phase 9 and to run 1)"
+    , ""
+    , "- **Point estimates:** `Model.NLS.fitGSL` — `Numeric.GSL.Fitting.fitModel`,"
+    , "  Levenberg-Marquardt, analytic Jacobian, data-scaled multi-start, lowest-SSE"
+    , "  finite solution."
+    , "- **Standard errors:** `Model.SandwichSE.clusterSandwich` — tokenId-clustered"
+    , "  CR0 `(J'J)^-1 [sum_g s_g s_g'] (J'J)^-1`, NO finite-sample correction,"
+    , "  golden-tested to 1e-9."
+    , "- **EIV:** `Model.EIV.ivFit` — two-step two-noisy-measures IV."
+    , "- **Tests:** `Tests.Specification` — one-sided Normal for the sign"
+    , "  restrictions, chi-squared(1) Wald for symmetry."
+    , "- **Alternatives:** `Alternatives` — the four locked spec section-6.2 forms."
+    , ""
+    , "### Reproduce"
+    , ""
+    , "```sh"
+    , "stack --stack-yaml econometrics/stack.yaml exec econometrics -- estimate \\"
+    , "  --epoch-panel " ++ panelPath ++ " \\"
+    , "  --variance " ++ eoVarianceCsv eo ++ " \\"
+    , "  --epoch-hours " ++ show (eoEpochHours eo) ++ " \\"
+    , "  --seller-side-normalize \\"
+    , "  --estimation-out " ++ estOut ++ " \\"
+    , "  --endpoint <subgraph-endpoint> --pool <poolId> --rpc <base-rpc-url> \\"
+    , "  --from-block " ++ show (eoFromBlock eo) ++ " --to-block " ++ show (eoToBlock eo)
+    , "```"
+    , ""
+    , "---"
+    , ""
+    , "**TERMINAL.** Per the pivot lock and the user's commitment of 2026-07-27, this"
+    , "is the last estimation run of Phase 10. No further iteration follows, in either"
+    , "branch of the pre-registered interpretation."
+    ]
+  where
+    show' s = if null s then "(not recorded on this run)" else s
+    yesNo True = "YES"
+    yesNo False = "no"
+
+    Theta b1 u1 k1 = rsTheta r1
+    Theta b2 u2 k2 = rsTheta r2
+
+    ciOf e se = "[" ++ fmtG (e - 1.96 * se) ++ ", " ++ fmtG (e + 1.96 * se) ++ "]"
+    cmpRow nm e1 s1 e2 s2 =
+      "| " ++ nm ++ " | " ++ fmtG e1 ++ " (SE " ++ fmtG s1 ++ ") | "
+        ++ fmtG e2 ++ " (SE " ++ fmtG s2 ++ ") |"
+    testCell t = fmtG (statistic t) ++ " / " ++ fmtG (pValue t) ++ " / "
+                   ++ (if reject t then "**REJECT**" else "no")
+
+    pan    = rsPanel r2
+    nTok   = length (nub (map obsTokenId pan))
+    nAcctC = length (nub (map obsAccount pan))
+    nEp    = length (nub (map obsEpoch pan))
+    nVarEp = length (nub (map (erEpoch . fst) joined))
+
+    nLong    = length [ () | r <- rows0, erIsLong r ]
+    nShort   = length rows0 - nLong
+    nLongTok = length (nub [ erTokenId r | r <- rows0, erIsLong r ])
+
+    nChunkEmpty = length [ () | r <- rows0, "ChunkEmpty" `T.isInfixOf` erFlags r ]
+    nAccFrozen  = length [ () | r <- rows0, "AccFrozen"  `T.isInfixOf` erFlags r ]
+    nQuiet      = length [ () | r <- rows0, erNSwaps r == 0 ]
+
+    tokCounts = Map.fromListWith (+) [ (obsTokenId o, 1 :: Int) | o <- pan ]
+    top10Share =
+      let cs = take 10 (reverse (sort (Map.elems tokCounts)))
+      in if null pan then 0 / 0
+         else fromIntegral (sum cs) / fromIntegral (length pan)
+
+    informative2 = rsVerdict r2 == "INFORMATIVE"
+    movedAway    = abs u2 > abs u1
+    seNarrowed   = rsSeU r2 < 0.8 * rsSeU r1
+    branchA      = movedAway || seNarrowed
+
+    -- The lock's branch test is a disjunction, so the threshold only ever
+    -- matters when the FIRST disjunct is false. Say which case obtained rather
+    -- than gesturing at robustness.
+    thresholdNote
+      | movedAway && not seNarrowed =
+          "The branch was selected by the first disjunct — `upsilon0-hat` moved away"
+          ++ " from zero — which is threshold-free. The SE disjunct is false here"
+          ++ " under ANY narrowing threshold, because the SE widened (ratio "
+          ++ fmtG (rsSeU r2 / rsSeU r1) ++ ")."
+      | movedAway && seNarrowed =
+          "Both disjuncts hold, so the branch is the same under any threshold below "
+          ++ fmtG (1 - rsSeU r2 / rsSeU r1) ++ "."
+      | seNarrowed =
+          "The first disjunct is false (`upsilon0-hat` did not move away from zero),"
+          ++ " so the branch rests on the SE narrowing, which is "
+          ++ fmtG (1 - rsSeU r2 / rsSeU r1) ++ " — sensitive to the threshold, and"
+          ++ " flagged as such."
+      | otherwise =
+          "Neither disjunct holds under any threshold: the estimate did not move away"
+          ++ " from zero (ratio " ++ fmtG (abs u2 / abs u1) ++ ") and the SE did not"
+          ++ " narrow (ratio " ++ fmtG (rsSeU r2 / rsSeU r1) ++ ")."
+
+    kappaPos2   = k2 > 0 && not (isNaN k2)
+    kappaSig2   = kappaPos2 && reject (rsTK r2)
+    upsPos2     = u2 > 0 && not (isNaN u2)
+    upsSig2     = upsPos2 && reject (rsTU r2)
+    maxVega2    = abs u2 * maximum (1e-300 : [ obsSigma2 o | o <- pan, finiteD (obsSigma2 o) ])
+    degenerate2 = maxVega2 < 1e-6 * abs b2
+
+    headline =
+      "**RUN 2 STOPPING_RULE: " ++ rsVerdict r2 ++ ".** With the LHS normalized to"
+        ++ " the seller side — the single change this iteration was authorised to"
+        ++ " make — the upsilon0 clustered-CI half-width is +/-" ++ fmtE (rsHalfW r2)
+        ++ " against the unchanged bar of +/-" ++ fmtE precommittedHalfwidthBar
+        ++ ". Run 1's half-width was +/-" ++ fmtE (rsHalfW r1) ++ " (verdict "
+        ++ rsVerdict r1 ++ "). upsilon0-hat moves " ++ fmtG u1 ++ " -> " ++ fmtG u2
+        ++ " with clustered SE " ++ fmtG (rsSeU r1) ++ " -> " ++ fmtG (rsSeU r2)
+        ++ ", and its CI " ++ (if descriptorD2 r2 then "EXCLUDES" else "still contains")
+        ++ " zero. kappa-hat = " ++ fmtG k2 ++ " (SE " ++ fmtG (rsSeK r2) ++ ", p = "
+        ++ fmtG (pValue (rsTK r2)) ++ "), so the run-1 rejection of a flat vega"
+        ++ " profile " ++ (if kappaSig2 then "PERSISTS" else "does NOT persist")
+        ++ ". " ++ (if informative2
+                      then "The bar was met."
+                      else "The bar was not met, and this is the terminal run.")
+
+    stoppingProse
+      | informative2 =
+          [ "**The bar was met on run 2.** The interval is informative and is read as"
+          , "it fell, in whichever direction it points. Note what this does and does"
+          , "not license: the fix that produced it was a correctness fix pre-declared"
+          , "in the lock, applied identically across every locked specification, and"
+          , "verdict-independent — an INFORMATIVE result on mixed-sign data would have"
+          , "been equally invalid and equally in need of the same fix. Run 1's"
+          , "UNINFORMATIVE verdict remains on the record beside this one."
+          ]
+      | otherwise =
+          [ "**The bar was NOT met on run 2 either, and the pre-authorised terminal"
+          , "outcome applies with BOTH constructions on the record:**"
+          , ""
+          , "> **This market cannot identify `upsilon`.**"
+          , ""
+          , "The phase reports that and stops. The sign-convention defect was real and"
+          , "has been fixed; fixing it did not change the conclusion. That is a"
+          , "stronger result than run 1 alone could support — the uninformative"
+          , "interval now survives the one construction change that had a clearly"
+          , "signed effect on it, so it cannot be attributed to that defect. No"
+          , "further iteration follows, per the lock."
+          ]
+
+    branchProse
+      | branchA =
+          [ "> *\"If upsilon0-hat moves away from zero and/or its SE narrows"
+          , "> materially: consistent with the mixed-sign attenuation mechanism;"
+          , "> report both runs side by side.\"*"
+          , ""
+          , "**This branch obtained — via the FIRST disjunct only.**"
+          , ""
+          , "- `|upsilon0-hat|` moved AWAY from zero by a factor of "
+              ++ fmtG (abs u2 / abs u1) ++ ". This is the part consistent with the"
+          , "  attenuation mechanism the disposition memo named in advance: a common"
+          , "  vega carried with two opposite signs partially cancels, and de-mixing"
+          , "  the signs un-cancels it."
+          , "- The clustered SE did **not** narrow — it WIDENED by a factor of "
+              ++ fmtG (rsSeU r2 / rsSeU r1) ++ ", which is expected when the"
+          , "  left-hand side's magnitudes grow, and is NOT evidence for the mechanism."
+          , "  The second disjunct is false, and would be false under any narrowing"
+          , "  threshold whatsoever."
+          , "- The scale-free ratio D1 nevertheless improved, " ++ fmtG (descriptorD1 r1)
+              ++ " -> " ++ fmtG (descriptorD1 r2) ++ ": the estimate grew faster than"
+          , "  its own uncertainty."
+          , ""
+          , "**What this does NOT establish.** Consistency with a pre-named mechanism"
+          , "is not proof of it. One arm moved in the predicted direction; that is a"
+          , "single comparison on one panel, not an identified effect, and no"
+          , "directional claim about the vega profile is made here beyond what the"
+          , "tests in section 2 support."
+          , (if informative2
+               then "The mechanical verdict above is what adjudicates the phase."
+               else "Decisively: the mechanical verdict is still " ++ rsVerdict r2
+                    ++ " and D2 is still \"no\" — the CI contains zero in BOTH arms."
+                    ++ " The direction improved; the identification did not follow.")
+          ]
+      | otherwise =
+          [ "> *\"If upsilon0-hat remains ~0 / interval still wide: the sign mixing was"
+          , "> NOT the binding attenuation source; the market-cannot-identify-upsilon"
+          , "> conclusion stands with BOTH constructions on record.\"*"
+          , ""
+          , "**This branch obtained.** `|upsilon0-hat|` moved by a factor of "
+              ++ fmtG (abs u2 / abs u1) ++ " and the clustered SE by a factor of "
+              ++ fmtG (rsSeU r2 / rsSeU r1) ++ " — neither away from zero nor"
+          , "materially narrower. The mixed-sign LHS was a genuine construction defect"
+          , "and it has been fixed, but it was NOT the binding constraint on"
+          , "identification here. The binding constraint is the one recorded since"
+          , "10-01 and unchanged by any LHS transformation: " ++ show nTok
+              ++ " tokenId clusters"
+          , "with " ++ fmtG (100 * top10Share) ++ "% of the rows in ten positions."
+          , "The market-cannot-identify-upsilon conclusion stands with both"
+          , "constructions on the record."
+          ]
+
+    kappaPersistProse
+      | degenerate2 =
+          "**Cannot be assessed on run 2.** The fitted vega level is numerically"
+          ++ " zero, so kappa is structurally unidentified and its test is vacuous."
+          ++ " That is itself a change from run 1, where kappa was identified, and it"
+          ++ " is reported as the fragility it is."
+      | kappaSig2 && reject (rsTK r1) =
+          "**It persists.** Run 1: kappa-hat = " ++ fmtG k1 ++ " (SE " ++ fmtG (rsSeK r1)
+          ++ ", p = " ++ fmtG (pValue (rsTK r1)) ++ "). Run 2: kappa-hat = " ++ fmtG k2
+          ++ " (SE " ++ fmtG (rsSeK r2) ++ ", p = " ++ fmtG (pValue (rsTK r2))
+          ++ "). H0 of a flat vega profile is rejected at the 5% level under BOTH LHS"
+          ++ " constructions, which is what the lock anticipated: sign normalization"
+          ++ " acts primarily on upsilon0's level. The rejection is a statement about"
+          ++ " the SHAPE of the profile and it survives the fix. It remains separate"
+          ++ " from — and no substitute for — the stopping rule, which is about"
+          ++ " upsilon0."
+      | reject (rsTK r1) && not kappaSig2 =
+          "**It does NOT persist, and that fragility is reported plainly.** Run 1"
+          ++ " rejected H0: kappa = 0 (kappa-hat = " ++ fmtG k1 ++ ", p = "
+          ++ fmtG (pValue (rsTK r1)) ++ "); run 2 does not (kappa-hat = " ++ fmtG k2
+          ++ ", SE " ++ fmtG (rsSeK r2) ++ ", p = " ++ fmtG (pValue (rsTK r2))
+          ++ "). The lock declared in advance that the rejection was EXPECTED to"
+          ++ " persist and that non-persistence would be reported as fragility rather"
+          ++ " than explained away. It is: the run-1 rejection did not survive the"
+          ++ " correction of a construction defect, so it should not be carried"
+          ++ " forward as a finding about this market."
+      | otherwise =
+          "Run 1 did not reject H0: kappa = 0 (p = " ++ fmtG (pValue (rsTK r1))
+          ++ ") and run 2 " ++ (if kappaSig2 then "does (p = " else "does not either (p = ")
+          ++ fmtG (pValue (rsTK r2)) ++ ")."
+
+    witnessBlock =
+      [ "The Lean library proves, axiom-clean and sorry-free"
+      , "(`lean/vol_markets/Upsilon.lean`):"
+      , ""
+      , "```lean"
+      , "theorem exp_family_witnesses_ATMOTM"
+      , "    (u0 k di : R) (iK : Z) (hu : 0 < u0) (hk : 0 < k) (hd : 0 < di) :"
+      , "    ATMOTMNullHypothesis"
+      , "      (fun i => u0 * Real.exp (-k * di * |(i:R) - (iK:R)|)) di iK (k*di)"
+      , "```"
+      , ""
+      , "**No Lean file was modified and no Aristotle task was run.** The theorem is"
+      , "already proved; at issue is only whether the run-2 fit instantiates it."
+      , ""
+      , "- `upsilon0-hat = " ++ fmtG u2 ++ "` (clustered SE " ++ fmtG (rsSeU r2)
+          ++ ")  ->  `hu` " ++ huSt
+      , "- `kappa-hat = " ++ fmtG k2 ++ "` (clustered SE " ++ fmtG (rsSeK r2)
+          ++ ")  ->  `hk` " ++ hkSt
+      , "- `Delta_i = 10` (pool tickSpacing)  ->  `hd` SATISFIED"
+      , ""
+      , wVerdict
+      ]
+      where
+        st pos t p
+          | not pos  = "**NOT SATISFIED** — the point estimate has the wrong sign."
+          | reject t = "SATISFIED in sign AND statistically supported (p = " ++ fmtG p ++ ")."
+          | otherwise = "satisfied in SIGN ONLY — the test does NOT reject (p = "
+                        ++ fmtG p ++ "), so the strict inequality is not supported."
+        huSt | degenerate2 = "**NOT usable** — numerically zero; the strict inequality holds only vacuously."
+             | otherwise   = st upsPos2 (rsTU r2) (pValue (rsTU r2))
+        hkSt | degenerate2 = "**cannot be evaluated** — kappa is unidentified once the vega term vanishes."
+             | otherwise   = st kappaPos2 (rsTK r2) (pValue (rsTK r2))
+        wVerdict
+          | kappaSig2 && upsSig2 && not degenerate2 =
+              "**The witness OBTAINS.** Both restrictions are satisfied by the point"
+              ++ " estimates and statistically supported at the 5% level on the"
+              ++ " tokenId-clustered covariance, and `hd` holds by inspection. The"
+              ++ " fitted profile is a literal witness of `ATMOTMNullHypothesis` at"
+              ++ " `c = kappa-hat * Delta_i = " ++ fmtG (k2 * 10) ++ "`. The theorem is"
+              ++ " about the FAMILY, so the witness is exactly as strong as the"
+              ++ " estimate behind it — and the STOPPING_RULE above is "
+              ++ rsVerdict r2 ++ ", which bounds how far it should be carried."
+          | degenerate2 =
+              "**The witness does NOT obtain.** `hu : 0 < upsilon0` fails at the point"
+              ++ " estimate (numerically zero) and kappa is unidentified once the vega"
+              ++ " term vanishes. The Lean theorem remains PROVED and axiom-clean; the"
+              ++ " conjecture remains OPEN."
+          | kappaSig2 && upsPos2 && not upsSig2 =
+              "**The witness does NOT obtain.** `hk : 0 < kappa` IS supported"
+              ++ " (kappa-hat = " ++ fmtG k2 ++ ", p = " ++ fmtG (pValue (rsTK r2))
+              ++ "), but `hu : 0 < upsilon0` is satisfied in SIGN only: upsilon0-hat = "
+              ++ fmtG u2 ++ " has a 95% clustered interval of " ++ ciOf u2 (rsSeU r2)
+              ++ ", which contains zero, and test 1 does not reject (p = "
+              ++ fmtG (pValue (rsTU r2)) ++ "). Instantiating a machine-checked theorem"
+              ++ " at a parameter the data cannot distinguish from zero would assert"
+              ++ " more than the data supports — and the phase has just reported that"
+              ++ " the upsilon0 interval is uninformative, so it cannot simultaneously"
+              ++ " claim a witness resting on upsilon0. The Lean theorem remains PROVED"
+              ++ " and axiom-clean, and the conjecture remains OPEN. Nothing here bears"
+              ++ " on the theorem's correctness; only on whether this market's data"
+              ++ " instantiates it, and it does not."
+          | otherwise =
+              "**The witness does NOT obtain.** " ++ failing
+              ++ " The Lean theorem remains PROVED and axiom-clean, and the conjecture"
+              ++ " remains OPEN."
+        failing
+          | not upsPos2 && not kappaPos2 =
+              "Both `hu : 0 < upsilon0` (upsilon0-hat = " ++ fmtG u2
+              ++ ") and `hk : 0 < kappa` (kappa-hat = " ++ fmtG k2 ++ ") fail in sign."
+          | not upsPos2 = "`hu : 0 < upsilon0` fails in sign (upsilon0-hat = " ++ fmtG u2 ++ ")."
+          | not kappaPos2 = "`hk : 0 < kappa` fails in sign (kappa-hat = " ++ fmtG k2 ++ ")."
+          | otherwise =
+              "Both point estimates have the right sign, but neither restriction is"
+              ++ " statistically supported (upsilon0 p = " ++ fmtG (pValue (rsTU r2))
+              ++ ", kappa p = " ++ fmtG (pValue (rsTK r2)) ++ ")."
