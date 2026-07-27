@@ -94,6 +94,61 @@ spec = describe "Panel.Variance (CTX-VAR)" $ do
     it "is tick · ln(1.0001)" $
       tickToLogPrice 12345 `shouldSatisfy` approx (12345 * c)
 
+  -- The 10-01 Wave-0 census closed the DAILY design on its own pre-committed
+  -- rule and the user re-scoped the phase to EPOCH_HOURS = 1. σ̂²_t, σ̃²_t and
+  -- i_t must therefore be re-estimated at HOURLY windows — with the SAME
+  -- estimator and the SAME epoch source of truth, or the panel and the regressor
+  -- silently de-align (the 09-05 40587-offset trap, one grid finer).
+  describe "hourly epoch width (the 10-01 re-scope)" $ do
+    -- hour 0: ticks 100,110,90  → Δ 10,-20      → ΣΔ² = 500
+    --         evens 100,90      → Δ -10         → ΣΔ² = 100
+    -- hour 1: ticks 200,180     → Δ -20         → ΣΔ² = 400
+    --         evens 200         → no increment  → 0
+    let hourlyTicks =
+          [ (utc 0, 100), (utc 60, 110), (utc 120, 90)
+          , (utc 3600, 200), (utc 3660, 180) ]
+
+    it "realizedVarianceAt 3600 buckets by the hour and uses the same estimator" $ do
+      let rv = realizedVarianceAt 3600 hourlyTicks
+      Map.keys rv `shouldBe` [0, 1]
+      get 0 rv `shouldSatisfy` approx (c * c * 500)
+      get 1 rv `shouldSatisfy` approx (c * c * 400)
+
+    it "instrumentVarianceAt 3600 uses the DISJOINT even-swap sub-window" $ do
+      let iv = instrumentVarianceAt 3600 hourlyTicks
+      get 0 iv `shouldSatisfy` approx (c * c * 100)
+      get 1 iv `shouldSatisfy` approx 0     -- one even swap ⇒ no increment
+
+    it "meanPoolTickAt 3600 averages the ticks inside the hour" $ do
+      let mt = meanPoolTickAt 3600 hourlyTicks
+      get 0 mt `shouldSatisfy` approx 100    -- (100 + 110 + 90) / 3
+      get 1 mt `shouldSatisfy` approx 190    -- (200 + 180) / 2
+
+    it "swapCountsAt reports the increments behind each σ̂² (n_swaps − 1)" $ do
+      let ns = swapCountsAt 3600 hourlyTicks
+      Map.lookup 0 ns `shouldBe` Just 3
+      Map.lookup 1 ns `shouldBe` Just 2
+
+    -- The generalization must not perturb the committed daily series: at 86400
+    -- the *At estimators ARE the daily ones. If this ever fails, variance.csv
+    -- would no longer be reproducible from the same tick cache.
+    it "at 86400 the width-parameterized estimators equal the daily ones" $ do
+      ticks <- loadSwapTicks fixturePath
+      realizedVarianceAt   86400 ticks `shouldBe` realizedVariance   ticks
+      instrumentVarianceAt 86400 ticks `shouldBe` instrumentVariance ticks
+      meanPoolTickAt       86400 ticks `shouldBe` meanPoolTick       ticks
+
+    -- The hourly grid must REFINE the daily one exactly 24-to-1: every hourly
+    -- bucket belongs to exactly one daily bucket and no swap is lost or double
+    -- counted. This is the property that makes the two artifacts comparable.
+    it "the hourly buckets partition the daily ones (no swap lost or duplicated)" $ do
+      ticks <- loadSwapTicks fixturePath
+      let hourly = swapCountsAt 3600  ticks
+          daily  = swapCountsAt 86400 ticks
+          rolled = Map.fromListWith (+) [ (h `div` 24, n) | (h, n) <- Map.toList hourly ]
+      rolled `shouldBe` daily
+      sum (Map.elems hourly) `shouldBe` length ticks
+
   describe "V4 Swap-log ABI decode" $ do
     it "decodeTick reads the int24 tick (word 4, sign-extended) from live data" $
       decodeTick (BC.pack liveSwapData) `shouldBe` (-201156)

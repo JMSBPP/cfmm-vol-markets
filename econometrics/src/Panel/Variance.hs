@@ -59,6 +59,13 @@ module Panel.Variance
   , meanPoolTick
   , instrumentVariance
   , writeVarianceCsv
+    -- * Variance math at an ARBITRARY epoch width (the 10-01 HOURLY re-scope)
+  , byEpochAt
+  , realizedVarianceAt
+  , meanPoolTickAt
+  , instrumentVarianceAt
+  , swapCountsAt
+  , writeVarianceCsvAt
     -- * Historical / superseded
   , historicalBigQuerySql
   ) where
@@ -85,7 +92,7 @@ import           System.IO (hFlush, stdout)
 -- imports and re-exports @Panel.Build.dailyEpoch@ (owned by plan 09-04) rather
 -- than defining its own, guaranteeing σ̂²_t/σ̃²_t bucket on exactly the same
 -- integer epoch index as the panel so the two CSVs join cleanly in 09-09.
-import           Panel.Build (Epoch, dailyEpoch)
+import           Panel.Build (Epoch, dailyEpoch, epochOfSeconds)
 
 -- | ABI word arithmetic (sign-extended 'decodeWordAt', 'hexToBytes') lives in
 -- 'Chain.Abi' as the single implementation — this module no longer carries its
@@ -380,11 +387,24 @@ utcToUnix = round . utcTimeToPOSIXSeconds
 tickToLogPrice :: Int -> Double
 tickToLogPrice t = fromIntegral t * log 1.0001
 
+-- | Group ticks into per-epoch chronological series at an ARBITRARY bucket
+-- width, via 'Panel.Build.epochOfSeconds' — the single source of truth for the
+-- epoch grid at any width. At @86400@ this is exactly 'byEpoch' (pinned by
+-- "Panel.BuildSpec": @epochOfSeconds 86400 == dailyEpoch@ pointwise).
+--
+-- Introduced by plan 10-09 for the HOURLY panel: the 10-01 Wave-0 census closed
+-- the daily design on its own pre-committed rule and the user re-scoped the whole
+-- phase to @EPOCH_HOURS = 1@, so σ̂²_t, σ̃²_t and i_t must be re-estimated at
+-- hourly windows from the SAME cached V4 Swap series. The estimator is unchanged;
+-- only the bucket width is a parameter.
+byEpochAt :: Int -> [(UTCTime, Int)] -> Map Epoch [Int]
+byEpochAt epochSeconds ticks =
+  fmap reverse $ Map.fromListWith (++)
+    [ (epochOfSeconds epochSeconds t, [tk]) | (t, tk) <- sortOn fst ticks ]
+
 -- | Group ticks into per-day chronological series, bucketed by 'dailyEpoch'.
 byEpoch :: [(UTCTime, Int)] -> Map Epoch [Int]
-byEpoch ticks =
-  fmap reverse $ Map.fromListWith (++)
-    [ (dailyEpoch t, [tk]) | (t, tk) <- sortOn fst ticks ]
+byEpoch = byEpochAt 86400
 
 -- | Realized variance of a within-day series: the sum of squared log-price
 -- increments (standard RV, no mean removal).
@@ -396,15 +416,14 @@ rvOfSeries ticks =
 
 -- | σ̂²_t: per-epoch realized variance over the FULL within-day tick series.
 realizedVariance :: [(UTCTime, Int)] -> Map Epoch Double
-realizedVariance = Map.map rvOfSeries . byEpoch
+realizedVariance = realizedVarianceAt 86400
 
 -- | σ̃²_t: the EIV instrument. The SAME realized-variance estimator applied to a
 -- DISJOINT intraday sub-window — the even-position swaps (0-based) within each
 -- day. Being an independent noisy measure of the same daily σ², it instruments
 -- σ̂²_t and corrects the attenuation bias on υ̂₀ (spec §4.3, two noisy measures).
 instrumentVariance :: [(UTCTime, Int)] -> Map Epoch Double
-instrumentVariance = Map.map (rvOfSeries . evens) . byEpoch
-  where evens xs = [ x | (i, x) <- zip [0 :: Int ..] xs, even i ]
+instrumentVariance = instrumentVarianceAt 86400
 
 -- | i_t: the per-epoch MEAN underlying pool tick, from the same V4 Swap series
 -- that produces σ̂²_t. This is the panel's moneyness anchor: an accrual spell's
@@ -415,10 +434,47 @@ instrumentVariance = Map.map (rvOfSeries . evens) . byEpoch
 -- Deriving i_t from the SAME tick series as σ̂² (rather than from the subgraph's
 -- @tickAt@ event field) keeps regressor and moneyness on one provenance chain.
 meanPoolTick :: [(UTCTime, Int)] -> Map Epoch Double
-meanPoolTick = Map.map avg . byEpoch
+meanPoolTick = meanPoolTickAt 86400
+
+-- ---------------------------------------------------------------------------
+-- The same three estimators at an arbitrary epoch width (10-09, HOURLY)
+-- ---------------------------------------------------------------------------
+
+-- | σ̂²_t at an arbitrary epoch width. Identical estimator to 'realizedVariance',
+-- different bucket.
+realizedVarianceAt :: Int -> [(UTCTime, Int)] -> Map Epoch Double
+realizedVarianceAt epochSeconds = Map.map rvOfSeries . byEpochAt epochSeconds
+
+-- | σ̃²_t (the DISJOINT even-swap sub-window instrument) at an arbitrary epoch
+-- width.
+--
+-- __The instrument thins with the window.__ At the daily grid each bucket holds
+-- ~5,200 swaps, so the even-swap sub-series is a well-populated independent
+-- measure. At the hourly grid the median bucket holds ~177 swaps (10-01 census),
+-- so the instrument rests on ~88 increments. That is the second of the two
+-- residual risks the user accepted at the 10-01 re-scope; it is a precision cost,
+-- not a validity one — the sub-window is still disjoint from the odd-position
+-- increments in exactly the same way.
+instrumentVarianceAt :: Int -> [(UTCTime, Int)] -> Map Epoch Double
+instrumentVarianceAt epochSeconds =
+  Map.map (rvOfSeries . evens) . byEpochAt epochSeconds
+  where evens xs = [ x | (i, x) <- zip [0 :: Int ..] xs, even i ]
+
+-- | i_t at an arbitrary epoch width.
+meanPoolTickAt :: Int -> [(UTCTime, Int)] -> Map Epoch Double
+meanPoolTickAt epochSeconds = Map.map avg . byEpochAt epochSeconds
   where
     avg [] = 0 / 0
     avg xs = sum (map fromIntegral xs) / fromIntegral (length xs)
+
+-- | Swaps per epoch at an arbitrary width. Published alongside σ̂² at sub-daily
+-- resolution because a realized variance is only as meaningful as the number of
+-- increments behind it: @n@ swaps give @n − 1@ increments, and a bucket with 0 or
+-- 1 swap yields σ̂² = 0 by CONSTRUCTION rather than by measurement. Carrying the
+-- count in the artifact means a downstream reader can tell those two apart
+-- without re-deriving them from the tick cache.
+swapCountsAt :: Int -> [(UTCTime, Int)] -> Map Epoch Int
+swapCountsAt epochSeconds = Map.map length . byEpochAt epochSeconds
 
 -- | Write the per-epoch @(σ̂²_t, σ̃²_t)@ join to CSV, with a banner documenting
 -- the window definitions. Columns: @epoch,sigma2,sigma2_instrument@.
@@ -444,6 +500,56 @@ writeVarianceCsv path sig2 sig2i tickM = writeFile path (banner ++ rows)
       , "# Source: Uniswap V4 PoolManager Swap logs on Base via chunked eth_getLogs"
       , "#   (poolId 0x96d4…288c0a); BigQuery path retired (project suspended)."
       , "epoch,sigma2,sigma2_instrument,pool_tick_mean"
+      ]
+
+-- | The same join at an ARBITRARY epoch width, with the per-epoch SWAP COUNT
+-- carried as a fifth column.
+--
+-- Written as a SEPARATE function rather than a generalization of
+-- 'writeVarianceCsv' on purpose: @variance.csv@ (daily) is a committed Phase-9
+-- artifact that the estimation panel, the block index and the 10-08 gate lineage
+-- all reference, and it must stay byte-reproducible. The hourly series is a NEW
+-- artifact at a NEW path.
+--
+-- The extra @n_swaps@ column is appended LAST so that a reader taking the first
+-- four fields (as @loadVarianceCsv@ does) parses both files with one parser.
+writeVarianceCsvAt
+  :: Int -> FilePath
+  -> Map Epoch Double -> Map Epoch Double -> Map Epoch Double -> Map Epoch Int
+  -> IO ()
+writeVarianceCsvAt epochSeconds path sig2 sig2i tickM nSwaps =
+  writeFile path (banner ++ rows)
+  where
+    epochs = Map.keys (Map.unions [sig2, sig2i, tickM])
+    look m e = Map.findWithDefault (0 / 0) e m
+    rows = unlines
+      [ show e ++ "," ++ show (look sig2 e) ++ "," ++ show (look sig2i e)
+                ++ "," ++ show (look tickM e)
+                ++ "," ++ show (Map.findWithDefault 0 e nSwaps)
+      | e <- epochs ]
+    hours :: Double
+    hours = fromIntegral epochSeconds / 3600
+    banner = unlines
+      [ "# Panoptic υ variance regressor σ̂²_t, EIV instrument σ̃²_t, pool tick i_t (CTX-VAR)"
+      , "# EPOCH WIDTH: " ++ show epochSeconds ++ " seconds (" ++ show hours ++ " hour(s))."
+      , "#   epoch = floor(unixSeconds / " ++ show epochSeconds ++ ") via"
+      , "#   Panel.Build.epochOfSeconds — the SAME single source of truth as"
+      , "#   Panel.Build.dailyEpoch (which is epochOfSeconds 86400). The panel and"
+      , "#   this series therefore share an exact INTEGER epoch key; the join is an"
+      , "#   integer match and never a timestamp comparison or an offset adjustment"
+      , "#   (the 09-05 40587-offset trap)."
+      , "# σ̂²_t (sigma2)            = realized variance of the within-epoch V4"
+      , "#   tick-implied log-price increments over the FULL within-epoch Swap series."
+      , "# σ̃²_t (sigma2_instrument) = the SAME estimator on the DISJOINT even-swap"
+      , "#   sub-window (0-based even positions) — the two-noisy-measures IV."
+      , "# i_t (pool_tick_mean)     = mean underlying pool tick over the same epoch,"
+      , "#   from the SAME Swap series (the panel's moneyness anchor)."
+      , "# n_swaps                  = swaps in the epoch. σ̂² rests on n_swaps − 1"
+      , "#   increments; a row with n_swaps <= 1 is a CONSTRUCTED zero, not a"
+      , "#   measured one, and must not be read as a quiet market."
+      , "# Source: Uniswap V4 PoolManager Swap logs on Base via chunked eth_getLogs"
+      , "#   (poolId 0x96d4…288c0a); BigQuery path retired (project suspended)."
+      , "epoch,sigma2,sigma2_instrument,pool_tick_mean,n_swaps"
       ]
 
 -- ---------------------------------------------------------------------------

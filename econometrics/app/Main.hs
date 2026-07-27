@@ -29,7 +29,7 @@ import qualified Data.Map.Strict         as Map
 import           Data.Maybe              (mapMaybe)
 import qualified Data.Set                as Set
 import qualified Data.Text               as T
-import           Data.Time.Clock         (diffUTCTime, getCurrentTime)
+import           Data.Time.Clock         (UTCTime, diffUTCTime, getCurrentTime)
 import           Data.Time.Clock.POSIX   (posixSecondsToUTCTime)
 import           Data.Time.Format        (defaultTimeLocale, formatTime)
 import qualified Data.Vector             as V
@@ -79,11 +79,14 @@ import           Panel.Subgraph          (Chunk (..), ChunkPull (..),
                                           PoolAddr (..), chunkKey, fetchBurns,
                                           fetchChunksRaw, fetchCollateralFlows,
                                           fetchLegs, fetchMints, legChunkKey)
-import           Panel.Variance          (RpcConfig (..),
+import           Panel.Variance          (RpcConfig (..), cacheSwapTicks,
                                           defaultBaseRpc, fetchSwapTicks,
-                                          instrumentVariance, loadSwapTicks,
-                                          meanPoolTick, realizedVariance,
-                                          writeVarianceCsv)
+                                          instrumentVariance,
+                                          instrumentVarianceAt, loadSwapTicks,
+                                          meanPoolTick, meanPoolTickAt,
+                                          realizedVariance, realizedVarianceAt,
+                                          swapCountsAt, writeVarianceCsv,
+                                          writeVarianceCsvAt)
 import           Tests.Specification     (TestResult (..), Theta4 (..),
                                           testKappaPos, testSymmetry,
                                           testUpsilonPos)
@@ -112,6 +115,18 @@ defaultCollateralCsv = defaultDataDir </> "collateral-flows.csv"
 defaultEstimationCsv :: FilePath
 defaultEstimationCsv = defaultDataDir </> "estimation-panel.csv"
 
+-- | The HOURLY variance series (plan 10-09). A SEPARATE artifact from the daily
+-- @variance.csv@, which stays exactly as Phase 9 wrote it: the 10-01 re-scope
+-- changed the panel's epoch grid, it did not invalidate the daily series that the
+-- block index and the 10-08 gate lineage reference.
+defaultVarianceHourlyCsv :: FilePath
+defaultVarianceHourlyCsv = defaultDataDir </> "variance-hourly.csv"
+
+-- | The position-HOUR panel (plan 10-09): the spec's position-epoch unit of
+-- observation, restored on the hourly grid the 10-01 census selected.
+defaultEpochPanelCsv :: FilePath
+defaultEpochPanelCsv = defaultDataDir </> "panel-epoch.csv"
+
 -- ---------------------------------------------------------------------------
 -- Options
 -- ---------------------------------------------------------------------------
@@ -124,12 +139,15 @@ data BuildPanelOpts = BuildPanelOpts
   }
 
 data VarianceOpts = VarianceOpts
-  { voTicksCsv :: FilePath
-  , voOutCsv   :: FilePath
-  , voFrom     :: Maybe Integer
-  , voTo       :: Maybe Integer
-  , voRpc      :: String
-  , voChunk    :: Integer
+  { voTicksCsv   :: FilePath
+  , voOutCsv     :: FilePath
+  , voFrom       :: Maybe Integer
+  , voTo         :: Maybe Integer
+  , voRpc        :: String
+  , voChunk      :: Integer
+  , voEpochHours :: Int    -- ^ bucket width in HOURS; 24 = the Phase-9 daily grid.
+  , voPatch      :: Bool   -- ^ with --from/--to: MERGE the fetched window into the
+                           --   existing cache instead of overwriting it.
   }
 
 data EstimateOpts = EstimateOpts
@@ -235,6 +253,14 @@ varianceOptsParser =
                  <> showDefault <> help "Base JSON-RPC endpoint" )
     <*> option auto ( long "chunk" <> metavar "N" <> value (rpcChunk defaultBaseRpc)
                  <> showDefault <> help "blocks per eth_getLogs call" )
+    <*> option auto ( long "epoch-hours" <> metavar "N" <> value 24 <> showDefault
+                 <> help "epoch bucket width in HOURS (24 = the Phase-9 daily grid \
+                         \written by writeVarianceCsv; any other width writes the \
+                         \width-aware 5-column artifact via writeVarianceCsvAt)" )
+    <*> switch ( long "patch"
+                 <> help "with --from/--to: MERGE the fetched block window into the \
+                         \existing tick cache (replacing its timestamp span) instead \
+                         \of overwriting the whole file — for repairing a fetch gap" )
 
 estimateOptsParser :: Parser EstimateOpts
 estimateOptsParser =
@@ -1619,20 +1645,93 @@ runVariance vo = do
                                , rpcToBlock = t, rpcChunk = voChunk vo }
       putStrLn ("variance: live fetch of V4 Swap logs, blocks "
                  ++ show f ++ ".." ++ show t ++ " via " ++ voRpc vo)
-      -- Stream to the cache as chunks arrive: a ~500-call pull must not lose
-      -- hours of work if a late call fails.
-      ts <- fetchSwapTicks cfg (Just (voTicksCsv vo))
-      putStrLn ("variance: cached " ++ show (length ts) ++ " ticks -> " ++ voTicksCsv vo)
-      pure ts
+      if voPatch vo
+        then patchTickCache (voTicksCsv vo) cfg
+        else do
+          -- Stream to the cache as chunks arrive: a ~500-call pull must not lose
+          -- hours of work if a late call fails.
+          ts <- fetchSwapTicks cfg (Just (voTicksCsv vo))
+          putStrLn ("variance: cached " ++ show (length ts) ++ " ticks -> " ++ voTicksCsv vo)
+          pure ts
     _ -> do
       putStrLn ("variance: loading cached ticks <- " ++ voTicksCsv vo)
       loadSwapTicks (voTicksCsv vo)
-  let rv = realizedVariance ticks
-      iv = instrumentVariance ticks
-      mt = meanPoolTick ticks
-  writeVarianceCsv (voOutCsv vo) rv iv mt
-  putStrLn ("variance: wrote " ++ voOutCsv vo ++ " (" ++ show (Map.size rv)
-             ++ " epochs, " ++ show (length ticks) ++ " ticks)")
+  let epochHours = max 1 (voEpochHours vo)
+      epochSecs  = epochHours * 3600
+  if epochHours == 24
+    then do
+      -- The Phase-9 DAILY artifact, byte-reproducible: same writer, same columns.
+      let rv = realizedVariance ticks
+          iv = instrumentVariance ticks
+          mt = meanPoolTick ticks
+      writeVarianceCsv (voOutCsv vo) rv iv mt
+      putStrLn ("variance: wrote " ++ voOutCsv vo ++ " (" ++ show (Map.size rv)
+                 ++ " daily epochs, " ++ show (length ticks) ++ " ticks)")
+    else do
+      -- The 10-01 HOURLY re-scope: the SAME estimators at a finer bucket, plus
+      -- the per-epoch swap count, so a constructed zero can be told apart from a
+      -- measured one.
+      let rv = realizedVarianceAt   epochSecs ticks
+          iv = instrumentVarianceAt epochSecs ticks
+          mt = meanPoolTickAt       epochSecs ticks
+          ns = swapCountsAt         epochSecs ticks
+          counts = Map.elems ns
+          thin   = length [ () | c <- counts, c < minSwapsForVariance ]
+      writeVarianceCsvAt epochSecs (voOutCsv vo) rv iv mt ns
+      putStrLn ("variance: wrote " ++ voOutCsv vo ++ " (" ++ show (Map.size rv)
+                 ++ " epochs of " ++ show epochHours ++ "h, "
+                 ++ show (length ticks) ++ " ticks)")
+      putStrLn ("EPOCH_HOURS: "        ++ show epochHours)
+      putStrLn ("VARIANCE_EPOCHS: "    ++ show (Map.size rv))
+      putStrLn ("EPOCH_RANGE: "        ++ show (minimumOr0 (Map.keys rv)) ++ ".."
+                                        ++ show (maximumOr0 (Map.keys rv)))
+      putStrLn ("EPOCH_GAPS: "         ++ show (epochGapCount (Map.keys rv)))
+      putStrLn ("SWAPS_PER_EPOCH_MIN: "    ++ show (minimumOr0 counts))
+      putStrLn ("SWAPS_PER_EPOCH_MEDIAN: " ++ fmtG (medianI counts))
+      putStrLn ("SWAPS_PER_EPOCH_MAX: "    ++ show (maximumOr0 counts))
+      putStrLn ("THIN_EPOCHS: "        ++ show thin)
+
+-- | Interior epochs of @[min, max]@ that carry NO row at all. A hole in the
+-- variance series is a hole in the panel's joinable grid, so it is counted and
+-- printed rather than left for a downstream join to discover.
+epochGapCount :: [Int] -> Int
+epochGapCount [] = 0
+epochGapCount es = (maximum es - minimum es + 1) - length (nub es)
+
+-- | Repair a bounded window of the tick cache by RE-FETCHING it and merging.
+--
+-- The cache is a @(timestamp_unix, tick)@ stream with no log index, so a merge
+-- cannot dedupe row-by-row. What it can do exactly is REPLACE a closed timestamp
+-- interval: fetch the block window, take @[t0, t1]@ from what came back, drop
+-- every cached row inside that interval, and splice the fresh rows in. The result
+-- is the old series everywhere outside the window and the freshly-read series
+-- inside it.
+--
+-- Used by 10-09 to close a single-hour hole in the 09-09 full-history pull
+-- (epoch 495112 carried ZERO swaps between neighbours carrying 700+, which is a
+-- fetch gap, not a quiet market). Bounded, keyless, and reported: the counts
+-- printed below are what makes the repair auditable.
+patchTickCache :: FilePath -> RpcConfig -> IO [(UTCTime, Int)]
+patchTickCache cache cfg = do
+  existing <- loadSwapTicks cache
+  fetched  <- fetchSwapTicks cfg Nothing
+  when (null fetched) $
+    ioError (userError "ABORT: --patch fetched ZERO ticks; refusing to rewrite the \
+                       \cache with an empty window (a silent truncation is worse \
+                       \than the gap it was meant to close).")
+  let t0     = minimum (map fst fetched)
+      t1     = maximum (map fst fetched)
+      kept   = [ r | r@(t, _) <- existing, t < t0 || t > t1 ]
+      merged = sortOn fst (kept ++ fetched)
+  cacheSwapTicks cache merged
+  putStrLn ("variance --patch: cache had "   ++ show (length existing) ++ " ticks")
+  putStrLn ("variance --patch: fetched "     ++ show (length fetched)
+             ++ " ticks over the window")
+  putStrLn ("variance --patch: replaced "    ++ show (length existing - length kept)
+             ++ " cached ticks inside the fetched timestamp span")
+  putStrLn ("variance --patch: cache now "   ++ show (length merged)
+             ++ " ticks -> " ++ cache)
+  pure merged
 
 -- ---------------------------------------------------------------------------
 -- estimate
