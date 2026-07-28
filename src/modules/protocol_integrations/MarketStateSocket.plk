@@ -1,69 +1,39 @@
-
-import types::protocol_integrations::MarketId::*;
 import std::constructor::return_runtime;
-import std::error::require;
-import std::addr::addr;
-import std::calldata::*;
-import interfaces::protocol_integrations::IMarketStateSocket.plk;
 
-const SLOT_REACTIVE_NETWORK_BASE =
-const SLOT_REACTIVE_VM_BASE =
+// MarketStateSocket — lives on the Reactive Network. Subscribes to a univ4 pool's Swap event so a
+// downstream consumer receives price updates; react() (next) forwards each Swap to the callback.
+// SYSTEM_CONTRACT is the canonical reactive system contract (0x...fffFfF), mock-etched in tests.
 
-const SLOT_CALLBACK = ;
-const SLOT_MARKET_STATE_SOCKET_LIVENESS = ;
-
+const SYSTEM_CONTRACT = 0xfffFfF;
+const SWAP_TOPIC0     = 0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f;
 const REACTIVE_IGNORE = 0xa65f96fc951c35ead38878e0f0b7a3c744a6f5ccc1476b313353ce31712313ad;
 
-const MarketStateSocketLiveness = struct {
-      initialized :bool
-};
+// subscribe(uint256,address,uint256,uint256,uint256,uint256) -> 0x5a6aced0
+const SELECTOR_SUBSCRIBE    = 0x5a6aced0;
+// startSocket(uint256,address,bytes32) -> 0xe64a8dcb
+const SELECTOR_START_SOCKET = 0xe64a8dcb;
 
-// note: This contract lives on the reactive network
-const start_socket = fn(marketId: MarketId) never {
-      // todo: Is this unpack/pack pattern required for all types. Or there are ways to simplify it, or make it more elegant
-      require(@evm_not(unpack_market_state_socket_liveness(@evm_sload(SLOT_MARKET_STATE_SOCKET_LIVENESS)).initialized));
+init { return_runtime(); }
 
-      // todo: It subscribes to the Swap event. The market ID has a MarketIdEventsLib which
-      // from the type, it offers the risght topic 0
-      // todo: Use type annotaions
-      // note: For the UniV4 price_update_event == Swap 
-      let price_update_topic0::bytes4 = price_update_event(marketId);
-    
-      // todo Call the system contract on the subscribe event
-};
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
 
-const stop_socket = fn(marketId: MarketId)  never {
-      require(unpack_market_state_socket_liveness(@evm_sload(SLOT_MARKET_STATE_SOCKET_LIVENESS)).initialized);
-      
-};
+    if selector == SELECTOR_START_SOCKET {
+        // startSocket(chainId@4, poolManager@36, poolId@68): subscribe to this pool's Swap.
+        let chain_id     = @evm_calldataload(4);
+        let pool_manager = @evm_calldataload(36);
+        let pool_id      = @evm_calldataload(68);
 
-// todo: It guards react if callback is not set
-const guard_react = fn() void {
-      
-}
-
-const read_callback = fn () addr {
-
-};
-const set_callback = fn (callback :addr) void {
-
-}
-
-init{
-	// todo: it needs to cjech is on the reactive network
-	// todo: It receives the address of the system contract as first arg
-	// todo: The following shos the preceding order of the args received
-return_runtime();}
-
-run{
-	let selector = @evm_shr(224, @evm_calldataload(0));
-	if selector == SELECTOR_REACT{
-	   guard_react();
-	   // todo: Uses unsafe_calldata_read from the calldata std lib to read the LogRecord and
-	   // send the tick, sqrtPrice and
-	   // reac reads from calldata directly
-	} else if selector == {
-
-	}
-	@evm_stop();
+        // subscribe(chain_id, poolManager, Swap topic0, poolId, IGNORE, IGNORE): 4 + 6*32 = 196 bytes
+        let buf = @malloc_uninit(196);
+        @mstore4(buf, SELECTOR_SUBSCRIBE);
+        @mstore32(buf +% 4,   chain_id);
+        @mstore32(buf +% 36,  pool_manager);
+        @mstore32(buf +% 68,  SWAP_TOPIC0);
+        @mstore32(buf +% 100, pool_id);
+        @mstore32(buf +% 132, REACTIVE_IGNORE);
+        @mstore32(buf +% 164, REACTIVE_IGNORE);
+        @evm_call(@evm_gas(), SYSTEM_CONTRACT, 0, buf, 196, buf, 0);
+    }
+    @evm_stop();
 }
