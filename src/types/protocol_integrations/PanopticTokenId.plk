@@ -9,8 +9,11 @@
 //     asset 1b @base+0 | optionRatio 7b @base+1 | isLong 1b @base+8 | tokenType 1b @base+9
 //     riskPartner 2b @base+10 | strike 24b @base+12 (signed) | width 12b @base+36
 //
-// note: the vol-driven setters (strike from TickVolatility, width/tickSpacing from VolRangeWidth,
-// "derives from the VolOrder type") are the next layer, built on top of these primitives.
+// The vol-driven derivation (below) builds on these primitives: a VolOrder yields a TickBucket
+// (via tick_bucket_from_vol_order, folding in skew), and Panoptic DEFINES the leg's strike and width
+// from that bucket's tick bounds.
+
+import lib::TickUtils::TickBucket;
 
 const PanopticTokenId = struct {
     tokenId: u256,
@@ -39,3 +42,15 @@ const panoptic_token_type = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg
 const panoptic_risk_partner = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg *% 48) +% 10, tid) & 0x3 };
 const panoptic_strike = fn (tid: u256, leg: u256) u256 { @evm_signextend(2, @evm_shr(64 +% (leg *% 48) +% 12, tid) & 0xffffff) };
 const panoptic_width = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg *% 48) +% 36, tid) & 0xfff };
+
+// ---- vol-driven derivation: pack a leg's tickSpacing/strike/width from a TickBucket, using
+//      Panoptic's definitions strike = (tickUpper+tickLower)/2, width = (tickUpper-tickLower)/tickSpacing.
+//      (The TickBucket comes upstream from tick_bucket_from_vol_order, which folds in the VolOrder skew.)
+//      strike uses signed truncation toward zero (Solidity `/`); width is a non-negative quotient.
+const panoptic_token_id_from_tick_bucket = fn (tid: u256, tb: TickBucket, leg: u256) u256 {
+    let strike = @evm_sdiv(tb.low +% tb.up, 2);
+    let width = @evm_sdiv(tb.up -% tb.low, tb.tickSpacing);
+    let t1 = panoptic_add_tick_spacing(tid, tb.tickSpacing);
+    let t2 = panoptic_add_strike(t1, strike, leg);
+    panoptic_add_width(t2, width, leg)
+};

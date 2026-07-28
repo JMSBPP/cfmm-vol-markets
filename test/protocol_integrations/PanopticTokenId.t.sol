@@ -153,4 +153,45 @@ contract PanopticTokenIdTest is PlankTestBase {
         assertEq(L.strike, strike, "plank strike");
         assertEq(L.width, width, "plank width");
     }
+
+    // ---- Increment 2: vol-driven derivation from a TickBucket (Panoptic definitions) ----
+
+    function _packFromTB(int24 low, int24 tickSpacing, int24 up, uint256 leg) internal returns (uint256) {
+        (bool ok, bytes memory ret) = harness.staticcall(
+            abi.encodeWithSignature("packFromTickBucket(int24,int24,int24,uint256)", low, tickSpacing, up, leg)
+        );
+        require(ok, "packFromTickBucket reverted");
+        return abi.decode(ret, (uint256));
+    }
+
+    // Panoptic definition: strike = (tickUpper+tickLower)/2, width = (tickUpper-tickLower)/tickSpacing.
+    function test_fromTickBucket_goldenVector() public {
+        uint256 tid = _packFromTB(100, 10, 200, 0);
+        Leg memory L = _unpack(tid, 0);
+        assertEq(L.strike, int24(150), "strike = (100+200)/2");
+        assertEq(L.width, int24(10), "width = (200-100)/10");
+        assertEq(L.tickSpacing, int24(10), "tickSpacing");
+    }
+
+    function testFuzz_fromTickBucket(int256 lowR, uint256 upR, int256 tsR, uint256 legR) public {
+        int24 tickSpacing = int24(bound(tsR, 1, 32767));
+        uint256 leg = bound(legR, 0, 3);
+        int256 low = bound(lowR, I24_MIN, I24_MAX);
+        uint256 tsU = uint256(uint24(tickSpacing));
+
+        // keep width = (up-low)/ts <= 4095 and up <= I24_MAX (so strike & width stay in-field)
+        uint256 maxDelta = uint256(4095) * tsU;
+        if (int256(maxDelta) > I24_MAX - low) maxDelta = uint256(I24_MAX - low);
+        int256 up = low + int256(bound(upR, 0, maxDelta));
+
+        int24 expStrike = int24((low + up) / 2);
+        int24 expWidth = int24((up - low) / int256(tsU));
+
+        uint256 tid = _packFromTB(int24(low), tickSpacing, int24(up), leg);
+        Leg memory L = _unpack(tid, leg);
+
+        assertEq(L.strike, expStrike, "strike == (low+up)/2");
+        assertEq(L.width, expWidth, "width == (up-low)/tickSpacing");
+        assertEq(L.tickSpacing, tickSpacing, "tickSpacing == tb.tickSpacing");
+    }
 }
