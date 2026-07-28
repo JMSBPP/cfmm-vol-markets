@@ -2,6 +2,7 @@ import types::ldf::LDFParams::*;
 import types::ldf::LiquidityChunk::*;
 import types::PriceCoordinate::*;
 import types::Collateral::*;
+import types::exposure::VegaExposure::{VegaNominal};
 import lib::ldf::GeometricDistribution::geometric_cumulative_amount0;
 import v3::math::full_math::mulDiv;
 import v3::util::revert_empty;
@@ -44,4 +45,14 @@ const liquidity_for_collateral = fn (
     }
 
     LiquidityChunk { size: size, ldf_params: ldf_params }
+};
+
+// liquidity_for_vega: the liquidity a geometric-LDF position holds when funded by a vega nominal.
+// exposure.md §2: ΔM = N_v · p_vol, so the collateral-equivalent is exposure·priceVolX96/Q96 (round down),
+// and the result reduces to liquidity_for_collateral(ΔM).
+const liquidity_for_vega = fn (
+    ldf_params: LDFParams, coord: PriceCoordinate, vega_nominal: VegaNominal
+) LiquidityChunk {
+    let delta_m = mulDiv(vega_nominal.exposure, vega_nominal.priceVolX96, Q96);
+    liquidity_for_collateral(ldf_params, coord, Collateral { val: delta_m })
 };

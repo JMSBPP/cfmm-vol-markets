@@ -107,6 +107,48 @@ contract LiquidityAmountsTest is PlankTestBase {
         assertLe(collateral - back, unitCost + 2, "round-trip loss <= one liquidity-unit token0 cost");
     }
 
+    // liquidity_for_vega reduces to liquidity_for_collateral(ΔM) with ΔM = exposure·priceVolX96/Q96
+    // (exposure.md §2: ΔM = N_v·p_vol). So it must equal the same Bunni-cumulativeAmount0 inversion.
+    function _lfv(int24 minTick, int24 tickSpacing, int24 length, uint256 alpha, uint256 exposure, uint256 priceVol)
+        internal
+        returns (bool ok, uint256 size)
+    {
+        bytes memory ret;
+        (ok, ret) = harness.staticcall(
+            abi.encodeWithSignature(
+                "liquidityForVega(int24,int24,int24,uint256,uint256,uint256)",
+                minTick, tickSpacing, length, alpha, exposure, priceVol
+            )
+        );
+        if (ok) size = abi.decode(ret, (uint256));
+    }
+
+    function testFuzz_liquidityForVega_matchesCollateralOfDeltaM(
+        uint256 aR,
+        int256 mtR,
+        uint256 tsR,
+        uint256 lenR,
+        uint256 expR,
+        uint256 pvR
+    ) public {
+        int24 tickSpacing = int24(int256(bound(tsR, 1, 100)));
+        int24 length = int24(int256(bound(lenR, 2, 500)));
+        int24 minTick = int24(bound(mtR, -800_000, 800_000));
+        uint256 alpha = _alpha(aR);
+        uint256 exposure = bound(expR, 1, 1e18); // bounds keep exposure*priceVol < 2^256 in Solidity
+        uint256 priceVol = bound(pvR, 1, 1e30);
+
+        uint256 deltaM = (exposure * priceVol) / Q96; // ΔM = N_v·p_vol/Q96 (matches plank mulDiv, round down)
+        uint256 costM = ref.ca0(minTick - tickSpacing, Q96, tickSpacing, minTick, length, alpha);
+        vm.assume(costM != 0);
+        uint256 expectedL = (deltaM * Q96) / costM;
+        vm.assume(expectedL <= U128_MAX);
+
+        (bool ok, uint256 size) = _lfv(minTick, tickSpacing, length, alpha, exposure, priceVol);
+        assertTrue(ok, "liquidityForVega reverted");
+        assertEq(size, expectedL, "liquidity_for_vega == liquidity_for_collateral(deltaM)");
+    }
+
     function test_liquidityForCollateral_revertsAboveUint128() public {
         int24 minTick = 0;
         int24 tickSpacing = 1;
