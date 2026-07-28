@@ -2,6 +2,7 @@ import std::constructor::return_runtime;
 import types::market_state_measurements::Timepoint::*;
 import lib::market_state_measurements::RealizedVolatilityLib::*;
 import interfaces::market_state_measurements::RealizedVolatilityInterface::*;
+import lib::protocol_integrations::CallbackRealizedVolatilityLib::*;
 import types::StorageIndex::*;
 import types::TimeWindow::*;
 import pos_spec::TickVolatility::*;
@@ -290,6 +291,13 @@ run{
 	} else if selector == SELECTOR_READ_WINDOW {
 	   // readWindow() -> uint32
 	   return_u256(pack_time_window(read_window()));
+
+	} else if selector == SELECTOR_ON_PRICE_UPDATE {
+	   // Reactive callback plugged in via CallbackRealizedVolatilityLib. Invoked AUTOMATICALLY by
+	   // the callback proxy when MarketStateSocket forwards a Swap: write a timepoint at the current
+	   // block time from the Swap's tick. onPriceUpdate(rvmSender,poolId,sqrtPriceX96,tick).
+	   write_timepoint(@evm_timestamp() & MASK_U32, price_update_tick());
+	   @evm_stop();
 	}
 
 	// Unknown selector: no fallback behaviour is defined for this module.

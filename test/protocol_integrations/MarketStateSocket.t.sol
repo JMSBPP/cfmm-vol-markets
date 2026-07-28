@@ -6,24 +6,14 @@ import {console2} from "forge-std/console2.sol";
 import {ReactiveTest} from "reactive-test-lib/base/ReactiveTest.sol";
 import {PlankTestBase} from "test/PlankTestBase.sol";
 
-/// @notice Minimal origin emitting the exact univ4 Swap event (topic0 == 0x40e9…112f).
-contract SwapEmitter {
-    event Swap(
-        bytes32 indexed id, address indexed sender,
-        int128 amount0, int128 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick, uint24 fee
-    );
-    function emitSwap(bytes32 id, uint160 sqrtPriceX96, int24 tick) external {
-        emit Swap(id, msg.sender, int128(1), int128(-1), sqrtPriceX96, uint128(1e18), tick, uint24(3000));
-    }
-}
-
-contract MarketStateSocketTest is PlankTestBase, ReactiveTest{
-    // note: This necesarily is a fork test, we are monittring Base Uni v4 pool manager where there
-    // is the deepest more active panoptic pool
+contract MarketStateSocketTest is PlankTestBase, ReactiveTest {
     address market_state_socket;
+    address price_hook;   // PriceSetterHook.plk -- write_price emits the Swap (via the Plank test helper)
+
     function setUp() public override {
         super.setUp();
-	market_state_socket = deployPlank("src/modules/protocol_integrations/MarketStateSocket.plk");
+        market_state_socket = deployPlank("src/modules/protocol_integrations/MarketStateSocket.plk");
+        price_hook = deployPlank("src/modules/protocol_integrations/PriceSetterHook.plk");
     }
 
     function test_startSocket_subscribesToPoolSwap() public {
@@ -49,36 +39,34 @@ contract MarketStateSocketTest is PlankTestBase, ReactiveTest{
         assertEq(subscriber, market_state_socket, "subscriber = socket");
     }
 
-    function test_react_deliversSwapPriceUpdateToCallback() public {
-        address cb = deployPlank("src/modules/protocol_integrations/CallbackRealizedVolatilityMod.plk");
-        (bool okSet,) = market_state_socket.call(abi.encodeWithSignature("setCallback(address)", cb));
-        assertTrue(okSet, "setCallback failed");
+    function test_react_writesRealizedVolTimepointOnPriceWrite() public {
+        // The callback IS the RealizedVolatility oracle (callback lib plugged in), initialized.
+        address vol = deployPlank("src/modules/market_state_measurements/RealizedVolatilityMod.plk");
+        vol.call(abi.encodeWithSignature("initializeTWAP(uint32,int24)", uint32(1000), int24(100)));
+        market_state_socket.call(abi.encodeWithSignature("setCallback(address)", vol));
 
-        SwapEmitter pool = new SwapEmitter();
+        (, bytes memory b0) = vol.staticcall(abi.encodeWithSignature("lastIndex()"));
+        uint16 idxBefore = abi.decode(b0, (uint16));
+
         uint256 originChain = 8453;
         bytes32 poolId = keccak256("pool");
-        uint160 sqrtPriceX96 = 79228162514264337593543950336; // 1.0
-        int24 tick = -12345;
+        int24 tick = 12345;
+        vm.warp(2000); // fresh block time so write_timepoint records a new sample
 
-        // subscribe to THIS pool's Swap, then drive a real Swap through the reactive lifecycle
-        (bool okStart,) = market_state_socket.call(
-            abi.encodeWithSignature("startSocket(uint256,address,bytes32)", originChain, address(pool), poolId)
+        // subscribe to the PriceSetterHook's Swap, then move the price (write_price emits Swap)
+        market_state_socket.call(
+            abi.encodeWithSignature("startSocket(uint256,address,bytes32)", originChain, price_hook, poolId)
         );
-        assertTrue(okStart, "startSocket failed");
+        // write_price emits Swap (via PriceUpdateLogWithSwap.plk) -> react() -> Callback -> proxy ->
+        // vol.onPriceUpdate (AUTOMATIC) -> write_timepoint
         triggerAndReact(
-            address(pool),
-            abi.encodeWithSignature("emitSwap(bytes32,uint160,int24)", poolId, sqrtPriceX96, tick),
+            price_hook,
+            abi.encodeWithSignature("write_price(bytes32,uint160,int24)", poolId, uint160(1 << 96), tick),
             originChain
         );
 
-        // the callback RECEIVED the forwarded price update
-        (bool okRead, bytes memory ret) = cb.staticcall(abi.encodeWithSignature("lastUpdate()"));
-        assertTrue(okRead, "lastUpdate failed");
-        (bytes32 gotPool, uint160 gotSqrtP, int24 gotTick, uint256 count) =
-            abi.decode(ret, (bytes32, uint160, int24, uint256));
-        assertEq(gotPool, poolId, "poolId");
-        assertEq(gotSqrtP, sqrtPriceX96, "sqrtPrice");
-        assertEq(int256(gotTick), int256(tick), "tick");
-        assertEq(count, 1, "callback received exactly once");
+        // a RealizedVol timepoint was written by the automatic callback
+        (, bytes memory b1) = vol.staticcall(abi.encodeWithSignature("lastIndex()"));
+        assertEq(abi.decode(b1, (uint16)), uint16(idxBefore + 1), "a RealizedVol timepoint was written on the price write");
     }
 }

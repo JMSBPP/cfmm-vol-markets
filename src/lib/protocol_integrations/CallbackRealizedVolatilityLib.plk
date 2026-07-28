@@ -1,0 +1,9 @@
+// The reactive callback ABI, plugged into RealizedVolatilityMod. onPriceUpdate is invoked
+// AUTOMATICALLY by the callback proxy when MarketStateSocket forwards a Swap; the proxy injects
+// rvmSender as arg0. This lib decodes the tick the module hands to write_timepoint.
+
+// onPriceUpdate(address,bytes32,uint160,int24) -> 0x88a95317
+const SELECTOR_ON_PRICE_UPDATE = 0x88a95317;
+
+// args: rvmSender@4, poolId@36, sqrtPriceX96@68, tick@100
+const price_update_tick = fn() u256 { @evm_calldataload(100) };
