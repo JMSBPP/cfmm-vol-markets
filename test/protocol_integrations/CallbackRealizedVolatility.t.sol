@@ -13,7 +13,9 @@ contract CallbackRealizedVolatilityTest is PlankTestBase {
         int24 tick = -12345;
 
         (bool ok,) = cb.call(
-            abi.encodeWithSignature("onPriceUpdate(bytes32,uint160,int24)", poolId, sqrtPriceX96, tick)
+            abi.encodeWithSignature(
+                "onPriceUpdate(address,bytes32,uint160,int24)", address(0xBEEF), poolId, sqrtPriceX96, tick
+            )
         );
         assertTrue(ok, "onPriceUpdate failed");
 

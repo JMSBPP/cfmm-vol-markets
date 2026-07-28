@@ -1,16 +1,19 @@
 import std::constructor::return_runtime;
 
 // CallbackRealizedVolatilityMod — the destination the MarketStateSocket forwards price updates to.
-// For now onPriceUpdate ACKs by recording the last receipt (readable via lastUpdate). The real body
-// will write a timepoint (tick, timestamp) into the RealizedVolatility oracle instead of just storing.
+// Reactive callbacks receive the RVM id (deployer) as arg0, injected by the callback proxy, so
+// onPriceUpdate takes `rvmSender` first. For now it ACKs by recording the last receipt (readable via
+// lastUpdate); the real body will write a timepoint (tick, timestamp) into the RealizedVolatility
+// oracle instead. rvmSender authentication is deferred (accepted and stored, not yet checked).
 
-const SLOT_LAST_POOL_ID = 0;
-const SLOT_LAST_SQRT_P  = 1;
-const SLOT_LAST_TICK    = 2;
-const SLOT_COUNT        = 3;
+const SLOT_LAST_RVM     = 0;
+const SLOT_LAST_POOL_ID = 1;
+const SLOT_LAST_SQRT_P  = 2;
+const SLOT_LAST_TICK    = 3;
+const SLOT_COUNT        = 4;
 
-// onPriceUpdate(bytes32,uint160,int24) -> 0x675f5c35
-const SELECTOR_ON_PRICE_UPDATE = 0x675f5c35;
+// onPriceUpdate(address,bytes32,uint160,int24) -> 0x88a95317
+const SELECTOR_ON_PRICE_UPDATE = 0x88a95317;
 // lastUpdate() -> (bytes32,uint160,int24,uint256) -> 0xc0463711
 const SELECTOR_LAST_UPDATE     = 0xc0463711;
 
@@ -20,11 +23,12 @@ run {
     let selector = @evm_shr(224, @evm_calldataload(0));
 
     if selector == SELECTOR_ON_PRICE_UPDATE {
-        // onPriceUpdate(poolId@4, sqrtPriceX96@36, tick@68): ACK receipt + bump count.
+        // onPriceUpdate(rvmSender@4, poolId@36, sqrtPriceX96@68, tick@100): ACK receipt + bump count.
         // Placeholder for the real RealizedVol timepoint write (tick, block.timestamp).
-        @evm_sstore(SLOT_LAST_POOL_ID, @evm_calldataload(4));
-        @evm_sstore(SLOT_LAST_SQRT_P,  @evm_calldataload(36));
-        @evm_sstore(SLOT_LAST_TICK,    @evm_calldataload(68));
+        @evm_sstore(SLOT_LAST_RVM,     @evm_calldataload(4));
+        @evm_sstore(SLOT_LAST_POOL_ID, @evm_calldataload(36));
+        @evm_sstore(SLOT_LAST_SQRT_P,  @evm_calldataload(68));
+        @evm_sstore(SLOT_LAST_TICK,    @evm_calldataload(100));
         @evm_sstore(SLOT_COUNT, @evm_sload(SLOT_COUNT) +% 1);
         @evm_stop();
     }
