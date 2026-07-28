@@ -1,22 +1,41 @@
-import pos_spec::TickVolatility::*;
-
-
-// todo: The protocol derives the strike, tickSpacing and width from the VolOrder type
-// note: This is the panoptic token Id
-
-// todo: This needs to consider AND mathc the actual encoding ordering of each arg on TokenId from
-// panoptic type
+// PanopticTokenId: bit-packing consistent with Panoptic's TokenId schema
+// (lib/panoptic-v2-core/contracts/types/TokenId.sol). Raw u256 tokenId encode/decode — every add_*
+// / getter mirrors Panoptic's exact offset + mask so a Plank-built tokenId is byte-identical to one
+// the SFPM would accept.
+//
+// Layout (little-endian, from LSB):
+//   poolId : bits [0..63]  (univ3 pattern 40 | vegoid 8 @40 | tickSpacing 16 @48)
+//   per leg L, base = 64 + 48*L:
+//     asset 1b @base+0 | optionRatio 7b @base+1 | isLong 1b @base+8 | tokenType 1b @base+9
+//     riskPartner 2b @base+10 | strike 24b @base+12 (signed) | width 12b @base+36
+//
+// note: the vol-driven setters (strike from TickVolatility, width/tickSpacing from VolRangeWidth,
+// "derives from the VolOrder type") are the next layer, built on top of these primitives.
 
 const PanopticTokenId = struct {
-      tokenId:u256,
-      leg_index: u256
+    tokenId: u256,
+    leg_index: u256
 };
 
+// ---- encoders (additive; assume the target bits are zero, as in Panoptic's add*) ----
+const panoptic_add_pool_id = fn (tid: u256, pool_id: u256) u256 { tid +% (pool_id & 0xffffffffffffffff) };
+const panoptic_add_tick_spacing = fn (tid: u256, ts: u256) u256 { tid +% @evm_shl(48, ts & 0xffff) };
+const panoptic_add_asset = fn (tid: u256, v: u256, leg: u256) u256 { tid +% @evm_shl(64 +% (leg *% 48), v & 0x1) };
+const panoptic_add_option_ratio = fn (tid: u256, v: u256, leg: u256) u256 { tid +% @evm_shl(64 +% (leg *% 48) +% 1, v & 0x7f) };
+const panoptic_add_is_long = fn (tid: u256, v: u256, leg: u256) u256 { tid +% @evm_shl(64 +% (leg *% 48) +% 8, v & 0x1) };
+const panoptic_add_token_type = fn (tid: u256, v: u256, leg: u256) u256 { tid +% @evm_shl(64 +% (leg *% 48) +% 9, v & 0x1) };
+const panoptic_add_risk_partner = fn (tid: u256, v: u256, leg: u256) u256 { tid +% @evm_shl(64 +% (leg *% 48) +% 10, v & 0x3) };
+const panoptic_add_strike = fn (tid: u256, strike: u256, leg: u256) u256 { tid +% @evm_shl(64 +% (leg *% 48) +% 12, strike & 0xffffff) };
+const panoptic_add_width = fn (tid: u256, width: u256, leg: u256) u256 { tid +% @evm_shl(64 +% (leg *% 48) +% 36, width & 0xfff) };
 
-// NOTE: This is to be abstracted from the clients as it is internally set from the volOrder
-// todo: THis assumes the underlying token is vol token
-
-const panoptic_token_id_set_vol_strike = fn(self: PanopticTokenId,vol_strike:TickVolatility) PanopticTokenId {};
-const panoptic_token_id_set_tick_spacing = fn(self: PanopticTokenId,vol_range_width: VolRangeWidth) PanopticTokenId {};
-
-const panoptic_token_id_set_width = fn(self: PanopticTokenId,rangeWidth: VolRangeWidth) PanopticTokenId {};
+// ---- decoders (shift + mask, matching Panoptic's getters; strike sign-extended int24) ----
+const panoptic_pool_id = fn (tid: u256) u256 { tid & 0xffffffffffffffff };
+const panoptic_vegoid = fn (tid: u256) u256 { @evm_shr(40, tid) & 0xff };
+const panoptic_tick_spacing = fn (tid: u256) u256 { @evm_shr(48, tid) & 0xffff };
+const panoptic_asset = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg *% 48), tid) & 0x1 };
+const panoptic_option_ratio = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg *% 48) +% 1, tid) & 0x7f };
+const panoptic_is_long = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg *% 48) +% 8, tid) & 0x1 };
+const panoptic_token_type = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg *% 48) +% 9, tid) & 0x1 };
+const panoptic_risk_partner = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg *% 48) +% 10, tid) & 0x3 };
+const panoptic_strike = fn (tid: u256, leg: u256) u256 { @evm_signextend(2, @evm_shr(64 +% (leg *% 48) +% 12, tid) & 0xffffff) };
+const panoptic_width = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg *% 48) +% 36, tid) & 0xfff };
