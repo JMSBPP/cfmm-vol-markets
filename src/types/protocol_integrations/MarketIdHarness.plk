@@ -1,0 +1,22 @@
+import std::constructor::return_runtime;
+import types::protocol_integrations::MarketId::*;
+import v3::util::return_u256;
+
+// signature:: idFromPoolKey(address,address,uint24,int24,address) -> bytes32
+//   cast sig "idFromPoolKey(address,address,uint24,int24,address)" -> 0x84cec51c
+const SELECTOR_ID_FROM_POOL_KEY = 0x84cec51c;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SELECTOR_ID_FROM_POOL_KEY {
+        // currency0@4, currency1@36, fee@68, tickSpacing@100, hooks@132
+        let m = market_id_from_pool_key(
+            @evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68),
+            @evm_calldataload(100), @evm_calldataload(132)
+        );
+        return_u256(m.id);
+    }
+    @evm_stop();
+}

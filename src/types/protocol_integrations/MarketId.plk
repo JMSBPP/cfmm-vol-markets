@@ -1,10 +1,20 @@
+// MarketId: identifies a market. For UniV4, id == canonical PoolId == keccak256(abi.encode(PoolKey)).
+// Deferred until a test needs them (YAGNI): the `key` preimage field (cbytes is COMPTIME and cannot
+// hold a runtime PoolKey — will be a runtime bytes type, resolved in test #2) and the multi-protocol
+// (Algebra/UniV3) generalization (the former `fn(comptime T)` wrapper).
+const MarketId = struct {
+    id: u256          // the 32-byte PoolId value; bytes32 newtype-wrap deferred (interchangeable)
+};
 
-import std::fixedbytes::bytes32;
-
-
-// note: This type encodes the POolId on Unisewap V4 and address of the poiol ofor algebra and uni v3
-const MarketId = fn(comptime T: type) type {
-      struct {
-      	     id:bytes32
-      }
+// keccak256 over the 160-byte ABI-encoded PoolKey — byte-identical to v4-core toId (keccak256(key,0xa0)).
+const market_id_from_pool_key = fn (
+    currency0: u256, currency1: u256, fee: u256, tick_spacing: u256, hooks: u256
+) MarketId {
+    let buf = @malloc_uninit(160);
+    @mstore32(buf, currency0);
+    @mstore32(buf +% 32, currency1);
+    @mstore32(buf +% 64, fee);
+    @mstore32(buf +% 96, tick_spacing);
+    @mstore32(buf +% 128, hooks);
+    MarketId { id: @evm_keccak256(buf, 160) }
 };
