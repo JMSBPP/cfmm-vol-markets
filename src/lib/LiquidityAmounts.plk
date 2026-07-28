@@ -3,7 +3,8 @@ import types::ldf::LiquidityChunk::*;
 import types::PriceCoordinate::*;
 import types::Collateral::*;
 import types::exposure::VegaExposure::{VegaNominal};
-import lib::ldf::GeometricDistribution::geometric_cumulative_amount0;
+import types::Portafolio::*;
+import lib::ldf::GeometricDistribution::{geometric_cumulative_amount0, geometric_cumulative_amount1};
 import v3::math::full_math::mulDiv;
 import v3::util::revert_empty;
 
@@ -55,4 +56,28 @@ const liquidity_for_vega = fn (
 ) LiquidityChunk {
     let delta_m = mulDiv(vega_nominal.exposure, vega_nominal.priceVolX96, Q96);
     liquidity_for_collateral(ldf_params, coord, Collateral { val: delta_m })
+};
+
+// portafolio_for_liquidity: the (Q_X token1, Q_M token0) amounts a geometric-LDF position of liquidity
+// L̄ holds over its full support [i_min, i_max). Full-support model (both directions share it; see SPEC).
+//   gross_input  = cumulativeAmount0(i_min − Δ, L̄, …)   -- all token0 over [i_min, i_max)
+//   gross_output = cumulativeAmount1(i_max, L̄, …)        -- all token1 over [i_min, i_max) (Q_X sums leftward;
+//                  at i_max the closed form's `>= upper` clamp sets x = length-1 = the full support)
+// ldf_params is read from the LiquidityChunk (it embeds it), not passed separately.
+const portafolio_for_liquidity = fn (coord: PriceCoordinate, liquidity: LiquidityChunk) Portafolio {
+    let ldf_params = liquidity.ldf_params;
+    if ldf_params.kind != LDF_GEOMETRIC {
+        revert_empty();
+    }
+    let w0 = ldf_params.word0;
+    let min_tick = @evm_signextend(2, w0 & 0xffffff);
+    let alpha_x96 = @evm_shr(24, w0) & 0xffffffffffffffffffffffffffffffffffffffff;
+    let length = @evm_shr(184, w0) & 0xffffff;
+    let ts = coord.tick_spacing;
+    let i_max = min_tick +% (length *% ts);
+    let l_bar = liquidity.size;
+    Portafolio {
+        gross_output_amt: geometric_cumulative_amount1(i_max, l_bar, ts, min_tick, length, alpha_x96),
+        gross_input_amt: geometric_cumulative_amount0(min_tick -% ts, l_bar, ts, min_tick, length, alpha_x96)
+    }
 };
