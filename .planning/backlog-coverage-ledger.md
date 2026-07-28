@@ -39,7 +39,7 @@ Disposition is my recommendation; the **Scope** and **Order** are the two decisi
 | T16 | 14.2 entry point panoptic → Plank (reactive) | 🎯 ACTIONABLE | partially scaffolded: `MarketStateSocket.plk` | build |
 | T17 | 14.3 pool that ONLY allows arbitrary price setting | ✅ DONE | **PriceSetterHook** (PR #11 merged + deploy script a0dfa12) | closed |
 | T18 | PanopticTokenId type vs Panoptic schema (15) | 🎯 ACTIONABLE | | build (later wave) |
-| T19 | Build LDF (16, in progress) | 🎯 ACTIONABLE | PriceCoordinate/PricePair/PriceBucket (see N7) | build |
+| T19 | Build LDF (16, in progress) | ✅ DONE | LDF geometry types shipped: PriceCoordinate+EtaSplitKernel (8fe5f7b), PricePair (d094776), PriceOrderedPair (b17fef7), PriceBucket (981b7b4); 7 fuzz tests green; grounded in lean4-spec `eta_split_kernel_identity` (see N7) | closed |
 | T20 | map builderCode on panoptic ↔ Algebra dynamic-fee code (17) | 🎯 ACTIONABLE | | build (later wave) |
 | T21 | comptime vs function advantages (16 sect.) | ❓ RESEARCH | Plank language question | research note |
 | T22 | discrete integral on Plank + API (16 sect.) | ❓ RESEARCH | Accumulator for cumulativeAmount over ticks | research note |
@@ -58,7 +58,7 @@ Disposition is my recommendation; the **Scope** and **Order** are the two decisi
 | N4 | EVM randomness proxy: prevrandao/difficulty; binomial kernel? | ❓→🎯 | research → then implement RNG source for N3 | research then build |
 | N5 | Deterministic proxy Δy(t)=19+1.0001^(η·t⁴) | 🎯 ACTIONABLE | deterministic alternative to N3 for reproducible runs | build (early) |
 | N6 | `sqrt_price_math.plk` getNextSqrtPriceFromAmount0RoundingUp empty body | 🔀 OTHER-TRACK | lives in `lib/plankified-univ3` (submodule) | defer → plankified-univ3 track |
-| N7 | LDF type design: PriceCoordinate / PricePair / PriceOrderedPair / PriceBucket / TickBucket | 🎯 ACTIONABLE | the concrete LDF type system for T19 | build (with T19) |
+| N7 | LDF type design: PriceCoordinate / PricePair / PriceOrderedPair / PriceBucket / TickBucket | ✅ DONE (≡T19) | all shipped; `basis 1.0001` NOT stored (delegated to tick_math.plk via EtaSplitKernel); η = subs_elasticity (Q64.96); TickBucket consumed from lib/TickUtils. Closes types::PricePair + types::PriceBucket in LiquidityAmounts.plk (VegaNominal/Portafolio still missing → later phase) | closed |
 | N8 | Unistrata (UnistrataHook + VarianceLib/NavLib/WaterfallLib → PositionManager → tokenId → deposit) | 🔀 OTHER-TRACK | `lib/unistrata` dependency study | reference, don't build |
 | N9 | Shizo {} | 🔀 OTHER-TRACK | `lib/shizo` (reactive deps) study | reference |
 | N10 | Mochi-Yield {} | 🔀 OTHER-TRACK | `lib/mochi-yield` study | reference |
