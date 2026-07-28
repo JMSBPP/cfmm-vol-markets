@@ -1,5 +1,6 @@
 import lib::ldf::FixedPointMath::rpow;
-import v3::math::full_math::mulDiv;
+import v3::math::full_math::{mulDiv, mulDivRoundingUp};
+import v3::math::tick_math::getSqrtRatioAtTick;
 
 // Geometric LDF liquidity density — the normalized geometric weight l(xi, iota; i) in Q96 from
 // notes/VOLATILITY_INSTRUMENTS.md, realized as a faithful port of Bunni's
@@ -35,4 +36,51 @@ const geometric_liquidity_density_x96 = fn (
             Q96 -% rpow(alpha_x96, length, Q96)
         )
     }
+};
+
+// geometric_cumulative_amount0 = Q_M^L (notes): token0 amount cumulated over the rounded ticks to the
+// right of `rounded_tick`, scaled by total_liquidity. Faithful port of Bunni
+// LibGeometricDistribution.cumulativeAmount0 (both alpha branches, sign-handled term differences,
+// mulDivUp chains). Helpers: mulDivUp -> mulDivRoundingUp, fullMulX96Up(x,L) -> mulDivRoundingUp(x,L,Q96).
+const geometric_cumulative_amount0 = fn (
+    rounded_tick: u256, total_liquidity: u256, tick_spacing: u256, min_tick: u256, length: u256, alpha_x96: u256
+) u256 {
+    let upper = min_tick +% (length *% tick_spacing);
+    if !@evm_slt(rounded_tick, upper) {
+        return 0; // roundedTick to the right of the distribution
+    }
+    // x = 0 if roundedTick left of the distribution, else its index in [0, length)
+    let x = if @evm_slt(rounded_tick, min_tick) {
+        0
+    } else {
+        @evm_sdiv(rounded_tick -% min_tick, tick_spacing) & 0xffffff
+    };
+
+    let sqrt_neg_ts = getSqrtRatioAtTick(0 -% tick_spacing);
+    let sqrt_min_tick = getSqrtRatioAtTick(min_tick);
+
+    let mut density = 0;
+    if alpha_x96 > Q96 {
+        let alpha_inv = mulDiv(Q96, Q96, alpha_x96);
+        let length_minus_x = (length -% x) & 0xffffff;
+        let num_left = rpow(alpha_inv, length_minus_x, Q96);
+        let num_right = getSqrtRatioAtTick(0 -% (tick_spacing *% length_minus_x));
+        let positive = alpha_inv > sqrt_neg_ts;
+        let num_diff = if positive { num_left -% num_right } else { num_right -% num_left };
+        let den_diff = if positive { alpha_inv -% sqrt_neg_ts } else { sqrt_neg_ts -% alpha_inv };
+        let a = mulDivRoundingUp(Q96 -% alpha_inv, num_diff, den_diff);
+        let b = mulDivRoundingUp(a, getSqrtRatioAtTick(0 -% (tick_spacing *% x)), Q96 -% rpow(alpha_inv, length, Q96));
+        density = mulDivRoundingUp(b, Q96 -% sqrt_neg_ts, sqrt_min_tick);
+    } else {
+        let base = mulDiv(alpha_x96, sqrt_neg_ts, Q96);
+        let alpha_pow_x = rpow(alpha_x96, x, Q96);
+        let alpha_pow_length = rpow(alpha_x96, length, Q96);
+        let term_x = mulDivRoundingUp(alpha_pow_x, getSqrtRatioAtTick(0 -% (tick_spacing *% x)), Q96);
+        let term_length = mulDivRoundingUp(alpha_pow_length, getSqrtRatioAtTick(0 -% (tick_spacing *% length)), Q96);
+        let numerator = (Q96 -% alpha_x96) *% (term_x -% term_length);
+        let denominator = (Q96 -% alpha_pow_length) *% (Q96 -% base);
+        density = mulDivRoundingUp(mulDivRoundingUp(Q96 -% sqrt_neg_ts, numerator, denominator), Q96, sqrt_min_tick);
+    }
+
+    mulDivRoundingUp(density, total_liquidity, Q96)
 };
