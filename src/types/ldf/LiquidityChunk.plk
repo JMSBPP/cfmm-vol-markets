@@ -1,5 +1,5 @@
 
-import types::ldf::LDFParams;
+import types::ldf::LDFParams::*;
 
 // todo: There is more, e.g tick bounds, etc 
 

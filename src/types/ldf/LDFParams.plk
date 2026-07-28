@@ -1,4 +1,4 @@
-import std::fixedbytes::*;
+import lib::TickUtils::{TickBucket, pack_tick_bucket};
 
 // todo: It needs to apply the logic of bunni-v2 ldf
 // todo: We need to watch out for enum type support on plank so it is the first arg:

@@ -1,16 +1,47 @@
 import types::ldf::LDFParams::*;
 import types::ldf::LiquidityChunk::*;
-import types::PricePair::*;
-import types::PriceBucket::*;
-import types::exposure::VegaNominal::*;
+import types::PriceCoordinate::*;
 import types::Collateral::*;
-import types::Portafolio::*
-// todo: We need to type sqrtPriceX96 AND VegaNotional
+import lib::ldf::GeometricDistribution::geometric_cumulative_amount0;
+import v3::math::full_math::mulDiv;
+import v3::util::revert_empty;
 
-const liquidity_for_vega = fn(ldf_params: LDFParams, liquidity_density : function, price_pair:PricePair, vega_nominal: VegaNominal) LiquidityChunk {};
- 
-const liquidity_for_collateral = fn(ldf_params: LDFParams, liquidity_density : function, price_pair:PricePair,collateral:Collateral) LiquidityChunk{};
+const Q96 = 0x1000000000000000000000000;                         // 2^96
+const U128_MAX = 0xffffffffffffffffffffffffffffffff;             // 2^128 - 1 (Panoptic LiquidityChunk domain)
 
-const liquidity_for_portafolio = fn (ldf_params: LDFParams, liquidity_density : function,price_bucket:PriceBucket, portafolio:Portafolio) LiquidityChunk{};
+// liquidity_for_collateral: the total liquidity L̄ a geometric-LDF position holds when funded by
+// `collateral` token0 over its support [i_min, i_max). Reviewed design (two-step review resolution):
+//   cost_M = cumulativeAmount0(i_min - Δ, Q96, tickSpacing, i_min, length, alpha)   -- token0 per unit-Q96
+//            liquidity over the FULL support (evaluated at i_min - Δ so the right-exclusive range is [i_min, i_max))
+//   L̄     = mulDiv(collateral, Q96, cost_M)                                          -- linear inversion, round DOWN
+//            (cost_M rounds up inside the closed form, so L̄ rounds down -> conservative, never over-issues)
+// Only the geometric LDF is supported here (O(1) closed form). Non-geometric kinds revert; the generic
+// per-tick integrator over an arbitrary density fn is deferred (gas/DoS -- see the SPEC + review).
+//
+// note: takes PriceCoordinate (not PricePair) -- it carries tick_spacing (and η); the price convention is
+// η-independent here by eta_split_kernel_identity, so p(i) = getSqrtRatioAtTick(i) as cumulativeAmount0 uses.
+const liquidity_for_collateral = fn (
+    ldf_params: LDFParams, coord: PriceCoordinate, collateral: Collateral
+) LiquidityChunk {
+    if ldf_params.kind != LDF_GEOMETRIC {
+        revert_empty();
+    }
+    let w0 = ldf_params.word0;
+    let min_tick = @evm_signextend(2, w0 & 0xffffff);            // signed i_min (24-bit sign-extended)
+    let alpha_x96 = @evm_shr(24, w0) & 0xffffffffffffffffffffffffffffffffffffffff; // xi, 160-bit
+    let length = @evm_shr(184, w0) & 0xffffff;                   // iota
 
-const portafolio_for_liquidity = fn(ldf_params: LDFParams, liquidity_density : function,liquidity: LiquidityChunk) Portafolio {};
+    let cost_m = geometric_cumulative_amount0(
+        min_tick -% coord.tick_spacing, Q96, coord.tick_spacing, min_tick, length, alpha_x96
+    );
+    if cost_m == 0 {
+        revert_empty();
+    }
+
+    let size = mulDiv(collateral.val, Q96, cost_m);
+    if size > U128_MAX {
+        revert_empty();
+    }
+
+    LiquidityChunk { size: size, ldf_params: ldf_params }
+};
