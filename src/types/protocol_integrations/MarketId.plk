@@ -1,9 +1,20 @@
-// MarketId: identifies a market. For UniV4, id == canonical PoolId == keccak256(abi.encode(PoolKey)).
-// Deferred until a test needs them (YAGNI): the `key` preimage field (cbytes is COMPTIME and cannot
-// hold a runtime PoolKey — will be a runtime bytes type, resolved in test #2) and the multi-protocol
-// (Algebra/UniV3) generalization (the former `fn(comptime T)` wrapper).
+// MarketId: identifies a market. For UniV4, id == canonical PoolId == keccak256(abi.encode(PoolKey)),
+// and `key` retains the PoolKey preimage so consumers recover pool params and can verify id == hash(key).
+// Deferred (YAGNI): the multi-protocol (Algebra/UniV3) generalization (the former `fn(comptime T)` wrapper).
+// note: `key` is a typed struct rather than the originally-sketched `cbytes` — cbytes is COMPTIME and
+// cannot hold a runtime PoolKey.
+
+const MarketKey = struct {
+    currency0: u256,
+    currency1: u256,
+    fee: u256,
+    tick_spacing: u256,
+    hooks: u256
+};
+
 const MarketId = struct {
-    id: u256          // the 32-byte PoolId value; bytes32 newtype-wrap deferred (interchangeable)
+    id: u256,          // the 32-byte PoolId value; bytes32 newtype-wrap deferred (interchangeable)
+    key: MarketKey
 };
 
 // keccak256 over the 160-byte ABI-encoded PoolKey — byte-identical to v4-core toId (keccak256(key,0xa0)).
@@ -16,5 +27,14 @@ const market_id_from_pool_key = fn (
     @mstore32(buf +% 64, fee);
     @mstore32(buf +% 96, tick_spacing);
     @mstore32(buf +% 128, hooks);
-    MarketId { id: @evm_keccak256(buf, 160) }
+    MarketId {
+        id: @evm_keccak256(buf, 160),
+        key: MarketKey {
+            currency0: currency0,
+            currency1: currency1,
+            fee: fee,
+            tick_spacing: tick_spacing,
+            hooks: hooks
+        }
+    }
 };
