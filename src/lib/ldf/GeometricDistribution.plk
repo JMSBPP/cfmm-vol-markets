@@ -1,0 +1,38 @@
+import lib::ldf::FixedPointMath::rpow;
+import v3::math::full_math::mulDiv;
+
+// Geometric LDF liquidity density — the normalized geometric weight l(xi, iota; i) in Q96 from
+// notes/VOLATILITY_INSTRUMENTS.md, realized as a faithful port of Bunni's
+// LibGeometricDistribution.liquidityDensityX96. Params: alpha_x96 = xi (Q96), min_tick = i_min,
+// length = iota (# rounded ticks in the support). Reverts (via mulDiv) when alpha == 1, as in Bunni.
+
+const Q96 = 0x1000000000000000000000000; // 2^96
+
+const geometric_liquidity_density_x96 = fn (
+    rounded_tick: u256, tick_spacing: u256, min_tick: u256, length: u256, alpha_x96: u256
+) u256 {
+    // out of support: roundedTick < minTick  OR  roundedTick >= minTick + length*tickSpacing
+    let upper = min_tick +% (length *% tick_spacing);
+    if @evm_slt(rounded_tick, min_tick) or !@evm_slt(rounded_tick, upper) {
+        return 0;
+    }
+    // x = index of roundedTick in the distribution, in [0, length)
+    let x = @evm_sdiv(rounded_tick -% min_tick, tick_spacing) & 0xffffff;
+
+    if alpha_x96 > Q96 {
+        // alpha > 1: exponentiate with alpha^-1 so alpha^x can't overflow
+        let alpha_inv = mulDiv(Q96, Q96, alpha_x96);
+        mulDiv(
+            rpow(alpha_inv, length -% x, Q96),
+            alpha_x96 -% Q96,
+            Q96 -% rpow(alpha_inv, length, Q96)
+        )
+    } else {
+        // alpha <= 1 (reverts if alpha == 1, which is intended)
+        mulDiv(
+            Q96 -% alpha_x96,
+            rpow(alpha_x96, x, Q96),
+            Q96 -% rpow(alpha_x96, length, Q96)
+        )
+    }
+};
