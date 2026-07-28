@@ -6,6 +6,8 @@ import lib::ldf::GeometricDistribution::*;
 const SEL_GEO_DENSITY = 0xec3b36d7;
 // cast sig "geoCumAmount0(int24,uint256,int24,int24,int24,uint256)" -> 0xccd90b3b
 const SEL_GEO_CUM0 = 0xccd90b3b;
+// cast sig "geoCumAmount1(int24,uint256,int24,int24,int24,uint256)" -> 0xf3e7779f
+const SEL_GEO_CUM1 = 0xf3e7779f;
 
 init { return_runtime(); }
 
@@ -23,6 +25,14 @@ run {
     // geoCumAmount0(roundedTick@4, totalLiquidity@36, tickSpacing@68, minTick@100, length@132, alphaX96@164)
     if selector == SEL_GEO_CUM0 {
         return_u256(geometric_cumulative_amount0(
+            @evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68),
+            @evm_calldataload(100), @evm_calldataload(132), @evm_calldataload(164)
+        ));
+    }
+
+    // geoCumAmount1(roundedTick@4, totalLiquidity@36, tickSpacing@68, minTick@100, length@132, alphaX96@164)
+    if selector == SEL_GEO_CUM1 {
+        return_u256(geometric_cumulative_amount1(
             @evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68),
             @evm_calldataload(100), @evm_calldataload(132), @evm_calldataload(164)
         ));

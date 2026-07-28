@@ -84,3 +84,54 @@ const geometric_cumulative_amount0 = fn (
 
     mulDivRoundingUp(density, total_liquidity, Q96)
 };
+
+// |a - b| (solady dist), used by cumulativeAmount1's alpha<=1 branch.
+const dist = fn (a: u256, b: u256) u256 { if a > b { a -% b } else { b -% a } };
+
+// geometric_cumulative_amount1 = Q_X^L (notes): token1 amount cumulated over the rounded ticks to the
+// LEFT of `rounded_tick`, scaled by total_liquidity. Faithful port of Bunni
+// LibGeometricDistribution.cumulativeAmount1.
+const geometric_cumulative_amount1 = fn (
+    rounded_tick: u256, total_liquidity: u256, tick_spacing: u256, min_tick: u256, length: u256, alpha_x96: u256
+) u256 {
+    if @evm_slt(rounded_tick, min_tick) {
+        return 0; // roundedTick to the left of the distribution
+    }
+    let upper = min_tick +% (length *% tick_spacing);
+    // x = length-1 if right of the distribution, else its index in [0, length)
+    let x = if !@evm_slt(rounded_tick, upper) {
+        (length -% 1) & 0xffffff
+    } else {
+        @evm_sdiv(rounded_tick -% min_tick, tick_spacing) & 0xffffff
+    };
+
+    let sqrt_ts = getSqrtRatioAtTick(tick_spacing);
+
+    let mut density = 0;
+    if alpha_x96 > Q96 {
+        let alpha_inv = mulDiv(Q96, Q96, alpha_x96);
+        let alpha_inv_pow_length = rpow(alpha_inv, length, Q96);
+        let sqrt_neg_min = getSqrtRatioAtTick(0 -% min_tick);
+        let base = mulDiv(alpha_x96, sqrt_ts, Q96);
+        let numerator1 = alpha_x96 -% Q96;
+        let denominator1 = base -% Q96;
+        let exp2 = (length -% x -% 1) & 0xffffff;
+        let numerator2 =
+            mulDivRoundingUp(rpow(alpha_inv, exp2, Q96), getSqrtRatioAtTick((x +% 1) *% tick_spacing), Q96)
+            -% alpha_inv_pow_length;
+        let denominator2 = Q96 -% alpha_inv_pow_length;
+        let m1 = mulDivRoundingUp(Q96, numerator2, denominator2);
+        let m2 = mulDivRoundingUp(m1, numerator1, denominator1);
+        density = mulDivRoundingUp(m2, sqrt_ts -% Q96, sqrt_neg_min);
+    } else {
+        let sqrt_min = getSqrtRatioAtTick(min_tick);
+        let base = mulDiv(alpha_x96, sqrt_ts, Q96);
+        let term =
+            mulDivRoundingUp(rpow(alpha_x96, (x +% 1) & 0xffffff, Q96), getSqrtRatioAtTick(tick_spacing *% (x +% 1)), Q96);
+        let numerator = dist(Q96, term) *% (Q96 -% alpha_x96);
+        let denominator = dist(Q96, base) *% (Q96 -% rpow(alpha_x96, length, Q96));
+        density = mulDivRoundingUp(mulDivRoundingUp(sqrt_ts -% Q96, numerator, denominator), sqrt_min, Q96);
+    }
+
+    mulDivRoundingUp(density, total_liquidity, Q96)
+};
