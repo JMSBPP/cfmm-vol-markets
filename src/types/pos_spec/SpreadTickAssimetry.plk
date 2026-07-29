@@ -1,4 +1,4 @@
-import lib::TickUtils::*;
+import types::pricing::TickUtils::*;
 import std::error::require;
 import pos_spec::VolRangeWidth::*;
 

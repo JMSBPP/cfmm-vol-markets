@@ -36,6 +36,8 @@ After idenifying the panoptic adapter payoff form and its relation with nreLIAED
 
 We need a StochasticProcess that affects the price at Tx level
 
+> note: This has been delegated to haskell_rpc_api
+> todo: To inform about this, write an issue on develop branch about this
 ExchangeRateDifussion :: {
 	poolId: PoolId,
 	config : StochasticConfig
@@ -83,8 +85,10 @@ PricePair {
 (TickBucket) -> (PriceBucket)
 
 - How the [Option](~/cfmms-playground/cfmm-wt/plank/lib/plank-monorepo/std/option.plk) type works at the EVM level ?
- - How the [Accumulator](~/cfmms-playground/cfmm-wt/plank/lib/plank-monorepo/std/utils.plk) type works at the EVM level  ?
- what advantages comptime offers ?
+
+- How the [Accumulator](~/cfmms-playground/cfmm-wt/plank/lib/plank-monorepo/std/utils.plk) type works at the EVM level  ?
+
+what advantages comptime offers ?
  what advantages functio  offers ?
 
 - Defining general discrete integral on plank ? What API can it offer ?
@@ -92,3 +96,89 @@ PricePair {
 - Accumulator can be used for cummulativeAmount when integrating over ticks
 
 - feat/arrays is now on development. This can upgrade the multicall support for vega create order
+
+
+
+# 27-07-26 CODE_REVIEW
+
+> todo: This is the way we do manual huma review. HOw to integrate it with version control code review 
+
+
+- **General File Organization**
+
+> todo: 
+	- Harness goes on test/<name_space>/ **Harness.plk NOT on src/, relocate accordingly
+
+## TYPES
+- **types/protocol_integrations/MarketId.plk**
+> todo: 
+	- multi-protocol (Algebra/UniV3) generalization (the former `fn(comptime T)` wrapper)
+
+
+- **types/Portafolio.plk**
+
+> todo:
+	- The Portafolio accounting loginc goes on the type lib. This includes a PortalioDelta type which mimics the role of BalanceDelta for v4-core/src/types/BalanceDelta.sol
+
+## LIB
+
+- **lib/protocol_integrations/CallbackRealizedVolatilityLib.plk**
+
+> todo:
+	- It needs to know store on the buffer the timepoint
+
+- **lib/protocol_integrations/PanopticTokenIdSetterLib.plk**
+
+> todo: 
+ - This is what was intended, instead of replicating the whole tokenId. We want a lib taht does
+  (VolOrder) -> (PanopticTokenId)
+
+- **lib/ldf/LDFLib.plk**
+> todo: 
+ - This needs implementation and interprentation firts
+
+
+- **lib/ldf/GeometricDistribution.plk**
+
+> todo:
+	- The Q96 goes in NUmerics.plk
+	- alpha is xi, the notation we use is xi
+	- length is iota, the notation we use is iota
+	
+	- the naming is not the generic `geometric_cumulative_amount{0/1}` BUT `geometric_cumulative_collateral_on_liquidity` matching VOLATILITY_INSTRUMENTS definition for \(Q_M^{L}\) and same for the underlying \(X\)
+   
+- **lib/ldf/**
+
+> todo: Math libraries go in lib/math not inside a domain specific namespace
+
+- **lib/pricing/EtaSplitKernel.plk**
+
+> todo: 
+
+	- Q96 needs to be placed on Numerics.plk
+
+- **lib/TickUtils.plk**
+
+> todo:
+	- This is acctually a type. It needs relocation to types/pricing. INside typers/pricing put PriceBucket coordinate and pair too
+
+
+- **lib/LiquidityAmounts.plk**
+
+> todo:
+	- Q96 and U128_MAX go in Numerics
+
+## MODULES	
+
+- **modules/protocol_integrations/PriceSetterHook.plk**
+
+> todo:
+	- This is missing the actual impl that is on PriceSetterHook.sol That is the intended impls Plus the log of PriceUpdate
+   
+   - The DEST_CHAIN and origin chain are entered on the coisntructor Thus the init block handles that
+   
+   - The other argument on the constructor is a comptime typed adddress that is guarded to mathc AlgebraFactory interface OR PoolManager interface
+> note: 
+	- The PriceSetterHookMod.plk uses the CallbackRealizedVolaitiyLib since it is the stateful portion of it AND implements the PriceSetterHook.sol logic as stated above.
+
+

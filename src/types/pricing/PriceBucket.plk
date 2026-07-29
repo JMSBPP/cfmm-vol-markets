@@ -1,5 +1,5 @@
 import types::pricing::PriceCoordinate::*;
-import lib::TickUtils::*;
+import types::pricing::TickUtils::*;
 import v3::util::revert_empty;
 
 // PriceBucket: three price points (lower ≤ mid ≤ upper) in a coordinate frame (todo §16). Two ctors:

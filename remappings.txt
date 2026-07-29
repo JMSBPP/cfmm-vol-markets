@@ -42,3 +42,8 @@ v3-core/=lib/panoptic-v2-core/lib/v3-core/contracts/
 v3-periphery/=lib/panoptic-v2-core/lib/v3-periphery/contracts/
 v4-periphery/=lib/unistrata/lib/uniswap-hooks/lib/v4-periphery/
 utils/=src/lib/
+reactive-test-lib/=lib/reactive-test-lib/src/
+reactive=lib/reactive-smart-contract-demos/src/
+test/=test/
+
+v4-core-test/=lib/panoptic-v2-core/lib/v4-core/test/

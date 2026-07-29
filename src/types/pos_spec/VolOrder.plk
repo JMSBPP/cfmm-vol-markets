@@ -1,4 +1,4 @@
-import lib::TickUtils::TickBucket;
+import types::pricing::TickUtils::TickBucket;
 import lib::pos_spec::TickVolatilityLib::*;
 import pos_spec::VolRangeWidth::*;
 import pos_spec::SpreadTickAssimetry::*;

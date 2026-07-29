@@ -17,11 +17,12 @@ contract SpreadTickAssimetryTest is Test, PlankDeployer {
 
      function setUp() public {
 	opts.backend = "sona";
-        Dependency[] memory deps = new Dependency[](4);
+        Dependency[] memory deps = new Dependency[](5);
         deps[0] = Dependency("v3", "lib/plankified-univ3/plank/lib");
 	deps[1] = Dependency("std", "lib/plank-monorepo/std/");
 	deps[2] = Dependency("pos_spec", "src/types/pos_spec");
 	deps[3] = Dependency("lib","src/lib");
+	deps[4] = Dependency("types", "src/types");
 	opts.dependencies = deps;
 	spreadTickAssimetryImpl = ISpreadTickAssimetryType(plankDeployFFI("test/types/pos_spec/SpreadTickAssimetryHelper.plk", opts));
 
