@@ -1,6 +1,10 @@
 # CR-I2 — `VolOrder → PanopticTokenId` design spec (v3, Layer 1 skeleton)
 
-Status: DRAFT v3 (post review-round-2). v1 and v2 were each reviewed by Reality Checker + Solidity
+Status: IMPLEMENTED (Layer 1), v3. Two-step-reviewed (2 rounds), then built via 6 TDD increments
+(commits a15d119..a608243 + width-guard/fuzz). 10 CR-I2 tests green + PanopticTokenId regression 4/4.
+Layers 2 (geometric weights at mint, ξ⋆=1.0001^(−Δ_i/2)) and 3 (cap/σ²_K payoff) remain future work.
+
+Prior status: DRAFT v3 (post review-round-2). v1 and v2 were each reviewed by Reality Checker + Solidity
 Smart Contract Engineer. v2 retired 5 of the v1 findings (σ²_K/cap incoherence, ξ⋆-overclaim,
 optionRatio-can't-carry-weights, leg-ordering, packing-only-tests). Round-2 left two blockers
 (tickSpacing written 5×; even-width tiling infeasible) — v3 dissolves both with a single **floor-strike
