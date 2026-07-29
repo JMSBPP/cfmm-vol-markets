@@ -1,6 +1,6 @@
 import types::ldf::LDFParams::*;
 import types::ldf::LiquidityChunk::*;
-import types::PriceCoordinate::*;
+import types::pricing::PriceCoordinate::*;
 import types::Collateral::*;
 import types::exposure::VegaExposure::{VegaNominal};
 import types::Portafolio::*;

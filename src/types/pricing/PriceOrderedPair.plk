@@ -1,4 +1,4 @@
-import types::PriceCoordinate::*;
+import types::pricing::PriceCoordinate::*;
 
 // PriceOrderedPair: the ordered variant of PricePair (todo §16, ctor
 // (PriceCoordinate, p1, p2) -> PriceOrderedPair). The ctor sorts the two ticks by signed comparison so

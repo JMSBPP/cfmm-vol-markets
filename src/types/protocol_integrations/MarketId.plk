@@ -1,9 +1,3 @@
-// MarketId: identifies a market. For UniV4, id == canonical PoolId == keccak256(abi.encode(PoolKey)),
-// and `key` retains the PoolKey preimage so consumers recover pool params and can verify id == hash(key).
-// Deferred (YAGNI): the multi-protocol (Algebra/UniV3) generalization (the former `fn(comptime T)` wrapper).
-// note: `key` is a typed struct rather than the originally-sketched `cbytes` — cbytes is COMPTIME and
-// cannot hold a runtime PoolKey.
-
 const MarketKey = struct {
     currency0: u256,
     currency1: u256,
@@ -13,11 +7,10 @@ const MarketKey = struct {
 };
 
 const MarketId = struct {
-    id: u256,          // the 32-byte PoolId value; bytes32 newtype-wrap deferred (interchangeable)
+    id: u256,          
     key: MarketKey
 };
 
-// keccak256 over the 160-byte ABI-encoded PoolKey — byte-identical to v4-core toId (keccak256(key,0xa0)).
 const market_id_from_pool_key = fn (
     currency0: u256, currency1: u256, fee: u256, tick_spacing: u256, hooks: u256
 ) MarketId {

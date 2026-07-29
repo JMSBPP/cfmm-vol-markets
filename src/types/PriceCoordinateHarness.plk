@@ -1,5 +1,5 @@
 import std::constructor::return_runtime;
-import types::PriceCoordinate::*;
+import types::pricing::PriceCoordinate::*;
 
 // signature:: coordinate(uint256,uint256,uint256) -> (bytes32,uint256,uint256,uint256)
 //   args  : tick_spacing, subs_elasticity (η, Q64.96), numb_rep

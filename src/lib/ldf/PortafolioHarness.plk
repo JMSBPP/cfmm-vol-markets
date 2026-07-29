@@ -3,7 +3,7 @@ import v3::util::return_u256;
 import lib::LiquidityAmounts::*;
 import types::ldf::LDFParams::*;
 import types::ldf::LiquidityChunk::*;
-import types::PriceCoordinate::*;
+import types::pricing::PriceCoordinate::*;
 import types::Portafolio::*;
 
 // cast sig "portafolioForLiquidity(int24,int24,int24,uint256,uint256)" -> 0x8525e29a

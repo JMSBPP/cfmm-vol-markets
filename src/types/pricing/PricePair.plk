@@ -1,4 +1,4 @@
-import types::PriceCoordinate::*;
+import types::pricing::PriceCoordinate::*;
 
 // PricePair: two price points in a coordinate frame (todo §16, ctor (PriceCoordinate, p1, p2) -> PricePair).
 // `geometry` is the PriceCoordinateId of the frame that produced the points, so two pairs can be checked

@@ -2,7 +2,7 @@ import std::constructor::return_runtime;
 import v3::util::return_u256;
 import lib::LiquidityAmounts::*;
 import types::ldf::LDFParams::*;
-import types::PriceCoordinate::*;
+import types::pricing::PriceCoordinate::*;
 import types::Collateral::*;
 import types::exposure::VegaExposure::{VegaNominal};
 

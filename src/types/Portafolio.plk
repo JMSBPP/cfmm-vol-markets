@@ -1,9 +1,6 @@
 // Portafolio: the token amounts a geometric-LDF position holds over its full support [i_min, i_max).
-// v1 gross-only subset of REQUIREMENTS.md's Portafolio<Asset, Cash>{grossOutputAmt, grossInputAmt}:
-//   gross_output_amt = Q_X (token1 / Asset / underlying)
-//   gross_input_amt  = Q_M (token0 / Cash / numeraire)
-// (the notes' ΔQ = (ΔQ_M, ΔQ_X) tuple). Full record fields (netOutputAmt/exchangeRate/...) are deferred.
+
 const Portafolio = struct {
-    gross_output_amt: u256,   // Q_X -- token1 (cumulativeAmount1 over the support)
-    gross_input_amt: u256     // Q_M -- token0 (cumulativeAmount0 over the support)
+    gross_output_amt: u256,   // Q_X -- token1 (cumulativeAmountX over the support)
+    gross_input_amt: u256     // Q_M -- token0 (cumulativeAmountM over the support)
 };

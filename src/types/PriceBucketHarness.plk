@@ -1,6 +1,6 @@
 import std::constructor::return_runtime;
-import types::PriceCoordinate::*;
-import types::PriceBucket::*;
+import types::pricing::PriceCoordinate::*;
+import types::pricing::PriceBucket::*;
 import lib::TickUtils::*;
 
 // cast sig "priceBucket(uint256,uint256,uint256,int24,int24,int24)"                  -> 0x2ea9e6ed

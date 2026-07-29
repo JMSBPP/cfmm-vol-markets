@@ -1,4 +1,4 @@
-import types::PriceCoordinate::*;
+import types::pricing::PriceCoordinate::*;
 import lib::TickUtils::*;
 import v3::util::revert_empty;
 

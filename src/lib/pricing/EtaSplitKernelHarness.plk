@@ -1,7 +1,7 @@
 import std::constructor::return_runtime;
 import v3::util::return_u256;
 import lib::pricing::EtaSplitKernel::*;
-import types::PriceCoordinate::*;
+import types::pricing::PriceCoordinate::*;
 
 // cast sig "tickSplitMinus(uint256,int24)"                    -> 0x07841e83
 const SEL_MINUS  = 0x07841e83;
