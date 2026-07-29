@@ -54,3 +54,16 @@ const panoptic_token_id_from_tick_bucket = fn (tid: u256, tb: TickBucket, leg: u
     let t2 = panoptic_add_strike(t1, strike, leg);
     panoptic_add_width(t2, width, leg)
 };
+
+// ---- leg-only encoder (CR-I2, multi-leg): writes ONLY strike + width for one leg from an aligned
+//      sub-bucket [lo, hi] (hi > lo, both multiples of ts). Does NOT write tickSpacing -- the caller
+//      writes it exactly once (avoids the N-leg accumulation of panoptic_token_id_from_tick_bucket).
+//      strike = lo + floor((hi-lo)/2), width = (hi-lo)/ts. This floor-strike reconstructs [lo, hi]
+//      EXACTLY under Panoptic getTicks (rangeDown=floor(w*ts/2), rangeUp=ceil) for ANY sign/parity --
+//      unlike sdiv(lo+hi,2), which truncates toward zero and mis-reconstructs negative odd spans by +1.
+const panoptic_add_leg_from_bucket = fn (tid: u256, lo: u256, hi: u256, ts: u256, leg: u256) u256 {
+    let span = hi -% lo;
+    let strike = lo +% (span </ 2);
+    let width = span </ ts;
+    panoptic_add_width(panoptic_add_strike(tid, strike, leg), width, leg)
+};

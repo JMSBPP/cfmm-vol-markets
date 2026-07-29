@@ -1,0 +1,31 @@
+import std::constructor::return_runtime;
+import types::protocol_integrations::PanopticTokenId::*;
+
+// Harness for CR-I2 (VolOrder -> PanopticTokenId, Layer 1). Increment 1 exercises the new
+// floor-strike leg encoder panoptic_add_leg_from_bucket, decoding (strike,width) so the Solidity
+// test can run them through Panoptic's getTicks reconstruction.
+
+// cast sig "legFromBucket(int24,int24,int24,uint256)" -> 0xfe7ebf55
+const SEL_LEG_FROM_BUCKET = 0xfe7ebf55;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    // legFromBucket(lo@4, hi@36, ts@68, leg@100) -> (int256 strike, uint256 width)
+    // (int24 args arrive ABI sign-extended to 256 bits, so no signextend needed on the way in.)
+    if selector == SEL_LEG_FROM_BUCKET {
+        let lo  = @evm_calldataload(4);
+        let hi  = @evm_calldataload(36);
+        let ts  = @evm_calldataload(68);
+        let leg = @evm_calldataload(100);
+        let tid = panoptic_add_leg_from_bucket(0, lo, hi, ts, leg);
+        let out = @malloc_uninit(64);
+        @mstore32(out, panoptic_strike(tid, leg));
+        @mstore32(out +% 32, panoptic_width(tid, leg));
+        @evm_return(out, 64);
+    }
+
+    @evm_stop();
+}
