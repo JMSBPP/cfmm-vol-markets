@@ -17,7 +17,7 @@ import types::pricing::TickUtils::TickBucket;
 
 const PanopticTokenId = struct {
     tokenId: u256,
-    leg_index: u256
+    num_legs: u256
 };
 
 // ---- encoders (additive; assume the target bits are zero, as in Panoptic's add*) ----

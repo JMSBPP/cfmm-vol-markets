@@ -82,4 +82,75 @@ contract VolOrderToPanopticTokenIdTest is PlankTestBase {
         vm.assume(hi <= I24_MAX);
         _assertReconstructs(int24(lo), int24(hi), ts);
     }
+
+    // ---- Increment 2: the top-level map vol_order_to_panoptic_token_id ----
+
+    // VolOrder packing (pack_vol_order layout): width@128, tickSpacing@104, vol@16, spread@0.
+    function _packVO(uint256 width, uint256 tickSpacing, uint256 vol, uint256 spread)
+        internal
+        pure
+        returns (uint256)
+    {
+        return (width << 128) | (tickSpacing << 104) | (vol << 16) | spread;
+    }
+
+    function _tokenId(uint256 packedVO, uint256 poolId) internal returns (uint256) {
+        (bool ok, bytes memory r) =
+            harness.staticcall(abi.encodeWithSignature("tokenIdFromVolOrder(uint256,uint256)", packedVO, poolId));
+        require(ok, "tokenIdFromVolOrder reverted");
+        return abi.decode(r, (uint256));
+    }
+
+    // Panoptic per-leg decoders (layout: base = 64 + 48*leg)
+    function _tokenType(uint256 tid, uint256 leg) internal pure returns (uint256) {
+        return (tid >> (64 + 48 * leg + 9)) & 1;
+    }
+
+    function _isLong(uint256 tid, uint256 leg) internal pure returns (uint256) {
+        return (tid >> (64 + 48 * leg + 8)) & 1;
+    }
+
+    function _optionRatio(uint256 tid, uint256 leg) internal pure returns (uint256) {
+        return (tid >> (64 + 48 * leg + 1)) & 0x7f;
+    }
+
+    function _legStrike(uint256 tid, uint256 leg) internal pure returns (int24) {
+        return int24(uint24((tid >> (64 + 48 * leg + 12)) & 0xffffff));
+    }
+
+    function _legWidth(uint256 tid, uint256 leg) internal pure returns (uint256) {
+        return (tid >> (64 + 48 * leg + 36)) & 0xfff;
+    }
+
+    function _tickSpacing(uint256 tid) internal pure returns (uint256) {
+        return (tid >> 48) & 0xffff;
+    }
+
+    // Golden vector: width=1000, ts=10, vol=1 (=> tick 0), spread=0x8000 (~0.5) =>
+    // bucket [-500,500], i*=0, split points +-250 => legs [-500,-250],[-250,0],[0,250],[250,500].
+    // strikes [-375,-125,125,375], widths [25,25,25,25], tokenType [put,put,call,call], all long.
+    function test_map_goldenStructure() public {
+        uint256 tid = _tokenId(_packVO(1000, 10, 1, 0x8000), 0);
+
+        assertEq(_tickSpacing(tid), 10, "tickSpacing written exactly once == 10 (not 5x)");
+
+        for (uint256 L = 0; L < 4; L++) {
+            assertEq(_isLong(tid, L), 1, "every leg long");
+            assertEq(_optionRatio(tid, L), 1, "uniform optionRatio = 1");
+        }
+
+        assertEq(_tokenType(tid, 0), 0, "leg0 put (below i*)");
+        assertEq(_tokenType(tid, 1), 0, "leg1 put (below i*)");
+        assertEq(_tokenType(tid, 2), 1, "leg2 call (above i*)");
+        assertEq(_tokenType(tid, 3), 1, "leg3 call (above i*)");
+
+        assertEq(_legStrike(tid, 0), int24(-375), "strike leg0");
+        assertEq(_legStrike(tid, 1), int24(-125), "strike leg1");
+        assertEq(_legStrike(tid, 2), int24(125), "strike leg2");
+        assertEq(_legStrike(tid, 3), int24(375), "strike leg3");
+
+        for (uint256 L = 0; L < 4; L++) {
+            assertEq(_legWidth(tid, L), 25, "each leg width 25");
+        }
+    }
 }
