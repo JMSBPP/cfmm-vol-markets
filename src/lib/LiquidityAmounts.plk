@@ -7,9 +7,7 @@ import types::Portafolio::*;
 import lib::ldf::GeometricDistribution::{geometric_cumulative_amount0, geometric_cumulative_amount1};
 import v3::math::full_math::mulDiv;
 import v3::util::revert_empty;
-
-const Q96 = 0x1000000000000000000000000;                         // 2^96
-const U128_MAX = 0xffffffffffffffffffffffffffffffff;             // 2^128 - 1 (Panoptic LiquidityChunk domain)
+import types::Numerics::{Q96, U128_MAX};
 
 // liquidity_for_collateral: the total liquidity L̄ a geometric-LDF position holds when funded by
 // `collateral` token0 over its support [i_min, i_max). Reviewed design (two-step review resolution):

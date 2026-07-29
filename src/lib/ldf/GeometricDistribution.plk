@@ -1,13 +1,12 @@
 import lib::ldf::FixedPointMath::rpow;
 import v3::math::full_math::{mulDiv, mulDivRoundingUp};
 import v3::math::tick_math::getSqrtRatioAtTick;
+import types::Numerics::{Q96};
 
 // Geometric LDF liquidity density — the normalized geometric weight l(xi, iota; i) in Q96 from
 // notes/VOLATILITY_INSTRUMENTS.md, realized as a faithful port of Bunni's
 // LibGeometricDistribution.liquidityDensityX96. Params: alpha_x96 = xi (Q96), min_tick = i_min,
 // length = iota (# rounded ticks in the support). Reverts (via mulDiv) when alpha == 1, as in Bunni.
-
-const Q96 = 0x1000000000000000000000000; // 2^96
 
 const geometric_liquidity_density_x96 = fn (
     rounded_tick: u256, tick_spacing: u256, min_tick: u256, length: u256, alpha_x96: u256

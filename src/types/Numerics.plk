@@ -4,6 +4,9 @@ const WAD = 1000000000000000000;
 const WAD_DECIMALS = 100000000;
 const Q64_96_RESOLUTION = 96;
 
+const Q96 = 0x1000000000000000000000000;             // 2^96 (Q64.96 one)
+const U128_MAX = 0xffffffffffffffffffffffffffffffff;  // 2^128 - 1 (Panoptic LiquidityChunk domain)
+
 const Q24 = 0xFFFFFF;
 
 const Q24_24 = struct {
