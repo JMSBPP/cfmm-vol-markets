@@ -21,9 +21,16 @@ contract VolOrderManagerScript is Script, PlankDeployer {
     function run() public {
 	opts.backend = "sona";
 
-	Dependency[] memory deps = new Dependency[](2);
+	// Same six module roots as test/PlankTestBase.sol:plankOpts() -- keep in
+	// sync with Makefile:PLANK_DEP. The pos_spec module imports pos_spec::/
+	// lib::/types::, which the old two-root set cannot resolve.
+	Dependency[] memory deps = new Dependency[](6);
 	deps[0] = Dependency("v3", "lib/plankified-univ3/plank/lib");
-	deps[1] = Dependency("std", "lib/plank-monorepo/std");
+	deps[1] = Dependency("std", "lib/plank-monorepo/std/");
+	deps[2] = Dependency("pos_spec", "src/types/pos_spec");
+	deps[3] = Dependency("lib", "src/lib");
+	deps[4] = Dependency("types", "src/types");
+	deps[5] = Dependency("interfaces", "src/interfaces");
 	opts.dependencies = deps;
 
 	uint256 deployerPk = vm.deriveKey(ANVIL_MNEMONIC, uint32(DEPLOYER_INDEX));
@@ -33,7 +40,7 @@ contract VolOrderManagerScript is Script, PlankDeployer {
 
 	volOrderManager = IVolOrderManager(
 					     plankDeployFFI(
-							    "src/modules/VolOrderManagerMod.plk",
+							    "src/modules/pos_spec/VolOrderManagerMod.plk",
 							    opts
 					     ));
 
