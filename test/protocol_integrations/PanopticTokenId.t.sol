@@ -28,7 +28,7 @@ contract PanopticTokenIdTest is PlankTestBase {
     int24 constant I24_MAX = 8388607;
 
     function setUp() public {
-        harness = deployPlank("src/types/protocol_integrations/PanopticTokenIdHarness.plk");
+        harness = deployPlank("test/protocol_integrations/PanopticTokenIdHarness.plk");
     }
 
     function _pack(

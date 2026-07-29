@@ -16,7 +16,7 @@ contract PriceOrderedPairTest is PlankTestBase {
     uint256 constant Q96          = 1 << 96;
 
     function setUp() public {
-        harness = deployPlank("src/types/PriceOrderedPairHarness.plk");
+        harness = deployPlank("test/types/PriceOrderedPairHarness.plk");
     }
 
     function _op(uint256 eta, int24 i1, int24 i2)

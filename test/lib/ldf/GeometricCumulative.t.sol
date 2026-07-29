@@ -35,7 +35,7 @@ contract GeometricCumulativeTest is PlankTestBase {
     uint256 constant Q96 = 1 << 96;
 
     function setUp() public {
-        harness = deployPlank("src/lib/ldf/GeometricDistributionHarness.plk");
+        harness = deployPlank("test/lib/ldf/GeometricDistributionHarness.plk");
         ref = new GeoCumRef();
     }
 

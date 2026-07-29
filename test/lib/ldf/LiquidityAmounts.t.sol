@@ -30,7 +30,7 @@ contract LiquidityAmountsTest is PlankTestBase {
     uint128 constant U128_MAX = type(uint128).max;
 
     function setUp() public {
-        harness = deployPlank("src/lib/ldf/LiquidityAmountsHarness.plk");
+        harness = deployPlank("test/lib/ldf/LiquidityAmountsHarness.plk");
         ref = new CA0Ref();
     }
 

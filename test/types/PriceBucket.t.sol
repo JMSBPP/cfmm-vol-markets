@@ -18,7 +18,7 @@ contract PriceBucketTest is PlankTestBase {
     uint256 constant Q96          = 1 << 96;
 
     function setUp() public {
-        harness = deployPlank("src/types/PriceBucketHarness.plk");
+        harness = deployPlank("test/types/PriceBucketHarness.plk");
     }
 
     function _price(int24 t) internal pure returns (uint256) {

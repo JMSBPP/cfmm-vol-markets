@@ -15,7 +15,7 @@ contract MarketIdTest is PlankTestBase {
     address internal harness;
 
     function setUp() public {
-        harness = deployPlank("src/types/protocol_integrations/MarketIdHarness.plk");
+        harness = deployPlank("test/protocol_integrations/MarketIdHarness.plk");
     }
 
     function test_marketId_idEqualsCanonicalUniV4PoolId() public {

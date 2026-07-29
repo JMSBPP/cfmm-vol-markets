@@ -21,7 +21,7 @@ contract EtaSplitKernelTest is PlankTestBase {
     uint256 constant Q96          = 1 << 96;
 
     function setUp() public {
-        harness = deployPlank("src/lib/pricing/EtaSplitKernelHarness.plk");
+        harness = deployPlank("test/lib/EtaSplitKernelHarness.plk");
     }
 
     function testFuzz_etaSplitKernel_identity(uint256 etaRaw, int256 iRaw) public {

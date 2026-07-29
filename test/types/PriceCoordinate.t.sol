@@ -14,7 +14,7 @@ contract PriceCoordinateTest is PlankTestBase {
     uint256 constant NUMB_REP_Q64_96 = 96; // fixed-point scale tag (shared by η and sqrtPriceX96)
 
     function setUp() public {
-        harness = deployPlank("src/types/PriceCoordinateHarness.plk");
+        harness = deployPlank("test/types/PriceCoordinateHarness.plk");
     }
 
     // A PriceCoordinate round-trips every field losslessly, and its id is the canonical

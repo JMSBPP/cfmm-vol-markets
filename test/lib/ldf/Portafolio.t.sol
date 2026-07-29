@@ -29,7 +29,7 @@ contract PortafolioTest is PlankTestBase {
     uint256 constant Q96 = 1 << 96;
 
     function setUp() public {
-        harness = deployPlank("src/lib/ldf/PortafolioHarness.plk");
+        harness = deployPlank("test/lib/ldf/PortafolioHarness.plk");
         ref = new CA01Ref();
     }
 
