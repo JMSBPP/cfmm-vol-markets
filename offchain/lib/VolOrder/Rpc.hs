@@ -6,12 +6,13 @@ module VolOrder.Rpc
   ) where
 
 import Control.Concurrent (threadDelay)
+import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 
 import Data.ByteArray.HexString (HexString)
 import Data.Solidity.Prim.Address (Address)
 
-import Network.Ethereum.Api.Types (Call (..), DefaultBlock (Latest), TxReceipt)
+import Network.Ethereum.Api.Types (Call (..), DefaultBlock (..), TxReceipt (..))
 import qualified Network.Ethereum.Api.Eth as GlobalState
 import Network.Web3.Provider (Provider (HttpProvider), Web3, runWeb3')
 
@@ -41,57 +42,79 @@ create_orders owner manager orders
   | otherwise = do
       calldata <- liftIO (encode_create_orders orders)
 
-      preview_raw <- eth_call_manager manager calldata
+      preview_raw <- eth_call_manager manager Latest calldata
       preview <- either fail pure (decode_create_orders_result preview_raw)
+      when (length preview /= length orders) $
+        fail ("create_orders: preview returned " ++ show (length preview)
+               ++ " results for a batch of " ++ show (length orders) ++ " orders")
 
-      before_count <- read_order_count manager
+      before_count <- read_order_count manager Latest
       receipt <- send_and_wait owner manager calldata
-      after_count <- read_order_count manager
 
-      -- Ids are 1-based: the contract mints id = orderCount + 1, then advances the
-      -- count to that id (VolOrderManagerMod.plk, "Ids are sequential from 1 and
-      -- orderCount IS the id source"). Slot 0 is never written. So a batch that
-      -- moves orderCount from B to A minted exactly the ids [B+1 .. A].
-      let mined_ids           = [before_count + 1 .. after_count]
-          successful_entries  = [ (input_order, order_id)
-                                 | (input_order, (success, order_id)) <- zip orders preview
-                                 , success
-                                 ]
-          preview_success_ids = map snd successful_entries
+      -- The batch entrypoint is best-effort per ORDER, but the transaction as a
+      -- whole can still revert (e.g. out-of-gas past the preview's much higher
+      -- default gas cap). Without this check a reverted batch is byte-identical
+      -- to a healthy all-invalid one in the report.
+      when (receiptStatus receipt /= Just 1) $
+        fail ("create_orders: transaction reverted -- tx "
+               ++ show (receiptTransactionHash receipt)
+               ++ ", status " ++ show (receiptStatus receipt))
 
-      if preview_success_ids /= mined_ids
+      -- Readbacks are pinned to the receipt's block, never Latest: on anything
+      -- but a single-writer local node, Latest can be a lagging replica (the
+      -- count reads as not-advanced) or a later tip (a third party's mints
+      -- fold into our delta).
+      let mined_block = BlockWithNumber (receiptBlockNumber receipt)
+          tx_hash     = receiptTransactionHash receipt
+      after_count <- read_order_count manager mined_block
+
+      -- The consistency check anchors on the locally-read counter and the
+      -- preview's success PATTERN -- never the preview's absolute ids. On-chain
+      -- validation is stateless (a pure function of each packed word), so WHICH
+      -- positions succeed is preview-stable; the minted ids are not, since any
+      -- other writer landing between preview and send shifts the id base. Ids
+      -- are 1-based: the contract mints id = orderCount + 1, then advances the
+      -- count to that id (VolOrderManagerMod.plk, "Ids are sequential from 1
+      -- and orderCount IS the id source"; slot 0 is never written), so our
+      -- batch minted exactly [before_count + 1 .. before_count + successes].
+      let successes      = [ o | (o, (True, _)) <- zip orders preview ]
+          expected_after = before_count + toInteger (length successes)
+
+      if after_count /= expected_after
         then fail
-               ("create_orders: eth_call preview predicted successful order ids "
-                 ++ show preview_success_ids
-                 ++ " but orderCount() only advanced over " ++ show mined_ids
-                 ++ " (before=" ++ show before_count ++ ", after=" ++ show after_count ++ ")")
+               ("create_orders: preview predicted " ++ show (length successes)
+                 ++ " successful orders but orderCount() moved "
+                 ++ show before_count ++ " -> " ++ show after_count
+                 ++ " -- tx " ++ show tx_hash)
         else do
-          mapM_ (verify_mined_order manager) successful_entries
+          mapM_ (verify_mined_order manager mined_block tx_hash)
+                (zip successes [before_count + 1 ..])
           pure (receipt, preview)
 
-verify_mined_order :: Address -> (VolOrder, Integer) -> Web3 ()
-verify_mined_order manager (expected_order, order_id) = do
-  packed <- read_order_packed manager order_id
+verify_mined_order :: Address -> DefaultBlock -> HexString -> (VolOrder, Integer) -> Web3 ()
+verify_mined_order manager block tx_hash (expected_order, order_id) = do
+  packed <- read_order_packed manager block order_id
   let actual_order = unpack_vol_order_storage packed
   if actual_order == expected_order
     then pure ()
     else fail
            ("create_orders: mined order " ++ show order_id
              ++ " does not match the input submitted for it -- expected "
-             ++ show expected_order ++ ", read back " ++ show actual_order)
+             ++ show expected_order ++ ", read back " ++ show actual_order
+             ++ " -- tx " ++ show tx_hash)
 
-read_order_count :: Address -> Web3 Integer
-read_order_count manager = do
+read_order_count :: Address -> DefaultBlock -> Web3 Integer
+read_order_count manager block = do
   calldata <- liftIO encode_order_count
-  hex_to_integer <$> eth_call_manager manager calldata
+  hex_to_integer <$> eth_call_manager manager block calldata
 
-read_order_packed :: Address -> Integer -> Web3 Integer
-read_order_packed manager order_id = do
+read_order_packed :: Address -> DefaultBlock -> Integer -> Web3 Integer
+read_order_packed manager block order_id = do
   calldata <- liftIO (encode_get_order_packed order_id)
-  hex_to_integer <$> eth_call_manager manager calldata
+  hex_to_integer <$> eth_call_manager manager block calldata
 
-eth_call_manager :: Address -> HexString -> Web3 HexString
-eth_call_manager manager calldata =
+eth_call_manager :: Address -> DefaultBlock -> HexString -> Web3 HexString
+eth_call_manager manager block calldata =
   GlobalState.call
     Call
       { callFrom = Nothing
@@ -102,7 +125,7 @@ eth_call_manager manager calldata =
       , callData = Just calldata
       , callNonce = Nothing
       }
-    Latest
+    block
 
 send_and_wait :: Address -> Address -> HexString -> Web3 TxReceipt
 send_and_wait owner manager calldata =

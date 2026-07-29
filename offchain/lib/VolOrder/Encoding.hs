@@ -37,6 +37,16 @@ encode_create_order order =
 -- not (false, 0)). Masking each field before combining (like the contract's own
 -- storage-side pack_vol_order does) would only relocate this silent-corruption
 -- risk from on-chain to off-chain -- so this validates and fails clearly instead.
+--
+-- Deliberate seam: these are FIELD-WIDTH bounds (packing safety), not the
+-- contract's business rules. They coincide for vol_target ([1, 2^88-1] both
+-- sides) and range_width ([1, 2^24-1] both sides), but skew's business rule is
+-- one tighter: spread_tick_assimetry_is_complete accepts [1, 65534], while
+-- skew = 65535 passes here, packs cleanly, and comes back (False, 0) from the
+-- batch's best-effort path. That is intentional -- it is the only
+-- client-passing, contract-rejected input, kept as the test vector that
+-- exercises best-effort semantics end-to-end (spec Testing step 4). Callers
+-- wanting pre-flight business validation must bound skew <= 65534 themselves.
 pack_vol_order_input :: VolOrder -> Either String Integer
 pack_vol_order_input order
   | not (in_range 88 target) =

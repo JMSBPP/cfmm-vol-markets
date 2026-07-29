@@ -158,6 +158,15 @@ generator pattern) driving the new batch primitive.
     preview is kept (it's still the only way to see *which specific positions* in the
     batch failed, since a skipped order consumes no id and leaves no storage trace to read
     back), but the delta-readback is the authoritative confirmation of what landed.
+    **Assumption stated plainly (PR-gate review):** the check compares the count delta
+    against the preview's success *pattern* (which is preview-stable, because the
+    contract's validation is stateless — a pure function of each packed word), never
+    against the preview's absolute ids (which are not — any other writer landing between
+    preview and send shifts the id base). Readbacks are pinned to the receipt's block,
+    not `Latest`. What remains assumed is a single-writer window between the
+    `orderCount()` snapshot and our own transaction: a concurrent writer inside that
+    window causes a *loud* delta-mismatch failure after our transaction has already
+    committed — never a silently wrong result.
 11. **`create_orders` uses `callGas = Nothing` (dynamic node gas estimation), never a
     fixed/reused gas limit (clarified in review).** A full 128-order chunk measures ~10M
     gas in the Plank track's own test suite — roughly two orders of magnitude more than a
