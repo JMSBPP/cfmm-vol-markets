@@ -172,4 +172,68 @@ contract VolOrderToPanopticTokenIdTest is PlankTestBase {
     function test_map_guard_passesAtExactly2ts() public {
         assertTrue(_tryTokenId(_packVO(40, 10, 1, 0x8000)), "side == 2*ts must succeed");
     }
+
+    // ---- Increment 4: the tokenId must pass Panoptic's TokenId.validate() ----
+    // The real TokenIdLibrary can't be imported (pulls PanopticMath -> unresolved OZ), so validate()
+    // is replicated verbatim from TokenId.sol:472-518 as the differential oracle.
+
+    uint256 constant CHUNK_MASK =
+        0xFFFFFFFFF200_FFFFFFFFF200_FFFFFFFFF200_FFFFFFFFF200_0000000000000000;
+    uint256 constant OPTION_RATIO_MASK =
+        0x0000000000FE_0000000000FE_0000000000FE_0000000000FE_0000000000000000;
+    int24 constant MIN_POOL_TICK = -887272;
+    int24 constant MAX_POOL_TICK = 887272;
+
+    function _riskPartner(uint256 tid, uint256 i) internal pure returns (uint256) {
+        return (tid >> (64 + 48 * i + 10)) % 4;
+    }
+
+    function _strikeSigned(uint256 tid, uint256 i) internal pure returns (int24) {
+        return int24(int256(tid >> (64 + 48 * i + 12)));
+    }
+
+    function _countLegs(uint256 tid) internal pure returns (uint256 numLegs) {
+        uint256 optionRatios = (tid & OPTION_RATIO_MASK) >> 64;
+        unchecked {
+            while (optionRatios >= (1 << (48 * numLegs))) {
+                ++numLegs;
+            }
+        }
+    }
+
+    // faithful port of TokenIdLibrary.validate(): reverts on invalid, returns normally on valid.
+    function _validate(uint256 tid) internal pure {
+        require(_optionRatio(tid, 0) != 0, "InvalidTokenIdParameter(1)");
+        unchecked {
+            uint256 chunkData = (tid & CHUNK_MASK) >> 64;
+            uint256 numLegs = _countLegs(tid);
+            for (uint256 i = 0; i != 4; ++i) {
+                if (_optionRatio(tid, i) == 0) {
+                    require((tid >> (64 + 48 * i)) == 0, "InvalidTokenIdParameter(1) gap");
+                    break;
+                }
+                for (uint256 j = i + 1; j != numLegs; ++j) {
+                    require(
+                        uint48(chunkData >> (48 * i)) != uint48(chunkData >> (48 * j)),
+                        "InvalidTokenIdParameter(6)"
+                    );
+                }
+                require(
+                    _strikeSigned(tid, i) != MIN_POOL_TICK && _strikeSigned(tid, i) != MAX_POOL_TICK,
+                    "InvalidTokenIdParameter(4)"
+                );
+                uint256 rp = _riskPartner(tid, i);
+                require(rp <= numLegs - 1, "InvalidTokenIdParameter(3)");
+                if (rp != i) {
+                    require(_riskPartner(tid, rp) == i, "InvalidTokenIdParameter(3) mutual");
+                }
+            }
+        }
+    }
+
+    // the map's tokenId must be accepted by Panoptic's validate()
+    function test_map_validatesAsPanoptic() public {
+        uint256 tid = _tokenId(_packVO(1000, 10, 1, 0x8000), 0);
+        _validate(tid); // reverts if Panoptic would reject it
+    }
 }
