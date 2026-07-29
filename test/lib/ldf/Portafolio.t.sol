@@ -17,8 +17,8 @@ contract CA01Ref {
 }
 
 // portafolio_for_liquidity(coord, liquidity) -> Portafolio: the (Q_X token1, Q_M token0) amounts a geometric
-// position of liquidity L̄ holds over the FULL support. gross_input = cumulativeAmount0(i_min-Δ, L̄);
-// gross_output = cumulativeAmount1(i_max, L̄).
+// position of liquidity Lbar holds over the FULL support. gross_input = cumulativeAmount0(i_min-Δ, Lbar);
+// gross_output = cumulativeAmount1(i_max, Lbar).
 contract PortafolioTest is PlankTestBase {
     // FFI-deployed Plank harness (PortafolioHarness.plk):
     //   portafolioForLiquidity(int24 minTick,int24 tickSpacing,int24 length,uint256 alphaX96,uint256 liquiditySize)
@@ -88,11 +88,92 @@ contract PortafolioTest is PlankTestBase {
     }
 
     function test_portafolioForLiquidity_golden() public {
-        // geometric alpha=0.5, minTick=0, tickSpacing=1, length=4, L̄=1e18
+        // geometric alpha=0.5, minTick=0, tickSpacing=1, length=4, Lbar=1e18
         uint256 alpha = Q96 / 2;
         uint256 size = 1e18;
         (uint256 gOut, uint256 gIn) = _pfl(0, 1, 4, alpha, size);
         assertEq(gIn, ref.ca0(-1, size, 1, 0, 4, alpha), "golden gross_input");
         assertEq(gOut, ref.ca1(4, size, 1, 0, 4, alpha), "golden gross_output");
+    }
+
+    // ---- inverse: liquidity_for_portafolio (full-support, Lbar = min(Lbar_M, Lbar_X)) ----
+
+    uint128 constant U128_MAX = type(uint128).max;
+
+    function _lfp(int24 minTick, int24 tickSpacing, int24 length, uint256 alpha, uint256 gOut, uint256 gIn)
+        internal
+        returns (bool ok, uint256 size)
+    {
+        bytes memory ret;
+        (ok, ret) = harness.staticcall(
+            abi.encodeWithSignature(
+                "liquidityForPortafolio(int24,int24,int24,uint256,uint256,uint256)",
+                minTick, tickSpacing, length, alpha, gOut, gIn
+            )
+        );
+        if (ok) size = abi.decode(ret, (uint256));
+    }
+
+    // Lbar = min( gross_input·Q96/cost_M , gross_output·Q96/cost_X ), each rounded down (fund-safety).
+    function testFuzz_liquidityForPortafolio_matchesMinInversion(
+        uint256 aR,
+        int256 mtR,
+        uint256 tsR,
+        uint256 lenR,
+        uint256 giR,
+        uint256 goR
+    ) public {
+        int24 tickSpacing = int24(int256(bound(tsR, 1, 100)));
+        int24 length = int24(int256(bound(lenR, 2, 500)));
+        int24 minTick = int24(bound(mtR, -800_000, 800_000));
+        uint256 alpha = _alpha(aR);
+        uint256 gIn = bound(giR, 1, 1e30);
+        uint256 gOut = bound(goR, 1, 1e30);
+        int24 iMax = minTick + length * tickSpacing;
+
+        uint256 costM = ref.ca0(minTick - tickSpacing, Q96, tickSpacing, minTick, length, alpha);
+        uint256 costX = ref.ca1(iMax, Q96, tickSpacing, minTick, length, alpha);
+        vm.assume(costM != 0 && costX != 0);
+        uint256 lM = (gIn * Q96) / costM;
+        uint256 lX = (gOut * Q96) / costX;
+        uint256 expected = lM < lX ? lM : lX;
+        vm.assume(expected <= U128_MAX);
+
+        (bool ok, uint256 size) = _lfp(minTick, tickSpacing, length, alpha, gOut, gIn);
+        assertTrue(ok, "liquidityForPortafolio reverted");
+        assertEq(size, expected, "Lbar == min(gIn*Q96/cost_M, gOut*Q96/cost_X)");
+    }
+
+    // round-trip: liquidity_for_portafolio(portafolio_for_liquidity(Lbar)) recovers Lbar (conservative over-recovery,
+    // bounded by ~Q96/cost since forward amounts round up and inverse Lbar rounds down).
+    function testFuzz_portafolio_roundTrip(uint256 aR, int256 mtR, uint256 tsR, uint256 lenR, uint256 szR) public {
+        int24 tickSpacing = int24(int256(bound(tsR, 1, 100)));
+        int24 length = int24(int256(bound(lenR, 2, 500)));
+        int24 minTick = int24(bound(mtR, -800_000, 800_000));
+        uint256 alpha = _alpha(aR);
+        uint256 lIn = bound(szR, 1, 1e24);
+        int24 iMax = minTick + length * tickSpacing;
+
+        uint256 costM = ref.ca0(minTick - tickSpacing, Q96, tickSpacing, minTick, length, alpha);
+        uint256 costX = ref.ca1(iMax, Q96, tickSpacing, minTick, length, alpha);
+        vm.assume(costM != 0 && costX != 0);
+
+        (uint256 gOut, uint256 gIn) = _pfl(minTick, tickSpacing, length, alpha, lIn);
+        (bool ok, uint256 lOut) = _lfp(minTick, tickSpacing, length, alpha, gOut, gIn);
+        vm.assume(ok);
+
+        assertGe(lOut, lIn, "round-trip over-recovers (conservative)");
+        uint256 unit = Q96 / (costM < costX ? costM : costX) + 2; // over-recovery bound ~ Q96/min(cost)
+        assertLe(lOut - lIn, unit, "round-trip over-recovery <= ~Q96/min(cost)");
+    }
+
+    function test_liquidityForPortafolio_revertsAboveUint128() public {
+        uint256 alpha = Q96 / 2;
+        uint256 costM = ref.ca0(-1, Q96, 1, 0, 4, alpha);
+        // gross_input large enough that Lbar_M (and thus the min) exceeds uint128
+        uint256 gIn = (uint256(U128_MAX) * costM) / Q96 + costM + 1e18;
+        uint256 gOut = type(uint256).max; // make the token1 leg non-binding
+        (bool ok,) = _lfp(0, 1, 4, alpha, gOut, gIn);
+        assertFalse(ok, "Lbar > uint128 max must revert");
     }
 }

@@ -81,3 +81,37 @@ const portafolio_for_liquidity = fn (coord: PriceCoordinate, liquidity: Liquidit
         gross_input_amt: geometric_cumulative_amount0(min_tick -% ts, l_bar, ts, min_tick, length, alpha_x96)
     }
 };
+
+// liquidity_for_portafolio: the largest liquidity L̄ both legs of `portafolio` can back over the full support.
+// Each token amount is linear in L̄, so each gives a candidate; L̄ = min(L̄_M, L̄_X) each rounded DOWN
+// (fund-safety — driving from one leg alone over-issues liquidity the other side can't honor). Full-support
+// model (mirrors liquidity_for_collateral per leg): cost_M = cumulativeAmount0(i_min−Δ, Q96),
+// cost_X = cumulativeAmount1(i_max, Q96).
+const liquidity_for_portafolio = fn (
+    ldf_params: LDFParams, coord: PriceCoordinate, portafolio: Portafolio
+) LiquidityChunk {
+    if ldf_params.kind != LDF_GEOMETRIC {
+        revert_empty();
+    }
+    let w0 = ldf_params.word0;
+    let min_tick = @evm_signextend(2, w0 & 0xffffff);
+    let alpha_x96 = @evm_shr(24, w0) & 0xffffffffffffffffffffffffffffffffffffffff;
+    let length = @evm_shr(184, w0) & 0xffffff;
+    let ts = coord.tick_spacing;
+    let i_max = min_tick +% (length *% ts);
+
+    let cost_m = geometric_cumulative_amount0(min_tick -% ts, Q96, ts, min_tick, length, alpha_x96);
+    let cost_x = geometric_cumulative_amount1(i_max, Q96, ts, min_tick, length, alpha_x96);
+    if (cost_m == 0) or (cost_x == 0) {
+        revert_empty();
+    }
+
+    let l_m = mulDiv(portafolio.gross_input_amt, Q96, cost_m);
+    let l_x = mulDiv(portafolio.gross_output_amt, Q96, cost_x);
+    let size = if l_m < l_x { l_m } else { l_x };
+    if size > U128_MAX {
+        revert_empty();
+    }
+
+    LiquidityChunk { size: size, ldf_params: ldf_params }
+};
