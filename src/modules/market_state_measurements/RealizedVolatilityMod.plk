@@ -294,9 +294,9 @@ run{
 
 	} else if selector == SELECTOR_ON_PRICE_UPDATE {
 	   // Reactive callback plugged in via CallbackRealizedVolatilityLib. Invoked AUTOMATICALLY by
-	   // the callback proxy when MarketStateSocket forwards a Swap: write a timepoint at the current
-	   // block time from the Swap's tick. onPriceUpdate(rvmSender,poolId,sqrtPriceX96,tick).
-	   write_timepoint(@evm_timestamp() & MASK_U32, price_update_tick());
+	   // the callback proxy when MarketStateSocket forwards a Swap. The lib owns the callback handling
+	   // (decode tick + stamp time) and stores the timepoint via write_timepoint (this module's buffer).
+	   store_price_update_timepoint(write_timepoint);
 	   @evm_stop();
 	}
 
