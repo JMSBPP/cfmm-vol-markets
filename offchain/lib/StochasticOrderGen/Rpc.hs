@@ -19,6 +19,12 @@ import VolOrder.Rpc (create_orders)
 max_batch :: Int
 max_batch = 128
 
+-- Failure caveat (same MonadFail characteristic documented in PriceSetter.Rpc):
+-- a `fail` here or inside create_orders surfaces as an uncaught IOException, NOT
+-- as runWeb3'/run_order_gen_and_report's Left -- and unlike the single-call
+-- modules, it can fire MID-FOLD, after earlier chunks' transactions have already
+-- been mined. The on-chain state those chunks committed is not rolled back and
+-- their receipts are lost with the exception.
 run_order_gen
   :: Address
   -> Address
