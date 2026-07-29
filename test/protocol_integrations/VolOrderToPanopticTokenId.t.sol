@@ -153,4 +153,23 @@ contract VolOrderToPanopticTokenIdTest is PlankTestBase {
             assertEq(_legWidth(tid, L), 25, "each leg width 25");
         }
     }
+
+    // ---- Increment 3: feasibility guard (each side >= 2*tickSpacing => two non-degenerate legs) ----
+
+    function _tryTokenId(uint256 packedVO) internal returns (bool ok) {
+        (ok,) = harness.staticcall(
+            abi.encodeWithSignature("tokenIdFromVolOrder(uint256,uint256)", packedVO, uint256(0))
+        );
+    }
+
+    // width=20, ts=10 => bucket [-10,10], each side = 1*ts < 2*ts => a side can't make 2 non-degenerate
+    // legs (would emit width-0 legs). Must revert rather than build an invalid tokenId.
+    function test_map_guard_revertsOnNarrowSide() public {
+        assertFalse(_tryTokenId(_packVO(20, 10, 1, 0x8000)), "side < 2*ts must revert");
+    }
+
+    // width=40, ts=10 => bucket [-20,20], each side = 2*ts => 2 legs of width 1 each => must succeed.
+    function test_map_guard_passesAtExactly2ts() public {
+        assertTrue(_tryTokenId(_packVO(40, 10, 1, 0x8000)), "side == 2*ts must succeed");
+    }
 }

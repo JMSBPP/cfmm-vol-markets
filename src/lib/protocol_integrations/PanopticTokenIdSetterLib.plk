@@ -2,6 +2,7 @@ import types::protocol_integrations::PanopticTokenId::*;
 import types::pos_spec::VolOrder::{VolOrder, tick_bucket_from_vol_order};
 import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
 import types::pricing::TickUtils::round_tick;
+import std::error::require;
 
 // CR-I2 Layer 1: (VolOrder) -> (PanopticTokenId). A variance-swap order is replicated as a 4-leg,
 // all-long Panoptic position whose legs tile the strike support [i_l, i_u] and split put/call at the
@@ -19,6 +20,11 @@ const vol_order_to_panoptic_token_id = fn (vo: VolOrder, pool_id: u256) Panoptic
     let tb = tick_bucket_from_vol_order(vo);
     let i_l = tb.low;
     let i_u = tb.up;
+
+    // feasibility guard: each side of i* must span >= 2*ts, so it splits into two non-degenerate
+    // legs (width >= 1). Narrower buckets would emit width-0 legs; revert instead.
+    require(!@evm_slt(i_star -% i_l, 2 *% ts));
+    require(!@evm_slt(i_u -% i_star, 2 *% ts));
 
     // put-side and call-side mid split points (Δ-aligned)
     let m_p = round_tick(i_l +% ((i_star -% i_l) </ 2), ts);
