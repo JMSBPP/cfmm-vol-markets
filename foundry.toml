@@ -13,7 +13,11 @@ ffi = true
 # of relying on every caller to remember the flags.
 via_ir = true
 optimizer = true
-fs_permissions = [{ access = "read", path = "./test/gamsDiff/fixtures" }]
+fs_permissions = [
+    { access = "read", path = "./test/gamsDiff/fixtures" },
+    { access = "read", path = "./test/pos_spec/fixtures" },
+    { access = "read", path = "./src/interfaces/pos_spec" },
+]
 
 remappings = [
 	   "@cryptoalgebra/volatility-oracle-plugin/=node_modules/@cryptoalgebra/volatility-oracle-plugin/contracts",
