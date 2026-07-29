@@ -1,6 +1,6 @@
 import std::constructor::return_runtime;
 import v3::util::return_u256;
-import lib::ldf::FixedPointMath::*;
+import lib::math::FixedPointMath::*;
 
 // cast sig "rpow(uint256,uint256,uint256)" -> 0x67b870af
 const SEL_RPOW = 0x67b870af;

@@ -1,4 +1,4 @@
-import lib::ldf::FixedPointMath::rpow;
+import lib::math::FixedPointMath::rpow;
 import v3::math::full_math::{mulDiv, mulDivRoundingUp};
 import v3::math::tick_math::getSqrtRatioAtTick;
 import types::Numerics::{Q96};

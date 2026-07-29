@@ -16,7 +16,7 @@ contract FixedPointMathTest is PlankTestBase {
     uint256 constant Q96 = 1 << 96;
 
     function setUp() public {
-        harness = deployPlank("src/lib/ldf/FixedPointMathHarness.plk");
+        harness = deployPlank("src/lib/math/FixedPointMathHarness.plk");
     }
 
     function _rpow(uint256 x, uint256 y, uint256 b) internal returns (uint256) {
