@@ -411,12 +411,16 @@ both failing loudly on mismatch rather than returning results that quietly disag
 with what was actually mined:
 
 1. The ids of the `eth_call` preview's successful entries, in order, are exactly the
-   ids that landed (`[before_count .. after_count - 1]`). This assumes the contract
-   assigns ids sequentially via an `orderCount++`-style counter, only advancing on
-   success, in front-to-back processing order — the natural reading of "best-effort,
-   positionally aligned, no shifting" from the spec's ground truth. If a live run in
-   Task 9 shows this assumption is wrong, that is a real finding to bring back to this
-   plan/spec, not something to route around with a fallback.
+   ids that landed (`[before_count + 1 .. after_count]`). Ids are **1-based**: the
+   contract mints `id = orderCount + 1` and then advances the count to that id
+   (`VolOrderManagerMod.plk`, "Ids are sequential from 1 and orderCount IS the id
+   source" — slot 0 is never written and stays permanently zero as the
+   nonexistent-order sentinel). The plan originally wrote this range 0-based
+   (`[before_count .. after_count - 1]`) on an `orderCount++`-style assumption; the
+   contract source disproved that before the first live run, and the range above is
+   the corrected one. If a live run in Task 9 shows even the corrected assumption
+   wrong, that is a real finding to bring back to this plan/spec, not something to
+   route around with a fallback.
 2. Each mined order's unpacked content (`VolOrder`) matches the input order that was
    submitted for it.
 
@@ -490,7 +494,11 @@ create_orders owner manager orders
       receipt <- send_and_wait owner manager calldata
       after_count <- read_order_count manager
 
-      let mined_ids           = [before_count .. after_count - 1]
+      -- Ids are 1-based: the contract mints id = orderCount + 1, then advances the
+      -- count to that id (VolOrderManagerMod.plk, "Ids are sequential from 1 and
+      -- orderCount IS the id source"). Slot 0 is never written. So a batch that
+      -- moves orderCount from B to A minted exactly the ids [B+1 .. A].
+      let mined_ids           = [before_count + 1 .. after_count]
           successful_entries  = [ (input_order, order_id)
                                  | (input_order, (success, order_id)) <- zip orders preview
                                  , success

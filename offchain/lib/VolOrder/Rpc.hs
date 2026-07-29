@@ -48,7 +48,11 @@ create_orders owner manager orders
       receipt <- send_and_wait owner manager calldata
       after_count <- read_order_count manager
 
-      let mined_ids           = [before_count .. after_count - 1]
+      -- Ids are 1-based: the contract mints id = orderCount + 1, then advances the
+      -- count to that id (VolOrderManagerMod.plk, "Ids are sequential from 1 and
+      -- orderCount IS the id source"). Slot 0 is never written. So a batch that
+      -- moves orderCount from B to A minted exactly the ids [B+1 .. A].
+      let mined_ids           = [before_count + 1 .. after_count]
           successful_entries  = [ (input_order, order_id)
                                  | (input_order, (success, order_id)) <- zip orders preview
                                  , success
