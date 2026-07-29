@@ -30,6 +30,13 @@ const vol_order_to_panoptic_token_id = fn (vo: VolOrder, pool_id: u256) Panoptic
     let m_p = round_tick(i_l +% ((i_star -% i_l) </ 2), ts);
     let m_c = round_tick(i_star +% ((i_u -% i_star) </ 2), ts);
 
+    // width bound: each leg's width (in tickSpacings) must fit the 12-bit field (< 4096), else the
+    // width would silently overflow the mask. Guards the 4 sub-bucket spans directly.
+    require(@evm_slt((m_p -% i_l) </ ts, 4096));
+    require(@evm_slt((i_star -% m_p) </ ts, 4096));
+    require(@evm_slt((m_c -% i_star) </ ts, 4096));
+    require(@evm_slt((i_u -% m_c) </ ts, 4096));
+
     // 4 legs: [i_l,m_p] [m_p,i*] (puts) | [i*,m_c] [m_c,i_u] (calls). Floor-strike encoder writes
     // strike+width per leg; tickSpacing is written ONCE below (not per leg).
     let mut tid = 0;

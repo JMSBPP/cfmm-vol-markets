@@ -173,6 +173,12 @@ contract VolOrderToPanopticTokenIdTest is PlankTestBase {
         assertTrue(_tryTokenId(_packVO(40, 10, 1, 0x8000)), "side == 2*ts must succeed");
     }
 
+    // width=200000, ts=10 => each leg spans ~5000 tickSpacings > 4095, overflowing the 12-bit width
+    // field (silently masked to a wrong value). Must revert rather than emit a mis-encoded width.
+    function test_map_guard_revertsOnWidthOverflow() public {
+        assertFalse(_tryTokenId(_packVO(200000, 10, 1, 0x8000)), "leg width >= 4096 must revert");
+    }
+
     // ---- Increment 4: the tokenId must pass Panoptic's TokenId.validate() ----
     // The real TokenIdLibrary can't be imported (pulls PanopticMath -> unresolved OZ), so validate()
     // is replicated verbatim from TokenId.sol:472-518 as the differential oracle.
@@ -235,5 +241,54 @@ contract VolOrderToPanopticTokenIdTest is PlankTestBase {
     function test_map_validatesAsPanoptic() public {
         uint256 tid = _tokenId(_packVO(1000, 10, 1, 0x8000), 0);
         _validate(tid); // reverts if Panoptic would reject it
+    }
+
+    // ---- Increment 6: composed-invariant fuzz (regression net over the input space) ----
+
+    function _bucket(uint256 packedVO) internal returns (int24 low, int24 up) {
+        (bool ok, bytes memory r) =
+            harness.staticcall(abi.encodeWithSignature("bucketFromVolOrder(uint256)", packedVO));
+        require(ok, "bucketFromVolOrder reverted");
+        (int256 lo,, int256 u) = abi.decode(r, (int256, int256, int256));
+        low = int24(lo);
+        up = int24(u);
+    }
+
+    function _center(uint256 packedVO) internal returns (int24) {
+        (bool ok, bytes memory r) =
+            harness.staticcall(abi.encodeWithSignature("centerTick(uint256)", packedVO));
+        require(ok, "centerTick reverted");
+        return int24(abi.decode(r, (int256)));
+    }
+
+    // Over random wide VolOrders (fixed ts, vol => center 0; fuzz width & skew): the tokenId passes
+    // validate() AND the 4 legs reconstruct to a contiguous tiling of [i_l,i_u] with the put/call
+    // boundary at i*.
+    function testFuzz_map_validAndTiles(uint256 wR, uint256 spreadR) public {
+        int24 ts = 10;
+        uint256 width = bound(wR, 100 * uint256(uint24(ts)), 4000 * uint256(uint24(ts)));
+        uint256 spread = bound(spreadR, 0x2000, 0xE000); // skew not extreme (both sides stay >= 2*ts)
+        uint256 packedVO = _packVO(width, uint256(uint24(ts)), 1, spread);
+
+        (int24 i_l, int24 i_u) = _bucket(packedVO);
+        int24 iStar = _center(packedVO);
+        // stay inside the map's feasibility preconditions
+        vm.assume(int256(iStar) - int256(i_l) >= 2 * int256(ts));
+        vm.assume(int256(i_u) - int256(iStar) >= 2 * int256(ts));
+
+        uint256 tid = _tokenId(packedVO, 0);
+        _validate(tid); // Panoptic-valid
+
+        // contiguous tiling: leg L lower == previous upper; last upper == i_u
+        int24 prev = i_l;
+        int24 boundary1;
+        for (uint256 L = 0; L < 4; L++) {
+            (int24 tl, int24 tu) = _reconstruct(_legStrike(tid, L), _legWidth(tid, L), ts);
+            assertEq(tl, prev, "leg lower == previous upper (contiguous)");
+            prev = tu;
+            if (L == 1) boundary1 = tu;
+        }
+        assertEq(prev, i_u, "leg3 upper == i_u (covers support)");
+        assertEq(boundary1, iStar, "put/call boundary at i*");
     }
 }
