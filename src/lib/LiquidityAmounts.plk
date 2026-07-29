@@ -4,14 +4,14 @@ import types::PriceCoordinate::*;
 import types::Collateral::*;
 import types::exposure::VegaExposure::{VegaNominal};
 import types::Portafolio::*;
-import lib::ldf::GeometricDistribution::{geometric_cumulative_amount0, geometric_cumulative_amount1};
+import lib::ldf::GeometricDistribution::{geometric_cumulative_collateral_on_liquidity, geometric_cumulative_underlying_on_liquidity};
 import v3::math::full_math::mulDiv;
 import v3::util::revert_empty;
 import types::Numerics::{Q96, U128_MAX};
 
 // liquidity_for_collateral: the total liquidity L̄ a geometric-LDF position holds when funded by
 // `collateral` token0 over its support [i_min, i_max). Reviewed design (two-step review resolution):
-//   cost_M = cumulativeAmount0(i_min - Δ, Q96, tickSpacing, i_min, length, alpha)   -- token0 per unit-Q96
+//   cost_M = cumulativeAmount0(i_min - Δ, Q96, tickSpacing, i_min, iota, xi)   -- token0 per unit-Q96
 //            liquidity over the FULL support (evaluated at i_min - Δ so the right-exclusive range is [i_min, i_max))
 //   L̄     = mulDiv(collateral, Q96, cost_M)                                          -- linear inversion, round DOWN
 //            (cost_M rounds up inside the closed form, so L̄ rounds down -> conservative, never over-issues)
@@ -28,11 +28,11 @@ const liquidity_for_collateral = fn (
     }
     let w0 = ldf_params.word0;
     let min_tick = @evm_signextend(2, w0 & 0xffffff);            // signed i_min (24-bit sign-extended)
-    let alpha_x96 = @evm_shr(24, w0) & 0xffffffffffffffffffffffffffffffffffffffff; // xi, 160-bit
-    let length = @evm_shr(184, w0) & 0xffffff;                   // iota
+    let xi_x96 = @evm_shr(24, w0) & 0xffffffffffffffffffffffffffffffffffffffff; // xi, 160-bit
+    let iota = @evm_shr(184, w0) & 0xffffff;                   // iota
 
-    let cost_m = geometric_cumulative_amount0(
-        min_tick -% coord.tick_spacing, Q96, coord.tick_spacing, min_tick, length, alpha_x96
+    let cost_m = geometric_cumulative_collateral_on_liquidity(
+        min_tick -% coord.tick_spacing, Q96, coord.tick_spacing, min_tick, iota, xi_x96
     );
     if cost_m == 0 {
         revert_empty();
@@ -60,7 +60,7 @@ const liquidity_for_vega = fn (
 // L̄ holds over its full support [i_min, i_max). Full-support model (both directions share it; see SPEC).
 //   gross_input  = cumulativeAmount0(i_min − Δ, L̄, …)   -- all token0 over [i_min, i_max)
 //   gross_output = cumulativeAmount1(i_max, L̄, …)        -- all token1 over [i_min, i_max) (Q_X sums leftward;
-//                  at i_max the closed form's `>= upper` clamp sets x = length-1 = the full support)
+//                  at i_max the closed form's `>= upper` clamp sets x = iota-1 = the full support)
 // ldf_params is read from the LiquidityChunk (it embeds it), not passed separately.
 const portafolio_for_liquidity = fn (coord: PriceCoordinate, liquidity: LiquidityChunk) Portafolio {
     let ldf_params = liquidity.ldf_params;
@@ -69,14 +69,14 @@ const portafolio_for_liquidity = fn (coord: PriceCoordinate, liquidity: Liquidit
     }
     let w0 = ldf_params.word0;
     let min_tick = @evm_signextend(2, w0 & 0xffffff);
-    let alpha_x96 = @evm_shr(24, w0) & 0xffffffffffffffffffffffffffffffffffffffff;
-    let length = @evm_shr(184, w0) & 0xffffff;
+    let xi_x96 = @evm_shr(24, w0) & 0xffffffffffffffffffffffffffffffffffffffff;
+    let iota = @evm_shr(184, w0) & 0xffffff;
     let ts = coord.tick_spacing;
-    let i_max = min_tick +% (length *% ts);
+    let i_max = min_tick +% (iota *% ts);
     let l_bar = liquidity.size;
     Portafolio {
-        gross_output_amt: geometric_cumulative_amount1(i_max, l_bar, ts, min_tick, length, alpha_x96),
-        gross_input_amt: geometric_cumulative_amount0(min_tick -% ts, l_bar, ts, min_tick, length, alpha_x96)
+        gross_output_amt: geometric_cumulative_underlying_on_liquidity(i_max, l_bar, ts, min_tick, iota, xi_x96),
+        gross_input_amt: geometric_cumulative_collateral_on_liquidity(min_tick -% ts, l_bar, ts, min_tick, iota, xi_x96)
     }
 };
 
@@ -93,13 +93,13 @@ const liquidity_for_portafolio = fn (
     }
     let w0 = ldf_params.word0;
     let min_tick = @evm_signextend(2, w0 & 0xffffff);
-    let alpha_x96 = @evm_shr(24, w0) & 0xffffffffffffffffffffffffffffffffffffffff;
-    let length = @evm_shr(184, w0) & 0xffffff;
+    let xi_x96 = @evm_shr(24, w0) & 0xffffffffffffffffffffffffffffffffffffffff;
+    let iota = @evm_shr(184, w0) & 0xffffff;
     let ts = coord.tick_spacing;
-    let i_max = min_tick +% (length *% ts);
+    let i_max = min_tick +% (iota *% ts);
 
-    let cost_m = geometric_cumulative_amount0(min_tick -% ts, Q96, ts, min_tick, length, alpha_x96);
-    let cost_x = geometric_cumulative_amount1(i_max, Q96, ts, min_tick, length, alpha_x96);
+    let cost_m = geometric_cumulative_collateral_on_liquidity(min_tick -% ts, Q96, ts, min_tick, iota, xi_x96);
+    let cost_x = geometric_cumulative_underlying_on_liquidity(i_max, Q96, ts, min_tick, iota, xi_x96);
     if (cost_m == 0) or (cost_x == 0) {
         revert_empty();
     }

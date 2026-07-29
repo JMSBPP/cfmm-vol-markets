@@ -24,7 +24,7 @@ run {
 
     // geoCumAmount0(roundedTick@4, totalLiquidity@36, tickSpacing@68, minTick@100, length@132, alphaX96@164)
     if selector == SEL_GEO_CUM0 {
-        return_u256(geometric_cumulative_amount0(
+        return_u256(geometric_cumulative_collateral_on_liquidity(
             @evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68),
             @evm_calldataload(100), @evm_calldataload(132), @evm_calldataload(164)
         ));
@@ -32,7 +32,7 @@ run {
 
     // geoCumAmount1(roundedTick@4, totalLiquidity@36, tickSpacing@68, minTick@100, length@132, alphaX96@164)
     if selector == SEL_GEO_CUM1 {
-        return_u256(geometric_cumulative_amount1(
+        return_u256(geometric_cumulative_underlying_on_liquidity(
             @evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68),
             @evm_calldataload(100), @evm_calldataload(132), @evm_calldataload(164)
         ));
