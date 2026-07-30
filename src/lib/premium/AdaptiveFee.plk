@@ -1,0 +1,47 @@
+// AdaptiveFee -- faithful port of @cryptoalgebra/dynamic-fee-plugin libraries/AdaptiveFee.sol.
+// Dynamic fee from volatility: fee = base_fee + sigmoid1(vol) + sigmoid2(vol), each sigmoid
+// alpha / (1 + e^((beta - x)/gamma)). All integer arithmetic; differential-tested byte-exact vs the
+// real AdaptiveFee. This file: exp_x_g4 (the exp Taylor series). sigmoid / get_fee follow.
+
+// 10^20 scale used by the e^k lookup table.
+const E_SCALE = 100000000000000000000;
+
+// exp_x_g4: e^(x/g) * g^4 as a truncated Taylor series (AdaptiveFee.expXg4). `g_highest` = g^4 (passed
+// in, as sigmoid does). Uses an e^0..e^5 lookup table (scaled 10^20) for the integer part of x/g, an
+// e^0.5 correction so the residual x/g <= 0.5 converges fast, then the 4-term series. All wrapping
+// (`*%`) / EVM div-mod to mirror the reference's `unchecked` + assembly div/mod exactly.
+const exp_x_g4 = fn (x: u256, g: u256, g_highest: u256) u256 {
+    // closestValue = table[x/g]  (default e^5 for x/g >= 5)
+    let xdg = @evm_div(x, g);
+    let mut closest = 14841315910257660342111;      // e^5
+    if xdg == 0 { closest = 100000000000000000000; }  // 1
+    if xdg == 1 { closest = 271828182845904523536; }  // e
+    if xdg == 2 { closest = 738905609893065022723; }  // e^2
+    if xdg == 3 { closest = 2008553692318766774092; } // e^3
+    if xdg == 4 { closest = 5459815003314423907811; } // e^4
+
+    let mut xr = @evm_mod(x, g);                       // x := mod(x, g)
+    let half = @evm_div(g, 2);                         // g / 2
+    let mut cv = closest;
+    if xr >= half {
+        xr = xr -% half;
+        cv = @evm_div(cv *% 164872127070012814684, E_SCALE);  // * e^0.5
+    }
+
+    let mut xlow = xr;                                 // x
+    let mut ghd = g_highest;                           // g^4
+    let mut res = ghd;                                 // res = g^4
+
+    ghd = @evm_div(ghd, g);                            // g^3
+    res = res +% (xlow *% ghd);                        // g^4 + x*g^3
+
+    ghd = @evm_div(ghd, g);                            // g^2
+    xlow = xlow *% xr;                                 // x^2
+    res = res +% @evm_div(xlow *% ghd, 2);             // + x^2*g^2/2
+
+    ghd = @evm_div(ghd, g);                            // g
+    xlow = xlow *% xr;                                 // x^3
+    res = res +% @evm_div((xlow *% g *% 4) +% (xlow *% xr), 24);  // + (4*g*x^3 + x^4)/24
+
+    @evm_div(res *% cv, E_SCALE)
+};

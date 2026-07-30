@@ -22,9 +22,9 @@ fs_permissions = [
 remappings = [
 	   "@cryptoalgebra/volatility-oracle-plugin/=node_modules/@cryptoalgebra/volatility-oracle-plugin/contracts",
 	   "@cryptoalgebra/integral-core/=node_modules/@cryptoalgebra/integral-core/contracts",
-	   # AdaptiveFee.sol uses the contracts/-style import; longest-prefix beats the line above so it
-	   # resolves to .../contracts/... (not a doubled .../contracts/contracts/...).
-	   "@cryptoalgebra/integral-core/contracts/=node_modules/@cryptoalgebra/integral-core/contracts/",
+	   # AdaptiveFee's differential oracle is vendored (test/premium/refs/AdaptiveFee.sol) because the
+	   # published lib's unused integral-core contracts/-style import doesn't resolve in forge's
+	   # node_modules compile context. This remap serves the self-contained config-type imports.
 	   "@cryptoalgebra/dynamic-fee-plugin/=node_modules/@cryptoalgebra/dynamic-fee-plugin/contracts/",
 	   "@solady/=lib/bunni-v2/lib/solady/src/"
 ]
