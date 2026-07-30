@@ -1,0 +1,51 @@
+import std::constructor::return_runtime;
+import lib::ldf::GeometricDistribution::geometric_cumulative_density_x96;
+import lib::math::FixedPointMath::rpow;
+import v3::math::tick_math::getSqrtRatioAtTick;
+
+// Harness for CR-I2 Layer 2 (geometric weights).
+//  - cumDensity  exercises the new cumulative-mass primitive geometric_cumulative_density_x96.
+//  - rpow_       exposes the SAME rpow the primitive uses, so the test recomputes cum EXACTLY
+//                ((Q96 - xi^m)*Q96/den fits in u256, so plain mul/div == mulDiv, no tolerance).
+//  - xiStar      returns xi* = getSqrtRatioAtTick(-Delta) = 1.0001^(-Delta/2) in Q96 (opaque to the test).
+
+const Q96 = 0x1000000000000000000000000;
+
+// cast sig "cumDensity(uint256,uint256,uint256)"  -> 0xdad298e6
+const SEL_CUM = 0xdad298e6;
+// cast sig "rpow_(uint256,uint256)"               -> 0xb444f507
+const SEL_RPOW = 0xb444f507;
+// cast sig "xiStar(int24)"                        -> 0x524091ab
+const SEL_XISTAR = 0x524091ab;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    // cumDensity(m@4, iota@36, xi@68) -> uint256
+    if selector == SEL_CUM {
+        let res = geometric_cumulative_density_x96(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68));
+        let out = @malloc_uninit(32);
+        @mstore32(out, res);
+        @evm_return(out, 32);
+    }
+
+    // rpow_(x@4, n@36) -> rpow(x, n, Q96)  (the exact same rpow the primitive uses)
+    if selector == SEL_RPOW {
+        let res = rpow(@evm_calldataload(4), @evm_calldataload(36), Q96);
+        let out = @malloc_uninit(32);
+        @mstore32(out, res);
+        @evm_return(out, 32);
+    }
+
+    // xiStar(Delta@4) -> uint256  (Delta arrives ABI sign-extended; xi* = getSqrtRatioAtTick(-Delta))
+    if selector == SEL_XISTAR {
+        let res = getSqrtRatioAtTick(0 -% @evm_calldataload(4));
+        let out = @malloc_uninit(32);
+        @mstore32(out, res);
+        @evm_return(out, 32);
+    }
+
+    @evm_stop();
+}

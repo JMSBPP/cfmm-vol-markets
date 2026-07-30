@@ -1,7 +1,7 @@
 import types::protocol_integrations::PanopticTokenId::*;
 import types::pos_spec::VolOrder::{VolOrder, tick_bucket_from_vol_order};
 import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
-import types::pricing::TickUtils::round_tick;
+import types::pricing::TickUtils::{round_tick, vol_order_split_points};
 import std::error::require;
 
 // CR-I2 Layer 1: (VolOrder) -> (PanopticTokenId). A variance-swap order is replicated as a 4-leg,
@@ -26,9 +26,11 @@ const vol_order_to_panoptic_token_id = fn (vo: VolOrder, pool_id: u256) Panoptic
     require(!@evm_slt(i_star -% i_l, 2 *% ts));
     require(!@evm_slt(i_u -% i_star, 2 *% ts));
 
-    // put-side and call-side mid split points (Δ-aligned)
-    let m_p = round_tick(i_l +% ((i_star -% i_l) </ 2), ts);
-    let m_c = round_tick(i_star +% ((i_u -% i_star) </ 2), ts);
+    // put-side and call-side mid split points (Δ-aligned) -- SHARED with Layer 2's geometric_leg_weights
+    // so the weights line up with the legs placed here.
+    let sp = vol_order_split_points(i_l, i_u, i_star, ts);
+    let m_p = sp.m_p;
+    let m_c = sp.m_c;
 
     // width bound: each leg's width (in tickSpacings) must fit the 12-bit field (< 4096), else the
     // width would silently overflow the mask. Guards the 4 sub-bucket spans directly.

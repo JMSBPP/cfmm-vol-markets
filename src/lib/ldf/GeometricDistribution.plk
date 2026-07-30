@@ -37,6 +37,18 @@ const geometric_liquidity_density_x96 = fn (
     }
 };
 
+// geometric_cumulative_density_x96 = cumulative normalized geometric MASS over the first m columns:
+//   cumMass(m) = sum_{k=0}^{m-1} l(xi, iota; k) = (1 - xi^m) / (1 - xi^iota)   (Q96).
+// This is the per-leg WEIGHT primitive for CR-I2 Layer 2 (a leg over columns [c_lo, c_hi) has weight
+// cumMass(c_hi) - cumMass(c_lo)). cumMass(0) = 0, cumMass(iota) = Q96, exactly. Only the xi <= 1 branch
+// is implemented: the CR-I2 caller uses xi* = getSqrtRatioAtTick(-Delta) < Q96 always, so xi > 1 is
+// unreachable; mulDiv naturally reverts on the impossible xi == Q96 (den == 0). Grounded in
+// GeomProfile.geomWeight_sum (partition of unity) and logContractLiquidity_geometric (xi* ratio).
+const geometric_cumulative_density_x96 = fn (m: u256, iota: u256, xi_x96: u256) u256 {
+    let den = Q96 -% rpow(xi_x96, iota, Q96);          // (1 - xi^iota); > 0 for xi < Q96, iota >= 1
+    mulDiv(Q96 -% rpow(xi_x96, m, Q96), Q96, den)      // (1 - xi^m)/(1 - xi^iota), floor
+};
+
 // geometric_cumulative_collateral_on_liquidity = Q_M^L (notes): token0 amount cumulated over the rounded ticks to the
 // right of `rounded_tick`, scaled by total_liquidity. Faithful port of Bunni
 // LibGeometricDistribution.cumulativeAmount0 (both xi branches, sign-handled term differences,
