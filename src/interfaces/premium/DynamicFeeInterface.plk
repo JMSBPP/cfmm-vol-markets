@@ -12,3 +12,12 @@ const SELECTOR_GET_CURRENT_FEE = 0xdc706982;
 const SELECTOR_GET_FEE_CONFIG = 0x5fbbc0d2;
 // owner() -> address   (Plank-only addition: the config admin)
 const SELECTOR_OWNER = 0x8da5cb5b;
+
+
+// ---- EVENTS (emitted by DynamicFeeMod; source of truth: lib/events/VolEventsLib.plk) ----
+// event:: FeeConfigurationChanged(bytes32 indexed poolId, uint16 alpha1, uint16 alpha2,
+//                                 uint32 beta1, uint32 beta2, uint16 gamma1, uint16 gamma2,
+//                                 uint16 baseFee)
+//   Theta_phi verbatim Algebra field names; poolId = 0 sentinel from this module (the hook
+//   emits the same signature with its REAL bound poolId). After validate + sstore only.
+const TOPIC0_EVENT_FEE_CONFIGURATION_CHANGED = 0x0b849672f272805103d1934909aaee0c4e1400438ff5365f6d9d147cb07ed6cf;

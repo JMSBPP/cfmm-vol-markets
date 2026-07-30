@@ -54,3 +54,16 @@ const SELECTOR_OLDEST_INDEX = 0x1637e8ad;
 // differential test must be able to assert they agree -- if init is ever skipped this reads 0
 // and every windowed comparison silently diverges)
 const SELECTOR_READ_WINDOW = 0x0a9ae2f7;
+
+
+// ---- EVENTS (emitted by RealizedVolatilityMod via RealizedVolatilityStateLib; source of
+//      truth: lib/events/VolEventsLib.plk; solc-asserted in test/events/) ----
+// event:: TimepointWritten(bytes32 indexed poolId, uint32 timestamp, int24 tick,
+//                          uint88 volatilityCumulative, int24 averageTick, int56 tickCumulative)
+//   poolId = bytes32(0) PERMANENT module-global sentinel here (the pool-keyed hook is a
+//   different emitter). Fires on initializeTWAP (the tObs series ORIGIN) and every
+//   successful write (incl. the reactive onPriceUpdate path); same-block no-ops emit nothing.
+const TOPIC0_EVENT_TIMEPOINT_WRITTEN = 0x44d3c76a584327df3a91e46e185e97959195c01202945078eebb23b19c161415;
+// event:: WindowChanged(bytes32 indexed poolId, uint32 window)
+//   the sigma^2-series normalizer; fires on every window write (initialize default included).
+const TOPIC0_EVENT_WINDOW_CHANGED = 0x046630eacacfeb3f36a64fd8cb291b41c3e78bcd57f8733e12b9afeb69968b47;
