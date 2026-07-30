@@ -23,6 +23,24 @@ recalibration law). All cited lemmas verified real: `variancePortfolio_upsilon` 
 `variancePortfolio_unit_upsilon`, `admissible_iff_mul` (NOTE: carries hypothesis
 `0 < p_risk` — see D5).
 
+## D0-ADDENDUM — DIMENSION DECISION (ii) [user, 2026-07-30, supersedes conflicting D4 text]
+
+ΔQ_v★ carries the **L (liquidity) dimension** — the quantity of the priced vol asset
+(VOLATILITY_INSTRUMENTS line 177, π^σ = ΣL(i_K)𝕀), NOT the collateral-per-vol-unit
+greek (line 10, which is the LENS READOUT). Consequences that amend D4:
+- **The sizing map is quantity-exact and price-free:** `L(i_K) = ΔQ_v★·ℓ(ξ⋆,ι;i_K)`,
+  `ΣL(i_K) = ΔQ_v★` by Σℓ = 1; per-leg floors make delivery one-sided ≤. The mint does
+  NOT need a p_vol quote; `positionSize` derives from ΔQ_v★ directly through the
+  induced-ladder mechanism.
+- **The mint's collateral requirement is the ACTUAL replication cost** (the token
+  amounts the SFPM mint moves), bounded by `maxCollateral` — exact-output in QUANTITY,
+  bounded input in collateral. The oracle/manipulation surface D4 worried about shifts
+  to the pool state at mint (inherent to any AMM mint) plus the ISSUANCE layer, where
+  p_vol/p_risk price shares and admissibility (v1: p_vol carries exogenous p_risk).
+- The u96 packing headroom argument is now vs realistic pool liquidity (1e18–1e21 ≪
+  7.9e28); `liquidity_for_collateral`'s U128_MAX revert already guards upstream.
+Canonical rows: notes/UNITS_AND_SCALES.md §2 (v2).
+
 ## D0 — THE UNITS TABLE (entry condition for EVERYTHING; review F-SE1, BLOCKER)
 
 Written and reviewed BEFORE V2-01. Without it the u96 packing decision is undecidable:
