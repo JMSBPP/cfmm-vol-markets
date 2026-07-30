@@ -165,6 +165,31 @@ read-only processes. Both returned NEEDS WORK: **2 BLOCKER, 3 MAJOR, 6 MINOR**, 
 MAJOR resolved in the prompt before submission. The two BLOCKERs were a dropped `·Δt` in T8 (which
 would have re-introduced a defect the 11-01 doc gate had already fixed) and a provably false T17.
 
-## Post-submit status
+## Post-submit status — STILL IN FLIGHT
 
-Polling record appended below. Integration is plan 11-03's job; nothing is integrated here.
+Polled with `aristotle tasks cb371ee5-f27c-48d2-a396-725751fd7c36` at ~60s intervals.
+**Do NOT poll with `aristotle show`** — it streams events and blocks (it hung a 2-minute call during
+this run); `tasks` returns immediately. This is a reusable operational fact, not a one-off.
+
+```
+17:13:11Z  QUEUED
+17:17:52Z  IN_PROGRESS
+17:18:54Z  IN_PROGRESS
+   … 60s intervals, 18 polls …
+17:34:25Z  IN_PROGRESS
+```
+
+Status at the close of plan 11-02: **`IN_PROGRESS`**, ~21 minutes elapsed, no terminal state reached
+within this session's polling budget. The task remains the single in-flight Aristotle task and is
+recorded in memory `aristotle-mev-bundle-a-inflight` so a session restart cannot lose it.
+
+This is expected rather than anomalous — the comparable FLAIR run produced a 439-line, 15-theorem
+module, and this bundle asks for more (T1–T19 plus four companion lemmas). Nothing further may be
+submitted until it reaches a terminal state.
+
+**Resume procedure:** poll `aristotle tasks cb371ee5-f27c-48d2-a396-725751fd7c36`. On `COMPLETE`,
+run `aristotle download --destination scratch/mev-result` and proceed to plan 11-03, diffing the
+returned statements against the T1–T19 checklist above. On `FAILED`, do NOT resubmit from inside
+this plan — record the failure text here and escalate.
+
+Integration is plan 11-03's job; nothing is integrated here, and no Lean file was touched.
