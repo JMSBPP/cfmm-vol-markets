@@ -22,6 +22,10 @@ fs_permissions = [
 remappings = [
 	   "@cryptoalgebra/volatility-oracle-plugin/=node_modules/@cryptoalgebra/volatility-oracle-plugin/contracts",
 	   "@cryptoalgebra/integral-core/=node_modules/@cryptoalgebra/integral-core/contracts",
+	   # AdaptiveFee.sol uses the contracts/-style import; longest-prefix beats the line above so it
+	   # resolves to .../contracts/... (not a doubled .../contracts/contracts/...).
+	   "@cryptoalgebra/integral-core/contracts/=node_modules/@cryptoalgebra/integral-core/contracts/",
+	   "@cryptoalgebra/dynamic-fee-plugin/=node_modules/@cryptoalgebra/dynamic-fee-plugin/contracts/",
 	   "@solady/=lib/bunni-v2/lib/solady/src/"
 ]
 
