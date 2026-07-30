@@ -45,3 +45,20 @@ const exp_x_g4 = fn (x: u256, g: u256, g_highest: u256) u256 {
 
     @evm_div(res *% cv, E_SCALE)
 };
+
+// sigmoid: alpha / (1 + e^((beta - x)/gamma)) (AdaptiveFee.sigmoid). Two branches around beta, each
+// with a 6g-band early return (saturates to alpha above, 0 below). g4 = g^4; ex = exp_x_g4(|x-beta|).
+const sigmoid = fn (x: u256, g: u256, alpha: u256, beta: u256) u256 {
+    let g4 = g *% g *% g *% g;
+    if x > beta {
+        let xx = x -% beta;
+        if xx >= 6 *% g { return alpha; }
+        let ex = exp_x_g4(xx, g, g4);
+        @evm_div(alpha *% ex, g4 +% ex)
+    } else {
+        let xx = beta -% x;
+        if xx >= 6 *% g { return 0; }
+        let ex = g4 +% exp_x_g4(xx, g, g4);
+        @evm_div(alpha *% g4, ex)
+    }
+};

@@ -11,6 +11,10 @@ contract AFRef {
     function expXg4(uint256 x, uint16 g) external pure returns (uint256) {
         return AdaptiveFee.expXg4(x, g, uint256(g) ** 4);
     }
+
+    function sigmoid(uint256 x, uint16 g, uint16 alpha, uint256 beta) external pure returns (uint256) {
+        return AdaptiveFee.sigmoid(x, g, alpha, beta);
+    }
 }
 
 // The Plank AdaptiveFee port must be byte-identical to Algebra's.
@@ -43,5 +47,35 @@ contract AdaptiveFeeTest is PlankTestBase {
         assertEq(_expXg4(118, 59), ref.expXg4(118, 59), "x/g=2 -> e^2 branch");
         assertEq(_expXg4(30, 59), ref.expXg4(30, 59), "x/g~0.5 -> e^0.5 correction branch");
         assertEq(_expXg4(8500 * 5, 8500), ref.expXg4(8500 * 5, 8500), "x/g=5 -> default e^5 branch");
+    }
+
+    // ---- Increment 3: sigmoid ----
+
+    function _sigmoid(uint256 x, uint16 g, uint16 alpha, uint256 beta) internal returns (uint256) {
+        (bool ok, bytes memory r) =
+            harness.staticcall(abi.encodeWithSignature("sigmoid(uint256,uint16,uint16,uint256)", x, g, alpha, beta));
+        require(ok, "sigmoid reverted");
+        return abi.decode(r, (uint256));
+    }
+
+    // sigmoid == Algebra exactly across both branches (x>beta / x<=beta) and both guards.
+    function testFuzz_sigmoid_matchesAlgebra(uint256 xR, uint16 gR, uint16 alpha, uint32 beta) public {
+        uint16 g = uint16(bound(gR, 1, type(uint16).max));
+        // x spans below/above beta and beyond the +-6g guard bands
+        uint256 x = bound(xR, 0, uint256(beta) + 12 * uint256(g) + 1);
+        assertEq(_sigmoid(x, g, alpha, beta), ref.sigmoid(x, g, alpha, beta), "sigmoid == Algebra");
+    }
+
+    // guards + branches: x-beta >= 6g -> alpha ; beta-x >= 6g -> 0 ; and the two ratio branches.
+    function test_sigmoid_goldenGuards() public {
+        // upper guard: x well above beta => saturates to alpha
+        assertEq(_sigmoid(60000 + 6 * 59, 59, 2900, 60000), 2900, "x-beta >= 6g -> alpha");
+        assertEq(_sigmoid(60000 + 6 * 59, 59, 2900, 60000), ref.sigmoid(60000 + 6 * 59, 59, 2900, 60000), "== Algebra");
+        // lower guard: x well below beta => 0
+        assertEq(_sigmoid(0, 59, 2900, 60000), 0, "beta-x >= 6g -> 0");
+        // mid, upper branch (x just above beta)
+        assertEq(_sigmoid(60100, 8500, 12000, 60000), ref.sigmoid(60100, 8500, 12000, 60000), "upper ratio == Algebra");
+        // mid, lower branch (x just below beta)
+        assertEq(_sigmoid(59900, 8500, 12000, 60000), ref.sigmoid(59900, 8500, 12000, 60000), "lower ratio == Algebra");
     }
 }

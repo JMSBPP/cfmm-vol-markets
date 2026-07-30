@@ -4,8 +4,10 @@ import lib::premium::AdaptiveFee::*;
 // Harness for the Algebra AdaptiveFee port (exp_x_g4 / sigmoid / get_fee). Differential-tested vs the
 // real @cryptoalgebra/dynamic-fee-plugin AdaptiveFee library.
 
-// cast sig "expXg4(uint256,uint16)" -> 0x312f3cb5
+// cast sig "expXg4(uint256,uint16)"                 -> 0x312f3cb5
 const SEL_EXPXG4 = 0x312f3cb5;
+// cast sig "sigmoid(uint256,uint16,uint16,uint256)" -> 0x7a8c1738
+const SEL_SIGMOID = 0x7a8c1738;
 
 init { return_runtime(); }
 
@@ -19,6 +21,13 @@ run {
         let g4 = g *% g *% g *% g;
         let out = @malloc_uninit(32);
         @mstore32(out, exp_x_g4(x, g, g4));
+        @evm_return(out, 32);
+    }
+
+    // sigmoid(x@4, g@36, alpha@68, beta@100) -> uint256
+    if selector == SEL_SIGMOID {
+        let out = @malloc_uninit(32);
+        @mstore32(out, sigmoid(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68), @evm_calldataload(100)));
         @evm_return(out, 32);
     }
 
