@@ -220,6 +220,49 @@ const tick_cumulative_at = fn(
       }
 };
 
+// volatility_cumulative_at = Algebra VolatilityOracle._getVolatilityCumulativeAt: the (interpolated)
+// volatilityCumulative accumulator at `current_time - seconds_ago`. Mirrors tick_cumulative_at, EXCEPT
+// the extrapolate-forward (same_point) branch uses the volatility KERNEL (calculate_realized_volatility
+// over [before.avg_tick, avg_tick_at_target]), not a linear tick term. uint88 arithmetic (mask MASK_U88).
+const VOL_MASK_U88 = 0xFFFFFFFFFFFFFFFFFFFFFF;
+const volatility_cumulative_at = fn(
+      buffer_base: u256,
+      current_time: u256,
+      seconds_ago: u256,
+      tick: u256,
+      last_index: StorageIndex,
+      oldest_index: StorageIndex,
+      window: TimeWindow
+) u256 {
+      let target = u32_sub(current_time, seconds_ago);
+      let found = timepoints_at(buffer_base, current_time, target, last_index, oldest_index, window);
+
+      let ts_before = found.before.timestamp;
+      let vol_before = found.before.realizedVolatility.vol & VOL_MASK_U88;
+
+      // left boundary
+      if target == ts_before { return vol_before; }
+
+      // target is newer than the last timepoint: extrapolate via the volatility kernel.
+      if found.same_point {
+            let avg = calculate_avg_tick(buffer_base, target, tick, last_index, oldest_index, found.before, window);
+            let dt = u32_sub(target, ts_before);
+            let on_range = calculate_realized_volatility(found.before.avg_tick, avg.avg_tick, tick, tick, dt);
+            return (vol_before +% (on_range.vol & VOL_MASK_U88)) & VOL_MASK_U88;
+      }
+
+      let ts_after = found.after.timestamp;
+      let vol_after = found.after.realizedVolatility.vol & VOL_MASK_U88;
+
+      // right boundary
+      if target == ts_after { return vol_after; }
+
+      // strictly inside: linear interpolation (unsigned; volatilityCumulative is uint88).
+      let timepoint_delta = u32_sub(ts_after, ts_before);
+      let target_delta = u32_sub(target, ts_before);
+      (vol_before +% (@evm_div(vol_after -% vol_before, timepoint_delta) *% target_delta)) & VOL_MASK_U88
+};
+
 const twap_tick = fn(
       buffer_base: u256,
       current_time: u256,

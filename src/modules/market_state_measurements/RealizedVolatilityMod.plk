@@ -214,14 +214,63 @@ const get_tick_cumulative = fn(dt: u256, tick: u256, current_timestamp: u256) u2
       res.tick_cumulative
 };
 
-// getAverageVolatility(tick, blockTimestamp) -> uint88.
-// Algebra's window-averaged volatility accumulator.
-// todo: this currently returns the raw accumulated volatilityCumulative of the last
-// timepoint, NOT Algebra's window-normalised getAverageVolatility. Diffing the volatility
-// surface is todo.md items 6-9; do not treat this as reference-equal yet.
+// getAverageVolatility(tick, blockTimestamp) -> uint88. Faithful port of Algebra
+// VolatilityOracle.getAverageVolatility: the window-normalized (WINDOW) volatility, with a
+// Bessel-corrected extrapolation when history is shorter than the window. Three branches:
+//   (1) full window + timeAtLast -> interpolate cumulative vol at [windowStartIndex, +1]
+//   (2) full window, not at last -> volatility_cumulative_at(WINDOW)
+//   (3) history < window        -> extrapolate (last - oldest) / (dt, Bessel dt-- if >1)
+// uint88 arithmetic throughout (MASK_U88).
 const get_average_volatility = fn(tick: u256, block_timestamp: u256) u256 {
       let s = load_ring_state();
-      s.last_timepoint.realizedVolatility.vol & MASK_U88
+      let current_time = block_timestamp & MASK_U32;
+      let last_tp = s.last_timepoint;
+      let time_at_last = last_tp.timestamp == current_time;
+
+      // lastCumulativeVolatility: the last timepoint's accumulator, carried to `current_time` if newer.
+      let mut last_cum_vol = last_tp.realizedVolatility.vol & MASK_U88;
+      if !time_at_last {
+            last_cum_vol = volatility_cumulative_at(
+                  SLOT_TIMEPOINT_BUFFER_BASE, current_time, 0, tick, s.last_index, s.oldest_index, s.window
+            );
+      }
+
+      let oldest = load_timepoint(SLOT_TIMEPOINT_BUFFER_BASE, s.oldest_index.current);
+      let oldest_ts = oldest.timestamp;
+      let window_start = u32_sub(current_time, s.window.window); // current_time - WINDOW
+
+      if oracle_lte(current_time, oldest_ts, window_start) {
+            // full window available
+            let mut cum_vol_at_start = 0;
+            if time_at_last {
+                  // the window start is between windowStartIndex and windowStartIndex + 1: interpolate.
+                  let wsi = last_tp.time_window_start_index & MASK_U16;
+                  let tp0 = load_timepoint(SLOT_TIMEPOINT_BUFFER_BASE, wsi);
+                  let tp1 = load_timepoint(SLOT_TIMEPOINT_BUFFER_BASE, (wsi +% 1) & MASK_U16);
+                  let start_ts = tp0.timestamp;
+                  let v0 = tp0.realizedVolatility.vol & MASK_U88;
+                  let time_delta = u32_sub(tp1.timestamp, start_ts);
+                  cum_vol_at_start = (v0 +% @evm_div(
+                        ((tp1.realizedVolatility.vol & MASK_U88) -% v0) *% u32_sub(window_start, start_ts),
+                        time_delta
+                  )) & MASK_U88;
+            } else {
+                  cum_vol_at_start = volatility_cumulative_at(
+                        SLOT_TIMEPOINT_BUFFER_BASE, current_time, s.window.window, tick, s.last_index, s.oldest_index, s.window
+                  );
+            }
+            return @evm_div((last_cum_vol -% cum_vol_at_start) & MASK_U88, s.window.window);
+      }
+
+      if current_time != oldest_ts {
+            // not enough history: extrapolate with Bessel's correction on the denominator.
+            let oldest_vol = oldest.realizedVolatility.vol & MASK_U88;
+            let mut denom = u32_sub(current_time, oldest_ts);
+            if denom > 1 { denom = denom -% 1; }
+            return @evm_div((last_cum_vol -% oldest_vol) & MASK_U88, denom);
+      }
+
+      0
 };
 
 init{ return_runtime();}
