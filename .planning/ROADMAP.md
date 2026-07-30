@@ -256,7 +256,7 @@ the `Δt` cadence lever, sandwich nulling), CTX-TRACE (LEAN_TRACEABILITY rows + 
 CTX-REVIEW (two-reviewer gate on every pre-submission spec artifact)
 **Depends on:** Phase 10 (and the FlairOptimization.lean layer, commits 6914fba/5e08578)
 **Directory:** `.planning/phases/11-mev-hazard-inf-program/`
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 
 > **Planning correction (2026-07-30, from 11-RESEARCH.md F5):** the goal above anticipates that in
 > the joint program "the shape block `(β, γ)` becomes essential". Research shows this is
@@ -267,7 +267,7 @@ CTX-REVIEW (two-reviewer gate on every pre-submission spec artifact)
 > claims separately; the degeneracy is a reportable result, not a failure.
 
 Plans:
-- [ ] 11-01-PLAN.md — CTX-MEVDOC/CTX-REVIEW: λ_MEV doc spec (LaTeX blocks M0–M8), notation gate, two-reviewer gate, HEAVY USER APPROVAL
+- [x] 11-01-PLAN.md — CTX-MEVDOC/CTX-REVIEW: λ_MEV doc spec (LaTeX blocks M0–M8), notation gate, two-reviewer gate, HEAVY USER APPROVAL — **COMPLETE** (4 BLOCKERs + 12 MAJORs resolved; user-approved; blocks landed in plank's `### MEV`, bytes pinned by `APPROVED-DOC-SHA256`; M6a REFUTES the "(β,γ) becomes essential" expectation)
 - [ ] 11-02-PLAN.md — CTX-PTRADE/CTX-MEVHAZ/CTX-INF/CTX-REVIEW: Aristotle bundle A + numbered T1–T19 prompt, prompt gate, serial submit
 - [ ] 11-03-PLAN.md — CTX-PTRADE/CTX-MEVHAZ/CTX-INF: integrate bundle A — build, axiom sweep, T1–T19 fidelity diff, push both remotes
 - [ ] 11-04-PLAN.md — CTX-JOINT/CTX-ANGSTROM/CTX-REVIEW: bundle B + T20–T30 prompt (degeneracy, constrained/Jensen with σ-varying primary and σ-constant fallback, Angstrom bridge), gate, serial submit
