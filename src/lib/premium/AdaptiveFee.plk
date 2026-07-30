@@ -1,7 +1,11 @@
 // AdaptiveFee -- faithful port of @cryptoalgebra/dynamic-fee-plugin libraries/AdaptiveFee.sol.
 // Dynamic fee from volatility: fee = base_fee + sigmoid1(vol) + sigmoid2(vol), each sigmoid
 // alpha / (1 + e^((beta - x)/gamma)). All integer arithmetic; differential-tested byte-exact vs the
-// real AdaptiveFee. This file: exp_x_g4 (the exp Taylor series). sigmoid / get_fee follow.
+// real AdaptiveFee. exp_x_g4 (exp Taylor series) -> sigmoid -> get_fee.
+
+import types::premium::AlgebraFeeConfiguration::{
+    afc_alpha1, afc_alpha2, afc_beta1, afc_beta2, afc_gamma1, afc_gamma2, afc_base_fee
+};
 
 // 10^20 scale used by the e^k lookup table.
 const E_SCALE = 100000000000000000000;
@@ -61,4 +65,15 @@ const sigmoid = fn (x: u256, g: u256, alpha: u256, beta: u256) u256 {
         let ex = g4 +% exp_x_g4(xx, g, g4);
         @evm_div(alpha *% g4, ex)
     }
+};
+
+// get_fee: the dynamic fee (AdaptiveFee.getFee) from a uint88 volatility and a packed u144 config.
+// fee = base_fee + sigmoid1(vol/15) + sigmoid2(vol/15), in 1e-6 units, uint16-truncated (the cap
+// base_fee+alpha1+alpha2 <= u16 max holds for validated configs). vol normalized for the 15s interval.
+const get_fee = fn (volatility: u256, config: u256) u256 {
+    let vol = @evm_div(volatility, 15);
+    let result = afc_base_fee(config)
+        +% sigmoid(vol, afc_gamma1(config), afc_alpha1(config), afc_beta1(config))
+        +% sigmoid(vol, afc_gamma2(config), afc_alpha2(config), afc_beta2(config));
+    result & 0xffff   // uint16(result)
 };

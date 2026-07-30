@@ -5,6 +5,11 @@ pragma solidity ^0.8.0;
 import {Test} from "forge-std/Test.sol";
 import {PlankTestBase} from "../PlankTestBase.sol";
 import {AdaptiveFee} from "./refs/AdaptiveFee.sol"; // byte-identical vendored oracle (see the file header)
+import {AlgebraFeeConfiguration} from "@cryptoalgebra/dynamic-fee-plugin/types/AlgebraFeeConfiguration.sol";
+import {
+    AlgebraFeeConfigurationU144,
+    AlgebraFeeConfigurationU144Lib
+} from "@cryptoalgebra/dynamic-fee-plugin/types/AlgebraFeeConfigurationU144.sol";
 
 // Real AdaptiveFee (internal library) exposed for differential testing.
 contract AFRef {
@@ -14,6 +19,19 @@ contract AFRef {
 
     function sigmoid(uint256 x, uint16 g, uint16 alpha, uint256 beta) external pure returns (uint256) {
         return AdaptiveFee.sigmoid(x, g, alpha, beta);
+    }
+
+    function pack(uint16 a1, uint16 a2, uint32 b1, uint32 b2, uint16 g1, uint16 g2, uint16 bf)
+        external
+        pure
+        returns (uint256)
+    {
+        AlgebraFeeConfiguration memory cfg = AlgebraFeeConfiguration(a1, a2, b1, b2, g1, g2, bf);
+        return AlgebraFeeConfigurationU144.unwrap(AlgebraFeeConfigurationU144Lib.pack(cfg));
+    }
+
+    function getFee(uint88 volatility, uint256 packedConfig) external pure returns (uint16) {
+        return AdaptiveFee.getFee(volatility, AlgebraFeeConfigurationU144.wrap(uint144(packedConfig)));
     }
 }
 
@@ -77,5 +95,40 @@ contract AdaptiveFeeTest is PlankTestBase {
         assertEq(_sigmoid(60100, 8500, 12000, 60000), ref.sigmoid(60100, 8500, 12000, 60000), "upper ratio == Algebra");
         // mid, lower branch (x just below beta)
         assertEq(_sigmoid(59900, 8500, 12000, 60000), ref.sigmoid(59900, 8500, 12000, 60000), "lower ratio == Algebra");
+    }
+
+    // ---- Increment 4: get_fee (full dynamic fee) ----
+
+    function _getFee(uint88 vol, uint256 packedConfig) internal returns (uint256) {
+        (bool ok, bytes memory r) =
+            harness.staticcall(abi.encodeWithSignature("getFee(uint88,uint256)", vol, packedConfig));
+        require(ok, "getFee reverted");
+        return abi.decode(r, (uint256));
+    }
+
+    // get_fee == Algebra getFee exactly over valid fuzzed configs (alpha1+alpha2+baseFee <= u16 max,
+    // gammas != 0) and the full uint88 volatility range.
+    function testFuzz_getFee_matchesAlgebra(
+        uint88 volatility, uint16 a1R, uint16 a2R, uint32 b1, uint32 b2, uint16 g1R, uint16 g2R, uint16 bfR
+    ) public {
+        // valid config: gammas >= 1, alpha1+alpha2+baseFee <= 65535
+        uint16 a1 = uint16(bound(a1R, 0, 20000));
+        uint16 a2 = uint16(bound(a2R, 0, 20000));
+        uint16 bf = uint16(bound(bfR, 0, 20000)); // sum <= 60000 < 65535
+        uint16 g1 = uint16(bound(g1R, 1, type(uint16).max));
+        uint16 g2 = uint16(bound(g2R, 1, type(uint16).max));
+        uint256 c = ref.pack(a1, a2, b1, b2, g1, g2, bf);
+        assertEq(_getFee(volatility, c), ref.getFee(volatility, c), "get_fee == Algebra getFee");
+    }
+
+    // golden: the /15 normalization + cap with Algebra's initialFeeConfiguration
+    // (alpha1=2900, alpha2=12000, beta1=360, beta2=60000, gamma1=59, gamma2=8500, baseFee=100).
+    function test_getFee_goldenInitialConfig() public {
+        uint256 c = ref.pack(2900, 12000, 360, 60000, 59, 8500, 100);
+        // low vol -> near baseFee; high vol -> near cap (baseFee+alpha1+alpha2 = 15000)
+        assertEq(_getFee(0, c), ref.getFee(0, c), "vol=0 == Algebra");
+        assertEq(_getFee(15 * 1000, c), ref.getFee(15 * 1000, c), "vol=15000 == Algebra");
+        assertEq(_getFee(type(uint88).max, c), ref.getFee(type(uint88).max, c), "vol=max -> cap == Algebra");
+        assertLe(_getFee(type(uint88).max, c), 15000, "fee capped at baseFee+alpha1+alpha2");
     }
 }
