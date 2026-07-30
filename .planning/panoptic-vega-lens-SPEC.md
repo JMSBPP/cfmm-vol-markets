@@ -1,5 +1,17 @@
 # PanopticVegaLens — per-strike vega computation + the υ experiment (task #10 / Phase 23; todo.md T12→T13)
 
+**V2-04 AMENDMENT (2026-07-30, vol-order-v2 executed):** the identity tests re-point at
+ΔQ_v★ — the L1/L3 obligation is now `delivered Σ L(i_K) ≤ ΔQ_v★` through
+`vol_order_to_mint` (PROVEN one-sided + floor-maximal in VolOrderMintSizing.t.sol at
+tolerance 0), and the lens gains the V2-04 readout services
+(`src/lib/exposure/PanopticVegaLensLib.plk`, tests `test/exposure/VegaLensReadouts.t.sol`):
+`dqv_funded` (the greatest admissible exposure, mulDiv-form-only, the floor-maximality
+property test #13 inherits), `implied_maturity` (SECONDS; N_σ is a liquidity RATE L/s),
+and `implied_maturity_mult` (the DECIDED t★_mult contraction, clamped). The L1 ΔQ_v
+computation's realization roles follow the V2-03 coupling finding: the induced ladder is
+canonical on the Panoptic rail; the average-density profile is the lens's per-column
+model (they coincide at the fine grid, proven).**
+
 **Status: v2 — two-step review round 1 done (Reality Checker + Model QA Specialist, both
 NEEDS WORK); all BLOCKERs/MAJORs resolved below. Both reviewers verified the motivating
 econometric numbers and the Lean lemma substrate as accurate; the findings concentrated on
