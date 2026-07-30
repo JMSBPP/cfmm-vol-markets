@@ -474,17 +474,17 @@ so the implied maturity CONTRACTS continuously with the funded exposure instead 
 
 > `dQvFunded_maximal`, `dQvFunded_mul_le_of_violation`, `dQvFunded_admissible`(`_iff_mul`, division-free via `Main.admissible_iff_mul`); no-violation identity `dQvFunded_eq_of_no_violation`; \(t^{\star}(t)\) monotone in \(Q_M\), antitone in \(p_{\text{risk}}\) (`tStarFunded_mono_QM`, `tStarFunded_antitone_prisk`); EXACT top-up restoration \(Q_M \geq \Delta Q_v^{\star} p_{\text{risk}} \implies t^{\star}(t) = t^{\star}\) (`tStarFunded_eq_tStar_of_topup`); liquidation \(Q_M = 0 \implies \Delta Q_v = 0,\, t^{\star}(t) = 0\) (`dQvFunded_zero_QM`); floor-rounding conservativity at the real layer (min-monotonicity).
 
-> FLAG (AUTHOR DECISION pending — candidates now FORMALIZED, `EndogenousMaturity.lean`, run 128b24ae): the full **recalibration law** — the joint evolution of \(t^{\star}(t)\) under (i) the collateral channel above AND (ii) realized variance \(\sigma^2_R(t)\) accruing against the strike — is deliberately NOT canonized. Three proven-sane candidates, each agreeing with \(t^{\star}(t)\) at \(\sigma^2_R = 0\), contracting in \(\sigma^2_R\), nonnegative, with a proven discriminating instance (`tStarJoint*` sanity lemmas + the disagreement witness):
+**RECALIBRATION LAW (DECIDED, 2026-07-30: multiplicative).** The joint evolution of the implied maturity under the collateral channel AND realized variance \(\sigma^2_R(t)\) accruing against the strike:
 
 \[
 	\begin{aligned}
-		t^{\star}_{\text{mult}} \, &= \, t^{\star}(t)\cdot\Big(1 - \frac{\sigma^2_R}{\sigma^2_K}\Big)^{+} \\
-		t^{\star}_{\text{sub}} \, &= \, \Big(t^{\star}(t) - \frac{t^{\star}(t)}{\sigma^2_K}\,\sigma^2_R\Big)^{+} \\
-		t^{\star}_{\text{quad}} \, &= \, t^{\star}(t)\cdot\Big(1 - \big(\tfrac{\sigma^2_R}{\sigma^2_K}\big)^2\Big)^{+}
+		t^{\star}_{\text{joint}}(t) \, = \, t^{\star}(t)\cdot\Big(1 - \frac{\sigma^2_R(t)}{\sigma^2_K}\Big)^{+} \, = \, \underbrace{\frac{2\,\Delta Q_v^{\star}}{N_\sigma}}_{t^{\star}} \cdot \underbrace{\frac{\min\big(\Delta Q_v^{\star},\, Q_M/p_{\text{risk}}\big)}{\Delta Q_v^{\star}}}_{\text{funding factor}} \cdot \underbrace{\Big(1 - \frac{\sigma^2_R}{\sigma^2_K}\Big)^{+}}_{\text{budget factor}}
 	\end{aligned}
 \]
 
-> Decision points recorded in the Lean docstrings: positive-part-of-unused-budget vs time-subtraction-at-funded-rate vs linear-vs-nonlinear contraction in the used fraction. On the author's pick, this FLAG is replaced by the chosen law's proven statements and issue cfmm-lean4-spec#1 closes.
+> LEAN (proved, `EndogenousMaturity.lean` `tStarJointMult`): nonnegative on \(t^{\star}(t) \geq 0\) (`tStarJointMult_nonneg`; discharged on the economic domain), contracting in \(\sigma^2_R\) (`tStarJointMult_antitone`), agrees with \(t^{\star}(t)\) at \(\sigma^2_R = 0\) (`tStarJointMult_zero`), expires exactly at budget exhaustion \(\sigma^2_R = \sigma^2_K\) (`tStarJointMult_exhausted`).
+
+> Rationale (recorded): the linear burn is the unique law preserving the maturity-equivalence bijection under accrual (\(\upsilon = t/2\) makes variance and time proportional — the \(\sigma^2 t/2\) leg of \(\Pi\)); the two channels factor multiplicatively, so the deleverage monotonicities (`tStarFunded_mono_QM`, `_antitone_prisk`, `_eq_tStar_of_topup`) chain through the product; constant burn rate ⟹ no end-of-life cliff. Rejected alternates remain formalized: \(t^{\star}_{\text{sub}}\) (`tStarJointSub*` — identical on \(t^{\star}(t) \geq 0\), floor placement differs off-domain per `joint_candidates_disagree`) and \(t^{\star}_{\text{quad}}\) (`tStarJointQuadratic*` — REJECTED: grants extra life \((1-r^2) \geq (1-r)\), breaking the dated-equivalent reading and shifting residual vega onto LPs exactly under vol clustering).
 
 > NOTE (cascade, recorded): \(\Delta Q_v^{\star}\) on-chain lands on the PAIR \((\text{PanopticTokenId},\, \text{positionSize})\) — the tokenId is scale-free (strikes, widths, per-leg optionRatio); positionSize is an SFPM mint argument. The ratio-vs-size split of \(\ell(\xi^{\star},\iota;i_K)\) across the pair is the task-#14 sizing decision. Spec: `.planning/vol-order-v2-target-vega-SPEC.md`.
 

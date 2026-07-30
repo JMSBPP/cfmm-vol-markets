@@ -1,3 +1,17 @@
+> **SUPERSEDED IN PART (V2-03, 2026-07-30 — vol-order-v2-target-vega-SPEC.md D4/D0-ADDENDUM).**
+> The mass-share rule locked below (`size_k = mulDiv(L̄, w_k, Q96)`) predates the #14 review
+> checkpoint; the decision OF RECORD is the user-confirmed AVERAGE DENSITY
+> `size_k = L̄·w_k/n_k`, now implemented as `average_density_chunks`
+> (PanopticTokenIdSetterLib). V2-03's MEASURED coupling result assigns the roles:
+> the PANOPTIC RAIL's canonical realization is the INDUCED ladder
+> (`ratios ≡ 1, asset = 1, one positionSize` → `L_k = ps·Q96/dsqrt_k` — what the protocol
+> physically deploys; `vol_order_to_mint`); the average-density profile is the LDF/lens-side
+> per-COLUMN model. The two coincide within 0.1%/leg on the fine grid (n_k = 1, proven by
+> test__coupling__fineGridProfilesCoincide) and diverge structurally on coarse legs (they
+> conserve sqrt-range-aggregate vs column-sum respectively — both deliver ΔQ_v★ one-sided
+> in total). Sizing from ΔQ_v★: `position_size_for_target_vega`, floor-maximal,
+> uint128-guarded.
+
 # CR-I2 Layer 2 — mint sizing design spec
 
 Status: DRAFT. MUST pass the two-step review (Reality Checker + Solidity Smart Contract Engineer)

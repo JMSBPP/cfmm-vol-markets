@@ -45,10 +45,13 @@ would hardcode a market regime.
 `tick view = getTickAtSqrtRatio(vol << 96)` — DOMAIN `vol ≲ 1.84e19`, used for order
 placement.
 
-> FLAG (owned): whether the tick view is the INTENDED pricing-geometry embedding (vs.
-> e.g. mapping through p_vol) is a PriceKernel/#14 design question — **owner: the V2-03
-> sizing increment; resolve BEFORE V2-03 code** (a flagged exception with no expiry
-> becomes permanent).
+> RESOLVED (V2-03, 2026-07-30): the tick view STANDS as the mechanical placement
+> embedding — any strictly monotone map of the raw strike onto the tick grid places orders
+> consistently, and this one is the sqrt-price coordinate the PriceCoordinate design
+> already uses. The lens never INVERTS the placement map (it reads leg ticks from the
+> tokenId), so no measurement depends on the embedding's semantics. A p_vol-mediated
+> embedding remains a possible future refinement at the pricing-geometry layer; adopting
+> it would be a NEW placement version, not a reinterpretation.
 
 ## 2. The vega axis — DIMENSION DECISION (ii) [user, 2026-07-30]
 
@@ -114,7 +117,7 @@ The doc carries TWO ΔQ_v-shaped objects and this table assigns each a role:
 | ΔM → shares | `mulDiv(deposit, Q96, pRiskX96)` | DOWN [FACT — risk.md §3] |
 | ΔM → L̄ → positionSize | `liquidity_for_collateral` chain | DOWN; `> U128_MAX` reverts [FACT — LiquidityAmounts.plk:42,110] |
 | **Deleverage admissibility** [CORRECTED — v1 omitted the Q96 scale, both reviewers] | predicate: `ΔQ_v · pRiskX96 ≤ Q_M · 2^96` — EXACT, zero rounding (an advantage: the guard itself never rounds). **MANDATED comparison form: 512-bit/mulDiv-based** (`ΔQ_v ≤ mulDiv(Q_M, Q96, pRiskX96)` or the mulmod 512-bit compare from the VegaIssuance suite) because `pRiskX96` is unbounded above as h→1 and a bare checked `ΔQ_v·pRiskX96` would REVERT-DoS the admissibility check exactly when deleverage is most needed | enforced level `= mulDiv(Q_M, Q96, pRiskX96)` DOWN (exposure down = burn up) |
-| implied maturity | `t★ = 2·ΔQ_v/N_σ` | **UNIT: seconds, CONFIRMED** by `EndogenousMaturity.lean` (run 128b24ae): the formal bookkeeping (σ²·t dimensionless, υ time-dimensioned, `tStar_variancePortfolio_upsilon`) forces `[ΔQ_v★] = [N_σ]·time`, so under dimension (ii) **N_σ is L PER SECOND (a liquidity rate, NOT a liquidity)** and t★ is seconds via σ²'s per-second basis. Remaining open on issue #1: only the AUTHOR'S recalibration-law pick (t★_mult / t★_sub / t★_quad, all proven sane) |
+| implied maturity | `t★ = 2·ΔQ_v/N_σ` | **UNIT: seconds, CONFIRMED** by `EndogenousMaturity.lean` (run 128b24ae): the formal bookkeeping (σ²·t dimensionless, υ time-dimensioned, `tStar_variancePortfolio_upsilon`) forces `[ΔQ_v★] = [N_σ]·time`, so under dimension (ii) **N_σ is L PER SECOND (a liquidity rate, NOT a liquidity)** and t★ is seconds via σ²'s per-second basis. Recalibration law DECIDED (user, 2026-07-30): **t★_mult = t★(t)·(1 − σ²_R/σ²_K)⁺** — issue #1 closes on the lean side's doc pass |
 | Panoptic premium → tokens (lens L2) | `PanopticPool._getPremia` computes `(acctPremiumDelta × chunkLiquidity) / 2^64` as an **UNCHECKED RAW multiply** (PanopticPool.sol:2293-2315) — NOT a 512-bit mulDiv, and the multiplicand is CHUNK liquidity (not `_getPremiaDeltas`' netLiquidity). **The lens must replicate the RAW form** — a true-mulDiv lens diverges wherever the raw mul would wrap; this is an input to the L2 rounding-tolerance analysis | as Panoptic computes |
 
 ## 5. Rules (bind all V2 and lens increments)
