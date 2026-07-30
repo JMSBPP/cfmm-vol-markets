@@ -1,6 +1,6 @@
 # PROPOSED addendum to `VOLATILITY_INSTRUMENTS.md` `### MEV` — the λ_MEV hazard and its infimum
 
-> STATUS: DRAFT — pending two-reviewer gate and user approval.
+> STATUS: APPROVED & APPLIED 2026-07-30 — blocks M0–M8 inserted into ../plank/notes/VOLATILITY_INSTRUMENTS.md per user approval (todo.md `## LEAN4 - MATH`). Committing the plank file is the plank agent's.
 > Anchor: Milionis–Moallemi–Roughgarden, *Automated Market Making and Arbitrage Profits in the
 > Presence of Fees*, arXiv:2305.14604v2 (2025-07-23), read from
 > `../plank/refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf`.

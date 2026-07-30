@@ -378,3 +378,78 @@ a NEW symbol, never the document's; and every such remap is recorded in the mark
 notation-map paragraph.** This is the mechanism that turned three known collisions into a script,
 and R1-B1 was the fourth collision the script could not see because it was a same-concept /
 different-glyph clash rather than a forbidden glyph.
+
+---
+
+## User disposition
+
+**APPROVED**, 2026-07-30, at the Task-3 blocking checkpoint. The user was shown the block-by-block
+claim table, the reviewer verdicts, the three hardest-to-reverse decisions, and the three-line
+plank diff summary before replying. The verbatim reply, reproduced exactly as received including
+its typo:
+
+```
+aprroved
+```
+
+Read as the `approved` resume signal (insert as-is, no changes requested). No `ESCALATE` rows
+existed, so no reviewer finding was carried into the approval request as an open question.
+
+### Approved bytes (pinned)
+
+Both hashes are of the FINAL approved bytes — taken after the addendum header was flipped to
+`STATUS: APPROVED & APPLIED 2026-07-30` and after the blocks were inserted into the plank document.
+
+APPROVED-DOC-SHA256: 671000a5a56f063e31f9a7ab3d12e9a22452d6ed4d9009c53c6602e9fb5fba58
+APPROVED-ADDENDUM-SHA256: e9ff2b4c4dcec4fc04417339470c60e34ee02299325bedf71a939e957e6b50b5
+
+`APPROVED-DOC-SHA256` is the hash plans 11-02 and 11-04 grep for before building the Aristotle
+bundle. Any further edit to the `### MEV` section — by any agent — invalidates it and requires
+re-approval. This is the mechanism by which a downstream bundle copy can be PROVED faithful to
+what the user actually approved, given that the plank document is live, uncommitted, and owned by
+another agent.
+
+### What was written, and where
+
+| File | Change | Committed by this session? |
+|---|---|---|
+| `model/vol_markets/VOLATILITY_INSTRUMENTS_MEV_ADDENDUM.md` | header flipped to APPROVED & APPLIED | YES (this tree) |
+| `../plank/notes/VOLATILITY_INSTRUMENTS.md` | 181 LaTeX lines appended under `### MEV`; the two pre-existing bullets KEPT verbatim; 464 → 646 lines; **0 deletions** (verified by `diff` against a pre-insertion copy) | **NO — owner is `ul2inqpl`** |
+| `../plank/todo.md` | handoff entry appended under `## LEAN4 - MATH` | **NO — owner is `ul2inqpl`** |
+
+Plank worktree HEAD before insertion: `8f4364142db3f83d2b38ce02dddbd2847edadd81`.
+Plank worktree HEAD after insertion: `8f4364142db3f83d2b38ce02dddbd2847edadd81` — **identical**,
+confirming this session did not commit in the plank worktree.
+
+> Provenance note, recorded rather than smoothed over: earlier in this run the plank HEAD read
+> `d34846c68ee04f8a98704f8b6d12b406bb8f9188`. The plank agent advanced their own branch during a
+> session interruption between Task 2 and Task 3. That is their worktree and their prerogative;
+> what this plan guarantees is only that the HEAD is unchanged ACROSS THIS SESSION'S INSERTION,
+> which the two identical shas above establish.
+
+### Notation gate against the plank document — which form was used
+
+The gate was run against the whole plank document first, and it **FAILED rule 1** on lines 262,
+263, 294, 295 and 388. Those hits are the LEGITIMATE pricing-kernel eta (`p_{(\eta,\Delta_i)}`) —
+the very symbol the rule exists to protect — appearing in the document's own pre-existing
+amount/cumulative displays, far outside the MEV block. This is precisely the case the plan
+anticipated. Per the plan's instruction, the gate was therefore re-run against an extracted copy
+of the `### MEV` section:
+
+```
+awk '/^### MEV$/{f=1} f' ../plank/notes/VOLATILITY_INSTRUMENTS.md > /tmp/plank-mev-section.md
+bash .planning/phases/11-mev-hazard-inf-program/mev-notation-gate.sh /tmp/plank-mev-section.md
+→ MEV NOTATION GATE: PASS   (186 lines extracted)
+```
+
+**Form used: the extracted `### MEV` section.** The whole-file run is recorded as FAILING for a
+benign and expected reason, not suppressed.
+
+### Post-approval context (recorded, not a plan deviation)
+
+At the same checkpoint the user directed the post-Phase-11 continuation: **interior η
+(Capponi–Jia curvature, references now in `../plank/refs/mev/`) is the designated
+degeneracy-breaker**, to be formalized as the next phase. This is the natural consequence of M6a:
+over `Θ_φ` alone there is no trade-off to control, so the lever must come from outside the fee
+parameter set. It does not change Task 3's scope and nothing in this plan was altered for it. It
+is also the answer to the standing `\eta` question already sitting in plank's `todo.md`.
