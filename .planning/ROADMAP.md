@@ -247,10 +247,29 @@ binding per LEAN_TRACEABILITY). Angstrom (SorellaLabs/angstrom,
 angstrom-v4, l2-angstrom) is the implementation reference that minimizes
 λ_MEV mechanically — its auction mechanism informs which parameters are
 protocol-controllable.
-**Requirements**: TBD
+**Requirements**: CTX-MEVDOC (λ_MEV LaTeX spec into `VOLATILITY_INSTRUMENTS.md ### MEV`,
+user-approved), CTX-PTRADE (the fee-decreasing kernel `ptrade` + the MMR ARB/FEE/LVR split),
+CTX-MEVHAZ (`mevHazard`/`mevMulti` discrete functionals + the CPMM instantiation), CTX-INF
+(`Θ_{λ_MEV}` identification + the SOLVED infimum program), CTX-JOINT (the joint program:
+degeneracy + the constrained/Jensen reformulation), CTX-ANGSTROM (τ-rebate argmin invariance,
+the `Δt` cadence lever, sandwich nulling), CTX-TRACE (LEAN_TRACEABILITY rows + close-out),
+CTX-REVIEW (two-reviewer gate on every pre-submission spec artifact)
 **Depends on:** Phase 10 (and the FlairOptimization.lean layer, commits 6914fba/5e08578)
 **Directory:** `.planning/phases/11-mev-hazard-inf-program/`
-**Plans:** 0 plans
+**Plans:** 6 plans
+
+> **Planning correction (2026-07-30, from 11-RESEARCH.md F5):** the goal above anticipates that in
+> the joint program "the shape block `(β, γ)` becomes essential". Research shows this is
+> **refuted for the unconstrained functional** — `ptrade` is antitone in the fee, so `inf λ_MEV`
+> and `sup λ_FLAIR` sit at the SAME point in every coordinate of `Θ_φ` (level corner top and
+> `β → −∞`), robustly to linear scalarization. The trade-off is recovered only under a FIXED FLAIR
+> fee budget, where convexity of `ptrade` makes a flat fee the MEV minimizer. The phase ships both
+> claims separately; the degeneracy is a reportable result, not a failure.
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 11 to break down)
+- [ ] 11-01-PLAN.md — CTX-MEVDOC/CTX-REVIEW: λ_MEV doc spec (LaTeX blocks M0–M8), notation gate, two-reviewer gate, HEAVY USER APPROVAL
+- [ ] 11-02-PLAN.md — CTX-PTRADE/CTX-MEVHAZ/CTX-INF/CTX-REVIEW: Aristotle bundle A + numbered T1–T19 prompt, prompt gate, serial submit
+- [ ] 11-03-PLAN.md — CTX-PTRADE/CTX-MEVHAZ/CTX-INF: integrate bundle A — build, axiom sweep, T1–T19 fidelity diff, push both remotes
+- [ ] 11-04-PLAN.md — CTX-JOINT/CTX-ANGSTROM/CTX-REVIEW: bundle B + T20–T30 prompt (degeneracy, constrained/Jensen with σ-varying primary and σ-constant fallback, Angstrom bridge), gate, serial submit
+- [ ] 11-05-PLAN.md — CTX-JOINT/CTX-ANGSTROM: integrate bundle B — build, axiom sweep, T20–T30 fidelity, the explicit T24 verdict, push
+- [ ] 11-06-PLAN.md — CTX-TRACE: LEAN_TRACEABILITY §0/§6/§7 rows, addendum back-annotation, ROADMAP/STATE close-out
