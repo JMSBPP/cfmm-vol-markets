@@ -11,6 +11,13 @@ import std::error::require;
 import std::core_ops::bool_to_u256;
 
 import v3::storage:: {array_slot};
+import lib::events::VolEventsLib::{emit_timepoint_written, emit_window_changed};
+
+// The PERMANENT module-global series sentinel (events-subgraph-gams-SPEC.md D2): this module
+// is module-keyed, so every event it emits carries poolId = 0 forever. The pool-keyed hook
+// (task #16) is a DIFFERENT emitter and emits real poolIds; seriesIdHash includes the emitter,
+// so the two series can never collide.
+const POOL_ID_MODULE_GLOBAL = 0;
 
 // "RealizedVolMod.TimepointBuffer"
 const SLOT_TIMEPOINT_BUFFER_BASE = 0xe4a8c01f6be955d80963b8d318701ba0c1b7e6a0d74e5ed3ee42ad38f22da431;
@@ -30,6 +37,10 @@ const ZERO = 0;
 // todo: The selectors of these functions must be included on the interface
 const write_window = fn(window: TimeWindow) void {
       @evm_sstore(SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE, pack_time_window(window));
+      // E6 WindowChanged -- the SINGLE emit site for every window write (the initialize
+      // default routes through here too), so a future write_window dispatch entry gets the
+      // event for free. EV-03, events-subgraph-gams-SPEC.md D4/E6.
+      emit_window_changed(POOL_ID_MODULE_GLOBAL, window.window);
 };
 
 const read_window = fn() TimeWindow {
@@ -114,8 +125,14 @@ const initialize_timepoint_buffer = fn(block_timestamp: u256, tick: u256) void {
      };
 
      @evm_sstore(slot, pack_timepoint(seed));
-     @evm_sstore(SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE, pack_time_window(TimeWindow { window: DEFAULT_TIME_WINDOW }));
+     // Routed through write_window (was a raw sstore of the same word) so the default window
+     // emits E6 from the single emit site. Behaviour otherwise unchanged.
+     write_window(TimeWindow { window: DEFAULT_TIME_WINDOW });
      @evm_sstore(SLOT_REALIZED_VOL_STATE, pack_realized_volatility_state(RealizedVolatilityState{ss_index: ss_index, lastTimepointTimestamp: now, isInitialized: true}));
+     // E3 seed -- the ORIGIN of the tObs series (review F-RC4/F-SE5): the first observation
+     // is a genuine buffer write and the subgraph must see it or every window starts one
+     // sample late. AFTER all sstores; log order pinned as [E6, E3] by the EV-03 tests.
+     emit_timepoint_written(POOL_ID_MODULE_GLOBAL, now, tick, ZERO, tick, ZERO);
 };
 
 // write_timepoint mirrors Algebra VolatilityOracle.write:
@@ -163,6 +180,17 @@ const write_timepoint = fn(block_timestamp: u256, tick: u256) void {
       @evm_sstore(SLOT_REALIZED_VOL_STATE, pack_realized_volatility_state(
           RealizedVolatilityState { ss_index: index_updated, lastTimepointTimestamp: now, isInitialized: true }
       ));
+      // E3 -- INSIDE write_timepoint, after the sstores (events-subgraph-gams-SPEC.md E3;
+      // review F-RC3): dispatcher-level placement would silently never emit on the reactive
+      // on_price_update path, which calls this fn as a value. The same-block early-out above
+      // exits before this line, so a no-transition write emits nothing. If the hook work (B1)
+      // ever strips that return_u256 early-out, the early-out branch MUST still bypass this
+      // emit (guard, not fall-through). Fields are the `updated` struct's own -- the log is a
+      // projection of the word just stored; the emitter sign-extends the signed ones.
+      emit_timepoint_written(
+          POOL_ID_MODULE_GLOBAL, updated.timestamp, updated.tick,
+          updated.realizedVolatility.vol, updated.avg_tick, updated.tick_cumulative
+      );
 };
 
 // RingState bundles the three values every read path needs from storage, so the getters below

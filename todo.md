@@ -182,3 +182,46 @@ what advantages comptime offers ?
 	- The PriceSetterHookMod.plk uses the CallbackRealizedVolaitiyLib since it is the stateful portion of it AND implements the PriceSetterHook.sol logic as stated above.
 
 
+## SPECIFICATION AND THEN IMPLEMENTATION
+
+- The equivalent dynacmi fee of algebra @cryptoalgebra/dynamic-fee-plugin on Plank.
+
+This goes under src/{types,modules,lib}/premium test/premium
+
+- We need plank helpers for HookDeployment. This goes under src/protocol_integrations/uniswap-v4/lib/HookDeployerLib.plk
+
+- This lib implmenents the services of minting and address and given HookPermissions output an address
+- Thus HookPersmissions is itself a stattic type on 
+src/protocol_integrations/uniswap_v4/types/HookPermissions.plk
+
+
+- Once we pove a paonoptic tokenId is created from a volOrder and acquires preima via adaptive fee, The next layer is to build the events to be emitted. This needs to be desinged in sucvh way that the subwraph built from mthese events feed the gams database to run and solve the optimization problems on volatility instruments and Thus build the gams CFMM 
+
+> DONE (events increment, 2026-07-30): spec .planning/events-subgraph-gams-SPEC.md (v2,
+> two-step-reviewed), E1 VolOrderCreated + E3 TimepointWritten + E4 FeeConfigurationChanged
+> + E6 WindowChanged LIVE via src/lib/events/VolEventsLib.plk (solc-oracle tests under
+> test/events/, mutation-verified); E2 PortafolioMinted / E5 FeeApplied forward-specced for
+> tasks #14/#16. Producer data contract: notes/DATA_CONTRACT.md. GAMS-side reader delegated
+> by issue on develop (EV-06).
+
+
+- NOte that \(\xi, \iota\) are partially mapped to controlling strike wights and option ratios  on pacoptic, the sigmoid params are being associted with FLAIR, MEV controls BUT \(\eta\) is still misisng a location not only on the hook for prciing swaps it intuititvley seems 
+
+## LEAN4 - MATH
+
+
+Inout latex code on Volatilti insttruments that corrects it according to the work done on lean. Thi MUST be HEAVY USER APPROVAL. minimal prose MAXIMALLY MATH code
+
+> DONE (lean4-spec session, 2026-07-30, USER-APPROVED): blocks A–G inserted
+> into notes/VOLATILITY_INSTRUMENTS.md (uncommitted — commit is yours).
+> A: ΔQ nonnegativity needs Δi ≥ 0 too + token0 identity. B: monotone
+> cumulatives + constant-L closed forms + least-step inverses. C: Σℓ = 1 and
+> ξ* = λ^(−Δi/2) correction. D: υ is a σ²-derivative (t/2). E: multi-sigmoid
+> bounds/monotonicity + single-term = FeeSchedule (s_f = 1/γ). F: ⊗_φ abelian
+> monoid + exact hazard correspondence. G: FLAIR sup solved (Θ_λ = {φ̄,α,u},
+> corner + β→−∞ saturation). One FLAG pending: θ exponent sign (author call).
+> Lemma-level map: lean4-spec worktree model/vol_markets/LEAN_TRACEABILITY.md;
+> proofs at JMSBPP/cfmm-lean4-spec main. Re your GeometricDistribution.plk
+> item: proven cumulative APIs are cumulativeQM/cumulativeQX (Q_M^L, Q_X^L).
+
+- NOte that \(\xi, \iota\) are partially mapped to controlling strike wights and option ratios  on pacoptic, the sigmoid params are being associted with FLAIR, MEV controls BUT \(\eta\) is still misisng a location not only on the hook for prciing swaps it intuititvley seems it enters on either beforeSwap or afterSwap . \eta is an asset demand parameter since is accountably a substitution elasticity between asset and cash. This is the next thin g to be done the math formalization Find the best economic controller aPPLICATION FOR \eta then the plank worktree uses this info to map it to implementation

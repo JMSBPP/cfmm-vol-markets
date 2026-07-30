@@ -4,6 +4,12 @@ import std::error::require;
 import types::premium::AlgebraFeeConfiguration::*;
 import lib::premium::AdaptiveFee::{get_fee, validate_fee_configuration};
 import interfaces::premium::DynamicFeeInterface::*;
+import lib::events::VolEventsLib::{emit_fee_configuration_changed};
+
+// PERMANENT module-global series sentinel (events-subgraph-gams-SPEC.md D2): this module is
+// module-keyed and NEVER emits a real poolId; the pool-keyed hook (task #16) is a different
+// emitter, and seriesIdHash includes the emitter address.
+const POOL_ID_MODULE_GLOBAL = 0;
 
 // DynamicFeeMod -- owner-gated port of @cryptoalgebra/dynamic-fee-plugin DynamicFeePluginImplementation.
 // Stores a packed u144 fee config; getCurrentFee(volatility) = base_fee + sigmoid1 + sigmoid2 (the fee
@@ -46,6 +52,13 @@ const config_from_calldata = fn () AlgebraFeeConfiguration {
 const store_config = fn (cfg: AlgebraFeeConfiguration) void {
     validate_fee_configuration(cfg);
     @evm_sstore(SLOT_FEE_CONFIG, algebra_fee_config_pack(cfg));
+    // E4 FeeConfigurationChanged -- the single emit site for both setters, AFTER validate +
+    // sstore, so a rejected or unauthorized config can never emit (the dispatch guards revert
+    // before reaching here). EV-04, events-subgraph-gams-SPEC.md D4/E4.
+    emit_fee_configuration_changed(
+        POOL_ID_MODULE_GLOBAL,
+        cfg.alpha1, cfg.alpha2, cfg.beta1, cfg.beta2, cfg.gamma1, cfg.gamma2, cfg.base_fee
+    );
 };
 
 init { return_runtime(); }

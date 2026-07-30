@@ -35,6 +35,7 @@
 import std::constructor::return_runtime;
 import interfaces::pos_spec::VolOrderManagerInterface::*;
 import lib::pos_spec::VolOrderValidationLib::{build_vol_order, validate_order_strict, validate_order};
+import lib::events::VolEventsLib::{emit_vol_order_created};
 import pos_spec::VolOrder::{pack_vol_order};
 import v3::storage::{array_slot};
 import v3::util::{return_u256, revert_empty};
@@ -88,6 +89,10 @@ run {
         let id = @evm_sload(SLOT_ORDER_COUNT) + 1;
         @evm_sstore(array_slot(SLOT_ORDERS_BASE, id), pack_vol_order(order));
         @evm_sstore(SLOT_ORDER_COUNT, id);
+        // E1 VolOrderCreated -- AFTER the sstores (one event per state transition; the strict
+        // path above makes this unreachable for an invalid tuple, so log stream and registry
+        // agree by construction). EV-02, events-subgraph-gams-SPEC.md D4/E1.
+        emit_vol_order_created(id, order.volStrike.vol, order.rangeWidth.width, order.skew.spread);
         @evm_stop();
 
     } else if selector == SELECTOR_ORDER_COUNT {
@@ -233,6 +238,11 @@ run {
             if validate_order(order) {
                 id = id + 1;
                 @evm_sstore(array_slot(SLOT_ORDERS_BASE, id), pack_vol_order(order));
+                // E1 per SUCCESS only, with the id this tuple stored under. A skipped tuple
+                // emits nothing and does not shift its successors' events -- the log stream is
+                // positionally faithful to the return tuples. The fresh @malloc_uninit inside
+                // the emitter cannot alias `out` (bump allocator; see VolEventsLib header).
+                emit_vol_order_created(id, order.volStrike.vol, order.rangeWidth.width, order.skew.spread);
                 // CANONICAL BOOL. Exactly 1, never a truthy nonzero: Solidity's abi.decode REJECTS
                 // a non-canonical bool while a lenient Haskell decoder may accept it, so a
                 // non-canonical word makes the two consumers silently disagree about the same
