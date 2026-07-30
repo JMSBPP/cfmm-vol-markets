@@ -256,7 +256,7 @@ the `Δt` cadence lever, sandwich nulling), CTX-TRACE (LEAN_TRACEABILITY rows + 
 CTX-REVIEW (two-reviewer gate on every pre-submission spec artifact)
 **Depends on:** Phase 10 (and the FlairOptimization.lean layer, commits 6914fba/5e08578)
 **Directory:** `.planning/phases/11-mev-hazard-inf-program/`
-**Plans:** 3/6 plans executed
+**Plans:** 4/6 plans executed
 
 > **Planning correction (2026-07-30, from 11-RESEARCH.md F5):** the goal above anticipates that in
 > the joint program "the shape block `(β, γ)` becomes essential". Research shows this is
