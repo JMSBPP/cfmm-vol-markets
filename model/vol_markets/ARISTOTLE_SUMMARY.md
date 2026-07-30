@@ -163,3 +163,61 @@ bundle A per user override (new-project isolation verified).
   (nonneg, contraction in sig2R, agreement at sig2R=0, exhaustion) and a
   discriminating instance — the joint recalibration law remains an author
   decision.
+
+# Summary of changes for run cb371ee5 (task d1c57297)
+Aristotle formalized blocks M0–M5 of the MEV section of
+`VOLATILITY_INSTRUMENTS.md` (the user-approved addendum, `APPROVED-DOC-SHA256`
+671000a5…) into `vol_markets/MevOptimization.lean` (1046 lines, 3 defs + 22
+public theorems + 3 private helpers, sorry-free, axiom-clean on all 25
+enumerated declarations; the 10 bundled dependency modules returned
+byte-identical). Single serial submission; T1–T18 complete, optional T19
+omitted. Fidelity diff: `.planning/phases/11-mev-hazard-inf-program/
+11-03-FIDELITY.md`.
+
+- `ptrade φ σ Δt = σ/(σ + φ·√(2/Δt))` — the steady-state probability a block
+  carries a profitable arbitrage. All seven of block M1's properties carried:
+  range `Ioc 0 1`; `= 1 ↔ φ = 0`; STRICT antitone in the fee; monotone in `Δt`
+  and in `σ`; `→ 0` as `φ → ∞`; STRICT convexity on `Ici 0` plus its named
+  weakening `ptrade_convexOn`. Strict convexity is the structural replacement
+  for FLAIR's affineness and it came back strict, not downgraded.
+- `mevHazard φfun σpath a D Δt T = Σ_t ptrade(φ(σ_t), σ_t, Δt)·a_t/D_t`;
+  `mevMulti` = its instantiation at `VolInstrument.multiFee` — the SAME
+  parameter space and the SAME deployed-capital denominator `D_t` as
+  `FlairOptimization.flairHazard`, which is what makes the hazards
+  commensurable. CPMM weight `a_t = (σ_t²/8)·V_t·Δt` positive (T8) — the `Δt`
+  converts LVR's rate into the per-block amount the sum needs.
+- IDENTIFICATION, reversed against FLAIR throughout: STRICT antitone in `φ̄`
+  (needs the `∃ t₀ < T, 0 < a t₀` witness), antitone in `α` and in `u`,
+  ISOTONE in `β`. NO affine decomposition exists here — `ptrade` is not affine,
+  so the FLAIR mirror breaks and the corner bound stays a path SUM.
+- SOLUTION (the infimum program): uniform lower bound at the fee ceiling as a
+  path sum `Σ_t ptrade(φ̄max + umax·Σ_j αmax_j, σ_t, Δt)·a_t/D_t`; bang-bang
+  attainment at the level-corner TOP; single-term `β → −∞` saturation Tendsto;
+  STRICT gap at every finite `β`; compact-box MINIMIZER existence via
+  `IsCompact.exists_isMinOn` with `ContinuousOn` PROVED, not assumed;
+  `Theta_lambdaMEV_identification` packages strict-above-saturation + limit,
+  and `mevMulti_min_gt_corner` carries M5(iii)'s "value strictly exceeds the
+  displayed bound" half. ⟹ Θ_{λ_ARB} = {φ̄, α, u} at its UPPER corner; the
+  shape block cannot attain the infimum.
+- ARISTOTLE-ADDED HYPOTHESES (disclosed, not silent): `hfee : 0 ≤ φbarMax +
+  uMax·αmax0` on the T15 saturation limit — the unguarded limit as requested is
+  FALSE, because the limiting fee can land on `ptrade`'s negative-fee pole (the
+  same pole that made the pre-review T17 false); `hupper` (box ≤ corner levels)
+  on `mevMulti_min_gt_corner`; `0 ≤ u` on `mevMulti_anti_u`; a redundant
+  `0 ≤ αmax j` on `mevMulti_corner_attained_levels`.
+- Docstring caveats recorded, all mandatory ones present: this object is
+  `λ_ARB`, a SUMMAND of `λ_MEV` and NOT a sibling of it (on `mevHazard`,
+  `mevMulti` and the identification theorem — without it a later
+  `mevHazard + sandwich` is the double-count block M0 forbids); the
+  leading-order `ARB ≈ LVR·P_trade` factorization is the anchor's fast-block
+  small-fee asymptotic, not an exact finite-`Δt` identity; no demand response
+  to the fee, the omitted term being eq. (27); `P_trade` is a steady-state
+  quantity and its stepwise use along a varying-σ path is the document's
+  quasi-static extension, legitimate only under M8's slow-parameter condition.
+  `arb_add_fee_eq_lvr` is labelled a BRIDGE IDENTITY (a ring tautology) and
+  explicitly NOT a formalization of the anchor's Theorems 3/4.
+- NOT DELIVERED: optional T19 `ARBoverV_exact` (block M3(ii)'s exact CPMM
+  kernel, the only carrier of the `σ²·Δt < 8` finiteness guard) — designated
+  non-blocking at submission and omitted by the prover as permitted. The exact
+  kernel therefore has no formal carrier; nothing in the leading-order program
+  depends on it.
