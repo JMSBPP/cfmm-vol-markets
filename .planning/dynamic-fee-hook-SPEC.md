@@ -1,6 +1,23 @@
 # DynamicFeeHook — v4 beforeSwap dynamic-fee (premium) hook design spec (v2)
 
-Status: **PARKED — BLOCKED pending todo 6-9 (windowed getAverageVolatility).** Two review rounds done
+Status: **CORE LANDED (2026-07-30) — §7 tests 1–5 + events battery GREEN; §7.6 GOAL
+(vol→fee→premium E2E vs real PoolManager + SFPM) is the remaining dedicated integration
+increment (REQUIRED, per the split this spec sanctions).** All resume-plan items applied:
+B1 (rv_write_timepoint returns bool, no frame halt — mutation-verified 32→96 bytes), the
+(base,state,window)-slot-parameterized RealizedVolatilityStateLib shared by Mod + hook
+(refactored under a green suite), NEW-5 resolved as HARD one-pool-per-hook (poolId bound at
+init, required in beforeSwap), research-only no-owner-gate (one-shot init + header
+invariant), extsload(bytes32)=0x1e2eaeaf pinned, clean fee word asserted, initTs masked
+MASK_U32. Adaptivity de-hedged: fee tracks regime DIRECTION (falls when calm) and the
+hook's vol is diffed vs the REAL Algebra oracle at tolerance 0 (the differential — not the
+direction test — is what kills the read-only and masked-tick mutants; recorded in the test
+file). Events: the hook is the POOL-KEYED emitter — E3/E4/E5/E6 carry the real poolId
+(E5 FeeApplied added to VolEventsLib). Module: src/modules/protocol_integrations/
+DynamicFeeHook.plk; tests: test/protocol_integrations/DynamicFeeHook.t.sol (11).
+
+Original parked header below for the record.
+
+Prior status: **PARKED — BLOCKED pending todo 6-9 (windowed getAverageVolatility).** Two review rounds done
 (Reality Checker + Solidity Engineer). Premise VERIFIED (premia ARE the pool swap fees) and ALL v4
 plumbing CONFIRMED. Round-2 (this v2) found the hook's core value is NOT REAL yet: `get_average_
 volatility` (RealizedVolatilityMod.plk:222) is a monotone CUMULATIVE stub, not Algebra's window-

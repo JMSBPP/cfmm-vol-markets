@@ -96,6 +96,21 @@ const emit_fee_configuration_changed = fn(
     @evm_log2(buf, 224, TOPIC0_FEE_CONFIGURATION_CHANGED, pool_id);
 };
 
+// cast keccak "FeeApplied(bytes32,uint88,uint24)"
+const TOPIC0_FEE_APPLIED = 0x25ea110aac3c0d92bd950f999d2fafed41a751afe912d690a3e721a6eb5a84df;
+
+// E5 FeeApplied(bytes32 indexed poolId, uint88 sigma, uint24 fee) -- the per-swap
+// phi(sigma(i(t)); t) series (lambda_FLAIR's observation stream). Emitted by the hook's
+// beforeSwap for EVERY swap, including buffer no-op (same-block) swaps: several E5 may share
+// one E3, which is what keeps the per-swap series complete. fee is the pips value WITHOUT the
+// override flag -- the data contract's join invariant is FeeApplied.fee == Swap.fee.
+const emit_fee_applied = fn(pool_id: u256, sigma: u256, fee: u256) void {
+    let buf = @malloc_uninit(64);
+    @mstore32(buf,       sigma & MASK_U88_EV);
+    @mstore32(buf +% 32, fee & MASK_U24_EV);
+    @evm_log2(buf, 64, TOPIC0_FEE_APPLIED, pool_id);
+};
+
 // E6 WindowChanged(bytes32 indexed poolId, uint32 window). The window is a normalization
 // parameter of the sigma^2 series (rv_bar, DATA-03/07) -- the DB cannot reconstruct windowed
 // volatility from volatilityCumulative without its history. Call AFTER the window sstore.
