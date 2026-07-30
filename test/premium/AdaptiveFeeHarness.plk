@@ -11,6 +11,10 @@ const SEL_EXPXG4 = 0x312f3cb5;
 const SEL_SIGMOID = 0x7a8c1738;
 // cast sig "getFee(uint88,uint256)"                  -> 0x899a6574
 const SEL_GETFEE = 0x899a6574;
+// cast sig "validateConfig(uint16,uint16,uint32,uint32,uint16,uint16,uint16)" -> 0xb5a8a256
+const SEL_VALIDATE = 0xb5a8a256;
+// cast sig "initialConfig()"                         -> 0x04d94317
+const SEL_INITIAL = 0x04d94317;
 
 init { return_runtime(); }
 
@@ -38,6 +42,31 @@ run {
     if selector == SEL_GETFEE {
         let out = @malloc_uninit(32);
         @mstore32(out, get_fee(@evm_calldataload(4), @evm_calldataload(36)));
+        @evm_return(out, 32);
+    }
+
+    // validateConfig(alpha1@4, alpha2@36, beta1@68, beta2@100, gamma1@132, gamma2@164, baseFee@196)
+    // -> uint256 1 (reverts if invalid). Fields masked to width first (as the module will).
+    if selector == SEL_VALIDATE {
+        let cfg = AlgebraFeeConfiguration {
+            alpha1: @evm_calldataload(4) & 0xffff,
+            alpha2: @evm_calldataload(36) & 0xffff,
+            beta1: @evm_calldataload(68) & 0xffffffff,
+            beta2: @evm_calldataload(100) & 0xffffffff,
+            gamma1: @evm_calldataload(132) & 0xffff,
+            gamma2: @evm_calldataload(164) & 0xffff,
+            base_fee: @evm_calldataload(196) & 0xffff
+        };
+        validate_fee_configuration(cfg);
+        let out = @malloc_uninit(32);
+        @mstore32(out, 1);
+        @evm_return(out, 32);
+    }
+
+    // initialConfig() -> uint256 (packed default config)
+    if selector == SEL_INITIAL {
+        let out = @malloc_uninit(32);
+        @mstore32(out, algebra_fee_config_pack(initial_fee_configuration()));
         @evm_return(out, 32);
     }
 

@@ -33,6 +33,19 @@ contract AFRef {
     function getFee(uint88 volatility, uint256 packedConfig) external pure returns (uint16) {
         return AdaptiveFee.getFee(volatility, AlgebraFeeConfigurationU144.wrap(uint144(packedConfig)));
     }
+
+    function validate(uint16 a1, uint16 a2, uint32 b1, uint32 b2, uint16 g1, uint16 g2, uint16 bf)
+        external
+        pure
+        returns (bool)
+    {
+        AdaptiveFee.validateFeeConfiguration(AlgebraFeeConfiguration(a1, a2, b1, b2, g1, g2, bf));
+        return true;
+    }
+
+    function initialPacked() external pure returns (uint256) {
+        return AlgebraFeeConfigurationU144.unwrap(AlgebraFeeConfigurationU144Lib.pack(AdaptiveFee.initialFeeConfiguration()));
+    }
 }
 
 // The Plank AdaptiveFee port must be byte-identical to Algebra's.
@@ -130,5 +143,48 @@ contract AdaptiveFeeTest is PlankTestBase {
         assertEq(_getFee(15 * 1000, c), ref.getFee(15 * 1000, c), "vol=15000 == Algebra");
         assertEq(_getFee(type(uint88).max, c), ref.getFee(type(uint88).max, c), "vol=max -> cap == Algebra");
         assertLe(_getFee(type(uint88).max, c), 15000, "fee capped at baseFee+alpha1+alpha2");
+    }
+
+    // ---- Increment 5 sub-step 1: validate_fee_configuration + initial_fee_configuration ----
+
+    function _validate(uint16 a1, uint16 a2, uint32 b1, uint32 b2, uint16 g1, uint16 g2, uint16 bf)
+        internal
+        returns (bool ok)
+    {
+        (ok,) = harness.staticcall(
+            abi.encodeWithSignature(
+                "validateConfig(uint16,uint16,uint32,uint32,uint16,uint16,uint16)", a1, a2, b1, b2, g1, g2, bf
+            )
+        );
+    }
+
+    function _initialPacked() internal returns (uint256) {
+        (bool ok, bytes memory r) = harness.staticcall(abi.encodeWithSignature("initialConfig()"));
+        require(ok, "initialConfig reverted");
+        return abi.decode(r, (uint256));
+    }
+
+    // validate accepts valid configs and reverts on gamma==0 / alpha1+alpha2+baseFee > u16 max, same as Algebra.
+    function test_validate_matchesAlgebra() public {
+        // valid
+        assertTrue(_validate(2900, 12000, 360, 60000, 59, 8500, 100), "valid config passes");
+        assertTrue(ref.validate(2900, 12000, 360, 60000, 59, 8500, 100), "valid passes (Algebra)");
+        // gamma1 == 0 -> revert both
+        assertFalse(_validate(2900, 12000, 360, 60000, 0, 8500, 100), "gamma1==0 reverts");
+        try ref.validate(2900, 12000, 360, 60000, 0, 8500, 100) { revert("expected revert"); } catch {}
+        // gamma2 == 0 -> revert
+        assertFalse(_validate(2900, 12000, 360, 60000, 59, 0, 100), "gamma2==0 reverts");
+        // alpha1+alpha2+baseFee > 65535 -> revert (30000+30000+6000 = 66000)
+        assertFalse(_validate(30000, 30000, 360, 60000, 59, 8500, 6000), "sum > u16max reverts");
+        try ref.validate(30000, 30000, 360, 60000, 59, 8500, 6000) { revert("expected revert"); } catch {}
+        // sum exactly == 65535 passes
+        assertTrue(_validate(30000, 30000, 360, 60000, 59, 8500, 5535), "sum == u16max passes");
+    }
+
+    // initial_fee_configuration packs identically to Algebra's initialFeeConfiguration
+    function test_initial_matchesAlgebra() public {
+        assertEq(_initialPacked(), ref.initialPacked(), "initial config == Algebra");
+        // and equals the packed golden defaults (alpha1=2900,...,baseFee=100)
+        assertEq(_initialPacked(), ref.pack(2900, 12000, 360, 60000, 59, 8500, 100), "== golden defaults");
     }
 }

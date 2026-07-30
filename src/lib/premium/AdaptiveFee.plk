@@ -3,9 +3,8 @@
 // alpha / (1 + e^((beta - x)/gamma)). All integer arithmetic; differential-tested byte-exact vs the
 // real AdaptiveFee. exp_x_g4 (exp Taylor series) -> sigmoid -> get_fee.
 
-import types::premium::AlgebraFeeConfiguration::{
-    afc_alpha1, afc_alpha2, afc_beta1, afc_beta2, afc_gamma1, afc_gamma2, afc_base_fee
-};
+import types::premium::AlgebraFeeConfiguration::*;
+import std::error::require;
 
 // 10^20 scale used by the e^k lookup table.
 const E_SCALE = 100000000000000000000;
@@ -76,4 +75,20 @@ const get_fee = fn (volatility: u256, config: u256) u256 {
         +% sigmoid(vol, afc_gamma1(config), afc_alpha1(config), afc_beta1(config))
         +% sigmoid(vol, afc_gamma2(config), afc_alpha2(config), afc_beta2(config));
     result & 0xffff   // uint16(result)
+};
+
+// validate_fee_configuration (AdaptiveFee.validateFeeConfiguration): the max fee (base+alpha1+alpha2)
+// must fit u16, and gammas must be nonzero. Assumes fields already masked to width (the module masks
+// calldata before calling -- a raw dirty-high gamma would spuriously pass here then pack to 0).
+const validate_fee_configuration = fn (self: AlgebraFeeConfiguration) void {
+    require((self.alpha1 +% self.alpha2 +% self.base_fee) <= 0xffff);
+    require((self.gamma1 != 0) and (self.gamma2 != 0));
+};
+
+// initial_fee_configuration (AdaptiveFee.initialFeeConfiguration): Algebra's default config.
+// alpha1 = 3000 - 100, alpha2 = 15000 - 3000, baseFee = INITIAL_MIN_FEE = 0.01e4 = 100.
+const initial_fee_configuration = fn () AlgebraFeeConfiguration {
+    AlgebraFeeConfiguration {
+        alpha1: 2900, alpha2: 12000, beta1: 360, beta2: 60000, gamma1: 59, gamma2: 8500, base_fee: 100
+    }
 };
