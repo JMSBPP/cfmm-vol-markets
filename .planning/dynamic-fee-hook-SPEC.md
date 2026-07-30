@@ -1,12 +1,37 @@
 # DynamicFeeHook — v4 beforeSwap dynamic-fee (premium) hook design spec (v2)
 
-Status: DRAFT v2 (post review-round-1). Reviewed by Reality Checker + Solidity Smart Contract
-Engineer. Premise VERIFIED (premia ARE the pool swap fees) and ALL v4 plumbing CONFIRMED correct. One
-BLOCKER (the volatility writer is not separable) + majors, all resolved here. Scope now (user
-decisions): **co-located vol-oracle + dynamic-fee in one hook** (Algebra base-plugin shape; the
-`CallbackRealizedVolatilityLib` stateful path todo.md:182 points at) · **LDF params do NOT enter the
-fee** (position-side only) · flagged hook address, real PoolManager. Material redesign vs v1 →
-warrants a focused re-review before TDD.
+Status: **PARKED — BLOCKED pending todo 6-9 (windowed getAverageVolatility).** Two review rounds done
+(Reality Checker + Solidity Engineer). Premise VERIFIED (premia ARE the pool swap fees) and ALL v4
+plumbing CONFIRMED. Round-2 (this v2) found the hook's core value is NOT REAL yet: `get_average_
+volatility` (RealizedVolatilityMod.plk:222) is a monotone CUMULATIVE stub, not Algebra's window-
+normalized average, so the fee only ratchets up and never tracks the regime. **User decision: finish
+todo 6-9 (the windowed reader) FIRST, then resume this hook.** Also: research-only, NO owner-gate this
+increment (no sound mechanism exists for a CREATE2/flagged hook — caller-at-CREATE = factory, vm.etch
+skips init; owner must arrive via a constructor/factory arg, todo.md:178).
+
+### Resume plan (apply when todo 6-9 lands)
+- **B1 (BLOCKER, both reviewers):** the hook's `write_timepoint` wrapper MUST strip the
+  `return_u256(EMPTY)` same-block early-out (RealizedVolatilityMod.plk:133 — `return_u256` = `@evm_return`,
+  halts the frame) → replace with a plain no-op return so `beforeSwap` continues to the 96-byte tuple;
+  else a 2nd same-block swap returns 32 zero-bytes and the hook fails (SFPM swapInAMM does >1 swap/block).
+- **§4 fork resolved:** FACTOR RealizedVolatilityMod's `write_timepoint`/`get_average_volatility`/
+  `initialize_timepoint_buffer` + support (`load_ring_state`, `read_window`) into a shared
+  (base,state,window)-slot-parameterized lib both Mod and hook bind (they hardcode 3 module slots today).
+- **NEW-5 (pool_id keying):** key the hook's vol-buffer slots by `pool_id` OR state a hard one-pool-per-
+  hook constraint (a v4 hook is normally many-pools; a fixed buffer comingles ticks across pools).
+- **Goal test (§7.6) de-hedged + vol→fee→premium:** the E2E premium test is REQUIRED (not deferrable),
+  and add a vol→fee link test (Test #2 must assert the fee tracks regime DIRECTION — only possible once
+  the windowed reader lands).
+- **Owner:** research-only invariant in the hook header ("MUST NOT back a live pool until owner via
+  constructor/factory arg"); config test-seeded/open this increment.
+- MINORs: pin single-arg `extsload(bytes32)` selector; clean the fee return word (high 29 bytes zero);
+  keep `initTs` mask identical to the beforeSwap clock (MASK_U32) so the first post-seed `dt` is sane.
+
+--- (original v2 design below; the reader/adaptivity claims apply only AFTER todo 6-9) ---
+
+Prior status: DRAFT v2. Scope (user decisions): **co-located vol-oracle + dynamic-fee in one hook**
+(Algebra base-plugin shape) · **LDF params do NOT enter the fee** (position-side only) · flagged hook
+address, real PoolManager.
 
 ## 0. Economic grounding (VERIFIED by review, corrected wording)
 
