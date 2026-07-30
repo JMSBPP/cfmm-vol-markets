@@ -20,6 +20,7 @@ import pos_spec::VolOrder::*;
 import pos_spec::VolRangeWidth::*;
 import pos_spec::SpreadTickAssimetry::*;
 import pos_spec::TickVolatility::*;
+import pos_spec::VegaTarget::*;
 import std::error::require;
 
 // v1 pins the tickSpacing field rather than taking it from the caller. This is NOT
@@ -45,14 +46,32 @@ const strike_fits_packed = fn(self: TickVolatility) bool {
       res
 };
 
-// Canonical construction of a v1 VolOrder from the create_order-native scalars. Phases 17
+// 2^96 - 1. Byte-identical to the mask pack_vol_order applies to targetVega
+// (VolOrder.plk MASK_U96_VO) -- the strike_fits_packed identity, replayed for the V2 field
+// (vol-order-v2-target-vega-SPEC.md D1: range bound in the LIB, not the type; the pack mask
+// is truncation AFTER validation, never a substitute for it).
+const MAX_TARGET_VEGA = 0xFFFFFFFFFFFFFFFFFFFFFFFF;
+
+// THE V2 BOUND. vega_target_is_complete is only `vega > 0`; without the upper half an
+// oversized target would pass validation and be silently masked to 96 bits -- storing a
+// DIFFERENT vega than the caller ordered (the exact defect class the strike bound killed).
+// targetVega is also the BATCH input word's TOP field (bits 128..223), so this predicate is
+// what makes dirty calldata bits >= 224 a SKIP/REVERT instead of a malleability seam.
+const target_vega_fits_packed = fn(self: VegaTarget) bool {
+      let res = vega_target_is_complete(self) & (self.vega <= MAX_TARGET_VEGA);
+      res
+};
+
+// Canonical construction of a v2 VolOrder from the create_order-native scalars. Phases 17
 // and 18a MUST build orders through this function so TICK_SPACING is pinned in exactly one
-// place. Argument order matches create_order(uint88,uint24,uint16) = (strike, width, skew).
-const build_vol_order = fn(strike: u256, width: u256, skew: u256) VolOrder {
+// place. Argument order matches create_order(uint88,uint24,uint16,uint96) =
+// (strike, width, skew, targetVega).
+const build_vol_order = fn(strike: u256, width: u256, skew: u256, target_vega: u256) VolOrder {
       VolOrder {
             rangeWidth: VolRangeWidth { width: width, tickSpacing: TICK_SPACING },
             volStrike: TickVolatility { vol: strike },
-            skew: SpreadTickAssimetry { spread: skew }
+            skew: SpreadTickAssimetry { spread: skew },
+            targetVega: VegaTarget { vega: target_vega }
       }
 };
 
@@ -65,7 +84,7 @@ const build_vol_order = fn(strike: u256, width: u256, skew: u256) VolOrder {
 //                                    collapse the position to a one-sided range).
 //   strike_fits_packed            -> strike in [1, 2^88-1]. The authored bound.
 const validate_order = fn(self: VolOrder) bool {
-      let res = vol_range_width_is_complete(self.rangeWidth) & spread_tick_assimetry_is_complete(self.skew) & strike_fits_packed(self.volStrike);
+      let res = vol_range_width_is_complete(self.rangeWidth) & spread_tick_assimetry_is_complete(self.skew) & strike_fits_packed(self.volStrike) & target_vega_fits_packed(self.targetVega);
       res
 };
 

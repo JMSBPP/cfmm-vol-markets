@@ -12,11 +12,12 @@ Notation is binding: doc symbols come from `notes/VOLATILITY_INSTRUMENTS.md` and
 
 | # | Signature | topic0 (keccak256 of signature) | Emitter | Status |
 |---|---|---|---|---|
-| E1 | `VolOrderCreated(uint256 indexed orderId, uint88 strike, uint24 width, uint16 skew)` | `0x6a5dc72627af2833e83e355ac3f2217c1ebee6afe8249d81d035bd1e0f9ee1a5` | VolOrderManagerMod (create_order + per-success in create_orders) | LIVE |
+| E1 (v2) | `VolOrderCreated(uint256 indexed orderId, uint88 strike, uint24 width, uint16 skew, uint96 targetVega)` | `0x18bd4d460f8957f6b903aec33a3229ee1bf02b6e303c5178c5aa49a70b9de4e6` | VolOrderManagerMod (create_order + per-success in create_orders) | LIVE |
+| E1 (v1) | `VolOrderCreated(uint256,uint88,uint24,uint16)` | `0x6a5dc72627af2833e83e355ac3f2217c1ebee6afe8249d81d035bd1e0f9ee1a5` | — | **RETIRED-NEVER-LIVE** (superseded by v2 before any deployment; no consumer should ever index this topic0) |
 | E2 | `PortafolioMinted(uint256 indexed orderId, bytes32 indexed poolId, uint256 tokenId, uint160 xi, uint24 iota, uint128 liquidityBar)` | — (pin at implementation) | mint/replication module (task #14) | SPEC-ONLY |
 | E3 | `TimepointWritten(bytes32 indexed poolId, uint32 timestamp, int24 tick, uint88 volatilityCumulative, int24 averageTick, int56 tickCumulative)` | `0x44d3c76a584327df3a91e46e185e97959195c01202945078eebb23b19c161415` | RealizedVolatilityMod (initializeTWAP seed + every write_timepoint, incl. the reactive onPriceUpdate path) | LIVE |
 | E4 | `FeeConfigurationChanged(bytes32 indexed poolId, uint16 alpha1, uint16 alpha2, uint32 beta1, uint32 beta2, uint16 gamma1, uint16 gamma2, uint16 baseFee)` | `0x0b849672f272805103d1934909aaee0c4e1400438ff5365f6d9d147cb07ed6cf` | DynamicFeeMod (initializeDynamicFee + changeFeeConfiguration, after validate) | LIVE |
-| E5 | `FeeApplied(bytes32 indexed poolId, uint88 sigma, uint24 fee)` | — (pin at implementation) | DynamicFeeHook beforeSwap (task #16) | SPEC-ONLY |
+| E5 | `FeeApplied(bytes32 indexed poolId, uint88 sigma, uint24 fee)` | `0x25ea110aac3c0d92bd950f999d2fafed41a751afe912d690a3e721a6eb5a84df` | DynamicFeeHook beforeSwap (per swap, incl. buffer no-ops; REAL poolId — pool-keyed emitter) | LIVE (task #16, c644c73) |
 | E6 | `WindowChanged(bytes32 indexed poolId, uint32 window)` | `0x046630eacacfeb3f36a64fd8cb291b41c3e78bcd57f8733e12b9afeb69968b47` | RealizedVolatilityMod (write_window; initializeTWAP routes the default through it) | LIVE |
 
 Emission-order guarantees the indexer may rely on:
@@ -24,6 +25,13 @@ Emission-order guarantees the indexer may rely on:
 - A same-block second write emits NOTHING (no state transition, no event).
 - In `create_orders`, events are per-SUCCESS and positionally faithful: a skipped tuple
   emits nothing and does not shift its successors' orderIds.
+
+**EVENT VERSIONING POLICY (vol-order-v2 spec D3):** event signatures never mutate in
+place. A type change mints a NEW canonical signature and topic0; the superseded signature
+is marked RETIRED here. When nothing was ever deployed under the old topic0, it is marked
+RETIRED-NEVER-LIVE and consumers index only the new topic0 (no dual-indexing transition).
+If a retirement ever happens after a live deployment, both topic0s must be indexed and the
+row will say so explicitly.
 
 ## 2. Series identity (DATA-06)
 
@@ -56,6 +64,7 @@ reactive path the module stamps `block.timestamp & 0xffffffff` itself, so they a
 | E1.strike | uint88 | σ²_K | vol-strike (VOL-port layer; `FeeSchedule.Params.volStrike` analog) | Algebra vol units (tick²·s) |
 | E1.width | uint24 | Δ_i-shaping (order width) | `tickSpacingVal`-adjacent | integer ticks |
 | E1.skew | uint16 | skew | instrument-spec side | dimensionless |
+| E1.targetVega | uint96 | ΔQ_v★ | the ORDER'S TARGET vega quantity — the optimization receives the target as data | RAW LIQUIDITY units (dimension (ii), UNITS_AND_SCALES.md §2); L-dimensioned, pool-specific |
 | E2.xi | uint160 | ξ⋆ = λ^(−Δ_i/2) | `xiVal` / `xiNorm` | Q96: divide by 2^96 for the dimensionless ξ |
 | E2.iota | uint24 | ι | `iotaVal` | integer support length |
 | E2.liquidityBar | uint128 | L̄ | `Lbar` (raw) / `LbarQ128` (payoff units) | raw uint128; payoff layer wants ×2^128 of the unit value — see REPR-07 caveat |

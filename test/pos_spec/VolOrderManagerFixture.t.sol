@@ -154,13 +154,13 @@ contract VolOrderManagerSelectorCompletenessTest is Test {
         string memory src = vm.readFile(IFACE);
 
         string[4] memory sigs = [
-            "create_order(uint88,uint24,uint16)",
+            "create_order(uint88,uint24,uint16,uint96)", // V2
             "create_orders(uint256,uint256[])",
             "orderCount()",
             "getOrderPacked(uint256)"
         ];
         bytes4[4] memory sels =
-            [bytes4(0x6501fe94), bytes4(0x81357911), bytes4(0x2453ffa8), bytes4(0xa9bcabc1)];
+            [bytes4(0x98d950ec), bytes4(0x81357911), bytes4(0x2453ffa8), bytes4(0xa9bcabc1)]; // V2 create_order
 
         for (uint256 i = 0; i < 4; i++) {
             // The signature string is PRESENT in the interface source (comment drift fails loudly).

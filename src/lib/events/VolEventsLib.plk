@@ -19,8 +19,11 @@
 // REUSING a region, VolOrderManagerMod.plk:183-199; fresh allocation is the safe side).
 // VolOrderManagerReturnEncodingTest stays in the regression set as the aliasing sentinel.
 
-// cast keccak "VolOrderCreated(uint256,uint88,uint24,uint16)"
-const TOPIC0_VOL_ORDER_CREATED = 0x6a5dc72627af2833e83e355ac3f2217c1ebee6afe8249d81d035bd1e0f9ee1a5;
+// cast keccak "VolOrderCreated(uint256,uint88,uint24,uint16,uint96)"  -- the V2 signature.
+// EVENT VERSIONING POLICY (vol-order-v2 spec D3): signatures never mutate in place; a type
+// change mints a NEW signature + topic0 and the old one is marked RETIRED in
+// DATA_CONTRACT.md. The v1 topic0 0x6a5dc726... is RETIRED-NEVER-LIVE (nothing deployed).
+const TOPIC0_VOL_ORDER_CREATED = 0x18bd4d460f8957f6b903aec33a3229ee1bf02b6e303c5178c5aa49a70b9de4e6;
 // cast keccak "TimepointWritten(bytes32,uint32,int24,uint88,int24,int56)"
 const TOPIC0_TIMEPOINT_WRITTEN = 0x44d3c76a584327df3a91e46e185e97959195c01202945078eebb23b19c161415;
 // cast keccak "WindowChanged(bytes32,uint32)"
@@ -35,15 +38,19 @@ const MASK_I56_EV = 0xFFFFFFFFFFFFFF;
 const SIGN_BYTE_I24_EV = 2;
 const SIGN_BYTE_I56_EV = 6;
 
-// E1 VolOrderCreated(uint256 indexed orderId, uint88 strike, uint24 width, uint16 skew).
-// No poolId topic (spec D2): orders are market-agnostic at creation; the pool join is E2's.
-// Call AFTER the sstore of the packed order (one event per state transition).
-const emit_vol_order_created = fn(order_id: u256, strike: u256, width: u256, skew: u256) void {
-    let buf = @malloc_uninit(96);
+// E1 VolOrderCreated(uint256 indexed orderId, uint88 strike, uint24 width, uint16 skew,
+//                    uint96 targetVega)  -- V2. targetVega is DeltaQ_v* in RAW LIQUIDITY
+// units (UNITS_AND_SCALES.md dimension (ii)); the GAMS optimization receives the target as
+// data (DATA_CONTRACT.md row). No poolId topic (spec D2): orders are market-agnostic at
+// creation; the pool join is E2's. Call AFTER the sstore (one event per state transition).
+const MASK_U96_EV = 0xFFFFFFFFFFFFFFFFFFFFFFFF;
+const emit_vol_order_created = fn(order_id: u256, strike: u256, width: u256, skew: u256, target_vega: u256) void {
+    let buf = @malloc_uninit(128);
     @mstore32(buf,        strike & MASK_U88_EV);
     @mstore32(buf +% 32,  width  & MASK_U24_EV);
     @mstore32(buf +% 64,  skew   & MASK_U16_EV);
-    @evm_log2(buf, 96, TOPIC0_VOL_ORDER_CREATED, order_id);
+    @mstore32(buf +% 96,  target_vega & MASK_U96_EV);
+    @evm_log2(buf, 128, TOPIC0_VOL_ORDER_CREATED, order_id);
 };
 
 // E3 TimepointWritten(bytes32 indexed poolId, uint32 timestamp, int24 tick,

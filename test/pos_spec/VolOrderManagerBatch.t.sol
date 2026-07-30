@@ -48,13 +48,16 @@ abstract contract VolOrderManagerBatchBase is VolOrderManagerBase {
     ///      pair below, which is stronger than restating a constant.
     uint256 internal constant MAX_BATCH = 128;
 
-    /// @dev The INPUT word layout: skew at bits 0..15, strike at 16..103, width at 104..127;
-    ///      bits 128..255 MUST be zero. DISTINCT from expectedPacked(), which is the STORED
+    /// @dev The V2 INPUT word layout: skew at bits 0..15, strike at 16..103, width at
+    ///      104..127, targetVega at 128..223; bits 224..255 MUST be zero. DISTINCT from expectedPacked(), which is the STORED
     ///      layout (width at 128, tickSpacing at 104, strike at 16, skew at 0). Only `width`
     ///      moves between the two, because build_vol_order inserts TICK_SPACING = 20 at bits
     ///      104..127 on the way to pack_vol_order.
     function packInput(uint256 strike, uint256 width, uint256 skew) internal pure returns (uint256) {
-        return skew | (strike << 16) | (width << 104);
+        // V2 input word: skew at 0, strike at 16, width at 104, targetVega at 128..223.
+        // The anchor TARGET_VEGA is embedded so every constructed word carries a valid vega;
+        // dirty-bit tests OR bits >= 224 (the region ABOVE the top field).
+        return skew | (strike << 16) | (width << 104) | (uint256(TARGET_VEGA) << 128);
     }
 
     /// @dev The CANONICAL encoding. Solidity emits the offset 0x40 at byte 36 and the length at
@@ -244,7 +247,7 @@ contract VolOrderManagerBatchStateTest is VolOrderManagerBatchBase {
     ///         never truncated) applied to the batch, and it costs zero new arithmetic.
     function test__unit__dirtyHighBitsAreSkippedNotStored() public {
         uint256[] memory words = new uint256[](1);
-        words[0] = packInput(STRIKE, WIDTH, SKEW) | (uint256(1) << 200);
+        words[0] = packInput(STRIKE, WIDTH, SKEW) | (uint256(1) << 240);
 
         (bool ok, uint256 ret) = callBatch(encodeBatch(words));
 
@@ -377,7 +380,7 @@ contract VolOrderManagerBatchEquivalenceTest is VolOrderManagerBatchBase {
         // A SECOND, independent instance driven through the SINGLE-CALL path.
         IVolOrderManager other =
             IVolOrderManager(deployPlank("src/modules/pos_spec/VolOrderManagerMod.plk"));
-        other.create_order(STRIKE, WIDTH, SKEW);
+        other.create_order(STRIKE, WIDTH, SKEW, TARGET_VEGA);
 
         uint256[] memory words = new uint256[](1);
         words[0] = packInput(STRIKE, WIDTH, SKEW);
@@ -521,7 +524,7 @@ contract VolOrderManagerBatchTotalityTest is VolOrderManagerBatchBase {
             } else if (shape == 4) {
                 words[j] = packInput(strike, 0, skew); // vol_range_width_is_complete lower bound
             } else {
-                words[j] = packInput(strike, width, skew) | (uint256(1) << 200); // dirty high bits
+                words[j] = packInput(strike, width, skew) | (uint256(1) << 240); // dirty high bits (>= 224, above targetVega)
             }
         }
 
@@ -824,7 +827,7 @@ contract VolOrderManagerReturnEncodingTest is VolOrderManagerBatchBase {
                 words[j] = packInput(strike, width, 65535); // the other rejected skew endpoint
                 expected[j] = BatchResult({success: false, orderId: 0});
             } else {
-                words[j] = packInput(strike, width, skew) | (uint256(1) << 200); // dirty high bits
+                words[j] = packInput(strike, width, skew) | (uint256(1) << 240); // dirty high bits (>= 224, above targetVega)
                 expected[j] = BatchResult({success: false, orderId: 0});
             }
         }

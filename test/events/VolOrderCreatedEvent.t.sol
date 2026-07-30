@@ -28,12 +28,16 @@ import {Vm} from "forge-std/Vm.sol";
 // ===========================================================================================
 contract VolOrderCreatedEventTest is VolOrderManagerBatchBase {
     /// @dev The exact spec signature. solc derives topic0 from THIS declaration.
-    event VolOrderCreated(uint256 indexed orderId, uint88 strike, uint24 width, uint16 skew);
+    event VolOrderCreated(uint256 indexed orderId, uint88 strike, uint24 width, uint16 skew, uint96 targetVega);
 
-    /// @dev Restated from the Plank emit helper (cast keccak "VolOrderCreated(uint256,uint88,uint24,uint16)").
-    ///      Asserted against solc's canonical hash below so a drifting signature string is caught.
+    /// @dev Restated from the Plank emit helper (cast keccak
+    ///      "VolOrderCreated(uint256,uint88,uint24,uint16,uint96)" -- the V2 signature; the v1
+    ///      topic0 0x6a5dc726... is RETIRED-NEVER-LIVE). Asserted against solc's canonical
+    ///      hash below so a drifting signature string is caught.
     bytes32 internal constant TOPIC0_VOL_ORDER_CREATED =
-        0x6a5dc72627af2833e83e355ac3f2217c1ebee6afe8249d81d035bd1e0f9ee1a5;
+        0x18bd4d460f8957f6b903aec33a3229ee1bf02b6e303c5178c5aa49a70b9de4e6;
+
+    uint96 internal constant TV = 1e18; // targetVega anchor, raw L units (V2)
 
     function test__unit__topicZeroMatchesPinnedConstant() public pure {
         assertEq(
@@ -46,31 +50,31 @@ contract VolOrderCreatedEventTest is VolOrderManagerBatchBase {
     // The single-call path: create_order emits exactly the stored tuple with the assigned id.
     function test__unit__createOrderEmitsVolOrderCreated() public {
         vm.expectEmit(true, true, true, true, address(mgr));
-        emit VolOrderCreated(1, STRIKE, WIDTH, SKEW);
-        mgr.create_order(STRIKE, WIDTH, SKEW);
+        emit VolOrderCreated(1, STRIKE, WIDTH, SKEW, TV);
+        mgr.create_order(STRIKE, WIDTH, SKEW, TV);
     }
 
     // Ids are sequential and each creation emits with ITS id (kills any emit that re-reads a
     // stale count or emits before the id assignment).
     function test__unit__secondCreateEmitsIdTwo() public {
-        mgr.create_order(STRIKE, WIDTH, SKEW);
+        mgr.create_order(STRIKE, WIDTH, SKEW, TV);
         vm.expectEmit(true, true, true, true, address(mgr));
-        emit VolOrderCreated(2, STRIKE, WIDTH, SKEW);
-        mgr.create_order(STRIKE, WIDTH, SKEW);
+        emit VolOrderCreated(2, STRIKE, WIDTH, SKEW, TV);
+        mgr.create_order(STRIKE, WIDTH, SKEW, TV);
     }
 
     // The batch path: per-success emit, a skipped tuple emits NOTHING, successors' events do
     // not shift (positional discipline mirrors the return-tuple discipline).
     function test__unit__batchEmitsPerSuccessOnly() public {
         uint256[] memory words = new uint256[](3);
-        words[0] = packInput(STRIKE, WIDTH, SKEW);
-        words[1] = packInput(STRIKE, WIDTH, 0); // skew 0: the rejected endpoint -> SKIP, no event
-        words[2] = packInput(STRIKE, WIDTH, SKEW);
+        words[0] = packInput(STRIKE, WIDTH, SKEW) | (TV << 128);
+        words[1] = packInput(STRIKE, WIDTH, 0) | (TV << 128); // skew 0: rejected -> SKIP, no event
+        words[2] = packInput(STRIKE, WIDTH, SKEW) | (TV << 128);
 
         vm.expectEmit(true, true, true, true, address(mgr));
-        emit VolOrderCreated(1, STRIKE, WIDTH, SKEW);
+        emit VolOrderCreated(1, STRIKE, WIDTH, SKEW, TV);
         vm.expectEmit(true, true, true, true, address(mgr));
-        emit VolOrderCreated(2, STRIKE, WIDTH, SKEW);
+        emit VolOrderCreated(2, STRIKE, WIDTH, SKEW, TV);
 
         vm.recordLogs();
         (bool ok,) = callBatch(encodeBatch(words));
@@ -96,8 +100,8 @@ contract VolOrderCreatedEventTest is VolOrderManagerBatchBase {
     // All-invalid batch: state does not advance and neither does the log stream.
     function test__unit__allInvalidBatchEmitsNothing() public {
         uint256[] memory words = new uint256[](2);
-        words[0] = packInput(STRIKE, WIDTH, 0);
-        words[1] = packInput(STRIKE, WIDTH, 65535); // the other rejected skew endpoint
+        words[0] = packInput(STRIKE, WIDTH, 0) | (TV << 128);
+        words[1] = packInput(STRIKE, WIDTH, 65535) | (TV << 128); // the other rejected skew endpoint
         vm.recordLogs();
         (bool ok,) = callBatch(encodeBatch(words));
         assertTrue(ok, "all-invalid batch call succeeds (skips, no revert)");

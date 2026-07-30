@@ -224,4 +224,38 @@ Inout latex code on Volatilti insttruments that corrects it according to the wor
 > proofs at JMSBPP/cfmm-lean4-spec main. Re your GeometricDistribution.plk
 > item: proven cumulative APIs are cumulativeQM/cumulativeQX (Q_M^L, Q_X^L).
 
-- NOte that \(\xi, \iota\) are partially mapped to controlling strike wights and option ratios  on pacoptic, the sigmoid params are being associted with FLAIR, MEV controls BUT \(\eta\) is still misisng a location not only on the hook for prciing swaps it intuititvley seems it enters on either beforeSwap or afterSwap . \eta is an asset demand parameter since is accountably a substitution elasticity between asset and cash. This is the next thin g to be done the math formalization Find the best economic controller aPPLICATION FOR \eta then the plank worktree uses this info to map it to implementation
+- Note that \(\xi, \iota\) are partially mapped to controlling strike wights and option ratios  on pacoptic, the sigmoid params are being associted with FLAIR, MEV controls BUT \(\eta\) is still misisng a location not only on the hook for prciing swaps it intuititvley seems it enters on either beforeSwap or afterSwap . \eta is an asset demand parameter since is accountably a substitution elasticity between asset and cash. This is the next thin g to be done the math formalization Find the best economic controller aPPLICATION FOR \eta then the plank worktree uses this info to map it to implementation
+
+> [lean4-spec → ul2inqpl, 2026-07-30, USER-APPROVED] λ_MEV BLOCKS M0–M8 INSERTED
+> into notes/VOLATILITY_INSTRUMENTS.md under `### MEV` (uncommitted — **commit is
+> yours**). The two pre-existing MEV bullets are KEPT verbatim; 181 LaTeX lines
+> appended beneath them (464 → 646 lines, 0 deletions). Source of record is the
+> lean4-spec worktree file
+> `model/vol_markets/VOLATILITY_INSTRUMENTS_MEV_ADDENDUM.md` (header now reads
+> APPROVED & APPLIED) — treat that file, not the doc, as authoritative if the two
+> ever diverge.
+> Anchor: Milionis–Moallemi–Roughgarden arXiv:2305.14604v2. M1 P_trade kernel;
+> M2 ARB/FEE/LVR split; M3 discrete λ_ARB (+ exact Corollary-2 kernel, guard
+> σ²Δt < 8); M4 identification Θ_λ_ARB = {φ̄, α, u} (monotonicity + convexity,
+> explicitly NOT affine); M5 infimum program; M6a the DEGENERACY (unconstrained,
+> sup λ_FLAIR and inf λ_ARB share a corner — the phase brief's "(β,γ) becomes
+> essential" is REFUTED); M6b the CONSTRAINED flat-fee result over fee PATHS, with
+> the σ-varying SCHEDULE comparison labelled OPEN; M7 λ_MEV ≔ λ_ARB ⊕ λ_sandwich
+> plus the Angstrom bridge; M8 caveats.
+> NOTATION, load-bearing for your side: the fee is **`\phi`**, never `\varphi` —
+> your doc already binds `\varphi` to the quote function (line ~305). MMR's fee γ
+> → φ, MMR's block rate λ → Δt, MMR's composite η is never named (η stays the
+> pricing kernel). Two hazard symbols are distinct: λ_ARB (arb channel) vs λ_MEV
+> (aggregate, defined once in M7); λ_ARB ABSORBS the index set's "arb toxicity"
+> entry, so do not carry both or the aggregate double-counts.
+> Approved bytes are PINNED: sha256 of notes/VOLATILITY_INSTRUMENTS.md is
+> 671000a5a56f063e31f9a7ab3d12e9a22452d6ed4d9009c53c6602e9fb5fba58. **Any further
+> edit to the `### MEV` section invalidates that hash and requires re-approval** —
+> plans 11-02/11-04 grep for it before building the Aristotle bundle.
+> Gated by two reviewers (Reality Checker + Model QA Specialist): 4 BLOCKERs and
+> 12 MAJORs found and fixed before approval; record in the lean4-spec worktree at
+> `.planning/phases/11-mev-hazard-inf-program/11-01-REVIEW.md`.
+> Re your `\eta` item above: agreed and now scheduled — interior η (Capponi–Jia
+> curvature, refs in refs/mev/) is the designated degeneracy-breaker and is the
+> next phase's math formalization. M6a is exactly why it is needed: over Θ_φ alone
+> there is no trade-off to control.
