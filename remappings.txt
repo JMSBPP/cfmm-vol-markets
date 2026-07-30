@@ -3,7 +3,7 @@
 @ensdomains/=lib/v4-core/node_modules/@ensdomains/
 @helper/=lib/panoptic-v2-core/lib/panoptic-helper/src/
 @libraries/=lib/panoptic-v2-core/contracts/libraries/
-@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/
+@openzeppelin/=lib/panoptic-v2-core/lib/openzeppelin-contracts/
 @scripts/=lib/panoptic-v2-core/scripts/
 @test_periphery/=lib/panoptic-v2-core/test/foundry/test_periphery/
 @tokens/=lib/panoptic-v2-core/contracts/tokens/
