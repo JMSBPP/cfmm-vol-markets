@@ -1,8 +1,15 @@
 # DynamicFeeHook — v4 beforeSwap dynamic-fee (premium) hook design spec (v2)
 
-Status: **CORE LANDED (2026-07-30) — §7 tests 1–5 + events battery GREEN; §7.6 GOAL
-(vol→fee→premium E2E vs real PoolManager + SFPM) is the remaining dedicated integration
-increment (REQUIRED, per the split this spec sanctions).** All resume-plan items applied:
+Status: **COMPLETE (2026-07-30, commits 8f43641 core + c644c73 GOAL).** §7.6 GOAL landed:
+real PoolManager ×2 DYNAMIC_FEE pools, Plank hook vm.etch'd at BEFORE_SWAP_FLAG addresses,
+real SemiFungiblePositionManagerV4, identical short position; equal volume under flat-100
+vs vol-driven configs → premium accumulator STRICTLY higher under the adaptive fee (both
+tokens), fee divergence attributed via the E5 pair, config-swap mutation flips the
+assertion. Build note: the vendored SFPM only compiles legacy-codegen — it lives in its
+own compilation unit (foundry.toml compilation_restrictions + test/protocol_integrations/
+e2e_legacy/SFPMLegacyAnchor.sol) and the E2E deploys the artifact bytes directly; SFPM
+settles in ERC6909 claims (mintCurrency + setOperator funding). todo.md:198's premise is
+PROVEN end-to-end. All resume-plan items applied:
 B1 (rv_write_timepoint returns bool, no frame halt — mutation-verified 32→96 bytes), the
 (base,state,window)-slot-parameterized RealizedVolatilityStateLib shared by Mod + hook
 (refactored under a green suite), NEW-5 resolved as HARD one-pool-per-hook (poolId bound at
