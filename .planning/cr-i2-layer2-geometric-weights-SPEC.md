@@ -1,6 +1,12 @@
 # CR-I2 Layer 2 — geometric leg weights design spec (v2)
 
-Status: DRAFT v2 (post review-round-1). Reviewed by Reality Checker + Solidity Smart Contract
+Status: IMPLEMENTED (weight vector), v2. Two-step-reviewed, then built via 3 TDD increments
+(shared helper refactor + `geometric_cumulative_density_x96` primitive @ `2252f7f`;
+`geometric_leg_weights` @ `5706f0e`). 8 Layer-2 tests green; Layer-1 (10) + PanopticTokenId (4)
+regressions green. Mint SIZING (LiquidityChunk/positionSize) and optionRatio quantization remain
+future increments — CR-I3's sized deliverable stays OPEN.
+
+Prior status: DRAFT v2 (post review-round-1). Reviewed by Reality Checker + Solidity Smart Contract
 Engineer; both NEEDS WORK, no fixed-point BLOCKER (all Q96 arithmetic assumptions verified sound).
 v2 folds in: shared split-point helper + explicit preconditions (RC BLOCKER), exact-sum invariant +
 per-weight bounds + ordering guard (both MAJOR), restated monotonicity test, dropped `xi>1` branch,
