@@ -97,6 +97,7 @@ Progress: [█████████░] 90%
 ### Roadmap Evolution
 
 - Phase 8 added (2026-07-18): panoptic vol-claim lean4 formalization — formalize `spec/panoptic.md` (vol-option payoff, replication-cost pricing, υ identification) in the `lean/` Lake project. Lean4-track phase, independent of Phases 2–7.
+- Phase 11 added (2026-07-30): MEV hazard-rate metric and infimum program (λ_MEV) — λ_MEV analogous to flairHazard over the shared Θ_φ, identify Θ_{λ_MEV}, solve inf λ_MEV (opposite level-block monotonicity to the solved sup λ_FLAIR), joint sup/inf program; Angstrom = implementation reference; refs acquired in ../plank/refs/{flair,mev}/. Dir: phases/11-mev-hazard-inf-program/.
 
 ### Decisions
 

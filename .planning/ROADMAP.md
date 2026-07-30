@@ -229,3 +229,28 @@ Plans:
 - [x] 10-10-PLAN.md — CTX-EST2: re-estimation (estimator UNCHANGED) + stopping-rule checkpoint — **TERMINAL: STOPPING_RULE UNINFORMATIVE under BOTH LHS constructions; this market cannot identify υ. κ>0 rejects in both (p 9.5e-3, 7.3e-3); Lean witness does NOT obtain.**
 - [x] 10-11-PLAN.md — CTX-XWALK: multiplier-wedge cross-walk, ROADMAP/STATE close-out — wedge recorded as a MEASURED distribution (median 1.112500, p90 1.291667, 38.9% exactly 1, max R/N 2.333333), the quoted 1.125 bound corrected, witness status and the seller-side sign convention recorded
 - [ ] 10-12-PLAN.md — CTX-REPLAY-OPT (OPTIONAL, NON-BLOCKING): _getPremiaDeltas cross-check — **SKIPPED 2026-07-27.** Reason: its purpose is an independent check that the reconstructed premium really is the protocol's, and that purpose is already served — the 10-08 gate reconciles all 61 spells against `OptionBurn.premium0` in exact Integer ETH wei with 53/61 exact to the wei, and two independent anti-fabrication reviewers returned CLEAN (live re-read against the Base archive, 32/32 integers exact; full offline recomputation in Python, no planted literals). A narrow-window replay would re-derive a quantity already validated wei-exactly against on-chain ground truth. The plan was optional and non-blocking by construction and nothing downstream depends on it. **CTX-REPLAY-OPT is therefore NOT satisfied and is not claimed to be.** The user may request the run later; the plan file stays in place, unexecuted.
+
+### Phase 11: MEV hazard-rate metric and infimum program (λ_MEV)
+
+**Goal:** Define a discrete λ_MEV hazard functional analogous to
+`FlairOptimization.flairHazard` — anchored on Milionis–Moallemi–Roughgarden
+*Arbitrage Profits in the Presence of Fees* (fee-DEcreasing arb-profit
+rate; PDFs acquired in `../plank/refs/mev/`) — over the SAME multi-sigmoid
+parameter space `Θ_φ = {γ, φ̄, β, α(, α_R)}` of `VolInstrument.multiFee`;
+identify `Θ_{λ_MEV} ⊂ Θ_φ` and SOLVE the infimum program `inf λ_MEV`
+(mirror of the solved `sup λ_FLAIR`; the level block `{φ̄, α, u}` has
+OPPOSITE monotonicity — fees up ⟹ FLAIR up, MEV down); then state the
+joint sup-FLAIR/inf-MEV program where the shape block `(β, γ)` becomes
+essential. Formalization is doc-driven via Aristotle
+(`VOLATILITY_INSTRUMENTS.md ### MEV` is the reference note; notation
+binding per LEAN_TRACEABILITY). Angstrom (SorellaLabs/angstrom,
+angstrom-v4, l2-angstrom) is the implementation reference that minimizes
+λ_MEV mechanically — its auction mechanism informs which parameters are
+protocol-controllable.
+**Requirements**: TBD
+**Depends on:** Phase 10 (and the FlairOptimization.lean layer, commits 6914fba/5e08578)
+**Directory:** `.planning/phases/11-mev-hazard-inf-program/`
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 11 to break down)
