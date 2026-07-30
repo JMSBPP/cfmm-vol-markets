@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: VolOrderManagerMod + Multicall
-status: completed
-stopped_at: Completed 19-05-PLAN.md (MVER-04). PHASE 19 COMPLETE — MILESTONE v4.0 COMPLETE. make test re-MEASURED cold: 102 passed / 18 failed / 120 total (44 suites); compile-plank 11 ok / 2 failed — every red attributed, ZERO under test/pos_spec/. CALLED-green batch dispatch VERIFIED through FFI-deployed bytecode. OPEN for the exit record: F1 (strike bound unproven at the create_order entrypoint) and the four single-point-of-failure mutants.
-last_updated: "2026-07-21T22:02:30.011Z"
+milestone: v5.0
+milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
+status: defining_requirements
+stopped_at: Milestone v5.0 started (rpc_api workstream, from issue #13) — defining requirements. v4.0 closing record preserved below ("v4.0 Closing Position"); its open exit items (F1 strike bound at create_order entrypoint; four single-point-of-failure mutants) belong to the plank workstream.
+last_updated: "2026-07-30"
 last_activity: "2026-07-21 — 19-05 executed: three dedicated make targets (test-vol-order-diff/-fixture/-acceptance, the last passing exit 0); fold-in PROVEN by OBSERVING all three Phase 19 contract names in plain make test rather than by adding a prerequisite (which would double-run pos_spec and inflate the tally); the stale MEASURED AT 17-01 block (96 pass / 4 fail, 13 ok — both wrong) REPLACED with counts measured cold at execution time, every red attributed to a NAMED cause: 14 exposure setUp() reverts from the uncommitted VegaIssuanceLib.plk draft, 4 vol-type track under test/types/pos_spec/, 0 under test/pos_spec/, 0 TickVolatility (did not surface). The real MVER-04 gate VERIFIED not inferred: three named tests CALLED green through deployPlank/FFI bytecode. PLANK_SKIP confirmed byte-identically empty with no exit ceremony invented; roadmap SC-4, the Goal line and the Phase 19 one-liner corrected off the stale PLANK_SKIP-exit wording. src/ byte-untouched (both sha256 pins match)."
 progress:
   total_phases: 16
@@ -22,9 +22,20 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 **Core value (v4.0):** `VolOrderManagerMod.plk` is a vol-order REGISTRY — `create_order(uint88,uint24,uint16)` (strike/width/skew, selector `0x6501fe94`) validating against the machine-checked `vol_order_is_complete` predicates, assigning a sequential id, storing a packed `VolOrder` word — plus a BEST-EFFORT batch entrypoint running N create_order calls in one tx (invalid tuples skipped, batch never reverts). Built for the rpc_api Haskell `StochasticOrderGen` consumer (PR #9 awaits this surface). Every claim is a CALLED test or an OBSERVED mutation kill; compiling is NOT evidence; the gate is the batch dispatch being CALLED green through FFI-deployed bytecode (**CORRECTED at 19-05** — `PLANK_SKIP` is the rescue queue for entrypoints that do NOT compile, so this module never belonged there; the queue is empty and there was no exit to perform).
 **Current focus:** **MILESTONE v4.0 COMPLETE (2026-07-21).** All five phases (16, 17, 18a, 18b, 19) and all 15 requirements shipped. `VolOrderManagerMod.plk` is a proven vol-order registry: `create_order` and `create_orders` both CALLED green through FFI-deployed bytecode, a 10-application mutation battery with ZERO survivors, an independent-mock sequence differential at tol 0, and a consumer golden fixture from an encoder outside this repo. Next action: tag v4.0 and hand off to peer `mv15a18k`, OR resume v2.0 (`/gsd:plan-phase 10`).
 
-**Track note:** Fourth milestone. v3.0 (VegaAccountMod vault, Phases 12–15) SHIPPED 2026-07-19 (tag `v3.0`). v1.0 (GAMS plumbing, Phases 1–7) PAUSED. v2.0 (vol-oracle differential, Phases 8–11) PAUSED after Phase 9 — VDIFF-05..08 (Phases 10–11) remain pending, NOT part of v4.0. Resuming v2.0 = `/gsd:plan-phase 10`. These phase ranges are separate tracks — never renumbered.
+**Track note:** Fifth milestone — v5.0 is the **rpc_api workstream's** (offchain Haskell, branch `feat/rpc-api`); v6.0 (subgraph, issue #14) queued behind it. v3.0 (VegaAccountMod vault, Phases 12–15) SHIPPED 2026-07-19 (tag `v3.0`). v1.0 (GAMS plumbing, Phases 1–7) PAUSED. v2.0 (vol-oracle differential, Phases 8–11) PAUSED after Phase 9 — VDIFF-05..08 (Phases 10–11) remain pending, NOT part of v4.0. Resuming v2.0 = `/gsd:plan-phase 10`. These phase ranges are separate tracks — never renumbered.
 
 ## Current Position
+
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements for milestone v5.0 (rpc_api workstream — VolOrder V2
+offchain re-pin + stochastic drivers, from GitHub issue #13; sources of truth:
+`src/interfaces/<namespace>/*.plk`, `.planning/rpc-api-volorder-v2-HANDOFF.md` on
+`feat/plank`, `notes/DATA_CONTRACT.md`, `notes/UNITS_AND_SCALES.md`). v6.0 (subgraph,
+issue #14) queued behind it.
+Last activity: 2026-07-30 — Milestone v5.0 started
+
+## v4.0 Closing Position (record, plank workstream)
 
 Phase: 19 — Differential, Mutation Battery & Consumer Fixture (MVER-01..04) — **COMPLETE**
 Milestone: **v4.0 COMPLETE** — all five phases (16, 17, 18a, 18b, 19) and all 15 requirements (VORD-01..05, MCAL-01..06, MVER-01..04) done.
