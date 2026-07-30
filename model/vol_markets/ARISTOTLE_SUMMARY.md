@@ -141,3 +141,25 @@ untouched).
   `Theta_lambda_identification` packages strict-below-saturation + limit.
 - Docstring caveats recorded: traded-volume reading of `dp`; no demand
   elasticity in this functional (volume trade-off = FeeSchedule layer).
+
+# Summary of changes for run 128b24ae (task 311f81e5) — issue cfmm-lean4-spec#1
+Aristotle formalized the staged doc block `## VOL ORDER COMPLETION —
+ENDOGENOUS MATURITY` (VolOrder v2 delegation) into
+`vol_markets/EndogenousMaturity.lean` (331 lines, 8 defs + 34 theorems,
+sorry-free, axiom-clean; 10 deps byte-identical). Ran PARALLEL to MEV
+bundle A per user override (new-project isolation verified).
+
+- Maturity bridge: `tStar = 2·dQvStar/Nσ` + inverse (`dQvStarOfMaturity`),
+  bijection pair, `maturity_equivalence`, and the vega bridges
+  (`variancePortfolio_upsilon_at_tStar`, `tStar_variancePortfolio_upsilon`,
+  `tStar_unit_upsilon`); positivity + strict monotonicity both ways.
+- Auto-deleverage (DECIDED): `dQvFunded = min(dQvStar, QM/prisk)` with
+  admissibility (division-free via `Main.admissible_iff_mul`), violation/
+  no-violation dichotomy, MAXIMALITY among admissible exposures,
+  `tStarFunded` monotone in QM / antitone in prisk, exact top-up
+  restoration, liquidation degenerate case, floor-rounding conservativity.
+- OPEN FLAG preserved: `tStarJointMult`/`tStarJointSub`/
+  `tStarJointQuadratic` as labeled CANDIDATES with per-candidate sanity
+  (nonneg, contraction in sig2R, agreement at sig2R=0, exhaustion) and a
+  discriminating instance — the joint recalibration law remains an author
+  decision.

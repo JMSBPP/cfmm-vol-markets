@@ -153,3 +153,18 @@ Additional notation for this doc: `p_(η,Δ_i)(i) = λ^((i/2)·Δ_i·η)` →
 | `∃ Θ_λ ⊂ Θ_φ, sup λ_FLAIR` — identification | `flairMulti_affine` (`λ = φ̄·W + u·Σ α_j·W_j`), `_mono_phibar` (strict), `_mono_alpha`, `_mono_u`, `_anti_beta`, `W_j_le_W`, `W_j_lt_W` ⟹ `Θ_λ = {φ̄, α, u}`; `(β, γ)` reallocation-only | **PROVEN** |
 | `sup λ_FLAIR` — solved | `flairMulti_le_corner` (uniform bound `(φ̄max + umax·Σαmax)·W`), `_corner_attained_levels` (bang-bang), `_saturation_limit` (`β → −∞` Tendsto, sup not attained), `_strict_below_saturation`, `_exists_max_compact`, `Theta_lambda_identification` | **PROVEN** (no demand elasticity in this functional — caveat in module docstring) |
 | `𝓖_φ` beyond the monoid core, MEV section | — | **OPEN** (see §6) |
+
+## 8. `VOL ORDER COMPLETION — ENDOGENOUS MATURITY` (doc block, issue cfmm-lean4-spec#1 → `EndogenousMaturity.lean`)
+
+Notation: `ΔQ_v★` → `dQvStar`; `t★` → `tStar`; `N_σ` → `Nσ`; `ΔM_req` → `dMReq`.
+
+| Doc claim | Lean | Status |
+|---|---|---|
+| `t★ = 2·ΔQ_v★/N_σ ⟺ ΔQ_v★ = (t★/2)·N_σ` (derived, never stored) | `tStar`, `dQvStarOfMaturity`, `dQvStarOfMaturity_tStar`, `tStar_dQvStarOfMaturity`, `maturity_equivalence` | **PROVEN** (Nσ ≠ 0) |
+| Bridge to the proven unit-vega layer | `variancePortfolio_upsilon_at_tStar`, `tStar_variancePortfolio_upsilon`, `tStar_unit_upsilon` | **PROVEN** |
+| `t★` positive / strictly monotone in `ΔQ_v★`, anti in `N_σ` | `tStar_pos`, `tStar_strictMono_dQvStar`, `tStar_strictAnti_Nσ` | **PROVEN** |
+| Auto-deleverage floor `min(ΔQ_v★, Q_M/p_risk)` admissible + division-free | `dQvFunded_admissible`, `dQvFunded_admissible_iff_mul`, `dQvFunded_mul_le_of_violation` (via `Main.admissible_iff_mul`) | **PROVEN** |
+| No violation ⟹ untouched; floor is MAXIMAL among admissible | `dQvFunded_eq_of_no_violation`, `dQvFunded_maximal` | **PROVEN** |
+| Maturity contracts with funding; top-up restores; liquidation = `Q_M → 0` | `tStarFunded_mono_QM`, `tStarFunded_antitone_prisk`, `tStarFunded_eq_tStar_of_topup`, `dQvFunded_zero_QM` | **PROVEN** |
+| Integer-rounding conservativity (real layer) | floor-rounding min-monotonicity lemma | **PROVEN** |
+| Joint recalibration law (collateral × realized-variance accrual) | `tStarJointMult`, `tStarJointSub`, `tStarJointQuadratic` — labeled CANDIDATES with sanity + a discriminating instance | **OPEN — AUTHOR DECISION** (doc FLAG stands until the user picks; then the doc summarization pass) |
