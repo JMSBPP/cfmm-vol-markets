@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 20-02-PLAN.md — 36 artifacts imported byte-identical from 9f5ccba, closure PROVEN by four plank builds, delta attributed
-last_updated: "2026-07-31T18:39:15.948Z"
-last_activity: "2026-07-31 — 20-02 executed: 36 artifacts imported by checkout from 9f5ccba,"
+stopped_at: Completed 20-03-PLAN.md — rig LIVE on anvil, SC-2 falsified green, SC-5 byte-identical, research §12.1 RESOLVED (top-level CREATE2, prediction refuted)
+last_updated: "2026-07-31T18:55:06.504Z"
+last_activity: "2026-07-31 — 20-03 executed: the rig is LIVE on anvil, manifest generated from broadcast records and console-cross-checked, SC-2 falsified then green, SC-5 byte-identical, research §12.1 RESOLVED"
 progress:
   total_phases: 19
   completed_phases: 8
   total_plans: 21
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
@@ -27,8 +27,28 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 ## Current Position
 
 Phase: 20 — Deploy Rig & Source-of-Truth Import (RIG-01)
-Plan: 2 of 5 complete (20-01, 20-02 DONE; 20-03 next)
-Status: **20-02 COMPLETE — the source-of-truth import has LANDED and the Plank closure is PROVEN.**
+Plan: 3 of 5 complete (20-01, 20-02, 20-03 DONE; 20-04 runs in the same wave, 20-05 next)
+Status: **20-03 COMPLETE — the rig is LIVE on anvil and the manifest exists.**
+`bash offchain/rig/deploy-rig.sh` takes a machine with no anvil running to all SEVEN contracts plus
+`offchain/rig/rig-manifest.json` (GITIGNORED). Every address came out of foundry's broadcast JSON
+and was independently confirmed against the deploy script's own console line, both sides lowercased;
+accounts derived with `cast wallet address`, seed a fixed literal, no `date +%s` and no nonce
+arithmetic anywhere. **SC-2 green and FALSIFIED:** `verify-rig.sh` exits 0
+(`7 contracts live, RealizedVolatilityMod seeded`) and all six injected faults exit 1 — including
+two that a live-vs-empty check alone would have missed (pointing RealizedVolatilityMod at a LIVE
+17151-byte PoolManager, and swapping the hook's PoolManager for the OTHER live PoolManager).
+**SC-5 MEASURED:** two from-scratch runs give a byte-identical manifest, normalised sha256
+`197acd74…5888f354`, with `generatedAt` differing (18:46:13Z vs 18:49:15Z) so run 2 provably
+regenerated it. **Research §12.1 CLOSED and its MEDIUM-confidence prediction REFUTED:** the
+CREATE2-proxy hook deploy is recorded as a TOP-LEVEL `transactionType: "CREATE2"` attributed to the
+hook with `contractName: null`, NOT as a `CALL` with the hook in `additionalContracts[]` (which is
+`[]` on all six transactions). The manifest matches the 20-04 schema contract with ZERO deviation.
+Territory clean: `Makefile foundry.toml remappings.txt foundry-scripts/ src/ test/` all byte-untouched.
+Next action: `20-05` (reconciliation + literal purge), once 20-04 lands.
+
+### 20-02 (superseded position, kept for the record)
+
+**20-02 COMPLETE — the source-of-truth import has LANDED and the Plank closure is PROVEN.**
 36 paths imported BY CHECKOUT from `origin/develop @ 9f5ccba`, `git diff` against the ref EMPTY, so
 every artifact is byte-identical and none was re-typed. `src/lib/TickUtils.plk` removed as
 superseded (git records R054 → `src/types/pricing/TickUtils.plk`). Provenance pinned as 36
@@ -96,6 +116,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 19 P05 | 5 | 3 tasks | 2 files |
 | Phase 20 P01 | 4 | 3 tasks | 3 files |
 | Phase 20 P02 | 13 | 3 tasks | 40 files |
+| Phase 20 P03 | 12 | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -160,6 +181,10 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase Phase 20]: [20-02 MEASURED, binds the Solidity-testing session] Post-import delta, ATTRIBUTED not repaired: forge test --via-ir --fuzz-seed 4880 = 139/5/144 -> 85 passed / 27 failed / 112 total; make compile-plank = 14ok/0 -> 13 ok / 3 failed / 16 entrypoints. forge build STILL exit 0, confirming solc never sees .plk, so all 27 reds are runtime/FFI and forge script (20-03) is unaffected. The total FELL 32 because six suites now fail in setUp(), which forge reports as ONE failure while the rest never run. Four named causes: C1 V2 arity create_order(uint88,uint24,uint16,uint96)/0x98d950ec with the v1 3-arg RETIRED (20 tests); C2 two harnesses importing the removed lib::TickUtils; C3 per-test --dep sets lacking types=src/types; C4 harness call sites at v1 arity. By transition: 1 carried pre-existing, 2 transformed, 24 genuinely new.
 - [Phase Phase 20]: [20-02 FINDING] C3 is a DEPENDENCY-ROOT problem, not a content problem, and the proof is a divergence: VolRangeWidthHelper.plk compiles OK under make compile-plank (full dep set) while the SAME file fails under forge test's FFI (narrower per-test set). Re-running the failing command with --dep types=src/types added emits bytecode and exits 0 (MEASURED, no file edited). So C2/C3 are mechanical fixes for the Solidity-testing session, not a migration. Separately, test__unit__everyInterfaceSignatureStringIsPinned is a WORKING pin, not a bug -- it reddened because it DETECTED the source-of-truth change, exactly its job.
 - [Phase Phase 20]: [20-02 PATTERN, falsify-before-trust] The SC-1 verifier was driven to FAIL on purpose before being reported green: a flipped pin digest and a deleted pin row each exit 1 with a named message, and both restorations were verified byte-identical. Faults were injected into IMPORT-PIN.md (this workstream's own file), never a plank-owned one. This answers the repo's four recorded instances of criteria that passed vacuously. Also carried forward for 20-04: IMarketStateSocket.plk was imported for set-completeness and IS the broken stub (seven const NAME = lines with no values, no terminators) -- the pin parser must skip valueless consts DELIBERATELY, with the skip asserted in a test.
+- [Phase 20]: [20-03 RESOLVED, closes research §12.1 and REFUTES its prediction] Foundry records DeployDynamicFeeHook's raw .call to the CREATE2 proxy as a TOP-LEVEL transactionType CREATE2 attributed to the hook (contractAddress = the mined hook, contractName null), NOT as a CALL to 0x4e59b448 with the hook in additionalContracts[] -- additionalContracts is [] on all six transactions, in both runs. The plan's PRIMARY extractor branch never fires; the FALLBACK is the real path. contractName is null for the same reason it is null on plankDeployFFI modules (Plank initcode solc never saw), so the Plank hook is keyed on transactionType while PriceSetterHook (new X{salt:...}) carries a contractName and is keyed by name. The hook address also appears a second time as a CALL (initializeHook), so keying on CREATE2 is correct by construction, not by ordering luck.
+- [Phase 20]: [20-03 MEASURED, SC-5] Two from-scratch deploy-rig.sh runs produce a byte-identical manifest: jq -S 'del(.generatedAt)' diff EMPTY, both normalised files sha256 197acd740685fb0860ec1f8227d95afc541985fe6d081b3fade6712f5888f354, with generatedAt DIFFERING (18:46:13Z vs 18:49:15Z) so run 2 provably regenerated the file. Two determinism results that were NOT guaranteed: (a) BOTH CREATE2-mined addresses reproduce, which for the Plank DynamicFeeHook means plank build emitted byte-identical initcode -- stronger than 20-02's 'compiles and emits hex'; (b) the seeded packed timepoint is identical across runs (1766847064...619776), confirming it derives from the fixed INIT_TS literal and not the wall clock. A date +%s INIT_TS would still have PASSED SC-5 (the seed is not a manifest field) while silently making the rig's STATE irreproducible.
+- [Phase 20]: [20-03 VERIFIED, SC-2 falsified] verify-rig.sh exits 0 with '7 contracts live, RealizedVolatilityMod seeded' and contains ZERO address literals (every target read from the manifest via jq -r). All six injected faults exit 1 with named messages, run against COPIES via a RIG_MANIFEST override with the real manifest's sha256 confirmed unchanged after. TWO faults are load-bearing beyond box-ticking: pointing RealizedVolatilityMod at the LIVE 17151-byte PoolManager passes probe 1 and is caught ONLY by probe 3 (so probe 3 does not ride on the bytecode check), and swapping contracts.PoolManager for PriceSetterPoolManager proves probe 5 discriminates between two REAL contracts, not merely live-vs-empty. A live-vs-empty-only falsification would have left both unproven.
+- [Phase 20]: [20-03 FINDING, one research-table label is stale] Research §3.2 lists DeployDynamicFeeMod printing 'owner (TOFU)  : <address>'. The IMPORTED file prints 'owner (TOFU)  : the deployer, captured in-broadcast' -- a sentence, not an address -- so there is no console address to cross-check and none is attempted. TOFU ownership is instead PROVEN on chain by verify-rig.sh probe 4 (owner() == manifest accounts.deployer), which is strictly stronger than matching a printed string. Every other console label matched the imported source exactly. Separately: poolId is the ONLY console-primary field with no independent source (it is not an address in the broadcast record); currency0/currency1 were upgraded to a SET cross-check against the two MinimalToken CREATEs.
 
 ### Pending Todos
 
@@ -186,6 +211,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-07-31T18:38:02.573Z
-Stopped at: Completed 20-02-PLAN.md — 36 artifacts imported byte-identical from 9f5ccba, closure PROVEN by four plank builds, delta attributed
+Last session: 2026-07-31T18:54:07.552Z
+Stopped at: Completed 20-03-PLAN.md — rig LIVE on anvil, SC-2 falsified green, SC-5 byte-identical, research §12.1 RESOLVED (top-level CREATE2, prediction refuted)
 Resume file: None
