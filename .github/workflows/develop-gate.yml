@@ -36,6 +36,11 @@ jobs:
           git submodule update --init lib/panoptic-v2-core
           git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
           git submodule update --init --recursive
+      # node_modules became a HARD forge dependency with the premium port (@cryptoalgebra
+      # remappings in foundry.toml); package.json/package-lock.json are tracked for exactly
+      # this closure (ffcc3b6 + the CI-reproducibility note). Without this step the compile
+      # dies on missing @cryptoalgebra sources before any test runs.
+      - run: npm ci --ignore-scripts
       - run: forge test --via-ir --offline
 
   gams:
