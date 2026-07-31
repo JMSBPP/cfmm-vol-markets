@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 20 context gathered
-last_updated: "2026-07-31T14:01:28.294Z"
-last_activity: 2026-07-31 — v5.0 roadmap created (Phases 20–22), 10/10 requirements mapped
+status: in-progress
+stopped_at: Completed 20-01-PLAN.md — upstream gate OPEN, develop ref pinned, baselines measured
+last_updated: "2026-07-31T18:25:45.268Z"
+last_activity: "2026-07-31 — 20-01 executed: gate OPEN, develop ref pinned, forge build green, both"
 progress:
   total_phases: 19
   completed_phases: 8
-  total_plans: 16
-  completed_plans: 16
+  total_plans: 21
+  completed_plans: 17
 ---
 
 # Project State
@@ -27,17 +27,21 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 ## Current Position
 
 Phase: 20 — Deploy Rig & Source-of-Truth Import (RIG-01)
-Plan: —
-Status: **Ready to plan.** Milestone v5.0 roadmap CREATED and appended to `ROADMAP.md` —
-3 phases (20 → 21 → 22), 10/10 requirements mapped, no orphans. Strictly sequential: the rig
-comes first because it is the only thing that makes RPIN-05's "verify against the live module"
-satisfiable, and because it imports every source-of-truth file the other two phases read.
-Phase 20's first deliverable is an IMPORT, never a re-type: `foundry-scripts/deploy/` (5 files),
-the V2 `src/interfaces/<namespace>/*.plk` set, `.planning/rpc-api-volorder-v2-HANDOFF.md`,
-`notes/DATA_CONTRACT.md` and `notes/UNITS_AND_SCALES.md` all live on `origin/feat/plank` @
-`df7088f` and are ABSENT from `feat/rpc-api` (verified 2026-07-31); the local
-`VolOrderManagerInterface.plk` is still the v1 file. Next action: `/gsd:plan-phase 20`.
-Last activity: 2026-07-31 — v5.0 roadmap created (Phases 20–22), 10/10 requirements mapped
+Plan: 1 of 5 complete (20-01 DONE; 20-02 next)
+Status: **20-01 COMPLETE — the upstream gate is OPEN and the phase is UNBLOCKED.** PR #15
+(`feat/plank` → `develop`) MERGED at 18:17 UTC; `offchain/rig/check-upstream.sh` was RUN (not just
+written) and recorded **`origin/develop` = `9f5ccba92ddf89d80efe81bae1dcd1d0a1c10e2d`** to
+`offchain/rig/import-ref.txt`. That sha — read from disk, never retyped — is the SC-1 acceptance
+target every 20-02 import diffs against, superseding the roadmap's `feat/plank @ df7088f` wording
+per the 20-CONTEXT locked decision. Research §1's CLOSED measurement (`1c41935`, PR #15 OPEN) is
+EXPIRED. Preflight done: `npm ci --ignore-scripts` + the submodule sequence make **`forge build`
+exit 0 on the PRE-import tree**, so any later build failure is the import's. Cold baselines
+recorded in `FORGE-BASELINE.md`: **139 passed / 5 failed / 144 total (47 suites)** and
+**`make compile-plank` 14 ok / 0 failed / 0 skipped**, every red named verbatim and 0 under
+`test/pos_spec/`. Other tracks' territory byte-untouched (`src/ test/ Makefile foundry.toml
+remappings.txt` all clean). Next action: execute `20-02` (the import itself).
+Last activity: 2026-07-31 — 20-01 executed: gate OPEN, develop ref pinned, forge build green, both
+cold baselines measured
 
 ## v4.0 Closing Position (record, plank workstream)
 
@@ -73,6 +77,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 19 P03 | 24 | 3 tasks | 1 files |
 | Phase 19 P04 | 21 | 2 tasks | 1 files |
 | Phase 19 P05 | 5 | 3 tasks | 2 files |
+| Phase 20 P01 | 4 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -129,6 +134,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 19]: [19-05 FINDING, will fire on every future run] the acceptance criterion `grep 'FAIL' <output> | grep -c 'pos_spec'` == 0 is a FALSE POSITIVE — it matches the `--dep pos_spec=src/types/pos_spec` flag echoed inside `[FAIL: vm.ffi: ffi command [...]]` lines from the EXPOSURE suites, not any failing test. It measured 28 while the real count of reds under test/pos_spec/ was ZERO. Scope such gates to `test/pos_spec/`, and note that test/types/pos_spec/ is the vol-type TYPE track — a different owner.
 - [Phase 19]: [19-05 VERIFIED, the real MVER-04 gate] the BATCH dispatch is CALLED green through FFI-deployed bytecode, not inferred from compile-green: batchSelectorIsNowDispatched (selector 0x81357911 reaches a dispatch branch rather than revert_empty), mixedBatchFootprintAndContiguity (the branch does real work — state effects at raw vm.load addresses from a seeded counter), mixedBatchReturnIsByteExact (the return half). All reach the module via deployPlank -> plank build over FFI AT TEST TIME.
 - [Phase 19]: [19-05 CORRECTED, fourth stale-criterion fix in this milestone] roadmap SC-4, the Phase 19 Goal line and the one-line entry all asserted a `PLANK_SKIP` exit that does not exist. PLANK_SKIP is the rescue queue for entrypoints that do NOT compile; a module dispatching a subset of its declared selectors compiles fine, so VolOrderManagerMod never met the entry condition. Queue verified byte-identically empty. Like the previous three, resolved by fixing the DOCUMENT, never the code.
+- [Phase 20]: [20-01 MEASURED] Upstream gate OPEN — PR #15 (feat/plank->develop) MERGED; origin/develop pinned at 9f5ccba92ddf89d80efe81bae1dcd1d0a1c10e2d in offchain/rig/import-ref.txt. This SUPERSEDES research §1's CLOSED measurement (origin/develop = 1c41935, PR #15 OPEN at 14:20 UTC). The gate is a re-runnable command whose sharpest discriminator is a grep for the V2 selector 0x98d950ec, not path existence — a path check cannot tell a merged V2 interface from the stale v1 file.
+- [Phase 20]: [20-01 MEASURED, binds 20-02's delta] Cold PRE-IMPORT baselines on feat/rpc-api: forge test --via-ir --fuzz-seed 4880 = 139 passed / 5 failed / 144 total (47 suites); make compile-plank = 14 ok / 0 failed / 0 skipped. 19-05's 102/18/120 + 11ok/2fail were NOT carried forward — the gap is the exposure draft: src/lib/exposure/VegaIssuanceLib.plk is now TRACKED and COMPILES here, so the 14 VegaAccount*/VegaIssuance* setUp() reverts and 2 compile failures are gone. 4 of the 5 reds are the known vol-type track failures; the 5th (VolOrderManagerFuzzTest test__fuzz__logCreateOrder) is NEW to this branch record and is pre-import, so 20-02 must not mistake it for import damage. 0 reds under test/pos_spec/.
+- [Phase 20]: [20-01 VERIFIED] forge build exits 0 on the PRE-import tree after npm ci --ignore-scripts (172 pkgs) + the develop-gate.yml submodule sequence with the submodule.lib/panoptic-helper.update=none recursion guard (guard OBSERVED firing: 'Skipping submodule'). Any post-import build failure is therefore unambiguously attributable to the import. No tracked file moved: git status --porcelain on src/ test/ Makefile foundry.toml remappings.txt is EMPTY.
 
 ### Pending Todos
 
@@ -155,6 +163,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-07-31T14:01:28.287Z
-Stopped at: Phase 20 context gathered
-Resume file: .planning/phases/20-deploy-rig-source-of-truth-import/20-CONTEXT.md
+Last session: 2026-07-31T18:25:45.263Z
+Stopped at: Completed 20-01-PLAN.md — upstream gate OPEN, develop ref pinned, baselines measured
+Resume file: None
