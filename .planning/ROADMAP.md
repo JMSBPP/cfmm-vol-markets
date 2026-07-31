@@ -527,7 +527,7 @@ are readable here will stall on its first step. Importing them is Phase 20's fir
 
 ## Phases
 
-- [ ] **Phase 20: Deploy Rig & Source-of-Truth Import** - Bring the plank branch's four deploy scripts, V2 interfaces and notes onto `feat/rpc-api` by import (never re-typed), stand the full contract set up on a local anvil, and capture addresses + selectors + topic0s into one rig manifest the drivers consume (RIG-01)
+- [x] **Phase 20: Deploy Rig & Source-of-Truth Import** - Bring the plank branch's four deploy scripts, V2 interfaces and notes onto `feat/rpc-api` by import (never re-typed), stand the full contract set up on a local anvil, and capture addresses + selectors + topic0s into one rig manifest the drivers consume (RIG-01) (completed 2026-07-31)
 - [ ] **Phase 21: V2 ABI Re-Pin & targetVega Generation** - Re-pin `VolOrder/{Types,Encoding,Decode,Rpc}.hs` to the V2 4-arg ABI across all four byte layouts, kill the stale topic0 with a signature-derived pin test, carry `target_vega` end-to-end, and draw it per order in raw L units (RPIN-01..06, VEGA-01)
 - [ ] **Phase 22: Live Stochastic Drivers** - Both drivers run end-to-end against the rig: price diffusion writing timepoints (E3 per step) and Poisson V2 VolOrder creation single + batch, with preview/readback consistency including targetVega and E1 v2 observed under the pinned topic0 (DRIV-01, DRIV-02)
 
@@ -546,11 +546,11 @@ are readable here will stall on its first step. Importing them is Phase 20's fir
 **Plans**: 5 plans in 4 waves
 
 Plans:
-- [ ] 20-01-PLAN.md — Upstream gate (BLOCKING), npm/submodule preflight, cold pre-import forge + plank baselines [wave 1]
-- [ ] 20-02-PLAN.md — Import the 36 binding paths + transitive .plk closure from the recorded develop ref, pin sha256 provenance, prove the closure compiles, record the forge delta [wave 2]
-- [ ] 20-03-PLAN.md — deploy-rig.sh (owns anvil, 5 scripts, manifest from broadcast JSON + console cross-check), verify-rig.sh liveness probes, SC-5 double-run reproducibility [wave 3]
-- [ ] 20-04-PLAN.md — generate-pins.sh + committed rig-pins.json (generated from the imported interface files), Rig.Manifest aeson loader, cabal wiring [wave 3]
-- [ ] 20-05-PLAN.md — Literal purge into the manifest, SC-3/SC-4 cabal test-suite (keccak recomputation + falsifiability), the documented one-command sequence [wave 4]
+- [x] 20-01-PLAN.md — Upstream gate (BLOCKING), npm/submodule preflight, cold pre-import forge + plank baselines [wave 1]
+- [x] 20-02-PLAN.md — Import the 36 binding paths + transitive .plk closure from the recorded develop ref, pin sha256 provenance, prove the closure compiles, record the forge delta [wave 2]
+- [x] 20-03-PLAN.md — deploy-rig.sh (owns anvil, 5 scripts, manifest from broadcast JSON + console cross-check), verify-rig.sh liveness probes, SC-5 double-run reproducibility [wave 3]
+- [x] 20-04-PLAN.md — generate-pins.sh + committed rig-pins.json (generated from the imported interface files), Rig.Manifest aeson loader, cabal wiring [wave 3]
+- [x] 20-05-PLAN.md — Literal purge into the manifest, SC-3/SC-4 cabal test-suite (keccak recomputation + falsifiability), the documented one-command sequence [wave 4]
 
 ### Phase 21: V2 ABI Re-Pin & targetVega Generation
 **Goal**: The Haskell client speaks V2 on every byte layout that crosses the wire — call, batch input word, storage word, and log — with each selector and topic0 pinned by a test that COMPUTES it from the signature string, so this surface cannot rot silently again; and `StochasticOrderGen` supplies the fourth field in the right units.
@@ -588,7 +588,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 20. Deploy Rig & Source-of-Truth Import | 4/5 | In Progress|  |
+| 20. Deploy Rig & Source-of-Truth Import | 5/5 | Complete   | 2026-07-31 |
 | 21. V2 ABI Re-Pin & targetVega Generation | 0/TBD | Not started | - |
 | 22. Live Stochastic Drivers | 0/TBD | Not started | - |
 

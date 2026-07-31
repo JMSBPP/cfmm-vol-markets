@@ -184,7 +184,7 @@ verified), `.planning/rpc-api-volorder-v2-HANDOFF.md`, `notes/DATA_CONTRACT.md`,
 
 ### Deploy Rig
 
-- [ ] **RIG-01**: The four `foundry-scripts/deploy/` scripts stand up the full rig on a
+- [x] **RIG-01**: The four `foundry-scripts/deploy/` scripts stand up the full rig on a
       local anvil (VolOrderManagerMod; RealizedVolatilityMod seeded via
       `INIT_TS`/`INIT_TICK`; DynamicFeeMod; DynamicFeeHook premium rig), with each
       script's printed addresses + selectors + event topic0s captured for the drivers
@@ -323,7 +323,7 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | MVER-02 | Phase 19 | Complete |
 | MVER-03 | Phase 19 | Complete |
 | MVER-04 | Phase 19 | Complete |
-| RIG-01 | Phase 20 | Pending |
+| RIG-01 | Phase 20 | Complete |
 | RPIN-01 | Phase 21 | Pending |
 | RPIN-02 | Phase 21 | Pending |
 | RPIN-03 | Phase 21 | Pending |

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: in-progress
-stopped_at: Completed 20-04-PLAN.md — 30 selectors + 5 topic0s generated from the imported interfaces and cross-checked, Rig.Manifest loading both manifest halves warning-free
-last_updated: "2026-07-31T19:00:12.978Z"
-last_activity: "2026-07-31 — 20-04 executed: 35 pins generated and cross-checked from the imported interfaces, Rig.Manifest decodes 20-03's REAL manifest, zero -Wall warnings"
+status: completed
+stopped_at: Completed 20-05-PLAN.md — literal purge complete, 44/44 pin checks green, the documented rig sequence run end to end
+last_updated: "2026-07-31T19:27:14.741Z"
+last_activity: "2026-07-31 — 20-05 executed: PHASE 20 COMPLETE. Literal purge empty-grep clean (and it fixed a live zero-bytecode address), 44/44 pin checks recomputed from the interface files and observed going red on a 1-char corruption, README sequence run green end to end, RIG-01 marked complete"
 progress:
   total_phases: 19
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 21
-  completed_plans: 20
+  completed_plans: 21
 ---
 
 # Project State
@@ -26,9 +26,34 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 
 ## Current Position
 
-Phase: 20 — Deploy Rig & Source-of-Truth Import (RIG-01)
-Plan: 4 of 5 complete (20-01, 20-02, 20-03, 20-04 DONE — wave 3 fully landed; 20-05 next)
-Status: **20-04 COMPLETE — every pin is GENERATED, and the Haskell side loads both manifest halves.**
+Phase: 20 — Deploy Rig & Source-of-Truth Import (RIG-01) — **COMPLETE**
+Plan: 5 of 5 complete (20-01, 20-02, 20-03, 20-04, 20-05 all DONE — wave 4 landed)
+Status: **PHASE 20 COMPLETE — RIG-01 SATISFIED and marked complete in REQUIREMENTS.md.**
+The offchain executable surface holds **ZERO** address, selector or topic0 literals:
+`grep -rnE '0x…{40}\b|0x…{64}\b|0x…{8}\b' offchain --include='*.hs' --include='*.sh'` produces **no
+output**. Six literals were purged, not the research inventory's four — `check-upstream.sh` carried
+both `create_order` selectors and is IN the decided `*.hs`/`*.sh` scope; both now come from
+`rig-pins.json` via `jq`. **The purge fixed a LIVE bug, MEASURED:** `Sample.hs`'s
+`price_setter_hook` literal has **zero bytecode** on the deployed rig (`cast code` returns `0x`)
+while the manifest's `PriceSetterHook` has 2183 bytes — the driver's whole price-write path was
+aimed at an address with no contract at it. `Main.hs` calls `load_rig` FIRST, before the RNG and
+any RPC call; with the manifest moved aside it exits 1 naming the resolved path AND `deploy-rig.sh`,
+with no fallback. **`cabal test` = 44/44, exit 0, zero `-Wall` warnings** — 35 per-pin checks (30
+selectors + 5 topic0s), each recomputing from the signature PARSED OUT OF the `.plk` file its own
+`source` field names, by a **second independent parser** anchored differently from
+`generate-pins.sh`'s. **OBSERVED RED for the right reason:** a one-character pin corruption
+(`0x98d950ec`→`0x98d950ed`) reddens exactly `sc4_pin_selector_create_order` and
+`sc4_cast_agreement` at 42/44 exit 1 — with the recomputed value CORRECT and the pin wrong, both
+`keccak256` and `cast` saying so independently — and `git checkout` restores 44/44. The wrapped
+`TimepointWritten` and the already-canonical form both pass; `sc4_falsifiable` drives THE SAME
+checker with the retired stale topic0 read from the pin file. **SC-5:** `offchain/rig/README.md`
+was run top to bottom and every step exited 0. Territory clean: `src/ test/ foundry-scripts/
+Makefile foundry.toml remappings.txt` byte-untouched. Next action: **Phase 21 (RPIN-*)** — re-pin
+the encoder/decoder, which still speak v1 (documented, pre-existing).
+
+### 20-04 (superseded position, kept for the record)
+
+**20-04 COMPLETE — every pin is GENERATED, and the Haskell side loads both manifest halves.**
 `offchain/rig/generate-pins.sh` emits `offchain/rig/rig-pins.json` — **30 selectors + 5 topic0s + 3
 retired values, not one hex digit typed.** Every value is computed by `cast sig`/`cast keccak` from a
 signature string PARSED out of an imported `.plk`, then asserted equal to that file's own declared
@@ -142,6 +167,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 20 P02 | 13 | 3 tasks | 40 files |
 | Phase 20 P03 | 12 | 3 tasks | 4 files |
 | Phase 20 P04 | 14 | 2 tasks | 4 files |
+| Phase 20 P05 | 22 | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -215,6 +241,11 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 20]: [20-04 PROVEN] Normaliser idempotency is established by CROSS-FILE AGREEMENT, not by assertion. TimepointWritten, WindowChanged, FeeConfigurationChanged and getAverageVolatility are each declared in two files in two DIFFERENT comment shapes -- decorated (indexed + parameter names, one of them wrapped across two lines) and already-canonical single-line. Both paths through the parser produced identical signature strings and identical computed values, and the generator ABORTS if any duplicate disagrees.
 - [Phase 20]: [20-04 DECIDED, resolves a self-contradicting criterion -- the SIXTH in this repo] The plan required that deleting contracts.VolOrderManagerMod make the decode FAIL, while its own schema locks contracts as an OPEN map so a new deployment needs no Haskell change. A smaller map is still a valid map, so aeson structurally cannot fail. Resolved by KEEPING the map open (20-03's contract preserved, extra contracts accepted) and adding a required_contracts completeness check in load_rig_from that runs after decoding and names both the missing and the present contracts. The failure is raised by the completeness check, NOT by aeson -- do not blur this.
 - [Phase 20]: [20-04 VERIFIED, closes a 20-05 question early] 20-03's rig-manifest.json already existed at 20-04 execution time and Rig.Manifest decoded the REAL file, not merely the fixture. It matches the wave-3 schema B contract with ZERO deviation -- every key, every nesting level, all hex lowercase, chainId/tickSpacing/initTs/initTick as JSON numbers. There is nothing for 20-05 task 1 to reconcile on the manifest shape. Also: the v1 E1 topic0 did NOT have to be omitted -- it is present VERBATIM and complete in the imported notes/DATA_CONTRACT.md:16, so it is parsed from there rather than expanded from memory, while the truncated .plk form is rejected by an explicit ellipsis guard.
+- [Phase 20]: [20-05 MEASURED, the purge fixed a LIVE bug] Sample.hs's price_setter_hook literal 0x78f77B58... has ZERO bytecode on the deployed rig (cast code returns 0x) while the manifest's PriceSetterHook 0x683ee59f... has 2183 bytes. The driver's entire price-write path was aimed at an address with no contract at it. The other two literals were still correct by nonce accident (VolOrderManagerMod landed at the same address), which is the point: a literal is right only by accident and cannot announce when it stops being right. Six literals were purged, not the research inventory's four -- check-upstream.sh carried 0x98d950ec and 0x6501fe94 and is IN the decided *.hs/*.sh scope; both are now read from rig-pins.json with jq.
+- [Phase 20]: [20-05 FINDING, the SEVENTH self-contradicting criterion] The plan's own prescribed Decode.hs comment ('The RETIRED v1 value 0xa8892769 lives in rig-pins.json') contains an 8-hex literal that its OWN purge criterion matches -- written verbatim, task 1 could never pass. Resolved by pointing the comment at the retired block without the hex. Separately, two acceptance criteria measure TEXT where they mean STRUCTURE (grep -c on 'account|order_manager|price_setter_hook' in Sample.hs and on 'Rig.Manifest' in the decode chain counted explanatory COMMENTS, not code); both were satisfied by rewording, at the cost of moving the removed-binding routing table into the summary.
+- [Phase 20]: [20-05 DECIDED, a working tool would have broken silently] generate-pins.sh parsed retired.topic_order_created_stale out of offchain/lib/VolOrder/Decode.hs -- the very constant this plan deletes -- so the generator would have aborted with 'matched 0 values'. Re-pointed at src/modules/VolOrderManagerMod.plk, the superseded duplicate module carrying 'const TOPIC_ORDER_CREATED = 0xa8892769' verbatim: the file the Decode.hs constant was ORIGINALLY transcribed from and the origin of the rot (research 2.2). Better provenance, still never typed, another track's file READ only. Re-run produces rig-pins.json byte-identical. CAVEAT for Phase 21: the generator now depends on that superseded file existing; plank deleting it is a loud failure needing a new recorded home, not a silent drop.
+- [Phase 20]: [20-05 VERIFIED, SC-4 is falsifiable and was OBSERVED red] cabal test = 44/44 (35 per-pin + 9 named). Every pin is recomputed from the signature PARSED OUT OF the .plk file its own source field names, by a SECOND independent parser anchored differently from generate-pins.sh's (comment-block forward scan vs const-declaration backward walk). A one-character pin corruption (0x98d950ec -> 0x98d950ed) reddens exactly sc4_pin_selector_create_order and sc4_cast_agreement at 42/44 exit 1, with the recomputed value CORRECT and the pin wrong, both Haskell keccak256 and cast saying so independently; git checkout restores 44/44. The suite also caught a defect in ITSELF first: cast's trailing newline made two identical-looking hex strings compare unequal.
+- [Phase 20]: [20-05 FINDING, the clean-machine trap the plan's template would have shipped] The README's submodule step needs 'git -c submodule.lib/panoptic-helper.update=none'. The plain recursive command exits 0 in this checkout ONLY because the skip is recorded in lib/panoptic-v2-core/.git/config, a machine-local artifact; upstream's committed .gitmodules points lib/panoptic-helper at an unreachable repo and this repo has no overriding stanza. A clean machine following the plain form fails at step 2. Separately documented: cabal run completes and reports a receipt but the order REVERTS -- Encoding.hs still builds the retired 3-arg create_order against a V2 module dispatching 0x98d950ec (20-02's cause C1, pre-existing, Phase 21's re-pin), recorded in the README so a reader does not read it as a rig failure.
 
 ### Pending Todos
 
@@ -241,6 +272,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-07-31T18:59:11.715Z
-Stopped at: Completed 20-04-PLAN.md — 30 selectors + 5 topic0s generated from the imported interfaces and cross-checked, Rig.Manifest loading both manifest halves warning-free
+Last session: 2026-07-31T19:26:43.136Z
+Stopped at: Completed 20-05-PLAN.md — literal purge complete, 44/44 pin checks green, the documented rig sequence run end to end
 Resume file: None
