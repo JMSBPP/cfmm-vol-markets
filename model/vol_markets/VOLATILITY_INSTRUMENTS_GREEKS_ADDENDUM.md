@@ -1,8 +1,9 @@
-# PROPOSED addendum to `VOLATILITY_INSTRUMENTS.md` — the `## GREEKS` section: the Greek ladder of the LP-payoff kernel and the (β,γ) carry role
+# APPROVED + INSERTED addendum to `VOLATILITY_INSTRUMENTS.md` — the `## GREEKS` section: the Greek ladder of the LP-payoff kernel and the (β,γ) carry role
 
-> STATUS: DRAFT pending HEAVY USER APPROVAL — nothing here is inserted into
-> ../plank/notes/VOLATILITY_INSTRUMENTS.md; placement decision, symbol
-> decisions (G0) and the two-reviewer gate all pending.
+> STATUS: INSERTED 2026-07-31 (HEAVY USER APPROVAL granted) into
+> ../plank/notes/VOLATILITY_INSTRUMENTS.md `## GREEKS`, appended after the
+> user's section prose (never edited). Two-reviewer gate passed (3 BLOCKERs +
+> 7 MAJORs resolved, commit 2460f7f). This file remains the spec of record.
 > Research record: `.planning/greeks/GREEKS-RESEARCH.md` (anchors for every display).
 > Anchors: Bardoscia–Nodari arXiv:2302.11942v3 (§3.1 pp. 6–8, §3.3 pp. 10–13);
 > Maymin arXiv:2603.29763v1 (Thm 1 eq (11)–(13), Prop 4 eq (20), Prop 5,

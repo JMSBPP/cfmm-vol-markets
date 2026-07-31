@@ -274,3 +274,22 @@ Notation (J0): CJZ λ→`ϑ`, α→`ϖ`, f→`φ`, ν(π)→`mJ`; π→`πJ` (Re
 | J8(c) l2-angstrom bridge: jitFactor = (3/2)·x, rates x/(x+1)-form: jitRate > swapRate (x>0), both strictly increasing + strictly CONCAVE | `jitFactor`, `swapRate/jitRate`, `jitRate_gt_swapRate`, `swapRate/jitRate_strictMono`, `swapRate/jitRate_strictConcave` | **PROVEN** (3/2 = the bridged DEFINITION, dated snapshot) |
 
 All 62 declarations axiom-clean; 13 deps byte-identical; Aristotle project `610bb259`. The J2 refutation is a TRANSCRIPTION correction (the addendum's radicand), joining ptrade's pole (M5) and T24 (M6b) in the corrected-claims ledger.
+
+## 11. `GREEKS` (blocks G0–G6, `VOLATILITY_INSTRUMENTS_GREEKS_ADDENDUM.md`; INSERTED into the doc 2026-07-31)
+
+Sources: Bardoscia–Nodari 2302.11942 (LP Greeks), Maymin 2603.29763 (CEV/AMM option pricing, liquidity-adjusted Greeks), Clark SSRN 3898384, Kristensen, Demeterfi et al., Bichuch–Feinstein, Fateh–Singh. Notation: `𝒟_x[·]` sensitivity operator; probabilities `ℙ_{event}`; `τ` = τ_MEV NEVER time (maturity `t★`, remaining `t★−t`).
+
+| Doc claim | Lean | Status |
+|---|---|---|
+| G1 per-tick `𝒟_p[π]`, `Γ` on the sqrt-price ladder | `GeomProfile`, `PosSpec.tickPrice`, `Flow.terminalPayoff` (carriers exist; the Greek displays themselves) | **UNFORMALIZED** (spec) |
+| G1 aggregate flat dollar gamma `Γ^Σp²` — GRID-EXACT; band-modulated companion `∝ p^{1/2}` (pointwise const is FALSE) | `varswapWeight_geometric`, `logContractLiquidity_geometric` (the proven grid-level statements) | **PROVEN** (grid level) / **CORRECTED** (pointwise claim) |
+| G1 `υ = t/2` vs locked-LP short vega `−(t★−t)/8·(asset leg)`; t-semantics clause (maturity param vs calendar) | `variancePortfolio_upsilon`, `tStar`, `tStarFunded` | **PROVEN** (υ) / spec (locked vega) |
+| G1 both θ_fee forms: schedule-level `φ(σ_t)ν_t` (M6b-commensurable, what λ_FLAIR sums) and position-level `φ(σ_t)ν_tΔQ_M` | `VolInstrument.multiFee`, `FlairOptimization.flairHazard` | **UNFORMALIZED** — the future Aristotle statement MUST name which form |
+| G2 depth/emission Greeks `𝒟_{L̄}[C]`, `𝒟_{ΔQ_M}[C]` = **CALL** Greeks (Maymin Def 2); LP-side composition `𝒟_{L̄}[π] ≥ 0` (opposite sign to the first draft) | — | **OFF-BUNDLE** (CEV pricing, noncentral χ², IV inversion beyond Mathlib v4.28) |
+| G2 CEV/skew law `dp = μdt + δp^{1−η_L}dW`, `σ = δp^{−η_L}`; skew depth-invariant, function of `η_L` alone | — | **OFF-BUNDLE**; `η_L = η` is E8(6), **OPEN** (never assumed) |
+| G3 CONTROL MATRIX (8 parameter blocks × 11 rows, position-level): shape Greeks fee-FREE ⟹ `(ξ,ι)` the shaping base; **`(β_j,γ_j)` control the CARRY PROFILE** via `Δθ_fee/Δσ = u Σ α_j γ_j Λ′(γ_j(σ−β_j))·ν_t` — β translates, γ scales where carry accrues in σ-space | `VolInstrument.multiFee` (the derivative structure verified against the def), `multiFee_monotone`, `multiFee_bounds` | **SPEC** — the first first-order display containing the shape block (cf. T24, J8 negative results) |
+| G3 caveats: the carry static holds at FIXED `(φ̄,α,u)` — moving `(β,γ)` re-prices λ_FLAIR (weights `W_j` depend on them; β→−∞ never attained); the vega "hedge" needs the TIME-INTEGRATED `∫_t^{t★}` form (level-vega vs rate-vega) | `FlairOptimization` corner lemmas | **CORRECTED** (both over-claims caught at gate) |
+| G4 underspecification: `|𝒯| = 10` targets vs `#free = 6+2n` (n ≥ 2); shape deficit **1** aggregate, **ι−2** at ladder resolution; `(β,γ)` column ZERO on every shape row | — | **SPEC** — Bunni-v2 LDF milestone needs `dim θ_LDF ≥ ι−2` |
+| G5 EVM partition (exact / approximable / off-chain); `σ²(i(t))` needs an oracle hook or a new accumulator (E2/E5 feed the OFF-chain subgraph) | events layer | **SPEC** |
+
+Gate: Reality Checker + Model QA, both NEEDS WORK → 3 BLOCKERs + 7 MAJORs resolved (commit 2460f7f). Key corrections: Maymin's Λ/E are call Greeks not LP Greeks (LP-side sign was asserted backwards); **η_L = 1 − w** (his CEV exponent is the NUMERAIRE weight — decided against his asymmetric eq (12), invisible at the w = ½ point where all specializations sit); Clark's delta display is UNNUMBERED (gamma = eq (12); eq (13) is Green–Jarrow spanning — never cite it for a Greek).
