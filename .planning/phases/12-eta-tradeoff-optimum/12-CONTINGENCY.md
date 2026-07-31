@@ -32,7 +32,7 @@ optional:
   user's 2026-07-31 η-identity decision is **PARTIALLY discharged**: the exponent identity proven,
   the factor-share identification OPEN. That is recorded as such and is not chased with a second
   bundle unless the user asks for it.
-- A prover-ADDED hypothesis. Expected, pre-authorized for the `1/χ` pole, and a finding rather than
+- A prover-ADDED hypothesis. Expected, pre-authorized for the `1/κ_φ` pole, and a finding rather than
   a defect — Phase 11's T15 correction was the single most valuable line in its fidelity record.
 - A machine-checked REFUTATION. Phase 11's two most valuable outputs were refutations.
 
