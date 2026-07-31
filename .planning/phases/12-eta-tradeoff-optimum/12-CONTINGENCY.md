@@ -27,7 +27,7 @@ softening-in-reverse error — manufacturing a second bundle to chase an item th
 optional:
 
 - **T18'** (the reduced welfare statement) absent — marked OPTIONAL, exactly as Phase 11's T19 was.
-- **T18'b** (the `τ₁ ≤ 0` refutation) absent — OPTIONAL-but-preferred.
+- **T18'b** (the `c₁ ≤ 0` refutation) absent — OPTIONAL-but-preferred.
 - **T28'b** (the factor-share half of the η identity) absent — OPTIONAL. Its absence means the
   user's 2026-07-31 η-identity decision is **PARTIALLY discharged**: the exponent identity proven,
   the factor-share identification OPEN. That is recorded as such and is not chased with a second
@@ -40,11 +40,11 @@ optional:
 
 Insert `12-02b` and `12-03b` as a second bundle, mirroring 12-02 and 12-03 exactly:
 
-- **12-02b** — wave 4; `depends_on: ["12-03"]`; the second bundle is the 16 modules **plus the
+- **12-02b** — wave 4; `depends_on: ["12-03"]`; the second bundle is the 17 modules **plus the
   landed `EtaCurvature.lean`**, which is then itself a PROVEN artifact and off limits (the 11-04
   rule: never modify a file Aristotle has already proven). A new prompt covering only the missing or
   narrowed items, re-gated by two reviewers, submitted as a NEW project. `autonomous: false`.
-- **12-03b** — wave 5; `depends_on: ["12-02b"]`; integration, byte identity across 17 modules, the
+- **12-03b** — wave 5; `depends_on: ["12-02b"]`; integration, byte identity across 18 modules, the
   map-driven non-uniform import rewrite (append the new module to `12-02-MODULE-MAP.txt` with origin
   `vol_markets`), axiom sweep, a fidelity record that AMENDS rather than replaces
   `12-03-FIDELITY.md`, and both remotes.
