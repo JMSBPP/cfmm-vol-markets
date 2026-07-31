@@ -59,13 +59,36 @@ if grep -nE 'α[^_]|α$|\\alpha[^_]|\\alpha$|β[^_]|β$|\\beta[^_]|\\beta$' "$ST
   fail "Capponi's alpha/beta appear unsubscripted — use \\varrho_I / \\varrho_S"
 fi
 
-# --- Rule 4: FORBID theta, kappa and tau entirely -------------------------
-# theta/kappa are absorbed into the \varpi_* constants (theta collides with the
-# document's option theta, kappa with the Phase-11 scalarization weight); tau is
-# TAKEN by M9's tau = tau_MEV and the anchor's tau_1/tau_2 are renamed c_1/c_2.
-# Capital \Theta (as in \Theta_{\varphi}) is deliberately NOT matched.
-if grep -nE 'θ|\\theta|κ|\\kappa|τ|\\tau' "$STRIPPED"; then
-  fail "theta/kappa/tau appear outside the notation-map whitelist — absorb into \\varpi_* or use c_1/c_2"
+# --- Rule 4: FORBID theta and tau entirely --------------------------------
+# theta is absorbed into the \varpi_* constants (it collides with the document's
+# option theta); tau is TAKEN by M9's tau = tau_MEV and the anchor's tau_1/tau_2
+# are renamed c_1/c_2.  Capital \Theta (as in \Theta_{\phi}) is NOT matched.
+if grep -nE 'θ|\\theta|τ|\\tau' "$STRIPPED"; then
+  fail "theta/tau appear outside the notation-map whitelist — absorb into \\varpi_* or use c_1/c_2"
+fi
+
+# --- Rule 4b: kappa PERMITTED ONLY \varphi-SUBSCRIPTED --------------------
+# USER DECISION 2026-07-31: the curvature index is written \kappa_{\varphi}, and
+# the \varphi subscript is the document's QUOTE-FUNCTION symbol, not the fee
+# (the fee is \phi, per M0).  Bare kappa stays forbidden: it is the anchor's
+# absorbed arrival symbol AND the Phase-11 scalarization weight.  Sanctioned
+# forms are exactly \kappa_{\varphi}, \kappa_{\varphi,S}, \kappa_{\varphi,I},
+# \kappa_{\varphi}^{\star} -- all of which begin `\kappa_{\varphi`.
+# Implemented by DELETING the sanctioned occurrences and then grepping for any
+# kappa that survives, which needs no lookahead and stays POSIX-portable.
+KAPPA_HITS="$(sed -e 's/\\kappa_{\\varphi[^}]*}//g' -e 's/κ_{\\varphi[^}]*}//g' -e 's/κ_φ//g' "$STRIPPED" \
+  | grep -nE 'κ|\\kappa' || true)"
+if [ -n "$KAPPA_HITS" ]; then
+  echo "$KAPPA_HITS" >&2
+  fail "Rule 4b: a kappa appears that is not \\varphi-subscripted — only \\kappa_{\\varphi}[,S|,I|^{\\star}] is admissible"
+fi
+
+# --- Rule 4c: FORBID chi -- superseded by \kappa_{\varphi} ----------------
+# The curvature index was written \chi in the pre-amendment draft.  After the
+# user's 2026-07-31 decision the glyph is UNUSED here, so any survivor is a
+# missed rename rather than a legitimate symbol.
+if grep -nE 'χ|\\chi' "$STRIPPED"; then
+  fail "Rule 4c: chi appears — the curvature index is \\kappa_{\\varphi} (user decision 2026-07-31)"
 fi
 
 # --- Rule 5: FORBID nu, BOTH forms (TAKEN by M6b) -------------------------
@@ -104,7 +127,7 @@ if [ -n "$FOC_HITS" ]; then
 fi
 
 # --- Rule 8: FORBID the CPMM misidentification ----------------------------
-CPMM_HITS="$(grep -n -E '\\chi\(1|curvIndex 1 = 1|\\eta = 1.*\\chi = 1|\\chi = 1.*\\eta = 1' "$FILE" \
+CPMM_HITS="$(grep -n -E '\\kappa_\{\\varphi\}\(1|curvIndex 1 = 1|\\eta = 1.*\\kappa_\{\\varphi\} = 1|\\kappa_\{\\varphi\} = 1.*\\eta = 1' "$FILE" \
   | grep -viE 'NOT|≠|never' || true)"
 if [ -n "$CPMM_HITS" ]; then
   echo "$CPMM_HITS" >&2
@@ -117,7 +140,7 @@ REQUIRED=(
   'Lemma 3'
   'Proposition 5'
   'Proposition 6'
-  '\chi'
+  '\kappa_{\varphi}'
   '\varrho_I'
   '\varrho_S'
   'priceEta'

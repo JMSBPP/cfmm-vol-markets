@@ -320,8 +320,8 @@ Rulings, per the presented defaults:
 
 ### Approved bytes
 
-APPROVED-ETA-SHA256: 541819fec3fa50cc9e0eea9151d352dff687f59802b2e7c565a5f2f1940c3776
-APPROVED-ADDENDUM-SHA256: 2fd48568d5c59738826bb772ceec661f0781f697bc02944bbd05db7b97e0fda3
+APPROVED-ETA-SHA256-SUPERSEDED-BY-AMENDMENT: 541819fec3fa50cc9e0eea9151d352dff687f59802b2e7c565a5f2f1940c3776
+APPROVED-ADDENDUM-SHA256-SUPERSEDED-BY-AMENDMENT: 2fd48568d5c59738826bb772ceec661f0781f697bc02944bbd05db7b97e0fda3
 
 The ETA hash is the **END-marker-delimited extraction of the PLANK file**, not a whole-file hash —
 `awk '/\*\*E0\./{f=1} f{print} /<!-- END ETA -->/{f=0}' ../plank/notes/VOLATILITY_INSTRUMENTS.md | sha256sum`
@@ -381,3 +381,79 @@ further edit to the ETA section invalidates the hash and requires re-approval, a
 edits elsewhere in the file (including the JIT section) are safe because the pin is END-marker
 delimited. This is the same channel 11-01 Task 3 used. **The live chat notification should be
 re-sent by the coordinator, which has the tool.**
+
+---
+
+## User AMENDMENT (2026-07-31, after "approved" — treated as "approved with changes")
+
+Verbatim: **"one notation caveat for curvature we use \kappa_{\varphi}"**
+
+The curvature index is written **`κ_φ` (`\kappa_{\varphi}`)**, NOT `χ`. Applied to the addendum AND
+to the inserted plank block, and enforced mechanically.
+
+### What changed
+
+| Was | Now |
+| --- | --- |
+| `\chi(\eta,\Delta_i)` | `\kappa_{\varphi}(\eta,\Delta_i)` |
+| `\chi_S` / `\chi_I` | `\kappa_{\varphi,S}` / `\kappa_{\varphi,I}` |
+| `\chi^{\star}` | `\kappa_{\varphi}^{\star}` |
+| Lean `chiS` / `chiI` / `chiStar` (and `hchiS` / `hchiI`) | **`kphiS` / `kphiI` / `kphiStar`** (and `hkphiS` / `hkphiI`) |
+| `curvIndex` (definition), `curv` (bound variable) | UNCHANGED |
+
+**A SECOND, CONSEQUENTIAL CORRECTION FELL OUT OF THIS AND IS NOT COSMETIC.** The amendment puts
+`\varphi` in the subscript position, where — per the user — it is the document's QUOTE-FUNCTION
+symbol. But the pre-amendment draft had been using `\varphi` **for the fee**, which directly
+contradicts the master document's own M0: *"Fee \(= \phi\) (ceiling \(\bar\phi\), set
+\(\Theta_{\phi}\)); \(\varphi\) NOT used (bound to the quote function)."* The fee was therefore
+retyped to `\phi` throughout (`\bar\varphi` → `\bar\phi`, `\Theta_{\varphi}` → `\Theta_{\phi}`),
+which removes a live collision with the approved `### MEV` section that both reviewers missed and
+that the pre-amendment gate could not see. `κ_φ` is now the curvature of the quote function and
+`\phi` is what the trader pays; the two are never conflated.
+
+### Gate amendment (user-directed, and it was made STRICTER, not weaker)
+
+- **Rule 4** no longer blanket-bans kappa; it still bans `θ`/`\theta` and `τ`/`\tau` entirely.
+- **Rule 4b (NEW)** — kappa is admissible ONLY `\varphi`-subscripted: `\kappa_{\varphi}`,
+  `\kappa_{\varphi,S}`, `\kappa_{\varphi,I}`, `\kappa_{\varphi}^{\star}`. Implemented by deleting the
+  sanctioned occurrences with `sed` and grepping for any kappa that survives — no lookahead, so it
+  stays POSIX-portable, consistent with the script's written-out-alternatives discipline. **Bare
+  kappa remains forbidden** (the anchor's absorbed arrival symbol AND the Phase-11 scalarization
+  weight).
+- **Rule 4c (NEW)** — `χ`/`\chi` is now FORBIDDEN outright: after the rename the glyph is unused, so
+  any survivor is a missed rename rather than a legitimate symbol.
+- **Rule 8** retargeted from `\chi(1` to `\kappa_{\varphi}(1`; **Rule 9**'s required token `\chi` → `\kappa_{\varphi}`.
+
+**Both new rules were NEGATIVE-TESTED rather than assumed:** feeding the gate a copy with
+`\kappa_{\varphi}` → `\kappa` makes it fail at Rule 4b, and a copy with `\kappa_{\varphi,S}` → `\chi_S`
+makes it fail at Rule 4c. A rule that has only ever been seen to pass has not been shown to enforce
+anything.
+
+The single surviving `χ` in the landed section is on a `<!-- notation-map -->` line whose sole
+content is *"`χ` is NOT used anywhere in this section"* — the sanctioned whitelist use, stripped
+before the glyph rules run.
+
+### Re-verification after the amendment
+
+| Check | Result |
+| --- | --- |
+| gate on the amended addendum | `ETA NOTATION GATE: PASS` |
+| gate on the E0…END-ETA payload STANDALONE | `ETA NOTATION GATE: PASS` (245 lines) |
+| gate on the inserted plank section | `ETA NOTATION GATE: PASS` |
+| PIT-E1 canary on the Phase-11 addendum | still FAILS with the Rule-1 message |
+| Rule 4b negative test (bare kappa) | correctly REJECTED |
+| Rule 4c negative test (surviving chi) | correctly REJECTED |
+| M-block integrity M0 → end-of-M8 | `9fcf01d326314eeab462a2d4ad426416002daf7ed2dc371a8204f9d0e9d2e4fd` before AND after — UNCHANGED |
+| plank `HEAD` before == after | `f379f4836ef1cd5377949ef80195350efca14539` |
+| whitelist bound | markers still all above the `**E1.` header |
+
+### RE-PINNED approved bytes (these SUPERSEDE the pins above)
+
+APPROVED-ETA-SHA256: 4f5362c1067e4d7f5c3fb3682363b7af246aad9dc75a602892be09b75fb81b3c
+APPROVED-ADDENDUM-SHA256: d1bade08e6a6bbb31f23dddb0c7822d46affb2772c28754d954bd2c90585dccc
+
+### Binding on 12-02
+
+The bundle prompt MUST use `\kappa_{\varphi}` glyphs and the Lean binders **`kphiS`, `kphiI`,
+`kphiStar`** (with `curvIndex` the definition name and `curv` the bound variable). `χ`/`chiS`/`chiI`/
+`chiStar` must appear nowhere. The fee is `\phi`; `\varphi` appears ONLY as `κ`'s subscript.
