@@ -74,3 +74,20 @@ trade-off and send the workload to Aristotle." Runs PARALLEL-sanctioned.
   LEAN_TRACEABILITY rows, doc summarization pass, memory.
 - Plank consumer: todo #227 closure — the η controller application answer
   feeds plank's hook implementation mapping.
+
+## DECISION (user, 2026-07-31) — Open Question 1 RESOLVED
+
+`VolInstrument.priceEta`'s η and `model/exp/eta.md`'s η ∈ (0,1) are the
+SAME parameter under different normalizations. Consequences (binding):
+- Phase 12 states the normalization bridge explicitly as a theorem target
+  (the (0,∞) geometry exponent ↔ the (0,1) trading-function exponent).
+- The `lean/exp/` layer (esp. `DynamicsOptimization.optimal_controls`,
+  which HYPOTHESIZES an interior η* via an FOC) is CITED and SUPERSEDED by
+  the kink-based η* result — no FOC may be requested (k* is a kink).
+- The notation map keeps η protected end-to-end; Capponi's k → χ (index),
+  his α → ϱ_I (investor private-use premium; the M6a escape parameter),
+  β → shock-magnitude symbol per research; ν is TAKEN (doc line 703);
+  χ, ϱ, ϖ verified free; Capponi's θ/κ absorbed into constants.
+- exp/ working-tree files (eta.md modified, eta_pi_trader_delta_control.md
+  untracked) belong to another workstream — plans must NOT touch exp/;
+  check claude-peers before any exp/ interaction.
