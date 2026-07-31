@@ -4,8 +4,8 @@ milestone: v2.0
 milestone_name: milestone
 status: completed
 stopped_at: Completed 20-05-PLAN.md — literal purge complete, 44/44 pin checks green, the documented rig sequence run end to end
-last_updated: "2026-07-31T19:27:14.741Z"
-last_activity: "2026-07-31 — 20-05 executed: PHASE 20 COMPLETE. Literal purge empty-grep clean (and it fixed a live zero-bytecode address), 44/44 pin checks recomputed from the interface files and observed going red on a 1-char corruption, README sequence run green end to end, RIG-01 marked complete"
+last_updated: "2026-07-31T19:33:53.472Z"
+last_activity: "2026-07-31 — 20-02 executed: 36 artifacts imported by checkout from 9f5ccba,"
 progress:
   total_phases: 19
   completed_phases: 9

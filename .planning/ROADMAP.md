@@ -588,7 +588,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 20. Deploy Rig & Source-of-Truth Import | 5/5 | Complete   | 2026-07-31 |
+| 20. Deploy Rig & Source-of-Truth Import | 5/5 | Complete    | 2026-07-31 |
 | 21. V2 ABI Re-Pin & targetVega Generation | 0/TBD | Not started | - |
 | 22. Live Stochastic Drivers | 0/TBD | Not started | - |
 
