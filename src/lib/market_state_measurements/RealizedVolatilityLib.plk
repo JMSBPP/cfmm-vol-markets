@@ -5,23 +5,9 @@ import types::TimeWindow::*;
 import v3::storage::{array_slot};
 import v3::util::{revert_empty};
 
-// The timepoint ring buffer is a fixed circular array of 2^16 slots, exactly as in
-// Algebra's `Timepoint[UINT16_MODULO]`. Indices are therefore taken mod 2^16, which is a
-// mask rather than a division.
 const UINT16_MODULO = 65536;
 const TIMEPOINT_INDEX_MASK = 0xFFFF;
 
-// _volatilityOnRange: the realized-variance contribution of one interval.
-// Ported from Algebra VolatilityOracle._volatilityOnRange.
-//
-// EVERY operator here MUST be wrapping. Algebra's whole _volatilityOnRange body sits inside
-// `unchecked`, and these are two's-complement signed values carried in u256:
-//   * `b = (tick0 - avg_tick0)` is NEGATIVE whenever the tick sits below its trailing average.
-//     With Plank's CHECKED `-` that underflows and REVERTS -- i.e. the oracle would panic on
-//     the second write of any decreasing tick path. (Plank's `-` emits a revert path; `-%` does not.)
-//   * the middle term `6*b*k*sumOfSequence` is negative when sign(b) != sign(k), so a CHECKED
-//     `+` against a positive term overflows and panics too.
-// Do not "tidy" any of these back to bare -/+.
 const calculate_realized_volatility = fn(avg_tick0:u256, avg_tick1: u256, tick0:u256, tick1:u256, dt :u256) TickVolatility {
       let k = (tick1 -% tick0) -% (avg_tick1 -% avg_tick0);
       let b = (tick0 -% avg_tick0) *% dt;
@@ -41,9 +27,6 @@ const AvgTickRes = struct {
       window_start_index: StorageIndex
 };
 
-// The pair of timepoints bracketing a target timestamp, plus the index of the earlier one.
-// `same_point` means before == after (target is at/after the newest timepoint, or exactly
-// on the oldest), mirroring Algebra's `samePoint` flag.
 const TimepointsAt = struct {
       before: Timepoint,
       after: Timepoint,
@@ -56,16 +39,7 @@ const TickCumulativeAt = struct {
       index_before: u256
 };
 
-// u32_sub: wrapping subtraction TRUNCATED BACK TO 32 BITS.
-//
-// This is load-bearing, not cosmetic. Algebra gets uint32 wraparound for free from its types
-// (`uint32 target = time - secondsAgo;` wraps mod 2^32). Plank carries timestamps in u256, so a
-// bare `-%` wraps mod 2^256 instead and produces a ~2^256 value where Algebra produces a small
-// uint32. Feeding that to oracle_lte INVERTS the comparison:
-//   current_time=1000, WINDOW=86400  ->  Algebra: uint32(1000-86400) = 4294881896
-//                                        Plank (unmasked): 2^256 - 85400
-// oracle_lte then takes the opposite branch and calculate_avg_tick returns the raw current tick
-// instead of a real average. Every timestamp below WINDOW hits this.
+// todo: This goes on a separate file
 const u32_sub = fn(a: u256, b: u256) u256 {
       (a -% b) & 0xFFFFFFFF
 };
@@ -85,17 +59,6 @@ const load_timepoint = fn(buffer_base: u256, index: u256) Timepoint {
       unpack_timepoint(@evm_sload(array_slot(buffer_base, index & TIMEPOINT_INDEX_MASK)))
 };
 
-// _binarySearch / _binarySearchInternal.
-//
-// Searches the ring for the two timepoints bracketing `target`. `left` starts at the
-// oldest index and `right` at the newest; when the ring has wrapped (upper < lower) the
-// upper bound is lifted by one modulo so the interval stays monotonic, and every actual
-// load masks back down to 16 bits.
-//
-// NOTE: Algebra additionally takes a `withHeuristic` first guess (left+1) when the target
-// is expected to sit near `currentTime - WINDOW`. That is a pure search-time optimization
-// with no effect on the result, so it is deliberately omitted here; this is the plain
-// bisection and returns the same bracket.
 const binary_search_timepoints = fn(
       buffer_base: u256,
       current_time: u256,
@@ -151,8 +114,6 @@ const binary_search_timepoints = fn(
       }
 };
 
-// _getTimepointsAt: resolve the bracket around `target`, short-circuiting the cases where
-// no search is needed.
 const timepoints_at = fn(
       buffer_base: u256,
       current_time: u256,
@@ -259,18 +220,49 @@ const tick_cumulative_at = fn(
       }
 };
 
-// twap_tick: the time-weighted average tick over an ARBITRARY lookback `dt`.
-//
-// This is NOT calculate_avg_tick. calculate_avg_tick is Algebra's _getAverageTick, which
-// averages over the fixed WINDOW and is what feeds the volatility accumulator. twap_tick is
-// the Uniswap-V3 `observeSingle` quantity -- the caller picks the lookback -- and it is what
-// both Solidity references expose as `getTwapTick(dt, tick, currentTimestamp)`.
-//
-// UniV3 rounds toward negative infinity for negative accumulator deltas:
-//   timeWeightedAverageTick = delta / dt;
-//   if (delta < 0 && delta % dt != 0) timeWeightedAverageTick--;
-// EVM SDIV truncates toward zero, so that correction is reproduced explicitly here.
-// Without it this is systematically off by one for negative average ticks.
+// volatility_cumulative_at = Algebra VolatilityOracle._getVolatilityCumulativeAt: the (interpolated)
+// volatilityCumulative accumulator at `current_time - seconds_ago`. Mirrors tick_cumulative_at, EXCEPT
+// the extrapolate-forward (same_point) branch uses the volatility KERNEL (calculate_realized_volatility
+// over [before.avg_tick, avg_tick_at_target]), not a linear tick term. uint88 arithmetic (mask MASK_U88).
+const VOL_MASK_U88 = 0xFFFFFFFFFFFFFFFFFFFFFF;
+const volatility_cumulative_at = fn(
+      buffer_base: u256,
+      current_time: u256,
+      seconds_ago: u256,
+      tick: u256,
+      last_index: StorageIndex,
+      oldest_index: StorageIndex,
+      window: TimeWindow
+) u256 {
+      let target = u32_sub(current_time, seconds_ago);
+      let found = timepoints_at(buffer_base, current_time, target, last_index, oldest_index, window);
+
+      let ts_before = found.before.timestamp;
+      let vol_before = found.before.realizedVolatility.vol & VOL_MASK_U88;
+
+      // left boundary
+      if target == ts_before { return vol_before; }
+
+      // target is newer than the last timepoint: extrapolate via the volatility kernel.
+      if found.same_point {
+            let avg = calculate_avg_tick(buffer_base, target, tick, last_index, oldest_index, found.before, window);
+            let dt = u32_sub(target, ts_before);
+            let on_range = calculate_realized_volatility(found.before.avg_tick, avg.avg_tick, tick, tick, dt);
+            return (vol_before +% (on_range.vol & VOL_MASK_U88)) & VOL_MASK_U88;
+      }
+
+      let ts_after = found.after.timestamp;
+      let vol_after = found.after.realizedVolatility.vol & VOL_MASK_U88;
+
+      // right boundary
+      if target == ts_after { return vol_after; }
+
+      // strictly inside: linear interpolation (unsigned; volatilityCumulative is uint88).
+      let timepoint_delta = u32_sub(ts_after, ts_before);
+      let target_delta = u32_sub(target, ts_before);
+      (vol_before +% (@evm_div(vol_after -% vol_before, timepoint_delta) *% target_delta)) & VOL_MASK_U88
+};
+
 const twap_tick = fn(
       buffer_base: u256,
       current_time: u256,
@@ -297,12 +289,6 @@ const twap_tick = fn(
       }
 };
 
-// _getAverageTick: the time-weighted average tick over the trailing `window`.
-//
-// Signature note: this previously took (last_timepoint, ref_index, timestamp, tick, avg_tick)
-// -- which could not express the algorithm at all: it had no oldest_index and no window, and
-// `avg_tick` was an *output* being passed as an input. It now mirrors Algebra's
-// _getAverageTick(self, currentTime, tick, lastIndex, oldestIndex, lastTimestamp, lastTickCumulative).
 const calculate_avg_tick = fn(
       buffer_base: u256,
       current_time: u256,

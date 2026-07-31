@@ -33,3 +33,16 @@ const compress = fn(tick:u256, tickSpacing: u256) u256 {
     }
     compressed
 };
+
+// Shared split points for the CR-I2 4-leg tiling of [i_l, i_u] around the skew-center i*:
+//   m_p = put-side mid (Δ-aligned floor of the midpoint of [i_l, i*])
+//   m_c = call-side mid (Δ-aligned floor of the midpoint of [i*, i_u])
+// Used by BOTH Layer 1 (vol_order_to_panoptic_token_id, to place the 4 legs) and Layer 2
+// (geometric_leg_weights, to place the 4 column boundaries), so the weights line up with the legs.
+const SplitPoints = struct { m_p: u256, m_c: u256 };
+const vol_order_split_points = fn (i_l: u256, i_u: u256, i_star: u256, tickSpacing: u256) SplitPoints {
+    SplitPoints {
+        m_p: round_tick(i_l +% ((i_star -% i_l) </ 2), tickSpacing),
+        m_c: round_tick(i_star +% ((i_u -% i_star) </ 2), tickSpacing)
+    }
+};

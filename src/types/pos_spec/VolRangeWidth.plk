@@ -1,4 +1,4 @@
-import lib::TickUtils::{compress,round_tick};
+import types::pricing::TickUtils::{compress,round_tick};
 import std::error::require;
 import std::math::{max,min};
 import std::core_ops::bool_to_u256;

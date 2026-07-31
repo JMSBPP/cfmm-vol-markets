@@ -1,0 +1,41 @@
+// ABI selectors + events for DynamicFeeHook (src/modules/protocol_integrations/
+// DynamicFeeHook.plk). Declared here so the module's dispatch constants, the Solidity tests
+// AND the off-chain consumers (haskell rpc_api, the subgraph) are computed from the SAME
+// signature strings. Values recomputed with `cast sig` / `cast keccak`, never hand-derived.
+//
+// The hook is the POOL-KEYED emitter (events-subgraph-gams-SPEC.md D2): its events carry the
+// REAL bound v4 PoolId, unlike the module-keyed emitters' permanent bytes32(0) sentinel.
+// ONE-POOL-PER-HOOK: the poolId is bound at initializeHook; beforeSwap requires the delivered
+// PoolKey to hash to it. RESEARCH-ONLY: one-shot open init, MUST NOT back a live pool.
+
+// signature:: beforeSwap(address,(address,address,uint24,int24,address),(bool,int256,uint160),bytes)
+//   -> (bytes4, int256, uint24)   96-byte return: selector | ZERO delta | fee|0x400000
+const SELECTOR_BEFORE_SWAP = 0x575e24b4;
+
+// signature:: initializeHook(address,bytes32,(uint16,uint16,uint32,uint32,uint16,uint16,uint16),int24,uint32)
+//   (poolManager, poolId, AlgebraFeeConfiguration, initTick, initTs) -- ONE-SHOT
+const SELECTOR_INITIALIZE_HOOK = 0xf8a75ae6;
+
+// signature:: getAverageVolatility(int24,uint32) -> uint88   (the hook's own windowed series)
+const SELECTOR_HOOK_AVERAGE_VOLATILITY = 0x8171455c;
+
+// signature:: poolManager() -> address
+const SELECTOR_POOL_MANAGER = 0xdc4c90d3;
+
+// signature:: poolId() -> bytes32
+const SELECTOR_POOL_ID = 0x3e0dc34e;
+
+// ---- EVENTS (all with the REAL bound poolId as topic1; source of truth:
+//      lib/events/VolEventsLib.plk; solc-asserted in test/protocol_integrations/) ----
+// event:: FeeApplied(bytes32 indexed poolId, uint88 sigma, uint24 fee)
+//   per swap, INCLUDING same-block buffer no-ops (several FeeApplied may share one
+//   TimepointWritten). fee is pips WITHOUT the override flag; the subgraph join invariant is
+//   FeeApplied.fee == the pool's Swap.fee (nearest-preceding logIndex, same tx+poolId).
+const TOPIC0_EVENT_FEE_APPLIED = 0x25ea110aac3c0d92bd950f999d2fafed41a751afe912d690a3e721a6eb5a84df;
+// event:: TimepointWritten(bytes32,uint32,int24,uint88,int24,int56)  (same signature as the
+//   module's; REAL poolId here)
+const TOPIC0_EVENT_TIMEPOINT_WRITTEN = 0x44d3c76a584327df3a91e46e185e97959195c01202945078eebb23b19c161415;
+// event:: FeeConfigurationChanged(bytes32,uint16,uint16,uint32,uint32,uint16,uint16,uint16)
+const TOPIC0_EVENT_FEE_CONFIGURATION_CHANGED = 0x0b849672f272805103d1934909aaee0c4e1400438ff5365f6d9d147cb07ed6cf;
+// event:: WindowChanged(bytes32,uint32)
+const TOPIC0_EVENT_WINDOW_CHANGED = 0x046630eacacfeb3f36a64fd8cb291b41c3e78bcd57f8733e12b9afeb69968b47;
