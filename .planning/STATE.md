@@ -1,13 +1,13 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.0
-milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
-status: defining_requirements
-stopped_at: Milestone v5.0 started (rpc_api workstream, from issue #13) — defining requirements. v4.0 closing record preserved below ("v4.0 Closing Position"); its open exit items (F1 strike bound at create_order entrypoint; four single-point-of-failure mutants) belong to the plank workstream.
-last_updated: "2026-07-31"
-last_activity: "2026-07-31 — v5.0 ROADMAP CREATED: 3 phases (20 Deploy Rig & Source-of-Truth Import / 21 V2 ABI Re-Pin & targetVega Generation / 22 Live Stochastic Drivers), 10/10 requirements mapped, appended to ROADMAP.md without touching any earlier milestone section (prefix verified byte-identical). Phase 20 exists as its own phase on a VERIFIED fact, not a guess: every binding source-of-truth artifact (foundry-scripts/deploy/, notes/, the HANDOFF, the V2 interfaces) is on origin/feat/plank @ df7088f and is ABSENT from feat/rpc-api — the local VolOrderManagerInterface.plk is still the v1 file (0x6501fe94, no event block). Phase 21 depends on 20 because RPIN-05 must verify against the LIVE module. Two findings surfaced, neither resolved unilaterally: RIG-01 is an ID COLLISION (v5.0 deploy rig vs the deferred v2 literature-review requirement), and DRIV-01 ADDS an offchain surface rather than re-pointing one (nothing under offchain/lib/ calls writeTimepoint today)."
+milestone: v2.0
+milestone_name: milestone
+status: planning
+stopped_at: Phase 20 context gathered
+last_updated: "2026-07-31T14:01:28.294Z"
+last_activity: 2026-07-31 — v5.0 roadmap created (Phases 20–22), 10/10 requirements mapped
 progress:
-  total_phases: 16
+  total_phases: 19
   completed_phases: 8
   total_plans: 16
   completed_plans: 16
@@ -155,6 +155,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-07-21T18:25:03.383Z
-Stopped at: Completed 19-02-PLAN.md (MVER-03)
-Resume file: None
+Last session: 2026-07-31T14:01:28.287Z
+Stopped at: Phase 20 context gathered
+Resume file: .planning/phases/20-deploy-rig-source-of-truth-import/20-CONTEXT.md
