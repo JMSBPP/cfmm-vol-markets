@@ -277,7 +277,10 @@ to be. Anyone looking for §7.1 in the standalone Lean repo will not find it —
 **One handoff is open and is not this session's to close.** The plank-owned
 `../plank/notes/VOLATILITY_INSTRUMENTS.md` carries the M6b `OPEN` → `REFUTED` amendment and the landed
 T20–T30 annotation as an **uncommitted working-tree change**. Committing it belongs to agent
-`ul2inqpl`. Plank HEAD is `df7088f`, identical before and after.
+`ul2inqpl`. Plank HEAD is `df7088f`, identical before and after. The `claude-peers` tool was not
+exposed to this executor, so — exactly as in 11-01 (precedent `489bb43`) — the notification rides on a
+`## LEAN4 - MATH → plank` entry appended to `../plank/todo.md`, itself left uncommitted, spelling out
+both edits, the witness, and the bridge-identity caveat.
 
 ## User Setup Required
 
