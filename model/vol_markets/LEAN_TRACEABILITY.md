@@ -55,7 +55,10 @@ one for the other.
 | `premium` | `premium` | risk-price buffer in `[0,1]` | RISK_ALTERNATIVES.md · `RiskDesign.riskPriceBuffered` |
 | `φ`, `φ̄` | `VolInstrument.multiFee` output, `φbar` | the fee and its level ceiling (anchor's `γ`); `γ_j` remains the sigmoid steepness | MEV addendum M0 |
 | `Δt` | `Δt` args | mean interblock time = the batch cadence; carries the anchor's block rate as `Δt ≜ λ⁻¹` | MEV addendum M0 · `MevOptimization.ptrade` |
-| `P_trade` | `MevOptimization.ptrade` | `σ/(σ + φ√(2/Δt))` — long-run fraction of blocks carrying a profitable arbitrage | MEV addendum M1 |
+| `ℙ_{Δ_ARB}` (formerly `P_trade`; probability convention `ℙ_{event}`, user 2026-07-31) | `MevOptimization.ptrade` | `σ/(σ + φ√(2/Δt))` — long-run fraction of blocks carrying a profitable arbitrage | MEV addendum M0/M1 |
+| `ℙ_{L_JIT}` | `πJ` args in `JitLiquidity` | JIT-arrival probability (CJZ's `π`) | JIT addendum J0 |
+| `λ̃_JIT` (tilde = incidence operator, not hazard) | `JitLiquidity` incidence lemmas | event-time incidence operator on `(λ_FLAIR, λ_ARB)` | JIT section J7 |
+| `κ_{φ}` (curvature; subscript = quote function `\varphi`) | `curvIndex`, `kphiS`/`kphiI` binders | curvature index `1 − λ^(−Δi²η/2)`, Capponi's `k` | ETA block E0/E1 |
 | `a_t` | the `a` argument of `MevOptimization.mevHazard` | per-step arbitrage-opportunity weight (leading-order LVR × `Δt`) — **not** `FlairOptimization.flairHazard`'s traded-flow `w_t` | MEV addendum M0/M3 |
 | `λ_ARB` | `MevOptimization.mevHazard`, `MevOptimization.mevMulti` | the ARBITRAGE channel — every identification and infimum row of §7 is about this object | MEV addendum M3 |
 | `λ_MEV` | `MevJointProgram.mevTotal` | the TOTAL, `λ_ARB ⊕ λ_sandwich` (plain hazard addition); equals `λ_ARB` exactly when uniform batch clearing nulls the sandwich channel | MEV addendum M7 |
