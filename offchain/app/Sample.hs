@@ -1,30 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- |
+-- Sample DATA for the demo driver -- and nothing else.
+--
+-- Three address literals used to live here. They are gone: every address the demo touches now
+-- comes from @offchain\/rig\/rig-manifest.json@, loaded once by @Rig.Manifest.load_rig@ in "Main".
+--
+-- The reason is measured, not stylistic. Those literals were right only by anvil nonce accident,
+-- and one of them had already gone stale against a redeployed rig while still looking perfectly
+-- correct -- it named a contract with no bytecode at all. A hardcoded address cannot announce
+-- that it stopped being true, which is precisely why none belongs in this file.
 module Sample
-  ( account
-  , order_manager
-  , price_setter_hook
-  , sample_order
+  ( sample_order
   , sample_orders
   , sample_order_gen
   , sample_price_gen
   , sample_tick
   ) where
 
-import Data.Solidity.Prim.Address (Address)
-
 import StochasticOrderGen.Types (ArrivalProcess (..), StochasticOrderGen (..))
 import StochasticPriceGen.Types (ProcessType (..), StochasticPriceGen (..))
 import VolOrder.Types (VolOrder (..))
-
-account :: Address
-account = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-
-order_manager :: Address
-order_manager = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
-
-price_setter_hook :: Address
-price_setter_hook = "0x78f77B581417489BABC51CC63091db140962B000"
 
 sample_order :: VolOrder
 sample_order =

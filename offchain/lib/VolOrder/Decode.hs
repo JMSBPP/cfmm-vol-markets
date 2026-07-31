@@ -1,7 +1,6 @@
 module VolOrder.Decode
   ( OrderCreatedEvent(..)
   , decode_order_created
-  , topic_order_created
   , hex_to_integer
   , data_word
   , be_integer
@@ -19,10 +18,6 @@ import Network.Ethereum.Api.Types (Change (..))
 
 import VolOrder.Types (VolOrder (..))
 
--- TOPIC_ORDER_CREATED in src/modules/VolOrderManagerMod.plk
-topic_order_created :: Integer
-topic_order_created = 0xa8892769
-
 data OrderCreatedEvent = OrderCreatedEvent
   { orderOwner      :: HexString
   , orderCreatedAt  :: UTCTime
@@ -31,14 +26,29 @@ data OrderCreatedEvent = OrderCreatedEvent
   , orderSkew       :: Integer
   } deriving (Eq, Show)
 
--- Log layout from log_create_order in src/modules/VolOrderManagerMod.plk:
--- topics are [TOPIC_ORDER_CREATED, owner, blockTimestamp], data is five
--- 32-byte words [32, 96, volTarget, rangeWidth, skew].
-decode_order_created :: Change -> Maybe OrderCreatedEvent
-decode_order_created log_entry =
+-- The E1 topic0 is a PARAMETER, supplied by the caller from the generated pin file
+-- offchain/rig/rig-pins.json, under topics."VolOrderCreated". No topic0 literal lives in this
+-- module.
+--
+-- It used to. The constant that sat here was hand-transcribed from a comment naming
+-- src/modules/VolOrderManagerMod.plk -- a module that has since been superseded by
+-- src/modules/pos_spec/VolOrderManagerMod.plk -- and it went stale without any symptom, because
+-- a wrong topic0 does not look wrong: it simply matches no log, so decoding "succeeds" at
+-- reporting nothing. Taking the value as an argument is what makes that impossible to repeat.
+-- Note it is an ARGUMENT rather than an import of the rig loader, on purpose: this decode module
+-- acquires no IO dependency and stays testable from pure values.
+--
+-- The stale constant itself is not lost. rig-pins.json's `retired` block records it, and
+-- Phase 21 (RPIN-04) must prove the pin check REJECTS it.
+--
+-- The log layout below is the v1 shape (3 topics [topic0, owner, blockTimestamp]; data of five
+-- 32-byte words [32, 96, volTarget, rangeWidth, skew]) and is deliberately left UNTOUCHED here.
+-- Re-pinning the decoder to the v2 VolOrderCreated shape is Phase 21's work, not this purge's.
+decode_order_created :: Integer -> Change -> Maybe OrderCreatedEvent
+decode_order_created expected_topic0 log_entry =
   case changeTopics log_entry of
     [topic0, owner_topic, timestamp_topic]
-      | hex_to_integer topic0 == topic_order_created ->
+      | hex_to_integer topic0 == expected_topic0 ->
           Just OrderCreatedEvent
             { orderOwner      = fromBytes (BS.drop 12 (toBytes owner_topic))
             , orderCreatedAt  = posixSecondsToUTCTime (fromIntegral (hex_to_integer timestamp_topic))

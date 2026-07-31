@@ -8,6 +8,26 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
+command -v jq >/dev/null || { echo "FATAL: jq not on PATH" >&2; exit 1; }
+
+# The two selectors this gate compares against are NOT typed here. They are read from the
+# committed, generated pin file, whose every value was computed by `cast` from a signature string
+# parsed out of an interface file (offchain/rig/generate-pins.sh). A hand-copied selector in this
+# script would be exactly the failure this milestone exists to remove: it would keep passing after
+# the pins moved, because a stale hex constant cannot announce that it went stale. It also keeps
+# offchain/**/*.sh free of hex literals, which is plan 20-05's SC-3 purge scope.
+PINS="offchain/rig/rig-pins.json"
+[ -f "$PINS" ] || { echo "FATAL: missing $PINS -- run offchain/rig/generate-pins.sh" >&2; exit 1; }
+
+V2_SELECTOR="$(jq -r '.selectors.create_order.selector' "$PINS")"
+V1_SELECTOR="$(jq -r '.retired.create_order_v1' "$PINS")"
+for v in "$V2_SELECTOR" "$V1_SELECTOR"; do
+  case "$v" in
+    0x*) ;;
+    *) echo "FATAL: $PINS did not yield a create_order selector pair (got '$v')" >&2; exit 1 ;;
+  esac
+done
+
 git fetch origin --quiet
 DEV=$(git rev-parse origin/develop)
 
@@ -29,10 +49,12 @@ for p in "${REQUIRED_PATHS[@]}"; do
 done
 
 # The V1-vs-V2 discriminator. A path-existence check alone CANNOT tell a merged V2 interface
-# from the stale v1 file (selector 0x6501fe94, no event block).
+# from the stale v1 file (which declares the RETIRED $V1_SELECTOR and has no event block).
 if ! git show "$DEV:src/interfaces/pos_spec/VolOrderManagerInterface.plk" 2>/dev/null \
-     | grep -q '0x98d950ec'; then
-  echo "STALE/ABSENT: VolOrderManagerInterface.plk on $DEV lacks the V2 selector 0x98d950ec"
+     | grep -q "$V2_SELECTOR"; then
+  echo "STALE/ABSENT: VolOrderManagerInterface.plk on $DEV lacks the V2 create_order selector"
+  echo "  expected (pinned) : $V2_SELECTOR"
+  echo "  the stale v1 file declares the retired $V1_SELECTOR instead"
   missing=1
 fi
 
@@ -47,5 +69,5 @@ if [ "$missing" -ne 0 ]; then
 fi
 
 printf '%s\n' "$DEV" > offchain/rig/import-ref.txt
-echo "OPEN: origin/develop = $DEV carries the V2 rig artifacts (0x98d950ec present)."
+echo "OPEN: origin/develop = $DEV carries the V2 rig artifacts ($V2_SELECTOR present)."
 echo "recorded -> offchain/rig/import-ref.txt"

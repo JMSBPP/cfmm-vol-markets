@@ -6,8 +6,11 @@ import Network.Ethereum.Api.Types (Change (..), Quantity, TxReceipt (..))
 
 import VolOrder.Decode (OrderCreatedEvent (..), decode_order_created)
 
-report_receipt :: TxReceipt -> IO ()
-report_receipt receipt = do
+-- The first argument is the pinned E1 topic0 -- the topics."VolOrderCreated" entry of the
+-- generated offchain/rig/rig-pins.json -- threaded straight through to the decoder. This module
+-- holds no topic literal of its own.
+report_receipt :: Integer -> TxReceipt -> IO ()
+report_receipt topic_e1 receipt = do
   putStrLn ("tx      " ++ show (receiptTransactionHash receipt))
   putStrLn ("status  " ++ status_text (receiptStatus receipt))
   putStrLn ("block   " ++ show (receiptBlockNumber receipt))
@@ -19,16 +22,16 @@ report_receipt receipt = do
                        ++ " wei")
   case receiptLogs receipt of
     []   -> putStrLn "logs    (none)"
-    logs -> mapM_ report_log logs
+    logs -> mapM_ (report_log topic_e1) logs
 
 status_text :: Maybe Quantity -> String
 status_text (Just 1) = "success"
 status_text (Just 0) = "reverted"
 status_text other    = "unknown " ++ show other
 
-report_log :: Change -> IO ()
-report_log log_entry =
-  case decode_order_created log_entry of
+report_log :: Integer -> Change -> IO ()
+report_log topic_e1 log_entry =
+  case decode_order_created topic_e1 log_entry of
     Just event -> report_order_created event
     Nothing    -> do
       putStrLn ("log     from " ++ show (changeAddress log_entry))

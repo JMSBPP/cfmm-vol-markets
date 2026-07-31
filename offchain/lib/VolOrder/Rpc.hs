@@ -153,8 +153,11 @@ wait_for_receipt tx_hash = go (50 :: Int)
           liftIO (threadDelay 200000)
           go (attempts_left - 1)
 
-create_order_and_report :: Address -> Address -> VolOrder -> IO ()
-create_order_and_report owner manager vol_order = do
+-- The pinned E1 topic0 comes in as the first argument and goes straight to report_receipt.
+-- This module deliberately does NOT load the rig itself: VolOrder.Rpc imports no part of the rig
+-- loader, so the manifest is read exactly once, at startup, by the driver.
+create_order_and_report :: Integer -> Address -> Address -> VolOrder -> IO ()
+create_order_and_report topic_e1 owner manager vol_order = do
   result <-
     runWeb3'
       (HttpProvider "http://127.0.0.1:8545")
@@ -162,4 +165,4 @@ create_order_and_report owner manager vol_order = do
 
   case result of
     Left web3_error -> putStrLn ("rpc error: " ++ show web3_error)
-    Right receipt   -> report_receipt receipt
+    Right receipt   -> report_receipt topic_e1 receipt

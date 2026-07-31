@@ -33,8 +33,22 @@ ROOT="$PWD"
 
 OUT="offchain/rig/rig-pins.json"
 REF_FILE="offchain/rig/import-ref.txt"
-DECODE_HS="offchain/lib/VolOrder/Decode.hs"
 DATA_CONTRACT="notes/DATA_CONTRACT.md"
+
+# WHERE THE STALE E1 TOPIC0 IS READ FROM, AND WHY IT MOVED
+# -------------------------------------------------------
+# Until plan 20-05 this value was parsed out of offchain/lib/VolOrder/Decode.hs, which carried it
+# as a hardcoded constant. 20-05's literal purge deleted that constant, so this generator now
+# reads it from the file the constant was originally transcribed FROM: the superseded duplicate
+# module src/modules/VolOrderManagerMod.plk (the live module is src/modules/pos_spec/
+# VolOrderManagerMod.plk). That is strictly better provenance -- it names the actual origin of the
+# rot rather than one of its copies -- and it keeps the rule intact that no retired value is ever
+# TYPED into this script. It is another track's file and is only ever READ here.
+#
+# If plank ever deletes that superseded module this script fails LOUDLY (the count != 1 abort
+# below), which is the correct outcome: the retired value would then need a new recorded home,
+# not a silently dropped entry.
+STALE_TOPIC_SRC="src/modules/VolOrderManagerMod.plk"
 
 IFACES=(
   "src/interfaces/pos_spec/VolOrderManagerInterface.plk"
@@ -45,7 +59,7 @@ IFACES=(
   "src/interfaces/exposure/VegaAccountInterface.plk"
 )
 
-for f in "${IFACES[@]}" "$REF_FILE" "$DECODE_HS" "$DATA_CONTRACT"; do
+for f in "${IFACES[@]}" "$REF_FILE" "$STALE_TOPIC_SRC" "$DATA_CONTRACT"; do
   [ -f "$f" ] || { echo "FATAL: missing input $ROOT/$f" >&2; exit 1; }
 done
 command -v cast >/dev/null || { echo "FATAL: cast (foundry) not on PATH" >&2; exit 1; }
@@ -292,7 +306,7 @@ echo
 RETIRED_SPECS=(
   "create_order_v1|src/interfaces/pos_spec/VolOrderManagerInterface.plk|RETIRED-NEVER-LIVE (nothing was deployed)|8"
   "topic_vol_order_created_v1|$DATA_CONTRACT|superseded by v2 before any deployment|64"
-  "topic_order_created_stale|$DECODE_HS|topic_order_created =|8"
+  "topic_order_created_stale|$STALE_TOPIC_SRC|TOPIC_ORDER_CREATED =|8"
 )
 
 # drop truncated tokens BEFORE extracting, so a prefix can never be mistaken for a value

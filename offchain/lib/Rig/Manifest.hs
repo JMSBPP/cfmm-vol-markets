@@ -38,20 +38,28 @@ module Rig.Manifest
   , required_contracts
     -- * Lookups
   , contract_address
+  , account_address
   , pin_selector
   , pin_topic0
+    -- * Typed addresses
+  , parse_address
+  , resolve_contract
+  , resolve_account
   ) where
 
 import Control.Exception (IOException, try)
 import Data.Aeson (FromJSON (..), Value, eitherDecodeFileStrict, withObject, (.:))
 import Data.Aeson.Key (Key)
 import Data.Aeson.Types (Parser)
+import Data.ByteArray.HexString (hexString)
 import Data.List (intercalate, sort)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
+import Data.Solidity.Prim.Address (Address, fromHexString)
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Text.Encoding (encodeUtf8)
 import Numeric (readHex)
 import System.Environment (lookupEnv)
 
@@ -296,6 +304,23 @@ contract_address :: Rig -> Text -> Either String Text
 contract_address rig name =
   look_up "contract" name (rig_contracts (rig_addrs rig))
 
+-- | Address of one of the rig's funded accounts by name -- @deployer@ or @sender@.
+--
+-- @accounts@ is a CLOSED record (both keys are mandatory at decode), so unlike 'contract_address'
+-- this cannot fail on a manifest that decoded. The map is synthesised purely so a caller naming a
+-- third account gets the same "here are the keys that exist" message it gets for a contract typo,
+-- rather than a different failure shape for the same class of mistake.
+account_address :: Rig -> Text -> Either String Text
+account_address rig name =
+  look_up "account" name (accounts_map (rig_addrs rig))
+
+accounts_map :: RigAddresses -> Map Text Text
+accounts_map addrs =
+  Map.fromList
+    [ ("deployer", rig_deployer (rig_accounts addrs))
+    , ("sender",   rig_sender   (rig_accounts addrs))
+    ]
+
 -- | 4-byte selector, as the @0x@-prefixed lowercase hex the pin file carries.
 pin_selector :: Rig -> Text -> Either String Text
 pin_selector rig name =
@@ -325,3 +350,45 @@ hex_to_integer name raw =
       Left $
         "Rig.Manifest: the topic0 pin for " ++ show (T.unpack name)
           ++ " is not hex: " ++ show (T.unpack raw)
+
+-- ---------------------------------------------------------------------------------------------
+-- Typed addresses
+--
+-- The manifest carries addresses as hex TEXT, but the drivers need 'Address'. That conversion
+-- lives here, once, and it is TOTAL: @Address@'s 'IsString' instance is @either error id@ and
+-- would turn a malformed manifest entry into a bottom thrown from wherever the value is first
+-- forced -- which is exactly the "quiet default" this module exists to prevent. Every path below
+-- returns 'Either' so the caller decides how loudly to fail, and does so at startup.
+-- ---------------------------------------------------------------------------------------------
+
+-- | Parse a manifest hex string into an 'Address'. The first argument is a human label used only
+-- in the error message ("contract PoolManager", "account sender"), so a bad value names WHICH
+-- entry is bad rather than only what it looked like.
+parse_address :: Text -> Text -> Either String Address
+parse_address label raw =
+  case hexString (encodeUtf8 raw) of
+    Left err -> Left (not_an_address label raw err)
+    Right hx ->
+      case fromHexString hx of
+        Left err   -> Left (not_an_address label raw err)
+        Right addr -> Right addr
+
+not_an_address :: Text -> Text -> String -> String
+not_an_address label raw detail =
+  intercalate "\n"
+    [ "Rig.Manifest: the " ++ T.unpack label ++ " entry is not a 20-byte address."
+    , "  value  : " ++ show (T.unpack raw)
+    , "  detail : " ++ detail
+    , "  The manifest is written by offchain/rig/deploy-rig.sh from foundry's broadcast records;"
+    , "  a value that is not an address means the extraction, not the caller, is wrong."
+    ]
+
+-- | 'contract_address' with the hex parsed. This is what the drivers call.
+resolve_contract :: Rig -> Text -> Either String Address
+resolve_contract rig name =
+  contract_address rig name >>= parse_address ("contract " <> name)
+
+-- | 'account_address' with the hex parsed.
+resolve_account :: Rig -> Text -> Either String Address
+resolve_account rig name =
+  account_address rig name >>= parse_address ("account " <> name)
