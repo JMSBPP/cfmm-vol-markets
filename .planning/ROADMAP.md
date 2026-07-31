@@ -240,8 +240,15 @@ parameter space `Θ_φ = {γ, φ̄, β, α(, α_R)}` of `VolInstrument.multiFee`
 identify `Θ_{λ_MEV} ⊂ Θ_φ` and SOLVE the infimum program `inf λ_MEV`
 (mirror of the solved `sup λ_FLAIR`; the level block `{φ̄, α, u}` has
 OPPOSITE monotonicity — fees up ⟹ FLAIR up, MEV down); then state the
-joint sup-FLAIR/inf-MEV program where the shape block `(β, γ)` becomes
-essential. Formalization is doc-driven via Aristotle
+joint sup-FLAIR/inf-MEV program. The original intent is recorded and
+CORRECTED: it read "where the shape block `(β, γ)` becomes essential",
+and that expectation is **REFUTED, machine-checked** — the unconstrained
+joint program is DEGENERATE (`joint_corner_degeneracy`,
+`joint_beta_degeneracy`, `joint_scalarization_degeneracy`), so there is no
+trade-off over `Θ_φ` and the shape block is NOT essential. The trade-off
+appears only under a FIXED FLAIR fee budget, and even there only at
+constant volatility (see the plan-11-05 verdict below).
+Formalization is doc-driven via Aristotle
 (`VOLATILITY_INSTRUMENTS.md ### MEV` is the reference note; notation
 binding per LEAN_TRACEABILITY). Angstrom (SorellaLabs/angstrom,
 angstrom-v4, l2-angstrom) is the implementation reference that minimizes
@@ -256,20 +263,39 @@ the `Δt` cadence lever, sandwich nulling), CTX-TRACE (LEAN_TRACEABILITY rows + 
 CTX-REVIEW (two-reviewer gate on every pre-submission spec artifact)
 **Depends on:** Phase 10 (and the FlairOptimization.lean layer, commits 6914fba/5e08578)
 **Directory:** `.planning/phases/11-mev-hazard-inf-program/`
-**Plans:** 5/6 plans executed
+**Plans:** 6 plans — 6/6 complete (2026-07-31)
+**Phase outcome (2026-07-31, FINAL):** All eight CTX-* requirements SATISFIED, and the two headline
+results are both NEGATIVE ones, reported as results rather than softened. **(1) The unconstrained
+joint program is DEGENERATE** — one admissible point simultaneously maximizes `λ_FLAIR` and
+minimizes `λ_ARB`, in the levels and in the shape coordinate, robustly to every scalarization
+`κ ≥ 0`; the phase brief's "the shape block becomes essential" expectation is machine-checked as
+refuted. **(2) T24 — the σ-varying flat-fee optimality claim, the phase's declared main mathematical
+risk — is REFUTED, not open**: `mev_ge_flat_under_flair_budget_false`, witness recomputed in exact
+rationals (flat `31/22` vs tilted `4/3`). The `Θ_φ`-restricted isotone case remains OPEN and is not
+claimed either way. What is positively proved: `ptrade` with all seven M1 properties (both strict
+forms strict), the `mevHazard`/`mevMulti` functionals commensurable with FLAIR by construction, the
+SOLVED infimum program `Θ_{λ_ARB} = {φ̄, α, u}` at its upper corner, the constant-σ path-level
+constrained result, and the whole Angstrom bridge (`τ` and `Δt` formally outside `Θ_φ`;
+`mevTotal := λ_ARB + λ_sandwich` as plain hazard addition). Two disclosed corrections
+(T15's `hfee` guard, T17's admissibility constraint — both at `ptrade`'s negative-fee pole) and one
+omission (T19: block M3(ii)'s exact CPMM kernel has no formal carrier, so the `σ²Δt < 8` guard lives
+nowhere). `arb_add_fee_eq_lvr` is a bridge identity, NOT a formalization of MMR Theorem 3/4.
 
-> **Planning correction (2026-07-30, from 11-RESEARCH.md F5):** the goal above anticipates that in
-> the joint program "the shape block `(β, γ)` becomes essential". Research shows this is
-> **refuted for the unconstrained functional** — `ptrade` is antitone in the fee, so `inf λ_MEV`
-> and `sup λ_FLAIR` sit at the SAME point in every coordinate of `Θ_φ` (level corner top and
-> `β → −∞`), robustly to linear scalarization. The trade-off is recovered only under a FIXED FLAIR
-> fee budget, where convexity of `ptrade` makes a flat fee the MEV minimizer. The phase ships both
-> claims separately; the degeneracy is a reportable result, not a failure.
+> **Planning correction (2026-07-30, from 11-RESEARCH.md F5; CONFIRMED MACHINE-CHECKED 2026-07-31):**
+> the goal above anticipated that in the joint program "the shape block `(β, γ)` becomes essential".
+> This is **refuted for the unconstrained functional** — `ptrade` is antitone in the fee, so
+> `inf λ_MEV` and `sup λ_FLAIR` sit at the SAME point in every coordinate of `Θ_φ` (level corner top
+> and `β → −∞`), robustly to linear scalarization. Research asserted it; `MevJointProgram.lean`
+> (11-05) now proves it. The trade-off is recovered only under a FIXED FLAIR fee budget, where
+> convexity of `ptrade` makes a flat fee the MEV minimizer — **and 11-05 further narrowed that
+> recovery**: it holds at CONSTANT volatility over fee PATHS, while the general σ-VARYING
+> schedule-level version is FALSE. The phase ships all three claims separately; the degeneracy and
+> the refutation are reportable results, not failures.
 
 Plans:
 - [x] 11-01-PLAN.md — CTX-MEVDOC/CTX-REVIEW: λ_MEV doc spec (LaTeX blocks M0–M8), notation gate, two-reviewer gate, HEAVY USER APPROVAL — **COMPLETE** (4 BLOCKERs + 12 MAJORs resolved; user-approved; blocks landed in plank's `### MEV`, bytes pinned by `APPROVED-DOC-SHA256`; M6a REFUTES the "(β,γ) becomes essential" expectation)
 - [x] 11-02-PLAN.md — CTX-PTRADE/CTX-MEVHAZ/CTX-INF/CTX-REVIEW: Aristotle bundle A + numbered T1–T19 prompt, prompt gate, serial submit — **COMPLETE, TASK IN FLIGHT** (project `cb371ee5`, task `d1c57297`, `IN_PROGRESS` at close; bundled doc PROVED byte-identical to the approved text by sha256 pin + M-block diff; prompt gate found 2 BLOCKERs — a dropped `·Δt` re-introducing 11-01's own defect, and a provably false T17 — plus 3 MAJORs, all resolved; queue proven empty, exactly one task in flight). CTX-PTRADE/MEVHAZ/INF are NOT yet satisfied: nothing is proven until 11-03 integrates the returned module
 - [x] 11-03-PLAN.md — CTX-PTRADE/CTX-MEVHAZ/CTX-INF: integrate bundle A — build, axiom sweep, T1–T19 fidelity diff, push both remotes — **COMPLETE. CTX-PTRADE, CTX-MEVHAZ and CTX-INF are now SATISFIED** (`lean/vol_markets/MevOptimization.lean`, 1046 lines, 25 declarations, sorry-free, 25/25 axiom-clean, `lake build` green, pushed to origin `42c8e60` + `cfmm-lean4-spec` `19afcdd`). All ten bundled dependency modules returned byte-identical; T1–T18 all present with NONE narrowed (T6 strict, T13 a path SUM, T8 kept `·Δt`, T17 proves `ContinuousOn`). Two recorded qualifications: T15 needed an Aristotle-ADDED hypothesis because the limit as specified was FALSE at `ptrade`'s negative-fee pole, and optional **T19 was OMITTED** so block M3(ii)'s exact CPMM kernel has no formal carrier. Queue FREE ⟹ 11-04 unblocked
-- [ ] 11-04-PLAN.md — CTX-JOINT/CTX-ANGSTROM/CTX-REVIEW: bundle B + T20–T30 prompt (degeneracy, constrained/Jensen with σ-varying primary and σ-constant fallback, Angstrom bridge), gate, serial submit
-- [ ] 11-05-PLAN.md — CTX-JOINT/CTX-ANGSTROM: integrate bundle B — build, axiom sweep, T20–T30 fidelity, the explicit T24 verdict, push
-- [ ] 11-06-PLAN.md — CTX-TRACE: LEAN_TRACEABILITY §0/§6/§7 rows, addendum back-annotation, ROADMAP/STATE close-out
+- [x] 11-04-PLAN.md — CTX-JOINT/CTX-ANGSTROM/CTX-REVIEW: bundle B + T20–T30 prompt (degeneracy, constrained/Jensen with σ-varying primary and σ-constant fallback, Angstrom bridge), gate, serial submit — **COMPLETE, TASK IN FLIGHT AT CLOSE** (project `19f777ab`, task `f8840dab`). The two-reviewer gate earned its keep: both reviewers independently found the SAME BLOCKER — the plan's own text specified `mevTotal := probOr lamARB lamSand`, which approved block M7 explicitly forbids, and which the project's already-proven `VolInstrument.probOr_hazard` refutes; corrected to plain addition with the correspondence kept as its own lemma. Executor-found before either reviewer ran: the plan's T25 was a TRIVIALITY at the schedule level, fixed by introducing path-level carriers. Doc fidelity re-proved against all three copies at submit time. CTX-JOINT/CTX-ANGSTROM NOT yet satisfied at close: nothing proven until 11-05 integrates
+- [x] 11-05-PLAN.md — CTX-JOINT/CTX-ANGSTROM: integrate bundle B — build, axiom sweep, T20–T30 fidelity, the explicit T24 verdict, push — **COMPLETE. CTX-JOINT and CTX-ANGSTROM are now SATISFIED** (`lean/vol_markets/MevJointProgram.lean`, 481 lines, 27 declarations, sorry-free, 27/27 axiom-clean, `lake build` 8063 jobs green, pushed to origin `94e7fa9` + `cfmm-lean4-spec` `81b2729`). 11/11 bundled modules byte-identical; T20–T30 ALL byte-identical to the sha-verified prompt, none narrowed, ZERO corrective hypotheses. **THE T24 VERDICT IS REFUTED** — `mev_ge_flat_under_flair_budget_false`, Aristotle's outcome 3, flat `31/22` vs tilted `4/3` recomputed independently in exact rationals. The `Θ_φ`-restricted varying-σ case is recorded OPEN; the supporting numerics are labelled NOT machine-checked. The unconstrained degeneracy (T20–T22) is machine-checked
+- [x] 11-06-PLAN.md — CTX-TRACE: LEAN_TRACEABILITY §0/§6/§7 rows, addendum back-annotation, ROADMAP/STATE close-out — **COMPLETE. CTX-TRACE SATISFIED.** §0 carries the MEV notation rows, the three resolved collisions and the λ_ARB/λ_MEV distinction; new §7.1 carries 14 claim rows, every backticked identifier grep-verified to be a real declaration in one of the two modules; `arb_add_fee_eq_lvr` is labelled a bridge identity and explicitly NOT a formalization of MMR Theorem 3/4; the degeneracy and the T24 refutation are recorded as RESULTS with `REFUTED`/`OPEN` statuses taken verbatim from the fidelity records; §6's stale "MEV section (empty in the doc)" clause is replaced by five precisely named gaps. Addendum back-annotated M1–M7 with M6b amended OPEN → REFUTED; the plank-owned `VOLATILITY_INSTRUMENTS.md` carries the same amendment, uncommitted, handed to `ul2inqpl`
