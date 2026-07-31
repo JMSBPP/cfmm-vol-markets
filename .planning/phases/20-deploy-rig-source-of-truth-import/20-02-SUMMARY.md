@@ -42,7 +42,7 @@ decisions:
   - "A missing-pin-row branch was added to the verifier (plan text would have exited silently under set -e); fails closed either way, but now with a message"
   - "27 forge reds and 3 compile-plank failures REPORTED and attributed to four named causes, never repaired — test/ is the Solidity-testing session's territory"
 metrics:
-  duration_min: 9
+  duration_min: 13
   completed: 2026-07-31
 ---
 
