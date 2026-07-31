@@ -232,7 +232,7 @@ Notation: `ΔQ_v★` → `dQvStar`; `t★` → `tStar`; `N_σ` → `Nσ`; `ΔM_r
 
 ## 9. `τ_MEV ENTRY ALGEBRA` (draft blocks M9–M10, `VOLATILITY_INSTRUMENTS_TAU_ADDENDUM.md` → `TauMevAlgebra.lean`)
 
-Three entry channels, NONE canonized (author decision preserved): (A) monoid `φ ⊗_φ τ` via `probOr`; (B) convex separation `(1−τ)φ / τφ` (`lpShare`/`donation`); (C) auction lump-sum = the already-proven `MevJointProgram.taxFraction`/`mevNet`.
+Three entry channels formalized; **DECIDED (user, 2026-07-31): channel (A), monoid entry** `φ_total = φ_M ⊗_φ φ_X ⊗_φ τ_MEV`. Alternates NOT adopted: (B) convex separation `(1−τ)φ / τφ` (`lpShare`/`donation`); (C) auction lump-sum = the already-proven `MevJointProgram.taxFraction`/`mevNet`. Decided consequences: λ_τ is a genuine ⊕-summand; strict intensity effect (λ_ARB ↓); no leg-targeting; no compensation routed (donation would require an ORDER-SENSITIVE hybrid with (B)/(C)); φ⊗τ moves the M6a level direction.
 
 | Doc claim | Lean | Status |
 |---|---|---|

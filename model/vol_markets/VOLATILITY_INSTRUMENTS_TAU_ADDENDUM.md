@@ -1,7 +1,9 @@
 # DRAFT — τ_MEV algebra blocks (M9–M10) for `VOLATILITY_INSTRUMENTS.md ### MEV`
 
-> STATUS: DRAFT spec for the Aristotle τ-bundle. Doc insertion requires HEAVY
-> USER APPROVAL (pending); this file is the bundled specification meanwhile.
+> STATUS: RESOLVED 2026-07-31 — formalized (`TauMevAlgebra.lean`, 14/14
+> axiom-clean) and **DECIDED: channel (A), monoid entry** (user). M9–M10
+> inserted into VOLATILITY_INSTRUMENTS.md with the DECIDED marker; this file
+> remains as the bundled spec of record for Aristotle project 7ffb3a29.
 > Notation: τ_MEV ∈ [0,1] is the MEV tax parameter; all other symbols per the
 > doc (⊗_φ, φ_M, φ_X, φ(σ), λ_ARB, λ_MEV, τ(k)); no doc symbol reassigned.
 
