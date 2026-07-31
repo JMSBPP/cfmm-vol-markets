@@ -76,6 +76,7 @@ library
                     , StochasticOrderGen.Simulate
                     , StochasticOrderGen.Report
                     , StochasticOrderGen.Rpc
+                    , Rig.Manifest
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -94,7 +95,10 @@ library
                       time,
                       jsonrpc-tinyclient,
                       aeson,
-                      mwc-random
+                      mwc-random,
+                      web3-crypto,
+                      containers,
+                      text
 
     -- Directories containing source files.
     hs-source-dirs:   offchain/lib/
@@ -140,4 +144,12 @@ test-suite cfmm-replicationPlank-rpc-api-test
     -- Test dependencies.
     build-depends:
         base ^>=4.20.2.0,
-        cfmm-replicationPlank-rpc-api
+        cfmm-replicationPlank-rpc-api,
+        web3-crypto,
+        aeson,
+        bytestring,
+        text,
+        containers,
+        process,
+        directory,
+        filepath
