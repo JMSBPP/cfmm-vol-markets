@@ -320,10 +320,38 @@ provable, with honest OPEN labels where the doc's discrete geometry departs
 from Capponi's continuum model. Doc-driven Aristotle (new doc block, HEAVY
 USER APPROVAL, notation gate); results land beside the Phase 11 modules;
 traceability + doc summarization close the cycle.
-**Requirements**: TBD (adopt from 12-RESEARCH)
+
+> **PLANNING CORRECTIONS (2026-07-31, from 12-RESEARCH's reading of the v4 PDF — the
+> goal above is kept verbatim; these correct it in place rather than replacing it).**
+> **(1) THERE IS NO FIRST-ORDER CHARACTERIZATION, and none may be requested.** `k*` is the
+> BRANCH POINT `k₁ = 1 − √((1+f)/(1+α))`, where the investor's trade switches from draining
+> the pool to an interior marginal condition. It is a KINK; the derivative jumps there and is
+> not zero. `η*` is obtained by INVERTING a closed form, giving
+> `η* = ln((1+ϱ_I)/(1+φ)) / (Δi²·ln λ)` — existence AND location in one step, no optimisation
+> argument. A prompt asking for a stationary point would return a false or vacuous theorem.
+> **(2) The anchor's results are Lemma 3, Proposition 5 and Proposition 6** — not "Lemma 1"
+> and not "the curvature proposition". Lemma 1 is the unrelated one-token-shock arbitrage-profit
+> result. **(3) Capponi's `α` and `β` are NOT arrival probabilities** (as 12-CONTEXT.md states):
+> `α` is the investor's PRIVATE-USE PREMIUM and `β` the price-shock MAGNITUDE. This is
+> load-bearing — `α` is the demand-side valuation parameter that `MevJointProgram`'s degeneracy
+> docstring and `LEAN_TRACEABILITY` §6(b) both name as the missing layer, so this phase fills a
+> gap the project had already identified. **(4) The mapping `k ↔ η` is not direct:** the bridge
+> is the discrete curvature index `χ(η) = 1 − λ^(−Δi²η/2)`, a strictly monotone bijection
+> `(0,∞) → (0,1)`, and Capponi's economics is transcribed over `χ` with every equilibrium
+> aggregate frozen into a constant. **(5) The interior-optimum claim is not a first for the
+> repository:** `lean/exp/DynamicsOptimization.lean` already carries an interior-`η` result in a
+> DIFFERENT model, but it HYPOTHESIZES the maximizer and characterizes it by an FOC. What is new
+> here is the CONSTRUCTION. **(6) `η = 1` is the standard sqrt-price grid, NOT Capponi's `k = 1`.**
+> **(7) The equilibrium transfer — that our tick-grid AMM actually has Capponi's closed forms — is
+> an ASSUMPTION and is labelled OPEN, not derived.**
+
+**Requirements**: CTX-CURVDOC, CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN, CTX-REVIEW, CTX-TRACE
 **Depends on:** Phase 11 (MevOptimization/MevJointProgram layer; the M6a degeneracy theorem is the motivation), EndogenousMaturity (independent)
 **Directory:** `.planning/phases/12-eta-tradeoff-optimum/`
-**Plans:** 0 plans
+**Plans:** 4 plans (serial waves 1→4; a named 5th-plan contingency is recorded in `12-CONTINGENCY.md` and is NOT invoked at planning time)
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 12 to break down)
+- [ ] 12-01-PLAN.md — CTX-CURVDOC, CTX-REVIEW: author the E0–E8 curvature doc block, write the INVERTED notation gate (η REQUIRED; Capponi's k/α/β remapped, θ/κ absorbed; ν never introduced; no FOC), two-reviewer gate, HEAVY USER APPROVAL, insert as a new `## ETA` section and pin the approved bytes. `autonomous: false`
+- [ ] 12-02-PLAN.md — CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN, CTX-REVIEW: assemble the 16-module bundle (13 `vol_markets` + `exp.eta`/`exp.CESLongVolPayoff`/`exp.EtaReplication`, import closure PROVEN) with a module-origin map, write the T1'–T31' prompt with the hypothesis pre-empt and anti-narrowing lists, two-reviewer gate on the PROMPT, re-prove doc fidelity at submit time, submit ONE task to a NEW project. `autonomous: false`
+- [ ] 12-03-PLAN.md — CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN: byte-identity across all bundled inputs, integrate via the NON-UNIFORM map-driven import rewrite, append the lakefile root, build green with the `Built vol_markets.EtaCurvature` line as elaboration evidence, axiom sweep from a grep-generated file, the T1'–T31' fidelity diff, push to both remotes
+- [ ] 12-04-PLAN.md — CTX-TRACE: LEAN_TRACEABILITY §0 rows + binding remap paragraph + new §7.2 (identifiers grep-verified, scoped to the new section), §6(b) amended to show a partial carrier, `> LEAN` back-annotation of the `## ETA` section with the sha-pin invalidation disclosed, the plank todo #227 controller-law answer with its unobservability caveat, ROADMAP/STATE close-out
