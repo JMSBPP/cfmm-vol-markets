@@ -296,3 +296,18 @@ Sources: Bardoscia–Nodari 2302.11942 (LP Greeks), Maymin 2603.29763 (CEV/AMM o
 | G5 EVM partition (exact / approximable / off-chain); `σ²(i(t))` needs an oracle hook or a new accumulator (E2/E5 feed the OFF-chain subgraph) | events layer | **SPEC** |
 
 Gate: Reality Checker + Model QA, both NEEDS WORK → 3 BLOCKERs + 7 MAJORs resolved (commit 2460f7f). Key corrections: Maymin's Λ/E are call Greeks not LP Greeks (LP-side sign was asserted backwards); **η_L = 1 − w** (his CEV exponent is the NUMERAIRE weight — decided against his asymmetric eq (12), invisible at the w = ½ point where all specializations sit); Clark's delta display is UNNUMBERED (gamma = eq (12); eq (13) is Green–Jarrow spanning — never cite it for a Greek).
+
+## 12. `τ_JIT — THE LIQUIDITY TAX` (block J9 → `TauJit.lean`; Aristotle project `4cb6d5ca`)
+
+DECIDED (user, 2026-07-31): `(β,γ)` DISCARDED for JIT control; the control is `τ_JIT`, a tax on JIT liquidity provision. 25 declarations, all axiom-clean, 15 deps byte-identical.
+
+| Doc claim | Lean | Status |
+|---|---|---|
+| J9 taxed payoff `u_J^τ = u_J − τ_JIT·(add+rm)`, l2-angstrom rate instance `x/(x+1)` | `uJtax`, `uJtax_jitRate`, `uJtax_strict_decrease`, `uJtax_additivity` | **PROVEN** |
+| J9 the STRUCTURAL ASYMMETRY vs `τ_MEV`: liquidity carries no fee ⟹ NO monoid/split algebra exists | `uJtax_not_probOr_factor` — **no unary `f` makes the levy factor through `probOr`**; two-point witness `(1,0)`/`(0,1)`, equal `probOr = 1`, taxed payoffs `1` vs `−base` | **PROVEN** (impossibility) |
+| J9 participation + THE FIFTH POLE `τ_JIT★ = u_J★/base` | `participates`, `tauStarJIT`, `participates_iff_tau_le` (exact), `participates_antitone_tau`, `participates_isotone_uJstar`, `not_participates_of_tauStar_lt`, `tauStarJIT_tendsto_atTop` (base → 0⁺) | **PROVEN** |
+| J9 `λ̃_JIT = λ̃_JIT(τ_JIT)` decreasing — bang-bang at the extensive margin | `lamJITtax`, `lamJITtax_antitone_tau`, `lamJITtax_eq_of_tau_le`, `lamJITtax_eq_zero_of_tauStar_lt` | **PROVEN** |
+| J9 the tax REVERSES the incidence: extraction intensity invariant, PLP FLAIR restored | `lamJITtax_mevTotal_invariant`, `flair_restored_of_tauStar_lt` | **PROVEN** |
+| J9 REMEDY DIRECTION `∂ζ★/∂τ_JIT ≤ 0 ?` — answered in discrete form | `crowdingActive`, `gatedVolume`, `gatedVolume_eq_baseline_of_tauStar_lt`, `crowdingActive_antitone_tau`, and the headline contrast `tax_shrinks_while_fee_widens`: the tax weakly SHRINKS the crowding-active set while `ζstar` strictly WIDENS in the trader fee (reuses `JitLiquidity.trader_fee_raises_crowding_threshold`) | **PROVEN** — the tax is the correct remedy channel exactly where fee-raising backfires |
+| J9 `τ_JIT ≠ ϑ` (tax prices the event; the split redistributes income) | `split_payoff_pos`, `split_positive_tax_negative_witness` — witness `u_J = s_J = base = 1`, `τ_JIT = 2`: split payoff `> 0` for EVERY `ϑ ∈ (0,1]` while taxed payoff `= −1` | **PROVEN** (inequivalence) |
+| J9 `κ_φ`-entry (second-order statics signed by J1 concavity) | — deliberately out of this bundle's scope | **OPEN** |
