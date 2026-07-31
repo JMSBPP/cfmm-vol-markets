@@ -4,8 +4,8 @@ milestone: v5.0
 milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
 status: defining_requirements
 stopped_at: Milestone v5.0 started (rpc_api workstream, from issue #13) — defining requirements. v4.0 closing record preserved below ("v4.0 Closing Position"); its open exit items (F1 strike bound at create_order entrypoint; four single-point-of-failure mutants) belong to the plank workstream.
-last_updated: "2026-07-30"
-last_activity: "2026-07-21 — 19-05 executed: three dedicated make targets (test-vol-order-diff/-fixture/-acceptance, the last passing exit 0); fold-in PROVEN by OBSERVING all three Phase 19 contract names in plain make test rather than by adding a prerequisite (which would double-run pos_spec and inflate the tally); the stale MEASURED AT 17-01 block (96 pass / 4 fail, 13 ok — both wrong) REPLACED with counts measured cold at execution time, every red attributed to a NAMED cause: 14 exposure setUp() reverts from the uncommitted VegaIssuanceLib.plk draft, 4 vol-type track under test/types/pos_spec/, 0 under test/pos_spec/, 0 TickVolatility (did not surface). The real MVER-04 gate VERIFIED not inferred: three named tests CALLED green through deployPlank/FFI bytecode. PLANK_SKIP confirmed byte-identically empty with no exit ceremony invented; roadmap SC-4, the Goal line and the Phase 19 one-liner corrected off the stale PLANK_SKIP-exit wording. src/ byte-untouched (both sha256 pins match)."
+last_updated: "2026-07-31"
+last_activity: "2026-07-31 — v5.0 ROADMAP CREATED: 3 phases (20 Deploy Rig & Source-of-Truth Import / 21 V2 ABI Re-Pin & targetVega Generation / 22 Live Stochastic Drivers), 10/10 requirements mapped, appended to ROADMAP.md without touching any earlier milestone section (prefix verified byte-identical). Phase 20 exists as its own phase on a VERIFIED fact, not a guess: every binding source-of-truth artifact (foundry-scripts/deploy/, notes/, the HANDOFF, the V2 interfaces) is on origin/feat/plank @ df7088f and is ABSENT from feat/rpc-api — the local VolOrderManagerInterface.plk is still the v1 file (0x6501fe94, no event block). Phase 21 depends on 20 because RPIN-05 must verify against the LIVE module. Two findings surfaced, neither resolved unilaterally: RIG-01 is an ID COLLISION (v5.0 deploy rig vs the deferred v2 literature-review requirement), and DRIV-01 ADDS an offchain surface rather than re-pointing one (nothing under offchain/lib/ calls writeTimepoint today)."
 progress:
   total_phases: 16
   completed_phases: 8
@@ -26,14 +26,18 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 20 — Deploy Rig & Source-of-Truth Import (RIG-01)
 Plan: —
-Status: Defining requirements for milestone v5.0 (rpc_api workstream — VolOrder V2
-offchain re-pin + stochastic drivers, from GitHub issue #13; sources of truth:
-`src/interfaces/<namespace>/*.plk`, `.planning/rpc-api-volorder-v2-HANDOFF.md` on
-`feat/plank`, `notes/DATA_CONTRACT.md`, `notes/UNITS_AND_SCALES.md`). v6.0 (subgraph,
-issue #14) queued behind it.
-Last activity: 2026-07-30 — Milestone v5.0 started
+Status: **Ready to plan.** Milestone v5.0 roadmap CREATED and appended to `ROADMAP.md` —
+3 phases (20 → 21 → 22), 10/10 requirements mapped, no orphans. Strictly sequential: the rig
+comes first because it is the only thing that makes RPIN-05's "verify against the live module"
+satisfiable, and because it imports every source-of-truth file the other two phases read.
+Phase 20's first deliverable is an IMPORT, never a re-type: `foundry-scripts/deploy/` (5 files),
+the V2 `src/interfaces/<namespace>/*.plk` set, `.planning/rpc-api-volorder-v2-HANDOFF.md`,
+`notes/DATA_CONTRACT.md` and `notes/UNITS_AND_SCALES.md` all live on `origin/feat/plank` @
+`df7088f` and are ABSENT from `feat/rpc-api` (verified 2026-07-31); the local
+`VolOrderManagerInterface.plk` is still the v1 file. Next action: `/gsd:plan-phase 20`.
+Last activity: 2026-07-31 — v5.0 roadmap created (Phases 20–22), 10/10 requirements mapped
 
 ## v4.0 Closing Position (record, plank workstream)
 

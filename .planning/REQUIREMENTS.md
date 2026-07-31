@@ -232,7 +232,7 @@ Deferred to future milestones. Tracked but not in current roadmap.
 ### Breadth & Rigor
 
 - **PLIB-01**: a library of contingent payoffs replicable through the pipeline
-- **RIG-01**: formal literature review deliverable on CFMM payoff replication
+- **LIT-01**: formal literature review deliverable on CFMM payoff replication (renamed from `RIG-01` 2026-07-31 to resolve the ID collision with v5.0's deploy-rig requirement)
 - **RIG-02**: cryptographically-secure on-chain randomness (VRF / commit-reveal) replacing the simulation proxy
 
 ## Out of Scope
@@ -323,13 +323,30 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | MVER-02 | Phase 19 | Complete |
 | MVER-03 | Phase 19 | Complete |
 | MVER-04 | Phase 19 | Complete |
+| RIG-01 | Phase 20 | Pending |
+| RPIN-01 | Phase 21 | Pending |
+| RPIN-02 | Phase 21 | Pending |
+| RPIN-03 | Phase 21 | Pending |
+| RPIN-04 | Phase 21 | Pending |
+| RPIN-05 | Phase 21 | Pending |
+| RPIN-06 | Phase 21 | Pending |
+| VEGA-01 | Phase 21 | Pending |
+| DRIV-01 | Phase 22 | Pending |
+| DRIV-02 | Phase 22 | Pending |
 
 **Coverage:**
 - v1 requirements: 30 total — mapped to Phases 1–7: 30 ✓
 - v2.0 requirements (VDIFF-01..08): 8 total — mapped to Phases 8–11: 8 ✓
 - v3.0 requirements (RISK-01/02, VLIB-01..04, VMOD-01..05, VVER-01/02): 13 total — mapped to Phases 12–15: 13 ✓
 - v4.0 requirements (VORD-01..05, MCAL-01..06, MVER-01..04): 15 total — mapped to Phases 16–19: 15 ✓
-- Total mapped: 66/66 — Unmapped: 0
+- v5.0 requirements (RPIN-01..06, VEGA-01, RIG-01, DRIV-01/02): 10 total — mapped to Phases 20–22: 10 ✓
+- Total mapped: 76/76 — Unmapped: 0
+
+> **ID COLLISION — RESOLVED 2026-07-31 (requirements owner's call at roadmap approval).**
+> `RIG-01` briefly named two things: the v5.0 deploy-rig requirement and a deferred v2
+> "formal literature review deliverable" (*v2 Requirements → Breadth & Rigor*). The deferred
+> entry was renamed to `LIT-01`; `RIG-01` now uniquely means the **v5.0 deploy rig**
+> (`| RIG-01 | Phase 20 |` above).
 
 ---
 *Requirements defined: 2026-06-27*
@@ -339,3 +356,4 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 *Last updated: 2026-07-19 — appended milestone v4.0 (VORD/MCAL/MVER, 15 reqs) traceability, Phases 16–19 (15/15 mapped); total 66/66*
 *Last updated: 2026-07-20 — v4.0 POST-REVIEW: 2 BLOCKERs + 6 MAJORs resolved (packing layout corrected against VolOrder.plk:35-40, standard-ABI batch 0x81357911 with 3 guards, new strike u88 bound authored, MCAL-04 demoted from proof to evidence); Phase 18 SPLIT into 18a (input+state) / 18b (return encoding) — now 5 phases, still 15/15 mapped*
 *Last updated: 2026-07-30 — appended milestone v5.0 (RPIN-01..06, VEGA-01, RIG-01, DRIV-01/02 — 10 reqs, rpc_api workstream, from issue #13); traceability pending roadmap*
+*Last updated: 2026-07-31 — v5.0 traceability populated against the 3-phase roadmap (Phases 20–22): RIG-01→20, RPIN-01..06 + VEGA-01→21, DRIV-01/02→22 (10/10 mapped); total 76/76*
