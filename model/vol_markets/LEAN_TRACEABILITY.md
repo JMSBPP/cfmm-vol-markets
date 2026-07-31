@@ -229,3 +229,24 @@ Notation: `ΔQ_v★` → `dQvStar`; `t★` → `tStar`; `N_σ` → `Nσ`; `ΔM_r
 | Maturity contracts with funding; top-up restores; liquidation = `Q_M → 0` | `tStarFunded_mono_QM`, `tStarFunded_antitone_prisk`, `tStarFunded_eq_tStar_of_topup`, `dQvFunded_zero_QM` | **PROVEN** |
 | Integer-rounding conservativity (real layer) | floor-rounding min-monotonicity lemma | **PROVEN** |
 | Joint recalibration law (collateral × realized-variance accrual) | **DECIDED (user, 2026-07-30): `tStarJointMult`** — `t★_joint = t★·(funding factor)·(1 − σ²_R/σ²_K)⁺`; `tStarJointMult_nonneg/_antitone/_zero/_exhausted`. Alternates remain formalized: `tStarJointSub*` (identical on `t★ ≥ 0`, floor placement per `joint_candidates_disagree`), `tStarJointQuadratic*` (REJECTED — breaks the dated-equivalent reading, pro-holder under vol clustering) | **DECIDED → PROVEN** |
+
+## 9. `τ_MEV ENTRY ALGEBRA` (draft blocks M9–M10, `VOLATILITY_INSTRUMENTS_TAU_ADDENDUM.md` → `TauMevAlgebra.lean`)
+
+Three entry channels, NONE canonized (author decision preserved): (A) monoid `φ ⊗_φ τ` via `probOr`; (B) convex separation `(1−τ)φ / τφ` (`lpShare`/`donation`); (C) auction lump-sum = the already-proven `MevJointProgram.taxFraction`/`mevNet`.
+
+| Doc claim | Lean | Status |
+|---|---|---|
+| M9(A1) monoid entry closed in `[0,1]` | `TauMevAlgebra.tau_monoid_mem` | **PROVEN** |
+| M9(A2) composition raises the trader-paid fee (weak + strict) | `tau_monoid_ge`, `tau_monoid_gt` | **PROVEN** |
+| M9(A3) intensity effect: monoid entry DETERS extraction through `P_trade` (weak + strict; nonneg-fee domain per the pole discipline) | `tau_intensity_effect`, `tau_intensity_effect_strict` (on `ptrade_strictAntiOn`) | **PROVEN** |
+| M9(A4) NO TARGETING: the aggregate is invariant to which leg (`φ_M`/`φ_X`) carries `τ` | `tau_no_targeting` (assoc+comm of `probOr`, hypothesis-free) | **PROVEN** |
+| M9(A5) three-way hazard exactness `(λ_M ⊕ λ_X ⊕ λ_τ)` under `⊗_φ` | `tau_hazard_exact` (extends `probOr_hazard`) | **PROVEN** |
+| M10(B1) budget identity `lpShare + donation = φ` | `tau_split_budget` | **PROVEN** |
+| M10(B2) intensity NEUTRALITY: separation leaves `P_trade` (hence `λ_ARB`) unchanged | `tau_split_intensity_neutral` | **PROVEN** |
+| M10(B3) FLAIR linearity: `(1−τ)·λ_FLAIR` realizable INSIDE `Θ_φ` by scaling the level block `(φ̄,u)` | `tau_split_flair_linear` (on `flairMulti_affine`) | **PROVEN** |
+| M10(B4) bridge to the auction channel: at `τ = taxFraction k`, separation of realized extraction reproduces `mevNet` + complementary donation exactly | `tau_split_mevNet_bridge` | **PROVEN** |
+| M10(D1) revenue scaling is NOT a `⊗_φ`-morphism (witness `1/2 ≠ 3/4`) | `tau_scaling_not_monoid_hom` | **PROVEN** (inequivalence) |
+| M10(D2) hybrid (A)∘(B) is ORDER-SENSITIVE (witness `1 ≠ 1/2`) | `tau_order_matters` | **PROVEN** (inequivalence) |
+| M10(D3) separation BREAKS the hazard correspondence (witness `τ=1/2, λ=2·log 2`: `1/2 ≠ 3/8`) | `tau_split_breaks_hazard` | **PROVEN** (inequivalence) |
+
+All 14 declarations axiom-clean (`propext, Classical.choice, Quot.sound`); deps byte-identical to the 13 submitted modules; Aristotle project `7ffb3a29`.
