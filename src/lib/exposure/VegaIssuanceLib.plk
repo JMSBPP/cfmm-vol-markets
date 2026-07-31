@@ -24,6 +24,13 @@ const issue_shares = fn (deposit: u256, pRiskX96: RiskPriceX96) u256 { return mu
 // note: This calculates the number of shares from issue_shares AND from the TickBucket and TickStrike
 // derive the LiquidityChunk after selecting a liquidity density function
 // todo: This needs safety on shares being derived from issue_shares
-const calculate_vega_nominal = fn(deposit: u256, pRiskX96: RiskPriceX96, vol_order: VolOrder, ldf_params:: LDFParams) LiquidityChunk {
-      // note: This is not definitive but what exempiflies the intention
-};
+//
+// SKETCH, commented out (it broke every compile that imports this lib: `ldf_params::`
+// double-colon typo, unimported VolOrder, empty non-void body). The IMPLEMENTED form of
+// this intention now exists as the V2-03 sizing chain: issue_shares -> DeltaQ_v* ->
+// vol_order_to_mint / liquidity_for_vega (PanopticTokenIdSetterLib / LiquidityAmounts);
+// the #13 VegaAccount increment wires it to deposits. Do not uncomment -- supersede.
+//
+// const calculate_vega_nominal = fn(deposit: u256, pRiskX96: RiskPriceX96, vol_order: VolOrder, ldf_params: LDFParams) LiquidityChunk {
+//       // note: This is not definitive but what exempiflies the intention
+// };
