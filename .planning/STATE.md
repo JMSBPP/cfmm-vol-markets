@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 20-03-PLAN.md — rig LIVE on anvil, SC-2 falsified green, SC-5 byte-identical, research §12.1 RESOLVED (top-level CREATE2, prediction refuted)
-last_updated: "2026-07-31T18:55:06.504Z"
-last_activity: "2026-07-31 — 20-03 executed: the rig is LIVE on anvil, manifest generated from broadcast records and console-cross-checked, SC-2 falsified then green, SC-5 byte-identical, research §12.1 RESOLVED"
+stopped_at: Completed 20-04-PLAN.md — 30 selectors + 5 topic0s generated from the imported interfaces and cross-checked, Rig.Manifest loading both manifest halves warning-free
+last_updated: "2026-07-31T19:00:12.978Z"
+last_activity: "2026-07-31 — 20-04 executed: 35 pins generated and cross-checked from the imported interfaces, Rig.Manifest decodes 20-03's REAL manifest, zero -Wall warnings"
 progress:
   total_phases: 19
   completed_phases: 8
   total_plans: 21
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State
@@ -27,8 +27,32 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 ## Current Position
 
 Phase: 20 — Deploy Rig & Source-of-Truth Import (RIG-01)
-Plan: 3 of 5 complete (20-01, 20-02, 20-03 DONE; 20-04 runs in the same wave, 20-05 next)
-Status: **20-03 COMPLETE — the rig is LIVE on anvil and the manifest exists.**
+Plan: 4 of 5 complete (20-01, 20-02, 20-03, 20-04 DONE — wave 3 fully landed; 20-05 next)
+Status: **20-04 COMPLETE — every pin is GENERATED, and the Haskell side loads both manifest halves.**
+`offchain/rig/generate-pins.sh` emits `offchain/rig/rig-pins.json` — **30 selectors + 5 topic0s + 3
+retired values, not one hex digit typed.** Every value is computed by `cast sig`/`cast keccak` from a
+signature string PARSED out of an imported `.plk`, then asserted equal to that file's own declared
+`const`; **all 35 agreed, zero disagreements.** The generator holds **zero** hex literals and the
+committed file names the signature AND the source path for every pin. Idempotent (2nd run leaves
+`git diff` clean). The five SC-4 targets are exact. **The multi-line case is proven untruncated and
+the hazard MEASURED:** a naive single-line parse of `TimepointWritten` yields `0xc0055983…`, a
+perfectly valid-looking wrong 32-byte hash — only the in-file cross-check separates them.
+**Idempotency of the normaliser is proven by CROSS-FILE AGREEMENT, not asserted:** four names
+(`TimepointWritten`, `WindowChanged`, `FeeConfigurationChanged`, `getAverageVolatility`) are declared
+in two files in two different comment shapes — decorated (`indexed` + param names, wrapped) and
+already-canonical — and both paths produced identical strings and identical values. 7 valueless
+consts in `IMarketStateSocket.plk` skipped DELIBERATELY, named and counted on every run. `Rig.Manifest`
+returns ONE `Rig`; **zero optional fields, zero defaulted addresses, zero `-Wall` warnings.** It
+decoded **20-03's REAL manifest** (which already existed this wave) — **matching schema B with ZERO
+deviation, so there is nothing for 20-05 task 1 to reconcile** — and fails loudly on a deleted
+contract, a deleted `accounts.deployer`, a deleted `pool.tickSpacing` and an absent file, each naming
+the resolved path and `deploy-rig.sh`. All guards FALSIFIED in a scratch mirror; `src/`,
+`foundry-scripts/`, `notes/`, `test/`, `Makefile` byte-untouched. Next action: execute `20-05`
+(reconciliation + literal purge).
+
+### 20-03 (superseded position, kept for the record)
+
+**20-03 COMPLETE — the rig is LIVE on anvil and the manifest exists.**
 `bash offchain/rig/deploy-rig.sh` takes a machine with no anvil running to all SEVEN contracts plus
 `offchain/rig/rig-manifest.json` (GITIGNORED). Every address came out of foundry's broadcast JSON
 and was independently confirmed against the deploy script's own console line, both sides lowercased;
@@ -117,6 +141,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 20 P01 | 4 | 3 tasks | 3 files |
 | Phase 20 P02 | 13 | 3 tasks | 40 files |
 | Phase 20 P03 | 12 | 3 tasks | 4 files |
+| Phase 20 P04 | 14 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -185,6 +210,11 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 20]: [20-03 MEASURED, SC-5] Two from-scratch deploy-rig.sh runs produce a byte-identical manifest: jq -S 'del(.generatedAt)' diff EMPTY, both normalised files sha256 197acd740685fb0860ec1f8227d95afc541985fe6d081b3fade6712f5888f354, with generatedAt DIFFERING (18:46:13Z vs 18:49:15Z) so run 2 provably regenerated the file. Two determinism results that were NOT guaranteed: (a) BOTH CREATE2-mined addresses reproduce, which for the Plank DynamicFeeHook means plank build emitted byte-identical initcode -- stronger than 20-02's 'compiles and emits hex'; (b) the seeded packed timepoint is identical across runs (1766847064...619776), confirming it derives from the fixed INIT_TS literal and not the wall clock. A date +%s INIT_TS would still have PASSED SC-5 (the seed is not a manifest field) while silently making the rig's STATE irreproducible.
 - [Phase 20]: [20-03 VERIFIED, SC-2 falsified] verify-rig.sh exits 0 with '7 contracts live, RealizedVolatilityMod seeded' and contains ZERO address literals (every target read from the manifest via jq -r). All six injected faults exit 1 with named messages, run against COPIES via a RIG_MANIFEST override with the real manifest's sha256 confirmed unchanged after. TWO faults are load-bearing beyond box-ticking: pointing RealizedVolatilityMod at the LIVE 17151-byte PoolManager passes probe 1 and is caught ONLY by probe 3 (so probe 3 does not ride on the bytecode check), and swapping contracts.PoolManager for PriceSetterPoolManager proves probe 5 discriminates between two REAL contracts, not merely live-vs-empty. A live-vs-empty-only falsification would have left both unproven.
 - [Phase 20]: [20-03 FINDING, one research-table label is stale] Research §3.2 lists DeployDynamicFeeMod printing 'owner (TOFU)  : <address>'. The IMPORTED file prints 'owner (TOFU)  : the deployer, captured in-broadcast' -- a sentence, not an address -- so there is no console address to cross-check and none is attempted. TOFU ownership is instead PROVEN on chain by verify-rig.sh probe 4 (owner() == manifest accounts.deployer), which is strictly stronger than matching a printed string. Every other console label matched the imported source exactly. Separately: poolId is the ONLY console-primary field with no independent source (it is not an address in the broadcast record); currency0/currency1 were upgraded to a SET cross-check against the two MinimalToken CREATEs.
+- [Phase 20]: [20-04 MEASURED] Every pin is GENERATED, never typed: 30 selectors + 5 topic0s computed by cast sig/cast keccak from signature strings parsed out of the imported .plk files, each then ASSERTED equal to that file's own declared const. All 35 agreed -- zero disagreements, so no interface constant is wrong and the parser truncated nothing. generate-pins.sh contains ZERO hex literals; rig-pins.json names the signature and the source path for every pin. The truncation hazard was MEASURED not argued: a naive single-line parse of the wrapped TimepointWritten signature yields 0xc0055983... , a valid-looking WRONG 32-byte hash. Only the in-file cross-check separates it from the correct 0x44d3c76a... value.
+- [Phase 20]: [20-04 FINDING, corrects research 5.3] The // signature:: convention is NOT used by all six interface files. DynamicFeeInterface.plk uses a THIRD shape -- bare // name(args) comments with no marker -- for all five of its selectors. A marker-only parser would have emitted 25 selectors instead of 30 and EXITED 0, silently hand-picking a subset. Fixed by anchoring the parser on the const DECLARATIONS and walking backward through the contiguous comment block (marker form takes precedence, bare form is the fallback); a const with a hex value and no derivable signature is a loud abort, so a fourth shape appearing later fails rather than shrinking the output.
+- [Phase 20]: [20-04 PROVEN] Normaliser idempotency is established by CROSS-FILE AGREEMENT, not by assertion. TimepointWritten, WindowChanged, FeeConfigurationChanged and getAverageVolatility are each declared in two files in two DIFFERENT comment shapes -- decorated (indexed + parameter names, one of them wrapped across two lines) and already-canonical single-line. Both paths through the parser produced identical signature strings and identical computed values, and the generator ABORTS if any duplicate disagrees.
+- [Phase 20]: [20-04 DECIDED, resolves a self-contradicting criterion -- the SIXTH in this repo] The plan required that deleting contracts.VolOrderManagerMod make the decode FAIL, while its own schema locks contracts as an OPEN map so a new deployment needs no Haskell change. A smaller map is still a valid map, so aeson structurally cannot fail. Resolved by KEEPING the map open (20-03's contract preserved, extra contracts accepted) and adding a required_contracts completeness check in load_rig_from that runs after decoding and names both the missing and the present contracts. The failure is raised by the completeness check, NOT by aeson -- do not blur this.
+- [Phase 20]: [20-04 VERIFIED, closes a 20-05 question early] 20-03's rig-manifest.json already existed at 20-04 execution time and Rig.Manifest decoded the REAL file, not merely the fixture. It matches the wave-3 schema B contract with ZERO deviation -- every key, every nesting level, all hex lowercase, chainId/tickSpacing/initTs/initTick as JSON numbers. There is nothing for 20-05 task 1 to reconcile on the manifest shape. Also: the v1 E1 topic0 did NOT have to be omitted -- it is present VERBATIM and complete in the imported notes/DATA_CONTRACT.md:16, so it is parsed from there rather than expanded from memory, while the truncated .plk form is rejected by an explicit ellipsis guard.
 
 ### Pending Todos
 
@@ -211,6 +241,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-07-31T18:54:07.552Z
-Stopped at: Completed 20-03-PLAN.md — rig LIVE on anvil, SC-2 falsified green, SC-5 byte-identical, research §12.1 RESOLVED (top-level CREATE2, prediction refuted)
+Last session: 2026-07-31T18:59:11.715Z
+Stopped at: Completed 20-04-PLAN.md — 30 selectors + 5 topic0s generated from the imported interfaces and cross-checked, Rig.Manifest loading both manifest halves warning-free
 Resume file: None
