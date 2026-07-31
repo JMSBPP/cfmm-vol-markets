@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 20-01-PLAN.md — upstream gate OPEN, develop ref pinned, baselines measured
-last_updated: "2026-07-31T18:25:45.268Z"
-last_activity: "2026-07-31 — 20-01 executed: gate OPEN, develop ref pinned, forge build green, both"
+stopped_at: Completed 20-02-PLAN.md — 36 artifacts imported byte-identical from 9f5ccba, closure PROVEN by four plank builds, delta attributed
+last_updated: "2026-07-31T18:39:15.948Z"
+last_activity: "2026-07-31 — 20-02 executed: 36 artifacts imported by checkout from 9f5ccba,"
 progress:
   total_phases: 19
   completed_phases: 8
   total_plans: 21
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # Project State
@@ -27,8 +27,24 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 ## Current Position
 
 Phase: 20 — Deploy Rig & Source-of-Truth Import (RIG-01)
-Plan: 1 of 5 complete (20-01 DONE; 20-02 next)
-Status: **20-01 COMPLETE — the upstream gate is OPEN and the phase is UNBLOCKED.** PR #15
+Plan: 2 of 5 complete (20-01, 20-02 DONE; 20-03 next)
+Status: **20-02 COMPLETE — the source-of-truth import has LANDED and the Plank closure is PROVEN.**
+36 paths imported BY CHECKOUT from `origin/develop @ 9f5ccba`, `git diff` against the ref EMPTY, so
+every artifact is byte-identical and none was re-typed. `src/lib/TickUtils.plk` removed as
+superseded (git records R054 → `src/types/pricing/TickUtils.plk`). Provenance pinned as 36
+mechanically generated sha256 digests in `IMPORT-PIN.md`; SC-1 is now the re-runnable
+`offchain/rig/verify-import.sh`, which was FALSIFIED (a flipped digest and a deleted pin row each
+exit 1) before being reported green. **Closure PROVEN COMPLETE by compilation, not inspection:**
+all four deploy module roots build with the exact `plankOpts()` flag set and emit pure hex —
+`VolOrderManagerMod`'s dispatch table contains `6398d950ec`, so the V2 selector is LIVE in
+bytecode. **Zero closure gaps; the 36-path list is unchanged from task 1.** Delta measured and
+attributed, never repaired: forge **139/5/144 → 85/27/112**, compile-plank **14ok/0 → 13ok/3**,
+`forge build` still **exit 0** (so `forge script` and 20-03 are unaffected). Next action: execute
+`20-03` (stand the rig up on anvil).
+
+### 20-01 (superseded position, kept for the record)
+
+**20-01 COMPLETE — the upstream gate is OPEN and the phase is UNBLOCKED.** PR #15
 (`feat/plank` → `develop`) MERGED at 18:17 UTC; `offchain/rig/check-upstream.sh` was RUN (not just
 written) and recorded **`origin/develop` = `9f5ccba92ddf89d80efe81bae1dcd1d0a1c10e2d`** to
 `offchain/rig/import-ref.txt`. That sha — read from disk, never retyped — is the SC-1 acceptance
@@ -40,8 +56,9 @@ recorded in `FORGE-BASELINE.md`: **139 passed / 5 failed / 144 total (47 suites)
 **`make compile-plank` 14 ok / 0 failed / 0 skipped**, every red named verbatim and 0 under
 `test/pos_spec/`. Other tracks' territory byte-untouched (`src/ test/ Makefile foundry.toml
 remappings.txt` all clean). Next action: execute `20-02` (the import itself).
-Last activity: 2026-07-31 — 20-01 executed: gate OPEN, develop ref pinned, forge build green, both
-cold baselines measured
+Last activity: 2026-07-31 — 20-02 executed: 36 artifacts imported by checkout from 9f5ccba,
+provenance pinned, SC-1 verifier falsified then green, closure proven by four plank builds, forge
+delta measured and attributed to four named causes
 
 ## v4.0 Closing Position (record, plank workstream)
 
@@ -78,6 +95,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 19 P04 | 21 | 2 tasks | 1 files |
 | Phase 19 P05 | 5 | 3 tasks | 2 files |
 | Phase 20 P01 | 4 | 3 tasks | 3 files |
+| Phase 20 P02 | 9 | 3 tasks | 40 files |
 
 ## Accumulated Context
 
@@ -137,6 +155,11 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 20]: [20-01 MEASURED] Upstream gate OPEN — PR #15 (feat/plank->develop) MERGED; origin/develop pinned at 9f5ccba92ddf89d80efe81bae1dcd1d0a1c10e2d in offchain/rig/import-ref.txt. This SUPERSEDES research §1's CLOSED measurement (origin/develop = 1c41935, PR #15 OPEN at 14:20 UTC). The gate is a re-runnable command whose sharpest discriminator is a grep for the V2 selector 0x98d950ec, not path existence — a path check cannot tell a merged V2 interface from the stale v1 file.
 - [Phase 20]: [20-01 MEASURED, binds 20-02's delta] Cold PRE-IMPORT baselines on feat/rpc-api: forge test --via-ir --fuzz-seed 4880 = 139 passed / 5 failed / 144 total (47 suites); make compile-plank = 14 ok / 0 failed / 0 skipped. 19-05's 102/18/120 + 11ok/2fail were NOT carried forward — the gap is the exposure draft: src/lib/exposure/VegaIssuanceLib.plk is now TRACKED and COMPILES here, so the 14 VegaAccount*/VegaIssuance* setUp() reverts and 2 compile failures are gone. 4 of the 5 reds are the known vol-type track failures; the 5th (VolOrderManagerFuzzTest test__fuzz__logCreateOrder) is NEW to this branch record and is pre-import, so 20-02 must not mistake it for import damage. 0 reds under test/pos_spec/.
 - [Phase 20]: [20-01 VERIFIED] forge build exits 0 on the PRE-import tree after npm ci --ignore-scripts (172 pkgs) + the develop-gate.yml submodule sequence with the submodule.lib/panoptic-helper.update=none recursion guard (guard OBSERVED firing: 'Skipping submodule'). Any post-import build failure is therefore unambiguously attributable to the import. No tracked file moved: git status --porcelain on src/ test/ Makefile foundry.toml remappings.txt is EMPTY.
+- [Phase Phase 20]: [20-02 VERIFIED] The import LANDED byte-identical: 36 paths checked out from origin/develop @ 9f5ccba, git diff against the ref EMPTY, none re-typed. src/lib/TickUtils.plk removed as superseded (R054 -> src/types/pricing/TickUtils.plk; its only 3 importers were all in the list and switch to types::pricing::TickUtils on the ref). The V2 discriminators are LIVE not merely present: SELECTOR_CREATE_ORDER = 0x98d950ec is the sole live const and 0x6501fe94 survives only as a RETIRED-NEVER-LIVE comment.
+- [Phase Phase 20]: [20-02 PROVEN] The Plank closure is COMPLETE, established by compilation before anvil was ever started: all four deploy module roots build with the exact plankOpts() flag set (7 deps, verified against the IMPORTED PlankDeployBase.s.sol, not just research) and emit pure hex bytecode. VolOrderManagerMod's bytecode contains 6398d950ec -- the V2 selector is in the compiled DISPATCH TABLE, strictly stronger than a constant in a source file. ZERO closure gaps: no path was added, the 36-path list is unchanged from task 1. A 20-03 anvil failure therefore cannot be a closure gap.
+- [Phase Phase 20]: [20-02 MEASURED, binds the Solidity-testing session] Post-import delta, ATTRIBUTED not repaired: forge test --via-ir --fuzz-seed 4880 = 139/5/144 -> 85 passed / 27 failed / 112 total; make compile-plank = 14ok/0 -> 13 ok / 3 failed / 16 entrypoints. forge build STILL exit 0, confirming solc never sees .plk, so all 27 reds are runtime/FFI and forge script (20-03) is unaffected. The total FELL 32 because six suites now fail in setUp(), which forge reports as ONE failure while the rest never run. Four named causes: C1 V2 arity create_order(uint88,uint24,uint16,uint96)/0x98d950ec with the v1 3-arg RETIRED (20 tests); C2 two harnesses importing the removed lib::TickUtils; C3 per-test --dep sets lacking types=src/types; C4 harness call sites at v1 arity. By transition: 1 carried pre-existing, 2 transformed, 24 genuinely new.
+- [Phase Phase 20]: [20-02 FINDING] C3 is a DEPENDENCY-ROOT problem, not a content problem, and the proof is a divergence: VolRangeWidthHelper.plk compiles OK under make compile-plank (full dep set) while the SAME file fails under forge test's FFI (narrower per-test set). Re-running the failing command with --dep types=src/types added emits bytecode and exits 0 (MEASURED, no file edited). So C2/C3 are mechanical fixes for the Solidity-testing session, not a migration. Separately, test__unit__everyInterfaceSignatureStringIsPinned is a WORKING pin, not a bug -- it reddened because it DETECTED the source-of-truth change, exactly its job.
+- [Phase Phase 20]: [20-02 PATTERN, falsify-before-trust] The SC-1 verifier was driven to FAIL on purpose before being reported green: a flipped pin digest and a deleted pin row each exit 1 with a named message, and both restorations were verified byte-identical. Faults were injected into IMPORT-PIN.md (this workstream's own file), never a plank-owned one. This answers the repo's four recorded instances of criteria that passed vacuously. Also carried forward for 20-04: IMarketStateSocket.plk was imported for set-completeness and IS the broken stub (seven const NAME = lines with no values, no terminators) -- the pin parser must skip valueless consts DELIBERATELY, with the skip asserted in a test.
 
 ### Pending Todos
 
@@ -163,6 +186,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-07-31T18:25:45.263Z
-Stopped at: Completed 20-01-PLAN.md — upstream gate OPEN, develop ref pinned, baselines measured
+Last session: 2026-07-31T18:38:02.573Z
+Stopped at: Completed 20-02-PLAN.md — 36 artifacts imported byte-identical from 9f5ccba, closure PROVEN by four plank builds, delta attributed
 Resume file: None
