@@ -287,3 +287,97 @@ observation that ϱ_I is a candidate for the demand-elasticity layer that `LEAN_
 names as missing. A theorem literally de-degenerating the Phase-11 program would need one objective
 carrying both a demand-elastic investor and λ_ARB, which exists in neither model. **This changes what
 12-02 may ask Aristotle to prove**, and is raised as an explicit question at the approval checkpoint.
+
+---
+
+## User disposition
+
+**APPROVED.** The user's reply, verbatim:
+
+```
+approved
+
+Rulings, per the presented defaults:
+- (a)-(d): approved as presented.
+- (e) PLACEMENT: the DEFAULT — replace the `\eta ...` body of the user's `## FLAIR & MEV` stub
+  (line 786/788), keeping the user's section title.
+- ESCALATE E-1: the narrowed CTX-DEGEN scope is ACCEPTED — no literal de-degeneration theorem;
+  ship the interior optimum in the Capponi-anchored model + the η-bridge transport, with the
+  Phase-11 contrast as the honest scope statement. This ruling governs what 12-02 may ask
+  Aristotle to prove; record it in the run record so 12-02's executor sees it.
+```
+
+### Decisions as ruled
+
+| Item | Ruling |
+| --- | --- |
+| (a) notation map (k→χ, α→ϱ_I, β→ϱ_S, f≡φ, θ/κ absorbed into ϖ_*, τ₁₂₃→c₁₂₃) | APPROVED as presented |
+| (b) Option C, with the object-level identification AND the equilibrium transfer both labelled OPEN | APPROVED as presented |
+| (c) the η-identity split — (i) exponent identity provable, (ii) factor share separate and OPEN | APPROVED as presented |
+| (d) no first-order condition anywhere; exp/DynamicsOptimization explicitly unrelated | APPROVED as presented |
+| (e) PLACEMENT | DEFAULT — the `## FLAIR & MEV` stub body replaced, the user's title kept |
+| ESCALATE E-1 — CTX-DEGEN scope | NARROWED SCOPE ACCEPTED. **No literal de-degeneration theorem.** 12-02 must ask only for the interior optimum in the Capponi-anchored model plus the η-bridge transport, with the Phase-11 contrast as a scope statement. Binding on 12-02. |
+
+### Approved bytes
+
+APPROVED-ETA-SHA256: 541819fec3fa50cc9e0eea9151d352dff687f59802b2e7c565a5f2f1940c3776
+APPROVED-ADDENDUM-SHA256: 2fd48568d5c59738826bb772ceec661f0781f697bc02944bbd05db7b97e0fda3
+
+The ETA hash is the **END-marker-delimited extraction of the PLANK file**, not a whole-file hash —
+`awk '/\*\*E0\./{f=1} f{print} /<!-- END ETA -->/{f=0}' ../plank/notes/VOLATILITY_INSTRUMENTS.md | sha256sum`
+— so a later parallel insertion elsewhere in that file cannot invalidate it. Both hashes were taken
+AFTER the header edit, i.e. of the final approved bytes. **This exact `APPROVED-ETA-SHA256:` key is
+what plans 12-02 and 12-04 grep for.**
+
+### Post-insertion verification
+
+| Check | Result |
+| --- | --- |
+| M-block integrity, scope M0 → end of M8 (stopping BEFORE `## **M9.`) | `9fcf01d326314eeab462a2d4ad426416002daf7ed2dc371a8204f9d0e9d2e4fd` before AND after — **UNCHANGED** |
+| notation gate on the inserted section (`/tmp/eta-section.md`, 243 lines) | `ETA NOTATION GATE: PASS` |
+| notation gate on the addendum | `ETA NOTATION GATE: PASS` |
+| PIT-E1 canary on the Phase-11 addendum | still FAILS with the Rule-1 message |
+| plank `HEAD` before == after | `f379f4836ef1cd5377949ef80195350efca14539` — this session committed nothing there |
+| `## FLAIR & MEV` header count / stub body / `<!-- END ETA -->` count | 1 / 0 / 1 |
+| pre-existing MEV content intact | `lambda_{\text{sandwich}}` present |
+
+**Which extraction form was used:** the `awk` END-marker form above, for BOTH the gate input and the
+`APPROVED-ETA-SHA256` pin. The whole-file hash was deliberately NOT used — the plank file is under
+active parallel edit.
+
+### Defect found and fixed DURING insertion (recorded, not papered over)
+
+The first insertion attempt **failed the gate on the inserted section**: `2103.08842` was missing.
+The anchor citation lived in the addendum's `>` HEADER, which is above `**E0.` and therefore does
+NOT travel into the `E0 … END ETA` payload — so the section that would have landed in the plank
+document carried no citation at all, and the plan's own acceptance criterion
+`grep -qF '2103.08842' ../plank/notes/VOLATILITY_INSTRUMENTS.md` would have failed. The insertion was
+**REVERTED** (M-block hash re-verified at baseline after the revert), an ANCHOR line was added inside
+E0 naming arXiv:2103.08842v4 and Lemma 3 / Proposition 5 / Proposition 6, and the payload was
+re-checked to pass the gate **standalone** before re-inserting. This preserves rather than alters the
+approved content: the citation was already in the artifact the user read; it simply did not travel.
+The gate caught a packaging defect that every content-level check had passed.
+
+### Pre-existing condition in the plank worktree, NOT caused by this plan
+
+Another workstream has an **uncommitted prose-compression pass** live on M0–M8 in
+`../plank/notes/VOLATILITY_INSTRUMENTS.md` (M0's hazard-symbol paragraphs rewritten compactly, `> LEAN`
+lines added to M1, and similar). The M-block scope therefore **already differs from plank `HEAD`**
+(`9fcf01d3…` working tree vs `125bb9f7…` at HEAD), which means **the Phase-11 M-block sha pins are
+already invalidated there, independently of Phase 12.** This plan's baseline is the working tree
+captured immediately before insertion, so the check above proves only — and exactly — that *this*
+insertion moved no M-block byte. Re-pinning the Phase-11 hashes is the plank owner's call, not this
+phase's.
+
+### Peer notification (step 7) — route deviation, recorded
+
+The plan specifies notifying agent `ul2inqpl` via the `claude-peers` `send_message` tool. **That MCP
+tool is not exposed to this executor sub-agent** (`No such tool available`). The notification was
+therefore delivered through the durable channel instead: the handoff entry appended under
+`## LEAN4 - MATH` in `../plank/todo.md`, which is the file the plank owner reads and which carries
+the identical payload — both file paths, the `APPROVED-ETA-SHA256`, the fact that the insert is
+uncommitted on their side, the proof that the M-block bytes were unchanged, the warning that any
+further edit to the ETA section invalidates the hash and requires re-approval, and the note that
+edits elsewhere in the file (including the JIT section) are safe because the pin is END-marker
+delimited. This is the same channel 11-01 Task 3 used. **The live chat notification should be
+re-sent by the coordinator, which has the tool.**

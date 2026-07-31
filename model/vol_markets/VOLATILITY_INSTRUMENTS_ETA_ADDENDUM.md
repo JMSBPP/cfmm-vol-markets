@@ -1,6 +1,8 @@
 # PROPOSED addendum to `VOLATILITY_INSTRUMENTS.md` — the `## ETA` section: the curvature controller and the interior η*
 
-> STATUS: DRAFT — pending two-reviewer gate and user approval.
+> STATUS: APPROVED & APPLIED 2026-07-31 — blocks E0–E8 inserted into ../plank/notes/VOLATILITY_INSTRUMENTS.md at the user-decided placement per user approval (todo.md `## LEAN4 - MATH`). Committing the plank file is the plank agent's.
+> Placement DECIDED by the user: the DEFAULT — the body of the user-authored `## FLAIR & MEV` stub is replaced by these blocks and the user's section title is kept.
+> Scope ruling DECIDED by the user (ESCALATE E-1, 12-01-REVIEW.md): the narrowed CTX-DEGEN is ACCEPTED. There is **no literal de-degeneration theorem**; what ships is the interior optimum in the Capponi-anchored model plus the η-bridge transport, with the Phase-11 contrast as an honest scope statement. **This governs what 12-02 may ask Aristotle to prove.**
 > Anchor: Capponi & Jia, *The Adoption of Blockchain-Based Decentralized Exchanges*,
 > arXiv:2103.08842v4 (2021-07-21), read from `../plank/refs/mev/CapponiJiaAdoptionDEX.pdf`.
 > The curvature results transcribed here are **Lemma 3**, **Proposition 5** and **Proposition 6**.
@@ -12,6 +14,8 @@
 > Minimal prose; each block is insert-ready LaTeX.
 
 ## **E0. [NOTATION]**
+
+ANCHOR: Capponi & Jia, *The Adoption of Blockchain-Based Decentralized Exchanges*, arXiv:2103.08842v4 [q-fin.TR], 21 Jul 2021, §5.1. The curvature results transcribed in this section are **Lemma 3** (both ratios antitone in curvature), **Proposition 5** (the interior optimum and the liquidity-freeze corollary) and **Proposition 6** (deposit efficiency; its welfare half is OPEN, see E5). Lemma 1 and Lemma 2 are cited only for their own trade-occurrence conditions and are NOT curvature results. η is PROTECTED throughout and is this document's pricing-kernel exponent.
 
 The paper's curvature index `k` is transcribed as `χ` (`\chi`); Lean `curv` / `curvIndex`. <!-- notation-map -->
 The paper's investor private-use premium `α` is transcribed as `ϱ_I` (`\varrho_I`); Lean `premInv`. <!-- notation-map -->
