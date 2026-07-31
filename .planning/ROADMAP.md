@@ -263,7 +263,7 @@ the `Δt` cadence lever, sandwich nulling), CTX-TRACE (LEAN_TRACEABILITY rows + 
 CTX-REVIEW (two-reviewer gate on every pre-submission spec artifact)
 **Depends on:** Phase 10 (and the FlairOptimization.lean layer, commits 6914fba/5e08578)
 **Directory:** `.planning/phases/11-mev-hazard-inf-program/`
-**Plans:** 6 plans — 6/6 complete (2026-07-31)
+**Plans:** 6/6 plans complete
 **Phase outcome (2026-07-31, FINAL):** All eight CTX-* requirements SATISFIED, and the two headline
 results are both NEGATIVE ones, reported as results rather than softened. **(1) The unconstrained
 joint program is DEGENERATE** — one admissible point simultaneously maximizes `λ_FLAIR` and
@@ -299,3 +299,31 @@ Plans:
 - [x] 11-04-PLAN.md — CTX-JOINT/CTX-ANGSTROM/CTX-REVIEW: bundle B + T20–T30 prompt (degeneracy, constrained/Jensen with σ-varying primary and σ-constant fallback, Angstrom bridge), gate, serial submit — **COMPLETE, TASK IN FLIGHT AT CLOSE** (project `19f777ab`, task `f8840dab`). The two-reviewer gate earned its keep: both reviewers independently found the SAME BLOCKER — the plan's own text specified `mevTotal := probOr lamARB lamSand`, which approved block M7 explicitly forbids, and which the project's already-proven `VolInstrument.probOr_hazard` refutes; corrected to plain addition with the correspondence kept as its own lemma. Executor-found before either reviewer ran: the plan's T25 was a TRIVIALITY at the schedule level, fixed by introducing path-level carriers. Doc fidelity re-proved against all three copies at submit time. CTX-JOINT/CTX-ANGSTROM NOT yet satisfied at close: nothing proven until 11-05 integrates
 - [x] 11-05-PLAN.md — CTX-JOINT/CTX-ANGSTROM: integrate bundle B — build, axiom sweep, T20–T30 fidelity, the explicit T24 verdict, push — **COMPLETE. CTX-JOINT and CTX-ANGSTROM are now SATISFIED** (`lean/vol_markets/MevJointProgram.lean`, 481 lines, 27 declarations, sorry-free, 27/27 axiom-clean, `lake build` 8063 jobs green, pushed to origin `94e7fa9` + `cfmm-lean4-spec` `81b2729`). 11/11 bundled modules byte-identical; T20–T30 ALL byte-identical to the sha-verified prompt, none narrowed, ZERO corrective hypotheses. **THE T24 VERDICT IS REFUTED** — `mev_ge_flat_under_flair_budget_false`, Aristotle's outcome 3, flat `31/22` vs tilted `4/3` recomputed independently in exact rationals. The `Θ_φ`-restricted varying-σ case is recorded OPEN; the supporting numerics are labelled NOT machine-checked. The unconstrained degeneracy (T20–T22) is machine-checked
 - [x] 11-06-PLAN.md — CTX-TRACE: LEAN_TRACEABILITY §0/§6/§7 rows, addendum back-annotation, ROADMAP/STATE close-out — **COMPLETE. CTX-TRACE SATISFIED.** §0 carries the MEV notation rows, the three resolved collisions and the λ_ARB/λ_MEV distinction; new §7.1 carries 14 claim rows, every backticked identifier grep-verified to be a real declaration in one of the two modules; `arb_add_fee_eq_lvr` is labelled a bridge identity and explicitly NOT a formalization of MMR Theorem 3/4; the degeneracy and the T24 refutation are recorded as RESULTS with `REFUTED`/`OPEN` statuses taken verbatim from the fidelity records; §6's stale "MEV section (empty in the doc)" clause is replaced by five precisely named gaps. Addendum back-annotated M1–M7 with M6b amended OPEN → REFUTED; the plank-owned `VOLATILITY_INSTRUMENTS.md` carries the same amendment, uncommitted, handed to `ul2inqpl`
+
+### Phase 12: Optimal η for the FLAIR/MEV trade-off (interior curvature controller)
+
+**Goal:** Derive and formalize the optimal `η` — the pricing-geometry
+curvature / asset-demand substitution elasticity (`VolInstrument.priceEta`,
+plank todo #227) — as the unique interior controller of the FLAIR/MEV
+trade-off. Transcribe Capponi–Jia §5.1 (arXiv:2103.08842; PDF at
+`../plank/refs/mev/CapponiJiaAdoptionDEX.pdf`) into the doc's geometry
+under the binding notation-precedence rule (their curvature `k` maps ONTO
+our `η`; our symbols never reassigned): the curvature family, the two-sided
+lemma (arb-loss ratio ↓ curvature AND investor-surplus ratio ↓ curvature),
+and the interior-optimum proposition (LP payoff single-peaked at `k*` —
+our `η*`). Then state and solve the JOINT program over `(Θ_φ, η)`: the fee
+block stays at its proven corner (Phase 11 M6a degeneracy), and `η` carries
+the genuine interior trade-off — `λ_ARB` decreasing in `η` through the
+slippage channel while the demand/volume side decreases too, yielding
+`η* ∈ (0, 1)`-analog existence + first-order characterization where
+provable, with honest OPEN labels where the doc's discrete geometry departs
+from Capponi's continuum model. Doc-driven Aristotle (new doc block, HEAVY
+USER APPROVAL, notation gate); results land beside the Phase 11 modules;
+traceability + doc summarization close the cycle.
+**Requirements**: TBD (adopt from 12-RESEARCH)
+**Depends on:** Phase 11 (MevOptimization/MevJointProgram layer; the M6a degeneracy theorem is the motivation), EndogenousMaturity (independent)
+**Directory:** `.planning/phases/12-eta-tradeoff-optimum/`
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 12 to break down)

@@ -4,10 +4,10 @@ milestone: v1.0
 milestone_name: milestone
 status: "**PHASE 11 WAVE 2 IS IN FLIGHT — THE QUEUE IS BUSY.** Bundle B was submitted as the single Aristotle task (project `19f777ab`, task `f8840dab`) carrying T20–T30: the degeneracy, the constrained/Jensen program, and the Angstrom bridge. Nothing is proven yet; integration is 11-05's job and is BLOCKED until the task is terminal. **The two-reviewer gate paid for itself twice this plan.** It caught a BLOCKER that the PLAN ITSELF had introduced — `mevTotal` defined as `probOr` of two unbounded hazards, which approved block M7 explicitly forbids and which would have compiled green, passed the axiom sweep and passed 11-05's fidelity diff while being wrong for every nonzero sandwich. Both reviewers, running blind to each other, found it independently; the already-proven `probOr_hazard` was the decisive evidence. Separately, and before either reviewer ran, the plan's T25 was found to be a vacuous triviality at the schedule level — the document's own OPEN note — and was restated at the path level. **Watch T24 on return: an OPEN T24 alongside a delivered T25 is an acceptable, recordable outcome and must not be written up as success.** What follows is the prior wave's status, retained verbatim."
 stopped_at: Completed 11-06-PLAN.md — PHASE 11 CLOSED
-last_updated: "2026-07-31T12:25:17.619Z"
+last_updated: "2026-07-31T12:32:03.827Z"
 last_activity: "2026-07-30 — 11-03 COMPLETE. Aristotle bundle A LANDED: `lean/vol_markets/MevOptimization.lean` (1046 lines, 3 defs + 22 public theorems + 3 private helpers), sorry-free, 25/25 `#print axioms` = [propext, Classical.choice, Quot.sound], root registered, `lake build` 8062 jobs exit 0. 10/10 bundled modules byte-identical. T1–T18 all present, none narrowed; T19 OMITTED (optional). Aristotle-added hypotheses recorded, incl. the NECESSARY T15 fee-nonnegativity guard. Pushed to origin (42c8e60) and cfmm-lean4-spec main (19afcdd). Commits 5dd94e9, 42c8e60. Queue FREE for 11-04."
 progress:
-  total_phases: 11
+  total_phases: 12
   completed_phases: 3
   total_plans: 36
   completed_plans: 33
