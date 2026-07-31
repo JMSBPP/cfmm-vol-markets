@@ -345,13 +345,41 @@ traceability + doc summarization close the cycle.
 > **(7) The equilibrium transfer — that our tick-grid AMM actually has Capponi's closed forms — is
 > an ASSUMPTION and is labelled OPEN, not derived.**
 
+> **BINDING USER DECISIONS FROM 12-01 (2026-07-31). These correct the goal above in place and
+> GOVERN what 12-02 may ask Aristotle to prove.**
+> **(8) THE CURVATURE INDEX IS `κ_φ` (`\kappa_{\varphi}`), NOT `χ`** — user amendment. Correction (4)
+> above and every `χ` in 12-RESEARCH are superseded on the glyph. Lean binders are `kphiS`, `kphiI`,
+> `kphiStar`, with `curvIndex` the definition and `curv` the bound variable. Applying it exposed a
+> second, consequential collision: the draft used `\varphi` for the FEE, contradicting the master
+> document's own M0 (`\varphi` is bound to the QUOTE FUNCTION), so **the fee is `\phi`** and `\varphi`
+> appears only as `κ`'s subscript. Both reviewers missed this.
+> **(9) CTX-DEGEN IS NARROWED — THERE IS NO LITERAL DE-DEGENERATION THEOREM.** The goal's "state and
+> solve the JOINT program over `(Θ_φ, η)` … the de-degeneration" is NOT deliverable as written:
+> `mevMulti` contains no `η`, no `κ_φ` and no `ϱ_I`, so nothing in the curvature layer moves the
+> Phase-11 objective and the `Θ_φ` degeneracy stands exactly where Phase 11 left it. Contrasting
+> Capponi's `arbLoss`-minimizer with the `λ_ARB`-minimizer is comparing two objects the document
+> itself declares NOT IDENTIFIED. **What ships instead:** the interior optimum in the
+> Capponi-anchored model, the `η`-bridge transport, and the Phase-11 contrast as an honest SCOPE
+> statement — with `ϱ_I` a CANDIDATE for the demand-elasticity layer `LEAN_TRACEABILITY` §6(b)
+> names, not a closure of it. A real de-degeneration needs one objective carrying both a
+> demand-elastic investor and `λ_ARB`; that object exists in neither model and is OPEN.
+> **(10) 12-RESEARCH.md CARRIES THREE DEFECTS FORWARD** — F8's interior-optimum mechanism (the peak
+> comes from the LP revenue term's corner→interior regime switch, NOT from two antitone objectives
+> having opposite corners, which is an UNSOUND scalarization argument), F8's de-degeneration
+> framing, and F3's "curvIndex covers curvatures beyond his range" (the map covers `(0,1) ⊊ [0,1]`,
+> so it neither reaches nor extends the anchor's corners). **Correct these at 12-04** so no later
+> plan re-injects them.
+
 **Requirements**: CTX-CURVDOC, CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN, CTX-REVIEW, CTX-TRACE
+> NOTE: these CTX-* ids are declared here and in 12-RESEARCH's proposed table, but `REQUIREMENTS.md`
+> carries no `CTX-` rows at all (0 hits), so `requirements mark-complete` is a no-op for this phase.
+> Pre-existing gap, recorded rather than silently patched; adopting the table belongs to the roadmapper.
 **Depends on:** Phase 11 (MevOptimization/MevJointProgram layer; the M6a degeneracy theorem is the motivation), EndogenousMaturity (independent)
 **Directory:** `.planning/phases/12-eta-tradeoff-optimum/`
-**Plans:** 4 plans (serial waves 1→4; a named 5th-plan contingency is recorded in `12-CONTINGENCY.md` and is NOT invoked at planning time)
+**Plans:** 1/4 plans executed
 
 Plans:
-- [ ] 12-01-PLAN.md — CTX-CURVDOC, CTX-REVIEW: author the E0–E8 curvature doc block, write the INVERTED notation gate (η REQUIRED; Capponi's k/α/β remapped, θ/κ absorbed; ν never introduced; no FOC), two-reviewer gate, HEAVY USER APPROVAL, insert as a new `## ETA` section and pin the approved bytes. `autonomous: false`
+- [x] 12-01-PLAN.md — CTX-CURVDOC, CTX-REVIEW: **COMPLETE.** E0–E8 authored from the PDF (Lemma 3 / Prop 5 / Prop 6), INVERTED notation gate written (η REQUIRED; proven to FAIL on the Phase-11 addendum with the Rule-1 message) and later hardened with negative-tested Rules 4b/4c for `κ_φ`; two reviewers ran blind in parallel and returned **3 BLOCKER + 9 MAJOR, all resolved** — two of the BLOCKERs were defects the PLAN and 12-RESEARCH had specified; HEAVY USER APPROVAL obtained plus a binding `κ_φ` notation amendment and the CTX-DEGEN narrowing; inserted at the user-authored `## FLAIR & MEV` stub — NOT a new `## ETA` section, per the user's placement ruling — and pinned `APPROVED-ETA-SHA256 4f5362c1…`. Plank file written, NOT committed (owner `ul2inqpl`). `autonomous: false`
 - [ ] 12-02-PLAN.md — CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN, CTX-REVIEW: assemble the 17-module bundle (14 `vol_markets` + `exp.eta`/`exp.CESLongVolPayoff`/`exp.EtaReplication`, import closure PROVEN) with a module-origin map, write the T1'–T31' prompt with the hypothesis pre-empt and anti-narrowing lists, two-reviewer gate on the PROMPT, re-prove doc fidelity at submit time, submit ONE task to a NEW project. `autonomous: false`
 - [ ] 12-03-PLAN.md — CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN: byte-identity across all bundled inputs, integrate via the NON-UNIFORM map-driven import rewrite, append the lakefile root, build green with the `Built vol_markets.EtaCurvature` line as elaboration evidence, axiom sweep from a grep-generated file, the T1'–T31' fidelity diff, push to both remotes
 - [ ] 12-04-PLAN.md — CTX-TRACE: LEAN_TRACEABILITY §0 rows + binding remap paragraph + new §7.2 (identifiers grep-verified, scoped to the new section), §6(b) amended to show a partial carrier, `> LEAN` back-annotation of the `## ETA` section with the sha-pin invalidation disclosed, the plank todo #227 controller-law answer with its unobservability caveat, ROADMAP/STATE close-out
