@@ -121,9 +121,10 @@ completed: 2026-07-31
 ## Task Commits
 
 1. **Task 1: LEAN_TRACEABILITY §0/§6/§7.1 + addendum back-annotation** — `1d28314` (docs)
-2. **Task 2: ROADMAP + STATE close-out, VALIDATION, memory, push** — see plan metadata commit below
+2. **Task 2: ROADMAP + STATE close-out, VALIDATION, memory, push** — `07f55af` (docs)
 
-**Plan metadata:** recorded in the Task 2 close-out commit (docs: complete plan)
+**Plan metadata:** folded into `07f55af` — the close-out commit carries SUMMARY, STATE, ROADMAP and
+VALIDATION together, since this plan's Task 2 *is* the metadata close-out.
 
 ## Files Created/Modified
 
@@ -304,12 +305,12 @@ None - no external service configuration required.
 - **Files claimed created/modified — all present on disk:** `11-06-SUMMARY.md`, `11-VALIDATION.md`,
   `model/vol_markets/LEAN_TRACEABILITY.md`, `model/vol_markets/VOLATILITY_INSTRUMENTS_MEV_ADDENDUM.md`,
   `.planning/ROADMAP.md`, `.planning/STATE.md`.
-- **Commits claimed — both resolve:** `1d28314` (Task 1), `e5f4dd4` (Task 2 close-out).
-  `origin/feat/lean4-spec` is at `e5f4dd4`.
+- **Commits claimed — both resolve:** `1d28314` (Task 1), `07f55af` (Task 2 close-out).
+  `origin/feat/lean4-spec` carries both.
 - **§7.1 row count:** 14 claim rows, matching the claim above.
 - **Identifier check:** 25 names resolved against declaration lines in `MevOptimization.lean`,
   27 against `MevJointProgram.lean`; zero unresolved among the new rows.
-- **`lean/` untouched:** `git diff --name-only f39fd07..e5f4dd4 -- lean/` returns 0 files;
+- **`lean/` untouched:** `git diff --name-only f39fd07..HEAD -- lean/` returns 0 files;
   `git subtree push --prefix=lean lean4-spec main` reports "Everything up-to-date" and
   `cfmm-lean4-spec` main remains `81b2729` — as expected and as stated in Issues Encountered.
 - **Build:** `cd lean && lake build` exits 0 (8063 jobs).
@@ -323,7 +324,7 @@ None - no external service configuration required.
   as met-in-scope rather than met-literally.
 - **Commit-content criterion:** the plan expected `LEAN_TRACEABILITY.md` and `ROADMAP.md` in the SAME
   commit (its step 5 stages both at once). The executor's per-task atomic commit protocol splits them:
-  `1d28314` carries the traceability + addendum, `e5f4dd4` carries ROADMAP/STATE/VALIDATION/SUMMARY.
+  `1d28314` carries the traceability + addendum, `07f55af` carries ROADMAP/STATE/VALIDATION/SUMMARY.
   Both are committed and pushed; the intent is satisfied across two atomic commits.
 
 ---
