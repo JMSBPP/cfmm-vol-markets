@@ -221,3 +221,86 @@ omitted. Fidelity diff: `.planning/phases/11-mev-hazard-inf-program/
   non-blocking at submission and omitted by the prover as permitted. The exact
   kernel therefore has no formal carrier; nothing in the leading-order program
   depends on it.
+
+# Summary of changes for run 19f777ab (task f8840dab)
+
+Created `RequestProject/MevJointProgram.lean` (namespace `MevJointProgram`), the
+JOINT sup-FLAIR / inf-MEV program: 481 lines, 22 theorems + 5 defs, integrated as
+`lean/vol_markets/MevJointProgram.lean` with the import rewrite
+`RequestProject.` → `vol_markets.` as the ONLY edit. No existing file modified —
+all ELEVEN bundled dependency modules, including the already-proven
+`MevOptimization.lean` and `FlairOptimization.lean`, returned BYTE-IDENTICAL.
+
+- Sorry-free; **27/27 `#print axioms` = [propext, Classical.choice, Quot.sound]**,
+  the sweep file generated from a grep of the module so no declaration can be
+  silently skipped. `lake build vol_markets` 8039 jobs and `lake build` 8063 jobs
+  both exit 0, with `Built vol_markets.MevJointProgram (27s)` proving the module
+  was actually elaborated rather than skipped by an unregistered root.
+- **(A) THE DEGENERACY, T20–T22, all three byte-identical to the specification.**
+  `joint_corner_degeneracy` (carrying the load-bearing `hφ0 : 0 ≤ φbar`),
+  `joint_beta_degeneracy` as the monotonicity PAIR rather than two `Tendsto`
+  limits, and `joint_scalarization_degeneracy` for every `κ ≥ 0`. One admissible
+  point simultaneously maximizes `flairMulti` and minimizes `mevMulti`, in the
+  levels AND the shape coordinate, robustly to any linear weighting:
+  **unconstrained over `Θ_φ` there is no trade-off and the shape block `(β, γ)`
+  is NOT essential.** The phase's own expectation, machine-checked as refuted.
+- **(B) THE CONSTRAINED PROGRAM — AND THE HEADLINE IS A REFUTATION.** T23
+  (`flair_budget_pins_mean_fee`, `flair_budget_mean`) supplies the linearity half:
+  a FLAIR budget pins the mean fee `B/W` and leaves the path SHAPE free. **T24
+  came back as OUTCOME 3: `mev_ge_flat_under_flair_budget_false`, a machine-checked
+  NEGATION theorem with explicit numeral witnesses** — `T = 2`, `Δt = 2`,
+  `σ = (1, 10)`, unit weights and denominators, evaluated fees `(2, 0)`, budget
+  `B = 2`, flat fee `1`. Recomputed independently in exact rationals: the flat
+  path costs `31/22 ≈ 1.4091` against the tilted path's `4/3 ≈ 1.3333`, so the
+  flat fee is STRICTLY WORSE and the proposed inequality is FALSE. With `σ_t`
+  varying the summands are different convex functions and ordinary Jensen never
+  applies; the covariance term is not sign-definite and the tilt drives it
+  negative. The refutation closes by `norm_num` on numerals, NOT by the compiled
+  evaluation tactic, so it is axiom-clean.
+- **T25 delivered regardless and NOT relabelled**:
+  `mev_ge_flat_under_flair_budget_const_sigma` at the PATH level (via the new
+  `flairPath` / `mevPath` carriers and their two `rfl` bridges), plus the strict
+  companion `mev_gt_flat_under_flair_budget_const_sigma` consuming
+  `ptrade_strictConvexOn` — the STRICT form, not the non-strict fallback. Its two
+  added hypotheses (`0 < w t` on the whole range; a non-constancy witness) were
+  pre-authorized by the prompt and are disclosed in the docstring.
+- **(C) THE ANGSTROM BRIDGE, T26–T30, every statement byte-identical to spec.**
+  `mevNet` with LP-net incidence lowering, antitonicity in `τ` and vanishing at
+  `τ = 1` — nonnegativity DISCHARGED on `mevMulti_nonneg`, never assumed;
+  `mevNet_argmin_invariant`, the group's best result, showing that for every
+  `τ < 1` the rebate changes the program's VALUE and not its SOLUTION, so `τ` is
+  formally a protocol parameter outside `Θ_φ`; `taxFraction k = k/(k+1)` with
+  **`k` FREE and no numeral in any statement** (the dated `k = 49` / `τ = 0.98`
+  snapshot appears only inside a docstring, verified by a comment-aware scanner);
+  `mev_mono_dt`, ISOTONE in `Δt`, with no vacuous second half; and
+  **`mevTotal := lamARB + lamSand`, PLAIN ADDITION** with the `probOr`
+  correspondence carried separately by `mevTotal_probOr_hazard` on the proven
+  `probOr_hazard` — the BLOCKER both 11-04 reviewers caught, correctly built.
+- Aristotle-added hypotheses: NONE anywhere except T25's pre-authorized strict
+  companion. Three binders are present but UNUSED (`hW` on `flair_budget_mean`
+  and `flairPath_budget_mean`, `hτ1` on `mevNet_le_mev`), so those theorems are
+  STRONGER than specified; kept rather than edited, since touching a returned
+  proof voids its verification.
+- All six mandatory module-docstring caveats present: (i) these are `λ_ARB`
+  unless `mevTotal` appears, identified with `λ_MEV` only through T30's
+  uniform-clearing reduction; (ii) the leading-order fast-block small-fee
+  provenance of `ARB ≈ LVR·P_trade`; (iii) no demand response, the omitted term
+  being eq. (27); (iv) the quasi-static `P_trade` caveat; (v) the section-(A)
+  degeneracy is UNCONSTRAINED and the shape block matters only under the budget;
+  (vi) M8's SCOPE OF THE AGGREGATE — backruns, multi-block MEV (which attacks the
+  T29 cadence lever directly), JIT liquidity and fixed gas costs are all outside
+  `λ_MEV`.
+- NOT SETTLED: the refutation's witness schedule DECREASES in `σ`, whereas every
+  `Θ_φ`-reachable schedule is isotone (`VolInstrument.multiFee_monotone`). The
+  machine-checked theorem therefore refutes the GENERAL schedule-level claim —
+  which block M6b had labelled OPEN and which must now be corrected to FALSE —
+  but leaves the `Θ_φ`-RESTRICTED varying-σ case OPEN. Executor numeric
+  exploration (NOT machine-checked) indicates the violation persists for isotone
+  `multiFee` schedules; a second refutation carrying an explicit `multiFee`
+  witness is the natural follow-up.
+
+Integrated artifact: `lean/vol_markets/MevJointProgram.lean` (sha256
+`ee458320b28e58b2857e9ff79874cef354a0c0d9434096b9c76484886ce87a68`); registered as
+the `vol_markets.MevJointProgram` lakefile root. Full statement-fidelity diff,
+axiom sweep and the T24 verdict:
+`.planning/phases/11-mev-hazard-inf-program/11-05-FIDELITY.md`.
