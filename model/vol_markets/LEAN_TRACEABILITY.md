@@ -250,3 +250,24 @@ Three entry channels formalized; **DECIDED (user, 2026-07-31): channel (A), mono
 | M10(D3) separation BREAKS the hazard correspondence (witness `τ=1/2, λ=2·log 2`: `1/2 ≠ 3/8`) | `tau_split_breaks_hazard` | **PROVEN** (inequivalence) |
 
 All 14 declarations axiom-clean (`propext, Classical.choice, Quot.sound`); deps byte-identical to the 13 submitted modules; Aristotle project `7ffb3a29`.
+
+## 10. `λ_JIT — EVENT-TIME HAZARD` (draft blocks J0–J8, `VOLATILITY_INSTRUMENTS_JIT_ADDENDUM.md` → `JitLiquidity.lean`; CJZ arXiv:2311.18164)
+
+Notation (J0): CJZ λ→`ϑ`, α→`ϖ`, f→`φ`, ν(π)→`mJ`; π→`πJ` (Real.pi collision).
+
+| Doc claim | Lean | Status |
+|---|---|---|
+| J1 swap primitives δ_S, δ_R: 1-homogeneous, strictly increasing + strictly CONCAVE in first arg, monotone in depth | `deltaS/R`, `_homogeneous`, `_strictMono_first`, `_strictConcave_first`, `_monotone_depth` | **PROVEN** |
+| J2 closed form d̃_J★ as transcribed = root of M_J | `dJstar_not_root_witness` — machine-checked witness `MJfun 0 1 2 (dJstar 0 1 2) ≠ 0`: the transcribed radicand is MISSING a factor q_R | **REFUTED (transcription)** |
+| J2 corrected root: radicand `q_R²(1+φ)d̃_P(d̃_P+q_R)` | `dJroot`, `dJroot_root`, `dJroot_unique_positive_root` | **CORRECTED → PROVEN** |
+| J2 THE THIRD POLE at q_R = φ·d̃_P; no positive root below | `dJstar_pole` (atTop from the right), `MJfun_no_positive_root_below_pole` | **PROVEN** |
+| J3 depth fixed point: M_T strictly decreasing, boundary values, unique μ(π); threshold μ>φ ⟺ ζ_U > ζ̲(φ,π); m_J positive + FOURTH POLE at μ = φ | `MTfun_strictAnti`, `MTfun_zero_gt_target`, `MTfun_tendsto_zero`, `existsUnique_MTfun_solution`, `MTfun_solution_threshold`, `mJ_pos`, `mJ_pole` | **PROVEN** |
+| J4 delegation: 𝒞 < 0 (ζ > 1+φ, ψ∈[0,1] incl. edges); 𝒰 strictly ↓ ϖ; freeze characterization | `Ccost_neg`, `Uutil_strictAnti`, `Uutil_neg_iff` | **PROVEN** |
+| J5 crowding: ℛ = φ·V bridges; π=1 bridge at ζ★(φ,1) = (√φ+√(1+φ))²; crowding region widens in φ | `Rrev_eq_fee_mul_V`, `Rrev0_eq_fee_mul_V0`, `ζstar`, `V0fun_zetaStar_eq_Vfun_one`, `ζstar_strictMono` | **PROVEN** |
+| J6 two-tier ϑ split: shares sum to 1, in [0,1], affine in ϑ; bridge ϑ ↦ 1−τ to `taxFraction`; welfare CORNER ϑ★ with binding U(ϑ★)=0 (monotone forces as hypotheses, unique) | `sJ`, `effective_shares_sum/_mem`, `passive_share_affine`, `passive_share_tax_bridge`, `welfare_corner` (∃!) | **PROVEN** |
+| J7 λ_JIT INCIDENCE (the headline): toxicity ratio λ_ARB/(λ_FLAIR−λ_JIT) strictly ↑ λ_JIT; λ_ARB preserved; mevTotal INVARIANT (extraction intensity unchanged) while the FLAIR side falls — "incidence operator, NOT ⊕-summand" formal | `toxicity_ratio_strictMono`, `incidence_preserves_ARB`, `incidence_mevTotal_invariant`, `incidence_FLAIR_falls` | **PROVEN** |
+| J8(a) conditional (β,γ) payoff-identity at ϑ = ϑ_eff (abstract; concrete ϑ_eff(β,γ) OPEN) | `conditional_payoff_identity` | **PROVEN** (conditional) |
+| J8(b) without trader-fee invariance: fee raises WIDEN crowding (ζ★ ↑ φ) | `trader_fee_raises_crowding_threshold` | **PROVEN** |
+| J8(c) l2-angstrom bridge: jitFactor = (3/2)·x, rates x/(x+1)-form: jitRate > swapRate (x>0), both strictly increasing + strictly CONCAVE | `jitFactor`, `swapRate/jitRate`, `jitRate_gt_swapRate`, `swapRate/jitRate_strictMono`, `swapRate/jitRate_strictConcave` | **PROVEN** (3/2 = the bridged DEFINITION, dated snapshot) |
+
+All 62 declarations axiom-clean; 13 deps byte-identical; Aristotle project `610bb259`. The J2 refutation is a TRANSCRIPTION correction (the addendum's radicand), joining ptrade's pole (M5) and T24 (M6b) in the corrected-claims ledger.

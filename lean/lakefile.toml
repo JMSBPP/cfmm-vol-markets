@@ -29,7 +29,8 @@ roots = ["vol_markets.Main", "vol_markets.PosSpec", "vol_markets.Flow",
   "vol_markets.GeomProfile", "vol_markets.FeeSchedule",
   "vol_markets.VolInstrument", "vol_markets.FlairOptimization",
   "vol_markets.EndogenousMaturity", "vol_markets.MevOptimization",
-  "vol_markets.MevJointProgram", "vol_markets.TauMevAlgebra"]
+  "vol_markets.MevJointProgram", "vol_markets.TauMevAlgebra",
+  "vol_markets.JitLiquidity"]
 
 [[lean_lib]]
 name = "tao"
