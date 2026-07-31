@@ -1,6 +1,6 @@
-# DRAFT — λ_JIT blocks (J0–J8) extending `## JIT` of VOLATILITY_INSTRUMENTS.md
+# APPROVED + INSERTED — λ_JIT blocks (J0–J9) in `## JIT` of VOLATILITY_INSTRUMENTS.md
 
-> STATUS: DRAFT bundled spec (doc insertion pending HEAVY USER APPROVAL at landing).
+> STATUS: INSERTED 2026-07-31. J1–J8 PROVEN (`JitLiquidity.lean`, 62 decls, axiom-clean, project 610bb259); J2 radicand CORRECTED (q_R² factor); J9 τ_JIT DECIDED, formalization IN FLIGHT (project 4cb6d5ca, K1–K5).
 > Source: Capponi–Jia–Zhu arXiv:2311.18164 (CJZ). Minimal prose, maximal math.
 
 ## **J0. [NOTATION-MAP]**
