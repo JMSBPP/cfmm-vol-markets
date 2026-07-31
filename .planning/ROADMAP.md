@@ -543,10 +543,14 @@ are readable here will stall on its first step. Importing them is Phase 20's fir
   3. The printed addresses, selectors and event topic0s are captured into a SINGLE machine-readable rig manifest consumed by the Haskell drivers, and **no address, selector or topic0 is hardcoded anywhere else under `offchain/`** — asserted by a grep-style check, so the manifest cannot be quietly bypassed the way `Sample.hs`'s literals are today (RIG-01).
   4. Every selector and topic0 in the manifest is **recomputed in a test from the signature string** in the corresponding `src/interfaces/<namespace>/*.plk` file and matched — a consumption check, not a re-derivation: `create_order(uint88,uint24,uint16,uint96)` → `0x98d950ec`, `create_orders(uint256,uint256[])` → `0x81357911`, `writeTimepoint(uint32,int24)` → `0xb09b2297`, E1 v2 → `0x18bd4d46…`, E3 `TimepointWritten` → `0x44d3c76a…`. If a manifest value and its interface file disagree, the check FAILS (RIG-01).
   5. The whole rig is reproducible on a clean machine from one documented command sequence starting at a fresh anvil, and a second run from scratch produces the same contract set (RIG-01).
-**Plans**: TBD
+**Plans**: 5 plans in 4 waves
 
 Plans:
-- [ ] 20-01: TBD
+- [ ] 20-01-PLAN.md — Upstream gate (BLOCKING), npm/submodule preflight, cold pre-import forge + plank baselines [wave 1]
+- [ ] 20-02-PLAN.md — Import the 36 binding paths + transitive .plk closure from the recorded develop ref, pin sha256 provenance, prove the closure compiles, record the forge delta [wave 2]
+- [ ] 20-03-PLAN.md — deploy-rig.sh (owns anvil, 5 scripts, manifest from broadcast JSON + console cross-check), verify-rig.sh liveness probes, SC-5 double-run reproducibility [wave 3]
+- [ ] 20-04-PLAN.md — generate-pins.sh + committed rig-pins.json (generated from the imported interface files), Rig.Manifest aeson loader, cabal wiring [wave 3]
+- [ ] 20-05-PLAN.md — Literal purge into the manifest, SC-3/SC-4 cabal test-suite (keccak recomputation + falsifiability), the documented one-command sequence [wave 4]
 
 ### Phase 21: V2 ABI Re-Pin & targetVega Generation
 **Goal**: The Haskell client speaks V2 on every byte layout that crosses the wire — call, batch input word, storage word, and log — with each selector and topic0 pinned by a test that COMPUTES it from the signature string, so this surface cannot rot silently again; and `StochasticOrderGen` supplies the fourth field in the right units.
