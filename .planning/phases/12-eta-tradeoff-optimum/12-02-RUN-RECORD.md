@@ -241,6 +241,40 @@ parallel, blind. Both NEEDS WORK: **2 BLOCKER, 1 MAJOR, 11 MINOR, 0 rows unresol
 BLOCKER and MAJOR was fixed in the prompt before submission; the prompt sha above is the POST-FIX
 artifact and is the exact text sent.
 
+## POST-SUBMIT: THE AMENDMENT LANDED EARLY — A TRAP FOR 12-03, READ THIS FIRST
+
+The user's ordering ruling was to defer the ESC-1/2/3 amendment until after the bundle lands. It
+was instead applied ~35 minutes AFTER submission, in commit `62220db`
+("docs(vol_markets): apply ESC-1/2/3 corrections + record in-flight bundles"), to BOTH
+`model/vol_markets/VOLATILITY_INSTRUMENTS_ETA_ADDENDUM.md` AND the live
+`../plank/notes/VOLATILITY_INSTRUMENTS.md`. That commit's own message correctly records that the
+submitted bundle carries the pre-correction bytes with the false form prohibited in its prompt, and
+that no requested theorem depends on it.
+
+**Nothing about the in-flight task is affected.** The bundled copy is FROZEN inside
+`scratch/aristotle-eta-curvature/`, still hashes `4f5362c1…`, and is exactly the user-approved
+bytes Aristotle is proving against.
+
+**But the pinned bytes no longer exist in either live file, and 12-03 must not be misled by it:**
+
+| Source | ETA-section sha256 as of this note |
+| --- | --- |
+| `APPROVED-ETA-SHA256` / `BUNDLED-ETA-SHA256` (what was SENT) | `4f5362c1067e4d7f5c3fb3682363b7af246aad9dc75a602892be09b75fb81b3c` |
+| `VOLATILITY_INSTRUMENTS_ETA_ADDENDUM.md` (amended) | `313801bac10d17c663aee032d2d959e8b3cef8d7cd7b352141ebd11c7202cccb` |
+| live `../plank/notes/VOLATILITY_INSTRUMENTS.md` (amended) | `411b4141c1d1ad2edae5be800cf54462e5277e3ffb8a65227aa16e3161144f73` |
+
+**CONSEQUENCE — 12-03 MUST NOT re-run the assembly-time gate (b).** Its E-block diff against the
+addendum **WILL NOW FAIL**, and that failure is EXPECTED and CORRECT rather than a fidelity
+breach. The landing check must compare the RETURNED bundled document against
+**`BUNDLED-ETA-SHA256 4f5362c1…` pinned above**, which is the only hash that describes what was
+actually sent. Comparing against either live file at landing time reproduces exactly the class of
+error 11-04 diagnosed: treating a legitimate downstream edit as a corruption of the payload.
+
+The addendum and the live plank file also differ from EACH OTHER (`313801ba…` vs `411b4141…`)
+because the plank copy carries two extra in-flight annotations the addendum does not: a clause on
+the ESC-1 correction line naming project `4878ca32`, and a trailing `IN FLIGHT` block listing the
+T-items. Deliberate, benign, and recorded here so 12-04 does not read it as drift.
+
 ## Next
 
 12-03 lands the return. Poll with `aristotle tasks 4878ca32-d04c-4e19-9c3b-394a1427fb8b`, never
