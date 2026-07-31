@@ -17,6 +17,17 @@ Reserved project-wide: **`η` is the pricing-kernel eta** (`model/exp/eta.md`,
 `exp/eta.lean`). It is never reused. The fee paper's `η⁰`/`η¹` are mapped to
 Latin names below.
 
+Three collisions with the MEV anchor (Milionis–Moallemi–Roughgarden,
+arXiv:2305.14604v2) are resolved the same way, doc-side, and the resolutions are
+binding: the anchor's fee `γ` is this document's `φ` (this document's `γ_j` stays
+the sigmoid steepness); the anchor's Poisson block rate `λ` is written through its
+own primitive `Δt ≜ λ⁻¹`, because this document's `λ` is a hazard rate; and the
+anchor's composite `η ≜ γ√(2λ)/σ` is **deliberately never named** — the
+root-block-rate factor is written `√(2/Δt)` throughout and no abbreviation is
+introduced. Separately, `λ_ARB` and `λ_MEV` are **not interchangeable**: `λ_ARB`
+is the arbitrage channel and a SUMMAND of `λ_MEV`, and no row below may substitute
+one for the other.
+
 | Doc symbol | Lean identifier | Meaning | Defined in |
 |---|---|---|---|
 | `Q_v^i`, `Q_M^i` | `Qv`, `QM` args | share / money positions | tbd.md |
@@ -42,6 +53,13 @@ Latin names below.
 | `η⁰` (paper) | `cexFee` | CEX effective fee benchmark | FeeSchedule (`fee_lt_cex`) |
 | `f_halt` | `fHalt` | prohibitive halt fee (paper's `η¹ = ∞`) | FeeSchedule (`feeHalt`) |
 | `premium` | `premium` | risk-price buffer in `[0,1]` | RISK_ALTERNATIVES.md · `RiskDesign.riskPriceBuffered` |
+| `φ`, `φ̄` | `VolInstrument.multiFee` output, `φbar` | the fee and its level ceiling (anchor's `γ`); `γ_j` remains the sigmoid steepness | MEV addendum M0 |
+| `Δt` | `Δt` args | mean interblock time = the batch cadence; carries the anchor's block rate as `Δt ≜ λ⁻¹` | MEV addendum M0 · `MevOptimization.ptrade` |
+| `P_trade` | `MevOptimization.ptrade` | `σ/(σ + φ√(2/Δt))` — long-run fraction of blocks carrying a profitable arbitrage | MEV addendum M1 |
+| `a_t` | the `a` argument of `MevOptimization.mevHazard` | per-step arbitrage-opportunity weight (leading-order LVR × `Δt`) — **not** `FlairOptimization.flairHazard`'s traded-flow `w_t` | MEV addendum M0/M3 |
+| `λ_ARB` | `MevOptimization.mevHazard`, `MevOptimization.mevMulti` | the ARBITRAGE channel — every identification and infimum row of §7 is about this object | MEV addendum M3 |
+| `λ_MEV` | `MevJointProgram.mevTotal` | the TOTAL, `λ_ARB ⊕ λ_sandwich` (plain hazard addition); equals `λ_ARB` exactly when uniform batch clearing nulls the sandwich channel | MEV addendum M7 |
+| `τ`, `τ(k)` | `MevJointProgram.mevNet`, `MevJointProgram.taxFraction` | LP-rebate / auction-tax fraction, `k/(k+1)` with `k` free — a protocol parameter **outside** `Θ_φ` | MEV addendum M7(i) |
 
 ## 1. `tbd.md` — risk-weighted share state space
 
@@ -115,10 +133,28 @@ Parametrizes the paper's threshold-type dynamic fee; couples into §2's P1/P2.
 - `pos_spec.md` EVM type layer (u24/u16/u88 builders). **OPEN.**
 - Integer/rounding quantification beyond `mulX96Down_*` (accumulated floor
   error over N positions). **OPEN.**
-- The abstract `𝓖_φ` group beyond the `probOr` monoid core, and the MEV
-  section (empty in the doc). **OPEN.**  (`λ_FLAIR` is now formalized and
+- The abstract `𝓖_φ` group beyond the `probOr` monoid core. **OPEN**, and it
+  stays open regardless of the MEV work below. (`λ_FLAIR` is formalized and
   solved — see §7 / `FlairOptimization.lean`; the continuum path-integral
   form remains the limit of the proven discrete functional.)
+- The MEV layer is **no longer unformalized**: `λ_ARB` and `λ_MEV` are proved in
+  `MevOptimization.lean` and `MevJointProgram.lean` (§7). What remains **OPEN**
+  there, named precisely rather than as a blanket:
+  (a) the **continuum path-integral** form of `λ_ARB` — the discrete functional is
+  the deliverable, exactly as for `λ_FLAIR`, and the continuum object is its limit;
+  (b) the demand-elasticity / optimal-fee **equilibrium** layer, which belongs to
+  `FeeSchedule` and whose exact missing term is the anchor's section 7.3 eq. (27),
+  `E[delta-hedged LP P&L] = E[NT_FEE] − E[ARB]` — so every corner solution in §7 is
+  a property of the formalized objective, not a market-equilibrium claim;
+  (c) the anchor's **Theorem 3 / Theorem 4 asymptotics themselves**, quoted in block
+  M2 but formalized nowhere — `arb_add_fee_eq_lvr` is a bridge identity, not those
+  theorems;
+  (d) the **exact Corollary-2 CPMM kernel** of block M3(ii) (the optional T19 object
+  ARBoverV_exact was omitted), which is the only carrier of the `σ²·Δt < 8` guard;
+  (e) the σ-VARYING constrained comparison **restricted to `Θ_φ`-reachable
+  schedules** — the general schedule-level claim is REFUTED
+  (`mev_ge_flat_under_flair_budget_false`), but the isotone sub-family that `Θ_φ`
+  actually reaches is not settled by that counterexample.
 - `Panoptic.lean`/`Upsilon.lean` trace to the phase docs under
   `.planning/phases/08-*` and `09-*` and to §7 below.
 
@@ -152,7 +188,32 @@ Additional notation for this doc: `p_(η,Δ_i)(i) = λ^((i/2)·Δ_i·η)` →
 | `λ_FLAIR` functional (discrete) | `FlairOptimization.flairHazard`, `flairMulti`, `capitalDenominator_pos` | **PROVEN** |
 | `∃ Θ_λ ⊂ Θ_φ, sup λ_FLAIR` — identification | `flairMulti_affine` (`λ = φ̄·W + u·Σ α_j·W_j`), `_mono_phibar` (strict), `_mono_alpha`, `_mono_u`, `_anti_beta`, `W_j_le_W`, `W_j_lt_W` ⟹ `Θ_λ = {φ̄, α, u}`; `(β, γ)` reallocation-only | **PROVEN** |
 | `sup λ_FLAIR` — solved | `flairMulti_le_corner` (uniform bound `(φ̄max + umax·Σαmax)·W`), `_corner_attained_levels` (bang-bang), `_saturation_limit` (`β → −∞` Tendsto, sup not attained), `_strict_below_saturation`, `_exists_max_compact`, `Theta_lambda_identification` | **PROVEN** (no demand elasticity in this functional — caveat in module docstring) |
-| `𝓖_φ` beyond the monoid core, MEV section | — | **OPEN** (see §6) |
+| `𝓖_φ` beyond the `probOr` monoid core | — | **OPEN** (see §6) |
+
+### 7.1 `### MEV` — the `λ_ARB` kernel, its infimum, and the `λ_MEV` aggregate
+
+Blocks M0–M8 of the `### MEV` section (proposal copy:
+`VOLATILITY_INSTRUMENTS_MEV_ADDENDUM.md`), anchored on Milionis–Moallemi–Roughgarden
+arXiv:2305.14604v2. Modules: `MevOptimization.lean` (bundle A, run `cb371ee5`) and
+`MevJointProgram.lean` (bundle B, run `19f777ab`). Notation per §0: the rows below are
+about `λ_ARB` unless they name `mevTotal`.
+
+| Doc claim | Lean | Status |
+|---|---|---|
+| M1 `P_trade(φ,σ,Δt) = σ/(σ + φ√(2/Δt))` with all seven asserted properties: range `(0,1]`, `=1 ⟺ φ=0`, strictly antitone in `φ`, **strictly convex** in `φ`, isotone in `Δt` and in `σ`, `→ 0` as `φ → ∞` | `MevOptimization.ptrade`; `ptrade_mem_Ioc`, `ptrade_eq_one_iff`, `ptrade_strictAntiOn`, `ptrade_strictConvexOn` (+ its named weakening `ptrade_convexOn`), `ptrade_monotoneOn_dt`, `ptrade_monotoneOn_sigma`, `ptrade_tendsto_atTop` | **PROVEN** — both strict forms returned strict; neither was downgraded |
+| M2 the MMR split `ARB + FEE ≈ LVR` | `MevOptimization.arb_add_fee_eq_lvr` — a **bridge identity** and nothing more: the hypothesis-free ring **tautology** `x·p + x·(1−p) = x`, which lets the anchor's Theorem 3 / Theorem 4 split be *written* in Lean notation. It is **NOT a formalization of Theorem 3/4**, which are fast-block small-fee asymptotic approximations and are formalized nowhere in this phase (§6(c)) | **PROVEN** (as the identity only) |
+| M3 discrete `λ_ARB = Σ_{t<T} P_trade(φ(σ_t),σ_t,Δt)·a_t/D_t`, over the SAME `multiFee` parameter space and the SAME denominator `D_t` as `flairHazard` (commensurable by construction); CPMM weight `a_t = (σ_t²/8)·V_t·Δt` | `MevOptimization.mevHazard`, `mevMulti`, `mevMulti_nonneg`, `mevWeight_cpmm_pos` (the `·Δt` factor is carried; the `σ²Δt < 8` guard correctly NOT attached at this tier) | **PROVEN** |
+| M3(ii) the exact Corollary-2 CPMM kernel — the only object carrying `σ_t²·Δt < 8` | — (optional T19 omitted; no carrier anywhere in the repo) | **OPEN** — deliberately optional, non-blocking |
+| M4 identification: antitone in `φ̄` (strict), in each `α_j` and in `u`; isotone in each `β_j` ⟹ `Θ_{λ_ARB} = {φ̄, α, u}`. There is **no affine** identification analogous to `flairMulti_affine` — `ptrade` is not affine, so level and shape do not separate and M5's bound is a path SUM, not a scalar × path weight | `MevOptimization.mevMulti_anti_phibar` (strict), `mevMulti_anti_alpha`, `mevMulti_anti_u`, `mevMulti_mono_beta`, `Theta_lambdaMEV_identification` | **PROVEN** — and the **no affine** finding corrects the naive FLAIR-mirror expectation (the doc itself already records it); a second place the mirror breaks, alongside M5's admissibility constraint |
+| M5 the infimum program, solved: path-SUM lower bound at the fee ceiling; bang-bang attainment at the level-corner top for fixed shape; `β_j → −∞` saturation as a boundary value that is NOT a minimum; a STRICT gap at every finite `β`; a minimizer on any nonempty admissible compact box; that minimizer strictly exceeds the displayed bound | `MevOptimization.mevMulti_ge_corner`, `mevMulti_corner_attained_levels`, `mevMulti_saturation_limit`, `mevMulti_strict_above_saturation`, `mevMulti_exists_min_compact` (`ContinuousOn` PROVED, not assumed), `mevMulti_min_gt_corner` (at `u = uMax`) | **CORRECTED → PROVEN** — the saturation limit as specified was FALSE: without `0 ≤ φ̄max + umax·αmax0` the limiting fee lands on `ptrade`'s negative-fee pole. The same pole forces the admissibility constraint on the compact-box existence statement |
+| M6a the DEGENERACY of the unconstrained joint program: one admissible point simultaneously maximizes `λ_FLAIR` and minimizes `λ_ARB` in the level block; both objectives saturate along the same direction `β_j → −∞`; and no scalarization `κ ≥ 0` repairs it | `MevJointProgram.joint_corner_degeneracy`, `joint_beta_degeneracy`, `joint_scalarization_degeneracy` | **PROVEN** — and the result **is** the degenerate one: unconstrained there is NO trade-off over `Θ_φ` and the shape block `(β, γ)` is NOT essential. The phase brief's "the shape block becomes essential" expectation is thereby REFUTED, machine-checked |
+| M6b, budget half: a fixed FLAIR income pins the mean fee `B/W` and leaves the path shape free; the schedule ↔ path carriers agree definitionally | `MevJointProgram.flair_budget_pins_mean_fee`, `flair_budget_mean`, `flairPath`, `mevPath`, `flairPath_schedule`, `mevPath_schedule`, `flairPath_sum`, `flairPath_budget_mean` | **PROVEN** |
+| M6b, constant-σ half: at `σ_t ≡ σ_0`, over arbitrary nonnegative fee PATHS at equal FLAIR income, the FLAT path minimizes `λ_ARB`, strictly so for any path non-constant on the positive-weight steps | `MevJointProgram.mev_ge_flat_under_flair_budget_const_sigma`, `mev_gt_flat_under_flair_budget_const_sigma` (consumes `ptrade_strictConvexOn`, the strict form) | **PROVEN** — at the PATH level and at CONSTANT volatility only; the aligned-measure hypothesis `a ≡ w` is imposed by substitution and is strong |
+| M6b, general σ-VARYING **schedule**-level claim (`φfun : ℝ → ℝ` arbitrary subject only to `0 ≤ φfun(σ_t)`): "the flat path is at most the tilted path" | `MevJointProgram.mev_ge_flat_under_flair_budget_false` — a machine-checked negation. Witness `T=2`, `Δt=2`, `B=2`, `σ=(1,10)`, unit `w`/`D`, evaluated fees `(2,0)`, flat fee `1`; recomputed independently in exact rationals: flat `1/2 + 10/11 = 31/22 ≈ 1.4091` vs tilted `1/3 + 1 = 4/3 ≈ 1.3333`, so the flat path is STRICTLY WORSE | **REFUTED** — block M6b had labelled this OPEN; it is FALSE. With `σ_t` varying the summands are different convex functions and ordinary Jensen never applies |
+| M6b restricted to the `Θ_φ`-reachable sub-family with σ varying | — the refutation above does not settle it: its witness schedule is σ-DECREASING, whereas every `Θ_φ`-reachable schedule is isotone (`VolInstrument.multiFee_monotone`). A second refutation carrying an explicit `multiFee` witness is the named follow-up; executor float numerics point the same way and are **not** machine-checked | **OPEN** |
+| M7 the aggregate `λ_MEV := λ_ARB ⊕ λ_sandwich`, `⊕` being hazard-side (plain) addition, with the `⊗_φ` correspondence held separate; reduction `λ_sandwich = 0 ⟹ λ_MEV = λ_ARB` | `MevJointProgram.mevTotal` (`:= lamARB + lamSand`, plain addition), `mevTotal_eq_arb_of_sandwich_zero`, `mevTotal_mevMulti_eq_of_sandwich_zero`, `mevTotal_probOr_hazard` (the correspondence lemma, via `VolInstrument.probOr_hazard`) | **PROVEN** — `⊗_φ` is never applied to the unbounded hazards directly |
+| M7(i) the rebate is an LP-INCIDENCE object, not a reduction in extraction: `λ_MEV^{LP-net} = (1−τ)λ_MEV`, `τ(k) = k/(k+1) ∈ [0,1)` | `MevJointProgram.mevNet`, `mevNet_le_mev` (nonnegativity DISCHARGED on `mevMulti_nonneg`, not assumed), `mevNet_anti_tau`, `mevNet_eq_zero_of_tau_one`, `mevNet_argmin_invariant` (for every `τ < 1` the rebate changes the program's VALUE and not its SOLUTION), `taxFraction`, `taxFraction_mem_Ico`, `taxFraction_mono` | **PROVEN** — `τ` sits **outside** `Θ_φ`; `k` is FREE and no numeral enters a statement, because the l2-angstrom snapshot and the live documentation disagree on the constants |
+| M7(ii) the batch cadence IS `Δt`: it moves `λ_ARB` monotonically and does not enter `λ_FLAIR` at all | `MevJointProgram.mev_mono_dt` (ISOTONE in `Δt`) | **PROVEN** — the second protocol lever **outside** `Θ_φ`, alongside `τ` |
 
 ## 8. `VOL ORDER COMPLETION — ENDOGENOUS MATURITY` (doc block, issue cfmm-lean4-spec#1 → `EndogenousMaturity.lean`)
 

@@ -1,6 +1,19 @@
 # PROPOSED addendum to `VOLATILITY_INSTRUMENTS.md` `### MEV` — the λ_MEV hazard and its infimum
 
 > STATUS: APPROVED & APPLIED 2026-07-30 — blocks M0–M8 inserted into ../plank/notes/VOLATILITY_INSTRUMENTS.md per user approval (todo.md `## LEAN4 - MATH`). Committing the plank file is the plank agent's.
+> STATUS: **LEAN-BACKED as of this commit (2026-07-31, plan 11-06)** — blocks M1–M7 are back-annotated
+> below with the identifiers that discharge them, from `lean/vol_markets/MevOptimization.lean`
+> (bundle A, run `cb371ee5`) and `lean/vol_markets/MevJointProgram.lean` (bundle B, run `19f777ab`).
+> Claim-by-claim statuses are in `LEAN_TRACEABILITY.md` §7.1.
+> **BLOCK M6b IS AMENDED**: its σ-VARYING schedule-level comparison was labelled OPEN; it is now
+> **REFUTED** by the machine-checked counterexample `mev_ge_flat_under_flair_budget_false`. The
+> plank-owned `../plank/notes/VOLATILITY_INSTRUMENTS.md` carries the same amendment — handed to agent
+> `ul2inqpl`, whose worktree is NOT committed by this session.
+> **This back-annotation intentionally invalidates the `APPROVED-ADDENDUM-SHA256` pin recorded in
+> `11-01-REVIEW.md`.** That is safe and deliberate: the doc-fidelity gates of plans 11-02 and 11-04
+> (which compare the BUNDLED copy against the approved bytes) have already been consumed, both
+> passed, and no downstream check reads the addendum hash. The APPROVED-DOC-SHA256 pin on the plank
+> `### MEV` section is a separate object and is likewise superseded only by the M6b amendment above.
 > Anchor: Milionis–Moallemi–Roughgarden, *Automated Market Making and Arbitrage Profits in the
 > Presence of Fees*, arXiv:2305.14604v2 (2025-07-23), read from
 > `../plank/refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf`.
@@ -51,6 +64,8 @@ From MMR Theorem 1's stationary distribution, section 4.1 (arXiv:2305.14604v2), 
 
 Strictness of the convexity is recorded deliberately: the strict half of M6b is exactly where it is consumed.
 
+> LEAN (`MevOptimization.lean`, run `cb371ee5`): `ptrade`; all seven properties — `ptrade_mem_Ioc`, `ptrade_eq_one_iff`, `ptrade_strictAntiOn`, `ptrade_strictConvexOn` (STRICT, with named weakening `ptrade_convexOn`), `ptrade_monotoneOn_dt`, `ptrade_monotoneOn_sigma`, `ptrade_tendsto_atTop`. Neither strict form was downgraded.
+
 ## **M2. [ADDITION] The MMR split**
 
 \[
@@ -63,6 +78,8 @@ Strictness of the convexity is recorded deliberately: the strict half of M6b is 
 
 MMR Theorem 3 with eq. (12), and Theorem 4, each under its stated regularity condition: LVR is *split* between arbitrageur profit and arbitrageur-paid fees according to \(P_{\text{trade}}\).
 The `≈` is the fast-block (\(\Delta t \to 0\)) small-fee leading order, so every object built on it below is a leading-order object.
+
+> LEAN: `arb_add_fee_eq_lvr` — a BRIDGE IDENTITY only, the hypothesis-free ring tautology `x·p + x·(1−p) = x` that lets the split be written in Lean notation. **Not** a formalization of MMR Theorem 3 / Theorem 4; those asymptotics remain unformalized.
 
 ## **M3. [ADDITION] The discrete \(\lambda_{\text{ARB}}\)**
 
@@ -96,6 +113,8 @@ The paper's \(\mathrm{LVR} = (\sigma^2/8)\,V(P)\) is a limit of expected LVR per
 
 which is the ONLY object carrying the guard \(\sigma_t^2\Delta t < 8\). Downstream formalization must reuse this symbol under this name.
 
+> LEAN: `mevHazard`, `mevMulti` (same `VolInstrument.multiFee` parameter space and same denominator `D t` as `FlairOptimization.flairHazard`, hence commensurable by construction), `mevMulti_nonneg`, `mevWeight_cpmm_pos` — tier (i), with the `·Δt` factor carried and no finiteness guard attached. **Tier (ii) is UNFORMALIZED**: the optional T19 exact kernel was omitted, so the \(\sigma^2\Delta t < 8\) guard has no carrier anywhere in the repository.
+
 ## **M4. [ADDITION] Identification \(\Theta_{\lambda_{\text{ARB}}}\)**
 
 For positive sigmoid slopes \(\gamma_j > 0\), \(\lambda_{\text{ARB}}\) is antitone in \(\bar\phi\), in each \(\alpha_j\), and in \(u\); isotone in each \(\beta_j\); and convex in the fee.
@@ -109,6 +128,8 @@ There is **no affine** identification analogous to `flairMulti_affine`, because 
 \]
 
 Under M7's batch-clearing reduction (\(\lambda_{\text{sandwich}} = 0\)) this reads \(\Theta_{\lambda_{\text{MEV}}} = \Theta_{\lambda_{\text{ARB}}} = \{\bar\phi,\, \alpha,\, u\}\) — the sense in which the identification is named for the aggregate.
+
+> LEAN: `mevMulti_anti_phibar` (STRICT), `mevMulti_anti_alpha`, `mevMulti_anti_u`, `mevMulti_mono_beta` (isotone in β), packaged as `Theta_lambdaMEV_identification`. The **no affine** claim is confirmed negatively: no analogue of `FlairOptimization.flairMulti_affine` exists, and the M5 bound is a path SUM rather than a scalar times a path weight.
 
 ## **M5. [ADDITION] The infimum program (on \(\lambda_{\text{ARB}}\))**
 
@@ -124,6 +145,8 @@ Three separate attainment statements, deliberately not merged — the displayed 
 (ii) the displayed bound itself is only approached, as \(\beta_j \to -\infty\), with a STRICT gap at every finite \(\beta\) (the sigmoid is never saturated), so it is a boundary value and not a minimum;
 (iii) on any nonempty compact parameter box a minimizer exists, and its value strictly exceeds the displayed bound.
 
+> LEAN (with two CORRECTIONS, both forced by \(P_{\text{trade}}\)'s negative-fee pole): `mevMulti_ge_corner` (sum form), `mevMulti_corner_attained_levels` (bang-bang), `mevMulti_saturation_limit` [CORRECTED — Aristotle added the hypothesis \(0 \leq \bar\phi_{\max} + u_{\max}\alpha_{\max,0}\); the limit as originally specified is FALSE], `mevMulti_strict_above_saturation` (strict gap at every finite β), `mevMulti_exists_min_compact` [CORRECTED — carries an admissibility constraint (fees \(\geq 0\)); `ContinuousOn` is PROVED via `IsCompact.exists_isMinOn`, not assumed], and (iii)'s strict half `mevMulti_min_gt_corner` (instantiated at \(u = u_{\max}\), the sharp case).
+
 ## **M6a. [ADDITION — THE DEGENERACY] The unconstrained joint program**
 
 The two programs are extremized by the same choices, coordinate by coordinate. Stated as two well-posed claims rather than as an equality of arg-sets, because over an unbounded shape block neither extremum is attained:
@@ -134,6 +157,8 @@ The two programs are extremized by the same choices, coordinate by coordinate. S
 
 Therefore, **unconstrained, there is no trade-off in \(\Theta_{\phi}\) and the shape block \((\beta, \gamma_j)\) is not essential.** This REFUTES the expectation recorded in the phase brief, and is stated here as a refutation rather than quietly dropped.
 By M7's reduction the same statement holds verbatim for \(\lambda_{\text{MEV}}\) in the uniform-clearing regime.
+
+> LEAN (`MevJointProgram.lean`, run `19f777ab`): `joint_corner_degeneracy` (i), `joint_beta_degeneracy` (ii), `joint_scalarization_degeneracy` (iii, every \(\kappa \geq 0\)). The refutation of "the shape block becomes essential" is now MACHINE-CHECKED, not merely argued.
 
 ## **M6b. [ADDITION — THE CONSTRAINED PROGRAM] Where the trade-off lives**
 
@@ -149,9 +174,15 @@ With \(\nu_t = w_t/D_t\), \(W = \sum_t \nu_t > 0\), the FLAIR budget \(\lambda_{
 
 i.e. **among all fee PATHS with the same FLAIR income, the FLAT path minimizes \(\lambda_{\text{ARB}}\), and any path non-constant on the positive-weight steps is strictly worse for \(\lambda_{\text{ARB}}\)** (hence for \(\lambda_{\text{MEV}}\) under M7's reduction). The strict half consumes M1's STRICT convexity.
 
+> LEAN: budget half `flair_budget_pins_mean_fee`, `flair_budget_mean` (a FLAIR budget pins the mean fee \(B/W\) and leaves the path shape free), with the path carriers `flairPath`, `mevPath` and their definitional bridges `flairPath_schedule`, `mevPath_schedule`, `flairPath_sum`, `flairPath_budget_mean`; the constant-\(\sigma\) display `mev_ge_flat_under_flair_budget_const_sigma` and its strict companion `mev_gt_flat_under_flair_budget_const_sigma` (which does consume `ptrade_strictConvexOn`, the strict form). Both are stated at the PATH level and at CONSTANT volatility only. The aligned measure \(a \equiv w\) is imposed by substitution rather than as a named hypothesis.
+
 The aligned-measure hypothesis \(a \equiv w\) is STRONG: it forces the traded-volume path, which carries noise-trader flow, to be proportional block-by-block to the leading-order LVR path. Without it the two sides live under different measures, Jensen does not apply, and the constrained minimizer can tilt the fee UP where the arbitrage measure is heavy — i.e. the conclusion can reverse.
 
-**OPEN**: the display holds at constant \(\sigma_t \equiv \sigma_0\), where it is a statement about fee PATHS. It does NOT deliver a comparison between fee SCHEDULES, because every schedule in \(\Theta_{\phi}\) is a function of \(\sigma\) alone and therefore already produces a constant path when \(\sigma\) is constant — the strict half has no bite inside \(\Theta_{\phi}\) in this regime. Whether a volatility-responsive schedule beats or loses to a flat fee at equal income when \(\sigma_t\) actually VARIES is the open question: the summands are then *different* convex functions, plain Jensen does not apply, and the correct statement is a two-measure/covariance one. It is NOT claimed here.
+Scope: the display holds at constant \(\sigma_t \equiv \sigma_0\), where it is a statement about fee PATHS. It does NOT deliver a comparison between fee SCHEDULES, because every schedule in \(\Theta_{\phi}\) is a function of \(\sigma\) alone and therefore already produces a constant path when \(\sigma\) is constant — the strict half has no bite inside \(\Theta_{\phi}\) in this regime.
+
+**AMENDED 2026-07-31 — the \(\sigma\)-VARYING SCHEDULE COMPARISON IS NOT OPEN; IT IS FALSE.** This block previously labelled it OPEN. It is **REFUTED** by a machine-checked counterexample, `MevJointProgram.mev_ge_flat_under_flair_budget_false`: quantified over arbitrary \(\phi(\cdot)\) subject only to \(\phi(\sigma_t) \geq 0\), the flat-fee path does NOT minimize \(\lambda_{\text{ARB}}\) at equal FLAIR income. Witness \(T = 2\), \(\Delta t = 2\), \(B = 2\), \(\sigma = (1,10)\), unit weights and denominators, evaluated fees \((2,0)\), flat fee \(1\); recomputed independently in exact rational arithmetic, flat \(1/2 + 10/11 = 31/22 \approx 1.4091\) against tilted \(1/3 + 1 = 4/3 \approx 1.3333\), so the flat path is STRICTLY WORSE. The failing hypothesis is exactly the one named above: with \(\sigma_t\) varying the summands are *different* convex functions and ordinary Jensen never applies; the correct statement is a two-measure/covariance one, and its covariance term is not sign-definite.
+
+**STILL OPEN — the \(\Theta_{\phi}\)-RESTRICTED case.** The counterexample's schedule \(\phi(x) = \mathbb{1}[x = 1]\cdot 2\) is DECREASING in \(\sigma\), whereas every \(\Theta_{\phi}\)-reachable schedule is isotone (`VolInstrument.multiFee_monotone`). So the refutation settles the GENERAL schedule-level claim and does not settle the isotone sub-family that \(\Theta_{\phi}\) actually reaches. Executor floating-point exploration indicates the violation persists there too; it is NOT machine-checked and is not merged into any claim. A second refutation carrying an explicit `multiFee` witness is the named follow-up.
 
 ## **M7. [ADDITION] The aggregate \(\lambda_{\text{MEV}}\), and the Angstrom bridge**
 
@@ -182,6 +213,8 @@ For \(\tau \in [0,1)\) the rebate rescales the objective WITHOUT moving its mini
 
 (ii) the batch cadence IS \(\Delta t\): it moves \(\lambda_{\text{ARB}}\) monotonically and does not enter \(\lambda_{\text{FLAIR}}\) at all — the second, genuinely non-degenerate lever.
 
+> LEAN: aggregate `mevTotal` — defined as PLAIN ADDITION `lamARB + lamSand`, with the \(\otimes_\phi\) correspondence held separate in `mevTotal_probOr_hazard` (via `VolInstrument.probOr_hazard`) so that \(\otimes_\phi\) is never applied to unbounded hazards; reduction `mevTotal_eq_arb_of_sandwich_zero`, `mevTotal_mevMulti_eq_of_sandwich_zero`. (i) `mevNet`, `mevNet_le_mev` (nonnegativity DISCHARGED on `mevMulti_nonneg`, not assumed), `mevNet_anti_tau`, `mevNet_eq_zero_of_tau_one`, and the substantive `mevNet_argmin_invariant` — for every \(\tau < 1\) the rebate changes the program's VALUE and not its SOLUTION, which is the formal sense in which \(\tau\) lies outside \(\Theta_{\phi}\); `taxFraction` \(= k/(k+1)\) with \(k\) FREE, `taxFraction_mem_Ico`, `taxFraction_mono` — no numeric tax constant appears in any statement. (ii) `mev_mono_dt`, ISOTONE in \(\Delta t\).
+
 ## **M8. [CAVEATS]**
 
 - LEADING ORDER — everything above rests on eq. (12)'s fast-block, small-fee asymptotics; none of it is an exact finite-\(\Delta t\) statement except the M3(ii) kernel under its guard.
@@ -189,4 +222,4 @@ For \(\tau \in [0,1)\) the rebate rescales the objective WITHOUT moving its mini
 - NO DEMAND ELASTICITY in EITHER functional. The missing term is MMR section 7.3 eq. (27), `E[delta-hedged LP P&L] = E[NT_FEE] − E[ARB]` — the delta-hedged form; the unhedged decomposition additionally carries the rebalancing term. The paper's own reading: "higher fees reduce noise trader activity ... but also reduce arbitrage profits". Every corner solution here is therefore a property of the formalized objective, not a market-equilibrium claim.
 - SCOPE OF THE AGGREGATE — \(\lambda_{\text{MEV}}\) covers the two channels modelled here and is not all of MEV. Not modelled: backruns of noise-trader flow; multi-block MEV, where a censoring agent lengthens the effective \(\Delta t\) and so attacks the M7(ii) lever directly (MMR section 7.1); JIT liquidity, which the cited l2 docs already tax separately; and fixed gas costs, which act as an additive fee and move \(P_{\text{trade}}\) (MMR section 6).
 - EMPIRICAL VALIDITY OF THE CADENCE LEVER — the \(\Delta t\) scaling law is validated only for block times of roughly one second and above; below that, reported arbitrage profits decline more slowly than this diffusion model predicts, because real prices jump. Sub-second cadence claims need a jump-diffusion extension and are out of scope.
-- The \(\sigma\)-varying schedule comparison of M6b is **OPEN**, as labelled there.
+- The \(\sigma\)-varying schedule comparison of M6b is **REFUTED** (2026-07-31), not open, as amended there; what remains OPEN is only its \(\Theta_{\phi}\)-restricted (isotone-schedule) case.
