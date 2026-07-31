@@ -13,15 +13,36 @@ ffi = true
 # of relying on every caller to remember the flags.
 via_ir = true
 optimizer = true
+
+# The vendored SemiFungiblePositionManagerV4 does NOT compile under via-IR (Yul
+# stack-too-deep in _createPositionInAMM; panoptic's own foundry.toml sets viaIR = false).
+# It is therefore compiled in its own LEGACY-codegen unit: the E2E test deployCode()s the
+# artifact instead of `new`-ing the source, so the via-IR requirement above (the vol
+# reference contracts need it) and panoptic's legacy requirement never meet in one unit.
+additional_compiler_profiles = [
+    { name = "sfpm-legacy", via_ir = false },
+]
+compilation_restrictions = [
+    { paths = "test/protocol_integrations/e2e_legacy/**", via_ir = false },
+    { paths = "lib/panoptic-v2-core/contracts/SemiFungiblePositionManagerV4.sol", via_ir = false },
+]
 fs_permissions = [
     { access = "read", path = "./test/gamsDiff/fixtures" },
     { access = "read", path = "./test/pos_spec/fixtures" },
     { access = "read", path = "./src/interfaces/pos_spec" },
+    # The E2E deploys the legacy-compiled SFPM artifact by reading its JSON directly:
+    # vm.getCode only consults the current run's artifact registry, which sparse test
+    # compilation starves of the e2e_legacy anchor's outputs.
+    { access = "read", path = "./out/SemiFungiblePositionManagerV4.sol" },
 ]
 
 remappings = [
 	   "@cryptoalgebra/volatility-oracle-plugin/=node_modules/@cryptoalgebra/volatility-oracle-plugin/contracts",
 	   "@cryptoalgebra/integral-core/=node_modules/@cryptoalgebra/integral-core/contracts",
+	   # AdaptiveFee's differential oracle is vendored (test/premium/refs/AdaptiveFee.sol) because the
+	   # published lib's unused integral-core contracts/-style import doesn't resolve in forge's
+	   # node_modules compile context. This remap serves the self-contained config-type imports.
+	   "@cryptoalgebra/dynamic-fee-plugin/=node_modules/@cryptoalgebra/dynamic-fee-plugin/contracts/",
 	   "@solady/=lib/bunni-v2/lib/solady/src/"
 ]
 

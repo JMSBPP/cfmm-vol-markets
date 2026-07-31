@@ -1,0 +1,49 @@
+import std::constructor::return_runtime;
+import types::premium::AlgebraFeeConfiguration::*;
+
+// Harness for the Algebra dynamic-fee config (AlgebraFeeConfiguration + U144 packing), a faithful port
+// of @cryptoalgebra/dynamic-fee-plugin types/AlgebraFeeConfiguration(U144).sol. Differential-tested vs
+// the real AlgebraFeeConfigurationU144Lib.pack + accessors.
+
+// cast sig "pack(uint16,uint16,uint32,uint32,uint16,uint16,uint16)" -> 0x0cc0f73d
+const SEL_PACK = 0x0cc0f73d;
+// cast sig "unpack(uint256)"                                         -> 0x8a02be68
+const SEL_UNPACK = 0x8a02be68;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    // pack(alpha1@4, alpha2@36, beta1@68, beta2@100, gamma1@132, gamma2@164, baseFee@196) -> uint256
+    if selector == SEL_PACK {
+        let cfg = AlgebraFeeConfiguration {
+            alpha1: @evm_calldataload(4),
+            alpha2: @evm_calldataload(36),
+            beta1: @evm_calldataload(68),
+            beta2: @evm_calldataload(100),
+            gamma1: @evm_calldataload(132),
+            gamma2: @evm_calldataload(164),
+            base_fee: @evm_calldataload(196)
+        };
+        let out = @malloc_uninit(32);
+        @mstore32(out, algebra_fee_config_pack(cfg));
+        @evm_return(out, 32);
+    }
+
+    // unpack(c@4) -> (alpha1, alpha2, beta1, beta2, gamma1, gamma2, baseFee)  (7 words)
+    if selector == SEL_UNPACK {
+        let c = @evm_calldataload(4);
+        let out = @malloc_uninit(224);
+        @mstore32(out,        afc_alpha1(c));
+        @mstore32(out +% 32,  afc_alpha2(c));
+        @mstore32(out +% 64,  afc_beta1(c));
+        @mstore32(out +% 96,  afc_beta2(c));
+        @mstore32(out +% 128, afc_gamma1(c));
+        @mstore32(out +% 160, afc_gamma2(c));
+        @mstore32(out +% 192, afc_base_fee(c));
+        @evm_return(out, 224);
+    }
+
+    @evm_stop();
+}

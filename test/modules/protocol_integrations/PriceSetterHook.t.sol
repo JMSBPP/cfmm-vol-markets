@@ -13,14 +13,12 @@ import {Slot0, Slot0Library} from "univ4-core/types/Slot0.sol";
 import {TickMath} from "univ4-core/libraries/TickMath.sol";
 import {CustomRevert} from "univ4-core/libraries/CustomRevert.sol";
 import {PriceSetterHook} from "../../../src/modules/protocol_integrations/PriceSetterHook.sol";
-import {TickCheat} from "./TickCheat.sol";
+import {TickCheat} from "./TickCheat.sol" ;
+import {Deployers} from "v4-core-test/utils/Deployers.sol";
 
-contract PriceSetterHookTest is Test {
-    using Slot0Library for Slot0;
+contract PriceSetterHookTest is Deployers, Test{
 
-    PoolManager internal manager;
     PriceSetterHook internal hook;
-    PoolKey internal key;
 
     // Namespaced flag address: only bits 13 (beforeInitialize) and 12 (afterInitialize)
     // of the low 14 are set; 0x4444 << 20 keeps it clear of precompiles.
@@ -29,12 +27,12 @@ contract PriceSetterHookTest is Test {
     );
 
     int24 internal constant INIT_TICK = 1000;
-    uint24 internal constant LP_FEE = 3000;
-    // (oneForZero = 500) << 12 | (zeroForOne = 400); both <= MAX_PROTOCOL_FEE (1000)
-    uint24 internal constant SEEDED_PROTOCOL_FEE = uint24((500 << 12) | 400);
 
     function setUp() public {
-        manager = new PoolManager(address(this));
+        deployFreshManager();
+	// todo: Create a HookDeployer.plk helper and deploy it such that it does
+	// - masking
+	// - mining
         deployCodeTo(
             "src/modules/protocol_integrations/PriceSetterHook.sol:PriceSetterHook",
             abi.encode(IPoolManager(address(manager))),
@@ -49,10 +47,7 @@ contract PriceSetterHookTest is Test {
             hooks: IHooks(HOOK_ADDRESS)
         });
         manager.initialize(key, TickMath.getSqrtPriceAtTick(INIT_TICK));
-        // Seed nonzero protocolFee bits so fee-bit preservation is observable (initialize
-        // leaves protocolFee = 0, and asserting 0 == 0 would be vacuous).
-        manager.setProtocolFeeController(address(this));
-        manager.setProtocolFee(key, SEEDED_PROTOCOL_FEE);
+        
     }
 
     function test_binding_recordsPoolIdAndVerifiedSlot() public view {

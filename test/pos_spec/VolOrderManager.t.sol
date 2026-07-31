@@ -31,7 +31,7 @@ import {PlankTestBase} from "../PlankTestBase.sol";
 ///         src/interfaces/pos_spec/VolOrderManagerInterface.plk. A mismatch means the test
 ///         never dispatches.
 interface IVolOrderManager {
-    function create_order(uint88 strike, uint24 width, uint16 skew) external;
+    function create_order(uint88 strike, uint24 width, uint16 skew, uint96 targetVega) external;
     function orderCount() external view returns (uint256);
     function getOrderPacked(uint256 id) external view returns (uint256);
 }
@@ -49,6 +49,7 @@ abstract contract VolOrderManagerBase is PlankTestBase {
     uint88 internal constant STRIKE = 12345;
     uint24 internal constant WIDTH = 600;
     uint16 internal constant SKEW = 77;
+    uint96 internal constant TARGET_VEGA = 1e18; // DeltaQ_v* anchor, raw L units (V2)
     uint256 internal constant TICK_SPACING = 20; // pinned inside build_vol_order
 
     /// @dev The largest id whose derived slot does NOT overflow array_slot's CHECKED add.
@@ -67,13 +68,15 @@ abstract contract VolOrderManagerBase is PlankTestBase {
         return bytes32(uint256(keccak256(abi.encode(SLOT_ORDERS_BASE))) + id);
     }
 
-    /// @dev The layout under test: width@128 | tickSpacing@104 | strike@16 | skew@0.
+    /// @dev The V2 layout under test: targetVega at 152, width at 128, tickSpacing at 104,
+    ///      strike at 16, skew at 0. The anchor TARGET_VEGA is composed implicitly -- every
+    ///      create_order call site in these suites submits it.
     function expectedPacked(uint256 strike, uint256 width, uint256 skew)
         internal
         pure
         returns (uint256)
     {
-        return (width << 128) | (TICK_SPACING << 104) | (strike << 16) | skew;
+        return (uint256(TARGET_VEGA) << 152) | (width << 128) | (TICK_SPACING << 104) | (strike << 16) | skew;
     }
 }
 
@@ -89,7 +92,7 @@ contract VolOrderManagerStoreTest is VolOrderManagerBase {
     function test__unit__sequentialIdsOneThenTwo() public {
         assertEq(mgr.orderCount(), 0, "fresh registry");
 
-        mgr.create_order(STRIKE, WIDTH, SKEW);
+        mgr.create_order(STRIKE, WIDTH, SKEW, TARGET_VEGA);
         assertEq(mgr.orderCount(), 1, "orderCount advances 0->1");
 
         // RAW read: the store is proven without trusting getOrderPacked.
@@ -97,14 +100,15 @@ contract VolOrderManagerStoreTest is VolOrderManagerBase {
         assertEq(w1, expectedPacked(STRIKE, WIDTH, SKEW), "id 1 stores the exact submitted tuple");
 
         // Field-by-field so a failure NAMES the wrong field rather than just "words differ".
-        assertEq(w1 >> 128, WIDTH, "width@128");
+        assertEq((w1 >> 128) & 0xFFFFFF, WIDTH, "width@128 (masked -- interior in V2)");
+        assertEq(w1 >> 152, TARGET_VEGA, "targetVega@152 (V2 top field)");
         assertEq((w1 >> 104) & 0xFFFFFF, TICK_SPACING, "tickSpacing@104 == 20");
         assertEq((w1 >> 16) & 0xFFFFFFFFFFFFFFFFFFFFFF, STRIKE, "strike@16");
         assertEq(w1 & 0xFFFF, SKEW, "skew@0");
         assertTrue(w1 != 0, "a validly packed word is never zero");
 
         // Second, DISTINCT tuple -> id 2. Monotonic, no wraparound, no overwrite.
-        mgr.create_order(999, 7, 3);
+        mgr.create_order(999, 7, 3, TARGET_VEGA);
         assertEq(mgr.orderCount(), 2, "second order advances 1->2");
         assertEq(uint256(vm.load(address(mgr), orderSlot(2))), expectedPacked(999, 7, 3), "id 2");
         assertEq(
@@ -128,7 +132,7 @@ contract VolOrderManagerStoreTest is VolOrderManagerBase {
     ///         actually caught it.
     function test__unit__idAt65536IsNotMaskedIntoSlotZero() public {
         vm.store(address(mgr), SLOT_ORDER_COUNT, bytes32(uint256(65535)));
-        mgr.create_order(STRIKE, WIDTH, SKEW);
+        mgr.create_order(STRIKE, WIDTH, SKEW, TARGET_VEGA);
         assertEq(mgr.orderCount(), 65536, "id 65536 assigned");
         assertEq(
             uint256(vm.load(address(mgr), orderSlot(65536))),
@@ -152,7 +156,7 @@ contract VolOrderManagerStoreTest is VolOrderManagerBase {
         uint24 w = uint24(bound(rw, 1, uint256(type(uint24).max)));
         uint16 k = uint16(bound(rk, 1, 65534));
 
-        mgr.create_order(s, w, k);
+        mgr.create_order(s, w, k, TARGET_VEGA);
         assertEq(mgr.orderCount(), 1, "every in-range tuple is accepted");
         assertEq(
             uint256(vm.load(address(mgr), orderSlot(1))),
@@ -173,7 +177,7 @@ contract VolOrderManagerGuardTest is VolOrderManagerBase {
     ///         MEASURED) -- so this is a genuine single-conjunct failure, not a compound one.
     function test__unit__invalidSkewRevertsAndLeavesStateUntouched() public {
         vm.expectRevert();
-        mgr.create_order(STRIKE, WIDTH, 65535);
+        mgr.create_order(STRIKE, WIDTH, 65535, TARGET_VEGA);
 
         // ON STATE, never on return data: a silent zero-write and a revert are
         // indistinguishable from the return value.
@@ -187,11 +191,11 @@ contract VolOrderManagerGuardTest is VolOrderManagerBase {
     ///         id 1, the counter stays at 1, and the id the failed call would have taken stays
     ///         empty -- so the next successful order gets id 2, not id 3.
     function test__unit__invalidSkewAfterAValidOrderDoesNotDisturbIt() public {
-        mgr.create_order(STRIKE, WIDTH, SKEW);
+        mgr.create_order(STRIKE, WIDTH, SKEW, TARGET_VEGA);
         assertEq(mgr.orderCount(), 1, "precondition: one live order");
 
         vm.expectRevert();
-        mgr.create_order(STRIKE, WIDTH, 0); // skew 0: the other rejected endpoint
+        mgr.create_order(STRIKE, WIDTH, 0, TARGET_VEGA); // skew 0: the other rejected endpoint
 
         assertEq(mgr.orderCount(), 1, "counter did not advance past the surviving order");
         assertEq(
@@ -208,8 +212,8 @@ contract VolOrderManagerGuardTest is VolOrderManagerBase {
 ///         storage by comparing against a raw vm.load at the same address.
 contract VolOrderManagerReaderTest is VolOrderManagerBase {
     function test__unit__readersReturnStoredValues() public {
-        mgr.create_order(STRIKE, WIDTH, SKEW);
-        mgr.create_order(999, 7, 3);
+        mgr.create_order(STRIKE, WIDTH, SKEW, TARGET_VEGA);
+        mgr.create_order(999, 7, 3, TARGET_VEGA);
 
         assertEq(
             mgr.getOrderPacked(1),
@@ -248,7 +252,7 @@ contract VolOrderManagerReaderTest is VolOrderManagerBase {
         assertEq(mgr.getOrderPacked(MAX_SAFE_ID), 0, "the largest addressable id reads zero, not a revert");
         assertEq(mgr.getOrderPacked(1 << 128), 0, "an absurd but addressable id reads zero, not a revert");
 
-        mgr.create_order(STRIKE, WIDTH, SKEW);
+        mgr.create_order(STRIKE, WIDTH, SKEW, TARGET_VEGA);
         assertTrue(mgr.getOrderPacked(1) != 0, "id 1 now exists and its word is nonzero");
         assertEq(mgr.getOrderPacked(2), 0, "id 2 still does not exist");
         assertEq(mgr.getOrderPacked(0), 0, "the sentinel slot stays zero after a write");
@@ -333,7 +337,7 @@ contract VolOrderManagerConformanceTest is Test {
     ///         If an assertion here fails, the CONSTANT is wrong -- never the string.
     function test__unit__selectorsMatchTheirSignatureStrings() public pure {
         assertEq(
-            bytes4(keccak256(bytes("create_order(uint88,uint24,uint16)"))), bytes4(0x6501fe94), "create_order"
+            bytes4(keccak256(bytes("create_order(uint88,uint24,uint16,uint96)"))), bytes4(0x98d950ec), "create_order (V2)"
         );
         assertEq(
             bytes4(keccak256(bytes("create_orders(uint256,uint256[])"))),

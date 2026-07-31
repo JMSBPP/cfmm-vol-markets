@@ -1,0 +1,36 @@
+import v3::util::revert_empty;
+
+// rpow(x, y, b): x^y in b-scaled fixed point, integer exponent y, round-to-nearest. Faithful port of
+// solady FixedPointMathLib.rpow (reverts on overflow). Used by the geometric LDF kernel for xi^i
+// (ξ^i in Q96). For the LDF regime the base is always <= b (alpha or its inverse <= 1.0), so no overflow.
+const rpow = fn (x: u256, y: u256, b: u256) u256 {
+    let mut z = if y == 0 { b } else { 0 };
+    if x != 0 {
+        z = if (y & 1) == 1 { x } else { b };
+        let half = @evm_shr(1, b);
+        let mut xm = x;
+        let mut ym = @evm_shr(1, y);
+        while ym != 0 {
+            let xx = xm *% xm;
+            let xxRound = xx +% half;
+            if (xxRound < xx) or (@evm_shr(128, xm) != 0) {
+                revert_empty();
+            }
+            xm = xxRound </ b;
+            if (ym & 1) == 1 {
+                let zx = z *% xm;
+                let zxRound = zx +% half;
+                // solady reverts only when xm != 0; guarding avoids a zero-divisor `</` (which reverts
+                // in Plank, whereas EVM `div` returns 0 — that difference is the whole subtlety here).
+                if xm != 0 {
+                    if ((zx </ xm) != z) or (zxRound < zx) {
+                        revert_empty();
+                    }
+                }
+                z = zxRound </ b;
+            }
+            ym = @evm_shr(1, ym);
+        }
+    }
+    z
+};

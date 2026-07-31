@@ -35,6 +35,7 @@
 import std::constructor::return_runtime;
 import interfaces::pos_spec::VolOrderManagerInterface::*;
 import lib::pos_spec::VolOrderValidationLib::{build_vol_order, validate_order_strict, validate_order};
+import lib::events::VolEventsLib::{emit_vol_order_created};
 import pos_spec::VolOrder::{pack_vol_order};
 import v3::storage::{array_slot};
 import v3::util::{return_u256, revert_empty};
@@ -67,10 +68,12 @@ run {
     let selector = @evm_shr(224, @evm_calldataload(0));
 
     if selector == SELECTOR_CREATE_ORDER {
-        // create_order(uint88 strike, uint24 width, uint16 skew). Standard ABI: three
-        // right-aligned 32-byte words at 4 / 36 / 68. Whole-word reads, no masking -- dirty
-        // high bits are rejected by validation, not truncated.
-        let order = build_vol_order(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68));
+        // create_order(uint88 strike, uint24 width, uint16 skew, uint96 targetVega). Standard
+        // ABI: four right-aligned 32-byte words at 4 / 36 / 68 / 100. Whole-word reads, no
+        // masking -- dirty high bits are rejected by validation, not truncated.
+        let order = build_vol_order(
+            @evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68), @evm_calldataload(100)
+        );
 
         // VALIDATE FIRST. Everything below is unreachable for an invalid tuple, so orderCount
         // cannot advance on failure and the registry has no gaps (VORD-03).
@@ -88,6 +91,12 @@ run {
         let id = @evm_sload(SLOT_ORDER_COUNT) + 1;
         @evm_sstore(array_slot(SLOT_ORDERS_BASE, id), pack_vol_order(order));
         @evm_sstore(SLOT_ORDER_COUNT, id);
+        // E1 VolOrderCreated (v2 signature) -- AFTER the sstores (one event per state
+        // transition; the strict path above makes this unreachable for an invalid tuple, so
+        // log stream and registry agree by construction). EV-02 + V2-02.
+        emit_vol_order_created(
+            id, order.volStrike.vol, order.rangeWidth.width, order.skew.spread, order.targetVega.vega
+        );
         @evm_stop();
 
     } else if selector == SELECTOR_ORDER_COUNT {
@@ -209,11 +218,20 @@ run {
         let mut i = 0;
         let mut id = @evm_sload(SLOT_ORDER_COUNT);
         while i < count {
+            // V2 INPUT WORD (offsets differ from STORAGE -- build_vol_order re-inserts
+            // TICK_SPACING at 104 on the way in): skew@0..15 | strike@16..103 |
+            // width@104..127 | targetVega@128..TOP. width is now interior and MASKED;
+            // targetVega is the UNMASKED TOP FIELD -- dirty calldata bits >= 224 surface as
+            // targetVega > 2^96-1 and are REJECTED by target_vega_fits_packed (batch: SKIP,
+            // strict: revert), which is what keeps the malleability seam closed for the
+            // Haskell consumer and the Phase 19 differential: no two distinct input words
+            // can store the same order.
             let word = @evm_calldataload(100 + i * 32);
             let order = build_vol_order(
                 @evm_shr(16, word) & 0xFFFFFFFFFFFFFFFFFFFFFF,
-                @evm_shr(104, word),
-                word & 0xFFFF
+                @evm_shr(104, word) & 0xFFFFFF,
+                word & 0xFFFF,
+                @evm_shr(128, word)
             );
 
             // BEST-EFFORT = VALIDATE BEFORE WRITE (MCAL-03). A single Plank frame has no per-tuple
@@ -233,6 +251,13 @@ run {
             if validate_order(order) {
                 id = id + 1;
                 @evm_sstore(array_slot(SLOT_ORDERS_BASE, id), pack_vol_order(order));
+                // E1 per SUCCESS only, with the id this tuple stored under. A skipped tuple
+                // emits nothing and does not shift its successors' events -- the log stream is
+                // positionally faithful to the return tuples. The fresh @malloc_uninit inside
+                // the emitter cannot alias `out` (bump allocator; see VolEventsLib header).
+                emit_vol_order_created(
+                    id, order.volStrike.vol, order.rangeWidth.width, order.skew.spread, order.targetVega.vega
+                );
                 // CANONICAL BOOL. Exactly 1, never a truthy nonzero: Solidity's abi.decode REJECTS
                 // a non-canonical bool while a lenient Haskell decoder may accept it, so a
                 // non-canonical word makes the two consumers silently disagree about the same

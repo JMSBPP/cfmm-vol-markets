@@ -1,0 +1,32 @@
+// VegaTarget -- the target vega DeltaQ_v* of a VolOrder (V2-01, vol-order-v2-target-vega-SPEC.md).
+//
+// UNITS (notes/UNITS_AND_SCALES.md section 2, dimension decision (ii)): RAW LIQUIDITY units --
+// the Uniswap L dimension, the quantity of the priced vol asset (VOLATILITY_INSTRUMENTS line
+// 177, pi^sigma = Sum L(i_K)*I). NOT X96, NOT WAD, NOT collateral-denominated. The
+// collateral-per-vol-unit greek (line 10) is the LENS READOUT, never stored.
+//
+// Carried u256; packed u96 at VolOrder storage bits 152..247. The RANGE bound (<= 2^96-1)
+// lives in VolOrderValidationLib (target_vega_fits_packed), NOT here -- same predicate split
+// as TickVolatility/strike_fits_packed: the type owns completeness (> 0), the validation lib
+// owns the packed-width bound, and pack_vol_order's mask is mechanical truncation AFTER
+// validation has excluded out-of-range values (units-table rule 2).
+
+const VegaTarget = struct {
+      vega: u256 // u96 packed; raw L units
+};
+
+const vega_target_is_complete = fn(self: VegaTarget) bool {
+      let res = self.vega > 0;
+      res
+};
+
+const unpack_vega_target = fn(vega: u256) VegaTarget {
+      VegaTarget {
+            vega: vega
+      }
+};
+
+const pack_vega_target = fn(self: VegaTarget) u256 {
+      let res = self.vega;
+      res
+};

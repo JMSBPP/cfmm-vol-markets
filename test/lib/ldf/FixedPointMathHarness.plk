@@ -1,0 +1,19 @@
+import std::constructor::return_runtime;
+import v3::util::return_u256;
+import lib::math::FixedPointMath::*;
+
+// cast sig "rpow(uint256,uint256,uint256)" -> 0x67b870af
+const SEL_RPOW = 0x67b870af;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    // rpow(x@4, y@36, b@68)
+    if selector == SEL_RPOW {
+        return_u256(rpow(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68)));
+    }
+
+    @evm_stop();
+}
