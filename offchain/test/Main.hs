@@ -26,11 +26,11 @@ import Crypto.Ethereum.Utils (keccak256)
 import Data.Aeson (Value (..), eitherDecodeFileStrict, encodeFile)
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
-import Data.Bits (shiftR, (.&.))
+import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import Data.Char (intToDigit, isAlpha, isAlphaNum, isSpace, toLower)
-import Data.List (intercalate, isPrefixOf, nub, sort)
+import Data.List (intercalate, isInfixOf, isPrefixOf, nub, sort)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, fromMaybe, isJust)
 import qualified Data.Text as T
@@ -46,6 +46,9 @@ import Rig.Manifest
   , RigPins (..)
   , load_rig_from
   )
+import VolOrder.Decode (unpack_vol_order_storage)
+import VolOrder.Encoding (pack_vol_order_input)
+import VolOrder.Types (VolOrder (..))
 
 -- ---------------------------------------------------------------------------------------------
 -- Paths
@@ -501,6 +504,59 @@ sc3_literal_purge = Check "sc3_literal_purge" . guarded $ do
              ++ unlines (map ("      " ++) (lines out)))
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 21, RPIN-01/02/03: the V2 wire layouts
+--
+-- The behaviour contract of the V2 re-pin, asserted directly and in one place. It is written
+-- against the layouts read off the EXECUTABLE code
+-- (@src\/modules\/pos_spec\/VolOrderManagerMod.plk@ lines 229-235 for the input word,
+-- @src\/types\/pos_spec\/VolOrder.plk@ lines 50-66 for the storage word), never off the stale V1
+-- comment block at lines 177-188 of that same module file, which still claims @width@ is the top
+-- field and that bits >= 128 must be zero. Both sentences are false of V2.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The V2 input word's four field positions, the bits->=224-are-zero guarantee, the u96 boundary
+-- on both sides, and the 248-bit storage read-back.
+rpin_v2_layout_behavior :: Check
+rpin_v2_layout_behavior = pure_check "rpin_v2_layout_behavior" $ do
+  packed <- pack_vol_order_input base
+  _ <- expect (packed == expected_input)
+         ("V2 input word: packed " ++ show packed ++ ", expected " ++ show expected_input)
+  _ <- rejects_target_vega 0
+  _ <- rejects_target_vega (1 `shiftL` 96)
+  top <- pack_vol_order_input base { target_vega = fromInteger ((1 `shiftL` 96) - 1) }
+  _ <- expect (top `shiftR` 224 == 0)
+         ("target_vega = 2^96-1 packed with bits >= 224 SET, which the batch path would SKIP "
+           ++ "silently: " ++ show top)
+  expect (unpack_vol_order_storage expected_storage == base)
+    ("the 248-bit storage word did not round-trip: got "
+      ++ show (unpack_vol_order_storage expected_storage) ++ ", expected " ++ show base)
+  where
+    vega = 10 ^ (18 :: Int) :: Integer
+    base =
+      VolOrder
+        { vol_target  = 12345
+        , range_width = 600
+        , skew        = 77
+        , target_vega = fromInteger vega
+        }
+    -- skew@0..15 | strike@16..103 | width@104..127 | targetVega@128..223
+    expected_input =
+      77 .|. (12345 `shiftL` 16) .|. (600 `shiftL` 104) .|. (vega `shiftL` 128)
+    -- skew@0..15 | volStrike@16..103 | tickSpacing@104..127 | width@128..151 | targetVega@152..247
+    expected_storage =
+      77 .|. (12345 `shiftL` 16) .|. (20 `shiftL` 104)
+         .|. (600 `shiftL` 128) .|. (vega `shiftL` 152)
+
+    rejects_target_vega v =
+      case pack_vol_order_input base { target_vega = fromInteger v } of
+        Left why ->
+          expect ("target_vega" `isInfixOf` why)
+            ("target_vega = " ++ show v ++ " was rejected by a message that does not name "
+              ++ "target_vega: " ++ why)
+        Right w ->
+          Left ("target_vega = " ++ show v ++ " was ACCEPTED, packing to " ++ show w)
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -523,6 +579,7 @@ main = do
           , sc3_load_succeeds
           , sc3_corrupted_manifest_fails
           , sc3_literal_purge
+          , rpin_v2_layout_behavior
           ]
             ++ per_pin_checks pins
 
