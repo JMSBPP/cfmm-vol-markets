@@ -102,18 +102,37 @@ decode_create_orders_result raw
                             ++ show index ++ ": " ++ show other)
 
 -- The contract's *storage*-layout packed word (from getOrderPacked), a THIRD
--- distinct bit layout from both the create_order(uint88,uint24,uint16) ABI-word
--- format and the create_orders input-word format (pack_vol_order_input's
--- layout). Storage layout inserts a hardcoded tickSpacing at bits 104-127 and
--- shifts range_width to bits 128-151 (pack_vol_order/unpack_vol_order in
--- src/types/pos_spec/VolOrder.plk). tickSpacing is read and discarded here --
--- it is always the contract's hardcoded constant, not part of VolOrder.
+-- distinct bit layout from both the create_order(uint88,uint24,uint16,uint96)
+-- ABI-word format and the create_orders input-word format
+-- (pack_vol_order_input's layout). V2 is 248 bits wide
+-- (pack_vol_order / unpack_vol_order in src/types/pos_spec/VolOrder.plk:50-66):
+--
+--   skew        bits   0..15    u16
+--   volStrike   bits  16..103   u88
+--   tickSpacing bits 104..127   u24
+--   range_width bits 128..151   u24
+--   target_vega bits 152..247   u96   (OFF_TARGET_VEGA = 152, MASK_U96_VO = 24 F's)
+--
+-- Note how thoroughly this DIFFERS from the input word: there range_width sits
+-- at 104 and target_vega at 128, because build_vol_order inserts TICK_SPACING at
+-- 104..127 on the way in and pushes both fields up. The two layouts are close
+-- enough to look interchangeable and are not; a copy-paste between them decodes
+-- range_width out of tickSpacing's slot and reports the module constant as a
+-- width.
+--
+-- tickSpacing is read and DISCARDED here -- it is the module's hardcoded
+-- constant, not part of VolOrder. That constant is TICK_SPACING = 20, while the
+-- rig's own deployed pool has tickSpacing = 10 (offchain/rig/rig-manifest.json,
+-- .pool.tickSpacing). That is a real discrepancy between the module and the pool
+-- it writes against; it is REPORTED here, not resolved -- resolving it means
+-- changing another track's module.
 unpack_vol_order_storage :: Integer -> VolOrder
 unpack_vol_order_storage packed =
   VolOrder
     { vol_target  = fromInteger (mask_bits 88 (packed `shiftR` 16))
     , range_width = fromInteger (mask_bits 24 (packed `shiftR` 128))
     , skew        = fromInteger (mask_bits 16 packed)
+    , target_vega = fromInteger (mask_bits 96 (packed `shiftR` 152))
     }
   where
     mask_bits bits value = value .&. ((1 `shiftL` bits) - 1)

@@ -22,12 +22,17 @@ import StochasticOrderGen.Types (ArrivalProcess (..), StochasticOrderGen (..))
 import StochasticPriceGen.Types (ProcessType (..), StochasticPriceGen (..))
 import VolOrder.Types (VolOrder (..))
 
+-- target_vega is DeltaQ_v* in RAW LIQUIDITY units (Uniswap L), never WAD or X96. 10^18 is one
+-- whole 18-decimal token's worth of full-range liquidity on the rig's own pool -- the bottom of
+-- the derived admissible band, and a real value rather than a placeholder. Plan 21-04 replaces
+-- sample_orders with drawn values; sample_order stays fixed as the single-call demo's anchor.
 sample_order :: VolOrder
 sample_order =
   VolOrder
     { vol_target = 1000
     , range_width = 60
     , skew = 500
+    , target_vega = 10 ^ (18 :: Int)
     }
 
 -- Ten distinct, always-valid orders -- comfortably more than
@@ -38,7 +43,12 @@ sample_order =
 -- behaviour, not a bug, if it ever happens on a demo run.
 sample_orders :: [VolOrder]
 sample_orders =
-  [ VolOrder { vol_target = 1000 + n, range_width = 60, skew = 500 + n }
+  [ VolOrder
+      { vol_target = 1000 + n
+      , range_width = 60
+      , skew = 500 + n
+      , target_vega = 10 ^ (18 :: Int)  -- raw L, as in sample_order; 21-04 draws these
+      }
   | n <- [0, 10 .. 90]
   ]
 
