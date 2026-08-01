@@ -381,15 +381,46 @@ sc4_falsifiable pins =
                    ++ " as VolOrderCreated's topic0 -- it is not comparing anything")
 
 -- | No live pin may carry a value the pin file records as retired.
+-- | A retired value must never come back as a LIVE pin. The comparison is NUMERIC, and that is
+-- load-bearing rather than stylistic.
+--
+-- A MEASURED HOLE, CLOSED HERE (found by 21-03, deferred to 21-05). This check compared
+-- lowercased STRINGS until plan 21-05. During 21-03's stale-pin demo the retired
+-- @topic_order_created_stale@ -- 10 characters -- was injected as a live topic0 in its
+-- LEFT-PADDED 32-byte form, 66 characters. Same number, different string, so the one guard whose
+-- entire job is to stop a retired constant coming back to life stayed GREEN while one was live.
+-- Three other checks caught that injection; this one, the check specifically written for it, did
+-- not. Zero-padding is exactly the form a topic0 takes on the wire, so the defeat is the NORMAL
+-- case rather than a contrived one.
+--
+-- A value that does not parse as hex FAILS the check rather than being skipped: a retired entry
+-- that cannot be read is a guard silently covering one fewer value. (The @_note@ metadata key is
+-- already dropped upstream by 'Rig.Manifest', so only real values reach here.)
 sc4_no_retired_value_is_live :: RigPins -> Check
-sc4_no_retired_value_is_live pins = pure_check "sc4_no_retired_value_is_live" $
-  let retired = map (map toLower . T.unpack) (Map.elems (pin_retired pins))
-      live =
-        [ (T.unpack n, map toLower (T.unpack (pin_value e)))
-        | (n, e) <- Map.toList (pin_selectors pins) ++ Map.toList (pin_topics pins)
+sc4_no_retired_value_is_live pins = pure_check "sc4_no_retired_value_is_live" $ do
+  retired <- mapM (numeric "retired") (Map.toList (pin_retired pins))
+  live <-
+    mapM (numeric "live pin")
+      [ (n, pin_value e)
+      | (n, e) <- Map.toList (pin_selectors pins) ++ Map.toList (pin_topics pins)
+      ]
+  let leaked =
+        [ name ++ " is the retired value " ++ retired_name
+        | (name, value) <- live
+        , (retired_name, retired_value_) <- retired
+        , value == retired_value_
         ]
-      leaked = [n ++ " = " ++ v | (n, v) <- live, v `elem` retired]
-  in expect (null leaked) ("retired values are live pins: " ++ intercalate ", " leaked)
+  expect (null leaked)
+    ("retired values are live pins: " ++ intercalate ", " leaked
+      ++ " -- compared NUMERICALLY, so a left-padded form does not slip past")
+  where
+    numeric what (name, raw) =
+      case integer_of_hex_text (T.unpack raw) of
+        Right value -> Right (T.unpack name, value)
+        Left why ->
+          Left ("the " ++ what ++ " entry " ++ show (T.unpack name) ++ " cannot be read as hex,"
+                 ++ " so it cannot be compared numerically and the guard would silently cover one"
+                 ++ " fewer value: " ++ why)
 
 -- | Two INDEPENDENT encoders agreeing is the strongest evidence pattern available here.
 sc4_cast_agreement :: RigPins -> Check
