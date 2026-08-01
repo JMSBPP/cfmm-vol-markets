@@ -29,7 +29,7 @@ import qualified Data.Aeson.KeyMap as KM
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
-import Data.Char (intToDigit, isAlpha, isAlphaNum, isSpace, toLower)
+import Data.Char (digitToInt, intToDigit, isAlpha, isAlphaNum, isHexDigit, isSpace, toLower)
 import Data.List (intercalate, isInfixOf, isPrefixOf, nub, sort)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing)
@@ -50,7 +50,12 @@ import Rig.Manifest
 import Data.ByteArray.HexString (HexString, fromBytes, toBytes)
 import Network.Ethereum.Api.Types (Change (..))
 
-import VolOrder.Decode (be_integer, decode_order_created, unpack_vol_order_storage)
+import VolOrder.Decode
+  ( OrderCreatedEvent (..)
+  , be_integer
+  , decode_order_created
+  , unpack_vol_order_storage
+  )
 import VolOrder.Encoding (encode_create_order, pack_vol_order_input)
 import VolOrder.Types (VolOrder (..))
 
@@ -912,6 +917,166 @@ rpin_e1_v2_decode_behavior = Check "rpin_e1_v2_decode_behavior" . guarded $ do
       ("the RETIRED v1 log shape (3 topics, 5 data words) DECODED. That shape is not emitted by"
         ++ " any live module; accepting it means the decoder is still reading data words 2/3/4.")
 
+-- | A pinned or retired hex value as an 'Integer'. Length is deliberately NOT constrained: the
+-- retired @topic_order_created_stale@ is only 8 hex digits, and reading it numerically then
+-- rebuilding the topic with 'word32be' left-pads it to 32 bytes exactly as the wire would.
+integer_of_hex_text :: String -> Either String Integer
+integer_of_hex_text raw =
+  let s    = map toLower (strip_ws raw)
+      body = if "0x" `isPrefixOf` s then drop 2 s else s
+  in if not (null body) && all isHexDigit body
+       then Right (foldl (\acc c -> acc * 16 + toInteger (digitToInt c)) 0 body)
+       else Left ("not a hex value: " ++ show raw)
+
+-- | A retired value, read from the pin file's own @retired@ block. NEVER typed into this file --
+-- that is the whole point of the block existing.
+retired_value :: RigPins -> T.Text -> Either String Integer
+retired_value pins name =
+  case Map.lookup name (pin_retired pins) of
+    Nothing -> Left ("rig-pins.json has no retired." ++ T.unpack name
+                      ++ " -- regenerate it with: bash offchain/rig/generate-pins.sh")
+    Just t  -> integer_of_hex_text (T.unpack t)
+
+-- | The topic0 is RECOMPUTED from the signature parsed out of the interface file, and the pin is
+-- required to agree with THAT -- not the other way round. A pin file is an artifact; the @.plk@
+-- declaration is the source of truth, so the arrow of evidence has to point from the file to the
+-- pin. Ground truth is reused rather than a new literal introduced.
+rpin04_topic0_is_recomputed :: RigPins -> Check
+rpin04_topic0_is_recomputed pins = Check "rpin04_topic0_is_recomputed" . guarded $ do
+  contents <- readFile volorder_iface
+  pure $ do
+    (truth_sig, truth_value) <- truth_for "VolOrderCreated"
+    sig <- signature_for "VolOrderCreated" (signatures_in (lines contents))
+    _ <- expect (sig == truth_sig)
+           ("the interface file declares VolOrderCreated as " ++ sig
+             ++ " -- the V2 signature is " ++ truth_sig
+             ++ " (uint256 indexed orderId, uint88, uint24, uint16, uint96)")
+    let recomputed = to_hex (topic0_of sig)
+    _ <- expect (recomputed == truth_value)
+           ("keccak of " ++ sig ++ " gave " ++ recomputed ++ ", expected " ++ truth_value)
+    case Map.lookup "VolOrderCreated" (pin_topics pins) of
+      Nothing -> Left ("rig-pins.json has no topics.VolOrderCreated -- regenerate it with: "
+                        ++ "bash offchain/rig/generate-pins.sh")
+      Just entry ->
+        let pinned = map toLower (T.unpack (pin_value entry))
+        in expect (pinned == "0x" ++ recomputed)
+             (intercalate "\n"
+               [ "the generated pin and the recomputed topic0 disagree -- either the pin file or "
+                   ++ volorder_iface ++ " is stale"
+               , "      signature parsed from the file : " ++ sig
+               , "      recomputed (keccak256)         : 0x" ++ recomputed
+               , "      pinned in " ++ pins_file ++ "  : " ++ pinned
+               ])
+
+-- | THE check a constant swap alone could not satisfy: a v2-shaped log DECODES, field by field.
+--
+-- The four data values are deliberately DISTINCT, so no transposition of two words can pass, and
+-- @orderId@ is asserted to come from the INDEXED TOPIC by requiring that no data word carries its
+-- value -- otherwise a decoder reading it out of the payload would look identical here.
+rpin04_positive_v2_decode :: Check
+rpin04_positive_v2_decode = Check "rpin04_positive_v2_decode" . guarded $ do
+  contents <- readFile volorder_iface
+  pure $ do
+    t0 <- e1_topic0_from contents
+    let data_values = [rpin_base_strike, rpin_base_width, rpin_base_skew, rpin_base_vega]
+        log_v2 = synthetic_log [hexstring_of t0, hexstring_of rpin_base_order_id] data_values
+        wanted =
+          OrderCreatedEvent
+            { orderId         = rpin_base_order_id
+            , orderStrike     = rpin_base_strike
+            , orderRangeWidth = rpin_base_width
+            , orderSkew       = rpin_base_skew
+            , orderTargetVega = rpin_base_vega
+            }
+    _ <- expect (length (nub data_values) == 4)
+           ("the four data values must be DISTINCT or a transposed pair would decode cleanly: "
+             ++ show data_values)
+    _ <- expect (rpin_base_order_id `notElem` data_values)
+           ("the order id " ++ show rpin_base_order_id ++ " also appears as a DATA word, so this"
+             ++ " check could not tell a topic-read from a data-read: " ++ show data_values)
+    event <- case decode_order_created t0 log_v2 of
+      Nothing ->
+        Left ("a well-formed v2 log (2 topics, 4 data words, correct topic0) did NOT decode."
+               ++ " This is the exact shape src/lib/events/VolEventsLib.plk:47-54 emits.")
+      Just e -> Right e
+    _ <- word_is "orderId (INDEXED topic 1)"      (orderId event)         rpin_base_order_id
+    _ <- word_is "orderStrike (data word 0)"      (orderStrike event)     rpin_base_strike
+    _ <- word_is "orderRangeWidth (data word 1)"  (orderRangeWidth event) rpin_base_width
+    _ <- word_is "orderSkew (data word 2)"        (orderSkew event)       rpin_base_skew
+    _ <- word_is "orderTargetVega (data word 3)"  (orderTargetVega event) rpin_base_vega
+    expect (event == wanted)
+      ("the whole record disagrees: got " ++ show event ++ ", expected " ++ show wanted)
+  where
+    word_is name got want =
+      expect (got == want)
+        (name ++ " decoded as " ++ show got ++ ", expected " ++ show want)
+
+-- | Three negatives, each with its own message.
+--
+-- (1) The THREE-topic / five-word v1 shape carrying the CORRECT v2 topic0 -- the exact shape the
+--     shipped decoder ACCEPTED, so this is what proves the rewrite is real rather than cosmetic.
+-- (2) A two-topic log with only 96 bytes of data -- without the length guard, @data_word 3@ reads
+--     off the end and returns a silent, plausible @targetVega = 0@.
+-- (3) A well-formed v2 log decoded with the WRONG expected topic0.
+rpin04_v1_shape_is_rejected :: Check
+rpin04_v1_shape_is_rejected = Check "rpin04_v1_shape_is_rejected" . guarded $ do
+  contents <- readFile volorder_iface
+  pure $ do
+    t0 <- e1_topic0_from contents
+    let log_v1 =
+          synthetic_log
+            [hexstring_of t0, hexstring_of 0, hexstring_of 0]
+            [32, 96, rpin_base_strike, rpin_base_width, rpin_base_skew]
+        log_short =
+          synthetic_log
+            [hexstring_of t0, hexstring_of rpin_base_order_id]
+            [rpin_base_strike, rpin_base_width, rpin_base_skew]
+        log_v2 =
+          synthetic_log
+            [hexstring_of t0, hexstring_of rpin_base_order_id]
+            [rpin_base_strike, rpin_base_width, rpin_base_skew, rpin_base_vega]
+    _ <- expect (isNothing (decode_order_created t0 log_v1))
+           ("the v1 three-topic / five-word shape DECODED. No live module emits it -- accepting"
+             ++ " it means the decoder still pattern-matches a 3-element topic list.")
+    _ <- expect (isNothing (decode_order_created t0 log_short))
+           ("a two-topic log with only 96 bytes of data DECODED. data_word 3 reads past the end"
+             ++ " and yields 0, so this would have reported a fabricated targetVega = 0 as fact.")
+    _ <- expect (isJust (decode_order_created t0 log_v2))
+           "the control v2 log did not decode, so the negatives above prove nothing"
+    expect (isNothing (decode_order_created (t0 + 1) log_v2))
+      "a well-formed v2 log decoded under the WRONG expected topic0 -- the topic is not compared"
+
+-- | Both retired topic0s are rejected, AND the rejection is shown to come from the TOPIC
+-- COMPARISON rather than from a malformed fixture: the very same log decodes successfully when
+-- the retired value is supplied as the expected topic0. Without that second half, a fixture that
+-- was simply broken would produce the same green.
+rpin04_retired_topic0s_are_rejected :: RigPins -> Check
+rpin04_retired_topic0s_are_rejected pins =
+  Check "rpin04_retired_topic0s_are_rejected" . guarded $ do
+    contents <- readFile volorder_iface
+    pure $ do
+      live <- e1_topic0_from contents
+      mapM_ (one live) ["topic_vol_order_created_v1", "topic_order_created_stale"]
+  where
+    one live name = do
+      retired <- retired_value pins name
+      _ <- expect (retired /= 0)
+             ("retired." ++ T.unpack name ++ " read as 0 -- the pin file value did not parse")
+      _ <- expect (retired /= live)
+             ("retired." ++ T.unpack name ++ " EQUALS the live recomputed topic0 -- a retired"
+               ++ " value is live again")
+      let log_retired =
+            synthetic_log
+              [hexstring_of retired, hexstring_of rpin_base_order_id]
+              [rpin_base_strike, rpin_base_width, rpin_base_skew, rpin_base_vega]
+      _ <- expect (isNothing (decode_order_created live log_retired))
+             ("a log carrying the retired topic0 retired." ++ T.unpack name
+               ++ " was ACCEPTED as a live VolOrderCreated event")
+      expect (isJust (decode_order_created retired log_retired))
+        ("the fixture built from retired." ++ T.unpack name ++ " does not decode even under its"
+          ++ " OWN topic0, so the rejection above proves nothing about the topic comparison --"
+          ++ " the log is simply malformed")
+
 -- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
@@ -943,6 +1108,10 @@ main = do
           , rpin03_storage_round_trip
           , rpin03_input_word_is_not_storage_word
           , rpin_e1_v2_decode_behavior
+          , rpin04_topic0_is_recomputed pins
+          , rpin04_positive_v2_decode
+          , rpin04_v1_shape_is_rejected
+          , rpin04_retired_topic0s_are_rejected pins
           ]
             ++ per_pin_checks pins
 
