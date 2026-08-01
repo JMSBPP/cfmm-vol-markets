@@ -12,20 +12,28 @@
 -- that it stopped being true, which is precisely why none belongs in this file.
 module Sample
   ( sample_order
-  , sample_orders
+  , sample_order_shapes
   , sample_order_gen
   , sample_price_gen
   , sample_tick
   ) where
 
-import StochasticOrderGen.Types (ArrivalProcess (..), StochasticOrderGen (..))
+import StochasticOrderGen.Types
+  ( ArrivalProcess (..)
+  , OrderShape (..)
+  , StochasticOrderGen (..)
+  , VegaDraw (..)
+  )
 import StochasticPriceGen.Types (ProcessType (..), StochasticPriceGen (..))
 import VolOrder.Types (VolOrder (..))
 
 -- target_vega is DeltaQ_v* in RAW LIQUIDITY units (Uniswap L), never WAD or X96. 10^18 is one
 -- whole 18-decimal token's worth of full-range liquidity on the rig's own pool -- the bottom of
--- the derived admissible band, and a real value rather than a placeholder. Plan 21-04 replaces
--- sample_orders with drawn values; sample_order stays fixed as the single-call demo's anchor.
+-- the derived admissible band, and a real value rather than a placeholder.
+--
+-- This order does NOT go through the generator (it is the single-call create_order demo), so it
+-- needs a genuine value of its own. The GENERATED orders get theirs drawn -- see
+-- sample_order_shapes below, which deliberately carries no target_vega at all.
 sample_order :: VolOrder
 sample_order =
   VolOrder
@@ -35,31 +43,38 @@ sample_order =
     , target_vega = 10 ^ (18 :: Int)
     }
 
--- Ten distinct, always-valid orders -- comfortably more than
+-- Ten distinct, always-valid order shapes -- comfortably more than
 -- sample_order_gen's expected batch size (lambda = 3.0), so an ordinary
 -- cabal run demo essentially never trips run_order_gen's "N > length orders"
 -- guard (StochasticOrderGen.Rpc, decision 4). A rare large Poisson draw
 -- exceeding 10 SHOULD fail loudly per that guard -- this is expected
 -- behaviour, not a bug, if it ever happens on a demo run.
-sample_orders :: [VolOrder]
-sample_orders =
-  [ VolOrder
-      { vol_target = 1000 + n
-      , range_width = 60
-      , skew = 500 + n
-      , target_vega = 10 ^ (18 :: Int)  -- raw L, as in sample_order; 21-04 draws these
+--
+-- These are SHAPES, not orders: there is no target_vega here to supply, because the generator
+-- draws it. A placeholder value in this list would be discarded on every run while still reading
+-- as if it meant something.
+sample_order_shapes :: [OrderShape]
+sample_order_shapes =
+  [ OrderShape
+      { shape_vol_target  = 1000 + n
+      , shape_range_width = 60
+      , shape_skew        = 500 + n
       }
   | n <- [0, 10 .. 90]
   ]
 
--- Small lambda relative to sample_orders' length (10) -- deliberately
+-- Small lambda relative to sample_order_shapes' length (10) -- deliberately
 -- unlikely to trip run_order_gen's "N > length orders" guard on an ordinary
 -- demo run, mirroring sample_price_gen's "safe by default" convention.
+--
+-- The vega_draw band is likewise safe by default: [1e18, 1e21] raw L is the whole admissible
+-- band derived on the rig's own pool, so no ordinary demo draw can trip draw_target_vega's guard.
 sample_order_gen :: StochasticOrderGen
 sample_order_gen =
   StochasticOrderGen
     { arrival_process = Poisson { lambda = 3.0 }
-    , orders          = sample_orders
+    , orders          = sample_order_shapes
+    , vega_draw       = LogUniform { vega_min = 10 ^ (18 :: Int), vega_max = 10 ^ (21 :: Int) }
     }
 
 -- Nonzero and a multiple of the deployed pool's tickSpacing (60), so the demo
