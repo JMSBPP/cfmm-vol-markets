@@ -1,6 +1,14 @@
 # Deferred items — Phase 21
 
-## From 21-03 (RPIN-04 stale-pin demo), MEASURED, NOT FIXED
+## From 21-03 (RPIN-04 stale-pin demo) — **RESOLVED by 21-05 (commit `c3f2ee3`)**
+
+> **CLOSED 2026-08-01.** `sc4_no_retired_value_is_live` now compares retired and live pin
+> values NUMERICALLY, exactly as the fix below prescribes, and a value that does not parse
+> as hex FAILS rather than being skipped. **Verified by re-running 21-03's identical `jq`
+> injection:** the suite reports **4 failures where 21-03 recorded 3**, the new one being
+> `sc4_no_retired_value_is_live` naming which retired entry leaked. `rig-pins.json` restored
+> byte-identical (sha256 `ecc8dcc3…1c8c845a` before and after); suite back to 65/65. The
+> original item is preserved below for the reasoning that produced it.
 
 **`sc4_no_retired_value_is_live` is length-sensitive and misses a LEFT-PADDED retired value.**
 

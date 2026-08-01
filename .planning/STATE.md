@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
 status: in-progress
-stopped_at: Completed 21-04-PLAN.md
-last_updated: "2026-08-01T19:21:12.277Z"
-last_activity: "2026-08-01 — 21-04 executed: StochasticOrderGen now DRAWS targetVega log-uniformly on [1e18, 1e21] raw L, OrderShape removes the discarded-placeholder trap, and the plan's own predicted mutant discriminator was MEASURED and REFUTED (a linear-uniform draw clears the bit-length spread assertion; bottom-decade mass 77 vs 4 is what actually separates the laws); suite 58 -> 61"
+stopped_at: Completed 21-05-PLAN.md — PHASE 21 COMPLETE
+last_updated: "2026-08-01T19:45:54.630Z"
+last_activity: "2026-08-01 — 21-05 executed: RPIN-05 closed. Live captured bytes asserted byte-for-byte against the alloy golden (N=0 at exactly 64 bytes) inside a suite PROVEN chain-independent with anvil STOPPED (65/65, pgrep anvil empty). cabal run's demo order MINES for the first time since 20-05 recorded it reverting, with an ORDER_CREATED log carrying target_vega and TWO DRAWN vegas accepted on chain. PHASE 21 COMPLETE — all seven requirements."
 progress:
   total_phases: 19
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 26
-  completed_plans: 25
+  completed_plans: 26
 ---
 
 # Project State
@@ -26,8 +26,56 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 
 ## Current Position
 
-Phase: 21 — V2 ABI Re-Pin & targetVega Generation (RPIN-*) — **IN PROGRESS**
-Plan: 21-01, 21-02 (wave 1), 21-03 (wave 2) and 21-04 (wave 3) COMPLETE. 21-05 pending.
+Phase: 21 — V2 ABI Re-Pin & targetVega Generation (RPIN-*) — **COMPLETE**
+Plan: 5 of 5 complete (21-01, 21-02 wave 1; 21-03 wave 2; 21-04 wave 3; 21-05 wave 4 — all DONE).
+Next action: **Phase 22 — Live Stochastic Drivers (DRIV-01, DRIV-02)** — `/gsd:plan-phase 22`.
+
+Status: **21-05 DONE — RPIN-05 satisfied. PHASE 21 COMPLETE: all seven requirements
+(RPIN-01..06 + VEGA-01) shipped.** The V2 `(bool,uint256)[]` batch return captured off the live
+Phase-20 module by 21-02 is now asserted **byte-for-byte against the v4.0 alloy golden** — an
+encoder outside this repo and outside this language — including `N0_empty` at **exactly 64
+bytes**, the clause v4.0's exit record named as the one most likely to break a consumer. Four new
+`rpin05_` checks: provenance/freshness, the golden diff (word-by-word, tolerating a difference
+ONLY in order-id words and failing anything else as an encoding FINDING), a decode through the
+**shipped** `decode_create_orders_result`, and canonical bool words read STRAIGHT OUT OF THE BYTES
+so the check does not ride on the decoder it checks. `cabal test` = **65/65** (61 → 65), exit 0,
+zero `-Wall` warnings.
+**CHAIN-INDEPENDENCE PROVEN, not asserted:** `deploy-rig.sh --stop` → `pgrep anvil` EMPTY →
+`cast block-number` errors → `cabal test` still exits 0 at 65/65. The suite opens no socket
+(`grep -cE 'cast call|HttpProvider|8545' Main.hs` = 0); it consumes the committed,
+provenance-bearing artifact instead, and checks THAT for staleness.
+**THE PHASE GATE CLOSES GREEN AND `cabal run`'s DEMO ORDER NOW MINES.** 20-05 recorded it
+REVERTING because `Encoding.hs` still built the retired 3-arg `create_order` — the exact defect
+this phase existed to fix. Receipt **status success**, an **`ORDER_CREATED` log carrying
+`target_vega 1000000000000000000`**, price + path written, and the batch **2 succeeded / 0
+failed**. **Beyond plan scope, closing 21-04's carry-forward:** those two batch orders came from
+`run_order_gen` → `attach_vega` → `draw_target_vega`, so DRAWN vegas were mined and read back out
+of chain storage — **6.394e18 and 935.46e18**, two decades apart, both in the `[1e18, 1e21]` band.
+The generator's drawn orders had never touched a chain before.
+**TWO PLAN/CARRY-FORWARD CLAIMS MEASURED AND REFUTED — the headline discipline.** (1) The plan
+instructed writing follow-up **#5 = ADDRESSED** into this workstream's verification record. It is
+**FALSE**: `verify_mined_order` (`Rpc.hs:94-104`) is unchanged and compares the 4-field record,
+so `unpack_vol_order_storage` discards tickSpacing (104..127) and junk (>= 248) BEFORE the
+comparison — exactly the drift #5 asks to catch. Recorded **PARTIALLY ADDRESSED**. (2) 21-02's
+carry-forward D2 named `blockNumber` a discriminating provenance field; three from-scratch deploys
+of the same rig gave heights **9, 11 and 10**, so asserting it would redden the suite after any
+redeploy. The check asserts `chainId` + `manager` only.
+**THREE MUTATIONS, THREE REDs, all restored sha256-identical.** A flipped COUNT byte reddens the
+golden diff AND the decode; a flipped OFFSET byte reddens only the golden diff — because
+`decode_create_orders_result` **never reads word 0 at all**, which is the first ever demonstration
+of this workstream's tracked follow-up **#2**. An altered `.manager` reddens ONLY the freshness
+check, so provenance and payload fail independently and are not entangled.
+**DEFERRED ITEM CLOSED:** `sc4_no_retired_value_is_live` now compares **NUMERICALLY**. 21-03
+measured it staying GREEN while a retired value was live (left-padded 66-char form vs the 10-char
+entry). Under 21-03's IDENTICAL injection the suite now reports **4 failures where 21-03 recorded
+3**. **NEW F4:** the freshness check cannot see a module CHANGE — `manager` is a `CREATE` address,
+bytecode-independent and measured identical across three deploys; code-hash pinning proposed, not
+applied. Findings F1/F2 (plank track) reported, never edited; territory clean.
+**Rig left RUNNING** (pid 366381, block 12, `orderCount = 3` — the gate mined three real orders;
+nothing in `cabal test` depends on rig state). Stop with `bash offchain/rig/deploy-rig.sh --stop`.
+
+### 21-04 (wave 3, kept in full)
+
 Status: **21-04 DONE — VEGA-01 satisfied. The fourth field now comes from somewhere, and that
 somewhere is written down in the type.** `StochasticOrderGen` carries
 `vega_draw :: VegaDraw`, a ONE-constructor sum type whose haddock holds the whole justification:
@@ -298,6 +346,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 21 P01 | 11 | 3 tasks | 6 files |
 | Phase 21 P03 | 15 | 3 tasks | 4 files |
 | Phase 21 P04 | 15 | 2 tasks | 5 files |
+| Phase 21 P05 | 19min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -393,6 +442,11 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 21]: [21-03 OBSERVED] FIRST E1 VolOrderCreated v2 log ever seen on chain: 2 topics, 128 bytes/4 data words, topic0 == pin, orderId in topic 1 only, data = (12345,600,77,1e18). Captured non-destructively via evm_snapshot/evm_revert; rig restored to block 9, orderCount 0, SC-2 green.
 - [Phase 21]: 21-04: the plan's predicted mutant discriminator was REFUTED by measurement -- a linear-uniform draw spans 9 distinct bit-lengths (62..70) over 256 fixed-seed draws and clears the >= 8 spread assertion; bottom-decade mass (77 vs 4 of 256) is the real shape discriminator and was added
 - [Phase 21]: 21-04: draw_target_vega's zero-lower-bound rejection is INCIDENTAL (0 * Infinity = NaN in the log transform), not an explicit parameter guard -- a second VegaDraw constructor must supply its own validation
+- [Phase 21]: [21-05] RPIN-05 closed: live captured bytes asserted byte-for-byte against the alloy golden inside a suite PROVEN chain-independent with anvil stopped (65/65, pgrep anvil empty)
+- [Phase 21]: [21-05 REFUTED] The plan's instruction to record follow-up #5 as ADDRESSED is FALSE — verify_mined_order is unchanged and still discards tickSpacing and bits >= 248 before comparing. Recorded PARTIALLY ADDRESSED.
+- [Phase 21]: [21-05 REFUTED] blockNumber is NOT a provenance discriminator — three from-scratch deploys of the same rig gave heights 9, 11, 10. Freshness asserts chainId + manager only.
+- [Phase 21]: [21-05 MEASURED] decode_create_orders_result never reads the outer offset word (follow-up #2 demonstrated); and the freshness check cannot see a module change behind an unchanged CREATE address (F4).
+- [Phase 21]: [21-05 CLOSED] sc4_no_retired_value_is_live now compares NUMERICALLY — under 21-03's identical injection the suite reports 4 failures where 21-03 recorded 3.
 
 ### Pending Todos
 
@@ -419,6 +473,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-08-01T19:21:12.271Z
-Stopped at: Completed 21-04-PLAN.md
+Last session: 2026-08-01T19:45:37.140Z
+Stopped at: Completed 21-05-PLAN.md — PHASE 21 COMPLETE
 Resume file: None

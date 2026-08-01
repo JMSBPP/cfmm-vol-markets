@@ -171,7 +171,7 @@ verified), `.planning/rpc-api-volorder-v2-HANDOFF.md`, `notes/DATA_CONTRACT.md`,
       topic0 `0x18bd4d460f8957f6b903aec33a3229ee1bf02b6e303c5178c5aa49a70b9de4e6`,
       data = 4 words — fixing the pre-existing stale topic0 (`0xa8892769…`) with a
       topic0 pin test computed from the signature string
-- [ ] **RPIN-05**: `decode_create_orders_result` is verified byte-unchanged against the
+- [x] **RPIN-05**: `decode_create_orders_result` is verified byte-unchanged against the
       V2 module's `(bool, uint256)[]` return (verify against the live module, don't
       assume from the handoff)
 - [x] **RPIN-06**: The `VolOrder` record gains `target_vega`; `Rpc.hs` single + batch
@@ -328,7 +328,7 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | RPIN-02 | Phase 21 | Complete |
 | RPIN-03 | Phase 21 | Complete |
 | RPIN-04 | Phase 21 | Complete |
-| RPIN-05 | Phase 21 | Pending |
+| RPIN-05 | Phase 21 | Complete |
 | RPIN-06 | Phase 21 | Complete |
 | VEGA-01 | Phase 21 | Complete |
 | DRIV-01 | Phase 22 | Pending |
