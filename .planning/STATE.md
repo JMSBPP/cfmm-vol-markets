@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: milestone
-status: completed
-stopped_at: Completed 21-02-PLAN.md (live V2 batch-return capture; anvil left running pid 222750)
-last_updated: "2026-08-01T18:36:40.842Z"
-last_activity: "2026-07-31 — 20-02 executed: 36 artifacts imported by checkout from 9f5ccba,"
+milestone: v5.0
+milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
+status: in-progress
+stopped_at: Completed 21-01-PLAN.md
+last_updated: "2026-08-01T18:41:30.591Z"
+last_activity: "2026-08-01 — 21-01 executed: the three client-side wire layouts re-pinned to V2, V1 3-arg path deleted from offchain/, suite 44 -> 51, two mutants killed with honest negatives recorded"
 progress:
   total_phases: 19
   completed_phases: 9
   total_plans: 26
-  completed_plans: 22
+  completed_plans: 23
 ---
 
 # Project State
@@ -27,7 +27,28 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 ## Current Position
 
 Phase: 21 — V2 ABI Re-Pin & targetVega Generation (RPIN-*) — **IN PROGRESS**
-Plan: 21-02 COMPLETE (wave 1; 21-01 executing in parallel). 21-03, 21-04, 21-05 pending.
+Plan: 21-01 and 21-02 COMPLETE (wave 1). 21-03, 21-04, 21-05 pending.
+Status: **21-01 DONE — RPIN-01/02/03 satisfied. All three client-side wire layouts now speak V2
+and the V1 3-arg path is GONE from `offchain/`.** `VolOrder` carries `target_vega` (raw Uniswap
+`L`, `[1, 2^96-1]`); `encode_create_order` emits the 4-arg form and its selector is proven equal
+THREE ways — the bytes the encoder emits, a keccak recomputed in the test from the signature
+string PARSED OUT OF `VolOrderManagerInterface.plk`, and `rig-pins.json`'s generated pin;
+`pack_vol_order_input` packs `skew@0..15 | strike@16..103 | width@104..127 | targetVega@128..223`
+with bits >= 224 zero over a six-corner corpus including `2^96-1`; `unpack_vol_order_storage`
+reads the 248-bit word with `targetVega` at 152..247, round-tripped against a TEST-ONLY second
+implementation (`pack_storage_reference`) rather than against the library's own packer. An order
+is exhibited whose input word differs from its storage word AT THE SPECIFIC BITS (104..127 holds
+`width=600` vs `tickSpacing=20`; `targetVega` at 128 vs 152). `cabal test` = **51/51**, exit 0,
+zero `-Wall` warnings; purge grep empty; `generate-pins.sh` re-run byte-identical.
+**TWO mutants, TWO REDs, both restored sha256-identical, each with its HONEST NEGATIVE recorded**
+— `shiftL 120` reddens only the layout checks (the calldata and rejection checks correctly stay
+green: independent encoder path, and bounds are not positions), and `shiftR 144` reddens the
+storage round-trip while `rpin03_input_word_is_not_storage_word` stays GREEN because its assertion
+is an INEQUALITY. Territory clean. Findings F1 (stale V1 comment) and F2 (`TICK_SPACING = 20` vs
+pool `tickSpacing = 10`) REPORTED, not fixed — plank track's files.
+
+### 21-02 (same wave, kept in full)
+
 Status: **21-02 DONE — RPIN-05 satisfied. The V2 `(bool,uint256)[]` batch return has been
 OBSERVED on chain for the first time.** Until now its shape was derived from emitter source and
 repeated through a hand-off document; anvil was down through the whole research pass. The rig was
@@ -196,6 +217,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 20 P04 | 14 | 2 tasks | 4 files |
 | Phase 20 P05 | 22 | 3 tasks | 11 files |
 | Phase 21 P02 | 6 | 2 tasks | 3 files |
+| Phase 21 P01 | 11 | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -279,6 +301,13 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 21]: [21-02 CONFIRMED, hazard F1 -- REPORTED to the plank track, never edited] src/modules/pos_spec/VolOrderManagerMod.plk lines 177-188 carry a V1 comment block ('width@104..127 | bits >=128 MUST BE ZERO', 'width IS DELIBERATELY UNMASKED. It is the TOP field') that its OWN file contradicts at lines 221-235, where the executing V2 code masks width to 0xFFFFFF at 104 and reads targetVega UNMASKED from bit 128. The stale block is dangerous because it is plausible and co-located: a word built from it carries targetVega = 0, the tuple is rejected, and the batch SKIPS rather than reverting, so a capture would degenerate into a legitimate-looking all-(false,0) artifact proving nothing. The warning is recorded in offchain/rig/capture-batch-return.sh immediately above input_word(), naming the line range and the failure mode.
 - [Phase 21]: [21-02 SCOPE, binds 21-03] The capture emitted NO E1 VolOrderCreated v2 log and could not: these are eth_calls, which produce no logs. The v2 E1 log remains UNOBSERVED and 21-03's decode shape is still derived from emitter source alone. Closing that gap needs a real eth_sendTransaction against create_orders -- cheap now that the rig is standing and the V2 input word (skew@0..15 | strike@16..103 | width@104..127 | targetVega@128..223) is proven live -- but it is 21-03's work.
 - [Phase 21]: [21-02 DECIDED, RPIN-05 deliberately left PENDING] RPIN-05 is claimed by BOTH 21-02 and 21-05, and its text is 'decode_create_orders_result is verified byte-unchanged against the V2 module's (bool,uint256)[] return'. 21-02 delivered the LIVE half -- the observed bytes with provenance -- but produced no Haskell decoder verification at all, and was explicitly scoped OUT of adding assertions to offchain/test/Main.hs (21-05 owns the suite side). Checking the box now would record a decoder verification that does not exist. Left unchecked in REQUIREMENTS.md; 21-05 closes it once decode_create_orders_result is asserted against offchain/rig/batch-return-capture.json.
+- [Phase 21]: [21-01 MEASURED, invalidates a gate used in three tasks] `cabal build -j all` does NOT build the test suite -- it exited 0 with 0 warnings against a test suite carrying `Not in scope: record field 'target_vega'`. cabal only builds test components when tests are enabled. Every build/warning gate in this workstream must be `cabal build --enable-tests -j all`; the plain form certifies lib+exe only and would report a non-compiling suite as green.
+- [Phase 21]: [21-01 MEASURED, honest negative that limits what RPIN-03 may claim] Under the `shiftR 152`->`shiftR 144` storage mutant, `rpin03_input_word_is_not_storage_word` stayed GREEN. Its final assertion is an INEQUALITY (`unpack_vol_order_storage input /= base`), and a WRONG offset satisfies an inequality as well as the right one. That check discriminates CONFLATION of the two layouts, never CORRECTNESS of either -- only `rpin03_storage_round_trip` establishes the 152 offset. Do not cite the former as evidence for the latter.
+- [Phase 21]: [21-01 MEASURED, discrimination is specific] Under the `shiftL 128`->`shiftL 120` input-word mutant, `rpin01_encoder_argument_order` and `rpin02_field_rejections` correctly stayed GREEN: the calldata path goes through `cast calldata` and never touches `pack_vol_order_input` (genuinely independent encoders), and rejection checks assert BOUNDS not POSITIONS -- a misplaced field is still in range. Neither family covers the other; both are load-bearing.
+- [Phase 21]: [21-01 FINDING, the EIGHTH self-contradicting criterion in this repo] The plan prescribed a comment stating the V1 3-arg path is deleted, while its own verification step 6 requires `grep -rn 'uint88,uint24,uint16)' offchain/` to produce NO output -- the natural comment matches that grep. Resolved by rewording the comment to omit the signature string (and to say why), never by relaxing the criterion. Same class as 20-05's prescribed Decode.hs comment.
+- [Phase 21]: [21-01 FINDING, F1 CONFIRMED against the source] `src/modules/pos_spec/VolOrderManagerMod.plk:177-188` still reads 'bits >=128 MUST BE ZERO' and 'width IS DELIBERATELY UNMASKED. It is the TOP field', both FALSE of that same file's V2 code at 229-235 (width is masked and interior; targetVega is the unmasked top field at 128). Plank track's file -- REPORTED, never edited. An implementer trusting it ships a V1 packer that passes every offchain test and is SILENTLY SKIPPED on the batch path as an ordinary `(false,0)`. The Haskell-side comment in Encoding.hs now names the block as untrustworthy.
+- [Phase 21]: [21-01 FINDING, F2] The module pins TICK_SPACING = 20 into storage bits 104..127 while the rig's own deployed pool has tickSpacing = 10 (rig-manifest.json .pool.tickSpacing). REPORTED in Decode.hs and offchain/test/Main.hs; the test expectation is written against the MODULE CONSTANT so a change to it reddens rather than passing silently. Not resolved -- resolving it means editing another track's module.
+- [Phase 21]: [21-01 DECIDED] `cabal run` was deliberately NOT executed: it writes live orders to the shared anvil rig that 21-02 was capturing batch-return data from in the same wave. The V2 fix is proven statically (encoder selector == module's dispatched selector, three ways); live confirmation belongs to a plan that owns the rig state.
 
 ### Pending Todos
 
@@ -305,6 +334,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-08-01T18:35:04.596Z
-Stopped at: Completed 21-02-PLAN.md (live V2 batch-return capture; anvil left running pid 222750)
+Last session: 2026-08-01T18:40:30.741Z
+Stopped at: Completed 21-01-PLAN.md
 Resume file: None

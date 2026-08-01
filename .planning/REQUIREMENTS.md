@@ -156,14 +156,14 @@ verified), `.planning/rpc-api-volorder-v2-HANDOFF.md`, `notes/DATA_CONTRACT.md`,
 
 ### V2 ABI Re-Pin
 
-- [ ] **RPIN-01**: `encode_create_order` emits the V2 4-arg calldata
+- [x] **RPIN-01**: `encode_create_order` emits the V2 4-arg calldata
       `create_order(uint88,uint24,uint16,uint96)` = (strike, width, skew, targetVega),
       selector `0x98d950ec`, with a selector pin test derived from the signature string
-- [ ] **RPIN-02**: `pack_vol_order_input` packs the V2 batch input word —
+- [x] **RPIN-02**: `pack_vol_order_input` packs the V2 batch input word —
       `skew@0..15 | strike@16..103 | width@104..127 | targetVega@128..223` — with
       strict field-width validation on all four fields and bits ≥ 224 zero by
       construction (width is now INTERIOR/masked; targetVega is the unmasked TOP field)
-- [ ] **RPIN-03**: `unpack_vol_order_storage` unpacks the 248-bit V2 storage word —
+- [x] **RPIN-03**: `unpack_vol_order_storage` unpacks the 248-bit V2 storage word —
       `skew@0 | strike@16 | tickSpacing@104 (read, discarded) | width@128 |
       targetVega@152..247`
 - [ ] **RPIN-04**: `decode_order_created` re-pins to E1 v2 `VolOrderCreated(uint256
@@ -324,9 +324,9 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | MVER-03 | Phase 19 | Complete |
 | MVER-04 | Phase 19 | Complete |
 | RIG-01 | Phase 20 | Complete |
-| RPIN-01 | Phase 21 | Pending |
-| RPIN-02 | Phase 21 | Pending |
-| RPIN-03 | Phase 21 | Pending |
+| RPIN-01 | Phase 21 | Complete |
+| RPIN-02 | Phase 21 | Complete |
+| RPIN-03 | Phase 21 | Complete |
 | RPIN-04 | Phase 21 | Pending |
 | RPIN-05 | Phase 21 | Pending |
 | RPIN-06 | Phase 21 | Pending |
