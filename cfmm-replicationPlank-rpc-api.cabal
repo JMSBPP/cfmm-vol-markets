@@ -92,7 +92,6 @@ library
                       memory-hexstring,
                       process,
                       bytestring,
-                      time,
                       jsonrpc-tinyclient,
                       aeson,
                       mwc-random,

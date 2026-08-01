@@ -10,20 +10,21 @@ module VolOrder.Decode
 
 import Data.Bits (shiftL, shiftR, (.&.))
 import qualified Data.ByteString as BS
-import Data.ByteArray.HexString (HexString, fromBytes, toBytes)
-import Data.Time.Clock (UTCTime)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Data.ByteArray.HexString (HexString, toBytes)
 
 import Network.Ethereum.Api.Types (Change (..))
 
 import VolOrder.Types (VolOrder (..))
 
+-- | The E1 @VolOrderCreated@ payload, V2. Five fields, all 'Integer' and all RAW -- no scaling is
+-- applied on the way out, because every one of them is a raw on-chain field and a decoder that
+-- quietly rescaled would make the wire values unrecoverable.
 data OrderCreatedEvent = OrderCreatedEvent
-  { orderOwner      :: HexString
-  , orderCreatedAt  :: UTCTime
-  , orderVolTarget  :: Integer
-  , orderRangeWidth :: Integer
-  , orderSkew       :: Integer
+  { orderId         :: Integer   -- ^ from the INDEXED topic 1, not from the data payload
+  , orderStrike     :: Integer   -- ^ data word 0 (u88, Algebra vol units, raw)
+  , orderRangeWidth :: Integer   -- ^ data word 1 (u24)
+  , orderSkew       :: Integer   -- ^ data word 2 (u16)
+  , orderTargetVega :: Integer   -- ^ data word 3 (u96, DeltaQ_v*, RAW LIQUIDITY units)
   } deriving (Eq, Show)
 
 -- The E1 topic0 is a PARAMETER, supplied by the caller from the generated pin file
@@ -39,22 +40,43 @@ data OrderCreatedEvent = OrderCreatedEvent
 -- acquires no IO dependency and stays testable from pure values.
 --
 -- The stale constant itself is not lost. rig-pins.json's `retired` block records it, and
--- Phase 21 (RPIN-04) must prove the pin check REJECTS it.
+-- RPIN-04 proves the pin check REJECTS it.
 --
--- The log layout below is the v1 shape (3 topics [topic0, owner, blockTimestamp]; data of five
--- 32-byte words [32, 96, volTarget, rangeWidth, skew]) and is deliberately left UNTOUCHED here.
--- Re-pinning the decoder to the v2 VolOrderCreated shape is Phase 21's work, not this purge's.
+-- THE V2 LOG SHAPE, read off the emitter at src/lib/events/VolEventsLib.plk:47-54.
+--
+--   @evm_log2(buf, 128, TOPIC0_VOL_ORDER_CREATED, order_id)
+--
+-- `@evm_log2` means EXACTLY TWO topics: [topic0, orderId]. 128 bytes means EXACTLY FOUR data
+-- words, written by four @mstore32 at offsets 0/32/64/96: [strike, width, skew, targetVega].
+-- The declared event is
+-- VolOrderCreated(uint256 indexed orderId, uint88 strike, uint24 width, uint16 skew,
+-- uint96 targetVega) -- src/interfaces/pos_spec/VolOrderManagerInterface.plk:34-39.
+--
+-- THE FAILURE MODE THIS REPLACES, and why RPIN-04 is not a constant swap. The decoder that
+-- shipped before Phase 21 was the v1 shape: it matched a THREE-element topic list
+-- [topic0, owner, blockTimestamp] and read data words 2/3/4 of a five-word payload. Against a v2
+-- log it did not decode WRONGLY -- its topic pattern simply did not match, so it returned
+-- Nothing, and report_log printed the log as an anonymous "unknown" one forever. Swapping the
+-- topic0 constant alone would have left that intact and silent, which is why the check that
+-- covers this is a POSITIVE decode of a v2-shaped log, not a comparison of constants.
+--
+-- The data-length guard below is not defensive padding. `data_word` is
+-- `be_integer . BS.take 32 . BS.drop (32*i)`, and BS.drop past the end yields the empty string,
+-- whose big-endian value is 0. A short payload would therefore hand back targetVega = 0 -- a
+-- plausible, in-range, completely fabricated number. Requiring 128 bytes turns that into a
+-- Nothing.
 decode_order_created :: Integer -> Change -> Maybe OrderCreatedEvent
 decode_order_created expected_topic0 log_entry =
   case changeTopics log_entry of
-    [topic0, owner_topic, timestamp_topic]
-      | hex_to_integer topic0 == expected_topic0 ->
+    [topic0, order_id_topic]
+      | hex_to_integer topic0 == expected_topic0
+      , BS.length (toBytes (changeData log_entry)) >= 128 ->
           Just OrderCreatedEvent
-            { orderOwner      = fromBytes (BS.drop 12 (toBytes owner_topic))
-            , orderCreatedAt  = posixSecondsToUTCTime (fromIntegral (hex_to_integer timestamp_topic))
-            , orderVolTarget  = data_word 2 (changeData log_entry)
-            , orderRangeWidth = data_word 3 (changeData log_entry)
-            , orderSkew       = data_word 4 (changeData log_entry)
+            { orderId         = hex_to_integer order_id_topic
+            , orderStrike     = data_word 0 (changeData log_entry)
+            , orderRangeWidth = data_word 1 (changeData log_entry)
+            , orderSkew       = data_word 2 (changeData log_entry)
+            , orderTargetVega = data_word 3 (changeData log_entry)
             }
     _ -> Nothing
 

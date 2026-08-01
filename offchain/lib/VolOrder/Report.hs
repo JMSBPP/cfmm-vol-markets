@@ -38,11 +38,14 @@ report_log topic_e1 log_entry =
       mapM_ (putStrLn . ("  topic " ++) . show) (changeTopics log_entry)
       putStrLn ("  data  " ++ show (changeData log_entry))
 
+-- V2 field set. There is no owner and no timestamp: the emitter is @evm_log2 with orderId as its
+-- only indexed topic, so neither value is in the log at all. Printing them would have meant
+-- inventing them.
 report_order_created :: OrderCreatedEvent -> IO ()
 report_order_created event = do
   putStrLn "log     ORDER_CREATED"
-  putStrLn ("  owner       " ++ show (orderOwner event))
-  putStrLn ("  timestamp   " ++ show (orderCreatedAt event))
-  putStrLn ("  vol_target  " ++ show (orderVolTarget event))
-  putStrLn ("  range_width " ++ show (orderRangeWidth event))
+  putStrLn ("  order_id    " ++ show (orderId event))
+  putStrLn ("  strike      " ++ show (orderStrike event))
+  putStrLn ("  width       " ++ show (orderRangeWidth event))
   putStrLn ("  skew        " ++ show (orderSkew event))
+  putStrLn ("  target_vega " ++ show (orderTargetVega event))
