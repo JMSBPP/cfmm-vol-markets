@@ -28,6 +28,27 @@ cabal run cfmm-replicationPlank-rpc-api
 
 `offchain/rig/deploy-rig.sh --stop` kills the anvil the rig owns.
 
+### Capturing the batch return
+
+```bash
+offchain/rig/capture-batch-return.sh   # writes offchain/rig/batch-return-capture.json
+```
+
+Requires a standing rig — it reads the manager address out of `rig-manifest.json` and calls the
+live contract, so run it after `deploy-rig.sh` and `verify-rig.sh`. It sends no transaction:
+`create_orders` returns its array, so four plain `eth_call`s produce the whole capture and nothing
+on chain changes.
+
+It writes `offchain/rig/batch-return-capture.json`, which IS committed: real
+`(bool, uint256)[]` returndata for four cases (`N0_empty`, `N1_success`, `N2_success_then_fail`,
+`N1_dirty_vega`), each with the calldata that produced it, plus `chainId`, `manager` and
+`blockNumber`. It exists so `cabal test` can assert against bytes that actually came off a chain
+while itself staying chain-independent.
+
+Re-running is reproducible: `jq -S 'del(.generatedAt, .blockNumber)'` over two runs against the
+same rig is byte-identical. Note that one run takes well under a second, so two back-to-back runs
+can share a `generatedAt` — delete the artifact first if you want the regeneration to be visible.
+
 ### Why `npm ci` is step one
 
 `foundry.toml` remaps `@cryptoalgebra/...` into `node_modules/`, several tracked `.sol` files
