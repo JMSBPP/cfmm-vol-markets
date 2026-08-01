@@ -26,7 +26,7 @@ import Crypto.Ethereum.Utils (keccak256)
 import Data.Aeson (Value (..), eitherDecodeFileStrict, encodeFile)
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
-import Data.Bits (shiftL, shiftR, (.&.), (.|.))
+import Data.Bits (shiftL, shiftR, xor, (.&.), (.|.))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import Data.Char (digitToInt, intToDigit, isAlpha, isAlphaNum, isHexDigit, isSpace, toLower)
@@ -1078,6 +1078,114 @@ rpin04_retired_topic0s_are_rejected pins =
           ++ " the log is simply malformed")
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 21, RPIN-06: targetVega is genuinely COMPARED on readback, not merely carried
+--
+-- @verify_mined_order@ (@offchain\/lib\/VolOrder\/Rpc.hs@ lines 94-104) reads the stored word
+-- back and compares WHOLE 'VolOrder's with the derived 'Eq':
+--
+-- > let actual_order = unpack_vol_order_storage packed
+-- > if actual_order == expected_order then pure () else fail ...
+--
+-- Once @target_vega@ became a record field (21-01), that comparison began covering it with NO
+-- CODE CHANGE. That is exactly why this needs a measured failure: the change is INVISIBLE IN A
+-- DIFF, so the only evidence that the field is really compared -- rather than dropped by an
+-- unpacker that forgets to set it -- is an observed RED.
+--
+-- @verify_mined_order@ is Web3-monadic and not exported, so the check below is PURE and
+-- REPRODUCES the comparison rather than invoking it. Confirming it against a live mined order is
+-- Phase 22 (DRIV-02), not this plan; nothing here should be read as a claim about a real
+-- transaction.
+-- ---------------------------------------------------------------------------------------------
+
+-- | A second targetVega, distinct from 'rpin_base_vega', for the routing check.
+rpin_alt_vega :: Integer
+rpin_alt_vega = 10 ^ (21 :: Int)
+
+-- | A storage word perturbed ONLY inside the u96 targetVega field at bits 152..247 must fail the
+-- readback comparison -- at BOTH ends of the field, which are separate failure surfaces.
+--
+-- The unperturbed baseline is asserted FIRST: without it, the inequality below could pass for the
+-- wrong reason (any thoroughly broken unpacker fails to match a submitted order). The
+-- perturbation is then proven to be confined to 152..247, because a flip that also moved another
+-- field would prove nothing about targetVega. Finally the difference is proven LOCALISED -- the
+-- other three fields still read back correctly -- so a wholesale unpack bug cannot masquerade as
+-- this check passing.
+rpin06_perturbed_target_vega_fails_readback :: Check
+rpin06_perturbed_target_vega_fails_readback =
+  pure_check "rpin06_perturbed_target_vega_fails_readback" $ do
+    let submitted = rpin_base_order
+        word = pack_storage_reference
+                 rpin_base_strike rpin_base_width rpin_base_skew rpin_base_vega
+    _ <- expect (unpack_vol_order_storage word == submitted)
+           ("the UNPERTURBED storage word does not round-trip, so the perturbation results below"
+             ++ " would pass for the wrong reason: got " ++ show (unpack_vol_order_storage word)
+             ++ ", expected " ++ show submitted)
+    -- The flip MASKS are written out at the call site rather than derived from a bit index, so
+    -- the two ends of the u96 field are legible as constants in the source.
+    mapM_ (one submitted word)
+      [ ("bit 152 (LOWEST bit of targetVega)", 1 `shiftL` 152)
+      , ("bit 247 (TOP bit of the u96 field)", 1 `shiftL` 247)
+      ]
+  where
+    one submitted word (label, flip_mask) = do
+      let perturbed = word `xor` flip_mask
+          delta     = word `xor` perturbed
+          decoded   = unpack_vol_order_storage perturbed
+      _ <- expect (delta `shiftR` 248 == 0)
+             (label ++ ": the perturbation set bits at or above 248, outside the 248-bit storage"
+               ++ " word entirely: delta = " ++ show delta)
+      _ <- expect ((delta .&. mask_of 152) == 0)
+             (label ++ ": the perturbation also moved bits BELOW 152 (skew, volStrike,"
+               ++ " tickSpacing or width), so it proves nothing about targetVega: delta = "
+               ++ show delta)
+      -- THE comparison verify_mined_order performs, reproduced exactly.
+      _ <- expect (decoded /= submitted)
+             (label ++ ": a storage word perturbed inside targetVega STILL compared equal to the"
+               ++ " submitted order. verify_mined_order would accept a mined order whose"
+               ++ " targetVega is not the one that was submitted.")
+      _ <- same label "vol_target"  (vol_target decoded)  (vol_target submitted)
+      _ <- same label "range_width" (range_width decoded) (range_width submitted)
+      _ <- same label "skew"        (skew decoded)        (skew submitted)
+      expect (target_vega decoded /= target_vega submitted)
+        (label ++ ": the records differ but target_vega does NOT -- the inequality above is"
+          ++ " coming from some other field, so it is not evidence about targetVega")
+
+    same label name got want =
+      expect (got == want)
+        (label ++ ": " ++ name ++ " ALSO changed (" ++ show got ++ " vs " ++ show want
+          ++ ") -- the difference is not localised to targetVega, so a wholesale unpack bug"
+          ++ " would look like this check passing")
+
+-- | STRUCTURAL, not behavioural: this proves targetVega is ROUTED to both senders, not that any
+-- value is correct. Two orders differing ONLY in @target_vega@ must produce different batch input
+-- words (so the batch sender carries the field) and different calldata differing ONLY in the
+-- FOURTH argument word at bytes 100..132 (so the single-call sender carries it, in its own slot).
+rpin06_target_vega_reaches_every_sender :: Check
+rpin06_target_vega_reaches_every_sender =
+  Check "rpin06_target_vega_reaches_every_sender" . guarded $ do
+    let other = rpin_base_order { target_vega = fromInteger rpin_alt_vega }
+    calldata_base <- encode_create_order rpin_base_order
+    calldata_alt  <- encode_create_order other
+    pure $ do
+      _ <- expect (rpin_alt_vega /= rpin_base_vega)
+             "the two orders must actually differ in target_vega"
+      word_base <- pack_vol_order_input rpin_base_order
+      word_alt  <- pack_vol_order_input other
+      _ <- expect (word_base /= word_alt)
+             ("two orders differing only in target_vega packed to the SAME batch input word ("
+               ++ show word_base ++ ") -- the batch sender drops the field")
+      let bytes_base = toBytes calldata_base
+          bytes_alt  = toBytes calldata_alt
+      _ <- expect (BS.length bytes_base == 132 && BS.length bytes_alt == 132)
+             ("V2 calldata is 4 selector bytes + four 32-byte words = 132; got "
+               ++ show (BS.length bytes_base) ++ " and " ++ show (BS.length bytes_alt))
+      _ <- expect (BS.take 100 bytes_base == BS.take 100 bytes_alt)
+             "the selector and the first three argument words moved, but only target_vega changed"
+      expect (BS.drop 100 bytes_base /= BS.drop 100 bytes_alt)
+        ("the FOURTH argument word (bytes 100..132) is identical for two orders with different"
+          ++ " target_vega -- the single-call sender drops the field")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -1112,6 +1220,8 @@ main = do
           , rpin04_positive_v2_decode
           , rpin04_v1_shape_is_rejected
           , rpin04_retired_topic0s_are_rejected pins
+          , rpin06_perturbed_target_vega_fails_readback
+          , rpin06_target_vega_reaches_every_sender
           ]
             ++ per_pin_checks pins
 
