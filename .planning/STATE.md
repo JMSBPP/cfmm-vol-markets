@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.0
-milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
-status: in-progress
-stopped_at: Phase 21 context gathered
-last_updated: "2026-08-01T17:18:08.323Z"
-last_activity: "2026-07-31 — Phase 20 COMPLETE (5/5 plans, verification passed); Phase 21 context gathered — targetVega draw law flagged as a RESEARCH TARGET per user instruction"
+milestone: v2.0
+milestone_name: milestone
+status: completed
+stopped_at: Completed 21-02-PLAN.md (live V2 batch-return capture; anvil left running pid 222750)
+last_updated: "2026-08-01T18:36:40.842Z"
+last_activity: "2026-07-31 — 20-02 executed: 36 artifacts imported by checkout from 9f5ccba,"
 progress:
   total_phases: 19
   completed_phases: 9
-  total_plans: 21
-  completed_plans: 21
+  total_plans: 26
+  completed_plans: 22
 ---
 
 # Project State
@@ -25,6 +25,33 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 **Track note:** Fifth milestone — v5.0 is the **rpc_api workstream's** (offchain Haskell, branch `feat/rpc-api`); v6.0 (subgraph, issue #14) queued behind it. v3.0 (VegaAccountMod vault, Phases 12–15) SHIPPED 2026-07-19 (tag `v3.0`). v1.0 (GAMS plumbing, Phases 1–7) PAUSED. v2.0 (vol-oracle differential, Phases 8–11) PAUSED after Phase 9 — VDIFF-05..08 (Phases 10–11) remain pending, NOT part of v4.0. Resuming v2.0 = `/gsd:plan-phase 10`. These phase ranges are separate tracks — never renumbered.
 
 ## Current Position
+
+Phase: 21 — V2 ABI Re-Pin & targetVega Generation (RPIN-*) — **IN PROGRESS**
+Plan: 21-02 COMPLETE (wave 1; 21-01 executing in parallel). 21-03, 21-04, 21-05 pending.
+Status: **21-02 DONE — RPIN-05 satisfied. The V2 `(bool,uint256)[]` batch return has been
+OBSERVED on chain for the first time.** Until now its shape was derived from emitter source and
+repeated through a hand-off document; anvil was down through the whole research pass. The rig was
+stood up from scratch (`pgrep anvil` was EMPTY at execution start — the "anvil is already running"
+context claim was STALE) and `verify-rig.sh` printed `SC-2 OK: 7 contracts live,
+RealizedVolatilityMod seeded`. `offchain/rig/capture-batch-return.sh` then captured four cases by
+`eth_call` into the committed `offchain/rig/batch-return-capture.json`, carrying its own
+`chainId=31337` / `manager` / `blockNumber=9` provenance because `rig-manifest.json` is gitignored.
+**`N0_empty` is EXACTLY 64 bytes and byte-identical to the v4.0 alloy golden — and so are
+`N1_success` and `N2_success_then_fail`.** All THREE match `expected[0..2]` exactly, stronger than
+the plan expected: `eth_call` never advances `orderCount`, so every case ran against a registry as
+fresh as the golden's. The `differs_only_in_order_ids` comparator was built and never needed
+(recorded `false` on all three). **`N1_dirty_vega` proves live that `targetVega = 2^96` comes back
+`(false, 0)`** — indistinguishable from a business rejection, which is the concrete justification
+for 21-01's client-side `in_range 96` guard. Five runs, one normalised sha256
+`786c9506…824c0cd7`. `cabal test` exits 0 (45/45; the 44→45 move is 21-01's in-flight work, not
+this plan's) and the repo-wide `offchain` hex-literal scan is still empty. **Hazard F1 CONFIRMED
+and REPORTED, not fixed:** `src/modules/pos_spec/VolOrderManagerMod.plk:177-188` is a stale V1
+comment block contradicting its own file's V2 code at 229-235 — it belongs to the plank track. The
+warning lives in `capture-batch-return.sh` above `input_word()`. **anvil LEFT RUNNING** (pid
+222750, block 9) for 21-05's freshness assertion. Territory clean: `src/ test/ foundry-scripts/
+Makefile foundry.toml remappings.txt` byte-untouched.
+
+### Phase 20 (superseded position, kept for the record)
 
 Phase: 20 — Deploy Rig & Source-of-Truth Import (RIG-01) — **COMPLETE**
 Plan: 5 of 5 complete (20-01, 20-02, 20-03, 20-04, 20-05 all DONE — wave 4 landed)
@@ -168,6 +195,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 20 P03 | 12 | 3 tasks | 4 files |
 | Phase 20 P04 | 14 | 2 tasks | 4 files |
 | Phase 20 P05 | 22 | 3 tasks | 11 files |
+| Phase 21 P02 | 6 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -246,6 +274,11 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 20]: [20-05 DECIDED, a working tool would have broken silently] generate-pins.sh parsed retired.topic_order_created_stale out of offchain/lib/VolOrder/Decode.hs -- the very constant this plan deletes -- so the generator would have aborted with 'matched 0 values'. Re-pointed at src/modules/VolOrderManagerMod.plk, the superseded duplicate module carrying 'const TOPIC_ORDER_CREATED = 0xa8892769' verbatim: the file the Decode.hs constant was ORIGINALLY transcribed from and the origin of the rot (research 2.2). Better provenance, still never typed, another track's file READ only. Re-run produces rig-pins.json byte-identical. CAVEAT for Phase 21: the generator now depends on that superseded file existing; plank deleting it is a loud failure needing a new recorded home, not a silent drop.
 - [Phase 20]: [20-05 VERIFIED, SC-4 is falsifiable and was OBSERVED red] cabal test = 44/44 (35 per-pin + 9 named). Every pin is recomputed from the signature PARSED OUT OF the .plk file its own source field names, by a SECOND independent parser anchored differently from generate-pins.sh's (comment-block forward scan vs const-declaration backward walk). A one-character pin corruption (0x98d950ec -> 0x98d950ed) reddens exactly sc4_pin_selector_create_order and sc4_cast_agreement at 42/44 exit 1, with the recomputed value CORRECT and the pin wrong, both Haskell keccak256 and cast saying so independently; git checkout restores 44/44. The suite also caught a defect in ITSELF first: cast's trailing newline made two identical-looking hex strings compare unequal.
 - [Phase 20]: [20-05 FINDING, the clean-machine trap the plan's template would have shipped] The README's submodule step needs 'git -c submodule.lib/panoptic-helper.update=none'. The plain recursive command exits 0 in this checkout ONLY because the skip is recorded in lib/panoptic-v2-core/.git/config, a machine-local artifact; upstream's committed .gitmodules points lib/panoptic-helper at an unreachable repo and this repo has no overriding stanza. A clean machine following the plain form fails at step 2. Separately documented: cabal run completes and reports a receipt but the order REVERTS -- Encoding.hs still builds the retired 3-arg create_order against a V2 module dispatching 0x98d950ec (20-02's cause C1, pre-existing, Phase 21's re-pin), recorded in the README so a reader does not read it as a rig failure.
+- [Phase 21]: [21-02 MEASURED, stronger than planned] All THREE golden-comparable cases match the v4.0 alloy fixture BYTE-FOR-BYTE, not just N0_empty. The plan expected N1_success/N2_success_then_fail to differ in the order-id words because the golden was taken against a fresh registry. They do not, and structurally cannot from this script: create_orders RETURNS its array, so the capture is four eth_calls, and an eth_call does not mutate state -- every case executes against orderCount = 0, exactly the golden's condition. The differs_only_in_order_ids comparator was built and ships (it becomes load-bearing against a rig that has taken real transactions) but is recorded false on all three. COROLLARY for 21-05: the captured order ids are HYPOTHETICAL, ids the calls WOULD have assigned; an assertion hardcoding id == 1 is really asserting the rig is fresh.
+- [Phase 21]: [21-02 FINDING, binds 21-05] generatedAt is NOT a regeneration witness for capture-batch-return.sh. The Phase-20 idempotence recipe (two runs, generatedAt must DIFFER) was designed around deploy-rig.sh, which takes tens of seconds. The capture takes 294 ms against a 1-second timestamp resolution, so two back-to-back runs SHARE a generatedAt -- MEASURED, both 18:30:37Z -- and the check would have passed on a stale artifact. Regeneration was re-proven by deleting the artifact before each run and gating the second on the wall-clock second rolling over (bounded until-loop, no fixed sleep): runs A/B at 18:31:02Z and 18:31:03Z, normalised diff EMPTY, same sha256 786c9506...824c0cd7 as the first pair. Five runs, one normalised sha256. Use blockNumber/manager as the discriminating provenance fields; generatedAt is a label. Caveat written into offchain/rig/README.md.
+- [Phase 21]: [21-02 CONFIRMED, hazard F1 -- REPORTED to the plank track, never edited] src/modules/pos_spec/VolOrderManagerMod.plk lines 177-188 carry a V1 comment block ('width@104..127 | bits >=128 MUST BE ZERO', 'width IS DELIBERATELY UNMASKED. It is the TOP field') that its OWN file contradicts at lines 221-235, where the executing V2 code masks width to 0xFFFFFF at 104 and reads targetVega UNMASKED from bit 128. The stale block is dangerous because it is plausible and co-located: a word built from it carries targetVega = 0, the tuple is rejected, and the batch SKIPS rather than reverting, so a capture would degenerate into a legitimate-looking all-(false,0) artifact proving nothing. The warning is recorded in offchain/rig/capture-batch-return.sh immediately above input_word(), naming the line range and the failure mode.
+- [Phase 21]: [21-02 SCOPE, binds 21-03] The capture emitted NO E1 VolOrderCreated v2 log and could not: these are eth_calls, which produce no logs. The v2 E1 log remains UNOBSERVED and 21-03's decode shape is still derived from emitter source alone. Closing that gap needs a real eth_sendTransaction against create_orders -- cheap now that the rig is standing and the V2 input word (skew@0..15 | strike@16..103 | width@104..127 | targetVega@128..223) is proven live -- but it is 21-03's work.
+- [Phase 21]: [21-02 DECIDED, RPIN-05 deliberately left PENDING] RPIN-05 is claimed by BOTH 21-02 and 21-05, and its text is 'decode_create_orders_result is verified byte-unchanged against the V2 module's (bool,uint256)[] return'. 21-02 delivered the LIVE half -- the observed bytes with provenance -- but produced no Haskell decoder verification at all, and was explicitly scoped OUT of adding assertions to offchain/test/Main.hs (21-05 owns the suite side). Checking the box now would record a decoder verification that does not exist. Left unchecked in REQUIREMENTS.md; 21-05 closes it once decode_create_orders_result is asserted against offchain/rig/batch-return-capture.json.
 
 ### Pending Todos
 
@@ -272,6 +305,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-08-01T17:18:08.318Z
-Stopped at: Phase 21 context gathered
-Resume file: .planning/phases/21-v2-abi-re-pin-targetvega-generation/21-CONTEXT.md
+Last session: 2026-08-01T18:35:04.596Z
+Stopped at: Completed 21-02-PLAN.md (live V2 batch-return capture; anvil left running pid 222750)
+Resume file: None
