@@ -1299,10 +1299,11 @@ vega01_first_twelve =
 --
 --   [BOUNDS]  every draw fits the ABI field @[1, 2^96-1]@ and lies inside the configured band.
 --             This is the weakest assertion here: an enormous family of wrong laws satisfies it.
---   [SPREAD]  the draws vary (essentially all 256 distinct) and sweep at least 8 distinct
---             bit-lengths inside 60..70. This is what rules out the two rejected alternatives:
---             a CONSTANT gives one bit-length, and a LINEAR-UNIFORM draw concentrates at 69-70.
---             It still does not pin any value.
+--   [SPREAD]  the draws vary (essentially all 256 distinct), sweep at least 8 distinct
+--             bit-lengths inside 60..70, and put at least 40 of 256 in the bottom decade. The
+--             bit-length part rules out a CONSTANT; the bottom-decade part is what rules out a
+--             LINEAR-UNIFORM draw, which was MEASURED to clear the bit-length assertion. Neither
+--             pins any value.
 --   [VALUES]  every draw equals 'log_uniform_reference' applied to the SAME uniform, drawn from
 --             a second default-seeded generator. This pins the transform against an independent
 --             expression of it, so a changed exponent reddens at draw 0 rather than surviving
@@ -1334,9 +1335,23 @@ vega01_fixed_seed_draw_is_in_band =
              ("drawn bit-lengths " ++ show observed ++ " leave 60..70, the band's own range")
       _ <- expect (length observed >= 8)
              ("the draws span only " ++ show (length observed) ++ " distinct bit-lengths "
-               ++ show observed ++ " -- at least 8 inside 60..70 are required. A linear-uniform"
-               ++ " draw concentrates at 69-70 and a constant gives one; the probe for this law"
-               ++ " measured 61..69 over its first 12 draws and 60..70 over 256.")
+               ++ show observed ++ " -- at least 8 inside 60..70 are required. This rules out a"
+               ++ " CONSTANT (one bit-length). It does NOT rule out a linear-uniform draw:"
+               ++ " see the bottom-decade assertion below, which is the one that does.")
+      -- SHAPE, and this assertion exists because the obvious one does not work. A linear-uniform
+      -- draw on [1e18, 1e21] was MEASURED to span 9 distinct bit-lengths (62..70) over 256 fixed
+      -- seed draws, so it CLEARS the >= 8 spread assertion above; the plan for this check
+      -- predicted it would concentrate at 69-70 and be caught there, and that prediction is
+      -- false. What actually separates the two laws is where the mass sits: log-uniform puts a
+      -- third of its mass in each decade, linear-uniform puts a thousandth in the bottom one.
+      -- MEASURED over the same 256 fixed-seed draws: log-uniform 77, linear-uniform 4.
+      let bottom_decade = length (filter (< 10 ^ (19 :: Int)) drawn)
+      _ <- expect (bottom_decade >= 40)
+             ("only " ++ show bottom_decade ++ " of " ++ show sample_size
+               ++ " draws land in the band's BOTTOM DECADE [1e18, 1e19). Log-uniform puts about"
+               ++ " a third of its mass there (measured 77); a linear-uniform draw puts about a"
+               ++ " thousandth (measured 4). This is the assertion that discriminates the SHAPE"
+               ++ " of the law, as distinct from its range.")
       _ <- mapM_ matches_reference (zip3 [0 :: Int ..] drawn uniforms)
       _ <- expect (take (length vega01_first_twelve) drawn == vega01_first_twelve)
              ("the first " ++ show (length vega01_first_twelve) ++ " fixed-seed draws are "
