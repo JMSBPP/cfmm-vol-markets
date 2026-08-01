@@ -743,6 +743,84 @@ rpin02_field_rejections = pure_check "rpin02_field_rejections" $ do
               ++ intercalate ", " others ++ " -- the rejection is not attributable: " ++ why)
 
 -- ---------------------------------------------------------------------------------------------
+-- RPIN-03: the 248-bit storage word
+-- ---------------------------------------------------------------------------------------------
+
+-- | Mirror of @src\/types\/pos_spec\/VolOrder.plk@ lines 50-56 (@pack_vol_order@). 248 bits:
+--
+-- > skew@0..15 | volStrike@16..103 | tickSpacing@104..127 | width@128..151 | targetVega@152..247
+--
+-- Deliberately TEST-ONLY. It is the independent second implementation the library's unpacker is
+-- checked against; promoting it to the library would create production code no requirement asks
+-- for, and a round-trip against the library's own packer would prove only self-consistency.
+pack_storage_reference :: Integer -> Integer -> Integer -> Integer -> Integer
+pack_storage_reference strike width sk vega =
+      (vega `shiftL` 152)
+  .|. (width `shiftL` 128)
+  .|. (module_tick_spacing `shiftL` 104)
+  .|. (strike `shiftL` 16)
+  .|. sk
+
+-- | The storage word round-trips over the same corner corpus, the @tickSpacing@ slot is proven
+-- POPULATED with the module constant rather than accidentally zero, and nothing sits above bit
+-- 247. Assertions are per-field and name the corner, so a failure says which field and which
+-- corner instead of dumping two records.
+rpin03_storage_round_trip :: Check
+rpin03_storage_round_trip = pure_check "rpin03_storage_round_trip" $ mapM_ one vega_corners
+  where
+    one (label, v) = do
+      let word    = pack_storage_reference rpin_base_strike rpin_base_width rpin_base_skew v
+          decoded = unpack_vol_order_storage word
+      _ <- field label "vol_target" (toInteger (vol_target decoded)) rpin_base_strike
+      _ <- field label "range_width" (toInteger (range_width decoded)) rpin_base_width
+      _ <- field label "skew" (toInteger (skew decoded)) rpin_base_skew
+      _ <- field label "target_vega" (toInteger (target_vega decoded)) v
+      _ <- expect ((word `shiftR` 104) .&. mask_of 24 == module_tick_spacing)
+             ("corner " ++ label ++ ": the tickSpacing slot at 104..127 holds "
+               ++ show ((word `shiftR` 104) .&. mask_of 24) ++ ", expected the module constant "
+               ++ show module_tick_spacing ++ " -- a zero there would make the round-trip pass"
+               ++ " while the word was wrong")
+      expect (word `shiftR` 248 == 0)
+        ("corner " ++ label ++ ": the storage word is 248 bits, but bits >= 248 are SET in "
+          ++ show word)
+
+    field label name got want =
+      expect (got == want)
+        ("corner " ++ label ++ ": " ++ name ++ " read back as " ++ show got ++ ", expected "
+          ++ show want)
+
+-- | The INPUT word and the STORAGE word are different words for the same order, and they are
+-- close enough to look interchangeable. This exhibits a concrete order where they differ, and
+-- pins WHERE they differ rather than merely THAT they differ -- disagreement "somewhere" would
+-- also be satisfied by two layouts that are wrong in the same way.
+rpin03_input_word_is_not_storage_word :: Check
+rpin03_input_word_is_not_storage_word =
+  pure_check "rpin03_input_word_is_not_storage_word" $ do
+    input <- pack_vol_order_input rpin_base_order
+    let storage =
+          pack_storage_reference
+            rpin_base_strike rpin_base_width rpin_base_skew rpin_base_vega
+    _ <- expect (input /= storage)
+           ("the input word and the storage word are IDENTICAL (" ++ show input
+             ++ ") -- one of the two layouts has been copy-pasted from the other")
+    _ <- expect ((input `shiftR` 104) .&. mask_of 24 == rpin_base_width)
+           ("input word: bits 104..127 must hold width = " ++ show rpin_base_width ++ ", got "
+             ++ show ((input `shiftR` 104) .&. mask_of 24))
+    _ <- expect ((storage `shiftR` 104) .&. mask_of 24 == module_tick_spacing)
+           ("storage word: bits 104..127 must hold tickSpacing = " ++ show module_tick_spacing
+             ++ ", got " ++ show ((storage `shiftR` 104) .&. mask_of 24))
+    _ <- expect ((input `shiftR` 128) .&. mask_of 96 == rpin_base_vega)
+           ("input word: targetVega must sit at 128..223, got "
+             ++ show ((input `shiftR` 128) .&. mask_of 96))
+    _ <- expect ((storage `shiftR` 152) .&. mask_of 96 == rpin_base_vega)
+           ("storage word: targetVega must sit at 152..247, got "
+             ++ show ((storage `shiftR` 152) .&. mask_of 96))
+    expect (unpack_vol_order_storage input /= rpin_base_order)
+      ("feeding the INPUT word to the STORAGE unpacker reproduced the original order -- the two"
+        ++ " layouts are being conflated, which is exactly what a copy-paste between them looks"
+        ++ " like: " ++ show (unpack_vol_order_storage input))
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -770,6 +848,8 @@ main = do
           , rpin01_encoder_argument_order
           , rpin02_input_word_layout
           , rpin02_field_rejections
+          , rpin03_storage_round_trip
+          , rpin03_input_word_is_not_storage_word
           ]
             ++ per_pin_checks pins
 
