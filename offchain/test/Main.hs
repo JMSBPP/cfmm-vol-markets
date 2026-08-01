@@ -32,7 +32,8 @@ import qualified Data.ByteString.Char8 as C8
 import Data.Char (intToDigit, isAlpha, isAlphaNum, isSpace, toLower)
 import Data.List (intercalate, isInfixOf, isPrefixOf, nub, sort)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes, fromMaybe, isJust)
+import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing)
+import Data.Solidity.Prim.Address (Address, fromHexString)
 import qualified Data.Text as T
 import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
 import System.Exit (ExitCode (..), exitFailure)
@@ -46,9 +47,10 @@ import Rig.Manifest
   , RigPins (..)
   , load_rig_from
   )
-import Data.ByteArray.HexString (toBytes)
+import Data.ByteArray.HexString (HexString, fromBytes, toBytes)
+import Network.Ethereum.Api.Types (Change (..))
 
-import VolOrder.Decode (be_integer, unpack_vol_order_storage)
+import VolOrder.Decode (be_integer, decode_order_created, unpack_vol_order_storage)
 import VolOrder.Encoding (encode_create_order, pack_vol_order_input)
 import VolOrder.Types (VolOrder (..))
 
@@ -821,6 +823,96 @@ rpin03_input_word_is_not_storage_word =
         ++ " like: " ++ show (unpack_vol_order_storage input))
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 21, RPIN-04: the E1 VolOrderCreated v2 log shape
+--
+-- The emitter is @src\/lib\/events\/VolEventsLib.plk@ lines 47-54:
+--
+-- > let buf = @malloc_uninit(128);   ... four @mstore32 at 0, 32, 64, 96 ...
+-- > @evm_log2(buf, 128, TOPIC0_VOL_ORDER_CREATED, order_id);
+--
+-- @\@evm_log2@ is EXACTLY TWO topics; 128 bytes is EXACTLY FOUR data words. The v1 decoder that
+-- shipped before this phase matched a THREE-element topic list and read data words 2\/3\/4, so
+-- against a v2 log it returned 'Nothing' -- it did not decode WRONGLY, it reported every real log
+-- as \"unknown\" forever. That is why a topic0 constant swap alone would not have satisfied
+-- RPIN-04, and why the positive decode below is the load-bearing assertion.
+-- ---------------------------------------------------------------------------------------------
+
+-- | A 32-byte big-endian encoding of a non-negative 'Integer'. Built by shifting rather than from
+-- a hex string: 'sc3_literal_purge' greps this very file.
+word32be :: Integer -> BS.ByteString
+word32be n = BS.pack [fromIntegral ((n `shiftR` (8 * i)) .&. 0xff) | i <- [31, 30 .. 0]]
+
+-- | An 'Integer' as a 32-byte topic\/data word.
+hexstring_of :: Integer -> HexString
+hexstring_of = fromBytes . word32be
+
+-- | 'Change' has a non-optional @changeAddress@ and the decoder never looks at it. Twenty zero
+-- bytes is exactly an address, so 'fromHexString' cannot fail here; the 'error' branch is
+-- unreachable and exists only because the function is total in @Either@.
+filler_address :: Address
+filler_address =
+  case fromHexString (fromBytes (BS.replicate 20 0)) of
+    Right addr -> addr
+    Left why   -> error ("20 zero bytes did not parse as an address: " ++ why)
+
+-- | A hand-built log. Only @changeTopics@ and @changeData@ are load-bearing for the decoder; the
+-- block\/tx metadata is filler. Built here rather than fetched so this check stays PURE -- @cabal
+-- test@ is chain-independent, and the rig capture is the only thing in this repo that touches a
+-- chain.
+synthetic_log :: [HexString] -> [Integer] -> Change
+synthetic_log topics data_words =
+  Change
+    { changeLogIndex         = Nothing
+    , changeTransactionIndex = Nothing
+    , changeTransactionHash  = Nothing
+    , changeBlockHash        = Nothing
+    , changeBlockNumber      = Nothing
+    , changeAddress          = filler_address
+    , changeData             = fromBytes (BS.concat (map word32be data_words))
+    , changeTopics           = topics
+    }
+
+-- | The E1 topic0 as an 'Integer', RECOMPUTED from the signature string parsed out of the
+-- interface file. Never transcribed, and never read from the pin file here -- the pin is compared
+-- against this, not the source of it.
+e1_topic0_from :: String -> Either String Integer
+e1_topic0_from contents = do
+  sig <- signature_for "VolOrderCreated" (signatures_in (lines contents))
+  Right (be_integer (topic0_of sig))
+
+-- | The order id carried in the INDEXED topic of the synthetic v2 log. Deliberately distinct from
+-- all four data values, so \"orderId came from the topic\" is checkable rather than assumed.
+rpin_base_order_id :: Integer
+rpin_base_order_id = 7
+
+-- | The v2 decode behaviour contract, asserted at the SHAPE level in one place: a two-topic \/
+-- four-word log decodes, and the retired three-topic \/ five-word shape does not. Both assertions
+-- are expressible against the pre-Phase-21 record, which is what makes this an ASSERTION-level
+-- RED rather than a compile error.
+rpin_e1_v2_decode_behavior :: Check
+rpin_e1_v2_decode_behavior = Check "rpin_e1_v2_decode_behavior" . guarded $ do
+  contents <- readFile volorder_iface
+  pure $ do
+    t0 <- e1_topic0_from contents
+    let v2_log =
+          synthetic_log
+            [hexstring_of t0, hexstring_of rpin_base_order_id]
+            [rpin_base_strike, rpin_base_width, rpin_base_skew, rpin_base_vega]
+        -- the shape the shipped decoder accepted: @evm_log3 (topic0, owner, timestamp) over a
+        -- 160-byte payload
+        v1_log =
+          synthetic_log
+            [hexstring_of t0, hexstring_of 0, hexstring_of 0]
+            [32, 96, rpin_base_strike, rpin_base_width, rpin_base_skew]
+    _ <- expect (isJust (decode_order_created t0 v2_log))
+           ("the E1 v2 log shape (2 topics, 4 data words -- @evm_log2 over a 128-byte buffer)"
+             ++ " did not decode. A decoder that returns Nothing here reports every real"
+             ++ " VolOrderCreated log as \"unknown\" and never says so.")
+    expect (isNothing (decode_order_created t0 v1_log))
+      ("the RETIRED v1 log shape (3 topics, 5 data words) DECODED. That shape is not emitted by"
+        ++ " any live module; accepting it means the decoder is still reading data words 2/3/4.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -850,6 +942,7 @@ main = do
           , rpin02_field_rejections
           , rpin03_storage_round_trip
           , rpin03_input_word_is_not_storage_word
+          , rpin_e1_v2_decode_behavior
           ]
             ++ per_pin_checks pins
 

@@ -143,11 +143,12 @@ test-suite cfmm-replicationPlank-rpc-api-test
 
     -- Test dependencies.
     --
-    -- The last three exist so the suite can exercise the LIBRARY's own wire types rather than a
+    -- The last four exist so the suite can exercise the LIBRARY's own wire types rather than a
     -- transcription of them: memory-hexstring for the HexString the encoder returns,
-    -- web3-ethereum for Quantity (and Change, for the Phase 21 event re-pin), mwc-random for the
-    -- fixed-seed GenIO the drawn-order checks need. All three are already project dependencies,
-    -- so no new package enters the build plan.
+    -- web3-ethereum for Quantity and Change (the Phase 21 event re-pin builds synthetic logs),
+    -- web3-solidity for the Address that Change's non-optional changeAddress field demands, and
+    -- mwc-random for the fixed-seed GenIO the drawn-order checks need. All four are already
+    -- project dependencies of the library, so no new package enters the build plan.
     build-depends:
         base ^>=4.20.2.0,
         cfmm-replicationPlank-rpc-api,
@@ -161,4 +162,5 @@ test-suite cfmm-replicationPlank-rpc-api-test
         filepath,
         memory-hexstring,
         web3-ethereum,
+        web3-solidity,
         mwc-random
