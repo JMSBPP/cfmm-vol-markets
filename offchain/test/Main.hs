@@ -40,7 +40,7 @@ import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
 import System.Exit (ExitCode (..), exitFailure)
 import System.FilePath ((</>))
 import System.Process (readProcessWithExitCode)
-import System.Random.MWC (create)
+import System.Random.MWC (create, uniformR)
 
 import Rig.Manifest
   ( PinEntry (..)
@@ -1241,6 +1241,177 @@ attempt_draw law = do
   gen <- create
   try (draw_target_vega gen law)
 
+-- | Number of significant bits. Written out rather than taken from 'Data.Bits' because
+-- @finiteBitSize@ is not defined for 'Integer'.
+bit_length :: Integer -> Int
+bit_length = go 0
+  where
+    go acc 0 = acc
+    go acc n = go (acc + 1) (n `div` 2)
+
+-- | A SECOND implementation of the decided log-uniform law, mirroring
+-- 'StochasticOrderGen.Simulate.draw_target_vega''s transform but taking its uniform as an
+-- argument instead of drawing it. Same role as 'pack_storage_reference': the library is checked
+-- against an independent expression of the spec rather than against itself.
+log_uniform_reference :: Integer -> Integer -> Double -> Integer
+log_uniform_reference lo hi u =
+  round (fromIntegral lo * (fromIntegral hi / fromIntegral lo) ** u)
+
+-- | The first twelve draws of 'System.Random.MWC.create''s default-seeded stream under
+-- 'vega01_band', pinned as VALUES.
+--
+-- These are a GOLDEN, and what a golden does and does not establish is worth being exact about.
+-- It establishes that the draw law and the generator stream beneath it are UNCHANGED -- a
+-- different exponent, a different band, or a different mwc-random stream all redden here at the
+-- first element. It does NOT establish that the law is the RIGHT law: that is a decision, argued
+-- from the v3 band derivation and arXiv:2205.08904 in 'StochasticOrderGen.Types.VegaDraw', and
+-- no test can supply it.
+--
+-- The reason to pin values at all is that the bounds and spread assertions below are satisfied
+-- by MANY wrong draw laws -- an assertion whose conclusion is an inequality survives any mutant
+-- that keeps the value inside the inequality. These twelve numbers do not.
+vega01_first_twelve :: [Integer]
+vega01_first_twelve =
+  [ 1186946348279245568
+  , 166952222113890402304
+  , 3006703757638344704
+  , 121844603607608246272
+  , 4798878527208134656
+  , 22362718531875102720
+  , 37052572198576381952
+  , 2315392034344841216
+  , 37999405005355057152
+  , 1475274689841291776
+  , 546508318830051721216
+  , 181491393322483220480
+  ]
+
+-- | 256 fixed-seed draws, pinned four ways.
+--
+-- 'System.Random.MWC.create' gives a deterministic default-seeded generator, so this check
+-- produces the same numbers on every machine and every run. mwc-random's OTHER seeding entry
+-- point -- the one taking an explicit @Vector Word32@ seed -- is deliberately not used: it would
+-- drag @vector@ into @build-depends@ for no gain, since a fixed seed is all this needs. (Its
+-- name is not written out here because @sc3_literal_purge@'s sibling acceptance grep for this
+-- plan requires that identifier to be absent from this file.)
+--
+-- What each assertion establishes, stated separately because they are not equally strong:
+--
+--   [BOUNDS]  every draw fits the ABI field @[1, 2^96-1]@ and lies inside the configured band.
+--             This is the weakest assertion here: an enormous family of wrong laws satisfies it.
+--   [SPREAD]  the draws vary (essentially all 256 distinct) and sweep at least 8 distinct
+--             bit-lengths inside 60..70. This is what rules out the two rejected alternatives:
+--             a CONSTANT gives one bit-length, and a LINEAR-UNIFORM draw concentrates at 69-70.
+--             It still does not pin any value.
+--   [VALUES]  every draw equals 'log_uniform_reference' applied to the SAME uniform, drawn from
+--             a second default-seeded generator. This pins the transform against an independent
+--             expression of it, so a changed exponent reddens at draw 0 rather than surviving
+--             inside a bound.
+--   [GOLDEN]  the first twelve equal 'vega01_first_twelve'. This pins the RNG stream itself,
+--             which the reference above cannot -- the reference would follow a stream change.
+--   [PACKS]   every drawn value packs into a batch input word with bits >= 224 zero.
+--
+-- These DRAWN values are deliberately NOT the packing corpus. A 'Double' has 53 significand
+-- bits against the band's ~70, so a draw near the top carries roughly 17 forced-zero low bits
+-- and the low end of the u96 field is barely exercised. @vega_corners@ is the CONSTRUCTED
+-- corpus that covers the field boundaries; naming this blind spot is the point of keeping them
+-- separate.
+vega01_fixed_seed_draw_is_in_band :: Check
+vega01_fixed_seed_draw_is_in_band =
+  Check "vega01_fixed_seed_draw_is_in_band" . guarded $ do
+    gen <- create
+    drawn <- replicateM sample_size (draw_target_vega gen vega01_band)
+    ref_gen <- create
+    uniforms <- replicateM sample_size (uniformR (0, 1) ref_gen :: IO Double)
+    pure $ do
+      _ <- mapM_ bounded (zip [0 :: Int ..] drawn)
+      _ <- expect (length (nub drawn) > 200)
+             ("only " ++ show (length (nub drawn)) ++ " of " ++ show sample_size
+               ++ " draws are distinct -- a law that barely varies exercises one magnitude and"
+               ++ " would satisfy every bound assertion above")
+      let observed = sort (nub (map bit_length drawn))
+      _ <- expect (all (\b -> b >= 60 && b <= 70) observed)
+             ("drawn bit-lengths " ++ show observed ++ " leave 60..70, the band's own range")
+      _ <- expect (length observed >= 8)
+             ("the draws span only " ++ show (length observed) ++ " distinct bit-lengths "
+               ++ show observed ++ " -- at least 8 inside 60..70 are required. A linear-uniform"
+               ++ " draw concentrates at 69-70 and a constant gives one; the probe for this law"
+               ++ " measured 61..69 over its first 12 draws and 60..70 over 256.")
+      _ <- mapM_ matches_reference (zip3 [0 :: Int ..] drawn uniforms)
+      _ <- expect (take (length vega01_first_twelve) drawn == vega01_first_twelve)
+             ("the first " ++ show (length vega01_first_twelve) ++ " fixed-seed draws are "
+               ++ show (take (length vega01_first_twelve) drawn) ++ ", not the pinned "
+               ++ show vega01_first_twelve
+               ++ " -- either the draw law changed or mwc-random's default seed did")
+      mapM_ packs (zip [0 :: Int ..] drawn)
+  where
+    sample_size = 256
+
+    bounded (i, v) = do
+      _ <- expect (v >= 1 && v <= mask_of 96)
+             ("draw " ++ show i ++ " = " ++ show v ++ " is outside the ABI field [1, 2^96-1]"
+               ++ " -- pack_vol_order_input would reject it and the batch path would skip it")
+      expect (v >= vega_min vega01_band && v <= vega_max vega01_band)
+        ("draw " ++ show i ++ " = " ++ show v ++ " is outside the configured band ["
+          ++ show (vega_min vega01_band) ++ ", " ++ show (vega_max vega01_band) ++ "]")
+
+    matches_reference (i, v, u) =
+      let want = log_uniform_reference (vega_min vega01_band) (vega_max vega01_band) u
+      in expect (v == want)
+           ("draw " ++ show i ++ " = " ++ show v ++ " but the independent log-uniform reference"
+             ++ " gives " ++ show want ++ " for the same uniform " ++ show u
+             ++ " -- the library's transform is not the decided law")
+
+    packs (i, v) =
+      case pack_vol_order_input rpin_base_order { target_vega = fromInteger v } of
+        Left why -> Left ("draw " ++ show i ++ " = " ++ show v ++ " was REJECTED by the packer: "
+                           ++ why)
+        Right w  ->
+          expect (w `shiftR` 224 == 0)
+            ("draw " ++ show i ++ " = " ++ show v ++ " packs to " ++ show w
+              ++ ", whose bits >= 224 are SET -- the batch path would skip it silently")
+
+-- | The draw-time guard is DRIVEN to fire on three distinct mis-parameterisations, each of which
+-- would otherwise hand a nonsense @targetVega@ to the encoder. A guard nobody has watched fire
+-- is not a guard.
+--
+-- The CONTROL is load-bearing and is the reason this check is not vacuous: without it, a
+-- 'draw_target_vega' that threw unconditionally would pass every assertion above it.
+vega01_out_of_band_draw_fails_loudly :: Check
+vega01_out_of_band_draw_fails_loudly =
+  Check "vega01_out_of_band_draw_fails_loudly" . guarded $ do
+    inverted <- attempt_draw (LogUniform { vega_min = 10 ^ (21 :: Int)
+                                         , vega_max = 10 ^ (18 :: Int) })
+    zero_low <- attempt_draw (LogUniform { vega_min = 0, vega_max = 10 ^ (21 :: Int) })
+    over_abi <- attempt_draw (LogUniform { vega_min = 1 `shiftL` 96, vega_max = 1 `shiftL` 97 })
+    control  <- attempt_draw vega01_band
+    pure $ do
+      _ <- throws "inverted bounds (vega_min = 10^21 > vega_max = 10^18)" inverted
+      _ <- throws "a zero lower bound (vega_min = 0, which would violate the on-chain\
+                  \ vega_target_is_complete > 0 predicate and pack to a batch tuple that is\
+                  \ SILENTLY SKIPPED)" zero_low
+      _ <- throws "a band above the ABI ceiling (vega_min = 2^96), which proves the\
+                  \ min hi (2^96 - 1) clamp inside the guard is live" over_abi
+      case control of
+        Right v ->
+          expect (v >= vega_min vega01_band && v <= vega_max vega01_band)
+            ("CONTROL: a draw on the configured band returned " ++ show v ++ ", outside it")
+        Left err ->
+          Left ("CONTROL: a draw on the configured band THREW (" ++ show err ++ "). Without a"
+                 ++ " passing control the three assertions above would be satisfied by a"
+                 ++ " draw_target_vega that always throws.")
+  where
+    throws what outcome =
+      case outcome of
+        Right v ->
+          Left (what ++ " RETURNED " ++ show v ++ " instead of failing loudly")
+        Left err ->
+          expect (guard_message `isInfixOf` show err)
+            (what ++ " failed, but not with the draw-time guard's own message. Expected the"
+              ++ " failure to contain " ++ show guard_message ++ "; got: " ++ show err)
+
+    guard_message = "targetVega draw out of band"
+
 -- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
@@ -1279,6 +1450,8 @@ main = do
           , rpin06_perturbed_target_vega_fails_readback
           , rpin06_target_vega_reaches_every_sender
           , vega01_draw_behavior
+          , vega01_fixed_seed_draw_is_in_band
+          , vega01_out_of_band_draw_fails_loudly
           ]
             ++ per_pin_checks pins
 
