@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: milestone
-status: completed
+milestone: v5.0
+milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
+status: in-progress
 stopped_at: Phase 21 context gathered
 last_updated: "2026-08-01T17:18:08.323Z"
-last_activity: "2026-07-31 — 20-02 executed: 36 artifacts imported by checkout from 9f5ccba,"
+last_activity: "2026-07-31 — Phase 20 COMPLETE (5/5 plans, verification passed); Phase 21 context gathered — targetVega draw law flagged as a RESEARCH TARGET per user instruction"
 progress:
   total_phases: 19
   completed_phases: 9
