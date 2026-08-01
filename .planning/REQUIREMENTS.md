@@ -166,7 +166,7 @@ verified), `.planning/rpc-api-volorder-v2-HANDOFF.md`, `notes/DATA_CONTRACT.md`,
 - [x] **RPIN-03**: `unpack_vol_order_storage` unpacks the 248-bit V2 storage word —
       `skew@0 | strike@16 | tickSpacing@104 (read, discarded) | width@128 |
       targetVega@152..247`
-- [ ] **RPIN-04**: `decode_order_created` re-pins to E1 v2 `VolOrderCreated(uint256
+- [x] **RPIN-04**: `decode_order_created` re-pins to E1 v2 `VolOrderCreated(uint256
       indexed orderId, uint88 strike, uint24 width, uint16 skew, uint96 targetVega)`,
       topic0 `0x18bd4d460f8957f6b903aec33a3229ee1bf02b6e303c5178c5aa49a70b9de4e6`,
       data = 4 words — fixing the pre-existing stale topic0 (`0xa8892769…`) with a
@@ -174,7 +174,7 @@ verified), `.planning/rpc-api-volorder-v2-HANDOFF.md`, `notes/DATA_CONTRACT.md`,
 - [ ] **RPIN-05**: `decode_create_orders_result` is verified byte-unchanged against the
       V2 module's `(bool, uint256)[]` return (verify against the live module, don't
       assume from the handoff)
-- [ ] **RPIN-06**: The `VolOrder` record gains `target_vega`; `Rpc.hs` single + batch
+- [x] **RPIN-06**: The `VolOrder` record gains `target_vega`; `Rpc.hs` single + batch
       senders and the mined-order readback content check carry it end-to-end
 
 ### targetVega Generation
@@ -327,9 +327,9 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | RPIN-01 | Phase 21 | Complete |
 | RPIN-02 | Phase 21 | Complete |
 | RPIN-03 | Phase 21 | Complete |
-| RPIN-04 | Phase 21 | Pending |
+| RPIN-04 | Phase 21 | Complete |
 | RPIN-05 | Phase 21 | Pending |
-| RPIN-06 | Phase 21 | Pending |
+| RPIN-06 | Phase 21 | Complete |
 | VEGA-01 | Phase 21 | Pending |
 | DRIV-01 | Phase 22 | Pending |
 | DRIV-02 | Phase 22 | Pending |

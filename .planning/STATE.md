@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
 status: in-progress
-stopped_at: Completed 21-01-PLAN.md
-last_updated: "2026-08-01T18:41:30.591Z"
-last_activity: "2026-08-01 — 21-01 executed: the three client-side wire layouts re-pinned to V2, V1 3-arg path deleted from offchain/, suite 44 -> 51, two mutants killed with honest negatives recorded"
+stopped_at: Completed 21-03-PLAN.md
+last_updated: "2026-08-01T19:01:46.102Z"
+last_activity: "2026-08-01 — 21-03 executed: E1 decoder re-pinned to the v2 shape (2 topics, 4 data words), confirmed against the FIRST v2 log ever observed on chain; two REDs observed plus a second-order measurement showing rpin06's baseline assertion is its sole discriminator; suite 51 -> 58"
 progress:
   total_phases: 19
   completed_phases: 9
   total_plans: 26
-  completed_plans: 23
+  completed_plans: 24
 ---
 
 # Project State
@@ -27,7 +27,43 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 ## Current Position
 
 Phase: 21 — V2 ABI Re-Pin & targetVega Generation (RPIN-*) — **IN PROGRESS**
-Plan: 21-01 and 21-02 COMPLETE (wave 1). 21-03, 21-04, 21-05 pending.
+Plan: 21-01, 21-02 (wave 1) and 21-03 (wave 2) COMPLETE. 21-04, 21-05 pending.
+Status: **21-03 DONE — RPIN-04 and RPIN-06 satisfied. The E1 event decoder now speaks V2, and
+this is the first plan in the phase whose central claim is backed by a REAL CHAIN LOG.**
+`decode_order_created` was rewritten from the v1 three-topic/five-word shape to `@evm_log2`'s
+two topics `[topic0, orderId]` over 128 bytes = four data words `[strike, width, skew,
+targetVega]`, with a `>= 128`-byte length guard so a short payload yields `Nothing` instead of a
+silent, plausible `targetVega = 0`. `OrderCreatedEvent` lost `orderOwner`/`orderCreatedAt`
+outright — neither value exists in a v2 log — and gained `orderId` (from the INDEXED topic) and
+`orderTargetVega`. **RPIN-04 was NOT a constant swap and that was measured first:** the TDD RED
+is ASSERTION-level (unlike 21-01's compile-level one) and recorded the shipped decoder returning
+`Nothing` on a v2 log, i.e. reporting every real log as "unknown" forever with no wrong value to
+notice. `cabal test` = **58/58** (51 -> 58, seven new checks), exit 0, zero `-Wall` warnings;
+purge grep empty; `generate-pins.sh` byte-identical.
+**FIRST E1 v2 LOG EVER OBSERVED ON CHAIN.** 21-02 could not capture one (`eth_call` emits no
+logs). One real `create_order` was sent inside `evm_snapshot`/`evm_revert`: **2 topics, 128
+bytes / 4 data words, topic0 identical to the pin, `orderId = 1` in topic 1 ONLY (never in the
+payload), data = (12345, 600, 77, 1e18)** — every source-derived structural claim confirmed. The
+rig was then restored and re-verified: **block 9, `orderCount` 0, `SC-2 OK: 7 contracts live`**,
+so 21-05's freshness dependency is intact. The test suite remains chain-independent.
+**TWO mutants, TWO REDs, both restored sha256-identical, plus a SECOND-ORDER measurement.** The
+stale-pin injection reddens `rpin04_topic0_is_recomputed`, `sc4_pin_topic0_VolOrderCreated` and
+`sc4_cast_agreement` with the recomputed value CORRECT and the pin wrong; the `target_vega = 0`
+mutant reddens `rpin03_storage_round_trip`, `rpin_v2_layout_behavior` and
+`rpin06_perturbed_target_vega_fails_readback`. **Then the inequality doubt wave-1 raised was
+MEASURED, not argued:** with rpin06's baseline round-trip assertion neutralised, the check
+PASSES under that mutant (`0 /= 10^18` satisfies the inequality; the other fields are untouched).
+The baseline is the SOLE discriminator — the perturbation half is a localisation argument on top
+of a correctness fact it does not supply. `rpin06_target_vega_reaches_every_sender` stayed green
+as predicted and is labelled STRUCTURAL in-file: it proves routing, never any value.
+**NEW FINDING, logged not fixed:** `sc4_no_retired_value_is_live` STAYED GREEN while a retired
+value was live — it compares pin values as STRINGS, so the left-padded 32-byte form of the
+10-character `0xa8892769` does not match. The retired-value guard is defeated by zero-padding,
+which is exactly the form a topic0 takes on the wire. Pre-existing (Phase 20's check);
+`deferred-items.md` carries it with the fix (numeric comparison). Territory clean.
+
+### 21-01 (wave 1, kept in full)
+
 Status: **21-01 DONE — RPIN-01/02/03 satisfied. All three client-side wire layouts now speak V2
 and the V1 3-arg path is GONE from `offchain/`.** `VolOrder` carries `target_vega` (raw Uniswap
 `L`, `[1, 2^96-1]`); `encode_create_order` emits the 4-arg form and its selector is proven equal
@@ -218,6 +254,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 20 P05 | 22 | 3 tasks | 11 files |
 | Phase 21 P02 | 6 | 2 tasks | 3 files |
 | Phase 21 P01 | 11 | 3 tasks | 6 files |
+| Phase 21 P03 | 15 | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -308,6 +345,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 21]: [21-01 FINDING, F1 CONFIRMED against the source] `src/modules/pos_spec/VolOrderManagerMod.plk:177-188` still reads 'bits >=128 MUST BE ZERO' and 'width IS DELIBERATELY UNMASKED. It is the TOP field', both FALSE of that same file's V2 code at 229-235 (width is masked and interior; targetVega is the unmasked top field at 128). Plank track's file -- REPORTED, never edited. An implementer trusting it ships a V1 packer that passes every offchain test and is SILENTLY SKIPPED on the batch path as an ordinary `(false,0)`. The Haskell-side comment in Encoding.hs now names the block as untrustworthy.
 - [Phase 21]: [21-01 FINDING, F2] The module pins TICK_SPACING = 20 into storage bits 104..127 while the rig's own deployed pool has tickSpacing = 10 (rig-manifest.json .pool.tickSpacing). REPORTED in Decode.hs and offchain/test/Main.hs; the test expectation is written against the MODULE CONSTANT so a change to it reddens rather than passing silently. Not resolved -- resolving it means editing another track's module.
 - [Phase 21]: [21-01 DECIDED] `cabal run` was deliberately NOT executed: it writes live orders to the shared anvil rig that 21-02 was capturing batch-return data from in the same wave. The V2 fix is proven statically (encoder selector == module's dispatched selector, three ways); live confirmation belongs to a plan that owns the rig state.
+- [Phase 21]: [21-03 MEASURED] rpin06's inequality assertions do NOT catch a decoder that destroys targetVega -- with the baseline round-trip assertion neutralised the check PASSES under the target_vega=0 mutant. The baseline is the sole discriminator; an inequality never establishes correctness of the thing it is unequal about.
+- [Phase 21]: [21-03 FINDING] sc4_no_retired_value_is_live is defeated by ZERO-PADDING: it compares pin values as strings, so the left-padded 32-byte form of a retired 8-hex value stays GREEN while that value is live. Pre-existing (Phase 20's check); logged to deferred-items.md, fix = compare numerically.
+- [Phase 21]: [21-03 OBSERVED] FIRST E1 VolOrderCreated v2 log ever seen on chain: 2 topics, 128 bytes/4 data words, topic0 == pin, orderId in topic 1 only, data = (12345,600,77,1e18). Captured non-destructively via evm_snapshot/evm_revert; rig restored to block 9, orderCount 0, SC-2 green.
 
 ### Pending Todos
 
@@ -334,6 +374,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-08-01T18:40:30.741Z
-Stopped at: Completed 21-01-PLAN.md
+Last session: 2026-08-01T19:01:30.752Z
+Stopped at: Completed 21-03-PLAN.md
 Resume file: None
