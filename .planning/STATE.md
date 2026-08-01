@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 20-05-PLAN.md — literal purge complete, 44/44 pin checks green, the documented rig sequence run end to end
-last_updated: "2026-07-31T19:33:53.472Z"
+stopped_at: Phase 21 context gathered
+last_updated: "2026-08-01T17:18:08.323Z"
 last_activity: "2026-07-31 — 20-02 executed: 36 artifacts imported by checkout from 9f5ccba,"
 progress:
   total_phases: 19
@@ -272,6 +272,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-07-31T19:26:43.136Z
-Stopped at: Completed 20-05-PLAN.md — literal purge complete, 44/44 pin checks green, the documented rig sequence run end to end
-Resume file: None
+Last session: 2026-08-01T17:18:08.318Z
+Stopped at: Phase 21 context gathered
+Resume file: .planning/phases/21-v2-abi-re-pin-targetvega-generation/21-CONTEXT.md
