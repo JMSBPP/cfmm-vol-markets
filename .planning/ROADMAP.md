@@ -565,10 +565,10 @@ Plans:
 **Plans**: 5 plans in 4 waves
 
 Plans:
-- [ ] 21-01-PLAN.md — V2 record + V2 calldata encoder + V2 input word + V2 storage unpack, V1 deleted; RPIN-01/02/03 checks [wave 1]
-- [ ] 21-02-PLAN.md — capture-batch-return.sh + committed provenance-bearing capture off the LIVE rig (the only chain-touching work) [wave 1]
-- [ ] 21-03-PLAN.md — E1 v2 decoder rewrite (2 topics, 4 data words) + Report.hs; stale-topic0 and perturbed-targetVega observed-RED demos [wave 2]
-- [ ] 21-04-PLAN.md — VegaDraw = LogUniform[1e18, 1e21] + draw_target_vega guard + OrderShape + generator wiring; fixed-seed band checks [wave 3]
+- [x] 21-01-PLAN.md — V2 record + V2 calldata encoder + V2 input word + V2 storage unpack, V1 deleted; RPIN-01/02/03 checks [wave 1]
+- [x] 21-02-PLAN.md — capture-batch-return.sh + committed provenance-bearing capture off the LIVE rig (the only chain-touching work) [wave 1]
+- [x] 21-03-PLAN.md — E1 v2 decoder rewrite (2 topics, 4 data words) + Report.hs; stale-topic0 and perturbed-targetVega observed-RED demos [wave 2]
+- [x] 21-04-PLAN.md — VegaDraw = LogUniform[1e18, 1e21] + draw_target_vega guard + OrderShape + generator wiring; fixed-seed band checks [wave 3]
 - [ ] 21-05-PLAN.md — RPIN-05 assertions over the capture (suite stays chain-independent) + peer-bytes artifact + cross-track findings + phase gate [wave 4]
 
 ### Phase 22: Live Stochastic Drivers
@@ -593,7 +593,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 20. Deploy Rig & Source-of-Truth Import | 5/5 | Complete    | 2026-07-31 |
-| 21. V2 ABI Re-Pin & targetVega Generation | 3/5 | In Progress|  |
+| 21. V2 ABI Re-Pin & targetVega Generation | 4/5 | In Progress|  |
 | 22. Live Stochastic Drivers | 0/TBD | Not started | - |
 
 ## Coverage (Milestone v5.0)

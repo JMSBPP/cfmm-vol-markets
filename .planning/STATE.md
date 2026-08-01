@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
 status: in-progress
-stopped_at: Completed 21-03-PLAN.md
-last_updated: "2026-08-01T19:01:46.102Z"
-last_activity: "2026-08-01 — 21-03 executed: E1 decoder re-pinned to the v2 shape (2 topics, 4 data words), confirmed against the FIRST v2 log ever observed on chain; two REDs observed plus a second-order measurement showing rpin06's baseline assertion is its sole discriminator; suite 51 -> 58"
+stopped_at: Completed 21-04-PLAN.md
+last_updated: "2026-08-01T19:21:12.277Z"
+last_activity: "2026-08-01 — 21-04 executed: StochasticOrderGen now DRAWS targetVega log-uniformly on [1e18, 1e21] raw L, OrderShape removes the discarded-placeholder trap, and the plan's own predicted mutant discriminator was MEASURED and REFUTED (a linear-uniform draw clears the bit-length spread assertion; bottom-decade mass 77 vs 4 is what actually separates the laws); suite 58 -> 61"
 progress:
   total_phases: 19
   completed_phases: 9
   total_plans: 26
-  completed_plans: 24
+  completed_plans: 25
 ---
 
 # Project State
@@ -27,7 +27,49 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 ## Current Position
 
 Phase: 21 — V2 ABI Re-Pin & targetVega Generation (RPIN-*) — **IN PROGRESS**
-Plan: 21-01, 21-02 (wave 1) and 21-03 (wave 2) COMPLETE. 21-04, 21-05 pending.
+Plan: 21-01, 21-02 (wave 1), 21-03 (wave 2) and 21-04 (wave 3) COMPLETE. 21-05 pending.
+Status: **21-04 DONE — VEGA-01 satisfied. The fourth field now comes from somewhere, and that
+somewhere is written down in the type.** `StochasticOrderGen` carries
+`vega_draw :: VegaDraw`, a ONE-constructor sum type whose haddock holds the whole justification:
+the dimension (RAW Uniswap L, `UNITS_AND_SCALES.md` §2 — not X96, not WAD, not collateral), the
+four-row `L = amount1 / (1 - 1.0001^(-w/4))` table instantiated on THE RIG'S OWN POOL
+(`initTick = 0`, 18-decimal tokens) giving full-range 1.000e18 down to a ~20-tick band 2.001e21,
+the u96 headroom (7.9e7x), the arXiv:2205.08904 mean/median ≈ 10 skew that makes the quantity
+log-scale, the explicit rejection of linear-uniform and of a constant, and THE HONEST LIMIT —
+no source pins a SAMPLING LAW; a second constructor is the extension path. The caveat is a
+comment, never a hedge in the implementation. `draw_target_vega` draws log-uniformly and guards
+LOUDLY at draw time, BEFORE any tx is built, so a mis-parameterised law cannot leave a
+partially-sent batch behind. **`OrderShape` removes the discarded-placeholder trap
+structurally:** `orders :: [OrderShape]` carries no vega for a caller to supply and the
+generator to silently overwrite — `grep 'target_vega =' Sample.hs` returns exactly ONE line
+(`sample_order`, the single-call demo that does not go through the generator). The draw happens
+ONCE PER ORDER AT GENERATION TIME, so a retried send re-sends the same order. `cabal test` =
+**61/61** (58 → 61), exit 0, zero `-Wall` warnings; **no new dependency** (`create`, not the
+vector-seeded initialiser; cabal file diff EMPTY).
+**THE PLAN'S OWN PREDICTED DISCRIMINATOR WAS MEASURED AND REFUTED — the headline finding.** The
+plan asserts the linear-interpolation mutant is caught by the `>= 8` distinct-bit-lengths
+assertion. It is NOT: a linear-uniform draw spans **9** bit-lengths (62..70) over 256 fixed-seed
+draws because the smallest of 256 uniforms still reaches 4.57e18. With only the VALUE pins
+neutralised the whole check **PASSES under the mutant** (59/61) — bounds, 256/256 distinct, and
+the spread assertion all survive a law that is not the decided law. This is wave 2's inequality
+lesson recurring one layer up. Two fixes landed: a **bottom-decade mass** assertion (77 of 256
+below 1e19 under log-uniform vs **4** under linear-uniform; threshold 40) which kills the mutant
+ON ITS OWN, and **two independent VALUE pins** — `log_uniform_reference` (a second
+implementation checked elementwise against all 256 draws on the same uniforms) and
+`vega01_first_twelve` (a golden literal pin of the RNG stream, which the reference cannot catch
+because it would FOLLOW a stream change). The reference pin is what actually reddened, at draw 0.
+The first 12 draws reproduce the planner's independent probe values EXACTLY, in sequence.
+**NEW FINDING F3, logged not fixed:** the zero-lower-bound rejection is **INCIDENTAL**, not an
+explicit guard — `v >= max 1 lo` with `lo = 0` reduces to `v >= 1`, and `LogUniform 0 1e21`
+fails today only because the log transform evaluates `0 * Infinity = NaN`. MEASURED: under the
+linear mutant (which does not divide by `lo`) a zero lower bound sailed straight through and
+returned a value. **Whoever adds the second `VegaDraw` constructor must supply its own parameter
+validation.** `cabal build -j all` confirmed VACUOUS a THIRD time (exit 0 against a test suite
+that would not compile). The rig was NOT touched — no tx, no snapshot, no `cabal run` — so
+21-05's block-9 / `orderCount = 0` freshness dependency is intact. Territory clean.
+
+### 21-03 (wave 2, kept in full)
+
 Status: **21-03 DONE — RPIN-04 and RPIN-06 satisfied. The E1 event decoder now speaks V2, and
 this is the first plan in the phase whose central claim is backed by a REAL CHAIN LOG.**
 `decode_order_created` was rewritten from the v1 three-topic/five-word shape to `@evm_log2`'s
@@ -255,6 +297,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 21 P02 | 6 | 2 tasks | 3 files |
 | Phase 21 P01 | 11 | 3 tasks | 6 files |
 | Phase 21 P03 | 15 | 3 tasks | 4 files |
+| Phase 21 P04 | 15 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -348,6 +391,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 21]: [21-03 MEASURED] rpin06's inequality assertions do NOT catch a decoder that destroys targetVega -- with the baseline round-trip assertion neutralised the check PASSES under the target_vega=0 mutant. The baseline is the sole discriminator; an inequality never establishes correctness of the thing it is unequal about.
 - [Phase 21]: [21-03 FINDING] sc4_no_retired_value_is_live is defeated by ZERO-PADDING: it compares pin values as strings, so the left-padded 32-byte form of a retired 8-hex value stays GREEN while that value is live. Pre-existing (Phase 20's check); logged to deferred-items.md, fix = compare numerically.
 - [Phase 21]: [21-03 OBSERVED] FIRST E1 VolOrderCreated v2 log ever seen on chain: 2 topics, 128 bytes/4 data words, topic0 == pin, orderId in topic 1 only, data = (12345,600,77,1e18). Captured non-destructively via evm_snapshot/evm_revert; rig restored to block 9, orderCount 0, SC-2 green.
+- [Phase 21]: 21-04: the plan's predicted mutant discriminator was REFUTED by measurement -- a linear-uniform draw spans 9 distinct bit-lengths (62..70) over 256 fixed-seed draws and clears the >= 8 spread assertion; bottom-decade mass (77 vs 4 of 256) is the real shape discriminator and was added
+- [Phase 21]: 21-04: draw_target_vega's zero-lower-bound rejection is INCIDENTAL (0 * Infinity = NaN in the log transform), not an explicit parameter guard -- a second VegaDraw constructor must supply its own validation
 
 ### Pending Todos
 
@@ -374,6 +419,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-08-01T19:01:30.752Z
-Stopped at: Completed 21-03-PLAN.md
+Last session: 2026-08-01T19:21:12.271Z
+Stopped at: Completed 21-04-PLAN.md
 Resume file: None

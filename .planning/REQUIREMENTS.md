@@ -179,7 +179,7 @@ verified), `.planning/rpc-api-volorder-v2-HANDOFF.md`, `notes/DATA_CONTRACT.md`,
 
 ### targetVega Generation
 
-- [ ] **VEGA-01**: `StochasticOrderGen` draws a `targetVega` per order in RAW LIQUIDITY
+- [x] **VEGA-01**: `StochasticOrderGen` draws a `targetVega` per order in RAW LIQUIDITY
       units, valid `[1, 2^96−1]`, at realistic pool-L magnitudes (1e18–1e21)
 
 ### Deploy Rig
@@ -330,7 +330,7 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | RPIN-04 | Phase 21 | Complete |
 | RPIN-05 | Phase 21 | Pending |
 | RPIN-06 | Phase 21 | Complete |
-| VEGA-01 | Phase 21 | Pending |
+| VEGA-01 | Phase 21 | Complete |
 | DRIV-01 | Phase 22 | Pending |
 | DRIV-02 | Phase 22 | Pending |
 
