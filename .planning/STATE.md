@@ -4,8 +4,8 @@ milestone: v5.0
 milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
 status: in-progress
 stopped_at: Completed 21-05-PLAN.md — PHASE 21 COMPLETE
-last_updated: "2026-08-01T19:45:54.630Z"
-last_activity: "2026-08-01 — 21-05 executed: RPIN-05 closed. Live captured bytes asserted byte-for-byte against the alloy golden (N=0 at exactly 64 bytes) inside a suite PROVEN chain-independent with anvil STOPPED (65/65, pgrep anvil empty). cabal run's demo order MINES for the first time since 20-05 recorded it reverting, with an ORDER_CREATED log carrying target_vega and TWO DRAWN vegas accepted on chain. PHASE 21 COMPLETE — all seven requirements."
+last_updated: "2026-08-01T19:52:39.399Z"
+last_activity: "2026-07-31 — 20-02 executed: 36 artifacts imported by checkout from 9f5ccba,"
 progress:
   total_phases: 19
   completed_phases: 10
