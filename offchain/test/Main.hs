@@ -31,7 +31,8 @@ import Data.Bits (shiftL, shiftR, xor, (.&.), (.|.))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import Data.Char (digitToInt, intToDigit, isAlpha, isAlphaNum, isHexDigit, isSpace, toLower)
-import Data.List (intercalate, isInfixOf, isPrefixOf, nub, sort)
+import qualified Data.Foldable as F
+import Data.List (intercalate, isInfixOf, isPrefixOf, nub, sort, stripPrefix)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing)
 import Data.Solidity.Prim.Address (Address, fromHexString)
@@ -55,6 +56,7 @@ import Network.Ethereum.Api.Types (Change (..))
 import VolOrder.Decode
   ( OrderCreatedEvent (..)
   , be_integer
+  , decode_create_orders_result
   , decode_order_created
   , unpack_vol_order_storage
   )
@@ -1428,6 +1430,441 @@ vega01_out_of_band_draw_fails_loudly =
     guard_message = "targetVega draw out of band"
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 21, RPIN-05: the LIVE V2 batch return, asserted against an external-encoder golden
+--
+-- WHY THIS READS A COMMITTED FILE AND NEVER OPENS A SOCKET.
+-- RPIN-05 says @decode_create_orders_result@ must be verified against the LIVE module rather
+-- than assumed from the handoff document. The live half was done by plan 21-02, which captured
+-- four real @eth_call@ returns off the Phase-20 rig into
+-- @offchain\/rig\/batch-return-capture.json@ WITH PROVENANCE (chain id, manager address, block
+-- number) travelling inside the artifact, because @rig-manifest.json@ is gitignored and cannot
+-- be the carrier.
+--
+-- The assertions below consume that artifact. They do not call a chain, and that is a design
+-- decision rather than a convenience: this suite is chain-independent today, and a live call
+-- here would make every future contributor's first @cabal test@ red for a reason that has
+-- nothing to do with their change. The whole value of a pin suite is that it is cheap and always
+-- runnable. What replaces the live call is 'rpin05_capture_is_present_and_fresh', which reddens
+-- when the committed capture no longer describes the rig the manifest describes -- a stale
+-- artifact must not pass quietly.
+--
+-- The byte strings themselves are READ FROM THE JSON, never pasted here. 'sc3_literal_purge'
+-- greps this very file for 8\/40\/64-hex-digit literals, so a pasted returndata word would
+-- redden the suite -- which is exactly the discipline that keeps the artifact the single source.
+-- ---------------------------------------------------------------------------------------------
+
+capture_file :: FilePath
+capture_file = "offchain/rig/batch-return-capture.json"
+
+-- | READ ONLY. The Solidity-testing track's fixture (Phase 19, MVER-03). Its @expected@ bytes
+-- were produced by @cast abi-encode@ (alloy, cast 1.5.1-stable) -- an encoder OUTSIDE this repo
+-- and outside this language -- which is what makes the diff below a CROSS-IMPLEMENTATION check
+-- rather than this repo agreeing with itself. Its inputs are 3-field and predate V2, but the
+-- return encoding is a function of @(success, id)@ only, so the @expected@ strings stay valid
+-- across the version change.
+golden_file :: FilePath
+golden_file = "test/pos_spec/fixtures/vol_order_return_golden.json"
+
+capture_command :: String
+capture_command = "bash offchain/rig/capture-batch-return.sh"
+
+-- | The golden belongs to another track, so \"regenerate it\" is the WRONG instruction and is
+-- deliberately not given here.
+golden_advice :: String
+golden_advice =
+  "this fixture belongs to the Solidity-testing track (Phase 19, MVER-03) and is READ ONLY from\
+  \ here -- if it is absent it was moved or deleted by that track; report it, do not recreate it"
+
+-- ---------------------------------------------------------------------------------------------
+-- Value-walking helpers. Deliberately NOT a FromJSON instance and NOT a new record type: two
+-- artifacts read in four places do not justify a type, and the aeson Value idiom is already how
+-- 'sc3_corrupted_manifest_fails' handles the manifest.
+-- ---------------------------------------------------------------------------------------------
+
+json_kind :: Value -> String
+json_kind (Object _) = "an object"
+json_kind (Array _)  = "an array"
+json_kind (String _) = "a string"
+json_kind (Number _) = "a number"
+json_kind (Bool _)   = "a boolean"
+json_kind Null       = "null"
+
+json_field :: String -> Value -> Either String Value
+json_field name (Object o) =
+  case KM.lookup (K.fromString name) o of
+    Just found -> Right found
+    Nothing ->
+      Left ("missing JSON key " ++ show name ++ "; present keys: "
+             ++ intercalate ", " (sort (map K.toString (KM.keys o))))
+json_field name other =
+  Left ("expected an object to read key " ++ show name ++ ", got " ++ json_kind other)
+
+json_string :: Value -> Either String String
+json_string (String t) = Right (T.unpack t)
+json_string other      = Left ("expected a JSON string, got " ++ json_kind other)
+
+json_integer :: Value -> Either String Integer
+json_integer (Number n) = Right (truncate n)
+json_integer other      = Left ("expected a JSON number, got " ++ json_kind other)
+
+json_bool :: Value -> Either String Bool
+json_bool (Bool b) = Right b
+json_bool other    = Left ("expected a JSON boolean, got " ++ json_kind other)
+
+json_array :: Value -> Either String [Value]
+json_array (Array v) = Right (F.toList v)
+json_array other     = Left ("expected a JSON array, got " ++ json_kind other)
+
+-- | FAIL, never skip, when an artifact is absent, and name the command that produces it. A suite
+-- that goes quietly green because a file is missing is worse than one that goes red -- the same
+-- stance 'sc3_load_succeeds' takes about the manifest.
+read_json_file :: FilePath -> String -> IO (Either String Value)
+read_json_file path advice = do
+  present <- doesFileExist path
+  if not present
+    then pure (Left ("no " ++ path ++ " -- " ++ advice))
+    else do
+      decoded <- eitherDecodeFileStrict path
+      pure $ case decoded of
+        Left err    -> Left (path ++ " is present but does not decode as JSON: " ++ err
+                              ++ "\n      " ++ advice)
+        Right value -> Right value
+
+-- ---------------------------------------------------------------------------------------------
+-- Hex-word machinery. Reading the words out of the bytes DIRECTLY, rather than through
+-- 'decode_create_orders_result', is what keeps 'rpin05_no_canonical_bool_violation' from riding
+-- on the very decoder it is checking.
+-- ---------------------------------------------------------------------------------------------
+
+strip_hex_prefix :: String -> String
+strip_hex_prefix raw =
+  let s = map toLower (strip_ws raw)
+  in fromMaybe s (stripPrefix "0x" s)
+
+hex_byte_length :: String -> Either String Int
+hex_byte_length raw =
+  let body = strip_hex_prefix raw
+  in if not (null body) && even (length body) && all isHexDigit body
+       then Right (length body `div` 2)
+       else Left ("not an even-length hex byte string: " ++ show raw)
+
+-- | The bytes split into 32-byte ABI words, each as lowercase hex WITHOUT the prefix.
+hex_words :: String -> Either String [String]
+hex_words raw = do
+  n <- hex_byte_length raw
+  if n `mod` 32 /= 0
+    then Left ("not a whole number of 32-byte ABI words: " ++ show n ++ " bytes")
+    else Right (chunks (strip_hex_prefix raw))
+  where
+    chunks xs
+      | null xs   = []
+      | otherwise = take 64 xs : chunks (drop 64 xs)
+
+hex_bytes :: String -> Either String BS.ByteString
+hex_bytes raw = do
+  _ <- hex_byte_length raw
+  Right (BS.pack (unfold (strip_hex_prefix raw)))
+  where
+    unfold (a : b : rest) = fromIntegral (digitToInt a * 16 + digitToInt b) : unfold rest
+    unfold _              = []
+
+-- | The four case names 21-02's capture script writes, in order. Asserting the LIST rather than
+-- only the length is what makes a capture from a different script, or one silently reordered,
+-- redden here instead of somewhere subtler.
+capture_case_names :: [String]
+capture_case_names = ["N0_empty", "N1_success", "N2_success_then_fail", "N1_dirty_vega"]
+
+capture_case :: String -> Value -> Either String Value
+capture_case name capture = do
+  cases <- json_field "cases" capture >>= json_array
+  named <- mapM (\c -> (\n -> (n, c)) <$> (json_field "name" c >>= json_string)) cases
+  case lookup name named of
+    Just found -> Right found
+    Nothing ->
+      Left ("the capture has no case named " ++ show name ++ "; it carries: "
+             ++ intercalate ", " (map fst named))
+
+-- | CHECK 1 -- provenance, not plausibility.
+--
+-- 21-02 measured that @generatedAt@ is NOT a regeneration witness for this artifact: the capture
+-- script completes in ~294 ms against a 1-second timestamp resolution, so two back-to-back runs
+-- share a timestamp and a stale file would pass a timestamp comparison silently. The
+-- DISCRIMINATING provenance fields are @chainId@ and @manager@, and those are what is asserted
+-- here, against the manifest read through 'load_rig_from' rather than re-parsed by hand.
+rpin05_capture_is_present_and_fresh :: Check
+rpin05_capture_is_present_and_fresh = Check "rpin05_capture_is_present_and_fresh" . guarded $ do
+  loaded_capture   <- read_json_file capture_file ("produce it with: " ++ capture_command)
+  manifest_present <- doesFileExist manifest_file
+  outcome <-
+    if manifest_present
+      then do
+        attempt <- try (load_rig_from pins_file manifest_file)
+        pure (Just (attempt :: Either IOException Rig))
+      else pure Nothing
+  pure $ do
+    capture <- loaded_capture
+    rig <- case outcome of
+      -- The manifest is GITIGNORED. That makes this the one legitimately not-runnable case in
+      -- the whole suite, and it still FAILS rather than skips, loudly and with the command.
+      Nothing          -> Left ("no " ++ manifest_file ++ " -- it is gitignored, so a fresh"
+                                 ++ " checkout has no copy. Stand the rig up: " ++ deploy_command)
+      Just (Left err)  -> Left ("load_rig_from failed on the real files: " ++ show err)
+      Just (Right r)   -> Right r
+    let addrs = rig_addrs rig
+    captured_chain <- json_field "chainId" capture >>= json_integer
+    _ <- expect (captured_chain == rig_chain_id addrs)
+           ("the capture was taken on chain " ++ show captured_chain ++ " but the manifest"
+             ++ " describes chain " ++ show (rig_chain_id addrs) ++ " -- the committed capture is"
+             ++ " STALE. Re-take it: " ++ capture_command)
+    captured_manager <- map toLower <$> (json_field "manager" capture >>= json_string)
+    manifest_manager <-
+      case Map.lookup "VolOrderManagerMod" (rig_contracts addrs) of
+        Nothing -> Left ("the manifest has no VolOrderManagerMod contract -- re-run: "
+                          ++ deploy_command)
+        Just t  -> Right (map toLower (T.unpack t))
+    _ <- expect (captured_manager == manifest_manager)
+           ("the capture names manager " ++ captured_manager ++ " but the live manifest names "
+             ++ manifest_manager ++ " -- the committed capture describes a DIFFERENT deployment"
+             ++ " and its bytes prove nothing about the module now on chain. Re-take it: "
+             ++ capture_command)
+    cases <- json_field "cases" capture >>= json_array
+    _ <- expect (length cases == length capture_case_names)
+           ("the capture has " ++ show (length cases) ++ " cases, expected "
+             ++ show (length capture_case_names))
+    names <- mapM (\c -> json_field "name" c >>= json_string) cases
+    expect (names == capture_case_names)
+      ("the capture's case names are " ++ show names ++ ", expected " ++ show capture_case_names)
+
+-- | CHECK 2 -- the requirement's core claim: bytes captured from the LIVE module equal bytes
+-- produced by an encoder outside this repo.
+--
+-- The N = 0 length assertion is not redundant beside the string comparison. v4.0's exit record
+-- names it as the clause most likely to break a consumer: an empty batch returns EXACTLY 64
+-- bytes (outer offset word, then a zero length word), not 0 and not 32, and a consumer that
+-- treats \"no elements\" as \"no returndata\" fails in a way that is completely invisible on
+-- chain. Asserting the number as well as the string states the contract in the form a reader
+-- will check their own code against.
+--
+-- For the two non-empty cases the comparison is WORD BY WORD, and a difference is only tolerated
+-- in the ORDER-ID words -- those carry registry state, not encoding. A difference anywhere else
+-- is a live-vs-golden ENCODING disagreement, which the requirement says to REPORT, so it fails
+-- here naming the index and both words. The golden is not adjusted and the check is not relaxed;
+-- @test\/@ belongs to the Solidity-testing track in any case.
+rpin05_live_bytes_match_the_external_golden :: Check
+rpin05_live_bytes_match_the_external_golden =
+  Check "rpin05_live_bytes_match_the_external_golden" . guarded $ do
+    loaded_capture <- read_json_file capture_file ("produce it with: " ++ capture_command)
+    loaded_golden  <- read_json_file golden_file golden_advice
+    pure $ do
+      capture <- loaded_capture
+      golden  <- loaded_golden
+      names    <- json_field "names" golden    >>= json_array >>= mapM json_string
+      ns       <- json_field "ns" golden       >>= json_array >>= mapM json_integer
+      expected <- json_field "expected" golden >>= json_array >>= mapM json_string
+      _ <- expect (length names == length ns && length ns == length expected)
+             ("the golden's names/ns/expected arrays disagree in length: "
+               ++ show (length names) ++ "/" ++ show (length ns) ++ "/" ++ show (length expected))
+      let golden_for name =
+            case lookup name (zip names (zip ns expected)) of
+              Just found -> Right found
+              Nothing    -> Left ("the golden has no case named " ++ show name ++ "; it carries: "
+                                   ++ intercalate ", " names)
+
+      -- N = 0, the exact-string half. The word-level comparison below covers this case too; the
+      -- string equality is asserted separately because "byte-for-byte identical to an external
+      -- encoder" is the claim RPIN-05 actually makes, and a word-level pass could in principle
+      -- be reached with different whitespace or casing.
+      (n0_n, n0_expected) <- golden_for "N0_empty"
+      n0_case <- capture_case "N0_empty" capture
+      n0_live <- json_field "returndata" n0_case >>= json_string
+      _ <- expect (n0_n == 0) ("the golden records n = " ++ show n0_n ++ " for N0_empty")
+      _ <- expect (strip_hex_prefix n0_live == strip_hex_prefix n0_expected)
+             ("N0_empty: the LIVE bytes and the external-encoder golden differ.\n      live   : "
+               ++ n0_live ++ "\n      golden : " ++ n0_expected)
+      n0_bytes <- hex_byte_length n0_live
+      _ <- expect (n0_bytes == 64)
+             ("N0_empty is " ++ show n0_bytes ++ " bytes; the empty batch return is EXACTLY 64"
+               ++ " (outer offset word + zero length word). Not 0, not 32. A consumer that treats"
+               ++ " an empty batch as empty returndata breaks here and nothing on chain says so.")
+
+      mapM_ (compare_case capture golden_for)
+        ["N0_empty", "N1_success", "N2_success_then_fail"]
+  where
+    -- Order-id words are 3, 5, 7, ... : head is [offset, count], then (success, id) pairs.
+    order_id_word i = i >= 3 && odd i
+
+    compare_case capture golden_for name = do
+      (n, golden_bytes) <- golden_for name
+      this       <- capture_case name capture
+      live_bytes <- json_field "returndata" this >>= json_string
+      live_n     <- json_field "n" this >>= json_integer
+      _ <- expect (live_n == n)
+             (name ++ ": the capture records n = " ++ show live_n ++ " but the golden records "
+               ++ show n)
+      live   <- hex_words live_bytes
+      wanted <- hex_words golden_bytes
+      _ <- expect (length live == length wanted)
+             (name ++ ": the live return is " ++ show (length live) ++ " words but the golden is "
+               ++ show (length wanted) ++ " -- a LENGTH disagreement is an encoding disagreement,"
+               ++ " never an order-id one")
+      _ <- expect (length live >= 2)
+             (name ++ ": a create_orders return has at least two head words, this has "
+               ++ show (length live))
+      offset <- integer_of_hex_text (live !! 0)
+      _ <- expect (offset == 32)
+             (name ++ ": the outer array offset word is " ++ show offset ++ ", must be 32 (0x20)."
+               ++ " v4.0's exit record makes the canonical offset a HARD requirement -- a legally"
+               ++ " padded head is rejected with an empty revert.")
+      count <- integer_of_hex_text (live !! 1)
+      _ <- expect (count == n)
+             (name ++ ": the length word says " ++ show count ++ " ELEMENTS, expected " ++ show n)
+      let indexed   = zip3 [0 :: Int ..] live wanted
+          offenders = [(i, l, g) | (i, l, g) <- indexed, l /= g, not (order_id_word i)]
+          id_diffs  = [i | (i, l, g) <- indexed, l /= g, order_id_word i]
+      _ <- expect (null offenders)
+             (name ++ ": the LIVE return and the external-encoder golden differ OUTSIDE the"
+               ++ " order-id words. This is an ENCODING disagreement between the deployed module"
+               ++ " and an encoder outside this repo -- report it, do not adjust the golden"
+               ++ " (test/ is the Solidity-testing track's) and do not relax this check.\n      "
+               ++ intercalate "\n      "
+                    [ "word " ++ show i ++ (if even i then " (success)" else " (head)")
+                        ++ "\n        live   : " ++ l ++ "\n        golden : " ++ g
+                    | (i, l, g) <- offenders
+                    ])
+      -- The artifact carries the capture script's OWN reading of the same comparison. Checking
+      -- the bytes against that recorded judgement is what stops a hand-edited _golden_diff from
+      -- asserting a match the bytes do not support.
+      recorded    <- json_field "_golden_diff" capture >>= json_field name
+      said_match  <- json_field "matches_golden" recorded >>= json_bool
+      said_ids    <- json_field "differs_only_in_order_ids" recorded >>= json_bool
+      let bytes_match = null offenders && null id_diffs
+          bytes_ids   = null offenders && not (null id_diffs)
+      _ <- expect (said_match == bytes_match)
+             (name ++ ": the artifact's _golden_diff records matches_golden = " ++ show said_match
+               ++ " but the BYTES say " ++ show bytes_match ++ ". The capture's self-report and"
+               ++ " its own payload disagree, so one of them was edited by hand.")
+      expect (said_ids == bytes_ids)
+        (name ++ ": the artifact's _golden_diff records differs_only_in_order_ids = "
+          ++ show said_ids ++ " but the BYTES say " ++ show bytes_ids
+          ++ " (differing order-id word indices: " ++ show id_diffs ++ ")")
+
+-- | CHECK 3 -- the bytes go through the SHIPPED decoder, never a re-implementation.
+--
+-- 'decode_create_orders_result' already computes @64 + 64 * count@ and already rejects
+-- non-canonical bool words; re-deriving either here would prove only that the test agrees with
+-- itself. What this adds is that the decoder's output over LIVE bytes is the tuple list the
+-- module's own semantics say it should be.
+--
+-- ON THE ORDER IDS. 21-02 measured that all four cases are @eth_call@s, which do not mutate
+-- state, so every one of them ran against @orderCount = 0@ and the captured ids are HYPOTHETICAL
+-- -- they are the ids those calls WOULD have assigned. An assertion of @id == 1@ would therefore
+-- be asserting that the rig was fresh when the capture was taken, not that the decoder reads the
+-- id word correctly. The assertion here is @id > 0@ deliberately: a successful create always
+-- assigns a nonzero sequential id, and that holds whatever the registry's state was.
+rpin05_capture_decodes_through_the_shipped_decoder :: Check
+rpin05_capture_decodes_through_the_shipped_decoder =
+  Check "rpin05_capture_decodes_through_the_shipped_decoder" . guarded $ do
+    loaded <- read_json_file capture_file ("produce it with: " ++ capture_command)
+    pure $ do
+      capture <- loaded
+      n0 <- decoded capture "N0_empty"
+      _ <- expect (null n0)
+             ("N0_empty decoded to " ++ show n0 ++ ", expected the empty list. 64 bytes of"
+               ++ " well-formed empty array is not a decode failure and not a one-element list.")
+      n1 <- decoded capture "N1_success"
+      _ <- case n1 of
+             [(True, order_id)] ->
+               expect (order_id > 0)
+                 ("N1_success decoded to order id " ++ show order_id ++ "; a successful create"
+                   ++ " always assigns a nonzero sequential id")
+             other -> Left ("N1_success decoded to " ++ show other
+                             ++ ", expected exactly one successful pair")
+      n2 <- decoded capture "N2_success_then_fail"
+      _ <- case n2 of
+             [(True, order_id), (False, failed_id)] ->
+               do _ <- expect (order_id > 0)
+                         ("N2_success_then_fail: the successful element carries id "
+                           ++ show order_id ++ ", expected a nonzero id")
+                  expect (failed_id == 0)
+                    ("N2_success_then_fail: the SKIPPED element carries id " ++ show failed_id
+                      ++ ", expected 0 -- a skipped tuple assigns no id")
+             other -> Left ("N2_success_then_fail decoded to " ++ show other
+                             ++ ", expected [(True, id), (False, 0)]")
+      -- N1_dirty_vega submitted targetVega = 2^96, one past the u96 field. The live rig SKIPPED
+      -- it and returned (False, 0) -- BYTE-IDENTICAL to an ordinary business rejection. There is
+      -- no error, no revert and no distinguishing signal anywhere in the returndata. That is the
+      -- live evidence for why pack_vol_order_input carries an `in_range 96` guard CLIENT-side:
+      -- the chain will not tell the client it sent an out-of-range field, so the client has to
+      -- know before it sends.
+      dirty <- decoded capture "N1_dirty_vega"
+      case dirty of
+        [(False, failed_id)] ->
+          expect (failed_id == 0)
+            ("N1_dirty_vega: the skipped element carries id " ++ show failed_id ++ ", expected 0")
+        other -> Left ("N1_dirty_vega decoded to " ++ show other
+                        ++ ", expected exactly one skipped pair")
+  where
+    decoded capture name = do
+      this <- capture_case name capture
+      raw  <- json_field "returndata" this >>= json_string
+      n    <- json_field "n" this >>= json_integer
+      raw_bytes <- hex_bytes raw
+      case decode_create_orders_result (fromBytes raw_bytes) of
+        Left err ->
+          Left (name ++ ": the SHIPPED decode_create_orders_result REJECTED bytes captured from"
+                 ++ " the live module -- " ++ err)
+        Right pairs -> do
+          _ <- expect (toInteger (length pairs) == n)
+                 (name ++ ": decoded " ++ show (length pairs) ++ " elements, but the case"
+                   ++ " submitted n = " ++ show n)
+          Right pairs
+
+-- | CHECK 4 -- canonical bool words, read straight out of the bytes.
+--
+-- 'decode_create_orders_result' enforces this already. Reading the words separately is the
+-- point: a check that established canonicality BY DECODING would be asserting the decoder's
+-- strictness using the decoder's strictness. v4.0 measured that solc's @abi.decode@ REVERTS
+-- outright on a success word of 2, so a lenient consumer would disagree with a Solidity consumer
+-- about the very same bytes -- this is a consumer-side contract, not a test detail.
+--
+-- The declared @returndata_bytes@ is checked against both the actual byte count and the layout
+-- formula @64 + 64 * n@, so the artifact's metadata cannot drift away from its payload.
+rpin05_no_canonical_bool_violation :: Check
+rpin05_no_canonical_bool_violation = Check "rpin05_no_canonical_bool_violation" . guarded $ do
+  loaded <- read_json_file capture_file ("produce it with: " ++ capture_command)
+  pure $ do
+    capture <- loaded
+    cases <- json_field "cases" capture >>= json_array
+    mapM_ one cases
+  where
+    one this = do
+      name     <- json_field "name" this >>= json_string
+      raw      <- json_field "returndata" this >>= json_string
+      n        <- json_field "n" this >>= json_integer
+      declared <- json_field "returndata_bytes" this >>= json_integer
+      actual   <- hex_byte_length raw
+      _ <- expect (toInteger actual == declared)
+             (name ++ ": returndata_bytes says " ++ show declared ++ " but the returndata is "
+               ++ show actual ++ " bytes")
+      _ <- expect (declared == 64 + 64 * n)
+             (name ++ ": " ++ show declared ++ " bytes for n = " ++ show n
+               ++ ", but a create_orders return is exactly 64 + 64*n")
+      ws <- hex_words raw
+      _ <- expect (toInteger (length ws) == 2 + 2 * n)
+             (name ++ ": " ++ show (length ws) ++ " words for n = " ++ show n ++ ", expected "
+               ++ show (2 + 2 * n))
+      mapM_ (success_word name ws) [0 .. fromIntegral n - 1 :: Int]
+
+    success_word name ws index = do
+      let position = 2 + 2 * index
+      value <- integer_of_hex_text (ws !! position)
+      expect (value == 0 || value == 1)
+        (name ++ ": success word at element " ++ show index ++ " (word " ++ show position
+          ++ ") is " ++ show value ++ ", which is NOT canonical. The module emits only 0 or 1,"
+          ++ " and solc's abi.decode REVERTS on anything else -- a truthy-nonzero word here"
+          ++ " means the live module and every Solidity consumer disagree about these bytes.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -1467,6 +1904,10 @@ main = do
           , vega01_draw_behavior
           , vega01_fixed_seed_draw_is_in_band
           , vega01_out_of_band_draw_fails_loudly
+          , rpin05_capture_is_present_and_fresh
+          , rpin05_live_bytes_match_the_external_golden
+          , rpin05_capture_decodes_through_the_shipped_decoder
+          , rpin05_no_canonical_bool_violation
           ]
             ++ per_pin_checks pins
 
