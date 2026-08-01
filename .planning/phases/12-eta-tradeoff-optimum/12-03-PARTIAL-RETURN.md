@@ -48,3 +48,23 @@ not. CTX-CAPTRANS partially satisfied; CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN NO
    partial coverage.
 
 Hand-proving locally is barred (workflow rule: Aristotle authors statements AND proofs).
+
+## REPAIR SUBMITTED (user `submit eta -b`, 2026-07-31)
+
+Project `c3a617f3-fac9-4ddb-bb7b-a903f10a26c8`, task `4ec89173-19dd-4f9e-b206-9bd99940a699`.
+Bundle `scratch/aristotle-eta-b/` = the ORIGINAL 18 bundled inputs (byte-identical, verified)
++ the partial `EtaCurvature.lean` as the working base; import closure re-verified. Prompt
+`scratch/aristotle-eta-b-PROMPT.txt` (623 words) is scoped to the 15 sorried declarations ONLY.
+
+Why no re-gate: the 15 statements are Aristotle's OWN, already type-correct, and the file
+already builds — the transcription-defect class the original two-reviewer gate existed to catch
+(wrong arity, missing `Real.sqrt` guards, false-as-displayed statements) cannot recur, because
+no statement is being authored. The prompt adds only proof-order guidance.
+
+Prompt carries: the no-FOC rule (κ_φ* is a KINK; the max comes from the two one-sided
+monotonicity results, never stationarity); pole discipline on `1/curv`; the anti-narrowing rule
+(add a hypothesis and SAY SO, or prove a REFUTATION under a different name — never weaken
+silently); a transport hint (prove gap 9 `curvIndex_etaStar` first, then 12–14 follow by
+composition with the proven bijection rather than re-deriving in η); and a PRIORITY ORDER for
+budget exhaustion — 9, then 3/1/2, then 10/11, then 12–14, then the rest — so a second
+truncation degrades gracefully instead of losing the headline.
