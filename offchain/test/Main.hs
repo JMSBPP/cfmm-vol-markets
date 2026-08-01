@@ -22,6 +22,7 @@
 module Main (main) where
 
 import Control.Exception (IOException, try)
+import Control.Monad (replicateM)
 import Crypto.Ethereum.Utils (keccak256)
 import Data.Aeson (Value (..), eitherDecodeFileStrict, encodeFile)
 import qualified Data.Aeson.Key as K
@@ -39,6 +40,7 @@ import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
 import System.Exit (ExitCode (..), exitFailure)
 import System.FilePath ((</>))
 import System.Process (readProcessWithExitCode)
+import System.Random.MWC (create)
 
 import Rig.Manifest
   ( PinEntry (..)
@@ -56,6 +58,8 @@ import VolOrder.Decode
   , decode_order_created
   , unpack_vol_order_storage
   )
+import StochasticOrderGen.Simulate (draw_target_vega)
+import StochasticOrderGen.Types (VegaDraw (..))
 import VolOrder.Encoding (encode_create_order, pack_vol_order_input)
 import VolOrder.Types (VolOrder (..))
 
@@ -1186,6 +1190,58 @@ rpin06_target_vega_reaches_every_sender =
           ++ " target_vega -- the single-call sender drops the field")
 
 -- ---------------------------------------------------------------------------------------------
+-- VEGA-01: the drawn targetVega
+-- ---------------------------------------------------------------------------------------------
+
+-- | The DECIDED draw law. The band is not a taste: it is the v3 relation
+-- @L = amount1 / (1 - 1.0001 ** (-w/4))@ instantiated on the rig's own pool (initTick 0, both
+-- tokens 18 decimals) for one whole token, from full range (1.000e18) down to a ~20-tick
+-- concentrated band (2.001e21). See 'StochasticOrderGen.Types.VegaDraw' for the full derivation.
+vega01_band :: VegaDraw
+vega01_band = LogUniform { vega_min = 10 ^ (18 :: Int), vega_max = 10 ^ (21 :: Int) }
+
+-- | Behaviour anchor for the drawn targetVega, introduced as the TDD RED for plan 21-04 task 1.
+--
+-- Three properties, all expressed against the generator's own draw rather than against a
+-- transcribed table of values:
+--
+--   1. every draw under the configured band lands inside it;
+--   2. INVERTED bounds fail loudly instead of returning a plausible-looking number;
+--   3. a ZERO lower bound fails loudly -- a @targetVega@ of 0 violates the on-chain
+--      @vega_target_is_complete@ @> 0@ predicate and, on the batch path, comes back as a
+--      @(false, 0)@ indistinguishable from an ordinary business rejection.
+vega01_draw_behavior :: Check
+vega01_draw_behavior = Check "vega01_draw_behavior" . guarded $ do
+  gen <- create
+  drawn <- replicateM 32 (draw_target_vega gen vega01_band)
+  inverted <- attempt_draw (LogUniform { vega_min = 10 ^ (21 :: Int), vega_max = 10 ^ (18 :: Int) })
+  zero_low <- attempt_draw (LogUniform { vega_min = 0, vega_max = 10 ^ (21 :: Int) })
+  pure $ do
+    _ <- mapM_ in_band (zip [0 :: Int ..] drawn)
+    _ <- threw "inverted bounds (vega_min = 10^21 > vega_max = 10^18)" inverted
+    threw "a zero lower bound (vega_min = 0)" zero_low
+  where
+    in_band (i, v) =
+      expect (v >= vega_min vega01_band && v <= vega_max vega01_band)
+        ("draw " ++ show i ++ " = " ++ show v ++ " is outside the configured band ["
+          ++ show (vega_min vega01_band) ++ ", " ++ show (vega_max vega01_band) ++ "]")
+
+    threw what outcome =
+      case outcome of
+        Left _  -> Right ()
+        Right v ->
+          Left (what ++ " RETURNED " ++ show v ++ " instead of failing. A draw law that does not"
+                 ++ " guard at draw time hands a nonsense targetVega to the encoder, where it is"
+                 ++ " either rejected far from the cause or silently skipped by the batch path.")
+
+-- | Drive 'draw_target_vega' and capture the loud failure. @fail@ in @IO@ throws an
+-- 'IOException', which is what the suite's own 'guarded' already handles.
+attempt_draw :: VegaDraw -> IO (Either IOException Integer)
+attempt_draw law = do
+  gen <- create
+  try (draw_target_vega gen law)
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -1222,6 +1278,7 @@ main = do
           , rpin04_retired_topic0s_are_rejected pins
           , rpin06_perturbed_target_vega_fails_readback
           , rpin06_target_vega_reaches_every_sender
+          , vega01_draw_behavior
           ]
             ++ per_pin_checks pins
 
