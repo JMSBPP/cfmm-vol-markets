@@ -46,8 +46,10 @@ import Rig.Manifest
   , RigPins (..)
   , load_rig_from
   )
-import VolOrder.Decode (unpack_vol_order_storage)
-import VolOrder.Encoding (pack_vol_order_input)
+import Data.ByteArray.HexString (toBytes)
+
+import VolOrder.Decode (be_integer, unpack_vol_order_storage)
+import VolOrder.Encoding (encode_create_order, pack_vol_order_input)
 import VolOrder.Types (VolOrder (..))
 
 -- ---------------------------------------------------------------------------------------------
@@ -514,47 +516,231 @@ sc3_literal_purge = Check "sc3_literal_purge" . guarded $ do
 -- field and that bits >= 128 must be zero. Both sentences are false of V2.
 -- ---------------------------------------------------------------------------------------------
 
+volorder_iface :: FilePath
+volorder_iface = "src/interfaces/pos_spec/VolOrderManagerInterface.plk"
+
+-- | The four field values every V2 layout check is built from. DELIBERATELY FOUR DISTINCT
+-- NUMBERS, so no transposition of two arguments or two fields can pass unnoticed.
+rpin_base_strike, rpin_base_width, rpin_base_skew, rpin_base_vega :: Integer
+rpin_base_strike = 12345
+rpin_base_width  = 600
+rpin_base_skew   = 77
+rpin_base_vega   = 10 ^ (18 :: Int)
+
+rpin_base_order :: VolOrder
+rpin_base_order =
+  VolOrder
+    { vol_target  = fromInteger rpin_base_strike
+    , range_width = fromInteger rpin_base_width
+    , skew        = fromInteger rpin_base_skew
+    , target_vega = fromInteger rpin_base_vega
+    }
+
+-- | The low @bits@ set, as an 'Integer' mask. Written as a shift rather than as a hex literal:
+-- 'sc3_literal_purge' greps this very file, and a mask that happens to be 8 hex digits with an
+-- @0x@ prefix would redden it.
+mask_of :: Int -> Integer
+mask_of bits = (1 `shiftL` bits) - 1
+
+-- | The @TICK_SPACING@ the module pins inside @build_vol_order@, occupying bits 104..127 of the
+-- STORAGE word.
+--
+-- NOTE the rig's own deployed pool has tickSpacing = 10 (@offchain\/rig\/rig-manifest.json@,
+-- @.pool.tickSpacing@). That is a real discrepancy between the module constant and the pool the
+-- module writes against; it is REPORTED, not resolved -- resolving it means editing another
+-- track's module. The expectations below are written against the MODULE CONSTANT, so a change to
+-- it reddens here rather than passing silently.
+module_tick_spacing :: Integer
+module_tick_spacing = 20
+
 -- | The V2 input word's four field positions, the bits->=224-are-zero guarantee, the u96 boundary
--- on both sides, and the 248-bit storage read-back.
+-- on both sides, and the 248-bit storage read-back -- the plan's behaviour contract in one place.
 rpin_v2_layout_behavior :: Check
 rpin_v2_layout_behavior = pure_check "rpin_v2_layout_behavior" $ do
-  packed <- pack_vol_order_input base
+  packed <- pack_vol_order_input rpin_base_order
   _ <- expect (packed == expected_input)
          ("V2 input word: packed " ++ show packed ++ ", expected " ++ show expected_input)
   _ <- rejects_target_vega 0
   _ <- rejects_target_vega (1 `shiftL` 96)
-  top <- pack_vol_order_input base { target_vega = fromInteger ((1 `shiftL` 96) - 1) }
+  top <- pack_vol_order_input rpin_base_order { target_vega = fromInteger (mask_of 96) }
   _ <- expect (top `shiftR` 224 == 0)
          ("target_vega = 2^96-1 packed with bits >= 224 SET, which the batch path would SKIP "
            ++ "silently: " ++ show top)
-  expect (unpack_vol_order_storage expected_storage == base)
+  expect (unpack_vol_order_storage expected_storage == rpin_base_order)
     ("the 248-bit storage word did not round-trip: got "
-      ++ show (unpack_vol_order_storage expected_storage) ++ ", expected " ++ show base)
+      ++ show (unpack_vol_order_storage expected_storage) ++ ", expected " ++ show rpin_base_order)
   where
-    vega = 10 ^ (18 :: Int) :: Integer
-    base =
-      VolOrder
-        { vol_target  = 12345
-        , range_width = 600
-        , skew        = 77
-        , target_vega = fromInteger vega
-        }
     -- skew@0..15 | strike@16..103 | width@104..127 | targetVega@128..223
     expected_input =
-      77 .|. (12345 `shiftL` 16) .|. (600 `shiftL` 104) .|. (vega `shiftL` 128)
+      rpin_base_skew
+        .|. (rpin_base_strike `shiftL` 16)
+        .|. (rpin_base_width `shiftL` 104)
+        .|. (rpin_base_vega `shiftL` 128)
     -- skew@0..15 | volStrike@16..103 | tickSpacing@104..127 | width@128..151 | targetVega@152..247
     expected_storage =
-      77 .|. (12345 `shiftL` 16) .|. (20 `shiftL` 104)
-         .|. (600 `shiftL` 128) .|. (vega `shiftL` 152)
+      rpin_base_skew
+        .|. (rpin_base_strike `shiftL` 16)
+        .|. (module_tick_spacing `shiftL` 104)
+        .|. (rpin_base_width `shiftL` 128)
+        .|. (rpin_base_vega `shiftL` 152)
 
     rejects_target_vega v =
-      case pack_vol_order_input base { target_vega = fromInteger v } of
+      case pack_vol_order_input rpin_base_order { target_vega = fromInteger v } of
         Left why ->
           expect ("target_vega" `isInfixOf` why)
             ("target_vega = " ++ show v ++ " was rejected by a message that does not name "
               ++ "target_vega: " ++ why)
         Right w ->
           Left ("target_vega = " ++ show v ++ " was ACCEPTED, packing to " ++ show w)
+
+-- ---------------------------------------------------------------------------------------------
+-- RPIN-01: the calldata
+-- ---------------------------------------------------------------------------------------------
+
+-- | The encoder's selector, DERIVED three ways and required to agree: keccak of the signature
+-- string PARSED OUT OF the interface file, the leading four bytes the encoder actually emits, and
+-- the generated pin. Nothing here is transcribed -- a transcription would prove only that the test
+-- agrees with itself.
+rpin01_encoder_selector_is_recomputed :: RigPins -> Check
+rpin01_encoder_selector_is_recomputed pins =
+  Check "rpin01_encoder_selector_is_recomputed" . guarded $ do
+    contents <- readFile volorder_iface
+    calldata <- encode_create_order rpin_base_order
+    pure $ do
+      (truth_sig, truth_value) <- truth_for "create_order"
+      sig <- signature_for "create_order" (signatures_in (lines contents))
+      _ <- expect (sig == truth_sig)
+             ("the interface file declares create_order as " ++ sig
+               ++ " -- the V2 signature is " ++ truth_sig)
+      let recomputed = to_hex (selector_of sig)
+      _ <- expect (recomputed == truth_value)
+             ("keccak of " ++ sig ++ " gave " ++ recomputed ++ ", expected " ++ truth_value)
+      let emitted = to_hex (BS.take 4 (toBytes calldata))
+      _ <- expect (emitted == recomputed)
+             ("encode_create_order emits selector " ++ emitted
+               ++ " but keccak of the interface file's OWN signature (" ++ sig ++ ") is "
+               ++ recomputed ++ " -- the encoder is speaking a signature the module does not"
+               ++ " dispatch")
+      case Map.lookup "create_order" (pin_selectors pins) of
+        Nothing -> Left ("rig-pins.json has no selectors.create_order -- regenerate it with: "
+                          ++ "bash offchain/rig/generate-pins.sh")
+        Just entry ->
+          let pinned = map toLower (T.unpack (pin_value entry))
+          in expect (pinned == "0x" ++ recomputed)
+               (intercalate "\n"
+                 [ "the generated pin and the recomputed selector disagree -- either the pin file"
+                     ++ " or " ++ volorder_iface ++ " is stale"
+                 , "      emitted by the encoder : " ++ emitted
+                 , "      recomputed (keccak256) : " ++ recomputed
+                 , "      pinned in " ++ pins_file ++ " : " ++ pinned
+                 ])
+
+-- | The four calldata argument words decode back as (strike, width, skew, targetVega), in that
+-- order. The length assertion comes first: 96 bytes instead of 128 is a silent regression to the
+-- retired 3-arg form, and it is the failure this check exists to catch.
+rpin01_encoder_argument_order :: Check
+rpin01_encoder_argument_order = Check "rpin01_encoder_argument_order" . guarded $ do
+  calldata <- encode_create_order rpin_base_order
+  let body = BS.drop 4 (toBytes calldata)
+      arg_word :: Int -> Integer
+      arg_word i = be_integer (BS.take 32 (BS.drop (32 * i) body))
+  pure $ do
+    _ <- expect (BS.length body == 128)
+           ("the V2 call must carry exactly four 32-byte argument words (128 bytes); the encoder"
+             ++ " produced " ++ show (BS.length body) ++ " -- 96 means it regressed to the retired"
+             ++ " 3-arg form")
+    _ <- word_is "strike"     0 (arg_word 0) rpin_base_strike
+    _ <- word_is "width"      1 (arg_word 1) rpin_base_width
+    _ <- word_is "skew"       2 (arg_word 2) rpin_base_skew
+    word_is "targetVega" 3 (arg_word 3) rpin_base_vega
+  where
+    word_is name i got want =
+      expect (got == want)
+        ("argument word " ++ show (i :: Int) ++ " must be " ++ name ++ " = " ++ show want
+          ++ ", got " ++ show got ++ " -- the declared argument order is"
+          ++ " (strike, width, skew, targetVega)")
+
+-- ---------------------------------------------------------------------------------------------
+-- RPIN-02: the batch input word
+-- ---------------------------------------------------------------------------------------------
+
+-- | CONSTRUCTED corner corpus for the packed-word layouts. Deliberately kept SEPARATE from
+-- StochasticOrderGen's DRAWN targetVega values: a 'Double'-based log-uniform draw has 53
+-- significand bits against the band's ~70, so drawn values carry ~17 forced-zero low bits and are
+-- a weak field-boundary corpus. See 21-RESEARCH.md section 6.6 note 2.
+vega_corners :: [(String, Integer)]
+vega_corners =
+  [ ("min",             1)
+  , ("mid_2_95",        1 `shiftL` 95)
+  , ("max_u96",         (1 `shiftL` 96) - 1)
+  , ("alternating_low", sum [1 `shiftL` b | b <- [0, 2 .. 94]])
+  , ("band_bottom",     10 ^ (18 :: Int))
+  , ("band_top",        10 ^ (21 :: Int))
+  ]
+
+-- | Every corner packs into a word whose four fields sit at 0 / 16 / 104 / 128 and whose bits
+-- >= 224 are zero. The top-bit assertion is not cosmetic: on the BATCH path a dirty word is
+-- SKIPPED with a @(false, 0)@ that is indistinguishable from an ordinary business rejection, so
+-- this client-side guarantee is the only signal there is.
+rpin02_input_word_layout :: Check
+rpin02_input_word_layout = pure_check "rpin02_input_word_layout" $ mapM_ one vega_corners
+  where
+    one (label, v) = do
+      w <- case pack_vol_order_input rpin_base_order { target_vega = fromInteger v } of
+             Left why  -> Left ("corner " ++ label ++ " (" ++ show v ++ ") was REJECTED: " ++ why)
+             Right ok  -> Right ok
+      _ <- expect (w `shiftR` 224 == 0)
+             ("corner " ++ label ++ ": bits >= 224 are SET in " ++ show w
+               ++ " -- the batch path would skip this word silently")
+      _ <- field label "targetVega@128..223" ((w `shiftR` 128) .&. mask_of 96) v
+      _ <- field label "width@104..127 (INTERIOR in V2)"
+             ((w `shiftR` 104) .&. mask_of 24) rpin_base_width
+      _ <- field label "strike@16..103" ((w `shiftR` 16) .&. mask_of 88) rpin_base_strike
+      field label "skew@0..15" (w .&. mask_of 16) rpin_base_skew
+
+    field label slot got want =
+      expect (got == want)
+        ("corner " ++ label ++ ": " ++ slot ++ " reads back as " ++ show got
+          ++ ", expected " ++ show want)
+
+-- | Each of the four fields rejects ITS OWN out-of-range value with a message naming that field
+-- and NO OTHER. Attributability is the property under test, not mere failure: a packer that
+-- rejected everything with one generic message would satisfy "it failed" and tell a caller
+-- nothing.
+rpin02_field_rejections :: Check
+rpin02_field_rejections = pure_check "rpin02_field_rejections" $ do
+  mapM_ one probes
+  case pack_vol_order_input rpin_base_order { target_vega = fromInteger (mask_of 96) } of
+    Right _  -> Right ()
+    Left why ->
+      Left ("target_vega = 2^96-1 must be ACCEPTED -- the bound is exclusive on the high side,"
+             ++ " exactly as target_vega_fits_packed enforces it on-chain: " ++ why)
+  where
+    field_names = ["vol_target", "range_width", "skew", "target_vega"]
+
+    probes :: [(String, Integer -> VolOrder -> VolOrder, [Integer])]
+    probes =
+      [ ("vol_target",  \v o -> o { vol_target  = fromInteger v }, [0, 1 `shiftL` 88])
+      , ("range_width", \v o -> o { range_width = fromInteger v }, [0, 1 `shiftL` 24])
+      , ("skew",        \v o -> o { skew        = fromInteger v }, [0, 1 `shiftL` 16])
+      , ("target_vega", \v o -> o { target_vega = fromInteger v }, [0, 1 `shiftL` 96])
+      ]
+
+    one (name, set, values) = mapM_ (probe name set) values
+
+    probe name set v =
+      case pack_vol_order_input (set v rpin_base_order) of
+        Right w ->
+          Left (name ++ " = " ++ show v ++ " was ACCEPTED, packing to " ++ show w
+                 ++ " -- exactly one field was perturbed from a valid order, so this must fail")
+        Left why -> do
+          _ <- expect (name `isInfixOf` why)
+                 (name ++ " = " ++ show v ++ " was rejected by a message that does not name it: "
+                   ++ why)
+          let others = [n | n <- field_names, n /= name, n `isInfixOf` why]
+          expect (null others)
+            (name ++ " = " ++ show v ++ " was rejected by a message that ALSO names "
+              ++ intercalate ", " others ++ " -- the rejection is not attributable: " ++ why)
 
 -- ---------------------------------------------------------------------------------------------
 -- Runner
@@ -580,6 +766,10 @@ main = do
           , sc3_corrupted_manifest_fails
           , sc3_literal_purge
           , rpin_v2_layout_behavior
+          , rpin01_encoder_selector_is_recomputed pins
+          , rpin01_encoder_argument_order
+          , rpin02_input_word_layout
+          , rpin02_field_rejections
           ]
             ++ per_pin_checks pins
 
