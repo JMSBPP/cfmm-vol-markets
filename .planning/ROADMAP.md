@@ -562,10 +562,14 @@ Plans:
   3. `decode_order_created` accepts E1 v2 — `VolOrderCreated(uint256 indexed orderId, uint88 strike, uint24 width, uint16 skew, uint96 targetVega)`, topic0 `0x18bd4d46…` **computed in the test from the signature string**, data = 4 words, `orderId` read from the indexed topic. Both retired topic0s are REJECTED by the decoder, and the pin test is shown FALSIFIABLE by observing it go RED when the constant is set to the stale `0xa8892769…` — the bug this requirement exists to fix must be demonstrated caught, not merely overwritten (RPIN-04).
   4. `decode_create_orders_result` is verified byte-unchanged against a `(bool, uint256)[]` return **captured from the live Phase-20 module** by a real batch call — not from the handoff text, not from v4.0's fixture alone — including the `N = 0` case at exactly 64 bytes. If the live bytes disagree with the v4.0 golden fixture, that is a FINDING to report, not something to paper over (RPIN-05).
   5. `target_vega` flows end-to-end: the `VolOrder` record carries it; `encode_create_order`, `encode_create_orders`, the storage readback and the mined-order content check all include it — a mined order whose targetVega differs from the submitted one FAILS the readback check (proven by feeding a deliberately mismatched value and observing the failure, so the new field is genuinely compared and not merely carried). `StochasticOrderGen` draws a targetVega per order in **raw LIQUIDITY units**, with `[1, 2^96−1]` and the 1e18–1e21 realistic band asserted over the generator's output (RPIN-06, VEGA-01).
-**Plans**: TBD
+**Plans**: 5 plans in 4 waves
 
 Plans:
-- [ ] 21-01: TBD
+- [ ] 21-01-PLAN.md — V2 record + V2 calldata encoder + V2 input word + V2 storage unpack, V1 deleted; RPIN-01/02/03 checks [wave 1]
+- [ ] 21-02-PLAN.md — capture-batch-return.sh + committed provenance-bearing capture off the LIVE rig (the only chain-touching work) [wave 1]
+- [ ] 21-03-PLAN.md — E1 v2 decoder rewrite (2 topics, 4 data words) + Report.hs; stale-topic0 and perturbed-targetVega observed-RED demos [wave 2]
+- [ ] 21-04-PLAN.md — VegaDraw = LogUniform[1e18, 1e21] + draw_target_vega guard + OrderShape + generator wiring; fixed-seed band checks [wave 3]
+- [ ] 21-05-PLAN.md — RPIN-05 assertions over the capture (suite stays chain-independent) + peer-bytes artifact + cross-track findings + phase gate [wave 4]
 
 ### Phase 22: Live Stochastic Drivers
 **Goal**: Both drivers run end-to-end against the live rig under the V2 ABI and produce the real event set — the milestone's acceptance bar, and the input the queued v6.0 subgraph will index.
@@ -589,7 +593,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 20. Deploy Rig & Source-of-Truth Import | 5/5 | Complete    | 2026-07-31 |
-| 21. V2 ABI Re-Pin & targetVega Generation | 0/TBD | Not started | - |
+| 21. V2 ABI Re-Pin & targetVega Generation | 0/5 | Planned     | - |
 | 22. Live Stochastic Drivers | 0/TBD | Not started | - |
 
 ## Coverage (Milestone v5.0)
