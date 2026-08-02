@@ -276,9 +276,19 @@ worth stating: their absence means the `InitSwappableRig` step did not run, whic
 zero-liquidity pool where no timepoint can ever be written — and that fault is invisible to every
 other check, because the remaining seven deployments are all live and all answer.
 
+`verify-rig.sh` asserts the `contracts` key set is EXACTLY these nine before it probes anything.
+That gate is not decoration: the probe loop walks `.contracts | keys[]`, so a key deleted from the
+manifest used to delete its own probe and the run ended `SC-2 OK: 7 contracts live`. Measured
+against a copy with both `PriceSetter*` keys removed, before the gate existed: **exit 0**.
+
 `verify-rig.sh` probes both routers' `manager()` against the manifest's `PoolManager`. A router
 constructed against the *other* live manager has bytecode and passes a liveness probe; only the
-binding check sees it.
+binding check sees it. `PriceSetterHook` and `PriceSetterPoolManager` get the same treatment:
+`PriceSetterHook.poolManager()` must equal the manifest's `PriceSetterPoolManager`, its
+`slot0Slot()` must be nonzero (`beforeInitialize` writes it and `afterInitialize` proves it against
+what `Pool.initialize` stored, so zero means the hook is deployed and bound to nothing), and the
+second manager must return a nonzero `extsload(slot0Slot)` — the two halves of one pool, checked
+against each other rather than each against itself.
 
 The manifest also carries `accounts` (`deployer`, `sender`), `pool`
 (`poolId`, `currency0`, `currency1`, `tickSpacing`), `seed` (`initTs`, `initTick`), `chainId`,
