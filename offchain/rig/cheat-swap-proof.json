@@ -1,0 +1,70 @@
+{
+  "_provenance": "Every value below was produced by offchain/app/CheatSwapProof.hs against the live rig stood up by offchain/rig/deploy-rig.sh. Nothing here was transcribed. Measurement B is the phase's blocker EXECUTED ON PURPOSE: it is identical to measurement A except that the slot0 write is aimed at PriceSetterPoolManager, the manager DynamicFeeHook does not read. Its receipt is expected to look perfectly healthy -- status 1, one E3, one E5 -- while carrying a tick that is not the cheated one. blockNumber is deliberately absent: three from-scratch deploys were measured at heights 9, 11 and 10, so it is not a provenance field.",
+  "chainId": 31337,
+  "generatedAt": "2026-08-02T16:57:49Z",
+  "generatedFrom": "2039f2783598866a337115df4a265a75e8842e82",
+  "measurements": [
+    {
+      "e3": {
+        "averageTick": 4083,
+        "tick": 5000,
+        "tickCumulative": "244988",
+        "timestamp": 1700000063,
+        "volatilityCumulative": "313873609"
+      },
+      "e3_count": 1,
+      "e5": {
+        "fee": 15000,
+        "sigma": "5319891"
+      },
+      "e5_count": 1,
+      "name": "cheat_to_5000_then_swap",
+      "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
+      "status": 1,
+      "swap_calldata_bytes": 388,
+      "tick": 5000,
+      "ts": 1700000063,
+      "tx_hash": "0xc80d4bf559405d6cd6ad29eb9e792239ec3b44bec9b9df2fe8b4cd2d83b8fb1f",
+      "word_before": "7306046685017183688100322208451540133640475633014773",
+      "word_before_high184": "0",
+      "word_written": "7307508186654514591018525893284256416917456691626270",
+      "word_written_high184": "0"
+    },
+    {
+      "e3": {
+        "averageTick": 4235,
+        "tick": 4999,
+        "tickCumulative": "304976",
+        "timestamp": 1700000075,
+        "volatilityCumulative": "322236553"
+      },
+      "e3_count": 1,
+      "e5": {
+        "fee": 15000,
+        "sigma": "4538543"
+      },
+      "e5_count": 1,
+      "name": "cheat_wrong_pool_then_swap",
+      "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
+      "status": 1,
+      "swap_calldata_bytes": 388,
+      "tick": 7000,
+      "ts": 1700000075,
+      "tx_hash": "0x9551ed4bd16f0c0319138bbd32f5fdee584749527a1bfc369dc4a984c97dfd93",
+      "word_before": "7306046685017183688100322208451540133769138196049033",
+      "word_before_high184": "0",
+      "word_written": "10230511461316320427425906257160961173700696698234316",
+      "word_written_high184": "0"
+    }
+  ],
+  "rig": {
+    "deployer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+    "dynamicFeeHook": "0x233069526f587b8c8ce56c365e0449ab034e0080",
+    "poolId": "0x00c35757198030cc0408784a49b5de3ee9c0fad958b0564592e118604b49ab8a",
+    "poolManager": "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707",
+    "priceSetterHook": "0x683ee59f069a5970dcf186f968af532b0c59b000",
+    "priceSetterPoolManager": "0xb7f8bc63bbcad18155201308c8f3540b07f84f5e",
+    "swapRouter": "0x9a676e781a523b5d0c0e43731313a708cb607508",
+    "tickSpacing": 20
+  }
+}

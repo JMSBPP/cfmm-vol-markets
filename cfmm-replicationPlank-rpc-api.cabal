@@ -122,6 +122,26 @@ executable cfmm-replicationPlank-rpc-api
     hs-source-dirs:   offchain/app
     default-language: Haskell2010
 
+-- The cheat-swap capture tool. A SEPARATE executable rather than a flag inside the demo driver's
+-- Main.hs, for two reasons: plan 22-05 rewires that Main.hs substantially and an env-flag branch
+-- there would collide, and this belongs to the same family as offchain/rig/capture-batch-return.sh
+-- -- a thing you run once against a live rig to produce a committed artifact -- not to the driver.
+executable cheat-swap-proof
+    import:           warnings
+    main-is:          CheatSwapProof.hs
+    build-depends:
+        base ^>=4.20.2.0,
+        cfmm-replicationPlank-rpc-api,
+        aeson,
+        bytestring,
+        text,
+        process,
+        memory-hexstring,
+        web3-ethereum,
+        web3-provider
+    hs-source-dirs:   offchain/app
+    default-language: Haskell2010
+
 test-suite cfmm-replicationPlank-rpc-api-test
     -- Import common warning flags.
     import:           warnings
