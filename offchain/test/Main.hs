@@ -53,6 +53,7 @@ import Rig.Manifest
   , RigPool (..)
   , load_rig_from
   , rig_manifest_path
+  , rig_pins_path
   )
 import Data.ByteArray.HexString (HexString, fromBytes, toBytes)
 import Network.Ethereum.Api.Types (Change (..))
@@ -104,8 +105,29 @@ import VolOrder.Types (VolOrder (..))
 -- Paths
 -- ---------------------------------------------------------------------------------------------
 
-pins_file :: FilePath
-pins_file = "offchain/rig/rig-pins.json"
+-- | The static pin file, resolved the SAME way 'Rig.Manifest.load_rig' resolves it: through
+-- 'rig_pins_path', which honours the @RIG_PINS@ environment variable.
+--
+-- This was a hardcoded @FilePath@ constant, and it is the THIRD instance of one defect in this
+-- module. 22-03 measured it for @RIG_MANIFEST@ and 22-04 for @proof_file@: an override that is
+-- advertised in @Rig.Manifest@'s own error messages (\"Override the path with the RIG_PINS
+-- environment variable\") and in @offchain\/rig\/README.md@, honoured by @verify-rig.sh@, and
+-- silently ignored here. The consequence is not cosmetic and is not a style point -- it is that
+-- @RIG_PINS=\<doctored copy\> cabal test@ goes GREEN, because the constant sends every check
+-- straight back to the committed file. Every falsification aimed at the pin file was therefore
+-- VACUOUS, and the only remaining way to test a pin check was to damage the evidence it guards.
+--
+-- 'every_advertised_override_is_honoured' is the standing guard that stops a fourth instance.
+pins_file :: IO FilePath
+pins_file = rig_pins_path
+
+-- | How the pin file is NAMED in operator-facing messages.
+--
+-- A label is not a read path. Keeping it pure is what lets 'verify_pin' remain a pure function
+-- that the falsifiability case can drive directly over a doctored pin value; the path any check
+-- actually OPENS comes from 'pins_file' and from nowhere else.
+pins_file_label :: String
+pins_file_label = "rig-pins.json (RIG_PINS)"
 
 -- | The rig manifest path, resolved the SAME way 'Rig.Manifest.load_rig' resolves it: through
 -- 'rig_manifest_path', which honours the @RIG_MANIFEST@ environment variable.
@@ -274,7 +296,7 @@ verify_pin hash_of name pinned contents = do
           [ "recomputed value does not match the pin"
           , "      signature parsed from the file : " ++ sig
           , "      recomputed (keccak256)         : " ++ computed
-          , "      pinned in " ++ pins_file ++ "   : " ++ expected
+          , "      pinned in " ++ pins_file_label ++ "   : " ++ expected
           ]
 
 -- ---------------------------------------------------------------------------------------------
@@ -515,7 +537,8 @@ sc3_load_succeeds = Check "sc3_load_succeeds" . guarded $ do
   if not present
     then pure (Left ("no " ++ mf ++ " -- stand the rig up first: " ++ deploy_command))
     else do
-      outcome <- try (load_rig_from pins_file mf)
+      pf      <- pins_file
+      outcome <- try (load_rig_from pf mf)
       pure $ case outcome of
         Left err -> Left ("load_rig_from failed on the real files: " ++ show (err :: IOException))
         Right rig ->
@@ -544,8 +567,9 @@ sc3_corrupted_manifest_fails = Check "sc3_corrupted_manifest_fails" . guarded $ 
         Right value -> do
           encodeFile missing_path (drop_contract "VolOrderManagerMod" value)
           writeFile broken_path "{\"chainId\": 31337, \"contracts\": {"
-          a <- try (load_rig_from pins_file missing_path)
-          b <- try (load_rig_from pins_file broken_path)
+          pf <- pins_file
+          a <- try (load_rig_from pf missing_path)
+          b <- try (load_rig_from pf broken_path)
           pure $ do
             _ <- expect (failed a) "a manifest with VolOrderManagerMod deleted LOADED -- it must not"
             expect (failed b) "a manifest of invalid JSON LOADED -- it must not"
@@ -733,7 +757,7 @@ rpin01_encoder_selector_is_recomputed pins =
                      ++ " or " ++ volorder_iface ++ " is stale"
                  , "      emitted by the encoder : " ++ emitted
                  , "      recomputed (keccak256) : " ++ recomputed
-                 , "      pinned in " ++ pins_file ++ " : " ++ pinned
+                 , "      pinned in " ++ pins_file_label ++ " : " ++ pinned
                  ])
 
 -- | The four calldata argument words decode back as (strike, width, skew, targetVega), in that
@@ -1059,7 +1083,7 @@ rpin04_topic0_is_recomputed pins = Check "rpin04_topic0_is_recomputed" . guarded
                    ++ volorder_iface ++ " is stale"
                , "      signature parsed from the file : " ++ sig
                , "      recomputed (keccak256)         : 0x" ++ recomputed
-               , "      pinned in " ++ pins_file ++ "  : " ++ pinned
+               , "      pinned in " ++ pins_file_label ++ "  : " ++ pinned
                ])
 
 -- | THE check a constant swap alone could not satisfy: a v2-shaped log DECODES, field by field.
@@ -1687,7 +1711,8 @@ rpin05_capture_is_present_and_fresh = Check "rpin05_capture_is_present_and_fresh
   outcome <-
     if manifest_present
       then do
-        attempt <- try (load_rig_from pins_file mf)
+        pf <- pins_file
+        attempt <- try (load_rig_from pf mf)
         pure (Just (attempt :: Either IOException Rig))
       else pure Nothing
   pure $ do
@@ -2499,7 +2524,8 @@ driv01_cheat_swap_proof_is_present_and_fresh =
     outcome <-
       if manifest_present
         then do
-          attempt <- try (load_rig_from pins_file mf)
+          pins_path <- pins_file
+          attempt <- try (load_rig_from pins_path mf)
           pure (Just (attempt :: Either IOException Rig))
         else pure Nothing
     pure $ do
@@ -3074,7 +3100,8 @@ driv01_run_capture_is_present_and_fresh =
     outcome <-
       if manifest_present
         then do
-          attempt <- try (load_rig_from pins_file mf)
+          pf <- pins_file
+          attempt <- try (load_rig_from pf mf)
           pure (Just (attempt :: Either IOException Rig))
         else pure Nothing
     pure $ do
@@ -3272,7 +3299,8 @@ driv01_legacy_write_price_still_ran =
     outcome <-
       if manifest_present
         then do
-          attempt <- try (load_rig_from pins_file mf)
+          pf <- pins_file
+          attempt <- try (load_rig_from pf mf)
           pure (Just (attempt :: Either IOException Rig))
         else pure Nothing
     pure $ do
@@ -3661,7 +3689,8 @@ driv02_run_capture_orders_are_fresh =
     outcome <-
       if manifest_present
         then do
-          attempt <- try (load_rig_from pins_file mf)
+          pf <- pins_file
+          attempt <- try (load_rig_from pf mf)
           pure (Just (attempt :: Either IOException Rig))
         else pure Nothing
     pure $ do
@@ -3702,11 +3731,21 @@ hex_word_integer w
 
 main :: IO ()
 main = do
-  loaded <- eitherDecodeFileStrict pins_file :: IO (Either String RigPins)
+  pf      <- pins_file
+  present <- doesFileExist pf
+  -- The presence test is separate from the decode because @eitherDecodeFileStrict@ THROWS on a
+  -- missing file rather than returning 'Left'. Without it, @RIG_PINS=\<missing\>@ killed the
+  -- runner with a bare @withBinaryFile: does not exist@ before a single check name was printed --
+  -- red, but not a NAMED failure, and the operator learns nothing about which check was guarding
+  -- what.
+  loaded <-
+    if present
+      then eitherDecodeFileStrict pf :: IO (Either String RigPins)
+      else pure (Left ("no such file (resolved through RIG_PINS)"))
   let checks = case loaded of
         Left err ->
           [ pure_check "sc4_pins_file_decodes" $
-              Left ("could not decode " ++ pins_file ++ ": " ++ err
+              Left ("could not read the pin file " ++ pf ++ ": " ++ err
                      ++ "\n      regenerate it with: bash offchain/rig/generate-pins.sh")
           ]
         Right pins ->
