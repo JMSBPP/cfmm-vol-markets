@@ -23,8 +23,21 @@ offchain/rig/deploy-rig.sh       # SC-2/SC-5: owns anvil; writes offchain/rig/ri
 offchain/rig/verify-rig.sh       # SC-2: every contract answers a live read
 
 cabal build --enable-tests -j all && cabal test  # SC-3/SC-4: manifest loads; pins recompute
-cabal run cfmm-replicationPlank-rpc-api
+
+# the DRIVER. RIG_SEED is optional: unset, a seed is DRAWN and printed.
+RIG_SEED=123456789 cabal run cfmm-replicationPlank-rpc-api
 ```
+
+The last step is the run itself, not a smoke test. It drives both price mechanisms and all three
+order shapes against the standing rig and writes `offchain/rig/driver-run-capture.json` —
+committed — carrying the five-step cheat-swap path with its E3 per step, and the `orders` block
+(single, mixed, zero-arrival). That artifact is what `cabal test`'s `driv01_*` and `driv02_*`
+checks assert against, which is how the suite stays chain-independent while still asserting facts
+that only a chain can produce.
+
+`RIG_SEED` is a single decimal `Word32`. A malformed value FAILS LOUDLY rather than falling back
+to a drawn one — a silent fallback would produce a run the operator believes is a replay and is
+not, and the artifact would record the drawn value, so nothing downstream could tell.
 
 `--enable-tests` is not decoration. Dropping it leaves the test component unconfigured, so the
 build exits 0 against a test suite that would not compile — MEASURED four separate times in
@@ -147,18 +160,82 @@ to say the order reverted; that was the V1 three-argument `create_order` encoder
 four-argument module, and Phase 21 re-pinned both the encoder and the event decoder, which is
 what fixed it.
 
-What it still does not prove is the stochastic-driver acceptance bar: `cabal run` is a demo, not
-the DRIV-01/DRIV-02 run. Its price writes go to the `PriceSetterPoolManager`, not to the
-`DynamicFeeHook` pool, and it does not exercise the cheat-swap path that makes the hook write a
-timepoint per step — `deploy-rig.sh`'s probe swap is currently the only thing on the rig that
-does.
+**As of Phase 22 it IS the DRIV-01/DRIV-02 run**, not a demo beside it. This section used to say
+the opposite — that `cabal run` only wrote prices to the `PriceSetterPoolManager` and never
+exercised the cheat-swap path, leaving `deploy-rig.sh`'s probe swap as the only thing on the rig
+that made the hook write a timepoint. Plans 22-05 and 22-06 changed that. The one command now also
+runs:
 
-## The two files
+- **DRIV-01** — `run_cheat_swap_path`, five consecutive cheat → clock → swap steps on a
+  `t_k = t_0 + k*stride` schedule, each producing exactly one `TimepointWritten` carrying the tick
+  AND the timestamp the driver submitted.
+- **DRIV-02** — the single order with its E1 and a receipt-block-pinned readback, a MIXED batch
+  carrying one contract-rejected tuple, and a zero-arrival empty batch.
+
+The legacy `write_price` / `PriceSetterHook` flow is still there and still runs, on its own second
+manager, exactly as roadmap SC-1 requires — it was ADDED BESIDE by, never replaced.
+
+Two limits worth keeping straight. `cabal run` needs a standing rig and writes to the chain, so it
+is not part of `cabal test`; and it does not re-derive the pins or verify the import, which is why
+`check-upstream.sh` and `verify-import.sh` come earlier in the sequence rather than being folded
+into it.
+
+### Replaying a run
+
+`RIG_SEED=<the seed the run printed>` against a **fresh** rig reproduces the tick path, the drawn
+`targetVega`s and the minted order ids. A fresh rig starts at `orderCount = 0`, so the ids replay
+too.
+
+```bash
+S=123456789
+offchain/rig/deploy-rig.sh && RIG_SEED=$S cabal run cfmm-replicationPlank-rpc-api
+cp offchain/rig/driver-run-capture.json /tmp/replay-a.json
+offchain/rig/deploy-rig.sh && RIG_SEED=$S cabal run cfmm-replicationPlank-rpc-api   # FRESH rig
+cp offchain/rig/driver-run-capture.json /tmp/replay-b.json
+
+PROJ='{ticks: [.steps[].tick], e3: [.steps[].e3.tick], ids: [.orders.mixed.readbacks[].id]}'
+jq -S "$PROJ" /tmp/replay-a.json > /tmp/ra.json
+jq -S "$PROJ" /tmp/replay-b.json > /tmp/rb.json
+diff -u /tmp/ra.json /tmp/rb.json     # EMPTY
+sha256sum /tmp/ra.json /tmp/rb.json   # equal
+jq -r '.seed.t0' /tmp/replay-a.json /tmp/replay-b.json   # DIFFERENT — see below
+```
+
+**What it does NOT reproduce, stated rather than hidden: absolute timestamps.** `t_0` is read from
+the CHAIN HEAD at driver start (`t_0 = head + stride`), and anvil's `--timestamp` fixes the origin
+and not the rate, so two runs minutes apart start from different heads. Measured at plan 22-06:
+two same-seed runs against fresh rigs gave `t0 = 1700000027` and `t0 = 1700000026` while the
+projection above was byte-identical at
+`03c8515e582fd7d38731aa420b2dcbb17287099c0c79afe00893c50d745c27b9`. That the two `t0`s DIFFER is
+not a defect — it is what proves the second run actually re-ran rather than the comparison reading
+one file twice. What replays is the tick path, the E3 series, the drawn values, the ids, and the
+schedule's SHAPE (`t_k - t_0 = k*stride`).
+
+**Do not project `.orders.mixed.submitted[].targetVega` and call it a seed check.** Those three
+values are `sample_mixed_batch`, fixed DATA rather than a draw, so they are identical under every
+seed and can never falsify anything. Measured: a `RIG_SEED=123456790` run moved the ticks
+(`237,-556,-1000,-1344,-1191` → `289,-222,-331,-919,-169`) and the ids (`[6,7]` → `[5,6]`) and
+left that field untouched.
+
+**The seed is consumed SEQUENTIALLY** by `run_price_gen`, then `run_cheat_swap_path`, then
+`run_order_gen`. Changing the price path's `size` therefore changes the ORDERS too. That is
+deterministic and replayable, but it means the three drivers are not independently seeded.
+
+## The evidence artifacts
 
 | file | committed? | written by | read by |
 |---|---|---|---|
 | `offchain/rig/rig-pins.json` | YES | `offchain/rig/generate-pins.sh` (from the imported `src/interfaces/**/*.plk`) | `Rig.Manifest`, the pin tests |
 | `offchain/rig/rig-manifest.json` | NO (gitignored) | `offchain/rig/deploy-rig.sh` (from `broadcast/**/run-latest.json`) | `Rig.Manifest`, the drivers |
+| `offchain/rig/batch-return-capture.json` | YES | `offchain/rig/capture-batch-return.sh` | `cabal test`'s `rpin05_*` checks |
+| `offchain/rig/cheat-swap-proof.json` | YES | `offchain/rig/capture-cheat-swap-proof.sh` (`cheat-swap-proof` executable) | `cabal test`'s `driv01_cheat_swap_proof_*`, `driv01_cheated_tick_reaches_e3`, `driv01_wrong_pool_is_silent`, `driv01_same_second_is_a_silent_noop`, `driv01_extreme_tick_is_survivable` |
+| `offchain/rig/driver-run-capture.json` | YES | `cabal run cfmm-replicationPlank-rpc-api` | `cabal test`'s `driv01_run_capture_*`, `driv01_e3_per_step_matches_submitted`, `driv01_no_same_second_noop`, `driv01_legacy_write_price_still_ran`, and all four `driv02_*` checks |
+
+`RIG_CHEAT_SWAP_PROOF` and `DRIVER_CAPTURE` override the last two paths. They differ in SCOPE and
+deliberately so: `RIG_CHEAT_SWAP_PROOF` redirects the CHECKS only (the capture tool always writes
+the committed path), while `DRIVER_CAPTURE` redirects the WRITER as well — there the driver IS the
+capture tool, so a mutant run has to be aimable at a temp path or the only available falsification
+would be damaging the evidence it guards.
 
 `generate-pins.sh` is not part of the sequence above because its output is committed. Re-run it
 when an interface file changes; it is idempotent, so a run that changes nothing leaves

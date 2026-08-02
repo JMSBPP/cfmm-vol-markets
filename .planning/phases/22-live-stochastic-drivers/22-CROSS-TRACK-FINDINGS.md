@@ -1,11 +1,36 @@
 # Phase 22 — Cross-Track Findings
 
 **Opened:** 2026-08-02 (plan 22-01)
+**FINALISED:** 2026-08-02 (plan 22-06 — the phase's last plan)
 **Discipline:** REPORT, never edit. Every file named below belongs to another workstream
 (`notes/`, `src/`, `foundry-scripts/`, `test/` — see `CLAUDE.md`). Nothing here was fixed.
 
 Findings are addressed to the **plank development session** (`claude-peers` agent `ul2inqpl`)
-unless stated otherwise.
+unless a different owner is named.
+
+Territory was measured clean at every plan in this phase:
+`git status --porcelain src/ test/ foundry-scripts/ Makefile foundry.toml remappings.txt notes/`
+EMPTY throughout 22-01 … 22-06.
+
+## Index — every finding, with its owning track
+
+| id | finding | owning track | status |
+|---|---|---|---|
+| **F22-1** | `notes/DATA_CONTRACT.md:25` says "same-block"; the guard is per distinct `uint32` TIMESTAMP | **plank** (`ul2inqpl`) — `notes/`, `src/lib/` | REPORTED, open |
+| **F22-2** | F1's `targetVega@128..255` is the unmasked READ REGION, not a widened field — compatible with the client's u96@128..223 | this workstream (rpc_api) | CLOSED, no action |
+| **F22-3** | `.planning/issue-17-swappable-rig-SPEC.md` exists on develop and is deliberately NOT in the 37-path pin set | this workstream (pin-set decision); FYI plank | REPORTED, deliberate |
+| **F22-4** | the "anvil is RUNNING" execution-context claim was STALE — third such in this workstream | this workstream (planning discipline) | MEASURED, REFUTED |
+| **F22-5** | F22-1 REFUTED BY EXECUTION, not only by source reading: `same_second_repeat_step2` = status 1, e3 0, e5 1, in DIFFERENT blocks | **plank** (`ul2inqpl`) — `notes/DATA_CONTRACT.md` | REPORTED, open |
+| **F22-6** | anvil ACCEPTS an equal next-block timestamp and rejects only a strictly lower one | node behaviour, no file owner | RECORDED |
+| **F22-7** | omitting the clock advance RACES G1 rather than reproducing it | this workstream (22-04's own instrument) | FIXED in `CheatSwap.Rpc` |
+| **F22-8** | `capture-batch-return.sh`'s "the ONLY input a client can pass that the contract rejects" is an unverified exclusivity claim | this workstream (rpc_api) — `offchain/rig/` | REPORTED, not relied on |
+| **F22-9** | plan 22-06's SC-5 replay projection includes `vegas`, which is fixed DATA and cannot discriminate between seeds | this workstream (measurement design) | MEASURED; named in the README |
+| **F1 / F2** (Phase 21) | stale V1 comment block; `TICK_SPACING` 10 → 20 | **plank** (`ul2inqpl`) | FIXED UPSTREAM (PR #18) |
+| **F4** (Phase 21) | manifest freshness cannot see a MODULE change (`manager` is a bytecode-independent `CREATE` address) | this workstream (rpc_api) | OPEN — code-hash pinning proposed, not applied |
+
+**The two findings that remain OPEN against the plank track are F22-1 and F22-5, and they are the
+same finding at two levels of evidence.** F22-1 read it out of the source; F22-5 executed it. Both
+ask for one wording change in one file. Neither was edited from this side.
 
 ---
 
@@ -216,3 +241,63 @@ NOT pinned by `driv01_same_second_is_a_silent_noop`, and the check says why in-f
 **Consequence for 22-05:** a driver that merely *forgets* to advance the clock does not fail
 loudly, and does not even fail consistently — it drifts. The client-side guards are the mechanism;
 the node is not a backstop.
+
+---
+
+## F22-8 — `capture-batch-return.sh`'s "the ONLY input" claim is unverified, and is not relied on
+
+**Found during:** 22-06 Task 1. **This workstream's own file** (`offchain/rig/`) — recorded rather
+than fixed, because the claim is a comment and the value it annotates is correct.
+
+`offchain/rig/capture-batch-return.sh:166` reads:
+
+```sh
+# skew = 65535 is the ONLY input a client can pass that the contract rejects:
+# spread_tick_assimetry_is_complete accepts [1, 65534].
+```
+
+The **value** is right and was re-measured live at 22-06: `skew = 65535` is WIDTH-valid
+(`pack_vol_order_input`'s `in_range 16` is `> 0 && < 2^16`, and `65535 < 65536`) and DOMAIN-invalid
+(`spread_tick_assimetry_is_complete` admits `[1, 65534]`), so it survives the client and is skipped
+by the module — observed as preview `[true, false, true]` with `orderCount` moving by exactly 2.
+
+The **exclusivity** is not established. Nothing enumerated the module's rule set against the
+client's guards to show no other width-valid, domain-invalid input exists. 22-06 therefore USES the
+discriminator and does not repeat the claim: `Sample.sample_mixed_batch`'s haddock states the two
+halves that were measured and says explicitly that uniqueness is not claimed, and
+`driv02_mixed_batch_live` models exactly one business rule (`skew_is_in_domain`) and says so.
+
+Checked while there, so the alternatives are on the record rather than assumed:
+`strike = 0`, `width = 0` and `targetVega = 0` are all domain-invalid AND width-invalid, because
+every one of `pack_vol_order_input`'s four guards is `value > 0 && value < 2^bits`. None of them
+can reach the contract from this client, which is why the discriminator has to be a live-measured
+one rather than an obvious zero.
+
+---
+
+## F22-9 — the plan's SC-5 replay projection contains a field that cannot discriminate
+
+**Found during:** 22-06 Task 3. **This workstream** (a measurement-design finding, no file owner).
+
+Plan 22-06's replay projection is
+
+```
+{ticks: [.steps[].tick], e3: [.steps[].e3.tick],
+ vegas: [.orders.mixed.submitted[].targetVega], ids: [.orders.mixed.readbacks[].id]}
+```
+
+`vegas` reads `.orders.mixed.submitted[].targetVega`, which is `Sample.sample_mixed_batch` — fixed
+DATA, not a draw. It is identical under every seed by construction and can never falsify a replay
+claim. MEASURED: the `RIG_SEED = 123456790` falsification run moved `ticks` and `e3`
+(`237,-556,-1000,-1344,-1191` → `289,-222,-331,-919,-169`) and moved `ids` (`[6,7]` → `[5,6]`), and
+left `vegas` byte-identical.
+
+The projection still falsifies, because three of its four components DO depend on the seed — `ids`
+in particular, since the mixed batch's starting `orderCount` is set by `run_order_gen`'s Poisson
+draw. But a future plan that trimmed the projection down to `vegas` alone would have a replay check
+that proves nothing. The README's "Replaying a run" section names this explicitly so the trap is not
+re-entered.
+
+The generator's DRAWN vegas are not in the artifact at all — `run_order_gen`'s results are printed
+and not captured. Recording them would give the projection a fourth genuinely seed-dependent
+component; deferred rather than done, since `ticks`, `e3` and `ids` already discriminate.
