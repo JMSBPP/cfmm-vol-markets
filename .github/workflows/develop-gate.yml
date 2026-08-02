@@ -97,14 +97,69 @@ jobs:
           echo "$out" | grep -qE "declaration uses '(sorry|admit)'" && { echo "::error::Lean proof uses sorry/admit"; exit 1; }
           echo "lean: lake build clean, no sorry/admit"
 
+  haskell:
+    needs: [approve]
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 45          # 123 Hackage deps; only the FIRST run on a cold ~/.cabal store is slow
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+          # verify-import.sh diffs the tree against the RECORDED ref in
+          # offchain/rig/import-ref.txt (a commit on origin/develop, NOT an ancestor of the
+          # PR head). The default depth-1 checkout does not have that object and `git diff`
+          # dies with `bad revision` (exit 128 -> the script's own SC-1 FAIL, so it fails
+          # loudly rather than silently). Full history is what makes SC-1 actually run.
+          fetch-depth: 0
+      # ghcup lives in ~/.ghcup/bin, which a non-login `run:` shell does not pick up from
+      # .bashrc. Put it on PATH, bootstrapping it if this executor has never built Haskell
+      # (same shape as the lean job's elan bootstrap).
+      - run: |
+          if [ ! -x "$HOME/.ghcup/bin/ghcup" ]; then
+            curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org \
+              | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 \
+                BOOTSTRAP_HASKELL_GHC_VERSION=9.10.3 \
+                BOOTSTRAP_HASKELL_INSTALL_NO_STACK=1 \
+                BOOTSTRAP_HASKELL_ADJUST_BASHRC=0 sh
+          fi
+          echo "$HOME/.ghcup/bin" >> "$GITHUB_PATH"
+      - run: |
+          # 9.10.3 is not cosmetic: the .cabal pins base ^>=4.20.2.0, which no other GHC ships.
+          [ "$(ghc --numeric-version 2>/dev/null)" = "9.10.3" ] || ghcup install ghc 9.10.3 --set
+          command -v cabal >/dev/null || ghcup install cabal recommended --set
+          ghc --version && cabal --version
+          cabal update
+      - run: |
+          # `--enable-tests` is LOAD-BEARING. `cabal build -j all` on its own exits 0 without
+          # ever compiling the test suite, so a suite that does not compile "passes". Measured
+          # four times. Do not drop the flag.
+          set -o pipefail
+          cabal build --enable-tests -j all 2>&1 | tee "$RUNNER_TEMP/cabal-build.log"
+          # -Wall is a project requirement -- enforce it instead of hoping. Scoped to
+          # ^offchain/ so cabal's own `Warning:` lines and any dependency's output cannot
+          # trip it; the trade-off is that a `<no location info>` warning slips through.
+          if grep -qE '^offchain/[^ ]*:[0-9]+:[0-9]+: warning:' "$RUNNER_TEMP/cabal-build.log"; then
+            echo "::error::GHC emitted warnings under offchain/ (-Wall must be clean)"
+            grep -nE '^offchain/[^ ]*:[0-9]+:[0-9]+: warning:' "$RUNNER_TEMP/cabal-build.log"
+            exit 1
+          fi
+      # Deliberately chain-independent (no anvil, no RPC), so no service is wired here.
+      - run: cabal test
+      # SC-1: the 37 imported source-of-truth paths are content-identical to the recorded ref
+      # AND sha256-match IMPORT-PIN.md. Unrun, "verbatim import" is a claim, not a check.
+      - run: bash offchain/rig/verify-import.sh
+
   gate:                          # the SOLE required check. Do NOT add `name:` (would change the context string)
-    needs: [approve, forge, gams, plank, gamsdiff, lean]
+    needs: [approve, forge, gams, plank, gamsdiff, lean, haskell]
     if: always()
     runs-on: ubuntu-latest       # hosted: only reads results, needs no toolchain
     timeout-minutes: 5
     steps:
       - run: |
-          for x in '${{ needs.forge.result }}' '${{ needs.gams.result }}' '${{ needs.plank.result }}' '${{ needs.gamsdiff.result }}' '${{ needs.lean.result }}'; do
+          for x in '${{ needs.forge.result }}' '${{ needs.gams.result }}' '${{ needs.plank.result }}' '${{ needs.gamsdiff.result }}' '${{ needs.lean.result }}' '${{ needs.haskell.result }}'; do
             case "$x" in success|skipped) ;; *) echo "::error::a gate job result was '$x'"; exit 1;; esac
           done
           echo "all gate jobs green"
