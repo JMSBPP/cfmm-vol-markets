@@ -26,7 +26,26 @@ cd "$(git rev-parse --show-toplevel)"
 RPC_ALIAS="local"                 # foundry.toml [rpc_endpoints] local = http://127.0.0.1:8545
 RPC_PORT=8545
 LOG_DIR=/tmp/rig-logs
-MANIFEST=offchain/rig/rig-manifest.json
+
+# RIG_MANIFEST IS HONOURED HERE, exactly as every reader honours it: verify-rig.sh:23,
+# capture-cheat-swap-proof.sh:38, capture-batch-return.sh:48, Rig/Manifest.hs:196, and
+# README.md:248 ("RIG_PINS / RIG_MANIFEST override the default paths") which states the
+# rule with NO exception for the writer.
+#
+# It used to be a no-op on this one file -- the only file that WRITES. So
+# `RIG_MANIFEST=/tmp/copy.json bash deploy-rig.sh` exited 0, left the copy untouched,
+# and rewrote the real manifest: the file the falsification procedure guards by
+# sha256. MEASURED: copy sha 22a9c346 unchanged and still carrying its 999999 sentinel
+# chainId, real manifest 0605af1b -> 5ff01404, exit 0 throughout.
+#
+# HONOURED rather than REFUSED, deliberately. A refusal would leave the writer the one
+# component that means something different by the same variable, and an operator who
+# exports RIG_MANIFEST for a falsification run would then have to remember to unexport
+# it for the redeploy -- forgetting is the destructive direction. Honouring makes the
+# variable mean one thing everywhere: "this path is the manifest I mean." Note what it
+# does NOT isolate: this script still owns anvil, still resets the chain, and still
+# rewrites broadcast/. Redirecting the manifest is not a dry run.
+MANIFEST="${RIG_MANIFEST:-offchain/rig/rig-manifest.json}"
 
 # --- Step 0: constants -----------------------------------------------------
 # These are FIXED LITERALS on purpose. SC-5 (two from-scratch runs produce a
@@ -68,6 +87,25 @@ for tool in anvil forge cast jq; do
     exit 1
   }
 done
+# The manifest destination is checked NOW, not at Step 9. Step 9 is the last thing
+# this script does; a typo'd RIG_MANIFEST discovered there costs a full six-script
+# deploy and leaves the rig standing with no manifest describing it.
+MANIFEST_DIR=$(dirname "$MANIFEST")
+[ -d "$MANIFEST_DIR" ] && [ -w "$MANIFEST_DIR" ] || {
+  echo "FATAL: cannot write the manifest to $(realpath -m "$MANIFEST")" >&2
+  echo "       its directory '$MANIFEST_DIR' does not exist or is not writable." >&2
+  if [ -n "${RIG_MANIFEST:-}" ]; then
+    echo "       RIG_MANIFEST is set to '$RIG_MANIFEST'; unset it to use the default path." >&2
+  else
+    echo "       RIG_MANIFEST is unset, so this is the default path -- the repo tree is wrong." >&2
+  fi
+  exit 1
+}
+if [ -n "${RIG_MANIFEST:-}" ]; then
+  echo "note: RIG_MANIFEST is set -- writing the manifest to $(realpath -m "$MANIFEST")"
+  echo "      offchain/rig/rig-manifest.json will NOT be touched. anvil and broadcast/ still are."
+fi
+
 # Named here as well as inside kill_rpc_listener so every tool requirement is
 # reported before anything is killed, started or written.
 command -v lsof >/dev/null 2>&1 || command -v fuser >/dev/null 2>&1 || {
