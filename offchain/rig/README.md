@@ -239,7 +239,33 @@ would be damaging the evidence it guards.
 
 `generate-pins.sh` is not part of the sequence above because its output is committed. Re-run it
 when an interface file changes; it is idempotent, so a run that changes nothing leaves
-`git diff` clean.
+`git diff` clean. It writes to `rig-pins.json.tmp` and renames, and refuses to emit below a
+floor of 30 selectors / 5 topics — a `const` syntax drift used to parse zero pins, exit 0, and
+replace the tracked file with empty maps.
+
+### Regenerating a committed artifact
+
+**Never regenerate with `generator ... > committed-file`.** The shell creates and truncates the
+redirect target *before* the generator starts, so a generator that fails to compile has already
+destroyed the evidence, and `jq .` on empty stdin exits 0 writing nothing — so the pipeline
+reports success over a zero-byte artifact. Measured on `peer-haskell-bytes.json`: 3120 bytes → 0,
+with nothing to restore from but git.
+
+Write beside the target and rename:
+
+```bash
+cabal build lib:cfmm-replicationPlank-rpc-api
+OUT=offchain/rig/peer-haskell-bytes.json
+cabal exec -- runghc --ghc-arg=-package --ghc-arg=cfmm-replicationPlank-rpc-api \
+  offchain/rig/gen-peer-bytes.hs > "$OUT.raw" \
+  && jq . "$OUT.raw" > "$OUT.tmp" \
+  && mv "$OUT.tmp" "$OUT" && rm -f "$OUT.raw"
+```
+
+The `--ghc-arg=-package` pair is required on ghc 9.10.3 — without it `runghc` reports
+`Could not load module VolOrder.Decode ... member of the hidden package`, and the
+`runghc -package X file.hs` and `runghc -- -package X file.hs` spellings both die with
+`Not in scope: main`.
 
 ## Rules
 

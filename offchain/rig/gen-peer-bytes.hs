@@ -5,7 +5,28 @@
 --
 -- RUN IT WITH:
 --
---     cabal exec -- runghc offchain/rig/gen-peer-bytes.hs | jq . > offchain/rig/peer-haskell-bytes.json
+-- @
+--     cabal build lib:cfmm-replicationPlank-rpc-api
+--     OUT=offchain\/rig\/peer-haskell-bytes.json
+--     cabal exec -- runghc --ghc-arg=-package --ghc-arg=cfmm-replicationPlank-rpc-api \\
+--       offchain\/rig\/gen-peer-bytes.hs > "$OUT.raw" \\
+--       && jq . "$OUT.raw" > "$OUT.tmp" \\
+--       && mv "$OUT.tmp" "$OUT" && rm -f "$OUT.raw"
+-- @
+--
+-- The @--ghc-arg=-package@ pair is REQUIRED and was missing from the command this file used
+-- to document. MEASURED on ghc 9.10.3: a bare @cabal exec -- runghc@ dies with
+-- @Could not load module VolOrder.Decode ... member of the hidden package@, and the plain
+-- @runghc -package X file.hs@ / @runghc -- -package X file.hs@ spellings both fail with
+-- @Not in scope: main@. So the documented command did not run AT ALL here -- and in its bare
+-- pipeline form that non-running command still emptied the artifact.
+--
+-- NOT @... | jq . > $OUT@. The shell creates and TRUNCATES the redirect target before
+-- @runghc@ is even started, so the bare pipeline destroys the committed artifact first and
+-- regenerates it second -- any compile error and the evidence is gone with nothing to
+-- restore from. Worse, @jq .@ on empty stdin exits 0 and writes nothing (MEASURED), so the
+-- pipeline reports success over a zero-byte artifact. The form above only ever touches
+-- @$OUT@ through a rename, after both stages have already succeeded.
 --
 -- WHY THIS FILE EXISTS AT ALL. The v4.0 consumer fixture
 -- @test\/pos_spec\/fixtures\/vol_order_return_golden.json@ carries a @peer_haskell_bytes@ array of
@@ -106,14 +127,25 @@ build golden capture = do
   ns       <- field "ns" golden       >>= as_array >>= mapM as_integer
   expected <- field "expected" golden >>= as_array >>= mapM as_string
   live     <- capture_returndata capture
+  -- zip3 TRUNCATES to the shortest list. Without this assertion a golden that lost an
+  -- entry from any one of the three arrays would silently emit fewer cases than it has
+  -- names, and the artifact would look complete. The lengths are also required to be
+  -- NONZERO: three empty arrays zip3 to [] and would otherwise be a clean, empty success.
+  check_equal_lengths [("names", length names), ("ns", length ns), ("expected", length expected)]
   cases    <- mapM (one live) (zip3 names ns expected)
   pure $
     object
       [ "_generated_by" .=
           T.pack
             ("plan 21-05 task 2 part A, by offchain/rig/gen-peer-bytes.hs. Command: \
-             \cabal exec -- runghc offchain/rig/gen-peer-bytes.hs | jq . > \
-             \offchain/rig/peer-haskell-bytes.json")
+             \cabal build lib:cfmm-replicationPlank-rpc-api; \
+             \OUT=offchain/rig/peer-haskell-bytes.json; \
+             \cabal exec -- runghc --ghc-arg=-package --ghc-arg=cfmm-replicationPlank-rpc-api \
+             \offchain/rig/gen-peer-bytes.hs > \"$OUT.raw\" \
+             \&& jq . \"$OUT.raw\" > \"$OUT.tmp\" && mv \"$OUT.tmp\" \"$OUT\" && rm -f \"$OUT.raw\". \
+             \NOT a bare `| jq . > $OUT` pipeline: the shell truncates $OUT before runghc \
+             \starts, and jq . on empty stdin exits 0 writing nothing, so a failed run \
+             \reports success over a destroyed artifact -- MEASURED, 3120 bytes to 0.")
       , "_source_golden" .= T.pack golden_path
       , "_source_capture" .= T.pack capture_path
       , "_decoder" .=
@@ -141,6 +173,25 @@ build golden capture = do
             \by copying haskell_decode across, or by pointing the fixture test at this file."
       , "cases" .= cases
       ]
+
+-- | Refuse to zip lists that are not the same nonzero length.
+--
+-- @zip3@ carries no length obligation: it silently returns the shortest. This turns that
+-- into a named failure that reports every length it saw, so the answer is "the golden's
+-- @ns@ array is one short", not a quietly smaller artifact.
+check_equal_lengths :: [(String, Int)] -> Either String ()
+check_equal_lengths named = case map snd named of
+  []        -> Left "check_equal_lengths: nothing to check"
+  (n : rest)
+    | n == 0            -> Left ("every input array is EMPTY (" ++ shown ++ "). zip3 over \
+                                 \empty lists is a clean success that proves nothing; the \
+                                 \golden fixture is not loaded or has lost its arrays.")
+    | any (/= n) rest    -> Left ("input arrays disagree in length (" ++ shown ++ "). zip3 \
+                                  \truncates to the shortest, so this would have emitted " ++
+                                  show (minimum (n : rest)) ++ " cases and looked complete.")
+    | otherwise          -> Right ()
+  where
+    shown = unwords [nm ++ "=" ++ show k | (nm, k) <- named]
 
 -- | The three case names the live rig capture also covered, as name -> returndata.
 capture_returndata :: Value -> Either String [(String, String)]
