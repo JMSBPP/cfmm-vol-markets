@@ -1,7 +1,7 @@
 # Phase 22: Live Stochastic Drivers - Context
 
 **Gathered:** 2026-08-02
-**Status:** Ready for planning — **with a hard upstream gate (issue #17)**
+**Status:** Ready for planning — upstream gate (issue #17) RESOLVED 2026-08-02, PR #18 merged to develop @ 2039f27
 
 <domain>
 ## Phase Boundary
@@ -54,9 +54,71 @@ Intended per-step sequence:
 Sound against the current `beforeSwap` (it records pre-swap state), but see the gate below —
 whether the hook needs a guard is an open question posed to the plank track in issue #17.
 
-### UPSTREAM GATE — issue #17 (filed 2026-08-02)
+### UPSTREAM GATE — issue #17: **RESOLVED 2026-08-02, gate is OPEN**
 
-**Phase 22 cannot execute until the rig's pool is SWAPPABLE.** Verified blockers:
+The plank track delivered in PR **#18**, **merged to `develop` @ `2039f27`** (verified:
+`foundry-scripts/deploy/InitSwappableRig.s.sol` present on develop; F2's fix live —
+`DeployDynamicFeeHook.s.sol` now `TICK_SPACING = 20`).
+
+**`InitSwappableRig.s.sol`** runs AFTER `DeployDynamicFeeHook.s.sol`, taking env from its
+printed manifest (`POOL_MANAGER`, `HOOK`, `TOKEN0`, `TOKEN1`):
+`forge script foundry-scripts/deploy/InitSwappableRig.s.sol --tc InitSwappableRig --rpc-url local --broadcast --via-ir`
+— **no `--ffi`** (pure Solidity), `--broadcast` required for our broadcast-JSON manifest
+workflow. It deploys the vendored `PoolSwapTest` + `PoolModifyLiquidityTest` (nothing
+authored), funds + approves, mints ONE full-range position (±887260, L=1e21), and runs a probe
+swap **asserted on `lastTimepointTimestamp` strictly advancing** — a passing run PROVES
+timepoints self-write. New manifest lines: swapRouter, modifyLiquidityRouter, tick range,
+liquidity, probe deltas, timepoint ts before/after.
+
+**Correction they made to our issue's wording:** approvals go **deployer → routers**, NOT
+deployer → PoolManager (settlement is `CurrencySettler.settle → transferFrom` pulled *by the
+router*). Do not re-approve the manager.
+
+#### The five guard answers — BINDING constraints on the driver
+
+- **G1 — same-second repeats (the one that WILL bite):** the write guard is **one timepoint per
+  distinct uint32 TIMESTAMP; blocks are irrelevant** (`RealizedVolatilityStateLib.plk:114`
+  compares timestamps only). Anvil mines several blocks per second, so two swaps in different
+  same-second blocks silently no-op the second write (no E3; E5 + fee still served).
+  **The driver MUST advance the clock ≥1s between writes it expects recorded, and E3 is the
+  ground truth of what landed** — never the swap count. This settles the stride question: stride
+  ≥ 1s is not a preference, it is a correctness requirement.
+- **G2 — non-monotonic timestamps: NOT guarded.** The Algebra-ported oracle assumes a
+  non-decreasing u32 clock; a backwards clock corrupts window math **silently**. We own clock
+  monotonicity. **This vindicates the fail-loudly-before-sending decision — it is the only
+  signal that exists.**
+- **G3 — arbitrary cheated tick jumps: safe.** The oracle measures tick deltas; a cheated jump is
+  indistinguishable from a traded one. Recording the pre-swap (= cheated) tick is exactly what
+  `beforeSwap` does. The cheat-swap pattern is confirmed sound.
+- **G4 — the real hazard is liquidity-accounting desync.** Cheat-moves never CROSS ticks, so the
+  rig must hold **ONLY the one full-range position** — minting any additional range breaks the
+  invariant silently. And the cheat domain must be pinned to ticks **strictly inside
+  [−887260, +887260]**: the TickMath-valid slivers out to ±887272 sit OUTSIDE the position, where
+  global liquidity claims 1e21 that isn't there.
+- **G5 — slot0 hygiene:** write `sqrtPriceX96` AND `tick` **consistently**
+  (`sqrtPrice = getSqrtPriceAtTick(tick)`) in the same word, and **preserve bits ≥184**
+  (protocolFee/lpFee — zeroing is harmless today, latent bug under any future protocol-fee
+  config). Also: a cheat near the bottom of the range **inverts a hardcoded probe direction** —
+  pick `zeroForOne`/`sqrtPriceLimitX96` relative to the cheated price in the minimal-swap loop.
+
+#### Consequences this phase MUST handle
+
+- **The current rig is STALE.** F2 changed `TICK_SPACING` 10 → 20, so previously recorded ts=10
+  rigs must be rebuilt: re-run `DeployDynamicFeeHook.s.sol` before `InitSwappableRig.s.sol`.
+- **Re-pin required.** Byte-identical compiled hex does NOT preserve source sha256. Both
+  `src/modules/pos_spec/VolOrderManagerMod.plk` (F1 comment rewrite) and
+  `foundry-scripts/deploy/DeployDynamicFeeHook.s.sol` (F2) have new source hashes, and
+  `foundry-scripts/deploy/InitSwappableRig.s.sol` must be ADDED to the pin set —
+  `offchain/rig/import-paths.txt` + `IMPORT-PIN.md`, re-imported the same verbatim/pinned way
+  Phase 20 did, from the new develop ref.
+- **F1's rewrite describes `targetVega@128..255 unmasked top`** where our client packs u96 at
+  128..223 with bits ≥224 zero by construction. These are compatible — 128..255 is the *unmasked
+  read region* (dirty bits inflate past 2^96−1 and are rejected by `target_vega_fits_packed`),
+  not a widened field. The planner should confirm this rather than treat it as a layout change.
+
+#### Original blockers (now closed — kept for the record)
+
+Verified blockers at filing time:
 - `DeployDynamicFeeHook.s.sol` **never mints liquidity** (no `modifyLiquidity` call) — a swap
   against a zero-liquidity pool cannot execute.
 - **No unlock-callback router exists anywhere in the tree** —
