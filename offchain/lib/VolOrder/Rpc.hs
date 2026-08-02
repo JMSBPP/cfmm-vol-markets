@@ -40,10 +40,31 @@ import VolOrder.Encoding
 import VolOrder.Report (report_receipt)
 import VolOrder.Types (VolOrder)
 
+-- | The STRICT single-order path. Unlike 'create_orders' this one is all-or-nothing on chain:
+-- @validate_order_strict@ REVERTS rather than skipping the offending tuple.
+--
+-- And it reverts EMPTY. A rejected order comes back as a receipt with status 0, no logs and no
+-- reason data — which, without the check below, this function handed to its caller as an ordinary
+-- success. MEASURED against the live rig with @skew = 65535@ (width-valid, domain-invalid, so it
+-- reaches the module and is rejected): @status=Just 0 logs=0@, returned normally.
+--
+-- 'create_orders' has carried this check since it was written, with the reason spelled out beside
+-- it — \"a reverted batch is byte-identical to a healthy all-invalid one in the report\". The same
+-- sentence is true here with \"all-invalid\" replaced by \"rejected\", and this was the one path
+-- missing the three lines.
 create_order :: Address -> Address -> VolOrder -> Web3 TxReceipt
 create_order owner manager vol_order = do
   calldata <- liftIO (encode_create_order vol_order)
-  send_and_wait owner manager calldata
+  receipt  <- send_and_wait owner manager calldata
+  when (receiptStatus receipt /= Just 1) $
+    fail ("create_order: transaction REVERTED -- tx "
+           ++ show (receiptTransactionHash receipt)
+           ++ ", status " ++ show (receiptStatus receipt)
+           ++ ", order " ++ show vol_order
+           ++ ". The strict single-order entrypoint reverts EMPTY on a rejected order: no logs, no"
+           ++ " reason data, and a receipt otherwise indistinguishable from a successful one whose"
+           ++ " event went undecoded. This is the only place that difference is visible.")
+  pure receipt
 
 -- MAX_BATCH = 128 is enforced here first, before any calldata is built: the
 -- on-chain require(count <= MAX_BATCH) would revert anyway, but with an
