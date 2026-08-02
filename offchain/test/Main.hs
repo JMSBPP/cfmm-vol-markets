@@ -2982,6 +2982,7 @@ fixture_orders =
           , so_e1_count       = 1
           , so_e1             = Just (E1Record 1 1000 60 500 (10 ^ (18 :: Int)))
           , so_readback       = Just (OrderFields 1000 60 500 (10 ^ (18 :: Int)))
+          , so_readback_id    = Just 1
           , so_readback_block = Just 7
           }
     }
@@ -3310,6 +3311,392 @@ driv01_legacy_write_price_still_ran =
           ++ " same artifact is no longer attributable to the cheat-swap driver alone.")
 
 -- ---------------------------------------------------------------------------------------------
+-- DRIV-02: SC-2, SC-3 and SC-4 asserted BY VALUE over the same committed live run
+--
+-- All four checks below are PURE over the @orders@ block of
+-- @offchain\/rig\/driver-run-capture.json@ -- no chain, no socket. They cover the three shapes
+-- @run_order_gen@ cannot produce on its own: it only ever calls the BATCH entrypoint (so no single
+-- @create_order@ receipt), every shape it builds is valid (so no batch is ever mixed), and a
+-- zero-arrival Poisson draw gives @chunk max_batch [] == []@, i.e. zero chunks and therefore zero
+-- transactions.
+--
+-- EVERY SUBMITTED FIELD IS PINNED BY VALUE, not by a relation to something else in the same file.
+-- 22-05 measured a count equality staying TRUE over a run that had been cut short, because the
+-- equality's own denominator moved with the failure. A batch silently truncated from three tuples
+-- to two would be perfectly self-consistent -- one success, one rejection, @orderCount@ moved by
+-- one, one readback -- and would say nothing about the batch that was configured. Pinning the three
+-- tuples is what makes that impossible rather than unlikely.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The @orders@ block, or a failure naming the command that produces it.
+capture_orders :: Value -> Either String Value
+capture_orders capture = json_field "orders" capture
+
+-- | One order shape's four fields, in the artifact's own encoding.
+--
+-- @strike@ (u88) and @targetVega@ (u96) are DECIMAL STRINGS and are read as such. The demo's
+-- @targetVega@ is @10^18@, over a hundred times 2^53, so a reader that took it as a JSON number
+-- would be handed a rounded double -- and a rounded 96-bit value still looks like a value.
+order_fields_of :: Value -> Either String (Integer, Integer, Integer, Integer)
+order_fields_of v = do
+  strike <- json_field "strike" v >>= json_decimal_string
+  width  <- json_field "width" v >>= json_integer
+  sk     <- json_field "skew" v >>= json_integer
+  vega   <- json_field "targetVega" v >>= json_decimal_string
+  pure (strike, width, sk, vega)
+
+-- | @sample_order@, pinned. A change to the demo order must change this line too.
+pinned_single_order :: (Integer, Integer, Integer, Integer)
+pinned_single_order = (1000, 60, 500, 10 ^ (18 :: Int))
+
+-- | @sample_mixed_batch@, pinned in full and IN ORDER.
+--
+-- Position 1 is the discriminator: @skew = 65535@ is WIDTH-valid (@pack_vol_order_input@'s
+-- @in_range 16@ is @> 0 && < 2^16@) and DOMAIN-invalid (@spread_tick_assimetry_is_complete@ admits
+-- only @[1, 65534]@), so it survives the client and is rejected by the module. It was identified and
+-- used live against this same module in Phase 21. NOT claimed here: that it is the only such input.
+pinned_mixed_batch :: [(Integer, Integer, Integer, Integer)]
+pinned_mixed_batch =
+  [ (4100, 40, 210, 2 * 10 ^ (18 :: Int))
+  , (4200, 80, 65535, 3 * 10 ^ (18 :: Int))
+  , (4300, 120, 230, 4 * 10 ^ (18 :: Int))
+  ]
+
+-- | The one business rule this suite models, and the ONLY one it claims to model.
+--
+-- @spread_tick_assimetry_is_complete@ admits @skew@ in @[1, 65534]@. Everything else the module
+-- validates is also enforced client-side by @pack_vol_order_input@'s field-width guards, so no
+-- other rejection can reach the chain from this driver.
+skew_is_in_domain :: Integer -> Bool
+skew_is_in_domain sk = sk >= 1 && sk <= 65534
+
+-- | SC-2 -- one order, one E1, one receipt-block-pinned readback.
+driv02_single_order_live :: Check
+driv02_single_order_live =
+  Check "driv02_single_order_live" . guarded $ do
+    cf <- capture_path
+    loaded <- read_json_file cf ("produce it with: " ++ driver_capture_command)
+    pure $ do
+      capture <- loaded
+      orders <- capture_orders capture
+      single <- json_field "single" orders
+      _ <- expect (single /= Null)
+             ("orders.single is null: the run never placed the single demo order, or died before it"
+               ++ " could be recorded. Re-take it: " ++ driver_capture_command)
+
+      submitted <- json_field "submitted" single >>= order_fields_of
+      _ <- expect (submitted == pinned_single_order)
+             ("the run submitted " ++ show submitted ++ " but sample_order is "
+               ++ show pinned_single_order
+               ++ ". Pinned by VALUE on purpose: every equality below compares the E1 and the"
+               ++ " readback against this same tuple, so without the pin all three could agree on a"
+               ++ " tuple nobody chose.")
+
+      status <- json_field "status" single >>= json_integer
+      _ <- expect (status == 1)
+             ("the single order came back at status " ++ show status
+               ++ " -- a revert unwinds the whole frame, so no order was minted and no E1 exists")
+
+      e1_count <- json_field "e1_count" single >>= json_integer
+      _ <- expect (e1_count == 1)
+             ("the single order emitted " ++ show e1_count ++ " VolOrderCreated logs, expected"
+               ++ " exactly 1. Zero means the pinned topic0 matched nothing -- and a wrong topic0"
+               ++ " does not look wrong, it simply matches no log, so decoding 'succeeds' at"
+               ++ " reporting nothing.")
+
+      e1 <- json_field "e1" single
+      e1_fields <- order_fields_of e1
+      _ <- expect (e1_fields == submitted)
+             ("the E1 carries " ++ show e1_fields ++ " but the driver submitted " ++ show submitted
+               ++ " -- (strike, width, skew, targetVega). targetVega is included deliberately: it is"
+               ++ " the V2 field, and a decoder still reading the V1 three-field payload would agree"
+               ++ " on the first three and be silent about the fourth.")
+
+      order_id <- json_field "orderId" e1 >>= json_integer
+      _ <- expect (order_id > 0)
+             ("the E1 carries orderId " ++ show order_id
+               ++ ", but ids are sequential FROM 1 -- the module mints id = orderCount + 1 and slot"
+               ++ " 0 is never written, so 0 is not an id, it is an unmatched decode")
+
+      readback_id <- json_field "readback_id" single >>= json_integer
+      _ <- expect (readback_id == order_id)
+             ("the readback queried id " ++ show readback_id ++ " but the E1 announced id "
+               ++ show order_id
+               ++ ". A readback aimed at a different id can still content-match -- it would simply"
+               ++ " be describing some OTHER order -- so this equality is what makes the readback"
+               ++ " evidence about THIS mint.")
+
+      readback <- json_field "readback" single >>= order_fields_of
+      _ <- expect (readback == submitted)
+             ("the storage readback is " ++ show readback ++ " but the driver submitted "
+               ++ show submitted
+               ++ ". KNOWN LIMIT (Phase 21 follow-up #5, PARTIALLY ADDRESSED):"
+               ++ " unpack_vol_order_storage discards tickSpacing at bits 104..127 and anything at"
+               ++ " >= 248 BEFORE this comparison, so agreement here does NOT cover those bits.")
+
+      block <- json_field "readback_block" single
+      _ <- expect (block /= String (T.pack "latest"))
+             ("readback_block is the string \"latest\". The readback MUST be pinned to the receipt's"
+               ++ " block: on anything but a single-writer local node Latest can be a lagging"
+               ++ " replica or a later tip, and either one makes the readback describe a different"
+               ++ " chain state from the one the transaction landed in.")
+      height <- json_integer block
+      expect (height > 0)
+        ("readback_block is " ++ show height ++ ", which is not a block height -- the pinning is"
+          ++ " recorded rather than taken on trust precisely so it can be asserted")
+
+-- | SC-3 -- a genuinely MIXED batch, measured rather than assumed.
+--
+-- KNOWN LIMIT, stated once and inherited by every readback below (Phase 21 follow-up #5,
+-- PARTIALLY ADDRESSED): @create_orders@'s @verify_mined_order@ compares the 4-field @VolOrder@
+-- record, and @unpack_vol_order_storage@ discards tickSpacing at bits 104..127 and anything at
+-- >= 248 BEFORE the comparison. A content match here says nothing about those bits.
+driv02_mixed_batch_live :: Check
+driv02_mixed_batch_live =
+  Check "driv02_mixed_batch_live" . guarded $ do
+    cf <- capture_path
+    loaded <- read_json_file cf ("produce it with: " ++ driver_capture_command)
+    pure $ do
+      capture <- loaded
+      orders <- capture_orders capture
+      mixed <- json_field "mixed" orders
+      _ <- expect (mixed /= Null)
+             ("orders.mixed is null: the run never sent the mixed batch. Re-take it: "
+               ++ driver_capture_command)
+
+      submitted_vals <- json_field "submitted" mixed >>= json_array
+      submitted <- mapM order_fields_of submitted_vals
+      _ <- expect (submitted == pinned_mixed_batch)
+             ("the run submitted " ++ show submitted ++ " but sample_mixed_batch is "
+               ++ show pinned_mixed_batch
+               ++ ". This is a VALUE pin and not a length check on purpose: 22-05 measured a count"
+               ++ " equality staying TRUE over a truncated run. A batch cut from three tuples to two"
+               ++ " would be perfectly self-consistent below -- one success, one rejection,"
+               ++ " orderCount moved by one, one readback -- and would be evidence for nothing.")
+
+      preview_vals <- json_field "preview" mixed >>= json_array
+      preview <- mapM (\p -> json_array p >>= pair) preview_vals
+      _ <- expect (length preview == length submitted)
+             ("the preview returned " ++ show (length preview) ++ " results for a batch of "
+               ++ show (length submitted) ++ " orders")
+
+      let pattern_actual = map fst preview
+      _ <- expect (or pattern_actual)
+             ("no position in the batch previewed TRUE -- an all-rejected batch is not a MIXED batch"
+               ++ " and does not exercise best-effort skip semantics at all")
+      _ <- expect (not (and pattern_actual))
+             ("every position in the batch previewed TRUE, so the batch was NOT mixed. SC-3 needs at"
+               ++ " least one CONTRACT-rejected tuple, and that is a narrow target: every field-width"
+               ++ " violation is caught client-side by pack_vol_order_input before anything is sent,"
+               ++ " so a rejected tuple must be WIDTH-valid and DOMAIN-invalid. skew = 65535 is the"
+               ++ " discriminator this batch uses.")
+
+      let pattern_expected = [skew_is_in_domain sk | (_, _, sk, _) <- submitted]
+      _ <- expect (pattern_actual == pattern_expected)
+             ("the preview's success pattern is " ++ show pattern_actual ++ " but the submitted"
+               ++ " tuples' skew domain predicts " ++ show pattern_expected
+               ++ ". spread_tick_assimetry_is_complete admits skew in [1, 65534] and every OTHER"
+               ++ " rule the module enforces is also enforced client-side by pack_vol_order_input,"
+               ++ " so nothing else should be able to reach the chain and be rejected. A"
+               ++ " disagreement here is a FINDING about the module's rule set, not a threshold to"
+               ++ " relax.")
+
+      before <- json_field "orderCount_before" mixed >>= json_integer
+      after <- json_field "orderCount_after" mixed >>= json_integer
+      let successes = length (filter id pattern_actual)
+      _ <- expect (after - before == toInteger successes)
+             ("orderCount moved " ++ show before ++ " -> " ++ show after ++ " (delta "
+               ++ show (after - before) ++ ") but the preview predicted " ++ show successes
+               ++ " successful orders. The batch entrypoint is best-effort per ORDER and never"
+               ++ " reverts, so a rejected tuple is INVISIBLE in the receipt: this delta is the only"
+               ++ " on-chain count of what was actually minted.")
+
+      status <- json_field "status" mixed >>= json_integer
+      _ <- expect (status == 1)
+             ("the mixed batch came back at status " ++ show status
+               ++ ". A reverted batch is byte-identical to a healthy all-invalid one in a report,"
+               ++ " which is exactly why the status is asserted separately from the counts.")
+
+      readbacks <- json_field "readbacks" mixed >>= json_array
+      _ <- expect (length readbacks == successes)
+             ("the run read back " ++ show (length readbacks) ++ " orders for " ++ show successes
+               ++ " previewed successes -- every minted id must be read back out of storage")
+
+      let expected_readbacks = [t | (t, True) <- zip submitted pattern_actual]
+      actual_readbacks <- mapM order_fields_of readbacks
+      _ <- expect (actual_readbacks == expected_readbacks)
+             ("the readbacks are " ++ show actual_readbacks ++ " but the SUCCESSFUL submitted tuples"
+               ++ " were " ++ show expected_readbacks
+               ++ ". The three tuples carry distinct strikes and widths precisely so a transposition"
+               ++ " cannot pass unnoticed here.")
+
+      ids <- mapM (\r -> json_field "id" r >>= json_integer) readbacks
+      expect (ids == take successes [before + 1 ..])
+        ("the minted ids are " ++ show ids ++ " but a batch starting from orderCount "
+          ++ show before ++ " mints exactly " ++ show (take successes [before + 1 :: Integer ..])
+          ++ ". Ids are 1-based and sequential -- the module mints id = orderCount + 1 and then"
+          ++ " advances the count to it -- and they are computed from the LOCAL counter rather than"
+          ++ " taken from the preview, whose absolute ids shift if any other writer lands between"
+          ++ " preview and send.")
+  where
+    pair [a, b] = (,) <$> json_bool a <*> json_integer b
+    pair other  = Left ("expected a two-element [success, id] preview pair, got "
+                         ++ show (length other) ++ " elements")
+
+-- | SC-4 -- the zero-arrival tick, in both of its readings.
+--
+-- == A TRANSACTION RECEIPT CARRIES NO RETURNDATA
+--
+-- State it plainly, because the honest limit is the whole point of how this check is written. An
+-- @eth_getTransactionReceipt@ answer has logs, a status, a block and gas figures, and NO return
+-- value anywhere in it: the EVM's return buffer is not part of the receipt and no node reconstructs
+-- it. So the "exactly 64 bytes" fact is observable through the preview @eth_call@ and through
+-- NOTHING ELSE on the transaction path. @preview_hex@ below comes from
+-- @VolOrder.Rpc.preview_create_orders@, which exists for exactly this reason. A future check that
+-- claims to read the byte length off the mined @create_orders@ transaction is wrong about where the
+-- bytes live, and this note is here so nobody writes it.
+--
+-- The TRANSACTION half is still asserted -- status 1 and @orderCount@ unmoved -- because "the empty
+-- batch also mines cleanly and mints nothing" is a different claim from "the empty batch returns 64
+-- bytes", and neither implies the other.
+--
+-- == AND THE GENERATOR NEVER GETS HERE
+--
+-- @StochasticOrderGen.Rpc.chunk _ [] = []@, so a zero-arrival Poisson tick produces zero chunks,
+-- zero eth_calls and zero transactions. @run_order_gen@ sends NOTHING at @N = 0@. That is why this
+-- evidence needs a DIRECT @create_orders _ _ []@ call and cannot come from a generator run, and
+-- @generator_chunks_at_zero@ is measured from the real function so the claim cannot rot into a
+-- stale comment.
+driv02_zero_arrival_is_64_bytes :: Check
+driv02_zero_arrival_is_64_bytes =
+  Check "driv02_zero_arrival_is_64_bytes" . guarded $ do
+    cf <- capture_path
+    loaded <- read_json_file cf ("produce it with: " ++ driver_capture_command)
+    pure $ do
+      capture <- loaded
+      orders <- capture_orders capture
+      n0 <- json_field "n0" orders
+      _ <- expect (n0 /= Null)
+             ("orders.n0 is null: the run never made the direct empty-batch call. Re-take it: "
+               ++ driver_capture_command)
+
+      preview_hex <- json_field "preview_hex" n0 >>= json_string
+      declared <- json_field "preview_byte_length" n0 >>= json_integer
+      _ <- expect (declared == 64)
+             ("the empty batch previewed " ++ show declared ++ " bytes, expected EXACTLY 64 -- the"
+               ++ " array offset word plus a zero length word. Never 0 (which is what a"
+               ++ " non-returning function gives) and never 32 (which is what a bare length with no"
+               ++ " offset would give). v4.0's exit record named this the single clause in the"
+               ++ " return contract most likely to break StochasticOrderGen.")
+
+      measured <- hex_byte_length preview_hex
+      _ <- expect (toInteger measured == declared)
+             ("preview_byte_length says " ++ show declared ++ " but preview_hex is "
+               ++ show measured ++ " bytes -- a derived field has drifted from the bytes it"
+               ++ " summarises, so one of the two is describing a call that did not happen")
+
+      _ <- expect (length preview_hex == 130)
+             ("preview_hex is " ++ show (length preview_hex) ++ " characters, expected 130"
+               ++ " (the 0x prefix plus 128 hex digits)")
+
+      -- Read the two words STRAIGHT OUT OF THE HEX with this suite's own slicing. The point of the
+      -- 21-05 discipline: a check that decoded the bytes with the very decoder it is checking would
+      -- go green on any pair of bytes the decoder happened to accept.
+      ws <- hex_words preview_hex
+      (word0, word1) <-
+        case ws of
+          [a, b] -> (,) <$> hex_word_integer a <*> hex_word_integer b
+          _      -> Left ("the empty return splits into " ++ show (length ws)
+                           ++ " ABI words, expected exactly 2")
+      _ <- expect (word0 == 32)
+             ("the first word of the empty return is " ++ show word0 ++ ", expected 32 -- the"
+               ++ " canonical head-relative offset to the array's own data")
+      _ <- expect (word1 == 0)
+             ("the second word of the empty return is " ++ show word1
+               ++ ", expected 0 -- the array's length")
+
+      -- AND SEPARATELY, the shipped decoder, so it is covered too rather than bypassed.
+      raw_bytes <- hex_bytes preview_hex
+      _ <- case decode_create_orders_result (fromBytes raw_bytes) of
+             Left err -> Left ("the SHIPPED decode_create_orders_result REJECTED the live empty"
+                                ++ " return: " ++ err)
+             Right [] -> Right ()
+             Right xs -> Left ("decode_create_orders_result returned " ++ show (length xs)
+                                ++ " results for the empty batch, expected none")
+
+      decoded_len <- json_field "decoded_length" n0 >>= json_integer
+      _ <- expect (decoded_len == 0)
+             ("the run recorded decoded_length " ++ show decoded_len ++ " for the empty batch")
+
+      status <- json_field "status" n0 >>= json_integer
+      _ <- expect (status == 1)
+             ("the empty batch transaction came back at status " ++ show status
+               ++ " -- an empty batch is legal and must mine, not revert")
+
+      before <- json_field "orderCount_before" n0 >>= json_integer
+      after <- json_field "orderCount_after" n0 >>= json_integer
+      _ <- expect (before == after)
+             ("orderCount moved " ++ show before ++ " -> " ++ show after
+               ++ " across an EMPTY batch -- nothing was submitted, so nothing may be minted")
+
+      chunks <- json_field "generator_chunks_at_zero" n0 >>= json_integer
+      expect (chunks == 0)
+        ("chunk max_batch [] produced " ++ show chunks ++ " chunks, expected 0. This is SC-4's OTHER"
+          ++ " reading: zero chunks is why a zero-arrival Poisson tick sends no transaction at all,"
+          ++ " and therefore why run_order_gen can never exercise the 64-byte return. If this ever"
+          ++ " becomes nonzero the generator has started sending an empty batch, which is a"
+          ++ " behaviour change, not a fix.")
+
+-- | Provenance for the orders block, on the same terms as the steps block.
+--
+-- @blockNumber@ is deliberately NOT asserted: 21-02 measured three from-scratch deploys landing at
+-- heights 9, 11 and 10, so asserting it would redden the suite after any redeploy.
+driv02_run_capture_orders_are_fresh :: Check
+driv02_run_capture_orders_are_fresh =
+  Check "driv02_run_capture_orders_are_fresh" . guarded $ do
+    cf <- capture_path
+    loaded <- read_json_file cf ("produce it with: " ++ driver_capture_command)
+    mf <- manifest_file
+    manifest_present <- doesFileExist mf
+    outcome <-
+      if manifest_present
+        then do
+          attempt <- try (load_rig_from pins_file mf)
+          pure (Just (attempt :: Either IOException Rig))
+        else pure Nothing
+    pure $ do
+      capture <- loaded
+      rig <- case outcome of
+        Nothing         -> Left ("no " ++ mf ++ " -- stand the rig up: " ++ deploy_command)
+        Just (Left err) -> Left ("load_rig_from failed on the real files: " ++ show err)
+        Just (Right r)  -> Right r
+
+      orders <- capture_orders capture
+      complete <- json_field "complete" orders >>= json_bool
+      _ <- expect complete
+             ("orders.complete is false: the order side ABORTED partway and whatever is recorded"
+               ++ " below it is a partial run. This flag is DRIV-02's own -- dr_complete means the"
+               ++ " DRIV-01 cheat-swap path finished and is set BEFORE the order side runs, so"
+               ++ " reading it here would report a price-path success as an order-side success."
+               ++ " Re-take the run: " ++ driver_capture_command)
+
+      captured_from <- json_field "generatedFrom" capture >>= json_string
+      _ <- expect (captured_from == T.unpack (pins_generated_from (rig_pins rig)))
+             ("the run names generatedFrom " ++ captured_from ++ " but rig-pins.json names "
+               ++ T.unpack (pins_generated_from (rig_pins rig))
+               ++ " -- the orders were placed against a DIFFERENT imported source-of-truth ref, and"
+               ++ " VolOrderManagerMod is one of the modules that ref pins. Re-take it: "
+               ++ driver_capture_command)
+
+      rig_field_matches capture (rig_addrs rig) "volOrderManager" "VolOrderManagerMod"
+
+-- | One 32-byte ABI word of lowercase hex, as an 'Integer'.
+hex_word_integer :: String -> Either String Integer
+hex_word_integer w
+  | length w == 64 && all isHexDigit w = Right (foldl (\acc c -> acc * 16 + toInteger (digitToInt c)) 0 w)
+  | otherwise = Left ("not a 32-byte hex word: " ++ show w)
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -3367,6 +3754,10 @@ main = do
           , driv01_e3_per_step_matches_submitted
           , driv01_no_same_second_noop
           , driv01_legacy_write_price_still_ran
+          , driv02_single_order_live
+          , driv02_mixed_batch_live
+          , driv02_zero_arrival_is_64_bytes
+          , driv02_run_capture_orders_are_fresh
           ]
             ++ per_pin_checks pins
 

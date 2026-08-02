@@ -271,6 +271,7 @@ capture_single topic_e1 manager submitted receipt = do
     , so_e1_count       = length e1s
     , so_e1             = fmap e1_record (listToMaybe e1s)
     , so_readback       = readback
+    , so_readback_id    = fmap orderId (listToMaybe e1s)
     , so_readback_block = Just (unQuantity (receiptBlockNumber receipt))
     }
 

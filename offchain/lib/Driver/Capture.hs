@@ -218,6 +218,10 @@ data SingleOrder = SingleOrder
   , so_e1_count       :: Int
   , so_e1             :: Maybe E1Record
   , so_readback       :: Maybe OrderFields
+    -- | The id the readback actually queried. Recorded SEPARATELY from @so_e1@'s @orderId@ so a
+    -- check can assert the two agree: a readback that quietly asked for @orderCount()@, or for a
+    -- constant, would otherwise content-match some OTHER order and look perfect.
+  , so_readback_id    :: Maybe Integer
     -- | The block the readback was pinned to — the RECEIPT's block, never @latest@. Recorded as a
     -- number so a check can assert it is a height and not the string a lazy readback would carry.
   , so_readback_block :: Maybe Integer
@@ -433,6 +437,7 @@ instance ToJSON SingleOrder where
       , "e1_count"       .= so_e1_count s
       , "e1"             .= so_e1 s
       , "readback"       .= so_readback s
+      , "readback_id"    .= so_readback_id s
       , "readback_block" .= so_readback_block s
       ]
 
