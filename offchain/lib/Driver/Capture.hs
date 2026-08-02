@@ -37,10 +37,17 @@
 -- three from-scratch deploys landing at heights 9, 11 and 10, so asserting it would redden the
 -- suite after any redeploy.
 --
--- == EXTENSION
+-- == THE ORDERS BLOCK (22-06, DRIV-02) AND ITS OWN COMPLETION FLAG
 --
--- Plan 22-06 adds an @orders@ object to this same record. Adding a top-level 'Maybe' field and one
--- line in 'ToJSON' is the whole change; nothing below is positional.
+-- 'dr_orders' carries the three order shapes the generator cannot produce on its own. Each is a
+-- 'Maybe' for the same reason the step list can be short: a run that died between the mixed batch
+-- and the zero-arrival call must still leave the mixed batch behind.
+--
+-- 'or_complete' is DRIV-02's OWN completion signal and is deliberately not 'dr_complete'.
+-- 'dr_complete' means "the DRIV-01 cheat-swap path finished", and 22-05 set it BEFORE the order side
+-- runs precisely so an order-side failure could not mark the price-path evidence partial. A second
+-- requirement borrowing that flag would read a price-path success as an order-side success. Two
+-- requirements, two flags.
 module Driver.Capture
   ( -- * The run record
     DriverRun (..)
@@ -50,6 +57,15 @@ module Driver.Capture
   , E3Record (..)
   , E5Record (..)
   , LegacyWritePrice (..)
+    -- * The DRIV-02 orders block
+  , OrdersRecord (..)
+  , OrderFields (..)
+  , SingleOrder (..)
+  , E1Record (..)
+  , MixedBatch (..)
+  , MixedReadback (..)
+  , ZeroArrival (..)
+  , no_orders
     -- * Path resolution and writing
   , capture_env_var
   , capture_path
@@ -82,6 +98,8 @@ data DriverRun = DriverRun
   , dr_steps              :: [StepRecord]
     -- | 'Nothing' when the legacy @write_price@ flow did not run (i.e. the run died before it).
   , dr_legacy_write_price :: Maybe LegacyWritePrice
+    -- | The DRIV-02 order exercises. Carries its own completion flag — see the module header.
+  , dr_orders             :: OrdersRecord
   }
   deriving (Eq, Show)
 
@@ -157,6 +175,106 @@ data LegacyWritePrice = LegacyWritePrice
   deriving (Eq, Show)
 
 -- ---------------------------------------------------------------------------------------------
+-- The DRIV-02 orders block
+-- ---------------------------------------------------------------------------------------------
+
+-- | The three order shapes, each 'Maybe' so a run that died partway still records what completed.
+data OrdersRecord = OrdersRecord
+  { -- | DRIV-02's own completion signal. See the module header: this is NOT 'dr_complete', which
+    -- means "the DRIV-01 path finished" and is set before the order side runs.
+    or_complete :: Bool
+  , or_single   :: Maybe SingleOrder
+  , or_mixed    :: Maybe MixedBatch
+  , or_n0       :: Maybe ZeroArrival
+  }
+  deriving (Eq, Show)
+
+-- | An orders block with nothing in it — the value the run starts from.
+no_orders :: OrdersRecord
+no_orders = OrdersRecord { or_complete = False, or_single = Nothing, or_mixed = Nothing, or_n0 = Nothing }
+
+-- | The four fields of a 'VolOrder.Types.VolOrder', as the artifact records them.
+--
+-- @strike@ (u88) and @targetVega@ (u96) are DECIMAL STRINGS under the 2^53 rule above: the demo's
+-- own @targetVega@ is @10^18@, which is already over a hundred times 2^53, so emitting it as a JSON
+-- number would hand every @jq@ reader a rounded double that still looks like an integer. @width@
+-- (u24) and @skew@ (u16) cannot reach 2^53 by their own field widths and stay numbers.
+data OrderFields = OrderFields
+  { of_strike      :: Integer
+  , of_width       :: Integer
+  , of_skew        :: Integer
+  , of_target_vega :: Integer
+  }
+  deriving (Eq, Show)
+
+-- | SC-2: one @create_order@, its E1, and the receipt-block-pinned readback.
+data SingleOrder = SingleOrder
+  { so_submitted      :: OrderFields
+  , so_tx_hash        :: String
+    -- | 'Nothing' only on a pre-Byzantium receipt that carries no status at all. Recorded as
+    -- @null@ rather than defaulted to a number, because a defaulted 1 would be a status this run
+    -- never observed and a defaulted 0 would report a revert that never happened.
+  , so_status         :: Maybe Integer
+  , so_e1_count       :: Int
+  , so_e1             :: Maybe E1Record
+  , so_readback       :: Maybe OrderFields
+    -- | The block the readback was pinned to — the RECEIPT's block, never @latest@. Recorded as a
+    -- number so a check can assert it is a height and not the string a lazy readback would carry.
+  , so_readback_block :: Maybe Integer
+  }
+  deriving (Eq, Show)
+
+-- | @VolOrderCreated@ — the id comes from the indexed topic, the four fields from the data payload.
+data E1Record = E1Record
+  { e1r_order_id    :: Integer
+  , e1r_strike      :: Integer
+  , e1r_width       :: Integer
+  , e1r_skew        :: Integer
+  , e1r_target_vega :: Integer
+  }
+  deriving (Eq, Show)
+
+-- | SC-3: a batch carrying at least one contract-rejected tuple, so best-effort skip semantics are
+-- exercised on a LIVE chain rather than in a mock.
+data MixedBatch = MixedBatch
+  { mb_submitted    :: [OrderFields]
+    -- | The preview's @(success, id)@ pairs, positionally aligned with 'mb_submitted'.
+  , mb_preview      :: [(Bool, Integer)]
+  , mb_count_before :: Integer
+  , mb_count_after  :: Integer
+  , mb_tx_hash      :: String
+  , mb_status       :: Maybe Integer
+  , mb_readbacks    :: [MixedReadback]
+  }
+  deriving (Eq, Show)
+
+-- | One minted id read back out of storage, content-matched to what was submitted for it.
+data MixedReadback = MixedReadback
+  { mr_id     :: Integer
+  , mr_fields :: OrderFields
+  }
+  deriving (Eq, Show)
+
+-- | SC-4: the zero-arrival tick, in BOTH of its readings.
+--
+-- @zr_preview_hex@ and @zr_preview_byte_length@ come from the preview @eth_call@, which is the only
+-- channel that can carry returndata at all — see @VolOrder.Rpc.preview_create_orders@.
+-- @zr_generator_chunks_at_zero@ is the OTHER reading: @StochasticOrderGen.Rpc.chunk@ applied to an
+-- empty list, which is @0@, which is why a zero-arrival Poisson tick sends no transaction and the
+-- generator path never exercises the 64-byte return at all.
+data ZeroArrival = ZeroArrival
+  { zr_preview_hex              :: String
+  , zr_preview_byte_length      :: Int
+  , zr_decoded_length           :: Int
+  , zr_tx_hash                  :: String
+  , zr_status                   :: Maybe Integer
+  , zr_count_before             :: Integer
+  , zr_count_after              :: Integer
+  , zr_generator_chunks_at_zero :: Int
+  }
+  deriving (Eq, Show)
+
+-- ---------------------------------------------------------------------------------------------
 -- Construction
 -- ---------------------------------------------------------------------------------------------
 
@@ -223,6 +341,7 @@ instance ToJSON DriverRun where
       , "seed"                .= dr_seed r
       , "steps"               .= dr_steps r
       , "legacy_write_price"  .= dr_legacy_write_price r
+      , "orders"              .= dr_orders r
       ]
 
 instance ToJSON DriverRig where
@@ -287,6 +406,83 @@ instance ToJSON LegacyWritePrice where
       , "value"       .= lwp_value w
       ]
 
+instance ToJSON OrdersRecord where
+  toJSON o =
+    object
+      [ "complete" .= or_complete o
+      , "single"   .= or_single o
+      , "mixed"    .= or_mixed o
+      , "n0"       .= or_n0 o
+      ]
+
+instance ToJSON OrderFields where
+  toJSON f =
+    object
+      [ "strike"     .= decimal (of_strike f)
+      , "width"      .= of_width f
+      , "skew"       .= of_skew f
+      , "targetVega" .= decimal (of_target_vega f)
+      ]
+
+instance ToJSON SingleOrder where
+  toJSON s =
+    object
+      [ "submitted"      .= so_submitted s
+      , "txHash"         .= so_tx_hash s
+      , "status"         .= so_status s
+      , "e1_count"       .= so_e1_count s
+      , "e1"             .= so_e1 s
+      , "readback"       .= so_readback s
+      , "readback_block" .= so_readback_block s
+      ]
+
+instance ToJSON E1Record where
+  toJSON e =
+    object
+      [ "orderId"    .= e1r_order_id e
+      , "strike"     .= decimal (e1r_strike e)
+      , "width"      .= e1r_width e
+      , "skew"       .= e1r_skew e
+      , "targetVega" .= decimal (e1r_target_vega e)
+      ]
+
+instance ToJSON MixedBatch where
+  toJSON m =
+    object
+      [ "submitted"         .= mb_submitted m
+        -- A two-element array per position, so a reader can ask for the success PATTERN with
+        -- `[.preview[] | .[0]]` without knowing anything about this record's field names.
+      , "preview"           .= [ [toJSON ok, toJSON i] | (ok, i) <- mb_preview m ]
+      , "orderCount_before" .= mb_count_before m
+      , "orderCount_after"  .= mb_count_after m
+      , "txHash"            .= mb_tx_hash m
+      , "status"            .= mb_status m
+      , "readbacks"         .= mb_readbacks m
+      ]
+
+instance ToJSON MixedReadback where
+  toJSON r =
+    object
+      [ "id"         .= mr_id r
+      , "strike"     .= decimal (of_strike (mr_fields r))
+      , "width"      .= of_width (mr_fields r)
+      , "skew"       .= of_skew (mr_fields r)
+      , "targetVega" .= decimal (of_target_vega (mr_fields r))
+      ]
+
+instance ToJSON ZeroArrival where
+  toJSON z =
+    object
+      [ "preview_hex"              .= zr_preview_hex z
+      , "preview_byte_length"      .= zr_preview_byte_length z
+      , "decoded_length"           .= zr_decoded_length z
+      , "txHash"                   .= zr_tx_hash z
+      , "status"                   .= zr_status z
+      , "orderCount_before"        .= zr_count_before z
+      , "orderCount_after"         .= zr_count_after z
+      , "generator_chunks_at_zero" .= zr_generator_chunks_at_zero z
+      ]
+
 -- | A value that can exceed 2^53, as a decimal string.
 decimal :: Integer -> Value
 decimal = toJSON . show
@@ -303,3 +499,9 @@ provenance_note =
     ++ " --timestamp fixes the origin, not the rate); the seed replays the TICK path and the"
     ++ " schedule replays in shape, t_k - t0 = k*stride. blockNumber is deliberately absent:"
     ++ " three from-scratch deploys were measured at heights 9, 11 and 10."
+    ++ " `orders` records the three DRIV-02 shapes the generator cannot produce on its own."
+    ++ " orders.n0.preview_byte_length comes from the PREVIEW eth_call and could not have come from"
+    ++ " anywhere else: a mined transaction carries NO returndata, so the 64-byte empty-return"
+    ++ " contract is unobservable on the transaction path. orders.complete is DRIV-02's own"
+    ++ " completion flag; dr_complete means the DRIV-01 path finished and is set before the order"
+    ++ " side runs, so the two must never be read for each other."

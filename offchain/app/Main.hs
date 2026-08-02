@@ -44,14 +44,16 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Bits (shiftR, (.&.))
 import qualified Data.ByteString as BS
 import Data.Char (intToDigit, isSpace)
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (dropWhileEnd)
+import Data.Maybe (listToMaybe)
 import qualified Data.Text as T
 import Data.Word (Word32)
 import System.Process (readProcess)
 
 import Sample
-  ( sample_order
+  ( sample_mixed_batch
+  , sample_order
   , sample_order_gen
   , sample_price_gen
   , sample_stride
@@ -59,19 +61,32 @@ import Sample
   )
 import Data.ByteArray.HexString (HexString, toBytes)
 import Data.Solidity.Prim.Address (Address, toHexString)
-import Network.Ethereum.Api.Types (unQuantity)
-import Network.Web3.Provider (Provider (HttpProvider), runWeb3')
+import Network.Ethereum.Api.Types
+  ( Change
+  , DefaultBlock (BlockWithNumber, Latest)
+  , TxReceipt (..)
+  , unQuantity
+  )
+import Network.Web3.Provider (Provider (HttpProvider), Web3, runWeb3')
 
 import CheatSwap.Rpc (CheatSwapStep (..), CheatSwapTarget (..))
 import Driver.Capture
   ( DriverRig (..)
   , DriverRun (..)
   , DriverSeed (..)
+  , E1Record (..)
   , E3Record (..)
   , E5Record (..)
   , LegacyWritePrice (..)
+  , MixedBatch (..)
+  , MixedReadback (..)
+  , OrderFields (..)
+  , OrdersRecord (..)
+  , SingleOrder (..)
   , StepRecord
+  , ZeroArrival (..)
   , capture_path
+  , no_orders
   , step_record
   , write_capture
   )
@@ -91,12 +106,25 @@ import Rig.Manifest
   , resolve_contract
   )
 import StochasticOrderGen.Report (report_batch_result)
-import StochasticOrderGen.Rpc (run_order_gen)
+import StochasticOrderGen.Rpc (chunk, max_batch, run_order_gen)
 import StochasticPriceGen.Report (report_path_write)
 import StochasticPriceGen.Rpc (run_cheat_swap_path, run_price_gen)
 import StochasticPriceGen.Types (StochasticPriceGen (size))
+import VolOrder.Decode
+  ( OrderCreatedEvent (..)
+  , decode_create_orders_result
+  , decode_order_created
+  , unpack_vol_order_storage
+  )
 import VolOrder.Report (report_receipt)
-import VolOrder.Rpc (create_order)
+import VolOrder.Rpc
+  ( create_order
+  , create_orders
+  , preview_create_orders
+  , read_order_count
+  , read_order_packed
+  )
+import VolOrder.Types (VolOrder (..))
 
 main :: IO ()
 main = do
@@ -150,14 +178,20 @@ main = do
   steps_ref  <- newIORef []
   legacy_ref <- newIORef Nothing
   done_ref   <- newIORef False
+  orders_ref <- newIORef no_orders
 
   capture <- capture_path
 
   result <-
-    flip finally (flush rig seed steps_ref legacy_ref done_ref capture) $
+    flip finally (flush rig seed steps_ref legacy_ref done_ref orders_ref capture) $
       runWeb3'
         (HttpProvider "http://127.0.0.1:8545")
         (do receipt <- create_order sender manager sample_order
+
+            -- DRIV-02 / SC-2: the single order's E1 and its receipt-block-pinned readback,
+            -- captured from the receipt that was already here rather than from a second send.
+            single <- capture_single topic_e1 manager sample_order receipt
+            liftIO (modifyIORef' orders_ref (\o -> o { or_single = Just single }))
 
             -- The LEGACY flow, unchanged and still first-class (roadmap SC-1).
             written <- write_price psh sample_tick
@@ -168,21 +202,162 @@ main = do
             steps <- run_cheat_swap_path target sample_price_gen sample_stride steps_ref gen
 
             -- The DRIV-01 path is complete HERE. Anything that fails after this point is an
-            -- order-side failure and must not mark the price-path evidence partial.
+            -- order-side failure and must not mark the price-path evidence partial. DRIV-02 gets
+            -- its own flag (or_complete) rather than borrowing this one.
             liftIO (writeIORef done_ref True)
 
             batch_results <- run_order_gen sender manager sample_order_gen gen
-            pure (receipt, written, path_written, steps, batch_results))
+
+            -- DRIV-02 / SC-3 and SC-4. Both come AFTER run_order_gen on purpose: `gen` is consumed
+            -- sequentially by run_price_gen, run_cheat_swap_path and run_order_gen, so anything
+            -- inserted before the generator would shift the draws it makes and change the orders a
+            -- replay of the same seed produces. Neither of these two draws from `gen` at all --
+            -- sample_mixed_batch is DATA and the empty batch has nothing to draw for -- so the
+            -- order stream is left exactly where 22-05 found it.
+            mixed <- capture_mixed sender manager sample_mixed_batch
+            liftIO (modifyIORef' orders_ref (\o -> o { or_mixed = Just mixed }))
+
+            n0 <- capture_zero_arrival sender manager
+            liftIO (modifyIORef' orders_ref (\o -> o { or_n0 = Just n0 }))
+
+            liftIO (modifyIORef' orders_ref (\o -> o { or_complete = True }))
+            pure (receipt, written, path_written, steps, batch_results, mixed, n0))
 
   case result of
     Left web3_error -> putStrLn ("rpc error: " ++ show web3_error)
-    Right (receipt, written, path_written, steps, batch_results) -> do
+    Right (receipt, written, path_written, steps, batch_results, mixed, n0) -> do
       report_receipt topic_e1 receipt
       report_price_write written
       report_path_write path_written
       mapM_ (putStrLn . summarise_step) (zip [0 :: Int ..] steps)
-      putStrLn ("wrote " ++ capture ++ "  (" ++ show (length steps) ++ " steps)")
       mapM_ report_batch_result batch_results
+      putStrLn (summarise_mixed mixed)
+      putStrLn (summarise_n0 n0)
+      putStrLn ("wrote " ++ capture ++ "  (" ++ show (length steps) ++ " steps, 3 order shapes)")
+
+-- ---------------------------------------------------------------------------------------------
+-- DRIV-02: the three order shapes, captured live
+--
+-- The generator produces NONE of these three on its own, which is why they are here rather than in
+-- StochasticOrderGen:
+--
+--   * SINGLE      -- run_order_gen only ever calls the BATCH entrypoint, so no create_order receipt
+--                    and no E1-with-readback pair comes out of it.
+--   * MIXED       -- every shape the generator builds is valid, so no batch it sends is ever mixed.
+--   * ZERO ARRIVAL -- a Poisson draw of 0 gives `chunk max_batch [] == []`, i.e. zero chunks, zero
+--                    eth_calls and zero transactions. The generator sends NOTHING, so the empty-batch
+--                    return contract is never exercised on that path at all.
+-- ---------------------------------------------------------------------------------------------
+
+-- | SC-2. One @create_order@ receipt in, one recorded exercise out.
+--
+-- The readback is pinned to the RECEIPT's block, never @Latest@: on anything but a single-writer
+-- local node @Latest@ can be a lagging replica or a later tip, and either one makes the readback
+-- describe a different chain state from the one the transaction landed in. The block height is
+-- recorded so a check can see the pinning rather than take it on trust.
+capture_single :: Integer -> Address -> VolOrder -> TxReceipt -> Web3 SingleOrder
+capture_single topic_e1 manager submitted receipt = do
+  let block = BlockWithNumber (receiptBlockNumber receipt)
+      e1s   = decode_e1s topic_e1 (receiptLogs receipt)
+  readback <-
+    case e1s of
+      (e : _) -> Just . order_fields . unpack_vol_order_storage
+                   <$> read_order_packed manager block (orderId e)
+      []      -> pure Nothing
+  pure SingleOrder
+    { so_submitted      = order_fields submitted
+    , so_tx_hash        = hex_of (receiptTransactionHash receipt)
+    , so_status         = fmap unQuantity (receiptStatus receipt)
+    , so_e1_count       = length e1s
+    , so_e1             = fmap e1_record (listToMaybe e1s)
+    , so_readback       = readback
+    , so_readback_block = Just (unQuantity (receiptBlockNumber receipt))
+    }
+
+-- | SC-3. A batch with at least one contract-rejected tuple, sent live.
+--
+-- @create_orders@ already enforces the whole contract internally — the preview decodes and its
+-- length matches the batch, the receipt is status 1, @orderCount()@ read AT THE RECEIPT'S BLOCK
+-- moved by exactly the number of previewed successes, and every minted id reads back
+-- content-matched. None of that is re-implemented here; this function RECORDS the numbers so an
+-- offline check can assert them without a chain.
+--
+-- KNOWN LIMIT, recorded rather than papered over (Phase 21 follow-up #5, PARTIALLY ADDRESSED):
+-- @verify_mined_order@ compares the 4-field 'VolOrder' record, and @unpack_vol_order_storage@
+-- discards tickSpacing at bits 104..127 and anything at >= 248 BEFORE that comparison. The
+-- readbacks below inherit exactly that blind spot.
+capture_mixed :: Address -> Address -> [VolOrder] -> Web3 MixedBatch
+capture_mixed sender manager batch = do
+  before <- read_order_count manager Latest
+  (receipt, preview) <- create_orders sender manager batch
+  let block     = BlockWithNumber (receiptBlockNumber receipt)
+      successes = [o | (o, (True, _)) <- zip batch preview]
+      -- Ids are 1-based and sequential: the module mints id = orderCount + 1 and then advances the
+      -- count to it, so this batch minted exactly [before+1 .. before+successes]. The PREVIEW's
+      -- absolute ids are deliberately not used -- they are read before the send and any other
+      -- writer landing in between shifts the base.
+      minted_ids = take (length successes) [before + 1 ..]
+  after <- read_order_count manager block
+  readbacks <-
+    mapM (\i -> MixedReadback i . order_fields . unpack_vol_order_storage
+                  <$> read_order_packed manager block i)
+         minted_ids
+  pure MixedBatch
+    { mb_submitted    = map order_fields batch
+    , mb_preview      = preview
+    , mb_count_before = before
+    , mb_count_after  = after
+    , mb_tx_hash      = hex_of (receiptTransactionHash receipt)
+    , mb_status       = fmap unQuantity (receiptStatus receipt)
+    , mb_readbacks    = readbacks
+    }
+
+-- | SC-4, in BOTH of its readings.
+--
+-- The PREVIEW half first, and it has to be first: a mined transaction carries no returndata at all,
+-- so the "exactly 64 bytes" fact is observable through @preview_create_orders@ and through nothing
+-- else. The TRANSACTION half follows, to show the empty batch also mines cleanly and moves
+-- @orderCount@ by zero. The GENERATOR half is @length (chunk max_batch [])@, taken from the real
+-- function so it cannot drift into a stale comment.
+capture_zero_arrival :: Address -> Address -> Web3 ZeroArrival
+capture_zero_arrival sender manager = do
+  preview_raw <- preview_create_orders manager []
+  decoded <- either fail pure (decode_create_orders_result preview_raw)
+  before <- read_order_count manager Latest
+  (receipt, _) <- create_orders sender manager []
+  after <- read_order_count manager (BlockWithNumber (receiptBlockNumber receipt))
+  pure ZeroArrival
+    { zr_preview_hex              = hex_of preview_raw
+    , zr_preview_byte_length      = BS.length (toBytes preview_raw)
+    , zr_decoded_length           = length decoded
+    , zr_tx_hash                  = hex_of (receiptTransactionHash receipt)
+    , zr_status                   = fmap unQuantity (receiptStatus receipt)
+    , zr_count_before             = before
+    , zr_count_after              = after
+    , zr_generator_chunks_at_zero = length (chunk max_batch ([] :: [VolOrder]))
+    }
+
+decode_e1s :: Integer -> [Change] -> [OrderCreatedEvent]
+decode_e1s topic_e1 logs = [e | Just e <- map (decode_order_created topic_e1) logs]
+
+order_fields :: VolOrder -> OrderFields
+order_fields o =
+  OrderFields
+    { of_strike      = unQuantity (vol_target o)
+    , of_width       = unQuantity (range_width o)
+    , of_skew        = unQuantity (skew o)
+    , of_target_vega = unQuantity (target_vega o)
+    }
+
+e1_record :: OrderCreatedEvent -> E1Record
+e1_record e =
+  E1Record
+    { e1r_order_id    = orderId e
+    , e1r_strike      = orderStrike e
+    , e1r_width       = orderRangeWidth e
+    , e1r_skew        = orderSkew e
+    , e1r_target_vega = orderTargetVega e
+    }
 
 -- ---------------------------------------------------------------------------------------------
 -- The flush
@@ -203,13 +378,15 @@ flush
   -> IORef [CheatSwapStep]
   -> IORef (Maybe LegacyWritePrice)
   -> IORef Bool
+  -> IORef OrdersRecord
   -> FilePath
   -> IO ()
-flush rig seed steps_ref legacy_ref done_ref path = do
+flush rig seed steps_ref legacy_ref done_ref orders_ref path = do
   outcome <- try $ do
     steps  <- readIORef steps_ref
     legacy <- readIORef legacy_ref
     done   <- readIORef done_ref
+    orders <- readIORef orders_ref
     stamp  <- iso_timestamp
 
     let addrs = rig_addrs rig
@@ -240,6 +417,9 @@ flush rig seed steps_ref legacy_ref done_ref path = do
               }
           , dr_steps              = zipWith to_step [0 ..] steps
           , dr_legacy_write_price = legacy
+            -- Whatever the order side managed to record. A run that died between the mixed batch
+            -- and the zero-arrival call still leaves the mixed batch here, with or_complete false.
+          , dr_orders             = orders
           }
     write_capture path run
 
@@ -305,6 +485,22 @@ summarise_step (k, step) =
     ++ "  e3=" ++ show (cs_e3_count step)
     ++ "  e5=" ++ show (cs_e5_count step)
     ++ "  e3.tick=" ++ maybe "-" (show . tw_tick) (cs_e3 step)
+
+summarise_mixed :: MixedBatch -> String
+summarise_mixed m =
+  "  mixed batch  submitted=" ++ show (length (mb_submitted m))
+    ++ "  preview=" ++ show (map fst (mb_preview m))
+    ++ "  orderCount " ++ show (mb_count_before m) ++ " -> " ++ show (mb_count_after m)
+    ++ "  readbacks=" ++ show (length (mb_readbacks m))
+    ++ "  status=" ++ show (mb_status m)
+
+summarise_n0 :: ZeroArrival -> String
+summarise_n0 z =
+  "  zero arrival  preview=" ++ show (zr_preview_byte_length z) ++ " bytes"
+    ++ "  decoded=" ++ show (zr_decoded_length z)
+    ++ "  orderCount " ++ show (zr_count_before z) ++ " -> " ++ show (zr_count_after z)
+    ++ "  status=" ++ show (zr_status z)
+    ++ "  generator chunks at N=0: " ++ show (zr_generator_chunks_at_zero z)
 
 manifest_contract :: Rig -> T.Text -> String
 manifest_contract rig name =

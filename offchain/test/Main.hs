@@ -70,11 +70,16 @@ import Driver.Capture
   ( DriverRig (..)
   , DriverRun (..)
   , DriverSeed (..)
+  , E1Record (..)
   , E3Record (..)
   , E5Record (..)
   , LegacyWritePrice (..)
+  , OrderFields (..)
+  , OrdersRecord (..)
+  , SingleOrder (..)
   , StepRecord (..)
   , capture_path
+  , no_orders
   , write_capture
   )
 import Driver.Seed (gen_from_seed, resolve_seed, seed_env_var)
@@ -2924,9 +2929,28 @@ driv01_capture_round_trips = Check "driv01_capture_round_trips" . guarded $ do
              ++ " and flush-on-failure is the only debuggable outcome of a mid-run abort")
 
     configured <- json_field "configuredSize" value >>= json_integer
-    expect (configured == 5)
-      ("configuredSize round-tripped as " ++ show configured ++ ", expected 5 -- without it a"
-        ++ " reader cannot tell a truncated run from a short one by counting")
+    _ <- expect (configured == 5)
+           ("configuredSize round-tripped as " ++ show configured ++ ", expected 5 -- without it a"
+             ++ " reader cannot tell a truncated run from a short one by counting")
+
+    -- The ORDERS block is truncatable the same way the step list is, and it carries its OWN
+    -- completion flag. dr_complete means "the DRIV-01 path finished" and 22-05 sets it BEFORE the
+    -- order side runs, deliberately, so that an order-side failure cannot mark the price-path
+    -- evidence partial. A second requirement reading that flag would read a price-path success as
+    -- an order-side success. The fixture is exactly that shape: single recorded, mixed and n0 not.
+    orders <- json_field "orders" value
+    orders_complete <- json_field "complete" orders >>= json_bool
+    _ <- expect (not orders_complete)
+           ("a partial orders block round-tripped with orders.complete = true. DRIV-02's completion"
+             ++ " flag is separate from dr_complete on purpose -- see Driver.Capture's header.")
+
+    single <- json_field "single" orders
+    _ <- expect (single /= Null)
+           "the recorded single order was lost in the round trip"
+    n0 <- json_field "n0" orders
+    expect (n0 == Null)
+      ("orders.n0 round-tripped as " ++ show n0 ++ " when the fixture never recorded one -- a"
+        ++ " partial orders block must not invent the shapes that never ran")
   where
     capture_env_var = "DRIVER_CAPTURE"
 
@@ -2943,6 +2967,23 @@ truncated_run =
     , dr_seed            = DriverSeed { ds_rng = 1, ds_t0 = Just 1700000012, ds_stride = 12 }
     , dr_steps           = [fixture_step]
     , dr_legacy_write_price = Just fixture_legacy
+    , dr_orders          = fixture_orders
+    }
+
+-- | An orders block that got as far as the single order and no further.
+fixture_orders :: OrdersRecord
+fixture_orders =
+  no_orders
+    { or_single =
+        Just SingleOrder
+          { so_submitted      = OrderFields 1000 60 500 (10 ^ (18 :: Int))
+          , so_tx_hash        = "fixture"
+          , so_status         = Just 1
+          , so_e1_count       = 1
+          , so_e1             = Just (E1Record 1 1000 60 500 (10 ^ (18 :: Int)))
+          , so_readback       = Just (OrderFields 1000 60 500 (10 ^ (18 :: Int)))
+          , so_readback_block = Just 7
+          }
     }
 
 fixture_rig :: DriverRig

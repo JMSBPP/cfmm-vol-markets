@@ -2,6 +2,15 @@ module VolOrder.Rpc
   ( create_order
   , create_order_and_report
   , create_orders
+  , preview_create_orders
+    -- * Readbacks
+    --
+    -- | Exported for the DRIV-02 evidence capture, which must RECORD @orderCount()@ and the packed
+    -- storage word at a chosen block rather than only assert them. 'create_orders' already performs
+    -- both reads internally and keeps neither, so a caller that wants the numbers in an artifact has
+    -- no other path to them. They are ordinary reads with no side effects.
+  , read_order_count
+  , read_order_packed
   , wait_for_receipt
   ) where
 
@@ -90,6 +99,31 @@ create_orders owner manager orders
           mapM_ (verify_mined_order manager mined_block tx_hash)
                 (zip successes [before_count + 1 ..])
           pure (receipt, preview)
+
+-- | The batch preview ALONE: build @create_orders@ calldata and @eth_call@ it, handing back the RAW
+-- returndata bytes without decoding them.
+--
+-- == WHY THIS EXISTS, AND WHY IT IS THE ONLY CHANNEL THAT CAN SHOW WHAT IT SHOWS
+--
+-- 'create_orders' already makes exactly this call, and then discards the raw bytes — it keeps only
+-- the decoded @[(Bool, Integer)]@. That is the right shape for a caller PLACING orders and the wrong
+-- shape for a caller MEASURING the return contract.
+--
+-- A MINED TRANSACTION CARRIES NO RETURNDATA. An @eth_getTransactionReceipt@ answer has logs, a
+-- status, a block and gas figures, and no return value anywhere in it — the EVM's return buffer is
+-- not part of the receipt and no node reconstructs it. So v4.0's exit record named the empty-batch
+-- clause (@N = 0@ returns EXACTLY 64 bytes: the array offset word plus a zero length word, never 0
+-- and never 32) as the single clause most likely to break a consumer, and that clause is observable
+-- through THIS @eth_call@ and through nothing else on the transaction path. Any check that claims to
+-- read the byte length off a mined @create_orders@ tx is wrong about where the bytes live.
+--
+-- Exposing the preview is deliberately cheaper and less invasive than widening 'create_orders' to
+-- return its raw bytes: five call sites depend on that function's current type and not one of them
+-- wants the bytes.
+preview_create_orders :: Address -> [VolOrder] -> Web3 HexString
+preview_create_orders manager orders = do
+  calldata <- liftIO (encode_create_orders orders)
+  eth_call_manager manager Latest calldata
 
 verify_mined_order :: Address -> DefaultBlock -> HexString -> (VolOrder, Integer) -> Web3 ()
 verify_mined_order manager block tx_hash (expected_order, order_id) = do

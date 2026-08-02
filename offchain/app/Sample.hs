@@ -12,6 +12,7 @@
 -- that it stopped being true, which is precisely why none belongs in this file.
 module Sample
   ( sample_order
+  , sample_mixed_batch
   , sample_order_shapes
   , sample_order_gen
   , sample_price_gen
@@ -43,6 +44,38 @@ sample_order =
     , skew = 500
     , target_vega = 10 ^ (18 :: Int)
     }
+
+-- A batch that is genuinely MIXED: valid, contract-REJECTED, valid.
+--
+-- SC-3 needs at least one tuple the CONTRACT rejects, and that is a narrower target than it sounds,
+-- because pack_vol_order_input validates every field WIDTH client-side before anything is sent. A
+-- rejected tuple must therefore be WIDTH-VALID and DOMAIN-INVALID: it has to survive the client to
+-- reach the module at all.
+--
+-- The discriminator is skew = 65535, identified and used LIVE against this same module in Phase 21
+-- (offchain/rig/capture-batch-return.sh, case N2_success_then_fail). Its two halves:
+--
+--   * WIDTH-valid   -- pack_vol_order_input's `in_range 16` is `> 0 && < 2^16`, and 65535 < 65536.
+--   * DOMAIN-invalid -- spread_tick_assimetry_is_complete admits only [1, 65534].
+--
+-- The batch entrypoint is best-effort per order, so the module SKIPS this tuple, returns (false, 0)
+-- for its position and never reverts the transaction. That is the whole behaviour SC-3 exists to
+-- exercise on a live chain rather than in a mock.
+--
+-- NOT claimed: that this is the only such input. capture-batch-return.sh's comment calls it "the
+-- ONLY input a client can pass that the contract rejects"; that exclusivity was never verified and
+-- is not relied on here. strike = 0, width = 0 and targetVega = 0 are domain-invalid too, but all
+-- three are also WIDTH-invalid under pack_vol_order_input's `value > 0` clauses, so none of them can
+-- reach the contract -- which is exactly why the discriminator has to be a live-measured one.
+--
+-- The two valid tuples carry DISTINCT strikes and widths, and the rejected one differs from both, so
+-- a readback that transposed two orders could not pass unnoticed.
+sample_mixed_batch :: [VolOrder]
+sample_mixed_batch =
+  [ VolOrder { vol_target = 4100, range_width = 40, skew = 210, target_vega = 2 * 10 ^ (18 :: Int) }
+  , VolOrder { vol_target = 4200, range_width = 80, skew = 65535, target_vega = 3 * 10 ^ (18 :: Int) }
+  , VolOrder { vol_target = 4300, range_width = 120, skew = 230, target_vega = 4 * 10 ^ (18 :: Int) }
+  ]
 
 -- Ten distinct, always-valid order shapes -- comfortably more than
 -- sample_order_gen's expected batch size (lambda = 3.0), so an ordinary

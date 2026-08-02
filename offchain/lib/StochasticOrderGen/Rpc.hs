@@ -1,6 +1,8 @@
 module StochasticOrderGen.Rpc
   ( run_order_gen
   , run_order_gen_and_report
+  , chunk
+  , max_batch
   ) where
 
 import Control.Monad.IO.Class (liftIO)
@@ -63,6 +65,14 @@ attach_vega gen law shape = do
     , target_vega = fromInteger v
     }
 
+-- | Split a batch into chunks of at most @n@.
+--
+-- Exported so the DRIV-02 capture can RECORD @length (chunk max_batch [])@ instead of asserting a
+-- claim about this function from outside it. That number is @0@, and it is the whole reason a
+-- zero-arrival Poisson tick is invisible to the generator path: no chunks means no eth_calls and no
+-- transactions, so @run_order_gen@ never exercises the empty-batch return contract at all. SC-4's
+-- 64-byte fact therefore needs a DIRECT @create_orders _ _ []@ call; the generator cannot produce
+-- it. Recording the count from the real function is what keeps that from becoming a stale comment.
 chunk :: Int -> [a] -> [[a]]
 chunk _ [] = []
 chunk n xs = take n xs : chunk n (drop n xs)
