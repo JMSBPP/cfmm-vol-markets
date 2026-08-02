@@ -35,6 +35,20 @@ OUT="offchain/rig/rig-pins.json"
 REF_FILE="offchain/rig/import-ref.txt"
 DATA_CONTRACT="notes/DATA_CONTRACT.md"
 
+# FLOORS. Without them a parse that matched NOTHING was a successful run: every awk
+# still exits 0 on zero matches, the compute loop is vacuous, and the final `jq -n`
+# wrote {"selectors":{},"topics":{},...} OVER the tracked file while printing
+# "0 unique pins". FALSIFIED by drifting the const declarations to `const bytes32
+# NAME = 0x..;` (a type annotation the :136 regex does not match): the old form
+# exited 0 and replaced rig-pins.json, sha f4814d4f -> 5040c858.
+#
+# These are MEASURED counts at import-ref 2039f278, not guesses. They are a FLOOR,
+# not an equality: adding an interface pin is expected and must not need an edit
+# here. REMOVING one must -- that is the point.
+MIN_SELECTORS=30
+MIN_TOPICS=5
+MIN_PINS=$((MIN_SELECTORS + MIN_TOPICS))
+
 # WHERE THE STALE E1 TOPIC0 IS READ FROM, AND WHY IT MOVED
 # -------------------------------------------------------
 # Until plan 20-05 this value was parsed out of offchain/lib/VolOrder/Decode.hs, which carried it
@@ -68,7 +82,12 @@ command -v jq   >/dev/null || { echo "FATAL: jq not on PATH" >&2; exit 1; }
 REF="$(tr -d ' \t\n\r' < "$REF_FILE")"
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+# "$OUT.tmp" is in the trap too: `> "$OUT"` TRUNCATES BEFORE the command that fills
+# it runs, so a jq that dies mid-emit used to leave the tracked pin file empty or
+# half-written. The generator now writes beside it and renames only on success --
+# rename(2) is atomic on the same filesystem, so $OUT is either the old file or the
+# whole new one, never a truncation.
+trap 'rm -rf "$TMP"; rm -f "$OUT.tmp"' EXIT
 SELS="$TMP/selectors.jsonl"; : > "$SELS"
 TOPS="$TMP/topics.jsonl";    : > "$TOPS"
 RETS="$TMP/retired.jsonl";   : > "$RETS"
@@ -291,6 +310,29 @@ while IFS=$'\t' read -r tag kind sig declared src cname lineno shape; do
 done < "$PARSED"
 
 echo "   $n_pin unique pins, $n_dup duplicate declarations cross-file (all agreed)"
+
+# --- THE FLOOR. Nothing below may run on an empty parse. --------------------
+n_sel=$(grep -c . "$SELS" || true)
+n_top=$(grep -c . "$TOPS" || true)
+if [ "$n_pin" -lt "$MIN_PINS" ] || [ "$n_sel" -lt "$MIN_SELECTORS" ] || [ "$n_top" -lt "$MIN_TOPICS" ]; then
+  {
+    echo "FATAL: the parser produced too few pins to be a real parse."
+    echo "  got      : $n_pin pins ($n_sel selectors, $n_top topics)"
+    echo "  floor    : $MIN_PINS pins ($MIN_SELECTORS selectors, $MIN_TOPICS topics)"
+    echo "  $OUT was NOT touched."
+    echo
+    echo "  This is what a DRIFTED const syntax looks like. The parser anchors on"
+    echo "    ^[ \\t]*const[ \\t]+NAME[ \\t]*="
+    echo "  so a type annotation (\`const bytes4 NAME =\`), a keyword rename, or a"
+    echo "  moved declaration matches nothing -- and every awk still exits 0. Without"
+    echo "  this floor the run ended '0 unique pins' and OVERWROTE the tracked pin file"
+    echo "  with empty maps."
+    echo
+    echo "  If a pin was REMOVED on purpose, lower MIN_SELECTORS/MIN_TOPICS at the top"
+    echo "  of this script in the same commit. Do not delete the floor."
+  } >&2
+  exit 1
+fi
 echo
 
 # --------------------------------------------------------------------------------------------
@@ -366,7 +408,19 @@ jq -n \
      selectors: ($sels | map({key: .key, value: .entry}) | from_entries),
      topics:    ($tops | map({key: .key, value: .entry}) | from_entries),
      retired:   (($rets | map({key: .key, value: .value}) | from_entries) + {_note: $note})
-   }' > "$OUT"
+   }' > "$OUT.tmp"
+
+# Re-check the emitted document before it replaces the tracked one. jq -n can exit 0
+# having written less than intended if a --slurpfile input is empty, and that is the
+# same silent-empty failure the floor above catches upstream.
+emitted_sel=$(jq -r '.selectors | length' "$OUT.tmp")
+emitted_top=$(jq -r '.topics    | length' "$OUT.tmp")
+if [ "$emitted_sel" -lt "$MIN_SELECTORS" ] || [ "$emitted_top" -lt "$MIN_TOPICS" ]; then
+  echo "FATAL: the emitted document carries $emitted_sel selectors and $emitted_top topics," >&2
+  echo "       below the floor ($MIN_SELECTORS / $MIN_TOPICS). $OUT was NOT replaced." >&2
+  exit 1
+fi
+mv "$OUT.tmp" "$OUT"
 
 echo "== wrote $OUT =="
 jq -r '"   selectors: \(.selectors | length)   topics: \(.topics | length)   retired: \((.retired | length) - 1)   generatedFrom: \(.generatedFrom)"' "$OUT"
