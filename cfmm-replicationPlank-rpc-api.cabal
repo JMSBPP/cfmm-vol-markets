@@ -80,6 +80,7 @@ library
                     , RealizedVol.Decode
                     , CheatSwap.Types
                     , CheatSwap.Encoding
+                    , CheatSwap.Rpc
 
     -- Modules included in this library but not exported.
     -- other-modules:
