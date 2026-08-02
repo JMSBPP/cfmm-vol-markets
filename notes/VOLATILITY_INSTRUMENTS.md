@@ -126,12 +126,12 @@ We have the regions:
 Then:
 \[
 	\begin{aligned}
-		\upsilon = \frac{\Delta \, \Pi^{\text{call | put}} \, ( \cdot )}{\Delta \, \sigma^{2} } \, = t/2
+		\upsilon = \frac{\Delta \, \Pi^{\text{call | put}} \, ( \cdot )}{\Delta \, \sigma^{2} } \, = T/2
 	\end{aligned}
 \]
 
 
-> LEAN (correction): \(\upsilon = \Delta\Pi/\Delta\sigma^2 = t/2\), \(p_{(\eta,\Delta_i)}\)-independent: `variancePortfolio_upsilon`; \(\text{Id}_{N_\sigma}\) unit vega: `variancePortfolio_unit_upsilon`; \(\Pi \geq 0\), \(\Pi(p^{\star}) = 0\): `logPortfolio_nonneg`, `logPortfolio_atm`.
+> LEAN (correction): \(\upsilon = \Delta\Pi/\Delta\sigma^2 = T/2\), \(p_{(\eta,\Delta_i)}\)-independent: `variancePortfolio_upsilon`; \(\text{Id}_{N_\sigma}\) unit vega: `variancePortfolio_unit_upsilon`; \(\Pi \geq 0\), \(\Pi(p^{\star}) = 0\): `logPortfolio_nonneg`, `logPortfolio_atm`.
 
 > Note: A single leg portaflio gives:
 
@@ -147,7 +147,7 @@ Then:
 
 \[
 	\begin{aligned}
-		\frac{\Delta \, \Pi^{\text{call | put}} \, ( \cdot )}{\Delta \, \sigma^{2} } N_{\sigma} \, &= \, t/2 \, N_{\sigma} \, \implies \text{Id}_{ N_{\sigma}} \, = \frac{2}{t} \, \iff \, \frac{\Delta \, \Pi^{\text{call | put}} \, ( \cdot )}{\Delta \, \sigma^{2} } \text{Id}_{ N_{\sigma}} \, \equiv \, 1
+		\frac{\Delta \, \Pi^{\text{call | put}} \, ( \cdot )}{\Delta \, \sigma^{2} } N_{\sigma} \, &= \, T/2 \, N_{\sigma} \, \implies \text{Id}_{ N_{\sigma}} \, = \frac{2}{T} \, \iff \, \frac{\Delta \, \Pi^{\text{call | put}} \, ( \cdot )}{\Delta \, \sigma^{2} } \text{Id}_{ N_{\sigma}} \, \equiv \, 1
 	\end{aligned}
 \]
 
@@ -387,7 +387,7 @@ Define:
 	\end{aligned}
 \]
 
-> LEAN (proved): writing \(u = \alpha_R\Big/\Big(1+\exp\Big(\gamma_R\Big(\beta_R - \frac{\varphi_{1/2}(i_K;\Delta Q,0;t)}{\varphi_{1/2}(i_K;0,L;t)}\Big)\Big)\Big)\):
+**Theorem 1 (Fee Envelope).** Writing \(u = \alpha_R\Big/\Big(1+\exp\Big(\gamma_R\Big(\beta_R - \frac{\varphi_{1/2}(i_K;\Delta Q,0;t)}{\varphi_{1/2}(i_K;0,L;t)}\Big)\Big)\Big)\):
 \[
 	\begin{aligned}
 		0 \leq u \leq \alpha_R, \qquad
@@ -405,13 +405,19 @@ The single-term case is the sigmoid fee schedule with steepness \(s_f = 1/\gamma
 
 > `VolInstrument.sigmoidR_mem`, `multiFee_bounds`, `multiFee_monotone`, `multiFee_single_bridge`.
 
-Make:
+ECONOMIC CONTENT OF THEOREM 1. The floor \(\bar\phi\) is unconditional — LPs take a base fee at every volatility, so the schedule never degenerates to free execution. The ceiling is NOT a constant: it is \(\bar\phi + (\sum_j\alpha_j)\,u\), GATED by the utilization factor \(u \in [0,\alpha_R]\), so a pool nobody is trading against cannot levy the volatility surcharge at all — at \(u = 0\) the band collapses to the floor, and the surcharge is earned only where flow exists to earn it on. Monotonicity in \(\sigma\) is what makes the schedule a genuine VOLATILITY SURCHARGE rather than an arbitrary function of state: higher realized volatility always costs the trader weakly more. That is the property the FLAIR identification consumes — \(\Theta_{\lambda_{\text{FLAIR}}} = \{\bar\phi, \alpha, u\}\) is a LEVEL block precisely because the band's two edges are the level parameters, while \((\beta_j,\gamma_j)\) only place the transition inside the band (G3).
+
+**Definition (Streaming-Premium Identification).** Assign the per-time-step payoff variation to the trading fee:
 
 \[
 	\begin{aligned}
-		\phi \, ( \sigma \, (i (t));t) \, & \leftarrow \, \theta \, \Big (\, p_{1/2, \Delta_i} \, (i; t) \, , p_{1/2, \Delta_i} \, (i_K),  \sigma \, (i (t)) \Big )
+		\phi \, ( \sigma \, (i (t));t) \, & \overset{\text{streamia}}{\longleftarrow} \, \theta \, \Big (\, p_{1/2, \Delta_i} \, (i; t) \, , p_{1/2, \Delta_i} \, (i_K),  \sigma \, (i (t)) \Big )
 	\end{aligned}
 \]
+
+\(\overset{\text{streamia}}{\longleftarrow}\) denotes this assignment throughout. Accumulating it over \(N\) steps of length \(\Delta t\) gives the STREAMING PREMIUM \(\sum_{j<N}\theta_j\,\Delta t\) — the seller's fee income replicates the option's time decay, which is exactly why the perpetual instrument needs no expiry: the decay that a dated option pays out at \(T\) is instead streamed continuously.
+
+> LEAN (proved): `Panoptic.streamingPremium`, `streamingPremium_succ` (\(\Sigma_{N+1} = \Sigma_N + \theta_N\Delta t\)).
 
 ## VOL ORDER COMPLETION — ENDOGENOUS MATURITY
 
@@ -427,19 +433,21 @@ The order parameter set
 	\Theta_{\text{ord}} \,\leftarrow\, \Theta_{\text{ord}} \,\cup\, \{\Delta Q_v^{\star}\}
 \]
 
-**Maturity equivalence.** From \(\upsilon = t/2\) (`variancePortfolio_upsilon`) and \(\text{Id}_{N_\sigma} = 2/t\) (`variancePortfolio_unit_upsilon`):
+ON-CHAIN CARRIER (plank `feat/plank`): the vol order packs the TARGET VEGA as its fourth field — `create_order(strike, width, skew, targetVega)`, `targetVega : u96` at bits 152..247 of the packed `VolOrder` word, in RAW LIQUIDITY units, i.e. `targetVega` \(= \Delta Q_v^{\star}\) exactly (dimension (ii) below). Emitted by `VolOrderCreated(orderId, strike, width, skew, targetVega)`; the fits-packed predicate lives in `VolOrderValidationLib`.
+
+**Maturity equivalence.** From \(\upsilon = T/2\) (`variancePortfolio_upsilon`) and \(\text{Id}_{N_\sigma} = 2/T\) (`variancePortfolio_unit_upsilon`):
 
 \[
-	t^{\star} \,=\, 2\,\frac{\Delta Q_v^{\star}}{N_\sigma} \quad\Longleftrightarrow\quad \Delta Q_v^{\star} \,=\, \frac{t^{\star}}{2}\, N_\sigma
+	T^{\star} \,=\, 2\,\frac{\Delta Q_v^{\star}}{N_\sigma} \quad\Longleftrightarrow\quad \Delta Q_v^{\star} \,=\, \frac{T^{\star}}{2}\, N_\sigma
 \]
 
-The perpetual order specifies no \(T\); \(t^{\star}\) is the implied maturity of the equivalent dated variance contract — derived from \(\Delta Q_v^{\star}\), never stored.
+The perpetual order specifies no \(T\); \(T^{\star}\) is the implied maturity of the equivalent dated variance contract — derived from \(\Delta Q_v^{\star}\), never stored.
 
 > LEAN (`EndogenousMaturity.lean`, 128b24ae; \(N_\sigma \neq 0\)): bijection `dQvStarOfMaturity_tStar`/`tStar_dQvStarOfMaturity`/`maturity_equivalence`; vega \(\Delta Q_v^{\star}\) exact: `tStar_variancePortfolio_upsilon`, `tStar_unit_upsilon`; and
 
 \[
 	\begin{aligned}
-		\Delta Q_v^{\star}, N_\sigma > 0 \implies t^{\star} > 0; \qquad t^{\star} \uparrow \Delta Q_v^{\star}, \quad t^{\star} \downarrow N_\sigma \;\; \text{(both strict)}
+		\Delta Q_v^{\star}, N_\sigma > 0 \implies T^{\star} > 0; \qquad T^{\star} \uparrow \Delta Q_v^{\star}, \quad T^{\star} \downarrow N_\sigma \;\; \text{(both strict)}
 	\end{aligned}
 \]
 
@@ -483,7 +491,7 @@ one-sided under per-leg floor rounding:
 On violation the position is NOT hard-liquidated: the enforced exposure contracts to the funded level,
 
 \[
-	\Delta Q_v(t) \,=\, \min\Big(\Delta Q_v^{\star},\; \frac{Q_M(t)}{p_{\text{risk}}(t)}\Big) \quad \text{(floor)}, \qquad t^{\star}(t) \,=\, 2\,\frac{\Delta Q_v(t)}{N_\sigma}
+	\Delta Q_v(t) \,=\, \min\Big(\Delta Q_v^{\star},\; \frac{Q_M(t)}{p_{\text{risk}}(t)}\Big) \quad \text{(floor)}, \qquad T^{\star}(t) \,=\, 2\,\frac{\Delta Q_v(t)}{N_\sigma}
 \]
 
 so the implied maturity CONTRACTS continuously with the funded exposure instead of truncating; a top-up restores both. Liquidation is the degenerate case \(Q_M \to 0\), where the realized life \([t_{\text{mint}}, t_{\text{liq}}]\) is the maturity the position actually had.
@@ -496,18 +504,18 @@ so the implied maturity CONTRACTS continuously with the funded exposure instead 
 	\end{aligned}
 \]
 
-> `dQvFunded_maximal`; `dQvFunded_admissible(_iff_mul)`, `_mul_le_of_violation`, `_eq_of_no_violation`; \(t^{\star}(t) \uparrow Q_M,\, \downarrow p_{\text{risk}}\): `tStarFunded_mono_QM`, `_antitone_prisk`; \(Q_M \geq \Delta Q_v^{\star} p_{\text{risk}} \implies t^{\star}(t) = t^{\star}\): `_eq_tStar_of_topup`; \(Q_M = 0 \implies t^{\star}(t) = 0\): `dQvFunded_zero_QM`; floor rounding conservative (min-monotone).
+> `dQvFunded_maximal`; `dQvFunded_admissible(_iff_mul)`, `_mul_le_of_violation`, `_eq_of_no_violation`; \(T^{\star}(t) \uparrow Q_M,\, \downarrow p_{\text{risk}}\): `tStarFunded_mono_QM`, `_antitone_prisk`; \(Q_M \geq \Delta Q_v^{\star} p_{\text{risk}} \implies T^{\star}(t) = T^{\star}\): `_eq_tStar_of_topup`; \(Q_M = 0 \implies T^{\star}(t) = 0\): `dQvFunded_zero_QM`; floor rounding conservative (min-monotone).
 
 **RECALIBRATION LAW (DECIDED, 2026-07-30: multiplicative).** The joint evolution of the implied maturity under the collateral channel AND realized variance \(\sigma^2_R(t)\) accruing against the strike:
 
 \[
 	\begin{aligned}
-		t^{\star}_{\text{joint}}(t) \, = \, t^{\star}(t)\cdot\Big(1 - \frac{\sigma^2_R(t)}{\sigma^2_K}\Big)^{+} \, = \, \underbrace{\frac{2\,\Delta Q_v^{\star}}{N_\sigma}}_{t^{\star}} \cdot \underbrace{\frac{\min\big(\Delta Q_v^{\star},\, Q_M/p_{\text{risk}}\big)}{\Delta Q_v^{\star}}}_{\text{funding factor}} \cdot \underbrace{\Big(1 - \frac{\sigma^2_R}{\sigma^2_K}\Big)^{+}}_{\text{budget factor}}
+		T^{\star}_{\text{joint}}(t) \, = \, T^{\star}(t)\cdot\Big(1 - \frac{\sigma^2_R(t)}{\sigma^2_K}\Big)^{+} \, = \, \underbrace{\frac{2\,\Delta Q_v^{\star}}{N_\sigma}}_{T^{\star}} \cdot \underbrace{\frac{\min\big(\Delta Q_v^{\star},\, Q_M/p_{\text{risk}}\big)}{\Delta Q_v^{\star}}}_{\text{funding factor}} \cdot \underbrace{\Big(1 - \frac{\sigma^2_R}{\sigma^2_K}\Big)^{+}}_{\text{budget factor}}
 	\end{aligned}
 \]
 
-> LEAN (`tStarJointMult`): `_nonneg` (on \(t^{\star}(t) \geq 0\)), `_antitone` (\(\downarrow \sigma^2_R\)), `_zero` (\(= t^{\star}(t)\) at \(\sigma^2_R = 0\)), `_exhausted` (\(= 0\) at \(\sigma^2_R = \sigma^2_K\)).
-> Rationale: \(\upsilon = t/2 \implies \sigma^2\text{-budget} \propto t\) (bijection preserved); \(t^{\star}_{\text{joint}} = t^{\star}\cdot f_{\text{fund}}\cdot f_{\text{budget}}\) (monotonicities chain); burn rate constant (no cliff). Alternates formalized, rejected: \(t^{\star}_{\text{sub}}\) (`joint_candidates_disagree` — off-domain floor placement only), \(t^{\star}_{\text{quad}}\) (\((1-r^2) \geq (1-r)\): pro-holder under vol clustering).
+> LEAN (`tStarJointMult`): `_nonneg` (on \(T^{\star}(t) \geq 0\)), `_antitone` (\(\downarrow \sigma^2_R\)), `_zero` (\(= T^{\star}(t)\) at \(\sigma^2_R = 0\)), `_exhausted` (\(= 0\) at \(\sigma^2_R = \sigma^2_K\)).
+> Rationale: \(\upsilon = T/2 \implies \sigma^2\text{-budget} \propto T\) (bijection preserved); \(T^{\star}_{\text{joint}} = T^{\star}\cdot f_{\text{fund}}\cdot f_{\text{budget}}\) (monotonicities chain); burn rate constant (no cliff). Alternates formalized, rejected: \(T^{\star}_{\text{sub}}\) (`joint_candidates_disagree` — off-domain floor placement only), \(T^{\star}_{\text{quad}}\) (\((1-r^2) \geq (1-r)\): pro-holder under vol clustering).
 
 > NOTE (cascade, recorded): \(\Delta Q_v^{\star}\) on-chain lands on the PAIR \((\text{PanopticTokenId},\, \text{positionSize})\) — the tokenId is scale-free (strikes, widths, per-leg optionRatio); positionSize is an SFPM mint argument. The ratio-vs-size split of \(\ell(\xi^{\star},\iota;i_K)\) across the pair is the task-#14 sizing decision. Spec: `.planning/vol-order-v2-target-vega-SPEC.md`.
 
@@ -1193,8 +1201,8 @@ Maymin's liquidity Greek `Λ = ∂C/∂k` → \(\mathcal{D}_{\bar L}[C]\) (Greek
 Maymin's emission Greek `E = ∂C/∂e` → \(\mathcal{D}_{\Delta Q_M}[C]\) (Def 2 eq (34), again a C-Greek; our emission policy IS the ΔQ_M schedule). <!-- notation-map -->
 Maymin's CEV exponent `β = w` = the NUMERAIRE weight (his §3.2 eq (4)–(5): \(x^w y^{1-w} = K\), \(x\) = numeraire, \(P = \tfrac{1-w}{w}\tfrac{x}{y}\)) → \(w = 1 - \eta_L\), i.e. \(\eta_L = 1 - w\) = the ASSET share (eta.md line 12: \(L = X^{\eta}Y^{1-\eta}\), \(P\) = price of \(X\) in \(Y\) ⟹ η = exponent on the ASSET). ORIENTATION DECIDED AT FORMULA LEVEL by eq (12): \(P \propto x^{1/(1-w)} \implies \partial_x P = \tfrac{1}{1-w}\tfrac{P}{x}\), and \(x = P^{1-w}(\tfrac{w}{1-w})^{1-w}K\), so \(\delta = \tfrac{1}{1-w}\big(\tfrac{1-w}{w}\big)^{1-w}K^{-1}\sigma_F\) EXACTLY — the \(1/(1-w)\) prefactor is the reciprocal of the ASSET weight, and the \(w \leftrightarrow 1-w\) swap gives \(\tfrac{1}{w}(\tfrac{w}{1-w})^{w}K^{-1}\sigma_F\), ≠ eq (12) for \(w \neq \tfrac12\). \(\eta_L = \eta\) is E8(6) and remains OPEN — no display below assumes it. <!-- notation-map -->
 Maymin's `δ` (CEV vol coefficient) → eliminated through primitives: \(\sigma(i(t)) = \delta\, p^{\,\beta-1} = \delta\, p^{-\eta_L}\) (his σ_ret, Prop 4 eq (20), under \(\beta = w = 1-\eta_L\)) and CPMM \(\delta = 2\sigma_Q/\bar L\) (eq (12) at \(w = \tfrac12\), \(K = \bar L\)); his flow vol `σ_F` → \(\sigma_Q\) (σ̄_f is the FeeSchedule strike); his invariant `K` → \(\bar L\); his strike `K_str` → \(K\); his `κ` (eq 23) → \(c_0\) (bare κ FORBIDDEN); his CDF `χ²(x;n,·)` → \(\mathbb{P}_{Y_{n,\cdot} \leq x}\) (probability-typed ⟹ ℙ_{event}; χ banned). <!-- notation-map -->
-Bardoscia's `V0` → \(\Delta Q_M\) (V₀ is CJZ's, J5); his APY `φ` → eliminated in TWO commensurable forms, always labelled (B1): SCHEDULE-LEVEL per-unit carry \(\phi(\sigma_t)\,\nu_t\) (M6b's own units, \(\nu_t = w_t/D_t\), what \(\lambda_{\text{FLAIR}}\) sums) and POSITION-LEVEL carry \(\phi(\sigma_t)\,\nu_t\,\Delta Q_M\) (what an LP position of money leg ΔQ_M earns); his `S_t` → \(p_{(\eta,\Delta_i)}(i;t)\); maturity `T`, remaining `τ = T−t` → \(t^{\star}\), \(t^{\star}-t\) (τ is τ_MEV — NEVER time). <!-- notation-map -->
-Demeterfi's `S*` → \(p^{\star}\); his variance vega `V = (T−t)/T` (a REMAINING-CALENDAR-TIME ratio) → \(\upsilon\) under this document's normalization, where the argument of \(\upsilon = t/2\) is the MATURITY PARAMETER \(t\), not calendar time: at inception \(\upsilon = t^{\star}/2\), and the calendar-time form is \(\upsilon(t) = (t^{\star}-t)/2\) (`variancePortfolio_upsilon`; t-SEMANTICS clause, G6(7)). <!-- notation-map -->
+Bardoscia's `V0` → \(\Delta Q_M\) (V₀ is CJZ's, J5); his APY `φ` → eliminated in TWO commensurable forms, always labelled (B1): SCHEDULE-LEVEL per-unit carry \(\phi(\sigma_t)\,\nu_t\) (M6b's own units, \(\nu_t = w_t/D_t\), what \(\lambda_{\text{FLAIR}}\) sums) and POSITION-LEVEL carry \(\phi(\sigma_t)\,\nu_t\,\Delta Q_M\) (what an LP position of money leg ΔQ_M earns); his `S_t` → \(p_{(\eta,\Delta_i)}(i;t)\); maturity `T`, remaining `τ = T−t` → \(T^{\star}\), \(T^{\star}-t\) (τ is τ_MEV — NEVER time). <!-- notation-map -->
+Demeterfi's `S*` → \(p^{\star}\); his variance vega `V = (T−t)/T` (a REMAINING-CALENDAR-TIME ratio) → \(\upsilon\) under this document's normalization, where the argument of \(\upsilon = t/2\) is the MATURITY PARAMETER \(t\), not calendar time: at inception \(\upsilon = T^{\star}/2\), and the calendar-time form is \(\upsilon(t) = (T^{\star}-t)/2\) (`variancePortfolio_upsilon`; t-SEMANTICS clause, G6(7)). <!-- notation-map -->
 Band edges `p_a, p_b` / `a, b` (Clark, Fateh–Singh) → \(p(i_l), p(i_u)\); Clark's reserves `R_α, R_β` → cumulative \(\Delta Q_X, \Delta Q_M\) (`VolInstrument.cumulativeQX/QM`); Kristensen's range factor `r` → \(\lambda_{\text{tick}}^{\iota\Delta_i}\) (through its own primitive). <!-- notation-map -->
 Bichuch–Feinstein's LVR rate `ℓ(q)` → eliminated: \(a_t \equiv \ell_{\text{BF}}(\cdot)\,\Delta t\) (M0/M3; `ℓ` here stays the weight \(\ell(\xi,\iota;i_K)\)); their implied vol `σ*_x` → \(\sigma^{\star}_{\phi}\) (fee-implied); Fateh–Singh's installment rate `q` → \(q_{\text{CI}}\) (`q_R, q_S` are CJZ's). <!-- notation-map -->
 Any probability reading of delta ("ATM delta = 50%") is written \(\mathbb{P}_{\text{ITM}}\), never δ. <!-- notation-map -->
@@ -1254,12 +1262,12 @@ Vega is maturity, not a free dial:
 
 \[
 	\begin{aligned}
-		\upsilon \, = \, \frac{t}{2} \quad (\text{PROVEN}) \qquad \implies \qquad \upsilon \; \text{is controlled by } t^{\star} \text{ alone}; \qquad
-		\text{locked-LP short vega (Bardoscia §3.3.5): } \; \frac{\Delta \pi}{\Delta \sigma^2} = -\tfrac{t^{\star}-t}{8}\,(\text{asset leg})
+		\upsilon \, = \, \frac{T}{2} \quad (\text{PROVEN}) \qquad \implies \qquad \upsilon \; \text{is controlled by } T^{\star} \text{ alone}; \qquad
+		\text{locked-LP short vega (Bardoscia §3.3.5): } \; \frac{\Delta \pi}{\Delta \sigma^2} = -\tfrac{T^{\star}-t}{8}\,(\text{asset leg})
 	\end{aligned}
 \]
 
-> t-SEMANTICS (binding, whole section): \(t \in \upsilon = t/2\) ≡ MATURITY PARAMETER, \(\upsilon = t^{\star}/2\) at inception; \(t \in\) Bardoscia locked vega ≡ CALENDAR, entering only via \(t^{\star}-t\) ⟹ \(\upsilon(t) = (t^{\star}-t)/2\), coinciding at \(t = 0\). Same remap: Demeterfi `V = (T−t)/T` (G0). No display below mixes the two.
+> t-SEMANTICS (binding, whole section): \(T \in \upsilon = T/2\) ≡ THE MATURITY (capital T; lowercase \(t\) is calendar time throughout), \(\upsilon = T^{\star}/2\) at inception; \(t \in\) Bardoscia locked vega ≡ CALENDAR, entering only via \(T^{\star}-t\) ⟹ \(\upsilon(t) = (T^{\star}-t)/2\), coinciding at \(t = 0\). Same remap: Demeterfi `V = (T−t)/T` (G0). No display below mixes the two.
 
 ## **G2. [ADDITION] Depth and emission Greeks; the η_L skew law**
 
@@ -1267,7 +1275,7 @@ Vega is maturity, not a free dial:
 	\begin{aligned}
 		\mathcal{D}_{\bar L}[C] \, &< \, 0 \quad \big(\delta = 2\sigma_Q/\bar L \implies \tfrac{\Delta\sigma}{\sigma} = -\tfrac{\Delta \bar L}{\bar L}\big), \qquad
 		\mathcal{D}_{\Delta Q_M}[C] \, < \, 0, \qquad
-		\bar v^2 \, = \, \frac{4\sigma_Q^2}{\dot{\bar k}} \ln\Big(1 + \frac{\dot{\bar k}\,t^{\star}}{\bar L_0^2}\Big), \;\; \dot{\bar k} \equiv \tfrac{\Delta (\bar L^2)}{\Delta t} \\
+		\bar v^2 \, = \, \frac{4\sigma_Q^2}{\dot{\bar k}} \ln\Big(1 + \frac{\dot{\bar k}\,T^{\star}}{\bar L_0^2}\Big), \;\; \dot{\bar k} \equiv \tfrac{\Delta (\bar L^2)}{\Delta t} \\
 		\text{LP-side composition: } \; \mathcal{D}_{\bar L}[\pi] \, &= \, \frac{\Delta\pi}{\Delta\sigma^2}\cdot\frac{\Delta\sigma^2}{\Delta\bar L} \, = \, (\underbrace{<0}_{\text{short vega}})\cdot(\underbrace{<0}_{\text{depth compresses }\sigma}) \, \geq \, 0
 	\end{aligned}
 \]
@@ -1292,7 +1300,7 @@ LEVEL: every row is POSITION-LEVEL (B1) — θ_fee means \(\theta_{\text{fee}}^{
 
 \[
 	\begin{array}{l|cccccccc}
-		 & (\xi,\iota) & (\eta,\Delta_i)\to\kappa_{\varphi} & \bar L & (\bar\phi,\alpha,u) & (\beta_j,\gamma_j) & t^{\star} & \tau,\tau_{\text{JIT}} & \text{haz. inputs }(\sigma\text{-path},w_t,D_t) \\
+		 & (\xi,\iota) & (\eta,\Delta_i)\to\kappa_{\varphi} & \bar L & (\bar\phi,\alpha,u) & (\beta_j,\gamma_j) & T^{\star} & \tau,\tau_{\text{JIT}} & \text{haz. inputs }(\sigma\text{-path},w_t,D_t) \\
 		\hline
 		\mathcal{D}_p[\pi] & \bullet & \bullet & \bullet & - & - & - & - & - \\
 		\Gamma & \bullet & \bullet & \bullet & - & - & - & - & - \\
@@ -1325,7 +1333,7 @@ THE (β,γ) ROW, RESOLVED: \((\beta_j,\gamma_j)\) are ABSENT from every payoff-s
 
 > M4 CAVEAT — the comparative static above is PARTIAL, at fixed level parameters; it is NOT evaluated at the FLAIR optimum and must not be labelled "corner-pinned". Shaping carry RE-PRICES \(\lambda_{\text{FLAIR}}\): the master doc's \(\lambda_{\text{FLAIR}} = \bar\phi W + u\sum_j\alpha_j W_j\) has \(W_j = \sum_t \Lambda(\gamma_j(\sigma_t-\beta_j))w_t/D_t\) DEPENDING on \((\beta_j,\gamma_j)\), so every finite \((\beta,\gamma)\) leaves the sup's argument — the doc's saturating limit \(\beta\to-\infty\) (`flairMulti_saturation_limit`, `flairMulti_strict_below_saturation`) is never attained. Level optimality is not importable into this row.
 
-> UNITS (M2) — the locked-LP short vega \(\Delta\pi/\Delta\sigma^2 = -(t^{\star}-t)/8\cdot(\text{asset leg})\) is VALUE per σ², while \(\Delta\theta_{\text{fee}}/\Delta\sigma^2\) is VALUE per TIME per σ². The correctly-typed claim is the time-integrated one: \(\int_t^{t^{\star}} \Delta\theta_{\text{fee}}/\Delta\sigma^2\, ds\) is commensurable with the locked short vega and is the candidate hedge; the pointwise derivative alone "hedges" nothing. Signs verified: short vega < 0 (Bardoscia §3.3.5), fee-vega > 0 (Λ′ > 0, α, u ≥ 0), so the carry leg does offset in sign.
+> UNITS (M2) — the locked-LP short vega \(\Delta\pi/\Delta\sigma^2 = -(T^{\star}-t)/8\cdot(\text{asset leg})\) is VALUE per σ², while \(\Delta\theta_{\text{fee}}/\Delta\sigma^2\) is VALUE per TIME per σ². The correctly-typed claim is the time-integrated one: \(\int_t^{T^{\star}} \Delta\theta_{\text{fee}}/\Delta\sigma^2\, ds\) is commensurable with the locked short vega and is the candidate hedge; the pointwise derivative alone "hedges" nothing. Signs verified: short vega < 0 (Bardoscia §3.3.5), fee-vega > 0 (Λ′ > 0, α, u ≥ 0), so the carry leg does offset in sign.
 > Consistent with the priors: level programs saturate (β,γ) (corner), J9 discards them for JIT (duration-blind); the σ-profile of carry is the FIRST first-order display that contains them.
 
 \((\beta_j,\gamma_j)\) identification channel: fee-swap price → \(\sigma^{\star}_{\phi}\) (Bichuch–Feinstein Thm 5.1 bijection) → multiFee inversion.
@@ -1336,7 +1344,7 @@ THE (β,γ) ROW, RESOLVED: \((\beta_j,\gamma_j)\) are ABSENT from every payoff-s
 	\begin{aligned}
 		\mathcal{T} \, &= \, \{\mathcal{D}_p,\; \Gamma,\; \upsilon,\; \theta_{\text{fee}}^{\text{pos}},\; \Delta\theta_{\text{fee}}/\Delta\sigma,\; \mathcal{D}_{\bar L},\; \mathcal{D}_{\Delta Q_M},\; \lambda_{\text{FLAIR}},\; \lambda_{\text{ARB}},\; \tilde\lambda_{\text{JIT}}\}, \quad |\mathcal{T}| = 10 \\
 		&\quad (\theta_{\text{decay}} \text{ excluded: redundant by Demeterfi EQ 12};\;\; \sigma_{IV}/\sigma_{IV}^{ATM} \text{ excluded: DIAGNOSTIC, G3};\;\; \lambda_{\text{MEV}} \text{ excluded: the } \oplus\text{-sum}) \\
-		\#\text{free} \, &= \, \underbrace{\iota,\, \bar L}_{2} \, + \, \underbrace{(\beta_j,\gamma_j)}_{2n} \, + \, \underbrace{t^{\star}}_{1} \, + \, \underbrace{\tau,\, \tau_{\text{JIT}}}_{2} \, + \, \underbrace{\Delta Q_M\text{-schedule}}_{1} \, = \, 6 + 2n
+		\#\text{free} \, &= \, \underbrace{\iota,\, \bar L}_{2} \, + \, \underbrace{(\beta_j,\gamma_j)}_{2n} \, + \, \underbrace{T^{\star}}_{1} \, + \, \underbrace{\tau,\, \tau_{\text{JIT}}}_{2} \, + \, \underbrace{\Delta Q_M\text{-schedule}}_{1} \, = \, 6 + 2n
 		\qquad (\xi = \xi^{\star},\; \eta = \eta^{\star},\; \Delta_i \text{ venue-quantized},\; (\bar\phi,\alpha,u) \text{ pinned by the level program — M4 caveat applies})
 	\end{aligned}
 \]
@@ -1373,4 +1381,4 @@ Raw count \(6+2n \geq 10\) **for \(n \geq 2\)** — the deficit is STRUCTURAL (b
 4. Carry-profile objective: per-event (M6b) vs time-integrated (λ_FLAIR) statement — decide before bundling; the M2 hedge claim needs the time-integrated form.
 5. 2n sigmoid parameters match ≤ 2n carry-profile moments — re-count if the hazard ladder demands finer σ-resolution.
 6. Natenberg local copy is image-only (no text layer); classical displays are anchored to Demeterfi/Bardoscia instead. Lababidi (Greek.fi) contains no Greek formulas — infrastructure reference only.
-7. t-SEMANTICS (G1 clause) — maturity-parameter \(t\) (\(\upsilon = t/2\), \(= t^{\star}/2\) at inception) vs calendar \(t\) (\(t^{\star}-t\) in the locked vega): stated, not yet carried into the Lean signatures.
+7. t-SEMANTICS (G1 clause) — the maturity \(T\) (\(\upsilon = T/2\), \(= T^{\star}/2\) at inception) vs calendar \(t\) (\(T^{\star}-t\) in the locked vega): stated, not yet carried into the Lean signatures.
