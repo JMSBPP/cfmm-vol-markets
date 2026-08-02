@@ -448,3 +448,23 @@ ledger in §7.2**, together with the §7-level entry point for this layer and th
 statement that this layer neither duplicates nor supersedes
 `exp/DynamicsOptimization`. Cite this section and that ledger together; the claim
 rows alone overstate the layer's reach.
+
+## 14. `ε_{X/M} — THE SUBSTITUTION ELASTICITY` (blocks S0–S3 → `EtaTilde.lean`; project `67b1c841`)
+
+Doc symbol `ε_{X/M}` (the trading-curve exponent, user decision 2026-08-02) ↔ Lean `etaTilde` (name fixed by the bundle, submitted before the rename; a proven file is never hand-edited — same doc-glyph/Lean-name split as `ℙ_{Δ_ARB}`↔`ptrade`). 23 declarations, all axiom-clean, 20 deps byte-identical.
+
+**η and ε_{X/M} are DISTINCT parameters on distinct objects** — η indexes the price grid `p_{(η,Δi)}`, ε_{X/M} the trading curve `φ_{ε}`. This module proves the BRIDGE between them; it does not identify them.
+
+| Doc claim | Lean | Status |
+|---|---|---|
+| S2 anchor `ε/(1−ε) = λ^{ηΔi/2}` | `etaTilde`, `etaTilde_ratio` | **PROVEN** |
+| S2 the ratio IS the per-TICK `priceEta` step (ε is an observable of the existing grid, not a new primitive) | `etaTilde_eq_priceEta_step` | **PROVEN** |
+| S2 `ε(η) = Λ(ηΔi lnλ/2)` ∈ (0,1) unconditionally; strictly increasing in η; both round trips; `ε = ½ ⟺ η = 0`; limits | `etaTilde_mem_Ioo`, `etaTilde_strictMono`, `etaOfTilde`, `etaOfTilde_etaTilde`, `etaTilde_etaOfTilde`, `etaTilde_half_iff`, `etaTilde_tendsto_atTop/_atBot` | **PROVEN** |
+| S2 **the κ_φ bridge** `curvIndex η Δi = 1 − ((1−ε)/ε)^{Δi}` | `curvIndex_eq_of_etaTilde`, `curvOfTilde`, `curvOfTilde_etaTilde`, `tildeOfCurv`, `tildeOfCurv_curvOfTilde` | **PROVEN** |
+| S2 curvature **strictly DECREASING** in the asset share (as drafted) | `not_curvOfTilde_strictAnti` — machine-checked negation, witness `Δi = 1`, shares `1/4 < 3/4` with curvatures in INCREASING order | **REFUTED** |
+| corrected: curvature **strictly INCREASING** in ε on `(0,1)`, `= 0 ⟺ ε = ½`, and equal to `curvIndex` after conversion | `curvOfTilde_strictMono` (3-way conjunction) | **CORRECTED → PROVEN** |
+| S3 `curvIndex ∈ (0,1)` exactly on the asset-heavy half `ε ∈ (½,1)` | `curvOfTilde_mem_Ioo` — the `t ∈ (0,1)` hypothesis is NECESSARY (`Real.rpow` uses `log|x|` outside it) | **PROVEN** (hypothesis added, declared) |
+| S3 domain coincidence `0 < ηΔi ⟺ ε > ½ ⟺ κ_φ ∈ (0,1)`; and `η = 0 ⟺ ε = ½ ⟺ κ_φ = 0` | `admissible_iff`, `zero_curv_iff` | **PROVEN** — the first condition is exactly `VolInstrument.deltaQM_nonneg`'s hypothesis, recovered as an economic condition |
+| E8(6) consequence: the induced share at the landed optimum is in `(0,1)` UNCONDITIONALLY, and `κ_φ⋆` factors through it | `etaStar_tilde_mem_Ioo`, `curvIndex_etaStar_via_tilde` | **PROVEN** — the factor-share reading is reachable through `ε`, not through `η` (which can be ≈458) |
+
+Fidelity: 22/23 as requested; **1 REFUTED with its correction proven under a different name** (the C4 direction), exactly the sanctioned outcome. One hypothesis added and declared (`curvOfTilde_mem_Ioo`'s `t ∈ (0,1)`, the `Real.log`-is-`log|x|` trap for the third time in this program).
