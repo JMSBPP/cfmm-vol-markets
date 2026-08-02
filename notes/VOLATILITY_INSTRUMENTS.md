@@ -866,7 +866,7 @@ Bare `κ` remains FORBIDDEN — it is the anchor's absorbed arrival symbol and t
 The paper's investor private-use premium `α` is transcribed as `ϱ_I` (`\varrho_I`); Lean `premInv`. <!-- notation-map -->
 The paper's price-shock magnitude `β` is transcribed as `ϱ_S` (`\varrho_S`); Lean `premShock`. <!-- notation-map -->
 The paper's proportional trading fee `f` is IDENTIFIED with this document's `φ` (`\phi`) and is not renamed; this document's `α_j`, `β_j`, `γ_j` remain the `Θ_φ` sigmoid parameters and are always subscripted. <!-- notation-map -->
-The paper's probabilities `θ, κ_I, κ_com, κ₁, κ₂` are NEVER NAMED; they enter only as the four constants below. `θ` collides with this document's option theta and `κ` with the Phase-11 scalarization weight. <!-- notation-map -->
+The paper's probabilities `θ, κ_I, κ_com, κ₁, κ₂` are NEVER NAMED; they enter only as the four constants below. The two that ARE probabilities follow the `ℙ_{event}` convention (M0): the arbitrage-occurrence probability is `ℙ_{Δ_ARB^{CJ}}` and the investor-arrival probability is `ℙ_{L_INV}` (arrival events take the `L_` prefix, as `ℙ_{L_JIT}` does). **The `CJ` tag is load-bearing**: it keeps this two-period-model arbitrage event distinct from MMR's `ℙ_{Δ_ARB}`, whose identification E8(3) forbids. `ϖ_H` and `ϖ_D` keep `ϖ` — they are a coefficient and a constant, NOT probabilities. Lean is unchanged (`probArb`, `probInv`, `coefD`). `θ` collides with this document's option theta and `κ` with the Phase-11 scalarization weight. <!-- notation-map -->
 The paper's Proposition-5 coefficients `τ₁, τ₂, τ₃` are transcribed as `c₁, c₂, c₃` (Lean `cOne`, `cTwo`, `cThree`), because `τ` is TAKEN by this document's `τ = τ_MEV` (block M9). <!-- notation-map -->
 The symbol `ν` is TAKEN by block M6b (`ν_t = w_t/D_t`) and is NEVER introduced here. <!-- notation-map -->
 
@@ -874,14 +874,14 @@ The four absorbed constants, each constant in \(\kappa_{\varphi}\):
 
 \[
 	\begin{aligned}
-		\varpi_A \, > \, 0 \;&:\; \text{probability an arbitrage occurs in a period} \\
-		\varpi_I \, > \, 0 \;&:\; \text{probability an investor arrives} \\
+		\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} \, > \, 0 \;&:\; \text{probability an arbitrage occurs in a period} \\
+		\mathbb{P}_{L_{\text{INV}}} \, > \, 0 \;&:\; \text{probability an investor arrives} \\
 		\varpi_H \, \geq \, 0 \;&:\; \text{the hold-benchmark coefficient, } \; \mathbb{E}[R_A] = \varpi_H\,\varrho_S \\
 		\varpi_D \, \geq \, 0 \;&:\; \text{the constant subtracted in the LP excess return}
 	\end{aligned}
 \]
 
-THE POSITIVITY IS LOAD-BEARING, NOT COSMETIC. At \(\varpi_A = 0\) the whole of E2 collapses to \(\mathrm{arbLoss} \equiv 0\), every η is arb-minimal, and E7's first-branch weight condition degenerates to \(-w_2/2\); at \(\varpi_I = 0\) E4's strict increase **SURVIVES** (the arb-loss term carries it) — what fails is the **PEAK**, via \(c_1 < 0\). <!-- CORRECTION 2026-07-31 (ESC-2): "strict increase fails" was the wrong failure mode --> Both are strictly positive in the anchor: \(\varpi_A\) is built from its two idiosyncratic-shock probabilities, each strictly inside \((0,1)\) by its eq. (2) **and \(\theta < 1\)** <!-- CORRECTION 2026-07-31 (ESC-3): the θ < 1 conjunct was omitted -->, and \(\varpi_I\) is a strictly positive arrival probability. \(\varpi_D \geq 0\) likewise comes from a structural anchor assumption — eq. (2) imposes a strict ordering on those two shock probabilities — and is recorded here so a reader can check it rather than take it on trust.
+THE POSITIVITY IS LOAD-BEARING, NOT COSMETIC. At \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} = 0\) the whole of E2 collapses to \(\mathrm{arbLoss} \equiv 0\), every η is arb-minimal, and E7's first-branch weight condition degenerates to \(-w_2/2\); at \(\mathbb{P}_{L_{\text{INV}}} = 0\) E4's strict increase **SURVIVES** (the arb-loss term carries it) — what fails is the **PEAK**, via \(c_1 < 0\). <!-- CORRECTION 2026-07-31 (ESC-2): "strict increase fails" was the wrong failure mode --> Both are strictly positive in the anchor: \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}\) is built from its two idiosyncratic-shock probabilities, each strictly inside \((0,1)\) by its eq. (2) **and \(\theta < 1\)** <!-- CORRECTION 2026-07-31 (ESC-3): the θ < 1 conjunct was omitted -->, and \(\mathbb{P}_{L_{\text{INV}}}\) is a strictly positive arrival probability. \(\varpi_D \geq 0\) likewise comes from a structural anchor assumption — eq. (2) imposes a strict ordering on those two shock probabilities — and is recorded here so a reader can check it rather than take it on trust.
 
 Standing hypotheses for every display below: \(0 \leq \phi < \varrho_S \leq \varrho_I\), \(0 < \Delta_i\), \(1 < \lambda_{\text{tick}}\). These give \(\kappa_{\varphi,S} > 0\) and \(\kappa_{\varphi,I} > 0\), which is what keeps every \(1/\kappa_{\varphi}\) branch below away from its pole; the guard is ALSO restated inline on each at-risk display, because a guard that lives only in a global prose sentence is exactly how this project's `ptrade` negative-fee pole reached two theorem statements.
 
@@ -899,6 +899,10 @@ PROPOSED LEAN NAMES (these do NOT yet exist anywhere in the tree; every OTHER ba
 
 ## **E1. [ADDITION] The curvature family and the discrete index**
 
+> This is:
+
+> 1. F is \varphi This means that we need consistency on the findigns found on curvature elasticity and \eta. This is, The same way we cabn price for an aribiutrary \eta suing as base 1/2 elasticity and \eta =1 
+sucha that the pricing kernel is p_{1, \Delta_i}. ALso note that differntiating elasticity from eta means that the \eta value on p_{(\eta , \Delta_i)} is 1 not 1/2 since 1/2 is the elasticity value \epsilon. This eneds alignemt. Also by noting F is \varphi we are saying theat the cruvature can be the base of bonding curves. 
 The anchor's family (§5.1, p. 23), with `A` the scaling coefficient:
 
 \[
@@ -932,7 +936,7 @@ Properties: strictly increasing in \(\eta\); a bijection \((0,\infty) \to (0,1)\
 \[
 	\begin{aligned}
 		\kappa_{\varphi,S} \, &= \, 1 - \sqrt{\tfrac{1+\phi}{1+\varrho_S}}, \qquad s \, := \, \sqrt{\tfrac{1+\phi}{1+\varrho_S}} \, = \, 1 - \kappa_{\varphi,S} \\[2pt]
-		\mathrm{arbLoss}(\kappa_{\varphi}) \, &= \, \frac{\varpi_A}{2}\cdot
+		\mathrm{arbLoss}(\kappa_{\varphi}) \, &= \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\cdot
 		\begin{cases}
 			(1+\varrho_S) \, - \, \dfrac{1+\phi}{1-\kappa_{\varphi}}, & \kappa_{\varphi} \in [0,\ \kappa_{\varphi,S}] \quad \text{(A.38, corner)} \\[8pt]
 			(1+\varrho_S)\,\dfrac{\kappa_{\varphi,S}^{2}}{\kappa_{\varphi}}, & \kappa_{\varphi} \in [\kappa_{\varphi,S},\ 1] \quad \text{(A.36, interior)}
@@ -942,7 +946,7 @@ Properties: strictly increasing in \(\eta\); a bijection \((0,\infty) \to (0,1)\
 
 GUARD (restated inline, not inherited from E0): \(0 \leq \phi < \varrho_S\), hence \(\kappa_{\varphi,S} > 0\); the interior branch is stated on \([\kappa_{\varphi,S},1] \subset (0,1]\) and never touches the \(1/\kappa_{\varphi}\) pole. Lean domain: `Set.Ioc 0 1`, glued at `Set.Icc 0 kphiS` and `Set.Icc kphiS 1`, with `hkphiS : 0 < kphiS` an explicit hypothesis.
 
-Branch agreement at \(\kappa_{\varphi,S}\): both branches equal \(\tfrac{\varpi_A}{2}(1+\varrho_S)(1-s)\), so the glued function is continuous. **Strictly decreasing in \(\kappa_{\varphi}\)** on \((0,1]\) (each branch is: \((1+\phi)/(1-\kappa_{\varphi})\) increases, \(1/\kappa_{\varphi}\) decreases) — strictly, because \(\varpi_A > 0\) by E0.
+Branch agreement at \(\kappa_{\varphi,S}\): both branches equal \(\tfrac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}(1+\varrho_S)(1-s)\), so the glued function is continuous. **Strictly decreasing in \(\kappa_{\varphi}\)** on \((0,1]\) (each branch is: \((1+\phi)/(1-\kappa_{\varphi})\) increases, \(1/\kappa_{\varphi}\) decreases) — strictly, because \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} > 0\) by E0.
 
 `\varrho_S > \phi` is Lemma 1's condition that an arbitrage occurs at all; Lemma 1 is the one-token shock result and is NOT the curvature lemma.
 
@@ -963,7 +967,7 @@ GUARD (restated inline): \(0 \leq \phi < \varrho_I\), hence \(\kappa_{\varphi,I}
 
 Same shape, same continuity at \(\kappa_{\varphi,I}\), **strictly decreasing in \(\kappa_{\varphi}\)** on \((0,1]\).
 
-SCALE: \(\mathrm{surplus}\) is the PER-INVESTOR ratio. Lemma 3(2)'s object is the sum over both investor types, and the anchor shows the two type-ratios are equal, so Lemma 3(2)'s quantity is \(2\,\mathrm{surplus}\). The welfare weight attached to it is \(\varpi_I\), whereas E2's \(\mathrm{arbLoss}\) already carries \(\varpi_A\) — the two blocks are NOT conditioned alike, and anything that combines them additively must supply the missing \(\varpi_I\). Monotonicity is unaffected by either factor.
+SCALE: \(\mathrm{surplus}\) is the PER-INVESTOR ratio. Lemma 3(2)'s object is the sum over both investor types, and the anchor shows the two type-ratios are equal, so Lemma 3(2)'s quantity is \(2\,\mathrm{surplus}\). The welfare weight attached to it is \(\mathbb{P}_{L_{\text{INV}}}\), whereas E2's \(\mathrm{arbLoss}\) already carries \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}\) — the two blocks are NOT conditioned alike, and anything that combines them additively must supply the missing \(\mathbb{P}_{L_{\text{INV}}}\). Monotonicity is unaffected by either factor.
 
 `\varrho_I > \phi` is Lemma 2's condition for the investor to trade. And \(\varrho_S \leq \varrho_I \iff \kappa_{\varphi,S} \leq \kappa_{\varphi,I}\) — the geometrized form of the premium ordering that Proposition 5's PROOF consumes (E0 records that the Proposition DISPLAYS the strict form), which it uses ONLY through the ordering of the two branch points.
 
@@ -979,20 +983,20 @@ The LP one-period excess return \(D(\kappa_{\varphi}) = \mathbb{E}[R_D] - \mathb
 			c_2(\kappa_{\varphi}) \, - \, \varpi_D\,\varrho_S, & \kappa_{\varphi} \in [\kappa_{\varphi,S},\ \kappa_{\varphi,I}] \quad \text{(A.51)} \\
 			\dfrac{c_1}{\kappa_{\varphi}} \, - \, \varpi_D\,\varrho_S, & \kappa_{\varphi} \in [\kappa_{\varphi,I},\ 1] \quad \text{(A.50)}
 		\end{cases} \\[6pt]
-		c_3(\kappa_{\varphi}) \, &= \, \frac{\varpi_I}{2}\Big(\frac{1+\phi}{1-\kappa_{\varphi}} - 1\Big)
-		\, - \, \frac{\varpi_A}{2}\Big((1+\varrho_S) - \frac{1+\phi}{1-\kappa_{\varphi}}\Big) \\
-		c_2(\kappa_{\varphi}) \, &= \, \frac{\varpi_I}{2}\Big(\frac{1+\phi}{1-\kappa_{\varphi}} - 1\Big)
-		\, - \, \frac{\varpi_A}{2}\,\frac{(1+\varrho_S)\,\kappa_{\varphi,S}^{2}}{\kappa_{\varphi}} \\
-		c_1 \, &= \, \frac{\varpi_I}{2}\Big(1+\phi-\sqrt{\tfrac{1+\phi}{1+\varrho_I}}\Big)\Big(\sqrt{\tfrac{1+\varrho_I}{1+\phi}}-1\Big)
-		\, - \, \frac{\varpi_A}{2}\,(1+\varrho_S)\,\kappa_{\varphi,S}^{2} \qquad \text{(constant in } \kappa_{\varphi}\text{)}
+		c_3(\kappa_{\varphi}) \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(\frac{1+\phi}{1-\kappa_{\varphi}} - 1\Big)
+		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\Big((1+\varrho_S) - \frac{1+\phi}{1-\kappa_{\varphi}}\Big) \\
+		c_2(\kappa_{\varphi}) \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(\frac{1+\phi}{1-\kappa_{\varphi}} - 1\Big)
+		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\,\frac{(1+\varrho_S)\,\kappa_{\varphi,S}^{2}}{\kappa_{\varphi}} \\
+		c_1 \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(1+\phi-\sqrt{\tfrac{1+\phi}{1+\varrho_I}}\Big)\Big(\sqrt{\tfrac{1+\varrho_I}{1+\phi}}-1\Big)
+		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\,(1+\varrho_S)\,\kappa_{\varphi,S}^{2} \qquad \text{(constant in } \kappa_{\varphi}\text{)}
 	\end{aligned}
 \]
 
-WHAT \(D\) IS MADE OF — read this before E7. \(D\) is LP REVENUE FROM INVESTOR FLOW minus \(\mathrm{arbLoss}\). The investor's own SURPLUS (E3) does NOT appear in \(D\) at all. The revenue term is \(\tfrac{\varpi_I}{2}\big((1+\phi)/(1-\kappa_{\varphi}) - 1\big)\) on the two lower branches and \(\propto 1/\kappa_{\varphi}\) on the top branch; it is "LP revenue from investor flow", i.e. SLIPPAGE RENT PLUS FEE, and it is strictly positive even at \(\phi = 0\), where it equals \(\varpi_I\kappa_{\varphi}/(2(1-\kappa_{\varphi}))\). It is INCREASING in \(\kappa_{\varphi}\) below \(\kappa_{\varphi,I}\) and DECREASING above — the opposite sign to E3's surplus below \(\kappa_{\varphi,I}\), not the same sign.
+WHAT \(D\) IS MADE OF — read this before E7. \(D\) is LP REVENUE FROM INVESTOR FLOW minus \(\mathrm{arbLoss}\). The investor's own SURPLUS (E3) does NOT appear in \(D\) at all. The revenue term is \(\tfrac{\mathbb{P}_{L_{\text{INV}}}}{2}\big((1+\phi)/(1-\kappa_{\varphi}) - 1\big)\) on the two lower branches and \(\propto 1/\kappa_{\varphi}\) on the top branch; it is "LP revenue from investor flow", i.e. SLIPPAGE RENT PLUS FEE, and it is strictly positive even at \(\phi = 0\), where it equals \(\mathbb{P}_{L_{\text{INV}}}\kappa_{\varphi}/(2(1-\kappa_{\varphi}))\). It is INCREASING in \(\kappa_{\varphi}\) below \(\kappa_{\varphi,I}\) and DECREASING above — the opposite sign to E3's surplus below \(\kappa_{\varphi,I}\), not the same sign.
 
 GUARD (restated inline): \(\kappa_{\varphi,S} > 0\) and \(\kappa_{\varphi,I} > 0\) from \(0 \leq \phi < \varrho_S \leq \varrho_I\); the \(c_2\) and \(c_1/\kappa_{\varphi}\) branches are stated on \([\kappa_{\varphi,S},\kappa_{\varphi,I}]\) and \([\kappa_{\varphi,I},1]\), both bounded away from the pole. Lean: `Set.Icc kphiS kphiI`, `Set.Icc kphiI 1`, with `hkphiS`, `hkphiI` explicit.
 
-Continuity at BOTH branch points: at \(\kappa_{\varphi,S}\) by E2's branch agreement; at \(\kappa_{\varphi,I}\) both sides equal \(\tfrac{\varpi_I}{2}\big(\sqrt{(1+\phi)(1+\varrho_I)}-1\big) - \tfrac{\varpi_A}{2}(1+\varrho_S)\kappa_{\varphi,S}^{2}/\kappa_{\varphi,I}\). \(D\) is strictly increasing on \([0,\kappa_{\varphi,I}]\) and, **under \(c_1 > 0\)**, strictly decreasing on \([\kappa_{\varphi,I},1]\), so
+Continuity at BOTH branch points: at \(\kappa_{\varphi,S}\) by E2's branch agreement; at \(\kappa_{\varphi,I}\) both sides equal \(\tfrac{\mathbb{P}_{L_{\text{INV}}}}{2}\big(\sqrt{(1+\phi)(1+\varrho_I)}-1\big) - \tfrac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}(1+\varrho_S)\kappa_{\varphi,S}^{2}/\kappa_{\varphi,I}\). \(D\) is strictly increasing on \([0,\kappa_{\varphi,I}]\) and, **under \(c_1 > 0\)**, strictly decreasing on \([\kappa_{\varphi,I},1]\), so
 
 \[
 	\begin{aligned}
@@ -1066,7 +1070,7 @@ Over \(\Theta_{\phi}\): `MevJointProgram.joint_corner_degeneracy` (T20) puts the
 
 **WHERE THE INTERIOR PEAK ACTUALLY COMES FROM — and it is NOT a weighting of two objectives.** Per E4, \(D\) = LP revenue from investor flow \(-\;\mathrm{arbLoss}\); the investor's SURPLUS is not a term of \(D\). The peak is produced by the LP revenue term alone, which is INCREASING in \(\kappa_{\varphi}\) below \(\kappa_{\varphi,I}\) and DECREASING above, because the investor's constraint switches from the corner regime (it drains the pool, A.41) to the interior regime (it curtails volume, A.40) exactly at \(\kappa_{\varphi,I}\). \(\mathrm{arbLoss}\) is monotone throughout and generates no peak at all; it only fixes, through \(c_1 > 0\), whether the post-peak decline survives. Below \(\kappa_{\varphi}^{\star}\) the surplus and the revenue sum to a constant (E5's zero-sum identity), so curvature there is a pure transfer and the pie is intact; above \(\kappa_{\varphi}^{\star}\) the pie itself shrinks.
 
-**The "two antitone objectives, opposite corners, therefore an interior peak" reading is FALSE and is not made here.** On \([0,\kappa_{\varphi,S}]\) a nonnegative weighting \(w_1(-\mathrm{arbLoss}) + w_2\,\mathrm{surplus}\) has derivative \(\tfrac{w_1\varpi_A - w_2}{2}\cdot\tfrac{1+\phi}{(1-\kappa_{\varphi})^2}\): sign CONSTANT and weight-determined, no interior crossing on that branch.
+**The "two antitone objectives, opposite corners, therefore an interior peak" reading is FALSE and is not made here.** On \([0,\kappa_{\varphi,S}]\) a nonnegative weighting \(w_1(-\mathrm{arbLoss}) + w_2\,\mathrm{surplus}\) has derivative \(\tfrac{w_1\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} - w_2}{2}\cdot\tfrac{1+\phi}{(1-\kappa_{\varphi})^2}\): sign CONSTANT and weight-determined, no interior crossing on that branch.
 
 > CORRECTION (2026-07-31, ESC-1, recomputed): the generalization of the line above to EVERY branch is **FALSE**. \(\mathrm{arbLoss}\) and \(\mathrm{surplus}\) switch branches at DIFFERENT points (\(\kappa_{\varphi,S} < \kappa_{\varphi,I}\)) ⟹ on the middle region the two derivatives share no common positive factor and the weighted sum CAN cross zero strictly inside: \(+0.637\) at \(\kappa_{\varphi} = 0.19\) → \(-1.40\) at \(0.45\), crossing \(\approx 0.2412 \in (0.1835,\, 0.5)\), NO branch point. Correct claim (narrower): scalarization is not INCAPABLE of interior optima — it is simply not the SOURCE of this section's peak (E4's regime switch is), and Phase 11's T22 over \(\Theta_{\phi}\) is untouched (different model, different objects — E8(3)). Submitted bundle `4878ca32` carries the PRE-correction bytes with the false form explicitly PROHIBITED in its prompt; no requested theorem depends on it.
 
