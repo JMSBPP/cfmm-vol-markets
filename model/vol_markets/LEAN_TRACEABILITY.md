@@ -468,3 +468,21 @@ Doc symbol `ε_{X/M}` (the trading-curve exponent, user decision 2026-08-02) ↔
 | E8(6) consequence: the induced share at the landed optimum is in `(0,1)` UNCONDITIONALLY, and `κ_φ⋆` factors through it | `etaStar_tilde_mem_Ioo`, `curvIndex_etaStar_via_tilde` | **PROVEN** — the factor-share reading is reachable through `ε`, not through `η` (which can be ≈458) |
 
 Fidelity: 22/23 as requested; **1 REFUTED with its correction proven under a different name** (the C4 direction), exactly the sanctioned outcome. One hypothesis added and declared (`curvOfTilde_mem_Ioo`'s `t ∈ (0,1)`, the `Real.log`-is-`log|x|` trap for the third time in this program).
+
+## 15. `φ_{ε,ρ} — THE CES LOCK` (the φ convention → `PhiCES.lean`; project `cd3558f7`)
+
+`phiCES ρ ε x y := (ε x^ρ + (1−ε) y^ρ)^{1/ρ}`. 12 declarations, all axiom-clean, 21 deps byte-identical. Doc symbol `φ_{ε,ρ}`; the doc's ρ = 0 branch is a DEFINED case (Cobb–Douglas), never an evaluation of the bracket.
+
+| Doc claim | Lean | Status |
+|---|---|---|
+| homogeneity degree 1, positivity, monotonicity in each leg | `phiCES_homogeneous`, `phiCES_pos`, `phiCES_mono` | **PROVEN** |
+| concavity for ρ ≤ 1 | `phiCES_concave` — **RADIAL concavity only**, explicitly labelled "not a claim of full joint concavity in (x,y)" | **NARROWED, DECLARED** — joint concavity remains OPEN |
+| ρ → 0 gives the project's φ_ε (CES → Cobb–Douglas) | `phiCES_tendsto_phiEps` (`Tendsto … 𝓝[≠] 0`) | **PROVEN** |
+| ρ = 1 gives the linear form | `phiCES_one` | **PROVEN** |
+| (ρ→0, ε=½) is the geometric mean = canonicalized `F_1` | `phiCES_zero_half_eq_geom` | **PROVEN** |
+| ε and ρ are ORTHOGONAL axes — moving ρ is not moving ε | `phiCES_rho_ne_eps_axis` — two-point refutation: no ε′ makes the ρ = −1 (harmonic) slice match the ρ = 1 equal-share member at both `(1,2)` and `(2,1)` | **PROVEN** (as a refutation) |
+| the two families meet only at the CPMM | `phiCES_agreement_point` — sharp at the evaluation point `(4,1)`: `4^ε = √4 ↔ ε = ½`; docstring states it is an evaluation-level uniqueness, NOT a turning of the undefined ρ=0 formula into a value | **PROVEN** (evaluation form, scope declared) |
+| the landed `curvIndex` is the ρ = 0 slice — it carries no independent ρ | `curvIndex_is_rho_zero_slice` (via `tildeOfCurv_curvOfTilde`) | **PROVEN** ⟹ `curvIndex` CANNOT represent Capponi's κ, which varies along ρ |
+| relation of `ρ` to `exp/CESLongVolPayoff`'s η | `phiCES_rho_vs_pi_eta_trader` — `1/(1−ρ) = 1/(1−η) ↔ ρ = η` away from the poles, and `q = p − 1`. Docstring: "only an algebraic conditional: it does NOT identify the payoff parameter with the trading-function parameter" | **CONDITIONAL** — E8(6) untouched |
+
+Fidelity: 12/12 targets returned; **1 deliberately narrowed and declared** (radial not joint concavity), **1 returned as the requested refutation** (orthogonality), **1 returned as a conditional rather than an identification** (ρ vs exp's η) — the prompt forbade assuming it and the prover honoured that.
