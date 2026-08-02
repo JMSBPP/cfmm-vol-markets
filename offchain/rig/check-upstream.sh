@@ -37,6 +37,7 @@ REQUIRED_PATHS=(
   foundry-scripts/deploy/DeployRealizedVolatilityMod.s.sol
   foundry-scripts/deploy/DeployDynamicFeeMod.s.sol
   foundry-scripts/deploy/DeployDynamicFeeHook.s.sol
+  foundry-scripts/deploy/InitSwappableRig.s.sol
   notes/DATA_CONTRACT.md
   notes/UNITS_AND_SCALES.md
   .planning/rpc-api-volorder-v2-HANDOFF.md

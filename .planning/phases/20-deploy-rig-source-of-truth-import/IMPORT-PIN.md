@@ -1,9 +1,10 @@
 # Phase 20 Import Pin
 
-Source ref: `origin/develop` @ `9f5ccba92ddf89d80efe81bae1dcd1d0a1c10e2d`
-Ref subject: `Merge pull request #15 from JMSBPP/feat/plank`
-Imported: 2026-07-31T18:29:00Z
-Path list: `offchain/rig/import-paths.txt` (36 paths)
+Source ref: `origin/develop` @ `2039f2783598866a337115df4a265a75e8842e82`
+Ref subject: `Merge pull request #18 from JMSBPP/feat/plank`
+Imported: 2026-08-02T16:03:40Z
+Path list: `offchain/rig/import-paths.txt` (37 paths)
+Re-pinned: Phase 22 (plan 22-01), 2026-08-02T16:03:40Z — supersedes ref `9f5ccba92ddf89d80efe81bae1dcd1d0a1c10e2d` (PR #15). This file stays THE pin file: `offchain/rig/verify-import.sh`'s `PIN=` constant is unchanged on purpose, so there is exactly one source of truth for this fact.
 Removed as superseded: `src/lib/TickUtils.plk` (now `src/types/pricing/TickUtils.plk`)
 
 Content-identity to this ref is the SC-1 acceptance test, re-checkable at any time with
@@ -19,7 +20,8 @@ no digest in this file was transcribed by hand.
 | `e4a6ab881a2f7d9893186baaaff309f8f3d846d471348deff31cdf582f4d163c` | `foundry-scripts/deploy/DeployVolOrderManagerMod.s.sol` |
 | `a776fce6013385fd5703b9d011540559d476a2f1e5c069ab32202126f9f7a84b` | `foundry-scripts/deploy/DeployRealizedVolatilityMod.s.sol` |
 | `cf951bbab5325f7fd21dc91d31f2c40619bd813ceca6b7b6667856a7dd9f497d` | `foundry-scripts/deploy/DeployDynamicFeeMod.s.sol` |
-| `0a75128582816c289c7d05eb04db98ffdeff3762347cce41040e41177dfa6bd4` | `foundry-scripts/deploy/DeployDynamicFeeHook.s.sol` |
+| `f282e0942d0f013e04541957d74245bcd932bb3cbdb4f8628812bea219082fa0` | `foundry-scripts/deploy/DeployDynamicFeeHook.s.sol` |
+| `fba060b988086e3c81d150fefd9e43e1bcbf0ec1b5041917fd8cff8efcbb75e1` | `foundry-scripts/deploy/InitSwappableRig.s.sol` |
 | `02c803039db0bd97d4ad12e98c5bb34d4055eb91026288b35de05cd83d81b00d` | `.planning/rpc-api-volorder-v2-HANDOFF.md` |
 | `b9f8a1198f39d2bcca28025941ca290feb67e6becccec83eed897a6e1cd259ea` | `notes/DATA_CONTRACT.md` |
 | `5628b982423e0183bbdd3aa9d0469627524fae1ba98b52435c09ed7beb4f0104` | `notes/UNITS_AND_SCALES.md` |
@@ -37,7 +39,7 @@ no digest in this file was transcribed by hand.
 | `53ce00e2a2b31f0fee993125b81e893ae0c3b604c8fbca82d83fcf59b827c2be` | `src/lib/premium/AdaptiveFee.plk` |
 | `7689960ca16be52ae72099a1b596472950d4a46f9b6c0f8b1b6535fb4ed9b787` | `src/lib/protocol_integrations/CallbackRealizedVolatilityLib.plk` |
 | `6e53516aea413d75af01e43d076410b7775141f958ad4f415b2ee2c4a924d435` | `src/modules/market_state_measurements/RealizedVolatilityMod.plk` |
-| `b05c0769de4ec1e5bd8a3327db675642cff88c63cf1133b4597a23087dab455e` | `src/modules/pos_spec/VolOrderManagerMod.plk` |
+| `d9d4e228da9f96d96d40d526f851bcc5f10b3c54e4a3bb04e286fba66caa5c42` | `src/modules/pos_spec/VolOrderManagerMod.plk` |
 | `94c54e7ca8cc08c0f78d8e14a4e377fd213c5a7aec25b721327beaa3f2424a15` | `src/modules/premium/DynamicFeeMod.plk` |
 | `8113f14c5cf11e0cdc9d6b50df650fac7c71e97f63121f243fcc4f1541fa5297` | `src/modules/protocol_integrations/DynamicFeeHook.plk` |
 | `40b6906eb78741395e2eb3918785e6f6f3c25d70c7c557af95be4ce3529644e3` | `src/types/Numerics.plk` |

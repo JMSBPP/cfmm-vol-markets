@@ -174,18 +174,20 @@ run {
         // region of zero-padded space instead of their tuples -- the PHANTOM-ORDER attack. That is
         // exactly why a non-canonical offset REVERTS instead of being followed.
         //
-        // INPUT WORD:  skew@0..15 | strike@16..103 | width@104..127 | bits >=128 MUST BE ZERO.
-        // Bits 0..103 are identical to the stored word, so Phase 16's masks apply unchanged; only
-        // width moves (104 here, 128 in storage) because build_vol_order inserts TICK_SPACING = 20
-        // at 104..127 on the way to pack_vol_order.
-        //
-        // width IS DELIBERATELY UNMASKED. It is the TOP field, so any bit >= 128 inflates it past
-        // 0xffffff, where vol_range_width_is_complete rejects it -- that IS the dirty-high-bit
-        // rejection, achieved with zero new arithmetic and matching the module's existing stance
-        // (VolOrderManagerInterface.plk:6-10: whole-word reads, dirty bits rejected by validation).
-        // Masking it to `& 0xFFFFFF` would map two distinct calldata words onto the same stored
-        // order -- a malleability seam for the Haskell consumer and the Phase 19 differential.
-        // skew and strike DO get masks because a field sits above each of them.
+        // V2 INPUT WORD (issue #17 F1 -- the V1 text that stood here contradicted the loop
+        // below and would have had a packer produce targetVega = 0 tuples the batch path
+        // silently SKIPS): skew@0..15 | strike@16..103 | width@104..127 (MASKED) |
+        // targetVega@128..255 (UNMASKED TOP FIELD).
+        // Bits 0..103 are identical to the stored word; width is INTERIOR on input (104
+        // here, 128 in storage) because build_vol_order re-inserts TICK_SPACING at 104..127
+        // on the way to pack_vol_order, and targetVega occupies the top. width therefore
+        // gets a mask now (a field sits above it), as do skew and strike.
+        // targetVega IS DELIBERATELY UNMASKED: any dirty bit >= 224 inflates it past
+        // 2^96-1, where target_vega_fits_packed rejects the tuple (batch: SKIP, strict:
+        // revert) -- the dirty-high-bit rejection with zero new arithmetic, preserving the
+        // module's stance (whole-word reads, dirty bits rejected by validation). Masking
+        // targetVega would map two distinct calldata words onto the same stored order -- a
+        // malleability seam for the Haskell consumer and the Phase 19 differential.
         // ------------------------------------------------------------------------------------
         // THE (bool success, uint256 orderId)[] RETURN BUFFER (MCAL-05).
         //
