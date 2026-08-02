@@ -1,8 +1,8 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: milestone
-status: completed
+milestone: v5.0
+milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
+status: in-progress
 stopped_at: "Completed 22-02-PLAN.md (pure offchain surface: E3/E5 decoders, slot0 composition, swap calldata) — 68/68 chain-independent"
 last_updated: "2026-08-02T16:22:12.538Z"
 last_activity: "2026-07-31 — 20-02 executed: 36 artifacts imported by checkout from 9f5ccba,"
