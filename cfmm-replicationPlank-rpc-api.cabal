@@ -81,6 +81,8 @@ library
                     , CheatSwap.Types
                     , CheatSwap.Encoding
                     , CheatSwap.Rpc
+                    , Driver.Seed
+                    , Driver.Capture
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -101,7 +103,12 @@ library
                       mwc-random,
                       web3-crypto,
                       containers,
-                      text
+                      text,
+                      -- Driver.Seed's `initialize (V.singleton w)`. NOT a new package: mwc-random
+                      -- already depends on it, so 0.13.2.0 was in the build plan before this line
+                      -- existed. MEASURED at this commit: `cabal build --enable-tests -j all`
+                      -- printed no `Downloading`, and the resolved id is still 0.13.2.0.
+                      vector
 
     -- Directories containing source files.
     hs-source-dirs:   offchain/lib/

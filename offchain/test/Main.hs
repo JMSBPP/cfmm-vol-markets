@@ -88,7 +88,10 @@ import RealizedVol.Decode
 import StochasticOrderGen.Simulate (draw_target_vega)
 import StochasticOrderGen.Types (VegaDraw (..))
 import StochasticPriceGen.Simulate (simulate_path)
-import StochasticPriceGen.Types (ProcessType (..), StochasticPriceGen (..))
+-- ProcessType is imported by CONSTRUCTOR rather than with (..): the unused CEV constructor brings
+-- a `delta` field selector into scope that shadows a local binding in the storage-perturbation
+-- check, and a -Wall warning is a gate failure here.
+import StochasticPriceGen.Types (ProcessType (GBM, mu, sigma), StochasticPriceGen (..))
 import VolOrder.Encoding (encode_create_order, pack_vol_order_input)
 import VolOrder.Types (VolOrder (..))
 
@@ -2808,7 +2811,7 @@ seed_check_value = 123456789
 -- law outright, because a wrong law is just as self-consistent as a right one. Only a VALUE pin
 -- sees a stream change; @gen_from_seed@ ignoring its argument reddens exactly here.
 driv01_seed_first_three :: [Integer]
-driv01_seed_first_three = [-1, -1, -1]
+driv01_seed_first_three = [455, 233, -14]
 
 -- | The seed is reproducible, settable, reported, and refuses a malformed value.
 driv01_seed_is_reproducible :: Check
