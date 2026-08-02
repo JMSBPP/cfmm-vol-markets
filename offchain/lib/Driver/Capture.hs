@@ -70,12 +70,15 @@ module Driver.Capture
   , capture_env_var
   , capture_path
   , write_capture
+  , write_json_atomically
   , step_record
   ) where
 
+import Control.Exception (SomeException, onException, try)
 import Data.Aeson (ToJSON (..), Value, encodeFile, object, (.=))
 import Data.Maybe (fromMaybe)
 import Data.Word (Word32)
+import System.Directory (removeFile, renameFile)
 import System.Environment (lookupEnv)
 
 -- ---------------------------------------------------------------------------------------------
@@ -326,7 +329,45 @@ default_capture_path = "offchain/rig/driver-run-capture.json"
 -- | Write the run. Total: a 'DriverRun' with no steps and no legacy write is still valid JSON that
 -- decodes, which is the entire value of the flush-on-failure policy.
 write_capture :: FilePath -> DriverRun -> IO ()
-write_capture path = encodeFile path
+write_capture = write_json_atomically
+
+-- | Serialise to a sibling temp file, @fsync@-free but 'renameFile'-atomic, and only then let the
+-- new bytes become the artifact.
+--
+-- == WHY A DIRECT 'encodeFile' IS NOT SAFE HERE
+--
+-- @aeson@'s 'encodeFile' opens the destination for writing — truncating it — and then STREAMS a
+-- lazily-built 'Data.ByteString.Lazy.ByteString' into it. Any bottom reached partway through the
+-- encode therefore leaves the destination truncated at whatever had already been flushed. That is
+-- not a hypothetical shape for this artifact: the flush handler in @offchain\/app\/Main.hs@ builds
+-- the record from fields that can be bottoms (@manifest_contract@ is @either error id@), catches
+-- everything, and prints a WARNING — so the committed evidence file would be destroyed and the
+-- program would report a warning and exit 0. Regeneration that destroys the artifact it regenerates
+-- is worse than regeneration that fails, because the failure is recoverable and the destruction is
+-- not.
+--
+-- 'renameFile' within one directory is atomic on POSIX, so the destination is only ever the OLD
+-- complete bytes or the NEW complete bytes. The temp file is a sibling rather than a @\/tmp@ entry
+-- precisely so the rename cannot cross a filesystem and silently degrade to a copy.
+--
+-- On failure the partial temp file is removed and the ORIGINAL exception is re-raised, never
+-- replaced: a cleanup that threw would swap a diagnosable failure for a mystery, which is the same
+-- rule the flush handler follows one layer up.
+write_json_atomically :: ToJSON a => FilePath -> a -> IO ()
+write_json_atomically path value = do
+  let tmp = path ++ ".tmp"
+  encodeFile tmp value `onException` ignoring_errors (removeFile tmp)
+  renameFile tmp path
+
+-- | Best-effort cleanup. Swallows its own failure so it cannot displace the exception it is running
+-- under — a missing temp file is not news, and an unremovable one is a smaller problem than losing
+-- the reason the write failed.
+ignoring_errors :: IO () -> IO ()
+ignoring_errors action = do
+  outcome <- try action
+  case outcome :: Either SomeException () of
+    Right () -> pure ()
+    Left _   -> pure ()
 
 -- ---------------------------------------------------------------------------------------------
 -- Serialisation

@@ -36,7 +36,7 @@ module Main (main) where
 
 import Control.Exception (SomeException, displayException, try)
 import Control.Monad (unless)
-import Data.Aeson (Value, encodeFile, object, toJSON, (.=))
+import Data.Aeson (Value, object, toJSON, (.=))
 import Data.Bits (shiftR, (.&.))
 import qualified Data.ByteString as BS
 import Data.ByteArray.HexString (HexString, toBytes)
@@ -48,6 +48,7 @@ import Network.Ethereum.Api.Types (Quantity, unQuantity)
 import Network.Web3.Provider (Provider (HttpProvider), Web3, Web3Error, runWeb3')
 import System.Process (readProcess)
 
+import Driver.Capture (write_json_atomically)
 import CheatSwap.Rpc
   ( CheatSwapClock (AdvanceTo, ForceTimestamp, LeaveClockAlone)
   , CheatSwapStep (..)
@@ -164,7 +165,11 @@ main = do
         , "deployer"               .= rig_deployer (rig_accounts addrs)
         ]
 
-  encodeFile output_path $ object
+  -- Atomic, for the same reason Driver.Capture is: `encodeFile` truncates the destination and THEN
+  -- streams a lazily-built ByteString into it, so a bottom reached partway through the encode
+  -- destroys a COMMITTED evidence file. `measurement_json` below folds over values that came back
+  -- from a chain and `generated_from` is read from a file -- neither is guaranteed total.
+  write_json_atomically output_path $ object
     [ "generatedAt"   .= generated_at
     , "chainId"       .= rig_chain_id addrs
     , "generatedFrom" .= generated_from

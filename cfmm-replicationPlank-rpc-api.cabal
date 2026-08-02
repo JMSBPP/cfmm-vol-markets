@@ -104,6 +104,10 @@ library
                       web3-crypto,
                       containers,
                       text,
+                      -- Driver.Capture's atomic artifact write (renameFile/removeFile). A GHC boot
+                      -- package that the test-suite stanza already depends on, so it was in the
+                      -- build plan before this line existed and no new package is resolved.
+                      directory,
                       -- Driver.Seed's `initialize (V.singleton w)`. NOT a new package: mwc-random
                       -- already depends on it, so 0.13.2.0 was in the build plan before this line
                       -- existed. MEASURED at this commit: `cabal build --enable-tests -j all`
