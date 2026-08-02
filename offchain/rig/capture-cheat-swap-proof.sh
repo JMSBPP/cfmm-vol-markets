@@ -89,8 +89,48 @@ fi
 # --- Self-check 2: the counter-measurement really was silent ---------------
 # If the wrong-pool write DID land, the blocker analysis is wrong and that is the
 # single most important finding of the phase. It must stop the run, not pass.
-B_TICK=$(jq -r '.measurements[] | select(.name=="cheat_wrong_pool_then_swap") | .e3.tick' "$OUT")
-B_STATUS=$(jq -r '.measurements[] | select(.name=="cheat_wrong_pool_then_swap") | .status' "$OUT")
+#
+# "Silent" here means the hook recorded ITS OWN pool's tick, NOT that it recorded
+# nothing. MEASURED: e3_count = 1, e3.tick = 4999 -- the swap still fires
+# beforeSwap and still writes a timepoint; what does not happen is the cheated
+# 7000 arriving from the other manager. offchain/test/Main.hs:2656 asserts the
+# same e3_count == 1 over the committed artifact.
+#
+# The existence, the status and the E3 COUNT are therefore asserted BEFORE the
+# tick is interpreted. Without that, `[ "$B_TICK" = "7000" ]` fired only on that
+# exact literal, so a MISSING row ("") and a placeholder `e3: null` ("null") both
+# read as a pass -- the check that exists to detect "the blocker analysis is
+# wrong" could not tell "correctly silent" from "never ran". Falsified: with the
+# row deleted, with e3 nulled, and with status forced to 0, the old form exited 0
+# on all three and printed `COUNTER: ... e3.tick =  (status )`.
+B_ROWS=$(jq -c '[.measurements[] | select(.name=="cheat_wrong_pool_then_swap")]' "$OUT")
+if [ "$(printf '%s' "$B_ROWS" | jq -r 'length')" != "1" ]; then
+  echo "CAPTURE FAIL: the artifact carries $(printf '%s' "$B_ROWS" | jq -r 'length') rows named" >&2
+  echo "              cheat_wrong_pool_then_swap, expected exactly 1. A missing counter-" >&2
+  echo "              measurement is an UNRUN check, not a silent one. Absence never passes." >&2
+  exit 1
+fi
+read -r B_STATUS B_E3COUNT B_TICK <<<"$(printf '%s' "$B_ROWS" \
+  | jq -r '.[0] | "\(.status) \(.e3_count) \(.e3.tick // "none")"')"
+if [ "$B_STATUS" != "1" ]; then
+  echo "CAPTURE FAIL: the counter-measurement did not complete (status $B_STATUS)." >&2
+  echo "              revert_reason: $(printf '%s' "$B_ROWS" | jq -r '.[0].revert_reason // "(none recorded)"')" >&2
+  echo "              A swap that never landed proves nothing about where the cheat went." >&2
+  exit 1
+fi
+if [ "$B_E3COUNT" != "1" ]; then
+  echo "CAPTURE FAIL: the counter-measurement emitted $B_E3COUNT E3 logs, expected exactly 1." >&2
+  echo "              beforeSwap runs before any swap math, so a status-1 receipt MUST carry a" >&2
+  echo "              timepoint. Zero here means the G1 same-second guard ate the write and the" >&2
+  echo "              measurement observed nothing -- it is not evidence of silence." >&2
+  exit 1
+fi
+case "$B_TICK" in
+  ''|none|null|*[!0-9-]*)
+    echo "CAPTURE FAIL: the counter-measurement's E3 carries no decodable tick (got '$B_TICK')" >&2
+    echo "              while reporting e3_count=1. The row and its log disagree." >&2
+    exit 1 ;;
+esac
 if [ "$B_TICK" = "7000" ]; then
   echo "CAPTURE FAIL: cheating PriceSetterPoolManager DID move the hook's recorded tick" >&2
   echo "              (e3.tick = 7000, status $B_STATUS). The two-PoolManager blocker as" >&2
@@ -177,4 +217,4 @@ fi
 
 echo "wrote $OUT  ($(jq -r '.measurements | length' "$OUT") measurements, chainId $(jq -r '.chainId' "$OUT"), ref $REF_ON_DISK)"
 echo "  GATE: cheat_to_5000_then_swap e3.tick = $A_TICK (status $A_STATUS)"
-echo "  COUNTER: cheat_wrong_pool_then_swap e3.tick = $B_TICK (status $B_STATUS) -- cheated 7000"
+echo "  COUNTER: cheat_wrong_pool_then_swap e3.tick = $B_TICK (status $B_STATUS, e3_count $B_E3COUNT) -- cheated 7000, so 7000 is the FAIL value"
