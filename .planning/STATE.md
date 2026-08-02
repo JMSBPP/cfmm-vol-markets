@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 22-04-PLAN.md (THE GATE: e3.tick 5000 OBSERVED; blocker discharged) — rig LEFT RUNNING pid 1061007"
-last_updated: "2026-08-02T17:20:00Z"
-last_activity: "2026-08-02 — 22-04 executed: the cheat-swap composition discharged by measurement, G1 pinned, floor tick measured"
+stopped_at: "Completed 22-05-PLAN.md — DRIV-01 CLOSED (5-step path, 5 E3, e3.tick == submitted) — rig LEFT RUNNING pid 1107697"
+last_updated: "2026-08-02T17:45:00Z"
+last_activity: "2026-08-02 — 22-05 executed: the DRIV-01 driver loop run, recorded and asserted by value; the plan's own G1 detector refuted and fixed"
 progress:
   total_phases: 19
   completed_phases: 10
   total_plans: 32
-  completed_plans: 30
+  completed_plans: 31
 ---
 
 # Project State
@@ -27,9 +27,65 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 ## Current Position
 
 Phase: 22 — Live Stochastic Drivers (DRIV-01, DRIV-02) — **IN PROGRESS**
-Plan: 4 of 6 complete (22-01, 22-02 wave 1; 22-03 wave 2; 22-04 wave 3 — all DONE).
-Next action: **22-05** (a standing swappable rig is available — pid 1061007, block 13, head ts
-1700000015, orderCount 0). **22-05's `depends_on: ["22-04"]` is now satisfied BY MEASUREMENT.**
+Plan: 5 of 6 complete (22-01, 22-02 wave 1; 22-03 wave 2; 22-04 wave 3; 22-05 wave 4 — all DONE).
+Next action: **22-06** (DRIV-02). A FROM-SCRATCH swappable rig is standing — pid 1107697, block 12,
+head ts 1700000014, genesis ts 1700000000, orderCount 0, 9 contracts, tickSpacing 20.
+
+Status: **22-05 DONE — DRIV-01 IS CLOSED, and it is closed by a PATH rather than by a step.**
+`offchain/rig/driver-run-capture.json` records **five consecutive** cheat → clock → swap steps from
+seed **123456789**, origin `t0 = 1700001670`, stride **12**:
+
+| k | submitted tick | submitted ts | e3.tick | e3.timestamp | status | e3 | e5 |
+|---|---|---|---|---|---|---|---|
+| 0 | 237 | 1700001670 | **237** | **1700001670** | 1 | 1 | 1 |
+| 1 | -556 | 1700001682 | **-556** | **1700001682** | 1 | 1 | 1 |
+| 2 | -1000 | 1700001694 | **-1000** | **1700001694** | 1 | 1 | 1 |
+| 3 | -1344 | 1700001706 | **-1344** | **1700001706** | 1 | 1 | 1 |
+| 4 | -1191 | 1700001718 | **-1191** | **1700001718** | 1 | 1 | 1 |
+
+`sum(e3_count) = sum(e5_count) = length(steps) = configuredSize = 5`, timestamps strictly
+increasing, every timestamp exactly `t0 + k*12`. **`count(E5) - count(E3) = 0` over the whole run —
+no step was eaten by the G1 guard, measured on chain rather than inferred**, because E5 fires on
+every swap including one whose write the guard swallowed. `run_cheat_swap_path` reads the chain head
+ONCE and folds `cheat_and_swap` over a `t_k = t_0 + k*stride` schedule that is monotonic by
+construction; it asserts per step that `e3_count == 1` and that `(e3.tick, e3.timestamp)` equal what
+was submitted, duplicating assertions `cheat_and_swap` deliberately declines to make (22-04's G1
+measurement needs `e3_count == 0` observable; a driver has the opposite obligation).
+**The run's randomness is now a VALUE the artifact carries:** `Driver.Seed` resolves `RIG_SEED` as a
+single decimal `Word32` (mwc-random's own `Seed` is rejected — no `Read` instance, so it round-trips
+in one direction only), prints it BEFORE anything is sent, draws-and-reports when unset, and
+**FAILS LOUDLY on a malformed value rather than silently drawing one** (measured: exit 1 naming
+`RIG_SEED`, the expected form, and why the fallback would be worse than the error).
+**A SIXTH PREDICTED DISCRIMINATOR MEASURED AND REFUTED — the plan's own G1 detector.** M1 (delete
+the `evm_setNextBlockTimestamp` call, re-run the driver at a temp capture path, check
+`driv01_no_same_second_noop`) was applied verbatim and the check stayed **GREEN**. Measured cause:
+the mutant never reaches G1 — it reddens the DRIVER's own timestamp assertion at step 0 (`SUBMITTED
+1700001899 but the hook RECORDED 1700001888`), truncating the run to ONE healthy step, over which
+`count(E5) == count(E3) == length(steps) == 1` is perfectly true. **The counts are blind to
+truncation**: they say nothing was eaten out of the steps that EXIST, while the claim is that
+nothing was eaten out of the RUN. **FIXED, not noted** (`3e40fcb`): `length(steps)` is compared
+against `configuredSize` with the measurement written into the message; the same M1 artifact now
+reddens at 76/79. The count half was separately confirmed to still discriminate on its own (M3,
+`e3_count` 1 → 0 on one of five steps — 22-04 measurement C's exact receipt shape — reddens with
+`count(E5) - count(E3) = 1 is how many steps the G1 same-second guard ATE`).
+**FLUSH-ON-FAILURE PROVEN BY INJECTION, not asserted:** a `fail` injected after step 2 mined gave
+exit 1 with the step index and tx hash, and left a decodable artifact with `dr_complete: false`
+carrying the two steps that already mined — **and its ticks `237, -556` are byte-identical to the
+clean run's, so the seeded replay is demonstrated rather than argued**. The committed artifact's
+sha256 was untouched throughout (every mutant ran through `DRIVER_CAPTURE`, whose non-vacuity was
+proven FIRST: a nonexistent path reddens all four run-capture checks at 75/79).
+**Task 1's mutant was also refuted and sharpened:** `gen_from_seed _ = createSystemRandom` reddens
+the SELF-CONSISTENCY half, not the value pin, because it is also non-deterministic; the mutant that
+isolates the pin is `initialize (V.singleton 0)` — deterministic and seed-blind, caught ONLY by the
+pinned `[455,233,-14]` (it produced `[345,888,1540]`). 21-04's lesson reproduced, not inherited.
+`cabal test` = **79/79** (73 → 79), exit 0, zero `-Wall` warnings, **chain-independence RE-MEASURED**
+(rig stopped, `pgrep anvil` empty, `cast` errors, 79/79 exit 0) and the rig stood back up FROM
+SCRATCH, where the committed run **still passes freshness against the redeploy** — a third
+confirmation of 22-03's SC-5 determinism. `run_price_gen` and `write_price` are **BYTE-UNCHANGED**:
+the whole-plan diff on `StochasticPriceGen/Rpc.hs` has **zero** deleted lines and
+`PriceSetter/Rpc.hs` was not touched. `vector` added to build-depends with **no new package**
+(`vector-0.13.2.0` was already in the plan via mwc-random; zero `Downloading` lines). Territory
+clean throughout.
 
 Status: **22-04 DONE — THE PHASE BLOCKER IS DISCHARGED BY AN OBSERVED VALUE, not by an argument.**
 `jq '.measurements[] | select(.name=="cheat_to_5000_then_swap") | .e3.tick'` on the committed
@@ -540,6 +596,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 22 P01 | 9 | 2 tasks | 10 files |
 | Phase 22 P02 | 47 | 3 tasks | 5 files |
 | Phase 22 P04 | 31min | 3 tasks | 8 files |
+| Phase 22 P05 | 22min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -652,6 +709,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 22]: 22-04: the cheat-swap composition is DISCHARGED BY MEASUREMENT — an E3 carrying the cheated tick 5000 was observed on chain; the identical sequence aimed at PriceSetterPoolManager returns status 1, one E3, one E5 and tick 4999
 - [Phase 22]: 22-04: G1 cannot be reached by OMITTING the clock advance — that races wall time (observed both ways); CheatSwap.Rpc gained ForceTimestamp to construct the collision, and anvil was measured accepting an EQUAL next-block timestamp while rejecting only strictly-lower
 - [Phase 22]: 22-04: the near-floor tick -887259 does NOT revert and E3 carries it, so 22-05 needs no per-step direction/limit selection
+- [Phase 22]: 22-05: DRIV-01 CLOSED by a PATH — five consecutive cheat->clock->swap steps, each producing exactly one E3 carrying the tick AND the timestamp submitted (t0=1700001670, stride=12, seed 123456789)
+- [Phase 22]: 22-05: the plan's own G1 detector was MEASURED GREEN under its mutant and FIXED — a count equality over recorded steps is blind to the run being truncated; compare against configuredSize
+- [Phase 22]: 22-05: DRIVER_CAPTURE redirects the WRITER as well as the checks, deliberately unlike 22-04's RIG_CHEAT_SWAP_PROOF — here the driver IS the capture tool
 
 ### Pending Todos
 
@@ -678,6 +738,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-08-02T17:16:21.649Z
-Stopped at: Completed 22-04-PLAN.md (THE GATE: e3.tick 5000 OBSERVED; blocker discharged) — rig LEFT RUNNING pid 1061007
+Last session: 2026-08-02T17:45:09.225Z
+Stopped at: Completed 22-05-PLAN.md — DRIV-01 CLOSED (5-step path, 5 E3, e3.tick == submitted); rig LEFT RUNNING pid 1107697
 Resume file: None

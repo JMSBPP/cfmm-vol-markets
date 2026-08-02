@@ -191,7 +191,7 @@ verified), `.planning/rpc-api-volorder-v2-HANDOFF.md`, `notes/DATA_CONTRACT.md`,
 
 ### Live Drivers
 
-- [ ] **DRIV-01**: The stochastic price path drives
+- [x] **DRIV-01**: The stochastic price path drives
       `RealizedVolatilityMod.writeTimepoint(uint32,int24)` per step against the rig,
       each write emitting E3 `TimepointWritten` (the existing `write_price` flow stays
       available, unchanged)
@@ -331,7 +331,7 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | RPIN-05 | Phase 21 | Complete |
 | RPIN-06 | Phase 21 | Complete |
 | VEGA-01 | Phase 21 | Complete |
-| DRIV-01 | Phase 22 | Pending |
+| DRIV-01 | Phase 22 | Complete |
 | DRIV-02 | Phase 22 | Pending |
 
 **Coverage:**
