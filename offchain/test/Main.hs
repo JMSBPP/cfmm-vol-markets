@@ -60,6 +60,13 @@ import VolOrder.Decode
   , decode_order_created
   , unpack_vol_order_storage
   )
+import RealizedVol.Decode
+  ( FeeApplied (..)
+  , TimepointWritten (..)
+  , decode_fee_applied
+  , decode_timepoint_written
+  , signed_word
+  )
 import StochasticOrderGen.Simulate (draw_target_vega)
 import StochasticOrderGen.Types (VegaDraw (..))
 import VolOrder.Encoding (encode_create_order, pack_vol_order_input)
@@ -1896,6 +1903,154 @@ rpin05_no_canonical_bool_violation = Check "rpin05_no_canonical_bool_violation" 
           ++ " means the live module and every Solidity consumer disagree about these bytes.")
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 22, DRIV-01: the E3 TimepointWritten / E5 FeeApplied decode behaviour contract
+--
+-- E3's emitter is @src\/lib\/events\/VolEventsLib.plk@ lines 62-77:
+--
+-- > let buf = @malloc_uninit(160);  ... five @mstore32 at 0/32/64/96/128 ...
+-- > @evm_log2(buf, 160, TOPIC0_TIMEPOINT_WRITTEN, pool_id);
+--
+-- EXACTLY two topics, EXACTLY 160 bytes = five data words
+-- @[timestamp, tick, volatilityCumulative, averageTick, tickCumulative]@. Three of those five
+-- are SIGNED, and the emitter runs @\@evm_signextend@ over each of them, so they arrive as full
+-- 256-bit two's-complement words. E5 is the same two-topic shape over 64 bytes
+-- @[sigma, fee]@, both unsigned.
+--
+-- This is the FIRST signed-integer decoding anywhere in @offchain\/@, which is why the negative
+-- values below are pinned as exact literals rather than as sign predicates: an unsigned read of
+-- @averageTick = -200@ yields 115792089237316195423570985008687907853269984665640564039457584007913129639736,
+-- and a 24-bit-masked read yields 16777016. Both are numbers, both look like data, and neither
+-- is the tick that was written.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The E3 payload the synthetic log carries. FIVE DISTINCT NUMBERS, TWO OF THEM NEGATIVE, so
+-- neither a transposition of two fields nor an unsigned read of a signed one can pass unnoticed.
+driv01_e3_timestamp, driv01_e3_tick, driv01_e3_vol_cum :: Integer
+driv01_e3_avg_tick, driv01_e3_tick_cum :: Integer
+driv01_e3_timestamp = 1700000012
+driv01_e3_tick      = 37
+driv01_e3_vol_cum   = 99
+driv01_e3_avg_tick  = -200
+driv01_e3_tick_cum  = -123456789
+
+-- | The E5 payload. Distinct from every E3 value for the same reason.
+driv01_e5_sigma, driv01_e5_fee :: Integer
+driv01_e5_sigma = 4321
+driv01_e5_fee   = 3000
+
+-- | A signed 'Integer' as the 256-bit word @\@evm_signextend@ actually puts on the wire. The
+-- checks below feed the DECODER the wire form and demand the signed form back, so the round trip
+-- is asserted end to end rather than assumed at the boundary.
+as_wire_word :: Integer -> Integer
+as_wire_word n = if n < 0 then n + (1 `shiftL` 256) else n
+
+-- | A topic0 as an 'Integer', RECOMPUTED from the signature string parsed out of the interface
+-- file the pin names. Generalises 'e1_topic0_from' to any event name.
+topic0_from :: String -> String -> Either String Integer
+topic0_from name contents = do
+  sig <- signature_for name (signatures_in (lines contents))
+  Right (be_integer (topic0_of sig))
+
+-- | Truncate a log's data payload to @n@ bytes, leaving the topics alone. This is what a short
+-- payload looks like to the decoder, and it is the case the length guard exists for.
+truncate_log_data :: Int -> Change -> Change
+truncate_log_data n l = l { changeData = fromBytes (BS.take n (toBytes (changeData l))) }
+
+-- | The bound poolId MEASURED on the rig, written WITHOUT the @0x@ prefix -- 'sc3_literal_purge'
+-- greps this very file and all three of its patterns are anchored on that prefix. Read
+-- numerically with 'integer_of_hex_text' and rebuilt with 'word32be', which is exactly the
+-- 32-byte wire form a @bytes32 indexed@ topic takes.
+driv01_pool_id_hex :: String
+driv01_pool_id_hex = "c26d0c664c1503d15da31243604d1904295ccb87658aa0f62ff9966f200e272e"
+
+-- | The whole E3 + E5 decode behaviour contract, in one place, over synthetic logs. Every
+-- assertion pins a VALUE (@tw_avg_tick == -200@), never a relation (@tw_avg_tick < 0@) -- 21-03
+-- and 21-04 each measured an inequality-shaped check staying GREEN under a value-breaking
+-- mutant.
+driv01_e3_decode_behavior :: Check
+driv01_e3_decode_behavior = Check "driv01_e3_decode_behavior" . guarded $ do
+  rv_contents   <- readFile realized_vol_iface
+  hook_contents <- readFile dynamic_fee_hook_iface
+  pure $ do
+    t0_e3   <- topic0_from "TimepointWritten" rv_contents
+    t0_e5   <- topic0_from "FeeApplied" hook_contents
+    pool_id <- integer_of_hex_text driv01_pool_id_hex
+    let e3_words =
+          map as_wire_word
+            [ driv01_e3_timestamp, driv01_e3_tick, driv01_e3_vol_cum
+            , driv01_e3_avg_tick, driv01_e3_tick_cum
+            ]
+        topics_ok = [hexstring_of t0_e3, hexstring_of pool_id]
+        e3_log    = synthetic_log topics_ok e3_words
+        e5_log    = synthetic_log [hexstring_of t0_e5, hexstring_of pool_id]
+                      [driv01_e5_sigma, driv01_e5_fee]
+        decode_e3 = decode_timepoint_written t0_e3 pool_id
+        decode_e5 = decode_fee_applied t0_e5 pool_id
+
+    -- (1) the positive path: five fields, exact values, two of them negative
+    tw <- case decode_e3 e3_log of
+      Nothing -> Left ("the E3 log shape (2 topics, 160 bytes = 5 data words -- @evm_log2 over a"
+                        ++ " 160-byte buffer) did not decode. A decoder that returns Nothing here"
+                        ++ " reports every real TimepointWritten as \"unknown\" and never says so.")
+      Just x  -> Right x
+    _ <- expect (tw_timestamp tw == driv01_e3_timestamp)
+           ("tw_timestamp = " ++ show (tw_timestamp tw) ++ ", expected "
+             ++ show driv01_e3_timestamp)
+    _ <- expect (tw_tick tw == driv01_e3_tick)
+           ("tw_tick = " ++ show (tw_tick tw) ++ ", expected " ++ show driv01_e3_tick)
+    _ <- expect (tw_vol_cum tw == driv01_e3_vol_cum)
+           ("tw_vol_cum = " ++ show (tw_vol_cum tw) ++ ", expected " ++ show driv01_e3_vol_cum)
+    _ <- expect (tw_avg_tick tw == driv01_e3_avg_tick)
+           ("tw_avg_tick = " ++ show (tw_avg_tick tw) ++ ", expected " ++ show driv01_e3_avg_tick
+             ++ " -- the emitter sign-extends averageTick to the full word, so an unsigned read"
+             ++ " gives a 77-digit number and a 24-bit mask gives 16777016")
+    _ <- expect (tw_tick_cum tw == driv01_e3_tick_cum)
+           ("tw_tick_cum = " ++ show (tw_tick_cum tw) ++ ", expected " ++ show driv01_e3_tick_cum
+             ++ " -- int56, sign-extended by the same emitter rule")
+
+    -- (2) the length guard. data_word past the end of the payload is 0, not an error, so without
+    -- the guard a short log hands back tickCumulative = 0: plausible, in range, fabricated.
+    _ <- expect (isNothing (decode_e3 (truncate_log_data 159 e3_log)))
+           ("a 159-byte E3 payload DECODED. BS.drop past the end yields the empty string whose"
+             ++ " big-endian value is 0, so this returns a record with a fabricated field rather"
+             ++ " than Nothing -- the identical trap RPIN-04 documented for E1.")
+
+    -- (3) topic guards
+    _ <- expect (isNothing (decode_e3 (synthetic_log [hexstring_of (t0_e3 + 1)
+                                                     , hexstring_of pool_id] e3_words)))
+           "an E3 log with a WRONG topic0 decoded"
+    _ <- expect (isNothing (decode_e3 (synthetic_log [hexstring_of t0_e3
+                                                     , hexstring_of (pool_id + 1)] e3_words)))
+           ("an E3 log with a WRONG poolId in topic 1 decoded. The module-global"
+             ++ " RealizedVolatilityMod emits the SAME topic0 with poolId = bytes32(0)"
+             ++ " (notes/DATA_CONTRACT.md section 2), so a topic0-only filter admits sentinel"
+             ++ " logs as if they were the pool's own.")
+    _ <- expect (isNothing (decode_e3 (synthetic_log [hexstring_of t0_e3, hexstring_of pool_id
+                                                     , hexstring_of 0] e3_words)))
+           "a THREE-topic log decoded -- @evm_log2 emits exactly two"
+
+    -- (4) E5: same two-topic shape, 64 bytes, both fields unsigned
+    fa <- case decode_e5 e5_log of
+      Nothing -> Left "the E5 log shape (2 topics, 64 bytes = [sigma, fee]) did not decode"
+      Just x  -> Right x
+    _ <- expect (fa_sigma fa == driv01_e5_sigma)
+           ("fa_sigma = " ++ show (fa_sigma fa) ++ ", expected " ++ show driv01_e5_sigma)
+    _ <- expect (fa_fee fa == driv01_e5_fee)
+           ("fa_fee = " ++ show (fa_fee fa) ++ ", expected " ++ show driv01_e5_fee)
+    _ <- expect (isNothing (decode_e5 (truncate_log_data 63 e5_log)))
+           "a 63-byte E5 payload DECODED rather than yielding Nothing"
+
+    -- (5) signed_word itself, at the boundary
+    _ <- expect (signed_word driv01_e3_tick == driv01_e3_tick)
+           ("signed_word " ++ show driv01_e3_tick ++ " = " ++ show (signed_word driv01_e3_tick))
+    _ <- expect (signed_word (as_wire_word driv01_e3_avg_tick) == driv01_e3_avg_tick)
+           ("signed_word of the sign-extended -200 word gave "
+             ++ show (signed_word (as_wire_word driv01_e3_avg_tick)))
+    expect (signed_word (1 `shiftL` 255) == negate (1 `shiftL` 255))
+      ("signed_word 2^255 = " ++ show (signed_word (1 `shiftL` 255))
+        ++ ", expected -(2^255) -- the exact two's-complement boundary")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -1939,6 +2094,7 @@ main = do
           , rpin05_live_bytes_match_the_external_golden
           , rpin05_capture_decodes_through_the_shipped_decoder
           , rpin05_no_canonical_bool_violation
+          , driv01_e3_decode_behavior
           ]
             ++ per_pin_checks pins
 
