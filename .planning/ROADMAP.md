@@ -370,16 +370,56 @@ traceability + doc summarization close the cycle.
 > so it neither reaches nor extends the anchor's corners). **Correct these at 12-04** so no later
 > plan re-injects them.
 
+> **PLANNING CORRECTION CONFIRMED AT CLOSE (2026-08-02).** Correction (1) above is no longer a
+> reading of the PDF — it is **machine-checked**. `EtaCurvature.lpExcess_isMaxOn` establishes the
+> maximum from the TWO ONE-SIDED strict monotonicity results `lpExcess_strictMonoOn` /
+> `lpExcess_strictAntiOn`; `kphiStar_eq_kphiI` locates it at the branch point. **There is no
+> first-order condition anywhere in the landed module** — `κ_φ⋆` is a KINK, and `η⋆` comes from
+> INVERTING the `curvIndex` bijection in closed form (`curvIndex_etaStar`, an EQUALITY). The Goal's
+> "first-order characterization where provable" is therefore answered: it was not provable, because
+> it is not true, and the construction supersedes it. Correction (5) also stands as written —
+> `exp/DynamicsOptimization` (`foc_eta`, `optimal_controls`) still carries its own interior-η claim
+> in a different model with a HYPOTHESIZED maximizer and an FOC; what this phase added is
+> CONSTRUCTION, and `LEAN_TRACEABILITY` §7.2 says so explicitly so the two are never conflated.
+> Correction (10)'s three 12-RESEARCH defects were handled by neutralization at 12-02 (the false E7
+> sentence was quoted as approved-doc text and explicitly PROHIBITED from being formalized) and by
+> the ESC-1 correction landing in both document copies; **`12-RESEARCH.md` itself was left unedited**
+> — it is a dated research artifact, and the corrections live in the ROADMAP block above, in E7's
+> `CORRECTION (2026-07-31, ESC-1)` line and in `LEAN_TRACEABILITY` §13.
+
+> **CONTINGENCY DISPOSITION: `12-CONTINGENCY.md` WAS INVOKED, at 12-03.** The first Aristotle run
+> (project `4878ca32`, task `e1c846ae`) returned **`OUT_OF_BUDGET`** with 36/51 declarations proven
+> and 15 `sorry`s — resource exhaustion, not a payload or logic failure (all 18 bundled inputs came
+> back byte-identical). The partial was **NOT integrated**, because `lean/vol_markets/` requires
+> sorry-free axiom-clean modules and hand-proving the gap is barred. The contingency's **option 1
+> (second bundle)** was taken over option 2 (close with 15 honest `OPEN` rows), at the user's
+> `submit eta -b`: project `c3a617f3`, task `4ec89173`, the original 18 inputs plus the partial as
+> working base, prompt scoped to the 15 gaps with a transport hint and a budget priority order.
+> **Outcome: `COMPLETE` — 51/51, 0 sorries, declaration list identical to the submitted partial.**
+
+**Phase outcome (2026-08-02, FINAL):** Six of the seven CTX-* requirements SATISFIED; **CTX-DEGEN
+SATISFIED AS NARROWED** per the user's binding 2026-07-31 ruling (decision (9) above) — there is no
+literal de-degeneration of the `Θ_φ` program and none was attempted. The phase delivered the
+**first CONSTRUCTED interior optimum in this program**, `η⋆ = ln((1+ϱ_I)/(1+φ))/(Δi²·ln λ)`, where
+everything in `Θ_φ` had been a corner or a saturation limit — and it delivered it without a
+first-order condition, which is the opposite of what the Goal asked for and is recorded as such.
+Two things the record refuses to overstate: the **equilibrium transfer is an ASSUMPTION** (every
+theorem is about `lpExcess ∘ curvIndex`, none is about this project's AMM), and the user's
+η-identity decision is only **PARTIALLY discharged** — exponent half PROVEN, factor-share half OPEN.
+
 **Requirements**: CTX-CURVDOC, CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN, CTX-REVIEW, CTX-TRACE
-> NOTE: these CTX-* ids are declared here and in 12-RESEARCH's proposed table, but `REQUIREMENTS.md`
-> carries no `CTX-` rows at all (0 hits), so `requirements mark-complete` is a no-op for this phase.
-> Pre-existing gap, recorded rather than silently patched; adopting the table belongs to the roadmapper.
+> NOTE, UPDATED 2026-08-02: at planning time `REQUIREMENTS.md` carried no `CTX-` rows at all, so
+> `requirements mark-complete` was a no-op for this phase. **That gap is now closed for Phase 12
+> only:** a `### Lean4 + Math track (CTX-*)` section was added to `REQUIREMENTS.md` carrying these
+> seven ids with their dispositions, plus traceability rows. Phases 8–11's CTX-* ids remain
+> undeclared there and are still tracked only in this file — recorded rather than silently patched,
+> since back-filling them belongs to the roadmapper, not to a phase close-out.
 **Depends on:** Phase 11 (MevOptimization/MevJointProgram layer; the M6a degeneracy theorem is the motivation), EndogenousMaturity (independent)
 **Directory:** `.planning/phases/12-eta-tradeoff-optimum/`
-**Plans:** 2/4 plans executed
+**Plans:** 4/4 plans complete — **PHASE COMPLETE 2026-08-02**
 
 Plans:
 - [x] 12-01-PLAN.md — CTX-CURVDOC, CTX-REVIEW: **COMPLETE.** E0–E8 authored from the PDF (Lemma 3 / Prop 5 / Prop 6), INVERTED notation gate written (η REQUIRED; proven to FAIL on the Phase-11 addendum with the Rule-1 message) and later hardened with negative-tested Rules 4b/4c for `κ_φ`; two reviewers ran blind in parallel and returned **3 BLOCKER + 9 MAJOR, all resolved** — two of the BLOCKERs were defects the PLAN and 12-RESEARCH had specified; HEAVY USER APPROVAL obtained plus a binding `κ_φ` notation amendment and the CTX-DEGEN narrowing; inserted at the user-authored `## FLAIR & MEV` stub — NOT a new `## ETA` section, per the user's placement ruling — and pinned `APPROVED-ETA-SHA256 4f5362c1…`. Plank file written, NOT committed (owner `ul2inqpl`). `autonomous: false`
 - [x] 12-02-PLAN.md — CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN, CTX-REVIEW: **COMPLETE, TASK IN FLIGHT AT CLOSE** (project `4878ca32`, task `e1c846ae`, `IN_PROGRESS`). Bundle assembled as **EIGHTEEN** modules, not the planned seventeen — `JitLiquidity` landed mid-plan and the binding rule is doc + ALL proved modules — with the **import closure PROVEN** (14 distinct imports all resolving, the check that catches the `CESLongVolPayoff` class 12-RESEARCH F7.3 missed) and all 18 copies byte-identical to the landed modules; `12-02-MODULE-MAP.txt` written because 12-03's inverse rewrite is **NOT a single sed** (`RequestProject.eta` → `exp.eta` but `RequestProject.VolInstrument` → `vol_markets.VolInstrument`). A 1232-line, 35-item T1'–T31' prompt with E0–E7 spliced VERBATIM by script. **The two-reviewer gate found 2 BLOCKER + 1 MAJOR + 11 MINOR, 0 unresolved — and one BLOCKER was in the APPROVED, BYTE-PINNED DOCUMENT:** block E7's scalarization-impossibility sentence is FALSE on `[κ_φ,S, κ_φ,I]` (the two ratios switch branches at DIFFERENT points), recomputed independently to a stationary interior maximum at `κ_φ ≈ 0.2412`, at no branch point, and it had been mandated verbatim into a permanent Lean docstring. The second BLOCKER was a typechecking defect on the headline chain (`lpExcessEta` applying 8 args to a 7-param `lpExcess`, reintroducing `cOne` as free and silently falsifying the branch agreement the peak rests on); the MAJOR was T8' FALSE as displayed, missing the symmetric `Real.sqrt` guard on `premInv`. All fixed pre-submission. Doc fidelity re-proved at submit time (`APPROVED == BUNDLED == LIVE` = `4f5362c1…`) **while the live whole-file hash moved twice** — the section is the gate, not the file. Queue proven clear (20/20 IDLE, zero `eta-curvature` projects), exactly one task in flight. **USER RULING: the document amendment for ESC-1/ESC-2/ESC-3 is DEFERRED to 12-04** so the live doc cannot desync from the copy Aristotle proves against. **CTX-CAPTRANS/CTX-INTERIOR/CTX-ETABRIDGE/CTX-DEGEN are NOT yet satisfied: nothing is proven until 12-03 integrates the returned module.** CTX-REVIEW is satisfied by the gate itself. `autonomous: false`
-- [ ] 12-03-PLAN.md — CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN: byte-identity across all bundled inputs, integrate via the NON-UNIFORM map-driven import rewrite, append the lakefile root, build green with the `Built vol_markets.EtaCurvature` line as elaboration evidence, axiom sweep from a grep-generated file, the T1'–T31' fidelity diff, push to both remotes
-- [ ] 12-04-PLAN.md — CTX-TRACE: LEAN_TRACEABILITY §0 rows + binding remap paragraph + new §7.2 (identifiers grep-verified, scoped to the new section), §6(b) amended to show a partial carrier, `> LEAN` back-annotation of the `## ETA` section with the sha-pin invalidation disclosed, the plank todo #227 controller-law answer with its unobservability caveat, ROADMAP/STATE close-out
+- [x] 12-03-PLAN.md — CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN: **COMPLETE — and it took TWO Aristotle runs, which the plan did not anticipate.** `4878ca32` returned **`OUT_OF_BUDGET`** at 36/51 with 15 `sorry`s and was NOT integrated; the `12-CONTINGENCY` second bundle (`c3a617f3`, at the user's `submit eta -b`) closed the remaining 15 with the partial as its working base. Landed: `lean/vol_markets/EtaCurvature.lean`, **1269 lines, 51 declarations, 0 sorries, 51/51 axiom-clean**, root appended, `lake build` green (8067 jobs), origin `b02caf7` + mirror `lean4-spec main d25fd75`. All 18 bundled inputs byte-identical in BOTH runs; declaration list identical to the submitted partial (no renames, drops or additions). **Fidelity: 13/15 verbatim, 2 AMENDED with added hypotheses and conclusions intact, ZERO narrowed** — `lpExcess_strictAntiOn` gains E0's own ordering `φ < ϱ_S ≤ ϱ_I`, and `etaStar_pos_iff` gains `−1 < ϱ_I` because **Mathlib's `Real.log` is `log|x|`** (witness `ϱ_I = −3, φ = 0`), exactly the log-sign trap the 12-02 Model QA review predicted. **CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE SATISFIED; CTX-DEGEN SATISFIED AS NARROWED.** Optional **T28'b came back ABSENT** as pre-authorized ⟹ E8(6) OPEN and the η-identity decision is **PARTIALLY discharged**, not closed. Executed manually by the orchestrator; `12-03-SUMMARY.md` written retroactively at 12-04 and marked as such
+- [x] 12-04-PLAN.md — CTX-TRACE: **COMPLETE. CTX-TRACE SATISFIED.** `LEAN_TRACEABILITY` §0 gained rows for `premInv`/`premShock` (**declared PREMIA, NOT probabilities** — the misreading that makes `κ_φ⋆` uninterpretable), the four absorbed `ϖ_*` constants, `kphiS`/`kphiI`/`kphiStar`, `cOne…cThree` and `etaStar`; a binding paragraph recording the Capponi remaps, the absorptions and their reasons, the `f ≡ φ` identification, the **η protection and the gate INVERSION of Phase-11's Rule 1**, the ν avoidance, the deliberate `λ` overload (tick base vs subscripted hazard) and the **`arbLossRatio` / `mevMulti` NON-IDENTIFICATION**; and the η-identity outcome recorded as **PARTIALLY discharged**, citing `exp/eta.lean`'s own `P_half` docstring ("η does not enter the tick→price map") as the reason the second half is a modelling claim. New **§7.2** is the ETA entry point plus the **nine-item E8 OPEN ledger**, and it **points at §13 rather than duplicating it** — §13 had already landed with the module at `b02caf7`, following the §8-onward convention, so a second claim table would have created two sources of truth. §6(b) **AMENDED, not deleted**: `ϱ_I` is a PARTIAL carrier; the equilibrium transfer and MMR eq. (27) stay OPEN. Every backticked identifier in §7.2 grep-verified to be a real declaration, scoped to that section (11-06's defect fixed, not repeated). The addendum carried **no** `> LEAN` annotation while the plank copy did — the two had DRIFTED — so the annotation was mirrored byte-identical, and the **sha-pin invalidation is now disclosed** (`4f5362c1…` → live `54d10b59…`, safe because both gates were already consumed and passed). `../plank/todo.md` line 227 answered with the quotable controller law, its four strict comparative statics, its carriers, and the unobservability / factor-share / equilibrium-transfer caveats — **no on-chain proxy invented, deliberately**. Plank HEAD `08039da` before and after; M0→end-of-M8 bytes proven unchanged; **no `.lean` file touched**

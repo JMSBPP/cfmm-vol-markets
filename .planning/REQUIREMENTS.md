@@ -65,6 +65,24 @@ Each maps to exactly one roadmap phase.
 - [ ] **PIPE-01**: a single command runs the full open-loop **plumbing** path end-to-end — payoff spec → (stub) GAMS solve → encode → Plank write → read-back — exiting success **only if** the FFI guards (TOOL-02) and the round-trip (BRDG-03) pass
 - [ ] **PIPE-02**: an **open-loop guard** — the swap-replay/simulate step performs **no in-loop parameter updates** (keeping the closed-loop controller out of this milestone)
 
+### Lean4 + Math track (CTX-*) — Phase 12 only
+
+**Added 2026-08-02 at the Phase-12 close-out.** Phases 8–12 mint their requirement ids as `CTX-*`
+tags at planning time, declared in `ROADMAP.md` and in each phase's `CONTEXT.md`. Until now none of
+them were declared here, so `requirements mark-complete` was a no-op for every phase in that track.
+**This section closes the gap for Phase 12 only.** Phases 8–11's CTX-* ids remain declared solely in
+`ROADMAP.md` — recorded rather than silently back-filled, because adopting the full table belongs to
+the roadmapper, not to a phase close-out. These are **not** v1 plumbing requirements and are not
+counted in the v1 coverage totals below.
+
+- [x] **CTX-CURVDOC**: the curvature specification (Capponi–Jia arXiv:2103.08842v4 §5.1 — Lemma 3, Propositions 5 and 6) transcribed into `VOLATILITY_INSTRUMENTS.md` as blocks E0–E8 over a one-dimensional curvature index, under HEAVY USER APPROVAL and a notation gate — ✓ **SATISFIED** (12-01)
+- [x] **CTX-CAPTRANS**: the anchor's curvature layer machine-checked — both Lemma-3 antitonicities, both branch points, branch agreements and continuity — ✓ **SATISFIED** (12-03: `arbLossRatio_strictAntiOn`, `surplusRatio_strictAntiOn`, `kphiS_le_kphiI_iff`, the branch-agreement lemmas)
+- [x] **CTX-INTERIOR**: the interior optimum established, **with no first-order condition** — ✓ **SATISFIED** (12-03: `kphiStar_eq_kphiI`, `kphiStar_mem_Ioo_iff`, `lpExcess_isMaxOn` from the two one-sided strict monotonicities, `lpPayoff_isMaxOn`, `liquidity_freeze_minimal`, `depositEfficiency_isMaxOn`)
+- [x] **CTX-ETABRIDGE**: the `κ_φ ↔ η` bridge and the closed-form controller — ✓ **SATISFIED** (12-03: `curvIndex` and its bijection lemmas, `curvIndex_etaStar` as an EQUALITY, the four strict comparative statics, the η-side transport, and T28'a `priceEta_eq_p_eta_half` / `priceEta_eq_P_half`). **NOTE:** the η-identity's FACTOR-SHARE half (T28'b / E8(6)) is OPEN, so the user's η-identity decision is **PARTIALLY discharged**; the requirement as scoped is satisfied, the decision is not closed
+- [x] **CTX-DEGEN**: **SATISFIED AS NARROWED** — per the user's binding ruling of 2026-07-31 there is **no literal de-degeneration of the `Θ_φ` program** and none was attempted: `mevMulti` contains no η, no `κ_φ` and no `ϱ_I`, so nothing in the curvature layer moves the Phase-11 objective, and the Phase-11 degeneracy stands exactly where Phase 11 left it. What shipped is the interior optimum in the separate Capponi-anchored model, the η-bridge transport, and the Phase-11 contrast as an honest scope statement (12-03: `eta_no_common_argmax`, `etaStar_coupled_to_fee_corner`). Full de-degeneration needs one objective carrying both a demand-elastic investor and `λ_ARB`; that object exists in neither model and is **OPEN**
+- [x] **CTX-REVIEW**: the two-reviewer gate (Reality Checker + a fitted specialist, run blind and in parallel) on every pre-submission spec artifact — ✓ **SATISFIED** (12-01: 3 BLOCKER + 9 MAJOR resolved; 12-02: 2 BLOCKER + 1 MAJOR + 11 MINOR resolved, one BLOCKER being a false sentence in the already-approved, byte-pinned document)
+- [x] **CTX-TRACE**: the auditable record — traceability rows with statuses taken from the fidelity record and nowhere else, every named identifier verified to exist, every OPEN item labelled OPEN, plus the doc back-annotation and the plank answer — ✓ **SATISFIED** (12-04)
+
 ## v2 Requirements
 
 Deferred to future milestones. Tracked but not in current roadmap.
@@ -140,11 +158,19 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | BRDG-04 | Phase 6 | Pending |
 | PIPE-01 | Phase 7 | Pending |
 | PIPE-02 | Phase 7 | Pending |
+| CTX-CURVDOC | Phase 12 | ✓ Complete |
+| CTX-CAPTRANS | Phase 12 | ✓ Complete |
+| CTX-INTERIOR | Phase 12 | ✓ Complete |
+| CTX-ETABRIDGE | Phase 12 | ✓ Complete |
+| CTX-DEGEN | Phase 12 | ✓ Complete **AS NARROWED** (user ruling 2026-07-31 — no literal de-degeneration of the `Θ_φ` program) |
+| CTX-REVIEW | Phase 12 | ✓ Complete |
+| CTX-TRACE | Phase 12 | ✓ Complete |
 
 **Coverage:**
 - v1 requirements: 30 total
 - Mapped to phases: 30 ✓
 - Unmapped: 0
+- Lean4 + Math track: 7 Phase-12 `CTX-*` ids declared and complete (Phases 8–11's `CTX-*` ids are declared in `ROADMAP.md` only — a known, recorded gap)
 
 ---
 *Requirements defined: 2026-06-27*
