@@ -308,8 +308,6 @@ And the inverse cummulatives as:
 
 Consider a exogenous tuple flow \( \Delta Q = ( \Delta Q_M, \Delta Q_X )\) on the region:
 
-> This region is the trading curve AND the 1/2 value is the elasticity we wnat to associate with the \eta parameter and the curvature. Then we use \varphi_{1/2} notation BUT in general is
-> \varphi_{\tilde \eta} AND we need clear relationship with \kappa_{\varphi} (\tilde \eta), \tilde \eta (\eta)
 
 
 \[
@@ -325,6 +323,51 @@ Consider a exogenous tuple flow \( \Delta Q = ( \Delta Q_M, \Delta Q_X )\) on th
 		\varphi_{1/2} \, (i_K ; \Delta Q , L)\, &= \, (\Delta Q_M^{L} (i_K) + \Delta Q_M)^{1/2}\cdot(\Delta Q_X^L \, (i_K) \, + \, \Delta Q_X)^{1/2}
 	\end{aligned}
 \]
+
+**THE BRIDGE \(\epsilon_{X/M} \leftrightarrow \eta \leftrightarrow \kappa_{\varphi}\) (PROVEN).** The weight ratio IS the per-TICK square-root-price step — so \(\epsilon_{X/M}\) is an OBSERVABLE of the grid already defined, not a new primitive:
+
+\[
+	\begin{aligned}
+		\frac{\epsilon_{X/M}}{1-\epsilon_{X/M}} \, = \, \frac{p_{(\eta, \Delta_i)}(i+1)}{p_{(\eta, \Delta_i)}(i)} \, = \, \lambda^{\eta\,\Delta_i/2}
+	\end{aligned}
+\]
+
+Both directions, both round trips; and the ETA blocks' curvature index factors through the share, the per-SPACING step being the per-TICK step raised to \(\Delta_i\):
+
+\[
+	\begin{aligned}
+		\epsilon_{X/M}(\eta) \, &= \, \Lambda\Big(\frac{\eta\,\Delta_i\,\ln\lambda}{2}\Big) \, \in \, (0,1) \;\; \forall\,\eta, \qquad
+		\eta(\epsilon_{X/M}) \, = \, \frac{2}{\Delta_i\,\ln\lambda}\,\ln\frac{\epsilon_{X/M}}{1-\epsilon_{X/M}} \\[4pt]
+		\kappa_{\varphi}(\eta,\Delta_i) \, &= \, 1 - \Big(\frac{1-\epsilon_{X/M}}{\epsilon_{X/M}}\Big)^{\Delta_i}, \qquad
+		\epsilon_{X/M}(\kappa_{\varphi}) \, = \, \frac{1}{1 + (1-\kappa_{\varphi})^{1/\Delta_i}}
+	\end{aligned}
+\]
+
+DOMAIN COINCIDENCE — three conditions stated independently, in different blocks, that turn out to be one:
+
+\[
+	\begin{aligned}
+		0 \, < \, \eta\,\Delta_i \quad &\Longleftrightarrow \quad \epsilon_{X/M} \, > \, \tfrac{1}{2} \quad \Longleftrightarrow \quad \kappa_{\varphi} \, \in \, (0,1) \\
+		\eta \, = \, 0 \quad &\Longleftrightarrow \quad \epsilon_{X/M} \, = \, \tfrac{1}{2} \quad \Longleftrightarrow \quad \kappa_{\varphi} \, = \, 0
+	\end{aligned}
+\]
+
+(the first line is exactly the hypothesis `VolInstrument.deltaQM_nonneg` requires — an analytic guard that IS the economic condition "the pool is asset-heavy in value"; the second says flat grid = symmetric pool = zero curvature.)
+
+**Lemma (Curvature–Share Monotonicity; the antitone reading is REFUTED).** \(\kappa_{\varphi}\) is strictly INCREASING in \(\epsilon_{X/M}\) on \((0,1)\), vanishing exactly at \(\epsilon_{X/M} = \tfrac12\). The opposite reading — a larger asset share means LESS curvature — is FALSE:
+
+\[
+	\begin{aligned}
+		\Delta_i = 1: \qquad \epsilon_{X/M} = \tfrac14 \, < \, \tfrac34 \quad \text{but} \quad \kappa_{\varphi}\big(\tfrac14\big) \, < \, \kappa_{\varphi}\big(\tfrac34\big)
+	\end{aligned}
+\]
+
+(raising \(\epsilon_{X/M}\) shrinks \((1-\epsilon_{X/M})/\epsilon_{X/M}\), hence RAISES \(1 - (\cdot)^{\Delta_i}\).)
+
+CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because \(\eta^{\star} \approx 458/\Delta_i^{2}\) cannot be a Cobb–Douglas share. It never had to be — the share is \(\epsilon_{X/M}(\eta^{\star}) \in (0,1)\) for EVERY \(\eta\), so the identification is reachable through \(\epsilon_{X/M}\), not through \(\eta\) directly.
+
+> LEAN (proved, `EtaTilde`, 23/23 axiom-clean, project `67b1c841`; doc \(\epsilon_{X/M}\) ↔ Lean `etaTilde`, the Lean name fixed by the bundle and never hand-edited): anchor `etaTilde_ratio`, observable `etaTilde_eq_priceEta_step`; bijection `etaTilde_mem_Ioo`, `etaTilde_strictMono`, `etaOfTilde_etaTilde`, `etaTilde_etaOfTilde`, `etaTilde_half_iff`, `etaTilde_tendsto_atTop/_atBot`; bridge `curvIndex_eq_of_etaTilde`, `curvOfTilde_etaTilde`, `tildeOfCurv_curvOfTilde`; range `curvOfTilde_mem_Ioo` (\(t \in (0,1)\) hypothesis NECESSARY — `Real.rpow` is \(\log|x|\) outside it); domain `admissible_iff`, `zero_curv_iff`; E8(6) `etaStar_tilde_mem_Ioo`, `curvIndex_etaStar_via_tilde`.
+> REFUTED: `not_curvOfTilde_strictAnti` — machine-checked negation of the antitone reading (witness above); the true direction is `curvOfTilde_strictMono`.
 
 Define the per-leg fee decomposition (\(\phi_M, \phi_X\) are the M9 leg fees):
 
