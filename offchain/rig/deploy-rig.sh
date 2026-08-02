@@ -206,16 +206,46 @@ console_field() {   # $1 = label prefix, $2 = log file
 
 FS=(--rpc-url "$RPC_ALIAS" --broadcast --ffi --via-ir)
 
+# --- the env scrub. EVERY forge script below runs hermetically. -------------
+# The deploy scripts read exactly seven variables from the environment:
+#   PlankDeployBase.s.sol:35        PRIVATE_KEY
+#   DeployRealizedVolatilityMod:14  INIT_TS      :15  INIT_TICK
+#   DeployDynamicFeeHook:97         TOKEN0       :98  TOKEN1
+#   InitSwappableRig:68-71          POOL_MANAGER, HOOK, TOKEN0, TOKEN1
+# The rig SUPPLIES each of them where it means to. Anything inherited from the
+# operator's shell is a silent reconfiguration of the rig, and TOKEN0/TOKEN1 is
+# the destructive case: DeployDynamicFeeHook._currencies() SKIPS minting its own
+# MinimalTokens when they are set, so the pool is built on someone else's
+# currencies AND the Step-8 currency cross-check -- which keyed off the presence
+# of a MinimalToken in the broadcast record -- switched itself off. The README and
+# this file both print an `env TOKEN0=.. TOKEN1=..` line for the SIXTH script;
+# copy-pasting it into a shell used to be enough.
+#
+# MEASURED before this scrub, with TOKEN0/TOKEN1 exported: script 4 initialised
+# poolId 0xfc7cd42.. on currencies 0x1111../0x2222.., the broadcast record carried
+# ZERO MinimalTokens, and the Step-8 guard `[ -n "$MINTOKENS" ]` was false, so the
+# only verification of pool.currency0/currency1 did not run. Exit 0 throughout.
+#
+# PRIVATE_KEY is scrubbed for the same reason: the manifest's accounts.deployer is
+# derived from ANVIL_MNEMONIC index 0, not from whoever actually broadcast, so
+# honouring an inherited key would make the manifest describe a deployer that did
+# not deploy. `env` applies every -u before any NAME=VALUE, so the explicit
+# assignments below still land.
+SCRUB=(env -u PRIVATE_KEY -u INIT_TS -u INIT_TICK -u TOKEN0 -u TOKEN1 -u POOL_MANAGER -u HOOK)
+
 run_deploy "$LOG_DIR/01-vom.log" \
+  "${SCRUB[@]}" \
   forge script foundry-scripts/deploy/DeployVolOrderManagerMod.s.sol "${FS[@]}"
 run_deploy "$LOG_DIR/02-rvm.log" \
-  env INIT_TS="$INIT_TS" INIT_TICK="$INIT_TICK" \
+  "${SCRUB[@]}" INIT_TS="$INIT_TS" INIT_TICK="$INIT_TICK" \
   forge script foundry-scripts/deploy/DeployRealizedVolatilityMod.s.sol "${FS[@]}"
 run_deploy "$LOG_DIR/03-dfm.log" \
+  "${SCRUB[@]}" \
   forge script foundry-scripts/deploy/DeployDynamicFeeMod.s.sol "${FS[@]}"
 # DeployDynamicFeeHook.s.sol declares two contracts (DeployDynamicFeeHook,
 # MinimalToken) so forge cannot pick a target on its own.
 run_deploy "$LOG_DIR/04-hook.log" \
+  "${SCRUB[@]}" \
   forge script foundry-scripts/deploy/DeployDynamicFeeHook.s.sol --tc DeployDynamicFeeHook "${FS[@]}"
 
 # --- Step 5a: the four values the 6th script needs as ENV -------------------
@@ -250,6 +280,7 @@ CURRENCY1=$(console_field 'currency1      :' "$LOG_DIR/04-hook.log")
 # after its file. It stands up its OWN second PoolManager -- hence the schema's
 # distinct PriceSetterPoolManager key. This is plank's file: RUN it, never edit it.
 run_deploy "$LOG_DIR/05-psh.log" \
+  "${SCRUB[@]}" \
   forge script foundry-scripts/PriceSetterHook.s.sol --tc PriceSetterHookScript "${FS[@]}"
 
 # --- Step 5b: the 6th script -- the pool becomes SWAPPABLE ------------------
@@ -265,7 +296,7 @@ run_deploy "$LOG_DIR/05-psh.log" \
 # CurrencySettler.settle -> transferFrom pulled BY the router), mints ONE full-range
 # position (G4: do NOT mint additional ranges), and runs a probe swap.
 run_deploy "$LOG_DIR/06-swappable.log" \
-  env POOL_MANAGER="$PM" HOOK="$HOOK" TOKEN0="$CURRENCY0" TOKEN1="$CURRENCY1" \
+  "${SCRUB[@]}" POOL_MANAGER="$PM" HOOK="$HOOK" TOKEN0="$CURRENCY0" TOKEN1="$CURRENCY1" \
   forge script foundry-scripts/deploy/InitSwappableRig.s.sol --tc InitSwappableRig \
     --rpc-url "$RPC_ALIAS" --broadcast --via-ir
 
@@ -372,17 +403,30 @@ check 'PoolManager     :'       "$LOG_DIR/05-psh.log"  "$PSPM"
 check 'swapRouter            :' "$LOG_DIR/06-swappable.log" "$SWAPR"
 check 'modifyLiquidityRouter :' "$LOG_DIR/06-swappable.log" "$LIQR"
 
-# currency0/currency1 come from the console; when the rig deploys its own
-# MinimalTokens they ALSO appear in the broadcast record, so confirm the pair
-# as a SET (the script sorts them by address, the broadcast keeps deploy order).
+# currency0/currency1 come from the console and are the ONLY manifest fields with
+# no independent broadcast-record counterpart -- this is their sole verification.
+# It is UNCONDITIONAL. It used to be wrapped in `if [ -n "$MINTOKENS" ]`, i.e. it
+# switched itself off in exactly the case it needed to fire: no MinimalToken in the
+# broadcast record means script 4 did NOT mint its own currencies, which means it
+# took them from the environment, which means the rig is on a pool nobody asked
+# for. The SCRUB above makes MinimalToken deployment unconditional, so an empty set
+# here is now a hard failure rather than a reason to skip.
+#
+# Confirmed as a SET: the script sorts the pair by address, the broadcast record
+# keeps deploy order.
 MINTOKENS=$(jq -r '[.transactions[] | select(.contractName=="MinimalToken") | .contractAddress] | sort | join(",")' \
             "$B_HOOK" | tr 'A-Z' 'a-z')
-if [ -n "$MINTOKENS" ] && [ "$MINTOKENS" != "" ]; then
-  CONSOLE_PAIR=$(printf '%s\n%s\n' "$CURRENCY0" "$CURRENCY1" | sort | paste -sd, -)
-  [ "$MINTOKENS" = "$CONSOLE_PAIR" ] || {
-    echo "MISMATCH currencies: console={$CONSOLE_PAIR} broadcast={$MINTOKENS}" >&2; exit 1; }
-  echo "  cross-check OK  currency0/currency1 (MinimalToken set) $CONSOLE_PAIR"
-fi
+CONSOLE_PAIR=$(printf '%s\n%s\n' "$CURRENCY0" "$CURRENCY1" | sort | paste -sd, -)
+[ -n "$MINTOKENS" ] || {
+  echo "FATAL: $B_HOOK records NO MinimalToken deployment." >&2
+  echo "       DeployDynamicFeeHook._currencies() only skips minting when TOKEN0/TOKEN1 are in" >&2
+  echo "       the environment -- and this script scrubs both before invoking it, so this should" >&2
+  echo "       be unreachable. Either the scrub was removed or the deploy script changed." >&2
+  echo "       console currency pair (UNVERIFIED): $CONSOLE_PAIR" >&2
+  exit 1; }
+[ "$MINTOKENS" = "$CONSOLE_PAIR" ] || {
+  echo "MISMATCH currencies: console={$CONSOLE_PAIR} broadcast={$MINTOKENS}" >&2; exit 1; }
+echo "  cross-check OK  currency0/currency1 (MinimalToken set) $CONSOLE_PAIR"
 
 # --- Step 9: emit the manifest --------------------------------------------
 # DECISION: only the two router ADDRESSES from the 6th script enter the manifest. The tick
