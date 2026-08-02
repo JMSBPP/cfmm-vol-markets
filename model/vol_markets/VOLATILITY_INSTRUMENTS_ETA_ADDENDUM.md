@@ -1,6 +1,28 @@
 # PROPOSED addendum to `VOLATILITY_INSTRUMENTS.md` — the `## ETA` section: the curvature controller and the interior η*
 
-> STATUS: APPROVED & APPLIED 2026-07-31 — blocks E0–E8 inserted into ../plank/notes/VOLATILITY_INSTRUMENTS.md at the user-decided placement per user approval (todo.md `## LEAN4 - MATH`). Committing the plank file is the plank agent's.
+> STATUS: APPROVED & APPLIED 2026-07-31 — blocks E0–E8 inserted into ../plank/notes/VOLATILITY_INSTRUMENTS.md at the user-decided placement per user approval (todo.md `## LEAN4 - MATH`). The plank file was subsequently COMMITTED by its owner at plank `08039da` (2026-08-01), carrying the ESC corrections and the `> LEAN` back-annotation.
+>
+> **SHA-PIN INVALIDATION — DISCLOSED, NOT LEFT TO BE DISCOVERED (2026-08-02, plan 12-04).**
+> `APPROVED-ETA-SHA256 4f5362c1067e4d7f5c3fb3682363b7af246aad9dc75a602892be09b75fb81b3c`
+> (12-01-REVIEW.md) and the identical `BUNDLED-ETA-SHA256` (12-02-RUN-RECORD.md) **NO LONGER MATCH
+> the live `## ETA` section.** Two edits moved the bytes, both intentional: the ESC-1/ESC-2/ESC-3
+> corrections (applied early, at the user's direct instruction — lean4-spec `62220db`, ~35 min after
+> the 12-02 submission, rather than deferred to 12-04 as the 12-02 ruling had planned), and the
+> `> LEAN` back-annotation of the landed proofs. The live END-marker-delimited section now hashes
+> `54d10b5938366924974daf929bfe07609c1869fbba2c7debdfea896e2dd8ea33`.
+> **This is SAFE, and here is exactly why:** both gates that read those hashes were already CONSUMED
+> and both PASSED — 12-02 Task 1 and 12-02 Task 3 each compared the bundled copy against the approved
+> bytes before submission, and the 12-03 return was diffed against `PROMPT-SHA256 6f28c64f…`, which
+> is a hash of the prompt and is untouched by any document edit. No downstream check reads
+> `APPROVED-ETA-SHA256` or `BUNDLED-ETA-SHA256` again. A later reader seeing the mismatch is seeing
+> disclosed, gated drift — not undetected drift. Re-pinning is only required if a NEW bundle is ever
+> submitted against this section; do it then, not now.
+>
+> **M-BLOCK INTEGRITY (Phase 11), checked at 12-04:** the `M0 → end-of-M8` scope hashed
+> `5fb9074512ac98c66557995f5f461ad74948976960da349aab86c1409cce1d7b` immediately before and after
+> this plan's edits — unchanged. That value is NOT the Phase-11 pin `9fcf01d3…`; the plank owner's
+> own prose-compression pass moved those bytes independently and before this phase, as 12-01 already
+> recorded. Re-pinning M0–M8 is the plank owner's call.
 > Placement DECIDED by the user: the DEFAULT — the body of the user-authored `## FLAIR & MEV` stub is replaced by these blocks and the user's section title is kept.
 > Scope ruling DECIDED by the user (ESCALATE E-1, 12-01-REVIEW.md): the narrowed CTX-DEGEN is ACCEPTED. There is **no literal de-degeneration theorem**; what ships is the interior optimum in the Capponi-anchored model plus the η-bridge transport, with the Phase-11 contrast as an honest scope statement. **This governs what 12-02 may ask Aristotle to prove.**
 > Anchor: Capponi & Jia, *The Adoption of Blockchain-Based Decentralized Exchanges*,
@@ -258,5 +280,8 @@ THREE BOUNDARIES ON THAT COUPLING, none of which may be dropped:
 9. **OPEN — the strict single-peakedness boundary.** Under \(c_1 \leq 0\) the LP payoff is flat in \(\kappa_{\varphi}\) (E4) and \(\eta^{\star}\) is not an argmax; the sign of \(c_1\) at the fee corner is not pinned by anything in this section.
 
 Further caveats: this is the anchor's two-period discrete-shock model, not MMR's fast-block diffusion of `### MEV`; the η-parametrization covers \((0,1) \subsetneq [0,1]\), so it neither reaches nor extends the anchor's corners and forbids any `η = 1` ⇔ `κ_φ = 1` reading (E1); and \(\phi\) is here a FIXED fee, whereas this document's \(\phi = \mathrm{multiFee}(\sigma)\) varies — the transcription is at a fixed \(\phi\).
+
+> LEAN (proved, `EtaCurvature`, **51/51 axiom-clean**, projects `4878ca32` + repair `c3a617f3`): E1–E3 `arbLossRatio_branch_agree/_strictAntiOn/_pos`, `kphiS_mem_Ioo`, `kphiS_eq_zero_of_eq`, `arbLossRatio_eq_zero_of_kphiS_eq_zero`, `surplusRatio_strictAntiOn`, `kphiS_le_kphiI_iff`. **E4 THE INTERIOR OPTIMUM**: `lpExcess_branch_agree_kphiS/_kphiI`, `lpExcess_strictMonoOn` on \([0,\kappa_{\varphi,I}]\), `lpExcess_strictAntiOn` on \([\kappa_{\varphi,I},1]\), `lpExcess_isMaxOn`, `kphiStar_eq_kphiI`, `kphiStar_mem_Ioo_iff` (interior ⟺ \(\phi < \varrho_I\)), `lpPayoff_isMaxOn`, `liquidity_freeze_minimal` (\(c_1 \leq 0\)) — the max rests on the TWO ONE-SIDED monotonicity results, **no FOC anywhere** (\(\kappa_{\varphi}^{\star}\) is a kink). E5 `depositEfficiency_branch_agree/_isMaxOn`, `surplus_add_revenue_const` (zero-sum). **E6 THE BRIDGE**: `priceEta_step_ratio`, `curvIndex_eq_of_priceEta`, `curvIndex_mem_Ioo`, `curvIndex_strictMono`, `curvIndex_tendsto_zero/_one`, **`curvIndex_etaStar`** (\(\kappa_{\varphi}(\eta^{\star}) = \kappa_{\varphi}^{\star}\)), `etaStar_pos_iff`, `etaStar_strictMono_premInv`, `etaStar_strictAnti_fee/_spacing`, η-transport `lpExcessEta_isMaxOn/_strictMonoOn/_strictAntiOn`, and **T28'a `priceEta_eq_p_eta_half` / `priceEta_eq_P_half`** (the η-identity EXPONENT half — DISCHARGED). E7 `eta_no_common_argmax`, `etaStar_coupled_to_fee_corner`.
+> AMENDED (added hypotheses, conclusions intact): `lpExcess_strictAntiOn` + \(\phi < \varrho_S \leq \varrho_I\) (E0's own standing order, needed so the shock branch point does not sit above the investor switch); `etaStar_pos_iff` + \(-1 < \varrho_I\) — Mathlib's `Real.log` is \(\log|x|\), so the unguarded criterion is FALSE (witness \(\varrho_I = -3,\ \phi = 0\)). T28'b (factor-share half) ABSENT as pre-authorized ⟹ E8(6) stays **OPEN**; it was NOT satisfied by restating T28'a.
 
 <!-- END ETA -->
