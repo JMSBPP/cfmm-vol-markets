@@ -145,8 +145,29 @@ run_deploy() {
 # nowhere else, so for these the console IS the primary source and there is nothing
 # independent to cross-check poolId against. Defined HERE rather than in Step 7 because
 # the 6th deploy script needs CURRENCY0/CURRENCY1 as ENV, i.e. before Step 7 runs.
+#
+# IT REPORTS ITS OWN MISS. This used to be a bare pipeline, and every caller is a
+# bare `X=$(console_field ...)`. Under `pipefail` a grep miss returns 1, so `set -e`
+# killed the script AT THE ASSIGNMENT with NO OUTPUT AT ALL -- and the six FATAL
+# blocks written below to diagnose exactly that (Step 5c, Step 7's poolId and
+# tickSpacing cases) were unreachable: they fire only when the line MATCHED and the
+# value was malformed, never when the label moved. The labels encode exact
+# whitespace ('currency0      :'), so a one-space change in another track's
+# console.log took out the one-command entry point silently. MEASURED.
 console_field() {   # $1 = label prefix, $2 = log file
-  grep -m1 -- "$1" "$2" | sed 's/.*: *//' | tr -d '\r' | tr 'A-Z' 'a-z'
+  local line
+  if ! line=$(grep -m1 -- "$1" "$2"); then
+    {
+      echo "FATAL: console label not found: '$1'"
+      echo "       in $2"
+      echo "       Labels are matched with EXACT whitespace. That line is another track's"
+      echo "       console.log; a single added or removed space moves it out of reach here."
+      echo "       Find where it went with:"
+      echo "         grep -n '$(printf '%s' "$1" | tr -d ' :')' $2"
+    } >&2
+    return 1
+  fi
+  printf '%s\n' "$line" | sed 's/.*: *//' | tr -d '\r' | tr 'A-Z' 'a-z'
 }
 
 FS=(--rpc-url "$RPC_ALIAS" --broadcast --ffi --via-ir)
