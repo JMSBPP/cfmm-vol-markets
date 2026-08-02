@@ -2983,6 +2983,269 @@ fixture_legacy =
     }
 
 -- ---------------------------------------------------------------------------------------------
+-- DRIV-01: SC-1 asserted BY VALUE over a committed live run
+--
+-- All four checks below are PURE over @offchain\/rig\/driver-run-capture.json@ -- no chain, no
+-- socket, no manifest beyond the freshness cross-check that every capture check in this suite
+-- already does. The artifact is produced by @cabal run cfmm-replicationPlank-rpc-api@ against a
+-- standing rig; these checks are what turn it from a log into evidence.
+--
+-- SC-1's MECHANISM is superseded (22-CONTEXT's locked architecture decision: the hook self-writes
+-- through @beforeSwap@ and the offchain side only observes, so nothing calls @writeTimepoint@). Its
+-- required OUTCOME is unchanged and is what is asserted here: one E3 per step, carrying the tick
+-- and the timestamp the driver submitted.
+-- ---------------------------------------------------------------------------------------------
+
+driver_capture_command :: String
+driver_capture_command = "cabal run cfmm-replicationPlank-rpc-api"
+
+-- | Every step in the run, paired with its index, plus the run's own @t0@ and @stride@.
+--
+-- @t0@ and @stride@ are read out of the ARTIFACT rather than written here as constants. The
+-- schedule's origin is chain-dependent -- @t_0 = chain_head + stride@, and @anvil --timestamp@
+-- fixes the origin and not the rate -- so a literal here would go stale on the next redeploy and
+-- redden a check that is supposed to be about the driver.
+capture_schedule :: Value -> Either String (Integer, Integer, [Value])
+capture_schedule capture = do
+  t0 <- json_field "seed" capture >>= json_field "t0" >>= json_integer
+  stride <- json_field "seed" capture >>= json_field "stride" >>= json_integer
+  steps <- json_field "steps" capture >>= json_array
+  pure (t0, stride, steps)
+
+-- | The artifact exists, decodes, and describes THIS rig.
+--
+-- @generatedFrom@ and @tickSpacing@ are asserted deliberately. Phase 21's F4 measured that a
+-- freshness check over @chainId@ plus a manager address cannot see a MODULE change, because a
+-- @CREATE@ address is bytecode-independent and was identical across three from-scratch deploys.
+-- @blockNumber@ is deliberately NOT asserted: 21-02 measured three from-scratch deploys landing at
+-- heights 9, 11 and 10.
+--
+-- @dr_complete@ is part of freshness, not a separate concern: a truncated run is evidence of a
+-- FAILURE and must never be read as evidence for a requirement.
+driv01_run_capture_is_present_and_fresh :: Check
+driv01_run_capture_is_present_and_fresh =
+  Check "driv01_run_capture_is_present_and_fresh" . guarded $ do
+    cf <- capture_path
+    loaded <- read_json_file cf ("produce it with: " ++ driver_capture_command)
+    mf <- manifest_file
+    manifest_present <- doesFileExist mf
+    outcome <-
+      if manifest_present
+        then do
+          attempt <- try (load_rig_from pins_file mf)
+          pure (Just (attempt :: Either IOException Rig))
+        else pure Nothing
+    pure $ do
+      capture <- loaded
+      rig <- case outcome of
+        Nothing         -> Left ("no " ++ mf ++ " -- it is gitignored, so a fresh checkout has no"
+                                  ++ " copy. Stand the rig up: " ++ deploy_command)
+        Just (Left err) -> Left ("load_rig_from failed on the real files: " ++ show err)
+        Just (Right r)  -> Right r
+      let addrs = rig_addrs rig
+
+      complete <- json_field "dr_complete" capture >>= json_bool
+      _ <- expect complete
+             ("the committed run has dr_complete = false: it ABORTED mid-fold and was flushed from"
+               ++ " the exception path. A partial run is evidence of a failure, never of DRIV-01."
+               ++ " Re-take it: " ++ driver_capture_command)
+
+      captured_chain <- json_field "chainId" capture >>= json_integer
+      _ <- expect (captured_chain == rig_chain_id addrs)
+             ("the run was taken on chain " ++ show captured_chain ++ " but the manifest describes"
+               ++ " chain " ++ show (rig_chain_id addrs) ++ " -- re-take it: "
+               ++ driver_capture_command)
+
+      captured_from <- json_field "generatedFrom" capture >>= json_string
+      _ <- expect (captured_from == T.unpack (pins_generated_from (rig_pins rig)))
+             ("the run names generatedFrom " ++ captured_from ++ " but rig-pins.json names "
+               ++ T.unpack (pins_generated_from (rig_pins rig))
+               ++ " -- the run describes a DIFFERENT imported source-of-truth ref. Re-take it: "
+               ++ driver_capture_command)
+
+      _ <- rig_field_matches capture addrs "poolManager" "PoolManager"
+      _ <- rig_field_matches capture addrs "dynamicFeeHook" "DynamicFeeHook"
+
+      captured_spacing <- json_field "rig" capture >>= json_field "tickSpacing" >>= json_integer
+      expect (captured_spacing == rig_tick_spacing (rig_pool addrs))
+        ("the run records tickSpacing " ++ show captured_spacing ++ " but the manifest says "
+          ++ show (rig_tick_spacing (rig_pool addrs))
+          ++ " -- tickSpacing moved 10 -> 20 at PR #18, taking the PoolKey hash and therefore the"
+          ++ " poolId with it, so a run recorded under the other value is stale BY CONSTRUCTION")
+
+-- | One @rig.<field>@ against one @contracts.<name>@, lowercased on both sides.
+rig_field_matches :: Value -> RigAddresses -> String -> T.Text -> Either String ()
+rig_field_matches capture addrs field name = do
+  captured <- map toLower <$> (json_field "rig" capture >>= json_field field >>= json_string)
+  manifest <-
+    case Map.lookup name (rig_contracts addrs) of
+      Nothing -> Left ("the manifest has no " ++ T.unpack name ++ " -- re-run: " ++ deploy_command)
+      Just t  -> Right (map toLower (T.unpack t))
+  expect (captured == manifest)
+    ("the run records rig." ++ field ++ " = " ++ captured ++ " but the manifest's "
+      ++ T.unpack name ++ " is " ++ manifest ++ " -- re-take it: " ++ driver_capture_command)
+
+-- | SC-1's CORE: one E3 per step, carrying the tick and the timestamp the driver submitted.
+--
+-- Every equality is computed from the artifact's own recorded @t0@ and @stride@, so the check
+-- asserts the SCHEDULE the driver claims to have followed rather than a constant that would go
+-- stale with the rig. The strictly-increasing assertion is separate from the arithmetic one on
+-- purpose: it is the property G2 actually needs (the Algebra-ported oracle assumes a non-decreasing
+-- uint32 clock and does not check it), and it survives even if the stride convention ever changes.
+driv01_e3_per_step_matches_submitted :: Check
+driv01_e3_per_step_matches_submitted =
+  Check "driv01_e3_per_step_matches_submitted" . guarded $ do
+    cf <- capture_path
+    loaded <- read_json_file cf ("produce it with: " ++ driver_capture_command)
+    pure $ do
+      capture <- loaded
+      (t0, stride, steps) <- capture_schedule capture
+
+      configured <- json_field "configuredSize" capture >>= json_integer
+      _ <- expect (toInteger (length steps) == configured)
+             ("the run recorded " ++ show (length steps) ++ " steps but was configured for "
+               ++ show configured ++ ". A short run is a TRUNCATED run: the driver aborts on the"
+               ++ " first bad step, so the missing steps never happened.")
+      _ <- expect (not (null steps))
+             "the run recorded no steps at all -- there is nothing here to be evidence of"
+
+      _ <- mapM_ (one_step_matches t0 stride) (zip [0 ..] steps)
+
+      recorded_ts <- mapM (e3_int "timestamp") steps
+      expect (and (zipWith (<) recorded_ts (drop 1 recorded_ts)))
+        ("the recorded E3 timestamps are not STRICTLY increasing: " ++ show recorded_ts
+          ++ ". G2 is not guarded on chain -- the oracle assumes a non-decreasing uint32 clock and"
+          ++ " does not check it, so a backwards step corrupts the sigma^2 window math with no"
+          ++ " revert, no event and no symptom. This is one of the only two signals that exist.")
+  where
+    one_step_matches t0 stride (k, step) = do
+      status <- measurement_int "status" step
+      _ <- expect (status == 1)
+             ("step " ++ show k ++ " came back at status " ++ show status
+               ++ " -- a revert unwinds the entire frame including the timepoint beforeSwap had"
+               ++ " already written, so nothing was recorded for it")
+
+      e3_count <- measurement_int "e3_count" step
+      _ <- expect (e3_count == 1)
+             ("step " ++ show k ++ " produced " ++ show e3_count ++ " E3 logs, expected exactly 1")
+
+      submitted_tick <- measurement_int "tick" step
+      recorded_tick <- e3_int "tick" step
+      _ <- expect (recorded_tick == submitted_tick)
+             ("step " ++ show k ++ " SUBMITTED tick " ++ show submitted_tick ++ " but the hook"
+               ++ " RECORDED tick " ++ show recorded_tick
+               ++ ". 22-04 measured this exact receipt shape -- status 1, one E3, one E5 -- coming"
+               ++ " back with the wrong tick when the slot0 write was aimed at the OTHER"
+               ++ " PoolManager, so a wrong value here does NOT imply a broken composition.")
+
+      let expected_ts = t0 + k * stride
+      submitted_ts <- measurement_int "expected_ts" step
+      _ <- expect (submitted_ts == expected_ts)
+             ("step " ++ show k ++ " submitted timestamp " ++ show submitted_ts ++ " but the"
+               ++ " schedule t0 + k*stride = " ++ show t0 ++ " + " ++ show k ++ "*" ++ show stride
+               ++ " gives " ++ show expected_ts ++ " -- the driver did not follow its own schedule")
+
+      recorded_ts <- e3_int "timestamp" step
+      expect (recorded_ts == expected_ts)
+        ("step " ++ show k ++ " expected the hook to stamp " ++ show expected_ts ++ " but it"
+          ++ " stamped " ++ show recorded_ts
+          ++ ". The hook stamps its own clock, so a disagreement means the block did not carry the"
+          ++ " timestamp the driver set -- which makes the whole series' window arithmetic"
+          ++ " unattributable.")
+
+-- | THE G1 DETECTOR: @count(E5) == count(E3) == steps@ over the whole run.
+--
+-- E5 fires on EVERY swap, including one whose write the guard ate; E3 fires only on a real write.
+-- @RealizedVolatilityStateLib.plk:114@ is @if vol_state.lastTimepointTimestamp == now@ -- an
+-- equality test on the uint32 timestamp with no block number anywhere -- so a second swap on an
+-- already-recorded second serves E5 and the fee at status 1 and writes NOTHING. That makes
+-- @count(E5) - count(E3)@ a direct on-chain count of how many steps the guard ate, and both numbers
+-- arrive free in the same receipts.
+--
+-- Its FALSIFICATION is 22-04's measurement C, by name: @same_second_repeat_step2@ was measured at
+-- @e3_count = 0, e5_count = 1, status = 1@, i.e. exactly the receipt this check exists to catch.
+-- That measurement is committed in @offchain\/rig\/cheat-swap-proof.json@ and is what makes this
+-- assertion a detector rather than a tautology.
+driv01_no_same_second_noop :: Check
+driv01_no_same_second_noop =
+  Check "driv01_no_same_second_noop" . guarded $ do
+    cf <- capture_path
+    loaded <- read_json_file cf ("produce it with: " ++ driver_capture_command)
+    pure $ do
+      capture <- loaded
+      steps <- json_field "steps" capture >>= json_array
+      e3s <- mapM (measurement_int "e3_count") steps
+      e5s <- mapM (measurement_int "e5_count") steps
+      let n = toInteger (length steps)
+      _ <- expect (sum e3s == n)
+             ("the run recorded " ++ show (sum e3s) ++ " E3 logs over " ++ show n ++ " steps."
+               ++ " count(E5) - count(E3) = " ++ show (sum e5s - sum e3s)
+               ++ " is how many steps the G1 same-second guard ATE: those swaps returned status 1,"
+               ++ " emitted E5 and served a fee while writing no timepoint. 22-04's measurement"
+               ++ " same_second_repeat_step2 is the committed observation of that receipt shape"
+               ++ " (0 E3, 1 E5, status 1).")
+      expect (sum e5s == n)
+        ("the run recorded " ++ show (sum e5s) ++ " E5 logs over " ++ show n ++ " steps, expected"
+          ++ " one per swap. E5 fires on every swap unconditionally, so a count below the step"
+          ++ " count means a swap did not reach the hook at all -- a different fault from a"
+          ++ " swallowed write, and one this check must not conflate with it.")
+
+-- | The legacy @write_price@ flow still ran, and still targets the OTHER manager.
+--
+-- Roadmap SC-1 requires the existing @write_price@ \/ @PriceSetterHook@ flow to stay available and
+-- unchanged; @run_cheat_swap_path@ was ADDED BESIDE it. Asserting the recorded @poolManager@ is
+-- @PriceSetterPoolManager@ pins the second half of that sentence: this flow writes slot0 on a
+-- liquidity-free manager that @DynamicFeeHook@ does not read and emits nothing, which is exactly
+-- why it could never have satisfied DRIV-01 on its own.
+driv01_legacy_write_price_still_ran :: Check
+driv01_legacy_write_price_still_ran =
+  Check "driv01_legacy_write_price_still_ran" . guarded $ do
+    cf <- capture_path
+    loaded <- read_json_file cf ("produce it with: " ++ driver_capture_command)
+    mf <- manifest_file
+    manifest_present <- doesFileExist mf
+    outcome <-
+      if manifest_present
+        then do
+          attempt <- try (load_rig_from pins_file mf)
+          pure (Just (attempt :: Either IOException Rig))
+        else pure Nothing
+    pure $ do
+      capture <- loaded
+      rig <- case outcome of
+        Nothing         -> Left ("no " ++ mf ++ " -- stand the rig up: " ++ deploy_command)
+        Just (Left err) -> Left ("load_rig_from failed on the real files: " ++ show err)
+        Just (Right r)  -> Right r
+
+      legacy <- json_field "legacy_write_price" capture
+      case legacy of
+        Null ->
+          Left ("legacy_write_price is null: the run died before write_price, or write_price was"
+                 ++ " removed. Roadmap SC-1 requires the existing PriceSetterHook flow to keep"
+                 ++ " running unchanged BESIDE the new driver, in the same program.")
+        _ -> Right ()
+
+      value <- json_field "value" legacy >>= json_string
+      _ <- expect (not (null value))
+             "legacy_write_price.value is empty -- write_price wrote no slot0 word"
+
+      slot <- json_field "slot" legacy >>= json_string
+      _ <- expect (not (null slot))
+             "legacy_write_price.slot is empty -- write_price resolved no slot0 slot"
+
+      captured_pm <- map toLower <$> (json_field "poolManager" legacy >>= json_string)
+      manifest_pm <-
+        case Map.lookup "PriceSetterPoolManager" (rig_contracts (rig_addrs rig)) of
+          Nothing -> Left ("the manifest has no PriceSetterPoolManager -- re-run: "
+                            ++ deploy_command)
+          Just t  -> Right (map toLower (T.unpack t))
+      expect (captured_pm == manifest_pm)
+        ("the legacy write_price landed on " ++ captured_pm ++ " but PriceSetterPoolManager is "
+          ++ manifest_pm ++ ". If this flow ever starts writing the DynamicFeeHook manager, the"
+          ++ " two price mechanisms have stopped being independent and the DRIV-01 evidence in the"
+          ++ " same artifact is no longer attributable to the cheat-swap driver alone.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -3036,6 +3299,10 @@ main = do
           , driv01_extreme_tick_is_survivable
           , driv01_seed_is_reproducible
           , driv01_capture_round_trips
+          , driv01_run_capture_is_present_and_fresh
+          , driv01_e3_per_step_matches_submitted
+          , driv01_no_same_second_noop
+          , driv01_legacy_write_price_still_ran
           ]
             ++ per_pin_checks pins
 
