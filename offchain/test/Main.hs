@@ -60,6 +60,7 @@ import VolOrder.Decode
   , decode_order_created
   , unpack_vol_order_storage
   )
+import CheatSwap.Encoding (encode_extsload, encode_swap, extsload_signature, swap_signature)
 import CheatSwap.Types (check_cheat_tick, compose_slot0, pool_state_slot)
 import RealizedVol.Decode
   ( FeeApplied (..)
@@ -2200,6 +2201,146 @@ driv01_slot0_composition_behavior =
                ++ " the bound and the guard: " ++ show why)
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 22, DRIV-01: the PoolSwapTest.swap calldata shape
+--
+-- This check shells to @cast@'s @calldata@ subcommand. That needs @cast@ on PATH but NO chain and
+-- NO socket -- ABI encoding is pure -- so the suite stays chain-independent.
+-- @sc4_cast_agreement@ already established the precedent.
+--
+-- NOTE the phrase is written as \"@cast@'s @calldata@ subcommand\" rather than as the two words
+-- run together, DELIBERATELY. The chain-independence guard this workstream runs over this file is
+-- a grep whose first alternative is the RPC subcommand name preceded by the tool name, and the
+-- run-together spelling of the ENCODING subcommand contains that alternative as a substring.
+-- Spelling it the natural way here would leave the guard reporting a permanent false positive on
+-- a COMMENT -- which retires the guard rather than satisfying it, and the guard is the only
+-- evidence the suite opens no socket. For the same reason this note describes the pattern instead
+-- of quoting it.
+-- ---------------------------------------------------------------------------------------------
+
+cheat_swap_encoding_file :: FilePath
+cheat_swap_encoding_file = "offchain/lib/CheatSwap/Encoding.hs"
+
+-- | A synthetic @0x@-prefixed address, BUILT AT RUNTIME. A 40-hex-digit literal in this file would
+-- redden 'sc3_literal_purge', which is the whole point of the rule.
+driv01_synthetic_address :: Char -> String
+driv01_synthetic_address c = "0x" ++ replicate 39 '0' ++ [c]
+
+-- | The tickSpacing the check passes in. DELIBERATELY NOT 20: the module the encoder was modelled
+-- on pins @TICK_SPACING = 20@, and a hardcoded default of that value inside 'encode_swap' would be
+-- invisible to any check that also passed 20.
+driv01_swap_tick_spacing :: Integer
+driv01_swap_tick_spacing = 60
+
+-- | The MEASURED calldata size, in bytes.
+--
+-- The plan predicted @4 + 32*10 = 324@. That is WRONG and the value here is what @cast@ actually
+-- produced. Twelve words, not ten:
+--
+-- > head: PoolKey 5 | SwapParams 3 | TestSettings 2 | offset to hookData 1   = 11
+-- > tail: hookData length word (zero data words follow)                      =  1
+--
+-- Both tuples are STATIC, so they are inlined in the head rather than pointed at; @bytes@ is the
+-- only dynamic member and it still costs an offset word AND a length word even when empty. The
+-- prediction dropped both of the @bytes@ words.
+driv01_swap_calldata_bytes :: Int
+driv01_swap_calldata_bytes = 4 + 32 * 12
+
+-- | The swap calldata, asserted at EXACT values: the byte count, the selector RECOMPUTED from the
+-- signature string parsed back out of the encoder's own source, and every one of the twelve words.
+driv01_swap_calldata_shape :: Check
+driv01_swap_calldata_shape = Check "driv01_swap_calldata_shape" . guarded $ do
+  source <- readFile cheat_swap_encoding_file
+  raw <-
+    encode_swap
+      (driv01_synthetic_address '1')
+      (driv01_synthetic_address '2')
+      driv01_swap_tick_spacing
+      (driv01_synthetic_address '3')
+  -- the extsload half. 'hex32' is the only hand-rolled encoder in the module, so it gets driven
+  -- through cast and read back rather than inspected: a wrong nibble order produces a
+  -- well-formed 36-byte calldata pointing at a slot nothing has ever written.
+  let slot = case integer_of_hex_text driv01_pool_id_hex of
+        Right pid -> pool_state_slot pid
+        Left _    -> 0
+  ext_raw <- encode_extsload slot
+  pure $ do
+    let ext_bytes = toBytes ext_raw
+        ext_word  = be_integer (BS.take 32 (BS.drop 4 ext_bytes))
+    _ <- expect (BS.length ext_bytes == 4 + 32)
+           ("the extsload calldata is " ++ show (BS.length ext_bytes)
+             ++ " bytes, expected exactly 36")
+    _ <- expect (to_hex (BS.take 4 ext_bytes) == to_hex (selector_of extsload_signature))
+           ("cast emitted extsload selector " ++ to_hex (BS.take 4 ext_bytes)
+             ++ " but keccak256 of " ++ extsload_signature ++ " is "
+             ++ to_hex (selector_of extsload_signature))
+    _ <- expect (ext_word == slot)
+           ("the extsload argument word decodes to " ++ show ext_word ++ ", expected the derived"
+             ++ " pool-state slot " ++ show slot ++ " -- hex32 rendered it wrongly")
+
+    let bytes  = toBytes raw
+        total  = BS.length bytes
+        word i = be_integer (BS.take 32 (BS.drop (4 + 32 * i) bytes))
+
+    -- (a) the exact size
+    _ <- expect (total == driv01_swap_calldata_bytes)
+           ("the swap calldata is " ++ show total ++ " bytes, expected exactly "
+             ++ show driv01_swap_calldata_bytes ++ " (4 selector + 12 words: 11 head + 1 tail)")
+
+    -- (b) the selector is DERIVED from the module's own signature string, never transcribed
+    parsed_sig <-
+      case [ takeWhile (/= '"') (drop 1 (dropWhile (/= '"') l))
+           | l <- lines source, "\"swap((address," `isInfixOf` l
+           ] of
+        [s] -> Right s
+        []  -> Left ("no swap signature string literal was parsed out of "
+                      ++ cheat_swap_encoding_file)
+        ss  -> Left (cheat_swap_encoding_file ++ " holds MORE THAN ONE swap signature literal: "
+                      ++ show ss)
+    _ <- expect (parsed_sig == swap_signature)
+           ("the signature parsed out of the source is " ++ show parsed_sig
+             ++ " but the module exports " ++ show swap_signature)
+    let emitted    = to_hex (BS.take 4 bytes)
+        recomputed = to_hex (selector_of parsed_sig)
+    _ <- expect (emitted == recomputed)
+           ("cast emitted selector " ++ emitted ++ " but keccak256 of " ++ parsed_sig
+             ++ " is " ++ recomputed)
+
+    -- (c) the PoolKey, word by word. word 2 is the DYNAMIC_FEE_FLAG and word 3 the tickSpacing
+    -- that was PASSED IN -- a hardcoded default would show up right here.
+    _ <- expect (word 0 == 1) ("PoolKey.currency0 word = " ++ show (word 0) ++ ", expected 1")
+    _ <- expect (word 1 == 2) ("PoolKey.currency1 word = " ++ show (word 1) ++ ", expected 2")
+    _ <- expect (word 2 == 8388608)
+           ("PoolKey.fee word = " ++ show (word 2)
+             ++ ", expected the DYNAMIC_FEE_FLAG 8388608. A static fee here makes the"
+             ++ " reconstructed PoolKey hash to a different poolId and beforeSwap reverts with"
+             ++ " EMPTY reason data.")
+    _ <- expect (word 3 == driv01_swap_tick_spacing)
+           ("PoolKey.tickSpacing word = " ++ show (word 3) ++ ", expected the value passed in ("
+             ++ show driv01_swap_tick_spacing ++ ") -- a constant here is key drift")
+    _ <- expect (word 4 == 3) ("PoolKey.hooks word = " ++ show (word 4) ++ ", expected 3")
+
+    -- (d) SwapParams and TestSettings
+    _ <- expect (word 5 == 1)
+           ("zeroForOne word = " ++ show (word 5) ++ ", expected 1 (true)")
+    _ <- expect (word 6 == as_wire_word (-1000000))
+           ("amountSpecified word = " ++ show (word 6) ++ ", expected the two's-complement of"
+             ++ " -1000000. NEVER 0: v4 reverts SwapAmountCannotBeZero and that unwinds the"
+             ++ " frame including the timepoint write.")
+    _ <- expect (word 7 == 4295128740)
+           ("sqrtPriceLimitX96 word = " ++ show (word 7)
+             ++ ", expected TickMath.MIN_SQRT_PRICE + 1 = 4295128740")
+    _ <- expect (word 8 == 0) ("takeClaims word = " ++ show (word 8) ++ ", expected 0")
+    _ <- expect (word 9 == 0) ("settleUsingBurn word = " ++ show (word 9) ++ ", expected 0")
+
+    -- (e) the empty hookData: an offset word AND a length word, which is what the 324-byte
+    -- prediction dropped
+    _ <- expect (word 10 == 352)
+           ("the hookData offset word is " ++ show (word 10)
+             ++ ", expected 352 (0x160 -- eleven head words)")
+    expect (word 11 == 0)
+      ("the hookData length word is " ++ show (word 11) ++ ", expected 0 (empty bytes)")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -2245,6 +2386,7 @@ main = do
           , rpin05_no_canonical_bool_violation
           , driv01_e3_decode_behavior
           , driv01_slot0_composition_behavior
+          , driv01_swap_calldata_shape
           ]
             ++ per_pin_checks pins
 
