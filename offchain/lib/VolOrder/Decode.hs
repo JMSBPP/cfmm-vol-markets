@@ -5,6 +5,7 @@ module VolOrder.Decode
   , data_word
   , be_integer
   , decode_create_orders_result
+  , check_minted_id_run
   , unpack_vol_order_storage
   ) where
 
@@ -122,6 +123,76 @@ decode_create_orders_result raw
            1     -> Right (True, order_id)
            other -> Left ("create_orders result: non-canonical bool word at index "
                             ++ show index ++ ": " ++ show other)
+
+-- | The one property of the returned @orderId@ half that a client can check WITHOUT a second
+-- source of truth: the ids at the successful positions of ONE call must be a strictly increasing
+-- CONTIGUOUS run starting at or above 1.
+--
+-- == WHY THE ID HALF NEEDS A CHECK AT ALL
+--
+-- It is decoded on every path and, until this function existed, asserted on none. 'VolOrder.Rpc'
+-- pattern-matched it away as a wildcard (@[ o | (o, (True, _)) <- zip orders preview ]@) and every
+-- readback recomputed the ids LOCALLY from @orderCount()@ instead. Under that arrangement a module
+-- returning the PRE-increment counter, the loop index, or the same last id for every position
+-- returns bytes that decode cleanly, pass the count assertion, and read back content-matched --
+-- because nothing downstream ever looked at the number it returned. A consumer that then USES the
+-- returned id gets @getOrderPacked@'s unbounded read, which answers the @0@ sentinel for an
+-- unwritten id rather than reverting: \"no order\" where a wrong id was asked for.
+--
+-- == WHY THE PROPERTY IS RELATIVE AND NOT ABSOLUTE
+--
+-- The module mints @id = orderCount + 1@ per success and then advances the count to it
+-- (@src\/modules\/pos_spec\/VolOrderManagerMod.plk@, \"Ids are sequential from 1 and orderCount IS
+-- the id source\"; slot 0 is never written). So WITHIN one call the successful ids are
+-- @[i, i+1, ..]@ whatever the base is. Asserting the base itself would be wrong: the preview is an
+-- @eth_call@ taken before the send, and any other writer landing in between shifts it legitimately.
+-- The SHAPE does not move, which is exactly what makes it assertable.
+--
+-- Failed positions are excluded on purpose: the module answers @(false, 0)@ for them (measured live
+-- -- @offchain\/rig\/batch-return-capture.json@, case @N2_success_then_fail@), so folding them in
+-- would assert the sentinel as if it were an id.
+--
+-- @Right ()@ for an empty batch and for an all-rejected one: neither has a run to be wrong about.
+--
+-- == WHAT THIS DOES NOT CATCH, MEASURED RATHER THAN ASSUMED
+--
+-- A UNIFORM shift of the whole run. A module returning the PRE-increment counter answers
+-- @[c, c+1, c+2]@ where the truth is @[c+1, c+2, c+3]@, and that is still consecutive and still
+-- @>= 1@, so this function accepts it. Every one of the other named defects -- the loop index
+-- @[0,1,2]@, the same id repeated @[8,8,8]@, the @0@ sentinel -- is rejected. The gap is not an
+-- oversight in the implementation; it is the price of the relative property, and closing it needs
+-- an ABSOLUTE anchor.
+--
+-- The anchor that would close it is @first_id == orderCount()-before-the-send + 1@, and it is
+-- deliberately not taken, because a client cannot distinguish \"the module is off by one\" from
+-- \"another writer minted one order between the preview and the counter read\" -- the two produce
+-- byte-identical evidence. Taking the anchor would trade a defect this check does not see for a
+-- false failure on a legitimate interleave, on a check that is supposed to be safe to run against a
+-- shared chain. The residual is recorded here instead of being silently absorbed.
+check_minted_id_run :: [(Bool, Integer)] -> Either String ()
+check_minted_id_run results =
+  case [ i | (True, i) <- results ] of
+    [] -> Right ()
+    ids@(first_id : _)
+      | first_id < 1 ->
+          Left ("create_orders returned orderId " ++ show first_id
+                 ++ " for the first successful position, but ids are 1-based (id = orderCount + 1,"
+                 ++ " and slot 0 is never written). A 0 here is getOrderPacked's UNWRITTEN-SLOT"
+                 ++ " sentinel, so a consumer using it reads \"no order\" instead of reverting."
+                 ++ " observed ids " ++ show ids)
+      | ids /= contiguous_from first_id (length ids) ->
+          Left ("create_orders returned a non-contiguous orderId run for its " ++ show (length ids)
+                 ++ " successful positions -- expected "
+                 ++ show (contiguous_from first_id (length ids))
+                 ++ ", observed " ++ show ids ++ "."
+                 ++ " The module mints id = orderCount + 1 per success and advances the count to it,"
+                 ++ " so one call's successful ids are consecutive by construction. A run that is"
+                 ++ " not consecutive means the returned id is not the minted id -- the"
+                 ++ " pre-increment counter, the loop index, or the same id repeated -- and every"
+                 ++ " readback that recomputes ids locally would still pass.")
+      | otherwise -> Right ()
+  where
+    contiguous_from first_id n = take n [first_id ..]
 
 -- The contract's *storage*-layout packed word (from getOrderPacked), a THIRD
 -- distinct bit layout from both the create_order(uint88,uint24,uint16,uint96)

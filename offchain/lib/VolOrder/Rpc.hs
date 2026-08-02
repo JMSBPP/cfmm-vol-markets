@@ -25,7 +25,12 @@ import Network.Ethereum.Api.Types (Call (..), DefaultBlock (..), TxReceipt (..))
 import qualified Network.Ethereum.Api.Eth as GlobalState
 import Network.Web3.Provider (Provider (HttpProvider), Web3, runWeb3')
 
-import VolOrder.Decode (decode_create_orders_result, hex_to_integer, unpack_vol_order_storage)
+import VolOrder.Decode
+  ( check_minted_id_run
+  , decode_create_orders_result
+  , hex_to_integer
+  , unpack_vol_order_storage
+  )
 import VolOrder.Encoding
   ( encode_create_order
   , encode_create_orders
@@ -57,6 +62,20 @@ create_orders owner manager orders
         fail ("create_orders: preview returned " ++ show (length preview)
                ++ " results for a batch of " ++ show (length orders) ++ " orders")
 
+      -- The orderId HALF of the return, asserted here and nowhere else.
+      --
+      -- It is checked BEFORE the send, on the preview, and that is the strongest place available:
+      -- the ids this function hands back to its caller ARE the preview's (see the `pure (receipt,
+      -- preview)` at the end), a mined transaction carries no returndata to re-read them from, and
+      -- failing here means nothing was sent. So there is no tx hash to name -- there is no tx.
+      --
+      -- Only the SHAPE is asserted; see 'check_minted_id_run' for why the base cannot be. Note this
+      -- is deliberately NOT anchored to `before_count` below even though that read happens moments
+      -- later: an unrelated writer landing between the preview and that read shifts the preview's
+      -- base legitimately while leaving the run consecutive, and the count assertion further down
+      -- is the check that owns THAT failure mode.
+      either (\why -> fail (why ++ " Nothing was sent.")) pure (check_minted_id_run preview)
+
       before_count <- read_order_count manager Latest
       receipt <- send_and_wait owner manager calldata
 
@@ -86,6 +105,11 @@ create_orders owner manager orders
       -- count to that id (VolOrderManagerMod.plk, "Ids are sequential from 1
       -- and orderCount IS the id source"; slot 0 is never written), so our
       -- batch minted exactly [before_count + 1 .. before_count + successes].
+      --
+      -- The id half of each pair is a wildcard HERE on purpose: the ids the module returned were
+      -- already asserted structurally above, and re-using them as the readback keys would make this
+      -- readback derive its own targets from the thing it is checking. Recomputing them from the
+      -- locally-read counter keeps the two sources independent.
       let successes      = [ o | (o, (True, _)) <- zip orders preview ]
           expected_after = before_count + toInteger (length successes)
 
