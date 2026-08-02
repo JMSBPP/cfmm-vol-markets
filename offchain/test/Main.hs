@@ -3166,6 +3166,19 @@ driv01_e3_per_step_matches_submitted =
 -- @e3_count = 0, e5_count = 1, status = 1@, i.e. exactly the receipt this check exists to catch.
 -- That measurement is committed in @offchain\/rig\/cheat-swap-proof.json@ and is what makes this
 -- assertion a detector rather than a tautology.
+--
+-- == THE CONFIGURED-SIZE ASSERTION, AND WHY IT IS NOT REDUNDANT
+--
+-- 22-05's plan predicted that deleting the @evm_setNextBlockTimestamp@ call would redden this
+-- check. It was APPLIED and it did NOT: the mutant reddened the driver's own timestamp assertion at
+-- step 0 (@SUBMITTED timestamp 1700001899 but the hook RECORDED 1700001888@), truncating the run to
+-- ONE healthy step -- and over one healthy step @count(E5) == count(E3) == length(steps) == 1@ is
+-- perfectly true. The counts alone are BLIND TO TRUNCATION: they say nothing was eaten out of the
+-- steps that exist, which is not the claim. The claim is that nothing was eaten out of the RUN.
+--
+-- So @length(steps)@ is compared against @configuredSize@ here as well. This is the sixth time in
+-- this workstream a predicted discriminator has been measured and refuted, and the fifth where the
+-- fix belongs in the check rather than in a note.
 driv01_no_same_second_noop :: Check
 driv01_no_same_second_noop =
   Check "driv01_no_same_second_noop" . guarded $ do
@@ -3177,6 +3190,16 @@ driv01_no_same_second_noop =
       e3s <- mapM (measurement_int "e3_count") steps
       e5s <- mapM (measurement_int "e5_count") steps
       let n = toInteger (length steps)
+
+      configured <- json_field "configuredSize" capture >>= json_integer
+      _ <- expect (n == configured)
+             ("the run recorded " ++ show n ++ " steps but was configured for " ++ show configured
+               ++ ". MEASURED (22-05, M1): with the clock call deleted this check's count equality"
+               ++ " stayed TRUE over a one-step truncated run, because count(E5) == count(E3) == 1"
+               ++ " says only that nothing was eaten out of the steps that EXIST. The claim being"
+               ++ " made is that nothing was eaten out of the RUN, and a truncated run cannot"
+               ++ " support it.")
+
       _ <- expect (sum e3s == n)
              ("the run recorded " ++ show (sum e3s) ++ " E3 logs over " ++ show n ++ " steps."
                ++ " count(E5) - count(E3) = " ++ show (sum e5s - sum e3s)
