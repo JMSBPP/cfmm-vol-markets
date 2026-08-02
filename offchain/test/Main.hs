@@ -2545,6 +2545,7 @@ driv01_cheat_swap_proof_is_present_and_fresh =
                ++ proof_command)
 
       captured_from <- json_field "generatedFrom" proof >>= json_string
+      _ <- refs_are_real "the proof" captured_from (T.unpack (pins_generated_from (rig_pins rig)))
       _ <- expect (captured_from == T.unpack (pins_generated_from (rig_pins rig)))
              ("the proof names generatedFrom " ++ captured_from ++ " but rig-pins.json names "
                ++ T.unpack (pins_generated_from (rig_pins rig))
@@ -3318,6 +3319,7 @@ driv01_run_capture_is_present_and_fresh =
                ++ driver_capture_command)
 
       captured_from <- json_field "generatedFrom" capture >>= json_string
+      _ <- refs_are_real "the run" captured_from (T.unpack (pins_generated_from (rig_pins rig)))
       _ <- expect (captured_from == T.unpack (pins_generated_from (rig_pins rig)))
              ("the run names generatedFrom " ++ captured_from ++ " but rig-pins.json names "
                ++ T.unpack (pins_generated_from (rig_pins rig))
@@ -3334,6 +3336,48 @@ driv01_run_capture_is_present_and_fresh =
           ++ " -- tickSpacing moved 10 -> 20 at PR #18, taking the PoolKey hash and therefore the"
           ++ " poolId with it, so a run recorded under the other value is stale BY CONSTRUCTION")
 
+-- ---------------------------------------------------------------------------------------------
+-- NON-DEGENERACY, and why a freshness equality needs it
+--
+-- MEASURED during 22-07's F5 sweep. Every freshness check in this module compares a value the
+-- ARTIFACT recorded against a value the MANIFEST or PIN FILE recorded, which is the right shape --
+-- two files, two producers. But @x == y@ is also TRUE when both are @\"\"@, and that is a
+-- reachable state, not a hypothetical: @generatedFrom@ comes from a shell command substitution in
+-- @generate-pins.sh@ and @deploy-rig.sh@, and a command substitution that fails yields an empty
+-- string with no error anywhere. Pointed at a pin file, a manifest, a capture and a proof whose
+-- @generatedFrom@ and @PoolManager@ were all emptied, the suite went 84\/85 -- and the one failure
+-- was an artifact I had only half-emptied. Emptied consistently, all three freshness checks pass
+-- on nothing at all.
+--
+-- The guards below are the discriminator: a shape assertion on BOTH sides, so an equality can
+-- only be satisfied by two values that are each independently well-formed.
+-- ---------------------------------------------------------------------------------------------
+
+-- | A 40-character git object name, which is what @generatedFrom@ carries.
+is_git_object_name :: String -> Bool
+is_git_object_name s = length s == 40 && all isHexDigit s
+
+-- | A @0x@-prefixed 20-byte address.
+is_address_text :: String -> Bool
+is_address_text s =
+  case stripPrefix "0x" (map toLower s) of
+    Just body -> length body == 40 && all isHexDigit body
+    Nothing   -> False
+
+-- | Both sides of a @generatedFrom@ freshness equality name a real ref.
+refs_are_real :: String -> String -> String -> Either String ()
+refs_are_real subject captured pinned = do
+  _ <- expect (is_git_object_name pinned)
+         ("rig-pins.json records generatedFrom " ++ show pinned ++ ", which is not a 40-character"
+           ++ " git object name. generate-pins.sh fills this from a command substitution, and a"
+           ++ " failed substitution yields \"\" silently -- against an artifact that recorded the"
+           ++ " same emptiness the freshness equality below would be satisfied by nothing."
+           ++ " Regenerate: bash offchain/rig/generate-pins.sh")
+  expect (is_git_object_name captured)
+    (subject ++ " records generatedFrom " ++ show captured ++ ", which is not a 40-character git"
+      ++ " object name -- so it cannot identify the imported source-of-truth ref it was taken"
+      ++ " against, and comparing it to anything proves nothing.")
+
 -- | One @rig.<field>@ against one @contracts.<name>@, lowercased on both sides.
 rig_field_matches :: Value -> RigAddresses -> String -> T.Text -> Either String ()
 rig_field_matches capture addrs field name = do
@@ -3342,6 +3386,17 @@ rig_field_matches capture addrs field name = do
     case Map.lookup name (rig_contracts addrs) of
       Nothing -> Left ("the manifest has no " ++ T.unpack name ++ " -- re-run: " ++ deploy_command)
       Just t  -> Right (map toLower (T.unpack t))
+  -- See the non-degeneracy note above: without these two, rig.<field> == contracts.<name> is
+  -- satisfied by two empty strings, and a manifest CAN carry one -- the key is present, so the
+  -- required-contract completeness check in Rig.Manifest sees nothing wrong.
+  _ <- expect (is_address_text manifest)
+         ("the manifest's " ++ T.unpack name ++ " is " ++ show manifest ++ ", not a 20-byte"
+           ++ " address. Rig.Manifest's completeness check tests for the KEY, so an empty value"
+           ++ " passes it -- re-run: " ++ deploy_command)
+  _ <- expect (is_address_text captured)
+         ("the run records rig." ++ field ++ " = " ++ show captured ++ ", not a 20-byte address."
+           ++ " An artifact that cannot say which contract it ran against cannot be checked for"
+           ++ " freshness against any manifest -- re-take it: " ++ driver_capture_command)
   expect (captured == manifest)
     ("the run records rig." ++ field ++ " = " ++ captured ++ " but the manifest's "
       ++ T.unpack name ++ " is " ++ manifest ++ " -- re-take it: " ++ driver_capture_command)
@@ -3993,6 +4048,7 @@ driv02_run_capture_orders_are_fresh =
                ++ " Re-take the run: " ++ driver_capture_command)
 
       captured_from <- json_field "generatedFrom" capture >>= json_string
+      _ <- refs_are_real "the run" captured_from (T.unpack (pins_generated_from (rig_pins rig)))
       _ <- expect (captured_from == T.unpack (pins_generated_from (rig_pins rig)))
              ("the run names generatedFrom " ++ captured_from ++ " but rig-pins.json names "
                ++ T.unpack (pins_generated_from (rig_pins rig))
