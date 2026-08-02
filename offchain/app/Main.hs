@@ -100,6 +100,7 @@ import Rig.Manifest
   , RigAddresses (..)
   , RigPool (..)
   , contract_address
+  , hex_to_integer
   , load_rig
   , pin_topic0
   , resolve_account
@@ -150,6 +151,13 @@ main = do
   topic_e1 <- either fail pure (pin_topic0       rig "VolOrderCreated")
   topic_e3 <- either fail pure (pin_topic0       rig "TimepointWritten")
   topic_e5 <- either fail pure (pin_topic0       rig "FeeApplied")
+  -- The poolId is resolved HERE, with the other ten, and not with `read` inside the CheatSwapTarget
+  -- below. `read` is partial AND lazy, so a malformed poolId throws from wherever the field is
+  -- first forced -- inside the Web3 fold, after transactions have mined -- which is precisely the
+  -- "bottom thrown from wherever the value is first forced" Rig.Manifest's header exists to
+  -- prevent. It also reads DECIMAL without a 0x prefix, so an unprefixed all-digit poolId would
+  -- parse silently as a different, valid-looking slot rather than fail at all.
+  pool_id  <- either fail pure (hex_to_integer   "pool.poolId" (rig_pool_id pool))
 
   -- The seed is resolved and PRINTED before anything is sent. A run that dies at step 3 still
   -- leaves the operator a line they can paste straight back in to reproduce it exactly.
@@ -167,7 +175,7 @@ main = do
         , cst_fee_hook      = fee_hook
         , cst_swap_router   = router
         , cst_deployer      = deployer
-        , cst_pool_id       = read (T.unpack (rig_pool_id pool))
+        , cst_pool_id       = pool_id
         , cst_currency0     = T.unpack (rig_currency0 pool)
         , cst_currency1     = T.unpack (rig_currency1 pool)
         , cst_tick_spacing  = rig_tick_spacing pool

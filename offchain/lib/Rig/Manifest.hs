@@ -41,6 +41,7 @@ module Rig.Manifest
   , account_address
   , pin_selector
   , pin_topic0
+  , hex_to_integer
     -- * Typed addresses
   , parse_address
   , resolve_contract
@@ -342,7 +343,7 @@ pin_selector rig name =
 pin_topic0 :: Rig -> Text -> Either String Integer
 pin_topic0 rig name = do
   entry <- look_up "topic0 pin" name (pin_topics (rig_pins rig))
-  hex_to_integer name (pin_value entry)
+  hex_to_integer ("topic0 pin " <> name) (pin_value entry)
 
 look_up :: String -> Text -> Map Text a -> Either String a
 look_up what name table =
@@ -354,14 +355,34 @@ look_up what name table =
           ++ "\n  present keys: "
           ++ intercalate ", " (sort (map T.unpack (Map.keys table)))
 
+-- | A manifest or pin hex string as an 'Integer', with the field named in the failure.
+--
+-- The first argument is a human label for the entry ("topics.VolOrderCreated", "pool.poolId"), used
+-- only in the message.
+--
+-- == WHY THIS AND NOT 'read'
+--
+-- Two reasons, and the second is the dangerous one.
+--
+-- 'read' is PARTIAL, and lazy with it: @read s :: Integer@ on a malformed string does not fail
+-- where it is written, it fails wherever the value is first FORCED. For a field threaded into a
+-- Web3 fold that is after transactions have already mined — the exact "bottom thrown from wherever
+-- the value is first forced" this module's header says it exists to prevent. Every other manifest
+-- value goes through @either fail pure@ at startup; returning 'Either' is what lets this one do the
+-- same.
+--
+-- And 'read' reads DECIMAL unless the string carries a @0x@ prefix. A poolId written without the
+-- prefix but consisting only of decimal digits does not fail at all — it parses, silently, as a
+-- completely different number, and the driver then derives @keccak(poolId || POOLS_SLOT)@ for a
+-- pool that does not exist. This function reads HEX with the prefix optional, which is what every
+-- producer of these files actually writes.
 hex_to_integer :: Text -> Text -> Either String Integer
 hex_to_integer name raw =
   case readHex (T.unpack (fromMaybe raw (T.stripPrefix "0x" raw))) of
     [(n, "")] -> Right n
     _ ->
       Left $
-        "Rig.Manifest: the topic0 pin for " ++ show (T.unpack name)
-          ++ " is not hex: " ++ show (T.unpack raw)
+        "Rig.Manifest: the " ++ T.unpack name ++ " entry is not hex: " ++ show (T.unpack raw)
 
 -- ---------------------------------------------------------------------------------------------
 -- Typed addresses

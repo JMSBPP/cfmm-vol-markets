@@ -63,6 +63,7 @@ import Rig.Manifest
   , RigAddresses (..)
   , RigPool (..)
   , contract_address
+  , hex_to_integer
   , load_rig
   , pin_topic0
   , resolve_account
@@ -124,6 +125,9 @@ main = do
       must what = either (error . ((what ++ ": ") ++)) id
 
       pool_manager_addr    = must "PoolManager"            (resolve_contract rig "PoolManager")
+      -- Same reason as the driver's: `read` is partial and lazy, and reads DECIMAL without a 0x
+      -- prefix. `must` forces this through the same startup path every other manifest value takes.
+      pool_id              = must "pool.poolId"           (hex_to_integer "pool.poolId" (rig_pool_id pool))
       price_setter_pm_addr = must "PriceSetterPoolManager" (resolve_contract rig "PriceSetterPoolManager")
 
       base = CheatSwapTarget
@@ -133,7 +137,7 @@ main = do
         , cst_fee_hook      = must "DynamicFeeHook"  (resolve_contract rig "DynamicFeeHook")
         , cst_swap_router   = must "PoolSwapTest"    (resolve_contract rig "PoolSwapTest")
         , cst_deployer      = must "deployer"        (resolve_account  rig "deployer")
-        , cst_pool_id       = read (T.unpack (rig_pool_id pool))
+        , cst_pool_id       = pool_id
         , cst_currency0     = T.unpack (rig_currency0 pool)
         , cst_currency1     = T.unpack (rig_currency1 pool)
         , cst_tick_spacing  = rig_tick_spacing pool
