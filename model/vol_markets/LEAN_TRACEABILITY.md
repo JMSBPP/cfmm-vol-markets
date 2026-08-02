@@ -17,6 +17,25 @@ Reserved project-wide: **`η` is the pricing-kernel eta** (`model/exp/eta.md`,
 `exp/eta.lean`). It is never reused. The fee paper's `η⁰`/`η¹` are mapped to
 Latin names below.
 
+**The η-identity outcome (recorded 2026-08-01, at exactly the strength the
+fidelity record supports).** The user's 2026-07-31 decision that `priceEta`'s η
+and `eta.md`'s η are the SAME parameter has TWO halves and only one of them is
+proven. (i) The **exponent identity** `priceEta η Δi i = CFMM.Eta.p_eta lam Δi
+(η/2) i = CFMM.Eta.P_half lam (Δi·η/2) i` is **PROVEN** — `priceEta_eq_p_eta_half`
+and `priceEta_eq_P_half` in `EtaCurvature` (T28'a); the factor 2 is `priceEta`'s
+sqrt-price normalization, and the statement is on integer ticks, the domain on
+which the two conventions are comparable. (ii) The **factor-share identification**
+— that this same η is the exponent of `CFMM.Eta.L_eta η X Y = X^η·Y^(1−η)`, the
+weighted-CFMM trading function — is **OPEN** (ETA block E8(6); the optional T28'b
+came back absent, as pre-authorized, and was NOT satisfied by restating T28'a).
+**The user's decision is therefore PARTIALLY discharged, not closed.** The reason
+the second half is a modelling claim rather than a rewriting is stated in
+`exp/eta.lean`'s own `P_half` docstring: **η does not enter the tick→price map**,
+so a reserve-side factor share cannot be read off a grid-side exponent by algebra.
+E6 records further that the factor-share reading is not merely open but
+*unavailable* wherever `η⋆ ∉ (0,1)` — at `λ = 1.0001, ϱ_I = 0.05, φ = 0.003` it
+needs `Δi ≳ 21`, while `Δi = 1` and `Δi = 10` are both in standard use.
+
 Three collisions with the MEV anchor (Milionis–Moallemi–Roughgarden,
 arXiv:2305.14604v2) are resolved the same way, doc-side, and the resolutions are
 binding: the anchor's fee `γ` is this document's `φ` (this document's `γ_j` stays
@@ -27,6 +46,34 @@ root-block-rate factor is written `√(2/Δt)` throughout and no abbreviation is
 introduced. Separately, `λ_ARB` and `λ_MEV` are **not interchangeable**: `λ_ARB`
 is the arbitrage channel and a SUMMAND of `λ_MEV`, and no row below may substitute
 one for the other.
+
+**The curvature anchor's collisions (Capponi–Jia, arXiv:2103.08842v4 §5.1) are
+resolved the same way, and the resolutions are binding.** His curvature index `k`
+is REMAPPED to `κ_φ` (user amendment 2026-07-31; `χ` is rejected outright and
+appears nowhere), his investor private-use premium `α` to `ϱ_I` and his price-shock
+magnitude `β` to `ϱ_S`, because this document's `α_j`, `β_j`, `γ_j` are the `Θ_φ`
+sigmoid parameters and are always subscripted. His Proposition-5 coefficients
+`τ₁, τ₂, τ₃` are remapped to `c₁, c₂, c₃`, because `τ` is taken by `τ_MEV` (§9).
+His probabilities `θ, κ_I, κ_com, κ₁, κ₂` are **ABSORBED and NEVER NAMED** — they
+enter only through the four constants `ϖ_A, ϖ_I, ϖ_H, ϖ_D` — because `θ` collides
+with this document's option theta and `κ` with the Phase-11 scalarization weight;
+bare `κ` therefore stays FORBIDDEN and only the `\varphi`-subscripted forms are
+admissible. His proportional trading fee `f` is **IDENTIFIED** with this document's
+`φ` rather than renamed. **`η` is PROTECTED end-to-end** and was the REQUIRED
+symbol of the ETA phase's notation gate — which **INVERTS** the Phase-11 gate's
+Rule 1, where `η` was forbidden. `ν` was never introduced, because block M6b binds
+it to `ν_t = w_t/D_t`.
+
+Two standing distinctions in that layer, in the same voice as `λ_ARB` vs `λ_MEV`
+above. First, **`EtaCurvature.arbLossRatio` and `MevOptimization.mevMulti` are NOT
+IDENTIFIED** and no row below may substitute one for the other: they come from
+different models — a two-period discrete-shock equilibrium against MMR's fast-block
+diffusion — with different units, a per-period ratio of pool value against a
+discrete hazard sum over `D_t`. Second, the **`λ` overload is deliberate and neither
+usage was renamed**: in the ETA layer an unsubscripted `λ` inside an exponential is
+the TICK BASE `PosSpec.lam = 1.0001`, while in `### MEV` every `λ` is a subscripted
+hazard (`λ_ARB`, `λ_MEV`, `λ_FLAIR`, `λ̃_JIT`). Both are legitimate in their own
+scope; a bare `λ` in an ETA display is never a hazard.
 
 | Doc symbol | Lean identifier | Meaning | Defined in |
 |---|---|---|---|
@@ -59,6 +106,16 @@ one for the other.
 | `ℙ_{L_JIT}` | `πJ` args in `JitLiquidity` | JIT-arrival probability (CJZ's `π`) | JIT addendum J0 |
 | `λ̃_JIT` (tilde = incidence operator, not hazard) | `JitLiquidity` incidence lemmas | event-time incidence operator on `(λ_FLAIR, λ_ARB)` | JIT section J7 |
 | `κ_{φ}` (curvature; subscript = quote function `\varphi`) | `curvIndex`, `kphiS`/`kphiI` binders | curvature index `1 − λ^(−Δi²η/2)`, Capponi's `k` | ETA block E0/E1 |
+| `ϱ_I` | `premInv` arg | investor **private-use premium** (Capponi's `α`) — **a PREMIUM, NOT A PROBABILITY**; it may exceed 1, and under the probability misreading `κ_φ⋆ = 1 − √((1+φ)/(1+ϱ_I))` is uninterpretable and the demand-side link to §6(b) is lost | ETA block E0 · `EtaCurvature` |
+| `ϱ_S` | `premShock` arg | price-shock **magnitude** (Capponi's `β`) — likewise **a PREMIUM, NOT A PROBABILITY**; standing order `0 ≤ φ < ϱ_S ≤ ϱ_I` | ETA block E0 · `EtaCurvature` |
+| `ϖ_A` | `probArb` arg | absorbed constant: probability an arbitrage occurs in a period, `> 0` | ETA block E0 · `EtaCurvature` |
+| `ϖ_I` | `probInv` arg | absorbed constant: probability an investor arrives, `> 0` | ETA block E0 · `EtaCurvature` |
+| `ϖ_H` | — (no separate binder) | absorbed constant: the hold-benchmark coefficient, `E[R_A] = ϖ_H·ϱ_S`. It has **no Lean binder of its own** — the freeze-region payoff enters only through `lpExcess`'s subtracted term, so `ϖ_H` is folded into `coefD` | ETA block E0/E4 · `EtaCurvature` |
+| `ϖ_D` | `coefD` arg | absorbed constant: the constant subtracted in the LP excess return, `≥ 0`; appears as `coefD * premShock` | ETA block E0 · `EtaCurvature.lpExcess` |
+| `κ_φ,S`, `κ_φ,I` | `kphiS`, `kphiI` | the two branch points (shock switch, investor switch); `kphiS_le_kphiI_iff` orders them | ETA block E2/E3 · `EtaCurvature` |
+| `κ_φ⋆` | `kphiStar` | THE KINK — the interior optimum in the curvature index, `= κ_φ,I = 1 − √((1+φ)/(1+ϱ_I))`. A branch point, **not** a stationary point | ETA block E4 · `EtaCurvature` |
+| `c₁, c₂, c₃` | `cOne`, `cTwo`, `cThree` | Capponi's `τ₁, τ₂, τ₃` renamed (`τ` is `τ_MEV`); `c₁ > 0` is E4's standing single-peakedness hypothesis | ETA block E4 · `EtaCurvature` |
+| `η⋆` | `etaStar` | **THE DELIVERABLE** — `ln((1+ϱ_I)/(1+φ))/(Δi²·ln λ)`, the exponent that reproduces `κ_φ⋆` on the chosen grid, obtained by INVERTING the `curvIndex` bijection | ETA block E6 · `EtaCurvature` |
 | `a_t` | the `a` argument of `MevOptimization.mevHazard` | per-step arbitrage-opportunity weight (leading-order LVR × `Δt`) — **not** `FlairOptimization.flairHazard`'s traded-flow `w_t` | MEV addendum M0/M3 |
 | `λ_ARB` | `MevOptimization.mevHazard`, `MevOptimization.mevMulti` | the ARBITRAGE channel — every identification and infimum row of §7 is about this object | MEV addendum M3 |
 | `λ_MEV` | `MevJointProgram.mevTotal` | the TOTAL, `λ_ARB ⊕ λ_sandwich` (plain hazard addition); equals `λ_ARB` exactly when uniform batch clearing nulls the sandwich channel | MEV addendum M7 |
@@ -148,7 +205,23 @@ Parametrizes the paper's threshold-type dynamic fee; couples into §2's P1/P2.
   (b) the demand-elasticity / optimal-fee **equilibrium** layer, which belongs to
   `FeeSchedule` and whose exact missing term is the anchor's section 7.3 eq. (27),
   `E[delta-hedged LP P&L] = E[NT_FEE] − E[ARB]` — so every corner solution in §7 is
-  a property of the formalized objective, not a market-equilibrium claim;
+  a property of the formalized objective, not a market-equilibrium claim.
+  **AMENDED 2026-08-02 (this gap now has a PARTIAL carrier; it is not closed).**
+  Capponi's `ϱ_I` (`premInv`) IS a demand-side parameter of exactly the kind this
+  item names — an investor private-use premium — and the ETA layer (§13) carries it
+  in closed form all the way into the curvature optimum: `kphiStar_mem_Ioo_iff`
+  makes the optimum interior precisely when `φ < ϱ_I`, and `etaStar` is a closed
+  form in `(ϱ_I, φ, Δi)`. **WHAT IS NOW CARRIED:** a demand-side valuation premium
+  entering an optimum in closed form, with the fee and the demand premium trading
+  off explicitly (`etaStar_strictAnti_fee`, `etaStar_strictMono_premInv`).
+  **WHAT REMAINS OPEN, and it is the larger half:** (b.1) the **equilibrium
+  transfer** — that our tick-grid AMM actually HAS Capponi's closed forms with
+  `curvIndex η Δi` in the curvature slot is an ASSUMPTION, not a derivation (ETA
+  block E8(1)), so every ETA theorem is a statement about `lpExcess ∘ curvIndex`
+  and none is a statement about this project's AMM; and (b.2) the **optimal-fee**
+  half — MMR §7.3 eq. (27) itself, which the ETA layer does not touch. A real
+  closure needs ONE objective carrying both a demand-elastic investor and `λ_ARB`;
+  that object exists in neither model (E8(7));
   (c) the anchor's **Theorem 3 / Theorem 4 asymptotics themselves**, quoted in block
   M2 but formalized nowhere — `arb_add_fee_eq_lvr` is a bridge identity, not those
   theorems;
@@ -220,6 +293,46 @@ about `λ_ARB` unless they name `mevTotal`.
 | M7 the aggregate `λ_MEV := λ_ARB ⊕ λ_sandwich`, `⊕` being hazard-side (plain) addition, with the `⊗_φ` correspondence held separate; reduction `λ_sandwich = 0 ⟹ λ_MEV = λ_ARB` | `MevJointProgram.mevTotal` (`:= lamARB + lamSand`, plain addition), `mevTotal_eq_arb_of_sandwich_zero`, `mevTotal_mevMulti_eq_of_sandwich_zero`, `mevTotal_probOr_hazard` (the correspondence lemma, via `VolInstrument.probOr_hazard`) | **PROVEN** — `⊗_φ` is never applied to the unbounded hazards directly |
 | M7(i) the rebate is an LP-INCIDENCE object, not a reduction in extraction: `λ_MEV^{LP-net} = (1−τ)λ_MEV`, `τ(k) = k/(k+1) ∈ [0,1)` | `MevJointProgram.mevNet`, `mevNet_le_mev` (nonnegativity DISCHARGED on `mevMulti_nonneg`, not assumed), `mevNet_anti_tau`, `mevNet_eq_zero_of_tau_one`, `mevNet_argmin_invariant` (for every `τ < 1` the rebate changes the program's VALUE and not its SOLUTION), `taxFraction`, `taxFraction_mem_Ico`, `taxFraction_mono` | **PROVEN** — `τ` sits **outside** `Θ_φ`; `k` is FREE and no numeral enters a statement, because the l2-angstrom snapshot and the live documentation disagree on the constants |
 | M7(ii) the batch cadence IS `Δt`: it moves `λ_ARB` monotonically and does not enter `λ_FLAIR` at all | `MevJointProgram.mev_mono_dt` (ISOTONE in `Δt`) | **PROVEN** — the second protocol lever **outside** `Θ_φ`, alongside `τ` |
+
+### 7.2 `## ETA` — the curvature controller and the interior η⋆: the OPEN ledger
+
+**Where the claim rows live.** The per-block E0–E7 claim table for this layer is
+**§13**, not here: it landed with the module (commit b02caf7) and follows the
+convention §8 onward established, under which each later doc-block layer gets its
+own top-level section. This subsection is the §7-level entry point for it and is
+**not a second copy** — duplicating those statuses would create two sources of
+truth for the same verdicts, which is the failure mode this file exists to prevent.
+Headline carriers, for navigation only: `curvIndex` (the bijection),
+`kphiStar` / `lpExcess_isMaxOn` (the interior optimum — a **KINK**, established by
+two one-sided monotonicity results, **no first-order condition anywhere**),
+`etaStar` / `curvIndex_etaStar` (the closed form, obtained by INVERTING a
+bijection), `priceEta_eq_p_eta_half` (the exponent identity),
+`eta_no_common_argmax` and `etaStar_coupled_to_fee_corner` (the cross-model
+statement, NARROWED per the user's 2026-07-31 ruling).
+
+**Do not read the headline as a duplicate of the existing `exp/` result.**
+`lean/exp/DynamicsOptimization.lean` (`foc_eta`, `optimal_controls`) already carries
+an interior-η claim, but in a DIFFERENT model, on a different objective, and it
+**HYPOTHESIZES** the maximizer and characterizes it by a first-order condition.
+What §13 adds is **CONSTRUCTION** — existence and closed form from an inversion,
+with no stationarity argument. Relating the two would need exactly the factor-share
+identification that item (6) below records as OPEN, so neither supersedes the other
+and this file asserts no relation between them.
+
+**The standing OPEN ledger (ETA block E8).** Every item is **OPEN**; none is a
+failure and none may be quietly dropped when this layer is cited downstream.
+
+| # | Open item | Why it is open | Status |
+|---|---|---|---|
+| 1 | **The equilibrium transfer** (and the object-level identification under it) | That `curvIndex η Δi` IS the anchor's structural mixing weight `k` is a MODELLING identification, not a definition; that the tick-grid AMM's equilibrium then HAS the anchor's closed forms is ASSUMED, not derived. Every §13 theorem is about `lpExcess ∘ curvIndex`; none is about this project's AMM | **OPEN** |
+| 2 | **Welfare** | Proposition 6's welfare half is not transcribed and does not follow from E3+E4 — below `kphiStar` the pieces move in opposite directions (`surplus_add_revenue_const`). The anchor's ranking also assumes arbitrage rent is deadweight, which `### MEV` contradicts under rent recycling | **OPEN** |
+| 3 | **`arbLossRatio` vs `mevMulti` — NOT IDENTIFIED** | Different models, different units (§0). No identification is attempted or implied, and no row may substitute one for the other | **OPEN** (by construction, not by omission) |
+| 4 | **Gas** | The anchor's Assumption 3 (the arbitrageur pays a gas fee equal to its full profit) is absorbed, not modelled | **OPEN** |
+| 5 | **The `Θ_φ`-restricted σ-varying MEV comparison** — INHERITED FROM PHASE 11, untouched here | The general schedule-level claim is REFUTED (`mev_ge_flat_under_flair_budget_false`); the isotone sub-family `Θ_φ` actually reaches (`multiFee_monotone`) is not settled by that witness. **This layer does not touch it and must not appear to** (§7.1, last M6b row) | **OPEN** |
+| 6 | **The factor-share identification** (`L_eta`) | T28'b came back absent, as pre-authorized. The exponent identity (`priceEta_eq_p_eta_half`) is proven algebra and is all that is claimed; the factor-share half is a modelling claim about reserves, and is *unavailable* wherever `η⋆ ∉ (0,1)`. ⟹ the user's η-identity decision is **PARTIALLY discharged** (§0) | **OPEN** |
+| 7 | **The Phase-11 degeneracy is NOT resolved here** | `mevMulti` contains no η, no `κ_φ`, no `ϱ_I`, so nothing in this layer moves it. Closing it needs one objective carrying both a demand-elastic investor and `λ_ARB`; `ϱ_I` is a CANDIDATE for the §6(b) demand layer, not a closure of it | **OPEN** |
+| 8 | **`η⋆` is σ-INDEXED; η is a design constant** | The fee entering `etaStar` is a fixed scalar, whereas this document's fee is `multiFee(σ)` and `φ̄` is only its FLOOR. The Phase-11 corner therefore induces `η⋆(σ)` pointwise while the grid exponent is chosen once at pool creation. Reconciling the two is not addressed — and a beforeSwap/afterSwap hook cannot vary η | **OPEN** |
+| 9 | **The strict single-peakedness boundary** | Under `cOne ≤ 0` the LP payoff is flat in `κ_φ` and `etaStar` is not an argmax at all (`liquidity_freeze_minimal`, `lpPayoff_isMaxOn` are stated under `0 < cOne`); the sign of `c₁` at the fee corner is pinned by nothing in this layer | **OPEN** |
 
 ## 8. `VOL ORDER COMPLETION — ENDOGENOUS MATURITY` (doc block, issue cfmm-lean4-spec#1 → `EndogenousMaturity.lean`)
 
@@ -329,3 +442,9 @@ Notation: curvature `κ_{\varphi}` (Capponi's `k`; Lean `curvIndex`, branch poin
 | E7 scalarization-impossibility as first drafted | — **FALSE beyond the first branch**: arbLoss and surplus switch branches at DIFFERENT points (`κ_{φ,S} < κ_{φ,I}`), so the weighted sum crosses zero at `κ_φ ≈ 0.2412 ∈ (0.1835, 0.5)`, no branch point | **CORRECTED in the doc 2026-07-31**; the false form was PROHIBITED in the prompt and never entered Lean |
 
 Fidelity: 13/15 repaired statements verbatim; 2 AMENDED with added hypotheses and conclusions intact — `lpExcess_strictAntiOn` gains E0's own ordering `φ < ϱ_S ≤ ϱ_I`, and `etaStar_pos_iff` gains `−1 < ϱ_I` because **Mathlib's `Real.log` is `log|x|`** (witness `ϱ_I = −3, φ = 0`), precisely the log-sign trap the 12-02 Model QA review predicted. Zero narrowed statements. Full record: `.planning/phases/12-eta-tradeoff-optimum/12-03-FIDELITY.md`.
+
+**The nine standing OPEN items of block E8 are NOT in the table above — they are the
+ledger in §7.2**, together with the §7-level entry point for this layer and the
+statement that this layer neither duplicates nor supersedes
+`exp/DynamicsOptimization`. Cite this section and that ledger together; the claim
+rows alone overstate the layer's reach.
