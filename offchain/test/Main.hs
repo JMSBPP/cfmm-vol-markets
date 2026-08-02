@@ -1933,6 +1933,23 @@ driv01_e3_vol_cum   = 99
 driv01_e3_avg_tick  = -200
 driv01_e3_tick_cum  = -123456789
 
+-- | A SECOND E3 payload whose @tick@ is NEGATIVE, and the reason it exists.
+--
+-- The plan predicted that deleting the sign extension from @tw_tick@ ALONE would redden
+-- 'driv01_e3_decode_behavior'. It was APPLIED and the suite stayed GREEN at 66\/66: the first
+-- payload's @driv01_e3_tick = 37@ is positive, 'signed_word' is the identity on it, and the field
+-- was therefore pinned by a value that cannot distinguish a signed read from an unsigned one. The
+-- negative pins on @averageTick@ and @tickCumulative@ covered those two fields and nothing
+-- covered this one.
+--
+-- The general rule this instance teaches: EVERY signed field needs at least one NEGATIVE pin of
+-- its own. A positive pin on a signed field is a value assertion that happens to be blind to the
+-- only thing that makes the field signed. Keeping BOTH payloads is deliberate — the positive one
+-- proves 'signed_word' leaves the non-negative half alone, which is the other half of the
+-- contract.
+driv01_e3_tick_negative :: Integer
+driv01_e3_tick_negative = -3145
+
 -- | The E5 payload. Distinct from every E3 value for the same reason.
 driv01_e5_sigma, driv01_e5_fee :: Integer
 driv01_e5_sigma = 4321
@@ -1980,6 +1997,11 @@ driv01_e3_decode_behavior = Check "driv01_e3_decode_behavior" . guarded $ do
             [ driv01_e3_timestamp, driv01_e3_tick, driv01_e3_vol_cum
             , driv01_e3_avg_tick, driv01_e3_tick_cum
             ]
+        e3_negative_words =
+          map as_wire_word
+            [ driv01_e3_timestamp + 1, driv01_e3_tick_negative, driv01_e3_vol_cum
+            , driv01_e3_avg_tick, driv01_e3_tick_cum
+            ]
         topics_ok = [hexstring_of t0_e3, hexstring_of pool_id]
         e3_log    = synthetic_log topics_ok e3_words
         e5_log    = synthetic_log [hexstring_of t0_e5, hexstring_of pool_id]
@@ -2007,6 +2029,20 @@ driv01_e3_decode_behavior = Check "driv01_e3_decode_behavior" . guarded $ do
     _ <- expect (tw_tick_cum tw == driv01_e3_tick_cum)
            ("tw_tick_cum = " ++ show (tw_tick_cum tw) ++ ", expected " ++ show driv01_e3_tick_cum
              ++ " -- int56, sign-extended by the same emitter rule")
+
+    -- (1b) the NEGATIVE tick. See 'driv01_e3_tick_negative': without this the tw_tick field is
+    -- pinned only by a positive value, and dropping its sign extension is unobservable (MEASURED
+    -- green under exactly that mutant before this payload existed).
+    tw_neg <- case decode_e3 (synthetic_log topics_ok e3_negative_words) of
+      Nothing -> Left "the E3 log with a NEGATIVE tick did not decode"
+      Just x  -> Right x
+    _ <- expect (tw_tick tw_neg == driv01_e3_tick_negative)
+           ("tw_tick = " ++ show (tw_tick tw_neg) ++ ", expected "
+             ++ show driv01_e3_tick_negative ++ " -- an unsigned read of a NEGATIVE int24 yields a"
+             ++ " large positive number that looks like a plausible tick and is not one")
+    _ <- expect (tw_timestamp tw_neg == driv01_e3_timestamp + 1)
+           ("tw_timestamp = " ++ show (tw_timestamp tw_neg) ++ ", expected "
+             ++ show (driv01_e3_timestamp + 1))
 
     -- (2) the length guard. data_word past the end of the payload is 0, not an error, so without
     -- the guard a short log hands back tickCumulative = 0: plausible, in range, fabricated.
