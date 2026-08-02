@@ -43,6 +43,40 @@ INIT_TICK=0           # Safe at 0 for the seed check: Timepoint.plk's OFF_INITIA
 CHAIN_ID=31337
 IMPORT_REF=$(cat offchain/rig/import-ref.txt)
 
+# --- Step 0a: toolchain preflight ------------------------------------------
+# This script has the most dependencies of anything in the rig and, before this
+# block existed, the only one it checked was lsof/fuser -- inside the function that
+# needs them. The others failed LATE and WRONG.
+#
+# `cast` is the sharp one. wait_for_port_release() below treats the ABSENCE of a
+# `cast` response as proof the port is free:
+#     cast block-number --rpc-url "$RPC_ALIAS" >/dev/null 2>&1 || return 0
+# A missing `cast` is indistinguishable from an unoccupied port, so the script sails
+# past the release check, starts anvil, then polls with the same missing binary and
+# reports "FATAL: anvil did not answer on 8545" -- pointing the operator at a
+# perfectly healthy anvil log. MEASURED with cast off PATH against a LIVE chain:
+# wait_for_port_release returned 0 ("the port is free") while anvil was answering on
+# 8545, then the poll printed exactly that FATAL.
+#
+# It runs BEFORE --stop, because --stop uses wait_for_port_release too.
+for tool in anvil forge cast jq; do
+  command -v "$tool" >/dev/null 2>&1 || {
+    echo "FATAL: '$tool' is not on PATH. The rig needs anvil, forge, cast and jq." >&2
+    echo "       foundry (anvil/forge/cast): https://getfoundry.sh  -- then \`foundryup\`" >&2
+    echo "       A missing 'cast' in particular does NOT surface as a missing-tool error" >&2
+    echo "       later in this script: it surfaces as 'anvil did not answer on ${RPC_PORT}'." >&2
+    exit 1
+  }
+done
+# Named here as well as inside kill_rpc_listener so every tool requirement is
+# reported before anything is killed, started or written.
+command -v lsof >/dev/null 2>&1 || command -v fuser >/dev/null 2>&1 || {
+  echo "FATAL: neither lsof nor fuser is on PATH; cannot own port ${RPC_PORT} safely." >&2
+  echo "       The rig kills a stale listener BY PORT, never with a blanket pkill anvil:" >&2
+  echo "       another peer's worktree may be running its own anvil on a different port." >&2
+  exit 1
+}
+
 # --- a pure-bash bounded pause (the poll interval) -------------------------
 # Deliberately not the `sleep` binary: this script must contain no fixed wait,
 # only bounded polling. `read -t` on a fifo nothing ever writes to is an exact,
