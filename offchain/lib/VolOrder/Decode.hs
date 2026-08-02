@@ -143,11 +143,20 @@ decode_create_orders_result raw
 -- width.
 --
 -- tickSpacing is read and DISCARDED here -- it is the module's hardcoded
--- constant, not part of VolOrder. That constant is TICK_SPACING = 20, while the
--- rig's own deployed pool has tickSpacing = 10 (offchain/rig/rig-manifest.json,
--- .pool.tickSpacing). That is a real discrepancy between the module and the pool
--- it writes against; it is REPORTED here, not resolved -- resolving it means
--- changing another track's module.
+-- constant, not part of VolOrder. That reason is unchanged and still load-bearing:
+-- the field occupies bits 104..127 of the storage word and must be skipped over,
+-- but its value carries no order information.
+--
+-- HISTORY (kept deliberately -- a resolved discrepancy is worth recording): this
+-- paragraph used to report a REAL discrepancy -- module TICK_SPACING = 20 against
+-- a deployed pool whose tick spacing was 10 -- and said resolving it meant changing
+-- another track's module. That is exactly what happened. It was RESOLVED UPSTREAM in
+-- PR #18 (ref 2039f27, imported by plan 22-01), finding F2:
+-- foundry-scripts/deploy/DeployDynamicFeeHook.s.sol now declares
+-- TICK_SPACING = 20, so offchain/rig/rig-manifest.json's .pool.tickSpacing reads
+-- 20 and module and pool AGREE. Consequence for anyone reading a stale rig: the
+-- PoolKey hash -- and therefore the poolId -- MOVED with it, so any manifest
+-- recorded before that ref is stale by construction, not merely mislabelled.
 unpack_vol_order_storage :: Integer -> VolOrder
 unpack_vol_order_storage packed =
   VolOrder

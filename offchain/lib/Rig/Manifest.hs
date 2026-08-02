@@ -227,7 +227,17 @@ load_rig_from pins_file manifest_file = do
 -- a Haskell change. That openness costs something, though: aeson alone cannot tell a complete
 -- manifest from one missing @VolOrderManagerMod@, because a smaller map is still a valid map.
 -- This list restores the loudness at the only place it can live -- a completeness check after
--- decoding. Extra contracts are always accepted; these seven are not optional.
+-- decoding. Extra contracts are always accepted; these NINE are not optional.
+--
+-- The two routers (@PoolSwapTest@, @PoolModifyLiquidityTest@, deployed by
+-- @foundry-scripts\/deploy\/InitSwappableRig.s.sol@) are mandatory rather than optional for a
+-- reason that is not about convenience: the cheat-swap driver cannot send a swap at all without
+-- the swap router's address, and v4's @PoolManager@ cannot be swapped from an EOA. A manifest
+-- without them is a manifest whose @InitSwappableRig@ step did not run -- i.e. a pool with ZERO
+-- liquidity and no unlock-callback router anywhere on chain, where @DynamicFeeHook.beforeSwap@
+-- can never fire and no timepoint can ever be written. That is precisely the "broken rig, not a
+-- rig with a zero address" case this list exists to catch, and it is invisible to every other
+-- check: the other seven contracts are all live and all answer.
 required_contracts :: [Text]
 required_contracts =
   [ "VolOrderManagerMod"
@@ -237,6 +247,8 @@ required_contracts =
   , "PoolManager"
   , "PriceSetterHook"
   , "PriceSetterPoolManager"
+  , "PoolSwapTest"
+  , "PoolModifyLiquidityTest"
   ]
 
 missing_contracts :: RigAddresses -> [Text]

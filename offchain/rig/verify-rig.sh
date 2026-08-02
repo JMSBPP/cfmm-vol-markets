@@ -111,4 +111,27 @@ fi
   echo "SC-2 FAIL: DynamicFeeHook poolId()=$GOT_PID but the manifest pool.poolId is $WANT_PID" >&2; exit 1; }
 echo "PASS poolId DynamicFeeHook: poolId()=$GOT_PID == manifest pool.poolId"
 
+# --- Probe 6: both routers point at the SAME PoolManager the hook is bound to ---
+# The router analogue of the fault Phase 20 measured on the hook: a router constructed
+# against the OTHER live PoolManager (PriceSetterHook.s.sol stands up its own) is live,
+# has bytecode, and is useless -- every swap through it would unlock a manager the hook is
+# not bound to. Probe 1 cannot see that; only the binding can.
+#
+# The accessor is `manager`, READ out of the vendored source rather than guessed:
+# lib/panoptic-v2-core/lib/v4-core/src/test/PoolTestBase.sol:16
+#   IPoolManager public immutable manager;
+# and both PoolSwapTest and PoolModifyLiquidityTest extend PoolTestBase.
+for router in PoolSwapTest PoolModifyLiquidityTest; do
+  RADDR=$(jq -r --arg n "$router" '.contracts[$n]' "$MANIFEST")
+  if ! GOT_RPM=$(cast call "$RADDR" "manager()(address)" --rpc-url "$RPC_ALIAS" 2>/dev/null | first_token | lower); then
+    echo "SC-2 FAIL: $router at $RADDR did not answer manager()" >&2
+    exit 1
+  fi
+  [ "$GOT_RPM" = "$WANT_PM" ] || {
+    echo "SC-2 FAIL: $router manager()=$GOT_RPM but the manifest PoolManager is $WANT_PM" >&2
+    echo "           A router bound to the OTHER PoolManager is live and useless." >&2
+    exit 1; }
+  echo "PASS manager $router: manager()=$GOT_RPM == manifest contracts.PoolManager"
+done
+
 echo "SC-2 OK: $N contracts live, RealizedVolatilityMod seeded (packed=$PACKED)"

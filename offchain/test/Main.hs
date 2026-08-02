@@ -481,7 +481,10 @@ sc3_load_succeeds = Check "sc3_load_succeeds" . guarded $ do
         Left err -> Left ("load_rig_from failed on the real files: " ++ show (err :: IOException))
         Right rig ->
           let n = Map.size (rig_contracts (rig_addrs rig))
-          in expect (n == 7) ("expected 7 contracts in the manifest, found " ++ show n)
+          in expect (n == 9)
+               ("expected 9 contracts in the manifest (the seven Phase-20 deployments plus the "
+                 ++ "two InitSwappableRig routers PoolSwapTest and PoolModifyLiquidityTest), found "
+                 ++ show n)
 
 -- | A manifest missing a core contract, and a manifest that is not JSON at all, must BOTH stop
 -- the loader. The first failure comes from the required-contract completeness check (a smaller
@@ -598,11 +601,16 @@ mask_of bits = (1 `shiftL` bits) - 1
 -- | The @TICK_SPACING@ the module pins inside @build_vol_order@, occupying bits 104..127 of the
 -- STORAGE word.
 --
--- NOTE the rig's own deployed pool has tickSpacing = 10 (@offchain\/rig\/rig-manifest.json@,
--- @.pool.tickSpacing@). That is a real discrepancy between the module constant and the pool the
--- module writes against; it is REPORTED, not resolved -- resolving it means editing another
--- track's module. The expectations below are written against the MODULE CONSTANT, so a change to
--- it reddens here rather than passing silently.
+-- HISTORY, kept because a resolved discrepancy is worth more on the record than a clean comment:
+-- this note used to say the rig's own deployed pool had a tick spacing of 10 while the module
+-- pinned 20, and reported that as a real module-vs-pool discrepancy. It was RESOLVED in PR #18
+-- (ref @2039f27@, imported by plan 22-01), finding **F2**: @DeployDynamicFeeHook.s.sol@ now
+-- declares @TICK_SPACING = 20@, so @.pool.tickSpacing@ in @offchain\/rig\/rig-manifest.json@ reads
+-- 20 and module and pool AGREE. The VALUE below did not move; only the claim about the pool did.
+--
+-- The expectations below are still written against the MODULE CONSTANT, so a change to it reddens
+-- here rather than passing silently -- and they would keep reddening if the pool ever drifted away
+-- again.
 module_tick_spacing :: Integer
 module_tick_spacing = 20
 
