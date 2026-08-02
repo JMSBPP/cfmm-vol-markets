@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
 status: in-progress
-stopped_at: Completed 21-05-PLAN.md — PHASE 21 COMPLETE
+stopped_at: Phase 22 context gathered — DRIV-01 architecture CORRECTED (hook self-writes timepoints via beforeSwap; no offchain writeTimepoint client). EXECUTION GATED on issue #17 (swappable pool: liquidity + PoolSwapTest router) landing on develop.
 last_updated: "2026-08-01T19:52:39.399Z"
 last_activity: "2026-07-31 — 20-02 executed: 36 artifacts imported by checkout from 9f5ccba,"
 progress:
