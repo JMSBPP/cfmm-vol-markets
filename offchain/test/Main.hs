@@ -49,6 +49,7 @@ import Rig.Manifest
   , RigAddresses (..)
   , RigPins (..)
   , load_rig_from
+  , rig_manifest_path
   )
 import Data.ByteArray.HexString (HexString, fromBytes, toBytes)
 import Network.Ethereum.Api.Types (Change (..))
@@ -81,8 +82,20 @@ import VolOrder.Types (VolOrder (..))
 pins_file :: FilePath
 pins_file = "offchain/rig/rig-pins.json"
 
-manifest_file :: FilePath
-manifest_file = "offchain/rig/rig-manifest.json"
+-- | The rig manifest path, resolved the SAME way 'Rig.Manifest.load_rig' resolves it: through
+-- 'rig_manifest_path', which honours the @RIG_MANIFEST@ environment variable.
+--
+-- This was a hardcoded @FilePath@ constant until 22-03 MEASURED the consequence. The plan's
+-- falsification for the nine-contract requirement was @RIG_MANIFEST=\<copy without
+-- PoolSwapTest\> cabal test@ -- and the suite went GREEN at 68\/68, because the constant sent
+-- every check straight back to the real manifest and the override was silently ignored. The
+-- suite therefore could not be pointed at ANY manifest for ANY falsification, while
+-- @verify-rig.sh@ (which does honour the variable) and every @Rig.Manifest@ error message
+-- (\"Override the path with the RIG_MANIFEST environment variable\") both claimed it could.
+-- Two halves of one rig verification disagreeing about what an override means is worse than
+-- either half being wrong.
+manifest_file :: IO FilePath
+manifest_file = rig_manifest_path
 
 deploy_command :: String
 deploy_command = "bash offchain/rig/deploy-rig.sh"
@@ -472,11 +485,12 @@ sc4_cast_agreement pins = Check "sc4_cast_agreement" . guarded $ do
 -- worse than one that goes red.
 sc3_load_succeeds :: Check
 sc3_load_succeeds = Check "sc3_load_succeeds" . guarded $ do
-  present <- doesFileExist manifest_file
+  mf      <- manifest_file
+  present <- doesFileExist mf
   if not present
-    then pure (Left ("no " ++ manifest_file ++ " -- stand the rig up first: " ++ deploy_command))
+    then pure (Left ("no " ++ mf ++ " -- stand the rig up first: " ++ deploy_command))
     else do
-      outcome <- try (load_rig_from pins_file manifest_file)
+      outcome <- try (load_rig_from pins_file mf)
       pure $ case outcome of
         Left err -> Left ("load_rig_from failed on the real files: " ++ show (err :: IOException))
         Right rig ->
@@ -491,14 +505,15 @@ sc3_load_succeeds = Check "sc3_load_succeeds" . guarded $ do
 -- map is still a valid map, so aeson alone cannot see it); the second comes from the decoder.
 sc3_corrupted_manifest_fails :: Check
 sc3_corrupted_manifest_fails = Check "sc3_corrupted_manifest_fails" . guarded $ do
-  present <- doesFileExist manifest_file
+  mf      <- manifest_file
+  present <- doesFileExist mf
   if not present
-    then pure (Left ("no " ++ manifest_file ++ " -- stand the rig up first: " ++ deploy_command))
+    then pure (Left ("no " ++ mf ++ " -- stand the rig up first: " ++ deploy_command))
     else do
       tmp <- getTemporaryDirectory
       let missing_path = tmp </> "rig-manifest-missing-contract.json"
           broken_path  = tmp </> "rig-manifest-not-json.json"
-      decoded <- eitherDecodeFileStrict manifest_file :: IO (Either String Value)
+      decoded <- eitherDecodeFileStrict mf :: IO (Either String Value)
       result <- case decoded of
         Left err -> pure (Left ("the real manifest did not decode as JSON: " ++ err))
         Right value -> do
@@ -1642,11 +1657,12 @@ capture_case name capture = do
 rpin05_capture_is_present_and_fresh :: Check
 rpin05_capture_is_present_and_fresh = Check "rpin05_capture_is_present_and_fresh" . guarded $ do
   loaded_capture   <- read_json_file capture_file ("produce it with: " ++ capture_command)
-  manifest_present <- doesFileExist manifest_file
+  mf               <- manifest_file
+  manifest_present <- doesFileExist mf
   outcome <-
     if manifest_present
       then do
-        attempt <- try (load_rig_from pins_file manifest_file)
+        attempt <- try (load_rig_from pins_file mf)
         pure (Just (attempt :: Either IOException Rig))
       else pure Nothing
   pure $ do
@@ -1654,7 +1670,7 @@ rpin05_capture_is_present_and_fresh = Check "rpin05_capture_is_present_and_fresh
     rig <- case outcome of
       -- The manifest is GITIGNORED. That makes this the one legitimately not-runnable case in
       -- the whole suite, and it still FAILS rather than skips, loudly and with the command.
-      Nothing          -> Left ("no " ++ manifest_file ++ " -- it is gitignored, so a fresh"
+      Nothing          -> Left ("no " ++ mf ++ " -- it is gitignored, so a fresh"
                                  ++ " checkout has no copy. Stand the rig up: " ++ deploy_command)
       Just (Left err)  -> Left ("load_rig_from failed on the real files: " ++ show err)
       Just (Right r)   -> Right r

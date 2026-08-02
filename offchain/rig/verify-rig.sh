@@ -123,6 +123,14 @@ echo "PASS poolId DynamicFeeHook: poolId()=$GOT_PID == manifest pool.poolId"
 # and both PoolSwapTest and PoolModifyLiquidityTest extend PoolTestBase.
 for router in PoolSwapTest PoolModifyLiquidityTest; do
   RADDR=$(jq -r --arg n "$router" '.contracts[$n]' "$MANIFEST")
+  # A jq miss yields the STRING "null", and `cast call null` fails with a message about
+  # an address rather than about a manifest. Name the real fault instead.
+  if [ "$RADDR" = "null" ] || [ -z "$RADDR" ]; then
+    echo "SC-2 FAIL: $MANIFEST has no contracts.$router -- the InitSwappableRig step did not run," >&2
+    echo "           so the pool has NO liquidity and no unlock-callback router. Re-run:" >&2
+    echo "           bash offchain/rig/deploy-rig.sh" >&2
+    exit 1
+  fi
   if ! GOT_RPM=$(cast call "$RADDR" "manager()(address)" --rpc-url "$RPC_ALIAS" 2>/dev/null | first_token | lower); then
     echo "SC-2 FAIL: $router at $RADDR did not answer manager()" >&2
     exit 1
