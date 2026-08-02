@@ -243,7 +243,7 @@ Where under the prcing geometry:
 	\end{aligned}
 \]
 
-\(\eta\) (price grid) and \(\epsilon_{X/M}\) (trading curve, \(\varphi_{\epsilon_{X/M}}\)) are DISTINCT parameters on distinct objects; they are not two names for one exponent. Their relation is a THEOREM, not a definition — see the \(\epsilon_{X/M} \leftrightarrow \eta \leftrightarrow \kappa_{\varphi}\) block. <!-- notation-map -->
+\(\eta\) (price grid) and \(\epsilon_{X/M}\) (trading curve, \(\varphi_{\epsilon_{X/M},\,0}\)) are DISTINCT parameters on distinct objects; they are not two names for one exponent. Their relation is a THEOREM, not a definition — see the \(\epsilon_{X/M} \leftrightarrow \eta \leftrightarrow \kappa_{\varphi}\) block. <!-- notation-map -->
 Define:
 
 \[
@@ -312,15 +312,30 @@ Consider a exogenous tuple flow \( \Delta Q = ( \Delta Q_M, \Delta Q_X )\) on th
 
 \[
 	\begin{aligned}
-		\varphi_{\epsilon_{X/M}} \, (i_K ; \Delta Q , L)\, &= \, \big(\Delta Q_M^{L} (i_K) + \Delta Q_M\big)^{\epsilon_{X/M}}\cdot\big(\Delta Q_X^L \, (i_K) \, + \, \Delta Q_X\big)^{1-\epsilon_{X/M}}, \qquad \epsilon_{X/M} \, \in \, (0,1)
+		\varphi_{\epsilon_{X/M},\,0} \, (i_K ; \Delta Q , L)\, &= \, \big(\Delta Q_M^{L} (i_K) + \Delta Q_M\big)^{\epsilon_{X/M}}\cdot\big(\Delta Q_X^L \, (i_K) \, + \, \Delta Q_X\big)^{1-\epsilon_{X/M}}, \qquad \epsilon_{X/M} \, \in \, (0,1)
 	\end{aligned}
 \]
+
+**THE \(\varphi\) CONVENTION (definition).** Every trading function in this document is a member of ONE two-parameter CES family — \(\epsilon\) the SHARE axis, \(\rho\) the SUBSTITUTION axis:
+
+\[
+	\begin{aligned}
+		\varphi_{\epsilon,\,\rho}\,(x,y) \, = \,
+		\begin{cases}
+			\big(\epsilon\,x^{\rho} + (1-\epsilon)\,y^{\rho}\big)^{1/\rho}, & \rho \neq 0 \\[4pt]
+			x^{\epsilon}\,y^{1-\epsilon}, & \rho = 0
+		\end{cases}
+		\qquad \epsilon \in (0,1)
+	\end{aligned}
+\]
+
+\(\rho = 0\) is a DEFINED CASE, not an evaluation — \(1/\rho\) is undefined there, so the Cobb–Douglas branch is supplied by definition and CONTINUITY at \(\rho = 0\) is a theorem, not a substitution. Every display in this document sits on the \(\rho = 0\) slice and is subscripted accordingly.
 
 \(\epsilon_{X/M}\) = the substitution elasticity = the exponent on the \(\Delta Q_M\) leg (the \(1/p_{(\eta, \Delta_i)}\) leg) = that leg's share of pool value. The current case is \(\epsilon_{X/M} = 1/2\):
 
 \[
 	\begin{aligned}
-		\varphi_{1/2} \, (i_K ; \Delta Q , L)\, &= \, (\Delta Q_M^{L} (i_K) + \Delta Q_M)^{1/2}\cdot(\Delta Q_X^L \, (i_K) \, + \, \Delta Q_X)^{1/2}
+		\varphi_{1/2,\,0} \, (i_K ; \Delta Q , L)\, &= \, (\Delta Q_M^{L} (i_K) + \Delta Q_M)^{1/2}\cdot(\Delta Q_X^L \, (i_K) \, + \, \Delta Q_X)^{1/2}
 	\end{aligned}
 \]
 
@@ -368,6 +383,7 @@ CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because
 
 > LEAN (proved, `EtaTilde`, 23/23 axiom-clean, project `67b1c841`; doc \(\epsilon_{X/M}\) ↔ Lean `etaTilde`, the Lean name fixed by the bundle and never hand-edited): anchor `etaTilde_ratio`, observable `etaTilde_eq_priceEta_step`; bijection `etaTilde_mem_Ioo`, `etaTilde_strictMono`, `etaOfTilde_etaTilde`, `etaTilde_etaOfTilde`, `etaTilde_half_iff`, `etaTilde_tendsto_atTop/_atBot`; bridge `curvIndex_eq_of_etaTilde`, `curvOfTilde_etaTilde`, `tildeOfCurv_curvOfTilde`; range `curvOfTilde_mem_Ioo` (\(t \in (0,1)\) hypothesis NECESSARY — `Real.rpow` is \(\log|x|\) outside it); domain `admissible_iff`, `zero_curv_iff`; E8(6) `etaStar_tilde_mem_Ioo`, `curvIndex_etaStar_via_tilde`.
 > REFUTED: `not_curvOfTilde_strictAnti` — machine-checked negation of the antitone reading (witness above); the true direction is `curvOfTilde_strictMono`.
+> IN FLIGHT (projects `ffdb83fe`, `cd3558f7`) — NOT yet claimed: (i) continuity of \(\varphi_{\epsilon,\rho}\) at \(\rho = 0\) (the CES → Cobb–Douglas limit); (ii) that \(\rho = 1\) recovers Capponi's linear end \(F_0\) after the numeraire-relative substitution; (iii) that \(\epsilon\) and \(\rho\) are ORTHOGONAL axes — moving \(\rho\) is not moving \(\epsilon\) — and hence that \(\kappa_{\varphi}\) as proven here is the \(\rho = 0\) slice of a two-argument index \(\kappa_{\varphi}(\epsilon,\rho)\). Until those land, the family above is a DEFINITION and the \(\rho \neq 0\) slices carry no proven content.
 
 Define the per-leg fee decomposition (\(\phi_M, \phi_X\) are the M9 leg fees):
 
@@ -413,7 +429,7 @@ And define:
 
 \[
 	\begin{aligned}
-\phi \, ( \sigma \, (i (t));t) \, &= \bar \phi\, + \, \Big (\sum_j \, \frac{\alpha_j}{1 + \exp(\gamma_j \, (\beta_j - \sigma (i (t))))} \Big )\, \cdot \frac{\alpha_R}{1 \, + \, \exp(\gamma_R \, (\beta_R - \frac{\varphi_{1/2} \, (i_K ; \Delta Q , 0; t)}{\varphi_{1/2} \, (i_K ; 0, L; t)}))}
+\phi \, ( \sigma \, (i (t));t) \, &= \bar \phi\, + \, \Big (\sum_j \, \frac{\alpha_j}{1 + \exp(\gamma_j \, (\beta_j - \sigma (i (t))))} \Big )\, \cdot \frac{\alpha_R}{1 \, + \, \exp(\gamma_R \, (\beta_R - \frac{\varphi_{1/2,\,0} \, (i_K ; \Delta Q , 0; t)}{\varphi_{1/2,\,0} \, (i_K ; 0, L; t)}))}
 	\end{aligned}
 \]
 
@@ -425,7 +441,7 @@ Define:
 	\end{aligned}
 \]
 
-**Theorem 1 (Fee Envelope).** Writing \(u = \alpha_R\Big/\Big(1+\exp\Big(\gamma_R\Big(\beta_R - \frac{\varphi_{1/2}(i_K;\Delta Q,0;t)}{\varphi_{1/2}(i_K;0,L;t)}\Big)\Big)\Big)\):
+**Theorem 1 (Fee Envelope).** Writing \(u = \alpha_R\Big/\Big(1+\exp\Big(\gamma_R\Big(\beta_R - \frac{\varphi_{1/2,\,0}(i_K;\Delta Q,0;t)}{\varphi_{1/2,\,0}(i_K;0,L;t)}\Big)\Big)\Big)\):
 \[
 	\begin{aligned}
 		0 \leq u \leq \alpha_R, \qquad
@@ -637,7 +653,7 @@ The paper's fee symbol `γ` is transcribed as this document's fee `φ`; this doc
 The paper's Poisson block rate `λ` is transcribed through its own primitive `Δt ≜ λ⁻¹`, because this document's `λ` is the hazard rate. <!-- notation-map -->
 The paper's composite parameter `η ≜ γ√(2λ)/σ` is deliberately never named, since `η` is reserved project-wide for the pricing kernel. <!-- notation-map -->
 Probability convention (user, 2026-07-31): probabilities are \(\mathbb{P}_{\text{event}}\) — \(\mathbb{P}_{\Delta_{\text{ARB}}}\) = arbitrage-trade probability (the paper's `P_trade`; Lean `MevOptimization.ptrade`), \(\mathbb{P}_{L_{\text{JIT}}}\) = JIT-arrival probability (CJZ's `π`; Lean `πJ`). <!-- notation-map -->
-Root-block-rate factor: \(\sqrt{2/\Delta t}\) throughout, no composite abbreviation. Fee \(= \phi\) (ceiling \(\bar\phi\), set \(\Theta_{\phi}\)); the quote function is \(\varphi_{\epsilon_{X/M}}\), currently \(\varphi_{1/2}\); bare \(\varphi\) is NOT used.
+Root-block-rate factor: \(\sqrt{2/\Delta t}\) throughout, no composite abbreviation. Fee \(= \phi\) (ceiling \(\bar\phi\), set \(\Theta_{\phi}\)); the quote function is \(\varphi_{\epsilon,\,\rho}\) (CES; \(\epsilon\) = share axis, \(\rho\) = substitution axis), currently \(\varphi_{1/2,\,0}\); bare \(\varphi\) is NOT used.
 
 \(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)).
 \(\sigma_t = \sigma(i(t))\): enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\).
