@@ -120,12 +120,23 @@ executable cfmm-replicationPlank-rpc-api
     import:           warnings
     main-is:          Main.hs
     other-modules:    Sample
+    -- The last five arrived with 22-05's capture wiring: bytestring + memory-hexstring to render
+    -- the recorded tx hashes and slot0 words as hex, text for the manifest's Text fields,
+    -- web3-ethereum for the receipt Quantity, and process for the `date` call that stamps the
+    -- artifact (the same move capture-batch-return.sh and CheatSwapProof.hs both make, chosen over
+    -- a new `time` dependency). All five are already library dependencies, so no new package
+    -- enters the build plan.
     build-depends:
         base ^>=4.20.2.0,
         cfmm-replicationPlank-rpc-api,
         web3-solidity,
         web3-provider,
-        mwc-random
+        mwc-random,
+        bytestring,
+        memory-hexstring,
+        text,
+        web3-ethereum,
+        process
     hs-source-dirs:   offchain/app
     default-language: Haskell2010
 

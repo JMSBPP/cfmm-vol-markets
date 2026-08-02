@@ -15,6 +15,7 @@ module Sample
   , sample_order_shapes
   , sample_order_gen
   , sample_price_gen
+  , sample_stride
   , sample_tick
   ) where
 
@@ -81,6 +82,20 @@ sample_order_gen =
 -- visibly moves state away from PriceSetterHookScript's initial tick = 0.
 sample_tick :: Integer
 sample_tick = 60
+
+-- Seconds of chain time between two driver steps.
+--
+-- The CORRECTNESS floor is 1, not 12: the oracle's write guard is one timepoint per distinct uint32
+-- TIMESTAMP (RealizedVolatilityStateLib compares lastTimepointTimestamp to now for EQUALITY, with
+-- no block number anywhere), so any stride >= 1 keeps every step's write. 12 is chosen above that
+-- floor because it is mainnet's block cadence, which keeps the oracle's sigma^2 window arithmetic
+-- in a realistic regime rather than an artificially dense one -- and it is exactly as deterministic
+-- as 1 would be.
+--
+-- The value is RECORDED in driver-run-capture.json rather than only lived here, so an offline check
+-- answers "what stride was this run taken at" from the run's own data instead of from this file.
+sample_stride :: Integer
+sample_stride = 12
 
 -- Small sigma relative to dt = 1.0 -- deliberately unlikely to trip
 -- StochasticPriceGen.Simulate's domain guard on an ordinary demo run.
