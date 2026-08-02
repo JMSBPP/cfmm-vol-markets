@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
-status: in-progress
-stopped_at: "Completed 22-06-PLAN.md — DRIV-02 CLOSED, PHASE 22 COMPLETE (all 5 SC satisfied from committed artifacts) — rig LEFT RUNNING pid 1152682"
-last_updated: "2026-08-02T18:15:00Z"
-last_activity: "2026-08-02 — 22-06 executed: the three order shapes the generator cannot produce, exercised live and pinned by value; SC-5 replay measured both ways; PHASE 22 COMPLETE"
+status: build-complete
+stopped_at: Completed 22-06-PLAN.md — DRIV-02 CLOSED, PHASE 22 COMPLETE — rig LEFT RUNNING pid 1152682
+last_updated: "2026-08-02T18:24:07.972Z"
+last_activity: "2026-07-31 — 20-02 executed: 36 artifacts imported by checkout from 9f5ccba,"
 progress:
   total_phases: 19
   completed_phases: 11

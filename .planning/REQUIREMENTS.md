@@ -191,10 +191,18 @@ verified), `.planning/rpc-api-volorder-v2-HANDOFF.md`, `notes/DATA_CONTRACT.md`,
 
 ### Live Drivers
 
-- [x] **DRIV-01**: The stochastic price path drives
-      `RealizedVolatilityMod.writeTimepoint(uint32,int24)` per step against the rig,
-      each write emitting E3 `TimepointWritten` (the existing `write_price` flow stays
-      available, unchanged)
+- [x] **DRIV-01**: The stochastic price path drives one E3 `TimepointWritten` per step
+      against the rig, each carrying the tick the driver submitted (the existing
+      `write_price` flow stays available, unchanged).
+      **MECHANISM CORRECTED 2026-08-02 (user decision, recorded in
+      `.planning/phases/22-live-stochastic-drivers/22-CONTEXT.md`):** this requirement
+      originally read "drives `RealizedVolatilityMod.writeTimepoint(uint32,int24)` per
+      step" — i.e. an offchain client calling the vol module. That is exactly the
+      offchain intervention the architecture excludes. Timepoints **self-write** on the
+      hook: `DynamicFeeHook.plk:129`'s `beforeSwap` calls `rv_write_timepoint` on the
+      pre-swap tick, so the driver cheats slot0 and fires a minimal swap, and the client
+      only observes. No `writeTimepoint` client exists, by design. The OUTCOME above is
+      unchanged and is what Phase 22 verified.
 - [x] **DRIV-02**: Stochastic V2 VolOrder creation runs against the rig — single +
       batch under the V2 ABI — with the preview/readback consistency check (incl.
       targetVega content) passing live and E1 v2 observed under the pinned topic0
