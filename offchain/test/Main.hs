@@ -51,6 +51,7 @@ import Rig.Manifest
   , RigAddresses (..)
   , RigPins (..)
   , RigPool (..)
+  , load_rig
   , load_rig_from
   , rig_manifest_path
   , rig_pins_path
@@ -3001,11 +3002,120 @@ capture_seed_and_ticks capture = do
   ticks <- mapM (measurement_int "tick") steps
   pure (seed, configured, ticks)
 
--- | A PARTIAL run is representable, decodes, and says so -- and @DRIVER_CAPTURE@ is honoured.
+-- ---------------------------------------------------------------------------------------------
+-- THE STANDING GUARD AGAINST AN ADVERTISED-BUT-DEAD OVERRIDE
+-- ---------------------------------------------------------------------------------------------
+
+-- | One advertised path override, and the loader that CONSUMES the path it resolves.
 --
--- The override half is not decoration either. 22-03's @RIG_MANIFEST@ and 22-04's @proof_file@ were
--- both hardcoded constants that silently defeated the falsification aimed through them. This check
--- proves the override is live BEFORE any mutant run is trusted against the artifact.
+-- 'ov_probe' runs with the variable ALREADY pointed at a path that does not exist, and reports
+-- the loader's failure text -- or 'Nothing' if the loader did not fail, which is the outcome the
+-- sweep exists to catch.
+data OverrideProbe = OverrideProbe
+  { ov_var     :: String
+  , ov_resolve :: IO FilePath
+  , ov_probe   :: IO (Maybe String)
+  }
+
+-- | Every override the Haskell surface advertises.
+--
+-- @RIG_MANIFEST@ and @RIG_PINS@ are probed through 'load_rig' and not through 'load_rig_from':
+-- 'load_rig' is the function that RESOLVES both, and resolution is the thing under test. The
+-- other two are probed through 'read_json_file', which is what every capture check calls.
+advertised_overrides :: [OverrideProbe]
+advertised_overrides =
+  [ OverrideProbe "RIG_MANIFEST" rig_manifest_path rig_probe
+  , OverrideProbe "RIG_PINS" rig_pins_path rig_probe
+  , OverrideProbe "RIG_CHEAT_SWAP_PROOF" proof_file (json_probe proof_file proof_command)
+  , OverrideProbe "DRIVER_CAPTURE" capture_path (json_probe capture_path driver_capture_command)
+  ]
+  where
+    rig_probe :: IO (Maybe String)
+    rig_probe = do
+      attempt <- try load_rig
+      pure $ case attempt :: Either IOException Rig of
+        Left err -> Just (show err)
+        Right _  -> Nothing
+
+    json_probe :: IO FilePath -> String -> IO (Maybe String)
+    json_probe resolve advice = do
+      path <- resolve
+      outcome <- read_json_file path ("produce it with: " ++ advice)
+      pure $ case outcome of
+        Left err -> Just err
+        Right _  -> Nothing
+
+-- | EVERY advertised override is honoured, and the resolved path is actually CONSUMED.
+--
+-- == WHY THIS IS A CHECK AND NOT A CONVENTION
+--
+-- Three separate path constants in this module have now been measured as advertised-but-dead:
+-- @RIG_MANIFEST@ (22-03), @proof_file@ \/ @RIG_CHEAT_SWAP_PROOF@ (22-04) and @RIG_PINS@ (22-07).
+-- In each case the variable was documented in @offchain\/rig\/README.md@, named in
+-- @Rig.Manifest@'s own error messages (\"Override the path with the ... environment variable\")
+-- and honoured by the shell half of the rig -- and ignored here. The consequence is the same
+-- every time and it is not a documentation bug: the falsification aimed THROUGH the variable
+-- comes back GREEN, so the check it was aimed at is untested and the artifact it guards is
+-- untestable except by damaging it.
+--
+-- A one-off fix per instance is what produced three instances. This sweep is the general form.
+--
+-- == WHAT IS ASSERTED, PER VARIABLE
+--
+--   1. The resolver returns the override VERBATIM.
+--   2. It returns something DIFFERENT from what it returns with the variable unset -- otherwise
+--      a resolver that ignored its input but happened to name the same path would pass (1).
+--   3. Pointing it at a path that does not exist makes the CONSUMER fail, and fail LOUDLY:
+--      the failure text must name the resolved path. (1) and (2) alone would be satisfied by a
+--      resolver whose result nothing reads, which is the defect restated one layer down.
+every_advertised_override_is_honoured :: Check
+every_advertised_override_is_honoured =
+  Check "every_advertised_override_is_honoured" . guarded $ do
+    outcomes <- mapM probe_override advertised_overrides
+    pure (mapM_ id outcomes)
+
+probe_override :: OverrideProbe -> IO (Either String ())
+probe_override op = do
+  let var = ov_var op
+  original <- lookupEnv var
+  let restore = maybe (unsetEnv var) (setEnv var) original
+      -- A directory that cannot exist, so the probe cannot accidentally find a real file.
+      bogus = "/nonexistent-override-probe" </> (var ++ ".json")
+
+  flip finally restore $ do
+    unsetEnv var
+    defaulted <- ov_resolve op
+    setEnv var bogus
+    overridden <- ov_resolve op
+    failure <- ov_probe op
+    pure $ do
+      _ <- expect (overridden == bogus)
+             (var ++ " is ADVERTISED and DEAD: its resolver returned " ++ show overridden
+               ++ " with the variable set to " ++ show bogus
+               ++ ". Every falsification aimed through this variable is vacuous until it is"
+               ++ " honoured -- measured three times in this module already (22-03 RIG_MANIFEST,"
+               ++ " 22-04 RIG_CHEAT_SWAP_PROOF, 22-07 RIG_PINS).")
+      _ <- expect (overridden /= defaulted)
+             (var ++ " resolves to " ++ show defaulted ++ " both with and without the variable"
+               ++ " set -- the override is vacuous")
+      case failure of
+        Nothing ->
+          Left (var ++ " resolved to " ++ show bogus ++ " and the consumer LOADED ANYWAY."
+                 ++ " A resolver whose result nothing reads is the same defect one layer down:"
+                 ++ " the override looks live and still cannot aim a falsification at anything.")
+        Just msg ->
+          expect (bogus `isInfixOf` msg)
+            (var ++ " was pointed at " ++ show bogus ++ " and the consumer failed, but the"
+              ++ " failure does not NAME the resolved path, so an operator cannot tell which"
+              ++ " file the suite was actually reading:\n      " ++ msg)
+
+-- | A PARTIAL run is representable, decodes, and says so.
+--
+-- The @DRIVER_CAPTURE@ half of this check MOVED to
+-- 'every_advertised_override_is_honoured'. It was the right instrument aimed at one variable out
+-- of five; the whole point of the pattern it guards against is that it recurs, and it did --
+-- @RIG_PINS@ was dead in this module until 22-07 fixed it. The sweep is the standing guard, this
+-- check is now purely about the round trip.
 driv01_capture_round_trips :: Check
 driv01_capture_round_trips = Check "driv01_capture_round_trips" . guarded $ do
   original <- lookupEnv capture_env_var
@@ -3014,27 +3124,17 @@ driv01_capture_round_trips = Check "driv01_capture_round_trips" . guarded $ do
   tmp <- getTemporaryDirectory
   let path = tmp </> "driv01-capture-round-trip.json"
 
-  (overridden, defaulted) <- flip finally restore $ do
+  decoded <- flip finally restore $ do
     setEnv capture_env_var path
-    o <- capture_path
-    unsetEnv capture_env_var
-    d <- capture_path
-    pure (o, d)
-
-  write_capture path truncated_run
-  decoded <- eitherDecodeFileStrict path :: IO (Either String Value)
-  removeFile path
+    write_capture path truncated_run
+    -- Read back through 'capture_path' rather than through @path@ directly, so the round trip
+    -- exercises the resolver a real consumer would use.
+    resolved <- capture_path
+    d <- eitherDecodeFileStrict resolved :: IO (Either String Value)
+    removeFile resolved
+    pure d
 
   pure $ do
-    _ <- expect (overridden == path)
-           ("capture_path ignored " ++ capture_env_var ++ ": it returned " ++ show overridden
-             ++ " with the variable set to " ++ show path
-             ++ ". A check whose input path is a constant can only be falsified by damaging the"
-             ++ " evidence it guards (22-03, 22-04 -- twice measured).")
-    _ <- expect (overridden /= defaulted)
-           ("capture_path returns " ++ show defaulted ++ " both with and without "
-             ++ capture_env_var ++ " -- the override is vacuous")
-
     value <- decoded
     complete <- json_field "dr_complete" value >>= json_bool
     _ <- expect (not complete)
@@ -3972,6 +4072,7 @@ main = do
           , driv01_extreme_tick_is_survivable
           , driv01_seed_is_reproducible
           , driv01_seed_replays_the_committed_path
+          , every_advertised_override_is_honoured
           , driv01_capture_round_trips
           , driv01_run_capture_is_present_and_fresh
           , driv01_e3_per_step_matches_submitted
