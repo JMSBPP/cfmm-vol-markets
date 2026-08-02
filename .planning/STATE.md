@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 22-02-PLAN.md (pure offchain surface: E3/E5 decoders, slot0 composition, swap calldata) — 68/68 chain-independent"
-last_updated: "2026-08-02T16:22:12.538Z"
-last_activity: "2026-07-31 — 20-02 executed: 36 artifacts imported by checkout from 9f5ccba,"
+stopped_at: "Completed 22-03-PLAN.md (swappable rig: 6 scripts, 9 contracts, probe swap PROVEN to write a timepoint) — rig LEFT RUNNING pid 1016807"
+last_updated: "2026-08-02T16:45:00Z"
+last_activity: "2026-08-02 — 22-03 executed: swappable rig, deterministic clock origin, SC-5 re-measured"
 progress:
   total_phases: 19
   completed_phases: 10
   total_plans: 32
-  completed_plans: 28
+  completed_plans: 29
 ---
 
 # Project State
@@ -27,8 +27,55 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 ## Current Position
 
 Phase: 22 — Live Stochastic Drivers (DRIV-01, DRIV-02) — **IN PROGRESS**
-Plan: 2 of 6 complete (22-01 and 22-02, both wave 1, DONE).
-Next action: **22-03** (rebuild the rig at `TICK_SPACING = 20` and run `InitSwappableRig.s.sol`).
+Plan: 3 of 6 complete (22-01, 22-02 wave 1; 22-03 wave 2 — all DONE).
+Next action: **22-04** (a standing swappable rig is available — pid 1016807, block 13).
+
+Status: **22-03 DONE — the pool is SWAPPABLE and the write path is PROVEN, not assumed.**
+`deploy-rig.sh` now runs SIX scripts and stands up NINE contracts from one command. The sixth is
+`InitSwappableRig.s.sol` (`--tc`, `--broadcast --via-ir`, **no `--ffi`**, env
+`POOL_MANAGER/HOOK/TOKEN0/TOKEN1`): two vendored v4-core routers, ONE full-range position
+(±887260, L=1e21 — **G4: mint no second range**), and a probe swap. The rig OWNS the acceptance
+check — it parses the console line and asserts it, the same move Step 6 already made for
+`seeded : true` — and observed **`probe swap wrote a timepoint: 1700000003 -> 1700000010`**.
+`anvil --silent --timestamp 1700000000` gives the chain the SAME origin as the
+`RealizedVolatilityMod` seed (`cast block 0 --field timestamp` = 1700000000); without it the
+module sat at 1.7e9 while the hook's own buffer seeded at wall clock ~1.78e9 and any
+`INIT_TS + k*stride` driver would ask anvil for timestamps 2.7 years in the past. **HONEST LIMIT
+recorded in the script and the README: `--timestamp` fixes the ORIGIN, not the RATE** — the head
+was `1700000027` at block 13 by the end of the plan, so **22-05 must READ THE CHAIN HEAD**.
+`pool.tickSpacing` = **20**, which is THE proof the stale ts=10 rig was rebuilt rather than
+patched. **SC-5 RE-MEASURED, not inherited** across the clock change and the new script: two
+from-scratch runs, `diff -u` EMPTY, normalised sha256
+**`e0f01eb5fc3545f7d1a7066a95a42c62c271aa333bf955fd6359d286abfeec44`** on both, `generatedAt`
+`16:35:12Z` vs `16:35:21Z`; no field moved, both router addresses and `pool.poolId` stable.
+**A FOURTH PREDICTED DISCRIMINATOR MEASURED AND REFUTED — and this one broke the plan's own
+procedure.** The plan's Task-2 falsification is `RIG_MANIFEST=<copy without PoolSwapTest> cabal
+test`. Applied verbatim it went **GREEN at 68/68**: `offchain/test/Main.hs` resolved the manifest
+through a HARDCODED `FilePath` constant and discarded the variable, while `verify-rig.sh` honours
+it and every `Rig.Manifest` error message tells the reader to use it. The Haskell half of the rig
+verification could not be pointed at any manifest, for any falsification, ever. **FIXED, not
+noted** (`585a2c2`): `manifest_file :: IO FilePath` via `Rig.Manifest.rig_manifest_path`; the same
+falsification now exits 1 at **66/68** with `sc3_load_succeeds` and
+`rpin05_capture_is_present_and_fresh` both naming `PoolSwapTest`. **Probe 6** (`verify-rig.sh`)
+asserts both routers' `manager()` equals the manifest `PoolManager`, accessor READ out of
+`v4-core/src/test/PoolTestBase.sol:16`, never guessed — and it was isolated by CONSTRUCTING the
+fault: a second, genuine `PoolSwapTest` deployed against the `PriceSetterPoolManager` passes the
+bytecode probe at **5035 bytes, the same size as the real one**, passes Probes 1–5, and reddens
+ONLY Probe 6. The plan's literal instruction (point the entry at the other PoolManager) and the
+sharper variant (swap `.contracts.PoolManager`) were both run and both recorded as NOT isolating
+— the second reddens at Probe 5 first. `Rig.Manifest.required_contracts` is now NINE. The two
+now-false `tickSpacing` comments (`VolOrder/Decode.hs`, `test/Main.hs`) RECORD the resolution
+(PR #18 / `2039f27` / F2) instead of asserting the stale claim, phrased so a grep for the stale
+string finds nothing; `Decode.hs` adds the consequence the original never stated — the `PoolKey`
+hash and therefore the `poolId` moved with `TICK_SPACING`, so pre-`2039f27` manifests are stale
+**by construction**. `cabal test` = **68/68**, exit 0, zero `-Wall` warnings, still
+chain-independent (`grep -cE 'cast call|HttpProvider|8545' Main.hs` = 0). Every command in the
+README's clean-machine sequence RUN top to bottom, **all exit 0**, and `cabal run`'s batch
+re-measured at **7 succeeded / 0 failed (of 7)** — the README's inherited 21-05 figure of 2/0 was
+replaced with today's. **D22-1 deferred:** `RIG_PINS` is advertised as an override the suite does
+not honour either (`pins_file` is consumed in PURE message code; `rig-pins.json` is committed, so
+`git checkout` is already its falsifier). **Rig LEFT RUNNING** for 22-04: pid 1016807, block 13,
+head ts 1700000027, poolId `0x00c35757…4b49ab8a`. Territory clean throughout.
 
 Status: **22-02 DONE — the whole PURE offchain surface Phase 22 needs exists, and it is
 chain-independent by measurement, not by claim** (the final 68/68 gate ran with `pgrep anvil`
