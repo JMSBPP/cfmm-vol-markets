@@ -21,7 +21,7 @@
 -- strip trailing parameter identifiers, strip whitespace -- idempotently.
 module Main (main) where
 
-import Control.Exception (IOException, try)
+import Control.Exception (IOException, finally, try)
 import Control.Monad (replicateM)
 import Crypto.Ethereum.Utils (keccak256)
 import Data.Aeson (Value (..), eitherDecodeFileStrict, encodeFile)
@@ -37,8 +37,9 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing)
 import Data.Solidity.Prim.Address (Address, fromHexString)
 import qualified Data.Text as T
+import Data.Word (Word32)
 import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
-import System.Environment (lookupEnv)
+import System.Environment (lookupEnv, setEnv, unsetEnv)
 import System.Exit (ExitCode (..), exitFailure)
 import System.FilePath ((</>))
 import System.Process (readProcessWithExitCode)
@@ -65,6 +66,18 @@ import VolOrder.Decode
   )
 import CheatSwap.Encoding (encode_extsload, encode_swap, extsload_signature, swap_signature)
 import CheatSwap.Types (check_cheat_tick, compose_slot0, pool_state_slot)
+import Driver.Capture
+  ( DriverRig (..)
+  , DriverRun (..)
+  , DriverSeed (..)
+  , E3Record (..)
+  , E5Record (..)
+  , LegacyWritePrice (..)
+  , StepRecord (..)
+  , capture_path
+  , write_capture
+  )
+import Driver.Seed (gen_from_seed, resolve_seed, seed_env_var)
 import RealizedVol.Decode
   ( FeeApplied (..)
   , TimepointWritten (..)
@@ -74,6 +87,8 @@ import RealizedVol.Decode
   )
 import StochasticOrderGen.Simulate (draw_target_vega)
 import StochasticOrderGen.Types (VegaDraw (..))
+import StochasticPriceGen.Simulate (simulate_path)
+import StochasticPriceGen.Types (ProcessType (..), StochasticPriceGen (..))
 import VolOrder.Encoding (encode_create_order, pack_vol_order_input)
 import VolOrder.Types (VolOrder (..))
 
@@ -2758,6 +2773,213 @@ driv01_extreme_tick_is_survivable = Check "driv01_extreme_tick_is_survivable" . 
       ("the floor-tick swap recorded tick " ++ show e3_tick ++ ", expected -887259")
 
 -- ---------------------------------------------------------------------------------------------
+-- DRIV-01: the RECORDED seed, and an artifact that can represent a truncated run
+--
+-- SC-5 asks for a reproducible run. Before this plan the driver called @createSystemRandom@:
+-- unseeded, unrecorded, and therefore unreplayable -- a completed run could not say which path it
+-- had taken. 'Driver.Seed' closes that, and the checks below are what stop it from silently
+-- re-opening.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The path shape the seed check simulates over.
+--
+-- Constructed HERE rather than imported: @Sample.sample_price_gen@ lives in the EXECUTABLE
+-- component, which a test suite cannot see. The four fields are the ones the demo carries today
+-- (GBM mu = 0, sigma = 0.05, size = 5, initial_tick = 60, dt = 1.0). If the demo shape later
+-- moves, this check keeps pinning the LAW plus the RNG stream, which is the thing it exists for.
+seed_check_shape :: StochasticPriceGen
+seed_check_shape =
+  StochasticPriceGen
+    { process      = GBM { mu = 0.0, sigma = 0.05 }
+    , size         = 5
+    , initial_tick = 60
+    , dt           = 1.0
+    }
+
+-- | The pinned seed. A single decimal 'Word32' is the whole @RIG_SEED@ contract.
+seed_check_value :: Word32
+seed_check_value = 123456789
+
+-- | The first three ticks 'seed_check_value' produces over 'seed_check_shape'. MEASURED during
+-- 22-05 Task 1, never derived.
+--
+-- These literals are the point of the check, not decoration. 21-04 measured a self-consistency
+-- assertion ("two draws from one seed agree") staying GREEN under a mutant that replaced the draw
+-- law outright, because a wrong law is just as self-consistent as a right one. Only a VALUE pin
+-- sees a stream change; @gen_from_seed@ ignoring its argument reddens exactly here.
+driv01_seed_first_three :: [Integer]
+driv01_seed_first_three = [-1, -1, -1]
+
+-- | The seed is reproducible, settable, reported, and refuses a malformed value.
+driv01_seed_is_reproducible :: Check
+driv01_seed_is_reproducible = Check "driv01_seed_is_reproducible" . guarded $ do
+  original <- lookupEnv seed_env_var
+
+  let restore = maybe (unsetEnv seed_env_var) (setEnv seed_env_var) original
+
+  measured <- flip finally restore $ do
+    -- Two independent generators, same seed, same process: the paths must agree.
+    g1 <- gen_from_seed seed_check_value
+    path1 <- simulate_path g1 seed_check_shape
+    g2 <- gen_from_seed seed_check_value
+    path2 <- simulate_path g2 seed_check_shape
+
+    setEnv seed_env_var (show seed_check_value)
+    supplied <- resolve_seed
+
+    unsetEnv seed_env_var
+    drawn <- resolve_seed
+
+    setEnv seed_env_var "not-a-number"
+    malformed <- try resolve_seed :: IO (Either IOException (Word32, String))
+
+    pure (path1, path2, supplied, drawn, malformed)
+
+  let (path1, path2, (supplied_seed, supplied_note), (_, drawn_note), malformed) = measured
+
+  pure $ do
+    _ <- expect (path1 == path2)
+           ("two generators built from seed " ++ show seed_check_value ++ " produced DIFFERENT"
+             ++ " paths:\n      first  : " ++ show path1
+             ++ "\n      second : " ++ show path2
+             ++ "\n      gen_from_seed is not seeding from its argument, so RIG_SEED cannot"
+             ++ " replay anything.")
+
+    _ <- expect (take 3 path1 == driv01_seed_first_three)
+           ("the first three ticks from seed " ++ show seed_check_value ++ " are "
+             ++ show (take 3 path1) ++ ", not the pinned " ++ show driv01_seed_first_three
+             ++ ". Either the simulation law changed or the generator is no longer seeded from"
+             ++ " RIG_SEED. The self-consistency assertion above cannot tell those apart -- this"
+             ++ " value pin is the one that can (21-04's measured lesson).")
+
+    _ <- expect (supplied_seed == seed_check_value)
+           ("resolve_seed returned " ++ show supplied_seed ++ " with " ++ seed_env_var ++ "="
+             ++ show seed_check_value ++ " -- a supplied seed must be used verbatim")
+
+    _ <- expect (seed_env_var `isInfixOf` supplied_note)
+           ("the supplied-seed provenance note does not name " ++ seed_env_var ++ ": "
+             ++ show supplied_note)
+
+    _ <- expect ("DRAWN" `isInfixOf` drawn_note)
+           ("with " ++ seed_env_var ++ " unset the provenance note is " ++ show drawn_note
+             ++ " -- it must say the seed was DRAWN, because an unrecorded drawn seed is exactly"
+             ++ " the unreplayable run this module exists to prevent")
+
+    case malformed of
+      Right (w, _) ->
+        Left ("resolve_seed accepted " ++ seed_env_var ++ "=\"not-a-number\" and returned "
+               ++ show w ++ ". A malformed seed must FAIL LOUDLY: silently drawing one instead"
+               ++ " produces a run the operator believes is replayable and is not.")
+      Left err ->
+        expect (seed_env_var `isInfixOf` show err)
+          ("resolve_seed rejected the malformed value but the message does not name "
+            ++ seed_env_var ++ ": " ++ show err)
+
+-- | A PARTIAL run is representable, decodes, and says so -- and @DRIVER_CAPTURE@ is honoured.
+--
+-- The override half is not decoration either. 22-03's @RIG_MANIFEST@ and 22-04's @proof_file@ were
+-- both hardcoded constants that silently defeated the falsification aimed through them. This check
+-- proves the override is live BEFORE any mutant run is trusted against the artifact.
+driv01_capture_round_trips :: Check
+driv01_capture_round_trips = Check "driv01_capture_round_trips" . guarded $ do
+  original <- lookupEnv capture_env_var
+  let restore = maybe (unsetEnv capture_env_var) (setEnv capture_env_var) original
+
+  tmp <- getTemporaryDirectory
+  let path = tmp </> "driv01-capture-round-trip.json"
+
+  (overridden, defaulted) <- flip finally restore $ do
+    setEnv capture_env_var path
+    o <- capture_path
+    unsetEnv capture_env_var
+    d <- capture_path
+    pure (o, d)
+
+  write_capture path truncated_run
+  decoded <- eitherDecodeFileStrict path :: IO (Either String Value)
+  removeFile path
+
+  pure $ do
+    _ <- expect (overridden == path)
+           ("capture_path ignored " ++ capture_env_var ++ ": it returned " ++ show overridden
+             ++ " with the variable set to " ++ show path
+             ++ ". A check whose input path is a constant can only be falsified by damaging the"
+             ++ " evidence it guards (22-03, 22-04 -- twice measured).")
+    _ <- expect (overridden /= defaulted)
+           ("capture_path returns " ++ show defaulted ++ " both with and without "
+             ++ capture_env_var ++ " -- the override is vacuous")
+
+    value <- decoded
+    complete <- json_field "dr_complete" value >>= json_bool
+    _ <- expect (not complete)
+           "a truncated DriverRun round-tripped with dr_complete = true"
+
+    steps <- json_field "steps" value >>= json_array
+    _ <- expect (length steps == 1)
+           ("the truncated run round-tripped with " ++ show (length steps)
+             ++ " steps, expected 1 -- a partial artifact that does not decode is worth nothing,"
+             ++ " and flush-on-failure is the only debuggable outcome of a mid-run abort")
+
+    configured <- json_field "configuredSize" value >>= json_integer
+    expect (configured == 5)
+      ("configuredSize round-tripped as " ++ show configured ++ ", expected 5 -- without it a"
+        ++ " reader cannot tell a truncated run from a short one by counting")
+  where
+    capture_env_var = "DRIVER_CAPTURE"
+
+-- | One mined step out of five configured: the shape a mid-run abort must leave behind.
+truncated_run :: DriverRun
+truncated_run =
+  DriverRun
+    { dr_generated_at    = "1970-01-01T00:00:00Z"
+    , dr_chain_id        = 31337
+    , dr_generated_from  = "round-trip fixture -- not a live run"
+    , dr_complete        = False
+    , dr_configured_size = 5
+    , dr_rig             = fixture_rig
+    , dr_seed            = DriverSeed { ds_rng = 1, ds_t0 = Just 1700000012, ds_stride = 12 }
+    , dr_steps           = [fixture_step]
+    , dr_legacy_write_price = Just fixture_legacy
+    }
+
+fixture_rig :: DriverRig
+fixture_rig =
+  DriverRig
+    { drg_pool_manager      = "fixture"
+    , drg_dynamic_fee_hook  = "fixture"
+    , drg_price_setter_hook = "fixture"
+    , drg_swap_router       = "fixture"
+    , drg_vol_order_manager = "fixture"
+    , drg_pool_id           = "fixture"
+    , drg_tick_spacing      = 20
+    , drg_deployer          = "fixture"
+    , drg_sender            = "fixture"
+    }
+
+fixture_step :: StepRecord
+fixture_step =
+  StepRecord
+    { sr_k           = 0
+    , sr_tick        = 60
+    , sr_expected_ts = 1700000012
+    , sr_tx_hash     = Just "fixture"
+    , sr_status      = Just 1
+    , sr_e3_count    = Just 1
+    , sr_e5_count    = Just 1
+    , sr_e3          = Just (E3Record 1700000012 60 1 2 3)
+    , sr_e5          = Just (E5Record 4 15000)
+    }
+
+fixture_legacy :: LegacyWritePrice
+fixture_legacy =
+  LegacyWritePrice
+    { lwp_tick         = 60
+    , lwp_pool_manager = "fixture"
+    , lwp_slot         = "fixture"
+    , lwp_value        = "fixture"
+    }
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -2809,6 +3031,8 @@ main = do
           , driv01_wrong_pool_is_silent
           , driv01_same_second_is_a_silent_noop
           , driv01_extreme_tick_is_survivable
+          , driv01_seed_is_reproducible
+          , driv01_capture_round_trips
           ]
             ++ per_pin_checks pins
 
