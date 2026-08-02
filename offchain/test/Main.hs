@@ -2909,6 +2909,98 @@ driv01_seed_is_reproducible = Check "driv01_seed_is_reproducible" . guarded $ do
           ("resolve_seed rejected the malformed value but the message does not name "
             ++ seed_env_var ++ ": " ++ show err)
 
+-- | THE SEVENTH DISCRIMINATOR: the committed run's ticks are what the committed run's OWN SEED
+-- produces.
+--
+-- == THE GAP
+--
+-- Before this check, @seed.rng@ was read by NO check in this suite. 'capture_schedule' reads
+-- @seed.t0@ and @seed.stride@ and nothing else, and 'driv01_seed_first_three' pins a draw the
+-- artifact does not contain (see the ordinal note below). The seed was therefore RECORDED and
+-- never CONSUMED -- a number in a file that nothing could disagree with.
+--
+-- The consequence is P2, the shape this workstream keeps finding: every tick assertion over the
+-- artifact compared one artifact-recorded field against another. @driv01_e3_per_step_matches_
+-- submitted@ compares @e3.tick@ against @steps[].tick@, and BOTH are recorded by the same driver
+-- in the same pass. Replace the driver's generated path with a constant and that equality stays
+-- perfectly TRUE: the hook records whatever it was handed. Nothing in the suite could tell a
+-- stochastic path from five copies of one number.
+--
+-- This check is the outside oracle. It recomputes the path from @seed.rng@ IN THIS PROCESS and
+-- requires the artifact to match it, so the committed evidence is now pinned to something that
+-- was not produced by the run being judged.
+--
+-- == THE ORDINAL, AND WHY IT IS THE SECOND DRAW
+--
+-- @gen@ is consumed SEQUENTIALLY by the driver (@offchain\/app\/Main.hs@). @run_price_gen@ draws
+-- FIRST (the legacy @PriceSetterHook@ path, line 199); @run_cheat_swap_path@ draws SECOND (line
+-- 202) and its ticks are the ones that reach @steps[]@. Both fold over the SAME
+-- @sample_price_gen@ shape, so the two draws are the same length and differ only in stream
+-- position -- which is exactly the mistake that is invisible to inspection. MEASURED for seed
+-- 123456789: the first draw is @[455, 233, -14, -82, -909]@ ('driv01_seed_first_three' pins its
+-- head) and the second is @[237, -556, -1000, -1344, -1191]@, which is the committed artifact.
+-- The inequality below is asserted rather than assumed, so a future edit that "fixes" this check
+-- by reaching for the first draw reddens instead of quietly re-opening the gap.
+driv01_seed_replays_the_committed_path :: Check
+driv01_seed_replays_the_committed_path =
+  Check "driv01_seed_replays_the_committed_path" . guarded $ do
+    cf <- capture_path
+    loaded <- read_json_file cf ("produce it with: " ++ driver_capture_command)
+    case loaded >>= capture_seed_and_ticks of
+      Left why -> pure (Left why)
+      Right (seed, configured, recorded) -> do
+        gen <- gen_from_seed seed
+        first_draw  <- simulate_path gen seed_check_shape
+        second_draw <- simulate_path gen seed_check_shape
+        pure $ do
+          _ <- expect (configured == toInteger (size seed_check_shape))
+                 ("the run was configured for " ++ show configured ++ " steps but this check"
+                   ++ " replays a path of " ++ show (size seed_check_shape) ++ ". The path length"
+                   ++ " is an ARGUMENT to the draw, not a property of it: replaying the wrong"
+                   ++ " length consumes the wrong number of variates and shifts the second draw"
+                   ++ " off the stream entirely. Update seed_check_shape to match"
+                   ++ " Sample.sample_price_gen.")
+
+          _ <- expect (second_draw == recorded)
+                 ("the committed run does NOT replay from its own recorded seed "
+                   ++ show seed ++ ".\n      artifact steps[].tick : " ++ show recorded
+                   ++ "\n      replayed from the seed: " ++ show second_draw
+                   ++ "\n      Either the artifact's ticks did not come from that seed (the run"
+                   ++ " is not the run it claims to be), or the simulation law moved under a"
+                   ++ " committed artifact. This is the ONLY assertion in the suite whose expected"
+                   ++ " value does not come out of the same JSON object as the actual one:"
+                   ++ " every other tick equality here compares two fields the SAME driver wrote"
+                   ++ " in the same pass, and a driver that emitted a constant path would satisfy"
+                   ++ " all of them. Re-take it: " ++ driver_capture_command)
+
+          expect (first_draw /= recorded)
+            ("the artifact's ticks match the FIRST draw from seed " ++ show seed ++ ", which is"
+              ++ " run_price_gen's legacy path (app/Main.hs:199), not run_cheat_swap_path's"
+              ++ " (app/Main.hs:202). Either the driver's draw order changed -- in which case the"
+              ++ " legacy and DRIV-01 paths are no longer independent streams and this artifact's"
+              ++ " provenance needs re-establishing -- or this check is replaying the wrong"
+              ++ " ordinal and is no longer an outside oracle at all.")
+
+-- | @seed.rng@, @configuredSize@ and the SUBMITTED ticks, read out of one capture.
+--
+-- @rng@ is range-checked back into a 'Word32' rather than truncated. @gen_from_seed@ takes a
+-- 'Word32' and @fromInteger@ would wrap silently, so an artifact carrying a value outside the
+-- range would be replayed against a DIFFERENT stream and the mismatch would be blamed on the
+-- ticks.
+capture_seed_and_ticks :: Value -> Either String (Word32, Integer, [Integer])
+capture_seed_and_ticks capture = do
+  raw <- json_field "seed" capture >>= json_field "rng" >>= json_integer
+  seed <-
+    if raw >= 0 && raw <= toInteger (maxBound :: Word32)
+      then Right (fromInteger raw :: Word32)
+      else Left ("the capture records seed.rng = " ++ show raw ++ ", which is not a Word32."
+                  ++ " Driver.Seed's whole contract is a single decimal Word32; a value outside"
+                  ++ " that range cannot have produced this run.")
+  configured <- json_field "configuredSize" capture >>= json_integer
+  steps <- json_field "steps" capture >>= json_array
+  ticks <- mapM (measurement_int "tick") steps
+  pure (seed, configured, ticks)
+
 -- | A PARTIAL run is representable, decodes, and says so -- and @DRIVER_CAPTURE@ is honoured.
 --
 -- The override half is not decoration either. 22-03's @RIG_MANIFEST@ and 22-04's @proof_file@ were
@@ -3788,6 +3880,7 @@ main = do
           , driv01_same_second_is_a_silent_noop
           , driv01_extreme_tick_is_survivable
           , driv01_seed_is_reproducible
+          , driv01_seed_replays_the_committed_path
           , driv01_capture_round_trips
           , driv01_run_capture_is_present_and_fresh
           , driv01_e3_per_step_matches_submitted
