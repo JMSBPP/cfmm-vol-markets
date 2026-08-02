@@ -529,7 +529,7 @@ are readable here will stall on its first step. Importing them is Phase 20's fir
 
 - [x] **Phase 20: Deploy Rig & Source-of-Truth Import** - Bring the plank branch's four deploy scripts, V2 interfaces and notes onto `feat/rpc-api` by import (never re-typed), stand the full contract set up on a local anvil, and capture addresses + selectors + topic0s into one rig manifest the drivers consume (RIG-01) (completed 2026-07-31)
 - [x] **Phase 21: V2 ABI Re-Pin & targetVega Generation** - Re-pin `VolOrder/{Types,Encoding,Decode,Rpc}.hs` to the V2 4-arg ABI across all four byte layouts, kill the stale topic0 with a signature-derived pin test, carry `target_vega` end-to-end, and draw it per order in raw L units (RPIN-01..06, VEGA-01) (completed 2026-08-01)
-- [ ] **Phase 22: Live Stochastic Drivers** - Both drivers run end-to-end against the rig: price diffusion writing timepoints (E3 per step) and Poisson V2 VolOrder creation single + batch, with preview/readback consistency including targetVega and E1 v2 observed under the pinned topic0 (DRIV-01, DRIV-02)
+- [x] **Phase 22: Live Stochastic Drivers** - Both drivers run end-to-end against the rig: price diffusion writing timepoints (E3 per step) and Poisson V2 VolOrder creation single + batch, with preview/readback consistency including targetVega and E1 v2 observed under the pinned topic0 (DRIV-01, DRIV-02) (completed 2026-08-02)
 
 ## Phase Details
 
@@ -569,7 +569,7 @@ Plans:
 - [x] 21-02-PLAN.md — capture-batch-return.sh + committed provenance-bearing capture off the LIVE rig (the only chain-touching work) [wave 1]
 - [x] 21-03-PLAN.md — E1 v2 decoder rewrite (2 topics, 4 data words) + Report.hs; stale-topic0 and perturbed-targetVega observed-RED demos [wave 2]
 - [x] 21-04-PLAN.md — VegaDraw = LogUniform[1e18, 1e21] + draw_target_vega guard + OrderShape + generator wiring; fixed-seed band checks [wave 3]
-- [ ] 21-05-PLAN.md — RPIN-05 assertions over the capture (suite stays chain-independent) + peer-bytes artifact + cross-track findings + phase gate [wave 4]
+- [x] 21-05-PLAN.md — RPIN-05 assertions over the capture (suite stays chain-independent) + peer-bytes artifact + cross-track findings + phase gate [wave 4]
 
 ### Phase 22: Live Stochastic Drivers
 **Goal**: Both drivers run end-to-end against the live rig under the V2 ABI and produce the real event set — the milestone's acceptance bar, and the input the queued v6.0 subgraph will index.
@@ -588,8 +588,8 @@ Plans:
 - [x] 22-02-PLAN.md — The pure offchain surface: E3/E5 decoders with signed int24/int56 decoding (none exists anywhere in `offchain/` today), slot0 word composition, `cast`-shelled extsload + swap calldata [wave 1]
 - [x] 22-03-PLAN.md — Swappable rig: `deploy-rig.sh` 6th step (`InitSwappableRig`), `anvil --timestamp`, nine manifest contracts, router binding probes, SC-5 re-measured, README's three stale spots fixed [wave 2]
 - [x] 22-04-PLAN.md — THE BLOCKER DISCHARGE: `cheat_and_swap`, and an OBSERVED E3 carrying a non-zero cheated tick — plus the wrong-pool counter-measurement and the G1 same-second no-op, committed as evidence [wave 3]
-- [ ] 22-05-PLAN.md — DRIV-01: `run_cheat_swap_path` + seeded RNG (`RIG_SEED`) + `driver-run-capture.json` with flush-on-failure; SC-1 asserted by value offline [wave 4]
-- [ ] 22-06-PLAN.md — DRIV-02: single / MIXED batch (`skew = 65535`) / direct `create_orders _ _ []`; SC-2/3/4 checks; SC-5 seed replay; the documented command and the phase gate [wave 5]
+- [x] 22-05-PLAN.md — DRIV-01: `run_cheat_swap_path` + seeded RNG (`RIG_SEED`) + `driver-run-capture.json` with flush-on-failure; SC-1 asserted by value offline [wave 4]
+- [x] 22-06-PLAN.md — DRIV-02: single / MIXED batch (`skew = 65535`) / direct `create_orders _ _ []`; SC-2/3/4 checks; SC-5 seed replay; the documented command and the phase gate [wave 5]
 
 ## Progress (Milestone v5.0)
 
@@ -599,7 +599,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 20. Deploy Rig & Source-of-Truth Import | 5/5 | Complete    | 2026-07-31 |
 | 21. V2 ABI Re-Pin & targetVega Generation | 5/5 | Complete    | 2026-08-01 |
-| 22. Live Stochastic Drivers | 5/6 | In Progress|  |
+| 22. Live Stochastic Drivers | 6/6 | Complete   | 2026-08-02 |
 
 ## Coverage (Milestone v5.0)
 

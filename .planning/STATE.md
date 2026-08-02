@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 22-05-PLAN.md — DRIV-01 CLOSED (5-step path, 5 E3, e3.tick == submitted) — rig LEFT RUNNING pid 1107697"
-last_updated: "2026-08-02T17:45:00Z"
-last_activity: "2026-08-02 — 22-05 executed: the DRIV-01 driver loop run, recorded and asserted by value; the plan's own G1 detector refuted and fixed"
+stopped_at: "Completed 22-06-PLAN.md — DRIV-02 CLOSED, PHASE 22 COMPLETE (all 5 SC satisfied from committed artifacts) — rig LEFT RUNNING pid 1152682"
+last_updated: "2026-08-02T18:15:00Z"
+last_activity: "2026-08-02 — 22-06 executed: the three order shapes the generator cannot produce, exercised live and pinned by value; SC-5 replay measured both ways; PHASE 22 COMPLETE"
 progress:
   total_phases: 19
-  completed_phases: 10
+  completed_phases: 11
   total_plans: 32
-  completed_plans: 31
+  completed_plans: 32
 ---
 
 # Project State
@@ -26,10 +26,102 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 
 ## Current Position
 
-Phase: 22 — Live Stochastic Drivers (DRIV-01, DRIV-02) — **IN PROGRESS**
-Plan: 5 of 6 complete (22-01, 22-02 wave 1; 22-03 wave 2; 22-04 wave 3; 22-05 wave 4 — all DONE).
-Next action: **22-06** (DRIV-02). A FROM-SCRATCH swappable rig is standing — pid 1107697, block 12,
-head ts 1700000014, genesis ts 1700000000, orderCount 0, 9 contracts, tickSpacing 20.
+Phase: 22 — Live Stochastic Drivers (DRIV-01, DRIV-02) — **COMPLETE**
+Plan: 6 of 6 complete (22-01, 22-02 wave 1; 22-03 wave 2; 22-04 wave 3; 22-05 wave 4; 22-06 wave 5
+— all DONE). **MILESTONE v5.0's BUILD WORK IS COMPLETE**: Phases 20, 21 and 22 all shipped, all 10
+requirements (RIG-01, RPIN-01..06, VEGA-01, DRIV-01, DRIV-02) satisfied. Next action: goal
+verification / tag v5.0, then v6.0 (the subgraph, issue #14). A FROM-SCRATCH swappable rig is
+standing — pid 1152682, block 13, head ts 1700000014, genesis ts 1700000000, 9 contracts,
+tickSpacing 20.
+
+Status: **22-06 DONE — DRIV-02 IS CLOSED and PHASE 22 IS COMPLETE. All five roadmap success
+criteria are satisfied from committed artifacts with no chain running** — the full mapping of each
+criterion to the artifact field that satisfies it is
+`.planning/phases/22-live-stochastic-drivers/22-VERIFICATION.md`.
+The order client was already V2-complete from Phase 21; what it had never met were the three shapes
+`run_order_gen` **cannot produce**. It only ever calls the BATCH entrypoint (no single
+`create_order` receipt), every shape it builds is valid (no batch is ever mixed), and
+`chunk _ [] = []` means a zero-arrival Poisson tick produces zero chunks, zero `eth_call`s and zero
+transactions. All three are now live in `offchain/rig/driver-run-capture.json`'s `orders` block,
+beside the DRIV-01 steps:
+**SC-2** status 1, `e1_count` 1, all four fields `(1000, 60, 500, 1e18)` equal across submitted /
+E1 / readback, `readback_block` **13** (a HEIGHT, asserted NOT to be `"latest"`), and
+`readback_id == e1.orderId` so the readback is evidence about THIS mint rather than about whichever
+order the id happened to name.
+**SC-3** a genuinely MIXED batch — `preview [[true,6],[false,0],[true,7]]`, `orderCount 5 → 7`
+(delta **2** = the success count), both minted ids read back and content-matched including
+`targetVega`, **transaction NOT reverted**. The discriminator is `skew = 65535`: WIDTH-valid
+(`pack_vol_order_input`'s `in_range 16` is `> 0 && < 2^16`) and DOMAIN-invalid
+(`spread_tick_assimetry_is_complete` admits `[1, 65534]`), so it survives the client to reach the
+module. Its preview entry is `(false, 0)` — the id slot is zero, which is what best-effort skip
+looks like on the wire. Checked while there: `strike = 0`, `width = 0` and `targetVega = 0` are all
+WIDTH-invalid too (every guard is `value > 0 && value < 2^bits`), so none can reach the contract —
+which is why the discriminator has to be live-measured rather than an obvious zero. The
+"ONLY input" exclusivity claim in `capture-batch-return.sh` is **USED and NOT repeated**
+(**F22-8**).
+**SC-4** `preview_byte_length` **exactly 64**, `decoded_length` 0, `orderCount` unmoved, and
+`generator_chunks_at_zero` **0**.
+**THE LEAD: THE 64-BYTE FACT IS UNOBSERVABLE ON THE TRANSACTION PATH.** A mined transaction carries
+NO returndata — an `eth_getTransactionReceipt` answer has logs, a status, a block and gas figures
+and no return value anywhere, and `create_orders` performs the preview internally and then
+**discards the raw bytes**. So the byte length was reachable from nowhere.
+`VolOrder.Rpc.preview_create_orders` was added for exactly this and says so in its haddock; the
+check says it too, in as many words, so a future check claiming to read the length off the mined tx
+is contradicted in the file it would live in. Both readings of SC-4 sit side by side, and
+`generator_chunks_at_zero` is measured from the real exported `chunk` so the claim cannot decay
+into a stale comment.
+**SIX MUTANTS, SIX RESULTS, all on COPIES** (committed sha256 identical before and after every one;
+`DRIVER_CAPTURE` non-vacuity proven FIRST — a nonexistent path reddens **8** checks at 75/83).
+M1 `preview_byte_length` 64→32 reddens SC-4 **as predicted**. **M2 REDDENED A DIFFERENT ASSERTION
+THAN THE PLAN PREDICTED**: flipping a preview bool false→true makes the pattern all-true, so "the
+batch is not MIXED" fires strictly before the count equality the plan names — the check
+discriminates, the prediction was about the wrong assertion, so **M2b was CONSTRUCTED**
+(`orderCount_after` alone, preview untouched) to isolate it, reddening with `delta 3 but the
+preview predicted 2`. Fourth application of 22-04's "the literal falsification does not isolate the
+thing it names". **M3's first form was a BROKEN MUTANT, not a measurement**: `jq`'s `tonumber` on
+`"1000000000000000000"` yields a double and `tostring` renders `1e+18`, so the check reddened on
+the PARSE (`expected a decimal integer string, got "1e+18"`) and proved nothing — the 2^53 rule
+biting the mutation tooling rather than the artifact. Re-applied as a literal string it reddens on
+the real comparison. **M4 applied 22-05's truncation lesson FORWARD** to a surface with no
+`configuredSize`: a batch cut 3→2 is self-consistent in EVERY relation (`preview [true,false]`,
+delta 1, 1 readback, genuinely mixed) — caught only because the three submitted tuples are **pinned
+BY VALUE** against `sample_mixed_batch`, exactly as the plan's "PIN VALUES, never relations"
+requires. M5 `orders.complete` true→false reddens the freshness check.
+**`or_complete` IS DRIV-02's OWN FLAG** — 22-05's carry-forward #1 honoured: `dr_complete` means
+"the DRIV-01 path finished" and is set BEFORE the order side runs, deliberately, so a second
+requirement reading it would report a price-path success as an order-side success.
+**The order exercises run AFTER `run_order_gen`** — carry-forward #2: `gen` is consumed
+sequentially, and neither new call draws from it, so the order stream is exactly where 22-05 left
+it (confirmed: the tick path replays byte-equal).
+**SC-5 MEASURED BOTH WAYS.** Two `RIG_SEED=123456789` runs against FRESH rigs: `diff -u` **EMPTY**,
+sha256 `03c8515e582fd7d38731aa420b2dcbb17287099c0c79afe00893c50d745c27b9` on both, while
+`seed.t0` **DIFFERS** (1700000027 vs 1700000026) — and the difference is the point, not a defect:
+it is what proves run B re-ran rather than the comparison reading one file twice. **FALSIFIED** at
+`RIG_SEED+1` on a third fresh rig: ticks `237,-556,-1000,-1344,-1191` → `289,-222,-331,-919,-169`,
+ids `[6,7]` → `[5,6]`. **F22-9:** the plan's own projection includes
+`.orders.mixed.submitted[].targetVega`, which is fixed DATA rather than a draw and stayed
+byte-identical under the different seed — three of the four components discriminate, that one
+cannot, and the README names the trap.
+**THE PHASE GATE, every step re-measured:** all **10** README clean-machine steps run top to bottom,
+**every one exit 0** (the committed artifact is the one step 9 produced against the rig step 6 stood
+up); `cabal test` **83/83** (79 → 83) exit 0, zero `-Wall` warnings; **chain independence
+RE-MEASURED** (rig stopped, `pgrep anvil` empty, `cast` errors, 83/83 exit 0); rig stood back up
+FROM SCRATCH — the **fourth** from-scratch deploy this plan — where the committed run **still
+passes freshness at 83/83**, a fourth confirmation of 22-03's SC-5 determinism.
+`verify-import.sh` exit 0 at **37 paths**; `verify-rig.sh` exit 0 at **9 contracts**; literal purge
+empty; territory clean. **The README's "what the last step proves" section was FALSE and was
+rewritten** — it claimed `cabal run` "is a demo, not the DRIV-01/DRIV-02 run" and that the probe
+swap was the only thing on the rig writing timepoints; 22-05 and 22-06 made all three of its
+sentences untrue. `VolOrder/Rpc.hs` and `StochasticOrderGen/Rpc.hs` are **pure additions** — zero
+deleted lines in either whole-plan diff.
+**Still OPEN and handed on:** **F22-1/F22-5** (`notes/DATA_CONTRACT.md:25`'s "same-block" wording,
+refuted by EXECUTION — plank-owned, REPORTED, never edited; the only cross-track item this phase
+leaves behind), **F4** (freshness cannot see a MODULE change), **D22-1** (`RIG_PINS` advertised but
+not honoured), **D22-2** (`batch-return-capture.json` has no `generatedFrom`), and the Phase-21
+follow-up **#5** limit that every readback in this phase inherits (`unpack_vol_order_storage`
+discards `tickSpacing` at 104..127 and bits >= 248 BEFORE the comparison).
+
+### 22-05 (wave 4, kept in full)
 
 Status: **22-05 DONE — DRIV-01 IS CLOSED, and it is closed by a PATH rather than by a step.**
 `offchain/rig/driver-run-capture.json` records **five consecutive** cheat → clock → swap steps from
@@ -597,6 +689,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 22 P02 | 47 | 3 tasks | 5 files |
 | Phase 22 P04 | 31min | 3 tasks | 8 files |
 | Phase 22 P05 | 22min | 3 tasks | 8 files |
+| Phase 22 P06 | 41 | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -712,6 +805,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 22]: 22-05: DRIV-01 CLOSED by a PATH — five consecutive cheat->clock->swap steps, each producing exactly one E3 carrying the tick AND the timestamp submitted (t0=1700001670, stride=12, seed 123456789)
 - [Phase 22]: 22-05: the plan's own G1 detector was MEASURED GREEN under its mutant and FIXED — a count equality over recorded steps is blind to the run being truncated; compare against configuredSize
 - [Phase 22]: 22-05: DRIVER_CAPTURE redirects the WRITER as well as the checks, deliberately unlike 22-04's RIG_CHEAT_SWAP_PROOF — here the driver IS the capture tool
+- [Phase 22]: or_complete is DRIV-02's OWN completion flag: dr_complete means the DRIV-01 path finished and is set before the order side runs, so borrowing it would report a price-path success as an order-side success
+- [Phase 22]: The three submitted mixed-batch tuples are pinned BY VALUE, never by relations: a batch cut 3->2 is self-consistent in every relation a check could form (M4, measured)
+- [Phase 22]: preview_create_orders exposed rather than widening create_orders' return type: a mined transaction carries NO returndata, so the 64-byte empty return is observable only through the preview eth_call
 
 ### Pending Todos
 
@@ -738,6 +834,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-08-02T17:45:09.225Z
-Stopped at: Completed 22-05-PLAN.md — DRIV-01 CLOSED (5-step path, 5 E3, e3.tick == submitted); rig LEFT RUNNING pid 1107697
+Last session: 2026-08-02T18:12:59.536Z
+Stopped at: Completed 22-06-PLAN.md — DRIV-02 CLOSED, PHASE 22 COMPLETE — rig LEFT RUNNING pid 1152682
 Resume file: None
