@@ -244,4 +244,4 @@ create_order_and_report topic_e1 owner manager vol_order = do
 
   case result of
     Left web3_error -> putStrLn ("rpc error: " ++ show web3_error)
-    Right receipt   -> report_receipt topic_e1 receipt
+    Right receipt   -> report_receipt topic_e1 manager receipt

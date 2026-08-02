@@ -114,10 +114,9 @@ import StochasticPriceGen.Types (StochasticPriceGen (size))
 import VolOrder.Decode
   ( OrderCreatedEvent (..)
   , decode_create_orders_result
-  , decode_order_created
   , unpack_vol_order_storage
   )
-import VolOrder.Report (report_receipt)
+import VolOrder.Report (decode_e1_from, report_receipt)
 import VolOrder.Rpc
   ( create_order
   , create_orders
@@ -234,7 +233,7 @@ main = do
   case result of
     Left web3_error -> putStrLn ("rpc error: " ++ show web3_error)
     Right (receipt, written, path_written, steps, batch_results, mixed, n0) -> do
-      report_receipt topic_e1 receipt
+      report_receipt topic_e1 manager receipt
       report_price_write written
       report_path_write path_written
       mapM_ (putStrLn . summarise_step) (zip [0 :: Int ..] steps)
@@ -266,7 +265,7 @@ main = do
 capture_single :: Integer -> Address -> VolOrder -> TxReceipt -> Web3 SingleOrder
 capture_single topic_e1 manager submitted receipt = do
   let block = BlockWithNumber (receiptBlockNumber receipt)
-      e1s   = decode_e1s topic_e1 (receiptLogs receipt)
+      e1s   = decode_e1s topic_e1 manager (receiptLogs receipt)
   readback <-
     case e1s of
       (e : _) -> Just . order_fields . unpack_vol_order_storage
@@ -346,8 +345,15 @@ capture_zero_arrival sender manager = do
     , zr_generator_chunks_at_zero = length (chunk max_batch ([] :: [VolOrder]))
     }
 
-decode_e1s :: Integer -> [Change] -> [OrderCreatedEvent]
-decode_e1s topic_e1 logs = [e | Just e <- map (decode_order_created topic_e1) logs]
+-- The emitting-address filter is MANDATORY here, exactly as it is on the E3/E5 path in
+-- CheatSwap.Rpc, and for the same reason: topic0 identifies an EVENT SIGNATURE and not an emitter.
+-- A receipt may carry logs from any contract the call touched, and a topic0-only match would report
+-- one of them as a VolOrderCreated with an orderId read out of whatever its second topic was -- and
+-- then read that id back out of the MANAGER's storage, content-matching some unrelated order or
+-- getting getOrderPacked's 0 sentinel. The predicate lives in VolOrder.Report so this call site and
+-- report_receipt cannot drift apart.
+decode_e1s :: Integer -> Address -> [Change] -> [OrderCreatedEvent]
+decode_e1s topic_e1 emitter logs = [e | Just e <- map (decode_e1_from topic_e1 emitter) logs]
 
 order_fields :: VolOrder -> OrderFields
 order_fields o =
