@@ -29,7 +29,10 @@ contract DeployDynamicFeeHook is PlankDeployBase {
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
     uint160 constant HOOK_FLAGS = uint160(Hooks.BEFORE_SWAP_FLAG);
     uint24 constant DYNAMIC_FEE_FLAG = 0x800000;
-    int24 constant TICK_SPACING = 10;
+    // F2 (issue #17): 20, matching the VolOrder geometry pin (VolOrderValidationLib.plk
+    // TICK_SPACING = 20) so the rig pool and the Panoptic leg-mint path agree. The hook is
+    // tickSpacing-agnostic; InitSwappableRig.s.sol reconstructs the key with the SAME value.
+    int24 constant TICK_SPACING = 20;
     int24 constant INIT_TICK = 0;
 
     function run() public returns (address hook, address manager, bytes32 poolIdOut) {
