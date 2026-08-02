@@ -576,15 +576,20 @@ Plans:
 **Depends on**: Phase 20 (the rig they drive) and Phase 21 (the V2 ABI the order driver speaks).
 **Requirements**: DRIV-01, DRIV-02
 **Success Criteria** (what must be TRUE):
-  1. A stochastic price path drives `RealizedVolatilityMod.writeTimepoint(uint32,int24)` (`0xb09b2297`) once per step against the rig-deployed module. Every step's receipt has `receiptStatus == 1` and carries exactly ONE E3 `TimepointWritten` log under topic0 `0x44d3c76a…`, whose decoded `(timestamp, tick)` equals the step the driver submitted. The existing `write_price` / PriceSetterHook flow still runs unchanged — this driver is ADDED beside it, not a replacement (DRIV-01).
+  1. **MECHANISM SUPERSEDED at plan time (2026-08-02, 22-CONTEXT locked decision) — the required OUTCOME below is UNCHANGED.** The original wording was: "A stochastic price path drives `RealizedVolatilityMod.writeTimepoint(uint32,int24)` (`0xb09b2297`) once per step against the rig-deployed module." That is exactly the offchain intervention the user does NOT want. The hook SELF-WRITES: `DynamicFeeHook.beforeSwap` (`src/modules/protocol_integrations/DynamicFeeHook.plk:129`) calls `rv_write_timepoint` on the pre-swap tick it reads via `extsload`. The driver's job is to make the hook FIRE — cheat slot0 to the desired tick, advance the clock, send a minimal swap — and then OBSERVE E3. There is NO offchain `writeTimepoint` client; the pin and selector stay in `rig-pins.json` and stay checked, they are simply never called. The roadmap's "focused research pass on the E3 side" flag is CANCELLED by this decision. **The outcome required is unchanged:** a stochastic price path produces one E3 per step against the rig. Every step's receipt has `receiptStatus == 1` and carries exactly ONE E3 `TimepointWritten` log under topic0 `0x44d3c76a…`, whose decoded `(timestamp, tick)` equals the step the driver submitted. The existing `write_price` / PriceSetterHook flow still runs unchanged — this driver is ADDED beside it, not a replacement (DRIV-01).
   2. Stochastic V2 VolOrder creation runs SINGLE against the rig: a `create_order` receipt with status 1, one E1 v2 log under the pinned topic0, whose four decoded data words equal the submitted `(strike, width, skew, targetVega)`, and a **receipt-block-pinned** `getOrderPacked` readback that unpacks to the submitted order including its targetVega (DRIV-02).
   3. Stochastic V2 VolOrder creation runs BATCH against the rig: a live batch returns `(True, id)` entries positionally matching the preview's success PATTERN; `orderCount` moves by exactly the success count; and every mined id's receipt-block-pinned `getOrderPacked` readback content-matches its submitted order **including targetVega**. A mixed batch (at least one contract-rejected tuple) is exercised, so best-effort skip semantics are observed live rather than assumed. Any mismatch is reported with the tx hash — never silently (DRIV-02).
   4. A **zero-arrival Poisson tick (`N = 0`) completes cleanly against the live rig** — the 64-byte empty return decodes to an empty result list, not a decode failure and not a crash. This is carried directly from v4.0's exit record, which named it "the single clause in the return contract most likely to break `StochasticOrderGen`"; it is invisible on-chain and can only be caught here, and a zero-arrival tick is an in-distribution Poisson sample, not a client bug (DRIV-02).
   5. Both drivers run from one documented command against a fresh Phase-20 rig, and the run is reproducible from a RECORDED seed — a driver whose failures cannot be replayed is not debuggable, and the v6.0 subgraph will need a reproducible event stream to index against (DRIV-01, DRIV-02).
-**Plans**: TBD
+**Plans**: 6 plans in 5 waves
 
 Plans:
-- [ ] 22-01: TBD
+- [ ] 22-01-PLAN.md — Re-import + re-pin 37 paths to `origin/develop @ 2039f27`; upstream gate names `InitSwappableRig.s.sol`; the two vendored v4-core routers PROVEN to compile under `--via-ir` [wave 1]
+- [ ] 22-02-PLAN.md — The pure offchain surface: E3/E5 decoders with signed int24/int56 decoding (none exists anywhere in `offchain/` today), slot0 word composition, `cast`-shelled extsload + swap calldata [wave 1]
+- [ ] 22-03-PLAN.md — Swappable rig: `deploy-rig.sh` 6th step (`InitSwappableRig`), `anvil --timestamp`, nine manifest contracts, router binding probes, SC-5 re-measured, README's three stale spots fixed [wave 2]
+- [ ] 22-04-PLAN.md — THE BLOCKER DISCHARGE: `cheat_and_swap`, and an OBSERVED E3 carrying a non-zero cheated tick — plus the wrong-pool counter-measurement and the G1 same-second no-op, committed as evidence [wave 3]
+- [ ] 22-05-PLAN.md — DRIV-01: `run_cheat_swap_path` + seeded RNG (`RIG_SEED`) + `driver-run-capture.json` with flush-on-failure; SC-1 asserted by value offline [wave 4]
+- [ ] 22-06-PLAN.md — DRIV-02: single / MIXED batch (`skew = 65535`) / direct `create_orders _ _ []`; SC-2/3/4 checks; SC-5 seed replay; the documented command and the phase gate [wave 5]
 
 ## Progress (Milestone v5.0)
 
@@ -594,7 +599,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 20. Deploy Rig & Source-of-Truth Import | 5/5 | Complete    | 2026-07-31 |
 | 21. V2 ABI Re-Pin & targetVega Generation | 5/5 | Complete    | 2026-08-01 |
-| 22. Live Stochastic Drivers | 0/TBD | Not started | - |
+| 22. Live Stochastic Drivers | 0/6 | Planned     | - |
 
 ## Coverage (Milestone v5.0)
 
@@ -622,12 +627,23 @@ uniquely means this milestone's deploy rig.
   any of them is explicitly forbidden. The one genuine unknown is the `-Wall`-clean shape of the
   `VolOrder` record change across its five dependent modules — a mechanical refactor, sized at
   plan time.
-- **Phase 22 — focused pass at plan time on the E3 side only.** There is currently NO offchain
-  surface for `RealizedVolatilityMod`: `offchain/lib/` has `PriceSetter` (hook-targeted
-  `write_price`) and `StochasticPriceGen` built on it, but nothing that calls
-  `writeTimepoint(uint32,int24)`. DRIV-01 therefore ADDS a module rather than re-pointing one,
-  and `INIT_TS`/`INIT_TICK` seeding means the driver's timestamps must advance from the seeded
-  point, not from zero. The E1/batch side needs no research — Phase 21 delivers it.
+- **Phase 22 — CLOSED at plan time (2026-08-02). The flag as written is SUPERSEDED.** It asked for
+  a focused pass on building a `writeTimepoint` client; the user's locked architecture decision
+  cancels that client entirely (see the SC-1 note above). `22-RESEARCH.md` was produced instead and
+  found the phase's highest-severity item, which the flag could not have anticipated:
+  **`write_price` cheats the WRONG pool.** `PriceSetterHookScript` stands up a SECOND `PoolManager`
+  (manifest `PriceSetterPoolManager`) and binds `PriceSetterHook` to a pool there, while
+  `DynamicFeeHook` lives on a different manager — so cheat-then-swap writes one pool and swaps
+  another, and fails SILENTLY (E3 still fires, status 1, only the tick is wrong). The fix is
+  entirely inside `offchain/`: compose the slot0 word from
+  `PoolManager.extsload(keccak(poolId‖6))` OR-ed with `PriceSetterHook.packSlot0For(tick)` masked
+  at bit 184. Plan 22-04 discharges it by MEASUREMENT before any loop is built on it. The
+  `INIT_TS` observation still holds but is now about the CHAIN clock, not a `uint32` argument: the
+  hook's buffer is seeded at `block.timestamp`, so `deploy-rig.sh` passes `anvil --timestamp
+  "$INIT_TS"` to give both series one origin. The E1/batch side needs no research — Phase 21
+  delivered it — but two roadmap success criteria are unreachable through `run_order_gen` and need
+  direct calls (a zero-arrival tick sends nothing, `chunk _ [] = []`; and every generated shape is
+  valid so no batch is ever mixed).
 
 ## Scope Boundary (Milestone v5.0)
 
