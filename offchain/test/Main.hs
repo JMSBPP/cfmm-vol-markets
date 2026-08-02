@@ -60,6 +60,7 @@ import VolOrder.Decode
   , decode_order_created
   , unpack_vol_order_storage
   )
+import CheatSwap.Types (check_cheat_tick, compose_slot0, pool_state_slot)
 import RealizedVol.Decode
   ( FeeApplied (..)
   , TimepointWritten (..)
@@ -2087,6 +2088,118 @@ driv01_e3_decode_behavior = Check "driv01_e3_decode_behavior" . guarded $ do
         ++ ", expected -(2^255) -- the exact two's-complement boundary")
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 22, DRIV-01: the slot0 derivation, composition and the G4 tick domain
+--
+-- Uniswap v4's Slot0 word (@lib\/panoptic-v2-core\/lib\/v4-core\/src\/types\/Slot0.sol@):
+--
+-- > sqrtPriceX96 [0,160) | tick [160,184) int24 | protocolFee [184,208) | lpFee [208,232) | empty
+--
+-- The composition boundary is 184, NOT 160, and the difference is invisible at the call site:
+-- masking at 160 lets @packSlot0For@'s tick bits through while keeping the TARGET pool's, so the
+-- word ends up carrying a sqrtPrice and a tick that disagree (G5a). The words below therefore
+-- carry DIFFERENT tick bits on the two sides — without that difference the two masks are
+-- indistinguishable and the check would not discriminate.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The pool-state slot MEASURED with @cast keccak@ over
+-- @bytes32(poolId) || bytes32(uint256(6))@, written WITHOUT the @0x@ prefix so
+-- 'sc3_literal_purge' does not match it. Reproduce with:
+--
+-- > cast keccak 0x<driv01_pool_id_hex><32 bytes of uint256(6)>
+driv01_state_slot_hex :: String
+driv01_state_slot_hex = "eeab88fa749045a9c1259e79a7bd845c2ee229c1a4e0702e880b8251c4c6dd16"
+
+-- | The TARGET pool's CURRENT slot0 word: the one whose bits >= 184 must survive. The fee fields
+-- are written in DECIMAL (@1118481 = 0x111111@, @2236962 = 0x222222@) because a @0x@-prefixed
+-- 8-hex-digit literal would redden 'sc3_literal_purge' in this very file.
+driv01_slot0_now :: Integer
+driv01_slot0_now =
+  (2236962 `shiftL` 208)      -- lpFee       = 0x222222
+    .|. (1118481 `shiftL` 184) -- protocolFee = 0x111111
+    .|. (5555 `shiftL` 160)    -- the target pool's CURRENT tick -- MUST differ from the cheated one
+    .|. 7777                   -- the target pool's CURRENT sqrtPriceX96
+
+-- | @packSlot0For@'s word: the one whose bits 0..183 must survive. Its own fee bits are DIFFERENT
+-- from the target's and must be DROPPED — @packSlot0For@ reads @PriceSetterPoolManager@'s slot0,
+-- so its high half belongs to the wrong pool entirely.
+driv01_slot0_low :: Integer
+driv01_slot0_low =
+  (9999 `shiftL` 208)
+    .|. (3141592 `shiftL` 184)
+    .|. (1234 `shiftL` 160)    -- the CHEATED tick
+    .|. 987654321              -- getSqrtPriceAtTick(cheated tick)
+
+-- | The G4 domain boundary. The rig holds exactly ONE full-range position over
+-- @[minUsableTick(20), maxUsableTick(20)] = [-887260, +887260]@, so the admissible cheat ticks are
+-- the ones STRICTLY inside it.
+driv01_g4_bound :: Integer
+driv01_g4_bound = 887259
+
+-- | The slot derivation, the word composition and the G4 guard, asserted as EXACT Integer
+-- equalities throughout. Never inequalities: 21-03 measured an inequality-shaped assertion staying
+-- GREEN under a value-breaking mutant, and 21-04 measured a spread-shaped one doing the same.
+driv01_slot0_composition_behavior :: Check
+driv01_slot0_composition_behavior =
+  pure_check "driv01_slot0_composition_behavior" $ do
+    pool_id <- integer_of_hex_text driv01_pool_id_hex
+
+    -- (1) the derivation reproduces the cast-measured value, byte for byte
+    let derived = to_hex (word32be (pool_state_slot pool_id))
+    _ <- expect (derived == driv01_state_slot_hex)
+           ("pool_state_slot gave " ++ derived ++ ", but cast keccak of"
+             ++ " bytes32(poolId) || bytes32(uint256(6)) is " ++ driv01_state_slot_hex
+             ++ " -- POOLS_SLOT is the pinned constant 6 from DynamicFeeHook.plk:75")
+
+    -- (2) the composition: high half from the target pool, low half from packSlot0For
+    let composed = compose_slot0 driv01_slot0_now driv01_slot0_low
+    _ <- expect ((composed `shiftR` 184) == (driv01_slot0_now `shiftR` 184))
+           ("bits 184..255 of the composed word are " ++ show (composed `shiftR` 184)
+             ++ ", expected the TARGET pool's " ++ show (driv01_slot0_now `shiftR` 184)
+             ++ " -- protocolFee and lpFee live there and zeroing them is a LATENT bug (G5b):"
+             ++ " both are 0 on today's rig, so it stays invisible until a protocol fee is set")
+    _ <- expect ((composed .&. mask_of 184) == (driv01_slot0_low .&. mask_of 184))
+           ("bits 0..183 of the composed word are " ++ show (composed .&. mask_of 184)
+             ++ ", expected packSlot0For's " ++ show (driv01_slot0_low .&. mask_of 184))
+    _ <- expect (((composed `shiftR` 160) .&. mask_of 24) == 1234)
+           ("the composed tick (bits 160..183) is "
+             ++ show ((composed `shiftR` 160) .&. mask_of 24)
+             ++ ", expected the CHEATED 1234. Masking at 160 instead of 184 keeps the TARGET"
+             ++ " pool's tick while taking packSlot0For's sqrtPrice, so the two disagree (G5a)"
+             ++ " and the hook records a tick that was never written.")
+    _ <- expect ((composed .&. mask_of 160) == 987654321)
+           ("the composed sqrtPriceX96 (bits 0..159) is " ++ show (composed .&. mask_of 160)
+             ++ ", expected packSlot0For's 987654321")
+
+    -- (3) idempotence in the high half
+    _ <- expect (compose_slot0 driv01_slot0_now composed == composed)
+           "compose_slot0 is not idempotent in the high half"
+
+    -- (4) the G4 domain: the four accepted ticks and the four rejected ones
+    _ <- mapM_ accepts [negate driv01_g4_bound, 0, 37, driv01_g4_bound]
+    mapM_ rejects
+      [ negate (driv01_g4_bound + 1), driv01_g4_bound + 1
+      , negate 887272, 887272
+      ]
+  where
+    accepts t = case check_cheat_tick t of
+      Right t' -> expect (t' == t)
+        ("check_cheat_tick " ++ show t ++ " returned Right " ++ show t')
+      Left why -> Left ("check_cheat_tick REJECTED the in-domain tick " ++ show t ++ ": " ++ why)
+
+    rejects t = case check_cheat_tick t of
+      Right _ -> Left ("check_cheat_tick ACCEPTED " ++ show t
+                        ++ ", which sits OUTSIDE the rig's one full-range position"
+                        ++ " [-887260, +887260]. There global liquidity claims 1e21 that is not"
+                        ++ " there (G4), and the TickMath-valid slivers out to +-887272 are"
+                        ++ " exactly the trap.")
+      Left why ->
+        let names_bound = show driv01_g4_bound `isInfixOf` why
+            names_guard = "G4" `isInfixOf` why
+        in expect (names_bound && names_guard)
+             ("check_cheat_tick rejected " ++ show t ++ " with a message that does not name"
+               ++ " the bound and the guard: " ++ show why)
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -2131,6 +2244,7 @@ main = do
           , rpin05_capture_decodes_through_the_shipped_decoder
           , rpin05_no_canonical_bool_violation
           , driv01_e3_decode_behavior
+          , driv01_slot0_composition_behavior
           ]
             ++ per_pin_checks pins
 

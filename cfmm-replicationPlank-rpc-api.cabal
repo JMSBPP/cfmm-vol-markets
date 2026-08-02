@@ -78,6 +78,7 @@ library
                     , StochasticOrderGen.Rpc
                     , Rig.Manifest
                     , RealizedVol.Decode
+                    , CheatSwap.Types
 
     -- Modules included in this library but not exported.
     -- other-modules:
