@@ -2,8 +2,13 @@
 # ---------------------------------------------------------------------------
 # Phase 20 / plan 20-03 -- the ONE command that stands up the full V2 rig.
 #
-# It owns anvil (kills a stale listener on 8545, starts a fresh chain), runs the
-# five deploy scripts, and writes offchain/rig/rig-manifest.json.
+# It owns anvil (kills a stale listener on 8545, starts a fresh chain at a FIXED
+# genesis timestamp), runs the six deploy scripts, and writes
+# offchain/rig/rig-manifest.json.
+#
+# Phase 22 / plan 22-03 added the SIXTH script, InitSwappableRig.s.sol: the pool is
+# SWAPPABLE on exit -- two routers, one full-range position, and a probe swap this
+# script asserts actually wrote a hook timepoint.
 #
 # Every address in the manifest is taken from foundry's machine-written
 # broadcast record (broadcast/<script>/31337/run-latest.json) and then
@@ -85,7 +90,16 @@ mkdir -p "$LOG_DIR"
 kill_rpc_listener
 wait_for_port_release
 
-nohup anvil --silent >"$LOG_DIR/anvil.log" 2>&1 &
+# --timestamp gives the chain the SAME clock origin as the RealizedVolatilityMod seed.
+# Without it there are two unrelated clocks: INIT_TS seeds the module-global series at
+# 1.7e9 while DeployDynamicFeeHook seeds the HOOK's own buffer at uint32(block.timestamp)
+# = wall clock (~1.78e9 in Aug 2026). A driver computing INIT_TS + k*stride would then be
+# asking for timestamps ~2.7 YEARS in the past, which anvil rejects outright.
+# HONEST LIMIT: --timestamp fixes the ORIGIN, not the RATE. anvil's clock still advances
+# with wall time from that anchor (MEASURED on anvil 1.5.1: 13 s of real time -> block
+# timestamp 1700000013), and InitSwappableRig below adds a further +5 s of its own. A
+# driver must therefore READ THE CHAIN HEAD, never assume the head equals INIT_TS.
+nohup anvil --silent --timestamp "$INIT_TS" >"$LOG_DIR/anvil.log" 2>&1 &
 ANVIL_PID=$!
 # Keep-alive is the DEFAULT -- the rig must survive this script. anvil is killed
 # only on a failure path.
@@ -105,7 +119,7 @@ done
 # silent-wrong-address failure into an honest "file not found".
 rm -rf broadcast/DeployVolOrderManagerMod.s.sol broadcast/DeployRealizedVolatilityMod.s.sol \
        broadcast/DeployDynamicFeeMod.s.sol broadcast/DeployDynamicFeeHook.s.sol \
-       broadcast/PriceSetterHook.s.sol
+       broadcast/PriceSetterHook.s.sol broadcast/InitSwappableRig.s.sol
 
 # --- Step 4: derive the accounts (never hardcoded) -------------------------
 # DEPLOYER = anvil index 0 = PlankDeployBase.deployerKey()'s default.
@@ -127,6 +141,14 @@ run_deploy() {
   fi
 }
 
+# The pool fields are NOT addresses in the broadcast record; poolId in particular exists
+# nowhere else, so for these the console IS the primary source and there is nothing
+# independent to cross-check poolId against. Defined HERE rather than in Step 7 because
+# the 6th deploy script needs CURRENCY0/CURRENCY1 as ENV, i.e. before Step 7 runs.
+console_field() {   # $1 = label prefix, $2 = log file
+  grep -m1 -- "$1" "$2" | sed 's/.*: *//' | tr -d '\r' | tr 'A-Z' 'a-z'
+}
+
 FS=(--rpc-url "$RPC_ALIAS" --broadcast --ffi --via-ir)
 
 run_deploy "$LOG_DIR/01-vom.log" \
@@ -140,39 +162,14 @@ run_deploy "$LOG_DIR/03-dfm.log" \
 # MinimalToken) so forge cannot pick a target on its own.
 run_deploy "$LOG_DIR/04-hook.log" \
   forge script foundry-scripts/deploy/DeployDynamicFeeHook.s.sol --tc DeployDynamicFeeHook "${FS[@]}"
-# PriceSetterHook.s.sol's single contract is named PriceSetterHookScript, not
-# after its file. It stands up its OWN second PoolManager -- hence the schema's
-# distinct PriceSetterPoolManager key. This is plank's file: RUN it, never edit it.
-run_deploy "$LOG_DIR/05-psh.log" \
-  forge script foundry-scripts/PriceSetterHook.s.sol --tc PriceSetterHookScript "${FS[@]}"
 
-# --- Step 6: assert the seed actually happened -----------------------------
-if ! grep -qE 'seeded[[:space:]]*:[[:space:]]*true' "$LOG_DIR/02-rvm.log"; then
-  echo "FATAL: RealizedVolatilityMod was NOT seeded (INIT_TS=$INIT_TS did not reach the script)." >&2
-  echo "       DeployRealizedVolatilityMod skips initializeTWAP when INIT_TS == 0 and still exits 0," >&2
-  echo "       so the later nonzero-timepoint check would fail for a CONFIG reason." >&2
-  exit 1
-fi
-
-# --- Step 7: extract addresses from the broadcast JSONs (PRIMARY source) ---
-B_VOM=broadcast/DeployVolOrderManagerMod.s.sol/31337/run-latest.json
-B_RVM=broadcast/DeployRealizedVolatilityMod.s.sol/31337/run-latest.json
-B_DFM=broadcast/DeployDynamicFeeMod.s.sol/31337/run-latest.json
+# --- Step 5a: the four values the 6th script needs as ENV -------------------
+# These extractions used to live in Step 7 with the rest. They are MOVED here (not
+# duplicated) because InitSwappableRig.s.sol reads POOL_MANAGER/HOOK/TOKEN0/TOKEN1 from
+# the environment and every one of them is produced by the 4th script above. Step 7 keeps
+# the remaining extractions and Step 8 keeps ALL of the cross-checks.
 B_HOOK=broadcast/DeployDynamicFeeHook.s.sol/31337/run-latest.json
-B_PSH=broadcast/PriceSetterHook.s.sol/31337/run-latest.json
-
-for f in "$B_VOM" "$B_RVM" "$B_DFM" "$B_HOOK" "$B_PSH"; do
-  [ -f "$f" ] || { echo "FATAL: broadcast record missing: $f" >&2; exit 1; }
-done
-
-# Plank FFI deploys land as transactionType CREATE with contractName NULL for
-# every Plank module -- you cannot key on the name, only on the type.
-addr_of() {
-  jq -r '[.transactions[] | select(.transactionType=="CREATE")][0].contractAddress' "$1" | tr 'A-Z' 'a-z'
-}
-VOM=$(addr_of "$B_VOM")
-RVM=$(addr_of "$B_RVM")
-DFM=$(addr_of "$B_DFM")
+[ -f "$B_HOOK" ] || { echo "FATAL: broadcast record missing: $B_HOOK" >&2; exit 1; }
 
 # DeployDynamicFeeHook creates the hook by a raw `.call` to the CREATE2 proxy,
 # not `new X{salt:...}`, so the created contract is EXPECTED in
@@ -191,13 +188,94 @@ HOOK_SHAPE=$(jq -r 'if ([.transactions[].additionalContracts[]? | select(.transa
 
 PM=$(jq -r '[.transactions[] | select(.contractName=="PoolManager")][0].contractAddress' "$B_HOOK" | tr 'A-Z' 'a-z')
 
+CURRENCY0=$(console_field 'currency0      :' "$LOG_DIR/04-hook.log")
+CURRENCY1=$(console_field 'currency1      :' "$LOG_DIR/04-hook.log")
+
+# PriceSetterHook.s.sol's single contract is named PriceSetterHookScript, not
+# after its file. It stands up its OWN second PoolManager -- hence the schema's
+# distinct PriceSetterPoolManager key. This is plank's file: RUN it, never edit it.
+run_deploy "$LOG_DIR/05-psh.log" \
+  forge script foundry-scripts/PriceSetterHook.s.sol --tc PriceSetterHookScript "${FS[@]}"
+
+# --- Step 5b: the 6th script -- the pool becomes SWAPPABLE ------------------
+# It runs LAST because it consumes the 4th script's outputs, and it takes a DIFFERENT
+# flag set: --tc (the file declares one contract but forge still needs the target named
+# for --broadcast bookkeeping) and NO --ffi (it is pure Solidity; the other five scripts
+# still need --ffi, which is why FS is left alone).
+#
+# Until this runs, DynamicFeeHook's pool has ZERO liquidity and there is no
+# unlock-callback router anywhere on chain, so a swap from an EOA is impossible and the
+# hook can never write a timepoint. It deploys the two vendored v4-core routers, funds +
+# approves deployer->ROUTERS (never deployer->PoolManager: settlement is
+# CurrencySettler.settle -> transferFrom pulled BY the router), mints ONE full-range
+# position (G4: do NOT mint additional ranges), and runs a probe swap.
+run_deploy "$LOG_DIR/06-swappable.log" \
+  env POOL_MANAGER="$PM" HOOK="$HOOK" TOKEN0="$CURRENCY0" TOKEN1="$CURRENCY1" \
+  forge script foundry-scripts/deploy/InitSwappableRig.s.sol --tc InitSwappableRig \
+    --rpc-url "$RPC_ALIAS" --broadcast --via-ir
+
+# --- Step 5c: the probe swap PROVED the write path -------------------------
+# The script's own `require(tsAfter > tsBefore)` already enforces this, but the rig owns
+# its acceptance checks: this is the same move Step 6 makes for `seeded : true`. A
+# console line the rig never reads is a claim; a console line the rig asserts is a check.
+TS_BEFORE=$(console_field 'timepoint ts before   :' "$LOG_DIR/06-swappable.log")
+TS_AFTER=$(console_field 'timepoint ts after    :' "$LOG_DIR/06-swappable.log")
+case "$TS_BEFORE$TS_AFTER" in
+  ''|*[!0-9]*)
+    echo "FATAL: timepoint ts before/after not parsed from $LOG_DIR/06-swappable.log" >&2
+    echo "       (got before='$TS_BEFORE' after='$TS_AFTER')" >&2
+    exit 1 ;;
+esac
+[ "$TS_AFTER" -gt "$TS_BEFORE" ] || {
+  echo "FATAL: probe swap did not advance the hook's timepoint clock ($TS_BEFORE -> $TS_AFTER)." >&2
+  echo "       The rig is NOT proven swappable: beforeSwap either did not run or hit the" >&2
+  echo "       G1 same-second no-op. E3 is the ground truth of what landed, never the swap count." >&2
+  exit 1; }
+echo "  probe swap wrote a timepoint: $TS_BEFORE -> $TS_AFTER"
+
+# --- Step 6: assert the seed actually happened -----------------------------
+if ! grep -qE 'seeded[[:space:]]*:[[:space:]]*true' "$LOG_DIR/02-rvm.log"; then
+  echo "FATAL: RealizedVolatilityMod was NOT seeded (INIT_TS=$INIT_TS did not reach the script)." >&2
+  echo "       DeployRealizedVolatilityMod skips initializeTWAP when INIT_TS == 0 and still exits 0," >&2
+  echo "       so the later nonzero-timepoint check would fail for a CONFIG reason." >&2
+  exit 1
+fi
+
+# --- Step 7: extract addresses from the broadcast JSONs (PRIMARY source) ---
+# B_HOOK is defined in Step 5a (its addresses are ENV inputs to the 6th script).
+B_VOM=broadcast/DeployVolOrderManagerMod.s.sol/31337/run-latest.json
+B_RVM=broadcast/DeployRealizedVolatilityMod.s.sol/31337/run-latest.json
+B_DFM=broadcast/DeployDynamicFeeMod.s.sol/31337/run-latest.json
+B_PSH=broadcast/PriceSetterHook.s.sol/31337/run-latest.json
+B_SWAP=broadcast/InitSwappableRig.s.sol/31337/run-latest.json
+
+for f in "$B_VOM" "$B_RVM" "$B_DFM" "$B_HOOK" "$B_PSH" "$B_SWAP"; do
+  [ -f "$f" ] || { echo "FATAL: broadcast record missing: $f" >&2; exit 1; }
+done
+
+# Plank FFI deploys land as transactionType CREATE with contractName NULL for
+# every Plank module -- you cannot key on the name, only on the type.
+addr_of() {
+  jq -r '[.transactions[] | select(.transactionType=="CREATE")][0].contractAddress' "$1" | tr 'A-Z' 'a-z'
+}
+VOM=$(addr_of "$B_VOM")
+RVM=$(addr_of "$B_RVM")
+DFM=$(addr_of "$B_DFM")
+
 # PriceSetterHook.s.sol uses `new X{salt:...}`, which foundry records as a
 # top-level CREATE2 WITH a populated contractName -- so key it by name.
 PSH=$(jq -r '[.transactions[] | select(.contractName=="PriceSetterHook")][0].contractAddress' "$B_PSH" | tr 'A-Z' 'a-z')
 PSPM=$(jq -r '[.transactions[] | select(.contractName=="PoolManager")][0].contractAddress' "$B_PSH" | tr 'A-Z' 'a-z')
 
+# Both routers are plain `new X(...)` under startBroadcast, so foundry records them as
+# TOP-LEVEL CREATE with a POPULATED contractName -- the PriceSetterHook pattern, NOT the
+# nameless-Plank-CREATE pattern addr_of() handles. Key them by name.
+SWAPR=$(jq -r '[.transactions[] | select(.contractName=="PoolSwapTest")][0].contractAddress' "$B_SWAP" | tr 'A-Z' 'a-z')
+LIQR=$(jq -r '[.transactions[] | select(.contractName=="PoolModifyLiquidityTest")][0].contractAddress' "$B_SWAP" | tr 'A-Z' 'a-z')
+
 for pair in "VolOrderManagerMod:$VOM" "RealizedVolatilityMod:$RVM" "DynamicFeeMod:$DFM" \
-            "DynamicFeeHook:$HOOK" "PoolManager:$PM" "PriceSetterHook:$PSH" "PriceSetterPoolManager:$PSPM"; do
+            "DynamicFeeHook:$HOOK" "PoolManager:$PM" "PriceSetterHook:$PSH" "PriceSetterPoolManager:$PSPM" \
+            "PoolSwapTest:$SWAPR" "PoolModifyLiquidityTest:$LIQR"; do
   n=${pair%%:*}; v=${pair#*:}
   case "$v" in
     0x????????????????????????????????????????) ;;
@@ -205,15 +283,9 @@ for pair in "VolOrderManagerMod:$VOM" "RealizedVolatilityMod:$RVM" "DynamicFeeMo
   esac
 done
 
-# The pool fields are NOT addresses in the broadcast record; poolId in
-# particular exists nowhere else, so for these the console IS the primary
-# source and there is nothing independent to cross-check poolId against.
-console_field() {   # $1 = label prefix, $2 = log file
-  grep -m1 -- "$1" "$2" | sed 's/.*: *//' | tr -d '\r' | tr 'A-Z' 'a-z'
-}
+# console_field is defined above Step 5 (the 6th script needs it earlier than this).
+# CURRENCY0/CURRENCY1 are extracted in Step 5a for the same reason.
 POOL_ID=$(console_field 'poolId         :' "$LOG_DIR/04-hook.log")
-CURRENCY0=$(console_field 'currency0      :' "$LOG_DIR/04-hook.log")
-CURRENCY1=$(console_field 'currency1      :' "$LOG_DIR/04-hook.log")
 TICK_SPACING=$(console_field 'tickSpacing    :' "$LOG_DIR/04-hook.log")
 
 case "$POOL_ID" in
@@ -242,6 +314,8 @@ check 'DynamicFeeHook :'        "$LOG_DIR/04-hook.log" "$HOOK"
 check 'PoolManager    :'        "$LOG_DIR/04-hook.log" "$PM"
 check 'PriceSetterHook :'       "$LOG_DIR/05-psh.log"  "$PSH"
 check 'PoolManager     :'       "$LOG_DIR/05-psh.log"  "$PSPM"
+check 'swapRouter            :' "$LOG_DIR/06-swappable.log" "$SWAPR"
+check 'modifyLiquidityRouter :' "$LOG_DIR/06-swappable.log" "$LIQR"
 
 # currency0/currency1 come from the console; when the rig deploys its own
 # MinimalTokens they ALSO appear in the broadcast record, so confirm the pair
@@ -256,6 +330,11 @@ if [ -n "$MINTOKENS" ] && [ "$MINTOKENS" != "" ]; then
 fi
 
 # --- Step 9: emit the manifest --------------------------------------------
+# DECISION: only the two router ADDRESSES from the 6th script enter the manifest. The tick
+# range, the liquidity and the probe deltas stay on the console and in
+# $LOG_DIR/06-swappable.log -- they are proof the script produced, not values any driver
+# reads. Every mandatory manifest field is a field Rig.Manifest refuses to load without,
+# and adding a field no consumer reads would weaken that meaning rather than strengthen it.
 GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 jq -n \
   --argjson chainId       "$CHAIN_ID" \
@@ -270,6 +349,8 @@ jq -n \
   --arg     pm            "$PM" \
   --arg     psh           "$PSH" \
   --arg     pspm          "$PSPM" \
+  --arg     swapr         "$SWAPR" \
+  --arg     liqr          "$LIQR" \
   --arg     poolId        "$POOL_ID" \
   --arg     currency0     "$CURRENCY0" \
   --arg     currency1     "$CURRENCY1" \
@@ -288,7 +369,9 @@ jq -n \
        DynamicFeeHook: $hook,
        PoolManager: $pm,
        PriceSetterHook: $psh,
-       PriceSetterPoolManager: $pspm
+       PriceSetterPoolManager: $pspm,
+       PoolSwapTest: $swapr,
+       PoolModifyLiquidityTest: $liqr
      },
      pool: { poolId: $poolId, currency0: $currency0, currency1: $currency1, tickSpacing: $tickSpacing },
      seed: { initTs: $initTs, initTick: $initTick }
@@ -304,6 +387,8 @@ printf '  %-24s %s\n' \
   DynamicFeeHook         "$HOOK" \
   PoolManager            "$PM" \
   PriceSetterHook        "$PSH" \
-  PriceSetterPoolManager "$PSPM"
+  PriceSetterPoolManager "$PSPM" \
+  PoolSwapTest           "$SWAPR" \
+  PoolModifyLiquidityTest "$LIQR"
 printf '  %-24s %s\n' deployer "$DEPLOYER" sender "$SENDER" poolId "$POOL_ID"
 echo "  manifest: $MANIFEST   (anvil pid $ANVIL_PID left RUNNING; stop with $0 --stop)"
