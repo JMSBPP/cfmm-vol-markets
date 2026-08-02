@@ -178,7 +178,39 @@ fi
 # Compared as decimal STRINGS. The words run to 256 bits and jq's numbers are
 # doubles; a rounded word still looks like a word. Measurements that did not
 # complete carry no words and are skipped by the select.
+#
+# THE FLOOR COMES FIRST, AND FROM A DIFFERENT FIELD. The loop below filters on
+# `has("word_before_high184")` -- the very field it asserts over -- so if the
+# writer stopped emitting those keys the select yielded zero rows, the body never
+# ran, and "the composition preserved the fee bits" was reported having compared
+# NOTHING. Falsified: with both high184 keys stripped from all six rows the old
+# form exited 0.
+#
+# `status` is the independent denominator. A row that did not complete records
+# status 0 with a revert_reason and carries no words (CheatSwapProof.hs:288-294);
+# every row that DID complete carries both (:295-312). So the two counts must be
+# equal, and self-check 2c permits exactly ONE row -- extreme_tick_near_floor --
+# to be a recorded revert. Hence the 5 floor. MEASURED: all 6 complete.
+N_COMPLETE=$(jq -r '[.measurements[] | select(.status == 1)] | length' "$OUT")
+N_WORDS=$(jq -r '[.measurements[]
+                  | select(has("word_before_high184") and has("word_written_high184"))] | length' "$OUT")
+if [ "$N_WORDS" != "$N_COMPLETE" ]; then
+  echo "CAPTURE FAIL: $N_COMPLETE measurements completed (status 1) but only $N_WORDS carry the" >&2
+  echo "              word_before_high184 / word_written_high184 pair. A completed measurement" >&2
+  echo "              always records both, so the writer changed shape and the G5b comparison" >&2
+  echo "              below would silently compare fewer rows than it claims." >&2
+  exit 1
+fi
+if [ "$N_WORDS" -lt 5 ]; then
+  echo "CAPTURE FAIL: only $N_WORDS measurements carry slot0 words, expected at least 5." >&2
+  echo "              extreme_tick_near_floor is the ONE measurement allowed to be a recorded" >&2
+  echo "              revert (self-check 2c). Fewer than 5 means G5b would be 'verified' over" >&2
+  echo "              a sample too small to have exercised the composition at all." >&2
+  exit 1
+fi
+N_COMPARED=0
 while read -r nm before after; do
+  N_COMPARED=$((N_COMPARED + 1))
   if [ "$before" != "$after" ]; then
     echo "CAPTURE FAIL: $nm did not preserve slot0 bits >= 184" >&2
     echo "              word_before high bits : $before" >&2
@@ -189,6 +221,14 @@ while read -r nm before after; do
   fi
 done < <(jq -r '.measurements[] | select(has("word_before_high184"))
                 | "\(.name) \(.word_before_high184) \(.word_written_high184)"' "$OUT")
+# The loop body ran once per row it was handed. Asserting that against the count
+# taken above is what turns "no rows" from a pass into a failure. The loop uses
+# `< <(...)`, not a pipe, so this counter is the one the body incremented.
+if [ "$N_COMPARED" != "$N_WORDS" ]; then
+  echo "CAPTURE FAIL: G5b compared $N_COMPARED rows but $N_WORDS carry slot0 words" >&2
+  exit 1
+fi
+echo "  G5b: slot0 bits >= 184 preserved on all $N_COMPARED completed measurements"
 
 # --- Self-check 3b: every measurement is present ---------------------------
 # A group that failed still emits a placeholder row, so a shrinking list means a
