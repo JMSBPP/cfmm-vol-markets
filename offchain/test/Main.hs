@@ -3374,6 +3374,32 @@ driv01_no_same_second_noop =
           ++ " count means a swap did not reach the hook at all -- a different fault from a"
           ++ " swallowed write, and one this check must not conflate with it.")
 
+-- | The bit offset of @lpFee@. 'slot0_tick_shift' and 'slot0_fee_shift' cover the other two.
+slot0_lp_fee_shift :: Int
+slot0_lp_fee_shift = 208
+
+-- | One 24-bit unsigned Slot0 field at the given offset.
+slot0_field :: Integer -> Int -> Integer
+slot0_field w shift_by = (w `shiftR` shift_by) .&. ((1 `shiftL` 24) - 1)
+
+-- | @Sample.sample_tick@, the tick the legacy demo call submits.
+legacy_pinned_tick :: Integer
+legacy_pinned_tick = 60
+
+-- | The three remaining Slot0 fields of the committed legacy word.
+--
+-- MEASURED off @offchain\/rig\/driver-run-capture.json@, then CHECKED for coherence rather than
+-- taken on faith: @sqrtPriceX96 = 79466191966197645195421774833@ agrees with
+-- @1.0001^30 * 2^96 = 7.946619196619762e28@ to fifteen significant figures, i.e. to double
+-- precision, which is as close as a float can come to TickMath's exact integer. All three are
+-- deterministic -- the price is a pure function of the tick, and the two fees are the target
+-- pool's own configuration, preserved by @compose_slot0@'s mask at 184 -- so pinning them costs
+-- nothing on a redeploy and is the only thing that can see a wrong word.
+legacy_pinned_sqrt_price, legacy_pinned_protocol_fee, legacy_pinned_lp_fee :: Integer
+legacy_pinned_sqrt_price   = 79466191966197645195421774833
+legacy_pinned_protocol_fee = 0
+legacy_pinned_lp_fee       = 3000
+
 -- | The legacy @write_price@ flow still ran, and still targets the OTHER manager.
 --
 -- Roadmap SC-1 requires the existing @write_price@ \/ @PriceSetterHook@ flow to stay available and
@@ -3381,6 +3407,19 @@ driv01_no_same_second_noop =
 -- @PriceSetterPoolManager@ pins the second half of that sentence: this flow writes slot0 on a
 -- liquidity-free manager that @DynamicFeeHook@ does not read and emits nothing, which is exactly
 -- why it could never have satisfied DRIV-01 on its own.
+--
+-- == WHY EVERY ASSERTION HERE IS A VALUE
+--
+-- This check used to assert @not (null value)@ and @not (null slot)@ and nothing else about
+-- either, and it never looked at @tick@ at all. @Driver.Capture@'s @hex_of@ always emits at least
+-- @\"0x\"@, so BOTH of those tests were unfalsifiable: a @write_price@ composing @tick = 0@, or
+-- one that dropped the tick entirely, left this check GREEN -- and it is the only coverage roadmap
+-- SC-1's "the legacy flow keeps running unchanged" has. A non-emptiness test over a producer that
+-- always produces something is not a weak check, it is not a check.
+--
+-- Everything below is now pinned by value: the submitted tick, all four Slot0 fields of the
+-- written word, and the slot's disjointness from the dynamic-fee pool's own slot0.
+
 driv01_legacy_write_price_still_ran :: Check
 driv01_legacy_write_price_still_ran =
   Check "driv01_legacy_write_price_still_ran" . guarded $ do
@@ -3410,13 +3449,65 @@ driv01_legacy_write_price_still_ran =
                  ++ " running unchanged BESIDE the new driver, in the same program.")
         _ -> Right ()
 
-      value <- json_field "value" legacy >>= json_string
-      _ <- expect (not (null value))
-             "legacy_write_price.value is empty -- write_price wrote no slot0 word"
+      -- THE SUBMITTED TICK. `sample_tick` is a constant, so this is pinnable by value and there is
+      -- no excuse for asserting anything weaker.
+      captured_tick <- json_field "tick" legacy >>= json_integer
+      _ <- expect (captured_tick == legacy_pinned_tick)
+             ("legacy_write_price recorded tick " ++ show captured_tick ++ ", but Sample.sample_tick"
+               ++ " is " ++ show legacy_pinned_tick ++ ". SC-1 asks for the legacy flow UNCHANGED;"
+               ++ " a write_price composing a different tick is a changed flow, and until this"
+               ++ " assertion existed the only thing checked here was that the field was non-empty.")
 
-      slot <- json_field "slot" legacy >>= json_string
-      _ <- expect (not (null slot))
-             "legacy_write_price.slot is empty -- write_price resolved no slot0 slot"
+      value <- json_field "value" legacy >>= json_string
+      word <- hex_word_integer (strip_hex_prefix value)
+
+      -- The four Slot0 fields, each pinned. The whole word is a deterministic function of the
+      -- submitted tick and the target pool's fee configuration, so every one of these is a value
+      -- and none of them is a shape.
+      _ <- expect (slot0_tick_of word == legacy_pinned_tick)
+             ("the written slot0 word carries tick " ++ show (slot0_tick_of word) ++ ", expected "
+               ++ show legacy_pinned_tick ++ ". The word and the recorded tick field are written by"
+               ++ " DIFFERENT halves of write_price -- packSlot0For composes the word on chain, the"
+               ++ " driver records the argument it passed -- so a disagreement here means the hook"
+               ++ " did not compose what it was asked for.")
+      _ <- expect (slot0_field word slot0_fee_shift == legacy_pinned_protocol_fee)
+             ("the written slot0 word carries protocolFee "
+               ++ show (slot0_field word slot0_fee_shift) ++ ", expected "
+               ++ show legacy_pinned_protocol_fee)
+      _ <- expect (slot0_field word slot0_lp_fee_shift == legacy_pinned_lp_fee)
+             ("the written slot0 word carries lpFee " ++ show (slot0_field word slot0_lp_fee_shift)
+               ++ ", expected " ++ show legacy_pinned_lp_fee ++ ". PriceSetterHook's pool is a"
+               ++ " STATIC-fee pool; a dynamic-fee pool stores lpFee = 0 at initialize, so this"
+               ++ " number is also what distinguishes the legacy pool from the DynamicFeeHook one.")
+      _ <- expect (word .&. ((1 `shiftL` 160) - 1) == legacy_pinned_sqrt_price)
+             ("the written slot0 word carries sqrtPriceX96 "
+               ++ show (word .&. ((1 `shiftL` 160) - 1)) ++ ", expected "
+               ++ show legacy_pinned_sqrt_price ++ " -- TickMath's exact price at tick "
+               ++ show legacy_pinned_tick ++ ". A word whose price and tick disagree is the exact"
+               ++ " failure 22-04's measurement A pins on the cheat-swap side.")
+      _ <- expect (word `shiftR` 232 == 0)
+             ("slot0 bits >= 232 are not empty (" ++ show (word `shiftR` 232) ++ "). The Slot0"
+               ++ " layout ends at 232; anything above it is a field this reader does not know"
+               ++ " about, which makes every offset below it suspect.")
+
+      slot <- map toLower . strip_hex_prefix <$> (json_field "slot" legacy >>= json_string)
+      slot_word <- hex_word_integer slot
+      -- The slot is keccak(poolId ++ POOLS_SLOT) for PriceSetterHook's OWN pool, whose id is not in
+      -- the manifest -- so it cannot be recomputed here. What CAN be asserted is the claim this
+      -- check actually makes: it is a real 32-byte slot, and it is NOT the DynamicFeeHook pool's
+      -- slot0. That is the storage-level half of "the two price mechanisms are independent"; the
+      -- poolManager equality below is only the address-level half, and a write aimed at the right
+      -- manager and the wrong slot would satisfy that one alone.
+      _ <- expect (slot_word /= 0)
+             ("legacy_write_price.slot is the zero word -- write_price resolved no slot0 slot."
+               ++ " hex_of always emits at least \"0x\", so a non-emptiness test cannot see this.")
+      dfh_pool_id <- integer_of_hex_text (T.unpack (rig_pool_id (rig_pool (rig_addrs rig))))
+      _ <- expect (slot_word /= pool_state_slot dfh_pool_id)
+             ("the legacy write_price resolved slot0 slot " ++ slot
+               ++ ", which is the DYNAMIC-FEE pool's slot0. The legacy flow writes PriceSetterHook's"
+               ++ " own liquidity-free pool; if it starts writing the pool DynamicFeeHook reads,"
+               ++ " every E3 in this same artifact stops being attributable to the cheat-swap"
+               ++ " driver alone.")
 
       captured_pm <- map toLower <$> (json_field "poolManager" legacy >>= json_string)
       manifest_pm <-
