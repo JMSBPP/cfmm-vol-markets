@@ -599,7 +599,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 20. Deploy Rig & Source-of-Truth Import | 5/5 | Complete    | 2026-07-31 |
 | 21. V2 ABI Re-Pin & targetVega Generation | 5/5 | Complete    | 2026-08-01 |
-| 22. Live Stochastic Drivers | 1/6 | In Progress|  |
+| 22. Live Stochastic Drivers | 2/6 | In Progress|  |
 
 ## Coverage (Milestone v5.0)
 

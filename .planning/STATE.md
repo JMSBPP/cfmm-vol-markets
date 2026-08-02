@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.0
-milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
-status: in-progress
-stopped_at: Completed 22-01-PLAN.md
-last_updated: "2026-08-02T16:13:44.317Z"
-last_activity: "2026-08-02 — 22-01 executed: 37 paths re-pinned to develop @ 2039f27, v4-core routers proven to compile under --via-ir"
+milestone: v2.0
+milestone_name: milestone
+status: completed
+stopped_at: "Completed 22-02-PLAN.md (pure offchain surface: E3/E5 decoders, slot0 composition, swap calldata) — 68/68 chain-independent"
+last_updated: "2026-08-02T16:22:12.538Z"
+last_activity: "2026-07-31 — 20-02 executed: 36 artifacts imported by checkout from 9f5ccba,"
 progress:
   total_phases: 19
   completed_phases: 10
   total_plans: 32
-  completed_plans: 27
+  completed_plans: 28
 ---
 
 # Project State
@@ -27,8 +27,48 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 ## Current Position
 
 Phase: 22 — Live Stochastic Drivers (DRIV-01, DRIV-02) — **IN PROGRESS**
-Plan: 1 of 6 complete (22-01 wave 1 DONE; 22-02 wave 1 running in parallel).
+Plan: 2 of 6 complete (22-01 and 22-02, both wave 1, DONE).
 Next action: **22-03** (rebuild the rig at `TICK_SPACING = 20` and run `InitSwappableRig.s.sol`).
+
+Status: **22-02 DONE — the whole PURE offchain surface Phase 22 needs exists, and it is
+chain-independent by measurement, not by claim** (the final 68/68 gate ran with `pgrep anvil`
+EMPTY). Three new modules: `RealizedVol.Decode` (E3 `TimepointWritten` — 5 words, THREE of them
+signed — and E5 `FeeApplied`, with `>= 160` / `>= 64` length guards plus topic0 AND poolId
+guards), `CheatSwap.Types` (`pool_state_slot` reproducing the `cast keccak`-measured
+`eeab88fa…c4c6dd16`, `compose_slot0` masked at bit **184**, `check_cheat_tick` enforcing G4), and
+`CheatSwap.Encoding` (`extsload` + `PoolSwapTest.swap` calldata via `cast`, no selector literal).
+`cabal test` = **68/68** (65 → 68), exit 0, zero `-Wall` warnings, literal purge empty, no new
+dependency. **This is the first signed-integer decoding anywhere in `offchain/`.**
+**A THIRD PREDICTED DISCRIMINATOR MEASURED AND REFUTED — the headline.** The plan asserted that
+deleting `signed_word` from `tw_tick` alone would redden the suite. APPLIED: it stayed **GREEN at
+66/66**, because the plan's own behaviour block pins `tick = 37` and `signed_word` is the IDENTITY
+on non-negative words. The negative pins on `averageTick` and `tickCumulative` covered their fields
+and nothing covered this one. FIXED, not noted (`a90b150`): a second payload with
+`tick = -3145`; the same mutant now reads
+`115792089237316195423570985008687907853269984665640564039457584007913129636791` and reddens at
+65/66. The positive payload was KEPT — it proves `signed_word` leaves the non-negative half alone.
+**The rule this generalises to, now written into the check: EVERY signed field needs at least one
+NEGATIVE pin of its own; a positive pin on a signed field is blind to the only thing that makes the
+field signed.** (21-03 measured an inequality staying green; 21-04 measured a bit-length spread
+staying green; this is the third of the same family.)
+**A SECOND PREDICTION REFUTED, measured with `cast`:** the swap calldata is **388 bytes
+(4 + 32*12)**, not the planned 324 (4 + 32*10). Both tuples are STATIC and inline into the head;
+the empty `bytes` member still costs an offset word AND a length word. All twelve words are now
+pinned individually, so the head/tail split is asserted rather than assumed.
+**THE OTHER THREE MUTANTS WENT RED AS PREDICTED**, every file restored **sha256-identical**:
+`>= 160` → `>= 128` (the 159-byte payload decodes), the composition mask 184 → 160 (bits 0..183
+come back wrong — and it only discriminates because the two test words carry DIFFERENT tick bits,
+`5555` vs `1234`), and `pools_slot` 6 → 5 (the derived slot moves off the `cast keccak` value).
+**TWO AUTO-FIXES BEYOND THE PLAN.** (1) `hex32`/`encode_extsload` had no coverage; a wrong nibble
+order yields a well-formed 36-byte calldata pointing at a slot nothing ever wrote, and `extsload`
+on a wrong slot returns zero rather than reverting — a zero slot0 decodes to `tick = 0`, a legal
+tick. The check now drives it through `cast` and reads the argument word back. (2) The prose
+"cast calldata" written run-together matches the chain-independence guard's `cast call`
+alternative, taking that grep from 0 to 2 on COMMENTS; the guard is the only evidence the suite
+opens no socket, so the wording was changed and the note explaining it DESCRIBES the pattern
+instead of quoting it (the first attempt re-tripped the grep on itself).
+Territory clean: `src/ test/ foundry-scripts/ Makefile foundry.toml remappings.txt` byte-untouched,
+and 22-01's files (`offchain/rig/*`, `IMPORT-PIN.md`) were not touched.
 
 Status: **22-01 DONE — the phase is UNBLOCKED.** 37 source-of-truth paths re-pinned to
 `origin/develop @ 2039f27` (PR #18) by verbatim `git checkout` per path — never a directory glob,
@@ -397,6 +437,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 21 P04 | 15 | 2 tasks | 5 files |
 | Phase 21 P05 | 19min | 3 tasks | 6 files |
 | Phase 22 P01 | 9 | 2 tasks | 10 files |
+| Phase 22 P02 | 47 | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -501,6 +542,11 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 22]: 22-01: .planning/issue-17-swappable-rig-SPEC.md (+134 on develop) deliberately NOT imported — the 37-path set is authoritative and every acceptance criterion is stated against the literal 37 (finding F22-3)
 - [Phase 22]: 22-01: forge/plank delta measured with Phase 20's exact command AND seed (forge test --via-ir --fuzz-seed 4880), not the plan's bare 'forge test', so 85/27/112 is a real comparison
 - [Phase 22]: 22-01: DRIV-01/DRIV-02 NOT marked complete despite being in the plan's requirements frontmatter — this is the import/unblock plan (1 of 6) and neither driver has run against a live rig; REQUIREMENTS.md stays Pending, matching Phase 20's RIG-01-at-20-05 precedent
+- [Phase 22]: 22-02: EVERY signed field needs at least one NEGATIVE pin of its own — MEASURED, the third refuted discriminator in this workstream
+- [Phase 22]: 22-02: compose_slot0 masks at bit 184 so protocolFee/lpFee survive BY CONSTRUCTION (G5b); masking at 160 breaks tick/sqrtPrice coherence (G5a)
+- [Phase 22]: 22-02: PoolSwapTest.swap calldata is 388 bytes (4+32*12), not the planned 324 — the empty bytes member still costs an offset AND a length word
+- [Phase 22]: 22-02: POOLS_SLOT = 6 is CONSUMED from the pinned DynamicFeeHook.plk constant, never re-derived from v4-core, so the hook and the client cannot disagree
+- [Phase 22]: 22-02: RealizedVol.Decode is a DECODER only — the module name is not evidence the no-writeTimepoint-client decision was violated
 
 ### Pending Todos
 
@@ -527,6 +573,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-08-02T16:12:26.911Z
-Stopped at: Completed 22-01-PLAN.md
+Last session: 2026-08-02T16:21:07.277Z
+Stopped at: Completed 22-02-PLAN.md (pure offchain surface: E3/E5 decoders, slot0 composition, swap calldata) — 68/68 chain-independent
 Resume file: None
