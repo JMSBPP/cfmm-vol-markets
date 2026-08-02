@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 22-03-PLAN.md (swappable rig: 6 scripts, 9 contracts, probe swap PROVEN to write a timepoint) — rig LEFT RUNNING pid 1016807"
-last_updated: "2026-08-02T16:45:00Z"
-last_activity: "2026-08-02 — 22-03 executed: swappable rig, deterministic clock origin, SC-5 re-measured"
+stopped_at: "Completed 22-04-PLAN.md (THE GATE: e3.tick 5000 OBSERVED; blocker discharged) — rig LEFT RUNNING pid 1061007"
+last_updated: "2026-08-02T17:20:00Z"
+last_activity: "2026-08-02 — 22-04 executed: the cheat-swap composition discharged by measurement, G1 pinned, floor tick measured"
 progress:
   total_phases: 19
   completed_phases: 10
   total_plans: 32
-  completed_plans: 29
+  completed_plans: 30
 ---
 
 # Project State
@@ -27,8 +27,62 @@ See: .planning/PROJECT.md (updated 2026-07-19)
 ## Current Position
 
 Phase: 22 — Live Stochastic Drivers (DRIV-01, DRIV-02) — **IN PROGRESS**
-Plan: 3 of 6 complete (22-01, 22-02 wave 1; 22-03 wave 2 — all DONE).
-Next action: **22-04** (a standing swappable rig is available — pid 1016807, block 13).
+Plan: 4 of 6 complete (22-01, 22-02 wave 1; 22-03 wave 2; 22-04 wave 3 — all DONE).
+Next action: **22-05** (a standing swappable rig is available — pid 1061007, block 13, head ts
+1700000015, orderCount 0). **22-05's `depends_on: ["22-04"]` is now satisfied BY MEASUREMENT.**
+
+Status: **22-04 DONE — THE PHASE BLOCKER IS DISCHARGED BY AN OBSERVED VALUE, not by an argument.**
+`jq '.measurements[] | select(.name=="cheat_to_5000_then_swap") | .e3.tick'` on the committed
+`offchain/rig/cheat-swap-proof.json` returns **`5000`** — an E3 carrying the cheated tick, at
+status 1, `e3_count` 1, `e5_count` 1, `e3.timestamp` equal to the requested `ts`. The pool
+initialised at tick 0 and a 1e6-wei exact-input swap against `L = 1e21` cannot reach tick 5000, so
+that value has exactly one possible origin: a slot0 write `DynamicFeeHook.beforeSwap` actually
+read. **The blocker's SILENCE is demonstrated too**: the identical sequence with only
+`cst_cheat_manager` moved to `PriceSetterPoolManager` returns **status 1, one E3, one E5 and
+`e3.tick = 4999`** — a receipt that looks perfectly healthy carrying the wrong tick. Decoding the
+recorded slot0 words makes it exact: measurement B's `word_written` carries tick **7000**, i.e. the
+composition was CORRECT and only the DESTINATION was wrong (measurement A on the first capture:
+`word_before` tick **-1**, `word_written` tick **5000**, E3 **5000**).
+`CheatSwap.Rpc.cheat_and_swap` composes extsload → `packSlot0For` → `compose_slot0` →
+`anvil_setStorageAt` → absolute clock set → router swap → E3/E5 extraction (filtered on
+`changeAddress == DynamicFeeHook`, mandatory because `RealizedVolatilityMod` emits the same E3
+topic0 with the poolId sentinel), behind **FOUR client-side guards each OBSERVED rejecting** with
+`cast block-number` unchanged at **13 → 13** across every attempt — the proof that nothing was sent
+is the height, not inspection. **The plan's own clock falsification does NOT isolate guard (c)**
+(both prescribed cases redden guard (b), since a backwards `ts` is below the head before it is
+below the previous step) so a third case was CONSTRUCTED — 22-03's Probe-6 lesson recurring.
+**A FIFTH PREDICTED MECHANISM MEASURED AND REFUTED — and this one was the plan's own instrument.**
+Plan 22-04 specifies measuring G1 with a step "whose `evm_setNextBlockTimestamp` call is SKIPPED
+entirely". Implemented verbatim it produced `headAfter = ts + 1` and a **healthy E3** — no
+collision at all — then produced `e3_count = 0` three times on re-runs. It RACES wall time. Measured
+cause: anvil **ACCEPTS a next-block timestamp EQUAL to the head** (returns `null`) and rejects only
+a strictly lower one (`-32602`), and after an explicit set it resumes wall-clock-derived timestamps.
+**FIXED, not noted:** `ForceTimestamp` constructs the collision deterministically, and G1 is now a
+pinned fact — `same_second_repeat_step2` = **`0 1 1`** (e3_count, e5_count, status), so
+`count(E5) - count(E3)` is a direct on-chain count of steps the write guard ate. `LeaveClockAlone`
+was KEPT and still measured so the refutation stays on chain, with its E3 count deliberately
+UNPINNED and the reason in-file. **Research's unmeasured floor prediction CONFIRMED:**
+`extreme_tick_near_floor` at **-887259** returns status 1 with E3 carrying -887259 and **no
+revert** — so 22-05 needs NO per-step direction/limit selection. `cabal test` = **73/73** (68 → 73),
+exit 0, zero `-Wall` warnings, **chain-independence RE-MEASURED** (rig stopped, `pgrep anvil` empty,
+`cast` errors, 73/73 exit 0) and the rig stood back up, where the committed proof **still passes
+freshness against a from-scratch redeploy** — a live re-confirmation of 22-03's SC-5 determinism.
+**FIVE mutants, five REDs, each hitting exactly one check**, all run on COPIES: A `e3.tick`
+5000→5001, A `word_written` recomposed at 160 (reddens with `carries tick -887259`), B `e3.tick`
+4999→7000, step-2 `e3_count` 0→1, D `status` 1→0. **`proof_file` was a hardcoded constant — 22-03's
+exact `RIG_MANIFEST` defect on a second surface — and was FIXED** to resolve through
+`RIG_CHEAT_SWAP_PROOF`, with the override **proven non-vacuous before any mutant was trusted**
+(nonexistent path → all five `driv01_` proof checks redden at 68/73). **HONEST LIMIT recorded IN
+the check:** `word_before_high184` and `word_written_high184` are both **0** on this rig
+(`protocolFee` unset, dynamic-fee pool stores `lpFee = 0`), so the bits-≥184 preservation assertion
+holds WITHOUT DISCRIMINATING — the same blindness that let 22-02's mutant 1 survive; the assertion
+that actually kills a mask move is the written word's TICK FIELD. Three captures reproduce at
+normalised sha256 **`3e685ea2e498e68ff98590cd203eab921e75c3859b43b277f113f70e2d583a4e`**.
+**F22-5/6/7 recorded** (the DATA_CONTRACT "same-block" wording refuted by EXECUTION; anvil's
+equal-timestamp acceptance; the omission-races-G1 finding), **D22-2 deferred**
+(`batch-return-capture.json` still has no `generatedFrom` — the plan's own decision, not an
+oversight). **DRIV-01 deliberately NOT marked complete**: it is a PATH requirement and this plan
+proved the mechanism for one STEP; 22-05 closes it. Territory clean throughout.
 
 Status: **22-03 DONE — the pool is SWAPPABLE and the write path is PROVEN, not assumed.**
 `deploy-rig.sh` now runs SIX scripts and stands up NINE contracts from one command. The sixth is
@@ -485,6 +539,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 21 P05 | 19min | 3 tasks | 6 files |
 | Phase 22 P01 | 9 | 2 tasks | 10 files |
 | Phase 22 P02 | 47 | 3 tasks | 5 files |
+| Phase 22 P04 | 31min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -594,6 +649,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 22]: 22-02: PoolSwapTest.swap calldata is 388 bytes (4+32*12), not the planned 324 — the empty bytes member still costs an offset AND a length word
 - [Phase 22]: 22-02: POOLS_SLOT = 6 is CONSUMED from the pinned DynamicFeeHook.plk constant, never re-derived from v4-core, so the hook and the client cannot disagree
 - [Phase 22]: 22-02: RealizedVol.Decode is a DECODER only — the module name is not evidence the no-writeTimepoint-client decision was violated
+- [Phase 22]: 22-04: the cheat-swap composition is DISCHARGED BY MEASUREMENT — an E3 carrying the cheated tick 5000 was observed on chain; the identical sequence aimed at PriceSetterPoolManager returns status 1, one E3, one E5 and tick 4999
+- [Phase 22]: 22-04: G1 cannot be reached by OMITTING the clock advance — that races wall time (observed both ways); CheatSwap.Rpc gained ForceTimestamp to construct the collision, and anvil was measured accepting an EQUAL next-block timestamp while rejecting only strictly-lower
+- [Phase 22]: 22-04: the near-floor tick -887259 does NOT revert and E3 carries it, so 22-05 needs no per-step direction/limit selection
 
 ### Pending Todos
 
@@ -620,6 +678,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-08-02T16:21:07.277Z
-Stopped at: Completed 22-02-PLAN.md (pure offchain surface: E3/E5 decoders, slot0 composition, swap calldata) — 68/68 chain-independent
+Last session: 2026-08-02T17:16:21.649Z
+Stopped at: Completed 22-04-PLAN.md (THE GATE: e3.tick 5000 OBSERVED; blocker discharged) — rig LEFT RUNNING pid 1061007
 Resume file: None

@@ -584,10 +584,10 @@ Plans:
 **Plans**: 6 plans in 5 waves
 
 Plans:
-- [ ] 22-01-PLAN.md — Re-import + re-pin 37 paths to `origin/develop @ 2039f27`; upstream gate names `InitSwappableRig.s.sol`; the two vendored v4-core routers PROVEN to compile under `--via-ir` [wave 1]
-- [ ] 22-02-PLAN.md — The pure offchain surface: E3/E5 decoders with signed int24/int56 decoding (none exists anywhere in `offchain/` today), slot0 word composition, `cast`-shelled extsload + swap calldata [wave 1]
-- [ ] 22-03-PLAN.md — Swappable rig: `deploy-rig.sh` 6th step (`InitSwappableRig`), `anvil --timestamp`, nine manifest contracts, router binding probes, SC-5 re-measured, README's three stale spots fixed [wave 2]
-- [ ] 22-04-PLAN.md — THE BLOCKER DISCHARGE: `cheat_and_swap`, and an OBSERVED E3 carrying a non-zero cheated tick — plus the wrong-pool counter-measurement and the G1 same-second no-op, committed as evidence [wave 3]
+- [x] 22-01-PLAN.md — Re-import + re-pin 37 paths to `origin/develop @ 2039f27`; upstream gate names `InitSwappableRig.s.sol`; the two vendored v4-core routers PROVEN to compile under `--via-ir` [wave 1]
+- [x] 22-02-PLAN.md — The pure offchain surface: E3/E5 decoders with signed int24/int56 decoding (none exists anywhere in `offchain/` today), slot0 word composition, `cast`-shelled extsload + swap calldata [wave 1]
+- [x] 22-03-PLAN.md — Swappable rig: `deploy-rig.sh` 6th step (`InitSwappableRig`), `anvil --timestamp`, nine manifest contracts, router binding probes, SC-5 re-measured, README's three stale spots fixed [wave 2]
+- [x] 22-04-PLAN.md — THE BLOCKER DISCHARGE: `cheat_and_swap`, and an OBSERVED E3 carrying a non-zero cheated tick — plus the wrong-pool counter-measurement and the G1 same-second no-op, committed as evidence [wave 3]
 - [ ] 22-05-PLAN.md — DRIV-01: `run_cheat_swap_path` + seeded RNG (`RIG_SEED`) + `driver-run-capture.json` with flush-on-failure; SC-1 asserted by value offline [wave 4]
 - [ ] 22-06-PLAN.md — DRIV-02: single / MIXED batch (`skew = 65535`) / direct `create_orders _ _ []`; SC-2/3/4 checks; SC-5 seed replay; the documented command and the phase gate [wave 5]
 
@@ -599,7 +599,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 20. Deploy Rig & Source-of-Truth Import | 5/5 | Complete    | 2026-07-31 |
 | 21. V2 ABI Re-Pin & targetVega Generation | 5/5 | Complete    | 2026-08-01 |
-| 22. Live Stochastic Drivers | 3/6 | In Progress|  |
+| 22. Live Stochastic Drivers | 4/6 | In Progress|  |
 
 ## Coverage (Milestone v5.0)
 
