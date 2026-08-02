@@ -31,6 +31,20 @@
 --     client-side guards are THE ONLY SIGNAL THAT EXISTS. (The node rejects a strictly backwards
 --     @setNextBlockTimestamp@ with @-32602@, but that fires at SEND time, says nothing about the
 --     caller's own sequence, and does not fire at all for the equal-timestamp case.)
+--
+--     WHAT (c) ADDS OVER (b), STATED EXACTLY, because the honest answer is narrower than \"a second
+--     opinion\". (b) compares against the chain head; (c) against the timestamp this caller last
+--     SUBMITTED. Once a submission has mined, the head IS that timestamp, so on a single-writer
+--     local node with a fresh head read @requested > head@ already implies @requested > previous@
+--     and (c) cannot fire. (c) earns its place exactly where the head read stops being a faithful
+--     view of the caller's own history: a lagging replica or an RPC pool answering from behind the
+--     tip, or a second driver sharing the schedule. MEASURED both ways against the rig, with a
+--     shuffled schedule and guard (b) reading a head stale by 10000 s: with the previous timestamp
+--     DERIVED from the requested one the bad step was sent and came back as the node's
+--     @-32602 Timestamp error@ — after the slot0 write had already landed and naming the wrong
+--     cause; with the caller's recorded timestamp threaded in, (c) fired first and nothing was sent.
+--     So (b) and (c) are not redundant, but neither is (c) the guard that catches a shuffle on this
+--     rig — (b) is, and it is the weaker claim that is true.
 --   * (d) a @NotBound@ revert on @PriceSetterHook.readSlot0@ returns @0x@, which
 --     'VolOrder.Decode.hex_to_integer' reads as @0@ — a well-formed word describing a zero price.
 --     'PriceSetter.Rpc' documents the same shape one layer over: a @fail@ inside 'Web3' surfaces as
@@ -180,6 +194,17 @@ data CheatSwapTarget = CheatSwapTarget
 -- sequence and no chain read can supply it: a head timestamp tells you where the chain is, not
 -- where the driver has already claimed to be.
 --
+-- THAT FIRST FIELD MUST BE THE TIMESTAMP THE CALLER ACTUALLY SUBMITTED LAST, READ BACK FROM ITS
+-- OWN RECORD. It is 'Maybe' precisely so it cannot be faked: on the first step of a run there IS no
+-- previous submission, and the honest encoding of that is 'Nothing' (guard (c) then has no
+-- information and does not run — guard (b), which reads the chain, still does). Until this was a
+-- 'Maybe' the driver had nothing to put there on step 0 and passed @t_k - stride@ on EVERY step, a
+-- value recomputed from the very timestamp being checked, which collapsed guard (c) to
+-- @stride <= 0@ — a condition the driver already rejects before the fold starts. The guard could
+-- not fire, and a shuffled schedule, a replayed step or two interleaving drivers were invisible to
+-- it. Deriving the \"previous\" value from the current one is the defect; 'Nothing' is not a
+-- weaker version of it but the absence of the claim.
+--
 -- The other two constructors both SKIP both clock guards and exist only so the G1 hazard can be
 -- measured. Neither may appear in a driver loop.
 --
@@ -198,7 +223,9 @@ data CheatSwapTarget = CheatSwapTarget
 -- drift one second per step instead of hitting G1 — the hazard is real, but it is not reached by
 -- omission on this node, and the constructor is kept so that stays recorded.
 data CheatSwapClock
-  = AdvanceTo Integer Integer   -- ^ previous step's timestamp, then this step's absolute timestamp
+  = AdvanceTo (Maybe Integer) Integer
+    -- ^ the timestamp this caller last SUBMITTED ('Nothing' on the first step of a run), then this
+    -- step's absolute timestamp
   | ForceTimestamp Integer      -- ^ MEASUREMENT ONLY: set this timestamp, guards bypassed (G1)
   | LeaveClockAlone             -- ^ MEASUREMENT ONLY: do not touch the clock at all
   deriving (Eq, Show)
@@ -257,14 +284,23 @@ cheat_and_swap target clock tick = do
                ++ " lastTimepointTimestamp to now for EQUALITY, so the swap would still succeed at"
                ++ " status 1, still emit E5 and still serve a fee, and simply write no timepoint."
                ++ " Nothing was sent.")
-      -- GUARD (c) — G2 against the CALLER'S OWN SEQUENCE.
-      when (requested <= previous_ts) $
-        fail ("cheat_and_swap: requested block timestamp " ++ show requested
-               ++ " does not advance past the previous step's " ++ show previous_ts
-               ++ " (tick " ++ show tick ++ "). The oracle assumes a non-decreasing uint32 clock"
-               ++ " and does NOT check it; a backwards step corrupts the window math with no"
-               ++ " revert, no event and no symptom, so this guard is the only signal that exists."
-               ++ " Nothing was sent.")
+      -- GUARD (c) — G2 against the CALLER'S OWN SEQUENCE. Skipped, and only skipped, when the
+      -- caller has submitted nothing yet: there is no earlier claim to contradict.
+      case previous_ts of
+        Nothing -> pure ()
+        Just previous ->
+          when (requested <= previous) $
+            fail ("cheat_and_swap: requested block timestamp " ++ show requested
+                   ++ " does not advance past the timestamp this caller last SUBMITTED, "
+                   ++ show previous
+                   ++ " (tick " ++ show tick ++ "). The oracle assumes a non-decreasing uint32"
+                   ++ " clock and does NOT check it; a backwards step corrupts the window math with"
+                   ++ " no revert, no event and no symptom, so this guard is the only signal that"
+                   ++ " exists. This guard reads the caller's OWN record and guard (b) reads the"
+                   ++ " chain, so when the head read is not a faithful view of that record -- a"
+                   ++ " lagging replica, an RPC pool, a second driver on the same schedule -- this"
+                   ++ " is the one that can still see a shuffled or replayed step."
+                   ++ " Nothing was sent.")
       pure requested
 
   let slot     = pool_state_slot (cst_pool_id target)

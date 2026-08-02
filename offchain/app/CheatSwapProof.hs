@@ -196,7 +196,7 @@ data Measured = Measured
 guarded_step :: CheatSwapTarget -> Integer -> Web3 (CheatSwapStep, Integer)
 guarded_step target tick = do
   previous <- chain_head_timestamp
-  step     <- cheat_and_swap target (AdvanceTo previous (previous + stride)) tick
+  step     <- cheat_and_swap target (AdvanceTo (Just previous) (previous + stride)) tick
   after    <- chain_head_timestamp
   pure (step, after)
 

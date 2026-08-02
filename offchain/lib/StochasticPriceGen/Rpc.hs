@@ -24,7 +24,7 @@ module StochasticPriceGen.Rpc
 
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
-import Data.IORef (IORef, modifyIORef')
+import Data.IORef (IORef, modifyIORef', readIORef)
 
 import Data.ByteArray.HexString (HexString)
 import Data.Solidity.Prim.Address (Address)
@@ -119,15 +119,25 @@ run_cheat_swap_path target config stride steps_ref gen = do
   let t0 = head_ts + stride
       schedule = [(k, tick, t0 + k * stride) | (k, tick) <- zip [0 ..] ticks]
 
-  mapM (one_step target stride steps_ref) schedule
+  mapM (one_step target steps_ref) schedule
 
 -- | One step: submit, assert what came back, and record it before returning.
+--
+-- The value handed to guard (c) is the timestamp the LAST RECORDED STEP actually submitted, read
+-- back out of @steps_ref@ — not a number recomputed from this step's own @t_k@. That distinction is
+-- the whole guard. @AdvanceTo (t_k - stride) t_k@ looked like it carried the previous step's
+-- timestamp and did not: with @t_k = t0 + k*stride@ the two agree only because the schedule is
+-- already monotonic, so the predicate reduced to @stride <= 0@, which 'run_cheat_swap_path' rejects
+-- before the fold starts. Reading the record instead makes the guard carry information the schedule
+-- does not: a shuffled schedule, a replayed step, or a second driver appending to the same 'IORef'
+-- all move the recorded value away from @t_k - stride@.
 one_step
-  :: CheatSwapTarget -> Integer -> IORef [CheatSwapStep]
+  :: CheatSwapTarget -> IORef [CheatSwapStep]
   -> (Integer, Integer, Integer)
   -> Web3 CheatSwapStep
-one_step target stride steps_ref (k, tick, t_k) = do
-  step <- cheat_and_swap target (AdvanceTo (t_k - stride) t_k) tick
+one_step target steps_ref (k, tick, t_k) = do
+  previous_submitted <- liftIO (last_submitted_timestamp <$> readIORef steps_ref)
+  step <- cheat_and_swap target (AdvanceTo previous_submitted t_k) tick
   -- Appended BEFORE the assertions below, so a step that mined and then failed its assertion is
   -- still in the artifact. That is the step a reader most needs to see.
   liftIO (modifyIORef' steps_ref (++ [step]))
@@ -168,3 +178,12 @@ one_step target stride steps_ref (k, tick, t_k) = do
                ++ " the timestamp evm_setNextBlockTimestamp was given -- which makes the whole"
                ++ " series' sigma^2 window arithmetic unattributable.")
       pure step
+
+-- | The timestamp the last recorded step SUBMITTED, or 'Nothing' when nothing has been recorded.
+--
+-- 'Nothing' is not a lenient default: on the first step of a run the driver has genuinely claimed
+-- no timestamp yet, and any number invented for that position would be derived from the step being
+-- checked. Guard (b) — the chain-head comparison inside 'cheat_and_swap' — covers step 0 on its own.
+last_submitted_timestamp :: [CheatSwapStep] -> Maybe Integer
+last_submitted_timestamp [] = Nothing
+last_submitted_timestamp xs = Just (cs_timestamp (last xs))
