@@ -37,14 +37,7 @@ Where:
 	\end{aligned}
 \]
 
-The strike is the price at the STRIKE TICK \(i_K\); \(p_{1/2,\Delta_i}\) is the price grid at elasticity \(\epsilon_{X/M} = 1/2\) — the same \(\tfrac12\) as in \(\varphi_{1/2}\), since a square-root price coordinate is what a 50/50 pool induces:
-
-\[
-	\begin{aligned}
-		p_{\epsilon_{X/M}, \Delta_i} \, (i) \, = \, \lambda^{\,i\,\epsilon_{X/M}\,\Delta_i\,\eta}, \qquad
-		p_{1/2, \Delta_i} \, (i) \, = \, \lambda^{(i/2)\,\Delta_i\,\eta} \quad (\texttt{VolInstrument.priceEta})
-	\end{aligned}
-\]
+The strike is the price at the STRIKE TICK \(i_K\); \(p_{1/2,\Delta_i}\) is the price grid at elasticity \(\epsilon_{X/M} = 1/2\), defined under the pricing geometry below (\(\texttt{VolInstrument.priceEta}\)).
 
 
 > FLAG (author decision pending): exponent sign above — BS dt-leg suggests \(\exp(-[\cdot]^2/(2\sigma^2 t))\); ATM form \(\Theta_{ATM} = k\sigma/\sqrt{8\pi\tau}\) (`theta_atm_closed_form`) cannot discriminate (exponent vanishes ATM).
@@ -99,13 +92,13 @@ Where:
 is an imperfect vehicle: as soon as the stock price moves, your sensitiv-
 ity to further changes in variance is altered ?"[PG7](../refs/DemeterfietalVarianceSwaps.pdf)
 
-- **Solution**  What you want is a portfolio \(\Pi\)whose sensitivity to realized variance is independent of the underlying price \(p_{(\eta, \Delta_i)} \, (i; t)\) [PG7](../refs/DemeterfietalVarianceSwaps.pdf)
+- **Solution**  What you want is a portfolio \(\Pi\)whose sensitivity to realized variance is independent of the underlying price \(p_{1/2, \Delta_i} \, (i; t)\) [PG7](../refs/DemeterfietalVarianceSwaps.pdf)
 
 This is:
 
 \[
 	\begin{aligned}
-		\pi^{\sigma} (t) \, &= \, \Pi^{\text{call | put}} \, (\sigma ;p_{(\eta, \Delta_i)} \, (i; t)) \\
+		\pi^{\sigma} (t) \, &= \, \Pi^{\text{call | put}} \, (\sigma ;p_{1/2, \Delta_i} \, (i; t)) \\
 		&= \, \sum_{i_K} \, L (i_K) 
 	\end{aligned}
 \]
@@ -116,9 +109,9 @@ We have the regions:
 
 \[
 	\begin{aligned}
-		\Pi^{\text{call | put}} \, (\sigma ;p_{(\eta, \Delta_i)} \, (i; 0)) \, &= \, \frac{p_{(\eta, \Delta_i)} \, (i; 0) - p^{\star}}{p^{\star}} \, - \, \log(\frac{p_{(\eta, \Delta_i)} \, (i; 0)}{p^{\star}}) \\
+		\Pi^{\text{call | put}} \, (\sigma ;p_{1/2, \Delta_i} \, (i; 0)) \, &= \, \frac{p_{1/2, \Delta_i} \, (i; 0) - p^{\star}}{p^{\star}} \, - \, \log(\frac{p_{1/2, \Delta_i} \, (i; 0)}{p^{\star}}) \\
 		\\
-		\Pi^{\text{call | put}} \, (\sigma ;p_{(\eta, \Delta_i)} \, (i; t)) \, &= \, \frac{p_{(\eta, \Delta_i)} \, (i; t) - p^{\star}}{p^{\star}} \, - \, \log(\frac{p_{(\eta, \Delta_i)} \, (i; t)}{p^{\star}}) \, + \, \frac{\sigma^2 \, t}{2}
+		\Pi^{\text{call | put}} \, (\sigma ;p_{1/2, \Delta_i} \, (i; t)) \, &= \, \frac{p_{1/2, \Delta_i} \, (i; t) - p^{\star}}{p^{\star}} \, - \, \log(\frac{p_{1/2, \Delta_i} \, (i; t)}{p^{\star}}) \, + \, \frac{\sigma^2 \, t}{2}
 	\end{aligned}
 \]
 
@@ -131,7 +124,7 @@ Then:
 \]
 
 
-> LEAN (correction): \(\upsilon = \Delta\Pi/\Delta\sigma^2 = T/2\), \(p_{(\eta,\Delta_i)}\)-independent: `variancePortfolio_upsilon`; \(\text{Id}_{N_\sigma}\) unit vega: `variancePortfolio_unit_upsilon`; \(\Pi \geq 0\), \(\Pi(p^{\star}) = 0\): `logPortfolio_nonneg`, `logPortfolio_atm`.
+> LEAN (correction): \(\upsilon = \Delta\Pi/\Delta\sigma^2 = T/2\), \(p_{1/2, \Delta_i}\)-independent: `variancePortfolio_upsilon`; \(\text{Id}_{N_\sigma}\) unit vega: `variancePortfolio_unit_upsilon`; \(\Pi \geq 0\), \(\Pi(p^{\star}) = 0\): `logPortfolio_nonneg`, `logPortfolio_atm`.
 
 > Note: A single leg portaflio gives:
 
@@ -141,7 +134,7 @@ Then:
 	\end{aligned}
 \];
 
-Which is higly sensible to the direction of \(p_{(\eta, \Delta_i)}\)  from the term \(\ln \big(p_{1/2, \Delta_i}(i;t) / p_{1/2, \Delta_i}(i_K)\big)\)
+Which is higly sensible to the direction of \(p_{1/2, \Delta_i}\)  from the term \(\ln \big(p_{1/2, \Delta_i}(i;t) / p_{1/2, \Delta_i}(i_K)\big)\)
 
 Then:
 
@@ -155,7 +148,7 @@ Then:
 
 \[
 	\begin{aligned}
-		\Pi^{\text{call | put}} \, (\sigma ;p_{(\eta, \Delta_i)} \, (i; t); T) \, &= \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{(\eta, \Delta_i)} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{(\eta, \Delta_i)}}{p^{\star}})\Big] \, + \, \frac{T - t}{T}\, \sigma^2
+		\Pi^{\text{call | put}} \, (\sigma ;p_{1/2, \Delta_i} \, (i; t); T) \, &= \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{1/2, \Delta_i} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{1/2, \Delta_i}}{p^{\star}})\Big] \, + \, \frac{T - t}{T}\, \sigma^2
 	\end{aligned}
 \]
 
@@ -171,7 +164,7 @@ Then:
 
 \[
 	\begin{aligned}
-		\Pi^{\text{call | put}} \, (\sigma^2_R\, (T) ;p_{(\eta, \Delta_i)} \, (i; t); T) \, &= \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{(\eta, \Delta_i)} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{(\eta, \Delta_i)}}{p^{\star}})\Big] \, + \, \sigma^2_R\, (T) 
+		\Pi^{\text{call | put}} \, (\sigma^2_R\, (T) ;p_{1/2, \Delta_i} \, (i; t); T) \, &= \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{1/2, \Delta_i} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{1/2, \Delta_i}}{p^{\star}})\Big] \, + \, \sigma^2_R\, (T) 
 	\end{aligned}
 \]
 
@@ -246,9 +239,12 @@ Where under the prcing geometry:
 
 \[
 	\begin{aligned}
-		p_{(\eta, \Delta_i)} (i_K) \, &= \, \lambda^{i/2 \, \Delta_i \, \eta}
+		p_{\epsilon_{X/M}, \Delta_i} (i_K) \, &= \, \lambda^{\,i \, \epsilon_{X/M} \, \Delta_i \, \eta}, \qquad\qquad
+		p_{1/2, \Delta_i} (i_K) \, = \, \lambda^{i/2 \, \Delta_i \, \eta}
 	\end{aligned}
 \]
+
+The subscript names the ELASTICITY and the SPACING; \(\eta\) is a standing parameter of the grid, declared just below and visible in the exponent — the \(1/2\) in the subscript is the same \(1/2\) that appears as \(i/2\) in the exponent, because a square-root price coordinate is what a \(50/50\) pool induces (\(\varphi_{1/2}\)). <!-- notation-map -->
 Define:
 
 \[
@@ -260,9 +256,9 @@ We have on the underlying market \(X, M\):
 
 \[
 	\begin{aligned}
-		\Delta Q_M^{L} (i_K) \, &= \, L \, (i_K) \Big [ \frac{p_{(\eta, \Delta_i)} (i_K + \Delta_i) \, - \, p_{(\eta, \Delta_i)} (i_K)}{p_{(\eta, \Delta_i)} (i_K) \, p_{(\eta, \Delta_i)} (i_K + \Delta_i)}\Big] \\
+		\Delta Q_M^{L} (i_K) \, &= \, L \, (i_K) \Big [ \frac{p_{1/2, \Delta_i} (i_K + \Delta_i) \, - \, p_{1/2, \Delta_i} (i_K)}{p_{1/2, \Delta_i} (i_K) \, p_{1/2, \Delta_i} (i_K + \Delta_i)}\Big] \\
 		\\
-		\Delta Q_X^L \, (i_K) \, &= \, L \, (i_K) \Big [ p_{(\eta, \Delta_i)} (i_K + \Delta_i) \, - \, p_{(\eta, \Delta_i)} (i_K) \Big ]
+		\Delta Q_X^L \, (i_K) \, &= \, L \, (i_K) \Big [ p_{1/2, \Delta_i} (i_K + \Delta_i) \, - \, p_{1/2, \Delta_i} (i_K) \Big ]
 	\end{aligned}
 \]
 
@@ -272,7 +268,7 @@ We have on the underlying market \(X, M\):
 \[
 	\begin{aligned}
 		0 \leq L, \; \eta\,\Delta_i > 0, \; \Delta_i \geq 0 \;\implies\; \Delta Q_M^L, \Delta Q_X^L \geq 0; \qquad
-		\Delta Q_M^{L}(i_K) \, = \, L(i_K)\Big[\frac{1}{p_{(\eta,\Delta_i)}(i_K)} - \frac{1}{p_{(\eta,\Delta_i)}(i_K+\Delta_i)}\Big]
+		\Delta Q_M^{L}(i_K) \, = \, L(i_K)\Big[\frac{1}{p_{1/2, \Delta_i}(i_K)} - \frac{1}{p_{1/2, \Delta_i}(i_K+\Delta_i)}\Big]
 	\end{aligned}
 \]
 
@@ -304,8 +300,8 @@ And the inverse cummulatives as:
 
 \[
 	\begin{aligned}
-		Q_X^L \, = \, \bar L\,\big[p_{(\eta,\Delta_i)}(i_{\min}+n\Delta_i) - p_{(\eta,\Delta_i)}(i_{\min})\big], \qquad
-		Q_M^L \, = \, \bar L\,\Big[\frac{1}{p_{(\eta,\Delta_i)}(i_{\min})} - \frac{1}{p_{(\eta,\Delta_i)}(i_{\min}+n\Delta_i)}\Big]
+		Q_X^L \, = \, \bar L\,\big[p_{1/2, \Delta_i}(i_{\min}+n\Delta_i) - p_{1/2, \Delta_i}(i_{\min})\big], \qquad
+		Q_M^L \, = \, \bar L\,\Big[\frac{1}{p_{1/2, \Delta_i}(i_{\min})} - \frac{1}{p_{1/2, \Delta_i}(i_{\min}+n\Delta_i)}\Big]
 	\end{aligned}
 \]
 
@@ -323,7 +319,7 @@ Consider a exogenous tuple flow \( \Delta Q = ( \Delta Q_M, \Delta Q_X )\) on th
 	\end{aligned}
 \]
 
-\(\epsilon_{X/M}\) = the substitution elasticity = the exponent on the \(\Delta Q_M\) leg (the \(1/p_{(\eta,\Delta_i)}\) leg) = that leg's share of pool value. The current case is \(\epsilon_{X/M} = 1/2\):
+\(\epsilon_{X/M}\) = the substitution elasticity = the exponent on the \(\Delta Q_M\) leg (the \(1/p_{1/2, \Delta_i}\) leg) = that leg's share of pool value. The current case is \(\epsilon_{X/M} = 1/2\):
 
 \[
 	\begin{aligned}
@@ -876,9 +872,9 @@ The curvature of \(F_{\kappa_{\varphi}} = C\) is increasing in \(\kappa_{\varphi
 
 \[
 	\begin{aligned}
-		\frac{p_{(\eta,\Delta_i)}(i+\Delta_i)}{p_{(\eta,\Delta_i)}(i)} \, &= \, \lambda^{\Delta_i^{2}\eta/2}
+		\frac{p_{1/2, \Delta_i}(i+\Delta_i)}{p_{1/2, \Delta_i}(i)} \, &= \, \lambda^{\Delta_i^{2}\eta/2}
 		\qquad \text{(INDEPENDENT of } i \text{)} \\
-		\kappa_{\varphi}(\eta,\Delta_i) \, &:= \, 1 \, - \, \frac{p_{(\eta,\Delta_i)}(i)}{p_{(\eta,\Delta_i)}(i+\Delta_i)}
+		\kappa_{\varphi}(\eta,\Delta_i) \, &:= \, 1 \, - \, \frac{p_{1/2, \Delta_i}(i)}{p_{1/2, \Delta_i}(i+\Delta_i)}
 		\, = \, 1 \, - \, \lambda^{-\Delta_i^{2}\eta/2}
 	\end{aligned}
 \]
@@ -1193,7 +1189,7 @@ The sensitivity operator (NEW symbol; `\mathcal{D}` unused in this document — 
 	\end{aligned}
 \]
 
-External delta `Δ`/`δ` → \(\mathcal{D}_p[\pi]\), \(p = p_{(\eta,\Delta_i)}(i;t)\) (`Δ` is this document's difference operator; `δ_S, δ_R` are J1's swap curves). <!-- notation-map -->
+External delta `Δ`/`δ` → \(\mathcal{D}_p[\pi]\), \(p = p_{1/2, \Delta_i}(i;t)\) (`Δ` is this document's difference operator; `δ_S, δ_R` are J1's swap curves). <!-- notation-map -->
 External gamma → \(\Gamma \equiv \mathcal{D}^2_p[\pi]\); bare `Γ` is FREE here and is bound to gamma ONLY; the sigmoid steepness is ALWAYS subscripted `γ_j` (mirror of the κ/κ_φ rule). <!-- notation-map -->
 External theta Θ → IDENTIFIED with this document's \(\theta \equiv \Delta\pi/\Delta t\) (the exponent-sign FLAG on its display stands); `Θ_•` remains parameter-set notation and is never a Greek. <!-- notation-map -->
 External vega ν → NEVER imported (`ν_t = w_t/D_t`, M6b); all vegas through \(\upsilon \equiv \Delta\pi/\Delta\sigma^2\) (bound, = t/2); σ-convention vega is written \(2\,\sigma(i(t))\,\upsilon\). <!-- notation-map -->
@@ -1201,7 +1197,7 @@ Maymin's liquidity Greek `Λ = ∂C/∂k` → \(\mathcal{D}_{\bar L}[C]\) (Greek
 Maymin's emission Greek `E = ∂C/∂e` → \(\mathcal{D}_{\Delta Q_M}[C]\) (Def 2 eq (34), again a C-Greek; our emission policy IS the ΔQ_M schedule). <!-- notation-map -->
 Maymin's CEV exponent `β = w` = the NUMERAIRE weight (his §3.2 eq (4)–(5): \(x^w y^{1-w} = K\), \(x\) = numeraire, \(P = \tfrac{1-w}{w}\tfrac{x}{y}\)) → \(w = 1 - \eta_L\), i.e. \(\eta_L = 1 - w\) = the ASSET share (eta.md line 12: \(L = X^{\eta}Y^{1-\eta}\), \(P\) = price of \(X\) in \(Y\) ⟹ η = exponent on the ASSET). ORIENTATION DECIDED AT FORMULA LEVEL by eq (12): \(P \propto x^{1/(1-w)} \implies \partial_x P = \tfrac{1}{1-w}\tfrac{P}{x}\), and \(x = P^{1-w}(\tfrac{w}{1-w})^{1-w}K\), so \(\delta = \tfrac{1}{1-w}\big(\tfrac{1-w}{w}\big)^{1-w}K^{-1}\sigma_F\) EXACTLY — the \(1/(1-w)\) prefactor is the reciprocal of the ASSET weight, and the \(w \leftrightarrow 1-w\) swap gives \(\tfrac{1}{w}(\tfrac{w}{1-w})^{w}K^{-1}\sigma_F\), ≠ eq (12) for \(w \neq \tfrac12\). \(\eta_L = \eta\) is E8(6) and remains OPEN — no display below assumes it. <!-- notation-map -->
 Maymin's `δ` (CEV vol coefficient) → eliminated through primitives: \(\sigma(i(t)) = \delta\, p^{\,\beta-1} = \delta\, p^{-\eta_L}\) (his σ_ret, Prop 4 eq (20), under \(\beta = w = 1-\eta_L\)) and CPMM \(\delta = 2\sigma_Q/\bar L\) (eq (12) at \(w = \tfrac12\), \(K = \bar L\)); his flow vol `σ_F` → \(\sigma_Q\) (σ̄_f is the FeeSchedule strike); his invariant `K` → \(\bar L\); his strike `K_str` → \(K\); his `κ` (eq 23) → \(c_0\) (bare κ FORBIDDEN); his CDF `χ²(x;n,·)` → \(\mathbb{P}_{Y_{n,\cdot} \leq x}\) (probability-typed ⟹ ℙ_{event}; χ banned). <!-- notation-map -->
-Bardoscia's `V0` → \(\Delta Q_M\) (V₀ is CJZ's, J5); his APY `φ` → eliminated in TWO commensurable forms, always labelled (B1): SCHEDULE-LEVEL per-unit carry \(\phi(\sigma_t)\,\nu_t\) (M6b's own units, \(\nu_t = w_t/D_t\), what \(\lambda_{\text{FLAIR}}\) sums) and POSITION-LEVEL carry \(\phi(\sigma_t)\,\nu_t\,\Delta Q_M\) (what an LP position of money leg ΔQ_M earns); his `S_t` → \(p_{(\eta,\Delta_i)}(i;t)\); maturity `T`, remaining `τ = T−t` → \(T^{\star}\), \(T^{\star}-t\) (τ is τ_MEV — NEVER time). <!-- notation-map -->
+Bardoscia's `V0` → \(\Delta Q_M\) (V₀ is CJZ's, J5); his APY `φ` → eliminated in TWO commensurable forms, always labelled (B1): SCHEDULE-LEVEL per-unit carry \(\phi(\sigma_t)\,\nu_t\) (M6b's own units, \(\nu_t = w_t/D_t\), what \(\lambda_{\text{FLAIR}}\) sums) and POSITION-LEVEL carry \(\phi(\sigma_t)\,\nu_t\,\Delta Q_M\) (what an LP position of money leg ΔQ_M earns); his `S_t` → \(p_{1/2, \Delta_i}(i;t)\); maturity `T`, remaining `τ = T−t` → \(T^{\star}\), \(T^{\star}-t\) (τ is τ_MEV — NEVER time). <!-- notation-map -->
 Demeterfi's `S*` → \(p^{\star}\); his variance vega `V = (T−t)/T` (a REMAINING-CALENDAR-TIME ratio) → \(\upsilon\) under this document's normalization, where the argument of \(\upsilon = t/2\) is the MATURITY PARAMETER \(t\), not calendar time: at inception \(\upsilon = T^{\star}/2\), and the calendar-time form is \(\upsilon(t) = (T^{\star}-t)/2\) (`variancePortfolio_upsilon`; t-SEMANTICS clause, G6(7)). <!-- notation-map -->
 Band edges `p_a, p_b` / `a, b` (Clark, Fateh–Singh) → \(p(i_l), p(i_u)\); Clark's reserves `R_α, R_β` → cumulative \(\Delta Q_X, \Delta Q_M\) (`VolInstrument.cumulativeQX/QM`); Kristensen's range factor `r` → \(\lambda_{\text{tick}}^{\iota\Delta_i}\) (through its own primitive). <!-- notation-map -->
 Bichuch–Feinstein's LVR rate `ℓ(q)` → eliminated: \(a_t \equiv \ell_{\text{BF}}(\cdot)\,\Delta t\) (M0/M3; `ℓ` here stays the weight \(\ell(\xi,\iota;i_K)\)); their implied vol `σ*_x` → \(\sigma^{\star}_{\phi}\) (fee-implied); Fateh–Singh's installment rate `q` → \(q_{\text{CI}}\) (`q_R, q_S` are CJZ's). <!-- notation-map -->
