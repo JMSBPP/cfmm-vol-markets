@@ -30,3 +30,33 @@ blind check.
 **Fix when touched:** resolve `pins_file` through `Rig.Manifest.rig_pins_path` and thread the
 resolved path into the message builders, or drop the `RIG_PINS` sentence from the messages the
 suite emits.
+
+---
+
+## D22-2 — Phase 21's `batch-return-capture.json` still has no `generatedFrom`
+
+**Found during:** 22-04 Task 2 (recorded as a DECISION, not an oversight).
+
+Phase 21's F4 measured that `rpin05_capture_is_present_and_fresh` cannot see a module CHANGE: it
+asserts `chainId` + `manager` only, and `manager` is a `CREATE` address, measured identical across
+three from-scratch deploys. `generatedFrom` — the imported source-of-truth ref — is the field that
+CAN see it.
+
+22-04 closes that gap on the NEW artifact (`offchain/rig/cheat-swap-proof.json` writes
+`generatedFrom` unconditionally, and `driv01_cheat_swap_proof_is_present_and_fresh` asserts it
+against `rig-pins.json`'s own value). It deliberately does NOT re-capture
+`offchain/rig/batch-return-capture.json` to add the field there.
+
+**Why not fixed here:** re-taking that capture churns a committed artifact and its four checks for
+a provenance field, on a plan whose subject is the cheat-swap composition. Recording the residual
+gap explicitly is more honest than closing it on paper.
+
+**Fix when touched:** add `generatedFrom` to `capture-batch-return.sh`'s `jq -n` emitter (read from
+`offchain/rig/import-ref.txt`), re-take the capture, and extend
+`rpin05_capture_is_present_and_fresh` to assert it — the same three lines
+`driv01_cheat_swap_proof_is_present_and_fresh` already carries.
+
+**Note on D22-1:** 22-04 fixed the *cheat-swap proof* half of the same family — `proof_file` is now
+resolved through `RIG_CHEAT_SWAP_PROOF` rather than a constant, and the override was PROVEN
+non-vacuous (pointed at a nonexistent path, all five `driv01_` proof checks redden). `pins_file`
+remains a constant; D22-1 stands.

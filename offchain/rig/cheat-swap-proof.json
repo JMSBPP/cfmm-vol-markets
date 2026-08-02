@@ -1,59 +1,157 @@
 {
   "_provenance": "Every value below was produced by offchain/app/CheatSwapProof.hs against the live rig stood up by offchain/rig/deploy-rig.sh. Nothing here was transcribed. Measurement B is the phase's blocker EXECUTED ON PURPOSE: it is identical to measurement A except that the slot0 write is aimed at PriceSetterPoolManager, the manager DynamicFeeHook does not read. Its receipt is expected to look perfectly healthy -- status 1, one E3, one E5 -- while carrying a tick that is not the cheated one. blockNumber is deliberately absent: three from-scratch deploys were measured at heights 9, 11 and 10, so it is not a provenance field.",
   "chainId": 31337,
-  "generatedAt": "2026-08-02T16:57:49Z",
+  "generatedAt": "2026-08-02T17:04:05Z",
   "generatedFrom": "2039f2783598866a337115df4a265a75e8842e82",
   "measurements": [
     {
       "e3": {
-        "averageTick": 4083,
+        "averageTick": -135491,
         "tick": 5000,
-        "tickCumulative": "244988",
-        "timestamp": 1700000063,
-        "volatilityCumulative": "313873609"
+        "tickCumulative": "-31027584",
+        "timestamp": 1700000232,
+        "volatilityCumulative": "24035071635471"
       },
       "e3_count": 1,
       "e5": {
         "fee": 15000,
-        "sigma": "5319891"
+        "sigma": "105416980857"
       },
       "e5_count": 1,
+      "head_ts_after": 1700000232,
       "name": "cheat_to_5000_then_swap",
       "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 5000,
-      "ts": 1700000063,
-      "tx_hash": "0xc80d4bf559405d6cd6ad29eb9e792239ec3b44bec9b9df2fe8b4cd2d83b8fb1f",
-      "word_before": "7306046685017183688100322208451540133640475633014773",
+      "ts": 1700000232,
+      "tx_hash": "0xb1b5251048c4a254a3711797aef8a3f0aac3695e54cd54823a260e8ae96b890e",
+      "word_before": "23223198172617642141431069233413930382162922907087213372",
       "word_before_high184": "0",
       "word_written": "7307508186654514591018525893284256416917456691626270",
       "word_written_high184": "0"
     },
     {
       "e3": {
-        "averageTick": 4235,
+        "averageTick": -128496,
         "tick": 4999,
-        "tickCumulative": "304976",
-        "timestamp": 1700000075,
-        "volatilityCumulative": "322236553"
+        "tickCumulative": "-30967596",
+        "timestamp": 1700000244,
+        "volatilityCumulative": "24259366323217"
       },
       "e3_count": 1,
       "e5": {
         "fee": 15000,
-        "sigma": "4538543"
+        "sigma": "101080693013"
       },
       "e5_count": 1,
+      "head_ts_after": 1700000244,
       "name": "cheat_wrong_pool_then_swap",
       "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 7000,
-      "ts": 1700000075,
-      "tx_hash": "0x9551ed4bd16f0c0319138bbd32f5fdee584749527a1bfc369dc4a984c97dfd93",
+      "ts": 1700000244,
+      "tx_hash": "0xc8f47d357314401f5424ac15a6012797910fe310e72f5e58407b45b3d8f01fcd",
       "word_before": "7306046685017183688100322208451540133769138196049033",
       "word_before_high184": "0",
       "word_written": "10230511461316320427425906257160961173700696698234316",
+      "word_written_high184": "0"
+    },
+    {
+      "e3": {
+        "averageTick": -122159,
+        "tick": 5100,
+        "tickCumulative": "-30906396",
+        "timestamp": 1700000256,
+        "volatilityCumulative": "24462716512537"
+      },
+      "e3_count": 1,
+      "e5": {
+        "fee": 15000,
+        "sigma": "97074271875"
+      },
+      "e5_count": 1,
+      "head_ts_after": 1700000256,
+      "name": "same_second_repeat_step1",
+      "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
+      "status": 1,
+      "swap_calldata_bytes": 388,
+      "tick": 5100,
+      "ts": 1700000256,
+      "tx_hash": "0x978abbb789c2df2e3ec1bcac29e7f57e3250daca4d2de6b60de45957a1f41482",
+      "word_before": "7306046685017183688100322208451540133640475633014773",
+      "word_before_high184": "0",
+      "word_written": "7453658350387604882838894886452584032450164334429923",
+      "word_written_high184": "0"
+    },
+    {
+      "e3": null,
+      "e3_count": 0,
+      "e5": {
+        "fee": 15000,
+        "sigma": "97074271875"
+      },
+      "e5_count": 1,
+      "head_ts_after": 1700000256,
+      "name": "same_second_repeat_step2",
+      "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
+      "status": 1,
+      "swap_calldata_bytes": 388,
+      "tick": 5200,
+      "ts": 1700000256,
+      "tx_hash": "0xe506aa3c2e24c6f4db4a6be46598e79ecb165f9a13a7db5cd281a2e31b63f32c",
+      "word_before": "7452196848750273979920691201619867749300552823570188",
+      "word_before_high184": "0",
+      "word_written": "7599808514120695174659263882176651384846337872451926",
+      "word_written_high184": "0"
+    },
+    {
+      "e3": null,
+      "e3_count": 0,
+      "e5": {
+        "fee": 15000,
+        "sigma": "97074271875"
+      },
+      "e5_count": 1,
+      "head_ts_after": 1700000256,
+      "name": "clock_untouched_repeat_step3",
+      "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
+      "status": 1,
+      "swap_calldata_bytes": 388,
+      "tick": 5300,
+      "ts": 1700000256,
+      "tx_hash": "0x0d7850eb9a569cfd9f4e36d439650ccf42ce74256376d64803592db752eff44d",
+      "word_before": "7598347012483364271741060197343935101695420351943024",
+      "word_before_high184": "0",
+      "word_written": "7745958677853785466479632880469268530753482931918767",
+      "word_written_high184": "0"
+    },
+    {
+      "e3": {
+        "averageTick": -156805,
+        "tick": -887259,
+        "tickCumulative": "-41553504",
+        "timestamp": 1700000268,
+        "volatilityCumulative": "31148071348121"
+      },
+      "e3_count": 1,
+      "e5": {
+        "fee": 15000,
+        "sigma": "117985118742"
+      },
+      "e5_count": 1,
+      "head_ts_after": 1700000268,
+      "name": "extreme_tick_near_floor",
+      "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
+      "status": 1,
+      "swap_calldata_bytes": 388,
+      "tick": -887259,
+      "ts": 1700000268,
+      "tx_hash": "0xf689f54be25437d6e70745b5d1d09a30830143c946bc0ad0dc12cafab627100c",
+      "word_before": "7744497176216454563561429195636552247601246276805033",
+      "word_before_high184": "0",
+      "word_written": "23223198172617642141431069233413930382162922907087213372",
       "word_written_high184": "0"
     }
   ],

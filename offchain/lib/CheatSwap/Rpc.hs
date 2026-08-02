@@ -180,15 +180,27 @@ data CheatSwapTarget = CheatSwapTarget
 -- sequence and no chain read can supply it: a head timestamp tells you where the chain is, not
 -- where the driver has already claimed to be.
 --
--- 'LeaveClockAlone' SKIPS the absolute setter and BOTH clock guards. It exists for exactly one
--- purpose — measuring the G1 same-second no-op, where the hazard IS the missing advance
--- (@RealizedVolatilityStateLib.plk:114@ is @if vol_state.lastTimepointTimestamp == now { return
--- false; }@, an equality test on the @uint32@ timestamp with no block number anywhere, so the
--- second swap of a second serves E5 and the fee at status 1 while emitting NO E3). It is not a
--- convenience and must never appear in a driver loop.
+-- The other two constructors both SKIP both clock guards and exist only so the G1 hazard can be
+-- measured. Neither may appear in a driver loop.
+--
+-- 'ForceTimestamp' sets the absolute timestamp anyway, guards bypassed. It is how a same-second
+-- collision is CONSTRUCTED: @RealizedVolatilityStateLib.plk:114@ is
+-- @if vol_state.lastTimepointTimestamp == now { return false; }@ — an equality test on the @uint32@
+-- timestamp with no block number anywhere — so a second swap on an already-recorded second serves
+-- E5 and the fee at status 1 while emitting NO E3. MEASURED here: anvil ACCEPTS a next-block
+-- timestamp EQUAL to the previous block's (it returns @null@) and rejects only a strictly lower one
+-- (@-32602 \"Timestamp error: N is lower than previous block's timestamp\"@). That asymmetry is
+-- what makes the collision constructible at all.
+--
+-- 'LeaveClockAlone' skips the setter entirely. It does NOT produce a collision, and that is itself
+-- a measured fact rather than an assumption: after an explicit absolute set, the next unset block
+-- came back at @T + 1@, not @T@. A driver that merely FORGOT to advance the clock would therefore
+-- drift one second per step instead of hitting G1 — the hazard is real, but it is not reached by
+-- omission on this node, and the constructor is kept so that stays recorded.
 data CheatSwapClock
   = AdvanceTo Integer Integer   -- ^ previous step's timestamp, then this step's absolute timestamp
-  | LeaveClockAlone             -- ^ MEASUREMENT ONLY: bypass the clock entirely (G1)
+  | ForceTimestamp Integer      -- ^ MEASUREMENT ONLY: set this timestamp, guards bypassed (G1)
+  | LeaveClockAlone             -- ^ MEASUREMENT ONLY: do not touch the clock at all
   deriving (Eq, Show)
 
 -- | One executed step, as a VALUE. 22-CONTEXT asks the price write to produce the swap artifact
@@ -233,7 +245,8 @@ cheat_and_swap target clock tick = do
   head_ts <- chain_head_timestamp
 
   ts <- case clock of
-    LeaveClockAlone -> pure head_ts
+    LeaveClockAlone      -> pure head_ts
+    ForceTimestamp forced -> pure forced
     AdvanceTo previous_ts requested -> do
       -- GUARD (b) — G2 against the CHAIN.
       when (requested <= head_ts) $
@@ -274,7 +287,7 @@ cheat_and_swap target clock tick = do
 
   case clock of
     LeaveClockAlone -> pure ()
-    AdvanceTo _ _   -> () <$ evm_set_next_block_timestamp ts
+    _               -> () <$ evm_set_next_block_timestamp ts
 
   calldata <-
     liftIO

@@ -141,3 +141,78 @@ regardless of whether the node is up.
 - **F4 (Phase 21)** — the manifest freshness check cannot see a module CHANGE (`manager` is a
   `CREATE` address, bytecode-independent). Code-hash pinning proposed, not applied. Still open;
   this plan did not touch it.
+
+---
+
+## F22-5 — `notes/DATA_CONTRACT.md`'s same-block claim is now REFUTED BY EXECUTION, not just by source reading
+
+**Found during:** 22-04 Task 3. **Plank-owned file. NOT edited.**
+
+F22-1 recorded a *source-level* divergence: `notes/DATA_CONTRACT.md:25` says "A same-block second
+write emits NOTHING", while `src/lib/market_state_measurements/RealizedVolatilityStateLib.plk:114`
+is `if vol_state.lastTimepointTimestamp == now { return false; }` — an equality test on the
+`uint32` timestamp with zero block-number reads in the file.
+
+22-04 executed it. `offchain/rig/cheat-swap-proof.json`, measurement `same_second_repeat_step2`:
+
+```
+status = 1     e3_count = 0     e5_count = 1
+```
+
+Two swaps sharing one `uint32` timestamp, in DIFFERENT blocks (the second forced via
+`evm_setNextBlockTimestamp` at the first's own timestamp). The second emitted **no E3 while still
+emitting E5 and serving a fee at status 1**. So the guard is per-TIMESTAMP, and the doc's
+"same-block" wording under-describes it: on anvil, which mines several blocks per second, a
+*different-block* write is silently dropped too.
+
+The consequence for any consumer of the doc is that `count(E5) - count(E3)` is a direct measure of
+dropped writes, and E3 is the ground truth of what landed — never the swap count, never the block
+count.
+
+**Suggested wording for the plank track (ours to propose, theirs to apply):** replace "same-block"
+with "same-`uint32`-timestamp" and note that block number does not enter the guard.
+
+---
+
+## F22-6 — anvil accepts an EQUAL next-block timestamp and rejects only a strictly lower one
+
+**Found during:** 22-04 Task 3. Node behaviour, no file owner — recorded here because it changes
+what a driver can and cannot construct.
+
+```
+$ cast rpc evm_setNextBlockTimestamp <head_ts>      -> null      (ACCEPTED)
+$ cast rpc evm_setNextBlockTimestamp <head_ts - 1>  -> Error: server returned an error response:
+                                                      error code -32602: Timestamp error:
+                                                      <n> is lower than previous block's timestamp
+```
+
+Two consequences:
+
+1. The node's rejection is a real second net for BACKWARDS clocks but **not** for non-advancing
+   ones. It therefore does not replace the client-side `ts > head` guard, which is the only signal
+   that exists for the equal case (G2 is unguarded on chain).
+2. The G1 collision is CONSTRUCTIBLE and deterministic. It has to be constructed: simply omitting
+   the timestamp call does **not** reliably collide — measured landing at `T + 1` once and at `T`
+   three times, because it depends on wall time elapsed between two transactions. See F22-7.
+
+---
+
+## F22-7 — omitting the clock advance does NOT reliably reproduce G1; it RACES it
+
+**Found during:** 22-04 Task 3. This refutes the plan's own stated mechanism.
+
+Plan 22-04 specified measuring G1 by a second step "whose `evm_setNextBlockTimestamp` call is
+SKIPPED entirely". Applied exactly as written, the second step came back at
+`head_ts_after = T + 1` with **`e3_count = 1`** — a healthy timepoint, no collision, the hazard not
+reproduced. Three later runs of the same code path came back at `T` with `e3_count = 0`.
+
+The mechanism is wall-clock dependent, so a check pinned on it would be intermittently red and
+would say nothing when it passed. `CheatSwap.Rpc` therefore gained `ForceTimestamp`, which sets the
+absolute timestamp with the clock guards deliberately bypassed, and the G1 measurement is now
+constructed rather than hoped for. `LeaveClockAlone` was KEPT and is still measured
+(`clock_untouched_repeat_step3`) so the refutation stays on chain, but its E3 count is explicitly
+NOT pinned by `driv01_same_second_is_a_silent_noop`, and the check says why in-file.
+
+**Consequence for 22-05:** a driver that merely *forgets* to advance the clock does not fail
+loudly, and does not even fail consistently — it drifts. The client-side guards are the mechanism;
+the node is not a backstop.

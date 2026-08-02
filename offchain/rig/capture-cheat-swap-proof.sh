@@ -98,9 +98,46 @@ if [ "$B_TICK" = "7000" ]; then
   exit 1
 fi
 
+# --- Self-check 2b: the G1 same-second no-op ------------------------------
+# The forced-collision step must come back at status 1 with an E5 and NO E3.
+# This is the cheapest falsifiable check of clock discipline that exists, and
+# both counts arrive in the same receipt.
+read -r C2_E3 C2_E5 C2_STATUS <<<"$(jq -r '.measurements[]
+  | select(.name=="same_second_repeat_step2")
+  | "\(.e3_count) \(.e5_count) \(.status)"' "$OUT")"
+if [ "$C2_E3 $C2_E5 $C2_STATUS" != "0 1 1" ]; then
+  echo "CAPTURE FAIL: the forced same-second repeat did not behave as the source says." >&2
+  echo "              got e3_count=$C2_E3 e5_count=$C2_E5 status=$C2_STATUS, expected 0 1 1" >&2
+  echo "              RealizedVolatilityStateLib compares lastTimepointTimestamp to now for" >&2
+  echo "              EQUALITY. If an E3 appeared, the guard is not what the source says it is." >&2
+  exit 1
+fi
+
+# --- Self-check 2c: the extreme tick is a RECORDED outcome, either way -----
+# Research flags the near-floor degeneracy as an unmeasured analytical argument.
+# A revert is an acceptable answer; an unrecorded outcome is not.
+read -r D_STATUS D_E3 D_TICK <<<"$(jq -r '.measurements[]
+  | select(.name=="extreme_tick_near_floor")
+  | "\(.status) \(.e3_count) \(.e3.tick // "none")"' "$OUT")"
+if [ "$D_STATUS" = "1" ]; then
+  if [ "$D_E3" != "1" ] || [ "$D_TICK" != "-887259" ]; then
+    echo "CAPTURE FAIL: the floor-tick step succeeded but recorded e3_count=$D_E3 tick=$D_TICK" >&2
+    echo "              beforeSwap runs BEFORE any swap math, so a status-1 receipt must carry" >&2
+    echo "              the cheated tick. Report this rather than adjusting the expectation." >&2
+    exit 1
+  fi
+elif [ "$(jq -r '.measurements[] | select(.name=="extreme_tick_near_floor") | .revert_reason // ""' "$OUT")" = "" ]; then
+  echo "CAPTURE FAIL: the floor-tick step did not succeed and recorded no revert_reason." >&2
+  echo "              A revert here is an acceptable MEASUREMENT and means 22-05 must choose" >&2
+  echo "              direction and price limit from the cheated tick -- but only if it is" >&2
+  echo "              written down." >&2
+  exit 1
+fi
+
 # --- Self-check 3: the composition preserved the fee bits ------------------
 # Compared as decimal STRINGS. The words run to 256 bits and jq's numbers are
-# doubles; a rounded word still looks like a word.
+# doubles; a rounded word still looks like a word. Measurements that did not
+# complete carry no words and are skipped by the select.
 while read -r nm before after; do
   if [ "$before" != "$after" ]; then
     echo "CAPTURE FAIL: $nm did not preserve slot0 bits >= 184" >&2
@@ -110,7 +147,17 @@ while read -r nm before after; do
     echo "              CONSTRUCTION (G5b). If these differ, the mask moved." >&2
     exit 1
   fi
-done < <(jq -r '.measurements[] | "\(.name) \(.word_before_high184) \(.word_written_high184)"' "$OUT")
+done < <(jq -r '.measurements[] | select(has("word_before_high184"))
+                | "\(.name) \(.word_before_high184) \(.word_written_high184)"' "$OUT")
+
+# --- Self-check 3b: every measurement is present ---------------------------
+# A group that failed still emits a placeholder row, so a shrinking list means a
+# measurement was silently dropped rather than recorded.
+COUNT=$(jq -r '.measurements | length' "$OUT")
+if [ "$COUNT" != "6" ]; then
+  echo "CAPTURE FAIL: the artifact has $COUNT measurements, expected 6" >&2
+  exit 1
+fi
 
 # --- Self-check 4: generatedFrom really is the imported ref ----------------
 REF_IN_FILE=$(jq -r '.generatedFrom' "$OUT")

@@ -34,6 +34,7 @@
 -- 10, so asserting it would redden the suite after any redeploy.
 module Main (main) where
 
+import Control.Exception (SomeException, displayException, try)
 import Control.Monad (unless)
 import Data.Aeson (Value, encodeFile, object, toJSON, (.=))
 import Data.Bits (shiftR, (.&.))
@@ -44,11 +45,11 @@ import Data.List (dropWhileEnd)
 import qualified Data.Text as T
 
 import Network.Ethereum.Api.Types (Quantity, unQuantity)
-import Network.Web3.Provider (Provider (HttpProvider), Web3, runWeb3')
+import Network.Web3.Provider (Provider (HttpProvider), Web3, Web3Error, runWeb3')
 import System.Process (readProcess)
 
 import CheatSwap.Rpc
-  ( CheatSwapClock (..)
+  ( CheatSwapClock (AdvanceTo, ForceTimestamp, LeaveClockAlone)
   , CheatSwapStep (..)
   , CheatSwapTarget (..)
   , chain_head_timestamp
@@ -93,6 +94,17 @@ tick_right_pool = 5000
 tick_wrong_pool :: Integer
 tick_wrong_pool = 7000
 
+-- | Measurement C's three ticks. They all DIFFER so that if an E3 unexpectedly appears its value
+-- says which of the writes produced it.
+tick_same_second_1, tick_same_second_2, tick_same_second_3 :: Integer
+tick_same_second_1 = 5100
+tick_same_second_2 = 5200
+tick_same_second_3 = 5300
+
+-- | The inclusive G4 floor: @minUsableTick(20) + 1@. One below this and 'check_cheat_tick' rejects.
+tick_extreme_floor :: Integer
+tick_extreme_floor = -887259
+
 -- | Seconds between steps. Strictly positive is a CORRECTNESS requirement, not a preference: the
 -- write guard is one timepoint per distinct @uint32@ timestamp.
 stride :: Integer
@@ -132,12 +144,14 @@ main = do
       -- whole experiment: hold everything constant, move one address, observe the silence.
       wrong_pool = base { cst_cheat_manager = price_setter_pm_addr }
 
-  outcome <- runWeb3' provider (run_measurements base wrong_pool)
-  measurements <- case outcome of
-    Left err -> error ("cheat-swap-proof: the capture failed against " ++ show provider
-                        ++ " -- " ++ show err
-                        ++ "\n  stand the rig up first: bash offchain/rig/deploy-rig.sh")
-    Right ms -> pure ms
+  -- Run in GROUPS, each caught on its own, so a failure in one measurement cannot erase the
+  -- others. The same-second pair shares a group because it must land back to back; the extreme
+  -- tick has its own because research flags its outcome as an UNMEASURED analytical argument and
+  -- a revert there is a result to record, not a crash to propagate.
+  group_ab <- attempt_group "A/B" (run_right_and_wrong base wrong_pool)
+  group_c  <- attempt_group "C"   (run_same_second base)
+  group_d  <- attempt_group "D"   (run_extreme_tick base)
+  let measurements = group_ab ++ group_c ++ group_d
 
   let rig_block = object
         [ "poolManager"            .= manifest_contract rig "PoolManager"
@@ -156,27 +170,105 @@ main = do
     , "generatedFrom" .= generated_from
     , "_provenance"   .= provenance_note
     , "rig"           .= rig_block
-    , "measurements"  .= map (uncurry measurement_json) measurements
+    , "measurements"  .= map measurement_json measurements
     ]
 
   putStrLn ("wrote " ++ output_path ++ "  (" ++ show (length measurements) ++ " measurements)")
   mapM_ (putStrLn . summarise) measurements
 
--- | The measurements, in the order they must run: A cheats the right manager, B the wrong one.
+-- ---------------------------------------------------------------------------------------------
+-- The measurements
+-- ---------------------------------------------------------------------------------------------
+
+-- | One measurement's outcome. A measurement that FAILED is still a measurement, and recording it
+-- is the whole point: research flags the near-floor swap as an unmeasured analytical argument, and
+-- \"it reverted\" is an answer to that question while \"the capture crashed\" is not.
+data Measured = Measured
+  { m_name    :: String
+  , m_outcome :: Either String (CheatSwapStep, Integer)  -- ^ failure text, or step + head ts after
+  }
+
+-- | One guarded step: read the head, advance by the stride, swap, then read the head BACK.
 --
--- The clock is chained explicitly — each step is handed the PREVIOUS step's timestamp, which is
--- what guard (c) checks — and the first step is anchored on the LIVE chain head rather than on
--- @INIT_TS@. 22-03 measured the head at @1700000027@ over a genesis of @1700000000@: anvil's
--- @--timestamp@ fixes the origin, not the rate.
-run_measurements
-  :: CheatSwapTarget -> CheatSwapTarget -> Web3 [(String, CheatSwapStep)]
-run_measurements right_pool wrong_pool = do
-  head0 <- chain_head_timestamp
-  let ts_a = head0 + stride
-  a <- cheat_and_swap right_pool (AdvanceTo head0 ts_a) tick_right_pool
-  let ts_b = ts_a + stride
-  b <- cheat_and_swap wrong_pool (AdvanceTo ts_a ts_b) tick_wrong_pool
+-- The head is re-read every time rather than tracked, and the PREVIOUS step's timestamp handed to
+-- guard (c) is the observed head rather than a remembered number — so the guard is checked against
+-- what the chain actually did, not against what this program believes it did.
+guarded_step :: CheatSwapTarget -> Integer -> Web3 (CheatSwapStep, Integer)
+guarded_step target tick = do
+  previous <- chain_head_timestamp
+  step     <- cheat_and_swap target (AdvanceTo previous (previous + stride)) tick
+  after    <- chain_head_timestamp
+  pure (step, after)
+
+-- | A and B. Identical in every respect except WHERE the storage write lands.
+run_right_and_wrong :: CheatSwapTarget -> CheatSwapTarget -> Web3 [(String, (CheatSwapStep, Integer))]
+run_right_and_wrong right_pool wrong_pool = do
+  a <- guarded_step right_pool tick_right_pool
+  b <- guarded_step wrong_pool tick_wrong_pool
   pure [("cheat_to_5000_then_swap", a), ("cheat_wrong_pool_then_swap", b)]
+
+-- | C — the G1 same-second no-op, the hazard that WILL bite a driver loop.
+--
+-- Three steps, because the FIRST attempt at this measurement was refuted and the refutation is
+-- worth keeping on chain:
+--
+--   1. advance the clock normally — the control. Expect an E3.
+--   2. 'ForceTimestamp' at step 1's OWN timestamp. @RealizedVolatilityStateLib.plk:114@ is
+--      @if vol_state.lastTimepointTimestamp == now { return false; }@ — an EQUALITY test on the
+--      @uint32@ timestamp, no block number anywhere — so this is expected at status 1 with an E5
+--      and NO E3. That makes @count(E5) - count(E3)@ a direct on-chain measurement of how many
+--      steps the guard ate, and both counts come free in the same receipt.
+--   3. 'LeaveClockAlone' — do not touch the clock at all. This was the ORIGINAL step 2 and it did
+--      NOT collide: it was measured landing at @T + 1@ with a healthy E3. Kept as a recorded
+--      measurement so nobody re-derives the wrong mechanism from the wrong premise.
+--
+-- The ticks all differ so that an unexpected E3 says by its VALUE which write produced it.
+run_same_second :: CheatSwapTarget -> Web3 [(String, (CheatSwapStep, Integer))]
+run_same_second target = do
+  s1@(step1, _) <- guarded_step target tick_same_second_1
+  s2 <- cheat_and_swap target (ForceTimestamp (cs_timestamp step1)) tick_same_second_2
+  after2 <- chain_head_timestamp
+  s3 <- cheat_and_swap target LeaveClockAlone tick_same_second_3
+  after3 <- chain_head_timestamp
+  pure [ ("same_second_repeat_step1", s1)
+       , ("same_second_repeat_step2", (s2, after2))
+       , ("clock_untouched_repeat_step3", (s3, after3))
+       ]
+
+-- | D — one step at the inclusive G4 floor.
+--
+-- Research PREDICTS no revert on the price bound (@getSqrtPriceAtTick(-887259) = 4297706459@, about
+-- 2.5e6 units above the fixed @sqrtPriceLimitX96@) but a swap that DEGENERATES to @amount1 ~ 0@
+-- because the position holds essentially no token1 down there, with E3 still firing because
+-- @beforeSwap@ runs before any swap math. That prediction is explicitly flagged as UNMEASURED in
+-- @CheatSwap.Encoding@'s haddock. Whatever happens here is the answer.
+run_extreme_tick :: CheatSwapTarget -> Web3 [(String, (CheatSwapStep, Integer))]
+run_extreme_tick target = do
+  d <- guarded_step target tick_extreme_floor
+  pure [("extreme_tick_near_floor", d)]
+
+-- | Run one group, catching BOTH the @Left@ that @runWeb3'@ returns for an RPC error and the
+-- uncaught 'IOException' that a @fail@ inside 'Web3' becomes — a documented characteristic of this
+-- codebase's Web3 usage, not a hypothetical.
+attempt_group :: String -> Web3 [(String, (CheatSwapStep, Integer))] -> IO [Measured]
+attempt_group label action = do
+  raw <- try (runWeb3' provider action)
+  case raw :: Either SomeException (Either Web3Error [(String, (CheatSwapStep, Integer))]) of
+    Right (Right results) -> pure [Measured n (Right r) | (n, r) <- results]
+    Right (Left err) -> do
+      putStrLn ("  group " ++ label ++ " RPC error: " ++ show err)
+      pure [Measured (group_placeholder label) (Left (show err))]
+    Left exc -> do
+      putStrLn ("  group " ++ label ++ " FAILED: " ++ displayException exc)
+      pure [Measured (group_placeholder label) (Left (displayException exc))]
+
+-- | The name a failed group records. Named per group so a failure is still identifiable in the
+-- artifact, and so the check that counts measurements reddens rather than silently shrinking.
+group_placeholder :: String -> String
+group_placeholder "A/B" = "cheat_to_5000_then_swap"
+group_placeholder "C"   = "same_second_repeat_step1"
+group_placeholder "D"   = "extreme_tick_near_floor"
+group_placeholder other = other
 
 -- ---------------------------------------------------------------------------------------------
 -- Serialisation
@@ -189,24 +281,35 @@ run_measurements right_pool wrong_pool = do
 -- re-checkable rather than trusted.
 -- ---------------------------------------------------------------------------------------------
 
-measurement_json :: String -> CheatSwapStep -> Value
-measurement_json name step = object
-  [ "name"                 .= name
-  , "tick"                 .= cs_tick step
-  , "ts"                   .= cs_timestamp step
-  , "state_slot"           .= hex_of (cs_state_slot step)
-  , "word_before"          .= decimal (cs_word_before step)
-  , "word_written"         .= decimal (cs_word_written step)
-  , "word_before_high184"  .= decimal (cs_word_before step `shiftR` 184)
-  , "word_written_high184" .= decimal (cs_word_written step `shiftR` 184)
-  , "swap_calldata_bytes"  .= (BS.length (toBytes (cs_swap_calldata step)))
-  , "tx_hash"              .= hex_of (cs_tx_hash step)
-  , "status"               .= fmap quantity (cs_status step)
-  , "e3_count"             .= cs_e3_count step
-  , "e5_count"             .= cs_e5_count step
-  , "e3"                   .= fmap e3_json (cs_e3 step)
-  , "e5"                   .= fmap e5_json (cs_e5 step)
-  ]
+measurement_json :: Measured -> Value
+measurement_json m = case m_outcome m of
+  -- A measurement that did not complete records status 0 and the verbatim reason. Recording it is
+  -- what makes "it reverted" an answer rather than a missing row.
+  Left why -> object
+    [ "name"          .= m_name m
+    , "status"        .= (0 :: Integer)
+    , "revert_reason" .= why
+    , "e3_count"      .= (0 :: Integer)
+    , "e5_count"      .= (0 :: Integer)
+    ]
+  Right (step, head_after) -> object
+    [ "name"                 .= m_name m
+    , "tick"                 .= cs_tick step
+    , "ts"                   .= cs_timestamp step
+    , "head_ts_after"        .= head_after
+    , "state_slot"           .= hex_of (cs_state_slot step)
+    , "word_before"          .= decimal (cs_word_before step)
+    , "word_written"         .= decimal (cs_word_written step)
+    , "word_before_high184"  .= decimal (cs_word_before step `shiftR` 184)
+    , "word_written_high184" .= decimal (cs_word_written step `shiftR` 184)
+    , "swap_calldata_bytes"  .= BS.length (toBytes (cs_swap_calldata step))
+    , "tx_hash"              .= hex_of (cs_tx_hash step)
+    , "status"               .= fmap quantity (cs_status step)
+    , "e3_count"             .= cs_e3_count step
+    , "e5_count"             .= cs_e5_count step
+    , "e3"                   .= fmap e3_json (cs_e3 step)
+    , "e5"                   .= fmap e5_json (cs_e5 step)
+    ]
 
 e3_json :: TimepointWritten -> Value
 e3_json e = object
@@ -239,15 +342,18 @@ provenance_note =
     ++ " that is not the cheated one. blockNumber is deliberately absent: three from-scratch"
     ++ " deploys were measured at heights 9, 11 and 10, so it is not a provenance field."
 
-summarise :: (String, CheatSwapStep) -> String
-summarise (name, step) =
-  "  " ++ name
-    ++ "  tick=" ++ show (cs_tick step)
-    ++ "  ts=" ++ show (cs_timestamp step)
-    ++ "  status=" ++ show (fmap quantity (cs_status step))
-    ++ "  e3=" ++ show (cs_e3_count step)
-    ++ "  e5=" ++ show (cs_e5_count step)
-    ++ "  e3.tick=" ++ maybe "-" (show . tw_tick) (cs_e3 step)
+summarise :: Measured -> String
+summarise m = case m_outcome m of
+  Left why -> "  " ++ m_name m ++ "  DID NOT COMPLETE: " ++ takeWhile (/= '\n') why
+  Right (step, head_after) ->
+    "  " ++ m_name m
+      ++ "  tick=" ++ show (cs_tick step)
+      ++ "  ts=" ++ show (cs_timestamp step)
+      ++ "  headAfter=" ++ show head_after
+      ++ "  status=" ++ show (fmap quantity (cs_status step))
+      ++ "  e3=" ++ show (cs_e3_count step)
+      ++ "  e5=" ++ show (cs_e5_count step)
+      ++ "  e3.tick=" ++ maybe "-" (show . tw_tick) (cs_e3 step)
 
 -- ---------------------------------------------------------------------------------------------
 -- Small helpers

@@ -38,6 +38,7 @@ import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing)
 import Data.Solidity.Prim.Address (Address, fromHexString)
 import qualified Data.Text as T
 import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
+import System.Environment (lookupEnv)
 import System.Exit (ExitCode (..), exitFailure)
 import System.FilePath ((</>))
 import System.Process (readProcessWithExitCode)
@@ -48,6 +49,7 @@ import Rig.Manifest
   , Rig (..)
   , RigAddresses (..)
   , RigPins (..)
+  , RigPool (..)
   , load_rig_from
   , rig_manifest_path
   )
@@ -2365,6 +2367,397 @@ driv01_swap_calldata_shape = Check "driv01_swap_calldata_shape" . guarded $ do
       ("the hookData length word is " ++ show (word 11) ++ ", expected 0 (empty bytes)")
 
 -- ---------------------------------------------------------------------------------------------
+-- DRIV-01: the committed cheat-swap proof
+--
+-- These five checks are the OFFLINE half of plan 22-04. The chain half ran once, in
+-- offchain/rig/capture-cheat-swap-proof.sh, and committed its result; everything below reads that
+-- artifact and asserts it by EXACT VALUE. Nothing here opens a socket -- the suite's
+-- chain-independence is a measured property of this workstream, not an aspiration, and a suite
+-- that needs a rig is a suite that gets skipped.
+--
+-- Every number pinned below was MEASURED, never derived. Where a value could in principle have
+-- been predicted, the check says which it was, because the difference decides what a future
+-- failure means.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The committed cheat-swap proof, resolved through @RIG_CHEAT_SWAP_PROOF@.
+--
+-- The override exists so these checks can be FALSIFIED without touching the committed artifact.
+-- 22-03 measured what happens when a check's input path is a constant: the plan's own falsification
+-- (@RIG_MANIFEST=\<broken copy\> cabal test@) came back GREEN at 68\/68 because the constant sent
+-- every check straight back to the real file, so the suite could not be pointed at any manifest for
+-- any falsification, ever. A check that cannot be aimed at a mutant can only be falsified by
+-- damaging the evidence it guards.
+--
+-- SCOPE, stated so the two halves cannot drift apart the way 22-03's did: this variable redirects
+-- the CHECKS only. @offchain\/rig\/capture-cheat-swap-proof.sh@ always writes the committed path,
+-- because a capture that could be redirected is a capture that can silently fail to update the
+-- artifact everything else reads.
+proof_file :: IO FilePath
+proof_file = fromMaybe default_proof_file <$> lookupEnv "RIG_CHEAT_SWAP_PROOF"
+
+default_proof_file :: FilePath
+default_proof_file = "offchain/rig/cheat-swap-proof.json"
+
+proof_command :: String
+proof_command = "bash offchain/rig/capture-cheat-swap-proof.sh"
+
+-- | The measurements the artifact must carry, in order. A group that fails at capture time still
+-- emits a placeholder row, so a SHORTER list means a measurement was dropped rather than recorded
+-- -- which is the one outcome plan 22-04 calls a failure.
+proof_measurement_names :: [String]
+proof_measurement_names =
+  [ "cheat_to_5000_then_swap"
+  , "cheat_wrong_pool_then_swap"
+  , "same_second_repeat_step1"
+  , "same_second_repeat_step2"
+  , "clock_untouched_repeat_step3"
+  , "extreme_tick_near_floor"
+  ]
+
+-- | The bit offsets of the Slot0 fields this plan cares about.
+--
+-- @sqrtPriceX96 [0,160) | tick [160,184) int24 | protocolFee [184,208) | lpFee [208,232)@.
+slot0_tick_shift, slot0_fee_shift :: Int
+slot0_tick_shift = 160
+slot0_fee_shift  = 184
+
+-- | The @int24@ tick packed into a slot0 word, as a signed 'Integer'.
+slot0_tick_of :: Integer -> Integer
+slot0_tick_of w =
+  let raw = (w `shiftR` slot0_tick_shift) .&. ((1 `shiftL` 24) - 1)
+  in if raw >= 1 `shiftL` 23 then raw - (1 `shiftL` 24) else raw
+
+find_measurement :: String -> Value -> Either String Value
+find_measurement name proof = do
+  entries <- json_field "measurements" proof >>= json_array
+  named <- mapM (\m -> (,) <$> (json_field "name" m >>= json_string) <*> pure m) entries
+  case [m | (n, m) <- named, n == name] of
+    [m]   -> Right m
+    []    -> Left ("no measurement named " ++ show name
+                    ++ "; present: " ++ intercalate ", " (map fst named)
+                    ++ "\n      re-take it: " ++ proof_command)
+    found -> Left (show (length found) ++ " measurements named " ++ show name)
+
+-- | A field the artifact carries as a DECIMAL STRING because it can exceed 2^53. Reading it back
+-- as an 'Integer' here is what makes the 256-bit slot0 words assertable at all: a JSON number would
+-- already have been rounded by the time any consumer saw it.
+json_decimal_string :: Value -> Either String Integer
+json_decimal_string v = do
+  raw <- json_string v
+  case reads raw of
+    [(n, "")] -> Right n
+    _         -> Left ("expected a decimal integer string, got " ++ show raw)
+
+measurement_int :: String -> Value -> Either String Integer
+measurement_int key m = json_field key m >>= json_integer
+
+measurement_word :: String -> Value -> Either String Integer
+measurement_word key m = json_field key m >>= json_decimal_string
+
+e3_int :: String -> Value -> Either String Integer
+e3_int key m = json_field "e3" m >>= json_field key >>= json_integer
+
+-- | The artifact exists, decodes, and describes THIS rig.
+--
+-- @generatedFrom@ and @tickSpacing@ are included deliberately. Phase 21's F4 measured that
+-- @rpin05_capture_is_present_and_fresh@ cannot see a MODULE change, because it asserts @chainId@
+-- and @manager@ only and @manager@ is a @CREATE@ address -- identical across three from-scratch
+-- deploys. These two fields are the discriminating ones @manager@ alone is missing:
+-- @generatedFrom@ moves when the imported source-of-truth ref moves, and @tickSpacing@ moved
+-- 10 -> 20 at PR #18, taking the @PoolKey@ hash and therefore the @poolId@ with it.
+driv01_cheat_swap_proof_is_present_and_fresh :: Check
+driv01_cheat_swap_proof_is_present_and_fresh =
+  Check "driv01_cheat_swap_proof_is_present_and_fresh" . guarded $ do
+    pf <- proof_file
+    loaded_proof <- read_json_file pf ("produce it with: " ++ proof_command)
+    mf <- manifest_file
+    manifest_present <- doesFileExist mf
+    outcome <-
+      if manifest_present
+        then do
+          attempt <- try (load_rig_from pins_file mf)
+          pure (Just (attempt :: Either IOException Rig))
+        else pure Nothing
+    pure $ do
+      proof <- loaded_proof
+      rig <- case outcome of
+        Nothing         -> Left ("no " ++ mf ++ " -- it is gitignored, so a fresh checkout has no"
+                                  ++ " copy. Stand the rig up: " ++ deploy_command)
+        Just (Left err) -> Left ("load_rig_from failed on the real files: " ++ show err)
+        Just (Right r)  -> Right r
+      let addrs = rig_addrs rig
+
+      captured_chain <- json_field "chainId" proof >>= json_integer
+      _ <- expect (captured_chain == rig_chain_id addrs)
+             ("the proof was taken on chain " ++ show captured_chain ++ " but the manifest"
+               ++ " describes chain " ++ show (rig_chain_id addrs) ++ " -- re-take it: "
+               ++ proof_command)
+
+      captured_from <- json_field "generatedFrom" proof >>= json_string
+      _ <- expect (captured_from == T.unpack (pins_generated_from (rig_pins rig)))
+             ("the proof names generatedFrom " ++ captured_from ++ " but rig-pins.json names "
+               ++ T.unpack (pins_generated_from (rig_pins rig))
+               ++ " -- the proof describes a DIFFERENT imported source-of-truth ref. Re-take it: "
+               ++ proof_command)
+
+      captured_pm <- map toLower <$> (json_field "rig" proof >>= json_field "poolManager"
+                                       >>= json_string)
+      manifest_pm <-
+        case Map.lookup "PoolManager" (rig_contracts addrs) of
+          Nothing -> Left ("the manifest has no PoolManager -- re-run: " ++ deploy_command)
+          Just t  -> Right (map toLower (T.unpack t))
+      _ <- expect (captured_pm == manifest_pm)
+             ("the proof names PoolManager " ++ captured_pm ++ " but the live manifest names "
+               ++ manifest_pm ++ " -- the proof describes a DIFFERENT deployment. Re-take it: "
+               ++ proof_command)
+
+      captured_spacing <- json_field "rig" proof >>= json_field "tickSpacing" >>= json_integer
+      _ <- expect (captured_spacing == rig_tick_spacing (rig_pool addrs))
+             ("the proof records tickSpacing " ++ show captured_spacing ++ " but the manifest says "
+               ++ show (rig_tick_spacing (rig_pool addrs))
+               ++ " -- the PoolKey hash and therefore the poolId move with tickSpacing, so this"
+               ++ " proof is stale BY CONSTRUCTION. Re-take it: " ++ proof_command)
+
+      entries <- json_field "measurements" proof >>= json_array
+      names <- mapM (\m -> json_field "name" m >>= json_string) entries
+      expect (names == proof_measurement_names)
+        ("the proof's measurement names are " ++ show names ++ ", expected "
+          ++ show proof_measurement_names)
+
+-- | THE PHASE GATE, asserted offline.
+--
+-- @e3.tick == 5000@ is the whole claim of plan 22-04: a cheated tick reached the hook. It is an
+-- EXACT equality on purpose. 5000 cannot come from swap impact (1e6 wei of exact input against
+-- L = 1e21) and cannot be the un-cheated state (the pool initialised at tick 0), so nothing but a
+-- landed cheat produces it.
+--
+-- The composition is then checked from the artifact's OWN recorded words, three ways:
+--
+--   * bits >= 184 preserved. HONEST LIMIT, and it is recorded here rather than in a summary
+--     nobody will read: on this rig both sides are ZERO (@protocolFee@ is unset and a dynamic-fee
+--     pool stores @lpFee = 0@ at initialize), so this assertion HOLDS WITHOUT DISCRIMINATING. It
+--     is the same blindness class 22-02 avoided by construction when its two test words carried
+--     different tick bits. It is kept because it becomes load-bearing the moment a protocol fee is
+--     configured -- but it must not be cited as evidence the mask is at 184.
+--   * the recorded @..._high184@ fields agree with the words they claim to summarise, so a derived
+--     field cannot drift away from its source.
+--   * the TICK FIELD of the written word is 5000. THIS is the assertion that actually discriminates
+--     the mask position: composing at 160 instead of 184 would take packSlot0For's sqrtPrice while
+--     KEEPING the target's own tick, and the target's tick was -1.
+driv01_cheated_tick_reaches_e3 :: Check
+driv01_cheated_tick_reaches_e3 = Check "driv01_cheated_tick_reaches_e3" . guarded $ do
+  pf <- proof_file
+  loaded_proof <- read_json_file pf ("produce it with: " ++ proof_command)
+  pure $ do
+    proof <- loaded_proof
+    m <- find_measurement "cheat_to_5000_then_swap" proof
+
+    status <- measurement_int "status" m
+    _ <- expect (status == 1) ("measurement A status = " ++ show status ++ ", expected 1")
+
+    e3_count <- measurement_int "e3_count" m
+    _ <- expect (e3_count == 1)
+           ("measurement A emitted " ++ show e3_count ++ " E3 logs from DynamicFeeHook, expected"
+             ++ " exactly 1")
+    e5_count <- measurement_int "e5_count" m
+    _ <- expect (e5_count == 1)
+           ("measurement A emitted " ++ show e5_count ++ " E5 logs, expected exactly 1")
+
+    e3_tick <- e3_int "tick" m
+    _ <- expect (e3_tick == 5000)
+           ("THE GATE FAILED: the hook recorded tick " ++ show e3_tick ++ ", expected the cheated"
+             ++ " 5000. The slot0 composition did not reach DynamicFeeHook. This is a FINDING, not"
+             ++ " a threshold: do not adjust it, and do not build a driver loop on it.")
+
+    ts <- measurement_int "ts" m
+    e3_ts <- e3_int "timestamp" m
+    _ <- expect (e3_ts == ts)
+           ("the hook recorded timestamp " ++ show e3_ts ++ " but the step requested " ++ show ts
+             ++ " -- the absolute block-timestamp cheat did not take")
+
+    word_before  <- measurement_word "word_before" m
+    word_written <- measurement_word "word_written" m
+    high_before  <- measurement_word "word_before_high184" m
+    high_written <- measurement_word "word_written_high184" m
+
+    _ <- expect (word_written `shiftR` slot0_fee_shift == word_before `shiftR` slot0_fee_shift)
+           ("slot0 bits >= 184 were not preserved: before "
+             ++ show (word_before `shiftR` slot0_fee_shift) ++ ", written "
+             ++ show (word_written `shiftR` slot0_fee_shift)
+             ++ " -- compose_slot0 masks at 184 so protocolFee/lpFee survive by construction")
+    _ <- expect (high_before == word_before `shiftR` slot0_fee_shift
+                   && high_written == word_written `shiftR` slot0_fee_shift)
+           ("the artifact's recorded high-bit fields disagree with the words they summarise:"
+             ++ " word_before_high184 " ++ show high_before ++ " vs "
+             ++ show (word_before `shiftR` slot0_fee_shift) ++ ", word_written_high184 "
+             ++ show high_written ++ " vs " ++ show (word_written `shiftR` slot0_fee_shift))
+
+    _ <- expect (slot0_tick_of word_written == 5000)
+           ("the WRITTEN slot0 word carries tick " ++ show (slot0_tick_of word_written)
+             ++ ", expected 5000. Composing at 160 rather than 184 would keep the TARGET's tick"
+             ++ " here (measured: " ++ show (slot0_tick_of word_before) ++ ") while taking"
+             ++ " packSlot0For's price -- a word whose price and tick disagree.")
+
+    expect (slot0_tick_of word_before /= 5000)
+      ("the word that was already in slot0 ALSO carried tick 5000, so measurement A cannot"
+        ++ " distinguish a landed cheat from an unchanged pool. Re-take the proof against a rig"
+        ++ " that is not already at the cheated tick: " ++ proof_command)
+
+-- | The blocker, demonstrated rather than argued.
+--
+-- Measurement B is byte-for-byte the same operation as A except that the storage write is aimed at
+-- @PriceSetterPoolManager@. The receipt looks PERFECTLY HEALTHY -- status 1, one E3, one E5 -- and
+-- carries the wrong tick. That is the entire failure mode: there is nothing to notice.
+--
+-- @4999@ is a MEASURED value, not a derived one. It is measurement A's 5000 after one tick of dust
+-- from A's own swap, i.e. the state the pool was left in -- but it was READ OFF THE CHAIN, and it
+-- is pinned as an exact equality so that a future change which accidentally makes the wrong-pool
+-- write WORK reddens here instead of passing quietly.
+--
+-- The written word's tick is asserted to be 7000: the composition itself was CORRECT and only the
+-- destination was wrong. Without that, "the tick came back wrong" would be consistent with a
+-- broken composition, which is a different bug with a different fix.
+driv01_wrong_pool_is_silent :: Check
+driv01_wrong_pool_is_silent = Check "driv01_wrong_pool_is_silent" . guarded $ do
+  pf <- proof_file
+  loaded_proof <- read_json_file pf ("produce it with: " ++ proof_command)
+  pure $ do
+    proof <- loaded_proof
+    m <- find_measurement "cheat_wrong_pool_then_swap" proof
+
+    status <- measurement_int "status" m
+    _ <- expect (status == 1)
+           ("measurement B status = " ++ show status ++ ", expected 1 -- the point is that the"
+             ++ " wrong-pool cheat does NOT revert")
+    e3_count <- measurement_int "e3_count" m
+    _ <- expect (e3_count == 1)
+           ("measurement B emitted " ++ show e3_count ++ " E3 logs, expected exactly 1 -- the"
+             ++ " receipt must look healthy")
+
+    cheated <- measurement_int "tick" m
+    _ <- expect (cheated == 7000)
+           ("measurement B cheated tick " ++ show cheated ++ ", expected 7000")
+
+    e3_tick <- e3_int "tick" m
+    _ <- expect (e3_tick /= 7000)
+           ("cheating PriceSetterPoolManager DID move the hook's recorded tick to 7000. The"
+             ++ " two-PoolManager blocker as described is WRONG, and that is the single most"
+             ++ " important finding available here. Stop and report it.")
+    -- MEASURED, 2026-08-02, three consecutive captures. Not derived.
+    _ <- expect (e3_tick == 4999)
+           ("measurement B recorded tick " ++ show e3_tick ++ ", but 4999 was MEASURED -- the"
+             ++ " state measurement A's swap left behind. A different value means the sequence"
+             ++ " changed; re-take the proof: " ++ proof_command)
+
+    word_written <- measurement_word "word_written" m
+    expect (slot0_tick_of word_written == 7000)
+      ("measurement B's written word carries tick " ++ show (slot0_tick_of word_written)
+        ++ ", expected 7000. The composition must be CORRECT for this measurement to mean what it"
+        ++ " claims: the failure is the DESTINATION, not the arithmetic.")
+
+-- | G1: one timepoint per distinct @uint32@ timestamp, pinned as a fact rather than a warning.
+--
+-- Step 2 is a CONSTRUCTED collision -- the absolute setter is called with step 1's own timestamp,
+-- which anvil accepts (it rejects only a strictly LOWER value). The result is a receipt at status 1
+-- carrying an E5 and NO E3, so @count(E5) - count(E3)@ is a direct on-chain measurement of how many
+-- steps the write guard ate.
+--
+-- Step 3 is NOT pinned on its E3 count, and that omission is the honest part. It leaves the clock
+-- untouched, so whether its block lands on the same second depends on WALL TIME between two
+-- transactions. It was OBSERVED both ways: once at @T + 1@ with a healthy E3, and three times at
+-- @T@ with none. Pinning it would produce an intermittently red suite that says nothing. What IS
+-- pinned is that the step succeeded and served a fee, and the lesson it carries: a driver that
+-- merely FORGETS to advance the clock does not reliably hit G1 -- it races it.
+driv01_same_second_is_a_silent_noop :: Check
+driv01_same_second_is_a_silent_noop = Check "driv01_same_second_is_a_silent_noop" . guarded $ do
+  pf <- proof_file
+  loaded_proof <- read_json_file pf ("produce it with: " ++ proof_command)
+  pure $ do
+    proof <- loaded_proof
+    step1 <- find_measurement "same_second_repeat_step1" proof
+    step2 <- find_measurement "same_second_repeat_step2" proof
+    step3 <- find_measurement "clock_untouched_repeat_step3" proof
+
+    s1_e3 <- measurement_int "e3_count" step1
+    _ <- expect (s1_e3 == 1)
+           ("the control step emitted " ++ show s1_e3 ++ " E3 logs, expected 1 -- without a"
+             ++ " control, step 2's silence proves nothing about the clock")
+    s1_tick <- e3_int "tick" step1
+    _ <- expect (s1_tick == 5100)
+           ("the control step recorded tick " ++ show s1_tick ++ ", expected 5100")
+
+    s1_ts <- measurement_int "ts" step1
+    s2_ts <- measurement_int "ts" step2
+    _ <- expect (s2_ts == s1_ts)
+           ("step 2 requested timestamp " ++ show s2_ts ++ " but step 1 used " ++ show s1_ts
+             ++ " -- the collision was not actually constructed, so whatever step 2 shows is about"
+             ++ " something else")
+
+    s2_status <- measurement_int "status" step2
+    s2_e3 <- measurement_int "e3_count" step2
+    s2_e5 <- measurement_int "e5_count" step2
+    _ <- expect (s2_status == 1)
+           ("the same-second repeat reverted (status " ++ show s2_status ++ "). The guard is a"
+             ++ " `return false`, not a revert: the receipt is supposed to look fine.")
+    _ <- expect (s2_e3 == 0)
+           ("the same-second repeat emitted " ++ show s2_e3 ++ " E3 logs, expected 0."
+             ++ " RealizedVolatilityStateLib compares lastTimepointTimestamp to now for EQUALITY;"
+             ++ " if a timepoint was written, the guard is not what the source says it is.")
+    _ <- expect (s2_e5 == 1)
+           ("the same-second repeat emitted " ++ show s2_e5 ++ " E5 logs, expected 1 -- the fee is"
+             ++ " still served, which is exactly what makes the missing E3 silent")
+
+    s3_status <- measurement_int "status" step3
+    s3_e5 <- measurement_int "e5_count" step3
+    expect (s3_status == 1 && s3_e5 == 1)
+      ("the clock-untouched step came back status " ++ show s3_status ++ " with " ++ show s3_e5
+        ++ " E5 logs, expected 1 and 1. Its E3 count is deliberately NOT asserted: it depends on"
+        ++ " wall time and was observed both ways.")
+
+-- | The near-floor tick: an outcome that had never been executed.
+--
+-- @CheatSwap.Encoding@'s haddock labels the degeneracy at the bottom of the range a PREDICTION and
+-- names this plan as the thing that measures it. The prediction was that the swap does not revert
+-- on the price bound (@getSqrtPriceAtTick(-887259) = 4297706459@, about 2.5e6 units above the fixed
+-- limit) but degenerates to @amount1 ~ 0@, with E3 still firing because @beforeSwap@ runs before
+-- any swap math.
+--
+-- MEASURED: it does not revert, and E3 carries the cheated tick. Both halves are asserted, because
+-- a later revert here would mean 22-05 must choose direction and price limit FROM the cheated tick
+-- rather than using one fixed pair -- a real design consequence that must not arrive silently.
+driv01_extreme_tick_is_survivable :: Check
+driv01_extreme_tick_is_survivable = Check "driv01_extreme_tick_is_survivable" . guarded $ do
+  pf <- proof_file
+  loaded_proof <- read_json_file pf ("produce it with: " ++ proof_command)
+  pure $ do
+    proof <- loaded_proof
+    m <- find_measurement "extreme_tick_near_floor" proof
+
+    cheated <- measurement_int "tick" m
+    _ <- expect (cheated == -887259)
+           ("the floor measurement cheated tick " ++ show cheated ++ ", expected the inclusive G4"
+             ++ " floor -887259")
+
+    status <- measurement_int "status" m
+    _ <- expect (status == 1)
+           ("the floor-tick swap came back at status " ++ show status ++ ". A revert here is a"
+             ++ " legitimate measurement, but it is a DESIGN CONSEQUENCE: the driver would then"
+             ++ " need direction and sqrtPriceLimitX96 chosen from the cheated tick instead of the"
+             ++ " one fixed pair CheatSwap.Encoding uses. Update this check deliberately, and"
+             ++ " carry the requirement into the driver -- do not just relax it.")
+
+    e3_count <- measurement_int "e3_count" m
+    _ <- expect (e3_count == 1)
+           ("the floor-tick swap emitted " ++ show e3_count ++ " E3 logs, expected 1 -- beforeSwap"
+             ++ " runs BEFORE any swap math, so even a fully degenerate swap must write its"
+             ++ " timepoint")
+
+    e3_tick <- e3_int "tick" m
+    expect (e3_tick == -887259)
+      ("the floor-tick swap recorded tick " ++ show e3_tick ++ ", expected -887259")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -2411,6 +2804,11 @@ main = do
           , driv01_e3_decode_behavior
           , driv01_slot0_composition_behavior
           , driv01_swap_calldata_shape
+          , driv01_cheat_swap_proof_is_present_and_fresh
+          , driv01_cheated_tick_reaches_e3
+          , driv01_wrong_pool_is_silent
+          , driv01_same_second_is_a_silent_noop
+          , driv01_extreme_tick_is_survivable
           ]
             ++ per_pin_checks pins
 
