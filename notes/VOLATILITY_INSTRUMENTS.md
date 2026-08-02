@@ -24,17 +24,25 @@ Where:
 
 \[
 	\begin{aligned}
-		p_{\pi^{\text{call | put}}}\, (t) \, &= \, \int_{p_{(\eta, \Delta_i)} \, (i; t)} \, \theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; t) \, , K,  \sigma \, (i (t)) \Big ) \, \mathcal{d}\, t
+		p_{\pi^{\text{call | put}}}\, (t) \, &= \, \int_{p_{1/2, \Delta_i} \, (i; t)} \, \theta \, \Big (\, p_{1/2, \Delta_i} \, (i; t) \, , p_{1/2, \Delta_i} \, (i_K),  \sigma \, (i (t)) \Big ) \, \mathcal{d}\, t
 	\end{aligned}
 \]
 
 
 Where:
+\[
+	\begin{aligned}
+		\theta \, \Big (\, p_{1/2, \Delta_i} \, (i; t) \, , p_{1/2, \Delta_i} \, (i_K),  \sigma \, (i (t)) \Big ) \, &\equiv \, \frac{\Delta \pi^{\text{call | put}}}{\Delta\, t } \\
+		&= \,  \frac{p_{1/2, \Delta_i} \, (\cdot)\, \sigma \, (\cdot)}{\sqrt{8\, \pi \, t}} \, \exp \, \Big (\frac{\Big [- \ln \Big(\frac{p_{1/2, \Delta_i} \, (i (t_0))}{p_{1/2, \Delta_i} \, (i_K)}\Big) \, + \, \frac{\sigma^2 \, t}{2} \Big ]^2}{2\, \sigma^2 \, (\cdot)\, t}\Big)
+	\end{aligned}
+\]
+
+The strike is the price at the STRIKE TICK \(i_K\); \(p_{1/2,\Delta_i}\) is the price grid at elasticity \(\epsilon_{X/M} = 1/2\) — the same \(\tfrac12\) as in \(\varphi_{1/2}\), since a square-root price coordinate is what a 50/50 pool induces:
 
 \[
 	\begin{aligned}
-		\theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; t) \, , K,  \sigma \, (i (t)) \Big ) \, &\equiv \, \frac{\Delta \pi^{\text{call | put}}}{\Delta\, t } \\
-		&= \,  \frac{p_{(\eta, \Delta_i)} \, (\cdot)\, \sigma \, (\cdot)}{\sqrt{8\, \pi \, t}} \, \exp \, \Big (\frac{\Big [- \ln (\frac{p \, (t_0)}{K}) \, + \, \frac{\sigma^2 \, t}{2} \Big ]^2}{2\, \sigma^2 \, (\cdot)\, t}\Big)
+		p_{\epsilon_{X/M}, \Delta_i} \, (i) \, = \, \lambda^{\,i\,\epsilon_{X/M}\,\Delta_i\,\eta}, \qquad
+		p_{1/2, \Delta_i} \, (i) \, = \, \lambda^{(i/2)\,\Delta_i\,\eta} \quad (\texttt{VolInstrument.priceEta})
 	\end{aligned}
 \]
 
@@ -45,7 +53,7 @@ One greek of special interest that we wnat to identify and is the bridge with ou
 
 \[
 	\begin{aligned}
-		\upsilon \, \Big (p_{(\eta, \Delta_i)} \, (i; t) \, , K\Big)\, &\equiv \, \upsilon \, &\equiv \, \frac{\Delta \pi^{\text{call | put}}}{\Delta \sigma^2 \, (\cdot)} \\
+		\upsilon \, \Big (p_{1/2, \Delta_i} \, (i; t) \, , p_{1/2, \Delta_i} \, (i_K)\Big)\, &\equiv \, \upsilon \, &\equiv \, \frac{\Delta \pi^{\text{call | put}}}{\Delta \sigma^2 \, (\cdot)} \\
 	\end{aligned}
 \]
 
@@ -133,7 +141,7 @@ Then:
 	\end{aligned}
 \];
 
-Which is higly sensible to the direction of \(p_{(\eta, \Delta_i)}\)  from the term \(\ln (p_{(\eta, \Delta_i)} / K)\)
+Which is higly sensible to the direction of \(p_{(\eta, \Delta_i)}\)  from the term \(\ln \big(p_{1/2, \Delta_i}(i;t) / p_{1/2, \Delta_i}(i_K)\big)\)
 
 Then:
 
@@ -216,15 +224,15 @@ Define:
 	\end{aligned}
 \]
 
-On the price grid \(K_i = \lambda^{i \Delta_i}\) the discretized strike-notional weights of the log contract are exactly geometric,
+On the price grid \(\lambda^{i\,\Delta_i}\) the discretized strike-notional weights of the log contract are exactly geometric,
 
 \[
 	\begin{aligned}
-		\frac{K_{i+1}-K_i}{K_i^2} \, = \, (\lambda^{\Delta_i}-1)\,\big(\lambda^{-\Delta_i}\big)^{i}
+		\frac{\lambda^{(i+1)\Delta_i} - \lambda^{i\,\Delta_i}}{\big(\lambda^{i\,\Delta_i}\big)^{2}} \, = \, (\lambda^{\Delta_i}-1)\,\big(\lambda^{-\Delta_i}\big)^{i}
 	\end{aligned}
 \]
 
-but the per-tick *liquidity* replicating the log contract obeys \(\ell(K) \propto K^{-1/2}\) (curvature \(\ell(P) = -2P^{3/2}V''(P)\), \(V'' = -1/P^2\)), hence
+but the per-tick *liquidity* replicating the log contract scales as the inverse square root of that grid (`logContractLiquidity_geometric`), hence
 
 \[
 	\begin{aligned}
@@ -291,12 +299,13 @@ And the inverse cummulatives as:
 \]
 
 
-> LEAN (proved): both cumulatives are monotone in the step count (for \(L \geq 0\)), so the inverse cumulatives are well-defined least attaining steps; for \(L \equiv \bar c\) they telescope:
+
+> LEAN (proved): both cumulatives are monotone in the step count (for \(L \geq 0\)), so the inverse cumulatives are well-defined least attaining steps; for \(L \equiv \bar L\) they telescope:
 
 \[
 	\begin{aligned}
-		Q_X^L \, = \, \bar c\,\big[p_{(\eta,\Delta_i)}(i_{\min}+n\Delta_i) - p_{(\eta,\Delta_i)}(i_{\min})\big], \qquad
-		Q_M^L \, = \, \bar c\,\Big[\frac{1}{p_{(\eta,\Delta_i)}(i_{\min})} - \frac{1}{p_{(\eta,\Delta_i)}(i_{\min}+n\Delta_i)}\Big]
+		Q_X^L \, = \, \bar L\,\big[p_{(\eta,\Delta_i)}(i_{\min}+n\Delta_i) - p_{(\eta,\Delta_i)}(i_{\min})\big], \qquad
+		Q_M^L \, = \, \bar L\,\Big[\frac{1}{p_{(\eta,\Delta_i)}(i_{\min})} - \frac{1}{p_{(\eta,\Delta_i)}(i_{\min}+n\Delta_i)}\Big]
 	\end{aligned}
 \]
 
@@ -304,13 +313,25 @@ And the inverse cummulatives as:
 
 Consider a exogenous tuple flow \( \Delta Q = ( \Delta Q_M, \Delta Q_X )\) on the region:
 
+> This region is the trading curve AND the 1/2 value is the elasticity we wnat to associate with the \eta parameter and the curvature. Then we use \varphi_{1/2} notation BUT in general is
+> \varphi_{\tilde \eta} AND we need clear relationship with \kappa_{\varphi} (\tilde \eta), \tilde \eta (\eta)
+
+
 \[
 	\begin{aligned}
-		\varphi \, (i_K ; \Delta Q , L)\, &= \, (\Delta Q_M^{L} (i_K) + \Delta Q_M)^{1/2}\cdot(\Delta Q_X^L \, (i_K) \, + \, \Delta Q_X)^{1/2}
+		\varphi_{\epsilon_{X/M}} \, (i_K ; \Delta Q , L)\, &= \, \big(\Delta Q_M^{L} (i_K) + \Delta Q_M\big)^{\epsilon_{X/M}}\cdot\big(\Delta Q_X^L \, (i_K) \, + \, \Delta Q_X\big)^{1-\epsilon_{X/M}}, \qquad \epsilon_{X/M} \, \in \, (0,1)
 	\end{aligned}
 \]
 
-Define the convex segment:
+\(\epsilon_{X/M}\) = the substitution elasticity = the exponent on the \(\Delta Q_M\) leg (the \(1/p_{(\eta,\Delta_i)}\) leg) = that leg's share of pool value. The current case is \(\epsilon_{X/M} = 1/2\):
+
+\[
+	\begin{aligned}
+		\varphi_{1/2} \, (i_K ; \Delta Q , L)\, &= \, (\Delta Q_M^{L} (i_K) + \Delta Q_M)^{1/2}\cdot(\Delta Q_X^L \, (i_K) \, + \, \Delta Q_X)^{1/2}
+	\end{aligned}
+\]
+
+Define the per-leg fee decomposition (\(\phi_M, \phi_X\) are the M9 leg fees):
 
 \[
 	\begin{aligned}
@@ -354,7 +375,7 @@ And define:
 
 \[
 	\begin{aligned}
-\phi \, ( \sigma \, (i (t));t) \, &= \bar \phi\, + \, \Big (\sum_j \, \frac{\alpha_j}{1 + \exp(\gamma_j \, (\beta_j - \sigma (i (t))))} \Big )\, \cdot \frac{\alpha_R}{1 \, + \, \exp(\gamma_R \, (\beta_R - \frac{\varphi \, (i_K ; \Delta Q , 0; t)}{\varphi \, (i_K ; 0, L; t)}))}
+\phi \, ( \sigma \, (i (t));t) \, &= \bar \phi\, + \, \Big (\sum_j \, \frac{\alpha_j}{1 + \exp(\gamma_j \, (\beta_j - \sigma (i (t))))} \Big )\, \cdot \frac{\alpha_R}{1 \, + \, \exp(\gamma_R \, (\beta_R - \frac{\varphi_{1/2} \, (i_K ; \Delta Q , 0; t)}{\varphi_{1/2} \, (i_K ; 0, L; t)}))}
 	\end{aligned}
 \]
 
@@ -365,8 +386,8 @@ Define:
 		\Theta_{\phi} \, &= \, \{ \gamma, \bar \phi, \beta, \alpha\}
 	\end{aligned}
 \]
-> LEAN (proved): writing \(u = \alpha_R/(1+\exp(\gamma_R(\beta_R - x)))\), \(x = \varphi(i_K;\Delta Q,0;t)/\varphi(i_K;0,L;t)\):
 
+> LEAN (proved): writing \(u = \alpha_R\Big/\Big(1+\exp\Big(\gamma_R\Big(\beta_R - \frac{\varphi_{1/2}(i_K;\Delta Q,0;t)}{\varphi_{1/2}(i_K;0,L;t)}\Big)\Big)\Big)\):
 \[
 	\begin{aligned}
 		0 \leq u \leq \alpha_R, \qquad
@@ -375,8 +396,7 @@ Define:
 	\end{aligned}
 \]
 
-The single-term case is the sigmoid fee schedule with steepness \(s_f = 1/\gamma_0\):
-
+The single-term case is the sigmoid fee schedule with steepness \(s_f = 1/\gamma_0\), where \(\Lambda\) is the logistic \(\Lambda(z) = 1/(1+e^{-z})\):
 \[
 	\begin{aligned}
 		\bar\phi + \alpha_0\,\Lambda(\gamma_0(\sigma-\beta_0)) \, = \, f\big(\sigma;\, f_{\min}=\bar\phi,\, f_{\max}=\bar\phi+\alpha_0,\, \bar\sigma_f=\beta_0,\, s_f=\gamma_0^{-1}\big)
@@ -389,7 +409,7 @@ Make:
 
 \[
 	\begin{aligned}
-		\phi \, ( \sigma \, (i (t));t) \, & \leftarrow \, \theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; t) \, , K,  \sigma \, (i (t)) \Big )
+		\phi \, ( \sigma \, (i (t));t) \, & \leftarrow \, \theta \, \Big (\, p_{1/2, \Delta_i} \, (i; t) \, , p_{1/2, \Delta_i} \, (i_K),  \sigma \, (i (t)) \Big )
 	\end{aligned}
 \]
 
@@ -571,7 +591,7 @@ The paper's fee symbol `γ` is transcribed as this document's fee `φ`; this doc
 The paper's Poisson block rate `λ` is transcribed through its own primitive `Δt ≜ λ⁻¹`, because this document's `λ` is the hazard rate. <!-- notation-map -->
 The paper's composite parameter `η ≜ γ√(2λ)/σ` is deliberately never named, since `η` is reserved project-wide for the pricing kernel. <!-- notation-map -->
 Probability convention (user, 2026-07-31): probabilities are \(\mathbb{P}_{\text{event}}\) — \(\mathbb{P}_{\Delta_{\text{ARB}}}\) = arbitrage-trade probability (the paper's `P_trade`; Lean `MevOptimization.ptrade`), \(\mathbb{P}_{L_{\text{JIT}}}\) = JIT-arrival probability (CJZ's `π`; Lean `πJ`). <!-- notation-map -->
-Root-block-rate factor: \(\sqrt{2/\Delta t}\) throughout, no composite abbreviation. Fee \(= \phi\) (ceiling \(\bar\phi\), set \(\Theta_{\phi}\)); \(\varphi\) NOT used (bound to the quote function).
+Root-block-rate factor: \(\sqrt{2/\Delta t}\) throughout, no composite abbreviation. Fee \(= \phi\) (ceiling \(\bar\phi\), set \(\Theta_{\phi}\)); the quote function is \(\varphi_{\epsilon_{X/M}}\), currently \(\varphi_{1/2}\); bare \(\varphi\) is NOT used.
 
 \(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)).
 \(\sigma_t = \sigma(i(t))\): enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\).
@@ -1081,7 +1101,7 @@ CJZ kept as-is: ζ, ζ_U, ζ̲, ζ★, ζ̂, ψ, ψ_U, μ(·), d_P, d_J, d̃ = p
 
 ## **J2. [JIT BEST RESPONSE] closed form + THE THIRD POLE**
 
-For \(q_R > \varphi\text{-fee-adjusted floor } \phi\,\tilde d_P\):
+For \(q_R > the fee-adjusted floor  \phi\,\tilde d_P\):
 
 \[ \tilde d_J^{\star} = \frac{\phi\,\tilde d_P(\tilde d_P + q_R) + \sqrt{q_R^{2}\,(1+\phi)\,\tilde d_P(\tilde d_P + q_R)}}{q_R - \phi\,\tilde d_P} \]
 
