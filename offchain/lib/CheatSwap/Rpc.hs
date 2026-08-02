@@ -15,13 +15,13 @@
 -- domain guard) and 'CheatSwap.Encoding' the calldata half. This module is the only place the two
 -- meet a chain.
 --
--- == THE FOUR CLIENT-SIDE GUARDS, AND WHY THEY ARE NOT DEFENSIVE
+-- == THE FIVE CLIENT-SIDE GUARDS, AND WHY THEY ARE NOT DEFENSIVE
 --
 -- Every guard below fires before anything MUTATES chain state. Reads (@eth_call@, the head
 -- timestamp) are not sends; the ordering that is load-bearing is that no storage write and no
--- transaction happens until all four have passed.
+-- transaction happens until all five have passed.
 --
--- They matter because three of the four failure modes they catch are SILENT on chain:
+-- They matter because four of the five failure modes they catch are SILENT on chain:
 --
 --   * (a) G4 — a cheat tick outside the rig's single full-range position desyncs liquidity
 --     accounting. Cheat moves never CROSS a tick, so nothing reverts and nothing is emitted.
@@ -45,7 +45,13 @@
 --     cause; with the caller's recorded timestamp threaded in, (c) fired first and nothing was sent.
 --     So (b) and (c) are not redundant, but neither is (c) the guard that catches a shuffle on this
 --     rig — (b) is, and it is the weaker claim that is true.
---   * (d) a @NotBound@ revert on @PriceSetterHook.readSlot0@ returns @0x@, which
+--   * (d) a zero @extsload@ word means there is NO POOL at @keccak(poolId || POOLS_SLOT)@ on the
+--     manager being read. v4's @initialize@ always stores a nonzero @sqrtPriceX96@, so this is an
+--     exact test and not a heuristic one. Every guard after it still passes — the composed word
+--     takes its low 184 bits from the price hook and looks perfectly well-formed — so without this
+--     the write lands in a slot nothing reads, the swap MINES AT STATUS 1 (measured), and the
+--     failure is attributed downstream to whatever complains first, under the wrong name.
+--   * (e) a @NotBound@ revert on @PriceSetterHook.readSlot0@ returns @0x@, which
 --     'VolOrder.Decode.hex_to_integer' reads as @0@ — a well-formed word describing a zero price.
 --     'PriceSetter.Rpc' documents the same shape one layer over: a @fail@ inside 'Web3' surfaces as
 --     an UNCAUGHT 'IOException', not a 'Left', so the message has to name the cause itself.
@@ -307,11 +313,38 @@ cheat_and_swap target clock tick = do
       slot_hex = fromString (hex32 slot) :: HexString
 
   word_before <- read_word (cst_pool_manager target) =<< liftIO (encode_extsload slot)
+
+  -- GUARD (d) — the pool the write is AIMED AT exists on the manager being read.
+  --
+  -- This is exact, not heuristic. v4's `initialize` always stores a nonzero sqrtPriceX96 into the
+  -- pool's Slot0, and `extsload` of an untouched slot returns a zero word, so `word_before == 0`
+  -- means one thing: there is no pool at keccak(poolId || POOLS_SLOT) on this manager. A stale or
+  -- wrong poolId, a POOLS_SLOT that drifted from the deployed PoolManager's layout, an
+  -- uninitialized pool, or simply the wrong manager address all land here -- and every one of them
+  -- passes guard (e) below, because `compose_slot0` takes its low 184 bits from the price hook and
+  -- those are perfectly well-formed whatever the high bits were.
+  --
+  -- MEASURED with the guard removed and the poolId off by one: the composed word was written to the
+  -- garbage slot, the swap MINED AT STATUS 1, and the step came back with e3_count = 0 -- so the
+  -- first thing to complain is the driver's per-step E3 assertion, whose message opens on the G1
+  -- same-second clock hazard. A wrong poolId reported as a clock collision is exactly the
+  -- wrong-cause attribution this guard removes.
+  when (word_before == 0) $
+    fail ("cheat_and_swap: extsload of the pool state slot " ++ hex32 slot ++ " on manager "
+           ++ address_hex (cst_pool_manager target) ++ " returned ZERO for poolId "
+           ++ show (cst_pool_id target) ++ " (tick " ++ show tick ++ ")."
+           ++ " v4's initialize ALWAYS stores a nonzero sqrtPriceX96, so a zero word here is not a"
+           ++ " zero price -- it is NO POOL AT THAT SLOT: a stale or wrong poolId, a POOLS_SLOT"
+           ++ " that does not match this PoolManager's storage layout, an uninitialized pool, or"
+           ++ " the wrong manager entirely. Writing anyway would put a well-formed word into a slot"
+           ++ " nothing reads and move the failure downstream onto an unrelated cause."
+           ++ " Nothing was written and nothing was sent.")
+
   pack_word   <- read_word (cst_price_hook target)   =<< liftIO (encode_pack_slot0_for tick)
 
   let composed = compose_slot0 word_before pack_word
 
-  -- GUARD (d) — the shape of what is about to be written.
+  -- GUARD (e) — the shape of what is about to be written.
   when (composed .&. ((1 `shiftL` 160) - 1) == 0) $
     fail ("cheat_and_swap: the composed slot0 word has a ZERO sqrtPriceX96 for tick " ++ show tick
            ++ ". packSlot0For reverts InvalidTick outside [MIN_TICK, MAX_TICK], but a NotBound"
