@@ -1,6 +1,10 @@
 # Phase 12.1 (INSERTED) — definitional re-ordering of the document opening
 
 **Requirement:** CTX-DEFORDER (sole).
+**RESCOPED 2026-08-03 (user):** not a local re-ordering of the opening — the whole-document move
+from annotated notes to a mathematical document (numbered Definitions/Propositions, symbol
+structure), executed as **PAIR WORK: every single line consulted with the user**, starting from the
+in-doc notes. See `12.1-CONTEXT.md` for the full context and working mode.
 **Status:** BLOCKED. Nothing may be started.
 **Why a decimal insertion, not a phase:** it has a fixed, small spec, zero proof content, and an
 indefinite user gate. Registered as a decimal per the roadmap's own convention ("Decimal phases:
