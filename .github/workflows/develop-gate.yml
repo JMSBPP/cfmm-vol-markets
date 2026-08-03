@@ -372,27 +372,92 @@ jobs:
       # half-run leaves no manifest and no chain, this step goes red, and cabal test never runs
       # against a partial rig. The trap does NOT fire if the job is cancelled out from under it --
       # that case is what the unconditional cleanup step at the bottom is for.
+      #
+      # --- THE HOST-WIDE RIG LOCK, and why these steps are now one step ----------------------
+      #
+      # The preflight above RECORDS the collision it cannot prevent. This serialises against
+      # it, for the one class of victim that can cooperate.
+      #
+      # An RPC_PORT knob was considered and REFUSED, correctly: 8545 is hardcoded at ten sites,
+      # and parameterising deploy-rig.sh ALONE would leave `--rpc-url "$RPC_ALIAS"` resolving
+      # through foundry.toml:59 back to 8545 -- so CI would deploy INTO a developer's chain and
+      # write a manifest describing it. Strictly worse than displacing them. An flock touches
+      # none of those ten sites.
+      #
+      # THE LOCK MUST SPAN THE RIG'S WHOLE LIFETIME, not just the deploy. CI's anvil holds 8545
+      # from deploy until teardown, and deploy-rig.sh kills the 8545 listener unconditionally at
+      # both ends. A lock released after the deploy step would let a developer start a rig that
+      # this job's teardown then kills -- the same defect, moved. A `run:` block is one process
+      # and `exec 9>` closes when it exits, so the lock's lifetime is exactly this step's: hence
+      # deploy + verify + test are ONE step, with the teardown on an EXIT trap INSIDE the lock.
+      # ::group:: keeps the log readable. verify-import.sh is deliberately left OUTSIDE -- it is
+      # a git/sha check that never touches the chain, and holding the lock through it would
+      # extend the exclusion window for nothing.
+      #
+      # HONEST LIMIT, and it is the whole shape of this fix: flock is ADVISORY. It excludes only
+      # processes that also take it. A developer who runs deploy-rig.sh directly is unaffected
+      # and will still displace this job, exactly as today. What it buys is that cooperation is
+      # now POSSIBLE and is one command:
+      #     flock ~/.cfmm-rig-8545.lock bash offchain/rig/deploy-rig.sh
+      # This is not a claim that the collision is closed. It is the subset that is safe to do
+      # from this file alone.
+      #
+      # $HOME, not /tmp: the runner is a systemd service (User=jmsbpp, verified) and a unit with
+      # PrivateTmp=yes gets a /tmp namespace of its own, which would silently give CI and the
+      # developer two different "shared" lockfiles that never exclude each other. $HOME is
+      # /home/jmsbpp for both, verified on this host.
+      #
+      # Failing on timeout is deliberate. The lock is opt-in, so it can only be held by someone
+      # who took it knowingly; waiting 30 minutes and then refusing to run is honest, and it is
+      # better than destroying the rig of the one developer who cooperated.
       - run: |
+          # `9>>` and NOT `9>`: the plain form opens with O_TRUNC and would wipe the current
+          # holder's identity line before we have even tried to take the lock, so the diagnostic
+          # below could never print anything. Measured -- "Holder:" came back empty against a
+          # holder that had definitely written its record.
+          exec 9>>"$HOME/.cfmm-rig-8545.lock"
+          if ! flock -w 1800 9; then
+            echo "::error::could not take $HOME/.cfmm-rig-8545.lock within 30 minutes."
+            echo "::error::Another process holds the rig lock; refusing to displace it. Holder:"
+            cat "$HOME/.cfmm-rig-8545.lock" 2>/dev/null || true
+            exit 1
+          fi
+          echo "develop-gate haskell job, run ${GITHUB_RUN_ID:-?}, pid $$" > "$HOME/.cfmm-rig-8545.lock"
+
+          # From here on this job owns 8545. The marker and the trap are set BEFORE the deploy,
+          # so a failure in its first command still tears down and still tells the always() step
+          # below that an anvil may exist. --stop is idempotent and non-failing by design.
           : > "$RUNNER_TEMP/rig-owned-8545"
+          trap 'bash offchain/rig/deploy-rig.sh --stop || true' EXIT
+
+          echo "::group::deploy-rig.sh"
           bash offchain/rig/deploy-rig.sh
-      # SC-2, and it is not redundant with the deploy. deploy-rig.sh proves the scripts RAN;
-      # verify-rig.sh proves the result is LIVE -- nonzero bytecode at every one of the nine
-      # manifest addresses, orderCount() decoding, and RealizedVolatilityMod actually seeded.
-      # It reads every probe target out of the manifest, so it also confirms the manifest
-      # describes the chain that is up, which is precisely the assumption the 7 checks below make.
-      - run: bash offchain/rig/verify-rig.sh
-      # NOW the suite means something. The 7 checks above assert the COMMITTED capture artifacts
-      # (batch-return-capture.json, driver-run-capture.json, cheat-swap-proof.json) still describe
-      # the deployment that is up: chainId, generatedFrom, VolOrderManagerMod, PoolManager,
-      # DynamicFeeHook, tickSpacing. deploy-rig.sh is deterministic (fixed mnemonic, fixed
-      # genesis, fresh chain), so the CREATE addresses reproduce -- but DynamicFeeHook is CREATE2
-      # and therefore BYTECODE-dependent. A PR that changes the hook's Solidity moves that address
-      # and reddens driv01 until the captures are re-taken. That is the intended discipline, and
-      # each check's own error message names the command; it is not a CI defect.
-      # (The driver itself -- `cabal run cfmm-replicationPlank-rpc-api` -- is deliberately NOT run
-      #  here: it REWRITES the tracked capture it is being checked against, which would convert a
-      #  staleness failure into a silent pass.)
-      - run: cabal test
+          echo "::endgroup::"
+
+          # SC-2, and it is not redundant with the deploy. deploy-rig.sh proves the scripts RAN;
+          # verify-rig.sh proves the result is LIVE -- nonzero bytecode at every one of the nine
+          # manifest addresses, orderCount() decoding, and RealizedVolatilityMod actually seeded.
+          # It reads every probe target out of the manifest, so it also confirms the manifest
+          # describes the chain that is up, which is exactly what the 7 checks below assume.
+          echo "::group::verify-rig.sh"
+          bash offchain/rig/verify-rig.sh
+          echo "::endgroup::"
+
+          # NOW the suite means something. The 7 checks in it assert the COMMITTED capture
+          # artifacts (batch-return-capture.json, driver-run-capture.json, cheat-swap-proof.json)
+          # still describe the deployment that is up: chainId, generatedFrom, VolOrderManagerMod,
+          # PoolManager, DynamicFeeHook, tickSpacing. deploy-rig.sh is deterministic (fixed
+          # mnemonic, fixed genesis, fresh chain), so the CREATE addresses reproduce -- but
+          # DynamicFeeHook is CREATE2 and therefore BYTECODE-dependent. A PR that changes the
+          # hook's Solidity moves that address and reddens driv01 until the captures are re-taken.
+          # That is the intended discipline, and each check's own error message names the command;
+          # it is not a CI defect.
+          # (The driver itself -- `cabal run cfmm-replicationPlank-rpc-api` -- is deliberately NOT
+          #  run here: it REWRITES the tracked capture it is being checked against, which would
+          #  convert a staleness failure into a silent pass.)
+          echo "::group::cabal test"
+          cabal test
+          echo "::endgroup::"
       # SC-1: the 37 imported source-of-truth paths are content-identical to the recorded ref
       # AND sha256-match IMPORT-PIN.md. Unrun, "verbatim import" is a claim, not a check.
       - run: bash offchain/rig/verify-import.sh
