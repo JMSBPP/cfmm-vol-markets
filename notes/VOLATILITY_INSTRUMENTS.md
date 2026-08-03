@@ -13,6 +13,16 @@
 where \(\sigma^2(i(t))\) is the realized tick variance. Consequently \(\Delta Q_v \equiv \Delta \pi^{\sigma} / \Delta\big(\sigma^2(i(t)) - \sigma^2_K\big)^{+}\): the notional **is** the option's vega.
 
 *Formalized:* `Panoptic.volOptionPayoff`; `volOptionPayoff_nonneg`; `deltaQv_of_payoff`.
+
+**Convention 2 (Volatility tick argument).** Volatility always takes a **tick argument**: \(\sigma^2(i(t))\) is the variance along the tick path at calendar time \(t\), \(\sigma^2(i(T))\) its value at the horizon \(T\), and \(\sigma^2(i_K) \equiv \sigma^2_K\) the strike variance at the strike tick — the subscript form is declared shorthand for the tick-argument form, as is \(\sigma^2_R(T) \equiv \sigma^2(i(T))\). A bare \(\sigma^2\) is not well-formed. *(Adopted from the converted region upward; the sections below are swept as the pair pass reaches them.)*
+
+**Settlement form of Definition 1.** At unit notional, the contract settles on realized variance at the horizon:
+
+\[
+	\begin{aligned}
+		\pi^{\sigma} \, (\sigma_K, T; t) \, &= \, \Big (\sigma^2(i(T)) - \sigma^2(i_K)\Big)^{+}
+	\end{aligned}
+\]
 Following [VOL_SWAPS](../refs/DemeterfietalVarianceSwaps.pdf), the price of the volatility option is the *cost of replicating it with options*. This is where [panoptic](https://arxiv.org/pdf/2204.14232) enters. The replication proved in-tree is the **ladder** form (the \(\xi^\star\) log-contract weights, `variancePortfolio_upsilon`); whether it collapses to a **two-instrument** affine form \(p_{\pi^\sigma} = p_0 + a_1\, p_{\pi^{\text{call}}} + a_2\, p_{\pi^{\text{put}}}\) is **OPEN** — statement parked pending the liquidity-side definitions, per the 12.1 ledger.
 
 **Definition 2 (Theta).** The **theta** of the call (resp. put) at strike tick \(i_K\) is the per-time-step payoff variation
@@ -96,6 +106,8 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 
 *Formalized:* `VolInstrument.logPortfolio`; `variancePortfolio` (\(= \text{logPortfolio} + \sigma^2 t/2\)); `logPortfolio_nonneg`; `logPortfolio_atm`.
 
+**Settlement instantiation** (Convention 2): \(\Pi^{\text{call|put}}\big(\sigma^2(i(T));\, p_{(\eta,\Delta_i)}(i;t);\, T\big) \, = \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{(\eta, \Delta_i)} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{(\eta, \Delta_i)}}{p^{\star}})\Big] \, + \, \frac{T - t}{T}\, \sigma^2(i(t))\).
+
 **Proposition 4 (Ladder replication).** The volatility option is replicated by the log portfolio:
 
 \[
@@ -154,12 +166,12 @@ parameter set. A parameter not listed here is not a parameter of the protocol.
 
 - \(\xi\) — the **liquidity ratio**.
   *Domain:* \(\xi \in (0,1) \cup (1,\infty)\); \(\xi = 1\) is reached by limit only (Theorem 2).
-  *Purpose:* sets the geometric decay of per-strike liquidity in the ladder (Definition 7).
+  *Purpose:* sets the geometric decay of per-strike liquidity in the ladder (Definition 7); with \(\iota\), encodes the strike weights that make the portfolio **delta-neutral**.
   *Economic meaning:* the ratio of liquidity between adjacent strikes; pinned at \(\xi^{\star} = \lambda^{-\Delta_i/2}\), the log-contract weight law under which the ladder replicates the variance payoff (Proposition 4).
 
 - \(\iota\) — the **ladder resolution**.
   *Domain:* \(\iota \in \mathbb{N}\), \(\iota \ge 1\).
-  *Purpose:* the number of strikes carrying the ladder (Definition 7); the weight profile lives on the simplex \(\Delta^{\iota-1}\).
+  *Purpose:* the number of strikes carrying the ladder (Definition 7); the weight profile lives on the simplex \(\Delta^{\iota-1}\); with \(\xi\), encodes the **delta-neutral** strike weighting.
   *Economic meaning:* the resolution at which the continuous log-contract strip is discretized — the finite-strip replication error and the G4 underspecification deficit (\(\iota - 2\)) are both functions of it.
 
 > PENDING ENTRIES (added as the pair pass reaches them): \(\Theta_p = \{\eta, \Delta_i\}\) (price grid), \(\Theta_{\varphi} = \{\chi_{X/M}, \epsilon_{X/M}\}\) (trading curve — the existing "THE PARAMETERS, ECONOMICALLY" block folds in here), \(\Theta_{\phi}\) (fee schedule), \(\Theta_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) (order).
@@ -186,20 +198,6 @@ inheriting the sign of \(\ln \big(p_{(\eta, \Delta_i)}(i;t) / p_{(\eta, \Delta_i
 
 *Formalized:* `VolInstrument.variancePortfolio_unit_upsilon`.
 
-
-\[
-	\begin{aligned}
-		\Pi^{\text{call | put}} \, (\sigma^2_R\, (T) ;p_{(\eta, \Delta_i)} \, (i; t); T) \, &= \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{(\eta, \Delta_i)} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{(\eta, \Delta_i)}}{p^{\star}})\Big] \, + \, \sigma^2_R\, (T) 
-	\end{aligned}
-\]
-
-\[
-	\begin{aligned}
-		\pi^{\sigma} \, (\sigma_K, T; t) \, &= \, \Big (\sigma^2_R\, (T) - \sigma^2_K\Big)^{+}
-	\end{aligned}
-\]
- 
-
 Note that:
 
 \[
@@ -215,32 +213,6 @@ Note that:
 	
 \]
 
-> The weights on the strike to make the protafolio delta neutral are encoded on the parameters \(\xi, \iota\)
-Where:
-
-\[
-	\begin{aligned}
-		L \, (i_K) \, &= \, \bar L \, \ell \, (\xi, \iota; i_k) \\
-		\\
-		\bar L \, &= \sum_{i_K = i_{\text{min}}}^{i_{\text{max}}} \, L \, (i_K)\, \quad \, \ell \, (\xi, \iota; i_k) \, = \, \frac{\xi^{i_K}}{\Big ( \frac{1 - \xi^{\iota}}{1 - \xi}\Big)}
-	\end{aligned}
-\]
-
-Define:
-
-\[
-	\begin{aligned}
-		\Theta_{\ell} \, &= \, \{\xi, \iota\}
-	\end{aligned}
-\]
-
-> LEAN (proved + correction): the weights are a partition of unity and the delta-neutral ratio is pinned:
-
-\[
-	\begin{aligned}
-		\sum_{i_K} \, \ell \, (\xi, \iota; i_K) \, = \, 1, \quad \ell > 0 \; (\xi \in (0,1) \cup (1,\infty)), \quad \lim_{\xi \to 1} \ell = \frac{1}{\iota}
-	\end{aligned}
-\]
 
 On the price grid \(\lambda^{i\,\Delta_i}\) the discretized strike-notional weights of the log contract are exactly geometric,
 
