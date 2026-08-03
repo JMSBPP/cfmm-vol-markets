@@ -102,6 +102,31 @@ and \(\Pi\) has Definition 5's defining property: its variance sensitivity is **
 
 *Formalized:* `variancePortfolio_upsilon` (\(\upsilon = t/2\), \(p_{(\eta,\Delta_i)}\)-independent); `variancePortfolio_unit_upsilon`; grid weights `GeomProfile.varswapWeight_geometric`, `logContractLiquidity_geometric`, `VolInstrument.strikeWeight_bridge` (\(\xi^{\star} = \lambda^{-\Delta_i/2}\)).
 
+**Definition 7 (Liquidity ladder).** Per strike tick \(i_K\), the ladder allocates the total liquidity \(\bar L\) by the geometric weight profile
+
+\[
+	\begin{aligned}
+		L \, (i_K) \, &= \, \bar L \, \ell \, (\xi, \iota; i_K), \qquad \bar L \, = \sum_{i_K = i_{\text{min}}}^{i_{\text{max}}} \, L \, (i_K), \qquad \ell \, (\xi, \iota; i_K) \, = \, \frac{\xi^{i_K}}{\Big ( \frac{1 - \xi^{\iota}}{1 - \xi}\Big)}
+	\end{aligned}
+\]
+
+with ladder parameter set \(\Theta_{\ell} = \{\xi, \iota\}\):
+
+- \(\xi\) — the **liquidity ratio**: the geometric decay of per-strike liquidity, with domain \(\xi \in (0,1)\cup(1,\infty)\). \(\xi = 1\) is **not** an evaluation (the normalizer degenerates); the uniform ladder is supplied by the limit \(\xi \to 1\).
+- \(\iota\) — the **ladder resolution**: the number of strikes, \(\iota \in \mathbb{N},\ \iota \ge 1\).
+
+*Formalized:* `GeomProfile.geomWeight`.
+
+**Theorem 2 (Partition of unity).** The weights are a partition of unity and the δ-neutral ratio is pinned:
+
+\[
+	\begin{aligned}
+		\sum_{i_K} \, \ell \, (\xi, \iota; i_K) \, = \, 1, \quad \ell > 0 \; (\xi \in (0,1) \cup (1,\infty)), \quad \lim_{\xi \to 1} \ell \, = \, \frac{1}{\iota}
+	\end{aligned}
+\]
+
+*Formalized:* `GeomProfile.geomWeight_sum`; `geomWeight_pos`; `geomWeight_tendsto_uniform`.
+
 > Note: A single leg portaflio gives:
 
 \[
