@@ -429,6 +429,56 @@ expected_topic_pins =
   , "WindowChanged"
   ]
 
+-- | THE EXTERNAL ANCHOR FOR @generatedFrom@.
+--
+-- Every WRITER of a @generatedFrom@ field reads this file -- @deploy-rig.sh@, @generate-pins.sh@,
+-- @capture-cheat-swap-proof.sh@, @app\/CheatSwapProof.hs@ -- and so do @verify-import.sh@ (which
+-- @git diff@s the working tree against the ref it names) and @check-upstream.sh@ (which wrote it).
+-- Until this check existed, the number of times this suite read it was ZERO.
+--
+-- The consequence, MEASURED: @generatedFrom@ was checked for 40-hex SHAPE ('refs_are_real') and
+-- for MUTUAL EQUALITY across the pin file, the proof and the run capture. Three artifacts agreeing
+-- with each other is not provenance -- a coordinated fake sha written into all of them satisfies
+-- both properties. The reviewer measured a coordinated fake at 83\/85: the only objection came
+-- from @driver-run-capture.json@, and only because it has no env override, i.e. the suite objected
+-- by ACCIDENT of what was overridable rather than because anything held the ref down.
+--
+-- This file is the thing that is not self-referential: it names the upstream ref the imported
+-- source-of-truth artifacts were taken from, and @verify-import.sh@ binds THAT to the tree by
+-- content diff. Binding the pin file to it closes the loop, and it closes it for the proof and the
+-- run capture too, because both are already pinned to the pin file by equality.
+--
+-- Deliberately NOT overridable. An anchor that a falsification can redirect is not an anchor; the
+-- shape here is the same one 'realized_vol_iface' and 'volorder_iface' use, and
+-- 'every_advertised_override_is_honoured' covers ADVERTISED variables only, so nothing in the
+-- module claims otherwise.
+import_ref_file :: FilePath
+import_ref_file = "offchain/rig/import-ref.txt"
+
+-- | The pin file's @generatedFrom@ IS the imported source-of-truth ref, not merely a 40-hex string
+-- that three artifacts happen to share.
+sc4_generated_from_is_the_imported_ref :: RigPins -> Check
+sc4_generated_from_is_the_imported_ref pins =
+  Check "sc4_generated_from_is_the_imported_ref" . guarded $ do
+    anchor <- strip_ws <$> readFile import_ref_file
+    let pinned = T.unpack (pins_generated_from pins)
+    pure $ do
+      _ <- expect (is_git_object_name anchor)
+             (import_ref_file ++ " holds " ++ show anchor ++ ", which is not a 40-character git"
+               ++ " object name. It is written by a command substitution in"
+               ++ " offchain/rig/check-upstream.sh, and a failed substitution yields \"\""
+               ++ " silently -- an empty anchor would then be satisfied by an empty pin."
+               ++ " Re-run: bash offchain/rig/check-upstream.sh")
+      expect (pinned == anchor)
+        (pins_file_label ++ " records generatedFrom " ++ show pinned ++ " but " ++ import_ref_file
+          ++ " names " ++ show anchor ++ ". Every OTHER generatedFrom assertion in this module is"
+          ++ " an equality BETWEEN ARTIFACTS -- the pin file against the proof, the pin file"
+          ++ " against the run capture -- and a coordinated value written into all of them"
+          ++ " satisfies every one of them while naming no real import. This is the only"
+          ++ " assertion that compares the ref to something outside that set, and"
+          ++ " offchain/rig/verify-import.sh is what binds THAT file to the tree."
+          ++ " Regenerate: bash offchain/rig/generate-pins.sh")
+
 -- | The pin file names EXACTLY the pins this suite claims to verify -- no more and no fewer.
 sc4_pin_surface_is_the_expected_set :: RigPins -> Check
 sc4_pin_surface_is_the_expected_set pins =
@@ -4204,7 +4254,8 @@ main = do
                      ++ "\n      regenerate it with: bash offchain/rig/generate-pins.sh")
           ]
         Right pins ->
-          [ sc4_pin_surface_is_the_expected_set pins
+          [ sc4_generated_from_is_the_imported_ref pins
+          , sc4_pin_surface_is_the_expected_set pins
           , sc4_ground_truth_encoder
           , sc4_multiline_timepoint_written
           , sc4_idempotent_canonical_form
