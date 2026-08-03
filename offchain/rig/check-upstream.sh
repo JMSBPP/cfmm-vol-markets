@@ -22,7 +22,8 @@ command -v jq >/dev/null || { echo "FATAL: jq not on PATH" >&2; exit 1; }
 # and it was DEAD in this file, the BLOCKING upstream gate. MEASURED: with
 # `.selectors.create_order` deleted from a copy,
 #   RIG_PINS=<copy> bash offchain/rig/check-upstream.sh
-# printed "OPEN: ... (0x98d950ec present)" and exited 0, having read the tracked file and
+# printed "OPEN: ... (<the live create_order selector> present)" and exited 0 -- having read
+# the TRACKED file and
 # ignored the override entirely. A gate that cannot be aimed at a doctored pin file cannot
 # be falsified at all -- the only remaining way to test it was to damage the tracked
 # evidence it guards. This is byte-for-byte the reader/writer asymmetry 90765c1 fixed for

@@ -431,7 +431,8 @@ done
 # E1 (v1) row of notes/DATA_CONTRACT.md (another track's file, simulated rather than edited;
 # the per-key `grep -F` anchor "superseded by v2 before any deployment" is untouched by the
 # recase, so the per-key parse still succeeds exactly as it would under the real drift):
-#   BEFORE: "covered 0x6501fe94" ONLY -- the 64-digit E1 topic0 silently left the sweep --
+#   BEFORE: the 4-byte create_order_v1 selector was the ONLY "covered" line -- the 64-digit
+#           E1 topic0 silently left the sweep --
 #           exit 0, rig-pins.json replaced.
 #
 # THE FIX IS A SET IDENTITY, NOT A FLOOR. A floor of "at least 2 covered values" would pass a
