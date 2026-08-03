@@ -365,6 +365,94 @@ expect False why = Left why
 -- SC-4: pin recomputation
 -- ---------------------------------------------------------------------------------------------
 
+-- | THE PIN SURFACE, NAMED HERE SO THE FILE CANNOT NAME IT.
+--
+-- 'per_pin_checks' generates one check per entry it FINDS, so a pin that is absent generates no
+-- check and takes its own verification with it -- and the reported total shrinks with it, which is
+-- the part that makes the loss silent. @RIG_PINS@ is honoured by 'Rig.Manifest.rig_pins_path', so
+-- the thin file is not hypothetical. MEASURED before this check existed, with a copy holding one
+-- selector and one topic:
+--
+-- >  BASELINE selectors=30 topics=5  ->  85\/85 checks passed \/ SC-3 and SC-4 OK
+-- >  THIN     selectors=1  topics=1  ->  52\/52 checks passed \/ SC-3 and SC-4 OK \/ EXIT=0
+--
+-- 29 selectors and 4 topics went unverified and nothing said so.
+--
+-- @offchain\/rig\/generate-pins.sh@ carries @MIN_SELECTORS@\/@MIN_TOPICS@ floors, but it is the
+-- PRODUCER and it hardcodes its own output path: the floor is unreachable through the path this
+-- suite reads. The consumer has to hold its own copy of the expectation, and this is it.
+--
+-- It is a SET, not a count, for the reason @verify-rig.sh@'s @WANT_CONTRACTS@ probe is a set: a
+-- floor of thirty is satisfied by thirty pins of which one has been swapped for a name nothing
+-- consumes, and a swap is exactly what a doctored pin file would do. The set is the same shape and
+-- the same tradeoff -- adding or removing a pin means editing this list, deliberately.
+expected_selector_pins :: [T.Text]
+expected_selector_pins =
+  [ "beforeSwap"
+  , "changeFeeConfiguration"
+  , "create_order"
+  , "create_orders"
+  , "deposit"
+  , "getAverageVolatility"
+  , "getCurrentFee"
+  , "getFeeConfig"
+  , "getOrderPacked"
+  , "getTickCumulative"
+  , "getTimepointPacked"
+  , "getTwapTick"
+  , "initializeDynamicFee"
+  , "initializeHook"
+  , "initializeTWAP"
+  , "lastIndex"
+  , "oldestIndex"
+  , "orderCount"
+  , "owner"
+  , "poolId"
+  , "poolManager"
+  , "previewDeposit"
+  , "previewRiskPrice"
+  , "readWindow"
+  , "riskPrice"
+  , "riskWeightedShares"
+  , "setRiskPrice"
+  , "totalDeposits"
+  , "totalShares"
+  , "writeTimepoint"
+  ]
+
+expected_topic_pins :: [T.Text]
+expected_topic_pins =
+  [ "FeeApplied"
+  , "FeeConfigurationChanged"
+  , "TimepointWritten"
+  , "VolOrderCreated"
+  , "WindowChanged"
+  ]
+
+-- | The pin file names EXACTLY the pins this suite claims to verify -- no more and no fewer.
+sc4_pin_surface_is_the_expected_set :: RigPins -> Check
+sc4_pin_surface_is_the_expected_set pins =
+  pure_check "sc4_pin_surface_is_the_expected_set" $ do
+    _ <- one "selector" expected_selector_pins (Map.keys (pin_selectors pins))
+    one "topic0" expected_topic_pins (Map.keys (pin_topics pins))
+  where
+    one kind wanted got =
+      let missing = [T.unpack n | n <- sort wanted, n `notElem` got]
+          extra   = [T.unpack n | n <- sort got, n `notElem` wanted]
+      in expect (null missing && null extra)
+           ("the " ++ kind ++ " pin set in " ++ pins_file_label ++ " is not the "
+             ++ show (length wanted) ++ " this suite verifies."
+             ++ "\n      missing    : " ++ render missing
+             ++ "\n      unexpected : " ++ render extra
+             ++ "\n      A missing pin DELETES ITS OWN sc4_pin_" ++ kind ++ "_* check and takes the"
+             ++ " total down with it, so the run still reports \"SC-3 and SC-4 OK\" while verifying"
+             ++ " less. If a pin was added or retired ON PURPOSE, edit expected_"
+             ++ (if kind == "selector" then "selector" else "topic") ++ "_pins in this module and"
+             ++ " say so; otherwise regenerate: bash offchain/rig/generate-pins.sh")
+
+    render [] = "(none)"
+    render xs = intercalate ", " xs
+
 -- | One check per pin. The signature comes from the FILE the pin names, never from this module.
 per_pin_checks :: RigPins -> [Check]
 per_pin_checks pins =
@@ -4088,7 +4176,8 @@ main = do
                      ++ "\n      regenerate it with: bash offchain/rig/generate-pins.sh")
           ]
         Right pins ->
-          [ sc4_ground_truth_encoder
+          [ sc4_pin_surface_is_the_expected_set pins
+          , sc4_ground_truth_encoder
           , sc4_multiline_timepoint_written
           , sc4_idempotent_canonical_form
           , sc4_falsifiable pins
