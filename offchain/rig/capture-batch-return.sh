@@ -139,7 +139,10 @@ print(("true" if match else "false"), ("true" if only_ids else "false"))
 
 CASES_TMP=$(mktemp)
 GOLD_TMP=$(mktemp)
-trap 'rm -f "$CASES_TMP" "$GOLD_TMP"' EXIT
+# "$OUT.tmp" is in the trap so a fault or a SIGINT during the emit leaves no half-written
+# sibling behind for a later run to trip over. $OUT itself is never in the trap: the whole
+# point is that the tracked artifact is not touched until the emit has been validated.
+trap 'rm -f "$CASES_TMP" "$GOLD_TMP" "$OUT.tmp"' EXIT
 
 # --- The capture itself ----------------------------------------------------
 run_case() {   # name n word...
@@ -262,6 +265,17 @@ GOLDEN_DIFF=$(jq -s 'map({key: .name, value: {matches_golden, differs_only_in_or
               "$GOLD_TMP")
 
 # --- Emit the artifact -----------------------------------------------------
+# WRITE BESIDE, VALIDATE, THEN RENAME. This used to be `jq -n ... > "$OUT"` against
+# offchain/rig/batch-return-capture.json, which `git ls-files` confirms is TRACKED.
+# The shell creates and truncates the redirect target BEFORE jq runs, so any jq fault
+# -- or a SIGINT between the two -- left committed evidence at zero bytes. That is the
+# rule README.md:248 already states ("Never regenerate with `generator ... > committed-
+# file`"), that 4f02866 fixed elsewhere, and that the sibling generate-pins.sh:411-423
+# already follows. This one writer was missed.
+#
+# MEASURED with a jq shim faulting only on this emit (matched on the unique _scope_limit
+# key, every other jq call real): offchain/rig/batch-return-capture.json went 4497 bytes
+# -> 0 bytes, sha 64f81425 -> e3b0c442 (the sha256 of nothing).
 jq -n \
   --arg     generatedAt "$GENERATED_AT" \
   --argjson chainId     "$CHAIN" \
@@ -280,6 +294,41 @@ jq -n \
      _scope_limit: "These are eth_call results. No state was changed, no transaction was sent and no receipt exists, so the order ids below are the ids the calls WOULD have assigned against the orderCount live at blockNumber -- not ids that exist on chain. Re-running against a rig whose orderCount has advanced legitimately shifts the orderId words and nothing else.",
      _golden_diff: $goldenDiff,
      cases: $cases
-   }' > "$OUT"
+   }' > "$OUT.tmp"
+
+# Re-check the emitted document BEFORE it replaces the tracked one, on the same reasoning
+# as generate-pins.sh:411-423: jq can exit 0 having written less than intended, and an
+# artifact that parses is not the same as an artifact that carries what it claims to.
+#
+# The assertion is a SET, not a count. A count floor is satisfied by a count-preserving
+# swap -- rename `cases` to `casesXX` and a "7 top-level keys" floor sails through while
+# every downstream rpin05_* check reads a missing field. The expected case names are
+# DERIVED from $CASES (the thing actually captured), never typed here, so adding a case
+# needs no edit and losing or renaming one is caught.
+[ -s "$OUT.tmp" ] || { echo "CAPTURE FAIL: the emit produced an EMPTY $OUT.tmp; $OUT NOT replaced" >&2; exit 1; }
+jq -e . "$OUT.tmp" >/dev/null || { echo "CAPTURE FAIL: $OUT.tmp is not valid JSON; $OUT NOT replaced" >&2; exit 1; }
+
+want_keys='["_golden_diff","_provenance","_scope_limit","blockNumber","cases","chainId","generatedAt","manager","signature"]'
+got_keys=$(jq -cS 'keys' "$OUT.tmp")
+if [ "$got_keys" != "$want_keys" ]; then
+  echo "CAPTURE FAIL: the emitted document's top-level key SET is wrong. $OUT NOT replaced." >&2
+  echo "       want: $want_keys" >&2
+  echo "       got : $got_keys" >&2
+  echo "       A missing or RENAMED field reads as absent to every rpin05_* check, which is" >&2
+  echo "       silent. This is a set and not a count on purpose: a rename preserves the count." >&2
+  exit 1
+fi
+
+want_cases=$(jq -cS '[.[].name] | sort' <<<"$CASES")
+got_cases=$(jq -cS '[.cases[].name] | sort' "$OUT.tmp")
+if [ "$got_cases" != "$want_cases" ] || [ "$want_cases" = "[]" ]; then
+  echo "CAPTURE FAIL: the emitted cases do not match the cases this run captured." >&2
+  echo "       captured: $want_cases" >&2
+  echo "       emitted : $got_cases" >&2
+  echo "       (an EMPTY set is a failure too -- zero cases is an unrun capture, not a clean one)" >&2
+  exit 1
+fi
+
+mv "$OUT.tmp" "$OUT"
 
 echo "wrote $OUT  ($(jq -r '.cases | length' "$OUT") cases, chainId $CHAIN, block $BLOCK)"
