@@ -1,58 +1,58 @@
 {
   "_provenance": "Every value below was produced by offchain/app/CheatSwapProof.hs against the live rig stood up by offchain/rig/deploy-rig.sh. Nothing here was transcribed. Measurement B is the phase's blocker EXECUTED ON PURPOSE: it is identical to measurement A except that the slot0 write is aimed at PriceSetterPoolManager, the manager DynamicFeeHook does not read. Its receipt is expected to look perfectly healthy -- status 1, one E3, one E5 -- while carrying a tick that is not the cheated one. blockNumber is deliberately absent: three from-scratch deploys were measured at heights 9, 11 and 10, so it is not a provenance field.",
   "chainId": 31337,
-  "generatedAt": "2026-08-02T17:04:05Z",
+  "generatedAt": "2026-08-03T12:10:24Z",
   "generatedFrom": "2039f2783598866a337115df4a265a75e8842e82",
   "measurements": [
     {
       "e3": {
-        "averageTick": -135491,
+        "averageTick": 2727,
         "tick": 5000,
-        "tickCumulative": "-31027584",
-        "timestamp": 1700000232,
-        "volatilityCumulative": "24035071635471"
+        "tickCumulative": "60000",
+        "timestamp": 1700000025,
+        "volatilityCumulative": "156312665"
       },
       "e3_count": 1,
       "e5": {
         "fee": 15000,
-        "sigma": "105416980857"
+        "sigma": "7443460"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000232,
+      "head_ts_after": 1700000025,
       "name": "cheat_to_5000_then_swap",
       "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 5000,
-      "ts": 1700000232,
-      "tx_hash": "0xb1b5251048c4a254a3711797aef8a3f0aac3695e54cd54823a260e8ae96b890e",
-      "word_before": "23223198172617642141431069233413930382162922907087213372",
+      "ts": 1700000025,
+      "tx_hash": "0xccd4acfa7071f4b25470f044e1a8c7c1169a8f64834aef89013f4a37dabd118f",
+      "word_before": "24519927192352584402830634309948276735881064672309344164",
       "word_before_high184": "0",
       "word_written": "7307508186654514591018525893284256416917456691626270",
       "word_written_high184": "0"
     },
     {
       "e3": {
-        "averageTick": -128496,
+        "averageTick": 3529,
         "tick": 4999,
-        "tickCumulative": "-30967596",
-        "timestamp": 1700000244,
-        "volatilityCumulative": "24259366323217"
+        "tickCumulative": "119988",
+        "timestamp": 1700000037,
+        "volatilityCumulative": "197471952"
       },
       "e3_count": 1,
       "e5": {
         "fee": 15000,
-        "sigma": "101080693013"
+        "sigma": "5983998"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000244,
+      "head_ts_after": 1700000037,
       "name": "cheat_wrong_pool_then_swap",
       "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 7000,
-      "ts": 1700000244,
-      "tx_hash": "0xc8f47d357314401f5424ac15a6012797910fe310e72f5e58407b45b3d8f01fcd",
+      "ts": 1700000037,
+      "tx_hash": "0x51b425a944a8a095bebb7a3d099cc5da50555b4c6bf86c8da7c9b65c046e6943",
       "word_before": "7306046685017183688100322208451540133769138196049033",
       "word_before_high184": "0",
       "word_written": "10230511461316320427425906257160961173700696698234316",
@@ -60,26 +60,26 @@
     },
     {
       "e3": {
-        "averageTick": -122159,
+        "averageTick": 3938,
         "tick": 5100,
-        "tickCumulative": "-30906396",
-        "timestamp": 1700000256,
-        "volatilityCumulative": "24462716512537"
+        "tickCumulative": "181188",
+        "timestamp": 1700000049,
+        "volatilityCumulative": "219490524"
       },
       "e3_count": 1,
       "e5": {
         "fee": 15000,
-        "sigma": "97074271875"
+        "sigma": "4877567"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000256,
+      "head_ts_after": 1700000049,
       "name": "same_second_repeat_step1",
       "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 5100,
-      "ts": 1700000256,
-      "tx_hash": "0x978abbb789c2df2e3ec1bcac29e7f57e3250daca4d2de6b60de45957a1f41482",
+      "ts": 1700000049,
+      "tx_hash": "0x6bfba1d3eaee2d9276836bb56317424454c6cbd9def18a1f50a78ae1fae27467",
       "word_before": "7306046685017183688100322208451540133640475633014773",
       "word_before_high184": "0",
       "word_written": "7453658350387604882838894886452584032450164334429923",
@@ -90,17 +90,17 @@
       "e3_count": 0,
       "e5": {
         "fee": 15000,
-        "sigma": "97074271875"
+        "sigma": "4877567"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000256,
+      "head_ts_after": 1700000049,
       "name": "same_second_repeat_step2",
       "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 5200,
-      "ts": 1700000256,
-      "tx_hash": "0xe506aa3c2e24c6f4db4a6be46598e79ecb165f9a13a7db5cd281a2e31b63f32c",
+      "ts": 1700000049,
+      "tx_hash": "0x908ebcf5a22cfd9c10ebbde0c3ac4abd0792d11af94264633ab8b8451d597195",
       "word_before": "7452196848750273979920691201619867749300552823570188",
       "word_before_high184": "0",
       "word_written": "7599808514120695174659263882176651384846337872451926",
@@ -111,17 +111,17 @@
       "e3_count": 0,
       "e5": {
         "fee": 15000,
-        "sigma": "97074271875"
+        "sigma": "4877567"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000256,
+      "head_ts_after": 1700000049,
       "name": "clock_untouched_repeat_step3",
       "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 5300,
-      "ts": 1700000256,
-      "tx_hash": "0x0d7850eb9a569cfd9f4e36d439650ccf42ce74256376d64803592db752eff44d",
+      "ts": 1700000049,
+      "tx_hash": "0x9774a83457e703c393dd74801ff80e0e768812d1308f22abb4276f9f80a1356a",
       "word_before": "7598347012483364271741060197343935101695420351943024",
       "word_before_high184": "0",
       "word_written": "7745958677853785466479632880469268530753482931918767",
@@ -129,26 +129,26 @@
     },
     {
       "e3": {
-        "averageTick": -156805,
+        "averageTick": -180446,
         "tick": -887259,
-        "tickCumulative": "-41553504",
-        "timestamp": 1700000268,
-        "volatilityCumulative": "31148071348121"
+        "tickCumulative": "-10465920",
+        "timestamp": 1700000061,
+        "volatilityCumulative": "7548273279296"
       },
       "e3_count": 1,
       "e5": {
         "fee": 15000,
-        "sigma": "117985118742"
+        "sigma": "132425847005"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000268,
+      "head_ts_after": 1700000061,
       "name": "extreme_tick_near_floor",
       "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": -887259,
-      "ts": 1700000268,
-      "tx_hash": "0xf689f54be25437d6e70745b5d1d09a30830143c946bc0ad0dc12cafab627100c",
+      "ts": 1700000061,
+      "tx_hash": "0xe6407af47461feda1ec692f35852f532f8dda1e2ad168b16d46c2668f3ca9160",
       "word_before": "7744497176216454563561429195636552247601246276805033",
       "word_before_high184": "0",
       "word_written": "23223198172617642141431069233413930382162922907087213372",
@@ -160,7 +160,7 @@
     "dynamicFeeHook": "0x233069526f587b8c8ce56c365e0449ab034e0080",
     "poolId": "0x00c35757198030cc0408784a49b5de3ee9c0fad958b0564592e118604b49ab8a",
     "poolManager": "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707",
-    "priceSetterHook": "0x683ee59f069a5970dcf186f968af532b0c59b000",
+    "priceSetterHook": "0xbd0397c6eb42496b9a64bbebfcf2f3dffe437000",
     "priceSetterPoolManager": "0xb7f8bc63bbcad18155201308c8f3540b07f84f5e",
     "swapRouter": "0x9a676e781a523b5d0c0e43731313a708cb607508",
     "tickSpacing": 20
