@@ -38,10 +38,17 @@ import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing)
 import Data.Solidity.Prim.Address (Address, fromHexString)
 import qualified Data.Text as T
 import Data.Word (Word32)
-import System.Directory (doesFileExist, getTemporaryDirectory, removeFile)
+import System.Directory
+  ( createDirectoryIfMissing
+  , doesDirectoryExist
+  , doesFileExist
+  , getTemporaryDirectory
+  , listDirectory
+  , removeFile
+  )
 import System.Environment (lookupEnv, setEnv, unsetEnv)
 import System.Exit (ExitCode (..), exitFailure)
-import System.FilePath ((</>))
+import System.FilePath (takeExtension, (</>))
 import System.Process (readProcessWithExitCode)
 import System.Random.MWC (create, uniformR)
 
@@ -744,25 +751,142 @@ sc3_corrupted_manifest_fails = Check "sc3_corrupted_manifest_fails" . guarded $ 
 -- redacting it would destroy evidence rather than close a hole. Scoping by FILE TYPE is a stated
 -- rule with a reason; a list of individual exempted files is what CONTEXT forbade, and there is
 -- none here. If a new @.hs@ or @.sh@ file needs a literal, that is a finding, not a new entry.
+-- | WHY THIS CHECK IS FOUR ASSERTIONS AND NOT ONE.
+--
+-- The purge was a single @grep@ whose success condition was exit 1. @grep@ exits 1 for \"scanned
+-- thirty-six files and found nothing\" AND for \"matched no files at all\" -- a moved directory, a
+-- typo in the root, an @--include@ that stopped matching. Absence read as success, with no floor
+-- underneath it and no evidence the pattern could match anything. A new @.py@ or @.ts@ under
+-- @offchain\/@ was silently exempt for the same reason: the scope is expressed as an
+-- @--include@ whitelist, and a whitelist cannot report what it did not select.
+--
+-- So: (1) a POSITIVE CONTROL, the same argument vector over a temp tree seeded with a real
+-- literal, which must EXIT 0 and name the seeded files -- absence can no longer read as success
+-- because the pattern is shown matching before it is trusted not to; (2) an EXTENSION CENSUS over
+-- @offchain\/@, so a file type that is not in the scanned set has to be declared here rather than
+-- slipping through unscanned; (3) a FLOOR on the scanned-file count; and only then (4) the purge.
+--
+-- The floor is a floor rather than a pinned count on purpose, and it is the one relation in this
+-- check: four tracks add @.hs@ files to @offchain\/@ legitimately and often, so an exact count
+-- would fail on every addition and be raised reflexively, which is how a pin becomes a rubber
+-- stamp. The failure mode the floor exists for -- the scan SHRINKING to nothing -- is discriminated
+-- by @>=@ exactly. The scope question that @>=@ cannot answer is answered by (2) instead.
+purge_pattern :: String
+purge_pattern =
+  intercalate "|"
+    [ "0x[0-9a-fA-F]{40}\\b"
+    , "0x[0-9a-fA-F]{64}\\b"
+    , "0x[0-9a-fA-F]{8}\\b"
+    ]
+
+-- | The file types the purge SCANS. Kept next to 'purge_known_extensions' so the gap between what
+-- exists and what is scanned is visible in one place.
+purge_scanned_extensions :: [String]
+purge_scanned_extensions = [".hs", ".sh"]
+
+-- | Every file type that currently exists under @offchain\/@. @.json@, @.md@ and @.txt@ are data
+-- and prose, never executed; @offchain\/spec\/types.md@ deliberately holds a pasted RPC transcript
+-- and redacting it would destroy evidence rather than close a hole. Anything NOT on this list is a
+-- file type nobody has decided about, and an undecided file type must not default to exempt.
+purge_known_extensions :: [String]
+purge_known_extensions = [".hs", ".json", ".md", ".sh", ".txt"]
+
+-- | The scanned-file count at the time this floor was written.
+purge_file_floor :: Int
+purge_file_floor = 36
+
+-- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
+-- over a different root rather than a lookalike of it.
+purge_scan :: FilePath -> IO (ExitCode, String, String)
+purge_scan root =
+  readProcessWithExitCode
+    "grep"
+    (["-rnE", purge_pattern, root] ++ map ("--include=*" ++) purge_scanned_extensions)
+    ""
+
+-- | Every file under a root, recursively.
+walk_files :: FilePath -> IO [FilePath]
+walk_files root = do
+  entries <- listDirectory root
+  nested <- mapM step entries
+  pure (concat nested)
+  where
+    step entry = do
+      let path = root </> entry
+      is_dir <- doesDirectoryExist path
+      if is_dir then walk_files path else pure [path]
+
+-- | The seeded literal, BUILT rather than written. A 40-hex constant spelled out in this module
+-- would be found by the very scan it is here to exercise, and the check would fail on its own
+-- control. Constructing it keeps @offchain\/test\/Main.hs@ inside its own purge scope.
+purge_control_literal :: String
+purge_control_literal = "0x" ++ replicate 40 'a'
+
+-- | The same scan over a temp tree that DOES contain a literal, in a scanned type and in an
+-- unscanned one. Returns the assertion, so the caller orders it first.
+purge_positive_control :: IO (Either String ())
+purge_positive_control = do
+  tmp <- getTemporaryDirectory
+  let dir      = tmp </> "sc3-purge-positive-control"
+      hs_bait  = dir </> "bait.hs"
+      sh_bait  = dir </> "bait.sh"
+      py_bait  = dir </> "bait.py"
+      discard p = do
+        there <- doesFileExist p
+        if there then removeFile p else pure ()
+
+  createDirectoryIfMissing True dir
+  flip finally (mapM_ discard [hs_bait, sh_bait, py_bait]) $ do
+    writeFile hs_bait ("bait :: String\nbait = \"" ++ purge_control_literal ++ "\"\n")
+    writeFile sh_bait ("#!/usr/bin/env bash\nADDR=" ++ purge_control_literal ++ "\n")
+    writeFile py_bait ("BAIT = \"" ++ purge_control_literal ++ "\"\n")
+    (code, out, err) <- purge_scan dir
+    pure $ do
+      _ <- expect (code == ExitSuccess)
+             ("the purge's POSITIVE CONTROL did not fire: grep exited " ++ show code
+               ++ " over a tree seeded with a 20-byte literal in a .hs file and a .sh file."
+               ++ " The pattern or the --include set has stopped matching anything, which means"
+               ++ " the exit-1 the real scan reports is absence of MATCHES only by assumption."
+               ++ (if null err then "" else "\n      grep stderr: " ++ err))
+      _ <- expect ("bait.hs" `isInfixOf` out && "bait.sh" `isInfixOf` out)
+             ("the purge's POSITIVE CONTROL fired but did not name both seeded files. grep said:\n"
+               ++ unlines (map ("      " ++) (lines out)))
+      -- Not a defect, a DECLARED limitation, asserted so it cannot change silently: the scan is an
+      -- --include whitelist and does not read .py. The extension census is what makes that safe,
+      -- and it is only safe while this stays true.
+      expect (not ("bait.py" `isInfixOf` out))
+        ("the purge scan now reads .py files. That is a scope CHANGE: purge_scanned_extensions"
+          ++ " and purge_known_extensions describe the old scope and the census below will be"
+          ++ " reasoning about the wrong set.")
+
 sc3_literal_purge :: Check
 sc3_literal_purge = Check "sc3_literal_purge" . guarded $ do
-  let pattern =
-        intercalate "|"
-          [ "0x[0-9a-fA-F]{40}\\b"
-          , "0x[0-9a-fA-F]{64}\\b"
-          , "0x[0-9a-fA-F]{8}\\b"
-          ]
-  (code, out, err) <-
-    readProcessWithExitCode
-      "grep"
-      ["-rnE", pattern, "offchain", "--include=*.hs", "--include=*.sh"]
-      ""
-  pure $ case code of
-    ExitFailure 1 -> Right ()
-    ExitFailure n -> Left ("grep itself failed with exit " ++ show n ++ ": " ++ err)
-    ExitSuccess ->
-      Left ("address/selector/topic0 literals survive in the executable surface:\n"
-             ++ unlines (map ("      " ++) (lines out)))
+  control <- purge_positive_control
+  files   <- walk_files "offchain"
+  (code, out, err) <- purge_scan "offchain"
+  let present   = nub (sort (map takeExtension files))
+      undeclared = filter (`notElem` purge_known_extensions) present
+      scanned   = filter ((`elem` purge_scanned_extensions) . takeExtension) files
+  pure $ do
+    _ <- control
+    _ <- expect (null undeclared)
+           ("offchain/ holds file types this check has never decided about: "
+             ++ intercalate ", " undeclared
+             ++ ". The purge scans " ++ intercalate " and " purge_scanned_extensions
+             ++ " only, so an undeclared type is EXEMPT and nothing says so -- which is how a new"
+             ++ " executable surface gets a free pass. Either add it to purge_scanned_extensions"
+             ++ " (if code runs from it) or to purge_known_extensions with the reason it is data.")
+    _ <- expect (length scanned >= purge_file_floor)
+           ("the purge scanned " ++ show (length scanned) ++ " files, below the floor of "
+             ++ show purge_file_floor ++ ". grep exits 1 for \"found nothing\" AND for \"matched no"
+             ++ " files at all\", so a scan that has collapsed reports exactly what a clean scan"
+             ++ " reports. If files were removed on purpose, lower purge_file_floor and say so.")
+    case code of
+      ExitFailure 1 -> Right ()
+      ExitFailure n -> Left ("grep itself failed with exit " ++ show n ++ ": " ++ err)
+      ExitSuccess ->
+        Left ("address/selector/topic0 literals survive in the executable surface:\n"
+               ++ unlines (map ("      " ++) (lines out)))
 
 -- ---------------------------------------------------------------------------------------------
 -- Phase 21, RPIN-01/02/03: the V2 wire layouts
