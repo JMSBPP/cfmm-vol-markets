@@ -64,12 +64,6 @@ Once we identify \(\upsilon \, (\cdot)\) we can build on top of panoptic from ou
 
 # \(\upsilon\) IDENTIFICATION
 
-## ECONOMETRIC
-
-> MOVED 2026-08-03 → [`VOLATILITY_INSTRUMENTS_EMPIRICAL.md`](VOLATILITY_INSTRUMENTS_EMPIRICAL.md)
-> — the empirical companion: the subgraph access notes, the CLOSED υ regression run, and the
-> superseded lens block (incl. the `\mathrm{tol}` rig test and the volStrike units TRAP).
-
 # FAQ
 - Why one leg on the tokenId is not enough for buidlign the variance instrument  ?
 
