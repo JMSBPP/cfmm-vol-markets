@@ -38,14 +38,14 @@ Where:
 \[
 	\begin{aligned}
 		\theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (t)) \Big ) \, &\equiv \, \frac{\Delta \pi^{\text{call | put}}}{\Delta\, t } \\
-		&= \,  \frac{p_{(\eta, \Delta_i)} \, (\cdot)\, \sigma \, (\cdot)}{\sqrt{8\, \pi \, t}} \, \exp \, \Big (\frac{\Big [- \ln \Big(\frac{p_{(\eta, \Delta_i)} \, (i (t_0))}{p_{(\eta, \Delta_i)} \, (i_K)}\Big) \, + \, \frac{\sigma^2 \, t}{2} \Big ]^2}{2\, \sigma^2 \, (\cdot)\, t}\Big)
+		&= \,  \frac{p_{(\eta, \Delta_i)} \, (\cdot)\, \sigma \, (\cdot)}{\sqrt{8\, \pi \, t}} \, \exp \, \Big (-\frac{\Big [- \ln \Big(\frac{p_{(\eta, \Delta_i)} \, (i (t_0))}{p_{(\eta, \Delta_i)} \, (i_K)}\Big) \, + \, \frac{\sigma^2 \, t}{2} \Big ]^2}{2\, \sigma^2 \, (\cdot)\, t}\Big)
 	\end{aligned}
 \]
 
 The strike is the price at the STRIKE TICK \(i_K\), on the price grid \(p_{(\eta, \Delta_i)}\) defined under the pricing geometry below (\(\texttt{VolInstrument.priceEta}\)).
 
 
-> FLAG (author decision pending): exponent sign above — BS dt-leg suggests \(\exp(-[\cdot]^2/(2\sigma^2 t))\); ATM form \(\Theta_{ATM} = k\sigma/\sqrt{8\pi\tau}\) (`theta_atm_closed_form`) cannot discriminate (exponent vanishes ATM).
+> RESOLVED (user ruling, 2026-08-03): exponent sign is **NEGATIVE**. Two-part justification: (i) with the display's own prefactor \(p(\cdot)\sigma/\sqrt{8\pi t}\), the bracket is \(-\sigma\sqrt{t}\,d_2\), so the negative sign gives \(e^{-d_2^2/2} \propto \varphi(d_2)\) — exactly the \(r=0\) Black–Scholes dt-leg \(\theta = S\sigma\varphi(d_1)/(2\sqrt t)\) via \(S\varphi(d_1)=K\varphi(d_2)\); (ii) DECISIVE and internal: \(p_{\pi^{\text{call|put}}} \leftarrow \int\theta\) over the price grid CONVERGES only with the negative sign (Gaussian tails) — under \(+\) the assignment defining the option prices diverges. The ATM form cannot discriminate (`theta_atm_closed_form`, exponent vanishes ATM); the tails do.
 
 One greek of special interest that we wnat to identify and is the bridge with our protocol is \(\upsilon\); this is beacuse dimensioally lives on the place that \(\Delta Q_v\):
 
@@ -1297,7 +1297,7 @@ The sensitivity operator (NEW symbol; `\mathcal{D}` unused in this document — 
 
 External delta `Δ`/`δ` → \(\mathcal{D}_p[\pi]\), \(p = p_{(\eta, \Delta_i)}(i;t)\) (`Δ` is this document's difference operator; `δ_S, δ_R` are J1's swap curves). <!-- notation-map -->
 External gamma → \(\Gamma \equiv \mathcal{D}^2_p[\pi]\); bare `Γ` is FREE here and is bound to gamma ONLY; the sigmoid steepness is ALWAYS subscripted `γ_j` (mirror of the κ/ς_{X/M} rule). <!-- notation-map -->
-External theta Θ → IDENTIFIED with this document's \(\theta \equiv \Delta\pi/\Delta t\) (the exponent-sign FLAG on its display stands); `Θ_•` remains parameter-set notation and is never a Greek. <!-- notation-map -->
+External theta Θ → IDENTIFIED with this document's \(\theta \equiv \Delta\pi/\Delta t\) (the exponent-sign FLAG — RESOLVED 2026-08-03, negative — on its display stands); `Θ_•` remains parameter-set notation and is never a Greek. <!-- notation-map -->
 External vega ν → NEVER imported (`ν_t = w_t/D_t`, M6b); all vegas through \(\upsilon \equiv \Delta\pi/\Delta\sigma^2\) (bound, = t/2); σ-convention vega is written \(2\,\sigma(i(t))\,\upsilon\). <!-- notation-map -->
 Maymin's liquidity Greek `Λ = ∂C/∂k` → \(\mathcal{D}_{\bar L}[C]\) (Greek of the LONG CALL C, Def 2 eq (33) — NOT of π) via \(k = \bar L^2\) (CPMM), his \(\Lambda = \mathcal{D}_{\bar L}[C]/(2\bar L)\); `Λ(·)` stays the logistic. <!-- notation-map -->
 Maymin's emission Greek `E = ∂C/∂e` → \(\mathcal{D}_{\Delta Q_M}[C]\) (Def 2 eq (34), again a C-Greek; our emission policy IS the ΔQ_M schedule). <!-- notation-map -->
@@ -1468,7 +1468,7 @@ Raw count \(6+2n \geq 10\) **for \(n \geq 2\)** — the deficit is STRUCTURAL (b
 \[
 	\begin{aligned}
 		\text{EXACT on-chain: } & \mathcal{D}_p\text{-ladder},\; \Gamma\text{-ladder (sqrtPriceX96, ticks, } L\text{; } p^{3/2} = \text{mulDiv chain)},\; \upsilon = t/2,\; \theta_{\text{fee}} \text{ ex-post (feeGrowthInside, streamia)} \\
-		\text{APPROXIMABLE: } & \phi(\sigma)\text{ (expWad logistic)},\; \theta_{\text{decay}} \text{ (expWad+sqrt; FLAG-blocked)},\; \sigma^2(i(t)) \text{ (E2/E5 ledger — see caveat)},\; \mathcal{D}_{\bar L}[\pi] \text{ (relative form exact)} \\
+		\text{APPROXIMABLE: } & \phi(\sigma)\text{ (expWad logistic)},\; \theta_{\text{decay}} \text{ (expWad+sqrt; sign RESOLVED: negative)},\; \sigma^2(i(t)) \text{ (E2/E5 ledger — see caveat)},\; \mathcal{D}_{\bar L}[\pi] \text{ (relative form exact)} \\
 		\text{OFF-CHAIN: } & \text{CEV prices and } \mathbb{P}_{Y_{n,c}\le x} \text{ tails},\; \sigma^{\star}_{\phi} \text{ inversion},\; \mathcal{D}_{\bar L}[C],\; \mathcal{D}_{\Delta Q_M}[C] \text{ model values (lnWad for } \bar v^2\text{; schedule input exact)}
 	\end{aligned}
 \]
@@ -1477,7 +1477,7 @@ Raw count \(6+2n \geq 10\) **for \(n \geq 2\)** — the deficit is STRUCTURAL (b
 
 ## **G6. [CAVEATS / OPEN]**
 
-1. θ exponent-sign FLAG (line ~42) — author decision pending; blocks G1's θ_decay finalization and any on-chain constant.
+1. θ exponent-sign FLAG — **RESOLVED 2026-08-03 (negative)**; G1's θ_decay and the on-chain constant are unblocked.
 2. E8(6) \(\eta_L = \eta\) — OPEN; G2's skew law is an η_L statement until it closes.
 3. \(\mathcal{D}_p, \Gamma\) ladder displays, the θ split, the \(\Delta\theta_{\text{fee}}/\Delta\sigma\) statics, and the G4 deficit lemmas are UNFORMALIZED — the Aristotle bundle for this section. **G2: OFF-BUNDLE — analytic content (CEV pricing, noncentral χ², implied-vol inversion) beyond Mathlib v4.28.** Every bundled θ_fee statement MUST name which B1 form it formalizes (schedule-level \(\phi\nu_t\) or position-level \(\phi\nu_t\Delta Q_M\)); the two are not interchangeable and a mixed statement is unprovable.
 4. Carry-profile objective: per-event (M6b) vs time-integrated (λ_FLAIR) statement — decide before bundling; the M2 hedge claim needs the time-integrated form.
