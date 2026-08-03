@@ -190,6 +190,18 @@ parameter set. A parameter not listed here is not a parameter of the protocol.
 
 > PENDING ENTRIES (added as the pair pass reaches them): \(\Theta_{\varphi} = \{\chi_{X/M}, \epsilon_{X/M}\}\) (trading curve — the existing "THE PARAMETERS, ECONOMICALLY" block folds in here), \(\Theta_{\phi}\) (fee schedule), \(\Theta_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) (order).
 
+### PROTOCOL_CONSTANTS
+
+Every fixed numeral of the protocol enters here as a **Protocol Constant** — a value the protocol fixes once, **not a design dial**: it belongs to no \(\Theta_{\bullet}\), and no statement may treat it as free. Indexed by its constant set.
+
+**Protocol Constant (\(\mathcal{C}_{p} = \{\lambda\}\) — the pricing geometry).**
+
+- \(\lambda\) — the **tick base**.
+  *Value:* \(\lambda = 1.0001\) ([UNI_V3](../refs/uniswap-v3-core.pdf)).
+  *Purpose:* the base of the price grid (Definition 8); every grid ratio in the document — \(\lambda^{-\Delta_i}\) (Theorem 4), \(\xi^{\star} = \lambda^{-\Delta_i/2}\) (Proposition 6, \(\Theta_{\ell}\)) — is a power of it.
+  *Economic meaning:* one tick = one basis point of price — the minimal price quantum of the underlying market.
+  *Formalized:* `PosSpec.lam` (`lam_pos`); hardcoded as `1.0001` in the `GeomProfile` carriers.
+
 **Proposition 5 (Single-leg direction sensitivity).** A single leg's variance sensitivity is direction-sensitive:
 
 \[
@@ -238,13 +250,13 @@ The sign is **per leg** (`isLong` in the Panoptic tokenId), so mixed-direction l
 	\end{aligned}
 \]
 
-where \(\lambda\) is the fixed tick base of [UNI_V3](../refs/uniswap-v3-core.pdf) — a constant of the grid machinery, **not** a member of \(\Theta_p\) — and \((\eta, \Delta_i) = \Theta_p\) are Protocol Parameters (see **PROTOCOL_PARAMETERS (\(\Theta_p\))**). At \(\eta = 1\) the grid is the canonical square-root-price tick law of [UNI_V3](../refs/uniswap-v3-core.pdf) (`priceEta_one`); the strike price of Definition 1 is the grid at the strike tick, \(p_{(\eta,\Delta_i)}(i_K)\).
+where \(\lambda\) is the fixed tick base — a **Protocol Constant** (see **PROTOCOL_CONSTANTS (\(\mathcal{C}_p\))**), not a member of \(\Theta_p\) — and \((\eta, \Delta_i) = \Theta_p\) are Protocol Parameters (see **PROTOCOL_PARAMETERS (\(\Theta_p\))**). At \(\eta = 1\) the grid is the canonical square-root-price tick law of [UNI_V3](../refs/uniswap-v3-core.pdf) (`priceEta_one`); the strike price of Definition 1 is the grid at the strike tick, \(p_{(\eta,\Delta_i)}(i_K)\).
 
 *Formalized:* `VolInstrument.priceEta`; `priceEta_pos` (positivity, unconditional); `priceEta_strictMono` (under \(\eta\,\Delta_i > 0\)); `priceEta_one` (\(\eta = 1\) recovers `PosSpec.tickPrice`).
 
 \(\eta\) (price grid) and \(\chi_{X/M}\) (trading curve, \(\varphi_{\chi_{X/M},\,0}\)) are DISTINCT parameters on distinct objects; they are not two names for one exponent. Their relation is a THEOREM, not a definition — see the \(\chi_{X/M} \leftrightarrow \eta \leftrightarrow \varsigma_{X/M}\) block. <!-- notation-map -->
 
-On the price grid \(\lambda^{i\,\Delta_i}\) the discretized strike-notional weights of the log contract are exactly geometric,
+**Theorem 4 (Geometric strike-notional weights).** On the price grid \(\lambda^{i\,\Delta_i}\) — the square of Definition 8's grid at \(\eta = 1\) (`priceGrid_eq_tickPrice_sq`) — the discretized strike-notional weights of the log contract are exactly geometric:
 
 \[
 	\begin{aligned}
@@ -252,7 +264,11 @@ On the price grid \(\lambda^{i\,\Delta_i}\) the discretized strike-notional weig
 	\end{aligned}
 \]
 
-but the per-tick *liquidity* replicating the log contract scales as the inverse square root of that grid (`logContractLiquidity_geometric`), hence
+with ratio \(\lambda^{-\Delta_i}\) — \(\lambda\) the fixed tick base (Protocol Constant \(\mathcal{C}_p\)), so the ratio is a function of the protocol parameter \(\Delta_i\) alone. Normalized, the weights are the geometric profile at that ratio, and Theorem 2's partition of unity applies.
+
+*Formalized:* `GeomProfile.varswapWeight_geometric`; `varswapWeight_normalized`.
+
+**Proposition 6 (The liquidity ratio \(\xi^{\star}\)).** The per-tick *liquidity* replicating the log contract scales as the inverse square root of that grid, hence
 
 \[
 	\begin{aligned}
@@ -260,7 +276,11 @@ but the per-tick *liquidity* replicating the log contract scales as the inverse 
 	\end{aligned}
 \]
 
-> `GeomProfile.geomWeight_sum/_pos/_tendsto_uniform`, `varswapWeight_geometric`, `logContractLiquidity_geometric`, `VolInstrument.strikeWeight_bridge`.
+\(\lambda\) being fixed (\(\mathcal{C}_p\)), \(\xi^{\star}\) is pinned by \(\Delta_i\) alone — consistent with the \(\Theta_{\ell}\) registry entry, where \(\xi\) is the parameter and \(\xi^{\star} = \lambda^{-\Delta_i/2}\) its pinned value.
+
+*Status:* the sampling half is **proved** — \(K^{-1/2}\) on the grid is geometric with ratio \(\lambda^{-\Delta_i/2}\) (`logContractLiquidity_geometric`). The replication premise — \(\ell(K) \propto K^{-1/2}\) from the curvature relation \(\ell(P) = -2P^{3/2}V''(P)\), \(V''(P) = -1/P^2\), adapted from [VOL_SWAPS](../refs/DemeterfietalVarianceSwaps.pdf) — is **OPEN** in-tree (the payoff-level curvature bridge is future work).
+
+*Formalized (sampling half):* `GeomProfile.logContractLiquidity_geometric`; bridge to the ladder weights: `VolInstrument.strikeWeight_bridge`.
 
 We have on the underlying market \(X, M\):
 
