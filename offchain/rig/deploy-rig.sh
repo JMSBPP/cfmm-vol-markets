@@ -478,12 +478,36 @@ run_deploy "$LOG_DIR/06-swappable.log" \
 # console line the rig never reads is a claim; a console line the rig asserts is a check.
 TS_BEFORE=$(console_field 'timepoint ts before   :' "$LOG_DIR/06-swappable.log")
 TS_AFTER=$(console_field 'timepoint ts after    :' "$LOG_DIR/06-swappable.log")
-case "$TS_BEFORE$TS_AFTER" in
-  ''|*[!0-9]*)
-    echo "FATAL: timepoint ts before/after not parsed from $LOG_DIR/06-swappable.log" >&2
-    echo "       (got before='$TS_BEFORE' after='$TS_AFTER')" >&2
-    exit 1 ;;
-esac
+# SHAPE-GATED PER FIELD, NOT OVER THE CONCATENATION.
+#
+# This used to be a single `case "$TS_BEFORE$TS_AFTER"`, and gluing two fields together
+# before testing them destroys exactly the information the test is for: an empty field
+# vanishes into its neighbour. Only the BOTH-empty case survived as '' -- either field
+# empty on its own left a string that is still all digits and sailed through. MEASURED,
+# driving the old case verbatim:
+#     before=''           after='1700000018'  -> PASSES shape gate
+#     before='1700000013' after=''            -> PASSES shape gate
+#     before=''           after=''            -> CAUGHT
+#     before='abc'        after='1700000018'  -> CAUGHT
+# So it was two escaping cases, not one. Both were then caught one line down by
+# `[ "$TS_AFTER" -gt "$TS_BEFORE" ]` as a raw bash `[: : integer expression expected`
+# -- a shell error naming neither the log, the label, nor which of the two fields was
+# missing. The FATAL block written to diagnose precisely this was unreachable for it.
+#
+# console_field itself fails loudly on a missing LABEL (it reports its own miss), so the
+# way a field arrives empty is a label that MATCHED and carried nothing after the colon
+# -- a console.log whose value moved to the next line, or a truncated log. That is a
+# real shape, and it is the one the concatenation hid.
+for f in "before:$TS_BEFORE" "after:$TS_AFTER"; do
+  case "${f#*:}" in
+    ''|*[!0-9]*)
+      echo "FATAL: timepoint ts '${f%%:*}' not parsed from $LOG_DIR/06-swappable.log" >&2
+      echo "       (got before='$TS_BEFORE' after='$TS_AFTER')" >&2
+      echo "       The label matched but the value is empty or non-numeric. Check the" >&2
+      echo "       'timepoint ts ${f%%:*}' line in that log." >&2
+      exit 1 ;;
+  esac
+done
 [ "$TS_AFTER" -gt "$TS_BEFORE" ] || {
   echo "FATAL: probe swap did not advance the hook's timepoint clock ($TS_BEFORE -> $TS_AFTER)." >&2
   echo "       The rig is NOT proven swappable: beforeSwap either did not run or hit the" >&2
