@@ -34,13 +34,15 @@
 -- 10, so asserting it would redden the suite after any redeploy.
 module Main (main) where
 
-import Control.Exception (SomeException, displayException, try)
+import Control.Exception (IOException, displayException, try)
 import Control.Monad (unless)
+import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (Value, object, toJSON, (.=))
 import Data.Bits (shiftR, (.&.))
 import qualified Data.ByteString as BS
 import Data.ByteArray.HexString (HexString, toBytes)
 import Data.Char (intToDigit, isSpace)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List (dropWhileEnd)
 import qualified Data.Text as T
 
@@ -154,16 +156,27 @@ main = do
   -- tick has its own because research flags its outcome as an UNMEASURED analytical argument and
   -- a revert there is a result to record, not a crash to propagate.
   --
-  -- The @Maybe Integer@ threaded from group to group is THIS PROGRAM'S OWN RECORD of the last
-  -- timestamp it submitted to @evm_setNextBlockTimestamp@, and it is what guard (c) is checked
-  -- against. It starts as 'Nothing' because before the first group nothing has been submitted, and
-  -- a group that FAILED hands on 'Nothing' too: a @fail@ inside 'Web3' escapes as an uncaught
-  -- 'IOException' mid-group, so the group's own record is lost with it and the next group has no
-  -- submission history it can vouch for. Inventing one would be the exact defect guard (c) exists
-  -- to catch.
-  (group_ab, submitted_ab) <- attempt_group "A/B" (run_right_and_wrong base wrong_pool Nothing)
-  (group_c,  submitted_c)  <- attempt_group "C"   (run_same_second base submitted_ab)
-  (group_d,  _)            <- attempt_group "D"   (run_extreme_tick base submitted_c)
+  -- THIS PROGRAM'S OWN RECORD of the last timestamp it submitted to @evm_setNextBlockTimestamp@ —
+  -- the value guard (c) is checked against. It is an 'IORef' written PER STEP, by the step that made
+  -- the submission, and never by the caller after the fact.
+  --
+  -- It used to be a @Maybe Integer@ returned by each group and threaded into the next, and a group
+  -- that failed returned 'Nothing' on the grounds that \"a @fail@ inside 'Web3' escapes as an
+  -- uncaught 'IOException' mid-group, so the group's own record is lost with it\". That premise is
+  -- false for a PARTIALLY successful group: if A submits and mines and B then dies, A's submission
+  -- is a fact about this chain, and handing 'Nothing' to C skips guard (c) entirely on the step in
+  -- the LEAST known state — the step after a failure is exactly the one the guard is for. The
+  -- record was never lost by the exception; it was discarded by the return type. An 'IORef' written
+  -- inside the step and read AFTER the @try@ survives the exception, which is the same mechanism
+  -- @StochasticPriceGen.Rpc.one_step@ already uses (it reads its record back out of @steps_ref@).
+  --
+  -- It starts 'Nothing' because before the first step nothing has been submitted, and that is still
+  -- the one honest way to say so.
+  submitted_ref <- newIORef Nothing
+
+  group_ab <- attempt_group "A/B" (run_right_and_wrong submitted_ref base wrong_pool)
+  group_c  <- attempt_group "C"   (run_same_second     submitted_ref base)
+  group_d  <- attempt_group "D"   (run_extreme_tick    submitted_ref base)
   let measurements = group_ab ++ group_c ++ group_d
 
   let rig_block = object
@@ -205,20 +218,25 @@ data Measured = Measured
   , m_outcome :: Either String (CheatSwapStep, Integer)  -- ^ failure text, or step + head ts after
   }
 
--- | What one group hands back: its named measurements, and the last timestamp the group actually
--- SUBMITTED to @evm_setNextBlockTimestamp@ — 'Nothing' if it submitted none.
+-- | What one group hands back: its named measurements. The submission record is no longer part of
+-- the return value — it lives in the 'SubmittedRef' the group was handed, which is why a group that
+-- dies partway still leaves it behind.
+type GroupResult = [(String, (CheatSwapStep, Integer))]
+
+-- | The last timestamp this program SUBMITTED to @evm_setNextBlockTimestamp@, or 'Nothing' before
+-- the first submission.
 --
--- The second component is deliberately NOT derived from the measurement list by the caller. Only
--- the group's own code knows which of its steps submitted a timestamp: 'AdvanceTo' and
--- 'ForceTimestamp' do, 'LeaveClockAlone' does not, and a 'LeaveClockAlone' step's 'cs_timestamp' is
--- the OBSERVED HEAD (see its field haddock), which is not a claim this program made.
-type GroupResult = ([(String, (CheatSwapStep, Integer))], Maybe Integer)
+-- Written by the step that made the submission and only after that submission has been made, never
+-- by a caller reconstructing it afterwards. Only the step knows: 'AdvanceTo' and 'ForceTimestamp'
+-- submit, 'LeaveClockAlone' does not, and a 'LeaveClockAlone' step's 'cs_timestamp' is the OBSERVED
+-- HEAD (see its field haddock), which is not a claim this program made.
+type SubmittedRef = IORef (Maybe Integer)
 
 -- | One guarded step: read the head, advance by the stride, swap, then read the head BACK.
 --
 -- The head is re-read every time rather than tracked, so guard (b) is checked against what the
--- chain actually did. The value handed to guard (c) is a SEPARATE parameter, threaded in from the
--- caller's own record of what it last submitted, and it is 'Nothing' when there is no such record.
+-- chain actually did. The value handed to guard (c) is read out of 'SubmittedRef' — this program's
+-- own record of what it last submitted — and is 'Nothing' only while that record is empty.
 -- It must not be recomputed here from the head: @AdvanceTo (Just previous) (previous + stride)@
 -- makes guard (c)'s predicate @previous + 12 <= previous@, which is identically False, so the guard
 -- cannot fire and collapses into guard (b). MEASURED before this was fixed: over a full capture run
@@ -227,22 +245,28 @@ type GroupResult = ([(String, (CheatSwapStep, Integer))], Maybe Integer)
 -- same defect commit @401727a@ removed from @StochasticPriceGen.Rpc.one_step@, and it is why
 -- 'CheatSwapClock' carries a 'Maybe' — deriving the \"previous\" value from the value being checked
 -- is exactly what the type was changed to prevent.
-guarded_step :: CheatSwapTarget -> Maybe Integer -> Integer -> Web3 (CheatSwapStep, Integer)
-guarded_step target previous_submitted tick = do
-  head_ts <- chain_head_timestamp
-  step    <- cheat_and_swap target (AdvanceTo previous_submitted (head_ts + stride)) tick
-  after   <- chain_head_timestamp
+--
+-- The record is written AFTER 'cheat_and_swap' returns, so only a submission that reached a mined
+-- swap is claimed. A step whose setter ran and whose swap then reverted therefore under-records,
+-- and that direction is the safe one: guard (c) is a strict lower bound, so a stale-low record can
+-- only make it weaker, never wrong, and guard (b) still reads the head the reverted block left.
+guarded_step :: SubmittedRef -> CheatSwapTarget -> Integer -> Web3 (CheatSwapStep, Integer)
+guarded_step submitted_ref target tick = do
+  head_ts            <- chain_head_timestamp
+  previous_submitted <- liftIO (readIORef submitted_ref)
+  let requested = head_ts + stride
+  step  <- cheat_and_swap target (AdvanceTo previous_submitted requested) tick
+  liftIO (writeIORef submitted_ref (Just requested))
+  after <- chain_head_timestamp
   pure (step, after)
 
 -- | A and B. Identical in every respect except WHERE the storage write lands.
 run_right_and_wrong
-  :: CheatSwapTarget -> CheatSwapTarget -> Maybe Integer -> Web3 GroupResult
-run_right_and_wrong right_pool wrong_pool previous_submitted = do
-  a@(step_a, _) <- guarded_step right_pool previous_submitted tick_right_pool
-  b@(step_b, _) <- guarded_step wrong_pool (Just (cs_timestamp step_a)) tick_wrong_pool
-  pure ( [("cheat_to_5000_then_swap", a), ("cheat_wrong_pool_then_swap", b)]
-       , Just (cs_timestamp step_b)
-       )
+  :: SubmittedRef -> CheatSwapTarget -> CheatSwapTarget -> Web3 GroupResult
+run_right_and_wrong submitted_ref right_pool wrong_pool = do
+  a <- guarded_step submitted_ref right_pool tick_right_pool
+  b <- guarded_step submitted_ref wrong_pool tick_wrong_pool
+  pure [("cheat_to_5000_then_swap", a), ("cheat_wrong_pool_then_swap", b)]
 
 -- | C — the G1 same-second no-op, the hazard that WILL bite a driver loop.
 --
@@ -261,22 +285,23 @@ run_right_and_wrong right_pool wrong_pool previous_submitted = do
 --
 -- The ticks all differ so that an unexpected E3 says by its VALUE which write produced it.
 --
--- The timestamp this group hands on is step 2's, not step 3's: step 2 FORCED its timestamp and so
--- submitted it, while step 3 did not touch the clock at all and its 'cs_timestamp' is only the head
--- it observed.
-run_same_second :: CheatSwapTarget -> Maybe Integer -> Web3 GroupResult
-run_same_second target previous_submitted = do
-  s1@(step1, _) <- guarded_step target previous_submitted tick_same_second_1
-  s2 <- cheat_and_swap target (ForceTimestamp (cs_timestamp step1)) tick_same_second_2
+-- The timestamp this group leaves in the record is step 2's, not step 3's: step 2 FORCED its
+-- timestamp and so submitted it, while step 3 did not touch the clock at all and its 'cs_timestamp'
+-- is only the head it observed. Step 2 writes the record itself, immediately after its own
+-- submission mined, for the same reason 'guarded_step' does.
+run_same_second :: SubmittedRef -> CheatSwapTarget -> Web3 GroupResult
+run_same_second submitted_ref target = do
+  s1@(step1, _) <- guarded_step submitted_ref target tick_same_second_1
+  let forced = cs_timestamp step1
+  s2 <- cheat_and_swap target (ForceTimestamp forced) tick_same_second_2
+  liftIO (writeIORef submitted_ref (Just forced))
   after2 <- chain_head_timestamp
   s3 <- cheat_and_swap target LeaveClockAlone tick_same_second_3
   after3 <- chain_head_timestamp
-  pure ( [ ("same_second_repeat_step1", s1)
-         , ("same_second_repeat_step2", (s2, after2))
-         , ("clock_untouched_repeat_step3", (s3, after3))
-         ]
-       , Just (cs_timestamp s2)
-       )
+  pure [ ("same_second_repeat_step1", s1)
+       , ("same_second_repeat_step2", (s2, after2))
+       , ("clock_untouched_repeat_step3", (s3, after3))
+       ]
 
 -- | D — one step at the inclusive G4 floor.
 --
@@ -285,27 +310,37 @@ run_same_second target previous_submitted = do
 -- because the position holds essentially no token1 down there, with E3 still firing because
 -- @beforeSwap@ runs before any swap math. That prediction is explicitly flagged as UNMEASURED in
 -- @CheatSwap.Encoding@'s haddock. Whatever happens here is the answer.
-run_extreme_tick :: CheatSwapTarget -> Maybe Integer -> Web3 GroupResult
-run_extreme_tick target previous_submitted = do
-  d@(step_d, _) <- guarded_step target previous_submitted tick_extreme_floor
-  pure ([("extreme_tick_near_floor", d)], Just (cs_timestamp step_d))
+run_extreme_tick :: SubmittedRef -> CheatSwapTarget -> Web3 GroupResult
+run_extreme_tick submitted_ref target = do
+  d <- guarded_step submitted_ref target tick_extreme_floor
+  pure [("extreme_tick_near_floor", d)]
 
 -- | Run one group, catching BOTH the @Left@ that @runWeb3'@ returns for an RPC error and the
 -- uncaught 'IOException' that a @fail@ inside 'Web3' becomes — a documented characteristic of this
 -- codebase's Web3 usage, not a hypothetical.
--- On either failure path the group's submission record is lost with the group, so what is handed
--- to the next one is 'Nothing' — see the note at the call sites in 'main'.
-attempt_group :: String -> Web3 GroupResult -> IO ([Measured], Maybe Integer)
+--
+-- A failing group loses its MEASUREMENTS, and nothing else. Its submissions are already in the
+-- 'SubmittedRef' the steps wrote as they went, so the next group's guard (c) still has this
+-- program's real record to check against.
+--
+-- 'IOException' and not 'SomeException'. @SomeException@ also catches 'UserInterrupt': a Ctrl-C
+-- during group A or B was recorded as an ordinary group failure and 'main' walked on to write the
+-- tracked artifact from an interrupted run — a committed measurement file whose missing rows say
+-- \"the chain refused\" when what happened is that the operator stopped it. An RPC failure is a
+-- 'Web3Error' on the @Left@ below and a @fail@ inside 'Web3' is an 'IOException'; both are still
+-- caught, and everything else — an interrupt, an @error@ call — now propagates and stops the
+-- program before any artifact is written.
+attempt_group :: String -> Web3 GroupResult -> IO [Measured]
 attempt_group label action = do
   raw <- try (runWeb3' provider action)
-  case raw :: Either SomeException (Either Web3Error GroupResult) of
-    Right (Right (results, submitted)) -> pure ([Measured n (Right r) | (n, r) <- results], submitted)
+  case raw :: Either IOException (Either Web3Error GroupResult) of
+    Right (Right results) -> pure [Measured n (Right r) | (n, r) <- results]
     Right (Left err) -> do
       putStrLn ("  group " ++ label ++ " RPC error: " ++ show err)
-      pure ([Measured (group_placeholder label) (Left (show err))], Nothing)
+      pure [Measured (group_placeholder label) (Left (show err))]
     Left exc -> do
       putStrLn ("  group " ++ label ++ " FAILED: " ++ displayException exc)
-      pure ([Measured (group_placeholder label) (Left (displayException exc))], Nothing)
+      pure [Measured (group_placeholder label) (Left (displayException exc))]
 
 -- | The name a failed group records. Named per group so a failure is still identifiable in the
 -- artifact, and so the check that counts measurements reddens rather than silently shrinking.
