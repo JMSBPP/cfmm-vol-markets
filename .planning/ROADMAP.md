@@ -469,3 +469,197 @@ Registry only — validate, pack, id, store, read, batch. Explicitly OUT: on-cha
 **Forward-compat note recorded at design time:** the stored word carries `TICK_SPACING = 20` rather than a caller-supplied value. When pricing lands and orders need real tick spacings, that field becomes caller-supplied and this constant is removed — the layout does not change, only its source. This is why the full 152-bit word is stored rather than a 128-bit subset: a stored `tickSpacing = 0` would fail any future full `vol_range_width_is_complete` validation.
 
 **Adjacent bug found during review, NOT ours to fix:** `wrap_spread_tick_assimetry` (`SpreadTickAssimetry.plk:9`) is `rawSpread << 0xffff` — a shift by 65535 that zeroes everything. It is off the `create_order` path and must stay off it; flagged to the vol-type-system track.
+
+---
+
+# Milestone v5.0 — VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
+
+## Overview
+
+The first **non-plank** milestone in this file. Where v4.0 built the on-chain vol-order
+registry, v5.0 makes the **offchain Haskell client** speak that registry's **V2 (targetVega)
+ABI** and drives both stochastic generators — price diffusion and Poisson VolOrder creation —
+live against the four-script deploy rig, emitting the real event set.
+
+Source: GitHub issue #13 (plank workstream handoff, `feat/plank` @ `df7088f`). Working branch
+is `feat/rpc-api`; the code under change is `offchain/lib/` (Haskell), not `src/` (Plank).
+
+Phase numbering continues at **20** (v4.0 ended at 19). v1.0 Phases 1–7, v2.0 Phases 10–11 and
+the v3.0/v4.0 ranges are other tracks — paused, untouched, never renumbered.
+
+**Verified at roadmap time (2026-07-31), and it is why Phase 20 exists as its own phase:** every
+binding source-of-truth artifact this milestone consumes is on `origin/feat/plank` @ `df7088f`
+and **is NOT present on `feat/rpc-api`**. Checked with `git ls-tree -r origin/feat/plank` against
+the working tree: `foundry-scripts/deploy/` (5 files) is absent; `notes/` does not exist; the
+handoff is absent; and the local `src/interfaces/pos_spec/VolOrderManagerInterface.plk` is still
+the **v1** file (`SELECTOR_CREATE_ORDER = 0x6501fe94`, no event block at all) while the plank
+branch's is V2 (`0x98d950ec` plus the E1 v2 topic0 constant). Any phase that assumes these files
+are readable here will stall on its first step. Importing them is Phase 20's first deliverable —
+**import, never re-type**: a re-typed selector is exactly the failure mode RPIN-04 exists to fix.
+
+**Binding domain constraints — copied here so no phase re-derives them:**
+
+- **Sources of truth, in strict precedence order:** (1) `src/interfaces/<namespace>/*.plk`
+  (selectors + event topic0s, cast/solc-verified on the plank branch); (2)
+  `.planning/rpc-api-volorder-v2-HANDOFF.md` (on `origin/feat/plank`, not yet on this branch);
+  (3) `notes/DATA_CONTRACT.md`; (4) `notes/UNITS_AND_SCALES.md`. **Consume — never re-derive.**
+  Where two disagree, the higher-precedence file wins and the disagreement is REPORTED, not
+  silently reconciled.
+- **`targetVega` is raw LIQUIDITY units** (ΔQ_v★, dimension (ii), `UNITS_AND_SCALES.md` §2),
+  valid `[1, 2^96−1]`, realistic pool-L magnitudes 1e18–1e21. **NOT X96, NOT WAD, NOT
+  collateral.** A unit slip here is invisible on-chain (any u96 stores fine) and only surfaces
+  as nonsense downstream — which is why VEGA-01's bounds are asserted on the generator's output.
+- **Retired-never-live, must never appear as a live constant:** the v1 `create_order` selector
+  `0x6501fe94`, the v1 E1 topic0 `0x6a5dc726…`, and the stale `Decode.hs` topic0 `0xa8892769…`
+  (which was wrong even against v1). Nothing was ever deployed under them.
+- **The offchain code lives in `offchain/lib/`** (Haskell, GHC 9.10.3). **Zero `-Wall` warnings
+  is a hard requirement**, not a nicety — a phase with warnings is not complete.
+- **The existing supervisory-layer disciplines carry forward into the V2 re-pin UNCHANGED**
+  (they are already shipped in `VolOrder/Rpc.hs` and `Encoding.hs`; the re-pin extends them to
+  the fourth field, it does not rewrite them): strict **field-width validation** before packing;
+  the **preview success-PATTERN delta check** (anchored on the locally-read counter and the
+  pattern, never the preview's absolute ids); **receipt-block-pinned readbacks** (never
+  `Latest`); and the **`receiptStatus` gate** (a reverted batch must not read as a healthy
+  all-invalid one).
+- **"It type-checks" is NEVER acceptance**, the project-wide rule in its offchain form: every
+  success criterion below is a passing test, an observed live RPC result, or an observed
+  failure — never "it builds."
+
+## Phases
+
+- [x] **Phase 20: Deploy Rig & Source-of-Truth Import** - Bring the plank branch's four deploy scripts, V2 interfaces and notes onto `feat/rpc-api` by import (never re-typed), stand the full contract set up on a local anvil, and capture addresses + selectors + topic0s into one rig manifest the drivers consume (RIG-01) (completed 2026-07-31)
+- [x] **Phase 21: V2 ABI Re-Pin & targetVega Generation** - Re-pin `VolOrder/{Types,Encoding,Decode,Rpc}.hs` to the V2 4-arg ABI across all four byte layouts, kill the stale topic0 with a signature-derived pin test, carry `target_vega` end-to-end, and draw it per order in raw L units (RPIN-01..06, VEGA-01) (completed 2026-08-01)
+- [x] **Phase 22: Live Stochastic Drivers** - Both drivers run end-to-end against the rig: price diffusion writing timepoints (E3 per step) and Poisson V2 VolOrder creation single + batch, with preview/readback consistency including targetVega and E1 v2 observed under the pinned topic0 (DRIV-01, DRIV-02) (completed 2026-08-02)
+
+## Phase Details
+
+### Phase 20: Deploy Rig & Source-of-Truth Import
+**Goal**: The full V2 contract set is standing on a local anvil and every address, selector and event topic0 the drivers need exists in ONE place on this branch, traceable to the interface file it came from — so no later phase has to guess at, or re-type, a value that lives on another branch.
+**Depends on**: Nothing new (first v5.0 phase). Consumes the plank workstream's artifacts at **`origin/develop` @ `9f5ccba9…`** (recorded on disk at `offchain/rig/import-ref.txt`). **CORRECTED at 20-01/20-02:** this line and SC-1 below originally named `origin/feat/plank` @ `df7088f`; PR #15 merged `feat/plank` into `develop` at 2026-07-31 18:17 UTC, and the 20-CONTEXT locked decision pins the import to the recorded `develop` ref. The df7088f wording is SUPERSEDED — content is identical (all 14 binding-path sha256 prefixes measured on df7088f match the develop ref), but the ref actually imported and verified against is `9f5ccba9…`.
+**Requirements**: RIG-01
+**Success Criteria** (what must be TRUE):
+  1. The binding artifacts are present on `feat/rpc-api` with content **identical to the RECORDED ref `origin/develop` @ `9f5ccba9…`** (per `offchain/rig/import-ref.txt`; supersedes the original `origin/feat/plank` @ `df7088f` wording — see "Depends on" above), verified by a content comparison (`git diff` / sha256 against that ref) rather than by inspection: the five `foundry-scripts/deploy/` files (`PlankDeployBase.s.sol`, `DeployVolOrderManagerMod`, `DeployRealizedVolatilityMod`, `DeployDynamicFeeMod`, `DeployDynamicFeeHook`), the V2 `src/interfaces/<namespace>/*.plk` set, `.planning/rpc-api-volorder-v2-HANDOFF.md`, `notes/DATA_CONTRACT.md`, `notes/UNITS_AND_SCALES.md`. **Imported, never re-typed**, and not edited on this branch — a diff against the plank ref is the acceptance test, and it is what makes "consume, do not re-derive" checkable rather than aspirational. The now-superseded v1 `VolOrderManagerInterface.plk` (`0x6501fe94`) is replaced, not kept alongside (RIG-01).
+  2. All four deploy scripts RUN to completion against a fresh local anvil, each printing its deployed address, and each deployed contract is proven LIVE by a read that could not pass against an empty address — not by the script's exit code: `orderCount()` answers on VolOrderManagerMod, and RealizedVolatilityMod (seeded via `INIT_TS`/`INIT_TICK`) returns a NONZERO packed timepoint at its seeded index. A script that "succeeds" while deploying zero-length bytecode is the known silent-failure mode of this FFI path (RIG-01).
+  3. The printed addresses, selectors and event topic0s are captured into a SINGLE machine-readable rig manifest consumed by the Haskell drivers, and **no address, selector or topic0 is hardcoded anywhere else under `offchain/`** — asserted by a grep-style check, so the manifest cannot be quietly bypassed the way `Sample.hs`'s literals are today (RIG-01).
+  4. Every selector and topic0 in the manifest is **recomputed in a test from the signature string** in the corresponding `src/interfaces/<namespace>/*.plk` file and matched — a consumption check, not a re-derivation: `create_order(uint88,uint24,uint16,uint96)` → `0x98d950ec`, `create_orders(uint256,uint256[])` → `0x81357911`, `writeTimepoint(uint32,int24)` → `0xb09b2297`, E1 v2 → `0x18bd4d46…`, E3 `TimepointWritten` → `0x44d3c76a…`. If a manifest value and its interface file disagree, the check FAILS (RIG-01).
+  5. The whole rig is reproducible on a clean machine from one documented command sequence starting at a fresh anvil, and a second run from scratch produces the same contract set (RIG-01).
+**Plans**: 5 plans in 4 waves
+
+Plans:
+- [x] 20-01-PLAN.md — Upstream gate (BLOCKING), npm/submodule preflight, cold pre-import forge + plank baselines [wave 1]
+- [x] 20-02-PLAN.md — Import the 36 binding paths + transitive .plk closure from the recorded develop ref, pin sha256 provenance, prove the closure compiles, record the forge delta [wave 2]
+- [x] 20-03-PLAN.md — deploy-rig.sh (owns anvil, 5 scripts, manifest from broadcast JSON + console cross-check), verify-rig.sh liveness probes, SC-5 double-run reproducibility [wave 3]
+- [x] 20-04-PLAN.md — generate-pins.sh + committed rig-pins.json (generated from the imported interface files), Rig.Manifest aeson loader, cabal wiring [wave 3]
+- [x] 20-05-PLAN.md — Literal purge into the manifest, SC-3/SC-4 cabal test-suite (keccak recomputation + falsifiability), the documented one-command sequence [wave 4]
+
+### Phase 21: V2 ABI Re-Pin & targetVega Generation
+**Goal**: The Haskell client speaks V2 on every byte layout that crosses the wire — call, batch input word, storage word, and log — with each selector and topic0 pinned by a test that COMPUTES it from the signature string, so this surface cannot rot silently again; and `StochasticOrderGen` supplies the fourth field in the right units.
+**Depends on**: Phase 20. Not for the layouts (those come from the interface files), but because **RPIN-05 must verify against the LIVE module** — the requirement says verify, don't assume from the handoff, and that needs a deployed V2 `create_orders` to call.
+**Requirements**: RPIN-01, RPIN-02, RPIN-03, RPIN-04, RPIN-05, RPIN-06, VEGA-01
+**Success Criteria** (what must be TRUE):
+  1. `encode_create_order` emits V2 calldata whose leading 4 bytes equal `0x98d950ec` **and** equal `keccak("create_order(uint88,uint24,uint16,uint96)")[0:4]` computed IN THE TEST from the signature string — the pin is DERIVED, never a transcribed literal. Its four argument words decode back to `(strike, width, skew, targetVega)` in that order (RPIN-01).
+  2. Both bit layouts are correct and demonstrably DISTINCT from each other. **Input word** (`pack_vol_order_input`): `skew@0..15 | strike@16..103 | width@104..127 | targetVega@128..223`, bits ≥ 224 zero BY CONSTRUCTION, with strict field-width validation on all four fields — each rejecting its own out-of-range value with an attributable message rather than OR-ing silently into a neighbour. Note `width` is now an INTERIOR/masked field (in v1 it was the top field and deliberately left unmasked for on-chain dirty-bit rejection); `targetVega` is now the unmasked TOP field and inherits that role. **Storage word** (`unpack_vol_order_storage`, 248-bit): `skew@0 | strike@16 | tickSpacing@104 (read, discarded) | width@128 | targetVega@152..247`. Round-trip holds over a constructed field-boundary corpus, and at least one order is exhibited whose input word ≠ its storage word — so the two layouts can never be conflated by a passing test (RPIN-02, RPIN-03).
+  3. `decode_order_created` accepts E1 v2 — `VolOrderCreated(uint256 indexed orderId, uint88 strike, uint24 width, uint16 skew, uint96 targetVega)`, topic0 `0x18bd4d46…` **computed in the test from the signature string**, data = 4 words, `orderId` read from the indexed topic. Both retired topic0s are REJECTED by the decoder, and the pin test is shown FALSIFIABLE by observing it go RED when the constant is set to the stale `0xa8892769…` — the bug this requirement exists to fix must be demonstrated caught, not merely overwritten (RPIN-04).
+  4. `decode_create_orders_result` is verified byte-unchanged against a `(bool, uint256)[]` return **captured from the live Phase-20 module** by a real batch call — not from the handoff text, not from v4.0's fixture alone — including the `N = 0` case at exactly 64 bytes. If the live bytes disagree with the v4.0 golden fixture, that is a FINDING to report, not something to paper over (RPIN-05).
+  5. `target_vega` flows end-to-end: the `VolOrder` record carries it; `encode_create_order`, `encode_create_orders`, the storage readback and the mined-order content check all include it — a mined order whose targetVega differs from the submitted one FAILS the readback check (proven by feeding a deliberately mismatched value and observing the failure, so the new field is genuinely compared and not merely carried). `StochasticOrderGen` draws a targetVega per order in **raw LIQUIDITY units**, with `[1, 2^96−1]` and the 1e18–1e21 realistic band asserted over the generator's output (RPIN-06, VEGA-01).
+**Plans**: 5 plans in 4 waves
+
+Plans:
+- [x] 21-01-PLAN.md — V2 record + V2 calldata encoder + V2 input word + V2 storage unpack, V1 deleted; RPIN-01/02/03 checks [wave 1]
+- [x] 21-02-PLAN.md — capture-batch-return.sh + committed provenance-bearing capture off the LIVE rig (the only chain-touching work) [wave 1]
+- [x] 21-03-PLAN.md — E1 v2 decoder rewrite (2 topics, 4 data words) + Report.hs; stale-topic0 and perturbed-targetVega observed-RED demos [wave 2]
+- [x] 21-04-PLAN.md — VegaDraw = LogUniform[1e18, 1e21] + draw_target_vega guard + OrderShape + generator wiring; fixed-seed band checks [wave 3]
+- [x] 21-05-PLAN.md — RPIN-05 assertions over the capture (suite stays chain-independent) + peer-bytes artifact + cross-track findings + phase gate [wave 4]
+
+### Phase 22: Live Stochastic Drivers
+**Goal**: Both drivers run end-to-end against the live rig under the V2 ABI and produce the real event set — the milestone's acceptance bar, and the input the queued v6.0 subgraph will index.
+**Depends on**: Phase 20 (the rig they drive) and Phase 21 (the V2 ABI the order driver speaks).
+**Requirements**: DRIV-01, DRIV-02
+**Success Criteria** (what must be TRUE):
+  1. **MECHANISM SUPERSEDED at plan time (2026-08-02, 22-CONTEXT locked decision) — the required OUTCOME below is UNCHANGED.** The original wording was: "A stochastic price path drives `RealizedVolatilityMod.writeTimepoint(uint32,int24)` (`0xb09b2297`) once per step against the rig-deployed module." That is exactly the offchain intervention the user does NOT want. The hook SELF-WRITES: `DynamicFeeHook.beforeSwap` (`src/modules/protocol_integrations/DynamicFeeHook.plk:129`) calls `rv_write_timepoint` on the pre-swap tick it reads via `extsload`. The driver's job is to make the hook FIRE — cheat slot0 to the desired tick, advance the clock, send a minimal swap — and then OBSERVE E3. There is NO offchain `writeTimepoint` client; the pin and selector stay in `rig-pins.json` and stay checked, they are simply never called. The roadmap's "focused research pass on the E3 side" flag is CANCELLED by this decision. **The outcome required is unchanged:** a stochastic price path produces one E3 per step against the rig. Every step's receipt has `receiptStatus == 1` and carries exactly ONE E3 `TimepointWritten` log under topic0 `0x44d3c76a…`, whose decoded `(timestamp, tick)` equals the step the driver submitted. The existing `write_price` / PriceSetterHook flow still runs unchanged — this driver is ADDED beside it, not a replacement (DRIV-01).
+  2. Stochastic V2 VolOrder creation runs SINGLE against the rig: a `create_order` receipt with status 1, one E1 v2 log under the pinned topic0, whose four decoded data words equal the submitted `(strike, width, skew, targetVega)`, and a **receipt-block-pinned** `getOrderPacked` readback that unpacks to the submitted order including its targetVega (DRIV-02).
+  3. Stochastic V2 VolOrder creation runs BATCH against the rig: a live batch returns `(True, id)` entries positionally matching the preview's success PATTERN; `orderCount` moves by exactly the success count; and every mined id's receipt-block-pinned `getOrderPacked` readback content-matches its submitted order **including targetVega**. A mixed batch (at least one contract-rejected tuple) is exercised, so best-effort skip semantics are observed live rather than assumed. Any mismatch is reported with the tx hash — never silently (DRIV-02).
+  4. A **zero-arrival Poisson tick (`N = 0`) completes cleanly against the live rig** — the 64-byte empty return decodes to an empty result list, not a decode failure and not a crash. This is carried directly from v4.0's exit record, which named it "the single clause in the return contract most likely to break `StochasticOrderGen`"; it is invisible on-chain and can only be caught here, and a zero-arrival tick is an in-distribution Poisson sample, not a client bug (DRIV-02).
+  5. Both drivers run from one documented command against a fresh Phase-20 rig, and the run is reproducible from a RECORDED seed — a driver whose failures cannot be replayed is not debuggable, and the v6.0 subgraph will need a reproducible event stream to index against (DRIV-01, DRIV-02).
+**Plans**: 6 plans in 5 waves
+
+Plans:
+- [x] 22-01-PLAN.md — Re-import + re-pin 37 paths to `origin/develop @ 2039f27`; upstream gate names `InitSwappableRig.s.sol`; the two vendored v4-core routers PROVEN to compile under `--via-ir` [wave 1]
+- [x] 22-02-PLAN.md — The pure offchain surface: E3/E5 decoders with signed int24/int56 decoding (none exists anywhere in `offchain/` today), slot0 word composition, `cast`-shelled extsload + swap calldata [wave 1]
+- [x] 22-03-PLAN.md — Swappable rig: `deploy-rig.sh` 6th step (`InitSwappableRig`), `anvil --timestamp`, nine manifest contracts, router binding probes, SC-5 re-measured, README's three stale spots fixed [wave 2]
+- [x] 22-04-PLAN.md — THE BLOCKER DISCHARGE: `cheat_and_swap`, and an OBSERVED E3 carrying a non-zero cheated tick — plus the wrong-pool counter-measurement and the G1 same-second no-op, committed as evidence [wave 3]
+- [x] 22-05-PLAN.md — DRIV-01: `run_cheat_swap_path` + seeded RNG (`RIG_SEED`) + `driver-run-capture.json` with flush-on-failure; SC-1 asserted by value offline [wave 4]
+- [x] 22-06-PLAN.md — DRIV-02: single / MIXED batch (`skew = 65535`) / direct `create_orders _ _ []`; SC-2/3/4 checks; SC-5 seed replay; the documented command and the phase gate [wave 5]
+
+## Progress (Milestone v5.0)
+
+**Execution Order:** Strictly sequential: 20 → 21 → 22. The rig comes first because it is the only thing that can make RPIN-05's "verify against the live module" satisfiable, and because every source-of-truth file the other two phases read is imported by it. The re-pin precedes the drivers so that a live driver failure is never confounded with a layout bug.
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 20. Deploy Rig & Source-of-Truth Import | 5/5 | Complete    | 2026-07-31 |
+| 21. V2 ABI Re-Pin & targetVega Generation | 5/5 | Complete    | 2026-08-01 |
+| 22. Live Stochastic Drivers | 6/6 | Complete    | 2026-08-02 |
+
+## Coverage (Milestone v5.0)
+
+| Phase | Requirements | Count |
+|-------|--------------|-------|
+| 20 | RIG-01 | 1 |
+| 21 | RPIN-01, RPIN-02, RPIN-03, RPIN-04, RPIN-05, RPIN-06, VEGA-01 | 7 |
+| 22 | DRIV-01, DRIV-02 | 2 |
+
+**Total mapped: 10/10** — no orphans, no duplicates.
+
+**ID collision — RESOLVED at roadmap approval (2026-07-31):** the deferred v2 "formal
+literature review deliverable" was renamed `LIT-01` in `REQUIREMENTS.md`; `RIG-01` now
+uniquely means this milestone's deploy rig.
+
+## Research Flags (Milestone v5.0)
+
+- **Phase 20 — coordination + environment, not a research gap.** The four scripts and their
+  `PlankDeployBase` already exist and are the plank workstream's deliverable. The open question
+  at plan time is mechanical: how to bring them onto `feat/rpc-api` (cherry-pick, merge, or
+  subtree checkout) without dragging the rest of the plank branch. Decide it at plan time and
+  record the choice; do not re-author the scripts.
+- **Phase 21 — skip research on the layouts, they are GIVEN.** All four byte layouts, both
+  selectors and the E1 v2 topic0 are pinned in the interface file and the handoff. Re-deriving
+  any of them is explicitly forbidden. The one genuine unknown is the `-Wall`-clean shape of the
+  `VolOrder` record change across its five dependent modules — a mechanical refactor, sized at
+  plan time.
+- **Phase 22 — CLOSED at plan time (2026-08-02). The flag as written is SUPERSEDED.** It asked for
+  a focused pass on building a `writeTimepoint` client; the user's locked architecture decision
+  cancels that client entirely (see the SC-1 note above). `22-RESEARCH.md` was produced instead and
+  found the phase's highest-severity item, which the flag could not have anticipated:
+  **`write_price` cheats the WRONG pool.** `PriceSetterHookScript` stands up a SECOND `PoolManager`
+  (manifest `PriceSetterPoolManager`) and binds `PriceSetterHook` to a pool there, while
+  `DynamicFeeHook` lives on a different manager — so cheat-then-swap writes one pool and swaps
+  another, and fails SILENTLY (E3 still fires, status 1, only the tick is wrong). The fix is
+  entirely inside `offchain/`: compose the slot0 word from
+  `PoolManager.extsload(keccak(poolId‖6))` OR-ed with `PriceSetterHook.packSlot0For(tick)` masked
+  at bit 184. Plan 22-04 discharges it by MEASUREMENT before any loop is built on it. The
+  `INIT_TS` observation still holds but is now about the CHAIN clock, not a `uint32` argument: the
+  hook's buffer is seeded at `block.timestamp`, so `deploy-rig.sh` passes `anvil --timestamp
+  "$INIT_TS"` to give both series one origin. The E1/batch side needs no research — Phase 21
+  delivered it — but two roadmap success criteria are unreachable through `run_order_gen` and need
+  direct calls (a zero-arrival tick sends nothing, `chunk _ [] = []`; and every generated shape is
+  valid so no batch is ever mixed).
+
+## Scope Boundary (Milestone v5.0)
+
+Offchain client + drivers only. Explicitly OUT: the **v6.0 subgraph** (issue #14 — it consumes
+the event stream this milestone generates, and is sequenced behind it); **E2 `PortafolioMinted`
+decode** (the event is not shipped on-chain, so there is nothing to decode against);
+**re-deriving any selector, topic0 or bit layout** (forbidden by the handoff — consume the
+interface files); **replacing the legacy `write_price` driver** (it stays available and
+unchanged); **any edit to `src/` Plank sources or the deploy scripts** (plank workstream's
+files — this branch imports and consumes them, and a local edit would silently fork the source
+of truth); and **PR #9 merge mechanics** (a separate human-approval gate).
+
+**Carried from v4.0's exit record, and now live consumer contracts rather than test details:**
+the batch's **canonical array offset `0x40` at byte 36** is a HARD encoding requirement (a
+legally-padded head is rejected with an empty revert); **`N = 0` returns exactly 64 bytes**, not
+0 and not 32; and **success words are canonically 0 or 1** (a lenient decoder that accepts a
+truthy 2 would silently disagree with `abi.decode` about the same bytes). The shipped
+`decode_create_orders_result` already enforces the last of these — RPIN-05 confirms it against
+the live V2 module rather than re-litigating it.

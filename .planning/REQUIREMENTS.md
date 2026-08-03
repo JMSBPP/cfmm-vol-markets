@@ -134,6 +134,89 @@ Peer-requested (rpc_api track `mv15a18k`, StochasticOrderGen consumer). **This s
 - [x] **MVER-03**: A consumer golden fixture FILE exists containing byte strings produced by an encoder OUTSIDE this repo. If peer bytes are unavailable, a self-encoded stand-in is committed and explicitly marked `NOT-PEER-VERIFIED`, and that gap is listed in the milestone exit record — the criterion is falsifiable either way and cannot be satisfied by doing nothing. Plus a cast-sig test for every selector string in the interface file
 - [x] **MVER-04**: `VolOrderManagerMod` is CALLED green on its BATCH dispatch through FFI-deployed bytecode before the milestone closes; the suite is wired into a dedicated `make` target and folded into `make test`. **Corrected 2026-07-20:** the pre-review draft said the module "enters `PLANK_SKIP` when created (Phase 17)" — that rests on a false premise. `PLANK_SKIP` is the Makefile's *rescue queue* for entrypoints that do NOT yet compile; a module dispatching a subset of its declared selectors compiles fine, so it never belongs there. `PLANK_SKIP` stays EMPTY (as Phase 15 left it) and `make compile-plank` simply counts one more entrypoint. Compile-green was never the gate here anyway — the gate is the CALLED batch dispatch, which is unchanged.
 
+## Milestone v5.0 Requirements — VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
+
+**Defined 2026-07-30, from GitHub issue #13** (plank workstream handoff, `feat/plank` @
+`df7088f`). This is the **rpc_api workstream's** milestone (offchain Haskell, branch
+`feat/rpc-api`) — the first non-plank milestone in this file. Sources of truth, in
+precedence order: `src/interfaces/<namespace>/*.plk` (selectors + events, cast/solc
+verified), `.planning/rpc-api-volorder-v2-HANDOFF.md`, `notes/DATA_CONTRACT.md`,
+`notes/UNITS_AND_SCALES.md`. **Consume — do not re-derive.**
+
+**Decisions of record (do not re-litigate):**
+- `targetVega` = ΔQ_v★ in **RAW LIQUIDITY units** (dimension (ii), `UNITS_AND_SCALES.md`
+  §2), valid `[1, 2^96−1]`, realistic pool-L magnitudes 1e18–1e21. NOT X96, NOT WAD,
+  NOT collateral.
+- V1 `create_order` selector `0x6501fe94` and v1 E1 topic0 (`0x6a5dc726…`) are
+  RETIRED-NEVER-LIVE. The previously-shipped `Decode.hs` topic0 `0xa8892769…` was stale
+  even against v1 — the fix ships with the re-pin, with a pin test computed from the
+  signature string so this surface cannot rot silently again.
+- The `(bool, uint256)[]` batch return encoding is UNCHANGED from v4.0 (the Phase-19
+  golden fixture bytes remain valid) — verified, not assumed (RPIN-05).
+
+### V2 ABI Re-Pin
+
+- [x] **RPIN-01**: `encode_create_order` emits the V2 4-arg calldata
+      `create_order(uint88,uint24,uint16,uint96)` = (strike, width, skew, targetVega),
+      selector `0x98d950ec`, with a selector pin test derived from the signature string
+- [x] **RPIN-02**: `pack_vol_order_input` packs the V2 batch input word —
+      `skew@0..15 | strike@16..103 | width@104..127 | targetVega@128..223` — with
+      strict field-width validation on all four fields and bits ≥ 224 zero by
+      construction (width is now INTERIOR/masked; targetVega is the unmasked TOP field)
+- [x] **RPIN-03**: `unpack_vol_order_storage` unpacks the 248-bit V2 storage word —
+      `skew@0 | strike@16 | tickSpacing@104 (read, discarded) | width@128 |
+      targetVega@152..247`
+- [x] **RPIN-04**: `decode_order_created` re-pins to E1 v2 `VolOrderCreated(uint256
+      indexed orderId, uint88 strike, uint24 width, uint16 skew, uint96 targetVega)`,
+      topic0 `0x18bd4d460f8957f6b903aec33a3229ee1bf02b6e303c5178c5aa49a70b9de4e6`,
+      data = 4 words — fixing the pre-existing stale topic0 (`0xa8892769…`) with a
+      topic0 pin test computed from the signature string
+- [x] **RPIN-05**: `decode_create_orders_result` is verified byte-unchanged against the
+      V2 module's `(bool, uint256)[]` return (verify against the live module, don't
+      assume from the handoff)
+- [x] **RPIN-06**: The `VolOrder` record gains `target_vega`; `Rpc.hs` single + batch
+      senders and the mined-order readback content check carry it end-to-end
+
+### targetVega Generation
+
+- [x] **VEGA-01**: `StochasticOrderGen` draws a `targetVega` per order in RAW LIQUIDITY
+      units, valid `[1, 2^96−1]`, at realistic pool-L magnitudes (1e18–1e21)
+
+### Deploy Rig
+
+- [x] **RIG-01**: The four `foundry-scripts/deploy/` scripts stand up the full rig on a
+      local anvil (VolOrderManagerMod; RealizedVolatilityMod seeded via
+      `INIT_TS`/`INIT_TICK`; DynamicFeeMod; DynamicFeeHook premium rig), with each
+      script's printed addresses + selectors + event topic0s captured for the drivers
+
+### Live Drivers
+
+- [x] **DRIV-01**: The stochastic price path drives one E3 `TimepointWritten` per step
+      against the rig, each carrying the tick the driver submitted (the existing
+      `write_price` flow stays available, unchanged).
+      **MECHANISM CORRECTED 2026-08-02 (user decision, recorded in
+      `.planning/phases/22-live-stochastic-drivers/22-CONTEXT.md`):** this requirement
+      originally read "drives `RealizedVolatilityMod.writeTimepoint(uint32,int24)` per
+      step" — i.e. an offchain client calling the vol module. That is exactly the
+      offchain intervention the architecture excludes. Timepoints **self-write** on the
+      hook: `DynamicFeeHook.plk:129`'s `beforeSwap` calls `rv_write_timepoint` on the
+      pre-swap tick, so the driver cheats slot0 and fires a minimal swap, and the client
+      only observes. No `writeTimepoint` client exists, by design. The OUTCOME above is
+      unchanged and is what Phase 22 verified.
+- [x] **DRIV-02**: Stochastic V2 VolOrder creation runs against the rig — single +
+      batch under the V2 ABI — with the preview/readback consistency check (incl.
+      targetVega content) passing live and E1 v2 observed under the pinned topic0
+
+**Queued next milestone (v6.0, GitHub issue #14 — NOT in this roadmap):** subgraph
+manifest + mappings indexing E1v2/E3/E4/E5/E6 per `DATA_CONTRACT.md`, materializing the
+position-epoch panel (uint48 `seriesIdHash`) the cfmm-gams `execute_loadDC` reader
+consumes (cfmm-gams#1), with the workstream's anti-fabrication checks.
+
+**v5.0 out of scope:** the v6.0 subgraph (consumes the event stream v5.0 generates); E2
+`PortafolioMinted` decode (event not shipped on-chain); re-deriving any
+selector/topic0/layout (forbidden by the handoff); replacing the legacy `write_price`
+driver (stays available); PR #9 merge mechanics (separate human-approval gate).
+
 ## v2 Requirements
 
 Deferred to future milestones. Tracked but not in current roadmap.
@@ -157,7 +240,7 @@ Deferred to future milestones. Tracked but not in current roadmap.
 ### Breadth & Rigor
 
 - **PLIB-01**: a library of contingent payoffs replicable through the pipeline
-- **RIG-01**: formal literature review deliverable on CFMM payoff replication
+- **LIT-01**: formal literature review deliverable on CFMM payoff replication (renamed from `RIG-01` 2026-07-31 to resolve the ID collision with v5.0's deploy-rig requirement)
 - **RIG-02**: cryptographically-secure on-chain randomness (VRF / commit-reveal) replacing the simulation proxy
 
 ## Out of Scope
@@ -248,13 +331,30 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | MVER-02 | Phase 19 | Complete |
 | MVER-03 | Phase 19 | Complete |
 | MVER-04 | Phase 19 | Complete |
+| RIG-01 | Phase 20 | Complete |
+| RPIN-01 | Phase 21 | Complete |
+| RPIN-02 | Phase 21 | Complete |
+| RPIN-03 | Phase 21 | Complete |
+| RPIN-04 | Phase 21 | Complete |
+| RPIN-05 | Phase 21 | Complete |
+| RPIN-06 | Phase 21 | Complete |
+| VEGA-01 | Phase 21 | Complete |
+| DRIV-01 | Phase 22 | Complete |
+| DRIV-02 | Phase 22 | Complete |
 
 **Coverage:**
 - v1 requirements: 30 total — mapped to Phases 1–7: 30 ✓
 - v2.0 requirements (VDIFF-01..08): 8 total — mapped to Phases 8–11: 8 ✓
 - v3.0 requirements (RISK-01/02, VLIB-01..04, VMOD-01..05, VVER-01/02): 13 total — mapped to Phases 12–15: 13 ✓
 - v4.0 requirements (VORD-01..05, MCAL-01..06, MVER-01..04): 15 total — mapped to Phases 16–19: 15 ✓
-- Total mapped: 66/66 — Unmapped: 0
+- v5.0 requirements (RPIN-01..06, VEGA-01, RIG-01, DRIV-01/02): 10 total — mapped to Phases 20–22: 10 ✓
+- Total mapped: 76/76 — Unmapped: 0
+
+> **ID COLLISION — RESOLVED 2026-07-31 (requirements owner's call at roadmap approval).**
+> `RIG-01` briefly named two things: the v5.0 deploy-rig requirement and a deferred v2
+> "formal literature review deliverable" (*v2 Requirements → Breadth & Rigor*). The deferred
+> entry was renamed to `LIT-01`; `RIG-01` now uniquely means the **v5.0 deploy rig**
+> (`| RIG-01 | Phase 20 |` above).
 
 ---
 *Requirements defined: 2026-06-27*
@@ -263,3 +363,5 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 *Last updated: 2026-07-16 — appended milestone v3.0 (RISK/VLIB/VMOD/VVER, 13 reqs) traceability, Phases 12–15 (13/13 mapped); total 51/51*
 *Last updated: 2026-07-19 — appended milestone v4.0 (VORD/MCAL/MVER, 15 reqs) traceability, Phases 16–19 (15/15 mapped); total 66/66*
 *Last updated: 2026-07-20 — v4.0 POST-REVIEW: 2 BLOCKERs + 6 MAJORs resolved (packing layout corrected against VolOrder.plk:35-40, standard-ABI batch 0x81357911 with 3 guards, new strike u88 bound authored, MCAL-04 demoted from proof to evidence); Phase 18 SPLIT into 18a (input+state) / 18b (return encoding) — now 5 phases, still 15/15 mapped*
+*Last updated: 2026-07-30 — appended milestone v5.0 (RPIN-01..06, VEGA-01, RIG-01, DRIV-01/02 — 10 reqs, rpc_api workstream, from issue #13); traceability pending roadmap*
+*Last updated: 2026-07-31 — v5.0 traceability populated against the 3-phase roadmap (Phases 20–22): RIG-01→20, RPIN-01..06 + VEGA-01→21, DRIV-01/02→22 (10/10 mapped); total 76/76*
