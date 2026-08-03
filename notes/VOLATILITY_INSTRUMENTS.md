@@ -2,15 +2,17 @@
 
 > NOTE: [CALCULUS IS THIS ONE](~/learning/cfmm-theory/cfmm-discrete/**) . We need to fgind the discrete ficnacnial caluclus pdf byut Frogy eithr online or locally
 
-> TODO: If already formalized (Make this a DEFINITION using the academic writing convention) This is the core definition 
-Note that consistent with the lean 4 spec our contract is essentially a volatility option:
-
+**Definition 1 (Volatility option).** Fix a strike variance \(\sigma^2_K\). The **volatility option** with vega notional \(\Delta Q_v\) is the contract paying
 
 \[
 	\begin{aligned}
-		\pi^{\sigma} \, &= \, \Delta Q_{v} \, \Big ( \, \sigma^2 \, (i (t)) - \sigma^2_K\Big)^{+} \, \implies \, \Delta Q_{v} \, \equiv \, \frac{\Delta \pi^{\sigma}}{\Delta \Big ( \, \sigma^2 \, (i (t)) - \sigma^2_K\Big)^{+}}
+		\pi^{\sigma} \, &= \, \Delta Q_{v} \, \Big ( \, \sigma^2 \, (i (t)) - \sigma^2_K\Big)^{+}
 	\end{aligned}
-\];
+\]
+
+where \(\sigma^2(i(t))\) is the realized tick variance. Consequently \(\Delta Q_v \equiv \Delta \pi^{\sigma} / \Delta\big(\sigma^2(i(t)) - \sigma^2_K\big)^{+}\): the notional **is** the option's vega.
+
+*Formalized:* `Panoptic.volOptionPayoff`; `volOptionPayoff_nonneg`; `deltaQv_of_payoff`.
 Note that following the main reference on [VOL_SWAPS](../refs/DemeterfietalVarianceSwaps.pdf), the price of the vol claim \(p_{\pi^{\sigma}}\) is the *cost of replicating it using options as the underlying*. This is where [panoptic](https://arxiv.org/pdf/2204.14232) enters:
 
 We have somehow simplified:
