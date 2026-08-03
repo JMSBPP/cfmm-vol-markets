@@ -132,7 +132,7 @@ LEVEL: every row is POSITION-LEVEL (B1) — θ_fee means \(\theta_{\text{fee}}^{
 
 \[
 	\begin{array}{l|cccccccc}
-		 & (\xi,\iota) & (\eta,\Delta_i)\to\kappa_{\varphi} & \bar L & (\bar\phi,\alpha,u) & (\beta_j,\gamma_j) & t^{\star} & \tau,\tau_{\text{JIT}} & \text{haz. inputs }(\sigma\text{-path},w_t,D_t) \\
+		 & (\xi,\iota) & (\eta,\Delta_i)\to\varsigma_{X/M} & \bar L & (\bar\phi,\alpha,u) & (\beta_j,\gamma_j) & t^{\star} & \tau,\tau_{\text{JIT}} & \text{haz. inputs }(\sigma\text{-path},w_t,D_t) \\
 		\hline
 		\mathcal{D}_p[\pi] & \bullet & \bullet & \bullet & - & - & - & - & - \\
 		\Gamma & \bullet & \bullet & \bullet & - & - & - & - & - \\

@@ -22,7 +22,7 @@ Kristensen's `ϕ` → this document's \(\phi\), unchanged. <!-- notation-map -->
 | Symbol | Meaning | Freeness | Family rule (BINDING 2026-08-03) |
 |---|---|---|---|
 | \(\epsilon_{\text{hold},\sigma},\ \epsilon_{\text{lend},\sigma}\) | σ-elasticities of the two legs (V4) | only \(\epsilon_{X/M}\) exists (39 hits); `\text{hold}`/`\text{lend}` subscripts: 0 hits | ε = ELASTICITIES, always subscripted ✓ |
-| \(r_{\text{fix}}\) | exogenous fixed-income rate (V8) | `\rho` free but RESERVED by Lean `phiCES ρ` = doc \(\epsilon_{X/M}\); `\varrho` (66), `\vartheta` (21), `\varpi` (16), `α`, bare `i` all TAKEN | roman, subscript MANDATORY (bare `r` = Kristensen's range factor) |
+| \(r_{\text{fix}}\) | exogenous fixed-income rate (V8) | `\rho` free but RESERVED by Lean `phiCES ρ` = doc \(\epsilon_{X/M}\); `\varrho` (66), `\vartheta` (21), `\varpi` (16), `α`, bare `i` all TAKEN | roman, subscript MANDATORY (bare `r` = Kristensen's range factor) | <!-- notation-map -->
 | \(T_c\) | rate-crossing horizon (V8) | `T`, `T^\star`, `T^\star_{\text{joint}}` in use; `T_c` free | derived, not a parameter |
 
 **LEAN-SIDE TRAP (any bundle prompt MUST carry this):** `PhiCES.phiCES (ρ ε x y) = (ε·x^ρ + (1−ε)·y^ρ)^(1/ρ)` — Lean `ε` is the SHARE (doc \(\chi_{X/M}\)), Lean `ρ` is the SUBSTITUTION exponent (doc \(\epsilon_{X/M}\)). **The two letters are SWAPPED relative to this document.** The line-407 mapping note covers `EtaTilde`, not `PhiCES`. <!-- notation-map -->

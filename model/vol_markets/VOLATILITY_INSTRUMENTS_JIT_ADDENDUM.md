@@ -77,7 +77,7 @@ Incidence on PAYOFFS (the endogenous objects) ⟹ the program is comparative sta
 	\begin{aligned}
 		\frac{\partial u_J^{\tau}}{\partial \tau_{\text{JIT}}} \, &= \, -(\tilde d_J^{\text{add}}+\tilde d_J^{\text{rm}}) \, < \, 0, \qquad \frac{\partial \tilde d_J^{\tau\star}}{\partial \tau_{\text{JIT}}} \, \leq \, 0, \qquad \tilde\lambda_{\text{JIT}} = \tilde\lambda_{\text{JIT}}(\tau_{\text{JIT}}) \, \downarrow \\
 		\text{participation:} \quad & \text{JIT enters} \iff u_J(\tilde d_J^{\star}) \geq \tau_{\text{JIT}}\cdot(\text{base}) \implies \text{extensive-margin threshold } \tau_{\text{JIT}}^{\star} \text{ (FIFTH POLE candidate)} \\
-		\kappa_{\varphi}\text{-entry:} \quad & \text{second-order statics signed by the strict concavity of } \delta_S, \delta_R \text{ (J1)} \implies \text{conditions in } \kappa_{\varphi} \text{ [TO PROVE]} \\
+		\varsigma_{X/M}\text{-entry:} \quad & \text{second-order statics signed by the strict concavity of } \delta_S, \delta_R \text{ (J1)} \implies \text{conditions in } \varsigma_{X/M} \text{ [TO PROVE]} \\
 		\text{remedy direction:} \quad & \frac{\partial \zeta^{\star}}{\partial \tau_{\text{JIT}}} \, \leq \, 0 \; ? \quad \text{(does the tax SHRINK the crowding region — the mirror of J8(b)) [TO PROVE]}
 	\end{aligned}
 \]
