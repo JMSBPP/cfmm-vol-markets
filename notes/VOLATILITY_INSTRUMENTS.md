@@ -2,6 +2,8 @@
 
 > NOTE: [CALCULUS IS THIS ONE](~/learning/cfmm-theory/cfmm-discrete/**) . We need to fgind the discrete ficnacnial caluclus pdf byut Frogy eithr online or locally
 
+# PAYOFF
+
 **Definition 1 (Volatility option).** Fix a strike variance \(\sigma^2_K\). The **volatility option** with vega notional \(\Delta Q_v\) is the contract paying
 
 \[
@@ -142,7 +144,7 @@ The left arrow marks the Rule: an **allocation the protocol enforces**, not an e
 	\end{aligned}
 \]
 
-with ladder parameter set \(\Theta_{\ell} = \{\xi, \iota\}\) — see **PROTOCOL PARAMETERS (\(\Theta_{\ell}\))**.
+with ladder parameter set \(\Theta_{\ell} = \{\xi, \iota\}\) — see **PROTOCOL_PARAMETERS (\(\Theta_{\ell}\))**.
 
 *Formalized:* `GeomProfile.geomWeight`.
 
@@ -156,7 +158,7 @@ with ladder parameter set \(\Theta_{\ell} = \{\xi, \iota\}\) — see **PROTOCOL 
 
 *Formalized:* `GeomProfile.geomWeight_sum`; `geomWeight_pos`; `geomWeight_tendsto_uniform`.
 
-## PROTOCOL PARAMETERS
+### PROTOCOL_PARAMETERS
 
 Every parameter of the protocol enters here as a **Protocol Parameter** — a special definition that
 fully specifies its **domain**, its **purpose**, and its **economic meaning**, indexed by its
@@ -174,7 +176,19 @@ parameter set. A parameter not listed here is not a parameter of the protocol.
   *Purpose:* the number of strikes carrying the ladder (Definition 7); the weight profile lives on the simplex \(\Delta^{\iota-1}\); with \(\xi\), encodes the **delta-neutral** strike weighting.
   *Economic meaning:* the resolution at which the continuous log-contract strip is discretized — the finite-strip replication error and the G4 underspecification deficit (\(\iota - 2\)) are both functions of it.
 
-> PENDING ENTRIES (added as the pair pass reaches them): \(\Theta_p = \{\eta, \Delta_i\}\) (price grid), \(\Theta_{\varphi} = \{\chi_{X/M}, \epsilon_{X/M}\}\) (trading curve — the existing "THE PARAMETERS, ECONOMICALLY" block folds in here), \(\Theta_{\phi}\) (fee schedule), \(\Theta_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) (order).
+**Protocol Parameter (\(\Theta_{p} = \{\eta, \Delta_i\}\) — the pricing geometry).**
+
+- \(\eta\) — the **grid exponent**.
+  *Domain:* \(\eta > 0\) (jointly with \(\Delta_i > 0\) this is exactly the strict-monotonicity hypothesis \(\eta\,\Delta_i > 0\), `priceEta_strictMono`; \(\eta = 1\) is the canonical grid).
+  *Purpose:* the one-parameter deformation of the tick-price law (Definition 8) — the exponent tilting the grid away from the square-root-price member.
+  *Economic meaning:* the grid-side tilt dial. It is **not** the trading-curve share: \(\eta\) enters the curve only through the proven bridge \(\chi_{X/M}(\eta) = \Lambda(\eta\,\Delta_i \ln\lambda/2)\), and the genuine curvature \(\kappa_{\varphi}\) does not depend on it at all (a function of \(\epsilon_{X/M}\) alone).
+
+- \(\Delta_i\) — the **tick spacing**.
+  *Domain:* \(\Delta_i > 0\) (the Lean leg-nonnegativity theorem needs \(\Delta_i \geq 0\) in addition to \(\eta\,\Delta_i > 0\); on-chain it is the positive integer tick spacing of [UNI_V3](../refs/uniswap-v3-core.pdf)).
+  *Purpose:* grid granularity — the quantization step at which strikes, hence ladder legs, may sit (Definition 8).
+  *Economic meaning:* the spacing pins the ladder ratio \(\xi^{\star} = \lambda^{-\Delta_i/2}\) (\(\Theta_{\ell}\) entry) and sets the per-spacing price step \(\lambda^{\eta\Delta_i/2}\) — the coarseness lever coupling the pricing geometry to the replication ladder.
+
+> PENDING ENTRIES (added as the pair pass reaches them): \(\Theta_{\varphi} = \{\chi_{X/M}, \epsilon_{X/M}\}\) (trading curve — the existing "THE PARAMETERS, ECONOMICALLY" block folds in here), \(\Theta_{\phi}\) (fee schedule), \(\Theta_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) (order).
 
 **Proposition 5 (Single-leg direction sensitivity).** A single leg's variance sensitivity is direction-sensitive:
 
@@ -214,6 +228,21 @@ The sign is **per leg** (`isLong` in the Panoptic tokenId), so mixed-direction l
 
 *Formalized:* the leg encoding lives in `PanopticTokenId.plk` (`isLong`, `tokenType`); the doc-side ledger statement is **UNFORMALIZED** — no Lean carrier states it yet.
 
+# PRICING_GEOMETRY
+
+**Definition 8 (Price grid).** The **price grid** is the map assigning to each tick \(i\) the value
+
+\[
+	\begin{aligned}
+		p_{(\eta, \Delta_i)} (i) \, &\equiv \, \lambda^{i/2 \, \Delta_i \, \eta}
+	\end{aligned}
+\]
+
+where \(\lambda\) is the fixed tick base of [UNI_V3](../refs/uniswap-v3-core.pdf) — a constant of the grid machinery, **not** a member of \(\Theta_p\) — and \((\eta, \Delta_i) = \Theta_p\) are Protocol Parameters (see **PROTOCOL_PARAMETERS (\(\Theta_p\))**). At \(\eta = 1\) the grid is the canonical square-root-price tick law of [UNI_V3](../refs/uniswap-v3-core.pdf) (`priceEta_one`); the strike price of Definition 1 is the grid at the strike tick, \(p_{(\eta,\Delta_i)}(i_K)\).
+
+*Formalized:* `VolInstrument.priceEta`; `priceEta_pos` (positivity, unconditional); `priceEta_strictMono` (under \(\eta\,\Delta_i > 0\)); `priceEta_one` (\(\eta = 1\) recovers `PosSpec.tickPrice`).
+
+\(\eta\) (price grid) and \(\chi_{X/M}\) (trading curve, \(\varphi_{\chi_{X/M},\,0}\)) are DISTINCT parameters on distinct objects; they are not two names for one exponent. Their relation is a THEOREM, not a definition — see the \(\chi_{X/M} \leftrightarrow \eta \leftrightarrow \varsigma_{X/M}\) block. <!-- notation-map -->
 
 On the price grid \(\lambda^{i\,\Delta_i}\) the discretized strike-notional weights of the log contract are exactly geometric,
 
@@ -233,22 +262,6 @@ but the per-tick *liquidity* replicating the log contract scales as the inverse 
 
 > `GeomProfile.geomWeight_sum/_pos/_tendsto_uniform`, `varswapWeight_geometric`, `logContractLiquidity_geometric`, `VolInstrument.strikeWeight_bridge`.
 
-Where under the prcing geometry:
-
-\[
-	\begin{aligned}
-		p_{(\eta, \Delta_i)} (i_K) \, &= \, \lambda^{i/2 \, \Delta_i \, \eta}
-	\end{aligned}
-\]
-
-\(\eta\) (price grid) and \(\chi_{X/M}\) (trading curve, \(\varphi_{\chi_{X/M},\,0}\)) are DISTINCT parameters on distinct objects; they are not two names for one exponent. Their relation is a THEOREM, not a definition — see the \(\chi_{X/M} \leftrightarrow \eta \leftrightarrow \varsigma_{X/M}\) block. <!-- notation-map -->
-Define:
-
-\[
-	\begin{aligned}
-		\Theta_{p} \, &= \, \{\eta, \Delta_i\}
-	\end{aligned}
-\]
 We have on the underlying market \(X, M\):
 
 \[
