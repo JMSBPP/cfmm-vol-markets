@@ -55,6 +55,7 @@ import System.Random.MWC (create, uniformR)
 import Rig.Manifest
   ( PinEntry (..)
   , Rig (..)
+  , RigAccounts (..)
   , RigAddresses (..)
   , RigPins (..)
   , RigPool (..)
@@ -2811,15 +2812,12 @@ driv01_cheat_swap_proof_is_present_and_fresh =
                ++ " -- the proof describes a DIFFERENT imported source-of-truth ref. Re-take it: "
                ++ proof_command)
 
-      captured_pm <- map toLower <$> (json_field "rig" proof >>= json_field "poolManager"
-                                       >>= json_string)
-      manifest_pm <- manifest_address addrs "PoolManager"
-      -- Via 'addresses_agree', never as a raw ==. This equality survived 'fecdc8b' only because
-      -- contracts.PoolManager happens to be read by rig_field_matches in a DIFFERENT check:
-      -- emptying both sides left THIS check passing while a neighbour failed, so the signal named
-      -- the wrong assertion.
-      _ <- addresses_agree "PoolManager" manifest_pm "rig.poolManager" captured_pm proof_command
-             "The proof describes a DIFFERENT deployment."
+      -- The WHOLE rig block, not just poolManager. Via 'addresses_agree', never as a raw ==: the
+      -- poolManager equality survived 'fecdc8b' only because contracts.PoolManager happens to be
+      -- read in a DIFFERENT check, so emptying both sides left THIS one passing while a neighbour
+      -- failed. The other five fields were not compared at all until now.
+      _ <- rig_block_matches proof addrs proof_rig_address_fields "the proof" proof_command
+      _ <- pool_id_matches proof addrs "the proof" proof_command
 
       captured_spacing <- json_field "rig" proof >>= json_field "tickSpacing" >>= json_integer
       _ <- expect (captured_spacing == rig_tick_spacing (rig_pool addrs))
@@ -3584,8 +3582,11 @@ driv01_run_capture_is_present_and_fresh =
                ++ " -- the run describes a DIFFERENT imported source-of-truth ref. Re-take it: "
                ++ driver_capture_command)
 
-      _ <- rig_field_matches capture addrs "poolManager" "PoolManager"
-      _ <- rig_field_matches capture addrs "dynamicFeeHook" "DynamicFeeHook"
+      -- The WHOLE rig block. This was two fields out of seven; priceSetterHook, swapRouter,
+      -- deployer, sender and volOrderManager were recorded and never compared.
+      _ <- rig_block_matches capture addrs driver_rig_address_fields "the run"
+             driver_capture_command
+      _ <- pool_id_matches capture addrs "the run" driver_capture_command
 
       captured_spacing <- json_field "rig" capture >>= json_field "tickSpacing" >>= json_integer
       expect (captured_spacing == rig_tick_spacing (rig_pool addrs))
@@ -3691,6 +3692,125 @@ rig_field_matches capture addrs field name = do
   manifest <- manifest_address addrs name
   addresses_agree name manifest ("rig." ++ field) captured driver_capture_command
     "The run describes a DIFFERENT deployment."
+
+-- ---------------------------------------------------------------------------------------------
+-- THE WHOLE @rig@ BLOCK, NOT THREE FIELDS OF IT
+--
+-- 'rig_field_matches' was called for exactly three contracts -- @poolManager@, @dynamicFeeHook@,
+-- @volOrderManager@ -- out of the eight address-shaped fields the two committed artifacts carry
+-- between them. The other five were recorded and never compared to anything, which is the same
+-- one-sided hardening as the raw-@==@ defect one section up, one layer out: there the guards were
+-- applied per call site, here the comparison itself was.
+--
+-- MEASURED, and this is what the gap actually cost:
+--
+-- >   manifest  contracts.PriceSetterHook   = 0xbd0397...7000
+-- >   driver-run-capture.json  rig.priceSetterHook = 0x683ee5...b000
+-- >   cheat-swap-proof.json    rig.priceSetterHook = 0x683ee5...b000
+-- >   cabal test                                    -> GREEN
+--
+-- Both committed artifacts name a PriceSetterHook that is not on the rig, and the suite had
+-- nothing to say. The address moved at merge @d7d1823@, which changed
+-- @src\/modules\/protocol_integrations\/PriceSetterHook.sol@ by comments and formatting ONLY --
+-- but Solidity's trailing CBOR metadata hash is part of @type(PriceSetterHook).creationCode@, and
+-- @foundry-scripts\/PriceSetterHook.s.sol@ mines the CREATE2 salt over exactly that. So the
+-- address moved while nothing semantic did, which is precisely the drift a human review does not
+-- catch and a comparison does. It was PREDICTED --
+-- @.planning\/phases\/22-live-stochastic-drivers\/22-VALIDATION.md@ finding F4, \"the rig is being
+-- rebuilt, and capture freshness cannot see a module change\" -- and left open.
+--
+-- The field SET is pinned as well as the values, for the reason
+-- 'sc4_pin_surface_is_the_expected_set' exists: a per-field loop over what the artifact HAPPENS to
+-- contain is scoped by the artifact, so deleting @rig.priceSetterHook@ would delete its own check.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The manifest entry every @rig.<field>@ must equal. An unknown field name is a FAILURE, not a
+-- skip -- a field this table does not know about is a field nothing compares.
+rig_manifest_counterpart :: RigAddresses -> String -> Either String (T.Text, String)
+rig_manifest_counterpart addrs field =
+  case field of
+    "deployer"               -> Right ("accounts.deployer", low (rig_deployer accts))
+    "sender"                 -> Right ("accounts.sender", low (rig_sender accts))
+    "poolManager"            -> contract "PoolManager"
+    "dynamicFeeHook"         -> contract "DynamicFeeHook"
+    "priceSetterHook"        -> contract "PriceSetterHook"
+    "priceSetterPoolManager" -> contract "PriceSetterPoolManager"
+    "swapRouter"             -> contract "PoolSwapTest"
+    "volOrderManager"        -> contract "VolOrderManagerMod"
+    _ ->
+      Left ("rig." ++ field ++ " is an address-shaped field with no manifest counterpart in"
+             ++ " rig_manifest_counterpart, so nothing in this suite compares it. Add the binding"
+             ++ " rather than widening the ignore set.")
+  where
+    accts = rig_accounts addrs
+    low = map toLower . T.unpack
+    contract name = (\v -> (name, v)) <$> manifest_address addrs name
+
+-- | The address-shaped @rig.*@ fields @driver-run-capture.json@ carries.
+driver_rig_address_fields :: [String]
+driver_rig_address_fields =
+  ["deployer", "dynamicFeeHook", "poolManager", "priceSetterHook", "sender", "swapRouter"
+  , "volOrderManager"]
+
+-- | The address-shaped @rig.*@ fields @cheat-swap-proof.json@ carries. It has no @sender@ and no
+-- @volOrderManager@ (it never sends an order), and it DOES carry @priceSetterPoolManager@.
+proof_rig_address_fields :: [String]
+proof_rig_address_fields =
+  ["deployer", "dynamicFeeHook", "poolManager", "priceSetterHook", "priceSetterPoolManager"
+  , "swapRouter"]
+
+-- | Every address-shaped field of a @rig@ block, against the manifest, with the field set pinned.
+rig_block_matches :: Value -> RigAddresses -> [String] -> String -> String -> Either String ()
+rig_block_matches capture addrs fields subject retake = do
+  block <- json_field "rig" capture
+  present <- rig_address_keys block
+  _ <- expect (sort present == sort fields)
+         (subject ++ "'s rig block does not carry the address-shaped fields this suite compares."
+           ++ "\n      missing    : " ++ render (filter (`notElem` present) fields)
+           ++ "\n      unexpected : " ++ render (filter (`notElem` fields) present)
+           ++ "\n      A field that is absent DELETES ITS OWN comparison, so the run still reports"
+           ++ " a clean freshness check while comparing less. Re-take it: " ++ retake)
+  mapM_ (one block) fields
+  where
+    one block field = do
+      captured <- map toLower <$> (json_field field block >>= json_string)
+      (name, manifest) <- rig_manifest_counterpart addrs field
+      addresses_agree name manifest (subject ++ " rig." ++ field) captured retake
+        "The artifact describes a DIFFERENT deployment."
+
+    render [] = "(none)"
+    render xs = intercalate ", " xs
+
+-- | The keys of a @rig@ block whose values are 20-byte addresses. Everything else in the block
+-- (@poolId@, @tickSpacing@) is asserted by its own check and is not an address.
+rig_address_keys :: Value -> Either String [String]
+rig_address_keys (Object o) =
+  Right [K.toString k | (k, String v) <- KM.toList o, is_address_text (T.unpack v)]
+rig_address_keys other = Left ("expected the rig block to be an object, got " ++ json_kind other)
+
+-- | The @poolId@ an artifact recorded, against the manifest's. Not an address, so it does not go
+-- through 'addresses_agree'; the same degeneracy applies, so it gets the same shape guard.
+pool_id_matches :: Value -> RigAddresses -> String -> String -> Either String ()
+pool_id_matches capture addrs subject retake = do
+  captured <- map toLower <$> (json_field "rig" capture >>= json_field "poolId" >>= json_string)
+  let manifest = map toLower (T.unpack (rig_pool_id (rig_pool addrs)))
+  _ <- expect (is_bytes32_text manifest)
+         ("the manifest's pool.poolId is " ++ show manifest ++ ", not a 32-byte word -- re-run: "
+           ++ deploy_command)
+  _ <- expect (is_bytes32_text captured)
+         (subject ++ " records rig.poolId = " ++ show captured ++ ", not a 32-byte word.")
+  expect (captured == manifest)
+    (subject ++ " records rig.poolId = " ++ captured ++ " but the manifest's pool.poolId is "
+      ++ manifest ++ ". The poolId is the PoolKey hash: it moves with the hook address, the tick"
+      ++ " spacing and the currencies, so an artifact recorded under a different one measured a"
+      ++ " DIFFERENT pool. Re-take it: " ++ retake)
+
+-- | A @0x@-prefixed 32-byte word.
+is_bytes32_text :: String -> Bool
+is_bytes32_text s =
+  case stripPrefix "0x" (map toLower s) of
+    Just body -> length body == 64 && all isHexDigit body
+    Nothing   -> False
 
 -- | SC-1's CORE: one E3 per step, carrying the tick and the timestamp the driver submitted.
 --
