@@ -25,8 +25,26 @@ curvature `(1−ε)/(2−ε)`; old `κ_{\varphi} → ς_{X/M}` (share asymmetry)
 
 ## OPEN
 
-- **(a) Embedding test `232c8ee4`** — does Capponi's convex-combination family embed in full CES?
-  **Aristotle API returning 500 as of 2026-08-03.** Re-check; do not resubmit blind.
+- **(a) Embedding test `232c8ee4` — PARTIAL RETURN, 2/4.** *Both ENDPOINTS embed and are PROVEN:*
+  `Fcap_zero_is_rho_one` (Capponi's linear endpoint IS the `ρ=1` CES slice, witnesses
+  `ε = pA/(pA+pB)`, `c = A(pA+pB)/C`) and `Fcap_one_is_rho_zero_limit` (the constant-product endpoint
+  IS the equal-share punctured `ρ→0` limit, stated as a `Tendsto` so the bracket is never evaluated
+  at `ρ=0`). *The INTERIOR is open:* `canon_Fcap_not_CES` (verdict at the `κ=1/2` witness) and
+  `kappa_not_reparam_of_rho` (no endpoint-matching reparametrisation) are **SORRIED** — the task hit
+  **OUT_OF_BUDGET** after 1h26m. Owed: a scoped repair bundle on those two only, with the two proven
+  endpoint theorems as the working base. **Do NOT integrate the partial** — it carries sorries.
+
+  > CORRECTION: this item previously read "Aristotle API returning 500". That was a **CLI usage error
+  > of mine**, not an API fault — `show`/`tasks` 500 on SHORT ids and require the full UUID; the
+  > control project reproduced the same 500. The API was up throughout. Second CLI mis-read in this
+  > program (the first was matching the status column against a task NAME).
+
+  > **REPAIR BUNDLE SUBMITTED 2026-08-03: project `1f6da52a-f998-471c-84b6-9130d8adbd25`**
+  > (`aristotle-embed2`), scoped to the two sorries only, with the two proven endpoint theorems and
+  > all 24 other modules as the working base, a budget priority order, and an explicit
+  > "prove the opposite under a different name if A1 is false" clause. Submitted to a NEW project,
+  > never `continue` in parallel. NOTE: the CLI warned the bundle carries no `.lake` folder — the
+  > download does not include dependencies; if this run also fails, restore `.lake` before retrying.
 - **(b) E4 interior optimum on the ε_{X/M} axis.** *Both branches are pre-decided so completion is
   falsifiable:* if (a) shows the embedding holds → redo E4 on the ε axis and land it in a new module;
   if (a) refutes it → record E1–E7 as SHARE statements and close (b) as **MOOT**, with the
