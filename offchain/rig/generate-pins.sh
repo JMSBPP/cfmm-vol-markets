@@ -24,6 +24,7 @@
 #
 # USAGE
 #   bash offchain/rig/generate-pins.sh          # rewrites offchain/rig/rig-pins.json
+#   RIG_PINS=/tmp/copy.json bash offchain/rig/generate-pins.sh   # writes the copy instead
 # Re-running is idempotent: `git diff --exit-code offchain/rig/rig-pins.json` stays clean.
 #
 set -euo pipefail
@@ -31,7 +32,22 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 ROOT="$PWD"
 
-OUT="offchain/rig/rig-pins.json"
+# RIG_PINS IS HONOURED HERE, on the file that WRITES, exactly as 90765c1 made deploy-rig.sh
+# honour RIG_MANIFEST. README.md:274 states the rule with no exception for the writer and
+# Rig/Manifest.hs:193 honours it on the read side; this constant was the one place that
+# meant something different by the same variable.
+#
+# MEASURED before the fix, with `RIG_PINS=<copy carrying generatedFrom:"SENTINEL" and
+# create_order removed>`: the run printed "== wrote offchain/rig/rig-pins.json ==", the
+# TRACKED file was the file replaced, and the pointed-at copy still read
+# generatedFrom = SENTINEL afterwards. Dead on the writer, destructive to the tracked
+# artifact -- the same shape as the RIG_MANIFEST defect.
+#
+# HONOURED rather than REFUSED, for 90765c1's reason: a refusal would leave an operator who
+# exported RIG_PINS for a falsification run having to remember to unexport it before
+# regenerating, and forgetting is the destructive direction. Note what it does NOT redirect:
+# the INPUTS are still the imported interface files and notes/DATA_CONTRACT.md, unconditionally.
+OUT="${RIG_PINS:-offchain/rig/rig-pins.json}"
 REF_FILE="offchain/rig/import-ref.txt"
 DATA_CONTRACT="notes/DATA_CONTRACT.md"
 
@@ -78,6 +94,24 @@ for f in "${IFACES[@]}" "$REF_FILE" "$STALE_TOPIC_SRC" "$DATA_CONTRACT"; do
 done
 command -v cast >/dev/null || { echo "FATAL: cast (foundry) not on PATH" >&2; exit 1; }
 command -v jq   >/dev/null || { echo "FATAL: jq not on PATH" >&2; exit 1; }
+
+# The destination is checked NOW, not at the emit step. The emit is the last thing this
+# script does; a typo'd RIG_PINS discovered there costs the whole parse-and-`cast` pass.
+OUT_DIR=$(dirname "$OUT")
+[ -d "$OUT_DIR" ] && [ -w "$OUT_DIR" ] || {
+  echo "FATAL: cannot write the pin file to $(realpath -m "$OUT")" >&2
+  echo "       its directory '$OUT_DIR' does not exist or is not writable." >&2
+  if [ -n "${RIG_PINS:-}" ]; then
+    echo "       RIG_PINS is set to '$RIG_PINS'; unset it to use the default path." >&2
+  else
+    echo "       RIG_PINS is unset, so this is the default path -- the repo tree is wrong." >&2
+  fi
+  exit 1
+}
+if [ -n "${RIG_PINS:-}" ]; then
+  echo "note: RIG_PINS is set -- writing the pin file to $(realpath -m "$OUT")"
+  echo "      offchain/rig/rig-pins.json will NOT be touched. The INPUTS are unchanged."
+fi
 
 REF="$(tr -d ' \t\n\r' < "$REF_FILE")"
 

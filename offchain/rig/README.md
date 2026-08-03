@@ -271,7 +271,12 @@ The `--ghc-arg=-package` pair is required on ghc 9.10.3 — without it `runghc` 
 
 - No address, selector or topic0 is ever typed. Selectors and topic0s are computed from the
   signature strings in the interface files; addresses come from foundry's broadcast records.
-- `RIG_PINS` / `RIG_MANIFEST` override the default paths.
+- `RIG_PINS` / `RIG_MANIFEST` override the default paths. This holds for READERS **and for the
+  WRITER** — an override honoured on one side of a producer/consumer pair is how a falsification
+  comes to be aimed at nothing. `RIG_MANIFEST` is honoured by `deploy-rig.sh` (writer),
+  `verify-rig.sh`, `capture-cheat-swap-proof.sh`, `capture-batch-return.sh` and `Rig.Manifest`;
+  `RIG_PINS` by `generate-pins.sh` (writer), `check-upstream.sh` and `Rig.Manifest`. Both were
+  dead on their writer until it was measured (`90765c1`, and this commit).
 - A missing or malformed file is a loud startup failure, never a default. The message names the
   resolved path and the command that produces the file.
 - `src/`, `foundry-scripts/`, `test/`, `Makefile`, `foundry.toml` belong to other tracks:
