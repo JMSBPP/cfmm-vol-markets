@@ -122,8 +122,16 @@ import VolOrder.Types (VolOrder (..))
 -- This was a hardcoded @FilePath@ constant, and it is the THIRD instance of one defect in this
 -- module. 22-03 measured it for @RIG_MANIFEST@ and 22-04 for @proof_file@: an override that is
 -- advertised in @Rig.Manifest@'s own error messages (\"Override the path with the RIG_PINS
--- environment variable\") and in @offchain\/rig\/README.md@, honoured by @verify-rig.sh@, and
--- silently ignored here. The consequence is not cosmetic and is not a style point -- it is that
+-- environment variable\") and in @offchain\/rig\/README.md@ (line 274), and silently ignored here.
+--
+-- This paragraph used to say @verify-rig.sh@ honoured it. It does not, and did not:
+-- @grep -c RIG_PINS offchain\/rig\/verify-rig.sh@ returns 0. The ONE honourer is
+-- 'Rig.Manifest.rig_pins_path', which is why every consumer -- this suite, the driver, the proof
+-- app -- has to resolve through it rather than through a constant of its own. Correcting the
+-- sentence matters for the same reason the defect it describes matters: an override documented as
+-- live in a place it is not is exactly how a falsification comes to be aimed at nothing.
+--
+-- The consequence is not cosmetic and is not a style point -- it is that
 -- @RIG_PINS=\<doctored copy\> cabal test@ goes GREEN, because the constant sends every check
 -- straight back to the committed file. Every falsification aimed at the pin file was therefore
 -- VACUOUS, and the only remaining way to test a pin check was to damage the evidence it guards.
