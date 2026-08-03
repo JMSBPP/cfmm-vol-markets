@@ -98,6 +98,26 @@ curvature `(1−ε)/(2−ε)`; old `κ_{\varphi} → ς_{X/M}` (share asymmetry)
   not the ε axis alone. Either add the `pA = pB` hypothesis to the DIAGNOSIS line or restate it as a
   two-axis path. Defect in an already-approved block; same class as (e).
 
+- **(l) THE `EPSILON` ADDENDUM IS THE ORIGIN OF THE CONFLATION — AND IT IS PR-REGION'S DRAFT FIX.**
+  `model/vol_markets/VOLATILITY_INSTRUMENTS_EPSILON_ADDENDUM.md` (**STATUS: DRAFT pending HEAVY USER
+  APPROVAL**, never approved) is titled *"the trading curve `φ_{ε_{X/M}}`, the substitution
+  elasticity…"* and calls `ε_{X/M}` *"the substitution ELASTICITY between the two legs"* — while
+  writing the curve as `(ΔQ_M…)^{ε_{X/M}}·(ΔQ_X…)^{1−ε_{X/M}}`, a weighted-geometric form whose
+  exponent is a **SHARE**. That is exactly the identification `curvOfTilde_not_curvature` and
+  `canon_Fcap_not_phiEps` refute, and it is where the false doc line repaired in `838289f` came from.
+  **Two consequences:**
+  1. It is now **semantically stale, not merely notationally**: its 23 `ε_{X/M}` sites mean SHARE,
+     which the rename moved to `χ_{X/M}`. A reader applying the current scheme reads them inverted —
+     a worse failure mode than the ETA addendum's, where the stale symbol at least *looked* stale.
+  2. It declares its placement as *"replacing the unlabelled lead-in 'Consider a exogenous tuple flow
+     … on the region:'"* — **PR-REGION's exact fix site.** The missing region already has a draft; it
+     needs revising to the post-rename scheme and to the signed-`ΔQ` ruling, not writing from
+     scratch. **This addendum is the VEHICLE for PR-REGION, not something blocked by it.**
+
+- **(m) STRAY STALE NOTATION IN FOUR OTHER ADDENDA** (audit 2026-08-03): `IV_ADDENDUM` carries 1
+  `\rho` (violates gate Rule 2) and 1 `\kappa_{\varphi`; `GREEKS_ADDENDUM` 1; `JIT_ADDENDUM` 2;
+  `ETA_ADDENDUM` 2 (the last are the deliberate disclosure prose). Cheap sweep, no ruling needed.
+
 - **(j) `u` is called "the utilization factor" in the doc** — an interpretive name against the
   binding rule (the 'utilization' → `sigmoidR` precedent). Needs an authorship ruling before it is
   either swept or grandfathered.
