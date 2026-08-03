@@ -395,3 +395,429 @@ user's discussion before anything is written anywhere.**
   standing trap for anyone tempted to reuse it for a two-sided band probability.
 - **`ℙ_•` subscript style is not uniform** once set-valued subscripts are admitted — §4.4 is a live,
   unresolved convention question independent of this spike's outcome.
+
+---
+---
+
+# ROUND 2 (2026-08-03)
+
+> **Round 1's §2 verdict was OVERTURNED by the user.** Round 2 records the correction, then answers
+> the rescoped question (Task 1) and the new `ℙ_{ITM}` definition task (Task 2). **Round 1 above is
+> NOT rewritten**: the extraction (§1), the R4 replication-error argument (§3.3), the `ℙ_{ITM}` reuse
+> trap (§4.2), the type taxonomy (§4.1) and the CEV-generality point all stand unchanged, and none of
+> them depended on the overturned claim. **No doc, Lean, plank, or model file was edited in round 2
+> either.**
+
+## R2.0 — CORRECTION ACCEPTED: the exogenous/endogenous distinction was FALSE
+
+Round 1 §2 closed on "his `T` is a free input, ours is an output". **That is wrong**, and our own
+document says so. EXTRACTED from `../plank/notes/VOLATILITY_INSTRUMENTS.md`:
+
+- **line 526** (`## VOL ORDER COMPLETION — ENDOGENOUS MATURITY`, heading at line 504): "The perpetual
+  order specifies no `T`; `T★` is the implied maturity of the equivalent dated variance contract —
+  derived from `ΔQ_v★`, never stored."
+- **line 518**: the vol order packs the target vega as its fourth field —
+  `create_order(strike, width, skew, targetVega)`, `targetVega : u96` at bits 152..247 of the packed
+  `VolOrder` word, in raw liquidity units, `targetVega = ΔQ_v★` exactly.
+
+⟹ `ΔQ_v★` is a **first-class user-supplied order field**, and `T★ = 2ΔQ_v★/N_σ` is therefore
+**user-controlled, indirectly through vega**. Both horizons are user-set. **The symmetry is real:**
+Kristensen truncates a never-expiring LP position at `T` to price it against a dated Black–Scholes
+option (p. 65); we derive `T★` as the implied maturity of an equivalent dated **variance** contract
+(doc line 526). **Both are equivalence horizons that convert a perpetual into a dated instrument.**
+
+**The surviving distinction is narrower, and it is now the live question:** his `T` is an *actual
+holding duration* ("the duration `T` in days that the user holds the position", p. 58); ours is an
+*implied maturity that is never stored* and corresponds to no period anyone holds. Addressed in
+R2.1.1.
+
+**What round 1 still gets right, restated so it is not lost:** the refutation of the **MODIFIER**
+reading (§3.3 R1–R5) never depended on the false distinction. Multiplying `T★` *by* an occupancy
+fraction remains refuted. Round 2 is about **composition** — evaluating an occupancy functional *at*
+`T★` — which is a different operation and is what the user's note actually asked for.
+
+---
+
+## R2.1 — TASK 1: THE COMPOSITION DIRECTION
+
+### R2.1.1 Is `∫₀^{T★} ℙ dt` meaningful when `T★` is never held?
+
+**The "never held" objection does not bite — and the reason is symmetric.** *(INFERRED.)*
+
+`T_ITM = ∫₀^T ℙ_{[i_l,i_u]} dt` is **already** not a realized-path quantity on Kristensen's side
+either: by §1.2 it is `𝔼[∫₀^T 𝟙{p_t ∈ range} dt]`, an expectation under a model law. **Nobody observes
+`T_ITM` even when they do hold for `T`.** So "our `T★` is never held" cannot disqualify an object
+that was never a held-path quantity to begin with. Both sides are model quantities; the only question
+is whether the *upper limit* is well-defined.
+
+**LEGITIMATE INTERPRETATION (the one that works).** `T★` is *defined* (doc line 526) as the maturity
+of the **equivalent dated variance contract**. That counterfactual contract is a well-posed object —
+it is the dated instrument whose vega equals `ΔQ_v★`. Therefore
+
+> `∫₀^{T★} ℙ_{[i_l,i_u]} dt / T★` = **the fraction of the equivalent dated contract's life that the
+> price would spend inside the replicating band.**
+
+It is a **design diagnostic of the order**, computed at mint from `(ΔQ_v★, N_σ, strike, width)`, and
+it is unobservable by construction — exactly like Kristensen's. That is a legitimate object.
+
+**WHERE IT IS ILL-POSED — the real gate.** `T★` is not static: `T★_joint(t) = T★·f_fund·f_budget`
+contracts with funding and realized variance (doc line 591). Two readings, and only one is well-posed:
+
+| Reading | Upper limit | Status |
+|---|---|---|
+| **INCEPTION** | `T★` evaluated once at mint, held **fixed** as the integration limit | **WELL-POSED.** Matches the doc's own "at inception `υ = T★/2`" (line 1305). This is the reading to use. |
+| **RUNNING** | limit `T★_joint(t)` moving with `t` | **ILL-POSED as written** — the upper limit depends on the integration variable. Requires a stated stopping rule, e.g. the first `t` with `t = T★_joint(t)`, whose existence/uniqueness would itself need proof, plus measurability of `t ↦ T★_joint(t)`. **CONJECTURAL. Do not write it until the stopping rule is a user decision.** |
+
+> **ANSWER 1: legitimate under the INCEPTION reading; ill-posed under the RUNNING reading without a
+> stopping rule.** This replaces round 1's Q2 as the gating question, and it returns **positive with
+> a named condition** rather than negative.
+
+### R2.1.2 `T_ITM/T★` as a function of the target vega — there IS a usable statement
+
+*(INFERRED; each ingredient named.)* Compose two facts:
+
+1. **PROVED, in the tree:** `EndogenousMaturity.tStar_strictMono_dQvStar` (line 96) — at fixed
+   `N_σ > 0`, `T★ = 2ΔQ_v★/N_σ` is **strictly increasing** in `ΔQ_v★`.
+2. **PROVABLE (round 1 §3.3 R1):** `T ↦ (1/T)∫₀^T ℙ dt` is **antitone** whenever the integrand `ℙ` is
+   antitone in `t` — which Kristensen's is (`Erf(ln r/(σ√(2t)))` decreases in `t`), and which is the
+   *only* property needed. **This is the mean-of-a-decreasing-function lemma; it does NOT require
+   Kristensen's `Erf` form, only monotonicity of the integrand.**
+
+Composing:
+
+> **The in-band fraction of the equivalent dated contract's life is strictly DECREASING in the target
+> vega.** The more vega a user targets, the longer the equivalent dated contract, and the smaller the
+> share of that life the price spends in the replicating band.
+
+And the un-normalized companion:
+
+> **The in-band *time* `∫₀^{T★} ℙ dt` is strictly INCREASING but CONCAVE in the target vega** —
+> diminishing returns in band coverage from targeting more vega. (Concavity because the integrand is
+> decreasing; asymptotically `∝ √ΔQ_v★` under Kristensen's law, but the concavity itself needs only
+> monotonicity.)
+
+**This is non-vacuous and it is a genuine vega↔band-coverage tradeoff statement.** It is the first
+thing in this whole spike that is both new and provable without importing a price law — because the
+integrand stays **abstract and hypothesis-carrying**, exactly the discipline IV-RESEARCH §7
+("DO NOT BUNDLE Kristensen's occupation law as a hypothesis about our grid") demands.
+
+**HONEST LIMIT:** the statement is about `T★` (inception), not `T★_joint`. Under the funding/budget
+factors `T★_joint ≤ T★`, so the occupancy *fraction* would be **larger** for the contracted maturity —
+the monotonicity in `ΔQ_v★` survives only if `f_fund·f_budget` is held fixed. **State that hypothesis
+explicitly or the claim is false.**
+
+### R2.1.3 Is this the same object IV-RESEARCH put on the FLAIR side? **PARTIALLY — and yes, it is worth knowing**
+
+IV-RESEARCH §4.4 placed `T_ITM/T` as **"the measure of `{t : ν_t > 0}`"**, gating fee accrual in
+`λ_FLAIR` (`ν_t = w_t/D_t`, M6b; off-range `w_t = 0`).
+
+| | IV-RESEARCH (FLAIR side) | This composition (vega side) |
+|---|---|---|
+| **integrand** | band occupancy | band occupancy — **IDENTICAL** |
+| **horizon** | the FLAIR accumulation window | `T★` (inception) |
+| **consumer** | `λ_FLAIR` fee accrual | vega-design diagnostic |
+| **direction** | "how much fee did the band earn" | "how well does the targeted vega cover the band" |
+
+> **VERDICT: same integrand, different upper limit, different consumer — a PARTIAL duplicate,
+> approached from the other end.** The engineering consequence is concrete and worth acting on:
+> **build ONE occupancy lemma over an abstract integrand, and instantiate the upper limit twice.**
+> Building two independent formalizations of `∫ℙdt` would be the duplicate this question was asked to
+> catch.
+
+---
+
+## R2.2 — TASK 2: `ℙ_{ITM}` DEFINED THE PANOPTIC WAY
+
+> **Source of record:** `../plank/lib/panoptic-v2-core/contracts/…`. Every claim below carries a
+> file:line anchor. Nothing is paraphrased from general knowledge of how Panoptic works.
+
+### R2.2.1 HEADLINE — Panoptic has NO boolean ITM predicate; it has THREE distinct notions
+
+*(EXTRACTED.)* A grep for `ITM|inTheMoney` across `contracts/` returns comments and a **quantitative**
+`itmAmounts` accumulator — **no `isITM` function anywhere.** Three separate notions are used:
+
+**(1) MONEYNESS ITM — one-sided, threshold at the STRIKE.**
+`RiskEngine.sol:1594` — "if position is short, check whether the position is **out-the-money**";
+`RiskEngine.sol:1596` — "if position is **ITM or ATM**, then the collateral requirement depends on
+price"; `RiskEngine.sol:1598–1600` — "get the ratio of **strike to price for calls** (or **price to
+strike for puts**). Both of these ratios **decrease as the position becomes deeper ITM**"; implemented
+at `RiskEngine.sol:1604–1622`:
+
+```solidity
+uint160 ratio = tokenType == 1
+    ? Math.getSqrtRatioAtTick(bound(2*(atTick - strike), …))   // puts  -> price/strike
+    : Math.getSqrtRatioAtTick(bound(2*(strike - atTick), …));  // calls -> strike/price
+```
+
+⟹ **the moneyness predicate is `ratio < 1`**, i.e. *(INFERRED from the verbatim comment + the sign of
+the tick difference)*:
+
+```
+tokenType = 0 (CALL): ITM  ⟺  atTick > strike
+tokenType = 1 (PUT):  ITM  ⟺  atTick < strike
+ATM (atTick = strike) is grouped WITH ITM          (RiskEngine.sol:1596, verbatim)
+```
+
+> **CORRECTION TO THE TASK BRIEF:** the brief said ITM-ness "depends on the leg's encoded fields
+> `isLong`, `tokenType`, `asset`, `strike`, `width`". **It does not.** The predicate depends on
+> **`tokenType` and `strike` only** (plus `width`/`tickSpacing` for the *transition band*, notion 2).
+> `isLong` selects which collateral branch runs (`RiskEngine.sol:1592`) and flips the payoff sign — it
+> does **not** move the moneyness threshold. `asset` only rescales liquidity
+> (`PanopticMath.sol:392–397`) and never enters the predicate. **Verified by reading, not assumed.**
+
+**(2) CHUNK MEMBERSHIP ("in-range") — two-sided, HALF-OPEN `[tickLower, tickUpper)`.**
+`RiskEngine.sol:445`: `if ((currentTick < _strike + rangeUp) && (currentTick >= _strike - rangeDown)) hasLegsInRange = true;`
+`RiskEngine.sol:1640`: `if ((atTick < tickUpper) && (atTick >= tickLower))` — the in-range collateral
+interpolation branch.
+`Math.sol:372–378` (`getAmountsForLiquidity`), the canonical three-way split:
+`currentTick < tickLower` ⟹ all token0; `currentTick >= tickUpper` ⟹ all token1; else ⟹ a mix.
+
+**Band geometry** — `PanopticMath.sol:406–432`, `getTicks` / `getRangesFromStrike`, **verbatim dev
+comment**: "Given `r = (width * tickSpacing) / 2`, `tickLower = strike − floor(r)` and
+`tickUpper = strike + ceil(r)`."
+
+```
+rangeDown = (width*tickSpacing)/2                        (floor)
+rangeUp   = unsafeDivRoundingUp(width*tickSpacing, 2)    (ceil)
+tickLower = strike − rangeDown ,  tickUpper = strike + rangeUp
+```
+
+⟹ **the band is ASYMMETRIC about the strike whenever `width·tickSpacing` is odd.** The strike is the
+*floor*-midpoint, not the midpoint. `PanopticMath.sol:458–463` inverts this
+(`width = (tickUpper−tickLower)/tickSpacing`, `strike = tickLower + rangeDown`), and this project's
+plank encoder matches it exactly: `PanopticTokenId.plk:66` — `strike = lo + (span </ 2)`,
+`width = span </ ts`. **Round-trip consistency holds and is provable** (R2.2.4, L3).
+
+**(3) SWAP-ITM — the operational SFPM notion, one-sided, threshold at a CHUNK EDGE.**
+`SemiFungiblePositionManagerV4.sol:862–863`, **verbatim**:
+```solidity
+// if tokenType is 1, and we transacted some currency0: then this leg is ITM
+// if tokenType is 0, and we transacted some currency1: then this leg is ITM
+```
+and `:883–885` — a swap fires iff `LeftRightSigned.unwrap(itmAmounts) != 0`. The diagram at `:681–696`
+labels the in-chunk case "in-the-money: mix of tokens 0 and 1 within the chunk".
+
+Composing that comment with `Math.sol:372–378` *(INFERRED — the composition is mine)*:
+
+```
+tokenType = 0 (CALL): swap-ITM  ⟺  amount1 ≠ 0  ⟺  atTick ≥ tickLower
+tokenType = 1 (PUT):  swap-ITM  ⟺  amount0 ≠ 0  ⟺  atTick <  tickUpper
+```
+
+### R2.2.2 How the three relate — exactly
+
+*(INFERRED; elementary, and provable — see L1/L2 in R2.2.4.)* With `rangeDown, rangeUp ≥ 0`:
+
+```
+CALL (tokenType 0):  ITM_moneyness = [strike, ∞)        ⊂  ITM_swap = [tickLower, ∞)
+PUT  (tokenType 1):  ITM_moneyness = (−∞, strike]       ⊂  ITM_swap = (−∞, tickUpper)
+```
+
+> **`ITM_swap = ITM_moneyness ∪ (the OTM half of the chunk)`, in both cases.** Swap-ITM is a strict
+> *relaxation* of moneyness-ITM: it fires as soon as **any** token mixing exists, i.e. from the near
+> chunk edge, whereas moneyness flips at the strike in the chunk's interior. **They are not
+> interchangeable and the codebase never treats them as such.**
+
+### R2.2.3 THE ONE-SIDED vs TWO-SIDED PROBLEM, head on
+
+Four objects, and the reconciliation:
+
+| Object | Sidedness | Time semantics | Threshold |
+|---|---|---|---|
+| **doc's reserved `ℙ_{ITM}`** (line 1308) | one-sided | **terminal** (`ℙ[p_T > K]`, "ATM delta = 50%") | strike |
+| **Panoptic moneyness ITM** | one-sided | **spot / instantaneous**, evaluable at any `t` | strike |
+| **Panoptic swap-ITM** | one-sided | instantaneous, only at mint/burn | chunk edge |
+| **Kristensen band occupancy** | **two-sided** | instantaneous, then **integrated** | both edges |
+
+**THE RECONCILIATION — and it is exact, not a fudge.** Kristensen's own derivation (**p. 53**,
+EXTRACTED in round 1 §1.2) is *literally a difference of two one-sided normal CDFs*:
+
+```
+ℙ[p_T ∈ [p_a,p_b]] = N( ln(p_b/p_0)/(σ√T) ) − N( ln(p_a/p_0)/(σ√T) )
+```
+
+⟹ **the two-sided object is the difference of two one-sided objects evaluated at the two chunk
+edges.** In our band notation *(INFERRED, but a pure indicator identity — see L4)*:
+
+```
+ℙ_{[i_l,i_u]}(t)  =  ℙ_{i(t) ≥ i_l}(t)  −  ℙ_{i(t) ≥ i_u}(t)
+```
+
+> **No new primitive is required.** One-sided is the primitive; two-sided is a difference. Kristensen's
+> band occupancy and Panoptic's moneyness ITM are **the same primitive applied at different
+> thresholds** — the chunk edges vs. the strike.
+
+**VERDICT on whether `ℙ_{ITM}` can carry the Panoptic definition:**
+
+> **YES, but ONLY as a `t`-indexed FAMILY, and that requires AMENDING the reservation's wording.**
+> The reservation (line 1308) says *terminal*. Panoptic's is *instantaneous*. They are compatible in
+> the strongest possible sense — **the reserved terminal reading is exactly the `t = T` member of the
+> instantaneous family** — but the current wording does not say that, and a reader is entitled to
+> take "terminal" literally. Two further conditions:
+> - the `tokenType` and `strike` arguments must be **explicit**, not hidden — the same symbol denotes
+>   two different half-lines depending on `tokenType`;
+> - the **ATM convention** must be stated (`RiskEngine.sol:1596` groups ATM **with** ITM, and on a
+>   discrete tick lattice ATM has strictly positive probability — see the boundary artifact A4).
+>
+> **AMENDING THE RESERVATION IS A USER DECISION. FLAGGED, NOT ASSUMED, NOT APPLIED.**
+> Round 1 §4.2's warning stands unchanged for the *two-sided* object: `ℙ_{ITM}` must **never** be
+> reused for Kristensen's band occupancy. That one is a *difference* of two `ℙ_{ITM}`-type terms and
+> must be written out as such.
+
+**NOTHING IS MINTED.** Freeness greps run against `plank/notes/VOLATILITY_INSTRUMENTS.md`:
+`\mathbb{P}_{\text{ITM}}` — **1 hit** (line 1308, the reservation itself: exists, reuse candidate);
+`T_{\text{ITM}}` — **0 hits** (write it out, per round 1 §4.3);
+`occupanc` — **0 hits**; `chunk` — **0 hits** (the doc says *band* `[i_l,i_u]`; **do not import
+Panoptic's word "chunk" into the doc** — use the doc's band notation). *(Per the brief's warning that
+`c₁`/`c₂` and `ξ_{X/M}` were both proposed and both collided: **round 2 proposes no symbol at all**,
+so there is nothing to collide.)*
+
+### R2.2.4 INTEGRATION ARTIFACTS — what is needed, what exists, what is missing
+
+For `∫₀^{T★} ℙ_{ITM}(t) dt` to be well-defined:
+
+| # | Artifact | Status | Evidence |
+|---|---|---|---|
+| **A1** | **The predicate as a measurable function of a tick process** `i(t)` | ❌ **MISSING — the biggest gap.** The doc uses `i(t)` informally (9 hits) and `σ(i(t))`; the **Lean tree contains no probability space and no price process at all.** The nearest carrier is `Panoptic.crrStep` / `latticeTheta` (a CRR binomial lattice, `Panoptic.lean:90,105`) — a *discrete* candidate, not a continuous-time process. | `Panoptic.lean` 15 decls: `volOptionPayoff`, `replicationPrice`, `streamingPremium`, `q`, `crrStep`, `latticeTheta`, `thetaAtm`, … — **nothing about ITM, nothing measure-theoretic** |
+| **A2** | **Measurability + integrability on `[0,T★]`** | ⚠️ **CHEAP ONCE A1 LANDS.** `ℙ_{ITM}(t) ∈ [0,1]` is bounded, so on a bounded interval integrability follows from measurability alone; measurability follows free from monotonicity or continuity of `t ↦ ℙ_{ITM}(t)`. Under a GBM/CEV law it is continuous. **Must be a stated hypothesis, not assumed.** | — |
+| **A3** | **The measure** | ❌ **MISSING, and it CANNOT come from Panoptic.** `RiskEngine` never takes a probability — it evaluates a **deterministic predicate on an observed tick**. **Panoptic supplies the EVENT; our framework must supply the LAW.** Kristensen's law is the **objective** measure (round 1 §1.2). The doc has no price-law measure convention (its `ℙ_{Δ_ARB}`, `ℙ_{L_JIT}` etc. inherit laws from their own source models). **USER DECISION OWED: objective vs risk-neutral.** | `RiskEngine.sol:1604–1622` — pure tick arithmetic, no distribution |
+| **A4** | **Boundary / continuity at the tick edges** | ⚠️ **EVIDENCE EXISTS, DECISION MISSING.** Panoptic's comparisons are **half-open and asymmetric**: in-range `[tl, tu)` (`RiskEngine.sol:445,1640`; `Math.sol:372–378`); band asymmetric about the strike when `w·ts` is odd (`PanopticMath.sol:419` dev comment); ATM grouped **with** ITM (`RiskEngine.sol:1596`). On a **continuous** state law the boundary is null and none of this matters; on the **discrete tick lattice it is NOT null** and ATM carries positive mass. **Inherit the code's own convention (ATM ∈ ITM) — but that is a decision to record, not an inference to make silently.** | as cited |
+| **A5** | **WHICH tick** | ❌ **MISSING — and worse than a single choice.** `RiskEngine.sol:1037–1062`: the solvency check runs against **1 tick in normal mode (`spotTick`) and 4 under high deviation or `safeMode` (`spotTick, medianTick, latestTick, currentTick`)**, taking the worst case. The `atTick` argument is therefore **not a single deterministic function of time**, and `spotTick` is an **EMA**, not spot (`OraclePack.sol:29,164–169,390–395`). ⟹ `ℙ_{ITM}` at the pool tick and at the oracle tick are **different objects with different laws**. **USER DECISION OWED.** | `RiskEngine.sol:1030–1064`; `OraclePack.sol:29,202–222` |
+| **A6** | **A continuous-time on-chain evaluation** | ❌ **DOES NOT EXIST AND CANNOT.** Panoptic evaluates ITM only at **mint, burn, and collateral checks** (`SFPMv4.sol:883`, `RiskEngine.sol:1640`). There is **no accumulator** anywhere. ⟹ `∫₀^{T★}ℙ_{ITM}dt` is a **purely OFF-CHAIN / model object** and can never be a contract invariant. It belongs in the doc's OFF-CHAIN row (line 1470), not in any on-chain obligation. | as cited |
+
+> **NET: A1, A3, A5 are hard blockers requiring a user decision or a new tree artifact; A4 needs a
+> recorded convention; A2 is cheap once A1 lands; A6 is a permanent scoping fact, not a gap to close.**
+> **The predicate algebra (R2.2.1–R2.2.2) needs NONE of them** and is buildable today — which is what
+> makes the narrow promotion in R2.4 possible.
+
+### R2.2.5 PROPOSED LEAN SURFACE — names and statement shapes only, no proofs
+
+House style: guarded hypotheses explicit, `PosSpec.lam` for the tick base, real powers guarded, no
+`autoImplicit`. Namespace `Panoptic` (checked: no name collision with its existing 15 decls). **Tick
+arithmetic over `ℤ` so the half-open/rounding semantics are faithful; the occupancy layer over `ℝ`.**
+
+```lean
+namespace Panoptic
+
+/-! ### Band geometry (PanopticMath.sol:406–432) -/
+def rangeDown (w ts : ℤ) : ℤ := (w * ts) / 2            -- floor
+def rangeUp   (w ts : ℤ) : ℤ := (w * ts + 1) / 2        -- ceil, for 0 ≤ w*ts
+def tickLower (strike w ts : ℤ) : ℤ := strike - rangeDown w ts
+def tickUpper (strike w ts : ℤ) : ℤ := strike + rangeUp   w ts
+
+/-! ### The three predicates -/
+/-- MONEYNESS ITM (RiskEngine.sol:1596–1622). ATM is grouped WITH ITM. -/
+def isITM     (tokenType : Fin 2) (strike i : ℤ) : Prop :=
+  if tokenType = 0 then strike ≤ i else i ≤ strike
+/-- Band membership, half-open (RiskEngine.sol:445,1640; Math.sol:372–378). -/
+def inBand    (strike w ts i : ℤ) : Prop :=
+  tickLower strike w ts ≤ i ∧ i < tickUpper strike w ts
+/-- SWAP-ITM (SFPMv4.sol:862–863). -/
+def isITMswap (tokenType : Fin 2) (strike w ts i : ℤ) : Prop :=
+  if tokenType = 0 then tickLower strike w ts ≤ i else i < tickUpper strike w ts
+
+/-! ### Occupancy layer — the integrand stays ABSTRACT (no price law imported) -/
+noncomputable def occupiedTime (P : ℝ → ℝ) (T : ℝ) : ℝ := ∫ t in (0:ℝ)..T, P t
+noncomputable def occupancy    (P : ℝ → ℝ) (T : ℝ) : ℝ := occupiedTime P T / T
+```
+
+| ID | Statement shape | Hypotheses | Expectation |
+|---|---|---|---|
+| **L1** | `isITM tt strike i → isITMswap tt strike w ts i` | `0 ≤ w`, `0 < ts` | **PROVABLE** (needs `0 ≤ rangeDown`, `0 ≤ rangeUp`) |
+| **L2** | the set difference `isITMswap \ isITM` is exactly the OTM half-band | `0 ≤ w`, `0 < ts` | **PROVABLE** |
+| **L3** | `tickUpper − tickLower = w * ts`; and `rangeUp − rangeDown = (w*ts) % 2` (the asymmetry) | `0 ≤ w*ts` | **PROVABLE** — this is the round-trip against `PanopticMath.sol:458–463` **and** `PanopticTokenId.plk:66` |
+| **L4** | indicator identity: `𝟙_inBand = 𝟙_{i ≥ tickLower} − 𝟙_{i ≥ tickUpper}` | `tickLower ≤ tickUpper` | **PROVABLE** — the formal content of "two-sided = difference of two one-sided" (Kristensen p. 53) |
+| **L5** | `occupancy P T ∈ [0,1]` | `0 < T`, `∀t ∈ [0,T], P t ∈ [0,1]`, `IntervalIntegrable P volume 0 T` | **PROVABLE** |
+| **L6** | `T ↦ occupiedTime P T` is **concave** and monotone on `(0,∞)` | `P` antitone, nonneg, locally integrable | **PROVABLE** (standard) |
+| **L7** | `T ↦ occupancy P T` is **antitone** on `(0,∞)` | `P` antitone, nonneg, integrable | **PROVABLE** — mean-of-a-decreasing-function; the round-1 R1 fact, restated without any `Erf` |
+| **L8** | `dQvStar ↦ occupancy P (EndogenousMaturity.tStar dQvStar Nσ)` is **strictly antitone** | `0 < Nσ`, `0 < dQvStar`, `P` strictly antitone + L7's hypotheses | **PROVABLE** — composes the already-**PROVED** `tStar_strictMono_dQvStar` (`EndogenousMaturity.lean:96`) with L7. **This is R2.1.2, and it is the deliverable of the whole rescoped question.** |
+| **L9** | `ℙ_{ITM}(t) = 𝔼[𝟙 (isITM …)]` | a probability space + a tick process | **NOT PROVABLE — A1/A3/A5 missing.** State as a **definition against a supplied measure**, never as a theorem. **Do not fabricate the process.** |
+| **L10** | any statement giving `P t` a closed form (e.g. `Erf(…)`) | a price law | **CONJECTURAL. DO NOT BUNDLE.** Round 1 §3.3 R5 and IV-RESEARCH §7 both forbid importing Kristensen's occupation law as a hypothesis about our grid. |
+| **L11** | the RUNNING-`T★` reading (`t = T★_joint(t)` fixed point) | a stopping rule | **CONJECTURAL — blocked on R2.1.1's user decision.** |
+
+> **L1–L8 are PROVABLE TODAY with no new axioms and no imported price law. L9–L11 are not, and are
+> labelled as such.** The split is deliberate: everything above the line depends only on integer
+> arithmetic and monotonicity; everything below needs an artifact the tree does not have.
+
+---
+
+## R2.3 — ROUND 2: EXTRACTED vs INFERRED
+
+**EXTRACTED from Panoptic v2 source** (`../plank/lib/panoptic-v2-core/contracts/`)
+- `RiskEngine.sol:1594` "check whether the position is out-the-money"; `:1596` "if position is ITM or ATM"; `:1598–1600` the strike/price-vs-price/strike ratio comment; `:1604–1622` the implementation.
+- `RiskEngine.sol:445`, `:1640` the in-range test `(atTick < tickUpper) && (atTick >= tickLower)`.
+- `RiskEngine.sol:1030–1064` the `atTicks` vector (1 tick normally, 4 under deviation/safeMode).
+- `PanopticMath.sol:406–432` `getTicks` / `getRangesFromStrike` + the floor/ceil dev comment at `:419`; `:458–463` the inverse; `:392–397` `asset` → liquidity only.
+- `Math.sol:368–378` `getAmountsForLiquidity`, the three-way split.
+- `SFPMv4.sol:678–699` the ITM diagram; `:862–863` the tokenType/cross-token ITM comment; `:883–885` the swap trigger.
+- `OraclePack.sol:29,164–169,202–222,390–395` — `spotEMA` is an EMA; `medianTick` exists.
+- No `isITM` function exists anywhere in `contracts/` (grep).
+
+**EXTRACTED from our own tree**
+- `VOLATILITY_INSTRUMENTS.md:504,518,526` — the `## VOL ORDER COMPLETION` block, `create_order(strike, width, skew, targetVega)`, `targetVega = ΔQ_v★`, "`T★` … derived from `ΔQ_v★`, never stored".
+- `EndogenousMaturity.lean:96` `tStar_strictMono_dQvStar` — **PROVED**.
+- `Panoptic.lean` — 15 decls, none about ITM (gap confirmed by reading, not assumed).
+- `PosSpec.lean:39,46` `lam`, `tickPrice`.
+- `PanopticTokenId.plk:9–10,50–68` the bit layout and `strike = lo + (span </ 2)`, `width = span </ ts`.
+- Freeness greps (R2.2.3).
+
+**INFERRED BY ME (round 2; elementary, NOT machine-checked)**
+- The moneyness predicate `tokenType=0 ⟹ ITM ⟺ atTick > strike` (and the put mirror) — read off the *sign* of the tick difference plus the verbatim "ratios decrease as the position becomes deeper ITM".
+- The swap-ITM tick characterization — composing `SFPMv4.sol:862–863` with `Math.sol:372–378`.
+- The strict inclusion `ITM_moneyness ⊂ ITM_swap`, difference = the OTM half-band.
+- `ℙ_{[i_l,i_u]} = ℙ_{i≥i_l} − ℙ_{i≥i_u}` as the reconciliation of one-sided and two-sided (Kristensen's p. 53 form is the EXTRACTED witness; the identification with our band notation is mine).
+- The "never held ⟹ meaningless" objection does not bite, because `T_ITM` is an expectation on Kristensen's side too.
+- INCEPTION well-posed / RUNNING ill-posed.
+- The vega monotonicity (R2.1.2) and its `f_fund·f_budget`-fixed caveat.
+- The partial-duplicate finding vs the FLAIR object.
+- The A1–A6 artifact classification and the L1–L11 provability split.
+
+**NOT CLAIMED IN ROUND 2**
+- No claim that Panoptic's ITM is a probability — it is a deterministic predicate; the law is ours to supply.
+- No amendment to the line-1308 reservation (flagged as a user decision).
+- No symbol minted or proposed.
+- Nothing about `υ` identification. Out of scope, untouched.
+- No closed form for `P t`.
+
+---
+
+## R2.4 — RECOMMENDATION ON THE RESCOPED QUESTION
+
+The round-1 call (**DO NOT PROMOTE**) was answering "does `T_ITM/T` modify `T★`?" — and that
+refutation **stands** (§3.3 R1–R5). The rescoped question is different: **does the composition
+`occupancy(P, T★)` yield anything?** It does.
+
+> # ✅ PROMOTE — NARROWLY, AND CONDITIONALLY
+>
+> **One sentence:** the composition returns a real, non-vacuous, axiom-free result — *the in-band
+> fraction of the equivalent dated contract's life is strictly decreasing in the target vega*
+> (L8, composing the already-proved `tStar_strictMono_dQvStar` with an abstract-integrand occupancy
+> lemma) — together with an exactly-extracted Panoptic predicate algebra (L1–L4) that the tree
+> currently lacks entirely.
+
+**PROMOTE (buildable today, no new axioms, no imported price law):**
+- The Panoptic predicate algebra **L1–L4** — three predicates, their inclusion order, the band
+  round-trip against both `PanopticMath` and `PanopticTokenId.plk`, and the one-sided/two-sided
+  indicator identity.
+- The abstract occupancy layer **L5–L7** and the vega monotonicity **L8**, with the integrand `P` left
+  as a hypothesis-carrying parameter and the `f_fund·f_budget`-fixed caveat stated.
+
+**DO NOT PROMOTE (blocked, each on a named thing):**
+- **L9** — blocked on **A1** (no tick process in the tree), **A3** (no measure convention: user
+  decision, objective vs risk-neutral), **A5** (which tick: spot/EMA/median/current — user decision).
+- **L10** — permanently out, per IV-RESEARCH §7 and round 1 §3.3 R5.
+- **L11** — blocked on the RUNNING-`T★` stopping rule (user decision, R2.1.1).
+- **Any `T★` modifier.** Round 1 §3.3 R4 stands: a band weight is finite-strip replication error.
+  Promotion here is for **evaluating an occupancy functional AT `T★`**, never for **multiplying `T★`
+  by one**. These must not be conflated in whatever gets written.
+
+**USER DECISIONS OWED BEFORE ANY DOC BLOCK IS WRITTEN** (four, none assumed here):
+1. Amend the line-1308 `ℙ_{ITM}` reservation from *terminal* to a `t`-indexed family? (R2.2.3)
+2. The measure convention for a price-law probability — objective or risk-neutral? (A3)
+3. Which tick is the predicate's argument — pool spot, `spotEMA`, `medianTick`, or the worst-case
+   vector? (A5)
+4. The ATM convention on the discrete lattice — inherit `RiskEngine.sol:1596` (ATM ∈ ITM)? (A4)
+
+**ENGINEERING NOTE, actionable now:** build **one** occupancy lemma over an abstract integrand and
+instantiate the upper limit twice — once at `T★` (this track) and once at the FLAIR window
+(IV-RESEARCH §4.4). They share the integrand and differ only in the limit (R2.1.3).

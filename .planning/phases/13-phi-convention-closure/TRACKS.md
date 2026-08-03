@@ -109,10 +109,13 @@ curvature `(1−ε)/(2−ε)`; old `κ_{\varphi} → ς_{X/M}` (share asymmetry)
   1. It is now **semantically stale, not merely notationally**: its 23 `ε_{X/M}` sites mean SHARE,
      which the rename moved to `χ_{X/M}`. A reader applying the current scheme reads them inverted —
      a worse failure mode than the ETA addendum's, where the stale symbol at least *looked* stale.
-  2. It declares its placement as *"replacing the unlabelled lead-in 'Consider a exogenous tuple flow
-     … on the region:'"* — **PR-REGION's exact fix site.** The missing region already has a draft; it
-     needs revising to the post-rename scheme and to the signed-`ΔQ` ruling, not writing from
-     scratch. **This addendum is the VEHICLE for PR-REGION, not something blocked by it.**
+  2. **CORRECTED 2026-08-03 (user): it is NOT PR-REGION's vehicle.** It declares its placement as
+     replacing the *"on the region:"* lead-in, and I registered it as the draft fix. That was wrong —
+     the live document **already carries the correct semantics** for this material and is the
+     canonical source. The addendum is **SUPERSEDED**; it is kept only as the provenance record of
+     where the conflation entered. PR-REGION's region still has to be **written against the document's
+     current state** (verified 2026-08-03: line 313 still reads *"…on the region:"* followed by two
+     blank lines and then the `φ` display), not recovered from a stale draft.
 
 - **(m) STRAY STALE NOTATION IN FOUR OTHER ADDENDA** (audit 2026-08-03): `IV_ADDENDUM` carries 1
   `\rho` (violates gate Rule 2) and 1 `\kappa_{\varphi`; `GREEKS_ADDENDUM` 1; `JIT_ADDENDUM` 2;
