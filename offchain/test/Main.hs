@@ -1820,16 +1820,13 @@ rpin05_capture_is_present_and_fresh = Check "rpin05_capture_is_present_and_fresh
              ++ " describes chain " ++ show (rig_chain_id addrs) ++ " -- the committed capture is"
              ++ " STALE. Re-take it: " ++ capture_command)
     captured_manager <- map toLower <$> (json_field "manager" capture >>= json_string)
-    manifest_manager <-
-      case Map.lookup "VolOrderManagerMod" (rig_contracts addrs) of
-        Nothing -> Left ("the manifest has no VolOrderManagerMod contract -- re-run: "
-                          ++ deploy_command)
-        Just t  -> Right (map toLower (T.unpack t))
-    _ <- expect (captured_manager == manifest_manager)
-           ("the capture names manager " ++ captured_manager ++ " but the live manifest names "
-             ++ manifest_manager ++ " -- the committed capture describes a DIFFERENT deployment"
-             ++ " and its bytes prove nothing about the module now on chain. Re-take it: "
-             ++ capture_command)
+    manifest_manager <- manifest_address addrs "VolOrderManagerMod"
+    -- FOUND BY THE COUNTERPART SWEEP, not by the review: a THIRD raw captured == manifest
+    -- equality, on the batch-return capture. Routed through 'addresses_agree' with the other two.
+    _ <- addresses_agree "VolOrderManagerMod" manifest_manager "manager" captured_manager
+           capture_command
+           ("The committed capture describes a DIFFERENT deployment and its bytes prove nothing"
+             ++ " about the module now on chain.")
     cases <- json_field "cases" capture >>= json_array
     _ <- expect (length cases == length capture_case_names)
            ("the capture has " ++ show (length cases) ++ " cases, expected "
@@ -2642,14 +2639,13 @@ driv01_cheat_swap_proof_is_present_and_fresh =
 
       captured_pm <- map toLower <$> (json_field "rig" proof >>= json_field "poolManager"
                                        >>= json_string)
-      manifest_pm <-
-        case Map.lookup "PoolManager" (rig_contracts addrs) of
-          Nothing -> Left ("the manifest has no PoolManager -- re-run: " ++ deploy_command)
-          Just t  -> Right (map toLower (T.unpack t))
-      _ <- expect (captured_pm == manifest_pm)
-             ("the proof names PoolManager " ++ captured_pm ++ " but the live manifest names "
-               ++ manifest_pm ++ " -- the proof describes a DIFFERENT deployment. Re-take it: "
-               ++ proof_command)
+      manifest_pm <- manifest_address addrs "PoolManager"
+      -- Via 'addresses_agree', never as a raw ==. This equality survived 'fecdc8b' only because
+      -- contracts.PoolManager happens to be read by rig_field_matches in a DIFFERENT check:
+      -- emptying both sides left THIS check passing while a neighbour failed, so the signal named
+      -- the wrong assertion.
+      _ <- addresses_agree "PoolManager" manifest_pm "rig.poolManager" captured_pm proof_command
+             "The proof describes a DIFFERENT deployment."
 
       captured_spacing <- json_field "rig" proof >>= json_field "tickSpacing" >>= json_integer
       _ <- expect (captured_spacing == rig_tick_spacing (rig_pool addrs))
@@ -3466,28 +3462,61 @@ refs_are_real subject captured pinned = do
       ++ " object name -- so it cannot identify the imported source-of-truth ref it was taken"
       ++ " against, and comparing it to anything proves nothing.")
 
--- | One @rig.<field>@ against one @contracts.<name>@, lowercased on both sides.
-rig_field_matches :: Value -> RigAddresses -> String -> T.Text -> Either String ()
-rig_field_matches capture addrs field name = do
-  captured <- map toLower <$> (json_field "rig" capture >>= json_field field >>= json_string)
-  manifest <-
-    case Map.lookup name (rig_contracts addrs) of
-      Nothing -> Left ("the manifest has no " ++ T.unpack name ++ " -- re-run: " ++ deploy_command)
-      Just t  -> Right (map toLower (T.unpack t))
-  -- See the non-degeneracy note above: without these two, rig.<field> == contracts.<name> is
-  -- satisfied by two empty strings, and a manifest CAN carry one -- the key is present, so the
-  -- required-contract completeness check in Rig.Manifest sees nothing wrong.
+-- | One @contracts.<name>@ from the manifest, or a failure naming the deploy command.
+manifest_address :: RigAddresses -> T.Text -> Either String String
+manifest_address addrs name =
+  case Map.lookup name (rig_contracts addrs) of
+    Nothing -> Left ("the manifest has no " ++ T.unpack name ++ " -- re-run: " ++ deploy_command)
+    Just t  -> Right (map toLower (T.unpack t))
+
+-- | THE ONLY WAY THIS MODULE COMPARES A CAPTURED ADDRESS TO A MANIFEST ADDRESS.
+--
+-- 'fecdc8b' put the two shape guards inside 'rig_field_matches' and swept the CALL SITES of that
+-- helper. That sweep was per-call-site rather than per-COMPARISON, so two raw @captured ==
+-- manifest@ equalities survived it -- and one of them, on @PriceSetterPoolManager@, was reachable
+-- with nothing else objecting, because that key is read NOWHERE else in the suite and
+-- @Rig.Manifest@'s completeness check tests for the KEY, not the value. MEASURED:
+--
+-- > $ jq '.contracts.PriceSetterPoolManager = ""'   rig-manifest.json     > $S\/rig-manifest.json
+-- > $ jq '.legacy_write_price.poolManager  = ""'   driver-run-capture.json > $S\/driver-run-capture.json
+-- > $ RIG_MANIFEST=... DRIVER_CAPTURE=... cabal test   ->  85\/85 checks passed
+--
+-- Green on @\"\" == \"\"@. The control -- emptying only the capture -- failed at 84\/85, which is
+-- what makes this a degeneracy rather than a plain mismatch.
+--
+-- The fix is structural: the equality is not written out anywhere else. A future comparison gets
+-- the guards by having no other function to call.
+addresses_agree
+  :: T.Text          -- ^ the @contracts.<name>@ key the manifest side came from
+  -> String          -- ^ the manifest value, lowercased
+  -> String          -- ^ how the captured side is NAMED in failures, e.g. @\"rig.poolManager\"@
+  -> String          -- ^ the captured value, lowercased
+  -> String          -- ^ the command that re-takes the captured artifact
+  -> String          -- ^ what a MISMATCH means, appended to the equality failure
+  -> Either String ()
+addresses_agree name manifest captured_label captured retake consequence = do
+  -- Without these two, captured == manifest is satisfied by two empty strings, and BOTH sides can
+  -- carry one: a manifest because completeness tests the key, an artifact because every writer
+  -- fills these fields from a shell command substitution that yields "" silently on failure.
   _ <- expect (is_address_text manifest)
          ("the manifest's " ++ T.unpack name ++ " is " ++ show manifest ++ ", not a 20-byte"
            ++ " address. Rig.Manifest's completeness check tests for the KEY, so an empty value"
            ++ " passes it -- re-run: " ++ deploy_command)
   _ <- expect (is_address_text captured)
-         ("the run records rig." ++ field ++ " = " ++ show captured ++ ", not a 20-byte address."
-           ++ " An artifact that cannot say which contract it ran against cannot be checked for"
-           ++ " freshness against any manifest -- re-take it: " ++ driver_capture_command)
+         ("the artifact records " ++ captured_label ++ " = " ++ show captured ++ ", not a 20-byte"
+           ++ " address. An artifact that cannot say which contract it ran against cannot be"
+           ++ " checked for freshness against any manifest -- re-take it: " ++ retake)
   expect (captured == manifest)
-    ("the run records rig." ++ field ++ " = " ++ captured ++ " but the manifest's "
-      ++ T.unpack name ++ " is " ++ manifest ++ " -- re-take it: " ++ driver_capture_command)
+    ("the artifact records " ++ captured_label ++ " = " ++ captured ++ " but the manifest's "
+      ++ T.unpack name ++ " is " ++ manifest ++ ". " ++ consequence ++ " Re-take it: " ++ retake)
+
+-- | One @rig.<field>@ against one @contracts.<name>@, lowercased on both sides.
+rig_field_matches :: Value -> RigAddresses -> String -> T.Text -> Either String ()
+rig_field_matches capture addrs field name = do
+  captured <- map toLower <$> (json_field "rig" capture >>= json_field field >>= json_string)
+  manifest <- manifest_address addrs name
+  addresses_agree name manifest ("rig." ++ field) captured driver_capture_command
+    "The run describes a DIFFERENT deployment."
 
 -- | SC-1's CORE: one E3 per step, carrying the tick and the timestamp the driver submitted.
 --
@@ -3753,16 +3782,15 @@ driv01_legacy_write_price_still_ran =
                ++ " driver alone.")
 
       captured_pm <- map toLower <$> (json_field "poolManager" legacy >>= json_string)
-      manifest_pm <-
-        case Map.lookup "PriceSetterPoolManager" (rig_contracts (rig_addrs rig)) of
-          Nothing -> Left ("the manifest has no PriceSetterPoolManager -- re-run: "
-                            ++ deploy_command)
-          Just t  -> Right (map toLower (T.unpack t))
-      expect (captured_pm == manifest_pm)
-        ("the legacy write_price landed on " ++ captured_pm ++ " but PriceSetterPoolManager is "
-          ++ manifest_pm ++ ". If this flow ever starts writing the DynamicFeeHook manager, the"
-          ++ " two price mechanisms have stopped being independent and the DRIV-01 evidence in the"
-          ++ " same artifact is no longer attributable to the cheat-swap driver alone.")
+      manifest_pm <- manifest_address (rig_addrs rig) "PriceSetterPoolManager"
+      -- Via 'addresses_agree', never as a raw ==. This was the one reachable P2 instance:
+      -- PriceSetterPoolManager is read NOWHERE else in this module, so emptying it on both sides
+      -- left the whole suite green at 85/85 with nothing else objecting.
+      addresses_agree "PriceSetterPoolManager" manifest_pm "legacy_write_price.poolManager"
+        captured_pm driver_capture_command
+        ("If this flow ever starts writing the DynamicFeeHook manager, the two price mechanisms"
+          ++ " have stopped being independent and the DRIV-01 evidence in the same artifact is no"
+          ++ " longer attributable to the cheat-swap driver alone.")
 
 -- ---------------------------------------------------------------------------------------------
 -- DRIV-02: SC-2, SC-3 and SC-4 asserted BY VALUE over the same committed live run
