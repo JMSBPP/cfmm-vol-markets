@@ -7,9 +7,44 @@
 # against digests committed in the pin file. That is why BOTH are run.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-REF=$(cat offchain/rig/import-ref.txt)
+REF_FILE=offchain/rig/import-ref.txt
 PIN=.planning/phases/20-deploy-rig-source-of-truth-import/IMPORT-PIN.md
 PATHS=offchain/rig/import-paths.txt
+
+# THE SHAPE OF THE ANCHOR, asserted before it is used as a git revision.
+#
+# 8469c02 claimed the ref "is a 40-hex sha at every reader and its one writer". That was
+# false in exactly one place, and it was this place: the guard exists in deploy-rig.sh:68,
+# generate-pins.sh:122, capture-cheat-swap-proof.sh:283 and check-upstream.sh:116 -- and was
+# missed on the ONE reader CI runs as the SC-1 gate (develop-gate.yml's `verify-import.sh`
+# step). Read with a bare `cat`, no shape asserted.
+#
+# An EMPTY ref fails loudly (`git diff ""` is a bad revision), so this was PARTIAL, not
+# vacuous. The hole is a ref that RESOLVES but is SELF-REFERENTIAL. MEASURED with `HEAD`
+# written to import-ref.txt:
+#   $ printf 'HEAD\n' > offchain/rig/import-ref.txt && bash offchain/rig/verify-import.sh
+#   SC-1 OK: 37 imported paths (the exact set IMPORT-PIN.md pins) content-identical to HEAD
+#            and sha256-matched to IMPORT-PIN.md
+#   EXIT=0
+# Check (a) became `git diff --exit-code HEAD -- <37 paths>` -- the working tree compared to
+# ITSELF, a tautology that cannot fail -- while the banner still printed SC-1 OK naming a
+# "ref" that is whatever was last committed. A symbolic name FOLLOWS the branch; a pinned sha
+# does not, which is the whole content of "content-identical to the recorded ref". Check (b)
+# survived (it recomputes sha256 against IMPORT-PIN.md and has no ref in it), which is why the
+# combined result stayed honest here -- but (a) is half the instrument and it was reading
+# nothing. test/Main.hs:512 explicitly delegates tree-binding to this script.
+#
+# Whitespace is stripped the way the four sibling guards strip it: `cat` alone leaves any
+# leading/internal whitespace in the value and `$(...)` only trims the trailing newline.
+REF=$(tr -d ' \t\n\r' < "$REF_FILE")
+case "$REF" in
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+  *) echo "SC-1 FAIL: $REF_FILE does not hold a 40-digit lowercase sha (got '$REF')."
+     echo "           A symbolic or relative revision makes check (a) below compare the working"
+     echo "           tree to ITSELF and report SC-1 OK. Re-record the ref:"
+     echo "             bash offchain/rig/check-upstream.sh"
+     exit 1 ;;
+esac
 
 # (0) THE PATH LIST IS ITSELF PINNED, BEFORE IT IS USED FOR ANYTHING.
 #
