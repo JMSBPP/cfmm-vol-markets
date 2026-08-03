@@ -103,3 +103,4 @@ For \(η = 1/2\)
 		\pi^{\text{lp}}_{1/2} \propto P^{-1/2} = 1/\sqrt{P}
 	\end{aligned}
 \]	
+ 
