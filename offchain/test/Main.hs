@@ -22,15 +22,15 @@
 module Main (main) where
 
 import Control.Exception (IOException, finally, try)
-import Control.Monad (replicateM)
+import Control.Monad (foldM, replicateM)
 import Crypto.Ethereum.Utils (keccak256)
-import Data.Aeson (Value (..), eitherDecodeFileStrict, encodeFile)
+import Data.Aeson (Value (..), eitherDecodeFileStrict, encodeFile, toJSON)
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
 import Data.Bits (shiftL, shiftR, xor, (.&.), (.|.))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
-import Data.Char (digitToInt, intToDigit, isAlpha, isAlphaNum, isHexDigit, isSpace, toLower)
+import Data.Char (digitToInt, intToDigit, isAlpha, isAlphaNum, isDigit, isHexDigit, isSpace, toLower)
 import qualified Data.Foldable as F
 import Data.List (intercalate, isInfixOf, isPrefixOf, nub, sort, stripPrefix)
 import qualified Data.Map.Strict as Map
@@ -42,8 +42,10 @@ import System.Directory
   ( createDirectoryIfMissing
   , doesDirectoryExist
   , doesFileExist
+  , getCurrentDirectory
   , getTemporaryDirectory
   , listDirectory
+  , makeAbsolute
   , removeFile
   )
 import System.Environment (lookupEnv, setEnv, unsetEnv)
@@ -4888,11 +4890,799 @@ hex_word_integer w
   | otherwise = Left ("not a 32-byte hex word: " ++ show w)
 
 -- ---------------------------------------------------------------------------------------------
+-- THE SENTINEL-FALSIFICATION HARNESS
+--
+-- == WHY IT EXISTS
+--
+-- One defect class has now been found and swept SIX times on this branch, and every sweep
+-- generalised the REPRESENTATION it had just seen instead of the PREDICATE:
+--
+--   1. @"" == ""@                                        (empty strings)
+--   2. @tickSpacing = 0@                                 (numeric zero) -- was 89\/89 green
+--   3. a count-preserving rename defeating a count floor
+--   4. an empty @import-ref.txt@ making a self-check compare @"" == ""@
+--   5. a CI @-Wall@ gate greping a log whose emptiness means pass
+--   6. the zero address \/ the zero word                 (this round) -- was 89\/89 green
+--
+-- Six hand sweeps is the evidence that hand sweeps do not close the class. This harness closes it
+-- by MEASUREMENT: it takes every field the committed artifacts carry, replaces it with each of a
+-- fixed set of sentinels one at a time, and requires at least one check to redden. A field that
+-- absorbs a sentinel silently is a field nothing asserts, and that is instance seven waiting.
+--
+-- == WHAT IT CATCHES, AND WHAT IT DOES NOT
+--
+-- Read this before citing it. An overclaiming harness is worse than none: it would let the next
+-- reviewer believe a class is closed that is not.
+--
+--   IT CATCHES: unasserted fields. One side of one artifact is mutated and nothing objects.
+--
+--   IT DOES NOT CATCH writer-side tautologies -- two fields of the SAME artifact derived from the
+--   same expression in the writer, so that a checker comparing them is comparing a value to
+--   itself. No single-side sentinel sweep can find those: mutating either field alone reddens the
+--   comparison, so the pair looks perfectly asserted. That is a different class (it is what the
+--   @readback_id@ finding is), it is found by reading the WRITER, and this harness is silent
+--   about it by construction.
+--
+--   IT DOES NOT CATCH coordinated mutation. Mutating both sides together is exactly what the zero
+--   address survived, so the harness deliberately mutates ONE SIDE AT A TIME -- that is what makes
+--   an absorbed pair mean something. It follows that it says nothing about whether the two sides
+--   have independent PROVENANCE; only 'sc4_generated_from_is_the_imported_ref'-shaped external
+--   anchors do that.
+--
+--   IT DOES NOT REACH @offchain\/rig\/batch-return-capture.json@ or
+--   @test\/pos_spec\/fixtures\/vol_order_return_golden.json@, which have no environment override.
+--   Mutating them would mean editing a committed artifact. 'unswept_artifacts' names them so the
+--   gap is on the record rather than implied by absence.
+--
+-- == THE FLOOR
+--
+-- 'sentinel_pair_floor' is the point of the whole thing. A harness that enumerates whatever it
+-- happens to find is scoped by what it finds: an artifact that stops decoding, a resolver that
+-- stops resolving, or an enumeration that quietly returns fewer paths all shrink the sweep to
+-- nothing while it still reports success. That is instance three of the class above (a
+-- count-preserving rename defeating a count floor) and instance five (a gate greping a log whose
+-- emptiness means pass), and a harness built to detect the class must not BE the class.
+-- ---------------------------------------------------------------------------------------------
+
+-- | One step of a path into a JSON document.
+data JStep = JKey K.Key | JIdx Int
+
+-- | @.contracts.PoolManager@, @.steps[3].e3.tick@ -- the jq form, so a reported pair can be
+-- pasted straight into a @jq@ invocation to reproduce it by hand.
+render_json_path :: [JStep] -> String
+render_json_path = concatMap one
+  where
+    one (JKey k) = '.' : K.toString k
+    one (JIdx i) = "[" ++ show i ++ "]"
+
+-- | Every scalar leaf of a document, as a path. Objects and arrays are traversed, not mutated:
+-- replacing a whole subtree is a structural break that any decoder objects to, which would inflate
+-- the caught count with pairs that prove nothing about assertions.
+scalar_json_paths :: Value -> [[JStep]]
+scalar_json_paths = go []
+  where
+    go here (Object o) = concat [go (here ++ [JKey k]) v | (k, v) <- KM.toList o]
+    go here (Array a)  = concat [go (here ++ [JIdx i]) v | (i, v) <- zip [0 :: Int ..] (F.toList a)]
+    go here _          = [here]
+
+-- | Replace the leaf at a path. 'Nothing' when the path does not exist, which the caller treats
+-- as a harness failure rather than as a skip -- a mutation that did not happen must never be
+-- counted as a mutation that was caught.
+set_json_at :: [JStep] -> Value -> Value -> Maybe Value
+set_json_at [] new _ = Just new
+set_json_at (JKey k : rest) new (Object o) = do
+  cur <- KM.lookup k o
+  sub <- set_json_at rest new cur
+  Just (Object (KM.insert k sub o))
+set_json_at (JIdx i : rest) new (Array a) =
+  let xs = F.toList a
+  in if i < 0 || i >= length xs
+       then Nothing
+       else do
+         sub <- set_json_at rest new (xs !! i)
+         Just (toJSON [if j == i then sub else x | (j, x) <- zip [0 :: Int ..] xs])
+set_json_at _ _ _ = Nothing
+
+-- | A value written in where a real one was.
+data Sentinel = Sentinel
+  { sentinel_name  :: String
+  , sentinel_value :: Value
+  }
+
+-- | THE SENTINEL SET.
+--
+-- Every representation this class has taken on this branch, plus the two the review named as
+-- reachable-and-not-yet-seen. They are built with 'replicate' rather than written out, because
+-- 'sc3_literal_purge' greps this file for address-shaped literals and would redden on them --
+-- and because a constructed zero cannot drift from the predicate 'is_zero_hex_text' tests.
+sentinels :: [Sentinel]
+sentinels =
+  [ Sentinel "empty-string" (String T.empty)
+  , Sentinel "numeric-zero" (Number 0)
+  , Sentinel "zero-address" (String (T.pack ("0x" ++ replicate 40 '0')))
+  , Sentinel "zero-word" (String (T.pack ("0x" ++ replicate 64 '0')))
+  , Sentinel "git-null-object-id" (String (T.pack (replicate 40 '0')))
+  , Sentinel "json-null" Null
+  ]
+
+-- | An artifact the suite reads and an environment variable can redirect.
+data MutableArtifact = MutableArtifact
+  { ma_var     :: String
+  , ma_resolve :: IO FilePath
+  , ma_label   :: String
+  }
+
+-- | The four artifacts this sweep can reach. Every one is redirected through the variable a real
+-- consumer resolves, never through a path of the harness's own -- the same reason
+-- 'driv01_capture_round_trips' reads back through 'capture_path'.
+swept_artifacts :: [MutableArtifact]
+swept_artifacts =
+  [ MutableArtifact "RIG_MANIFEST" rig_manifest_path "rig-manifest.json"
+  , MutableArtifact "RIG_PINS" rig_pins_path "rig-pins.json"
+  , MutableArtifact "DRIVER_CAPTURE" capture_path "driver-run-capture.json"
+  , MutableArtifact "RIG_CHEAT_SWAP_PROOF" proof_file "cheat-swap-proof.json"
+  ]
+
+-- | THE HONEST GAP, NAMED. Committed artifacts the suite reads that this sweep cannot reach,
+-- because no environment variable redirects them and mutating them would mean editing a committed
+-- file. Anything added here without an override is a field surface the harness does not cover.
+unswept_artifacts :: [FilePath]
+unswept_artifacts = [capture_file, golden_file, import_ref_file]
+
+-- | One mutation and what it did.
+data SentinelOutcome = SentinelOutcome
+  { so_field    :: String
+  , so_sentinel :: String
+  , so_caught   :: Maybe String
+  }
+
+-- | @<artifact>#<path>@ -- the identity a floor and an allowlist entry are written against.
+so_key :: SentinelOutcome -> (String, String)
+so_key o = (normalize_field (so_field o), so_sentinel o)
+
+-- | THE ONLY WRITE THIS HARNESS EVER PERFORMS, AND IT CANNOT LAND IN THE REPOSITORY.
+--
+-- Three of the four artifacts the sweep mutates are TRACKED files
+-- (@cheat-swap-proof.json@, @driver-run-capture.json@, @rig-pins.json@; the fourth,
+-- @rig-manifest.json@, is gitignored but is still the rig's own record). A mutation harness that
+-- can write to them is the worst possible instance of the class this branch keeps rediscovering
+-- -- a regeneration step that destroys the artifact it regenerates, the same shape as the
+-- @> "$OUT"@ truncation in @capture-batch-return.sh@ that @3ecf141@ fixed -- because the damage
+-- would be INVISIBLE: the harness doctors the evidence, the suite reads the doctored evidence,
+-- and both report success.
+--
+-- \"Restores carefully\" is not good enough and is not what this does. A crash, a @fail@ or an
+-- interrupt between mutate and restore would leave committed evidence corrupted with nothing able
+-- to notice, so the harness never writes there in the first place: every mutation goes to a
+-- scratch copy under the system temp directory and the artifact is reached only through the
+-- environment override, which is what those overrides are for. This function is the enforcement
+-- -- a path inside the working tree is a hard error, not a warning, and 'guarded' turns it into a
+-- named check failure.
+outside_repo :: FilePath -> IO FilePath
+outside_repo path = do
+  absolute <- makeAbsolute path
+  repo <- getCurrentDirectory
+  if absolute == repo || (repo ++ "/") `isPrefixOf` absolute
+    then fail ("the sentinel harness tried to write " ++ absolute ++ ", which is INSIDE the"
+                ++ " working tree at " ++ repo ++ ". It mutates artifacts by copying them to a"
+                ++ " scratch directory and pointing the environment override at the copy; a write"
+                ++ " in here would doctor the committed evidence the suite exists to verify, and"
+                ++ " a doctored artifact read by the suite that doctored it reports success.")
+    else pure absolute
+
+sentinel_write :: FilePath -> Value -> IO ()
+sentinel_write path doc = outside_repo path >>= flip encodeFile doc
+
+-- | Checks that spawn one subprocess per pin or per file. They are run LAST within whatever list
+-- the sweep is given, so that a mutation caught by anything else never pays for them. Ordering
+-- only -- nothing is ever dropped from a list because it appears here.
+expensive_checks :: [String]
+expensive_checks = ["sc4_cast_agreement", "sc3_literal_purge"]
+
+-- | Cheap checks first, in their original order.
+cheap_first :: [Check] -> [Check]
+cheap_first cs =
+  [c | c <- cs, check_name c `notElem` expensive_checks]
+    ++ [c | c <- cs, check_name c `elem` expensive_checks]
+
+-- | Run a check list in order, stopping at the FIRST failure. The harness only ever asks "did
+-- anything object", so running the remaining eighty-odd checks after the answer is yes would buy
+-- nothing and cost the sweep its runtime.
+first_objection :: [Check] -> IO (Maybe String)
+first_objection [] = pure Nothing
+first_objection (c : cs) = do
+  outcome <- check_run c
+  case outcome of
+    Left _   -> pure (Just (check_name c))
+    Right () -> first_objection cs
+
+-- | Every failing check name. Used only for the baseline.
+all_objections :: [Check] -> IO [String]
+all_objections cs = do
+  outcomes <- mapM (\c -> (,) (check_name c) <$> check_run c) cs
+  pure [n | (n, Left _) <- outcomes]
+
+-- | Point a variable at a path for the duration, then put it back exactly as it was.
+with_override :: String -> FilePath -> IO a -> IO a
+with_override var path act = do
+  original <- lookupEnv var
+  let restore = maybe (unsetEnv var) (setEnv var) original
+  flip finally restore $ do
+    setEnv var path
+    act
+
+-- | THE CHECKS THAT CAN SEE ONE ARTIFACT AT ALL, DERIVED BY MEASUREMENT.
+--
+-- Every leaf of the artifact is replaced by a DISTINCT marker string and the whole suite is run
+-- once; whatever objects is a check that reads this file. The markers are distinct rather than
+-- uniform so that an intra-file equality (@a == b@) breaks too -- a uniform garble would leave
+-- one satisfied and the check would look like a non-reader.
+--
+-- Filtering the per-mutation list to this set is SOUND IN THE DIRECTION THAT MATTERS, and that
+-- is the only reason it is allowed here. Running fewer checks can only produce FEWER catches,
+-- never more: a reader this derivation misses turns some asserted field into a reported
+-- absorbed pair, which fails the harness loudly and gets investigated. It can never turn an
+-- unasserted field into a silent pass, which is the failure the harness exists to prevent. The
+-- cost it buys back is not marginal -- the unfiltered sweep ran for six minutes, most of it in
+-- the 36 @cast@ spawns and the recursive @grep@ of checks that never open these files.
+--
+-- The fold is in 'Either' and NOT in @fromMaybe doc@. A garble step that silently fell back to
+-- the unmutated document would produce an empty reader set, and an empty reader set reads as
+-- "nothing asserts this artifact" -- a swallowed failure presenting as a finding, which is the
+-- same shape as the @Left _ -> 0@ this round removed from 'driv01_swap_calldata_shape'.
+reader_set :: FilePath -> MutableArtifact -> Value -> IO (Either String [String])
+reader_set scratch artifact original =
+  case foldM mark original (zip [0 :: Int ..] (scalar_json_paths original)) of
+    Left err -> pure (Left err)
+    Right garbled
+      | garbled == original ->
+          pure (Left (ma_label artifact ++ ": replacing all "
+                       ++ show (length (scalar_json_paths original)) ++ " of its leaves with"
+                       ++ " distinct markers produced a document IDENTICAL to the original, so"
+                       ++ " the reader-set derivation measured nothing."))
+      | otherwise -> do
+          sentinel_write scratch garbled
+          Right <$> with_override (ma_var artifact) scratch (core_checks >>= all_objections)
+  where
+    mark doc (i, path) =
+      case set_json_at path (String (T.pack ("sentinel-probe-" ++ show i))) doc of
+        Just next -> Right next
+        Nothing   ->
+          Left (ma_label artifact ++ render_json_path path ++ " was enumerated as a leaf and then"
+                 ++ " could not be written back while deriving the reader set. The enumeration and"
+                 ++ " the mutation disagree about the document.")
+
+-- | Mutate one artifact at every leaf, with every sentinel, one at a time.
+--
+-- The @hot@ list is a pure SPEED heuristic and carries no correctness weight: check names that
+-- have already objected for this artifact are tried first, because mutations in one subtree are
+-- almost always caught by the same check. It reorders 'readers'; it never shortens it.
+sweep_one :: FilePath -> MutableArtifact -> Value -> IO (Either String [SentinelOutcome])
+sweep_one scratch artifact original = do
+  derived <- reader_set scratch artifact original
+  baseline_names <- map check_name <$> core_checks
+  let paths = scalar_json_paths original
+      pairs = [(p, s) | p <- paths, s <- sentinels]
+  case derived of
+    Left err -> pure (Left err)
+    Right readers
+      | null readers ->
+          pure (Left (ma_label artifact ++ ": not one check in the suite objected when EVERY field"
+                       ++ " in it was replaced with a distinct marker. Either nothing reads this"
+                       ++ " artifact -- in which case all " ++ show (length pairs) ++ " of its"
+                       ++ " (field, sentinel) pairs are unasserted and the sweep below would be"
+                       ++ " reporting that one pair at a time -- or " ++ ma_var artifact ++ " is no"
+                       ++ " longer honoured and the mutation never reached a reader."))
+      | otherwise -> do
+          let readable n = n `elem` readers || n `notElem` baseline_names
+          outcome <- foldM (step readable) (Right ([], [])) pairs
+          pure (reverse . snd <$> outcome)
+  where
+    step _ (Left err) _ = pure (Left err)
+    step readable (Right (hot, acc)) (path, sentinel) =
+      case set_json_at path (sentinel_value sentinel) original of
+        Nothing ->
+          pure (Left (ma_label artifact ++ render_json_path path ++ " was enumerated as a leaf"
+                       ++ " and then could not be written back. The enumeration and the mutation"
+                       ++ " disagree about the document, so an unknown number of pairs in this"
+                       ++ " artifact were never actually mutated."))
+        -- A sentinel that EQUALS the value already there is not a mutation, and counting it as an
+        -- absorbed pair would be the harness manufacturing its own finding. @pool.initTick@ is
+        -- genuinely 0 and the @[false, 0]@ preview slot genuinely carries 0; a suite cannot be
+        -- asked to object to a file it was handed unchanged. Skipped, not recorded, so it does
+        -- not inflate the pair count either.
+        Just doctored | doctored == original -> pure (Right (hot, acc))
+        Just doctored -> do
+          sentinel_write scratch doctored
+          caught <- with_override (ma_var artifact) scratch $ do
+            -- The second disjunct is not decoration. 'core_checks' returns a DIFFERENT LIST when
+            -- an artifact stops decoding -- one @sc4_pins_file_decodes@ carrying the decode error
+            -- -- and that name is not in a reader set derived from a garble that still decoded.
+            -- Without it the filter deleted the only check there was and every sentinel that
+            -- breaks a type came back "absorbed": MEASURED, 288 false absorbed pairs across the
+            -- pin file alone. Anything the baseline list does not contain is run unconditionally.
+            cs <- cheap_first . filter (readable . check_name) <$> core_checks
+            let ordered = [c | n <- hot, c <- cs, check_name c == n]
+                            ++ [c | c <- cs, check_name c `notElem` hot]
+            first_objection ordered
+          let record = SentinelOutcome
+                         { so_field = ma_label artifact ++ render_json_path path
+                         , so_sentinel = sentinel_name sentinel
+                         , so_caught = caught
+                         }
+              hot' = case caught of
+                Just n | n `notElem` hot -> n : hot
+                _                        -> hot
+          pure (Right (hot', record : acc))
+
+-- | PAIRS ABSORBED ON PURPOSE, EACH WITH ITS REASON.
+--
+-- An entry here is a field this suite does not assert and has decided not to. The list is EXACT
+-- on both sides: an absorbed pair that is not listed fails the harness, and a listed pair that
+-- turns out to be caught ALSO fails it. The second direction is the one that keeps the list
+-- honest -- without it the list only ever grows, and a growing ignore list is how instance three
+-- of this class (a count floor defeated by a rename) got in.
+-- Array indices are collapsed, so @steps[0].e5.sigma@ and @steps[4].e5.sigma@ are ONE entry: they
+-- are the same field of the same record type and an entry per index would be forty lines saying
+-- one thing. The COUNT is what keeps that from being a blanket -- an entry names how many of that
+-- field's occurrences absorbed the sentinel, so a field that is asserted at index 0 and not at
+-- index 3 reads as @4 of 5@ and cannot hide behind a field-level pardon.
+-- | The reasons an absorbed pair is allowed to stay absorbed. Named rather than inlined so that
+-- the table below reads as a classification and a reader can see how many fields share one
+-- excuse -- an excuse that covers thirty fields deserves more scrutiny than one that covers two.
+--
+-- Four of these say GAP, in those words. They are not decisions to skip: they are unasserted
+-- fields this harness found on its first run, recorded so they cannot be lost, and the entries
+-- shrink as they get asserted.
+reason_provenance, reason_generated_at, reason_tx_hash, reason_oracle_output :: String
+reason_step_index, reason_unnamed_measurement, reason_retired_value :: String
+reason_manifest_contract_gap, reason_currency_gap, reason_manifest_ref_gap :: String
+reason_seed_gap :: String
+
+reason_provenance =
+  "prose. A human-readable note about how the artifact was produced; there is no value here to\
+  \ recompute and nothing downstream reads it."
+
+reason_generated_at =
+  "21-02 MEASURED that generatedAt is not a regeneration witness: the capture script completes in\
+  \ ~294 ms against a 1-second timestamp resolution, so two back-to-back runs share a timestamp\
+  \ and a stale file passes a timestamp comparison silently. The DISCRIMINATING provenance fields\
+  \ are chainId, generatedFrom and the rig block, and those are asserted."
+
+reason_tx_hash =
+  "a transaction hash is the keccak of a signed envelope this suite cannot reconstruct, and the\
+  \ receipt it names lives on a chain no check may talk to. It is recorded so a human can go and\
+  \ look, which is a different job from being evidence."
+
+reason_oracle_output =
+  "oracle output. There is no second implementation of the Algebra-ported TWAP and volatility\
+  \ accumulators in this repo to check these against, so an assertion here could only pin the\
+  \ value the run happened to produce -- which is transcription, the exact thing this milestone\
+  \ exists to remove."
+
+reason_step_index =
+  "the step's own index. Its value is implied by its position in the array, and every schedule\
+  \ assertion in driv01_e3_per_step_matches_submitted is written against the position rather than\
+  \ against this field."
+
+reason_unnamed_measurement =
+  "the proof carries six measurements and the checks read the NAMED ones they are about --\
+  \ driv01_cheated_tick_reaches_e3, driv01_wrong_pool_is_silent, driv01_same_second_is_a_silent_noop\
+  \ and driv01_extreme_tick_is_survivable each name theirs. The remaining occurrences are recorded\
+  \ context, and the per-sentinel COUNT is what says how many of the six are which."
+
+reason_retired_value =
+  "the retired SET is pinned by expected_retired_pins; the retired VALUES are not recomputable.\
+  \ A retired selector has no live source to parse a signature out of -- that is what retiring it\
+  \ meant -- so the only property available is the numeric non-collision sc4_no_retired_value_is_live\
+  \ already asserts."
+
+reason_manifest_contract_gap =
+  "GAP, found by this harness on its first run. Rig.Manifest's completeness check tests for the\
+  \ KEY, and no check in the suite compares these three contract ADDRESSES to anything, so the\
+  \ manifest can name a module that was never deployed and the run stays green. They are the three\
+  \ deployed modules no offline check consumes today."
+
+reason_currency_gap =
+  "GAP. The two currencies are PoolKey inputs, so pool_id_matches is transitively sensitive to\
+  \ them through the hash -- but only if the poolId was recomputed, and it is recorded, not\
+  \ recomputed. Nothing asserts them directly."
+
+reason_manifest_ref_gap =
+  "GAP. The PIN FILE's generatedFrom is the one anchored to import-ref.txt by\
+  \ sc4_generated_from_is_the_imported_ref and compared to both artifacts. The MANIFEST's copy of\
+  \ the same field is read by nothing, so the rig can record that it was stood up from a ref it\
+  \ was not stood up from."
+
+reason_seed_gap =
+  "GAP. The manifest's seed block records the tick and timestamp the pool was initialised at.\
+  \ initTick is legitimately 0 and the harness skips that mutation as an identity; initTs has no\
+  \ legitimate zero and nothing reads it."
+
+absorbed_by_design :: [(String, [(String, Int)], String)]
+absorbed_by_design =
+  [ ( "cheat-swap-proof.json.generatedAt"
+    , [("empty-string", 1), ("numeric-zero", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1), ("json-null", 1)]
+    , reason_generated_at )
+  , ( "cheat-swap-proof.json.measurements[].e3.averageTick"
+    , [("empty-string", 4), ("numeric-zero", 4), ("zero-address", 4), ("zero-word", 4), ("git-null-object-id", 4), ("json-null", 4)]
+    , reason_oracle_output )
+  , ( "cheat-swap-proof.json.measurements[].e3_count"
+    , [("empty-string", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1), ("json-null", 1)]
+    , reason_unnamed_measurement )
+  , ( "cheat-swap-proof.json.measurements[].e3"
+    , [("empty-string", 2), ("numeric-zero", 2), ("zero-address", 2), ("zero-word", 2), ("git-null-object-id", 2)]
+    , reason_unnamed_measurement )
+  , ( "cheat-swap-proof.json.measurements[].e3.tickCumulative"
+    , [("empty-string", 4), ("numeric-zero", 4), ("zero-address", 4), ("zero-word", 4), ("git-null-object-id", 4), ("json-null", 4)]
+    , reason_oracle_output )
+  , ( "cheat-swap-proof.json.measurements[].e3.timestamp"
+    , [("empty-string", 3), ("numeric-zero", 3), ("zero-address", 3), ("zero-word", 3), ("git-null-object-id", 3), ("json-null", 3)]
+    , reason_unnamed_measurement )
+  , ( "cheat-swap-proof.json.measurements[].e3.volatilityCumulative"
+    , [("empty-string", 4), ("numeric-zero", 4), ("zero-address", 4), ("zero-word", 4), ("git-null-object-id", 4), ("json-null", 4)]
+    , reason_oracle_output )
+  , ( "cheat-swap-proof.json.measurements[].e5_count"
+    , [("empty-string", 3), ("numeric-zero", 3), ("zero-address", 3), ("zero-word", 3), ("git-null-object-id", 3), ("json-null", 3)]
+    , reason_unnamed_measurement )
+  , ( "cheat-swap-proof.json.measurements[].e5.fee"
+    , [("empty-string", 6), ("numeric-zero", 6), ("zero-address", 6), ("zero-word", 6), ("git-null-object-id", 6), ("json-null", 6)]
+    , reason_oracle_output )
+  , ( "cheat-swap-proof.json.measurements[].e5.sigma"
+    , [("empty-string", 6), ("numeric-zero", 6), ("zero-address", 6), ("zero-word", 6), ("git-null-object-id", 6), ("json-null", 6)]
+    , reason_oracle_output )
+  , ( "cheat-swap-proof.json.measurements[].head_ts_after"
+    , [("empty-string", 6), ("numeric-zero", 6), ("zero-address", 6), ("zero-word", 6), ("git-null-object-id", 6), ("json-null", 6)]
+    , reason_unnamed_measurement )
+  , ( "cheat-swap-proof.json.measurements[].state_slot"
+    , [("empty-string", 6), ("numeric-zero", 6), ("zero-address", 6), ("zero-word", 6), ("git-null-object-id", 6), ("json-null", 6)]
+    , reason_unnamed_measurement )
+  , ( "cheat-swap-proof.json.measurements[].status"
+    , [("empty-string", 1), ("numeric-zero", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1), ("json-null", 1)]
+    , reason_unnamed_measurement )
+  , ( "cheat-swap-proof.json.measurements[].swap_calldata_bytes"
+    , [("empty-string", 6), ("numeric-zero", 6), ("zero-address", 6), ("zero-word", 6), ("git-null-object-id", 6), ("json-null", 6)]
+    , reason_unnamed_measurement )
+  , ( "cheat-swap-proof.json.measurements[].tick"
+    , [("empty-string", 4), ("numeric-zero", 4), ("zero-address", 4), ("zero-word", 4), ("git-null-object-id", 4), ("json-null", 4)]
+    , reason_unnamed_measurement )
+  , ( "cheat-swap-proof.json.measurements[].ts"
+    , [("empty-string", 3), ("numeric-zero", 3), ("zero-address", 3), ("zero-word", 3), ("git-null-object-id", 3), ("json-null", 3)]
+    , reason_unnamed_measurement )
+  , ( "cheat-swap-proof.json.measurements[].tx_hash"
+    , [("empty-string", 6), ("numeric-zero", 6), ("zero-address", 6), ("zero-word", 6), ("git-null-object-id", 6), ("json-null", 6)]
+    , reason_tx_hash )
+  , ( "cheat-swap-proof.json.measurements[].word_before"
+    , [("empty-string", 5), ("numeric-zero", 5), ("zero-address", 6), ("zero-word", 6), ("git-null-object-id", 6), ("json-null", 5)]
+    , reason_unnamed_measurement )
+  , ( "cheat-swap-proof.json.measurements[].word_before_high184"
+    , [("empty-string", 5), ("numeric-zero", 5), ("zero-address", 6), ("zero-word", 6), ("git-null-object-id", 6), ("json-null", 5)]
+    , reason_unnamed_measurement )
+  , ( "cheat-swap-proof.json.measurements[].word_written"
+    , [("empty-string", 4), ("numeric-zero", 4), ("zero-address", 4), ("zero-word", 4), ("git-null-object-id", 4), ("json-null", 4)]
+    , reason_unnamed_measurement )
+  , ( "cheat-swap-proof.json.measurements[].word_written_high184"
+    , [("empty-string", 5), ("numeric-zero", 5), ("zero-address", 6), ("zero-word", 6), ("git-null-object-id", 6), ("json-null", 5)]
+    , reason_unnamed_measurement )
+  , ( "cheat-swap-proof.json._provenance"
+    , [("empty-string", 1), ("numeric-zero", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1), ("json-null", 1)]
+    , reason_provenance )
+  , ( "driver-run-capture.json.generatedAt"
+    , [("empty-string", 1), ("numeric-zero", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1), ("json-null", 1)]
+    , reason_generated_at )
+  , ( "driver-run-capture.json.orders.mixed.txHash"
+    , [("empty-string", 1), ("numeric-zero", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1), ("json-null", 1)]
+    , reason_tx_hash )
+  , ( "driver-run-capture.json.orders.n0.txHash"
+    , [("empty-string", 1), ("numeric-zero", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1), ("json-null", 1)]
+    , reason_tx_hash )
+  , ( "driver-run-capture.json.orders.single.txHash"
+    , [("empty-string", 1), ("numeric-zero", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1), ("json-null", 1)]
+    , reason_tx_hash )
+  , ( "driver-run-capture.json._provenance"
+    , [("empty-string", 1), ("numeric-zero", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1), ("json-null", 1)]
+    , reason_provenance )
+  , ( "driver-run-capture.json.steps[].e3.averageTick"
+    , [("empty-string", 5), ("numeric-zero", 5), ("zero-address", 5), ("zero-word", 5), ("git-null-object-id", 5), ("json-null", 5)]
+    , reason_oracle_output )
+  , ( "driver-run-capture.json.steps[].e3.tickCumulative"
+    , [("empty-string", 5), ("numeric-zero", 5), ("zero-address", 5), ("zero-word", 5), ("git-null-object-id", 5), ("json-null", 5)]
+    , reason_oracle_output )
+  , ( "driver-run-capture.json.steps[].e3.volatilityCumulative"
+    , [("empty-string", 5), ("numeric-zero", 5), ("zero-address", 5), ("zero-word", 5), ("git-null-object-id", 5), ("json-null", 5)]
+    , reason_oracle_output )
+  , ( "driver-run-capture.json.steps[].e5.fee"
+    , [("empty-string", 5), ("numeric-zero", 5), ("zero-address", 5), ("zero-word", 5), ("git-null-object-id", 5), ("json-null", 5)]
+    , reason_oracle_output )
+  , ( "driver-run-capture.json.steps[].e5.sigma"
+    , [("empty-string", 5), ("numeric-zero", 5), ("zero-address", 5), ("zero-word", 5), ("git-null-object-id", 5), ("json-null", 5)]
+    , reason_oracle_output )
+  , ( "driver-run-capture.json.steps[].k"
+    , [("empty-string", 5), ("numeric-zero", 4), ("zero-address", 5), ("zero-word", 5), ("git-null-object-id", 5), ("json-null", 5)]
+    , reason_step_index )
+  , ( "driver-run-capture.json.steps[].txHash"
+    , [("empty-string", 5), ("numeric-zero", 5), ("zero-address", 5), ("zero-word", 5), ("git-null-object-id", 5), ("json-null", 5)]
+    , reason_tx_hash )
+  , ( "rig-manifest.json.contracts.DynamicFeeMod"
+    , [("empty-string", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1)]
+    , reason_manifest_contract_gap )
+  , ( "rig-manifest.json.contracts.PoolModifyLiquidityTest"
+    , [("empty-string", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1)]
+    , reason_manifest_contract_gap )
+  , ( "rig-manifest.json.contracts.RealizedVolatilityMod"
+    , [("empty-string", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1)]
+    , reason_manifest_contract_gap )
+  , ( "rig-manifest.json.generatedAt"
+    , [("empty-string", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1)]
+    , reason_generated_at )
+  , ( "rig-manifest.json.generatedFrom"
+    , [("empty-string", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1)]
+    , reason_manifest_ref_gap )
+  , ( "rig-manifest.json.pool.currency0"
+    , [("empty-string", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1)]
+    , reason_currency_gap )
+  , ( "rig-manifest.json.pool.currency1"
+    , [("empty-string", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1)]
+    , reason_currency_gap )
+  , ( "rig-manifest.json.seed.initTs"
+    , [("numeric-zero", 1)]
+    , reason_seed_gap )
+  , ( "rig-pins.json.retired.create_order_v1"
+    , [("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1)]
+    , reason_retired_value )
+  , ( "rig-pins.json.retired._note"
+    , [("empty-string", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1)]
+    , reason_retired_value )
+  ]
+
+-- | @steps[3].e3.tick@ -> @steps[].e3.tick@.
+normalize_field :: String -> String
+normalize_field [] = []
+normalize_field ('[' : rest) =
+  let (digits, tail_) = span isDigit rest
+  in case (null digits, tail_) of
+       (False, ']' : more) -> "[]" ++ normalize_field more
+       _                   -> '[' : normalize_field rest
+normalize_field (c : rest) = c : normalize_field rest
+
+-- | The allowlist, flattened to the key the report compares against.
+absorbed_expectations :: [((String, String), Int)]
+absorbed_expectations =
+  [((field, sentinel), n) | (field, counts, _) <- absorbed_by_design, (sentinel, n) <- counts]
+
+-- | THE FLOOR ON HOW MUCH THE SWEEP EXERCISES.
+--
+-- Measured at the commit that introduced this harness. It is a >= floor and not an equality
+-- because artifacts legitimately grow; it exists so that an artifact that stops decoding, a
+-- resolver that stops resolving, or an enumeration that quietly returns fewer paths cannot shrink
+-- the sweep to nothing while it still reports success.
+sentinel_pair_floor :: Int
+sentinel_pair_floor = 2457
+
+-- | THE PER-ARTIFACT FLOOR. The total alone is satisfiable by one artifact growing while another
+-- drops out entirely, which is the same substitution the pin-surface SET exists to stop.
+artifact_field_floors :: [(String, Int)]
+artifact_field_floors =
+  [ ("rig-manifest.json", 20)
+  , ("rig-pins.json", 110)
+  , ("driver-run-capture.json", 151)
+  , ("cheat-swap-proof.json", 130)
+  ]
+
+-- | A key nothing in this suite reads, injected into the manifest for the NEGATIVE control.
+harness_probe_key :: K.Key
+harness_probe_key = "__sentinel_harness_probe"
+
+-- | THE HARNESS.
+sentinel_falsification_harness :: Check
+sentinel_falsification_harness =
+  Check "sentinel_falsification_harness" . guarded $ do
+    tmp <- getTemporaryDirectory
+    let scratch_dir = tmp </> "cfmm-sentinel-falsification"
+    -- The directory is guarded before it is created, not only the writes into it, so the harness
+    -- does not leave so much as an empty directory behind inside the tree.
+    _ <- outside_repo scratch_dir
+    createDirectoryIfMissing True scratch_dir
+
+    -- The baseline. Everything below reads "at least one check objected" as evidence that the
+    -- mutated field is asserted, and that reading is worthless if checks were already objecting.
+    baseline <- core_checks >>= all_objections
+
+    originals <- mapM read_original swept_artifacts
+    -- The named gap is asserted, not merely commented. A path listed as unreachable that no
+    -- longer exists is a stale disclaimer, and a stale disclaimer reads as coverage.
+    gaps <- mapM (\p -> (,) p <$> doesFileExist p) unswept_artifacts
+
+    -- THE STABILITY SNAPSHOT. A mutation is evidence only if EVERYTHING ELSE held still: the
+    -- checks compare the doctored copy against artifacts this sweep is not overriding at that
+    -- moment, and those are files a rig redeploy or a capture re-take rewrites. MEASURED, and
+    -- this is why the guard exists rather than being prudence: the first full run of this
+    -- harness reported 813 absorbed pairs, including fields that reproduce as CAUGHT by hand,
+    -- because rig-manifest.json and cheat-swap-proof.json were both regenerated underneath it
+    -- while it ran. A sweep that straddles a redeploy produces verdicts about nothing.
+    before <- mapM snapshot stability_watch
+
+    case sequence originals of
+      Left err -> pure (Left err)
+      Right docs -> do
+        swept <- mapM (uncurry (sweep_one_in scratch_dir)) (zip swept_artifacts docs)
+        control <- case zip swept_artifacts docs of
+          ((artifact, doc) : _) -> run_controls scratch_dir artifact doc
+          []                    -> pure (Left "the sentinel sweep has no artifacts at all")
+        after <- mapM snapshot stability_watch
+        pure $ do
+          _ <- expect (before == after)
+                 ("an artifact this sweep does NOT control changed while it ran: "
+                   ++ intercalate ", " [p | ((p, a), (_, b)) <- zip before after, a /= b]
+                   ++ ". Every verdict below compares a doctored copy against files that were"
+                   ++ " moving, so caught and absorbed both mean nothing. This is a redeploy or a"
+                   ++ " capture re-take landing mid-sweep, not a defect in the artifacts -- run it"
+                   ++ " again when the rig is quiet.")
+          _ <- expect (all snd gaps)
+                 ("the sentinel sweep names these files as OUTSIDE its reach, and they do not"
+                   ++ " exist: " ++ intercalate ", " [p | (p, False) <- gaps]
+                   ++ ". A disclaimer about a file that is gone reads as coverage of a file that"
+                   ++ " is there. Update unswept_artifacts.")
+          _ <- expect (null baseline)
+                 ("the suite was ALREADY failing before a single mutation was applied ("
+                   ++ intercalate ", " (sort baseline) ++ "). Every \"caught\" verdict below would"
+                   ++ " be that pre-existing failure and not the mutation, so the sweep proves"
+                   ++ " nothing until the baseline is green.")
+          outcomes <- concat <$> sequence swept
+          _ <- control
+          report outcomes
+  where
+    -- Every file a check may read while the sweep is running: the four the sweep redirects (they
+    -- are still read directly whenever a DIFFERENT artifact is the one being mutated) and the
+    -- three it cannot redirect.
+    stability_watch = map ma_resolve swept_artifacts ++ map pure unswept_artifacts
+
+    snapshot resolve = do
+      path <- resolve
+      there <- doesFileExist path
+      bytes <- if there then Just <$> BS.readFile path else pure Nothing
+      pure (path, bytes)
+
+    read_original artifact = do
+      path <- ma_resolve artifact
+      present <- doesFileExist path
+      if not present
+        then pure (Left ("the sentinel sweep cannot read " ++ path ++ " (" ++ ma_var artifact
+                          ++ "). Stand the rig up: " ++ deploy_command))
+        else do
+          decoded <- eitherDecodeFileStrict path :: IO (Either String Value)
+          pure $ case decoded of
+            Left err -> Left ("the sentinel sweep cannot decode " ++ path ++ ": " ++ err)
+            Right v  -> Right v
+
+    sweep_one_in dir artifact doc =
+      sweep_one (dir </> (ma_var artifact ++ ".json")) artifact doc
+
+    report outcomes = do
+      let absorbed = [o | o <- outcomes, isNothing (so_caught o)]
+          observed = Map.fromListWith (+) [(so_key o, 1 :: Int) | o <- absorbed]
+          expected = Map.fromList absorbed_expectations
+          unlisted = [(k, n) | (k, n) <- Map.toList observed, isNothing (Map.lookup k expected)]
+          stale    = [(k, n) | (k, n) <- Map.toList expected, isNothing (Map.lookup k observed)]
+          miscount = [ (k, want, got)
+                     | (k, want) <- Map.toList expected
+                     , Just got <- [Map.lookup k observed]
+                     , got /= want
+                     ]
+
+      _ <- expect (length outcomes >= sentinel_pair_floor)
+             ("the sweep exercised " ++ show (length outcomes) ++ " (field, sentinel) pairs, below"
+               ++ " the floor of " ++ show sentinel_pair_floor ++ ". A harness scoped by what it"
+               ++ " happens to find is scoped by nothing: an artifact that stopped decoding or an"
+               ++ " enumeration that returned fewer paths shrinks it to zero while it still"
+               ++ " reports success, which is the very class it exists to detect. If an artifact"
+               ++ " shrank ON PURPOSE, lower sentinel_pair_floor and say why.")
+
+      _ <- let short = [ (label, got, want)
+                       | (label, want) <- artifact_field_floors
+                       , let got = length (nub [ so_field o
+                                               | o <- outcomes, label `isPrefixOf` so_field o ])
+                       , got < want
+                       ]
+           in expect (null short)
+                ("the sweep enumerated fewer fields than the floor in:\n      "
+                  ++ intercalate "\n      "
+                       [ label ++ ": " ++ show got ++ ", floor " ++ show want
+                       | (label, got, want) <- short
+                       ]
+                  ++ "\n      A total-only floor is satisfied by one artifact growing while"
+                  ++ " another drops out entirely, which is the substitution the pin-surface SET"
+                  ++ " exists to stop.")
+
+      _ <- expect (null unlisted)
+             ("these (field, sentinel) pairs were ABSORBED SILENTLY -- the value was replaced on"
+               ++ " ONE side only and nothing in the suite objected. Each one is a field nothing"
+               ++ " here asserts:\n      "
+               ++ intercalate "\n      " [render_entry k n | (k, n) <- unlisted]
+               ++ "\n      Assert the field, or add it to absorbed_by_design WITH THE REASON it is"
+               ++ " not worth asserting.")
+
+      _ <- expect (null stale)
+             ("absorbed_by_design lists (field, sentinel) pairs that are now CAUGHT:\n      "
+               ++ intercalate "\n      " [render_entry k n | (k, n) <- stale]
+               ++ "\n      An ignore list that only ever grows is how a count floor gets defeated"
+               ++ " by a rename. Delete these entries.")
+
+      expect (null miscount)
+        ("absorbed_by_design records the wrong number of absorbing occurrences:\n      "
+          ++ intercalate "\n      "
+               [ fst k ++ "  :=  " ++ snd k ++ "  listed " ++ show want ++ ", measured " ++ show got
+               | (k, want, got) <- miscount
+               ]
+          ++ "\n      The count is what stops a field-level pardon from covering occurrences that"
+          ++ " ARE asserted. Fewer than listed means the field became asserted somewhere and the"
+          ++ " entry should shrink; more means it stopped being asserted somewhere.")
+
+    render_entry (field, sentinel) n = field ++ "  :=  " ++ sentinel ++ "  x" ++ show n
+
+
+    -- THE TWO CONTROLS. Without them the harness's verdicts are unfalsifiable: "nothing was
+    -- absorbed" is what a sweep that mutates nothing also reports.
+    run_controls dir artifact manifest = do
+      -- POSITIVE. A field this suite demonstrably asserts must come back CAUGHT. If it does not,
+      -- the mutation is not reaching the checks at all and every verdict is vacuous.
+      positive <- one_pair (dir </> "control-positive.json") artifact manifest
+                    [JKey "contracts", JKey "PoolManager"]
+                    (Sentinel "zero-address" (String (T.pack ("0x" ++ replicate 40 '0'))))
+      -- NEGATIVE. A key nothing reads must come back ABSORBED, for every sentinel. If the
+      -- harness reports it caught, "caught" does not mean what the report says it means.
+      let probed = case manifest of
+            Object o -> Object (KM.insert harness_probe_key (String "probe") o)
+            other    -> other
+      negatives <-
+        mapM (one_pair (dir </> "control-negative.json") artifact probed [JKey harness_probe_key])
+             sentinels
+      pure $ do
+        _ <- expect (isJust positive)
+               ("POSITIVE CONTROL FAILED: contracts.PoolManager was replaced with the zero"
+                 ++ " address in " ++ ma_label artifact ++ " ALONE and no check objected."
+                 ++ " addresses_agree asserts that field, so the sweep is not reaching the checks"
+                 ++ " and every \"caught\" verdict in this harness is vacuous.")
+        expect (all isNothing negatives)
+          ("NEGATIVE CONTROL FAILED: " ++ K.toString harness_probe_key ++ " is a key nothing"
+            ++ " in this suite reads, and the sweep reported it CAUGHT by "
+            ++ intercalate ", " (nub (catMaybes negatives)) ++ ". Whatever that check is"
+            ++ " objecting to, it is not the mutated field -- so \"caught\" does not"
+            ++ " discriminate and the absorbed list below it means nothing.")
+
+    one_pair scratch artifact doc path sentinel =
+      case set_json_at path (sentinel_value sentinel) doc of
+        Nothing -> pure (Just "<control path does not exist>")
+        Just doctored -> do
+          sentinel_write scratch doctored
+          with_override (ma_var artifact) scratch (core_checks >>= first_objection)
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
 main :: IO ()
 main = do
+  checks <- core_checks
+  outcomes <- mapM run_one (checks ++ [sentinel_falsification_harness])
+  let failed = [name | (name, False) <- outcomes]
+      total  = length outcomes
+  putStrLn ""
+  putStrLn (show (total - length failed) ++ "/" ++ show total ++ " checks passed")
+  if null failed
+    then putStrLn "SC-3 and SC-4 OK"
+    else do
+      putStrLn (show (length failed) ++ " FAILED: " ++ intercalate ", " (sort failed))
+      exitFailure
+
+-- | EVERY CHECK EXCEPT THE HARNESS, RESOLVED FROM THE ENVIRONMENT ON EVERY CALL.
+--
+-- This used to be a @let@ inside 'main'. It is a top-level @IO@ action because
+-- 'sentinel_falsification_harness' re-runs it, once per mutation, with an artifact override
+-- pointed at a doctored copy -- so every path resolution and every decode has to happen INSIDE
+-- it, not once at startup. The harness is excluded from what this returns for the obvious reason.
+core_checks :: IO [Check]
+core_checks = do
   pf      <- pins_file
   present <- doesFileExist pf
   -- The presence test is separate from the decode because @eitherDecodeFileStrict@ THROWS on a
@@ -4968,17 +5758,7 @@ main = do
           , driv02_run_capture_orders_are_fresh
           ]
             ++ per_pin_checks pins
-
-  outcomes <- mapM run_one checks
-  let failed = [name | (name, False) <- outcomes]
-      total  = length outcomes
-  putStrLn ""
-  putStrLn (show (total - length failed) ++ "/" ++ show total ++ " checks passed")
-  if null failed
-    then putStrLn "SC-3 and SC-4 OK"
-    else do
-      putStrLn (show (length failed) ++ " FAILED: " ++ intercalate ", " (sort failed))
-      exitFailure
+  pure checks
 
 run_one :: Check -> IO (String, Bool)
 run_one check = do
