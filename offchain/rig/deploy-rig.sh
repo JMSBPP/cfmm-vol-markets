@@ -60,18 +60,10 @@ INIT_TICK=0           # Safe at 0 for the seed check: Timepoint.plk's OFF_INITIA
                       # DIFFERENT, non-env-read constant -- exporting this one does not
                       # move the hook's pool. They are not one knob.
 CHAIN_ID=31337
-IMPORT_REF=$(tr -d ' \t\n\r' < offchain/rig/import-ref.txt)
-# The SHAPE of the anchor, not merely that the file was readable. An empty import-ref.txt
-# writes an empty generatedFrom into the manifest, and every downstream freshness check then
-# compares one empty string to another -- measured on the cheat-swap artifact, where that
-# comparison ("" == "") passed and the run exited 0.
-case "$IMPORT_REF" in
-  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
-  *) echo "FATAL: offchain/rig/import-ref.txt does not hold a 40-digit lowercase sha" >&2
-     echo "       (got '$IMPORT_REF'). The manifest's generatedFrom would carry it." >&2
-     echo "       Re-record the ref: bash offchain/rig/check-upstream.sh" >&2
-     exit 1 ;;
-esac
+
+# NOTE ON ORDERING: the import-ref shape gate and the manifest-destination gate used to
+# live HERE, and both ran before the `--stop` branch below. See "Step 0b" after that
+# branch for why they moved and what it cost.
 
 # --- Step 0a: toolchain preflight ------------------------------------------
 # This script has the most dependencies of anything in the rig and, before this
@@ -98,25 +90,6 @@ for tool in anvil forge cast jq; do
     exit 1
   }
 done
-# The manifest destination is checked NOW, not at Step 9. Step 9 is the last thing
-# this script does; a typo'd RIG_MANIFEST discovered there costs a full six-script
-# deploy and leaves the rig standing with no manifest describing it.
-MANIFEST_DIR=$(dirname "$MANIFEST")
-[ -d "$MANIFEST_DIR" ] && [ -w "$MANIFEST_DIR" ] || {
-  echo "FATAL: cannot write the manifest to $(realpath -m "$MANIFEST")" >&2
-  echo "       its directory '$MANIFEST_DIR' does not exist or is not writable." >&2
-  if [ -n "${RIG_MANIFEST:-}" ]; then
-    echo "       RIG_MANIFEST is set to '$RIG_MANIFEST'; unset it to use the default path." >&2
-  else
-    echo "       RIG_MANIFEST is unset, so this is the default path -- the repo tree is wrong." >&2
-  fi
-  exit 1
-}
-if [ -n "${RIG_MANIFEST:-}" ]; then
-  echo "note: RIG_MANIFEST is set -- writing the manifest to $(realpath -m "$MANIFEST")"
-  echo "      offchain/rig/rig-manifest.json will NOT be touched. anvil and broadcast/ still are."
-fi
-
 # Named here as well as inside kill_rpc_listener so every tool requirement is
 # reported before anything is killed, started or written.
 command -v lsof >/dev/null 2>&1 || command -v fuser >/dev/null 2>&1 || {
@@ -166,6 +139,74 @@ if [ "${1:-}" = "--stop" ]; then
   wait_for_port_release
   echo "rig stopped: nothing is listening on ${RPC_PORT}"
   exit 0
+fi
+
+# --- Step 0b: the gates that only the DEPLOY path needs ---------------------
+#
+# THESE TWO BLOCKS USED TO LIVE ABOVE `--stop`, AND THAT LEAKED ANVIL.
+#
+# This script already reasoned about exactly this ordering once, for the toolchain
+# preflight ("It runs BEFORE --stop, because --stop uses wait_for_port_release too").
+# These two landed above the branch without that reasoning, and neither is used by the
+# --stop path: the import ref only reaches the manifest's generatedFrom, and the manifest
+# destination is only written at Step 9. Both were pure preconditions of DEPLOYING, gating
+# the one operation whose entire job is to leave nothing running.
+#
+# The consequence is worst exactly where the teardown matters most. develop-gate.yml's
+# haskell job tears the rig down from an `if: always()` step, on a SELF-HOSTED executor
+# that persists between jobs -- so a --stop that exits 1 without killing anvil leaks the
+# chain past the end of the workflow and the next job inherits it.
+#
+# MEASURED against the live rig, BEFORE this move (anvil answering, block 10):
+#   $ printf 'not-a-sha\n' > offchain/rig/import-ref.txt
+#   $ bash offchain/rig/deploy-rig.sh --stop
+#     FATAL: offchain/rig/import-ref.txt does not hold a 40-digit lowercase sha
+#     EXIT=1
+#   $ cast block-number --rpc-url http://127.0.0.1:8545   ->  10   (anvil STILL UP)
+#
+#   $ chmod a-w offchain/rig && bash offchain/rig/deploy-rig.sh --stop
+#     FATAL: cannot write the manifest to .../offchain/rig/rig-manifest.json
+#     EXIT=1
+#   $ cast block-number --rpc-url http://127.0.0.1:8545   ->  10   (anvil STILL UP)
+#
+# Both failure modes are reachable in CI without anyone doing anything strange: a
+# conflicted or half-written import-ref.txt, or a rig-manifest.json left root-owned by an
+# earlier container/sudo run.
+#
+# What the move costs: with a malformed ref, --stop now succeeds and the DEPLOY still
+# fails -- one step later than before, having killed a listener it was always going to
+# kill. Nothing that used to be caught is now missed; the gates simply no longer stand
+# between a teardown and the process it exists to kill.
+IMPORT_REF=$(tr -d ' \t\n\r' < offchain/rig/import-ref.txt)
+# The SHAPE of the anchor, not merely that the file was readable. An empty import-ref.txt
+# writes an empty generatedFrom into the manifest, and every downstream freshness check then
+# compares one empty string to another -- measured on the cheat-swap artifact, where that
+# comparison ("" == "") passed and the run exited 0.
+case "$IMPORT_REF" in
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+  *) echo "FATAL: offchain/rig/import-ref.txt does not hold a 40-digit lowercase sha" >&2
+     echo "       (got '$IMPORT_REF'). The manifest's generatedFrom would carry it." >&2
+     echo "       Re-record the ref: bash offchain/rig/check-upstream.sh" >&2
+     exit 1 ;;
+esac
+
+# The manifest destination is checked NOW, not at Step 9. Step 9 is the last thing
+# this script does; a typo'd RIG_MANIFEST discovered there costs a full six-script
+# deploy and leaves the rig standing with no manifest describing it.
+MANIFEST_DIR=$(dirname "$MANIFEST")
+[ -d "$MANIFEST_DIR" ] && [ -w "$MANIFEST_DIR" ] || {
+  echo "FATAL: cannot write the manifest to $(realpath -m "$MANIFEST")" >&2
+  echo "       its directory '$MANIFEST_DIR' does not exist or is not writable." >&2
+  if [ -n "${RIG_MANIFEST:-}" ]; then
+    echo "       RIG_MANIFEST is set to '$RIG_MANIFEST'; unset it to use the default path." >&2
+  else
+    echo "       RIG_MANIFEST is unset, so this is the default path -- the repo tree is wrong." >&2
+  fi
+  exit 1
+}
+if [ -n "${RIG_MANIFEST:-}" ]; then
+  echo "note: RIG_MANIFEST is set -- writing the manifest to $(realpath -m "$MANIFEST")"
+  echo "      offchain/rig/rig-manifest.json will NOT be touched. anvil and broadcast/ still are."
 fi
 
 # --- Step 1: kill any stale anvil, then start a fresh one ------------------
