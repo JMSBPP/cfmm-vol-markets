@@ -197,9 +197,15 @@ read_order_count manager block = do
 -- records @prb_queried_id@ records what was QUERIED, and can therefore be checked against the id the
 -- chain announced in the E1. A capture that re-derives the id from the announcement instead is
 -- asserting @x == x@.
+-- 'prb_queried_block' is the same story one field over. A capture that records the RECEIPT's block
+-- number beside a readback is recording where the readback SHOULD have been pinned; it says nothing
+-- about where the @eth_call@ went. This field is the block the call was actually made at, so a
+-- readback that quietly slid to @Latest@ — which on a single-writer local node returns exactly the
+-- same bytes, and so is invisible in every other recorded value — shows up in the artifact.
 data PackedReadback = PackedReadback
-  { prb_queried_id :: Integer  -- ^ the @uint256@ argument decoded back out of the sent calldata
-  , prb_word       :: Integer  -- ^ the packed storage word the node returned
+  { prb_queried_id    :: Integer  -- ^ the @uint256@ argument decoded back out of the sent calldata
+  , prb_queried_block :: DefaultBlock  -- ^ the block the @eth_call@ was made at
+  , prb_word          :: Integer  -- ^ the packed storage word the node returned
   }
   deriving (Eq, Show)
 
@@ -208,7 +214,11 @@ read_order_packed_traced manager block order_id = do
   calldata <- liftIO (encode_get_order_packed order_id)
   queried  <- either fail pure (decode_get_order_packed_arg calldata)
   word     <- hex_to_integer <$> eth_call_manager manager block calldata
-  pure PackedReadback { prb_queried_id = queried, prb_word = word }
+  pure PackedReadback
+    { prb_queried_id    = queried
+    , prb_queried_block = block
+    , prb_word          = word
+    }
 
 -- | The word alone, for the callers that assert over it rather than record it.
 read_order_packed :: Address -> DefaultBlock -> Integer -> Web3 Integer

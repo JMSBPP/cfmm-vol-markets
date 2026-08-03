@@ -290,8 +290,24 @@ capture_single topic_e1 manager submitted receipt = do
     , so_e1             = fmap e1_record (listToMaybe e1s)
     , so_readback       = fmap (order_fields . unpack_vol_order_storage . prb_word) readback
     , so_readback_id    = fmap prb_queried_id readback
-    , so_readback_block = Just (unQuantity (receiptBlockNumber receipt))
+      -- The block the call was MADE at, not the receipt's block number written down a second time.
+      -- Those were the same expression -- `block` is `BlockWithNumber (receiptBlockNumber receipt)`
+      -- two lines up -- so the check that readback_block is a height and not "latest" could not
+      -- fail: a readback slid to Latest, which on a single-writer node returns byte-identical
+      -- results and is invisible in every other field, still recorded the receipt's height.
+      -- 'readback_height' is Nothing for any unpinned tag, and the offline check reddens on it.
+    , so_readback_block = readback >>= readback_height . prb_queried_block
     }
+
+-- | The height a readback was pinned to, or 'Nothing' when it was not pinned to a height at all.
+--
+-- 'Nothing' rather than an invented number, for the same reason every other absent value in this
+-- artifact is null: @Latest@, @Earliest@ and @Pending@ are TAGS, resolved by whichever node answers
+-- and at whatever moment it answers, and recording the height they happened to resolve to would be
+-- recording a pinning that never happened.
+readback_height :: DefaultBlock -> Maybe Integer
+readback_height (BlockWithNumber n) = Just (unQuantity n)
+readback_height _                   = Nothing
 
 -- | SC-3. A batch with at least one contract-rejected tuple, sent live.
 --
