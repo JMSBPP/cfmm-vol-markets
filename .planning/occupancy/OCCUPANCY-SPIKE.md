@@ -1,7 +1,8 @@
 # Research spike — `T_ITM/T` and the endogenous maturity
 
-**Status:** SPIKE **CLOSED 2026-08-03 — DO NOT PROMOTE.** No CTX id, and none is owed.
-Full record: `OCCUPANCY-RESEARCH.md`.
+**Status:** **REOPENED 2026-08-03, RESCOPED** — the close-out below answered a narrower question
+than the user asked, on a distinction that does not hold. No CTX id yet.
+Full record: `OCCUPANCY-RESEARCH.md`; correction in §CORRECTION below.
 **Demoted 2026-08-03** — both reviewers independently reached the same verdict on the first draft,
 which had registered this as CTX-OCCUPANCY with a `- [ ]` in the roadmap.
 
@@ -102,3 +103,54 @@ only **set-valued** `ℙ_•` subscript in a convention where every other subscr
 - Kristensen's Erf occupation law is the **`η_L = 0` (constant-σ GBM)** member of the CEV family our
   document already carries — so it **cannot express the vol-clustering scenario the maturity-law
   decision turned on**. It is not merely the wrong tool; it is a strictly less general one.
+
+---
+
+## CORRECTION (2026-08-03, user) — the Q2 framing was WRONG
+
+**The spike's verdict rested on "his `T` is an exogenous input, ours is an endogenous output". That
+distinction is false**, and the user caught it.
+
+Our own document (`## VOL ORDER COMPLETION`): *"The perpetual order specifies no `T`; `T★` is the
+implied maturity of the equivalent dated variance contract — derived from `ΔQ_v★`, never stored"*,
+with `T★ = 2ΔQ_v★/N_σ`. And `ΔQ_v★` is the **target vega — a first-class on-chain order field**
+(`create_order(strike, width, skew, targetVega)`, `targetVega : u96`). **So `T★` IS user-controlled**,
+indirectly through vega rather than directly. Both horizons are user-set.
+
+The symmetry is closer still: Kristensen **truncates** a never-expiring position at `T` to price it
+against a dated Black–Scholes option (p. 65); we derive `T★` as the implied maturity of an equivalent
+dated **variance** contract. Both are **equivalence horizons converting a perpetual into a dated
+instrument** — the same move, not two kinds of object.
+
+**The real distinction, which is narrower:** his `T` is an *actual holding duration*; ours is an
+*implied maturity that is never stored* and corresponds to no period anyone actually holds. So
+`∫₀^{T★} ℙ[p_t ∈ range] dt` would integrate occupancy over a horizon that exists only as a pricing
+equivalence. **Whether that is meaningful is the open question — the spike did not answer it.**
+
+### What SURVIVES the correction
+
+- **R4, untouched and still decisive against one reading.** A variance swap accrues over all of
+  `[0,T]` regardless of band, so a band weight is the **finite-strip replication error**, not a
+  maturity modifier — and the band indicator already lives in `Γ`/`Γ^Σ`. This never depended on the
+  exogenous/endogenous claim. `T_ITM/T` is **ruled out as a modifier of the maturity law.**
+- R1–R3 also stand *as arguments against the modifier reading* specifically.
+- The extraction (definition, page anchors, objective-measure integrand), the `ℙ_{ITM}` reuse trap,
+  and the CEV-generality observation are all unaffected.
+
+### What is REOPENED — the composition direction
+
+The user's note asked for `T_ITM/T` to be **connected to** our `T★` and for us to *"see what we can
+leverage"* — not for it to replace the maturity law. That is a **composition**, and it is well-posed:
+
+> With `T = T★ = 2ΔQ_v★/N_σ`, what is `T_ITM/T★`, and what does it buy?
+
+Open sub-questions:
+1. Is integrating an occupancy law over an **implied** maturity meaningful, given `T★` is never held?
+   State the interpretation or refute it — this is the question that replaces the old Q2.
+2. `T_ITM/T★` is then a function of the **target vega**. Does that give a usable statement — e.g. a
+   monotone relation between the vega the user targets and the fraction of the equivalent contract's
+   life spent in band?
+3. Does it meet the already-identified FLAIR redirect (`T_ITM/T` as the measure of `{t : ν_t > 0}`)
+   from the ε-side, i.e. is the composition the *same* object the IV research already placed there?
+
+**Promotion criterion is unchanged**, but the gating question is now (1), not "is his `T` a maturity".

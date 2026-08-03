@@ -41,7 +41,7 @@ endpoint theorems are the working base of `1f6da52a`. **Never integrate this par
 | **Doc definitional re-ordering** | Ph 12.1 | gated | HEAVY USER APPROVAL **and** `PR-THETA` ruled **and** `PR-CSYM` chosen |
 | **Greeks bundle (G1 ladders, θ split, G4 deficit lemmas)** | Ph 15 | gated | `PR-CARRY` **and** `PR-THETA` ruled |
 | **G2 skew law** | Ph 15 | off-bundle | E8(6) `η_L = η` closes (`PR-ETAL`) |
-| ~~Occupancy `T_ITM/T`~~ | `.planning/occupancy/` | — | **CLOSED 2026-08-03 — DO NOT PROMOTE.** His `T` is not a maturity. Redirect recorded: the object belongs on the FLAIR / `Γ^Σ` side |
+| **Occupancy `T_ITM/T`** | `.planning/occupancy/` | **REOPENED, rescoped** — the close-out rested on a false distinction (ours is user-controlled too) | a ruling on whether occupancy over an **implied, never-held** maturity `T★` is meaningful; modifier reading stays refuted (R4) |
 | **Bunni-v2 LDF port** | G4 future milestone | declared out of scope | user opens the milestone |
 
 ---
