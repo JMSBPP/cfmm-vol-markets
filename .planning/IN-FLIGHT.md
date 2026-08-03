@@ -44,8 +44,8 @@ endpoint theorems are the working base of `1f6da52a`. **Never integrate this par
 | **Item (k): the E1 DIAGNOSIS defect** | Ph 13 (k) | needs a doc edit | `PR-GATE` passes |
 | **Item (i): PhiCES notation-map line** | Ph 13 (i) | needs a doc edit | `PR-GATE` passes |
 | **Kristensen V0–V9 blocks** | Ph 14 | gated | `PR-WSIGMA` ruled **and** `PR-GATE` passes |
-| **Doc definitional re-ordering** | Ph 12.1 | gated | HEAVY USER APPROVAL **and** `PR-THETA` ruled **and** `PR-CSYM` chosen |
-| **Greeks bundle (G1 ladders, θ split, G4 deficit lemmas)** | Ph 15 | gated | `PR-CARRY` **and** `PR-THETA` ruled |
+| **Doc definitional re-ordering** | Ph 12.1 | **ACTIVE — pair session running** (Definition 1 landed `fa082b2`; θ sign ruled; PR-CSYM settled `a₁,a₂`) | continuous — statement-by-statement with the user |
+| **Greeks bundle (G1 ladders, θ split, G4 deficit lemmas)** | Ph 15 | gated | `PR-CARRY` ruled (θ side now clear — PR-THETA ruled negative) |
 | **G2 skew law** | Ph 15 | off-bundle | E8(6) `η_L = η` closes (`PR-ETAL`) |
 | **Occupancy `T_ITM/T`** | `.planning/occupancy/` | **ROUND 2 DONE — PROMOTE narrowly, conditionally.** Inception reading well-posed (the never-held objection does not bite: `T_ITM` is `𝔼[∫𝟙]`, unobservable on Kristensen's side too); headline: composing the PROVED `tStar_strictMono_dQvStar` with mean-of-decreasing gives **in-band fraction strictly DECREASING in target vega** (needs only monotonicity — no Erf, no price law). Panoptic has **no boolean `isITM`** — three notions (moneyness/band/swap-ITM), predicate depends on `tokenType`+`strike` only. `ℙ_{[i_l,i_u]}(t) = ℙ_{i≥i_l}(t) − ℙ_{i≥i_u}(t)` — one-sided is primitive, the reserved terminal reading is the `t=T` member | **FOUR user rulings** before any doc block: amend the `ℙ_ITM` reservation to a `t`-indexed family?; the measure; which tick (RiskEngine checks 4 under safeMode, spotTick is an EMA); the ATM convention (Panoptic groups ATM with ITM) |
 | **exp-layer Δi-control: the small-trade band-max sorry** | `lean/exp/eta.lean` (1 sorry) + NEW `model/exp/eta_pi_trader_delta_control.md` | REGISTERED 2026-08-03 — was tracked nowhere (the EtaTilde failure class again). PROVEN: `pi_trader_half_strictly_increasing_in_Δi` (project `88d393e7`) — tick spacing is a one-parameter control knob for the trader payoff in the LARGE-trade regime (`L̄ ≤ Δ^I`); small-trade regime is U-shaped (zero at `Δi⋆`), so adaptive control there is piecewise. OPEN: the small-trade **band-max** theorem (max at the endpoint farthest from `Δi⋆`), marked "left as sorry for Aristotle" in-file | an Aristotle submission for that sorry (OUT_OF_BUDGET rule applies: continue, not resubmit) |
@@ -64,7 +64,7 @@ These are the cheapest items on the whole board: no research, no compute, no pro
 | **PR-ORIENT** | the canonical **argument order** of `φ` — machine evidence says `(Q_X, Q_M)` with χ on `Q_X`; Theorem 1 currently consumes the other order | `CC-REPL`, `CC-CURV`, and Phase 14's `u` relation |
 | **PR-REGION** | are the `ΔQ` legs **signed**? the admissibility region is absent from the page | `CC-REPL` (Theorem 1 is ill-posed without it), Phase 14 |
 | **PR-WSIGMA** | does `W` depend on σ? decides closed form vs fixed point | `CC-IV` / Phase 14 |
-| **PR-THETA** | the θ exponent sign | `CC-GREEK` / Phase 15, and Phase 12.1 |
+| ~~PR-THETA~~ | — | **RULED 2026-08-03: negative** — θ Definition, G1 θ_decay, on-chain constant all unblocked |
 | **PR-CARRY** | per-event (M6b) vs time-integrated (λ_FLAIR) | Phase 15 — decides *what gets proved* |
 | **PR-CSYM** | a free symbol pair for the replication weights (`c₁`/`c₂` are taken) | Phase 12.1 |
 
