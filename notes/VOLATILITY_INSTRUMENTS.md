@@ -74,16 +74,7 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 
 *Formalized:* `Upsilon.upsilon_volOption`; `upsilon_eq_deltaShares_slot`; at the endogenous maturity \(\upsilon = T^\star/2\) (`variancePortfolio_upsilon_at_tStar`, `tStar_unit_upsilon`).
 
-# FAQ
-- Why one leg on the tokenId is not enough for buidlign the variance instrument  ?
-
-"If you want a long position in future realized variance, a single option
-is an imperfect vehicle: as soon as the stock price moves, your sensitiv-
-ity to further changes in variance is altered ?"[PG7](../refs/DemeterfietalVarianceSwaps.pdf)
-
-- **Solution**  What you want is a portfolio \(\Pi\)whose sensitivity to realized variance is independent of the underlying price \(p_{(\eta, \Delta_i)} \, (i; t)\) [PG7](../refs/DemeterfietalVarianceSwaps.pdf)
-
-This is:
+**Definition 5 (Replicating portfolio).** The **replicating portfolio** \(\Pi^{\text{call|put}}(\sigma; p_{(\eta,\Delta_i)}(i;t))\) is the option portfolio whose sensitivity to realized variance is independent of the underlying price [PG7](../refs/DemeterfietalVarianceSwaps.pdf) — a single option cannot serve, since a price move alters its variance sensitivity.
 
 > These realitionships are not raw equalities and need to be put as difinitions if already proven .More precisely \pi^{\sigma} \equiv^{R} which means replicated by and the equiality with \sum L (i_K) is a /leftarrow^{panoptic-uniswap}
 \[
