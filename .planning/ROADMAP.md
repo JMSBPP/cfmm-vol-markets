@@ -423,3 +423,76 @@ Plans:
 - [x] 12-02-PLAN.md — CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN, CTX-REVIEW: **COMPLETE, TASK IN FLIGHT AT CLOSE** (project `4878ca32`, task `e1c846ae`, `IN_PROGRESS`). Bundle assembled as **EIGHTEEN** modules, not the planned seventeen — `JitLiquidity` landed mid-plan and the binding rule is doc + ALL proved modules — with the **import closure PROVEN** (14 distinct imports all resolving, the check that catches the `CESLongVolPayoff` class 12-RESEARCH F7.3 missed) and all 18 copies byte-identical to the landed modules; `12-02-MODULE-MAP.txt` written because 12-03's inverse rewrite is **NOT a single sed** (`RequestProject.eta` → `exp.eta` but `RequestProject.VolInstrument` → `vol_markets.VolInstrument`). A 1232-line, 35-item T1'–T31' prompt with E0–E7 spliced VERBATIM by script. **The two-reviewer gate found 2 BLOCKER + 1 MAJOR + 11 MINOR, 0 unresolved — and one BLOCKER was in the APPROVED, BYTE-PINNED DOCUMENT:** block E7's scalarization-impossibility sentence is FALSE on `[κ_φ,S, κ_φ,I]` (the two ratios switch branches at DIFFERENT points), recomputed independently to a stationary interior maximum at `κ_φ ≈ 0.2412`, at no branch point, and it had been mandated verbatim into a permanent Lean docstring. The second BLOCKER was a typechecking defect on the headline chain (`lpExcessEta` applying 8 args to a 7-param `lpExcess`, reintroducing `cOne` as free and silently falsifying the branch agreement the peak rests on); the MAJOR was T8' FALSE as displayed, missing the symmetric `Real.sqrt` guard on `premInv`. All fixed pre-submission. Doc fidelity re-proved at submit time (`APPROVED == BUNDLED == LIVE` = `4f5362c1…`) **while the live whole-file hash moved twice** — the section is the gate, not the file. Queue proven clear (20/20 IDLE, zero `eta-curvature` projects), exactly one task in flight. **USER RULING: the document amendment for ESC-1/ESC-2/ESC-3 is DEFERRED to 12-04** so the live doc cannot desync from the copy Aristotle proves against. **CTX-CAPTRANS/CTX-INTERIOR/CTX-ETABRIDGE/CTX-DEGEN are NOT yet satisfied: nothing is proven until 12-03 integrates the returned module.** CTX-REVIEW is satisfied by the gate itself. `autonomous: false`
 - [x] 12-03-PLAN.md — CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN: **COMPLETE — and it took TWO Aristotle runs, which the plan did not anticipate.** `4878ca32` returned **`OUT_OF_BUDGET`** at 36/51 with 15 `sorry`s and was NOT integrated; the `12-CONTINGENCY` second bundle (`c3a617f3`, at the user's `submit eta -b`) closed the remaining 15 with the partial as its working base. Landed: `lean/vol_markets/EtaCurvature.lean`, **1269 lines, 51 declarations, 0 sorries, 51/51 axiom-clean**, root appended, `lake build` green (8067 jobs), origin `b02caf7` + mirror `lean4-spec main d25fd75`. All 18 bundled inputs byte-identical in BOTH runs; declaration list identical to the submitted partial (no renames, drops or additions). **Fidelity: 13/15 verbatim, 2 AMENDED with added hypotheses and conclusions intact, ZERO narrowed** — `lpExcess_strictAntiOn` gains E0's own ordering `φ < ϱ_S ≤ ϱ_I`, and `etaStar_pos_iff` gains `−1 < ϱ_I` because **Mathlib's `Real.log` is `log|x|`** (witness `ϱ_I = −3, φ = 0`), exactly the log-sign trap the 12-02 Model QA review predicted. **CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE SATISFIED; CTX-DEGEN SATISFIED AS NARROWED.** Optional **T28'b came back ABSENT** as pre-authorized ⟹ E8(6) OPEN and the η-identity decision is **PARTIALLY discharged**, not closed. Executed manually by the orchestrator; `12-03-SUMMARY.md` written retroactively at 12-04 and marked as such
 - [x] 12-04-PLAN.md — CTX-TRACE: **COMPLETE. CTX-TRACE SATISFIED.** `LEAN_TRACEABILITY` §0 gained rows for `premInv`/`premShock` (**declared PREMIA, NOT probabilities** — the misreading that makes `κ_φ⋆` uninterpretable), the four absorbed `ϖ_*` constants, `kphiS`/`kphiI`/`kphiStar`, `cOne…cThree` and `etaStar`; a binding paragraph recording the Capponi remaps, the absorptions and their reasons, the `f ≡ φ` identification, the **η protection and the gate INVERSION of Phase-11's Rule 1**, the ν avoidance, the deliberate `λ` overload (tick base vs subscripted hazard) and the **`arbLossRatio` / `mevMulti` NON-IDENTIFICATION**; and the η-identity outcome recorded as **PARTIALLY discharged**, citing `exp/eta.lean`'s own `P_half` docstring ("η does not enter the tick→price map") as the reason the second half is a modelling claim. New **§7.2** is the ETA entry point plus the **nine-item E8 OPEN ledger**, and it **points at §13 rather than duplicating it** — §13 had already landed with the module at `b02caf7`, following the §8-onward convention, so a second claim table would have created two sources of truth. §6(b) **AMENDED, not deleted**: `ϱ_I` is a PARTIAL carrier; the equilibrium transfer and MMR eq. (27) stay OPEN. Every backticked identifier in §7.2 grep-verified to be a real declaration, scoped to that section (11-06's defect fixed, not repeated). The addendum carried **no** `> LEAN` annotation while the plank copy did — the two had DRIFTED — so the annotation was mirrored byte-identical, and the **sha-pin invalidation is now disclosed** (`4f5362c1…` → live `54d10b59…`, safe because both gates were already consumed and passed). `../plank/todo.md` line 227 answered with the quotable controller law, its four strict comparative statics, its carriers, and the unobservability / factor-share / equilibrium-transfer caveats — **no on-chain proxy invented, deliberately**. Plank HEAD `08039da` before and after; M0→end-of-M8 bytes proven unchanged; **no `.lean` file touched**
+
+---
+
+### Phase 12.1 (INSERTED): Definitional Re-Ordering of the Document Opening
+
+**Goal:** Carry out the user's re-ordering of the doc's opening — formal definition of `θ`, then the
+streamia assignment, then a named assignment for the time-integrated streamia — with `π^σ` promoted
+to a DEFINITION (conditional on "if already formalized") and the replication weights renamed off `α`.
+
+**Requirements**: CTX-DEFORDER
+**Status:** BLOCKED — nothing may be started. TWO preconditions: HEAVY USER APPROVAL, and resolution
+of the live θ exponent-sign FLAG (θ cannot become a definition while its display carries an
+unresolved sign).
+**Registered as a decimal insertion** so an indefinite user gate does not hold a phase open.
+**Directory:** `.planning/phases/12.1-doc-definitional-reorder/`
+**Plans:** 0/1 — none written; blocked.
+
+> All three user comments are blocked, including the `α → c₁,c₂` rename: `c₁`/`c₂` are ALREADY TAKEN
+> as the E4 branch coefficients (13 sites, `c₁`'s sign load-bearing in four displays), so the rename
+> as literally stated creates a collision. A free symbol pair must be proposed to the user first.
+
+---
+
+### Phase 13: Capponi `F` → `φ` Convention Closure
+
+**Goal:** Close the `F → φ` transition the machine forced open — the CES lock, the Angeris canonical
+form, and the curvature verdict machine-checked, with the document's notation corrected to match and
+no false statements left behind.
+
+**Requirements**: CTX-PHIDOC
+**Status:** IN FLIGHT. Four Lean modules landed axiom-clean (`PhiCES` 12, `CanonicalCurve` 16,
+`CurvatureTwo` 18, `EtaTilde` 23 — the last landed AFTER Phase 12 closed and was previously
+registered nowhere). Rename set applied (`601e7ba`, `758e964`, `634ded6`, `838289f`).
+**Depends on:** Phase 12 — this phase is its correction: `curvOfTilde_not_curvature` proves the
+Phase-12 index was never a curvature, so E1–E7 stand as mathematics but read as SHARE statements.
+**Directory:** `.planning/phases/13-phi-convention-closure/`
+**Plans:** 0/3 — none written yet; see `TRACKS.md` OPEN items (a)–(j).
+
+> Item (c), the stale `eta-notation-gate.sh`, is a **blocking predecessor of every doc insertion in
+> the program** — Phases 12.1 and 14 both end in doc blocks and neither can be gated until it is
+> refreshed. Items (e)–(g) are defects sitting in the already-committed document, including one FALSE
+> LINE the rename itself created (repaired `838289f`) and a `χ` leg-orientation contradiction now
+> FLAGGED in the doc for author decision.
+
+---
+
+### Phase 14: Kristensen Implied-Volatility Integration
+
+**Goal:** Integrate Kristensen's implied-volatility LEVEL — the σ_IV extraction with anchors, the
+VOL/AMT ↔ `u` relation as a proved lemma or recorded refutation, and the four new symbols declared
+rather than smuggled.
+
+**Requirements**: CTX-IVLEVEL
+**Status:** RESEARCH DONE, GATED — not executable. Blocks V0–V9 drafted. The user's `2·√` hypothesis
+is REFUTED as a CES specialization (both factors Gaussian); the headline is that Kristensen's
+constant-`AMT_tick` assumption holds exactly iff `ξ = ξ⋆`, the log-contract ladder.
+**Depends on:** Phase 13 (c) — notation gate; Phase 13 (g) — the signed-`ΔQ` ruling, which is a
+Phase-13 doc defect this phase consumes.
+**Directory:** `.planning/phases/14-kristensen-integration/`
+**Plans:** 0/4 — none written; gated.
+
+> Ordering constraint with Phase 12.1: 12.1 renumbers definitions and renames the replication
+> weights, and the V-blocks are drafted against the current numbering. **12.1 runs strictly BEFORE
+> all V-blocks or strictly AFTER them — never interleaved.**
+
+---
+
+### Research spike (NOT a phase): `T_ITM/T` occupancy
+
+`.planning/occupancy/OCCUPANCY-SPIKE.md`. Demoted from a requirement 2026-08-03: it rests on one user
+sentence with no research, and its own next action is to determine *whether Kristensen's `T` is a
+maturity at all* given perpetual options have none. Promoted to a CTX requirement only if the spike
+finds a connectable object.

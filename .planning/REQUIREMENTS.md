@@ -65,12 +65,12 @@ Each maps to exactly one roadmap phase.
 - [ ] **PIPE-01**: a single command runs the full open-loop **plumbing** path end-to-end — payoff spec → (stub) GAMS solve → encode → Plank write → read-back — exiting success **only if** the FFI guards (TOOL-02) and the round-trip (BRDG-03) pass
 - [ ] **PIPE-02**: an **open-loop guard** — the swap-replay/simulate step performs **no in-loop parameter updates** (keeping the closed-loop controller out of this milestone)
 
-### Lean4 + Math track (CTX-*) — Phase 12 only
+### Lean4 + Math track (CTX-*)
 
 **Added 2026-08-02 at the Phase-12 close-out.** Phases 8–12 mint their requirement ids as `CTX-*`
 tags at planning time, declared in `ROADMAP.md` and in each phase's `CONTEXT.md`. Until now none of
 them were declared here, so `requirements mark-complete` was a no-op for every phase in that track.
-**This section closes the gap for Phase 12 only.** Phases 8–11's CTX-* ids remain declared solely in
+**Declared for Phases 12, 12.1, 13 and 14; Phases 8–11 remain undeclared (known gap, inherited not resolved).** Phases 8–11's CTX-* ids remain declared solely in
 `ROADMAP.md` — recorded rather than silently back-filled, because adopting the full table belongs to
 the roadmapper, not to a phase close-out. These are **not** v1 plumbing requirements and are not
 counted in the v1 coverage totals below.
@@ -82,6 +82,14 @@ counted in the v1 coverage totals below.
 - [x] **CTX-DEGEN**: **SATISFIED AS NARROWED** — per the user's binding ruling of 2026-07-31 there is **no literal de-degeneration of the `Θ_φ` program** and none was attempted: `mevMulti` contains no η, no `κ_φ` and no `ϱ_I`, so nothing in the curvature layer moves the Phase-11 objective, and the Phase-11 degeneracy stands exactly where Phase 11 left it. What shipped is the interior optimum in the separate Capponi-anchored model, the η-bridge transport, and the Phase-11 contrast as an honest scope statement (12-03: `eta_no_common_argmax`, `etaStar_coupled_to_fee_corner`). Full de-degeneration needs one objective carrying both a demand-elastic investor and `λ_ARB`; that object exists in neither model and is **OPEN**
 - [x] **CTX-REVIEW**: the two-reviewer gate (Reality Checker + a fitted specialist, run blind and in parallel) on every pre-submission spec artifact — ✓ **SATISFIED** (12-01: 3 BLOCKER + 9 MAJOR resolved; 12-02: 2 BLOCKER + 1 MAJOR + 11 MINOR resolved, one BLOCKER being a false sentence in the already-approved, byte-pinned document)
 - [x] **CTX-TRACE**: the auditable record — traceability rows with statuses taken from the fidelity record and nowhere else, every named identifier verified to exist, every OPEN item labelled OPEN, plus the doc back-annotation and the plank answer — ✓ **SATISFIED** (12-04)
+
+**Phase 13 (added 2026-08-03).** Four PARALLEL tracks; per-track detail and gates in
+`.planning/phases/13-phi-convention-and-kristensen/TRACKS.md`.
+
+- [ ] **CTX-PHIDOC**: the Capponi `F` → `φ` transition closed without false statements — the CES lock, the Angeris canonical form, and the curvature verdict machine-checked, with the doc's notation corrected to match. ◐ **IN FLIGHT** — `PhiCES`/`CanonicalCurve`/`CurvatureTwo` landed axiom-clean and the rename set applied (`601e7ba`, `758e964`, `634ded6`); OPEN: embedding test `232c8ee4` (Aristotle API 500), the E4 optimum redo on the ε axis, the stale `eta-notation-gate.sh`
+- [ ] **CTX-IVLEVEL**: Kristensen's implied-volatility LEVEL integrated into the framework — the σ_IV extraction with anchors, the VOL/AMT ↔ `u` relation stated as a provable lemma, and `r_fix` declared as the new parameter it is. ◐ **RESEARCH DONE, GATED** — the user's `2·√` hypothesis REFUTED as a CES specialization (both factors Gaussian); headline is that constant-`AMT_tick` holds exactly iff `ξ = ξ⋆`. Blocked on two rulings: signed-vs-magnitude `ΔQ` (**BLOCKER** — live defect in an already-inserted block) and whether `W` depends on σ
+
+- [ ] **CTX-DEFORDER**: the document's opening re-ordered into the user's specified definitional sequence — formal definition of `θ`, then the streamia assignment, then a named assignment for the time-integrated streamia — with `π^σ` promoted to a numbered DEFINITION and `α₁,α₂ → c₁,c₂`. ⊘ **BLOCKED ON HEAVY USER APPROVAL** — restructures the block every later section depends on
 
 ## v2 Requirements
 
@@ -165,13 +173,18 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | CTX-DEGEN | Phase 12 | ✓ Complete **AS NARROWED** (user ruling 2026-07-31 — no literal de-degeneration of the `Θ_φ` program) |
 | CTX-REVIEW | Phase 12 | ✓ Complete |
 | CTX-TRACE | Phase 12 | ✓ Complete |
+| CTX-PHIDOC | Phase 13 | ◐ In flight |
+| CTX-IVLEVEL | Phase 14 | ◐ Research done, gated |
+| CTX-DEFORDER | Phase 12.1 | ⊘ Blocked (approval + θ FLAG) |
+
+> **Status glyphs:** `✓` complete · `◐` in flight or partially discharged · `⊘` blocked, nothing may start. Phase-12 rows use word statuses with a prose qualifier; both conventions are in force.
 
 **Coverage:**
 - v1 requirements: 30 total
 - Mapped to phases: 30 ✓
 - Unmapped: 0
-- Lean4 + Math track: 7 Phase-12 `CTX-*` ids declared and complete (Phases 8–11's `CTX-*` ids are declared in `ROADMAP.md` only — a known, recorded gap)
+- Lean4 + Math track: 10 `CTX-*` ids declared — 7 Phase-12 complete, 3 open (CTX-PHIDOC, CTX-IVLEVEL, CTX-DEFORDER); the `T_ITM/T` occupancy work is a spike with no id (Phases 8–11's `CTX-*` ids are declared in `ROADMAP.md` only — a known, recorded gap)
 
 ---
 *Requirements defined: 2026-06-27*
-*Last updated: 2026-06-27 — traceability populated against plumbing-first 7-phase roadmap (30/30 mapped)*
+*Last updated: 2026-08-03 — traceability populated against plumbing-first 7-phase roadmap (30/30 mapped)*
