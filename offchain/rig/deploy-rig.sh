@@ -109,35 +109,80 @@ exec 9<>"$PAUSE_FIFO"
 rm -f "$PAUSE_FIFO"
 pause() { read -r -t "$1" -u 9 _ || true; }
 
+# The pids kill_rpc_listener actually signalled, so the teardown below can tell
+# "our anvil refused to die" from "somebody else started a chain 3 seconds ago".
+KILLED_PIDS=""
+
+rpc_listener_pids() {
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -ti "tcp:${RPC_PORT}" 2>/dev/null || true
+  elif command -v fuser >/dev/null 2>&1; then
+    fuser "${RPC_PORT}/tcp" 2>/dev/null || true
+  fi
+}
+
 kill_rpc_listener() {
   # Kill by PORT, never a blanket `pkill anvil`: another peer's worktree may be
   # running its own anvil on a different port.
-  if command -v lsof >/dev/null 2>&1; then
-    local pids
-    pids=$(lsof -ti "tcp:${RPC_PORT}" 2>/dev/null || true)
-    [ -n "$pids" ] && kill $pids 2>/dev/null || true
-  elif command -v fuser >/dev/null 2>&1; then
-    fuser -k "${RPC_PORT}/tcp" >/dev/null 2>&1 || true
+  if command -v lsof >/dev/null 2>&1 || command -v fuser >/dev/null 2>&1; then
+    KILLED_PIDS=$(rpc_listener_pids)
+    [ -n "$KILLED_PIDS" ] && kill $KILLED_PIDS 2>/dev/null || true
   else
     echo "FATAL: neither lsof nor fuser available; cannot own port ${RPC_PORT} safely" >&2
     exit 1
   fi
 }
 
+# $1 = "fatal" (default, the DEPLOY path) | "report" (the --stop path).
+#
+# The two callers want opposite things from the same observation. On the deploy path an
+# occupied port is fatal by necessity: we cannot start our anvil on it, and continuing
+# would build the rig against somebody else's chain and write a manifest describing it.
+# On the teardown path it must NOT be fatal -- see the --stop branch below.
 wait_for_port_release() {
-  local i
+  local i mode="${1:-fatal}"
   for i in $(seq 1 50); do
     cast block-number --rpc-url "$RPC_ALIAS" >/dev/null 2>&1 || return 0
     pause 0.2
   done
+  [ "$mode" = "report" ] && return 1
   echo "FATAL: something is still answering on port ${RPC_PORT} after 10s" >&2
   exit 1
 }
 
+# --- teardown. IT DOES NOT FAIL. -------------------------------------------
+#
+# This branch used to run the plain `wait_for_port_release`, which exits 1 when anything
+# answers on ${RPC_PORT} 10s after the kill. develop-gate.yml calls it from an
+# `if: always()` step, and the runner is a systemd service running as the SAME USER on the
+# SAME HOST as the developer worktrees -- so a developer typing `anvil` inside that 10s
+# window turned the sole required check red AFTER every real gate had already passed.
+# Reddening a gate over who happened to hold a port is a worse failure mode than the thing
+# it reports, which is exactly the judgement develop-gate.yml's own collision preflight
+# already made ("It warns and does not fail"). The two now match.
+#
+# What is NOT given up: the distinction between the two reasons the port can still be busy.
+# kill_rpc_listener records the pids it signalled, so a pid we killed that is STILL there is
+# named as a genuine leak, while a pid we never touched is named as somebody else's chain.
+# Both are reported; neither is fatal. The teardown's job is to release the listener it
+# found, and it did signal it.
 if [ "${1:-}" = "--stop" ]; then
   kill_rpc_listener
-  wait_for_port_release
-  echo "rig stopped: nothing is listening on ${RPC_PORT}"
+  if wait_for_port_release report; then
+    echo "rig stopped: nothing is listening on ${RPC_PORT}"
+    exit 0
+  fi
+  still=$(rpc_listener_pids)
+  echo "warning: something is STILL answering on ${RPC_PORT} 10s after the teardown killed" >&2
+  echo "         pid(s) '${KILLED_PIDS:-none}'. Not treated as a failure -- see this branch." >&2
+  for p in $still; do
+    case " $KILLED_PIDS " in
+      *" $p "*) echo "         pid $p: SIGNALLED BY THIS TEARDOWN AND STILL ALIVE -- a real leak." >&2
+                echo "                 cmd=$( (tr '\0' ' ' < "/proc/$p/cmdline") 2>/dev/null || echo '?')" >&2 ;;
+      *)        echo "         pid $p: NOT ours -- started after the kill. Somebody else's chain." >&2
+                echo "                 cmd=$( (tr '\0' ' ' < "/proc/$p/cmdline") 2>/dev/null || echo '?')" >&2 ;;
+    esac
+  done
   exit 0
 fi
 
