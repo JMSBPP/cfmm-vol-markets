@@ -486,3 +486,20 @@ Fidelity: 22/23 as requested; **1 REFUTED with its correction proven under a dif
 | relation of `ρ` to `exp/CESLongVolPayoff`'s η | `phiCES_rho_vs_pi_eta_trader` — `1/(1−ρ) = 1/(1−η) ↔ ρ = η` away from the poles, and `q = p − 1`. Docstring: "only an algebraic conditional: it does NOT identify the payoff parameter with the trading-function parameter" | **CONDITIONAL** — E8(6) untouched |
 
 Fidelity: 12/12 targets returned; **1 deliberately narrowed and declared** (radial not joint concavity), **1 returned as the requested refutation** (orthogonality), **1 returned as a conditional rather than an identification** (ρ vs exp's η) — the prompt forbade assuming it and the prover honoured that.
+
+## 16. `F → φ, THE CANONICAL TRANSITION` (E1 / the "F is φ" claim → `CanonicalCurve.lean`; project `ffdb83fe`)
+
+Mechanism: Angeris–Chitra–Diamandis–Evans–Kulkarni, *The Geometry of CFMMs*, arXiv:2308.08066 §1.3.2 eq (6) — `canon ψ k R = sup{λ > 0 | ψ(R/λ) ≥ k}`, the canonical trading function, nondecreasing/concave/homogeneous. PDF: `plank/refs/cfmm/angeris-geometry_of_cfmms-2023.pdf`. 16 declarations, all axiom-clean, 21 deps byte-identical.
+
+| Doc claim | Lean | Status |
+|---|---|---|
+| our `φ_ε` is already canonical up to scale | `phiEps_homogeneous`, `canon_phiEps` | **PROVEN** |
+| Capponi's `F_κ` canonicalizes to the quadratic positive root `(b + √(b² + 4Cκxy))/(2C)`, `b = (1−κ)A·L` | `canon_Fcap`, `canon_Fcap_homogeneous` | **PROVEN** |
+| endpoints: `κ = 1` → `√(xy)/√C`; `κ = 0` → `A·L/C` (linear) | `canon_Fcap_one`, `canon_Fcap_zero` | **PROVEN** |
+| **the agreement**: at `κ = 1` the canonical form IS `φ_{1/2}` up to a positive scalar | `canon_Fcap_one_eq_phiEps_half` | **PROVEN** |
+| "F is φ" as a FAMILY identity | `canon_Fcap_not_phiEps` — for `κ ∈ (0,1)` there is no `(ε, c > 0)` with `canon(F_κ) = c·φ_ε` pointwise | **REFUTED** |
+| `F_0 = φ_{ε(κ_φ = 0)}` (the naive substitution the doc's E1 note proposed) | `tildeOfCurv_zero` (`= 1/2`), `linear_not_phiEps_half`, and **`curvIndex_orientation_inconsistent`** | **REFUTED** — the linear endpoint is not a positive multiple of `φ_{1/2}`; the composite identification fails at zero |
+| where the two indices actually agree | `cpmm_sits_at_curvIndex_zero` — a CONJUNCTION: the identification HOLDS at Capponi `κ = 1` and FAILS at `κ = 0`, so any identification respecting the agreement point must REVERSE orientation | **PROVEN** |
+| numeraire-relative prices (`p_B = 1`, `p_A = p²`) | `canon_Fcap_numeraire` | **PROVEN** |
+
+**Reading.** "F is φ" survives as a CANONICAL-FORM statement and at ONE point (the CPMM, Capponi `κ = 1` ⟺ our `κ_φ = 0`), and is refuted as a family identity and at the linear endpoint. Combined with §15's `curvIndex_is_rho_zero_slice`, the diagnosis is complete: Capponi's `κ` travels the `ρ` axis of `φ_{ε,ρ}`, our `κ_φ` is a function of the share `ε` alone, and the two coincide only where both axes sit at base values. **E8(1) remains OPEN and is now open for a precise reason rather than a vague one.**
