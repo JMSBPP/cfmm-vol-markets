@@ -13,18 +13,7 @@
 where \(\sigma^2(i(t))\) is the realized tick variance. Consequently \(\Delta Q_v \equiv \Delta \pi^{\sigma} / \Delta\big(\sigma^2(i(t)) - \sigma^2_K\big)^{+}\): the notional **is** the option's vega.
 
 *Formalized:* `Panoptic.volOptionPayoff`; `volOptionPayoff_nonneg`; `deltaQv_of_payoff`.
-Note that following the main reference on [VOL_SWAPS](../refs/DemeterfietalVarianceSwaps.pdf), the price of the vol claim \(p_{\pi^{\sigma}}\) is the *cost of replicating it using options as the underlying*. This is where [panoptic](https://arxiv.org/pdf/2204.14232) enters:
-
-We have somehow simplified:
-
-> todo: What happened to this. \alphas are taken as notation use c_1 and c_2
-\[
-	\begin{aligned}
-		p_{\pi^{\sigma}} \, = p_0 \, + \, \alpha_1 \, p_{\pi^{\text{call}}} \, + \, \alpha_2 \, p_{\pi^{\text{put}}} 
-	\end{aligned}
-\]
-
-Where:
+Following [VOL_SWAPS](../refs/DemeterfietalVarianceSwaps.pdf), the price of the volatility option is the *cost of replicating it with options*. This is where [panoptic](https://arxiv.org/pdf/2204.14232) enters. The replication proved in-tree is the **ladder** form (the \(\xi^\star\) log-contract weights, `variancePortfolio_upsilon`); whether it collapses to a **two-instrument** affine form \(p_{\pi^\sigma} = p_0 + a_1\, p_{\pi^{\text{call}}} + a_2\, p_{\pi^{\text{put}}}\) is **OPEN** — statement parked pending the liquidity-side definitions, per the 12.1 ledger.
 
 **Definition 2 (Theta).** The **theta** of the call (resp. put) at strike tick \(i_K\) is the per-time-step payoff variation
 
