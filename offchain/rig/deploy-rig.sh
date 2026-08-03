@@ -424,10 +424,47 @@ esac
 # Both sides lowercased UNCONDITIONALLY: broadcast JSON is lowercase while
 # console.log renders EIP-55 mixed case, so normalising makes the comparison
 # correct under either rendering.
+# IT REPORTS ITS OWN MISS -- the same treatment 8aa595e gave console_field, which check()
+# never got. The body used to be a bare `got=$(grep -m1 ... | ... )`, and under
+# `set -euo pipefail` a failing pipeline in an assignment aborts AT THE ASSIGNMENT. So the
+# `[ -n "$got" ]` line below -- the line written to diagnose exactly this -- was UNREACHABLE.
+#
+# MEASURED, driving this function verbatim (extracted from this file) against the real
+# /tmp/rig-logs/04-hook.log, with a ONE-SPACE label drift 'PoolManager    :' ->
+# 'PoolManager     :':
+#   BEFORE: (no output at all)              EXIT=1
+#   AFTER : CROSS-CHECK: console label not found: 'PoolManager     :' ...   EXIT=1
+# The labels encode EXACT whitespace ('PoolManager    :' in 04-hook.log vs
+# 'PoolManager     :' in 05-psh.log are two different labels, deliberately), so a single
+# space added or removed by another track's console.log moves the line out of reach here --
+# and that is the case that produced no diagnostic whatsoever.
 check() {   # $1 = console label prefix, $2 = log file, $3 = address from the broadcast JSON
-  local got
-  got=$(grep -m1 -- "$1" "$2" | grep -oiE '0x[0-9a-fA-F]{40}' | tr 'A-Z' 'a-z')
-  [ -n "$got" ] || { echo "CROSS-CHECK: no address on console line '$1' in $2" >&2; exit 1; }
+  local line got
+  if ! line=$(grep -m1 -- "$1" "$2"); then
+    {
+      echo "CROSS-CHECK: console label not found: '$1'"
+      echo "             in $2"
+      echo "             Labels are matched with EXACT whitespace. That line is another"
+      echo "             track's console.log; a single added or removed space moves it out"
+      echo "             of reach here. Find where it went with:"
+      echo "               grep -n '$(printf '%s' "$1" | tr -d ' :')' $2"
+    } >&2
+    exit 1
+  fi
+  got=$(printf '%s\n' "$line" | grep -oiE '0x[0-9a-fA-F]{40}' | tr 'A-Z' 'a-z') || got=""
+  [ -n "$got" ] || {
+    echo "CROSS-CHECK: console line '$1' in $2 MATCHED but carries no 20-byte address:" >&2
+    echo "               $line" >&2
+    exit 1
+  }
+  # An empty $got is not the only degeneracy: a line carrying TWO addresses makes $got a
+  # two-line string, which then fails the `=` below as an unexplained MISMATCH. Name it.
+  [ "$(printf '%s\n' "$got" | grep -c .)" -eq 1 ] || {
+    echo "CROSS-CHECK: console line '$1' in $2 carries MORE THAN ONE address, so there is" >&2
+    echo "             no single value to cross-check against the broadcast record:" >&2
+    echo "               $line" >&2
+    exit 1
+  }
   [ "$got" = "$3" ] || { echo "MISMATCH $1: console=$got broadcast=$3" >&2; exit 1; }
   echo "  cross-check OK  $1 $3"
 }
