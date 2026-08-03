@@ -269,7 +269,44 @@ FS=(--rpc-url "$RPC_ALIAS" --broadcast --ffi --via-ir)
 # honouring an inherited key would make the manifest describe a deployer that did
 # not deploy. `env` applies every -u before any NAME=VALUE, so the explicit
 # assignments below still land.
-SCRUB=(env -u PRIVATE_KEY -u INIT_TS -u INIT_TICK -u TOKEN0 -u TOKEN1 -u POOL_MANAGER -u HOOK)
+#
+# THE LIST ABOVE IS THE SCRIPTS' OWN VARIABLES. IT IS NOT THE WHOLE AMBIENT SURFACE.
+# It was verified complete against every `vm.env*` read in foundry-scripts/ -- and foundry's
+# OWN configuration variables passed straight through it. MEASURED, through this exact SCRUB
+# array:
+#   $ FOUNDRY_OPTIMIZER=false FOUNDRY_VIA_IR=false "${SCRUB[@]}" forge config --json | jq
+#     { "optimizer": false, "via_ir": false }
+#   $ (same, unset)                                -> { "optimizer": true, "via_ir": true }
+# foundry.toml:8-15 states that this project ONLY compiles correctly under via-IR WITH the
+# optimizer -- the vol reference contracts hit "stack too deep" otherwise -- and the FS array
+# below passes `--via-ir` but NOT `--optimize`, so an ambient FOUNDRY_OPTIMIZER=false silently
+# recompiles the whole rig differently. Nothing downstream compares bytecode, so the manifest,
+# verify-rig.sh and every capture would describe a rig nobody asked for, exactly as the
+# TOKEN0/TOKEN1 case above did.
+#
+# The closure is by PREFIX, not by a list. A list is what produced this defect: it was correct
+# for the variables it enumerated and silent about the ones it did not, and foundry adds new
+# FOUNDRY_* keys as it grows. `env` has no prefix form of -u, so the set is computed here from
+# the actual environment. FOUNDRY_ is foundry's own figment prefix, DAPP_ is its dapptools
+# compatibility prefix, and ETH_ covers ETH_FROM / ETH_RPC_URL / ETH_GAS_* which forge and cast
+# read directly. Nothing in this script sets any of the three, so scrubbing them cannot remove
+# a value the rig itself supplies -- the RPC endpoint comes from `--rpc-url "$RPC_ALIAS"` on
+# the command line, and the deployer from ANVIL_MNEMONIC.
+AMBIENT_NAMES=()
+AMBIENT_SCRUB=()
+while IFS= read -r v; do
+  [ -n "$v" ] || continue
+  AMBIENT_NAMES+=("$v")
+  AMBIENT_SCRUB+=(-u "$v")
+done < <(env | sed -n 's/^\(FOUNDRY_[A-Za-z0-9_]*\)=.*/\1/p
+                       s/^\(DAPP_[A-Za-z0-9_]*\)=.*/\1/p
+                       s/^\(ETH_[A-Za-z0-9_]*\)=.*/\1/p' | sort -u)
+if [ "${#AMBIENT_NAMES[@]}" -ne 0 ]; then
+  echo "note: scrubbing ${#AMBIENT_NAMES[@]} ambient foundry/eth variable(s) from every deploy"
+  echo "      script -- they would silently reconfigure the rig: ${AMBIENT_NAMES[*]}"
+fi
+SCRUB=(env -u PRIVATE_KEY -u INIT_TS -u INIT_TICK -u TOKEN0 -u TOKEN1 -u POOL_MANAGER -u HOOK
+       "${AMBIENT_SCRUB[@]}")
 
 run_deploy "$LOG_DIR/01-vom.log" \
   "${SCRUB[@]}" \
