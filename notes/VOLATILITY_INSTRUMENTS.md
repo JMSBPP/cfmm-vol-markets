@@ -84,7 +84,7 @@ Where:
 
 > DATA (RUN, CLOSED 2026-07-27): \(\pi_{it} = \beta_0 + \upsilon_0 e^{-\kappa|i_K-i_t|}\hat\sigma^2_t + v_{it}\), Base. Ph.9 \(\hat\upsilon_0 = 2.27\text{e-}9\) (61 spells/55 tokenIds/4 accts); Ph.10 LHS ← chain state (6,760 obs/55 clusters): \(\hat\upsilon_0 = 0.036\) (SE 0.075), pivot-locked seller-norm \(0.106\) (SE 0.101); both UNINFORMATIVE vs bar \(6.2\text{e-}5\) ⟹ **\(\upsilon\) NOT IDENTIFIED**, observational estimation never reopened.
 > SURVIVED: \(\hat\kappa \approx 0.031\), flat-profile null rejected ×2 (\(p = 9.5\text{e-}3,\, 7.3\text{e-}3\)) ⟹ decay EXISTS, point unvalidated (\(\approx[0.006,\,0.055]\), wedge-biased ↓). `multiplierWedge` measured: med \(1.1125\), p90 \(1.2917\), \(38.9\%/8{,}910 = 1\), \(R/N\) UNBOUNDED (max \(2.33\) ⟹ the \(1.125\) "bound" REFUTED); rig-exact \(1+\nu R/N\) (long), \(1+\nu R^2/(NT)\) (short), \(\nu = 1/8\).
-> SUPERSEDED: \(\Delta Q_v\) model-implied ← position state (`volOptionPayoff`, `deltaQv_of_payoff`, `variancePortfolio_upsilon`); validity ← wedge-exact per-obs cross-check + rig level test \(|\hat\upsilon_{FD}-\Delta Q_v|/\Delta Q_v \leq \epsilon\). TRAP: `volStrike` MASKED, consumed as Q64.96 sqrt-price ⟹ units contradiction. \(\kappa \notin\) lens inputs.
+> SUPERSEDED: \(\Delta Q_v\) model-implied ← position state (`volOptionPayoff`, `deltaQv_of_payoff`, `variancePortfolio_upsilon`); validity ← wedge-exact per-obs cross-check + rig level test \(|\hat\upsilon_{FD}-\Delta Q_v|/\Delta Q_v \leq \mathrm{tol}\). TRAP: `volStrike` MASKED, consumed as Q64.96 sqrt-price ⟹ units contradiction. \(\kappa \notin\) lens inputs.
 
 
 
@@ -988,7 +988,7 @@ Properties: strictly increasing in \(\eta\); a bijection \((0,\infty) \to (0,1)\
 **\(\varsigma_{X/M}(\eta,\Delta_i)\) IS A MONOTONE PROXY FOR THE ANCHOR'S CURVATURE, NOT A DEFINITIONAL RESTATEMENT OF IT — AND THE DIFFERENCE IS LOAD-BEARING.** The anchor's curvature is the rate of change of the marginal exchange rate *with respect to the amount traded* (§5.1, p. 22), which is what produces slippage; and its `k` is the MIXING WEIGHT of the family above, entering structurally in the arbitrageur's constraint (A.31) and the investor's (A.39) from which every closed form in E2–E5 is derived. Our \(\varsigma_{X/M}\) is the relative price step *per tick index*, and it carries NO per-tick liquidity term — two grids with the same \(\varsigma_{X/M}\) and different liquidity have different slippage per unit traded, hence different curvature in the anchor's sense. What \(\varsigma_{X/M}\) shares with `k` is its qualitative content: increasing in curvature, \(\to 0\) at zero curvature, \(\to 1\) at maximal. **Placing \(\varsigma_{X/M}\) in the anchor's `k` slot is a MODELLING step, not a definition — see E8(1), which covers this object-level identification as well as the equilibrium transfer.**
 
 **WARNING — `η = 1` is the standard sqrt-price grid (`VolInstrument.priceEta_one`: `priceEta 1 Δ_i = tickPrice Δ_i`), and is NOT Capponi's `ς_{X/M} = 1`. \(\varsigma_{X/M}(1,\Delta_i) \neq 1\), and no display here equates `η = 1` with `ς_{X/M} = 1`.** Nor does the unbounded η range EXTEND the anchor's family: \(\varsigma_{X/M}(\cdot,\Delta_i)\) maps \((0,\infty)\) onto the OPEN interval \((0,1) \subsetneq [0,1]\), so \(\eta \to \infty\) only approaches constant product and never attains it, and the anchor's two corners are unreachable. Interiority in η is therefore INHERITED from \(\varsigma_{X/M}^{\star} \in (0,1)\) — the anchor's Proposition-5 result — and is not additional evidence supplied by the reparametrization.
-
+> note: arbLoss is a payoff \pi^{- arb} and if a ratio is \pi^{-arb} / whatever denominator that makes it a ratio
 ## **E2. [ADDITION] The arbitrage-loss ratio** (Lemma 3(1))
 
 \[
@@ -1007,7 +1007,7 @@ GUARD (restated inline, not inherited from E0): \(0 \leq \phi < \varrho_S\), hen
 Branch agreement at \(\varsigma_{X/M,S}\): both branches equal \(\tfrac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}(1+\varrho_S)(1-s)\), so the glued function is continuous. **Strictly decreasing in \(\varsigma_{X/M}\)** on \((0,1]\) (each branch is: \((1+\phi)/(1-\varsigma_{X/M})\) increases, \(1/\varsigma_{X/M}\) decreases) — strictly, because \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} > 0\) by E0.
 
 `\varrho_S > \phi` is Lemma 1's condition that an arbitrage occurs at all; Lemma 1 is the one-token shock result and is NOT the curvature lemma.
-
+> note: Investor surplus is a payoff \pi^{trader} same ratio condition as above
 ## **E3. [ADDITION] The investors' surplus ratio** (Lemma 3(2))
 
 \[
