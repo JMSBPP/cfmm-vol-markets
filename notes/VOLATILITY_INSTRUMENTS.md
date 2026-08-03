@@ -320,7 +320,7 @@ Consider a exogenous tuple flow \( \Delta Q = ( \Delta Q_M, \Delta Q_X )\) on th
 
 \(\chi_{X/M}\) — the SHARE (distribution) parameter: the fraction of pool VALUE held in the \(\Delta Q_M\) leg. It says WHERE the value sits. \(\chi_{X/M} = 1/2\) is the balanced pool; moving it tilts inventory toward one leg WITHOUT changing how the curve responds to trade.
 
-\(\epsilon_{X/M}\) — the SUBSTITUTION parameter, elasticity of substitution \(\sigma_{ES} = 1/(1-\epsilon_{X/M})\). It says HOW HARD the pool resists being moved — the slippage dial. \(\epsilon_{X/M} = 1\): perfect substitutes, \(\sigma_{ES} = \infty\), LINEAR, constant price, NO slippage. \(\epsilon_{X/M} = 0\): \(\sigma_{ES} = 1\), Cobb–Douglas = the constant-product AMM. \(\epsilon_{X/M} \to -\infty\): perfect complements, \(\sigma_{ES} \to 0\), Leontief, no trade. THIS is what an arbitrageur pays for: less substitutability ⟹ more price impact per unit extracted — and equally worse execution for the ordinary investor, which is why both effects move together and produce an interior optimum.
+\(\epsilon_{X/M}\) — the SUBSTITUTION parameter, with elasticity of substitution \(\bar\epsilon_{X/M} = 1/(1-\epsilon_{X/M})\). **BINDING (user, 2026-08-03): \(\epsilon\) is reserved for ELASTICITIES, always subscripted to differentiate; \(\sigma\) is reserved for VOLATILITIES and VARIANCES and is never an elasticity.** <!-- notation-map --> It says HOW HARD the pool resists being moved — the slippage dial. \(\epsilon_{X/M} = 1\): perfect substitutes, \(\bar\epsilon_{X/M} = \infty\), LINEAR, constant price, NO slippage. \(\epsilon_{X/M} = 0\): \(\bar\epsilon_{X/M} = 1\), Cobb–Douglas = the constant-product AMM. \(\epsilon_{X/M} \to -\infty\): perfect complements, \(\bar\epsilon_{X/M} \to 0\), Leontief, no trade. THIS is what an arbitrageur pays for: less substitutability ⟹ more price impact per unit extracted — and equally worse execution for the ordinary investor, which is why both effects move together and produce an interior optimum.
 
 \(\kappa_{\varphi}\) — the CURVATURE, a function of the SUBSTITUTION axis ALONE:
 
@@ -335,7 +335,7 @@ zero exactly at the linear member, strictly positive below it, strictly decreasi
 
 \(\varsigma_{X/M}\) — SHARE ASYMMETRY / grid tilt, \(= 1 - ((1-\chi_{X/M})/\chi_{X/M})^{\Delta_i}\), zero exactly at \(\chi_{X/M} = 1/2\). **It is NOT a curvature**: it assigns zero to the constant-product pool, which is not flat. Blocks E1–E7 are theorems about \(\varsigma_{X/M}\) — their mathematics stands, their reading is about SHARE, not curvature.
 
-> LEAN: \(\kappa_{\varphi}\) is `CurvatureTwo.curvTwo` with inverse `rhoOfCurv` (`curvTwo_linear_zero`, `_pos_of_lt_one`, `_strictAnti_rho`, `_mem_Ico`, both round trips); \(\sigma_{ES}\) is `subElast` (`subElast_zero`, `subElast_tendsto_one`). \(\varsigma_{X/M}\) is `EtaTilde.curvOfTilde` / `EtaCurvature.curvIndex`; that it is NOT a curvature is `curvOfTilde_not_curvature`. Lean names predate these doc symbols and are NOT renamed — standing doc-glyph/Lean-name split.
+> LEAN: \(\kappa_{\varphi}\) is `CurvatureTwo.curvTwo` with inverse `rhoOfCurv` (`curvTwo_linear_zero`, `_pos_of_lt_one`, `_strictAnti_rho`, `_mem_Ico`, both round trips); \(\bar\epsilon_{X/M}\) is `subElast` (`subElast_zero`, `subElast_tendsto_one`). \(\varsigma_{X/M}\) is `EtaTilde.curvOfTilde` / `EtaCurvature.curvIndex`; that it is NOT a curvature is `curvOfTilde_not_curvature`. Lean names predate these doc symbols and are NOT renamed — standing doc-glyph/Lean-name split.
 
 **THE \(\varphi\) CONVENTION (definition).** Every trading function in this document is a member of ONE two-parameter CES family — \(\chi_{X/M}\) the SHARE axis, \(\epsilon_{X/M}\) the SUBSTITUTION axis:
 
@@ -1476,3 +1476,14 @@ Raw count \(6+2n \geq 10\) **for \(n \geq 2\)** — the deficit is STRUCTURAL (b
 5. 2n sigmoid parameters match ≤ 2n carry-profile moments — re-count if the hazard ladder demands finer σ-resolution.
 6. Natenberg local copy is image-only (no text layer); classical displays are anchored to Demeterfi/Bardoscia instead. Lababidi (Greek.fi) contains no Greek formulas — infrastructure reference only.
 7. t-SEMANTICS (G1 clause) — the maturity \(T\) (\(\upsilon = T/2\), \(= T^{\star}/2\) at inception) vs calendar \(t\) (\(T^{\star}-t\) in the locked vega): stated, not yet carried into the Lean signatures.
+
+
+## IMPLIED VOLATILTIY
+
+
+THere is the Kristensen pdf on perpetula options which defines implied volatility \sigma^2_{IV} (t) as a 2\phi \sqrt{\frac{\varphi_{\chi, \epsilon} (\int_{t_0}^t) (some metric of ytrading volume)}{"The AMT_{tick}"}} semes to map to the L_{(\xi, \iota)}(i) but also an integrated quantity over time. W ebn eed to bring the pdf to refs AND brainstomr how to include this to the fraework formally the 2 and sqrt root might be an special case of traidijg ncurve parameters to 1/2. Also the priceOf risk on the plank branch seems to be the entry point for opportunity cost comparsion against fixed income yiled rates (interest rates). Note that there is a section on Krsitensen ion holding an LP vs lending it which might conbnect comparing priceOfRisk against exogenously given interet rates . The ratio VOL / AMT has a firect mapping but myust be proved explicityl to th eutiliation u
+
+
+## OTHER KRSITENSEN CONNECTIONS
+
+Our maturity T which is endogenously controlled by the specified target vega and controlled by liquiditations needs to be connected to the T_{ITM} /T = \int_{t_O}^{T} \mathbb{P}_{[i_l, i_u]} dt / T as defined on Krsitensen and see what can ew leverage from there
