@@ -282,18 +282,23 @@ with ratio \(\lambda^{-\Delta_i}\) — \(\lambda\) the fixed tick base (Protocol
 
 *Formalized (sampling half):* `GeomProfile.logContractLiquidity_geometric`; bridge to the ladder weights: `VolInstrument.strikeWeight_bridge`.
 
-We have on the underlying market \(X, M\):
+# TRADING_REGION
+
+**Definition 9 (Per-strike amounts).** On the underlying market \((X, M)\), the liquidity \(L(i_K)\) at strike tick \(i_K\) holds the per-strike token amounts
 
 \[
 	\begin{aligned}
-		\Delta Q_M^{L} (i_K) \, &= \, L \, (i_K) \Big [ \frac{p_{(\eta, \Delta_i)} (i_K + \Delta_i) \, - \, p_{(\eta, \Delta_i)} (i_K)}{p_{(\eta, \Delta_i)} (i_K) \, p_{(\eta, \Delta_i)} (i_K + \Delta_i)}\Big] \\
+		\Delta Q_M^{L} (i_K) \, &\equiv \, L \, (i_K) \Big [ \frac{p_{(\eta, \Delta_i)} (i_K + \Delta_i) \, - \, p_{(\eta, \Delta_i)} (i_K)}{p_{(\eta, \Delta_i)} (i_K) \, p_{(\eta, \Delta_i)} (i_K + \Delta_i)}\Big] \\
 		\\
-		\Delta Q_X^L \, (i_K) \, &= \, L \, (i_K) \Big [ p_{(\eta, \Delta_i)} (i_K + \Delta_i) \, - \, p_{(\eta, \Delta_i)} (i_K) \Big ]
+		\Delta Q_X^L \, (i_K) \, &\equiv \, L \, (i_K) \Big [ p_{(\eta, \Delta_i)} (i_K + \Delta_i) \, - \, p_{(\eta, \Delta_i)} (i_K) \Big ]
 	\end{aligned}
 \]
 
+identical to the per-rick amounts of [BUNNI_V2](../refs/bunni-v2.pdf) §2.3, eqs. (10)–(13), at \(\eta = 1\) — stated here on the general grid \(p_{(\eta,\Delta_i)}\) (Definition 8). \(M \leftrightarrow \text{token}_0\), \(X \leftrightarrow \text{token}_1\). **PR-REGION OPEN:** the legs are stated unsigned; the admissibility region of signed flows is not yet defined — Theorem 5's \(\Delta_i \geq 0\) hypothesis currently stands in for it.
 
-> LEAN (proved, with corrected hypotheses): nonnegativity of both legs requires \(\Delta_i \geq 0\) in addition to \(\eta\,\Delta_i > 0\) (\(\eta,\Delta_i < 0\) makes \(i_K + \Delta_i < i_K\) and reverses signs), and the money leg is the reciprocal-price difference:
+*Formalized:* `VolInstrument.deltaQM`, `deltaQX` (the defining displays).
+
+**Theorem 5 (Leg nonnegativity, reciprocal money leg).** Nonnegativity of both legs requires \(\Delta_i \geq 0\) in addition to \(\eta\,\Delta_i > 0\) (\(\eta,\Delta_i < 0\) makes \(i_K + \Delta_i < i_K\) and reverses signs), and the money leg is the reciprocal-price difference:
 
 \[
 	\begin{aligned}
@@ -302,31 +307,35 @@ We have on the underlying market \(X, M\):
 	\end{aligned}
 \]
 
-> `VolInstrument.deltaQM_nonneg`, `deltaQX_nonneg`, `deltaQM_token0`.
+The reciprocal form is exactly [BUNNI_V2](../refs/bunni-v2.pdf) eq. (10)'s shape.
 
-Then define the cummulatives as: 
+*Formalized:* `VolInstrument.deltaQM_nonneg`; `deltaQX_nonneg`; `deltaQM_token0`.
 
-\[
-	\begin{aligned}
-		Q_M^L (i_K) \, &= \sum_{i=i_K}^{i_{\text{max}}} \, \Delta Q_M^{L}\, (i) \\
-		\\
-		Q_X^L \, (i_K) \, &= \, \sum_{i=i_{\text{min}}}^{i_K} \Delta Q_X^L \, (i)
-	\end{aligned}
-\]
-
-And the inverse cummulatives as:
+**Definition 10 (Cumulative amounts).** The **cumulative amounts** aggregate the per-strike amounts from the money side down and the asset side up:
 
 \[
 	\begin{aligned}
-	    Q_M^L (\bar Q_M)^{-1} \, &= \, \text{arg max}_{i} \Big \{ Q_M^L (i_K): Q_M^L (i_K) \geq \bar Q_M\Big\}\\
+		Q_M^L (i_K) \, &\equiv \sum_{i=i_K}^{i_{\text{max}}} \, \Delta Q_M^{L}\, (i) \\
 		\\
-			Q_X^L (\bar Q_X )^{-1} \, &= \, \text{arg min}_{i} \Big \{ Q_X^L (i_K): Q_X^L (i_K) \geq \bar Q_X\Big\}\\
+		Q_X^L \, (i_K) \, &\equiv \, \sum_{i=i_{\text{min}}}^{i_K} \Delta Q_X^L \, (i)
 	\end{aligned}
 \]
 
+identical to the cumulative amount functions of [BUNNI_V2](../refs/bunni-v2.pdf) §2.3, eqs. (14)–(15).
 
+**Definition 11 (Inverse cumulative amounts).** The **inverse cumulative amounts** map a target amount back to the extremal strike tick attaining it:
 
-> LEAN (proved): both cumulatives are monotone in the step count (for \(L \geq 0\)), so the inverse cumulatives are well-defined least attaining steps; for \(L \equiv \bar L\) they telescope:
+\[
+	\begin{aligned}
+	    Q_M^L (\bar Q_M)^{-1} \, &\equiv \, \text{arg max}_{i} \Big \{ Q_M^L (i_K): Q_M^L (i_K) \geq \bar Q_M\Big\}\\
+		\\
+			Q_X^L (\bar Q_X )^{-1} \, &\equiv \, \text{arg min}_{i} \Big \{ Q_X^L (i_K): Q_X^L (i_K) \geq \bar Q_X\Big\}\\
+	\end{aligned}
+\]
+
+identical to the inverse cumulative amount functions of [BUNNI_V2](../refs/bunni-v2.pdf) §2.4, eqs. (22)–(23) — including the arg max/arg min asymmetry, which mirrors the opposed summation directions of Definition 10.
+
+**Theorem 6 (Monotonicity and telescoping).** Both cumulatives are monotone in the step count (for \(L \geq 0\)), so the inverse cumulatives of Definition 11 are well-defined least attaining steps; for the constant ladder \(L \equiv \bar L\) they telescope to closed form:
 
 \[
 	\begin{aligned}
@@ -335,7 +344,9 @@ And the inverse cummulatives as:
 	\end{aligned}
 \]
 
-> `VolInstrument.cumulativeQ{M,X}_monotone`, `cumulativeQ{M,X}_const`, `exists_least_reaching`.
+*Formalized:* `VolInstrument.cumulativeQM_monotone`; `cumulativeQX_monotone`; `cumulativeQM_const`; `cumulativeQX_const`; `exists_least_reaching`.
+
+**Notation map (Bunni v2 remap — collision-driven).** [BUNNI_V2](../refs/bunni-v2.pdf)'s symbols do not enter this document because \(a_0, a_1\) collide with the replication weights \(a_1, a_2\) (Settlement form of Definition 1). The remap: \(a_0 \mapsto \Delta Q_M^L\), \(a_1 \mapsto \Delta Q_X^L\), \(A_0 \mapsto Q_M^L\), \(A_1 \mapsto Q_X^L\), \(A_0^{-1} \mapsto Q_M^L(\cdot)^{-1}\), \(A_1^{-1} \mapsto Q_X^L(\cdot)^{-1}\), \(w \mapsto \Delta_i\), \(r \mapsto i_K\), \(l_r \mapsto L(i_K)\), \(1.0001 \mapsto \lambda\) (\(\mathcal{C}_p\)). Structural identification: Definition 7's weight profile \(\ell\) **is** Bunni's geometric LDF \(d_{\alpha,l}\) (§2.2.1, eq. (9)) under \(\alpha \mapsto \xi\), \(l \mapsto \iota\), and Definition 7's \(L(i_K) = \bar L\,\ell(\cdot)\) is his \(l_r = L \cdot LDF_w(r)\) (eq. (5)). <!-- notation-map -->
 
 Consider a exogenous tuple flow \( \Delta Q = ( \Delta Q_M, \Delta Q_X )\) on the region:
 
