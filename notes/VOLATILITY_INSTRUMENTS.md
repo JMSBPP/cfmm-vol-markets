@@ -52,17 +52,27 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 
 > RESOLVED (user ruling, 2026-08-03): exponent sign is **NEGATIVE**. Two-part justification: (i) with the display's own prefactor \(p(\cdot)\sigma/\sqrt{8\pi t}\), the bracket is \(-\sigma\sqrt{t}\,d_2\), so the negative sign gives \(e^{-d_2^2/2} \propto \varphi(d_2)\) — exactly the \(r=0\) Black–Scholes dt-leg \(\theta = S\sigma\varphi(d_1)/(2\sqrt t)\) via \(S\varphi(d_1)=K\varphi(d_2)\); (ii) DECISIVE and internal: \(p_{\pi^{\text{call|put}}} \leftarrow \int\theta\) over the price grid CONVERGES only with the negative sign (Gaussian tails) — under \(+\) the assignment defining the option prices diverges. The ATM form cannot discriminate (`theta_atm_closed_form`, exponent vanishes ATM); the tails do.
 
-One greek of special interest that we wnat to identify and is the bridge with our protocol is \(\upsilon\); this is beacuse dimensioally lives on the place that \(\Delta Q_v\):
+**Definition 4 (Upsilon).** The **upsilon** of a premium or payoff functional at strike tick \(i_K\) is its per-unit-variance sensitivity, as a lattice finite difference in the variance argument:
 
 \[
 	\begin{aligned}
-		\upsilon \, \Big (p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K)\Big)\, &\equiv \, \upsilon \, &\equiv \, \frac{\Delta \pi^{\text{call | put}}}{\Delta \sigma^2 \, (\cdot)} \\
+		\upsilon \, \Big (p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K)\Big)\, &\equiv \, \frac{\Delta \pi^{\text{call | put}}}{\Delta \sigma^2 \, (\cdot)}
 	\end{aligned}
 \]
 
-Once we identify \(\upsilon \, (\cdot)\) we can build on top of panoptic from our protocol or vice versa:
+*Formalized:* `Upsilon.upsilon` (\(\upsilon[p_\ell] = (p_\ell(\sigma^2{+}\Delta s) - p_\ell(\sigma^2))/\Delta s\)).
 
-# \(\upsilon\) IDENTIFICATION
+**Proposition 3 (Vega bridge).** On the region where the volatility option is in-the-money at both variance endpoints (\(\sigma^2_K \le \sigma^2\) and \(\sigma^2_K \le \sigma^2 + \Delta s\)), its upsilon **is** its vega notional:
+
+\[
+	\begin{aligned}
+		\upsilon\big(\pi^{\sigma}\big) \;&=\; \Delta Q_v
+	\end{aligned}
+\]
+
+— the dimensional bridge the identification sought: \(\upsilon\) occupies the \(\Delta Q_v\) slot (\(= \Delta Q_M/p_{\text{risk}}\) via `Flow.deltaShares`). Off that region the recovery FAILS by construction (the kink); the ATM/OTM null is recorded as a conjecture, unproven.
+
+*Formalized:* `Upsilon.upsilon_volOption`; `upsilon_eq_deltaShares_slot`; at the endogenous maturity \(\upsilon = T^\star/2\) (`variancePortfolio_upsilon_at_tStar`, `tStar_unit_upsilon`).
 
 # FAQ
 - Why one leg on the tokenId is not enough for buidlign the variance instrument  ?
