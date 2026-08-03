@@ -507,7 +507,7 @@ The single-term case is the sigmoid fee schedule with steepness \(s_f = 1/\gamma
 
 ECONOMIC CONTENT OF THEOREM 1. The floor \(\bar\phi\) is unconditional — LPs take a base fee at every volatility, so the schedule never degenerates to free execution. The ceiling is NOT a constant: it is \(\bar\phi + (\sum_j\alpha_j)\,u\), GATED by the utilization factor \(u \in [0,\alpha_R]\), so a pool nobody is trading against cannot levy the volatility surcharge at all — at \(u = 0\) the band collapses to the floor, and the surcharge is earned only where flow exists to earn it on. Monotonicity in \(\sigma\) is what makes the schedule a genuine VOLATILITY SURCHARGE rather than an arbitrary function of state: higher realized volatility always costs the trader weakly more. That is the property the FLAIR identification consumes — \(\Theta_{\lambda_{\text{FLAIR}}} = \{\bar\phi, \alpha, u\}\) is a LEVEL block precisely because the band's two edges are the level parameters, while \((\beta_j,\gamma_j)\) only place the transition inside the band (G3).
 
-**Definition (Streaming-Premium Identification).** Assign the per-time-step payoff variation to the trading fee:
+**Rule 2 (Streamia).** Assign the per-time-step payoff variation to the trading fee:
 
 \[
 	\begin{aligned}
@@ -515,9 +515,11 @@ ECONOMIC CONTENT OF THEOREM 1. The floor \(\bar\phi\) is unconditional — LPs t
 	\end{aligned}
 \]
 
-\(\overset{\text{streamia}}{\longleftarrow}\) denotes this assignment throughout. Accumulating it over \(N\) steps of length \(\Delta t\) gives the STREAMING PREMIUM \(\sum_{j<N}\theta_j\,\Delta t\) — the seller's fee income replicates the option's time decay, which is exactly why the perpetual instrument needs no expiry: the decay that a dated option pays out at \(T\) is instead streamed continuously.
+\(\overset{\text{streamia}}{\longleftarrow}\) denotes this Rule throughout.
 
-> LEAN (proved): `Panoptic.streamingPremium`, `streamingPremium_succ` (\(\Sigma_{N+1} = \Sigma_N + \theta_N\Delta t\)).
+**Definition 3 (Streaming premium).** The **streaming premium** over \(N\) steps of length \(\Delta t\) is the accumulated streamia \(\sum_{j<N}\theta_j\,\Delta t\) — the seller's fee income under Rule 2. It replicates the option's time decay, which is exactly why the perpetual instrument needs no expiry: the decay that a dated option pays out at \(T\) is instead streamed continuously.
+
+*Formalized:* `Panoptic.streamingPremium`; `streamingPremium_succ` (\(\Sigma_{N+1} = \Sigma_N + \theta_N\Delta t\)).
 
 ## VOL ORDER COMPLETION — ENDOGENOUS MATURITY
 
