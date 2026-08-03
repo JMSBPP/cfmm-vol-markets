@@ -188,14 +188,19 @@ parameter set. A parameter not listed here is not a parameter of the protocol.
   *Purpose:* grid granularity — the quantization step at which strikes, hence ladder legs, may sit (Definition 8).
   *Economic meaning:* the spacing pins the ladder ratio \(\xi^{\star} = \lambda^{-\Delta_i/2}\) (\(\Theta_{\ell}\) entry) and sets the per-spacing price step \(\lambda^{\eta\Delta_i/2}\) — the coarseness lever coupling the pricing geometry to the replication ladder.
 
-**Protocol Parameter (\(\Theta_{\varphi} = \{\chi_{X/M}, \epsilon_{X/M}\}\) — the trading curve; PARTIAL: \(\epsilon_{X/M}\) enters at the CES definition).**
+**Protocol Parameter (\(\Theta_{\varphi} = \{\chi_{X/M}, \epsilon_{X/M}\}\) — the trading curve).**
 
 - \(\chi_{X/M}\) — the **share parameter**.
   *Domain:* \(\chi_{X/M} \in (0,1)\) (Definition 12).
   *Purpose:* the exponent weighting the \(\Delta Q_M\) leg of the trading function (Definition 12); first slot of the subscript tuple \((\chi_{X/M}, \epsilon_{X/M})\).
   *Economic meaning:* the SHARE (distribution) parameter — the fraction of pool value held in the \(\Delta Q_M\) leg; it says WHERE the value sits. \(\chi_{X/M} = 1/2\) is the balanced pool; moving it tilts inventory toward one leg WITHOUT changing how the curve resists trade. Via the proven bridge \(\chi_{X/M}/(1-\chi_{X/M}) = \lambda^{\eta\Delta_i/2}\) it is an **observable of the price grid**, not an independent primitive — subject to the OPEN leg-orientation FLAG (Definition 12), which flips the bridge.
 
-> PENDING ENTRIES (added as the pair pass reaches them): \(\epsilon_{X/M}\) (substitution — completes \(\Theta_{\varphi}\) at the CES definition; the "THE PARAMETERS, ECONOMICALLY" block folds in), \(\Theta_{\phi}\) (fee schedule), \(\Theta_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) (order).
+- \(\epsilon_{X/M}\) — the **substitution parameter**.
+  *Domain:* \(\epsilon_{X/M} \in (-\infty, 1]\) — \(\epsilon_{X/M} = 1\) the linear member (perfect substitutes, \(\bar\epsilon_{X/M} = \infty\)); \(\epsilon_{X/M} = 0\) the defined Cobb–Douglas case (constant product); \(\epsilon_{X/M} \to -\infty\) the Leontief limit (no trade).
+  *Purpose:* the substitution axis of Definition 13, second slot of the subscript tuple; the elasticity of substitution is \(\bar\epsilon_{X/M} = 1/(1-\epsilon_{X/M})\), and the genuine curvature \(\kappa_{\varphi}\) is a function of this axis ALONE. Proven orthogonal to the share axis (`phiCES_rho_ne_eps_axis`; \(\varsigma_{X/M}\) factors through the share, `curvIndex_is_rho_zero_slice`).
+  *Economic meaning:* the slippage dial — HOW HARD the pool resists being moved. This is what an arbitrageur pays for: less substitutability means more price impact per unit extracted — and equally worse execution for the ordinary investor, which is why both effects move together and produce an interior optimum.
+
+> PENDING ENTRIES (added as the pair pass reaches them): \(\Theta_{\phi}\) (fee schedule), \(\Theta_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) (order).
 
 ### PROTOCOL_CONSTANTS
 
@@ -392,11 +397,11 @@ zero exactly at the linear member, strictly positive below it, strictly decreasi
 
 > LEAN: \(\kappa_{\varphi}\) is `CurvatureTwo.curvTwo` with inverse `rhoOfCurv` (`curvTwo_linear_zero`, `_pos_of_lt_one`, `_strictAnti_rho`, `_mem_Ico`, both round trips); \(\bar\epsilon_{X/M}\) is `subElast` (`subElast_zero`, `subElast_tendsto_one`). \(\varsigma_{X/M}\) is `EtaTilde.curvOfTilde` / `EtaCurvature.curvIndex`; that it is NOT a curvature is `curvOfTilde_not_curvature`. Lean names predate these doc symbols and are NOT renamed — standing doc-glyph/Lean-name split.
 
-**THE \(\varphi\) CONVENTION (definition).** Every trading function in this document is a member of ONE two-parameter CES family — \(\chi_{X/M}\) the SHARE axis, \(\epsilon_{X/M}\) the SUBSTITUTION axis:
+**Definition 13 (CES trading-function family).** Every trading function in this document is a member of ONE two-parameter CES family — \(\chi_{X/M}\) the SHARE axis, \(\epsilon_{X/M}\) the SUBSTITUTION axis:
 
 \[
 	\begin{aligned}
-		\varphi_{\chi_{X/M},\,\epsilon_{X/M}}\,(Q_X,Q_M) \, = \,
+		\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\,(Q_X,Q_M) \, \equiv \,
 		\begin{cases}
 			\big(\chi_{X/M}\,Q_X^{\epsilon_{X/M}} + (1-\chi_{X/M})\,Q_M^{\epsilon_{X/M}}\big)^{1/\epsilon_{X/M}}, & \epsilon_{X/M} \neq 0 \\[4pt]
 			Q_X^{\chi_{X/M}}\,Q_M^{1-\chi_{X/M}}, & \epsilon_{X/M} = 0
@@ -405,7 +410,9 @@ zero exactly at the linear member, strictly positive below it, strictly decreasi
 	\end{aligned}
 \]
 
-\(\epsilon_{X/M} = 0\) is a DEFINED CASE, not an evaluation — \(1/\epsilon_{X/M}\) is undefined there, so the Cobb–Douglas branch is supplied by definition and CONTINUITY at \(\epsilon_{X/M} = 0\) is a theorem, not a substitution. Every display in this document sits on the \(\epsilon_{X/M} = 0\) slice and is subscripted accordingly.
+\(\epsilon_{X/M} = 0\) is a DEFINED CASE, not an evaluation — \(1/\epsilon_{X/M}\) is undefined there, so the Cobb–Douglas branch is supplied by definition and CONTINUITY at \(\epsilon_{X/M} = 0\) is a **theorem** (`phiCES_tendsto_phiEps`), not a substitution. Every display in this document sits on the \(\epsilon_{X/M} = 0\) slice and is subscripted accordingly; Definition 12 is the \(\epsilon_{X/M} = 0\) member evaluated on the per-strike virtual reserves. **ORIENTATION (PR-ORIENT, OPEN):** this display carries \(\chi_{X/M}\) on the \(Q_X\) leg — the **opposite** of Definition 12's \(\Delta Q_M\)-leg placement; the FLAG applies to the *pair* and one of the two must eventually change.
+
+*Formalized:* `PhiCES.phiCES` (12/12 axiom-clean): `phiCES_tendsto_phiEps`; `phiCES_one` (\(\epsilon_{X/M} = 1\) linear); `phiCES_zero_half_eq_geom`; `phiCES_homogeneous`/`_pos`/`_mono`. *Narrowed, declared:* `phiCES_concave` is RADIAL concavity only — joint concavity in \((Q_X,Q_M)\) is OPEN.
 
 \(\chi_{X/M}\) = the SHARE parameter = the exponent on the \(\Delta Q_M\) leg (the \(1/p_{(\eta, \Delta_i)}\) leg) = that leg's share of pool value. The current case is \(\chi_{X/M} = 1/2\):
 
