@@ -390,6 +390,7 @@ strip_truncated() { sed -E 's/0x[0-9a-fA-F]+(\.\.\.|…)/TRUNCATED-VALUE-NOT-USA
 
 echo "== parsing retired values =="
 RETIRED_VALUES=""
+RETIRED_PAIRS=()          # "key|file|value", for the reverse-direction sweep assertion below
 for spec in "${RETIRED_SPECS[@]}"; do
   IFS='|' read -r rkey rfile ranchor rlen <<< "$spec"
   hits="$(grep -F -- "$ranchor" "$rfile" | strip_truncated | grep -oE '0x[0-9a-fA-F]+' \
@@ -401,14 +402,57 @@ for spec in "${RETIRED_SPECS[@]}"; do
   fi
   jq -nc --arg k "$rkey" --arg v "$hits" '{key:$k, value:$v}' >> "$RETS"
   RETIRED_VALUES="$RETIRED_VALUES $hits"
+  RETIRED_PAIRS+=("$rkey|$rfile|$hits")
   printf '   retired    %-28s %s  (%s)\n' "$rkey" "$hits" "$rfile"
 done
 
 # SWEEP: every FULL value on a RETIRED line in the scanned files must be covered above, so a
 # newly retired value cannot be silently dropped by this generator.
+#
+# IT USED TO PASS ON ZERO MATCHES, and worse, on a PARTIAL loss. `cat ... | grep 'RETIRED' >
+# "$SWEEP_SRC" || true` swallowed both a grep no-match and a genuine `cat` failure under
+# pipefail, and the loop that follows is vacuous over an empty file: zero iterations, zero
+# complaints, exit 0, tracked pin file replaced. Every other parse in this script has a floor;
+# the sweep -- the check that exists so a retired value cannot be silently dropped -- had none.
+#
+# MEASURED. A `cat` shim recasing "**RETIRED-NEVER-LIVE**" to "**Retired-never-live**" on the
+# E1 (v1) row of notes/DATA_CONTRACT.md (another track's file, simulated rather than edited;
+# the per-key `grep -F` anchor "superseded by v2 before any deployment" is untouched by the
+# recase, so the per-key parse still succeeds exactly as it would under the real drift):
+#   BEFORE: "covered 0x6501fe94" ONLY -- the 64-digit E1 topic0 silently left the sweep --
+#           exit 0, rig-pins.json replaced.
+#
+# THE FIX IS A SET IDENTITY, NOT A FLOOR. A floor of "at least 2 covered values" would pass a
+# count-preserving swap: one line loses its marker while another gains a spurious one carrying
+# a value the retired block also holds. So the sweep is asserted in BOTH directions:
+#   forward (this loop)  : every value the sweep FINDS is in the retired block;
+#   reverse (below)      : every retired value whose SOURCE FILE is in the scan set is FOUND
+#                          by the sweep.
+# The reverse side is derived from RETIRED_SPECS and SWEEP_SCAN, never typed -- adding a
+# retired value needs no edit here, and losing one from the sweep is a named FATAL.
+#
+# NOTE ON THE PRESCRIPTION THIS FIXES: it said "a marker rename yields 0 lines and exit 0".
+# The zero-line case is NOT reachable by a marker rename, because create_order_v1's own anchor
+# CONTAINS the string RETIRED-NEVER-LIVE -- rename it and the per-key parse FATALs first. What
+# is reachable by a rename is the PARTIAL loss measured above; the zero-line case is reachable
+# when `cat` itself fails, which the `|| true` also swallowed. Both are closed here.
 echo "   -- sweep: RETIRED lines across the interface files + $DATA_CONTRACT --"
+SWEEP_SCAN=("${IFACES[@]}" "$DATA_CONTRACT")
+SWEEP_ALL="$TMP/sweep-all.txt"
 SWEEP_SRC="$TMP/retired-lines.txt"
-cat "${IFACES[@]}" "$DATA_CONTRACT" | grep 'RETIRED' > "$SWEEP_SRC" || true
+if ! cat "${SWEEP_SCAN[@]}" > "$SWEEP_ALL"; then
+  echo "FATAL: could not read the retired-sweep sources:" >&2
+  printf '       %s\n' "${SWEEP_SCAN[@]}" >&2
+  echo "       This used to be swallowed by '|| true' and reported as 'no RETIRED lines'." >&2
+  exit 1
+fi
+sweep_rc=0
+grep 'RETIRED' "$SWEEP_ALL" > "$SWEEP_SRC" || sweep_rc=$?
+if [ "$sweep_rc" -gt 1 ]; then
+  echo "FATAL: grep failed (exit $sweep_rc) while sweeping for RETIRED lines" >&2
+  exit 1
+fi
+n_sweep_lines="$(grep -c . "$SWEEP_SRC" || true)"
 n_trunc="$(grep -coE '0x[0-9a-fA-F]+(\.\.\.|…)' "$SWEEP_SRC" || true)"
 sweep_full="$(strip_truncated < "$SWEEP_SRC" | grep -oE '0x[0-9a-fA-F]+' | tr 'A-F' 'a-f' | sort -u || true)"
 for v in $sweep_full; do
@@ -423,7 +467,32 @@ for v in $sweep_full; do
        exit 1 ;;
   esac
 done
-echo "   truncated (ellipsis) occurrences deliberately EXCLUDED: $n_trunc"
+
+# REVERSE DIRECTION. Scoped to the retired values whose defining file the sweep actually
+# scans -- topic_order_created_stale is parsed from $STALE_TOPIC_SRC, which is deliberately
+# NOT in SWEEP_SCAN, and demanding it here would be asserting something false.
+sweep_flat="$(printf '%s ' $sweep_full)"
+for pair in "${RETIRED_PAIRS[@]}"; do
+  IFS='|' read -r rkey rfile rval <<< "$pair"
+  in_scan=0
+  for f in "${SWEEP_SCAN[@]}"; do [ "$f" = "$rfile" ] && in_scan=1; done
+  [ "$in_scan" -eq 1 ] || { printf '   out-of-scan %-24s %s  (%s)\n' "$rkey" "$rval" "$rfile"; continue; }
+  case " $sweep_flat " in
+    *" $rval "*) ;;
+    *) {
+         echo "FATAL: the RETIRED sweep did not find '$rkey' ($rval)."
+         echo "       It is parsed from $rfile, which IS in the sweep's scan set, so its"
+         echo "       defining line must still carry the RETIRED marker -- and does not."
+         echo "       The sweep matched $n_sweep_lines line(s) and $(printf '%s' "$sweep_full" | grep -c . || true) full value(s)."
+         echo "       This is the sweep losing coverage SILENTLY, which is the one failure it"
+         echo "       exists to prevent. Either the marker moved (find it: grep -n RETIRED $rfile)"
+         echo "       or the value is no longer marked retired -- both are findings."
+         echo "       $OUT was NOT replaced."
+       } >&2
+       exit 1 ;;
+  esac
+done
+echo "   swept $n_sweep_lines RETIRED line(s); truncated (ellipsis) occurrences deliberately EXCLUDED: $n_trunc"
 echo
 
 # --------------------------------------------------------------------------------------------
