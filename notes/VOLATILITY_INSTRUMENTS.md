@@ -48,13 +48,17 @@ The strike is the price at the STRIKE TICK \(i_K\), on the price grid \(p_{(\eta
 
 *Formalized (ATM case):* `theta_atm_closed_form` — \(\Theta_{ATM} = k\sigma/\sqrt{8\pi\tau}\). **General form OPEN** — an Aristotle target (lattice → closed form).
 
-The option price is then ASSIGNED (not identified — the left arrow) as the accumulated theta over the price grid; its formal statement is next in the 12.1 pair pass, per the ordering: θ definition first, then the streamia assignment, then the named time-integrated assignment:
+**Rule 1 (Option pricing).** The protocol prices the call (resp. put) at strike tick \(i_K\) as **accumulated theta along the realized tick path**:
 
 \[
 	\begin{aligned}
-		p_{\pi^{\text{call | put}}}\, (t) \, &\leftarrow \, \int_{p_{(\eta, \Delta_i)} \, (i; t)} \, \theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (t)) \Big ) \, \mathcal{d}\, t
+		p_{\pi^{\text{call | put}}}\, (t) \, &\leftarrow \, \int_{t_0}^{t} \, \theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; s) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (s)) \Big ) \, \mathcal{d}\, s
 	\end{aligned}
 \]
+
+The left arrow marks a Rule, not an identity: this is a stipulation of the protocol, and the implementation either complies with it or does not.
+
+*Formalized:* `Panoptic.streamingPremium` (the discrete accumulation \(\sum_j \theta_j\,\Delta t\)); `streamingPremium_succ`.
 
 
 > RESOLVED (user ruling, 2026-08-03): exponent sign is **NEGATIVE**. Two-part justification: (i) with the display's own prefactor \(p(\cdot)\sigma/\sqrt{8\pi t}\), the bracket is \(-\sigma\sqrt{t}\,d_2\), so the negative sign gives \(e^{-d_2^2/2} \propto \varphi(d_2)\) — exactly the \(r=0\) Black–Scholes dt-leg \(\theta = S\sigma\varphi(d_1)/(2\sqrt t)\) via \(S\varphi(d_1)=K\varphi(d_2)\); (ii) DECISIVE and internal: \(p_{\pi^{\text{call|put}}} \leftarrow \int\theta\) over the price grid CONVERGES only with the negative sign (Gaussian tails) — under \(+\) the assignment defining the option prices diverges. The ATM form cannot discriminate (`theta_atm_closed_form`, exponent vanishes ATM); the tails do.
