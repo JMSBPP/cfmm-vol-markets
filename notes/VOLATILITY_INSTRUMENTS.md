@@ -26,23 +26,35 @@ We have somehow simplified:
 
 Where:
 
-This is an assigment not an identity THat is why the left arrow BUT is the consequence of making \phi assigned the \theta. Thus the formal definition on \theta comes first. Then the assigment of \stremia and then  a nmaed assignment for the time integerated stremia. NOte taht all these are deifcinoiion, and conventions but need re oirdering
+**Definition 2 (Theta).** The **theta** of the call (resp. put) at strike tick \(i_K\) is the per-time-step payoff variation
+
+\[
+	\begin{aligned}
+		\theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (t)) \Big ) \, &\equiv \, \frac{\Delta \pi^{\text{call | put}}}{\Delta\, t }
+	\end{aligned}
+\]
+
+The strike is the price at the STRIKE TICK \(i_K\), on the price grid \(p_{(\eta, \Delta_i)}\) defined under the pricing geometry below (\(\texttt{VolInstrument.priceEta}\)).
+
+*Formalized:* `Panoptic.latticeTheta` (the lattice quotient); `thetaAtm`.
+
+**Proposition 2 (Closed form of θ).** Under the price grid \(p_{(\eta,\Delta_i)}\),
+
+\[
+	\begin{aligned}
+		\theta \, &= \,  \frac{p_{(\eta, \Delta_i)} \, (\cdot)\, \sigma \, (\cdot)}{\sqrt{8\, \pi \, t}} \, \exp \, \Big (-\frac{\Big [- \ln \Big(\frac{p_{(\eta, \Delta_i)} \, (i (t_0))}{p_{(\eta, \Delta_i)} \, (i_K)}\Big) \, + \, \frac{\sigma^2 \, t}{2} \Big ]^2}{2\, \sigma^2 \, (\cdot)\, t}\Big)
+	\end{aligned}
+\]
+
+*Formalized (ATM case):* `theta_atm_closed_form` — \(\Theta_{ATM} = k\sigma/\sqrt{8\pi\tau}\). **General form OPEN** — an Aristotle target (lattice → closed form).
+
+The option price is then ASSIGNED (not identified — the left arrow) as the accumulated theta over the price grid; its formal statement is next in the 12.1 pair pass, per the ordering: θ definition first, then the streamia assignment, then the named time-integrated assignment:
+
 \[
 	\begin{aligned}
 		p_{\pi^{\text{call | put}}}\, (t) \, &\leftarrow \, \int_{p_{(\eta, \Delta_i)} \, (i; t)} \, \theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (t)) \Big ) \, \mathcal{d}\, t
 	\end{aligned}
 \]
-
-
-Where:
-\[
-	\begin{aligned}
-		\theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (t)) \Big ) \, &\equiv \, \frac{\Delta \pi^{\text{call | put}}}{\Delta\, t } \\
-		&= \,  \frac{p_{(\eta, \Delta_i)} \, (\cdot)\, \sigma \, (\cdot)}{\sqrt{8\, \pi \, t}} \, \exp \, \Big (-\frac{\Big [- \ln \Big(\frac{p_{(\eta, \Delta_i)} \, (i (t_0))}{p_{(\eta, \Delta_i)} \, (i_K)}\Big) \, + \, \frac{\sigma^2 \, t}{2} \Big ]^2}{2\, \sigma^2 \, (\cdot)\, t}\Big)
-	\end{aligned}
-\]
-
-The strike is the price at the STRIKE TICK \(i_K\), on the price grid \(p_{(\eta, \Delta_i)}\) defined under the pricing geometry below (\(\texttt{VolInstrument.priceEta}\)).
 
 
 > RESOLVED (user ruling, 2026-08-03): exponent sign is **NEGATIVE**. Two-part justification: (i) with the display's own prefactor \(p(\cdot)\sigma/\sqrt{8\pi t}\), the bracket is \(-\sigma\sqrt{t}\,d_2\), so the negative sign gives \(e^{-d_2^2/2} \propto \varphi(d_2)\) — exactly the \(r=0\) Black–Scholes dt-leg \(\theta = S\sigma\varphi(d_1)/(2\sqrt t)\) via \(S\varphi(d_1)=K\varphi(d_2)\); (ii) DECISIVE and internal: \(p_{\pi^{\text{call|put}}} \leftarrow \int\theta\) over the price grid CONVERGES only with the negative sign (Gaussian tails) — under \(+\) the assignment defining the option prices diverges. The ATM form cannot discriminate (`theta_atm_closed_form`, exponent vanishes ATM); the tails do.
