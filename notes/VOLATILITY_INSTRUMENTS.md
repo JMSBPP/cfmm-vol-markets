@@ -188,7 +188,14 @@ parameter set. A parameter not listed here is not a parameter of the protocol.
   *Purpose:* grid granularity — the quantization step at which strikes, hence ladder legs, may sit (Definition 8).
   *Economic meaning:* the spacing pins the ladder ratio \(\xi^{\star} = \lambda^{-\Delta_i/2}\) (\(\Theta_{\ell}\) entry) and sets the per-spacing price step \(\lambda^{\eta\Delta_i/2}\) — the coarseness lever coupling the pricing geometry to the replication ladder.
 
-> PENDING ENTRIES (added as the pair pass reaches them): \(\Theta_{\varphi} = \{\chi_{X/M}, \epsilon_{X/M}\}\) (trading curve — the existing "THE PARAMETERS, ECONOMICALLY" block folds in here), \(\Theta_{\phi}\) (fee schedule), \(\Theta_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) (order).
+**Protocol Parameter (\(\Theta_{\varphi} = \{\chi_{X/M}, \epsilon_{X/M}\}\) — the trading curve; PARTIAL: \(\epsilon_{X/M}\) enters at the CES definition).**
+
+- \(\chi_{X/M}\) — the **share parameter**.
+  *Domain:* \(\chi_{X/M} \in (0,1)\) (Definition 12).
+  *Purpose:* the exponent weighting the \(\Delta Q_M\) leg of the trading function (Definition 12); first slot of the subscript tuple \((\chi_{X/M}, \epsilon_{X/M})\).
+  *Economic meaning:* the SHARE (distribution) parameter — the fraction of pool value held in the \(\Delta Q_M\) leg; it says WHERE the value sits. \(\chi_{X/M} = 1/2\) is the balanced pool; moving it tilts inventory toward one leg WITHOUT changing how the curve resists trade. Via the proven bridge \(\chi_{X/M}/(1-\chi_{X/M}) = \lambda^{\eta\Delta_i/2}\) it is an **observable of the price grid**, not an independent primitive — subject to the OPEN leg-orientation FLAG (Definition 12), which flips the bridge.
+
+> PENDING ENTRIES (added as the pair pass reaches them): \(\epsilon_{X/M}\) (substitution — completes \(\Theta_{\varphi}\) at the CES definition; the "THE PARAMETERS, ECONOMICALLY" block folds in), \(\Theta_{\phi}\) (fee schedule), \(\Theta_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) (order).
 
 ### PROTOCOL_CONSTANTS
 
