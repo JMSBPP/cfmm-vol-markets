@@ -72,7 +72,7 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 
 *Formalized:* `Upsilon.upsilon` (\(\upsilon[p_\ell] = (p_\ell(\sigma^2{+}\Delta s) - p_\ell(\sigma^2))/\Delta s\)).
 
-**Proposition 3 (Vega bridge).** On the region where the volatility option is in-the-money at both variance endpoints (\(\sigma^2_K \le \sigma^2\) and \(\sigma^2_K \le \sigma^2 + \Delta s\)), its upsilon **is** its vega notional:
+**Proposition 3 (Vega bridge).** On the region where the volatility option is in-the-money at both variance endpoints (\(\sigma^2(i_K) \le \sigma^2(i(t))\) and \(\sigma^2(i_K) \le \sigma^2(i(t)) + \Delta s\)), its upsilon **is** its vega notional:
 
 \[
 	\begin{aligned}
@@ -104,7 +104,7 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 	\end{aligned}
 \]
 
-*Formalized:* `VolInstrument.logPortfolio`; `variancePortfolio` (\(= \text{logPortfolio} + \sigma^2 t/2\)); `logPortfolio_nonneg`; `logPortfolio_atm`.
+*Formalized:* `VolInstrument.logPortfolio`; `variancePortfolio` (\(= \text{logPortfolio} + \sigma^2(i(t))\, t/2\)); `logPortfolio_nonneg`; `logPortfolio_atm`.
 
 **Settlement instantiation** (Convention 2): \(\Pi^{\text{call|put}}\big(\sigma^2(i(T));\, p_{(\eta,\Delta_i)}(i;t);\, T\big) \, = \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{(\eta, \Delta_i)} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{(\eta, \Delta_i)}}{p^{\star}})\Big] \, + \, \frac{T - t}{T}\, \sigma^2(i(t))\).
 
@@ -192,7 +192,7 @@ inheriting the sign of \(\ln \big(p_{(\eta, \Delta_i)}(i;t) / p_{(\eta, \Delta_i
 
 \[
 	\begin{aligned}
-		\frac{\Delta \, \Pi^{\text{call | put}} \, ( \cdot )}{\Delta \, \sigma^{2} } N_{\sigma} \, &= \, T/2 \, N_{\sigma} \, \implies \text{Id}_{ N_{\sigma}} \, = \frac{2}{T}
+		\frac{\Delta \, \Pi^{\text{call | put}} \, ( \cdot )}{\Delta \, \sigma^{2} } N_{\sigma} \, &= \, T/2 \, N_{\sigma} \, \implies \text{Id}_{ N_{\sigma}} \, \equiv \frac{2}{T}
 	\end{aligned}
 \]
 
