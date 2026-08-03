@@ -110,10 +110,7 @@ and \(\Pi\) has Definition 5's defining property: its variance sensitivity is **
 	\end{aligned}
 \]
 
-with ladder parameter set \(\Theta_{\ell} = \{\xi, \iota\}\):
-
-- \(\xi\) — the **liquidity ratio**: the geometric decay of per-strike liquidity, with domain \(\xi \in (0,1)\cup(1,\infty)\). \(\xi = 1\) is **not** an evaluation (the normalizer degenerates); the uniform ladder is supplied by the limit \(\xi \to 1\).
-- \(\iota\) — the **ladder resolution**: the number of strikes, \(\iota \in \mathbb{N},\ \iota \ge 1\).
+with ladder parameter set \(\Theta_{\ell} = \{\xi, \iota\}\) — see **PROTOCOL PARAMETERS (\(\Theta_{\ell}\))**.
 
 *Formalized:* `GeomProfile.geomWeight`.
 
@@ -126,6 +123,26 @@ with ladder parameter set \(\Theta_{\ell} = \{\xi, \iota\}\):
 \]
 
 *Formalized:* `GeomProfile.geomWeight_sum`; `geomWeight_pos`; `geomWeight_tendsto_uniform`.
+
+## PROTOCOL PARAMETERS
+
+Every parameter of the protocol enters here as a **Protocol Parameter** — a special definition that
+fully specifies its **domain**, its **purpose**, and its **economic meaning**, indexed by its
+parameter set. A parameter not listed here is not a parameter of the protocol.
+
+**Protocol Parameter (\(\Theta_{\ell} = \{\xi, \iota\}\) — the ladder).**
+
+- \(\xi\) — the **liquidity ratio**.
+  *Domain:* \(\xi \in (0,1) \cup (1,\infty)\); \(\xi = 1\) is reached by limit only (Theorem 2).
+  *Purpose:* sets the geometric decay of per-strike liquidity in the ladder (Definition 7).
+  *Economic meaning:* the ratio of liquidity between adjacent strikes; pinned at \(\xi^{\star} = \lambda^{-\Delta_i/2}\), the log-contract weight law under which the ladder replicates the variance payoff (Proposition 4).
+
+- \(\iota\) — the **ladder resolution**.
+  *Domain:* \(\iota \in \mathbb{N}\), \(\iota \ge 1\).
+  *Purpose:* the number of strikes carrying the ladder (Definition 7); the weight profile lives on the simplex \(\Delta^{\iota-1}\).
+  *Economic meaning:* the resolution at which the continuous log-contract strip is discretized — the finite-strip replication error and the G4 underspecification deficit (\(\iota - 2\)) are both functions of it.
+
+> PENDING ENTRIES (added as the pair pass reaches them): \(\Theta_p = \{\eta, \Delta_i\}\) (price grid), \(\Theta_{\varphi} = \{\chi_{X/M}, \epsilon_{X/M}\}\) (trading curve — the existing "THE PARAMETERS, ECONOMICALLY" block folds in here), \(\Theta_{\phi}\) (fee schedule), \(\Theta_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) (order).
 
 > Note: A single leg portaflio gives:
 
