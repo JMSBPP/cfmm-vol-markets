@@ -90,7 +90,7 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 
 *Formalized:* `VolInstrument.logPortfolio`; `variancePortfolio` (\(= \text{logPortfolio} + \sigma^2 t/2\)); `logPortfolio_nonneg`; `logPortfolio_atm`.
 
-**Proposition 4 (Ladder replication).** The volatility option is replicated by the log portfolio, realized on the grid as the strike ladder:
+**Proposition 4 (Ladder replication).** The volatility option is replicated by the log portfolio, realized on the grid as the strike ladder — the weight profile \(\ell(\xi^{\star},\iota;i_K)\) being a geometric liquidity distribution in the sense of the [Bunni v2 whitepaper](../refs/bunni-v2.pdf) (whose general LDFs \(\ell_{\text{LDF}}(\theta_{\text{LDF}};i_K)\) are the declared FUTURE MILESTONE, G4):
 
 \[
 	\begin{aligned}
