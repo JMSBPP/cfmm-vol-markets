@@ -512,14 +512,35 @@ sc4_generated_from_is_the_imported_ref pins =
           ++ " offchain/rig/verify-import.sh is what binds THAT file to the tree."
           ++ " Regenerate: bash offchain/rig/generate-pins.sh")
 
+-- | THE RETIRED SET, PINNED FOR THE REASON THE LIVE SETS ARE.
+--
+-- 'sc4_no_retired_value_is_live' iterates whatever @retired@ HAPPENS to contain, so an entry that
+-- is absent is an entry nothing is guarded against -- the same scoped-by-the-artifact defect the
+-- live sets are pinned against, one block over. MEASURED:
+--
+-- >  jq 'del(.retired.create_order_v1)' rig-pins.json   ->  89\/89 checks passed
+--
+-- Silently absorbed, because @create_order_v1@ is the one retired value no OTHER check looks up
+-- by name. The other two are named directly by 'sc4_falsifiable' and
+-- 'rpin04_retired_topic0s_are_rejected', so deleting either of those reddens (87\/89, measured) --
+-- by their accident, not by assertion. This makes the set itself the assertion.
+expected_retired_pins :: [T.Text]
+expected_retired_pins =
+  [ "create_order_v1"
+  , "topic_order_created_stale"
+  , "topic_vol_order_created_v1"
+  ]
+
 -- | The pin file names EXACTLY the pins this suite claims to verify -- no more and no fewer.
 sc4_pin_surface_is_the_expected_set :: RigPins -> Check
 sc4_pin_surface_is_the_expected_set pins =
   pure_check "sc4_pin_surface_is_the_expected_set" $ do
-    _ <- one "selector" expected_selector_pins (Map.keys (pin_selectors pins))
-    one "topic0" expected_topic_pins (Map.keys (pin_topics pins))
+    _ <- one "selector" "expected_selector_pins" expected_selector_pins
+           (Map.keys (pin_selectors pins))
+    _ <- one "topic0" "expected_topic_pins" expected_topic_pins (Map.keys (pin_topics pins))
+    one "retired" "expected_retired_pins" expected_retired_pins (Map.keys (pin_retired pins))
   where
-    one kind wanted got =
+    one kind expectation wanted got =
       let missing = [T.unpack n | n <- sort wanted, n `notElem` got]
           extra   = [T.unpack n | n <- sort got, n `notElem` wanted]
       in expect (null missing && null extra)
@@ -527,11 +548,12 @@ sc4_pin_surface_is_the_expected_set pins =
              ++ show (length wanted) ++ " this suite verifies."
              ++ "\n      missing    : " ++ render missing
              ++ "\n      unexpected : " ++ render extra
-             ++ "\n      A missing pin DELETES ITS OWN sc4_pin_" ++ kind ++ "_* check and takes the"
-             ++ " total down with it, so the run still reports \"SC-3 and SC-4 OK\" while verifying"
-             ++ " less. If a pin was added or retired ON PURPOSE, edit expected_"
-             ++ (if kind == "selector" then "selector" else "topic") ++ "_pins in this module and"
-             ++ " say so; otherwise regenerate: bash offchain/rig/generate-pins.sh")
+             ++ "\n      A missing pin DELETES ITS OWN check -- an sc4_pin_" ++ kind ++ "_* for a"
+             ++ " live pin, one value's worth of sc4_no_retired_value_is_live for a retired one --"
+             ++ " and takes the total down with it, so the run still reports \"SC-3 and SC-4 OK\""
+             ++ " while verifying less. If a pin was added or retired ON PURPOSE, edit "
+             ++ expectation ++ " in this module and say so; otherwise regenerate:"
+             ++ " bash offchain/rig/generate-pins.sh")
 
     render [] = "(none)"
     render xs = intercalate ", " xs
@@ -2833,11 +2855,30 @@ driv01_swap_calldata_shape = Check "driv01_swap_calldata_shape" . guarded $ do
   -- the extsload half. 'hex32' is the only hand-rolled encoder in the module, so it gets driven
   -- through cast and read back rather than inspected: a wrong nibble order produces a
   -- well-formed 36-byte calldata pointing at a slot nothing has ever written.
-  let slot = case integer_of_hex_text driv01_pool_id_hex of
-        Right pid -> pool_state_slot pid
-        Left _    -> 0
-  ext_raw <- encode_extsload slot
+  --
+  -- The default arm used to be @Left _ -> 0@, and that is the same degeneracy as everything else
+  -- in this round: @ext_word == slot@ below compares 'encode_extsload'\'s output against the very
+  -- value it was handed, so at @slot = 0@ it reads @0 == 0@ and hex32's nibble ordering -- the
+  -- ONE property this half of the check exists to observe -- becomes unobservable. A parse
+  -- failure would have swallowed itself into the one value that hides it. It is now a named
+  -- failure. (It is the module's only @Left _ -> <default value>@; the two other @Left _@ arms,
+  -- in 'sc4_falsifiable' and the vega draw guard, are negative-test SUCCESS arms -- "it correctly
+  -- rejected" -- and are not this shape.)
+  let parsed_slot = pool_state_slot <$> integer_of_hex_text driv01_pool_id_hex
+  ext_raw <- encode_extsload (either (const 1) id parsed_slot)
   pure $ do
+    slot <-
+      case parsed_slot of
+        Right s -> Right s
+        Left why ->
+          Left ("driv01_pool_id_hex does not parse as a 32-byte hex word (" ++ why ++ "), so the"
+                 ++ " derived pool-state slot cannot be computed. This used to default to 0, where"
+                 ++ " the extsload round trip below reads 0 == 0 and hex32's nibble ordering goes"
+                 ++ " unobserved.")
+    _ <- expect (slot /= 0)
+           ("the derived pool-state slot is 0. The extsload assertion below compares the encoder's"
+             ++ " output word against the value it was handed, so at zero it is satisfied by"
+             ++ " nothing and a reversed nibble order would pass.")
     let ext_bytes = toBytes ext_raw
         ext_word  = be_integer (BS.take 32 (BS.drop 4 ext_bytes))
     _ <- expect (BS.length ext_bytes == 4 + 32)
@@ -4167,8 +4208,18 @@ driv01_e3_per_step_matches_submitted =
              ("the run recorded " ++ show (length steps) ++ " steps but was configured for "
                ++ show configured ++ ". A short run is a TRUNCATED run: the driver aborts on the"
                ++ " first bad step, so the missing steps never happened.")
-      _ <- expect (not (null steps))
-             "the run recorded no steps at all -- there is nothing here to be evidence of"
+      -- TWO, not one. @and (zipWith (<) ts (drop 1 ts))@ below is @and [] = True@ at length 1:
+      -- a one-step run satisfies "strictly increasing" by having no pair to compare. MEASURED:
+      -- a capture truncated to one step reddened only driv01_seed_replays_the_committed_path,
+      -- which pins the path LENGTH at 5 -- so this assertion was saved by a neighbour's
+      -- expectation rather than by its own guard, and would go vacuous the moment that neighbour
+      -- moved. The floor belongs to the assertion that needs it.
+      _ <- expect (length steps >= 2)
+             ("the run recorded " ++ show (length steps) ++ " step(s). The strictly-increasing"
+               ++ " timestamp assertion below compares CONSECUTIVE PAIRS, and a run with fewer"
+               ++ " than two steps has none -- it would pass on the empty conjunction while"
+               ++ " asserting nothing about the clock. There is also nothing here to be evidence"
+               ++ " of: one timepoint is not a window.")
 
       _ <- mapM_ (one_step_matches t0 stride) (zip [0 ..] steps)
 
