@@ -66,6 +66,37 @@ if ! cast block-number --rpc-url "$RPC" >/dev/null 2>&1; then
   exit 1
 fi
 
+# --- VALIDATE FIRST, REPLACE SECOND ----------------------------------------
+# M-5. The write below is atomic, so there is no truncation window -- but a capture that
+# FAILS any of the five self-checks below had already destroyed the good committed
+# evidence by the time the check fired. That falsifies this script's own rationale at
+# lines 77-78 ("a capture that silently wrote the wrong tick is worse than no capture"):
+# the failure mode it names leaves the operator with a bad artifact and no good one.
+#
+# The writer is offchain/app/CheatSwapProof.hs:78, which hardcodes the output path (by
+# design -- README.md:234-238: RIG_CHEAT_SWAP_PROOF redirects the CHECKS only). So the
+# preservation is done HERE, where the tracked file lives: the previous artifact is kept
+# beside the target and put BACK on any non-zero exit, including a SIGINT. On success it
+# is removed. `git status` is therefore clean-or-correct after every run, never neither.
+if [ -f "$OUT" ]; then
+  cp -p "$OUT" "$OUT.prev"
+  PREV_SHA=$(sha256sum "$OUT" | cut -d' ' -f1)
+else
+  PREV_SHA="(no previous artifact)"
+fi
+restore_on_failure() {
+  local rc=$?
+  rm -f "$OUT.tmp"
+  if [ "$rc" -ne 0 ] && [ -f "$OUT.prev" ]; then
+    mv -f "$OUT.prev" "$OUT"
+    echo "  RESTORED $OUT to its previous contents (sha256 $PREV_SHA)." >&2
+    echo "           The capture failed, so the evidence it would have replaced is kept." >&2
+  fi
+  rm -f "$OUT.prev"
+  exit "$rc"
+}
+trap restore_on_failure EXIT
+
 # --- The capture itself ----------------------------------------------------
 cabal run -v0 cheat-swap-proof
 
