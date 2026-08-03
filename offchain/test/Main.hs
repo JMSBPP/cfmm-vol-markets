@@ -124,12 +124,27 @@ import VolOrder.Types (VolOrder (..))
 -- advertised in @Rig.Manifest@'s own error messages (\"Override the path with the RIG_PINS
 -- environment variable\") and in @offchain\/rig\/README.md@ (line 274), and silently ignored here.
 --
--- This paragraph used to say @verify-rig.sh@ honoured it. It does not, and did not:
--- @grep -c RIG_PINS offchain\/rig\/verify-rig.sh@ returns 0. The ONE honourer is
--- 'Rig.Manifest.rig_pins_path', which is why every consumer -- this suite, the driver, the proof
--- app -- has to resolve through it rather than through a constant of its own. Correcting the
--- sentence matters for the same reason the defect it describes matters: an override documented as
--- live in a place it is not is exactly how a falsification comes to be aimed at nothing.
+-- This paragraph has now been wrong in BOTH directions, which is the whole lesson.
+--
+-- It first said @verify-rig.sh@ honoured @RIG_PINS@. That was false and had always been false
+-- (@grep -c RIG_PINS offchain\/rig\/verify-rig.sh@ returns 0), so a falsification aimed at that
+-- script would have been aimed at nothing. It was corrected to \"the ONE honourer is
+-- 'Rig.Manifest.rig_pins_path'\" -- true of the Haskell surface, and false of the repo the moment
+-- the shell half was fixed.
+--
+-- As of the 22-08 round the honourers are: 'Rig.Manifest.rig_pins_path' on the Haskell side, and
+-- @generate-pins.sh@, @check-upstream.sh@ and @deploy-rig.sh@ on the shell side. Before that
+-- round the writer of the tracked pin file ignored the override entirely while the reader
+-- honoured it -- the reader\/writer asymmetry that is the single defect class this whole PR keeps
+-- rediscovering.
+--
+-- Every Haskell consumer -- this suite, the driver, the proof app -- still resolves through
+-- 'Rig.Manifest.rig_pins_path' rather than a constant of its own. That part never changed.
+--
+-- The reason to keep correcting this sentence is the reason the defect it describes matters: a
+-- list of honourers is itself a claim, it rots exactly as fast as the code, and nothing in the
+-- suite checks it. Treat it as prose, verify it with @grep@ before trusting it, and prefer
+-- 'every_advertised_override_is_honoured' -- which is executable -- over this paragraph.
 --
 -- The consequence is not cosmetic and is not a style point -- it is that
 -- @RIG_PINS=\<doctored copy\> cabal test@ goes GREEN, because the constant sends every check
