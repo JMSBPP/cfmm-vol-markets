@@ -89,6 +89,7 @@ counted in the v1 coverage totals below.
 - [ ] **CTX-PHIDOC**: the Capponi `F` → `φ` transition closed without false statements — the CES lock, the Angeris canonical form, and the curvature verdict machine-checked, with the doc's notation corrected to match. ◐ **IN FLIGHT** — `PhiCES`/`CanonicalCurve`/`CurvatureTwo` landed axiom-clean and the rename set applied (`601e7ba`, `758e964`, `634ded6`); OPEN: embedding test `232c8ee4` (Aristotle API 500), the E4 optimum redo on the ε axis, the stale `eta-notation-gate.sh`
 - [ ] **CTX-IVLEVEL**: Kristensen's implied-volatility LEVEL integrated into the framework — the σ_IV extraction with anchors, the VOL/AMT ↔ `u` relation stated as a provable lemma, and `r_fix` declared as the new parameter it is. ◐ **RESEARCH DONE, GATED** — the user's `2·√` hypothesis REFUTED as a CES specialization (both factors Gaussian); headline is that constant-`AMT_tick` holds exactly iff `ξ = ξ⋆`. Blocked on two rulings: signed-vs-magnitude `ΔQ` (**BLOCKER** — live defect in an already-inserted block) and whether `W` depends on σ
 
+- [ ] **CTX-GREEKS**: the Greeks layer formalized — the `D_p`/`Γ` ladder displays, the θ split, the `Δθ_fee/Δσ` statics and above all the **G4 deficit lemmas** landed axiom-clean, with the structural-deficit result (`(β,γ)`'s column is zero on every shape row, so the free `(β,γ)` provably cannot close the underspecification) PROVED rather than asserted; G2 excluded while E8(6) is open; t-semantics carried into the Lean signatures. ○ **NOT STARTED, NOT BUNDLEABLE** — gated on PR-CARRY (per-event vs time-integrated: decides *what* gets proved) and PR-THETA (the exponent-sign FLAG). The Bunni-v2 LDF port is a declared FUTURE MILESTONE, out of scope
 - [ ] **CTX-DEFORDER**: the document's opening re-ordered into the user's specified definitional sequence — formal definition of `θ`, then the streamia assignment, then a named assignment for the time-integrated streamia — with `π^σ` promoted to a numbered DEFINITION and `α₁,α₂ → c₁,c₂`. ⊘ **BLOCKED ON HEAVY USER APPROVAL** — restructures the block every later section depends on
 
 ## v2 Requirements
@@ -175,6 +176,7 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 | CTX-TRACE | Phase 12 | ✓ Complete |
 | CTX-PHIDOC | Phase 13 | ◐ In flight |
 | CTX-IVLEVEL | Phase 14 | ◐ Research done, gated |
+| CTX-GREEKS | Phase 15 | ○ Not started, gated |
 | CTX-DEFORDER | Phase 12.1 | ⊘ Blocked (approval + θ FLAG) |
 
 > **Status glyphs:** `✓` complete · `◐` in flight or partially discharged · `⊘` blocked, nothing may start. Phase-12 rows use word statuses with a prose qualifier; both conventions are in force.
@@ -183,7 +185,7 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 - v1 requirements: 30 total
 - Mapped to phases: 30 ✓
 - Unmapped: 0
-- Lean4 + Math track: 10 `CTX-*` ids declared — 7 Phase-12 complete, 3 open (CTX-PHIDOC, CTX-IVLEVEL, CTX-DEFORDER); the `T_ITM/T` occupancy work is a spike with no id (Phases 8–11's `CTX-*` ids are declared in `ROADMAP.md` only — a known, recorded gap)
+- Lean4 + Math track: 11 `CTX-*` ids declared — 7 Phase-12 complete, 4 open (CTX-PHIDOC, CTX-IVLEVEL, CTX-GREEKS, CTX-DEFORDER); the `T_ITM/T` occupancy work is a spike with no id (Phases 8–11's `CTX-*` ids are declared in `ROADMAP.md` only — a known, recorded gap)
 
 ---
 *Requirements defined: 2026-06-27*

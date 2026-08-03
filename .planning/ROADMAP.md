@@ -490,9 +490,53 @@ Phase-13 doc defect this phase consumes.
 
 ---
 
+### Phase 15: Greeks Formalization (the UNFORMALIZED bundle)
+
+**Goal:** Formalize the Greeks layer the document already carries as blocks G0–G6 but which exists in
+no Lean module — the `D_p` and `Γ` ladder displays, the θ split, the `Δθ_fee/Δσ` statics, and above
+all the **G4 deficit lemmas**.
+
+**Requirements**: CTX-GREEKS
+**Core claim:** CC-GREEK
+**Status:** NOT STARTED and **not yet bundleable** — two decisions must land first.
+**Directory:** `.planning/phases/15-greeks-formalization/`
+**Plans:** 0/3 — none written; gated on PR-CARRY and PR-THETA.
+
+> **The headline is a NEGATIVE result and it is what is unformalized.** G4's underspecification
+> deficit is **structural, not numeric**: the matrix is block-triangular and `(β_j,γ_j)`'s column is
+> **zero on every shape row**, so the free `(β,γ)` provably **cannot** close it. That is the formal
+> answer to "can Greeks bind the free (β,γ)?" — no, and by rank.
+>
+> **G2 is OFF-BUNDLE**: its skew law is an `η_L` statement and E8(6) (`η_L = η`) is OPEN (PR-ETAL).
+>
+> **PR-CARRY decides what gets proved**, not how — per-event (M6b) vs time-integrated (λ_FLAIR);
+> G6(4) says decide before bundling, and the M2 hedge claim needs the time-integrated form.
+>
+> The Bunni-v2 LDF port (`ℓ(ξ,ι;·) ⇝ ℓ_LDF(θ_LDF;i_K)`) is the user-declared FUTURE MILESTONE that
+> the deficit count points at — **not part of this phase**.
+
+---
+
 ### Research spike (NOT a phase): `T_ITM/T` occupancy
 
 `.planning/occupancy/OCCUPANCY-SPIKE.md`. Demoted from a requirement 2026-08-03: it rests on one user
 sentence with no research, and its own next action is to determine *whether Kristensen's `T` is a
 maturity at all* given perpetual options have none. Promoted to a CTX requirement only if the spike
 finds a connectable object.
+
+---
+
+## Core claims & prerequisites
+
+`.planning/PREREQUISITES.md` is the register: seven core claims (`CC-*`) grounded in the document's
+own block structure, and fourteen prerequisites (`PR-*`) with their blocking edges. Read the critical
+path off that file, not off the phase files.
+
+**Two prerequisites sit underneath the program's central claim and neither is discharged.** `CC-REPL`
+— the replication claim the whole document exists to support — rests on Theorem 1, which depends on
+`PR-REGION` (an admissibility region **literally absent from the page**, leaving `u` ill-posed on
+exactly the swaps it measures if the `ΔQ` legs are signed) and `PR-ORIENT` (a `χ` leg orientation
+that contradicts itself between two displays).
+
+**`PR-GATE` is the widest blocker** — the stale notation gate stops every pending doc insertion in
+the program, making it the cheapest high-value item on the board.
