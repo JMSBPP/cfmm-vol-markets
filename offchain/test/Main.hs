@@ -4692,6 +4692,34 @@ driv02_mixed_batch_live =
                ++ " cannot pass unnoticed here.")
 
       ids <- mapM (\r -> json_field "id" r >>= json_integer) readbacks
+      -- THE SECOND, INDEPENDENT SOURCE. The equality below derives the expected ids from
+      -- @orderCount_before@, and @orderCount_before@, @orderCount_after@ and @readbacks[].id@ are
+      -- three fields of one artifact: shifting all three together satisfies it. MEASURED on the
+      -- committed capture -- 5/7 with ids [6,7] rewritten to 1005/1007 with ids [1006,1007] --
+      -- @PASS driv02_mixed_batch_live@, while the control (the two counters alone) is RED at
+      -- "the minted ids are [6,7] but a batch starting from orderCount 1005 mints exactly
+      -- [1006,1007]". No writer-side change can close that: any value recorded at run time can be
+      -- edited consistently afterwards.
+      --
+      -- The preview is the way out, and it was already in the artifact and read by nothing: in
+      -- that green mutant @preview@ still said @[[true,6],[false,0],[true,7]]@ while the readbacks
+      -- claimed 1006 and 1007 -- an artifact CONTRADICTING ITSELF, unnoticed. It is a different
+      -- source (the module's own @previewCreateOrders@ return, not a counter read around the
+      -- send), so a coordinated shift of the counter fields no longer buys silence.
+      --
+      -- A disagreement is a RE-TAKE, not a bug claim: the note below is right that the preview's
+      -- absolute ids shift if another writer lands between preview and send. On this rig there is
+      -- no other writer, so a capture where they disagree is a capture taken against something
+      -- this suite cannot reason about.
+      let previewed_ids = [i | (True, i) <- preview]
+      _ <- expect (ids == previewed_ids)
+             ("the readbacks carry ids " ++ show ids ++ " but the batch PREVIEW announced "
+               ++ show previewed_ids ++ " for the same positions. These are two different sources"
+               ++ " -- the preview is previewCreateOrders' own return, the ids are what the run"
+               ++ " read back -- and the artifact is contradicting itself. Either another writer"
+               ++ " landed between the preview and the send, in which case this capture is"
+               ++ " evidence about a rig this suite cannot reason about, or the recorded counters"
+               ++ " and ids were edited together. Re-take it: " ++ driver_capture_command)
       expect (ids == take successes [before + 1 ..])
         ("the minted ids are " ++ show ids ++ " but a batch starting from orderCount "
           ++ show before ++ " mints exactly " ++ show (take successes [before + 1 :: Integer ..])
