@@ -204,12 +204,79 @@ jobs:
           # four times. Do not drop the flag.
           set -o pipefail
           cabal build --enable-tests -j all 2>&1 | tee "$RUNNER_TEMP/cabal-build.log"
+
           # -Wall is a project requirement -- enforce it instead of hoping. Scoped to
           # ^offchain/ so cabal's own `Warning:` lines and any dependency's output cannot
           # trip it; the trade-off is that a `<no location info>` warning slips through.
-          if grep -qE '^offchain/[^ ]*:[0-9]+:[0-9]+: warning:' "$RUNNER_TEMP/cabal-build.log"; then
+          #
+          # THIS CHECK WAS VACUOUS, and it is the fifth instance of the class this PR is
+          # chartered to close -- introduced by the commit that closed the other four. It was
+          # a `grep -q` over a file whose EMPTINESS means pass. A `cabal build` that compiles
+          # nothing emits no warnings, and the project's sole -Wall enforcement point then
+          # certified clean having read nothing. MEASURED with the exact command above on a
+          # warm tree:
+          #     log bytes: 1365
+          #     library modules compiled: 0     (zero '[N of M] Compiling' lines)
+          #     offchain warning lines:   0
+          #     -> old gate PASSES, having read nothing
+          # It could not fire vacuously in CI only because actions/checkout's `clean: true`
+          # runs `git clean -ffdx` and takes dist-newstyle with it -- safety living in another
+          # system's DEFAULT rather than in the check. The obvious next optimisation under the
+          # 60-minute budget is caching dist-newstyle, which silently converts this gate into a
+          # no-op. offchain/test/Main.hs:782-793 diagnoses this exact shape and answers it with
+          # a positive control AND a file-count floor. Same two answers here.
+          #
+          # ONE pattern, used by the control and by the check, so the control cannot pass while
+          # the check greps for something else.
+          WARN_RE='^offchain/[^ ]*:[0-9]+:[0-9]+: warning:'
+
+          # (1) POSITIVE CONTROL. Absence may not read as success until the pattern has been
+          # SHOWN matching. A throwaway module under offchain/ is compiled with -Wall by the
+          # same GHC that just built the project, and the same $WARN_RE must match its real
+          # output. This is what notices if GHC's diagnostic format changes, if -Wall stops
+          # being passed, or if paths stop being repo-relative -- every one of which would
+          # otherwise present as a permanently clean gate. `-fno-code` means no linking and no
+          # dependencies; -outputdir keeps every artifact out of the work tree, and the source
+          # is removed before the result is examined so no failure path can leak it.
+          probe=offchain/WallGateProbe.hs
+          printf 'module WallGateProbe where\nwallGateProbe = ()\n' > "$probe"
+          probe_out=$(ghc -Wall -fno-code -v0 -outputdir "$RUNNER_TEMP/wall-probe" "$probe" 2>&1 || true)
+          rm -f "$probe"
+          if ! printf '%s\n' "$probe_out" | grep -qE "$WARN_RE"; then
+            echo "::error::-Wall gate POSITIVE CONTROL failed: the pattern matched nothing in a"
+            echo "::error::deliberately warning-producing compile, so a clean result below would"
+            echo "::error::be evidence of nothing. GHC's diagnostic format or -Wall changed."
+            printf '%s\n' "$probe_out"
+            exit 1
+          fi
+
+          # (2) FLOOR on modules actually compiled. Derived from the tree, never a literal: a
+          # pinned number would fail on every legitimate module addition and be raised
+          # reflexively, which is how a pin becomes a rubber stamp. The three directories are
+          # the .cabal's own hs-source-dirs (offchain/rig/gen-peer-bytes.hs is a standalone
+          # script in none of them and is correctly not counted). MEASURED: a cold build
+          # compiles 28 modules -- 24 library + 2 exe + 1 exe + 1 test -- against 28 .hs files.
+          # A .hs file that sits in a source dir but is in no component is never compiled and
+          # so is never -Wall-checked; that shows up here as a shortfall, which is the right
+          # answer rather than a false alarm.
+          compiled=$(grep -cE '^\[ *[0-9]+ of [0-9]+\] Compiling' "$RUNNER_TEMP/cabal-build.log" || true)
+          expected=$(find offchain/lib offchain/app offchain/test -name '*.hs' | wc -l)
+          if [ "$compiled" -lt "$expected" ]; then
+            echo "::error::the -Wall gate read a build that compiled $compiled modules, but"
+            echo "::error::offchain/{lib,app,test} hold $expected .hs files. A gate that reads a"
+            echo "::error::build which compiled nothing certifies -Wall clean having read nothing."
+            echo "::error::Causes, in order of likelihood: dist-newstyle was cached or otherwise"
+            echo "::error::survived checkout (this gate requires a COLD build -- drop the cache or"
+            echo "::error::add a 'cabal clean'); or a .hs file under a hs-source-dir is listed in no"
+            echo "::error::component in the .cabal and is therefore never compiled or checked."
+            exit 1
+          fi
+          echo "-Wall gate armed: pattern proven against a real GHC warning; $compiled modules compiled (>= $expected)"
+
+          # (3) only now is an empty result meaningful.
+          if grep -qE "$WARN_RE" "$RUNNER_TEMP/cabal-build.log"; then
             echo "::error::GHC emitted warnings under offchain/ (-Wall must be clean)"
-            grep -nE '^offchain/[^ ]*:[0-9]+:[0-9]+: warning:' "$RUNNER_TEMP/cabal-build.log"
+            grep -nE "$WARN_RE" "$RUNNER_TEMP/cabal-build.log"
             exit 1
           fi
       # --- everything below exists to make `cabal test` meaningful ---------------------------
