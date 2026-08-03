@@ -223,8 +223,12 @@ fi
 # equal, and self-check 2c permits exactly ONE row -- extreme_tick_near_floor --
 # to be a recorded revert. Hence the 5 floor. MEASURED: all 6 complete.
 N_COMPLETE=$(jq -r '[.measurements[] | select(.status == 1)] | length' "$OUT")
+# All FOUR word fields, not just the two high184 ones: the positive control below reads the
+# raw words, and a row missing one of those would otherwise reach the loop as a jq `null`
+# that compares unequal to everything and PASSES the movement test spuriously.
 N_WORDS=$(jq -r '[.measurements[]
-                  | select(has("word_before_high184") and has("word_written_high184"))] | length' "$OUT")
+                  | select(has("word_before_high184") and has("word_written_high184")
+                           and has("word_before") and has("word_written"))] | length' "$OUT")
 if [ "$N_WORDS" != "$N_COMPLETE" ]; then
   echo "CAPTURE FAIL: $N_COMPLETE measurements completed (status 1) but only $N_WORDS carry the" >&2
   echo "              word_before_high184 / word_written_high184 pair. A completed measurement" >&2
@@ -239,8 +243,39 @@ if [ "$N_WORDS" -lt 5 ]; then
   echo "              a sample too small to have exercised the composition at all." >&2
   exit 1
 fi
+# THE EQUALITY NEEDS A POSITIVE CONTROL, AND ON THIS RIG IT IS ALL THERE IS.
+#
+# The floor above answers "were any rows compared". It does not answer "could the
+# comparison have failed". MEASURED on all six committed rows:
+#
+#     row                            protocolFee  lpFee   word>>184
+#     cheat_to_5000_then_swap                  0      0           0
+#     cheat_wrong_pool_then_swap               0      0           0
+#     same_second_repeat_step1                 0      0           0
+#     same_second_repeat_step2                 0      0           0
+#     clock_untouched_repeat_step3             0      0           0
+#     extreme_tick_near_floor                  0      0           0
+#
+# Every comparison below is therefore "0" != "0". Cardinality was hardened; CONTENT was
+# not, and a compose_slot0 that DESTROYED the fee bits would produce exactly this
+# observation. The extraction is not broken -- decoding the raw words confirms
+# sqrtPriceX96 and tick move exactly as each cheat intends. The high bits are
+# STRUCTURALLY zero on this rig: DynamicFeeHook returns its fee through the beforeSwap
+# override (the rows' own e5.fee = 15000), which never lands in slot0.lpFee, and no
+# protocol fee is set. Re-taking the artifact cannot change that; only a fee
+# reconfiguration under src/ or foundry-scripts/ could, and neither is this script's.
+#
+# So the control that IS attainable is asserted instead: the word must have MOVED.
+# word_before != word_written proves compose_slot0 actually ran and rewrote the slot, so
+# the equality above bit 184 is a real preservation across a real write rather than a
+# tautology over a word nothing touched. The two together say what G5b means -- the word
+# changed, and the change was confined below bit 184 -- and the pair is exact without any
+# bignum arithmetic, which is why it is done this way: these are 256-bit values and jq's
+# numbers are doubles, so everything here stays a decimal STRING comparison.
 N_COMPARED=0
-while read -r nm before after; do
+N_MOVED=0
+N_NONZERO=0
+while read -r nm before after wbefore wwritten; do
   N_COMPARED=$((N_COMPARED + 1))
   if [ "$before" != "$after" ]; then
     echo "CAPTURE FAIL: $nm did not preserve slot0 bits >= 184" >&2
@@ -250,8 +285,20 @@ while read -r nm before after; do
     echo "              CONSTRUCTION (G5b). If these differ, the mask moved." >&2
     exit 1
   fi
+  if [ "$wbefore" = "$wwritten" ]; then
+    echo "CAPTURE FAIL: $nm slot0 word is UNCHANGED across the write." >&2
+    echo "              word_before  = $wbefore" >&2
+    echo "              word_written = $wwritten" >&2
+    echo "              Then 'bits >= 184 preserved' is a tautology over a word nothing" >&2
+    echo "              touched, and this measurement is evidence of nothing. Every cheat" >&2
+    echo "              moves sqrtPriceX96 and tick, so an identical word means the write" >&2
+    echo "              did not happen -- not that the mask held." >&2
+    exit 1
+  fi
+  N_MOVED=$((N_MOVED + 1))
+  [ "$before" = "0" ] || N_NONZERO=$((N_NONZERO + 1))
 done < <(jq -r '.measurements[] | select(has("word_before_high184"))
-                | "\(.name) \(.word_before_high184) \(.word_written_high184)"' "$OUT")
+                | "\(.name) \(.word_before_high184) \(.word_written_high184) \(.word_before) \(.word_written)"' "$OUT")
 # The loop body ran once per row it was handed. Asserting that against the count
 # taken above is what turns "no rows" from a pass into a failure. The loop uses
 # `< <(...)`, not a pipe, so this counter is the one the body incremented.
@@ -260,6 +307,22 @@ if [ "$N_COMPARED" != "$N_WORDS" ]; then
   exit 1
 fi
 echo "  G5b: slot0 bits >= 184 preserved on all $N_COMPARED completed measurements"
+echo "       positive control: all $N_MOVED words changed below bit 184, so the"
+echo "       preservation above it is across a real write"
+# Reported, never folded into the line above. The banner is what a reader takes away, and
+# on all-zero fee bits "preserved" is a necessary condition that no failure could violate.
+# Saying so is the difference between a check and a rubber stamp.
+if [ "$N_NONZERO" -eq 0 ]; then
+  echo "       G5b NOT EXERCISED on content: all $N_COMPARED rows carry high-184 bits of 0"
+  echo "       (protocolFee and lpFee are both unset on this rig -- DynamicFeeHook returns"
+  echo "       its fee via the beforeSwap override, which never reaches slot0). The equality"
+  echo "       is NECESSARY BUT NOT SUFFICIENT: a compose_slot0 that destroyed those bits"
+  echo "       would look identical. Giving it real power needs a pool with a nonzero"
+  echo "       protocol or static LP fee, which is a src/ + foundry-scripts/ change."
+else
+  echo "       $N_NONZERO of $N_COMPARED rows carry NONZERO high-184 bits -- on those the"
+  echo "       equality has real discriminating power"
+fi
 
 # --- Self-check 3b: every measurement is present ---------------------------
 # A group that failed still emits a placeholder row, so a shrinking list means a
