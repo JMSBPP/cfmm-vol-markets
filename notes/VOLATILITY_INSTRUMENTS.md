@@ -86,7 +86,13 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 	\end{aligned}
 \]
 
-(at \(t=0\) the running term vanishes; \(\Pi \geq 0\) with \(\Pi(p^{\star}) = 0\)).
+(at \(t=0\) the running term vanishes; \(\Pi \geq 0\) with \(\Pi(p^{\star}) = 0\)). Its **unit-vega normalized form** (Theorem 3's \(\text{Id}_{N_\sigma}\)), with the remaining-variance tail:
+
+\[
+	\begin{aligned}
+		\Pi^{\text{call | put}} \, (\sigma ;p_{(\eta, \Delta_i)} \, (i; t); T) \, &= \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{(\eta, \Delta_i)} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{(\eta, \Delta_i)}}{p^{\star}})\Big] \, + \, \frac{T - t}{T}\, \sigma^2
+	\end{aligned}
+\]
 
 *Formalized:* `VolInstrument.logPortfolio`; `variancePortfolio` (\(= \text{logPortfolio} + \sigma^2 t/2\)); `logPortfolio_nonneg`; `logPortfolio_atm`.
 
@@ -144,31 +150,27 @@ parameter set. A parameter not listed here is not a parameter of the protocol.
 
 > PENDING ENTRIES (added as the pair pass reaches them): \(\Theta_p = \{\eta, \Delta_i\}\) (price grid), \(\Theta_{\varphi} = \{\chi_{X/M}, \epsilon_{X/M}\}\) (trading curve — the existing "THE PARAMETERS, ECONOMICALLY" block folds in here), \(\Theta_{\phi}\) (fee schedule), \(\Theta_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) (order).
 
-> Note: A single leg portaflio gives:
+**Proposition 5 (Single-leg direction sensitivity).** A single leg's variance sensitivity is direction-sensitive:
 
 \[
 	\begin{aligned}
 		\frac{\Delta \pi^{\text{call | put}}}{\Delta \, \sigma} \, &\approx \frac{\Delta \theta}{\Delta \sigma}
 	\end{aligned}
-\];
+\]
 
-Which is higly sensible to the direction of \(p_{(\eta, \Delta_i)}\)  from the term \(\ln \big(p_{(\eta, \Delta_i)}(i;t) / p_{(\eta, \Delta_i)}(i_K)\big)\)
+inheriting the sign of \(\ln \big(p_{(\eta, \Delta_i)}(i;t) / p_{(\eta, \Delta_i)}(i_K)\big)\) — a single option cannot carry Definition 5's price-independence, which is why the ladder exists.
 
-Then:
+*Status:* **OPEN** — pinned in-tree as `Upsilon.ATMOTMNullHypothesis`, a Prop **conjecture, no proof, no axiom**. One correction is machine-recorded and travels with it: the naive strike-centered envelope \(e^{-c|i-i_K|}\) is **FALSE on the entire left branch for every** \(c > 0\) (the forward difference is right-shifted; a parameter-independent obstruction) — the honest envelope is centered on the peak pair \(\{i_K{-}1, i_K\}\). The conjecture's originally named test avenue (the econometric track) is CLOSED-terminal, so it either gets a formal proof or stays open.
+
+**Theorem 3 (Unit vega).**
 
 \[
 	\begin{aligned}
-		\frac{\Delta \, \Pi^{\text{call | put}} \, ( \cdot )}{\Delta \, \sigma^{2} } N_{\sigma} \, &= \, T/2 \, N_{\sigma} \, \implies \text{Id}_{ N_{\sigma}} \, = \frac{2}{T} \, \iff \, \frac{\Delta \, \Pi^{\text{call | put}} \, ( \cdot )}{\Delta \, \sigma^{2} } \text{Id}_{ N_{\sigma}} \, \equiv \, 1
+		\frac{\Delta \, \Pi^{\text{call | put}} \, ( \cdot )}{\Delta \, \sigma^{2} } N_{\sigma} \, &= \, T/2 \, N_{\sigma} \, \implies \text{Id}_{ N_{\sigma}} \, = \frac{2}{T}
 	\end{aligned}
 \]
 
-Then:
-
-\[
-	\begin{aligned}
-		\Pi^{\text{call | put}} \, (\sigma ;p_{(\eta, \Delta_i)} \, (i; t); T) \, &= \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{(\eta, \Delta_i)} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{(\eta, \Delta_i)}}{p^{\star}})\Big] \, + \, \frac{T - t}{T}\, \sigma^2
-	\end{aligned}
-\]
+*Formalized:* `VolInstrument.variancePortfolio_unit_upsilon`.
 
 
 Then:
