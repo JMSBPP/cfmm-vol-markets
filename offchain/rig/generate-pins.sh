@@ -114,6 +114,18 @@ if [ -n "${RIG_PINS:-}" ]; then
 fi
 
 REF="$(tr -d ' \t\n\r' < "$REF_FILE")"
+# The SHAPE, not merely the existence, of the anchor. `[ -f ]` above cannot tell a valid ref
+# from an EMPTY file, and an empty $REF is written straight through to the pin file's
+# generatedFrom -- where every downstream freshness check then compares one empty string to
+# another. Measured on the sibling artifact: with import-ref.txt emptied, the cheat-swap
+# capture wrote generatedFrom "" and its self-check 4 passed on "" == "", exit 0.
+case "$REF" in
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+  *) echo "FATAL: $ROOT/$REF_FILE does not hold a 40-digit lowercase sha (got '$REF')." >&2
+     echo "       generatedFrom would carry it into the pin file. Re-record the ref:" >&2
+     echo "         bash offchain/rig/check-upstream.sh" >&2
+     exit 1 ;;
+esac
 
 TMP="$(mktemp -d)"
 # "$OUT.tmp" is in the trap too: `> "$OUT"` TRUNCATES BEFORE the command that fills

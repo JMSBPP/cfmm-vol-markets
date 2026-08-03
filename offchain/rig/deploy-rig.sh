@@ -60,7 +60,18 @@ INIT_TICK=0           # Safe at 0 for the seed check: Timepoint.plk's OFF_INITIA
                       # DIFFERENT, non-env-read constant -- exporting this one does not
                       # move the hook's pool. They are not one knob.
 CHAIN_ID=31337
-IMPORT_REF=$(cat offchain/rig/import-ref.txt)
+IMPORT_REF=$(tr -d ' \t\n\r' < offchain/rig/import-ref.txt)
+# The SHAPE of the anchor, not merely that the file was readable. An empty import-ref.txt
+# writes an empty generatedFrom into the manifest, and every downstream freshness check then
+# compares one empty string to another -- measured on the cheat-swap artifact, where that
+# comparison ("" == "") passed and the run exited 0.
+case "$IMPORT_REF" in
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+  *) echo "FATAL: offchain/rig/import-ref.txt does not hold a 40-digit lowercase sha" >&2
+     echo "       (got '$IMPORT_REF'). The manifest's generatedFrom would carry it." >&2
+     echo "       Re-record the ref: bash offchain/rig/check-upstream.sh" >&2
+     exit 1 ;;
+esac
 
 # --- Step 0a: toolchain preflight ------------------------------------------
 # This script has the most dependencies of anything in the rig and, before this

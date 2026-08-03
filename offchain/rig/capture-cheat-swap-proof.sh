@@ -271,8 +271,23 @@ if [ "$COUNT" != "6" ]; then
 fi
 
 # --- Self-check 4: generatedFrom really is the imported ref ----------------
+# THE COMPARISON IS NOT ENOUGH ON ITS OWN. Agent B's degeneracy lesson, found live here:
+# with offchain/rig/import-ref.txt emptied, the capture wrote generatedFrom "" and this
+# check compared "" != "" -- false -- and PASSED. MEASURED: the run printed
+# "wrote ... (6 measurements, chainId 31337, ref )" with nothing after "ref", exit 0, and
+# the artifact's only provenance anchor was silently blank. Equality between two values is
+# only evidence when at least one of them is known to be well-formed, so the SHAPE is
+# asserted before the equality.
 REF_IN_FILE=$(jq -r '.generatedFrom' "$OUT")
-REF_ON_DISK=$(cat "$IMPORT_REF")
+REF_ON_DISK=$(tr -d ' \t\n\r' < "$IMPORT_REF")
+case "$REF_ON_DISK" in
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+  *) echo "CAPTURE FAIL: $IMPORT_REF does not hold a 40-digit lowercase sha (got '$REF_ON_DISK')." >&2
+     echo "              An empty or malformed anchor makes the generatedFrom comparison below" >&2
+     echo "              degenerate -- '' == '' passes and the artifact records no provenance." >&2
+     echo "              Re-record the ref: bash offchain/rig/check-upstream.sh" >&2
+     exit 1 ;;
+esac
 if [ "$REF_IN_FILE" != "$REF_ON_DISK" ]; then
   echo "CAPTURE FAIL: generatedFrom is $REF_IN_FILE but $IMPORT_REF says $REF_ON_DISK" >&2
   exit 1

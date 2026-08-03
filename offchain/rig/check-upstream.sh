@@ -106,6 +106,19 @@ if [ "$missing" -ne 0 ]; then
   exit 2
 fi
 
-printf '%s\n' "$DEV" > offchain/rig/import-ref.txt
+# import-ref.txt is the ONE external anchor every other rig component reads (generate-pins.sh,
+# deploy-rig.sh, capture-cheat-swap-proof.sh, verify-import.sh) and it is TRACKED. Its shape is
+# asserted before it is written, and it is written beside-then-renamed, for the same reason
+# generate-pins.sh:411-423 does: the readers have no way to tell an empty anchor from a valid
+# one -- capture-cheat-swap-proof.sh's self-check 4 compares generatedFrom to this file and an
+# empty file makes that comparison "" == "", which PASSES (measured).
+case "$DEV" in
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+  *) echo "FATAL: origin/develop resolved to '$DEV', not a 40-digit lowercase sha." >&2
+     echo "       Refusing to record it: every reader of import-ref.txt would inherit it." >&2
+     exit 1 ;;
+esac
+printf '%s\n' "$DEV" > offchain/rig/import-ref.txt.tmp
+mv offchain/rig/import-ref.txt.tmp offchain/rig/import-ref.txt
 echo "OPEN: origin/develop = $DEV carries the V2 rig artifacts ($V2_SELECTOR present)."
 echo "recorded -> offchain/rig/import-ref.txt"
