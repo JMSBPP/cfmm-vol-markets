@@ -33,6 +33,7 @@ endpoint theorems are the working base of `1f6da52a`. **Never integrate this par
 
 | Item | Where it lives | Why parked | RESUME TRIGGER |
 |---|---|---|---|
+| ~~PR-SYNC: ETA addendum resync~~ | Ph 13 (d) | — | **CLOSED 2026-08-03** — resynced 1:1, disclosure extended, no new pin (per the 12-04 rule) |
 | **E4 redo on the ε axis** | Ph 13 (b) | branch not yet decided | `1f6da52a` returns |
 | **Item (k): the E1 DIAGNOSIS defect** | Ph 13 (k) | needs a doc edit | `PR-GATE` passes |
 | **Item (i): PhiCES notation-map line** | Ph 13 (i) | needs a doc edit | `PR-GATE` passes |

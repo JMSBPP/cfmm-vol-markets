@@ -56,7 +56,13 @@ curvature `(1−ε)/(2−ε)`; old `κ_{\varphi} → ς_{X/M}` (share asymmetry)
   still carries 155 `\kappa_{\varphi` sites (+7 `κ_φ`) and 0 `\varsigma`; the plank copy has 82
   `\varsigma`. This is the same drift 12-04 found and fixed, re-opened by the rename. Its
   `APPROVED-ETA-SHA256` disclosure block is itself now stale — it names `54d10b59…` as live, which
-  the rename has moved again. Resync **and** extend the disclosure per the 12-04 pattern.
+  the rename has moved again. **DONE 2026-08-03.** Resynced 1:1 (101 `\kappa_{\varphi}` + 31 `,I` +
+  23 `,S` + 7 glyph-form → `\varsigma_{X/M}` family) and the disclosure extended with a SECOND-DRIFT
+  block per the 12-04 pattern. Verification: the `,I` and `,S` occurrence counts now match the live
+  section **exactly** (31 and 23); the plain form differs by 22, which is the pre-existing
+  back-annotation drift 12-04 already disclosed, not new divergence. **No new hash pinned,
+  deliberately** — the 12-04 rule is to re-pin only when a new bundle is submitted against the
+  section, against the live bytes at that time.
 - **(e) FALSE LINE — REPAIRED 2026-08-03 (`838289f`).** The χ definition line asserted
   `χ_{X/M} = the substitution elasticity`, the exact conflation `curvOfTilde_not_curvature` and
   `canon_Fcap_not_phiEps` refute, contradicting the parameter block 34 lines above it inserted by the
