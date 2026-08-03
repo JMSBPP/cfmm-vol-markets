@@ -383,7 +383,8 @@ CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because
 
 > LEAN (proved, `EtaTilde`, 23/23 axiom-clean, project `67b1c841`; doc \(\epsilon_{X/M}\) ↔ Lean `etaTilde`, the Lean name fixed by the bundle and never hand-edited): anchor `etaTilde_ratio`, observable `etaTilde_eq_priceEta_step`; bijection `etaTilde_mem_Ioo`, `etaTilde_strictMono`, `etaOfTilde_etaTilde`, `etaTilde_etaOfTilde`, `etaTilde_half_iff`, `etaTilde_tendsto_atTop/_atBot`; bridge `curvIndex_eq_of_etaTilde`, `curvOfTilde_etaTilde`, `tildeOfCurv_curvOfTilde`; range `curvOfTilde_mem_Ioo` (\(t \in (0,1)\) hypothesis NECESSARY — `Real.rpow` is \(\log|x|\) outside it); domain `admissible_iff`, `zero_curv_iff`; E8(6) `etaStar_tilde_mem_Ioo`, `curvIndex_etaStar_via_tilde`.
 > REFUTED: `not_curvOfTilde_strictAnti` — machine-checked negation of the antitone reading (witness above); the true direction is `curvOfTilde_strictMono`.
-> IN FLIGHT (projects `ffdb83fe`, `cd3558f7`) — NOT yet claimed: (i) continuity of \(\varphi_{\epsilon,\rho}\) at \(\rho = 0\) (the CES → Cobb–Douglas limit); (ii) that \(\rho = 1\) recovers Capponi's linear end \(F_0\) after the numeraire-relative substitution; (iii) that \(\epsilon\) and \(\rho\) are ORTHOGONAL axes — moving \(\rho\) is not moving \(\epsilon\) — and hence that \(\kappa_{\varphi}\) as proven here is the \(\rho = 0\) slice of a two-argument index \(\kappa_{\varphi}(\epsilon,\rho)\). Until those land, the family above is a DEFINITION and the \(\rho \neq 0\) slices carry no proven content.
+> LEAN (proved, `PhiCES`, 12/12 axiom-clean, project `cd3558f7`) — the three items previously IN FLIGHT are now settled: (i) the \(\rho \to 0\) limit IS \(\varphi_{\epsilon,0}\), `phiCES_tendsto_phiEps` (`𝓝[≠] 0`); (ii) \(\rho = 1\) is the linear form, `phiCES_one`, and \((\rho \to 0, \epsilon = 1/2)\) is the geometric mean, `phiCES_zero_half_eq_geom`; (iii) ORTHOGONALITY proved as a REFUTATION, `phiCES_rho_ne_eps_axis` — no share \(\epsilon'\) makes the \(\rho = -1\) slice match the \(\rho = 1\) equal-share member at both \((1,2)\) and \((2,1)\) — and `curvIndex_is_rho_zero_slice` shows the landed \(\kappa_{\varphi}\) factors through the SHARE ALONE, carrying no independent \(\rho\). Also `phiCES_homogeneous/_pos/_mono`; `phiCES_agreement_point` (evaluation form, scope declared in-file).
+> NARROWED, DECLARED: `phiCES_concave` is RADIAL concavity, explicitly not joint concavity in \((x,y)\) — joint concavity remains OPEN. CONDITIONAL, NOT an identification: `phiCES_rho_vs_pi_eta_trader` gives \(1/(1-\rho) = 1/(1-\eta) \iff \rho = \eta\) away from the poles for `exp/CESLongVolPayoff`'s η, and its docstring states outright that this does NOT identify the payoff parameter with the trading-function parameter — E8(6) untouched.
 
 Define the per-leg fee decomposition (\(\phi_M, \phi_X\) are the M9 leg fees):
 
@@ -915,16 +916,30 @@ PROPOSED LEAN NAMES (these do NOT yet exist anywhere in the tree; every OTHER ba
 
 ## **E1. [ADDITION] The curvature family and the discrete index**
 
-> This is:
+**VERDICT ON "F IS \(\varphi\)" — SETTLED, PART PROVEN PART REFUTED.** Mechanism: Angeris–Chitra–Diamandis–Evans–Kulkarni, *The Geometry of CFMMs*, arXiv:2308.08066 §1.3.2 eq (6) — the CANONICAL trading function \(\mathrm{canon}\,\psi\,k\,(R) = \sup\{\lambda > 0 : \psi(R/\lambda) \geq k\}\), which is nondecreasing, concave and homogeneous, and is shared by any two \(\psi\) describing the same reachable set.
 
-> 1. F is \varphi This means that we need consistency on the findigns found on curvature elasticity and \eta. This is, The same way we cabn price for an aribiutrary \eta suing as base 1/2 elasticity and \eta =1 
-sucha that the pricing kernel is p_{1, \Delta_i}. ALso note that differntiating elasticity from eta means that the \eta value on p_{(\eta , \Delta_i)} is 1 not 1/2 since 1/2 is the elasticity value \epsilon. This eneds alignemt. Also by noting F is \varphi we are saying theat the cruvature can be the base of bonding curves. 
+\[
+	\begin{aligned}
+		\mathrm{canon}\,\varphi_{\epsilon,0}\,k \, &= \, \varphi_{\epsilon,0}/k \qquad \text{(ours is ALREADY canonical up to scale)} \\
+		\mathrm{canon}\,F_{\kappa}\,C \, &= \, \frac{b + \sqrt{b^{2} + 4C\kappa\,xy}}{2C}, \qquad b = (1-\kappa)A\,L, \quad L = p^{2}\,\Delta Q_M + \Delta Q_X \\
+		\kappa = 1 \, &\Rightarrow \, \sqrt{xy}/\sqrt{C}; \qquad \kappa = 0 \, \Rightarrow \, A\,L/C \;\; \text{(linear)}
+	\end{aligned}
+\]
+
+SURVIVES: as a CANONICAL-FORM statement, and at ONE point — at \(\kappa = 1\) the canonical form IS \(\varphi_{1/2,\,0}\) up to a positive scalar (same CFMM).
+REFUTED as a FAMILY identity: for \(\kappa \in (0,1)\) there is NO \((\epsilon, c > 0)\) with \(\mathrm{canon}\,F_{\kappa} = c\,\varphi_{\epsilon,0}\) pointwise.
+REFUTED at the linear end: \(F_0 = \varphi_{\epsilon(\kappa_{\varphi}=0),\,0}\) is FALSE — \(\epsilon(\kappa_{\varphi}=0) = 1/2\), and the linear function is not a positive multiple of \(\varphi_{1/2,\,0}\).
+ORIENTATION: the identification HOLDS at Capponi \(\kappa = 1\) and FAILS at \(\kappa = 0\) ⟹ any identification respecting the agreement point must REVERSE orientation.
+DIAGNOSIS: Capponi's \(\kappa\) travels the \(\rho\) axis of \(\varphi_{\epsilon,\rho}\); this document's \(\kappa_{\varphi}\) is a function of the SHARE \(\epsilon\) alone. They coincide only where both axes sit at base values — the CPMM. **E8(1) therefore remains OPEN, now for a precise reason with a witness rather than a vague one.**
+
+> LEAN (proved, `CanonicalCurve`, 16/16 axiom-clean, project `ffdb83fe`): `canon_phiEps`, `canon_Fcap`, `canon_Fcap_homogeneous`, `canon_Fcap_one`, `canon_Fcap_zero`, `canon_Fcap_one_eq_phiEps_half` (the agreement), `canon_Fcap_numeraire` (\(p_B = 1\), \(p_A = p^2\) — Capponi's two free prices collapse to ONE grid price).
+> REFUTED: `canon_Fcap_not_phiEps` (family identity), `linear_not_phiEps_half` + `tildeOfCurv_zero` + `curvIndex_orientation_inconsistent` (the \(F_0\) substitution), with `cpmm_sits_at_curvIndex_zero` carrying both halves as one conjunction. PDF: `../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf`.
 The anchor's family (§5.1, p. 23), with `A` the scaling coefficient:
 
 \[
 	\begin{aligned}
 		F_{\kappa_{\varphi}}(x,y) \, &= \, (1-\kappa_{\varphi})\,A\,F_0(x,y) \, + \, \kappa_{\varphi}\,F_1(x,y), \qquad \kappa_{\varphi} \in [0,1] \\
-		F_0(x,y) \, &= \, p_A x + p_B y \quad \text{(linear, zero curvature)}, \qquad
+		F_0(x,y) \, &= \, p_A x + p_B y \quad \text{(linear, zero curvature; numeraire-relative \(p_A = p_{(\eta,\Delta_i)}(i_K)^2\), \(p_B = 1\))}, \qquad
 		F_1(x,y) \, = \, x\,y \quad \text{(constant product)} \\
 		A \, &= \, \big(y_A\,y_B / (p_A\,p_B)\big)^{1/2}
 	\end{aligned}
@@ -1110,7 +1125,7 @@ THREE BOUNDARIES ON THAT COUPLING, none of which may be dropped:
 
 ## **E8. [CAVEATS]**
 
-1. **OPEN — THE IDENTIFICATION AND THE EQUILIBRIUM TRANSFER, BOTH.** (a) OBJECT LEVEL: that \(\kappa_{\varphi}(\eta,\Delta_i)\) — a per-tick relative price step carrying no liquidity term — is the anchor's curvature index `k`, a mixing weight entering structurally in (A.31)/(A.39), is a MODELLING identification, not a definition (E1). (b) EQUILIBRIUM LEVEL: that the tick-grid AMM's arbitrage/investor equilibrium then HAS the anchor's closed forms with \(\kappa_{\varphi}(\eta,\Delta_i)\) in that slot is ASSUMED, not derived; deriving it means re-solving (A.31)/(A.39) on a discrete grid with per-tick liquidity. Every result above is a theorem about the displayed functions composed with \(\kappa_{\varphi}(\cdot,\Delta_i)\), and nothing above is a theorem about this project's AMM.
+1. **OPEN — THE IDENTIFICATION AND THE EQUILIBRIUM TRANSFER, BOTH.** (Now open for a PRECISE reason: E1's verdict block proves the identification HOLDS at Capponi \(\kappa = 1\) and FAILS at \(\kappa = 0\), and that \(\kappa_{\varphi}\) factors through the share \(\epsilon\) alone while Capponi's \(\kappa\) travels the \(\rho\) axis — `curvIndex_orientation_inconsistent`, `curvIndex_is_rho_zero_slice`. What remains open is the OBJECT-level and EQUILIBRIUM-level transfer, not the question of whether the two indices line up: they provably do not, except at the CPMM.) (a) OBJECT LEVEL: that \(\kappa_{\varphi}(\eta,\Delta_i)\) — a per-tick relative price step carrying no liquidity term — is the anchor's curvature index `k`, a mixing weight entering structurally in (A.31)/(A.39), is a MODELLING identification, not a definition (E1). (b) EQUILIBRIUM LEVEL: that the tick-grid AMM's arbitrage/investor equilibrium then HAS the anchor's closed forms with \(\kappa_{\varphi}(\eta,\Delta_i)\) in that slot is ASSUMED, not derived; deriving it means re-solving (A.31)/(A.39) on a discrete grid with per-tick liquidity. Every result above is a theorem about the displayed functions composed with \(\kappa_{\varphi}(\cdot,\Delta_i)\), and nothing above is a theorem about this project's AMM.
 2. **OPEN — WELFARE.** Proposition 6's welfare half is NOT transcribed and does NOT follow from E3 + E4 (E5 gives the reason: the pieces move in opposite directions below \(\kappa_{\varphi}^{\star}\)). Only the deposit-efficiency half is transcribed. Additionally, the anchor's welfare ranking rests on arbitrage rent being a deadweight loss, which holds only because miners sit outside its agent set — an assumption this document's own `### MEV` section contradicts under rent recycling, so the ranking is not transferable here.
 3. **OPEN — THE TWO ARBITRAGE OBJECTS ARE NOT IDENTIFIED.** \(\mathrm{arbLoss}\) and `MevOptimization.mevMulti` (\(\lambda_{\text{ARB}}\)) come from different models with different units — a two-period discrete-shock per-period ratio of pool value against a discrete hazard sum over \(D_t\). No identification is attempted or implied, as forcefully as M0 states that \(\lambda_{\text{ARB}}\) is a summand of \(\lambda_{\text{MEV}}\) and never a sibling.
 4. **OPEN — GAS.** Assumption 3 (the arbitrageur pays a gas fee equal to its full profit) is absorbed, not modelled.
