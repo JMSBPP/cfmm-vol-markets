@@ -961,9 +961,19 @@ mask_of bits = (1 `shiftL` bits) - 1
 -- declares @TICK_SPACING = 20@, so @.pool.tickSpacing@ in @offchain\/rig\/rig-manifest.json@ reads
 -- 20 and module and pool AGREE. The VALUE below did not move; only the claim about the pool did.
 --
--- The expectations below are still written against the MODULE CONSTANT, so a change to it reddens
--- here rather than passing silently -- and they would keep reddening if the pool ever drifted away
--- again.
+-- The claim in the paragraph above -- "module and pool AGREE" -- was for two rounds asserted
+-- NOWHERE. MEASURED: with @module_tick_spacing = 0@ the whole suite came back 89\/89, including
+-- the check at 'rpin03_storage_round_trip' whose own error message says "a zero there would make
+-- the round-trip pass while the word was wrong". It said so while passing at exactly that zero,
+-- because 'pack_storage_reference' BUILDS the word from this constant and the assertion then
+-- reads the constant back out of it: @c == c@ for every @c@, and at @c = 0@, @0 == 0@. The
+-- manifest's real @.pool.tickSpacing@ was read by 'positive_fields_agree' at two call sites and
+-- never bound to this constant.
+--
+-- 'rpin03_module_constant_is_the_deployed_spacing' is that binding. It is the only assertion in
+-- the module that gives this constant a provenance other than itself, so it is the only one that
+-- can redden when the pool drifts away again -- which the paragraph above says has already
+-- happened once, 10 -> 20 at PR #18.
 module_tick_spacing :: Integer
 module_tick_spacing = 20
 
@@ -1189,11 +1199,19 @@ rpin03_storage_round_trip = pure_check "rpin03_storage_round_trip" $ mapM_ one v
       _ <- field label "range_width" (toInteger (range_width decoded)) rpin_base_width
       _ <- field label "skew" (toInteger (skew decoded)) rpin_base_skew
       _ <- field label "target_vega" (toInteger (target_vega decoded)) v
+      -- HONEST SCOPE. 'pack_storage_reference' builds this word FROM 'module_tick_spacing', so
+      -- this reads back what it just wrote and is @c == c@ for every @c@. It pins the reference
+      -- encoder's shift-in/shift-out symmetry at 104..127 and NOTHING about the value. The claim
+      -- this line used to make in its own message -- that a zero would be caught here -- was
+      -- false and was MEASURED false: at @module_tick_spacing = 0@ the suite was 89/89. The
+      -- value is asserted by 'rpin03_module_constant_is_the_deployed_spacing', against the
+      -- manifest, which is the only other place the deployed spacing is written down.
       _ <- expect ((word `shiftR` 104) .&. mask_of 24 == module_tick_spacing)
              ("corner " ++ label ++ ": the tickSpacing slot at 104..127 holds "
                ++ show ((word `shiftR` 104) .&. mask_of 24) ++ ", expected the module constant "
-               ++ show module_tick_spacing ++ " -- a zero there would make the round-trip pass"
-               ++ " while the word was wrong")
+               ++ show module_tick_spacing ++ " -- the reference encoder's shift-in and the"
+               ++ " shift-out here disagree about where the slot is. The VALUE is asserted by"
+               ++ " rpin03_module_constant_is_the_deployed_spacing, not here.")
       expect (word `shiftR` 248 == 0)
         ("corner " ++ label ++ ": the storage word is 248 bits, but bits >= 248 are SET in "
           ++ show word)
@@ -1220,6 +1238,14 @@ rpin03_input_word_is_not_storage_word =
     _ <- expect ((input `shiftR` 104) .&. mask_of 24 == rpin_base_width)
            ("input word: bits 104..127 must hold width = " ++ show rpin_base_width ++ ", got "
              ++ show ((input `shiftR` 104) .&. mask_of 24))
+    -- Reference-encoder symmetry only, exactly like the sibling line in
+    -- 'rpin03_storage_round_trip': @storage@ was built from 'module_tick_spacing' by
+    -- 'pack_storage_reference', so this is @c == c@. CHECKED rather than assumed -- the review
+    -- that raised the sibling flagged this one as possibly having a different provenance, and it
+    -- does not. The value lives in 'rpin03_module_constant_is_the_deployed_spacing'. The
+    -- discriminating assertions in THIS check are the two above: @input /= storage@, and the
+    -- 104..127 slot of the INPUT word, which 'pack_vol_order_input' -- the library, not the
+    -- reference -- built.
     _ <- expect ((storage `shiftR` 104) .&. mask_of 24 == module_tick_spacing)
            ("storage word: bits 104..127 must hold tickSpacing = " ++ show module_tick_spacing
              ++ ", got " ++ show ((storage `shiftR` 104) .&. mask_of 24))
@@ -1233,6 +1259,59 @@ rpin03_input_word_is_not_storage_word =
       ("feeding the INPUT word to the STORAGE unpacker reproduced the original order -- the two"
         ++ " layouts are being conflated, which is exactly what a copy-paste between them looks"
         ++ " like: " ++ show (unpack_vol_order_storage input))
+
+-- | THE ONLY EXTERNAL PROVENANCE 'module_tick_spacing' HAS.
+--
+-- Both assertions on the tickSpacing slot above read the constant back out of a word
+-- 'pack_storage_reference' built from that same constant. Neither can see its VALUE, and the
+-- suite proved it: at @module_tick_spacing = 0@ every one of the 89 checks passed, one of them
+-- while its own message claimed a zero would be caught.
+--
+-- The manifest is the second writer. @.pool.tickSpacing@ is what @deploy-rig.sh@ recorded off the
+-- deployed @PoolKey@, and it is already read by 'positive_fields_agree' at two freshness call
+-- sites -- but only ever against the ARTIFACTS, never against this constant, so the two lived
+-- side by side unrelated.
+--
+-- The floor is separate from the equality for the reason 'positive_fields_agree' keeps them
+-- separate: @0 == 0@ is the failure being closed, so an equality alone would reproduce it the
+-- moment the manifest carried a zero too. A Uniswap v4 pool cannot have @tickSpacing = 0@ -- the
+-- @PoolKey@ is rejected at @initialize@ -- so the floor is exact rather than heuristic.
+rpin03_module_constant_is_the_deployed_spacing :: Check
+rpin03_module_constant_is_the_deployed_spacing =
+  Check "rpin03_module_constant_is_the_deployed_spacing" . guarded $ do
+    mf <- manifest_file
+    present <- doesFileExist mf
+    outcome <-
+      if present
+        then do
+          pf <- pins_file
+          attempt <- try (load_rig_from pf mf)
+          pure (Just (attempt :: Either IOException Rig))
+        else pure Nothing
+    pure $ do
+      rig <- case outcome of
+        Nothing         -> Left ("no " ++ mf ++ " -- it is gitignored, so a fresh checkout has no"
+                                  ++ " copy. Stand the rig up: " ++ deploy_command)
+        Just (Left err) -> Left ("load_rig_from failed on the real files: " ++ show err)
+        Just (Right r)  -> Right r
+      let deployed = rig_tick_spacing (rig_pool (rig_addrs rig))
+      _ <- expect (module_tick_spacing > 0)
+             ("module_tick_spacing is " ++ show module_tick_spacing ++ ". Every other assertion on"
+               ++ " the 104..127 slot reads this constant back out of a word built from it, so at"
+               ++ " zero they all pass on 0 == 0 -- MEASURED at 89/89. There is no legitimate zero"
+               ++ " tick spacing: initialize rejects the PoolKey.")
+      _ <- expect (deployed > 0)
+             ("the manifest records pool.tickSpacing = " ++ show deployed ++ ". A Uniswap v4 pool"
+               ++ " cannot have a zero tick spacing, and an equality against a zero on the other"
+               ++ " side would be satisfied by nothing -- re-run: " ++ deploy_command)
+      expect (module_tick_spacing == deployed)
+        ("module_tick_spacing is " ++ show module_tick_spacing ++ " but the manifest's"
+          ++ " pool.tickSpacing is " ++ show deployed ++ ". The storage word this module packs"
+          ++ " puts the constant at bits 104..127, so a module that disagrees with the pool packs"
+          ++ " a word the chain would never have written -- and every round-trip assertion on that"
+          ++ " slot would still pass, because they all read the constant back out of a word built"
+          ++ " from it. This spacing already moved once, 10 -> 20 at PR #18, taking the PoolKey"
+          ++ " hash and therefore the poolId with it.")
 
 -- ---------------------------------------------------------------------------------------------
 -- Phase 21, RPIN-04: the E1 VolOrderCreated v2 log shape
@@ -4771,6 +4850,7 @@ main = do
           , rpin02_field_rejections
           , rpin03_storage_round_trip
           , rpin03_input_word_is_not_storage_word
+          , rpin03_module_constant_is_the_deployed_spacing
           , rpin_e1_v2_decode_behavior
           , rpin04_topic0_is_recomputed pins
           , rpin04_positive_v2_decode
