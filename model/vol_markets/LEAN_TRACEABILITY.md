@@ -503,3 +503,17 @@ Mechanism: Angeris–Chitra–Diamandis–Evans–Kulkarni, *The Geometry of CFM
 | numeraire-relative prices (`p_B = 1`, `p_A = p²`) | `canon_Fcap_numeraire` | **PROVEN** |
 
 **Reading.** "F is φ" survives as a CANONICAL-FORM statement and at ONE point (the CPMM, Capponi `κ = 1` ⟺ our `κ_φ = 0`), and is refuted as a family identity and at the linear endpoint. Combined with §15's `curvIndex_is_rho_zero_slice`, the diagnosis is complete: Capponi's `κ` travels the `ρ` axis of `φ_{ε,ρ}`, our `κ_φ` is a function of the share `ε` alone, and the two coincide only where both axes sit at base values. **E8(1) remains OPEN and is now open for a precise reason rather than a vague one.**
+
+## 17. `κ(ρ) — THE GENUINE CURVATURE INDEX, AND WHAT κ_φ ACTUALLY MEASURES` (→ `CurvatureTwo.lean`; project `22153d1d`)
+
+18 declarations, all axiom-clean, 23 deps byte-identical. **The headline is a REFUTATION of this project's own naming.**
+
+| Claim | Lean | Status |
+|---|---|---|
+| marginal price of `phiCES`, and its Cobb–Douglas limit | `margPrice`, `margPrice_pos`, `margPrice_rho_zero_limit` | **PROVEN** |
+| substitution elasticity `1/(1−ρ)`: strictly monotone on `Iio 1`, `= 1` at ρ=0 (Cobb–Douglas), `→ ∞` as ρ→1⁻ (perfect substitutes) | `subElast`, `subElast_strictMonoOn_Iio`, `subElast_zero`, `subElast_tendsto_one` | **PROVEN** |
+| a GENUINE curvature index `curvTwo ρ = (1−ρ)/(2−ρ)` — zero at the linear member, strictly positive below it, strictly antitone in ρ, valued in `[0,1)` | `curvTwo`, `curvTwo_linear_zero`, `curvTwo_pos_of_lt_one`, `curvTwo_strictAnti_rho`, `curvTwo_mem_Ico` | **PROVEN** — **ε and Δi are INERT in it** (declared in the docstring: they encode share and grid scale, not substitution curvature) |
+| **is the landed `curvOfTilde` a curvature?** | **`curvOfTilde_not_curvature`** — NO. `curvOfTilde (1/2) = 0`, but the equal-share ρ→0 member is the CONSTANT-PRODUCT curve (`phiCES_zero_half_eq_geom`), which differs from the equal-share LINEAR member already at reserves `(1,4)`; `curvTwo` separates them as `1/2` vs `0`. No strictly monotone zero-preserving `f` can reconcile them | **REFUTED** — `curvOfTilde` measures **SHARE ASYMMETRY / GRID TILT, not CES substitution curvature** |
+| the design dial: invert curvature to the substitution exponent | `rhoOfCurv c = (1−2c)/(1−c)`, `curvTwo_rhoOfCurv`, `rhoOfCurv_curvTwo` (both round trips), `rhoOfCurv_strictAnti` | **PROVEN** |
+
+**Consequence for the doc.** The symbol `κ_{\varphi}` as used in E1–E7 and proven in `EtaCurvature`/`EtaTilde` is NOT a curvature index; it is a share-asymmetry index. Every E-block result about it stands as mathematics — nothing is invalidated — but the NAME is wrong, and the identification with Capponi's mixing weight `κ` fails for this reason and not merely for the orientation reason recorded in §16. The genuine curvature is `curvTwo`, a function of ρ ALONE, and its inversion `rhoOfCurv` is the design dial: choose a target curvature, get the substitution exponent.

@@ -32,7 +32,8 @@ roots = ["vol_markets.Main", "vol_markets.PosSpec", "vol_markets.Flow",
   "vol_markets.MevJointProgram", "vol_markets.TauMevAlgebra",
   "vol_markets.JitLiquidity", "vol_markets.TauJit",
   "vol_markets.EtaCurvature", "vol_markets.EtaTilde",
-  "vol_markets.PhiCES", "vol_markets.CanonicalCurve"]
+  "vol_markets.PhiCES", "vol_markets.CanonicalCurve",
+  "vol_markets.CurvatureTwo"]
 
 [[lean_lib]]
 name = "tao"
