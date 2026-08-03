@@ -526,6 +526,12 @@ finds a connectable object.
 
 ---
 
+## Resume ledger — read BEFORE this file
+
+`.planning/IN-FLIGHT.md` records what is **handed off and waiting** (Aristotle bundles in flight)
+and what is **parked as a leaf**, each with an explicit RESUME TRIGGER. The roadmap says what the
+plan is; that file says what is owed. A hand-off adds a row there in the same action.
+
 ## Core claims & prerequisites
 
 `.planning/PREREQUISITES.md` is the register: seven core claims (`CC-*`) grounded in the document's
