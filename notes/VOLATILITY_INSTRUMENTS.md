@@ -187,15 +187,6 @@ inheriting the sign of \(\ln \big(p_{(\eta, \Delta_i)}(i;t) / p_{(\eta, \Delta_i
 *Formalized:* `VolInstrument.variancePortfolio_unit_upsilon`.
 
 
-Then:
-
-\[
-	\begin{aligned}
-		\sigma^2_R\, (T), \sigma^2_I \, (0) , \bar \sigma^2_K\equiv [\frac{t}{T} \, \sigma^2]
-	\end{aligned}
-\]
-
-
 \[
 	\begin{aligned}
 		\Pi^{\text{call | put}} \, (\sigma^2_R\, (T) ;p_{(\eta, \Delta_i)} \, (i; t); T) \, &= \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{(\eta, \Delta_i)} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{(\eta, \Delta_i)}}{p^{\star}})\Big] \, + \, \sigma^2_R\, (T) 
