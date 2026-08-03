@@ -2,8 +2,9 @@
 
 > NOTE: [CALCULUS IS THIS ONE](~/learning/cfmm-theory/cfmm-discrete/**) . We need to fgind the discrete ficnacnial caluclus pdf byut Frogy eithr online or locally
 
-> TODO: Formalize in lean4
+> TODO: If already formalized (Make this a DEFINITION using the academic writing convention) This is the core definition 
 Note that consistent with the lean 4 spec our contract is essentially a volatility option:
+
 
 \[
 	\begin{aligned}
@@ -14,6 +15,7 @@ Note that following the main reference on [VOL_SWAPS](../refs/DemeterfietalVaria
 
 We have somehow simplified:
 
+> todo: What happened to this. \alphas are taken as notation use c_1 and c_2
 \[
 	\begin{aligned}
 		p_{\pi^{\sigma}} \, = p_0 \, + \, \alpha_1 \, p_{\pi^{\text{call}}} \, + \, \alpha_2 \, p_{\pi^{\text{put}}} 
@@ -22,9 +24,10 @@ We have somehow simplified:
 
 Where:
 
+This is an assigment not an identity THat is why the left arrow BUT is the consequence of making \phi assigned the \theta. Thus the formal definition on \theta comes first. Then the assigment of \stremia and then  a nmaed assignment for the time integerated stremia. NOte taht all these are deifcinoiion, and conventions but need re oirdering
 \[
 	\begin{aligned}
-		p_{\pi^{\text{call | put}}}\, (t) \, &= \, \int_{p_{(\eta, \Delta_i)} \, (i; t)} \, \theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (t)) \Big ) \, \mathcal{d}\, t
+		p_{\pi^{\text{call | put}}}\, (t) \, &\leftarrow \, \int_{p_{(\eta, \Delta_i)} \, (i; t)} \, \theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (t)) \Big ) \, \mathcal{d}\, t
 	\end{aligned}
 \]
 
@@ -96,6 +99,7 @@ ity to further changes in variance is altered ?"[PG7](../refs/DemeterfietalVaria
 
 This is:
 
+> These realitionships are not raw equalities and need to be put as difinitions if already proven .More precisely \pi^{\sigma} \equiv^{R} which means replicated by and the equiality with \sum L (i_K) is a /leftarrow^{panoptic-uniswap}
 \[
 	\begin{aligned}
 		\pi^{\sigma} (t) \, &= \, \Pi^{\text{call | put}} \, (\sigma ;p_{(\eta, \Delta_i)} \, (i; t)) \\
@@ -316,6 +320,8 @@ Consider a exogenous tuple flow \( \Delta Q = ( \Delta Q_M, \Delta Q_X )\) on th
 	\end{aligned}
 \]
 
+> **FLAG (open, 2026-08-03): LEG ORIENTATION OF \(\chi_{X/M}\).** The display above puts \(\chi_{X/M}\) on the \(\Delta Q_M\) leg; the CES definition below puts it on the \(Q_X\) leg (and matches Lean `PhiCES.phiCES`). One of the two must change, and the choice flips the \(\chi/(1-\chi) = \lambda^{\eta\Delta_i/2}\) bridge and the reading of `curvIndex_is_rho_zero_slice`. Theorem 1 consumes the \(\Delta Q_M\)-leg form. AUTHOR DECISION REQUIRED — not resolved by the rename. <!-- notation-map -->
+
 **THE PARAMETERS, ECONOMICALLY.**
 
 \(\chi_{X/M}\) — the SHARE (distribution) parameter: the fraction of pool VALUE held in the \(\Delta Q_M\) leg. It says WHERE the value sits. \(\chi_{X/M} = 1/2\) is the balanced pool; moving it tilts inventory toward one leg WITHOUT changing how the curve responds to trade.
@@ -352,7 +358,7 @@ zero exactly at the linear member, strictly positive below it, strictly decreasi
 
 \(\epsilon_{X/M} = 0\) is a DEFINED CASE, not an evaluation — \(1/\epsilon_{X/M}\) is undefined there, so the Cobb–Douglas branch is supplied by definition and CONTINUITY at \(\epsilon_{X/M} = 0\) is a theorem, not a substitution. Every display in this document sits on the \(\epsilon_{X/M} = 0\) slice and is subscripted accordingly.
 
-\(\chi_{X/M}\) = the substitution elasticity = the exponent on the \(\Delta Q_M\) leg (the \(1/p_{(\eta, \Delta_i)}\) leg) = that leg's share of pool value. The current case is \(\chi_{X/M} = 1/2\):
+\(\chi_{X/M}\) = the SHARE parameter = the exponent on the \(\Delta Q_M\) leg (the \(1/p_{(\eta, \Delta_i)}\) leg) = that leg's share of pool value. The current case is \(\chi_{X/M} = 1/2\):
 
 \[
 	\begin{aligned}
