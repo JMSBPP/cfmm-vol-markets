@@ -118,11 +118,12 @@ import VolOrder.Decode
   )
 import VolOrder.Report (decode_e1_from, report_receipt)
 import VolOrder.Rpc
-  ( create_order
+  ( PackedReadback (..)
+  , create_order
   , create_orders
   , preview_create_orders
   , read_order_count
-  , read_order_packed
+  , read_order_packed_traced
   )
 import VolOrder.Types (VolOrder (..))
 
@@ -266,10 +267,20 @@ capture_single :: Integer -> Address -> VolOrder -> TxReceipt -> Web3 SingleOrde
 capture_single topic_e1 manager submitted receipt = do
   let block = BlockWithNumber (receiptBlockNumber receipt)
       e1s   = decode_e1s topic_e1 manager (receiptLogs receipt)
+  -- ONE binding, used as the query argument and recorded FROM THE QUERY ITSELF.
+  --
+  -- @so_readback_id@ is 'prb_queried_id' — the argument decoded back out of the calldata this call
+  -- sent — and NOT @fmap orderId (listToMaybe e1s)@, which is what it was until this was fixed. In
+  -- the @(e : _)@ branch @listToMaybe e1s@ IS @Just e@, so the recorded id was literally the
+  -- expression already handed to the readback and the offline check evaluated @orderId e ==
+  -- orderId e@ for every input. MEASURED on this rig: a driver whose readback queried the constant
+  -- @1@ (an id that holds an identical sample order, so the content comparison still matched) while
+  -- the E1 announced id @8@ produced a capture that passed 89/89. With the id threaded out of the
+  -- call the same mutant reddens driv02_single_order_live, because the recorded id follows the
+  -- QUERY and the E1's id follows the chain.
   readback <-
     case e1s of
-      (e : _) -> Just . order_fields . unpack_vol_order_storage
-                   <$> read_order_packed manager block (orderId e)
+      (e : _) -> Just <$> read_order_packed_traced manager block (orderId e)
       []      -> pure Nothing
   pure SingleOrder
     { so_submitted      = order_fields submitted
@@ -277,8 +288,8 @@ capture_single topic_e1 manager submitted receipt = do
     , so_status         = fmap unQuantity (receiptStatus receipt)
     , so_e1_count       = length e1s
     , so_e1             = fmap e1_record (listToMaybe e1s)
-    , so_readback       = readback
-    , so_readback_id    = fmap orderId (listToMaybe e1s)
+    , so_readback       = fmap (order_fields . unpack_vol_order_storage . prb_word) readback
+    , so_readback_id    = fmap prb_queried_id readback
     , so_readback_block = Just (unQuantity (receiptBlockNumber receipt))
     }
 
@@ -306,10 +317,9 @@ capture_mixed sender manager batch = do
       -- writer landing in between shifts the base.
       minted_ids = take (length successes) [before + 1 ..]
   after <- read_order_count manager block
-  readbacks <-
-    mapM (\i -> MixedReadback i . order_fields . unpack_vol_order_storage
-                  <$> read_order_packed manager block i)
-         minted_ids
+  -- Same rule as the single order's: @mr_id@ is the id THIS CALL asked for, decoded back out of its
+  -- own calldata, not the loop variable written down a second time beside it.
+  readbacks <- mapM (fmap mixed_readback . read_order_packed_traced manager block) minted_ids
   pure MixedBatch
     { mb_submitted    = map order_fields batch
     , mb_preview      = preview
@@ -354,6 +364,13 @@ capture_zero_arrival sender manager = do
 -- report_receipt cannot drift apart.
 decode_e1s :: Integer -> Address -> [Change] -> [OrderCreatedEvent]
 decode_e1s topic_e1 emitter logs = [e | Just e <- map (decode_e1_from topic_e1 emitter) logs]
+
+mixed_readback :: PackedReadback -> MixedReadback
+mixed_readback r =
+  MixedReadback
+    { mr_id     = prb_queried_id r
+    , mr_fields = order_fields (unpack_vol_order_storage (prb_word r))
+    }
 
 order_fields :: VolOrder -> OrderFields
 order_fields o =

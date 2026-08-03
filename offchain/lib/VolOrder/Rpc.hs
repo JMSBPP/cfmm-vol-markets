@@ -11,6 +11,8 @@ module VolOrder.Rpc
     -- no other path to them. They are ordinary reads with no side effects.
   , read_order_count
   , read_order_packed
+  , read_order_packed_traced
+  , PackedReadback (..)
   , wait_for_receipt
   ) where
 
@@ -28,6 +30,7 @@ import Network.Web3.Provider (Provider (HttpProvider), Web3, runWeb3')
 import VolOrder.Decode
   ( check_minted_id_run
   , decode_create_orders_result
+  , decode_get_order_packed_arg
   , hex_to_integer
   , unpack_vol_order_storage
   )
@@ -187,10 +190,30 @@ read_order_count manager block = do
   calldata <- liftIO encode_order_count
   hex_to_integer <$> eth_call_manager manager block calldata
 
-read_order_packed :: Address -> DefaultBlock -> Integer -> Web3 Integer
-read_order_packed manager block order_id = do
+-- | One @getOrderPacked@ readback, WITH the id the call actually asked the node for.
+--
+-- The id is not the caller's argument handed back: it is decoded out of the calldata that went on
+-- the wire (see 'decode_get_order_packed_arg'). That is the whole point of the type — a capture that
+-- records @prb_queried_id@ records what was QUERIED, and can therefore be checked against the id the
+-- chain announced in the E1. A capture that re-derives the id from the announcement instead is
+-- asserting @x == x@.
+data PackedReadback = PackedReadback
+  { prb_queried_id :: Integer  -- ^ the @uint256@ argument decoded back out of the sent calldata
+  , prb_word       :: Integer  -- ^ the packed storage word the node returned
+  }
+  deriving (Eq, Show)
+
+read_order_packed_traced :: Address -> DefaultBlock -> Integer -> Web3 PackedReadback
+read_order_packed_traced manager block order_id = do
   calldata <- liftIO (encode_get_order_packed order_id)
-  hex_to_integer <$> eth_call_manager manager block calldata
+  queried  <- either fail pure (decode_get_order_packed_arg calldata)
+  word     <- hex_to_integer <$> eth_call_manager manager block calldata
+  pure PackedReadback { prb_queried_id = queried, prb_word = word }
+
+-- | The word alone, for the callers that assert over it rather than record it.
+read_order_packed :: Address -> DefaultBlock -> Integer -> Web3 Integer
+read_order_packed manager block order_id =
+  prb_word <$> read_order_packed_traced manager block order_id
 
 eth_call_manager :: Address -> DefaultBlock -> HexString -> Web3 HexString
 eth_call_manager manager block calldata =

@@ -5,6 +5,7 @@ module VolOrder.Decode
   , data_word
   , be_integer
   , decode_create_orders_result
+  , decode_get_order_packed_arg
   , check_minted_id_run
   , unpack_vol_order_storage
   ) where
@@ -123,6 +124,44 @@ decode_create_orders_result raw
            1     -> Right (True, order_id)
            other -> Left ("create_orders result: non-canonical bool word at index "
                             ++ show index ++ ": " ++ show other)
+
+-- | The @uint256@ argument of a @getOrderPacked(uint256)@ call, read back OUT OF THE CALLDATA that
+-- was actually sent.
+--
+-- == WHY A DECODER RATHER THAN THE ARGUMENT THE CALLER ALREADY HAS
+--
+-- The DRIV-02 artifact records @readback_id@ so an offline check can assert that the readback asked
+-- for the id the E1 announced — @so_readback_id@'s haddock names the mutant it exists to kill: \"a
+-- readback that quietly asked for @orderCount()@, or for a constant, would otherwise content-match
+-- some OTHER order and look perfect\". That check is only a check if the recorded id and the E1's id
+-- come from DIFFERENT places. Until this decoder existed the driver recorded
+-- @fmap orderId (listToMaybe e1s)@ — the very expression it also passed to the readback — so the
+-- assertion was @orderId e == orderId e@ for every input, and the named mutant survived.
+-- MEASURED: a driver whose readback queried the constant @1@ while the E1 announced id @8@ produced
+-- an artifact that passed the whole suite, 89/89.
+--
+-- Decoding the bytes on the wire is what makes the recorded value track the QUERY. A call site that
+-- changes what it asks for changes these bytes, and the recorded id changes with them; it cannot
+-- agree with the E1 by construction any more.
+--
+-- Exactly 36 bytes is the whole shape of a one-word call: 4 selector bytes and one 32-byte word.
+-- A readback that had degenerated into @orderCount()@ carries 4 bytes and is REJECTED here rather
+-- than silently decoding to 0 — @be_integer@ of an empty string is 0, a plausible-looking id that
+-- is not an id at all (ids are 1-based; slot 0 is never written).
+--
+-- The selector itself is deliberately NOT asserted: re-deriving it would mean re-encoding through
+-- the same @cast@ call the calldata came from, which is the same-expression trap this function
+-- exists to escape. What is asserted is the shape, and the ARGUMENT is what gets recorded.
+decode_get_order_packed_arg :: HexString -> Either String Integer
+decode_get_order_packed_arg calldata
+  | BS.length bytes /= 36 =
+      Left ("getOrderPacked calldata is " ++ show (BS.length bytes)
+             ++ " bytes, expected 36 (a 4-byte selector and one 32-byte word). A readback that no"
+             ++ " longer sends a one-word call is not a readback of an id, and its argument must"
+             ++ " not be recorded as one.")
+  | otherwise = Right (be_integer (BS.drop 4 bytes))
+  where
+    bytes = toBytes calldata
 
 -- | The one property of the returned @orderId@ half that a client can check WITHOUT a second
 -- source of truth: the ids at the successful positions of ONE call must be a strictly increasing
