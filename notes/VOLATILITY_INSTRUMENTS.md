@@ -96,17 +96,31 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 
 *Formalized:* `VolInstrument.logPortfolio`; `variancePortfolio` (\(= \text{logPortfolio} + \sigma^2 t/2\)); `logPortfolio_nonneg`; `logPortfolio_atm`.
 
-**Proposition 4 (Ladder replication).** The volatility option is replicated by the log portfolio, realized on the grid as the strike ladder — the weight profile \(\ell(\xi^{\star},\iota;i_K)\) being a geometric liquidity distribution in the sense of the [Bunni v2 whitepaper](../refs/bunni-v2.pdf) (whose general LDFs \(\ell_{\text{LDF}}(\theta_{\text{LDF}};i_K)\) are the declared FUTURE MILESTONE, G4):
+**Proposition 4 (Ladder replication).** The volatility option is replicated by the log portfolio:
 
 \[
 	\begin{aligned}
-		\pi^{\sigma}(t) \, \equiv^{R} \, \Pi^{\text{call|put}}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big) \, = \, \sum_{i_K} L(i_K)\, \Pi_{i_K}, \qquad L(i_K) = \bar L\,\ell(\xi^{\star},\iota; i_K)
+		\pi^{\sigma}(t) \, \equiv^{R} \, \Pi^{\text{call|put}}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big)
 	\end{aligned}
 \]
 
-and \(\Pi\) has Definition 5's defining property: its variance sensitivity is **constant in the underlying price**, \(\upsilon(\Pi) = T/2\), with \(\text{Id}_{N_\sigma}\) the unit-vega normalization.
+and \(\Pi\) has Definition 5's defining property: its variance sensitivity is **constant in the underlying price**, \(\upsilon(\Pi) = T/2\).
 
-*Formalized:* `variancePortfolio_upsilon` (\(\upsilon = t/2\), \(p_{(\eta,\Delta_i)}\)-independent); `variancePortfolio_unit_upsilon`; grid weights `GeomProfile.varswapWeight_geometric`, `logContractLiquidity_geometric`, `VolInstrument.strikeWeight_bridge` (\(\xi^{\star} = \lambda^{-\Delta_i/2}\)).
+*Status:* the \(\equiv^R\) core is **adapted from the variance-swap text** [Demeterfi](../refs/DemeterfietalVarianceSwaps.pdf) and is **OPEN in-tree** — Convention 1's discipline applies. PROVED: the sensitivity half. OWED: the payoff-reproduction step connecting `variancePortfolio` to `volOptionPayoff` — an Aristotle target.
+
+*Formalized (sensitivity half):* `variancePortfolio_upsilon` (\(\upsilon = t/2\), \(p_{(\eta,\Delta_i)}\)-independent).
+
+**Rule 3 (Ladder allocation).** The protocol realizes the log portfolio on the grid as the strike ladder — the weight profile \(\ell(\xi^{\star},\iota;i_K)\) being a geometric liquidity distribution in the sense of the [Bunni v2 whitepaper](../refs/bunni-v2.pdf) (whose general LDFs \(\ell_{\text{LDF}}(\theta_{\text{LDF}};i_K)\) are the declared FUTURE MILESTONE, G4):
+
+\[
+	\begin{aligned}
+		\Pi^{\text{call|put}}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big) \, \leftarrow \, \sum_{i_K} L(i_K)\, \Pi^{\text{call|put}}\big(\sigma_K; p_{(\eta,\Delta_i)}(i;t)\big), \qquad L(i_K) = \bar L\,\ell(\xi^{\star},\iota; i_K)
+	\end{aligned}
+\]
+
+The left arrow marks the Rule: an **allocation the protocol enforces**, not an equality — \(\Pi^{\text{call|put}}(\sigma_K;\cdot)\) is the per-strike member at strike tick \(i_K\), and \(L\) is Definition 7's ladder. Whether the enforced ladder's payoff reproduces the log contract is part of Proposition 4's OPEN core, not asserted here.
+
+*Formalized (weight law):* `GeomProfile.varswapWeight_geometric`; `logContractLiquidity_geometric`; `VolInstrument.strikeWeight_bridge` (\(\xi^{\star} = \lambda^{-\Delta_i/2}\)).
 
 **Definition 7 (Liquidity ladder).** Per strike tick \(i_K\), the ladder allocates the total liquidity \(\bar L\) by the geometric weight profile
 
