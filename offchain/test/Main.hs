@@ -3768,15 +3768,69 @@ driv01_run_capture_is_present_and_fresh =
 -- ---------------------------------------------------------------------------------------------
 
 -- | A 40-character git object name, which is what @generatedFrom@ carries.
+--
+-- SHAPE ONLY. The all-zero name @0000...0000@ satisfies it, and git plumbing really emits that
+-- one -- it is the null object id every @update-ref@ and every @pre-receive@ hook uses for
+-- \"no such object\". The floor that rejects it is 'not_a_zero_word', applied at the comparison
+-- rather than here, because 'rig_address_keys' uses the sibling shape test to CLASSIFY the keys
+-- of a rig block and a classifier that silently drops a zeroed field would delete its own
+-- comparison -- the exact one-sided hardening this section already carries two scars from.
 is_git_object_name :: String -> Bool
 is_git_object_name s = length s == 40 && all isHexDigit s
 
--- | A @0x@-prefixed 20-byte address.
+-- | A @0x@-prefixed 20-byte address. SHAPE ONLY -- see 'is_git_object_name'.
 is_address_text :: String -> Bool
 is_address_text s =
   case stripPrefix "0x" (map toLower s) of
     Just body -> length body == 40 && all isHexDigit body
     Nothing   -> False
+
+-- | THE SAME DEGENERACY AGAIN, IN THE HEX-SHAPED STRINGS. SIXTH INSTANCE OF THE CLASS.
+--
+-- The shape guards above test hex-ness and LENGTH. The zero address is forty hex digits and the
+-- zero word is sixty-four, so both pass, and every equality they were written to protect is
+-- satisfied by one zero comparing equal to another. MEASURED on this branch, same field, same
+-- three files, only the REPRESENTATION differing:
+--
+-- >  PoolManager := ""            in manifest + both captures  ->  2 FAILED
+-- >  PoolManager := <zero address> in the same three files     ->  89\/89 checks passed
+--
+-- And zeroing EVERY @contracts.*@\/@accounts.*@, both artifacts' entire @rig@ blocks, @poolId@ as
+-- the 32-byte zero word and @batch-return-capture.json@'s @manager@, all consistently: 89\/89.
+-- That is all 16 'addresses_agree' comparisons and both 'pool_id_matches' defeated at once --
+-- the whole freshness surface.
+--
+-- It is reachable, not hypothetical. An unset @address@ in a forge broadcast JSON IS
+-- @address(0)@; @vm.envAddress@ misses, mapping misses and failed lookups all yield it; and
+-- @notes\/DATA_CONTRACT.md@ 2 treats @bytes32(0)@ as a permanent first-class sentinel for
+-- @poolId@.
+--
+-- The predicate is the one 'positive_fields_agree' already writes down one type over: a pinned
+-- FLOOR on a value that has no legitimate zero, NOT a non-emptiness test of the kind that has
+-- failed to discriminate here five times. There is no zero-address contract, no zero @poolId@
+-- and no zero git object name, so the floor is exact rather than heuristic.
+--
+-- Written as a predicate over the hex BODY so it is representation-independent: it does not care
+-- whether the value is 40 or 64 digits, @0x@-prefixed or bare, upper or lower case. Generalising
+-- the PREDICATE rather than the representation is the whole point -- the five previous sweeps of
+-- this class each generalised the representation they had just seen.
+is_zero_hex_text :: String -> Bool
+is_zero_hex_text s = not (null body) && all (== '0') body
+  where
+    body = fromMaybe lowered (stripPrefix "0x" lowered)
+    lowered = map toLower s
+
+-- | The floor, as an assertion. Every hex-shaped freshness equality in this module takes it on
+-- BOTH sides, next to the shape guard and never instead of it.
+not_a_zero_word :: String -> String -> Either String ()
+not_a_zero_word subject value =
+  expect (not (is_zero_hex_text value))
+    (subject ++ " is " ++ show value ++ " -- ALL ZEROS. It is the right shape and it is not a"
+      ++ " value: an equality against a zero on the other side is satisfied by nothing, which is"
+      ++ " what \"\" did before it and what tickSpacing = 0 did after. address(0) is what an unset"
+      ++ " forge-broadcast address, a missed vm.envAddress and a failed mapping lookup all"
+      ++ " produce, and bytes32(0) is a first-class poolId sentinel in notes/DATA_CONTRACT.md"
+      ++ " section 2 -- so this is a reachable state, not a contrived one.")
 
 -- | Both sides of a @generatedFrom@ freshness equality name a real ref.
 refs_are_real :: String -> String -> String -> Either String ()
@@ -3787,6 +3841,12 @@ refs_are_real subject captured pinned = do
            ++ " failed substitution yields \"\" silently -- against an artifact that recorded the"
            ++ " same emptiness the freshness equality below would be satisfied by nothing."
            ++ " Regenerate: bash offchain/rig/generate-pins.sh")
+  -- The git null object id is 40 hex digits, so the shape guard above accepts it and the
+  -- equality below is satisfied by two of them. git emits it for real -- it is the "no such
+  -- object" sentinel in every ref update and every hook -- so a generatedFrom filled from a
+  -- plumbing command that found nothing lands here already well-formed.
+  _ <- not_a_zero_word "rig-pins.json's generatedFrom" pinned
+  _ <- not_a_zero_word (subject ++ "'s generatedFrom") captured
   expect (is_git_object_name captured)
     (subject ++ " records generatedFrom " ++ show captured ++ ", which is not a 40-character git"
       ++ " object name -- so it cannot identify the imported source-of-truth ref it was taken"
@@ -3836,6 +3896,10 @@ addresses_agree name manifest captured_label captured retake consequence = do
          ("the artifact records " ++ captured_label ++ " = " ++ show captured ++ ", not a 20-byte"
            ++ " address. An artifact that cannot say which contract it ran against cannot be"
            ++ " checked for freshness against any manifest -- re-take it: " ++ retake)
+  -- The floor. Shape alone accepts address(0) on both sides, and MEASURED, that is 89/89 across
+  -- all sixteen of these comparisons at once.
+  _ <- not_a_zero_word ("the manifest's " ++ T.unpack name) manifest
+  _ <- not_a_zero_word ("the artifact's " ++ captured_label) captured
   expect (captured == manifest)
     ("the artifact records " ++ captured_label ++ " = " ++ captured ++ " but the manifest's "
       ++ T.unpack name ++ " is " ++ manifest ++ ". " ++ consequence ++ " Re-take it: " ++ retake)
@@ -3954,6 +4018,10 @@ pool_id_matches capture addrs subject retake = do
            ++ deploy_command)
   _ <- expect (is_bytes32_text captured)
          (subject ++ " records rig.poolId = " ++ show captured ++ ", not a 32-byte word.")
+  -- bytes32(0) is not merely reachable here, it is DOCUMENTED: notes/DATA_CONTRACT.md section 2
+  -- treats it as a permanent poolId sentinel. Shape alone accepts it on both sides.
+  _ <- not_a_zero_word "the manifest's pool.poolId" manifest
+  _ <- not_a_zero_word (subject ++ "'s rig.poolId") captured
   expect (captured == manifest)
     (subject ++ " records rig.poolId = " ++ captured ++ " but the manifest's pool.poolId is "
       ++ manifest ++ ". The poolId is the PoolKey hash: it moves with the hook address, the tick"
