@@ -37,7 +37,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing)
 import Data.Solidity.Prim.Address (Address, fromHexString)
 import qualified Data.Text as T
-import Data.Word (Word32)
+import Data.Word (Word32, Word8)
 import System.Directory
   ( createDirectoryIfMissing
   , doesDirectoryExist
@@ -70,10 +70,12 @@ import Network.Ethereum.Api.Types (Change (..))
 import VolOrder.Decode
   ( OrderCreatedEvent (..)
   , be_integer
+  , check_minted_id_run
   , decode_create_orders_result
   , decode_order_created
   , unpack_vol_order_storage
   )
+import VolOrder.Report (decode_e1_from)
 import CheatSwap.Encoding (encode_extsload, encode_swap, extsload_signature, swap_signature)
 import CheatSwap.Types (check_cheat_tick, compose_slot0, pool_state_slot)
 import Driver.Capture
@@ -2193,6 +2195,143 @@ rpin05_capture_decodes_through_the_shipped_decoder =
                  (name ++ ": decoded " ++ show (length pairs) ++ " elements, but the case"
                    ++ " submitted n = " ++ show n)
           Right pairs
+
+-- ---------------------------------------------------------------------------------------------
+-- THE TWO FUNCTIONS THIS ROUND ADDED AND THIS SUITE NEVER CALLED
+--
+-- 'VolOrder.Decode.check_minted_id_run' ('1f82663') and 'VolOrder.Report.decode_e1_from'
+-- ('37ec202') appeared ZERO times in this module. Both are pure, total and chain-independent, in a
+-- suite that is chain-independent by design and already holds ~25 pure-function checks -- so there
+-- was no reason for the gap other than nobody closing it. MEASURED: two mutants that revert those
+-- commits entirely stayed green at 85\/85.
+--
+--   1. @check_minted_id_run _ = Right ()@
+--   2. @decode_e1_from t _emitter l = decode_order_created t l@
+--
+-- Both are killed below, and the kills are re-measured in the commit that adds them.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The minted-id run rule, driven over the LIVE capture and over each defect it names.
+--
+-- The live half matters: @N2_success_then_fail@ is a real @(bool, id)@ pair sequence returned by
+-- the deployed module, so the accepting case is not a hand-built list agreeing with a hand-built
+-- expectation. The rejecting half enumerates the three defects the function's own documentation
+-- names -- the @0@ sentinel, the loop index, the repeated id -- plus the non-contiguous run.
+--
+-- The last two assertions pin the DOCUMENTED RESIDUAL rather than a capability: a uniform shift of
+-- the whole run is ACCEPTED, deliberately, because a client cannot distinguish \"the module is off
+-- by one\" from \"another writer minted between the preview and the counter read\". Asserting the
+-- residual is what stops the gap being quietly closed with an absolute anchor that would fail on a
+-- legitimate interleave -- and what stops it being quietly widened.
+rpin05_minted_id_run_behavior :: Check
+rpin05_minted_id_run_behavior =
+  Check "rpin05_minted_id_run_behavior" . guarded $ do
+    loaded <- read_json_file capture_file ("produce it with: " ++ capture_command)
+    pure $ do
+      capture <- loaded
+      this <- capture_case "N2_success_then_fail" capture
+      raw <- json_field "returndata" this >>= json_string
+      raw_bytes <- hex_bytes raw
+      live <-
+        case decode_create_orders_result (fromBytes raw_bytes) of
+          Left err    -> Left ("N2_success_then_fail did not decode: " ++ err)
+          Right pairs -> Right pairs
+      _ <- expect (live == [(True, 1), (False, 0)])
+             ("N2_success_then_fail decoded to " ++ show live ++ ", expected [(True,1),(False,0)]."
+               ++ " The minted-id assertions below are driven over these bytes, so a change in"
+               ++ " them changes what is being asserted.")
+      _ <- accepts "the live N2_success_then_fail pairs" live
+      _ <- accepts "an empty batch" []
+      _ <- accepts "an all-rejected batch" [(False, 0), (False, 0)]
+      _ <- accepts "a contiguous run with a rejection interleaved" [(True, 4), (False, 0), (True, 5)]
+      -- THE RESIDUAL, asserted as acceptance rather than described in prose.
+      _ <- accepts "a UNIFORMLY SHIFTED run (the documented residual)" [(True, 5), (True, 6), (True, 7)]
+
+      _ <- rejects "the 0 sentinel" [(True, 0)] "1-based"
+      _ <- rejects "the loop index" [(True, 0), (True, 1), (True, 2)] "1-based"
+      _ <- rejects "the same id repeated" [(True, 8), (True, 8), (True, 8)] "non-contiguous"
+      _ <- rejects "a gap in the run" [(True, 3), (True, 5)] "non-contiguous"
+      rejects "a run that goes BACKWARDS" [(True, 9), (True, 8)] "non-contiguous"
+  where
+    accepts what pairs =
+      case check_minted_id_run pairs of
+        Right () -> Right ()
+        Left why ->
+          Left ("check_minted_id_run REJECTED " ++ what ++ " " ++ show pairs ++ ": " ++ why)
+
+    rejects what pairs needle =
+      case check_minted_id_run pairs of
+        Right () ->
+          Left ("check_minted_id_run ACCEPTED " ++ what ++ " " ++ show pairs
+                 ++ ". Every readback that recomputes ids locally would still pass, so this is the"
+                 ++ " one place the defect is visible.")
+        Left why ->
+          expect (needle `isInfixOf` why)
+            ("check_minted_id_run rejected " ++ what ++ " but the message does not say "
+              ++ show needle ++ ", so an operator cannot tell WHICH rule fired: " ++ why)
+
+-- | Twenty identical bytes as an 'Address'. Built, never written: a 20-byte hex constant spelled
+-- out here would be found by 'sc3_literal_purge', which scans this file.
+address_of_byte :: Word8 -> Address
+address_of_byte b =
+  case fromHexString (fromBytes (BS.replicate 20 b)) of
+    Right addr -> addr
+    Left why   -> error ("20 identical bytes did not parse as an address: " ++ why)
+
+-- | E1 IS FILTERED ON THE EMITTER, and the filter is what does the work.
+--
+-- This is '37ec202''s own falsification, moved into the suite: two logs carrying the SAME live
+-- pinned @VolOrderCreated@ topic0, one from the manager and one from an impostor. topic0 identifies
+-- an EVENT SIGNATURE, not an emitter, and the decoder's payload-length guard rejects a SHORT
+-- payload rather than a long enough one from the wrong contract -- so the topic0-only predicate
+-- accepts BOTH, and only the address separates them.
+--
+-- The topic0-only list is asserted too, and it is the assertion that makes the other one mean
+-- something: without it, @filtered == [7]@ is equally satisfied by a decoder that rejected the
+-- impostor's log for some unrelated reason, and the check would pass while proving nothing about
+-- the filter. Both lists are pinned BY VALUE.
+--
+-- The consequence of the missing filter was not a spurious line of output: @capture_single@ feeds
+-- the decoded id to @so_readback_id@ and reads it back out of the MANAGER's storage, where
+-- @getOrderPacked@ has no bounds check and answers the 0 sentinel -- a fabricated readback written
+-- into the committed artifact.
+rpin04_e1_is_filtered_on_the_emitter :: Check
+rpin04_e1_is_filtered_on_the_emitter =
+  Check "rpin04_e1_is_filtered_on_the_emitter" . guarded $ do
+    contents <- readFile volorder_iface
+    pure $ do
+      t0 <- e1_topic0_from contents
+      let manager  = address_of_byte 17
+          impostor = address_of_byte 34
+          from addr order_id =
+            (synthetic_log
+               [hexstring_of t0, hexstring_of order_id]
+               [rpin_base_strike, rpin_base_width, rpin_base_skew, rpin_base_vega])
+              { changeAddress = addr }
+          logs        = [from manager 7, from impostor 999999]
+          topic_only  = [orderId e | l <- logs, Just e <- [decode_order_created t0 l]]
+          filtered    = [orderId e | l <- logs, Just e <- [decode_e1_from t0 manager l]]
+
+      _ <- expect (manager /= impostor)
+             "the manager and impostor addresses are equal, so this check cannot separate them"
+      _ <- expect (topic_only == [7, 999999])
+             ("the topic0-ONLY predicate decoded order ids " ++ show topic_only
+               ++ ", expected [7,999999]. Both logs must be accepted by it -- if the impostor's log"
+               ++ " were rejected for some OTHER reason, the filtered result below would prove"
+               ++ " nothing about the address filter.")
+      _ <- expect (filtered == [7])
+             ("decode_e1_from decoded order ids " ++ show filtered ++ ", expected [7]. It accepted"
+               ++ " a VolOrderCreated emitted by a contract that is not the manager: the id then"
+               ++ " reaches getOrderPacked, which has no bounds check and answers the 0 sentinel,"
+               ++ " and a fabricated readback is written into the committed artifact.")
+      -- The decoder half still applies: a right emitter with a wrong topic0 is still not an E1.
+      let wrong_topic =
+            (synthetic_log
+               [hexstring_of (t0 + 1), hexstring_of 7]
+               [rpin_base_strike, rpin_base_width, rpin_base_skew, rpin_base_vega])
+              { changeAddress = manager }
+      expect (isNothing (decode_e1_from t0 manager wrong_topic))
+        "decode_e1_from accepted a log from the manager whose topic0 is not VolOrderCreated"
 
 -- | CHECK 4 -- canonical bool words, read straight out of the bytes.
 --
@@ -4529,6 +4668,8 @@ main = do
           , rpin05_capture_is_present_and_fresh
           , rpin05_live_bytes_match_the_external_golden
           , rpin05_capture_decodes_through_the_shipped_decoder
+          , rpin05_minted_id_run_behavior
+          , rpin04_e1_is_filtered_on_the_emitter
           , rpin05_no_canonical_bool_violation
           , driv01_e3_decode_behavior
           , driv01_slot0_composition_behavior
