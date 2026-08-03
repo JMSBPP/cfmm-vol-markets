@@ -76,36 +76,31 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 
 **Definition 5 (Replicating portfolio).** The **replicating portfolio** \(\Pi^{\text{call|put}}(\sigma; p_{(\eta,\Delta_i)}(i;t))\) is the option portfolio whose sensitivity to realized variance is independent of the underlying price [PG7](../refs/DemeterfietalVarianceSwaps.pdf) — a single option cannot serve, since a price move alters its variance sensitivity.
 
-> These realitionships are not raw equalities and need to be put as difinitions if already proven .More precisely \pi^{\sigma} \equiv^{R} which means replicated by and the equiality with \sum L (i_K) is a /leftarrow^{panoptic-uniswap}
-\[
-	\begin{aligned}
-		\pi^{\sigma} (t) \, &= \, \Pi^{\text{call | put}} \, (\sigma ;p_{(\eta, \Delta_i)} \, (i; t)) \\
-		&= \, \sum_{i_K} \, L (i_K) 
-	\end{aligned}
-\]
-For some \(p^{\star}\) (the approxi-mate at-the-money forward stock level that marks the boundary
-between liquid puts and liquid calls.) [PG9](../refs/DemeterfietalVarianceSwaps.pdf)
+**Convention 1 (Replication relation).** For payoff claims \(A, B\) we write \(A \equiv^{R} B\) — "\(A\) **is replicated by** \(B\)" — when \(B\)'s payoff reproduces \(A\)'s. This is a *claim about two objects*, not a definitional identity: each instance must be proved, and until it is, it is stated OPEN. (This is the relation the two-instrument question above is posed in.)
 
-We have the regions:
+**Definition 6 (Log portfolio).** For \(p^{\star}\) the approximate at-the-money forward level marking the boundary between liquid puts and liquid calls [PG9](../refs/DemeterfietalVarianceSwaps.pdf), the **log portfolio** and its running form are
 
 \[
 	\begin{aligned}
-		\Pi^{\text{call | put}} \, (\sigma ;p_{(\eta, \Delta_i)} \, (i; 0)) \, &= \, \frac{p_{(\eta, \Delta_i)} \, (i; 0) - p^{\star}}{p^{\star}} \, - \, \log(\frac{p_{(\eta, \Delta_i)} \, (i; 0)}{p^{\star}}) \\
-		\\
-		\Pi^{\text{call | put}} \, (\sigma ;p_{(\eta, \Delta_i)} \, (i; t)) \, &= \, \frac{p_{(\eta, \Delta_i)} \, (i; t) - p^{\star}}{p^{\star}} \, - \, \log(\frac{p_{(\eta, \Delta_i)} \, (i; t)}{p^{\star}}) \, + \, \frac{\sigma^2 \, t}{2}
+		\Pi^{\text{call|put}}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big) \, &= \, \frac{p_{(\eta,\Delta_i)}(i;t) - p^{\star}}{p^{\star}} \, - \, \log\Big(\frac{p_{(\eta,\Delta_i)}(i;t)}{p^{\star}}\Big) \, + \, \frac{\sigma^2\, t}{2}
 	\end{aligned}
 \]
 
+(at \(t=0\) the running term vanishes; \(\Pi \geq 0\) with \(\Pi(p^{\star}) = 0\)).
 
-Then:
+*Formalized:* `VolInstrument.logPortfolio`; `variancePortfolio` (\(= \text{logPortfolio} + \sigma^2 t/2\)); `logPortfolio_nonneg`; `logPortfolio_atm`.
+
+**Proposition 4 (Ladder replication).** The volatility option is replicated by the log portfolio, realized on the grid as the strike ladder:
+
 \[
 	\begin{aligned}
-		\upsilon = \frac{\Delta \, \Pi^{\text{call | put}} \, ( \cdot )}{\Delta \, \sigma^{2} } \, = T/2
+		\pi^{\sigma}(t) \, \equiv^{R} \, \Pi^{\text{call|put}}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big) \, = \, \sum_{i_K} L(i_K)\, \Pi_{i_K}, \qquad L(i_K) = \bar L\,\ell(\xi^{\star},\iota; i_K)
 	\end{aligned}
 \]
 
+and \(\Pi\) has Definition 5's defining property: its variance sensitivity is **constant in the underlying price**, \(\upsilon(\Pi) = T/2\), with \(\text{Id}_{N_\sigma}\) the unit-vega normalization.
 
-> LEAN (correction): \(\upsilon = \Delta\Pi/\Delta\sigma^2 = T/2\), \(p_{(\eta, \Delta_i)}\)-independent: `variancePortfolio_upsilon`; \(\text{Id}_{N_\sigma}\) unit vega: `variancePortfolio_unit_upsilon`; \(\Pi \geq 0\), \(\Pi(p^{\star}) = 0\): `logPortfolio_nonneg`, `logPortfolio_atm`.
+*Formalized:* `variancePortfolio_upsilon` (\(\upsilon = t/2\), \(p_{(\eta,\Delta_i)}\)-independent); `variancePortfolio_unit_upsilon`; grid weights `GeomProfile.varswapWeight_geometric`, `logContractLiquidity_geometric`, `VolInstrument.strikeWeight_bridge` (\(\xi^{\star} = \lambda^{-\Delta_i/2}\)).
 
 > Note: A single leg portaflio gives:
 
@@ -466,7 +461,7 @@ The single-term case is the sigmoid fee schedule with steepness \(s_f = 1/\gamma
 
 ECONOMIC CONTENT OF THEOREM 1. The floor \(\bar\phi\) is unconditional — LPs take a base fee at every volatility, so the schedule never degenerates to free execution. The ceiling is NOT a constant: it is \(\bar\phi + (\sum_j\alpha_j)\,u\), GATED by the utilization factor \(u \in [0,\alpha_R]\), so a pool nobody is trading against cannot levy the volatility surcharge at all — at \(u = 0\) the band collapses to the floor, and the surcharge is earned only where flow exists to earn it on. Monotonicity in \(\sigma\) is what makes the schedule a genuine VOLATILITY SURCHARGE rather than an arbitrary function of state: higher realized volatility always costs the trader weakly more. That is the property the FLAIR identification consumes — \(\Theta_{\lambda_{\text{FLAIR}}} = \{\bar\phi, \alpha, u\}\) is a LEVEL block precisely because the band's two edges are the level parameters, while \((\beta_j,\gamma_j)\) only place the transition inside the band (G3).
 
-**Rule 2 (Streamia).** Assign the per-time-step payoff variation to the trading fee:
+**Rule 2 (Streamia).** Assign the per-time-step payoff variation to the trading fee — the *streamia* of the [Panoptic whitepaper](https://arxiv.org/pdf/2204.14232):
 
 \[
 	\begin{aligned}
