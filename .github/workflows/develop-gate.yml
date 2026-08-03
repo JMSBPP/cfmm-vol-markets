@@ -128,9 +128,40 @@ jobs:
           echo "lean: lake build clean, no sorry/admit"
 
   haskell:
+    # THE RIG IS PART OF THIS JOB. It is not optional and it is not decoration.
+    #
+    # This job was added chain-independent ("no anvil, no RPC, so no service is wired here").
+    # That was false. 7 of the 85 checks hard-require offchain/rig/rig-manifest.json, which
+    # .gitignore:58 excludes and which therefore does not exist in a checkout. MEASURED with the
+    # manifest absent -- exactly the tree actions/checkout produces:
+    #   FAIL sc3_load_succeeds              FAIL driv01_run_capture_is_present_and_fresh
+    #   FAIL sc3_corrupted_manifest_fails   FAIL driv01_legacy_write_price_still_ran
+    #   FAIL rpin05_capture_is_present_and_fresh   FAIL driv02_run_capture_orders_are_fresh
+    #   FAIL driv01_cheat_swap_proof_is_present_and_fresh
+    #   78/85 checks passed
+    # `gate` below requires haskell in {success, skipped}, so the sole required check would have
+    # gone red on EVERY run. It never actually executed once -- `gh pr checks 9` showed only
+    # `approve pending` -- which is why nothing surfaced it.
+    #
+    # CONFIRMED absent rather than assumed: the runner's own workspace
+    # (~/actions-runner-cfmm/_work/cfmm-replicationPlank/cfmm-replicationPlank) carries NO
+    # out/, cache/, node_modules/, broadcast/, dist-newstyle/ and NO offchain/rig/rig-manifest.json
+    # between runs. actions/checkout's default `clean: true` runs `git clean -ffdx`, and -x takes
+    # ignored files with it. That single fact drives three decisions here: the manifest must be
+    # produced in-job, npm ci must run every time, and forge recompiles from cold each time.
+    #
+    # So the job stands the rig up and becomes a real end-to-end gate. It runs on the SAME
+    # self-hosted executor the forge and plank jobs use, because that executor -- and only that
+    # executor -- has the toolchain the rig needs.
     needs: [approve]
     runs-on: [self-hosted, cfmm-build]
-    timeout-minutes: 45          # 123 Hackage deps; only the FIRST run on a cold ~/.cabal store is slow
+    # Was 45 for `cabal build` alone (123 Hackage deps; only the FIRST run on a cold ~/.cabal
+    # store is slow -- the store lives outside the workspace, so `git clean -ffdx` does not
+    # touch it). Raised for the work added below, all of which starts cold every run because
+    # the workspace does not: npm ci, a full --via-ir forge compile, and six deploy scripts.
+    # Reference point: the last GREEN develop-gate run (30752456447) finished the WHOLE
+    # workflow, forge job included, in 6m45s.
+    timeout-minutes: 60
     env:
       GIT_TERMINAL_PROMPT: "0"
     steps:
@@ -138,11 +169,16 @@ jobs:
         with:
           submodules: false
           persist-credentials: false
-          # verify-import.sh diffs the tree against the RECORDED ref in
-          # offchain/rig/import-ref.txt (a commit on origin/develop, NOT an ancestor of the
-          # PR head). The default depth-1 checkout does not have that object and `git diff`
-          # dies with `bad revision` (exit 128 -> the script's own SC-1 FAIL, so it fails
+          # verify-import.sh runs `git diff <ref>` against the RECORDED ref in
+          # offchain/rig/import-ref.txt (2039f27). A depth-1 checkout does not have that object
+          # and git dies with `bad revision` (exit 128 -> the script's own SC-1 FAIL, so it fails
           # loudly rather than silently). Full history is what makes SC-1 actually run.
+          #
+          # CORRECTION to what this comment used to claim: it said 2039f27 is "NOT an ancestor of
+          # the PR head". Since merge d7d1823 it IS one (`git merge-base --is-ancestor 2039f27
+          # HEAD` exits 0). The RATIONALE rotted; the SETTING did not. fetch-depth: 0 is still
+          # required, because depth-1 fetches no ancestors either -- being an ancestor and being
+          # present in a shallow clone are different properties.
           fetch-depth: 0
       # ghcup lives in ~/.ghcup/bin, which a non-login `run:` shell does not pick up from
       # .bashrc. Put it on PATH, bootstrapping it if this executor has never built Haskell
@@ -176,11 +212,136 @@ jobs:
             grep -nE '^offchain/[^ ]*:[0-9]+:[0-9]+: warning:' "$RUNNER_TEMP/cabal-build.log"
             exit 1
           fi
-      # Deliberately chain-independent (no anvil, no RPC), so no service is wired here.
+      # --- everything below exists to make `cabal test` meaningful ---------------------------
+      #
+      # The build above needs no chain. The SUITE does. Ordering is deliberate: the Haskell build
+      # is the thing this PR is about, so it fails first and cheapest, before a minute of npm and
+      # a full via-ir compile.
+
+      # Same three lines as the forge job, for the same reason: forge needs
+      # lib/panoptic-v2-core's nested v4-core + solady (remappings @uniswap/v4-core/ and solady/
+      # point into them), and the ONLY pathological part is panoptic-helper (it contains
+      # panoptic-v2-core -> infinite recursion). Init panoptic one level, block panoptic-helper,
+      # then full recursive init.
+      #
+      # The RECURSIVE init is load-bearing HERE in a way it is not in the forge job. The deploy
+      # scripts reach `plank build` over FFI at SCRIPT RUN TIME (Makefile:292-294:
+      # deployPlank -> plankDeployFFI -> plankBuildFFI), and PlankDeployBase.s.sol:24-25 hands it
+      # --dep v3=lib/plankified-univ3/plank/lib and --dep std=lib/plank-monorepo/std/. Both are
+      # submodules (.gitmodules). `--init --recursive` covers them; the plank job's narrower
+      # `--init lib/plankified-univ3` would not.
+      - run: |
+          git submodule update --init lib/panoptic-v2-core
+          git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
+          git submodule update --init --recursive
+      # node_modules is a HARD forge dependency: foundry.toml:6 lists it in `libs` and
+      # foundry.toml:40-45 remap @cryptoalgebra/* into it. Without this the six deploy scripts
+      # die on missing @cryptoalgebra sources before anvil is ever useful. The forge job does the
+      # same; here it cannot be skipped either, because `git clean -ffdx` deleted node_modules.
+      - run: npm ci --ignore-scripts
+
+      # --- port 8545, and who owns it ---------------------------------------------------------
+      #
+      # deploy-rig.sh:27 hardcodes RPC_PORT=8545 and :26 the foundry alias `local`, which
+      # foundry.toml:59 pins to http://127.0.0.1:8545. Neither is parameterised and neither file
+      # is this workflow's to change, so 8545 is a FIXED, SHARED resource. Two questions follow.
+      #
+      # (1) Can two develop-gate runs collide on it? No, as configured. `gh api
+      #     repos/:owner/:repo/actions/runners` returns exactly ONE runner carrying the
+      #     `cfmm-build` label (cfmm-build-1, online), and a runner executes one job at a time.
+      #     Concurrent PRs therefore QUEUE on the executor; their haskell jobs cannot overlap.
+      #     The workflow-level `concurrency` group above is keyed on github.ref and does NOT
+      #     provide this -- it only collapses repeat pushes to the same branch. A job-level
+      #     concurrency group was considered and REJECTED: GitHub keeps at most one PENDING job
+      #     per group and cancels any earlier pending one, so with three open PRs it would
+      #     manufacture a `cancelled` result -> a red gate for no engineering reason, while
+      #     adding no protection the single executor does not already give. If a second
+      #     cfmm-build runner is ever registered, THIS ASSUMPTION DIES and the port must be
+      #     parameterised before that happens.
+      #
+      # (2) Can it collide with a human? YES, and this workflow cannot prevent it. The runner is
+      #     a systemd service running as the same user on the same host as the developer
+      #     worktrees (User=jmsbpp, ~/actions-runner-cfmm), and deploy-rig.sh:162 kills the
+      #     listener on 8545 unconditionally before starting its own. A gate run WILL tear down a
+      #     locally-standing rig. The step below cannot stop that -- it RECORDS it, so the log
+      #     says whose chain was displaced instead of leaving a developer guessing. It warns and
+      #     does not fail: making the sole required check red because someone happened to be
+      #     running anvil would be a worse failure mode than the displacement it reports.
+      #     The durable fix is an RPC_PORT knob in deploy-rig.sh + a matching foundry alias;
+      #     both files belong to other tracks.
+      - run: |
+          pids=""
+          if command -v lsof >/dev/null 2>&1; then
+            pids=$(lsof -ti tcp:8545 2>/dev/null || true)
+          elif command -v fuser >/dev/null 2>&1; then
+            pids=$(fuser 8545/tcp 2>/dev/null || true)
+          fi
+          if [ -n "$pids" ]; then
+            echo "::warning::port 8545 was already in use before this job started; deploy-rig.sh will kill it"
+            for p in $pids; do
+              echo "  pid $p  cmd=$(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null || echo '?')  cwd=$(readlink "/proc/$p/cwd" 2>/dev/null || echo '?')"
+            done
+          else
+            echo "port 8545 is free"
+          fi
+
+      # --- stand the rig up -------------------------------------------------------------------
+      #
+      # deploy-rig.sh owns anvil (fresh chain, --timestamp 1700000000), runs six forge scripts
+      # and writes offchain/rig/rig-manifest.json. Its own preflight (deploy-rig.sh:81-116)
+      # requires anvil, forge, cast, jq and one of lsof/fuser. All resolve on this executor in a
+      # NON-LOGIN run shell -- verified in the runner's ~/actions-runner-cfmm/.path, which
+      # carries /home/jmsbpp/.foundry/bin (anvil, forge, cast), /home/jmsbpp/.plank/bin (plank,
+      # needed by the FFI above) and /usr/bin (jq, fuser). That is why ghcup needs the
+      # $GITHUB_PATH step above and foundry/plank do not: only ghcup is missing from .path.
+      #
+      # The marker is written BEFORE the script, not after: from this line onward this job may
+      # have taken ownership of 8545, and the cleanup step must know that even if the script
+      # dies on its first command. $RUNNER_TEMP is per-job, so it cannot leak into another job.
+      #
+      # WHAT A FAILURE HALFWAY LOOKS LIKE: deploy-rig.sh is `set -euo pipefail` with an EXIT trap
+      # (:178) that kills its own anvil on any nonzero exit, and it deletes stale broadcast/
+      # records up front (:192) so a later step can never read a previous run's address. So a
+      # half-run leaves no manifest and no chain, this step goes red, and cabal test never runs
+      # against a partial rig. The trap does NOT fire if the job is cancelled out from under it --
+      # that case is what the unconditional cleanup step at the bottom is for.
+      - run: |
+          : > "$RUNNER_TEMP/rig-owned-8545"
+          bash offchain/rig/deploy-rig.sh
+      # SC-2, and it is not redundant with the deploy. deploy-rig.sh proves the scripts RAN;
+      # verify-rig.sh proves the result is LIVE -- nonzero bytecode at every one of the nine
+      # manifest addresses, orderCount() decoding, and RealizedVolatilityMod actually seeded.
+      # It reads every probe target out of the manifest, so it also confirms the manifest
+      # describes the chain that is up, which is precisely the assumption the 7 checks below make.
+      - run: bash offchain/rig/verify-rig.sh
+      # NOW the suite means something. The 7 checks above assert the COMMITTED capture artifacts
+      # (batch-return-capture.json, driver-run-capture.json, cheat-swap-proof.json) still describe
+      # the deployment that is up: chainId, generatedFrom, VolOrderManagerMod, PoolManager,
+      # DynamicFeeHook, tickSpacing. deploy-rig.sh is deterministic (fixed mnemonic, fixed
+      # genesis, fresh chain), so the CREATE addresses reproduce -- but DynamicFeeHook is CREATE2
+      # and therefore BYTECODE-dependent. A PR that changes the hook's Solidity moves that address
+      # and reddens driv01 until the captures are re-taken. That is the intended discipline, and
+      # each check's own error message names the command; it is not a CI defect.
+      # (The driver itself -- `cabal run cfmm-replicationPlank-rpc-api` -- is deliberately NOT run
+      #  here: it REWRITES the tracked capture it is being checked against, which would convert a
+      #  staleness failure into a silent pass.)
       - run: cabal test
       # SC-1: the 37 imported source-of-truth paths are content-identical to the recorded ref
       # AND sha256-match IMPORT-PIN.md. Unrun, "verbatim import" is a claim, not a check.
       - run: bash offchain/rig/verify-import.sh
+      # Unconditional teardown. Without it a failed job leaves anvil holding 8545 on an executor
+      # that PERSISTS between jobs -- unlike a hosted runner, nothing here is thrown away at the
+      # end of a run, so the leak would outlive the workflow and the next deploy would inherit it.
+      # Guarded on the marker rather than on `always()` alone: if the job died in cabal build,
+      # this job never started an anvil, and a bare --stop would then kill a DEVELOPER's rig on
+      # the shared host for a failure that had nothing to do with the chain.
+      - if: always()
+        run: |
+          if [ -e "$RUNNER_TEMP/rig-owned-8545" ]; then
+            bash offchain/rig/deploy-rig.sh --stop
+          else
+            echo "this job never reached the deploy step; leaving port 8545 alone"
+          fi
 
   gate:                          # the SOLE required check. Do NOT add `name:` (would change the context string)
     needs: [approve, forge, gams, plank, gamsdiff, lean, haskell]
@@ -189,6 +350,22 @@ jobs:
     timeout-minutes: 5
     steps:
       - run: |
+          # `approve` is checked SEPARATELY and may not be 'skipped'. It was in `needs` but not in
+          # the loop below, and because this job is `if: always()` while the loop accepts
+          # 'skipped', a REJECTED environment review produced: approve=failure -> every heavy job
+          # 'skipped' (they all need approve) -> six accepted results -> "all gate jobs green",
+          # exit 0, with zero tests having run. The sole required check reported success for a run
+          # that executed nothing. Inherited from develop, which carries the identical loop.
+          #
+          # 'success' is the only acceptable value: approve carries no `if:`, so on a PR it always
+          # runs, and it has no `needs` that could skip it. That also makes this the COMPLETE fix
+          # -- the only other way a job below reaches 'skipped' is its own `if:` (deliberate, see
+          # gams/gamsdiff), because approve is the single dependency every one of them declares.
+          case '${{ needs.approve.result }}' in
+            success) ;;
+            *) echo "::error::approve was '${{ needs.approve.result }}' -- the environment review did not pass, so every gate job was skipped and NOTHING ran"; exit 1;;
+          esac
+          # 'skipped' stays acceptable here on purpose: gams and gamsdiff are `if: false` (issue #16).
           for x in '${{ needs.forge.result }}' '${{ needs.gams.result }}' '${{ needs.plank.result }}' '${{ needs.gamsdiff.result }}' '${{ needs.lean.result }}' '${{ needs.haskell.result }}'; do
             case "$x" in success|skipped) ;; *) echo "::error::a gate job result was '$x'"; exit 1;; esac
           done
