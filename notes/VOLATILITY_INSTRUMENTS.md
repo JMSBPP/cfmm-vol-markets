@@ -198,20 +198,21 @@ inheriting the sign of \(\ln \big(p_{(\eta, \Delta_i)}(i;t) / p_{(\eta, \Delta_i
 
 *Formalized:* `VolInstrument.variancePortfolio_unit_upsilon`.
 
-Note that:
+**Rule 4 (Position ledger).** The protocol books a position as its **net signed liquidity** per strike: each leg carries the direction sign \(\mathbb{I}_{\text{long|short}}\), and the ladder's ledger is
 
 \[
 	\begin{aligned}
-		\pi^{\sigma} \, (\sigma_K, T; t) \, &= \sum_{i_K} \, L(i_K) \, \mathbb{I}_{\text{long | short}} \\
-		\\
-		\mathbb{I}_{\text{put | call}} \, &= \, 
+		\pi^{\sigma} \, (\sigma_K, T; t) \, &\leftarrow \sum_{i_K} \, L(i_K) \, \mathbb{I}_{\text{long|short}}, \qquad \mathbb{I}_{\text{long|short}} \, \equiv \,
 		\begin{cases}
-		- \, 1 & \, \text{long} \\
-		1 \, & \, \text{short}
+		- \, 1 & \, \text{long (liquidity removed — burn)} \\
+		1 \, & \, \text{short (liquidity minted)}
 		\end{cases}
 	\end{aligned}
-	
 \]
+
+The sign is **per leg** (`isLong` in the Panoptic tokenId), so mixed-direction ladders are expressible. Leg **type** is not an index here: put or call is determined structurally by the strike against \(p^{\star}\) — puts below, calls above (Definition 6) — and is carried by `tokenType`.
+
+*Formalized:* the leg encoding lives in `PanopticTokenId.plk` (`isLong`, `tokenType`); the doc-side ledger statement is **UNFORMALIZED** — no Lean carrier states it yet.
 
 
 On the price grid \(\lambda^{i\,\Delta_i}\) the discretized strike-notional weights of the log contract are exactly geometric,
