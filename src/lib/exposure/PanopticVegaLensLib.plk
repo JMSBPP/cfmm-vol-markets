@@ -1,0 +1,49 @@
+// PanopticVegaLensLib -- the READ-ONLY lens readouts of the auto-deleverage law and the
+// endogenous maturity (V2-04, vol-order-v2-target-vega-SPEC.md D5; the math block
+// "VOL ORDER COMPLETION -- ENDOGENOUS MATURITY" in notes/VOLATILITY_INSTRUMENTS.md;
+// EndogenousMaturity.lean run 128b24ae; recalibration law t*_mult DECIDED by the author
+// 2026-07-30).
+//
+// UNITS (notes/UNITS_AND_SCALES.md): DeltaQ_v / DeltaQ_v* raw LIQUIDITY units (dimension
+// (ii)); Q_M collateral base units; p_riskX96 Q64.96 LINEAR (collateral per L unit);
+// N_sigma is a liquidity RATE, L PER SECOND (confirmed by the Lean bookkeeping -- NOT a
+// bare liquidity); t* is SECONDS. sig2R/sig2K share the Algebra vol units so their ratio
+// is dimensionless.
+//
+// DIVISION DISCIPLINE (units table section 4, MANDATED): the funded level is computed ONLY
+// through the 512-bit mulDiv form -- p_riskX96 is unbounded above as h -> 1, and a bare
+// checked product would revert-DoS the readout exactly when deleverage matters most.
+// p_risk > 0 is REQUIRED (admissible_iff_mul's hypothesis).
+//
+// This lib DEFINES the readouts; the ENFORCEMENT actor is VegaAccountMod/#13 scope, which
+// inherits the floor-maximality predicate pinned by test/exposure/VegaLensReadouts.t.sol.
+
+import types::Numerics::{Q96};
+import v3::math::full_math::mulDiv;
+import std::error::require;
+
+// dqv_funded = min(DeltaQ_v*, floor(Q_M * 2^96 / p_riskX96)) -- the GREATEST admissible
+// exposure (Lean: dQvFunded_maximal / dQvFunded_admissible); exposure rounds DOWN (burn UP).
+const dqv_funded = fn (target_vega: u256, q_m: u256, p_risk_x96: u256) u256 {
+    require(p_risk_x96 > 0);
+    let level = mulDiv(q_m, Q96, p_risk_x96);
+    if level < target_vega { level } else { target_vega }
+};
+
+// t* = floor(2 * dqv / N_sigma), SECONDS. N_sigma in L/second, > 0.
+const implied_maturity = fn (dqv: u256, n_sigma: u256) u256 {
+    require(n_sigma > 0);
+    (2 * dqv) </ n_sigma
+};
+
+// t*_mult = floor(t* * (sig2K - sig2R)+ / sig2K) -- the DECIDED recalibration law:
+// positive-part-of-unused-budget contraction. CLAMPED at zero (a spent budget is 0, never
+// a revert -- the checked `-` is guarded by the branch, per the kernel-signedness rule).
+// Division order pinned: t* floors FIRST, then the contraction floors -- two floors, both
+// downward, so the readout is one-sided conservative.
+const implied_maturity_mult = fn (dqv: u256, n_sigma: u256, sig2_r: u256, sig2_k: u256) u256 {
+    require(sig2_k > 0);
+    if sig2_r >= sig2_k { return 0; }
+    let t_star = implied_maturity(dqv, n_sigma);
+    mulDiv(t_star, sig2_k - sig2_r, sig2_k)
+};

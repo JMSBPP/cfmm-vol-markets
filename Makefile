@@ -238,7 +238,11 @@ PLANK         ?= plank
 # because 16 imports still reference it bare (`pos_spec::X`) rather than via
 # `types::pos_spec::X`.
 PLANK_DEP := --dep v3=lib/plankified-univ3/plank/lib/ --dep std=lib/plank-monorepo/std/ --dep pos_spec=src/types/pos_spec \
-             --dep lib=src/lib --dep types=src/types --dep interfaces=src/interfaces
+             --dep lib=src/lib --dep types=src/types --dep interfaces=src/interfaces \
+             --dep helpers=test/protocol_integrations/helpers
+# ^ `helpers`: test-only Plank helper libs (PriceUpdateLogWithSwap) that a src module's
+#   TEST-oriented entrypoint (PriceSetterHook.write_price) imports. Kept in sync with
+#   test/PlankTestBase.sol:plankOpts().
 PLANK_BACKEND := sona
 PLANK_BUILD   := build/plank
 # Entrypoints are auto-discovered as any .plk under src/ or test/ that contains an

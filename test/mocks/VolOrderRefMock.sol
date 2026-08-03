@@ -26,37 +26,41 @@ contract VolOrderRefMock {
     uint256 internal constant MAX_SKEW       = 65534;
     uint256 internal constant MAX_BATCH      = 128;
 
-    function isValid(uint256 strike, uint256 width, uint256 skew) public pure returns (bool) {
+    uint256 internal constant MAX_TARGET_VEGA = (1 << 96) - 1; // V2 bound
+
+    function isValid(uint256 strike, uint256 width, uint256 skew, uint256 targetVega) public pure returns (bool) {
         if (strike == 0 || strike > MAX_STRIKE) return false;          // strike_fits_packed
         if (width  == 0 || width  > MAX_WIDTH)  return false;          // vol_range_width_is_complete
         if (TICK_SPACING == 0 || TICK_SPACING > MAX_TICK_SPACE) return false;
         if (skew < MIN_SKEW || skew > MAX_SKEW) return false;          // spread_tick_assimetry_is_complete
+        if (targetVega == 0 || targetVega > MAX_TARGET_VEGA) return false; // target_vega_fits_packed (V2)
         return true;
     }
 
-    function packed(uint256 strike, uint256 width, uint256 skew) public pure returns (uint256) {
-        return (width << 128) | (TICK_SPACING << 104) | (strike << 16) | skew;
+    function packed(uint256 strike, uint256 width, uint256 skew, uint256 targetVega) public pure returns (uint256) {
+        return (targetVega << 152) | (width << 128) | (TICK_SPACING << 104) | (strike << 16) | skew;
     }
 
-    /// @dev The module's INPUT read semantics: strike is masked to 88 bits, skew to 16, and
-    ///      `width` is read UNMASKED so any bit >= 128 inflates it past 0xffffff and validation
-    ///      rejects it (VolOrderManagerMod.plk:173-179). Reproducing that read is reproducing the
-    ///      INTERFACE CONTRACT, not the encoder.
+    /// @dev The module's V2 INPUT read semantics: strike masked to 88 bits, width masked to 24
+    ///      (now interior), skew to 16, and `targetVega` read UNMASKED as the new TOP field so
+    ///      any calldata bit >= 224 inflates it past 2^96-1 and validation rejects it.
+    ///      Reproducing that read is reproducing the INTERFACE CONTRACT, not the encoder.
     function readWord(uint256 word)
         public
         pure
-        returns (uint256 strike, uint256 width, uint256 skew)
+        returns (uint256 strike, uint256 width, uint256 skew, uint256 targetVega)
     {
-        strike = (word >> 16) & MAX_STRIKE;
-        width  =  word >> 104;
-        skew   =  word & 0xFFFF;
+        strike     = (word >> 16) & MAX_STRIKE;
+        width      = (word >> 104) & MAX_WIDTH;
+        skew       =  word & 0xFFFF;
+        targetVega =  word >> 128;
     }
 
     /// @notice The STRICT path: an invalid tuple REVERTS and leaves state byte-identical.
-    function createOrder(uint256 strike, uint256 width, uint256 skew) external {
-        require(isValid(strike, width, skew), "VolOrderRefMock: invalid tuple");
+    function createOrder(uint256 strike, uint256 width, uint256 skew, uint256 targetVega) external {
+        require(isValid(strike, width, skew, targetVega), "VolOrderRefMock: invalid tuple");
         uint256 id = orderCount + 1;
-        orders[id] = packed(strike, width, skew);
+        orders[id] = packed(strike, width, skew, targetVega);
         orderCount = id;
     }
 
@@ -67,10 +71,10 @@ contract VolOrderRefMock {
         rs = new BatchResult[](words.length);
         uint256 id = orderCount;
         for (uint256 j = 0; j < words.length; j++) {
-            (uint256 strike, uint256 width, uint256 skew) = readWord(words[j]);
-            if (isValid(strike, width, skew)) {
+            (uint256 strike, uint256 width, uint256 skew, uint256 targetVega) = readWord(words[j]);
+            if (isValid(strike, width, skew, targetVega)) {
                 id++;
-                orders[id] = packed(strike, width, skew);
+                orders[id] = packed(strike, width, skew, targetVega);
                 rs[j] = BatchResult({success: true, orderId: id});
             } else {
                 rs[j] = BatchResult({success: false, orderId: 0});

@@ -1,0 +1,68 @@
+import std::constructor::return_runtime;
+import types::protocol_integrations::PanopticTokenId::*;
+import types::pricing::TickUtils::TickBucket;
+
+// cast sig "packLeg(uint256,int24,uint256,uint256,uint256,uint256,uint256,int24,int24)" -> 0x3da5cbee
+const SEL_PACK   = 0x3da5cbee;
+// cast sig "unpackLeg(uint256,uint256)"                                                 -> 0x45931154
+const SEL_UNPACK = 0x45931154;
+// cast sig "packFromTickBucket(int24,int24,int24,uint256)"                              -> 0xd6374d36
+const SEL_PACK_TB = 0xd6374d36;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    // packLeg(poolId@4, tickSpacing@36, leg@68, asset@100, optionRatio@132, isLong@164,
+    //         tokenType@196, riskPartner@228, strike@260, width@292)
+    if selector == SEL_PACK {
+        let leg = @evm_calldataload(68);
+        let mut tid = 0;
+        tid = panoptic_add_pool_id(tid, @evm_calldataload(4));
+        tid = panoptic_add_tick_spacing(tid, @evm_calldataload(36));
+        tid = panoptic_add_asset(tid, @evm_calldataload(100), leg);
+        tid = panoptic_add_option_ratio(tid, @evm_calldataload(132), leg);
+        tid = panoptic_add_is_long(tid, @evm_calldataload(164), leg);
+        tid = panoptic_add_token_type(tid, @evm_calldataload(196), leg);
+        tid = panoptic_add_risk_partner(tid, @evm_calldataload(228), leg);
+        tid = panoptic_add_strike(tid, @evm_calldataload(260), leg);
+        tid = panoptic_add_width(tid, @evm_calldataload(292), leg);
+        let out = @malloc_uninit(32);
+        @mstore32(out, tid);
+        @evm_return(out, 32);
+    }
+
+    // unpackLeg(tid@4, leg@36) -> (poolId,vegoid,tickSpacing,asset,optionRatio,isLong,tokenType,riskPartner,strike,width)
+    if selector == SEL_UNPACK {
+        let tid = @evm_calldataload(4);
+        let leg = @evm_calldataload(36);
+        let out = @malloc_uninit(320);
+        @mstore32(out, panoptic_pool_id(tid));
+        @mstore32(out +% 32, panoptic_vegoid(tid));
+        @mstore32(out +% 64, panoptic_tick_spacing(tid));
+        @mstore32(out +% 96, panoptic_asset(tid, leg));
+        @mstore32(out +% 128, panoptic_option_ratio(tid, leg));
+        @mstore32(out +% 160, panoptic_is_long(tid, leg));
+        @mstore32(out +% 192, panoptic_token_type(tid, leg));
+        @mstore32(out +% 224, panoptic_risk_partner(tid, leg));
+        @mstore32(out +% 256, panoptic_strike(tid, leg));
+        @mstore32(out +% 288, panoptic_width(tid, leg));
+        @evm_return(out, 320);
+    }
+
+    // packFromTickBucket(low@4, tickSpacing@36, up@68, leg@100)
+    if selector == SEL_PACK_TB {
+        let tb = TickBucket {
+            low: @evm_calldataload(4),
+            tickSpacing: @evm_calldataload(36),
+            up: @evm_calldataload(68)
+        };
+        let tid = panoptic_token_id_from_tick_bucket(0, tb, @evm_calldataload(100));
+        let out = @malloc_uninit(32);
+        @mstore32(out, tid);
+        @evm_return(out, 32);
+    }
+
+    @evm_stop();
+}

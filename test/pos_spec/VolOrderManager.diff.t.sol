@@ -101,6 +101,7 @@ abstract contract VolOrderManagerDiffBase is VolOrderManagerBatchBase {
             assertEq(pf.tickSpacing, rf.tickSpacing, string.concat(step, ": tickSpacing@104"));
             assertEq(pf.strike, rf.strike, string.concat(step, ": strike@16"));
             assertEq(pf.skew, rf.skew, string.concat(step, ": skew@0"));
+            assertEq(pf.targetVega, rf.targetVega, string.concat(step, ": targetVega at 152 (V2)"));
 
             if (id > seedBase) {
                 // A LIVE order, written during this sequence.
@@ -124,8 +125,8 @@ abstract contract VolOrderManagerDiffBase is VolOrderManagerBatchBase {
 
     /// @notice One STRICT-path write into both sides, then the full sync assertion.
     function _singleBoth(uint88 s, uint24 w, uint16 k, string memory step) internal {
-        mgr.create_order(s, w, k);
-        ref.createOrder(s, w, k);
+        mgr.create_order(s, w, k, TARGET_VEGA);
+        ref.createOrder(s, w, k, TARGET_VEGA);
         expectedCount++;
         _assertSynced(step);
     }
@@ -135,9 +136,9 @@ abstract contract VolOrderManagerDiffBase is VolOrderManagerBatchBase {
     ///         half-written.
     function _singleExpectRevertBoth(uint88 s, uint24 w, uint16 k, string memory step) internal {
         vm.expectRevert();
-        mgr.create_order(s, w, k);
+        mgr.create_order(s, w, k, TARGET_VEGA);
         vm.expectRevert();
-        ref.createOrder(s, w, k);
+        ref.createOrder(s, w, k, TARGET_VEGA);
         _assertSynced(step);
     }
 
@@ -175,22 +176,24 @@ contract VolOrderManagerSequenceDiffTest is VolOrderManagerDiffBase {
     ///         discipline test__unit__returnBuildersMatchTheStandardEncoder applies to the input
     ///         half. Every boundary here is a MEASURED accept-set endpoint (16-01), not a guess.
     function test__unit__refMockSelfPin() public view {
-        assertTrue(ref.isValid(12345, 600, 77), "the non-degenerate anchor tuple is accepted");
-        assertFalse(ref.isValid(12345, 600, 65535), "skew 65535 is rejected");
-        assertFalse(ref.isValid(12345, 600, 0), "skew 0 is rejected");
-        assertFalse(ref.isValid(0, 600, 77), "strike 0 is rejected");
-        assertFalse(ref.isValid(12345, 0, 77), "width 0 is rejected");
-        assertFalse(ref.isValid(2 ** 88, 600, 77), "strike 2**88 is above the packed bound");
-        assertFalse(ref.isValid(12345, 0x1000000, 77), "width 0x1000000 is above the range bound");
+        assertTrue(ref.isValid(12345, 600, 77, TARGET_VEGA), "the non-degenerate anchor tuple is accepted");
+        assertFalse(ref.isValid(12345, 600, 65535, TARGET_VEGA), "skew 65535 is rejected");
+        assertFalse(ref.isValid(12345, 600, 0, TARGET_VEGA), "skew 0 is rejected");
+        assertFalse(ref.isValid(0, 600, 77, TARGET_VEGA), "strike 0 is rejected");
+        assertFalse(ref.isValid(12345, 0, 77, TARGET_VEGA), "width 0 is rejected");
+        assertFalse(ref.isValid(2 ** 88, 600, 77, TARGET_VEGA), "strike 2**88 is above the packed bound");
+        assertFalse(ref.isValid(12345, 0x1000000, 77, TARGET_VEGA), "width 0x1000000 is above the range bound");
 
         // The ACCEPTED endpoints -- 16-01 MEASURED that 1 and 65534 do NOT revert.
-        assertTrue(ref.isValid(1, 1, 1), "the lower corner is accepted");
+        assertTrue(ref.isValid(1, 1, 1, 1), "the lower corner is accepted");
         assertTrue(
-            ref.isValid(0xFFFFFFFFFFFFFFFFFFFFFF, 0xFFFFFF, 65534), "the upper corner is accepted"
+            ref.isValid(0xFFFFFFFFFFFFFFFFFFFFFF, 0xFFFFFF, 65534, (1 << 96) - 1), "the upper corner is accepted"
         );
 
         // The mock's layout must equal the base's, independently derived.
-        assertEq(ref.packed(12345, 600, 77), expectedPacked(12345, 600, 77), "stored layout agrees");
+        assertEq(
+            ref.packed(12345, 600, 77, TARGET_VEGA), expectedPacked(12345, 600, 77), "stored layout agrees"
+        );
     }
 
     /// @notice THE ANCHOR (MVER-01), and the named NON-FUZZ anchor for
@@ -316,7 +319,7 @@ contract VolOrderManagerSequenceDiffTest is VolOrderManagerDiffBase {
                     } else if (shape == 2) {
                         words[j] = packInput(st, wd, 65535); // the other one
                     } else {
-                        words[j] = packInput(st, wd, sk) | (uint256(1) << 200); // dirty high bits
+                        words[j] = packInput(st, wd, sk) | (uint256(1) << 240); // dirty high bits (>= 224, above targetVega)
                     }
                 }
                 _batchBoth(words, string.concat("fuzz step ", vm.toString(i), " batch"));

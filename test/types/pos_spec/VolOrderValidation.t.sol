@@ -24,13 +24,13 @@ import {PlankTestBase} from "../../PlankTestBase.sol";
 ///         (0x1b6f447e / 0x87a10138 / 0x75b370cd / 0x729f096f).
 ///         Argument order is create_order-native throughout: (strike, width, skew).
 interface IVolOrderValidation {
-    function validateOrder(uint256 strike, uint256 width, uint256 skew) external view returns (uint256);
-    function validateOrderStrict(uint256 strike, uint256 width, uint256 skew) external view returns (uint256);
-    function packVolOrder(uint256 strike, uint256 width, uint256 skew) external view returns (uint256);
+    function validateOrder(uint256 strike, uint256 width, uint256 skew, uint256 targetVega) external view returns (uint256);
+    function validateOrderStrict(uint256 strike, uint256 width, uint256 skew, uint256 targetVega) external view returns (uint256);
+    function packVolOrder(uint256 strike, uint256 width, uint256 skew, uint256 targetVega) external view returns (uint256);
     function unpackVolOrder(uint256 packed)
         external
         view
-        returns (uint256 width, uint256 tickSpacing, uint256 strike, uint256 skew);
+        returns (uint256 width, uint256 tickSpacing, uint256 strike, uint256 skew, uint256 targetVega);
 }
 
 /// @title VolOrderValidationBase
@@ -50,6 +50,7 @@ abstract contract VolOrderValidationBase is PlankTestBase {
     uint256 constant A_STRIKE = 826165723479;
     uint256 constant A_WIDTH = 120;
     uint256 constant A_SKEW = 32767;
+    uint256 constant A_TARGET_VEGA = 1e18; // raw L units, valid (V2)
 
     function setUp() public {
         plk = IVolOrderValidation(deployPlank("test/types/pos_spec/VolOrderValidationHarness.plk"));
@@ -65,21 +66,21 @@ contract VolOrderValidationBoundaryTest is VolOrderValidationBase {
     ///         have shipped. This test is the tripwire for that (proven live by mutant M4).
     function test__unit__anchorValidTupleAccepted() public {
         assertEq(
-            plk.validateOrder(A_STRIKE, A_WIDTH, A_SKEW),
+            plk.validateOrder(A_STRIKE, A_WIDTH, A_SKEW, A_TARGET_VEGA),
             1,
             "anchor tuple must be ACCEPTED (all-reject validator fails here)"
         );
         assertEq(
-            plk.validateOrderStrict(A_STRIKE, A_WIDTH, A_SKEW), 1, "strict path must NOT revert on a valid tuple"
+            plk.validateOrderStrict(A_STRIKE, A_WIDTH, A_SKEW, A_TARGET_VEGA), 1, "strict path must NOT revert on a valid tuple"
         );
     }
 
     /// @dev PosSpec.lean:56 skewTick_zero -- a zero skew collapses the position to a one-sided
     ///      range, which is degenerate, not merely unusual.
     function test__unit__skewZeroRejected() public {
-        assertEq(plk.validateOrder(A_STRIKE, A_WIDTH, 0), 0, "skew 0 must be REJECTED");
+        assertEq(plk.validateOrder(A_STRIKE, A_WIDTH, 0, A_TARGET_VEGA), 0, "skew 0 must be REJECTED");
         vm.expectRevert();
-        plk.validateOrderStrict(A_STRIKE, A_WIDTH, 0);
+        plk.validateOrderStrict(A_STRIKE, A_WIDTH, 0, A_TARGET_VEGA);
     }
 
     /// @dev The LOW endpoint is ACCEPTED. VORD-02's earlier wording ("open interval [1,65534],
@@ -88,38 +89,38 @@ contract VolOrderValidationBoundaryTest is VolOrderValidationBase {
     ///      (SpreadTickAssimetry.plk:12 = `(spread > 0) & (spread < 0xffff)`) and then tempts a
     ///      "fix" to the vol-type track's file. It does not revert. 1 is valid.
     function test__unit__skewOneAccepted() public {
-        assertEq(plk.validateOrder(A_STRIKE, A_WIDTH, 1), 1, "skew 1 must be ACCEPTED");
-        assertEq(plk.validateOrderStrict(A_STRIKE, A_WIDTH, 1), 1, "strict path must NOT revert at skew 1");
+        assertEq(plk.validateOrder(A_STRIKE, A_WIDTH, 1, A_TARGET_VEGA), 1, "skew 1 must be ACCEPTED");
+        assertEq(plk.validateOrderStrict(A_STRIKE, A_WIDTH, 1, A_TARGET_VEGA), 1, "strict path must NOT revert at skew 1");
     }
 
     /// @dev 0xfffe -- the HIGH endpoint, ACCEPTED (the predicate's `<` is strict against 0xffff).
     function test__unit__skew65534Accepted() public {
-        assertEq(plk.validateOrder(A_STRIKE, A_WIDTH, 65534), 1, "skew 65534 must be ACCEPTED");
-        assertEq(plk.validateOrderStrict(A_STRIKE, A_WIDTH, 65534), 1, "strict path must NOT revert at skew 65534");
+        assertEq(plk.validateOrder(A_STRIKE, A_WIDTH, 65534, A_TARGET_VEGA), 1, "skew 65534 must be ACCEPTED");
+        assertEq(plk.validateOrderStrict(A_STRIKE, A_WIDTH, 65534, A_TARGET_VEGA), 1, "strict path must NOT revert at skew 65534");
     }
 
     /// @dev PosSpec.lean:52 skewTick_one -- the saturated endpoint is the mirror degeneracy.
     function test__unit__skew65535Rejected() public {
-        assertEq(plk.validateOrder(A_STRIKE, A_WIDTH, 65535), 0, "skew 65535 must be REJECTED");
+        assertEq(plk.validateOrder(A_STRIKE, A_WIDTH, 65535, A_TARGET_VEGA), 0, "skew 65535 must be REJECTED");
         vm.expectRevert();
-        plk.validateOrderStrict(A_STRIKE, A_WIDTH, 65535);
+        plk.validateOrderStrict(A_STRIKE, A_WIDTH, 65535, A_TARGET_VEGA);
     }
 
     // Width boundaries. These are what make the width conjunct falsifiable -- without them,
     // deleting `vol_range_width_is_complete` from validate_order kills nothing (mutant M6).
 
     function test__unit__widthZeroRejected() public {
-        assertEq(plk.validateOrder(A_STRIKE, 0, A_SKEW), 0, "width 0 must be REJECTED");
+        assertEq(plk.validateOrder(A_STRIKE, 0, A_SKEW, A_TARGET_VEGA), 0, "width 0 must be REJECTED");
         vm.expectRevert();
-        plk.validateOrderStrict(A_STRIKE, 0, A_SKEW);
+        plk.validateOrderStrict(A_STRIKE, 0, A_SKEW, A_TARGET_VEGA);
     }
 
     function test__unit__widthAbove24BitsRejected() public {
-        assertEq(plk.validateOrder(A_STRIKE, MAX_WIDTH + 1, A_SKEW), 0, "width 2^24 must be REJECTED");
+        assertEq(plk.validateOrder(A_STRIKE, MAX_WIDTH + 1, A_SKEW, A_TARGET_VEGA), 0, "width 2^24 must be REJECTED");
     }
 
     function test__unit__widthMaxAccepted() public {
-        assertEq(plk.validateOrder(A_STRIKE, MAX_WIDTH, A_SKEW), 1, "width 0xffffff must be ACCEPTED");
+        assertEq(plk.validateOrder(A_STRIKE, MAX_WIDTH, A_SKEW, A_TARGET_VEGA), 1, "width 0xffffff must be ACCEPTED");
     }
 }
 
@@ -139,30 +140,30 @@ contract VolOrderValidationStrikeBoundTest is VolOrderValidationBase {
         uint256 oversized = (1 << 88) + 7;
 
         // (a) The corruption is real and SILENT: pack does not revert, it changes the value.
-        uint256 packed = plk.packVolOrder(oversized, A_WIDTH, A_SKEW);
-        (,, uint256 strikeOut,) = plk.unpackVolOrder(packed);
+        uint256 packed = plk.packVolOrder(oversized, A_WIDTH, A_SKEW, A_TARGET_VEGA);
+        (,, uint256 strikeOut,,) = plk.unpackVolOrder(packed);
         assertEq(strikeOut, 7, "pack silently masks an oversized strike to its low 88 bits");
         assertTrue(strikeOut != oversized, "the corruption is a VALUE CHANGE, not a revert");
 
         // (b) The authored bound is what keeps that value off the store path.
-        assertEq(plk.validateOrder(oversized, A_WIDTH, A_SKEW), 0, "strike >= 2^88 must be REJECTED");
+        assertEq(plk.validateOrder(oversized, A_WIDTH, A_SKEW, A_TARGET_VEGA), 0, "strike >= 2^88 must be REJECTED");
         vm.expectRevert();
-        plk.validateOrderStrict(oversized, A_WIDTH, A_SKEW);
+        plk.validateOrderStrict(oversized, A_WIDTH, A_SKEW, A_TARGET_VEGA);
     }
 
     /// @dev The tight boundary: 2^88-1 is the largest value pack stores FAITHFULLY, so it must be
     ///      ACCEPTED. Pairing this with the test above pins `<=` exactly -- a `<=`-to-`<` mutant
     ///      reddens here, a deleted bound reddens above.
     function test__unit__strikeMaxAcceptedAndRoundTripsExactly() public {
-        assertEq(plk.validateOrder(MAX_STRIKE, A_WIDTH, A_SKEW), 1, "strike 2^88-1 must be ACCEPTED");
-        (,, uint256 strikeOut,) = plk.unpackVolOrder(plk.packVolOrder(MAX_STRIKE, A_WIDTH, A_SKEW));
+        assertEq(plk.validateOrder(MAX_STRIKE, A_WIDTH, A_SKEW, A_TARGET_VEGA), 1, "strike 2^88-1 must be ACCEPTED");
+        (,, uint256 strikeOut,,) = plk.unpackVolOrder(plk.packVolOrder(MAX_STRIKE, A_WIDTH, A_SKEW, A_TARGET_VEGA));
         assertEq(strikeOut, MAX_STRIKE, "strike 2^88-1 round-trips with no loss");
     }
 
     function test__unit__strikeZeroRejected() public {
-        assertEq(plk.validateOrder(0, A_WIDTH, A_SKEW), 0, "strike 0 must be REJECTED");
+        assertEq(plk.validateOrder(0, A_WIDTH, A_SKEW, A_TARGET_VEGA), 0, "strike 0 must be REJECTED");
         vm.expectRevert();
-        plk.validateOrderStrict(0, A_WIDTH, A_SKEW);
+        plk.validateOrderStrict(0, A_WIDTH, A_SKEW, A_TARGET_VEGA);
     }
 }
 
@@ -178,7 +179,8 @@ contract VolOrderValidationPackingTest is VolOrderValidationBase {
     ///      The pre-review draft had width and tickSpacing SWAPPED, which would have zeroed out
     ///      `width` -- the field every caller supplies. This function is the guard against that.
     function _expectedWord(uint256 strike, uint256 width, uint256 skew) internal pure returns (uint256) {
-        return (width << 128) | (TICK_SPACING << 104) | (strike << 16) | skew;
+        // V2: targetVega joins at bit 152 (the call sites pack with A_TARGET_VEGA appended).
+        return (A_TARGET_VEGA << 152) | (width << 128) | (TICK_SPACING << 104) | (strike << 16) | skew;
     }
 
     /// @notice SC 3 + SC 1 totality. Corpus is CONSTRUCTED so EVERY tuple is valid by
@@ -191,15 +193,15 @@ contract VolOrderValidationPackingTest is VolOrderValidationBase {
         uint256 width = bound(wRaw, 1, MAX_WIDTH);
         uint256 skew = bound(kRaw, 1, 65534);
 
-        assertEq(plk.validateOrder(strike, width, skew), 1, "every constructed-valid tuple must be ACCEPTED");
+        assertEq(plk.validateOrder(strike, width, skew, A_TARGET_VEGA), 1, "every constructed-valid tuple must be ACCEPTED");
 
-        uint256 packed = plk.packVolOrder(strike, width, skew);
+        uint256 packed = plk.packVolOrder(strike, width, skew, A_TARGET_VEGA);
         assertEq(
             packed, _expectedWord(strike, width, skew), "layout: width@128 | tickSpacing@104 | strike@16 | skew@0"
         );
-        assertLt(packed, 1 << 152, "packed word must fit 152 bits");
+        assertLt(packed, 1 << 248, "packed word must fit 248 bits (V2: targetVega at 152..247)");
 
-        (uint256 wOut, uint256 tsOut, uint256 sOut, uint256 kOut) = plk.unpackVolOrder(packed);
+        (uint256 wOut, uint256 tsOut, uint256 sOut, uint256 kOut, uint256 tvOut) = plk.unpackVolOrder(packed);
         assertEq(wOut, width, "round-trip width, tolerance 0");
         assertEq(
             tsOut, TICK_SPACING, "round-trip tickSpacing == 20 (a stored 0 fails any future full width validation)"
@@ -211,9 +213,9 @@ contract VolOrderValidationPackingTest is VolOrderValidationBase {
     /// @notice The cache-independent anchor beside the fuzz. A `runs: 0` kill is a replay, not
     ///         proof -- this test carries the same claims at one fixed point.
     function test__unit__anchorRoundTrip() public {
-        uint256 packed = plk.packVolOrder(A_STRIKE, A_WIDTH, A_SKEW);
+        uint256 packed = plk.packVolOrder(A_STRIKE, A_WIDTH, A_SKEW, A_TARGET_VEGA);
         assertEq(packed, _expectedWord(A_STRIKE, A_WIDTH, A_SKEW), "anchor layout word");
-        (uint256 wOut, uint256 tsOut, uint256 sOut, uint256 kOut) = plk.unpackVolOrder(packed);
+        (uint256 wOut, uint256 tsOut, uint256 sOut, uint256 kOut, uint256 tvOut) = plk.unpackVolOrder(packed);
         assertEq(wOut, A_WIDTH, "anchor width");
         assertEq(tsOut, TICK_SPACING, "anchor tickSpacing == 20");
         assertEq(sOut, A_STRIKE, "anchor strike");

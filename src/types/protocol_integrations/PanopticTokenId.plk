@@ -1,0 +1,69 @@
+// PanopticTokenId: bit-packing consistent with Panoptic's TokenId schema
+// (lib/panoptic-v2-core/contracts/types/TokenId.sol). Raw u256 tokenId encode/decode — every add_*
+// / getter mirrors Panoptic's exact offset + mask so a Plank-built tokenId is byte-identical to one
+// the SFPM would accept.
+//
+// Layout (little-endian, from LSB):
+//   poolId : bits [0..63]  (univ3 pattern 40 | vegoid 8 @40 | tickSpacing 16 @48)
+//   per leg L, base = 64 + 48*L:
+//     asset 1b @base+0 | optionRatio 7b @base+1 | isLong 1b @base+8 | tokenType 1b @base+9
+//     riskPartner 2b @base+10 | strike 24b @base+12 (signed) | width 12b @base+36
+//
+// The vol-driven derivation (below) builds on these primitives: a VolOrder yields a TickBucket
+// (via tick_bucket_from_vol_order, folding in skew), and Panoptic DEFINES the leg's strike and width
+// from that bucket's tick bounds.
+
+import types::pricing::TickUtils::TickBucket;
+
+const PanopticTokenId = struct {
+    tokenId: u256,
+    num_legs: u256
+};
+
+// ---- encoders (additive; assume the target bits are zero, as in Panoptic's add*) ----
+const panoptic_add_pool_id = fn (tid: u256, pool_id: u256) u256 { tid +% (pool_id & 0xffffffffffffffff) };
+const panoptic_add_tick_spacing = fn (tid: u256, ts: u256) u256 { tid +% @evm_shl(48, ts & 0xffff) };
+const panoptic_add_asset = fn (tid: u256, v: u256, leg: u256) u256 { tid +% @evm_shl(64 +% (leg *% 48), v & 0x1) };
+const panoptic_add_option_ratio = fn (tid: u256, v: u256, leg: u256) u256 { tid +% @evm_shl(64 +% (leg *% 48) +% 1, v & 0x7f) };
+const panoptic_add_is_long = fn (tid: u256, v: u256, leg: u256) u256 { tid +% @evm_shl(64 +% (leg *% 48) +% 8, v & 0x1) };
+const panoptic_add_token_type = fn (tid: u256, v: u256, leg: u256) u256 { tid +% @evm_shl(64 +% (leg *% 48) +% 9, v & 0x1) };
+const panoptic_add_risk_partner = fn (tid: u256, v: u256, leg: u256) u256 { tid +% @evm_shl(64 +% (leg *% 48) +% 10, v & 0x3) };
+const panoptic_add_strike = fn (tid: u256, strike: u256, leg: u256) u256 { tid +% @evm_shl(64 +% (leg *% 48) +% 12, strike & 0xffffff) };
+const panoptic_add_width = fn (tid: u256, width: u256, leg: u256) u256 { tid +% @evm_shl(64 +% (leg *% 48) +% 36, width & 0xfff) };
+
+// ---- decoders (shift + mask, matching Panoptic's getters; strike sign-extended int24) ----
+const panoptic_pool_id = fn (tid: u256) u256 { tid & 0xffffffffffffffff };
+const panoptic_vegoid = fn (tid: u256) u256 { @evm_shr(40, tid) & 0xff };
+const panoptic_tick_spacing = fn (tid: u256) u256 { @evm_shr(48, tid) & 0xffff };
+const panoptic_asset = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg *% 48), tid) & 0x1 };
+const panoptic_option_ratio = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg *% 48) +% 1, tid) & 0x7f };
+const panoptic_is_long = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg *% 48) +% 8, tid) & 0x1 };
+const panoptic_token_type = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg *% 48) +% 9, tid) & 0x1 };
+const panoptic_risk_partner = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg *% 48) +% 10, tid) & 0x3 };
+const panoptic_strike = fn (tid: u256, leg: u256) u256 { @evm_signextend(2, @evm_shr(64 +% (leg *% 48) +% 12, tid) & 0xffffff) };
+const panoptic_width = fn (tid: u256, leg: u256) u256 { @evm_shr(64 +% (leg *% 48) +% 36, tid) & 0xfff };
+
+// ---- vol-driven derivation: pack a leg's tickSpacing/strike/width from a TickBucket, using
+//      Panoptic's definitions strike = (tickUpper+tickLower)/2, width = (tickUpper-tickLower)/tickSpacing.
+//      (The TickBucket comes upstream from tick_bucket_from_vol_order, which folds in the VolOrder skew.)
+//      strike uses signed truncation toward zero (Solidity `/`); width is a non-negative quotient.
+const panoptic_token_id_from_tick_bucket = fn (tid: u256, tb: TickBucket, leg: u256) u256 {
+    let strike = @evm_sdiv(tb.low +% tb.up, 2);
+    let width = @evm_sdiv(tb.up -% tb.low, tb.tickSpacing);
+    let t1 = panoptic_add_tick_spacing(tid, tb.tickSpacing);
+    let t2 = panoptic_add_strike(t1, strike, leg);
+    panoptic_add_width(t2, width, leg)
+};
+
+// ---- leg-only encoder (CR-I2, multi-leg): writes ONLY strike + width for one leg from an aligned
+//      sub-bucket [lo, hi] (hi > lo, both multiples of ts). Does NOT write tickSpacing -- the caller
+//      writes it exactly once (avoids the N-leg accumulation of panoptic_token_id_from_tick_bucket).
+//      strike = lo + floor((hi-lo)/2), width = (hi-lo)/ts. This floor-strike reconstructs [lo, hi]
+//      EXACTLY under Panoptic getTicks (rangeDown=floor(w*ts/2), rangeUp=ceil) for ANY sign/parity --
+//      unlike sdiv(lo+hi,2), which truncates toward zero and mis-reconstructs negative odd spans by +1.
+const panoptic_add_leg_from_bucket = fn (tid: u256, lo: u256, hi: u256, ts: u256, leg: u256) u256 {
+    let span = hi -% lo;
+    let strike = lo +% (span </ 2);
+    let width = span </ ts;
+    panoptic_add_width(panoptic_add_strike(tid, strike, leg), width, leg)
+};

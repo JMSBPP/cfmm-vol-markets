@@ -1,34 +1,36 @@
 import v3::math::full_math::{mulDiv, mulDivRoundingUp};
 import v3::util::{revert_empty};
 import types::exposure::VegaExposure::{RiskPriceX96, Haircut};
+import types::ldf::LiquidityChunk::*;
+import types::ldf::LDFParams::*;
 
 // Q64.96 one.
 const TWO_96 = 79228162514264337593543950336;
 
-// H1 issuance risk price: p_risk = oracle/(1-h), realized as
-//   mulDivRoundingUp(oracleX96, 2^96, 2^96 - hX96)   (rounds UP: divisor, larger is conservative).
-// See spec/entities/types/risk.md §3. Composes v3::math::full_math -- never reimplements 512-bit math.
 const haircut_risk_price = fn (oracleX96: u256, hX96: Haircut) RiskPriceX96 {
-    // VLIB-01: no silent-zero. oracle==0 would yield p_risk=0 and only revert later in issue_shares;
-    // reject it here so this function has no silent-zero path of its own.
-    if oracleX96 == 0 {
-        revert_empty();
-    }
-    // Defense-in-depth h<1 guard for a clearer error. Deleting it, or relaxing `>=` to `>`
-    // (i.e. the spec's `<`->`<=`), is EQUIVALENT here, NOT a mutation kill: at hX96==2^96 the
-    // denominator is 0 and mulDivRoundingUp reverts (full_math.plk:13-24); at hX96>2^96 the
-    // CHECKED subtraction below reverts. Documented as equivalence-checked (risk.md §3).
-    if hX96.val >= TWO_96 {
-        revert_empty();
-    }
-    // CHECKED subtraction -- ASCII `-`, NEVER the wrapping `-%`. Reverts on underflow for hX96>2^96.
+    if oracleX96 == 0 {revert_empty();}
+    if hX96.val >= TWO_96 { revert_empty();}
     let denom = TWO_96 - hX96.val;
     let p_risk = mulDivRoundingUp(oracleX96, TWO_96, denom);
     return RiskPriceX96 { val: p_risk };
 };
+const issue_shares = fn (deposit: u256, pRiskX96: RiskPriceX96) u256 { return mulDiv(deposit, TWO_96, pRiskX96.val);};
 
-// Shares (composed path): shares = floor(deposit / p_risk) = mulDiv(deposit, 2^96, pRiskX96).
-// Rounds DOWN. Reverts on pRiskX96==0 via mulDiv's zero-denominator check. Composes full_math.
-const issue_shares = fn (deposit: u256, pRiskX96: RiskPriceX96) u256 {
-    return mulDiv(deposit, TWO_96, pRiskX96.val);
-};
+
+
+// todo: Here it uses some ldf flag to calculate liquididyt. which is position size
+
+
+// note: This calculates the number of shares from issue_shares AND from the TickBucket and TickStrike
+// derive the LiquidityChunk after selecting a liquidity density function
+// todo: This needs safety on shares being derived from issue_shares
+//
+// SKETCH, commented out (it broke every compile that imports this lib: `ldf_params::`
+// double-colon typo, unimported VolOrder, empty non-void body). The IMPLEMENTED form of
+// this intention now exists as the V2-03 sizing chain: issue_shares -> DeltaQ_v* ->
+// vol_order_to_mint / liquidity_for_vega (PanopticTokenIdSetterLib / LiquidityAmounts);
+// the #13 VegaAccount increment wires it to deposits. Do not uncomment -- supersede.
+//
+// const calculate_vega_nominal = fn(deposit: u256, pRiskX96: RiskPriceX96, vol_order: VolOrder, ldf_params: LDFParams) LiquidityChunk {
+//       // note: This is not definitive but what exempiflies the intention
+// };
