@@ -2000,10 +2000,8 @@ rpin05_capture_is_present_and_fresh = Check "rpin05_capture_is_present_and_fresh
       Just (Right r)   -> Right r
     let addrs = rig_addrs rig
     captured_chain <- json_field "chainId" capture >>= json_integer
-    _ <- expect (captured_chain == rig_chain_id addrs)
-           ("the capture was taken on chain " ++ show captured_chain ++ " but the manifest"
-             ++ " describes chain " ++ show (rig_chain_id addrs) ++ " -- the committed capture is"
-             ++ " STALE. Re-take it: " ++ capture_command)
+    _ <- positive_fields_agree "chainId" (rig_chain_id addrs) captured_chain "the capture"
+           ("The committed capture is STALE. Re-take it: " ++ capture_command)
     captured_manager <- map toLower <$> (json_field "manager" capture >>= json_string)
     manifest_manager <- manifest_address addrs "VolOrderManagerMod"
     -- FOUND BY THE COUNTERPART SWEEP, not by the review: a THIRD raw captured == manifest
@@ -2946,10 +2944,8 @@ driv01_cheat_swap_proof_is_present_and_fresh =
       let addrs = rig_addrs rig
 
       captured_chain <- json_field "chainId" proof >>= json_integer
-      _ <- expect (captured_chain == rig_chain_id addrs)
-             ("the proof was taken on chain " ++ show captured_chain ++ " but the manifest"
-               ++ " describes chain " ++ show (rig_chain_id addrs) ++ " -- re-take it: "
-               ++ proof_command)
+      _ <- positive_fields_agree "chainId" (rig_chain_id addrs) captured_chain "the proof"
+             ("The proof was taken against a DIFFERENT chain. Re-take it: " ++ proof_command)
 
       captured_from <- json_field "generatedFrom" proof >>= json_string
       _ <- refs_are_real "the proof" captured_from (T.unpack (pins_generated_from (rig_pins rig)))
@@ -2967,11 +2963,10 @@ driv01_cheat_swap_proof_is_present_and_fresh =
       _ <- pool_id_matches proof addrs "the proof" proof_command
 
       captured_spacing <- json_field "rig" proof >>= json_field "tickSpacing" >>= json_integer
-      _ <- expect (captured_spacing == rig_tick_spacing (rig_pool addrs))
-             ("the proof records tickSpacing " ++ show captured_spacing ++ " but the manifest says "
-               ++ show (rig_tick_spacing (rig_pool addrs))
-               ++ " -- the PoolKey hash and therefore the poolId move with tickSpacing, so this"
-               ++ " proof is stale BY CONSTRUCTION. Re-take it: " ++ proof_command)
+      _ <- positive_fields_agree "tickSpacing" (rig_tick_spacing (rig_pool addrs))
+             captured_spacing "the proof"
+             ("The PoolKey hash and therefore the poolId move with tickSpacing, so this proof is"
+               ++ " stale BY CONSTRUCTION. Re-take it: " ++ proof_command)
 
       entries <- json_field "measurements" proof >>= json_array
       names <- mapM (\m -> json_field "name" m >>= json_string) entries
@@ -3716,9 +3711,8 @@ driv01_run_capture_is_present_and_fresh =
                ++ " Re-take it: " ++ driver_capture_command)
 
       captured_chain <- json_field "chainId" capture >>= json_integer
-      _ <- expect (captured_chain == rig_chain_id addrs)
-             ("the run was taken on chain " ++ show captured_chain ++ " but the manifest describes"
-               ++ " chain " ++ show (rig_chain_id addrs) ++ " -- re-take it: "
+      _ <- positive_fields_agree "chainId" (rig_chain_id addrs) captured_chain "the run"
+             ("The run was taken against a DIFFERENT chain. Re-take it: "
                ++ driver_capture_command)
 
       captured_from <- json_field "generatedFrom" capture >>= json_string
@@ -3736,11 +3730,10 @@ driv01_run_capture_is_present_and_fresh =
       _ <- pool_id_matches capture addrs "the run" driver_capture_command
 
       captured_spacing <- json_field "rig" capture >>= json_field "tickSpacing" >>= json_integer
-      expect (captured_spacing == rig_tick_spacing (rig_pool addrs))
-        ("the run records tickSpacing " ++ show captured_spacing ++ " but the manifest says "
-          ++ show (rig_tick_spacing (rig_pool addrs))
-          ++ " -- tickSpacing moved 10 -> 20 at PR #18, taking the PoolKey hash and therefore the"
-          ++ " poolId with it, so a run recorded under the other value is stale BY CONSTRUCTION")
+      positive_fields_agree "tickSpacing" (rig_tick_spacing (rig_pool addrs))
+        captured_spacing "the run"
+        ("tickSpacing moved 10 -> 20 at PR #18, taking the PoolKey hash and therefore the poolId"
+          ++ " with it, so a run recorded under the other value is stale BY CONSTRUCTION.")
 
 -- ---------------------------------------------------------------------------------------------
 -- NON-DEGENERACY, and why a freshness equality needs it
@@ -3951,6 +3944,38 @@ pool_id_matches capture addrs subject retake = do
       ++ manifest ++ ". The poolId is the PoolKey hash: it moves with the hook address, the tick"
       ++ " spacing and the currencies, so an artifact recorded under a different one measured a"
       ++ " DIFFERENT pool. Re-take it: " ++ retake)
+
+-- | THE SAME DEGENERACY, IN THE NUMERIC FIELDS. FOUND BY THE COUNTERPART SWEEP.
+--
+-- The non-degeneracy work so far treated this as a STRING problem, because the reachable empty
+-- value came from a shell command substitution. The sweep asked the same question of the two
+-- numeric freshness equalities and MEASURED both, with @PriceSetterHook@ aligned so the answer was
+-- not masked by the reds this branch already carries:
+--
+-- > tickSpacing := 0 in the manifest AND both artifacts  ->  89\/89 checks passed, SC-3 and SC-4 OK
+-- > chainId     := 0 in the manifest AND both artifacts  ->  88\/89, and the ONE objection was
+-- >                                                          rpin05_capture_is_present_and_fresh,
+-- >                                                          which objects only because
+-- >                                                          batch-return-capture.json has no env
+-- >                                                          override -- i.e. by accident of what
+-- >                                                          is overridable, not by assertion.
+--
+-- @0 == 0@ is exactly @\"\" == \"\"@ one type over. Neither zero is a real value: a Uniswap v4
+-- pool cannot have @tickSpacing = 0@ (the PoolKey is rejected at initialize), and there is no EVM
+-- chain with id 0. So the guard is a pinned FLOOR on a value that has no legitimate zero, not a
+-- non-emptiness test of the kind that has failed to discriminate here before.
+positive_fields_agree :: String -> Integer -> Integer -> String -> String -> Either String ()
+positive_fields_agree field manifest captured subject consequence = do
+  _ <- expect (manifest > 0)
+         ("the manifest records " ++ field ++ " = " ++ show manifest ++ ". There is no legitimate"
+           ++ " zero for this field, and an equality against a zero on the other side would be"
+           ++ " satisfied by nothing -- re-run: " ++ deploy_command)
+  _ <- expect (captured > 0)
+         (subject ++ " records " ++ field ++ " = " ++ show captured ++ ". There is no legitimate"
+           ++ " zero for this field.")
+  expect (captured == manifest)
+    (subject ++ " records " ++ field ++ " = " ++ show captured ++ " but the manifest says "
+      ++ show manifest ++ ". " ++ consequence)
 
 -- | A @0x@-prefixed 32-byte word.
 is_bytes32_text :: String -> Bool
