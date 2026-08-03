@@ -938,10 +938,10 @@ The anchor's family (§5.1, p. 23), with `A` the scaling coefficient:
 
 \[
 	\begin{aligned}
-		F_{\kappa_{\varphi}}(x,y) \, &= \, (1-\kappa_{\varphi})\,A\,F_0(x,y) \, + \, \kappa_{\varphi}\,F_1(x,y), \qquad \kappa_{\varphi} \in [0,1] \\
-		F_0(x,y) \, &= \, p_A x + p_B y \quad \text{(linear, zero curvature; numeraire-relative \(p_A = p_{(\eta,\Delta_i)}(i_K)^2\), \(p_B = 1\))}, \qquad
-		F_1(x,y) \, = \, x\,y \quad \text{(constant product)} \\
-		A \, &= \, \big(y_A\,y_B / (p_A\,p_B)\big)^{1/2}
+		F_{\kappa_{\varphi}}(Q_X,Q_M) \, &= \, (1-\kappa_{\varphi})\,A\,F_0(Q_X,Q_M) \, + \, \kappa_{\varphi}\,F_1(Q_X,Q_M), \qquad \kappa_{\varphi} \in [0,1] \\
+		F_0(Q_X,Q_M) \, &= \, p_{(\epsilon, \Delta_i)}\,Q_X + p_B\,Q_M \quad \text{(linear, zero curvature; numeraire-relative \(p_B = 1\))}, \qquad
+		F_1(Q_X,Q_M) \, = \, Q_X\,Q_M \quad \text{(constant product)} \\
+		A \, &= \, \big(Q_X^{0}\,Q_M^{0} / (p_{(\epsilon, \Delta_i)}\,p_B)\big)^{1/2} \quad (Q^{0} = \text{the anchor's initial reserves})
 	\end{aligned}
 \]
 
