@@ -82,6 +82,16 @@ curvature `(1−ε)/(2−ε)`; old `κ_{\varphi} → ς_{X/M}` (share asymmetry)
   `CurvatureTwo` and `EtaTilde` and is silent on `PhiCES`. Since Aristotle prompts are doc-derived,
   the trap sits precisely where a prompt author will miss it. Promote to a `<!-- notation-map -->`
   line in the doc (inherits the approval gate).
+- **(k) THE E1 `DIAGNOSIS` LINE IS TRUE ONLY AT `pA = pB`.** The doc asserts *"Capponi's κ travels
+  the `ε_{X/M}` axis of `φ_{χ_{X/M},ε_{X/M}}`"*. The endpoint theorems returned 2026-08-03 refute
+  that as stated: `Fcap_zero_is_rho_one` gives the linear endpoint at **`χ = pA/(pA+pB)`, `ε = 1`**,
+  while `Fcap_one_is_rho_zero_limit` gives the constant-product endpoint at **`χ = 1/2`, `ε → 0`**.
+  So `χ` is constant along Capponi's path **only when `pA = pB`** — and E1's own numeraire
+  specialization sets `pB = 1`, `pA = p²`, which gives `χ = p²/(p²+1) ≠ 1/2` for every `p ≠ 1`.
+  **Under the document's own numeraire convention Capponi's κ travels a DIAGONAL, moving BOTH axes**,
+  not the ε axis alone. Either add the `pA = pB` hypothesis to the DIAGNOSIS line or restate it as a
+  two-axis path. Defect in an already-approved block; same class as (e).
+
 - **(j) `u` is called "the utilization factor" in the doc** — an interpretive name against the
   binding rule (the 'utilization' → `sigmoidR` precedent). Needs an authorship ruling before it is
   either swept or grandfathered.
