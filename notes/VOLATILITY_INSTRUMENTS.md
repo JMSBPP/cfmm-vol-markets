@@ -912,11 +912,15 @@ The \(\sigma\) slot is always instantiated at the realized tick volatility \(\si
 **Definition 22 (The discrete \(\lambda_{\text{ARB}}\)) [M3].** The ARB-channel hazard, on the SAME \(\Theta_{\phi}\) as FLAIR (\(\phi(\sigma) = \texttt{multiFee}(n,\gamma,\beta,\alpha,\bar\phi,u)\)):
 \[
 	\begin{aligned}
-		\lambda_{\text{ARB}} \, \equiv \, \sum_{t<T} \mathbb{P}_{\Delta_{\text{ARB}}}\big(\phi(\sigma(i(t))),\sigma(i(t)),\Delta t\big)\,\frac{\pi^{\mathrm{LVR}}(t)}{\pi^{\text{linear}}(t)}
+		\lambda_{\text{ARB}}(t) \, \equiv \, \sum_{s<t} \mathbb{P}_{\Delta_{\text{ARB}}}\big(\phi(\sigma(i(s))),\sigma(i(s)),\Delta t\big)\,\frac{\pi^{\mathrm{LVR}}(s)}{\pi^{\text{linear}}(s)}
 	\end{aligned}
 \]
 
-CPMM instantiation, two tiers: (i) the LEADING-ORDER per-step weight
+The running-time argument mirrors \(\lambda_{\text{FLAIR}}(t)\) (Definition 20); \(s\) is the step dummy (user comment 2026-08-04).
+
+
+
+CPMM instantiation — NOT a new definition: both tiers instantiate Definition 26's object on the CPMM member, per [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf) §7.1 (leading order) and Corollary 2 (exact). Two tiers: (i) the LEADING-ORDER per-step weight
 
 \[
 	\begin{aligned}
@@ -924,11 +928,11 @@ CPMM instantiation, two tiers: (i) the LEADING-ORDER per-step weight
 	\end{aligned}
 \]
 
-(Definition 26's CPMM case — \(\pi^{\mathrm{LVR}}\) is a RATE ⟹ \(\cdot\Delta t\) per block; summand \(\propto \Delta t^{3/2}\) = [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf) §7.1 per-block scaling; no guard needed); (ii) the EXACT Corollary-2 kernel
+(Definition 26's CPMM case — \(\pi^{\mathrm{LVR}}\) is a RATE ⟹ \(\cdot\Delta t\) per block; summand \(\propto \Delta t^{3/2}\) = [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf) §7.1 per-block scaling; no guard needed); (ii) the EXACT Corollary-2 kernel, restated in this document's objects (\(\pi^{\text{ARB}}\), \(\pi^{\varphi}\), Convention 2 — the paper's `ARB/V` form was stale notation):
 
 \[
 	\begin{aligned}
-		(\mathrm{ARB}/V)_{\text{exact}} \, = \, \frac{(\sigma^2/8)\,\mathbb{P}_{\Delta_{\text{ARB}}}\,e^{\phi/2}}{1-\sigma^2\Delta t/8}
+		\big(\pi^{\text{ARB}}/\pi^{\varphi}\big)_{\text{exact}} \, = \, \frac{\big(\sigma^2(i(t))/8\big)\,\mathbb{P}_{\Delta_{\text{ARB}}}\,e^{\phi/2}}{1-\sigma^2(i(t))\,\Delta t/8}
 	\end{aligned}
 \]
 
@@ -960,11 +964,11 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 
 *Annotation [M6a] (internal reference — deliberately not a numbered statement, user ruling 2026-08-04):* over \(\Theta_{\phi}\) unconstrained there is NO trade-off — \(\max \lambda_{\text{FLAIR}}\) and \(\min \lambda_{\text{ARB}}\) sit at the SAME level corner, saturate along the SAME \(\beta_j \to -\infty\), robustly to every linear scalarization; \((\beta, \gamma_j)\) are NOT essential. Carriers: `joint_corner_degeneracy`, `joint_beta_degeneracy`, `joint_scalarization_degeneracy` (`MevJointProgram.lean`). The degeneracy-breaker must come from OUTSIDE \(\Theta_{\phi}\).
 
-**Theorem 19 (Flat-path optimality at constant \(\sigma\); the \(\sigma\)-varying comparison is REFUTED) [M6b].** Over arbitrary nonnegative fee PATHS \(\{\phi_t\}\) — NOT \(\Theta_{\phi}\) schedules — with \(\nu_t\) per the frame, \(W = \sum_t \nu_t > 0\), budget \(\sum_t \phi_t\nu_t = B\), aligned measure \(\pi^{\mathrm{LVR}}(t) \equiv \Delta Q_{\cdot}(t)\), and \(\sigma(i(t)) \equiv \sigma_0\):
+**Theorem 19 (Flat-path optimality at constant \(\sigma\); the \(\sigma\)-varying comparison is REFUTED) [M6b].** Over arbitrary nonnegative fee PATHS \(\{\phi_t\}\) — NOT \(\Theta_{\phi}\) schedules — with \(\nu_t\) per the frame, \(W = \sum_t \nu_t > 0\), the FLAIR fee budget \(B \equiv \sum_t \phi_t\nu_t\) (the fee income the path is constrained to deliver), aligned measure \(\pi^{\mathrm{LVR}}(t) \equiv \Delta Q_{\cdot}(t)\), and constant volatility \(\sigma(i(t)) \equiv \sigma(i(t_0))\):
 
 \[
 	\begin{aligned}
-		\lambda_{\text{ARB}} \, \geq \, W\cdot \mathbb{P}_{\Delta_{\text{ARB}}}\!\left(\frac{B}{W},\,\sigma_0,\,\Delta t\right),
+		\lambda_{\text{ARB}} \, \geq \, W\cdot \mathbb{P}_{\Delta_{\text{ARB}}}\!\left(\frac{B}{W},\,\sigma(i(t_0)),\,\Delta t\right),
 		\qquad \text{equality} \iff \phi_t\ \text{constant on}\ \{t : \nu_t > 0\}
 	\end{aligned}
 \]
