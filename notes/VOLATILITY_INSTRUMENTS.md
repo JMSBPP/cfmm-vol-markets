@@ -887,11 +887,11 @@ Sources, all vendored: [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFe
 
 \[
 	\begin{aligned}
-		\mathbb{P}_{\Delta_{\text{ARB}}}\big(\phi,\sigma(i(t)),\Delta t\big) \, \equiv \, \frac{\sigma(i(t))}{\sigma(i(t)) + \phi\sqrt{2/\Delta t}}
+		\mathbb{P}_{\Delta_{\text{ARB}}}\big(\phi(\sigma(i(t));t),\sigma(i(t)),\Delta t\big) \, \equiv \, \frac{\sigma(i(t))}{\sigma(i(t)) + \phi(\sigma(i(t));t)\sqrt{2/\Delta t}}
 	\end{aligned}
 \]
 
-The \(\sigma\) slot is always instantiated at the realized tick volatility \(\sigma(i(t))\) (Convention 2 — written in full, no shorthand); Lean's `ptrade` keeps the abstract slot.
+Both slots are instantiated (user comments 2026-08-04): the \(\sigma\) slot at the realized tick volatility \(\sigma(i(t))\) (Convention 2), the \(\phi\) slot at the schedule value \(\phi(\sigma(i(t));t)\) (Definition 18). Lean's `ptrade` keeps both slots abstract — Theorem 16's monotonicities and convexity are statements in the abstract \(\phi\) slot.
 
 **Theorem 16 (Properties of \(\mathbb{P}_{\Delta_{\text{ARB}}}\)) [M1].** \(\mathbb{P}_{\Delta_{\text{ARB}}} \in (0,1]\), with \(\mathbb{P}_{\Delta_{\text{ARB}}} = 1 \iff \phi = 0\); strictly decreasing AND **strictly convex** in \(\phi\); increasing in \(\Delta t\) and in \(\sigma\); \(\to 0\) as \(\phi \to \infty\). (The strict convexity is what Theorem 19's strict half consumes.)
 
@@ -973,9 +973,11 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 	\end{aligned}
 \]
 
-— the flat path minimizes \(\lambda_{\text{ARB}}\) at equal FLAIR income; non-constant on \(\{\nu_t > 0\}\) is strictly worse (the strict half consumes Theorem 16's strict convexity). The alignment \(\pi^{\mathrm{LVR}}(t) \equiv \Delta Q_{\cdot}(t)\) is STRONG (traded volume ∝ LVR path block-by-block — and CROSS-COORDINATE under ruling (i): a liquidity-units path proportional to a money-units path); without it Jensen is inapplicable and the conclusion can reverse. **REFUTED for \(\sigma\)-varying schedules** (`mev_ge_flat_under_flair_budget_false`): \(\exists\, \phi(\cdot) \geq 0\) with \(\lambda_{\text{ARB}}^{\text{flat}} > \lambda_{\text{ARB}}^{\phi}\) at equal FLAIR income — witness \(T{=}2,\ \Delta t{=}2,\ B{=}2,\ \sigma=(1,10)\), fees \((2,0)\): \(\tfrac{31}{22} > \tfrac{4}{3}\) (\(\sigma\)-varying ⟹ different convex summands, Jensen inapplicable). **OPEN — the \(\Theta_{\phi}\)-restricted case:** the witness is \(\sigma\)-DEcreasing while \(\Theta_{\phi}\)-reachable schedules are isotone (`multiFee_monotone`); the refutation settles only the general claim.
+\(B/W\) is the **budget-mean fee** — the flat fee delivering the same FLAIR income as the path (`flair_budget_pins_mean_fee`) — the flat path minimizes \(\lambda_{\text{ARB}}\) at equal FLAIR income; non-constant on \(\{\nu_t > 0\}\) is strictly worse (the strict half consumes Theorem 16's strict convexity). The alignment \(\pi^{\mathrm{LVR}}(t) \equiv \Delta Q_{\cdot}(t)\) is STRONG (traded volume ∝ LVR path block-by-block — and CROSS-COORDINATE under ruling (i): a liquidity-units path proportional to a money-units path); without it Jensen is inapplicable and the conclusion can reverse. **REFUTED for \(\sigma\)-varying schedules** (`mev_ge_flat_under_flair_budget_false`): \(\exists\, \phi(\cdot) \geq 0\) with \(\lambda_{\text{ARB}}^{\text{flat}} > \lambda_{\text{ARB}}^{\phi}\) at equal FLAIR income — witness \(T{=}2,\ \Delta t{=}2,\ B{=}2,\ \sigma=(1,10)\), fees \((2,0)\): \(\tfrac{31}{22} > \tfrac{4}{3}\) (\(\sigma\)-varying ⟹ different convex summands, Jensen inapplicable). **OPEN — the \(\Theta_{\phi}\)-restricted case:** the witness is \(\sigma\)-DEcreasing while \(\Theta_{\phi}\)-reachable schedules are isotone (`multiFee_monotone`); the refutation settles only the general claim.
 
 *Formalized:* budget half `flair_budget_pins_mean_fee`, `flair_budget_mean`; path carriers `flairPath`/`mevPath` with bridges `flairPath_schedule`, `mevPath_schedule`, `flairPath_sum`, `flairPath_budget_mean`; the constant-\(\sigma\) display at PATH level `mev_ge_flat_under_flair_budget_const_sigma`, strict `mev_gt_flat_under_flair_budget_const_sigma`; the refutation `mev_ge_flat_under_flair_budget_false`.
+
+**Definition 27 (Sandwich hazard) [M7].** \(\lambda_{\text{sandwich}}(t) \geq 0\) is the **sandwich-channel extraction hazard** — the arrival intensity of sandwich extraction (front-run/back-run pairs around user trades), the second MEV channel of [MEV_THEORY_I](../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf). *(Minted as a prerequisite of Definition 23, user comment 2026-08-04 — \(\lambda_{\text{ARB}}\) has Definition 22; the sandwich summand needs its own.)* Its per-step kernel is **OPEN** — the channel is unmodelled in this document; downstream consumes exactly two properties: nonnegativity, and \(\lambda_{\text{sandwich}} = 0\) under uniform batch clearing (sandwiching is killed by construction — the Angstrom regime).
 
 **Definition 23 (Aggregate MEV hazard; the recycling incidence operator) [M7].** The aggregate extraction hazard is the hazard-side sum
 
@@ -987,15 +989,17 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 
 with \(\oplus\) per Definition 19 / Theorem 14 (\(\otimes_{\phi}\) acts on \([0,1]\), NEVER on unbounded hazards). \(\lambda_{\text{sandwich}} = 0 \implies \lambda_{\text{MEV}} = \lambda_{\text{ARB}}\) — uniform clearing delivers this by construction, so Definition 22 through Theorem 19 transfer to \(\lambda_{\text{MEV}}\) verbatim in the Angstrom regime; the sandwich channel is a distinct object ([MEV_THEORY_I](../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf)), unmodelled here. Two parametric items, both OUTSIDE \(\Theta_{\phi}\):
 
-(i) **the recycling incidence operator** (glyph per Convention 4 — the aggregate \(\lambda_{\text{MEV}}\) is a plain-\(\lambda\) hazard; the tilde names the incidence layer on top of it):
+(i) **the recycling incidence operator** (glyph per Convention 4 — the aggregate \(\lambda_{\text{MEV}}\) is a plain-\(\lambda\) hazard; the tilde names the incidence layer on top of it). **This \(\tau\) is NOT \(\tau_{\text{MEV}}\)** (user question 2026-08-04): \(\tau_{\text{MEV}}\) is Rule 12's monoid-entry tax (channel (A) — intensity, charged to traders); this is the AUCTION RECYCLING SHARE (Rule 12's not-adopted channel (C)) — written \(\tau_{\text{rec}}\) to kill the collision: <!-- notation-map -->
 
 \[
 	\begin{aligned}
-		\tilde\lambda_{\text{MEV}} \, \equiv \, (1-\tau)\,\lambda_{\text{MEV}}, \qquad \tau \in [0,1], \qquad \tau(k) = \frac{k}{k+1},\ k\ \text{FREE}
+		\tilde\lambda_{\text{MEV}} \, \equiv \, (1-\tau_{\text{rec}})\,\lambda_{\text{MEV}}, \qquad \tau_{\text{rec}} \in [0,1], \qquad \tau_{\text{rec}}(k) = \frac{k}{k+1},\ k\ \text{FREE}
 	\end{aligned}
 \]
 
-The ToB auction awards the arb and routes the bid to LPs: \(\tau\) redistributes, \(\lambda_{\text{MEV}}\) is invariant, the LP-borne share falls — \((1-\tau)\) is NOT an MEV reduction, and for \(\tau < 1\) the rebate moves the VALUE, not the SOLUTION (minimizers unmoved — the precise sense in which \(\tau \notin \Theta_{\phi}\)); \(\tau = 1\) vacuous. \(\tau(k) = k/(k+1)\) presumes priority-fee bidding + full-value competition; NO numeral enters any claim (live parameters drift).
+**The role of \(k\):** the auction-competition parameter of the ToB priority-fee mechanism — with full-value bidding competition the winning searcher surrenders the fraction \(k/(k+1)\) of the arb value to the pool; \(\tau_{\text{rec}}(k)\) is increasing in \(k\) and \(\to 1\) as \(k \to \infty\) (perfect competition returns the full arb to LPs); monopoly/collusion makes the realized \(\tau_{\text{rec}}\) arbitrarily lower. \(k\) stays FREE — no live numeral enters any claim.
+
+The ToB auction awards the arb and routes the bid to LPs: \(\tau_{\text{rec}}\) redistributes, \(\lambda_{\text{MEV}}\) is invariant, the LP-borne share falls — \((1-\tau_{\text{rec}})\) is NOT an MEV reduction, and for \(\tau_{\text{rec}} < 1\) the rebate moves the VALUE, not the SOLUTION (minimizers unmoved — the precise sense in which \(\tau_{\text{rec}} \notin \Theta_{\phi}\)); \(\tau_{\text{rec}} = 1\) vacuous.
 
 (ii) **cadence** \(= \Delta t\): moves \(\lambda_{\text{ARB}}\) monotonically, absent from \(\lambda_{\text{FLAIR}}\) — the second non-degenerate lever outside \(\Theta_{\phi}\).
 
@@ -1012,7 +1016,7 @@ The ToB auction awards the arb and routes the bid to LPs: \(\tau\) redistributes
 	\end{aligned}
 \]
 
-Alternates formalized, NOT adopted: (B) convex separation \(\phi = (1-\tau_{\text{MEV}})\phi + \tau_{\text{MEV}}\phi\) (incidence-targeting, intensity-neutral); (C) auction lump-sum \(\tau(k) = k/(k+1)\) (`taxFraction`, `mevNet` — Definition 23(i)).
+Alternates formalized, NOT adopted: (B) convex separation \(\phi = (1-\tau_{\text{MEV}})\phi + \tau_{\text{MEV}}\phi\) (incidence-targeting, intensity-neutral); (C) auction lump-sum \(\tau_{\text{rec}}(k) = k/(k+1)\) (`taxFraction`, `mevNet` — Definition 23(i)).
 
 **Theorem 20 (The discriminating algebra — what the monoid entry buys and cannot buy) [M10].**
 
