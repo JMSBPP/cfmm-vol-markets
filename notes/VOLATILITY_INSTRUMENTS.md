@@ -830,7 +830,7 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 
 **Discretization frame** (\(t\)-indexed, shared by FLAIR and MEV; the Lean carriers keep their `w_t`/`D_t`/`a_t` names — standing doc-glyph/Lean-name split). Time is stepped by the cadence \(\Delta t\); per step \(t\):
 
-- \(\Delta Q_{\cdot}(t) \, \equiv \, \varphi_{(1/2,\,0)}\big(i(t);\, \Delta Q(t),\, 0\big) \, = \, \sqrt{\Delta Q_M(t)\,\Delta Q_X(t)} \, \geq \, 0\) — the per-step traded VOLUME in LIQUIDITY UNITS: Definition 18's zero-liquidity convention (user ruling 2026-08-04) — the symmetric geometric mean of the two legs, neither money nor asset alone; a volume metric commensurable with \(L\) and \(\Delta Q_v^{\star}\);
+- the per-step traded VOLUME in LIQUIDITY UNITS is \(\varphi_{(1/2,\,0)}\big(i(t);\, \Delta Q(t),\, 0\big) \, = \, \sqrt{\Delta Q_M(t)\,\Delta Q_X(t)} \, \geq \, 0\) — Definition 18's zero-liquidity convention: the symmetric geometric mean of the two legs, neither money nor asset alone, commensurable with \(L\) and \(\Delta Q_v^{\star}\); NO alias symbol is minted for it (the former \(\Delta Q_{\cdot}(t)\) is retired — user ruling 2026-08-04);
 - \(\pi^{\text{linear}}(t) > 0\) — the per-step capital in MONEY units (Definition 24), serving the MEV/LVR side, where LVR is intrinsically a money rate;
 - \(\pi^{\mathrm{LVR}}(t) \, \equiv \, \pi^{\mathrm{LVR}}\cdot\Delta t \, \geq \, 0\) — the per-block arb-opportunity weight: the rate (Definition 26, no time argument) over one block; the time argument itself marks the per-block object, so no bar normalization is needed (user ruling 2026-08-04);
 - \(\nu_t \, \equiv \, \varphi_{(1/2,\,0)}\big(i(t);\, \Delta Q(t),\, 0\big)\,\big/\,\varphi_{(1/2,\,0)}\big(i(t);\, 0,\, L\big)\) — the PER-STEP UTILIZATION RATIO, exactly Definition 18's gate argument: FLAIR's capital-normalized flow, dimensionless with no numéraire choice.
@@ -879,7 +879,7 @@ Sources, all vendored: [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFe
 
 **Notation map [M0].** [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf)'s fee symbol `γ` is transcribed as this document's fee `φ`; this document's `γ_j` stays the sigmoid steepness. The paper's Poisson block rate `λ` is transcribed through its own primitive `Δt ≜ λ⁻¹`, because this document's `λ` is the hazard rate (Convention 4). The paper's composite parameter `η ≜ γ√(2λ)/σ` is deliberately never named — `η` is reserved project-wide for the pricing grid (Definition 8). <!-- notation-map --> Root-block-rate factor: \(\sqrt{2/\Delta t}\) throughout, no composite abbreviation. Fee \(= \phi\) (ceiling \(\bar\phi\), set \(\Theta_{\phi}\)); the quote function is \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\) (Definition 13), currently \(\varphi_{(1/2,\,0)}\) (Rule 5); bare \(\varphi\) is NOT used.
 
-\(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)). \(\sigma(i(t))\) enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\) — always written in full tick-argument form (Convention 2; no \(\sigma_t\) shorthand). The \(t\)-indexed symbols \(\Delta Q_{\cdot}(t)\), \(\pi^{\text{linear}}(t)\), \(\pi^{\mathrm{LVR}}(t)\), \(\nu_t\) are the discretization frame at the head of this section (FLAIR in utilization coordinates, MEV in money coordinates — user ruling (i), 2026-08-04).
+\(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)). \(\sigma(i(t))\) enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\) — always written in full tick-argument form (Convention 2; no \(\sigma_t\) shorthand). The \(t\)-indexed symbols \(\pi^{\text{linear}}(t)\), \(\pi^{\mathrm{LVR}}(t)\), \(\nu_t\) (and the unaliased traded volume \(\varphi_{(1/2,\,0)}(i(t); \Delta Q(t), 0)\)) are the discretization frame at the head of this section (FLAIR in utilization coordinates, MEV in money coordinates — user ruling (i), 2026-08-04).
 
 \(\lambda_{\text{ARB}}\) (Definition 22) \(\subsetneq \lambda_{\text{MEV}}\) (Definition 23): SUMMAND, not sibling — Definition 19's index set carries one, never both (double-count); \(\lambda_{\text{ARB}}\) absorbs the "arb toxicity" entry. The paper's `FEE` \(\subsetneq \lambda_{\text{FLAIR}}\) (noise flow excluded there). Standing hypotheses: the paper's Assumption 2 (symmetric driftless mispricing, two-sided fee; non-symmetric variant App. C); Proposition 9 additionally: regularity (13), (15).
 
@@ -964,7 +964,7 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 
 *Annotation [M6a] (internal reference — deliberately not a numbered statement, user ruling 2026-08-04):* over \(\Theta_{\phi}\) unconstrained there is NO trade-off — \(\max \lambda_{\text{FLAIR}}\) and \(\min \lambda_{\text{ARB}}\) sit at the SAME level corner, saturate along the SAME \(\beta_j \to -\infty\), robustly to every linear scalarization; \((\beta, \gamma_j)\) are NOT essential. Carriers: `joint_corner_degeneracy`, `joint_beta_degeneracy`, `joint_scalarization_degeneracy` (`MevJointProgram.lean`). The degeneracy-breaker must come from OUTSIDE \(\Theta_{\phi}\).
 
-**Theorem 19 (Flat-path optimality at constant \(\sigma\); the \(\sigma\)-varying comparison is REFUTED) [M6b].** Over arbitrary nonnegative fee PATHS \(\{\phi_t\}\) — NOT \(\Theta_{\phi}\) schedules — with \(\nu_t\) per the frame, \(W = \sum_t \nu_t > 0\), the FLAIR fee budget \(B \equiv \sum_t \phi_t\nu_t\) (the fee income the path is constrained to deliver), aligned measure \(\pi^{\mathrm{LVR}}(t) \equiv \Delta Q_{\cdot}(t)\), and constant volatility \(\sigma(i(t)) \equiv \sigma(i(t_0))\):
+**Theorem 19 (Flat-path optimality at constant \(\sigma\); the \(\sigma\)-varying comparison is REFUTED) [M6b].** Over arbitrary nonnegative fee PATHS \(\{\phi_t\}\) — NOT \(\Theta_{\phi}\) schedules — with \(\nu_t\) per the frame, \(W = \sum_t \nu_t > 0\), the FLAIR fee budget \(B \equiv \sum_t \phi_t\nu_t\) (the fee income the path is constrained to deliver), aligned measure \(\pi^{\mathrm{LVR}}(t) \equiv \varphi_{(1/2,\,0)}(i(t); \Delta Q(t), 0)\), and constant volatility \(\sigma(i(t)) \equiv \sigma(i(t_0))\):
 
 \[
 	\begin{aligned}
@@ -973,11 +973,39 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 	\end{aligned}
 \]
 
-\(B/W\) is the **budget-mean fee** — the flat fee delivering the same FLAIR income as the path (`flair_budget_pins_mean_fee`) — the flat path minimizes \(\lambda_{\text{ARB}}\) at equal FLAIR income; non-constant on \(\{\nu_t > 0\}\) is strictly worse (the strict half consumes Theorem 16's strict convexity). The alignment \(\pi^{\mathrm{LVR}}(t) \equiv \Delta Q_{\cdot}(t)\) is STRONG (traded volume ∝ LVR path block-by-block — and CROSS-COORDINATE under ruling (i): a liquidity-units path proportional to a money-units path); without it Jensen is inapplicable and the conclusion can reverse. **REFUTED for \(\sigma\)-varying schedules** (`mev_ge_flat_under_flair_budget_false`): \(\exists\, \phi(\cdot) \geq 0\) with \(\lambda_{\text{ARB}}^{\text{flat}} > \lambda_{\text{ARB}}^{\phi}\) at equal FLAIR income — witness \(T{=}2,\ \Delta t{=}2,\ B{=}2,\ \sigma=(1,10)\), fees \((2,0)\): \(\tfrac{31}{22} > \tfrac{4}{3}\) (\(\sigma\)-varying ⟹ different convex summands, Jensen inapplicable). **OPEN — the \(\Theta_{\phi}\)-restricted case:** the witness is \(\sigma\)-DEcreasing while \(\Theta_{\phi}\)-reachable schedules are isotone (`multiFee_monotone`); the refutation settles only the general claim.
+\(B/W\) is the **budget-mean fee** — the flat fee delivering the same FLAIR income as the path (`flair_budget_pins_mean_fee`) — the flat path minimizes \(\lambda_{\text{ARB}}\) at equal FLAIR income; non-constant on \(\{\nu_t > 0\}\) is strictly worse (the strict half consumes Theorem 16's strict convexity). The alignment \(\pi^{\mathrm{LVR}}(t) \equiv \varphi_{(1/2,\,0)}(i(t); \Delta Q(t), 0)\) is STRONG (traded volume ∝ LVR path block-by-block — and CROSS-COORDINATE under ruling (i): a liquidity-units path proportional to a money-units path); without it Jensen is inapplicable and the conclusion can reverse. **REFUTED for \(\sigma\)-varying schedules** (`mev_ge_flat_under_flair_budget_false`): \(\exists\, \phi(\cdot) \geq 0\) with \(\lambda_{\text{ARB}}^{\text{flat}} > \lambda_{\text{ARB}}^{\phi}\) at equal FLAIR income — witness \(T{=}2,\ \Delta t{=}2,\ B{=}2,\ \sigma=(1,10)\), fees \((2,0)\): \(\tfrac{31}{22} > \tfrac{4}{3}\) (\(\sigma\)-varying ⟹ different convex summands, Jensen inapplicable). **OPEN — the \(\Theta_{\phi}\)-restricted case:** the witness is \(\sigma\)-DEcreasing while \(\Theta_{\phi}\)-reachable schedules are isotone (`multiFee_monotone`); the refutation settles only the general claim.
 
 *Formalized:* budget half `flair_budget_pins_mean_fee`, `flair_budget_mean`; path carriers `flairPath`/`mevPath` with bridges `flairPath_schedule`, `mevPath_schedule`, `flairPath_sum`, `flairPath_budget_mean`; the constant-\(\sigma\) display at PATH level `mev_ge_flat_under_flair_budget_const_sigma`, strict `mev_gt_flat_under_flair_budget_const_sigma`; the refutation `mev_ge_flat_under_flair_budget_false`.
 
-**Definition 27 (Sandwich hazard) [M7].** \(\lambda_{\text{sandwich}}(t) \geq 0\) is the **sandwich-channel extraction hazard** — the arrival intensity of sandwich extraction (front-run/back-run pairs around user trades), the second MEV channel of [MEV_THEORY_I](../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf). *(Minted as a prerequisite of Definition 23, user comment 2026-08-04 — \(\lambda_{\text{ARB}}\) has Definition 22; the sandwich summand needs its own.)* Its per-step kernel is **OPEN** — the channel is unmodelled in this document; downstream consumes exactly two properties: nonnegativity, and \(\lambda_{\text{sandwich}} = 0\) under uniform batch clearing (sandwiching is killed by construction — the Angstrom regime).
+**Definition 28 (Forward exchange function) [M7].** \(G(\Delta)\) is the output delivered against input \(\Delta\) at constant trading function — input on the money leg, output on the asset leg (orientation per Definition 12, subject to the PR-ORIENT FLAG):
+
+\[
+	\begin{aligned}
+		\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\big(\Delta Q_M^L + \Delta,\; \Delta Q_X^L - G(\Delta)\big) \, = \, \varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\big(\Delta Q_M^L,\; \Delta Q_X^L\big)
+	\end{aligned}
+\]
+
+\(G^{-1}\) is the reverse exchange function ([CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf); the glyph \(G\) is the source's — the G0–G6 block labels are section tags, not symbols). <!-- notation-map -->
+
+**Definition 27 (Sandwich hazard) [M7].** Per [MEV_THEORY_I](../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf) eqs. (4)–(6) — the paper's slippage limit \(\eta\) enters as \(\mathrm{tol}_{\text{slip}}\) (\(\eta\) is the grid exponent, Definition 8; \(\mathrm{tol}\) is the tolerance family) <!-- notation-map -->. For a user trade \(\Delta\) with slippage floor \((1-\mathrm{tol}_{\text{slip}})G(\Delta)\), the front-run \(\Delta_{\text{sand}}(\Delta, \mathrm{tol}_{\text{slip}})\) solves the slippage-binding equation, the back-run recovers the position, and the attacker's profit is:
+
+\[
+	\begin{aligned}
+		G(\Delta_{\text{sand}} + \Delta) - G(\Delta_{\text{sand}}) \, &= \, (1-\mathrm{tol}_{\text{slip}})\,G(\Delta) \\[4pt]
+		\Delta_{\text{sand}}' \, &= \, \Delta_{\text{sand}} + \Delta - G^{-1}\big(G(\Delta + \Delta_{\text{sand}}) - G(\Delta_{\text{sand}})\big) \\[4pt]
+		\mathrm{PNL}(\Delta, \mathrm{tol}_{\text{slip}}) \, &= \, \Delta_{\text{sand}}' - \Delta_{\text{sand}} \, = \, \Delta - G^{-1}\big(G(\Delta + \Delta_{\text{sand}}) - G(\Delta_{\text{sand}})\big), \qquad \mathrm{PNL}(\Delta, 0) = 0
+	\end{aligned}
+\]
+
+The **sandwich hazard** mirrors Definition 22's shape — extracted sandwich value per unit capital:
+
+\[
+	\begin{aligned}
+		\lambda_{\text{sandwich}}(t) \, \equiv \, \sum_{s<t} \frac{\mathrm{PNL}\big(\Delta(s), \mathrm{tol}_{\text{slip}}\big)}{\pi^{\text{linear}}(s)} \, \geq \, 0
+	\end{aligned}
+\]
+
+Under uniform batch clearing there is no ordering to exploit: \(\Delta_{\text{sand}} = 0 \implies \mathrm{PNL} = 0 \implies \lambda_{\text{sandwich}} = 0\) (the Angstrom regime). *Status:* **UNFORMALIZED** — no Lean carrier; the paper's profit bound (linear in \(\mathrm{tol}_{\text{slip}}\), with a liquidity hurdle) is cited, not transcribed.
 
 **Definition 23 (Aggregate MEV hazard; the recycling incidence operator) [M7].** The aggregate extraction hazard is the hazard-side sum
 
@@ -989,7 +1017,9 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 
 with \(\oplus\) per Definition 19 / Theorem 14 (\(\otimes_{\phi}\) acts on \([0,1]\), NEVER on unbounded hazards). \(\lambda_{\text{sandwich}} = 0 \implies \lambda_{\text{MEV}} = \lambda_{\text{ARB}}\) — uniform clearing delivers this by construction, so Definition 22 through Theorem 19 transfer to \(\lambda_{\text{MEV}}\) verbatim in the Angstrom regime; the sandwich channel is a distinct object ([MEV_THEORY_I](../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf)), unmodelled here. Two parametric items, both OUTSIDE \(\Theta_{\phi}\):
 
-(i) **the recycling incidence operator** (glyph per Convention 4 — the aggregate \(\lambda_{\text{MEV}}\) is a plain-\(\lambda\) hazard; the tilde names the incidence layer on top of it). **This \(\tau\) is NOT \(\tau_{\text{MEV}}\)** (user question 2026-08-04): \(\tau_{\text{MEV}}\) is Rule 12's monoid-entry tax (channel (A) — intensity, charged to traders); this is the AUCTION RECYCLING SHARE (Rule 12's not-adopted channel (C)) — written \(\tau_{\text{rec}}\) to kill the collision: <!-- notation-map -->
+(i) **the recycling incidence operator** — **Protocol choice (DECIDED): NOT adopted.** This protocol enacts the TAX — Rule 12's monoid entry (and the JIT liquidity tax when that section converts); the recycling mechanism below is Angstrom's reference mechanism, recorded for incidence analysis only.
+
+ (glyph per Convention 4 — the aggregate \(\lambda_{\text{MEV}}\) is a plain-\(\lambda\) hazard; the tilde names the incidence layer on top of it). **This \(\tau\) is NOT \(\tau_{\text{MEV}}\)** (user question 2026-08-04): \(\tau_{\text{MEV}}\) is Rule 12's monoid-entry tax (channel (A) — intensity, charged to traders); this is the AUCTION RECYCLING SHARE (Rule 12's not-adopted channel (C)) — written \(\tau_{\text{rec}}\) to kill the collision: <!-- notation-map -->
 
 \[
 	\begin{aligned}
