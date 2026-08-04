@@ -977,23 +977,23 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 
 *Formalized:* budget half `flair_budget_pins_mean_fee`, `flair_budget_mean`; path carriers `flairPath`/`mevPath` with bridges `flairPath_schedule`, `mevPath_schedule`, `flairPath_sum`, `flairPath_budget_mean`; the constant-\(\sigma\) display at PATH level `mev_ge_flat_under_flair_budget_const_sigma`, strict `mev_gt_flat_under_flair_budget_const_sigma`; the refutation `mev_ge_flat_under_flair_budget_false`.
 
-**Definition 28 (Forward exchange function) [M7].** \(G(\Delta)\) is the output delivered against input \(\Delta\) at constant trading function — input on the money leg, output on the asset leg (orientation per Definition 12, subject to the PR-ORIENT FLAG):
+**Definition 28 (Forward exchange function) [M7].** \(G(\Delta Q_M)\) is the output delivered against the money-leg input \(\Delta Q_M\) at constant trading function — stated in Definition 12's signature (tick slot first, flow in the middle slot, \(L\) in the last slot; function signatures are never changed — user ruling 2026-08-04); the input rides the money leg of the flow, the output \(G(\Delta Q_M)\) is withdrawn from the asset leg (orientation per Definition 12, subject to the PR-ORIENT FLAG):
 
 \[
 	\begin{aligned}
-		\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\big(\Delta Q_M^L + \Delta,\; \Delta Q_X^L - G(\Delta)\big) \, = \, \varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\big(\Delta Q_M^L,\; \Delta Q_X^L\big)
+		\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\Big(i(t);\, \big(\Delta Q_M,\, -G(\Delta Q_M)\big),\, L\Big) \, = \, \varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\big(i(t);\, 0,\, L\big)
 	\end{aligned}
 \]
 
 \(G^{-1}\) is the reverse exchange function ([CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf); the glyph \(G\) is the source's — the G0–G6 block labels are section tags, not symbols). <!-- notation-map -->
 
-**Definition 27 (Sandwich hazard) [M7].** Per [MEV_THEORY_I](../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf) eqs. (4)–(6) — the paper's slippage limit \(\eta\) enters as \(\mathrm{tol}_{\text{slip}}\) (\(\eta\) is the grid exponent, Definition 8; \(\mathrm{tol}\) is the tolerance family) <!-- notation-map -->. For a user trade \(\Delta\) with slippage floor \((1-\mathrm{tol}_{\text{slip}})G(\Delta)\), the front-run \(\Delta_{\text{sand}}(\Delta, \mathrm{tol}_{\text{slip}})\) solves the slippage-binding equation, the back-run recovers the position, and the attacker's profit is:
+**Definition 27 (Sandwich hazard) [M7].** Per [MEV_THEORY_I](../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf) eqs. (4)–(6) — the paper's slippage limit \(\eta\) enters as \(\mathrm{tol}_{\text{slip}}\) (\(\eta\) is the grid exponent, Definition 8; \(\mathrm{tol}\) is the tolerance family), its user trade \(\Delta\) is the money-leg flow \(\Delta Q_M\), and its `PNL` is the sandwich payoff \(\pi^{\text{sandwich}}\) (\(\pi\)-convention) <!-- notation-map -->. For a user trade \(\Delta Q_M\) with slippage floor \((1-\mathrm{tol}_{\text{slip}})G(\Delta Q_M)\), the front-run \(\Delta_{\text{sand}}(\Delta Q_M, \mathrm{tol}_{\text{slip}})\) solves the slippage-binding equation, the back-run recovers the position, and the attacker's payoff is:
 
 \[
 	\begin{aligned}
-		G(\Delta_{\text{sand}} + \Delta) - G(\Delta_{\text{sand}}) \, &= \, (1-\mathrm{tol}_{\text{slip}})\,G(\Delta) \\[4pt]
-		\Delta_{\text{sand}}' \, &= \, \Delta_{\text{sand}} + \Delta - G^{-1}\big(G(\Delta + \Delta_{\text{sand}}) - G(\Delta_{\text{sand}})\big) \\[4pt]
-		\mathrm{PNL}(\Delta, \mathrm{tol}_{\text{slip}}) \, &= \, \Delta_{\text{sand}}' - \Delta_{\text{sand}} \, = \, \Delta - G^{-1}\big(G(\Delta + \Delta_{\text{sand}}) - G(\Delta_{\text{sand}})\big), \qquad \mathrm{PNL}(\Delta, 0) = 0
+		G(\Delta_{\text{sand}} + \Delta Q_M) - G(\Delta_{\text{sand}}) \, &= \, (1-\mathrm{tol}_{\text{slip}})\,G(\Delta Q_M) \\[4pt]
+		\Delta_{\text{sand}}' \, &= \, \Delta_{\text{sand}} + \Delta Q_M - G^{-1}\big(G(\Delta Q_M + \Delta_{\text{sand}}) - G(\Delta_{\text{sand}})\big) \\[4pt]
+		\pi^{\text{sandwich}}(\Delta Q_M, \mathrm{tol}_{\text{slip}}) \, &= \, \Delta_{\text{sand}}' - \Delta_{\text{sand}} \, = \, \Delta Q_M - G^{-1}\big(G(\Delta Q_M + \Delta_{\text{sand}}) - G(\Delta_{\text{sand}})\big), \qquad \pi^{\text{sandwich}}(\Delta Q_M, 0) = 0
 	\end{aligned}
 \]
 
@@ -1001,11 +1001,11 @@ The **sandwich hazard** mirrors Definition 22's shape — extracted sandwich val
 
 \[
 	\begin{aligned}
-		\lambda_{\text{sandwich}}(t) \, \equiv \, \sum_{s<t} \frac{\mathrm{PNL}\big(\Delta(s), \mathrm{tol}_{\text{slip}}\big)}{\pi^{\text{linear}}(s)} \, \geq \, 0
+		\lambda_{\text{sandwich}}(t) \, \equiv \, \sum_{s<t} \frac{\pi^{\text{sandwich}}\big(\Delta Q_M(s), \mathrm{tol}_{\text{slip}}\big)}{\pi^{\text{linear}}(s)} \, \geq \, 0
 	\end{aligned}
 \]
 
-Under uniform batch clearing there is no ordering to exploit: \(\Delta_{\text{sand}} = 0 \implies \mathrm{PNL} = 0 \implies \lambda_{\text{sandwich}} = 0\) (the Angstrom regime). *Status:* **UNFORMALIZED** — no Lean carrier; the paper's profit bound (linear in \(\mathrm{tol}_{\text{slip}}\), with a liquidity hurdle) is cited, not transcribed.
+Under uniform batch clearing there is no ordering to exploit: \(\Delta_{\text{sand}} = 0 \implies \pi^{\text{sandwich}} = 0 \implies \lambda_{\text{sandwich}} = 0\) (the Angstrom regime). *Status:* **UNFORMALIZED** — no Lean carrier; the paper's profit bound (linear in \(\mathrm{tol}_{\text{slip}}\), with a liquidity hurdle) is cited, not transcribed.
 
 **Definition 23 (Aggregate MEV hazard; the recycling incidence operator) [M7].** The aggregate extraction hazard is the hazard-side sum
 
