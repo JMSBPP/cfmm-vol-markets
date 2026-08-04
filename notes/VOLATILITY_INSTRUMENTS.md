@@ -441,15 +441,20 @@ zero exactly at \(\chi_{X/M} = 1/2\). It is a **derived observable** — a funct
 
 *Formalized:* `curvOfTilde_not_curvature` (the machine-checked discriminating witness); \(\varsigma_{X/M}\) factors through the share alone: `curvIndex_is_rho_zero_slice`.
 
-\(\chi_{X/M}\) = the SHARE parameter = the exponent on the \(\Delta Q_M\) leg (the \(1/p_{(\eta, \Delta_i)}\) leg) = that leg's share of pool value. The current case is \(\chi_{X/M} = 1/2\):
+**Rule 5 (Current trading curve).** The protocol pins the balanced Cobb–Douglas member:
 
 \[
 	\begin{aligned}
-		\varphi_{1/2,\,0} \, (i_K ; \Delta Q , L)\, &= \, (\Delta Q_M^{L} (i_K) + \Delta Q_M)^{1/2}\cdot(\Delta Q_X^L \, (i_K) \, + \, \Delta Q_X)^{1/2}
+		\chi_{X/M} \, \leftarrow \, \tfrac{1}{2}, \quad \epsilon_{X/M} \, \leftarrow \, 0: \qquad
+		\varphi_{(1/2,\,0)} \, (i_K ; \Delta Q , L)\, = \, (\Delta Q_M^{L} (i_K) + \Delta Q_M)^{1/2}\cdot(\Delta Q_X^L \, (i_K) \, + \, \Delta Q_X)^{1/2}
 	\end{aligned}
 \]
 
-**THE BRIDGE \(\chi_{X/M} \leftrightarrow \eta \leftrightarrow \varsigma_{X/M}\) (PROVEN).** The weight ratio IS the per-TICK square-root-price step — so \(\chi_{X/M}\) is an OBSERVABLE of the grid already defined, not a new primitive:
+The leg reading — \(\chi_{X/M}\) as the \(\Delta Q_M\)-leg exponent (the \(1/p_{(\eta,\Delta_i)}\) leg), that leg's share of pool value — is Definition 12's orientation. At \(\chi_{X/M} = 1/2\) the two orientations of the OPEN FLAG coincide, so the current case is orientation-blind — which is why the Definition 12 / Definition 13 contradiction stayed invisible in practice.
+
+*Formalized:* `phiCES_zero_half_eq_geom` (the \((\epsilon_{X/M} \to 0,\ \chi_{X/M} = 1/2)\) member is the geometric mean).
+
+**Theorem 10 (The bridge \(\chi_{X/M} \leftrightarrow \eta \leftrightarrow \varsigma_{X/M}\)).** The weight ratio IS the per-TICK square-root-price step — so \(\chi_{X/M}\) is an OBSERVABLE of the grid already defined, not a new primitive:
 
 \[
 	\begin{aligned}
@@ -457,7 +462,7 @@ zero exactly at \(\chi_{X/M} = 1/2\). It is a **derived observable** — a funct
 	\end{aligned}
 \]
 
-Both directions, both round trips; and the ETA blocks' curvature index factors through the share, the per-SPACING step being the per-TICK step raised to \(\Delta_i\):
+Both directions, both round trips; and the share asymmetry (Definition 15) factors through the share, the per-SPACING step being the per-TICK step raised to \(\Delta_i\) — with \(\Lambda\) the logistic, \(\Lambda(z) = 1/(1+e^{-z})\) (the same \(\Lambda\) the fee schedule uses below):
 
 \[
 	\begin{aligned}
@@ -467,6 +472,8 @@ Both directions, both round trips; and the ETA blocks' curvature index factors t
 		\chi_{X/M}(\varsigma_{X/M}) \, = \, \frac{1}{1 + (1-\varsigma_{X/M})^{1/\Delta_i}}
 	\end{aligned}
 \]
+
+*Formalized* (`EtaTilde`, 23/23 axiom-clean; doc \(\chi_{X/M}\) ↔ Lean `etaTilde`): anchor `etaTilde_ratio`; observable `etaTilde_eq_priceEta_step`; bijection `etaTilde_mem_Ioo`, `etaTilde_strictMono`, `etaOfTilde_etaTilde`, `etaTilde_etaOfTilde`, `etaTilde_half_iff`, `etaTilde_tendsto_atTop`/`_atBot`; bridge to \(\varsigma_{X/M}\): `curvIndex_eq_of_etaTilde`, `curvOfTilde_etaTilde`, `tildeOfCurv_curvOfTilde`; range `curvOfTilde_mem_Ioo` (the \(t \in (0,1)\) hypothesis is NECESSARY — `Real.rpow` is \(\log|x|\)-based outside it).
 
 DOMAIN COINCIDENCE — three conditions stated independently, in different blocks, that turn out to be one:
 
