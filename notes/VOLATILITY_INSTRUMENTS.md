@@ -200,7 +200,29 @@ parameter set. A parameter not listed here is not a parameter of the protocol.
   *Purpose:* the substitution axis of Definition 13, second slot of the subscript tuple; the elasticity of substitution is \(\bar\epsilon_{X/M} = 1/(1-\epsilon_{X/M})\), and the genuine curvature \(\kappa_{\varphi}\) is a function of this axis ALONE. Proven orthogonal to the share axis (`phiCES_rho_ne_eps_axis`; \(\varsigma_{X/M}\) factors through the share, `curvIndex_is_rho_zero_slice`).
   *Economic meaning:* the slippage dial — HOW HARD the pool resists being moved. This is what an arbitrageur pays for: less substitutability means more price impact per unit extracted — and equally worse execution for the ordinary investor, which is why both effects move together and produce an interior optimum.
 
-> PENDING ENTRIES (added as the pair pass reaches them): \(\Theta_{\phi}\) (fee schedule), \(\Theta_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) (order).
+**Protocol Parameter (\(\Theta_{\phi} = \{\gamma, \bar\phi, \beta, \alpha\}\) — the fee schedule).**
+
+- \(\bar\phi\) — the **fee floor**.
+  *Domain:* \(\bar\phi \geq 0\).
+  *Purpose:* the unconditional base of the schedule (Definition 18).
+  *Economic meaning:* LPs take a base fee at every volatility — the schedule never degenerates to free execution (Theorem 1's lower envelope).
+
+- \(\alpha = \{\alpha_j, \alpha_R\}\) — the **surcharge scales**.
+  *Domain:* \(\alpha_j \geq 0\), \(\alpha_R \geq 0\).
+  *Purpose:* scale each sigmoid's maximum ([ALGEBRA](../refs/algebra-tech-paper.pdf) eq. (4)); \(\sum_j \alpha_j\) times the gate ceiling \(\alpha_R\) sets the width of Theorem 1's fee band.
+  *Economic meaning:* the volatility surcharge budget — what heavy trading in volatile conditions can add above the floor.
+
+- \(\beta = \{\beta_j, \beta_R\}\) — the **transition midpoints**.
+  *Domain:* real.
+  *Purpose:* place each sigmoid's transition; they position the ramp *inside* the band without moving its edges.
+  *Economic meaning:* the volatility (resp. utilization) levels at which the surcharge switches on — G3's placement-not-level reading.
+
+- \(\gamma = \{\gamma_j, \gamma_R\}\) — the **steepnesses**.
+  *Domain:* \(\gamma_j > 0\) (Theorem 1's monotonicity hypothesis).
+  *Purpose:* the ramp steepness (single-term case: \(s_f = 1/\gamma_0\)).
+  *Economic meaning:* how sharply the schedule reacts near its midpoint — the dial between smooth repricing and a near-step surcharge.
+
+> PENDING ENTRIES (added as the pair pass reaches them): \(\Theta_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) (order).
 
 ### PROTOCOL_CONSTANTS
 
@@ -557,21 +579,15 @@ This is the M9 **DECIDED** entry (see the M9–M10 blocks below; their \(\tau_{\
 | Bit toggling             | XOR                      | Abelian group        |
 | Cyclic governance states | Addition mod (N)         | Finite abelian group |
 
-And define:
+**Definition 18 (Dynamic fee schedule).** The fee *level* is produced by the volatility-and-utilization schedule — the sum-of-sigmoids dynamic fee of [ALGEBRA](../refs/algebra-tech-paper.pdf) (their eq. (4)–(5); \(\alpha\) scales, \(\gamma\) steepens, \(\beta\) centers), gated by utilization:
 
 \[
 	\begin{aligned}
-\phi \, ( \sigma \, (i (t));t) \, &= \bar \phi\, + \, \Big (\sum_j \, \frac{\alpha_j}{1 + \exp(\gamma_j \, (\beta_j - \sigma (i (t))))} \Big )\, \cdot \frac{\alpha_R}{1 \, + \, \exp(\gamma_R \, (\beta_R - \frac{\varphi_{1/2,\,0} \, (i_K ; \Delta Q , 0; t)}{\varphi_{1/2,\,0} \, (i_K ; 0, L; t)}))}
+\phi \, ( \sigma \, (i (t));t) \, &\equiv \bar \phi\, + \, \Big (\sum_j \, \frac{\alpha_j}{1 + \exp(\gamma_j \, (\beta_j - \sigma (i (t))))} \Big )\, \cdot \frac{\alpha_R}{1 \, + \, \exp(\gamma_R \, (\beta_R - \frac{\varphi_{(1/2,\,0)} \, (i_K ; \Delta Q , 0; t)}{\varphi_{(1/2,\,0)} \, (i_K ; 0, L; t)}))}
 	\end{aligned}
 \]
 
-Define:
-
-\[
-	\begin{aligned}
-		\Theta_{\phi} \, &= \, \{ \gamma, \bar \phi, \beta, \alpha\}
-	\end{aligned}
-\]
+The gate's argument is the **utilization ratio** — the trading function evaluated on flow alone over its evaluation on the endowments alone (Theorem 1's \(u\) is the gate's value). The parameters \(\Theta_{\phi} = \{\gamma, \bar\phi, \beta, \alpha\}\) are Protocol Parameters (see **PROTOCOL_PARAMETERS (\(\Theta_{\phi}\))**); the R-suffixed trio \((\alpha_R, \beta_R, \gamma_R)\) enters as members of the \(\alpha/\beta/\gamma\) families. **Signature note:** the \(t\) argument extends Definition 12's \((i_K; \Delta Q, L)\) signature — the time dependence enters through the flow and endowments at \(t\); flagged, not silently repaired.
 
 **Theorem 1 (Fee Envelope).** Writing \(u = \alpha_R\Big/\Big(1+\exp\Big(\gamma_R\Big(\beta_R - \frac{\varphi_{1/2,\,0}(i_K;\Delta Q,0;t)}{\varphi_{1/2,\,0}(i_K;0,L;t)}\Big)\Big)\Big)\):
 \[
