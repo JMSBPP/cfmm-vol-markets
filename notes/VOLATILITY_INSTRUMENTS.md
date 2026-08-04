@@ -769,6 +769,43 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 
 *Formalized:* `VolInstrument.probOr_eq`; `probOr_comm`; `probOr_assoc`; `probOr_zero`; `probOr_mem_Icc`; `probOr_mono`; `probOr_hazard`.
 
+**Definition 24 (Linear pool value).** The **linear pool value** is the pool's holdings marked at spot — the money-units valuation with no curvature adjustment:
+
+\[
+	\begin{aligned}
+		\pi^{\text{linear}}(t) \, \equiv \, p_{(\eta,\Delta_i)}(i(t))\; Q_X^L\Big(\textstyle\sum_j^{\#\text{LP}} L_j(i(t);\cdot)\Big) \, + \, Q_M^L\Big(\textstyle\sum_j^{\#\text{LP}} L_j(i(t);\cdot)\Big)
+	\end{aligned}
+\]
+
+*(Symbol per user rulings 2026-08-04: values are \(\pi\)-objects and this valuation is linear; the former ad-hoc \(D_t\) is retired — \(D\) reads as debt.)*
+
+**Definition 25 (Portfolio value function).** With \((Q_X(p), Q_M(p))\) the point of the trading curve \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})} = \text{const}\) at which the marginal price (Definition 14's \(p = \partial_{Q_X}\varphi/\partial_{Q_M}\varphi\)) equals \(p\), the **portfolio value function** is the on-curve valuation
+
+\[
+	\begin{aligned}
+		\pi^{\varphi}(p) \, \equiv \, p\, Q_X(p) \, + \, Q_M(p)
+	\end{aligned}
+\]
+
+— the portfolio value function of [CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf), the conic dual of the trading function (their equivalence theorem); concave and nondecreasing in \(p\). **Relation to Definition 24:** \(\pi^{\text{linear}}\) marks FIXED holdings at spot; \(\pi^{\varphi}\) moves holdings ALONG the curve — at the current price the two coincide, away from it \(\pi^{\varphi}\) falls below the fixed-holdings line, and that concavity gap is what LVR prices. *Status:* **UNFORMALIZED** — no Lean carrier (`exp/CESLongVolPayoff.pi_eta_trader` is the trader-side Bregman object, distinct).
+
+**Definition 26 (LVR rate).** Per [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf), with the second derivative well-defined on Definition 25's object:
+
+\[
+	\begin{aligned}
+		\mathrm{LVR}(t) \, \equiv \, \frac{\sigma^2(i(t))\, p^2}{2}\,\Big|\frac{d^2\pi^{\varphi}}{dp^2}(p)\Big|\;\Big|_{p = p_{(\eta,\Delta_i)}(i(t))} \qquad \big(\text{CPMM: } \mathrm{LVR} = \tfrac{\sigma^2}{8}\,\pi^{\varphi}\big)
+	\end{aligned}
+\]
+
+**Discretization frame** (\(t\)-indexed, shared by FLAIR and MEV; the Lean carriers keep their `w_t`/`D_t`/`a_t` names — standing doc-glyph/Lean-name split). Time is stepped by the cadence \(\Delta t\); per step \(t\):
+
+- \(\Delta Q_{\cdot}(t) \geq 0\) — the per-step traded amount (it IS the trade flow of Definition 12, hence the \(\Delta Q\) glyph);
+- \(\pi^{\text{linear}}(t) > 0\) — the per-step capital (Definition 24);
+- \(\overline{\mathrm{LVR}}(t) \, \equiv \, \mathrm{LVR}(t)\cdot\Delta t \, \geq \, 0\) — the per-block arb-opportunity weight (Definition 26; the bar is the normalization glyph, per \(\bar L\));
+- \(\nu_t \, \equiv \, \Delta Q_{\cdot}(t)/\pi^{\text{linear}}(t)\) — capital-normalized flow.
+
+No other \(t\)-indexed symbols are introduced in this section.
+
 ### FLAIR
 
 **Definition 20 (FLAIR).** The **LP-competition hazard** \(\lambda_{\text{FLAIR}}\) is the time-integrated fee yield per unit of pooled capital — the FLAIR metric of [FLAIR](../refs/flair/MilionisWanAdamsFLAIR.pdf), instantiated on this document's objects:
@@ -779,15 +816,14 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 	\end{aligned}
 \]
 
-— numerator: the fee density collected across the price range; denominator: **pool value in money units** (asset leg at price, plus money leg). It is a plain-\(\lambda\) hazard (Convention 4): fee income *arrives*; nothing is re-routed. **Two repairs vs the raw note (user-approved 2026-08-04):** the undeclared \(p_{(\cdot)}\) contraction is expanded to \(p_{(\eta,\Delta_i)}\) (no new shorthand minted), and the denominator's first term is corrected \(Q_M^L \to Q_X^L\) — as written both terms were the money leg, double-counting money and valuing nothing at price.
+— numerator: the fee density collected across the price range; denominator: the **linear pool value** \(\pi^{\text{linear}}(t)\) (Definition 24 — asset leg at price, plus money leg). It is a plain-\(\lambda\) hazard (Convention 4): fee income *arrives*; nothing is re-routed. **Two repairs vs the raw note (user-approved 2026-08-04):** the undeclared \(p_{(\cdot)}\) contraction is expanded to \(p_{(\eta,\Delta_i)}\) (no new shorthand minted), and the denominator's first term is corrected \(Q_M^L \to Q_X^L\) — as written both terms were the money leg, double-counting money and valuing nothing at price.
 
-**Theorem 15 (FLAIR identification and corner solution).** The program \(\sup_{\Theta_{\lambda_{\text{FLAIR}}}} \lambda_{\text{FLAIR}}\) over a sub-block \(\Theta_{\lambda_{\text{FLAIR}}} \subset \Theta_{\phi}\) is **identified and solved**. Discretizing with flow weights \(w_t \geq 0\) and capital \(D_t > 0\):
-
+**Theorem 15 (FLAIR identification and corner solution).** The program \(\sup_{\Theta_{\lambda_{\text{FLAIR}}}} \lambda_{\text{FLAIR}}\) over a sub-block \(\Theta_{\lambda_{\text{FLAIR}}} \subset \Theta_{\phi}\) is **identified and solved**. Discretizing per the frame (\(\Delta Q_{\cdot}(t) \geq 0\), \(\pi^{\text{linear}}(t) > 0\); \(\Lambda\) is the logistic of Theorem 10):
 \[
 	\begin{aligned}
 		\lambda_{\text{FLAIR}} \, = \, \bar\phi\, W \, + \, u \sum_j \alpha_j\, W_j, \qquad
-		W = \sum_t \frac{w_t}{D_t}, \quad
-		W_j = \sum_t \frac{\Lambda\big(\gamma_j(\sigma_t-\beta_j)\big)\, w_t}{D_t}, \quad 0 \leq W_j < W
+		W = \sum_t \frac{\Delta Q_{\cdot}(t)}{\pi^{\text{linear}}(t)}, \quad
+		W_j = \sum_t \frac{\Lambda\big(\gamma_j(\sigma_t-\beta_j)\big)\, \Delta Q_{\cdot}(t)}{\pi^{\text{linear}}(t)}, \quad 0 \leq W_j < W
 	\end{aligned}
 \]
 
@@ -812,7 +848,7 @@ Sources, all vendored: [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFe
 
 **Notation map [M0].** [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf)'s fee symbol `γ` is transcribed as this document's fee `φ`; this document's `γ_j` stays the sigmoid steepness. The paper's Poisson block rate `λ` is transcribed through its own primitive `Δt ≜ λ⁻¹`, because this document's `λ` is the hazard rate (Convention 4). The paper's composite parameter `η ≜ γ√(2λ)/σ` is deliberately never named — `η` is reserved project-wide for the pricing grid (Definition 8). <!-- notation-map --> Root-block-rate factor: \(\sqrt{2/\Delta t}\) throughout, no composite abbreviation. Fee \(= \phi\) (ceiling \(\bar\phi\), set \(\Theta_{\phi}\)); the quote function is \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\) (Definition 13), currently \(\varphi_{(1/2,\,0)}\) (Rule 5); bare \(\varphi\) is NOT used.
 
-\(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)). \(\sigma_t = \sigma(i(t))\): enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\). \(a_t \geq 0\): PER-STEP arb-opportunity weight \(= \text{LVR rate}\cdot\Delta t\) (Definition 22(i)); \(w_t\) (Theorem 15) is per-step traded amount — commensurable. \(D_t > 0\): the SAME capital denominator as \(\lambda_{\text{FLAIR}}\).
+\(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)). \(\sigma_t = \sigma(i(t))\): enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\). The \(t\)-indexed symbols \(\Delta Q_{\cdot}(t)\), \(\pi^{\text{linear}}(t)\), \(\overline{\mathrm{LVR}}(t)\), \(\nu_t\) are the discretization frame at the head of this section — the SAME capital denominator serves \(\lambda_{\text{FLAIR}}\) and \(\lambda_{\text{ARB}}\).
 
 \(\lambda_{\text{ARB}}\) (Definition 22) \(\subsetneq \lambda_{\text{MEV}}\) (Definition 23): SUMMAND, not sibling — Definition 19's index set carries one, never both (double-count); \(\lambda_{\text{ARB}}\) absorbs the "arb toxicity" entry. The paper's `FEE` \(\subsetneq \lambda_{\text{FLAIR}}\) (noise flow excluded there). Standing hypotheses: the paper's Assumption 2 (symmetric driftless mispricing, two-sided fee; non-symmetric variant App. C); Proposition 9 additionally: regularity (13), (15).
 
@@ -844,7 +880,7 @@ Sources, all vendored: [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFe
 
 \[
 	\begin{aligned}
-		\lambda_{\text{ARB}} \, \equiv \, \sum_{t<T} \mathbb{P}_{\Delta_{\text{ARB}}}\big(\phi(\sigma_t),\sigma_t,\Delta t\big)\,\frac{a_t}{D_t}
+		\lambda_{\text{ARB}} \, \equiv \, \sum_{t<T} \mathbb{P}_{\Delta_{\text{ARB}}}\big(\phi(\sigma_t),\sigma_t,\Delta t\big)\,\frac{\overline{\mathrm{LVR}}(t)}{\pi^{\text{linear}}(t)}
 	\end{aligned}
 \]
 
@@ -852,11 +888,11 @@ CPMM instantiation, two tiers: (i) the LEADING-ORDER per-step weight
 
 \[
 	\begin{aligned}
-		a_t \, = \, \frac{\sigma_t^2}{8}\,V_t\,\Delta t
+		\overline{\mathrm{LVR}}(t) \, = \, \frac{\sigma_t^2}{8}\,\pi^{\varphi}_t\,\Delta t
 	\end{aligned}
 \]
 
-(\(\mathrm{LVR} = (\sigma^2/8)V(P)\) is a RATE ⟹ \(\cdot\Delta t\) per block; summand \(\propto \Delta t^{3/2}\) = [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf) §7.1 per-block scaling; no guard needed); (ii) the EXACT Corollary-2 kernel
+(Definition 26's CPMM case — \(\mathrm{LVR}\) is a RATE ⟹ \(\cdot\Delta t\) per block; summand \(\propto \Delta t^{3/2}\) = [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf) §7.1 per-block scaling; no guard needed); (ii) the EXACT Corollary-2 kernel
 
 \[
 	\begin{aligned}
@@ -882,7 +918,7 @@ Batch clearing (Definition 23, \(\lambda_{\text{sandwich}} = 0\)) ⟹ \(\Theta_{
 
 \[
 	\begin{aligned}
-		\lambda_{\text{ARB}} \, \geq \, \sum_{t<T} \mathbb{P}_{\Delta_{\text{ARB}}}\Big(\bar\phi_{\max} + u_{\max}\textstyle\sum_j \alpha_{\max,j},\, \sigma_t,\, \Delta t\Big)\frac{a_t}{D_t}
+		\lambda_{\text{ARB}} \, \geq \, \sum_{t<T} \mathbb{P}_{\Delta_{\text{ARB}}}\Big(\bar\phi_{\max} + u_{\max}\textstyle\sum_j \alpha_{\max,j},\, \sigma_t,\, \Delta t\Big)\frac{\overline{\mathrm{LVR}}(t)}{\pi^{\text{linear}}(t)}
 	\end{aligned}
 \]
 
@@ -892,7 +928,7 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 
 *Annotation [M6a] (internal reference — deliberately not a numbered statement, user ruling 2026-08-04):* over \(\Theta_{\phi}\) unconstrained there is NO trade-off — \(\max \lambda_{\text{FLAIR}}\) and \(\min \lambda_{\text{ARB}}\) sit at the SAME level corner, saturate along the SAME \(\beta_j \to -\infty\), robustly to every linear scalarization; \((\beta, \gamma_j)\) are NOT essential. Carriers: `joint_corner_degeneracy`, `joint_beta_degeneracy`, `joint_scalarization_degeneracy` (`MevJointProgram.lean`). The degeneracy-breaker must come from OUTSIDE \(\Theta_{\phi}\).
 
-**Theorem 19 (Flat-path optimality at constant \(\sigma\); the \(\sigma\)-varying comparison is REFUTED) [M6b].** Over arbitrary nonnegative fee PATHS \(\{\phi_t\}\) — NOT \(\Theta_{\phi}\) schedules — with \(\nu_t = w_t/D_t\), \(W = \sum_t \nu_t > 0\), budget \(\sum_t \phi_t\nu_t = B\), aligned measure \(a \equiv w\), and \(\sigma_t \equiv \sigma_0\):
+**Theorem 19 (Flat-path optimality at constant \(\sigma\); the \(\sigma\)-varying comparison is REFUTED) [M6b].** Over arbitrary nonnegative fee PATHS \(\{\phi_t\}\) — NOT \(\Theta_{\phi}\) schedules — with \(\nu_t\) per the frame, \(W = \sum_t \nu_t > 0\), budget \(\sum_t \phi_t\nu_t = B\), aligned measure \(\overline{\mathrm{LVR}} \equiv \Delta Q_{\cdot}\), and \(\sigma_t \equiv \sigma_0\):
 
 \[
 	\begin{aligned}
@@ -901,7 +937,7 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 	\end{aligned}
 \]
 
-— the flat path minimizes \(\lambda_{\text{ARB}}\) at equal FLAIR income; non-constant on \(\{\nu_t > 0\}\) is strictly worse (the strict half consumes Theorem 16's strict convexity). The alignment \(a \equiv w\) is STRONG (traded volume ∝ LVR path block-by-block); without it Jensen is inapplicable and the conclusion can reverse. **REFUTED for \(\sigma\)-varying schedules** (`mev_ge_flat_under_flair_budget_false`): \(\exists\, \phi(\cdot) \geq 0\) with \(\lambda_{\text{ARB}}^{\text{flat}} > \lambda_{\text{ARB}}^{\phi}\) at equal FLAIR income — witness \(T{=}2,\ \Delta t{=}2,\ B{=}2,\ \sigma=(1,10)\), fees \((2,0)\): \(\tfrac{31}{22} > \tfrac{4}{3}\) (\(\sigma\)-varying ⟹ different convex summands, Jensen inapplicable). **OPEN — the \(\Theta_{\phi}\)-restricted case:** the witness is \(\sigma\)-DEcreasing while \(\Theta_{\phi}\)-reachable schedules are isotone (`multiFee_monotone`); the refutation settles only the general claim.
+— the flat path minimizes \(\lambda_{\text{ARB}}\) at equal FLAIR income; non-constant on \(\{\nu_t > 0\}\) is strictly worse (the strict half consumes Theorem 16's strict convexity). The alignment \(\overline{\mathrm{LVR}} \equiv \Delta Q_{\cdot}\) is STRONG (traded volume ∝ LVR path block-by-block); without it Jensen is inapplicable and the conclusion can reverse. **REFUTED for \(\sigma\)-varying schedules** (`mev_ge_flat_under_flair_budget_false`): \(\exists\, \phi(\cdot) \geq 0\) with \(\lambda_{\text{ARB}}^{\text{flat}} > \lambda_{\text{ARB}}^{\phi}\) at equal FLAIR income — witness \(T{=}2,\ \Delta t{=}2,\ B{=}2,\ \sigma=(1,10)\), fees \((2,0)\): \(\tfrac{31}{22} > \tfrac{4}{3}\) (\(\sigma\)-varying ⟹ different convex summands, Jensen inapplicable). **OPEN — the \(\Theta_{\phi}\)-restricted case:** the witness is \(\sigma\)-DEcreasing while \(\Theta_{\phi}\)-reachable schedules are isotone (`multiFee_monotone`); the refutation settles only the general claim.
 
 *Formalized:* budget half `flair_budget_pins_mean_fee`, `flair_budget_mean`; path carriers `flairPath`/`mevPath` with bridges `flairPath_schedule`, `mevPath_schedule`, `flairPath_sum`, `flairPath_budget_mean`; the constant-\(\sigma\) display at PATH level `mev_ge_flat_under_flair_budget_const_sigma`, strict `mev_gt_flat_under_flair_budget_const_sigma`; the refutation `mev_ge_flat_under_flair_budget_false`.
 
