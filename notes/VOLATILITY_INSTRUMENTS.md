@@ -188,6 +188,8 @@ parameter set. A parameter not listed here is not a parameter of the protocol.
   *Purpose:* grid granularity — the quantization step at which strikes, hence ladder legs, may sit (Definition 8).
   *Economic meaning:* the spacing pins the ladder ratio \(\xi^{\star} = \lambda^{-\Delta_i/2}\) (\(\Theta_{\ell}\) entry) and sets the per-spacing price step \(\lambda^{\eta\Delta_i/2}\) — the coarseness lever coupling the pricing geometry to the replication ladder.
 
+> On the grid, \(\eta\) and \(\Delta_i\) are REDUNDANT — they enter only through the product \(\eta\Delta_i\) (Theorem 21); they separate off-grid (\(\xi^{\star}\), Proposition 6).
+
 **Protocol Parameter (\(\Theta_{\varphi} = \{\chi_{X/M}, \epsilon_{X/M}\}\) — the trading curve).**
 
 - \(\chi_{X/M}\) — the **share parameter**.
@@ -289,6 +291,22 @@ where \(\lambda\) is the fixed tick base — a **Protocol Constant** (see **PROT
 *Formalized:* `VolInstrument.priceEta`; `priceEta_pos` (positivity, unconditional); `priceEta_strictMono` (under \(\eta\,\Delta_i > 0\)); `priceEta_one` (\(\eta = 1\) recovers `PosSpec.tickPrice`).
 
 \(\eta\) (price grid) and \(\chi_{X/M}\) (trading curve, \(\varphi_{(\chi_{X/M},\,0)}\)) are DISTINCT parameters on distinct objects; they are not two names for one exponent. Their relation is a THEOREM, not a definition — see the \(\chi_{X/M} \leftrightarrow \eta \leftrightarrow \varsigma_{X/M}\) block. <!-- notation-map -->
+
+**Theorem 21 (Half-kernel factorization: rescaling and partition change).** Definition 8's grid factors through the canonical geometry in two ways.
+
+(i) **Rescaling:** \(p_{(\eta,\Delta_i)} = p_{(1,\,\eta\Delta_i)}\) — on the grid, \(\eta\) and \(\Delta_i\) enter ONLY through the product \(\eta\Delta_i\); the grid alone cannot identify them separately (they separate off-grid: \(\xi^{\star} = \lambda^{-\Delta_i/2}\), Proposition 6, depends on \(\Delta_i\) alone).
+
+(ii) **Partition change (the pricing-implementation theorem):** for ANY admissible \((\eta, \Delta_i)\) and any reference spacing \(\bar\Delta_i \neq 0\), the price is a PRODUCT of two canonical-geometry prices whose tick arguments are functions of the current tick:
+
+\[
+	\begin{aligned}
+		p_{(\eta,\Delta_i)}(i) \, = \, p_{(1,\bar\Delta_i)}(i^{\star}) \cdot p_{(1,\bar\Delta_i)}(i^{\circ}), \qquad i^{\star} = i^{\circ} = \frac{i\,\Delta_i\,\eta}{2\,\bar\Delta_i}
+	\end{aligned}
+\]
+
+exactly on integer ticks under the commensurability \((i^{\star}+i^{\circ})\,\bar\Delta_i = i\,\Delta_i\,\eta\); an Int24-windowed split with witnesses \(i_- = \lfloor \eta\, i \rfloor\), \(i_+ = i - i_-\) realizes it inside the Uniswap/Plank tick domain. This is why the ½ sqrt-price algebra CLOSES under \(\eta\) — the plank implementation prices every \(\eta\) member using only canonical-kernel evaluations. *Convention bridge:* the exp layer states these on its \(\bar\eta\)-kernel, whose canonical member is written \(\bar\eta = 1/2\); by T28'a's factor two that member IS Definition 8's \(\eta = 1\) grid, and the identity makes no factor-share identification.
+
+*Formalized:* `CFMM.Eta.p_eta_partition_change`; `exists_partition_change`; `p_eta_partition_change_int` (`exp/EtaPartitionChange`); Int24 split `eta_split_kernel_identity` (`exp/eta`); rescaling `p_eta_eq_P_half_rescaled`; update rule `p_eta_post_eq` (`exp/EtaReplication` — the plank-implemented half); convention bridge `EtaCurvature.priceEta_eq_p_eta_half`, `priceEta_eq_P_half` (T28'a).
 
 **Theorem 4 (Geometric strike-notional weights).** On the price grid \(\lambda^{i\,\Delta_i}\) — the square of Definition 8's grid at \(\eta = 1\) (`priceGrid_eq_tickPrice_sq`) — the discretized strike-notional weights of the log contract are exactly geometric:
 
@@ -417,11 +435,11 @@ The display is one member of a parameterized class: the subscript tuple is \((\c
 
 *Formalized:* `PhiCES.phiCES` (12/12 axiom-clean): `phiCES_tendsto_phiEps`; `phiCES_one` (\(\epsilon_{X/M} = 1\) linear); `phiCES_zero_half_eq_geom`; `phiCES_homogeneous`/`_pos`/`_mono`. *Narrowed, declared:* `phiCES_concave` is RADIAL concavity only — joint concavity in \((Q_X,Q_M)\) is OPEN.
 
-**Definition 14 (Curvature).** The **curvature** \(\kappa_{\varphi}\) of a trading function is the price-impact elasticity of its marginal price along the trading curve, normalized against the constant-product member: with marginal price \(p = \partial_{Q_X}\varphi \,/\, \partial_{Q_M}\varphi\) and
+**Definition 14 (Curvature).** The **curvature** \(\kappa_{\varphi}\) of a trading function is the price-impact elasticity of its marginal price along the trading curve, normalized against the constant-product member: with the **marginal price** minted as its own object — \(p_{\varphi} \equiv \partial_{Q_X}\varphi \,/\, \partial_{Q_M}\varphi\), the quotient of partials of the trading function (bare \(p\) is not used; the subscript \(p\) in \(\epsilon_{p/X}\) names this object; Lean `CurvatureTwo.margPrice`, subject to the PR-ORIENT argument-order FLAG) — and
 
 \[
 	\begin{aligned}
-		\epsilon_{p/X} \, \equiv \, \frac{d \ln p}{d \ln Q_X}\Big|_{\varphi = \text{const}}, \qquad
+		\epsilon_{p/X} \, \equiv \, \frac{d \ln p_{\varphi}}{d \ln Q_X}\Big|_{\varphi = \text{const}}, \qquad
 		\kappa_{\varphi} \, \equiv \, \frac{|\epsilon_{p/X}|}{|\epsilon_{p/X}| + |\epsilon_{p/X}^{\,0}|}
 	\end{aligned}
 \]
@@ -429,6 +447,16 @@ The display is one member of a parameterized class: the subscript tuple is \((\c
 where \(\epsilon_{p/X}^{\,0}\) is the same elasticity for the \(\epsilon_{X/M} = 0\) (constant-product) member at the same point. \(\epsilon_{p/X}\) is an **observable** of any member of the trading-function class (Definition 12), not a parameter: the second derivative of \(\varphi\) enters through it (the derivative of the marginal price), and the benchmark normalization makes \(\kappa_{\varphi}\) scale-free, with the constant-product pool at \(\kappa_{\varphi} = 1/2\). Notation binding: \(\kappa_{\varphi}\) names the **genuine** curvature (\(\varphi\) the quote function, never the fee \(\phi\)); the share-asymmetry index \(\varsigma_{X/M}\) is NOT a curvature. <!-- notation-map -->
 
 *Formalized:* the definitional layer is **UNFORMALIZED** — the in-tree `CurvatureTwo.curvTwo` is the closed form of Proposition 7 by fiat, not this definition.
+
+**Proposition 10 (Grid–marginal-price relation).** The grid map and the marginal price are DISTINCT objects — the identification \(p_{(\eta,\Delta_i)} \equiv p_{\varphi}\) is NOT admissible. At Definition 9's reserves, for the \(\chi_{X/M} = 1/2\) member,
+
+\[
+	\begin{aligned}
+		p_{\varphi}(i_K) \, = \, \frac{\Delta Q_M^L(i_K)}{\Delta Q_X^L(i_K)} \, = \, \frac{1}{p_{(\eta,\Delta_i)}(i_K)\; p_{(\eta,\Delta_i)}(i_K+\Delta_i)}
+	\end{aligned}
+\]
+
+— the grid enters the marginal price as the INVERSE PRODUCT of adjacent grid values: the √price-vs-price gap Theorem 4 already flags (`priceGrid_eq_tickPrice_sq`), plus the leg orientation. *Status:* elementary algebra from Theorem 5's reciprocal form; **unproved in-tree** (cheap Aristotle rider on the Proposition 7 bundle).
 
 **Proposition 7 (CES curvature closed form).** For the CES family (Definition 13), at the balanced point \(|\epsilon_{p/X}| = \dfrac{1-\epsilon_{X/M}}{1-\chi_{X/M}}\), and
 
@@ -777,21 +805,21 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 
 *(Symbol per user rulings 2026-08-04: values are \(\pi\)-objects and this valuation is linear; the former ad-hoc \(D_t\) is retired — \(D\) reads as debt.)*
 
-**Definition 25 (Portfolio value function).** With \((Q_X^L(p), Q_M^L(p))\) the point of the trading curve \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})} = \text{const}\) at which the marginal price (Definition 14's \(p = \partial_{Q_X}\varphi/\partial_{Q_M}\varphi\)) equals \(p\), the **portfolio value function** is the on-curve valuation of the RESERVES — the \(L\)-superscripted quantities (Definition 10): bare \(Q_X, Q_M\) remain the trading-side arguments of Definition 13, while the reserves derived from liquidity are what the pool holds and what is valued here —
+**Definition 25 (Portfolio value function).** With \((Q_X^L(p_{\varphi}), Q_M^L(p_{\varphi}))\) the point of the trading curve \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})} = \text{const}\) at which the marginal price \(p_{\varphi}\) (Definition 14) attains a given value, the **portfolio value function** is the on-curve valuation of the RESERVES — the \(L\)-superscripted quantities (Definition 10): bare \(Q_X, Q_M\) remain the trading-side arguments of Definition 13, while the reserves derived from liquidity are what the pool holds and what is valued here —
 
 \[
 	\begin{aligned}
-		\pi^{\varphi}(p) \, \equiv \, p\, Q_X^L(p) \, + \, Q_M^L(p)
+		\pi^{\varphi}(p_{\varphi}) \, \equiv \, p_{\varphi}\, Q_X^L(p_{\varphi}) \, + \, Q_M^L(p_{\varphi})
 	\end{aligned}
 \]
 
-— the portfolio value function of [CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf), the conic dual of the trading function (their equivalence theorem); concave and nondecreasing in \(p\). **Relation to Definition 24:** \(\pi^{\text{linear}}\) marks FIXED holdings at spot; \(\pi^{\varphi}\) moves holdings ALONG the curve — at the current price the two coincide, away from it \(\pi^{\varphi}\) falls below the fixed-holdings line, and that concavity gap is what LVR prices. *Status:* **UNFORMALIZED** — no Lean carrier (`exp/CESLongVolPayoff.pi_eta_trader` is the trader-side Bregman object, distinct).
+— the portfolio value function of [CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf), the conic dual of the trading function (their equivalence theorem); concave and nondecreasing in \(p_{\varphi}\). **Relation to Definition 24:** \(\pi^{\text{linear}}\) marks FIXED holdings at spot; \(\pi^{\varphi}\) moves holdings ALONG the curve — at the current price the two coincide, away from it \(\pi^{\varphi}\) falls below the fixed-holdings line, and that concavity gap is what LVR prices. *Status:* **UNFORMALIZED** — no Lean carrier (`exp/CESLongVolPayoff.pi_eta_trader` is the trader-side Bregman object, distinct).
 
-**Definition 26 (LVR rate).** Per [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf), with the second derivative well-defined on Definition 25's object:
+**Definition 26 (LVR rate).** Per [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf), with the second derivative well-defined on Definition 25's object — and the evaluation point CORRECTED (user-exposed 2026-08-04) to the current MARGINAL price \(p_{\varphi}(i(t))\), not the grid value, the two differing by Proposition 10's relation:
 
 \[
 	\begin{aligned}
-		\mathrm{LVR}(t) \, \equiv \, \frac{\sigma^2(i(t))\, p^2}{2}\,\Big|\frac{d^2\pi^{\varphi}}{dp^2}(p)\Big|\;\Big|_{p = p_{(\eta,\Delta_i)}(i(t))} \qquad \big(\text{CPMM: } \mathrm{LVR} = \tfrac{\sigma^2}{8}\,\pi^{\varphi}\big)
+		\mathrm{LVR}(t) \, \equiv \, \frac{\sigma^2(i(t))\, p_{\varphi}^2}{2}\,\Big|\frac{d^2\pi^{\varphi}}{dp_{\varphi}^2}\Big|\;\Big|_{p_{\varphi} = p_{\varphi}(i(t))} \qquad \big(\text{CPMM: } \mathrm{LVR} = \tfrac{\sigma^2}{8}\,\pi^{\varphi}\big)
 	\end{aligned}
 \]
 
