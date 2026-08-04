@@ -222,7 +222,7 @@ parameter set. A parameter not listed here is not a parameter of the protocol.
   *Purpose:* the ramp steepness (single-term case: \(s_f = 1/\gamma_0\)).
   *Economic meaning:* how sharply the schedule reacts near its midpoint — the dial between smooth repricing and a near-step surcharge.
 
-> PENDING ENTRIES (added as the pair pass reaches them): \(\Theta_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) (order).
+> Parameter registry COMPLETE: \(\Theta_{\ell}\), \(\Theta_{p}\), \(\Theta_{\varphi}\), \(\Theta_{\phi}\). The former \(\Theta_{\text{ord}}\) is NOT a parameter set — it is user-supplied per order and lives as \(\mathcal{I}_{\text{ord}}\) under **# PROTOCOL_INPUTS** (the third registry class).
 
 ### PROTOCOL_CONSTANTS
 
@@ -390,7 +390,7 @@ identical to the inverse cumulative amount functions of [BUNNI_V2](../refs/bunni
 	\end{aligned}
 \]
 
-The flow is **exogenous** — trade legs arriving against the endowed per-strike amounts of Definition 9: the endowments are the state, the flow is the input. It is a **trading function** in the sense of [CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf), already in canonical form (nondecreasing, concave, homogeneous); its logarithm is the weighted logarithmic utility of [AMM_AXIOMS](../refs/cfmm/bichuch_feinstein-axioms_for_amms-2022.pdf) App. B.2 (their weight \(w \mapsto \chi_{X/M}\) — \(w\) collides with the order width \(w \in \Theta_{\text{ord}}\)), evaluated on per-strike **virtual reserves** in the sense of their App. B.3 (\(\alpha, \beta \mapsto \Delta Q_M^L(i_K), \Delta Q_X^L(i_K)\)). <!-- notation-map -->
+The flow is **exogenous** — trade legs arriving against the endowed per-strike amounts of Definition 9: the endowments are the state, the flow is the input. It is a **trading function** in the sense of [CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf), already in canonical form (nondecreasing, concave, homogeneous); its logarithm is the weighted logarithmic utility of [AMM_AXIOMS](../refs/cfmm/bichuch_feinstein-axioms_for_amms-2022.pdf) App. B.2 (their weight \(w \mapsto \chi_{X/M}\) — \(w\) collides with the order width \(w \in \mathcal{I}_{\text{ord}}\)), evaluated on per-strike **virtual reserves** in the sense of their App. B.3 (\(\alpha, \beta \mapsto \Delta Q_M^L(i_K), \Delta Q_X^L(i_K)\)). <!-- notation-map -->
 
 The display is one member of a parameterized class: the subscript tuple is \((\chi_{X/M}, \epsilon_{X/M})\), the second slot the substitution parameter, with \(\epsilon_{X/M} = 0\) the Cobb–Douglas member. Whether \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\) satisfies the Bichuch–Feinstein axioms is **not asserted here** — their B.2 alone satisfies all of them (Table 1), but its composition with B.3 virtual reserves is unverified (a later Proposition). **The domain of the flow is OPEN (PR-REGION):** the region over which \(\Delta Q\) ranges — signedness of the legs and the admissibility set — is not yet defined; no region symbol is minted pending that ruling.
 
@@ -625,37 +625,57 @@ ECONOMIC CONTENT OF THEOREM 1. The floor \(\bar\phi\) is unconditional — LPs t
 
 ## VOL ORDER COMPLETION — ENDOGENOUS MATURITY
 
-The order parameter set
+# PROTOCOL_INPUTS
+
+Every **Protocol Input** is a quantity supplied by the USER, per order, at interaction time — the third registry class. The classifying test across the three registries is *who sets it, and when*: a Protocol Constant (\(\mathcal{C}_p\)) is fixed by the design once and forever; a Protocol Parameter (\(\Theta_{\bullet}\)) is set by the protocol, uniformly for all users; a Protocol Input is chosen by the user for each interaction. Input entries carry a *Carrier* line — inputs are calldata, and the on-chain field is part of their definition. The input set of the **vol order** (retiring the former \(\Theta_{\text{ord}}\) symbol: inputs are not parameters, so the index letter changes):
 
 \[
-	\Theta_{\text{ord}} \,=\, \{\sigma^2_K,\, w,\, s\}
+	\mathcal{I}_{\text{ord}} \,=\, \{\sigma^2_K,\, w,\, s\}
 \]
 
-(strike, width, skew) pins only the scale-free leg shape \(\ell\,(\xi, \iota; i_K)\). Complete it with the target vega (DECIDED, 2026-07-30):
+(strike, width, skew) pins only the scale-free leg shape \(\ell\,(\xi, \iota; i_K)\).
+
+**Rule 8 (Target-vega completion — DECIDED, 2026-07-30).** The order is completed with the target vega:
 
 \[
-	\Theta_{\text{ord}} \,\leftarrow\, \Theta_{\text{ord}} \,\cup\, \{\Delta Q_v^{\star}\}
+	\mathcal{I}_{\text{ord}} \,\leftarrow\, \mathcal{I}_{\text{ord}} \,\cup\, \{\Delta Q_v^{\star}\}
 \]
 
-ON-CHAIN CARRIER (plank `feat/plank`): the vol order packs the TARGET VEGA as its fourth field — `create_order(strike, width, skew, targetVega)`, `targetVega : u96` at bits 152..247 of the packed `VolOrder` word, in RAW LIQUIDITY units, i.e. `targetVega` \(= \Delta Q_v^{\star}\) exactly (dimension (ii) below). Emitted by `VolOrderCreated(orderId, strike, width, skew, targetVega)`; the fits-packed predicate lives in `VolOrderValidationLib`.
+**Protocol Input (\(\mathcal{I}_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) — the vol order).**
 
-**Maturity equivalence.** From \(\upsilon = T/2\) (`variancePortfolio_upsilon`) and \(\text{Id}_{N_\sigma} = 2/T\) (`variancePortfolio_unit_upsilon`):
+- \(\sigma^2_K\) — the **strike variance**.
+  *Domain:* a variance level (Convention 2: \(\sigma^2(i_K) \equiv \sigma^2_K\)); on-chain packing per `VolOrderValidationLib`.
+  *Purpose:* the strike of the volatility option (Definition 1).
+  *Economic meaning:* the variance level above which the option pays.
+  *Carrier:* `create_order(strike, …)`.
+
+- \(w\) — the **width**.
+  *Domain:* the packed order field (validation predicate in `VolOrderValidationLib`).
+  *Purpose:* with \(s\), pins the scale-free leg shape \(\ell(\xi,\iota;i_K)\).
+  *Economic meaning:* the strike-band width of the replication ladder.
+  *Carrier:* `create_order(…, width, …)`. (This \(w\) is the collision target of the [AMM_AXIOMS](../refs/cfmm/bichuch_feinstein-axioms_for_amms-2022.pdf) remap — Definition 12.)
+
+- \(s\) — the **skew**.
+  *Domain:* the packed order field (validation predicate in `VolOrderValidationLib`).
+  *Purpose:* with \(w\), pins the leg shape.
+  *Economic meaning:* the asymmetry of the ladder around the strike.
+  *Carrier:* `create_order(…, skew, …)`.
+
+- \(\Delta Q_v^{\star}\) — the **target vega** (enters by Rule 8).
+  *Domain:* `u96`, RAW LIQUIDITY units — \(\Delta Q_v^{\star}\) carries the dimension of the replication carrier \(L\) (the DECIDED dimension ruling below).
+  *Purpose:* sizes the ladder and induces the implied maturity (Theorem 13).
+  *Economic meaning:* the vega notional the user targets — the one sizing decision the order stores.
+  *Carrier:* `targetVega : u96` at bits 152..247 of the packed `VolOrder` word (plank `feat/plank`); `targetVega` \(= \Delta Q_v^{\star}\) exactly; emitted by `VolOrderCreated(orderId, strike, width, skew, targetVega)`; fits-packed predicate in `VolOrderValidationLib`.
+
+**Theorem 13 (Maturity equivalence).** From \(\upsilon = T/2\) (`variancePortfolio_upsilon`) and \(\text{Id}_{N_\sigma} = 2/T\) (`variancePortfolio_unit_upsilon`):
 
 \[
 	T^{\star} \,=\, 2\,\frac{\Delta Q_v^{\star}}{N_\sigma} \quad\Longleftrightarrow\quad \Delta Q_v^{\star} \,=\, \frac{T^{\star}}{2}\, N_\sigma
 \]
 
-The perpetual order specifies no \(T\); \(T^{\star}\) is the implied maturity of the equivalent dated variance contract — derived from \(\Delta Q_v^{\star}\), never stored.
+with \(\Delta Q_v^{\star}, N_\sigma > 0 \implies T^{\star} > 0\), and \(T^{\star}\) strictly increasing in \(\Delta Q_v^{\star}\), strictly decreasing in \(N_\sigma\). The perpetual order specifies no \(T\); \(T^{\star}\) is the implied maturity of the equivalent dated variance contract — derived from \(\Delta Q_v^{\star}\), never stored.
 
-> LEAN (`EndogenousMaturity.lean`, 128b24ae; \(N_\sigma \neq 0\)): bijection `dQvStarOfMaturity_tStar`/`tStar_dQvStarOfMaturity`/`maturity_equivalence`; vega \(\Delta Q_v^{\star}\) exact: `tStar_variancePortfolio_upsilon`, `tStar_unit_upsilon`; and
-
-\[
-	\begin{aligned}
-		\Delta Q_v^{\star}, N_\sigma > 0 \implies T^{\star} > 0; \qquad T^{\star} \uparrow \Delta Q_v^{\star}, \quad T^{\star} \downarrow N_\sigma \;\; \text{(both strict)}
-	\end{aligned}
-\]
-
-> `tStar_pos`, `tStar_strictMono_dQvStar`, `tStar_strictAnti_Nσ`.
+*Formalized* (`EndogenousMaturity.lean`; \(N_\sigma \neq 0\)): bijection `dQvStarOfMaturity_tStar` / `tStar_dQvStarOfMaturity` / `maturity_equivalence`; vega-exactness `tStar_variancePortfolio_upsilon`, `tStar_unit_upsilon`; `tStar_pos`; `tStar_strictMono_dQvStar`; `tStar_strictAnti_Nσ`.
 
 **Dimension (DECIDED, 2026-07-30):** \(\Delta Q_v^{\star}\) carries the dimension of the
 REPLICATION CARRIER — liquidity \(L\) — i.e. the quantity of the priced vol asset, per
