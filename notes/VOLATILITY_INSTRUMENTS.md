@@ -542,11 +542,7 @@ The first display is an identity (the decomposition); the Rule is the second —
 	\end{aligned}
 \]
 
-This is the M9 **DECIDED** entry — \(\tau_{\text{MEV}}\) enters the same way (monoid entry = intensity, not targeting).
-
-**Theorem 13 (Fee-monoid facts).** Composition stays in \([0,1]\); it never lowers the fee, and strictly raises it for \(\tau > 0,\ \phi < 1\); the aggregate is invariant to which leg carries a tax; and in hazard coordinates (\(1-\phi = e^{-\lambda}\)) the monoid law is exact hazard addition.
-
-*Formalized:* `tau_monoid_mem` (A1); `tau_monoid_ge` / `tau_monoid_gt` (A2); `tau_no_targeting` (A4); `tau_hazard_exact` (A5).
+This is the M9 **DECIDED** entry (see the M9–M10 blocks below; their \(\tau_{\text{MEV}}\)-entry theorems attach here when that material is converted — hazards and hazard controls are not yet introduced at this point in the document).
 
 **Design menu.** Row 1 is the **DECIDED** structure — Rules 6–7 enact it; the remaining rows are alternative composition structures considered and **not adopted** (candidate Rules never enacted):
 
