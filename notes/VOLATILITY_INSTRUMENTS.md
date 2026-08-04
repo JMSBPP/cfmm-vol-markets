@@ -376,22 +376,9 @@ The display is one member of a parameterized class: the subscript tuple is \((\c
 
 > **FLAG (open, 2026-08-03): LEG ORIENTATION OF \(\chi_{X/M}\).** The display above puts \(\chi_{X/M}\) on the \(\Delta Q_M\) leg; the CES definition below puts it on the \(Q_X\) leg (and matches Lean `PhiCES.phiCES`). One of the two must change, and the choice flips the \(\chi/(1-\chi) = \lambda^{\eta\Delta_i/2}\) bridge and the reading of `curvIndex_is_rho_zero_slice`. Theorem 1 consumes the \(\Delta Q_M\)-leg form. AUTHOR DECISION REQUIRED — not resolved by the rename. <!-- notation-map -->
 
-**THE PARAMETERS, ECONOMICALLY.**
+**THE PARAMETERS, ECONOMICALLY.** *(The \(\chi_{X/M}\) and \(\epsilon_{X/M}\) paragraphs are folded into the \(\Theta_{\varphi}\) registry entries; \(\kappa_{\varphi}\) is converted to Definition 14 / Proposition 7 / Theorem 8 below Definition 13.)*
 
-\(\chi_{X/M}\) — the SHARE (distribution) parameter: the fraction of pool VALUE held in the \(\Delta Q_M\) leg. It says WHERE the value sits. \(\chi_{X/M} = 1/2\) is the balanced pool; moving it tilts inventory toward one leg WITHOUT changing how the curve responds to trade.
-
-\(\epsilon_{X/M}\) — the SUBSTITUTION parameter, with elasticity of substitution \(\bar\epsilon_{X/M} = 1/(1-\epsilon_{X/M})\). **BINDING (user, 2026-08-03): \(\epsilon\) is reserved for ELASTICITIES, always subscripted to differentiate; \(\sigma\) is reserved for VOLATILITIES and VARIANCES and is never an elasticity.** <!-- notation-map --> It says HOW HARD the pool resists being moved — the slippage dial. \(\epsilon_{X/M} = 1\): perfect substitutes, \(\bar\epsilon_{X/M} = \infty\), LINEAR, constant price, NO slippage. \(\epsilon_{X/M} = 0\): \(\bar\epsilon_{X/M} = 1\), Cobb–Douglas = the constant-product AMM. \(\epsilon_{X/M} \to -\infty\): perfect complements, \(\bar\epsilon_{X/M} \to 0\), Leontief, no trade. THIS is what an arbitrageur pays for: less substitutability ⟹ more price impact per unit extracted — and equally worse execution for the ordinary investor, which is why both effects move together and produce an interior optimum.
-
-\(\kappa_{\varphi}\) — the CURVATURE, a function of the SUBSTITUTION axis ALONE:
-
-\[
-	\begin{aligned}
-		\kappa_{\varphi}(\epsilon_{X/M}) \, = \, \frac{1 - \epsilon_{X/M}}{2 - \epsilon_{X/M}} \, \in \, [0,1), \qquad
-		\epsilon_{X/M}(\kappa_{\varphi}) \, = \, \frac{1 - 2\kappa_{\varphi}}{1 - \kappa_{\varphi}}
-	\end{aligned}
-\]
-
-zero exactly at the linear member, strictly positive below it, strictly decreasing in \(\epsilon_{X/M}\); \(\chi_{X/M}\) and \(\Delta_i\) do NOT enter it. The inverse is the DESIGN DIAL — choose a target curvature, read off the substitution exponent.
+**BINDING (user, 2026-08-03): \(\epsilon\) is reserved for ELASTICITIES, always subscripted to differentiate; \(\sigma\) is reserved for VOLATILITIES and VARIANCES and is never an elasticity.** <!-- notation-map -->
 
 \(\varsigma_{X/M}\) — SHARE ASYMMETRY / grid tilt, \(= 1 - ((1-\chi_{X/M})/\chi_{X/M})^{\Delta_i}\), zero exactly at \(\chi_{X/M} = 1/2\). **It is NOT a curvature**: it assigns zero to the constant-product pool, which is not flat. Blocks E1–E7 are theorems about \(\varsigma_{X/M}\) — their mathematics stands, their reading is about SHARE, not curvature.
 
@@ -413,6 +400,36 @@ zero exactly at the linear member, strictly positive below it, strictly decreasi
 \(\epsilon_{X/M} = 0\) is a DEFINED CASE, not an evaluation — \(1/\epsilon_{X/M}\) is undefined there, so the Cobb–Douglas branch is supplied by definition and CONTINUITY at \(\epsilon_{X/M} = 0\) is a **theorem** (`phiCES_tendsto_phiEps`), not a substitution. Every display in this document sits on the \(\epsilon_{X/M} = 0\) slice and is subscripted accordingly; Definition 12 is the \(\epsilon_{X/M} = 0\) member evaluated on the per-strike virtual reserves. **ORIENTATION (PR-ORIENT, OPEN):** this display carries \(\chi_{X/M}\) on the \(Q_X\) leg — the **opposite** of Definition 12's \(\Delta Q_M\)-leg placement; the FLAG applies to the *pair* and one of the two must eventually change.
 
 *Formalized:* `PhiCES.phiCES` (12/12 axiom-clean): `phiCES_tendsto_phiEps`; `phiCES_one` (\(\epsilon_{X/M} = 1\) linear); `phiCES_zero_half_eq_geom`; `phiCES_homogeneous`/`_pos`/`_mono`. *Narrowed, declared:* `phiCES_concave` is RADIAL concavity only — joint concavity in \((Q_X,Q_M)\) is OPEN.
+
+**Definition 14 (Curvature).** The **curvature** \(\kappa_{\varphi}\) of a trading function is the price-impact elasticity of its marginal price along the trading curve, normalized against the constant-product member: with marginal price \(p = \partial_{Q_X}\varphi \,/\, \partial_{Q_M}\varphi\) and
+
+\[
+	\begin{aligned}
+		\epsilon_{p/X} \, \equiv \, \frac{d \ln p}{d \ln Q_X}\Big|_{\varphi = \text{const}}, \qquad
+		\kappa_{\varphi} \, \equiv \, \frac{|\epsilon_{p/X}|}{|\epsilon_{p/X}| + |\epsilon_{p/X}^{\,0}|}
+	\end{aligned}
+\]
+
+where \(\epsilon_{p/X}^{\,0}\) is the same elasticity for the \(\epsilon_{X/M} = 0\) (constant-product) member at the same point. \(\epsilon_{p/X}\) is an **observable** of any member of the trading-function class (Definition 12), not a parameter: the second derivative of \(\varphi\) enters through it (the derivative of the marginal price), and the benchmark normalization makes \(\kappa_{\varphi}\) scale-free, with the constant-product pool at \(\kappa_{\varphi} = 1/2\). Notation binding: \(\kappa_{\varphi}\) names the **genuine** curvature (\(\varphi\) the quote function, never the fee \(\phi\)); the share-asymmetry index \(\varsigma_{X/M}\) is NOT a curvature. <!-- notation-map -->
+
+*Formalized:* the definitional layer is **UNFORMALIZED** — the in-tree `CurvatureTwo.curvTwo` is the closed form of Proposition 7 by fiat, not this definition.
+
+**Proposition 7 (CES curvature closed form).** For the CES family (Definition 13), at the balanced point \(|\epsilon_{p/X}| = \dfrac{1-\epsilon_{X/M}}{1-\chi_{X/M}}\), and
+
+\[
+	\begin{aligned}
+		\kappa_{\varphi}(\epsilon_{X/M}) \, = \, \frac{1 - \epsilon_{X/M}}{2 - \epsilon_{X/M}} \, \in \, [0,1), \qquad
+		\epsilon_{X/M}(\kappa_{\varphi}) \, = \, \frac{1 - 2\kappa_{\varphi}}{1 - \kappa_{\varphi}}
+	\end{aligned}
+\]
+
+— the \(\chi_{X/M}\)-dependence cancels identically: \(\kappa_{\varphi}\) is a function of the SUBSTITUTION axis alone (equivalently \(\kappa_{\varphi} = 1/(1+\bar\epsilon_{X/M})\)). The inverse is the DESIGN DIAL — choose a target curvature, read off the substitution exponent. *Status:* **OPEN in-tree** — Aristotle target: (i) the elasticity computation \(|\epsilon_{p/X}| = (1-\epsilon_{X/M})/(1-\chi_{X/M})\), (ii) the normalization identity.
+
+**Theorem 8 (Properties of the closed form).** The closed form is zero exactly at the linear member (\(\epsilon_{X/M} = 1\)), strictly positive below it, strictly decreasing in \(\epsilon_{X/M}\), with range \([0,1)\); \(\chi_{X/M}\) and \(\Delta_i\) do NOT enter it; both round trips with the inverse hold.
+
+*Formalized:* `CurvatureTwo.curvTwo`; `curvTwo_linear_zero`; `curvTwo_pos_of_lt_one`; `curvTwo_strictAnti_rho`; `curvTwo_mem_Ico`; `rhoOfCurv` (both round trips); \(\bar\epsilon_{X/M}\) = `subElast` (`subElast_zero`, `subElast_tendsto_one`).
+
+**Refutation note (what curvature is NOT).** The Gaussian curvature of \(\varphi\)'s graph is **identically zero** for every member — 1-homogeneity forces \(\mathrm{Hess}\,\varphi \cdot (Q_X,Q_M)^{\top} = 0\), so \(\det \mathrm{Hess} \equiv 0\) and the graph is a ruled surface; the Gaussian reading cannot distinguish linear from Leontief. The un-normalized planar curvature of the trading curve is scale-dependent (\((1-\epsilon_{X/M})/(\sqrt{2}\,t)\) at the symmetric point \(Q_X = Q_M = t\), \(\chi_{X/M} = 1/2\)) and cannot equal a constant. The normalization of Definition 14 is what makes Proposition 7 well-posed. *Status:* unformalized (cheap machine-check; rider on the Proposition 7 Aristotle bundle).
 
 \(\chi_{X/M}\) = the SHARE parameter = the exponent on the \(\Delta Q_M\) leg (the \(1/p_{(\eta, \Delta_i)}\) leg) = that leg's share of pool value. The current case is \(\chi_{X/M} = 1/2\):
 
