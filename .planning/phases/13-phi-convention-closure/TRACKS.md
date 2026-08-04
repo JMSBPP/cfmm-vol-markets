@@ -45,10 +45,13 @@ curvature `(1−ε)/(2−ε)`; old `κ_{\varphi} → ς_{X/M}` (share asymmetry)
   > "prove the opposite under a different name if A1 is false" clause. Submitted to a NEW project,
   > never `continue` in parallel. NOTE: the CLI warned the bundle carries no `.lake` folder — the
   > download does not include dependencies; if this run also fails, restore `.lake` before retrying.
-- **(b) E4 interior optimum on the ε_{X/M} axis.** *Both branches are pre-decided so completion is
-  falsifiable:* if (a) shows the embedding holds → redo E4 on the ε axis and land it in a new module;
-  if (a) refutes it → record E1–E7 as SHARE statements and close (b) as **MOOT**, with the
-  disposition written into the summary either way.
+- **(b) E4 interior optimum on the ε_{X/M} axis — CLOSED 2026-08-04: MOOT.** The embedding is
+  **REFUTED**: `canon_Fcap_not_CES` proved (embed2 continue returned; symmetry forces ε=1/2, the
+  (t,1) slice + second derivative force ρ=√3/3, fourth derivatives contradict) and
+  `kappa_not_reparam_of_rho` follows by instantiation at κ=1/2. Only the two endpoints embed
+  (`Fcap_zero_is_rho_one`, `Fcap_one_is_rho_zero_limit`). Integrated axiom-clean after all ledger
+  gates: commit `ca8e4a1`, mirror `8536a31`. E1–E7 stand as SHARE statements — doc-side already
+  recorded as Theorem 9 (\(\varsigma_{X/M}\) is not a curvature).
 - **(c) `eta-notation-gate.sh` (Phase 12) enforces the OLD κ_φ bindings** and will now FAIL on the
   corrected doc. **This is a blocking predecessor of every other doc insertion in the program** —
   Phases 12.1 and 14 both end in doc blocks and neither can be gated until this is refreshed.

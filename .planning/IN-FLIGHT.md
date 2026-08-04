@@ -21,7 +21,7 @@ no trigger does not belong here; give it one or close it.
 
 | Project (full UUID) | Name | Submitted | Targets | RESUME TRIGGER | On return |
 |---|---|---|---|---|---|
-| `1f6da52a-f998-471c-84b6-9130d8adbd25` | `aristotle-embed2` | 2026-08-03 | **OUT_OF_BUDGET again (1h1m) — but 3/4 now closed.** `kappa_not_reparam_of_rho` PROVEN by clean instantiation at κ=1/2 — it `apply`s `canon_Fcap_not_CES`, so **everything now reduces to the ONE remaining sorry**, the interior verdict itself (and the reparam theorem is not axiom-clean until it closes). **USER ISSUED `aristotle continue` on this project 2026-08-03** — standing rule recorded in memory: OUT_OF_BUDGET → continue on the SAME project, never a fresh submit. | the continue task returns | **Do not integrate blind.** Verify 0 sorries + axiom-clean; check the two PROVEN endpoint theorems came back byte-identical; then take the pre-decided branch in Phase 13 (b): embedding holds → redo E4 on the ε axis; refuted → close (b) MOOT and record E1–E7 as SHARE statements. Either way write the disposition into the phase summary. |
+| ~~`1f6da52a-f998-471c-84b6-9130d8adbd25`~~ | `aristotle-embed2` | 2026-08-03 | **CLOSED 2026-08-04 — INTEGRATED.** The continue task (`a08b8525`) returned COMPLETE_WITH_ERRORS (cosmetic — one `Try this` info). All gates passed: 0 sorries, both targets axiom-clean (propext/Classical.choice/Quot.sound only), endpoints byte-identical vs the embed base, deps import-rewrite-only, full `lake build` vs current tree (8051 jobs). **VERDICT: interior embedding REFUTED** — `canon_Fcap_not_CES` proved (symmetry ⟹ ε=1/2; (t,1) slice ⟹ ρ=√3/3; 4th derivatives contradict), `kappa_not_reparam_of_rho` by instantiation; only the two endpoints embed. Landed `ca8e4a1` (lean4-spec `8536a31`). Phase 13 (b) branch taken: **MOOT**. | — | — |
 
 **STALE-NOTATION WARNING on the plank handoff.** The Phase-12 close-out handoff appended to plank
 `todo.md` (uncommitted, plank-owned) quotes the controller law in PRE-RENAME notation — `κ_φ*`,
@@ -40,7 +40,7 @@ endpoint theorems are the working base of `1f6da52a`. **Never integrate this par
 | Item | Where it lives | Why parked | RESUME TRIGGER |
 |---|---|---|---|
 | ~~PR-SYNC: ETA addendum resync~~ | Ph 13 (d) | — | **CLOSED 2026-08-03** — resynced 1:1, disclosure extended, no new pin (per the 12-04 rule) |
-| **E4 redo on the ε axis** | Ph 13 (b) | branch not yet decided | `1f6da52a` returns |
+| ~~E4 redo on the ε axis~~ | Ph 13 (b) | — | **CLOSED 2026-08-04 — MOOT** (embedding refuted by `canon_Fcap_not_CES`, commit `ca8e4a1`); E1–E7 stand as SHARE statements (doc Theorem 9) |
 | **Item (k): the E1 DIAGNOSIS defect** | Ph 13 (k) | needs a doc edit | `PR-GATE` passes |
 | **Item (i): PhiCES notation-map line** | Ph 13 (i) | needs a doc edit | `PR-GATE` passes |
 | **Kristensen V0–V9 blocks** | Ph 14 | gated | `PR-WSIGMA` ruled **and** `PR-GATE` passes |
