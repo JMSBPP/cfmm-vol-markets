@@ -830,12 +830,12 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 
 **Discretization frame** (\(t\)-indexed, shared by FLAIR and MEV; the Lean carriers keep their `w_t`/`D_t`/`a_t` names — standing doc-glyph/Lean-name split). Time is stepped by the cadence \(\Delta t\); per step \(t\):
 
-- \(\Delta Q_{\cdot}(t) \geq 0\) — the per-step traded amount (it IS the trade flow of Definition 12, hence the \(\Delta Q\) glyph);
-- \(\pi^{\text{linear}}(t) > 0\) — the per-step capital (Definition 24);
+- \(\Delta Q_{\cdot}(t) \, \equiv \, \varphi_{(1/2,\,0)}\big(i(t);\, \Delta Q(t),\, 0\big) \, = \, \sqrt{\Delta Q_M(t)\,\Delta Q_X(t)} \, \geq \, 0\) — the per-step traded VOLUME in LIQUIDITY UNITS: Definition 18's zero-liquidity convention (user ruling 2026-08-04) — the symmetric geometric mean of the two legs, neither money nor asset alone; a volume metric commensurable with \(L\) and \(\Delta Q_v^{\star}\);
+- \(\pi^{\text{linear}}(t) > 0\) — the per-step capital in MONEY units (Definition 24), serving the MEV/LVR side, where LVR is intrinsically a money rate;
 - \(\overline{\mathrm{LVR}}(t) \, \equiv \, \mathrm{LVR}(t)\cdot\Delta t \, \geq \, 0\) — the per-block arb-opportunity weight (Definition 26; the bar is the normalization glyph, per \(\bar L\));
-- \(\nu_t \, \equiv \, \Delta Q_{\cdot}(t)/\pi^{\text{linear}}(t)\) — capital-normalized flow.
+- \(\nu_t \, \equiv \, \varphi_{(1/2,\,0)}\big(i(t);\, \Delta Q(t),\, 0\big)\,\big/\,\varphi_{(1/2,\,0)}\big(i(t);\, 0,\, L\big)\) — the PER-STEP UTILIZATION RATIO, exactly Definition 18's gate argument: FLAIR's capital-normalized flow, dimensionless with no numéraire choice.
 
-No other \(t\)-indexed symbols are introduced in this section.
+**Coordinates (user ruling (i), 2026-08-04):** FLAIR runs in UTILIZATION coordinates (\(\nu_t\)); MEV runs in MONEY coordinates (\(\overline{\mathrm{LVR}}/\pi^{\text{linear}}\)). No other \(t\)-indexed symbols are introduced in this section.
 
 ### FLAIR
 
@@ -843,18 +843,18 @@ No other \(t\)-indexed symbols are introduced in this section.
 
 \[
 	\begin{aligned}
-		\lambda_{\text{FLAIR}}\, (t) \, &\equiv \, \displaystyle\int_{t_0}^t \frac{\displaystyle\int_{p_{(\eta,\Delta_i)} \,(i(t))} \, \phi \, ( \sigma \, (i (t));t) \, d\, p_{(\eta,\Delta_i)} \,(t)}{p_{(\eta,\Delta_i)} \,(i(t))\, Q_X^L \Big (\sum_{j}^{\# \text{LP}} \, L_j \, (i(t); \cdot)\Big ) \, +\,  Q_M^L \Big(\sum_{j}^{\# \text{LP}} \, L_j \, (i(t); \cdot)\Big) } \, dt
+		\lambda_{\text{FLAIR}}\, (t) \, &\equiv \, \displaystyle\int_{t_0}^t \frac{\displaystyle\int_{p_{(\eta,\Delta_i)} \,(i(t))} \, \phi \, ( \sigma \, (i (t));t) \, d\, p_{(\eta,\Delta_i)} \,(t)}{\varphi_{(1/2,\,0)}\Big(i(t);\, 0,\, \sum_{j}^{\# \text{LP}} \, L_j \, (i(t); \cdot)\Big)} \, dt
 	\end{aligned}
 \]
 
-— numerator: the fee density collected across the price range; denominator: the **linear pool value** \(\pi^{\text{linear}}(t)\) (Definition 24 — asset leg at price, plus money leg). It is a plain-\(\lambda\) hazard (Convention 4): fee income *arrives*; nothing is re-routed. **Two repairs vs the raw note (user-approved 2026-08-04):** the undeclared \(p_{(\cdot)}\) contraction is expanded to \(p_{(\eta,\Delta_i)}\) (no new shorthand minted), and the denominator's first term is corrected \(Q_M^L \to Q_X^L\) — as written both terms were the money leg, double-counting money and valuing nothing at price.
+— numerator: the fee density collected across the price range; denominator: the pool capital in **LIQUIDITY UNITS** — the trading function at zero flow on the aggregate liquidity, per Definition 18's utilization convention (user ruling (i), 2026-08-04: FLAIR is utilization-based; the money-units \(\pi^{\text{linear}}\) serves the LVR/MEV and ADL layers). It is a plain-\(\lambda\) hazard (Convention 4): fee income *arrives*; nothing is re-routed. **Two repairs vs the raw note (user-approved 2026-08-04):** the undeclared \(p_{(\cdot)}\) contraction is expanded to \(p_{(\eta,\Delta_i)}\) (no new shorthand minted), and the denominator's first term was corrected \(Q_M^L \to Q_X^L\) (both terms were the money leg) — that money-units form was then SUPERSEDED by the utilization-coordinates restatement above.
 
-**Theorem 15 (FLAIR identification and corner solution).** The program \(\sup_{\Theta_{\lambda_{\text{FLAIR}}}} \lambda_{\text{FLAIR}}\) over a sub-block \(\Theta_{\lambda_{\text{FLAIR}}} \subset \Theta_{\phi}\) is **identified and solved**. Discretizing per the frame (\(\Delta Q_{\cdot}(t) \geq 0\), \(\pi^{\text{linear}}(t) > 0\); \(\Lambda\) is the logistic of Theorem 10):
+**Theorem 15 (FLAIR identification and corner solution).** The program \(\sup_{\Theta_{\lambda_{\text{FLAIR}}}} \lambda_{\text{FLAIR}}\) over a sub-block \(\Theta_{\lambda_{\text{FLAIR}}} \subset \Theta_{\phi}\) is **identified and solved**. Discretizing per the frame (\(\nu_t\) the per-step utilization ratio; \(\Lambda\) the logistic of Theorem 10):
 \[
 	\begin{aligned}
 		\lambda_{\text{FLAIR}} \, = \, \bar\phi\, W \, + \, u \sum_j \alpha_j\, W_j, \qquad
-		W = \sum_t \frac{\Delta Q_{\cdot}(t)}{\pi^{\text{linear}}(t)}, \quad
-		W_j = \sum_t \frac{\Lambda\big(\gamma_j(\sigma_t-\beta_j)\big)\, \Delta Q_{\cdot}(t)}{\pi^{\text{linear}}(t)}, \quad 0 \leq W_j < W
+		W = \sum_t \nu_t, \quad
+		W_j = \sum_t \Lambda\big(\gamma_j(\sigma_t-\beta_j)\big)\, \nu_t, \quad 0 \leq W_j < W
 	\end{aligned}
 \]
 
@@ -867,7 +867,7 @@ No other \(t\)-indexed symbols are introduced in this section.
 
 attained **bang-bang at the level corner** for any fixed \((\beta,\gamma)\); in \((\beta,\gamma)\) the bound is approached only as \(\beta \to -\infty\) — a saturation boundary, not a maximum: the shape parameters never attain it (strict gap at every finite \(\beta\)). This is the G3 level/shape split: \(\Theta_{\lambda_{\text{FLAIR}}}\) is a LEVEL block; \((\beta_j, \gamma_j)\) only place the transition.
 
-*Caveat (kept):* this functional has no demand elasticity — the fee–volume trade-off lives in the optimal-fee layer (`FeeSchedule`, arXiv:2508.08152).
+*Caveat (kept):* this functional has no demand elasticity — the fee–volume trade-off lives in the optimal-fee layer (`FeeSchedule`, arXiv:2508.08152). *Note (OPEN):* Rule 6 charges fees PER LEG; the discretization applies the composed fee (Rule 7) to volume — the leading-order equivalence of per-leg fee income and composed-fee-on-volume is assumed, unformalized.
 
 *Formalized:* `FlairOptimization.flairMulti_affine`; `W_j_lt_W`; `flairMulti_le_corner`; `flairMulti_corner_attained_levels`; `flairMulti_saturation_limit`; `flairMulti_strict_below_saturation`; `Theta_lambda_identification`.
 
@@ -879,7 +879,7 @@ Sources, all vendored: [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFe
 
 **Notation map [M0].** [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf)'s fee symbol `γ` is transcribed as this document's fee `φ`; this document's `γ_j` stays the sigmoid steepness. The paper's Poisson block rate `λ` is transcribed through its own primitive `Δt ≜ λ⁻¹`, because this document's `λ` is the hazard rate (Convention 4). The paper's composite parameter `η ≜ γ√(2λ)/σ` is deliberately never named — `η` is reserved project-wide for the pricing grid (Definition 8). <!-- notation-map --> Root-block-rate factor: \(\sqrt{2/\Delta t}\) throughout, no composite abbreviation. Fee \(= \phi\) (ceiling \(\bar\phi\), set \(\Theta_{\phi}\)); the quote function is \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\) (Definition 13), currently \(\varphi_{(1/2,\,0)}\) (Rule 5); bare \(\varphi\) is NOT used.
 
-\(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)). \(\sigma_t = \sigma(i(t))\): enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\). The \(t\)-indexed symbols \(\Delta Q_{\cdot}(t)\), \(\pi^{\text{linear}}(t)\), \(\overline{\mathrm{LVR}}(t)\), \(\nu_t\) are the discretization frame at the head of this section — the SAME capital denominator serves \(\lambda_{\text{FLAIR}}\) and \(\lambda_{\text{ARB}}\).
+\(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)). \(\sigma_t = \sigma(i(t))\): enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\). The \(t\)-indexed symbols \(\Delta Q_{\cdot}(t)\), \(\pi^{\text{linear}}(t)\), \(\overline{\mathrm{LVR}}(t)\), \(\nu_t\) are the discretization frame at the head of this section (FLAIR in utilization coordinates, MEV in money coordinates — user ruling (i), 2026-08-04).
 
 \(\lambda_{\text{ARB}}\) (Definition 22) \(\subsetneq \lambda_{\text{MEV}}\) (Definition 23): SUMMAND, not sibling — Definition 19's index set carries one, never both (double-count); \(\lambda_{\text{ARB}}\) absorbs the "arb toxicity" entry. The paper's `FEE` \(\subsetneq \lambda_{\text{FLAIR}}\) (noise flow excluded there). Standing hypotheses: the paper's Assumption 2 (symmetric driftless mispricing, two-sided fee; non-symmetric variant App. C); Proposition 9 additionally: regularity (13), (15).
 
@@ -968,7 +968,7 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 	\end{aligned}
 \]
 
-— the flat path minimizes \(\lambda_{\text{ARB}}\) at equal FLAIR income; non-constant on \(\{\nu_t > 0\}\) is strictly worse (the strict half consumes Theorem 16's strict convexity). The alignment \(\overline{\mathrm{LVR}} \equiv \Delta Q_{\cdot}\) is STRONG (traded volume ∝ LVR path block-by-block); without it Jensen is inapplicable and the conclusion can reverse. **REFUTED for \(\sigma\)-varying schedules** (`mev_ge_flat_under_flair_budget_false`): \(\exists\, \phi(\cdot) \geq 0\) with \(\lambda_{\text{ARB}}^{\text{flat}} > \lambda_{\text{ARB}}^{\phi}\) at equal FLAIR income — witness \(T{=}2,\ \Delta t{=}2,\ B{=}2,\ \sigma=(1,10)\), fees \((2,0)\): \(\tfrac{31}{22} > \tfrac{4}{3}\) (\(\sigma\)-varying ⟹ different convex summands, Jensen inapplicable). **OPEN — the \(\Theta_{\phi}\)-restricted case:** the witness is \(\sigma\)-DEcreasing while \(\Theta_{\phi}\)-reachable schedules are isotone (`multiFee_monotone`); the refutation settles only the general claim.
+— the flat path minimizes \(\lambda_{\text{ARB}}\) at equal FLAIR income; non-constant on \(\{\nu_t > 0\}\) is strictly worse (the strict half consumes Theorem 16's strict convexity). The alignment \(\overline{\mathrm{LVR}} \equiv \Delta Q_{\cdot}\) is STRONG (traded volume ∝ LVR path block-by-block — and CROSS-COORDINATE under ruling (i): a liquidity-units path proportional to a money-units path); without it Jensen is inapplicable and the conclusion can reverse. **REFUTED for \(\sigma\)-varying schedules** (`mev_ge_flat_under_flair_budget_false`): \(\exists\, \phi(\cdot) \geq 0\) with \(\lambda_{\text{ARB}}^{\text{flat}} > \lambda_{\text{ARB}}^{\phi}\) at equal FLAIR income — witness \(T{=}2,\ \Delta t{=}2,\ B{=}2,\ \sigma=(1,10)\), fees \((2,0)\): \(\tfrac{31}{22} > \tfrac{4}{3}\) (\(\sigma\)-varying ⟹ different convex summands, Jensen inapplicable). **OPEN — the \(\Theta_{\phi}\)-restricted case:** the witness is \(\sigma\)-DEcreasing while \(\Theta_{\phi}\)-reachable schedules are isotone (`multiFee_monotone`); the refutation settles only the general claim.
 
 *Formalized:* budget half `flair_budget_pins_mean_fee`, `flair_budget_mean`; path carriers `flairPath`/`mevPath` with bridges `flairPath_schedule`, `mevPath_schedule`, `flairPath_sum`, `flairPath_budget_mean`; the constant-\(\sigma\) display at PATH level `mev_ge_flat_under_flair_budget_const_sigma`, strict `mev_gt_flat_under_flair_budget_const_sigma`; the refutation `mev_ge_flat_under_flair_budget_false`.
 
