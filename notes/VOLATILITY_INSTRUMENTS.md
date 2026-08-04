@@ -1056,48 +1056,20 @@ Consequences (proved): \(\lambda_\tau\) is a genuine \(\oplus\)-summand (hazard-
 
 ## **E0. [NOTATION]**
 
-ANCHOR: Capponi & Jia, *The Adoption of Blockchain-Based Decentralized Exchanges*, arXiv:2103.08842v4 [q-fin.TR], 21 Jul 2021, §5.1. The curvature results transcribed in this section are **Lemma 3** (both ratios antitone in curvature), **Proposition 5** (the interior optimum and the liquidity-freeze corollary) and **Proposition 6** (deposit efficiency; its welfare half is OPEN, see E5). Lemma 1 and Lemma 2 are cited only for their own trade-occurrence conditions and are NOT curvature results. η is PROTECTED throughout and is this document's pricing-kernel exponent.
+ANCHOR: [CJ](../refs/mev/CapponiJiaAdoptionDEX.pdf) §5.1 — Lemma 3, Propositions 5–6 (Lemmas 1–2 cited only for trade-occurrence conditions). Role of this section: the interior selector for the grid tilt \(\eta^{\star}\) — the degeneracy-breaker outside \(\Theta_{\phi}\) ([M6a]).
 
-The paper's curvature-indexed results are RE-INDEXED by `ς_{X/M}` (`\varsigma_{X/M}`) — a SHARE object (Theorem 9). Symbol substitution, NOT an object identification: the paper's curvature axis travels \(\epsilon_{X/M}\), and its interior embedding is REFUTED (`canon_Fcap_not_CES`). `χ` is NOT used anywhere in this section. <!-- notation-map -->
+Convention: \(\varrho_{\bullet}\) = EXOGENOUS anchor premia/shocks; \(\pi^{\bullet}\) = endogenous protocol payoffs only. <!-- notation-map --> The paper's objects enter as:
 
-The subscript in `ς_{X/M}` is `\varphi`, this document's QUOTE-FUNCTION symbol (M0: "`\varphi` NOT used (bound to the quote function)") — it is NOT the fee. The fee is `\phi`, with ceiling `\bar\phi` and parameter set `\Theta_{\phi}`, exactly as M0 binds them. The two must never be conflated: `ς_{X/M}` is the curvature of the quote function, and `\phi` is what the trader pays. <!-- notation-map -->
+- \(\varrho_I \, \equiv \, \) the investor private-use premium (Lean `premInv`);
+- \(\varrho_S \, \equiv \, \big|\Delta p_{(\eta,\Delta_i)}/p_{(\eta,\Delta_i)}\big|\) per period — the price shock (Lean `premShock`; one-spacing move: \(\lambda^{\eta\Delta_i} - 1\) in marginal price);
+- \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} \, > \, 0\) — per-period arbitrage-occurrence probability (the `CJ` tag is load-bearing: NEVER identified with MMR's \(\mathbb{P}_{\Delta_{\text{ARB}}}\), E8(3));
+- \(\mathbb{P}_{L_{\text{INV}}} \, > \, 0\) — investor-arrival probability;
+- \(\varpi_H \, \geq \, 0\) — hold-benchmark coefficient, \(\mathbb{E}[R_A] = \varpi_H\,\varrho_S\);
+- \(\varpi_D \, \geq \, 0\) — the constant subtracted in the LP excess return.
 
-Bare `κ` remains FORBIDDEN — it is the anchor's absorbed arrival symbol and the Phase-11 scalarization weight. Only the `\varphi`-subscripted forms `\varsigma_{X/M}`, `\varsigma_{X/M,S}`, `\varsigma_{X/M,I}`, `\varsigma_{X/M}^{\star}` are admissible, and the gate enforces exactly that. <!-- notation-map -->
+The paper's curvature-indexed results are RE-INDEXED by \(\varsigma_{X/M}\) — a SHARE object (Theorem 9); symbol substitution, NOT an object identification (interior embedding REFUTED, `canon_Fcap_not_CES`). Collision glyphs `κ`, `χ`, `θ`, `τ`, `ν` are not used in this section; remaining paper symbols are renamed at first use. <!-- notation-map -->
 
-The paper's investor private-use premium `α` is transcribed as `ϱ_I` (`\varrho_I`); Lean `premInv`. Convention: \(\varrho_{\bullet}\) = EXOGENOUS anchor-model premia/shocks; \(\pi^{\bullet}\) = this protocol's endogenous payoffs only. <!-- notation-map -->
-The paper's price-shock magnitude `β` is transcribed as `ϱ_S` (`\varrho_S`); Lean `premShock`. \(\varrho_S \equiv \big|\Delta p_{(\eta,\Delta_i)}/p_{(\eta,\Delta_i)}\big|\) per period; one-spacing move: \(\varrho_S = \lambda^{\eta\Delta_i/2} - 1\). <!-- notation-map -->
-The paper's proportional trading fee `f` is IDENTIFIED with this document's (`\phi`) and is not renamed; this document's `α_j`, `β_j`, `γ_j` remain the `Θ_\phi` sigmoid parameters and are always subscripted. <!-- notation-map -->
-
-The paper's probabilities `θ, κ_I, κ_com, κ₁, κ₂` are NEVER NAMED; they enter only as the four constants below. The two that ARE probabilities follow the `ℙ_{event}` convention (M0): the arbitrage-occurrence probability is `ℙ_{Δ_ARB^{CJ}}` and the investor-arrival probability is `ℙ_{L_INV}` (arrival events take the `L_` prefix, as `ℙ_{L_JIT}` does). **The `CJ` tag is load-bearing**: it keeps this two-period-model arbitrage event distinct from MMR's `ℙ_{Δ_ARB}`, whose identification E8(3) forbids. `ϖ_H` and `ϖ_D` keep `ϖ` — they are a coefficient and a constant, NOT probabilities. Lean is unchanged (`probArb`, `probInv`, `coefD`). `θ` collides with this document's option theta and `κ` with the Phase-11 scalarization weight. <!-- notation-map -->
-The paper's Proposition-5 coefficients `τ₁, τ₂, τ₃` are transcribed as `c₁, c₂, c₃` (Lean `cOne`, `cTwo`, `cThree`), because `τ` is TAKEN by this document's `τ = τ_MEV` (block M9). <!-- notation-map -->
-The symbol `ν` is TAKEN by block M6b (`ν_t = w_t/D_t`) and is NEVER introduced here. <!-- notation-map -->
-
-The four absorbed constants, each constant in \(\varsigma_{X/M}\):
-
-\[
-	\begin{aligned}
-		\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} \, > \, 0 \;&:\; \text{probability an arbitrage occurs in a period} \\
-		\mathbb{P}_{L_{\text{INV}}} \, > \, 0 \;&:\; \text{probability an investor arrives} \\
-		\varpi_H \, \geq \, 0 \;&:\; \text{the hold-benchmark coefficient, } \; \mathbb{E}[R_A] = \varpi_H\,\varrho_S \\
-		\varpi_D \, \geq \, 0 \;&:\; \text{the constant subtracted in the LP excess return}
-	\end{aligned}
-\]
-
-THE POSITIVITY IS LOAD-BEARING, NOT COSMETIC. At \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} = 0\) the whole of E2 collapses to \(\mathrm{arbLoss} \equiv 0\), every η is arb-minimal, and E7's first-branch weight condition degenerates to \(-w_2/2\); at \(\mathbb{P}_{L_{\text{INV}}} = 0\) E4's strict increase **SURVIVES** (the arb-loss term carries it) — what fails is the **PEAK**, via \(c_1 < 0\). <!-- CORRECTION 2026-07-31 (ESC-2): "strict increase fails" was the wrong failure mode --> Both are strictly positive in the anchor: \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}\) is built from its two idiosyncratic-shock probabilities, each strictly inside \((0,1)\) by its eq. (2) **and \(\theta < 1\)** <!-- CORRECTION 2026-07-31 (ESC-3): the θ < 1 conjunct was omitted -->, and \(\mathbb{P}_{L_{\text{INV}}}\) is a strictly positive arrival probability. \(\varpi_D \geq 0\) likewise comes from a structural anchor assumption — eq. (2) imposes a strict ordering on those two shock probabilities — and is recorded here so a reader can check it rather than take it on trust.
-
-Standing hypotheses for every display below: \(0 \leq \phi < \varrho_S \leq \varrho_I\), \(0 < \Delta_i\), \(1 < \lambda_{\text{tick}}\). These give \(\varsigma_{X/M,S} > 0\) and \(\varsigma_{X/M,I} > 0\), which is what keeps every \(1/\varsigma_{X/M}\) branch below away from its pole; the guard is ALSO restated inline on each at-risk display, because a guard that lives only in a global prose sentence is exactly how this project's `ptrade` negative-fee pole reached two theorem statements.
-
-THE ANCHOR'S PREMIUM ORDERING: Propositions 5 and 6 DISPLAY the strict ordering (ours: \(\varrho_S < \varrho_I\)); their proofs consume only the weak form \(\varrho_S \leq \varrho_I\), through the branch-point ordering \(\varsigma_{X/M,S} \leq \varsigma_{X/M,I}\) alone. The weak form is what is transcribed. At \(\varrho_S = \varrho_I\) the middle branch \([\varsigma_{X/M,S},\varsigma_{X/M,I}]\) of E4 is EMPTY and the three-branch display degenerates to two; the peak statement is unaffected.
-
-TICK-BASE READING: in this section an unsubscripted `\lambda` inside an exponential is the tick base λ = 1.0001 (`PosSpec.lam`), never a hazard; every hazard of `### MEV` is subscripted (`\lambda_{\text{ARB}}`, `\lambda_{\text{FLAIR}}`, `\lambda_{\text{MEV}}`).
-
-NOT PROBABILITIES: `\varrho_I` and `\varrho_S` are VALUATION PREMIA — they are not probabilities, they are not arrival probabilities, and they are not confined to \([0,1]\). `\varrho_I` is the markup a type-`i` investor places on token `i` and may exceed 1; `\varrho_S` is the magnitude of the price shock. Under a probability reading the closed form \(\varsigma_{X/M}^{\star} = 1 - \sqrt{(1+\phi)/(1+\varrho_I)}\) is uninterpretable.
-
-THE η CONVENTION BRIDGE, AS TWO SEPARATE CLAIMS. (i) THE EXPONENT IDENTITY (provable algebra): on integer ticks, `priceEta η Δ_i i = p_eta(lam, Δ_i, η/2, i) = P_half(lam, Δ_i·η/2, i)` with `lam = PosSpec.lam` the tick base, the factor 2 being `priceEta`'s sqrt-price convention `i/2`; the second equality is the existing `CFMM.Eta.p_eta_eq_P_half_rescaled`. (ii) THE FACTOR-SHARE IDENTIFICATION (a MODELLING claim, NOT implied by (i)): that this same η is the exponent of the weighted-CFMM trading function `L_eta η X Y = X^{η}·Y^{1−η}` of `model/exp/eta.md`. Claim (ii) is listed in E8 as **OPEN** unless E6 displays a derivation. `exp/eta.lean`'s own `P_half` docstring states that η does not enter the tick→price map — it enters at the reserve / impact level — which is precisely why (ii) cannot ride in on (i).
-
-TERMINOLOGY: for a weighted-geometric trading function \(L = X^{\eta_L}Y^{1-\eta_L}\), the exponent \(\eta_L\) is a FACTOR SHARE on reserves and the elasticity of substitution is 1. The plank-side phrase "asset-demand substitution elasticity" is therefore loose and is NOT propagated here. Note that this sentence is about \(\eta_L\), the `L_eta` exponent — whether \(\eta_L\) equals this section's grid exponent η is claim (ii) above and is listed **OPEN** at E8(6); no display in E1–E7 assumes it.
-
-PROPOSED LEAN NAMES (these do NOT yet exist anywhere in the tree; every OTHER backticked Lean identifier in this section resolves to a real declaration): `curvIndex` for the definition of \(\varsigma_{X/M}(\eta,\Delta_i)\), with `curv` reserved as the bound VARIABLE name so that it does not shadow `MevJointProgram.taxFraction (k : ℝ)`; `premInv`, `premShock`, `cOne`, `cTwo`, `cThree`, `kphiS`, `kphiI`, `kphiStar`, `etaStar`.
+Positivity is load-bearing: \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} = 0\) collapses E2 (\(\mathrm{arbLoss} \equiv 0\)); \(\mathbb{P}_{L_{\text{INV}}} = 0\) kills E4's PEAK (via \(c_1 < 0\)), NOT its strict increase.
 
 ## **E1. [ADDITION] The curvature family and the discrete index**
 
