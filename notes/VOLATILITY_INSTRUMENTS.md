@@ -1054,6 +1054,8 @@ Consequences (proved): \(\lambda_\tau\) is a genuine \(\oplus\)-summand (hazard-
 
 *Formalized* (`TauMevAlgebra`, 14/14 axiom-clean — the carriers parked at Rule 7 now attached): (A) `tau_monoid_mem`; `tau_monoid_ge`/`_gt`; `tau_intensity_effect(_strict)`; `tau_no_targeting`; `tau_hazard_exact`; (B) `tau_split_budget`; `tau_split_intensity_neutral`; `tau_split_flair_linear`; `tau_split_mevNet_bridge`; (D) `tau_scaling_not_monoid_hom`; `tau_order_matters`; `tau_split_breaks_hazard`.
 
+# BEHAVIOR_WELFARE_UTILIZATION
+
 ## **E0. [NOTATION]**
 
 ANCHOR: [CJ](../refs/mev/CapponiJiaAdoptionDEX.pdf) §5.1 — Lemma 3, Propositions 5–6 (Lemmas 1–2 cited only for trade-occurrence conditions). Role of this section: the interior selector for the grid tilt \(\eta^{\star}\) — the degeneracy-breaker outside \(\Theta_{\phi}\) ([M6a]).
