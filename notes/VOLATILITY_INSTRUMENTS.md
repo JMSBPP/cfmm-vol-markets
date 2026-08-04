@@ -725,16 +725,17 @@ so the implied maturity CONTRACTS continuously with the funded exposure instead 
 
 `dQvFunded_maximal`; `dQvFunded_admissible(_iff_mul)`, `_mul_le_of_violation`, `_eq_of_no_violation`; \(T^{\star}(t) \uparrow Q_M,\, \downarrow p_{\text{risk}}\): `tStarFunded_mono_QM`, `_antitone_prisk`; \(Q_M \geq \Delta Q_v^{\star} p_{\text{risk}} \implies T^{\star}(t) = T^{\star}\): `_eq_tStar_of_topup`; \(Q_M = 0 \implies T^{\star}(t) = 0\): `dQvFunded_zero_QM`; floor rounding conservative (min-monotone).
 
-**RECALIBRATION LAW (DECIDED, 2026-07-30: multiplicative).** The joint evolution of the implied maturity under the collateral channel AND realized variance \(\sigma^2_R(t)\) accruing against the strike:
+**Rule 11 (Recalibration law; DECIDED 2026-07-30: multiplicative).** The joint evolution of the implied maturity under the collateral channel AND realized variance \(\sigma^2_R(t)\) accruing against the strike:
 
 \[
 	\begin{aligned}
-		T^{\star}_{\text{joint}}(t) \, = \, T^{\star}(t)\cdot\Big(1 - \frac{\sigma^2_R(t)}{\sigma^2_K}\Big)^{+} \, = \, \underbrace{\frac{2\,\Delta Q_v^{\star}}{N_\sigma}}_{T^{\star}} \cdot \underbrace{\frac{\min\big(\Delta Q_v^{\star},\, Q_M/p_{\text{risk}}\big)}{\Delta Q_v^{\star}}}_{\text{funding factor}} \cdot \underbrace{\Big(1 - \frac{\sigma^2_R}{\sigma^2_K}\Big)^{+}}_{\text{budget factor}}
+		T^{\star}_{\text{joint}}(t) \, \leftarrow \, T^{\star}(t)\cdot\Big(1 - \frac{\sigma^2_R(t)}{\sigma^2_K}\Big)^{+} \, = \, \underbrace{\frac{2\,\Delta Q_v^{\star}}{N_\sigma}}_{T^{\star}} \cdot \underbrace{\frac{\min\big(\Delta Q_v^{\star},\, Q_M/p_{\text{risk}}\big)}{\Delta Q_v^{\star}}}_{\text{funding factor}} \cdot \underbrace{\Big(1 - \frac{\sigma^2_R}{\sigma^2_K}\Big)^{+}}_{\text{budget factor}}
 	\end{aligned}
 \]
 
-> LEAN (`tStarJointMult`): `_nonneg` (on \(T^{\star}(t) \geq 0\)), `_antitone` (\(\downarrow \sigma^2_R\)), `_zero` (\(= T^{\star}(t)\) at \(\sigma^2_R = 0\)), `_exhausted` (\(= 0\) at \(\sigma^2_R = \sigma^2_K\)).
-> Rationale: \(\upsilon = T/2 \implies \sigma^2\text{-budget} \propto T\) (bijection preserved); \(T^{\star}_{\text{joint}} = T^{\star}\cdot f_{\text{fund}}\cdot f_{\text{budget}}\) (monotonicities chain); burn rate constant (no cliff). Alternates formalized, rejected: \(T^{\star}_{\text{sub}}\) (`joint_candidates_disagree` — off-domain floor placement only), \(T^{\star}_{\text{quad}}\) (\((1-r^2) \geq (1-r)\): pro-holder under vol clustering).
+The arrow is the Rule (the enacted law); the second equality is the factorization identity. *Rationale (recorded):* \(\upsilon = T/2 \implies \sigma^2\text{-budget} \propto T\) (bijection preserved); \(T^{\star}_{\text{joint}} = T^{\star}\cdot f_{\text{fund}}\cdot f_{\text{budget}}\) (monotonicities chain); burn rate constant (no cliff).
+
+*Formalized:* `tStarJointMult`: `_nonneg` (on \(T^{\star}(t) \geq 0\)), `_antitone` (\(\downarrow \sigma^2_R\)), `_zero` (\(= T^{\star}(t)\) at \(\sigma^2_R = 0\)), `_exhausted` (\(= 0\) at \(\sigma^2_R = \sigma^2_K\)). **Alternates formalized and REJECTED** (the rejection record is first-class): \(T^{\star}_{\text{sub}}\) (`joint_candidates_disagree` — off-domain floor placement only), \(T^{\star}_{\text{quad}}\) (\((1-r^2) \geq (1-r)\): pro-holder under vol clustering).
 
 > NOTE (cascade, recorded): \(\Delta Q_v^{\star}\) on-chain lands on the PAIR \((\text{PanopticTokenId},\, \text{positionSize})\) — the tokenId is scale-free (strikes, widths, per-leg optionRatio); positionSize is an SFPM mint argument. The ratio-vs-size split of \(\ell(\xi^{\star},\iota;i_K)\) across the pair is the task-#14 sizing decision. Spec: `.planning/vol-order-v2-target-vega-SPEC.md`.
 
