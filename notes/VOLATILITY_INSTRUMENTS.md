@@ -260,6 +260,16 @@ inheriting the sign of \(\ln \big(p_{(\eta, \Delta_i)}(i;t) / p_{(\eta, \Delta_i
 
 *Formalized:* `VolInstrument.variancePortfolio_unit_upsilon`.
 
+**Theorem 13 (Maturity equivalence).** *(Moved here from # PROTOCOL_INPUTS, user ruling 2026-08-04 — both premises are this section's results; \(\Delta Q_v^{\star}\) is the target-vega Protocol Input, # PROTOCOL_INPUTS.)* From \(\upsilon = T/2\) (`variancePortfolio_upsilon`) and \(\text{Id}_{N_\sigma} = 2/T\) (`variancePortfolio_unit_upsilon`):
+
+\[
+	T^{\star} \,=\, 2\,\frac{\Delta Q_v^{\star}}{N_\sigma} \quad\Longleftrightarrow\quad \Delta Q_v^{\star} \,=\, \frac{T^{\star}}{2}\, N_\sigma
+\]
+
+with \(\Delta Q_v^{\star}, N_\sigma > 0 \implies T^{\star} > 0\), and \(T^{\star}\) strictly increasing in \(\Delta Q_v^{\star}\), strictly decreasing in \(N_\sigma\). The perpetual order specifies no \(T\); \(T^{\star}\) is the implied maturity of the equivalent dated variance contract — derived from \(\Delta Q_v^{\star}\), never stored.
+
+*Formalized* (`EndogenousMaturity.lean`; \(N_\sigma \neq 0\)): bijection `dQvStarOfMaturity_tStar` / `tStar_dQvStarOfMaturity` / `maturity_equivalence`; vega-exactness `tStar_variancePortfolio_upsilon`, `tStar_unit_upsilon`; `tStar_pos`; `tStar_strictMono_dQvStar`; `tStar_strictAnti_Nσ`.
+
 **Rule 4 (Position ledger).** The protocol books a position as its **net signed liquidity** per strike: each leg carries the direction sign \(\mathbb{I}_{\text{long|short}}\), and the ladder's ledger is
 
 \[
@@ -448,15 +458,7 @@ where \(\epsilon_{p/X}^{\,0}\) is the same elasticity for the \(\epsilon_{X/M} =
 
 *Formalized:* the definitional layer is **UNFORMALIZED** — the in-tree `CurvatureTwo.curvTwo` is the closed form of Proposition 7 by fiat, not this definition.
 
-**Proposition 10 (Grid–marginal-price relation).** The grid map and the marginal price are DISTINCT objects — the identification \(p_{(\eta,\Delta_i)} \equiv p_{\varphi}\) is NOT admissible. At Definition 9's reserves, for the \(\chi_{X/M} = 1/2\) member,
-
-\[
-	\begin{aligned}
-		p_{\varphi}(i_K) \, = \, \frac{\Delta Q_M^L(i_K)}{\Delta Q_X^L(i_K)} \, = \, \frac{1}{p_{(\eta,\Delta_i)}(i_K)\; p_{(\eta,\Delta_i)}(i_K+\Delta_i)}
-	\end{aligned}
-\]
-
-— the grid enters the marginal price as the INVERSE PRODUCT of adjacent grid values: the √price-vs-price gap Theorem 4 already flags (`priceGrid_eq_tickPrice_sq`), plus the leg orientation. *Status:* elementary algebra from Theorem 5's reciprocal form; **unproved in-tree** (cheap Aristotle rider on the Proposition 7 bundle).
+*(The grid–marginal-price relation is Proposition 10, stated with the portfolio-value machinery in # CONTROL_OPERATORS.)*
 
 **Proposition 7 (CES curvature closed form).** For the CES family (Definition 13), at the balanced point \(|\epsilon_{p/X}| = \dfrac{1-\epsilon_{X/M}}{1-\chi_{X/M}}\), and
 
@@ -689,19 +691,9 @@ Every **Protocol Input** is a quantity supplied by the USER, per order, at inter
 
 - \(\Delta Q_v^{\star}\) — the **target vega** (enters by Rule 8).
   *Domain:* `u96`, RAW LIQUIDITY units — \(\Delta Q_v^{\star}\) carries the dimension of the replication carrier \(L\) (the DECIDED dimension ruling below).
-  *Purpose:* sizes the ladder and induces the implied maturity (Theorem 13).
+  *Purpose:* sizes the ladder and induces the implied maturity (Theorem 13, # PAYOFF).
   *Economic meaning:* the vega notional the user targets — the one sizing decision the order stores.
   *Carrier:* `targetVega : u96` at bits 152..247 of the packed `VolOrder` word (plank `feat/plank`); `targetVega` \(= \Delta Q_v^{\star}\) exactly; emitted by `VolOrderCreated(orderId, strike, width, skew, targetVega)`; fits-packed predicate in `VolOrderValidationLib`.
-
-**Theorem 13 (Maturity equivalence).** From \(\upsilon = T/2\) (`variancePortfolio_upsilon`) and \(\text{Id}_{N_\sigma} = 2/T\) (`variancePortfolio_unit_upsilon`):
-
-\[
-	T^{\star} \,=\, 2\,\frac{\Delta Q_v^{\star}}{N_\sigma} \quad\Longleftrightarrow\quad \Delta Q_v^{\star} \,=\, \frac{T^{\star}}{2}\, N_\sigma
-\]
-
-with \(\Delta Q_v^{\star}, N_\sigma > 0 \implies T^{\star} > 0\), and \(T^{\star}\) strictly increasing in \(\Delta Q_v^{\star}\), strictly decreasing in \(N_\sigma\). The perpetual order specifies no \(T\); \(T^{\star}\) is the implied maturity of the equivalent dated variance contract — derived from \(\Delta Q_v^{\star}\), never stored.
-
-*Formalized* (`EndogenousMaturity.lean`; \(N_\sigma \neq 0\)): bijection `dQvStarOfMaturity_tStar` / `tStar_dQvStarOfMaturity` / `maturity_equivalence`; vega-exactness `tStar_variancePortfolio_upsilon`, `tStar_unit_upsilon`; `tStar_pos`; `tStar_strictMono_dQvStar`; `tStar_strictAnti_Nσ`.
 
 **Convention 3 (Vega dimension — stored target vs lens readout; DECIDED 2026-07-30).** \(\Delta Q_v^{\star}\) carries the dimension of the REPLICATION CARRIER — liquidity \(L\), the quantity of the priced vol asset, per Rule 4's ledger
 
@@ -795,6 +787,7 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 
 *Formalized:* `VolInstrument.probOr_eq`; `probOr_comm`; `probOr_assoc`; `probOr_zero`; `probOr_mem_Icc`; `probOr_mono`; `probOr_hazard`.
 
+
 **Definition 24 (Linear pool value).** The **linear pool value** is the pool's holdings marked at spot — the money-units valuation with no curvature adjustment:
 
 \[
@@ -804,6 +797,18 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 \]
 
 *(Symbol per user rulings 2026-08-04: values are \(\pi\)-objects and this valuation is linear; the former ad-hoc \(D_t\) is retired — \(D\) reads as debt.)*
+
+**Recall (the marginal price).** \(p_{\varphi} \equiv \partial_{Q_X}\varphi \,/\, \partial_{Q_M}\varphi\) — the quotient of partials of the trading function, minted at Definition 14; its relation to the grid is the next statement, placed here because Definitions 25–26 consume both objects (user ruling 2026-08-04).
+
+**Proposition 10 (Grid–marginal-price relation).** The grid map and the marginal price are DISTINCT objects — the identification \(p_{(\eta,\Delta_i)} \equiv p_{\varphi}\) is NOT admissible. At Definition 9's reserves, for the \(\chi_{X/M} = 1/2\) member,
+
+\[
+	\begin{aligned}
+		p_{\varphi}(i_K) \, = \, \frac{\Delta Q_M^L(i_K)}{\Delta Q_X^L(i_K)} \, = \, \frac{1}{p_{(\eta,\Delta_i)}(i_K)\; p_{(\eta,\Delta_i)}(i_K+\Delta_i)}
+	\end{aligned}
+\]
+
+— the grid enters the marginal price as the INVERSE PRODUCT of adjacent grid values: the √price-vs-price gap Theorem 4 already flags (`priceGrid_eq_tickPrice_sq`), plus the leg orientation. *Status:* elementary algebra from Theorem 5's reciprocal form; **unproved in-tree** (cheap Aristotle rider on the Proposition 7 bundle).
 
 **Definition 25 (Portfolio value function).** With \((Q_X^L(p_{\varphi}), Q_M^L(p_{\varphi}))\) the point of the trading curve \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})} = \text{const}\) at which the marginal price \(p_{\varphi}\) (Definition 14) attains a given value, the **portfolio value function** is the on-curve valuation of the RESERVES — the \(L\)-superscripted quantities (Definition 10): bare \(Q_X, Q_M\) remain the trading-side arguments of Definition 13, while the reserves derived from liquidity are what the pool holds and what is valued here —
 
