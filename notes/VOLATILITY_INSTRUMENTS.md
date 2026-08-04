@@ -1229,7 +1229,7 @@ Composition: the excess return is LP revenue from investor flow MINUS the arb lo
 
 **OPEN — the welfare half.** NOT a corollary of Theorems 23 + 25 (below \(\varsigma_{X/M}^{\star}\) the LP payoff RISES while the surplus FALLS); the anchor's welfare object is a two-period compounded carrier with its own coefficient — untranscribed. GAS caveat (two lines): the anchor's Assumption 3 zeroes the arbitrageur and books the rent as DEADWEIGHT only because validators sit OUTSIDE its agent set; the `### MEV` premises (tax; batch clearing) put the recipient back inside, making the rent a TRANSFER — the anchor's welfare ranking over \(\varsigma_{X/M}\) does NOT import.
 
-## **E6. [ADDITION — THE BRIDGE]**
+**Theorem 27 (The \(\eta^{\star}\) transport) [E6]** (under Assumption 1, \(\varpi_1 > 0\)). Inverting E1's bijection at the kink \(\varsigma_{X/M}^{\star}\) — `Real.log` algebra on a closed form, NOT an existence argument; no FOC exists or is used (Theorem 25):
 
 \[
 	\begin{aligned}
@@ -1238,25 +1238,11 @@ Composition: the excess return is LP revenue from investor flow MINUS the arb lo
 	\end{aligned}
 \]
 
-Obtained by INVERTING E1's bijection at \(\varsigma_{X/M}^{\star}\): setting \(1 - \lambda^{-\Delta_i^{2}\eta/2} = 1 - \sqrt{(1+\phi)/(1+\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}})}\) and taking logarithms. This is `Real.log` algebra on a closed form, NOT an existence argument.
+Comparative statics: \(\eta^{\star} > 0 \iff \phi < \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\); strictly increasing in \(\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\); strictly decreasing in \(\phi\). \(\Delta_i\) is a NORMALIZATION identity, not a comparative static: \(\varsigma_{X/M}^{\star}\) depends only on \((\phi, \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}})\), and \(\eta^{\star} \propto 1/\Delta_i^{2}\) reproduces it on the chosen grid. Two-sided shape: the excess return composed with \(\varsigma_{X/M}(\cdot,\Delta_i)\) is strictly increasing on \((0,\eta^{\star}]\), strictly decreasing on \([\eta^{\star},\infty)\).
 
-Comparative statics: \(\eta^{\star} > 0 \iff \phi < \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\); strictly increasing in \(\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\); **strictly decreasing in \(\phi\)**. The dependence on \(\Delta_i\) is a NORMALIZATION IDENTITY rather than a comparative static: \(\varsigma_{X/M}^{\star}\) depends only on \((\phi,\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}})\), and \(\eta^{\star} \propto 1/\Delta_i^{2}\) is simply whichever exponent reproduces that same \(\varsigma_{X/M}^{\star}\) on the chosen grid. Two-sided shape: \(D \circ \varsigma_{X/M}(\cdot,\Delta_i)\) is strictly increasing on \((0,\eta^{\star}]\) and strictly decreasing on \([\eta^{\star},\infty)\) under E4's hypotheses, INCLUDING \(c_1 > 0\).
+FACTOR-SHARE READING — UNAVAILABLE on much of the spacing range: \(\eta^{\star} \in (0,1)\) needs \(\Delta_i \gtrsim 21\) at \((\lambda, \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}, \phi) = (1.0001, 0.05, 0.003)\); at \(\Delta_i \in \{1, 10\}\), \(\eta^{\star} \approx 458,\ 4.6\) — the grid-exponent reading is the only one there. Normalization bridge (i) is Theorem 21 (T28'a: `priceEta` = `p_eta` at \(\eta/2\) = `P_half` at \(\Delta_i\eta/2\)); claim (ii) — the reserve-side factor-share identification with `L_eta`'s exponent — is **OPEN** (E8(6)) and not assumed anywhere above. NO RELATION is asserted to `exp/DynamicsOptimization` (`foc_eta`, `optimal_controls`): different objective (\(\pi^{+}\), not the excess return) and claim-(ii)'s η — those theorems stand untouched.
 
-ADMISSIBILITY OF THE FACTOR-SHARE READING. A factor share must lie in \((0,1)\), but \(\eta^{\star} \in (0,1)\) requires \(\Delta_i^{2}\ln\lambda > \ln((1+\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}})/(1+\phi))\). At \(\lambda = 1.0001\), \(\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}} = 0.05\), \(\phi = 0.003\) this is \(\Delta_i \gtrsim 21\); at \(\Delta_i = 1\) and \(\Delta_i = 10\) — both in standard use — \(\eta^{\star} \approx 458\) and \(\approx 4.6\). So on a large part of the tick-spacing range the factor-share reading is not merely OPEN but UNAVAILABLE, and the grid-exponent reading is the only one. This is recorded here rather than left for a downstream reader to discover.
-
-NORMALIZATION BRIDGE — claim (i), THE EXPONENT IDENTITY (provable):
-
-\[
-	\begin{aligned}
-		\texttt{priceEta}\,\eta\,\Delta_i\,i \, = \, \lambda^{(i/2)\Delta_i\eta} \, = \, \texttt{p\_eta}\,(\texttt{lam},\,\Delta_i,\,\eta/2,\,i) \, = \, \texttt{P\_half}\,(\texttt{lam},\ \Delta_i\eta/2,\ i)
-	\end{aligned}
-\]
-
-The factor 2 IS the normalization — `priceEta`'s sqrt-price convention. The identity is stated on integer ticks \(i : \mathbb{Z}\), the domain on which the two conventions are comparable, and the last equality is the existing `CFMM.Eta.p_eta_eq_P_half_rescaled`.
-
-NORMALIZATION BRIDGE — claim (ii), THE FACTOR-SHARE IDENTIFICATION: that this η is also the exponent of `L_eta η X Y` \(= X^{\eta}Y^{1-\eta}\), the weighted-CFMM trading function of `model/exp/eta.md`. This is a claim ABOUT THE MODEL — a reserve-side factor share identified with a grid-side exponent — and it is **OPEN** (E8, item 6). It does not follow from (i) and is not assumed by any display above.
-
-RELATION TO THE EXISTING LAYER — **NO RELATION IS ASSERTED.** `lean/exp/DynamicsOptimization.lean` (`foc_eta`, `optimal_controls`) characterizes a stationary point of \(\pi^{+} = \Delta_i^{2}S(\eta)\), where η enters ONLY through the inventory-weight curve `w η j` — that is the reserve-side factor share, i.e. claim (ii)'s η, and the objective is \(\pi^{+}\), not \(D\). **A different objective and a different η.** Relating the two would require exactly the factor-share identification that E8(6) lists as OPEN, so this section neither duplicates nor supersedes those theorems, and it does not claim to: they are proven, axiom-clean results about their own model and stand untouched. What this section adds independently is a CLOSED FORM obtained by inverting a bijection; no first-order condition is used or claimed anywhere in it, because E4's optimum is a kink.
+*Formalized* (`EtaCurvature`): `priceEta_step_ratio`; `curvIndex_eq_of_priceEta`; `curvIndex_mem_Ioo`; `curvIndex_strictMono`; `curvIndex_tendsto_zero`/`_one`; **`curvIndex_etaStar`** (\(\varsigma_{X/M}(\eta^{\star}) = \varsigma_{X/M}^{\star}\)); `etaStar_pos_iff`; `etaStar_strictMono_premInv`; `etaStar_strictAnti_fee`/`_spacing`; η-transport `lpExcessEta_isMaxOn`/`_strictMonoOn`/`_strictAntiOn`; T28'a `priceEta_eq_p_eta_half`/`priceEta_eq_P_half`.
 
 ## **E7. [ADDITION — THE INTERIOR OPTIMUM AGAINST THE PHASE-11 CORNER]**
 
