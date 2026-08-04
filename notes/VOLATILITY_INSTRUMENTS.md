@@ -779,11 +779,11 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 
 *(Symbol per user rulings 2026-08-04: values are \(\pi\)-objects and this valuation is linear; the former ad-hoc \(D_t\) is retired — \(D\) reads as debt.)*
 
-**Definition 25 (Portfolio value function).** With \((Q_X(p), Q_M(p))\) the point of the trading curve \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})} = \text{const}\) at which the marginal price (Definition 14's \(p = \partial_{Q_X}\varphi/\partial_{Q_M}\varphi\)) equals \(p\), the **portfolio value function** is the on-curve valuation
+**Definition 25 (Portfolio value function).** With \((Q_X^L(p), Q_M^L(p))\) the point of the trading curve \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})} = \text{const}\) at which the marginal price (Definition 14's \(p = \partial_{Q_X}\varphi/\partial_{Q_M}\varphi\)) equals \(p\), the **portfolio value function** is the on-curve valuation of the RESERVES — the \(L\)-superscripted quantities (Definition 10): bare \(Q_X, Q_M\) remain the trading-side arguments of Definition 13, while the reserves derived from liquidity are what the pool holds and what is valued here —
 
 \[
 	\begin{aligned}
-		\pi^{\varphi}(p) \, \equiv \, p\, Q_X(p) \, + \, Q_M(p)
+		\pi^{\varphi}(p) \, \equiv \, p\, Q_X^L(p) \, + \, Q_M^L(p)
 	\end{aligned}
 \]
 
