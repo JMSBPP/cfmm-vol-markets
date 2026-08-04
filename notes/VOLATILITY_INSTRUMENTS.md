@@ -1244,21 +1244,7 @@ Statics: strictly \(\uparrow \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{
 
 *Formalized* (`EtaCurvature`): `priceEta_step_ratio`; `curvIndex_eq_of_priceEta`; `curvIndex_mem_Ioo`; `curvIndex_strictMono`; `curvIndex_tendsto_zero`/`_one`; **`curvIndex_etaStar`**; `etaStar_pos_iff`; `etaStar_strictMono_premInv`; `etaStar_strictAnti_fee`/`_spacing`; `lpExcessEta_isMaxOn`/`_strictMonoOn`/`_strictAntiOn`; T28'a `priceEta_eq_p_eta_half`/`priceEta_eq_P_half`.
 
-## **E7. [ADDITION — THE INTERIOR OPTIMUM AGAINST THE PHASE-11 CORNER]**
-
-TWO ARBITRAGE MINIMANDS, NEVER INTERCHANGEABLE. Write **the \(\lambda_{\text{ARB}}\)-minimizer** for the Phase-11 object (`MevOptimization.mevMulti`, over \(\Theta_{\phi}\)) and **the \(\mathrm{arbLoss}\)-minimizer** for this section's (E2, over \(\varsigma_{X/M}\)). E8(3) says these are NOT identified, and nothing below identifies them.
-
-Over \(\Theta_{\phi}\): `MevJointProgram.joint_corner_degeneracy` (T20) puts the FLAIR maximum and the \(\lambda_{\text{ARB}}\)-minimum at the SAME level corner, and `joint_beta_degeneracy` (T21) does the same for the shape block \((\beta_j,\gamma_j)\), the two together being robust to every linear scalarization with nonnegative weight (T22). There is no trade-off there.
-
-**WHERE THE INTERIOR PEAK ACTUALLY COMES FROM — and it is NOT a weighting of two objectives.** Per E4, \(D\) = LP revenue from investor flow \(-\;\mathrm{arbLoss}\); the investor's SURPLUS is not a term of \(D\). The peak is produced by the LP revenue term alone, which is INCREASING in \(\varsigma_{X/M}\) below \(\varsigma_{X/M,I}\) and DECREASING above, because the investor's constraint switches from the corner regime (it drains the pool, A.41) to the interior regime (it curtails volume, A.40) exactly at \(\varsigma_{X/M,I}\). \(\mathrm{arbLoss}\) is monotone throughout and generates no peak at all; it only fixes, through \(c_1 > 0\), whether the post-peak decline survives. Below \(\varsigma_{X/M}^{\star}\) the surplus and the revenue sum to a constant (E5's zero-sum identity), so curvature there is a pure transfer and the pie is intact; above \(\varsigma_{X/M}^{\star}\) the pie itself shrinks.
-
-**The "two antitone objectives, opposite corners, therefore an interior peak" reading is FALSE and is not made here.** On \([0,\varsigma_{X/M,S}]\) a nonnegative weighting \(w_1(-\mathrm{arbLoss}) + w_2\,\mathrm{surplus}\) has derivative \(\tfrac{w_1\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} - w_2}{2}\cdot\tfrac{1+\phi}{(1-\varsigma_{X/M})^2}\): sign CONSTANT and weight-determined, no interior crossing on that branch.
-
-> CORRECTION (2026-07-31, ESC-1, recomputed): the generalization of the line above to EVERY branch is **FALSE**. \(\mathrm{arbLoss}\) and \(\mathrm{surplus}\) switch branches at DIFFERENT points (\(\varsigma_{X/M,S} < \varsigma_{X/M,I}\)) ⟹ on the middle region the two derivatives share no common positive factor and the weighted sum CAN cross zero strictly inside: \(+0.637\) at \(\varsigma_{X/M} = 0.19\) → \(-1.40\) at \(0.45\), crossing \(\approx 0.2412 \in (0.1835,\, 0.5)\), NO branch point. Correct claim (narrower): scalarization is not INCAPABLE of interior optima — it is simply not the SOURCE of this section's peak (E4's regime switch is), and Phase 11's T22 over \(\Theta_{\phi}\) is untouched (different model, different objects — E8(3)). Submitted bundle `4878ca32` carries the PRE-correction bytes with the false form explicitly PROHIBITED in its prompt; no requested theorem depends on it.
-
-**WHAT THIS DOES AND DOES NOT DO TO THE PHASE-11 DEGENERACY.** It does NOT resolve it. `mevMulti` contains no η, no \(\varsigma_{X/M}\) and no \(\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\); nothing in E1–E6 moves it, so the \(\Theta_{\phi}\) degeneracy stands exactly where Phase 11 left it. What this section supplies is a SEPARATE model in which a curvature trade-off genuinely exists and its optimum is interior. The honest connection to Phase 11 is narrower and better than a de-degeneration claim: `MevJointProgram`'s MODULE docstring locates the escape in DEMAND RESPONSE, and `LEAN_TRACEABILITY` §6(b) records the missing layer as the demand-elasticity / optimal-fee equilibrium layer. \(\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\) is a CANDIDATE for that layer — a demand-side valuation parameter — though neither source names it. Closing the gap for real means ONE objective containing both a demand-elastic investor and \(\lambda_{\text{ARB}}\); that object exists in neither model and is **OPEN** (E8(7)).
-
-**THE COUPLING, WITH ITS HYPOTHESES.** Under \(c_1(\phi) > 0\) and \(\phi < \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\), at any FIXED realized fee \(\phi\):
+**Proposition 11 (The fee–geometry coupling) [E7].** Under \(\varpi_1(\phi) > 0\) and \(\phi < \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\), at any FIXED realized fee \(\phi\):
 
 \[
 	\begin{aligned}
@@ -1266,13 +1252,9 @@ Over \(\Theta_{\phi}\): `MevJointProgram.joint_corner_degeneracy` (T20) puts the
 	\end{aligned}
 \]
 
-The mechanism: fee and curvature are SUBSTITUTE FRICTIONS on the investor's marginal cost. \(\varsigma_{X/M}^{\star} = \varsigma_{X/M,I}\) is the curvature at which the investor stops draining the pool; a higher fee already raises that marginal cost, so the drain regime ends at lower curvature. That is what makes the non-separability economic rather than a chain-rule artifact — and note the rent channel exists at \(\phi = 0\), so \(\phi\) modulates the optimum rather than creating it.
+— pushing the fee toward the level corner (Theorems 15/18) moves the geometry optimum DOWN: the two dials are coupled, and no common argmax exists.
 
-THREE BOUNDARIES ON THAT COUPLING, none of which may be dropped:
-
-- \(c_1\) DEPENDS ON \(\phi\), and its sign at the fee corner is not pinned by anything here. Where \(c_1 \leq 0\) the anchor's own argument puts the pool in the freeze region, the LP payoff is flat in \(\varsigma_{X/M}\), and **no η is optimal at all** — \(\eta^{\star}\) is then not an argmax.
-- FOLLOWING THE COUPLING TO ITS LIMIT SWITCHES THE CONTROLLER OFF: as \(\phi \to \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}^{-}\), \(\varsigma_{X/M}^{\star} \to 0\) and \(\eta^{\star} \to 0^{+}\), which E1 identifies as the zero-curvature constant-price grid. Nothing in \(\Theta_{\phi}\) bounds its fee corner away from \(\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\), because \(\Theta_{\phi}\) comes from a model with no \(\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\) in it. So "η INTERIOR" is not uniform in \(\phi\).
-- \(\bar\phi\) IS NOT \(\phi\). `VolInstrument.multiFee` has \(\bar\phi\) as its FLOOR, not its value (`multiFee_bounds`), and the realized fee is \(\sigma\)-dependent; the Phase-11 corner pins a \(\sigma\)-indexed fee PATH, not a scalar. The corner therefore lowers \(\eta^{\star}(\sigma)\) POINTWISE, giving a \(\sigma\)-indexed \(\eta^{\star}\) while η is a design constant of the grid. Reconciling those two is **OPEN** (E8(8)), and this whole section is stated at a fixed \(\phi\).
+*Formalized (antitonicity half):* `etaStar_strictAnti_fee`; `etaStar_coupled_to_fee_corner`; `eta_no_common_argmax`. The displayed exact derivative is UNFORMALIZED — hence Proposition.
 
 ## **E8. [CAVEATS]**
 
