@@ -1056,11 +1056,9 @@ Consequences (proved): \(\lambda_\tau\) is a genuine \(\oplus\)-summand (hazard-
 
 # BEHAVIOR_WELFARE_UTILIZATION
 
-## **E0. [NOTATION]**
-
 ANCHOR: [CJ](../refs/mev/CapponiJiaAdoptionDEX.pdf) §5.1 — Lemma 3, Propositions 5–6 (Lemmas 1–2 cited only for trade-occurrence conditions). Role of this section: the interior selector for the grid tilt \(\eta^{\star}\) — the degeneracy-breaker outside \(\Theta_{\phi}\) ([M6a]).
 
-Convention: \(\varrho_{\bullet}\) = EXOGENOUS anchor premia/shocks; \(\pi^{\bullet}\) = endogenous protocol payoffs only. <!-- notation-map --> The paper's objects enter as:
+**Convention 6 (Anchor imports) [E0].** \(\varrho_{\bullet}\) = EXOGENOUS anchor premia/shocks; \(\pi^{\bullet}\) = endogenous protocol payoffs only. <!-- notation-map --> The paper's objects enter as:
 
 - \(\varrho_I \, \equiv \, \) the investor private-use premium (Lean `premInv`);
 - \(\varrho_S \, \equiv \, \big|\Delta p_{(\eta,\Delta_i)}/p_{(\eta,\Delta_i)}\big|\) per period — the price shock (Lean `premShock`; one-spacing move: \(\lambda^{\eta\Delta_i} - 1\) in marginal price);
