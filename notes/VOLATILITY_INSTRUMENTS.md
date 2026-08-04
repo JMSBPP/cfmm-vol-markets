@@ -772,7 +772,7 @@ These are the instruments mapping **behavior objectives** to **protocol paramete
 	\end{aligned}
 \]
 
-**MEV is struck from the index set** (correcting the note's original listing, per Convention 4): \(\tilde\lambda_{\text{MEV}}\) is an incidence operator, not a hazard — its entry into the trader-paid fee goes through the \(\otimes_{\phi}\) monoid (Rule 7, the M9 route), never through \(\bigoplus\). The second line is the per-leg split, mirroring the leg fees of Rule 6.
+**MEV is struck from the index set** (correcting the note's original listing): \(\lambda_{\text{ARB}}\) — already a member — is \(\lambda_{\text{MEV}}\)'s SUMMAND (Definition 23), so listing MEV double-counts; and the MEV tax enters the trader-paid fee through the \(\otimes_{\phi}\) monoid (Rule 12), never through \(\bigoplus\). The second line is the per-leg split, mirroring the leg fees of Rule 6.
 
 **Theorem 14 (Fee monoid and hazard exactness).** \(\mathcal{G}_{\phi} = \big([0,1],\, \otimes_{\phi},\, 0\big)\) is an Abelian monoid — commutative, associative, identity \(0\), closed on \([0,1]\), monotone — and the hazard correspondence is **exact** under \(\phi = 1 - e^{-\lambda}\):
 
@@ -1006,7 +1006,7 @@ The **sandwich hazard** mirrors Definition 22's shape — extracted sandwich val
 
 Under uniform batch clearing there is no ordering to exploit: \(\Delta Q_M^{\text{sand}} = 0 \implies \pi^{\text{sandwich}} = 0 \implies \lambda_{\text{sandwich}} = 0\) (the Angstrom regime). *Status:* **UNFORMALIZED** — no Lean carrier; the paper's profit bound (linear in \(\mathrm{tol}_{\text{slip}}\), with a liquidity hurdle) is cited, not transcribed. **\(\mathrm{tol}_{\text{slip}}\) is UNDEFINED as a primitive — OPEN (Aristotle target, user conjecture 2026-08-04):** the slippage limit may be embedded in a functional relationship of already-defined parameters (candidates: the per-spacing price step \(\lambda^{\eta\Delta_i/2}\) of \(\Theta_p\), the fee schedule \(\Theta_{\phi}\)); until that relationship is derived or refuted in Lean, it enters as a free tolerance of the \(\mathrm{tol}\) family.
 
-**Definition 23 (Aggregate MEV hazard; the recycling incidence operator) [M7].** The aggregate extraction hazard is the hazard-side sum
+**Definition 23 (Aggregate MEV hazard) [M7].** The aggregate extraction hazard is the hazard-side sum
 
 \[
 	\begin{aligned}
@@ -1014,25 +1014,11 @@ Under uniform batch clearing there is no ordering to exploit: \(\Delta Q_M^{\tex
 	\end{aligned}
 \]
 
-with \(\oplus\) per Definition 19 / Theorem 14 (\(\otimes_{\phi}\) acts on \([0,1]\), NEVER on unbounded hazards). \(\lambda_{\text{sandwich}} = 0 \implies \lambda_{\text{MEV}} = \lambda_{\text{ARB}}\) — uniform clearing delivers this by construction, so Definition 22 through Theorem 19 transfer to \(\lambda_{\text{MEV}}\) verbatim in the Angstrom regime; the sandwich channel is a distinct object ([MEV_THEORY_I](../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf)), unmodelled here. Two parametric items, both OUTSIDE \(\Theta_{\phi}\):
+with \(\oplus\) per Definition 19 / Theorem 14 (\(\otimes_{\phi}\) acts on \([0,1]\), NEVER on unbounded hazards). \(\lambda_{\text{sandwich}} = 0 \implies \lambda_{\text{MEV}} = \lambda_{\text{ARB}}\) — uniform clearing delivers this by construction, so Definition 22 through Theorem 19 transfer to \(\lambda_{\text{MEV}}\) verbatim in the Angstrom regime; the sandwich channel is a distinct object ([MEV_THEORY_I](../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf)), unmodelled here. **Protocol choice (DECIDED 2026-08-04):** MEV is controlled by the TAX — Rule 12's monoid entry (and the JIT liquidity tax when that section converts); auction-recycling mechanisms (ToB rebates) are NOT part of this protocol and are removed from this document — their formalized-not-adopted carriers remain in-tree. One parametric lever OUTSIDE \(\Theta_{\phi}\):
 
-(i) **the recycling incidence operator** — **Protocol choice (DECIDED): NOT adopted.** This protocol enacts the TAX — Rule 12's monoid entry (and the JIT liquidity tax when that section converts); the recycling mechanism below is Angstrom's reference mechanism, recorded for incidence analysis only.
+**Cadence** \(= \Delta t\): moves \(\lambda_{\text{ARB}}\) monotonically, absent from \(\lambda_{\text{FLAIR}}\) — the non-degenerate lever outside \(\Theta_{\phi}\).
 
- (glyph per Convention 4 — the aggregate \(\lambda_{\text{MEV}}\) is a plain-\(\lambda\) hazard; the tilde names the incidence layer on top of it). **This \(\tau\) is NOT \(\tau_{\text{MEV}}\)** (user question 2026-08-04): \(\tau_{\text{MEV}}\) is Rule 12's monoid-entry tax (channel (A) — intensity, charged to traders); this is the AUCTION RECYCLING SHARE (Rule 12's not-adopted channel (C)) — written \(\tau_{\text{rec}}\) to kill the collision: <!-- notation-map -->
-
-\[
-	\begin{aligned}
-		\tilde\lambda_{\text{MEV}} \, \equiv \, (1-\tau_{\text{rec}})\,\lambda_{\text{MEV}}, \qquad \tau_{\text{rec}} \in [0,1], \qquad \tau_{\text{rec}}(k) = \frac{k}{k+1},\ k\ \text{FREE}
-	\end{aligned}
-\]
-
-**The role of \(k\):** the auction-competition parameter of the ToB priority-fee mechanism — with full-value bidding competition the winning searcher surrenders the fraction \(k/(k+1)\) of the arb value to the pool; \(\tau_{\text{rec}}(k)\) is increasing in \(k\) and \(\to 1\) as \(k \to \infty\) (perfect competition returns the full arb to LPs); monopoly/collusion makes the realized \(\tau_{\text{rec}}\) arbitrarily lower. \(k\) stays FREE — no live numeral enters any claim.
-
-The ToB auction awards the arb and routes the bid to LPs: \(\tau_{\text{rec}}\) redistributes, \(\lambda_{\text{MEV}}\) is invariant, the LP-borne share falls — \((1-\tau_{\text{rec}})\) is NOT an MEV reduction, and for \(\tau_{\text{rec}} < 1\) the rebate moves the VALUE, not the SOLUTION (minimizers unmoved — the precise sense in which \(\tau_{\text{rec}} \notin \Theta_{\phi}\)); \(\tau_{\text{rec}} = 1\) vacuous.
-
-(ii) **cadence** \(= \Delta t\): moves \(\lambda_{\text{ARB}}\) monotonically, absent from \(\lambda_{\text{FLAIR}}\) — the second non-degenerate lever outside \(\Theta_{\phi}\).
-
-*Formalized* (`MevJointProgram.lean`): `mevTotal` (plain addition, with the \(\otimes_{\phi}\) correspondence as its own lemma `mevTotal_probOr_hazard`); `mevTotal_eq_arb_of_sandwich_zero`; `mevTotal_mevMulti_eq_of_sandwich_zero`; (i) `mevNet`, `mevNet_le_mev`, `mevNet_anti_tau`, `mevNet_eq_zero_of_tau_one`, `mevNet_argmin_invariant`, `taxFraction` (\(k\) FREE), `taxFraction_mem_Ico`, `taxFraction_mono`; (ii) `mev_mono_dt`.
+*Formalized* (`MevJointProgram.lean`): `mevTotal` (plain addition, with the \(\otimes_{\phi}\) correspondence as its own lemma `mevTotal_probOr_hazard`); `mevTotal_eq_arb_of_sandwich_zero`; `mevTotal_mevMulti_eq_of_sandwich_zero`; cadence `mev_mono_dt`. *(The removed recycling mechanism's carriers — the `mevNet` family, `taxFraction` — remain in-tree as formalized-not-adopted.)*
 
 **Caveats [M8]** (annotations, no statement class): LEADING ORDER — everything rests on eq. (12) fast-block small-fee asymptotics; only Definition 22(ii), under its guard, is exact. QUASI-STATIC — \(\mathbb{P}_{\Delta_{\text{ARB}}}\) is steady-state, applied per step on a \(\sigma\)-varying path (this document's extension; valid iff parameters are slow vs mispricing mixing). NO DEMAND ELASTICITY — the missing term is [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf) §7.3 eq. (27); corner solutions are objective properties, NOT equilibrium claims (the elasticity layer is [OPT_FEES](../refs/flair/CampbellBergaultMilionisNutzOptimalFees.pdf)). AGGREGATE SCOPE — two channels only; unmodelled: noise backruns, multi-block censoring (lengthens \(\Delta t\)), JIT (taxed separately), gas (additive fee). CADENCE VALIDITY — the \(\Delta t\) law is validated for block times \(\gtrsim 1\)s; sub-second needs jump-diffusion, out of scope. The Theorem 19 \(\sigma\)-varying/\(\Theta_{\phi}\)-restricted split stands as labelled there.
 
@@ -1045,7 +1031,7 @@ The ToB auction awards the arb and routes the bid to LPs: \(\tau_{\text{rec}}\) 
 	\end{aligned}
 \]
 
-Alternates formalized, NOT adopted: (B) convex separation \(\phi = (1-\tau_{\text{MEV}})\phi + \tau_{\text{MEV}}\phi\) (incidence-targeting, intensity-neutral); (C) auction lump-sum \(\tau_{\text{rec}}(k) = k/(k+1)\) (`taxFraction`, `mevNet` — Definition 23(i)).
+Alternates formalized, NOT adopted: (B) convex separation \(\phi = (1-\tau_{\text{MEV}})\phi + \tau_{\text{MEV}}\phi\) (incidence-targeting, intensity-neutral); (C) auction lump-sum ToB recycling (`taxFraction`, `mevNet` — mechanism not part of this protocol; removed from the document 2026-08-04).
 
 **Theorem 20 (The discriminating algebra — what the monoid entry buys and cannot buy) [M10].**
 
