@@ -504,6 +504,8 @@ CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because
 
 > Provenance: `EtaTilde` 23/23 axiom-clean, project `67b1c841` (doc \(\chi_{X/M}\) ↔ Lean `etaTilde`, the Lean name fixed by the bundle and never hand-edited); `PhiCES` 12/12 axiom-clean, project `cd3558f7`. Carriers not yet attached to a numbered statement: `phiCES_agreement_point` (evaluation form, scope declared in-file); CONDITIONAL, NOT an identification: `phiCES_rho_vs_pi_eta_trader` gives \(1/(1-\epsilon_{X/M}) = 1/(1-\eta) \iff \epsilon_{X/M} = \eta\) away from the poles for `exp/CESLongVolPayoff`'s η, and its docstring states outright that this does NOT identify the payoff parameter with the trading-function parameter — E8(6) untouched.
 
+# FEE_ALGEBRA
+
 Define the per-leg fee decomposition (\(\phi_M, \phi_X\) are the M9 leg fees):
 
 \[
