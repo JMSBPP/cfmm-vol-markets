@@ -1073,36 +1073,18 @@ Positivity is load-bearing: \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} = 0\)
 
 ## **E1. [ADDITION] The curvature family and the discrete index**
 
-**VERDICT ON "F IS \(\varphi\)" — SETTLED, PART PROVEN PART REFUTED.** Mechanism: Angeris–Chitra–Diamandis–Evans–Kulkarni, *The Geometry of CFMMs*, arXiv:2308.08066 §1.3.2 eq (6) — the CANONICAL trading function \(\mathrm{canon}\,\psi\,k\,(R) = \sup\{\lambda > 0 : \psi(R/\lambda) \geq k\}\), which is nondecreasing, concave and homogeneous, and is shared by any two \(\psi\) describing the same reachable set.
-
-\[
-	\begin{aligned}
-		\mathrm{canon}\,\varphi_{\chi_{X/M},\,0}\,k \, &= \, \varphi_{\chi_{X/M},\,0}/k \qquad \text{(ours is ALREADY canonical up to scale)} \\
-		\mathrm{canon}\,F_{\kappa}\,C \, &= \, \frac{b + \sqrt{b^{2} + 4C\kappa\,Q_X Q_M}}{2C}, \qquad b = (1-\kappa)A\,L, \quad L = p^{2}\,\Delta Q_M + \Delta Q_X \\
-		\kappa = 1 \, &\Rightarrow \, \sqrt{Q_X Q_M}/\sqrt{C}; \qquad \kappa = 0 \, \Rightarrow \, A\,L/C \;\; \text{(linear)}
-	\end{aligned}
-\]
-
-SURVIVES: as a CANONICAL-FORM statement, and at ONE point — at \(\kappa = 1\) the canonical form IS \(\varphi_{1/2,\,0}\) up to a positive scalar (same CFMM).
-REFUTED as a FAMILY identity: for \(\kappa \in (0,1)\) there is NO \((\chi_{X/M}, c > 0)\) with \(\mathrm{canon}\,F_{\kappa} = c\,\varphi_{\chi_{X/M},\,0}\) pointwise.
-REFUTED at the linear end: \(F_0 = \varphi_{\chi_{X/M}(\varsigma_{X/M}=0),\,0}\) is FALSE — \(\chi_{X/M}(\varsigma_{X/M}=0) = 1/2\), and the linear function is not a positive multiple of \(\varphi_{1/2,\,0}\).
-ORIENTATION: the identification HOLDS at Capponi \(\kappa = 1\) and FAILS at \(\kappa = 0\) ⟹ any identification respecting the agreement point must REVERSE orientation.
-DIAGNOSIS: Capponi's \(\kappa\) travels the \(\epsilon_{X/M}\) axis of \(\varphi_{\chi_{X/M},\epsilon_{X/M}}\); this document's \(\varsigma_{X/M}\) is a function of the SHARE \(\chi_{X/M}\) alone. They coincide only where both axes sit at base values — the CPMM. **E8(1) therefore remains OPEN, now for a precise reason with a witness rather than a vague one.**
-
-> LEAN (proved, `CanonicalCurve`, 16/16 axiom-clean, project `ffdb83fe`): `canon_phiEps`, `canon_Fcap`, `canon_Fcap_homogeneous`, `canon_Fcap_one`, `canon_Fcap_zero`, `canon_Fcap_one_eq_phiEps_half` (the agreement), `canon_Fcap_numeraire` (\(p_B = 1\), \(p_A = p^2\) — Capponi's two free prices collapse to ONE grid price).
-> REFUTED: `canon_Fcap_not_phiEps` (family identity), `linear_not_phiEps_half` + `tildeOfCurv_zero` + `curvIndex_orientation_inconsistent` (the \(F_0\) substitution), with `cpmm_sits_at_curvIndex_zero` carrying both halves as one conjunction. PDF: `../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf`.
-The anchor's family (§5.1, p. 23), with `A` the scaling coefficient:
+The anchor's family ([CJ](../refs/mev/CapponiJiaAdoptionDEX.pdf) §5.1, p. 23; `A` the scaling coefficient):
 
 \[
 	\begin{aligned}
 		F_{\varsigma_{X/M}}(Q_X,Q_M) \, &= \, (1-\varsigma_{X/M})\,A\,F_0(Q_X,Q_M) \, + \, \varsigma_{X/M}\,F_1(Q_X,Q_M), \qquad \varsigma_{X/M} \in [0,1] \\
-		F_0(Q_X,Q_M) \, &= \, p_{(\chi_{X/M}, \Delta_i)}\,Q_X + p_B\,Q_M \quad \text{(linear, zero curvature; numeraire-relative \(p_B = 1\))}, \qquad
+		F_0(Q_X,Q_M) \, &= \, p_{(\chi_{X/M}, \Delta_i)}\,Q_X + p_B\,Q_M \quad \text{(linear; numeraire-relative \(p_B = 1\))}, \qquad
 		F_1(Q_X,Q_M) \, = \, Q_X\,Q_M \quad \text{(constant product)} \\
 		A \, &= \, \big(Q_X^{0}\,Q_M^{0} / (p_{(\chi_{X/M}, \Delta_i)}\,p_B)\big)^{1/2} \quad (Q^{0} = \text{the anchor's initial reserves})
 	\end{aligned}
 \]
 
-The curvature of \(F_{\varsigma_{X/M}} = C\) is increasing in \(\varsigma_{X/M}\). OUR discrete index, from `VolInstrument.priceEta η Δ_i i` \(= \lambda^{(i/2)\Delta_i\eta}\):
+OUR discrete index, from `VolInstrument.priceEta`:
 
 \[
 	\begin{aligned}
@@ -1113,11 +1095,14 @@ The curvature of \(F_{\varsigma_{X/M}} = C\) is increasing in \(\varsigma_{X/M}\
 	\end{aligned}
 \]
 
-Properties: strictly increasing in \(\eta\); a bijection \((0,\infty) \to (0,1)\); \(\to 0\) as \(\eta \to 0^{+}\) (the zero-curvature constant-price grid, the anchor's \(\varsigma_{X/M} = 0\)) and \(\to 1\) as \(\eta \to \infty\).
+strictly increasing in \(\eta\); a bijection \((0,\infty) \to (0,1)\); \(\to 0\) as \(\eta \to 0^{+}\), \(\to 1\) as \(\eta \to \infty\).
 
-**\(\varsigma_{X/M}(\eta,\Delta_i)\) IS A MONOTONE PROXY FOR THE ANCHOR'S CURVATURE, NOT A DEFINITIONAL RESTATEMENT OF IT — AND THE DIFFERENCE IS LOAD-BEARING.** The anchor's curvature is the rate of change of the marginal exchange rate *with respect to the amount traded* (§5.1, p. 22), which is what produces slippage; and its `k` is the MIXING WEIGHT of the family above, entering structurally in the arbitrageur's constraint (A.31) and the investor's (A.39) from which every closed form in E2–E5 is derived. Our \(\varsigma_{X/M}\) is the relative price step *per tick index*, and it carries NO per-tick liquidity term — two grids with the same \(\varsigma_{X/M}\) and different liquidity have different slippage per unit traded, hence different curvature in the anchor's sense. What \(\varsigma_{X/M}\) shares with `k` is its qualitative content: increasing in curvature, \(\to 0\) at zero curvature, \(\to 1\) at maximal. **Placing \(\varsigma_{X/M}\) in the anchor's `k` slot is a MODELLING step, not a definition — see E8(1), which covers this object-level identification as well as the equilibrium transfer.**
+**"F is \(\varphi\)" — SETTLED, part proven part refuted** (via the canonical trading function of [CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf) §1.3.2): agreement at \(\kappa = 1\) ONLY (\(\mathrm{canon}\,F_1 = \varphi_{(1/2,\,0)}\) up to scale); the FAMILY identity is REFUTED for \(\kappa \in (0,1)\); the \(F_0\)-substitution is REFUTED; any agreement-respecting identification must REVERSE orientation. DIAGNOSIS: Capponi's \(\kappa\) travels the \(\epsilon_{X/M}\) axis; \(\varsigma_{X/M}\) is share-only — **E8(1) stays OPEN, with a witness.**
 
-**WARNING — `η = 1` is the standard sqrt-price grid (`VolInstrument.priceEta_one`: `priceEta 1 Δ_i = tickPrice Δ_i`), and is NOT Capponi's `ς_{X/M} = 1`. \(\varsigma_{X/M}(1,\Delta_i) \neq 1\), and no display here equates `η = 1` with `ς_{X/M} = 1`.** Nor does the unbounded η range EXTEND the anchor's family: \(\varsigma_{X/M}(\cdot,\Delta_i)\) maps \((0,\infty)\) onto the OPEN interval \((0,1) \subsetneq [0,1]\), so \(\eta \to \infty\) only approaches constant product and never attains it, and the anchor's two corners are unreachable. Interiority in η is therefore INHERITED from \(\varsigma_{X/M}^{\star} \in (0,1)\) — the anchor's Proposition-5 result — and is not additional evidence supplied by the reparametrization.
+*Formalized* (`CanonicalCurve`, 16/16 axiom-clean): `canon_phiEps`; `canon_Fcap(_homogeneous/_one/_zero)`; agreement `canon_Fcap_one_eq_phiEps_half`; `canon_Fcap_numeraire` (two anchor prices collapse to ONE grid price). REFUTED: `canon_Fcap_not_phiEps`; `linear_not_phiEps_half` + `tildeOfCurv_zero` + `curvIndex_orientation_inconsistent`; `cpmm_sits_at_curvIndex_zero`.
+
+\(\varsigma_{X/M}(\eta,\Delta_i)\) is a MONOTONE PROXY for the anchor's `k`, not a restatement: it carries NO per-tick liquidity term (same \(\varsigma\), different liquidity ⟹ different slippage), so placing it in the `k` slot is a MODELLING step — E8(1). WARNING: \(\eta = 1\) is the sqrt-price grid (`priceEta_one`), NOT \(\varsigma_{X/M} = 1\); the range is the OPEN \((0,1)\) — the anchor's corners are unreachable, and interiority in \(\eta\) is INHERITED from \(\varsigma_{X/M}^{\star} \in (0,1)\), not evidence supplied by the reparametrization.
+
 > note: arbLoss is a payoff \pi^{- arb} and if a ratio is \pi^{-arb} / whatever denominator that makes it a ratio
 ## **E2. [ADDITION] The arbitrage-loss ratio** (Lemma 3(1))
 
