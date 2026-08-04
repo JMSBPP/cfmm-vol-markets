@@ -987,13 +987,12 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 
 \(\mathcal{S}^{-1}\) is the reverse exchange function ([CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf)); the source's glyph \(G\) enters as \(\mathcal{S}\) (user ruling 2026-08-04 — sandwich semantics; also avoids any confusion with the G0–G6 block labels). <!-- notation-map -->
 
-**Definition 27 (Sandwich hazard) [M7].** Per [MEV_THEORY_I](../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf) eqs. (4)–(6) — the paper's slippage limit \(\eta\) enters as \(\mathrm{tol}_{\text{slip}}\) (\(\eta\) is the grid exponent, Definition 8; \(\mathrm{tol}\) is the tolerance family), its user trade \(\Delta\) is the money-leg flow \(\Delta Q_M\), and its `PNL` is the sandwich payoff \(\pi^{\text{sandwich}}\) (\(\pi\)-convention) <!-- notation-map -->. For a user trade \(\Delta Q_M\) with slippage floor \((1-\mathrm{tol}_{\text{slip}})\mathcal{S}(\Delta Q_M)\), the front-run \(\Delta_{\text{sand}}(\Delta Q_M, \mathrm{tol}_{\text{slip}})\) solves the slippage-binding equation, the back-run recovers the position, and the attacker's payoff is:
-
+**Definition 27 (Sandwich hazard) [M7].** Per [MEV_THEORY_I](../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf) eqs. (4)–(6) — the paper's slippage limit \(\eta\) enters as \(\mathrm{tol}_{\text{slip}}\) (\(\eta\) is the grid exponent, Definition 8; \(\mathrm{tol}\) is the tolerance family), its user trade \(\Delta\) is the money-leg flow \(\Delta Q_M\), and its `PNL` is the sandwich payoff \(\pi^{\text{sandwich}}\) (\(\pi\)-convention) <!-- notation-map -->. For a user trade \(\Delta Q_M\) with slippage floor \((1-\mathrm{tol}_{\text{slip}})\mathcal{S}(\Delta Q_M)\), the front-run \(\Delta Q_M^{\text{sand}}(\Delta Q_M, \mathrm{tol}_{\text{slip}})\) solves the slippage-binding equation, the back-run recovers the position, and the attacker's payoff is:
 \[
 	\begin{aligned}
-		\mathcal{S}(\Delta_{\text{sand}} + \Delta Q_M) - \mathcal{S}(\Delta_{\text{sand}}) \, &= \, (1-\mathrm{tol}_{\text{slip}})\,\mathcal{S}(\Delta Q_M) \\[4pt]
-		\Delta_{\text{sand}}' \, &= \, \Delta_{\text{sand}} + \Delta Q_M - \mathcal{S}^{-1}\big(\mathcal{S}(\Delta Q_M + \Delta_{\text{sand}}) - \mathcal{S}(\Delta_{\text{sand}})\big) \\[4pt]
-		\pi^{\text{sandwich}}(\Delta Q_M, \mathrm{tol}_{\text{slip}}) \, &= \, \Delta_{\text{sand}}' - \Delta_{\text{sand}} \, = \, \Delta Q_M - \mathcal{S}^{-1}\big(\mathcal{S}(\Delta Q_M + \Delta_{\text{sand}}) - \mathcal{S}(\Delta_{\text{sand}})\big), \qquad \pi^{\text{sandwich}}(\Delta Q_M, 0) = 0
+		\mathcal{S}(\Delta Q_M^{\text{sand}} + \Delta Q_M) - \mathcal{S}(\Delta Q_M^{\text{sand}}) \, &= \, (1-\mathrm{tol}_{\text{slip}})\,\mathcal{S}(\Delta Q_M) \\[4pt]
+		\Delta Q_M^{\text{sand}\prime} \, &= \, \Delta Q_M^{\text{sand}} + \Delta Q_M - \mathcal{S}^{-1}\big(\mathcal{S}(\Delta Q_M + \Delta Q_M^{\text{sand}}) - \mathcal{S}(\Delta Q_M^{\text{sand}})\big) \\[4pt]
+		\pi^{\text{sandwich}}(\Delta Q_M, \mathrm{tol}_{\text{slip}}) \, &= \, \Delta Q_M^{\text{sand}\prime} - \Delta Q_M^{\text{sand}} \, = \, \Delta Q_M - \mathcal{S}^{-1}\big(\mathcal{S}(\Delta Q_M + \Delta Q_M^{\text{sand}}) - \mathcal{S}(\Delta Q_M^{\text{sand}})\big), \qquad \pi^{\text{sandwich}}(\Delta Q_M, 0) = 0
 	\end{aligned}
 \]
 
@@ -1005,7 +1004,7 @@ The **sandwich hazard** mirrors Definition 22's shape — extracted sandwich val
 	\end{aligned}
 \]
 
-Under uniform batch clearing there is no ordering to exploit: \(\Delta_{\text{sand}} = 0 \implies \pi^{\text{sandwich}} = 0 \implies \lambda_{\text{sandwich}} = 0\) (the Angstrom regime). *Status:* **UNFORMALIZED** — no Lean carrier; the paper's profit bound (linear in \(\mathrm{tol}_{\text{slip}}\), with a liquidity hurdle) is cited, not transcribed.
+Under uniform batch clearing there is no ordering to exploit: \(\Delta Q_M^{\text{sand}} = 0 \implies \pi^{\text{sandwich}} = 0 \implies \lambda_{\text{sandwich}} = 0\) (the Angstrom regime). *Status:* **UNFORMALIZED** — no Lean carrier; the paper's profit bound (linear in \(\mathrm{tol}_{\text{slip}}\), with a liquidity hurdle) is cited, not transcribed. **\(\mathrm{tol}_{\text{slip}}\) is UNDEFINED as a primitive — OPEN (Aristotle target, user conjecture 2026-08-04):** the slippage limit may be embedded in a functional relationship of already-defined parameters (candidates: the per-spacing price step \(\lambda^{\eta\Delta_i/2}\) of \(\Theta_p\), the fee schedule \(\Theta_{\phi}\)); until that relationship is derived or refuted in Lean, it enters as a free tolerance of the \(\mathrm{tol}\) family.
 
 **Definition 23 (Aggregate MEV hazard; the recycling incidence operator) [M7].** The aggregate extraction hazard is the hazard-side sum
 
