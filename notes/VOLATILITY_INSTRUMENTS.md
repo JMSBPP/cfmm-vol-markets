@@ -771,24 +771,17 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 
 ### FLAIR
 
-Define:
+**Definition 20 (FLAIR).** The **LP-competition hazard** \(\lambda_{\text{FLAIR}}\) is the time-integrated fee yield per unit of pooled capital — the FLAIR metric of [FLAIR](../refs/flair/MilionisWanAdamsFLAIR.pdf), instantiated on this document's objects:
 
 \[
 	\begin{aligned}
-		\lambda_{\text{FLAIR}}\, (t) \, &\equiv \, \displaystyle\int_{t_0}^t \frac{\displaystyle\int_{p_{(\cdot) \,(t)}} \, \phi \, ( \sigma \, (i (t));t) \, d\, p_{(\cdot)} \,(t)}{p_{(\cdot)} \,(t)\, Q_M^L \Big (\sum_{j}^{\# \text{LP}} \, L_j \, (i(t); \cdot)\Big ) \, +\,  Q_M^L \Big(\sum_{j}^{\# \text{LP}} \, L_j \, (i(t); \cdot)\Big) } \, dt
+		\lambda_{\text{FLAIR}}\, (t) \, &\equiv \, \displaystyle\int_{t_0}^t \frac{\displaystyle\int_{p_{(\eta,\Delta_i)} \,(i(t))} \, \phi \, ( \sigma \, (i (t));t) \, d\, p_{(\eta,\Delta_i)} \,(t)}{p_{(\eta,\Delta_i)} \,(i(t))\, Q_X^L \Big (\sum_{j}^{\# \text{LP}} \, L_j \, (i(t); \cdot)\Big ) \, +\,  Q_M^L \Big(\sum_{j}^{\# \text{LP}} \, L_j \, (i(t); \cdot)\Big) } \, dt
 	\end{aligned}
 \]
 
+— numerator: the fee density collected across the price range; denominator: **pool value in money units** (asset leg at price, plus money leg). It is a plain-\(\lambda\) hazard (Convention 4): fee income *arrives*; nothing is re-routed. **Two repairs vs the raw note (user-approved 2026-08-04):** the undeclared \(p_{(\cdot)}\) contraction is expanded to \(p_{(\eta,\Delta_i)}\) (no new shorthand minted), and the denominator's first term is corrected \(Q_M^L \to Q_X^L\) — as written both terms were the money leg, double-counting money and valuing nothing at price.
 
-\[
-	\begin{aligned}
-		\exists \, \Theta_{\lambda_{\text{FLAIR}}} \, \subset \, \Theta_{\phi} \, \quad \, \sup_{\Theta_{\lambda_{\text{FLAIR}}}} \, \lambda_{\text{FLAIR}}\, (t)
-	\end{aligned}
-	
-\]
-
-
-> LEAN (proved — the claim above is now identified AND solved): discretizing with flow weights \(w_t \geq 0\) and capital \(D_t > 0\):
+**Theorem 15 (FLAIR identification and corner solution).** The program \(\sup_{\Theta_{\lambda_{\text{FLAIR}}}} \lambda_{\text{FLAIR}}\) over a sub-block \(\Theta_{\lambda_{\text{FLAIR}}} \subset \Theta_{\phi}\) is **identified and solved**. Discretizing with flow weights \(w_t \geq 0\) and capital \(D_t > 0\):
 
 \[
 	\begin{aligned}
@@ -805,10 +798,11 @@ Define:
 	\end{aligned}
 \]
 
-attained bang-bang at the level corner for any fixed \((\beta,\gamma)\); in \((\beta,\gamma)\) the bound is approached only as \(\beta \to -\infty\) (strict gap at every finite \(\beta\): the sup over unbounded shape parameters is a saturation boundary, not a maximum).
+attained **bang-bang at the level corner** for any fixed \((\beta,\gamma)\); in \((\beta,\gamma)\) the bound is approached only as \(\beta \to -\infty\) — a saturation boundary, not a maximum: the shape parameters never attain it (strict gap at every finite \(\beta\)). This is the G3 level/shape split: \(\Theta_{\lambda_{\text{FLAIR}}}\) is a LEVEL block; \((\beta_j, \gamma_j)\) only place the transition.
 
-> Caveat: this functional has no demand elasticity — the fee–volume trade-off lives in the optimal-fee layer (`FeeSchedule`, arXiv:2508.08152).
-> `FlairOptimization.flairMulti_affine`, `W_j_lt_W`, `flairMulti_le_corner`, `flairMulti_corner_attained_levels`, `flairMulti_saturation_limit`, `flairMulti_strict_below_saturation`, `Theta_lambda_identification`.
+*Caveat (kept):* this functional has no demand elasticity — the fee–volume trade-off lives in the optimal-fee layer (`FeeSchedule`, arXiv:2508.08152).
+
+*Formalized:* `FlairOptimization.flairMulti_affine`; `W_j_lt_W`; `flairMulti_le_corner`; `flairMulti_corner_attained_levels`; `flairMulti_saturation_limit`; `flairMulti_strict_below_saturation`; `Theta_lambda_identification`.
 
 ### MEV
 
