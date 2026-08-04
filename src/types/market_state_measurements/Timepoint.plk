@@ -1,0 +1,132 @@
+
+import pos_spec::TickVolatility::*;
+import lib::market_state_measurements::RealizedVolatilityLib::*;
+import std::core_ops::bool_to_u256;
+
+const INIT_STORAGE_INDEX = 0;
+const INIT_TIME_WINDOW = 0;
+
+// Field widths, matching Algebra's Timepoint exactly:
+//   bool initialized; uint32 blockTimestamp; int56 tickCumulative;
+//   uint88 volatilityCumulative; int24 tick; int24 averageTick; uint16 windowStartIndex;
+const MASK_U32 = 0xFFFFFFFF;
+const MASK_U88 = 0xFFFFFFFFFFFFFFFFFFFFFF;
+const MASK_I24 = 0xFFFFFF;
+const MASK_I56 = 0xFFFFFFFFFFFFFF;
+const MASK_U16 = 0xFFFF;
+
+// SIGNEXTEND takes a 0-indexed BYTE position: int24 = 3 bytes -> 2, int56 = 7 bytes -> 6.
+const SIGN_BYTE_I24 = 2;
+const SIGN_BYTE_I56 = 6;
+
+// Bit offsets. Total = 241 bits, identical to Algebra's packing budget.
+//   timestamp        32   bits   0- 31
+//   realizedVol      88   bits  32-119
+//   tick             24   bits 120-143   (signed)
+//   avg_tick         24   bits 144-167   (signed)
+//   tick_cumulative  56   bits 168-223   (signed)
+//   window_start_idx 16   bits 224-239
+//   initialized       1   bit  240
+const OFF_REALIZED_VOL = 32;
+const OFF_TICK = 120;
+const OFF_AVG_TICK = 144;
+const OFF_TICK_CUMULATIVE = 168;
+const OFF_WINDOW_START_INDEX = 224;
+const OFF_INITIALIZED = 240;
+
+// 241 bits
+const Timepoint = struct {
+      timestamp: u256,                    // u32
+      realizedVolatility :TickVolatility, // u88
+      tick: u256,                         // i24
+      avg_tick: u256,                     // i24
+      tick_cumulative: u256,              // i56
+      time_window_start_index: u256,      // u16
+      initialized: bool
+};
+
+// pack_timepoint is the exact inverse of unpack_timepoint: Timepoint -> u256.
+//
+// Masking a negative two's-complement u256 down to N bits yields the correct N-bit two's
+// complement, so signed fields need no special handling here -- only on the way back out
+// (see unpack_timepoint, which sign-extends).
+const pack_timepoint = fn(self: Timepoint) u256 {
+    (self.timestamp & MASK_U32)
+    | @evm_shl(OFF_REALIZED_VOL, self.realizedVolatility.vol & MASK_U88)
+    | @evm_shl(OFF_TICK, self.tick & MASK_I24)
+    | @evm_shl(OFF_AVG_TICK, self.avg_tick & MASK_I24)
+    | @evm_shl(OFF_TICK_CUMULATIVE, self.tick_cumulative & MASK_I56)
+    | @evm_shl(OFF_WINDOW_START_INDEX, self.time_window_start_index & MASK_U16)
+    | @evm_shl(OFF_INITIALIZED, bool_to_u256(self.initialized))
+};
+
+// unpack_timepoint SIGN-EXTENDS every signed field.
+//
+// `tick`, `avg_tick` (int24) and `tick_cumulative` (int56) are signed. Ticks are routinely
+// negative (they span +/-887272), so masking alone would return a large positive number and
+// every downstream @evm_sdiv / @evm_slt would then operate on garbage.
+const unpack_timepoint = fn(packed: u256) Timepoint {
+    Timepoint {
+        timestamp:
+            packed & MASK_U32,
+
+        realizedVolatility: TickVolatility {
+            vol:
+                @evm_shr(OFF_REALIZED_VOL, packed)
+                & MASK_U88
+        },
+
+        tick:
+            @evm_signextend(SIGN_BYTE_I24, @evm_shr(OFF_TICK, packed) & MASK_I24),
+
+        avg_tick:
+            @evm_signextend(SIGN_BYTE_I24, @evm_shr(OFF_AVG_TICK, packed) & MASK_I24),
+
+        tick_cumulative:
+            @evm_signextend(SIGN_BYTE_I56, @evm_shr(OFF_TICK_CUMULATIVE, packed) & MASK_I56),
+
+        time_window_start_index:
+            @evm_shr(OFF_WINDOW_START_INDEX, packed)
+            & MASK_U16,
+
+        initialized:
+            @evm_eq(
+                @evm_shr(OFF_INITIALIZED, packed) & 1,
+                1
+            )
+    }
+};
+
+// _createNewTimepoint.
+const create_timepoint = fn(
+    current: Timepoint,
+    last_timestamp: u256,
+    tick: u256,
+    avg_tick: u256,
+    window_start_index: u256
+) Timepoint {
+
+    // uint32 wraparound is intended, hence the masked wrapping subtraction.
+    let delta = (last_timestamp -% current.timestamp) & MASK_U32;
+
+    let realized_vol_delta = calculate_realized_volatility(current.avg_tick, avg_tick, tick, tick, delta);
+
+    let next_realized_volatility = TickVolatility {
+        vol: @evm_add(current.realizedVolatility.vol, realized_vol_delta.vol) & MASK_U88
+    };
+
+    // tick_cumulative ACCUMULATES -- it is a running integral of tick over time, so the new
+    // value is the previous cumulative plus this interval's contribution. Algebra:
+    //   last.tickCumulative += int56(tick) * int56(uint56(delta));
+    let next_tick_cumulative = @evm_add(current.tick_cumulative, @evm_mul(tick, delta));
+
+    Timepoint {
+        timestamp: last_timestamp & MASK_U32,
+        realizedVolatility: next_realized_volatility,
+        tick: tick,
+        avg_tick: avg_tick,
+        tick_cumulative: next_tick_cumulative,
+        time_window_start_index: window_start_index,
+        initialized: true
+    }
+};

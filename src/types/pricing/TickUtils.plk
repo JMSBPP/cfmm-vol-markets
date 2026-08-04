@@ -1,0 +1,48 @@
+
+// 72 bits
+const TickBucket = struct {
+     low :u256,
+     tickSpacing: u256,
+     up: u256
+};
+
+
+const pack_tick_bucket = fn(self: TickBucket) u256 {
+      (self.low & 0xffffff)
+      | ((self.tickSpacing & 0xffffff) << 24)
+      | ((self.up & 0xffffff) << 48)
+};
+
+const unpack_tick_bucket = fn(_packed: u256) TickBucket {
+      TickBucket {
+         low: _packed & 0xffffff,
+         tickSpacing: (@evm_shr(24, _packed)) & 0xffffff,
+         up: (@evm_shr(48, _packed)) & 0xffffff
+      }
+};
+
+const round_tick = fn(tick:u256, tickSpacing: u256) u256 {
+      let rounded_tick = @evm_mul(compress(tick, tickSpacing),tickSpacing);
+      rounded_tick
+};
+
+const compress = fn(tick:u256, tickSpacing: u256) u256 {
+    let mut compressed = @evm_sdiv(tick, tickSpacing);
+    if @evm_slt(tick, 0) & (@evm_smod(tick, tickSpacing) != 0) {
+        compressed = compressed -% 1;
+    }
+    compressed
+};
+
+// Shared split points for the CR-I2 4-leg tiling of [i_l, i_u] around the skew-center i*:
+//   m_p = put-side mid (Δ-aligned floor of the midpoint of [i_l, i*])
+//   m_c = call-side mid (Δ-aligned floor of the midpoint of [i*, i_u])
+// Used by BOTH Layer 1 (vol_order_to_panoptic_token_id, to place the 4 legs) and Layer 2
+// (geometric_leg_weights, to place the 4 column boundaries), so the weights line up with the legs.
+const SplitPoints = struct { m_p: u256, m_c: u256 };
+const vol_order_split_points = fn (i_l: u256, i_u: u256, i_star: u256, tickSpacing: u256) SplitPoints {
+    SplitPoints {
+        m_p: round_tick(i_l +% ((i_star -% i_l) </ 2), tickSpacing),
+        m_c: round_tick(i_star +% ((i_u -% i_star) </ 2), tickSpacing)
+    }
+};

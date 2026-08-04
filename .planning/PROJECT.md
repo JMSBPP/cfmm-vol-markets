@@ -8,6 +8,58 @@ A research-engineering framework for replicating **arbitrary contingent payoffs*
 
 A target contingent payoff can flow end-to-end — **payoff → GAMS solves optimal parameters → parameters encoded → Plank CFMM simulates** — with the two tracks agreeing on one authoritative type/parameter kernel. If everything else is deferred, this open-loop bridge plus shared kernel must work for at least one contingent payoff.
 
+## Current State (v3.0 shipped 2026-07-19)
+
+**v3.0 — VegaAccountMod Vault (H1 issuance, exogenous risk price): SHIPPED.** `VegaAccountMod.plk` is a live, proven deposit-only vault: deposit collateral → vega-exposure shares at `p_risk = oracle/(1−h)`, every claim a CALLED test or an OBSERVED mutation kill, verified phase-by-phase with independent mutant re-kills against the machine-checked Lean authority. `PLANK_SKIP` is empty; commands of record: `make compile` 11 ok/0/0, `make test` 74 pass / 4 pre-existing pos_spec fails (vol-type track's). Details: `.planning/MILESTONES.md`, tag `v3.0`.
+
+## Current Milestone: v5.0 — VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
+
+**Goal:** The rpc_api Haskell client speaks the VolOrder **V2 (targetVega) ABI** and both
+stochastic drivers — price diffusion and Poisson VolOrder creation — run end-to-end
+against the four-script deploy rig, emitting the real event set.
+
+**Source:** GitHub issue #13 (plank workstream handoff, `feat/plank` @ `df7088f`).
+Binding references, in precedence order: `src/interfaces/<namespace>/*.plk` (selectors +
+events, cast/solc-verified), `.planning/rpc-api-volorder-v2-HANDOFF.md`,
+`notes/DATA_CONTRACT.md`, `notes/UNITS_AND_SCALES.md`. Consume, do not re-derive.
+
+**Target features:**
+- V2 ABI re-pin of `offchain/lib/VolOrder/{Types,Encoding,Decode,Rpc}.hs`: 4-arg
+  `create_order(uint88,uint24,uint16,uint96)` = `0x98d950ec`; V2 batch input word
+  (`skew@0..15 | strike@16..103 | width@104..127` masked-interior, `targetVega@128..223`
+  unmasked-top, bits ≥ 224 zero); 248-bit storage word (`targetVega@152..247`); E1 v2
+  topic0 `0x18bd4d46…`; fix the pre-existing stale topic0 (`0xa8892769…`) with a
+  topic0-pin test.
+- `StochasticOrderGen` draws a `targetVega` per order — raw LIQUIDITY units
+  (dimension (ii), `UNITS_AND_SCALES.md` §2), valid `[1, 2^96−1]`, realistic 1e18–1e21.
+- Both drivers live against the `foundry-scripts/deploy/` rig (anvil-first): stochastic
+  price diffusion (E3 `TimepointWritten` per step) + stochastic V2 VolOrder creation
+  (single + batch, preview/readback consistency incl. targetVega).
+
+## Queued Milestone: v6.0 — Subgraph for the vol-instrument event set
+
+GitHub issue #14: index E1v2/E3/E4/E5/E6 per `notes/DATA_CONTRACT.md` and materialize
+the position-epoch panel (keyed by uint48 `seriesIdHash`) that the cfmm-gams
+`execute_loadDC` reader consumes (cfmm-gams#1) — the chain → subgraph → GAMS missing
+middle. Sequenced after v5.0 because it consumes the event stream v5.0's drivers
+generate. Hard rules already pinned by the issue: v1 E1 topic0 retired-never-live;
+E5↔`Swap` same-tx nearest-preceding-logIndex join with `FeeApplied.fee == Swap.fee`
+integrity assert; `tObs` = E3's EMITTED timestamp; σ² windowed from E6 history;
+sign-extension + golden vectors for tokenId decode when E2 ships.
+
+## Shipped: v4.0 — VolOrderManagerMod + Multicall (plank workstream)
+
+**Goal:** A new `VolOrderManagerMod.plk` module — a vol-order REGISTRY (`create_order(uint88,uint24,uint16)` = strike/width/skew, selector `0x6501fe94`, independently cast-sig-verified) plus a BEST-EFFORT multicall entrypoint batching N create_order calls in one tx — built for the rpc_api Haskell track's StochasticOrderGen (Poisson-arrival order batching; their PR #9 shipped create_order/write_price/StochasticPriceGen offchain and awaits this on-chain surface).
+
+**Target features:**
+- `create_order`: validate bounds (strike u88, width u24, skew u16; revert on zero-width), construct the KEPT pos_spec `VolOrder` type, assign sequential order id, store at keccak-derived slot, `orderCount` accumulator — registry ONLY, no tick/price computation (pos_spec pricing has 4 red harness tests on the vol-type track and stays out)
+- Multicall: BEST-EFFORT per-call semantics — failed orders are skipped without reverting the batch, per-call success/order-id results returned; a failed call leaves NO partial state, successful calls persist
+- Dynamic-array ABI in Plank (calldata array in, results out) — genuinely new ground: every existing module selector takes fixed words; this is the milestone's main technical risk
+- Readers for every stored field (module-not-a-black-box rule); interface file with cast-sig-verified signature strings; v3.0's full discipline (CALLED-green, constructed corpora, observed-RED mutation battery, Solidity reference mock differential)
+
+**Consumer contract (from peer coordination, rpc_api track `mv15a18k`):** create_order selector 0x6501fe94 confirmed both sides; batch-size bound and per-call return shape to be confirmed when the peer answers the open semantics message — requirements assume per-call (success, orderId) pairs until then.
+
+
 ## Requirements
 
 ### Validated
@@ -17,13 +69,21 @@ A target contingent payoff can flow end-to-end — **payoff → GAMS solves opti
 - ✓ Plank→EVM FFI build/deploy bridge (`lib/plank-foundry-deployer/src/PlankDeployer.sol`, `plankDeployFFI`) — existing
 - ✓ Draft shared type kernel (`spec/entities/Types.md`: `NumberFormat`, `BoundedValue`, `VolatilityTermStructure`, `Grid`/`Lens` types) — existing
 - ✓ GAMS algebraic model skeleton (`primitives.gms`, `PricingKernel.gms`, `LiquidityKernel.gms`, `TradingRegion.gms`, `PayoffModule.gms`, `dynamic/InitState.gms`) — existing, outside repo at `../experiments/gams`
-- ✓ bunni-v2 LDF conformance test harness wired (`test/LiquidityDensityFunctionPlankTest.t.sol` against `ILiquidityDensityFunction`) — existing, test bodies stubbed
-- ✓ Stochastic swap-flow proxy design per `NOTES.md` (`src/lib/BinomialProxy.plk` direction `I_{n,t}`, `src/lib/SwapAmtGen.plk` amount `ΔY(t)`) — existing, needs hardening
-- ✓ Canonical Plank market-state contract (`src/ReferenceMarket.plk`, `src/MarketState.plk`) — existing, partial
+- ✓ ~~bunni-v2 LDF conformance harness~~ — DELETED 2026-07-16 (`ead50b8`, empty scaffold); recover from git history with LDF-01
+- ✓ ~~Stochastic swap-flow proxy (`BinomialProxy.plk`/`SwapAmtGen.plk`) and canonical market-state (`ReferenceMarket.plk`)~~ — DELETED 2026-07-16 (`ead50b8`) as unmaintained; recover from git history when the v1.0 pipeline resumes
 
 ### Active
 
 <!-- This milestone. Hypotheses until shipped. -->
+
+**v5.0 (rpc_api workstream) — see REQUIREMENTS.md for REQ-IDs:**
+
+- [ ] Haskell client re-pinned to the VolOrder V2 (targetVega) ABI — all four byte
+      layouts, both selectors, E1 v2 topic0 (+ stale-topic0 fix with pin test)
+- [ ] `StochasticOrderGen` generates per-order `targetVega` (raw L units, `[1, 2^96−1]`)
+- [ ] Both stochastic drivers run against the `foundry-scripts/deploy/` rig end-to-end
+
+**Earlier active list (plank workstream snapshot, unmodified):**
 
 - [ ] Elevate `spec/entities/Types.md` into the **authoritative shared kernel** both tracks conform to (types, units, bounds, semantics)
 - [ ] Define the **GAMS↔Plank parameter map** with explicit fixed-point encodings (`xi`↔`priceElasticity`/LDF `alpha`, `iota`↔`statePartitionDelta`/`tickSpacing`, `baseTick`; WAD / Q64.96 conventions)
@@ -69,6 +129,10 @@ A target contingent payoff can flow end-to-end — **payoff → GAMS solves opti
 | Vendor GAMS into `model/` inside the repo | Single-repo dual-track; bridge work needs both sides co-located | — Pending |
 | `wvs-finance` owns canonical public repo; `JMSBPP` forks | Org ownership / public visibility requirement | — Pending |
 | Theory grounding links to `cfmm-theory` `KERNEL.md` by URL/citekey (no submodule); refs under `spec/refs/` | Repo is public — cfmm-theory is local-only, so cite rather than depend | — Pending |
+| v3.0 vault pipeline is **H1 only** (`p_risk = oracle/(1−h)`, `h<1` enforced); distance D2 and P0/P2 composition deferred | Smallest proven core first — mirrors how the oracle track grew; the Lean decision table's issuance row backs H1 | ✓ Good — shipped v3.0 in 3 days, 0 arithmetic defects found |
+| v3.0 `p_risk` is **exogenous/settable** (validated > 0); RealizedVolatilityMod wiring deferred | tbd.md's own stated assumption; keeps the vault testable in isolation; vol→price conversion depends on pos_spec types that still have red harness tests | ✓ Good — isolation made the e2e differential and battery cheap |
+| v3.0 keeps `totalDeposits` / `totalShares` / `riskWeightedShares` as **three distinct state variables** (d ≡ 1 in v1) | Lean `discounted_claim_counterexample` refutes conflating the risk-adjusted subtotal with the accounting total | ✓ Good — read-conflation proved unkillable except by raw vm.load, vindicating the slot discipline |
+| Lean lemmas are the v3.0 test oracle (each lemma → a fuzz property vs a Solidity reference mock) | Same differential discipline that proved the vol oracle; the lemmas are machine-checked so the properties are not aspirational | ✓ Good — with one honest carve-out: issuance_haircut_equiv is ℝ-only; integers get the one-sided transfer |
 
 ---
-*Last updated: 2026-06-27 after initialization*
+*Last updated: 2026-07-30 — started milestone v5.0 (VolOrder V2 offchain re-pin + stochastic drivers, rpc_api workstream, from issue #13); queued v6.0 (subgraph, issue #14)*

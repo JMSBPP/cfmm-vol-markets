@@ -1,0 +1,94 @@
+// AdaptiveFee -- faithful port of @cryptoalgebra/dynamic-fee-plugin libraries/AdaptiveFee.sol.
+// Dynamic fee from volatility: fee = base_fee + sigmoid1(vol) + sigmoid2(vol), each sigmoid
+// alpha / (1 + e^((beta - x)/gamma)). All integer arithmetic; differential-tested byte-exact vs the
+// real AdaptiveFee. exp_x_g4 (exp Taylor series) -> sigmoid -> get_fee.
+
+import types::premium::AlgebraFeeConfiguration::*;
+import std::error::require;
+
+// 10^20 scale used by the e^k lookup table.
+const E_SCALE = 100000000000000000000;
+
+// exp_x_g4: e^(x/g) * g^4 as a truncated Taylor series (AdaptiveFee.expXg4). `g_highest` = g^4 (passed
+// in, as sigmoid does). Uses an e^0..e^5 lookup table (scaled 10^20) for the integer part of x/g, an
+// e^0.5 correction so the residual x/g <= 0.5 converges fast, then the 4-term series. All wrapping
+// (`*%`) / EVM div-mod to mirror the reference's `unchecked` + assembly div/mod exactly.
+const exp_x_g4 = fn (x: u256, g: u256, g_highest: u256) u256 {
+    // closestValue = table[x/g]  (default e^5 for x/g >= 5)
+    let xdg = @evm_div(x, g);
+    let mut closest = 14841315910257660342111;      // e^5
+    if xdg == 0 { closest = 100000000000000000000; }  // 1
+    if xdg == 1 { closest = 271828182845904523536; }  // e
+    if xdg == 2 { closest = 738905609893065022723; }  // e^2
+    if xdg == 3 { closest = 2008553692318766774092; } // e^3
+    if xdg == 4 { closest = 5459815003314423907811; } // e^4
+
+    let mut xr = @evm_mod(x, g);                       // x := mod(x, g)
+    let half = @evm_div(g, 2);                         // g / 2
+    let mut cv = closest;
+    if xr >= half {
+        xr = xr -% half;
+        cv = @evm_div(cv *% 164872127070012814684, E_SCALE);  // * e^0.5
+    }
+
+    let mut xlow = xr;                                 // x
+    let mut ghd = g_highest;                           // g^4
+    let mut res = ghd;                                 // res = g^4
+
+    ghd = @evm_div(ghd, g);                            // g^3
+    res = res +% (xlow *% ghd);                        // g^4 + x*g^3
+
+    ghd = @evm_div(ghd, g);                            // g^2
+    xlow = xlow *% xr;                                 // x^2
+    res = res +% @evm_div(xlow *% ghd, 2);             // + x^2*g^2/2
+
+    ghd = @evm_div(ghd, g);                            // g
+    xlow = xlow *% xr;                                 // x^3
+    res = res +% @evm_div((xlow *% g *% 4) +% (xlow *% xr), 24);  // + (4*g*x^3 + x^4)/24
+
+    @evm_div(res *% cv, E_SCALE)
+};
+
+// sigmoid: alpha / (1 + e^((beta - x)/gamma)) (AdaptiveFee.sigmoid). Two branches around beta, each
+// with a 6g-band early return (saturates to alpha above, 0 below). g4 = g^4; ex = exp_x_g4(|x-beta|).
+const sigmoid = fn (x: u256, g: u256, alpha: u256, beta: u256) u256 {
+    let g4 = g *% g *% g *% g;
+    if x > beta {
+        let xx = x -% beta;
+        if xx >= 6 *% g { return alpha; }
+        let ex = exp_x_g4(xx, g, g4);
+        @evm_div(alpha *% ex, g4 +% ex)
+    } else {
+        let xx = beta -% x;
+        if xx >= 6 *% g { return 0; }
+        let ex = g4 +% exp_x_g4(xx, g, g4);
+        @evm_div(alpha *% g4, ex)
+    }
+};
+
+// get_fee: the dynamic fee (AdaptiveFee.getFee) from a uint88 volatility and a packed u144 config.
+// fee = base_fee + sigmoid1(vol/15) + sigmoid2(vol/15), in 1e-6 units, uint16-truncated (the cap
+// base_fee+alpha1+alpha2 <= u16 max holds for validated configs). vol normalized for the 15s interval.
+const get_fee = fn (volatility: u256, config: u256) u256 {
+    let vol = @evm_div(volatility, 15);
+    let result = afc_base_fee(config)
+        +% sigmoid(vol, afc_gamma1(config), afc_alpha1(config), afc_beta1(config))
+        +% sigmoid(vol, afc_gamma2(config), afc_alpha2(config), afc_beta2(config));
+    result & 0xffff   // uint16(result)
+};
+
+// validate_fee_configuration (AdaptiveFee.validateFeeConfiguration): the max fee (base+alpha1+alpha2)
+// must fit u16, and gammas must be nonzero. Assumes fields already masked to width (the module masks
+// calldata before calling -- a raw dirty-high gamma would spuriously pass here then pack to 0).
+const validate_fee_configuration = fn (self: AlgebraFeeConfiguration) void {
+    require((self.alpha1 +% self.alpha2 +% self.base_fee) <= 0xffff);
+    require((self.gamma1 != 0) and (self.gamma2 != 0));
+};
+
+// initial_fee_configuration (AdaptiveFee.initialFeeConfiguration): Algebra's default config.
+// alpha1 = 3000 - 100, alpha2 = 15000 - 3000, baseFee = INITIAL_MIN_FEE = 0.01e4 = 100.
+const initial_fee_configuration = fn () AlgebraFeeConfiguration {
+    AlgebraFeeConfiguration {
+        alpha1: 2900, alpha2: 12000, beta1: 360, beta2: 60000, gamma1: 59, gamma2: 8500, base_fee: 100
+    }
+};

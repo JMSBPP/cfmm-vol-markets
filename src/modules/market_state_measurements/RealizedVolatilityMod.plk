@@ -1,0 +1,178 @@
+import std::constructor::return_runtime;
+import types::market_state_measurements::Timepoint::*;
+import lib::market_state_measurements::RealizedVolatilityLib::*;
+import lib::market_state_measurements::RealizedVolatilityStateLib::*;
+import interfaces::market_state_measurements::RealizedVolatilityInterface::*;
+import lib::protocol_integrations::CallbackRealizedVolatilityLib::*;
+import types::StorageIndex::*;
+import types::TimeWindow::*;
+import pos_spec::TickVolatility::*;
+import v3::util::{return_u256, revert_empty};
+import v3::storage::{array_slot};
+import std::error::require;
+
+// RealizedVolatilityMod -- the MODULE-KEYED binding of RealizedVolatilityStateLib to three
+// fixed slots. All stateful buffer logic (initialize / write / windowed getAverageVolatility,
+// byte-exact vs Algebra per task #17) lives in the lib, (base,state,window)-parameterized, so
+// DynamicFeeHook binds the SAME code to its own slots (dynamic-fee-hook-SPEC.md resume item 2).
+// This file owns only: the slot constants, the thin bindings, the read-path getters and the
+// ABI dispatch.
+//
+// Events: every emit carries POOL_ID_MODULE_GLOBAL = 0, the PERMANENT module-global series
+// sentinel (events-subgraph-gams-SPEC.md D2). The pool-keyed hook is a DIFFERENT emitter.
+//
+// B1 note (hook reviewers): the lib's rv_write_timepoint returns bool instead of halting on
+// the same-block early-out. Externally invisible here -- writeTimepoint's dispatch arm ends in
+// @evm_stop() either way (the old code returned 32 zero-bytes on the early-out, now 0 bytes;
+// the Solidity interface has no return value, so both decode identically).
+
+// "RealizedVolMod.TimepointBuffer"
+const SLOT_TIMEPOINT_BUFFER_BASE = 0xe4a8c01f6be955d80963b8d318701ba0c1b7e6a0d74e5ed3ee42ad38f22da431;
+
+// "RealizedVolMod.RealizedVolState"
+const SLOT_REALIZED_VOL_STATE = 0x66d25f45c9eb3ca9255387e4a0842bb72d450363ab922011aef46dbadb163e9e;
+
+// "RealizedVolMod.WindowSize"
+const SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE = 0x326d117cb3406827d1b11b11d5b767896bd9ad554682ba4c03289854d62c5973;
+
+const POOL_ID_MODULE_GLOBAL = 0;
+
+// ---- thin bindings of the slot-parameterized lib to this module's slots ----
+
+const write_window = fn(window: TimeWindow) void {
+      rv_write_window(SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE, POOL_ID_MODULE_GLOBAL, window);
+};
+
+const read_window = fn() TimeWindow {
+      rv_read_window(SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE)
+};
+
+const initialize_timepoint_buffer = fn(block_timestamp: u256, tick: u256) void {
+      rv_initialize(
+          SLOT_TIMEPOINT_BUFFER_BASE, SLOT_REALIZED_VOL_STATE, SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE,
+          POOL_ID_MODULE_GLOBAL, block_timestamp, tick
+      );
+};
+
+// void wrapper: the reactive path (store_price_update_timepoint) and the dispatch both call
+// this (ts, tick) shape; the B1 bool is deliberately dropped here -- the Mod has no frame to
+// preserve, unlike the hook's beforeSwap.
+const write_timepoint = fn(block_timestamp: u256, tick: u256) void {
+      let _written = rv_write_timepoint(
+          SLOT_TIMEPOINT_BUFFER_BASE, SLOT_REALIZED_VOL_STATE, SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE,
+          POOL_ID_MODULE_GLOBAL, block_timestamp, tick
+      );
+};
+
+const load_ring_state = fn() RingState {
+      rv_load_ring_state(SLOT_TIMEPOINT_BUFFER_BASE, SLOT_REALIZED_VOL_STATE, SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE)
+};
+
+// ---- read paths (unchanged behavior) ----
+
+// getTwapTick(dt, tick, currentTimestamp) -> int24. The Uniswap-V3 `observeSingle` quantity.
+const get_twap_tick = fn(dt: u256, tick: u256, current_timestamp: u256) u256 {
+      // Both references reject a zero period; EVM SDIV by zero would return 0 SILENTLY.
+      require(dt != 0);
+      let s = load_ring_state();
+      twap_tick(
+          SLOT_TIMEPOINT_BUFFER_BASE, current_timestamp & MASK_U32, dt, tick,
+          s.last_index, s.oldest_index, s.window
+      )
+};
+
+// getTickCumulative(dt, tick, currentTimestamp) -> int56. The raw accumulator -- the most
+// primitive shared quantity between Algebra and UniV3, the sharpest thing to diff on.
+const get_tick_cumulative = fn(dt: u256, tick: u256, current_timestamp: u256) u256 {
+      let s = load_ring_state();
+      let res = tick_cumulative_at(
+          SLOT_TIMEPOINT_BUFFER_BASE, current_timestamp & MASK_U32, dt, tick,
+          s.last_index, s.oldest_index, s.window
+      );
+      res.tick_cumulative
+};
+
+// getAverageVolatility(tick, blockTimestamp) -> uint88 (task #17, byte-exact vs Algebra).
+const get_average_volatility = fn(tick: u256, block_timestamp: u256) u256 {
+      rv_get_average_volatility(
+          SLOT_TIMEPOINT_BUFFER_BASE, SLOT_REALIZED_VOL_STATE, SLOT_TIMEPOINT_BUFFER_WINDOW_SIZE,
+          tick, block_timestamp
+      )
+};
+
+init{ return_runtime();}
+
+// ABI dispatch. Selectors are declared in
+// interfaces/market_state_measurements/RealizedVolatilityInterface.plk and match the ABI of
+// MarketStatisticsAlgebraRef / MarketStatisticsUniV3Ref exactly, so one Solidity interface
+// drives all implementations.
+//
+// Calldata note: Solidity ABI-encodes int24/int56 SIGN-EXTENDED into the full 32-byte word,
+// so the signed args are used as loaded -- masking them here would destroy the sign. Only the
+// unsigned args (uint32) are masked.
+run{
+	let selector = @evm_shr(224, @evm_calldataload(0));
+
+	if selector == SELECTOR_INITIALIZE_TWAP {
+	   // initializeTWAP(uint32 blockTimestamp, int24 tick)
+	   let block_timestamp = @evm_calldataload(4) & MASK_U32;
+	   let tick = @evm_calldataload(36);
+	   initialize_timepoint_buffer(block_timestamp, tick);
+	   @evm_stop();
+
+	} else if selector == SELECTOR_WRITE_TIMEPOINT {
+	   // writeTimepoint(uint32 blockTimestamp, int24 tick)
+	   let block_timestamp = @evm_calldataload(4) & MASK_U32;
+	   let tick = @evm_calldataload(36);
+	   write_timepoint(block_timestamp, tick);
+	   @evm_stop();
+
+	} else if selector == SELECTOR_GET_TWAP_TICK {
+	   // getTwapTick(uint32 dt, int24 tick, uint32 currentTimestamp) -> int24
+	   let dt = @evm_calldataload(4) & MASK_U32;
+	   let tick = @evm_calldataload(36);
+	   let current_timestamp = @evm_calldataload(68) & MASK_U32;
+	   return_u256(get_twap_tick(dt, tick, current_timestamp));
+
+	} else if selector == SELECTOR_GET_TICK_CUMULATIVE {
+	   // getTickCumulative(uint32 dt, int24 tick, uint32 currentTimestamp) -> int56
+	   let dt = @evm_calldataload(4) & MASK_U32;
+	   let tick = @evm_calldataload(36);
+	   let current_timestamp = @evm_calldataload(68) & MASK_U32;
+	   return_u256(get_tick_cumulative(dt, tick, current_timestamp));
+
+	} else if selector == SELECTOR_GET_AVERAGE_VOLATILITY {
+	   // getAverageVolatility(int24 tick, uint32 blockTimestamp) -> uint88
+	   let tick = @evm_calldataload(4);
+	   let block_timestamp = @evm_calldataload(36) & MASK_U32;
+	   return_u256(get_average_volatility(tick, block_timestamp));
+
+	} else if selector == SELECTOR_GET_TIMEPOINT_PACKED {
+	   // getTimepointPacked(uint16 index) -> uint256 (raw packed word)
+	   let index = @evm_calldataload(4) & TIMEPOINT_INDEX_MASK;
+	   return_u256(@evm_sload(array_slot(SLOT_TIMEPOINT_BUFFER_BASE, index)));
+
+	} else if selector == SELECTOR_LAST_INDEX {
+	   // lastIndex() -> uint16
+	   let vol_state = unpack_realized_volatility_state(@evm_sload(SLOT_REALIZED_VOL_STATE));
+	   return_u256(vol_state.ss_index.current & TIMEPOINT_INDEX_MASK);
+
+	} else if selector == SELECTOR_OLDEST_INDEX {
+	   // oldestIndex() -> uint16
+	   let vol_state = unpack_realized_volatility_state(@evm_sload(SLOT_REALIZED_VOL_STATE));
+	   return_u256(rv_oldest_index_of(SLOT_TIMEPOINT_BUFFER_BASE, vol_state.ss_index).current & TIMEPOINT_INDEX_MASK);
+
+	} else if selector == SELECTOR_READ_WINDOW {
+	   // readWindow() -> uint32
+	   return_u256(pack_time_window(read_window()));
+
+	} else if selector == SELECTOR_ON_PRICE_UPDATE {
+	   // Reactive callback plugged in via CallbackRealizedVolatilityLib. Invoked AUTOMATICALLY by
+	   // the callback proxy when MarketStateSocket forwards a Swap.
+	   store_price_update_timepoint(write_timepoint);
+	   @evm_stop();
+	}
+
+	// Unknown selector: no fallback behaviour is defined for this module.
+	revert_empty();
+}

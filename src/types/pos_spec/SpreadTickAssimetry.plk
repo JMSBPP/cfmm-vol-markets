@@ -1,0 +1,83 @@
+import types::pricing::TickUtils::*;
+import std::error::require;
+import pos_spec::VolRangeWidth::*;
+
+const SpreadTickAssimetry = struct {
+      spread : u256 // u16
+};
+
+const wrap_spread_tick_assimetry = fn (rawSpread :u256) SpreadTickAssimetry { SpreadTickAssimetry { spread : rawSpread << 0xffff } };
+
+const spread_tick_assimetry_is_complete = fn(self:SpreadTickAssimetry) bool {
+      let res = (self.spread > 0) & (self.spread < 0xffff);
+      res
+};
+
+const unpack_spread_tick_assimetry = fn(_packed:u256) SpreadTickAssimetry { SpreadTickAssimetry { spread: _packed & 0xFFFF } };
+
+const pack_spread_tick_assimetry = fn(_spreadTickAssimetry :SpreadTickAssimetry) u256 {
+            let packed = _spreadTickAssimetry.spread & 0xFFFF;
+	    packed
+};
+
+const check_spread = fn(self: SpreadTickAssimetry) void { require( spread_tick_assimetry_is_complete(self));};
+
+const check_cross_types = fn (self: SpreadTickAssimetry, volRangeWidth: VolRangeWidth) void {
+      type_check_vol_range_width(volRangeWidth);
+      check_spread(self);
+};
+
+const split_tick = fn(
+    self: SpreadTickAssimetry,
+    volRangeWidth: VolRangeWidth,
+    tick: u256
+) TickBucket {
+    let right = @evm_div(@evm_mul(volRangeWidth.width, self.spread), 0xffff);
+    let left = @evm_sub(volRangeWidth.width, right);
+
+    TickBucket {
+        low: round_tick(tick -% left, volRangeWidth.tickSpacing),
+        tickSpacing: volRangeWidth.tickSpacing,
+        up: round_tick(tick +% right, volRangeWidth.tickSpacing)
+    }
+};
+
+
+const tick_from_splitted_tick_bucket = fn(
+    self: SpreadTickAssimetry,
+    volRangeWidth: VolRangeWidth,
+    tick_bucket: TickBucket
+) u256 {
+    let low_part = @evm_sdiv(
+        @evm_mul(tick_bucket.low, self.spread),
+        0xffff
+    );
+
+    let up_part = @evm_sdiv(
+        @evm_mul(tick_bucket.up, @evm_sub(0xFFFF, self.spread)),
+        0xffff
+    );
+
+    @evm_add(low_part, up_part)
+};
+
+const return_split_tick = fn(self: SpreadTickAssimetry, volRangeWidth: VolRangeWidth, tick: u256
+) never{
+	check_cross_types(self,volRangeWidth);
+	let res = split_tick(self, volRangeWidth, tick);
+	let out_ptr = @malloc_uninit(96);
+	@mstore32(out_ptr, res.low);
+	@mstore32(out_ptr +% 32, res.tickSpacing);
+	@mstore32(out_ptr +% 32, res.up);
+	@evm_return(out_ptr, 96);
+};
+
+const return_tick_from_splitted_tick_bucket = fn(self: SpreadTickAssimetry,volRangeWidth: VolRangeWidth,tick_bucket: TickBucket ) never {
+      	check_cross_types(self,volRangeWidth);
+	let tick = tick_from_splitted_tick_bucket(self, volRangeWidth, tick_bucket);
+	let out_ptr = @malloc_uninit(32);
+	@mstore32(out_ptr, tick);
+	@evm_return(out_ptr, 32);
+       
+};
+

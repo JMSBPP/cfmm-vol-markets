@@ -1,0 +1,100 @@
+import pos_spec::VolRangeWidth::*;
+import std::constructor::return_runtime;
+import std::core_ops::bool_to_u256;
+// signature :: pack_vol_range_width(uint24,uint24)
+
+const SELECTOR_PACK_VOL_RANGE_WIDTH = 0xa4614a1;
+
+
+// signature :: unpack_vol_range_width(bytes32)
+
+const SELECTOR_UNPACK_VOL_RANGE_WIDTH = 0xe3241c91;
+
+// signature :: vol_range_width_bounds(uint24)
+const SELECTOR_VOL_RANGE_WIDTH_BOUNDS = 0x46237793;
+
+
+// signature:: build_vol_range_width(uint24,int24,int24)
+const SELECTOR_BUILD_VOL_RANGE_WIDTH = 0x1e421be7;  	     
+
+
+// signature: add_vol_range_width(uint24,uint24,uint24,uint24)
+const SELECTOR_ADD_VOL_RANGE_WIDTH = 0xb1216c4c;	   	   
+// signature: sub_vol_range_width(uint24,uint24,uint24,uint24)
+const SELECTOR_SUB_VOL_RANGE_WIDTH = 0x8a36409d;   	   
+// signature: eq_vol_range_width(uint24,uint24,uint24,uint24)
+const SELECTOR_EQ_VOL_RANGE_WIDTH = 0xa0198906;
+// signature: neq_vol_range_width(uint24,uint24,uint24,uint24)
+const SELECTOR_NEQ_VOL_RANGE_WIDTH = 0x78c1cc54;
+// signature: leq_vol_range_width(uint24,uint24,uint24,uint24)
+const SELECTOR_LEQ_VOL_RANGE_WIDTH = 0x22806e53;
+// signature: geq_vol_range_width(uint24,uint24,uint24,uint24)
+const SELECTOR_GEQ_VOL_RANGE_WIDTH = 0x5e8a3101;
+
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SELECTOR_PACK_VOL_RANGE_WIDTH {
+        let width = @evm_calldataload(4);
+	let tickSpacing = @evm_calldataload(36);
+	let volRangeWidth = VolRangeWidth {
+	     width: width,
+	     tickSpacing: tickSpacing 
+	};
+	return_pack_vol_range_width(volRangeWidth);
+    } else if selector == SELECTOR_UNPACK_VOL_RANGE_WIDTH {
+      	   let _packed = @evm_calldataload(4);
+      	   return_unpack_vol_range_width(_packed);      
+    } else if selector == SELECTOR_VOL_RANGE_WIDTH_BOUNDS {
+      	   let tickSpacing = @evm_calldataload(4);
+	   return_vol_range_width_bounds(tickSpacing);
+    } else if selector == SELECTOR_BUILD_VOL_RANGE_WIDTH {
+      	   let tickSpacing = @evm_calldataload(4);
+	   let tickLower = @evm_calldataload(36);
+	   let tickUpper = @evm_calldataload(68);
+	   return_vol_range_width_build(tickSpacing, tickLower, tickUpper);
+    } else {
+      let w1 = @evm_calldataload(4);
+      let ts1 = @evm_calldataload(36);
+      let w2 = @evm_calldataload(68);
+      let ts2 = @evm_calldataload(100);
+
+      let vol_range_width_1 = VolRangeWidth { width: w1 ,tickSpacing: ts1};
+      let vol_range_width_2 = VolRangeWidth { width: w2 ,tickSpacing: ts2};
+
+      revert_vol_range_width_different_tick_spacing(vol_range_width_1,vol_range_width_2);
+      if (selector == SELECTOR_ADD_VOL_RANGE_WIDTH) {
+	     return_vol_range_width(add(vol_range_width_1,vol_range_width_2));
+      } else if (selector == SELECTOR_SUB_VOL_RANGE_WIDTH) {
+      	     return_vol_range_width(sub(vol_range_width_1,vol_range_width_2));
+     } else if (selector == SELECTOR_EQ_VOL_RANGE_WIDTH) {
+       	    let res = eq(vol_range_width_1, vol_range_width_2);
+    	    let out_ptr = @malloc_uninit(32);
+    	    @mstore32(out_ptr, bool_to_u256(res));
+    	    @evm_return(out_ptr, 32);
+     } else if (selector == SELECTOR_NEQ_VOL_RANGE_WIDTH) {
+       	    let res = neq(vol_range_width_1, vol_range_width_2);
+    	    let out_ptr = @malloc_uninit(32);
+    	    @mstore32(out_ptr, bool_to_u256(res));
+    	    @evm_return(out_ptr, 32);
+     } else if (selector == SELECTOR_LEQ_VOL_RANGE_WIDTH) {
+       	    let res = leq(vol_range_width_1, vol_range_width_2);
+    	    let out_ptr = @malloc_uninit(32);
+    	    @mstore32(out_ptr, bool_to_u256(res));
+    	    @evm_return(out_ptr, 32);
+     } else if (selector == SELECTOR_GEQ_VOL_RANGE_WIDTH) {
+       	    let res = geq(vol_range_width_1, vol_range_width_2);
+    	    let out_ptr = @malloc_uninit(32);
+    	    @mstore32(out_ptr, bool_to_u256(res));
+    	    @evm_return(out_ptr, 32);
+      }     
+      
+    }
+
+    @evm_stop();
+    
+}
+
+init {
+     return_runtime();
+}

@@ -1,0 +1,161 @@
+import types::pricing::TickUtils::{compress,round_tick};
+import std::error::require;
+import std::math::{max,min};
+import std::core_ops::bool_to_u256;
+
+import v3::math::tick_math::{MIN_TICK, MAX_TICK};
+
+
+const revert_vol_range_width_different_tick_spacing =
+      fn(v1VolRangeWidth:VolRangeWidth, v2VolRangeWidth:VolRangeWidth) void {
+      require(@evm_eq(v1VolRangeWidth.tickSpacing,v2VolRangeWidth.tickSpacing));
+};
+
+
+const VolRangeWidth = struct {
+	width:u256, //  u24
+	tickSpacing: u256 // u24
+};
+
+const vol_range_width_is_complete = fn (_volRangeWidth:VolRangeWidth) bool {
+      let res = (_volRangeWidth.width > 0) & (_volRangeWidth.width<= 0xffffff) & (_volRangeWidth.tickSpacing > 0) & (_volRangeWidth.tickSpacing <= 0xc8);
+      res
+};
+
+const type_check_vol_range_width = fn (_volRangeWidth:VolRangeWidth) void {require(vol_range_width_is_complete(_volRangeWidth));};
+
+// note: optimistically paccking			 
+
+const pack_vol_range_width = fn (_volRangeWidth:VolRangeWidth) u256 {
+      (_volRangeWidth.width & 0xFFFFFF)
+      | ((_volRangeWidth.tickSpacing & 0xFFFFFF) << 24)
+};
+
+const unpack_vol_range_width = fn (_packed_volRangeWidth : u256) VolRangeWidth {
+      VolRangeWidth{ width: _packed_volRangeWidth & 0xFFFFFF, tickSpacing: @evm_shr(24, _packed_volRangeWidth) & 0xFFFFFF}
+};
+
+
+
+const vol_range_check_tick_upper_on_bound = fn(tickLower:u256,tickUpper:u256,tickSpacing:u256) void {
+      require(
+	@evm_lt(tickUpper,@evm_mul(compress(MAX_TICK, tickSpacing),tickSpacing)) &
+	@evm_gt(tickLower, @evm_mul(compress(MIN_TICK, tickSpacing),tickSpacing))
+     );
+};
+// note: input_type :: u24
+const vol_range_width_bounds = fn (tickSpacing:u256) VolRangeWidth {
+      
+      let maxTickPerTs = @evm_mul(compress(MAX_TICK, tickSpacing),tickSpacing);
+      let minTickPerTs = @evm_mul(compress(MIN_TICK, tickSpacing),tickSpacing);
+      VolRangeWidth{
+		width: @evm_sdiv(@evm_sub(maxTickPerTs,minTickPerTs), tickSpacing),
+		tickSpacing: tickSpacing
+      }
+};
+
+
+
+// note: input_types:  u24, i24, i24
+const build_vol_range_width = fn (tickSpacing:u256 ,_tickLower: u256, _tickUpper:u256) VolRangeWidth {
+      // order the ticks
+      let mut tickLower = round_tick(_tickLower, tickSpacing);
+      let mut tickUpper = round_tick(_tickUpper, tickSpacing);
+      if _tickLower > _tickUpper {
+      	 tickLower = round_tick(_tickUpper, tickSpacing);
+	 tickUpper = round_tick(_tickLower, tickSpacing);
+      }
+
+      VolRangeWidth{
+		width: @evm_sdiv(tickUpper - tickLower ,tickSpacing),
+		tickSpacing: tickSpacing
+      }
+
+      
+};
+
+
+// note: Optimistically adds the widths only TICK_SPACING MUST BE the same
+const add = fn(v1VolRangeWidth :VolRangeWidth, v2VolRangeWidth: VolRangeWidth) VolRangeWidth {
+      VolRangeWidth{
+		width:  @evm_add(v1VolRangeWidth.width, v2VolRangeWidth.width),
+		tickSpacing:v1VolRangeWidth.tickSpacing
+      }      
+};
+
+// note: Optimistically substracts the widths only TICK_SPACING MUST BE the same
+// always returns the abs difference
+const sub = fn(v1VolRangeWidth :VolRangeWidth, v2VolRangeWidth: VolRangeWidth) VolRangeWidth {
+      let maxWidth = max(v1VolRangeWidth.width, v2VolRangeWidth.width);
+      let minWidth = min(v1VolRangeWidth.width, v2VolRangeWidth.width);      
+      VolRangeWidth{
+		width:  @evm_sub(maxWidth, minWidth),
+		tickSpacing: v1VolRangeWidth.tickSpacing
+      }      
+};
+
+// note: Optimistically does ops on width. TICK_SPACING MUST BE the same.
+
+const leq = fn(v1: VolRangeWidth, v2: VolRangeWidth) bool {
+    if @evm_lt(v1.width, v2.width) {
+        true
+    } else {
+        @evm_eq(v1.width, v2.width)
+    }
+};
+
+const geq = fn(v1: VolRangeWidth, v2: VolRangeWidth) bool {
+    if @evm_gt(v1.width, v2.width) {
+        true
+    } else {
+        @evm_eq(v1.width, v2.width)
+    }
+};
+
+const eq = fn(v1: VolRangeWidth, v2: VolRangeWidth) bool {
+    @evm_eq(v1.width, v2.width)
+};
+
+const neq = fn(v1: VolRangeWidth, v2: VolRangeWidth) bool {
+    if @evm_eq(v1.width, v2.width) {
+        false
+    } else {
+        true
+    }
+};
+
+const return_vol_range_width = fn(res: VolRangeWidth) never {
+      type_check_vol_range_width(res);      
+
+      let out_ptr = @malloc_uninit(64);
+      @mstore32(out_ptr, res.width);
+      @mstore32(out_ptr +% 32, res.tickSpacing);
+      @evm_return(out_ptr, 64);
+};
+
+const return_pack_vol_range_width = fn(volRangeWidth :VolRangeWidth) never {
+      type_check_vol_range_width(volRangeWidth);      
+      let res = pack_vol_range_width(volRangeWidth);
+      let out_ptr = @malloc_uninit(32);
+      @mstore32(out_ptr, res);
+      @evm_return(out_ptr, 32);
+
+};
+
+const return_unpack_vol_range_width = fn(_packed:u256) never {
+    let res = unpack_vol_range_width(_packed);
+    return_vol_range_width(res);      
+    
+};
+
+
+const return_vol_range_width_bounds =  fn(tickSpacing:u256) never {
+      let res = vol_range_width_bounds(tickSpacing);
+      return_vol_range_width(res);
+};
+
+const return_vol_range_width_build = fn(tickSpacing: u256, tickLower: u256, tickUpper: u256) never {
+      vol_range_check_tick_upper_on_bound(tickLower,tickUpper, tickSpacing);
+      let res = build_vol_range_width(tickSpacing, tickLower, tickUpper);
+      return_vol_range_width(res);     
+};

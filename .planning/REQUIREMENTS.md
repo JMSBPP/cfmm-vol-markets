@@ -91,6 +91,157 @@ counted in the v1 coverage totals below.
 
 - [ ] **CTX-GREEKS**: the Greeks layer formalized — the `D_p`/`Γ` ladder displays, the θ split, the `Δθ_fee/Δσ` statics and above all the **G4 deficit lemmas** landed axiom-clean, with the structural-deficit result (`(β,γ)`'s column is zero on every shape row, so the free `(β,γ)` provably cannot close the underspecification) PROVED rather than asserted; G2 excluded while E8(6) is open; t-semantics carried into the Lean signatures. ○ **NOT STARTED, NOT BUNDLEABLE** — gated on PR-CARRY (per-event vs time-integrated: decides *what* gets proved) and PR-THETA (the exponent-sign FLAG). The Bunni-v2 LDF port is a declared FUTURE MILESTONE, out of scope
 - [ ] **CTX-DEFORDER**: the document's opening re-ordered into the user's specified definitional sequence — formal definition of `θ`, then the streamia assignment, then a named assignment for the time-integrated streamia — with `π^σ` promoted to a numbered DEFINITION and `α₁,α₂ → c₁,c₂`. ⊘ **BLOCKED ON HEAVY USER APPROVAL** — restructures the block every later section depends on
+---
+
+## Milestone v2.0 Requirements — Realized-Volatility Oracle Differential Testing
+
+Scoped requirements for the v2.0 oracle track (todo.md items 8–9). Separate from the v1 plumbing
+requirements above. Reference of record: Algebra `VolatilityOracle`. Phase numbering continues at 8.
+
+### Reference Integrity
+
+- [x] **VDIFF-01**: The Algebra reference the diff test compiles against is protected from silent replacement — NOT just `libraries/VolatilityOracle.sol` but the full baseline the harness links: `VolatilityOraclePluginImplementation.sol` (the delegatecall target driving Algebra in VDIFF-04), `libraries/VolatilityOracleStorage.sol`, and their transitive imports — pinned as a whole (vendored under `lib/`, or a package-tarball / per-file checksum gate). A build/CI check FAILS LOUDLY when the `node_modules` copy diverges from the pin (verified by deliberately editing a reference file and observing red). The mock and vendored reference compile under `solc =0.8.20` (Algebra's pinned pragma).
+
+### Variance Kernel Diff
+
+- [x] **VDIFF-02**: Plank's `calculate_realized_volatility` is differentially tested against Algebra's `_volatilityOnRange` directly, over a fuzzed `(dt, tick0, tick1, avgTick0, avgTick1)` domain with `dt` bounded to `[1, 2^32)` (Solidity `/` reverts on `dt=0` even under `unchecked`, while EVM SDIV returns 0 — an excluded, known divergence), ticks bounded to int24, asserting exact **full uint256** equality (stronger than the production uint88 truncation, on a free axis), via a mock (distinct name — the package already ships a `MockVolatilityOracle`) that exposes the `internal pure` `_volatilityOnRange`
+- [x] **VDIFF-03**: The incorrect assertion diffing Plank's RAW `get_average_volatility` accumulator against Algebra's window-normalized `getAverageVolatility` is removed, and the in-file docs state these are DIFFERENT quantities (Algebra's is Bessel-corrected + WINDOW-normalized). Any scalar volatility comparison instead uses the stored `volatilityCumulative` field (VDIFF-04). Porting Algebra's window-normalized `getAverageVolatility` to Plank (its own interpolation + Bessel branches) is a production task explicitly DEFERRED to a follow-on — not in this milestone.
+  - **AS-BUILT CORRECTION (08-03, 2026-07-16):** the "incorrect assertion" this requirement names **never existed** — re-verified by grep before editing (no `assertEq` anywhere had Plank's raw accumulator on one side and Algebra's window-normalized getter on the other). The actual risk was a *loaded gun*: an unused `getAverageVolatility(int24,uint32)` **declaration** in `RealizedVolatilitySmoke.t.sol`'s `IRealizedVolatility` — declared, never called, one `assertEq` from the mistake. **What shipped:** that declaration removed + the trap documented in-file; smoke suite unchanged 11/11; no port (verified: no Bessel in any `.plk`). The requirement's *intent* ("removed, and the docs state they are different quantities") is met; its *premise* was wrong. See `08-03-SUMMARY.md`.
+
+### Full-Timepoint Diff
+
+- [x] **VDIFF-04**: After every write in a shared **Algebra-vs-Plank-only** driver sequence (the volatility surface has no UniV3 counterpart, so the UniV3 ref is NOT driven here), Algebra and Plank agree exactly on the stored timepoint fields `volatilityCumulative`, `averageTick`, and `windowStartIndex`, asserted field-by-field via the `getTimepoint` / `getTimepointPacked` getters (needs test-side unpack of the vol/avgTick/windowStartIndex offsets, added here). `oldestIndex` is EXCLUDED from this differential — it is vacuously `0` on both sides below 2^16 writes, so a corpus of ≤480 writes cannot exercise it; ring-wrap `oldestIndex` behavior is covered Plank-side by the VDIFF-07 unit test. Exactness (tolerance 0) is guaranteed within the int24×uint32 regime (max |tickCumulative| ≈ 3.8e15 < int56 max 3.6e16); it is NOT claimed in Algebra's deliberate int56-overflow regime, which Plank's full-width in-flight accumulator does not replicate.
+- [ ] **VDIFF-05**: The differential corpus is CONSTRUCTED (not `vm.assume`-filtered) with total span `> 2×WINDOW` so `calculate_avg_tick`'s WINDOW-interpolation branch and `window_start_index` selection execute INSIDE the write sequence (the existing Phase-0/1 assertions never touch `volatilityCumulative`/`averageTick`/`windowStartIndex` at all). The corpus forces ≥1 strict tick rise and ≥1 strict fall by construction (so `avg_tick ≠ tick`, kernel `k`/`b` nonzero — non-vacuous) and keeps strictly-increasing distinct timestamps (`delta ≥ 1`, on which the heuristic-free `window_start_index` equivalence depends). Coverage of those paths is evidenced by a **targeted mutant KILL** in them — `forge coverage` cannot instrument FFI-deployed Plank bytecode under via-IR, so coverage/trace is NOT an option.
+- [ ] **VDIFF-06**: A SEPARATE sub-WINDOW corpus (`init_timestamp < WINDOW`) exercises the `u32_sub` regime — the only regime in which that fix is reachable — kept distinct from VDIFF-05 (whose span forces `currentTime > WINDOW`)
+
+### Edges & Falsifiability
+
+- [ ] **VDIFF-07**: Edge cases hold across Algebra and Plank — a lookback older than the oldest retained timepoint reverts on both; a same-block double write is idempotent (no second timepoint, no revert); a uint32 timestamp wraparound is handled; and ring-buffer wrap is covered by a direct unit assertion (`vm.store` the index, not 65536 writes)
+- [ ] **VDIFF-08**: Every new test is proven falsifiable by a mutation battery (deliberate bugs in the variance kernel, the packing, and the accumulator are all KILLED) before it is trusted, and the suite is wired into a `make` target folded into `test-vol-prereqs`
+
+## Milestone v3.0 Requirements — VegaAccountMod Vault ✅ SHIPPED 2026-07-19
+
+All 13 requirements (RISK-01/02, VLIB-01..04, VMOD-01..05, VVER-01/02) complete and verified.
+Archived in full: `.planning/milestones/v3.0-REQUIREMENTS.md` · `.planning/MILESTONES.md` · tag `v3.0`.
+
+## Milestone v4.0 Requirements — VolOrderManagerMod + Best-Effort Multicall
+
+Peer-requested (rpc_api track `mv15a18k`, StochasticOrderGen consumer). **This section is post-review**: a two-step parallel review (Reality Checker + Solidity Smart Contract Engineer) found 2 BLOCKERs and 6 MAJORs in the pre-review draft — the packed-layout offsets were transcribed backwards from `VolOrder.plk:35-40`, the batch guard formula assumed a flat calldata layout incompatible with any standard ABI encoder, and a "reduced width check" would have made the composed validator identically false. All are resolved below; the decisions of record are stated inline so no downstream phase re-derives them.
+
+**Decisions of record (do not re-litigate):**
+- **Stored word = the FULL 152-bit `pack_vol_order` output, reused VERBATIM** (`width@128 | tickSpacing@104 | strike@16 | skew@0` — verified against `VolOrder.plk:35-40`). The module pins `TICK_SPACING = 20` as a constant (the corpus convention at `VolOrder.t.sol:102`; satisfies the real `<= 0xc8` bound). This keeps `vol_range_width_is_complete` usable AS-IS, requires no new packer or decoder, and avoids a forward-compat trap (a stored `tickSpacing = 0` would fail any future full validation).
+- **Batch ABI = `create_orders(uint256 count, uint256[] packedOrders)`, selector `0x81357911`** (`cast sig`-verified), one packed 128-bit word per order. **INPUT WORD BIT LAYOUT (pinned 2026-07-20 — the pre-review draft named the fields but NOT their offsets, and inferring offsets from field-name order is exactly what produced this milestone's packing BLOCKER):** `skew @ bits 0..15 | strike @ bits 16..103 | width @ bits 104..127`. Chosen so bits 0..103 are IDENTICAL to the stored word — skew and strike occupy the same offsets in both, so Phase 16's already-tested masks/shifts apply unchanged; only `width` moves (104 in the input, 128 in storage) because the module inserts `TICK_SPACING = 20` at bits 104..127 on the way to `pack_vol_order`. Bits ≥128 of an input word MUST be zero (dirty-high-bit rejection). Standard ABI, not a flat hand-rolled layout: a flat layout cannot be expressed as a Solidity signature at all, which would make the shared `interfaces/` file and every cast-sig test unsatisfiable for the batch.
+- **Return = `(bool success, uint256 orderId)[]` in standard ABI: head `0x40`, stride `0x40`, total `64 + 64N`** (outer offset word + length word + N inlined static pairs). Writing head `0x20` — emitting the length word but forgetting the outer offset — is the single likeliest bug on this surface.
+- **`MAX_BATCH` default 128** (~3.0M gas, comfortably includable), **hard admissibility ceiling 512** (~12M). A peer-supplied value above the ceiling is CAPPED and reported back, never silently adopted.
+
+### Registry Core
+
+- [x] **VORD-01**: `create_order(uint88,uint24,uint16)` — selector `0x6501fe94` cast-sig-pinned in an `interfaces/` file shared with the Haskell consumer — validates via the pure lib and REVERTS on any invalid tuple (strict single-call path; the batch is the lenient one). The strict and batch paths call the SAME `validate_order` function, so their accept/reject agreement holds by construction, not by coincidence
+- [x] **VORD-02**: A pure `validate_order` lib reuses `spread_tick_assimetry_is_complete` and `vol_range_width_is_complete` VERBATIM (the latter is satisfiable because `TICK_SPACING = 20` is pinned) and AUTHORS one new bound: `strike > 0 & strike <= 2^88-1`. The new bound is load-bearing, not hygiene — `tick_volatility_is_complete` is only `vol > 0` (no upper bound), so an oversized strike would pass validation and then be SILENTLY MASKED to 88 bits by `pack_vol_order`, storing a different value than the caller supplied. Skew semantics stated unambiguously: **valid range is [1, 65534]; 0 and 65535 REVERT; 1 and 65534 are ACCEPTED** — all four boundaries asserted (`PosSpec.lean:52,56` `skewTick_one`/`skewTick_zero` justify why the u16 endpoints are degenerate)
+- [x] **VORD-03**: Sequential `uint256` order ids from 1 (0 = null sentinel); `orderCount` advances ONLY on success, so `orderCount` ≡ latest id ≡ live order count (no gaps from failures). The sentinel is SOUND, not lucky: a valid order always has `strike > 0` and `skew > 0`, so a validly packed word is never 0 — therefore `packed == 0 ⟺ nonexistent`
+- [x] **VORD-04**: Orders stored at `array_slot(SLOT_ORDERS_BASE, id)` (= `keccak(base) + id`, reused verbatim from `v3::storage`) — MONOTONIC, the ring's 16-bit wraparound mask explicitly NOT imported (it lives in the separate `StorageIndex.plk`, not in `array_slot`). Slot `keccak(base)+0` is never written (ids start at 1) and stays permanently zero, which is what makes `getOrderPacked(0)` return 0 for free. Intra-contract collision safety is asserted at COMPILE-TIME values, not argued probabilistically: `|S − keccak(SLOT_ORDERS_BASE)| > 2^64` for every scalar slot `S` in the module
+- [x] **VORD-05**: Readers expose every stored field — `orderCount()`, `getOrderPacked(uint256)` (returns 0 for nonexistent ids, no revert) — module-not-a-black-box. **"Zero arithmetic in the module" means: no DOMAIN arithmetic.** The only permitted operations are the id increment, the loop counter, and the `array_slot` call; all bounds live in the lib, all packing in the type
+
+### Best-Effort Batch
+
+- [x] **MCAL-01**: Batch is `create_orders(uint256 count, uint256[] packedOrders)` (`0x81357911`) with `MAX_BATCH = 128`; `count > MAX_BATCH` reverts BEFORE any work. The gas criterion is a real threshold, not a gesture: measured `N = MAX_BATCH` cost **≤ 10,000,000 gas** (not "under the block limit" — a transaction consuming a whole block is not reliably includable)
+- [x] **MCAL-02**: THREE independent calldata guards, each separately mutable and separately killed: (1) `@evm_calldataload(36) == 0x40` — the array offset is canonical, so a client or attacker cannot point the loop at a different calldata region and fabricate phantom orders from zero-padded space; (2) `@evm_calldataload(68) == count` — the array's own length agrees with the count argument (they are independent numbers in the ABI); (3) `@evm_calldatasize() >= 100 + 32*count`. A malformed batch REVERTS the whole transaction — structural failure, never a silent per-call skip
+- [x] **MCAL-03**: Per-tuple best-effort via pure-validation pre-check: an invalid tuple is SKIPPED with zero state footprint; valid tuples persist. The footprint assertion is concrete: for `k ∈ [orderCount_before+1, orderCount_before+N]`, raw `vm.load(keccak(base)+k)` is nonzero exactly for the ids assigned to successful positions and zero for every `k > orderCount_after`
+- [x] **MCAL-04**: Best-effort containment is established PRIMARILY by a structural enumeration of the post-validation store path — a written argument naming each step and its revert status: `orderCount + 1` (checked add, u256, unreachable); `pack_vol_order` (**no revert** — pure masking, no `require`, no smart constructor: this is the fact that makes pre-validation containment viable at all); `array_slot`'s `keccak + index` (checked add, documented-unreachable at ~2^-192); `@evm_sstore` (cannot revert outside staticcall). Fuzz over a CONSTRUCTED corpus is CORROBORATION, not proof — the criterion is "no batch-revert OBSERVED over N runs", never "proven for all 2^256 values". The completeness differential (batch flags a tuple failed ⟺ standalone `create_order` reverts on it) is a regression guard on top of the by-construction shared-`validate_order` property
+- [x] **MCAL-05**: The batch returns hand-rolled ABI `(bool success, uint256 orderId)[]`, positionally aligned to input, with head `0x40`, stride `0x40`, total `64 + 64N`; `success` words are canonically 0 or 1 (a non-canonical bool is rejected by Solidity's `abi.decode` but may pass a Haskell decoder — silent disagreement); a failed tuple returns `(false, 0)`. The results buffer is `@malloc_uninit`'d BEFORE the loop, because `array_slot` itself mallocs 32 bytes every iteration (`storage.plk:232`) and interleaving those with the results buffer under a bump allocator is a live corruption path
+- [x] **MCAL-06**: Batch ≡ N-fold composition of the SAME internal create_order: a batch-of-1 produces identical state and id to a standalone `create_order` call. `N = 0` returns a well-formed EMPTY result (exactly 64 bytes: offset `0x20`, length `0`) and never reverts — the governing principle is **structurally impossible → revert; semantically empty → well-formed empty result**. A zero-arrival tick is an in-distribution Poisson sample, not a client bug
+  - **[18a-01 PARTIAL — read before closing this in 18b]** Phase 18a discharged the STATE half: batch-of-1 is byte-identical in stored word AND id to a standalone `create_order` (asserted against a second independent instance, with the VALUE pinned so two zeros cannot satisfy it), and `N = 0` succeeds without reverting and leaves every observable slot byte-identical — verified from BOTH a zero and a SEEDED counter, which is what proves the module's unconditional trailing `orderCount` write-back is value-PRESERVING rather than zeroing. The **"exactly 64 bytes: offset `0x20`, length `0`"** clause is NOT discharged and CANNOT be by 18a, which deliberately returns ONE WORD (the success count) so state effects are provable without trusting an untested encoder. **Phase 18b owns that clause.**
+  - **[18b-01 DISCHARGED]** The carried return-bytes clause is now BYTE-VERIFIED. `create_orders` emits the hand-rolled `(bool,uint256)[]` and `N = 0` returns EXACTLY 64 bytes — outer offset `0x20`, length `0` ELEMENTS — proven by `test__unit__emptyReturnIsExactlySixtyFourBytes` as `keccak256(returndata) == keccak256(abi.encode(new BatchResult[](0)))` against solc's STANDARD encoder, with `returndatasize` pinned at 64, `abi.decode` shown to succeed and yield a zero-length array, and the bytes shown identical from BOTH a fresh and a SEEDED (C=5) counter. Falsifiability is OBSERVED, not asserted: the dropped-outer-offset-word mutant (M2) reddens this exact test at its keccak assertion (32 bytes vs 64). MCAL-06 is now fully Complete.
+
+### Verification & Exit
+
+- [x] **MVER-01**: An independent Solidity reference mock encodes its results with **`abi.encode` (the standard encoder)** while Plank hand-rolls, and the differential asserts **raw byte equality** (`keccak256(plankReturndata) == keccak256(abi.encode(mockResults))`), including the `N=0` case. Decoded-value comparison is NOT sufficient — it compares semantics while leaving the hand-rolled encoder unconstrained; byte equality makes solc an independent oracle for the one surface with no in-repo precedent. An after-every-write driver additionally asserts `orderCount` and the stored packed word via raw `vm.load` + a single test-side `VolOrderDecoder`
+- [x] **MVER-02**: Observed-RED mutation battery, each killable mutant applied → cache cleared → verbatim RED recorded → restored sha256-identical → green: deleted validation branch; missing strike upper bound (silent truncation); count-advance-on-failure; ring-mask reintroduction; EACH of the three calldata guards deleted independently; return-head `0x40`→`0x20`; non-canonical success word. Equivalence-masked mutants documented, never counted
+- [x] **MVER-03**: A consumer golden fixture FILE exists containing byte strings produced by an encoder OUTSIDE this repo. If peer bytes are unavailable, a self-encoded stand-in is committed and explicitly marked `NOT-PEER-VERIFIED`, and that gap is listed in the milestone exit record — the criterion is falsifiable either way and cannot be satisfied by doing nothing. Plus a cast-sig test for every selector string in the interface file
+- [x] **MVER-04**: `VolOrderManagerMod` is CALLED green on its BATCH dispatch through FFI-deployed bytecode before the milestone closes; the suite is wired into a dedicated `make` target and folded into `make test`. **Corrected 2026-07-20:** the pre-review draft said the module "enters `PLANK_SKIP` when created (Phase 17)" — that rests on a false premise. `PLANK_SKIP` is the Makefile's *rescue queue* for entrypoints that do NOT yet compile; a module dispatching a subset of its declared selectors compiles fine, so it never belongs there. `PLANK_SKIP` stays EMPTY (as Phase 15 left it) and `make compile-plank` simply counts one more entrypoint. Compile-green was never the gate here anyway — the gate is the CALLED batch dispatch, which is unchanged.
+
+## Milestone v5.0 Requirements — VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
+
+**Defined 2026-07-30, from GitHub issue #13** (plank workstream handoff, `feat/plank` @
+`df7088f`). This is the **rpc_api workstream's** milestone (offchain Haskell, branch
+`feat/rpc-api`) — the first non-plank milestone in this file. Sources of truth, in
+precedence order: `src/interfaces/<namespace>/*.plk` (selectors + events, cast/solc
+verified), `.planning/rpc-api-volorder-v2-HANDOFF.md`, `notes/DATA_CONTRACT.md`,
+`notes/UNITS_AND_SCALES.md`. **Consume — do not re-derive.**
+
+**Decisions of record (do not re-litigate):**
+- `targetVega` = ΔQ_v★ in **RAW LIQUIDITY units** (dimension (ii), `UNITS_AND_SCALES.md`
+  §2), valid `[1, 2^96−1]`, realistic pool-L magnitudes 1e18–1e21. NOT X96, NOT WAD,
+  NOT collateral.
+- V1 `create_order` selector `0x6501fe94` and v1 E1 topic0 (`0x6a5dc726…`) are
+  RETIRED-NEVER-LIVE. The previously-shipped `Decode.hs` topic0 `0xa8892769…` was stale
+  even against v1 — the fix ships with the re-pin, with a pin test computed from the
+  signature string so this surface cannot rot silently again.
+- The `(bool, uint256)[]` batch return encoding is UNCHANGED from v4.0 (the Phase-19
+  golden fixture bytes remain valid) — verified, not assumed (RPIN-05).
+
+### V2 ABI Re-Pin
+
+- [x] **RPIN-01**: `encode_create_order` emits the V2 4-arg calldata
+      `create_order(uint88,uint24,uint16,uint96)` = (strike, width, skew, targetVega),
+      selector `0x98d950ec`, with a selector pin test derived from the signature string
+- [x] **RPIN-02**: `pack_vol_order_input` packs the V2 batch input word —
+      `skew@0..15 | strike@16..103 | width@104..127 | targetVega@128..223` — with
+      strict field-width validation on all four fields and bits ≥ 224 zero by
+      construction (width is now INTERIOR/masked; targetVega is the unmasked TOP field)
+- [x] **RPIN-03**: `unpack_vol_order_storage` unpacks the 248-bit V2 storage word —
+      `skew@0 | strike@16 | tickSpacing@104 (read, discarded) | width@128 |
+      targetVega@152..247`
+- [x] **RPIN-04**: `decode_order_created` re-pins to E1 v2 `VolOrderCreated(uint256
+      indexed orderId, uint88 strike, uint24 width, uint16 skew, uint96 targetVega)`,
+      topic0 `0x18bd4d460f8957f6b903aec33a3229ee1bf02b6e303c5178c5aa49a70b9de4e6`,
+      data = 4 words — fixing the pre-existing stale topic0 (`0xa8892769…`) with a
+      topic0 pin test computed from the signature string
+- [x] **RPIN-05**: `decode_create_orders_result` is verified byte-unchanged against the
+      V2 module's `(bool, uint256)[]` return (verify against the live module, don't
+      assume from the handoff)
+- [x] **RPIN-06**: The `VolOrder` record gains `target_vega`; `Rpc.hs` single + batch
+      senders and the mined-order readback content check carry it end-to-end
+
+### targetVega Generation
+
+- [x] **VEGA-01**: `StochasticOrderGen` draws a `targetVega` per order in RAW LIQUIDITY
+      units, valid `[1, 2^96−1]`, at realistic pool-L magnitudes (1e18–1e21)
+
+### Deploy Rig
+
+- [x] **RIG-01**: The four `foundry-scripts/deploy/` scripts stand up the full rig on a
+      local anvil (VolOrderManagerMod; RealizedVolatilityMod seeded via
+      `INIT_TS`/`INIT_TICK`; DynamicFeeMod; DynamicFeeHook premium rig), with each
+      script's printed addresses + selectors + event topic0s captured for the drivers
+
+### Live Drivers
+
+- [x] **DRIV-01**: The stochastic price path drives one E3 `TimepointWritten` per step
+      against the rig, each carrying the tick the driver submitted (the existing
+      `write_price` flow stays available, unchanged).
+      **MECHANISM CORRECTED 2026-08-02 (user decision, recorded in
+      `.planning/phases/22-live-stochastic-drivers/22-CONTEXT.md`):** this requirement
+      originally read "drives `RealizedVolatilityMod.writeTimepoint(uint32,int24)` per
+      step" — i.e. an offchain client calling the vol module. That is exactly the
+      offchain intervention the architecture excludes. Timepoints **self-write** on the
+      hook: `DynamicFeeHook.plk:129`'s `beforeSwap` calls `rv_write_timepoint` on the
+      pre-swap tick, so the driver cheats slot0 and fires a minimal swap, and the client
+      only observes. No `writeTimepoint` client exists, by design. The OUTCOME above is
+      unchanged and is what Phase 22 verified.
+- [x] **DRIV-02**: Stochastic V2 VolOrder creation runs against the rig — single +
+      batch under the V2 ABI — with the preview/readback consistency check (incl.
+      targetVega content) passing live and E1 v2 observed under the pinned topic0
+
+**Queued next milestone (v6.0, GitHub issue #14 — NOT in this roadmap):** subgraph
+manifest + mappings indexing E1v2/E3/E4/E5/E6 per `DATA_CONTRACT.md`, materializing the
+position-epoch panel (uint48 `seriesIdHash`) the cfmm-gams `execute_loadDC` reader
+consumes (cfmm-gams#1), with the workstream's anti-fabrication checks.
+
+**v5.0 out of scope:** the v6.0 subgraph (consumes the event stream v5.0 generates); E2
+`PortafolioMinted` decode (event not shipped on-chain); re-deriving any
+selector/topic0/layout (forbidden by the handoff); replacing the legacy `write_price`
+driver (stays available); PR #9 merge mechanics (separate human-approval gate).
 
 ## v2 Requirements
 
@@ -104,7 +255,7 @@ Deferred to future milestones. Tracked but not in current roadmap.
 
 ### Simulation Correctness
 
-- **LDF-01**: `src/ldf/GeometricDistribution.plk` passes the bunni-v2 LDF conformance suite (normalization, monotonicity, inverse functions)
+- **LDF-01**: a Geometric-distribution LDF passes the bunni-v2 LDF conformance suite (normalization, monotonicity, inverse functions) — NOTE: `src/ldf/GeometricDistribution.plk` and its empty test scaffold were DELETED 2026-07-16 (`ead50b8`) as unmaintained; recover from git history when this requirement is picked up
 - **LDF-02**: `SwapAmtGen` arithmetic is overflow-bounded over the tested `timeIndex` range; fuzz runs raised to ≥ 1000
 
 ### Adaptive Control
@@ -115,7 +266,7 @@ Deferred to future milestones. Tracked but not in current roadmap.
 ### Breadth & Rigor
 
 - **PLIB-01**: a library of contingent payoffs replicable through the pipeline
-- **RIG-01**: formal literature review deliverable on CFMM payoff replication
+- **LIT-01**: formal literature review deliverable on CFMM payoff replication (renamed from `RIG-01` 2026-07-31 to resolve the ID collision with v5.0's deploy-rig requirement)
 - **RIG-02**: cryptographically-secure on-chain randomness (VRF / commit-reveal) replacing the simulation proxy
 
 ## Out of Scope
@@ -124,6 +275,9 @@ Explicitly excluded this milestone.
 
 | Feature | Reason |
 |---------|--------|
+| **v3.0 vault:** withdraw/redeem, per-account share ledger | The Lean corpus formalizes only the forward map — redemption now would be an UNVERIFIED surface; per-account bookkeeping is a dependency of redemption. Revisit note: a pool-derived redemption rate re-opens the first-depositor/donation analysis ruled N/A for v1 |
+| **v3.0 vault:** ERC-20 transferability / ERC-4626 conformance | `exposure.md`: VegaExposure is internal accounting, not a traded token; 4626 mandates pool-ratio pricing — the wrong semantics for an exogenous `p_risk` |
+| **v3.0 vault:** distance pipeline D2, risk-price composition P0/P2, stateful `setHaircut`, oracle wiring to `RealizedVolatilityMod`, `p_vol(σ̄)` from pos_spec | H1-only v1 per user decision; a stored `h` with no oracle is inert; pos_spec's type layer still has 5 red harness tests (vol-type-system track) |
 | Correct payoff **replication** proof (metric + tolerance) | Plumbing-first milestone; replication correctness is v2 (`PROOF-*`) |
 | Real GAMS optimization model | Stub solver this milestone; real model is v2 (`PAY-01`) |
 | LDF conformance / `SwapAmtGen` overflow fix | Deferred to v2 (`LDF-*`); not on the plumbing critical path |
@@ -190,3 +344,73 @@ Every v1 requirement maps to exactly one phase. See `.planning/ROADMAP.md` for p
 ---
 *Requirements defined: 2026-06-27*
 *Last updated: 2026-08-03 — traceability populated against plumbing-first 7-phase roadmap (30/30 mapped)*
+| VDIFF-01 | Phase 8 | Complete |
+| VDIFF-03 | Phase 8 | Complete |
+| VDIFF-02 | Phase 9 | Complete |
+| VDIFF-04 | Phase 9 | Complete |
+| VDIFF-05 | Phase 10 | Pending |
+| VDIFF-06 | Phase 10 | Pending |
+| VDIFF-07 | Phase 11 | Pending |
+| VDIFF-08 | Phase 11 | Pending |
+| RISK-01 | Phase 12 | Complete |
+| RISK-02 | Phase 12 | Complete |
+| VLIB-01 | Phase 13 | Complete |
+| VLIB-02 | Phase 13 | Complete |
+| VLIB-03 | Phase 13 | Complete |
+| VLIB-04 | Phase 13 | Complete |
+| VMOD-01 | Phase 14 | Complete |
+| VMOD-02 | Phase 14 | Complete |
+| VMOD-03 | Phase 14 | Complete |
+| VMOD-04 | Phase 14 | Complete |
+| VMOD-05 | Phase 14 | Complete |
+| VVER-01 | Phase 15 | Complete |
+| VVER-02 | Phase 15 | Complete |
+| VORD-02 | Phase 16 | Complete |
+| VORD-01 | Phase 17 | Complete |
+| VORD-03 | Phase 17 | Complete |
+| VORD-04 | Phase 17 | Complete |
+| VORD-05 | Phase 17 | Complete |
+| MCAL-01 | Phase 18a | Complete |
+| MCAL-02 | Phase 18a | Complete |
+| MCAL-03 | Phase 18a | Complete |
+| MCAL-04 | Phase 18a | Complete |
+| MCAL-05 | Phase 18b | Complete |
+| MCAL-06 | Phase 18a (+ 18b) | Complete |
+| MVER-01 | Phase 19 | Complete |
+| MVER-02 | Phase 19 | Complete |
+| MVER-03 | Phase 19 | Complete |
+| MVER-04 | Phase 19 | Complete |
+| RIG-01 | Phase 20 | Complete |
+| RPIN-01 | Phase 21 | Complete |
+| RPIN-02 | Phase 21 | Complete |
+| RPIN-03 | Phase 21 | Complete |
+| RPIN-04 | Phase 21 | Complete |
+| RPIN-05 | Phase 21 | Complete |
+| RPIN-06 | Phase 21 | Complete |
+| VEGA-01 | Phase 21 | Complete |
+| DRIV-01 | Phase 22 | Complete |
+| DRIV-02 | Phase 22 | Complete |
+
+**Coverage:**
+- v1 requirements: 30 total — mapped to Phases 1–7: 30 ✓
+- v2.0 requirements (VDIFF-01..08): 8 total — mapped to Phases 8–11: 8 ✓
+- v3.0 requirements (RISK-01/02, VLIB-01..04, VMOD-01..05, VVER-01/02): 13 total — mapped to Phases 12–15: 13 ✓
+- v4.0 requirements (VORD-01..05, MCAL-01..06, MVER-01..04): 15 total — mapped to Phases 16–19: 15 ✓
+- v5.0 requirements (RPIN-01..06, VEGA-01, RIG-01, DRIV-01/02): 10 total — mapped to Phases 20–22: 10 ✓
+- Total mapped: 76/76 — Unmapped: 0
+
+> **ID COLLISION — RESOLVED 2026-07-31 (requirements owner's call at roadmap approval).**
+> `RIG-01` briefly named two things: the v5.0 deploy-rig requirement and a deferred v2
+> "formal literature review deliverable" (*v2 Requirements → Breadth & Rigor*). The deferred
+> entry was renamed to `LIT-01`; `RIG-01` now uniquely means the **v5.0 deploy rig**
+> (`| RIG-01 | Phase 20 |` above).
+
+---
+*Requirements defined: 2026-06-27*
+*Last updated: 2026-06-27 — traceability populated against plumbing-first 7-phase roadmap (30/30 mapped)*
+*Last updated: 2026-07-15 — appended milestone v2.0 (VDIFF-01..08) traceability, Phases 8–11 (8/8 mapped)*
+*Last updated: 2026-07-16 — appended milestone v3.0 (RISK/VLIB/VMOD/VVER, 13 reqs) traceability, Phases 12–15 (13/13 mapped); total 51/51*
+*Last updated: 2026-07-19 — appended milestone v4.0 (VORD/MCAL/MVER, 15 reqs) traceability, Phases 16–19 (15/15 mapped); total 66/66*
+*Last updated: 2026-07-20 — v4.0 POST-REVIEW: 2 BLOCKERs + 6 MAJORs resolved (packing layout corrected against VolOrder.plk:35-40, standard-ABI batch 0x81357911 with 3 guards, new strike u88 bound authored, MCAL-04 demoted from proof to evidence); Phase 18 SPLIT into 18a (input+state) / 18b (return encoding) — now 5 phases, still 15/15 mapped*
+*Last updated: 2026-07-30 — appended milestone v5.0 (RPIN-01..06, VEGA-01, RIG-01, DRIV-01/02 — 10 reqs, rpc_api workstream, from issue #13); traceability pending roadmap*
+*Last updated: 2026-07-31 — v5.0 traceability populated against the 3-phase roadmap (Phases 20–22): RIG-01→20, RPIN-01..06 + VEGA-01→21, DRIV-01/02→22 (10/10 mapped); total 76/76*

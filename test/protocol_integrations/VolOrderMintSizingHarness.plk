@@ -1,0 +1,53 @@
+// V2-03 harness: makes the sizing map reachable over the ABI (Plank does not type-check code
+// unreachable from run{}; same pattern as VolOrderToPanopticTokenIdHarness).
+//
+// signature:: volOrderToMint(uint256,uint256) -> (uint256 tokenId, uint256 positionSize)
+//   cast sig "volOrderToMint(uint256,uint256)" -> 0x86152e38
+// signature:: inducedLegLiquidities(uint256,uint256) -> (uint256,uint256,uint256,uint256)
+//   cast sig "inducedLegLiquidities(uint256,uint256)" -> 0xa6d94d1d
+//   (the second arg is IGNORED -- kept so both selectors share the two-word calldata shape)
+// signature:: averageDensityChunks(uint256) -> (uint256,uint256,uint256,uint256)
+//   cast sig "averageDensityChunks(uint256)" -> 0xbdbe259f
+
+import std::constructor::return_runtime;
+import types::pos_spec::VolOrder::{unpack_vol_order};
+import lib::protocol_integrations::PanopticTokenIdSetterLib::*;
+import v3::util::{revert_empty};
+
+const SELECTOR_VOL_ORDER_TO_MINT        = 0x86152e38;
+const SELECTOR_INDUCED_LEG_LIQUIDITIES  = 0xa6d94d1d;
+const SELECTOR_AVERAGE_DENSITY_CHUNKS   = 0xbdbe259f;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    if selector == SELECTOR_VOL_ORDER_TO_MINT {
+        let plan = vol_order_to_mint(unpack_vol_order(@evm_calldataload(4)), @evm_calldataload(36));
+        let out = @malloc_uninit(64);
+        @mstore32(out, plan.token_id.tokenId);
+        @mstore32(out +% 32, plan.position_size);
+        @evm_return(out, 64);
+    }
+    if selector == SELECTOR_INDUCED_LEG_LIQUIDITIES {
+        let l = induced_leg_liquidities(unpack_vol_order(@evm_calldataload(4)));
+        let out = @malloc_uninit(128);
+        @mstore32(out, l.l0);
+        @mstore32(out +% 32, l.l1);
+        @mstore32(out +% 64, l.l2);
+        @mstore32(out +% 96, l.l3);
+        @evm_return(out, 128);
+    }
+    if selector == SELECTOR_AVERAGE_DENSITY_CHUNKS {
+        let l = average_density_chunks(unpack_vol_order(@evm_calldataload(4)));
+        let out = @malloc_uninit(128);
+        @mstore32(out, l.l0);
+        @mstore32(out +% 32, l.l1);
+        @mstore32(out +% 64, l.l2);
+        @mstore32(out +% 96, l.l3);
+        @evm_return(out, 128);
+    }
+
+    revert_empty();
+}

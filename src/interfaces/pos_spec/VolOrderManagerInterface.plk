@@ -1,0 +1,39 @@
+// ABI selectors for VolOrderManagerMod. Declared here so BOTH the module's dispatch constants
+// AND the Solidity test ABI (test/pos_spec/VolOrderManager.t.sol) AND the rpc_api Haskell
+// consumer are computed from the SAME signature strings. Values are keccak256(signature)[0:4],
+// recomputed with `cast sig` (never hand-derived).
+//
+// ARGUMENT ORDER is create_order-native everywhere: (strike, width, skew, targetVega). The
+// narrow ABI types (uint88/uint24/uint16/uint96) are the DECLARED consumer-facing types; the
+// module reads whole 32-byte calldata words with no masking. A caller who dirties the high
+// bits of a word does not slip through: strike > 2^88-1, width > 0xffffff, skew > 65534 and
+// targetVega > 2^96-1 are all REJECTED by validate_order, so a dirty word reverts rather than
+// being silently truncated.
+
+// signature:: create_order(uint88,uint24,uint16,uint96)   (strike, width, skew, targetVega;
+// write, ends @evm_stop). V2 (vol-order-v2-target-vega-SPEC.md); the v1 3-arg selector
+// 0x6501fe94 is RETIRED-NEVER-LIVE (nothing was deployed).
+const SELECTOR_CREATE_ORDER = 0x98d950ec;
+
+// signature:: create_orders(uint256,uint256[])     (count, packed tuples; BATCH -- Phase 18a)
+// DECLARED HERE, NOT DISPATCHED HERE. Pinning the batch signature now breaks the 17<->18a
+// circular dependency: Phase 17 could not otherwise pin a signature Phase 18a had not designed.
+// Until 18a implements it, this selector falls through to revert_empty() -- pinned by
+// test__unit__batchSelectorNotYetDispatched.
+const SELECTOR_CREATE_ORDERS = 0x81357911;
+
+// signature:: orderCount() -> uint256              (latest id == live order count)
+const SELECTOR_ORDER_COUNT = 0x2453ffa8;
+
+// signature:: getOrderPacked(uint256) -> uint256   (the raw 152-bit word; 0 == nonexistent)
+const SELECTOR_GET_ORDER_PACKED = 0xa9bcabc1;
+
+
+// ---- EVENTS (emitted by VolOrderManagerMod; source of truth: lib/events/VolEventsLib.plk;
+//      topic0s cast-verified and solc-asserted in test/pos_spec/VolOrderTargetVega.t.sol) ----
+// event:: VolOrderCreated(uint256 indexed orderId, uint88 strike, uint24 width, uint16 skew, uint96 targetVega)
+//   data = 4 words (strike, width, skew, targetVega); targetVega = DeltaQ_v* in RAW LIQUIDITY
+//   units (notes/UNITS_AND_SCALES.md section 2). Emitted per successful create_order and per
+//   SUCCESS inside create_orders (skips emit nothing, successors unshifted).
+//   The v1 4-field signature/topic0 0x6a5dc726... is RETIRED-NEVER-LIVE (DATA_CONTRACT.md).
+const TOPIC0_EVENT_VOL_ORDER_CREATED = 0x18bd4d460f8957f6b903aec33a3229ee1bf02b6e303c5178c5aa49a70b9de4e6;

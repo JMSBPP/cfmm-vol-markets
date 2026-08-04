@@ -1,0 +1,95 @@
+// VolOrderValidationLib (VORD-02): the PURE validation surface for a VolOrder.
+//
+// SHAPE -- DECIDED HERE, DEPENDED ON BY PHASES 17 AND 18a. `validate_order` is a
+// bool-returning CORE with a thin reverting WRAPPER (`validate_order_strict`) on top.
+// Phase 17's create_order needs the reverting behaviour; Phase 18a's best-effort batch
+// needs the non-reverting predicate so an invalid tuple SKIPS instead of reverting the
+// whole batch. MCAL-04's "strict and batch call the SAME validate_order" is only
+// provable by construction if both come from this one core. Do not collapse them.
+//
+// COMPOSITION -- two predicates REUSED VERBATIM, one bound AUTHORED:
+//   vol_range_width_is_complete       (VolRangeWidth.plk:20-23)        reused verbatim
+//   spread_tick_assimetry_is_complete (SpreadTickAssimetry.plk:11-14)  reused verbatim
+//   strike_fits_packed                                                AUTHORED HERE
+//
+// NEVER call wrap_spread_tick_assimetry (SpreadTickAssimetry.plk:9): it is
+// `rawSpread << 0xffff`, a shift by 65535 that zeroes everything. It is a real bug owned
+// by the vol-type track and must stay off this path. Build struct literals instead.
+
+import pos_spec::VolOrder::*;
+import pos_spec::VolRangeWidth::*;
+import pos_spec::SpreadTickAssimetry::*;
+import pos_spec::TickVolatility::*;
+import pos_spec::VegaTarget::*;
+import std::error::require;
+
+// v1 pins the tickSpacing field rather than taking it from the caller. This is NOT
+// cosmetic: vol_range_width_is_complete ANDs `tickSpacing > 0`, so a zeroed tickSpacing
+// makes the whole composed predicate IDENTICALLY FALSE -- rejecting 100% of traffic, under
+// which this phase's own fuzz passes trivially with all-reject results and looks green.
+// 20 also satisfies `tickSpacing <= 0xc8` (200). Matches the corpus convention at
+// VolOrder.t.sol:102. When pricing lands, this field becomes caller-supplied; the LAYOUT
+// does not change, only the source of the value.
+const TICK_SPACING = 20;
+
+// 2^88 - 1. Byte-identical to the mask pack_vol_order applies to volStrike
+// (VolOrder.plk:38) -- that identity is the whole point of the bound.
+const MAX_STRIKE = 0xFFFFFFFFFFFFFFFFFFFFFF;
+
+// THE NEW BOUND (VORD-02). tick_volatility_is_complete is only `vol > 0` -- no upper
+// bound -- so an oversized strike PASSES validation and is then silently masked to 88 bits
+// by pack_vol_order, STORING A DIFFERENT VALUE THAN THE CALLER SUPPLIED. The failure is a
+// value change, not a revert; nothing on-chain would ever surface it. `> 0` is reused from
+// the existing predicate; `<= MAX_STRIKE` is the authored half.
+const strike_fits_packed = fn(self: TickVolatility) bool {
+      let res = tick_volatility_is_complete(self) & (self.vol <= MAX_STRIKE);
+      res
+};
+
+// 2^96 - 1. Byte-identical to the mask pack_vol_order applies to targetVega
+// (VolOrder.plk MASK_U96_VO) -- the strike_fits_packed identity, replayed for the V2 field
+// (vol-order-v2-target-vega-SPEC.md D1: range bound in the LIB, not the type; the pack mask
+// is truncation AFTER validation, never a substitute for it).
+const MAX_TARGET_VEGA = 0xFFFFFFFFFFFFFFFFFFFFFFFF;
+
+// THE V2 BOUND. vega_target_is_complete is only `vega > 0`; without the upper half an
+// oversized target would pass validation and be silently masked to 96 bits -- storing a
+// DIFFERENT vega than the caller ordered (the exact defect class the strike bound killed).
+// targetVega is also the BATCH input word's TOP field (bits 128..223), so this predicate is
+// what makes dirty calldata bits >= 224 a SKIP/REVERT instead of a malleability seam.
+const target_vega_fits_packed = fn(self: VegaTarget) bool {
+      let res = vega_target_is_complete(self) & (self.vega <= MAX_TARGET_VEGA);
+      res
+};
+
+// Canonical construction of a v2 VolOrder from the create_order-native scalars. Phases 17
+// and 18a MUST build orders through this function so TICK_SPACING is pinned in exactly one
+// place. Argument order matches create_order(uint88,uint24,uint16,uint96) =
+// (strike, width, skew, targetVega).
+const build_vol_order = fn(strike: u256, width: u256, skew: u256, target_vega: u256) VolOrder {
+      VolOrder {
+            rangeWidth: VolRangeWidth { width: width, tickSpacing: TICK_SPACING },
+            volStrike: TickVolatility { vol: strike },
+            skew: SpreadTickAssimetry { spread: skew },
+            targetVega: VegaTarget { vega: target_vega }
+      }
+};
+
+// THE CORE. Non-reverting. Every conjunct is load-bearing:
+//   vol_range_width_is_complete   -> width in [1, 0xffffff] AND tickSpacing in [1, 200].
+//                                    Do NOT replace with a "reduced" width-only check: the
+//                                    tickSpacing conjuncts are inseparable from it.
+//   spread_tick_assimetry_is_complete -> skew in [1, 65534]. 0 and 65535 are degenerate
+//                                    (PosSpec.lean:52,56 skewTick_zero/skewTick_one: they
+//                                    collapse the position to a one-sided range).
+//   strike_fits_packed            -> strike in [1, 2^88-1]. The authored bound.
+const validate_order = fn(self: VolOrder) bool {
+      let res = vol_range_width_is_complete(self.rangeWidth) & spread_tick_assimetry_is_complete(self.skew) & strike_fits_packed(self.volStrike) & target_vega_fits_packed(self.targetVega);
+      res
+};
+
+// THE WRAPPER. Reverts EMPTY (std::error::require) on an invalid order. Phase 17's strict
+// create_order path calls this; Phase 18a's batch calls validate_order directly.
+const validate_order_strict = fn(self: VolOrder) void {
+      require(validate_order(self));
+};

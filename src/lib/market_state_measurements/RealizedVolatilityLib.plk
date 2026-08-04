@@ -1,0 +1,341 @@
+import pos_spec::TickVolatility::*;
+import types::market_state_measurements::Timepoint::*;
+import types::StorageIndex::*;
+import types::TimeWindow::*;
+import v3::storage::{array_slot};
+import v3::util::{revert_empty};
+
+const UINT16_MODULO = 65536;
+const TIMEPOINT_INDEX_MASK = 0xFFFF;
+
+const calculate_realized_volatility = fn(avg_tick0:u256, avg_tick1: u256, tick0:u256, tick1:u256, dt :u256) TickVolatility {
+      let k = (tick1 -% tick0) -% (avg_tick1 -% avg_tick0);
+      let b = (tick0 -% avg_tick0) *% dt;
+      let sumOfSequence = dt *% (dt +% 1);
+      let sumOfSquares = sumOfSequence *% (2 *% dt +% 1); // sumOfSquares * 6
+      let volatility = @evm_sdiv(
+            (k *% k) *% sumOfSquares
+            +% 6 *% b *% k *% sumOfSequence
+            +% 6 *% dt *% (b *% b),
+            6 *% (dt *% dt)
+      );
+      TickVolatility { vol: volatility }
+};
+
+const AvgTickRes = struct {
+      avg_tick :u256,
+      window_start_index: StorageIndex
+};
+
+const TimepointsAt = struct {
+      before: Timepoint,
+      after: Timepoint,
+      same_point: bool,
+      index_before: u256
+};
+
+const TickCumulativeAt = struct {
+      tick_cumulative: u256,
+      index_before: u256
+};
+
+// todo: This goes on a separate file
+const u32_sub = fn(a: u256, b: u256) u256 {
+      (a -% b) & 0xFFFFFFFF
+};
+
+// _lteConsideringOverflow: 32-bit timestamp comparator that stays correct across one
+// wrap of the uint32 clock. Answers "is `a` chronologically <= `b`, as seen from `time`".
+// Both `a` and `b` must be chronologically at or before `time`, and BOTH MUST ALREADY BE
+// REDUCED MOD 2^32 -- see u32_sub.
+const oracle_lte = fn (time: u256, a: u256, b: u256) bool {
+    if (a <= time) and (b <= time) { return a <= b; }
+    let aAdjusted = if a > time { a } else { a +% (1 << 32) };
+    let bAdjusted = if b > time { b } else { b +% (1 << 32) };
+    aAdjusted <= bAdjusted
+};
+
+const load_timepoint = fn(buffer_base: u256, index: u256) Timepoint {
+      unpack_timepoint(@evm_sload(array_slot(buffer_base, index & TIMEPOINT_INDEX_MASK)))
+};
+
+const binary_search_timepoints = fn(
+      buffer_base: u256,
+      current_time: u256,
+      target: u256,
+      upper_index: u256,
+      lower_index: u256
+) TimepointsAt {
+      let mut left = lower_index;
+      let mut right = if upper_index < lower_index { upper_index +% UINT16_MODULO } else { upper_index };
+
+      let mut index_before = (left +% right) </ 2;
+      let mut before = load_timepoint(buffer_base, index_before);
+      let mut after = before;
+      let mut done = false;
+
+      while !done {
+            if before.initialized {
+                  if oracle_lte(current_time, before.timestamp, target) {
+                        // `before` is at or before target; check the next point.
+                        after = load_timepoint(buffer_base, index_before +% 1);
+                        if after.initialized {
+                              if oracle_lte(current_time, target, after.timestamp) {
+                                    // target is bracketed: this is the only fully correct exit.
+                                    done = true;
+                              } else {
+                                    left = index_before +% 1;
+                              }
+                        } else {
+                              // `before` is initialized and <= target but the next slot is not
+                              // written: impossible for correct bounds. Degenerate to before.
+                              after = before;
+                              done = true;
+                        }
+                  } else {
+                        right = index_before -% 1;
+                  }
+            } else {
+                  // landed on an unwritten slot: keep searching higher.
+                  left = index_before +% 1;
+            }
+
+            if !done {
+                  index_before = (left +% right) </ 2;
+                  before = load_timepoint(buffer_base, index_before);
+            }
+      }
+
+      TimepointsAt {
+            before: before,
+            after: after,
+            same_point: false,
+            index_before: index_before
+      }
+};
+
+const timepoints_at = fn(
+      buffer_base: u256,
+      current_time: u256,
+      target: u256,
+      last_index: StorageIndex,
+      oldest_index: StorageIndex,
+      window: TimeWindow
+) TimepointsAt {
+      let last_timepoint = load_timepoint(buffer_base, last_index.current);
+
+      // target is at or newer than the last timepoint -> nothing to search.
+      if (target == current_time) or oracle_lte(current_time, last_timepoint.timestamp, target) {
+            return TimepointsAt {
+                  before: last_timepoint,
+                  after: last_timepoint,
+                  same_point: true,
+                  index_before: last_index.current
+            };
+      }
+
+      // If the target lies inside the window, the search can be narrowed to the window
+      // start: when the ring overflows, window_start_index is guaranteed not to point at an
+      // overwritten timepoint.
+      let mut lower = oldest_index.current;
+      if u32_sub(last_timepoint.timestamp, target) <= window.window {
+            lower = last_timepoint.time_window_start_index;
+      }
+
+      let oldest = load_timepoint(buffer_base, lower);
+
+      // target older than everything we retain.
+      if !oracle_lte(current_time, oldest.timestamp, target) { revert_empty(); }
+
+      if oldest.timestamp == target {
+            return TimepointsAt {
+                  before: oldest,
+                  after: oldest,
+                  same_point: true,
+                  index_before: lower
+            };
+      }
+
+      // Adjacent boundaries: the answer is already known.
+      if last_index.current == (lower + 1) & TIMEPOINT_INDEX_MASK {
+            return TimepointsAt {
+                  before: oldest,
+                  after: last_timepoint,
+                  same_point: false,
+                  index_before: lower
+            };
+      }
+
+      binary_search_timepoints(buffer_base, current_time, target, last_index.current, lower)
+};
+
+// _getTickCumulativeAt: the tick accumulator interpolated at `time - seconds_ago`.
+const tick_cumulative_at = fn(
+      buffer_base: u256,
+      time: u256,
+      seconds_ago: u256,
+      tick: u256,
+      last_index: StorageIndex,
+      oldest_index: StorageIndex,
+      window: TimeWindow
+) TickCumulativeAt {
+      let target = u32_sub(time, seconds_ago);
+      let found = timepoints_at(buffer_base, time, target, last_index, oldest_index, window);
+
+      let timestamp_before = found.before.timestamp;
+      let cumulative_before = found.before.tick_cumulative;
+
+      // left boundary
+      if target == timestamp_before {
+            return TickCumulativeAt { tick_cumulative: cumulative_before, index_before: found.index_before };
+      }
+
+      // target is newer than the last timepoint: extrapolate forward at the current tick.
+      if found.same_point {
+            return TickCumulativeAt {
+                  tick_cumulative: cumulative_before +% (tick *% u32_sub(target, timestamp_before)),
+                  index_before: found.index_before
+            };
+      }
+
+      let timestamp_after = found.after.timestamp;
+      let cumulative_after = found.after.tick_cumulative;
+
+      // right boundary
+      if target == timestamp_after {
+            return TickCumulativeAt {
+                  tick_cumulative: cumulative_after,
+                  index_before: (found.index_before + 1) & TIMEPOINT_INDEX_MASK
+            };
+      }
+
+      // strictly inside: linear interpolation between the two timepoints.
+      let timepoint_delta = u32_sub(timestamp_after, timestamp_before);
+      let target_delta = u32_sub(target, timestamp_before);
+      TickCumulativeAt {
+            tick_cumulative:
+                  cumulative_before
+                  +% (@evm_sdiv(cumulative_after -% cumulative_before, timepoint_delta) *% target_delta),
+            index_before: found.index_before
+      }
+};
+
+// volatility_cumulative_at = Algebra VolatilityOracle._getVolatilityCumulativeAt: the (interpolated)
+// volatilityCumulative accumulator at `current_time - seconds_ago`. Mirrors tick_cumulative_at, EXCEPT
+// the extrapolate-forward (same_point) branch uses the volatility KERNEL (calculate_realized_volatility
+// over [before.avg_tick, avg_tick_at_target]), not a linear tick term. uint88 arithmetic (mask MASK_U88).
+const VOL_MASK_U88 = 0xFFFFFFFFFFFFFFFFFFFFFF;
+const volatility_cumulative_at = fn(
+      buffer_base: u256,
+      current_time: u256,
+      seconds_ago: u256,
+      tick: u256,
+      last_index: StorageIndex,
+      oldest_index: StorageIndex,
+      window: TimeWindow
+) u256 {
+      let target = u32_sub(current_time, seconds_ago);
+      let found = timepoints_at(buffer_base, current_time, target, last_index, oldest_index, window);
+
+      let ts_before = found.before.timestamp;
+      let vol_before = found.before.realizedVolatility.vol & VOL_MASK_U88;
+
+      // left boundary
+      if target == ts_before { return vol_before; }
+
+      // target is newer than the last timepoint: extrapolate via the volatility kernel.
+      if found.same_point {
+            let avg = calculate_avg_tick(buffer_base, target, tick, last_index, oldest_index, found.before, window);
+            let dt = u32_sub(target, ts_before);
+            let on_range = calculate_realized_volatility(found.before.avg_tick, avg.avg_tick, tick, tick, dt);
+            return (vol_before +% (on_range.vol & VOL_MASK_U88)) & VOL_MASK_U88;
+      }
+
+      let ts_after = found.after.timestamp;
+      let vol_after = found.after.realizedVolatility.vol & VOL_MASK_U88;
+
+      // right boundary
+      if target == ts_after { return vol_after; }
+
+      // strictly inside: linear interpolation (unsigned; volatilityCumulative is uint88).
+      let timepoint_delta = u32_sub(ts_after, ts_before);
+      let target_delta = u32_sub(target, ts_before);
+      (vol_before +% (@evm_div(vol_after -% vol_before, timepoint_delta) *% target_delta)) & VOL_MASK_U88
+};
+
+const twap_tick = fn(
+      buffer_base: u256,
+      current_time: u256,
+      dt: u256,
+      tick: u256,
+      last_index: StorageIndex,
+      oldest_index: StorageIndex,
+      window: TimeWindow
+) u256 {
+      let cumulative_now =
+            tick_cumulative_at(buffer_base, current_time, 0, tick, last_index, oldest_index, window);
+      let cumulative_then =
+            tick_cumulative_at(buffer_base, current_time, dt, tick, last_index, oldest_index, window);
+
+      let delta = cumulative_now.tick_cumulative -% cumulative_then.tick_cumulative;
+
+      let quotient = @evm_sdiv(delta, dt);
+      let remainder = @evm_smod(delta, dt);
+
+      if @evm_slt(delta, 0) and (remainder != 0) {
+            @evm_sub(quotient, 1)
+      } else {
+            quotient
+      }
+};
+
+const calculate_avg_tick = fn(
+      buffer_base: u256,
+      current_time: u256,
+      tick: u256,
+      last_index: StorageIndex,
+      oldest_index: StorageIndex,
+      last_timepoint: Timepoint,
+      window: TimeWindow
+) AvgTickRes {
+      let oldest = load_timepoint(buffer_base, oldest_index.current);
+
+      // Carry the accumulator forward to `current_time` before averaging.
+      let current_tick_cumulative =
+            last_timepoint.tick_cumulative +% (tick *% u32_sub(current_time, last_timepoint.timestamp));
+
+      let window_start = u32_sub(current_time, window.window);
+
+      // The oldest retained timepoint is NEWER than one window ago: average over everything
+      // we actually have rather than over the (partly missing) window.
+      if !oracle_lte(current_time, oldest.timestamp, window_start) {
+            if current_time == oldest.timestamp {
+                  return AvgTickRes { avg_tick: tick, window_start_index: oldest_index };
+            }
+            return AvgTickRes {
+                  avg_tick: @evm_sdiv(
+                        current_tick_cumulative -% oldest.tick_cumulative,
+                        u32_sub(current_time, oldest.timestamp)
+                  ),
+                  window_start_index: oldest_index
+            };
+      }
+
+      // The last timepoint is itself older than the window: the tick has not moved within
+      // the window, so the average is just the current tick.
+      if oracle_lte(current_time, last_timepoint.timestamp, window_start) {
+            return AvgTickRes { avg_tick: tick, window_start_index: last_index };
+      }
+
+      //    current-WINDOW   last   current
+      //  _________*__________*________*_
+      //           ||||||||||||||||||||||
+      let at_start = tick_cumulative_at(
+            buffer_base, current_time, window.window, tick, last_index, oldest_index, window
+      );
+
+      AvgTickRes {
+            avg_tick: @evm_sdiv(current_tick_cumulative -% at_start.tick_cumulative, window.window),
+            window_start_index: StorageIndex { current: at_start.index_before & TIMEPOINT_INDEX_MASK }
+      }
+};

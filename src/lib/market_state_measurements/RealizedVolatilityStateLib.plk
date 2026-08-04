@@ -1,0 +1,218 @@
+// RealizedVolatilityStateLib -- the STATEFUL realized-volatility buffer operations,
+// (buffer_base, state_slot, window_slot)-parameterized so BOTH RealizedVolatilityMod (its 3
+// module slots, poolId = 0 sentinel) and DynamicFeeHook (its own slots, real poolId) bind the
+// SAME code instead of diverging copies. Extracted verbatim from RealizedVolatilityMod under a
+// green suite (dynamic-fee-hook-SPEC.md resume item 2); the ONLY behavioral change is B1:
+// rv_write_timepoint returns bool instead of halting the frame on the same-block early-out.
+//
+// B1 (BLOCKER, both hook reviewers): the Mod's original write_timepoint ended its same-block
+// branch with return_u256(EMPTY) -- an @evm_return that HALTS the call frame. Inside a hook's
+// beforeSwap that halt would make a second same-block swap return 32 zero-bytes instead of the
+// 96-byte (selector, delta, fee) tuple, and SFPM's swapInAMM does more than one swap per block.
+// Here the branch is a plain `return false` (no sstore, no E3 emit -- the no-transition-no-event
+// rule survives B1 by construction, exactly as the EV-03 note demanded).
+//
+// pool_id is threaded to the event emitters (events-subgraph-gams-SPEC.md D2): module-keyed
+// binders pass the PERMANENT 0 sentinel; the pool-keyed hook passes its bound poolId.
+
+import pos_spec::TickVolatility::*;
+import types::market_state_measurements::Timepoint::*;
+import types::StorageIndex::*;
+import types::TimeWindow::*;
+import lib::market_state_measurements::RealizedVolatilityLib::*;
+import lib::events::VolEventsLib::{emit_timepoint_written, emit_window_changed};
+import v3::storage::{array_slot};
+import std::error::require;
+import std::core_ops::bool_to_u256;
+
+const RV_ZERO = 0;
+
+const RealizedVolatilityState = struct {
+     ss_index: StorageIndex,       // u16
+     lastTimepointTimestamp: u256, // u32
+     isInitialized: bool
+};
+
+const pack_realized_volatility_state = fn(self: RealizedVolatilityState) u256 {
+    (self.ss_index.current & 0xFFFF)
+    | @evm_shl(16, self.lastTimepointTimestamp & 0xFFFFFFFF)
+    | @evm_shl(48, bool_to_u256(self.isInitialized))
+};
+
+const unpack_realized_volatility_state = fn(_packed: u256) RealizedVolatilityState {
+    RealizedVolatilityState {
+        ss_index: StorageIndex{ current: _packed & 0xFFFF },
+        lastTimepointTimestamp: @evm_shr(16, _packed) & 0xFFFFFFFF,
+        isInitialized: @evm_eq(@evm_shr(48, _packed) & 1, 1)
+    }
+};
+
+// getOldestIndex: the oldest timepoint still retained in the ring (Algebra: if the slot we are
+// about to overwrite is initialized the buffer has wrapped and that slot is oldest; else 0).
+const rv_oldest_index_of = fn(buffer_base: u256, last_index: StorageIndex) StorageIndex {
+      let candidate = next(last_index);
+      let candidate_timepoint = load_timepoint(buffer_base, candidate.current);
+      if candidate_timepoint.initialized { candidate } else { StorageIndex { current: RV_ZERO } }
+};
+
+// E6's single emit site for a given binding: every window write, initialize default included.
+const rv_write_window = fn(window_slot: u256, pool_id: u256, window: TimeWindow) void {
+      @evm_sstore(window_slot, pack_time_window(window));
+      emit_window_changed(pool_id, window.window);
+};
+
+const rv_read_window = fn(window_slot: u256) TimeWindow {
+      unpack_time_window(@evm_sload(window_slot))
+};
+
+// initialize_timepoint_buffer: seeds slot 0 (zero variance, zero accumulator, avg = tick),
+// writes the default window, arms the state word. Reverts on double-init (logical `!`, NOT
+// @evm_not -- see the Mod's original comment). Emits [E6, E3-seed] in that order.
+const rv_initialize = fn(
+    buffer_base: u256, state_slot: u256, window_slot: u256, pool_id: u256,
+    block_timestamp: u256, tick: u256
+) void {
+     let ss_index = initialize_storage_index();
+     let slot = array_slot(buffer_base, ss_index.current);
+
+     let current_timepoint_at_slot = unpack_timepoint(@evm_sload(slot));
+     require(!current_timepoint_at_slot.initialized);
+
+     let now = block_timestamp & MASK_U32;
+
+     let seed = Timepoint {
+         timestamp: now,
+         realizedVolatility: TickVolatility { vol: RV_ZERO },
+         tick: tick,
+         avg_tick: tick,
+         tick_cumulative: RV_ZERO,
+         time_window_start_index: ss_index.current,
+         initialized: true
+     };
+
+     @evm_sstore(slot, pack_timepoint(seed));
+     rv_write_window(window_slot, pool_id, TimeWindow { window: DEFAULT_TIME_WINDOW });
+     @evm_sstore(state_slot, pack_realized_volatility_state(
+         RealizedVolatilityState{ ss_index: ss_index, lastTimepointTimestamp: now, isInitialized: true }
+     ));
+     // E3 seed -- the origin of the tObs series (events spec, review F-RC4/F-SE5).
+     emit_timepoint_written(pool_id, now, tick, RV_ZERO, tick, RV_ZERO);
+};
+
+// write_timepoint, B1 form: returns TRUE iff a timepoint was written (and E3 emitted);
+// FALSE on the at-most-one-per-block early-out, WITHOUT halting the frame.
+const rv_write_timepoint = fn(
+    buffer_base: u256, state_slot: u256, window_slot: u256, pool_id: u256,
+    block_timestamp: u256, tick: u256
+) bool {
+      let vol_state = unpack_realized_volatility_state(@evm_sload(state_slot));
+      require(vol_state.isInitialized);
+
+      let now = block_timestamp & MASK_U32;
+      // at most one timepoint per block: B1 -- plain false, NOT an @evm_return halt; also
+      // bypasses the E3 emit (no state transition, no event).
+      if vol_state.lastTimepointTimestamp == now { return false; }
+
+      let last_index = vol_state.ss_index;
+      let last_timepoint = load_timepoint(buffer_base, last_index.current);
+
+      let index_updated = next(last_index);
+      let oldest_index = rv_oldest_index_of(buffer_base, last_index);
+      let window = rv_read_window(window_slot);
+
+      // averaged from last_index, NOT index_updated (the advanced index is only the write target)
+      let avg = calculate_avg_tick(buffer_base, now, tick, last_index, oldest_index, last_timepoint, window);
+
+      // if the window start lands on the slot being overwritten, push it forward
+      let window_start_index = if avg.window_start_index.current == index_updated.current {
+          next(avg.window_start_index)
+      } else {
+          avg.window_start_index
+      };
+
+      let updated = create_timepoint(last_timepoint, now, tick, avg.avg_tick, window_start_index.current);
+
+      @evm_sstore(array_slot(buffer_base, index_updated.current), pack_timepoint(updated));
+      @evm_sstore(state_slot, pack_realized_volatility_state(
+          RealizedVolatilityState { ss_index: index_updated, lastTimepointTimestamp: now, isInitialized: true }
+      ));
+      // E3 -- after the sstores; the emitter sign-extends the signed fields.
+      emit_timepoint_written(
+          pool_id, updated.timestamp, updated.tick,
+          updated.realizedVolatility.vol, updated.avg_tick, updated.tick_cumulative
+      );
+      true
+};
+
+const RingState = struct {
+      last_index: StorageIndex,
+      oldest_index: StorageIndex,
+      last_timepoint: Timepoint,
+      window: TimeWindow
+};
+
+const rv_load_ring_state = fn(buffer_base: u256, state_slot: u256, window_slot: u256) RingState {
+      let vol_state = unpack_realized_volatility_state(@evm_sload(state_slot));
+      require(vol_state.isInitialized);
+      let last_index = vol_state.ss_index;
+      RingState {
+          last_index: last_index,
+          oldest_index: rv_oldest_index_of(buffer_base, last_index),
+          last_timepoint: load_timepoint(buffer_base, last_index.current),
+          window: rv_read_window(window_slot)
+      }
+};
+
+// getAverageVolatility -- the windowed, Bessel-corrected Algebra reader (task #17, byte-exact).
+const rv_get_average_volatility = fn(
+    buffer_base: u256, state_slot: u256, window_slot: u256,
+    tick: u256, block_timestamp: u256
+) u256 {
+      let s = rv_load_ring_state(buffer_base, state_slot, window_slot);
+      let current_time = block_timestamp & MASK_U32;
+      let last_tp = s.last_timepoint;
+      let time_at_last = last_tp.timestamp == current_time;
+
+      let mut last_cum_vol = last_tp.realizedVolatility.vol & MASK_U88;
+      if !time_at_last {
+            last_cum_vol = volatility_cumulative_at(
+                  buffer_base, current_time, 0, tick, s.last_index, s.oldest_index, s.window
+            );
+      }
+
+      let oldest = load_timepoint(buffer_base, s.oldest_index.current);
+      let oldest_ts = oldest.timestamp;
+      let window_start = u32_sub(current_time, s.window.window);
+
+      if oracle_lte(current_time, oldest_ts, window_start) {
+            // full window available
+            let mut cum_vol_at_start = 0;
+            if time_at_last {
+                  let wsi = last_tp.time_window_start_index & MASK_U16;
+                  let tp0 = load_timepoint(buffer_base, wsi);
+                  let tp1 = load_timepoint(buffer_base, (wsi +% 1) & MASK_U16);
+                  let start_ts = tp0.timestamp;
+                  let v0 = tp0.realizedVolatility.vol & MASK_U88;
+                  let time_delta = u32_sub(tp1.timestamp, start_ts);
+                  cum_vol_at_start = (v0 +% @evm_div(
+                        ((tp1.realizedVolatility.vol & MASK_U88) -% v0) *% u32_sub(window_start, start_ts),
+                        time_delta
+                  )) & MASK_U88;
+            } else {
+                  cum_vol_at_start = volatility_cumulative_at(
+                        buffer_base, current_time, s.window.window, tick, s.last_index, s.oldest_index, s.window
+                  );
+            }
+            return @evm_div((last_cum_vol -% cum_vol_at_start) & MASK_U88, s.window.window);
+      }
+
+      if current_time != oldest_ts {
+            // not enough history: Bessel-corrected extrapolation
+            let oldest_vol = oldest.realizedVolatility.vol & MASK_U88;
+            let mut denom = u32_sub(current_time, oldest_ts);
+            if denom > 1 { denom = denom -% 1; }
+            return @evm_div((last_cum_vol -% oldest_vol) & MASK_U88, denom);
+      }
+
+      0
+};

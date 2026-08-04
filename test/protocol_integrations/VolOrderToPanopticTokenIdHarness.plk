@@ -1,0 +1,64 @@
+import std::constructor::return_runtime;
+import types::protocol_integrations::PanopticTokenId::*;
+import types::pos_spec::VolOrder::{unpack_vol_order, tick_bucket_from_vol_order};
+import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
+import types::pricing::TickUtils::round_tick;
+import lib::protocol_integrations::PanopticTokenIdSetterLib::vol_order_to_panoptic_token_id;
+
+// Harness for CR-I2 (VolOrder -> PanopticTokenId, Layer 1).
+//  - legFromBucket exercises the floor-strike leg encoder (Increment 1).
+//  - tokenIdFromVolOrder / bucketFromVolOrder / centerTick exercise the top-level map (Increment 2+).
+
+// cast sig "legFromBucket(int24,int24,int24,uint256)"  -> 0xfe7ebf55
+const SEL_LEG_FROM_BUCKET = 0xfe7ebf55;
+// cast sig "tokenIdFromVolOrder(uint256,uint256)"      -> 0xa00af595
+const SEL_TOKEN_ID = 0xa00af595;
+// cast sig "bucketFromVolOrder(uint256)"               -> 0xed7143d4
+const SEL_BUCKET = 0xed7143d4;
+// cast sig "centerTick(uint256)"                       -> 0x728ebb96
+const SEL_CENTER = 0x728ebb96;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    // legFromBucket(lo@4, hi@36, ts@68, leg@100) -> (int256 strike, uint256 width)
+    if selector == SEL_LEG_FROM_BUCKET {
+        let tid = panoptic_add_leg_from_bucket(0, @evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68), @evm_calldataload(100));
+        let out = @malloc_uninit(64);
+        @mstore32(out, panoptic_strike(tid, @evm_calldataload(100)));
+        @mstore32(out +% 32, panoptic_width(tid, @evm_calldataload(100)));
+        @evm_return(out, 64);
+    }
+
+    // tokenIdFromVolOrder(packedVO@4, poolId@36) -> uint256 tokenId
+    if selector == SEL_TOKEN_ID {
+        let vo = unpack_vol_order(@evm_calldataload(4));
+        let res = vol_order_to_panoptic_token_id(vo, @evm_calldataload(36));
+        let out = @malloc_uninit(32);
+        @mstore32(out, res.tokenId);
+        @evm_return(out, 32);
+    }
+
+    // bucketFromVolOrder(packedVO@4) -> (int256 low, int256 tickSpacing, int256 up)
+    if selector == SEL_BUCKET {
+        let tb = tick_bucket_from_vol_order(unpack_vol_order(@evm_calldataload(4)));
+        let out = @malloc_uninit(96);
+        @mstore32(out, tb.low);
+        @mstore32(out +% 32, tb.tickSpacing);
+        @mstore32(out +% 64, tb.up);
+        @evm_return(out, 96);
+    }
+
+    // centerTick(packedVO@4) -> int256  (i* = round_tick(vol tick, Δ))
+    if selector == SEL_CENTER {
+        let vo = unpack_vol_order(@evm_calldataload(4));
+        let i_star = round_tick(tick_volatility_tick(vo.volStrike), vo.rangeWidth.tickSpacing);
+        let out = @malloc_uninit(32);
+        @mstore32(out, i_star);
+        @evm_return(out, 32);
+    }
+
+    @evm_stop();
+}

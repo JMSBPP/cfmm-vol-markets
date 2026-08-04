@@ -1,0 +1,31 @@
+import pos_spec::SpreadTickAssimetry::*;
+import std::constructor::return_runtime;
+import types::pricing::TickUtils::*;
+import pos_spec::VolRangeWidth::*;
+
+
+// signature :: split_tick(uint16,uint24,uint24,int24)
+const SELECTOR_SPLIT_TICK_SPREAD_TICK_ASSIMETRY = 0x03ef1a4a;
+// signature :: tick_from_splitted_tick_bucket(uint16,uint24,uint24,int24,uint24,int24)
+const SELECTOR_TICK_FROM_SPLITTED_TICK_BUCKET = 0xdf91c659;
+
+init {
+     return_runtime();
+}
+
+run{
+	let selector = @evm_shr(224, @evm_calldataload(0));
+	if selector == SELECTOR_SPLIT_TICK_SPREAD_TICK_ASSIMETRY {
+	   let packed_spread_tick_assimetry = @evm_calldataload(4);
+	   let packed_vol_range_width = @evm_calldataload(36);
+	   let tick = @evm_calldataload(68);
+	   return_split_tick(unpack_spread_tick_assimetry(packed_spread_tick_assimetry),unpack_vol_range_width(packed_vol_range_width), tick);
+	} else if selector == SELECTOR_TICK_FROM_SPLITTED_TICK_BUCKET {
+	    let spread = unpack_spread_tick_assimetry(@evm_calldataload(4));
+	    let volWidth = unpack_vol_range_width(@evm_calldataload(36));
+	    let tickBucket = unpack_tick_bucket(@evm_calldataload(68));
+	    return_tick_from_splitted_tick_bucket(spread, volWidth, tickBucket);
+	}
+
+	@evm_stop();
+}
