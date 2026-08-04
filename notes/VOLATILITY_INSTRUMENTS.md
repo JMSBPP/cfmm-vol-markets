@@ -524,18 +524,35 @@ CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because
 
 The first display is an identity (the decomposition); the Rule is the second — the **accrual assignment**: fees deposit into Definition 9's endowments at the strike where they are charged.
 
-And a group with inner product \(\otimes_{\phi}\):
+**Definition 17 (Fee composition).** The **fee-composition law** on the carrier \([0,1)\) is
 
 \[
 	\begin{aligned}
-		\mathcal{G}_{\phi}: \phi_M \times \phi_X \to \phi := \phi_M \otimes_{\phi} \phi_X \, \in \, \mathcal{G}_{\phi}
+		\phi_M \otimes_{\phi} \phi_X \, \equiv \, 1 - (1-\phi_M)(1-\phi_X), \qquad \mathcal{G}_{\phi} \, \equiv \, \big([0,1),\, \otimes_{\phi},\, 0\big)
 	\end{aligned}
 \]
 
+\(\mathcal{G}_{\phi}\) is an **Abelian monoid** — identity \(\phi = 0\), no inverses (a charged fee cannot be un-charged) — **not a group, and \(\otimes_{\phi}\) is a composition law, not an inner product** (correcting the note's original wording). Associativity/commutativity/identity are elementary retention algebra (the \(1-\phi\) factors multiply); not separately named in-tree.
+
+**Rule 7 (Trader-paid fee).** The protocol composes the leg fees into the trader-paid fee by the monoid law:
+
+\[
+	\begin{aligned}
+		\phi \, \leftarrow \, \phi_M \otimes_{\phi} \phi_X
+	\end{aligned}
+\]
+
+This is the M9 **DECIDED** entry — \(\tau_{\text{MEV}}\) enters the same way (monoid entry = intensity, not targeting).
+
+**Theorem 13 (Fee-monoid facts).** Composition stays in \([0,1]\); it never lowers the fee, and strictly raises it for \(\tau > 0,\ \phi < 1\); the aggregate is invariant to which leg carries a tax; and in hazard coordinates (\(1-\phi = e^{-\lambda}\)) the monoid law is exact hazard addition.
+
+*Formalized:* `tau_monoid_mem` (A1); `tau_monoid_ge` / `tau_monoid_gt` (A2); `tau_no_targeting` (A4); `tau_hazard_exact` (A5).
+
+**Design menu.** Row 1 is the **DECIDED** structure — Rules 6–7 enact it; the remaining rows are alternative composition structures considered and **not adopted** (candidate Rules never enacted):
 
 | Economic process         | Operator                 | Structure            |
 | ------------------------ | ------------------------ | -------------------- |
-| Sequential fee charging  | (1-(1-\phi_1)(1-\phi_2)) | Abelian monoid       |
+| Sequential fee charging  | (1-(1-\phi_M)(1-\phi_X)) | Abelian monoid       |
 | Strongest policy wins    | (\max)                   | Join semilattice     |
 | Cheapest route wins      | (\min)                   | Meet semilattice     |
 | Liquidity aggregation    | Weighted average         | Convex algebra       |
