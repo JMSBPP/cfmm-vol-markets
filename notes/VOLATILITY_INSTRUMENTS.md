@@ -475,7 +475,7 @@ Both directions, both round trips; and the share asymmetry (Definition 15) facto
 
 *Formalized* (`EtaTilde`, 23/23 axiom-clean; doc \(\chi_{X/M}\) ↔ Lean `etaTilde`): anchor `etaTilde_ratio`; observable `etaTilde_eq_priceEta_step`; bijection `etaTilde_mem_Ioo`, `etaTilde_strictMono`, `etaOfTilde_etaTilde`, `etaTilde_etaOfTilde`, `etaTilde_half_iff`, `etaTilde_tendsto_atTop`/`_atBot`; bridge to \(\varsigma_{X/M}\): `curvIndex_eq_of_etaTilde`, `curvOfTilde_etaTilde`, `tildeOfCurv_curvOfTilde`; range `curvOfTilde_mem_Ioo` (the \(t \in (0,1)\) hypothesis is NECESSARY — `Real.rpow` is \(\log|x|\)-based outside it).
 
-DOMAIN COINCIDENCE — three conditions stated independently, in different blocks, that turn out to be one:
+**Theorem 11 (Domain coincidence).** Three conditions stated independently, in different blocks, are one:
 
 \[
 	\begin{aligned}
@@ -484,9 +484,11 @@ DOMAIN COINCIDENCE — three conditions stated independently, in different block
 	\end{aligned}
 \]
 
-(the first line is exactly the hypothesis `VolInstrument.deltaQM_nonneg` requires — an analytic guard that IS the economic condition "the pool is asset-heavy in value"; the second says flat grid = symmetric pool = zero curvature.)
+The first line is exactly the hypothesis Theorem 5's `deltaQM_nonneg` requires — an analytic guard that IS the economic condition "the pool is asset-heavy in value"; the second says flat grid = symmetric pool = zero tilt.
 
-**Lemma (Curvature–Share Monotonicity; the antitone reading is REFUTED).** \(\varsigma_{X/M}\) is strictly INCREASING in \(\chi_{X/M}\) on \((0,1)\), vanishing exactly at \(\chi_{X/M} = \tfrac12\). The opposite reading — a larger asset share means LESS curvature — is FALSE:
+*Formalized:* `admissible_iff`; `zero_curv_iff`.
+
+**Theorem 12 (Share-asymmetry monotonicity; the antitone reading is REFUTED).** \(\varsigma_{X/M}\) is strictly INCREASING in \(\chi_{X/M}\) on \((0,1)\), vanishing exactly at \(\chi_{X/M} = \tfrac12\). The opposite reading — a larger asset share means LESS tilt — is FALSE:
 
 \[
 	\begin{aligned}
@@ -496,12 +498,11 @@ DOMAIN COINCIDENCE — three conditions stated independently, in different block
 
 (raising \(\chi_{X/M}\) shrinks \((1-\chi_{X/M})/\chi_{X/M}\), hence RAISES \(1 - (\cdot)^{\Delta_i}\).)
 
-CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because \(\eta^{\star} \approx 458/\Delta_i^{2}\) cannot be a Cobb–Douglas share. It never had to be — the share is \(\chi_{X/M}(\eta^{\star}) \in (0,1)\) for EVERY \(\eta\), so the identification is reachable through \(\chi_{X/M}\), not through \(\eta\) directly.
+*Formalized:* `curvOfTilde_strictMono` (the true direction); **REFUTED:** `not_curvOfTilde_strictAnti` — machine-checked negation of the antitone reading, witness above. *(Retitled from the in-doc "Lemma (Curvature–Share Monotonicity)": "Lemma" is not a taxonomy class, and per Theorem 9 \(\varsigma_{X/M}\) is share asymmetry, not curvature.)*
 
-> LEAN (proved, `EtaTilde`, 23/23 axiom-clean, project `67b1c841`; doc \(\chi_{X/M}\) ↔ Lean `etaTilde`, the Lean name fixed by the bundle and never hand-edited): anchor `etaTilde_ratio`, observable `etaTilde_eq_priceEta_step`; bijection `etaTilde_mem_Ioo`, `etaTilde_strictMono`, `etaOfTilde_etaTilde`, `etaTilde_etaOfTilde`, `etaTilde_half_iff`, `etaTilde_tendsto_atTop/_atBot`; bridge `curvIndex_eq_of_etaTilde`, `curvOfTilde_etaTilde`, `tildeOfCurv_curvOfTilde`; range `curvOfTilde_mem_Ioo` (\(t \in (0,1)\) hypothesis NECESSARY — `Real.rpow` is \(\log|x|\) outside it); domain `admissible_iff`, `zero_curv_iff`; E8(6) `etaStar_tilde_mem_Ioo`, `curvIndex_etaStar_via_tilde`.
-> REFUTED: `not_curvOfTilde_strictAnti` — machine-checked negation of the antitone reading (witness above); the true direction is `curvOfTilde_strictMono`.
-> LEAN (proved, `PhiCES`, 12/12 axiom-clean, project `cd3558f7`) — the three items previously IN FLIGHT are now settled: (i) the \(\epsilon_{X/M} \to 0\) limit IS \(\varphi_{\chi_{X/M},\,0}\), `phiCES_tendsto_phiEps` (`𝓝[≠] 0`); (ii) \(\epsilon_{X/M} = 1\) is the linear form, `phiCES_one`, and \((\epsilon_{X/M} \to 0, \chi_{X/M} = 1/2)\) is the geometric mean, `phiCES_zero_half_eq_geom`; (iii) ORTHOGONALITY proved as a REFUTATION, `phiCES_rho_ne_eps_axis` — no share \(\chi_{X/M}'\) makes the \(\epsilon_{X/M} = -1\) slice match the \(\epsilon_{X/M} = 1\) equal-share member at both \((1,2)\) and \((2,1)\) — and `curvIndex_is_rho_zero_slice` shows the landed \(\varsigma_{X/M}\) factors through the SHARE ALONE, carrying no independent \(\epsilon_{X/M}\). Also `phiCES_homogeneous/_pos/_mono`; `phiCES_agreement_point` (evaluation form, scope declared in-file).
-> NARROWED, DECLARED: `phiCES_concave` is RADIAL concavity, explicitly not joint concavity in \((Q_X,Q_M)\) — joint concavity remains OPEN. CONDITIONAL, NOT an identification: `phiCES_rho_vs_pi_eta_trader` gives \(1/(1-\epsilon_{X/M}) = 1/(1-\eta) \iff \epsilon_{X/M} = \eta\) away from the poles for `exp/CESLongVolPayoff`'s η, and its docstring states outright that this does NOT identify the payoff parameter with the trading-function parameter — E8(6) untouched.
+CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because \(\eta^{\star} \approx 458/\Delta_i^{2}\) cannot be a Cobb–Douglas share. It never had to be — the share is \(\chi_{X/M}(\eta^{\star}) \in (0,1)\) for EVERY \(\eta\) (Theorem 10), so the identification is reachable through \(\chi_{X/M}\), not through \(\eta\) directly. *Carriers:* `etaStar_tilde_mem_Ioo`, `curvIndex_etaStar_via_tilde`. *(E-block cross-note; converts when the E-blocks are swept.)*
+
+> Provenance: `EtaTilde` 23/23 axiom-clean, project `67b1c841` (doc \(\chi_{X/M}\) ↔ Lean `etaTilde`, the Lean name fixed by the bundle and never hand-edited); `PhiCES` 12/12 axiom-clean, project `cd3558f7`. Carriers not yet attached to a numbered statement: `phiCES_agreement_point` (evaluation form, scope declared in-file); CONDITIONAL, NOT an identification: `phiCES_rho_vs_pi_eta_trader` gives \(1/(1-\epsilon_{X/M}) = 1/(1-\eta) \iff \epsilon_{X/M} = \eta\) away from the poles for `exp/CESLongVolPayoff`'s η, and its docstring states outright that this does NOT identify the payoff parameter with the trading-function parameter — E8(6) untouched.
 
 Define the per-leg fee decomposition (\(\phi_M, \phi_X\) are the M9 leg fees):
 
