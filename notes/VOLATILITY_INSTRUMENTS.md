@@ -820,11 +820,11 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 
 — the portfolio value function of [CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf), the conic dual of the trading function (their equivalence theorem); concave and nondecreasing in \(p_{\varphi}\). **Relation to Definition 24:** \(\pi^{\text{linear}}\) marks FIXED holdings at spot; \(\pi^{\varphi}\) moves holdings ALONG the curve — at the current price the two coincide, away from it \(\pi^{\varphi}\) falls below the fixed-holdings line, and that concavity gap is what LVR prices. *Status:* **UNFORMALIZED** — no Lean carrier (`exp/CESLongVolPayoff.pi_eta_trader` is the trader-side Bregman object, distinct).
 
-**Definition 26 (LVR rate).** Per [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf), with the second derivative well-defined on Definition 25's object — and the evaluation point CORRECTED (user-exposed 2026-08-04) to the current MARGINAL price \(p_{\varphi}(i(t))\), not the grid value, the two differing by Proposition 10's relation:
+**Definition 26 (LVR rate).** The loss-versus-rebalancing rate is a PAYOFF-shaped object — a loss — hence the \(\pi\) glyph (user ruling 2026-08-04): \(\pi^{\mathrm{LVR}}\), carrying NO time argument (it is a state function of the current tick); the time-argument form \(\pi^{\mathrm{LVR}}(t)\) is the per-block realized loss below, so no bar normalization is needed. Per [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf), with the second derivative well-defined on Definition 25's object — and the evaluation point CORRECTED (user-exposed 2026-08-04) to the current MARGINAL price \(p_{\varphi}(i(t))\), not the grid value, the two differing by Proposition 10's relation:
 
 \[
 	\begin{aligned}
-		\mathrm{LVR}(t) \, \equiv \, \frac{\sigma^2(i(t))\, p_{\varphi}^2}{2}\,\Big|\frac{d^2\pi^{\varphi}}{dp_{\varphi}^2}\Big|\;\Big|_{p_{\varphi} = p_{\varphi}(i(t))} \qquad \big(\text{CPMM: } \mathrm{LVR} = \tfrac{\sigma^2}{8}\,\pi^{\varphi}\big)
+		\pi^{\mathrm{LVR}} \, \equiv \, \frac{\sigma^2(i(t))\, p_{\varphi}^2}{2}\,\Big|\frac{d^2\pi^{\varphi}}{dp_{\varphi}^2}\Big|\;\Big|_{p_{\varphi} = p_{\varphi}(i(t))} \qquad \big(\text{CPMM: } \pi^{\mathrm{LVR}} = \tfrac{\sigma^2}{8}\,\pi^{\varphi}\big)
 	\end{aligned}
 \]
 
@@ -832,10 +832,10 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 
 - \(\Delta Q_{\cdot}(t) \, \equiv \, \varphi_{(1/2,\,0)}\big(i(t);\, \Delta Q(t),\, 0\big) \, = \, \sqrt{\Delta Q_M(t)\,\Delta Q_X(t)} \, \geq \, 0\) — the per-step traded VOLUME in LIQUIDITY UNITS: Definition 18's zero-liquidity convention (user ruling 2026-08-04) — the symmetric geometric mean of the two legs, neither money nor asset alone; a volume metric commensurable with \(L\) and \(\Delta Q_v^{\star}\);
 - \(\pi^{\text{linear}}(t) > 0\) — the per-step capital in MONEY units (Definition 24), serving the MEV/LVR side, where LVR is intrinsically a money rate;
-- \(\overline{\mathrm{LVR}}(t) \, \equiv \, \mathrm{LVR}(t)\cdot\Delta t \, \geq \, 0\) — the per-block arb-opportunity weight (Definition 26; the bar is the normalization glyph, per \(\bar L\));
+- \(\pi^{\mathrm{LVR}}(t) \, \equiv \, \pi^{\mathrm{LVR}}\cdot\Delta t \, \geq \, 0\) — the per-block arb-opportunity weight: the rate (Definition 26, no time argument) over one block; the time argument itself marks the per-block object, so no bar normalization is needed (user ruling 2026-08-04);
 - \(\nu_t \, \equiv \, \varphi_{(1/2,\,0)}\big(i(t);\, \Delta Q(t),\, 0\big)\,\big/\,\varphi_{(1/2,\,0)}\big(i(t);\, 0,\, L\big)\) — the PER-STEP UTILIZATION RATIO, exactly Definition 18's gate argument: FLAIR's capital-normalized flow, dimensionless with no numéraire choice.
 
-**Coordinates (user ruling (i), 2026-08-04):** FLAIR runs in UTILIZATION coordinates (\(\nu_t\)); MEV runs in MONEY coordinates (\(\overline{\mathrm{LVR}}/\pi^{\text{linear}}\)). No other \(t\)-indexed symbols are introduced in this section.
+**Coordinates (user ruling (i), 2026-08-04):** FLAIR runs in UTILIZATION coordinates (\(\nu_t\)); MEV runs in MONEY coordinates (\(\pi^{\mathrm{LVR}}(t)/\pi^{\text{linear}}(t)\)). No other \(t\)-indexed symbols are introduced in this section.
 
 ### FLAIR
 
@@ -879,7 +879,7 @@ Sources, all vendored: [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFe
 
 **Notation map [M0].** [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf)'s fee symbol `γ` is transcribed as this document's fee `φ`; this document's `γ_j` stays the sigmoid steepness. The paper's Poisson block rate `λ` is transcribed through its own primitive `Δt ≜ λ⁻¹`, because this document's `λ` is the hazard rate (Convention 4). The paper's composite parameter `η ≜ γ√(2λ)/σ` is deliberately never named — `η` is reserved project-wide for the pricing grid (Definition 8). <!-- notation-map --> Root-block-rate factor: \(\sqrt{2/\Delta t}\) throughout, no composite abbreviation. Fee \(= \phi\) (ceiling \(\bar\phi\), set \(\Theta_{\phi}\)); the quote function is \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\) (Definition 13), currently \(\varphi_{(1/2,\,0)}\) (Rule 5); bare \(\varphi\) is NOT used.
 
-\(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)). \(\sigma_t = \sigma(i(t))\): enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\). The \(t\)-indexed symbols \(\Delta Q_{\cdot}(t)\), \(\pi^{\text{linear}}(t)\), \(\overline{\mathrm{LVR}}(t)\), \(\nu_t\) are the discretization frame at the head of this section (FLAIR in utilization coordinates, MEV in money coordinates — user ruling (i), 2026-08-04).
+\(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)). \(\sigma_t = \sigma(i(t))\): enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\). The \(t\)-indexed symbols \(\Delta Q_{\cdot}(t)\), \(\pi^{\text{linear}}(t)\), \(\pi^{\mathrm{LVR}}(t)\), \(\nu_t\) are the discretization frame at the head of this section (FLAIR in utilization coordinates, MEV in money coordinates — user ruling (i), 2026-08-04).
 
 \(\lambda_{\text{ARB}}\) (Definition 22) \(\subsetneq \lambda_{\text{MEV}}\) (Definition 23): SUMMAND, not sibling — Definition 19's index set carries one, never both (double-count); \(\lambda_{\text{ARB}}\) absorbs the "arb toxicity" entry. The paper's `FEE` \(\subsetneq \lambda_{\text{FLAIR}}\) (noise flow excluded there). Standing hypotheses: the paper's Assumption 2 (symmetric driftless mispricing, two-sided fee; non-symmetric variant App. C); Proposition 9 additionally: regularity (13), (15).
 
@@ -887,21 +887,23 @@ Sources, all vendored: [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFe
 
 \[
 	\begin{aligned}
-		\mathbb{P}_{\Delta_{\text{ARB}}}(\phi,\sigma,\Delta t) \, \equiv \, \frac{\sigma}{\sigma + \phi\sqrt{2/\Delta t}}
+		\mathbb{P}_{\Delta_{\text{ARB}}}\big(\phi,\sigma(i(t)),\Delta t\big) \, \equiv \, \frac{\sigma(i(t))}{\sigma(i(t)) + \phi\sqrt{2/\Delta t}}
 	\end{aligned}
 \]
+
+The \(\sigma\) slot is always instantiated at the realized tick volatility \(\sigma(i(t))\) (Convention 2; the declared shorthand \(\sigma_t = \sigma(i(t))\) is used in displays below); Lean's `ptrade` keeps the abstract slot.
 
 **Theorem 16 (Properties of \(\mathbb{P}_{\Delta_{\text{ARB}}}\)) [M1].** \(\mathbb{P}_{\Delta_{\text{ARB}}} \in (0,1]\), with \(\mathbb{P}_{\Delta_{\text{ARB}}} = 1 \iff \phi = 0\); strictly decreasing AND **strictly convex** in \(\phi\); increasing in \(\Delta t\) and in \(\sigma\); \(\to 0\) as \(\phi \to \infty\). (The strict convexity is what Theorem 19's strict half consumes.)
 
 *Formalized* (`MevOptimization.lean`): `ptrade_mem_Ioc`; `ptrade_eq_one_iff`; `ptrade_strictAntiOn` (on \([0,\infty)\)); `ptrade_monotoneOn_dt`; `ptrade_monotoneOn_sigma`; `ptrade_strictConvexOn` (+ `_convexOn`); `ptrade_tendsto_atTop`.
 
-**Proposition 9 (The MMR split) [M2].** At fast-block small-fee leading order (\(\approx\) inherited by everything below), LVR splits by the trade probability:
+**Proposition 9 (The MMR split) [M2].** At fast-block small-fee leading order (\(\approx\) inherited by everything below), the rebalancing loss splits by the trade probability. In this document's \(\pi\)-convention (payoff/value objects; user ruling 2026-08-04): the paper's `ARB` is the arb-extracted payoff \(\pi^{\text{ARB}}\), its `FEE` is the fee-income payoff \(\pi^{\phi}\) (fee glyph \(\phi\) — DISTINCT from \(\pi^{\varphi}\), the trading-function glyph, per the standing \(\phi\)/\(\varphi\) split), and its `LVR` is the loss payoff \(\pi^{\mathrm{LVR}}\) (Definition 26): <!-- notation-map -->
 
 \[
 	\begin{aligned}
-		\mathrm{ARB} \, \approx \, \mathrm{LVR}\cdot \mathbb{P}_{\Delta_{\text{ARB}}}, \qquad
-		\mathrm{FEE} \, \approx \, \mathrm{LVR}\cdot(1-\mathbb{P}_{\Delta_{\text{ARB}}}), \qquad
-		\mathrm{ARB}+\mathrm{FEE} \, \approx \, \mathrm{LVR}
+		\pi^{\text{ARB}} \, \approx \, \pi^{\mathrm{LVR}}\cdot \mathbb{P}_{\Delta_{\text{ARB}}}, \qquad
+		\pi^{\phi} \, \approx \, \pi^{\mathrm{LVR}}\cdot(1-\mathbb{P}_{\Delta_{\text{ARB}}}), \qquad
+		\pi^{\text{ARB}}+\pi^{\phi} \, \approx \, \pi^{\mathrm{LVR}}
 	\end{aligned}
 \]
 
@@ -911,7 +913,7 @@ Sources, all vendored: [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFe
 
 \[
 	\begin{aligned}
-		\lambda_{\text{ARB}} \, \equiv \, \sum_{t<T} \mathbb{P}_{\Delta_{\text{ARB}}}\big(\phi(\sigma_t),\sigma_t,\Delta t\big)\,\frac{\overline{\mathrm{LVR}}(t)}{\pi^{\text{linear}}(t)}
+		\lambda_{\text{ARB}} \, \equiv \, \sum_{t<T} \mathbb{P}_{\Delta_{\text{ARB}}}\big(\phi(\sigma_t),\sigma_t,\Delta t\big)\,\frac{\pi^{\mathrm{LVR}}(t)}{\pi^{\text{linear}}(t)}
 	\end{aligned}
 \]
 
@@ -919,11 +921,11 @@ CPMM instantiation, two tiers: (i) the LEADING-ORDER per-step weight
 
 \[
 	\begin{aligned}
-		\overline{\mathrm{LVR}}(t) \, = \, \frac{\sigma_t^2}{8}\,\pi^{\varphi}_t\,\Delta t
+		\pi^{\mathrm{LVR}}(t) \, = \, \frac{\sigma^2(i(t))}{8}\,\pi^{\varphi}(t)\,\Delta t
 	\end{aligned}
 \]
 
-(Definition 26's CPMM case — \(\mathrm{LVR}\) is a RATE ⟹ \(\cdot\Delta t\) per block; summand \(\propto \Delta t^{3/2}\) = [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf) §7.1 per-block scaling; no guard needed); (ii) the EXACT Corollary-2 kernel
+(Definition 26's CPMM case — \(\pi^{\mathrm{LVR}}\) is a RATE ⟹ \(\cdot\Delta t\) per block; summand \(\propto \Delta t^{3/2}\) = [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf) §7.1 per-block scaling; no guard needed); (ii) the EXACT Corollary-2 kernel
 
 \[
 	\begin{aligned}
@@ -949,7 +951,7 @@ Batch clearing (Definition 23, \(\lambda_{\text{sandwich}} = 0\)) ⟹ \(\Theta_{
 
 \[
 	\begin{aligned}
-		\lambda_{\text{ARB}} \, \geq \, \sum_{t<T} \mathbb{P}_{\Delta_{\text{ARB}}}\Big(\bar\phi_{\max} + u_{\max}\textstyle\sum_j \alpha_{\max,j},\, \sigma_t,\, \Delta t\Big)\frac{\overline{\mathrm{LVR}}(t)}{\pi^{\text{linear}}(t)}
+		\lambda_{\text{ARB}} \, \geq \, \sum_{t<T} \mathbb{P}_{\Delta_{\text{ARB}}}\Big(\bar\phi_{\max} + u_{\max}\textstyle\sum_j \alpha_{\max,j},\, \sigma_t,\, \Delta t\Big)\frac{\pi^{\mathrm{LVR}}(t)}{\pi^{\text{linear}}(t)}
 	\end{aligned}
 \]
 
@@ -959,7 +961,7 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 
 *Annotation [M6a] (internal reference — deliberately not a numbered statement, user ruling 2026-08-04):* over \(\Theta_{\phi}\) unconstrained there is NO trade-off — \(\max \lambda_{\text{FLAIR}}\) and \(\min \lambda_{\text{ARB}}\) sit at the SAME level corner, saturate along the SAME \(\beta_j \to -\infty\), robustly to every linear scalarization; \((\beta, \gamma_j)\) are NOT essential. Carriers: `joint_corner_degeneracy`, `joint_beta_degeneracy`, `joint_scalarization_degeneracy` (`MevJointProgram.lean`). The degeneracy-breaker must come from OUTSIDE \(\Theta_{\phi}\).
 
-**Theorem 19 (Flat-path optimality at constant \(\sigma\); the \(\sigma\)-varying comparison is REFUTED) [M6b].** Over arbitrary nonnegative fee PATHS \(\{\phi_t\}\) — NOT \(\Theta_{\phi}\) schedules — with \(\nu_t\) per the frame, \(W = \sum_t \nu_t > 0\), budget \(\sum_t \phi_t\nu_t = B\), aligned measure \(\overline{\mathrm{LVR}} \equiv \Delta Q_{\cdot}\), and \(\sigma_t \equiv \sigma_0\):
+**Theorem 19 (Flat-path optimality at constant \(\sigma\); the \(\sigma\)-varying comparison is REFUTED) [M6b].** Over arbitrary nonnegative fee PATHS \(\{\phi_t\}\) — NOT \(\Theta_{\phi}\) schedules — with \(\nu_t\) per the frame, \(W = \sum_t \nu_t > 0\), budget \(\sum_t \phi_t\nu_t = B\), aligned measure \(\pi^{\mathrm{LVR}}(t) \equiv \Delta Q_{\cdot}(t)\), and \(\sigma_t \equiv \sigma_0\):
 
 \[
 	\begin{aligned}
@@ -968,7 +970,7 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 	\end{aligned}
 \]
 
-— the flat path minimizes \(\lambda_{\text{ARB}}\) at equal FLAIR income; non-constant on \(\{\nu_t > 0\}\) is strictly worse (the strict half consumes Theorem 16's strict convexity). The alignment \(\overline{\mathrm{LVR}} \equiv \Delta Q_{\cdot}\) is STRONG (traded volume ∝ LVR path block-by-block — and CROSS-COORDINATE under ruling (i): a liquidity-units path proportional to a money-units path); without it Jensen is inapplicable and the conclusion can reverse. **REFUTED for \(\sigma\)-varying schedules** (`mev_ge_flat_under_flair_budget_false`): \(\exists\, \phi(\cdot) \geq 0\) with \(\lambda_{\text{ARB}}^{\text{flat}} > \lambda_{\text{ARB}}^{\phi}\) at equal FLAIR income — witness \(T{=}2,\ \Delta t{=}2,\ B{=}2,\ \sigma=(1,10)\), fees \((2,0)\): \(\tfrac{31}{22} > \tfrac{4}{3}\) (\(\sigma\)-varying ⟹ different convex summands, Jensen inapplicable). **OPEN — the \(\Theta_{\phi}\)-restricted case:** the witness is \(\sigma\)-DEcreasing while \(\Theta_{\phi}\)-reachable schedules are isotone (`multiFee_monotone`); the refutation settles only the general claim.
+— the flat path minimizes \(\lambda_{\text{ARB}}\) at equal FLAIR income; non-constant on \(\{\nu_t > 0\}\) is strictly worse (the strict half consumes Theorem 16's strict convexity). The alignment \(\pi^{\mathrm{LVR}}(t) \equiv \Delta Q_{\cdot}(t)\) is STRONG (traded volume ∝ LVR path block-by-block — and CROSS-COORDINATE under ruling (i): a liquidity-units path proportional to a money-units path); without it Jensen is inapplicable and the conclusion can reverse. **REFUTED for \(\sigma\)-varying schedules** (`mev_ge_flat_under_flair_budget_false`): \(\exists\, \phi(\cdot) \geq 0\) with \(\lambda_{\text{ARB}}^{\text{flat}} > \lambda_{\text{ARB}}^{\phi}\) at equal FLAIR income — witness \(T{=}2,\ \Delta t{=}2,\ B{=}2,\ \sigma=(1,10)\), fees \((2,0)\): \(\tfrac{31}{22} > \tfrac{4}{3}\) (\(\sigma\)-varying ⟹ different convex summands, Jensen inapplicable). **OPEN — the \(\Theta_{\phi}\)-restricted case:** the witness is \(\sigma\)-DEcreasing while \(\Theta_{\phi}\)-reachable schedules are isotone (`multiFee_monotone`); the refutation settles only the general claim.
 
 *Formalized:* budget half `flair_budget_pins_mean_fee`, `flair_budget_mean`; path carriers `flairPath`/`mevPath` with bridges `flairPath_schedule`, `mevPath_schedule`, `flairPath_sum`, `flairPath_budget_mean`; the constant-\(\sigma\) display at PATH level `mev_ge_flat_under_flair_budget_const_sigma`, strict `mev_gt_flat_under_flair_budget_const_sigma`; the refutation `mev_ge_flat_under_flair_budget_false`.
 
