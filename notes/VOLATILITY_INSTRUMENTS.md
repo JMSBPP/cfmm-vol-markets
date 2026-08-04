@@ -506,25 +506,23 @@ CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because
 
 # FEE_ALGEBRA
 
-Define the per-leg fee decomposition (\(\phi_M, \phi_X\) are the M9 leg fees):
+**Rule 6 (Per-leg fee split).** Each incoming trade leg is split by its **leg fee** \(\phi_M, \phi_X \in (0,1)\) (the M9 leg fees — fee *variables*, produced by the schedule below, not members of \(\Theta_{\phi}\)): the trading function is quoted on the net flow, and the fee fraction accrues to the per-strike reserves —
 
 \[
 	\begin{aligned}
-		\Delta Q_M \, &= \ (1 - \phi_M) \, \Delta Q_M \, + \, \phi_M \, \Delta Q_M; \, \quad \, \phi_M \, \in (0,1) \\
-	    \Delta Q_X \, &= \, (1 \, - \phi_X)\, \Delta Q_X \, + \, \phi_X \, \Delta Q_X \, \quad \, \phi_X \, \in (0,1)
+		\Delta Q_M \, &= \, (1 - \phi_M) \, \Delta Q_M \, + \, \phi_M \, \Delta Q_M \\
+	    \Delta Q_X \, &= \, (1 - \phi_X)\, \Delta Q_X \, + \, \phi_X \, \Delta Q_X
 	\end{aligned}
 \]
-
-
-such that:
 
 \[
 	\begin{aligned}
-		\Delta Q_M^{L} (i_K) \, + \, \phi_M \, \Delta Q_M \\
-		\\
-	    \Delta Q_X^{L} (i_K) \, + \, \phi_X \, \Delta Q_X
+		\Delta Q_M^{L} (i_K) \, &\leftarrow \, \Delta Q_M^{L} (i_K) \, + \, \phi_M \, \Delta Q_M \\
+	    \Delta Q_X^{L} (i_K) \, &\leftarrow \, \Delta Q_X^{L} (i_K) \, + \, \phi_X \, \Delta Q_X
 	\end{aligned}
 \]
+
+The first display is an identity (the decomposition); the Rule is the second — the **accrual assignment**: fees deposit into Definition 9's endowments at the strike where they are charged.
 
 And a group with inner product \(\otimes_{\phi}\):
 
