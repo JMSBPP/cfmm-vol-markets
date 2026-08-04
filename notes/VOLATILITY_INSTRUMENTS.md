@@ -376,13 +376,7 @@ The display is one member of a parameterized class: the subscript tuple is \((\c
 
 > **FLAG (open, 2026-08-03): LEG ORIENTATION OF \(\chi_{X/M}\).** The display above puts \(\chi_{X/M}\) on the \(\Delta Q_M\) leg; the CES definition below puts it on the \(Q_X\) leg (and matches Lean `PhiCES.phiCES`). One of the two must change, and the choice flips the \(\chi/(1-\chi) = \lambda^{\eta\Delta_i/2}\) bridge and the reading of `curvIndex_is_rho_zero_slice`. Theorem 1 consumes the \(\Delta Q_M\)-leg form. AUTHOR DECISION REQUIRED — not resolved by the rename. <!-- notation-map -->
 
-**THE PARAMETERS, ECONOMICALLY.** *(The \(\chi_{X/M}\) and \(\epsilon_{X/M}\) paragraphs are folded into the \(\Theta_{\varphi}\) registry entries; \(\kappa_{\varphi}\) is converted to Definition 14 / Proposition 7 / Theorem 8 below Definition 13.)*
-
 **BINDING (user, 2026-08-03): \(\epsilon\) is reserved for ELASTICITIES, always subscripted to differentiate; \(\sigma\) is reserved for VOLATILITIES and VARIANCES and is never an elasticity.** <!-- notation-map -->
-
-\(\varsigma_{X/M}\) — SHARE ASYMMETRY / grid tilt, \(= 1 - ((1-\chi_{X/M})/\chi_{X/M})^{\Delta_i}\), zero exactly at \(\chi_{X/M} = 1/2\). **It is NOT a curvature**: it assigns zero to the constant-product pool, which is not flat. Blocks E1–E7 are theorems about \(\varsigma_{X/M}\) — their mathematics stands, their reading is about SHARE, not curvature.
-
-> LEAN: \(\kappa_{\varphi}\) is `CurvatureTwo.curvTwo` with inverse `rhoOfCurv` (`curvTwo_linear_zero`, `_pos_of_lt_one`, `_strictAnti_rho`, `_mem_Ico`, both round trips); \(\bar\epsilon_{X/M}\) is `subElast` (`subElast_zero`, `subElast_tendsto_one`). \(\varsigma_{X/M}\) is `EtaTilde.curvOfTilde` / `EtaCurvature.curvIndex`; that it is NOT a curvature is `curvOfTilde_not_curvature`. Lean names predate these doc symbols and are NOT renamed — standing doc-glyph/Lean-name split.
 
 **Definition 13 (CES trading-function family).** Every trading function in this document is a member of ONE two-parameter CES family — \(\chi_{X/M}\) the SHARE axis, \(\epsilon_{X/M}\) the SUBSTITUTION axis:
 
@@ -430,6 +424,22 @@ where \(\epsilon_{p/X}^{\,0}\) is the same elasticity for the \(\epsilon_{X/M} =
 *Formalized:* `CurvatureTwo.curvTwo`; `curvTwo_linear_zero`; `curvTwo_pos_of_lt_one`; `curvTwo_strictAnti_rho`; `curvTwo_mem_Ico`; `rhoOfCurv` (both round trips); \(\bar\epsilon_{X/M}\) = `subElast` (`subElast_zero`, `subElast_tendsto_one`).
 
 **Refutation note (what curvature is NOT).** The Gaussian curvature of \(\varphi\)'s graph is **identically zero** for every member — 1-homogeneity forces \(\mathrm{Hess}\,\varphi \cdot (Q_X,Q_M)^{\top} = 0\), so \(\det \mathrm{Hess} \equiv 0\) and the graph is a ruled surface; the Gaussian reading cannot distinguish linear from Leontief. The un-normalized planar curvature of the trading curve is scale-dependent (\((1-\epsilon_{X/M})/(\sqrt{2}\,t)\) at the symmetric point \(Q_X = Q_M = t\), \(\chi_{X/M} = 1/2\)) and cannot equal a constant. The normalization of Definition 14 is what makes Proposition 7 well-posed. *Status:* unformalized (cheap machine-check; rider on the Proposition 7 Aristotle bundle).
+
+**Definition 15 (Share asymmetry).** The **share asymmetry** (grid tilt) of the trading-function family is
+
+\[
+	\begin{aligned}
+		\varsigma_{X/M} \, \equiv \, 1 - \Big(\frac{1-\chi_{X/M}}{\chi_{X/M}}\Big)^{\Delta_i}
+	\end{aligned}
+\]
+
+zero exactly at \(\chi_{X/M} = 1/2\). It is a **derived observable** — a function of the registered parameters \(\chi_{X/M} \in \Theta_{\varphi}\) and \(\Delta_i \in \Theta_p\), adding no degree of freedom; hence no registry entry.
+
+*Formalized:* `EtaTilde.curvOfTilde` / `EtaCurvature.curvIndex`. *(Lean names predate the doc symbols and are NOT renamed — standing doc-glyph/Lean-name split.)* <!-- notation-map -->
+
+**Theorem 9 (\(\varsigma_{X/M}\) is not a curvature).** At equal shares \(\varsigma_{X/M}\) vanishes both at the constant-product member and at the linear member — although the former has \(\kappa_{\varphi} = 1/2 > 0\) (Proposition 7) and only the latter is flat. So \(\varsigma_{X/M}\) measures SHARE asymmetry (the grid-price tilt), not curvature across the substitution axis. Blocks E1–E7 are theorems about \(\varsigma_{X/M}\): their mathematics stands; their reading is about SHARE, not curvature.
+
+*Formalized:* `curvOfTilde_not_curvature` (the machine-checked discriminating witness); \(\varsigma_{X/M}\) factors through the share alone: `curvIndex_is_rho_zero_slice`.
 
 \(\chi_{X/M}\) = the SHARE parameter = the exponent on the \(\Delta Q_M\) leg (the \(1/p_{(\eta, \Delta_i)}\) leg) = that leg's share of pool value. The current case is \(\chi_{X/M} = 1/2\):
 
