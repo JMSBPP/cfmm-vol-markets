@@ -1,0 +1,1140 @@
+\documentclass[11pt]{article}
+% VOLATILITY_INSTRUMENTS -- MEV cut. Faithful typesetting of the markdown source;
+% content, notation, and statement numbering are verbatim from the document.
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{stix2}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.1cm]{geometry}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{calc}
+\usepackage{newunicodechar}
+\usepackage[hidelinks]{hyperref}
+
+% pandoc helpers
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\newcommand{\real}[1]{#1}
+
+% Unicode glyphs occurring in prose / code spans (math displays are already ASCII LaTeX).
+% Greek letters (all occurrences denote the document's own symbols; the fee glyph
+% U+03C6 is the document's fee \phi per the standing phi/varphi split).
+\newunicodechar{γ}{\ensuremath{\gamma}}
+\newunicodechar{δ}{\ensuremath{\delta}}
+\newunicodechar{Δ}{\ensuremath{\Delta}}
+\newunicodechar{η}{\ensuremath{\eta}}
+\newunicodechar{θ}{\ensuremath{\theta}}
+\newunicodechar{λ}{\ensuremath{\lambda}}
+\newunicodechar{π}{\ensuremath{\pi}}
+\newunicodechar{σ}{\ensuremath{\sigma}}
+\newunicodechar{φ}{\ensuremath{\phi}}
+% Symbols
+\newunicodechar{≜}{\ensuremath{\triangleq}}
+\newunicodechar{⟹}{\ensuremath{\Longrightarrow}}
+\newunicodechar{→}{\ensuremath{\to}}
+\newunicodechar{↔}{\ensuremath{\leftrightarrow}}
+\newunicodechar{√}{\ensuremath{\surd}}
+\newunicodechar{∝}{\ensuremath{\propto}}
+\newunicodechar{×}{\ensuremath{\times}}
+\newunicodechar{½}{\ensuremath{\tfrac{1}{2}}}
+\newunicodechar{…}{\ldots}
+\newunicodechar{⁻}{\textsuperscript{-}}
+\newunicodechar{¹}{\textsuperscript{1}}
+
+% The document names its sections; LaTeX must not number them, and the
+% statement numbering ("Definition 8", "Theorem 21", ...) is explicit in the text.
+\setcounter{secnumdepth}{-2}
+
+\allowdisplaybreaks
+% Lean identifiers in \texttt are long; permit line breaks after underscores.
+\renewcommand{\_}{\textunderscore\allowbreak}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+\setlength{\emergencystretch}{3em}
+
+\title{VOLATILITY\_INSTRUMENTS --- MEV cut}
+\hypersetup{pdftitle={VOLATILITY\_INSTRUMENTS --- MEV cut}}
+
+\begin{document}
+\section*{VOLATILITY\_INSTRUMENTS}\label{volatility_instruments}
+
+\begin{quote}
+NOTE: \href{~/learning/cfmm-theory/cfmm-discrete/**}{CALCULUS IS THIS ONE} . We need to fgind the discrete ficnacnial caluclus pdf byut Frogy eithr online or locally
+\end{quote}
+
+\section*{PAYOFF}\label{payoff}
+
+\textbf{Definition 1 (Volatility option).} Fix a strike variance \(\sigma^2_K\). The \textbf{volatility option} with vega notional \(\Delta Q_v\) is the contract paying
+
+\[
+    \begin{aligned}
+        \pi^{\sigma} \, &= \, \Delta Q_{v} \, \Big ( \, \sigma^2 \, (i (t)) - \sigma^2_K\Big)^{+}
+    \end{aligned}
+\]
+
+where \(\sigma^2(i(t))\) is the realized tick variance. Consequently \(\Delta Q_v \equiv \Delta \pi^{\sigma} / \Delta\big(\sigma^2(i(t)) - \sigma^2_K\big)^{+}\): the notional \textbf{is} the option's vega.
+
+\emph{Formalized:} \texttt{Panoptic.volOptionPayoff}; \texttt{volOptionPayoff\_nonneg}; \texttt{deltaQv\_of\_payoff}.
+
+\textbf{Convention 2 (Volatility tick argument).} Volatility always takes a \textbf{tick argument}: \(\sigma^2(i(t))\) is the variance along the tick path at calendar time \(t\), \(\sigma^2(i(T))\) its value at the horizon \(T\), and \(\sigma^2(i_K) \equiv \sigma^2_K\) the strike variance at the strike tick --- the subscript form is declared shorthand for the tick-argument form, as is \(\sigma^2_R(T) \equiv \sigma^2(i(T))\). A bare \(\sigma^2\) is not well-formed. \emph{(Adopted from the converted region upward; the sections below are swept as the pair pass reaches them.)}
+
+\textbf{Settlement form of Definition 1.} At unit notional, the contract settles on realized variance at the horizon:
+
+\[
+    \begin{aligned}
+        \pi^{\sigma} \, (\sigma_K, T; t) \, &= \, \Big (\sigma^2(i(T)) - \sigma^2(i_K)\Big)^{+}
+    \end{aligned}
+\] Following \href{../refs/DemeterfietalVarianceSwaps.pdf}{VOL\_SWAPS}, the price of the volatility option is the \emph{cost of replicating it with options}. This is where \href{https://arxiv.org/pdf/2204.14232}{panoptic} enters. The replication proved in-tree is the \textbf{ladder} form (the \(\xi^\star\) log-contract weights, \texttt{variancePortfolio\_upsilon}); whether it collapses to a \textbf{two-instrument} affine form \(p_{\pi^\sigma} = p_0 + a_1\, p_{\pi^{\text{call}}} + a_2\, p_{\pi^{\text{put}}}\) is \textbf{OPEN} --- statement parked pending the liquidity-side definitions, per the 12.1 ledger.
+
+\textbf{Definition 2 (Theta).} The \textbf{theta} of the call (resp. put) at strike tick \(i_K\) is the per-time-step payoff variation
+
+\[
+    \begin{aligned}
+        \theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (t)) \Big ) \, &\equiv \, \frac{\Delta \pi^{\text{call | put}}}{\Delta\, t }
+    \end{aligned}
+\]
+
+The strike is the price at the STRIKE TICK \(i_K\), on the price grid \(p_{(\eta, \Delta_i)}\) defined under the pricing geometry below (\(\texttt{VolInstrument.priceEta}\)).
+
+\emph{Formalized:} \texttt{Panoptic.latticeTheta} (the lattice quotient); \texttt{thetaAtm}.
+
+\textbf{Proposition 2 (Closed form of θ).} Under the price grid \(p_{(\eta,\Delta_i)}\),
+
+\[
+    \begin{aligned}
+        \theta \, &= \,  \frac{p_{(\eta, \Delta_i)} \, (\cdot)\, \sigma \, (i(t))}{\sqrt{8\, \pi \, t}} \, \exp \, \Big (-\frac{\Big [- \ln \Big(\frac{p_{(\eta, \Delta_i)} \, (i (t_0))}{p_{(\eta, \Delta_i)} \, (i_K)}\Big) \, + \, \frac{\sigma^2(i(t)) \, t}{2} \Big ]^2}{2\, \sigma^2(i(t))\, t}\Big)
+    \end{aligned}
+\]
+
+\emph{Formalized (ATM case):} \texttt{theta\_atm\_closed\_form} --- \(\Theta_{ATM} = k\sigma/\sqrt{8\pi\tau}\). \textbf{General form OPEN} --- an Aristotle target (lattice → closed form).
+
+\textbf{Rule 1 (Option pricing).} The protocol prices the call (resp. put) at strike tick \(i_K\) as \textbf{accumulated theta along the realized tick path}:
+
+\[
+    \begin{aligned}
+        p_{\pi^{\text{call | put}}}\, (t) \, &\leftarrow \, \int_{t_0}^{t} \, \theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; s) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (s)) \Big ) \, \mathcal{d}\, s
+    \end{aligned}
+\]
+
+The left arrow marks a Rule, not an identity: this is a stipulation of the protocol, and the implementation either complies with it or does not.
+
+\emph{Formalized:} \texttt{Panoptic.streamingPremium} (the discrete accumulation \(\sum_j \theta_j\,\Delta t\)); \texttt{streamingPremium\_succ}.
+
+\begin{quote}
+RESOLVED (user ruling, 2026-08-03): exponent sign is \textbf{NEGATIVE}. Two-part justification: (i) with the display's own prefactor \(p(\cdot)\sigma/\sqrt{8\pi t}\), the bracket is \(-\sigma\sqrt{t}\,d_2\), so the negative sign gives \(e^{-d_2^2/2} \propto \varphi(d_2)\) --- exactly the \(r=0\) Black--Scholes dt-leg \(\theta = S\sigma\varphi(d_1)/(2\sqrt t)\) via \(S\varphi(d_1)=K\varphi(d_2)\); (ii) DECISIVE and internal: \(p_{\pi^{\text{call|put}}} \leftarrow \int\theta\) over the price grid CONVERGES only with the negative sign (Gaussian tails) --- under \(+\) the assignment defining the option prices diverges. The ATM form cannot discriminate (\texttt{theta\_atm\_closed\_form}, exponent vanishes ATM); the tails do.
+\end{quote}
+
+\textbf{Definition 4 (Upsilon).} The \textbf{upsilon} of a premium or payoff functional at strike tick \(i_K\) is its per-unit-variance sensitivity, as a lattice finite difference in the variance argument:
+
+\[
+    \begin{aligned}
+        \upsilon \, \Big (p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K)\Big)\, &\equiv \, \frac{\Delta \pi^{\text{call | put}}}{\Delta \sigma^2 \, (\cdot)}
+    \end{aligned}
+\]
+
+\emph{Formalized:} \texttt{Upsilon.upsilon} (\(\upsilon[p_\ell] = (p_\ell(\sigma^2{+}\Delta s) - p_\ell(\sigma^2))/\Delta s\)).
+
+\textbf{Proposition 3 (Vega bridge).} On the region where the volatility option is in-the-money at both variance endpoints (\(\sigma^2(i_K) \le \sigma^2(i(t))\) and \(\sigma^2(i_K) \le \sigma^2(i(t)) + \Delta s\)), its upsilon \textbf{is} its vega notional:
+
+\[
+    \begin{aligned}
+        \upsilon\big(\pi^{\sigma}\big) \;&=\; \Delta Q_v
+    \end{aligned}
+\]
+
+--- the dimensional bridge the identification sought: \(\upsilon\) occupies the \(\Delta Q_v\) slot (\(= \Delta Q_M/p_{\text{risk}}\) via \texttt{Flow.deltaShares}). Off that region the recovery FAILS by construction (the kink); the ATM/OTM null is recorded as a conjecture, unproven.
+
+\emph{Formalized:} \texttt{Upsilon.upsilon\_volOption}; \texttt{upsilon\_eq\_deltaShares\_slot}; at the endogenous maturity \(\upsilon = T^\star/2\) (\texttt{variancePortfolio\_upsilon\_at\_tStar}, \texttt{tStar\_unit\_upsilon}).
+
+\textbf{Definition 5 (Replicating portfolio).} The \textbf{replicating portfolio} \(\Pi^{\text{call|put}}(\sigma; p_{(\eta,\Delta_i)}(i;t))\) is the option portfolio whose sensitivity to realized variance is independent of the underlying price \href{../refs/DemeterfietalVarianceSwaps.pdf}{PG7} --- a single option cannot serve, since a price move alters its variance sensitivity.
+
+\textbf{Convention 1 (Replication relation).} For payoff claims \(A, B\) we write \(A \equiv^{R} B\) --- ``\(A\) \textbf{is replicated by} \(B\)'' --- when \(B\)'s payoff reproduces \(A\)'s. This is a \emph{claim about two objects}, not a definitional identity: each instance must be proved, and until it is, it is stated OPEN. (This is the relation the two-instrument question above is posed in.)
+
+\textbf{Definition 6 (Log portfolio).} For \(p^{\star}\) the approximate at-the-money forward level marking the boundary between liquid puts and liquid calls \href{../refs/DemeterfietalVarianceSwaps.pdf}{PG9}, the \textbf{log portfolio} and its running form are
+
+\[
+    \begin{aligned}
+        \Pi^{\text{call|put}}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big) \, &= \, \frac{p_{(\eta,\Delta_i)}(i;t) - p^{\star}}{p^{\star}} \, - \, \log\Big(\frac{p_{(\eta,\Delta_i)}(i;t)}{p^{\star}}\Big) \, + \, \frac{\sigma^2(i(t))\, t}{2}
+    \end{aligned}
+\]
+
+(at \(t=0\) the running term vanishes; \(\Pi \geq 0\) with \(\Pi(p^{\star}) = 0\)). Its \textbf{unit-vega normalized form} (Theorem 3's \(\text{Id}_{N_\sigma}\)), with the remaining-variance tail:
+
+\[
+    \begin{aligned}
+        \Pi^{\text{call | put}} \, (\sigma ;p_{(\eta, \Delta_i)} \, (i; t); T) \, &= \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{(\eta, \Delta_i)} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{(\eta, \Delta_i)}}{p^{\star}})\Big] \, + \, \frac{T - t}{T}\, \sigma^2(i(t))
+    \end{aligned}
+\]
+
+\emph{Formalized:} \texttt{VolInstrument.logPortfolio}; \texttt{variancePortfolio} (\(= \text{logPortfolio} + \sigma^2(i(t))\, t/2\)); \texttt{logPortfolio\_nonneg}; \texttt{logPortfolio\_atm}.
+
+\textbf{Settlement instantiation} (Convention 2): \(\Pi^{\text{call|put}}\big(\sigma^2(i(T));\, p_{(\eta,\Delta_i)}(i;t);\, T\big) \, = \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{(\eta, \Delta_i)} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{(\eta, \Delta_i)}}{p^{\star}})\Big] \, + \, \frac{T - t}{T}\, \sigma^2(i(t))\).
+
+\textbf{Proposition 4 (Ladder replication).} The volatility option is replicated by the log portfolio:
+
+\[
+    \begin{aligned}
+        \pi^{\sigma}(t) \, \equiv^{R} \, \Pi^{\text{call|put}}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big)
+    \end{aligned}
+\]
+
+and \(\Pi\) has Definition 5's defining property: its variance sensitivity is \textbf{constant in the underlying price}, \(\upsilon(\Pi) = T/2\).
+
+\emph{Status:} the \(\equiv^R\) core is \textbf{adapted from the variance-swap text} \href{../refs/DemeterfietalVarianceSwaps.pdf}{Demeterfi} and is \textbf{OPEN in-tree} --- Convention 1's discipline applies. PROVED: the sensitivity half. OWED: the payoff-reproduction step connecting \texttt{variancePortfolio} to \texttt{volOptionPayoff} --- an Aristotle target.
+
+\emph{Formalized (sensitivity half):} \texttt{variancePortfolio\_upsilon} (\(\upsilon = t/2\), \(p_{(\eta,\Delta_i)}\)-independent).
+
+\textbf{Rule 3 (Ladder allocation).} The protocol realizes the log portfolio on the grid as the strike ladder --- the weight profile \(\ell(\xi^{\star},\iota;i_K)\) being a geometric liquidity distribution in the sense of the \href{../refs/bunni-v2.pdf}{Bunni v2 whitepaper} (whose general LDFs \(\ell_{\text{LDF}}(\theta_{\text{LDF}};i_K)\) are the declared FUTURE MILESTONE, G4):
+
+\[
+    \begin{aligned}
+        \Pi^{\text{call|put}}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big) \, \leftarrow \, \sum_{i_K} L(i_K)\, \Pi^{\text{call|put}}\big(\sigma_K; p_{(\eta,\Delta_i)}(i;t)\big), \qquad L(i_K) = \bar L\,\ell(\xi^{\star},\iota; i_K)
+    \end{aligned}
+\]
+
+The left arrow marks the Rule: an \textbf{allocation the protocol enforces}, not an equality --- \(\Pi^{\text{call|put}}(\sigma_K;\cdot)\) is the per-strike member at strike tick \(i_K\), and \(L\) is Definition 7's ladder. Whether the enforced ladder's payoff reproduces the log contract is part of Proposition 4's OPEN core, not asserted here.
+
+\emph{Formalized (weight law):} \texttt{GeomProfile.varswapWeight\_geometric}; \texttt{logContractLiquidity\_geometric}; \texttt{VolInstrument.strikeWeight\_bridge} (\(\xi^{\star} = \lambda^{-\Delta_i/2}\)).
+
+\textbf{Definition 7 (Liquidity ladder).} Per strike tick \(i_K\), the ladder allocates the total liquidity \(\bar L\) by the geometric weight profile
+
+\[
+    \begin{aligned}
+        L \, (i_K) \, &= \, \bar L \, \ell \, (\xi, \iota; i_K), \qquad \bar L \, = \sum_{i_K = i_{\text{min}}}^{i_{\text{max}}} \, L \, (i_K), \qquad \ell \, (\xi, \iota; i_K) \, = \, \frac{\xi^{i_K}}{\Big ( \frac{1 - \xi^{\iota}}{1 - \xi}\Big)}
+    \end{aligned}
+\]
+
+with ladder parameter set \(\Theta_{\ell} = \{\xi, \iota\}\) --- see \textbf{PROTOCOL\_PARAMETERS (\(\Theta_{\ell}\))}.
+
+\emph{Formalized:} \texttt{GeomProfile.geomWeight}.
+
+\textbf{Theorem 2 (Partition of unity).} The weights are a partition of unity and the δ-neutral ratio is pinned:
+
+\[
+    \begin{aligned}
+        \sum_{i_K} \, \ell \, (\xi, \iota; i_K) \, = \, 1, \quad \ell > 0 \; (\xi \in (0,1) \cup (1,\infty)), \quad \lim_{\xi \to 1} \ell \, = \, \frac{1}{\iota}
+    \end{aligned}
+\]
+
+\emph{Formalized:} \texttt{GeomProfile.geomWeight\_sum}; \texttt{geomWeight\_pos}; \texttt{geomWeight\_tendsto\_uniform}.
+
+\subsection*{PROTOCOL\_PARAMETERS}\label{protocol_parameters}
+
+Every parameter of the protocol enters here as a \textbf{Protocol Parameter} --- a special definition that fully specifies its \textbf{domain}, its \textbf{purpose}, and its \textbf{economic meaning}, indexed by its parameter set. A parameter not listed here is not a parameter of the protocol.
+
+\textbf{Protocol Parameter (\(\Theta_{\ell} = \{\xi, \iota\}\) --- the ladder).}
+
+\begin{itemize}
+\item
+  \(\xi\) --- the \textbf{liquidity ratio}. \emph{Domain:} \(\xi \in (0,1) \cup (1,\infty)\); \(\xi = 1\) is reached by limit only (Theorem 2). \emph{Purpose:} sets the geometric decay of per-strike liquidity in the ladder (Definition 7); with \(\iota\), encodes the strike weights that make the portfolio \textbf{delta-neutral}. \emph{Economic meaning:} the ratio of liquidity between adjacent strikes; pinned at \(\xi^{\star} = \lambda^{-\Delta_i/2}\), the log-contract weight law under which the ladder replicates the variance payoff (Proposition 4).
+\item
+  \(\iota\) --- the \textbf{ladder resolution}. \emph{Domain:} \(\iota \in \mathbb{N}\), \(\iota \ge 1\). \emph{Purpose:} the number of strikes carrying the ladder (Definition 7); the weight profile lives on the simplex \(\Delta^{\iota-1}\); with \(\xi\), encodes the \textbf{delta-neutral} strike weighting. \emph{Economic meaning:} the resolution at which the continuous log-contract strip is discretized --- the finite-strip replication error and the G4 underspecification deficit (\(\iota - 2\)) are both functions of it.
+\end{itemize}
+
+\textbf{Protocol Parameter (\(\Theta_{p} = \{\eta, \Delta_i\}\) --- the pricing geometry).}
+
+\begin{itemize}
+\item
+  \(\eta\) --- the \textbf{grid exponent}. \emph{Domain:} \(\eta > 0\) (jointly with \(\Delta_i > 0\) this is exactly the strict-monotonicity hypothesis \(\eta\,\Delta_i > 0\), \texttt{priceEta\_strictMono}; \(\eta = 1\) is the canonical grid). \emph{Purpose:} the one-parameter deformation of the tick-price law (Definition 8) --- the exponent tilting the grid away from the square-root-price member. \emph{Economic meaning:} the grid-side tilt dial. It is \textbf{not} the trading-curve share: \(\eta\) enters the curve only through the proven bridge \(\chi_{X/M}(\eta) = \Lambda(\eta\,\Delta_i \ln\lambda/2)\), and the genuine curvature \(\kappa_{\varphi}\) does not depend on it at all (a function of \(\epsilon_{X/M}\) alone).
+\item
+  \(\Delta_i\) --- the \textbf{tick spacing}. \emph{Domain:} \(\Delta_i > 0\) (the Lean leg-nonnegativity theorem needs \(\Delta_i \geq 0\) in addition to \(\eta\,\Delta_i > 0\); on-chain it is the positive integer tick spacing of \href{../refs/uniswap-v3-core.pdf}{UNI\_V3}). \emph{Purpose:} grid granularity --- the quantization step at which strikes, hence ladder legs, may sit (Definition 8). \emph{Economic meaning:} the spacing pins the ladder ratio \(\xi^{\star} = \lambda^{-\Delta_i/2}\) (\(\Theta_{\ell}\) entry) and sets the per-spacing price step \(\lambda^{\eta\Delta_i/2}\) --- the coarseness lever coupling the pricing geometry to the replication ladder.
+\end{itemize}
+
+\begin{quote}
+On the grid, \(\eta\) and \(\Delta_i\) are REDUNDANT --- they enter only through the product \(\eta\Delta_i\) (Theorem 21); they separate off-grid (\(\xi^{\star}\), Proposition 6).
+\end{quote}
+
+\textbf{Protocol Parameter (\(\Theta_{\varphi} = \{\chi_{X/M}, \epsilon_{X/M}\}\) --- the trading curve).}
+
+\begin{itemize}
+\item
+  \(\chi_{X/M}\) --- the \textbf{share parameter}. \emph{Domain:} \(\chi_{X/M} \in (0,1)\) (Definition 12). \emph{Purpose:} the exponent weighting the \(\Delta Q_M\) leg of the trading function (Definition 12); first slot of the subscript tuple \((\chi_{X/M}, \epsilon_{X/M})\). \emph{Economic meaning:} the SHARE (distribution) parameter --- the fraction of pool value held in the \(\Delta Q_M\) leg; it says WHERE the value sits. \(\chi_{X/M} = 1/2\) is the balanced pool; moving it tilts inventory toward one leg WITHOUT changing how the curve resists trade. Via the proven bridge \(\chi_{X/M}/(1-\chi_{X/M}) = \lambda^{\eta\Delta_i/2}\) it is an \textbf{observable of the price grid}, not an independent primitive --- subject to the OPEN leg-orientation FLAG (Definition 12), which flips the bridge.
+\item
+  \(\epsilon_{X/M}\) --- the \textbf{substitution parameter}. \emph{Domain:} \(\epsilon_{X/M} \in (-\infty, 1]\) --- \(\epsilon_{X/M} = 1\) the linear member (perfect substitutes, \(\bar\epsilon_{X/M} = \infty\)); \(\epsilon_{X/M} = 0\) the defined Cobb--Douglas case (constant product); \(\epsilon_{X/M} \to -\infty\) the Leontief limit (no trade). \emph{Purpose:} the substitution axis of Definition 13, second slot of the subscript tuple; the elasticity of substitution is \(\bar\epsilon_{X/M} = 1/(1-\epsilon_{X/M})\), and the genuine curvature \(\kappa_{\varphi}\) is a function of this axis ALONE. Proven orthogonal to the share axis (\texttt{phiCES\_rho\_ne\_eps\_axis}; \(\varsigma_{X/M}\) factors through the share, \texttt{curvIndex\_is\_rho\_zero\_slice}). \emph{Economic meaning:} the slippage dial --- HOW HARD the pool resists being moved. This is what an arbitrageur pays for: less substitutability means more price impact per unit extracted --- and equally worse execution for the ordinary investor, which is why both effects move together and produce an interior optimum.
+\end{itemize}
+
+\textbf{Protocol Parameter (\(\Theta_{\phi} = \{\gamma, \bar\phi, \beta, \alpha\}\) --- the fee schedule).}
+
+\begin{itemize}
+\item
+  \(\bar\phi\) --- the \textbf{fee floor}. \emph{Domain:} \(\bar\phi \geq 0\). \emph{Purpose:} the unconditional base of the schedule (Definition 18). \emph{Economic meaning:} LPs take a base fee at every volatility --- the schedule never degenerates to free execution (Theorem 1's lower envelope).
+\item
+  \(\alpha = \{\alpha_j, \alpha_R\}\) --- the \textbf{surcharge scales}. \emph{Domain:} \(\alpha_j \geq 0\), \(\alpha_R \geq 0\). \emph{Purpose:} scale each sigmoid's maximum (\href{../refs/algebra-tech-paper.pdf}{ALGEBRA} eq. (4)); \(\sum_j \alpha_j\) times the gate ceiling \(\alpha_R\) sets the width of Theorem 1's fee band. \emph{Economic meaning:} the volatility surcharge budget --- what heavy trading in volatile conditions can add above the floor.
+\item
+  \(\beta = \{\beta_j, \beta_R\}\) --- the \textbf{transition midpoints}. \emph{Domain:} real. \emph{Purpose:} place each sigmoid's transition; they position the ramp \emph{inside} the band without moving its edges. \emph{Economic meaning:} the volatility (resp. utilization) levels at which the surcharge switches on --- G3's placement-not-level reading.
+\item
+  \(\gamma = \{\gamma_j, \gamma_R\}\) --- the \textbf{steepnesses}. \emph{Domain:} \(\gamma_j > 0\) (Theorem 1's monotonicity hypothesis). \emph{Purpose:} the ramp steepness (single-term case: \(s_f = 1/\gamma_0\)). \emph{Economic meaning:} how sharply the schedule reacts near its midpoint --- the dial between smooth repricing and a near-step surcharge.
+\end{itemize}
+
+\begin{quote}
+Parameter registry COMPLETE: \(\Theta_{\ell}\), \(\Theta_{p}\), \(\Theta_{\varphi}\), \(\Theta_{\phi}\). The former \(\Theta_{\text{ord}}\) is NOT a parameter set --- it is user-supplied per order and lives as \(\mathcal{I}_{\text{ord}}\) under \textbf{\# PROTOCOL\_INPUTS} (the third registry class).
+\end{quote}
+
+\subsection*{PROTOCOL\_CONSTANTS}\label{protocol_constants}
+
+Every fixed numeral of the protocol enters here as a \textbf{Protocol Constant} --- a value the protocol fixes once, \textbf{not a design dial}: it belongs to no \(\Theta_{\bullet}\), and no statement may treat it as free. Indexed by its constant set.
+
+\textbf{Protocol Constant (\(\mathcal{C}_{p} = \{\lambda\}\) --- the pricing geometry).}
+
+\begin{itemize}
+\tightlist
+\item
+  \(\lambda\) --- the \textbf{tick base}. \emph{Value:} \(\lambda = 1.0001\) (\href{../refs/uniswap-v3-core.pdf}{UNI\_V3}). \emph{Purpose:} the base of the price grid (Definition 8); every grid ratio in the document --- \(\lambda^{-\Delta_i}\) (Theorem 4), \(\xi^{\star} = \lambda^{-\Delta_i/2}\) (Proposition 6, \(\Theta_{\ell}\)) --- is a power of it. \emph{Economic meaning:} one tick = one basis point of price --- the minimal price quantum of the underlying market. \emph{Formalized:} \texttt{PosSpec.lam} (\texttt{lam\_pos}); hardcoded as \texttt{1.0001} in the \texttt{GeomProfile} carriers.
+\end{itemize}
+
+\textbf{Proposition 5 (Single-leg direction sensitivity).} A single leg's variance sensitivity is direction-sensitive:
+
+\[
+    \begin{aligned}
+        \frac{\Delta \pi^{\text{call | put}}}{\Delta \, \sigma} \, &\approx \frac{\Delta \theta}{\Delta \sigma}
+    \end{aligned}
+\]
+
+inheriting the sign of \(\ln \big(p_{(\eta, \Delta_i)}(i;t) / p_{(\eta, \Delta_i)}(i_K)\big)\) --- a single option cannot carry Definition 5's price-independence, which is why the ladder exists.
+
+\emph{Status:} \textbf{OPEN} --- pinned in-tree as \texttt{Upsilon.ATMOTMNullHypothesis}, a Prop \textbf{conjecture, no proof, no axiom}. One correction is machine-recorded and travels with it: the naive strike-centered envelope \(e^{-c|i-i_K|}\) is \textbf{FALSE on the entire left branch for every} \(c > 0\) (the forward difference is right-shifted; a parameter-independent obstruction) --- the honest envelope is centered on the peak pair \(\{i_K{-}1, i_K\}\). The conjecture's originally named test avenue (the econometric track) is CLOSED-terminal, so it either gets a formal proof or stays open.
+
+\textbf{Theorem 3 (Unit vega).}
+
+\[
+    \begin{aligned}
+        \frac{\Delta \, \Pi^{\text{call | put}} \, ( \cdot )}{\Delta \, \sigma^{2} } N_{\sigma} \, &= \, T/2 \, N_{\sigma} \, \implies \text{Id}_{ N_{\sigma}} \, \equiv \frac{2}{T}
+    \end{aligned}
+\]
+
+\emph{Formalized:} \texttt{VolInstrument.variancePortfolio\_unit\_upsilon}.
+
+\textbf{Theorem 13 (Maturity equivalence).} \emph{(Moved here from \# PROTOCOL\_INPUTS, user ruling 2026-08-04 --- both premises are this section's results; \(\Delta Q_v^{\star}\) is the target-vega Protocol Input, \# PROTOCOL\_INPUTS.)} From \(\upsilon = T/2\) (\texttt{variancePortfolio\_upsilon}) and \(\text{Id}_{N_\sigma} = 2/T\) (\texttt{variancePortfolio\_unit\_upsilon}):
+
+\[
+    T^{\star} \,=\, 2\,\frac{\Delta Q_v^{\star}}{N_\sigma} \quad\Longleftrightarrow\quad \Delta Q_v^{\star} \,=\, \frac{T^{\star}}{2}\, N_\sigma
+\]
+
+with \(\Delta Q_v^{\star}, N_\sigma > 0 \implies T^{\star} > 0\), and \(T^{\star}\) strictly increasing in \(\Delta Q_v^{\star}\), strictly decreasing in \(N_\sigma\). The perpetual order specifies no \(T\); \(T^{\star}\) is the implied maturity of the equivalent dated variance contract --- derived from \(\Delta Q_v^{\star}\), never stored.
+
+\emph{Formalized} (\texttt{EndogenousMaturity.lean}; \(N_\sigma \neq 0\)): bijection \texttt{dQvStarOfMaturity\_tStar} / \texttt{tStar\_dQvStarOfMaturity} / \texttt{maturity\_equivalence}; vega-exactness \texttt{tStar\_variancePortfolio\_upsilon}, \texttt{tStar\_unit\_upsilon}; \texttt{tStar\_pos}; \texttt{tStar\_strictMono\_dQvStar}; \texttt{tStar\_strictAnti\_Nσ}.
+
+\textbf{Rule 4 (Position ledger).} The protocol books a position as its \textbf{net signed liquidity} per strike: each leg carries the direction sign \(\mathbb{I}_{\text{long|short}}\), and the ladder's ledger is
+
+\[
+    \begin{aligned}
+        \pi^{\sigma} \, (\sigma_K, T; t) \, &\leftarrow \sum_{i_K} \, L(i_K) \, \mathbb{I}_{\text{long|short}}, \qquad \mathbb{I}_{\text{long|short}} \, \equiv \,
+        \begin{cases}
+        - \, 1 & \, \text{long (liquidity removed — burn)} \\
+        1 \, & \, \text{short (liquidity minted)}
+        \end{cases}
+    \end{aligned}
+\]
+
+The sign is \textbf{per leg} (\texttt{isLong} in the Panoptic tokenId), so mixed-direction ladders are expressible. Leg \textbf{type} is not an index here: put or call is determined structurally by the strike against \(p^{\star}\) --- puts below, calls above (Definition 6) --- and is carried by \texttt{tokenType}.
+
+\emph{Formalized:} the leg encoding lives in \texttt{PanopticTokenId.plk} (\texttt{isLong}, \texttt{tokenType}); the doc-side ledger statement is \textbf{UNFORMALIZED} --- no Lean carrier states it yet.
+
+\section*{PRICING\_GEOMETRY}\label{pricing_geometry}
+
+\textbf{Definition 8 (Price grid).} The \textbf{price grid} is the map assigning to each tick \(i\) the value
+
+\[
+    \begin{aligned}
+        p_{(\eta, \Delta_i)} (i) \, &\equiv \, \lambda^{i/2 \, \Delta_i \, \eta}
+    \end{aligned}
+\]
+
+where \(\lambda\) is the fixed tick base --- a \textbf{Protocol Constant} (see \textbf{PROTOCOL\_CONSTANTS (\(\mathcal{C}_p\))}), not a member of \(\Theta_p\) --- and \((\eta, \Delta_i) = \Theta_p\) are Protocol Parameters (see \textbf{PROTOCOL\_PARAMETERS (\(\Theta_p\))}). At \(\eta = 1\) the grid is the canonical square-root-price tick law of \href{../refs/uniswap-v3-core.pdf}{UNI\_V3} (\texttt{priceEta\_one}); the strike price of Definition 1 is the grid at the strike tick, \(p_{(\eta,\Delta_i)}(i_K)\).
+
+\emph{Formalized:} \texttt{VolInstrument.priceEta}; \texttt{priceEta\_pos} (positivity, unconditional); \texttt{priceEta\_strictMono} (under \(\eta\,\Delta_i > 0\)); \texttt{priceEta\_one} (\(\eta = 1\) recovers \texttt{PosSpec.tickPrice}).
+
+\(\eta\) (price grid) and \(\chi_{X/M}\) (trading curve, \(\varphi_{(\chi_{X/M},\,0)}\)) are DISTINCT parameters on distinct objects; they are not two names for one exponent. Their relation is a THEOREM, not a definition --- see the \(\chi_{X/M} \leftrightarrow \eta \leftrightarrow \varsigma_{X/M}\) block.
+
+\textbf{Theorem 21 (Half-kernel factorization: rescaling and partition change).} Definition 8's grid factors through the canonical geometry in two ways.
+
+\begin{enumerate}
+\def\labelenumi{(\roman{enumi})}
+\item
+  \textbf{Rescaling:} \(p_{(\eta,\Delta_i)} = p_{(1,\,\eta\Delta_i)}\) --- on the grid, \(\eta\) and \(\Delta_i\) enter ONLY through the product \(\eta\Delta_i\); the grid alone cannot identify them separately (they separate off-grid: \(\xi^{\star} = \lambda^{-\Delta_i/2}\), Proposition 6, depends on \(\Delta_i\) alone).
+\item
+  \textbf{Partition change (the pricing-implementation theorem):} for ANY admissible \((\eta, \Delta_i)\) and any reference spacing \(\bar\Delta_i \neq 0\), the price is a PRODUCT of two canonical-geometry prices whose tick arguments are functions of the current tick:
+\end{enumerate}
+
+\[
+    \begin{aligned}
+        p_{(\eta,\Delta_i)}(i) \, = \, p_{(1,\bar\Delta_i)}(i^{\star}) \cdot p_{(1,\bar\Delta_i)}(i^{\circ}), \qquad i^{\star} = i^{\circ} = \frac{i\,\Delta_i\,\eta}{2\,\bar\Delta_i}
+    \end{aligned}
+\]
+
+exactly on integer ticks under the commensurability \((i^{\star}+i^{\circ})\,\bar\Delta_i = i\,\Delta_i\,\eta\); an Int24-windowed split with witnesses \(i_- = \lfloor \eta\, i \rfloor\), \(i_+ = i - i_-\) realizes it inside the Uniswap/Plank tick domain. This is why the ½ sqrt-price algebra CLOSES under \(\eta\) --- the plank implementation prices every \(\eta\) member using only canonical-kernel evaluations. \emph{Convention bridge:} the exp layer states these on its \(\bar\eta\)-kernel, whose canonical member is written \(\bar\eta = 1/2\); by T28'a's factor two that member IS Definition 8's \(\eta = 1\) grid, and the identity makes no factor-share identification.
+
+\emph{Formalized:} \texttt{CFMM.Eta.p\_eta\_partition\_change}; \texttt{exists\_partition\_change}; \texttt{p\_eta\_partition\_change\_int} (\texttt{exp/EtaPartitionChange}); Int24 split \texttt{eta\_split\_kernel\_identity} (\texttt{exp/eta}); rescaling \texttt{p\_eta\_eq\_P\_half\_rescaled}; update rule \texttt{p\_eta\_post\_eq} (\texttt{exp/EtaReplication} --- the plank-implemented half); convention bridge \texttt{EtaCurvature.priceEta\_eq\_p\_eta\_half}, \texttt{priceEta\_eq\_P\_half} (T28'a).
+
+\textbf{Theorem 4 (Geometric strike-notional weights).} On the price grid \(\lambda^{i\,\Delta_i}\) --- the square of Definition 8's grid at \(\eta = 1\) (\texttt{priceGrid\_eq\_tickPrice\_sq}) --- the discretized strike-notional weights of the log contract are exactly geometric:
+
+\[
+    \begin{aligned}
+        \frac{\lambda^{(i+1)\Delta_i} - \lambda^{i\,\Delta_i}}{\big(\lambda^{i\,\Delta_i}\big)^{2}} \, = \, (\lambda^{\Delta_i}-1)\,\big(\lambda^{-\Delta_i}\big)^{i}
+    \end{aligned}
+\]
+
+with ratio \(\lambda^{-\Delta_i}\) --- \(\lambda\) the fixed tick base (Protocol Constant \(\mathcal{C}_p\)), so the ratio is a function of the protocol parameter \(\Delta_i\) alone. Normalized, the weights are the geometric profile at that ratio, and Theorem 2's partition of unity applies.
+
+\emph{Formalized:} \texttt{GeomProfile.varswapWeight\_geometric}; \texttt{varswapWeight\_normalized}.
+
+\textbf{Proposition 6 (The liquidity ratio \(\xi^{\star}\)).} The per-tick \emph{liquidity} replicating the log contract scales as the inverse square root of that grid, hence
+
+\[
+    \begin{aligned}
+        \xi^{\star} \, = \, \lambda^{-\Delta_i/2} \quad \text{(NOT } \lambda^{-\Delta_i}\text{; the two differ by the tranche-gamma Jacobian)}
+    \end{aligned}
+\]
+
+\(\lambda\) being fixed (\(\mathcal{C}_p\)), \(\xi^{\star}\) is pinned by \(\Delta_i\) alone --- consistent with the \(\Theta_{\ell}\) registry entry, where \(\xi\) is the parameter and \(\xi^{\star} = \lambda^{-\Delta_i/2}\) its pinned value.
+
+\emph{Status:} the sampling half is \textbf{proved} --- \(K^{-1/2}\) on the grid is geometric with ratio \(\lambda^{-\Delta_i/2}\) (\texttt{logContractLiquidity\_geometric}). The replication premise --- \(\ell(K) \propto K^{-1/2}\) from the curvature relation \(\ell(P) = -2P^{3/2}V''(P)\), \(V''(P) = -1/P^2\), adapted from \href{../refs/DemeterfietalVarianceSwaps.pdf}{VOL\_SWAPS} --- is \textbf{OPEN} in-tree (the payoff-level curvature bridge is future work).
+
+\emph{Formalized (sampling half):} \texttt{GeomProfile.logContractLiquidity\_geometric}; bridge to the ladder weights: \texttt{VolInstrument.strikeWeight\_bridge}.
+
+\section*{TRADING\_REGION}\label{trading_region}
+
+\textbf{Definition 9 (Per-strike amounts).} On the underlying market \((X, M)\), the liquidity \(L(i_K)\) at strike tick \(i_K\) holds the per-strike token amounts
+
+\[
+    \begin{aligned}
+        \Delta Q_M^{L} (i_K) \, &\equiv \, L \, (i_K) \Big [ \frac{p_{(\eta, \Delta_i)} (i_K + \Delta_i) \, - \, p_{(\eta, \Delta_i)} (i_K)}{p_{(\eta, \Delta_i)} (i_K) \, p_{(\eta, \Delta_i)} (i_K + \Delta_i)}\Big] \\
+        \\
+        \Delta Q_X^L \, (i_K) \, &\equiv \, L \, (i_K) \Big [ p_{(\eta, \Delta_i)} (i_K + \Delta_i) \, - \, p_{(\eta, \Delta_i)} (i_K) \Big ]
+    \end{aligned}
+\]
+
+identical to the per-rick amounts of \href{../refs/bunni-v2.pdf}{BUNNI\_V2} §2.3, eqs. (10)--(13), at \(\eta = 1\) --- stated here on the general grid \(p_{(\eta,\Delta_i)}\) (Definition 8). \(M \leftrightarrow \text{token}_0\), \(X \leftrightarrow \text{token}_1\). \textbf{PR-REGION OPEN:} the legs are stated unsigned; the admissibility region of signed flows is not yet defined --- Theorem 5's \(\Delta_i \geq 0\) hypothesis currently stands in for it.
+
+\emph{Formalized:} \texttt{VolInstrument.deltaQM}, \texttt{deltaQX} (the defining displays).
+
+\textbf{Theorem 5 (Leg nonnegativity, reciprocal money leg).} Nonnegativity of both legs requires \(\Delta_i \geq 0\) in addition to \(\eta\,\Delta_i > 0\) (\(\eta,\Delta_i < 0\) makes \(i_K + \Delta_i < i_K\) and reverses signs), and the money leg is the reciprocal-price difference:
+
+\[
+    \begin{aligned}
+        0 \leq L, \; \eta\,\Delta_i > 0, \; \Delta_i \geq 0 \;\implies\; \Delta Q_M^L, \Delta Q_X^L \geq 0; \qquad
+        \Delta Q_M^{L}(i_K) \, = \, L(i_K)\Big[\frac{1}{p_{(\eta, \Delta_i)}(i_K)} - \frac{1}{p_{(\eta, \Delta_i)}(i_K+\Delta_i)}\Big]
+    \end{aligned}
+\]
+
+The reciprocal form is exactly \href{../refs/bunni-v2.pdf}{BUNNI\_V2} eq. (10)'s shape.
+
+\emph{Formalized:} \texttt{VolInstrument.deltaQM\_nonneg}; \texttt{deltaQX\_nonneg}; \texttt{deltaQM\_token0}.
+
+\textbf{Definition 10 (Cumulative amounts).} The \textbf{cumulative amounts} aggregate the per-strike amounts from the money side down and the asset side up:
+
+\[
+    \begin{aligned}
+        Q_M^L (i_K) \, &\equiv \sum_{i=i_K}^{i_{\text{max}}} \, \Delta Q_M^{L}\, (i) \\
+        \\
+        Q_X^L \, (i_K) \, &\equiv \, \sum_{i=i_{\text{min}}}^{i_K} \Delta Q_X^L \, (i)
+    \end{aligned}
+\]
+
+identical to the cumulative amount functions of \href{../refs/bunni-v2.pdf}{BUNNI\_V2} §2.3, eqs. (14)--(15).
+
+\textbf{Definition 11 (Inverse cumulative amounts).} The \textbf{inverse cumulative amounts} map a target amount back to the extremal strike tick attaining it:
+
+\[
+    \begin{aligned}
+        Q_M^L (\bar Q_M)^{-1} \, &\equiv \, \text{arg max}_{i} \Big \{ Q_M^L (i_K): Q_M^L (i_K) \geq \bar Q_M\Big\}\\
+        \\
+            Q_X^L (\bar Q_X )^{-1} \, &\equiv \, \text{arg min}_{i} \Big \{ Q_X^L (i_K): Q_X^L (i_K) \geq \bar Q_X\Big\}\\
+    \end{aligned}
+\]
+
+identical to the inverse cumulative amount functions of \href{../refs/bunni-v2.pdf}{BUNNI\_V2} §2.4, eqs. (22)--(23) --- including the arg max/arg min asymmetry, which mirrors the opposed summation directions of Definition 10.
+
+\textbf{Theorem 6 (Monotonicity and telescoping).} Both cumulatives are monotone in the step count (for \(L \geq 0\)), so the inverse cumulatives of Definition 11 are well-defined least attaining steps; for the constant ladder \(L \equiv \bar L\) they telescope to closed form:
+
+\[
+    \begin{aligned}
+        Q_X^L \, = \, \bar L\,\big[p_{(\eta, \Delta_i)}(i_{\min}+n\Delta_i) - p_{(\eta, \Delta_i)}(i_{\min})\big], \qquad
+        Q_M^L \, = \, \bar L\,\Big[\frac{1}{p_{(\eta, \Delta_i)}(i_{\min})} - \frac{1}{p_{(\eta, \Delta_i)}(i_{\min}+n\Delta_i)}\Big]
+    \end{aligned}
+\]
+
+\emph{Formalized:} \texttt{VolInstrument.cumulativeQM\_monotone}; \texttt{cumulativeQX\_monotone}; \texttt{cumulativeQM\_const}; \texttt{cumulativeQX\_const}; \texttt{exists\_least\_reaching}.
+
+\textbf{Notation map (Bunni v2 remap --- collision-driven).} \href{../refs/bunni-v2.pdf}{BUNNI\_V2}'s symbols do not enter this document because \(a_0, a_1\) collide with the replication weights \(a_1, a_2\) (Settlement form of Definition 1). The remap: \(a_0 \mapsto \Delta Q_M^L\), \(a_1 \mapsto \Delta Q_X^L\), \(A_0 \mapsto Q_M^L\), \(A_1 \mapsto Q_X^L\), \(A_0^{-1} \mapsto Q_M^L(\cdot)^{-1}\), \(A_1^{-1} \mapsto Q_X^L(\cdot)^{-1}\), \(w \mapsto \Delta_i\), \(r \mapsto i_K\), \(l_r \mapsto L(i_K)\), \(1.0001 \mapsto \lambda\) (\(\mathcal{C}_p\)). Structural identification: Definition 7's weight profile \(\ell\) \textbf{is} Bunni's geometric LDF \(d_{\alpha,l}\) (§2.2.1, eq. (9)) under \(\alpha \mapsto \xi\), \(l \mapsto \iota\), and Definition 7's \(L(i_K) = \bar L\,\ell(\cdot)\) is his \(l_r = L \cdot LDF_w(r)\) (eq. (5)).
+
+\textbf{Definition 12 (Weighted-geometric-mean trading function).} For share parameter \(\chi_{X/M} \in (0,1)\), the \textbf{trading function} at strike tick \(i_K\) takes as exogenous a trading flow \(\Delta Q = (\Delta Q_M, \Delta Q_X)\) and returns
+
+\[
+    \begin{aligned}
+        \varphi_{(\chi_{X/M},\,0)} \, (i_K ; \Delta Q , L)\, &\equiv \, \big(\Delta Q_M^{L} (i_K) + \Delta Q_M\big)^{\chi_{X/M}}\cdot\big(\Delta Q_X^L \, (i_K) \, + \, \Delta Q_X\big)^{1-\chi_{X/M}}
+    \end{aligned}
+\]
+
+The flow is \textbf{exogenous} --- trade legs arriving against the endowed per-strike amounts of Definition 9: the endowments are the state, the flow is the input. It is a \textbf{trading function} in the sense of \href{../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf}{CFMM\_GEOMETRY}, already in canonical form (nondecreasing, concave, homogeneous); its logarithm is the weighted logarithmic utility of \href{../refs/cfmm/bichuch_feinstein-axioms_for_amms-2022.pdf}{AMM\_AXIOMS} App. B.2 (their weight \(w \mapsto \chi_{X/M}\); the former collision with the order width is MOOT --- the width is now \(\#_{\sigma} \in \mathcal{I}_{\text{ord}}\)), evaluated on per-strike \textbf{virtual reserves} in the sense of their App. B.3 (\(\alpha, \beta \mapsto \Delta Q_M^L(i_K), \Delta Q_X^L(i_K)\)).
+
+The display is one member of a parameterized class: the subscript tuple is \((\chi_{X/M}, \epsilon_{X/M})\), the second slot the substitution parameter, with \(\epsilon_{X/M} = 0\) the Cobb--Douglas member. Whether \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\) satisfies the Bichuch--Feinstein axioms is \textbf{not asserted here} --- their B.2 alone satisfies all of them (Table 1), but its composition with B.3 virtual reserves is unverified (a later Proposition). \textbf{The domain of the flow is OPEN (PR-REGION):} the region over which \(\Delta Q\) ranges --- signedness of the legs and the admissibility set --- is not yet defined; no region symbol is minted pending that ruling.
+
+\emph{Formalized:} \texttt{PhiCES.phiCES} --- \textbf{opposite leg orientation; the FLAG below is OPEN}.
+
+\begin{quote}
+\textbf{FLAG (open, 2026-08-03): LEG ORIENTATION OF \(\chi_{X/M}\).} The display above puts \(\chi_{X/M}\) on the \(\Delta Q_M\) leg; the CES definition below puts it on the \(Q_X\) leg (and matches Lean \texttt{PhiCES.phiCES}). One of the two must change, and the choice flips the \(\chi/(1-\chi) = \lambda^{\eta\Delta_i/2}\) bridge and the reading of \texttt{curvIndex\_is\_rho\_zero\_slice}. Theorem 1 consumes the \(\Delta Q_M\)-leg form. AUTHOR DECISION REQUIRED --- not resolved by the rename.
+\end{quote}
+
+\textbf{BINDING (user, 2026-08-03): \(\epsilon\) is reserved for ELASTICITIES, always subscripted to differentiate; \(\sigma\) is reserved for VOLATILITIES and VARIANCES and is never an elasticity.}
+
+\textbf{Definition 13 (CES trading-function family).} Every trading function in this document is a member of ONE two-parameter CES family --- \(\chi_{X/M}\) the SHARE axis, \(\epsilon_{X/M}\) the SUBSTITUTION axis:
+
+\[
+    \begin{aligned}
+        \varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\,(Q_X,Q_M) \, \equiv \,
+        \begin{cases}
+            \big(\chi_{X/M}\,Q_X^{\epsilon_{X/M}} + (1-\chi_{X/M})\,Q_M^{\epsilon_{X/M}}\big)^{1/\epsilon_{X/M}}, & \epsilon_{X/M} \neq 0 \\[4pt]
+            Q_X^{\chi_{X/M}}\,Q_M^{1-\chi_{X/M}}, & \epsilon_{X/M} = 0
+        \end{cases}
+        \qquad \chi_{X/M} \in (0,1)
+    \end{aligned}
+\]
+
+\(\epsilon_{X/M} = 0\) is a DEFINED CASE, not an evaluation --- \(1/\epsilon_{X/M}\) is undefined there, so the Cobb--Douglas branch is supplied by definition and CONTINUITY at \(\epsilon_{X/M} = 0\) is a \textbf{theorem} (\texttt{phiCES\_tendsto\_phiEps}), not a substitution. Every display in this document sits on the \(\epsilon_{X/M} = 0\) slice and is subscripted accordingly; Definition 12 is the \(\epsilon_{X/M} = 0\) member evaluated on the per-strike virtual reserves. \textbf{ORIENTATION (PR-ORIENT, OPEN):} this display carries \(\chi_{X/M}\) on the \(Q_X\) leg --- the \textbf{opposite} of Definition 12's \(\Delta Q_M\)-leg placement; the FLAG applies to the \emph{pair} and one of the two must eventually change.
+
+\emph{Formalized:} \texttt{PhiCES.phiCES} (12/12 axiom-clean): \texttt{phiCES\_tendsto\_phiEps}; \texttt{phiCES\_one} (\(\epsilon_{X/M} = 1\) linear); \texttt{phiCES\_zero\_half\_eq\_geom}; \texttt{phiCES\_homogeneous}/\allowbreak\texttt{\_pos}/\allowbreak\texttt{\_mono}. \emph{Narrowed, declared:} \texttt{phiCES\_concave} is RADIAL concavity only --- joint concavity in \((Q_X,Q_M)\) is OPEN.
+
+\textbf{Definition 14 (Curvature).} The \textbf{curvature} \(\kappa_{\varphi}\) of a trading function is the price-impact elasticity of its marginal price along the trading curve, normalized against the constant-product member: with the \textbf{marginal price} minted as its own object --- \(p_{\varphi} \equiv \partial_{Q_X}\varphi \,/\, \partial_{Q_M}\varphi\), the quotient of partials of the trading function (bare \(p\) is not used; the subscript \(p\) in \(\epsilon_{p/X}\) names this object; Lean \texttt{CurvatureTwo.margPrice}, subject to the PR-ORIENT argument-order FLAG) --- and
+
+\[
+    \begin{aligned}
+        \epsilon_{p/X} \, \equiv \, \frac{d \ln p_{\varphi}}{d \ln Q_X}\Big|_{\varphi = \text{const}}, \qquad
+        \kappa_{\varphi} \, \equiv \, \frac{|\epsilon_{p/X}|}{|\epsilon_{p/X}| + |\epsilon_{p/X}^{\,0}|}
+    \end{aligned}
+\]
+
+where \(\epsilon_{p/X}^{\,0}\) is the same elasticity for the \(\epsilon_{X/M} = 0\) (constant-product) member at the same point. \(\epsilon_{p/X}\) is an \textbf{observable} of any member of the trading-function class (Definition 12), not a parameter: the second derivative of \(\varphi\) enters through it (the derivative of the marginal price), and the benchmark normalization makes \(\kappa_{\varphi}\) scale-free, with the constant-product pool at \(\kappa_{\varphi} = 1/2\). Notation binding: \(\kappa_{\varphi}\) names the \textbf{genuine} curvature (\(\varphi\) the quote function, never the fee \(\phi\)); the share-asymmetry index \(\varsigma_{X/M}\) is NOT a curvature.
+
+\emph{Formalized:} the definitional layer is \textbf{UNFORMALIZED} --- the in-tree \texttt{CurvatureTwo.curvTwo} is the closed form of Proposition 7 by fiat, not this definition.
+
+\emph{(The grid--marginal-price relation is Proposition 10, stated with the portfolio-value machinery in \# CONTROL\_OPERATORS.)}
+
+\textbf{Proposition 7 (CES curvature closed form).} For the CES family (Definition 13), at the balanced point \(|\epsilon_{p/X}| = \dfrac{1-\epsilon_{X/M}}{1-\chi_{X/M}}\), and
+
+\[
+    \begin{aligned}
+        \kappa_{\varphi}(\epsilon_{X/M}) \, = \, \frac{1 - \epsilon_{X/M}}{2 - \epsilon_{X/M}} \, \in \, [0,1), \qquad
+        \epsilon_{X/M}(\kappa_{\varphi}) \, = \, \frac{1 - 2\kappa_{\varphi}}{1 - \kappa_{\varphi}}
+    \end{aligned}
+\]
+
+--- the \(\chi_{X/M}\)-dependence cancels identically: \(\kappa_{\varphi}\) is a function of the SUBSTITUTION axis alone (equivalently \(\kappa_{\varphi} = 1/(1+\bar\epsilon_{X/M})\)). The inverse is the DESIGN DIAL --- choose a target curvature, read off the substitution exponent. \emph{Status:} \textbf{OPEN in-tree} --- Aristotle target: (i) the elasticity computation \(|\epsilon_{p/X}| = (1-\epsilon_{X/M})/(1-\chi_{X/M})\), (ii) the normalization identity.
+
+\textbf{Theorem 8 (Properties of the closed form).} The closed form is zero exactly at the linear member (\(\epsilon_{X/M} = 1\)), strictly positive below it, strictly decreasing in \(\epsilon_{X/M}\), with range \([0,1)\); \(\chi_{X/M}\) and \(\Delta_i\) do NOT enter it; both round trips with the inverse hold.
+
+\emph{Formalized:} \texttt{CurvatureTwo.curvTwo}; \texttt{curvTwo\_linear\_zero}; \texttt{curvTwo\_pos\_of\_lt\_one}; \texttt{curvTwo\_strictAnti\_rho}; \texttt{curvTwo\_mem\_Ico}; \texttt{rhoOfCurv} (both round trips); \(\bar\epsilon_{X/M}\) = \texttt{subElast} (\texttt{subElast\_zero}, \texttt{subElast\_tendsto\_one}).
+
+\textbf{Refutation note (what curvature is NOT).} The Gaussian curvature of \(\varphi\)'s graph is \textbf{identically zero} for every member --- 1-homogeneity forces \(\mathrm{Hess}\,\varphi \cdot (Q_X,Q_M)^{\top} = 0\), so \(\det \mathrm{Hess} \equiv 0\) and the graph is a ruled surface; the Gaussian reading cannot distinguish linear from Leontief. The un-normalized planar curvature of the trading curve is scale-dependent (\((1-\epsilon_{X/M})/(\sqrt{2}\,t)\) at the symmetric point \(Q_X = Q_M = t\), \(\chi_{X/M} = 1/2\)) and cannot equal a constant. The normalization of Definition 14 is what makes Proposition 7 well-posed. \emph{Status:} unformalized (cheap machine-check; rider on the Proposition 7 Aristotle bundle).
+
+\textbf{Definition 15 (Share asymmetry).} The \textbf{share asymmetry} (grid tilt) of the trading-function family is
+
+\[
+    \begin{aligned}
+        \varsigma_{X/M} \, \equiv \, 1 - \Big(\frac{1-\chi_{X/M}}{\chi_{X/M}}\Big)^{\Delta_i}
+    \end{aligned}
+\]
+
+zero exactly at \(\chi_{X/M} = 1/2\). It is a \textbf{derived observable} --- a function of the registered parameters \(\chi_{X/M} \in \Theta_{\varphi}\) and \(\Delta_i \in \Theta_p\), adding no degree of freedom; hence no registry entry.
+
+\emph{Formalized:} \texttt{EtaTilde.curvOfTilde} / \texttt{EtaCurvature.curvIndex}. \emph{(Lean names predate the doc symbols and are NOT renamed --- standing doc-glyph/Lean-name split.)}
+
+\textbf{Theorem 9 (\(\varsigma_{X/M}\) is not a curvature).} At equal shares \(\varsigma_{X/M}\) vanishes both at the constant-product member and at the linear member --- although the former has \(\kappa_{\varphi} = 1/2 > 0\) (Proposition 7) and only the latter is flat. So \(\varsigma_{X/M}\) measures SHARE asymmetry (the grid-price tilt), not curvature across the substitution axis. Blocks E1--E7 are theorems about \(\varsigma_{X/M}\): their mathematics stands; their reading is about SHARE, not curvature.
+
+\emph{Formalized:} \texttt{curvOfTilde\_not\_curvature} (the machine-checked discriminating witness); \(\varsigma_{X/M}\) factors through the share alone: \texttt{curvIndex\_is\_rho\_zero\_slice}.
+
+\textbf{Rule 5 (Current trading curve).} The protocol pins the balanced Cobb--Douglas member:
+
+\[
+    \begin{aligned}
+        \chi_{X/M} \, \leftarrow \, \tfrac{1}{2}, \quad \epsilon_{X/M} \, \leftarrow \, 0: \qquad
+        \varphi_{(1/2,\,0)} \, (i_K ; \Delta Q , L)\, = \, (\Delta Q_M^{L} (i_K) + \Delta Q_M)^{1/2}\cdot(\Delta Q_X^L \, (i_K) \, + \, \Delta Q_X)^{1/2}
+    \end{aligned}
+\]
+
+The leg reading --- \(\chi_{X/M}\) as the \(\Delta Q_M\)-leg exponent (the \(1/p_{(\eta,\Delta_i)}\) leg), that leg's share of pool value --- is Definition 12's orientation. At \(\chi_{X/M} = 1/2\) the two orientations of the OPEN FLAG coincide, so the current case is orientation-blind --- which is why the Definition 12 / Definition 13 contradiction stayed invisible in practice.
+
+\emph{Formalized:} \texttt{phiCES\_zero\_half\_eq\_geom} (the \((\epsilon_{X/M} \to 0,\ \chi_{X/M} = 1/2)\) member is the geometric mean).
+
+\textbf{Theorem 10 (The bridge \(\chi_{X/M} \leftrightarrow \eta \leftrightarrow \varsigma_{X/M}\)).} The weight ratio IS the per-TICK square-root-price step --- so \(\chi_{X/M}\) is an OBSERVABLE of the grid already defined, not a new primitive:
+
+\[
+    \begin{aligned}
+        \frac{\chi_{X/M}}{1-\chi_{X/M}} \, = \, \frac{p_{(\eta, \Delta_i)}(i+1)}{p_{(\eta, \Delta_i)}(i)} \, = \, \lambda^{\eta\,\Delta_i/2}
+    \end{aligned}
+\]
+
+Both directions, both round trips; and the share asymmetry (Definition 15) factors through the share, the per-SPACING step being the per-TICK step raised to \(\Delta_i\) --- with \(\Lambda\) the logistic, \(\Lambda(z) = 1/(1+e^{-z})\) (the same \(\Lambda\) the fee schedule uses below):
+
+\[
+    \begin{aligned}
+        \chi_{X/M}(\eta) \, &= \, \Lambda\Big(\frac{\eta\,\Delta_i\,\ln\lambda}{2}\Big) \, \in \, (0,1) \;\; \forall\,\eta, \qquad
+        \eta(\chi_{X/M}) \, = \, \frac{2}{\Delta_i\,\ln\lambda}\,\ln\frac{\chi_{X/M}}{1-\chi_{X/M}} \\[4pt]
+        \varsigma_{X/M}(\eta,\Delta_i) \, &= \, 1 - \Big(\frac{1-\chi_{X/M}}{\chi_{X/M}}\Big)^{\Delta_i}, \qquad
+        \chi_{X/M}(\varsigma_{X/M}) \, = \, \frac{1}{1 + (1-\varsigma_{X/M})^{1/\Delta_i}}
+    \end{aligned}
+\]
+
+\emph{Formalized} (\texttt{EtaTilde}, 23/23 axiom-clean; doc \(\chi_{X/M}\) ↔ Lean \texttt{etaTilde}): anchor \texttt{etaTilde\_ratio}; observable \texttt{etaTilde\_eq\_priceEta\_step}; bijection \texttt{etaTilde\_mem\_Ioo}, \texttt{etaTilde\_strictMono}, \texttt{etaOfTilde\_etaTilde}, \texttt{etaTilde\_etaOfTilde}, \texttt{etaTilde\_half\_iff}, \texttt{etaTilde\_tendsto\_atTop}/\allowbreak\texttt{\_atBot}; bridge to \(\varsigma_{X/M}\): \texttt{curvIndex\_eq\_of\_etaTilde}, \texttt{curvOfTilde\_etaTilde}, \texttt{tildeOfCurv\_curvOfTilde}; range \texttt{curvOfTilde\_mem\_Ioo} (the \(t \in (0,1)\) hypothesis is NECESSARY --- \texttt{Real.rpow} is \(\log|x|\)-based outside it).
+
+\textbf{Theorem 11 (Domain coincidence).} Three conditions stated independently, in different blocks, are one:
+
+\[
+    \begin{aligned}
+        0 \, < \, \eta\,\Delta_i \quad &\Longleftrightarrow \quad \chi_{X/M} \, > \, \tfrac{1}{2} \quad \Longleftrightarrow \quad \varsigma_{X/M} \, \in \, (0,1) \\
+        \eta \, = \, 0 \quad &\Longleftrightarrow \quad \chi_{X/M} \, = \, \tfrac{1}{2} \quad \Longleftrightarrow \quad \varsigma_{X/M} \, = \, 0
+    \end{aligned}
+\]
+
+The first line is exactly the hypothesis Theorem 5's \texttt{deltaQM\_nonneg} requires --- an analytic guard that IS the economic condition ``the pool is asset-heavy in value''; the second says flat grid = symmetric pool = zero tilt.
+
+\emph{Formalized:} \texttt{admissible\_iff}; \texttt{zero\_curv\_iff}.
+
+\textbf{Theorem 12 (Share-asymmetry monotonicity; the antitone reading is REFUTED).} \(\varsigma_{X/M}\) is strictly INCREASING in \(\chi_{X/M}\) on \((0,1)\), vanishing exactly at \(\chi_{X/M} = \tfrac12\). The opposite reading --- a larger asset share means LESS tilt --- is FALSE:
+
+\[
+    \begin{aligned}
+        \Delta_i = 1: \qquad \chi_{X/M} = \tfrac14 \, < \, \tfrac34 \quad \text{but} \quad \varsigma_{X/M}\big(\tfrac14\big) \, < \, \varsigma_{X/M}\big(\tfrac34\big)
+    \end{aligned}
+\]
+
+(raising \(\chi_{X/M}\) shrinks \((1-\chi_{X/M})/\chi_{X/M}\), hence RAISES \(1 - (\cdot)^{\Delta_i}\).)
+
+\emph{Formalized:} \texttt{curvOfTilde\_strictMono} (the true direction); \textbf{REFUTED:} \texttt{not\_curvOfTilde\_strictAnti} --- machine-checked negation of the antitone reading, witness above. \emph{(Retitled from the in-doc ``Lemma (Curvature--Share Monotonicity)'': ``Lemma'' is not a taxonomy class, and per Theorem 9 \(\varsigma_{X/M}\) is share asymmetry, not curvature.)}
+
+CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because \(\eta^{\star} \approx 458/\Delta_i^{2}\) cannot be a Cobb--Douglas share. It never had to be --- the share is \(\chi_{X/M}(\eta^{\star}) \in (0,1)\) for EVERY \(\eta\) (Theorem 10), so the identification is reachable through \(\chi_{X/M}\), not through \(\eta\) directly. \emph{Carriers:} \texttt{etaStar\_tilde\_mem\_Ioo}, \texttt{curvIndex\_etaStar\_via\_tilde}. \emph{(E-block cross-note; converts when the E-blocks are swept.)}
+
+\begin{quote}
+Provenance: \texttt{EtaTilde} 23/23 axiom-clean, project \texttt{67b1c841} (doc \(\chi_{X/M}\) ↔ Lean \texttt{etaTilde}, the Lean name fixed by the bundle and never hand-edited); \texttt{PhiCES} 12/12 axiom-clean, project \texttt{cd3558f7}. Carriers not yet attached to a numbered statement: \texttt{phiCES\_agreement\_point} (evaluation form, scope declared in-file); CONDITIONAL, NOT an identification: \texttt{phiCES\_rho\_vs\_pi\_eta\_trader} gives \(1/(1-\epsilon_{X/M}) = 1/(1-\eta) \iff \epsilon_{X/M} = \eta\) away from the poles for \texttt{exp/CESLongVolPayoff}'s η, and its docstring states outright that this does NOT identify the payoff parameter with the trading-function parameter --- E8(6) untouched.
+\end{quote}
+
+\section*{FEE\_ALGEBRA}\label{fee_algebra}
+
+\textbf{Rule 6 (Per-leg fee split).} Each incoming trade leg is split by its \textbf{leg fee} \(\phi_M, \phi_X \in (0,1)\) (the M9 leg fees --- fee \emph{variables}, produced by the schedule below, not members of \(\Theta_{\phi}\)): the trading function is quoted on the net flow, and the fee fraction accrues to the per-strike reserves ---
+
+\[
+    \begin{aligned}
+        \Delta Q_M \, &= \, (1 - \phi_M) \, \Delta Q_M \, + \, \phi_M \, \Delta Q_M \\
+        \Delta Q_X \, &= \, (1 - \phi_X)\, \Delta Q_X \, + \, \phi_X \, \Delta Q_X
+    \end{aligned}
+\]
+
+\[
+    \begin{aligned}
+        \Delta Q_M^{L} (i_K) \, &\leftarrow \, \Delta Q_M^{L} (i_K) \, + \, \phi_M \, \Delta Q_M \\
+        \Delta Q_X^{L} (i_K) \, &\leftarrow \, \Delta Q_X^{L} (i_K) \, + \, \phi_X \, \Delta Q_X
+    \end{aligned}
+\]
+
+The first display is an identity (the decomposition); the Rule is the second --- the \textbf{accrual assignment}: fees deposit into Definition 9's endowments at the strike where they are charged.
+
+\textbf{Definition 17 (Fee composition).} The \textbf{fee-composition law} on the carrier \([0,1)\) is
+
+\[
+    \begin{aligned}
+        \phi_M \otimes_{\phi} \phi_X \, \equiv \, 1 - (1-\phi_M)(1-\phi_X), \qquad \mathcal{G}_{\phi} \, \equiv \, \big([0,1],\, \otimes_{\phi},\, 0\big)
+    \end{aligned}
+\]
+
+\(\mathcal{G}_{\phi}\) is an \textbf{Abelian monoid} --- identity \(\phi = 0\), no inverses (a charged fee cannot be un-charged) --- \textbf{not a group, and \(\otimes_{\phi}\) is a composition law, not an inner product} (correcting the note's original wording). The monoid axioms are machine-proved --- Theorem 14 (\texttt{probOr\_comm}, \texttt{probOr\_assoc}, \texttt{probOr\_zero}, closure \texttt{probOr\_mem\_Icc}). The carrier is \([0,1]\) as proved; the boundary \(\phi = 1\) (full confiscation) is admitted by the algebra and excluded economically by Rule 6's domain \(\phi_{\bullet} \in (0,1)\).
+
+\textbf{Rule 7 (Trader-paid fee).} The protocol composes the leg fees into the trader-paid fee by the monoid law:
+
+\[
+    \begin{aligned}
+        \phi \, \leftarrow \, \phi_M \otimes_{\phi} \phi_X
+    \end{aligned}
+\]
+
+This is the {[}M9{]} \textbf{DECIDED} entry --- enacted as \textbf{Rule 12}, with its algebra as \textbf{Theorem 20} (\texttt{TauMevAlgebra} carriers), inside the MEV subsection of \# CONTROL\_OPERATORS, where hazards are introduced.
+
+\textbf{Design menu.} Row 1 is the \textbf{DECIDED} structure --- Rules 6--7 enact it; the remaining rows are alternative composition structures considered and \textbf{not adopted} (candidate Rules never enacted):
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3529}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3529}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.2941}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Economic process
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Operator
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Structure
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Sequential fee charging & \((1-(1-\phi_M)(1-\phi_X))\) & Abelian monoid \\
+Strongest policy wins & \((\max)\) & Join semilattice \\
+Cheapest route wins & \((\min)\) & Meet semilattice \\
+Liquidity aggregation & Weighted average & Convex algebra \\
+Feature flags & OR & Monoid \\
+Permission intersection & AND & Monoid \\
+Bit toggling & XOR & Abelian group \\
+Cyclic governance states & Addition mod (N) & Finite abelian group \\
+\end{longtable}
+
+\textbf{Definition 18 (Dynamic fee schedule).} The fee \emph{level} is produced by the volatility-and-utilization schedule --- the sum-of-sigmoids dynamic fee of \href{../refs/algebra-tech-paper.pdf}{ALGEBRA} (their eq. (4)--(5); \(\alpha\) scales, \(\gamma\) steepens, \(\beta\) centers), gated by utilization:
+
+\[
+    \begin{aligned}
+\phi \, ( \sigma \, (i (t));t) \, &\equiv \bar \phi\, + \, \Big (\sum_j \, \frac{\alpha_j}{1 + \exp(\gamma_j \, (\beta_j - \sigma (i (t))))} \Big )\, \cdot \frac{\alpha_R}{1 \, + \, \exp(\gamma_R \, (\beta_R - \frac{\varphi_{(1/2,\,0)} \, (i_K ; \Delta Q , 0; t)}{\varphi_{(1/2,\,0)} \, (i_K ; 0, L; t)}))}
+    \end{aligned}
+\]
+
+The gate's argument is the \textbf{utilization ratio} --- the trading function evaluated on flow alone over its evaluation on the endowments alone (Theorem 1's \(u\) is the gate's value). The parameters \(\Theta_{\phi} = \{\gamma, \bar\phi, \beta, \alpha\}\) are Protocol Parameters (see \textbf{PROTOCOL\_PARAMETERS (\(\Theta_{\phi}\))}); the R-suffixed trio \((\alpha_R, \beta_R, \gamma_R)\) enters as members of the \(\alpha/\beta/\gamma\) families. \textbf{Signature note:} the \(t\) argument extends Definition 12's \((i_K; \Delta Q, L)\) signature --- the time dependence enters through the flow and endowments at \(t\); flagged, not silently repaired.
+
+\textbf{Theorem 1 (Fee Envelope).} Writing \(u = \alpha_R\Big/\Big(1+\exp\Big(\gamma_R\Big(\beta_R - \frac{\varphi_{(1/2,\,0)}(i_K;\Delta Q,0;t)}{\varphi_{(1/2,\,0)}(i_K;0,L;t)}\Big)\Big)\Big)\) --- the utilization gate of Definition 18: \[
+    \begin{aligned}
+        0 \leq u \leq \alpha_R, \qquad
+        \bar\phi \, \leq \, \phi(\sigma) \, \leq \, \bar\phi + \Big(\sum_j \alpha_j\Big)u, \qquad
+        \sigma \mapsto \phi(\sigma) \; \text{monotone} \; (\gamma_j > 0, \alpha_j \geq 0, u \geq 0)
+    \end{aligned}
+\]
+
+The single-term case is the sigmoid fee schedule with steepness \(s_f = 1/\gamma_0\), where \(\Lambda\) is the logistic \(\Lambda(z) = 1/(1+e^{-z})\): \[
+    \begin{aligned}
+        \bar\phi + \alpha_0\,\Lambda(\gamma_0(\sigma-\beta_0)) \, = \, f\big(\sigma;\, f_{\min}=\bar\phi,\, f_{\max}=\bar\phi+\alpha_0,\, \bar\sigma_f=\beta_0,\, s_f=\gamma_0^{-1}\big)
+    \end{aligned}
+\]
+
+\begin{quote}
+\texttt{VolInstrument.sigmoidR\_mem}, \texttt{multiFee\_bounds}, \texttt{multiFee\_monotone}, \texttt{multiFee\_single\_bridge}.
+\end{quote}
+
+ECONOMIC CONTENT OF THEOREM 1. The floor \(\bar\phi\) is unconditional --- LPs take a base fee at every volatility, so the schedule never degenerates to free execution. The ceiling is NOT a constant: it is \(\bar\phi + (\sum_j\alpha_j)\,u\), GATED by the utilization factor \(u \in [0,\alpha_R]\), so a pool nobody is trading against cannot levy the volatility surcharge at all --- at \(u = 0\) the band collapses to the floor, and the surcharge is earned only where flow exists to earn it on. Monotonicity in \(\sigma\) is what makes the schedule a genuine VOLATILITY SURCHARGE rather than an arbitrary function of state: higher realized volatility always costs the trader weakly more. That is the property the FLAIR identification consumes --- \(\Theta_{\lambda_{\text{FLAIR}}} = \{\bar\phi, \alpha, u\}\) is a LEVEL block precisely because the band's two edges are the level parameters, while \((\beta_j,\gamma_j)\) only place the transition inside the band (G3).
+
+\textbf{Rule 2 (Streamia).} Assign the per-time-step payoff variation to the trading fee --- the \emph{streamia} of the \href{https://arxiv.org/pdf/2204.14232}{Panoptic whitepaper}:
+
+\[
+    \begin{aligned}
+        \phi \, ( \sigma \, (i (t));t) \, & \overset{\text{streamia}}{\longleftarrow} \, \theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (t)) \Big )
+    \end{aligned}
+\]
+
+\(\overset{\text{streamia}}{\longleftarrow}\) denotes this Rule throughout.
+
+\textbf{Definition 3 (Streaming premium).} The \textbf{streaming premium} over \(N\) steps of length \(\Delta t\) is the accumulated streamia \(\sum_{j<N}\theta_j\,\Delta t\) --- the seller's fee income under Rule 2. It replicates the option's time decay, which is exactly why the perpetual instrument needs no expiry: the decay that a dated option pays out at \(T\) is instead streamed continuously.
+
+\emph{Formalized:} \texttt{Panoptic.streamingPremium}; \texttt{streamingPremium\_succ} (\(\Sigma_{N+1} = \Sigma_N + \theta_N\Delta t\)).
+
+\section*{PROTOCOL\_INPUTS}\label{protocol_inputs}
+
+Every \textbf{Protocol Input} is a quantity supplied by the USER, per order, at interaction time --- the third registry class. The classifying test across the three registries is \emph{who sets it, and when}: a Protocol Constant (\(\mathcal{C}_p\)) is fixed by the design once and forever; a Protocol Parameter (\(\Theta_{\bullet}\)) is set by the protocol, uniformly for all users; a Protocol Input is chosen by the user for each interaction. Input entries carry a \emph{Carrier} line --- inputs are calldata, and the on-chain field is part of their definition. The input set of the \textbf{vol order} (retiring the former \(\Theta_{\text{ord}}\) symbol: inputs are not parameters, so the index letter changes):
+
+\[
+    \mathcal{I}_{\text{ord}} \,=\, \{\sigma^2_K,\, \#_{\sigma},\, s_{\upsilon}\}
+\]
+
+(strike, width, skew) pins only the scale-free leg shape \(\ell\,(\xi, \iota; i_K)\).
+
+\textbf{Rule 8 (Target-vega completion --- DECIDED, 2026-07-30).} The order is completed with the target vega:
+
+\[
+    \mathcal{I}_{\text{ord}} \,\leftarrow\, \mathcal{I}_{\text{ord}} \,\cup\, \{\Delta Q_v^{\star}\}
+\]
+
+\textbf{Protocol Input (\(\mathcal{I}_{\text{ord}} = \{\sigma^2_K, \#_{\sigma}, s_{\upsilon}, \Delta Q_v^{\star}\}\) --- the vol order).}
+
+\begin{itemize}
+\item
+  \(\sigma^2_K\) --- the \textbf{strike variance}. \emph{Domain:} a variance level (Convention 2: \(\sigma^2(i_K) \equiv \sigma^2_K\)); on-chain packing per \texttt{VolOrderValidationLib}. \emph{Purpose:} the strike of the volatility option (Definition 1). \emph{Economic meaning:} the variance level above which the option pays. \emph{Carrier:} \texttt{create\_order(strike,\ …)}.
+\item
+  \(\#_{\sigma}\) --- the \textbf{width} (symbol per user ruling 2026-08-04; formerly \(w\), retired --- the \href{../refs/cfmm/bichuch_feinstein-axioms_for_amms-2022.pdf}{AMM\_AXIOMS} \(w\)-collision noted at Definition 12 is thereby MOOT). \emph{Domain:} the packed order field (validation predicate in \texttt{VolOrderValidationLib}). \emph{Purpose:} with \(s_{\upsilon}\), pins the scale-free leg shape \(\ell(\xi,\iota;i_K)\). \emph{Economic meaning:} the strike-band width of the replication ladder. \emph{Carrier:} \texttt{create\_order(…,\ width,\ …)}.
+\item
+  \(s_{\upsilon}\) --- the \textbf{skew} (symbol per user ruling 2026-08-04; formerly bare \(s\), retired --- it collided with the fee-schedule steepness \(s_f\)). \emph{Domain:} the packed order field (validation predicate in \texttt{VolOrderValidationLib}). \emph{Purpose:} with \(\#_{\sigma}\), pins the leg shape. \emph{Economic meaning:} the asymmetry of the ladder around the strike. \emph{Carrier:} \texttt{create\_order(…,\ skew,\ …)}.
+\item
+  \(\Delta Q_v^{\star}\) --- the \textbf{target vega} (enters by Rule 8). \emph{Domain:} \texttt{u96}, RAW LIQUIDITY units --- \(\Delta Q_v^{\star}\) carries the dimension of the replication carrier \(L\) (the DECIDED dimension ruling below). \emph{Purpose:} sizes the ladder and induces the implied maturity (Theorem 13, \# PAYOFF). \emph{Economic meaning:} the vega notional the user targets --- the one sizing decision the order stores. \emph{Carrier:} \texttt{targetVega\ :\ u96} at bits 152..247 of the packed \texttt{VolOrder} word (plank \texttt{feat/plank}); \texttt{targetVega} \(= \Delta Q_v^{\star}\) exactly; emitted by \texttt{VolOrderCreated(orderId,\ strike,\ width,\ skew,\ targetVega)}; fits-packed predicate in \texttt{VolOrderValidationLib}.
+\end{itemize}
+
+\textbf{Convention 3 (Vega dimension --- stored target vs lens readout; DECIDED 2026-07-30).} \(\Delta Q_v^{\star}\) carries the dimension of the REPLICATION CARRIER --- liquidity \(L\), the quantity of the priced vol asset, per Rule 4's ledger
+
+\[
+    \pi^{\sigma} \, = \sum_{i_K} \, L(i_K) \, \mathbb{I}_{\text{long|short}}
+\]
+
+The quotient \(\Delta Q_v \equiv \Delta\pi^{\sigma}/\Delta(\sigma^2-\sigma^2_K)^{+}\) (collateral per vol unit, Definition 1) is the LENS READOUT --- computed from a position through the \(Q_M^L\) range conversion (Definition 10), never stored. One instrument, two views: the \(\mathcal{I}_{\text{ord}}\) entry names the \textbf{stored quantity}, Definition 1's quotient names the \textbf{measured sensitivity}.
+
+\textbf{Rule 9 (Sizing --- quantity-exact, no price in the map).} The mint sizes the ladder from the target vega alone:
+
+\[
+    L(i_K) \,\leftarrow\, \Delta Q_v^{\star}\,\ell\,(\xi^{\star}, \iota; i_K), \qquad \sum_{i_K} L(i_K) \,=\, \Delta Q_v^{\star} \;\; \big(\textstyle\sum_{i_K}\ell = 1,\ \text{Theorem 2}\big)
+\]
+
+\(p_{\text{vol}}, p_{\text{risk}}\) enter at the ISSUANCE/ADMISSIBILITY layer (shares, deleverage --- Rule 10), never the sizing map; the mint's collateral requirement is the actual replication cost, slippage-bounded.
+
+\textbf{Proposition 8 (The lens obligation).} Delivered quantity recovers the stored target, one-sided under per-leg floor rounding:
+
+\[
+    \sum_{i_K} L(i_K) \,\leq\, \Delta Q_v^{\star}
+\]
+
+\emph{Status:} \textbf{OPEN in-tree} --- the per-leg floor rounding of Rule 9's map has no Lean carrier (the induced-ladder floor-maximal construction is plank-side). The \emph{adjacent} rounding conservativity that IS proved is the funded-cap side of Rule 10: \texttt{dQvFunded\_roundDown}, \texttt{roundDown\_preserves\_invariant} --- related, not carriers of this statement.
+
+\textbf{Rule 10 (Collateral channel and auto-deleverage; DECIDED 2026-07-30).} The contract holds \(\Delta Q_v^{\star}\) fixed, so all adaptation lands on collateral. The live backing requirement, and the (division-free) admissibility condition:
+
+\[
+    \Delta M_{\text{req}}(t) \,\leftarrow\, \Delta Q_v^{\star}\cdot p_{\text{vol}}(\bar\sigma; t), \qquad \Delta Q_v \cdot p_{\text{risk}}(t) \,\leq\, Q_M
+\]
+
+On violation the position is NOT hard-liquidated: the enforced exposure contracts to the funded level,
+
+\[
+    \Delta Q_v(t) \,\leftarrow\, \min\Big(\Delta Q_v^{\star},\; \frac{Q_M(t)}{p_{\text{risk}}(t)}\Big) \quad \text{(floor)}, \qquad T^{\star}(t) \,\leftarrow\, 2\,\frac{\Delta Q_v(t)}{N_\sigma}
+\]
+
+so the implied maturity CONTRACTS continuously with the funded exposure instead of truncating; a top-up restores both. Liquidation is the degenerate case \(Q_M \to 0\), where the realized life \([t_{\text{mint}}, t_{\text{liq}}]\) is the maturity the position actually had. \textbf{FLAG (define-before-use, OPEN):} \(p_{\text{vol}}\), \(p_{\text{risk}}\), and the reference volatility \(\bar\sigma\) are consumed here but not yet defined in the converted region --- they are plank-side price feeds (the \texttt{priceOfRisk} entry point); their formal definitions are owed before this Rule's symbols close.
+
+\emph{Formalized} (\texttt{EndogenousMaturity.lean} --- the floor is the GREATEST admissible exposure):
+
+\[
+    \begin{aligned}
+        \forall x,\; 0 \leq x \leq \Delta Q_v^{\star} \wedge x\, p_{\text{risk}} \leq Q_M \implies x \leq \Delta Q_v(t), \qquad \Delta Q_v(t)\, p_{\text{risk}} \leq Q_M \;\;\text{(on violation)}
+    \end{aligned}
+\]
+
+\texttt{dQvFunded\_maximal}; \texttt{dQvFunded\_admissible(\_iff\_mul)}, \texttt{\_mul\_le\_of\_violation}, \texttt{\_eq\_of\_no\_violation}; \(T^{\star}(t) \uparrow Q_M,\, \downarrow p_{\text{risk}}\): \texttt{tStarFunded\_mono\_QM}, \texttt{\_antitone\_prisk}; \(Q_M \geq \Delta Q_v^{\star} p_{\text{risk}} \implies T^{\star}(t) = T^{\star}\): \texttt{\_eq\_tStar\_of\_topup}; \(Q_M = 0 \implies T^{\star}(t) = 0\): \texttt{dQvFunded\_zero\_QM}; floor rounding conservative (min-monotone).
+
+\textbf{Rule 11 (Recalibration law; DECIDED 2026-07-30: multiplicative).} The joint evolution of the implied maturity under the collateral channel AND realized variance \(\sigma^2_R(t)\) accruing against the strike:
+
+\[
+    \begin{aligned}
+        T^{\star}_{\text{joint}}(t) \, \leftarrow \, T^{\star}(t)\cdot\Big(1 - \frac{\sigma^2_R(t)}{\sigma^2_K}\Big)^{+} \, = \, \underbrace{\frac{2\,\Delta Q_v^{\star}}{N_\sigma}}_{T^{\star}} \cdot \underbrace{\frac{\min\big(\Delta Q_v^{\star},\, Q_M/p_{\text{risk}}\big)}{\Delta Q_v^{\star}}}_{\text{funding factor}} \cdot \underbrace{\Big(1 - \frac{\sigma^2_R}{\sigma^2_K}\Big)^{+}}_{\text{budget factor}}
+    \end{aligned}
+\]
+
+The arrow is the Rule (the enacted law); the second equality is the factorization identity. \emph{Rationale (recorded):} \(\upsilon = T/2 \implies \sigma^2\text{-budget} \propto T\) (bijection preserved); \(T^{\star}_{\text{joint}} = T^{\star}\cdot f_{\text{fund}}\cdot f_{\text{budget}}\) (monotonicities chain); burn rate constant (no cliff).
+
+\emph{Formalized:} \texttt{tStarJointMult}: \texttt{\_nonneg} (on \(T^{\star}(t) \geq 0\)), \texttt{\_antitone} (\(\downarrow \sigma^2_R\)), \texttt{\_zero} (\(= T^{\star}(t)\) at \(\sigma^2_R = 0\)), \texttt{\_exhausted} (\(= 0\) at \(\sigma^2_R = \sigma^2_K\)). \textbf{Alternates formalized and REJECTED} (the rejection record is first-class): \(T^{\star}_{\text{sub}}\) (\texttt{joint\_candidates\_disagree} --- off-domain floor placement only), \(T^{\star}_{\text{quad}}\) (\((1-r^2) \geq (1-r)\): pro-holder under vol clustering).
+
+\begin{quote}
+NOTE (cascade, recorded): \(\Delta Q_v^{\star}\) on-chain lands on the PAIR \((\text{PanopticTokenId},\, \text{positionSize})\) --- the tokenId is scale-free (strikes, widths, per-leg optionRatio); positionSize is an SFPM mint argument. The ratio-vs-size split of \(\ell(\xi^{\star},\iota;i_K)\) across the pair is the task-\#14 sizing decision. Spec: \texttt{.planning/vol-order-v2-target-vega-SPEC.md}.
+\end{quote}
+
+\section*{CONTROL\_OPERATORS}\label{control_operators}
+
+These are the instruments mapping \textbf{behavior objectives} to \textbf{protocol parameters} --- all of \(\Theta_{\bullet}\), not only the fee schedule \(\Theta_{\phi}\).
+
+\textbf{Convention 4 (Hazard rate vs incidence operator).} The control operators come in two types, distinguished by the glyph: plain \(\lambda_{\bullet}\) names a \textbf{hazard rate} --- an arrival intensity (probability per unit time) of a behavior (arb toxicity, LP competition); tilde \(\tilde\lambda_{\bullet}\) names an \textbf{incidence operator} --- a re-routing of already-arriving flow that leaves the total invariant. A hazard \emph{adds} under composition (\(\bigoplus\), Definition 19); an incidence operator \emph{applies} --- it changes who bears the flow, not how much arrives. The distinction is proved, not stylistic: the JIT operator leaves \texttt{mevTotal} invariant while FLAIR falls and the toxicity ratio rises (\texttt{JitLiquidity} carriers) --- it cannot be a hazard.
+
+\textbf{Definition 19 (Hazard aggregation).} The aggregate hazard is the composition of the behavior hazards, and \(\bigoplus\) on hazard rates \textbf{is addition} (the hazard-coordinate image of \(\otimes_{\phi}\) --- Theorem 14):
+
+\[
+    \begin{aligned}
+        \lambda\, &\equiv \, \displaystyle \bigoplus_{i=1}^n \lambda_i \, \quad \, i \, \in \, \{\text{lp-competition (FLAIR)}, \text{arb toxicity}, \text{TBD}, \cdots \} \\
+        \lambda \, &\equiv \, \lambda_M \, + \, \lambda_X
+    \end{aligned}
+\]
+
+\textbf{MEV is struck from the index set} (correcting the note's original listing): \(\lambda_{\text{ARB}}\) --- already a member --- is \(\lambda_{\text{MEV}}\)'s SUMMAND (Definition 23), so listing MEV double-counts; and the MEV tax enters the trader-paid fee through the \(\otimes_{\phi}\) monoid (Rule 12), never through \(\bigoplus\). The second line is the per-leg split, mirroring the leg fees of Rule 6.
+
+\textbf{Theorem 14 (Fee monoid and hazard exactness).} \(\mathcal{G}_{\phi} = \big([0,1],\, \otimes_{\phi},\, 0\big)\) is an Abelian monoid --- commutative, associative, identity \(0\), closed on \([0,1]\), monotone --- and the hazard correspondence is \textbf{exact} under \(\phi = 1 - e^{-\lambda}\):
+
+\[
+    \begin{aligned}
+        \big(1-e^{-\lambda_M}\big) \otimes_{\phi} \big(1-e^{-\lambda_X}\big) \, = \, 1-e^{-(\lambda_M+\lambda_X)}
+        \quad\Longleftrightarrow\quad \lambda \, \equiv \, \lambda_M + \lambda_X
+    \end{aligned}
+\]
+
+Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composition and hazard addition are the same law in two coordinate systems.
+
+\emph{Formalized:} \texttt{VolInstrument.probOr\_eq}; \texttt{probOr\_comm}; \texttt{probOr\_assoc}; \texttt{probOr\_zero}; \texttt{probOr\_mem\_Icc}; \texttt{probOr\_mono}; \texttt{probOr\_hazard}.
+
+\textbf{Definition 24 (Linear pool value).} The \textbf{linear pool value} is the pool's holdings marked at spot --- the money-units valuation with no curvature adjustment:
+
+\[
+    \begin{aligned}
+        \pi^{\text{linear}}(t) \, \equiv \, p_{(\eta,\Delta_i)}(i(t))\; Q_X^L\Big(\textstyle\sum_j^{\#\text{LP}} L_j(i(t);\cdot)\Big) \, + \, Q_M^L\Big(\textstyle\sum_j^{\#\text{LP}} L_j(i(t);\cdot)\Big)
+    \end{aligned}
+\]
+
+\emph{(Symbol per user rulings 2026-08-04: values are \(\pi\)-objects and this valuation is linear; the former ad-hoc \(D_t\) is retired --- \(D\) reads as debt.)}
+
+\textbf{Recall (the marginal price).} \(p_{\varphi} \equiv \partial_{Q_X}\varphi \,/\, \partial_{Q_M}\varphi\) --- the quotient of partials of the trading function, minted at Definition 14; its relation to the grid is the next statement, placed here because Definitions 25--26 consume both objects (user ruling 2026-08-04).
+
+\textbf{Proposition 10 (Grid--marginal-price relation).} The grid map and the marginal price are DISTINCT objects --- the identification \(p_{(\eta,\Delta_i)} \equiv p_{\varphi}\) is NOT admissible. At Definition 9's reserves, for the \(\chi_{X/M} = 1/2\) member,
+
+\[
+    \begin{aligned}
+        p_{\varphi}(i_K) \, = \, \frac{\Delta Q_M^L(i_K)}{\Delta Q_X^L(i_K)} \, = \, \frac{1}{p_{(\eta,\Delta_i)}(i_K)\; p_{(\eta,\Delta_i)}(i_K+\Delta_i)}
+    \end{aligned}
+\]
+
+--- the grid enters the marginal price as the INVERSE PRODUCT of adjacent grid values: the √price-vs-price gap Theorem 4 already flags (\texttt{priceGrid\_eq\_tickPrice\_sq}), plus the leg orientation. \emph{Status:} elementary algebra from Theorem 5's reciprocal form; \textbf{unproved in-tree} (cheap Aristotle rider on the Proposition 7 bundle).
+
+\textbf{Definition 25 (Portfolio value function).} With \((Q_X^L(p_{\varphi}), Q_M^L(p_{\varphi}))\) the point of the trading curve \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})} = \text{const}\) at which the marginal price \(p_{\varphi}\) (Definition 14) attains a given value, the \textbf{portfolio value function} is the on-curve valuation of the RESERVES --- the \(L\)-superscripted quantities (Definition 10): bare \(Q_X, Q_M\) remain the trading-side arguments of Definition 13, while the reserves derived from liquidity are what the pool holds and what is valued here ---
+
+\[
+    \begin{aligned}
+        \pi^{\varphi}(p_{\varphi}) \, \equiv \, p_{\varphi}\, Q_X^L(p_{\varphi}) \, + \, Q_M^L(p_{\varphi})
+    \end{aligned}
+\]
+
+--- the portfolio value function of \href{../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf}{CFMM\_GEOMETRY}, the conic dual of the trading function (their equivalence theorem); concave and nondecreasing in \(p_{\varphi}\). \textbf{Relation to Definition 24:} \(\pi^{\text{linear}}\) marks FIXED holdings at spot; \(\pi^{\varphi}\) moves holdings ALONG the curve --- at the current price the two coincide, away from it \(\pi^{\varphi}\) falls below the fixed-holdings line, and that concavity gap is what LVR prices. \emph{Status:} \textbf{UNFORMALIZED} --- no Lean carrier (\texttt{exp/CESLongVolPayoff.pi\_eta\_trader} is the trader-side Bregman object, distinct).
+
+\textbf{Definition 26 (LVR rate).} The loss-versus-rebalancing rate is a PAYOFF-shaped object --- a loss --- hence the \(\pi\) glyph (user ruling 2026-08-04): \(\pi^{\mathrm{LVR}}\), carrying NO time argument (it is a state function of the current tick); the time-argument form \(\pi^{\mathrm{LVR}}(t)\) is the per-block realized loss below, so no bar normalization is needed. Per \href{../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf}{MMR}, with the second derivative well-defined on Definition 25's object --- and the evaluation point CORRECTED (user-exposed 2026-08-04) to the current MARGINAL price \(p_{\varphi}(i(t))\), not the grid value, the two differing by Proposition 10's relation:
+
+\[
+    \begin{aligned}
+        \pi^{\mathrm{LVR}} \, \equiv \, \frac{\sigma^2(i(t))\, p_{\varphi}^2}{2}\,\Big|\frac{d^2\pi^{\varphi}}{dp_{\varphi}^2}\Big|\;\Big|_{p_{\varphi} = p_{\varphi}(i(t))} \qquad \big(\text{CPMM: } \pi^{\mathrm{LVR}} = \tfrac{\sigma^2}{8}\,\pi^{\varphi}\big)
+    \end{aligned}
+\]
+
+\textbf{Discretization frame} (\(t\)-indexed, shared by FLAIR and MEV; the Lean carriers keep their \texttt{w\_t}/\allowbreak\texttt{D\_t}/\allowbreak\texttt{a\_t} names --- standing doc-glyph/Lean-name split). Time is stepped by the cadence \(\Delta t\); per step \(t\):
+
+\begin{itemize}
+\tightlist
+\item
+  the per-step traded VOLUME in LIQUIDITY UNITS is \(\varphi_{(1/2,\,0)}\big(i(t);\, \Delta Q(t),\, 0\big) \, = \, \sqrt{\Delta Q_M(t)\,\Delta Q_X(t)} \, \geq \, 0\) --- Definition 18's zero-liquidity convention: the symmetric geometric mean of the two legs, neither money nor asset alone, commensurable with \(L\) and \(\Delta Q_v^{\star}\); NO alias symbol is minted for it (the former \(\Delta Q_{\cdot}(t)\) is retired --- user ruling 2026-08-04);
+\item
+  \(\pi^{\text{linear}}(t) > 0\) --- the per-step capital in MONEY units (Definition 24), serving the MEV/LVR side, where LVR is intrinsically a money rate;
+\item
+  \(\pi^{\mathrm{LVR}}(t) \, \equiv \, \pi^{\mathrm{LVR}}\cdot\Delta t \, \geq \, 0\) --- the per-block arb-opportunity weight: the rate (Definition 26, no time argument) over one block; the time argument itself marks the per-block object, so no bar normalization is needed (user ruling 2026-08-04);
+\item
+  \(\nu_t \, \equiv \, \varphi_{(1/2,\,0)}\big(i(t);\, \Delta Q(t),\, 0\big)\,\big/\,\varphi_{(1/2,\,0)}\big(i(t);\, 0,\, L\big)\) --- the PER-STEP UTILIZATION RATIO, exactly Definition 18's gate argument: FLAIR's capital-normalized flow, dimensionless with no numéraire choice.
+\end{itemize}
+
+\textbf{Coordinates (user ruling (i), 2026-08-04):} FLAIR runs in UTILIZATION coordinates (\(\nu_t\)); MEV runs in MONEY coordinates (\(\pi^{\mathrm{LVR}}(t)/\pi^{\text{linear}}(t)\)). No other \(t\)-indexed symbols are introduced in this section.
+
+\textbf{Definition 30 (HODL value).} The inception basket marked at the current price --- the tangent line to \(\pi^{\varphi}\) at \(p_{\varphi}(t_0)\):
+
+\[
+    \begin{aligned}
+        \pi^{\text{HODL}}(t) \, \equiv \, p_{(\eta,\Delta_i)}(i(t))\,Q_X^L(t_0) \, + \, Q_M^L(t_0)
+    \end{aligned}
+\]
+
+\(\pi^{\text{HODL}}(t_0) = \pi^{\text{linear}}(t_0)\), and thereafter \(\pi^{\text{HODL}}(t) \geq \pi^{\varphi}(p_{\varphi}(t)) = \pi^{\text{linear}}(t)\) (tangent above the concave curve) --- the gap's expected rate is \(\pi^{\mathrm{LVR}}\) (Definition 26).
+
+\textbf{Definition 31 (Returns).} Gross returns in the form of {[}DUFFIE{]} (D. Duffie, \emph{Dynamic Asset Pricing Theory}, 3rd ed., Princeton UP, 2001 --- the book is copyrighted and not vendored; author-hosted companions: \href{../refs/duffie-intertemporal_asset_pricing_survey.pdf}{survey}, \href{../refs/duffie-dapt-revisions-2002.pdf}{revisions}): payoff over INCEPTION capital --- the denominator must be \(t_0\) (a contemporaneous denominator makes \(R^{\varphi} \equiv 1\) by tangency):
+
+\[
+    \begin{aligned}
+        R^{\varphi}(t) \, \equiv \, \frac{\pi^{\varphi}(p_{\varphi}(t))}{\pi^{\text{linear}}(t_0)}, \qquad
+        R^{\text{HODL}}(t) \, \equiv \, \frac{\pi^{\text{HODL}}(t)}{\pi^{\text{linear}}(t_0)}
+    \end{aligned}
+\]
+
+\subsection*{FLAIR}\label{flair}
+
+\textbf{Definition 20 (FLAIR).} The \textbf{LP-competition hazard} \(\lambda_{\text{FLAIR}}\) is the time-integrated fee yield per unit of pooled capital --- the FLAIR metric of \href{../refs/flair/MilionisWanAdamsFLAIR.pdf}{FLAIR}, instantiated on this document's objects:
+
+\[
+    \begin{aligned}
+        \lambda_{\text{FLAIR}}\, (t) \, &\equiv \, \displaystyle\int_{t_0}^t \frac{\displaystyle\int_{p_{(\eta,\Delta_i)} \,(i(t))} \, \phi \, ( \sigma \, (i (t));t) \, d\, p_{(\eta,\Delta_i)} \,(t)}{\varphi_{(1/2,\,0)}\Big(i(t);\, 0,\, \sum_{j}^{\# \text{LP}} \, L_j \, (i(t); \cdot)\Big)} \, dt
+    \end{aligned}
+\]
+
+--- numerator: the fee density collected across the price range; denominator: the pool capital in \textbf{LIQUIDITY UNITS} --- the trading function at zero flow on the aggregate liquidity, per Definition 18's utilization convention (user ruling (i), 2026-08-04: FLAIR is utilization-based; the money-units \(\pi^{\text{linear}}\) serves the LVR/MEV and ADL layers). It is a plain-\(\lambda\) hazard (Convention 4): fee income \emph{arrives}; nothing is re-routed. \textbf{Two repairs vs the raw note (user-approved 2026-08-04):} the undeclared \(p_{(\cdot)}\) contraction is expanded to \(p_{(\eta,\Delta_i)}\) (no new shorthand minted), and the denominator's first term was corrected \(Q_M^L \to Q_X^L\) (both terms were the money leg) --- that money-units form was then SUPERSEDED by the utilization-coordinates restatement above.
+
+\textbf{Theorem 15 (FLAIR identification and corner solution).} The program \(\sup_{\Theta_{\lambda_{\text{FLAIR}}}} \lambda_{\text{FLAIR}}\) over a sub-block \(\Theta_{\lambda_{\text{FLAIR}}} \subset \Theta_{\phi}\) is \textbf{identified and solved}. Discretizing per the frame (\(\nu_t\) the per-step utilization ratio; \(\Lambda\) the logistic of Theorem 10): \[
+    \begin{aligned}
+        \lambda_{\text{FLAIR}} \, = \, \bar\phi\, W \, + \, u \sum_j \alpha_j\, W_j, \qquad
+        W = \sum_t \nu_t, \quad
+        W_j = \sum_t \Lambda\big(\gamma_j(\sigma(i(t))-\beta_j)\big)\, \nu_t, \quad 0 \leq W_j < W
+    \end{aligned}
+\]
+
+\[
+    \begin{aligned}
+        \Theta_{\lambda_{\text{FLAIR}}} \, = \, \{\bar\phi,\, \alpha,\, u(\alpha_R)\}: \qquad
+        \lambda_{\text{FLAIR}} \, \leq \, \Big(\bar\phi_{\max} + u_{\max}\sum_j \alpha_{j,\max}\Big)\, W
+    \end{aligned}
+\]
+
+attained \textbf{bang-bang at the level corner} for any fixed \((\beta,\gamma)\); in \((\beta,\gamma)\) the bound is approached only as \(\beta \to -\infty\) --- a saturation boundary, not a maximum: the shape parameters never attain it (strict gap at every finite \(\beta\)). This is the G3 level/shape split: \(\Theta_{\lambda_{\text{FLAIR}}}\) is a LEVEL block; \((\beta_j, \gamma_j)\) only place the transition.
+
+\emph{Caveat (kept):} this functional has no demand elasticity --- the fee--volume trade-off lives in the optimal-fee layer (\texttt{FeeSchedule}, arXiv:2508.08152). \emph{Note (OPEN):} Rule 6 charges fees PER LEG; the discretization applies the composed fee (Rule 7) to volume --- the leading-order equivalence of per-leg fee income and composed-fee-on-volume is assumed, unformalized.
+
+\emph{Formalized:} \texttt{FlairOptimization.flairMulti\_affine}; \texttt{W\_j\_lt\_W}; \texttt{flairMulti\_le\_corner}; \texttt{flairMulti\_corner\_attained\_levels}; \texttt{flairMulti\_saturation\_limit}; \texttt{flairMulti\_strict\_below\_saturation}; \texttt{Theta\_lambda\_identification}.
+
+\subsection*{MEV}\label{mev}
+
+Sources, all vendored: \href{../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf}{MMR} (the anchor --- arb profits with fees), \href{../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf}{MEV\_THEORY\_I} (arXiv 2207.11835, the sandwich channel), \href{../refs/flair/CampbellBergaultMilionisNutzOptimalFees.pdf}{OPT\_FEES} (arXiv 2508.08152, the optimal-fee layer). Angstrom is the implementation reference (batch auction / uniform clearing). Statements below carry their provenance tags {[}M0{]}--{[}M10{]}; the former standalone M-blocks are consumed by this section (byte-pins on them are invalidated by the move --- disclosed).
+
+\textbf{Convention 5 (Event probabilities) {[}M0{]}.} Probabilities are written \(\mathbb{P}_{\text{event}}\): \(\mathbb{P}_{\Delta_{\text{ARB}}}\) = arbitrage-trade probability (the paper's \texttt{P\_trade}; Lean \texttt{MevOptimization.ptrade}), \(\mathbb{P}_{L_{\text{JIT}}}\) = JIT-arrival probability (CJZ's \texttt{π}; Lean \texttt{πJ}).
+
+\textbf{Notation map {[}M0{]}.} \href{../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf}{MMR}'s fee symbol \texttt{γ} is transcribed as this document's fee \texttt{φ}; this document's \texttt{γ\_j} stays the sigmoid steepness. The paper's Poisson block rate \texttt{λ} is transcribed through its own primitive \texttt{Δt\ ≜\ λ⁻¹}, because this document's \texttt{λ} is the hazard rate (Convention 4). The paper's composite parameter \texttt{η\ ≜\ γ√(2λ)/σ} is deliberately never named --- \texttt{η} is reserved project-wide for the pricing grid (Definition 8). Root-block-rate factor: \(\sqrt{2/\Delta t}\) throughout, no composite abbreviation. Fee \(= \phi\) (ceiling \(\bar\phi\), set \(\Theta_{\phi}\)); the quote function is \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\) (Definition 13), currently \(\varphi_{(1/2,\,0)}\) (Rule 5); bare \(\varphi\) is NOT used.
+
+\(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)). \(\sigma(i(t))\) enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\) --- always written in full tick-argument form (Convention 2; no \(\sigma_t\) shorthand). The \(t\)-indexed symbols \(\pi^{\text{linear}}(t)\), \(\pi^{\mathrm{LVR}}(t)\), \(\nu_t\) (and the unaliased traded volume \(\varphi_{(1/2,\,0)}(i(t); \Delta Q(t), 0)\)) are the discretization frame at the head of this section (FLAIR in utilization coordinates, MEV in money coordinates --- user ruling (i), 2026-08-04).
+
+\(\lambda_{\text{ARB}}\) (Definition 22) \(\subsetneq \lambda_{\text{MEV}}\) (Definition 23): SUMMAND, not sibling --- Definition 19's index set carries one, never both (double-count); \(\lambda_{\text{ARB}}\) absorbs the ``arb toxicity'' entry. The paper's \texttt{FEE} \(\subsetneq \lambda_{\text{FLAIR}}\) (noise flow excluded there). Standing hypotheses: the paper's Assumption 2 (symmetric driftless mispricing, two-sided fee; non-symmetric variant App. C); Proposition 9 additionally: regularity (13), (15).
+
+\textbf{Definition 21 (Arbitrage-trade probability) {[}M1{]}.} Per \href{../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf}{MMR} Thm 1 (§4.1, Assumption 2) --- the long-run fraction of blocks with a profitable arb; bonding-function-independent, only the fee enters:
+
+\[
+    \begin{aligned}
+        \mathbb{P}_{\Delta_{\text{ARB}}}\big(\phi(\sigma(i(t));t),\sigma(i(t)),\Delta t\big) \, \equiv \, \frac{\sigma(i(t))}{\sigma(i(t)) + \phi(\sigma(i(t));t)\sqrt{2/\Delta t}}
+    \end{aligned}
+\]
+
+Both slots are instantiated (user comments 2026-08-04): the \(\sigma\) slot at the realized tick volatility \(\sigma(i(t))\) (Convention 2), the \(\phi\) slot at the schedule value \(\phi(\sigma(i(t));t)\) (Definition 18). Lean's \texttt{ptrade} keeps both slots abstract --- Theorem 16's monotonicities and convexity are statements in the abstract \(\phi\) slot.
+
+\textbf{Theorem 16 (Properties of \(\mathbb{P}_{\Delta_{\text{ARB}}}\)) {[}M1{]}.} \(\mathbb{P}_{\Delta_{\text{ARB}}} \in (0,1]\), with \(\mathbb{P}_{\Delta_{\text{ARB}}} = 1 \iff \phi = 0\); strictly decreasing AND \textbf{strictly convex} in \(\phi\); increasing in \(\Delta t\) and in \(\sigma\); \(\to 0\) as \(\phi \to \infty\). (The strict convexity is what Theorem 19's strict half consumes.)
+
+\emph{Formalized} (\texttt{MevOptimization.lean}): \texttt{ptrade\_mem\_Ioc}; \texttt{ptrade\_eq\_one\_iff}; \texttt{ptrade\_strictAntiOn} (on \([0,\infty)\)); \texttt{ptrade\_monotoneOn\_dt}; \texttt{ptrade\_monotoneOn\_sigma}; \texttt{ptrade\_strictConvexOn} (+ \texttt{\_convexOn}); \texttt{ptrade\_tendsto\_atTop}.
+
+\textbf{Proposition 9 (The MMR split) {[}M2{]}.} At fast-block small-fee leading order (\(\approx\) inherited by everything below), the rebalancing loss splits by the trade probability. In this document's \(\pi\)-convention (payoff/value objects; user ruling 2026-08-04): the paper's \texttt{ARB} is the arb-extracted payoff \(\pi^{\text{ARB}}\), its \texttt{FEE} is the fee-income payoff \(\pi^{\phi}\) (fee glyph \(\phi\) --- DISTINCT from \(\pi^{\varphi}\), the trading-function glyph, per the standing \(\phi\)/\(\varphi\) split), and its \texttt{LVR} is the loss payoff \(\pi^{\mathrm{LVR}}\) (Definition 26):
+
+\[
+    \begin{aligned}
+        \pi^{\text{ARB}} \, \approx \, \pi^{\mathrm{LVR}}\cdot \mathbb{P}_{\Delta_{\text{ARB}}}, \qquad
+        \pi^{\phi} \, \approx \, \pi^{\mathrm{LVR}}\cdot(1-\mathbb{P}_{\Delta_{\text{ARB}}}), \qquad
+        \pi^{\text{ARB}}+\pi^{\phi} \, \approx \, \pi^{\mathrm{LVR}}
+    \end{aligned}
+\]
+
+\emph{Status:} asserted from \href{../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf}{MMR} Thm 3 + eq. (12), Thm 4 --- a Proposition, not a Theorem: the in-tree \texttt{arb\_add\_fee\_eq\_lvr} is a bridge identity only and is never to be cited as MMR Thm 3 formalized.
+
+\textbf{Definition 22 (The discrete \(\lambda_{\text{ARB}}\)) {[}M3{]}.} The ARB-channel hazard, on the SAME \(\Theta_{\phi}\) as FLAIR (\(\phi(\sigma) = \texttt{multiFee}(n,\gamma,\beta,\alpha,\bar\phi,u)\)): \[
+    \begin{aligned}
+        \lambda_{\text{ARB}}(t) \, \equiv \, \sum_{s<t} \mathbb{P}_{\Delta_{\text{ARB}}}\big(\phi(\sigma(i(s))),\sigma(i(s)),\Delta t\big)\,\frac{\pi^{\mathrm{LVR}}(s)}{\pi^{\text{linear}}(s)}
+    \end{aligned}
+\]
+
+The running-time argument mirrors \(\lambda_{\text{FLAIR}}(t)\) (Definition 20); \(s\) is the step dummy (user comment 2026-08-04).
+
+CPMM instantiation --- NOT a new definition: both tiers instantiate Definition 26's object on the CPMM member, per \href{../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf}{MMR} §7.1 (leading order) and Corollary 2 (exact). Two tiers: (i) the LEADING-ORDER per-step weight
+
+\[
+    \begin{aligned}
+        \pi^{\mathrm{LVR}}(t) \, = \, \frac{\sigma^2(i(t))}{8}\,\pi^{\varphi}(t)\,\Delta t
+    \end{aligned}
+\]
+
+(Definition 26's CPMM case --- \(\pi^{\mathrm{LVR}}\) is a RATE ⟹ \(\cdot\Delta t\) per block; summand \(\propto \Delta t^{3/2}\) = \href{../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf}{MMR} §7.1 per-block scaling; no guard needed); (ii) the EXACT Corollary-2 kernel, restated in this document's objects (\(\pi^{\text{ARB}}\), \(\pi^{\varphi}\), Convention 2 --- the paper's \texttt{ARB/V} form was stale notation):
+
+\[
+    \begin{aligned}
+        \big(\pi^{\text{ARB}}/\pi^{\varphi}\big)_{\text{exact}} \, = \, \frac{\big(\sigma^2(i(t))/8\big)\,\mathbb{P}_{\Delta_{\text{ARB}}}\,e^{\phi/2}}{1-\sigma^2(i(t))\,\Delta t/8}
+    \end{aligned}
+\]
+
+--- the ONLY object carrying the guard \(\sigma^2(i(t))\,\Delta t < 8\); reuse this symbol downstream. \emph{Formalized:} \(\lambda_{\text{ARB}} \geq 0\): \texttt{mevMulti\_nonneg}, CPMM weight \texttt{mevWeight\_cpmm\_pos} (\(\cdot\Delta t\) carried). Tier (ii) is \textbf{UNFORMALIZED/OPEN} (T19 omitted --- no carrier).
+
+\textbf{Theorem 17 (Identification of \(\Theta_{\lambda_{\text{ARB}}}\)) {[}M4{]}.} For \(\gamma_j > 0\): \(\lambda_{\text{ARB}}\) is decreasing in \(\bar\phi\), \(\alpha_j\), \(u\), increasing in \(\beta_j\), convex in \(\phi\); and there is \textbf{no affine analogue} of Theorem 15's \texttt{flairMulti\_affine} --- \(\mathbb{P}_{\Delta_{\text{ARB}}}\) is non-affine, level/shape do not separate, Theorem 18's bound is a SUM, not scalar × path weight. The identified block:
+
+\[
+    \begin{aligned}
+        \Theta_{\lambda_{\text{ARB}}} \, = \, \{\bar\phi,\, \alpha,\, u\}
+    \end{aligned}
+\]
+
+Batch clearing (Definition 23, \(\lambda_{\text{sandwich}} = 0\)) ⟹ \(\Theta_{\lambda_{\text{MEV}}} = \Theta_{\lambda_{\text{ARB}}} = \{\bar\phi, \alpha, u\}\).
+
+\emph{Formalized:} \texttt{mevMulti\_anti\_phibar}; \texttt{mevMulti\_anti\_alpha}; \texttt{mevMulti\_anti\_u}; \texttt{mevMulti\_mono\_beta}.
+
+\textbf{Theorem 18 (The infimum program on \(\lambda_{\text{ARB}}\)) {[}M5{]}.}
+
+\[
+    \begin{aligned}
+        \lambda_{\text{ARB}}(t) \, \geq \, \sum_{s<t} \mathbb{P}_{\Delta_{\text{ARB}}}\Big(\bar\phi_{\max} + u_{\max}\textstyle\sum_j \alpha_{\max,j},\, \sigma(i(s)),\, \Delta t\Big)\frac{\pi^{\mathrm{LVR}}(s)}{\pi^{\text{linear}}(s)}
+    \end{aligned}
+\]
+
+Three attainment statements (the RHS uses the fee CEILING --- unreachable at finite shape): (i) fixed shape ⟹ the level-block infimum is attained bang-bang at the corner TOP; (ii) the bound is approached only as \(\beta_j \to -\infty\), with a STRICT gap at every finite \(\beta\) (a saturation boundary, not a minimum); (iii) on a compact box a minimizer exists, with value strictly above the bound.
+
+\emph{Formalized:} \texttt{mevMulti\_ge\_corner}; \texttt{mevMulti\_corner\_attained\_levels}; \texttt{mevMulti\_saturation\_limit} {[}CORRECTED: Aristotle-added \(0 \leq \bar\phi_{\max} + u_{\max}\alpha_{\max}\) --- the \(\mathbb{P}_{\Delta_{\text{ARB}}}\) pole{]}; \texttt{mevMulti\_strict\_above\_saturation}; \texttt{mevMulti\_exists\_min\_compact} {[}CORRECTED: fees \(\geq 0\) required --- unbounded below on arbitrary compact \(\Theta\){]}; packaged \texttt{Theta\_lambdaMEV\_identification}, \texttt{mevMulti\_min\_gt\_corner} (at \(u = u_{\max}\)).
+
+\emph{Annotation {[}M6a{]} (internal reference --- deliberately not a numbered statement, user ruling 2026-08-04):} over \(\Theta_{\phi}\) unconstrained there is NO trade-off --- \(\max \lambda_{\text{FLAIR}}\) and \(\min \lambda_{\text{ARB}}\) sit at the SAME level corner, saturate along the SAME \(\beta_j \to -\infty\), robustly to every linear scalarization; \((\beta, \gamma_j)\) are NOT essential. Carriers: \texttt{joint\_corner\_degeneracy}, \texttt{joint\_beta\_degeneracy}, \texttt{joint\_scalarization\_degeneracy} (\texttt{MevJointProgram.lean}). The degeneracy-breaker must come from OUTSIDE \(\Theta_{\phi}\).
+
+\textbf{Theorem 19 (Flat-path optimality at constant \(\sigma\); the \(\sigma\)-varying comparison is REFUTED) {[}M6b{]}.} Over arbitrary nonnegative fee PATHS \(\{\phi_t\}\) --- NOT \(\Theta_{\phi}\) schedules --- with \(\nu_t\) per the frame, \(W = \sum_t \nu_t > 0\), the FLAIR fee budget \(B \equiv \sum_t \phi_t\nu_t\) (the fee income the path is constrained to deliver), aligned measure \(\pi^{\mathrm{LVR}}(t) \equiv \varphi_{(1/2,\,0)}(i(t); \Delta Q(t), 0)\), and constant volatility \(\sigma(i(t)) \equiv \sigma(i(t_0))\):
+
+\[
+    \begin{aligned}
+        \lambda_{\text{ARB}} \, \geq \, W\cdot \mathbb{P}_{\Delta_{\text{ARB}}}\!\left(\frac{B}{W},\,\sigma(i(t_0)),\,\Delta t\right),
+        \qquad \text{equality} \iff \phi_t\ \text{constant on}\ \{t : \nu_t > 0\}
+    \end{aligned}
+\]
+
+\(B/W\) is the \textbf{budget-mean fee} --- the flat fee delivering the same FLAIR income as the path (\texttt{flair\_budget\_pins\_mean\_fee}) --- the flat path minimizes \(\lambda_{\text{ARB}}\) at equal FLAIR income; non-constant on \(\{\nu_t > 0\}\) is strictly worse (the strict half consumes Theorem 16's strict convexity). The alignment \(\pi^{\mathrm{LVR}}(t) \equiv \varphi_{(1/2,\,0)}(i(t); \Delta Q(t), 0)\) is STRONG (traded volume ∝ LVR path block-by-block --- and CROSS-COORDINATE under ruling (i): a liquidity-units path proportional to a money-units path); without it Jensen is inapplicable and the conclusion can reverse. \textbf{REFUTED for \(\sigma\)-varying schedules} (\texttt{mev\_ge\_flat\_under\_flair\_budget\_false}): \(\exists\, \phi(\cdot) \geq 0\) with \(\lambda_{\text{ARB}}^{\text{flat}} > \lambda_{\text{ARB}}^{\phi}\) at equal FLAIR income --- witness \(T{=}2,\ \Delta t{=}2,\ B{=}2,\ \sigma=(1,10)\), fees \((2,0)\): \(\tfrac{31}{22} > \tfrac{4}{3}\) (\(\sigma\)-varying ⟹ different convex summands, Jensen inapplicable). \textbf{OPEN --- the \(\Theta_{\phi}\)-restricted case:} the witness is \(\sigma\)-DEcreasing while \(\Theta_{\phi}\)-reachable schedules are isotone (\texttt{multiFee\_monotone}); the refutation settles only the general claim.
+
+\emph{Formalized:} budget half \texttt{flair\_budget\_pins\_mean\_fee}, \texttt{flair\_budget\_mean}; path carriers \texttt{flairPath}/\allowbreak\texttt{mevPath} with bridges \texttt{flairPath\_schedule}, \texttt{mevPath\_schedule}, \texttt{flairPath\_sum}, \texttt{flairPath\_budget\_mean}; the constant-\(\sigma\) display at PATH level \texttt{mev\_ge\_flat\_under\_flair\_budget\_const\_sigma}, strict \texttt{mev\_gt\_flat\_under\_flair\_budget\_const\_sigma}; the refutation \texttt{mev\_ge\_flat\_under\_flair\_budget\_false}.
+
+\textbf{Definition 28 (Forward exchange function) {[}M7{]}.} \(\mathcal{S}(\Delta Q_M)\) is the output delivered against the money-leg input \(\Delta Q_M\) at constant trading function --- stated in Definition 12's signature (tick slot first, flow in the middle slot, \(L\) in the last slot; function signatures are never changed --- user ruling 2026-08-04); the input rides the money leg of the flow, the output \(\mathcal{S}(\Delta Q_M)\) is withdrawn from the asset leg (orientation per Definition 12, subject to the PR-ORIENT FLAG):
+
+\[
+    \begin{aligned}
+        \varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\Big(i(t);\, \big(\Delta Q_M,\, -\mathcal{S}(\Delta Q_M)\big),\, L\Big) \, = \, \varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\big(i(t);\, 0,\, L\big)
+    \end{aligned}
+\]
+
+\(\mathcal{S}^{-1}\) is the reverse exchange function (\href{../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf}{CFMM\_GEOMETRY}); the source's glyph \(G\) enters as \(\mathcal{S}\) (user ruling 2026-08-04 --- sandwich semantics; also avoids any confusion with the G0--G6 block labels).
+
+\textbf{Definition 27 (Sandwich hazard) {[}M7{]}.} Per \href{../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf}{MEV\_THEORY\_I} eqs. (4)--(6) --- the paper's slippage limit \(\eta\) enters as \(\mathrm{tol}_{\text{slip}}\) (\(\eta\) is the grid exponent, Definition 8; \(\mathrm{tol}\) is the tolerance family), its user trade \(\Delta\) is the money-leg flow \(\Delta Q_M\), and its \texttt{PNL} is the sandwich payoff \(\pi^{\text{sandwich}}\) (\(\pi\)-convention) . For a user trade \(\Delta Q_M\) with slippage floor \((1-\mathrm{tol}_{\text{slip}})\mathcal{S}(\Delta Q_M)\), the front-run \(\Delta Q_M^{\text{sand}}(\Delta Q_M, \mathrm{tol}_{\text{slip}})\) solves the slippage-binding equation, the back-run recovers the position, and the attacker's payoff is: \[
+    \begin{aligned}
+        \mathcal{S}(\Delta Q_M^{\text{sand}} + \Delta Q_M) - \mathcal{S}(\Delta Q_M^{\text{sand}}) \, &= \, (1-\mathrm{tol}_{\text{slip}})\,\mathcal{S}(\Delta Q_M) \\[4pt]
+        \Delta Q_M^{\text{sand}\prime} \, &= \, \Delta Q_M^{\text{sand}} + \Delta Q_M - \mathcal{S}^{-1}\big(\mathcal{S}(\Delta Q_M + \Delta Q_M^{\text{sand}}) - \mathcal{S}(\Delta Q_M^{\text{sand}})\big) \\[4pt]
+        \pi^{\text{sandwich}}(\Delta Q_M, \mathrm{tol}_{\text{slip}}) \, &= \, \Delta Q_M^{\text{sand}\prime} - \Delta Q_M^{\text{sand}} \, = \, \Delta Q_M - \mathcal{S}^{-1}\big(\mathcal{S}(\Delta Q_M + \Delta Q_M^{\text{sand}}) - \mathcal{S}(\Delta Q_M^{\text{sand}})\big), \\[4pt] &\qquad \pi^{\text{sandwich}}(\Delta Q_M, 0) = 0
+    \end{aligned}
+\]
+
+The \textbf{sandwich hazard} mirrors Definition 22's shape --- extracted sandwich value per unit capital:
+
+\[
+    \begin{aligned}
+        \lambda_{\text{sandwich}}(t) \, \equiv \, \sum_{s<t} \frac{\pi^{\text{sandwich}}\big(\Delta Q_M(s), \mathrm{tol}_{\text{slip}}\big)}{\pi^{\text{linear}}(s)} \, \geq \, 0
+    \end{aligned}
+\]
+
+Under uniform batch clearing there is no ordering to exploit: \(\Delta Q_M^{\text{sand}} = 0 \implies \pi^{\text{sandwich}} = 0 \implies \lambda_{\text{sandwich}} = 0\) (the Angstrom regime). \emph{Status:} \textbf{UNFORMALIZED} --- no Lean carrier; the paper's profit bound (linear in \(\mathrm{tol}_{\text{slip}}\), with a liquidity hurdle) is cited, not transcribed. \textbf{\(\mathrm{tol}_{\text{slip}}\) --- the conjecture is RESOLVED, split (\texttt{SandwichTol.lean}, CPMM member, all axiom-clean):}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{\(\Theta_{\phi}\) branch REFUTED} (\texttt{sandwich\_fee\_hurdle\_false}, 30 bp witness): the exact profitability frontier is \(0 < \pi^{\text{sandwich}}_{\phi} \iff \phi(1-\phi)\,\Delta Q_M^{\text{sand}} < (1-\phi)(Q_M^L+\Delta Q_M) - Q_M^L\) (\texttt{pnlFee\_pos\_iff}) --- \(\mathrm{tol}_{\text{slip}}\) does not enter. The fee's true relationship pins an admissible TRADE SIZE, not the tolerance: \(\Delta Q_M \leq \tfrac{\phi}{1-\phi}\,Q_M^L \implies \pi^{\text{sandwich}}_{\phi} \leq 0\) for every front-run (\texttt{sandwich\_fee\_hurdle\_corrected}); above it, NO positive \(\mathrm{tol}_{\text{slip}}\) closes the channel.
+\item
+  \textbf{\(\Theta_p\) branch PROVED as stated} (\texttt{sandwich\_grid\_cap}): within one spacing of the MARGINAL price (\(\texttt{priceRatio} \leq r\), \(r = \lambda^{\eta\Delta_i}\) --- the marginal-price step, the SQUARE of the grid step per Proposition 10), the binding tolerance is capped: \(\mathrm{tol}_{\text{slip}} \leq 1 - r^{-1}\).
+\end{itemize}
+
+So \(\mathrm{tol}_{\text{slip}}\) is functionally BOUNDED by \(\Theta_p\) and unconstrained by \(\Theta_{\phi}\); it remains a free tolerance of the \(\mathrm{tol}\) family inside the \(\Theta_p\) cap. Supporting: \texttt{pnl\_pos} (feeless sandwiches always profit), \texttt{slip\_strictMono} (binding bijection), closed forms \texttt{slip\_eq}/\allowbreak\texttt{pnl\_eq}/\allowbreak\texttt{priceRatio\_eq}/\allowbreak\texttt{pnlFee\_eq} (\(Q_X^L\) cancels in every payoff).
+
+\textbf{Definition 23 (Aggregate MEV hazard) {[}M7{]}.} The aggregate extraction hazard is the hazard-side sum
+
+\[
+    \begin{aligned}
+        \lambda_{\text{MEV}} \, \equiv \, \lambda_{\text{ARB}} \oplus \lambda_{\text{sandwich}}
+    \end{aligned}
+\]
+
+with \(\oplus\) per Definition 19 / Theorem 14 (\(\otimes_{\phi}\) acts on \([0,1]\), NEVER on unbounded hazards). \(\lambda_{\text{sandwich}} = 0 \implies \lambda_{\text{MEV}} = \lambda_{\text{ARB}}\) --- uniform clearing delivers this by construction, so Definition 22 through Theorem 19 transfer to \(\lambda_{\text{MEV}}\) verbatim in the Angstrom regime; the sandwich channel is a distinct object (\href{../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf}{MEV\_THEORY\_I}), unmodelled here. \textbf{Protocol choice (DECIDED 2026-08-04):} MEV is controlled by the TAX --- Rule 12's monoid entry (and the JIT liquidity tax when that section converts); auction-recycling mechanisms (ToB rebates) are NOT part of this protocol and are removed from this document --- their formalized-not-adopted carriers remain in-tree. One parametric lever OUTSIDE \(\Theta_{\phi}\):
+
+\textbf{Cadence} \(= \Delta t\): moves \(\lambda_{\text{ARB}}\) monotonically, absent from \(\lambda_{\text{FLAIR}}\) --- the non-degenerate lever outside \(\Theta_{\phi}\).
+
+\emph{Formalized} (\texttt{MevJointProgram.lean}): \texttt{mevTotal} (plain addition, with the \(\otimes_{\phi}\) correspondence as its own lemma \texttt{mevTotal\_probOr\_hazard}); \texttt{mevTotal\_eq\_arb\_of\_sandwich\_zero}; \texttt{mevTotal\_mevMulti\_eq\_of\_sandwich\_zero}; cadence \texttt{mev\_mono\_dt}. \emph{(The removed recycling mechanism's carriers --- the \texttt{mevNet} family, \texttt{taxFraction} --- remain in-tree as formalized-not-adopted.)}
+
+\textbf{Caveats {[}M8{]}} (annotations, no statement class): LEADING ORDER --- everything rests on eq. (12) fast-block small-fee asymptotics; only Definition 22(ii), under its guard, is exact. QUASI-STATIC --- \(\mathbb{P}_{\Delta_{\text{ARB}}}\) is steady-state, applied per step on a \(\sigma\)-varying path (this document's extension; valid iff parameters are slow vs mispricing mixing). NO DEMAND ELASTICITY --- the missing term is \href{../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf}{MMR} §7.3 eq. (27); corner solutions are objective properties, NOT equilibrium claims (the elasticity layer is \href{../refs/flair/CampbellBergaultMilionisNutzOptimalFees.pdf}{OPT\_FEES}). AGGREGATE SCOPE --- two channels only; unmodelled: noise backruns, multi-block censoring (lengthens \(\Delta t\)), JIT (taxed separately), gas (additive fee). CADENCE VALIDITY --- the \(\Delta t\) law is validated for block times \(\gtrsim 1\)s; sub-second needs jump-diffusion, out of scope. The Theorem 19 \(\sigma\)-varying/\(\Theta_{\phi}\)-restricted split stands as labelled there.
+
+\textbf{Rule 12 (\(\tau_{\text{MEV}}\) entry --- monoid channel; DECIDED 2026-07-31) {[}M9{]}.} The MEV tax enters the trader-paid fee through the proven Abelian monoid (Definition 17 / Theorem 14):
+
+\[
+    \begin{aligned}
+        \phi_{\text{total}} \, \leftarrow \, \phi_M \otimes_{\phi} \phi_X \otimes_{\phi} \tau_{\text{MEV}}, \qquad
+        \phi \otimes_{\phi} \tau_{\text{MEV}} \, \geq \, \phi \;\; (\tau_{\text{MEV}} \geq 0,\, \phi \leq 1)
+    \end{aligned}
+\]
+
+Alternates formalized, NOT adopted: (B) convex separation \(\phi = (1-\tau_{\text{MEV}})\phi + \tau_{\text{MEV}}\phi\) (incidence-targeting, intensity-neutral); (C) auction lump-sum ToB recycling (\texttt{taxFraction}, \texttt{mevNet} --- mechanism not part of this protocol; removed from the document 2026-08-04).
+
+\textbf{Theorem 20 (The discriminating algebra --- what the monoid entry buys and cannot buy) {[}M10{]}.}
+
+\[
+    \begin{aligned}
+        \text{(A) intensity:} \quad & \mathbb{P}_{\Delta_{\text{ARB}}}\big(\phi \otimes_{\phi} \tau_{\text{MEV}}\big) \, \leq \, \mathbb{P}_{\Delta_{\text{ARB}}}(\phi) \quad \text{(strict for } \tau_{\text{MEV}} > 0,\, \phi < 1\text{)} \\
+        \text{(A) no targeting:} \quad & (\phi_M \otimes_{\phi} \tau_{\text{MEV}}) \otimes_{\phi} \phi_X \, = \, \phi_M \otimes_{\phi} (\phi_X \otimes_{\phi} \tau_{\text{MEV}}) \quad \text{(aggregate leg-invariant)} \\
+        \text{(A) hazard-exact:} \quad & (1-e^{-\lambda_M}) \otimes_{\phi} (1-e^{-\lambda_X}) \otimes_{\phi} (1-e^{-\lambda_\tau}) \, = \, 1-e^{-(\lambda_M+\lambda_X+\lambda_\tau)} \\
+        \text{(A} \neq \text{B):} \quad & \exists\, \phi, \tau:\; (1-\tau)\big(\phi_M \otimes_{\phi} \phi_X\big) \, \neq \, \big((1-\tau)\phi_M\big) \otimes_{\phi} \big((1-\tau)\phi_X\big) \\
+        \text{(B breaks hazard):} \quad & \exists\, \tau, \lambda:\; 1-e^{-\tau\lambda} \, \neq \, \tau\,(1-e^{-\lambda})
+    \end{aligned}
+\]
+
+Consequences (proved): \(\lambda_\tau\) is a genuine \(\oplus\)-summand (hazard-exact); the intensity effect is STRICT ⟹ \(\lambda_{\text{ARB}} \downarrow\); NO leg-targeting (benign flow pays); NO compensation routed (donation ⟹ compose with (B)/(C), ORDER-SENSITIVE: tax-then-compose \(\neq\) compose-then-split); \(\phi \otimes_{\phi} \tau\) moves the level direction jointly (\(\lambda_{\text{FLAIR}} \uparrow\), \(\lambda_{\text{ARB}} \downarrow\)).
+
+\emph{Formalized} (\texttt{TauMevAlgebra}, 14/14 axiom-clean --- the carriers parked at Rule 7 now attached): (A) \texttt{tau\_monoid\_mem}; \texttt{tau\_monoid\_ge}/\allowbreak\texttt{\_gt}; \texttt{tau\_intensity\_effect(\_strict)}; \texttt{tau\_no\_targeting}; \texttt{tau\_hazard\_exact}; (B) \texttt{tau\_split\_budget}; \texttt{tau\_split\_intensity\_neutral}; \texttt{tau\_split\_flair\_linear}; \texttt{tau\_split\_mevNet\_bridge}; (D) \texttt{tau\_scaling\_not\_monoid\_hom}; \texttt{tau\_order\_matters}; \texttt{tau\_split\_breaks\_hazard}.
+\end{document}
