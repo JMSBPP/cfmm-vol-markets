@@ -390,7 +390,7 @@ identical to the inverse cumulative amount functions of [BUNNI_V2](../refs/bunni
 	\end{aligned}
 \]
 
-The flow is **exogenous** — trade legs arriving against the endowed per-strike amounts of Definition 9: the endowments are the state, the flow is the input. It is a **trading function** in the sense of [CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf), already in canonical form (nondecreasing, concave, homogeneous); its logarithm is the weighted logarithmic utility of [AMM_AXIOMS](../refs/cfmm/bichuch_feinstein-axioms_for_amms-2022.pdf) App. B.2 (their weight \(w \mapsto \chi_{X/M}\) — \(w\) collides with the order width \(w \in \mathcal{I}_{\text{ord}}\)), evaluated on per-strike **virtual reserves** in the sense of their App. B.3 (\(\alpha, \beta \mapsto \Delta Q_M^L(i_K), \Delta Q_X^L(i_K)\)). <!-- notation-map -->
+The flow is **exogenous** — trade legs arriving against the endowed per-strike amounts of Definition 9: the endowments are the state, the flow is the input. It is a **trading function** in the sense of [CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf), already in canonical form (nondecreasing, concave, homogeneous); its logarithm is the weighted logarithmic utility of [AMM_AXIOMS](../refs/cfmm/bichuch_feinstein-axioms_for_amms-2022.pdf) App. B.2 (their weight \(w \mapsto \chi_{X/M}\); the former collision with the order width is MOOT — the width is now \(\#_{\sigma} \in \mathcal{I}_{\text{ord}}\)), evaluated on per-strike **virtual reserves** in the sense of their App. B.3 (\(\alpha, \beta \mapsto \Delta Q_M^L(i_K), \Delta Q_X^L(i_K)\)). <!-- notation-map -->
 
 The display is one member of a parameterized class: the subscript tuple is \((\chi_{X/M}, \epsilon_{X/M})\), the second slot the substitution parameter, with \(\epsilon_{X/M} = 0\) the Cobb–Douglas member. Whether \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\) satisfies the Bichuch–Feinstein axioms is **not asserted here** — their B.2 alone satisfies all of them (Table 1), but its composition with B.3 virtual reserves is unverified (a later Proposition). **The domain of the flow is OPEN (PR-REGION):** the region over which \(\Delta Q\) ranges — signedness of the legs and the admissibility set — is not yet defined; no region symbol is minted pending that ruling.
 
@@ -630,7 +630,7 @@ ECONOMIC CONTENT OF THEOREM 1. The floor \(\bar\phi\) is unconditional — LPs t
 Every **Protocol Input** is a quantity supplied by the USER, per order, at interaction time — the third registry class. The classifying test across the three registries is *who sets it, and when*: a Protocol Constant (\(\mathcal{C}_p\)) is fixed by the design once and forever; a Protocol Parameter (\(\Theta_{\bullet}\)) is set by the protocol, uniformly for all users; a Protocol Input is chosen by the user for each interaction. Input entries carry a *Carrier* line — inputs are calldata, and the on-chain field is part of their definition. The input set of the **vol order** (retiring the former \(\Theta_{\text{ord}}\) symbol: inputs are not parameters, so the index letter changes):
 
 \[
-	\mathcal{I}_{\text{ord}} \,=\, \{\sigma^2_K,\, w,\, s\}
+	\mathcal{I}_{\text{ord}} \,=\, \{\sigma^2_K,\, \#_{\sigma},\, s_{\upsilon}\}
 \]
 
 (strike, width, skew) pins only the scale-free leg shape \(\ell\,(\xi, \iota; i_K)\).
@@ -641,7 +641,7 @@ Every **Protocol Input** is a quantity supplied by the USER, per order, at inter
 	\mathcal{I}_{\text{ord}} \,\leftarrow\, \mathcal{I}_{\text{ord}} \,\cup\, \{\Delta Q_v^{\star}\}
 \]
 
-**Protocol Input (\(\mathcal{I}_{\text{ord}} = \{\sigma^2_K, w, s, \Delta Q_v^{\star}\}\) — the vol order).**
+**Protocol Input (\(\mathcal{I}_{\text{ord}} = \{\sigma^2_K, \#_{\sigma}, s_{\upsilon}, \Delta Q_v^{\star}\}\) — the vol order).**
 
 - \(\sigma^2_K\) — the **strike variance**.
   *Domain:* a variance level (Convention 2: \(\sigma^2(i_K) \equiv \sigma^2_K\)); on-chain packing per `VolOrderValidationLib`.
@@ -649,15 +649,15 @@ Every **Protocol Input** is a quantity supplied by the USER, per order, at inter
   *Economic meaning:* the variance level above which the option pays.
   *Carrier:* `create_order(strike, …)`.
 
-- \(w\) — the **width**.
+- \(\#_{\sigma}\) — the **width** (symbol per user ruling 2026-08-04; formerly \(w\), retired — the [AMM_AXIOMS](../refs/cfmm/bichuch_feinstein-axioms_for_amms-2022.pdf) \(w\)-collision noted at Definition 12 is thereby MOOT). <!-- notation-map -->
   *Domain:* the packed order field (validation predicate in `VolOrderValidationLib`).
-  *Purpose:* with \(s\), pins the scale-free leg shape \(\ell(\xi,\iota;i_K)\).
+  *Purpose:* with \(s_{\upsilon}\), pins the scale-free leg shape \(\ell(\xi,\iota;i_K)\).
   *Economic meaning:* the strike-band width of the replication ladder.
-  *Carrier:* `create_order(…, width, …)`. (This \(w\) is the collision target of the [AMM_AXIOMS](../refs/cfmm/bichuch_feinstein-axioms_for_amms-2022.pdf) remap — Definition 12.)
+  *Carrier:* `create_order(…, width, …)`.
 
-- \(s\) — the **skew**.
+- \(s_{\upsilon}\) — the **skew** (symbol per user ruling 2026-08-04; formerly bare \(s\), retired — it collided with the fee-schedule steepness \(s_f\)). <!-- notation-map -->
   *Domain:* the packed order field (validation predicate in `VolOrderValidationLib`).
-  *Purpose:* with \(w\), pins the leg shape.
+  *Purpose:* with \(\#_{\sigma}\), pins the leg shape.
   *Economic meaning:* the asymmetry of the ladder around the strike.
   *Carrier:* `create_order(…, skew, …)`.
 
