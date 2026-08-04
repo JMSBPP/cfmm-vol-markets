@@ -1103,13 +1103,22 @@ strictly increasing in \(\eta\); a bijection \((0,\infty) \to (0,1)\); \(\to 0\)
 
 \(\varsigma_{X/M}(\eta,\Delta_i)\) is a MONOTONE PROXY for the anchor's `k`, not a restatement: it carries NO per-tick liquidity term (same \(\varsigma\), different liquidity ⟹ different slippage), so placing it in the `k` slot is a MODELLING step — E8(1). WARNING: \(\eta = 1\) is the sqrt-price grid (`priceEta_one`), NOT \(\varsigma_{X/M} = 1\); the range is the OPEN \((0,1)\) — the anchor's corners are unreachable, and interiority in \(\eta\) is INHERITED from \(\varsigma_{X/M}^{\star} \in (0,1)\), not evidence supplied by the reparametrization.
 
-> note: arbLoss is a payoff \pi^{- arb} and if a ratio is \pi^{-arb} / whatever denominator that makes it a ratio
-## **E2. [ADDITION] The arbitrage-loss ratio** (Lemma 3(1))
+**Definition 29 (Branch points) [E2, E3].** The premia generate the **branch points** (subscripts tag the generating premium — S = shock, I = investor; NOT the skew \(s_{\upsilon}\)):
 
 \[
 	\begin{aligned}
-		\varsigma_{X/M,S} \, &= \, 1 - \sqrt{\tfrac{1+\phi}{1+\varrho_S}}, \qquad s \, := \, \sqrt{\tfrac{1+\phi}{1+\varrho_S}} \, = \, 1 - \varsigma_{X/M,S} \\[2pt]
-		\mathrm{arbLoss}(\varsigma_{X/M}) \, &= \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\cdot
+		\varsigma_{X/M,S} \, \equiv \, 1 - \sqrt{\tfrac{1+\phi}{1+\varrho_S}}, \qquad
+		\varsigma_{X/M,I} \, \equiv \, 1 - \sqrt{\tfrac{1+\phi}{1+\varrho_I}}
+	\end{aligned}
+\]
+
+Anchor payoffs are CJ-tagged (Convention 6 reserves bare \(\pi^{\bullet}\) for endogenous objects): \(\pi^{-\text{arb}}_{\text{CJ}}\) the arb-loss payoff, \(\pi^{\text{trader}}_{\text{CJ}}\) the investor-surplus payoff, \(\pi^{\text{dep}}_{\text{CJ}}\) the initial-deposit value — ratios are written as explicit quotients (user ruling 2026-08-04). <!-- notation-map -->
+
+**Theorem 22 (Arbitrage-loss ratio) [E2]** (anchor Lemma 3(1)):
+
+\[
+	\begin{aligned}
+		\frac{\pi^{-\text{arb}}_{\text{CJ}}}{\pi^{\text{dep}}_{\text{CJ}}}(\varsigma_{X/M}) \, &= \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\cdot
 		\begin{cases}
 			(1+\varrho_S) \, - \, \dfrac{1+\phi}{1-\varsigma_{X/M}}, & \varsigma_{X/M} \in [0,\ \varsigma_{X/M,S}] \quad \text{(A.38, corner)} \\[8pt]
 			(1+\varrho_S)\,\dfrac{\varsigma_{X/M,S}^{2}}{\varsigma_{X/M}}, & \varsigma_{X/M} \in [\varsigma_{X/M,S},\ 1] \quad \text{(A.36, interior)}
@@ -1117,18 +1126,15 @@ strictly increasing in \(\eta\); a bijection \((0,\infty) \to (0,1)\); \(\to 0\)
 	\end{aligned}
 \]
 
-GUARD (restated inline, not inherited from E0): \(0 \leq \phi < \varrho_S\), hence \(\varsigma_{X/M,S} > 0\); the interior branch is stated on \([\varsigma_{X/M,S},1] \subset (0,1]\) and never touches the \(1/\varsigma_{X/M}\) pole. Lean domain: `Set.Ioc 0 1`, glued at `Set.Icc 0 kphiS` and `Set.Icc kphiS 1`, with `hkphiS : 0 < kphiS` an explicit hypothesis.
+GUARD: \(0 \leq \phi < \varrho_S\) (Lemma 1's arbitrage-occurrence condition), hence \(\varsigma_{X/M,S} > 0\); the interior branch never touches the \(1/\varsigma_{X/M}\) pole (Lean domain `Set.Ioc 0 1`, glued halves, `hkphiS : 0 < kphiS` explicit). Branches agree at \(\varsigma_{X/M,S}\) — common value \(\tfrac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}(1+\varrho_S)\,\varsigma_{X/M,S}\) — and the glued function is **strictly decreasing** on \((0,1]\) (strict by \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} > 0\), Convention 6).
 
-Branch agreement at \(\varsigma_{X/M,S}\): both branches equal \(\tfrac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}(1+\varrho_S)(1-s)\), so the glued function is continuous. **Strictly decreasing in \(\varsigma_{X/M}\)** on \((0,1]\) (each branch is: \((1+\phi)/(1-\varsigma_{X/M})\) increases, \(1/\varsigma_{X/M}\) decreases) — strictly, because \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} > 0\) by E0.
+*Formalized* (`EtaCurvature`): `arbLossRatio_branch_agree`; `arbLossRatio_strictAntiOn`; `arbLossRatio_pos`; `kphiS_mem_Ioo`; `kphiS_eq_zero_of_eq`.
 
-`\varrho_S > \phi` is Lemma 1's condition that an arbitrage occurs at all; Lemma 1 is the one-token shock result and is NOT the curvature lemma.
-> note: Investor surplus is a payoff \pi^{trader} same ratio condition as above
-## **E3. [ADDITION] The investors' surplus ratio** (Lemma 3(2))
+**Theorem 23 (Investor-surplus ratio) [E3]** (anchor Lemma 3(2)):
 
 \[
 	\begin{aligned}
-		\varsigma_{X/M,I} \, &= \, 1 - \sqrt{\tfrac{1+\phi}{1+\varrho_I}} \\[2pt]
-		\mathrm{surplus}(\varsigma_{X/M}) \, &= \, \frac{1}{2}\cdot
+		\frac{\pi^{\text{trader}}_{\text{CJ}}}{\pi^{\text{dep}}_{\text{CJ}}}(\varsigma_{X/M}) \, &= \, \frac{1}{2}\cdot
 		\begin{cases}
 			(1+\varrho_I) \, - \, \dfrac{1+\phi}{1-\varsigma_{X/M}}, & \varsigma_{X/M} \in [0,\ \varsigma_{X/M,I}] \quad \text{(A.43, corner)} \\[8pt]
 			(1+\varrho_I)\,\dfrac{\varsigma_{X/M,I}^{2}}{\varsigma_{X/M}}, & \varsigma_{X/M} \in [\varsigma_{X/M,I},\ 1] \quad \text{(A.42, interior)}
@@ -1136,13 +1142,21 @@ Branch agreement at \(\varsigma_{X/M,S}\): both branches equal \(\tfrac{\mathbb{
 	\end{aligned}
 \]
 
-GUARD (restated inline): \(0 \leq \phi < \varrho_I\), hence \(\varsigma_{X/M,I} > 0\); the interior branch is stated on \([\varsigma_{X/M,I},1] \subset (0,1]\). Lean domain `Set.Ioc 0 1` with `hkphiI : 0 < kphiI` explicit.
+GUARD: \(0 \leq \phi < \varrho_I\) (Lemma 2's investor-trades condition), hence \(\varsigma_{X/M,I} > 0\) (`hkphiI : 0 < kphiI`). Same continuity at \(\varsigma_{X/M,I}\); **strictly decreasing** on \((0,1]\). SCALE + CONDITIONING (one line): this is the PER-INVESTOR ratio — Lemma 3(2)'s object is \(2\times\) it, weighted \(\mathbb{P}_{L_{\text{INV}}}\), while Theorem 22 carries \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}\) — additive combinations must supply the missing \(\mathbb{P}_{L_{\text{INV}}}\).
 
-Same shape, same continuity at \(\varsigma_{X/M,I}\), **strictly decreasing in \(\varsigma_{X/M}\)** on \((0,1]\).
+*Formalized* (`EtaCurvature`): `surplusRatio_strictAntiOn`.
 
-SCALE: \(\mathrm{surplus}\) is the PER-INVESTOR ratio. Lemma 3(2)'s object is the sum over both investor types, and the anchor shows the two type-ratios are equal, so Lemma 3(2)'s quantity is \(2\,\mathrm{surplus}\). The welfare weight attached to it is \(\mathbb{P}_{L_{\text{INV}}}\), whereas E2's \(\mathrm{arbLoss}\) already carries \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}\) — the two blocks are NOT conditioned alike, and anything that combines them additively must supply the missing \(\mathbb{P}_{L_{\text{INV}}}\). Monotonicity is unaffected by either factor.
+**Theorem 24 (Premium ordering, geometrized) [E3].**
 
-`\varrho_I > \phi` is Lemma 2's condition for the investor to trade. And \(\varrho_S \leq \varrho_I \iff \varsigma_{X/M,S} \leq \varsigma_{X/M,I}\) — the geometrized form of the premium ordering that Proposition 5's PROOF consumes (E0 records that the Proposition DISPLAYS the strict form), which it uses ONLY through the ordering of the two branch points.
+\[
+	\begin{aligned}
+		\varrho_S \, \leq \, \varrho_I \quad \Longleftrightarrow \quad \varsigma_{X/M,S} \, \leq \, \varsigma_{X/M,I}
+	\end{aligned}
+\]
+
+The anchor's Proposition 5 consumes the premia ONLY through this ordering of the branch points.
+
+*Formalized* (`EtaCurvature`): `kphiS_le_kphiI_iff`.
 
 ## **E4. [ADDITION — THE INTERIOR OPTIMUM]** (Proposition 5)
 
