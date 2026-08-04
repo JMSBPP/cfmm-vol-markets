@@ -954,7 +954,7 @@ Batch clearing (Definition 23, \(\lambda_{\text{sandwich}} = 0\)) ⟹ \(\Theta_{
 
 \[
 	\begin{aligned}
-		\lambda_{\text{ARB}} \, \geq \, \sum_{t<T} \mathbb{P}_{\Delta_{\text{ARB}}}\Big(\bar\phi_{\max} + u_{\max}\textstyle\sum_j \alpha_{\max,j},\, \sigma(i(t)),\, \Delta t\Big)\frac{\pi^{\mathrm{LVR}}(t)}{\pi^{\text{linear}}(t)}
+		\lambda_{\text{ARB}}(t) \, \geq \, \sum_{s<t} \mathbb{P}_{\Delta_{\text{ARB}}}\Big(\bar\phi_{\max} + u_{\max}\textstyle\sum_j \alpha_{\max,j},\, \sigma(i(s)),\, \Delta t\Big)\frac{\pi^{\mathrm{LVR}}(s)}{\pi^{\text{linear}}(s)}
 	\end{aligned}
 \]
 
