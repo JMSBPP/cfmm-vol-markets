@@ -977,23 +977,23 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 
 *Formalized:* budget half `flair_budget_pins_mean_fee`, `flair_budget_mean`; path carriers `flairPath`/`mevPath` with bridges `flairPath_schedule`, `mevPath_schedule`, `flairPath_sum`, `flairPath_budget_mean`; the constant-\(\sigma\) display at PATH level `mev_ge_flat_under_flair_budget_const_sigma`, strict `mev_gt_flat_under_flair_budget_const_sigma`; the refutation `mev_ge_flat_under_flair_budget_false`.
 
-**Definition 28 (Forward exchange function) [M7].** \(G(\Delta Q_M)\) is the output delivered against the money-leg input \(\Delta Q_M\) at constant trading function — stated in Definition 12's signature (tick slot first, flow in the middle slot, \(L\) in the last slot; function signatures are never changed — user ruling 2026-08-04); the input rides the money leg of the flow, the output \(G(\Delta Q_M)\) is withdrawn from the asset leg (orientation per Definition 12, subject to the PR-ORIENT FLAG):
+**Definition 28 (Forward exchange function) [M7].** \(\mathcal{S}(\Delta Q_M)\) is the output delivered against the money-leg input \(\Delta Q_M\) at constant trading function — stated in Definition 12's signature (tick slot first, flow in the middle slot, \(L\) in the last slot; function signatures are never changed — user ruling 2026-08-04); the input rides the money leg of the flow, the output \(\mathcal{S}(\Delta Q_M)\) is withdrawn from the asset leg (orientation per Definition 12, subject to the PR-ORIENT FLAG):
 
 \[
 	\begin{aligned}
-		\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\Big(i(t);\, \big(\Delta Q_M,\, -G(\Delta Q_M)\big),\, L\Big) \, = \, \varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\big(i(t);\, 0,\, L\big)
+		\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\Big(i(t);\, \big(\Delta Q_M,\, -\mathcal{S}(\Delta Q_M)\big),\, L\Big) \, = \, \varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\big(i(t);\, 0,\, L\big)
 	\end{aligned}
 \]
 
-\(G^{-1}\) is the reverse exchange function ([CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf); the glyph \(G\) is the source's — the G0–G6 block labels are section tags, not symbols). <!-- notation-map -->
+\(\mathcal{S}^{-1}\) is the reverse exchange function ([CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf)); the source's glyph \(G\) enters as \(\mathcal{S}\) (user ruling 2026-08-04 — sandwich semantics; also avoids any confusion with the G0–G6 block labels). <!-- notation-map -->
 
-**Definition 27 (Sandwich hazard) [M7].** Per [MEV_THEORY_I](../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf) eqs. (4)–(6) — the paper's slippage limit \(\eta\) enters as \(\mathrm{tol}_{\text{slip}}\) (\(\eta\) is the grid exponent, Definition 8; \(\mathrm{tol}\) is the tolerance family), its user trade \(\Delta\) is the money-leg flow \(\Delta Q_M\), and its `PNL` is the sandwich payoff \(\pi^{\text{sandwich}}\) (\(\pi\)-convention) <!-- notation-map -->. For a user trade \(\Delta Q_M\) with slippage floor \((1-\mathrm{tol}_{\text{slip}})G(\Delta Q_M)\), the front-run \(\Delta_{\text{sand}}(\Delta Q_M, \mathrm{tol}_{\text{slip}})\) solves the slippage-binding equation, the back-run recovers the position, and the attacker's payoff is:
+**Definition 27 (Sandwich hazard) [M7].** Per [MEV_THEORY_I](../refs/mev/KulkarniDiamandisChitraTheoryMEV1.pdf) eqs. (4)–(6) — the paper's slippage limit \(\eta\) enters as \(\mathrm{tol}_{\text{slip}}\) (\(\eta\) is the grid exponent, Definition 8; \(\mathrm{tol}\) is the tolerance family), its user trade \(\Delta\) is the money-leg flow \(\Delta Q_M\), and its `PNL` is the sandwich payoff \(\pi^{\text{sandwich}}\) (\(\pi\)-convention) <!-- notation-map -->. For a user trade \(\Delta Q_M\) with slippage floor \((1-\mathrm{tol}_{\text{slip}})\mathcal{S}(\Delta Q_M)\), the front-run \(\Delta_{\text{sand}}(\Delta Q_M, \mathrm{tol}_{\text{slip}})\) solves the slippage-binding equation, the back-run recovers the position, and the attacker's payoff is:
 
 \[
 	\begin{aligned}
-		G(\Delta_{\text{sand}} + \Delta Q_M) - G(\Delta_{\text{sand}}) \, &= \, (1-\mathrm{tol}_{\text{slip}})\,G(\Delta Q_M) \\[4pt]
-		\Delta_{\text{sand}}' \, &= \, \Delta_{\text{sand}} + \Delta Q_M - G^{-1}\big(G(\Delta Q_M + \Delta_{\text{sand}}) - G(\Delta_{\text{sand}})\big) \\[4pt]
-		\pi^{\text{sandwich}}(\Delta Q_M, \mathrm{tol}_{\text{slip}}) \, &= \, \Delta_{\text{sand}}' - \Delta_{\text{sand}} \, = \, \Delta Q_M - G^{-1}\big(G(\Delta Q_M + \Delta_{\text{sand}}) - G(\Delta_{\text{sand}})\big), \qquad \pi^{\text{sandwich}}(\Delta Q_M, 0) = 0
+		\mathcal{S}(\Delta_{\text{sand}} + \Delta Q_M) - \mathcal{S}(\Delta_{\text{sand}}) \, &= \, (1-\mathrm{tol}_{\text{slip}})\,\mathcal{S}(\Delta Q_M) \\[4pt]
+		\Delta_{\text{sand}}' \, &= \, \Delta_{\text{sand}} + \Delta Q_M - \mathcal{S}^{-1}\big(\mathcal{S}(\Delta Q_M + \Delta_{\text{sand}}) - \mathcal{S}(\Delta_{\text{sand}})\big) \\[4pt]
+		\pi^{\text{sandwich}}(\Delta Q_M, \mathrm{tol}_{\text{slip}}) \, &= \, \Delta_{\text{sand}}' - \Delta_{\text{sand}} \, = \, \Delta Q_M - \mathcal{S}^{-1}\big(\mathcal{S}(\Delta Q_M + \Delta_{\text{sand}}) - \mathcal{S}(\Delta_{\text{sand}})\big), \qquad \pi^{\text{sandwich}}(\Delta Q_M, 0) = 0
 	\end{aligned}
 \]
 
