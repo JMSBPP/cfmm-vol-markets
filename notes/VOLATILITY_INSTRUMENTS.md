@@ -589,7 +589,7 @@ This is the M9 **DECIDED** entry (see the M9–M10 blocks below; their \(\tau_{\
 
 The gate's argument is the **utilization ratio** — the trading function evaluated on flow alone over its evaluation on the endowments alone (Theorem 1's \(u\) is the gate's value). The parameters \(\Theta_{\phi} = \{\gamma, \bar\phi, \beta, \alpha\}\) are Protocol Parameters (see **PROTOCOL_PARAMETERS (\(\Theta_{\phi}\))**); the R-suffixed trio \((\alpha_R, \beta_R, \gamma_R)\) enters as members of the \(\alpha/\beta/\gamma\) families. **Signature note:** the \(t\) argument extends Definition 12's \((i_K; \Delta Q, L)\) signature — the time dependence enters through the flow and endowments at \(t\); flagged, not silently repaired.
 
-**Theorem 1 (Fee Envelope).** Writing \(u = \alpha_R\Big/\Big(1+\exp\Big(\gamma_R\Big(\beta_R - \frac{\varphi_{1/2,\,0}(i_K;\Delta Q,0;t)}{\varphi_{1/2,\,0}(i_K;0,L;t)}\Big)\Big)\Big)\):
+**Theorem 1 (Fee Envelope).** Writing \(u = \alpha_R\Big/\Big(1+\exp\Big(\gamma_R\Big(\beta_R - \frac{\varphi_{(1/2,\,0)}(i_K;\Delta Q,0;t)}{\varphi_{(1/2,\,0)}(i_K;0,L;t)}\Big)\Big)\Big)\) — the utilization gate of Definition 18:
 \[
 	\begin{aligned}
 		0 \leq u \leq \alpha_R, \qquad
