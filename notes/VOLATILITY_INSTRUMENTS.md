@@ -739,9 +739,9 @@ The arrow is the Rule (the enacted law); the second equality is the factorizatio
 
 > NOTE (cascade, recorded): \(\Delta Q_v^{\star}\) on-chain lands on the PAIR \((\text{PanopticTokenId},\, \text{positionSize})\) — the tokenId is scale-free (strikes, widths, per-leg optionRatio); positionSize is an SFPM mint argument. The ratio-vs-size split of \(\ell(\xi^{\star},\iota;i_K)\) across the pair is the task-#14 sizing decision. Spec: `.planning/vol-order-v2-target-vega-SPEC.md`.
 
-## HAZARD RATES
+# CONTROL_OPERATORS
 
-These are the instrument to map bevhavior objectives with fee parameters. Mathematically, this is:
+These are the instruments mapping **behavior objectives** to **protocol parameters** — all of \(\Theta_{\bullet}\), not only the fee schedule \(\Theta_{\phi}\). Mathematically:
 
 \[
 	\begin{aligned}
