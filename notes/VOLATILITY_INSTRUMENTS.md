@@ -837,6 +837,25 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 
 **Coordinates (user ruling (i), 2026-08-04):** FLAIR runs in UTILIZATION coordinates (\(\nu_t\)); MEV runs in MONEY coordinates (\(\pi^{\mathrm{LVR}}(t)/\pi^{\text{linear}}(t)\)). No other \(t\)-indexed symbols are introduced in this section.
 
+**Definition 30 (HODL value).** The inception basket marked at the current price — the tangent line to \(\pi^{\varphi}\) at \(p_{\varphi}(t_0)\):
+
+\[
+	\begin{aligned}
+		\pi^{\text{HODL}}(t) \, \equiv \, p_{(\eta,\Delta_i)}(i(t))\,Q_X^L(t_0) \, + \, Q_M^L(t_0)
+	\end{aligned}
+\]
+
+\(\pi^{\text{HODL}}(t_0) = \pi^{\text{linear}}(t_0)\), and thereafter \(\pi^{\text{HODL}}(t) \geq \pi^{\varphi}(p_{\varphi}(t)) = \pi^{\text{linear}}(t)\) (tangent above the concave curve) — the gap's expected rate is \(\pi^{\mathrm{LVR}}\) (Definition 26).
+
+**Definition 31 (Returns).** Gross returns in the form of [DUFFIE] (D. Duffie, *Dynamic Asset Pricing Theory*, 3rd ed., Princeton UP, 2001 — the book is copyrighted and not vendored; author-hosted companions: [survey](../refs/duffie-intertemporal_asset_pricing_survey.pdf), [revisions](../refs/duffie-dapt-revisions-2002.pdf)): payoff over INCEPTION capital — the denominator must be \(t_0\) (a contemporaneous denominator makes \(R^{\varphi} \equiv 1\) by tangency):
+
+\[
+	\begin{aligned}
+		R^{\varphi}(t) \, \equiv \, \frac{\pi^{\varphi}(p_{\varphi}(t))}{\pi^{\text{linear}}(t_0)}, \qquad
+		R^{\text{HODL}}(t) \, \equiv \, \frac{\pi^{\text{HODL}}(t)}{\pi^{\text{linear}}(t_0)}
+	\end{aligned}
+\]
+
 ### FLAIR
 
 **Definition 20 (FLAIR).** The **LP-competition hazard** \(\lambda_{\text{FLAIR}}\) is the time-integrated fee yield per unit of pooled capital — the FLAIR metric of [FLAIR](../refs/flair/MilionisWanAdamsFLAIR.pdf), instantiated on this document's objects:
@@ -1064,7 +1083,7 @@ ANCHOR: [CJ](../refs/mev/CapponiJiaAdoptionDEX.pdf) §5.1 — Lemma 3, Propositi
 - \(\varrho_S \, \equiv \, \big|\Delta p_{(\eta,\Delta_i)}/p_{(\eta,\Delta_i)}\big|\) per period — the price shock (Lean `premShock`; one-spacing move: \(\lambda^{\eta\Delta_i} - 1\) in marginal price);
 - \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} \, > \, 0\) — per-period arbitrage-occurrence probability (the `CJ` tag is load-bearing: NEVER identified with MMR's \(\mathbb{P}_{\Delta_{\text{ARB}}}\), E8(3));
 - \(\mathbb{P}_{L_{\text{INV}}} \, > \, 0\) — investor-arrival probability;
-- \(\varpi_H \, \geq \, 0\) — hold-benchmark coefficient, \(\mathbb{E}[R_A] = \varpi_H\,\varrho_S\);
+- \(\varpi_H \, \geq \, 0\) — hold-benchmark coefficient, \(\mathbb{E}[R^{\text{HODL}}] = \varpi_H\,\varrho_S\) (\(R^{\text{HODL}}\): Definition 31; the anchor's \(R_A\));
 - \(\varpi_D \, \geq \, 0\) — the constant subtracted in the LP excess return.
 
 The paper's curvature-indexed results are RE-INDEXED by \(\varsigma_{X/M}\) — a SHARE object (Theorem 9); symbol substitution, NOT an object identification (interior embedding REFUTED, `canon_Fcap_not_CES`). Collision glyphs `κ`, `χ`, `θ`, `τ`, `ν` are not used in this section; remaining paper symbols are renamed at first use. <!-- notation-map -->
@@ -1158,32 +1177,28 @@ The anchor's Proposition 5 consumes the premia ONLY through this ordering of the
 
 *Formalized* (`EtaCurvature`): `kphiS_le_kphiI_iff`.
 
-## **E4. [ADDITION — THE INTERIOR OPTIMUM]** (Proposition 5)
-
-The LP one-period excess return \(D(\varsigma_{X/M}) = \mathbb{E}[R_D] - \mathbb{E}[R_A]\), equations (A.50)–(A.52):
+**Assumption 1 (LP excess return — behavioral) [E4]** (anchor (A.50)–(A.52)). *The class ASSUMPTION is minted here (user ruling 2026-08-04): behavioral structure imported from an anchor model — assigned, not proved; \(\leftarrow\) syntax; per-class counter.* The anchor's returns \(R_D, R_A\) enter as \(R^{\varphi}, R^{\text{HODL}}\) (Definitions 30–31); its Proposition-5 coefficients \(\tau_1, \tau_2, \tau_3\) enter as \(\varpi_1, \varpi_2, \varpi_3\) (\(\tau\) is TAKEN by \(\tau_{\text{MEV}}\); joins the anchor-coefficient family \(\varpi_H, \varpi_D\); Lean `cOne`/`cTwo`/`cThree` unchanged). <!-- notation-map -->
 
 \[
 	\begin{aligned}
-		D(\varsigma_{X/M}) \, &= \,
+		\mathbb{E}[R^{\varphi}] - \mathbb{E}[R^{\text{HODL}}]\,(\varsigma_{X/M}) \, &\leftarrow \,
 		\begin{cases}
-			c_3(\varsigma_{X/M}) \, - \, \varpi_D\,\varrho_S, & \varsigma_{X/M} \in [0,\ \varsigma_{X/M,S}] \quad \text{(A.52)} \\
-			c_2(\varsigma_{X/M}) \, - \, \varpi_D\,\varrho_S, & \varsigma_{X/M} \in [\varsigma_{X/M,S},\ \varsigma_{X/M,I}] \quad \text{(A.51)} \\
-			\dfrac{c_1}{\varsigma_{X/M}} \, - \, \varpi_D\,\varrho_S, & \varsigma_{X/M} \in [\varsigma_{X/M,I},\ 1] \quad \text{(A.50)}
+			\varpi_3(\varsigma_{X/M}) \, - \, \varpi_D\,\varrho_S, & \varsigma_{X/M} \in [0,\ \varsigma_{X/M,S}] \quad \text{(A.52)} \\
+			\varpi_2(\varsigma_{X/M}) \, - \, \varpi_D\,\varrho_S, & \varsigma_{X/M} \in [\varsigma_{X/M,S},\ \varsigma_{X/M,I}] \quad \text{(A.51)} \\
+			\dfrac{\varpi_1}{\varsigma_{X/M}} \, - \, \varpi_D\,\varrho_S, & \varsigma_{X/M} \in [\varsigma_{X/M,I},\ 1] \quad \text{(A.50)}
 		\end{cases} \\[6pt]
-		c_3(\varsigma_{X/M}) \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(\frac{1+\phi}{1-\varsigma_{X/M}} - 1\Big)
+		\varpi_3(\varsigma_{X/M}) \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(\frac{1+\phi}{1-\varsigma_{X/M}} - 1\Big)
 		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\Big((1+\varrho_S) - \frac{1+\phi}{1-\varsigma_{X/M}}\Big) \\
-		c_2(\varsigma_{X/M}) \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(\frac{1+\phi}{1-\varsigma_{X/M}} - 1\Big)
+		\varpi_2(\varsigma_{X/M}) \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(\frac{1+\phi}{1-\varsigma_{X/M}} - 1\Big)
 		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\,\frac{(1+\varrho_S)\,\varsigma_{X/M,S}^{2}}{\varsigma_{X/M}} \\
-		c_1 \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(1+\phi-\sqrt{\tfrac{1+\phi}{1+\varrho_I}}\Big)\Big(\sqrt{\tfrac{1+\varrho_I}{1+\phi}}-1\Big)
+		\varpi_1 \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(1+\phi-\sqrt{\tfrac{1+\phi}{1+\varrho_I}}\Big)\Big(\sqrt{\tfrac{1+\varrho_I}{1+\phi}}-1\Big)
 		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\,(1+\varrho_S)\,\varsigma_{X/M,S}^{2} \qquad \text{(constant in } \varsigma_{X/M}\text{)}
 	\end{aligned}
 \]
 
-WHAT \(D\) IS MADE OF — read this before E7. \(D\) is LP REVENUE FROM INVESTOR FLOW minus \(\mathrm{arbLoss}\). The investor's own SURPLUS (E3) does NOT appear in \(D\) at all. The revenue term is \(\tfrac{\mathbb{P}_{L_{\text{INV}}}}{2}\big((1+\phi)/(1-\varsigma_{X/M}) - 1\big)\) on the two lower branches and \(\propto 1/\varsigma_{X/M}\) on the top branch; it is "LP revenue from investor flow", i.e. SLIPPAGE RENT PLUS FEE, and it is strictly positive even at \(\phi = 0\), where it equals \(\mathbb{P}_{L_{\text{INV}}}\varsigma_{X/M}/(2(1-\varsigma_{X/M}))\). It is INCREASING in \(\varsigma_{X/M}\) below \(\varsigma_{X/M,I}\) and DECREASING above — the opposite sign to E3's surplus below \(\varsigma_{X/M,I}\), not the same sign.
+Composition: the excess return is LP revenue from investor flow MINUS the arb loss; the investor's own surplus (Theorem 23) does NOT enter. The revenue term is positive even at \(\phi = 0\), increasing in \(\varsigma_{X/M}\) below \(\varsigma_{X/M,I}\) and decreasing above — the OPPOSITE sign to Theorem 23's surplus below \(\varsigma_{X/M,I}\). GUARD: \(0 \leq \phi < \varrho_S \leq \varrho_I\) ⟹ both branch points positive; poles avoided (Lean glued `Set.Icc` domains, `hkphiS`, `hkphiI` explicit).
 
-GUARD (restated inline): \(\varsigma_{X/M,S} > 0\) and \(\varsigma_{X/M,I} > 0\) from \(0 \leq \phi < \varrho_S \leq \varrho_I\); the \(c_2\) and \(c_1/\varsigma_{X/M}\) branches are stated on \([\varsigma_{X/M,S},\varsigma_{X/M,I}]\) and \([\varsigma_{X/M,I},1]\), both bounded away from the pole. Lean: `Set.Icc kphiS kphiI`, `Set.Icc kphiI 1`, with `hkphiS`, `hkphiI` explicit.
-
-Continuity at BOTH branch points: at \(\varsigma_{X/M,S}\) by E2's branch agreement; at \(\varsigma_{X/M,I}\) both sides equal \(\tfrac{\mathbb{P}_{L_{\text{INV}}}}{2}\big(\sqrt{(1+\phi)(1+\varrho_I)}-1\big) - \tfrac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}(1+\varrho_S)\varsigma_{X/M,S}^{2}/\varsigma_{X/M,I}\). \(D\) is strictly increasing on \([0,\varsigma_{X/M,I}]\) and, **under \(c_1 > 0\)**, strictly decreasing on \([\varsigma_{X/M,I},1]\), so
+**Theorem 25 (Interior optimum — the kink maximum) [E4]** (anchor Proposition 5). Under Assumption 1: the glued function is continuous at BOTH branch points; strictly increasing on \([0, \varsigma_{X/M,I}]\); and under \(\varpi_1 > 0\) strictly decreasing on \([\varsigma_{X/M,I}, 1]\), so
 
 \[
 	\begin{aligned}
@@ -1192,11 +1207,9 @@ Continuity at BOTH branch points: at \(\varsigma_{X/M,S}\) by E2's branch agreem
 	\end{aligned}
 \]
 
-**\(\varsigma_{X/M}^{\star}\) is a BRANCH POINT — a kink, where the investor's trade switches from draining the pool to an interior marginal condition. The derivative jumps there. There is no first-order condition and none is claimed.**
+\(\varsigma_{X/M}^{\star}\) is a BRANCH POINT — a kink; the derivative jumps; no first-order condition exists and none is claimed. Liquidity-freeze corollary (Proposition 5(2)): excess return negative at \(\varsigma_{X/M}^{\star}\) ⟹ negative on all of \([0,1]\). BOUNDARY: at \(\varpi_1 \leq 0\) the pool is in the freeze region, the LP payoff is \(\mathbb{E}[R^{\text{HODL}}] = \varpi_H\varrho_S\) (constant in \(\varsigma_{X/M}\)), and strict single-peakedness is FALSE — the strict statement holds only under \(\varpi_1 > 0\).
 
-Liquidity-freeze corollary (Proposition 5(2)): \(D(\varsigma_{X/M}^{\star}) < 0 \implies D(\varsigma_{X/M}) < 0\) for every \(\varsigma_{X/M} \in [0,1]\).
-
-BOUNDARY OF THE CLAIM: when \(c_1 \leq 0\) the anchor's own argument puts the pool in the freeze region, where the LP payoff is \(\mathbb{E}[R_A] = \varpi_H\varrho_S\), constant in \(\varsigma_{X/M}\); strict single-peakedness is therefore FALSE in general, and the strict statement is made only under \(c_1 > 0\).
+*Formalized* (`EtaCurvature`): `lpExcess_branch_agree_kphiS`/`_kphiI`; `lpExcess_strictMonoOn`; `lpExcess_strictAntiOn`; `lpExcess_isMaxOn`; `kphiStar_eq_kphiI`; `kphiStar_mem_Ioo_iff` (interior ⟺ \(\phi < \varrho_I\)); `lpPayoff_isMaxOn`; `liquidity_freeze_minimal` (\(c_1 \leq 0\)).
 
 ## **E5. [ADDITION] Deposit efficiency and the welfare bound** (Proposition 6)
 
