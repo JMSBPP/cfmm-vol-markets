@@ -1077,13 +1077,13 @@ Consequences (proved): \(\lambda_\tau\) is a genuine \(\oplus\)-summand (hazard-
 
 ANCHOR: [CJ](../refs/mev/CapponiJiaAdoptionDEX.pdf) §5.1 — Lemma 3, Propositions 5–6 (Lemmas 1–2 cited only for trade-occurrence conditions). Role of this section: the interior selector for the grid tilt \(\eta^{\star}\) — the degeneracy-breaker outside \(\Theta_{\phi}\) ([M6a]).
 
-**Convention 6 (Anchor imports) [E0].** \(\hat\pi^{\bullet}\) = EXOGENOUS (anchor) payoffs — the hat is the exogeneity artifact; \(\varrho_{\bullet}\) = exogenous shocks; \(\pi^{\bullet}\) = payoff/value objects (protocol or anchor). <!-- notation-map --> The paper's objects enter as:
+**Convention 6 (Anchor imports) [E0].** Exogenous anchor objects carry a HAT over their RAW value — no compact glyph is assigned (user ruling 2026-08-04); \(\pi^{\bullet}\) = payoff/value objects (protocol or anchor). <!-- notation-map --> The paper's objects enter as:
 
-- \(\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}} \, \equiv \, \) the investor private-use payoff — the EXOGENOUS relative payoff increment (hat = exogeneity; parallel to \(\varrho_S\)); Lean `premInv`;
-- \(\varrho_S \, \equiv \, \big|\Delta p_{(\eta,\Delta_i)}/p_{(\eta,\Delta_i)}\big|\) per period — the price shock (Lean `premShock`; one-spacing move: \(\lambda^{\eta\Delta_i} - 1\) in marginal price);
+- \(\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}} \, \equiv \, \) the investor private-use payoff — the EXOGENOUS relative payoff increment (hat = exogeneity; parallel to \(\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}}\)); Lean `premInv`;
+- \(\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}}\) — the per-period price shock, raw hatted value (Lean `premShock`; one-spacing move: \(\lambda^{\eta\Delta_i} - 1\) in marginal price);
 - \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} \, > \, 0\) — per-period arbitrage-occurrence probability (the `CJ` tag is load-bearing: NEVER identified with MMR's \(\mathbb{P}_{\Delta_{\text{ARB}}}\), E8(3));
 - \(\mathbb{P}_{L_{\text{INV}}} \, > \, 0\) — investor-arrival probability;
-- \(\varpi_H \, \geq \, 0\) — hold-benchmark coefficient, \(\mathbb{E}[R^{\text{HODL}}] = \varpi_H\,\varrho_S\) (\(R^{\text{HODL}}\): Definition 31; the anchor's \(R_A\));
+- \(\varpi_H \, \geq \, 0\) — hold-benchmark coefficient, \(\mathbb{E}[R^{\text{HODL}}] = \varpi_H\,\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}}\) (\(R^{\text{HODL}}\): Definition 31; the anchor's \(R_A\));
 - \(\varpi_D \, \geq \, 0\) — the constant subtracted in the LP excess return.
 
 The paper's curvature-indexed results are RE-INDEXED by \(\varsigma_{X/M}\) — a SHARE object (Theorem 9); symbol substitution, NOT an object identification (interior embedding REFUTED, `canon_Fcap_not_CES`). Collision glyphs `κ`, `χ`, `θ`, `τ`, `ν` are not used in this section; remaining paper symbols are renamed at first use. <!-- notation-map -->
@@ -1126,7 +1126,7 @@ strictly increasing in \(\eta\); a bijection \((0,\infty) \to (0,1)\); \(\to 0\)
 
 \[
 	\begin{aligned}
-		\varsigma_{X/M,S} \, \equiv \, 1 - \sqrt{\tfrac{1+\phi}{1+\varrho_S}}, \qquad
+		\varsigma_{X/M,S} \, \equiv \, 1 - \sqrt{\tfrac{1+\phi}{1+\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}}}}, \qquad
 		\varsigma_{X/M,I} \, \equiv \, 1 - \sqrt{\tfrac{1+\phi}{1+\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}}}
 	\end{aligned}
 \]
@@ -1139,13 +1139,13 @@ Anchor payoffs (bare, user ruling 2026-08-04): \(\pi^{-\text{arb}}\) the arb-los
 	\begin{aligned}
 		\frac{\pi^{-\text{arb}}}{\pi^{\text{dep}}}(\varsigma_{X/M}) \, &= \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\cdot
 		\begin{cases}
-			(1+\varrho_S) \, - \, \dfrac{1+\phi}{1-\varsigma_{X/M}}, & \varsigma_{X/M} \in [0,\ \varsigma_{X/M,S}] \quad \text{(A.38, corner)} \\[8pt]
-			(1+\varrho_S)\,\dfrac{\varsigma_{X/M,S}^{2}}{\varsigma_{X/M}}, & \varsigma_{X/M} \in [\varsigma_{X/M,S},\ 1] \quad \text{(A.36, interior)}
+			(1+\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}}) \, - \, \dfrac{1+\phi}{1-\varsigma_{X/M}}, & \varsigma_{X/M} \in [0,\ \varsigma_{X/M,S}] \quad \text{(A.38, corner)} \\[8pt]
+			(1+\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}})\,\dfrac{\varsigma_{X/M,S}^{2}}{\varsigma_{X/M}}, & \varsigma_{X/M} \in [\varsigma_{X/M,S},\ 1] \quad \text{(A.36, interior)}
 		\end{cases}
 	\end{aligned}
 \]
 
-GUARD: \(0 \leq \phi < \varrho_S\) (Lemma 1's arbitrage-occurrence condition), hence \(\varsigma_{X/M,S} > 0\); the interior branch never touches the \(1/\varsigma_{X/M}\) pole (Lean domain `Set.Ioc 0 1`, glued halves, `hkphiS : 0 < kphiS` explicit). Branches agree at \(\varsigma_{X/M,S}\) — common value \(\tfrac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}(1+\varrho_S)\,\varsigma_{X/M,S}\) — and the glued function is **strictly decreasing** on \((0,1]\) (strict by \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} > 0\), Convention 6).
+GUARD: \(0 \leq \phi < \hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}}\) (Lemma 1's arbitrage-occurrence condition), hence \(\varsigma_{X/M,S} > 0\); the interior branch never touches the \(1/\varsigma_{X/M}\) pole (Lean domain `Set.Ioc 0 1`, glued halves, `hkphiS : 0 < kphiS` explicit). Branches agree at \(\varsigma_{X/M,S}\) — common value \(\tfrac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}(1+\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}})\,\varsigma_{X/M,S}\) — and the glued function is **strictly decreasing** on \((0,1]\) (strict by \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} > 0\), Convention 6).
 
 *Formalized* (`EtaCurvature`): `arbLossRatio_branch_agree`; `arbLossRatio_strictAntiOn`; `arbLossRatio_pos`; `kphiS_mem_Ioo`; `kphiS_eq_zero_of_eq`.
 
@@ -1169,7 +1169,7 @@ GUARD: \(0 \leq \phi < \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader
 
 \[
 	\begin{aligned}
-		\varrho_S \, \leq \, \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}} \quad \Longleftrightarrow \quad \varsigma_{X/M,S} \, \leq \, \varsigma_{X/M,I}
+		\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}} \, \leq \, \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}} \quad \Longleftrightarrow \quad \varsigma_{X/M,S} \, \leq \, \varsigma_{X/M,I}
 	\end{aligned}
 \]
 
@@ -1183,20 +1183,20 @@ The anchor's Proposition 5 consumes the premia ONLY through this ordering of the
 	\begin{aligned}
 		\mathbb{E}[R^{\varphi}] - \mathbb{E}[R^{\text{HODL}}]\,(\varsigma_{X/M}) \, &\leftarrow \,
 		\begin{cases}
-			\varpi_3(\varsigma_{X/M}) \, - \, \varpi_D\,\varrho_S, & \varsigma_{X/M} \in [0,\ \varsigma_{X/M,S}] \quad \text{(A.52)} \\
-			\varpi_2(\varsigma_{X/M}) \, - \, \varpi_D\,\varrho_S, & \varsigma_{X/M} \in [\varsigma_{X/M,S},\ \varsigma_{X/M,I}] \quad \text{(A.51)} \\
-			\dfrac{\varpi_1}{\varsigma_{X/M}} \, - \, \varpi_D\,\varrho_S, & \varsigma_{X/M} \in [\varsigma_{X/M,I},\ 1] \quad \text{(A.50)}
+			\varpi_3(\varsigma_{X/M}) \, - \, \varpi_D\,\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}}, & \varsigma_{X/M} \in [0,\ \varsigma_{X/M,S}] \quad \text{(A.52)} \\
+			\varpi_2(\varsigma_{X/M}) \, - \, \varpi_D\,\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}}, & \varsigma_{X/M} \in [\varsigma_{X/M,S},\ \varsigma_{X/M,I}] \quad \text{(A.51)} \\
+			\dfrac{\varpi_1}{\varsigma_{X/M}} \, - \, \varpi_D\,\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}}, & \varsigma_{X/M} \in [\varsigma_{X/M,I},\ 1] \quad \text{(A.50)}
 		\end{cases} \\[6pt]
 		\varpi_3(\varsigma_{X/M}) \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(\frac{1+\phi}{1-\varsigma_{X/M}} - 1\Big)
-		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\Big((1+\varrho_S) - \frac{1+\phi}{1-\varsigma_{X/M}}\Big) \\
+		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\Big((1+\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}}) - \frac{1+\phi}{1-\varsigma_{X/M}}\Big) \\
 		\varpi_2(\varsigma_{X/M}) \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(\frac{1+\phi}{1-\varsigma_{X/M}} - 1\Big)
-		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\,\frac{(1+\varrho_S)\,\varsigma_{X/M,S}^{2}}{\varsigma_{X/M}} \\
+		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\,\frac{(1+\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}})\,\varsigma_{X/M,S}^{2}}{\varsigma_{X/M}} \\
 		\varpi_1 \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(1+\phi-\sqrt{\tfrac{1+\phi}{1+\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}}}\Big)\Big(\sqrt{\tfrac{1+\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}}{1+\phi}}-1\Big)
-		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\,(1+\varrho_S)\,\varsigma_{X/M,S}^{2} \qquad \text{(constant in } \varsigma_{X/M}\text{)}
+		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\,(1+\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}})\,\varsigma_{X/M,S}^{2} \qquad \text{(constant in } \varsigma_{X/M}\text{)}
 	\end{aligned}
 \]
 
-Composition: the excess return is LP revenue from investor flow MINUS the arb loss; the investor's own surplus (Theorem 23) does NOT enter. The revenue term is positive even at \(\phi = 0\), increasing in \(\varsigma_{X/M}\) below \(\varsigma_{X/M,I}\) and decreasing above — the OPPOSITE sign to Theorem 23's surplus below \(\varsigma_{X/M,I}\). GUARD: \(0 \leq \phi < \varrho_S \leq \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\) ⟹ both branch points positive; poles avoided (Lean glued `Set.Icc` domains, `hkphiS`, `hkphiI` explicit).
+Composition: the excess return is LP revenue from investor flow MINUS the arb loss; the investor's own surplus (Theorem 23) does NOT enter. The revenue term is positive even at \(\phi = 0\), increasing in \(\varsigma_{X/M}\) below \(\varsigma_{X/M,I}\) and decreasing above — the OPPOSITE sign to Theorem 23's surplus below \(\varsigma_{X/M,I}\). GUARD: \(0 \leq \phi < \hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}} \leq \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\) ⟹ both branch points positive; poles avoided (Lean glued `Set.Icc` domains, `hkphiS`, `hkphiI` explicit).
 
 **Theorem 25 (Interior optimum — the kink maximum) [E4]** (anchor Proposition 5). Under Assumption 1: the glued function is continuous at BOTH branch points; strictly increasing on \([0, \varsigma_{X/M,I}]\); and under \(\varpi_1 > 0\) strictly decreasing on \([\varsigma_{X/M,I}, 1]\), so
 
@@ -1207,7 +1207,7 @@ Composition: the excess return is LP revenue from investor flow MINUS the arb lo
 	\end{aligned}
 \]
 
-\(\varsigma_{X/M}^{\star}\) is a BRANCH POINT — a kink; the derivative jumps; no first-order condition exists and none is claimed. Liquidity-freeze corollary (Proposition 5(2)): excess return negative at \(\varsigma_{X/M}^{\star}\) ⟹ negative on all of \([0,1]\). BOUNDARY: at \(\varpi_1 \leq 0\) the pool is in the freeze region, the LP payoff is \(\mathbb{E}[R^{\text{HODL}}] = \varpi_H\varrho_S\) (constant in \(\varsigma_{X/M}\)), and strict single-peakedness is FALSE — the strict statement holds only under \(\varpi_1 > 0\).
+\(\varsigma_{X/M}^{\star}\) is a BRANCH POINT — a kink; the derivative jumps; no first-order condition exists and none is claimed. Liquidity-freeze corollary (Proposition 5(2)): excess return negative at \(\varsigma_{X/M}^{\star}\) ⟹ negative on all of \([0,1]\). BOUNDARY: at \(\varpi_1 \leq 0\) the pool is in the freeze region, the LP payoff is \(\mathbb{E}[R^{\text{HODL}}] = \varpi_H\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}}\) (constant in \(\varsigma_{X/M}\)), and strict single-peakedness is FALSE — the strict statement holds only under \(\varpi_1 > 0\).
 
 *Formalized* (`EtaCurvature`): `lpExcess_branch_agree_kphiS`/`_kphiI`; `lpExcess_strictMonoOn`; `lpExcess_strictAntiOn`; `lpExcess_isMaxOn`; `kphiStar_eq_kphiI`; `kphiStar_mem_Ioo_iff` (interior ⟺ \(\phi < \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\)); `lpPayoff_isMaxOn`; `liquidity_freeze_minimal` (\(c_1 \leq 0\)).
 
@@ -1303,7 +1303,7 @@ THREE BOUNDARIES ON THAT COUPLING, none of which may be dropped:
 Further caveats: this is the anchor's two-period discrete-shock model, not MMR's fast-block diffusion of `### MEV`; the η-parametrization covers \((0,1) \subsetneq [0,1]\), so it neither reaches nor extends the anchor's corners and forbids any `η = 1` ⇔ `ς_{X/M} = 1` reading (E1); and \(\phi\) is here a FIXED fee, whereas this document's \(\phi = \mathrm{multiFee}(\sigma)\) varies — the transcription is at a fixed \(\phi\).
 
 > LEAN (proved, `EtaCurvature`, **51/51 axiom-clean**, projects `4878ca32` + repair `c3a617f3`): E1–E3 `arbLossRatio_branch_agree/_strictAntiOn/_pos`, `kphiS_mem_Ioo`, `kphiS_eq_zero_of_eq`, `arbLossRatio_eq_zero_of_kphiS_eq_zero`, `surplusRatio_strictAntiOn`, `kphiS_le_kphiI_iff`. **E4 THE INTERIOR OPTIMUM**: `lpExcess_branch_agree_kphiS/_kphiI`, `lpExcess_strictMonoOn` on \([0,\varsigma_{X/M,I}]\), `lpExcess_strictAntiOn` on \([\varsigma_{X/M,I},1]\), `lpExcess_isMaxOn`, `kphiStar_eq_kphiI`, `kphiStar_mem_Ioo_iff` (interior ⟺ \(\phi < \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\)), `lpPayoff_isMaxOn`, `liquidity_freeze_minimal` (\(c_1 \leq 0\)) — the max rests on the TWO ONE-SIDED monotonicity results, **no FOC anywhere** (\(\varsigma_{X/M}^{\star}\) is a kink). E5 `depositEfficiency_branch_agree/_isMaxOn`, `surplus_add_revenue_const` (zero-sum). **E6 THE BRIDGE**: `priceEta_step_ratio`, `curvIndex_eq_of_priceEta`, `curvIndex_mem_Ioo`, `curvIndex_strictMono`, `curvIndex_tendsto_zero/_one`, **`curvIndex_etaStar`** (\(\varsigma_{X/M}(\eta^{\star}) = \varsigma_{X/M}^{\star}\)), `etaStar_pos_iff`, `etaStar_strictMono_premInv`, `etaStar_strictAnti_fee/_spacing`, η-transport `lpExcessEta_isMaxOn/_strictMonoOn/_strictAntiOn`, and **T28'a `priceEta_eq_p_eta_half` / `priceEta_eq_P_half`** (the η-identity EXPONENT half — DISCHARGED). E7 `eta_no_common_argmax`, `etaStar_coupled_to_fee_corner`.
-> AMENDED (added hypotheses, conclusions intact): `lpExcess_strictAntiOn` + \(\phi < \varrho_S \leq \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\) (E0's own standing order, needed so the shock branch point does not sit above the investor switch); `etaStar_pos_iff` + \(-1 < \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\) — Mathlib's `Real.log` is \(\log|x|\), so the unguarded criterion is FALSE (witness \(\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}} = -3,\ \phi = 0\)). T28'b (factor-share half) ABSENT as pre-authorized ⟹ E8(6) stays **OPEN**; it was NOT satisfied by restating T28'a.
+> AMENDED (added hypotheses, conclusions intact): `lpExcess_strictAntiOn` + \(\phi < \hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}} \leq \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\) (E0's own standing order, needed so the shock branch point does not sit above the investor switch); `etaStar_pos_iff` + \(-1 < \hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}}\) — Mathlib's `Real.log` is \(\log|x|\), so the unguarded criterion is FALSE (witness \(\hat{\tfrac{\Delta \pi^{\text{trader}}}{\pi^{\text{trader}}}} = -3,\ \phi = 0\)). T28'b (factor-share half) ABSENT as pre-authorized ⟹ E8(6) stays **OPEN**; it was NOT satisfied by restating T28'a.
 
 <!-- END ETA -->
 
