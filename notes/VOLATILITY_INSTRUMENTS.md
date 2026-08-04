@@ -677,50 +677,45 @@ with \(\Delta Q_v^{\star}, N_\sigma > 0 \implies T^{\star} > 0\), and \(T^{\star
 
 *Formalized* (`EndogenousMaturity.lean`; \(N_\sigma \neq 0\)): bijection `dQvStarOfMaturity_tStar` / `tStar_dQvStarOfMaturity` / `maturity_equivalence`; vega-exactness `tStar_variancePortfolio_upsilon`, `tStar_unit_upsilon`; `tStar_pos`; `tStar_strictMono_dQvStar`; `tStar_strictAnti_Nσ`.
 
-**Dimension (DECIDED, 2026-07-30):** \(\Delta Q_v^{\star}\) carries the dimension of the
-REPLICATION CARRIER — liquidity \(L\) — i.e. the quantity of the priced vol asset, per
+**Convention 3 (Vega dimension — stored target vs lens readout; DECIDED 2026-07-30).** \(\Delta Q_v^{\star}\) carries the dimension of the REPLICATION CARRIER — liquidity \(L\), the quantity of the priced vol asset, per Rule 4's ledger
 
 \[
 	\pi^{\sigma} \, = \sum_{i_K} \, L(i_K) \, \mathbb{I}_{\text{long|short}}
 \]
 
-The quotient \(\Delta Q_v \equiv \Delta\pi^{\sigma}/\Delta(\sigma^2-\sigma^2_K)^{+}\)
-(collateral per vol unit) is the LENS READOUT — computed from a position through the
-\(Q_M^L\) range conversion, never stored. One instrument, two views: line-177 names the
-stored quantity, line-10 names the measured sensitivity.
+The quotient \(\Delta Q_v \equiv \Delta\pi^{\sigma}/\Delta(\sigma^2-\sigma^2_K)^{+}\) (collateral per vol unit, Definition 1) is the LENS READOUT — computed from a position through the \(Q_M^L\) range conversion (Definition 10), never stored. One instrument, two views: the \(\mathcal{I}_{\text{ord}}\) entry names the **stored quantity**, Definition 1's quotient names the **measured sensitivity**.
 
-**Sizing (forward map — quantity-exact, no price in the map):**
+**Rule 9 (Sizing — quantity-exact, no price in the map).** The mint sizes the ladder from the target vega alone:
 
 \[
-	L(i_K) \,=\, \Delta Q_v^{\star}\,\ell\,(\xi^{\star}, \iota; i_K), \qquad \sum_{i_K} L(i_K) \,=\, \Delta Q_v^{\star} \;\; \big(\textstyle\sum_{i_K}\ell = 1\big)
+	L(i_K) \,\leftarrow\, \Delta Q_v^{\star}\,\ell\,(\xi^{\star}, \iota; i_K), \qquad \sum_{i_K} L(i_K) \,=\, \Delta Q_v^{\star} \;\; \big(\textstyle\sum_{i_K}\ell = 1,\ \text{Theorem 2}\big)
 \]
 
-\(p_{\text{vol}}, p_{\text{risk}}\) enter at the ISSUANCE/ADMISSIBILITY layer (shares,
-deleverage), not the sizing map; the mint's collateral requirement is the actual
-replication cost, slippage-bounded.
+\(p_{\text{vol}}, p_{\text{risk}}\) enter at the ISSUANCE/ADMISSIBILITY layer (shares, deleverage — Rule 10), never the sizing map; the mint's collateral requirement is the actual replication cost, slippage-bounded.
 
-**Identity (the lens obligation):** delivered quantity recovers the stored target,
-one-sided under per-leg floor rounding:
+**Proposition 8 (The lens obligation).** Delivered quantity recovers the stored target, one-sided under per-leg floor rounding:
 
 \[
 	\sum_{i_K} L(i_K) \,\leq\, \Delta Q_v^{\star}
 \]
 
-**Collateral channel + AUTO-DELEVERAGE (DECIDED, 2026-07-30).** The contract holds \(\Delta Q_v^{\star}\) fixed, so all adaptation lands on collateral. The live backing requirement and the (division-free) admissibility condition:
+*Status:* **OPEN in-tree** — the per-leg floor rounding of Rule 9's map has no Lean carrier (the induced-ladder floor-maximal construction is plank-side). The *adjacent* rounding conservativity that IS proved is the funded-cap side of Rule 10: `dQvFunded_roundDown`, `roundDown_preserves_invariant` — related, not carriers of this statement.
+
+**Rule 10 (Collateral channel and auto-deleverage; DECIDED 2026-07-30).** The contract holds \(\Delta Q_v^{\star}\) fixed, so all adaptation lands on collateral. The live backing requirement, and the (division-free) admissibility condition:
 
 \[
-	\Delta M_{\text{req}}(t) \,=\, \Delta Q_v^{\star}\cdot p_{\text{vol}}(\bar\sigma; t), \qquad \Delta Q_v \cdot p_{\text{risk}}(t) \,\leq\, Q_M
+	\Delta M_{\text{req}}(t) \,\leftarrow\, \Delta Q_v^{\star}\cdot p_{\text{vol}}(\bar\sigma; t), \qquad \Delta Q_v \cdot p_{\text{risk}}(t) \,\leq\, Q_M
 \]
 
 On violation the position is NOT hard-liquidated: the enforced exposure contracts to the funded level,
 
 \[
-	\Delta Q_v(t) \,=\, \min\Big(\Delta Q_v^{\star},\; \frac{Q_M(t)}{p_{\text{risk}}(t)}\Big) \quad \text{(floor)}, \qquad T^{\star}(t) \,=\, 2\,\frac{\Delta Q_v(t)}{N_\sigma}
+	\Delta Q_v(t) \,\leftarrow\, \min\Big(\Delta Q_v^{\star},\; \frac{Q_M(t)}{p_{\text{risk}}(t)}\Big) \quad \text{(floor)}, \qquad T^{\star}(t) \,\leftarrow\, 2\,\frac{\Delta Q_v(t)}{N_\sigma}
 \]
 
-so the implied maturity CONTRACTS continuously with the funded exposure instead of truncating; a top-up restores both. Liquidation is the degenerate case \(Q_M \to 0\), where the realized life \([t_{\text{mint}}, t_{\text{liq}}]\) is the maturity the position actually had.
+so the implied maturity CONTRACTS continuously with the funded exposure instead of truncating; a top-up restores both. Liquidation is the degenerate case \(Q_M \to 0\), where the realized life \([t_{\text{mint}}, t_{\text{liq}}]\) is the maturity the position actually had. **FLAG (define-before-use, OPEN):** \(p_{\text{vol}}\), \(p_{\text{risk}}\), and the reference volatility \(\bar\sigma\) are consumed here but not yet defined in the converted region — they are plank-side price feeds (the `priceOfRisk` entry point); their formal definitions are owed before this Rule's symbols close.
 
-> LEAN (proved, `EndogenousMaturity.lean`): the floor is the GREATEST admissible exposure —
+*Formalized* (`EndogenousMaturity.lean` — the floor is the GREATEST admissible exposure):
 
 \[
 	\begin{aligned}
@@ -728,7 +723,7 @@ so the implied maturity CONTRACTS continuously with the funded exposure instead 
 	\end{aligned}
 \]
 
-> `dQvFunded_maximal`; `dQvFunded_admissible(_iff_mul)`, `_mul_le_of_violation`, `_eq_of_no_violation`; \(T^{\star}(t) \uparrow Q_M,\, \downarrow p_{\text{risk}}\): `tStarFunded_mono_QM`, `_antitone_prisk`; \(Q_M \geq \Delta Q_v^{\star} p_{\text{risk}} \implies T^{\star}(t) = T^{\star}\): `_eq_tStar_of_topup`; \(Q_M = 0 \implies T^{\star}(t) = 0\): `dQvFunded_zero_QM`; floor rounding conservative (min-monotone).
+`dQvFunded_maximal`; `dQvFunded_admissible(_iff_mul)`, `_mul_le_of_violation`, `_eq_of_no_violation`; \(T^{\star}(t) \uparrow Q_M,\, \downarrow p_{\text{risk}}\): `tStarFunded_mono_QM`, `_antitone_prisk`; \(Q_M \geq \Delta Q_v^{\star} p_{\text{risk}} \implies T^{\star}(t) = T^{\star}\): `_eq_tStar_of_topup`; \(Q_M = 0 \implies T^{\star}(t) = 0\): `dQvFunded_zero_QM`; floor rounding conservative (min-monotone).
 
 **RECALIBRATION LAW (DECIDED, 2026-07-30: multiplicative).** The joint evolution of the implied maturity under the collateral channel AND realized variance \(\sigma^2_R(t)\) accruing against the strike:
 
