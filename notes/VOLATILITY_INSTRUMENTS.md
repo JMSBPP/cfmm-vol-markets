@@ -1211,13 +1211,7 @@ Composition: the excess return is LP revenue from investor flow MINUS the arb lo
 
 *Formalized* (`EtaCurvature`): `lpExcess_branch_agree_kphiS`/`_kphiI`; `lpExcess_strictMonoOn`; `lpExcess_strictAntiOn`; `lpExcess_isMaxOn`; `kphiStar_eq_kphiI`; `kphiStar_mem_Ioo_iff` (interior ⟺ \(\phi < \varrho_I\)); `lpPayoff_isMaxOn`; `liquidity_freeze_minimal` (\(c_1 \leq 0\)).
 
-## **E5. [ADDITION] Deposit efficiency and the welfare bound** (Proposition 6)
-
-Deposit efficiency (A.56) — expected investor trading volume over deposited value — has the same two-branch shape with the SAME branch point \(\varsigma_{X/M}^{\star}\): increasing in \(\varsigma_{X/M}\) below \(\varsigma_{X/M}^{\star}\) (the corner branch, from A.41) and decreasing above (the interior branch, from A.40). Maximized at \(\varsigma_{X/M}^{\star}\).
-
-WELFARE: **OPEN — and NOT reducible to a sum of E3 and E4.** This block transcribes Proposition 6's DEPOSIT-EFFICIENCY half only. The welfare half does NOT follow from the pieces stated here, and saying it did would be the document's most inviting error: below \(\varsigma_{X/M}^{\star}\) the LP payoff RISES while the investor surplus FALLS (E3 is antitone on all of \([0,1]\)), so "LP peaked at \(\varsigma_{X/M}^{\star}\), surplus antitone, arbitrageur zero" points a reader toward the OPPOSITE conclusion. The anchor's welfare argument is a two-period COMPOUNDED expression carrying a freeze indicator and its own coefficient, and that coefficient's monotonicity is a separate computation, not a corollary of Lemma 3 plus Proposition 5. Formalizing it means transcribing that carrier; until then the welfare half is **OPEN**.
-
-What IS clean, and is the sharp statement of what curvature does below the peak: on the corner branch the investor surplus and the LP revenue from investor flow sum to a CONSTANT,
+**Theorem 26 (Deposit efficiency; the zero-sum band) [E5]** (anchor Proposition 6, deposit half; under Assumption 1). Deposit efficiency (A.56) — expected investor volume over deposited value — has the two-branch shape with the SAME kink: increasing on \([0, \varsigma_{X/M}^{\star}]\), decreasing above, maximized at \(\varsigma_{X/M}^{\star}\). On the corner branch the investor surplus and the LP revenue from investor flow sum to a CONSTANT:
 
 \[
 	\begin{aligned}
@@ -1229,9 +1223,11 @@ What IS clean, and is the sharp statement of what curvature does below the peak:
 	\end{aligned}
 \]
 
-so below \(\varsigma_{X/M}^{\star}\) curvature is a PURE ZERO-SUM TRANSFER from investor to LP at a one-to-one rate — the gains from trade do not shrink, because the investor still clears the pool. The pie only starts shrinking above \(\varsigma_{X/M}^{\star}\), where the investor curtails volume. That, and not any weighting of objectives, is where the peak comes from.
+— below \(\varsigma_{X/M}^{\star}\), tilt is a PURE ZERO-SUM transfer investor→LP; the pie shrinks only above, where the investor curtails volume. That is where the peak comes from.
 
-GAS is absorbed, not modelled, and the absorption has a consequence this document must not hide. Assumption 3 (the arbitrageur pays a gas fee equal to its full profit) makes the arbitrageur's equilibrium payoff zero AND makes the arbitrage rent a DEADWEIGHT LOSS rather than a transfer — the latter only because miners/validators sit OUTSIDE the anchor's welfare agent set. **That assumption is contradicted by this document's own `### MEV` premises**: a top-of-block auction that recycles arbitrage rent to LPs, or an MEV tax, puts the recipient back inside the agent set and turns the rent into a transfer, under which the anchor's welfare ranking over \(\varsigma_{X/M}\) does not carry. A reader holding `### MEV` and `## ETA` in the same head must not import that ranking.
+*Formalized* (`EtaCurvature`): `depositEfficiency_branch_agree`; `depositEfficiency_isMaxOn`; `surplus_add_revenue_const`.
+
+**OPEN — the welfare half.** NOT a corollary of Theorems 23 + 25 (below \(\varsigma_{X/M}^{\star}\) the LP payoff RISES while the surplus FALLS); the anchor's welfare object is a two-period compounded carrier with its own coefficient — untranscribed. GAS caveat (two lines): the anchor's Assumption 3 zeroes the arbitrageur and books the rent as DEADWEIGHT only because validators sit OUTSIDE its agent set; the `### MEV` premises (tax; batch clearing) put the recipient back inside, making the rent a TRANSFER — the anchor's welfare ranking over \(\varsigma_{X/M}\) does NOT import.
 
 ## **E6. [ADDITION — THE BRIDGE]**
 
