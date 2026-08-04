@@ -1077,9 +1077,9 @@ Consequences (proved): \(\lambda_\tau\) is a genuine \(\oplus\)-summand (hazard-
 
 ANCHOR: [CJ](../refs/mev/CapponiJiaAdoptionDEX.pdf) §5.1 — Lemma 3, Propositions 5–6 (Lemmas 1–2 cited only for trade-occurrence conditions). Role of this section: the interior selector for the grid tilt \(\eta^{\star}\) — the degeneracy-breaker outside \(\Theta_{\phi}\) ([M6a]).
 
-**Convention 6 (Anchor imports) [E0].** \(\varrho_{\bullet}\) = EXOGENOUS anchor premia/shocks; \(\pi^{\bullet}\) = payoff/value objects (protocol or anchor). <!-- notation-map --> The paper's objects enter as:
+**Convention 6 (Anchor imports) [E0].** \(\hat\pi^{\bullet}\) = EXOGENOUS (anchor) payoffs — the hat is the exogeneity artifact; \(\varrho_{\bullet}\) = exogenous shocks; \(\pi^{\bullet}\) = payoff/value objects (protocol or anchor). <!-- notation-map --> The paper's objects enter as:
 
-- \(\varrho_I \, \equiv \, \) the investor private-use premium (Lean `premInv`);
+- \(\hat\pi^{I} \, \equiv \, \) the investor private-use payoff (exogenous; Lean `premInv`);
 - \(\varrho_S \, \equiv \, \big|\Delta p_{(\eta,\Delta_i)}/p_{(\eta,\Delta_i)}\big|\) per period — the price shock (Lean `premShock`; one-spacing move: \(\lambda^{\eta\Delta_i} - 1\) in marginal price);
 - \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} \, > \, 0\) — per-period arbitrage-occurrence probability (the `CJ` tag is load-bearing: NEVER identified with MMR's \(\mathbb{P}_{\Delta_{\text{ARB}}}\), E8(3));
 - \(\mathbb{P}_{L_{\text{INV}}} \, > \, 0\) — investor-arrival probability;
@@ -1127,7 +1127,7 @@ strictly increasing in \(\eta\); a bijection \((0,\infty) \to (0,1)\); \(\to 0\)
 \[
 	\begin{aligned}
 		\varsigma_{X/M,S} \, \equiv \, 1 - \sqrt{\tfrac{1+\phi}{1+\varrho_S}}, \qquad
-		\varsigma_{X/M,I} \, \equiv \, 1 - \sqrt{\tfrac{1+\phi}{1+\varrho_I}}
+		\varsigma_{X/M,I} \, \equiv \, 1 - \sqrt{\tfrac{1+\phi}{1+\hat\pi^{I}}}
 	\end{aligned}
 \]
 
@@ -1155,13 +1155,13 @@ GUARD: \(0 \leq \phi < \varrho_S\) (Lemma 1's arbitrage-occurrence condition), h
 	\begin{aligned}
 		\frac{\pi^{\text{trader}}}{\pi^{\text{dep}}}(\varsigma_{X/M}) \, &= \, \frac{1}{2}\cdot
 		\begin{cases}
-			(1+\varrho_I) \, - \, \dfrac{1+\phi}{1-\varsigma_{X/M}}, & \varsigma_{X/M} \in [0,\ \varsigma_{X/M,I}] \quad \text{(A.43, corner)} \\[8pt]
-			(1+\varrho_I)\,\dfrac{\varsigma_{X/M,I}^{2}}{\varsigma_{X/M}}, & \varsigma_{X/M} \in [\varsigma_{X/M,I},\ 1] \quad \text{(A.42, interior)}
+			(1+\hat\pi^{I}) \, - \, \dfrac{1+\phi}{1-\varsigma_{X/M}}, & \varsigma_{X/M} \in [0,\ \varsigma_{X/M,I}] \quad \text{(A.43, corner)} \\[8pt]
+			(1+\hat\pi^{I})\,\dfrac{\varsigma_{X/M,I}^{2}}{\varsigma_{X/M}}, & \varsigma_{X/M} \in [\varsigma_{X/M,I},\ 1] \quad \text{(A.42, interior)}
 		\end{cases}
 	\end{aligned}
 \]
 
-GUARD: \(0 \leq \phi < \varrho_I\) (Lemma 2's investor-trades condition), hence \(\varsigma_{X/M,I} > 0\) (`hkphiI : 0 < kphiI`). Same continuity at \(\varsigma_{X/M,I}\); **strictly decreasing** on \((0,1]\). SCALE + CONDITIONING (one line): this is the PER-INVESTOR ratio — Lemma 3(2)'s object is \(2\times\) it, weighted \(\mathbb{P}_{L_{\text{INV}}}\), while Theorem 22 carries \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}\) — additive combinations must supply the missing \(\mathbb{P}_{L_{\text{INV}}}\).
+GUARD: \(0 \leq \phi < \hat\pi^{I}\) (Lemma 2's investor-trades condition), hence \(\varsigma_{X/M,I} > 0\) (`hkphiI : 0 < kphiI`). Same continuity at \(\varsigma_{X/M,I}\); **strictly decreasing** on \((0,1]\). SCALE + CONDITIONING (one line): this is the PER-INVESTOR ratio — Lemma 3(2)'s object is \(2\times\) it, weighted \(\mathbb{P}_{L_{\text{INV}}}\), while Theorem 22 carries \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}\) — additive combinations must supply the missing \(\mathbb{P}_{L_{\text{INV}}}\).
 
 *Formalized* (`EtaCurvature`): `surplusRatio_strictAntiOn`.
 
@@ -1169,7 +1169,7 @@ GUARD: \(0 \leq \phi < \varrho_I\) (Lemma 2's investor-trades condition), hence 
 
 \[
 	\begin{aligned}
-		\varrho_S \, \leq \, \varrho_I \quad \Longleftrightarrow \quad \varsigma_{X/M,S} \, \leq \, \varsigma_{X/M,I}
+		\varrho_S \, \leq \, \hat\pi^{I} \quad \Longleftrightarrow \quad \varsigma_{X/M,S} \, \leq \, \varsigma_{X/M,I}
 	\end{aligned}
 \]
 
@@ -1191,34 +1191,34 @@ The anchor's Proposition 5 consumes the premia ONLY through this ordering of the
 		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\Big((1+\varrho_S) - \frac{1+\phi}{1-\varsigma_{X/M}}\Big) \\
 		\varpi_2(\varsigma_{X/M}) \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(\frac{1+\phi}{1-\varsigma_{X/M}} - 1\Big)
 		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\,\frac{(1+\varrho_S)\,\varsigma_{X/M,S}^{2}}{\varsigma_{X/M}} \\
-		\varpi_1 \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(1+\phi-\sqrt{\tfrac{1+\phi}{1+\varrho_I}}\Big)\Big(\sqrt{\tfrac{1+\varrho_I}{1+\phi}}-1\Big)
+		\varpi_1 \, &= \, \frac{\mathbb{P}_{L_{\text{INV}}}}{2}\Big(1+\phi-\sqrt{\tfrac{1+\phi}{1+\hat\pi^{I}}}\Big)\Big(\sqrt{\tfrac{1+\hat\pi^{I}}{1+\phi}}-1\Big)
 		\, - \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\,(1+\varrho_S)\,\varsigma_{X/M,S}^{2} \qquad \text{(constant in } \varsigma_{X/M}\text{)}
 	\end{aligned}
 \]
 
-Composition: the excess return is LP revenue from investor flow MINUS the arb loss; the investor's own surplus (Theorem 23) does NOT enter. The revenue term is positive even at \(\phi = 0\), increasing in \(\varsigma_{X/M}\) below \(\varsigma_{X/M,I}\) and decreasing above — the OPPOSITE sign to Theorem 23's surplus below \(\varsigma_{X/M,I}\). GUARD: \(0 \leq \phi < \varrho_S \leq \varrho_I\) ⟹ both branch points positive; poles avoided (Lean glued `Set.Icc` domains, `hkphiS`, `hkphiI` explicit).
+Composition: the excess return is LP revenue from investor flow MINUS the arb loss; the investor's own surplus (Theorem 23) does NOT enter. The revenue term is positive even at \(\phi = 0\), increasing in \(\varsigma_{X/M}\) below \(\varsigma_{X/M,I}\) and decreasing above — the OPPOSITE sign to Theorem 23's surplus below \(\varsigma_{X/M,I}\). GUARD: \(0 \leq \phi < \varrho_S \leq \hat\pi^{I}\) ⟹ both branch points positive; poles avoided (Lean glued `Set.Icc` domains, `hkphiS`, `hkphiI` explicit).
 
 **Theorem 25 (Interior optimum — the kink maximum) [E4]** (anchor Proposition 5). Under Assumption 1: the glued function is continuous at BOTH branch points; strictly increasing on \([0, \varsigma_{X/M,I}]\); and under \(\varpi_1 > 0\) strictly decreasing on \([\varsigma_{X/M,I}, 1]\), so
 
 \[
 	\begin{aligned}
-		\varsigma_{X/M}^{\star} \, = \, \varsigma_{X/M,I} \, = \, 1 - \sqrt{\tfrac{1+\phi}{1+\varrho_I}}, \qquad
-		\varsigma_{X/M}^{\star} \in (0,1) \iff \phi < \varrho_I
+		\varsigma_{X/M}^{\star} \, = \, \varsigma_{X/M,I} \, = \, 1 - \sqrt{\tfrac{1+\phi}{1+\hat\pi^{I}}}, \qquad
+		\varsigma_{X/M}^{\star} \in (0,1) \iff \phi < \hat\pi^{I}
 	\end{aligned}
 \]
 
 \(\varsigma_{X/M}^{\star}\) is a BRANCH POINT — a kink; the derivative jumps; no first-order condition exists and none is claimed. Liquidity-freeze corollary (Proposition 5(2)): excess return negative at \(\varsigma_{X/M}^{\star}\) ⟹ negative on all of \([0,1]\). BOUNDARY: at \(\varpi_1 \leq 0\) the pool is in the freeze region, the LP payoff is \(\mathbb{E}[R^{\text{HODL}}] = \varpi_H\varrho_S\) (constant in \(\varsigma_{X/M}\)), and strict single-peakedness is FALSE — the strict statement holds only under \(\varpi_1 > 0\).
 
-*Formalized* (`EtaCurvature`): `lpExcess_branch_agree_kphiS`/`_kphiI`; `lpExcess_strictMonoOn`; `lpExcess_strictAntiOn`; `lpExcess_isMaxOn`; `kphiStar_eq_kphiI`; `kphiStar_mem_Ioo_iff` (interior ⟺ \(\phi < \varrho_I\)); `lpPayoff_isMaxOn`; `liquidity_freeze_minimal` (\(c_1 \leq 0\)).
+*Formalized* (`EtaCurvature`): `lpExcess_branch_agree_kphiS`/`_kphiI`; `lpExcess_strictMonoOn`; `lpExcess_strictAntiOn`; `lpExcess_isMaxOn`; `kphiStar_eq_kphiI`; `kphiStar_mem_Ioo_iff` (interior ⟺ \(\phi < \hat\pi^{I}\)); `lpPayoff_isMaxOn`; `liquidity_freeze_minimal` (\(c_1 \leq 0\)).
 
-**Theorem 26 (Deposit efficiency; the zero-sum band) [E5]** (anchor Proposition 6, deposit half; under Assumption 1). Deposit efficiency (A.56) — expected investor volume over deposited value — has the two-branch shape with the SAME kink: increasing on \([0, \varsigma_{X/M}^{\star}]\), decreasing above, maximized at \(\varsigma_{X/M}^{\star}\). On the corner branch the investor surplus and the LP revenue from investor flow sum to a CONSTANT:
+**Theorem 26 (Deposit efficiency; the zero-sum band) [E5]** (anchor Proposition 6, deposit half; under Assumption 1). Deposit efficiency (A.56) — expected investor volume over deposited value — has the two-branch shape with the SAME kink: increasing on \([0, \varsigma_{X/M}^{\star}]\), decreasing above, maximized at \(\varsigma_{X/M}^{\star}\). On the corner branch, at the \(\times 2\) (per-deposit) scale of Theorem 23's normalization, the zero-sum identity in \(\pi\)-terms (per-capita LP revenue deflated by the LP population \(\#_{\text{LP}}\)):
 
 \[
 	\begin{aligned}
-		\underbrace{\tfrac{1}{2}\Big[(1+\varrho_I) - \tfrac{1+\phi}{1-\varsigma_{X/M}}\Big]}_{\text{investor surplus}}
+		\underbrace{\pi^{\text{trader}}}_{= \,(1+\hat\pi^{I}) - \frac{1+\phi}{1-\varsigma_{X/M}}}
 		\; + \;
-		\underbrace{\tfrac{1}{2}\Big[\tfrac{1+\phi}{1-\varsigma_{X/M}} - 1\Big]}_{\text{LP revenue per investor}}
-		\; = \; \frac{\varrho_I}{2}
+		\underbrace{\frac{\pi^{\phi}}{\#_{\text{LP}}}}_{= \,\frac{1+\phi}{1-\varsigma_{X/M}} - 1}
+		\; = \; \hat\pi^{I}
 		\qquad \text{on } [0,\varsigma_{X/M,I}]
 	\end{aligned}
 \]
@@ -1233,16 +1233,16 @@ Composition: the excess return is LP revenue from investor flow MINUS the arb lo
 
 \[
 	\begin{aligned}
-		\eta^{\star} \, = \, \frac{\ln\!\big((1+\varrho_I)/(1+\phi)\big)}{\Delta_i^{2}\,\ln\lambda},
+		\eta^{\star} \, = \, \frac{\ln\!\big((1+\hat\pi^{I})/(1+\phi)\big)}{\Delta_i^{2}\,\ln\lambda},
 		\qquad \varsigma_{X/M}(\eta^{\star},\Delta_i) \, = \, \varsigma_{X/M}^{\star}
 	\end{aligned}
 \]
 
-Obtained by INVERTING E1's bijection at \(\varsigma_{X/M}^{\star}\): setting \(1 - \lambda^{-\Delta_i^{2}\eta/2} = 1 - \sqrt{(1+\phi)/(1+\varrho_I)}\) and taking logarithms. This is `Real.log` algebra on a closed form, NOT an existence argument.
+Obtained by INVERTING E1's bijection at \(\varsigma_{X/M}^{\star}\): setting \(1 - \lambda^{-\Delta_i^{2}\eta/2} = 1 - \sqrt{(1+\phi)/(1+\hat\pi^{I})}\) and taking logarithms. This is `Real.log` algebra on a closed form, NOT an existence argument.
 
-Comparative statics: \(\eta^{\star} > 0 \iff \phi < \varrho_I\); strictly increasing in \(\varrho_I\); **strictly decreasing in \(\phi\)**. The dependence on \(\Delta_i\) is a NORMALIZATION IDENTITY rather than a comparative static: \(\varsigma_{X/M}^{\star}\) depends only on \((\phi,\varrho_I)\), and \(\eta^{\star} \propto 1/\Delta_i^{2}\) is simply whichever exponent reproduces that same \(\varsigma_{X/M}^{\star}\) on the chosen grid. Two-sided shape: \(D \circ \varsigma_{X/M}(\cdot,\Delta_i)\) is strictly increasing on \((0,\eta^{\star}]\) and strictly decreasing on \([\eta^{\star},\infty)\) under E4's hypotheses, INCLUDING \(c_1 > 0\).
+Comparative statics: \(\eta^{\star} > 0 \iff \phi < \hat\pi^{I}\); strictly increasing in \(\hat\pi^{I}\); **strictly decreasing in \(\phi\)**. The dependence on \(\Delta_i\) is a NORMALIZATION IDENTITY rather than a comparative static: \(\varsigma_{X/M}^{\star}\) depends only on \((\phi,\hat\pi^{I})\), and \(\eta^{\star} \propto 1/\Delta_i^{2}\) is simply whichever exponent reproduces that same \(\varsigma_{X/M}^{\star}\) on the chosen grid. Two-sided shape: \(D \circ \varsigma_{X/M}(\cdot,\Delta_i)\) is strictly increasing on \((0,\eta^{\star}]\) and strictly decreasing on \([\eta^{\star},\infty)\) under E4's hypotheses, INCLUDING \(c_1 > 0\).
 
-ADMISSIBILITY OF THE FACTOR-SHARE READING. A factor share must lie in \((0,1)\), but \(\eta^{\star} \in (0,1)\) requires \(\Delta_i^{2}\ln\lambda > \ln((1+\varrho_I)/(1+\phi))\). At \(\lambda = 1.0001\), \(\varrho_I = 0.05\), \(\phi = 0.003\) this is \(\Delta_i \gtrsim 21\); at \(\Delta_i = 1\) and \(\Delta_i = 10\) — both in standard use — \(\eta^{\star} \approx 458\) and \(\approx 4.6\). So on a large part of the tick-spacing range the factor-share reading is not merely OPEN but UNAVAILABLE, and the grid-exponent reading is the only one. This is recorded here rather than left for a downstream reader to discover.
+ADMISSIBILITY OF THE FACTOR-SHARE READING. A factor share must lie in \((0,1)\), but \(\eta^{\star} \in (0,1)\) requires \(\Delta_i^{2}\ln\lambda > \ln((1+\hat\pi^{I})/(1+\phi))\). At \(\lambda = 1.0001\), \(\hat\pi^{I} = 0.05\), \(\phi = 0.003\) this is \(\Delta_i \gtrsim 21\); at \(\Delta_i = 1\) and \(\Delta_i = 10\) — both in standard use — \(\eta^{\star} \approx 458\) and \(\approx 4.6\). So on a large part of the tick-spacing range the factor-share reading is not merely OPEN but UNAVAILABLE, and the grid-exponent reading is the only one. This is recorded here rather than left for a downstream reader to discover.
 
 NORMALIZATION BRIDGE — claim (i), THE EXPONENT IDENTITY (provable):
 
@@ -1270,9 +1270,9 @@ Over \(\Theta_{\phi}\): `MevJointProgram.joint_corner_degeneracy` (T20) puts the
 
 > CORRECTION (2026-07-31, ESC-1, recomputed): the generalization of the line above to EVERY branch is **FALSE**. \(\mathrm{arbLoss}\) and \(\mathrm{surplus}\) switch branches at DIFFERENT points (\(\varsigma_{X/M,S} < \varsigma_{X/M,I}\)) ⟹ on the middle region the two derivatives share no common positive factor and the weighted sum CAN cross zero strictly inside: \(+0.637\) at \(\varsigma_{X/M} = 0.19\) → \(-1.40\) at \(0.45\), crossing \(\approx 0.2412 \in (0.1835,\, 0.5)\), NO branch point. Correct claim (narrower): scalarization is not INCAPABLE of interior optima — it is simply not the SOURCE of this section's peak (E4's regime switch is), and Phase 11's T22 over \(\Theta_{\phi}\) is untouched (different model, different objects — E8(3)). Submitted bundle `4878ca32` carries the PRE-correction bytes with the false form explicitly PROHIBITED in its prompt; no requested theorem depends on it.
 
-**WHAT THIS DOES AND DOES NOT DO TO THE PHASE-11 DEGENERACY.** It does NOT resolve it. `mevMulti` contains no η, no \(\varsigma_{X/M}\) and no \(\varrho_I\); nothing in E1–E6 moves it, so the \(\Theta_{\phi}\) degeneracy stands exactly where Phase 11 left it. What this section supplies is a SEPARATE model in which a curvature trade-off genuinely exists and its optimum is interior. The honest connection to Phase 11 is narrower and better than a de-degeneration claim: `MevJointProgram`'s MODULE docstring locates the escape in DEMAND RESPONSE, and `LEAN_TRACEABILITY` §6(b) records the missing layer as the demand-elasticity / optimal-fee equilibrium layer. \(\varrho_I\) is a CANDIDATE for that layer — a demand-side valuation parameter — though neither source names it. Closing the gap for real means ONE objective containing both a demand-elastic investor and \(\lambda_{\text{ARB}}\); that object exists in neither model and is **OPEN** (E8(7)).
+**WHAT THIS DOES AND DOES NOT DO TO THE PHASE-11 DEGENERACY.** It does NOT resolve it. `mevMulti` contains no η, no \(\varsigma_{X/M}\) and no \(\hat\pi^{I}\); nothing in E1–E6 moves it, so the \(\Theta_{\phi}\) degeneracy stands exactly where Phase 11 left it. What this section supplies is a SEPARATE model in which a curvature trade-off genuinely exists and its optimum is interior. The honest connection to Phase 11 is narrower and better than a de-degeneration claim: `MevJointProgram`'s MODULE docstring locates the escape in DEMAND RESPONSE, and `LEAN_TRACEABILITY` §6(b) records the missing layer as the demand-elasticity / optimal-fee equilibrium layer. \(\hat\pi^{I}\) is a CANDIDATE for that layer — a demand-side valuation parameter — though neither source names it. Closing the gap for real means ONE objective containing both a demand-elastic investor and \(\lambda_{\text{ARB}}\); that object exists in neither model and is **OPEN** (E8(7)).
 
-**THE COUPLING, WITH ITS HYPOTHESES.** Under \(c_1(\phi) > 0\) and \(\phi < \varrho_I\), at any FIXED realized fee \(\phi\):
+**THE COUPLING, WITH ITS HYPOTHESES.** Under \(c_1(\phi) > 0\) and \(\phi < \hat\pi^{I}\), at any FIXED realized fee \(\phi\):
 
 \[
 	\begin{aligned}
@@ -1285,7 +1285,7 @@ The mechanism: fee and curvature are SUBSTITUTE FRICTIONS on the investor's marg
 THREE BOUNDARIES ON THAT COUPLING, none of which may be dropped:
 
 - \(c_1\) DEPENDS ON \(\phi\), and its sign at the fee corner is not pinned by anything here. Where \(c_1 \leq 0\) the anchor's own argument puts the pool in the freeze region, the LP payoff is flat in \(\varsigma_{X/M}\), and **no η is optimal at all** — \(\eta^{\star}\) is then not an argmax.
-- FOLLOWING THE COUPLING TO ITS LIMIT SWITCHES THE CONTROLLER OFF: as \(\phi \to \varrho_I^{-}\), \(\varsigma_{X/M}^{\star} \to 0\) and \(\eta^{\star} \to 0^{+}\), which E1 identifies as the zero-curvature constant-price grid. Nothing in \(\Theta_{\phi}\) bounds its fee corner away from \(\varrho_I\), because \(\Theta_{\phi}\) comes from a model with no \(\varrho_I\) in it. So "η INTERIOR" is not uniform in \(\phi\).
+- FOLLOWING THE COUPLING TO ITS LIMIT SWITCHES THE CONTROLLER OFF: as \(\phi \to \hat\pi^{I}^{-}\), \(\varsigma_{X/M}^{\star} \to 0\) and \(\eta^{\star} \to 0^{+}\), which E1 identifies as the zero-curvature constant-price grid. Nothing in \(\Theta_{\phi}\) bounds its fee corner away from \(\hat\pi^{I}\), because \(\Theta_{\phi}\) comes from a model with no \(\hat\pi^{I}\) in it. So "η INTERIOR" is not uniform in \(\phi\).
 - \(\bar\phi\) IS NOT \(\phi\). `VolInstrument.multiFee` has \(\bar\phi\) as its FLOOR, not its value (`multiFee_bounds`), and the realized fee is \(\sigma\)-dependent; the Phase-11 corner pins a \(\sigma\)-indexed fee PATH, not a scalar. The corner therefore lowers \(\eta^{\star}(\sigma)\) POINTWISE, giving a \(\sigma\)-indexed \(\eta^{\star}\) while η is a design constant of the grid. Reconciling those two is **OPEN** (E8(8)), and this whole section is stated at a fixed \(\phi\).
 
 ## **E8. [CAVEATS]**
@@ -1296,14 +1296,14 @@ THREE BOUNDARIES ON THAT COUPLING, none of which may be dropped:
 4. **OPEN — GAS.** Assumption 3 (the arbitrageur pays a gas fee equal to its full profit) is absorbed, not modelled.
 5. **OPEN — the \(\Theta_{\phi}\)-restricted σ-varying MEV comparison**, inherited from Phase 11 (`LEAN_TRACEABILITY` §7.1, last M6b row). This section does not touch it and must not appear to.
 6. **OPEN — the factor-share identification** of E0(ii)/E6(ii): the grid exponent η and the reserve-side factor share of `L_eta` are the same parameter under different normalizations only up to a modelling claim; the exponent identity of E6(i) is proven algebra and is all that is claimed here. E6 records that the reading is not merely open but UNAVAILABLE wherever \(\eta^{\star} \notin (0,1)\), which includes the low tick spacings in standard use.
-7. **OPEN — THE PHASE-11 DEGENERACY IS NOT RESOLVED HERE.** This section does not de-degenerate the \(\Theta_{\phi}\) program; `mevMulti` contains no η. Resolving it needs a single objective carrying both a demand-elastic investor and \(\lambda_{\text{ARB}}\), which exists in neither model (E7). \(\varrho_I\) is a candidate for the demand layer named in `LEAN_TRACEABILITY` §6(b), not a closure of it.
+7. **OPEN — THE PHASE-11 DEGENERACY IS NOT RESOLVED HERE.** This section does not de-degenerate the \(\Theta_{\phi}\) program; `mevMulti` contains no η. Resolving it needs a single objective carrying both a demand-elastic investor and \(\lambda_{\text{ARB}}\), which exists in neither model (E7). \(\hat\pi^{I}\) is a candidate for the demand layer named in `LEAN_TRACEABILITY` §6(b), not a closure of it.
 8. **OPEN — \(\eta^{\star}\) IS \(\sigma\)-INDEXED, η IS A DESIGN CONSTANT.** The fee entering \(\eta^{\star}\) is a fixed scalar \(\phi\), whereas this document's fee is \(\mathrm{multiFee}(\sigma)\) and \(\bar\phi\) is only its floor; the Phase-11 corner therefore induces \(\eta^{\star}(\sigma)\), while the grid exponent η is chosen once. Reconciling a state-dependent target with a fixed grid parameter is not addressed.
 9. **OPEN — the strict single-peakedness boundary.** Under \(c_1 \leq 0\) the LP payoff is flat in \(\varsigma_{X/M}\) (E4) and \(\eta^{\star}\) is not an argmax; the sign of \(c_1\) at the fee corner is not pinned by anything in this section.
 
 Further caveats: this is the anchor's two-period discrete-shock model, not MMR's fast-block diffusion of `### MEV`; the η-parametrization covers \((0,1) \subsetneq [0,1]\), so it neither reaches nor extends the anchor's corners and forbids any `η = 1` ⇔ `ς_{X/M} = 1` reading (E1); and \(\phi\) is here a FIXED fee, whereas this document's \(\phi = \mathrm{multiFee}(\sigma)\) varies — the transcription is at a fixed \(\phi\).
 
-> LEAN (proved, `EtaCurvature`, **51/51 axiom-clean**, projects `4878ca32` + repair `c3a617f3`): E1–E3 `arbLossRatio_branch_agree/_strictAntiOn/_pos`, `kphiS_mem_Ioo`, `kphiS_eq_zero_of_eq`, `arbLossRatio_eq_zero_of_kphiS_eq_zero`, `surplusRatio_strictAntiOn`, `kphiS_le_kphiI_iff`. **E4 THE INTERIOR OPTIMUM**: `lpExcess_branch_agree_kphiS/_kphiI`, `lpExcess_strictMonoOn` on \([0,\varsigma_{X/M,I}]\), `lpExcess_strictAntiOn` on \([\varsigma_{X/M,I},1]\), `lpExcess_isMaxOn`, `kphiStar_eq_kphiI`, `kphiStar_mem_Ioo_iff` (interior ⟺ \(\phi < \varrho_I\)), `lpPayoff_isMaxOn`, `liquidity_freeze_minimal` (\(c_1 \leq 0\)) — the max rests on the TWO ONE-SIDED monotonicity results, **no FOC anywhere** (\(\varsigma_{X/M}^{\star}\) is a kink). E5 `depositEfficiency_branch_agree/_isMaxOn`, `surplus_add_revenue_const` (zero-sum). **E6 THE BRIDGE**: `priceEta_step_ratio`, `curvIndex_eq_of_priceEta`, `curvIndex_mem_Ioo`, `curvIndex_strictMono`, `curvIndex_tendsto_zero/_one`, **`curvIndex_etaStar`** (\(\varsigma_{X/M}(\eta^{\star}) = \varsigma_{X/M}^{\star}\)), `etaStar_pos_iff`, `etaStar_strictMono_premInv`, `etaStar_strictAnti_fee/_spacing`, η-transport `lpExcessEta_isMaxOn/_strictMonoOn/_strictAntiOn`, and **T28'a `priceEta_eq_p_eta_half` / `priceEta_eq_P_half`** (the η-identity EXPONENT half — DISCHARGED). E7 `eta_no_common_argmax`, `etaStar_coupled_to_fee_corner`.
-> AMENDED (added hypotheses, conclusions intact): `lpExcess_strictAntiOn` + \(\phi < \varrho_S \leq \varrho_I\) (E0's own standing order, needed so the shock branch point does not sit above the investor switch); `etaStar_pos_iff` + \(-1 < \varrho_I\) — Mathlib's `Real.log` is \(\log|x|\), so the unguarded criterion is FALSE (witness \(\varrho_I = -3,\ \phi = 0\)). T28'b (factor-share half) ABSENT as pre-authorized ⟹ E8(6) stays **OPEN**; it was NOT satisfied by restating T28'a.
+> LEAN (proved, `EtaCurvature`, **51/51 axiom-clean**, projects `4878ca32` + repair `c3a617f3`): E1–E3 `arbLossRatio_branch_agree/_strictAntiOn/_pos`, `kphiS_mem_Ioo`, `kphiS_eq_zero_of_eq`, `arbLossRatio_eq_zero_of_kphiS_eq_zero`, `surplusRatio_strictAntiOn`, `kphiS_le_kphiI_iff`. **E4 THE INTERIOR OPTIMUM**: `lpExcess_branch_agree_kphiS/_kphiI`, `lpExcess_strictMonoOn` on \([0,\varsigma_{X/M,I}]\), `lpExcess_strictAntiOn` on \([\varsigma_{X/M,I},1]\), `lpExcess_isMaxOn`, `kphiStar_eq_kphiI`, `kphiStar_mem_Ioo_iff` (interior ⟺ \(\phi < \hat\pi^{I}\)), `lpPayoff_isMaxOn`, `liquidity_freeze_minimal` (\(c_1 \leq 0\)) — the max rests on the TWO ONE-SIDED monotonicity results, **no FOC anywhere** (\(\varsigma_{X/M}^{\star}\) is a kink). E5 `depositEfficiency_branch_agree/_isMaxOn`, `surplus_add_revenue_const` (zero-sum). **E6 THE BRIDGE**: `priceEta_step_ratio`, `curvIndex_eq_of_priceEta`, `curvIndex_mem_Ioo`, `curvIndex_strictMono`, `curvIndex_tendsto_zero/_one`, **`curvIndex_etaStar`** (\(\varsigma_{X/M}(\eta^{\star}) = \varsigma_{X/M}^{\star}\)), `etaStar_pos_iff`, `etaStar_strictMono_premInv`, `etaStar_strictAnti_fee/_spacing`, η-transport `lpExcessEta_isMaxOn/_strictMonoOn/_strictAntiOn`, and **T28'a `priceEta_eq_p_eta_half` / `priceEta_eq_P_half`** (the η-identity EXPONENT half — DISCHARGED). E7 `eta_no_common_argmax`, `etaStar_coupled_to_fee_corner`.
+> AMENDED (added hypotheses, conclusions intact): `lpExcess_strictAntiOn` + \(\phi < \varrho_S \leq \hat\pi^{I}\) (E0's own standing order, needed so the shock branch point does not sit above the investor switch); `etaStar_pos_iff` + \(-1 < \hat\pi^{I}\) — Mathlib's `Real.log` is \(\log|x|\), so the unguarded criterion is FALSE (witness \(\hat\pi^{I} = -3,\ \phi = 0\)). T28'b (factor-share half) ABSENT as pre-authorized ⟹ E8(6) stays **OPEN**; it was NOT satisfied by restating T28'a.
 
 <!-- END ETA -->
 
