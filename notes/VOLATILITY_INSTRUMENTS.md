@@ -1058,7 +1058,7 @@ Consequences (proved): \(\lambda_\tau\) is a genuine \(\oplus\)-summand (hazard-
 
 ANCHOR: [CJ](../refs/mev/CapponiJiaAdoptionDEX.pdf) §5.1 — Lemma 3, Propositions 5–6 (Lemmas 1–2 cited only for trade-occurrence conditions). Role of this section: the interior selector for the grid tilt \(\eta^{\star}\) — the degeneracy-breaker outside \(\Theta_{\phi}\) ([M6a]).
 
-**Convention 6 (Anchor imports) [E0].** \(\varrho_{\bullet}\) = EXOGENOUS anchor premia/shocks; \(\pi^{\bullet}\) = endogenous protocol payoffs only. <!-- notation-map --> The paper's objects enter as:
+**Convention 6 (Anchor imports) [E0].** \(\varrho_{\bullet}\) = EXOGENOUS anchor premia/shocks; \(\pi^{\bullet}\) = payoff/value objects (protocol or anchor). <!-- notation-map --> The paper's objects enter as:
 
 - \(\varrho_I \, \equiv \, \) the investor private-use premium (Lean `premInv`);
 - \(\varrho_S \, \equiv \, \big|\Delta p_{(\eta,\Delta_i)}/p_{(\eta,\Delta_i)}\big|\) per period — the price shock (Lean `premShock`; one-spacing move: \(\lambda^{\eta\Delta_i} - 1\) in marginal price);
@@ -1103,7 +1103,7 @@ strictly increasing in \(\eta\); a bijection \((0,\infty) \to (0,1)\); \(\to 0\)
 
 \(\varsigma_{X/M}(\eta,\Delta_i)\) is a MONOTONE PROXY for the anchor's `k`, not a restatement: it carries NO per-tick liquidity term (same \(\varsigma\), different liquidity ⟹ different slippage), so placing it in the `k` slot is a MODELLING step — E8(1). WARNING: \(\eta = 1\) is the sqrt-price grid (`priceEta_one`), NOT \(\varsigma_{X/M} = 1\); the range is the OPEN \((0,1)\) — the anchor's corners are unreachable, and interiority in \(\eta\) is INHERITED from \(\varsigma_{X/M}^{\star} \in (0,1)\), not evidence supplied by the reparametrization.
 
-**Definition 29 (Branch points) [E2, E3].** The premia generate the **branch points** (subscripts tag the generating premium — S = shock, I = investor; NOT the skew \(s_{\upsilon}\)):
+**Definition 29 (Branch points) [E2, E3].** The premia generate the **branch points** (subscripts tag the generating premium — S = shock, I = investor:
 
 \[
 	\begin{aligned}
@@ -1112,13 +1112,13 @@ strictly increasing in \(\eta\); a bijection \((0,\infty) \to (0,1)\); \(\to 0\)
 	\end{aligned}
 \]
 
-Anchor payoffs are CJ-tagged (Convention 6 reserves bare \(\pi^{\bullet}\) for endogenous objects): \(\pi^{-\text{arb}}_{\text{CJ}}\) the arb-loss payoff, \(\pi^{\text{trader}}_{\text{CJ}}\) the investor-surplus payoff, \(\pi^{\text{dep}}_{\text{CJ}}\) the initial-deposit value — ratios are written as explicit quotients (user ruling 2026-08-04). <!-- notation-map -->
+Anchor payoffs (bare, user ruling 2026-08-04): \(\pi^{-\text{arb}}\) the arb-loss payoff, \(\pi^{\text{trader}}\) the investor-surplus payoff, \(\pi^{\text{dep}}\) the initial-deposit value — ratios are written as explicit quotients. <!-- notation-map -->
 
 **Theorem 22 (Arbitrage-loss ratio) [E2]** (anchor Lemma 3(1)):
 
 \[
 	\begin{aligned}
-		\frac{\pi^{-\text{arb}}_{\text{CJ}}}{\pi^{\text{dep}}_{\text{CJ}}}(\varsigma_{X/M}) \, &= \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\cdot
+		\frac{\pi^{-\text{arb}}}{\pi^{\text{dep}}}(\varsigma_{X/M}) \, &= \, \frac{\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}}}{2}\cdot
 		\begin{cases}
 			(1+\varrho_S) \, - \, \dfrac{1+\phi}{1-\varsigma_{X/M}}, & \varsigma_{X/M} \in [0,\ \varsigma_{X/M,S}] \quad \text{(A.38, corner)} \\[8pt]
 			(1+\varrho_S)\,\dfrac{\varsigma_{X/M,S}^{2}}{\varsigma_{X/M}}, & \varsigma_{X/M} \in [\varsigma_{X/M,S},\ 1] \quad \text{(A.36, interior)}
@@ -1134,7 +1134,7 @@ GUARD: \(0 \leq \phi < \varrho_S\) (Lemma 1's arbitrage-occurrence condition), h
 
 \[
 	\begin{aligned}
-		\frac{\pi^{\text{trader}}_{\text{CJ}}}{\pi^{\text{dep}}_{\text{CJ}}}(\varsigma_{X/M}) \, &= \, \frac{1}{2}\cdot
+		\frac{\pi^{\text{trader}}}{\pi^{\text{dep}}}(\varsigma_{X/M}) \, &= \, \frac{1}{2}\cdot
 		\begin{cases}
 			(1+\varrho_I) \, - \, \dfrac{1+\phi}{1-\varsigma_{X/M}}, & \varsigma_{X/M} \in [0,\ \varsigma_{X/M,I}] \quad \text{(A.43, corner)} \\[8pt]
 			(1+\varrho_I)\,\dfrac{\varsigma_{X/M,I}^{2}}{\varsigma_{X/M}}, & \varsigma_{X/M} \in [\varsigma_{X/M,I},\ 1] \quad \text{(A.42, interior)}
