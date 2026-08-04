@@ -623,8 +623,6 @@ ECONOMIC CONTENT OF THEOREM 1. The floor \(\bar\phi\) is unconditional — LPs t
 
 *Formalized:* `Panoptic.streamingPremium`; `streamingPremium_succ` (\(\Sigma_{N+1} = \Sigma_N + \theta_N\Delta t\)).
 
-## VOL ORDER COMPLETION — ENDOGENOUS MATURITY
-
 # PROTOCOL_INPUTS
 
 Every **Protocol Input** is a quantity supplied by the USER, per order, at interaction time — the third registry class. The classifying test across the three registries is *who sets it, and when*: a Protocol Constant (\(\mathcal{C}_p\)) is fixed by the design once and forever; a Protocol Parameter (\(\Theta_{\bullet}\)) is set by the protocol, uniformly for all users; a Protocol Input is chosen by the user for each interaction. Input entries carry a *Carrier* line — inputs are calldata, and the on-chain field is part of their definition. The input set of the **vol order** (retiring the former \(\Theta_{\text{ord}}\) symbol: inputs are not parameters, so the index letter changes):
@@ -993,8 +991,6 @@ Alternates formalized, NOT adopted: (B) convex separation \(\phi = (1-\tau_{\tex
 Consequences (proved): \(\lambda_\tau\) is a genuine \(\oplus\)-summand (hazard-exact); the intensity effect is STRICT ⟹ \(\lambda_{\text{ARB}} \downarrow\); NO leg-targeting (benign flow pays); NO compensation routed (donation ⟹ compose with (B)/(C), ORDER-SENSITIVE: tax-then-compose \(\neq\) compose-then-split); \(\phi \otimes_{\phi} \tau\) moves the level direction jointly (\(\lambda_{\text{FLAIR}} \uparrow\), \(\lambda_{\text{ARB}} \downarrow\)).
 
 *Formalized* (`TauMevAlgebra`, 14/14 axiom-clean — the carriers parked at Rule 7 now attached): (A) `tau_monoid_mem`; `tau_monoid_ge`/`_gt`; `tau_intensity_effect(_strict)`; `tau_no_targeting`; `tau_hazard_exact`; (B) `tau_split_budget`; `tau_split_intensity_neutral`; `tau_split_flair_linear`; `tau_split_mevNet_bridge`; (D) `tau_scaling_not_monoid_hom`; `tau_order_matters`; `tau_split_breaks_hazard`.
-
-## FLAIR & MEV
 
 ## **E0. [NOTATION]**
 
