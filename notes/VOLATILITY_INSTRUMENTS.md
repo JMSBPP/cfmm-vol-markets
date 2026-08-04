@@ -550,11 +550,11 @@ The first display is an identity (the decomposition); the Rule is the second —
 
 \[
 	\begin{aligned}
-		\phi_M \otimes_{\phi} \phi_X \, \equiv \, 1 - (1-\phi_M)(1-\phi_X), \qquad \mathcal{G}_{\phi} \, \equiv \, \big([0,1),\, \otimes_{\phi},\, 0\big)
+		\phi_M \otimes_{\phi} \phi_X \, \equiv \, 1 - (1-\phi_M)(1-\phi_X), \qquad \mathcal{G}_{\phi} \, \equiv \, \big([0,1],\, \otimes_{\phi},\, 0\big)
 	\end{aligned}
 \]
 
-\(\mathcal{G}_{\phi}\) is an **Abelian monoid** — identity \(\phi = 0\), no inverses (a charged fee cannot be un-charged) — **not a group, and \(\otimes_{\phi}\) is a composition law, not an inner product** (correcting the note's original wording). Associativity/commutativity/identity are elementary retention algebra (the \(1-\phi\) factors multiply); not separately named in-tree.
+\(\mathcal{G}_{\phi}\) is an **Abelian monoid** — identity \(\phi = 0\), no inverses (a charged fee cannot be un-charged) — **not a group, and \(\otimes_{\phi}\) is a composition law, not an inner product** (correcting the note's original wording). The monoid axioms are machine-proved — Theorem 14 (`probOr_comm`, `probOr_assoc`, `probOr_zero`, closure `probOr_mem_Icc`). The carrier is \([0,1]\) as proved; the boundary \(\phi = 1\) (full confiscation) is admitted by the algebra and excluded economically by Rule 6's domain \(\phi_{\bullet} \in (0,1)\).
 
 **Rule 7 (Trader-paid fee).** The protocol composes the leg fees into the trader-paid fee by the monoid law:
 
@@ -756,16 +756,18 @@ These are the instruments mapping **behavior objectives** to **protocol paramete
 
 **MEV is struck from the index set** (correcting the note's original listing, per Convention 4): \(\tilde\lambda_{\text{MEV}}\) is an incidence operator, not a hazard — its entry into the trader-paid fee goes through the \(\otimes_{\phi}\) monoid (Rule 7, the M9 route), never through \(\bigoplus\). The second line is the per-leg split, mirroring the leg fees of Rule 6.
 
-> LEAN (proved): \(([0,1], \otimes_\phi, 0)\) with \(\phi_M \otimes_\phi \phi_X = 1-(1-\phi_M)(1-\phi_X)\) is an abelian monoid (commutative, associative, identity \(0\), closed on \([0,1]\), monotone), and the hazard correspondence is exact under \(\phi = 1 - e^{-\lambda}\):
+**Theorem 14 (Fee monoid and hazard exactness).** \(\mathcal{G}_{\phi} = \big([0,1],\, \otimes_{\phi},\, 0\big)\) is an Abelian monoid — commutative, associative, identity \(0\), closed on \([0,1]\), monotone — and the hazard correspondence is **exact** under \(\phi = 1 - e^{-\lambda}\):
 
 \[
 	\begin{aligned}
-		\big(1-e^{-\lambda_M}\big) \otimes_\phi \big(1-e^{-\lambda_X}\big) \, = \, 1-e^{-(\lambda_M+\lambda_X)}
+		\big(1-e^{-\lambda_M}\big) \otimes_{\phi} \big(1-e^{-\lambda_X}\big) \, = \, 1-e^{-(\lambda_M+\lambda_X)}
 		\quad\Longleftrightarrow\quad \lambda \, \equiv \, \lambda_M + \lambda_X
 	\end{aligned}
 \]
 
-> `VolInstrument.probOr_{eq,comm,assoc,zero,mem_Icc,mono,hazard}`.
+Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composition and hazard addition are the same law in two coordinate systems.
+
+*Formalized:* `VolInstrument.probOr_eq`; `probOr_comm`; `probOr_assoc`; `probOr_zero`; `probOr_mem_Icc`; `probOr_mono`; `probOr_hazard`.
 
 ### FLAIR
 
