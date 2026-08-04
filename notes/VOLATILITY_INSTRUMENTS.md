@@ -854,7 +854,7 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 	\begin{aligned}
 		\lambda_{\text{FLAIR}} \, = \, \bar\phi\, W \, + \, u \sum_j \alpha_j\, W_j, \qquad
 		W = \sum_t \nu_t, \quad
-		W_j = \sum_t \Lambda\big(\gamma_j(\sigma_t-\beta_j)\big)\, \nu_t, \quad 0 \leq W_j < W
+		W_j = \sum_t \Lambda\big(\gamma_j(\sigma(i(t))-\beta_j)\big)\, \nu_t, \quad 0 \leq W_j < W
 	\end{aligned}
 \]
 
@@ -879,7 +879,7 @@ Sources, all vendored: [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFe
 
 **Notation map [M0].** [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf)'s fee symbol `γ` is transcribed as this document's fee `φ`; this document's `γ_j` stays the sigmoid steepness. The paper's Poisson block rate `λ` is transcribed through its own primitive `Δt ≜ λ⁻¹`, because this document's `λ` is the hazard rate (Convention 4). The paper's composite parameter `η ≜ γ√(2λ)/σ` is deliberately never named — `η` is reserved project-wide for the pricing grid (Definition 8). <!-- notation-map --> Root-block-rate factor: \(\sqrt{2/\Delta t}\) throughout, no composite abbreviation. Fee \(= \phi\) (ceiling \(\bar\phi\), set \(\Theta_{\phi}\)); the quote function is \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\) (Definition 13), currently \(\varphi_{(1/2,\,0)}\) (Rule 5); bare \(\varphi\) is NOT used.
 
-\(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)). \(\sigma_t = \sigma(i(t))\): enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\). The \(t\)-indexed symbols \(\Delta Q_{\cdot}(t)\), \(\pi^{\text{linear}}(t)\), \(\pi^{\mathrm{LVR}}(t)\), \(\nu_t\) are the discretization frame at the head of this section (FLAIR in utilization coordinates, MEV in money coordinates — user ruling (i), 2026-08-04).
+\(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)). \(\sigma(i(t))\) enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\) — always written in full tick-argument form (Convention 2; no \(\sigma_t\) shorthand). The \(t\)-indexed symbols \(\Delta Q_{\cdot}(t)\), \(\pi^{\text{linear}}(t)\), \(\pi^{\mathrm{LVR}}(t)\), \(\nu_t\) are the discretization frame at the head of this section (FLAIR in utilization coordinates, MEV in money coordinates — user ruling (i), 2026-08-04).
 
 \(\lambda_{\text{ARB}}\) (Definition 22) \(\subsetneq \lambda_{\text{MEV}}\) (Definition 23): SUMMAND, not sibling — Definition 19's index set carries one, never both (double-count); \(\lambda_{\text{ARB}}\) absorbs the "arb toxicity" entry. The paper's `FEE` \(\subsetneq \lambda_{\text{FLAIR}}\) (noise flow excluded there). Standing hypotheses: the paper's Assumption 2 (symmetric driftless mispricing, two-sided fee; non-symmetric variant App. C); Proposition 9 additionally: regularity (13), (15).
 
@@ -891,7 +891,7 @@ Sources, all vendored: [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFe
 	\end{aligned}
 \]
 
-The \(\sigma\) slot is always instantiated at the realized tick volatility \(\sigma(i(t))\) (Convention 2; the declared shorthand \(\sigma_t = \sigma(i(t))\) is used in displays below); Lean's `ptrade` keeps the abstract slot.
+The \(\sigma\) slot is always instantiated at the realized tick volatility \(\sigma(i(t))\) (Convention 2 — written in full, no shorthand); Lean's `ptrade` keeps the abstract slot.
 
 **Theorem 16 (Properties of \(\mathbb{P}_{\Delta_{\text{ARB}}}\)) [M1].** \(\mathbb{P}_{\Delta_{\text{ARB}}} \in (0,1]\), with \(\mathbb{P}_{\Delta_{\text{ARB}}} = 1 \iff \phi = 0\); strictly decreasing AND **strictly convex** in \(\phi\); increasing in \(\Delta t\) and in \(\sigma\); \(\to 0\) as \(\phi \to \infty\). (The strict convexity is what Theorem 19's strict half consumes.)
 
@@ -910,10 +910,9 @@ The \(\sigma\) slot is always instantiated at the realized tick volatility \(\si
 *Status:* asserted from [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf) Thm 3 + eq. (12), Thm 4 — a Proposition, not a Theorem: the in-tree `arb_add_fee_eq_lvr` is a bridge identity only and is never to be cited as MMR Thm 3 formalized.
 
 **Definition 22 (The discrete \(\lambda_{\text{ARB}}\)) [M3].** The ARB-channel hazard, on the SAME \(\Theta_{\phi}\) as FLAIR (\(\phi(\sigma) = \texttt{multiFee}(n,\gamma,\beta,\alpha,\bar\phi,u)\)):
-
 \[
 	\begin{aligned}
-		\lambda_{\text{ARB}} \, \equiv \, \sum_{t<T} \mathbb{P}_{\Delta_{\text{ARB}}}\big(\phi(\sigma_t),\sigma_t,\Delta t\big)\,\frac{\pi^{\mathrm{LVR}}(t)}{\pi^{\text{linear}}(t)}
+		\lambda_{\text{ARB}} \, \equiv \, \sum_{t<T} \mathbb{P}_{\Delta_{\text{ARB}}}\big(\phi(\sigma(i(t))),\sigma(i(t)),\Delta t\big)\,\frac{\pi^{\mathrm{LVR}}(t)}{\pi^{\text{linear}}(t)}
 	\end{aligned}
 \]
 
@@ -933,7 +932,7 @@ CPMM instantiation, two tiers: (i) the LEADING-ORDER per-step weight
 	\end{aligned}
 \]
 
-— the ONLY object carrying the guard \(\sigma_t^2\Delta t < 8\); reuse this symbol downstream. *Formalized:* \(\lambda_{\text{ARB}} \geq 0\): `mevMulti_nonneg`, CPMM weight `mevWeight_cpmm_pos` (\(\cdot\Delta t\) carried). Tier (ii) is **UNFORMALIZED/OPEN** (T19 omitted — no carrier).
+— the ONLY object carrying the guard \(\sigma^2(i(t))\,\Delta t < 8\); reuse this symbol downstream. *Formalized:* \(\lambda_{\text{ARB}} \geq 0\): `mevMulti_nonneg`, CPMM weight `mevWeight_cpmm_pos` (\(\cdot\Delta t\) carried). Tier (ii) is **UNFORMALIZED/OPEN** (T19 omitted — no carrier).
 
 **Theorem 17 (Identification of \(\Theta_{\lambda_{\text{ARB}}}\)) [M4].** For \(\gamma_j > 0\): \(\lambda_{\text{ARB}}\) is decreasing in \(\bar\phi\), \(\alpha_j\), \(u\), increasing in \(\beta_j\), convex in \(\phi\); and there is **no affine analogue** of Theorem 15's `flairMulti_affine` — \(\mathbb{P}_{\Delta_{\text{ARB}}}\) is non-affine, level/shape do not separate, Theorem 18's bound is a SUM, not scalar × path weight. The identified block:
 
@@ -951,7 +950,7 @@ Batch clearing (Definition 23, \(\lambda_{\text{sandwich}} = 0\)) ⟹ \(\Theta_{
 
 \[
 	\begin{aligned}
-		\lambda_{\text{ARB}} \, \geq \, \sum_{t<T} \mathbb{P}_{\Delta_{\text{ARB}}}\Big(\bar\phi_{\max} + u_{\max}\textstyle\sum_j \alpha_{\max,j},\, \sigma_t,\, \Delta t\Big)\frac{\pi^{\mathrm{LVR}}(t)}{\pi^{\text{linear}}(t)}
+		\lambda_{\text{ARB}} \, \geq \, \sum_{t<T} \mathbb{P}_{\Delta_{\text{ARB}}}\Big(\bar\phi_{\max} + u_{\max}\textstyle\sum_j \alpha_{\max,j},\, \sigma(i(t)),\, \Delta t\Big)\frac{\pi^{\mathrm{LVR}}(t)}{\pi^{\text{linear}}(t)}
 	\end{aligned}
 \]
 
@@ -961,7 +960,7 @@ Three attainment statements (the RHS uses the fee CEILING — unreachable at fin
 
 *Annotation [M6a] (internal reference — deliberately not a numbered statement, user ruling 2026-08-04):* over \(\Theta_{\phi}\) unconstrained there is NO trade-off — \(\max \lambda_{\text{FLAIR}}\) and \(\min \lambda_{\text{ARB}}\) sit at the SAME level corner, saturate along the SAME \(\beta_j \to -\infty\), robustly to every linear scalarization; \((\beta, \gamma_j)\) are NOT essential. Carriers: `joint_corner_degeneracy`, `joint_beta_degeneracy`, `joint_scalarization_degeneracy` (`MevJointProgram.lean`). The degeneracy-breaker must come from OUTSIDE \(\Theta_{\phi}\).
 
-**Theorem 19 (Flat-path optimality at constant \(\sigma\); the \(\sigma\)-varying comparison is REFUTED) [M6b].** Over arbitrary nonnegative fee PATHS \(\{\phi_t\}\) — NOT \(\Theta_{\phi}\) schedules — with \(\nu_t\) per the frame, \(W = \sum_t \nu_t > 0\), budget \(\sum_t \phi_t\nu_t = B\), aligned measure \(\pi^{\mathrm{LVR}}(t) \equiv \Delta Q_{\cdot}(t)\), and \(\sigma_t \equiv \sigma_0\):
+**Theorem 19 (Flat-path optimality at constant \(\sigma\); the \(\sigma\)-varying comparison is REFUTED) [M6b].** Over arbitrary nonnegative fee PATHS \(\{\phi_t\}\) — NOT \(\Theta_{\phi}\) schedules — with \(\nu_t\) per the frame, \(W = \sum_t \nu_t > 0\), budget \(\sum_t \phi_t\nu_t = B\), aligned measure \(\pi^{\mathrm{LVR}}(t) \equiv \Delta Q_{\cdot}(t)\), and \(\sigma(i(t)) \equiv \sigma_0\):
 
 \[
 	\begin{aligned}
