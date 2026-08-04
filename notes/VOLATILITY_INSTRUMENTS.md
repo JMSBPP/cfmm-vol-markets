@@ -741,20 +741,20 @@ The arrow is the Rule (the enacted law); the second equality is the factorizatio
 
 # CONTROL_OPERATORS
 
-These are the instruments mapping **behavior objectives** to **protocol parameters** — all of \(\Theta_{\bullet}\), not only the fee schedule \(\Theta_{\phi}\). Mathematically:
+These are the instruments mapping **behavior objectives** to **protocol parameters** — all of \(\Theta_{\bullet}\), not only the fee schedule \(\Theta_{\phi}\).
+
+**Convention 4 (Hazard rate vs incidence operator).** The control operators come in two types, distinguished by the glyph: plain \(\lambda_{\bullet}\) names a **hazard rate** — an arrival intensity (probability per unit time) of a behavior (arb toxicity, LP competition); tilde \(\tilde\lambda_{\bullet}\) names an **incidence operator** — a re-routing of already-arriving flow that leaves the total invariant. A hazard *adds* under composition (\(\bigoplus\), Definition 19); an incidence operator *applies* — it changes who bears the flow, not how much arrives. The distinction is proved, not stylistic: the JIT operator leaves `mevTotal` invariant while FLAIR falls and the toxicity ratio rises (`JitLiquidity` carriers) — it cannot be a hazard.
+
+**Definition 19 (Hazard aggregation).** The aggregate hazard is the composition of the behavior hazards, and \(\bigoplus\) on hazard rates **is addition** (the hazard-coordinate image of \(\otimes_{\phi}\) — Theorem 14):
 
 \[
 	\begin{aligned}
-	    \lambda\, &\equiv \, \displaystyle \bigoplus_{i=1}^n \lambda_i \, \quad \, i \, \in \, \{\text{lp-competition (FLAIR)}, \text{arb toxicity}, \text{MEV}, \text{TBD}, \cdots \} \\
+	    \lambda\, &\equiv \, \displaystyle \bigoplus_{i=1}^n \lambda_i \, \quad \, i \, \in \, \{\text{lp-competition (FLAIR)}, \text{arb toxicity}, \text{TBD}, \cdots \} \\
 		\lambda \, &\equiv \, \lambda_M \, + \, \lambda_X
 	\end{aligned}
 \]
 
-\[
-	\begin{aligned}
-		\otimes_{\phi} \, \leftarrow \, 1 - (1-\phi_M)(1-\phi_X)
-	\end{aligned}
-\] 
+**MEV is struck from the index set** (correcting the note's original listing, per Convention 4): \(\tilde\lambda_{\text{MEV}}\) is an incidence operator, not a hazard — its entry into the trader-paid fee goes through the \(\otimes_{\phi}\) monoid (Rule 7, the M9 route), never through \(\bigoplus\). The second line is the per-leg split, mirroring the leg fees of Rule 6.
 
 > LEAN (proved): \(([0,1], \otimes_\phi, 0)\) with \(\phi_M \otimes_\phi \phi_X = 1-(1-\phi_M)(1-\phi_X)\) is an abelian monoid (commutative, associative, identity \(0\), closed on \([0,1]\), monotone), and the hazard correspondence is exact under \(\phi = 1 - e^{-\lambda}\):
 
