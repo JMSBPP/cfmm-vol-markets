@@ -101,17 +101,55 @@ Deferred — tracked, not in this roadmap.
 
 ## Traceability
 
-Populated during roadmap creation.
+Populated during roadmap creation (2026-08-08).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| — | — | Pending |
+| NOT-01 | Phase 1 — Rulings & Ground Truth | Pending |
+| NOT-02 | Phase 1 — Rulings & Ground Truth | Pending |
+| NOT-03 | Phase 1 — Rulings & Ground Truth | Pending |
+| NOT-04 | Phase 1 — Rulings & Ground Truth | Pending |
+| NOT-05 | Phase 1 — Rulings & Ground Truth | Pending |
+| NOT-06 | Phase 1 — Rulings & Ground Truth | Pending |
+| HND-04 | Phase 1 — Rulings & Ground Truth | Pending |
+| HND-05 | Phase 1 — Rulings & Ground Truth | Pending |
+| FRM-01 | Phase 2 — Frame Selection & EVM Substrate | Pending |
+| FRM-02 | Phase 2 — Frame Selection & EVM Substrate | Pending |
+| FRM-03 | Phase 2 — Frame Selection & EVM Substrate | Pending |
+| FRM-04 | Phase 2 — Frame Selection & EVM Substrate | Pending |
+| EVM-01 | Phase 2 — Frame Selection & EVM Substrate | Pending |
+| PRF-06 | Phase 3 — Obligation Machinery & Cheap Detectors | Pending |
+| PRF-07 | Phase 3 — Obligation Machinery & Cheap Detectors | Pending |
+| PRF-08 | Phase 3 — Obligation Machinery & Cheap Detectors | Pending |
+| PRF-09 | Phase 3 — Obligation Machinery & Cheap Detectors | Pending |
+| PRF-10 | Phase 3 — Obligation Machinery & Cheap Detectors | Pending |
+| PRF-01 | Phase 4 — P1 + P2 (HALT GATE) | Pending |
+| PRF-02 | Phase 4 — P1 + P2 (HALT GATE) | Pending |
+| PRF-03 | Phase 5 — P3 Sign + P5 τ↔λ Bridge | Pending |
+| PRF-05 | Phase 5 — P3 Sign + P5 τ↔λ Bridge | Pending |
+| PRF-04 | Phase 6 — The Set-Point Law: Verdict and Correction | Pending |
+| SAL-01 | Phase 6 — The Set-Point Law: Verdict and Correction | Pending |
+| SAL-02 | Phase 6 — The Set-Point Law: Verdict and Correction | Pending |
+| SAL-03 | Phase 6 — The Set-Point Law: Verdict and Correction | Pending |
+| SAL-04 | Phase 6 — The Set-Point Law: Verdict and Correction | Pending |
+| SAL-05 | Phase 6 — The Set-Point Law: Verdict and Correction | Pending |
+| EVM-02 | Phase 7 — EVM Feasibility of the Surviving Law | Pending |
+| EVM-03 | Phase 7 — EVM Feasibility of the Surviving Law | Pending |
+| EVM-04 | Phase 7 — EVM Feasibility of the Surviving Law | Pending |
+| HND-01 | Phase 8 — Consolidation & Hand-off | Pending |
+| HND-02 | Phase 8 — Consolidation & Hand-off | Pending |
+| HND-03 | Phase 8 — Consolidation & Hand-off | Pending |
 
 **Coverage:**
-- v1 requirements: 31 total
-- Mapped to phases: 0
-- Unmapped: 31 ⚠️
+- v1 requirements: 34 total
+- Mapped to phases: 34
+- Unmapped: 0 ✓
+
+> **Record correction (2026-08-08, roadmapping):** this section previously recorded
+> **31** v1 requirements. A direct count of the checklist above returns **34**
+> (FRM 4 + NOT 6 + PRF 10 + SAL 5 + EVM 4 + HND 5). The count is corrected here; no
+> requirement was added or removed.
 
 ---
 *Requirements defined: 2026-08-08*
-*Last updated: 2026-08-08 after initial definition*
+*Last updated: 2026-08-08 after roadmap creation — traceability populated, coverage count corrected 31 → 34*
