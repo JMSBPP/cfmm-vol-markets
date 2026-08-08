@@ -139,6 +139,33 @@ recorded under Context, not deliverables of this project.)
   `\partial\widehat\pi^\sigma/\partial\tau_{\text{MEV}} = \Delta Q_v^{\star}` rather than
   the stated replication relation.
 
+- **USER NOTATION RULINGS 2026-08-08 (binding).**
+  1. **Axis naming for liquidity — `L_{\sigma} \equiv \Delta Q_v^{\star}`.** The
+     volatility-axis liquidity takes the glyph `L_{\sigma}`, identified with the
+     **starred, stored** target vega — `UNITS_AND_SCALES.md:70`, RAW LIQUIDITY units,
+     the Uniswap `L` dimension. Plain `L` / `\bar L` remain the **price axis** (pool
+     liquidity). This supersedes the `L^{\text{pool}}`/`L^{\text{vol}}` superscript
+     tags a plan proposed: the subscript carries the axis, and both letters come from
+     the doc's own symbols.
+     **Not** the unstarred `\Delta Q_v` (`UNITS_AND_SCALES.md:72`), which is the lens
+     readout in *collateral base units per Algebra vol unit*, never stored — a
+     sensitivity, not a liquidity. The star distinction is load-bearing.
+     Consistent with the mint-sizing chain at `UNITS_AND_SCALES.md:114`
+     (`L(i_K) = \Delta Q_v^{\star}\cdot\ell(\xi^{\star},\iota;i_K)`,
+     `\sum_{i_K} L(i_K) = \Delta Q_v^{\star}`) — that row is labelled **mint SIZING**
+     and is therefore the vol axis, corroborating the two-axis ruling rather than
+     competing with it.
+  2. **`\pi^{\varphi}` collision — rename the SOURCE side.** `DOC` keeps
+     `\pi^{\varphi}` for its numbered **Definition 25** (portfolio value function,
+     conic dual of the trading function; standing `\phi`/`\varphi` split stated at
+     `DOC:919`). `SRC:28`'s composite `\pi^{\phi} - \pi^{\text{LVR}}` is the one that
+     gets a new name. This follows the standing precedence — doc notation preserved,
+     the conflicting symbol gets the new glyph — and it breaks the circularity, since
+     `DOC:823` Definition 26 computes `\pi^{\text{LVR}}` **from** `\pi^{\varphi}`, so
+     `SRC:28` currently places the glyph on both sides of its own definition.
+     **The replacement glyph is not yet minted** — it must be built from the doc's own
+     symbols and put to the user before use.
+
 - **Relevant existing Lean results (inputs, already landed).** `TauMevAlgebra.lean`
   (τ_MEV monoid = intensity not targeting; split = incidence not intensity),
   `MevOptimization.lean`, `MevJointProgram.lean`, `JitLiquidity.lean`, `TauJit.lean`,
