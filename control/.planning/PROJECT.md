@@ -2,9 +2,9 @@
 
 ## What This Is
 
-A control-theoretic design specification for the **optimal MEV tax** `τ*_MEV` — the
+A control-theoretic design specification for the **optimal MEV tax** `\tau_{\text{MEV}}^\star` — the
 protocol-side actuator that drives the volatility-instrument market's realized
-liquidity-kernel payoff `π̂^σ` onto its contractual variance-swap payoff `π^σ`.
+liquidity-kernel payoff `\widehat\pi^\sigma` onto its contractual variance-swap payoff `\pi^\sigma`.
 The market is modelled as a **multivariable (MIMO) state-space plant in event time**
 (`t → t+1 := event swap`), with exogenous disturbance input `u_ex` and protocol
 control input `u_en`; the deliverable is the derivation of the optimal set-point on
@@ -81,13 +81,18 @@ recorded under Context, not deliverables of this project.)
   | Role | Path |
   |------|------|
   | Entry point | `cfmm-wt/plank/notes/VOLATILITY_INSTRUMENTS.md` (1636 lines; `CONTROL_OPERATORS`, `MEV`, `FLAIR`, `JIT`, `GREEKS`) |
-  | In-depth content | `cfmm-wt/lean4-spec/lean/vol_markets/` (37 files) |
+  | In-depth content | `cfmm-wt/lean4-spec/lean/vol_markets/` (23 files, 10 651 lines) |
   | This project's derivation | `notes/VOLATILITY_INTRUMENTS_MEV.md` (this tree, uncommitted) |
   | Read-only prior art | `.planning/research/v2-controller/` (13 docs) |
-- **The plant, as written in the source.** State `x = [φ, ν, π^φ, π^φ̃]ᵀ` with
-  `π^φ̃ ≡ π^φ − π^LVR`; exogenous input `u_ex = [ΔQ_X, ΔQ_M, σ²(i(t))]ᵀ`; control
-  input `u_en = [τ_MEV, φ_M, φ_X]ᵀ`; output `y = [π^σ, π̂^σ]ᵀ`; parameter block
-  `Θ_σ = [σ_K², #_σ, s_υ, ΔQ_υ]ᵀ`. Replication target:
+- **The plant, as written in the source.** Transcribed in the source's own glyphs —
+  note `\phi` (fee) and `\varphi` (quote function) are DISTINCT symbols and must not
+  be collapsed or decorated:
+  state `x = [\phi, \nu, \pi^{\phi}, \pi^{\varphi}]^T` with
+  `\pi^{\varphi} \equiv \pi^{\phi} - \pi^{\text{LVR}}`; exogenous input
+  `u_{\text{ex}} = [\Delta Q_X, \Delta Q_M, \sigma^2(i(t))]^T`; control input
+  `u_{\text{en}} = [\tau_{\text{MEV}}, \phi_M, \phi_X]^T`; output
+  `y = [\pi^\sigma, \widehat\pi^\sigma]^T`; parameter block
+  `\Theta_\sigma = [\sigma_K^2, \#_\sigma, s_\upsilon, \Delta Q_\upsilon]^T`. Replication target:
   `π^σ = ΔQ_v*(σ²(i(t)) − σ_K²)⁺` versus `π̂^σ = Σ_{i_K} L(i_K) π^l(σ(i_K; Θ_σ))`.
 - **Relevant existing Lean results (inputs, already landed).** `TauMevAlgebra.lean`
   (τ_MEV monoid = intensity not targeting; split = incidence not intensity),
