@@ -50,15 +50,23 @@ recorded under Context, not deliverables of this project.)
       argued in prose and assumed constant
 - [ ] **Prove or refute: the boxed closed form** for `τ*_MEV` obtained by solving
       the replication relation `π^σ ≡^R π̂^σ`
-- [ ] EVM-feasibility analysis of the resulting law: required fixed-point
-      primitives, saturate-never-revert behaviour, bounds, cost envelope
-- [ ] Consolidated design spec integrating theory + proofs + EVM analysis, plus a
-      gap register and hand-off to the implementation milestone
+- [ ] Run the null-space test (`HF = 0`) as a **control-theoretic** result: does a
+      disturbance-invariant controlled variable exist?
+- [ ] The **formal controller document** — theory, entrywise plant, verdicts, typed
+      hypotheses, salvage — plus a gap register and hand-off to the deferred
+      EVM-feasibility and estimation tracks
 
 ### Out of Scope
 
-- **EVM implementation of `τ*_MEV`** (Plank / Solidity code) — this project stops at
-  the verified design; `src/` is owned by peer `ul2inqpl` and would need coordination
+- **The entire EVM-feasibility track** (user ruling 2026-08-08: *"we are only
+  concerned with designing the formal document of the controller grounded on theory
+  and formal results"*). Primitive and state-variable inventories, the call site,
+  scale/rounding/saturation semantics, the `Σ_{i_K}` gas question — all moved to v2
+  intact. The Solidity review's findings are preserved there, not discarded.
+- **EVM implementation of `τ*_MEV`** (Plank / Solidity code) — `src/` is owned by peer
+  `ul2inqpl` and would need coordination
+- **Estimating the behavioral gains** — `∂L̄/∂π^φ` and `Ḡ_(ν,λ_MEV)` are stated as
+  typed hypotheses here and measured in the deferred `EST-01` track
 - **Closed-loop feedback law over `e^σ = |π^σ − π̂^σ|`** — the control target is an
   *optimal set-point*; a regulator wrapped around it is a later question
 - **`spec/01_STATE_DELTA_ELASTICITY_CONTROLLER/`** — explicitly removed from scope
