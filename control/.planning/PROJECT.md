@@ -102,6 +102,35 @@ recorded under Context, not deliverables of this project.)
   `y = [\pi^\sigma, \widehat\pi^\sigma]^T`; parameter block
   `\Theta_\sigma = [\sigma_K^2, \#_\sigma, s_\upsilon, \Delta Q_\upsilon]^T`. Replication target:
   `π^σ = ΔQ_v*(σ²(i(t)) − σ_K²)⁺` versus `π̂^σ = Σ_{i_K} L(i_K) π^l(σ(i_K; Θ_σ))`.
+- **USER RULING 2026-08-08 — the `L` question, and what is behavioral vs mechanical.**
+  This settles the pivot the whole verdict turned on.
+  1. `L(i_K) = \bar L \cdot \ell(\xi, \iota; i_K)`, so
+     `\partial L(i_K)/\partial \pi^{\phi} = \ell(\xi,\iota;i_K)\cdot \partial \bar L/\partial \pi^{\phi}`.
+     The geometric kernel `\ell` is **geometry — invariant to the fee payoff**. Only
+     aggregate `\bar L` responds.
+  2. **Two liquidity unit systems.** `\Delta Q_v^{\star}` is in **vol-asset** `L` units,
+     not pool `L` units — normative in `plank/notes/UNITS_AND_SCALES.md:70` ("RAW
+     LIQUIDITY units — the Uniswap L dimension. The quantity of the priced **vol
+     asset**"), `:71`, `:59-61`. Pricing a volatility level assigns it a tick;
+     liquidity on the volatility tick is a DIFFERENT object from liquidity on the
+     underlying's price tick. **Rule 9 is an identity on the vol axis and constrains
+     nothing on the pool axis.** The "`L` overload" is not a notation slip — it is two
+     assets.
+  3. `\partial \bar L/\partial \pi^{\phi} > 0` is **BEHAVIORAL**: the LP supply
+     response (attractive payoff draws liquidity in, unattractive drives it out).
+     It is an **estimand observed from add/remove-liquidity events**, not a theorem.
+     The same status applies to `\bar{\mathcal{G}}_{(\nu,\lambda_{\text{MEV}})}`.
+     Both are formalized as named typed hypotheses; **neither is ever sent to
+     Aristotle as a claim to prove.** Their identifiability from events is what makes
+     an *adaptive* controller possible in a downstream milestone.
+
+  **Consequence:** the `\tau^{\star}=1` refutation (Rule 9 zeroing the bracket) is
+  **DEAD**. Refutations that SURVIVE this ruling: the direct monoid path
+  (`\tau_{\text{MEV}}` reaches `\phi_{\text{total}}` via Rule 12 bypassing `\nu`, so the
+  chain's "no other path" clause is still false), and the finding that the box solves
+  `\partial\widehat\pi^\sigma/\partial\tau_{\text{MEV}} = \Delta Q_v^{\star}` rather than
+  the stated replication relation.
+
 - **Relevant existing Lean results (inputs, already landed).** `TauMevAlgebra.lean`
   (τ_MEV monoid = intensity not targeting; split = incidence not intensity),
   `MevOptimization.lean`, `MevJointProgram.lean`, `JitLiquidity.lean`, `TauJit.lean`,
@@ -141,7 +170,8 @@ recorded under Context, not deliverables of this project.)
 | Isolated planning root at `control/.planning/` | The repo-root `.planning/` is shared v1 planning in flight across peers; this work must not touch it | — Pending |
 | Control target = **optimal set-point** `τ*_MEV`, not a feedback law over `e^σ` | User decision; the set-point is what the source derivation actually solves for | — Pending |
 | The set-point derivation is itself the proof obligation | The boxed `τ*_MEV` is marked "needs verification" by its author — shipping it unverified would be the failure mode | — Pending |
-| All four claims go to Aristotle (closed form, 5-factor channel, `∂ν/∂λ_MEV > 0` sign, state-space well-posedness) | The closed form is not independently meaningful if the channel or the sign fails | — Pending |
+| Aristotle receives only the **mechanical** claims; behavioral gains are typed hypotheses | User ruling 2026-08-08: `∂L̄/∂π^φ` and `∂ν/∂λ_MEV` are LP-supply estimands identified from liquidity events, not provable propositions | ✓ Good — settled |
+| `Σ_{i_K} L(i_K)`'s `L̄` is **pool** liquidity; `ΔQ_v★` is **vol-asset** liquidity | User ruling 2026-08-08, confirmed by `UNITS_AND_SCALES.md:70`. Kills the `τ*=1` refutation; the `L` overload is two assets, not one ambiguous symbol | ✓ Good — settled |
 | Stop at verified design; no EVM implementation | Mirrors how v2-controller was scoped; `src/` is peer-owned | — Pending |
 | `(β_j, γ_j)` and `φ_M` are parameters, not actuators | Both are **declared assumptions** of the source derivation. The `(β,γ)` justification originally cited a non-existent non-control theorem — contradicted by T12 `mevMulti_mono_beta` | ⚠️ Revisit — assumption, not theorem |
 | v2-controller research is read-only input | Saves re-deriving the Lean/GAMS/EVM-primitive maps; v2 covers the spatial axis, this covers the event-time axis | — Pending |
