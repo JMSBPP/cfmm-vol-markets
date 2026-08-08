@@ -1,0 +1,60 @@
+Formalize the MEV-tax control blocks specified in RequestProject/TAX_ADDENDUM.md.
+
+WHAT THIS IS. The protocol taxes MEV at a rate tau_MEV and wants to know whether that
+tax can steer the realized liquidity-kernel payoff pi-hat^sigma onto a contractual
+variance-swap payoff pi^sigma. A derivation exists (RequestProject/SRC_VOLATILITY_
+INSTRUMENTS_MEV.md, pinned at commit 78381d4) which claims a single five-factor control
+channel and a closed form for the optimal tax. TAX_ADDENDUM.md states, as numbered
+blocks M11-M18, exactly what must be established. The already-formalized surrounding
+theory is in the RequestProject/*.lean files; the human-facing source of all notation is
+RequestProject/VOLATILITY_INSTRUMENTS.md.
+
+WHAT TO PROVE. One Lean declaration per numbered item in TAX_ADDENDUM.md: Definition 32
+(the event-time plant), Theorem 29 and its corollary (the direct monoid path, and that
+the total derivative is a sum over paths), Theorem 30 (the composed-fee map is a
+submersion, so the two-section derivative sum is ill-posed), Proposition 12 (what the
+boxed law actually solves), Proposition 13 (implicit versus closed), Proposition 14
+(root, not argmin), Theorem 31 (admissibility on [0,1] and the projection, branched at
+the strike), and Theorem 32 (the tau -> lambda bridge).
+
+REFUTATIONS ARE EXPECTED AND ARE DELIVERED RESULTS. Theorem 29's corollary and
+Proposition 12 are predicted to refute the source derivation. If a statement is false,
+prove it false and exhibit the counterexample witness. Do not weaken a statement until
+it becomes true, and do not silently strengthen a hypothesis to rescue one. An honest
+refutation with a witness is worth more here than a narrowed theorem.
+
+THEOREM 32 IS A GENUINELY NEW LEMMA. No existing declaration establishes the sign of
+d(lambda_ARB)/d(tau_MEV). Do not try to compose tau_intensity_effect_strict with
+mevMulti_anti_phibar: the first is pointwise on ptrade while lambda_ARB is the hazard
+sum, and probOr acts jointly on phibar and alpha rather than as a pure phibar-shift, so
+that route does not close. Never cite mevTotal_eq_arb_of_sandwich_zero in support of
+anything -- it is `lamARB + 0 = lamARB`, a ring tautology.
+
+DO NOT PROVE THE BEHAVIOURAL HYPOTHESES. H1 (d(Lbar)/d(pi^phi) > 0) and H2
+(d(nu)/d(lambda_MEV) > 0) in block M18 are empirical liquidity-supply responses, not
+propositions. Carry each as an explicit typed hypothesis argument on every declaration
+that needs it, and never discharge it.
+
+GUARDS. ptrade = sigma/(sigma + phi*sqrt(2/Delta_t)) is a Moebius function with a
+negative-fee pole, not max(gap - fee, 0); its pole has already falsified fee-limit
+theorems here, so guard every fee limit. Three kinks sit exactly where the source
+differentiates -- (.)^+ at the strike, |.| in the error, and the min(.) funded cap --
+so branch rather than differentiate through them. Where a sign or ordering claim
+suffices, prefer the tree's native Monotone / StrictMono / StrictAntiOn / ConvexOn idiom
+over building derivative machinery; CapponiEmbed-style derivative work is available as
+precedent, but note there are no derivative lemmas for logistic, sigmoidR, multiFee,
+probOr or ptrade, so introduce them explicitly if a statement needs them.
+
+NOTATION IS BINDING. Do not mint, rename, abbreviate or decorate any symbol. Two
+bindings are load-bearing: L_sigma is the volatility-axis liquidity and equals the
+stored DeltaQ_v-star (raw liquidity units), while plain L and Lbar are price-axis pool
+liquidity -- these are two different assets and conflating them produces a false
+degeneracy; and pi^varphi remains Definition 25's portfolio value function, so the
+source's composite is written out in full as pi^phi - pi^LVR with no shorthand.
+
+DO NOT RE-ATTEMPT the refuted T24 (mev_ge_flat_under_flair_budget_false) or the
+Capponi-CES interior embedding (canon_Fcap_not_CES).
+
+DELIVERABLE. Axiom-clean declarations, zero sorry, each traceable to its numbered block.
+Where a statement could not be settled either way, say so explicitly and state what
+additional hypothesis would settle it -- do not leave it looking proved.
