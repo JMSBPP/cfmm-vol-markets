@@ -1,0 +1,82 @@
+Formalize the CORRECTED MEV-tax program specified in RequestProject/TAX2_ADDENDUM.md,
+blocks M19-M24.
+
+READ THIS FIRST -- THE OBJECTIVE HAS CHANGED. A previous bundle formalized this same
+derivation and is included as RequestProject/MevTaxControl.lean (855 lines, namespace
+MevTaxControl) with its spec at RequestProject/TAX1_ADDENDUM_superseded_objective.md.
+That bundle adjudicated the source AS WRITTEN and correctly found that it solves
+d(pihat^sigma)/d(tau_MEV) = DeltaQ_v-star, which is not the replication relation the
+source claims. The author has since ruled that REPLICATION WAS NEVER THE OBJECTIVE.
+Do not re-litigate that. The corrected program is:
+
+  minimize the exposure of the realizable payoff pihat^sigma to the adversarial
+  (MEV) environment, over tau_MEV in [0,1],
+  SUBJECT TO the replication relation pi^sigma = pihat^sigma,
+
+with first-order condition
+
+  d(pihat^sigma)/d(tau_MEV) = 0.
+
+Replication is a FEASIBILITY REGION the optimization is constrained to, NOT the
+objective. The line at SRC:171-178 calling it "the target replication relation" is an
+erratum in the source, superseded by this spec.
+
+WHAT IS ALREADY PROVED -- cite it, do not redo it. From MevTaxControl.lean:
+Theorem29_monoid_path_is_direct (the tax reaches the fee directly via the Rule 12
+monoid, d(phi_total)/d(tau_MEV) = (1-phi_M)(1-phi_X) > 0);
+Theorem30_composed_fee_submersion_section_sum_ill_posed;
+Theorem32_hazard_strictAntiOn_tau and tau_to_nu_strictAntiOn_under_H2 (nu is strictly
+DECREASING in tau_MEV under H2); M18_axis_error_refuted; and the hypothesis definitions
+H1_dLbar_dpiPhi_pos, H2_dnu_dlamMEV_pos.
+
+WHAT I WANT TO KNOW. The author is about to build a controller from this law and needs
+to build it from the right one. So the deliverable is an audit as much as a derivation:
+
+1. The CORRECT total derivative d(pihat^sigma)/d(tau_MEV) as a SUM over every path
+   (M20). At minimum the direct monoid path and the utilization-gate path
+   tau -> nu -> phi -> pi^phi -> Lbar -> pihat^sigma. Prove the source's five-factor
+   product is exactly one summand, not the total.
+
+2. The SIGN STRUCTURE (M21). The direct path is positive. The gate path is
+   (d(phi)/d(nu)) * (d(nu)/d(tau_MEV)) = (+)(-) < 0, using d(phi)/d(nu) > 0 from the
+   boxed form in RequestProject/ENTRY_POINT_dphi_dnu.md (strictly positive under
+   alpha_R, gamma_R > 0 and alpha_j >= 0 not all zero) composed with the already-proved
+   tau_to_nu_strictAntiOn_under_H2. State the consequence plainly: the two paths OPPOSE,
+   so omitting the direct path does not merely undercount -- it can reverse the sign.
+
+3. EXISTENCE of an interior root of the FOC (M22) -- the tau at which the two paths
+   cancel -- via IVT plus a sign change, not via stationarity of an absolute value. And
+   NON-EXISTENCE where DOC Definition 18's utilization gate saturates: there
+   d(phi)/d(nu) = 0, the gate path dies, only the strictly positive direct path
+   survives, and no interior root exists. State the responsive band in terms of beta_R,
+   gamma_R and nu. This band is the controller's DOMAIN.
+
+4. The SECOND-ORDER condition (M23). The FOC gives a stationary point; say whether it is
+   a minimum of exposure, and under what hypotheses. If it cannot be settled without
+   more structure, say so and name the structure. Do not assume it is the minimiser.
+
+5. A TERM-BY-TERM AUDIT of the source's boxed tau*_MEV (M24). For every factor return
+   exactly one verdict: SURVIVES / SIGN CORRECTED / ILL-POSED / MISSING / SPURIOUS. In
+   particular say whether the leading "1 -" and the 1/DeltaQ_v-star normalizer survive
+   once the right-hand side is 0 rather than DeltaQ_v-star. Then DERIVE THE CORRECTED
+   LAW from the FOC: closed form where one exists, otherwise an implicit equation with
+   existence and uniqueness conditions -- and state its domain (the responsive band, and
+   the ITM/OTM branch structure).
+
+CONSTRAINTS, unchanged and binding.
+H1 and H2 are behavioural LP-supply estimands, not propositions: carry them as typed
+hypothesis arguments and NEVER discharge them. L_sigma = DeltaQ_v-star is the
+volatility-axis liquidity; plain L and Lbar are price-axis pool liquidity -- two
+different assets, and conflating them produces a false degeneracy. pi^varphi stays bound
+to DOC Definition 25; the source's composite is written out in full as
+pi^phi - pi^LVR. Mint no symbol. Guard every fee limit against the Moebius pole of
+ptrade by keeping the composed fee in [0,1). Branch the kinks rather than
+differentiating through them -- note the |.| objective of the superseded framing does
+NOT appear here, since the FOC is on a derivative. Do not re-attempt T24 or the
+Capponi-CES interior embedding.
+
+DELIVERABLE. Axiom-clean, zero sorry, one declaration per numbered item. A refutation
+with a witness is a delivered result. Anything you cannot settle, name explicitly along
+with the hypothesis that would settle it -- do not leave it looking proved. The author
+is building an implementation from this, so an honest "implicit, with these existence
+conditions" is far more useful than a closed form that does not hold.
