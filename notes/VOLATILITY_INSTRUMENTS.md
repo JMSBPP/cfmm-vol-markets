@@ -90,7 +90,7 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 
 **Convention 1 (Replication relation).** For payoff claims \(A, B\) we write \(A \equiv^{R} B\) — "\(A\) **is replicated by** \(B\)" — when \(B\)'s payoff reproduces \(A\)'s. This is a *claim about two objects*, not a definitional identity: each instance must be proved, and until it is, it is stated OPEN. (This is the relation the two-instrument question above is posed in.)
 
-**Definition 6 (Log portfolio).** For \(p^{\star}\) the approximate at-the-money forward level marking the boundary between liquid puts and liquid calls [PG9](../refs/DemeterfietalVarianceSwaps.pdf), the **log portfolio** and its running form are
+**Definition 6 (Log portfolio).** For \(p^{\star}\) the approximate at-the-money forward level marking the boundary between liquid puts and liquid calls [PG9](../refs/DemeterfietalVarianceSwaps.pdf), the **log portfolio*  * and its running form are
 
 \[
 	\begin{aligned}
@@ -554,7 +554,7 @@ The first line is exactly the hypothesis Theorem 5's `deltaQM_nonneg` requires �
 
 CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because \(\eta^{\star} \approx 458/\Delta_i^{2}\) cannot be a Cobb–Douglas share. It never had to be — the share is \(\chi_{X/M}(\eta^{\star}) \in (0,1)\) for EVERY \(\eta\) (Theorem 10), so the identification is reachable through \(\chi_{X/M}\), not through \(\eta\) directly. *Carriers:* `etaStar_tilde_mem_Ioo`, `curvIndex_etaStar_via_tilde`. *(E-block cross-note; converts when the E-blocks are swept.)*
 
-> Provenance: `EtaTilde` 23/23 axiom-clean, project `67b1c841` (doc \(\chi_{X/M}\) ↔ Lean `etaTilde`, the Lean name fixed by the bundle and never hand-edited); `PhiCES` 12/12 axiom-clean, project `cd3558f7`. Carriers not yet attached to a numbered statement: `phiCES_agreement_point` (evaluation form, scope declared in-file); CONDITIONAL, NOT an identification: `phiCES_rho_vs_pi_eta_trader` gives \(1/(1-\epsilon_{X/M}) = 1/(1-\eta) \iff \epsilon_{X/M} = \eta\) away from the poles for `exp/CESLongVolPayoff`'s η, and its docstring states outright that this does NOT identify the payoff parameter with the trading-function parameter — E8(6) untouched.
+ > Provenance: `EtaTilde` 23/23 axiom-clean, project `67b1c841` (doc \(\chi_{X/M}\) ↔ Lean `etaTilde`, the Lean name fixed by the bundle and never hand-edited); `PhiCES` 12/12 axiom-clean, project `cd3558f7`. Carriers not yet attached to a numbered statement: `phiCES_agreement_point` (evaluation form, scope declared in-file); CONDITIONAL, NOT an identification: `phiCES_rho_vs_pi_eta_trader` gives \(1/(1-\epsilon_{X/M}) = 1/(1-\eta) \iff \epsilon_{X/M} = \eta\) away from the poles for `exp/CESLongVolPayoff`'s η, and its docstring states outright that this does NOT identify the payoff parameter with the trading-function parameter — E8(6) untouched.
 
 # FEE_ALGEBRA
 
@@ -898,7 +898,7 @@ Sources, all vendored: [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFe
 
 **Notation map [M0].** [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf)'s fee symbol `γ` is transcribed as this document's fee `φ`; this document's `γ_j` stays the sigmoid steepness. The paper's Poisson block rate `λ` is transcribed through its own primitive `Δt ≜ λ⁻¹`, because this document's `λ` is the hazard rate (Convention 4). The paper's composite parameter `η ≜ γ√(2λ)/σ` is deliberately never named — `η` is reserved project-wide for the pricing grid (Definition 8). <!-- notation-map --> Root-block-rate factor: \(\sqrt{2/\Delta t}\) throughout, no composite abbreviation. Fee \(= \phi\) (ceiling \(\bar\phi\), set \(\Theta_{\phi}\)); the quote function is \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\) (Definition 13), currently \(\varphi_{(1/2,\,0)}\) (Rule 5); bare \(\varphi\) is NOT used.
 
-\(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)). \(\sigma(i(t))\) enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\) — always written in full tick-argument form (Convention 2; no \(\sigma_t\) shorthand). The \(t\)-indexed symbols \(\pi^{\text{linear}}(t)\), \(\pi^{\mathrm{LVR}}(t)\), \(\nu_t\) (and the unaliased traded volume \(\varphi_{(1/2,\,0)}(i(t); \Delta Q(t), 0)\)) are the discretization frame at the head of this section (FLAIR in utilization coordinates, MEV in money coordinates — user ruling (i), 2026-08-04).
+\(\Delta t\): mean interblock time (Angstrom: 1 bundle/block/pair ⟹ batch cadence \(= \Delta t\)). \(\sigma(i(t))\) enters BOTH the fee and \(\mathbb{P}_{\Delta_{\text{ARB}}}\) — always written in full tick-argument form (Convention 2; no \(\sigma_t\) shorthand). The \(t\)-indexed symbols \(\pi^{\text{linear}}(t)\), \(\pi^{\mathrm{LVR}}(t)\), \(\nu_t\)(and the unaliased traded volume \(\varphi_{(1/2,\,0)}(i(t); \Delta Q(t), 0)\)) are the discretization frame at the head of this section (FLAIR in utilization coordinates, MEV in money coordinates — user ruling (i), 2026-08-04).
 
 \(\lambda_{\text{ARB}}\) (Definition 22) \(\subsetneq \lambda_{\text{MEV}}\) (Definition 23): SUMMAND, not sibling — Definition 19's index set carries one, never both (double-count); \(\lambda_{\text{ARB}}\) absorbs the "arb toxicity" entry. The paper's `FEE` \(\subsetneq \lambda_{\text{FLAIR}}\) (noise flow excluded there). Standing hypotheses: the paper's Assumption 2 (symmetric driftless mispricing, two-sided fee; non-symmetric variant App. C); Proposition 9 additionally: regularity (13), (15).
 
@@ -1092,16 +1092,19 @@ Positivity is load-bearing: \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} = 0\)
 
 ## **E1. [ADDITION] The curvature family and the discrete index**
 
-The anchor's family ([CJ](../refs/mev/CapponiJiaAdoptionDEX.pdf) §5.1, p. 23; `A` the scaling coefficient):
+**Theorem 28 (Curvature family — \(\varphi\)-separation) [E1].** The anchor's family ([CJ](../refs/mev/CapponiJiaAdoptionDEX.pdf) §5.1, p. 23) is the convex separation of the two ENDPOINT members of Definition 13 — the \(\epsilon_{X/M} = 1\) member rescaled, and the SQUARE of the balanced \(\epsilon_{X/M} = 0\) member:
 
 \[
 	\begin{aligned}
-		F_{\varsigma_{X/M}}(Q_X,Q_M) \, &= \, (1-\varsigma_{X/M})\,A\,F_0(Q_X,Q_M) \, + \, \varsigma_{X/M}\,F_1(Q_X,Q_M), \qquad \varsigma_{X/M} \in [0,1] \\
-		F_0(Q_X,Q_M) \, &= \, p_{(\chi_{X/M}, \Delta_i)}\,Q_X + p_B\,Q_M \quad \text{(linear; numeraire-relative \(p_B = 1\))}, \qquad
-		F_1(Q_X,Q_M) \, = \, Q_X\,Q_M \quad \text{(constant product)} \\
-		A \, &= \, \big(Q_X^{0}\,Q_M^{0} / (p_{(\chi_{X/M}, \Delta_i)}\,p_B)\big)^{1/2} \quad (Q^{0} = \text{the anchor's initial reserves})
+		(1-\varsigma_{X/M})\,A\,(\hat p + 1)\,\varphi_{(\hat p/(\hat p+1),\,1)}(Q_X,Q_M) \; &+ \; \varsigma_{X/M}\,\big(\varphi_{(1/2,\,0)}(Q_X,Q_M)\big)^{2}, \qquad \varsigma_{X/M} \in [0,1] \\
+		\text{1-homogeneous in } (Q_X,Q_M) \; &\iff \; \varsigma_{X/M} = 0 \\
+		A \, &= \, \big(Q_X^{0}\,Q_M^{0}/\hat p\big)^{1/2} \qquad (Q^{0} = \text{the anchor's initial reserves})
 	\end{aligned}
 \]
+
+\(\hat p\) = the anchor's numeraire-relative price of \(X\) (raw value, Convention 6; \(p_B = 1\)). The SQUARE is the homogeneity obstruction — every \(\varsigma_{X/M} > 0\) member fails 1-homogeneity, an independent route to the refuted CES embedding (Theorem 9).
+
+*Formalized* (`PhiMix`, 4/4 axiom-clean, project `7d9a8baa`): `Fmix_eq_phi` (the separation); `F0_eq_phiLin`, `F1_eq_phiGeom_sq` (the two components); `Fmix_homogeneous_iff` (the obstruction — TRUE as stated; the refute-and-correct clause went unused).
 
 OUR discrete index, from `VolInstrument.priceEta`:
 
@@ -1589,6 +1592,40 @@ Raw count \(6+2n \geq 10\) **for \(n \geq 2\)** — the deficit is STRUCTURAL (b
 5. 2n sigmoid parameters match ≤ 2n carry-profile moments — re-count if the hazard ladder demands finer σ-resolution.
 6. Natenberg local copy is image-only (no text layer); classical displays are anchored to Demeterfi/Bardoscia instead. Lababidi (Greek.fi) contains no Greek formulas — infrastructure reference only.
 7. t-SEMANTICS (G1 clause) — the maturity \(T\) (\(\upsilon = T/2\), \(= T^{\star}/2\) at inception) vs calendar \(t\) (\(T^{\star}-t\) in the locked vega): stated, not yet carried into the Lean signatures.
+
+
+## GAMMA
+
+> TODO: We need to validate if this relation is backed by the litarure whta is the porportion constant 
+\[
+	\begin{aligned}
+		\Gamma_{\varphi} \, &\equiv \, \frac{\partial^2 \pi^{\text{l}}}{\partial p_{(\eta, \Delta_i)} \, ^2} \, \propto \kappa_{\varphi}
+	\end{aligned}
+\]
+
+The question is which parameters of \(\Theta_{\varphi}\) fully define \(\Gamma_{\varphi}\) and notate them \(\Theta_{\Gamma_{\varphi}}\)
+
+Define *gamma payoff* as:
+
+\[
+	\begin{aligned}
+		\pi^{\Gamma_{\varphi}} \, &\equiv \Gamma_{\varphi} \, p_{\eta, \Delta_i} (\sigma^2 (i (t)) )
+	\end{aligned}
+\]
+
+
+s.t the relationship:
+
+> This becomes a query to arisstotle to what parameters can help us control for payoff considering that changes in payoff involve changes  in the volatiltiy price keeping gamma constant AND changes in  gamma keepin g volatiltiy price constant
+
+
+\[
+	\begin{aligned}
+		\phi (\sigma^2 (i(t))) \approx \left| \frac{\Delta \pi^{\Gamma_{\varphi}}}{\pi^{\Gamma_{\varphi}}} \right|
+	\end{aligned}
+\]
+
+
 
 
 ## IMPLIED VOLATILTIY
