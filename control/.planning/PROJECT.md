@@ -62,8 +62,16 @@ recorded under Context, not deliverables of this project.)
 - **Closed-loop feedback law over `e^σ = |π^σ − π̂^σ|`** — the control target is an
   *optimal set-point*; a regulator wrapped around it is a later question
 - **`spec/01_STATE_DELTA_ELASTICITY_CONTROLLER/`** — explicitly removed from scope
-- **`(β_j, γ_j)` as actuators** — frozen by the theorem that they do not control
-  `λ_MEV`; they enter as fixed parameters only
+- **`(β_j, γ_j)` as actuators** — held fixed ∀t as a **modelling assumption of the
+  source derivation**, and they enter as fixed parameters only.
+  ⚠ CORRECTION (2026-08-08): the source note at line 70 justifies this by "the
+  theorem that `(β_j, γ_j)` does not control `λ_MEV`". **No such theorem exists in
+  the tree**, and `MevOptimization.lean:465` (T12 `mevMulti_mono_beta`) proves the
+  opposite for `β` — raising the sigmoid centers raises the arbitrage hazard
+  monotonically. What IS established is that the *unconstrained joint program* is
+  degenerate, so `(β,γ)` are not *essential* there — a strictly weaker claim.
+  Freezing them is therefore an assumption to be declared, not a consequence to be
+  cited. Registered as an open item for the spec.
 - **`φ_M` as an actuator** — fixed at `φ̄_M ∀t` by assumption; `φ_X(t) = Φ(Θ_φ; σ²(i(t)))`
 - **Any edit to the repo-root `.planning/`** — the shared v1 (open-loop plumbing,
   in-flight across peers) and the v2-controller milestone are read-only here
@@ -135,7 +143,7 @@ recorded under Context, not deliverables of this project.)
 | The set-point derivation is itself the proof obligation | The boxed `τ*_MEV` is marked "needs verification" by its author — shipping it unverified would be the failure mode | — Pending |
 | All four claims go to Aristotle (closed form, 5-factor channel, `∂ν/∂λ_MEV > 0` sign, state-space well-posedness) | The closed form is not independently meaningful if the channel or the sign fails | — Pending |
 | Stop at verified design; no EVM implementation | Mirrors how v2-controller was scoped; `src/` is peer-owned | — Pending |
-| `(β_j, γ_j)` and `φ_M` are parameters, not actuators | The non-control theorem for `(β,γ)`; `φ_M ≡ φ̄_M ∀t` by assumption | — Pending |
+| `(β_j, γ_j)` and `φ_M` are parameters, not actuators | Both are **declared assumptions** of the source derivation. The `(β,γ)` justification originally cited a non-existent non-control theorem — contradicted by T12 `mevMulti_mono_beta` | ⚠️ Revisit — assumption, not theorem |
 | v2-controller research is read-only input | Saves re-deriving the Lean/GAMS/EVM-primitive maps; v2 covers the spatial axis, this covers the event-time axis | — Pending |
 | Two-step review runs before execution, not deferred | v2-controller deferred its SPEC-04 review and still owes it | — Pending |
 
