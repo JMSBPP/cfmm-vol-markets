@@ -118,55 +118,61 @@ implementation milestone and none of it is answerable from theory alone.
 
 ## Traceability
 
-Populated during roadmap creation (2026-08-08).
+Populated during roadmap creation (2026-08-08); **repopulated after the 2026-08-08 roadmap
+rewrite** (8 phases -> 6) that followed the scope-narrowing user ruling and the two-step
+review.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| NOT-01 | Phase 1 — Rulings & Ground Truth | Pending |
-| NOT-02 | Phase 1 — Rulings & Ground Truth | Pending |
-| NOT-03 | Phase 1 — Rulings & Ground Truth | Pending |
-| NOT-04 | Phase 1 — Rulings & Ground Truth | Pending |
-| NOT-05 | Phase 1 — Rulings & Ground Truth | Pending |
-| NOT-06 | Phase 1 — Rulings & Ground Truth | Pending |
-| HND-04 | Phase 1 — Rulings & Ground Truth | Pending |
-| HND-05 | Phase 1 — Rulings & Ground Truth | Pending |
-| FRM-01 | Phase 2 — Frame Selection & EVM Substrate | Pending |
-| FRM-02 | Phase 2 — Frame Selection & EVM Substrate | Pending |
-| FRM-03 | Phase 2 — Frame Selection & EVM Substrate | Pending |
-| FRM-04 | Phase 2 — Frame Selection & EVM Substrate | Pending |
-| EVM-01 | Phase 2 — Frame Selection & EVM Substrate | Pending |
-| PRF-06 | Phase 3 — Obligation Machinery & Cheap Detectors | Pending |
-| PRF-07 | Phase 3 — Obligation Machinery & Cheap Detectors | Pending |
-| PRF-08 | Phase 3 — Obligation Machinery & Cheap Detectors | Pending |
-| PRF-09 | Phase 3 — Obligation Machinery & Cheap Detectors | Pending |
-| PRF-10 | Phase 3 — Obligation Machinery & Cheap Detectors | Pending |
-| PRF-01 | Phase 4 — P1 + P2 (HALT GATE) | Pending |
-| PRF-02 | Phase 4 — P1 + P2 (HALT GATE) | Pending |
-| PRF-03 | Phase 5 — P3 Sign + P5 τ↔λ Bridge | Pending |
-| PRF-05 | Phase 5 — P3 Sign + P5 τ↔λ Bridge | Pending |
-| PRF-04 | Phase 6 — The Set-Point Law: Verdict and Correction | Pending |
-| SAL-01 | Phase 6 — The Set-Point Law: Verdict and Correction | Pending |
-| SAL-02 | Phase 6 — The Set-Point Law: Verdict and Correction | Pending |
-| SAL-03 | Phase 6 — The Set-Point Law: Verdict and Correction | Pending |
-| SAL-04 | Phase 6 — The Set-Point Law: Verdict and Correction | Pending |
-| SAL-05 | Phase 6 — The Set-Point Law: Verdict and Correction | Pending |
-| EVM-02 | Phase 7 — EVM Feasibility of the Surviving Law | Pending |
-| EVM-03 | Phase 7 — EVM Feasibility of the Surviving Law | Pending |
-| EVM-04 | Phase 7 — EVM Feasibility of the Surviving Law | Pending |
-| HND-01 | Phase 8 — Consolidation & Hand-off | Pending |
-| HND-02 | Phase 8 — Consolidation & Hand-off | Pending |
-| HND-03 | Phase 8 — Consolidation & Hand-off | Pending |
+| NOT-01 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-02 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-03 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-05 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-06 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-07 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-08 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-09 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
+| HND-04 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
+| HND-05 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-04 | Phase 2 — Entrywise Plant & Control Frame | Pending |
+| FRM-01 | Phase 2 — Entrywise Plant & Control Frame | Pending |
+| FRM-02 | Phase 2 — Entrywise Plant & Control Frame | Pending |
+| FRM-03 | Phase 2 — Entrywise Plant & Control Frame | Pending |
+| FRM-04 | Phase 2 — Entrywise Plant & Control Frame | Pending |
+| FRM-05 | Phase 2 — Entrywise Plant & Control Frame | Pending |
+| PRF-03 | Phase 3 — Obligation Protocol, Typed Hypotheses, Cheap Detectors | Pending |
+| PRF-06 | Phase 3 — Obligation Protocol, Typed Hypotheses, Cheap Detectors | Pending |
+| PRF-07 | Phase 3 — Obligation Protocol, Typed Hypotheses, Cheap Detectors | Pending |
+| PRF-08 | Phase 3 — Obligation Protocol, Typed Hypotheses, Cheap Detectors | Pending |
+| PRF-09 | Phase 3 — Obligation Protocol, Typed Hypotheses, Cheap Detectors | Pending |
+| PRF-10 | Phase 3 — Obligation Protocol, Typed Hypotheses, Cheap Detectors | Pending |
+| PRF-01 | Phase 4 — Verdicts: P1, P2, P5 (BRANCH GATE) | Pending |
+| PRF-02 | Phase 4 — Verdicts: P1, P2, P5 (BRANCH GATE) | Pending |
+| PRF-05 | Phase 4 — Verdicts: P1, P2, P5 (BRANCH GATE) | Pending |
+| PRF-04 | Phase 5 — The Set-Point Law: Verdict & Salvage | Pending |
+| SAL-01 | Phase 5 — The Set-Point Law: Verdict & Salvage | Pending |
+| SAL-02 | Phase 5 — The Set-Point Law: Verdict & Salvage | Pending |
+| SAL-03 | Phase 5 — The Set-Point Law: Verdict & Salvage | Pending |
+| SAL-04 | Phase 5 — The Set-Point Law: Verdict & Salvage | Pending |
+| SAL-05 | Phase 5 — The Set-Point Law: Verdict & Salvage | Pending |
+| HND-01 | Phase 6 — Formal Controller Document & Hand-off | Pending |
+| HND-02 | Phase 6 — Formal Controller Document & Hand-off | Pending |
+| HND-03 | Phase 6 — Formal Controller Document & Hand-off | Pending |
 
 **Coverage:**
-- v1 requirements: 34 total
+- v1 requirements defined: 34 (FRM 5 + NOT 9 + PRF 10 + SAL 5 + HND 5)
 - Mapped to phases: 34
-- Unmapped: 0 ✓
+- Mapped to more than one phase: 0
+- Unmapped: 0 (verified programmatically: the set of IDs defined above equals the set mapped
+  in `ROADMAP.md`'s `**Requirements**:` lines)
 
-> **Record correction (2026-08-08, roadmapping):** this section previously recorded
-> **31** v1 requirements. A direct count of the checklist above returns **34**
-> (FRM 4 + NOT 6 + PRF 10 + SAL 5 + EVM 4 + HND 5). The count is corrected here; no
-> requirement was added or removed.
+> **Record correction (2026-08-08, roadmap rewrite):** the previous traceability table mapped
+> `EVM-01`/`EVM-02`/`EVM-03`/`EVM-04`, which are no longer v1 requirements — the entire EVM
+> track moved to v2 by the user's scoping ruling, and `EVM-04` does not exist in the current
+> requirement set at all. The current v1 set is `FRM-01..05`, `NOT-01..09`, `PRF-01..10`,
+> `SAL-01..05`, `HND-01..05`. The count of 34 is unchanged: the four `EVM-*` rows were
+> replaced by `FRM-05`, `NOT-07`, `NOT-08`, `NOT-09`.
 
 ---
 *Requirements defined: 2026-08-08*
-*Last updated: 2026-08-08 after roadmap creation — traceability populated, coverage count corrected 31 → 34*
+*Last updated: 2026-08-08 after the roadmap rewrite — traceability remapped onto the 6-phase structure*

@@ -2,68 +2,91 @@
 
 ## Overview
 
-This project does not build software. It adjudicates a derivation. The boxed closed form
-for `τ*_MEV` carries its own author's `> note: This needs verification`, and four
-independent researchers converged on the prediction that it will not survive formal
-verification. The journey therefore runs: close every notational and definitional question
-that would make a proof be *about the wrong object* (Phase 1), choose and justify a control
-frame that the plant's actual `∂`-partition can carry (Phase 2), wrap the obligations in a
-freeze/diff/gate protocol and run the cheap detectors that could refute the law for free
-(Phase 3), then spend Aristotle budget on the obligations in strict dependency order —
-well-posedness and the channel first, behind a hard halt gate (Phase 4), then the tax-side
-gain and the `τ↔λ` bridge (Phase 5), then the law itself and, where it falls, its correction
-(Phase 6). Only a law that survives is analysed for EVM realizability (Phase 7), and the
-whole thing consolidates into one spec with an honest gap register and a named hand-off
-(Phase 8).
+This project does not build software. It adjudicates a derivation and ships **one document**:
+the formal controller spec, grounded on theory and formal results. Per the user ruling of
+2026-08-08 the entire EVM-feasibility track is out (moved to v2 intact), and the two
+behavioral gains are stated as typed hypotheses rather than proved — so what remains is
+narrower and cheaper than the eight-phase predecessor: find what is already settled on disk
+(Phase 1), write the plant out entry by entry and choose a frame it can carry (Phase 2),
+state the obligations in an idiom the Lean tree carries and run the free detectors (Phase 3),
+take verdicts on well-posedness, the channel and the `τ↔λ` bridge behind a branch gate
+(Phase 4), settle the boxed law and derive its correction (Phase 5), and consolidate
+(Phase 6).
 
-**Execution is sequential** (`parallelization: false`, a deliberate user choice) so that an
-early refutation halts downstream spend. **A refutation is a delivered result, not an
-abort** — per the project's Core Value, and per the 2026-08-08 scoping decision the project
-does not stop at the verdict but derives and verifies the *corrected* law.
+**Execution is sequential** (`parallelization: false`, a deliberate user choice) so an early
+refutation halts downstream spend. Consequently the ordering rule is **cheapest decisive
+check first**: Phase 1 is entirely reading artifacts that already exist, and it is capable of
+settling several questions that the previous roadmap had queued behind three phases of
+machinery.
 
-**This project executes zero steps of the proving pipeline in its own worktree.** The Lean
-tree, the bundle assembly, and the Aristotle API key all belong to the Lean4+Math peer
-session. Every proof obligation therefore terminates in a PROOF-REQUEST hand-off artifact,
-and a phase's proof criterion is satisfied by *the artifact plus the returned verdict* —
-never by this project running a prover.
+**A refutation is a delivered result, not an abort.** Where an obligation refutes, the branch
+routes to *salvage* — a corrected law, derived and verified — never to termination.
+
+### What changed from the previous (8-phase) roadmap
+
+| Change | Reason |
+|---|---|
+| **EVM track deleted** (old Phase 7 and `EVM-01`) | User ruling 2026-08-08: theory and the formal document only. `EVM-01a/01b/02/03/05/06` are preserved in `REQUIREMENTS.md` v2, not discarded. |
+| **`FRM-05` (null-space `HF = 0`) survives, reclassified** | It is a control-theoretic question — does a disturbance-invariant controlled variable exist — and is reported with **no on-chain cost claim attached**. |
+| **The `τ* = 1` headline refutation is DEAD** | `L(i_K) = L̄·ℓ(ξ,ι;i_K)` with `ℓ` geometry-invariant, and `ΔQ_v★` is in **vol-asset** L units (`UNITS_AND_SCALES.md:70`) while the pool's `L̄` is price-axis liquidity. Rule 9 is an identity on the vol axis and constrains nothing on the pool axis. The "`L` overload" is two assets, not one ambiguous symbol (`NOT-07`). |
+| **`PRF-03` is no longer a proof bundle** | `∂L̄/∂π^φ > 0` and `Ḡ_(ν,λ_MEV) > 0` are LP-supply estimands observed from add/remove-liquidity events. They are named typed hypotheses; **neither is ever sent to Aristotle**. Magnitudes are `EST-01` (v2). This removed a whole phase's worth of work. |
+| **8 phases → 6** | Derived from the surviving work, not compressed to a target. |
+
+### Refutations that survive the ruling
+
+These are the project's likely output and each is checkable by reading the pinned source:
+
+1. **The direct monoid path.** `τ_MEV` reaches `φ_total` via the Rule 12 monoid, bypassing
+   `ν` — visible in the source's own `∇φ` display at `SRC:56`, entry `(1−φ_X)(1−φ_M)`. P2's
+   "no other path" clause is therefore still false.
+2. **The box solves the wrong relation.** It solves `∂π̂^σ/∂τ_MEV = ΔQ_v★`, not the stated
+   `π^σ ≡^R π̂^σ`; the `(σ²−σ_K²)⁺` factor is absent from the box.
+3. **Two incompatible sections.** `(φ_M, φ_X, τ) ↦ φ_total` is a submersion `ℝ³→ℝ` with no
+   inverse, so the step at `SRC:110` adds directional derivatives taken along different
+   sections.
 
 ### Deviations from the researched build order (stated, not silent)
 
-ARCHITECTURE.md's six-phase order (A → B → C → D → E → F) is the strong default and is
-mostly adopted. Six deliberate deviations:
+1. **`research/SUMMARY.md` is used as input, not as mandate, and parts of it are known
+   wrong.** Its `τ*>1` / Rule-9 findings are superseded by the 2026-08-08 ruling. Any finding
+   carried forward from it is re-verified at its cited line in Phase 1 before it is used.
+2. **The "4 of 4 researchers converged" claim is not used to size any gate.** All four read a
+   `PROJECT.md` that rewarded refutation — a shared prior, not independence. One vote analysed
+   the wrong object (`π^σ`, which carries no `τ_MEV` dependence, instead of `π̂^σ`) and two
+   researchers contradict each other on P2. The honest count is **two independent
+   derivations, one restatement, one invalid**, and that is what Phase 1 records.
+3. **`NOT-08` (the inventory sweep) is the first thing the project does.** Three normative
+   on-disk artifacts were missed by four researchers and four planning documents. The sweep
+   precedes every notation map, ledger and obligation.
+4. **`PRF-05` (the `τ↔λ` bridge) joins P1 and P2 in one phase** rather than standing alone.
+   With `PRF-03` demoted to a hypothesis, P5 would otherwise be a solo phase, and it shares
+   the entire `τ → φ → ν` definitional payload with P2.
+5. **`PRF-03` sits in Phase 3, not with the verdicts.** Its operative content is *which
+   claims are excluded from the submission set* — which is exactly what Phase 3's protocol
+   governs.
+6. **Phase 1 carries ten requirements**, heavier than standard granularity would suggest.
+   They are one capability (read what exists; close what is already closed) and they are the
+   cheapest work in the project. Splitting them would put a document read behind a phase
+   boundary, which is the specific defect this rewrite exists to fix.
 
-1. **Research Phase A is split into Phases 1 and 2.** SUMMARY.md preserves a conflict:
-   FRAME treats the apparent underactuation as already resolved (`π^σ` is a measured
-   disturbance; `c = Hy`, `H = [1,−1]`, square 1×1), while PITFALLS (M3) wants an entrywise
-   `∂`-matrix check first in case `∂_(t+1,t)` is structurally zero. Splitting puts
-   PITFALLS's check (`NOT-04`) in Phase 1 and makes Phase 2's frame selection *depend on its
-   result* — the conflict is resolved at a phase boundary, where it is visible, rather than
-   inside one phase where it could be quietly skipped.
-2. **E0 (`EVM-01`) is not parallel to A.** Parallelization is off, and PROJECT.md's own
-   framing requires the frame to be justified *against EVM constraints*, so the refreshed
-   primitive inventory is an input to Phase 2's frame selection, not a side task.
-3. **A phase research did not name — Phase 3.** ARCHITECTURE treats the integration gate as
-   "a deliverable of the theory-basis phase". The requirements promote it to five first-class
-   items (`PRF-06`…`PRF-10`), and `PRF-09`'s detectors can refute the boxed law numerically
-   *before any Aristotle spend*. Cheap detectors that can end the project deserve their own
-   exit, not a footnote in someone else's phase.
-4. **On P2 REFUTED, Phase 5 stays live.** ARCHITECTURE says skip C, D and E1. But the
-   2026-08-08 salvage decision requires a *corrected* law (`SAL-02`/`SAL-04`), and any
-   corrected law's sign rests on the same `∂ν/∂τ_MEV` composition that Phase 5 settles. What
-   is dropped on the refuted branch is the *spend* on P4-as-boxed, not the verdict.
-5. **Research Phase D and the salvage work merge into Phase 6.** On the refuted branch the
-   boxed-form phase collapses to a ledger entry and the real work is the correction;
-   splitting them would leave a near-empty phase. Phase 6 is one capability: *a set-point
-   law with a verdict*.
-6. **`HND-04` (mark the stale v2 documents do-not-cite) moves from consolidation into
-   Phase 1.** Its entire value is preventing consumption of a stale inventory; performed last
-   it prevents nothing. `EVM-01` already supersedes one of the two documents.
+### Open item for the user — the project has no defined failure condition
 
-### Record correction
+Every outcome in `PROJECT.md`, `REQUIREMENTS.md` and this roadmap is written as a success:
+the law is proven, or it is refuted-with-witness, or it is corrected, or it is recorded as a
+hypothesis. There is presently **no criterion under which this project would be judged to
+have failed.** That is a real gap in the specification of the work and it is flagged here
+rather than papered over. **This roadmap deliberately does not invent one** — it is routed to
+the user via the gap register (`HND-01`, Phase 6, criterion 2).
 
-`REQUIREMENTS.md` stated **31** v1 requirements. A direct count returns **34**
-(FRM 4 + NOT 6 + PRF 10 + SAL 5 + EVM 4 + HND 5). All 34 are mapped below; the traceability
-table and the coverage count in `REQUIREMENTS.md` have been corrected.
+### The proving route is an open decision, not an assumption
+
+The previous roadmap asserted that zero steps of the proving pipeline run in this worktree
+and hard-depended on the Lean4+Math peer. That dependency was never agreed: `list_peers` at
+repo scope returns nothing, `CLAUDE.md` has no row for this track, and it never mentions
+Aristotle. The user has since supplied an Aristotle API key to **this** session. The roadmap
+is therefore written to be **route-agnostic**: `PRF-10`'s hand-off artifact must be
+self-contained and valid whether submission happens here or via a peer, and `HND-03` requires
+peer agreement to be *obtained and evidenced*, never assumed.
 
 ## Phases
 
@@ -73,170 +96,159 @@ table and the coverage count in `REQUIREMENTS.md` have been corrected.
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Rulings & Ground Truth** - Every notational, definitional and dimensional question closed by a recorded user ruling; the `∂`-partition written out entrywise
-- [ ] **Phase 2: Frame Selection & EVM Substrate** - The control frame chosen and justified against both the entrywise plant result and the live Plank primitive inventory
-- [ ] **Phase 3: Obligation Machinery & Cheap Detectors** - Obligations stated in the tree's native idiom, wrapped in a freeze/diff/gate protocol, with the numerical and back-substitution detectors already run
-- [ ] **Phase 4: P1 + P2 — Well-Posedness and the Channel (HALT GATE)** - One bundle, two verdicts, and the branch decision that routes the rest of the project
-- [ ] **Phase 5: P3 Sign + P5 τ↔λ Bridge** - The tax-side gain settled: is `∂ν/∂λ_MEV` substitutable for `∂ν/∂τ_MEV`, and what is the composed sign
-- [ ] **Phase 6: The Set-Point Law — Verdict and Correction** - A terminal verdict on the boxed `τ*_MEV` and, where it falls, a corrected law that carries its own verdict
-- [ ] **Phase 7: EVM Feasibility of the Surviving Law** - Term-by-term realizability, signatures only, saturate-never-revert, loop and null-space resolution
-- [ ] **Phase 8: Consolidation & Hand-off** - One consolidated spec, an honest gap register, and a hand-off with every peer coordination point named
+- [ ] **Phase 1: Ground Truth, Notation, and the Rulings Triage** - Everything already settled on disk is found and recorded before anything new is written
+- [ ] **Phase 2: The Entrywise Plant and the Control Frame** - The `∂`-partition written out entry by entry, a frame it can actually carry, and the null-space test as theory
+- [ ] **Phase 3: Obligation Protocol, Typed Hypotheses, and Cheap Detectors** - What must be true before one obligation is submitted — including the detectors that could refute for free
+- [ ] **Phase 4: Verdicts — Well-Posedness, the Channel, the τ↔λ Bridge (BRANCH GATE)** - Three verdicts in one bundle, and the branch decision that routes the rest
+- [ ] **Phase 5: The Set-Point Law — Verdict and Salvage** - A terminal verdict on the boxed `τ*_MEV` and, where it falls, a corrected law under a stated budget
+- [ ] **Phase 6: The Formal Controller Document and Hand-off** - The deliverable, an honest gap register, and a hand-off with agreement obtained rather than assumed
 
 ## Phase Details
 
-### Phase 1: Rulings & Ground Truth
-**Goal**: Every notational, definitional and dimensional question that could make a proof be about the wrong object is closed by a recorded user ruling, and the plant's `∂`-partition exists on paper entry by entry.
+### Phase 1: Ground Truth, Notation, and the Rulings Triage
+**Goal**: Every question that could make a proof be about the wrong object is closed from what is *already on disk*, before this project writes anything of its own — including the notation map, the unit ledger, and the review register that governs everything after.
 **Depends on**: Nothing (first phase)
-**Requirements**: NOT-01, NOT-02, NOT-03, NOT-04, NOT-05, NOT-06, HND-04, HND-05
+**Requirements**: NOT-01, NOT-02, NOT-03, NOT-05, NOT-06, NOT-07, NOT-08, NOT-09, HND-04, HND-05
 **Success Criteria** (what must be TRUE):
-  1. All 13 blocking decisions collected in `research/SUMMARY.md` carry a recorded ruling with its rationale — including which relation the boxed form solves, the `τ`-vs-`λ` substitution, `e^σ`'s status, `Δt`'s status, and the import-or-assume decision on demand elasticity. None is deferred.
-  2. A notation-map paragraph resolves every named collision — `π^{\varphi}` (source: `π^{\phi} − π^{LVR}`; entry-point doc: the portfolio value function), the `L` overload (order ladder vs aggregate pool), `ν` vs `u`, leg pairing in `π^{\phi}`, the contractual-vs-replicated `π^σ`, and `PROJECT.md`'s self-minted `π^{\tilde\phi}` — and no symbol appears anywhere downstream that is not either in the source or in that map with a stated reason; one identifier scheme replaces the four researchers' non-aligned taxonomies (`P1–P4`/`C-P#-#`/`A#`, `B#`/`M#`/`N#`/`R#`, `FINDING A/B`/`W#`).
-  3. The `(∂_(t+1,t), ∂_(x,u), ∂_(y,x), ∂_(y,u))` partition is written out entry by entry from the source, each entry classified as a constant, a Jacobian entry, or structurally zero — and in particular the document states plainly whether `∂_(t+1,t)` is the zero matrix, whether `u_en` contains non-actuators, and whether the `y` row for `π^σ` is structurally zero. No claim relying on the plant being non-degenerate is made anywhere before this exists.
-  4. A unit/dimension ledger covers every symbol crossing the channel (at minimum `ΔQ_v*, L(i_K), π^l, π^σ, π̂^σ, π^φ, π^LVR, ν, σ², φ, τ_MEV, p_(η,Δ_i)`), the boxed law is checked against it, and any inhomogeneity found is routed to the user as a ruling request rather than silently repaired.
-  5. `research/v2-controller/LEAN-MAP.md` and `EVM-CONTROL-PRIMITIVES-MAP.md` carry an explicit do-not-cite marker with the reason, and a review register exists that instantiates the two-step review (Reality Checker + one specialist, in parallel, blind) as a standing pre-commit gate — with this phase's own artifacts as its first passing entries.
+  1. The inventory sweep of `evm-controller/spec/`, `evm-controller/notes/` and `plank/notes/` is complete, and its output names at minimum `plank/notes/UNITS_AND_SCALES.md`, `plank/notes/VOLATILITY_INSTRUMENTS_MEV.tex` (1063 lines, numbered Definitions/Theorems, defines `ι` = our `#_σ`) and `spec/VOLATILITY_INSTRUMENTS_MEV_TAX/ENTRY_POINT.md` (carries a correct boxed `∂φ/∂ν`) — each with a sha pin and a one-line statement of what it is normative *for*. `ENTRY_POINT.md` is git-tracked by the end of the phase (`git ls-files` returns it). The sweep's artifact is dated before every other artifact this project writes, and it records that `VOLATILITY_INSTRUMENTS_MEV.tex` is **not** a superset of `SRC` (zero hits for `u_ex`, `x_{t+1}`, `\widehat\pi`, `\frac{\partial`) so `SRC` remains the citation target — cited **by line against a pinned sha**, since it carries no numbered Definitions or Rules.
+  2. The 13 blocking decisions are triaged into three named buckets, none left untriaged: **ALREADY ANSWERED ON DISK** (each with the `file:line` that answers it), **AGENT-ANSWERABLE** (each with the answer and the evidence), **NEEDS THE AUTHOR** (each with the question as posed). The triage records at minimum that `ν` vs `u` is answered at `DOC:620-622`, that Proposition 10 is DECIDED at `DOC:803`, and that the `π^φ` leg-pairing "collision" is an errata artifact — naming the four agreeing sources and the two dissenting ones. **Only the NEEDS-THE-AUTHOR bucket is put to the user**; the other two are closed by this phase.
+  3. A notation map resolves each collision with the chosen reading *and* the rejected reading stated — `π^{\varphi}` (source: `π^{\phi} − π^{LVR}`; entry-point doc: the portfolio value function), `ν` vs `u`, leg pairing in `π^{\phi}`, and the `ΔQ_v★`/`ΔQ_υ` glyph collision (`ENTRY_POINT.md:672`, same `I_ord` slot). It records the two-axis liquidity distinction as **SETTLED**, quoting `L(i_K) = L̄·ℓ(ξ,ι;i_K)` with `ℓ` geometry-invariant and `UNITS_AND_SCALES.md:70` for `ΔQ_v★` being vol-asset L, and requiring every downstream use of `L` to name its axis. It states that `∂φ/∂ν` from `ENTRY_POINT.md` enters the channel's factor list as a **determinate, strictly positive** factor. No symbol appears in any artifact this project writes that is not in the source or in this map with a stated reason.
+  4. One identifier scheme replaces the four research taxonomies (`P1–P4`/`C-P#-#`/`A#`, `B#`/`M#`/`N#`/`R#`, `FINDING A/B`/`W#`), and **each carried-over finding is re-verified at its cited line against the pinned source sha** — findings that no longer verify are dropped with the reason recorded, and findings superseded by the 2026-08-08 ruling (the Rule-9 `τ*=1` route, the `∂L(i_K)/∂π^φ ≡ 0` channel-death claim) are marked SUPERSEDED, not carried. The record states the honest independence count for P2 — two independent derivations, one restatement, one invalid (it analysed `π^σ`, which carries no `τ_MEV` dependence, rather than `π̂^σ`) — and never "4 of 4". `research/v2-controller/LEAN-MAP.md` and `EVM-CONTROL-PRIMITIVES-MAP.md` each carry a do-not-cite header naming the specific stale claim that makes them unusable.
+  5. The unit ledger exists as a **proposed diff extending** `UNITS_AND_SCALES.md` at a pinned sha — adding exactly the symbols it lacks (`ν`, `τ_MEV`, `π^l`, `π^φ`, `π^LVR`, `ΔQ_υ`) and re-deriving nothing the table already carries — routed to `ul2inqpl` as a message, with `git -C plank status` unchanged by this project. A review register exists and is honest about its own history: the founding artifacts (`b5f5e82`, `9658375`, `d3b226a`) appear as **retroactive** first entries stating that they were committed *before* their two-step review ran, with that review's findings listed as entries against them; every artifact after them shows a review date preceding its commit date.
 **Plans**: TBD
 
-### Phase 2: Frame Selection & EVM Substrate
-**Goal**: `CONTROL-FRAME.md` v1 exists and is sha-pinned: the control-theoretic frame is selected and justified in writing, defensible against both Phase 1's entrywise plant result and the live Plank primitive inventory.
+### Phase 2: The Entrywise Plant and the Control Frame
+**Goal**: The plant exists on paper entry by entry, a control frame is selected that the actual partition can carry (and justified against the alternatives), and the null-space test is run as a control-theoretic result.
 **Depends on**: Phase 1
-**Requirements**: FRM-01, FRM-02, FRM-03, FRM-04, EVM-01
+**Requirements**: NOT-04, FRM-01, FRM-02, FRM-03, FRM-04, FRM-05
 **Success Criteria** (what must be TRUE):
-  1. The selected frame is named, and every excluded alternative — LQR/LQG/servo tracking, root locus, Bode/Nyquist, PID, the Kalman/Gramian rank test as a well-posedness tool, and the "static output feedback" name-collision — carries its own stated reason for exclusion.
-  2. The frame selection cites Phase 1's entrywise `∂`-result explicitly. If `∂_(t+1,t)` is structurally zero the document says so and the frame is re-scoped to static inversion under uncertainty; dynamic-control machinery is not imported over a memoryless map. FRAME's `H = [1,−1]` controlled-variable resolution is adopted only if the entrywise check supports it, and the researcher tension is recorded either way.
-  3. A well-posedness checklist for a *set-point* (as opposed to a regulator) is enumerated, and each of P1–P5 is explicitly testable against it — with `e^σ` declared as an equality constraint, not an objective, so a regulator over `e^σ` cannot creep in.
-  4. The event-clock question is either resolved or declared OPEN with its consequences written down: whether `t` indexes swaps or blocks, whether event-averaged `ΔQ_M, ΔQ_X` may be combined with time-averaged `π^LVR·Δt, σ², λ`, and the PASTA/ASTA argument for why the combination is not free in a CFMM.
-  5. Every literature citation entering the spec is verified against a primary source or carries an explicit UNVERIFIED tag — the five FRAME could not verify are each closed or tagged; and the fixed-point primitive inventory is re-derived from `cfmm-wt/plank` (never this worktree's `src/`, a confirmed stale mirror), superseding the 2026-06-28 map.
+  1. Every entry of the `(∂_(t+1,t), ∂_(x,u), ∂_(y,x), ∂_(y,u))` partition is written out from the pinned source and classified as a constant, a Jacobian entry, or structurally zero — with an explicit yes-or-no on three questions: whether `∂_(t+1,t)` is the zero matrix, whether `u_en = [τ_MEV, φ_M, φ_X]^T` contains entries that are not actuators (`φ_M ≡ φ̄_M` frozen; `φ_X(t) = Φ(Θ_φ; σ²(i(t)))` a schedule, not a free input), and whether the `π^σ` row of `∂_(y,u)` is structurally zero. **No artifact anywhere asserts the plant is non-degenerate before this table exists.**
+  2. The selected frame is named, and every excluded alternative carries its own stated reason: LQR/LQG/servo tracking, root locus, Bode/Nyquist, PID, the Gramian/Kalman rank test as a well-posedness tool, and the "static output feedback" name-collision. The selection **cites criterion 1's table by entry**: if `∂_(t+1,t)` is structurally zero the document says so and re-scopes to static inversion under uncertainty rather than importing dynamic-control machinery over a memoryless map. The FRAME-vs-PITFALLS tension on underactuation (`H = [1,−1]` already-resolved vs. entrywise-check-first) is recorded with which side the table's evidence supports.
+  3. A well-posedness checklist for a **set-point** (as distinct from a regulator) is enumerated as numbered conditions, each of P1/P2/P4/P5 is mapped to the specific conditions it must satisfy, and `e^σ` is declared an equality constraint rather than an objective so a regulator cannot creep in. The event-clock question is item zero of that checklist and is resolved **or** declared OPEN — either way the document states whether `t` indexes swaps or blocks, states whether event-averaged `ΔQ_M, ΔQ_X` may be combined with time-averaged `π^LVR·Δt, σ², λ`, writes out the PASTA/ASTA argument for why the combination is not free in a CFMM, and — if OPEN — names the downstream results it puts at risk.
+  4. Every literature citation entering the document is either primary-verified (via the arxiv MCP, with the identifier recorded) or carries an explicit `UNVERIFIED` tag. The verified-or-tagged set covers the **≈13** not-primary-verified items, not the 5 originally flagged: the recommendation's own four pillars (Skogestad 2000, Mason 1953, Davis 1984, Wolff 1982) sit in the same web-search tier as the flagged failures and are re-checked, and the five Carr–Madan / Breeden–Litzenberger invocations either acquire a citation or are tagged. **No `FRAME.md` HIGH tag is inherited without re-check.**
+  5. The null-space test `HF = 0` (Alstad & Skogestad 2007) has **run** over an explicitly partitioned disturbance vector separating trade-specific components (`ΔQ_M`, `ΔQ_X`) from slow-moving ones (`σ²`, `Θ_φ`), the partition used is stated, and the result is recorded as exists / does-not-exist with either the `H` it produces or the rank obstruction that prevents it. It is reported as **theory only**: no on-chain cost, gas, or storage claim appears anywhere in the document.
 **Plans**: TBD
 
-### Phase 3: Obligation Machinery & Cheap Detectors
-**Goal**: Every obligation is stated in an idiom the Lean tree can actually carry, wrapped in a freeze/diff/gate protocol and a hand-off shape, and the cheap detectors have already been run — before one unit of Aristotle budget is spent.
+### Phase 3: Obligation Protocol, Typed Hypotheses, and Cheap Detectors
+**Goal**: Everything that must be true before a single obligation is submitted — the excluded hypotheses are named, the obligations are stated in an idiom the Lean tree actually carries, the freeze/diff/gate protocol exists and has been exercised, and the free detectors have already been run.
 **Depends on**: Phase 2
-**Requirements**: PRF-06, PRF-07, PRF-08, PRF-09, PRF-10
+**Requirements**: PRF-03, PRF-06, PRF-07, PRF-08, PRF-09, PRF-10
 **Success Criteria** (what must be TRUE):
-  1. The numerical detector has **run** and recorded whether `τ*` lands in `[0,1]` under realistic parameters, and the back-substitution check has **run** and recorded whether the boxed form actually satisfies the relation Phase 1 ruled it solves. Both results are written down as findings — a range violation or a failed back-substitution is a refutation-in-waiting and is reported as such, not smoothed over.
-  2. P1–P5 are each stated in the tree's native `Monotone`/`StrictAnti`/`ConvexOn` idiom wherever a sign or ordering claim suffices; any statement that genuinely needs differential-calculus infrastructure the tree does not have is flagged, with the cost of building that layer stated, rather than assumed available.
-  3. A freeze-and-sha-pin protocol exists and is exercisable: each obligation is byte-frozen at submission time with a **section-scoped** sha (never a whole-file hash of the concurrently-edited entry-point doc), and the byte-diff procedure against what returns is written down.
-  4. A six-point integration gate is written and is a stated precondition on every later landing: statement byte-diff (an added hypothesis is a disclosed narrowing and is reported; a renamed-but-weaker theorem is a MISS), `#print axioms` sweep, zero `sorry`/`admit`, proof-body triage (a one-tactic proof of a claim described as substantive is flagged, not counted), dependency byte-identity, and provenance.
-  5. A self-contained PROOF-REQUEST hand-off template exists — obligations, the prompt, the module import closure re-derived from `lean/lakefile.toml` at assembly time (never from the do-not-cite `LEAN-MAP.md`), the module-origin map for the return rewrite, and the sha pins — with the owning peer session named as the delivery target and an explicit statement that no step of the pipeline runs in this worktree.
+  1. `Ḡ_(ν,λ_MEV) := ∂ν/∂λ_MEV` and `∂L̄/∂π^φ` each appear as an **explicitly named typed hypothesis** carrying its estimand, its sign convention, and its observation channel (add/remove-liquidity events, with the emitting event named). The Aristotle submission set is enumerated in one place and **neither hypothesis appears in it**; each carries a NOT-SUBMITTED marker with the ruling that makes it an estimand rather than a proposition, and `EST-01` (v2) is named as the track that measures the magnitudes.
+  2. Each obligation is stated in the tree's native `Monotone` / `StrictAnti` / `ConvexOn` idiom wherever a sign or ordering claim suffices. Where derivative infrastructure is genuinely needed, the gap is stated **narrowly and correctly**: no derivative lemmas exist for the five named schedule functions (`logistic`, `sigmoidR`, `multiFee`, `probOr`, `ptrade`), and the cost of building them is priced against `CapponiEmbed.lean` as in-tree precedent (132 `HasDerivAt`, 128 `deriv`, 19 `Differentiable`, including `HasDerivAt.div` and `Real.hasDerivAt_rpow_const`). The false claim that the tree is devoid of differential-calculus infrastructure appears nowhere.
+  3. The cheap detectors have **run** and their outputs are recorded as findings, not scheduled: the back-substitution check states whether the boxed form actually satisfies the relation Phase 1's triage says it solves, and the numerical harness reports `τ*`'s sign and range **as a function of the named hypothesis set**, with the hypotheses enumerated beside every number. A sign or range violation whose value depends on a hypothesis is recorded as `HYPOTHESIS-DEPENDENT` and **may not be logged as a refutation**.
+  4. The freeze protocol is written and has been **exercised once end-to-end on a real obligation**: byte-frozen at submission with a **section-scoped** sha (never a whole-file hash of a concurrently edited document), with the byte-diff procedure against the returned statement written down and dry-run.
+  5. A six-point integration gate is written as a stated precondition on every later landing — statement byte-diff (an added hypothesis is a disclosed narrowing and is reported; a renamed-but-weaker theorem is a MISS), `#print axioms` sweep, zero `sorry`/`admit`, proof-body triage (a `ring`/`simp` one-liner for a claim described as substantive is flagged, not counted), dependency byte-identity, provenance. The PROOF-REQUEST template is self-contained and **route-agnostic**: it records the submission route as a decision (this session's Aristotle key vs. the Lean4+Math peer) and is valid under either, with the module import closure re-derived from `lean/lakefile.toml` at assembly time rather than from the do-not-cite `LEAN-MAP.md`.
 **Plans**: TBD
 
-### Phase 4: P1 + P2 — Well-Posedness and the Channel (HALT GATE)
-**Goal**: Verdicts on well-posedness and on the exclusivity of the 5-factor channel, requested in one bundle because they share the entire plant definitional payload, with the project's downstream routing decided by P2's outcome.
+### Phase 4: Verdicts — Well-Posedness, the Channel, the τ↔λ Bridge (BRANCH GATE)
+**Goal**: Three verdicts requested as one bundle because they share the entire plant and `τ → φ → ν` definitional payload, plus the recorded branch decision that routes the rest of the project.
 **Depends on**: Phase 3
-**Requirements**: PRF-01, PRF-02
+**Requirements**: PRF-01, PRF-02, PRF-05
 **Success Criteria** (what must be TRUE):
-  1. `PRF-01` carries a terminal verdict (`PROVEN` / `CORRECTED` / `REFUTED` / `OPEN`-with-named-hypothesis) on whether the `∂`-partition is well-posed over event time and whether set-point optimization is legitimate given `φ_M ≡ φ̄_M ∀t` and `(β_j, γ_j)` frozen — with the freezing recorded as a declared modelling assumption and never justified by the non-existent "`(β,γ)` do not control `λ_MEV`" theorem.
-  2. `PRF-02` carries a terminal verdict on the "no other path" clause. If it falls, the counterexample is exhibited; the direct monoid path `∂φ/∂τ_MEV = (1−φ_M)(1−φ_X)` displayed in the source's own `∇φ` is explicitly adjudicated rather than silently absent, and any surviving form of the claim is stated as a *restricted* claim whose restriction is checked for vacuity.
-  3. Both verdicts pass Phase 3's six-point integration gate before being treated as landed, and `PROOF-LEDGER.md` records for each: the landed declaration names, every added hypothesis with its economic meaning, every narrowing, the axiom sweep, the build evidence, and the Aristotle project/task UUIDs.
-  4. **The halt gate is executed and its branch is recorded in writing.** *P2 upheld* ⟹ Phase 5 proceeds as planned. *P2 REFUTED* ⟹ Phase 6's boxed-form obligation is settled by a recorded dependency refutation naming the voiding result instead of a spent bundle, and Phase 7 targets the corrected law rather than the boxed one. **In neither branch does the project abort** — a refutation with a witness satisfies the Core Value, and the salvage route in Phase 6 is the successor, not an exception.
+  1. `PRF-01` carries a terminal verdict (`PROVEN` / `CORRECTED` / `REFUTED` / `OPEN`-with-named-hypothesis) on whether the `∂`-partition is well-posed over event time and whether set-point optimization is legitimate with `φ_M ≡ φ̄_M ∀t` and `(β_j, γ_j)` frozen. The freezing appears as a **declared modelling assumption**, and the record states plainly that the cited "`(β,γ)` do not control `λ_MEV`" theorem does not exist and that `MevOptimization.lean:465` (`mevMulti_mono_beta`) proves monotone *increase* in `β`.
+  2. `PRF-02` carries a terminal verdict on the "no other path" clause and **adjudicates the direct monoid path by name**: the source's own `∇φ` display at `SRC:56` carries the entry `(1−φ_X)(1−φ_M)`, so `τ_MEV` reaches `φ_total` without passing through `ν`. If the clause falls, the counterexample is exhibited as a concrete second path with its factors written out. If a restricted form survives, the restriction is stated and checked for vacuity — a restriction that holds only on a measure-zero or empty branch is recorded as vacuous, not as a survival.
+  3. `PRF-05` carries a verdict on whether `∂ν/∂λ_MEV` may stand in for `∂ν/∂τ_MEV`, as a first-class obligation rather than an implicit step. If it may not, every downstream statement uses the written-out composition `Ḡ_(ν,λ_MEV) · ∂λ_MEV/∂τ_MEV` and no new symbol is minted for it. **Any route that composes landed declarations by name is accompanied by a written closure check** demonstrating the composition actually closes — pointwise-vs-hazard-sum and joint-vs-single-argument mismatches named and excluded — and no `ring`-grade identity (e.g. `mevTotal_eq_arb_of_sandwich_zero`, which is `lamARB + 0 = lamARB`) is counted as a substantive step.
+  4. Each verdict passes Phase 3's integration gate before it is treated as landed, and the ledger records per verdict: the landed declaration names, every added hypothesis with its economic meaning, every narrowing, the axiom-sweep result, build evidence, and the submission UUIDs — or, where a verdict was settled by document argument rather than a machine proof, that fact and the argument's location, so a prose verdict can never be mistaken for a machine one.
+  5. **The branch gate is executed and the branch is recorded in writing before Phase 5 begins.** *P2 upheld (possibly restricted)* ⟹ Phase 5 adjudicates the boxed form as submitted. *P2 refuted* ⟹ Phase 5's `PRF-04` is settled by a recorded dependency refutation naming the voiding result instead of a spent bundle, and salvage becomes the phase's main work. **Neither branch aborts the project**; both reach Phase 6, and a refutation with a witness satisfies the Core Value.
 **Plans**: TBD
 
-### Phase 5: P3 Sign + P5 τ↔λ Bridge
-**Goal**: The tax-side gain is settled — whether `∂ν/∂λ_MEV` may stand in for `∂ν/∂τ_MEV` at all, and what the composed sign actually is.
-**Depends on**: Phase 4 (runs on both halt-gate branches — see Overview deviation 4)
-**Requirements**: PRF-03, PRF-05
-**Success Criteria** (what must be TRUE):
-  1. `PRF-05` carries a verdict on the substitution as a first-class obligation, not an implicit step. If the substitution is illegitimate, the object every downstream statement uses is the explicit composition `Ḡ_(ν,λ_MEV) · ∂λ_MEV/∂τ_MEV`, written out — no new symbol is minted for it without a user ruling.
-  2. The sign of `∂λ_MEV/∂τ_MEV` is settled by composing landed declarations by name (`tau_intensity_effect_strict`, `mevMulti_anti_phibar`, `mevTotal_eq_arb_of_sandwich_zero`) rather than asserted, and the resulting composed sign of `∂ν/∂τ_MEV` is stated.
-  3. `PRF-03` carries a verdict on `Ḡ_(ν,λ_MEV) > 0`, or — if unprovable in-tree as the research predicts — is formalized as an explicitly named hypothesis with the missing `λ_MEV ↦ ν` map recorded as a definitional gap. No step attempts to estimate `Ḡ`'s magnitude from data; the verdict is sign-only and says so.
-  4. The `|_{λ_MEV}` conditioning contradiction between the boxed objective and the boxed channel is resolved by user ruling before any statement is drafted, and the resolution is recorded.
-  5. **Escalation gate:** if the composed sign is refuted or indeterminate, that is recorded and escalated to the user *before* Phase 6 attempts an inversion, rather than proceeding on an undefined one.
-**Plans**: TBD
-
-### Phase 6: The Set-Point Law — Verdict and Correction
-**Goal**: A terminal verdict on the boxed `τ*_MEV`, and — where it falls — a corrected set-point law derived under the selected frame that itself carries a verdict. This phase delivers the project's Core Value.
-**Depends on**: Phase 5
+### Phase 5: The Set-Point Law — Verdict and Salvage
+**Goal**: A terminal verdict on the boxed `τ*_MEV` and, where it falls, a corrected set-point law derived under the Phase 2 frame that carries its own verdict — under a budget declared before the first submission. This phase delivers the Core Value.
+**Depends on**: Phase 4
 **Requirements**: PRF-04, SAL-01, SAL-02, SAL-03, SAL-04, SAL-05
 **Success Criteria** (what must be TRUE):
-  1. `PRF-04` carries a terminal verdict and is never left OPEN. The ledger states which relation the box was adjudicated against per Phase 1's ruling (level `π^σ ≡^R π̂^σ`, vega-matching, or as-written `∂π̂^σ/∂τ_MEV = ΔQ_v*`), with the rejected alternates named. Where Phase 4 or Phase 5 has voided its premise, the verdict is a recorded dependency refutation naming the voiding result rather than a spent bundle.
-  2. For each refuted obligation the *specific defect* is recorded — which step, which line, which error class — not merely that it failed; and where nothing refutes, that is recorded explicitly as "no defects" rather than left blank.
-  3. A corrected set-point law is derived under the Phase 2 frame, addressing the recorded defects, and is stated over an explicit domain carrying the branch structure the kinks force: the `(·)⁺` kink at the strike, the OTM branch where no interior solution exists (stated as a theorem about degeneracy, not as an omission), and the `min(·)` funded cap. If the law turns out to be implicit rather than closed, existence, uniqueness and monotonicity are stated as obligations.
-  4. The corrected law is itself submitted through the same freeze-and-gate cycle and carries its own verdict in `PROOF-LEDGER.md` — a corrected law asserted but unverified does not satisfy this phase.
-  5. Every assumption the corrected law rests on is declared as an assumption, with a real Lean declaration name and file wherever a prior result is cited; no assumption is justified by citing a theorem that does not exist, and no `by ring`/`by simp` bridge identity is presented as a substantive result.
+  1. `PRF-04` carries a terminal verdict and is never left OPEN. The ledger names **which relation the box was adjudicated against** — level `π^σ ≡^R π̂^σ`, vega-matching, or as-written `∂π̂^σ/∂τ_MEV = ΔQ_v★` — with the rejected alternates named, and states explicitly whether the `(σ²−σ_K²)⁺` payoff factor is present in the boxed form. Where Phase 4 voided the premise, the verdict is a recorded dependency refutation naming the voiding result rather than a spent bundle.
+  2. Every refuted obligation carries its **specific defect**: the step, the line (cited against the pinned sha, since `SRC` has no numbered Definitions or Rules), and an error class drawn from a stated enumeration. Where they survive re-check, this includes the two-incompatible-sections defect at `SRC:110` — `(φ_M, φ_X, τ) ↦ φ_total` is a submersion `ℝ³→ℝ` with no inverse, so derivatives along different sections are being summed — and the missing `(σ²−σ_K²)⁺` factor. Where nothing refuted, "no defects" is recorded explicitly rather than left blank.
+  3. A corrected set-point law is derived under the Phase 2 frame, addressing the recorded defects, and is stated over an **explicit domain** carrying the branch structure the kinks force: the `(·)⁺` kink at the strike, the OTM branch (stated as a degeneracy result — no interior solution exists there — not as an omission), and the `min(·)` funded cap. If the law is implicit rather than closed, existence, uniqueness and monotonicity are stated as named obligations. Every assumption it rests on is declared **as an assumption**, with a real Lean declaration name and file wherever a prior result is cited, and no assumption is justified by citing a theorem that does not exist.
+  4. The corrected law is itself submitted through the same freeze-and-gate cycle and carries its own verdict — a corrected law asserted but unverified does not satisfy this phase — **or**, if the declared budget is exhausted first, it ships with an explicit `VERIFICATION OUTSTANDING` verdict naming exactly what was submitted, what returned, and what remains, and that residual is carried into `HND-01`.
+  5. **The salvage budget is declared before the first submission and its escalation trigger is recorded as fired or not fired.** The corrected law's form is unknown until criterion 1 lands, so its proof burden is unknown and an open-ended commitment would be dishonest: the phase states a budget (submission rounds and/or wall-clock) up front and, on exhaustion, escalates to the user with the residual obligation stated rather than continuing.
 **Plans**: TBD
 
-### Phase 7: EVM Feasibility of the Surviving Law
-**Goal**: `EVM-FEASIBILITY.md` analyses the law that actually survived Phase 6 for on-chain realizability — signatures only, no implementation, with an explicit honesty section.
-**Depends on**: Phase 6
-**Requirements**: EVM-02, EVM-03, EVM-04
-**Success Criteria** (what must be TRUE):
-  1. A term-by-term realizability table covers the surviving law, the required-but-missing fixed-point primitives appear as signatures only (`signedMulDiv`, `clamp`, `satAdd` — with scale convention, rounding mode, and why each is needed), saturate-never-revert is stated as a hard rule with both `(1−φ)` poles and the `ΔQ_v*` pole guarded, and domain bounds, rounding and a cost envelope are given.
-  2. The analysis targets the form the verdicts actually left standing — a fixed-point form with an iteration count and convergence guard if the law is implicit, a piecewise/kinked gain if the channel is live only on the collateral-constrained branch, and branch-conditioned behaviour across `σ² ≷ σ_K²` — not the boxed one-pass expression. If no law survives, the document states what would have to be true instead.
-  3. The `Σ_{i_K}` loop question is resolved rather than deferred: either `#_σ` is hard-capped and the bound stated, or the operator is collapsed to a closed form, or the cost is declared unbounded and the gas-DoS surface named.
-  4. The null-space test `HF = 0` has been run and its result stated; if a disturbance-invariant controlled variable exists, the reduction of `τ*` to a stored constant and the resulting collapse of the per-swap cost is quantified.
-  5. The mandatory honesty section states that nothing in the document is proof-backed (LeanEVM is removed from the toolchain, so no fixed-point reasoning is available in-tree) and that every primitive citation is against `cfmm-wt/plank`; no `.plk` or `.sol` artifact is produced anywhere under this worktree and no diff touches `src/`, `script/`, `foundry.toml` or `test/`.
-**Plans**: TBD
-
-### Phase 8: Consolidation & Hand-off
-**Goal**: The project's output is one consolidated, reviewed spec with an honest gap register and a hand-off whose every cross-worktree coordination point is named and owned.
-**Depends on**: Phase 7
+### Phase 6: The Formal Controller Document and Hand-off
+**Goal**: The project's single deliverable — the formal controller document — plus an honest gap register and a hand-off whose peer agreement is obtained rather than assumed.
+**Depends on**: Phase 5
 **Requirements**: HND-01, HND-02, HND-03
 **Success Criteria** (what must be TRUE):
-  1. `GAP-REGISTER.md` lists every open item with severity and disposition (in-scope vs deferred) — including the event-clock question, every obligation left as a named hypothesis, the grid-map-vs-marginal-price question (`DOC` Proposition 10, unproved in-tree), the quasi-static validity condition, and the deferred closed-loop regulator over `e^σ`. Nothing that was found is missing from it.
-  2. `TAU-MEV-SETPOINT-SPEC.md` integrates frame, verdicts, salvage and EVM analysis, and contains no detail that duplicates an owning document — each section delegates by explicit `> Authoritative detail:` pointer, and the consolidated doc is written last.
-  3. The hand-off to a future implementation milestone is defined, with every cross-worktree coordination point named and its owning peer session identified (the Lean tree and the Aristotle key with Lean4+Math; `src/` and the entry-point doc with `ul2inqpl`; `test/` with the Solidity-testing session), and peer identity re-verified via `list_peers` rather than trusted from a stale PID.
-  4. Findings against peer-owned documents — the Rule 9 sizing map conflict, the `SRC:106`/`SRC:118` errata, the misquoted `(β,γ)` theorem — are routed through the gap register and a peer message, never fixed in the peer's tree from here.
-  5. Every artifact in `spec/` appears in the review register having passed the two-step review, and no diff produced by this project touches the repo-root `.planning/`, `src/`, `test/`, `plank/`, or `lean4-spec/`.
+  1. The formal controller document exists and integrates frame, entrywise plant, verdicts, typed hypotheses and salvage, written last, with each section delegating detail to its owning document by an explicit `> Authoritative detail:` pointer and duplicating no derivation. **Every claim in it resolves to exactly one of: a verdict, a named typed hypothesis, or a gap-register entry** — a reader can trace any statement to its status without leaving the document.
+  2. The gap register lists every open item with severity and disposition (in-scope / deferred / needs-the-user) and carries at minimum: the event-clock question if left OPEN, every obligation left as a named hypothesis, the `(β_j,γ_j)`-frozen assumption and its missing justification, the `FRM-05` null-space result's consequences, any `VERIFICATION OUTSTANDING` residual from Phase 5, and **the project's undefined failure condition** — recorded as an open item addressed to the user, stating that every outcome is presently written as a success and that no criterion exists under which this project would be judged to have failed. The register **does not invent one**.
+  3. The hand-off names each deferred track — `EVM-01a`, `EVM-01b`, `EVM-02`, `EVM-03`, `EVM-05`, `EVM-06` and `EST-01` — with what it inherits from this project, what it still needs, and its owning session. **Peer agreement is obtained and evidenced**: a sent message with a reply, or a `CLAUDE.md` row landed for this track. Where agreement was not obtained, the register says so plainly — silence is recorded as silence, never as consent.
+  4. Findings against peer-owned documents (the `SRC` errata, the misquoted `(β,γ)` theorem, the unit-ledger extension) are routed by peer message plus a gap-register entry and never fixed in the peer's tree: no diff produced by this project touches the repo-root `.planning/`, `src/`, `test/`, `plank/` or `lean4-spec/`, verifiable by `git status` across those worktrees.
+  5. Every artifact this project wrote under `spec/` appears in the review register having passed the two-step review (Reality Checker + one named specialist, in parallel) **before** its commit, with a review date preceding its commit date — and the founding artifacts remain marked as retroactive first entries rather than being back-dated into compliance.
 **Plans**: TBD
 
-## Halt Gate — explicit branch semantics
+## Branch Gate — explicit semantics
 
-The single halt gate lives at the end of **Phase 4** and turns on `PRF-02` (P2, the
-"no other path" clause), which 4 of 4 researchers predict will refute.
+The single branch gate lives at the end of **Phase 4** and turns on `PRF-02` (the "no other
+path" clause). It is **not** sized on the discredited "4 of 4 researchers" count; it is sized
+on one checkable fact: the source's own `∇φ` display at `SRC:56` exhibits the entry
+`(1−φ_X)(1−φ_M)`.
 
-| Branch | Phase 5 | Phase 6 | Phase 7 | Phase 8 |
-|--------|---------|---------|---------|---------|
-| **P2 upheld** (possibly restricted) | Runs as planned | `PRF-04` adjudicated by a submitted bundle; salvage engages only where a defect was found | Analyses the surviving law | Unchanged |
-| **P2 REFUTED** | **Still runs** — the corrected law's sign rests on the same composition | `PRF-04` settled by recorded dependency refutation (no bundle); `SAL-02`…`SAL-05` become the phase's main work | Analyses the **corrected** law; if none survives, states what would have to be true | Unchanged; the refutation and its witness are the headline deliverable |
+| Branch | Phase 5 | Phase 6 |
+|--------|---------|---------|
+| **P2 upheld** (possibly restricted, restriction checked for vacuity) | `PRF-04` adjudicated on a submitted bundle; salvage engages only against defects actually found | Unchanged |
+| **P2 REFUTED** | `PRF-04` settled by recorded dependency refutation (no bundle spent); `SAL-01`…`SAL-05` become the phase's main work, under the declared budget | Unchanged; the refutation and its witness are the headline deliverable |
 
-A secondary **escalation gate** sits at the end of Phase 5: if the composed sign of
-`∂ν/∂τ_MEV` is refuted or indeterminate, Phase 6's inversion is undefined and the
-situation is escalated to the user rather than proceeding.
+A secondary **escalation trigger** sits inside Phase 5 (criterion 5): if the salvage budget is
+exhausted, the residual is escalated to the user rather than pursued open-endedly.
 
-**Neither gate can terminate the project.** The Core Value is a verdict; the 2026-08-08
-scoping decision extends it to a corrected law. Both branches reach Phase 8.
+**Neither gate can terminate the project.** A refutation routes to salvage; both branches
+reach Phase 6.
 
 ## Progress
 
+**Execution Order:** Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 (sequential;
+`parallelization: false`).
+
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Rulings & Ground Truth | 0/TBD | Not started | - |
-| 2. Frame Selection & EVM Substrate | 0/TBD | Not started | - |
-| 3. Obligation Machinery & Cheap Detectors | 0/TBD | Not started | - |
-| 4. P1 + P2 — Well-Posedness and the Channel | 0/TBD | Not started | - |
-| 5. P3 Sign + P5 τ↔λ Bridge | 0/TBD | Not started | - |
-| 6. The Set-Point Law — Verdict and Correction | 0/TBD | Not started | - |
-| 7. EVM Feasibility of the Surviving Law | 0/TBD | Not started | - |
-| 8. Consolidation & Hand-off | 0/TBD | Not started | - |
+| 1. Ground Truth, Notation, Rulings Triage | 0/TBD | Not started | - |
+| 2. Entrywise Plant and Control Frame | 0/TBD | Not started | - |
+| 3. Obligation Protocol and Cheap Detectors | 0/TBD | Not started | - |
+| 4. Verdicts — P1, P2, P5 (BRANCH GATE) | 0/TBD | Not started | - |
+| 5. The Set-Point Law — Verdict and Salvage | 0/TBD | Not started | - |
+| 6. Formal Controller Document and Hand-off | 0/TBD | Not started | - |
 
 ## Requirement Coverage
 
 | Phase | Requirements | Count |
 |-------|--------------|-------|
-| 1 | NOT-01, NOT-02, NOT-03, NOT-04, NOT-05, NOT-06, HND-04, HND-05 | 8 |
-| 2 | FRM-01, FRM-02, FRM-03, FRM-04, EVM-01 | 5 |
-| 3 | PRF-06, PRF-07, PRF-08, PRF-09, PRF-10 | 5 |
-| 4 | PRF-01, PRF-02 | 2 |
-| 5 | PRF-03, PRF-05 | 2 |
-| 6 | PRF-04, SAL-01, SAL-02, SAL-03, SAL-04, SAL-05 | 6 |
-| 7 | EVM-02, EVM-03, EVM-04 | 3 |
-| 8 | HND-01, HND-02, HND-03 | 3 |
+| 1 | NOT-01, NOT-02, NOT-03, NOT-05, NOT-06, NOT-07, NOT-08, NOT-09, HND-04, HND-05 | 10 |
+| 2 | NOT-04, FRM-01, FRM-02, FRM-03, FRM-04, FRM-05 | 6 |
+| 3 | PRF-03, PRF-06, PRF-07, PRF-08, PRF-09, PRF-10 | 6 |
+| 4 | PRF-01, PRF-02, PRF-05 | 3 |
+| 5 | PRF-04, SAL-01, SAL-02, SAL-03, SAL-04, SAL-05 | 6 |
+| 6 | HND-01, HND-02, HND-03 | 3 |
 | **Total** | | **34 / 34** |
 
-No orphaned requirements. No requirement mapped to more than one phase.
+Verified programmatically: the set of IDs defined in `REQUIREMENTS.md` v1 equals the set
+mapped above (34 = FRM 5 + NOT 9 + PRF 10 + SAL 5 + HND 5). No orphans; no requirement mapped
+to more than one phase. The v2 `EVM-*` and `EST-01` items are deliberately **not** mapped —
+they are out of scope for this milestone.
 
 ## Standing constraints (apply to every phase)
 
 - All GSD commands run with `--cwd control`. The repo-root `.planning/` is read-only.
 - Notation is binding. No symbol is minted without a user ruling, in artifacts *and* in
-  Aristotle prompts.
+  Aristotle prompts. Curvature is `κ_φ` (never `χ`); `λ̃` is the incidence operator vs plain-`λ`
+  hazard; probabilities are `ℙ_event`.
+- `SRC` (`notes/VOLATILITY_INTRUMENTS_MEV.md`) is **tracked-and-dirty**, not uncommitted, and
+  carries no numbered Definitions or Rules — cite it by line against a pinned sha. `DOC`
+  (`plank/notes/VOLATILITY_INSTRUMENTS.md`) is cited by numbered item plus sha.
+- **Never prescribe a composition of named Lean declarations without a written check that it
+  closes.** The predecessor roadmap prescribed a three-declaration route that does not (a
+  pointwise result composed against a hazard sum, and a single-argument monotonicity applied to
+  a jointly-acting `probOr`). A route that has not been checked is a hypothesis, not a plan.
 - Every artifact passes the two-step review (Reality Checker + one specialist, in parallel)
   before it is committed or executed — never deferred.
-- Every prior-result citation carries a real Lean declaration name and file.
-- `DOC` is cited by Definition/Rule/Theorem number plus a commit sha, never by line number.
-- Aristotle: full UUIDs only; never `aristotle show`; never parallel `continue` on one
-  project; on `OUT_OF_BUDGET` a single `continue` on the same project; never integrate a
-  sorry-carrying partial and never hand-prove the gap.
+- Every prior-result citation carries a real Lean declaration name and file. No `ring`/`simp`
+  bridge identity is presented as a substantive result.
+- Aristotle: full UUIDs only; never parallel `continue` on one project; on `OUT_OF_BUDGET` a
+  single `continue` on the same project; never integrate a `sorry`-carrying partial and never
+  hand-prove the gap.
+- No `.plk` or `.sol` artifact is produced anywhere, and no on-chain cost claim is attached to
+  any result — the EVM track is v2.
 
 ---
 *Roadmap created: 2026-08-08*
+*Rewritten: 2026-08-08 — 8 phases → 6 after the scope-narrowing ruling and the two-step review*
