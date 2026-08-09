@@ -148,6 +148,20 @@ and venue were open and assumed Dune. Venue is an **output** of this category, n
 
 ### Estimation
 
+> **TERMINAL 2026-08-09 — the `Δt` instrument is dead.** `RESEARCH-REGISTER.md` @ `5f7f3d8`
+> source `S-35` establishes a direct `Δt` → participation path **bypassing the fee schedule**, so
+> the exclusion restriction `ECONOMETRICS-DESIGN.md` §2 rests on is **refuted, not at risk**. User
+> ruling: record and stop, no instrument substitution. Verdict: `control/spec/GBAR-VERDICT.md`.
+> **Decision #10 is ANSWERED — `Δt` is ENDOGENOUS.**
+> `EST-02`/`03`/`04` **DO NOT RUN**; `EST-05` is discharged by the verdict document.
+> **`H2` is NOT REFUTED — it is UNDISCHARGEABLE BY THIS ROUTE.** Nothing downstream flips; every
+> conditional result stands exactly as written, still conditional. `H1` likewise undischarged and
+> never in scope (`EST-03` tested `H2` only).
+> A second finding is deferred, not closed: `Ḡ`'s **sign is indeterminate under the time base**
+> (`Δt^{+1/2}` / `Δt^{−1/2}` / `Δt^{+1/2}` across the three readings), ruled to `FRM-03` — Phase 2,
+> unexecuted. `06B-01` is blocked on it and may not pick a base from downstream.
+
+
 Promoted from v2 by the 2026-08-08 design (`control/spec/ECONOMETRICS-DESIGN.md`).
 `Ḡ = ∂ν/∂λ_MEV` is the **only empirical object** in the corrected law — every other
 factor is structural. Estimating it is simultaneously the **test of H2**, carried

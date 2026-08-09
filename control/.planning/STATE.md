@@ -13,7 +13,7 @@ See: .planning/PROJECT.md (updated 2026-08-08)
 Phase: 1 of 8 (Ground Truth, Notation, and the Rulings Triage) — **remaining** work
 Plan: 0 of 6 in current phase (all 6 written, reviewed twice, refreshed once, and re-pinned 2026-08-09 against `SRC` @ `cf386de` / blob `04bac0a5` and again against **`0fc821a` / blob `33af6a85`**; staged and uncommitted)
 Status: **Ready to execute** — not "ready to plan"
-Last activity: 2026-08-09 — Phase 6 **SPLIT** into 6a (On-Chain Fixed-Point Iteration of the Law, `NEC-*`) and 6b (Research, Venue, Estimation, `LIT-*` + `EST-*`), with 6a ordered first; the free-option premise **REFUTED at the review gate** and `EST-04`'s demotion withdrawn
+Last activity: 2026-08-09 — **`06B-00` EXECUTED OUT OF ORDER and now COMPLETE (3 of 3 tasks).** Resumed from Task 2 after the prior executor blocked for want of the `Task` tool, MCP and `WebSearch`. `LIT-01`, `LIT-02` and `LIT-03` are closed and `control/spec/RESEARCH-REGISTER.md` is committed in a single commit at `5f7f3d8` (`REGISTER FIRST COMMIT 5f7f3d81fce1c1c00e60a03814927a5a96b991ac 1786298674 2026-08-09T14:04:34-04:00`) — the sha four downstream plans pin as evidence that §5's instrument-selection rule predates every dispersion measurement. Phase 6b is now **1/7**. **The out-of-order deviation stands and is NOT normalised away.** Three findings materially change the phase: the `Δt` identification *idea* is not novel (a peer-reviewed latency-instrument family exists off arXiv); the estimand's **sign is indeterminate** until a time-base convention is ruled; and the exclusion restriction is **already refuted** by a direct participation channel. **Neither of the two reviewers certified the register** — it is committed as an honest record, explicitly not as a certificate that the design is sound. Preceded the same day by the Phase 6 **SPLIT** into 6a (On-Chain Fixed-Point Iteration of the Law, `NEC-*`) and 6b (Research, Venue, Estimation, `LIT-*` + `EST-*`), with 6a ordered first; the free-option premise **REFUTED at the review gate** and `EST-04`'s demotion withdrawn
 
 Progress: [█░░░░░░░░░] ~16% (2 of 8 phases complete; 9 of 58 requirements delivered)
 
@@ -32,7 +32,7 @@ Progress: [█░░░░░░░░░] ~16% (2 of 8 phases complete; 9 of 58
 | 4. Verdicts — P1, P2, P5 (BRANCH GATE) | ✅ **COMPLETE** (Bundle 1, out of order) — branch gate FIRED: P2 REFUTED |
 | 5. The Set-Point Law — Verdict and Salvage | ✅ **COMPLETE** (Bundle 2, out of order) — corrected law delivered |
 | 6a. On-Chain Fixed-Point Iteration of the Law (NEW) | Not started — **runs before 6b**; founding premise refuted at the gate, phase re-scoped |
-| 6b. Research, Venue, and Estimating `Ḡ = ∂ν/∂λ_MEV` | Not started — now carries `LIT-01`…`LIT-04` and `EST-06`…`EST-09`; **fully load-bearing**, the demotion was withdrawn |
+| 6b. Research, Venue, and Estimating `Ḡ = ∂ν/∂λ_MEV` | **1/7 — `06B-00` COMPLETE** (out of order). `LIT-01`…`LIT-03` closed; register committed at `5f7f3d8`. `06B-01`/`06B-02` **must be re-scoped before measuring** — they assume `Δt` *dispersion* is the identifying moment and the register records that as undetermined. Two rulings owed: the **time base** and the **`S-35` exclusion channel** |
 | 7. Formal Controller Document and Hand-off | **In progress** — `SRC` restructured; PR #22 → `develop` open |
 
 **Remaining execution order:** 1 → 2 → 3 → 6a → 6b → 7 (sequential; `parallelization: false`).
@@ -97,6 +97,38 @@ Full log in PROJECT.md Key Decisions. Recent decisions affecting current work:
 - **O4 — `σ` versus `σ²` units — STILL OPEN, locus MOVED 2026-08-09.** It was a `DOC`-vs-`SRC` mismatch; after `cf386de` it is **internal to `SRC`**: `Rule 13 @ 04bac0a5` takes `σ(i(t))` while `Definition 32 @ 04bac0a5`'s `u_ex` third slot carries `σ²(i(t))`. A regression mixing them is wrong and dimensionally invisible. → Phase 1 units ledger (`NOT-05`, `CF-31`) → Phase 6a/6b.
 - **O5 — the project has no defined failure condition.** Every outcome is written as a success. Flagged for the user; routed to the gap register (`HND-01`, Phase 7). **Not invented by the roadmap.**
 
+**`06B-00` BLOCKED and the execution order broken (2026-08-09) — both recorded, neither normalised:**
+
+- **Out-of-order execution.** `ROADMAP.md` declares `1 → 2 → 3 → 6a → 6b → 7`, `parallelization: false`,
+  "no pull-forward exception". Phases 1, 2, 3 and 6a are unexecuted. `06B-00` was run first **by
+  explicit user direction**, being the only Phase 6b plan with `depends_on: []`. No Phase 1 artifact
+  was treated as existing. This is a second inversion of the dependency order, after Bundles 1 and 2.
+- **`06B-00` stopped after Task 1 of 3.** `LIT-01`'s extraction is done and passes its `<verify>`
+  (`control/spec/RESEARCH-REGISTER.md` §1, fourteen blocks, anchors, verdicts). **`LIT-02` and
+  `LIT-03` were not attempted.** Cause: the executor had only `Read`/`Write`/`Edit`/`Bash` — no
+  `Task` tool for the `lit-review` sub-agents or the adversarial referee, no arxiv MCP for
+  identifier resolution, and **no way to run the mandatory two-step review that must precede the
+  commit**. Resolvable by re-running from Task 2 with a fully-tooled executor.
+- **The register is UNCOMMITTED, on purpose.** `06B-01`…`06B-04` pin the register's **first** commit
+  as the record that §5's instrument-selection rule predates every dispersion measurement. A
+  §1-only first commit would make that pin resolve to a commit containing no §5 — a false
+  evidentiary claim no downstream check would catch. The file carries a do-not-commit banner.
+- **Do NOT run `roadmap update-plan-progress 6b` or `requirements mark-complete LIT-01 LIT-02
+  LIT-03` until `06B-00` actually completes.** `06B-00-SUMMARY.md` exists on disk for a plan that
+  did **not** complete, and `update-plan-progress` counts SUMMARY files — running it would report
+  Phase 6b as `1/7`. Phase 6b is **0/7**.
+- **§1 is unreviewed.** Written by one executor with no reviewer available. Task 3's two-step review
+  must cover §1, not only §2–§6.
+- **Three Class A findings are already load-bearing** and are carried here so they survive the
+  re-run: (a) the anchor paper `MilionisMoallemiRoughgardenArbProfitsFees` performs **no
+  estimation** — it supplies the `√Δt` *structure*, never evidence for it, and its §7.3 eq. (27)
+  confirms at source that noise-trader demand is left to reduced-form modelling, which is the
+  missing demand-elasticity term the `[M8]` caveats name; (b) `GuoInvarianceMEV` Theorems 6–7 make
+  the `Δt` first stage contingent on a strictly positive fee, confined to the *competitive* MEV
+  component, and weak — an inequality with no lower bound, the sharpest available statement of
+  `ECONOMETRICS-DESIGN.md` §2's weak-instrument risk, and adverse; (c) **zero of fourteen** papers
+  use block time as an excluded variable, so `LIT-02`'s §2.4 question is wide open.
+
 **Process concerns:**
 
 - **The delivered work inverted the dependency order.** Bundles 1 and 2 landed before the notation map, units ledger, symbol register and entrywise plant table existed. Phase 1 acquires a retroactive reconciliation burden; Phase 3 is retro-ratification rather than gate-keeping, which is strictly weaker than the original intent.
@@ -108,12 +140,15 @@ Full log in PROJECT.md Key Decisions. Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-08-09
-Stopped at: **Phase 6b PLANNED and COMMITTED (`e3b57cb`)** — seven plans, 13 requirement IDs 1:1, six of seven non-autonomous. Preceded by `06B-CONTEXT.md` (`c51b8e8`) captured with the user, and by the roadmap leak purge (`448331a`). Three review rounds (GSD plan-checker + Reality Checker + Model QA, in parallel each round): **21 blockers → 9 → 4 → punch list → 0**. Config: `workflow.nyquist_validation` disabled — it generates tests and checks code coverage, and this project ships documents and proofs.
-Resume file: None
-Next action: execution still waits on the sequential order — `1 → 2 → 3 → 6a → 6b → 7`. Phase 1's **six** plans are staged, twice-reviewed, and **re-pinned against `cf386de` (2026-08-09)**; they owe the two-step review gate before commit, then `/gsd:execute-phase 1 --cwd control`. Phase 6a has no plans on disk.
+Stopped at: **Phase 6b's estimation route is TERMINAL.** `06B-00` executed (out of order, by user direction — the roadmap order `1 → 2 → 3 → 6a → 6b → 7` was not followed and Phase 1 has no execution record). The sweep delivered `control/spec/RESEARCH-REGISTER.md` @ `5f7f3d8` — 50 sources (14 internal PDFs, 26 arXiv all re-resolved through the arxiv MCP, 10 non-arXiv lower-rigor), §5's instrument-selection rule present in the first commit as required. It then ended the route it was built to serve: **`S-35` refutes the `Δt` exclusion restriction.** Verdict recorded at `control/spec/GBAR-VERDICT.md`.
+Resume file: control/spec/GBAR-VERDICT.md
 
-**Phase 6b known gaps — recorded, not closed.** Carry these into the Phase 7 gap register:
-- **The Dune data is checked only for internal consistency.** Row counts reconcile against `wc -l`, the script sha256 against the file, the timestamp against a git `%cI` — but MCP tools cannot be invoked from a bash `<verify>`, so nothing is checked against Dune itself. The CSV underlying the venue pick can be fabricated wholesale. The `mcp__dune__getExecutionResults` re-fetch is a **reviewer obligation**, and the "non-forgeable clock" claim was withdrawn in writing across all six sites where it appeared. A small CLI wrapper around the MCP call would make it checkable.
-- **Evidence anchors are satisfiable from an arXiv abstract.** Twelve of the fourteen papers are on arXiv and nothing greps the quoted span against the PDF. `Abstract` is an explicitly accepted locator token, so the criterion is honest about what it accepts — it does not claim the paper was read.
-- **The cited Montiel Olea–Pflueger critical value is not machine-verifiable.** `published critical value: 5.0` with `floor: 5.0` passes every assertion while the true value at τ=10%, size 5%, K=1 is ≈23.1. `MOP CRIT VERIFIED:` routes this to the two-step review that must run before the §5 blob is locked — the same gate that would have caught the `(β,γ)` non-control theorem.
-- **`%ct` ordering detects an accident, not an adversary.** Re-justified on its own terms at `06B-01`; the guarantees that survive an adversary are structural (terminal markers, the dimensional gate, frozen-blob reads, the §5a lock).
+**Two user rulings, 2026-08-09:**
+1. **`Δt` instrument TERMINAL** — record and stop, no substitution. The `υ` precedent applied.
+2. **Time base deferred to `FRM-03`** — `Ḡ`'s sign flips with it, so it is not a free choice. Phase 2, unexecuted. **`06B-01` is blocked on this and must not pre-empt it.**
+
+**The binding constraint, now visible:** both routes to a controller need `sign(H2)` — Phase 6b's set-point through `Proposition 13`'s conjunct-2 antecedent, Phase 6a's on-chain loop through `NEC-05`/`NEC-07`'s loop direction (which also needs `H1`, undischarged on every branch). `H2` is not a Phase 6b problem Phase 6a routes around; it constrains the whole controller, and this verdict removes the one empirical route specified to settle it.
+
+Next action: Phase 2 (`FRM-03`, the event clock) is now on the critical path for two independent reasons — the time base, and the two-clock defect in `λ_ARB`'s summand. Phase 1 still has no execution record and `NOT-05` still owes `O4`, which `06B-03` would hard-block on. Neither Phase 6a nor Phase 6b can deliver a signed controller until `H2` has a route.
+
+**Open, carried:** `RESEARCH-REGISTER.md`'s MAJORs are unclosed — neither reviewer certified it (Reality Checker 7/20/6, Model QA 6/12/7); it was committed anyway so §5's ordering guarantee would bite, and that trade is recorded in its `## Review` and §5.0. One verification genuinely fails: Task 3's `00-3` sentinel post-dates the artifact by 10s because Tasks 2 and 3 interleaved — reported, not papered over; the substantive invariant holds and all three baselines are byte-identical.
