@@ -1,7 +1,21 @@
 
 import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
-Consider the state, input and output vectors respectively:
+> **Numbering.** Blocks in this document continue the sequence of
+> `VOLATILITY_INSTRUMENTS.md` (one shared corpus): `Convention 7+`,
+> `Definition 32+`, `Theorem 29+`, `Proposition 15+`, `Rule 13+`. Those numbers are
+> reserved here and are not to be reused independently in the entry-point doc.
+
+**Convention 7 (Event time) [M11].** The iteration index is the **swap event**, not the
+block and not calendar time:
+
+\[
+	\begin{aligned}
+		t \, \to \, t+1 \; := \; \text{event swap}
+	\end{aligned}
+\]
+
+**Definition 32 (Event-time plant) [M11].**
 
 \[
 	\begin{aligned}
@@ -10,7 +24,7 @@ Consider the state, input and output vectors respectively:
 			\phi \\
 			\nu \\
 			\pi^{\phi} \\
-			\pi^{\varphi}
+			\pi^{\phi} - \pi^{\text{LVR}}
 		\end{bmatrix} \, \quad 		u_{\text{ex}}= 
 		\begin{bmatrix}
 			\Delta Q_X \\
@@ -20,24 +34,19 @@ Consider the state, input and output vectors respectively:
 		\, \quad y = \begin{bmatrix}
 			\pi^\sigma \\
 			\widehat\pi^\sigma\
-		\end{bmatrix} \quad u_{\text{en}} = \, \begin{bmatrix} \tau_{\text{MEV}} \\ \phi_M \\ \phi_X \end{bmatrix} \quad \Theta_{\sigma} = \begin{bmatrix} \sigma_K^2 \\ \#_{\sigma} \\ s_{\upsilon}\\ \Delta Q_{\upsilon}\end{bmatrix} 
+		\end{bmatrix} \quad u_{\text{en}} = \, \begin{bmatrix} \tau_{\text{MEV}} \\ \phi_M \\ \phi_X \end{bmatrix} \quad \Theta_{\sigma} = \begin{bmatrix} \sigma_K^2 \\ \#_{\sigma} \\ s_{\upsilon}\\ \Delta Q_v^{\star}\end{bmatrix} 
 	\end{aligned}
 \]
 
-
-\(\pi^{\varphi} \equiv \pi^{\phi} - \pi^{\text{LVR}}\)
-
-For feedback conctrol we have:
+**Definition 33 (Replication residual) [M19].**
 
 \[
 	\begin{aligned}
-		e^{\sigma} \, &= |\pi^{\sigma} - \widehat \pi^{\sigma}|
+		e^{\sigma} \, &= \, \bigl|\pi^{\sigma} - \widehat \pi^{\sigma}\bigr|
 	\end{aligned}
 \]
-> Note from the above we can compute and/or get \( (\pi^{\text{LVR}}, \mathbb{P}_{\text{ARB}}, \lambda_{\text{ARB}}, \pi^{\text{ARB}} , \pi^{\text{linear}} )\)
 
-which induce the state-space representation:
-
+**Definition 34 (State-space representation) [M11].**
 
 \[
 	\begin{aligned}
@@ -49,27 +58,23 @@ which induce the state-space representation:
 \]
 
 
-Note that under \(\otimes_{\phi}\) we have:
-	
-\[
-	\begin{aligned}
-		\begin{bmatrix} (1-\phi_X)(1- \tau_{\text{MEV}}) \\ (1 - \phi_M)(1 - \tau_{\text{MEV}}) \\ (1- \phi_X)( 1 - \phi_M)\end{bmatrix}\equiv \nabla \phi \approx \partial_{(x,x)} (\phi)\,+ \,\partial_{(x,u)} (\phi)
-		\end{aligned}
-\]
-
+**Definition 35 (Monoid gradient) [M12].**
 
 \[
 	\begin{aligned}
-		\phi_X (t) \, &= \Phi \, (\Theta_{\phi}; \sigma^2 (i (t)))
+		\nabla \phi \; \equiv \; \begin{bmatrix} (1-\phi_X)(1- \tau_{\text{MEV}}) \\ (1 - \phi_M)(1 - \tau_{\text{MEV}}) \\ (1- \phi_X)( 1 - \phi_M)\end{bmatrix}
 	\end{aligned}
 \]
 
-This is, we are assuming \(\forall_t \phi_M (t) = \bar \phi_M\)
+**Rule 13 (Fee schedule and standing assumptions) [M11].**
 
-
-Because of the theorem that syays that \((\beta_j , \gamma_j)\) does not control for \(\lambda_{\text{MEV}}\) we fix them for all t. And for simplicity we fix \((\beta_R, \gamma_R, \alpha_R)\):
-
-Note: 
+\[
+	\begin{aligned}
+		\phi_X (t) \; &= \; \Phi \, (\Theta_{\phi}; \sigma^2 (i (t))) \\
+		\phi_M (t) \; &= \; \bar \phi_M \qquad \forall t \\
+		(\beta_j , \gamma_j) , \; (\beta_R, \gamma_R, \alpha_R) \; &\text{ fixed} \qquad \forall t
+	\end{aligned}
+\]
 
 \[
 	\begin{aligned}
