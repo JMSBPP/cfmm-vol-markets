@@ -60,7 +60,7 @@ destroy the audit trail.
 
 | Phase | Planned | Actual |
 |---|---|---|
-| 1 — Ground truth, notation, rulings triage | Runs first | **PLANNED, NOT EXECUTED.** Five plans exist on disk, through two full two-step review rounds plus a third refresh against the re-pinned source. Staged, uncommitted, ready to run. |
+| 1 — Ground truth, notation, rulings triage | Runs first | **PLANNED, NOT EXECUTED.** **Six** plans exist on disk, through two full two-step review rounds, a third refresh, and a **fourth re-pin against `SRC` @ `cf386de` / `04bac0a5`** (2026-08-09) which struck nine cited loci and re-aimed them at the blocks that replaced them. Staged, uncommitted, ready to run. |
 | 2 — Entrywise plant and control frame | Runs second | **PARTIAL.** The frame research exists (`.planning/research/FRAME.md`, `PITFALLS.md`, `ARCHITECTURE.md`, `CLAIMS.md`, `SUMMARY.md`). The entrywise `∂`-partition (`NOT-04`) and the null-space test (`FRM-05`) are **undone**. |
 | 3 — Obligation protocol, typed hypotheses, cheap detectors | Runs third, gates all submissions | **DONE AD HOC.** `H1_dLbar_dpiPhi_pos` / `H2_dnu_dlamMEV_pos` landed as typed hypotheses; the freeze / gate / PROOF-REQUEST discipline was applied **by hand** via `spec/TAX_ADDENDUM.md` and `spec/TAX2_ADDENDUM.md`. The written protocol does not exist and **`PRF-09`'s detectors never ran.** |
 | 4 — Verdicts (P1, P2, P5) + BRANCH GATE | Runs fourth, after 1–3 | **DELIVERED** by Bundle 1, ahead of 1–3. Branch gate fired: **P2 REFUTED**. |
@@ -79,7 +79,7 @@ destroy the audit trail.
 |---|---|---|
 | `Theorem29_monoid_path_is_direct` | :213 | `τ_MEV` reaches the fee **directly** through the Rule 12 monoid, bypassing `ν`. |
 | `Corollary29_five_factor_product_not_total_derivative` | :239 | The five-factor "no other path" identity is **REFUTED with witness**. |
-| `Theorem30_composed_fee_submersion_section_sum_ill_posed` | :367 | `(φ_M, φ_X, τ) ↦ φ_total` is a submersion `ℝ³→ℝ`; the section sum at `SRC:110` is **ill-posed**. |
+| `Theorem30_composed_fee_submersion_section_sum_ill_posed` | :367 | `(φ_M, φ_X, τ) ↦ φ_total` is a submersion `ℝ³→ℝ`; the section sum is **ill-posed**. The sum's old locus was struck at `cf386de`; the claim is now carried in `SRC` as `Theorem 31 (The section sum is ill-posed) @ 04bac0a5`. |
 | `Theorem32_hazard_strictAntiOn_tau` | :702 | NEW lemma — the hazard is strictly antitone in `τ`. This is what corrects the `∂ν/∂τ` sign. |
 | `M18_axis_error_refuted` | :809 | The ladder-bracket axis error. |
 
@@ -112,8 +112,9 @@ needs a Mathlib build and is carried as an open item, discharged in Phase 3.
 
 The single branch gate lived at the end of Phase 4 and turned on `PRF-02`. It **fired on the
 REFUTED branch**: `Corollary29_five_factor_product_not_total_derivative` exhibits the
-counterexample, and the direct monoid path is exhibited by name at `SRC:56` / `Definition 35`
-as the entry `(1−φ_X)(1−φ_M)`. Per the branch table, `SAL-01`…`SAL-05` became Phase 5's main
+counterexample, and the direct monoid path is exhibited by name in `Definition 35 (Monoid
+gradient) @ 04bac0a5` as the entry `(1−φ_X)(1−φ_M)`, and stated outright by
+`Theorem 29 (The monoid path is direct) @ 04bac0a5`. Per the branch table, `SAL-01`…`SAL-05` became Phase 5's main
 work — which is what Bundle 2 delivered. **The gate did not terminate the project**, as
 designed. It is recorded here as FIRED and is not re-run.
 
@@ -126,8 +127,8 @@ Phase 7 gap register.
 |---|---|---|
 | **O1** | **`#print axioms` is unverified on both bundles.** Axiom-cleanliness is asserted from the absence of `axiom` declarations and 0 `sorry`, not from a sweep. A Mathlib build is required. Until it runs, "axiom-clean" is a claim, not a check. | Phase 3 (`PRF-08`) |
 | **O2** | **The FOC root is NOT established to be the minimiser.** `Proposition15_level_reading_second_order_undetermined` (:823) exhibits the undetermination. `Proposition15_single_crossing_gives_minimum` (:890) would settle it, **but single crossing from below is unproved.** Any use of `τ*` as a minimiser rests on this. | Phase 7 gap register; load-bearing for Phase 6b (`EST-02`, `EST-05`) **and for Phase 6a (`NEC-05`)**, where a gradient loop's stationary point inherits exactly this undetermination |
-| **O3** | **`φ_X` carries `ν`-dependence** (`DOC` Definition 18 — the sigmoid gate takes both `σ` and `ν`), but `Rule 13` at `SRC:69` writes `φ_X(t) = Φ(Θ_φ; σ²(i(t)))` with **no `ν` argument**. Rule 13's signature may be incomplete, and if so every downstream `∂φ_X/∂·` is taken along the wrong section. | Phase 1 (notation map) → Phase 2 (entrywise table) |
-| **O4** | **`σ` versus `σ²` units.** `DOC` Definition 18's sigmoid argument is `σ(i(t))`; the plant's `u_ex` carries `σ²(i(t))`. `Θ_φ`'s centers live in σ-units, the disturbance in σ²-units. A regression that mixes them silently is wrong. | Phase 1 (`NOT-05` units ledger) → Phase 6a (`NEC-01`, the accumulator's summands) → Phase 6b |
+| **O3** | ~~**`φ_X` carries `ν`-dependence** (`DOC` Definition 18 — the sigmoid gate takes both `σ` and `ν`), but `Rule 13` writes `φ_X(t) = Φ(Θ_φ; σ²(i(t)))` with **no `ν` argument**.~~ **CLOSED AT SOURCE 2026-08-09 (commit `cf386de`):** `Rule 13 @ 04bac0a5` now reads `Φ(Θ_φ; σ(i(t)), ν(t))` and agrees with `DOC` Definition 18. **The consequence is carried, not the defect:** `φ_X` sits in `Proposition 13`'s numerator as `(1−φ_X)` and, through `ν`, inside its denominator, so the corrected law is self-referential in `φ_X` too. | Phase 1 records the closure (notation map, `CF-30`) → Phase 2 (entrywise table) inherits the consequence |
+| **O4** | **`σ` versus `σ²` units — STILL OPEN, and its locus MOVED on 2026-08-09.** It was a `DOC`-versus-`SRC` mismatch; after `cf386de` it is **internal to `SRC`**: `Rule 13 @ 04bac0a5` takes `σ(i(t))` while `Definition 32 (Event-time plant) @ 04bac0a5`'s `u_ex` third slot carries `σ²(i(t))`. `Θ_φ`'s centers live in σ-units, the disturbance in σ²-units, and nothing converts. A regression that mixes them silently is wrong and dimensionally invisible. | Phase 1 (`NOT-05` units ledger, `CF-31`) → Phase 6a (`NEC-01`, the accumulator's summands) → Phase 6b |
 | **O5** | **The project has no defined failure condition.** Every outcome in `PROJECT.md`, `REQUIREMENTS.md` and this roadmap is written as a success — proven, or refuted-with-witness, or corrected, or recorded as a hypothesis. There is **no criterion under which this project would be judged to have failed.** This roadmap deliberately **does not invent one**; it is routed to the user. | Phase 7 (`HND-01`) |
 
 ### Deviations from the researched build order (stated, not silent)
@@ -179,23 +180,23 @@ Decimal phases appear between their surrounding integers in numeric order.
 ## Phase Details
 
 ### Phase 1: Ground Truth, Notation, and the Rulings Triage
-**Status**: PLANNED, NOT EXECUTED — 5 plans on disk at `.planning/phases/01-ground-truth-notation-and-the-rulings-triage/01-0{1..5}-PLAN.md`, through two full two-step review rounds plus a third refresh against the re-pinned source; staged and uncommitted.
+**Status**: PLANNED, NOT EXECUTED — **6** plans on disk at `.planning/phases/01-ground-truth-notation-and-the-rulings-triage/01-0{1..6}-PLAN.md`, through two full two-step review rounds, a third refresh, and a **re-pin against `SRC` @ `cf386de` / blob `04bac0a5`, then a second against `0fc821a` / blob `33af6a85`**; staged and uncommitted. The re-pin moved 10 citations onto their numbered blocks, recorded 9 as STRUCK with named re-aim targets (`DOC` Rule 6, `Theorem 31`, `Definition 36`, `Proposition 13`), and switched `SRC`'s citation form to BY-NUMBERED-BLOCK — `SRC` is now 14 blocks and 200 lines with no unblocked remainder. **The `0fc821a` move was ZERO-RELOCATION** — `Proposition 13` split its conditional from its unconditional content and nothing else moved, and because `SRC` is cited by numbered block **no citation needed relocating**. Pin chain: `0ec30184` (`78381d4`) → `45aeba4c` (`c521af5`) → `04bac0a5` (`cf386de`) → `33af6a85` (`0fc821a`); only the last is current.
 **Goal**: Every question that could make a proof be about the wrong object is closed from what is *already on disk* — and, because two bundles have already landed ahead of this phase, the symbols they minted are reconciled into the register retroactively rather than grandfathered.
 **Depends on**: Nothing (first phase)
 **Requirements**: NOT-01, NOT-02, NOT-03, NOT-05, NOT-06, NOT-07, NOT-08, NOT-09, NOT-10, HND-04, HND-05
 **Success Criteria** (what must be TRUE):
   1. The inventory sweep names, at minimum, `plank/notes/UNITS_AND_SCALES.md`, `plank/notes/VOLATILITY_INSTRUMENTS_MEV.tex` and `spec/VOLATILITY_INSTRUMENTS_MEV_TAX/ENTRY_POINT.md`, each with a sha pin and a one-line statement of what it is normative *for*; `git ls-files` returns `ENTRY_POINT.md` by the end of the phase. The sweep records that `VOLATILITY_INSTRUMENTS_MEV.tex` is **not** a superset of `SRC` (zero hits for `u_ex`, `x_{t+1}`, `\widehat\pi`, `\frac{\partial`), so `SRC` remains the citation target.
   2. Each of the 13 blocking decisions sits in exactly one of three named buckets — **ALREADY ANSWERED ON DISK** (with the `file:line`), **AGENT-ANSWERABLE** (with the answer and its evidence), **NEEDS THE AUTHOR** (with the question as posed) — and none is untriaged. Only the NEEDS-THE-AUTHOR bucket is put to the user. **Decision #10 (`Δt` exogenous or endogenous) is recorded as DEFERRED-TO-PHASE-6b and appears in no bucket as resolved.**
-  3. The notation map resolves `π^{\varphi}`, `ν` vs `u`, leg pairing in `π^{\phi}`, and the `ΔQ_v★`/`ΔQ_υ` glyph collision, each with the chosen *and* the rejected reading; and it **reconciles the symbols the two landed bundles already minted** — `Convention 7`, `Definitions 32–35`, `Rule 13`, and every identifier in `MevTaxControl.lean` / `MevTaxProgram.lean` — each marked ACCEPTED or FLAGGED with a reason. **Open item O3 is recorded by name**: `Rule 13` at `SRC:69` writes `φ_X(t) = Φ(Θ_φ; σ²(i(t)))` while `DOC` Definition 18's gate takes `ν` as well, so the map states whether Rule 13's signature is incomplete or the two objects differ.
+  3. The notation map resolves `π^{\varphi}`, `ν` vs `u`, leg pairing in `π^{\phi}`, and the `ΔQ_v★`/`ΔQ_υ` glyph collision, each with the chosen *and* the rejected reading; and it **reconciles the symbols the two landed bundles already minted** — `Convention 7`, `Definitions 32–35`, `Rule 13`, and every identifier in `MevTaxControl.lean` / `MevTaxProgram.lean` — each marked ACCEPTED or FLAGGED with a reason. **Open item O3 is recorded by name and as CLOSED AT SOURCE**: at pin `45aeba4c` `Rule 13` wrote `φ_X(t) = Φ(Θ_φ; σ²(i(t)))` with no `ν`, while `DOC` Definition 18's gate takes `ν` as well; **commit `cf386de` changed it to `Φ(Θ_φ; σ(i(t)), ν(t))`** and the two now agree. The map records the closure, names `cf386de`, and carries forward the CONSEQUENCE — the corrected law is self-referential in `φ_X` as well as in `ν`. It also records that the same commit changed `σ²` to `σ`, which **moves O4 rather than closing it**.
   4. Every carried-over research finding is re-verified at its cited line against the pinned sha under one `CF-NN` identifier scheme; findings that no longer verify are dropped with the reason recorded, and the ones superseded by the 2026-08-08 ruling are marked SUPERSEDED. The record states the honest independence count for P2 (two independent derivations, one restatement, one invalid) and never "4 of 4". `LEAN-MAP.md` and `EVM-CONTROL-PRIMITIVES-MAP.md` each carry a do-not-cite header naming the specific stale claim.
   5. The unit ledger exists as a **proposed diff extending** `UNITS_AND_SCALES.md` at a pinned sha (adding `ν`, `τ_MEV`, `π^l`, `π^φ`, `π^LVR`, `ΔQ_υ` and re-deriving nothing), routed to `ul2inqpl` as a message with `git -C plank status` unchanged by this project — and it **answers open item O4 explicitly**, stating for `σ` and `σ²` which object each schedule and each disturbance entry carries, because Phase 6b's estimating equation cannot be written without that answer. The review register lists the founding artifacts (`b5f5e82`, `9658375`, `d3b226a`) as **retroactive** first entries and additionally records the two Aristotle bundles as **reviewed-after-landing**, with the inversion stated rather than back-dated.
 **Plans**: 6 plans, 6 waves (sequential; `parallelization: false`) — on disk, unexecuted
 - [ ] `01-01-PLAN.md` — Inventory sweep, pin register, `ENTRY_POINT.md` git-tracked (`NOT-08`)
-- [ ] `01-02-PLAN.md` — The 13 blocking decisions triaged into four statuses (`NOT-01`) — has a checkpoint; item 10 DEFERRED — refreshed 2026-08-08
-- [ ] `01-03-PLAN.md` — Notation map (`NOT-02`, `NOT-06`, `NOT-07`, `NOT-09`) — refreshed 2026-08-08
-- [ ] `01-04-PLAN.md` — Finding register, re-verification, do-not-cite ruling (`NOT-03`, `HND-04`)
-- [ ] `01-05-PLAN.md` — Unit ledger extension and review register (`NOT-05`, `HND-05`) — refreshed 2026-08-08
-- [ ] `01-06-PLAN.md` — The SRC block programme: queue, writable-vs-gated split, register spec, at most one block written under user approval (`NOT-10`) — has a checkpoint
+- [ ] `01-02-PLAN.md` — The 13 blocking decisions triaged into four statuses (`NOT-01`) — has a checkpoint; item 10 DEFERRED; NEEDS-THE-AUTHOR bucket EMPTY — refreshed 2026-08-08, re-pinned 2026-08-09
+- [ ] `01-03-PLAN.md` — Notation map (`NOT-02`, `NOT-06`, `NOT-07`, `NOT-09`) — refreshed 2026-08-08; re-pinned 2026-08-09 (O3 CLOSED at source; `Convention 8` cited as the source-side carrier of ruling R1)
+- [ ] `01-04-PLAN.md` — Finding register, re-verification, do-not-cite ruling (`NOT-03`, `HND-04`) — re-pinned 2026-08-09 (CF-02/CF-21/CF-30 RESOLVED-BEFORE-PHASE-1 at source; `CF-31` opened for O4)
+- [ ] `01-05-PLAN.md` — Unit ledger extension and review register (`NOT-05`, `HND-05`) — refreshed 2026-08-08; re-pinned 2026-08-09 (`π^φ` provenance re-aimed at `DOC` Rule 6; O4 restated as internal to `SRC`)
+- [ ] `01-06-PLAN.md` — The SRC block programme: reconciliation of the eight blocks `cf386de` **delivered out of order** (the `NOT-10` cadence ran ahead of the plan encoding it, as Phases 4/5 ran ahead of Phases 1–3) and retirement of the queue rows that named them, queue, writable-vs-gated split, register spec, at most one block written under user approval (`NOT-10`) — has a checkpoint
 
 ### Phase 2: The Entrywise Plant and the Control Frame
 **Status**: PARTIAL — the frame research exists (`.planning/research/FRAME.md`, `PITFALLS.md`, `ARCHITECTURE.md`, `CLAIMS.md`, `SUMMARY.md`). `NOT-04` (the entrywise `∂`-partition) and `FRM-05` (the null-space test) are **undone**.
@@ -325,7 +326,7 @@ its premise by showing the FOC residual is affine in `Ḡ`. **This gate retains 
 every path.** Nothing in this phase or downstream may cite the withdrawn reading.
 
 ### Phase 7: The Formal Controller Document and Hand-off
-**Status**: IN PROGRESS — `SRC` has been restructured into numbered blocks (`Convention 7` at :9, `Definition 32` at :18, `Definition 33` at :41, `Definition 34` at :49, `Definition 35` at :61, `Rule 13` at :69), and **PR #22 → `develop` is open** carrying everything. *(Renumbered from Phase 6 in the 2026-08-08 re-baseline.)*
+**Status**: IN PROGRESS — `SRC` has been restructured **twice**. At `c521af5` it gained six numbered blocks; at **`cf386de` (blob `04bac0a5`, 190 lines)** it gained eight more and **lost** the `π^φ` algebra and the boxed `τ*`. It now carries fourteen blocks: `Convention 7`, `Convention 8`, `Definitions 32-36`, `Rule 13`, `Theorems 29-31`, `Propositions 12-13`, and an unnumbered `Hypothesis (H2)`. **Line numbers are navigation only — cite by numbered block plus pin.** **PR #22 → `develop` is open** carrying everything. *(Renumbered from Phase 6 in the 2026-08-08 re-baseline.)*
 **Goal**: The project's single deliverable — the formal controller document — plus an honest gap register and a hand-off whose peer agreement is obtained rather than assumed.
 **Depends on**: Phase 6a (whether a non-estimated controller exists decides what the document's control section can claim) and Phase 6b (Stage 1's verdict on `H2` can flip the corrected law's sign, so the document cannot be finalized ahead of it)
 **Requirements**: HND-01, HND-02, HND-03
@@ -402,9 +403,14 @@ v2. `EST-01`…`EST-09` are **no longer v2** and are mapped to Phase 6b.
   hazard; probabilities are `ℙ_event`.
 - **The corrected law is quoted with a signed denominator.** The absolute-value form is
   conditional on the M21 signs and is never presented as the theorem.
-- `SRC` (`notes/VOLATILITY_INTRUMENTS_MEV.md`) now carries numbered blocks (`Convention 7`,
-  `Definitions 32–35`, `Rule 13`) — cite those by number **and** sha; anything outside them is
-  cited by line against a pinned sha. `DOC` (`plank/notes/VOLATILITY_INSTRUMENTS.md`) is cited
+- **`SRC` (`notes/VOLATILITY_INTRUMENTS_MEV.md`) is composed ENTIRELY of numbered blocks as of
+  `0fc821a` / blob `33af6a85` — fourteen of them (`Convention 7`, `Convention 8`,
+  `Definitions 32–36`, `Rule 13`, `Theorems 29–31`, `Propositions 12–13`, `Hypothesis (H2)`),
+  plus a two-line preamble and the numbering note. **Cite by numbered block plus sha. A
+  line-only citation of `SRC` is a defect.** Its line numbers moved at every one of its four
+  commits and `cf386de` DELETED a third of the file, so a re-pinned line citation can silently
+  point at a different claim; the nine loci struck at `cf386de` are recorded with named re-aim
+  targets in `INVENTORY.md` §8. `DOC` (`plank/notes/VOLATILITY_INSTRUMENTS.md`) is cited
   by numbered item plus sha.
 - **Never prescribe a composition of named Lean declarations without a written check that it
   closes.** A route that has not been checked is a hypothesis, not a plan.

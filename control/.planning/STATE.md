@@ -11,7 +11,7 @@ See: .planning/PROJECT.md (updated 2026-08-08)
 ## Current Position
 
 Phase: 1 of 8 (Ground Truth, Notation, and the Rulings Triage) — **remaining** work
-Plan: 0 of 5 in current phase (all 5 written, reviewed twice, refreshed once; staged and uncommitted)
+Plan: 0 of 6 in current phase (all 6 written, reviewed twice, refreshed once, and re-pinned 2026-08-09 against `SRC` @ `cf386de` / blob `04bac0a5` and again against **`0fc821a` / blob `33af6a85`**; staged and uncommitted)
 Status: **Ready to execute** — not "ready to plan"
 Last activity: 2026-08-09 — Phase 6 **SPLIT** into 6a (On-Chain Fixed-Point Iteration of the Law, `NEC-*`) and 6b (Research, Venue, Estimation, `LIT-*` + `EST-*`), with 6a ordered first; the free-option premise **REFUTED at the review gate** and `EST-04`'s demotion withdrawn
 
@@ -26,7 +26,7 @@ Progress: [█░░░░░░░░░] ~16% (2 of 8 phases complete; 9 of 58
 
 | Phase | Status |
 |-------|--------|
-| 1. Ground Truth, Notation, Rulings Triage | Planned, **not executed** (5 plans on disk) |
+| 1. Ground Truth, Notation, Rulings Triage | Planned, **not executed** (6 plans on disk, re-pinned against `0fc821a` / `33af6a85`) |
 | 2. Entrywise Plant and Control Frame | **Partial** — frame research exists; `NOT-04`, `FRM-05` undone |
 | 3. Verification Protocol, Ratified Retroactively | **Ad hoc** — applied by hand; protocol unwritten, `PRF-09` detectors never ran |
 | 4. Verdicts — P1, P2, P5 (BRANCH GATE) | ✅ **COMPLETE** (Bundle 1, out of order) — branch gate FIRED: P2 REFUTED |
@@ -83,7 +83,8 @@ Full log in PROJECT.md Key Decisions. Recent decisions affecting current work:
 
 - Refresh three Phase 1 plans before executing them: `01-02` must carry Decision #10 as DEFERRED-TO-PHASE-6; `01-03` must carry the retroactive reconciliation of the symbols M11–M24 minted ahead of the register, plus open item O3; `01-05` must carry open item O4 and the bundles' reviewed-after-landing register entries.
 - Phase 1's five plans are staged and uncommitted (`git status` shows all five as `M`).
-- **`SRC` re-pin owed.** Commit `cf386de` restructured `notes/VOLATILITY_INTRUMENTS_MEV.md` into 14 numbered blocks and moved every line; the Phase 1 plans and the research docs still cite `SRC:NNN` against the superseded pin. Blocks are now citable **by number**, so this is the last re-pin the plans should ever need.
+- ~~**`SRC` re-pin owed.**~~ **DONE 2026-08-09.** All six Phase 1 plans were re-pinned against `cf386de` / blob `04bac0a5`, and again against `0fc821a` / blob `33af6a85` (a **ZERO-RELOCATION** move — no citation needed relocating, because `SRC` is cited by numbered block): 10 citations moved onto their numbered blocks, **9 were recorded as STRUCK** (the `π^φ` algebra, the `(∂π^σ/∂φ_M,·)` pair, the boxed `τ*` and the root-vs-argmin sentence) and re-aimed at `DOC` Rule 6, `Theorem 31`, `Definition 36` and `Proposition 13`, and `SRC`'s citation form is now **BY NUMBERED BLOCK** — line-only citation of `SRC` is a defect. The plans still owe their two-step review before commit.
+- **Two consequences of the re-pin are live work, not bookkeeping.** (a) `cf386de` wrote **eight blocks** into `SRC` — `Convention 8`, `Theorem 29`, `Theorem 30`, `Proposition 12`, `Theorem 31`, `Hypothesis (H2)`, `Definition 36`, `Proposition 13` — **delivered out of order**: `NOT-10`'s heavy-user-approval cadence ran for each of them (the requirement codifies that existing practice and names the `c521af5` blocks written under it), ahead of the GSD plan that encodes it, exactly as Phases 4 and 5 were delivered ahead of Phases 1–3. Plan `01-06` now opens with a **reconciliation**, retiring the four WRITABLE-NOW rows and one GATED row that named already-written blocks. **It does not re-approve them and puts no governance question to the user.** (b) ~~`Proposition 13`'s domain lines may be a G2-class sign claim ahead of its `EST-03` gate.~~ **RULED AND CLOSED AT SOURCE 2026-08-09 (`0fc821a`).** The gate found it, the user approved a corrected block under `NOT-10`'s cadence, and `Proposition 13` now states the non-degeneracy guard inline, the three sign/`φ_X` antecedents in an explicit guard, and `∂ν/∂τ_MEV < 0 rests on (H2) — UNDISCHARGED` in its rider. `01-06` §0.1 keeps its **measure-before-predict** form so it records the ruling rather than re-raising it. Residual carried to `HND-01` as a MINOR: `hA : A ≠ 0` and `hM : phiM ≠ 1` remain unstated — structural non-degeneracies, not sign claims, **not escalated**.
 - **Phases 6a and 6b have no plans on disk** — only requirement mappings and expected plan titles. `/gsd:plan-phase 6a --cwd control` is the entry point **after Phases 1–3 land**; the execution order is sequential with `parallelization: false` and there is no pull-forward exception.
 
 ### Blockers/Concerns
@@ -92,8 +93,8 @@ Full log in PROJECT.md Key Decisions. Recent decisions affecting current work:
 
 - **O1 — `#print axioms` is UNVERIFIED on both bundles.** Axiom-cleanliness is asserted from 0 `sorry` and the absence of `axiom` declarations, not from a sweep. A Mathlib build is required. → Phase 3 criterion 1. **Until it runs, "axiom-clean" is a claim, not a check.**
 - **O2 — the FOC root is NOT established to be the minimiser.** `Proposition15_level_reading_second_order_undetermined` (`MevTaxProgram.lean:823`) exhibits the undetermination; `Proposition15_single_crossing_gives_minimum` (:890) is conditional on a single-crossing-from-below property that **nothing proves**. → Phase 7 gap register; load-bearing for Phase 6.
-- **O3 — `φ_X` carries `ν`-dependence** (`DOC` Definition 18) but `Rule 13` at `SRC:69` writes `φ_X(t) = Φ(Θ_φ; σ²(i(t)))` with no `ν` argument. Rule 13's signature may be incomplete. → Phase 1 notation map → Phase 2 entrywise table.
-- **O4 — `σ` versus `σ²` units.** Definition 18's sigmoid argument is `σ(i(t))`; the plant's `u_ex` carries `σ²(i(t))`. A regression mixing them silently is wrong. → Phase 1 units ledger (`NOT-05`) → Phase 6.
+- **O3 — CLOSED AT SOURCE 2026-08-09 (`cf386de`).** `Rule 13 @ 04bac0a5` now reads `φ_X(t) = Φ(Θ_φ; σ(i(t)), ν(t))` and agrees with `DOC` Definition 18; at `45aeba4c` it read `Φ(Θ_φ; σ²(i(t)))` with no `ν`. **The consequence is carried, not the defect:** `φ_X` sits in `Proposition 13`'s numerator as `(1−φ_X)` and, through `ν`, inside its denominator, so the corrected law is self-referential in `φ_X` too. → Phase 1 records the closure (`CF-30`) → Phase 2 inherits the consequence.
+- **O4 — `σ` versus `σ²` units — STILL OPEN, locus MOVED 2026-08-09.** It was a `DOC`-vs-`SRC` mismatch; after `cf386de` it is **internal to `SRC`**: `Rule 13 @ 04bac0a5` takes `σ(i(t))` while `Definition 32 @ 04bac0a5`'s `u_ex` third slot carries `σ²(i(t))`. A regression mixing them is wrong and dimensionally invisible. → Phase 1 units ledger (`NOT-05`, `CF-31`) → Phase 6a/6b.
 - **O5 — the project has no defined failure condition.** Every outcome is written as a success. Flagged for the user; routed to the gap register (`HND-01`, Phase 7). **Not invented by the roadmap.**
 
 **Process concerns:**
@@ -109,7 +110,7 @@ Full log in PROJECT.md Key Decisions. Recent decisions affecting current work:
 Last session: 2026-08-09
 Stopped at: **Phase 6b PLANNED and COMMITTED (`e3b57cb`)** — seven plans, 13 requirement IDs 1:1, six of seven non-autonomous. Preceded by `06B-CONTEXT.md` (`c51b8e8`) captured with the user, and by the roadmap leak purge (`448331a`). Three review rounds (GSD plan-checker + Reality Checker + Model QA, in parallel each round): **21 blockers → 9 → 4 → punch list → 0**. Config: `workflow.nyquist_validation` disabled — it generates tests and checks code coverage, and this project ships documents and proofs.
 Resume file: None
-Next action: execution still waits on the sequential order — `1 → 2 → 3 → 6a → 6b → 7`. Phase 1's five plans are staged, twice-reviewed, and owe only an `SRC` re-pin against `cf386de` before `/gsd:execute-phase 1 --cwd control`. Phase 6a has no plans on disk.
+Next action: execution still waits on the sequential order — `1 → 2 → 3 → 6a → 6b → 7`. Phase 1's **six** plans are staged, twice-reviewed, and **re-pinned against `cf386de` (2026-08-09)**; they owe the two-step review gate before commit, then `/gsd:execute-phase 1 --cwd control`. Phase 6a has no plans on disk.
 
 **Phase 6b known gaps — recorded, not closed.** Carry these into the Phase 7 gap register:
 - **The Dune data is checked only for internal consistency.** Row counts reconcile against `wc -l`, the script sha256 against the file, the timestamp against a git `%cI` — but MCP tools cannot be invoked from a bash `<verify>`, so nothing is checked against Dune itself. The CSV underlying the venue pick can be fabricated wholesale. The `mcp__dune__getExecutionResults` re-fetch is a **reviewer obligation**, and the "non-forgeable clock" claim was withdrawn in writing across all six sites where it appeared. A small CLI wrapper around the MCP call would make it checkable.
