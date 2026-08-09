@@ -133,61 +133,79 @@ implementation milestone and none of it is answerable from theory alone.
 
 ## Traceability
 
-Populated during roadmap creation (2026-08-08); **repopulated after the 2026-08-08 roadmap
-rewrite** (8 phases -> 6) that followed the scope-narrowing user ruling and the two-step
-review.
+Populated during roadmap creation (2026-08-08); repopulated after the 2026-08-08 roadmap
+rewrite (8 phases -> 6); **repopulated again after the 2026-08-08 RE-BASELINE** (6 phases -> 7)
+that recorded Phases 4 and 5 as delivered out of order by two Aristotle bundles and promoted
+the Estimation category from v2 to v1.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| NOT-01 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
-| NOT-02 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
-| NOT-03 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
-| NOT-05 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
-| NOT-06 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
-| NOT-07 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
-| NOT-08 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
-| NOT-09 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
-| HND-04 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
-| HND-05 | Phase 1 — Ground Truth, Notation, Rulings Triage | Pending |
-| NOT-04 | Phase 2 — Entrywise Plant & Control Frame | Pending |
-| FRM-01 | Phase 2 — Entrywise Plant & Control Frame | Pending |
-| FRM-02 | Phase 2 — Entrywise Plant & Control Frame | Pending |
-| FRM-03 | Phase 2 — Entrywise Plant & Control Frame | Pending |
-| FRM-04 | Phase 2 — Entrywise Plant & Control Frame | Pending |
-| FRM-05 | Phase 2 — Entrywise Plant & Control Frame | Pending |
-| PRF-03 | Phase 3 — Obligation Protocol, Typed Hypotheses, Cheap Detectors | Pending |
-| PRF-06 | Phase 3 — Obligation Protocol, Typed Hypotheses, Cheap Detectors | Pending |
-| PRF-07 | Phase 3 — Obligation Protocol, Typed Hypotheses, Cheap Detectors | Pending |
-| PRF-08 | Phase 3 — Obligation Protocol, Typed Hypotheses, Cheap Detectors | Pending |
-| PRF-09 | Phase 3 — Obligation Protocol, Typed Hypotheses, Cheap Detectors | Pending |
-| PRF-10 | Phase 3 — Obligation Protocol, Typed Hypotheses, Cheap Detectors | Pending |
-| PRF-01 | Phase 4 — Verdicts: P1, P2, P5 (BRANCH GATE) | Pending |
-| PRF-02 | Phase 4 — Verdicts: P1, P2, P5 (BRANCH GATE) | Pending |
-| PRF-05 | Phase 4 — Verdicts: P1, P2, P5 (BRANCH GATE) | Pending |
-| PRF-04 | Phase 5 — The Set-Point Law: Verdict & Salvage | Pending |
-| SAL-01 | Phase 5 — The Set-Point Law: Verdict & Salvage | Pending |
-| SAL-02 | Phase 5 — The Set-Point Law: Verdict & Salvage | Pending |
-| SAL-03 | Phase 5 — The Set-Point Law: Verdict & Salvage | Pending |
-| SAL-04 | Phase 5 — The Set-Point Law: Verdict & Salvage | Pending |
-| SAL-05 | Phase 5 — The Set-Point Law: Verdict & Salvage | Pending |
-| HND-01 | Phase 6 — Formal Controller Document & Hand-off | Pending |
-| HND-02 | Phase 6 — Formal Controller Document & Hand-off | Pending |
-| HND-03 | Phase 6 — Formal Controller Document & Hand-off | Pending |
+| NOT-01 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-02 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-03 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-05 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-06 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-07 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-08 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-09 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
+| HND-04 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
+| HND-05 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-04 | Phase 2 -- Entrywise Plant & Control Frame | Pending |
+| FRM-01 | Phase 2 -- Entrywise Plant & Control Frame | Partial (frame research exists) |
+| FRM-02 | Phase 2 -- Entrywise Plant & Control Frame | Partial (frame research exists) |
+| FRM-03 | Phase 2 -- Entrywise Plant & Control Frame | Partial (frame research exists) |
+| FRM-04 | Phase 2 -- Entrywise Plant & Control Frame | Pending |
+| FRM-05 | Phase 2 -- Entrywise Plant & Control Frame | Pending |
+| PRF-03 | Phase 3 -- Verification Protocol, Ratified Retroactively | Partial (H1/H2 landed as typed hypotheses; protocol unwritten) |
+| PRF-06 | Phase 3 -- Verification Protocol, Ratified Retroactively | Partial (idiom used ad hoc) |
+| PRF-07 | Phase 3 -- Verification Protocol, Ratified Retroactively | Partial (freeze applied by hand; unwritten) |
+| PRF-08 | Phase 3 -- Verification Protocol, Ratified Retroactively | Partial (gate applied by hand; `#print axioms` UNVERIFIED -- open item O1) |
+| PRF-09 | Phase 3 -- Verification Protocol, Ratified Retroactively | Pending (detectors never ran) |
+| PRF-10 | Phase 3 -- Verification Protocol, Ratified Retroactively | Partial (TAX_ADDENDUM.md / TAX2_ADDENDUM.md served as the hand-off; template unwritten) |
+| PRF-01 | Phase 4 -- Verdicts: P1, P2, P5 (BRANCH GATE) | **DELIVERED** -- Bundle 1, `Theorem30_composed_fee_submersion_section_sum_ill_posed` |
+| PRF-02 | Phase 4 -- Verdicts: P1, P2, P5 (BRANCH GATE) | **DELIVERED** -- REFUTED with witness, `Corollary29_five_factor_product_not_total_derivative` |
+| PRF-05 | Phase 4 -- Verdicts: P1, P2, P5 (BRANCH GATE) | **DELIVERED** -- substitution not licensed, `Theorem32_hazard_strictAntiOn_tau` |
+| PRF-04 | Phase 5 -- The Set-Point Law: Verdict & Salvage | **DELIVERED** -- box REFUTED factor by factor, `auditTable` (M24) |
+| SAL-01 | Phase 5 -- The Set-Point Law: Verdict & Salvage | **DELIVERED** -- `Proposition16_audit_justification`, per-factor defect + error class |
+| SAL-02 | Phase 5 -- The Set-Point Law: Verdict & Salvage | **DELIVERED** -- `Proposition16_corrected_law` |
+| SAL-03 | Phase 5 -- The Set-Point Law: Verdict & Salvage | **DELIVERED** -- domain `tau*<1`; `tau*>0` iff the gate dominates; `Theorem36_no_interior_root_off_the_band` |
+| SAL-04 | Phase 5 -- The Set-Point Law: Verdict & Salvage | **DELIVERED** -- machine-verified declaration, not prose |
+| SAL-05 | Phase 5 -- The Set-Point Law: Verdict & Salvage | **DELIVERED** -- signs derived from H1/H2 by name (`Theorem34_signs_from_H1_H2`) |
+| EST-01 | Phase 6 -- Estimating `Gbar = dnu/dlambda_MEV` | Pending (BLOCKS the rest of the category) |
+| EST-02 | Phase 6 -- Estimating `Gbar = dnu/dlambda_MEV` | Pending (carries Decision #10, deferred here) |
+| EST-03 | Phase 6 -- Estimating `Gbar = dnu/dlambda_MEV` | Pending (**HARD GATE** -- three terminal outcomes) |
+| EST-04 | Phase 6 -- Estimating `Gbar = dnu/dlambda_MEV` | Pending (runs only behind EST-03's gate) |
+| EST-05 | Phase 6 -- Estimating `Gbar = dnu/dlambda_MEV` | Pending (back-propagates into both Lean bundles) |
+| HND-01 | Phase 7 -- Formal Controller Document & Hand-off | Pending (must carry open items O1-O5) |
+| HND-02 | Phase 7 -- Formal Controller Document & Hand-off | Pending |
+| HND-03 | Phase 7 -- Formal Controller Document & Hand-off | Pending |
 
 **Coverage:**
-- v1 requirements defined: 34 (FRM 5 + NOT 9 + PRF 10 + SAL 5 + HND 5)
-- Mapped to phases: 34
+- v1 requirements defined: 39 (FRM 5 + NOT 9 + PRF 10 + SAL 5 + **EST 5** + HND 5)
+- Mapped to phases: 39
 - Mapped to more than one phase: 0
 - Unmapped: 0 (verified programmatically: the set of IDs defined above equals the set mapped
   in `ROADMAP.md`'s `**Requirements**:` lines)
+- Delivered: 9 (PRF-01, PRF-02, PRF-04, PRF-05, SAL-01..05)
 
-> **Record correction (2026-08-08, roadmap rewrite):** the previous traceability table mapped
-> `EVM-01`/`EVM-02`/`EVM-03`/`EVM-04`, which are no longer v1 requirements — the entire EVM
-> track moved to v2 by the user's scoping ruling, and `EVM-04` does not exist in the current
-> requirement set at all. The current v1 set is `FRM-01..05`, `NOT-01..09`, `PRF-01..10`,
-> `SAL-01..05`, `HND-01..05`. The count of 34 is unchanged: the four `EVM-*` rows were
-> replaced by `FRM-05`, `NOT-07`, `NOT-08`, `NOT-09`.
+**Standing open items against the delivered requirements** -- these are NOT closed by the
+DELIVERED status above and are carried into the Phase 7 gap register:
+
+| # | Open item | Against |
+|---|---|---|
+| O1 | `#print axioms` UNVERIFIED on both bundles (needs a Mathlib build) | PRF-08; all of Phase 4 and 5 |
+| O2 | The FOC root is **not** established to be the minimiser (`Proposition15_level_reading_second_order_undetermined`); `Proposition15_single_crossing_gives_minimum` is conditional on an unproved single-crossing property | SAL-02, SAL-04 |
+| O3 | `phi_X` carries `nu`-dependence (`DOC` Definition 18) so `Rule 13`'s signature at `SRC:69` may be incomplete | NOT-02, NOT-04 |
+| O4 | `sigma` versus `sigma^2` units | NOT-05, EST-03 |
+| O5 | The project has **no defined failure condition** | HND-01 |
+
+> **Record correction (2026-08-08, re-baseline):** the previous traceability table mapped 34
+> requirements across 6 phases and listed `EST-01` as v2. The Estimation category is now v1
+> (`EST-01`..`EST-05`), mapped to the new Phase 6; the old Phase 6 (document and hand-off) is
+> renumbered Phase 7. Phases 4 and 5 are recorded as DELIVERED **out of order** -- they were
+> executed by direct Aristotle submission ahead of Phases 1-3, not after them. The earlier
+> correction stands: `EVM-01`..`EVM-04` are not v1 requirements and `EVM-04` does not exist.
 
 ---
 *Requirements defined: 2026-08-08*
-*Last updated: 2026-08-08 after the roadmap rewrite — traceability remapped onto the 6-phase structure*
+*Last updated: 2026-08-08 after the ROADMAP RE-BASELINE -- traceability remapped onto the 7-phase structure, 39 requirements, delivered work recorded with evidence*
