@@ -143,6 +143,32 @@ Last session: 2026-08-09
 Stopped at: **Phase 6b's estimation route is TERMINAL.** `06B-00` executed (out of order, by user direction — the roadmap order `1 → 2 → 3 → 6a → 6b → 7` was not followed and Phase 1 has no execution record). The sweep delivered `control/spec/RESEARCH-REGISTER.md` @ `5f7f3d8` — 50 sources (14 internal PDFs, 26 arXiv all re-resolved through the arxiv MCP, 10 non-arXiv lower-rigor), §5's instrument-selection rule present in the first commit as required. It then ended the route it was built to serve: **`S-35` refutes the `Δt` exclusion restriction.** Verdict recorded at `control/spec/GBAR-VERDICT.md`.
 Resume file: control/spec/GBAR-VERDICT.md
 
+**IN FLIGHT — Aristotle bundle 3, project `f04c8802-09ea-47e7-b8a9-eb7ec7edbe1b`** (submitted
+2026-08-09, RUNNING). Bundle at `control/aristotle/tax3/`, spec `RequestProject/TAX3_ADDENDUM.md`
+(M25–M27). Three ALGEBRAIC claims, sent after the `Δt` route died:
+
+- **M25 — LVR cancellation.** Under `DOC` Proposition 9's split and `(A1)`, does `π^LVR` factor
+  out as a strictly positive common factor, leaving `Proposition 13`'s root invariant? If yes,
+  adding the LVR channel to the objective is **futile by construction** and that work stops.
+- **M26 — channel equivalence.** `∂ν/∂τ` via the flow route `(∂ν/∂ΔQ)(∂ΔQ/∂φ)(∂φ/∂τ)` instead of
+  the hazard route `Ḡ·(∂λ/∂τ)`. Do they agree in sign, and does the flow route avoid needing
+  `H2`? If yes, the controller's **direction** is free — no estimation, no clock ruling.
+- **M27 — arb-side closure.** Does `∂ΔQ^ARB/∂φ` close in `(σ, φ, Δt, ε_{p/X})` with no free
+  behavioural parameter? `ε_{p/X}` is declared **observable** at `DOC` Definition 14. If yes the
+  empirical burden collapses to **benign flow only**.
+
+Five standing bans written into the bundle: no Capponi-`κ`/`ε_{X/M}` identification (CES
+embedding machine-refuted, `canon_Fcap_not_CES`); `η` is the **grid tilt**, not the trading-curve
+share (`DOC:184`, and `κ_φ` depends on `ε_{X/M}` alone since `χ` cancels — this corrects a
+memory that had `η` as the demand-substitution elasticity); `π^{\varphi}` ≠ `π^{\phi}`;
+`Proposition 13`'s domain lines stay guarded; cite by declaration name AND file.
+**Refutation counts as success** and is stated as such — both prior bundles returned refutations
+that redirected the project.
+
+**Do NOT run a parallel `continue` on this project.** On `OUT_OF_BUDGET`, a single
+`aristotle continue` on the SAME project. Full UUIDs only; `aristotle show` streams and blocks —
+use `aristotle list`.
+
 **Two user rulings, 2026-08-09:**
 1. **`Δt` instrument TERMINAL** — record and stop, no substitution. The `υ` precedent applied.
 2. **Time base deferred to `FRM-03`** — `Ḡ`'s sign flips with it, so it is not a free choice. Phase 2, unexecuted. **`06B-01` is blocked on this and must not pre-empt it.**

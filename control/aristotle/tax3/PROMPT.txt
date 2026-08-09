@@ -1,0 +1,80 @@
+Formalize the three claims in RequestProject/TAX3_ADDENDUM.md, blocks M25-M27.
+
+ALL THREE ARE ALGEBRAIC. None asks you to prove a behavioural gain. H1_dLbar_dpiPhi_pos
+and H2_dnu_dlamMEV_pos remain TYPED HYPOTHESES -- assume them by name where a block says
+to, never prove them.
+
+A REFUTATION IS A SUCCESSFUL OUTCOME. Each block names its falsification target. A
+counterexample with a witness is worth more than a proof of a weakened statement. DO NOT
+NARROW A CLAIM TO MAKE IT PROVABLE. If a claim is false as stated, exhibit the witness.
+This bundle's two predecessors both returned refutations that changed the project's
+direction, and that is the expected mode.
+
+WHAT IS ALREADY PROVED -- cite by declaration name and file, do not redo.
+
+From RequestProject/MevTaxControl.lean (namespace MevTaxControl):
+  Theorem29_monoid_path_is_direct        d(phi)/d(tau_MEV)|_{phi_M,phi_X} = (1-phi_M)(1-phi_X) > 0
+  Theorem30_composed_fee_submersion_section_sum_ill_posed
+  Theorem32_hazard_strictAntiOn_tau      the hazard is strictly antitone in tau_MEV
+  tau_to_nu_strictAntiOn_under_H2
+  H1_dLbar_dpiPhi_pos, H2_dnu_dlamMEV_pos    (hypothesis definitions)
+
+From RequestProject/MevTaxProgram.lean (namespace MevTaxProgram):
+  Proposition16_corrected_law            :1054 -- TWO conjuncts. Conjunct 1 is unconditional
+                                         modulo hg. Conjunct 2 is GUARDED by
+                                         0 < dphidnu -> dnudtau < 0 -> phiXv < 1 and holds
+                                         the |.| form, tau* < 1, and the tau* > 0 iff.
+  Theorem34_opposed_signs                :434 -- binders are (hdphi, hdnu). NO hH1, NO hH2.
+  Theorem34_signs_from_H1_H2             :487 -- this is the one that reaches H2 by name.
+  Theorem36_no_interior_root_off_the_band
+  Proposition15_level_reading_second_order_undetermined  -- the FOC root is NOT established
+                                         to be the minimiser. Do not assume it is.
+
+SOURCES. RequestProject/VOLATILITY_INSTRUMENTS.md is DOC (the entry-point doc, peer-owned,
+read-only). RequestProject/SRC_VOLATILITY_INSTRUMENTS_MEV.md is SRC, frozen at commit
+0fc821a / blob 33af6a85. RequestProject/TAX2_ADDENDUM_prior.md is the previous bundle's
+spec, for context on what M19-M24 settled.
+
+FIVE STANDING BANS -- violating any invalidates the bundle. They are stated in full at the
+top of the addendum. In brief:
+  1. NEVER identify Capponi's curvature kappa with the eps_{X/M} substitution axis. The CES
+     embedding is MACHINE-REFUTED (canon_Fcap_not_CES): only endpoints embed.
+  2. eta is the GRID-SIDE TILT (DOC:184), NOT the trading-curve share. kappa_phi depends on
+     eps_{X/M} alone -- chi cancels identically (DOC Proposition 7). eta is not an elasticity.
+  3. pi^{\varphi} (portfolio value function, DOC:821) and pi^{\phi} (fee revenue) are
+     DISTINCT. The phi/varphi split is binding.
+  4. Proposition 13's domain lines are GUARDED. Never restate tau* < 1 or the tau* > 0 iff
+     without the antecedent 0 < dphi/dnu, dnu/dtau < 0, phi_X < 1. An earlier draft of SRC
+     stated them unconditionally; that was an erratum, corrected at 0fc821a, and must not be
+     reintroduced. tau* < 1 is FALSE without the signs.
+  5. Cite prior results by declaration name AND file.
+
+WHY THESE THREE, in one line each:
+
+  M25 decides whether adding the LVR channel to the objective can restore an interior
+      optimum. If the LVR term is a strictly positive common factor it cancels at the root
+      and the proposal is futile by construction -- the same structure the M24 audit found
+      when it ruled the normalizer and the ladder bracket SPURIOUS.
+
+  M26 asks whether d(nu)/d(tau) can be reached WITHOUT the hazard, via flow instead. The
+      entire estimation programme routed through lambda_MEV because tau_MEV is not
+      implemented. If the flow route agrees in sign and does not need H2, the controller's
+      DIRECTION is available with no estimation and no resolution of the interblock-vs-swap
+      two-clock conflict in lambda_ARB's summand.
+
+  M27 asks whether the ARBITRAGE half of the demand response closes in observables
+      (sigma, phi, Delta t, eps_{p/X}) with no free behavioural parameter. If it does, the
+      empirical burden collapses to benign flow alone. If it does not, NAME the missing
+      primitive -- that is the more valuable answer.
+
+CONTEXT YOU SHOULD HAVE. The project's specified route to Gbar = d(nu)/d(lambda_MEV) is
+DEAD: a literature sweep established that Delta t is endogenous (a direct Delta t ->
+participation path bypassing the fee schedule), so the exclusion restriction is refuted,
+not merely at risk. H2 is therefore NOT REFUTED but UNDISCHARGEABLE by that route. These
+three claims exist to find out what survives without it. Nothing here asks you to rescue
+the estimation -- if the answer is that a primitive is irreducibly empirical, say which one
+and stop.
+
+DELIVERABLE. Theorem 37 + Corollary 37; Theorem 38 (a)-(d); Theorem 39 -- or witnesses
+refuting them. No new sorry. A stated OPEN with a reason is preferred to a narrowed
+theorem. Every declaration #print axioms-clean or its dependency stated explicitly.
