@@ -48,3 +48,7 @@ lean/.lake/
 
 # gamsdiff: transient all-symbols GDX from the price-impact driver run
 model/price_impact_all.gdx
+
+# GSD phase 06B scope sentinel: BEFORE/AFTER snapshots of peer-tree and repo-root
+# .planning status. Run-local, never committed; the plans assert it is untracked.
+control/.planning/phases/*/.sentinel/

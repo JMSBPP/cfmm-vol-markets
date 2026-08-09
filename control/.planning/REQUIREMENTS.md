@@ -55,6 +55,12 @@
 >   The estimation had no research requirement at all: 14 PDFs unread for their empirical
 >   design, no external sweep specified, and the venue assumed rather than chosen.
 >
+> **Status of the refutation itself.** It rests on two independent reviewer derivations plus
+> my own, **not on a machine-checked carrier**. That is exactly why `NEC-00` exists and why it
+> **blocks the category**: a reviewer consensus is not a verified identity. Until `NEC-00`
+> returns, every document must write this as *refuted by independent derivation, pending
+> `NEC-00`'s carrier* — never as a closed result.
+>
 > **This is the review gate working as designed.** The refutation is the deliverable, on the
 > same footing as the P2 refutation that reshaped Phases 4–5.
 
@@ -299,12 +305,12 @@ DELIVERED status above and are carried into the Phase 7 gap register:
 |---|---|---|
 | O1 | `#print axioms` UNVERIFIED on both bundles (needs a Mathlib build) | PRF-08; all of Phase 4 and 5 |
 | O2 | The FOC root is **not** established to be the minimiser (`Proposition15_level_reading_second_order_undetermined`); `Proposition15_single_crossing_gives_minimum` is conditional on an unproved single-crossing property | SAL-02, SAL-04, **NEC-07** (the on-chain loop inherits this defect; a gradient loop reaches a stationary point, not a proved minimiser) |
-| O3 | `phi_X` carries `nu`-dependence (`DOC` Definition 18) so `Rule 13`'s signature at `SRC:69` may be incomplete | NOT-02, NOT-04, **NEC-02** (decides whether the `nu` read sits inside a loop in `beforeSwap`) |
-| O4 | `sigma` versus `sigma^2` units | NOT-05, EST-03, **NEC-01** (the accumulator reads a volatility-oracle quantity whose units must be pinned before it is summed) |
+| O3 | `phi_X` carries `nu`-dependence (`DOC` Definition 18) so `Rule 13`'s signature at `SRC:69` may be incomplete | NOT-02, NOT-04, **NEC-03** (decides whether the `nu` read sits inside a loop in `beforeSwap`), **EST-06** (the identification sense: `phi_X` is a function of the outcome, a bad control). *Routing corrected 2026-08-09 -- this row pointed at `NEC-02` before the category was renumbered.* |
+| O4 | `sigma` versus `sigma^2` units | NOT-05, EST-03, **NEC-02** (the accumulator reads a volatility-oracle quantity whose units must be pinned before it is summed), **LIT-04** (the dimensional check against Algebra's oracle). *Routing corrected 2026-08-09 -- this row pointed at `NEC-01` before the category was renumbered; `NEC-01` is now the uniform-clearing precondition.* |
 | O5 | The project has **no defined failure condition** | HND-01 |
 | O6 | **The on-chain observer is a model output, not a measurement.** `P_{Delta_ARB}` is leading-order and quasi-static (caveats `[M8]`), so an on-chain `lambda` accumulator computes what the model says the hazard is. The on-chain route **relocates the empirical burden and destroys its audit trail** -- an online gain estimate has no first-stage F, no covariance and no pre-registration, unlike the offline route it was proposed to replace | NEC-02, NEC-05, LIT-01 |
 | O7 | **The observer is SELF-CONFIRMING.** `lambda_ARB` is a function of `phi`, and `phi` contains `tau_MEV` via the Rule 12 monoid, so the controller's action moves its own measurement exactly as the model prescribes. The loop cannot detect model error; it converges to the model's root -- i.e. it is the `Gbar`-dependent closed form solved by on-chain fixed-point iteration, not a controller that avoids `Gbar` | NEC-06 |
-| O8 | **`lambda_ARB` is a monotone divergent accumulator** (all summands nonnegative, `mevMulti_nonneg`), so under the logistic form `Gbar -> 0` asymptotically and the loop stalls rather than converging slowly. Whether `lambda` needs a decay or a window is OPEN -- it was settled by omission, not by argument | NEC-06, EST-04 |
+| O8 | **`lambda_ARB` is monotone NON-DECREASING -- as a DERIVED reading, not a citation.** `mevMulti_nonneg` (`control/aristotle/{tax,tax2}-result/project_aristotle/RequestProject/MevOptimization.lean:250`, byte-identical in both bundles) concludes `0 <= mevMulti ...` -- the **total**. Per-summand nonnegativity is a proof-internal step (`Finset.sum_nonneg`) that holds under the same hypotheses and yields monotonicity, but **no carrier states monotonicity** and the declaration does not assert it. **CORRECTIONS 2026-08-09 (twice):** the original wording said "monotone **divergent**" and cited that theorem for it -- divergence requires non-summability, which no carrier establishes. The first correction then said "all summands are nonnegative (`mevMulti_nonneg` ... which states `lambda_ARB >= 0` and nothing more)", which asserts and denies the same thing in one sentence. Both are fixed above. Whether `lambda_ARB` diverges -- and hence whether `Gbar -> 0` asymptotically and the loop stalls -- is **OPEN**, as is whether `lambda` needs a decay or a window | NEC-06, EST-04 |
 
 > **Record correction (2026-08-08, re-baseline):** the previous traceability table mapped 34
 > requirements across 6 phases and listed `EST-01` as v2. The Estimation category is now v1
@@ -330,4 +336,4 @@ DELIVERED status above and are carried into the Phase 7 gap register:
 
 ---
 *Requirements defined: 2026-08-08*
-*Last updated: 2026-08-09 -- Phase 6 split into 6a/6b; the free-option premise REFUTED at the review gate and Phase 6a re-scoped; EST-04's demotion withdrawn; 58 requirements (prior count corrected 39 -> 40)*
+*Last updated: 2026-08-09 -- Phase 6 split into 6a/6b; the free-option premise refuted by independent derivation (pending NEC-00's carrier) and Phase 6a re-scoped; EST-04's demotion withdrawn; O8's divergence overclaim corrected; O3/O4 routings corrected after the NEC renumber; 58 requirements*
