@@ -41,6 +41,11 @@
 - [ ] **NOT-08**: An **inventory sweep** of `evm-controller/spec/`, `evm-controller/notes/` and `plank/notes/` identifies every normative artifact **before** any notation map or ledger is written — closing the discovery failure that missed `UNITS_AND_SCALES.md`, `VOLATILITY_INSTRUMENTS_MEV.tex` (1063 lines, 29 numbered Definitions / 21 Theorems / 9 Propositions, defines `ι` = our `#_σ` at :212), and `spec/VOLATILITY_INSTRUMENTS_MEV_TAX/ENTRY_POINT.md` (carries a correct boxed `∂φ/∂ν`; currently **untracked** and at risk of destruction — track it).
 - [ ] **NOT-09**: The `ΔQ_v★` / `ΔQ_υ` glyph collision is resolved (`DOC:672` — i.e. `plank/notes/VOLATILITY_INSTRUMENTS.md` — indicates they occupy the same `I_ord` slot), and `∂φ/∂ν` from `ENTRY_POINT.md` is carried into the channel's factor list as a **determinate, strictly positive** factor.
 
+- [ ] **NOT-10**: **The `SRC` block programme.** Every result landed from a bundle is transcribed into `SRC` as a **numbered block** continuing the shared doc sequence, in the entry-point doc's own register — **heading, math, stop**; minimal prose, maximal math; rationale goes to the user in conversation, never into the file.
+      **HEAVY USER APPROVAL, one block at a time.** Each block is presented to the user *in full* before it is written; the user approves or revises; only then is it committed. **No batch writes, and no block written without an explicit approval for that block.** This is the cadence already used for `Convention 7`, `Definitions 32–35` and `Rule 13`.
+      Each block states its **conditionality**: unconditional results are written plainly; results resting on a hypothesis (`H1`, `H2`, `hclearing`, single-crossing) name that hypothesis inside the block. **Blocks whose sign depends on `EST-03`'s verdict are NOT written until Phase 6 returns** — currently `tau_to_nu_strictAntiOn_under_H2`, `Theorem34`'s opposed signs, the corrected law's `1 −` sign reading, and the `∂ν/∂τ` `SIGN CORRECTED` audit row.
+      No symbol may be minted by a block; the notation map (`NOT-02`, `NOT-06`) governs, which is why this requirement sits behind the map rather than beside it.
+
 ### Proof Obligations
 
 - [ ] **PRF-01**: **P1 — well-posedness.** A verdict on whether the `(∂_(t+1,t), ∂_(x,u), ∂_(y,x), ∂_(y,u))` partition is well-posed over event time, and whether set-point optimization is legitimate given `φ_M ≡ φ̄_M ∀t` and `(β_j, γ_j)` frozen.
@@ -148,6 +153,7 @@ the Estimation category from v2 to v1.
 | NOT-07 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
 | NOT-08 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
 | NOT-09 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
+| NOT-10 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
 | HND-04 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
 | HND-05 | Phase 1 -- Ground Truth, Notation, Rulings Triage | Pending |
 | NOT-04 | Phase 2 -- Entrywise Plant & Control Frame | Pending |

@@ -162,7 +162,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Status**: PLANNED, NOT EXECUTED — 5 plans on disk at `.planning/phases/01-ground-truth-notation-and-the-rulings-triage/01-0{1..5}-PLAN.md`, through two full two-step review rounds plus a third refresh against the re-pinned source; staged and uncommitted.
 **Goal**: Every question that could make a proof be about the wrong object is closed from what is *already on disk* — and, because two bundles have already landed ahead of this phase, the symbols they minted are reconciled into the register retroactively rather than grandfathered.
 **Depends on**: Nothing (first phase)
-**Requirements**: NOT-01, NOT-02, NOT-03, NOT-05, NOT-06, NOT-07, NOT-08, NOT-09, HND-04, HND-05
+**Requirements**: NOT-01, NOT-02, NOT-03, NOT-05, NOT-06, NOT-07, NOT-08, NOT-09, NOT-10, HND-04, HND-05
 **Success Criteria** (what must be TRUE):
   1. The inventory sweep names, at minimum, `plank/notes/UNITS_AND_SCALES.md`, `plank/notes/VOLATILITY_INSTRUMENTS_MEV.tex` and `spec/VOLATILITY_INSTRUMENTS_MEV_TAX/ENTRY_POINT.md`, each with a sha pin and a one-line statement of what it is normative *for*; `git ls-files` returns `ENTRY_POINT.md` by the end of the phase. The sweep records that `VOLATILITY_INSTRUMENTS_MEV.tex` is **not** a superset of `SRC` (zero hits for `u_ex`, `x_{t+1}`, `\widehat\pi`, `\frac{\partial`), so `SRC` remains the citation target.
   2. Each of the 13 blocking decisions sits in exactly one of three named buckets — **ALREADY ANSWERED ON DISK** (with the `file:line`), **AGENT-ANSWERABLE** (with the answer and its evidence), **NEEDS THE AUTHOR** (with the question as posed) — and none is untriaged. Only the NEEDS-THE-AUTHOR bucket is put to the user. **Decision #10 (`Δt` exogenous or endogenous) is recorded as DEFERRED-TO-PHASE-6 and appears in no bucket as resolved.**
@@ -293,7 +293,7 @@ Two gates exist. One has already fired; one has not been reached.
 
 | Phase | Requirements | Count |
 |-------|--------------|-------|
-| 1 | NOT-01, NOT-02, NOT-03, NOT-05, NOT-06, NOT-07, NOT-08, NOT-09, HND-04, HND-05 | 10 |
+| 1 | NOT-01, NOT-02, NOT-03, NOT-05, NOT-06, NOT-07, NOT-08, NOT-09, NOT-10, HND-04, HND-05 | 10 |
 | 2 | NOT-04, FRM-01, FRM-02, FRM-03, FRM-04, FRM-05 | 6 |
 | 3 | PRF-03, PRF-06, PRF-07, PRF-08, PRF-09, PRF-10 | 6 |
 | 4 | PRF-01, PRF-02, PRF-05 | 3 |
