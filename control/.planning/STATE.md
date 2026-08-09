@@ -6,16 +6,21 @@ See: .planning/PROJECT.md (updated 2026-08-08)
 
 **Core value:** The artifact under construction is the artifact under proof — return a *verdict* on the boxed `τ*_MEV`, and a corrected law where it refutes.
 **Status of the core value:** ✅ **DELIVERED.** The box is refuted factor by factor (`auditTable`, M24) and the corrected law is derived and machine-verified (`Proposition16_corrected_law`). What remains is the supporting apparatus, the empirical `Ḡ`, and the document.
-**Current focus:** Phase 1 — Ground Truth, Notation, and the Rulings Triage (plans staged, unexecuted)
+**Current focus:** Phase 1 — Ground Truth, Notation, and the Rulings Triage (plans staged, unexecuted). **Phase 6 was split into 6a/6b on 2026-08-09**, and the free-option premise was **refuted at the review gate the same day**; Phase 1 execution is unchanged and still owed.
 
 ## Current Position
 
-Phase: 1 of 7 (Ground Truth, Notation, and the Rulings Triage) — **remaining** work
+Phase: 1 of 8 (Ground Truth, Notation, and the Rulings Triage) — **remaining** work
 Plan: 0 of 5 in current phase (all 5 written, reviewed twice, refreshed once; staged and uncommitted)
 Status: **Ready to execute** — not "ready to plan"
-Last activity: 2026-08-08 — ROADMAP.md **RE-BASELINED** against actual execution after Phases 4 and 5 were delivered out of order and the Estimation category was promoted to v1
+Last activity: 2026-08-09 — Phase 6 **SPLIT** into 6a (On-Chain Fixed-Point Iteration of the Law, `NEC-*`) and 6b (Research, Venue, Estimation, `LIT-*` + `EST-*`), with 6a ordered first; the free-option premise **REFUTED at the review gate** and `EST-04`'s demotion withdrawn
 
-Progress: [███░░░░░░░] ~31% (2 of 7 phases complete; 9 of 39 requirements delivered)
+Progress: [█░░░░░░░░░] ~16% (2 of 8 phases complete; 9 of 58 requirements delivered)
+
+> The percentage fell from 31% without any work being lost: the denominator grew from a
+> corrected 40 requirements to 58, and the phase count from 7 to 8. The prior "39" was an
+> arithmetic slip carried in **both** `REQUIREMENTS.md`'s summary line and `ROADMAP.md`'s
+> coverage table — `NOT-*` has ten members, not nine.
 
 **Phase status at a glance:**
 
@@ -26,10 +31,11 @@ Progress: [███░░░░░░░] ~31% (2 of 7 phases complete; 9 of 39
 | 3. Verification Protocol, Ratified Retroactively | **Ad hoc** — applied by hand; protocol unwritten, `PRF-09` detectors never ran |
 | 4. Verdicts — P1, P2, P5 (BRANCH GATE) | ✅ **COMPLETE** (Bundle 1, out of order) — branch gate FIRED: P2 REFUTED |
 | 5. The Set-Point Law — Verdict and Salvage | ✅ **COMPLETE** (Bundle 2, out of order) — corrected law delivered |
-| 6. Estimating `Ḡ = ∂ν/∂λ_MEV` (NEW) | Not started |
+| 6a. On-Chain Fixed-Point Iteration of the Law (NEW) | Not started — **runs before 6b**; founding premise refuted at the gate, phase re-scoped |
+| 6b. Research, Venue, and Estimating `Ḡ = ∂ν/∂λ_MEV` | Not started — now carries `LIT-01`…`LIT-04` and `EST-06`…`EST-09`; **fully load-bearing**, the demotion was withdrawn |
 | 7. Formal Controller Document and Hand-off | **In progress** — `SRC` restructured; PR #22 → `develop` open |
 
-**Remaining execution order:** 1 → 2 → 3 → 6 → 7 (sequential; `parallelization: false`).
+**Remaining execution order:** 1 → 2 → 3 → 6a → 6b → 7 (sequential; `parallelization: false`).
 
 ## Performance Metrics
 
@@ -65,11 +71,20 @@ Full log in PROJECT.md Key Decisions. Recent decisions affecting current work:
 - **Scope (2026-08-08 user ruling):** the deliverable is the formal controller document. The entire EVM-feasibility track is v2 (`EVM-01a/01b/02/03/05/06`). `FRM-05` survives as pure theory with **no on-chain cost claim attached**.
 - **Behavioral gains are hypotheses, never proved (2026-08-08):** `H1_dLbar_dpiPhi_pos` and `H2_dnu_dlamMEV_pos` are LP-supply estimands. Neither is ever sent to Aristotle. **`EST-03`'s sign test is what discharges or refutes them** — this replaces the old "magnitudes are v2" disposition.
 - **`L` is two assets (2026-08-08):** `L(i_K) = L̄·ℓ(ξ,ι;i_K)` with `ℓ` geometry-invariant; `ΔQ_v★` is vol-asset L (`UNITS_AND_SCALES.md:70`), `L̄` is price-axis pool liquidity. This killed the `τ* = 1` refutation.
+- **The "controller without `Ḡ`" premise is REFUTED (2026-08-09, Decision #15).** Composing `Theorem 30` + `Theorem 29` + `∂ν/∂τ = Ḡ·(∂λ/∂τ)` gives `∂π̂^σ/∂τ = (∂π̂^σ/∂φ)·[(1−φ_M)(1−φ_X) + (∂φ/∂ν)·Ḡ·(∂λ/∂τ)]` — `Ḡ` multiplies one of two bracket terms, so **evaluating the residual is evaluating `Ḡ`**. Both review-gate reviewers derived it independently; verified before acceptance. **`EST-04`'s demotion is WITHDRAWN** and the Estimation category is fully load-bearing on every branch. Phase 6a survives re-scoped as **on-chain fixed-point iteration of the `Ḡ`-dependent law** — it removes a stored constant and tracks drift, and is **not** a hedge against the estimation failing.
+- **The sign/magnitude split as first written was FALSE.** Loop direction is `sign(∂²π̂^σ/∂τ²)`, not `sign(Ḡ)`; the plant is discrete-time so a stability certificate needs a **bound on `|Ḡ|`**; and **`H1`** (`∂L̄/∂π^φ`) scales and signs the loop gain through the residual's prefactor (`Proposition 12`) while `EST-03` tests `H2` only — so **`H1` is undischarged on every branch**.
+- **`λ_MEV = λ_ARB` requires the Angstrom regime** (`DOC:1041`), which neither Algebra Integral (continuous execution) nor a Uniswap v4 hook under one-hook-per-pool exclusivity provides — and the sandwich-zero result is **UNFORMALIZED, no carrier** (`DOC:1026`). `NEC-01` checks the precondition instead of asserting it.
+- **The on-chain `λ` is an OBSERVER, not a measurement (O6), and it is SELF-CONFIRMING (O7).** `ℙ_{Δ_ARB}` is leading-order and quasi-static (`[M8]`), so an accumulator emits a model output; and because `λ_ARB` depends on `φ`, which contains `τ_MEV`, the controller's action moves its own measurement exactly as the model prescribes — the loop cannot detect model error and converges to *the model's root*. Also **O8**: `λ_ARB` is a monotone divergent accumulator, so `Ḡ → 0` asymptotically and the loop **stalls**; whether `λ` needs a decay or window is OPEN.
+- **Decision #11 (where on-chain the `∂ν/∂λ_MEV` feedback is implemented) is OPEN and routed to Phase 6a (`NEC-05`, `NEC-07`).** It cannot be chosen before the precondition and constructibility verdicts, and its own phrasing presumes an object those verdicts decide.
+- **Codebase = Algebra Integral, CHAIN = TBD (Decision #13, scope corrected).** The `AdaptiveFee`-port argument settles `φ`'s functional form, **not the instrument**: `Δt` is chain-level, so pool selection buys zero instrument variation. Chain is selected on measured `Δt` dispersion, and `EST-08` registers the likelier-fatal threat — `Δt ⟂̸ σ`, since missed slots cluster with volatility and `σ` enters `φ`.
+- **Research sources = internal re-read + arXiv + non-arXiv on-chain material (Decision #14).** Dynamic-fee **natural experiments** were offered and **declined by the user**; recorded as a decision, so reopening is a scope change.
 
 ### Pending Todos
 
 - Refresh three Phase 1 plans before executing them: `01-02` must carry Decision #10 as DEFERRED-TO-PHASE-6; `01-03` must carry the retroactive reconciliation of the symbols M11–M24 minted ahead of the register, plus open item O3; `01-05` must carry open item O4 and the bundles' reviewed-after-landing register entries.
 - Phase 1's five plans are staged and uncommitted (`git status` shows all five as `M`).
+- **`SRC` re-pin owed.** Commit `cf386de` restructured `notes/VOLATILITY_INTRUMENTS_MEV.md` into 14 numbered blocks and moved every line; the Phase 1 plans and the research docs still cite `SRC:NNN` against the superseded pin. Blocks are now citable **by number**, so this is the last re-pin the plans should ever need.
+- **Phases 6a and 6b have no plans on disk** — only requirement mappings and expected plan titles. `/gsd:plan-phase 6a --cwd control` is the entry point **after Phases 1–3 land**; the execution order is sequential with `parallelization: false` and there is no pull-forward exception.
 
 ### Blockers/Concerns
 
@@ -91,7 +106,7 @@ Full log in PROJECT.md Key Decisions. Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-08
-Stopped at: ROADMAP.md **re-baselined** against actual execution — 7 phases, 39/39 requirements mapped and verified programmatically; Phases 4 and 5 marked delivered with evidence; new Phase 6 (Estimation) created with a hard stage gate; old Phase 6 renumbered to Phase 7. STATE.md and REQUIREMENTS.md traceability updated. **Not committed** — the orchestrator commits.
+Last session: 2026-08-09
+Stopped at: **Phase 6 SPLIT into 6a/6b, and the free-option premise REFUTED at the review gate the same day.** Phase 6a is re-scoped from "Non-Estimated State Feedback" to **On-Chain Fixed-Point Iteration of the Law** (`NEC-00`…`NEC-09`, promoting v2 `CTL-01`), front-loaded with the precondition checks the first draft lacked: `NEC-00` submits the refutation as an algebraic identity, `NEC-01` checks uniform clearing against venue **and** deployment. Phase 6b gains the research it never had (`LIT-01`…`LIT-04`) plus four estimation-discipline requirements the reviewers demanded (`EST-06` bad control, `EST-07` numeric thresholds and chain-time clustering, `EST-08` the `Δt ⟂̸ σ` threat, `EST-09` winner's curse). **`EST-04`'s demotion is WITHDRAWN — the Estimation category is fully load-bearing.** Open items **O6**/**O7**/**O8** opened. Decisions #10–#15 recorded; #13's scope corrected to codebase-not-chain. Requirement count 40 → **58**, verified across **three** surfaces (`REQUIREMENTS.md` definitions, `ROADMAP.md` per-phase lines, `ROADMAP.md` coverage table) with empty differences — the coverage table had been left stale at 39 and is rebuilt. **Not committed** — awaiting the user's call on scope.
 Resume file: None
-Next action: refresh the three Phase 1 plans listed under Pending Todos, then `/gsd:execute-phase 1 --cwd control`.
+Next action: the two-step review returned NEEDS WORK (Reality Checker: 7 BLOCKER / 11 MAJOR / 6 MINOR; Model QA: 4 BLOCKER / 10 MAJOR / 7 MINOR) and every BLOCKER and MAJOR is now addressed in the documents. Commit, then resume the sequential order at Phase 1 — `/gsd:execute-phase 1 --cwd control` — after the `SRC` re-pin against `cf386de`, which the staged Phase 1 plans still owe.
