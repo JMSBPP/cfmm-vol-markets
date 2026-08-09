@@ -166,6 +166,23 @@ recorded under Context, not deliverables of this project.)
      **The replacement glyph is not yet minted** — it must be built from the doc's own
      symbols and put to the user before use.
 
+- **USER RULING 2026-08-08 — the objective is EXPOSURE MINIMIZATION, not replication.**
+  The MEV tax does **not** enforce replication; that is the job of `\Theta_\sigma` and
+  the ladder. The tax minimizes the **exposure of the realizable payoff
+  `\widehat\pi^\sigma` to the adversarial environment**:
+
+  \[
+    \min_{\tau_{\text{MEV}} \in [0,1]} \ \mathcal{E}\bigl(\widehat\pi^\sigma;\lambda_{\text{MEV}}\bigr)
+    \quad\text{s.t.}\quad \pi^\sigma = \widehat\pi^\sigma ,
+    \qquad\text{FOC}\quad \frac{\partial\widehat\pi^\sigma}{\partial\tau_{\text{MEV}}} = 0 .
+  \]
+
+  The replication relation is a **feasibility region the optimization is constrained
+  to**, NOT the objective. `SRC`'s "target replication relation" sentence misstates
+  this and is an **erratum** (still live in the source as of `c521af5`). The objective
+  functional `\mathcal{E}` is **not yet given a form** — naming it, or writing it
+  explicitly, is an open notation decision.
+
 - **Relevant existing Lean results (inputs, already landed).** `TauMevAlgebra.lean`
   (τ_MEV monoid = intensity not targeting; split = incidence not intensity),
   `MevOptimization.lean`, `MevJointProgram.lean`, `JitLiquidity.lean`, `TauJit.lean`,
