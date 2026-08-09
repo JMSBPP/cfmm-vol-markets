@@ -2,9 +2,12 @@
 import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
-> `VOLATILITY_INSTRUMENTS.md` (one shared corpus): `Convention 7+`,
-> `Definition 32+`, `Theorem 29+`, `Proposition 15+`, `Rule 13+`. Those numbers are
-> reserved here and are not to be reused independently in the entry-point doc.
+> `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
+> `Convention 8`, `Definition 36`, `Theorem 29`, `Proposition 12`, `Rule 14`.
+> Those numbers are reserved here and are not to be reused independently in the
+> entry-point doc. (`Proposition` corrected from an earlier `15+` reservation:
+> the entry-point doc's Propositions run 2–11, so 12 is next and 12–14 were
+> orphaned by the error.)
 
 **Convention 7 (Event time) [M11].** The iteration index is the **swap event**, not the
 block and not calendar time:
@@ -12,6 +15,33 @@ block and not calendar time:
 \[
 	\begin{aligned}
 		t \, \to \, t+1 \; := \; \text{event swap}
+	\end{aligned}
+\]
+
+**Convention 8 (Liquidity axis) [M18].**
+
+\[
+	\begin{aligned}
+		L_{\sigma} \; &\equiv \; \Delta Q_v^{\star} && \text{(volatility axis)} \\
+		L, \; \bar L \; & && \text{(price axis)}
+	\end{aligned}
+\]
+
+\[
+	\begin{aligned}
+		L_{\sigma}(i_K) \; = \; L_{\sigma}\,\ell(\xi^{\star},\iota;i_K),
+		\qquad
+		\sum_{i_K} L_{\sigma}(i_K) \; = \; \Delta Q_v^{\star},
+		\qquad
+		\sum_{i_K}\ell \; = \; 1
+	\end{aligned}
+\]
+
+\[
+	\begin{aligned}
+		L(i_K) \; = \; \bar L\,\ell(\xi,\iota;i_K),
+		\qquad
+		\frac{\partial L(i_K)}{\partial \pi^{\phi}} \; = \; \ell(\xi,\iota;i_K)\,\frac{\partial \bar L}{\partial \pi^{\phi}}
 	\end{aligned}
 \]
 
@@ -70,171 +100,91 @@ block and not calendar time:
 
 \[
 	\begin{aligned}
-		\phi_X (t) \; &= \; \Phi \, (\Theta_{\phi}; \sigma^2 (i (t))) \\
+		\phi_X (t) \; &= \; \Phi \, (\Theta_{\phi}; \sigma (i (t)), \nu (t)) \\
 		\phi_M (t) \; &= \; \bar \phi_M \qquad \forall t \\
 		(\beta_j , \gamma_j) , \; (\beta_R, \gamma_R, \alpha_R) \; &\text{ fixed} \qquad \forall t
 	\end{aligned}
 \]
 
-\[
-	\begin{aligned}
-		\partial \pi^{\sigma} \, &\approx \, \frac{\partial \, \pi^{\sigma}}{\partial \, \phi} \, \phi \, + \, \frac{\partial \, \pi^{\sigma}}{\partial \, \pi^{\phi}} \, \pi^{\phi} \, + \, \frac{\partial \, \pi^{\sigma}}{\partial \, \nu} \, \nu \, + \, \frac{\partial\, \pi^{\sigma}}{\partial \Delta Q_X} \, \Delta Q_X \, + \frac{\partial\, \pi^{\sigma}}{\partial \Delta Q_M} \, \Delta Q_M + \cdots \\
-		\\
-		&\approx + \cdots + \, \frac{\partial \, \pi^{\sigma}}{\partial \sigma^2} \, \sigma^2 \, + \frac{\partial \, \pi^{\sigma}}{\partial \, \tau_{\text{MEV}}} \, \tau_{\text{MEV}} \, + \, \frac{\partial \, \pi^{\sigma}}{\partial \, \phi_M} \, \phi_M \, + \, \frac{\partial \, \pi^{\sigma}}{\partial \, \phi_{X}} \, \phi_X
-	\end{aligned}
-\] 
-
-
-Using the rule:
+**Theorem 29 (The monoid path is direct) [M12].**
 
 \[
 	\begin{aligned}
-		\partial \, \pi^{\sigma} \, &= \, \partial \Big [ \sum_{i_K} L (i_k) \, \pi^{l} \, (\sigma \, (i_k; \cdot))\Big] \\
-		\implies \\
-        \frac{\partial \, \pi^{\sigma}}{\partial \, \pi^{\phi}} \, &= \, \sum_{i_K} \, \frac{\partial L \, (i_K)}{\partial \pi^{\phi}} \, \pi^{l} \, (\sigma \, (i_k; \cdot))
+		\frac{\partial \phi}{\partial \tau_{\text{MEV}}}\bigg|_{\phi_M,\,\phi_X} \; = \; (1-\phi_M)(1-\phi_X) \; > \; 0
+		\qquad (\phi_M, \phi_X < 1)
 	\end{aligned}
 \]
 
-And:
+**Theorem 30 (Path decomposition) [M20].**
 
 \[
 	\begin{aligned}
-		\frac{\partial \, \pi^{\sigma}}{\partial L (i_K)} &= \pi^{l} \, (\sigma \, (i_k; \cdot))
-	\end{aligned}	
-\]
-
-
-Structurally we have by definition of fee payoff:
-
-\[
-	\begin{aligned}
-		\pi^{\phi} \, &\equiv \phi_M \, \Delta Q_M \, + \, p_{(\eta , \Delta_i)} \, \phi_X \, \Delta Q_M \\
-		\implies \\
-		\frac{\partial \pi^{\phi}}{\partial \phi}\, &= \, \frac{\partial \phi_M}{\partial \phi} \, \Delta Q_M + p_{(\eta, \Delta_i)}\, \frac{\partial \phi_X}{\partial \phi} \Delta Q_X \\
-		\\
-		&= \frac{\Delta Q_M}{(1 -  \tau_{\text{MEV}})(1 - \phi_X)} \, +\, \frac{p_{(\eta, \Delta_i)}\,\Delta Q_X}{(1 -  \tau_{\text{MEV}})(1 - \phi_M)}
+		\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}}
+		\; = \;
+		\underbrace{\frac{\partial \widehat\pi^{\sigma}}{\partial \phi}\,\frac{\partial \phi}{\partial \tau_{\text{MEV}}}\bigg|_{\phi_M,\,\phi_X}}_{\text{direct}}
+		\; + \;
+		\underbrace{\frac{\partial \widehat\pi^{\sigma}}{\partial \phi}\,\frac{\partial \phi}{\partial \nu}\,\frac{\partial \nu}{\partial \tau_{\text{MEV}}}}_{\text{gate}}
 	\end{aligned}
 \]
 
-Note also:
+**Proposition 12 (Kernel differentiation) [M20].** *Under (A1).*
 
 \[
 	\begin{aligned}
-		(\frac{\partial \pi^{\sigma}}{\partial \phi_M} , \frac{\partial \pi^{\sigma}}{\partial \phi_X}) \, &= \, (p_{(\eta \, \Delta_i)}\, \Delta Q_X\, , \Delta Q_M)
+		\text{(A1)} \qquad \pi^{\phi} \; \to \; \widehat\pi^{\sigma} \quad \text{only via} \quad L
+	\end{aligned}
+\]
+
+\[
+	\begin{aligned}
+		\widehat\pi^{\sigma} \; &= \; \sum_{i_K} L (i_K) \, \pi^{l} \, (\sigma \, (i_K; \cdot)) \\[4pt]
+		\frac{\partial \widehat\pi^{\sigma}}{\partial \pi^{\phi}} \; &\overset{\text{(A1)}}{=} \; \sum_{i_K} \, \frac{\partial L (i_K)}{\partial \pi^{\phi}} \, \pi^{l} \, (\sigma \, (i_K; \cdot)) \\[4pt]
+		\frac{\partial \widehat\pi^{\sigma}}{\partial L (i_K)} \; &= \; \pi^{l} \, (\sigma \, (i_K; \cdot))
 	\end{aligned}
 \]
 
 
-Now for high hazard rate of MEV the ratio of utilization rate is expected to have a raise on the numerator by the defnition itself of the rate and a reduction on the denominator by discouraging liquidity. Thus making the overall effect expansionary on the utilization and we assume constant
-
-
-\(\bar{\mathcal{G}}_{(\nu, \lambda_{\text{MEV}})} := \frac{\partial \nu}{\partial \lambda_{\text{MEV}}} > 0\):
-
-
-Since our goal is to control:
+**Theorem 31 (The section sum is ill-posed) [M13].**
 
 \[
 	\begin{aligned}
-	\boxed{
-\mathcal G_{\widehat\pi^\sigma,\tau_{\mathrm{MEV}}}
-:=
-\frac{\partial\widehat\pi^\sigma}
-{\partial\tau_{\mathrm{MEV}}}
-\bigg|_{\lambda_{\mathrm{MEV}}}
-}
-
+		(\phi_M, \phi_X, \tau_{\text{MEV}}) \; &\longmapsto \; \phi
+		\qquad \text{is a submersion } \mathbb{R}^3 \to \mathbb{R} \\[4pt]
+		\Longrightarrow \quad \frac{\partial \phi_M}{\partial \phi}, \; \frac{\partial \phi_X}{\partial \phi} \; &\text{ not simultaneously defined} \\[4pt]
+		\Longrightarrow \quad \frac{\partial \phi_M}{\partial \phi}\,\Delta Q_M \, + \, p_{(\eta,\Delta_i)}\,\frac{\partial \phi_X}{\partial \phi}\,\Delta Q_X \; &\text{ has no section-independent value}
 	\end{aligned}
 \]
 
 
 
-We define the protocol mev only control channel as:
-
-\[
-\boxed{
-\frac{\partial\widehat{\pi}^\sigma}
-{\partial\tau_{\mathrm{MEV}}}
-=
-
-\frac{\partial\widehat{\pi}^\sigma}{\partial L}
-\frac{\partial L}{\partial\pi^\phi}
-\frac{\partial\pi^\phi}{\partial\phi}
-\frac{\partial\phi}{\partial\nu}
-\frac{\partial\nu}{\partial\tau_{\mathrm{MEV}}}.
-}
-\]
-
-
-Note on \(\partial_{(y, u)}\) the term:
+**Hypothesis (H2) [M18].**
 
 \[
 	\begin{aligned}
-		\frac{\partial \pi^{\sigma}}{\partial \sigma^2} \in \Big ( \underbrace{\Delta Q_{\upsilon}}_{\text{user input}}, \frac{\partial \pi^{\sigma}}{\partial \sigma^2}(\lambda_{\text{MEV}}) \Big)
+		\bar{\mathcal{G}}_{(\nu, \lambda_{\text{MEV}})} \; := \; \frac{\partial \nu}{\partial \lambda_{\text{MEV}}} \; > \; 0
 	\end{aligned}
 \]
 
-Equating the contractual payoff with the payoff realized by the
-liquidity kernel gives the target replication relation
+**Definition 36 (Tax program) [M19].**
 
 \[
-    \pi^\sigma
-    \equiv^{R}
-    \widehat{\pi}^{\sigma},
+	\begin{aligned}
+		&\min_{\tau_{\text{MEV}} \in [0,1]} \; \Bigl(\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}}\Bigr)^{\!2}
+		\qquad \text{s.t.} \qquad \pi^{\sigma} \; = \; \widehat\pi^{\sigma} \\[6pt]
+		&\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; = \; 0
+	\end{aligned}
 \]
 
-where
+**Proposition 13 (Corrected law) [M24].** *All of $\phi_X$, $\partial\phi/\partial\nu$, $\partial\nu/\partial\tau_{\text{MEV}}$ evaluated at $\nu(\tau^{\star}_{\text{MEV}})$.*
 
 \[
-    \pi^\sigma
-    =
-    \Delta Q_v^{\star}
-    \bigl(
-        \sigma^2(i(t))-\sigma_K^2
-    \bigr)^+,
+	\begin{aligned}
+		\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; = \; 0
+		\quad &\Longleftrightarrow \quad
+		\tau^{\star}_{\text{MEV}} \; = \; 1 \; + \; \frac{1-\phi_X}{\bigl(\partial\phi/\partial\nu\bigr)\,\bigl(\partial\nu/\partial\tau_{\text{MEV}}\bigr)} \\[8pt]
+		\tau^{\star}_{\text{MEV}} \; &< \; 1 \\[4pt]
+		\tau^{\star}_{\text{MEV}} \; > \; 0
+		\quad &\Longleftrightarrow \quad
+		1-\phi_X \; < \; \bigl|\bigl(\partial\phi/\partial\nu\bigr)\,\bigl(\partial\nu/\partial\tau_{\text{MEV}}\bigr)\bigr|
+	\end{aligned}
 \]
-
-and
-
-\[
-    \widehat{\pi}^{\sigma}
-    =
-    \sum_{i_K}
-    L(i_K)\,
-    \pi^l
-    \bigl(
-        \sigma(i_K;\Theta_\sigma)
-    \bigr).
-\]
-
-Thus, solving for \(\tau_{\text{MEV}}\) on the minimization:
-> note: This needs verification
-
-\[
-\boxed{
-\begin{aligned}
-\tau_{\mathrm{MEV}}^\star
-=
-1-
-\frac{1}{\Delta Q_v^\star}
-\Bigg[
-&
-\sum_{i_K}
-\pi^{l}\bigl(\sigma(i_K;\cdot)\bigr)
-\frac{\partial L(i_K)}{\partial\pi^\phi}
-\Bigg]
-\,
-\Bigg[
-\frac{\Delta Q_M}{1-\phi_X}
-+
-\frac{
-p_{(\eta,\Delta_i)}\Delta Q_X
-}{
-1-\phi_M
-}
-\Bigg]
-\frac{\partial\phi}{\partial\nu}
-\frac{\partial\nu}{\partial\tau_{\mathrm{MEV}}}.
-\end{aligned}
-}
-\]
-
