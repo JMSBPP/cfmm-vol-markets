@@ -8,8 +8,14 @@
 >
 > - **verdict + salvage** — where an obligation refutes, the corrected law is derived and verified
 > - the τ↔λ bridge is a full obligation **P5**
-> - the behavioral gains (`∂L̄/∂π^φ`, `∂ν/∂λ_MEV`) are stated as **typed hypotheses**, never proved and never estimated here
+> - the behavioral gains (`∂L̄/∂π^φ`, `∂ν/∂λ_MEV`) are stated as **typed hypotheses** in the formal layer and are **never proved** — they are LP-supply estimands
 > - **EVM feasibility is OUT** — the entire E0/E1 track moved to v2. This project is theory + formal results + the document.
+>
+> **AMENDED 2026-08-08 — the Estimation category is now v1.** `Ḡ = ∂ν/∂λ_MEV` is the
+> only empirical object in the corrected law; estimating it *is* the test of H2, which
+> both Lean bundles carry undischarged. Design: `control/spec/ECONOMETRICS-DESIGN.md`.
+> The formal layer still never proves the gains — `EST-03`'s sign test discharges or
+> refutes them from data instead.
 
 ---
 
@@ -39,7 +45,7 @@
 
 - [ ] **PRF-01**: **P1 — well-posedness.** A verdict on whether the `(∂_(t+1,t), ∂_(x,u), ∂_(y,x), ∂_(y,u))` partition is well-posed over event time, and whether set-point optimization is legitimate given `φ_M ≡ φ̄_M ∀t` and `(β_j, γ_j)` frozen.
 - [ ] **PRF-02**: **P2 — the 5-factor channel.** A verdict on whether `τ_MEV` reaches `π̂^σ` through no path other than the stated chain, with the counterexample exhibited if it does not.
-- [ ] **PRF-03**: **P3 — the behavioral gains, as HYPOTHESES.** `Ḡ_(ν,λ_MEV) := ∂ν/∂λ_MEV > 0` and `∂L̄/∂π^φ > 0` are **LP-supply responses, not propositions** (user ruling 2026-08-08). Each is formalized as an explicitly named typed hypothesis, with its estimand, its sign convention, and its observation channel (add/remove-liquidity events) documented. **Neither is sent to Aristotle as a claim to prove.** Estimating their magnitudes is out of scope — see `EST-01` (v2).
+- [ ] **PRF-03**: **P3 — the behavioral gains, as HYPOTHESES.** `Ḡ_(ν,λ_MEV) := ∂ν/∂λ_MEV > 0` and `∂L̄/∂π^φ > 0` are **LP-supply responses, not propositions** (user ruling 2026-08-08). Each is formalized as an explicitly named typed hypothesis, with its estimand, its sign convention, and its observation channel (add/remove-liquidity events) documented. **Neither is sent to Aristotle as a claim to prove.** Estimating their magnitudes is the **Estimation** category (`EST-01`…`EST-05`), promoted to v1 on 2026-08-08; `EST-03`'s sign test is what finally discharges or refutes them.
 - [ ] **PRF-04**: **P4 — the boxed closed form.** A verdict on the boxed `τ*_MEV`, resolving first *which relation it actually solves* (the research finds it equivalent to `∂π̂^σ/∂τ_MEV = ΔQ_v*`, not to `π^σ ≡^R π̂^σ`).
 - [ ] **PRF-05**: **P5 — the τ↔λ bridge.** A verdict on whether `∂ν/∂λ_MEV` may be substituted for `∂ν/∂τ_MEV`, stated as a first-class obligation rather than an implicit step.
 - [ ] **PRF-06**: Every obligation is stated in the Lean tree's native idiom (`Monotone`/`StrictAnti`/`ConvexOn`) wherever a sign or ordering claim suffices. **Rationale corrected:** the tree is NOT devoid of differential-calculus infrastructure — `CapponiEmbed.lean` carries 132 `HasDerivAt` / 128 `deriv` / 19 `Differentiable` — **all three are `grep -c` LINE counts, not occurrence counts** (`grep -o '\bderiv\b' | wc -l` gives 306; both are correct, the unit is what differs — state the method with any count), including `HasDerivAt.div`, `Real.hasDerivAt_rpow_const` and a fourth-derivative computation. The real gap is narrower: no derivative lemmas for the five named schedule functions (`logistic`, `sigmoidR`, `multiFee`, `probOr`, `ptrade`). Any derivative layer is priced against `CapponiEmbed` as in-tree precedent, not from scratch.
@@ -56,11 +62,24 @@
 - [ ] **SAL-04**: The corrected law is itself submitted for verification, and carries its own verdict.
 - [ ] **SAL-05**: Every assumption the corrected law rests on is declared as an assumption, never justified by citing a theorem that does not exist.
 
+### Estimation
+
+Promoted from v2 by the 2026-08-08 design (`control/spec/ECONOMETRICS-DESIGN.md`).
+`Ḡ = ∂ν/∂λ_MEV` is the **only empirical object** in the corrected law — every other
+factor is structural. Estimating it is simultaneously the **test of H2**, carried
+undischarged through both Lean bundles.
+
+- [ ] **EST-01**: `ν`'s **empirical construction** is established — whether `ν = φ_{(1/2,0)}(i_K; ΔQ, 0; t) / φ_{(1/2,0)}(i_K; 0, L; t)` is directly computable from pool state and swap events, or requires reconstruction, with the read path named. Blocks everything else in this category.
+- [ ] **EST-02**: The **identification lever is validated before use** — `Δt` enters `ℙ_{Δ_ARB}` but not the fee schedule (a clean exclusion), yet its exogeneity and, critically, its **dispersion** on the chosen venue are open. Run the structural-econometrics discipline over the choice; a venue with near-constant `Δt` yields a weak first stage biased *toward* OLS, which is the bias being escaped. **Decision #10 (`Δt` exogenous or endogenous) is deferred here, not closed in the doc layer.**
+- [ ] **EST-03**: **Stage 1 — the sign test, as a gate.** Test `∂ν/∂λ_MEV > 0` only, on a specification, instrument, sample and power floor **fixed before the data is touched**. Report the first-stage F **before** examining the second stage. Three terminal outcomes, all reportable: gate opens; **wrong sign ⟹ H2 REFUTED**; or **not identified**, exactly as the `υ` exercise — a delivered result, never a prompt to re-specify.
+- [ ] **EST-04**: **Stage 2 — magnitude, only behind the gate.** Fit `ν = a + b·σ_ℓ(c(λ − d))` by nonlinear IV/GMM, giving `Ḡ = b·c·σ_ℓ'(c(λ−d))` — a logistic bump reusing `AdaptiveFee`'s on-chain sigmoid machinery, vanishing on the saturation bands per `Theorem36`.
+- [ ] **EST-05**: **Output contract and back-propagation.** Deliver `(a,b,c,d)` with covariance, the first-stage F, and the **admissible band** where `Ḡ` is bounded away from zero, intersected with `Theorem36`'s responsive band. Stage 1's verdict **discharges or refutes H2** in `MevTaxControl.lean` and `MevTaxProgram.lean`; a refutation flips `Theorem34`'s opposed-signs result and the corrected law's sign.
+
 ### Consolidation & Hand-off
 
 - [ ] **HND-01**: A gap register lists every open item with severity and disposition (in-scope vs deferred), including the event-clock question and any obligation left as a hypothesis.
 - [ ] **HND-02**: The **formal controller document** integrates frame, entrywise plant, verdicts, typed hypotheses and salvage, each section delegating detail to its owning document. This is the project's deliverable.
-- [ ] **HND-03**: The hand-off to downstream milestones is defined — the deferred **EVM-01a/01b/02/03/05/06** feasibility track and the **EST-01** estimation track — with cross-worktree coordination points named and their owning peer sessions identified. Peer agreement is **obtained**, not assumed: `list_peers` at repo scope returns nothing, `CLAUDE.md` has no row for this track, and silence is not consent.
+- [ ] **HND-03**: The hand-off to downstream milestones is defined — the deferred **EVM-01a/01b/02/03/05/06** feasibility track — with cross-worktree coordination points named and their owning peer sessions identified. Peer agreement is **obtained**, not assumed: `list_peers` at repo scope returns nothing, `CLAUDE.md` has no row for this track, and silence is not consent.
 - [ ] **HND-04**: The stale v2-controller documents (`LEAN-MAP.md`, `EVM-CONTROL-PRIMITIVES-MAP.md`) are marked do-not-cite so they are not consumed as current.
 - [ ] **HND-05**: A review register exists and is honest about its own history: the founding artifacts (`b5f5e82`, `9658375`, `d3b226a`) were committed **before** their two-step review ran, and that review's findings are recorded as the register's **retroactive first entries**. Every subsequent artifact passes the gate before commit. The v2-controller `SPEC-04` precedent is what this exists to avoid repeating — and did not.
 
@@ -81,10 +100,6 @@ implementation milestone and none of it is answerable from theory alone.
 - **EVM-02**: feasibility analysis of the verified law — primitives, scale, signedness, rounding, saturation semantics, cost envelope. **Scale is inherited, not chosen**: `plank/notes/UNITS_AND_SCALES.md` at a pinned sha (the tree is Q64.96; `φ_X` is 1e-6 masked to `uint16` — WAD is the wrong mandate)
 - **EVM-03**: reconcile the model's strike count `#_σ` with `ι` (`VOLATILITY_INSTRUMENTS_MEV.tex:212`) and the structural 4-leg bound at `PanopticTokenIdSetterLib.plk:140`
 - **EVM-06**: real numeric hazards — actuator quantization (`φ_X` in 1e-6 steps, `Θ_φ` `uint16`) and sigmoid **saturation bands** (`AdaptiveFee.plk:53-60`), where `∂φ_X/∂ν = 0` exactly. The `(1−φ)` pole is structurally unreachable (`φ_X ≤ 0.065535`) and is not the hazard
-
-### Estimation
-
-- **EST-01**: identify the behavioral gains `∂L̄/∂π^φ` and `Ḡ_(ν,λ_MEV)` from add/remove-liquidity events. `PRF-03` states them as typed hypotheses; **this** track measures them. The controller is not actionable without both magnitudes, and the event layer already emits the data
 
 ### Implementation
 
