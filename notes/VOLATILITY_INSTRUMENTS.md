@@ -128,7 +128,7 @@ and \(\Pi\) has Definition 5's defining property: its variance sensitivity is **
 
 \[
 	\begin{aligned}
-		\Pi^{\text{call|put}}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big) \, \leftarrow \, \sum_{i_K} L(i_K)\, \Pi^{\text{call|put}}\big(\sigma_K; p_{(\eta,\Delta_i)}(i;t)\big), \qquad L(i_K) = \bar L\,\ell(\xi^{\star},\iota; i_K)
+		\Pi^{\text{call|put}}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big) \, \leftarrow \, \sum_{i_K} L(i_K)\, \Pi^{\text{call|put}}\big(\sigma_K; p_{(\eta,\Delta_i)}(i;t)\big), \qquad L(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi^{\star},\iota; i_K)
 	\end{aligned}
 \]
 
@@ -136,11 +136,11 @@ The left arrow marks the Rule: an **allocation the protocol enforces**, not an e
 
 *Formalized (weight law):* `GeomProfile.varswapWeight_geometric`; `logContractLiquidity_geometric`; `VolInstrument.strikeWeight_bridge` (\(\xi^{\star} = \lambda^{-\Delta_i/2}\)).
 
-**Definition 7 (Liquidity ladder).** Per strike tick \(i_K\), the ladder allocates the total liquidity \(\bar L\) by the geometric weight profile
+**Definition 7 (Liquidity ladder).** Per strike tick \(i_K\), the ladder allocates the total liquidity \(\bar L_{(1/2,\,0)}\) by the geometric weight profile
 
 \[
 	\begin{aligned}
-		L \, (i_K) \, &= \, \bar L \, \ell \, (\xi, \iota; i_K), \qquad \bar L \, = \sum_{i_K = i_{\text{min}}}^{i_{\text{max}}} \, L \, (i_K), \qquad \ell \, (\xi, \iota; i_K) \, = \, \frac{\xi^{i_K}}{\Big ( \frac{1 - \xi^{\iota}}{1 - \xi}\Big)}
+		L \, (i_K) \, &= \, \bar L_{(1/2,\,0)} \, \ell \, (\xi, \iota; i_K), \qquad \bar L_{(1/2,\,0)} \, = \sum_{i_K = i_{\text{min}}}^{i_{\text{max}}} \, L \, (i_K), \qquad \ell \, (\xi, \iota; i_K) \, = \, \frac{\xi^{i_K}}{\Big ( \frac{1 - \xi^{\iota}}{1 - \xi}\Big)}
 	\end{aligned}
 \]
 
@@ -397,18 +397,18 @@ identical to the cumulative amount functions of [BUNNI_V2](../refs/bunni-v2.pdf)
 
 identical to the inverse cumulative amount functions of [BUNNI_V2](../refs/bunni-v2.pdf) §2.4, eqs. (22)–(23) — including the arg max/arg min asymmetry, which mirrors the opposed summation directions of Definition 10.
 
-**Theorem 6 (Monotonicity and telescoping).** Both cumulatives are monotone in the step count (for \(L \geq 0\)), so the inverse cumulatives of Definition 11 are well-defined least attaining steps; for the constant ladder \(L \equiv \bar L\) they telescope to closed form:
+**Theorem 6 (Monotonicity and telescoping).** Both cumulatives are monotone in the step count (for \(L \geq 0\)), so the inverse cumulatives of Definition 11 are well-defined least attaining steps; for the constant ladder \(L \equiv \bar L_{(1/2,\,0)}\) they telescope to closed form:
 
 \[
 	\begin{aligned}
-		Q_X^L \, = \, \bar L\,\big[p_{(\eta, \Delta_i)}(i_{\min}+n\Delta_i) - p_{(\eta, \Delta_i)}(i_{\min})\big], \qquad
-		Q_M^L \, = \, \bar L\,\Big[\frac{1}{p_{(\eta, \Delta_i)}(i_{\min})} - \frac{1}{p_{(\eta, \Delta_i)}(i_{\min}+n\Delta_i)}\Big]
+		Q_X^L \, = \, \bar L_{(1/2,\,0)}\,\big[p_{(\eta, \Delta_i)}(i_{\min}+n\Delta_i) - p_{(\eta, \Delta_i)}(i_{\min})\big], \qquad
+		Q_M^L \, = \, \bar L_{(1/2,\,0)}\,\Big[\frac{1}{p_{(\eta, \Delta_i)}(i_{\min})} - \frac{1}{p_{(\eta, \Delta_i)}(i_{\min}+n\Delta_i)}\Big]
 	\end{aligned}
 \]
 
 *Formalized:* `VolInstrument.cumulativeQM_monotone`; `cumulativeQX_monotone`; `cumulativeQM_const`; `cumulativeQX_const`; `exists_least_reaching`.
 
-**Notation map (Bunni v2 remap — collision-driven).** [BUNNI_V2](../refs/bunni-v2.pdf)'s symbols do not enter this document because \(a_0, a_1\) collide with the replication weights \(a_1, a_2\) (Settlement form of Definition 1). The remap: \(a_0 \mapsto \Delta Q_M^L\), \(a_1 \mapsto \Delta Q_X^L\), \(A_0 \mapsto Q_M^L\), \(A_1 \mapsto Q_X^L\), \(A_0^{-1} \mapsto Q_M^L(\cdot)^{-1}\), \(A_1^{-1} \mapsto Q_X^L(\cdot)^{-1}\), \(w \mapsto \Delta_i\), \(r \mapsto i_K\), \(l_r \mapsto L(i_K)\), \(1.0001 \mapsto \lambda\) (\(\mathcal{C}_p\)). Structural identification: Definition 7's weight profile \(\ell\) **is** Bunni's geometric LDF \(d_{\alpha,l}\) (§2.2.1, eq. (9)) under \(\alpha \mapsto \xi\), \(l \mapsto \iota\), and Definition 7's \(L(i_K) = \bar L\,\ell(\cdot)\) is his \(l_r = L \cdot LDF_w(r)\) (eq. (5)). <!-- notation-map -->
+**Notation map (Bunni v2 remap — collision-driven).** [BUNNI_V2](../refs/bunni-v2.pdf)'s symbols do not enter this document because \(a_0, a_1\) collide with the replication weights \(a_1, a_2\) (Settlement form of Definition 1). The remap: \(a_0 \mapsto \Delta Q_M^L\), \(a_1 \mapsto \Delta Q_X^L\), \(A_0 \mapsto Q_M^L\), \(A_1 \mapsto Q_X^L\), \(A_0^{-1} \mapsto Q_M^L(\cdot)^{-1}\), \(A_1^{-1} \mapsto Q_X^L(\cdot)^{-1}\), \(w \mapsto \Delta_i\), \(r \mapsto i_K\), \(l_r \mapsto L(i_K)\), \(1.0001 \mapsto \lambda\) (\(\mathcal{C}_p\)). Structural identification: Definition 7's weight profile \(\ell\) **is** Bunni's geometric LDF \(d_{\alpha,l}\) (§2.2.1, eq. (9)) under \(\alpha \mapsto \xi\), \(l \mapsto \iota\), and Definition 7's \(L(i_K) = \bar L_{(1/2,\,0)}\,\ell(\cdot)\) is his \(l_r = L \cdot LDF_w(r)\) (eq. (5)). <!-- notation-map -->
 
 **Definition 12 (Weighted-geometric-mean trading function).** For share parameter \(\chi_{X/M} \in (0,1)\), the **trading function** at strike tick \(i_K\) takes as exogenous a trading flow \(\Delta Q = (\Delta Q_M, \Delta Q_X)\) and returns
 
@@ -555,6 +555,38 @@ The first line is exactly the hypothesis Theorem 5's `deltaQM_nonneg` requires �
 CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because \(\eta^{\star} \approx 458/\Delta_i^{2}\) cannot be a Cobb–Douglas share. It never had to be — the share is \(\chi_{X/M}(\eta^{\star}) \in (0,1)\) for EVERY \(\eta\) (Theorem 10), so the identification is reachable through \(\chi_{X/M}\), not through \(\eta\) directly. *Carriers:* `etaStar_tilde_mem_Ioo`, `curvIndex_etaStar_via_tilde`. *(E-block cross-note; converts when the E-blocks are swept.)*
 
  > Provenance: `EtaTilde` 23/23 axiom-clean, project `67b1c841` (doc \(\chi_{X/M}\) ↔ Lean `etaTilde`, the Lean name fixed by the bundle and never hand-edited); `PhiCES` 12/12 axiom-clean, project `cd3558f7`. Carriers not yet attached to a numbered statement: `phiCES_agreement_point` (evaluation form, scope declared in-file); CONDITIONAL, NOT an identification: `phiCES_rho_vs_pi_eta_trader` gives \(1/(1-\epsilon_{X/M}) = 1/(1-\eta) \iff \epsilon_{X/M} = \eta\) away from the poles for `exp/CESLongVolPayoff`'s η, and its docstring states outright that this does NOT identify the payoff parameter with the trading-function parameter — E8(6) untouched.
+
+**Definition 32 (Intrinsic liquidity).** For \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\), the **intrinsic liquidity** at a reserve state is
+
+\[
+	\begin{aligned}
+		\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(Q_X,Q_M) \, &\equiv \, \frac{-2\,\big(\partial_{Q_X}\varphi\;\partial_{Q_M}\varphi\big)^{3/2}}{\partial^2_{Q_M}\varphi\,(\partial_{Q_X}\varphi)^2 \, - \, 2\,\partial^2_{Q_XQ_M}\varphi\,\partial_{Q_X}\varphi\,\partial_{Q_M}\varphi \, + \, \partial^2_{Q_X}\varphi\,(\partial_{Q_M}\varphi)^2} \, = \, \frac{-2\,p_{\varphi}^{3/2}}{\mathcal{D}_{Q_X}[p_{\varphi}]}
+	\end{aligned}
+\]
+
+([INTRINSIC_LIQ](../refs/cfmm/risk_tung_wang-pricing_hedging_liquidity_provision-2026.pdf) §2.1; construction from [CLMM_DYN](../refs/cfmm/tung_wang-clmm_dynamics_continuous_time-2024.pdf) App. B), with \(p_{\varphi}\) the marginal price of Definition 14. It carries the dimension of \(\bar L_{(1/2,\,0)}\) for EVERY \((\chi_{X/M},\epsilon_{X/M})\) — the level of \(\varphi_{(\chi_{X/M},\epsilon_{X/M})}\) does not, carrying \(Q_X^{\chi_{X/M}}Q_M^{1-\chi_{X/M}}\) — and it is invariant under reparametrization of the curve. \(\bar L_{(1/2,\,0)}\) is the object this document writes throughout: it is the intrinsic liquidity AT THE MEMBER RULE 5 PINS. The bar is exact only there — constancy along the curve holds iff \(\epsilon_{X/M} = 0\) (Theorem 29); in general this is a state function, not a level.
+
+**Theorem 29 (Closed form; limits; the state-constancy boundary).** On the interior of the level set,
+
+\[
+	\begin{aligned}
+		\bar L_{(\chi_{X/M},\,\epsilon_{X/M})} \, &= \, \frac{2\sqrt{\chi_{X/M}(1-\chi_{X/M})}\;\big(Q_X\,Q_M\big)^{(\epsilon_{X/M}+1)/2}}{(1-\epsilon_{X/M})\big(\chi_{X/M}\,Q_X^{\epsilon_{X/M}} \, + \, (1-\chi_{X/M})\,Q_M^{\epsilon_{X/M}}\big)} \\
+		\epsilon_{X/M} \to 0 \; &\implies \; \bar L_{(\chi_{X/M},\,0)} \, = \, 2\sqrt{\chi_{X/M}(1-\chi_{X/M})}\;\bar L_{(1/2,\,0)} \\
+		\epsilon_{X/M} \to 1^{-} \; &\implies \; \bar L_{(\chi_{X/M},\,\epsilon_{X/M})} \, \to \, \infty \qquad \text{(the linear member has no price impact)} \\
+		\bar L_{(\chi_{X/M},\,\epsilon_{X/M})} \big/ \bar L_{(1/2,\,0)} \; \text{state-constant} \; &\iff \; \epsilon_{X/M} \, = \, 0
+	\end{aligned}
+\]
+
+and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree one in \((Q_X,Q_M)\).
+
+*Formalized* (`EllIntrinsic`, 10/10 axiom-clean, project `9786b137`; doc \(\bar L_{(\chi,\epsilon)}\) ↔ Lean `ell`, doc \(\chi_{X/M}\) ↔ Lean `ε`, doc \(\epsilon_{X/M}\) ↔ Lean `ρ` — the Lean names predate the doc glyphs and are NOT renamed): closed form `ellAt_eq_ell_corrected`; limits `ell_tendsto_geom`, `ell_tendsto_cpmm`, `ell_tendsto_atTop_rho_one`; `ell_homogeneous`; state-constancy `ell_ratio_const_iff`. **REFUTED as first stated:** `ellAt_eq_ell_false` — the guard \(0 < Q_M\) does NOT place the state inside the level set (`Real.rpow` off the positives carries a \(\cos(\pi\cdot)\) factor, so a NEGATIVE radicand can still yield a positive leg); at the witness the two sides carry opposite signs. The interior guard below is that correction, not a hedge.
+
+**Theorem 30 (Half-kernel reduction).** Strictly inside the level set, the \(\chi_{X/M} = 1/2\) member carrying \(\bar L_{(1/2,\,0)} \leftarrow \bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\) reproduces BOTH the marginal price and its first-order price impact, the latter being exactly \(-2\,p_{\varphi}^{3/2}\big/\bar L_{(1/2,\,0)}\). Every quantity factoring through \((p_{\varphi}, \mathcal{D}_{Q_X}[p_{\varphi}])\) — \(\mathcal{D}_p[\pi]\), \(\Gamma\), \(\pi^{\mathrm{LVR}}\), the per-strike amounts of Definitions 9–11 — is therefore computable on the half-kernel, which is what on-chain venues instantiate. **Scope, stated not buried:** the match is LOCAL and SECOND-ORDER — it pins \(\Gamma\), NOT \(\mathcal{D}^2_{Q_X}[p_{\varphi}]\); and a local match is not a global match of Definition 25's value function, which is obtained by integration.
+
+*Formalized:* `halfKernel_price_impact` (the impact law, proved as stated); `halfKernel_osculates_corrected`. **REFUTED as first stated:** `halfKernel_osculates_false` — same defective guard as Theorem 29; at the witness the prices agree while the impacts carry opposite signs.
+
+**Proposition 12 (Profile–field relation) — OPEN.** The ladder carries the per-strike liquidity \(L(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\) (Definition 7); the smooth member carries the field \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\). Whether a given \(\varphi_{(\chi_{X/M},\epsilon_{X/M})}\) admits \((\xi,\iota) \in \Theta_{\ell}\) with \(\bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K) = \bar L_{(\chi_{X/M},\epsilon_{X/M})}\) at every strike is **OPEN** — the \(\Theta_{\varphi} \to \Theta_{\ell}\) map. It is degenerate at \(\epsilon_{X/M} = 0\) (the field is state-constant, Theorem 29) and not otherwise. Where the map fails, the failure set is the G4 ladder deficit \(\iota - 2\), and the parametrized density is the declared repair (Phase 15.2).
+
 
 # FEE_ALGEBRA
 
@@ -1407,10 +1439,10 @@ External delta `Δ`/`δ` → \(\mathcal{D}_p[\pi]\), \(p = p_{(\eta, \Delta_i)}(
 External gamma → \(\Gamma \equiv \mathcal{D}^2_p[\pi]\); bare `Γ` is FREE here and is bound to gamma ONLY; the sigmoid steepness is ALWAYS subscripted `γ_j` (mirror of the κ/ς_{X/M} rule). <!-- notation-map -->
 External theta Θ → IDENTIFIED with this document's \(\theta \equiv \Delta\pi/\Delta t\) (the exponent-sign FLAG — RESOLVED 2026-08-03, negative — on its display stands); `Θ_•` remains parameter-set notation and is never a Greek. <!-- notation-map -->
 External vega ν → NEVER imported (`ν_t = w_t/D_t`, M6b); all vegas through \(\upsilon \equiv \Delta\pi/\Delta\sigma^2\) (bound, = t/2); σ-convention vega is written \(2\,\sigma(i(t))\,\upsilon\). <!-- notation-map -->
-Maymin's liquidity Greek `Λ = ∂C/∂k` → \(\mathcal{D}_{\bar L}[C]\) (Greek of the LONG CALL C, Def 2 eq (33) — NOT of π) via \(k = \bar L^2\) (CPMM), his \(\Lambda = \mathcal{D}_{\bar L}[C]/(2\bar L)\); `Λ(·)` stays the logistic. <!-- notation-map -->
+Maymin's liquidity Greek `Λ = ∂C/∂k` → \(\mathcal{D}_{\bar L_{(1/2,\,0)}}[C]\) (Greek of the LONG CALL C, Def 2 eq (33) — NOT of π) via \(k = \bar L_{(1/2,\,0)}^2\) (CPMM), his \(\Lambda = \mathcal{D}_{\bar L_{(1/2,\,0)}}[C]/(2\bar L_{(1/2,\,0)})\); `Λ(·)` stays the logistic. <!-- notation-map -->
 Maymin's emission Greek `E = ∂C/∂e` → \(\mathcal{D}_{\Delta Q_M}[C]\) (Def 2 eq (34), again a C-Greek; our emission policy IS the ΔQ_M schedule). <!-- notation-map -->
 Maymin's CEV exponent `β = w` = the NUMERAIRE weight (his §3.2 eq (4)–(5): \(x^w y^{1-w} = K\), \(x\) = numeraire, \(P = \tfrac{1-w}{w}\tfrac{x}{y}\)) → \(w = 1 - \eta_L\), i.e. \(\eta_L = 1 - w\) = the ASSET share (eta.md line 12: \(L = X^{\eta}Y^{1-\eta}\), \(P\) = price of \(X\) in \(Y\) ⟹ η = exponent on the ASSET). ORIENTATION DECIDED AT FORMULA LEVEL by eq (12): \(P \propto x^{1/(1-w)} \implies \partial_x P = \tfrac{1}{1-w}\tfrac{P}{x}\), and \(x = P^{1-w}(\tfrac{w}{1-w})^{1-w}K\), so \(\delta = \tfrac{1}{1-w}\big(\tfrac{1-w}{w}\big)^{1-w}K^{-1}\sigma_F\) EXACTLY — the \(1/(1-w)\) prefactor is the reciprocal of the ASSET weight, and the \(w \leftrightarrow 1-w\) swap gives \(\tfrac{1}{w}(\tfrac{w}{1-w})^{w}K^{-1}\sigma_F\), ≠ eq (12) for \(w \neq \tfrac12\). \(\eta_L = \eta\) is E8(6) and remains OPEN — no display below assumes it. <!-- notation-map -->
-Maymin's `δ` (CEV vol coefficient) → eliminated through primitives: \(\sigma(i(t)) = \delta\, p^{\,\beta-1} = \delta\, p^{-\eta_L}\) (his σ_ret, Prop 4 eq (20), under \(\beta = w = 1-\eta_L\)) and CPMM \(\delta = 2\sigma_Q/\bar L\) (eq (12) at \(w = \tfrac12\), \(K = \bar L\)); his flow vol `σ_F` → \(\sigma_Q\) (σ̄_f is the FeeSchedule strike); his invariant `K` → \(\bar L\); his strike `K_str` → \(K\); his `κ` (eq 23) → \(c_0\) (bare κ FORBIDDEN); his CDF `χ²(x;n,·)` → \(\mathbb{P}_{Y_{n,\cdot} \leq x}\) (probability-typed ⟹ ℙ_{event}; χ banned). <!-- notation-map -->
+Maymin's `δ` (CEV vol coefficient) → eliminated through primitives: \(\sigma(i(t)) = \delta\, p^{\,\beta-1} = \delta\, p^{-\eta_L}\) (his σ_ret, Prop 4 eq (20), under \(\beta = w = 1-\eta_L\)) and CPMM \(\delta = 2\sigma_Q/\bar L_{(1/2,\,0)}\) (eq (12) at \(w = \tfrac12\), \(K = \bar L_{(1/2,\,0)}\)); his flow vol `σ_F` → \(\sigma_Q\) (σ̄_f is the FeeSchedule strike); his invariant `K` → \(\bar L_{(1/2,\,0)}\); his strike `K_str` → \(K\); his `κ` (eq 23) → \(c_0\) (bare κ FORBIDDEN); his CDF `χ²(x;n,·)` → \(\mathbb{P}_{Y_{n,\cdot} \leq x}\) (probability-typed ⟹ ℙ_{event}; χ banned). <!-- notation-map -->
 Bardoscia's `V0` → \(\Delta Q_M\) (V₀ is CJZ's, J5); his APY `φ` → eliminated in TWO commensurable forms, always labelled (B1): SCHEDULE-LEVEL per-unit carry \(\phi(\sigma_t)\,\nu_t\) (M6b's own units, \(\nu_t = w_t/D_t\), what \(\lambda_{\text{FLAIR}}\) sums) and POSITION-LEVEL carry \(\phi(\sigma_t)\,\nu_t\,\Delta Q_M\) (what an LP position of money leg ΔQ_M earns); his `S_t` → \(p_{(\eta, \Delta_i)}(i;t)\); maturity `T`, remaining `τ = T−t` → \(T^{\star}\), \(T^{\star}-t\) (τ is τ_MEV — NEVER time). <!-- notation-map -->
 Demeterfi's `S*` → \(p^{\star}\); his variance vega `V = (T−t)/T` (a REMAINING-CALENDAR-TIME ratio) → \(\upsilon\) under this document's normalization, where the argument of \(\upsilon = t/2\) is the MATURITY PARAMETER \(t\), not calendar time: at inception \(\upsilon = T^{\star}/2\), and the calendar-time form is \(\upsilon(t) = (T^{\star}-t)/2\) (`variancePortfolio_upsilon`; t-SEMANTICS clause, G6(7)). <!-- notation-map -->
 Band edges `p_a, p_b` / `a, b` (Clark, Fateh–Singh) → \(p(i_l), p(i_u)\); Clark's reserves `R_α, R_β` → cumulative \(\Delta Q_X, \Delta Q_M\) (`VolInstrument.cumulativeQX/QM`); Kristensen's range factor `r` → \(\lambda_{\text{tick}}^{\iota\Delta_i}\) (through its own primitive). <!-- notation-map -->
@@ -1419,7 +1451,7 @@ Any probability reading of delta ("ATM delta = 50%") is written \(\mathbb{P}_{\t
 
 ## **G1. [ADDITION] The Greek ladder of the LP-payoff kernel**
 
-Per tick \(i_K\), band \([i_l, i_u]\), sqrt-price convention (`PosSpec.tickPrice`), \(L(i_K) = \bar L\,\ell(\xi,\iota;i_K)\):
+Per tick \(i_K\), band \([i_l, i_u]\), sqrt-price convention (`PosSpec.tickPrice`), \(L(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\):
 
 \[
 	\begin{aligned}
@@ -1434,7 +1466,7 @@ Per tick \(i_K\), band \([i_l, i_u]\), sqrt-price convention (`PosSpec.tickPrice
 			-\tfrac{1}{2}\, L(i_K)\, p^{-3/2} & p(i_l) < p < p(i_u) \\
 			0 & \text{otherwise}
 		\end{cases}
-		\, = \, -\tfrac{1}{2}\,\bar L\,\ell(\xi,\iota;i_K)\,p^{-3/2}\,\mathbb{1}_{(i_l,i_u)}
+		\, = \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\,p^{-3/2}\,\mathbb{1}_{(i_l,i_u)}
 	\end{aligned}
 \]
 
@@ -1444,9 +1476,9 @@ Aggregate over the ladder (partition of unity `geomWeight_sum`):
 
 \[
 	\begin{aligned}
-		\Gamma^{\Sigma}(p) \, &= \, -\tfrac{1}{2}\,\bar L\, p^{-3/2} \sum_{i_K}\,\ell(\xi,\iota;i_K)\,\mathbb{1}_{p \in (i_l,i_u)(i_K)} \\
+		\Gamma^{\Sigma}(p) \, &= \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\, p^{-3/2} \sum_{i_K}\,\ell(\xi,\iota;i_K)\,\mathbb{1}_{p \in (i_l,i_u)(i_K)} \\
 		\xi = \xi^{\star} = \lambda_{\text{tick}}^{-\Delta_i/2} \; &\implies \; \Gamma^{\Sigma}\big(p(i_K)\big)\, p(i_K)^2 \, = \, \text{const in } i_K \quad \textbf{(GRID-EXACT)} \\
-		\text{but pointwise, inside band } i_K: \; \Gamma^{\Sigma}p^2 \, &= \, -\tfrac{1}{2}\,\bar L\,\ell(\xi^{\star},\iota;i_K)\, p^{1/2} \;\propto\; p^{1/2}, \quad \text{swing } \lambda_{\text{tick}}^{\Delta_i/2} \text{ per band} \quad \textbf{(BAND-MODULATED)}
+		\text{but pointwise, inside band } i_K: \; \Gamma^{\Sigma}p^2 \, &= \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\,\ell(\xi^{\star},\iota;i_K)\, p^{1/2} \;\propto\; p^{1/2}, \quad \text{swing } \lambda_{\text{tick}}^{\Delta_i/2} \text{ per band} \quad \textbf{(BAND-MODULATED)}
 	\end{aligned}
 \]
 
@@ -1483,21 +1515,23 @@ Vega is maturity, not a free dial:
 
 \[
 	\begin{aligned}
-		\mathcal{D}_{\bar L}[C] \, &< \, 0 \quad \big(\delta = 2\sigma_Q/\bar L \implies \tfrac{\Delta\sigma}{\sigma} = -\tfrac{\Delta \bar L}{\bar L}\big), \qquad
+		\mathcal{D}_{\bar L_{(1/2,\,0)}}[C] \, &< \, 0 \quad \big(\delta = 2\sigma_Q/\bar L_{(1/2,\,0)} \implies \tfrac{\Delta\sigma}{\sigma} = -\tfrac{\Delta \bar L_{(1/2,\,0)}}{\bar L_{(1/2,\,0)}}\big), \qquad
 		\mathcal{D}_{\Delta Q_M}[C] \, < \, 0, \qquad
-		\bar v^2 \, = \, \frac{4\sigma_Q^2}{\dot{\bar k}} \ln\Big(1 + \frac{\dot{\bar k}\,T^{\star}}{\bar L_0^2}\Big), \;\; \dot{\bar k} \equiv \tfrac{\Delta (\bar L^2)}{\Delta t} \\
-		\text{LP-side composition: } \; \mathcal{D}_{\bar L}[\pi] \, &= \, \frac{\Delta\pi}{\Delta\sigma^2}\cdot\frac{\Delta\sigma^2}{\Delta\bar L} \, = \, (\underbrace{<0}_{\text{short vega}})\cdot(\underbrace{<0}_{\text{depth compresses }\sigma}) \, \geq \, 0
+		\bar v^2 \, = \, \frac{4\sigma_Q^2}{\dot{\bar k}} \ln\Big(1 + \frac{\dot{\bar k}\,T^{\star}}{\bar L_0^2}\Big), \;\; \dot{\bar k} \equiv \tfrac{\Delta (\bar L_{(1/2,\,0)}^2)}{\Delta t} \\
+		\text{LP-side composition: } \; \mathcal{D}_{\bar L_{(1/2,\,0)}}[\pi] \, &= \, \frac{\Delta\pi}{\Delta\sigma^2}\cdot\frac{\Delta\sigma^2}{\Delta\bar L_{(1/2,\,0)}} \, = \, (\underbrace{<0}_{\text{short vega}})\cdot(\underbrace{<0}_{\text{depth compresses }\sigma}) \, \geq \, 0
 	\end{aligned}
 \]
 
-> OBJECT TYPING (B3): Maymin Def 2 eq (33)–(34) and Prop 10 eq (41) are Greeks of the LONG CALL \(C\) ON the AMM token — \(\Lambda = \partial C/\partial k < 0\) ("deeper pools reduce option value by compressing volatility"), \(E = \partial C/\partial e < 0\) (emissions = our ΔQ_M schedule, bang-bang PROVEN `Flow.schedule_isLeast`, act as a dividend-yield-like variance drain). NO LP-side sign is imported: on π the depth Greek composes through the short vega and comes out with the OPPOSITE sign, \(\mathcal{D}_{\bar L}[\pi] \geq 0\) (a deeper pool damps σ, and the short-vol LP GAINS from that). C-Greeks and π-Greeks are distinct rows; both are hooks the classic BS set does not have.
+> \(\bar L_0\) keeps the anchor's own subscripting: its slot is the time index, and imported anchor displays are not re-indexed (Convention 6). Everywhere else in this document the bare \(\bar L\) has been made explicit as \(\bar L_{(1/2,\,0)}\) — Definition 32.
+>
+> OBJECT TYPING (B3): Maymin Def 2 eq (33)–(34) and Prop 10 eq (41) are Greeks of the LONG CALL \(C\) ON the AMM token — \(\Lambda = \partial C/\partial k < 0\) ("deeper pools reduce option value by compressing volatility"), \(E = \partial C/\partial e < 0\) (emissions = our ΔQ_M schedule, bang-bang PROVEN `Flow.schedule_isLeast`, act as a dividend-yield-like variance drain). NO LP-side sign is imported: on π the depth Greek composes through the short vega and comes out with the OPPOSITE sign, \(\mathcal{D}_{\bar L_{(1/2,\,0)}}[\pi] \geq 0\) (a deeper pool damps σ, and the short-vol LP GAINS from that). C-Greeks and π-Greeks are distinct rows; both are hooks the classic BS set does not have.
 
 The skew law (Maymin Thm 1 eq (11)–(12) + Prop 4 eq (20) + Prop 5), stated on \(\eta_L\), NOT on η, at the RESOLVED orientation \(\beta = w = 1-\eta_L\) (G0):
 
 \[
 	\begin{aligned}
 		dp \, = \, \mu(p)\,dt \, + \, \delta\, p^{\,1-\eta_L}\, dW, \qquad \sigma(i(t)) = \delta\,p^{\,-\eta_L};\qquad
-		\frac{\sigma_{IV}(K)}{\sigma_{IV}^{ATM}} \, = \, f(K/p;\, \eta_L) \quad \text{— independent of } \delta \text{ and } \bar L
+		\frac{\sigma_{IV}(K)}{\sigma_{IV}^{ATM}} \, = \, f(K/p;\, \eta_L) \quad \text{— independent of } \delta \text{ and } \bar L_{(1/2,\,0)}
 	\end{aligned}
 \]
 
@@ -1510,14 +1544,14 @@ LEVEL: every row is POSITION-LEVEL (B1) — θ_fee means \(\theta_{\text{fee}}^{
 
 \[
 	\begin{array}{l|cccccccc}
-		 & (\xi,\iota) & (\eta,\Delta_i)\to\varsigma_{X/M} & \bar L & (\bar\phi,\alpha,u) & (\beta_j,\gamma_j) & T^{\star} & \tau,\tau_{\text{JIT}} & \text{haz. inputs }(\sigma\text{-path},w_t,D_t) \\
+		 & (\xi,\iota) & (\eta,\Delta_i)\to\varsigma_{X/M} & \bar L_{(1/2,\,0)} & (\bar\phi,\alpha,u) & (\beta_j,\gamma_j) & T^{\star} & \tau,\tau_{\text{JIT}} & \text{haz. inputs }(\sigma\text{-path},w_t,D_t) \\
 		\hline
 		\mathcal{D}_p[\pi] & \bullet & \bullet & \bullet & - & - & - & - & - \\
 		\Gamma & \bullet & \bullet & \bullet & - & - & - & - & - \\
 		\upsilon\,(=t/2) & \circ_{\;\xi=\xi^{\star}} & - & - & - & - & \bullet & - & - \\
 		\theta_{\text{fee}}^{\text{pos}} & \circ & \circ & \circ_{\;\text{via }\nu_t} & \bullet & \bullet & - & \circ_{\;\text{carve-out}} & \bullet \\
 		\Delta\theta_{\text{fee}}/\Delta\sigma & - & - & \circ_{\;\text{via }\nu_t} & \bullet & \bullet & - & - & \bullet \\
-		\mathcal{D}_{\bar L}[\pi] & \circ & \circ & \bullet & - & - & - & - & - \\
+		\mathcal{D}_{\bar L_{(1/2,\,0)}}[\pi] & \circ & \circ & \bullet & - & - & - & - & - \\
 		\mathcal{D}_{\Delta Q_M}[\pi] & - & - & \bullet & - & - & \circ & - & - \\
 		\sigma_{IV}/\sigma_{IV}^{ATM}\;[\textbf{DIAG}] & - & \bullet_{\;\text{uncond. in }\eta_L;\;\text{cond. on }E8(6)} & - & - & - & - & - & - \\
 		\lambda_{\text{FLAIR}} & - & - & \circ & \bullet & \bullet & - & \bullet & \bullet \\
@@ -1526,7 +1560,7 @@ LEVEL: every row is POSITION-LEVEL (B1) — θ_fee means \(\theta_{\text{fee}}^{
 	\end{array}
 \]
 
-> ROW COUNT (M3): 11 matrix rows, \(|\mathcal{T}| = 10\) design targets — the gap is the \(\sigma_{IV}/\sigma_{IV}^{ATM}\) row, declared **DIAGNOSTIC**: it is an OBSERVABLE (a depth-invariant identification readout for \(\eta_L\)), not a design target, and is excluded from \(\mathcal{T}\) and from every deficit count in G4. The \(\theta_{\text{fee}}^{\text{pos}}\) row's \(\bar L\) and \(\tau\) entries are ○, not ●: \(\bar L\) enters only through \(D_t\) inside \(\nu_t = w_t/D_t\), and \(\tau\) only through the tax carve-out — neither symbol appears in the display itself.
+> ROW COUNT (M3): 11 matrix rows, \(|\mathcal{T}| = 10\) design targets — the gap is the \(\sigma_{IV}/\sigma_{IV}^{ATM}\) row, declared **DIAGNOSTIC**: it is an OBSERVABLE (a depth-invariant identification readout for \(\eta_L\)), not a design target, and is excluded from \(\mathcal{T}\) and from every deficit count in G4. The \(\theta_{\text{fee}}^{\text{pos}}\) row's \(\bar L_{(1/2,\,0)}\) and \(\tau\) entries are ○, not ●: \(\bar L_{(1/2,\,0)}\) enters only through \(D_t\) inside \(\nu_t = w_t/D_t\), and \(\tau\) only through the tax carve-out — neither symbol appears in the display itself.
 
 THE (β,γ) ROW, RESOLVED: \((\beta_j,\gamma_j)\) are ABSENT from every payoff-shaping Greek (\(\mathcal{D}_p, \Gamma, \upsilon\) — confirming (ξ,ι) as the shaping base) and BIND exactly in the carry profile, in both B1 forms:
 
@@ -1552,9 +1586,9 @@ THE (β,γ) ROW, RESOLVED: \((\beta_j,\gamma_j)\) are ABSENT from every payoff-s
 
 \[
 	\begin{aligned}
-		\mathcal{T} \, &= \, \{\mathcal{D}_p,\; \Gamma,\; \upsilon,\; \theta_{\text{fee}}^{\text{pos}},\; \Delta\theta_{\text{fee}}/\Delta\sigma,\; \mathcal{D}_{\bar L},\; \mathcal{D}_{\Delta Q_M},\; \lambda_{\text{FLAIR}},\; \lambda_{\text{ARB}},\; \tilde\lambda_{\text{JIT}}\}, \quad |\mathcal{T}| = 10 \\
+		\mathcal{T} \, &= \, \{\mathcal{D}_p,\; \Gamma,\; \upsilon,\; \theta_{\text{fee}}^{\text{pos}},\; \Delta\theta_{\text{fee}}/\Delta\sigma,\; \mathcal{D}_{\bar L_{(1/2,\,0)}},\; \mathcal{D}_{\Delta Q_M},\; \lambda_{\text{FLAIR}},\; \lambda_{\text{ARB}},\; \tilde\lambda_{\text{JIT}}\}, \quad |\mathcal{T}| = 10 \\
 		&\quad (\theta_{\text{decay}} \text{ excluded: redundant by Demeterfi EQ 12};\;\; \sigma_{IV}/\sigma_{IV}^{ATM} \text{ excluded: DIAGNOSTIC, G3};\;\; \lambda_{\text{MEV}} \text{ excluded: the } \oplus\text{-sum}) \\
-		\#\text{free} \, &= \, \underbrace{\iota,\, \bar L}_{2} \, + \, \underbrace{(\beta_j,\gamma_j)}_{2n} \, + \, \underbrace{T^{\star}}_{1} \, + \, \underbrace{\tau,\, \tau_{\text{JIT}}}_{2} \, + \, \underbrace{\Delta Q_M\text{-schedule}}_{1} \, = \, 6 + 2n
+		\#\text{free} \, &= \, \underbrace{\iota,\, \bar L_{(1/2,\,0)}}_{2} \, + \, \underbrace{(\beta_j,\gamma_j)}_{2n} \, + \, \underbrace{T^{\star}}_{1} \, + \, \underbrace{\tau,\, \tau_{\text{JIT}}}_{2} \, + \, \underbrace{\Delta Q_M\text{-schedule}}_{1} \, = \, 6 + 2n
 		\qquad (\xi = \xi^{\star},\; \eta = \eta^{\star},\; \Delta_i \text{ venue-quantized},\; (\bar\phi,\alpha,u) \text{ pinned by the level program — M4 caveat applies})
 	\end{aligned}
 \]
@@ -1563,7 +1597,7 @@ Raw count \(6+2n \geq 10\) **for \(n \geq 2\)** — the deficit is STRUCTURAL (b
 
 \[
 	\begin{aligned}
-		\text{shape rows } \{\mathcal{D}_p, \Gamma, \upsilon\text{-flatness}\}\;(3) \; &\text{reachable only through } \{\xi,\iota,\eta,\Delta_i,\bar L\} \implies 2 \text{ free for } 3: \; \textbf{deficit } 1 \\
+		\text{shape rows } \{\mathcal{D}_p, \Gamma, \upsilon\text{-flatness}\}\;(3) \; &\text{reachable only through } \{\xi,\iota,\eta,\Delta_i,\bar L_{(1/2,\,0)}\} \implies 2 \text{ free for } 3: \; \textbf{deficit } 1 \\
 		\text{ladder resolution: } \{\ell(i_K)\}_{i_K} \in \Delta^{\iota-1} \; &\text{vs the pinned-ξ geometric curve (dim } 1\text{)}: \; \textbf{deficit } \iota - 2 \\
 		(\beta_j,\gamma_j) \; &\text{cannot close it: their column is } 0 \text{ on every shape row}
 	\end{aligned}
@@ -1576,8 +1610,8 @@ Raw count \(6+2n \geq 10\) **for \(n \geq 2\)** — the deficit is STRUCTURAL (b
 \[
 	\begin{aligned}
 		\text{EXACT on-chain: } & \mathcal{D}_p\text{-ladder},\; \Gamma\text{-ladder (sqrtPriceX96, ticks, } L\text{; } p^{3/2} = \text{mulDiv chain)},\; \upsilon = t/2,\; \theta_{\text{fee}} \text{ ex-post (feeGrowthInside, streamia)} \\
-		\text{APPROXIMABLE: } & \phi(\sigma)\text{ (expWad logistic)},\; \theta_{\text{decay}} \text{ (expWad+sqrt; sign RESOLVED: negative)},\; \sigma^2(i(t)) \text{ (E2/E5 ledger — see caveat)},\; \mathcal{D}_{\bar L}[\pi] \text{ (relative form exact)} \\
-		\text{OFF-CHAIN: } & \text{CEV prices and } \mathbb{P}_{Y_{n,c}\le x} \text{ tails},\; \sigma^{\star}_{\phi} \text{ inversion},\; \mathcal{D}_{\bar L}[C],\; \mathcal{D}_{\Delta Q_M}[C] \text{ model values (lnWad for } \bar v^2\text{; schedule input exact)}
+		\text{APPROXIMABLE: } & \phi(\sigma)\text{ (expWad logistic)},\; \theta_{\text{decay}} \text{ (expWad+sqrt; sign RESOLVED: negative)},\; \sigma^2(i(t)) \text{ (E2/E5 ledger — see caveat)},\; \mathcal{D}_{\bar L_{(1/2,\,0)}}[\pi] \text{ (relative form exact)} \\
+		\text{OFF-CHAIN: } & \text{CEV prices and } \mathbb{P}_{Y_{n,c}\le x} \text{ tails},\; \sigma^{\star}_{\phi} \text{ inversion},\; \mathcal{D}_{\bar L_{(1/2,\,0)}}[C],\; \mathcal{D}_{\Delta Q_M}[C] \text{ model values (lnWad for } \bar v^2\text{; schedule input exact)}
 	\end{aligned}
 \]
 
