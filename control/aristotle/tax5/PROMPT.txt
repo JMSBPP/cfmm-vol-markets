@@ -1,0 +1,94 @@
+Formalize the price-shock input in RequestProject/TAX5_ADDENDUM.md, blocks M33-M35.
+
+THE CHANGE. The plant's exogenous input is no longer the quantity pair. DOC Definition
+32 carries u_ex = [DeltaQ_X, DeltaQ_M, sigma^2]^T. The author rules that the driver is a
+RELATIVE PRICE SHOCK Delta p / p, and DeltaQ is a RESPONSE -- the quantity needed to move
+the pool price to the edge of the fee band, set by the curve's price impact.
+
+This is not new coordinates for the MEV side. DOC Definition 21 already compares a
+volatility-driven price move against a fee band: P_{Delta_ARB} = sigma/(sigma + phi
+sqrt(2/Delta t)), read by MMR Thm 1 as the long-run fraction of blocks in which an arb
+trade occurs. sigma is the shock scale, phi sqrt(2/Delta t) the band. The change aligns
+the plant's input with what Definition 21 already does.
+
+ALL THREE CLAIMS ARE ALGEBRAIC. H1_dLbar_dpiPhi_pos, H2_dnu_dlamMEV_pos and
+MevTaxChannels.ScaleHomogeneous remain TYPED HYPOTHESES -- assume by name, never prove.
+
+A REFUTATION IS A SUCCESSFUL OUTCOME. All four prior bundles returned refutations that
+redirected this project: the five-factor identity, the tau*=1 axis error, M26(a) and M27,
+and Corollary 40b. Do not narrow a claim to make it provable. Exhibit the witness.
+
+M35 IS THE MOST VALUABLE. Resolving it unblocks Theorem 42, Theorem 43 and Theorem 44 --
+including the O2 closure, load-bearing since Phase 5. If you have budget for one claim,
+spend it there.
+
+WHAT IS ALREADY PROVED -- cite by declaration name AND file, do not redo.
+
+RequestProject/MevTaxControl.lean: Theorem29_monoid_path_is_direct,
+  Theorem32_hazard_strictAntiOn_tau, H1_dLbar_dpiPhi_pos, H2_dnu_dlamMEV_pos
+RequestProject/MevTaxProgram.lean: Proposition16_corrected_law (:1054, TWO conjuncts,
+  conjunct 2 GUARDED), Theorem33_path_decomposition, totalDeriv, focCore, pathGate,
+  hasDerivAt_phiTot, Proposition15_level_reading_second_order_undetermined
+RequestProject/MevLVRCancellation.lean (MevTaxLVR): Theorem37_LVR_cancellation,
+  Theorem37_K_pos, Corollary37_root_invariance
+RequestProject/MevChannelClosure.lean (MevTaxChannels):
+  Theorem38a_one_sided_flow_refutes_strict_monotonicity  -- the one-sided refutation M34
+                                targets
+  Theorem38_two_routes_close_a_loop  -- the fork M35 targets
+  Theorem39_arb_side_does_not_close, Theorem39_missing_primitive_is_the_pool_scale
+                                -- M33 must be CONSISTENT with these, not contradict them
+  Theorem39_participation_closes, Theorem39_elasticity_closes
+RequestProject/MevReturnsReduction.lean (MevTaxReturns): Theorem40_returns_reduction,
+  Corollary40_consistency_with_Proposition16,
+  Corollary40b_endogenous_fee_closed_form  -- (1-phi_X) does NOT cancel
+  Corollary40c_one_sided_flow_leaves_no_root  -- no root at any tax; M34 targets this
+  Theorem40d_loop_correction_removes_epsilon  -- the second control law
+  Theorem42_* (comparative statics), Theorem43_* (threshold elasticity),
+  Theorem44_O2_closes, Theorem44_root_is_a_minimum_of_piHat,
+  Theorem44_objective_reading_does_not_discriminate
+
+SOURCES. RequestProject/SRC_VOLATILITY_INSTRUMENTS_MEV.md is SRC, pinned at commit
+d61f223 / blob 584b05e. RequestProject/VOLATILITY_INSTRUMENTS.md is DOC (peer-owned,
+read-only). RequestProject/TAX4_RETURN_prior.md is bundle 4's own return.
+
+FIVE STANDING BANS, stated in full in the addendum. Note ban 4 especially, it is new and
+it bites: THE dphidnu SLOT IS BARE. MevTaxProgram.hasDerivAt_phiTot fixes it and the
+monoid Jacobian is carried separately in pathGate. SRC Proposition 13 was corrected
+accordingly. SRC Convention 9's COMPOSED d(phi)/d(nu) governs Theorem 30 and Theorem 32
+only. BOTH READINGS ARE LIVE ON ONE PAGE -- check which slot every claim uses. Bundle 4
+found this by machine and it is exactly the kind of conflation that has cost this project
+three separate corrections to one block.
+
+WHY THESE THREE:
+
+  M33 asks whether nu closes in observables under a shock driver. If DeltaQ = Lbar *
+      g(Delta p/p, phi, kappa_phi) then nu = g(...) is scale-free and closed-form, and
+      eps stops being an empirical primitive FOR THE ARB HALF. The consistency proof
+      against Theorem39_arb_side_does_not_close is mandatory: the factorization is
+      claimed to CONFIRM that refutation by making Lbar explicit, not to overturn it.
+
+  M34 asks whether a shock-driven trade is necessarily two-legged, making the one-sided
+      configuration unreachable. If so, PR-REGION (DOC:423) is decided by the input
+      ruling rather than left open, and four downstream results unblock. Be precise
+      about signed vs unsigned legs -- Rule 5's geometric-mean member needs a
+      nonnegative product, and stating which reading makes nu well-defined may itself
+      be a further ruling rather than a consequence.
+
+  M35 asks whether the two channels are the same channel. Under a shock input the same
+      primitive creates the arb opportunity (hence the hazard) AND determines the flow
+      (hence nu). If they are not independent, Theorem38's loop is a reformulation
+      rather than a fork, and the two control laws are two readings of one object.
+      Determine which survives, or show both are artifacts of treating a shared driver
+      as two inputs.
+
+WHAT NOT TO ASSUME. Benign flow is NOT shock-driven -- noise traders have no profit
+function, and DOC's [M8] records NO DEMAND ELASTICITY with the missing term at MMR
+section 7.3 eq. (27). So even if the arbitrage channels merge, a residual independent
+path may survive through benign flow. If it does, say whether the loop correction applies
+to that residual alone and what its gain is. Do not supply a demand elasticity.
+
+DELIVERABLE. Theorems 45-47. Theorem 45 with g explicit or a demonstration it cannot be
+written, PLUS the mandatory consistency proof. Theorem 46 with the sign reading stated.
+Theorem 47 with the surviving control law identified, or both shown to be artifacts. No
+new sorry. A stated OPEN with a reason beats a narrowed theorem. Every declaration
+#print axioms-clean or its dependency stated.

@@ -1,0 +1,95 @@
+Formalize the returns reduction in RequestProject/TAX4_ADDENDUM.md, blocks M28-M32.
+
+ALL ALGEBRAIC. H1_dLbar_dpiPhi_pos, H2_dnu_dlamMEV_pos and ScaleHomogeneous remain
+TYPED HYPOTHESES -- assume by name, never prove.
+
+READ M28 FIRST AND TREAT IT AS SUSPECT. Its derivation is the orchestrator's own
+algebra, done by substitution and NOT otherwise checked. Corollary 40 -- that the
+reduced form agrees with MevTaxProgram.Proposition16_corrected_law's conjunct 1 -- is
+the load-bearing content of this bundle. If they disagree, ONE OF THEM IS WRONG and
+saying which is worth more than anything else you could return. Do not reconcile them
+by reinterpreting either.
+
+A REFUTATION IS A SUCCESSFUL OUTCOME. Do not narrow a claim to make it provable.
+Exhibit the witness. All three prior bundles returned refutations that redirected this
+project: the five-factor identity (bundle 1), the tau*=1 axis error (bundle 2), and
+both M26(a) and M27 (bundle 3). That is the expected mode.
+
+WHAT IS ALREADY PROVED -- cite by declaration name AND file, do not redo.
+
+RequestProject/MevTaxControl.lean:
+  Theorem29_monoid_path_is_direct, Theorem32_hazard_strictAntiOn_tau,
+  tau_to_nu_strictAntiOn_under_H2, H1_dLbar_dpiPhi_pos, H2_dnu_dlamMEV_pos
+
+RequestProject/MevTaxProgram.lean:
+  Proposition16_corrected_law   :1054 -- TWO conjuncts. Conjunct 1 unconditional modulo
+                                hg; conjunct 2 GUARDED by 0 < dphidnu -> dnudtau < 0 ->
+                                phiXv < 1. M28 must agree with CONJUNCT 1.
+  Theorem33_path_decomposition, totalDeriv, Theorem34_opposed_signs,
+  Theorem36_no_interior_root_off_the_band,
+  Proposition15_level_reading_second_order_undetermined  -- the O2 gap M32 targets.
+
+RequestProject/MevLVRCancellation.lean (bundle 3, namespace MevTaxLVR):
+  Theorem37_LVR_cancellation, Theorem37_K_pos, Corollary37_root_invariance,
+  Theorem37_literal_bracket_refuted, Corollary37_root_invariance_fails_at_K_zero
+
+RequestProject/MevChannelClosure.lean (bundle 3, namespace MevTaxChannels):
+  Theorem38a_one_sided_flow_refutes_strict_monotonicity  -- one-sided flow gives
+                                d(nu)/d(DeltaQ) = 0. M28's premise nu ~ DeltaQ DIES here.
+  Theorem38a_boundary_behaviour_is_epsilon_dependent, Theorem38c_route_one_from_H2,
+  Theorem38_two_routes_close_a_loop, Theorem39_arb_side_does_not_close,
+  Theorem39_missing_primitive_is_the_pool_scale, Theorem39_participation_closes,
+  Theorem39_elasticity_closes   -- the fee elasticity is what M28 builds on.
+
+SOURCES. RequestProject/SRC_VOLATILITY_INSTRUMENTS_MEV.md is SRC, pinned at commit
+c5649a7 / blob 3f5ffb8. It now carries Convention 9 (the gate derivative is COMPOSED,
+never bare -- read it before touching any bracket), Hypothesis (H1), Theorem 32 (LVR
+cancellation), Theorem 33 (two channels), Theorem 34 (the loop) and Theorem 35 (the arb
+side does not close). RequestProject/VOLATILITY_INSTRUMENTS.md is DOC (peer-owned,
+read-only). RequestProject/TAX3_RETURN_prior.md is bundle 3's own return.
+
+FIVE STANDING BANS, unchanged, stated in full at the top of the addendum:
+  1. Never identify Capponi's kappa with the eps_{X/M} axis (canon_Fcap_not_CES).
+  2. eta is the GRID-SIDE TILT (DOC:184), not the trading-curve share.
+  3. pi^{varphi} (portfolio value) != pi^{phi} (fee revenue).
+  4. Proposition 13's domain lines stay guarded.
+  5. Cite by declaration name AND file.
+
+WHY THESE FIVE:
+
+  M28 claims the corrected law is EXPLICIT in tau, not implicit. Proposition 13 carries
+      "all factors evaluated at nu(tau*)" because d(phi)/d(nu) hides a (1 - tau) inside
+      it via Convention 9. Extract that factor and tau appears once. If true, the
+      self-reference the M24 audit recorded as a DEFECT of the boxed law is an artifact
+      of the composite denominator, not of the optimization -- and (1 - phi_X) cancels,
+      leaving the fee elasticity as the only unknown.
+
+  M29 claims the control law is scale-free, so bundle 3's missing primitive (the pool
+      scale) is missing from a question the controller never asks. The quantity
+      d(DeltaQ^ARB)/d(phi) does not close; the RATIO derivative d(nu)/d(phi) does,
+      because the scale cancels between its two factors.
+
+  M30 asks the comparative statics. NO SIGN IS ASSERTED IN THE ADDENDUM, deliberately:
+      the orchestrator has a reading of the eps limits and withheld it, having been
+      wrong three times in one session on signs reasoned rather than checked. Derive
+      them.
+
+  M31 converts Proposition 13's admissibility condition into a THRESHOLD ELASTICITY --
+      how elastic must flow be before taxing is worth doing at all. Actionable without
+      ever point-identifying eps.
+
+  M32 targets open item O2. Definition 36 minimizes (d pihat/d tau)^2, so a root that
+      maximizes pihat^sigma still minimizes the objective -- the two readings differ and
+      nothing settles which. With eps explicit rather than buried, the second-order
+      condition may now be decidable.
+
+THE PREMISE MOST LIKELY TO FAIL. M28 uses d(nu)/d(phi) = nu*eps/phi, which presumes
+nu ~ DeltaQ under proportional legs. Bundle 3 already refuted the universal form:
+on a ONE-SIDED flow the operative Rule 5 member is identically zero and d(nu)/d(DeltaQ)
+= 0. The flow-domain ruling (PR-REGION, DOC:423) is OPEN and is the author's, not
+yours. State clearly which domain each result needs; do not assume the favourable one.
+
+DELIVERABLE. Theorems 40-44 with their corollaries, or witnesses refuting them. The
+Corollary 40 consistency check against Proposition16_corrected_law is MANDATORY either
+way. No new sorry. A stated OPEN with a reason beats a narrowed theorem. Every
+declaration #print axioms-clean or its dependency stated.

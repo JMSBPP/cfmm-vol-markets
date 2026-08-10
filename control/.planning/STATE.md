@@ -151,8 +151,41 @@ two routes proved to close a loop; M27 REFUTED, missing primitive named as the *
 `Hypothesis (H1)`, `Theorem 32`–`Theorem 35` (commits `9a87ce1`, `3be0654`, `e4dbf72`, `b769c39`,
 `236f635`, `c5649a7`) under `NOT-10`'s cadence.
 
-**IN FLIGHT — Aristotle bundle 4, project `016fc0d1-fffa-4098-a379-48314c9ebd50`** (submitted
-2026-08-10, RUNNING). Bundle `control/aristotle/tax4/`, spec `RequestProject/TAX4_ADDENDUM.md`
+**LANDED — Aristotle bundle 4** (`016fc0d1-fffa-4098-a379-48314c9ebd50`) →
+`control/aristotle/tax4-result/`, `MevReturnsReduction.lean` (996 lines, 35 decls, axiom-clean).
+**M28's algebra is correct**, but `Corollary 40` holds only under the **bare** slot reading —
+`MevTaxProgram`'s `dphidnu` is bare, fixed by `hasDerivAt_phiTot`, while `SRC` Proposition 13 wrote
+it as the composed `∂φ/∂ν`. Corrected at `d61f223` (third correction to that block). **REFUTED:**
+`Corollary 40b` — `(1−φ_X)` does **not** cancel once the endogenous fee is carried; and
+`Theorem40d` — **the loop removes `ε` entirely**, giving a second, different control law.
+**HELD:** `Theorem 41` scale-freeness; `Theorem 42` comparative statics with signs derived
+(`∂τ*/∂ε < 0`, `∂τ*/∂ν > 0`, `ε → 0⁻ ⟹ τ* → −∞`, `ε → −∞ ⟹ τ* → 1`, and `∂τ*/∂γ_R` has **no
+global sign**); `Theorem 43` threshold elasticity `ε* = φ/((1−φ_M)(∂φ_X/∂ν)ν)`, quotable only with
+its operating fee; **`Theorem 44` — open item O2 CLOSES on the reduced model**, single crossing
+becomes a theorem, the root is unique and a **minimum**. Also: `Definition 36`'s
+`min (∂π̂^σ/∂τ)²` **cannot discriminate** — every root minimizes it.
+
+**IN FLIGHT — Aristotle bundle 5, project `a7249747-24b2-4584-b888-6f5475e08b67`** (submitted
+2026-08-10, RUNNING). Bundle `control/aristotle/tax5/`, spec `RequestProject/TAX5_ADDENDUM.md`
+(M33–M35), `SRC` pinned at `d61f223`/blob `584b05e`.
+
+**The input changes** (author ruling): `u_ex`'s driver is a **relative price shock `Δp/p`**, not
+the quantity pair — `ΔQ` becomes a *response* set by the curve's price impact. This aligns
+`Definition 32` with what `Definition 21` already does, since `ℙ_{Δ_ARB} = σ/(σ+φ√(2/Δt))` is
+already a shock-versus-band comparison.
+
+- **M33** — does `ν = g(Δp/p, φ, κ_φ)` close? If so `ε` stops being empirical **for the arb half**.
+  Consistency with `Theorem39_arb_side_does_not_close` is **mandatory**: the factorization
+  `ΔQ = L̄·g(·)` is claimed to *confirm* that refutation by making `L̄` explicit.
+- **M34** — is a shock-driven trade necessarily **two-legged**, making the one-sided domain
+  unreachable? Would decide **PR-REGION** by the input ruling and unblock four results.
+- **M35 — the most valuable.** Do routes (i) and (ii) share a driver, so the fork is a
+  reformulation rather than a choice? Resolving it unblocks `Theorem 42`, `43` and the **O2
+  closure**.
+
+**Pending user rulings, unchanged:** the channel fork (may be dissolved by M35), `PR-REGION` (may
+be dissolved by M34), and — from before bundle 4 — `Convention 10` and the `Hypothesis (H3)`
+promotion, both presented and unapproved. Bundle `control/aristotle/tax4/`, spec `RequestProject/TAX4_ADDENDUM.md`
 (M28–M32), `SRC` pinned at `c5649a7`/blob `3f5ffb8`. The **returns reduction**:
 
 - **M28** — `τ* = 1 + φ/[(1−φ_M)(∂φ_X/∂ν)νε]`. `(1−φ_X)` cancels, `H1` lives in `K` and cancels,
