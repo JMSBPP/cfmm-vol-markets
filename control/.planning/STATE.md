@@ -143,7 +143,21 @@ Last session: 2026-08-09
 Stopped at: **Phase 6b's estimation route is TERMINAL.** `06B-00` executed (out of order, by user direction — the roadmap order `1 → 2 → 3 → 6a → 6b → 7` was not followed and Phase 1 has no execution record). The sweep delivered `control/spec/RESEARCH-REGISTER.md` @ `5f7f3d8` — 50 sources (14 internal PDFs, 26 arXiv all re-resolved through the arxiv MCP, 10 non-arXiv lower-rigor), §5's instrument-selection rule present in the first commit as required. It then ended the route it was built to serve: **`S-35` refutes the `Δt` exclusion restriction.** Verdict recorded at `control/spec/GBAR-VERDICT.md`.
 Resume file: control/spec/GBAR-VERDICT.md
 
-**TRANSCRIPTION COMPLETE (2026-08-10).** The bundles 4–6 arc is on the page: 13-block queue
+**MARGIN-NOTE SESSION (2026-08-10, approved).** Seven user margin notes attended one by one
+(`b1c198b`). `SRC` now **27 blocks, 410 lines**, pin `b1c198b1ba8284b7468d1cf94cd6b8bbfba13bc6` / blob `d5cf324540b120f5081bd86ab7a060fe8874c193`. Rulings:
+`δ → δ_{transactional}` (level parameter of the channel — answered on record: arb size is
+determined, benign size cannot be); **Theorems 33–35 STRUCK** (ΔQ-coordinates, shock-space
+equivalents verified on-page; numbers retired); `loop` → **`ℱ_{φ→ν→φ}`**, Bode's return
+difference, user's subscript; `L̄` member-typed from DOC's exact forms (`L̄_{(1/2,0)}` ladder,
+`L̄_{(χ_{X/M},ε_{X/M})}` intrinsic). **The ⊥ mint retired with Theorem 33** — notation-map row.
+
+**COLLISION ROUTED (2026-08-10):** DOC now carries its own `Definition 32 (Intrinsic
+liquidity)` against SRC's `Definition 32 (Event-time plant)` — the one-shared-corpus numbering
+contract is broken. Message sent to the plank instance (`tp6nybas`) with two options:
+renumber their block past our reservations, or fork the numbering with both notes recording
+it. Our numbering note carries the flag pending their ruling. Their tree untouched.
+
+ The bundles 4–6 arc is on the page: 13-block queue
 executed under NOT-10's cadence, one approval per block. `SRC` now carries **30 blocks, 452
 lines**, pinned at `106aa22eac1065bb4b04e6318015ccef1af8c652` / blob `d82a3d051e485e97f871677d648cbfd31763aeff`. New since `d61f223`:
 `Hypothesis (H3)` (invariance form — a quantity-coordinates draft was caught by the user),
