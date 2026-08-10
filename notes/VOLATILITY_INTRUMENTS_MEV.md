@@ -3,7 +3,10 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
 > `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
-> `Convention 10`, `Definition 37`, `Theorem 36`, `Proposition 14`, `Rule 14`.
+> `Convention 12`, `Definition 37`, `Theorem 36`, `Proposition 14`, `Rule 14`.
+> (`Convention 10` is RETIRED unused — a returns-coordinates block struck before
+> writing because `DOC` owns both halves, Proposition 9 and the `DOC:946` CPMM
+> instantiation; the number is not to be reused.)
 > Those numbers are reserved here and are not to be reused independently in the
 > entry-point doc. (`Proposition` corrected from an earlier `15+` reservation:
 > the entry-point doc's Propositions run 2–11, so 12 is next and 12–14 were
@@ -103,6 +106,15 @@ block and not calendar time:
 		\frac{\partial \phi}{\partial \nu} \; &\equiv \; \frac{\partial \phi}{\partial \phi_X}\,\frac{\partial \phi_X}{\partial \nu}
 		\; = \; (1-\phi_M)(1-\tau_{\text{MEV}})\,\frac{\partial \phi_X}{\partial \nu} \\[6pt]
 		\frac{\partial \phi_X}{\partial \nu} \; &= \; \text{DOC Definition 18 (bare)}
+	\end{aligned}
+\]
+
+**Convention 11 (Flow reading — unsigned legs) [M34].**
+
+\[
+	\begin{aligned}
+		\Delta Q_M \cdot \Delta Q_X \; &< \; 0 \qquad \text{(shock-induced flow is a swap)} \\[6pt]
+		\nu \;\; &\text{reads} \;\; \bigl(|\Delta Q_M|,\, |\Delta Q_X|\bigr)
 	\end{aligned}
 \]
 
