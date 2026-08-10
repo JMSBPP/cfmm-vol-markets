@@ -10,7 +10,11 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 > Those numbers are reserved here and are not to be reused independently in the
 > entry-point doc. (`Proposition` corrected from an earlier `15+` reservation:
 > the entry-point doc's Propositions run 2–11, so 12 is next and 12–14 were
-> orphaned by the error.)
+> orphaned by the error.) (`Theorems 33–35` are RETIRED STRUCK 2026-08-10 —
+> ΔQ-coordinates statements whose shock-space equivalents are Theorems 36–37;
+> numbers not to be reused. COLLISION FLAGGED: `DOC` now carries its own
+> `Definition 32 (Intrinsic liquidity)` against this document's
+> `Definition 32 (Event-time plant)` — routed to the entry-point doc's owner.)
 
 **Convention 7 (Event time) [M11].** The iteration index is the **swap event**, not the
 block and not calendar time:
@@ -26,7 +30,7 @@ block and not calendar time:
 \[
 	\begin{aligned}
 		L_{\sigma} \; &\equiv \; \Delta Q_v^{\star} && \text{(volatility axis)} \\
-		L, \; \bar L \; & && \text{(price axis)}
+		L, \; \bar L_{(1/2,\,0)} \; & && \text{(price axis)}
 	\end{aligned}
 \]
 
@@ -42,9 +46,9 @@ block and not calendar time:
 
 \[
 	\begin{aligned}
-		L(i_K) \; = \; \bar L\,\ell(\xi,\iota;i_K),
+		L(i_K) \; = \; \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K),
 		\qquad
-		\frac{\partial L(i_K)}{\partial \pi^{\phi}} \; = \; \ell(\xi,\iota;i_K)\,\frac{\partial \bar L}{\partial \pi^{\phi}}
+		\frac{\partial L(i_K)}{\partial \pi^{\phi}} \; = \; \ell(\xi,\iota;i_K)\,\frac{\partial \bar L_{(1/2,\,0)}}{\partial \pi^{\phi}}
 	\end{aligned}
 \]
 
@@ -183,7 +187,7 @@ block and not calendar time:
 
 \[
 	\begin{aligned}
-		\frac{\partial \bar L}{\partial \pi^{\phi}} \; > \; 0
+		\frac{\partial \bar L_{(1/2,\,0)}}{\partial \pi^{\phi}} \; > \; 0
 	\end{aligned}
 \]
 
@@ -199,7 +203,7 @@ block and not calendar time:
 
 \[
 	\begin{aligned}
-		\bar L \; \to \; c\,\bar L
+		\bar L_{(\chi_{X/M},\,\epsilon_{X/M})} \; \to \; c\,\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}
 		\quad &\Longrightarrow \quad
 		\text{band}(\phi) \;\; \text{invariant}, \qquad \nu(s, \phi, \kappa_{\varphi}) \;\; \text{invariant}
 	\end{aligned}
@@ -213,7 +217,7 @@ block and not calendar time:
 		\max_{\tau_{\text{MEV}} \in [0,1]}
 		\;\; \bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\,
 		\mathbb{P}_{\Delta_{\text{transactional}}}\,
-		\bigl(\phi_M \otimes_{\phi} \phi_X\bigr)\,\delta
+		\bigl(\phi_M \otimes_{\phi} \phi_X\bigr)\,\delta_{\text{transactional}}
 		\; - \; \frac{\sigma^2 \Delta t}{8}\,\mathbb{P}_{\Delta_{\text{ARB}}}
 		\qquad \text{s.t.} \quad \pi^{\sigma} \; = \; \widehat\pi^{\sigma}
 	\end{aligned}
@@ -256,53 +260,6 @@ block and not calendar time:
 	\end{aligned}
 \]
 
-**Theorem 33 (Two channels to $\partial\nu/\partial\tau_{\text{MEV}}$) [M26].**
-*Route (ii) requires (a) — recovered under Convention 11 (Theorem 46). Scope: (i) and (ii) share the price-shock driver — see Theorem 37; a genuinely second channel requires Definition 37.*
-
-\[
-	\begin{aligned}
-		\text{(i)} \quad \frac{\partial \nu}{\partial \tau_{\text{MEV}}}
-		\; &= \; \bar{\mathcal{G}}_{(\nu,\lambda_{\text{MEV}})}\,\frac{\partial \lambda_{\text{MEV}}}{\partial \tau_{\text{MEV}}}
-		\; \leq \; 0 \qquad \bigl[(H2)\bigr] \\[8pt]
-		\text{(ii)} \quad \frac{\partial \nu}{\partial \tau_{\text{MEV}}}
-		\; &= \; \frac{\partial \nu}{\partial \Delta Q}\,\frac{\partial \Delta Q}{\partial \phi}\,\frac{\partial \phi}{\partial \tau_{\text{MEV}}}\bigg|_{\phi_M,\phi_X}
-		\; < \; 0 \qquad \Bigl[\text{(a)},\; \tfrac{\partial \Delta Q}{\partial \phi} < 0\Bigr] \\[8pt]
-		\text{(a)} \quad \frac{\partial \nu}{\partial \Delta Q} \; &> \; 0
-		\qquad \text{1-homogeneous, strictly positive at the flow direction} \\[8pt]
-		\text{(ii)} \; &\perp \; (H2)
-	\end{aligned}
-\]
-
-**Theorem 34 (The channels close a loop) [M26].**
-*Scope: in the price-shock-only model the loop's exogenous input is 0 (Theorem 37); Definition 37's channel restores it.*
-
-\[
-	\begin{aligned}
-		\phi \; &\to \; \Delta Q \; \to \; \nu \; \to \; \phi \\[8pt]
-		\text{loop} \; &= \; \frac{\partial \nu}{\partial \Delta Q}\,\frac{\partial \Delta Q}{\partial \phi}\,(1-\phi_M)(1-\tau_{\text{MEV}})\,\frac{\partial \phi_X}{\partial \nu}
-		\; < \; 0 \\[8pt]
-		\frac{\partial \nu}{\partial \tau_{\text{MEV}}}\bigg|_{\text{total}}
-		\; &= \; \frac{\text{(i)} \, + \, \text{(ii)}}{1 \, - \, \text{loop}},
-		\qquad 1 - \text{loop} \; > \; 1
-	\end{aligned}
-\]
-
-**Theorem 35 (The arb side does not close) [M27].** *Under (H3).*
-
-\[
-	\begin{aligned}
-		\frac{\partial \Delta Q^{\text{ARB}}}{\partial \phi} \; &\neq \; f\bigl(\sigma,\, \phi,\, \Delta t,\, \epsilon_{p/X}\bigr)
-		\qquad \text{(any such } f \Longrightarrow \text{the response vanishes identically)} \\[8pt]
-		\bigl[\sigma\bigr] = \bigl[\phi\bigr] = \bigl[\epsilon_{p/X}\bigr] \; &= \; \text{scale-free},
-		\qquad \Bigl[\tfrac{\partial \Delta Q^{\text{ARB}}}{\partial \phi}\Bigr] \; = \; \text{quantity} \\[8pt]
-		\text{missing primitive} \; &= \; \bar L \quad \text{(equivalently } \pi^{\varphi}\text{)} \\[8pt]
-		\mathbb{P}_{\Delta_{\text{ARB}}},\; \frac{\partial \mathbb{P}_{\Delta_{\text{ARB}}}}{\partial \phi} \; &= \; f\bigl(\sigma,\, \phi,\, \Delta t\bigr)
-		\qquad\quad\;\, \text{(closes)} \\[4pt]
-		\frac{\partial \log \Delta Q^{\text{ARB}}}{\partial \log \phi} \; &= \; \text{scale-free}
-		\qquad\qquad\qquad\;\;\, \text{(closes)}
-	\end{aligned}
-\]
-
 **Definition 37 (Transactional payoff and valuation shock) [M36].**
 *Under (A-ind): $\Delta\pi^{\text{transactional}}/\pi^{\text{transactional}}$ independent of $\Delta p/p$.*
 
@@ -328,7 +285,7 @@ block and not calendar time:
 		\qquad \text{(carrier: independence — strictly stronger)} \\[8pt]
 		\text{(A-tail)} \quad & \mathbb{P}_{\Delta_{\text{transactional}}}(\phi) \; = \; e^{-\alpha_{\text{transactional}}\phi},
 		\qquad \alpha_{\text{transactional}} \;\; \text{ASSUMED — no causal estimate exists} \\[8pt]
-		\text{(A-size)} \quad & \text{relative benign trade size } \delta \;\; \text{exogenous}
+		\text{(A-size)} \quad & \text{relative benign trade size } \delta_{\text{transactional}} \;\; \text{exogenous}
 		\qquad \text{(the rate responds to } \phi\text{; the size does not)} \\[8pt]
 		\text{(A-route)} \quad & \pi^{\phi} \;\; \text{accrues the } \phi_M, \phi_X \text{ legs only (Rule 6)};
 		\qquad \tau_{\text{MEV}}\text{'s share is not routed}
@@ -346,12 +303,12 @@ block and not calendar time:
 		\bigl((1+\tfrac{\Delta p}{p})(1-\phi)\bigr)^{-\frac{1-\kappa_{\varphi}}{4\kappa_{\varphi}}}
 		\,\Bigr| \\[8pt]
 		\frac{1-\kappa_{\varphi}}{4\kappa_{\varphi}} \; &= \; \frac{1}{2\,\bigl|\epsilon_{p/X}\bigr|} \\[8pt]
-		\Delta Q \; &= \; \bar L \, \nu
+		\Delta Q \; &= \; \bar L_{(\chi_{X/M},\,\epsilon_{X/M})} \, \nu
 	\end{aligned}
 \]
 
 **Theorem 37 (One driver, no root) [M35].**
-*Price-shock-only model — before Definition 37. Under Theorem 33's signs.*
+*Price-shock-only model — before Definition 37. Under Convention 11 and Theorem 36.*
 
 \[
 	\begin{aligned}
@@ -359,8 +316,9 @@ block and not calendar time:
 		\; &= \; \Bigl(\frac{\partial \mathbb{P}_{\Delta_{\text{ARB}}}}{\partial \phi}\,\nu
 		\; + \; \mathbb{P}_{\Delta_{\text{ARB}}}\,\frac{\partial \nu}{\partial \phi}\Bigr)\,
 		\frac{\partial \phi}{\partial \tau_{\text{MEV}}}\bigg|_{\phi_M,\phi_X} \\[8pt]
+		\mathcal{F}_{\phi \to \nu \to \phi} \; &\equiv \; 1 \, - \, \frac{\partial \nu}{\partial \phi}\,(1-\phi_M)(1-\tau_{\text{MEV}})\,\frac{\partial \phi_X}{\partial \nu} \\[8pt]
 		\Bigl[(1-\phi_M)(1-\phi_X) \, + \, \frac{\partial\phi}{\partial\nu}\,\frac{\partial\nu}{\partial\tau_{\text{MEV}}}\Bigr]
-		\cdot\bigl(1-\text{loop}\bigr) \; &= \; (1-\phi_M)(1-\phi_X) \\[8pt]
+		\cdot\mathcal{F}_{\phi \to \nu \to \phi} \; &= \; (1-\phi_M)(1-\phi_X) \\[8pt]
 		\forall\, \tau_{\text{MEV}} \in [0,1] \, : \;\; \frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; > \; 0
 		\qquad &\Longrightarrow \qquad
 		\neg\,\exists\, \tau_{\text{MEV}} \in [0,1] \, : \;\; \frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; = \; 0
@@ -389,7 +347,7 @@ block and not calendar time:
 		\phi^{\star} \; &\equiv \; \arg\max_{\phi\,\in\,[0,1)}
 		\Bigl[\,\bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\,
 		\mathbb{P}_{\Delta_{\text{transactional}}}\,
-		\bigl(\phi_M \otimes_{\phi} \phi_X\bigr)\,\delta
+		\bigl(\phi_M \otimes_{\phi} \phi_X\bigr)\,\delta_{\text{transactional}}
 		\; - \; \tfrac{\sigma^2\Delta t}{8}\,\mathbb{P}_{\Delta_{\text{ARB}}}\,\Bigr] \\[8pt]
 		\tau^{\star}_{\text{MEV}} \; &= \;
 		\frac{\phi^{\star} \, - \, \phi_M \otimes_{\phi} \phi_X}{1 \, - \, \phi_M \otimes_{\phi} \phi_X},
@@ -408,13 +366,13 @@ block and not calendar time:
 \]
 
 **Theorem 40 (Incidence — routing is a discrete change of objective) [M39].**
-*Full routing ≡ Definition 36 with revenue factor $\phi$ in place of $\phi_M \otimes_{\phi} \phi_X$. Reversal mechanism: under full routing the LP-accrued fee is $\delta\phi$, so its benign attrition scales with $\phi$.*
+*Full routing ≡ Definition 36 with revenue factor $\phi$ in place of $\phi_M \otimes_{\phi} \phi_X$. Reversal mechanism: under full routing the LP-accrued fee is $\delta_{\text{transactional}}\phi$, so its benign attrition scales with $\phi$.*
 
 \[
 	\begin{aligned}
 		\partial_{\phi}\bigl(\text{Def. 36}\big|_{\phi_M\otimes_{\phi}\phi_X \,\mapsto\, \phi}\bigr)
 		\; - \; \partial_{\phi}\bigl(\text{Def. 36}\bigr)
-		\; = \; \delta\Bigl[\,&\mathbb{P}_{\Delta_{\text{transactional}}}\,\phi\,\bigl(\sigma+\sqrt{2/\Delta t}\,\phi\bigr) \\
+		\; = \; \delta_{\text{transactional}}\Bigl[\,&\mathbb{P}_{\Delta_{\text{transactional}}}\,\phi\,\bigl(\sigma+\sqrt{2/\Delta t}\,\phi\bigr) \\
 		&+ \; \bigl(\phi - \phi_M\otimes_{\phi}\phi_X\bigr)\Bigl(\mathbb{P}_{\Delta_{\text{transactional}}}\,\sigma
 		+ \tfrac{\partial \mathbb{P}_{\Delta_{\text{transactional}}}}{\partial\phi}\,\phi\,\bigl(\sigma+\sqrt{2/\Delta t}\,\phi\bigr)\Bigr)\Bigr] \\[10pt]
 		\exists\, \tau^{\star}_{\text{MEV}} \in (0,1) \;\; \text{for Def. 36 as written};
@@ -422,11 +380,11 @@ block and not calendar time:
 		\alpha_{\text{transactional}}\bigl(\phi - \phi_M\otimes_{\phi}\phi_X\bigr) < 1
 		\; &\Longrightarrow \;
 		\tau^{\star}_{\text{no-route}} \; < \; \tau^{\star}_{\text{route}} \\[8pt]
-		\exists\,\bigl(\phi,\, \alpha_{\text{transactional}},\, \sigma,\, \sqrt{2/\Delta t},\, \phi_M\otimes_{\phi}\phi_X,\, \delta\bigr)
+		\exists\,\bigl(\phi,\, \alpha_{\text{transactional}},\, \sigma,\, \sqrt{2/\Delta t},\, \phi_M\otimes_{\phi}\phi_X,\, \delta_{\text{transactional}}\bigr)
 		= \bigl(\tfrac{9}{10},\, 10,\, \tfrac13,\, 1,\, \tfrac{1}{100},\, 1\bigr)
 		\, &: \;\; \text{ordering reversed} \\[8pt]
 		\Bigl[\partial_{\tau}\big|_{\tau=0}\Bigr]_{\text{route}} - \Bigl[\partial_{\tau}\big|_{\tau=0}\Bigr]_{\text{no-route}}
-		\; = \; \delta\,\mathbb{P}_{\Delta_{\text{transactional}}}\!\bigl(\phi_M\otimes_{\phi}\phi_X\bigr)\,
+		\; = \; \delta_{\text{transactional}}\,\mathbb{P}_{\Delta_{\text{transactional}}}\!\bigl(\phi_M\otimes_{\phi}\phi_X\bigr)\,
 		\bigl(\phi_M\otimes_{\phi}\phi_X\bigr)\bigl(\sigma+\sqrt{2/\Delta t}\,\phi_M\otimes_{\phi}\phi_X\bigr) \; &> \; 0
 	\end{aligned}
 \]
@@ -444,7 +402,7 @@ block and not calendar time:
 		\#\bigl\{\phi \in (0,\infty) \, : \, \partial_{\phi}\bigl(\text{Def. 36}\bigr) = 0\bigr\} \; \leq \; 2
 		\quad &\Longrightarrow \quad
 		\#\bigl\{\text{interior local maximisers}\bigr\} \; \leq \; 1 \\[8pt]
-		\exists\,\bigl(\sigma,\, \Delta t,\, \alpha_{\text{transactional}},\, \delta\bigr) \, : \;\;
+		\exists\,\bigl(\sigma,\, \Delta t,\, \alpha_{\text{transactional}},\, \delta_{\text{transactional}}\bigr) \, : \;\;
 		\operatorname{sign}\bigl(\partial_{\phi}(\text{Def. 36})\bigr) \; = \; (+,-,+)
 		\quad &\Longrightarrow \quad
 		\neg\,\text{single crossing}, \;\; \neg\,\text{global concavity}
