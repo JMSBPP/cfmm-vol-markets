@@ -3,7 +3,7 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
 > `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
-> `Convention 12`, `Definition 38`, `Theorem 36`, `Proposition 14`, `Rule 14`.
+> `Convention 12`, `Definition 38`, `Theorem 37`, `Proposition 14`, `Rule 15`.
 > (`Convention 10` is RETIRED unused — a returns-coordinates block struck before
 > writing because `DOC` owns both halves, Proposition 9 and the `DOC:946` CPMM
 > instantiation; the number is not to be reused.)
@@ -327,5 +327,20 @@ block and not calendar time:
 		\qquad \text{(the rate responds to } \phi\text{; the size does not)} \\[8pt]
 		\text{(A-route)} \quad & \pi^{\phi} \;\; \text{accrues the } \phi_M, \phi_X \text{ legs only (Rule 6)};
 		\qquad \tau_{\text{MEV}}\text{'s share is not routed}
+	\end{aligned}
+\]
+
+**Theorem 36 (Shock-driven utilization) [M33].**
+*Under (H3) and Convention 11. Participation iff $(1+\Delta p/p)(1-\phi) > 1$.*
+
+\[
+	\begin{aligned}
+		\nu \; &= \; \Bigl|\,
+		\bigl((1+\tfrac{\Delta p}{p})(1-\phi)\bigr)^{\frac{1-\kappa_{\varphi}}{4\kappa_{\varphi}}}
+		\, - \,
+		\bigl((1+\tfrac{\Delta p}{p})(1-\phi)\bigr)^{-\frac{1-\kappa_{\varphi}}{4\kappa_{\varphi}}}
+		\,\Bigr| \\[8pt]
+		\frac{1-\kappa_{\varphi}}{4\kappa_{\varphi}} \; &= \; \frac{1}{2\,\bigl|\epsilon_{p/X}\bigr|} \\[8pt]
+		\Delta Q \; &= \; \bar L \, \nu
 	\end{aligned}
 \]
