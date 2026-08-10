@@ -1470,6 +1470,8 @@ Per tick \(i_K\), band \([i_l, i_u]\), sqrt-price convention (`PosSpec.tickPrice
 	\end{aligned}
 \]
 
+> \(L(i_K)\) IN THIS DISPLAY IS THE INTRINSIC LIQUIDITY (Definition 32): \(\Gamma = -\tfrac12\,\bar L_{(\chi_{X/M},\epsilon_{X/M})}\,p_{\varphi}^{-3/2}\) holds for EVERY member, because \(\mathcal{D}^2_p[\pi] = \mathcal{D}_p[Q_X]\) (envelope) and Definition 32 is exactly \(-2p_{\varphi}^{3/2}/\mathcal{D}_{Q_X}[p_{\varphi}]\). The ladder form below is the \(\chi_{X/M} = 1/2\) instance, \(L(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\); off that member the coefficient is the state-dependent field, not a level (Theorem 29). Whether a ladder REALIZES a given member's field is Proposition 12, OPEN.
+>
 > Clark: value eq (10), delta = the UNNUMBERED §4.2 p. 5 display (`L/√p − L/√p_b` in-range, current p), gamma = eq (12) (`−½Lp^{−3/2}`); eq (13) is Green–Jarrow spanning, never cite it for a Greek. Kristensen eq (3.21)/(3.24). Γ jumps at the band edges (the bounded-range correction); \(\mathcal{D}_p\) is continuous, kinked. LEAN: the value layer is `Flow.terminalPayoff` + `GeomProfile.geom_terminalPayoff_total`; the \(\mathcal{D}_p, \Gamma\) displays are UNFORMALIZED (bundle targets).
 
 Aggregate over the ladder (partition of unity `geomWeight_sum`):
@@ -1607,6 +1609,8 @@ Raw count \(6+2n \geq 10\) **for \(n \geq 2\)** — the deficit is STRUCTURAL (b
 
 ## **G5. [EVM]**
 
+The EXACT row is exact BY THEOREM 30, not by luck: a venue stores \((\texttt{sqrtPriceX96}, L\text{ per tick})\), i.e. the \(\chi_{X/M} = 1/2\) member with a liquidity coefficient — and the half-kernel carrying \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) reproduces any member's marginal price and first-order price impact. So the whole \((p_{\varphi}, \mathcal{D}_{Q_X}[p_{\varphi}])\)-factoring family is on-chain-representable on the EXISTING primitive, with the curve choice entering only through the liquidity written per tick. The scope limits of Theorem 30 carry here verbatim: SECOND-ORDER only (\(\Gamma\) yes, \(\mathcal{D}^2_{Q_X}[p_{\varphi}]\) no), and value functions need integration, not a per-tick read.
+
 \[
 	\begin{aligned}
 		\text{EXACT on-chain: } & \mathcal{D}_p\text{-ladder},\; \Gamma\text{-ladder (sqrtPriceX96, ticks, } L\text{; } p^{3/2} = \text{mulDiv chain)},\; \upsilon = t/2,\; \theta_{\text{fee}} \text{ ex-post (feeGrowthInside, streamia)} \\
@@ -1630,37 +1634,23 @@ Raw count \(6+2n \geq 10\) **for \(n \geq 2\)** — the deficit is STRUCTURAL (b
 
 ## GAMMA
 
-> TODO: We need to validate if this relation is backed by the litarure whta is the porportion constant 
-\[
-	\begin{aligned}
-		\Gamma_{\varphi} \, &\equiv \, \frac{\partial^2 \pi^{\text{l}}}{\partial p_{(\eta, \Delta_i)} \, ^2} \, \propto \kappa_{\varphi}
-	\end{aligned}
-\]
-
-The question is which parameters of \(\Theta_{\varphi}\) fully define \(\Gamma_{\varphi}\) and notate them \(\Theta_{\Gamma_{\varphi}}\)
-
-Define *gamma payoff* as:
+**Proposition 13 (Gamma is the intrinsic liquidity).** With \(\mathcal{D}^2_p[\pi] = \mathcal{D}_p[Q_X]\) — the envelope relation, **UNFORMALIZED** (G1) — Definition 32 gives, for every member,
 
 \[
 	\begin{aligned}
-		\pi^{\Gamma_{\varphi}} \, &\equiv \Gamma_{\varphi} \, p_{\eta, \Delta_i} (\sigma^2 (i (t)) )
+		\Gamma \, &= \, -\tfrac{1}{2}\;\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\;p_{\varphi}^{-3/2}
 	\end{aligned}
 \]
 
+**The proportionality to \(\kappa_{\varphi}\) is FALSE as first written, and no proportionality constant exists.** \(\kappa_{\varphi}\) is dimensionless and a function of \(\epsilon_{X/M}\) ALONE (\(\Theta_p\) entry); \(\Gamma\) carries the dimension of \(\bar L_{(1/2,\,0)}\,p_{\varphi}^{-3/2}\) and its coefficient is the state-dependent field of Theorem 29. The two sit on different axes — \(\bar L_{(\chi,\epsilon)}\) moves with the SHARE, \(\kappa_{\varphi}\) with the SUBSTITUTION parameter — so no scalar relates them.
 
-s.t the relationship:
+**\(\Theta_{\Gamma_{\varphi}} = \Theta_{\varphi}\), with no proper subset.** Theorem 29's closed form carries BOTH \(\chi_{X/M}\) (through \(2\sqrt{\chi_{X/M}(1-\chi_{X/M})}\)) and \(\epsilon_{X/M}\) (through the exponent and the denominator), so neither parameter can be dropped; \(\Gamma\) additionally depends on the reserve state whenever \(\epsilon_{X/M} \neq 0\). A separate index would be an alias, not a reduction — none is minted.
 
-> This becomes a query to arisstotle to what parameters can help us control for payoff considering that changes in payoff involve changes  in the volatiltiy price keeping gamma constant AND changes in  gamma keepin g volatiltiy price constant
+## TODO — OPEN register [GAMMA]
 
-
-\[
-	\begin{aligned}
-		\phi (\sigma^2 (i(t))) \approx \left| \frac{\Delta \pi^{\Gamma_{\varphi}}}{\pi^{\Gamma_{\varphi}}} \right|
-	\end{aligned}
-\]
-
-
-
+1. **The gamma payoff is not yet well-typed.** The drafted \(\pi^{\Gamma_{\varphi}} \equiv \Gamma_{\varphi}\,p_{(\eta,\Delta_i)}(\sigma^2(i(t)))\) feeds a VARIANCE to \(p_{(\eta,\Delta_i)}\), which takes a TICK (Definition 8, Convention 2). Two candidate repairs, both needing a user ruling: (i) it is the gamma leg \(\tfrac12\Gamma\,p_{\varphi}^2\,\sigma^2(i(t))\), in which case it ALREADY EXISTS as \(\theta_{\text{decay}}\) (G1) and must not be re-minted; (ii) it is a genuinely new object, in which case it needs a well-typed display before any statement consumes it.
+2. **The fee conjecture** \(\phi(\sigma^2(i(t))) \approx \big|\Delta\pi^{\Gamma_{\varphi}}/\pi^{\Gamma_{\varphi}}\big|\) is UNTOUCHED and depends on item 1. It is now COMPUTABLE — Theorem 29 supplies the closed form the relative increment needs — but it is not stated, and an \(\approx\) is not a statement class in this document.
+3. **The two-axis control question** (move the payoff along the volatility price at fixed \(\Gamma\), and along \(\Gamma\) at fixed volatility price) is a RANK condition on the map from the free parameters to \((p_{\text{vol}}, \Gamma)\). Not posed as a statement; if the rank is deficient it is the concrete witness for the G4 shape-row deficit, which \(\Gamma\) is one of.
 
 ## IMPLIED VOLATILTIY
 
