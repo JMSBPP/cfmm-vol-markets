@@ -588,6 +588,43 @@ and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree
 **Proposition 12 (Profile–field relation) — SETTLED (split verdict).** The ladder carries the per-strike liquidity \(L(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\) (Definition 7); the smooth member carries the field \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\). Whether a given \(\varphi_{(\chi_{X/M},\epsilon_{X/M})}\) admits \((\xi,\iota) \in \Theta_{\ell}\) with \(\bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K) = \bar L_{(\chi_{X/M},\epsilon_{X/M})}\) at every strike is now ANSWERED: **the map exists iff \(\epsilon_{X/M} = 0\)** — a geometric ladder is the discretization of a pure power of the reserve ratio, and the normalized field is a pure power iff \(\epsilon_{X/M} = 0\) (`fieldRatio_isPower_iff`: constancy of the mixed comparison forces \(\chi_{X/M}(1-\chi_{X/M})(t^{\epsilon_{X/M}}-1)^2 = 0\)). At \(\epsilon_{X/M} = 0\) the field is state-constant (Theorem 29) and any \((\xi,\iota)\) realization is available; OFF the slice NO geometric ladder reproduces the field — the G4 ladder deficit \(\iota - 2\) is confirmed FROM GEOMETRY, and the parametrized density is the machine-warranted repair (Phase 15.2). *Retained as a Proposition:* the ladder⟺power-law identification is a modelling step; the power-law iff is the machine-proved part.
 
 
+**Theorem 33 (Canonical parametrization — the transition channel).** Strictly inside the level set, with \((Q_X^L(p_{\varphi}), Q_M^L(p_{\varphi}))\) Definition 25's price-indexed reserves ([INTRINSIC_LIQ](../refs/cfmm/risk_tung_wang-pricing_hedging_liquidity_provision-2026.pdf) §2.2; differential form only — the integral form's boundary conditions fail off \(\epsilon_{X/M} = 0\)):
+
+\[
+	\begin{aligned}
+		\mathcal{D}_{p_{\varphi}}[Q_X^L] \, = \, \frac{-\,\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}}{2\,p_{\varphi}^{3/2}}, \qquad
+		\mathcal{D}_{p_{\varphi}}[Q_M^L] \, = \, \frac{\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}}{2\,\sqrt{p_{\varphi}}}, \qquad
+		\mathcal{D}_{Q_X^L}[Q_M^L] \, = \, -\,p_{\varphi}, \qquad
+		\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\big(Q_X^L, Q_M^L\big) \, = \, c
+	\end{aligned}
+\]
+
+— the trading curve (reserve coordinates) and the pair (price, intrinsic liquidity) are the same data; the level set is the channel between them.
+
+*Formalized* (`CanonicalParam`, 6/6 axiom-clean, project `4d696a77`): `canonical_x`, `canonical_y`, `tangent_slope`, `on_curve`.
+
+**Definition 33 (Liquidity profile in price coordinates).**
+
+\[
+	\begin{aligned}
+		L(p_{\varphi}) \, \equiv \, \frac{\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}}{2\,p_{\varphi}^{3/2}}
+	\end{aligned}
+\]
+
+**Theorem 34 (Profile identities; the pushforward).**
+
+\[
+	\begin{aligned}
+		L(p_{\varphi}) \, = \, -\,\mathcal{D}_{p_{\varphi}}[Q_X^L] \, = \, -\,\Gamma \quad \text{(Theorem 32's object)}, \qquad
+		\mathcal{D}_{Q_X^L}[p_{\varphi}] \, = \, -\,\frac{1}{L(p_{\varphi})} \quad \textbf{(the price-impact law)}
+	\end{aligned}
+\]
+
+and the field factors through the pair (level, price) ALONE: \(\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(Q_X^L, Q_M^L) = \bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(c,\, p_{\varphi})\) in closed form — the coordinate change itself. *(Notation: the second form is the SAME object with the argument tuple \((c, p_{\varphi})\) — an argument-tuple abuse, declared rather than given a new symbol; user ruling 2026-08-10.)*
+
+*Formalized:* `profile_eq_neg_gamma`; `field_factors_through_price` — the hand-derived price-coordinate closed form (`ellP`) CONFIRMED under proof; the invited refutation of its exponent bookkeeping did not materialize.
+
+
 # FEE_ALGEBRA
 
 **Rule 6 (Per-leg fee split).** Each incoming trade leg is split by its **leg fee** \(\phi_M, \phi_X \in (0,1)\) (the M9 leg fees — fee *variables*, produced by the schedule below, not members of \(\Theta_{\phi}\)): the trading function is quoted on the net flow, and the fee fraction accrues to the per-strike reserves —
