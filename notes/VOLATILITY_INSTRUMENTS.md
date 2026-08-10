@@ -456,11 +456,11 @@ The display is one member of a parameterized class: the subscript tuple is \((\c
 
 where \(\epsilon_{p/X}^{\,0}\) is the same elasticity for the \(\epsilon_{X/M} = 0\) (constant-product) member at the same point. \(\epsilon_{p/X}\) is an **observable** of any member of the trading-function class (Definition 12), not a parameter: the second derivative of \(\varphi\) enters through it (the derivative of the marginal price), and the benchmark normalization makes \(\kappa_{\varphi}\) scale-free, with the constant-product pool at \(\kappa_{\varphi} = 1/2\). Notation binding: \(\kappa_{\varphi}\) names the **genuine** curvature (\(\varphi\) the quote function, never the fee \(\phi\)); the share-asymmetry index \(\varsigma_{X/M}\) is NOT a curvature. <!-- notation-map -->
 
-*Formalized:* the definitional layer is **UNFORMALIZED** — the in-tree `CurvatureTwo.curvTwo` is the closed form of Proposition 7 by fiat, not this definition.
+*Formalized:* the definitional layer is now carried AT THE BALANCED POINT — `PayoffGeometry.epsPX` (the elasticity as a genuine along-curve derivative) and `kappaPhi` (this definition's benchmark normalization), with Theorem 31 proving the closed form FROM them; `CurvatureTwo.curvTwo`'s by-fiat status is resolved by agreement with `kappaPhi_closed_form`. The GENERAL-point elasticity remains an observable without a dedicated carrier.
 
 *(The grid–marginal-price relation is Proposition 10, stated with the portfolio-value machinery in # CONTROL_OPERATORS.)*
 
-**Proposition 7 (CES curvature closed form).** For the CES family (Definition 13), at the balanced point \(|\epsilon_{p/X}| = \dfrac{1-\epsilon_{X/M}}{1-\chi_{X/M}}\), and
+**Theorem 31 (CES curvature closed form) *(promoted from Proposition 7 — the number 7 is retired, not reused)*.** For the CES family (Definition 13), at the balanced point \(|\epsilon_{p/X}| = \dfrac{1-\epsilon_{X/M}}{1-\chi_{X/M}}\), and
 
 \[
 	\begin{aligned}
@@ -469,13 +469,13 @@ where \(\epsilon_{p/X}^{\,0}\) is the same elasticity for the \(\epsilon_{X/M} =
 	\end{aligned}
 \]
 
-— the \(\chi_{X/M}\)-dependence cancels identically: \(\kappa_{\varphi}\) is a function of the SUBSTITUTION axis alone (equivalently \(\kappa_{\varphi} = 1/(1+\bar\epsilon_{X/M})\)). The inverse is the DESIGN DIAL — choose a target curvature, read off the substitution exponent. *Status:* **OPEN in-tree** — Aristotle target: (i) the elasticity computation \(|\epsilon_{p/X}| = (1-\epsilon_{X/M})/(1-\chi_{X/M})\), (ii) the normalization identity.
+— the \(\chi_{X/M}\)-dependence cancels identically: \(\kappa_{\varphi}\) is a function of the SUBSTITUTION axis alone (equivalently \(\kappa_{\varphi} = 1/(1+\bar\epsilon_{X/M})\)). The inverse is the DESIGN DIAL — choose a target curvature, read off the substitution exponent. *Formalized* (`PayoffGeometry`, project `68d1b02a`, axiom-clean): (i) the elasticity at the balanced point `epsPX_balanced` (with `balanced_state_exists` guarding non-vacuity); (ii) the normalization identity `kappaPhi_closed_form` — the share cancels against the substitution-0 benchmark, CPMM at \(1/2\). Both TRUE as stated; the refute-and-correct clause went unused.
 
 **Theorem 8 (Properties of the closed form).** The closed form is zero exactly at the linear member (\(\epsilon_{X/M} = 1\)), strictly positive below it, strictly decreasing in \(\epsilon_{X/M}\), with range \([0,1)\); \(\chi_{X/M}\) and \(\Delta_i\) do NOT enter it; both round trips with the inverse hold.
 
 *Formalized:* `CurvatureTwo.curvTwo`; `curvTwo_linear_zero`; `curvTwo_pos_of_lt_one`; `curvTwo_strictAnti_rho`; `curvTwo_mem_Ico`; `rhoOfCurv` (both round trips); \(\bar\epsilon_{X/M}\) = `subElast` (`subElast_zero`, `subElast_tendsto_one`).
 
-**Refutation note (what curvature is NOT).** The Gaussian curvature of \(\varphi\)'s graph is **identically zero** for every member — 1-homogeneity forces \(\mathrm{Hess}\,\varphi \cdot (Q_X,Q_M)^{\top} = 0\), so \(\det \mathrm{Hess} \equiv 0\) and the graph is a ruled surface; the Gaussian reading cannot distinguish linear from Leontief. The un-normalized planar curvature of the trading curve is scale-dependent (\((1-\epsilon_{X/M})/(\sqrt{2}\,t)\) at the symmetric point \(Q_X = Q_M = t\), \(\chi_{X/M} = 1/2\)) and cannot equal a constant. The normalization of Definition 14 is what makes Proposition 7 well-posed. *Status:* unformalized (cheap machine-check; rider on the Proposition 7 Aristotle bundle).
+**Refutation note (what curvature is NOT).** The Gaussian curvature of \(\varphi\)'s graph is **identically zero** for every member — 1-homogeneity forces \(\mathrm{Hess}\,\varphi \cdot (Q_X,Q_M)^{\top} = 0\), so \(\det \mathrm{Hess} \equiv 0\) and the graph is a ruled surface; the Gaussian reading cannot distinguish linear from Leontief. The un-normalized planar curvature of the trading curve is scale-dependent (\((1-\epsilon_{X/M})/(\sqrt{2}\,t)\) at the symmetric point \(Q_X = Q_M = t\), \(\chi_{X/M} = 1/2\)) and cannot equal a constant. The normalization of Definition 14 is what makes Theorem 31 well-posed. *Status:* unformalized (cheap machine-check; the Theorem 31 bundle returned WITHOUT this rider — still owed).
 
 **Definition 15 (Share asymmetry).** The **share asymmetry** (grid tilt) of the trading-function family is
 
@@ -489,7 +489,7 @@ zero exactly at \(\chi_{X/M} = 1/2\). It is a **derived observable** — a funct
 
 *Formalized:* `EtaTilde.curvOfTilde` / `EtaCurvature.curvIndex`. *(Lean names predate the doc symbols and are NOT renamed — standing doc-glyph/Lean-name split.)* <!-- notation-map -->
 
-**Theorem 9 (\(\varsigma_{X/M}\) is not a curvature).** At equal shares \(\varsigma_{X/M}\) vanishes both at the constant-product member and at the linear member — although the former has \(\kappa_{\varphi} = 1/2 > 0\) (Proposition 7) and only the latter is flat. So \(\varsigma_{X/M}\) measures SHARE asymmetry (the grid-price tilt), not curvature across the substitution axis. Blocks E1–E7 are theorems about \(\varsigma_{X/M}\): their mathematics stands; their reading is about SHARE, not curvature.
+**Theorem 9 (\(\varsigma_{X/M}\) is not a curvature).** At equal shares \(\varsigma_{X/M}\) vanishes both at the constant-product member and at the linear member — although the former has \(\kappa_{\varphi} = 1/2 > 0\) (Theorem 31) and only the latter is flat. So \(\varsigma_{X/M}\) measures SHARE asymmetry (the grid-price tilt), not curvature across the substitution axis. Blocks E1–E7 are theorems about \(\varsigma_{X/M}\): their mathematics stands; their reading is about SHARE, not curvature.
 
 *Formalized:* `curvOfTilde_not_curvature` (the machine-checked discriminating witness); \(\varsigma_{X/M}\) factors through the share alone: `curvIndex_is_rho_zero_slice`.
 
@@ -585,7 +585,7 @@ and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree
 
 *Formalized:* `halfKernel_price_impact` (the impact law, proved as stated); `halfKernel_osculates_corrected`. **REFUTED as first stated:** `halfKernel_osculates_false` — same defective guard as Theorem 29; at the witness the prices agree while the impacts carry opposite signs.
 
-**Proposition 12 (Profile–field relation) — OPEN.** The ladder carries the per-strike liquidity \(L(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\) (Definition 7); the smooth member carries the field \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\). Whether a given \(\varphi_{(\chi_{X/M},\epsilon_{X/M})}\) admits \((\xi,\iota) \in \Theta_{\ell}\) with \(\bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K) = \bar L_{(\chi_{X/M},\epsilon_{X/M})}\) at every strike is **OPEN** — the \(\Theta_{\varphi} \to \Theta_{\ell}\) map. It is degenerate at \(\epsilon_{X/M} = 0\) (the field is state-constant, Theorem 29) and not otherwise. Where the map fails, the failure set is the G4 ladder deficit \(\iota - 2\), and the parametrized density is the declared repair (Phase 15.2).
+**Proposition 12 (Profile–field relation) — SETTLED (split verdict).** The ladder carries the per-strike liquidity \(L(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\) (Definition 7); the smooth member carries the field \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\). Whether a given \(\varphi_{(\chi_{X/M},\epsilon_{X/M})}\) admits \((\xi,\iota) \in \Theta_{\ell}\) with \(\bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K) = \bar L_{(\chi_{X/M},\epsilon_{X/M})}\) at every strike is now ANSWERED: **the map exists iff \(\epsilon_{X/M} = 0\)** — a geometric ladder is the discretization of a pure power of the reserve ratio, and the normalized field is a pure power iff \(\epsilon_{X/M} = 0\) (`fieldRatio_isPower_iff`: constancy of the mixed comparison forces \(\chi_{X/M}(1-\chi_{X/M})(t^{\epsilon_{X/M}}-1)^2 = 0\)). At \(\epsilon_{X/M} = 0\) the field is state-constant (Theorem 29) and any \((\xi,\iota)\) realization is available; OFF the slice NO geometric ladder reproduces the field — the G4 ladder deficit \(\iota - 2\) is confirmed FROM GEOMETRY, and the parametrized density is the machine-warranted repair (Phase 15.2). *Retained as a Proposition:* the ladder⟺power-law identification is a modelling step; the power-law iff is the machine-proved part.
 
 
 # FEE_ALGEBRA
@@ -840,7 +840,7 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 	\end{aligned}
 \]
 
-— the grid enters the marginal price as the INVERSE PRODUCT of adjacent grid values: the √price-vs-price gap Theorem 4 already flags (`priceGrid_eq_tickPrice_sq`), plus the leg orientation. *Status:* elementary algebra from Theorem 5's reciprocal form; **unproved in-tree** (cheap Aristotle rider on the Proposition 7 bundle).
+— the grid enters the marginal price as the INVERSE PRODUCT of adjacent grid values: the √price-vs-price gap Theorem 4 already flags (`priceGrid_eq_tickPrice_sq`), plus the leg orientation. *Status:* elementary algebra from Theorem 5's reciprocal form; **unproved in-tree** (cheap Aristotle rider; the Theorem 31 bundle returned WITHOUT it — still owed).
 
 **Definition 25 (Portfolio value function).** With \((Q_X^L(p_{\varphi}), Q_M^L(p_{\varphi}))\) the point of the trading curve \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})} = \text{const}\) at which the marginal price \(p_{\varphi}\) (Definition 14) attains a given value, the **portfolio value function** is the on-curve valuation of the RESERVES — the \(L\)-superscripted quantities (Definition 10): bare \(Q_X, Q_M\) remain the trading-side arguments of Definition 13, while the reserves derived from liquidity are what the pool holds and what is valued here —
 
@@ -1634,7 +1634,7 @@ The EXACT row is exact BY THEOREM 30, not by luck: a venue stores \((\texttt{sqr
 
 ## GAMMA
 
-**Proposition 13 (Gamma is the intrinsic liquidity).** With \(\mathcal{D}^2_p[\pi] = \mathcal{D}_p[Q_X^{L}]\) — the envelope relation, **UNFORMALIZED** (G1) — Definition 32 gives, for every member,
+**Theorem 32 (Gamma is the intrinsic liquidity) *(promoted from Proposition 13 — the number 13 is retired, not reused)*.** The envelope relation \(\mathcal{D}^2_p[\pi] = \mathcal{D}_p[Q_X^{L}]\) — now PROVED (`deriv_piVal`, via `hasDerivAt_yOf`: the money leg falls at exactly the marginal price, \(dQ_M^L/dQ_X^L = -p_{\varphi}\)) — with Definition 32 gives, for every member,
 
 \[
 	\begin{aligned}
@@ -1642,7 +1642,7 @@ The EXACT row is exact BY THEOREM 30, not by luck: a venue stores \((\texttt{sqr
 	\end{aligned}
 \]
 
-**The proportionality to \(\kappa_{\varphi}\) is FALSE as first written, and no proportionality constant exists.** \(\kappa_{\varphi}\) is dimensionless and a function of \(\epsilon_{X/M}\) ALONE (\(\Theta_p\) entry); \(\Gamma\) carries the dimension of \(\bar L_{(1/2,\,0)}\,p_{\varphi}^{-3/2}\) and its coefficient is the state-dependent field of Theorem 29. The two sit on different axes — \(\bar L_{(\chi,\epsilon)}\) moves with the SHARE, \(\kappa_{\varphi}\) with the SUBSTITUTION parameter — so no scalar relates them.
+**The proportionality to \(\kappa_{\varphi}\) is FALSE as first written, and no proportionality constant exists.** \(\kappa_{\varphi}\) is dimensionless and a function of \(\epsilon_{X/M}\) ALONE (\(\Theta_p\) entry); \(\Gamma\) carries the dimension of \(\bar L_{(1/2,\,0)}\,p_{\varphi}^{-3/2}\) and its coefficient is the state-dependent field of Theorem 29. The two sit on different axes — \(\bar L_{(\chi,\epsilon)}\) moves with the SHARE, \(\kappa_{\varphi}\) with the SUBSTITUTION parameter — so no scalar relates them. *Formalized* (`PayoffGeometry`, project `68d1b02a`, axiom-clean): `deriv_piVal` (the envelope) + `gamma_eq_ell` (the identity, on the corrected interior guard).
 
 **\(\Theta_{\Gamma_{\varphi}} = \Theta_{\varphi}\), with no proper subset.** Theorem 29's closed form carries BOTH \(\chi_{X/M}\) (through \(2\sqrt{\chi_{X/M}(1-\chi_{X/M})}\)) and \(\epsilon_{X/M}\) (through the exponent and the denominator), so neither parameter can be dropped; \(\Gamma\) additionally depends on the reserve state whenever \(\epsilon_{X/M} \neq 0\). A separate index would be an alias, not a reduction — none is minted.
 
