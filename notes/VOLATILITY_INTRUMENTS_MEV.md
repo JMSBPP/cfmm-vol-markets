@@ -205,13 +205,17 @@ block and not calendar time:
 	\end{aligned}
 \]
 
-**Definition 36 (Tax program) [M19].**
+**Definition 36 (Tax program) [M19, M38].**
+*The $(\partial\widehat\pi^{\sigma}/\partial\tau_{\text{MEV}})^2$ reading is superseded — every root minimizes it (`Theorem44_objective_reading_does_not_discriminate`). Objective in returns coordinates (per $\pi^{\varphi}$, DOC Proposition 9); under (A-route), (A-size).*
 
 \[
 	\begin{aligned}
-		&\min_{\tau_{\text{MEV}} \in [0,1]} \; \Bigl(\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}}\Bigr)^{\!2}
-		\qquad \text{s.t.} \qquad \pi^{\sigma} \; = \; \widehat\pi^{\sigma} \\[6pt]
-		&\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; = \; 0
+		\max_{\tau_{\text{MEV}} \in [0,1]}
+		\;\; \bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\,
+		\mathbb{P}_{\Delta_{\text{transactional}}}\,
+		\bigl(\phi_M \otimes_{\phi} \phi_X\bigr)\,\delta
+		\; - \; \frac{\sigma^2 \Delta t}{8}\,\mathbb{P}_{\Delta_{\text{ARB}}}
+		\qquad \text{s.t.} \quad \pi^{\sigma} \; = \; \widehat\pi^{\sigma}
 	\end{aligned}
 \]
 
@@ -324,7 +328,7 @@ block and not calendar time:
 		\qquad \text{(carrier: independence — strictly stronger)} \\[8pt]
 		\text{(A-tail)} \quad & \mathbb{P}_{\Delta_{\text{transactional}}}(\phi) \; = \; e^{-\alpha_{\text{transactional}}\phi},
 		\qquad \alpha_{\text{transactional}} \;\; \text{ASSUMED — no causal estimate exists} \\[8pt]
-		\text{(A-size)} \quad & \text{benign trade size } \delta \;\; \text{exogenous}
+		\text{(A-size)} \quad & \text{relative benign trade size } \delta \;\; \text{exogenous}
 		\qquad \text{(the rate responds to } \phi\text{; the size does not)} \\[8pt]
 		\text{(A-route)} \quad & \pi^{\phi} \;\; \text{accrues the } \phi_M, \phi_X \text{ legs only (Rule 6)};
 		\qquad \tau_{\text{MEV}}\text{'s share is not routed}
