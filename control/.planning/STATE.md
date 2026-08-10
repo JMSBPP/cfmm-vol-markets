@@ -143,6 +143,29 @@ Last session: 2026-08-09
 Stopped at: **Phase 6b's estimation route is TERMINAL.** `06B-00` executed (out of order, by user direction — the roadmap order `1 → 2 → 3 → 6a → 6b → 7` was not followed and Phase 1 has no execution record). The sweep delivered `control/spec/RESEARCH-REGISTER.md` @ `5f7f3d8` — 50 sources (14 internal PDFs, 26 arXiv all re-resolved through the arxiv MCP, 10 non-arXiv lower-rigor), §5's instrument-selection rule present in the first commit as required. It then ended the route it was built to serve: **`S-35` refutes the `Δt` exclusion restriction.** Verdict recorded at `control/spec/GBAR-VERDICT.md`.
 Resume file: control/spec/GBAR-VERDICT.md
 
+**TRANSCRIPTION COMPLETE (2026-08-10).** The bundles 4–6 arc is on the page: 13-block queue
+executed under NOT-10's cadence, one approval per block. `SRC` now carries **30 blocks, 452
+lines**, pinned at `106aa22eac1065bb4b04e6318015ccef1af8c652` / blob `d82a3d051e485e97f871677d648cbfd31763aeff`. New since `d61f223`:
+`Hypothesis (H3)` (invariance form — a quantity-coordinates draft was caught by the user),
+`Convention 11` (the UNSIGNED-LEGS ruling), `Definition 37` (transactional payoff; the
+valuation shock written inline as Δπ^transactional/π^transactional per user ruling — no V; the
+participation probability is ℙ_{Δ_transactional} per the binding ℙ_{event} convention),
+`Rule 14` (A-ind as an inner product with the carrier-strength note; α renamed
+**α_transactional** — user ruling, dimension clash with the α_j/α_R amplitude family),
+`Definition 32` amended (u_ex = the two shocks + σ²), `Definition 36` amended (the
+squared-derivative objective superseded — every root minimizes it; the operative objective is
+the per-block LP payoff with the incidence asymmetry visible), `Theorems 36–41` (utilization
+closes; one driver no root; the cure; **the top-up law + pro-cyclicality**; incidence with the
+reversal witness; second order — **O2 closes locally**, single crossing known unprovable in
+general). `Convention 10` RETIRED unused (DOC owns both halves). Scope riders on Theorems
+33/34; Proposition 13's slot corrected to BARE earlier at d61f223.
+
+**Owed to the planning layer, not the page:** NOT-02 notation-map rows (⊥ logical-independence
+mint, dimension brackets, α_transactional remap, the composed/bare ∂φ/∂ν dual reading, u/s/g/m/c/K/i
+Lean-side-only identifiers, δ relative units, ν's unsigned-flow cost note); the review-register
+entry for the 13-block session; and the bundles 4–6 results are NOT yet integrated to
+lean4-spec (PR flow per the standing contract).
+
 **LANDED — Aristotle bundle 3** (`f04c8802-09ea-47e7-b8a9-eb7ec7edbe1b`), extracted to
 `control/aristotle/tax3-result/`. M25 PROVED (LVR cancels, fix 2 futile); M26(a) REFUTED on
 one-sided flow, (b)(c)(d) hold with route (ii) STRICT and logically INDEPENDENT of `H2`, and the
