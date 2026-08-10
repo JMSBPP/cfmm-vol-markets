@@ -3,7 +3,7 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
 > `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
-> `Convention 12`, `Definition 38`, `Theorem 37`, `Proposition 14`, `Rule 15`.
+> `Convention 12`, `Definition 38`, `Theorem 38`, `Proposition 14`, `Rule 15`.
 > (`Convention 10` is RETIRED unused — a returns-coordinates block struck before
 > writing because `DOC` owns both halves, Proposition 9 and the `DOC:946` CPMM
 > instantiation; the number is not to be reused.)
@@ -253,7 +253,7 @@ block and not calendar time:
 \]
 
 **Theorem 33 (Two channels to $\partial\nu/\partial\tau_{\text{MEV}}$) [M26].**
-*Route (ii) requires (a); the CES boundary case is OPEN — see PR-REGION.*
+*Route (ii) requires (a) — recovered under Convention 11 (Theorem 46). Scope: (i) and (ii) share the price-shock driver — see Theorem 37; a genuinely second channel requires Definition 37.*
 
 \[
 	\begin{aligned}
@@ -270,6 +270,7 @@ block and not calendar time:
 \]
 
 **Theorem 34 (The channels close a loop) [M26].**
+*Scope: in the price-shock-only model the loop's exogenous input is 0 (Theorem 37); Definition 37's channel restores it.*
 
 \[
 	\begin{aligned}
@@ -342,5 +343,22 @@ block and not calendar time:
 		\,\Bigr| \\[8pt]
 		\frac{1-\kappa_{\varphi}}{4\kappa_{\varphi}} \; &= \; \frac{1}{2\,\bigl|\epsilon_{p/X}\bigr|} \\[8pt]
 		\Delta Q \; &= \; \bar L \, \nu
+	\end{aligned}
+\]
+
+**Theorem 37 (One driver, no root) [M35].**
+*Price-shock-only model — before Definition 37. Under Theorem 33's signs.*
+
+\[
+	\begin{aligned}
+		\frac{\partial}{\partial \tau_{\text{MEV}}}\Bigl(\mathbb{P}_{\Delta_{\text{ARB}}}\cdot\nu\Bigr)
+		\; &= \; \Bigl(\frac{\partial \mathbb{P}_{\Delta_{\text{ARB}}}}{\partial \phi}\,\nu
+		\; + \; \mathbb{P}_{\Delta_{\text{ARB}}}\,\frac{\partial \nu}{\partial \phi}\Bigr)\,
+		\frac{\partial \phi}{\partial \tau_{\text{MEV}}}\bigg|_{\phi_M,\phi_X} \\[8pt]
+		\Bigl[(1-\phi_M)(1-\phi_X) \, + \, \frac{\partial\phi}{\partial\nu}\,\frac{\partial\nu}{\partial\tau_{\text{MEV}}}\Bigr]
+		\cdot\bigl(1-\text{loop}\bigr) \; &= \; (1-\phi_M)(1-\phi_X) \\[8pt]
+		\forall\, \tau_{\text{MEV}} \in [0,1] \, : \;\; \frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; > \; 0
+		\qquad &\Longrightarrow \qquad
+		\neg\,\exists\, \tau_{\text{MEV}} \in [0,1] \, : \;\; \frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; = \; 0
 	\end{aligned}
 \]
