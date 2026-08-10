@@ -3,7 +3,7 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
 > `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
-> `Convention 10`, `Definition 37`, `Theorem 34`, `Proposition 14`, `Rule 14`.
+> `Convention 10`, `Definition 37`, `Theorem 35`, `Proposition 14`, `Rule 14`.
 > Those numbers are reserved here and are not to be reused independently in the
 > entry-point doc. (`Proposition` corrected from an earlier `15+` reservation:
 > the entry-point doc's Propositions run 2–11, so 12 is next and 12–14 were
@@ -244,5 +244,18 @@ block and not calendar time:
 		\text{(a)} \quad \frac{\partial \nu}{\partial \Delta Q} \; &> \; 0
 		\qquad \text{1-homogeneous, strictly positive at the flow direction} \\[8pt]
 		\text{(ii)} \; &\perp \; (H2)
+	\end{aligned}
+\]
+
+**Theorem 34 (The channels close a loop) [M26].**
+
+\[
+	\begin{aligned}
+		\phi \; &\to \; \Delta Q \; \to \; \nu \; \to \; \phi \\[8pt]
+		\text{loop} \; &= \; \frac{\partial \nu}{\partial \Delta Q}\,\frac{\partial \Delta Q}{\partial \phi}\,(1-\phi_M)(1-\tau_{\text{MEV}})\,\frac{\partial \phi_X}{\partial \nu}
+		\; < \; 0 \\[8pt]
+		\frac{\partial \nu}{\partial \tau_{\text{MEV}}}\bigg|_{\text{total}}
+		\; &= \; \frac{\text{(i)} \, + \, \text{(ii)}}{1 \, - \, \text{loop}},
+		\qquad 1 - \text{loop} \; > \; 1
 	\end{aligned}
 \]
