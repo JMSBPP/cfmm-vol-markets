@@ -167,6 +167,14 @@ block and not calendar time:
 
 
 
+**Hypothesis (H1) [M25].**
+
+\[
+	\begin{aligned}
+		\frac{\partial \bar L}{\partial \pi^{\phi}} \; > \; 0
+	\end{aligned}
+\]
+
 **Hypothesis (H2) [M18].**
 
 \[
