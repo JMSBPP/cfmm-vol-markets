@@ -306,11 +306,11 @@ block and not calendar time:
 		\pi^{\text{transactional}} \; &: \; \text{benign-trader payoff} \\[6pt]
 		\mathbb{P}_{\Delta_{\text{transactional}}}(\phi) \; &\equiv \;
 		\mathbb{P}\Bigl(\Bigl|\tfrac{\Delta \pi^{\text{transactional}}}{\pi^{\text{transactional}}}\Bigr| \, > \, \phi\Bigr)
-		\; = \; e^{-\alpha\phi} \quad \text{under (A-tail)} \\[8pt]
+		\; = \; e^{-\alpha_{\text{transactional}}\phi} \quad \text{under (A-tail)} \\[8pt]
 		1 \; &= \; \underbrace{\mathbb{P}_{\Delta_{\text{ARB}}}}_{\text{arb}}
 		\; + \; \underbrace{\bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\,\mathbb{P}_{\Delta_{\text{transactional}}}}_{\text{transactional}}
 		\; + \; \underbrace{\bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\bigl(1-\mathbb{P}_{\Delta_{\text{transactional}}}\bigr)}_{\text{idle}} \\[8pt]
-		\mathbb{E}\Bigl[\Bigl(\Bigl|\tfrac{\Delta \pi^{\text{transactional}}}{\pi^{\text{transactional}}}\Bigr| - b\Bigr)^{+}\Bigr] \; &= \; \frac{e^{-\alpha b}}{\alpha}
+		\mathbb{E}\Bigl[\Bigl(\Bigl|\tfrac{\Delta \pi^{\text{transactional}}}{\pi^{\text{transactional}}}\Bigr| - b\Bigr)^{+}\Bigr] \; &= \; \frac{e^{-\alpha_{\text{transactional}} b}}{\alpha_{\text{transactional}}}
 	\end{aligned}
 \]
 
@@ -321,8 +321,8 @@ block and not calendar time:
 		\text{(A-ind)} \quad & \Bigl\langle \tfrac{\Delta\pi^{\text{transactional}}}{\pi^{\text{transactional}}} \, , \; \tfrac{\Delta p}{p} \Bigr\rangle
 		\; \equiv \; \mathbb{E}\Bigl[\tfrac{\Delta\pi^{\text{transactional}}}{\pi^{\text{transactional}}}\cdot\tfrac{\Delta p}{p}\Bigr] \; = \; 0
 		\qquad \text{(carrier: independence — strictly stronger)} \\[8pt]
-		\text{(A-tail)} \quad & \mathbb{P}_{\Delta_{\text{transactional}}}(\phi) \; = \; e^{-\alpha\phi},
-		\qquad \alpha \;\; \text{ASSUMED — no causal estimate exists} \\[8pt]
+		\text{(A-tail)} \quad & \mathbb{P}_{\Delta_{\text{transactional}}}(\phi) \; = \; e^{-\alpha_{\text{transactional}}\phi},
+		\qquad \alpha_{\text{transactional}} \;\; \text{ASSUMED — no causal estimate exists} \\[8pt]
 		\text{(A-size)} \quad & \text{benign trade size } \delta \;\; \text{exogenous}
 		\qquad \text{(the rate responds to } \phi\text{; the size does not)} \\[8pt]
 		\text{(A-route)} \quad & \pi^{\phi} \;\; \text{accrues the } \phi_M, \phi_X \text{ legs only (Rule 6)};
