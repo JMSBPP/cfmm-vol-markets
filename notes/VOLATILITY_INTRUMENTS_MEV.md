@@ -48,7 +48,7 @@ block and not calendar time:
 	\end{aligned}
 \]
 
-**Definition 32 (Event-time plant) [M11].**
+**Definition 32 (Event-time plant) [M11, M33, M36].**
 
 \[
 	\begin{aligned}
@@ -59,11 +59,11 @@ block and not calendar time:
 			\pi^{\phi} \\
 			\pi^{\phi} - \pi^{\text{LVR}}
 		\end{bmatrix} \, \quad 		u_{\text{ex}}= 
-		\begin{bmatrix}
-			\Delta Q_X \\
-			\Delta Q_M \\
-			\sigma^2 \, (i (t))
-		\end{bmatrix}
+			\begin{bmatrix}
+				\Delta p / p \\[4pt]
+				\Delta \pi^{\text{transactional}} / \pi^{\text{transactional}} \\[4pt]
+				\sigma^2 \, (i (t))
+			\end{bmatrix}
 		\, \quad y = \begin{bmatrix}
 			\pi^\sigma \\
 			\widehat\pi^\sigma\
