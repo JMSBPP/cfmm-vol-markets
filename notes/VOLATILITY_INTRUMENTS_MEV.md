@@ -314,3 +314,18 @@ block and not calendar time:
 	\end{aligned}
 \]
 
+**Rule 14 (Standing assumptions of the transactional channel) [M36].**
+
+\[
+	\begin{aligned}
+		\text{(A-ind)} \quad & \Bigl\langle \tfrac{\Delta\pi^{\text{transactional}}}{\pi^{\text{transactional}}} \, , \; \tfrac{\Delta p}{p} \Bigr\rangle
+		\; \equiv \; \mathbb{E}\Bigl[\tfrac{\Delta\pi^{\text{transactional}}}{\pi^{\text{transactional}}}\cdot\tfrac{\Delta p}{p}\Bigr] \; = \; 0
+		\qquad \text{(carrier: independence — strictly stronger)} \\[8pt]
+		\text{(A-tail)} \quad & \mathbb{P}_{\Delta_{\text{transactional}}}(\phi) \; = \; e^{-\alpha\phi},
+		\qquad \alpha \;\; \text{ASSUMED — no causal estimate exists} \\[8pt]
+		\text{(A-size)} \quad & \text{benign trade size } \delta \;\; \text{exogenous}
+		\qquad \text{(the rate responds to } \phi\text{; the size does not)} \\[8pt]
+		\text{(A-route)} \quad & \pi^{\phi} \;\; \text{accrues the } \phi_M, \phi_X \text{ legs only (Rule 6)};
+		\qquad \tau_{\text{MEV}}\text{'s share is not routed}
+	\end{aligned}
+\]
