@@ -517,6 +517,70 @@ all the **G4 deficit lemmas**.
 
 ---
 
+### Phase 15.1 (INSERTED): Intrinsic Liquidity and the General-φ Ladder
+
+**Goal:** Make the trading curve's liquidity a **dimensionally consistent, local** object, and
+establish the reduction that lets any member of the family run on the half-kernel machinery on-chain
+protocols actually instantiate.
+
+**Requirements**: CTX-ELL, CTX-HALFKERNEL
+**Status:** IN FLIGHT — Aristotle project `9786b137-f7e7-4175-af83-738c330b4022`
+(`scratch/ell-submit/EllIntrinsic.lean`, 8 targets, priority L1 > L7 > L4 > L2 > L3 > L5 > L6).
+**Directory:** `.planning/phases/15.1-intrinsic-liquidity/`
+**Plans:** 0/2 — none written; the bundle's verdict determines what they contain.
+**Sources (vendored):** `plank/refs/cfmm/risk_tung_wang-pricing_hedging_liquidity_provision-2026.pdf`
+(arXiv:2603.01344v1 §2.1), prerequisite
+`plank/refs/cfmm/tung_wang-clmm_dynamics_continuous_time-2024.pdf` (arXiv:2412.18580, App. B).
+
+> **WHY THIS PHASE EXISTS — Rule 5 is doing silent dimensional work.** The level of
+> `φ_(χ,ε)` carries physical dimension `X^χ · M^(1−χ)`, so it is only comparable across curves at
+> `χ = 1/2`. Every `L̄`-denominated statement in the document is therefore dimensionally valid ONLY
+> because Rule 5 pins `χ ← 1/2`. Unpinning χ without adopting the intrinsic liquidity would break
+> them as a TYPE ERROR, not as an approximation. The source's `ℓ` repairs exactly this: it always
+> lands in the half-kernel dimension `√(X·M)`, it is LOCAL (a field `ℓ(x,y)`, not a global constant),
+> and it is invariant under reparametrization of the curve.
+>
+> **ESTABLISHED BEFORE SUBMISSION (hand-derived, numerically verified — not conjecture):**
+> their `ℓ = −2p^{3/2}/(dp/dQ_X)`, hence by the envelope relation `Γ = −½ ℓ p^{−3/2}` — which is the
+> G1 ladder display VERBATIM. **Their `ℓ` IS our `L(i_K)`, and is NOT `κ_φ`**: dimensions decide it
+> (`ℓ ~ √(X·M)` vs `κ_φ` dimensionless), and `ℓ`'s dimensionless factor depends on the SHARE while
+> `κ_φ` is a function of the SUBSTITUTION parameter alone — orthogonal axes. Also established:
+> `ℓ/√(xy)` is state-constant ONLY on the ρ = 0 slice (it sweeps 1.297→1.977 across the reserve ratio
+> at ρ = 0.5), so off Cobb–Douglas the intrinsic liquidity is a genuine FIELD.
+>
+> **THE IMPLEMENTATION-FACING RESULT (L7).** The constant-product pool carrying `L ← ℓ` reproduces a
+> general member's marginal price AND its first-order price impact: the half-kernel is the
+> **osculating** instrument at every state, not an approximation to one. That is why
+> `(sqrtPriceX96, per-tick L)` suffices on-chain to instantiate curves that are not constant-product —
+> and it is the reason LDFs work at all. Honest limits, to be stated in any doc block: the match is
+> local and second-order (it pins Γ, NOT `d²p/dQ_X²`), and value functions come from integrating, so
+> a local match is not a global value match.
+>
+> **Notation ruling (binding):** the object is indexed by the parameters that characterize the family
+> — `ℓ_(χ,ε)` — never by a family-name subscript. It is told apart from the ladder weight `ℓ(ξ,ι;i_K)`
+> by its index tuple.
+
+---
+
+### Phase 15.2 (INSERTED): Bunni-v2 LDF Port
+
+**Goal:** Replace the pinned geometric weight profile with a parametrized liquidity density —
+`ℓ(ξ,ι;·) ⇝ ℓ_LDF(θ_LDF; i_K)`, `Σ ℓ_LDF = 1` — closing the G4 ladder deficit.
+
+**Requirements**: CTX-LDF
+**Status:** NOT STARTED — **downstream of Phase 15.1 and gated on it.**
+**Directory:** `.planning/phases/15.2-bunni-ldf-port/`
+**Plans:** 0/TBD.
+
+> This was the user-declared FUTURE MILESTONE at G4. It is now SEQUENCED, not merely queued: Phase
+> 15.1 supplies the geometric object (`ℓ_(χ,ε)`, the local intrinsic liquidity field) that an LDF
+> parametrizes. Porting the engineering first would mean re-deriving that object afterwards.
+> G4's arithmetic is unchanged — `dim θ_LDF ≥ ι − 2` ⟹ ladder deficit 0; hazard rows are already at
+> deficit 0. Reference: `plank/refs/bunni-v2.pdf` §2.2 (`l_r = L · LDF_w(r)`), §2.2.1 the geometric
+> base example.
+
+---
+
 ### Research spike (NOT a phase): `T_ITM/T` occupancy
 
 `.planning/occupancy/OCCUPANCY-SPIKE.md`. Demoted from a requirement 2026-08-03: it rests on one user
