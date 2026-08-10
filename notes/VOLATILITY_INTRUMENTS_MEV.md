@@ -3,7 +3,7 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
 > `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
-> `Convention 12`, `Definition 38`, `Theorem 38`, `Proposition 14`, `Rule 15`.
+> `Convention 12`, `Definition 38`, `Theorem 39`, `Proposition 14`, `Rule 15`.
 > (`Convention 10` is RETIRED unused — a returns-coordinates block struck before
 > writing because `DOC` owns both halves, Proposition 9 and the `DOC:946` CPMM
 > instantiation; the number is not to be reused.)
@@ -364,5 +364,19 @@ block and not calendar time:
 		\forall\, \tau_{\text{MEV}} \in [0,1] \, : \;\; \frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; > \; 0
 		\qquad &\Longrightarrow \qquad
 		\neg\,\exists\, \tau_{\text{MEV}} \in [0,1] \, : \;\; \frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; = \; 0
+	\end{aligned}
+\]
+
+**Theorem 38 (The transactional channel restores the root) [M37].**
+*Under Definitions 36–37 and Rule 14. Relaxes exactly one premise of Theorem 37 — the fee-sufficiency hypothesis (`Theorem47_no_exogenous_hazard_input`), which holds under full routing and fails under (A-route). Theorem 37 stands on its own domain.*
+
+\[
+	\begin{aligned}
+		\neg\,\forall\, \tau_{\text{MEV}} \in [0,1] \, &: \;\;
+		\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; > \; 0 \\[8pt]
+		\exists\, \tau^{\star}_{\text{MEV}} \in (0,1) \, &: \;\;
+		\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}}\bigg|_{\tau^{\star}_{\text{MEV}}} \; = \; 0,
+		\qquad
+		\frac{\partial \phi}{\partial \tau_{\text{MEV}}}\bigg|_{\tau^{\star}_{\text{MEV}}} \; \neq \; 0
 	\end{aligned}
 \]
