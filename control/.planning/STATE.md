@@ -165,23 +165,46 @@ its operating fee; **`Theorem 44` — open item O2 CLOSES on the reduced model**
 becomes a theorem, the root is unique and a **minimum**. Also: `Definition 36`'s
 `min (∂π̂^σ/∂τ)²` **cannot discriminate** — every root minimizes it.
 
-**IN FLIGHT — Aristotle bundle 5, project `a7249747-24b2-4584-b888-6f5475e08b67`** (submitted
-2026-08-10, RUNNING). Bundle `control/aristotle/tax5/`, spec `RequestProject/TAX5_ADDENDUM.md`
-(M33–M35), `SRC` pinned at `d61f223`/blob `584b05e`.
+**LANDED — Aristotle bundle 5** (`a7249747-24b2-4584-b888-6f5475e08b67`) →
+`control/aristotle/tax5-result/`, `MevShockInput.lean` (829 lines, 26 decls, axiom-clean).
+**M33 HELD with `g` explicit**: `ν = g(s,φ,κ_φ) = |u^m − u^{−m}|`, `m = 1/(2|ε_{p/X}|)`,
+`u = (1+s)(1−φ)`; consistency with `Theorem 39` **confirmed** (`L̄` is the explicit factor).
+**M34 HELD for the domain**: one-sided flow unreachable from a shock; but the signed legs make
+Rule 5's geometric mean undefined, so the unsigned reading is a **new OPEN: `UNSIGNED-LEGS`**
+(replaces PR-REGION). **M35 — the two channels are ONE channel and BOTH control laws are
+artifacts**: `Theorem47_shared_driver_leaves_no_root` — the FOC has **no root at any tax**, the
+optimum is a boundary point; benign flow enters the loop *gain*, not the exogenous input. O2
+recorded **resolved-empty**.
 
-**The input changes** (author ruling): `u_ex`'s driver is a **relative price shock `Δp/p`**, not
-the quantity pair — `ΔQ` becomes a *response* set by the curve's price impact. This aligns
-`Definition 32` with what `Definition 21` already does, since `ℙ_{Δ_ARB} = σ/(σ+φ√(2/Δt))` is
-already a shock-versus-band comparison.
+**The literature sweep then confirmed and redirected** (agent report, arXiv ids verified):
+`2606.21769` Prop 4.1 **is our no-root result in print** (`α=0` ⟹ boundary), §6.2 names the fix;
+MMR eq. (27) is an **accounting identity with an empty `NT_FEE` slot** — the `[M8]` citation
+supplies a label, not a form; **no causal estimate of DEX swap-fee elasticity exists** (two 2026
+papers state the identification failure; `S-21` non-detection); isoelastic `Q ∝ φ^{−ε}` appears
+NOWHERE (monotone ⟹ no interior optimum); the field's uniform choice is the exponential hazard
+`ν₀e^{−αφ}` with `α` **assumed, never measured**; and a state-space fee controller exists
+(`2606.21769`, ergodic control, pro-cyclical volatility feedback, built on our exact `ℙ_ARB`).
 
-- **M33** — does `ν = g(Δp/p, φ, κ_φ)` close? If so `ε` stops being empirical **for the arb half**.
-  Consistency with `Theorem39_arb_side_does_not_close` is **mandatory**: the factorization
-  `ΔQ = L̄·g(·)` is claimed to *confirm* that refutation by making `L̄` explicit.
-- **M34** — is a shock-driven trade necessarily **two-legged**, making the one-sided domain
-  unreachable? Would decide **PR-REGION** by the input ruling and unblock four results.
-- **M35 — the most valuable.** Do routes (i) and (ii) share a driver, so the fork is a
-  reformulation rather than a choice? Resolving it unblocks `Theorem 42`, `43` and the **O2
-  closure**.
+**IN FLIGHT — Aristotle bundle 6, project `1be2b6f1-1dc2-42b9-872c-35f58c878c22`** (submitted
+2026-08-10, RUNNING). Bundle `control/aristotle/tax6/`, spec `TAX6_ADDENDUM.md` (M36–M40), `SRC`
+still at `d61f223`/`584b05e`. **The transactional channel**, by author ruling, in shock space:
+
+- A second exogenous shock — a **private valuation shock `V ⊥ Δp/p`** — with payoff object
+  **`π^{transactional}`**, and the measure connection the author specified:
+  **`ℙ_trans = (1−ℙ_ARB)·h(φ)`** — benign execution lives on the complement of the arb event.
+  Under an exponential tail, `h(φ) = e^{−αφ}`: **Form A is a shock-space participation
+  probability and `α` is the tail rate of the valuation distribution.** Elasticity is never a
+  primitive; isoelastic demand is BANNED (ban 6).
+- Four new typed assumptions: **(A-ind)** the independence (load-bearing), **(A-tail)** with the
+  no-causal-estimate finding attached, **(A-size)**, **(A-route)** — `τ`'s share NOT routed to
+  LPs, per monoid entry (A).
+- M36 the measure completes Proposition 9 (with the complement-vs-unconditional comparison
+  derived BOTH ways); M37 the loop gains `i ≠ 0` and Theorem 47's no-root FAILS with the relaxed
+  hypothesis named; M38 the interior optimum — profitability + undershoot conditions, **the
+  top-up law `τ* = (φ*−φ_base)/(1−φ_base)`**, pro-cyclicality, corner taxonomy; **M39 the
+  incidence question** (no-routing vs full-routing FOC, no sign asserted — flagged as the block
+  most likely to surprise, since every paper has the fee-setter keep the revenue); M40 second
+  order / O2 in the extended model, (A-tail) vs general log-concave `h` split.
 
 **Pending user rulings, unchanged:** the channel fork (may be dissolved by M35), `PR-REGION` (may
 be dissolved by M34), and — from before bundle 4 — `Convention 10` and the `Hypothesis (H3)`
