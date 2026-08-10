@@ -3,7 +3,7 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
 > `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
-> `Convention 10`, `Definition 37`, `Theorem 33`, `Proposition 14`, `Rule 14`.
+> `Convention 10`, `Definition 37`, `Theorem 34`, `Proposition 14`, `Rule 14`.
 > Those numbers are reserved here and are not to be reused independently in the
 > entry-point doc. (`Proposition` corrected from an earlier `15+` reservation:
 > the entry-point doc's Propositions run 2–11, so 12 is next and 12–14 were
@@ -227,5 +227,22 @@ block and not calendar time:
 		\cdot \Bigl[\pi^{\mathrm{LVR}}\Bigl(-\frac{\partial \mathbb{P}_{\Delta_{\text{ARB}}}}{\partial \phi}\Bigr)\Bigr] \\[8pt]
 		K \; &> \; 0
 		\qquad \bigl[(H1),\; \pi^{l} > 0,\; \pi^{\mathrm{LVR}} > 0,\; \sigma > 0\bigr]
+	\end{aligned}
+\]
+
+**Theorem 33 (Two channels to $\partial\nu/\partial\tau_{\text{MEV}}$) [M26].**
+*Route (ii) requires (a); the CES boundary case is OPEN — see PR-REGION.*
+
+\[
+	\begin{aligned}
+		\text{(i)} \quad \frac{\partial \nu}{\partial \tau_{\text{MEV}}}
+		\; &= \; \bar{\mathcal{G}}_{(\nu,\lambda_{\text{MEV}})}\,\frac{\partial \lambda_{\text{MEV}}}{\partial \tau_{\text{MEV}}}
+		\; \leq \; 0 \qquad \bigl[(H2)\bigr] \\[8pt]
+		\text{(ii)} \quad \frac{\partial \nu}{\partial \tau_{\text{MEV}}}
+		\; &= \; \frac{\partial \nu}{\partial \Delta Q}\,\frac{\partial \Delta Q}{\partial \phi}\,\frac{\partial \phi}{\partial \tau_{\text{MEV}}}\bigg|_{\phi_M,\phi_X}
+		\; < \; 0 \qquad \Bigl[\text{(a)},\; \tfrac{\partial \Delta Q}{\partial \phi} < 0\Bigr] \\[8pt]
+		\text{(a)} \quad \frac{\partial \nu}{\partial \Delta Q} \; &> \; 0
+		\qquad \text{1-homogeneous, strictly positive at the flow direction} \\[8pt]
+		\text{(ii)} \; &\perp \; (H2)
 	\end{aligned}
 \]
