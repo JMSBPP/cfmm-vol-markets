@@ -193,26 +193,26 @@ block and not calendar time:
 	\end{aligned}
 \]
 
-**Proposition 13 (Corrected law) [M24].** *All of $\phi_X$, $\partial\phi/\partial\nu$, $\partial\nu/\partial\tau_{\text{MEV}}$ evaluated at $\nu(\tau^{\star}_{\text{MEV}})$. $\partial\nu/\partial\tau_{\text{MEV}} < 0$ rests on $(H2)$ — UNDISCHARGED.*
+**Proposition 13 (Corrected law) [M24].** *All of $\phi_X$, $\partial\phi_X/\partial\nu$, $\partial\nu/\partial\tau_{\text{MEV}}$ evaluated at $\nu(\tau^{\star}_{\text{MEV}})$. $\partial\nu/\partial\tau_{\text{MEV}} < 0$ rests on $(H2)$ — UNDISCHARGED. The slot is the BARE gate derivative, per `MevTaxProgram.hasDerivAt_phiTot`; the monoid Jacobian is carried separately.*
 
 \[
 	\begin{aligned}
 		\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; = \; 0
 		\quad &\Longleftrightarrow \quad
-		\tau^{\star}_{\text{MEV}} \; = \; 1 \; + \; \frac{1-\phi_X}{\bigl(\partial\phi/\partial\nu\bigr)\,\bigl(\partial\nu/\partial\tau_{\text{MEV}}\bigr)}
-		\qquad \Bigl[\bigl(\partial\phi/\partial\nu\bigr)\,\bigl(\partial\nu/\partial\tau_{\text{MEV}}\bigr) \neq 0\Bigr]
+		\tau^{\star}_{\text{MEV}} \; = \; 1 \; + \; \frac{1-\phi_X}{\bigl(\partial\phi_X/\partial\nu\bigr)\,\bigl(\partial\nu/\partial\tau_{\text{MEV}}\bigr)}
+		\qquad \Bigl[\bigl(\partial\phi_X/\partial\nu\bigr)\,\bigl(\partial\nu/\partial\tau_{\text{MEV}}\bigr) \neq 0\Bigr]
 	\end{aligned}
 \]
 
 \[
 	\begin{aligned}
-		0 \; < \; \frac{\partial\phi}{\partial\nu},
+		0 \; < \; \frac{\partial\phi_X}{\partial\nu},
 		\qquad \frac{\partial\nu}{\partial\tau_{\text{MEV}}} \; < \; 0,
 		\qquad \phi_X \; < \; 1
 		\quad &\Longrightarrow \quad
 		\begin{cases}
 			\tau^{\star}_{\text{MEV}} \; < \; 1 \\[4pt]
-			\tau^{\star}_{\text{MEV}} \; > \; 0 \; \Longleftrightarrow \; 1-\phi_X \; < \; \bigl|\bigl(\partial\phi/\partial\nu\bigr)\,\bigl(\partial\nu/\partial\tau_{\text{MEV}}\bigr)\bigr|
+			\tau^{\star}_{\text{MEV}} \; > \; 0 \; \Longleftrightarrow \; 1-\phi_X \; < \; \bigl|\bigl(\partial\phi_X/\partial\nu\bigr)\,\bigl(\partial\nu/\partial\tau_{\text{MEV}}\bigr)\bigr|
 		\end{cases}
 	\end{aligned}
 \]
