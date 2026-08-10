@@ -183,6 +183,16 @@ block and not calendar time:
 	\end{aligned}
 \]
 
+**Hypothesis (H3 — ScaleHomogeneous) [M27].**
+
+\[
+	\begin{aligned}
+		\bar L \; \to \; c\,\bar L
+		\quad &\Longrightarrow \quad
+		\text{band}(\phi) \;\; \text{invariant}, \qquad \nu(s, \phi, \kappa_{\varphi}) \;\; \text{invariant}
+	\end{aligned}
+\]
+
 **Definition 36 (Tax program) [M19].**
 
 \[
@@ -260,7 +270,7 @@ block and not calendar time:
 	\end{aligned}
 \]
 
-**Theorem 35 (The arb side does not close) [M27].** *Under ScaleHomogeneous.*
+**Theorem 35 (The arb side does not close) [M27].** *Under (H3).*
 
 \[
 	\begin{aligned}
