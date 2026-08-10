@@ -3,7 +3,7 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
 > `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
-> `Convention 10`, `Definition 37`, `Theorem 32`, `Proposition 14`, `Rule 14`.
+> `Convention 10`, `Definition 37`, `Theorem 33`, `Proposition 14`, `Rule 14`.
 > Those numbers are reserved here and are not to be reused independently in the
 > entry-point doc. (`Proposition` corrected from an earlier `15+` reservation:
 > the entry-point doc's Propositions run 2–11, so 12 is next and 12–14 were
@@ -206,5 +206,18 @@ block and not calendar time:
 			\tau^{\star}_{\text{MEV}} \; < \; 1 \\[4pt]
 			\tau^{\star}_{\text{MEV}} \; > \; 0 \; \Longleftrightarrow \; 1-\phi_X \; < \; \bigl|\bigl(\partial\phi/\partial\nu\bigr)\,\bigl(\partial\nu/\partial\tau_{\text{MEV}}\bigr)\bigr|
 		\end{cases}
+	\end{aligned}
+\]
+
+**Theorem 32 (LVR cancellation) [M25].** *Under (A1) and DOC Proposition 9.*
+
+\[
+	\begin{aligned}
+		\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}}
+		\; &= \; K \cdot \Bigl[\,(1-\phi_M)(1-\phi_X) \; + \; \frac{\partial \phi}{\partial \nu}\,\frac{\partial \nu}{\partial \tau_{\text{MEV}}}\,\Bigr] \\[8pt]
+		K \; &= \; \Bigl[\sum_{i_K} \frac{\partial L(i_K)}{\partial \pi^{\phi}}\,\pi^{l}(\sigma(i_K;\cdot))\Bigr]
+		\cdot \Bigl[\pi^{\mathrm{LVR}}\Bigl(-\frac{\partial \mathbb{P}_{\Delta_{\text{ARB}}}}{\partial \phi}\Bigr)\Bigr] \\[8pt]
+		K \; &> \; 0
+		\qquad \bigl[(H1),\; \pi^{l} > 0,\; \pi^{\mathrm{LVR}} > 0,\; \sigma > 0\bigr]
 	\end{aligned}
 \]
