@@ -143,8 +143,33 @@ Last session: 2026-08-09
 Stopped at: **Phase 6b's estimation route is TERMINAL.** `06B-00` executed (out of order, by user direction — the roadmap order `1 → 2 → 3 → 6a → 6b → 7` was not followed and Phase 1 has no execution record). The sweep delivered `control/spec/RESEARCH-REGISTER.md` @ `5f7f3d8` — 50 sources (14 internal PDFs, 26 arXiv all re-resolved through the arxiv MCP, 10 non-arXiv lower-rigor), §5's instrument-selection rule present in the first commit as required. It then ended the route it was built to serve: **`S-35` refutes the `Δt` exclusion restriction.** Verdict recorded at `control/spec/GBAR-VERDICT.md`.
 Resume file: control/spec/GBAR-VERDICT.md
 
-**IN FLIGHT — Aristotle bundle 3, project `f04c8802-09ea-47e7-b8a9-eb7ec7edbe1b`** (submitted
-2026-08-09, RUNNING). Bundle at `control/aristotle/tax3/`, spec `RequestProject/TAX3_ADDENDUM.md`
+**LANDED — Aristotle bundle 3** (`f04c8802-09ea-47e7-b8a9-eb7ec7edbe1b`), extracted to
+`control/aristotle/tax3-result/`. M25 PROVED (LVR cancels, fix 2 futile); M26(a) REFUTED on
+one-sided flow, (b)(c)(d) hold with route (ii) STRICT and logically INDEPENDENT of `H2`, and the
+two routes proved to close a loop; M27 REFUTED, missing primitive named as the **pool scale**, a
+**dimensional** obstruction rather than a caveat one. Transcribed into `SRC` as `Convention 9`,
+`Hypothesis (H1)`, `Theorem 32`–`Theorem 35` (commits `9a87ce1`, `3be0654`, `e4dbf72`, `b769c39`,
+`236f635`, `c5649a7`) under `NOT-10`'s cadence.
+
+**IN FLIGHT — Aristotle bundle 4, project `016fc0d1-fffa-4098-a379-48314c9ebd50`** (submitted
+2026-08-10, RUNNING). Bundle `control/aristotle/tax4/`, spec `RequestProject/TAX4_ADDENDUM.md`
+(M28–M32), `SRC` pinned at `c5649a7`/blob `3f5ffb8`. The **returns reduction**:
+
+- **M28** — `τ* = 1 + φ/[(1−φ_M)(∂φ_X/∂ν)νε]`. `(1−φ_X)` cancels, `H1` lives in `K` and cancels,
+  and `τ` appears **once** — so `Proposition 13`'s implicitness may be an artifact of the
+  composite denominator hiding a `(1−τ)` via `Convention 9`, not a property of the optimization.
+  **The derivation is the orchestrator's own, unchecked**; `Corollary 40`'s consistency test
+  against `Proposition16_corrected_law` is the load-bearing content.
+- **M29** — the control law is scale-free, so M27's missing primitive is missing from a question
+  the controller never asks.
+- **M30** — comparative statics. **No sign asserted, deliberately.**
+- **M31** — the **threshold elasticity**: how elastic must flow be before taxing is worth doing.
+- **M32** — open item **O2**, the second-order condition, possibly decidable now that `ε` is
+  explicit.
+
+**Most likely failure:** M28 presumes `ν ∝ ΔQ` under proportional legs, and bundle 3 already
+refuted the universal form on one-sided flow. **PR-REGION (`DOC:423`) is OPEN and is the
+author's ruling**, not the prover's. Bundle at `control/aristotle/tax3/`, spec `RequestProject/TAX3_ADDENDUM.md`
 (M25–M27). Three ALGEBRAIC claims, sent after the `Δt` route died:
 
 - **M25 — LVR cancellation.** Under `DOC` Proposition 9's split and `(A1)`, does `π^LVR` factor
