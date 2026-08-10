@@ -3,7 +3,7 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
 > `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
-> `Convention 12`, `Definition 38`, `Theorem 40`, `Proposition 14`, `Rule 15`.
+> `Convention 12`, `Definition 38`, `Theorem 41`, `Proposition 14`, `Rule 15`.
 > (`Convention 10` is RETIRED unused — a returns-coordinates block struck before
 > writing because `DOC` owns both halves, Proposition 9 and the `DOC:946` CPMM
 > instantiation; the number is not to be reused.)
@@ -404,5 +404,29 @@ block and not calendar time:
 		\frac{\partial \phi^{\star}}{\partial \sigma} \; > \; 0
 		\quad &\Longrightarrow \quad
 		\frac{\partial \tau^{\star}_{\text{MEV}}}{\partial \sigma} \; > \; 0
+	\end{aligned}
+\]
+
+**Theorem 40 (Incidence — routing is a discrete change of objective) [M39].**
+*Full routing ≡ Definition 36 with revenue factor $\phi$ in place of $\phi_M \otimes_{\phi} \phi_X$. Reversal mechanism: under full routing the LP-accrued fee is $\delta\phi$, so its benign attrition scales with $\phi$.*
+
+\[
+	\begin{aligned}
+		\partial_{\phi}\bigl(\text{Def. 36}\big|_{\phi_M\otimes_{\phi}\phi_X \,\mapsto\, \phi}\bigr)
+		\; - \; \partial_{\phi}\bigl(\text{Def. 36}\bigr)
+		\; = \; \delta\Bigl[\,&\mathbb{P}_{\Delta_{\text{transactional}}}\,\phi\,\bigl(\sigma+\sqrt{2/\Delta t}\,\phi\bigr) \\
+		&+ \; \bigl(\phi - \phi_M\otimes_{\phi}\phi_X\bigr)\Bigl(\mathbb{P}_{\Delta_{\text{transactional}}}\,\sigma
+		+ \tfrac{\partial \mathbb{P}_{\Delta_{\text{transactional}}}}{\partial\phi}\,\phi\,\bigl(\sigma+\sqrt{2/\Delta t}\,\phi\bigr)\Bigr)\Bigr] \\[10pt]
+		\exists\, \tau^{\star}_{\text{MEV}} \in (0,1) \;\; \text{for Def. 36 as written};
+		\qquad
+		\alpha_{\text{transactional}}\bigl(\phi - \phi_M\otimes_{\phi}\phi_X\bigr) < 1
+		\; &\Longrightarrow \;
+		\tau^{\star}_{\text{no-route}} \; < \; \tau^{\star}_{\text{route}} \\[8pt]
+		\exists\,\bigl(\phi,\, \alpha_{\text{transactional}},\, \sigma,\, \sqrt{2/\Delta t},\, \phi_M\otimes_{\phi}\phi_X,\, \delta\bigr)
+		= \bigl(\tfrac{9}{10},\, 10,\, \tfrac13,\, 1,\, \tfrac{1}{100},\, 1\bigr)
+		\, &: \;\; \text{ordering reversed} \\[8pt]
+		\Bigl[\partial_{\tau}\big|_{\tau=0}\Bigr]_{\text{route}} - \Bigl[\partial_{\tau}\big|_{\tau=0}\Bigr]_{\text{no-route}}
+		\; = \; \delta\,\mathbb{P}_{\Delta_{\text{transactional}}}\!\bigl(\phi_M\otimes_{\phi}\phi_X\bigr)\,
+		\bigl(\phi_M\otimes_{\phi}\phi_X\bigr)\bigl(\sigma+\sqrt{2/\Delta t}\,\phi_M\otimes_{\phi}\phi_X\bigr) \; &> \; 0
 	\end{aligned}
 \]
