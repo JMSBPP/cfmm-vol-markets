@@ -3,7 +3,7 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
 > `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
-> `Convention 12`, `Definition 38`, `Theorem 41`, `Proposition 14`, `Rule 15`.
+> `Convention 12`, `Definition 38`, `Theorem 42`, `Proposition 14`, `Rule 15`.
 > (`Convention 10` is RETIRED unused — a returns-coordinates block struck before
 > writing because `DOC` owns both halves, Proposition 9 and the `DOC:946` CPMM
 > instantiation; the number is not to be reused.)
@@ -428,5 +428,25 @@ block and not calendar time:
 		\Bigl[\partial_{\tau}\big|_{\tau=0}\Bigr]_{\text{route}} - \Bigl[\partial_{\tau}\big|_{\tau=0}\Bigr]_{\text{no-route}}
 		\; = \; \delta\,\mathbb{P}_{\Delta_{\text{transactional}}}\!\bigl(\phi_M\otimes_{\phi}\phi_X\bigr)\,
 		\bigl(\phi_M\otimes_{\phi}\phi_X\bigr)\bigl(\sigma+\sqrt{2/\Delta t}\,\phi_M\otimes_{\phi}\phi_X\bigr) \; &> \; 0
+	\end{aligned}
+\]
+
+**Theorem 41 (Second order — O2 closes locally, not globally) [M40].**
+*Under Definitions 36–37, Rule 14, (A-tail). OPEN: the global maximiser may sit at the carrier endpoint — the counting bounds interior local maximisers only.*
+
+\[
+	\begin{aligned}
+		2\sigma \, + \, 2\sqrt{2/\Delta t}\,\phi^{\star}
+		\, - \, \alpha_{\text{transactional}}\,\sigma\,\phi^{\star}
+		\, - \, \alpha_{\text{transactional}}\sqrt{2/\Delta t}\,\bigl(\phi^{\star}\bigr)^{2} \; > \; 0
+		\quad &\Longrightarrow \quad
+		\partial^{2}_{\tau}\bigl(\text{Def. 36}\bigr)\Big|_{\tau^{\star}_{\text{MEV}}} \; < \; 0 \\[8pt]
+		\#\bigl\{\phi \in (0,\infty) \, : \, \partial_{\phi}\bigl(\text{Def. 36}\bigr) = 0\bigr\} \; \leq \; 2
+		\quad &\Longrightarrow \quad
+		\#\bigl\{\text{interior local maximisers}\bigr\} \; \leq \; 1 \\[8pt]
+		\exists\,\bigl(\sigma,\, \Delta t,\, \alpha_{\text{transactional}},\, \delta\bigr) \, : \;\;
+		\operatorname{sign}\bigl(\partial_{\phi}(\text{Def. 36})\bigr) \; = \; (+,-,+)
+		\quad &\Longrightarrow \quad
+		\neg\,\text{single crossing}, \;\; \neg\,\text{global concavity}
 	\end{aligned}
 \]
