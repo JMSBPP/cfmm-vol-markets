@@ -560,28 +560,28 @@ CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because
 
 \[
 	\begin{aligned}
-		\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(Q_X,Q_M) \, &\equiv \, \frac{-2\,\big(\partial_{Q_X}\varphi\;\partial_{Q_M}\varphi\big)^{3/2}}{\partial^2_{Q_M}\varphi\,(\partial_{Q_X}\varphi)^2 \, - \, 2\,\partial^2_{Q_XQ_M}\varphi\,\partial_{Q_X}\varphi\,\partial_{Q_M}\varphi \, + \, \partial^2_{Q_X}\varphi\,(\partial_{Q_M}\varphi)^2} \, = \, \frac{-2\,p_{\varphi}^{3/2}}{\mathcal{D}_{Q_X}[p_{\varphi}]}
+		\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(Q_X^{L},Q_M^{L}) \, &\equiv \, \frac{-2\,\big(\partial_{Q_X}\varphi\;\partial_{Q_M}\varphi\big)^{3/2}}{\partial^2_{Q_M}\varphi\,(\partial_{Q_X}\varphi)^2 \, - \, 2\,\partial^2_{Q_XQ_M}\varphi\,\partial_{Q_X}\varphi\,\partial_{Q_M}\varphi \, + \, \partial^2_{Q_X}\varphi\,(\partial_{Q_M}\varphi)^2} \, = \, \frac{-2\,p_{\varphi}^{3/2}}{\mathcal{D}_{Q_X^{L}}[p_{\varphi}]}
 	\end{aligned}
 \]
 
-([INTRINSIC_LIQ](../refs/cfmm/risk_tung_wang-pricing_hedging_liquidity_provision-2026.pdf) §2.1; construction from [CLMM_DYN](../refs/cfmm/tung_wang-clmm_dynamics_continuous_time-2024.pdf) App. B), with \(p_{\varphi}\) the marginal price of Definition 14. It carries the dimension of \(\bar L_{(1/2,\,0)}\) for EVERY \((\chi_{X/M},\epsilon_{X/M})\) — the level of \(\varphi_{(\chi_{X/M},\epsilon_{X/M})}\) does not, carrying \(Q_X^{\chi_{X/M}}Q_M^{1-\chi_{X/M}}\) — and it is invariant under reparametrization of the curve. \(\bar L_{(1/2,\,0)}\) is the object this document writes throughout: it is the intrinsic liquidity AT THE MEMBER RULE 5 PINS. The bar is exact only there — constancy along the curve holds iff \(\epsilon_{X/M} = 0\) (Theorem 29); in general this is a state function, not a level.
+([INTRINSIC_LIQ](../refs/cfmm/risk_tung_wang-pricing_hedging_liquidity_provision-2026.pdf) §2.1; construction from [CLMM_DYN](../refs/cfmm/tung_wang-clmm_dynamics_continuous_time-2024.pdf) App. B), with \(p_{\varphi}\) the marginal price of Definition 14. ARGUMENTS ARE RESERVES: the \(L\)-superscripted quantities of Definition 10 (Definition 25's split — bare \(Q_X, Q_M\) are Definition 13's trading-side arguments); the partials inside the display remain with respect to Definition 13's arguments, EVALUATED at the reserve state. It carries the dimension of \(\bar L_{(1/2,\,0)}\) for EVERY \((\chi_{X/M},\epsilon_{X/M})\) — the level of \(\varphi_{(\chi_{X/M},\epsilon_{X/M})}\) does not, carrying \((Q_X^{L})^{\chi_{X/M}}(Q_M^{L})^{1-\chi_{X/M}}\) — and it is invariant under reparametrization of the curve. \(\bar L_{(1/2,\,0)}\) is the object this document writes throughout: it is the intrinsic liquidity AT THE MEMBER RULE 5 PINS. The bar is exact only there — constancy along the curve holds iff \(\epsilon_{X/M} = 0\) (Theorem 29); in general this is a state function, not a level.
 
 **Theorem 29 (Closed form; limits; the state-constancy boundary).** On the interior of the level set,
 
 \[
 	\begin{aligned}
-		\bar L_{(\chi_{X/M},\,\epsilon_{X/M})} \, &= \, \frac{2\sqrt{\chi_{X/M}(1-\chi_{X/M})}\;\big(Q_X\,Q_M\big)^{(\epsilon_{X/M}+1)/2}}{(1-\epsilon_{X/M})\big(\chi_{X/M}\,Q_X^{\epsilon_{X/M}} \, + \, (1-\chi_{X/M})\,Q_M^{\epsilon_{X/M}}\big)} \\
+		\bar L_{(\chi_{X/M},\,\epsilon_{X/M})} \, &= \, \frac{2\sqrt{\chi_{X/M}(1-\chi_{X/M})}\;\big(Q_X^{L}\,Q_M^{L}\big)^{(\epsilon_{X/M}+1)/2}}{(1-\epsilon_{X/M})\big(\chi_{X/M}\,(Q_X^{L})^{\epsilon_{X/M}} \, + \, (1-\chi_{X/M})\,(Q_M^{L})^{\epsilon_{X/M}}\big)} \\
 		\epsilon_{X/M} \to 0 \; &\implies \; \bar L_{(\chi_{X/M},\,0)} \, = \, 2\sqrt{\chi_{X/M}(1-\chi_{X/M})}\;\bar L_{(1/2,\,0)} \\
 		\epsilon_{X/M} \to 1^{-} \; &\implies \; \bar L_{(\chi_{X/M},\,\epsilon_{X/M})} \, \to \, \infty \qquad \text{(the linear member has no price impact)} \\
 		\bar L_{(\chi_{X/M},\,\epsilon_{X/M})} \big/ \bar L_{(1/2,\,0)} \; \text{state-constant} \; &\iff \; \epsilon_{X/M} \, = \, 0
 	\end{aligned}
 \]
 
-and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree one in \((Q_X,Q_M)\).
+and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree one in \((Q_X^{L},Q_M^{L})\).
 
 *Formalized* (`EllIntrinsic`, 10/10 axiom-clean, project `9786b137`; doc \(\bar L_{(\chi,\epsilon)}\) ↔ Lean `ell`, doc \(\chi_{X/M}\) ↔ Lean `ε`, doc \(\epsilon_{X/M}\) ↔ Lean `ρ` — the Lean names predate the doc glyphs and are NOT renamed): closed form `ellAt_eq_ell_corrected`; limits `ell_tendsto_geom`, `ell_tendsto_cpmm`, `ell_tendsto_atTop_rho_one`; `ell_homogeneous`; state-constancy `ell_ratio_const_iff`. **REFUTED as first stated:** `ellAt_eq_ell_false` — the guard \(0 < Q_M\) does NOT place the state inside the level set (`Real.rpow` off the positives carries a \(\cos(\pi\cdot)\) factor, so a NEGATIVE radicand can still yield a positive leg); at the witness the two sides carry opposite signs. The interior guard below is that correction, not a hedge.
 
-**Theorem 30 (Half-kernel reduction).** Strictly inside the level set, the \(\chi_{X/M} = 1/2\) member carrying \(\bar L_{(1/2,\,0)} \leftarrow \bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\) reproduces BOTH the marginal price and its first-order price impact, the latter being exactly \(-2\,p_{\varphi}^{3/2}\big/\bar L_{(1/2,\,0)}\). Every quantity factoring through \((p_{\varphi}, \mathcal{D}_{Q_X}[p_{\varphi}])\) — \(\mathcal{D}_p[\pi]\), \(\Gamma\), \(\pi^{\mathrm{LVR}}\), the per-strike amounts of Definitions 9–11 — is therefore computable on the half-kernel, which is what on-chain venues instantiate. **Scope, stated not buried:** the match is LOCAL and SECOND-ORDER — it pins \(\Gamma\), NOT \(\mathcal{D}^2_{Q_X}[p_{\varphi}]\); and a local match is not a global match of Definition 25's value function, which is obtained by integration.
+**Theorem 30 (Half-kernel reduction).** Strictly inside the level set, the \(\chi_{X/M} = 1/2\) member carrying \(\bar L_{(1/2,\,0)} \leftarrow \bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\) reproduces BOTH the marginal price and its first-order price impact, the latter being exactly \(-2\,p_{\varphi}^{3/2}\big/\bar L_{(1/2,\,0)}\). Every quantity factoring through \((p_{\varphi}, \mathcal{D}_{Q_X^{L}}[p_{\varphi}])\) — \(\mathcal{D}_p[\pi]\), \(\Gamma\), \(\pi^{\mathrm{LVR}}\), the per-strike amounts of Definitions 9–11 — is therefore computable on the half-kernel, which is what on-chain venues instantiate. **Scope, stated not buried:** the match is LOCAL and SECOND-ORDER — it pins \(\Gamma\), NOT \(\mathcal{D}^2_{Q_X^{L}}[p_{\varphi}]\); and a local match is not a global match of Definition 25's value function, which is obtained by integration.
 
 *Formalized:* `halfKernel_price_impact` (the impact law, proved as stated); `halfKernel_osculates_corrected`. **REFUTED as first stated:** `halfKernel_osculates_false` — same defective guard as Theorem 29; at the witness the prices agree while the impacts carry opposite signs.
 
@@ -1470,7 +1470,7 @@ Per tick \(i_K\), band \([i_l, i_u]\), sqrt-price convention (`PosSpec.tickPrice
 	\end{aligned}
 \]
 
-> \(L(i_K)\) IN THIS DISPLAY IS THE INTRINSIC LIQUIDITY (Definition 32): \(\Gamma = -\tfrac12\,\bar L_{(\chi_{X/M},\epsilon_{X/M})}\,p_{\varphi}^{-3/2}\) holds for EVERY member, because \(\mathcal{D}^2_p[\pi] = \mathcal{D}_p[Q_X]\) (envelope) and Definition 32 is exactly \(-2p_{\varphi}^{3/2}/\mathcal{D}_{Q_X}[p_{\varphi}]\). The ladder form below is the \(\chi_{X/M} = 1/2\) instance, \(L(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\); off that member the coefficient is the state-dependent field, not a level (Theorem 29). Whether a ladder REALIZES a given member's field is Proposition 12, OPEN.
+> \(L(i_K)\) IN THIS DISPLAY IS THE INTRINSIC LIQUIDITY (Definition 32): \(\Gamma = -\tfrac12\,\bar L_{(\chi_{X/M},\epsilon_{X/M})}\,p_{\varphi}^{-3/2}\) holds for EVERY member, because \(\mathcal{D}^2_p[\pi] = \mathcal{D}_p[Q_X^{L}]\) (envelope) and Definition 32 is exactly \(-2p_{\varphi}^{3/2}/\mathcal{D}_{Q_X^{L}}[p_{\varphi}]\). The ladder form below is the \(\chi_{X/M} = 1/2\) instance, \(L(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\); off that member the coefficient is the state-dependent field, not a level (Theorem 29). Whether a ladder REALIZES a given member's field is Proposition 12, OPEN.
 >
 > Clark: value eq (10), delta = the UNNUMBERED §4.2 p. 5 display (`L/√p − L/√p_b` in-range, current p), gamma = eq (12) (`−½Lp^{−3/2}`); eq (13) is Green–Jarrow spanning, never cite it for a Greek. Kristensen eq (3.21)/(3.24). Γ jumps at the band edges (the bounded-range correction); \(\mathcal{D}_p\) is continuous, kinked. LEAN: the value layer is `Flow.terminalPayoff` + `GeomProfile.geom_terminalPayoff_total`; the \(\mathcal{D}_p, \Gamma\) displays are UNFORMALIZED (bundle targets).
 
@@ -1609,7 +1609,7 @@ Raw count \(6+2n \geq 10\) **for \(n \geq 2\)** — the deficit is STRUCTURAL (b
 
 ## **G5. [EVM]**
 
-The EXACT row is exact BY THEOREM 30, not by luck: a venue stores \((\texttt{sqrtPriceX96}, L\text{ per tick})\), i.e. the \(\chi_{X/M} = 1/2\) member with a liquidity coefficient — and the half-kernel carrying \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) reproduces any member's marginal price and first-order price impact. So the whole \((p_{\varphi}, \mathcal{D}_{Q_X}[p_{\varphi}])\)-factoring family is on-chain-representable on the EXISTING primitive, with the curve choice entering only through the liquidity written per tick. The scope limits of Theorem 30 carry here verbatim: SECOND-ORDER only (\(\Gamma\) yes, \(\mathcal{D}^2_{Q_X}[p_{\varphi}]\) no), and value functions need integration, not a per-tick read.
+The EXACT row is exact BY THEOREM 30, not by luck: a venue stores \((\texttt{sqrtPriceX96}, L\text{ per tick})\), i.e. the \(\chi_{X/M} = 1/2\) member with a liquidity coefficient — and the half-kernel carrying \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) reproduces any member's marginal price and first-order price impact. So the whole \((p_{\varphi}, \mathcal{D}_{Q_X^{L}}[p_{\varphi}])\)-factoring family is on-chain-representable on the EXISTING primitive, with the curve choice entering only through the liquidity written per tick. The scope limits of Theorem 30 carry here verbatim: SECOND-ORDER only (\(\Gamma\) yes, \(\mathcal{D}^2_{Q_X^{L}}[p_{\varphi}]\) no), and value functions need integration, not a per-tick read.
 
 \[
 	\begin{aligned}
@@ -1634,7 +1634,7 @@ The EXACT row is exact BY THEOREM 30, not by luck: a venue stores \((\texttt{sqr
 
 ## GAMMA
 
-**Proposition 13 (Gamma is the intrinsic liquidity).** With \(\mathcal{D}^2_p[\pi] = \mathcal{D}_p[Q_X]\) — the envelope relation, **UNFORMALIZED** (G1) — Definition 32 gives, for every member,
+**Proposition 13 (Gamma is the intrinsic liquidity).** With \(\mathcal{D}^2_p[\pi] = \mathcal{D}_p[Q_X^{L}]\) — the envelope relation, **UNFORMALIZED** (G1) — Definition 32 gives, for every member,
 
 \[
 	\begin{aligned}
