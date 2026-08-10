@@ -3,7 +3,7 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
 > `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
-> `Convention 10`, `Definition 37`, `Theorem 35`, `Proposition 14`, `Rule 14`.
+> `Convention 10`, `Definition 37`, `Theorem 36`, `Proposition 14`, `Rule 14`.
 > Those numbers are reserved here and are not to be reused independently in the
 > entry-point doc. (`Proposition` corrected from an earlier `15+` reservation:
 > the entry-point doc's Propositions run 2–11, so 12 is next and 12–14 were
@@ -257,5 +257,21 @@ block and not calendar time:
 		\frac{\partial \nu}{\partial \tau_{\text{MEV}}}\bigg|_{\text{total}}
 		\; &= \; \frac{\text{(i)} \, + \, \text{(ii)}}{1 \, - \, \text{loop}},
 		\qquad 1 - \text{loop} \; > \; 1
+	\end{aligned}
+\]
+
+**Theorem 35 (The arb side does not close) [M27].** *Under ScaleHomogeneous.*
+
+\[
+	\begin{aligned}
+		\frac{\partial \Delta Q^{\text{ARB}}}{\partial \phi} \; &\neq \; f\bigl(\sigma,\, \phi,\, \Delta t,\, \epsilon_{p/X}\bigr)
+		\qquad \text{(any such } f \Longrightarrow \text{the response vanishes identically)} \\[8pt]
+		\bigl[\sigma\bigr] = \bigl[\phi\bigr] = \bigl[\epsilon_{p/X}\bigr] \; &= \; \text{scale-free},
+		\qquad \Bigl[\tfrac{\partial \Delta Q^{\text{ARB}}}{\partial \phi}\Bigr] \; = \; \text{quantity} \\[8pt]
+		\text{missing primitive} \; &= \; \bar L \quad \text{(equivalently } \pi^{\varphi}\text{)} \\[8pt]
+		\mathbb{P}_{\Delta_{\text{ARB}}},\; \frac{\partial \mathbb{P}_{\Delta_{\text{ARB}}}}{\partial \phi} \; &= \; f\bigl(\sigma,\, \phi,\, \Delta t\bigr)
+		\qquad\quad\;\, \text{(closes)} \\[4pt]
+		\frac{\partial \log \Delta Q^{\text{ARB}}}{\partial \log \phi} \; &= \; \text{scale-free}
+		\qquad\qquad\qquad\;\;\, \text{(closes)}
 	\end{aligned}
 \]
