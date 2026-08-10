@@ -3,7 +3,7 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
 > `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
-> `Convention 8`, `Definition 36`, `Theorem 29`, `Proposition 12`, `Rule 14`.
+> `Convention 10`, `Definition 37`, `Theorem 32`, `Proposition 14`, `Rule 14`.
 > Those numbers are reserved here and are not to be reused independently in the
 > entry-point doc. (`Proposition` corrected from an earlier `15+` reservation:
 > the entry-point doc's Propositions run 2–11, so 12 is next and 12–14 were
@@ -93,6 +93,16 @@ block and not calendar time:
 \[
 	\begin{aligned}
 		\nabla \phi \; \equiv \; \begin{bmatrix} (1-\phi_X)(1- \tau_{\text{MEV}}) \\ (1 - \phi_M)(1 - \tau_{\text{MEV}}) \\ (1- \phi_X)( 1 - \phi_M)\end{bmatrix}
+	\end{aligned}
+\]
+
+**Convention 9 (Gate derivative — composed, never bare) [M25].**
+
+\[
+	\begin{aligned}
+		\frac{\partial \phi}{\partial \nu} \; &\equiv \; \frac{\partial \phi}{\partial \phi_X}\,\frac{\partial \phi_X}{\partial \nu}
+		\; = \; (1-\phi_M)(1-\tau_{\text{MEV}})\,\frac{\partial \phi_X}{\partial \nu} \\[6pt]
+		\frac{\partial \phi_X}{\partial \nu} \; &= \; \text{DOC Definition 18 (bare)}
 	\end{aligned}
 \]
 
