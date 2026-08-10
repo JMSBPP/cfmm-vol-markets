@@ -3,7 +3,7 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
 > `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
-> `Convention 12`, `Definition 38`, `Theorem 39`, `Proposition 14`, `Rule 15`.
+> `Convention 12`, `Definition 38`, `Theorem 40`, `Proposition 14`, `Rule 15`.
 > (`Convention 10` is RETIRED unused — a returns-coordinates block struck before
 > writing because `DOC` owns both halves, Proposition 9 and the `DOC:946` CPMM
 > instantiation; the number is not to be reused.)
@@ -378,5 +378,31 @@ block and not calendar time:
 		\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}}\bigg|_{\tau^{\star}_{\text{MEV}}} \; = \; 0,
 		\qquad
 		\frac{\partial \phi}{\partial \tau_{\text{MEV}}}\bigg|_{\tau^{\star}_{\text{MEV}}} \; \neq \; 0
+	\end{aligned}
+\]
+
+**Theorem 39 (Top-up law and pro-cyclicality) [M38].**
+*Under Definitions 36–37, Rule 14, (A-tail). The shutdown regime — objective negative at every fee — is loss-minimization, not optimization.*
+
+\[
+	\begin{aligned}
+		\phi^{\star} \; &\equiv \; \arg\max_{\phi\,\in\,[0,1)}
+		\Bigl[\,\bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\,
+		\mathbb{P}_{\Delta_{\text{transactional}}}\,
+		\bigl(\phi_M \otimes_{\phi} \phi_X\bigr)\,\delta
+		\; - \; \tfrac{\sigma^2\Delta t}{8}\,\mathbb{P}_{\Delta_{\text{ARB}}}\,\Bigr] \\[8pt]
+		\tau^{\star}_{\text{MEV}} \; &= \;
+		\frac{\phi^{\star} \, - \, \phi_M \otimes_{\phi} \phi_X}{1 \, - \, \phi_M \otimes_{\phi} \phi_X},
+		\qquad
+		\tau^{\star}_{\text{MEV}} \in (0,1)
+		\; \Longleftrightarrow \;
+		\phi_M \otimes_{\phi} \phi_X \; < \; \phi^{\star} \; < \; 1 \\[8pt]
+		\alpha_{\text{transactional}}\,\phi^{\star} \; &> \; \mathbb{P}_{\Delta_{\text{ARB}}}(\phi^{\star})
+		\qquad \text{(interior maximiser, (A-route))} \\[8pt]
+		\phi^{\star} \; \leq \; \phi_M \otimes_{\phi} \phi_X
+		\; &\Longrightarrow \; \tau^{\star}_{\text{MEV}} \; = \; 0 \\[8pt]
+		\frac{\partial \phi^{\star}}{\partial \sigma} \; > \; 0
+		\quad &\Longrightarrow \quad
+		\frac{\partial \tau^{\star}_{\text{MEV}}}{\partial \sigma} \; > \; 0
 	\end{aligned}
 \]
