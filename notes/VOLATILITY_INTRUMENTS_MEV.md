@@ -3,7 +3,7 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
 > `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
-> `Convention 12`, `Definition 37`, `Theorem 36`, `Proposition 14`, `Rule 14`.
+> `Convention 12`, `Definition 38`, `Theorem 36`, `Proposition 14`, `Rule 14`.
 > (`Convention 10` is RETIRED unused — a returns-coordinates block struck before
 > writing because `DOC` owns both halves, Proposition 9 and the `DOC:946` CPMM
 > instantiation; the number is not to be reused.)
@@ -297,3 +297,20 @@ block and not calendar time:
 		\qquad\qquad\qquad\;\;\, \text{(closes)}
 	\end{aligned}
 \]
+
+**Definition 37 (Transactional payoff and valuation shock) [M36].**
+*Under (A-ind): $\Delta\pi^{\text{transactional}}/\pi^{\text{transactional}}$ independent of $\Delta p/p$.*
+
+\[
+	\begin{aligned}
+		\pi^{\text{transactional}} \; &: \; \text{benign-trader payoff} \\[6pt]
+		\mathbb{P}_{\Delta_{\text{transactional}}}(\phi) \; &\equiv \;
+		\mathbb{P}\Bigl(\Bigl|\tfrac{\Delta \pi^{\text{transactional}}}{\pi^{\text{transactional}}}\Bigr| \, > \, \phi\Bigr)
+		\; = \; e^{-\alpha\phi} \quad \text{under (A-tail)} \\[8pt]
+		1 \; &= \; \underbrace{\mathbb{P}_{\Delta_{\text{ARB}}}}_{\text{arb}}
+		\; + \; \underbrace{\bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\,\mathbb{P}_{\Delta_{\text{transactional}}}}_{\text{transactional}}
+		\; + \; \underbrace{\bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\bigl(1-\mathbb{P}_{\Delta_{\text{transactional}}}\bigr)}_{\text{idle}} \\[8pt]
+		\mathbb{E}\Bigl[\Bigl(\Bigl|\tfrac{\Delta \pi^{\text{transactional}}}{\pi^{\text{transactional}}}\Bigr| - b\Bigr)^{+}\Bigr] \; &= \; \frac{e^{-\alpha b}}{\alpha}
+	\end{aligned}
+\]
+
