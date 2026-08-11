@@ -726,9 +726,9 @@ and the field factors through the pair (price; level) ALONE: \(\bar L_{(\chi_{X/
 	\end{aligned}
 \]
 
-and \(\varphi^{\sigma}\) is NOT a positive multiple of any member of Definition 13's family — the boxed \(\varphi^{\nu} \to \varphi_{(\chi_{X/M},\epsilon_{X/M})}\) question is ANSWERED NO (1-homogeneity forces \(L_{\sigma}^2 = 0\)); no degenerate identification survives. *Bridge (in flight, `2370c633`):* at \(\eta\,\Delta_i = 1/3\) the geometric ladder's per-strike gamma is CONSTANT — the grid+ladder emulates \(\varphi^{\sigma}\) on the existing primitive.
+and \(\varphi^{\sigma}\) is NOT a member of Definition 13's family **even up to REPARAMETERIZATION** (STRENGTHENED 2026-08-11): no strictly monotone relabeling reaches any guarded member — the price-coordinate profile is a reparameterization INVARIANT, \(\varphi^{\sigma}\)'s is \(4\big/\Gamma_{\varphi}(p) = 4p^{3/2}\) on EVERY curve (independent of \(L_{\sigma}\) and the level), and no CES curve carries it (two evaluation states force \(\epsilon_{X/M} = 1\), off the family). POSITIVE CLASSIFICATION: constant impact integrates to the parabola — \(\varphi^{\sigma}\)'s family is EXACTLY the constant-impact class, equivalently the UNIFORM liquidity profile \(L(p_{\varphi}) = 2\) (Theorem 34), Bunni's uniform base LDF — the geometric ladder and \(\varphi^{\sigma}\) are the TWO base books of Phase 15.2. *Bridge (in flight, `2370c633`):* at \(\eta\,\Delta_i = 1/3\) the geometric ladder's per-strike gamma is CONSTANT — the grid+ladder emulates \(\varphi^{\sigma}\) on the existing primitive.
 
-*Formalized* (`MarketMaking`, project `d1ad6474`, axiom-clean): `phiSigma_kit`; `phiSigma_not_CES` (via `phiCES_smul`).
+*Formalized* (`MarketMaking`, project `d1ad6474`; `ReparamSigma`, project `a9586145` — both axiom-clean): `phiSigma_kit`; `phiSigma_not_CES`; `reparam_level_sets` + `phiSigma_profile` + `no_CES_matches_phiSigma_profile` (the up-to-reparameterization refutation); `constant_impact_is_parabola` (the classification).
 
 
 # FEE_ALGEBRA
