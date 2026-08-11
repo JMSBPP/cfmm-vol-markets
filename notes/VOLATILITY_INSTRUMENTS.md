@@ -343,7 +343,7 @@ with ratio \(\lambda^{-\Delta_i}\) — \(\lambda\) the fixed tick base (Protocol
 
 \(\lambda\) being fixed (\(\mathcal{C}_p\)), \(\xi^{\star}\) is pinned by \(\Delta_i\) alone — consistent with the \(\Theta_{\ell}\) registry entry, where \(\xi\) is the parameter and \(\xi^{\star} = \lambda^{-\Delta_i/2}\) its pinned value.
 
-**Definition 38 (Gamma).** \(\Gamma_{\varphi} \, \equiv \, \mathcal{D}^2_{p_{\varphi}}[\pi^{\varphi}]\) — the second derivative of Definition 25's portfolio value against the marginal price (Definition 14). Closed form, for every member (Theorem 32):
+**Definition 38 (Gamma).** \(\Gamma_{\varphi} \, \equiv \, \frac{\partial^2 \pi^{\varphi}}{\partial (p_{\varphi})^2}\) — the second derivative of Definition 25's portfolio value against the marginal price (Definition 14). Closed form, for every member (Theorem 32):
 
 \[
 	\begin{aligned}
@@ -351,7 +351,7 @@ with ratio \(\lambda^{-\Delta_i}\) — \(\lambda\) the fixed tick base (Protocol
 	\end{aligned}
 \]
 
-SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-shaped EXPRESSIONS where they are this object — never an inline \(\mathcal{D}\) operator (user ruling 2026-08-11).
+SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-shaped EXPRESSIONS where they are this object — never a derivative operator (user ruling 2026-08-11).
 
 **Proposition 14 (Gamma grid — the \(\xi\)-coordinatization).** On the grid, at the pinned member (\(\chi_{X/M} = 1/2\); consumes Proposition 10's inverse-product form and inherits its orientation FLAG):
 
@@ -582,7 +582,7 @@ CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because
 
 \[
 	\begin{aligned}
-		\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(Q_X^{L},Q_M^{L}) \, &\equiv \, \frac{-2\,\big(\partial_{Q_X}\varphi\;\partial_{Q_M}\varphi\big)^{3/2}}{\partial^2_{Q_M}\varphi\,(\partial_{Q_X}\varphi)^2 \, - \, 2\,\partial^2_{Q_XQ_M}\varphi\,\partial_{Q_X}\varphi\,\partial_{Q_M}\varphi \, + \, \partial^2_{Q_X}\varphi\,(\partial_{Q_M}\varphi)^2} \, = \, \frac{-2\,p_{\varphi}^{3/2}}{\mathcal{D}_{Q_X^{L}}[p_{\varphi}]}
+		\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(Q_X^{L},Q_M^{L}) \, &\equiv \, \frac{-2\,\big(\partial_{Q_X}\varphi\;\partial_{Q_M}\varphi\big)^{3/2}}{\partial^2_{Q_M}\varphi\,(\partial_{Q_X}\varphi)^2 \, - \, 2\,\partial^2_{Q_XQ_M}\varphi\,\partial_{Q_X}\varphi\,\partial_{Q_M}\varphi \, + \, \partial^2_{Q_X}\varphi\,(\partial_{Q_M}\varphi)^2} \, = \, \frac{-2\,p_{\varphi}^{3/2}}{\frac{\partial p_{\varphi}}{\partial Q_X^{L}}}
 	\end{aligned}
 \]
 
@@ -603,7 +603,7 @@ and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree
 
 *Formalized* (`EllIntrinsic`, 10/10 axiom-clean, project `9786b137`; doc \(\bar L_{(\chi,\epsilon)}\) ↔ Lean `ell`, doc \(\chi_{X/M}\) ↔ Lean `ε`, doc \(\epsilon_{X/M}\) ↔ Lean `ρ` — the Lean names predate the doc glyphs and are NOT renamed): closed form `ellAt_eq_ell_corrected`; limits `ell_tendsto_geom`, `ell_tendsto_cpmm`, `ell_tendsto_atTop_rho_one`; `ell_homogeneous`; state-constancy `ell_ratio_const_iff`. **REFUTED as first stated:** `ellAt_eq_ell_false` — the guard \(0 < Q_M\) does NOT place the state inside the level set (`Real.rpow` off the positives carries a \(\cos(\pi\cdot)\) factor, so a NEGATIVE radicand can still yield a positive leg); at the witness the two sides carry opposite signs. The interior guard below is that correction, not a hedge.
 
-**Theorem 30 (Half-kernel reduction).** Strictly inside the level set, the \(\chi_{X/M} = 1/2\) member carrying \(\bar L_{(1/2,\,0)} \leftarrow \bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\) reproduces BOTH the marginal price and its first-order price impact, the latter being exactly \(-2\,p_{\varphi}^{3/2}\big/\bar L_{(1/2,\,0)}\). Every quantity factoring through \((p_{\varphi}, \mathcal{D}_{Q_X^{L}}[p_{\varphi}])\) — \(\mathcal{D}_p[\pi]\), \(\Gamma_{\varphi}\), \(\pi^{\mathrm{LVR}}\), the per-strike amounts of Definitions 9–11 — is therefore computable on the half-kernel, which is what on-chain venues instantiate. **Scope, stated not buried:** the match is LOCAL and SECOND-ORDER — it pins \(\Gamma_{\varphi}\), NOT \(\mathcal{D}^2_{Q_X^{L}}[p_{\varphi}]\); and a local match is not a global match of Definition 25's value function, which is obtained by integration.
+**Theorem 30 (Half-kernel reduction).** Strictly inside the level set, the \(\chi_{X/M} = 1/2\) member carrying \(\bar L_{(1/2,\,0)} \leftarrow \bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\) reproduces BOTH the marginal price and its first-order price impact, the latter being exactly \(-2\,p_{\varphi}^{3/2}\big/\bar L_{(1/2,\,0)}\). Every quantity factoring through \((p_{\varphi}, \frac{\partial p_{\varphi}}{\partial Q_X^{L}})\) — \(\frac{\partial \pi}{\partial p}\), \(\Gamma_{\varphi}\), \(\pi^{\mathrm{LVR}}\), the per-strike amounts of Definitions 9–11 — is therefore computable on the half-kernel, which is what on-chain venues instantiate. **Scope, stated not buried:** the match is LOCAL and SECOND-ORDER — it pins \(\Gamma_{\varphi}\), NOT \(\frac{\partial^2 p_{\varphi}}{\partial (Q_X^{L})^2}\); and a local match is not a global match of Definition 25's value function, which is obtained by integration.
 
 *Formalized:* `halfKernel_price_impact` (the impact law, proved as stated); `halfKernel_osculates_corrected`. **REFUTED as first stated:** `halfKernel_osculates_false` — same defective guard as Theorem 29; at the witness the prices agree while the impacts carry opposite signs.
 
@@ -616,9 +616,9 @@ and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree
 
 \[
 	\begin{aligned}
-		\mathcal{D}_{p_{\varphi}}[Q_X^L] \, = \, \frac{-\,\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}}{2\,p_{\varphi}^{3/2}} \, = \, \Gamma_{\varphi}, \qquad
-		\mathcal{D}_{p_{\varphi}}[Q_M^L] \, = \, \frac{\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}}{2\,\sqrt{p_{\varphi}}}, \qquad
-		\mathcal{D}_{Q_X^L}[Q_M^L] \, = \, -\,p_{\varphi}, \qquad
+		\frac{\partial Q_X^L}{\partial p_{\varphi}} \, = \, \frac{-\,\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}}{2\,p_{\varphi}^{3/2}} \, = \, \Gamma_{\varphi}, \qquad
+		\frac{\partial Q_M^L}{\partial p_{\varphi}} \, = \, \frac{\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}}{2\,\sqrt{p_{\varphi}}}, \qquad
+		\frac{\partial Q_M^L}{\partial Q_X^L} \, = \, -\,p_{\varphi}, \qquad
 		\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\big(Q_X^L, Q_M^L\big) \, = \, c
 	\end{aligned}
 \]
@@ -639,8 +639,8 @@ and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree
 
 \[
 	\begin{aligned}
-		L(p_{\varphi}) \, = \, -\,\mathcal{D}_{p_{\varphi}}[Q_X^L] \, = \, -\,\Gamma_{\varphi} \quad \text{(Theorem 32's object)}, \qquad
-		\mathcal{D}_{Q_X^L}[p_{\varphi}] \, = \, -\,\frac{1}{L(p_{\varphi})} \quad \textbf{(the price-impact law)}
+		L(p_{\varphi}) \, = \, -\,\frac{\partial Q_X^L}{\partial p_{\varphi}} \, = \, -\,\Gamma_{\varphi} \quad \text{(Theorem 32's object)}, \qquad
+		\frac{\partial p_{\varphi}}{\partial Q_X^L} \, = \, -\,\frac{1}{L(p_{\varphi})} \quad \textbf{(the price-impact law)}
 	\end{aligned}
 \]
 and the field factors through the pair (price; level) ALONE: \(\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(Q_X^L, Q_M^L) = \bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(p_{\varphi};\, c)\) in closed form — the coordinate change itself, the level in the post-semicolon slot per Definition 37 (supersedes the 2026-08-10 argument-tuple-abuse note).
@@ -1489,20 +1489,22 @@ There are the classic greesks on the ppaer just waht yuou need to know abut vari
 
 ## **G0. [NOTATION-MAP]**
 
-The sensitivity operator (NEW symbol; `\mathcal{D}` unused in this document — in-use mathcal: 𝒞, ℰ, 𝒢_φ, ℛ, 𝒰): <!-- notation-map -->
+Sensitivities are written in REGULAR partial-derivative notation (user ruling 2026-08-11 — the calligraphic operator that stood here is retired): <!-- notation-map -->
 
 \[
 	\begin{aligned}
-		\mathcal{D}_x \, [\pi] \, &\equiv \, \frac{\Delta \pi}{\Delta x}, \qquad \mathcal{D}^2_x \, [\pi] \, \equiv \, \frac{\Delta}{\Delta x}\Big( \mathcal{D}_x[\pi] \Big)
+		\frac{\partial \pi}{\partial x} \, &\equiv \, \frac{\Delta \pi}{\Delta x}, \qquad \frac{\partial^2 \pi}{\partial x^2} \, \equiv \, \frac{\Delta}{\Delta x}\Big( \frac{\Delta \pi}{\Delta x} \Big)
 	\end{aligned}
 \]
 
-External delta `Δ`/`δ` → \(\mathcal{D}_p[\pi]\), \(p = p_{(\eta, \Delta_i)}(i;t)\) (`Δ` is this document's difference operator; `δ_S, δ_R` are J1's swap curves). <!-- notation-map -->
-External gamma → \(\Gamma_{\varphi} \equiv \mathcal{D}^2_{p_{\varphi}}[\pi^{\varphi}]\) — STRUCTURALLY: the second derivative of Definition 25's portfolio value against the MARGINAL price (user ruling 2026-08-11; closed form \(-\tfrac12\,\bar L_{(\chi_{X/M},\epsilon_{X/M})}\,p_{\varphi}^{-3/2}\), Theorem 32). The glyph is \(\Gamma_{\varphi}\) document-wide, mirroring \(\kappa_{\varphi}\); bare Γ is not used. SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-SHAPED EXPRESSIONS where they are this object — never an inline \(\mathcal{D}\) operator; the sigmoid steepness is ALWAYS subscripted `γ_j` (mirror of the κ/ς_{X/M} rule). <!-- notation-map -->
+— on-lattice these ARE the finite differences (the identification is the convention, stated once here).
+
+External delta `Δ`/`δ` → \(\frac{\partial \pi}{\partial p}\), \(p = p_{(\eta, \Delta_i)}(i;t)\) (`Δ` is this document's difference operator; `δ_S, δ_R` are J1's swap curves). <!-- notation-map -->
+External gamma → \(\Gamma_{\varphi} \equiv \frac{\partial^2 \pi^{\varphi}}{\partial (p_{\varphi})^2}\) — STRUCTURALLY: the second derivative of Definition 25's portfolio value against the MARGINAL price (user ruling 2026-08-11; closed form \(-\tfrac12\,\bar L_{(\chi_{X/M},\epsilon_{X/M})}\,p_{\varphi}^{-3/2}\), Theorem 32). The glyph is \(\Gamma_{\varphi}\) document-wide, mirroring \(\kappa_{\varphi}\); bare Γ is not used. SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-SHAPED EXPRESSIONS where they are this object — never a derivative operator; the sigmoid steepness is ALWAYS subscripted `γ_j` (mirror of the κ/ς_{X/M} rule). <!-- notation-map -->
 External theta Θ → IDENTIFIED with this document's \(\theta \equiv \Delta\pi/\Delta t\) (the exponent-sign FLAG — RESOLVED 2026-08-03, negative — on its display stands); `Θ_•` remains parameter-set notation and is never a Greek. <!-- notation-map -->
 External vega ν → NEVER imported (`ν_t = w_t/D_t`, M6b); all vegas through \(\upsilon \equiv \Delta\pi/\Delta\sigma^2\) (bound, = t/2); σ-convention vega is written \(2\,\sigma(i(t))\,\upsilon\). <!-- notation-map -->
-Maymin's liquidity Greek `Λ = ∂C/∂k` → \(\mathcal{D}_{\bar L_{(1/2,\,0)}}[C]\) (Greek of the LONG CALL C, Def 2 eq (33) — NOT of π) via \(k = \bar L_{(1/2,\,0)}^2\) (CPMM), his \(\Lambda = \mathcal{D}_{\bar L_{(1/2,\,0)}}[C]/(2\bar L_{(1/2,\,0)})\); `Λ(·)` stays the logistic. <!-- notation-map -->
-Maymin's emission Greek `E = ∂C/∂e` → \(\mathcal{D}_{\Delta Q_M}[C]\) (Def 2 eq (34), again a C-Greek; our emission policy IS the ΔQ_M schedule). <!-- notation-map -->
+Maymin's liquidity Greek `Λ = ∂C/∂k` → \(\frac{\partial C}{\partial \bar L_{(1/2,\,0)}}\) (Greek of the LONG CALL C, Def 2 eq (33) — NOT of π) via \(k = \bar L_{(1/2,\,0)}^2\) (CPMM), his \(\Lambda = \frac{\partial C}{\partial \bar L_{(1/2,\,0)}}/(2\bar L_{(1/2,\,0)})\); `Λ(·)` stays the logistic. <!-- notation-map -->
+Maymin's emission Greek `E = ∂C/∂e` → \(\frac{\partial C}{\partial \Delta Q_M}\) (Def 2 eq (34), again a C-Greek; our emission policy IS the ΔQ_M schedule). <!-- notation-map -->
 Maymin's CEV exponent `β = w` = the NUMERAIRE weight (his §3.2 eq (4)–(5): \(x^w y^{1-w} = K\), \(x\) = numeraire, \(P = \tfrac{1-w}{w}\tfrac{x}{y}\)) → \(w = 1 - \eta_L\), i.e. \(\eta_L = 1 - w\) = the ASSET share (eta.md line 12: \(L = X^{\eta}Y^{1-\eta}\), \(P\) = price of \(X\) in \(Y\) ⟹ η = exponent on the ASSET). ORIENTATION DECIDED AT FORMULA LEVEL by eq (12): \(P \propto x^{1/(1-w)} \implies \partial_x P = \tfrac{1}{1-w}\tfrac{P}{x}\), and \(x = P^{1-w}(\tfrac{w}{1-w})^{1-w}K\), so \(\delta = \tfrac{1}{1-w}\big(\tfrac{1-w}{w}\big)^{1-w}K^{-1}\sigma_F\) EXACTLY — the \(1/(1-w)\) prefactor is the reciprocal of the ASSET weight, and the \(w \leftrightarrow 1-w\) swap gives \(\tfrac{1}{w}(\tfrac{w}{1-w})^{w}K^{-1}\sigma_F\), ≠ eq (12) for \(w \neq \tfrac12\). \(\eta_L = \eta\) is E8(6) and remains OPEN — no display below assumes it. <!-- notation-map -->
 Maymin's `δ` (CEV vol coefficient) → eliminated through primitives: \(\sigma(i(t)) = \delta\, p^{\,\beta-1} = \delta\, p^{-\eta_L}\) (his σ_ret, Prop 4 eq (20), under \(\beta = w = 1-\eta_L\)) and CPMM \(\delta = 2\sigma_Q/\bar L_{(1/2,\,0)}\) (eq (12) at \(w = \tfrac12\), \(K = \bar L_{(1/2,\,0)}\)); his flow vol `σ_F` → \(\sigma_Q\) (σ̄_f is the FeeSchedule strike); his invariant `K` → \(\bar L_{(1/2,\,0)}\); his strike `K_str` → \(K\); his `κ` (eq 23) → \(c_0\) (bare κ FORBIDDEN); his CDF `χ²(x;n,·)` → \(\mathbb{P}_{Y_{n,\cdot} \leq x}\) (probability-typed ⟹ ℙ_{event}; χ banned). <!-- notation-map -->
 Bardoscia's `V0` → \(\Delta Q_M\) (V₀ is CJZ's, J5); his APY `φ` → eliminated in TWO commensurable forms, always labelled (B1): SCHEDULE-LEVEL per-unit carry \(\phi(\sigma_t)\,\nu_t\) (M6b's own units, \(\nu_t = w_t/D_t\), what \(\lambda_{\text{FLAIR}}\) sums) and POSITION-LEVEL carry \(\phi(\sigma_t)\,\nu_t\,\Delta Q_M\) (what an LP position of money leg ΔQ_M earns); his `S_t` → \(p_{(\eta, \Delta_i)}(i;t)\); maturity `T`, remaining `τ = T−t` → \(T^{\star}\), \(T^{\star}-t\) (τ is τ_MEV — NEVER time). <!-- notation-map -->
@@ -1517,7 +1519,7 @@ Per tick \(i_K\), band \([i_l, i_u]\), sqrt-price convention (`PosSpec.tickPrice
 
 \[
 	\begin{aligned}
-		\mathcal{D}_p[\pi]\,(i_K) \, &= \,
+		\frac{\partial \pi}{\partial p}\,(i_K) \, &= \,
 		\begin{cases}
 			\Delta Q_X(i_K) & p \leq p(i_l) \\
 			L_{(1/2,\,0)}(i_K)\,\Big( p^{-1/2} - p(i_u)^{-1/2} \Big) & p(i_l) < p < p(i_u) \\
@@ -1532,9 +1534,9 @@ Per tick \(i_K\), band \([i_l, i_u]\), sqrt-price convention (`PosSpec.tickPrice
 	\end{aligned}
 \]
 
-> \(L_{(1/2,\,0)}(i_K)\) IN THIS DISPLAY IS THE INTRINSIC LIQUIDITY (Definition 32): \(\Gamma_{\varphi} = -\tfrac12\,\bar L_{(\chi_{X/M},\epsilon_{X/M})}\,p_{\varphi}^{-3/2}\) holds for EVERY member, because \(\mathcal{D}^2_p[\pi] = \mathcal{D}_p[Q_X^{L}]\) (envelope) and Definition 32 is exactly \(-2p_{\varphi}^{3/2}/\mathcal{D}_{Q_X^{L}}[p_{\varphi}]\). The ladder form below is the \(\chi_{X/M} = 1/2\) instance, \(L_{(1/2,\,0)}(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\); off that member the coefficient is the state-dependent field, not a level (Theorem 29). Whether a ladder REALIZES a given member's field is Proposition 12, OPEN.
+> \(L_{(1/2,\,0)}(i_K)\) IN THIS DISPLAY IS THE INTRINSIC LIQUIDITY (Definition 32): \(\Gamma_{\varphi} = -\tfrac12\,\bar L_{(\chi_{X/M},\epsilon_{X/M})}\,p_{\varphi}^{-3/2}\) holds for EVERY member, because \(\frac{\partial^2 \pi}{\partial p^2} = \frac{\partial Q_X^{L}}{\partial p}\) (envelope) and Definition 32 is exactly \(-2p_{\varphi}^{3/2}/\frac{\partial p_{\varphi}}{\partial Q_X^{L}}\). The ladder form below is the \(\chi_{X/M} = 1/2\) instance, \(L_{(1/2,\,0)}(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\); off that member the coefficient is the state-dependent field, not a level (Theorem 29). Whether a ladder REALIZES a given member's field is Proposition 12, OPEN.
 >
-> Clark: value eq (10), delta = the UNNUMBERED §4.2 p. 5 display (`L/√p − L/√p_b` in-range, current p), gamma = eq (12) (`−½Lp^{−3/2}`); eq (13) is Green–Jarrow spanning, never cite it for a Greek. Kristensen eq (3.21)/(3.24). Γ jumps at the band edges (the bounded-range correction); \(\mathcal{D}_p\) is continuous, kinked. LEAN: the value layer is `Flow.terminalPayoff` + `GeomProfile.geom_terminalPayoff_total`; the \(\mathcal{D}_p, \Gamma_{\varphi}\) displays are UNFORMALIZED (bundle targets).
+> Clark: value eq (10), delta = the UNNUMBERED §4.2 p. 5 display (`L/√p − L/√p_b` in-range, current p), gamma = eq (12) (`−½Lp^{−3/2}`); eq (13) is Green–Jarrow spanning, never cite it for a Greek. Kristensen eq (3.21)/(3.24). Γ jumps at the band edges (the bounded-range correction); \(\partial\pi/\partial p\) is continuous, kinked. LEAN: the value layer is `Flow.terminalPayoff` + `GeomProfile.geom_terminalPayoff_total`; the \(\partial\pi/\partial p, \Gamma_{\varphi}\) displays are UNFORMALIZED (bundle targets).
 
 Aggregate over the ladder (partition of unity `geomWeight_sum`):
 
@@ -1579,16 +1581,16 @@ Vega is maturity, not a free dial:
 
 \[
 	\begin{aligned}
-		\mathcal{D}_{\bar L_{(1/2,\,0)}}[C] \, &< \, 0 \quad \big(\delta = 2\sigma_Q/\bar L_{(1/2,\,0)} \implies \tfrac{\Delta\sigma}{\sigma} = -\tfrac{\Delta \bar L_{(1/2,\,0)}}{\bar L_{(1/2,\,0)}}\big), \qquad
-		\mathcal{D}_{\Delta Q_M}[C] \, < \, 0, \qquad
+		\frac{\partial C}{\partial \bar L_{(1/2,\,0)}} \, &< \, 0 \quad \big(\delta = 2\sigma_Q/\bar L_{(1/2,\,0)} \implies \tfrac{\Delta\sigma}{\sigma} = -\tfrac{\Delta \bar L_{(1/2,\,0)}}{\bar L_{(1/2,\,0)}}\big), \qquad
+		\frac{\partial C}{\partial \Delta Q_M} \, < \, 0, \qquad
 		\bar v^2 \, = \, \frac{4\sigma_Q^2}{\dot{\bar k}} \ln\Big(1 + \frac{\dot{\bar k}\,T^{\star}}{\bar L_0^2}\Big), \;\; \dot{\bar k} \equiv \tfrac{\Delta (\bar L_{(1/2,\,0)}^2)}{\Delta t} \\
-		\text{LP-side composition: } \; \mathcal{D}_{\bar L_{(1/2,\,0)}}[\pi] \, &= \, \frac{\Delta\pi}{\Delta\sigma^2}\cdot\frac{\Delta\sigma^2}{\Delta\bar L_{(1/2,\,0)}} \, = \, (\underbrace{<0}_{\text{short vega}})\cdot(\underbrace{<0}_{\text{depth compresses }\sigma}) \, \geq \, 0
+		\text{LP-side composition: } \; \frac{\partial \pi}{\partial \bar L_{(1/2,\,0)}} \, &= \, \frac{\Delta\pi}{\Delta\sigma^2}\cdot\frac{\Delta\sigma^2}{\Delta\bar L_{(1/2,\,0)}} \, = \, (\underbrace{<0}_{\text{short vega}})\cdot(\underbrace{<0}_{\text{depth compresses }\sigma}) \, \geq \, 0
 	\end{aligned}
 \]
 
 > \(\bar L_0\) keeps the anchor's own subscripting: its slot is the time index, and imported anchor displays are not re-indexed (Convention 6). Everywhere else in this document the bare \(\bar L\) has been made explicit as \(\bar L_{(1/2,\,0)}\) — Definition 32.
 >
-> OBJECT TYPING (B3): Maymin Def 2 eq (33)–(34) and Prop 10 eq (41) are Greeks of the LONG CALL \(C\) ON the AMM token — \(\Lambda = \partial C/\partial k < 0\) ("deeper pools reduce option value by compressing volatility"), \(E = \partial C/\partial e < 0\) (emissions = our ΔQ_M schedule, bang-bang PROVEN `Flow.schedule_isLeast`, act as a dividend-yield-like variance drain). NO LP-side sign is imported: on π the depth Greek composes through the short vega and comes out with the OPPOSITE sign, \(\mathcal{D}_{\bar L_{(1/2,\,0)}}[\pi] \geq 0\) (a deeper pool damps σ, and the short-vol LP GAINS from that). C-Greeks and π-Greeks are distinct rows; both are hooks the classic BS set does not have.
+> OBJECT TYPING (B3): Maymin Def 2 eq (33)–(34) and Prop 10 eq (41) are Greeks of the LONG CALL \(C\) ON the AMM token — \(\Lambda = \partial C/\partial k < 0\) ("deeper pools reduce option value by compressing volatility"), \(E = \partial C/\partial e < 0\) (emissions = our ΔQ_M schedule, bang-bang PROVEN `Flow.schedule_isLeast`, act as a dividend-yield-like variance drain). NO LP-side sign is imported: on π the depth Greek composes through the short vega and comes out with the OPPOSITE sign, \(\frac{\partial \pi}{\partial \bar L_{(1/2,\,0)}} \geq 0\) (a deeper pool damps σ, and the short-vol LP GAINS from that). C-Greeks and π-Greeks are distinct rows; both are hooks the classic BS set does not have.
 
 The skew law (Maymin Thm 1 eq (11)–(12) + Prop 4 eq (20) + Prop 5), stated on \(\eta_L\), NOT on η, at the RESOLVED orientation \(\beta = w = 1-\eta_L\) (G0):
 
@@ -1610,13 +1612,13 @@ LEVEL: every row is POSITION-LEVEL (B1) — θ_fee means \(\theta_{\text{fee}}^{
 	\begin{array}{l|cccccccc}
 		 & (\xi,\iota) & (\eta,\Delta_i)\to\varsigma_{X/M} & \bar L_{(1/2,\,0)} & (\bar\phi,\alpha,u) & (\beta_j,\gamma_j) & T^{\star} & \tau,\tau_{\text{JIT}} & \text{haz. inputs }(\sigma\text{-path},w_t,D_t) \\
 		\hline
-		\mathcal{D}_p[\pi] & \bullet & \bullet & \bullet & - & - & - & - & - \\
+		\frac{\partial \pi}{\partial p} & \bullet & \bullet & \bullet & - & - & - & - & - \\
 		\Gamma_{\varphi} & \bullet & \bullet & \bullet & - & - & - & - & - \\
 		\upsilon\,(=t/2) & \circ_{\;\xi=\xi^{\star}} & - & - & - & - & \bullet & - & - \\
 		\theta_{\text{fee}}^{\text{pos}} & \circ & \circ & \circ_{\;\text{via }\nu_t} & \bullet & \bullet & - & \circ_{\;\text{carve-out}} & \bullet \\
 		\Delta\theta_{\text{fee}}/\Delta\sigma & - & - & \circ_{\;\text{via }\nu_t} & \bullet & \bullet & - & - & \bullet \\
-		\mathcal{D}_{\bar L_{(1/2,\,0)}}[\pi] & \circ & \circ & \bullet & - & - & - & - & - \\
-		\mathcal{D}_{\Delta Q_M}[\pi] & - & - & \bullet & - & - & \circ & - & - \\
+		\frac{\partial \pi}{\partial \bar L_{(1/2,\,0)}} & \circ & \circ & \bullet & - & - & - & - & - \\
+		\frac{\partial \pi}{\partial \Delta Q_M} & - & - & \bullet & - & - & \circ & - & - \\
 		\sigma_{IV}/\sigma_{IV}^{ATM}\;[\textbf{DIAG}] & - & \bullet_{\;\text{uncond. in }\eta_L;\;\text{cond. on }E8(6)} & - & - & - & - & - & - \\
 		\lambda_{\text{FLAIR}} & - & - & \circ & \bullet & \bullet & - & \bullet & \bullet \\
 		\lambda_{\text{ARB}} & - & \bullet_{\;\eta^{\star}} & \circ & \bullet_{\;\mathbb{P}_{\Delta_{\text{ARB}}}} & \circ & - & \bullet & \bullet \\
@@ -1626,7 +1628,7 @@ LEVEL: every row is POSITION-LEVEL (B1) — θ_fee means \(\theta_{\text{fee}}^{
 
 > ROW COUNT (M3): 11 matrix rows, \(|\mathcal{T}| = 10\) design targets — the gap is the \(\sigma_{IV}/\sigma_{IV}^{ATM}\) row, declared **DIAGNOSTIC**: it is an OBSERVABLE (a depth-invariant identification readout for \(\eta_L\)), not a design target, and is excluded from \(\mathcal{T}\) and from every deficit count in G4. The \(\theta_{\text{fee}}^{\text{pos}}\) row's \(\bar L_{(1/2,\,0)}\) and \(\tau\) entries are ○, not ●: \(\bar L_{(1/2,\,0)}\) enters only through \(D_t\) inside \(\nu_t = w_t/D_t\), and \(\tau\) only through the tax carve-out — neither symbol appears in the display itself.
 
-THE (β,γ) ROW, RESOLVED: \((\beta_j,\gamma_j)\) are ABSENT from every payoff-shaping Greek (\(\mathcal{D}_p, \Gamma_{\varphi}, \upsilon\) — confirming (ξ,ι) as the shaping base) and BIND exactly in the carry profile, in both B1 forms:
+THE (β,γ) ROW, RESOLVED: \((\beta_j,\gamma_j)\) are ABSENT from every payoff-shaping Greek (\(\partial\pi/\partial p, \Gamma_{\varphi}, \upsilon\) — confirming (ξ,ι) as the shaping base) and BIND exactly in the carry profile, in both B1 forms:
 
 \[
 	\begin{aligned}
@@ -1650,7 +1652,7 @@ THE (β,γ) ROW, RESOLVED: \((\beta_j,\gamma_j)\) are ABSENT from every payoff-s
 
 \[
 	\begin{aligned}
-		\mathcal{T} \, &= \, \{\mathcal{D}_p,\; \Gamma_{\varphi},\; \upsilon,\; \theta_{\text{fee}}^{\text{pos}},\; \Delta\theta_{\text{fee}}/\Delta\sigma,\; \mathcal{D}_{\bar L_{(1/2,\,0)}},\; \mathcal{D}_{\Delta Q_M},\; \lambda_{\text{FLAIR}},\; \lambda_{\text{ARB}},\; \tilde\lambda_{\text{JIT}}\}, \quad |\mathcal{T}| = 10 \\
+		\mathcal{T} \, &= \, \{\partial\pi/\partial p,\; \Gamma_{\varphi},\; \upsilon,\; \theta_{\text{fee}}^{\text{pos}},\; \Delta\theta_{\text{fee}}/\Delta\sigma,\; \partial/\partial \bar L_{(1/2,\,0)},\; \partial/\partial \Delta Q_M,\; \lambda_{\text{FLAIR}},\; \lambda_{\text{ARB}},\; \tilde\lambda_{\text{JIT}}\}, \quad |\mathcal{T}| = 10 \\
 		&\quad (\theta_{\text{decay}} \text{ excluded: redundant by Demeterfi EQ 12};\;\; \sigma_{IV}/\sigma_{IV}^{ATM} \text{ excluded: DIAGNOSTIC, G3};\;\; \lambda_{\text{MEV}} \text{ excluded: the } \oplus\text{-sum}) \\
 		\#\text{free} \, &= \, \underbrace{\iota,\, \bar L_{(1/2,\,0)}}_{2} \, + \, \underbrace{(\beta_j,\gamma_j)}_{2n} \, + \, \underbrace{T^{\star}}_{1} \, + \, \underbrace{\tau,\, \tau_{\text{JIT}}}_{2} \, + \, \underbrace{\Delta Q_M\text{-schedule}}_{1} \, = \, 6 + 2n
 		\qquad (\xi = \xi^{\star},\; \eta = \eta^{\star},\; \Delta_i \text{ venue-quantized},\; (\bar\phi,\alpha,u) \text{ pinned by the level program — M4 caveat applies})
@@ -1661,7 +1663,7 @@ Raw count \(6+2n \geq 10\) **for \(n \geq 2\)** — the deficit is STRUCTURAL (b
 
 \[
 	\begin{aligned}
-		\text{shape rows } \{\mathcal{D}_p, \Gamma_{\varphi}, \upsilon\text{-flatness}\}\;(3) \; &\text{reachable only through } \{\xi,\iota,\eta,\Delta_i,\bar L_{(1/2,\,0)}\} \implies 2 \text{ free for } 3: \; \textbf{deficit } 1 \\
+		\text{shape rows } \{\partial\pi/\partial p, \Gamma_{\varphi}, \upsilon\text{-flatness}\}\;(3) \; &\text{reachable only through } \{\xi,\iota,\eta,\Delta_i,\bar L_{(1/2,\,0)}\} \implies 2 \text{ free for } 3: \; \textbf{deficit } 1 \\
 		\text{ladder resolution: } \{\ell(i_K)\}_{i_K} \in \Delta^{\iota-1} \; &\text{vs the pinned-ξ geometric curve (dim } 1\text{)}: \; \textbf{deficit } \iota - 2 \\
 		(\beta_j,\gamma_j) \; &\text{cannot close it: their column is } 0 \text{ on every shape row}
 	\end{aligned}
@@ -1671,13 +1673,13 @@ Raw count \(6+2n \geq 10\) **for \(n \geq 2\)** — the deficit is STRUCTURAL (b
 
 ## **G5. [EVM]**
 
-The EXACT row is exact BY THEOREM 30, not by luck: a venue stores \((\texttt{sqrtPriceX96}, L\text{ per tick})\), i.e. the \(\chi_{X/M} = 1/2\) member with a liquidity coefficient — and the half-kernel carrying \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) reproduces any member's marginal price and first-order price impact. So the whole \((p_{\varphi}, \mathcal{D}_{Q_X^{L}}[p_{\varphi}])\)-factoring family is on-chain-representable on the EXISTING primitive, with the curve choice entering only through the liquidity written per tick. The scope limits of Theorem 30 carry here verbatim: SECOND-ORDER only (\(\Gamma_{\varphi}\) yes, \(\mathcal{D}^2_{Q_X^{L}}[p_{\varphi}]\) no), and value functions need integration, not a per-tick read.
+The EXACT row is exact BY THEOREM 30, not by luck: a venue stores \((\texttt{sqrtPriceX96}, L\text{ per tick})\), i.e. the \(\chi_{X/M} = 1/2\) member with a liquidity coefficient — and the half-kernel carrying \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) reproduces any member's marginal price and first-order price impact. So the whole \((p_{\varphi}, \frac{\partial p_{\varphi}}{\partial Q_X^{L}})\)-factoring family is on-chain-representable on the EXISTING primitive, with the curve choice entering only through the liquidity written per tick. The scope limits of Theorem 30 carry here verbatim: SECOND-ORDER only (\(\Gamma_{\varphi}\) yes, \(\frac{\partial^2 p_{\varphi}}{\partial (Q_X^{L})^2}\) no), and value functions need integration, not a per-tick read.
 
 \[
 	\begin{aligned}
-		\text{EXACT on-chain: } & \mathcal{D}_p\text{-ladder},\; \Gamma_{\varphi}\text{-ladder (sqrtPriceX96, ticks, } L\text{; } p^{3/2} = \text{mulDiv chain)},\; \upsilon = t/2,\; \theta_{\text{fee}} \text{ ex-post (feeGrowthInside, streamia)} \\
-		\text{APPROXIMABLE: } & \phi(\sigma)\text{ (expWad logistic)},\; \theta_{\text{decay}} \text{ (expWad+sqrt; sign RESOLVED: negative)},\; \sigma^2(i(t)) \text{ (E2/E5 ledger — see caveat)},\; \mathcal{D}_{\bar L_{(1/2,\,0)}}[\pi] \text{ (relative form exact)} \\
-		\text{OFF-CHAIN: } & \text{CEV prices and } \mathbb{P}_{Y_{n,c}\le x} \text{ tails},\; \sigma^{\star}_{\phi} \text{ inversion},\; \mathcal{D}_{\bar L_{(1/2,\,0)}}[C],\; \mathcal{D}_{\Delta Q_M}[C] \text{ model values (lnWad for } \bar v^2\text{; schedule input exact)}
+		\text{EXACT on-chain: } & \partial\pi/\partial p\text{-ladder},\; \Gamma_{\varphi}\text{-ladder (sqrtPriceX96, ticks, } L\text{; } p^{3/2} = \text{mulDiv chain)},\; \upsilon = t/2,\; \theta_{\text{fee}} \text{ ex-post (feeGrowthInside, streamia)} \\
+		\text{APPROXIMABLE: } & \phi(\sigma)\text{ (expWad logistic)},\; \theta_{\text{decay}} \text{ (expWad+sqrt; sign RESOLVED: negative)},\; \sigma^2(i(t)) \text{ (E2/E5 ledger — see caveat)},\; \frac{\partial \pi}{\partial \bar L_{(1/2,\,0)}} \text{ (relative form exact)} \\
+		\text{OFF-CHAIN: } & \text{CEV prices and } \mathbb{P}_{Y_{n,c}\le x} \text{ tails},\; \sigma^{\star}_{\phi} \text{ inversion},\; \frac{\partial C}{\partial \bar L_{(1/2,\,0)}},\; \frac{\partial C}{\partial \Delta Q_M} \text{ model values (lnWad for } \bar v^2\text{; schedule input exact)}
 	\end{aligned}
 \]
 
@@ -1687,7 +1689,7 @@ The EXACT row is exact BY THEOREM 30, not by luck: a venue stores \((\texttt{sqr
 
 1. θ exponent-sign FLAG — **RESOLVED 2026-08-03 (negative)**; G1's θ_decay and the on-chain constant are unblocked.
 2. E8(6) \(\eta_L = \eta\) — OPEN; G2's skew law is an η_L statement until it closes.
-3. \(\mathcal{D}_p, \Gamma_{\varphi}\) ladder displays, the θ split, the \(\Delta\theta_{\text{fee}}/\Delta\sigma\) statics, and the G4 deficit lemmas are UNFORMALIZED — the Aristotle bundle for this section. **G2: OFF-BUNDLE — analytic content (CEV pricing, noncentral χ², implied-vol inversion) beyond Mathlib v4.28.** Every bundled θ_fee statement MUST name which B1 form it formalizes (schedule-level \(\phi\nu_t\) or position-level \(\phi\nu_t\Delta Q_M\)); the two are not interchangeable and a mixed statement is unprovable.
+3. The \(\partial\pi/\partial p, \Gamma_{\varphi}\) ladder displays, the θ split, the \(\Delta\theta_{\text{fee}}/\Delta\sigma\) statics, and the G4 deficit lemmas are UNFORMALIZED — the Aristotle bundle for this section. **G2: OFF-BUNDLE — analytic content (CEV pricing, noncentral χ², implied-vol inversion) beyond Mathlib v4.28.** Every bundled θ_fee statement MUST name which B1 form it formalizes (schedule-level \(\phi\nu_t\) or position-level \(\phi\nu_t\Delta Q_M\)); the two are not interchangeable and a mixed statement is unprovable.
 4. Carry-profile objective: per-event (M6b) vs time-integrated (λ_FLAIR) statement — decide before bundling; the M2 hedge claim needs the time-integrated form.
 5. 2n sigmoid parameters match ≤ 2n carry-profile moments — re-count if the hazard ladder demands finer σ-resolution.
 6. Natenberg local copy is image-only (no text layer); classical displays are anchored to Demeterfi/Bardoscia instead. Lababidi (Greek.fi) contains no Greek formulas — infrastructure reference only.
@@ -1696,7 +1698,7 @@ The EXACT row is exact BY THEOREM 30, not by luck: a venue stores \((\texttt{sqr
 
 ## GAMMA
 
-**Theorem 32 (Gamma is the intrinsic liquidity) *(promoted from Proposition 13 — the number 13 is retired, not reused)*.** The envelope relation \(\mathcal{D}^2_p[\pi] = \mathcal{D}_p[Q_X^{L}]\) — now PROVED (`deriv_piVal`, via `hasDerivAt_yOf`: the money leg falls at exactly the marginal price, \(dQ_M^L/dQ_X^L = -p_{\varphi}\)) — with Definition 32 gives, for every member,
+**Theorem 32 (Gamma is the intrinsic liquidity) *(promoted from Proposition 13 — the number 13 is retired, not reused)*.** The envelope relation \(\frac{\partial^2 \pi}{\partial p^2} = \frac{\partial Q_X^{L}}{\partial p}\) — now PROVED (`deriv_piVal`, via `hasDerivAt_yOf`: the money leg falls at exactly the marginal price, \(dQ_M^L/dQ_X^L = -p_{\varphi}\)) — with Definition 32 gives, for every member,
 
 \[
 	\begin{aligned}
