@@ -373,7 +373,7 @@ with ratio \(\lambda^{-\Delta_i}\) — \(\lambda\) the fixed tick base (Protocol
 
 SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-shaped EXPRESSIONS where they are this object — never a derivative operator (user ruling 2026-08-11).
 
-**Proposition 14 (Gamma grid — the \(\xi\)-coordinatization).** On the grid, at the pinned member (\(\chi_{X/M} = 1/2\); consumes Proposition 10's inverse-product form and inherits its orientation FLAG):
+**Theorem 38 (Gamma grid — the \(\xi\)-coordinatization) *(promoted from Proposition 14 — the number is retired, not reused)*.** On the grid, at the pinned member (\(\chi_{X/M} = 1/2\); consumes Theorem 40's inverse-product form and inherits its orientation FLAG):
 
 \[
 	\begin{aligned}
@@ -382,7 +382,23 @@ SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-s
 	\end{aligned}
 \]
 
-— **gamma units**: \(\Gamma_{\varphi}\) is a pure \(\xi\)-power of the tick, exactly as \(p_{(\eta,\Delta_i)}\) is a \(\lambda\)-power of it; the factor \(3 = \tfrac{3}{2}\times 2\) (the \(p^{3/2}\) shape composed with the marginal-price step being the SQUARE of the grid step). *Status:* numerically verified at two \(\eta\) values to machine precision; **in flight** with Proposition 10 and the Gaussian-zero rider (project `589d44ac`) — promotes on return.
+— **gamma units**: \(\Gamma_{\varphi}\) is a pure \(\xi\)-power of the tick, exactly as \(p_{(\eta,\Delta_i)}\) is a \(\lambda\)-power of it; the factor \(3 = \tfrac{3}{2}\times 2\) (the \(p^{3/2}\) shape composed with the marginal-price step being the SQUARE of the grid step). *Formalized* (`GammaGrid`, project `589d44ac`, axiom-clean): `gamma_grid_level`, `gamma_grid_ratio`, via `pPhiGrid_eq` — the marginal grid price is itself a pure \(\lambda\)-power.
+
+**Definition 41 (The gamma coordinate).** \(\gamma(i) \, \equiv \, -\,3\eta\,\big(i + \tfrac{\Delta_i}{2}\big)\) — the \(\xi\)-coordinate warped by the factor \(3\eta\), the half-spacing offset from the marginal price's adjacent product. \(\xi\) is the LIQUIDITY coordinate; \(\gamma\) is DERIVED from it (user proposal 2026-08-11).
+
+**Theorem 39 (The compositional reading; the flatness threshold).** With \(L(t) \equiv \bar L_{(1/2,\,0)}\,\xi^{t}\) the \(\xi\)-geometric liquidity read on the tick coordinate:
+
+\[
+	\begin{aligned}
+		\Gamma_{\varphi}(i_K) \, &= \, -\tfrac{1}{2}\,L\big(\gamma(i_K)\big) \qquad \textbf{(gamma IS the liquidity at the warped tick)} \\
+		\text{ladder in place of } \bar L: \quad \Gamma_{\varphi}(i_K) \, &= \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\;\xi^{\,(i_K - i_0)/\Delta_i \, - \, 3\eta(i_K + \Delta_i/2)} \\
+		\text{strike-independent} \; &\iff \; \eta\,\Delta_i \, = \, \tfrac{1}{3}, \qquad \text{flat value } \; -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\;\xi^{-(i_0/\Delta_i + 1/2)}
+	\end{aligned}
+\]
+
+The state-space closed form (Theorem 32) and this grid-space reading COINCIDE — two presentations of one object. At \(\eta\Delta_i = 1/3\) the grid+ladder EMULATES the constant-gamma curve \(\varphi^{\sigma}\) (Theorem 36) on the existing primitive. BRIDGES: the LDF (Phase 15.2) designs the \(\Gamma_{\varphi}\) profile through a pure coordinate change; on-chain (G5) \(\Gamma_{\varphi}\) is a \(\xi\)-exponent lookup, no \(p^{3/2}\) mulDiv chain.
+
+*Formalized* (`GammaCoordinate`, project `2370c633`, axiom-clean): `gamma_is_L_at_gammaCoord`; `ladder_gamma_power`; `ladder_gamma_flat_iff` (both directions); `ladder_gamma_flat_value`.
 
 *(Proposition 6's sampling half stays proved — `logContractLiquidity_geometric`, `strikeWeight_bridge`; its replication premise is the log-payoff instance \(\Gamma_{\varphi}[\pi^{\log}] = -1/p_{\varphi}^{2}\), OPEN pending \(\pi^{\log}\)'s carrier.)*
 
@@ -502,7 +518,7 @@ where \(\epsilon_{p/X}^{\,0}\) is the same elasticity for the \(\epsilon_{X/M} =
 
 *Formalized:* the definitional layer is now carried AT THE BALANCED POINT — `PayoffGeometry.epsPX` (the elasticity as a genuine along-curve derivative) and `kappaPhi` (this definition's benchmark normalization), with Theorem 31 proving the closed form FROM them; `CurvatureTwo.curvTwo`'s by-fiat status is resolved by agreement with `kappaPhi_closed_form`. The GENERAL-point elasticity remains an observable without a dedicated carrier.
 
-*(The grid–marginal-price relation is Proposition 10, stated with the portfolio-value machinery in # CONTROL_OPERATORS.)*
+*(The grid–marginal-price relation is Theorem 40, stated with the portfolio-value machinery in # CONTROL_OPERATORS.)*
 
 **Theorem 31 (CES curvature closed form) *(promoted from Proposition 7 — the number 7 is retired, not reused)*.** For the CES family (Definition 13), at the balanced point \(|\epsilon_{p/X}| = \dfrac{1-\epsilon_{X/M}}{1-\chi_{X/M}}\), and
 
@@ -519,7 +535,7 @@ where \(\epsilon_{p/X}^{\,0}\) is the same elasticity for the \(\epsilon_{X/M} =
 
 *Formalized:* `CurvatureTwo.curvTwo`; `curvTwo_linear_zero`; `curvTwo_pos_of_lt_one`; `curvTwo_strictAnti_rho`; `curvTwo_mem_Ico`; `rhoOfCurv` (both round trips); \(\bar\epsilon_{X/M}\) = `subElast` (`subElast_zero`, `subElast_tendsto_one`).
 
-**Refutation note (what curvature is NOT).** The Gaussian curvature of \(\varphi\)'s graph is **identically zero** for every member — 1-homogeneity forces \(\mathrm{Hess}\,\varphi \cdot (Q_X,Q_M)^{\top} = 0\), so \(\det \mathrm{Hess} \equiv 0\) and the graph is a ruled surface; the Gaussian reading cannot distinguish linear from Leontief. The un-normalized planar curvature of the trading curve is scale-dependent (\((1-\epsilon_{X/M})/(\sqrt{2}\,t)\) at the symmetric point \(Q_X = Q_M = t\), \(\chi_{X/M} = 1/2\)) and cannot equal a constant. The normalization of Definition 14 is what makes Theorem 31 well-posed. *Status:* unformalized (cheap machine-check; the Theorem 31 bundle returned WITHOUT this rider — still owed).
+**Refutation note (what curvature is NOT).** The Gaussian curvature of \(\varphi\)'s graph is **identically zero** for every member — 1-homogeneity forces \(\mathrm{Hess}\,\varphi \cdot (Q_X,Q_M)^{\top} = 0\), so \(\det \mathrm{Hess} \equiv 0\) and the graph is a ruled surface; the Gaussian reading cannot distinguish linear from Leontief. The un-normalized planar curvature of the trading curve is scale-dependent (\((1-\epsilon_{X/M})/(\sqrt{2}\,t)\) at the symmetric point \(Q_X = Q_M = t\), \(\chi_{X/M} = 1/2\)) and cannot equal a constant. The normalization of Definition 14 is what makes Theorem 31 well-posed. *Formalized* (`GammaGrid`, project `589d44ac`, axiom-clean): `hessian_det_zero` — closed-form CES second derivatives, \(f_{xx}f_{yy} = f_{xy}^2\) identically.
 
 **Definition 15 (Share asymmetry).** The **share asymmetry** (grid tilt) of the trading-function family is
 
@@ -963,7 +979,7 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 
 **Recall (the marginal price).** \(p_{\varphi} \equiv \partial_{Q_X}\varphi \,/\, \partial_{Q_M}\varphi\) — the quotient of partials of the trading function, minted at Definition 14; its relation to the grid is the next statement, placed here because Definitions 25–26 consume both objects (user ruling 2026-08-04).
 
-**Proposition 10 (Grid–marginal-price relation).** The grid map and the marginal price are DISTINCT objects — the identification \(p_{(\eta,\Delta_i)} \equiv p_{\varphi}\) is NOT admissible. At Definition 9's reserves, for the \(\chi_{X/M} = 1/2\) member,
+**Theorem 40 (Grid–marginal-price relation) *(promoted from Proposition 10 — the number is retired, not reused)*.** The grid map and the marginal price are DISTINCT objects — the identification \(p_{(\eta,\Delta_i)} \equiv p_{\varphi}\) is NOT admissible. At Definition 9's reserves, for the \(\chi_{X/M} = 1/2\) member,
 
 \[
 	\begin{aligned}
@@ -971,7 +987,7 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 	\end{aligned}
 \]
 
-— the grid enters the marginal price as the INVERSE PRODUCT of adjacent grid values: the √price-vs-price gap Theorem 4 already flags (`priceGrid_eq_tickPrice_sq`), plus the leg orientation. *Status:* elementary algebra from Theorem 5's reciprocal form; **unproved in-tree** (cheap Aristotle rider; the Theorem 31 bundle returned WITHOUT it — still owed).
+— the grid enters the marginal price as the INVERSE PRODUCT of adjacent grid values: the √price-vs-price gap Theorem 4 already flags (`priceGrid_eq_tickPrice_sq`), plus the leg orientation. *Formalized* (`GammaGrid`, project `589d44ac`, axiom-clean): `grid_marginal_price` — discharged after being owed through two bundle cycles.
 
 **Definition 25 (Portfolio value function).** With \((Q_X^L(p_{\varphi}), Q_M^L(p_{\varphi}))\) the point of the trading curve \(\varphi_{(\chi_{X/M},\,\epsilon_{X/M})} = \text{const}\) at which the marginal price \(p_{\varphi}\) (Definition 14) attains a given value, the **portfolio value function** is the on-curve valuation of the RESERVES — the \(L\)-superscripted quantities (Definition 10): bare \(Q_X, Q_M\) remain the trading-side arguments of Definition 13, while the reserves derived from liquidity are what the pool holds and what is valued here —
 
@@ -983,7 +999,7 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 
 — the portfolio value function of [CFMM_GEOMETRY](../refs/cfmm/angeris-geometry_of_cfmms-2023.pdf), the conic dual of the trading function (their equivalence theorem); concave and nondecreasing in \(p_{\varphi}\). **Relation to Definition 24:** \(\pi^{\text{linear}}\) marks FIXED holdings at spot; \(\pi^{\varphi}\) moves holdings ALONG the curve — at the current price the two coincide, away from it \(\pi^{\varphi}\) falls below the fixed-holdings line, and that concavity gap is what LVR prices. *Status:* **UNFORMALIZED** — no Lean carrier (`exp/CESLongVolPayoff.pi_eta_trader` is the trader-side Bregman object, distinct).
 
-**Definition 26 (LVR rate).** The loss-versus-rebalancing rate is a PAYOFF-shaped object — a loss — hence the \(\pi\) glyph (user ruling 2026-08-04): \(\pi^{\mathrm{LVR}}\), carrying NO time argument (it is a state function of the current tick); the time-argument form \(\pi^{\mathrm{LVR}}(t)\) is the per-block realized loss below, so no bar normalization is needed. Per [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf), with the second derivative well-defined on Definition 25's object — and the evaluation point CORRECTED (user-exposed 2026-08-04) to the current MARGINAL price \(p_{\varphi}(i(t))\), not the grid value, the two differing by Proposition 10's relation:
+**Definition 26 (LVR rate).** The loss-versus-rebalancing rate is a PAYOFF-shaped object — a loss — hence the \(\pi\) glyph (user ruling 2026-08-04): \(\pi^{\mathrm{LVR}}\), carrying NO time argument (it is a state function of the current tick); the time-argument form \(\pi^{\mathrm{LVR}}(t)\) is the per-block realized loss below, so no bar normalization is needed. Per [MMR](../refs/mev/MilionisMoallemiRoughgardenArbProfitsFees.pdf), with the second derivative well-defined on Definition 25's object — and the evaluation point CORRECTED (user-exposed 2026-08-04) to the current MARGINAL price \(p_{\varphi}(i(t))\), not the grid value, the two differing by Theorem 40's relation:
 
 \[
 	\begin{aligned}
@@ -1189,7 +1205,7 @@ The **sandwich hazard** mirrors Definition 22's shape — extracted sandwich val
 Under uniform batch clearing there is no ordering to exploit: \(\Delta Q_M^{\text{sand}} = 0 \implies \pi^{\text{sandwich}} = 0 \implies \lambda_{\text{sandwich}} = 0\) (the Angstrom regime). *Status:* **UNFORMALIZED** — no Lean carrier; the paper's profit bound (linear in \(\mathrm{tol}_{\text{slip}}\), with a liquidity hurdle) is cited, not transcribed. **\(\mathrm{tol}_{\text{slip}}\) — the conjecture is RESOLVED, split (`SandwichTol.lean`, CPMM member, all axiom-clean):**
 
 - **\(\Theta_{\phi}\) branch REFUTED** (`sandwich_fee_hurdle_false`, 30 bp witness): the exact profitability frontier is \(0 < \pi^{\text{sandwich}}_{\phi} \iff \phi(1-\phi)\,\Delta Q_M^{\text{sand}} < (1-\phi)(Q_M^L+\Delta Q_M) - Q_M^L\) (`pnlFee_pos_iff`) — \(\mathrm{tol}_{\text{slip}}\) does not enter. The fee's true relationship pins an admissible TRADE SIZE, not the tolerance: \(\Delta Q_M \leq \tfrac{\phi}{1-\phi}\,Q_M^L \implies \pi^{\text{sandwich}}_{\phi} \leq 0\) for every front-run (`sandwich_fee_hurdle_corrected`); above it, NO positive \(\mathrm{tol}_{\text{slip}}\) closes the channel.
-- **\(\Theta_p\) branch PROVED as stated** (`sandwich_grid_cap`): within one spacing of the MARGINAL price (\(\texttt{priceRatio} \leq r\), \(r = \lambda^{\eta\Delta_i}\) — the marginal-price step, the SQUARE of the grid step per Proposition 10), the binding tolerance is capped: \(\mathrm{tol}_{\text{slip}} \leq 1 - r^{-1}\).
+- **\(\Theta_p\) branch PROVED as stated** (`sandwich_grid_cap`): within one spacing of the MARGINAL price (\(\texttt{priceRatio} \leq r\), \(r = \lambda^{\eta\Delta_i}\) — the marginal-price step, the SQUARE of the grid step per Theorem 40), the binding tolerance is capped: \(\mathrm{tol}_{\text{slip}} \leq 1 - r^{-1}\).
 
 So \(\mathrm{tol}_{\text{slip}}\) is functionally BOUNDED by \(\Theta_p\) and unconstrained by \(\Theta_{\phi}\); it remains a free tolerance of the \(\mathrm{tol}\) family inside the \(\Theta_p\) cap. Supporting: `pnl_pos` (feeless sandwiches always profit), `slip_strictMono` (binding bijection), closed forms `slip_eq`/`pnl_eq`/`priceRatio_eq`/`pnlFee_eq` (\(Q_X^L\) cancels in every payoff).
 
