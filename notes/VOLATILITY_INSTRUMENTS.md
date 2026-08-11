@@ -436,6 +436,27 @@ The \(\kappa\)-map is a LOGARITHMIC coordinate where \(p_{(\eta,\Delta_i)}(i)\) 
 
 *Formalized* (`FeeTree`, project `460a63b8`, axiom-clean, 3/3 TRUE AS WRITTEN).
 
+**Definition 47 (Integrated utilization).** With \(\nu\) Definition 36's per-evaluation utilization, the INTEGRATED utilization is the trading-function ratio of time-integrated depleted reserves over time-integrated reserves (user displays, 2026-08-11):
+
+\[
+	\begin{aligned}
+		\bar{\nu}_{\varphi}(t_0) \, = \, \frac{\varphi\big(Q_X^{L} + \Delta Q_X,\; Q_M^{L} + \Delta Q_M\big)}{\varphi\big(Q_X^{L}, Q_M^{L}\big)} \, \equiv \, 1, \qquad
+		\bar{\nu}_{\varphi}(t) \, = \, \frac{\varphi\Big(\int_{t_0}^{t}\big(Q_X^{L}-\Delta Q_X\big)\,dt,\; \int_{t_0}^{t}\big(Q_M^{L}-\Delta Q_M\big)\,dt\Big)}{\varphi\Big(\int_{t_0}^{t} Q_X^{L}\,dt,\; \int_{t_0}^{t} Q_M^{L}\,dt\Big)} \, \in \, (0,1)
+	\end{aligned}
+\]
+
+— the inception ratio is IDENTICALLY 1 (trade invariance, Theorem 33's on-curve identity: a trade moves along the level set, so the level ratio cannot move at \(t_0\)); depletion makes the integrated ratio interior.
+
+**Proposition 16 (Utilization walks the \(\kappa\)-tree) — the structure, part provable, part OPEN.** The wanted representation:
+
+\[
+	\begin{aligned}
+		\nu_{\varphi}(\kappa_{\varphi}; t) \, \equiv \, \kappa_{\varphi}^{\,g_{\varphi}(\cdot;\, i(t))} \, \equiv \, \bar{\nu}_{\varphi}(t)
+	\end{aligned}
+\]
+
+WELL-POSEDNESS is provable: \(\kappa_{\varphi} \in (0,1)\) and \(\bar\nu_{\varphi}(t) \in (0,1)\) give a UNIQUE positive exponent \(g = \ln\bar\nu_{\varphi}/\ln\kappa_{\varphi}\), and the exponent is an ACCUMULATOR — per-step ratios multiply, exponents ADD — matching `feeGrowth`'s accumulator type on the \(\kappa\)-tree. **OPEN (the modelling claim):** the identification of the exponent with Definition 46's fee-tree object \(g_{\varphi}(\cdot; i(t))\). THE CONTROL CLOSURE (design intent, recorded): LVR walks \(\Gamma_{\varphi}\); the fee \(\phi\) walks utilization (Theorem 1); with \(\nu = \kappa_{\varphi}^{g}\) the gate becomes \(u = \alpha_R\,\Lambda\big(\gamma_R(\kappa_{\varphi}^{g} - \beta_R)\big)\) — \(u\) depends on \(\kappa_{\varphi}\), and the kernel \(\alpha_R\) pins AS A FUNCTION OF \(\kappa_{\varphi}\): the fee control loop closes through the trading base. *Status:* the spine is in flight; the identification stays OPEN pending it.
+
 *(Theorem 42's chain is now CLOSED end to end: sampling half `logContractLiquidity_geometric` + `strikeWeight_bridge`; replication premise \(\Gamma_{\varphi}[\pi^{\log}] = -1/p_{\varphi}^{2}\) `piLog_gamma`; the channel half Theorem 34.)*
 
 
