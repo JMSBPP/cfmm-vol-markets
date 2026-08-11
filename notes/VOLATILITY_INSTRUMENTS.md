@@ -89,7 +89,7 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 
 **Definition 34 (Forward payoff).** \(\pi^{f}(p_{\varphi};\, p^{\star}) \, \equiv \, p_{\varphi} - p^{\star}\) — unit-notional forward struck at \(p^{\star}\).
 
-**Definition 35 (Log payoff).** \(\pi^{\log}(p_{\varphi};\, p^{\star}) \, \equiv \, \ln\big(p_{\varphi}/p^{\star}\big)\).
+**Definition 35 (Log payoff).** \(\pi^{\log}(p_{\varphi};\, p^{\star}) \, \equiv \, \ln\big(p_{\varphi}/p^{\star}\big)\). *Formalized:* `PiPayoffs.piF`, `piLog`; \(\Gamma_{\varphi}[\pi^{\log}] = -1/p_{\varphi}^2\) and \(\Gamma_{\varphi}[\pi^{f}] = 0\): `piLog_gamma`.
 
 ([VOL_SWAPS](../refs/DemeterfietalVarianceSwaps.pdf) PG9: the variance exposure is the forward leg net of the log leg, \(\tfrac{2}{T}\big(\pi^{f}/p^{\star} - \pi^{\log}\big)\); Definition 6's log portfolio is the grid realization of \(-\pi^{\log}\)'s spanning, and Definition 5's replicating portfolio is exactly \(\pi^{f}/p^{\star} - \pi^{\log}\) up to the \(2/T\) normalization.)
 
@@ -353,7 +353,7 @@ with ratio \(\lambda^{-\Delta_i}\) — \(\lambda\) the fixed tick base (Protocol
 
 *Formalized:* `GeomProfile.varswapWeight_geometric`; `varswapWeight_normalized`.
 
-**Proposition 6 (The liquidity base \(\xi^{\star}\)).** The per-tick *liquidity* replicating the log contract scales as the inverse square root of that grid, hence
+**Theorem 42 (The liquidity base \(\xi^{\star}\)) *(promoted from Proposition 6 — the number is retired, not reused; the replication premise CLOSED by `piLog_gamma`, the sampling half being `logContractLiquidity_geometric`)*.** The per-tick *liquidity* replicating the log contract scales as the inverse square root of that grid, hence
 
 \[
 	\begin{aligned}
@@ -409,7 +409,19 @@ The state-space closed form (Theorem 32) and this grid-space reading COINCIDE �
 
 *Formalized* (`GammaCoordinate`, project `2370c633`, axiom-clean): `gamma_is_L_at_gammaCoord`; `ladder_gamma_power`; `ladder_gamma_flat_iff` (both directions); `ladder_gamma_flat_value`.
 
-*(Proposition 6's sampling half stays proved — `logContractLiquidity_geometric`, `strikeWeight_bridge`; its replication premise is the log-payoff instance \(\Gamma_{\varphi}[\pi^{\log}] = -1/p_{\varphi}^{2}\), OPEN pending \(\pi^{\log}\)'s carrier.)*
+**Definition 45 (The \(\kappa\)-map).** The curvature coordinate of the BOOK: the per-spacing log-slope of the per-strike liquidity against the marginal price,
+
+\[
+	\begin{aligned}
+		\kappa(i) \, \equiv \, \frac{\ln\big(L_{(1/2,\,0)}(i+\Delta_i)\,/\,L_{(1/2,\,0)}(i)\big)}{\ln\big(p_{\varphi}(i+\Delta_i)\,/\,p_{\varphi}(i)\big)}
+	\end{aligned}
+\]
+
+**Theorem 43 (The atlas verdicts).** (i) The normalized gamma coordinate is PURE — the liquidity factor cancels in the ratio (`gamma_ratio_pure`); (ii) the gamma map and the price-impact map are RECIPROCAL — their product is 1, the \((Q_X^L, p_{\varphi})\) primal–dual pair (`gamma_impact_reciprocal`); (iii) on the geometric ladder \(\kappa(i)\) is the CONSTANT \(1/(2\eta\Delta_i)\), equal to \(3/2\) at the flatness threshold \(\eta\Delta_i = 1/3\) (`kappaMap_geometric_const`); (iv) **\(\kappa(i)\) is tick-constant IFF the density is geometric** (`kappaMap_const_iff_geometric`, both directions — the marginal-price log-step is tick-independent, forcing the single ratio). The curvature axis gets its coordinate FROM THE BOOK, not the member (\(\kappa_{\varphi}\) is tick-constant on every CES member); the \(\kappa\)-coordinate degenerates exactly on the geometric family — the SAME slice where Proposition 12's \(\Theta_{\varphi} \to \Theta_{\ell}\) map exists. One slice, two degeneracies.
+
+*Formalized* (`KappaCoordinate`, project `676a5787`, axiom-clean, all TRUE AS WRITTEN — the suspected reverse of (iv) HOLDS).
+
+*(Theorem 42's chain is now CLOSED end to end: sampling half `logContractLiquidity_geometric` + `strikeWeight_bridge`; replication premise \(\Gamma_{\varphi}[\pi^{\log}] = -1/p_{\varphi}^{2}\) `piLog_gamma`; the channel half Theorem 34.)*
 
 
 # TRADING_REGION
@@ -1022,7 +1034,7 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 
 **Definition 44 (Impermanent loss).** \(\pi^{\mathrm{IL}} \, \equiv \, \pi^{\mathrm{HODL}} - \pi^{\varphi}\), hence \(\partial_t \pi^{\mathrm{IL}} = \partial_t \pi^{\mathrm{HODL}} - \partial_t \pi^{\varphi}\).
 
-**Proposition 15 (Dynamic decomposition).** With the second-order expansion of the portfolio value along the price,
+**Theorem 41 (Dynamic decomposition) *(promoted from Proposition 15 — the number is retired, not reused)*.** With the second-order expansion of the portfolio value along the price,
 
 \[
 	\begin{aligned}
@@ -1031,7 +1043,9 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 	\end{aligned}
 \]
 
-and by the PROVED envelope (\(\partial \pi^{\varphi}/\partial P_{\varphi} = Q_X^L\), Theorem 32's carrier) the boxed law collapses to \(\partial_t \pi^{\mathrm{LVR}} = -\tfrac{1}{2}\,\Gamma_{\varphi}\, d\langle P_{\varphi}\rangle_t \, \geq 0\) — CONSISTENT with this Definition 26. On a \(C^1\) price path the LVR rate is IDENTICALLY ZERO: LVR is generated ONLY by quadratic variation. **FLAG (user, 2026-08-11):** \(d\langle P_{\varphi}\rangle_t\) needs its DISCRETE-CALCULUS formulation — on the lattice the candidate is \((\Delta P_{\varphi})^2\) per step; the π-bundle targets the discrete second-order step that grounds it. *Status:* in flight (the π-bundle).
+and by the PROVED envelope (\(\partial \pi^{\varphi}/\partial P_{\varphi} = Q_X^L\), Theorem 32's carrier) the boxed law collapses to \(\partial_t \pi^{\mathrm{LVR}} = -\tfrac{1}{2}\,\Gamma_{\varphi}\, d\langle P_{\varphi}\rangle_t \, \geq 0\) — CONSISTENT with this Definition 26. On a \(C^1\) price path the LVR rate is IDENTICALLY ZERO: LVR is generated ONLY by quadratic variation. The FLAG on \(d\langle P_{\varphi}\rangle_t\) is DISCHARGED at the lattice level: the one-step Peano expansion \(\pi^{\varphi}(P+h) - \pi^{\varphi}(P) - Q_X^L h - \tfrac12\Gamma_{\varphi}h^2 = o(h^2)\) is PROVED under pointwise differentiability alone — on the lattice \(d\langle P_{\varphi}\rangle\) IS \((\Delta P_{\varphi})^2\) per step, entering through \(\tfrac12\Gamma_{\varphi}\). ALSO PROVED: \(\pi^{\mathrm{IL}} = 0\) at inception and \(\pi^{\mathrm{IL}} \geq 0\) everywhere (mean value + the antitone reserve, the hypothesis exactly sufficient).
+
+*Formalized* (`PiPayoffs`, project `70b9558f`, axiom-clean — the consistency sweep found NO inconsistency): `smooth_path_lvr_zero`; `discrete_second_order_step`; `hodl_drift_consistent`; `il_zero_at_inception`; `il_nonneg`.
 
 
 **Discretization frame** (\(t\)-indexed, shared by FLAIR and MEV; the Lean carriers keep their `w_t`/`D_t`/`a_t` names — standing doc-glyph/Lean-name split). Time is stepped by the cadence \(\Delta t\); per step \(t\):
