@@ -1007,6 +1007,24 @@ Definition 19's \(\bigoplus\)-is-addition is exactly this exactness: fee composi
 	\end{aligned}
 \]
 
+**Definition 42 (HODL drift — price-coordinate form).** \(\dfrac{\partial \pi^{\mathrm{HODL}}}{\partial t} \, = \, \dfrac{\partial P_{\varphi}}{\partial t}\; Q_X^L\big(P_{\varphi}(i^{\circ}(t_0))\big)\) — the reserves FROZEN at inception \(t_0\); the drift of Definition 30's HODL value in price coordinates (user TODO item 3, 2026-08-11).
+
+**Definition 43 (Rebalancing drift).** \(\dfrac{\partial \pi^{R}}{\partial t} \, = \, \dfrac{\partial P_{\varphi}}{\partial t}\; Q_X^L\big(P_{\varphi}(i^{\circ}(t))\big)\) — the SAME form at the CURRENT tick: the delta-hedged rebalancing portfolio.
+
+**Definition 44 (Impermanent loss).** \(\pi^{\mathrm{IL}} \, \equiv \, \pi^{\mathrm{HODL}} - \pi^{\varphi}\), hence \(\partial_t \pi^{\mathrm{IL}} = \partial_t \pi^{\mathrm{HODL}} - \partial_t \pi^{\varphi}\).
+
+**Proposition 15 (Dynamic decomposition).** With the second-order expansion of the portfolio value along the price,
+
+\[
+	\begin{aligned}
+		\frac{\partial \pi^{\varphi}}{\partial t} \, = \, \frac{\partial \pi^{\varphi}}{\partial P_{\varphi}}\,\partial P_{\varphi} \, + \, \tfrac{1}{2}\,\frac{\partial^2 \pi^{\varphi}}{\partial P_{\varphi}^2}\, d\langle P_{\varphi}\rangle_t, \qquad
+		\boxed{\;\frac{\partial \pi^{\mathrm{LVR}}}{\partial t} \, = \, \frac{\partial \pi^{R}}{\partial t} \, - \, \frac{\partial \pi^{\varphi}}{\partial t}\;}
+	\end{aligned}
+\]
+
+and by the PROVED envelope (\(\partial \pi^{\varphi}/\partial P_{\varphi} = Q_X^L\), Theorem 32's carrier) the boxed law collapses to \(\partial_t \pi^{\mathrm{LVR}} = -\tfrac{1}{2}\,\Gamma_{\varphi}\, d\langle P_{\varphi}\rangle_t \, \geq 0\) — CONSISTENT with this Definition 26. On a \(C^1\) price path the LVR rate is IDENTICALLY ZERO: LVR is generated ONLY by quadratic variation. **FLAG (user, 2026-08-11):** \(d\langle P_{\varphi}\rangle_t\) needs its DISCRETE-CALCULUS formulation — on the lattice the candidate is \((\Delta P_{\varphi})^2\) per step; the π-bundle targets the discrete second-order step that grounds it. *Status:* in flight (the π-bundle).
+
+
 **Discretization frame** (\(t\)-indexed, shared by FLAIR and MEV; the Lean carriers keep their `w_t`/`D_t`/`a_t` names — standing doc-glyph/Lean-name split). Time is stepped by the cadence \(\Delta t\); per step \(t\):
 
 - the per-step traded VOLUME in LIQUIDITY UNITS is \(\varphi_{(1/2,\,0)}\big(i(t);\, \Delta Q(t),\, 0\big) \, = \, \sqrt{\Delta Q_M(t)\,\Delta Q_X(t)} \, \geq \, 0\) — Definition 18's zero-liquidity convention: the symmetric geometric mean of the two legs, neither money nor asset alone, commensurable with \(L\) and \(\Delta Q_v^{\star}\); NO alias symbol is minted for it (the former \(\Delta Q_{\cdot}(t)\) is retired — user ruling 2026-08-04);
