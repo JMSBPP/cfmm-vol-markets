@@ -367,11 +367,11 @@ with ratio \(\lambda^{-\Delta_i}\) — \(\lambda\) the fixed tick base (Protocol
 
 \[
 	\begin{aligned}
-		\Gamma_{\varphi} \, = \, -\tfrac{1}{2}\;\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\;p_{\varphi}^{-3/2}
+		\Gamma_{\varphi} \, = \, -\tfrac{1}{2}\;\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\;\Gamma_{\varphi}(p_{\varphi})
 	\end{aligned}
 \]
 
-SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-shaped EXPRESSIONS where they are this object — never a derivative operator (user ruling 2026-08-11).
+SUBSTITUTION RULE (operational, user ruling 2026-08-11): \(p_{\varphi}^{-3/2} \to \Gamma_{\varphi}(\cdot)\) and \(p_{\varphi}^{3/2} \to 1/\Gamma_{\varphi}(\cdot)\) wherever they appear (argument tick or marginal price, Definition 41) — never a derivative operator.
 
 **Theorem 38 (Gamma grid — the \(\xi\)-coordinatization) *(promoted from Proposition 14 — the number is retired, not reused)*.** On the grid, at the pinned member (\(\chi_{X/M} = 1/2\); consumes Theorem 40's inverse-product form and inherits its orientation FLAG):
 
@@ -393,7 +393,7 @@ SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-s
 	\end{aligned}
 \]
 
-— the \(\xi\)-power map of the tick, the exponent being the tick warped by the factor \(3\eta\) with the half-spacing offset from the marginal price's adjacent product. The coordinate IS \(\Gamma_{\varphi}(i)\) — PURE (dimensionless, tick-scale, int24; no liquidity factor, exactly as Definition 8's map carries none; user units ruling 2026-08-11) — and no auxiliary exponent symbol is minted. Disambiguation by argument: with a TICK argument \(\Gamma_{\varphi}(i)\) is this coordinate map; bare \(\Gamma_{\varphi}\) remains Definition 38's payoff second derivative, whose grid VALUE is \(-\tfrac12\,\bar L_{(1/2,\,0)}\,\Gamma_{\varphi}(i)\) (Theorem 38) — the liquidity multiplication is EVALUATION in liquidity units (uint128), the same split as Definition 9's amounts, the on-chain product at 128+24-bit scale.
+— the \(\xi\)-power map of the tick, the exponent being the tick warped by the factor \(3\eta\) with the half-spacing offset from the marginal price's adjacent product. The coordinate IS \(\Gamma_{\varphi}(i)\) — PURE (dimensionless, tick-scale, int24; no liquidity factor, exactly as Definition 8's map carries none; user units ruling 2026-08-11) — and no auxiliary exponent symbol is minted. Disambiguation by argument: with a TICK argument \(\Gamma_{\varphi}(i)\) is this coordinate map; with the MARGINAL PRICE as argument, \(\Gamma_{\varphi}(p_{\varphi}) \equiv p_{\varphi}^{-3/2}\) — the SAME map read through the price (on the grid \(\Gamma_{\varphi}(i) = \Gamma_{\varphi}(p_{\varphi}(i))\), Theorem 38); bare \(\Gamma_{\varphi}\) remains Definition 38's payoff second derivative, whose grid VALUE is \(-\tfrac12\,\bar L_{(1/2,\,0)}\,\Gamma_{\varphi}(i)\) (Theorem 38) — the liquidity multiplication is EVALUATION in liquidity units (uint128), the same split as Definition 9's amounts, the on-chain product at 128+24-bit scale.
 
 **Theorem 39 (The compositional reading; the flatness threshold).** With \(L(t) \equiv \bar L_{(1/2,\,0)}\,\xi^{t}\) the \(\xi\)-geometric liquidity read on the tick coordinate (the argument is a TICK VALUE, not a new symbol):
 
@@ -523,7 +523,7 @@ The display is one member of a parameterized class: the subscript tuple is \((\c
 	\end{aligned}
 \]
 
-where \(\epsilon_{p/X}^{\,0}\) is the same elasticity for the \(\epsilon_{X/M} = 0\) (constant-product) member at the same point. \(\epsilon_{p/X}\) is an **observable** of any member of the trading-function class (Definition 12), not a parameter: the second derivative of \(\varphi\) enters through it (the derivative of the marginal price), and the benchmark normalization makes \(\kappa_{\varphi}\) scale-free, with the constant-product pool at \(\kappa_{\varphi} = 1/2\). Notation binding: \(\kappa_{\varphi}\) names the **genuine** curvature (\(\varphi\) the quote function, never the fee \(\phi\)); the share-asymmetry index \(\varsigma_{X/M}\) is NOT a curvature. <!-- notation-map -->
+where \(\epsilon_{p/X}^{\,0}\) is the same elasticity for the \(\epsilon_{X/M} = 0\) (constant-product) member at the same point. \(\epsilon_{p/X}\) is an **observable** of any member of the trading-function class (Definition 12), not a parameter: the second derivative of \(\varphi\) enters through it (the derivative of the marginal price), and the benchmark normalization makes \(\kappa_{\varphi}\) scale-free, with the constant-product pool at \(\kappa_{\varphi} = 1/2\). Notation binding: \(\kappa_{\varphi}\) names the **genuine** curvature (\(\varphi\) the quote function, never the fee \(\phi\)); the share-asymmetry index \(\varsigma_{X/M}\) is NOT a curvature. <!-- notation-map --> **STRUCTURAL TYPING (user question, 2026-08-11):** \(\kappa_{\varphi}\) is NOT the Gaussian curvature of \(\varphi\)'s graph — that is IDENTICALLY ZERO for every member (the Refutation note below; `hessian_det_zero`). It is curvature-typed OF THE LEVEL CURVE: the level set's planar curvature is \(\big|\partial p_{\varphi}/\partial Q_X^L\big| \big/ (1+p_{\varphi}^2)^{3/2}\), whose Euclidean factor \((1+p_{\varphi}^2)^{3/2}\) requires a metric on reserve space — UNAVAILABLE, the axes carry different units. The metric-free part is the price impact \(= 1\big/\big(\tfrac12\bar L\,\Gamma_{\varphi}(p_{\varphi})\big)\) (the reciprocal gamma value), and the missing normalization is supplied by the BENCHMARK MEMBER at the same point instead of a metric — which is exactly this definition. That is why the \(\kappa\) glyph is earned: the curvature of the TRADING CURVE, normalized member-against-member because reserve space has no canonical metric.
 
 *Formalized:* the definitional layer is now carried AT THE BALANCED POINT — `PayoffGeometry.epsPX` (the elasticity as a genuine along-curve derivative) and `kappaPhi` (this definition's benchmark normalization), with Theorem 31 proving the closed form FROM them; `CurvatureTwo.curvTwo`'s by-fiat status is resolved by agreement with `kappaPhi_closed_form`. The GENERAL-point elasticity remains an observable without a dedicated carrier.
 
@@ -627,7 +627,7 @@ CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because
 
 \[
 	\begin{aligned}
-		\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(Q_X^{L},Q_M^{L}) \, &\equiv \, \frac{-2\,\big(\partial_{Q_X}\varphi\;\partial_{Q_M}\varphi\big)^{3/2}}{\partial^2_{Q_M}\varphi\,(\partial_{Q_X}\varphi)^2 \, - \, 2\,\partial^2_{Q_XQ_M}\varphi\,\partial_{Q_X}\varphi\,\partial_{Q_M}\varphi \, + \, \partial^2_{Q_X}\varphi\,(\partial_{Q_M}\varphi)^2} \, = \, \frac{-2\,p_{\varphi}^{3/2}}{\frac{\partial p_{\varphi}}{\partial Q_X^{L}}}
+		\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(Q_X^{L},Q_M^{L}) \, &\equiv \, \frac{-2\,\big(\partial_{Q_X}\varphi\;\partial_{Q_M}\varphi\big)^{3/2}}{\partial^2_{Q_M}\varphi\,(\partial_{Q_X}\varphi)^2 \, - \, 2\,\partial^2_{Q_XQ_M}\varphi\,\partial_{Q_X}\varphi\,\partial_{Q_M}\varphi \, + \, \partial^2_{Q_X}\varphi\,(\partial_{Q_M}\varphi)^2} \, = \, \frac{-2\,\big(1/\Gamma_{\varphi}(p_{\varphi})\big)}{\frac{\partial p_{\varphi}}{\partial Q_X^{L}}}
 	\end{aligned}
 \]
 
@@ -648,7 +648,7 @@ and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree
 
 *Formalized* (`EllIntrinsic`, 10/10 axiom-clean, project `9786b137`; doc \(\bar L_{(\chi,\epsilon)}\) ↔ Lean `ell`, doc \(\chi_{X/M}\) ↔ Lean `ε`, doc \(\epsilon_{X/M}\) ↔ Lean `ρ` — the Lean names predate the doc glyphs and are NOT renamed): closed form `ellAt_eq_ell_corrected`; limits `ell_tendsto_geom`, `ell_tendsto_cpmm`, `ell_tendsto_atTop_rho_one`; `ell_homogeneous`; state-constancy `ell_ratio_const_iff`. **REFUTED as first stated:** `ellAt_eq_ell_false` — the guard \(0 < Q_M\) does NOT place the state inside the level set (`Real.rpow` off the positives carries a \(\cos(\pi\cdot)\) factor, so a NEGATIVE radicand can still yield a positive leg); at the witness the two sides carry opposite signs. The interior guard below is that correction, not a hedge.
 
-**Theorem 30 (Half-kernel reduction).** Strictly inside the level set, the \(\chi_{X/M} = 1/2\) member carrying \(\bar L_{(1/2,\,0)} \leftarrow \bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\) reproduces BOTH the marginal price and its first-order price impact, the latter being exactly \(-2\,p_{\varphi}^{3/2}\big/\bar L_{(1/2,\,0)}\). Every quantity factoring through \((p_{\varphi}, \frac{\partial p_{\varphi}}{\partial Q_X^{L}})\) — \(\frac{\partial \pi}{\partial p}\), \(\Gamma_{\varphi}\), \(\pi^{\mathrm{LVR}}\), the per-strike amounts of Definitions 9–11 — is therefore computable on the half-kernel, which is what on-chain venues instantiate. **Scope, stated not buried:** the match is LOCAL and SECOND-ORDER — it pins \(\Gamma_{\varphi}\), NOT \(\frac{\partial^2 p_{\varphi}}{\partial (Q_X^{L})^2}\); and a local match is not a global match of Definition 25's value function, which is obtained by integration.
+**Theorem 30 (Half-kernel reduction).** Strictly inside the level set, the \(\chi_{X/M} = 1/2\) member carrying \(\bar L_{(1/2,\,0)} \leftarrow \bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\) reproduces BOTH the marginal price and its first-order price impact, the latter being exactly \(-2\big/\big(\Gamma_{\varphi}(p_{\varphi})\,\bar L_{(1/2,\,0)}\big)\). Every quantity factoring through \((p_{\varphi}, \frac{\partial p_{\varphi}}{\partial Q_X^{L}})\) — \(\frac{\partial \pi}{\partial p}\), \(\Gamma_{\varphi}\), \(\pi^{\mathrm{LVR}}\), the per-strike amounts of Definitions 9–11 — is therefore computable on the half-kernel, which is what on-chain venues instantiate. **Scope, stated not buried:** the match is LOCAL and SECOND-ORDER — it pins \(\Gamma_{\varphi}\), NOT \(\frac{\partial^2 p_{\varphi}}{\partial (Q_X^{L})^2}\); and a local match is not a global match of Definition 25's value function, which is obtained by integration.
 
 *Formalized:* `halfKernel_price_impact` (the impact law, proved as stated); `halfKernel_osculates_corrected`. **REFUTED as first stated:** `halfKernel_osculates_false` — same defective guard as Theorem 29; at the witness the prices agree while the impacts carry opposite signs.
 
@@ -661,7 +661,7 @@ and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree
 
 \[
 	\begin{aligned}
-		\frac{\partial Q_X^L}{\partial p_{\varphi}} \, = \, \frac{-\,\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}}{2\,p_{\varphi}^{3/2}} \, = \, \Gamma_{\varphi}, \qquad
+		\frac{\partial Q_X^L}{\partial p_{\varphi}} \, = \, -\tfrac{1}{2}\,\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\,\Gamma_{\varphi}(p_{\varphi}) \, = \, \Gamma_{\varphi}, \qquad
 		\frac{\partial Q_M^L}{\partial p_{\varphi}} \, = \, \frac{\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}}{2\,\sqrt{p_{\varphi}}}, \qquad
 		\frac{\partial Q_M^L}{\partial Q_X^L} \, = \, -\,p_{\varphi}, \qquad
 		\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\big(Q_X^L, Q_M^L\big) \, = \, c
@@ -676,7 +676,7 @@ and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree
 
 \[
 	\begin{aligned}
-		L(p_{\varphi}) \, \equiv \, \frac{\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}}{2\,p_{\varphi}^{3/2}}
+		L(p_{\varphi}) \, \equiv \, \tfrac{1}{2}\,\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\,\Gamma_{\varphi}(p_{\varphi})
 	\end{aligned}
 \]
 
@@ -708,7 +708,7 @@ and the field factors through the pair (price; level) ALONE: \(\bar L_{(\chi_{X/
 		p_{\varphi^{\sigma}} \, = \, L_{\sigma} - \tfrac{1}{2}Q_X^{L_{\sigma}}, \qquad
 		\frac{\partial p_{\varphi^{\sigma}}}{\partial Q_X^{L_{\sigma}}} \, = \, -\tfrac{1}{2}, \qquad
 		\Gamma_{\varphi^{\sigma}} \, = \, -2, \qquad
-		\bar L_{\varphi^{\sigma}} \, = \, 4\,p_{\varphi^{\sigma}}^{3/2}
+		\bar L_{\varphi^{\sigma}} \, = \, 4\big/\Gamma_{\varphi}(p_{\varphi^{\sigma}})
 	\end{aligned}
 \]
 
@@ -1612,7 +1612,7 @@ Sensitivities are written in REGULAR partial-derivative notation (user ruling 20
 — on-lattice these ARE the finite differences (the identification is the convention, stated once here).
 
 External delta `Δ`/`δ` → \(\frac{\partial \pi}{\partial p}\), \(p = p_{(\eta, \Delta_i)}(i;t)\) (`Δ` is this document's difference operator; `δ_S, δ_R` are J1's swap curves). <!-- notation-map -->
-External gamma → \(\Gamma_{\varphi} \equiv \frac{\partial^2 \pi^{\varphi}}{\partial (p_{\varphi})^2}\) — STRUCTURALLY: the second derivative of Definition 25's portfolio value against the MARGINAL price (user ruling 2026-08-11; closed form \(-\tfrac12\,\bar L_{(\chi_{X/M},\epsilon_{X/M})}\,p_{\varphi}^{-3/2}\), Theorem 32). The glyph is \(\Gamma_{\varphi}\) document-wide, mirroring \(\kappa_{\varphi}\); bare Γ is not used. SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-SHAPED EXPRESSIONS where they are this object — never a derivative operator; the sigmoid steepness is ALWAYS subscripted `γ_j` (mirror of the κ/ς_{X/M} rule). <!-- notation-map -->
+External gamma → \(\Gamma_{\varphi} \equiv \frac{\partial^2 \pi^{\varphi}}{\partial (p_{\varphi})^2}\) — STRUCTURALLY: the second derivative of Definition 25's portfolio value against the MARGINAL price (user ruling 2026-08-11; closed form \(-\tfrac12\,\bar L_{(\chi_{X/M},\epsilon_{X/M})}\,\Gamma_{\varphi}(p_{\varphi})\), Theorem 32). The glyph is \(\Gamma_{\varphi}\) document-wide, mirroring \(\kappa_{\varphi}\); bare Γ is not used. SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-SHAPED EXPRESSIONS where they are this object — never a derivative operator; the sigmoid steepness is ALWAYS subscripted `γ_j` (mirror of the κ/ς_{X/M} rule). <!-- notation-map -->
 External theta Θ → IDENTIFIED with this document's \(\theta \equiv \Delta\pi/\Delta t\) (the exponent-sign FLAG — RESOLVED 2026-08-03, negative — on its display stands); `Θ_•` remains parameter-set notation and is never a Greek. <!-- notation-map -->
 External vega ν → NEVER imported (`ν_t = w_t/D_t`, M6b); all vegas through \(\upsilon \equiv \Delta\pi/\Delta\sigma^2\) (bound, = t/2); σ-convention vega is written \(2\,\sigma(i(t))\,\upsilon\). <!-- notation-map -->
 Maymin's liquidity Greek `Λ = ∂C/∂k` → \(\frac{\partial C}{\partial \bar L_{(1/2,\,0)}}\) (Greek of the LONG CALL C, Def 2 eq (33) — NOT of π) via \(k = \bar L_{(1/2,\,0)}^2\) (CPMM), his \(\Lambda = \frac{\partial C}{\partial \bar L_{(1/2,\,0)}}/(2\bar L_{(1/2,\,0)})\); `Λ(·)` stays the logistic. <!-- notation-map -->
@@ -1639,14 +1639,14 @@ Per tick \(i_K\), band \([i_l, i_u]\), sqrt-price convention (`PosSpec.tickPrice
 		\end{cases} \\
 		\Gamma_{\varphi}\,(i_K) \, &= \,
 		\begin{cases}
-			-\tfrac{1}{2}\, L_{(1/2,\,0)}(i_K)\, p^{-3/2} & p(i_l) < p < p(i_u) \\
+			-\tfrac{1}{2}\, L_{(1/2,\,0)}(i_K)\, \Gamma_{\varphi}(p) & p(i_l) < p < p(i_u) \\
 			0 & \text{otherwise}
 		\end{cases}
-		\, = \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\,p^{-3/2}\,\mathbb{1}_{(i_l,i_u)}
+		\, = \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\,\Gamma_{\varphi}(p)\,\mathbb{1}_{(i_l,i_u)}
 	\end{aligned}
 \]
 
-> \(L_{(1/2,\,0)}(i_K)\) IN THIS DISPLAY IS THE INTRINSIC LIQUIDITY (Definition 32): \(\Gamma_{\varphi} = -\tfrac12\,\bar L_{(\chi_{X/M},\epsilon_{X/M})}\,p_{\varphi}^{-3/2}\) holds for EVERY member, because \(\frac{\partial^2 \pi}{\partial p^2} = \frac{\partial Q_X^{L}}{\partial p}\) (envelope) and Definition 32 is exactly \(-2p_{\varphi}^{3/2}/\frac{\partial p_{\varphi}}{\partial Q_X^{L}}\). The ladder form below is the \(\chi_{X/M} = 1/2\) instance, \(L_{(1/2,\,0)}(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\); off that member the coefficient is the state-dependent field, not a level (Theorem 29). Whether a ladder REALIZES a given member's field is Proposition 12, OPEN.
+> \(L_{(1/2,\,0)}(i_K)\) IN THIS DISPLAY IS THE INTRINSIC LIQUIDITY (Definition 32): \(\Gamma_{\varphi} = -\tfrac12\,\bar L_{(\chi_{X/M},\epsilon_{X/M})}\,\Gamma_{\varphi}(p_{\varphi})\) holds for EVERY member, because \(\frac{\partial^2 \pi}{\partial p^2} = \frac{\partial Q_X^{L}}{\partial p}\) (envelope) and Definition 32 is exactly \(-2\big(1/\Gamma_{\varphi}(p_{\varphi})\big)\big/\frac{\partial p_{\varphi}}{\partial Q_X^{L}}\). The ladder form below is the \(\chi_{X/M} = 1/2\) instance, \(L_{(1/2,\,0)}(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\); off that member the coefficient is the state-dependent field, not a level (Theorem 29). Whether a ladder REALIZES a given member's field is Proposition 12, OPEN.
 >
 > Clark: value eq (10), delta = the UNNUMBERED §4.2 p. 5 display (`L/√p − L/√p_b` in-range, current p), gamma = eq (12) (`−½Lp^{−3/2}`); eq (13) is Green–Jarrow spanning, never cite it for a Greek. Kristensen eq (3.21)/(3.24). Γ jumps at the band edges (the bounded-range correction); \(\partial\pi/\partial p\) is continuous, kinked. LEAN: the value layer is `Flow.terminalPayoff` + `GeomProfile.geom_terminalPayoff_total`; the \(\partial\pi/\partial p, \Gamma_{\varphi}\) displays are UNFORMALIZED (bundle targets).
 
@@ -1654,7 +1654,7 @@ Aggregate over the ladder (partition of unity `geomWeight_sum`):
 
 \[
 	\begin{aligned}
-		\Gamma^{\Sigma}_{\varphi}(p) \, &= \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\, p^{-3/2} \sum_{i_K}\,\ell(\xi,\iota;i_K)\,\mathbb{1}_{p \in (i_l,i_u)(i_K)} \\
+		\Gamma^{\Sigma}_{\varphi}(p) \, &= \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\, \Gamma_{\varphi}(p) \sum_{i_K}\,\ell(\xi,\iota;i_K)\,\mathbb{1}_{p \in (i_l,i_u)(i_K)} \\
 		\xi = \xi^{\star} = \lambda_{\text{tick}}^{-\Delta_i/2} \; &\implies \; \Gamma^{\Sigma}_{\varphi}\big(p(i_K)\big)\, p(i_K)^2 \, = \, \text{const in } i_K \quad \textbf{(GRID-EXACT)} \\
 		\text{but pointwise, inside band } i_K: \; \Gamma^{\Sigma}_{\varphi}p^2 \, &= \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\,\ell(\xi^{\star},\iota;i_K)\, p^{1/2} \;\propto\; p^{1/2}, \quad \text{swing } \lambda_{\text{tick}}^{\Delta_i/2} \text{ per band} \quad \textbf{(BAND-MODULATED)}
 	\end{aligned}
@@ -1789,7 +1789,7 @@ The EXACT row is exact BY THEOREM 30, not by luck: a venue stores \((\texttt{sqr
 
 \[
 	\begin{aligned}
-		\text{EXACT on-chain: } & \partial\pi/\partial p\text{-ladder},\; \Gamma_{\varphi}\text{-ladder (sqrtPriceX96, ticks, } L\text{; } p^{3/2} = \text{mulDiv chain)},\; \upsilon = t/2,\; \theta_{\text{fee}} \text{ ex-post (feeGrowthInside, streamia)} \\
+		\text{EXACT on-chain: } & \partial\pi/\partial p\text{-ladder},\; \Gamma_{\varphi}\text{-ladder (sqrtPriceX96, ticks, } L\text{; } 1/\Gamma_{\varphi} \text{ via mulDiv — or the } \xi\text{-exponent lookup, Theorem 39)},\; \upsilon = t/2,\; \theta_{\text{fee}} \text{ ex-post (feeGrowthInside, streamia)} \\
 		\text{APPROXIMABLE: } & \phi(\sigma)\text{ (expWad logistic)},\; \theta_{\text{decay}} \text{ (expWad+sqrt; sign RESOLVED: negative)},\; \sigma^2(i(t)) \text{ (E2/E5 ledger — see caveat)},\; \frac{\partial \pi}{\partial \bar L_{(1/2,\,0)}} \text{ (relative form exact)} \\
 		\text{OFF-CHAIN: } & \text{CEV prices and } \mathbb{P}_{Y_{n,c}\le x} \text{ tails},\; \sigma^{\star}_{\phi} \text{ inversion},\; \frac{\partial C}{\partial \bar L_{(1/2,\,0)}},\; \frac{\partial C}{\partial \Delta Q_M} \text{ model values (lnWad for } \bar v^2\text{; schedule input exact)}
 	\end{aligned}
@@ -1814,11 +1814,11 @@ The EXACT row is exact BY THEOREM 30, not by luck: a venue stores \((\texttt{sqr
 
 \[
 	\begin{aligned}
-		\Gamma_{\varphi} \, &= \, -\tfrac{1}{2}\;\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\;p_{\varphi}^{-3/2}
+		\Gamma_{\varphi} \, &= \, -\tfrac{1}{2}\;\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\;\Gamma_{\varphi}(p_{\varphi})
 	\end{aligned}
 \]
 
-**The proportionality to \(\kappa_{\varphi}\) is FALSE as first written, and no proportionality constant exists.** \(\kappa_{\varphi}\) is dimensionless and a function of \(\epsilon_{X/M}\) ALONE (\(\Theta_p\) entry); \(\Gamma_{\varphi}\) carries the dimension of \(\bar L_{(1/2,\,0)}\,p_{\varphi}^{-3/2}\) and its coefficient is the state-dependent field of Theorem 29. The two sit on different axes — \(\bar L_{(\chi,\epsilon)}\) moves with the SHARE, \(\kappa_{\varphi}\) with the SUBSTITUTION parameter — so no scalar relates them. *Formalized* (`PayoffGeometry`, project `68d1b02a`, axiom-clean): `deriv_piVal` (the envelope) + `gamma_eq_ell` (the identity, on the corrected interior guard).
+**The proportionality to \(\kappa_{\varphi}\) is FALSE as first written, and no proportionality constant exists.** \(\kappa_{\varphi}\) is dimensionless and a function of \(\epsilon_{X/M}\) ALONE (\(\Theta_p\) entry); \(\Gamma_{\varphi}\) carries the dimension of \(\bar L_{(1/2,\,0)}\,\Gamma_{\varphi}(p_{\varphi})\) and its coefficient is the state-dependent field of Theorem 29. The two sit on different axes — \(\bar L_{(\chi,\epsilon)}\) moves with the SHARE, \(\kappa_{\varphi}\) with the SUBSTITUTION parameter — so no scalar relates them. *Formalized* (`PayoffGeometry`, project `68d1b02a`, axiom-clean): `deriv_piVal` (the envelope) + `gamma_eq_ell` (the identity, on the corrected interior guard).
 
 **\(\Theta_{\Gamma_{\varphi}} = \Theta_{\varphi}\), with no proper subset.** Theorem 29's closed form carries BOTH \(\chi_{X/M}\) (through \(2\sqrt{\chi_{X/M}(1-\chi_{X/M})}\)) and \(\epsilon_{X/M}\) (through the exponent and the denominator), so neither parameter can be dropped; \(\Gamma_{\varphi}\) additionally depends on the reserve state whenever \(\epsilon_{X/M} \neq 0\). A separate index would be an alias, not a reduction — none is minted.
 
