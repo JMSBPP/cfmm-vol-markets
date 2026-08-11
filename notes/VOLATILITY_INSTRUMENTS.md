@@ -342,8 +342,7 @@ with ratio \(\lambda^{-\Delta_i}\) — \(\lambda\) the fixed tick base (Protocol
 
 \(\lambda\) being fixed (\(\mathcal{C}_p\)), \(\xi^{\star}\) is pinned by \(\Delta_i\) alone — consistent with the \(\Theta_{\ell}\) registry entry, where \(\xi\) is the parameter and \(\xi^{\star} = \lambda^{-\Delta_i/2}\) its pinned value.
 
-> These things below have not beeing deifned. Use instead \Gamma_{\varphi} and \kappa_{\varphi} which seems to covrer the terms that apepar 
-*Status:* the sampling half is **proved** — \(K^{-1/2}\) on the grid is geometric with ratio \(\lambda^{-\Delta_i/2}\) (`logContractLiquidity_geometric`). The replication premise — \(\ell(K) \propto K^{-1/2}\) from the curvature relation \(\ell(P) = -2P^{3/2}V''(P)\), \(V''(P) = -1/P^2\), adapted from [VOL_SWAPS](../refs/DemeterfietalVarianceSwaps.pdf) — is **OPEN** in-tree (the payoff-level curvature bridge is future work).
+*Status:* the sampling half is **proved** — \(K^{-1/2}\) on the grid is geometric with ratio \(\lambda^{-\Delta_i/2}\) (`logContractLiquidity_geometric`). The replication premise is now stated on IN-DOCUMENT objects (user ruling 2026-08-11 — the former \(\ell(P), V''(P)\) were undefined imports): for the log payoff, \(\Gamma_{\varphi}[\pi^{\log}] = -1/p_{\varphi}^{2}\) ([VOL_SWAPS](../refs/DemeterfietalVarianceSwaps.pdf)), and Definition 33 + Theorem 34 (\(L(p_{\varphi}) = -\Gamma_{\varphi}\), \(\bar L = 2p_{\varphi}^{3/2}L(p_{\varphi})\)) give \(\bar L \propto p_{\varphi}^{-1/2}\) — the \(K^{-1/2}\) law. **OPEN** in-tree: the payoff-level step \(\Gamma_{\varphi}[\pi^{\log}] = -1/p_{\varphi}^{2}\) (consumes the pending \(\pi^{\log}\) definition); the channel half is Theorem 34, PROVED.
 
 *Formalized (sampling half):* `GeomProfile.logContractLiquidity_geometric`; bridge to the ladder weights: `VolInstrument.strikeWeight_bridge`.
 
