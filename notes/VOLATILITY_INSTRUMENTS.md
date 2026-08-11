@@ -384,13 +384,21 @@ SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-s
 
 — **gamma units**: \(\Gamma_{\varphi}\) is a pure \(\xi\)-power of the tick, exactly as \(p_{(\eta,\Delta_i)}\) is a \(\lambda\)-power of it; the factor \(3 = \tfrac{3}{2}\times 2\) (the \(p^{3/2}\) shape composed with the marginal-price step being the SQUARE of the grid step). *Formalized* (`GammaGrid`, project `589d44ac`, axiom-clean): `gamma_grid_level`, `gamma_grid_ratio`, via `pPhiGrid_eq` — the marginal grid price is itself a pure \(\lambda\)-power.
 
-**Definition 41 (The gamma coordinate).** \(\gamma(i) \, \equiv \, -\,3\eta\,\big(i + \tfrac{\Delta_i}{2}\big)\) — the \(\xi\)-coordinate warped by the factor \(3\eta\), the half-spacing offset from the marginal price's adjacent product. \(\xi\) is the LIQUIDITY coordinate; \(\gamma\) is DERIVED from it (user proposal 2026-08-11).
-
-**Theorem 39 (The compositional reading; the flatness threshold).** With \(L(t) \equiv \bar L_{(1/2,\,0)}\,\xi^{t}\) the \(\xi\)-geometric liquidity read on the tick coordinate:
+**Definition 41 (The gamma coordinate; AMENDED 2026-08-11 — no separate \(\gamma\) glyph).** \(\xi\) is a COORDINATE BASE, exactly as \(\lambda\) is: \(\lambda\) carries the price coordinate through the map \(p_{(\eta,\Delta_i)}(i) = \lambda^{i\Delta_i\eta/2}\) (Definition 8), and \(\xi\) carries the GAMMA COORDINATE through the map
 
 \[
 	\begin{aligned}
-		\Gamma_{\varphi}(i_K) \, &= \, -\tfrac{1}{2}\,L\big(\gamma(i_K)\big) \qquad \textbf{(gamma IS the liquidity at the warped tick)} \\
+		\Gamma_{\varphi}(i) \, \equiv \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\;\xi^{\,-3\eta\,(i + \Delta_i/2)}
+	\end{aligned}
+\]
+
+— the \(\xi\)-power map of the tick, the exponent being the tick warped by the factor \(3\eta\) with the half-spacing offset from the marginal price's adjacent product. The coordinate IS \(\Gamma_{\varphi}(i)\); no auxiliary exponent symbol is minted.
+
+**Theorem 39 (The compositional reading; the flatness threshold).** With \(L(t) \equiv \bar L_{(1/2,\,0)}\,\xi^{t}\) the \(\xi\)-geometric liquidity read on the tick coordinate (the argument is a TICK VALUE, not a new symbol):
+
+\[
+	\begin{aligned}
+		\Gamma_{\varphi}(i_K) \, &= \, -\tfrac{1}{2}\,L\big(-3\eta(i_K + \Delta_i/2)\big) \qquad \textbf{(gamma IS the liquidity read at the warped tick — Definition 41's map)} \\
 		\text{ladder in place of } \bar L: \quad \Gamma_{\varphi}(i_K) \, &= \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\;\xi^{\,(i_K - i_0)/\Delta_i \, - \, 3\eta(i_K + \Delta_i/2)} \\
 		\text{strike-independent} \; &\iff \; \eta\,\Delta_i \, = \, \tfrac{1}{3}, \qquad \text{flat value } \; -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\;\xi^{-(i_0/\Delta_i + 1/2)}
 	\end{aligned}
