@@ -423,6 +423,19 @@ The \(\kappa\)-map is a LOGARITHMIC coordinate where \(p_{(\eta,\Delta_i)}(i)\) 
 
 *Formalized* (`KappaCoordinate`, project `676a5787`, axiom-clean, all TRUE AS WRITTEN — the suspected reverse of (iv) HOLDS).
 
+**Definition 46 (The fee tree).** The per-spacing fee-growth increments PER UNIT LIQUIDITY at fee \(\phi\) — Definition 9's grid differences, the on-chain `feeGrowthOutside` object:
+
+\[
+	\begin{aligned}
+		g_M(i) \, \equiv \, \phi\,\Big(\frac{1}{p_{(\eta,\Delta_i)}(i)} - \frac{1}{p_{(\eta,\Delta_i)}(i+\Delta_i)}\Big), \qquad
+		g_X(i) \, \equiv \, \phi\,\big(p_{(\eta,\Delta_i)}(i+\Delta_i) - p_{(\eta,\Delta_i)}(i)\big)
+	\end{aligned}
+\]
+
+**Theorem 44 (The trading tree's resident — the cover completed).** (i) The fee tree's per-spacing ratios are the pure powers \(\xi^{\eta\Delta_i}\) (money leg) and \(\xi^{-\eta\Delta_i}\) (asset leg), and THE FEE CANCELS — the tree structure is fee-independent, \(\phi\) only scales levels (`feeTree_bases`); (ii) **the fee trees' \(\kappa_{\varphi}\)-readings are \(+1/2\) and \(-1/2\) — the CPMM curvature, INDEPENDENT of \(\eta\) and \(\Delta_i\)**: the fee legs sit AT the benchmark member on the \(\kappa\)-axis unconditionally — the fee is the \(\kappa\)-axis's canonical probe, mirroring the benchmark member's role in Definition 14's normalization (`feeTree_kappa_reading`); (iii) the two premium legs are GRID-COMMENSURABLE: \(\Gamma_{\varphi}(i)\,p_{\varphi}(i)^2 = p_{\varphi}(i)^{1/2}\) steps with exactly the money-leg fee ratio \(\xi^{\eta\Delta_i}\) — the \(\theta\) split's two legs move on their two trees with ONE base (`theta_legs_commensurable`). THE COVER (user ruling, option (a)): the \(\lambda\)-tree carries the PRICE, the \(\xi\)-tree the premium's DECAY leg, the \(\kappa\)-tree the premium's FEE leg — on-chain: `tickBitmap`, `liquidityNet`, `feeGrowthOutside`, one-to-one. The flow-level deepening of \(\theta_{\text{fee}}\) still consumes the pending \(\pi^{\phi}\)-as-flow ruling.
+
+*Formalized* (`FeeTree`, project `460a63b8`, axiom-clean, 3/3 TRUE AS WRITTEN).
+
 *(Theorem 42's chain is now CLOSED end to end: sampling half `logContractLiquidity_geometric` + `strikeWeight_bridge`; replication premise \(\Gamma_{\varphi}[\pi^{\log}] = -1/p_{\varphi}^{2}\) `piLog_gamma`; the channel half Theorem 34.)*
 
 
