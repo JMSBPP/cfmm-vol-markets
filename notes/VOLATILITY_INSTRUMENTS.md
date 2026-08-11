@@ -61,9 +61,6 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 
 *Formalized:* `Panoptic.streamingPremium` (the discrete accumulation \(\sum_j \theta_j\,\Delta t\)); `streamingPremium_succ`.
 
-
-> RESOLVED (user ruling, 2026-08-03): exponent sign is **NEGATIVE**. Two-part justification: (i) with the display's own prefactor \(p(\cdot)\sigma/\sqrt{8\pi t}\), the bracket is \(-\sigma\sqrt{t}\,d_2\), so the negative sign gives \(e^{-d_2^2/2} \propto \varphi(d_2)\) — exactly the \(r=0\) Black–Scholes dt-leg \(\theta = S\sigma\varphi(d_1)/(2\sqrt t)\) via \(S\varphi(d_1)=K\varphi(d_2)\); (ii) DECISIVE and internal: \(p_{\pi^{\sigma}} \leftarrow \int\theta\) over the price grid CONVERGES only with the negative sign (Gaussian tails) — under \(+\) the assignment defining the option prices diverges. The ATM form cannot discriminate (`theta_atm_closed_form`, exponent vanishes ATM); the tails do.
-
 **Definition 4 (Upsilon).** The **upsilon** of a premium or payoff functional at strike tick \(i_K\) is its per-unit-variance sensitivity, as a lattice finite difference in the variance argument:
 
 \[
@@ -600,7 +597,7 @@ and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree
 
 \[
 	\begin{aligned}
-		\Gamma_{\varphi} \, = \, \mathcal{D}_{p_{\varphi}}[Q_X^L] \, = \, \frac{-\,\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}}{2\,p_{\varphi}^{3/2}}, \qquad
+		\mathcal{D}_{p_{\varphi}}[Q_X^L] \, = \, \frac{-\,\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}}{2\,p_{\varphi}^{3/2}} \, = \, \Gamma_{\varphi}, \qquad
 		\mathcal{D}_{p_{\varphi}}[Q_M^L] \, = \, \frac{\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}}{2\,\sqrt{p_{\varphi}}}, \qquad
 		\mathcal{D}_{Q_X^L}[Q_M^L] \, = \, -\,p_{\varphi}, \qquad
 		\varphi_{(\chi_{X/M},\,\epsilon_{X/M})}\big(Q_X^L, Q_M^L\big) \, = \, c
@@ -623,7 +620,7 @@ and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree
 
 \[
 	\begin{aligned}
-		L(p_{\varphi}) \, = \, -\,\Gamma_{\varphi} \quad \text{(Theorem 32's object; Theorem 33's first entry)}, \qquad
+		L(p_{\varphi}) \, = \, -\,\mathcal{D}_{p_{\varphi}}[Q_X^L] \, = \, -\,\Gamma_{\varphi} \quad \text{(Theorem 32's object)}, \qquad
 		\mathcal{D}_{Q_X^L}[p_{\varphi}] \, = \, -\,\frac{1}{L(p_{\varphi})} \quad \textbf{(the price-impact law)}
 	\end{aligned}
 \]
@@ -1482,7 +1479,7 @@ The sensitivity operator (NEW symbol; `\mathcal{D}` unused in this document — 
 \]
 
 External delta `Δ`/`δ` → \(\mathcal{D}_p[\pi]\), \(p = p_{(\eta, \Delta_i)}(i;t)\) (`Δ` is this document's difference operator; `δ_S, δ_R` are J1's swap curves). <!-- notation-map -->
-External gamma → \(\Gamma_{\varphi} \equiv \mathcal{D}^2_p[\pi]\) (SUBSCRIPTED — user ruling 2026-08-11: the glyph is \(\Gamma_{\varphi}\) document-wide, mirroring \(\kappa_{\varphi}\); bare Γ is not used); the sigmoid steepness is ALWAYS subscripted `γ_j` (mirror of the κ/ς_{X/M} rule). <!-- notation-map -->
+External gamma → \(\Gamma_{\varphi} \equiv \mathcal{D}^2_{p_{\varphi}}[\pi^{\varphi}]\) — STRUCTURALLY: the second derivative of Definition 25's portfolio value against the MARGINAL price (user ruling 2026-08-11; closed form \(-\tfrac12\,\bar L_{(\chi_{X/M},\epsilon_{X/M})}\,p_{\varphi}^{-3/2}\), Theorem 32). The glyph is \(\Gamma_{\varphi}\) document-wide, mirroring \(\kappa_{\varphi}\); bare Γ is not used. SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-SHAPED EXPRESSIONS where they are this object — never an inline \(\mathcal{D}\) operator; the sigmoid steepness is ALWAYS subscripted `γ_j` (mirror of the κ/ς_{X/M} rule). <!-- notation-map -->
 External theta Θ → IDENTIFIED with this document's \(\theta \equiv \Delta\pi/\Delta t\) (the exponent-sign FLAG — RESOLVED 2026-08-03, negative — on its display stands); `Θ_•` remains parameter-set notation and is never a Greek. <!-- notation-map -->
 External vega ν → NEVER imported (`ν_t = w_t/D_t`, M6b); all vegas through \(\upsilon \equiv \Delta\pi/\Delta\sigma^2\) (bound, = t/2); σ-convention vega is written \(2\,\sigma(i(t))\,\upsilon\). <!-- notation-map -->
 Maymin's liquidity Greek `Λ = ∂C/∂k` → \(\mathcal{D}_{\bar L_{(1/2,\,0)}}[C]\) (Greek of the LONG CALL C, Def 2 eq (33) — NOT of π) via \(k = \bar L_{(1/2,\,0)}^2\) (CPMM), his \(\Lambda = \mathcal{D}_{\bar L_{(1/2,\,0)}}[C]/(2\bar L_{(1/2,\,0)})\); `Λ(·)` stays the logistic. <!-- notation-map -->
