@@ -455,7 +455,15 @@ The \(\kappa\)-map is a LOGARITHMIC coordinate where \(p_{(\eta,\Delta_i)}(i)\) 
 	\end{aligned}
 \]
 
-WELL-POSEDNESS is provable: \(\kappa_{\varphi} \in (0,1)\) and \(\bar\nu_{\varphi}(t) \in (0,1)\) give a UNIQUE positive exponent \(g = \ln\bar\nu_{\varphi}/\ln\kappa_{\varphi}\), and the exponent is an ACCUMULATOR — per-step ratios multiply, exponents ADD — matching `feeGrowth`'s accumulator type on the \(\kappa\)-tree. **OPEN (the modelling claim):** the identification of the exponent with Definition 46's fee-tree object \(g_{\varphi}(\cdot; i(t))\). THE CONTROL CLOSURE (design intent, recorded): LVR walks \(\Gamma_{\varphi}\); the fee \(\phi\) walks utilization (Theorem 1); with \(\nu = \kappa_{\varphi}^{g}\) the gate becomes \(u = \alpha_R\,\Lambda\big(\gamma_R(\kappa_{\varphi}^{g} - \beta_R)\big)\) — \(u\) depends on \(\kappa_{\varphi}\), and the kernel \(\alpha_R\) pins AS A FUNCTION OF \(\kappa_{\varphi}\): the fee control loop closes through the trading base. *Status:* the spine is in flight; the identification stays OPEN pending it.
+WELL-POSEDNESS is provable: \(\kappa_{\varphi} \in (0,1)\) and \(\bar\nu_{\varphi}(t) \in (0,1)\) give a UNIQUE positive exponent \(g = \ln\bar\nu_{\varphi}/\ln\kappa_{\varphi}\), and the exponent is an ACCUMULATOR — per-step ratios multiply, exponents ADD — matching `feeGrowth`'s accumulator type on the \(\kappa\)-tree. **OPEN (the modelling claim):** the identification of the exponent with Definition 46's fee-tree object \(g_{\varphi}(\cdot; i(t))\). THE CONTROL CLOSURE (user direction ruling 2026-08-11 — \(u\) is the PINNING INSTRUMENT, not a readout): LVR walks \(\Gamma_{\varphi}\); the fee \(\phi\) walks utilization (Theorem 1); with \(\nu = \kappa_{\varphi}^{g}\) the gate \(u = \alpha_R\,\Lambda\big(\gamma_R(\kappa_{\varphi}^{g} - \beta_R)\big)\) INVERTS uniquely — \(\Lambda\) a strict bijection onto \((0,1)\), \(\gamma_R > 0\), the \(\kappa\)-power strictly monotone for \(g > 0\) — giving
+
+\[
+	\begin{aligned}
+		\kappa_{\varphi} \, = \, \Big(\beta_R \, + \, \tfrac{1}{\gamma_R}\,\Lambda^{-1}\big(u/\alpha_R\big)\Big)^{1/g}
+	\end{aligned}
+\]
+
+— \(u\), ITSELF PINNED by the level program (\(\Theta_{\lambda_{\text{FLAIR}}} = \{\bar\phi, \alpha, u\}\), the proved corner), PINS \(\kappa_{\varphi}\) THROUGH \(\alpha_R\): the utilization gate is the CURVATURE CONTROLLER, and since \(\kappa_{\varphi}\) is the book's coordinate, the gate pins the BOOK design (the LDF departure) — the first machine-shaped answer to what pins \(\theta_{\text{LDF}}\). The inversion's monotonicity spine is half in flight (V3); the \(\Lambda^{-1}\) inversion is the pending rider. *Status:* the spine is in flight; the identification stays OPEN pending it.
 
 *(Theorem 42's chain is now CLOSED end to end: sampling half `logContractLiquidity_geometric` + `strikeWeight_bridge`; replication premise \(\Gamma_{\varphi}[\pi^{\log}] = -1/p_{\varphi}^{2}\) `piLog_gamma`; the channel half Theorem 34.)*
 
