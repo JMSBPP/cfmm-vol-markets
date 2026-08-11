@@ -3,7 +3,7 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 
 > **Numbering.** Blocks in this document continue the sequence of
 > `VOLATILITY_INSTRUMENTS.md` (one shared corpus). Next unused:
-> `Convention 12`, `Definition 38`, `Theorem 42`, `Proposition 14`, `Rule 15`.
+> `Convention 13`, `Definition 38`, `Theorem 45`, `Proposition 14`, `Rule 15`.
 > (`Convention 10` is RETIRED unused — a returns-coordinates block struck before
 > writing because `DOC` owns both halves, Proposition 9 and the `DOC:946` CPMM
 > instantiation; the number is not to be reused.)
@@ -122,6 +122,17 @@ block and not calendar time:
 	\end{aligned}
 \]
 
+**Convention 12 (Gate utilization — realized, block-type-weighted) [M41].**
+*Author ruling 2026-08-10 (`Theorem53d_readings_disagree`): Rule 13's gate argument `ν(t)` is the realized utilization of the executed event, `DOC:836` — not Theorem 36's arb-only response. Legs typed by event per Definition 37's partition; the transactional leg is exogenous under (A-size), (A-input). OPEN (tax8): the schedule consumes the per-event form below; the prover's weighted form is its expectation under Definition 37 — the Convention 7 (event-time) bridge between the two is unresolved and no reading is chosen silently.*
+
+\[
+	\begin{aligned}
+		\nu(t) \; &= \; \nu_{\Delta_{\text{ARB}}}\,\mathbb{1}_{\Delta_{\text{ARB}}} \; + \; \nu_{\Delta_{\text{transactional}}}\,\mathbb{1}_{\Delta_{\text{transactional}}} \; + \; 0\cdot\mathbb{1}_{\text{idle}} \\[8pt]
+		\mathbb{E}\bigl[\nu(t)\bigr] \; &= \; \mathbb{P}_{\Delta_{\text{ARB}}}\,\nu_{\Delta_{\text{ARB}}} \; + \; \bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\,\mathbb{P}_{\Delta_{\text{transactional}}}\,\nu_{\Delta_{\text{transactional}}} \\[8pt]
+		\nu_{\Delta_{\text{ARB}}} \; &\equiv \; \text{Theorem 36's } \nu, \qquad \nu_{\Delta_{\text{transactional}}} \;\; \text{exogenous}
+	\end{aligned}
+\]
+
 **Rule 13 (Fee schedule and standing assumptions) [M11].**
 
 \[
@@ -223,7 +234,7 @@ block and not calendar time:
 	\end{aligned}
 \]
 
-**Proposition 13 (Corrected law) [M24].** *All of $\phi_X$, $\partial\phi_X/\partial\nu$, $\partial\nu/\partial\tau_{\text{MEV}}$ evaluated at $\nu(\tau^{\star}_{\text{MEV}})$. $\partial\nu/\partial\tau_{\text{MEV}} < 0$ rests on $(H2)$ — UNDISCHARGED. The slot is the BARE gate derivative, per `MevTaxProgram.hasDerivAt_phiTot`; the monoid Jacobian is carried separately.*
+**Proposition 13 (Corrected law) [M24].** *All of $\phi_X$, $\partial\phi_X/\partial\nu$, $\partial\nu/\partial\tau_{\text{MEV}}$ evaluated at $\nu(\tau^{\star}_{\text{MEV}})$. Both guard conjuncts of the second display are DISCHARGED by Theorem 42 — $0 < \partial\phi_X/\partial\nu$ iff $\bar\phi < \phi_X$, and $\partial\nu/\partial\tau_{\text{MEV}} < 0$ survives the loop ($\mathcal{F}_{\phi\to\nu\to\phi} > 1$); (H2) is no longer load-bearing here. The law degenerates exactly at $\partial\phi_X/\partial\nu = 0$ (fee at floor), where this block's $\tau^{\star}_{\text{MEV}}$ ceases to exist. The slot is the BARE gate derivative, per `MevTaxProgram.hasDerivAt_phiTot`; the monoid Jacobian is carried separately.*
 
 \[
 	\begin{aligned}
@@ -288,7 +299,9 @@ block and not calendar time:
 		\text{(A-size)} \quad & \text{relative benign trade size } \delta_{\text{transactional}} \;\; \text{exogenous}
 		\qquad \text{(the rate responds to } \phi\text{; the size does not)} \\[8pt]
 		\text{(A-route)} \quad & \pi^{\phi} \;\; \text{accrues the } \phi_M, \phi_X \text{ legs only (Rule 6)};
-		\qquad \tau_{\text{MEV}}\text{'s share is not routed}
+		\qquad \tau_{\text{MEV}}\text{'s share is not routed} \\[8pt]
+		\text{(A-input)} \quad & \alpha_{\text{transactional}},\; \delta_{\text{transactional}} \;\; \text{exogenous \textbf{on-chain inputs} (calldata/config)} \\
+		& \qquad \text{— free parameters } \forall t\text{, never estimated, never solved for (author ruling 2026-08-10)}
 	\end{aligned}
 \]
 
@@ -406,5 +419,62 @@ block and not calendar time:
 		\operatorname{sign}\bigl(\partial_{\phi}(\text{Def. 36})\bigr) \; = \; (+,-,+)
 		\quad &\Longrightarrow \quad
 		\neg\,\text{single crossing}, \;\; \neg\,\text{global concavity}
+	\end{aligned}
+\]
+
+**Theorem 42 (Explicit gate derivative — Proposition 13's guard discharged) [M42].**
+*Under Rule 13 and `DOC` Definition 18; `u` is `DOC` Theorem 1's gate value — distinct from Definition 32's `u_ex`, `u_en`. Slots per Convention 9 as marked. Lean: `MevTaxGate.Theorem54a_gate_derivative_closed_form` … `Theorem54d_bound_attained`.*
+
+\[
+	\begin{aligned}
+		\frac{\partial\phi_X}{\partial\nu} \; &= \; \Bigl(\sum_j \frac{\alpha_j}{1+e^{\gamma_j(\beta_j-\sigma)}}\Bigr)\,\gamma_R\,u\,\Bigl(1-\frac{u}{\alpha_R}\Bigr) \; = \; \gamma_R\,\bigl(\phi_X-\bar\phi\bigr)\Bigl(1-\frac{u}{\alpha_R}\Bigr) \qquad\text{(bare)} \\[8pt]
+		\frac{\partial\phi}{\partial\nu} \; &= \; (1-\phi_M)(1-\tau_{\text{MEV}})\,\gamma_R\,\bigl(\phi_X-\bar\phi\bigr)\Bigl(1-\frac{u}{\alpha_R}\Bigr) \qquad\text{(composed, Convention 9)} \\[8pt]
+		0 \; < \; \frac{\partial\phi_X}{\partial\nu} \; &\Longleftrightarrow \; \bar\phi \; < \; \phi_X \qquad \bigl[\,0<u<\alpha_R \;\;\forall\,\nu\text{ finite — saturation is a limit, never attained}\,\bigr] \\[8pt]
+		\frac{\partial\nu}{\partial\phi} \; < \; 0 \;\;\text{on}\;\; (1+\tfrac{\Delta p}{p})(1-\phi)>1 \quad &\Longrightarrow \quad \frac{\partial\nu}{\partial\tau_{\text{MEV}}} \; = \; \frac{\partial\nu}{\partial\phi}\,(1-\phi_M)(1-\phi_X) \; < \; 0 \qquad\text{(bare chain)} \\[8pt]
+		\mathcal{F}_{\phi\to\nu\to\phi} \; > \; 1, \qquad \frac{d\phi}{d\tau_{\text{MEV}}} \; = \; \frac{(1-\phi_M)(1-\phi_X)}{\mathcal{F}_{\phi\to\nu\to\phi}} \quad &\Longrightarrow \quad \frac{\partial\nu}{\partial\tau_{\text{MEV}}} \; < \; 0 \qquad\text{(loop — damped, never sign-flipped)} \\[8pt]
+		\frac{\partial\phi_X}{\partial\nu} \; &\leq \; \frac{\gamma_R\,\alpha_R}{4}\,\sum_j \alpha_j \qquad \text{(sharp — attained at } u = \alpha_R/2\text{)}
+	\end{aligned}
+\]
+
+**Theorem 43 (Equating the corrected law and the top-up law) [M41].**
+*Under Convention 12. $\tau^{\star}_{\text{corrected}}$ ≡ Proposition 13's $\tau^{\star}_{\text{MEV}}$, $\tau^{\star}_{\text{top-up}}$ ≡ Theorem 39's — subscripts from the blocks' own titles, this block only. The controller objective is Definition 36's, so $\tau^{\star}_{\text{top-up}}$ is operative; equality below is a diagnostic locus, not a design point. Lean: `MevTaxEquating.Theorem53a_algebraic_reduction`, `Theorem53a_is_bracket_zero_restated`, `Theorem53a_bare_slot_is_not_the_bracket`, `Theorem53b_locus_is_codimension_one`, `Theorem53b_point_on_the_locus`, `Theorem53b_point_off_the_locus`, `Theorem53b_no_tau_star_law_under_the_loop`, `Theorem53c_conditional_pinning`, `Theorem53c_pinning_is_vacuous_under_the_loop`.*
+
+\[
+	\begin{aligned}
+		\tau^{\star}_{\text{corrected}} \; = \; \tau^{\star}_{\text{top-up}}
+		\quad &\Longleftrightarrow \quad
+		\frac{\partial\phi_X}{\partial\nu}\,\frac{\partial\nu}{\partial\tau_{\text{MEV}}}\bigg|_{\tau^{\star}}
+		\; = \; -\,\frac{1-\phi_X}{1-\tau^{\star}_{\text{MEV}}}
+		\; = \; -\,\frac{(1-\phi_M)(1-\phi_X)^2}{1-\phi^{\star}} \\[8pt]
+		\text{bracket-zero restatement: \textbf{composed slot only}}
+		\qquad &\text{bare} \; - \; \text{bracket} \; = \; \bigl(1-(1-\phi_M)(1-\tau_{\text{MEV}})\bigr)\,\frac{\partial\phi_X}{\partial\nu}\,\frac{\partial\nu}{\partial\tau_{\text{MEV}}} \\[8pt]
+		\text{(Convention 12)}\quad \forall\,\text{parameter point}\;\; \exists!\;\frac{\partial\nu}{\partial\tau_{\text{MEV}}}\;\text{on the locus:}
+		\quad &\frac{\partial\nu}{\partial\tau_{\text{MEV}}} \; = \; -\,\frac{1-\phi_X}{(1-\tau_{\text{MEV}})\,\bigl(\partial\phi_X/\partial\nu\bigr)}
+		\qquad \text{(codimension one)} \\[8pt]
+		\exists\,\text{witness on locus}\;\bigl(\phi_M,\phi_X,\phi^{\star}\bigr)=\bigl(0,\tfrac14,\tfrac12\bigr):\;\text{both laws}=\tfrac13;
+		\qquad &\exists\,\text{witness off locus: } \tau^{\star}_{\text{corrected}}=\tfrac14\neq\tfrac13=\tau^{\star}_{\text{top-up}}
+		\qquad \bigl[q=\tfrac54>0\bigr] \\[8pt]
+		\nu = \nu_{\Delta_{\text{ARB}}}\;\text{alone (arb-only reading — refuted fork half):}
+		\quad &\text{FOC core} \; = \; \frac{1-\phi_X}{\mathcal{F}_{\phi\to\nu\to\phi}} \; > \; 0 \;\;\forall\,\tau_{\text{MEV}}
+		\;\Longrightarrow\; \neg\,\exists\,\tau^{\star}_{\text{corrected}} \\[8pt]
+		\text{on the locus (Theorem 42):}
+		\quad &\frac{\partial\nu}{\partial\tau_{\text{MEV}}} \; = \; -\,\frac{1-\phi_X}{(1-\tau_{\text{MEV}})\,\gamma_R\,(\phi_X-\bar\phi)\,(1-u/\alpha_R)}
+		\qquad \text{(all protocol-known or observable)}
+	\end{aligned}
+\]
+
+**Theorem 44 (Computability of φ* — the on-chain artifact) [M43].**
+*Under Definitions 36–37, Rule 14, (A-tail), (A-route), (A-input). This block only: $W$ the Lambert function; $\partial_{\phi}^{\text{red}}(\text{Def. 36})$ the reduced first-order condition (positive factors of $\partial_{\phi}(\text{Def. 36})$ divided out; Lean `focTail`); $T$ the iteration map; $[a,b] \subset [0,1)$ the bracket; $m_T, M_T$ the slope bounds; $q_{lo}$ the endpoint lower bound of Theorem 41's quadratic. The Lean symbols `Φ`, `K`, `c`, `Lvr`, `m`, `M` are NOT imported ($\Phi$ = Rule 13's schedule, $K$ = Theorem 32's scalar) — written inline. OPEN: (i) impossibility of an elementary/Lambert closed form for $\sqrt{2/\Delta t} \neq 0$ — differential-Galois, machinery unavailable; (ii) the σ-monotonicity side condition $\alpha_{\text{transactional}}\,\phi \leq 1$ — pointwise hypothesis, standing-vs-local ruling pending. Lean: `MevTaxCompute.Theorem55a_foc_is_exponential_times_quadratic`, `Theorem55a_lambert_reduction_at_c_zero`, `Theorem55b_geometric_convergence`, `Theorem55b_focTail_iteration`, `Theorem55b_explicit_ratio`, `Theorem55b_iteration_witness`, `Theorem55c_focTail_mono_sigma`, `Theorem55c_iterate_mono_in_sigma`, `Theorem55c_root_mono_in_sigma`, `Theorem55d_shutdown_predicate`, `Theorem55d_corner_at_zero_predicate`, `Theorem55d_interior_predicate`.*
+
+\[
+	\begin{aligned}
+		\partial_{\phi}(\text{Def. 36}) = 0 \quad &\Longleftrightarrow \quad e^{-\alpha_{\text{transactional}}\phi}\bigl(\alpha_{\text{transactional}}\sqrt{2/\Delta t}\,\phi^2 + \alpha_{\text{transactional}}\,\sigma\phi - \sigma\bigr) \; = \; \frac{(\sigma^2\Delta t/8)\,\sigma}{(\phi_M\otimes_{\phi}\phi_X)\,\delta_{\text{transactional}}} \qquad \text{(exponential × quadratic)} \\[8pt]
+		\sqrt{2/\Delta t} = 0 \text{ (formal degenerate case):} \quad &\phi^{\star} \; = \; \frac{1 - W\!\Bigl(-e\,\tfrac{\sigma^2\Delta t/8}{(\phi_M\otimes_{\phi}\phi_X)\,\delta_{\text{transactional}}}\Bigr)}{\alpha_{\text{transactional}}}; \qquad \sqrt{2/\Delta t} > 0:\;\text{no Lambert form exhibited — OPEN(i)} \\[8pt]
+		T(x) \; = \; x + \frac{\partial_{\phi}^{\text{red}}(\text{Def. 36})(x)}{M_T}, \qquad &\bigl|T^{[n]}x_0 - \phi^{\star}\bigr| \; \leq \; \Bigl(1-\frac{m_T}{M_T}\Bigr)^{n}(b-a) \qquad \forall\, x_0 \in [a,b], \;\; \exists!\,\phi^{\star}\in[a,b] \\[8pt]
+		m_T \; = \; (\phi_M\otimes_{\phi}\phi_X)\,\delta_{\text{transactional}}\,\alpha_{\text{transactional}}\,e^{-\alpha_{\text{transactional}}b}\,q_{lo}, \qquad &M_T \; = \; (\phi_M\otimes_{\phi}\phi_X)\,\delta_{\text{transactional}}\,\alpha_{\text{transactional}}\,e^{-\alpha_{\text{transactional}}a}\bigl(2\sigma+2\sqrt{2/\Delta t}\,b\bigr) \\[8pt]
+		1-\frac{m_T}{M_T} \; = \; 1 - e^{-\alpha_{\text{transactional}}(b-a)}\,\frac{q_{lo}}{2\sigma+2\sqrt{2/\Delta t}\,b} \qquad &\text{— independent of } (\phi_M\otimes_{\phi}\phi_X)\,\delta_{\text{transactional}}; \quad \exists\,\text{witness } [a,b]=[\tfrac14,\tfrac34]:\; \leq \tfrac{10}{13} \\[8pt]
+		\alpha_{\text{transactional}}\,\phi \leq 1 \;\Longrightarrow\; \sigma_1 \leq \sigma_2 \;\Rightarrow\; &T^{[n]}_{\sigma_1}x_0 \leq T^{[n]}_{\sigma_2}x_0 \;\;\forall n, \qquad \phi^{\star}(\sigma_1) \leq \phi^{\star}(\sigma_2) \qquad \text{(orbit-level pro-cyclicality, Theorem 39)} \\[8pt]
+		\text{shutdown:}\;\; (\phi_M\otimes_{\phi}\phi_X)\,\delta_{\text{transactional}}\sqrt{2/\Delta t} \leq \tfrac{\sigma^2\Delta t}{8}\,\sigma \;&\Rightarrow\; \text{Def. 36} < 0 \;\;\forall\phi; \qquad \partial_{\phi}^{\text{red}}(\text{Def. 36})\bigl(\phi_M\otimes_{\phi}\phi_X\bigr) \leq 0 \;\Rightarrow\; \tau^{\star}_{\text{MEV}} = 0 \\[8pt]
+		\partial_{\phi}^{\text{red}}(\text{Def. 36})\bigl(\phi_M\otimes_{\phi}\phi_X\bigr) > 0 > \partial_{\phi}^{\text{red}}(\text{Def. 36})(b) \;&\Longrightarrow\; \exists!\,\phi^{\star}\in\bigl(\phi_M\otimes_{\phi}\phi_X,\,b\bigr), \qquad \tau^{\star}_{\text{MEV}} \in (0,1) \;\text{via Theorem 39}
 	\end{aligned}
 \]
