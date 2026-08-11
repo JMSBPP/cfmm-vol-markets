@@ -343,9 +343,28 @@ with ratio \(\lambda^{-\Delta_i}\) — \(\lambda\) the fixed tick base (Protocol
 
 \(\lambda\) being fixed (\(\mathcal{C}_p\)), \(\xi^{\star}\) is pinned by \(\Delta_i\) alone — consistent with the \(\Theta_{\ell}\) registry entry, where \(\xi\) is the parameter and \(\xi^{\star} = \lambda^{-\Delta_i/2}\) its pinned value.
 
-*Status:* the sampling half is **proved** — \(K^{-1/2}\) on the grid is geometric with ratio \(\lambda^{-\Delta_i/2}\) (`logContractLiquidity_geometric`). The replication premise is now stated on IN-DOCUMENT objects (user ruling 2026-08-11 — the former \(\ell(P), V''(P)\) were undefined imports): for the log payoff, \(\Gamma_{\varphi}[\pi^{\log}] = -1/p_{\varphi}^{2}\) ([VOL_SWAPS](../refs/DemeterfietalVarianceSwaps.pdf)), and Definition 33 + Theorem 34 (\(L(p_{\varphi}) = -\Gamma_{\varphi}\), \(\bar L = 2p_{\varphi}^{3/2}L(p_{\varphi})\)) give \(\bar L \propto p_{\varphi}^{-1/2}\) — the \(K^{-1/2}\) law. **OPEN** in-tree: the payoff-level step \(\Gamma_{\varphi}[\pi^{\log}] = -1/p_{\varphi}^{2}\) (consumes the pending \(\pi^{\log}\) definition); the channel half is Theorem 34, PROVED.
+**Definition 38 (Gamma).** \(\Gamma_{\varphi} \, \equiv \, \mathcal{D}^2_{p_{\varphi}}[\pi^{\varphi}]\) — the second derivative of Definition 25's portfolio value against the marginal price (Definition 14). Closed form, for every member (Theorem 32):
 
-*Formalized (sampling half):* `GeomProfile.logContractLiquidity_geometric`; bridge to the ladder weights: `VolInstrument.strikeWeight_bridge`.
+\[
+	\begin{aligned}
+		\Gamma_{\varphi} \, = \, -\tfrac{1}{2}\;\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}\;p_{\varphi}^{-3/2}
+	\end{aligned}
+\]
+
+SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-shaped EXPRESSIONS where they are this object — never an inline \(\mathcal{D}\) operator (user ruling 2026-08-11).
+
+**Proposition 14 (Gamma grid — the \(\xi\)-coordinatization).** On the grid, at the pinned member (\(\chi_{X/M} = 1/2\); consumes Proposition 10's inverse-product form and inherits its orientation FLAG):
+
+\[
+	\begin{aligned}
+		\Gamma_{\varphi}(i_K) \, = \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\;\xi^{\,-3\eta\,(i_K + \Delta_i/2)}, \qquad
+		\frac{\Gamma_{\varphi}(i_K+\Delta_i)}{\Gamma_{\varphi}(i_K)} \, = \, \xi^{\,-3\eta\,\Delta_i}
+	\end{aligned}
+\]
+
+— **gamma units**: \(\Gamma_{\varphi}\) is a pure \(\xi\)-power of the tick, exactly as \(p_{(\eta,\Delta_i)}\) is a \(\lambda\)-power of it; the factor \(3 = \tfrac{3}{2}\times 2\) (the \(p^{3/2}\) shape composed with the marginal-price step being the SQUARE of the grid step). *Status:* numerically verified at two \(\eta\) values to machine precision; **in flight** with Proposition 10 and the Gaussian-zero rider (project `589d44ac`) — promotes on return.
+
+*(Proposition 6's sampling half stays proved — `logContractLiquidity_geometric`, `strikeWeight_bridge`; its replication premise is the log-payoff instance \(\Gamma_{\varphi}[\pi^{\log}] = -1/p_{\varphi}^{2}\), OPEN pending \(\pi^{\log}\)'s carrier.)*
 
 
 # TRADING_REGION
