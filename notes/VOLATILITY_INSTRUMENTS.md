@@ -64,6 +64,7 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 
 > RESOLVED (user ruling, 2026-08-03): exponent sign is **NEGATIVE**. Two-part justification: (i) with the display's own prefactor \(p(\cdot)\sigma/\sqrt{8\pi t}\), the bracket is \(-\sigma\sqrt{t}\,d_2\), so the negative sign gives \(e^{-d_2^2/2} \propto \varphi(d_2)\) — exactly the \(r=0\) Black–Scholes dt-leg \(\theta = S\sigma\varphi(d_1)/(2\sqrt t)\) via \(S\varphi(d_1)=K\varphi(d_2)\); (ii) DECISIVE and internal: \(p_{\pi^{\text{call|put}}} \leftarrow \int\theta\) over the price grid CONVERGES only with the negative sign (Gaussian tails) — under \(+\) the assignment defining the option prices diverges. The ATM form cannot discriminate (`theta_atm_closed_form`, exponent vanishes ATM); the tails do.
 
+> note: Use \pi^{\sigma} direcltly. The notation \pi^{call | put} is to be remvoed everywhere
 **Definition 4 (Upsilon).** The **upsilon** of a premium or payoff functional at strike tick \(i_K\) is its per-unit-variance sensitivity, as a lattice finite difference in the variance argument:
 
 \[
@@ -90,6 +91,7 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 
 **Convention 1 (Replication relation).** For payoff claims \(A, B\) we write \(A \equiv^{R} B\) — "\(A\) **is replicated by** \(B\)" — when \(B\)'s payoff reproduces \(A\)'s. This is a *claim about two objects*, not a definitional identity: each instance must be proved, and until it is, it is stated OPEN. (This is the relation the two-instrument question above is posed in.)
 
+> First define \pi^{f} forward pay off and \pi^{log} log payoff
 **Definition 6 (Log portfolio).** For \(p^{\star}\) the approximate at-the-money forward level marking the boundary between liquid puts and liquid calls [PG9](../refs/DemeterfietalVarianceSwaps.pdf), the **log portfolio*  * and its running form are
 
 \[
@@ -269,7 +271,7 @@ inheriting the sign of \(\ln \big(p_{(\eta, \Delta_i)}(i;t) / p_{(\eta, \Delta_i
 with \(\Delta Q_v^{\star}, N_\sigma > 0 \implies T^{\star} > 0\), and \(T^{\star}\) strictly increasing in \(\Delta Q_v^{\star}\), strictly decreasing in \(N_\sigma\). The perpetual order specifies no \(T\); \(T^{\star}\) is the implied maturity of the equivalent dated variance contract — derived from \(\Delta Q_v^{\star}\), never stored.
 
 *Formalized* (`EndogenousMaturity.lean`; \(N_\sigma \neq 0\)): bijection `dQvStarOfMaturity_tStar` / `tStar_dQvStarOfMaturity` / `maturity_equivalence`; vega-exactness `tStar_variancePortfolio_upsilon`, `tStar_unit_upsilon`; `tStar_pos`; `tStar_strictMono_dQvStar`; `tStar_strictAnti_Nσ`.
-
+> todo: This needs to be replaced with the dirac function
 **Rule 4 (Position ledger).** The protocol books a position as its **net signed liquidity** per strike: each leg carries the direction sign \(\mathbb{I}_{\text{long|short}}\), and the ladder's ledger is
 
 \[
@@ -340,12 +342,15 @@ with ratio \(\lambda^{-\Delta_i}\) — \(\lambda\) the fixed tick base (Protocol
 
 \(\lambda\) being fixed (\(\mathcal{C}_p\)), \(\xi^{\star}\) is pinned by \(\Delta_i\) alone — consistent with the \(\Theta_{\ell}\) registry entry, where \(\xi\) is the parameter and \(\xi^{\star} = \lambda^{-\Delta_i/2}\) its pinned value.
 
+> These things below have not beeing deifned. Use instead \Gamma_{\varphi} and \kappa_{\varphi} which seems to covrer the terms that apepar 
 *Status:* the sampling half is **proved** — \(K^{-1/2}\) on the grid is geometric with ratio \(\lambda^{-\Delta_i/2}\) (`logContractLiquidity_geometric`). The replication premise — \(\ell(K) \propto K^{-1/2}\) from the curvature relation \(\ell(P) = -2P^{3/2}V''(P)\), \(V''(P) = -1/P^2\), adapted from [VOL_SWAPS](../refs/DemeterfietalVarianceSwaps.pdf) — is **OPEN** in-tree (the payoff-level curvature bridge is future work).
 
 *Formalized (sampling half):* `GeomProfile.logContractLiquidity_geometric`; bridge to the ladder weights: `VolInstrument.strikeWeight_bridge`.
 
+
 # TRADING_REGION
 
+> Use L_{1/2,  0} not plain L
 **Definition 9 (Per-strike amounts).** On the underlying market \((X, M)\), the liquidity \(L(i_K)\) at strike tick \(i_K\) holds the per-strike token amounts
 
 \[
@@ -408,9 +413,9 @@ identical to the inverse cumulative amount functions of [BUNNI_V2](../refs/bunni
 
 *Formalized:* `VolInstrument.cumulativeQM_monotone`; `cumulativeQX_monotone`; `cumulativeQM_const`; `cumulativeQX_const`; `exists_least_reaching`.
 
-**Notation map (Bunni v2 remap — collision-driven).** [BUNNI_V2](../refs/bunni-v2.pdf)'s symbols do not enter this document because \(a_0, a_1\) collide with the replication weights \(a_1, a_2\) (Settlement form of Definition 1). The remap: \(a_0 \mapsto \Delta Q_M^L\), \(a_1 \mapsto \Delta Q_X^L\), \(A_0 \mapsto Q_M^L\), \(A_1 \mapsto Q_X^L\), \(A_0^{-1} \mapsto Q_M^L(\cdot)^{-1}\), \(A_1^{-1} \mapsto Q_X^L(\cdot)^{-1}\), \(w \mapsto \Delta_i\), \(r \mapsto i_K\), \(l_r \mapsto L(i_K)\), \(1.0001 \mapsto \lambda\) (\(\mathcal{C}_p\)). Structural identification: Definition 7's weight profile \(\ell\) **is** Bunni's geometric LDF \(d_{\alpha,l}\) (§2.2.1, eq. (9)) under \(\alpha \mapsto \xi\), \(l \mapsto \iota\), and Definition 7's \(L(i_K) = \bar L_{(1/2,\,0)}\,\ell(\cdot)\) is his \(l_r = L \cdot LDF_w(r)\) (eq. (5)). <!-- notation-map -->
+*(The Bunni-v2 symbol remap that stood here was REMOVED — user ruling 2026-08-11; the structural identification of Definition 7's \(\ell\) with Bunni's geometric LDF survives at Rule 3 and Phase 15.2's reference.)*
 
-**Definition 12 (Weighted-geometric-mean trading function).** For share parameter \(\chi_{X/M} \in (0,1)\), the **trading function** at strike tick \(i_K\) takes as exogenous a trading flow \(\Delta Q = (\Delta Q_M, \Delta Q_X)\) and returns
+**Definition 12 (Weighted-geometric-mean trading function).** *This family — and every member of Definition 13 — is the QUANTITY-COORDINATE (reserve-space) parametrization of the trading function; the price-coordinate parametrization is the canonical one (Theorem 33), reached through the level set.* For share parameter \(\chi_{X/M} \in (0,1)\), the **trading function** at strike tick \(i_K\) takes as exogenous a trading flow \(\Delta Q = (\Delta Q_M, \Delta Q_X)\) and returns
 
 \[
 	\begin{aligned}
@@ -489,9 +494,7 @@ zero exactly at \(\chi_{X/M} = 1/2\). It is a **derived observable** — a funct
 
 *Formalized:* `EtaTilde.curvOfTilde` / `EtaCurvature.curvIndex`. *(Lean names predate the doc symbols and are NOT renamed — standing doc-glyph/Lean-name split.)* <!-- notation-map -->
 
-**Theorem 9 (\(\varsigma_{X/M}\) is not a curvature).** At equal shares \(\varsigma_{X/M}\) vanishes both at the constant-product member and at the linear member — although the former has \(\kappa_{\varphi} = 1/2 > 0\) (Theorem 31) and only the latter is flat. So \(\varsigma_{X/M}\) measures SHARE asymmetry (the grid-price tilt), not curvature across the substitution axis. Blocks E1–E7 are theorems about \(\varsigma_{X/M}\): their mathematics stands; their reading is about SHARE, not curvature.
-
-*Formalized:* `curvOfTilde_not_curvature` (the machine-checked discriminating witness); \(\varsigma_{X/M}\) factors through the share alone: `curvIndex_is_rho_zero_slice`.
+**Theorem 9 — REMOVED (user ruling 2026-08-11).** The number is retired, not reused. Its content — \(\varsigma_{X/M}\) measures SHARE asymmetry, not curvature — survives as the notation binding at Definition 14 and the machine carrier `curvOfTilde_not_curvature`; E1–E7 remain SHARE statements.
 
 **Rule 5 (Current trading curve).** The protocol pins the balanced Cobb–Douglas member:
 
@@ -550,7 +553,7 @@ The first line is exactly the hypothesis Theorem 5's `deltaQM_nonneg` requires �
 
 (raising \(\chi_{X/M}\) shrinks \((1-\chi_{X/M})/\chi_{X/M}\), hence RAISES \(1 - (\cdot)^{\Delta_i}\).)
 
-*Formalized:* `curvOfTilde_strictMono` (the true direction); **REFUTED:** `not_curvOfTilde_strictAnti` — machine-checked negation of the antitone reading, witness above. *(Retitled from the in-doc "Lemma (Curvature–Share Monotonicity)": "Lemma" is not a taxonomy class, and per Theorem 9 \(\varsigma_{X/M}\) is share asymmetry, not curvature.)*
+*Formalized:* `curvOfTilde_strictMono` (the true direction); **REFUTED:** `not_curvOfTilde_strictAnti` — machine-checked negation of the antitone reading, witness above. *(Retitled from the in-doc "Lemma (Curvature–Share Monotonicity)": "Lemma" is not a taxonomy class, and \(\varsigma_{X/M}\) is share asymmetry, not curvature (carrier `curvOfTilde_not_curvature`; formerly Theorem 9, removed).)*
 
 CONSEQUENCE FOR E8(6): the factor-share reading was recorded UNAVAILABLE because \(\eta^{\star} \approx 458/\Delta_i^{2}\) cannot be a Cobb–Douglas share. It never had to be — the share is \(\chi_{X/M}(\eta^{\star}) \in (0,1)\) for EVERY \(\eta\) (Theorem 10), so the identification is reachable through \(\chi_{X/M}\), not through \(\eta\) directly. *Carriers:* `etaStar_tilde_mem_Ioo`, `curvIndex_etaStar_via_tilde`. *(E-block cross-note; converts when the E-blocks are swept.)*
 
@@ -588,6 +591,7 @@ and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree
 **Proposition 12 (Profile–field relation) — SETTLED (split verdict).** The ladder carries the per-strike liquidity \(L(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\) (Definition 7); the smooth member carries the field \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\). Whether a given \(\varphi_{(\chi_{X/M},\epsilon_{X/M})}\) admits \((\xi,\iota) \in \Theta_{\ell}\) with \(\bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K) = \bar L_{(\chi_{X/M},\epsilon_{X/M})}\) at every strike is now ANSWERED: **the map exists iff \(\epsilon_{X/M} = 0\)** — a geometric ladder is the discretization of a pure power of the reserve ratio, and the normalized field is a pure power iff \(\epsilon_{X/M} = 0\) (`fieldRatio_isPower_iff`: constancy of the mixed comparison forces \(\chi_{X/M}(1-\chi_{X/M})(t^{\epsilon_{X/M}}-1)^2 = 0\)). At \(\epsilon_{X/M} = 0\) the field is state-constant (Theorem 29) and any \((\xi,\iota)\) realization is available; OFF the slice NO geometric ladder reproduces the field — the G4 ladder deficit \(\iota - 2\) is confirmed FROM GEOMETRY, and the parametrized density is the machine-warranted repair (Phase 15.2). *Retained as a Proposition:* the ladder⟺power-law identification is a modelling step; the power-law iff is the machine-proved part.
 
 
+> Abvoid D use \Gamma_{\varphi} and \kappa_{varphi} when apply, this applies bootom up and up to bottom
 **Theorem 33 (Canonical parametrization — the transition channel).** Strictly inside the level set, with \((Q_X^L(p_{\varphi}), Q_M^L(p_{\varphi}))\) Definition 25's price-indexed reserves ([INTRINSIC_LIQ](../refs/cfmm/risk_tung_wang-pricing_hedging_liquidity_provision-2026.pdf) §2.2; differential form only — the integral form's boundary conditions fail off \(\epsilon_{X/M} = 0\)):
 
 \[
@@ -619,7 +623,7 @@ and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree
 		\mathcal{D}_{Q_X^L}[p_{\varphi}] \, = \, -\,\frac{1}{L(p_{\varphi})} \quad \textbf{(the price-impact law)}
 	\end{aligned}
 \]
-
+> what is c. It has not been formally defined. WHat does it represent structurally ? is it exogenous, or endogenous. If exogenoues, recall it goes after ; on (;)
 and the field factors through the pair (level, price) ALONE: \(\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(Q_X^L, Q_M^L) = \bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(c,\, p_{\varphi})\) in closed form — the coordinate change itself. *(Notation: the second form is the SAME object with the argument tuple \((c, p_{\varphi})\) — an argument-tuple abuse, declared rather than given a new symbol; user ruling 2026-08-10.)*
 
 *Formalized:* `profile_eq_neg_gamma`; `field_factors_through_price` — the hand-derived price-coordinate closed form (`ellP`) CONFIRMED under proof; the invited refutation of its exponent bookkeeping did not materialize.
@@ -687,7 +691,7 @@ This is the [M9] **DECIDED** entry — enacted as **Rule 12**, with its algebra 
 \]
 
 The gate's argument is the **utilization ratio** — the trading function evaluated on flow alone over its evaluation on the endowments alone (Theorem 1's \(u\) is the gate's value). The parameters \(\Theta_{\phi} = \{\gamma, \bar\phi, \beta, \alpha\}\) are Protocol Parameters (see **PROTOCOL_PARAMETERS (\(\Theta_{\phi}\))**); the R-suffixed trio \((\alpha_R, \beta_R, \gamma_R)\) enters as members of the \(\alpha/\beta/\gamma\) families. **Signature note:** the \(t\) argument extends Definition 12's \((i_K; \Delta Q, L)\) signature — the time dependence enters through the flow and endowments at \(t\); flagged, not silently repaired.
-
+> \nu needs to be formally defined here
 **Theorem 1 (Fee Envelope).** Writing \(u = \alpha_R\Big/\Big(1+\exp\Big(\gamma_R\Big(\beta_R - \frac{\varphi_{(1/2,\,0)}(i_K;\Delta Q,0;t)}{\varphi_{(1/2,\,0)}(i_K;0,L;t)}\Big)\Big)\Big)\) — the utilization gate of Definition 18:
 \[
 	\begin{aligned}
@@ -764,6 +768,7 @@ Every **Protocol Input** is a quantity supplied by the USER, per order, at inter
   *Economic meaning:* the vega notional the user targets — the one sizing decision the order stores.
   *Carrier:* `targetVega : u96` at bits 152..247 of the packed `VolOrder` word (plank `feat/plank`); `targetVega` \(= \Delta Q_v^{\star}\) exactly; emitted by `VolOrderCreated(orderId, strike, width, skew, targetVega)`; fits-packed predicate in `VolOrderValidationLib`.
 
+> This is chaninging since we are replacing \mathbb{I} with the dirac fucntions mfrom the papaers
 **Convention 3 (Vega dimension — stored target vs lens readout; DECIDED 2026-07-30).** \(\Delta Q_v^{\star}\) carries the dimension of the REPLICATION CARRIER — liquidity \(L\), the quantity of the priced vol asset, per Rule 4's ledger
 
 \[
@@ -1155,7 +1160,7 @@ ANCHOR: [CJ](../refs/mev/CapponiJiaAdoptionDEX.pdf) §5.1 — Lemma 3, Propositi
 - \(\varpi_H \, \geq \, 0\) — hold-benchmark coefficient, \(\mathbb{E}[R^{\text{HODL}}] = \varpi_H\,\hat{\tfrac{\Delta p_{(\eta,\Delta_i)}}{p_{(\eta,\Delta_i)}}}\) (\(R^{\text{HODL}}\): Definition 31; the anchor's \(R_A\));
 - \(\varpi_D \, \geq \, 0\) — the constant subtracted in the LP excess return.
 
-The paper's curvature-indexed results are RE-INDEXED by \(\varsigma_{X/M}\) — a SHARE object (Theorem 9); symbol substitution, NOT an object identification (interior embedding REFUTED, `canon_Fcap_not_CES`). Collision glyphs `κ`, `χ`, `θ`, `τ`, `ν` are not used in this section; remaining paper symbols are renamed at first use. <!-- notation-map -->
+The paper's curvature-indexed results are RE-INDEXED by \(\varsigma_{X/M}\) — a SHARE object (`curvOfTilde_not_curvature`; formerly Theorem 9, removed); symbol substitution, NOT an object identification (interior embedding REFUTED, `canon_Fcap_not_CES`). Collision glyphs `κ`, `χ`, `θ`, `τ`, `ν` are not used in this section; remaining paper symbols are renamed at first use. <!-- notation-map -->
 
 Positivity is load-bearing: \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} = 0\) collapses E2 (\(\mathrm{arbLoss} \equiv 0\)); \(\mathbb{P}_{L_{\text{INV}}} = 0\) kills E4's PEAK (via \(c_1 < 0\)), NOT its strict increase.
 
@@ -1171,7 +1176,7 @@ Positivity is load-bearing: \(\mathbb{P}_{\Delta_{\text{ARB}}^{\text{CJ}}} = 0\)
 	\end{aligned}
 \]
 
-\(\hat p\) = the anchor's numeraire-relative price of \(X\) (raw value, Convention 6; \(p_B = 1\)). The SQUARE is the homogeneity obstruction — every \(\varsigma_{X/M} > 0\) member fails 1-homogeneity, an independent route to the refuted CES embedding (Theorem 9).
+\(\hat p\) = the anchor's numeraire-relative price of \(X\) (raw value, Convention 6; \(p_B = 1\)). The SQUARE is the homogeneity obstruction — every \(\varsigma_{X/M} > 0\) member fails 1-homogeneity, an independent route to the refuted CES embedding (`canon_Fcap_not_CES` — the E1 settled note; the earlier Theorem 9 citation here was a misattribution, corrected at removal).
 
 *Formalized* (`PhiMix`, 4/4 axiom-clean, project `7d9a8baa`): `Fmix_eq_phi` (the separation); `F0_eq_phiLin`, `F1_eq_phiGeom_sq` (the two components); `Fmix_homogeneous_iff` (the obstruction — TRUE as stated; the refute-and-correct clause went unused).
 
