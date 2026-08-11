@@ -169,10 +169,10 @@ parameter set. A parameter not listed here is not a parameter of the protocol.
 
 **Protocol Parameter (\(\Theta_{\ell} = \{\xi, \iota\}\) — the ladder).**
 
-- \(\xi\) — the **liquidity ratio**.
+- \(\xi\) — the **liquidity base** *(renamed from "liquidity ratio", user ruling 2026-08-11: \(\xi\) is a COORDINATE BASE, as \(\lambda\) is — Definition 41)*.
   *Domain:* \(\xi \in (0,1) \cup (1,\infty)\); \(\xi = 1\) is reached by limit only (Theorem 2).
   *Purpose:* sets the geometric decay of per-strike liquidity in the ladder (Definition 7); with \(\iota\), encodes the strike weights that make the portfolio **delta-neutral**.
-  *Economic meaning:* the ratio of liquidity between adjacent strikes; pinned at \(\xi^{\star} = \lambda^{-\Delta_i/2}\), the log-contract weight law under which the ladder replicates the variance payoff (Proposition 4).
+  *Economic meaning:* the base of the liquidity coordinate — its pinned value acts as the ratio of liquidity between adjacent strikes; pinned at \(\xi^{\star} = \lambda^{-\Delta_i/2}\), the log-contract weight law under which the ladder replicates the variance payoff (Proposition 4).
 
 - \(\iota\) — the **ladder resolution**.
   *Domain:* \(\iota \in \mathbb{N}\), \(\iota \ge 1\).
@@ -353,7 +353,7 @@ with ratio \(\lambda^{-\Delta_i}\) — \(\lambda\) the fixed tick base (Protocol
 
 *Formalized:* `GeomProfile.varswapWeight_geometric`; `varswapWeight_normalized`.
 
-**Proposition 6 (The liquidity ratio \(\xi^{\star}\)).** The per-tick *liquidity* replicating the log contract scales as the inverse square root of that grid, hence
+**Proposition 6 (The liquidity base \(\xi^{\star}\)).** The per-tick *liquidity* replicating the log contract scales as the inverse square root of that grid, hence
 
 \[
 	\begin{aligned}
