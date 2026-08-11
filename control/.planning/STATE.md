@@ -139,7 +139,35 @@ Full log in PROJECT.md Key Decisions. Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-09
+Last session: 2026-08-10 (tax7 landed + transcribed; see the TAX7 record below)
+
+**TAX7 SESSION (2026-08-10, approved).** Bundle 7 (`331b1af2-32ec-4fe9-9e60-76a1e1f13615`,
+commits `f45046f` bundle / `f3c6de9` result / `71ee787` transcription) — three modules, 0 sorry,
+axiom-clean: `MevLawEquating` (T53), `MevGateDerivative` (T54), `MevPhiStarComputability` (T55).
+**USER RULING B (53(d))**: the gate ν is the block-type-weighted REALIZED ν → `Convention 12`
+(per-event indicator form; the expectation bridge is OPEN for tax8). Under the arb-only reading
+the corrected law is ROOTLESS (`(1−φ_X)/ℱ > 0` ∀τ) — recorded as the refuted fork half inside
+`Theorem 43`; under Convention 12 the equating is a **codimension-one diagnostic locus** (the
+controller objective stays Definition 36's; `τ*_top-up` operative) whose payoff is the
+calibration identity `∂ν/∂τ = −(1−φ_X)/((1−τ)γ_R(φ_X−φ̄)(1−u/α_R))` — the estimand the
+econometric route terminally failed to identify, now derivable on the locus. `Theorem 42`:
+explicit gate derivative, **both Proposition 13 guard conjuncts discharged** (ℱ > 1 damps, never
+flips; H2 no longer load-bearing there), sharp EVM bound `γ_Rα_R/4·Σα_j`. `Theorem 44`: FOC is
+exponential×quadratic — no Lambert form for `√(2/Δt) ≠ 0` (impossibility OPEN,
+differential-Galois); the iteration `T` with K-independent ratio (witness ≤ 10/13) + three
+numeral-free corner predicates = **the on-chain algorithm** (read σ → predicates → iterate n
+fixed steps → top-up law). `Rule 14` gains **(A-input)**: α/δ_transactional are exogenous
+calldata inputs. SRC now 32 blocks, 480 lines @ `71ee787`. **PENDING RULING**: Theorem 44
+OPEN(ii) — `α_transactional·φ ≤ 1` standing side condition (recommended: 4th on-chain
+predicate; it coincides with the profitable regime per the tax6 threshold law) vs
+stationary-point-only. **Owed**: tax8 question (Convention 12's per-event↔expectation bridge);
+lean4-spec integration of bundles 3–7; NOT-02 rows (τ*_corrected/τ*_top-up title-derived
+subscripts, u gate-value mint with u_ex/u_en disambiguation, Theorem 44's block-local
+apparatus W/∂^red/T/m_T/M_T/q_lo). **Next: the implementation-spec phase** — the controller is
+now an algorithm with machine-checked convergence; roadmap reconciliation (6b terminal, 6a
+re-scope) still owed first.
+
+Prior session: 2026-08-09
 Stopped at: **Phase 6b's estimation route is TERMINAL.** `06B-00` executed (out of order, by user direction — the roadmap order `1 → 2 → 3 → 6a → 6b → 7` was not followed and Phase 1 has no execution record). The sweep delivered `control/spec/RESEARCH-REGISTER.md` @ `5f7f3d8` — 50 sources (14 internal PDFs, 26 arXiv all re-resolved through the arxiv MCP, 10 non-arXiv lower-rigor), §5's instrument-selection rule present in the first commit as required. It then ended the route it was built to serve: **`S-35` refutes the `Δt` exclusion restriction.** Verdict recorded at `control/spec/GBAR-VERDICT.md`.
 Resume file: control/spec/GBAR-VERDICT.md
 
