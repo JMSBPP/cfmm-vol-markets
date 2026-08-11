@@ -27,11 +27,11 @@ where \(\sigma^2(i(t))\) is the realized tick variance. Consequently \(\Delta Q_
 \]
 Following [VOL_SWAPS](../refs/DemeterfietalVarianceSwaps.pdf), the price of the volatility option is the *cost of replicating it with options*. This is where [panoptic](https://arxiv.org/pdf/2204.14232) enters. The replication proved in-tree is the **ladder** form (the \(\xi^\star\) log-contract weights, `variancePortfolio_upsilon`); whether it collapses to a **two-instrument** affine form \(p_{\pi^\sigma} = p_0 + a_1\, p_{\pi^{\text{call}}} + a_2\, p_{\pi^{\text{put}}}\) is **OPEN** — statement parked pending the liquidity-side definitions, per the 12.1 ledger.
 
-**Definition 2 (Theta).** The **theta** of the call (resp. put) at strike tick \(i_K\) is the per-time-step payoff variation
+**Definition 2 (Theta).** The **theta** of the volatility option at strike tick \(i_K\) is the per-time-step payoff variation
 
 \[
 	\begin{aligned}
-		\theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (t)) \Big ) \, &\equiv \, \frac{\Delta \pi^{\text{call | put}}}{\Delta\, t }
+		\theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (t)) \Big ) \, &\equiv \, \frac{\Delta \pi^{\sigma}}{\Delta\, t }
 	\end{aligned}
 \]
 
@@ -49,11 +49,11 @@ The strike is the price at the STRIKE TICK \(i_K\), on the price grid \(p_{(\eta
 
 *Formalized (ATM case):* `theta_atm_closed_form` — \(\Theta_{ATM} = k\sigma/\sqrt{8\pi\tau}\). **General form OPEN** — an Aristotle target (lattice → closed form).
 
-**Rule 1 (Option pricing).** The protocol prices the call (resp. put) at strike tick \(i_K\) as **accumulated theta along the realized tick path**:
+**Rule 1 (Option pricing).** The protocol prices the volatility option at strike tick \(i_K\) as **accumulated theta along the realized tick path**:
 
 \[
 	\begin{aligned}
-		p_{\pi^{\text{call | put}}}\, (t) \, &\leftarrow \, \int_{t_0}^{t} \, \theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; s) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (s)) \Big ) \, \mathcal{d}\, s
+		p_{\pi^{\sigma}}\, (t) \, &\leftarrow \, \int_{t_0}^{t} \, \theta \, \Big (\, p_{(\eta, \Delta_i)} \, (i; s) \, , p_{(\eta, \Delta_i)} \, (i_K),  \sigma \, (i (s)) \Big ) \, \mathcal{d}\, s
 	\end{aligned}
 \]
 
@@ -62,14 +62,13 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 *Formalized:* `Panoptic.streamingPremium` (the discrete accumulation \(\sum_j \theta_j\,\Delta t\)); `streamingPremium_succ`.
 
 
-> RESOLVED (user ruling, 2026-08-03): exponent sign is **NEGATIVE**. Two-part justification: (i) with the display's own prefactor \(p(\cdot)\sigma/\sqrt{8\pi t}\), the bracket is \(-\sigma\sqrt{t}\,d_2\), so the negative sign gives \(e^{-d_2^2/2} \propto \varphi(d_2)\) — exactly the \(r=0\) Black–Scholes dt-leg \(\theta = S\sigma\varphi(d_1)/(2\sqrt t)\) via \(S\varphi(d_1)=K\varphi(d_2)\); (ii) DECISIVE and internal: \(p_{\pi^{\text{call|put}}} \leftarrow \int\theta\) over the price grid CONVERGES only with the negative sign (Gaussian tails) — under \(+\) the assignment defining the option prices diverges. The ATM form cannot discriminate (`theta_atm_closed_form`, exponent vanishes ATM); the tails do.
+> RESOLVED (user ruling, 2026-08-03): exponent sign is **NEGATIVE**. Two-part justification: (i) with the display's own prefactor \(p(\cdot)\sigma/\sqrt{8\pi t}\), the bracket is \(-\sigma\sqrt{t}\,d_2\), so the negative sign gives \(e^{-d_2^2/2} \propto \varphi(d_2)\) — exactly the \(r=0\) Black–Scholes dt-leg \(\theta = S\sigma\varphi(d_1)/(2\sqrt t)\) via \(S\varphi(d_1)=K\varphi(d_2)\); (ii) DECISIVE and internal: \(p_{\pi^{\sigma}} \leftarrow \int\theta\) over the price grid CONVERGES only with the negative sign (Gaussian tails) — under \(+\) the assignment defining the option prices diverges. The ATM form cannot discriminate (`theta_atm_closed_form`, exponent vanishes ATM); the tails do.
 
-> note: Use \pi^{\sigma} direcltly. The notation \pi^{call | put} is to be remvoed everywhere
 **Definition 4 (Upsilon).** The **upsilon** of a premium or payoff functional at strike tick \(i_K\) is its per-unit-variance sensitivity, as a lattice finite difference in the variance argument:
 
 \[
 	\begin{aligned}
-		\upsilon \, \Big (p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K)\Big)\, &\equiv \, \frac{\Delta \pi^{\text{call | put}}}{\Delta \sigma^2 \, (\cdot)}
+		\upsilon \, \Big (p_{(\eta, \Delta_i)} \, (i; t) \, , p_{(\eta, \Delta_i)} \, (i_K)\Big)\, &\equiv \, \frac{\Delta \pi^{\sigma}}{\Delta \sigma^2 \, (\cdot)}
 	\end{aligned}
 \]
 
@@ -87,16 +86,21 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 
 *Formalized:* `Upsilon.upsilon_volOption`; `upsilon_eq_deltaShares_slot`; at the endogenous maturity \(\upsilon = T^\star/2\) (`variancePortfolio_upsilon_at_tStar`, `tStar_unit_upsilon`).
 
-**Definition 5 (Replicating portfolio).** The **replicating portfolio** \(\Pi^{\text{call|put}}(\sigma; p_{(\eta,\Delta_i)}(i;t))\) is the option portfolio whose sensitivity to realized variance is independent of the underlying price [PG7](../refs/DemeterfietalVarianceSwaps.pdf) — a single option cannot serve, since a price move alters its variance sensitivity.
+**Definition 5 (Replicating portfolio).** The **replicating portfolio** \(\Pi^{\sigma}(\sigma; p_{(\eta,\Delta_i)}(i;t))\) is the option portfolio whose sensitivity to realized variance is independent of the underlying price [PG7](../refs/DemeterfietalVarianceSwaps.pdf) — a single option cannot serve, since a price move alters its variance sensitivity.
 
 **Convention 1 (Replication relation).** For payoff claims \(A, B\) we write \(A \equiv^{R} B\) — "\(A\) **is replicated by** \(B\)" — when \(B\)'s payoff reproduces \(A\)'s. This is a *claim about two objects*, not a definitional identity: each instance must be proved, and until it is, it is stated OPEN. (This is the relation the two-instrument question above is posed in.)
 
-> First define \pi^{f} forward pay off and \pi^{log} log payoff
+**Definition 34 (Forward payoff).** \(\pi^{f}(p_{\varphi};\, p^{\star}) \, \equiv \, p_{\varphi} - p^{\star}\) — unit-notional forward struck at \(p^{\star}\).
+
+**Definition 35 (Log payoff).** \(\pi^{\log}(p_{\varphi};\, p^{\star}) \, \equiv \, \ln\big(p_{\varphi}/p^{\star}\big)\).
+
+([VOL_SWAPS](../refs/DemeterfietalVarianceSwaps.pdf) PG9: the variance exposure is the forward leg net of the log leg, \(\tfrac{2}{T}\big(\pi^{f}/p^{\star} - \pi^{\log}\big)\); Definition 6's log portfolio is the grid realization of \(-\pi^{\log}\)'s spanning, and Definition 5's replicating portfolio is exactly \(\pi^{f}/p^{\star} - \pi^{\log}\) up to the \(2/T\) normalization.)
+
 **Definition 6 (Log portfolio).** For \(p^{\star}\) the approximate at-the-money forward level marking the boundary between liquid puts and liquid calls [PG9](../refs/DemeterfietalVarianceSwaps.pdf), the **log portfolio*  * and its running form are
 
 \[
 	\begin{aligned}
-		\Pi^{\text{call|put}}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big) \, &= \, \frac{p_{(\eta,\Delta_i)}(i;t) - p^{\star}}{p^{\star}} \, - \, \log\Big(\frac{p_{(\eta,\Delta_i)}(i;t)}{p^{\star}}\Big) \, + \, \frac{\sigma^2(i(t))\, t}{2}
+		\Pi^{\sigma}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big) \, &= \, \frac{p_{(\eta,\Delta_i)}(i;t) - p^{\star}}{p^{\star}} \, - \, \log\Big(\frac{p_{(\eta,\Delta_i)}(i;t)}{p^{\star}}\Big) \, + \, \frac{\sigma^2(i(t))\, t}{2}
 	\end{aligned}
 \]
 
@@ -104,19 +108,19 @@ The left arrow marks a Rule, not an identity: this is a stipulation of the proto
 
 \[
 	\begin{aligned}
-		\Pi^{\text{call | put}} \, (\sigma ;p_{(\eta, \Delta_i)} \, (i; t); T) \, &= \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{(\eta, \Delta_i)} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{(\eta, \Delta_i)}}{p^{\star}})\Big] \, + \, \frac{T - t}{T}\, \sigma^2(i(t))
+		\Pi^{\sigma} \, (\sigma ;p_{(\eta, \Delta_i)} \, (i; t); T) \, &= \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{(\eta, \Delta_i)} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{(\eta, \Delta_i)}}{p^{\star}})\Big] \, + \, \frac{T - t}{T}\, \sigma^2(i(t))
 	\end{aligned}
 \]
 
 *Formalized:* `VolInstrument.logPortfolio`; `variancePortfolio` (\(= \text{logPortfolio} + \sigma^2(i(t))\, t/2\)); `logPortfolio_nonneg`; `logPortfolio_atm`.
 
-**Settlement instantiation** (Convention 2): \(\Pi^{\text{call|put}}\big(\sigma^2(i(T));\, p_{(\eta,\Delta_i)}(i;t);\, T\big) \, = \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{(\eta, \Delta_i)} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{(\eta, \Delta_i)}}{p^{\star}})\Big] \, + \, \frac{T - t}{T}\, \sigma^2(i(t))\).
+**Settlement instantiation** (Convention 2): \(\Pi^{\sigma}\big(\sigma^2(i(T));\, p_{(\eta,\Delta_i)}(i;t);\, T\big) \, = \, \text{Id}_{ N_{\sigma}} \Big [\frac{p_{(\eta, \Delta_i)} - p^{\star}}{p^{\star}} \, - \, \log (\frac{p_{(\eta, \Delta_i)}}{p^{\star}})\Big] \, + \, \frac{T - t}{T}\, \sigma^2(i(t))\).
 
 **Proposition 4 (Ladder replication).** The volatility option is replicated by the log portfolio:
 
 \[
 	\begin{aligned}
-		\pi^{\sigma}(t) \, \equiv^{R} \, \Pi^{\text{call|put}}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big)
+		\pi^{\sigma}(t) \, \equiv^{R} \, \Pi^{\sigma}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big)
 	\end{aligned}
 \]
 
@@ -130,11 +134,11 @@ and \(\Pi\) has Definition 5's defining property: its variance sensitivity is **
 
 \[
 	\begin{aligned}
-		\Pi^{\text{call|put}}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big) \, \leftarrow \, \sum_{i_K} L_{(1/2,\,0)}(i_K)\, \Pi^{\text{call|put}}\big(\sigma_K; p_{(\eta,\Delta_i)}(i;t)\big), \qquad L_{(1/2,\,0)}(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi^{\star},\iota; i_K)
+		\Pi^{\sigma}\big(\sigma; p_{(\eta,\Delta_i)}(i;t)\big) \, \leftarrow \, \sum_{i_K} L_{(1/2,\,0)}(i_K)\, \Pi^{\sigma}\big(\sigma_K; p_{(\eta,\Delta_i)}(i;t)\big), \qquad L_{(1/2,\,0)}(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi^{\star},\iota; i_K)
 	\end{aligned}
 \]
 
-The left arrow marks the Rule: an **allocation the protocol enforces**, not an equality — \(\Pi^{\text{call|put}}(\sigma_K;\cdot)\) is the per-strike member at strike tick \(i_K\), and \(L\) is Definition 7's ladder. Whether the enforced ladder's payoff reproduces the log contract is part of Proposition 4's OPEN core, not asserted here.
+The left arrow marks the Rule: an **allocation the protocol enforces**, not an equality — \(\Pi^{\sigma}(\sigma_K;\cdot)\) is the per-strike member at strike tick \(i_K\), and \(L\) is Definition 7's ladder. Whether the enforced ladder's payoff reproduces the log contract is part of Proposition 4's OPEN core, not asserted here.
 
 *Formalized (weight law):* `GeomProfile.varswapWeight_geometric`; `logContractLiquidity_geometric`; `VolInstrument.strikeWeight_bridge` (\(\xi^{\star} = \lambda^{-\Delta_i/2}\)).
 
@@ -244,7 +248,7 @@ Every fixed numeral of the protocol enters here as a **Protocol Constant** — a
 
 \[
 	\begin{aligned}
-		\frac{\Delta \pi^{\text{call | put}}}{\Delta \, \sigma} \, &\approx \frac{\Delta \theta}{\Delta \sigma}
+		\frac{\Delta \pi^{\sigma}}{\Delta \, \sigma} \, &\approx \frac{\Delta \theta}{\Delta \sigma}
 	\end{aligned}
 \]
 
@@ -256,7 +260,7 @@ inheriting the sign of \(\ln \big(p_{(\eta, \Delta_i)}(i;t) / p_{(\eta, \Delta_i
 
 \[
 	\begin{aligned}
-		\frac{\Delta \, \Pi^{\text{call | put}} \, ( \cdot )}{\Delta \, \sigma^{2} } N_{\sigma} \, &= \, T/2 \, N_{\sigma} \, \implies \text{Id}_{ N_{\sigma}} \, \equiv \frac{2}{T}
+		\frac{\Delta \, \Pi^{\sigma} \, ( \cdot )}{\Delta \, \sigma^{2} } N_{\sigma} \, &= \, T/2 \, N_{\sigma} \, \implies \text{Id}_{ N_{\sigma}} \, \equiv \frac{2}{T}
 	\end{aligned}
 \]
 
