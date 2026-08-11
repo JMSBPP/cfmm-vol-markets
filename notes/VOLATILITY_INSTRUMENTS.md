@@ -648,6 +648,30 @@ and the field factors through the pair (price; level) ALONE: \(\bar L_{(\chi_{X/
 *Formalized:* `profile_eq_neg_gamma`; `field_factors_through_price` — the hand-derived price-coordinate closed form (`ellP`) CONFIRMED under proof; the invited refutation of its exponent bookkeeping did not materialize.
 
 
+**Definition 40 (Vol-market trading function).** On the vol market, with \(L_{\sigma}\) the vol-asset liquidity (\(\Theta_{\nu} \to L_{\nu} = \Delta Q_{\nu}(\sigma_K)\), user TODO 2026-08-11):
+
+\[
+	\begin{aligned}
+		\varphi^{\sigma}\big(Q_X^{L_{\sigma}}, Q_M^{L_{\sigma}}\big) \, = \, Q_M^{L_{\sigma}} \, - \, \Big(L_{\sigma} - \tfrac{1}{2}\,Q_X^{L_{\sigma}}\Big)^{2}
+	\end{aligned}
+\]
+
+**Theorem 36 (\(\varphi^{\sigma}\) is the constant-gamma curve; it is NOT a member).** Along the level set:
+
+\[
+	\begin{aligned}
+		p_{\varphi^{\sigma}} \, = \, L_{\sigma} - \tfrac{1}{2}Q_X^{L_{\sigma}}, \qquad
+		\frac{\partial p_{\varphi^{\sigma}}}{\partial Q_X^{L_{\sigma}}} \, = \, -\tfrac{1}{2}, \qquad
+		\Gamma_{\varphi^{\sigma}} \, = \, -2, \qquad
+		\bar L_{\varphi^{\sigma}} \, = \, 4\,p_{\varphi^{\sigma}}^{3/2}
+	\end{aligned}
+\]
+
+and \(\varphi^{\sigma}\) is NOT a positive multiple of any member of Definition 13's family — the boxed \(\varphi^{\nu} \to \varphi_{(\chi_{X/M},\epsilon_{X/M})}\) question is ANSWERED NO (1-homogeneity forces \(L_{\sigma}^2 = 0\)); no degenerate identification survives. *Bridge (in flight, `2370c633`):* at \(\eta\,\Delta_i = 1/3\) the geometric ladder's per-strike gamma is CONSTANT — the grid+ladder emulates \(\varphi^{\sigma}\) on the existing primitive.
+
+*Formalized* (`MarketMaking`, project `d1ad6474`, axiom-clean): `phiSigma_kit`; `phiSigma_not_CES` (via `phiCES_smul`).
+
+
 # FEE_ALGEBRA
 
 **Rule 6 (Per-leg fee split).** Each incoming trade leg is split by its **leg fee** \(\phi_M, \phi_X \in (0,1)\) (the M9 leg fees — fee *variables*, produced by the schedule below, not members of \(\Theta_{\phi}\)): the trading function is quoted on the net flow, and the fee fraction accrues to the per-strike reserves —
