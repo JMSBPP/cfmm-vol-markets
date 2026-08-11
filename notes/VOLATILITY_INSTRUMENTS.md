@@ -377,7 +377,8 @@ SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-s
 
 \[
 	\begin{aligned}
-		\Gamma_{\varphi}(i_K) \, = \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\;\xi^{\,-3\eta\,(i_K + \Delta_i/2)}, \qquad
+		p_{\varphi}(i_K)^{-3/2} \, = \, \Gamma_{\varphi}(i_K), \qquad
+		\text{value on the grid: } -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\,\Gamma_{\varphi}(i_K), \qquad
 		\frac{\Gamma_{\varphi}(i_K+\Delta_i)}{\Gamma_{\varphi}(i_K)} \, = \, \xi^{\,-3\eta\,\Delta_i}
 	\end{aligned}
 \]
@@ -388,18 +389,18 @@ SUBSTITUTION RULE: \(\Gamma_{\varphi}\) replaces the \(p_{\varphi}^{\pm 3/2}\)-s
 
 \[
 	\begin{aligned}
-		\Gamma_{\varphi}(i) \, \equiv \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\;\xi^{\,-3\eta\,(i + \Delta_i/2)}
+		\Gamma_{\varphi}(i) \, \equiv \, \xi^{\,-3\eta\,(i + \Delta_i/2)}
 	\end{aligned}
 \]
 
-— the \(\xi\)-power map of the tick, the exponent being the tick warped by the factor \(3\eta\) with the half-spacing offset from the marginal price's adjacent product. The coordinate IS \(\Gamma_{\varphi}(i)\); no auxiliary exponent symbol is minted. **NORMALIZATION (user units ruling, 2026-08-11):** the PURE coordinate is the ratio \(\Gamma_{\varphi}(i)/\Gamma_{\varphi}(i_0) = \xi^{-3\eta(i-i_0)}\) — dimensionless, tick-scale (int24); the \(-\tfrac12\bar L_{(1/2,\,0)}\) factor is EVALUATION in liquidity units (uint128), not part of the map — the same split as Definition 9's amounts (\(L \times\) grid difference; on-chain the product is 128+24-bit scale, the packed-word width).
+— the \(\xi\)-power map of the tick, the exponent being the tick warped by the factor \(3\eta\) with the half-spacing offset from the marginal price's adjacent product. The coordinate IS \(\Gamma_{\varphi}(i)\) — PURE (dimensionless, tick-scale, int24; no liquidity factor, exactly as Definition 8's map carries none; user units ruling 2026-08-11) — and no auxiliary exponent symbol is minted. Disambiguation by argument: with a TICK argument \(\Gamma_{\varphi}(i)\) is this coordinate map; bare \(\Gamma_{\varphi}\) remains Definition 38's payoff second derivative, whose grid VALUE is \(-\tfrac12\,\bar L_{(1/2,\,0)}\,\Gamma_{\varphi}(i)\) (Theorem 38) — the liquidity multiplication is EVALUATION in liquidity units (uint128), the same split as Definition 9's amounts, the on-chain product at 128+24-bit scale.
 
 **Theorem 39 (The compositional reading; the flatness threshold).** With \(L(t) \equiv \bar L_{(1/2,\,0)}\,\xi^{t}\) the \(\xi\)-geometric liquidity read on the tick coordinate (the argument is a TICK VALUE, not a new symbol):
 
 \[
 	\begin{aligned}
-		\Gamma_{\varphi}(i_K) \, &= \, -\tfrac{1}{2}\,L\big(-3\eta(i_K + \Delta_i/2)\big) \qquad \textbf{(gamma IS the liquidity read at the warped tick — Definition 41's map)} \\
-		\text{ladder in place of } \bar L: \quad \Gamma_{\varphi}(i_K) \, &= \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\;\xi^{\,(i_K - i_0)/\Delta_i \, - \, 3\eta(i_K + \Delta_i/2)} \\
+		-\tfrac{1}{2}\,L\big(-3\eta(i_K + \Delta_i/2)\big) \, &= \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\;\Gamma_{\varphi}(i_K) \qquad \textbf{(the gamma VALUE: the liquidity read at the warped tick = liquidity} \times \textbf{the pure coordinate)} \\
+		\text{ladder in place of } \bar L: \quad \text{value} \, &= \, -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\;\xi^{\,(i_K - i_0)/\Delta_i \, - \, 3\eta(i_K + \Delta_i/2)} \\
 		\text{strike-independent} \; &\iff \; \eta\,\Delta_i \, = \, \tfrac{1}{3}, \qquad \text{flat value } \; -\tfrac{1}{2}\,\bar L_{(1/2,\,0)}\;\xi^{-(i_0/\Delta_i + 1/2)}
 	\end{aligned}
 \]
