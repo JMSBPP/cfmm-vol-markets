@@ -39,7 +39,7 @@ roots = ["vol_markets.Main", "vol_markets.PosSpec", "vol_markets.Flow",
   "vol_markets.CanonicalParam", "vol_markets.MarketMaking",
   "vol_markets.GammaGrid", "vol_markets.GammaCoordinate",
   "vol_markets.PiPayoffs", "vol_markets.KappaCoordinate",
-  "vol_markets.KappaStructure"]
+  "vol_markets.KappaStructure", "vol_markets.ReparamSigma"]
 
 [[lean_lib]]
 name = "tao"
