@@ -676,7 +676,32 @@ The first display is an identity (the decomposition); the Rule is the second —
 	\end{aligned}
 \]
 
-\(\mathcal{G}_{\phi}\) is an **Abelian monoid** — identity \(\phi = 0\), no inverses (a charged fee cannot be un-charged) — **not a group, and \(\otimes_{\phi}\) is a composition law, not an inner product** (correcting the note's original wording). The monoid axioms are machine-proved — Theorem 14 (`probOr_comm`, `probOr_assoc`, `probOr_zero`, closure `probOr_mem_Icc`). The carrier is \([0,1]\) as proved; the boundary \(\phi = 1\) (full confiscation) is admitted by the algebra and excluded economically by Rule 6's domain \(\phi_{\bullet} \in (0,1)\).
+\(\mathcal{G}_{\phi}\) is an **Abelian monoid** — identity \(\phi = 0\), no inverses (a charged fee cannot be un-charged) — **not a group, and \(\otimes_{\phi}\) is a composition law, not an inner product** (correcting the note's original wording). The monoid axioms are machine-proved — Theorem 14 (`probOr_comm`, `probOr_assoc`, `probOr_zero`, closure `probOr_mem_Icc`). The carrier is \([0,1]\) as proved; the boundary \(\phi = 1\) (full confiscation) is admitted by the algebra and excluded economically by Rule 6's domain \(\phi_{\bullet} \in (0,1)\). **THE ALGEBRA'S READING (machine-settled):** \(1 - (\phi_M \otimes_{\phi} \phi_X) = (1-\phi_M)(1-\phi_X)\) — \(\otimes_{\phi}\) IS plain multiplication on RETAINED fractions (`otimes_is_retention_mul`); composition laws that fail on fee factors hold through the complement map (`ask_comp_otimes_corrected`, its uncorrected form REFUTED at witness \(1/4 \neq 3/4\)).
+
+**Definition 39 (Bid and ask fee prices).** For the marginal price \(P_{\varphi}\) and fee \(\phi\):
+
+\[
+	\begin{aligned}
+		P_{\varphi}^{(\mathrm{bid})} \, \equiv \, \frac{P_{\varphi}}{\phi}, \qquad
+		P_{\varphi}^{(\mathrm{ask})} \, \equiv \, \phi\, P_{\varphi}
+	\end{aligned}
+\]
+
+LABELS AS THE SOURCE ASSIGNS THEM (notation precedence; user TODO 2026-08-11). MACHINE FACT, recorded not repaired: on \(\phi \in (0,1)\) the labelled ask sits strictly BELOW the labelled bid (`bidask_labels_inverted`) — the economic buyer-pays price is \(P_{\varphi}/\phi\); a one-line ruling flips the labels.
+
+**Theorem 35 (Fee-price identities).**
+
+\[
+	\begin{aligned}
+		\frac{P_{\varphi}^{(\mathrm{ask})} - P_{\varphi}^{(\mathrm{bid})}}{P_{\varphi}} \, = \, \frac{(\phi-1)(\phi+1)}{\phi} \; < \, 0 \;\; \text{on } \phi \in (0,1), \qquad
+		P_{\varphi}^{(\mathrm{ask})}\big|_{\phi_M} \circ P_{\varphi}^{(\mathrm{ask})}\big|_{\phi_X} \, = \, P_{\varphi}^{(\mathrm{ask})}\big|_{\phi_M \phi_X}
+	\end{aligned}
+\]
+
+— ask-composition is MULTIPLICATIVE in the fee factor and NOT \(\otimes_{\phi}\)-compatible (refuted; witness \(\phi_M = \phi_X = 1/2\): \(1/4 \neq 3/4\)); the \(\otimes_{\phi}\)-composition law holds through the complement map (Definition 17's retention reading).
+
+*Formalized* (`MarketMaking`, project `d1ad6474`, axiom-clean): `spread_identity`, `bidask_labels_inverted`, `ask_comp_mul`, `ask_comp_otimes_false`, `ask_comp_otimes_corrected`, `otimes_is_retention_mul`.
+
 
 **Rule 7 (Trader-paid fee).** The protocol composes the leg fees into the trader-paid fee by the monoid law:
 
