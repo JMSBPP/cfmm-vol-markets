@@ -272,18 +272,38 @@ inheriting the sign of \(\ln \big(p_{(\eta, \Delta_i)}(i;t) / p_{(\eta, \Delta_i
 with \(\Delta Q_v^{\star}, N_\sigma > 0 \implies T^{\star} > 0\), and \(T^{\star}\) strictly increasing in \(\Delta Q_v^{\star}\), strictly decreasing in \(N_\sigma\). The perpetual order specifies no \(T\); \(T^{\star}\) is the implied maturity of the equivalent dated variance contract — derived from \(\Delta Q_v^{\star}\), never stored.
 
 *Formalized* (`EndogenousMaturity.lean`; \(N_\sigma \neq 0\)): bijection `dQvStarOfMaturity_tStar` / `tStar_dQvStarOfMaturity` / `maturity_equivalence`; vega-exactness `tStar_variancePortfolio_upsilon`, `tStar_unit_upsilon`; `tStar_pos`; `tStar_strictMono_dQvStar`; `tStar_strictAnti_Nσ`.
-> todo: This needs to be replaced with the dirac function
-**Rule 4 (Position ledger).** The protocol books a position as its **net signed liquidity** per strike: each leg carries the direction sign \(\mathbb{I}_{\text{long|short}}\), and the ladder's ledger is
+**Rule 4 (Position ledger — measure form; AMENDED 2026-08-11, the indicator replaced by the Dirac pair).** The protocol books a position as a **signed measure on the price line**: each leg at strike \(i_K\) contributes the Dirac pair at its fee prices (Definition 39), signed by direction —
 
 \[
 	\begin{aligned}
-		\pi^{\sigma} \, (\sigma_K, T; t) \, &\leftarrow \sum_{i_K} \, L_{(1/2,\,0)}(i_K) \, \mathbb{I}_{\text{long|short}}, \qquad \mathbb{I}_{\text{long|short}} \, \equiv \,
+		d\widetilde{L}_{(\chi_{X/M},\,\epsilon_{X/M})}(i_K) \, &\leftarrow \, \pm\, L_{(1/2,\,0)}(i_K)\,\Big[\delta\big(P_{\varphi}^{(\mathrm{ask})}(i_K)\big) - \delta\big(P_{\varphi}^{(\mathrm{bid})}(i_K)\big)\Big], \qquad
 		\begin{cases}
-		- \, 1 & \, \text{long (liquidity removed — burn)} \\
-		1 \, & \, \text{short (liquidity minted)}
-		\end{cases}
+		- & \text{long (liquidity removed — burn)} \\
+		+ & \text{short (liquidity minted)}
+		\end{cases} \\
+		\pi^{\sigma}(\sigma_K, T; t) \, &\leftarrow \, \sum_{i_K} \int_{i_K} d\widetilde{L}_{(\chi_{X/M},\,\epsilon_{X/M})}(i)
 	\end{aligned}
 \]
+
+\(\delta\) the Dirac function ([CLMM_DYN](../refs/cfmm/tung_wang-clmm_dynamics_continuous_time-2024.pdf) §3.2.2 — the liquidity profile as the CDF of a σ-finite signed measure; a concentrated position IS an atom pair). **THE PROVED LAYER sits one derivative below** (Theorem 37): the reserve is the call spread whose FIRST derivative is the Heaviside step pair; the Dirac pair is its distributional second derivative — DECLARED, not machine-claimed.
+
+**Theorem 37 (Ramp band — the proved layer).** For band edges \(a \leq b\) and the call payoff \((t-K)^{+}\):
+
+\[
+	\begin{aligned}
+		(t-a)^{+} - (t-b)^{+} \, = \,
+		\begin{cases}
+			0 & t \leq a \\
+			t - a & a \leq t \leq b \\
+			b - a & b \leq t
+		\end{cases}, \qquad
+		\frac{\partial}{\partial t}\Big[(t-a)^{+} - (t-b)^{+}\Big] \, = \, \mathbb{1}_{(a,b)}(t) \;\; \text{off the kinks}
+	\end{aligned}
+\]
+
+— \(Q_X^L\big(P_{\varphi}\big) = \bar L_{(\chi_{X/M},\epsilon_{X/M})}\big[(P_{eq} - P_{\varphi}^{(\mathrm{ask})})^{+} - (P_{eq} - P_{\varphi}^{(\mathrm{bid})})^{+}\big]\) (user TODO item 4) is this object; its second distributional derivative is Rule 4's Dirac pair.
+
+*Formalized* (`MarketMaking`, project `d1ad6474`, axiom-clean): `ramp_band`; `ramp_band_deriv`.
 
 The sign is **per leg** (`isLong` in the Panoptic tokenId), so mixed-direction ladders are expressible. Leg **type** is not an index here: put or call is determined structurally by the strike against \(p^{\star}\) — puts below, calls above (Definition 6) — and is carried by `tokenType`.
 
@@ -837,7 +857,7 @@ Every **Protocol Input** is a quantity supplied by the USER, per order, at inter
   *Economic meaning:* the vega notional the user targets — the one sizing decision the order stores.
   *Carrier:* `targetVega : u96` at bits 152..247 of the packed `VolOrder` word (plank `feat/plank`); `targetVega` \(= \Delta Q_v^{\star}\) exactly; emitted by `VolOrderCreated(orderId, strike, width, skew, targetVega)`; fits-packed predicate in `VolOrderValidationLib`.
 
-> This is chaninging since we are replacing \mathbb{I} with the dirac fucntions mfrom the papaers
+> *(AMENDED pointer 2026-08-11: Rule 4's ledger is now the MEASURE form — the Dirac pair at the fee prices — and the dimension statement below reads against it; the indicator form it cites survives only inside the proved ramp-band layer, Theorem 37.)*
 **Convention 3 (Vega dimension — stored target vs lens readout; DECIDED 2026-07-30).** \(\Delta Q_v^{\star}\) carries the dimension of the REPLICATION CARRIER — liquidity \(L\), the quantity of the priced vol asset, per Rule 4's ledger
 
 \[
