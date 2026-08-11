@@ -1,0 +1,102 @@
+Formalize the equating question, the explicit gate derivative, and the computability of
+phi-star in RequestProject/TAX7_ADDENDUM.md, blocks M41-M43.
+
+THE SITUATION. The corpus carries TWO tau-star objects. Proposition 13 (SRC) is the
+corrected law -- an implicit stationarity condition from the pre-extension model, BARE
+slot, guard conjuncts undischarged. Theorem 39 (SRC) is the top-up law -- the explicit
+solution of the extended transactional model (Theorem50 in
+RequestProject/MevTransactionalOptimum.lean). They come from DIFFERENT objectives in
+DIFFERENT models; whether they can be equated is the question, not a premise. The author's
+hand-derivation says equating pins the slope product at
+-(1-phi_X)/(1-tau*) -- VERIFY, do not trust: hand derivations in this project have been
+machine-refuted repeatedly (the literal bracket, Corollary 40b, Theorem 48(d)).
+
+NEW AUTHOR RULINGS (2026-08-10), stated in full in the addendum:
+  (A-input) alpha_transactional and delta_transactional are EXOGENOUS ON-CHAIN INPUTS
+  (calldata/config). Formal status unchanged: free typed parameters, never estimated,
+  never solved for. No theorem fixes them to numerals; witnesses may instantiate.
+  The gate derivative dphi_X/dnu is PROTOCOL-KNOWN, not behavioral: SRC Rule 13 +
+  DOC Definition 18 give the schedule in closed form (sum-of-sigmoids times utilization
+  gate). Only dnu/dtau is behavioral, and SRC Theorem 36 gives nu explicitly on the
+  participation region.
+
+A REFUTATION IS A SUCCESSFUL OUTCOME. All six prior bundles returned refutations that
+redirected this project. Do not narrow a claim to make it provable. Exhibit the witness.
+
+THE THREE BLOCKS, one line each:
+
+  M41 (Theorem 53): the equating -- (a) verify the algebraic reduction
+      tau*_law = tau*_topup iff slope product = -(1-phi_X)/(1-tau*), and that this is
+      bracket-zero (MevLVRCancellation) restated; (b) decide whether the equality in the
+      extended model is (i) an identity, (ii) a codimension-one constraint (characterize
+      the locus, point on it and off it), or (iii) generically false (witness); (c) the
+      conditional calibration reading pinning dnu/dtau in protocol observables -- state
+      what dies if (b) = (iii); (d) the nu-decomposition flag: gate nu (realized, Rule 13)
+      vs Theorem 36's arb-only nu -- which reading does each claim need; if a further
+      author ruling is required, SAY SO AND STOP, do not rule.
+
+  M42 (Theorem 54): the explicit gate derivative -- (a) verify
+      dphi_X/dnu = gamma_R (phi_X - phibar)(1 - u/alpha_R), u the gate value of DOC
+      Theorem 1, plus the composed form via SRC Convention 9; (b) first guard conjunct of
+      Proposition 13 becomes a THEOREM: 0 < dphi_X/dnu iff phibar < phi_X and u < alpha_R
+      (strict interior of the fee envelope), degenerating exactly at gate saturation --
+      state what happens to tau*_law there; (c) second conjunct: dnu/dphi < 0 from
+      Theorem 36 on the participation region, chained through
+      Theorem29_monoid_path_is_direct to dnu/dtau < 0 -- or exhibit the obstruction (does
+      the sign survive the feedback term F_{phi->nu->phi} of SRC Theorem 37?); (d) the
+      uniform bound dphi_X/dnu <= (gamma_R alpha_R / 4) sum_j alpha_j for EVM fixed-point
+      scaling.
+
+  M43 (Theorem 55): computability of phi* -- (a) closed form in elementary functions or
+      Lambert W, or prove impossibility in that class; (b) if no closed form, an explicit
+      iteration map T with machine-checked convergence on Theorem52's q > 0 region and an
+      explicit geometric error bound after n steps -- THIS IS THE ARTIFACT THE EVM HOOK
+      RUNS; (c) the iterate is monotone in sigma (consistency with Theorem50's
+      pro-cyclicality) so warm-starting from the previous block moves the right way;
+      (d) computable corner predicates (no numerals) deciding tau* = 0 / interior /
+      shutdown before iterating.
+
+M43(b) IS THE MOST VALUABLE. If it lands, the controller is: read sigma, iterate to
+phi*, apply the top-up law, clamp by the corner predicates -- implementable in a hook.
+If you have budget for one claim, spend it there.
+
+WHAT IS ALREADY PROVED -- cite by declaration name AND file, do not redo.
+
+RequestProject/MevTaxControl.lean: Theorem29_monoid_path_is_direct,
+  Theorem32_hazard_strictAntiOn_tau, H1_dLbar_dpiPhi_pos, H2_dnu_dlamMEV_pos
+RequestProject/MevTaxProgram.lean: Proposition16_corrected_law (:1054), totalDeriv,
+  focCore, pathGate, hasDerivAt_phiTot -- THE BARE SLOT M41 TURNS ON
+RequestProject/MevLVRCancellation.lean (MevTaxLVR): Theorem37_LVR_cancellation,
+  Theorem37_K_pos, Corollary37_root_invariance
+RequestProject/MevChannelClosure.lean (MevTaxChannels):
+  Theorem38_two_routes_close_a_loop, Theorem39_elasticity_closes, ScaleHomogeneous
+RequestProject/MevReturnsReduction.lean (MevTaxReturns): Theorem40_returns_reduction,
+  Theorem40d_loop_correction_removes_epsilon,
+  Theorem44_objective_reading_does_not_discriminate
+RequestProject/MevShockInput.lean (MevTaxShock): Theorem45_shock_driven_utilization
+  (nu = g explicit -- M42(c)'s input), Theorem46_shock_flow_is_two_legged,
+  Theorem47_no_exogenous_hazard_input, Theorem47_shared_driver_leaves_no_root
+RequestProject/MevTransactional.lean: Theorem48_* (partition, NT_FEE, complement,
+  benign payoff)
+RequestProject/MevTransactionalOptimum.lean: Theorem49_* (root restored), Theorem50_*
+  (top-up law, pro-cyclicality, corners -- M43 consumes these), Theorem51_* (incidence),
+  Theorem52_* (second order, the q > 0 guard -- M43(b)'s convergence region)
+
+SOURCES. RequestProject/SRC_VOLATILITY_INSTRUMENTS_MEV.md is SRC, pinned at commit
+e21efc1 / blob d5cf324. RequestProject/VOLATILITY_INSTRUMENTS.md is DOC (peer-owned,
+read-only): Definition 18 (the schedule), Theorem 1 (envelope + gate value u),
+Definition 21 (P_ARB), Proposition 9, Rule 6. RequestProject/TAX6_RETURN_prior.md is
+bundle 6's return.
+
+SEVEN STANDING BANS, stated in full in the addendum. Note ban 4 especially: the dphidnu
+SLOT IS BARE in Proposition16_corrected_law; SRC Convention 9's composed form carries the
+monoid Jacobian explicitly. M41 lives exactly on this distinction -- check which slot
+every equation uses, every time. Ban 7: no implementation numerals in theorems.
+
+DELIVERABLE. Theorems 53-55. Theorem 53(b) resolved to exactly one of
+identity/constraint/generically-false, with proof or witness; the (d) flag answered
+honestly -- "further ruling needed" is acceptable, a silent choice is not. Theorem 54
+with both guard conjuncts discharged or the obstruction exhibited. Theorem 55(a)
+decided; on impossibility, (b)'s iteration with an explicit convergence rate. No new
+sorry. A stated OPEN with a reason beats a narrowed theorem. Every declaration
+#print axioms-clean or its dependency stated.
