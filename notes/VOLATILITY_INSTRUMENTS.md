@@ -594,7 +594,8 @@ and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree
 **Proposition 12 (Profile–field relation) — SETTLED (split verdict).** The ladder carries the per-strike liquidity \(L_{(1/2,\,0)}(i_K) = \bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K)\) (Definition 7); the smooth member carries the field \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\). Whether a given \(\varphi_{(\chi_{X/M},\epsilon_{X/M})}\) admits \((\xi,\iota) \in \Theta_{\ell}\) with \(\bar L_{(1/2,\,0)}\,\ell(\xi,\iota;i_K) = \bar L_{(\chi_{X/M},\epsilon_{X/M})}\) at every strike is now ANSWERED: **the map exists iff \(\epsilon_{X/M} = 0\)** — a geometric ladder is the discretization of a pure power of the reserve ratio, and the normalized field is a pure power iff \(\epsilon_{X/M} = 0\) (`fieldRatio_isPower_iff`: constancy of the mixed comparison forces \(\chi_{X/M}(1-\chi_{X/M})(t^{\epsilon_{X/M}}-1)^2 = 0\)). At \(\epsilon_{X/M} = 0\) the field is state-constant (Theorem 29) and any \((\xi,\iota)\) realization is available; OFF the slice NO geometric ladder reproduces the field — the G4 ladder deficit \(\iota - 2\) is confirmed FROM GEOMETRY, and the parametrized density is the machine-warranted repair (Phase 15.2). *Retained as a Proposition:* the ladder⟺power-law identification is a modelling step; the power-law iff is the machine-proved part.
 
 
-> Abvoid D use \Gamma_{\varphi} and \kappa_{varphi} when apply, this applies bootom up and up to bottom
+**Definition 37 (The level).** \(c \, \equiv \, \varphi_{(\chi_{X/M},\,\epsilon_{X/M})}(Q_X^L, Q_M^L)\) — the value of the trading function at the reserves. ENDOGENOUS state: set by liquidity events, INVARIANT under trading (Theorem 33's on-curve identity); frozen during any trade, hence it sits AFTER the semicolon in price-coordinate signatures — the same slot as \(L\) in \(\varphi(i_K;\Delta Q, L;t)\). Dimension \((Q_X^{L})^{\chi_{X/M}}(Q_M^{L})^{1-\chi_{X/M}}\) (Definition 32's disparity). At the pinned member the level and the intrinsic liquidity COINCIDE — \(c_{(1/2,\,0)} = \bar L_{(1/2,\,0)}\) — a coincidence, not an identity, and the reason this document never needed \(c\) before the general member entered.
+
 **Theorem 33 (Canonical parametrization — the transition channel).** Strictly inside the level set, with \((Q_X^L(p_{\varphi}), Q_M^L(p_{\varphi}))\) Definition 25's price-indexed reserves ([INTRINSIC_LIQ](../refs/cfmm/risk_tung_wang-pricing_hedging_liquidity_provision-2026.pdf) §2.2; differential form only — the integral form's boundary conditions fail off \(\epsilon_{X/M} = 0\)):
 
 \[
@@ -626,8 +627,7 @@ and \(\bar L_{(\chi_{X/M},\epsilon_{X/M})}\) is positively homogeneous of degree
 		\mathcal{D}_{Q_X^L}[p_{\varphi}] \, = \, -\,\frac{1}{L(p_{\varphi})} \quad \textbf{(the price-impact law)}
 	\end{aligned}
 \]
-> what is c. It has not been formally defined. WHat does it represent structurally ? is it exogenous, or endogenous. If exogenoues, recall it goes after ; on (;)
-and the field factors through the pair (level, price) ALONE: \(\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(Q_X^L, Q_M^L) = \bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(c,\, p_{\varphi})\) in closed form — the coordinate change itself. *(Notation: the second form is the SAME object with the argument tuple \((c, p_{\varphi})\) — an argument-tuple abuse, declared rather than given a new symbol; user ruling 2026-08-10.)*
+and the field factors through the pair (price; level) ALONE: \(\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(Q_X^L, Q_M^L) = \bar L_{(\chi_{X/M},\,\epsilon_{X/M})}(p_{\varphi};\, c)\) in closed form — the coordinate change itself, the level in the post-semicolon slot per Definition 37 (supersedes the 2026-08-10 argument-tuple-abuse note).
 
 *Formalized:* `profile_eq_neg_gamma`; `field_factors_through_price` — the hand-derived price-coordinate closed form (`ellP`) CONFIRMED under proof; the invited refutation of its exponent bookkeeping did not materialize.
 
@@ -694,8 +694,9 @@ This is the [M9] **DECIDED** entry — enacted as **Rule 12**, with its algebra 
 \]
 
 The gate's argument is the **utilization ratio** — the trading function evaluated on flow alone over its evaluation on the endowments alone (Theorem 1's \(u\) is the gate's value). The parameters \(\Theta_{\phi} = \{\gamma, \bar\phi, \beta, \alpha\}\) are Protocol Parameters (see **PROTOCOL_PARAMETERS (\(\Theta_{\phi}\))**); the R-suffixed trio \((\alpha_R, \beta_R, \gamma_R)\) enters as members of the \(\alpha/\beta/\gamma\) families. **Signature note:** the \(t\) argument extends Definition 12's \((i_K; \Delta Q, L)\) signature — the time dependence enters through the flow and endowments at \(t\); flagged, not silently repaired.
-> \nu needs to be formally defined here
-**Theorem 1 (Fee Envelope).** Writing \(u = \alpha_R\Big/\Big(1+\exp\Big(\gamma_R\Big(\beta_R - \frac{\varphi_{(1/2,\,0)}(i_K;\Delta Q,0;t)}{\varphi_{(1/2,\,0)}(i_K;0,L;t)}\Big)\Big)\Big)\) — the utilization gate of Definition 18:
+**Definition 36 (Utilization).** \(\nu(i_K;\Delta Q, L; t) \, \equiv \, \dfrac{\varphi_{(1/2,\,0)}(i_K;\Delta Q,0;t)}{\varphi_{(1/2,\,0)}(i_K;0,L;t)}\) — the trading function evaluated on the flow alone over its evaluation on the endowments alone. The FLAIR discretization's \(\nu_t\) is this object at \(t\).
+
+**Theorem 1 (Fee Envelope).** Writing \(u = \alpha_R\,\Lambda\big(\gamma_R(\nu - \beta_R)\big)\) — Definition 36's utilization through Definition 18's gate:
 \[
 	\begin{aligned}
 		0 \leq u \leq \alpha_R, \qquad
