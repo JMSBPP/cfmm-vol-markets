@@ -39,7 +39,6 @@ run {
     }
 
     if selector == SELECTOR_START_SOCKET {
-        // startSocket(chainId@4, poolManager@36, poolId@68): subscribe to this pool's Swap.
         let chain_id     = @evm_calldataload(4);
         let pool_manager = @evm_calldataload(36);
         let pool_id      = @evm_calldataload(68);

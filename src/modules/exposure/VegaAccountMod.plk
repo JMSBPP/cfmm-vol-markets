@@ -5,8 +5,6 @@ import types::exposure::VegaExposure::{RiskPriceX96, Haircut};
 import v3::util::{return_u256, revert_empty};
 import std::error::require;
 
-// FOUR distinct keccak-derived scalar slots. The preimage strings are RESTATED test-side so
-// vm.load addresses are computable in Solidity (14-02). Each holds a plain u256 (no packing).
 // "VegaAccountMod.totalDeposits"
 const SLOT_TOTAL_DEPOSITS = 0x7028e6d3a113b695b842284061c6f092aae4da86db08d6c8336750c40e586a1f;
 // "VegaAccountMod.totalShares"
@@ -22,8 +20,6 @@ run {
     let selector = @evm_shr(224, @evm_calldataload(0));
 
     if selector == SELECTOR_DEPOSIT {
-        // deposit(uint256 collateralAmt) -- mints issue_shares(collateral, storedRiskPrice),
-        // moves all three accumulators (d == 1: riskWeightedShares tracks totalShares in v1).
         let collateral = @evm_calldataload(4);
 
         // Guard 1: deposit(0) reverts. Uses @evm_iszero -- never the bitwise-NOT builtin, whose

@@ -22,7 +22,7 @@ abstract contract PlankTestBase is Test, PlankDeployer {
     function plankOpts() internal pure returns (BuildOptions memory opts) {
         opts.backend = "sona";
 
-        Dependency[] memory deps = new Dependency[](7);
+        Dependency[] memory deps = new Dependency[](6);
         deps[0] = Dependency("v3", "lib/plankified-univ3/plank/lib");
         deps[1] = Dependency("std", "lib/plank-monorepo/std/");
         deps[2] = Dependency("pos_spec", "src/types/pos_spec");
@@ -40,4 +40,5 @@ abstract contract PlankTestBase is Test, PlankDeployer {
     function deployPlank(string memory path) internal returns (address) {
         return plankDeployFFI(path, plankOpts());
     }
+
 }

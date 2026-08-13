@@ -1,0 +1,6 @@
+
+// mint(address,address,int24,int24,uint128,bytes)
+const SELECTOR_ADD_LIQUIDITY = 0xaafe29c0;
+
+//algebraMintCallback(uint256,uint256,bytes)
+const SELECTOR_ADD_LIQUIDITY_CALLBACK = 0x3dd657c5;

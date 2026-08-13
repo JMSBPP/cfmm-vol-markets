@@ -13,7 +13,7 @@ init { return_runtime(); }
 
 run {
     let selector = @evm_shr(224, @evm_calldataload(0));
-
+    
     if selector == SELECTOR_WRITE_PRICE {
         // write_price(poolId@4, sqrtPriceX96@36, tick@68): emit the Swap that moves the price.
         emit_price_update_swap(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68));

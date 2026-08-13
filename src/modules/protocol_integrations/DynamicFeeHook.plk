@@ -11,40 +11,6 @@ import pos_spec::TickVolatility::*;
 import v3::util::{return_u256, revert_empty};
 import std::error::require;
 
-// DynamicFeeHook -- the v4 beforeSwap dynamic-fee (premium) hook
-// (.planning/dynamic-fee-hook-SPEC.md v2 + resume plan; task #16).
-//
-// CO-LOCATES (Algebra base-plugin shape): (i) its OWN realized-volatility timepoint buffer,
-// bound over the shared slot-parameterized RealizedVolatilityStateLib (resume item 2 -- the
-// SAME code RealizedVolatilityMod binds to its module slots), and (ii) the AdaptiveFee config
-// + get_fee. Every swap: write the pool's pre-swap tick to the buffer, read the windowed
-// average volatility (task #17, byte-exact vs Algebra), compute fee = get_fee(vol, config),
-// override the swap fee.
-//
-// beforeSwap: caller==poolManager -> poolId=keccak(key)==BOUND pool -> tick=extsload slot0
-//   -> rv_write_timepoint (B1: same-block is a NO-HALT no-op, the frame continues to the
-//   96-byte tuple -- SFPM swapInAMM does >1 swap/block) -> vol -> fee -> emit E5
-//   -> return (beforeSwap.selector, ZERO delta, fee | OVERRIDE_FEE_FLAG), exactly 96 bytes.
-//
-// ONE-POOL-PER-HOOK (NEW-5 resolution, hard constraint): the poolId is bound at
-// initializeHook and beforeSwap REQUIRES the delivered PoolKey to hash to it. A v4 hook is
-// normally many-pools; a fixed vol buffer would comingle ticks across pools, so this hook
-// serves exactly one. Events therefore carry the REAL bound poolId -- this contract is the
-// POOL-KEYED emitter of the E3/E4/E5/E6 series (events-subgraph-gams-SPEC.md D2), distinct
-// by emitter address from the module-global (poolId = 0) series.
-//
-// RESEARCH-ONLY INVARIANT (user decision, spec section 5): NO owner gate this increment.
-// initializeHook is ONE-SHOT (re-init reverts) but the FIRST call is open -- at a public
-// flagged CREATE2 address that is front-runnable. This hook MUST NOT back a live pool until
-// owner capture is deploy-atomic (constructor/factory arg, todo.md:178).
-//
-// LDF params do NOT enter the fee (locked): getCurrentFee stays a pure function of
-// volatility; the LDF shape acts on the POSITION side only.
-//
-// Unconfigured guard (spec section 6): a zero config would make `0 | OVERRIDE_FEE_FLAG` a
-// VALID 0% override -> zero premia with no revert. beforeSwap requires poolManager != 0 and
-// config != 0 (a validated stored config is never 0: gammas >= 1 occupy nonzero bits).
-
 // "DynamicFeeHook.TimepointBuffer"
 const SLOT_HOOK_BUFFER_BASE = 0xc012e1d5a21451483056cd731d1084eb034101bb8ecf9c408ec8ef7f7588008c;
 // "DynamicFeeHook.RealizedVolState"
@@ -77,8 +43,6 @@ const POOLS_SLOT = 6;
 
 const MASK_ADDR = 0xffffffffffffffffffffffffffffffffffffffff;
 
-// read_current_tick: slot0 = poolManager.extsload(keccak(poolId . POOLS_SLOT));
-// tick = signextend(2, slot0 >> 160)  (Slot0: sqrtPriceX96 at [0,160), int24 tick at [160,184)).
 const read_current_tick = fn(pool_manager: u256, pool_id: u256) u256 {
       let pre = @malloc_uninit(64);
       @mstore32(pre, pool_id);
@@ -96,41 +60,55 @@ const read_current_tick = fn(pool_manager: u256, pool_id: u256) u256 {
 
 init { return_runtime(); }
 
+
+// todo: This goes on separate library named UniswapV4HookStdGuardsLib.plk
+
+const guard_only_pool_manager = fn() void {
+       	let pool_manager = @evm_sload(SLOT_HOOK_POOL_MANAGER);
+        require(pool_manager != 0);
+        require((@evm_caller() & MASK_ADDR) == pool_manager);
+
+};
+
+// todo: This goes on a separate library named UniswapV4HookStdStorageLib.plk
+// todo: This needs better typing, take as argument a hook type which at compile time
+// knows if is receiving one pool or more
+
+const guard_single_pool_id = fn() void {
+      require(pool_id == @evm_sload(SLOT_HOOK_POOL_ID));
+
+};
+
+// =========================================
+// todo: This goes on a separate library named UniswapV4PoolIdLibrary.plk
+// type: Is returning u256 But the type is PoolId
+const calculate_pool_id_from_pool_key_on_calldata = fn() u256 {
+     // todo: This goes to an imported PoolIdLibrary function 
+     let pool_key_ptr = @malloc_uninit(160);
+     @evm_calldatacopy(pool_key_ptr, 36, 160);
+     let pool_id = @evm_keccak256(pool_key_ptr, 160);
+     pool_id;
+};
+
 run {
     let selector = @evm_shr(224, @evm_calldataload(0));
 
     if selector == SELECTOR_BEFORE_SWAP {
-        // 1. only the bound PoolManager may call; poolManager==0 (uninitialized) can never
-        //    pass because the caller word is required non-zero against it explicitly.
-        let pool_manager = @evm_sload(SLOT_HOOK_POOL_MANAGER);
-        require(pool_manager != 0);
-        require((@evm_caller() & MASK_ADDR) == pool_manager);
+       	guard_only_pool_manager();
 
-        // 2. poolId = keccak256(PoolKey) -- the 160 bytes at calldata[36..196]
-        //    (sender@4, key@36: currency0,currency1,fee,tickSpacing,hooks).
-        let kb = @malloc_uninit(160);
-        @evm_calldatacopy(kb, 36, 160);
-        let pool_id = @evm_keccak256(kb, 160);
+	let pool_id = calculate_pool_id_from_pool_key_on_calldata();
+	guard_single_pool_id(pool_id);
 
-        // 3. hard one-pool-per-hook binding.
-        require(pool_id == @evm_sload(SLOT_HOOK_POOL_ID));
-
-        // 4. unconfigured -> revert, never a silent 0% override.
-        let cfg = @evm_sload(SLOT_HOOK_FEE_CONFIG);
+	let cfg = @evm_sload(SLOT_HOOK_FEE_CONFIG);
         require(cfg != 0);
 
-        // 5. the pool's pre-swap tick, from slot0.
         let tick = read_current_tick(pool_manager, pool_id);
 
-        // 6. WRITE the tick to the hook's own buffer (the adaptivity BLOCKER fix). B1: on a
-        //    same-block second swap this returns false without halting -- the fee below is
-        //    still served from the existing series.
         let now = @evm_timestamp() & MASK_U32;
         let _written = rv_write_timepoint(
             SLOT_HOOK_BUFFER_BASE, SLOT_HOOK_VOL_STATE, SLOT_HOOK_WINDOW, pool_id, now, tick
         );
 
-        // 7. windowed average volatility (task #17 reader) over the hook's own series.
         let vol = rv_get_average_volatility(
             SLOT_HOOK_BUFFER_BASE, SLOT_HOOK_VOL_STATE, SLOT_HOOK_WINDOW, tick, now
         );
@@ -155,15 +133,11 @@ run {
         @evm_return(out, 96);
 
     } else if selector == SELECTOR_INITIALIZE_HOOK {
-        // initializeHook(poolManager@4, poolId@36, config 7 words@68..260, initTick@292, initTs@324).
-        // ONE-SHOT: poolManager != 0 marks initialized. Research-only: the first call is open.
         require(@evm_sload(SLOT_HOOK_POOL_MANAGER) == 0);
         let pool_manager = @evm_calldataload(4) & MASK_ADDR;
         require(pool_manager != 0);
         let pool_id = @evm_calldataload(36);
 
-        // config: masked to declared widths BEFORE validate (dirty-high gamma hazard -- same
-        // input-cleaning rule as DynamicFeeMod).
         let cfg = AlgebraFeeConfiguration {
             alpha1: @evm_calldataload(68) & 0xffff,
             alpha2: @evm_calldataload(100) & 0xffff,
@@ -178,14 +152,10 @@ run {
         @evm_sstore(SLOT_HOOK_POOL_MANAGER, pool_manager);
         @evm_sstore(SLOT_HOOK_POOL_ID, pool_id);
         @evm_sstore(SLOT_HOOK_FEE_CONFIG, algebra_fee_config_pack(cfg));
-        // E4 with the REAL poolId -- this emitter is the pool-keyed Theta_phi series.
         emit_fee_configuration_changed(
             pool_id, cfg.alpha1, cfg.alpha2, cfg.beta1, cfg.beta2, cfg.gamma1, cfg.gamma2, cfg.base_fee
         );
 
-        // seed the vol buffer (emits E6 default-window + the E3 seed, real poolId). The
-        // initTs mask is the SAME MASK_U32 as beforeSwap's clock, so the first post-seed dt
-        // is sane (spec MINOR).
         let init_tick = @evm_calldataload(292);
         let init_ts = @evm_calldataload(324) & MASK_U32;
         rv_initialize(
@@ -194,8 +164,6 @@ run {
         @evm_stop();
 
     } else if selector == SELECTOR_HOOK_AVERAGE_VOLATILITY {
-        // getAverageVolatility(int24 tick, uint32 blockTimestamp) -> uint88 (read-only mirror
-        // of step 7, for tests and off-chain readers).
         let tick = @evm_calldataload(4);
         let ts = @evm_calldataload(36) & MASK_U32;
         return_u256(rv_get_average_volatility(
@@ -208,7 +176,5 @@ run {
     } else if selector == SELECTOR_POOL_ID {
         return_u256(@evm_sload(SLOT_HOOK_POOL_ID));
     }
-
-    // Unknown selector: no fallback behaviour is defined for this hook.
-    revert_empty();
+   revert_empty();
 }
