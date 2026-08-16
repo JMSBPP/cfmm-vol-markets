@@ -119,9 +119,18 @@ import Store.Memory (new_memory_store)
 -- library, so the checks below compare the tree against what the library says the schema is,
 -- rather than against a transcription of it living in this file.
 --
--- 'store_conformance_path' is the RESOLVER, imported rather than transcribed so every Tier-C check
--- reads the artifact through the same path @STORE_CONFORMANCE@ redirects.
-import Store.Config (migrations_dir, store_conformance_path)
+-- 'store_conformance_path' and 'pgstore_dsn' are the RESOLVERS, imported rather than transcribed
+-- so every Tier-C check reads the artifact through the same path @STORE_CONFORMANCE@ redirects and
+-- the override sweep exercises the real resolvers. The two @*_env_var@ constants are imported so
+-- the variable NAMES written out in this file can be compared to the library's: a rename there and
+-- nowhere else is exactly the drift that leaves an override advertised and dead.
+import Store.Config
+  ( migrations_dir
+  , pgstore_dsn
+  , pgstore_dsn_env_var
+  , store_conformance_env_var
+  , store_conformance_path
+  )
 import Store.Schema (expected_migrations, identity_constraint_columns, identity_constraint_name)
 -- 'cm_bytes' and the two golden pins are the EXPECTED sides of the conformance digest checks. They
 -- come out of the library's own corpus definition and its Haskell-source pin, never out of the
@@ -3633,6 +3642,10 @@ advertised_overrides =
   , OverrideProbe "RIG_PINS" rig_pins_path rig_probe
   , OverrideProbe "RIG_CHEAT_SWAP_PROOF" proof_file (json_probe proof_file proof_command)
   , OverrideProbe "DRIVER_CAPTURE" capture_path (json_probe capture_path driver_capture_command)
+  -- 23-05. Same shape as DRIVER_CAPTURE exactly: it resolves a FilePath and eleven Tier-C checks
+  -- read it through 'read_store_conformance', so all three assertions below have a real subject.
+  , OverrideProbe "STORE_CONFORMANCE" store_conformance_path
+      (json_probe store_conformance_path store_conformance_command)
   ]
   where
     rig_probe :: IO (Maybe String)
@@ -3713,6 +3726,134 @@ probe_override op = do
             (var ++ " was pointed at " ++ show bogus ++ " and the consumer failed, but the"
               ++ " failure does not NAME the resolved path, so an operator cannot tell which"
               ++ " file the suite was actually reading:\n      " ++ msg)
+
+-- ---------------------------------------------------------------------------------------------
+-- THE NAMED GAP IN THE OVERRIDE SWEEP
+-- ---------------------------------------------------------------------------------------------
+
+-- | An advertised override that 'probe_override' CANNOT honestly probe, with the reason.
+--
+-- 'uo_resolve' returns a 'String' rather than a 'FilePath' because that is the whole difficulty:
+-- a variable that resolves to a value which is not a path has no \"point it at a file that does
+-- not exist\" probe available to it.
+data UnprobedOverride = UnprobedOverride
+  { uo_var     :: String
+  , uo_resolve :: IO String
+  , uo_reason  :: String
+  }
+
+-- | WHY @PGSTORE_DSN@ IS NOT IN 'advertised_overrides'.
+--
+-- 'probe_override' asserts three things and the third is the one that matters: pointing the
+-- variable at a value nothing can resolve makes the CONSUMER fail, and fail NAMING that value.
+-- (1) and (2) alone are satisfied by a resolver whose result nothing reads, which is the defect
+-- restated one layer down.
+--
+-- @PGSTORE_DSN@'s consumer is libpq, reached through the client module and the capture executable.
+-- Neither is reachable from @cabal test@ BY CONSTRUCTION -- that is what DB-03 is, and the grep
+-- over this file that must return zero is the structural form of it. So assertion (3) has no
+-- subject here, and there are exactly two ways to manufacture one:
+--
+--   * import the client and let the probe attempt a connection. That breaks DB-03 on its way to
+--     enforcing DB-02, and turns every contributor's first @cabal test@ into a socket call.
+--   * write a @validate_dsn@ in the config module that rejects the probe value, and let the probe
+--     assert that it rejected. This is the worse of the two, because it LOOKS right. The function
+--     would exist only to be probed; its rejection would prove that a function written to reject
+--     rejects, and it would say nothing whatever about whether the variable steers a connection.
+--     A registered-but-vacuous probe is the exact defect this sweep exists to catch, and installing
+--     one here to close the sweep's own list would be the worst available outcome.
+--
+-- So the gap is NAMED rather than papered over, and the two halves that ARE honestly measurable
+-- are asserted below: the resolver returns the override verbatim, and it returns something other
+-- than its unset default. A 'pgstore_dsn' that stopped reading the environment reddens here. What
+-- nothing in this suite can tell you is whether the resolved value reaches a connection -- and the
+-- evidence that it does is in the capture: @STORE_CONFORMANCE@'s sibling variable is exported by
+-- @capture-store-conformance.sh@ and the artifact it produced records a @server_version@, which is
+-- a value no unconsumed DSN could have produced.
+reason_dsn_has_no_offline_consumer :: String
+reason_dsn_has_no_offline_consumer =
+  "GAP, and a deliberate one. The consumer of this variable is libpq, reached only through the\
+  \ client module and the capture executable, and NEITHER is reachable from cabal test by\
+  \ construction -- that is DB-03. So probe_override's third assertion (the consumer fails NAMING\
+  \ the resolved value) has no subject here, and the only ways to give it one are to open a socket\
+  \ from the test suite or to write a validator that exists solely to be probed. The first breaks\
+  \ DB-03; the second is a registered-but-vacuous probe, which is the defect the sweep exists to\
+  \ catch. The two measurable halves -- verbatim resolution, and differing from the unset default\
+  \ -- are asserted; the third is owed by the capture, which drives the real consumer and records a\
+  \ server_version that no unconsumed DSN could have produced."
+
+unprobed_overrides :: [UnprobedOverride]
+unprobed_overrides =
+  [ UnprobedOverride "PGSTORE_DSN" pgstore_dsn reason_dsn_has_no_offline_consumer
+  ]
+
+-- | THE STORE'S TWO OVERRIDES ARE EACH IN EXACTLY ONE LIST, AND THE GAP IS ASSERTED.
+--
+-- Four assertions, and the first is the one that keeps the other three from drifting: the variable
+-- NAMES written out in 'advertised_overrides' and 'unprobed_overrides' are compared to the
+-- constants in the config module, which is the only place either variable is named. Rename one
+-- there and nowhere else and this reddens -- where without it the sweep would go on probing a
+-- variable the library no longer reads, and reporting it honoured.
+--
+-- The two lists are also asserted DISJOINT. A variable in both would be pardoned as a named gap
+-- while also being counted as probed, which is how an ignore list starts covering things that are
+-- asserted.
+--
+-- The last assertion is the one that makes an 'unprobed_overrides' entry more than a comment: the
+-- resolver is exercised. It is NOT the missing third assertion and does not pretend to be.
+store_overrides_are_probed_or_named_as_gaps :: Check
+store_overrides_are_probed_or_named_as_gaps =
+  Check "store_overrides_are_probed_or_named_as_gaps" . guarded $ do
+    resolved <- mapM measure_resolution unprobed_overrides
+    pure $ do
+      let probed   = map ov_var advertised_overrides
+          unprobed = map uo_var unprobed_overrides
+          store_vars = [store_conformance_env_var, pgstore_dsn_env_var]
+          uncovered = [v | v <- store_vars, v `notElem` probed, v `notElem` unprobed]
+          both      = [v | v <- probed, v `elem` unprobed]
+
+      _ <- expect (null uncovered)
+             ("the store advertises these environment variables and this file's override lists"
+               ++ " name NEITHER of them: " ++ intercalate ", " uncovered
+               ++ ".\n      The names in those lists are written out; the names here come from the"
+               ++ " config module, which is the only place either variable is named. A rename there"
+               ++ " and nowhere else leaves the sweep probing a variable nothing reads and"
+               ++ " reporting it honoured -- which is the advertised-and-dead defect, measured"
+               ++ " three times in this module already, arriving through the guard against it.")
+      _ <- expect (null both)
+             ("these variables are BOTH probed and pardoned as unprobed gaps: "
+               ++ intercalate ", " both
+               ++ ". A variable in both lists is excused and counted at the same time.")
+
+      let thin = [uo_var o | o <- unprobed_overrides, length (uo_reason o) < 200]
+      _ <- expect (null thin)
+             ("these unprobed-override entries carry no real reason: " ++ intercalate ", " thin
+               ++ ".\n      A length floor is a proxy and a weak one; it is here so that \"not"
+               ++ " needed\" cannot be the entry. The whole value of this list is that it is a"
+               ++ " written record of a decision somebody had to defend.")
+
+      mapM_ id resolved
+  where
+    measure_resolution o = do
+      let var   = uo_var o
+          bogus = "/nonexistent-override-probe" </> (var ++ ".json")
+      original <- lookupEnv var
+      let restore = maybe (unsetEnv var) (setEnv var) original
+      flip finally restore $ do
+        unsetEnv var
+        defaulted <- uo_resolve o
+        setEnv var bogus
+        overridden <- uo_resolve o
+        pure $ do
+          _ <- expect (overridden == bogus)
+                 (var ++ " is ADVERTISED and DEAD: its resolver returned " ++ show overridden
+                   ++ " with the variable set to " ++ show bogus ++ ". This variable is recorded"
+                   ++ " as an UNPROBED gap because nothing in cabal test consumes it -- but it is"
+                   ++ " still supposed to RESOLVE, and a resolver that ignores its input is a"
+                   ++ " failure this suite can see and therefore must.")
+          expect (overridden /= defaulted)
+            (var ++ " resolves to " ++ show defaulted ++ " both with and without the variable set"
+              ++ " -- the override is vacuous.")
 
 -- | A PARTIAL run is representable, decodes, and says so.
 --
@@ -5090,6 +5231,10 @@ swept_artifacts =
   , MutableArtifact "RIG_PINS" rig_pins_path "rig-pins.json"
   , MutableArtifact "DRIVER_CAPTURE" capture_path "driver-run-capture.json"
   , MutableArtifact "RIG_CHEAT_SWAP_PROOF" proof_file "cheat-swap-proof.json"
+  -- 23-05. The FIFTH, and the first one whose subject is a database. Every DB-only observation in
+  -- this phase is a recorded value here and nowhere else, so a leaf of it that nothing reads is a
+  -- database-only claim that survived the whole phase unasserted.
+  , MutableArtifact "STORE_CONFORMANCE" store_conformance_path "store-conformance.json"
   ]
 
 -- | THE HONEST GAP, NAMED. Committed artifacts the suite reads that this sweep cannot reach,
@@ -5503,6 +5648,14 @@ absorbed_by_design =
   , ( "rig-pins.json.retired._note"
     , [("empty-string", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1)]
     , reason_retired_value )
+  -- 23-05, the fifth artifact. ONE entry, and it is the field 21-02 already measured as not being
+  -- a regeneration witness. The harness's first run over this artifact reported four fields
+  -- absorbed; three of them were ASSERTED rather than pardoned (the two bare-path readback fields
+  -- against a computed model of the escaping mechanism, and the error text against the member name
+  -- it must contain), which is why only this one is here.
+  , ( "store-conformance.json.generatedAt"
+    , [("empty-string", 1), ("numeric-zero", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1), ("json-null", 1)]
+    , reason_generated_at )
   ]
 
 -- | @steps[3].e3.tick@ -> @steps[].e3.tick@.
@@ -5522,21 +5675,40 @@ absorbed_expectations =
 
 -- | THE FLOOR ON HOW MUCH THE SWEEP EXERCISES.
 --
--- Measured at the commit that introduced this harness. It is a >= floor and not an equality
--- because artifacts legitimately grow; it exists so that an artifact that stops decoding, a
--- resolver that stops resolving, or an enumeration that quietly returns fewer paths cannot shrink
--- the sweep to nothing while it still reports success.
+-- RE-MEASURED AT 23-05 WITH FIVE ARTIFACTS, by raising the constant until the harness reported the
+-- number it had actually reached, and never by adding an estimate to the old one. It is a >= floor
+-- and not an equality because artifacts legitimately grow; it exists so that an artifact that stops
+-- decoding, a resolver that stops resolving, or an enumeration that quietly returns fewer paths
+-- cannot shrink the sweep to nothing while it still reports success.
+--
+-- 2457 (four artifacts) -> 3250 (five). The arithmetic is worth writing down because it is the
+-- check on the measurement: @store-conformance.json@ enumerates 134 leaves and there are six
+-- sentinels, so 804 pairs are possible and 793 were exercised -- the 11 missing ones are mutations
+-- the harness SKIPS because the sentinel equals the value already there (the several recorded
+-- zeroes, the two empty digests, the five null error fields). A sweep of the four older artifacts
+-- therefore still contributes exactly the 2457 this number replaced, which is what says none of
+-- them silently shrank while this one was being added.
+--
+-- Note for anyone budgeting the NEXT artifact: 134 is the count this harness enumerates, and the
+-- 121 carried forward from plan 23-04 is @jq 'paths(scalars)'@, which omits JSON nulls. The
+-- harness mutates nulls, so its number is the larger one and it is the one to budget with.
 sentinel_pair_floor :: Int
-sentinel_pair_floor = 2457
+sentinel_pair_floor = 3250
 
 -- | THE PER-ARTIFACT FLOOR. The total alone is satisfiable by one artifact growing while another
 -- drops out entirely, which is the same substitution the pin-surface SET exists to stop.
+--
+-- All five RE-MEASURED at 23-05 in the same run. The four older entries came back at exactly the
+-- numbers they were written with, which is the point of re-measuring them rather than assuming: a
+-- new entry added beside four stale ones records the tree as it was on the day someone last
+-- thought about it.
 artifact_field_floors :: [(String, Int)]
 artifact_field_floors =
   [ ("rig-manifest.json", 20)
   , ("rig-pins.json", 110)
   , ("driver-run-capture.json", 151)
   , ("cheat-swap-proof.json", 130)
+  , ("store-conformance.json", 134)
   ]
 
 -- | A key nothing in this suite reads, injected into the manifest for the NEGATIVE control.
@@ -6156,6 +6328,41 @@ store_conformance_verdicts_are_all_pass =
           ++ " three-tier design that lets cabal test run with no database has broken:\n      "
           ++ intercalate "\n      " [n ++ ": " ++ v | (n, v) <- broken])
 
+-- | AN OUTSIDE ORACLE FOR THE BROKEN PATH, written from the two MECHANISMS.
+--
+-- The bare-'BS.ByteString' write path damages bytes in two composed steps, and neither is a guess:
+--
+--   1. @ToField ByteString@ is @Escape@, which hands the value to libpq's C-string escaper -- and
+--      a C string ENDS at its first NUL. Everything from the first zero byte onwards never reaches
+--      the server at all. MEASURED at 23-04: the @nul@ member goes in at one byte and comes back
+--      at zero, with no error, which falsified both the research's and the plan's tables.
+--   2. What does arrive is read by @byteain@, which still accepts the LEGACY escape format: a
+--      doubled backslash collapses to one, and a backslash followed by three octal digits is
+--      re-read as a single byte. MEASURED at 23-01: @a\\101b@, six bytes, comes back as @aAb@,
+--      three bytes, with no error and no warning.
+--
+-- Modelling them here rather than pinning the recorded outputs is what makes the corpus check an
+-- oracle instead of a transcription: the expected side is COMPUTED from 'cm_bytes' in
+-- "Store.Types", the actual side is what a real Postgres 18.4 did, and they are compared. All five
+-- returning members agree, in length AND digest.
+bare_path_prediction :: BS.ByteString -> BS.ByteString
+bare_path_prediction = decode_legacy_escapes . BS.takeWhile (/= 0)
+
+decode_legacy_escapes :: BS.ByteString -> BS.ByteString
+decode_legacy_escapes = BS.pack . go . BS.unpack
+  where
+    go (0x5c : 0x5c : rest) = 0x5c : go rest
+    go (0x5c : a : b : c : rest)
+      | all is_octal [a, b, c]
+      , let v = digit a * 64 + digit b * 8 + digit c
+      , v <= 255
+      = fromIntegral v : go rest
+    go (x : rest) = x : go rest
+    go []         = []
+
+    is_octal w = w >= 0x30 && w <= 0x37
+    digit w = fromIntegral w - 0x30 :: Int
+
 -- | The corpus rows, keyed by the @name@ each carries.
 conformance_corpus_rows :: Value -> Either String [(String, Value)]
 conformance_corpus_rows artifact = do
@@ -6237,13 +6444,40 @@ bare_bytestring_is_observed_corrupting_the_artifact =
                ++ " lossless for all seven members; if it is not, the bare-path comparison below is"
                ++ " no longer isolating the wart.")
 
+      -- THE PREDICTION. Computed from cm_bytes by the model above, never read out of the artifact.
+      let predicted     = bare_path_prediction (cm_bytes member)
+          predicted_len = toInteger (BS.length predicted)
+          predicted_sha = sha256_hex predicted
+
+          returned_matches_the_model =
+            do _ <- expect (outcome == "returned")
+                     (name ++ ": the capture records bare_outcome " ++ show outcome
+                       ++ " and the model of the bare path predicts a readback of "
+                       ++ show predicted_len ++ " bytes. A member that RAISES where the model says"
+                       ++ " it returns means the client or the server changed underneath the"
+                       ++ " mechanism this whole corpus is built on.")
+               _ <- expect (bare_len == predicted_len && bare_sha == predicted_sha)
+                     (name ++ ": the bare path did NOT do what the two mechanisms predict."
+                       ++ "\n      in        " ++ show in_len ++ " bytes / " ++ in_sha
+                       ++ "\n      predicted " ++ show predicted_len ++ " bytes / " ++ predicted_sha
+                       ++ "\n      recorded  " ++ show bare_len ++ " bytes / " ++ bare_sha
+                       ++ "\n      The prediction is COMPUTED here from cm_bytes -- truncate at the"
+                       ++ " first NUL, then decode the legacy backslash escapes -- and the recorded"
+                       ++ " side is what a real server did. This is the one assertion in the corpus"
+                       ++ " block whose expected value does not come out of the artifact, so a"
+                       ++ " disagreement is real news either way round.")
+               expect (bare_err == Null)
+                 (name ++ ": recorded as having returned, and yet it carries a bare_error. A"
+                   ++ " statement cannot both succeed silently and raise; one of the two fields"
+                   ++ " describes a different run.")
+
       case cm_behaviour member of
         SilentlyCorrupted -> do
-          _ <- expect (outcome == "returned")
-                 (name ++ " is the DISCRIMINATING member and the capture records it as "
-                   ++ show outcome ++ ", not as having returned. A SqlError is shaped exactly like"
-                   ++ " a dead connection and cannot distinguish the guard firing from the database"
-                   ++ " being down; only a WRONG VALUE returned with no complaint can.")
+          _ <- returned_matches_the_model
+          _ <- expect (predicted /= cm_bytes member)
+                 (name ++ " is tagged SilentlyCorrupted and the MODEL of the bare path predicts it"
+                   ++ " survives intact. The tag and the mechanism disagree, so one of them is"
+                   ++ " describing a member that is no longer in the corpus.")
           _ <- expect (bare_len /= in_len && bare_sha /= in_sha)
                  (name ++ " is the DISCRIMINATING member and it came back UNCHANGED through the"
                    ++ " bare path: " ++ show in_len ++ " bytes / " ++ in_sha ++ " in, "
@@ -6251,10 +6485,6 @@ bare_bytestring_is_observed_corrupting_the_artifact =
                    ++ " control is built on no longer reproduces, so the control has lost its"
                    ++ " subject -- which is not a licence to relax it. Investigate the client and"
                    ++ " the server version before touching this check.")
-          _ <- expect (bare_err == Null)
-                 (name ++ ": recorded as having returned, and yet it carries a bare_error. A"
-                   ++ " statement cannot both succeed silently and raise; one of the two fields"
-                   ++ " describes a different run.")
           pure SilentlyCorrupted
         ServerRejects -> do
           _ <- expect (outcome == "SqlError")
@@ -6266,15 +6496,23 @@ bare_bytestring_is_observed_corrupting_the_artifact =
                    ++ " the encoding for \"there was no readback at all\". This row carries "
                    ++ show bare_len ++ " and " ++ show bare_sha ++ ", so something WAS read back"
                    ++ " and the outcome tag is describing a different event.")
-          _ <- expect (bare_err /= Null)
-                 (name ++ ": tagged ServerRejects with a null bare_error. The error text is the"
-                   ++ " only evidence that the rejection happened at all rather than the insert"
-                   ++ " being skipped.")
+          text <- case bare_err of
+            Null  -> Left (name ++ ": tagged ServerRejects with a NULL bare_error. The error text"
+                            ++ " is the only evidence that the rejection happened at all rather"
+                            ++ " than the insert being quietly skipped.")
+            other -> json_string other
+          -- The recorded error carries the row key the capture wrote under, and the row key is
+          -- built from the member's name. So the text is checked against a value from OUTSIDE the
+          -- artifact: an error transcribed from a different member's run does not name this one.
+          _ <- expect (name `isInfixOf` text)
+                 (name ++ ": the recorded bare_error does not name this member, so there is nothing"
+                   ++ " tying it to this member's run rather than to another one's:\n      " ++ text)
           pure ServerRejects
         RoundTripsAnyway -> do
-          _ <- expect (outcome == "returned")
-                 (name ++ " is tagged RoundTripsAnyway and the capture records bare_outcome "
-                   ++ show outcome ++ ".")
+          _ <- returned_matches_the_model
+          _ <- expect (predicted == cm_bytes member)
+                 (name ++ " is tagged RoundTripsAnyway and the MODEL of the bare path predicts it"
+                   ++ " is DAMAGED. The tag and the mechanism disagree.")
           _ <- expect (bare_len == in_len && bare_sha == in_sha)
                  (name ++ " is tagged RoundTripsAnyway -- it is MEASURED to survive the broken path"
                    ++ " intact -- and the capture shows it changing: " ++ show in_len ++ " bytes / "
@@ -7035,6 +7273,7 @@ core_checks = do
           , driv01_seed_is_reproducible
           , driv01_seed_replays_the_committed_path
           , every_advertised_override_is_honoured
+          , store_overrides_are_probed_or_named_as_gaps
           , expected_store_laws_is_the_law_set
           , store_laws_run_against_the_memory_store
           , adversarial_corpus_has_a_silently_corrupted_member
