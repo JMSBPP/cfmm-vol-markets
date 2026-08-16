@@ -3,14 +3,15 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 23-04-PLAN.md — the conformance capture is COMMITTED. A real Postgres 18.4 was provisioned in Docker and all nine DB-only observations came out at their expected values on the FIRST run; the USER RULING on the jsonb/law incompatibility is implemented AND validated (8/8 laws pass against Store.Postgres unchanged — tier B predicted tier C). Suite still 98/98, FAIL 0, DB-free. Next: /gsd:execute-phase 23 wave 5 (23-05, the checks over store-conformance.json — 121 leaves to budget for the sentinel harness)"
+stopped_at: "Completed 23-05-PLAN.md — PHASE 23 COMPLETE (5/5). The committed evidence is now LOAD-BEARING: thirteen new checks over store-conformance.json, suite 111/111 FAIL 0 and still DB-free (the three-token grep is 0), WALL 78s->97s with the fifth swept artifact against a 900s budget. SIXTEEN falsifications OBSERVED with the artifact byte-identical throughout; the missing-verdict probe reddened as a SET mismatch while sc_law_count still read 8. The bare path's damage turned out PREDICTABLE from its two mechanisms, so two fields the harness reported absorbed became an outside oracle instead of a pardon. PGSTORE_DSN is an ASSERTED named gap, not a probe written to pass. All NINE phase requirements marked complete. Next: /gsd:plan-phase 24"
+previously_stopped_at: "Completed 23-04-PLAN.md — the conformance capture is COMMITTED. A real Postgres 18.4 was provisioned in Docker and all nine DB-only observations came out at their expected values on the FIRST run; the USER RULING on the jsonb/law incompatibility is implemented AND validated (8/8 laws pass against Store.Postgres unchanged — tier B predicted tier C). Suite still 98/98, FAIL 0, DB-free. Next: /gsd:execute-phase 23 wave 5 (23-05, the checks over store-conformance.json — 121 leaves to budget for the sentinel harness)"
 last_updated: "2026-08-16"
-last_activity: "2026-08-16 — 23-04 executed: Store.Json (a pure RFC 8259 recogniser) + Store.Memory tightened to reject non-json on the keyed path + an eighth law making that rule executable; StoreConformance.hs and capture-store-conformance.sh; the real 606-byte golden copied in with provenance; store-conformance.json committed (121 leaves, sc_complete true, 8/8 verdicts, server_version 18.4). THREE findings recorded rather than adjusted: corpus[nul] is SilentlyCorrupted not ServerRejects (1 byte in, 0 out, no error — libpq's C-string escaper truncates), the predicted Store.Json/jsonb numeric-overflow divergence does NOT exist, and the drift stderr is the SCRIPT NAME (23-03's source-read confirmed empirically)"
+last_activity: "2026-08-16 — 23-05 executed: thirteen Tier-C checks make store-conformance.json load-bearing (111/111, FAIL 0, DB-free, WALL 97s); bare_path_prediction models the broken write path from its two mechanisms and reproduces all five returning corpus members exactly in length AND digest, so BYTE-05's control is an oracle rather than a bound; PGSTORE_DSN recorded as an ASSERTED unprobed gap because its consumer is unreachable from cabal test by construction; sentinel_pair_floor RE-MEASURED 2457->3250 and all five artifact_field_floors measured in one run (the new artifact enumerates 134 leaves, not the 121 jq reports, because jq omits nulls); guard #7 (aeson's round trip became the identity) OBSERVED for the first time in three plans, and guard #13 (PGSTORE_DSN) named as the phase's one unobserved guard. PREVIOUSLY 23-04: Store.Json (a pure RFC 8259 recogniser) + Store.Memory tightened to reject non-json on the keyed path + an eighth law making that rule executable; StoreConformance.hs and capture-store-conformance.sh; the real 606-byte golden copied in with provenance; store-conformance.json committed (121 leaves, sc_complete true, 8/8 verdicts, server_version 18.4). THREE findings recorded rather than adjusted: corpus[nul] is SilentlyCorrupted not ServerRejects (1 byte in, 0 out, no error — libpq's C-string escaper truncates), the predicted Store.Json/jsonb numeric-overflow divergence does NOT exist, and the drift stderr is the SCRIPT NAME (23-03's source-read confirmed empirically)"
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
   blocked_phases: 2
 # NOTE: these counts are v6.0-SCOPED (phases 23-28) on purpose. `gsd-tools state update-progress`
 # was run at 23-01 and rewrote them by scanning EVERY phase directory on disk, producing
@@ -38,41 +39,50 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **23 — Postgres Foundation & the Byte-Exact Schema** (IN PROGRESS — 4/5 plans)
-Plan: **23-04 COMPLETE** (DB-01/DB-04/BYTE-01/BYTE-02/BYTE-05/KEY-07 all PARTIAL, none marked
-complete — fourth plan running). Next: 23-05 (wave 5, the checks over the captured artifact).
-Status: **THE EVIDENCE EXISTS.** A real `postgres:18-alpine` (`server_version` 18.4) was
-provisioned in Docker, every database-only observation was DRIVEN against it, and
-`offchain/rig/store-conformance.json` is committed — 121 leaves, `sc_complete true`, 8/8 law
-verdicts `pass`. One full cold capture takes **4–8 s**. Nothing in `cabal test` reads it yet; that
-is 23-05, and until then the artifact is asserted by nothing (this repository's own issue #19
-shape, budgeted rather than discovered).
+Phase: **23 — Postgres Foundation & the Byte-Exact Schema** — **COMPLETE (5/5 plans)**
+Plan: **23-05 COMPLETE.** All **nine** phase requirements marked complete for the first time
+(DB-01..04, BYTE-01/02/03/05, KEY-07) — four plans deliberately held them at PARTIAL because
+evidence unread by any check is the artifact-asserted-by-nothing shape (issue #19). **That
+condition is now discharged.** Next: `/gsd:plan-phase 24`.
 
-**THE USER RULING IS IMPLEMENTED AND VALIDATED.** 23-03's `jsonb` / `law_first_writer_wins`
-incompatibility was ruled: the keyed path REQUIRES a json value, `Store.Memory` is tightened to
-match (via `Store.Json`, a pure RFC 8259 recogniser — no json library on the storage path), the
-fixture becomes a json value that still disagrees, and the rule is now an executable eighth law with
-a LIVENESS control ordered first. **All eight laws pass against `Store.Postgres` unchanged: tier B
-predicted tier C**, which is the only reason `cabal test` may run without a server.
+Status: **THE EVIDENCE IS LOAD-BEARING.** Thirteen new checks turn
+`offchain/rig/store-conformance.json` from a committed file nothing read into the artifact eleven
+assertions rest on. **Suite 111/111, FAIL count 0, still DB-free** — the three-token grep over
+`offchain/test/Main.hs` is still **0**. `cabal test` WALL went **78 s → 97 s** with the fifth swept
+artifact; the budget was 900 s and the artifact was NOT narrowed.
 
-**THE SUITE IS STILL GREEN AND STILL DB-FREE: 98/98, FAIL count 0**, unchanged because this plan
-registers no check (the new law is DATA inside an existing one).
-`grep -cE 'Store\.Postgres|CFMM_REQUIRE_DB|connectPostgreSQL' offchain/test/Main.hs` is still 0.
-`Database\.PostgreSQL` now matches **two** files — `Store/Postgres.hs` and the capture executable —
-which supersedes 23-03's "exactly one" deliberately.
+**SIXTEEN FALSIFICATIONS OBSERVED**, each against its named input, and the committed artifact's
+sha256 (`1e5f076a…d332153`) is byte-identical before and after all of them. The four the plan named:
+ABSENT (all eleven artifact-reading checks fail, naming the capture command — none skips), STALE (a
+real `.sql` edited: `recorded=9e89722c… recomputed=ff649f32…`), TRUNCATED (`sc_complete false`), and
+a MISSING LAW VERDICT — **reported as a SET mismatch while `sc_law_count` still read 8**, which is
+the demonstration that a count-based instrument would have passed that input.
 
-**Not one defect was found in `Store.Postgres`.** 23-03 warned this plan is the first execution of
-every DB-facing line in it; the capture worked end to end on its first run.
+**THE BARE PATH TURNED OUT TO BE PREDICTABLE.** The sentinel harness reported four fields of the
+new artifact absorbed; three were ASSERTED rather than pardoned. `bare_out_len` and
+`bare_out_sha256` are now compared against `bare_path_prediction` — a MODEL of the two mechanisms
+(libpq's C-string escaper truncating at the first NUL, then `byteain`'s legacy escape decode)
+computed from `cm_bytes` in `Store.Types`, never from the artifact. It reproduces **all five
+returning corpus members exactly, in length AND digest**. BYTE-05's negative control is now an
+outside oracle rather than a bound. Only `generatedAt` is pardoned.
 
-Next action: `/gsd:execute-phase 23` (wave 5).
+**`PGSTORE_DSN` IS A NAMED GAP, NOT A PROBE.** Its consumer is libpq, reachable only through the
+client module and the capture executable, and neither is reachable from `cabal test` BY
+CONSTRUCTION — that is DB-03. Manufacturing a consumer (a `validate_dsn` written only to be probed)
+would be a registered-but-vacuous probe, the exact defect the sweep exists to catch. It lives in a
+new **asserted** `unprobed_overrides` list with a written reason, and the two halves that ARE
+measurable (verbatim resolution, differs-from-default) are asserted. `probe_override` was not
+weakened. `STORE_CONFORMANCE` IS registered and was observed firing on three arms.
 
-Last activity: 2026-08-16 — 23-04 executed (commits `883a991`, `845d4a2`, `e7687e5`).
+Next action: `/gsd:plan-phase 24`.
+
+Last activity: 2026-08-16 — 23-05 executed (commits `96736a4`, `90f6c4f`).
 
 ### The six phases
 
 | Phase | Name | Reqs | Blocked? |
 |---|---|---|---|
-| 23 | Postgres Foundation & the Byte-Exact Schema | 9 | No |
+| 23 | Postgres Foundation & the Byte-Exact Schema | 9 | **COMPLETE 5/5, all 9 reqs** |
 | 24 | GAMS Invocation & Toolchain Identity | 7 | No |
 | 25 | The Content Key & Keyed Store | 14 | No |
 | 26 | Shock Assembly — Fee Split & Event Decode | 5 | No |
@@ -170,6 +180,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 23 P02 | 62min | 3 tasks | 5 files |
 | Phase 23 P03 | 44min | 2 tasks | 6 files |
 | Phase 23 P04 | 33min | 3 tasks | 12 files |
+| Phase 23 P05 | 71min | 2 tasks | 2 files |
 | Phase 19 P01 | 6 | 3 tasks | 3 files |
 | Phase 19 P02 | 33 | 3 tasks | 3 files |
 | Phase 19 P03 | 24 | 3 tasks | 1 files |
@@ -198,6 +209,15 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecting v4.0:
 
 **v6.0 (Phase 23) decisions:**
+
+- [Phase 23]: [23-05 DECIDED, the plan's own explicit fork] **`PGSTORE_DSN` is a NAMED GAP in an asserted `unprobed_overrides` list, NOT a registered `OverrideProbe`.** `probe_override`'s third assertion is that pointing the variable at an unresolvable value makes the CONSUMER fail NAMING that value. `PGSTORE_DSN`'s consumer is libpq, reached only through the client module and the capture executable, and **neither is reachable from `cabal test` by construction** — that is DB-03, and the three-token grep that must return 0 is its structural form. Both ways of manufacturing a subject were rejected: importing the client breaks DB-03 on the way to enforcing DB-02, and a `validate_dsn` written only to be probed is worse *because it looks right* — its rejection would prove that a function written to reject rejects. That is a registered-but-vacuous probe, the exact defect the sweep exists to catch, installed to close the sweep's own list. `probe_override` was NOT weakened. The two halves that ARE measurable (verbatim resolution, differs-from-default) are asserted, plus disjointness of the two lists and a both-directions check that every variable `Store.Config` names appears in exactly one of them.
+- [Phase 23]: [23-05 MEASURED, upgrades BYTE-05 from a bound to an ORACLE] **the bare write path's damage is PREDICTABLE from its two mechanisms.** libpq's C-string escaper truncates at the first NUL (23-04) and `byteain` then decodes the legacy escapes — `\\` to one backslash, `\NNN` to one octal byte (23-01). `bare_path_prediction` composes them over `cm_bytes` from `Store.Types`, and the expected side never touches the artifact. It reproduces **all five returning corpus members exactly, in length AND digest** (`nul` 1→0, `crlf` 4→4, `trailing-newline` 2→2, `octal-escape` 6→3 `aAb`, `double-backslash` 4→3 `a\b`). The sentinel harness had reported `bare_out_len` and `bare_out_sha256` as absorbed and the plan permitted pardoning them; modelling the mechanism was the better answer and is the difference between recording that bytes were lost and predicting exactly which.
+- [Phase 23]: [23-05 MEASURED, corrects 23-04's carried-forward budget input] **the sentinel harness enumerates 134 leaves of `store-conformance.json`, not 121.** 23-04's 121 is `jq 'paths(scalars)'`, which OMITS JSON nulls; `scalar_json_paths` treats a null as a leaf and mutates it. `sentinel_pair_floor` RE-MEASURED 2457 → **3250** by raising the constant until the harness reported what it reached, never by arithmetic; 134 × 6 = 804 possible, 793 exercised, the 11 difference being identity skips, so `3250 − 2457 = 793` confirms the four older artifacts still contribute exactly 2457. All five `artifact_field_floors` re-measured in that run and the four older ones came back UNCHANGED (20 / 110 / 151 / 130), which is what says none of them shrank while the new one was added.
+- [Phase 23]: [23-05 FINDING, a guard registered and green for three plans had never been seen to reject] **research guard #7 (`aeson_round_trip_mutations_are_re_measured`'s "the round trip became the identity" arm) had no firing observation anywhere in the phase** until it was compiled into the nineteen-guard ledger. OBSERVED by pinning a vector whose round trip genuinely is the identity — the research table's own named input. Carry forward: a guard can sit registered, green and cited for three plans without anyone having watched it reject, and only building the ledger surfaces it.
+- [Phase 23]: [23-05 FINDING, the phase's ONE unobserved guard] **research guard #13 (`PGSTORE_DSN` override) has no observation and cannot get one offline.** It is named as a phase-level finding rather than omitted. The only evidence the variable is honoured end to end is 23-04's capture, which exports it and gets a `server_version` back — real evidence, and not a `cabal test` observation. If a later phase introduces a DSN consumer reachable offline, that is the moment to move the entry into `advertised_overrides` — and the moment to be suspicious of any consumer introduced *in order to* move it.
+- [Phase 23]: [23-05 MEASURED, the assertion a COUNT cannot make] deleting one key from `law_verdicts` reddens `store_conformance_verdicts_are_all_pass` as a SET mismatch **while `sc_law_count` still reads 8**. That is the demonstration, not the argument, that a skipped law is structurally unrepresentable rather than merely detectable.
+- [Phase 23]: [23-05 DECIDED] the checksum-drift MESSAGE **is** asserted — for the FILENAME it names, from `expected_migrations`, and never for the words "checksum mismatch", which do not appear on that path. The arm reproduces 23-04's real defect (a server `NOTICE` recorded in its place), so it is a guard with a demonstrated catch rather than a decoration.
+- [Phase 23]: [23-05, the FIFTH and SIXTH instances of prose inside a grep's blast radius] a FAILURE MESSAGE naming the postgres store module took the DB-free grep from 0 to 1. The credential pattern and its bait are therefore BUILT from fragments rather than written contiguously, for the same reason `purge_control_literal` and `aeson_bait_source` are. **Rule, now with six instances: any token a check greps for must not appear contiguously in a file that check reads — including in prose and including in failure text.**
 
 - [Phase 23]: [23-04 USER RULING, implemented AND validated by measurement] the keyed path **REQUIRES a json value** — `model_run.doc` is `not null jsonb` derived from the same parameter as `raw`, and the server computes the row before it resolves the conflict clause, so `on conflict do nothing` does not save a non-json artifact. `Store.Memory` is TIGHTENED to match (rather than the server loosened) because **TIER B MUST PREDICT TIER C**: a law suite that passes against the reference store and fails against Postgres defeats the three-tier design, which is the only reason `cabal test` may run with no database. `law_first_writer_wins`'s second payload became `{"a":2,"note":"SECOND-SOLVE-DISAGREED"}` — still different bytes, so its discriminating power is unchanged — and the old non-json bytes became the probe of the new eighth law. **MEASURED: all 8 laws pass against `Store.Postgres` unchanged.** BYTE-01's arbitrary-bytes requirement is served by `byte_corpus`, which deliberately has no `jsonb` column.
 - [Phase 23]: [23-04 DECIDED] `Store.Json` — a total, pure RFC 8259 recogniser behind a UTF-8 gate — is the predicate the server-free tier rejects with. Hand-written because every module under `offchain/lib/Store/` is in `aeson_storage_path`, and because a RECOGNISER builds no value and therefore cannot re-render a number or reorder a key. Its agreement with `jsonb` is **MEASURED per input** in the capture's `json_agreement` block, never claimed in prose. Added to `aeson_storage_path` in the commit that created it, per the rule 23-03 wrote down and then broke.

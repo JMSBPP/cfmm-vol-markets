@@ -16,15 +16,15 @@ authoritative type/parameter kernel.
 The milestone's headline guarantee is that a re-solve reproduces bytes. Everything here
 exists because three separate layers were measured silently altering them.
 
-- [ ] **BYTE-01**: The prover's output is stored as `bytea` and returned byte-identical to
+- [x] **BYTE-01**: The prover's output is stored as `bytea` and returned byte-identical to
       what GAMS emitted — verified against a recorded sha256, not against a parsed document.
-- [ ] **BYTE-02**: A `jsonb` projection exists for querying and is **derived** from the
+- [x] **BYTE-02**: A `jsonb` projection exists for querying and is **derived** from the
       bytes; no check ever compares `jsonb` to `jsonb` to establish byte identity.
-- [ ] **BYTE-03**: The prover's bytes never pass through `Data.Aeson.Value` on the storage
+- [x] **BYTE-03**: The prover's bytes never pass through `Data.Aeson.Value` on the storage
       or publication path (measured: `decode→encode` mutates 4 fields at GHC 9.10.3).
 - [ ] **BYTE-04**: `dQx`/`dQM` are decoded as `Integer`, never `Double` (measured: `Double`
       loses 32 wei on the first element, which would execute the wrong swap amounts).
-- [ ] **BYTE-05**: A stored artifact round-trips byte-identically through the database — a
+- [x] **BYTE-05**: A stored artifact round-trips byte-identically through the database — a
       test that fails if any layer normalizes, including `ByteString` sent as text rather
       than via the `Binary` newtype.
 
@@ -42,7 +42,7 @@ exists because three separate layers were measured silently altering them.
       cannot silently reinterpret existing keys.
 - [ ] **KEY-06**: A missing or unparseable input is an error before hashing — never a
       default that silently becomes part of a key.
-- [ ] **KEY-07**: Rows carry a `key_scheme` inside the unique constraint, so a future key
+- [x] **KEY-07**: Rows carry a `key_scheme` inside the unique constraint, so a future key
       formula change orphans rows rather than corrupting them.
 
 ### Store (STORE)
@@ -64,15 +64,15 @@ exists because three separate layers were measured silently altering them.
 
 ### Database Foundation (DB)
 
-- [ ] **DB-01**: Schema and migrations are applied by an explicit command whose failure —
+- [x] **DB-01**: Schema and migrations are applied by an explicit command whose failure —
       including a checksum mismatch — exits non-zero (`postgresql-migration` returns the
       error and still exits 0).
-- [ ] **DB-02**: Connection configuration is resolved from the environment with no hardcoded
+- [x] **DB-02**: Connection configuration is resolved from the environment with no hardcoded
       credentials, consistent with the existing override convention.
-- [ ] **DB-03**: `cabal test` passes with **no database present**, and the tests that cover
+- [x] **DB-03**: `cabal test` passes with **no database present**, and the tests that cover
       store behaviour still discriminate — they must not skip, pass vacuously, or read
       nothing and report clean.
-- [ ] **DB-04**: A Postgres instance can be provisioned for local and CI runs via Docker.
+- [x] **DB-04**: A Postgres instance can be provisioned for local and CI runs via Docker.
 
 ### Solver Invocation (GAMS)
 

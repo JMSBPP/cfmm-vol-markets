@@ -764,7 +764,7 @@ mutant Z is OBSERVED caught" — never as "the tests pass".
 
 ## Phases
 
-- [ ] **Phase 23: Postgres Foundation & the Byte-Exact Schema** - The schema that returns the bytes it was given, migrations that fail loudly, `key_scheme` inside the unique constraint, and a suite that goes RED rather than skipping when its subject is absent (DB-01..04, BYTE-01, BYTE-02, BYTE-03, BYTE-05, KEY-07)
+- [x] **Phase 23: Postgres Foundation & the Byte-Exact Schema** - The schema that returns the bytes it was given, migrations that fail loudly, `key_scheme` inside the unique constraint, and a suite that goes RED rather than skipping when its subject is absent (DB-01..04, BYTE-01, BYTE-02, BYTE-03, BYTE-05, KEY-07) (completed 2026-08-16)
 - [ ] **Phase 24: GAMS Invocation & Toolchain Identity** - The prover as a controlled subprocess gated on evidence not log text, with version detection that aborts rather than yielding an empty key component — landed BEFORE the store's first production write (GAMS-01..06, BYTE-04)
 - [ ] **Phase 25: The Content Key & Keyed Store** - Framed, edge-normalized keys that refuse to be built from an absent input; cache elision, on-demand verification, quarantine, pin, scoped reset and the append-only run log — the byte-reproduction proof, chain-free (KEY-01..06, STORE-01..08)
 - [ ] **Phase 26: Shock Assembly — Fee Split & Event Decode** - The two pure producers of a shock's fields: the closed-form splitter that refuses infeasibility before the solver is spawned, and the `next` decoder proven against synthetic logs before the event exists (FEE-01..04, CHAIN-04)
@@ -983,7 +983,7 @@ at the end of 25.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 23. Postgres Foundation & the Byte-Exact Schema | 4/5 | In Progress|  |
+| 23. Postgres Foundation & the Byte-Exact Schema | 5/5 | Complete   | 2026-08-16 |
 | 24. GAMS Invocation & Toolchain Identity | 0/TBD | Not started | - |
 | 25. The Content Key & Keyed Store | 0/TBD | Not started | - |
 | 26. Shock Assembly — Fee Split & Event Decode | 0/TBD | Not started | - |
