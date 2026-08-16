@@ -868,12 +868,18 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 -- silently become five. A floor that is inherited rather than re-measured records the tree as it
 -- was on the day someone last thought about it.
 --
--- 44 = @find offchain \\( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \\) -type f | wc -l@ at
--- this commit: 35 Haskell, 7 shell, 2 SQL. Measured AFTER every file in the commit was written --
--- the first attempt at this number was taken before the commit's own new library module existed
--- and came out one low, which a @>=@ floor accepts in silence.
+-- 45 = @find offchain \\( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \\) -type f | wc -l@ at the
+-- END of plan 23-03: 36 Haskell, 7 shell, 2 SQL. It was taken TWICE before it was right -- once
+-- before this plan's own new library modules existed, which a @>=@ floor accepts in silence, and
+-- once between the plan's two commits.
+--
+-- The rule this records, since it is a floor and not a pin: it is re-measured when the purge's
+-- SCOPE changes or when a plan is already editing this block, and NOT on every added @.hs@. Four
+-- tracks add Haskell here legitimately and often; a number chased on every addition is raised
+-- reflexively and stops being read. What it must never do again is sit unexamined while the tree
+-- moves under it, which is what the inherited 36 was doing for two whole waves.
 purge_file_floor :: Int
-purge_file_floor = 44
+purge_file_floor = 45
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
