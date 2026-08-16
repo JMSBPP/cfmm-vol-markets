@@ -6025,6 +6025,13 @@ one_aeson_vector (input, expected) =
 -- is how a guard's scope shrinks to the empty set. Its haddock had to be reworded in this same
 -- commit to stop describing the import it does not have, which is the second time prose has turned
 -- out to be inside a grep's blast radius on this branch.
+--
+-- A named list makes an omission VISIBLE, and it does not make it impossible. @Store\/Schema.hs@
+-- landed in 23-03 task 1 and spent two commits unlisted -- a storage module this scan did not read,
+-- caught by the plan's own self-check rather than by anything that fails. That is the other half of
+-- the trade: a glob would have picked it up and a named list has to be edited. The rule is the same
+-- rule 23-02 wrote down and 23-03 then broke -- a new module under @offchain\/lib\/Store\/@ is added
+-- HERE, in the commit that creates it -- and it now has an instance to its name.
 aeson_storage_path :: [FilePath]
 aeson_storage_path =
   [ "offchain/lib/Store/Class.hs"
@@ -6032,6 +6039,7 @@ aeson_storage_path =
   , "offchain/lib/Store/Laws.hs"
   , "offchain/lib/Store/Memory.hs"
   , "offchain/lib/Store/Postgres.hs"
+  , "offchain/lib/Store/Schema.hs"
   , "offchain/lib/Store/Types.hs"
   ]
 
