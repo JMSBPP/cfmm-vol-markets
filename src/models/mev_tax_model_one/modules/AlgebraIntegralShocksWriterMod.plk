@@ -150,6 +150,15 @@ run {
 	       let initialize_succ = @evm_call(@evm_gas(),pool,ZERO_WEI,initialize_calldata,36,initialize_calldata,0);
 	       if !initialize_succ {revert_empty();}
 
+	       // EXEC-03: set pluginConfig = BEFORE_SWAP | DYNAMIC_FEE (0x81) so the pool calls beforeSwap
+	       // with the swap hookData and honors beforeSwap's feeOverride (fee-0). The writer IS the
+	       // plugin, so it may call this permissioned action on its own pool.
+	       let set_cfg_call_ptr = @malloc_uninit(36);
+	       @mstore4(set_cfg_call_ptr, SELECTOR_SET_PLUGIN_CONFIG);
+	       @mstore32(set_cfg_call_ptr +% 4, MEV_TAX_PLUGIN_CONFIG);   // uint8 0x81, right-aligned
+	       let set_cfg_succ = @evm_call(@evm_gas(),pool,ZERO_WEI,set_cfg_call_ptr,36,set_cfg_call_ptr,0);
+	       if !set_cfg_succ {revert_empty();}
+
 
 	       let seed_init_liquidity_call_ptr = @malloc_uninit(292);
 

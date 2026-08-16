@@ -165,4 +165,24 @@ contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapC
          // algebraSwapCallback above once the writer owns swap payment.
      }
 
+     /// @notice EXEC-03: the writer, as the pool's plugin, must set pluginConfig during init to
+     /// BEFORE_SWAP_FLAG | DYNAMIC_FEE = 0x81 — so the pool calls beforeSwap with the swap hookData
+     /// and honors beforeSwap's feeOverride (fee-0). RED until SELECTOR_INIT calls setPluginConfig;
+     /// this also settles empirically whether the plugin is authorized to call it.
+     function test__unit__pluginConfigEnablesBeforeSwapAndDynamicFee() public {
+         MockERC20 tokenA = new MockERC20("TOKEN_A", "TOKEN_A", 18);
+         MockERC20 tokenB = new MockERC20("TOKEN_B", "TOKEN_B", 18);
+         MockERC20 asset;
+         MockERC20 numeraire;
+         if (address(tokenA) < address(tokenB)) { asset = tokenA; numeraire = tokenB; } else { asset = tokenB; numeraire = tokenA; }
+
+         asset.mint(address(shocks_writer), MAX_SUPPLY);
+         numeraire.mint(address(shocks_writer), MAX_SUPPLY);
+         shocks_writer.init(deploy_algebra.algebra_factory(), address(asset), address(numeraire));
+         address pool = IAlgebraFactory(deploy_algebra.algebra_factory()).poolByPair(address(asset), address(numeraire));
+
+         (, , , uint8 pluginConfig, , ) = IAlgebraPoolState(pool).globalState();
+         assertEq(uint256(pluginConfig), 0x81, "writer must set pluginConfig = BEFORE_SWAP | DYNAMIC_FEE");
+     }
+
 }
