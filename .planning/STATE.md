@@ -3,21 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 23-05-PLAN.md — PHASE 23 COMPLETE (5/5). The committed evidence is now LOAD-BEARING: thirteen new checks over store-conformance.json, suite 111/111 FAIL 0 and still DB-free (the three-token grep is 0), WALL 78s->97s with the fifth swept artifact against a 900s budget. SIXTEEN falsifications OBSERVED with the artifact byte-identical throughout; the missing-verdict probe reddened as a SET mismatch while sc_law_count still read 8. The bare path's damage turned out PREDICTABLE from its two mechanisms, so two fields the harness reported absorbed became an outside oracle instead of a pardon. PGSTORE_DSN is an ASSERTED named gap, not a probe written to pass. All NINE phase requirements marked complete. Next: /gsd:plan-phase 24"
-previously_stopped_at: "Completed 23-04-PLAN.md — the conformance capture is COMMITTED. A real Postgres 18.4 was provisioned in Docker and all nine DB-only observations came out at their expected values on the FIRST run; the USER RULING on the jsonb/law incompatibility is implemented AND validated (8/8 laws pass against Store.Postgres unchanged — tier B predicted tier C). Suite still 98/98, FAIL 0, DB-free. Next: /gsd:execute-phase 23 wave 5 (23-05, the checks over store-conformance.json — 121 leaves to budget for the sentinel harness)"
+stopped_at: "PHASE 23 COMPLETE (5/5, verified 9/9) — next /gsd:plan-phase 24 (GAMS Invocation & Toolchain Identity)"
 last_updated: "2026-08-16"
-last_activity: "2026-08-16 — 23-05 executed: thirteen Tier-C checks make store-conformance.json load-bearing (111/111, FAIL 0, DB-free, WALL 97s); bare_path_prediction models the broken write path from its two mechanisms and reproduces all five returning corpus members exactly in length AND digest, so BYTE-05's control is an oracle rather than a bound; PGSTORE_DSN recorded as an ASSERTED unprobed gap because its consumer is unreachable from cabal test by construction; sentinel_pair_floor RE-MEASURED 2457->3250 and all five artifact_field_floors measured in one run (the new artifact enumerates 134 leaves, not the 121 jq reports, because jq omits nulls); guard #7 (aeson's round trip became the identity) OBSERVED for the first time in three plans, and guard #13 (PGSTORE_DSN) named as the phase's one unobserved guard. PREVIOUSLY 23-04: Store.Json (a pure RFC 8259 recogniser) + Store.Memory tightened to reject non-json on the keyed path + an eighth law making that rule executable; StoreConformance.hs and capture-store-conformance.sh; the real 606-byte golden copied in with provenance; store-conformance.json committed (121 leaves, sc_complete true, 8/8 verdicts, server_version 18.4). THREE findings recorded rather than adjusted: corpus[nul] is SilentlyCorrupted not ServerRejects (1 byte in, 0 out, no error — libpq's C-string escaper truncates), the predicted Store.Json/jsonb numeric-overflow divergence does NOT exist, and the drift stderr is the SCRIPT NAME (23-03's source-read confirmed empirically)"
+last_activity: "2026-08-16 — phase 23 executed and verified: 111/111 checks, 0 warnings, suite still DB-free"
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 5
   completed_plans: 5
-  blocked_phases: 2
-# NOTE: these counts are v6.0-SCOPED (phases 23-28) on purpose. `gsd-tools state update-progress`
-# was run at 23-01 and rewrote them by scanning EVERY phase directory on disk, producing
-# milestone v2.0 / 25 phases / 37 plans -- it folded the v1.0-v5.0 tracks, which STATE.md itself
-# says are separate and never renumbered, into the v6.0 milestone. Reverted and maintained by
-# hand. total_plans is 5 because phase 23 is the only v6.0 phase planned so far.
 ---
 
 # Project State

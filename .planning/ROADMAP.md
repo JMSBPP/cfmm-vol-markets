@@ -790,20 +790,20 @@ consume it and every decision here is expensive to retrofit.
 `offchain/test/Main.hs`, and each consumes the previous plan's artifact)
 
 Plans:
-- [ ] 23-01-PLAN.md — The store contract: `.cabal` deps, `Store.{Types,Config,Class,Memory}`, the
+- [x] 23-01-PLAN.md — The store contract: `.cabal` deps, `Store.{Types,Config,Class,Memory}`, the
   adversarial corpus with its measured behaviour tags, and `DerivedDoc` made uncomparable at the
   type level (BYTE-02, BYTE-05, DB-02) [wave 1]
-- [ ] 23-02-PLAN.md — `Store.Laws` executing for real against `Store.Memory` inside `cabal test`;
+- [x] 23-02-PLAN.md — `Store.Laws` executing for real against `Store.Memory` inside `cabal test`;
   the law SET asserted in both directions; the corpus behaviour SET; BYTE-03's two aeson guards
   (DB-03, BYTE-03, BYTE-05, KEY-07) [wave 2]
-- [ ] 23-03-PLAN.md — The two migration `.sql` files with the `(model, key_scheme, key)`
+- [x] 23-03-PLAN.md — The two migration `.sql` files with the `(model, key_scheme, key)`
   constraint, the pure migration manifest, `Store.Postgres` (the sole `postgresql-simple`
   importer, `Binary`-only writes, `pg_advisory_lock`, `exitFailure`), and the three
   `sc3_literal_purge` constants moved in the SAME task (DB-01, KEY-07, BYTE-01..03) [wave 3]
-- [ ] 23-04-PLAN.md — The capture executable + Docker script + the real 606-byte golden bytes;
+- [x] 23-04-PLAN.md — The capture executable + Docker script + the real 606-byte golden bytes;
   every DB-only guard DRIVEN and recorded in the committed `store-conformance.json`
   (DB-01, DB-04, BYTE-01, BYTE-02, BYTE-05, KEY-07) [wave 4]
-- [ ] 23-05-PLAN.md — Ten Tier-C checks making the artifact load-bearing, the computed freshness
+- [x] 23-05-PLAN.md — Ten Tier-C checks making the artifact load-bearing, the computed freshness
   oracle, two new `advertised_overrides` probes, the fifth swept artifact and the re-MEASURED
   sentinel floors (DB-02, DB-03, DB-04, BYTE-01, BYTE-02, BYTE-05, KEY-07) [wave 5]
 
@@ -983,7 +983,7 @@ at the end of 25.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 23. Postgres Foundation & the Byte-Exact Schema | 5/5 | Complete   | 2026-08-16 |
+| 23. Postgres Foundation & the Byte-Exact Schema | 5/5 | Complete    | 2026-08-16 |
 | 24. GAMS Invocation & Toolchain Identity | 0/TBD | Not started | - |
 | 25. The Content Key & Keyed Store | 0/TBD | Not started | - |
 | 26. Shock Assembly — Fee Split & Event Decode | 0/TBD | Not started | - |
