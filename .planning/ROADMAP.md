@@ -887,6 +887,52 @@ chain-free work is contiguous and phases 27–28 carry the entire upstream block
   3. An infeasible request is REFUSED **before any subprocess is spawned**, with the reason and the boundary value in the message — verified by a check that fails if the solver is invoked at all, so "checked before" is observed rather than assumed. The structurally infeasible `φ_X == φ_M` case (§1.2: equal fees are infeasible for *every* target) is among the refusals, caught in Haskell rather than read back as a GAMS abort (FEE-02, FEE-03).
   4. Re-running with the **recorded seed** reproduces the same ρ within the admissible band, and a **different** seed produces a different ρ — so the seed is proven load-bearing rather than decorative, which a same-seed-only test cannot establish (FEE-04).
   5. `decode_next` is exercised against **synthetic logs with no chain**: the 4-byte selector is COMPUTED in the test from the signature string `next(address,uint160,int24,uint24,uint24)` and matched against `0xd3827b0b` (derived, never a transcribed literal); signed `int24` decodes correctly including negative ticks; and a log with the wrong topic, the wrong data length, a truncated payload, or an **all-zero payload** is REJECTED rather than decoded into a plausible-looking shock — the zero-word trap, one type over (CHAIN-04).
+
+#### ⚠ SUPERSEDING NOTE — the event signature is now pinned (issue #28, 2026-08-16)
+
+`ShockLib.shock_emit` (`src/models/mev_tax_model_one/libraries/ShockLib.plk`, commit `341e409`)
+emits the event the decoder is actually for. Spec:
+`docs/superpowers/specs/2026-08-16-mev-tax-shock-library-design.md` §5.
+
+```solidity
+event Shock(address indexed pool, int24 tickDiff, uint24 txlVolmNormRate, uint24 txlVolmDecay);
+```
+
+| | |
+|---|---|
+| **topic0** | `0x21b0e4f81f5ef89be4325ca74966f2fb8f57a217e284dd3e0a276fff55987d64` — VERIFIED here with `cast keccak "Shock(address,int24,uint24,uint24)"`, not transcribed |
+| **topic1** | `pool`, indexed `address` — shocks are keyed by pool |
+| **data** | exactly 3 non-indexed 32-byte words, always all present (absent components emit `0`) |
+
+Data words, in order: `tickDiff` (**int24, ABI sign-extended to int256 — decode SIGN-AWARE**),
+`txlVolmNormRate` (uint24, zero-padded), `txlVolmDecay` (uint24, zero-padded). Rates are pips over
+`FEE_DENOMINATOR = 1e6` (Algebra convention) — which independently confirms **KEY-05**'s
+requirement that the denominator belong in the key preimage.
+
+**Success Criterion 5 above is SUPERSEDED and was aimed at the wrong artifact.** It computes a
+4-byte *function selector* from `next(address,uint160,int24,uint24,uint24)` = `0xd3827b0b`. That is
+the selector of the CALL. The decoder's subject is an EVENT, matched on **topic0**. Everything
+else in SC-5 stands — compute the value in the test from the signature string rather than
+transcribing the literal, decode signed fields sign-aware, and reject a log with the wrong topic,
+wrong data length, or a truncated payload rather than decoding it into a plausible shock.
+
+**The v6.0-scope guarantee is a trap, and the plan must not walk into it.** Issue #28 states that
+in v6.0 scope only `txlVolmNormRate` is nonzero: `tickDiff == 0` and `txlVolmDecay == 0` are
+*guaranteed by construction* (on-chain hookData tagged `flags = 0b010`). So **two of the three
+data words are always zero in production**. A decoder exercised only on v6.0-scope events cannot
+distinguish "decoded 0 correctly" from "failed to decode and defaulted to 0" — and `tickDiff` is
+precisely the sign-extended field, where a decode bug is INVISIBLE at zero. This is the
+`tickSpacing = 0` finding again, arriving pre-guaranteed. Therefore the synthetic logs **MUST**
+carry a non-zero, **negative** `tickDiff` and a non-zero `txlVolmDecay`, even though production
+never emits either, and the all-zero payload must be REJECTED rather than decoded (already SC-5).
+
+**What the event does NOT carry**, which confirms rather than changes phase 27: there is no
+`sqrtPriceX96` and no `liquidity` in it. Those stay **CHAIN-02** pool-state reads, pinned to one
+block, keyed by topic1's `pool`. And `txlVolmDecay` (α_trans) is **not a GAMS input** —
+`VOLUME_PATH.md` §2 rules `txlDecayRate` out explicitly ("the closed loop is trusted"). Decode it,
+record it in the run log, do not feed it to the prover. Only `txlVolmNormRate` becomes GAMS's
+`txlVolumeRate` (δ_trans).
+
 **Plans**: TBD
 
 Plans:
