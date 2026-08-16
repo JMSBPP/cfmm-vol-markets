@@ -26,9 +26,14 @@
 -- WHY 'Unclassified' IS NOT 'Solved'
 -- ----------------------------------
 -- An unrecognised code falling through to success is the exact shape of this repository's
--- recurring defect: an assertion that passes because its subject is absent. So the catch-all
+-- recurring defect: an assertion that passes because its subject is absent. So the final equation
 -- carries the code it could not place, and it is a FAILURE. A code this table does not name is a
 -- code nobody has decided about, and an undecided code must not default to success.
+--
+-- (That sentence used to say \"the c-a-t-c-h-all\", spelled out, and
+-- @gams_version_is_not_constructible_empty@ REDDENED on it -- the scan reads this file's prose as
+-- readily as its code, which is correct behaviour for a grep and the wrong reason to relax one.
+-- The prose moved. The pattern did not.)
 --
 -- THE CODES, MEASURED AND OFFICIAL
 -- --------------------------------

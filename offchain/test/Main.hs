@@ -75,6 +75,26 @@ import Rig.Manifest
 import Data.ByteArray.HexString (HexString, fromBytes, toBytes)
 import Network.Ethereum.Api.Types (Change (..))
 
+-- The GAMS layer, PURE HALF ONLY. Both modules are total functions over values this file
+-- constructs; neither can spawn anything. That is what keeps `cabal test` GAMS-free while still
+-- letting it decide whether a version parse and an exit taxonomy are honest.
+import Gams.Exit
+  ( EnvFailure (..)
+  , ModelFailure (..)
+  , TimeoutKind (..)
+  , Verdict (..)
+  , classify_exit
+  , gams_code_domain
+  )
+import Gams.Version
+  ( VersionError (..)
+  , conopt_version_text
+  , gams_build_text
+  , gams_version_text
+  , parse_conopt_version
+  , parse_gams_version
+  )
+
 import VolOrder.Decode
   ( OrderCreatedEvent (..)
   , be_integer
@@ -898,11 +918,18 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 -- silently become five. A floor that is inherited rather than re-measured records the tree as it
 -- was on the day someone last thought about it.
 --
--- 48 = @find offchain \\( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \\) -type f | wc -l@ at the
--- END of plan 23-04: 38 Haskell, 8 shell, 2 SQL. 23-03 left it at 45 (36\/7\/2) and 23-04 added
--- @Store\/Json.hs@, @app\/StoreConformance.hs@ and @rig\/capture-store-conformance.sh@ -- the last
--- of which is a SCANNED file type and is the reason this block is being edited at all. Before
--- that it was 36, and it had been 36 for two waves while the tree moved to 41 underneath it.
+-- 51 = @find offchain \\( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \\) -type f | wc -l@,
+-- RE-MEASURED COLD on 2026-08-16 during plan 24-01, with the three new modules on disk: 41
+-- Haskell, 8 shell, 2 SQL. It was 48 immediately before, against EXACTLY 48 scanned files -- zero
+-- slack -- so this plan's @Gams\/{Config,Version,Exit}.hs@ would have reddened the scan in the
+-- commit that created them if the floor had not moved with them. It was moved by running the
+-- command above, NOT by adding three to 48; the two happen to agree here and the day they stop
+-- agreeing is the day the difference is the whole point.
+--
+-- 48 was itself measured at the END of plan 23-04: 38 Haskell, 8 shell, 2 SQL. 23-03 left it at
+-- 45 (36\/7\/2) and 23-04 added @Store\/Json.hs@, @app\/StoreConformance.hs@ and
+-- @rig\/capture-store-conformance.sh@ -- the last of which is a SCANNED file type. Before that it
+-- was 36, and it had been 36 for two waves while the tree moved to 41 underneath it.
 --
 -- The rule this records, since it is a floor and not a pin: it is re-measured when the purge's
 -- SCOPE changes or when a plan is already editing this block, and NOT on every added @.hs@. Four
@@ -910,11 +937,11 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 -- reflexively and stops being read. What it must never do again is sit unexamined while the tree
 -- moves under it.
 --
--- The extension census under @offchain\/@ at this measurement: @hs 38, sh 8, json 8, md 3, txt 2,
--- sql 2@. The @.json@ count grew by two -- the golden artifact and the conformance capture -- and
--- both are DATA, already declared and deliberately not scanned.
+-- The extension census under @offchain\/@ at this measurement: @hs 41, sh 8, json 8, md 3, txt 2,
+-- sql 2@. Only @.hs@ moved, by three, and all three are library modules. The @.json@ count is
+-- unchanged: this plan is the PURE half of the phase and writes no capture artifact.
 purge_file_floor :: Int
-purge_file_floor = 48
+purge_file_floor = 51
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -6907,15 +6934,19 @@ credential_scan root =
     (["-rnE", credential_pattern, root] ++ map ("--include=*" ++) credential_scanned_extensions)
     ""
 
--- | RE-MEASURED at the end of plan 23-05, cold:
+-- | RE-MEASURED COLD on 2026-08-16 during plan 24-01, in the same commit as the three
+-- @Gams\/*.hs@ modules that moved it:
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+--
+-- 59 = 41 Haskell + 8 shell + 8 JSON + 2 SQL. It was 56 at the end of 23-05, against exactly 56
+-- files. Re-measured by running the command, never by adding three.
 --
 -- It exists for the same reason 'purge_file_floor' does and it is the same trap: @grep -r@ exits 1
 -- for \"found nothing\" AND for \"matched no files at all\", so a scan whose @--include@ set stopped
 -- matching reports exactly what a clean scan reports. Re-measure it, never increment it.
 credential_scan_floor :: Int
-credential_scan_floor = 56
+credential_scan_floor = 59
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -7184,6 +7215,434 @@ aeson_is_absent_from_the_storage_path =
                      ++ unlines (map ("      " ++) (lines out)))
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 24: toolchain identity (GAMS-01, GAMS-03, GAMS-04) -- Tier A only
+-- ---------------------------------------------------------------------------------------------
+
+-- | The basename of the @.gms@ that is actually invoked, and therefore the job name every banner
+-- is judged against. Written once here for the same reason 'Gams.Config' writes it once there.
+gams_model_basename :: String
+gams_model_basename = "volume_path.gms"
+
+-- | THE REAL FIRST LINE of the production run's own log, captured on this machine on 2026-08-16.
+--
+-- This is the POSITIVE arm's input, and without it the battery below is satisfiable by a parser
+-- that rejects everything -- which would be the same defect as a parser that accepts everything,
+-- pointing the other way.
+gams_real_banner :: String
+gams_real_banner =
+  "--- Job volume_path.gms Start 08/16/26 15:52:25 54.1.0 37378ce0 LEX-LEG x86 64bit/Linux\n"
+
+-- | THE GARBAGE BATTERY. Every member carries the reason it is a member.
+--
+-- Six of the eight are REAL CAPTURED OUTPUT rather than invented strings, and the exit codes are
+-- MEASURED on this machine:
+--
+--   * @help-banner-exit-0@ is the first line of what @gams@ with NO ARGUMENTS prints. It EXITS 0,
+--     the output is 1239 bytes over 27 lines, and it carries the version string THREE times while
+--     running no model at all. Non-empty, correctly shaped, exit 0, WRONG SUBJECT -- the strongest
+--     member here, and free, because the tool produced it.
+--   * @version-flag-exit-6@ is the real @gams --version@ output. The flag is not a command; it is
+--     parsed as an input filename and the process EXITS 6.
+--   * In BOTH of those modes stderr was exactly 0 BYTES, as it is in a normal solve. A detector
+--     that read stderr would compare the empty string against the empty string and report success
+--     every time -- which is why these two are inputs to the parser and not to a stream reader.
+--   * @audit-gamsx@ is @gams audit@, exit 0, reporting GAMSX -- a COMPONENT that happens to carry
+--     the same number today. A different subject, not a different rendering.
+--   * @localised@ is SYNTHETIC and labelled so: nothing on this machine produces it.
+gams_garbage_battery :: [(String, String, VersionError)]
+gams_garbage_battery =
+  [ ( "empty"
+    , ""
+    , EmptyInput )
+  , ( "newline-only"
+    , "\n"
+    , EmptyInput )
+  , ( "whitespace-only"
+    , "   \t  \n"
+    , EmptyInput )
+  , ( "help-banner-exit-0"
+    , "--- Job ? Start 08/16/26 16:01:42 54.1.0 37378ce0 LEX-LEG x86 64bit/Linux\n"
+    , WrongJob "?" )
+  , ( "version-flag-exit-6"
+    , "--- Job --version Start 08/16/26 16:01:42 54.1.0 37378ce0 LEX-LEG x86 64bit/Linux\n"
+        ++ "*** Unable to open input file (RC=2) --version\n"
+    , WrongJob "--version" )
+  , ( "audit-gamsx"
+    , "GAMSX            54.1.0 37378ce0 Jun 15, 2026          LEG x86 64bit/Linux    \n"
+    , NoJobBanner )
+  , ( "truncated"
+    , "--- Job volume_path.gms Start 08/16/26 15:52:25\n"
+    , MissingVersionField )
+  , ( "localised"
+    , "--- Auftrag volume_path.gms Beginn 16.08.26 15:52:25 54.1.0 37378ce0\n"
+    , NoJobBanner )
+  ]
+
+-- | The first line of an input, for a failure message that names what it was handed.
+first_line_of :: String -> String
+first_line_of = takeWhile (/= '\n')
+
+-- | GAMS-03. Every battery member is rejected, with the SPECIFIC reason, and the real banner is
+-- accepted with both of its fields.
+--
+-- The reason is asserted rather than just \"a Left\": @help-banner-exit-0@ must fail as
+-- @WrongJob \"?\"@ and not as, say, a shape complaint, because the whole design is that the
+-- SUBJECT is decided before the shape. A parser that validated the shape first would accept the
+-- help banner -- its version field is perfectly well formed.
+gams_version_parser_rejects_the_garbage_battery :: Check
+gams_version_parser_rejects_the_garbage_battery =
+  pure_check "gams_version_parser_rejects_the_garbage_battery" $ do
+    mapM_ reject gams_garbage_battery
+    case parse_gams_version gams_model_basename (C8.pack gams_real_banner) of
+      Left err ->
+        Left ("the POSITIVE arm failed: the REAL captured banner was rejected as " ++ show err
+               ++ ". A battery of rejections is satisfied by a parser that rejects everything, so"
+               ++ " this arm is what keeps the other eight meaningful.\n      banner: "
+               ++ show (first_line_of gams_real_banner))
+      Right version -> do
+        _ <- expect (gams_version_text version == "54.1.0")
+               ("the real banner parsed but reported version " ++ show (gams_version_text version)
+                 ++ ", expected \"54.1.0\" -- the MEASURED toolchain on this machine.")
+        expect (gams_build_text version == "37378ce0")
+          ("the real banner parsed but reported build " ++ show (gams_build_text version)
+            ++ ", expected \"37378ce0\".")
+  where
+    reject (name, input, expected) =
+      let actual = parse_gams_version gams_model_basename (C8.pack input)
+      in expect (actual == Left expected)
+           ("the garbage battery member " ++ show name ++ " was not rejected as expected."
+             ++ "\n      first line: " ++ show (first_line_of input)
+             ++ "\n      expected:   Left " ++ show expected
+             ++ "\n      actual:     " ++ show actual
+             ++ "\n      Every member here is output a real invocation produced (or, for"
+             ++ " \"localised\", is labelled synthetic). Accepting one means a version string"
+             ++ " from the wrong subject reaches the content key, and Phase 25's rows are then"
+             ++ " indistinguishable from good ones -- the only evidence of which toolchain wrote"
+             ++ " them is the component that was wrong.")
+
+-- | The @.hs@ files of the GAMS layer that must contain NO fallback of any kind.
+--
+-- 'Gams.Config' is deliberately NOT here and it is exempt WITH A REASON, below -- not omitted.
+gams_no_fallback_path :: [FilePath]
+gams_no_fallback_path =
+  [ "offchain/lib/Gams/Exit.hs"
+  , "offchain/lib/Gams/Version.hs"
+  ]
+
+-- | Exemptions, each with the reason it is one. An exemption without a reason is how a scan's
+-- scope shrinks to the empty set one plausible file at a time.
+gams_fallback_exempt :: [(FilePath, String)]
+gams_fallback_exempt =
+  [ ( "offchain/lib/Gams/Config.hs"
+    , "the Store.Config idiom's `fromMaybe <default> <$> lookupEnv <name>` IS the resolver here,"
+        ++ " and no version value exists on that path -- the defaults it supplies are an"
+        ++ " executable name and two file paths, every one of which fails LOUDLY downstream when"
+        ++ " it does not resolve, rather than standing in for a measurement" )
+  ]
+
+-- | Every @.hs@ in the GAMS layer, from the DIRECTORY rather than from a list.
+gams_layer_modules :: IO [FilePath]
+gams_layer_modules = do
+  let dir = "offchain/lib/Gams"
+  there <- doesDirectoryExist dir
+  if not there
+    then pure []
+    else do
+      entries <- listDirectory dir
+      pure (sort [dir </> e | e <- entries, takeExtension e == ".hs"])
+
+-- | No fallback, no alternative, no exception handler, no placeholder string.
+gams_version_fallback_pattern :: String
+gams_version_fallback_pattern = "fromMaybe|[<][|][>]|\\bcatch\\b|\"unknown\"|fromJust"
+
+-- | Neither version newtype exports its constructor.
+gams_version_constructor_pattern :: String
+gams_version_constructor_pattern = "GamsVersion ?\\(\\.\\.\\)|ConoptVersion ?\\(\\.\\.\\)"
+
+-- | ONE argument vector, so the positive control runs the identical invocation over different
+-- file operands rather than a lookalike of it. @-H@ is load-bearing: without it grep omits the
+-- filename for a single operand and the control cannot assert that the bait was NAMED.
+gams_version_scan :: String -> [FilePath] -> IO (ExitCode, String, String)
+gams_version_scan pattern paths = readProcessWithExitCode "grep" (["-nHE", pattern] ++ paths) ""
+
+-- | The seeded bait, BUILT rather than written out, following 'aeson_bait_source'.
+--
+-- Note what this means for scope: this file HOLDS the patterns, so it matches them, so it can
+-- never be a member of the scanned set. That is exactly why the scanned set is the GAMS LIBRARY
+-- directory and why the membership assertion below is over that directory and not over @offchain@.
+gams_version_bait_source :: String
+gams_version_bait_source =
+  "module Bait (GamsVersion " ++ "(..)) where\n"
+    ++ "value :: String\n"
+    ++ "value = from" ++ "Maybe \"" ++ "unknown\" Nothing\n"
+
+-- | Absence may not read as success until BOTH patterns have been SHOWN matching. Returned so the
+-- caller orders it FIRST.
+gams_version_positive_control :: IO (Either String ())
+gams_version_positive_control = do
+  tmp <- getTemporaryDirectory
+  let dir       = tmp </> "gams03-version-positive-control"
+      bait      = dir </> "bait.hs"
+      innocent  = dir </> "clean.hs"
+      discard p = do
+        there <- doesFileExist p
+        if there then removeFile p else pure ()
+
+  createDirectoryIfMissing True dir
+  flip finally (mapM_ discard [bait, innocent]) $ do
+    writeFile bait gams_version_bait_source
+    writeFile innocent "value :: Int\nvalue = 0\n"
+    fallback    <- gams_version_scan gams_version_fallback_pattern [bait, innocent]
+    constructor <- gams_version_scan gams_version_constructor_pattern [bait, innocent]
+    pure $ do
+      _ <- arm "the FALLBACK pattern" fallback
+      arm "the EXPORTED-CONSTRUCTOR pattern" constructor
+  where
+    arm label (code, out, err) = do
+      _ <- expect (code == ExitSuccess)
+             ("GAMS-03's POSITIVE CONTROL did not fire: " ++ label ++ " exited " ++ show code
+               ++ " over a file that exports a version constructor AND supplies a placeholder"
+               ++ " through a fallback. The pattern has stopped matching anything, which means the"
+               ++ " exit-1 the real scan reports is absence of MATCHES only by assumption."
+               ++ (if null err then "" else "\n      grep stderr: " ++ err))
+      _ <- expect ("bait.hs" `isInfixOf` out)
+             ("GAMS-03's POSITIVE CONTROL fired for " ++ label ++ " but did not NAME the seeded"
+               ++ " file. grep said:\n" ++ unlines (map ("      " ++) (lines out)))
+      expect (not ("clean.hs" `isInfixOf` out))
+        ("GAMS-03's POSITIVE CONTROL matched a file with neither subject in it at all, so "
+          ++ label ++ " is matching something other than what it claims to. grep said:\n"
+          ++ unlines (map ("      " ++) (lines out)))
+
+-- | GAMS-03, as a source scan with a proven positive control and a scope that must GROW.
+--
+-- Four assertions, in this order: (1) both patterns are SHOWN matching a seeded bait; (2) every
+-- scanned file EXISTS -- a missing file is a FAILURE naming it, never a pass over an empty set;
+-- (3) the GAMS layer's modules on DISK are exactly the scanned set plus the reasoned exemptions,
+-- in BOTH directions; (4) neither pattern finds anything.
+--
+-- (3) is the one that is here because of a measurement rather than a principle. 23-03 landed
+-- @Store\/Schema.hs@ and it sat unlisted in a hardcoded scan list for two commits -- a storage
+-- module the scan did not read, with nothing red. A hardcoded list makes an omission visible and
+-- does not make it impossible; comparing the list against the directory does.
+gams_version_is_not_constructible_empty :: Check
+gams_version_is_not_constructible_empty =
+  Check "gams_version_is_not_constructible_empty" . guarded $ do
+    control  <- gams_version_positive_control
+    presence <- mapM (\p -> (,) p <$> doesFileExist p) gams_no_fallback_path
+    on_disk  <- gams_layer_modules
+    let gone    = [p | (p, False) <- presence]
+        decided = sort (gams_no_fallback_path ++ map fst gams_fallback_exempt)
+        unlisted = [m | m <- on_disk, m `notElem` decided]
+        phantom  = [m | m <- decided, m `notElem` on_disk]
+    if not (null gone)
+      then pure $ do
+        _ <- control
+        expect False
+          ("the no-fallback scan names files that are not on disk: " ++ intercalate ", " gone
+            ++ ". Scoping the list to the files that exist would make this check pass BECAUSE its"
+            ++ " subject is absent. If a file was RENAMED, rename it here in the same commit.")
+      else if not (null unlisted) || not (null phantom)
+        then pure $ do
+          _ <- control
+          expect False
+            ("the GAMS layer's modules on disk are not the set this check decided about."
+              ++ (if null unlisted then ""
+                    else "\n      on disk but neither scanned nor exempt: "
+                           ++ intercalate ", " unlisted)
+              ++ (if null phantom then ""
+                    else "\n      scanned or exempt but not on disk: "
+                           ++ intercalate ", " phantom)
+              ++ "\n      A new module under offchain/lib/Gams/ is added to"
+              ++ " gams_no_fallback_path -- or to gams_fallback_exempt WITH A WRITTEN REASON --"
+              ++ " in the commit that creates it. 23-03 measured what happens otherwise:"
+              ++ " Store/Schema.hs spent two commits unlisted and nothing reddened.")
+        else do
+          fallback    <- gams_version_scan gams_version_fallback_pattern gams_no_fallback_path
+          constructor <- gams_version_scan gams_version_constructor_pattern gams_no_fallback_path
+          pure $ do
+            _ <- control
+            _ <- verdict "a FALLBACK is present in the GAMS layer" fallback
+                   ("A default, an alternative, an exception handler or a placeholder string on"
+                     ++ " this path is a version that reports a plausible value when its subject"
+                     ++ " was absent. Phase 25 folds both version strings into the content key,"
+                     ++ " and NOT NULL does not forbid the empty string, so the poisoned rows are"
+                     ++ " indistinguishable afterwards.")
+            verdict "a version CONSTRUCTOR is exported" constructor
+              ("Exporting GamsVersion or ConoptVersion lets any caller build one from any string,"
+                ++ " including the empty one, and the smart constructor stops being the only door.")
+  where
+    verdict what (code, out, err) why =
+      case code of
+        ExitFailure 1 -> Right ()
+        ExitFailure n -> Left ("grep itself failed with exit " ++ show n ++ ": " ++ err)
+        ExitSuccess   -> Left (what ++ ". " ++ why ++ "\n"
+                                ++ unlines (map ("      " ++) (lines out)))
+
+-- | The TRUE CONOPT banner, captured today. Four leading spaces, spaced letters, three spaces
+-- before the keyword.
+conopt_true_line :: String
+conopt_true_line = "    C O N O P T   version 4.39.0"
+
+-- | DECOY ONE: the GAMS-SIDE LINK version, MEASURED present in every solve log. It carries the
+-- token CONOPT and a perfectly plausible dotted triple -- which is GAMS's number, not CONOPT's.
+conopt_link_decoy :: String
+conopt_link_decoy =
+  "CONOPT 4         54.1.0 37378ce0 Jun 15, 2026          LEG x86 64bit/Linux    "
+
+-- | DECOY TWO: the shared object, MEASURED on disk beside its LU companion. @464@ is neither
+-- @4.39@ nor @54.1@.
+conopt_so_decoy :: String
+conopt_so_decoy = "libconopt464.so"
+
+-- | Filler that is not a banner, so a buffer can be padded to a chosen line index.
+conopt_filler :: Int -> String
+conopt_filler n = unlines (replicate n "filler")
+
+-- | GAMS-04. The true banner is accepted; both decoys are rejected; and a buffer carrying BOTH
+-- decoys and no true line -- exactly what a run that never reached CONOPT looks like -- is
+-- rejected too.
+--
+-- That last arm is the one that matters most: the two decoys are present in runs where the true
+-- line is absent, so a parser that fell back to \"any CONOPT-ish line\" would report a version
+-- for a solve that never happened.
+conopt_parser_rejects_both_decoys :: Check
+conopt_parser_rejects_both_decoys =
+  pure_check "conopt_parser_rejects_both_decoys" $ do
+    _ <- case parse_conopt_version (C8.pack (conopt_true_line ++ "\n")) of
+           Left err ->
+             Left ("the POSITIVE arm failed: the REAL CONOPT banner was rejected as " ++ show err
+                    ++ ".\n      line: " ++ show conopt_true_line)
+           Right version ->
+             expect (conopt_version_text version == "4.39.0")
+               ("the true banner parsed but reported " ++ show (conopt_version_text version)
+                 ++ ", expected \"4.39.0\".")
+    _ <- reject "link-version-decoy" (conopt_filler 30 ++ conopt_link_decoy ++ "\n")
+    _ <- reject "shared-object-decoy" (conopt_filler 30 ++ conopt_so_decoy ++ "\n")
+    reject "both-decoys-no-true-line"
+      (conopt_filler 10 ++ conopt_link_decoy ++ "\n" ++ conopt_filler 10 ++ conopt_so_decoy ++ "\n")
+  where
+    -- The signature is not decoration: OverloadedStrings is on in this file, so an unannotated
+    -- name would default and -Wall is a hard gate.
+    reject :: String -> String -> Either String ()
+    reject name buffer =
+      let actual = parse_conopt_version (C8.pack buffer)
+      in expect (actual == Left NoConoptBanner)
+           ("the CONOPT decoy " ++ show name ++ " was not rejected: got " ++ show actual
+             ++ ".\n      Both decoys carry the token CONOPT and only the true line carries the"
+             ++ " spaced-letter form. Accepting one records the GAMS link version, or a soname,"
+             ++ " as the solver that produced the bytes -- and a different CONOPT can select a"
+             ++ " different member of the underdetermined path family while passing every gate.")
+
+-- | GAMS-04. The identical answer with the true line at two DIFFERENT buffer positions.
+--
+-- 38 and 47 are not decoration: they are the MEASURED 0-based indices of that line in the
+-- hermetic probe and in the production run respectively. The line moves between runs, so any
+-- positional or line-number logic is wrong by construction, and this is the check that says so
+-- with an input rather than with a comment.
+conopt_parse_is_position_independent :: Check
+conopt_parse_is_position_independent =
+  pure_check "conopt_parse_is_position_independent" $ do
+    at_38 <- read_at 38
+    at_47 <- read_at 47
+    expect (at_38 == at_47 && at_38 == "4.39.0")
+      ("the CONOPT version depends on WHERE the banner sits: index 38 gave " ++ show at_38
+        ++ " and index 47 gave " ++ show at_47 ++ ", both expected \"4.39.0\"."
+        ++ " Those two indices are the MEASURED positions of that line in the hermetic probe and"
+        ++ " in the production run.")
+  where
+    read_at index =
+      let buffer = conopt_filler index ++ conopt_true_line ++ "\n" ++ conopt_filler 12
+      in case parse_conopt_version (C8.pack buffer) of
+           Left err ->
+             Left ("the true CONOPT banner at buffer line index " ++ show index
+                    ++ " was rejected as " ++ show err)
+           Right version -> Right (conopt_version_text version)
+
+-- | The exit codes this check pins BY VALUE, each with the claim it refutes.
+pinned_exit_rows :: [(Int, Verdict, String)]
+pinned_exit_rows =
+  [ ( 7, Environmental LicensingError
+    , "reading non-zero as \"the model says infeasible\" records an expired licence as an"
+        ++ " infeasibility verdict -- an administrative failure rewritten as a scientific claim" )
+  , ( 6, Environmental ParameterError
+    , "MEASURED: a missing input file and `gams --version` both exit 6. Neither is the model"
+        ++ " speaking" )
+  , ( 2, ModelLevel CompilationError
+    , "MEASURED: a syntax error, and also a bad `--` parameter substitution, since `%..%` is a"
+        ++ " COMPILE-TIME substitution of the raw command-line string" )
+  , ( 3, ModelLevel ExecutionError
+    , "MEASURED: `abort$(..) \"named abort\"` AND an unhandled `a = 1/0` both give 3, so a"
+        ++ " \"named abort\" verdict at this code would be a claim the exit code cannot support."
+        ++ " The reason is log text and log text is diagnostic only" )
+  , ( 145, Environmental CurdirMissing
+    , "401 mod 256 -- the fresh-run-directory design's OWN failure code. Environmental, not a"
+        ++ " statement about the model" )
+  , ( 1, Environmental SolverToBeCalled
+    , "the official table's code 1. It is not success and it is not a model verdict" )
+  ]
+
+-- | GAMS-01. The taxonomy is total, 0 is the only 'Solved', and six rows are pinned by VALUE.
+gams_exit_taxonomy_is_total_and_disjoint :: Check
+gams_exit_taxonomy_is_total_and_disjoint =
+  pure_check "gams_exit_taxonomy_is_total_and_disjoint" $ do
+    _ <- expect (classify_exit ExitSuccess == Solved)
+           ("classify_exit ExitSuccess is " ++ show (classify_exit ExitSuccess)
+             ++ ", expected Solved.")
+    let wrongly_solved = [n | n <- [1 .. 255], classify_exit (ExitFailure n) == Solved]
+    _ <- expect (null wrongly_solved)
+           ("these exit codes classify as Solved: " ++ show wrongly_solved
+             ++ ". Solved means only that GAMS RAN -- MEASURED, `action=c` exits 0 writing no"
+             ++ " artifact and `gams` with no arguments exits 0 running no model. A NON-ZERO code"
+             ++ " reaching Solved is the catch-all falling through to success, which is this"
+             ++ " repository's recurring defect with a number attached.")
+    mapM_ pinned pinned_exit_rows
+  where
+    pinned (code, expected, why) =
+      let actual = classify_exit (ExitFailure code)
+      in expect (actual == expected)
+           ("exit code " ++ show code ++ " classifies as " ++ show actual ++ ", expected "
+             ++ show expected ++ ". " ++ why)
+
+-- | GAMS-05's arithmetic half. 124 and 137 are the timeout wrapper's codes and they must collide
+-- with nothing in the GAMS domain.
+--
+-- Asserted in BOTH DIRECTIONS on purpose. Non-membership alone is satisfied by shrinking the
+-- domain -- an empty list contains neither code and would pass -- so the named images and the
+-- scratch-directory range must also be PRESENT, and every member must classify to something that
+-- is not a timeout. The images are the point: GAMS reports 400, 401, 402 and 909, an exit status
+-- is a byte, and a collision argument made against the unfolded numbers would be about codes no
+-- caller ever observes.
+timeout_codes_do_not_collide_with_gams_codes :: Check
+timeout_codes_do_not_collide_with_gams_codes =
+  pure_check "timeout_codes_do_not_collide_with_gams_codes" $ do
+    _ <- expect (124 `notElem` gams_code_domain && 137 `notElem` gams_code_domain)
+           ("a timeout code is inside the GAMS code domain: " ++ show gams_code_domain
+             ++ ". If they collide, a solve that returned a real GAMS code is recorded as a"
+             ++ " timeout, or the reverse.")
+    let must_be_present = [0, 1, 2, 3, 7, 11] ++ [109 .. 115] ++ [141, 144, 145, 146]
+        missing = [n | n <- must_be_present, n `notElem` gams_code_domain]
+    _ <- expect (null missing)
+           ("the GAMS code domain has lost codes it must name: " ++ show missing
+             ++ ". Non-membership of 124 and 137 is satisfied by a domain that shrank, so the"
+             ++ " codes that MUST be in it are asserted here -- including the mod-256 images"
+             ++ " 141/144/145/146, which are what a caller actually observes.")
+    let timeouts_inside =
+          [n | n <- gams_code_domain
+             , case classify_exit (ExitFailure n) of
+                 TimedOut _ -> True
+                 _          -> False]
+    _ <- expect (null timeouts_inside)
+           ("codes in the GAMS domain classify as a timeout: " ++ show timeouts_inside
+             ++ ". The domain and the classifier disagree, so one of them is transcribed rather"
+             ++ " than derived.")
+    _ <- expect (classify_exit (ExitFailure 124) == TimedOut Expired)
+           ("124 classifies as " ++ show (classify_exit (ExitFailure 124))
+             ++ ", expected TimedOut Expired -- MEASURED: /usr/bin/timeout exits 124 on expiry.")
+    expect (classify_exit (ExitFailure 137) == TimedOut Killed)
+      ("137 classifies as " ++ show (classify_exit (ExitFailure 137))
+        ++ ", expected TimedOut Killed -- 128 + SIGKILL, what the wrapper's -k leaves behind.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -7302,6 +7761,12 @@ core_checks = do
           , driv02_mixed_batch_live
           , driv02_zero_arrival_is_64_bytes
           , driv02_run_capture_orders_are_fresh
+          , gams_version_parser_rejects_the_garbage_battery
+          , gams_version_is_not_constructible_empty
+          , conopt_parser_rejects_both_decoys
+          , conopt_parse_is_position_independent
+          , gams_exit_taxonomy_is_total_and_disjoint
+          , timeout_codes_do_not_collide_with_gams_codes
           ]
             ++ per_pin_checks pins
   pure checks
