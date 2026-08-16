@@ -7325,7 +7325,8 @@ gams_version_parser_rejects_the_garbage_battery =
 -- 'Gams.Config' is deliberately NOT here and it is exempt WITH A REASON, below -- not omitted.
 gams_no_fallback_path :: [FilePath]
 gams_no_fallback_path =
-  [ "offchain/lib/Gams/Exit.hs"
+  [ "offchain/lib/Gams/Argv.hs"
+  , "offchain/lib/Gams/Exit.hs"
   , "offchain/lib/Gams/Version.hs"
   ]
 
