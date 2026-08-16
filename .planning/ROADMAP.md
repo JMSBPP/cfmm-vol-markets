@@ -951,6 +951,34 @@ block that event was in.
   2. Every read function **requires** a `BlockRef` argument: there is no arity at which a caller can omit it, `Latest` appears nowhere in the read layer (grep-asserted), and each read records the block it was **made at** — an unpinned tag surfaces as `null` in the artifact rather than as a plausible height, in the existing `readback_height` idiom (CHAIN-02).
   3. The pinning is proven by a case that would otherwise slide: with blocks mined between the event and the reads, the pinned read returns the **event-block** value while an unpinned read is OBSERVED returning a different one. On a single-writer local anvil this defect is invisible in every other recorded value, so it can only be caught by constructing the divergence (CHAIN-02).
   4. An absent, zero or unparseable read is an ERROR **naming the field**, never a value that flows into a key: `sqrtPriceX96 = 0`, `liquidity = 0`, an uninitialised pool, and a read against a block whose hash no longer resolves (`anvil_reset`/`evm_revert` replace history) each REFUSE — each demonstrated by driving that exact condition (CHAIN-03).
+#### ⚠ CROSS-TRACK HANDOFF — issue #29 (2026-08-16)
+
+`CHAIN-02` is where the fixture stops describing a hypothetical pool and starts describing a
+**live one at a pinned block** — and that is where it collides with the consuming forge test.
+
+`test/models/mev_tax_model_one/AlgebraIntegralMevTaxModelOneShocks.t.sol` runs entirely
+**in-process** (verified: no `createFork`, no RPC, no `8545` anywhere in it). `_createPool()`
+deploys two fresh `MockERC20`s and initializes at `SQRT_PRICE_1_1 = 2^96` / `UNIT_LIQUIDITY =
+2^64`, then asserts the fixture agrees at **line 163**. **The test constructs its subject; this
+bridge observes one.** Those are incompatible. Today it passes only because the fixture carries
+the `volume_path.gms` self-test defaults, which are the same two numbers.
+
+Benign here while the read happens to land on a genesis-state pool. **Fatal at phase 28**, when
+the loop moves the price and `assertEq` hard-fails.
+
+**Filed as issue #29** against the plank/test track, asking for three things: ATTACH to the
+deployed pool rather than merely forking (forking alone cannot help — `_createPool()` mints new
+token addresses every run, so its `poolId` can never match); assert Anvil is genuinely open and
+**FAIL loudly naming the endpoint** rather than falling back to the in-process EVM (a silent
+fallback passes while testing nothing — the defect class); and settle ONE endpoint resolution,
+since `127.0.0.1:8545` is currently hardcoded at **10 sites** and the forge test would be the
+11th.
+
+**REQUIREMENT GAP ON OUR SIDE, and it is ours to close.** The fixture records `sqrtPriceX96` and
+`liquidity` but **no pool identity** — no pool address, no token pair. A test that attaches has
+nothing to attach *to*. Phase 27 must emit it. `LOOP-03` says publish to the path the test reads;
+nothing anywhere guarantees the test can USE what we publish, and that is the actual gap.
+
 **Plans**: TBD
 
 Plans:
@@ -968,6 +996,18 @@ forge test can never observe half-written.
   3. A reader loop racing the publisher for 10 seconds observes **zero** unparseable or truncated fixtures — and a non-atomic write is OBSERVED producing a torn read in the same harness, so the atomic rename is demonstrated to be what prevents it. A fixture below a shape floor (parses, `length dQx == nEvents`, size above a minimum) is REFUSED rather than published (LOOP-03).
   4. Publication writes **exactly one file** plus its same-directory temp sibling into the other workstream's tree and nothing else — asserted by a before/after tree diff, not by reading the code. A missing `test/models/mev_tax_model_one/fixtures/` directory is a **loud failure naming the path and the owning workstream**; the loop never creates a directory there, because that is how a typo becomes a successfully-published-to-nowhere fixture (LOOP-04).
   5. A SIGINT and an injected exception at **each** stage of an iteration leave the store and the published fixture consistent: the watermark is unadvanced, no half-written row exists, the block is re-processed on restart, and the fixture still parses and carries the content key of a run that completed. A shutdown is only ever observed at a block boundary, never mid-block (LOOP-05).
+#### ⚠ CROSS-TRACK HANDOFF — issue #29 (2026-08-16)
+
+**This is the phase where the collision described under Phase 27 becomes fatal.** The resident
+loop moves the pool price, so the published fixture's `sqrtPriceX96` stops being `2^96`, and
+`AlgebraIntegralMevTaxModelOneShocks.t.sol:163`'s `assertEq` hard-fails — the consuming test goes
+red precisely when this pipeline starts working.
+
+Nothing in `LOOP-01..05` prevents that, because the fix is not ours: the test must ATTACH to the
+live pool rather than construct its own. Tracked as issue #29. Do not "solve" it by loosening
+line 163 — a fixture solved for a different pool than the one replayed is meaningless, and that
+assertion is correct. The two pools must become the same pool.
+
 **Plans**: TBD
 
 Plans:
