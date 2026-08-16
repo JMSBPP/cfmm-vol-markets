@@ -1,0 +1,12 @@
+# Pinned Plank compiler (TOOL-01, milestone v6.0)
+#
+# The FFI (plank-foundry-deployer, PlankDeployer.sol: args[0]="plank") and
+# `make compile-plank` resolve `plank` from PATH. The canonical compiler is the
+# plank_dev build from the pinned plank-monorepo submodule — NOT the standalone
+# `plank v0.1.1` release, which cannot compile this branch's plankified-univ3 tick_math.
+#
+# source    : lib/plank-monorepo submodule @ 3c4ce7b (v0.0.1-alpha.2-92-g3c4ce7b)
+# exec      : lib/plank-monorepo/plankc/target/release/plank   (reports "plank dev")
+# reproduce : make plank-toolchain
+version: plank dev
+plank_monorepo_commit: 3c4ce7b

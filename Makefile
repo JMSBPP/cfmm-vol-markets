@@ -178,6 +178,11 @@ test-vol-order-validation:
 test-vol-order-manager:
 	forge test --match-path 'test/pos_spec/VolOrderManager.t.sol' --via-ir --optimize
 
+get-code:
+	forge clean && forge test --match-test "test__get__code" --via-ir -vvvv
+
+test-mev-tax-model-one:
+	forge test --match-path 'test/models/mev_tax_model_one/AlgebraIntegralMevTaxModelOneShocks.t.sol' --match-test 'test__placeholder' --via-ir --optimize -vvvv
 # test-vol-order-batch: the create_orders BATCH surface (MCAL-01/02/03/04/06) -- the three calldata
 # guards, MAX_BATCH, per-tuple validate-then-skip with contiguous ids, batch-of-1 equivalence and
 # the N=0 no-op. Distinct from test-vol-order-manager, which owns the SINGLE-CALL surface: this file
@@ -232,6 +237,17 @@ test-vol-order-acceptance: test-vol-order-validation test-vol-order-manager test
 # .plk files have no init block (they would fail with "missing init
 # block") and are instead pulled in transitively via their importers.
 PLANK         ?= plank
+
+# plank-toolchain: build the pinned plank_dev compiler from the plank-monorepo submodule
+# and install it as the PATH `plank`. FFI + compile-plank both resolve `plank` from PATH;
+# the stale standalone v0.1.1 cannot compile this branch's tick_math. See .plank-version.
+PLANK_DEV_EXEC := lib/plank-monorepo/plankc/target/release/plank
+PLANK_PATH_BIN := $(HOME)/.plank/bin/plank
+plank-toolchain:
+	cd lib/plank-monorepo/plankc && cargo build --release
+	ln -sf $(abspath $(PLANK_DEV_EXEC)) $(PLANK_PATH_BIN)
+	@plank --version
+
 # Module roots. The `.plk` sources import by layer root (`lib::`, `types::`,
 # `interfaces::`), so each layer under src/ must be declared as a dep or every
 # import fails with "unknown module". `pos_spec` stays declared separately
