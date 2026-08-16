@@ -94,6 +94,23 @@ import Gams.Version
   , parse_conopt_version
   , parse_gams_version
   )
+import Gams.Argv
+  ( ArgvError (..)
+  , Shock (..)
+  , parse_shock_field
+  , render_argv
+  )
+import Gams.Artifact
+  ( ArtifactError (..)
+  , ProverArtifact (..)
+  , decode_artifact
+  )
+import Gams.Env
+  ( forbidden_key_prefixes
+  , validate_env
+  , whitelist_for
+  , whitelist_keys
+  )
 
 import VolOrder.Decode
   ( OrderCreatedEvent (..)
@@ -6934,19 +6951,20 @@ credential_scan root =
     (["-rnE", credential_pattern, root] ++ map ("--include=*" ++) credential_scanned_extensions)
     ""
 
--- | RE-MEASURED COLD on 2026-08-16 during plan 24-01, in the same commit as the three
+-- | RE-MEASURED COLD on 2026-08-16 during plan 24-02, in the same commit as the three
 -- @Gams\/*.hs@ modules that moved it:
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 --
--- 59 = 41 Haskell + 8 shell + 8 JSON + 2 SQL. It was 56 at the end of 23-05, against exactly 56
--- files. Re-measured by running the command, never by adding three.
+-- 62 = 44 Haskell + 8 shell + 8 JSON + 2 SQL. It was 59 at the end of 24-01 against exactly 59
+-- files, and 56 at the end of 23-05 against exactly 56. Re-measured by RUNNING the command each
+-- time, never by adding three.
 --
 -- It exists for the same reason 'purge_file_floor' does and it is the same trap: @grep -r@ exits 1
 -- for \"found nothing\" AND for \"matched no files at all\", so a scan whose @--include@ set stopped
 -- matching reports exactly what a clean scan reports. Re-measure it, never increment it.
 credential_scan_floor :: Int
-credential_scan_floor = 59
+credential_scan_floor = 62
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -7110,9 +7128,23 @@ one_aeson_vector (input, expected) =
 -- the trade: a glob would have picked it up and a named list has to be edited. The rule is the same
 -- rule 23-02 wrote down and 23-03 then broke -- a new module under @offchain\/lib\/Store\/@ is added
 -- HERE, in the commit that creates it -- and it now has an instance to its name.
+--
+-- 24-02 EXTENDED THE LIST TO THE WHOLE GAMS LAYER, AND THEN STOPPED RELYING ON THE RULE.
+-- @Gams\/Artifact.hs@ decodes @volume_path.json@, so it is on the artifact path and belongs here;
+-- it was added in the SAME COMMIT that created it. The other five went in with it, because a scan
+-- scoped to \"the modules that obviously need it\" is the same judgement call that left
+-- @Store\/Schema.hs@ out. And 'the_artifact_path_scan_covers_every_module_on_it' now asserts this
+-- list against @offchain\/lib\/{Store,Gams}\/@ in BOTH directions, so the rule above no longer
+-- depends on anyone remembering it.
 aeson_storage_path :: [FilePath]
 aeson_storage_path =
-  [ "offchain/lib/Store/Class.hs"
+  [ "offchain/lib/Gams/Argv.hs"
+  , "offchain/lib/Gams/Artifact.hs"
+  , "offchain/lib/Gams/Config.hs"
+  , "offchain/lib/Gams/Env.hs"
+  , "offchain/lib/Gams/Exit.hs"
+  , "offchain/lib/Gams/Version.hs"
+  , "offchain/lib/Store/Class.hs"
   , "offchain/lib/Store/Config.hs"
   , "offchain/lib/Store/Json.hs"
   , "offchain/lib/Store/Laws.hs"
@@ -7344,15 +7376,12 @@ gams_fallback_exempt =
   ]
 
 -- | Every @.hs@ in the GAMS layer, from the DIRECTORY rather than from a list.
+-- 24-02 folded this onto 'modules_under', which does exactly the same enumeration for the aeson
+-- scan's scope-growth guard. Two enumerators over the same directory would be two things to keep
+-- in agreement, and the day they stopped agreeing one of the two guards would be reading a set
+-- nobody checked.
 gams_layer_modules :: IO [FilePath]
-gams_layer_modules = do
-  let dir = "offchain/lib/Gams"
-  there <- doesDirectoryExist dir
-  if not there
-    then pure []
-    else do
-      entries <- listDirectory dir
-      pure (sort [dir </> e | e <- entries, takeExtension e == ".hs"])
+gams_layer_modules = modules_under "offchain/lib/Gams"
 
 -- | No fallback, no alternative, no exception handler, no placeholder string.
 gams_version_fallback_pattern :: String
@@ -7646,6 +7675,667 @@ timeout_codes_do_not_collide_with_gams_codes =
         ++ ", expected TimedOut Killed -- 128 + SIGKILL, what the wrapper's -k leaves behind.")
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 24 plan 02: the renderer that decides the bytes, the whitelist, and the decoder that
+-- never builds a 53-bit floating value (GAMS-02, GAMS-06, BYTE-04) -- Tier A only
+-- ---------------------------------------------------------------------------------------------
+
+-- | The shock the committed golden artifact was produced FROM, MEASURED on 2026-08-16.
+--
+-- It is a fixture rather than an invention: the same seven values, rendered by 'render_argv' and
+-- handed to the real prover, produced @offchain\/rig\/volume-path-golden.json@ at sha256
+-- e7b14f38..07d0d884. So the token list below is not a transcription of what the renderer happens
+-- to do -- it is the command line that produced bytes this repository has on disk.
+fixture_shock :: Shock
+fixture_shock = Shock
+  { sh_sqrt_price_x96  = 79228162514264337593543950336
+  , sh_liquidity_raw   = 18446744073709551616
+  , sh_txl_volume_rate = 490000
+  , sh_phi_x_pips      = 500
+  , sh_phi_m_pips      = 6000
+  , sh_vol_tgt_wad     = 28000000000000000000
+  , sh_n_events        = 8
+  }
+
+-- | The seven tokens, in order. Compared element by element, so a failure names WHICH one moved.
+fixture_argv :: [String]
+fixture_argv =
+  [ "--sqrtPriceX96=79228162514264337593543950336"
+  , "--liquidityRaw=18446744073709551616"
+  , "--txlVolumeRate=490000"
+  , "--phiXpips=500"
+  , "--phiMpips=6000"
+  , "--volTgtWad=28000000000000000000"
+  , "--nEvents=8"
+  ]
+
+-- | The token whose acceptance was MEASURED to change the artifact's bytes.
+argv_leading_zero_token :: String
+argv_leading_zero_token = "079228162514264337593543950336"
+
+-- | Tokens the edge must refuse, each with the reason it is here.
+argv_rejected_tokens :: [(String, String)]
+argv_rejected_tokens =
+  [ ("empty",              "")
+  , ("leading-plus",       "+79")
+  , ("leading-space",      " 79")
+  , ("trailing-space",     "79 ")
+  , ("fractional",         "1.5")
+  , ("fractional-mantissa", "2.85e1")
+  , ("negative-exponent",  "1e-3")
+  , ("radix-prefix",       "0x50")
+  , ("negative",           "-1")
+  , ("grouping-separator", "79_228")
+  ]
+
+-- | The eight shocks that must not render, each with the FIELD the refusal has to name.
+--
+-- Every one of them is shape-valid: seven integers, none absent. That is the point -- these are
+-- the values a defaultable field would have supplied silently.
+argv_refusals :: [(String, Shock, String)]
+argv_refusals =
+  [ ("nEvents-zero",       fixture_shock { sh_n_events        = 0 },             "nEvents")
+  , ("liquidity-zero",     fixture_shock { sh_liquidity_raw   = 0 },             "liquidityRaw")
+  , ("sqrtPrice-zero",     fixture_shock { sh_sqrt_price_x96  = 0 },             "sqrtPriceX96")
+  , ("sqrtPrice-uint160",  fixture_shock { sh_sqrt_price_x96  = 2 ^ (160 :: Int) }, "sqrtPriceX96")
+  , ("liquidity-uint128",  fixture_shock { sh_liquidity_raw   = 2 ^ (128 :: Int) }, "liquidityRaw")
+  , ("volTgtWad-zero",     fixture_shock { sh_vol_tgt_wad     = 0 },             "volTgtWad")
+  , ("txlVolumeRate-100%", fixture_shock { sh_txl_volume_rate = 1000000 },       "txlVolumeRate")
+  , ("equal-fees",         fixture_shock { sh_phi_x_pips      = 6000 },          "phiXpips")
+  ]
+
+-- | GAMS-06's rendering half, and the one check in this plan whose subject was MEASURED changing
+-- the artifact's bytes rather than argued about.
+--
+-- Four arms. The first is the POSITIVE one and it is first for the usual reason: a renderer that
+-- refused everything would satisfy the other three. The second is M7. The third settles Phase 25's
+-- KEY-04 here, where the rendering is decided, instead of after rows exist. The fourth is the
+-- refusal battery, asserted BY FIELD NAME so a refusal that fired for the wrong reason is not
+-- counted as the right one.
+argv_rendering_is_canonical_and_total :: Check
+argv_rendering_is_canonical_and_total =
+  pure_check "argv_rendering_is_canonical_and_total" $ do
+    tokens <-
+      case render_argv fixture_shock of
+        Left err ->
+          Left ("the POSITIVE arm failed: the fixture shock -- the very seven values that produced"
+                 ++ " the committed golden artifact -- was REFUSED as " ++ show err
+                 ++ ". A battery of refusals is satisfied by a renderer that refuses everything,"
+                 ++ " so this arm is what keeps the other three meaningful.")
+        Right ts -> Right ts
+    _ <- expect (length tokens == 7)
+           ("render_argv produced " ++ show (length tokens) ++ " tokens, expected exactly 7:"
+             ++ "\n      " ++ show tokens
+             ++ "\n      An eighth token, or a missing one, is a different command line for the"
+             ++ " same shock -- and the command line IS the artifact's bytes for the two echoed"
+             ++ " string fields.")
+    _ <- mapM_ same_token (zip3 [0 :: Int ..] fixture_argv tokens)
+
+    -- THE M7 ARM. The leading zero is normalized at the EDGE, so it cannot reach the execve.
+    normalized <-
+      case parse_shock_field argv_leading_zero_token of
+        Left err ->
+          Left ("parse_shock_field REFUSED " ++ show argv_leading_zero_token ++ " as " ++ show err
+                 ++ ". It must NORMALIZE it: a leading zero is a legal spelling of a legal value"
+                 ++ " arriving from outside, and refusing it moves the problem to the caller"
+                 ++ " instead of settling it.")
+        Right value -> Right value
+    m7_tokens <-
+      case render_argv fixture_shock { sh_sqrt_price_x96 = normalized } of
+        Left err -> Left ("the normalized leading-zero shock did not render: " ++ show err)
+        Right ts -> Right ts
+    m7_token <-
+      case m7_tokens of
+        (t : _) -> Right t
+        []      -> Left "the normalized leading-zero shock rendered an empty token list"
+    _ <- expect (m7_token == "--sqrtPriceX96=79228162514264337593543950336")
+           ("the leading-zero token normalized to " ++ show m7_token ++ ", expected"
+             ++ " \"--sqrtPriceX96=79228162514264337593543950336\".")
+    _ <- expect (not ("=0" `isInfixOf` m7_token))
+           ("a LEADING ZERO survived into the argv token " ++ show m7_token
+             ++ ". MEASURED against the real binary on 2026-08-16: volume_path.gms:206 emits"
+             ++ " \"%sqrtPriceX96%\" VERBATIM -- a compile-time substitution of the raw command-line"
+             ++ " string -- so this run also EXITS 0, passes EVERY section-4 gate, and writes an"
+             ++ " artifact whose sha256 is d64a7b32..14b9e650 instead of the golden"
+             ++ " e7b14f38..07d0d884. Two numerically identical shocks, two different artifacts,"
+             ++ " nothing red anywhere. The rendering decides the bytes and this phase owns the"
+             ++ " execve.")
+
+    -- KEY-04, settled upstream of any row.
+    _ <- expect (parse_shock_field "28e18" == parse_shock_field "28000000000000000000")
+           ("parse_shock_field disagrees about two spellings of the same value: \"28e18\" gave "
+             ++ show (parse_shock_field "28e18") ++ " and \"28000000000000000000\" gave "
+             ++ show (parse_shock_field "28000000000000000000")
+             ++ ". MEASURED: --volTgtWad=28e18 and --volTgtWad=2.8e19 produce BYTE-IDENTICAL"
+             ++ " artifacts, so two spellings that key two rows would key one artifact twice.")
+
+    _ <- mapM_ rejected argv_rejected_tokens
+    mapM_ refused argv_refusals
+  where
+    same_token (index, wanted, got) =
+      expect (wanted == got)
+        ("argv token " ++ show index ++ " is " ++ show got ++ ", expected " ++ show wanted
+          ++ ". The order and the spelling are both fixed: GAMS accepts these parameters in any"
+          ++ " order, so a renderer that reordered them would still solve while producing a"
+          ++ " different command line for the same shock.")
+
+    rejected (name, token) =
+      case parse_shock_field token of
+        Left _ -> Right ()
+        Right value ->
+          Left ("the edge ACCEPTED the token " ++ show token ++ " (" ++ name ++ ") as "
+                 ++ show value ++ ". Every member here is a spelling nobody decided about, and an"
+                 ++ " undecided spelling normalized by guesswork is a value the caller did not"
+                 ++ " supply.")
+
+    refused (name, shock, field) =
+      case render_argv shock of
+        Right ts ->
+          Left ("the refusal " ++ show name ++ " RENDERED instead of failing:\n      " ++ show ts
+                 ++ "\n      Every field of Shock is a strict Integer with no optional and no"
+                 ++ " defaultable case, so these eight are shape-valid inputs that must be refused"
+                 ++ " on VALUE. A zero event count, a zero price or a zero liquidity is what an"
+                 ++ " absent subject looks like once a default has supplied it.")
+        Left (FieldOutOfRange got _ _)
+          | got == field -> Right ()
+          | otherwise ->
+              Left ("the refusal " ++ show name ++ " named the field " ++ show got
+                     ++ ", expected " ++ show field ++ ". A refusal that fires for the wrong"
+                     ++ " reason is not the refusal being asserted.")
+        Left other ->
+          Left ("the refusal " ++ show name ++ " failed as " ++ show other
+                 ++ ", expected a FieldOutOfRange naming " ++ show field ++ ".")
+
+-- | GAMS-06's environment half, asserted in BOTH directions and with a positive arm.
+--
+-- Non-membership alone -- \"no GAMS variable is present\" -- is satisfied by the EMPTY
+-- environment, so the key set is asserted as a SET, 'validate_env' is shown ACCEPTING the real
+-- whitelist, and it is shown REFUSING both a hostile addition and the empty vector. Without the
+-- last two arms a validator that returned @Right ()@ for everything would pass.
+the_whitelist_pins_LC_ALL_C_and_admits_no_GAMS_variable :: Check
+the_whitelist_pins_LC_ALL_C_and_admits_no_GAMS_variable =
+  pure_check "the_whitelist_pins_LC_ALL_C_and_admits_no_GAMS_variable" $ do
+    let env  = whitelist_for "/home/x"
+        keys = sort (map fst env)
+    _ <- expect (keys == ["HOME", "LC_ALL", "PATH"])
+           ("the whitelisted environment's keys are " ++ show keys
+             ++ ", expected [\"HOME\",\"LC_ALL\",\"PATH\"]. The child gets this vector and nothing"
+             ++ " else, so a key that appears here appears in the process that writes the bytes.")
+    _ <- expect (keys == sort whitelist_keys)
+           ("whitelist_keys is " ++ show (sort whitelist_keys) ++ " and whitelist_for produces "
+             ++ show keys ++ ". The advertised list and the vector actually handed to execve have"
+             ++ " drifted apart, which is the shape 22-03 measured on RIG_MANIFEST.")
+    _ <- expect (lookup "LC_ALL" env == Just "C")
+           ("LC_ALL is " ++ show (lookup "LC_ALL" env) ++ ", expected Just \"C\". Without it the"
+             ++ " child's decimal separator is whatever the host's locale says, on a path whose"
+             ++ " entire purpose is byte reproducibility -- and the artifact carries two fractional"
+             ++ " fields written by that very formatter.")
+    let offenders = [(k, p) | k <- keys, p <- forbidden_key_prefixes, p `isPrefixOf` k]
+    _ <- expect (null offenders)
+           ("the whitelist admits a forbidden key: " ++ show offenders
+             ++ ". GAMS*, GDX*, CONOPT*, LC_NUMERIC and LANG were all MEASURED inert against the"
+             ++ " artifact's bytes on this host, at this toolchain version -- which is a"
+             ++ " measurement, not a property of the interface.")
+    _ <- expect (validate_env env == Right ())
+           ("validate_env REFUSED its own whitelist: " ++ show (validate_env env)
+             ++ ". The positive arm is what keeps the two refusals below from being satisfied by a"
+             ++ " validator that refuses everything.")
+    _ <- expect (validate_env (("GAMSTHREADS", "8") : env) /= Right ())
+           "validate_env ADMITTED GAMSTHREADS=8 alongside the whitelist. A key set asserted in only\
+           \ one direction is how a whitelist becomes a suggestion."
+    expect (validate_env [] /= Right ())
+      "validate_env ADMITTED THE EMPTY ENVIRONMENT. That is the defect class this milestone's\
+      \ standing rule names, in the one place where it would hand the solver nothing at all and\
+      \ report that the environment was controlled."
+
+-- | A synthetic artifact document with the two arrays and the event count under the check's
+-- control. Everything else is well formed, so a failure is attributable to the field being moved.
+artifact_doc :: String -> String -> String -> BS.ByteString
+artifact_doc n_events dqx dqm =
+  C8.pack (concat
+    [ "{\"sqrtPriceX96\": \"79228162514264337593543950336\""
+    , ",\"liquidity\": \"18446744073709551616\""
+    , ",\"txlVolumeRate\": 490000,\"phiXpips\": 500,\"phiMpips\": 6000"
+    , ",\"nEvents\": ", n_events
+    , ",\"deltaRealized\": 0.4900000000,\"rPhiRealized\": 0.0031835300"
+    , ",\"dQx\": [", dqx, "]"
+    , ",\"dQM\": [", dqm, "]}"
+    ])
+
+-- | The constructor name of a refusal, so a check can assert WHICH guard fired without pinning a
+-- message that will legitimately be reworded.
+artifact_error_kind :: ArtifactError -> String
+artifact_error_kind err =
+  case err of
+    NotJson _       -> "NotJson"
+    MissingField _  -> "MissingField"
+    NotAnInteger _  -> "NotAnInteger"
+    ShapeMismatch _ -> "ShapeMismatch"
+
+-- | GAMS-02's structural half: exit 0 is the door into the conjunct list, not a substitute for it.
+--
+-- Five arms, and the POSITIVE one is not decoration -- four refusals are satisfied by a decoder
+-- that refuses the golden artifact too, which would be GAMS-02 defeated by making the whole path
+-- unusable rather than by making it lax.
+artifact_postconditions_reject_a_short_array :: Check
+artifact_postconditions_reject_a_short_array =
+  pure_check "artifact_postconditions_reject_a_short_array" $ do
+    let eight = intercalate "," (map show [1 .. 8 :: Int])
+        seven = intercalate "," (map show [1 .. 7 :: Int])
+    _ <- refuses "short-dQx" "ShapeMismatch" (artifact_doc "8" seven seven)
+    _ <- refuses "dQx-and-dQM-differ" "ShapeMismatch" (artifact_doc "8" eight seven)
+    _ <- refuses "empty-dQx" "ShapeMismatch" (artifact_doc "8" "" "")
+    _ <- refuses "not-a-json-value" "NotJson" (C8.pack "{")
+    case decode_artifact golden_artifact_bytes_literal of
+      Left err ->
+        Left ("the POSITIVE arm failed: the committed 606-byte golden artifact was REFUSED as "
+               ++ show err ++ ". Four refusals are satisfied by a decoder that refuses everything.")
+      Right artifact ->
+        expect (pa_n_events artifact == 8)
+          ("the golden artifact decoded with nEvents = " ++ show (pa_n_events artifact)
+            ++ ", expected 8.")
+  where
+    -- The signature is not decoration: OverloadedStrings is on in this file, so the unannotated
+    -- name would default its literal arguments and -Wtype-defaults is a hard gate. 24-01 hit the
+    -- identical warning on its CONOPT check.
+    refuses :: String -> String -> BS.ByteString -> Either String ()
+    refuses name wanted bytes =
+      case decode_artifact bytes of
+        Right _ ->
+          Left ("the artifact case " ++ show name ++ " was ACCEPTED. exit 0 means only that GAMS"
+                 ++ " RAN -- MEASURED, `action=c` exits 0 writing no artifact at all -- so the"
+                 ++ " arrays agreeing with the event count is one of the conjuncts that make a"
+                 ++ " document an artifact.")
+        Left err
+          | artifact_error_kind err == wanted -> Right ()
+          | otherwise ->
+              Left ("the artifact case " ++ show name ++ " was refused as "
+                     ++ artifact_error_kind err ++ " (" ++ show err ++ "), expected " ++ wanted
+                     ++ ". A refusal that fires for the wrong reason is not the refusal being"
+                     ++ " asserted.")
+
+-- | The six tokens that must not become an element of @dQx@, with the layer that refuses each.
+--
+-- @2.8e19@ earns its place twice over: it is the EXACT spelling in which a volatility target
+-- legitimately arrives on the command line, where 'parse_shock_field' normalizes it to an exact
+-- Integer. It is refused HERE because the artifact is an OUTPUT -- an exponent spelling in dQx
+-- means the writer produced something this path cannot carry exactly.
+--
+-- @007@ is MEASURED to be refused ONE LAYER EARLIER than the plan expected, and the measurement is
+-- recorded rather than smoothed over: RFC 8259 admits no leading zero, so Store.Json's recogniser
+-- refuses the whole document and the answer is NotJson. Asserting NotAnInteger there would have
+-- been asserting a transcription against a transcription.
+artifact_non_integer_tokens :: [(String, String, String)]
+artifact_non_integer_tokens =
+  [ ("fractional",          "1.5",    "NotAnInteger")
+  , ("exponent-form",       "2.8e19", "NotAnInteger")
+  , ("small-exponent-form", "1e3",    "NotAnInteger")
+  , ("negative-zero",       "-0",     "NotAnInteger")
+  , ("leading-zero",        "007",    "NotJson")
+  , ("empty-element",       "\"\"",   "NotAnInteger")
+  ]
+
+-- | BYTE-04's refusal half: no spelling of a non-integer becomes an element of dQx.
+the_artifact_decoder_refuses_a_non_integer_token :: Check
+the_artifact_decoder_refuses_a_non_integer_token =
+  pure_check "the_artifact_decoder_refuses_a_non_integer_token" $ do
+    _ <- mapM_ one artifact_non_integer_tokens
+    -- The POSITIVE arm, with the SAME document shape: an integer token in the same slot decodes.
+    case decode_artifact (substituted "6") of
+      Left err ->
+        Left ("the POSITIVE arm failed: the same document with a plain integer in dQx[0] was"
+               ++ " refused as " ++ show err ++ ". Six refusals are satisfied by a decoder that"
+               ++ " refuses this document shape outright.")
+      Right artifact ->
+        expect (take 1 (pa_dqx artifact) == [6])
+          ("the substituted document decoded with dQx = " ++ show (pa_dqx artifact)
+            ++ ", expected 6 in the first position.")
+  where
+    substituted token = artifact_doc "2" (token ++ ",7") "8,9"
+
+    one (name, token, wanted) =
+      case decode_artifact (substituted token) of
+        Right artifact ->
+          Left ("the token " ++ show token ++ " (" ++ name ++ ") was ACCEPTED into dQx as "
+                 ++ show (pa_dqx artifact)
+                 ++ ". Those arrays are swap amounts in wei; a token this decoder had to interpret"
+                 ++ " is an amount the model never chose.")
+        Left err
+          | artifact_error_kind err == wanted -> Right ()
+          | otherwise ->
+              Left ("the token " ++ show token ++ " (" ++ name ++ ") was refused as "
+                     ++ artifact_error_kind err ++ " (" ++ show err ++ "), expected " ++ wanted
+                     ++ ".")
+
+-- ---------------------------------------------------------------------------------------------
+-- BYTE-04's golden vector
+-- ---------------------------------------------------------------------------------------------
+
+volume_path_golden_file :: FilePath
+volume_path_golden_file = "offchain/rig/volume-path-golden.json"
+
+-- | @dQx@ from the committed artifact, EXACT. Pinned here so the decoder is compared against a
+-- value it did not produce; tied to the file by the digest asserted before any decode.
+golden_dqx :: [Integer]
+golden_dqx =
+  [ -2613128317657530400, -2680707973111378000,  4861675431041821000,  4608884887749073000
+  ,  4529439681209106400, -2884368647455834000, -2898559031733104600, -2923236030042153000 ]
+
+golden_dqm :: [Integer]
+golden_dqm =
+  [  3044390494897843700,  4380130746753610000, -6981993058607328000, -3848149233948789000
+  , -2509044703947784000,  1489464758822659600,  1901839408803925500,  2523361587209160700 ]
+
+-- | The two echoed STRING fields, which must survive the decode as text.
+golden_sqrt_price_text :: String
+golden_sqrt_price_text = "79228162514264337593543950336"
+
+golden_liquidity_text :: String
+golden_liquidity_text = "18446744073709551616"
+
+-- | The committed artifact's bytes, rebuilt from the pinned fields for the PURE checks.
+--
+-- This is a reconstruction and it is labelled one. The check that ties the vector to the file on
+-- disk is 'the_golden_vector_comes_from_the_committed_artifact', which digests the real file
+-- BEFORE decoding it; this literal exists so the two pure checks above do not need IO, and if it
+-- ever disagreed with the file that check is where it would show.
+golden_artifact_bytes_literal :: BS.ByteString
+golden_artifact_bytes_literal =
+  artifact_doc "8" (intercalate ", " (map show golden_dqx)) (intercalate ", " (map show golden_dqm))
+
+-- | The image of an exact wei amount after a round trip through the 53-bit floating type.
+--
+-- This function is the ONLY place in this repository that puts an artifact array element through
+-- that type, and it exists to MEASURE the loss rather than to suffer it.
+double_image :: Integer -> Integer
+double_image n = round (fromIntegral n :: Double)
+
+-- | BYTE-04's provenance: the pinned vector comes from the COMMITTED FILE, and the file is
+-- identified BEFORE it is interpreted.
+--
+-- The order is the whole design. The digest and the length are asserted first, so editing one byte
+-- of the artifact fires HERE -- on identity -- rather than producing a different-but-plausible
+-- vector that a decode would happily return. Only then is the file decoded and compared against
+-- the pinned exact lists.
+the_golden_vector_comes_from_the_committed_artifact :: Check
+the_golden_vector_comes_from_the_committed_artifact =
+  Check "the_golden_vector_comes_from_the_committed_artifact" . guarded $ do
+    there <- doesFileExist volume_path_golden_file
+    if not there
+      then pure (Left ("the committed golden artifact " ++ volume_path_golden_file
+                        ++ " is not on disk. A missing file is a FAILURE naming it, never a pass"
+                        ++ " over an empty set -- every assertion below would otherwise be vacuous."))
+      else do
+        bytes <- BS.readFile volume_path_golden_file
+        pure $ do
+          _ <- expect (sha256_hex bytes == volume_path_golden_sha256)
+                 ("the golden artifact's sha256 is " ++ sha256_hex bytes ++ " and Store.Types pins "
+                   ++ volume_path_golden_sha256 ++ ". This is asserted BEFORE the decode on"
+                   ++ " purpose: an edited artifact would otherwise decode into a"
+                   ++ " different-but-plausible vector and the truncation table below would be"
+                   ++ " measuring a file nobody produced.")
+          _ <- expect (BS.length bytes == volume_path_golden_bytes_len)
+                 ("the golden artifact is " ++ show (BS.length bytes) ++ " bytes and Store.Types"
+                   ++ " pins " ++ show volume_path_golden_bytes_len
+                   ++ ". Length and digest are pinned separately so a truncation is named as one.")
+          artifact <-
+            case decode_artifact bytes of
+              Left err ->
+                Left ("the committed golden artifact did not decode: " ++ show err
+                       ++ ". Its digest matched, so this is the DECODER disagreeing with real"
+                       ++ " solver output rather than the file having moved.")
+              Right a -> Right a
+          _ <- expect (pa_dqx artifact == golden_dqx)
+                 ("dQx decoded as " ++ show (pa_dqx artifact) ++ ", pinned " ++ show golden_dqx
+                   ++ ". Both sides are exact Integers and the file they come from is identified by"
+                   ++ " digest, so a difference here is a wei-level decode defect, not a rounding"
+                   ++ " convention.")
+          _ <- expect (pa_dqm artifact == golden_dqm)
+                 ("dQM decoded as " ++ show (pa_dqm artifact) ++ ", pinned " ++ show golden_dqm ++ ".")
+          _ <- expect (pa_sqrt_price_x96_text artifact == golden_sqrt_price_text)
+                 ("sqrtPriceX96 survived the decode as " ++ show (pa_sqrt_price_x96_text artifact)
+                   ++ ", expected " ++ show golden_sqrt_price_text
+                   ++ ". It is kept as TEXT because the cross-check that closes the invocation"
+                   ++ " contract compares it to the argv TOKEN that was sent, and that equality"
+                   ++ " means nothing if either side was rebuilt from a number.")
+          expect (pa_liquidity_text artifact == golden_liquidity_text)
+            ("liquidity survived the decode as " ++ show (pa_liquidity_text artifact)
+              ++ ", expected " ++ show golden_liquidity_text ++ ".")
+
+-- | BYTE-04, as an EQUALITY that no tolerance can absorb.
+--
+-- MEASURED: the first element of dQx is -2613128317657530400 exactly, and its image under the
+-- 53-bit floating type is -2613128317657530368 exactly -- a difference of 32 wei. Both assertions
+-- are equalities on Integers. A check written as \"the difference is small\" or \"within epsilon\"
+-- would pass under the very decoder this requirement exists to forbid, because 32 wei IS small;
+-- the point is that it is not ZERO and that the amount is a swap this repository would execute.
+dqx_double_decode_loses_exactly_32_wei_on_the_first_element :: Check
+dqx_double_decode_loses_exactly_32_wei_on_the_first_element =
+  pure_check "dqx_double_decode_loses_exactly_32_wei_on_the_first_element" $
+    case golden_dqx of
+      [] ->
+        Left "golden_dqx is EMPTY, so the truncation measurement has no subject at all."
+      (first_element : _) -> do
+        let image = double_image first_element
+        _ <- expect (image == -2613128317657530368)
+               ("dQx[0] = " ++ show first_element ++ " has the 53-bit image " ++ show image
+                 ++ ", and the MEASURED image is -2613128317657530368. This is an EQUALITY on"
+                 ++ " Integers: if the two agree, the array element is being carried exactly and"
+                 ++ " this measurement no longer has a subject; re-measure it, do not delete it.")
+        expect (image - first_element == 32)
+          ("dQx[0] moves by " ++ show (image - first_element) ++ " wei through the 53-bit type and"
+            ++ " the MEASURED move is exactly +32. The sign convention is the research table's --"
+            ++ " delta = image MINUS exact -- and it is stated because the first arm caught this"
+            ++ " check written the other way round: the magnitude was right and the sign was not,"
+            ++ " which an absolute value would have hidden. These are wei, and the arrays are swap"
+            ++ " amounts, so a"
+            ++ " decoder that took this path would execute a swap for an amount the model never"
+            ++ " chose. NO TOLERANCE CAN ABSORB EITHER ASSERTION -- both are equalities, which is"
+            ++ " the whole point of stating them this way.")
+
+-- | 16 OF 16, not \"at least one\".
+--
+-- A decoder that silently widened ONE field -- say dQx and not dQM -- would still be caught, which
+-- an existential assertion would not do. The magnitude band is asserted too: |delta| between 4 and
+-- 328 was MEASURED across the whole vector, so a band that collapsed to zero (every element exact)
+-- reddens instead of quietly making the requirement vacuous.
+every_golden_element_is_inexact_under_double :: Check
+every_golden_element_is_inexact_under_double =
+  pure_check "every_golden_element_is_inexact_under_double" $ do
+    let vector  = golden_dqx ++ golden_dqm
+        -- delta = image MINUS exact, the research table's convention, so the values this check
+        -- reports can be compared against M12 row by row without a sign flip.
+        deltas  = [(n, double_image n - n) | n <- vector]
+        differ  = [pair | pair@(_, d) <- deltas, d /= 0]
+        outside = [pair | pair@(_, d) <- deltas, abs d < 4 || abs d > 328]
+    _ <- expect (length vector == 16)
+           ("the golden vector carries " ++ show (length vector) ++ " elements, expected 16 (8 in"
+             ++ " dQx and 8 in dQM). A shrunken vector makes the count assertion below satisfiable"
+             ++ " by deletion.")
+    _ <- expect (length differ == 16)
+           ("only " ++ show (length differ) ++ " of 16 elements are inexact under the 53-bit type."
+             ++ " MEASURED: ALL SIXTEEN are, with |delta| between 4 and 328. Asserting 16 rather"
+             ++ " than 'at least one' is what catches a decoder that widened a single field and"
+             ++ " left the rest alone.\n      exact elements: "
+             ++ show [n | (n, d) <- deltas, d == 0])
+    expect (null outside)
+      ("these elements' losses fall outside the MEASURED band [4, 328]: " ++ show outside
+        ++ ". The band is asserted so that a vector whose losses collapsed toward zero -- the shape"
+        ++ " of a fixture quietly replaced by exactly-representable numbers -- reddens rather than"
+        ++ " making this requirement vacuous.")
+
+-- ---------------------------------------------------------------------------------------------
+-- The artifact path's source scans, and the scope that must GROW
+-- ---------------------------------------------------------------------------------------------
+
+-- | The two modules on the artifact path that may not construct a 53-bit floating value.
+artifact_float_path :: [FilePath]
+artifact_float_path =
+  [ "offchain/lib/Gams/Argv.hs"
+  , "offchain/lib/Gams/Artifact.hs"
+  ]
+
+artifact_float_pattern :: String
+artifact_float_pattern = "Double|Float|realToFrac|fromRational"
+
+-- | The seeded bait, BUILT rather than written out, following 'aeson_bait_source'. This file is
+-- not in 'artifact_float_path' today, and a bait spelled contiguously here is one scope change
+-- away from being found by the scan it exists to exercise.
+artifact_float_bait_source :: String
+artifact_float_bait_source =
+  "amount :: " ++ "Dou" ++ "ble\n"
+    ++ "amount = real" ++ "ToFrac (1 :: Rational)\n"
+
+-- | Absence may not read as success until the pattern has been SHOWN matching. Returned so the
+-- caller orders it FIRST.
+artifact_float_positive_control :: IO (Either String ())
+artifact_float_positive_control = do
+  tmp <- getTemporaryDirectory
+  let dir       = tmp </> "byte04-float-positive-control"
+      bait      = dir </> "bait.hs"
+      innocent  = dir </> "clean.hs"
+      discard p = do
+        there <- doesFileExist p
+        if there then removeFile p else pure ()
+
+  createDirectoryIfMissing True dir
+  flip finally (mapM_ discard [bait, innocent]) $ do
+    writeFile bait artifact_float_bait_source
+    writeFile innocent "amount :: Integer\namount = 1\n"
+    (code, out, err) <- gams_version_scan artifact_float_pattern [bait, innocent]
+    pure $ do
+      _ <- expect (code == ExitSuccess)
+             ("BYTE-04's POSITIVE CONTROL did not fire: the scan exited " ++ show code
+               ++ " over a file that declares a 53-bit floating value and converts to one. The"
+               ++ " pattern has stopped matching anything, which means the exit-1 the real scan"
+               ++ " reports is absence of MATCHES only by assumption."
+               ++ (if null err then "" else "\n      stderr: " ++ err))
+      _ <- expect ("bait.hs" `isInfixOf` out)
+             ("BYTE-04's POSITIVE CONTROL fired but did not NAME the seeded file. It said:\n"
+               ++ unlines (map ("      " ++) (lines out)))
+      expect (not ("clean.hs" `isInfixOf` out))
+        ("BYTE-04's POSITIVE CONTROL matched a file with no floating value in it at all, so the"
+          ++ " pattern is matching something other than what it claims to. It said:\n"
+          ++ unlines (map ("      " ++) (lines out)))
+
+-- | BYTE-04's structural half: the artifact path carries neither a 53-bit floating value nor a
+-- JSON library, and the module that decodes the artifact is ON the aeson scan's list.
+--
+-- Four assertions in this order: (1) the float pattern is SHOWN matching a seeded bait; (2) both
+-- scanned files EXIST; (3) both are members of 'aeson_storage_path', so the no-aeson claim about
+-- them is made by a scan that actually reads them rather than by this check's name; (4) the float
+-- scan finds nothing.
+--
+-- (3) is the pre-empted Phase-23 finding in its narrowest form. @Gams\/Artifact.hs@ was added to
+-- 'aeson_storage_path' in the SAME COMMIT that created it, which is the rule that list's own
+-- haddock writes down and that 23-03 broke by two commits.
+no_Double_and_no_aeson_on_the_artifact_path :: Check
+no_Double_and_no_aeson_on_the_artifact_path =
+  Check "no_Double_and_no_aeson_on_the_artifact_path" . guarded $ do
+    control  <- artifact_float_positive_control
+    presence <- mapM (\p -> (,) p <$> doesFileExist p) artifact_float_path
+    let gone     = [p | (p, False) <- presence]
+        unscanned = [p | p <- artifact_float_path, p `notElem` aeson_storage_path]
+    if not (null gone)
+      then pure $ do
+        _ <- control
+        expect False
+          ("the artifact path names files that are not on disk: " ++ intercalate ", " gone
+            ++ ". Scoping the list to the files that exist would make this check pass BECAUSE its"
+            ++ " subject is absent.")
+      else if not (null unscanned)
+        then pure $ do
+          _ <- control
+          expect False
+            ("these artifact-path modules are NOT in aeson_storage_path: "
+              ++ intercalate ", " unscanned
+              ++ ". This check's name claims no aeson is on the artifact path, and the scan that"
+              ++ " would say so does not read them. 23-03 MEASURED the consequence: Store/Schema.hs"
+              ++ " sat unlisted for two commits and nothing reddened.")
+        else do
+          (code, out, err) <- gams_version_scan artifact_float_pattern artifact_float_path
+          pure $ do
+            _ <- control
+            case code of
+              ExitFailure 1 -> Right ()
+              ExitFailure n -> Left ("the scan itself failed with exit " ++ show n ++ ": " ++ err)
+              ExitSuccess ->
+                Left ("a 53-bit floating value is on the ARTIFACT PATH. MEASURED from the committed"
+                       ++ " golden artifact: dQx[0] loses exactly 32 wei through that type and ALL"
+                       ++ " SIXTEEN elements of dQx ++ dQM are inexact, |delta| in [4, 328]. These"
+                       ++ " are swap amounts in wei.\n"
+                       ++ unlines (map ("      " ++) (lines out)))
+
+-- | The directories whose every @.hs@ file must be a DECIDED member of the aeson scan.
+artifact_path_directories :: [FilePath]
+artifact_path_directories = [ "offchain/lib/Gams", "offchain/lib/Store" ]
+
+-- | Modules under those directories that are deliberately NOT scanned, each with its reason.
+--
+-- EMPTY at 24-02, and that is a fact rather than a placeholder: every module under
+-- @offchain\/lib\/{Store,Gams}\/@ is scanned today. An entry added here must carry the reason it
+-- is one, because an exemption without a reason is how a scan's scope shrinks to the empty set one
+-- plausible file at a time.
+aeson_scan_exemptions :: [(FilePath, String)]
+aeson_scan_exemptions = []
+
+-- | Every @.hs@ under a directory, from the DIRECTORY rather than from a list.
+modules_under :: FilePath -> IO [FilePath]
+modules_under dir = do
+  there <- doesDirectoryExist dir
+  if not there
+    then pure []
+    else do
+      entries <- listDirectory dir
+      pure (sort [dir </> e | e <- entries, takeExtension e == ".hs"])
+
+-- | THE SCOPE-GROWTH GUARD, and the reason it exists is a measurement rather than a principle.
+--
+-- 'aeson_storage_path' is a hardcoded list, and its own haddock records what that costs: 23-03
+-- landed @Store\/Schema.hs@ and it sat unlisted for TWO COMMITS -- a storage module the scan did
+-- not read, with nothing red, caught by a plan's self-check rather than by anything that fails. A
+-- named list makes an omission VISIBLE; comparing the list against the directory makes it
+-- IMPOSSIBLE, and it does so without reverting to a glob, because every file is still decided
+-- about by name -- either scanned or exempt WITH A REASON.
+--
+-- Asserted in BOTH directions. A module on disk that is neither scanned nor exempt is a failure
+-- naming it; a listed file with nothing on disk is a failure naming it too, because a list scoped
+-- to the files that happen to exist passes over an empty set.
+the_artifact_path_scan_covers_every_module_on_it :: Check
+the_artifact_path_scan_covers_every_module_on_it =
+  Check "the_artifact_path_scan_covers_every_module_on_it" . guarded $ do
+    present <- mapM doesDirectoryExist artifact_path_directories
+    let absent_dirs = [d | (d, False) <- zip artifact_path_directories present]
+    if not (null absent_dirs)
+      then pure (Left ("these artifact-path directories are not on disk: "
+                        ++ intercalate ", " absent_dirs
+                        ++ ". An enumeration of a directory that does not exist is empty, and an"
+                        ++ " empty enumeration agrees with every list."))
+      else do
+        found <- mapM modules_under artifact_path_directories
+        let on_disk  = sort (concat found)
+            decided  = sort (aeson_storage_path ++ map fst aeson_scan_exemptions)
+            unlisted = [m | m <- on_disk, m `notElem` decided]
+            phantom  = [m | m <- decided, m `notElem` on_disk]
+        pure $ do
+          _ <- expect (not (null on_disk))
+                 ("no .hs file was found under " ++ intercalate ", " artifact_path_directories
+                   ++ ". The set comparison below would then be an assertion about nothing.")
+          expect (null unlisted && null phantom)
+            ("the modules on disk under " ++ intercalate " and " artifact_path_directories
+              ++ " are not the set this scan decided about."
+              ++ (if null unlisted then ""
+                    else "\n      on disk but neither scanned nor exempt: "
+                           ++ intercalate ", " unlisted)
+              ++ (if null phantom then ""
+                    else "\n      scanned or exempt but not on disk: " ++ intercalate ", " phantom)
+              ++ "\n      A new module under offchain/lib/{Store,Gams}/ is added to"
+              ++ " aeson_storage_path -- or to aeson_scan_exemptions WITH A WRITTEN REASON -- in"
+              ++ " the commit that creates it. A missing file is a FAILURE naming the plan that"
+              ++ " creates it, never a pass. 23-03 MEASURED the other half: Store/Schema.hs spent"
+              ++ " two commits unlisted and nothing reddened, because a named list makes an"
+              ++ " omission visible without making it impossible.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -7770,6 +8460,15 @@ core_checks = do
           , conopt_parse_is_position_independent
           , gams_exit_taxonomy_is_total_and_disjoint
           , timeout_codes_do_not_collide_with_gams_codes
+          , argv_rendering_is_canonical_and_total
+          , the_whitelist_pins_LC_ALL_C_and_admits_no_GAMS_variable
+          , artifact_postconditions_reject_a_short_array
+          , the_artifact_decoder_refuses_a_non_integer_token
+          , the_golden_vector_comes_from_the_committed_artifact
+          , dqx_double_decode_loses_exactly_32_wei_on_the_first_element
+          , every_golden_element_is_inexact_under_double
+          , no_Double_and_no_aeson_on_the_artifact_path
+          , the_artifact_path_scan_covers_every_module_on_it
           ]
             ++ per_pin_checks pins
   pure checks
