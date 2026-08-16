@@ -6,3 +6,5 @@ const SELECTOR_INIT = 0x184b9559;
 const SELECTOR_BEFORE_CREATE_POOL_HOOK = 0x1d0338d9;
 // beforeInitialize(address,uint160)
 const SELECTOR_BEFORE_INITIALIZE = 0x636fd804;
+// beforeSwap(address,address,bool,int256,uint160,bool,bytes)
+const SELECTOR_BEFORE_SWAP = 0x029c1cb7;

@@ -14,6 +14,8 @@ import {stdJson} from "forge-std/StdJson.sol";
 import {IAlgebraPoolActions} from "@cryptoalgebra/integral-core/interfaces/pool/IAlgebraPoolActions.sol";
 import {IAlgebraPoolPermissionedActions} from "@cryptoalgebra/integral-core/interfaces/pool/IAlgebraPoolPermissionedActions.sol";
 import {IAlgebraSwapCallback} from "@cryptoalgebra/integral-core/interfaces/callback/IAlgebraSwapCallback.sol";
+import {IAlgebraPlugin} from "@cryptoalgebra/integral-core/interfaces/plugin/IAlgebraPlugin.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 interface IAlgebraIntegralShocksWriter{
     function init(address,address,address) external;
@@ -36,6 +38,9 @@ string constant VOLUME_PATH_JSON = "test/models/mev_tax_model_one/fixtures/volum
 // it halts exactly at tick 0 (VOLUME_PATH.md §3).
 uint160 constant SQRT_PRICE_1_4 = 39614081257132168796771975168;   // 2^95
 uint160 constant SQRT_PRICE_4_1 = 158456325028528675187087900672;  // 2^97
+
+// keccak256("Shock(address,int24,uint24,uint24)") — ShockLib.shock_emit; topic1 = pool (indexed).
+bytes32 constant SHOCK_TOPIC0 = 0x21b0e4f81f5ef89be4325ca74966f2fb8f57a217e284dd3e0a276fff55987d64;
 
 
 contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapCallback {
@@ -183,6 +188,38 @@ contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapC
 
          (, , , uint8 pluginConfig, , ) = IAlgebraPoolState(pool).globalState();
          assertEq(uint256(pluginConfig), 0x81, "writer must set pluginConfig = BEFORE_SWAP | DYNAMIC_FEE");
+     }
+
+     /// @notice EXEC-03: the writer's beforeSwap decodes the packed shock hookData, emits the Shock
+     /// event keyed by the calling pool, and returns feeOverride=0 (fee-0 via DYNAMIC_FEE). Calls
+     /// beforeSwap directly, pranked as the pool, so the EVM caller (the emitted pool topic) == pool.
+     function test__unit__beforeSwap_emitsShock_andReturnsFeeZero() public {
+         _createPool();
+         bytes memory hookData = abi.encodePacked(uint8(0x02), uint24(222)); // v6.0: txlVolmNormRate only
+
+         vm.recordLogs();
+         vm.prank(activePool);
+         (bytes4 sel, uint24 feeOverride, uint24 pluginFee) =
+             IAlgebraPlugin(address(shocks_writer)).beforeSwap(
+                 address(this), address(this), true, int256(1), SQRT_PRICE_1_1, false, hookData
+             );
+         assertEq(sel, IAlgebraPlugin.beforeSwap.selector, "returns beforeSwap selector");
+         assertEq(uint256(feeOverride), 0, "feeOverride = 0");
+         assertEq(uint256(pluginFee), 0, "pluginFee = 0");
+
+         Vm.Log[] memory logs = vm.getRecordedLogs();
+         bool found;
+         for (uint256 i = 0; i < logs.length; i++) {
+             if (logs[i].topics[0] == SHOCK_TOPIC0) {
+                 found = true;
+                 assertEq(address(uint160(uint256(logs[i].topics[1]))), activePool, "indexed pool == caller");
+                 (int24 tick, uint24 norm, uint24 decay) = abi.decode(logs[i].data, (int24, uint24, uint24));
+                 assertEq(tick, int24(0), "tickDiff 0");
+                 assertEq(norm, uint24(222), "txlVolmNormRate 222");
+                 assertEq(decay, uint24(0), "txlVolmDecay 0");
+             }
+         }
+         assertTrue(found, "Shock event emitted");
      }
 
 }
