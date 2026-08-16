@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "../../../PlankTestBase.sol";
 import {BuildOptions, Dependency} from "plank-foundry-deployer/PlankDeployer.sol";
 
@@ -16,6 +17,8 @@ contract ShockRoundTripTest is PlankTestBase {
     bytes4 constant SEL = 0xffa8e21b; // roundtrip(uint8,int24,uint24,uint24)
     bytes4 constant SEL_ENCODE = 0xd290eec8; // encode(uint8,int24,uint24,uint24)
     bytes4 constant SEL_DECODE_RAW = 0x8270f10a; // decodeRaw(bytes)
+    bytes4 constant SEL_EMIT = 0xa1d88ecf; // emitShock(address,uint8,int24,uint24,uint24)
+    bytes32 constant SHOCK_TOPIC0 = 0x21b0e4f81f5ef89be4325ca74966f2fb8f57a217e284dd3e0a276fff55987d64;
 
     uint256 constant FLAG_TICK  = 0x01;
     uint256 constant FLAG_NORM  = 0x02;
@@ -176,5 +179,37 @@ contract ShockRoundTripTest is PlankTestBase {
         assertEq(tick, int24(0), "tickDiff absent -> 0");
         assertEq(norm, uint24(222), "txlVolmNormRate survives (calldata path)");
         assertEq(decay, uint24(0), "txlVolmDecay absent -> 0");
+    }
+
+    // ----- Event: Shock(address indexed pool, int24 tickDiff, uint24 norm, uint24 decay) -----
+
+    function test__unit__emit_indexedPool_v6() public {
+        address pool = address(0xBEEF);
+        vm.recordLogs();
+        (bool ok,) = harness.call(
+            abi.encodeWithSelector(SEL_EMIT, pool, uint8(FLAG_NORM), int24(0), uint24(222), uint24(0))
+        );
+        require(ok, "emit reverted");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1, "one Shock log");
+        assertEq(logs[0].topics.length, 2, "topic0 + indexed pool");
+        assertEq(logs[0].topics[0], SHOCK_TOPIC0, "topic0 = keccak Shock(address,int24,uint24,uint24)");
+        assertEq(address(uint160(uint256(logs[0].topics[1]))), pool, "indexed pool == topic1");
+        (int24 tick, uint24 norm, uint24 decay) = abi.decode(logs[0].data, (int24, uint24, uint24));
+        assertEq(tick, int24(0), "tickDiff 0");
+        assertEq(norm, uint24(222), "txlVolmNormRate 222");
+        assertEq(decay, uint24(0), "txlVolmDecay 0");
+    }
+
+    function test__unit__emit_negativeTick_signAwareData() public {
+        address pool = address(0xCAFE);
+        vm.recordLogs();
+        (bool ok,) = harness.call(
+            abi.encodeWithSelector(SEL_EMIT, pool, uint8(FLAG_TICK), int24(-100), uint24(0), uint24(0))
+        );
+        require(ok, "emit reverted");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        (int24 tick,,) = abi.decode(logs[0].data, (int24, uint24, uint24));
+        assertEq(tick, int24(-100), "negative tickDiff decodes sign-aware from data");
     }
 }

@@ -85,8 +85,10 @@ The emitted event therefore **guarantees `tickDiff == 0` and `txlVolmDecay == 0`
 ## 4. Library API (plank)
 
 Free functions (no `::` method syntax in plank — the codebase idiom is `import ...::Shock::*`, calls
-like `shock_decode(...)`, exactly as `LDFLib`'s `geometric_leg_weights` returns a struct). All live in
-`src/models/mev_tax_model_one/libraries/Shock.plk`.
+like `shock_decode(...)`, exactly as `LDFLib`'s `geometric_leg_weights` returns a struct). Split by
+responsibility: the **type + packed codec** (`Shock(R)`, `shock_encode`, `shock_decode`, accessors)
+live in `src/models/mev_tax_model_one/libraries/Shock.plk`; the **behavior layer** (`shock_emit` +
+the event `topic0`) lives alongside in `ShockLib.plk`, which imports `Shock`.
 
 - **`shock_encode(tick_diff: u256, norm_rate: u256, decay: u256, flags: u256) -> bytes(memory)`**
   Build the packed `hookData` for the components selected by `flags`, canonical order. Each present
@@ -106,11 +108,12 @@ like `shock_decode(...)`, exactly as `LDFLib`'s `geometric_leg_weights` returns 
   (`@evm_shr(232, load) & 0xffffff`). `shock_tick_diff` additionally `@evm_signextend(2, …)` for the
   signed `int24`.
 
-- **`shock_emit(comptime R: type, s: Shock(R)) -> void`**
-  Read all three via accessors (zeros for absent), then `@evm_log1(ptr, 96, topic0)` with
-  `topic0 = 0x8814af03f72e1d648416ee3b7cd1f20cca5ccedd6caec80d68b98935427e6bf4`
-  (`keccak256("Shock(uint256,uint256,uint256)")`) and the three words (each sign-canonicalized, per the
-  `VolEventsLib` rule) as data.
+- **`shock_emit(comptime R: type, pool: u256, s: Shock(R)) -> void`** (in `ShockLib.plk`)
+  Read all three via accessors (zeros for absent), then `@evm_log2(ptr, 96, topic0, pool)` — `pool` is
+  the **indexed** topic1 so the off-chain subgraph/GAMS bridge can key by pool.
+  `topic0 = 0x21b0e4f81f5ef89be4325ca74966f2fb8f57a217e284dd3e0a276fff55987d64`
+  (`keccak256("Shock(address,int24,uint24,uint24)")`). The three non-indexed words are already
+  sign-canonicalized by the accessors (per the `VolEventsLib` signed-field rule).
 
 ### Round-trip invariant
 
@@ -121,12 +124,15 @@ the accessors yields each selected component (masked to its width; sign-extended
 ## 5. Event
 
 ```solidity
-event Shock(uint256 priceChange, uint256 transactionalVolumeShock, uint256 timeDecay);
-// topic0 = 0x8814af03f72e1d648416ee3b7cd1f20cca5ccedd6caec80d68b98935427e6bf4
+event Shock(address indexed pool, int24 tickDiff, uint24 txlVolmNormRate, uint24 txlVolmDecay);
+// topic0 = 0x21b0e4f81f5ef89be4325ca74966f2fb8f57a217e284dd3e0a276fff55987d64
+// topic1 = pool (indexed)
 ```
 
-Non-indexed (all three in data). Always all three — this is what "guarantees the others are zero"
-means for the v6.0 transactionalVolumeShock-only case.
+`pool` is indexed (topic1); the three typed fields are non-indexed data, emitted **always all three**
+(zeros for absent) — this is what "guarantees the others are zero" means for the v6.0
+`txlVolmNormRate`-only case. Typing the fields (`int24`/`uint24`) lets the off-chain bridge decode
+`tickDiff` sign-aware for free. The off-chain rpc_api consumer is notified of this signature by issue.
 
 ## 6. `beforeSwap` integration (the consumer)
 

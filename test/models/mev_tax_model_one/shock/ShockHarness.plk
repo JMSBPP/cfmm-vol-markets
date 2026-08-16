@@ -1,4 +1,5 @@
 import model_libraries::Shock::*;
+import model_libraries::ShockLib::*;
 import std::constructor::return_runtime;
 import std::regions::*;
 import v3::util::revert_empty;
@@ -9,6 +10,8 @@ const SELECTOR_ROUNDTRIP = 0xffa8e21b;
 const SELECTOR_ENCODE = 0xd290eec8;
 // cast sig "decodeRaw(bytes)"
 const SELECTOR_DECODE_RAW = 0x8270f10a;
+// cast sig "emitShock(address,uint8,int24,uint24,uint24)"
+const SELECTOR_EMIT = 0xa1d88ecf;
 
 init { return_runtime(); }
 
@@ -51,6 +54,17 @@ run {
         @mstore32(out +% 32, shock_txl_volm_norm_rate(calldata, s));
         @mstore32(out +% 64, shock_txl_volm_decay(calldata, s));
         @evm_return(out, 96);
+    } else if selector == SELECTOR_EMIT {
+        let pool      = @evm_calldataload(4);
+        let flags     = @evm_calldataload(36);
+        let tick_diff = @evm_calldataload(68);
+        let norm_rate = @evm_calldataload(100);
+        let decay     = @evm_calldataload(132);
+
+        let buf = shock_encode(tick_diff, norm_rate, decay, flags);
+        let s   = shock_decode(memory, buf);
+        shock_emit(memory, pool, s);
+        @evm_stop();
     }
     revert_empty();
 }
