@@ -24,12 +24,13 @@ module Main (main) where
 import Control.Exception (IOException, finally, try)
 import Control.Monad (foldM, replicateM)
 import Crypto.Ethereum.Utils (keccak256)
-import Data.Aeson (Value (..), eitherDecodeFileStrict, encodeFile, toJSON)
+import Data.Aeson (Value (..), decode, eitherDecodeFileStrict, encode, encodeFile, toJSON)
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
 import Data.Bits (shiftL, shiftR, xor, (.&.), (.|.))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Lazy as BSL
 import Data.Char (digitToInt, intToDigit, isAlpha, isAlphaNum, isDigit, isHexDigit, isSpace, toLower)
 import qualified Data.Foldable as F
 import Data.List (intercalate, isInfixOf, isPrefixOf, nub, sort, stripPrefix)
@@ -5716,12 +5717,19 @@ expected_store_laws_is_the_law_set =
 --
 -- The requirement is that @cabal test@ passes with no database present AND that the store checks
 -- still discriminate. The first half is satisfied STRUCTURALLY here rather than by a branch: this
--- check does not import @Store.Postgres@, does not read @PGSTORE_DSN@, does not spawn a process
--- and does not open a connection. There is nothing here for a @CFMM_REQUIRE_DB@ variable to gate,
--- and that is the point -- under the three-tier decision NOTHING in @cabal test@ touches a
--- database, so any check that consulted such a variable would BE a database-dependent check and
--- would have broken the tier decision on its way to enforcing it. A safety property that lives in
--- another system's @env:@ block fails open when that block drifts; this one cannot.
+-- check does not import the postgres store module, does not read the DSN variable, does not spawn
+-- a process and does not open a connection. There is nothing here for a require-a-database
+-- environment variable to gate, and that is the point -- under the three-tier decision NOTHING in
+-- @cabal test@ touches a database, so any check that consulted such a variable would BE a
+-- database-dependent check and would have broken the tier decision on its way to enforcing it. A
+-- safety property that lives in another system's @env:@ block fails open when that block drifts;
+-- this one cannot.
+--
+-- The paragraph above deliberately does not SPELL the module name, the variable name, or the
+-- client's connect function. This file is the subject of a grep for those three tokens that must
+-- return 0 -- that grep IS the structural form of the claim -- so a comment asserting their
+-- absence would be counted by the very scan asserting their absence. Third occurrence of that
+-- shape in this plan alone, and the reason the tokens are described here rather than quoted.
 --
 -- The second half is delivered by REAL EXECUTION. Every law in "Store.Laws" runs against a FRESH
 -- 'new_memory_store' -- one store per law, so no law's writes can satisfy another law's read and
@@ -5807,6 +5815,181 @@ expected_corpus_members =
   , "octal-escape"
   , "trailing-newline"
   ]
+
+-- ---------------------------------------------------------------------------------------------
+-- BYTE-03: the bytes never pass through an aeson Value on the storage path
+-- ---------------------------------------------------------------------------------------------
+
+-- | THE MUTATIONS, PINNED AS VALUES AND RE-MEASURED EVERY RUN.
+--
+-- Each pair is (input bytes, the EXACT bytes aeson produces on @decode >=> encode@). MEASURED at
+-- GHC 9.10.3 with aeson 2.2.5.0, the version this build plan resolves -- re-measured at 23-02
+-- rather than carried over from the research, and re-run by the check below on every invocation.
+--
+-- If the right-hand side stops matching, that is NOT a licence to update the constant: it means
+-- the mutation BYTE-03 exists to prevent has changed shape, and the storage path must be
+-- re-audited before anything here is touched.
+--
+-- The third vector is the one that connects BYTE-03 to BYTE-02: aeson reorders object keys for
+-- exactly the same reason @jsonb@ does, so an artifact that went through either is an artifact
+-- whose byte identity has been decided by a normalizer rather than by GAMS.
+aeson_mutation_vectors :: [(BSL.ByteString, BSL.ByteString)]
+aeson_mutation_vectors =
+  [ ("{\"d\":0.00318353}",   "{\"d\":3.18353e-3}")
+  , ("{\"v\":2.8e19}",       "{\"v\":28000000000000000000}")
+  , ("{\"b\":\"a\",\"a\":\"b\"}", "{\"a\":\"b\",\"b\":\"a\"}")
+  ]
+
+-- | RE-MEASURED, NEVER CITED.
+--
+-- The check runs the round-trip and asserts the MUTATED OUTPUT. The distinction matters: a check
+-- that merely asserted \"the storage path does not import aeson\" would keep passing if aeson
+-- stopped mutating, at which point the guard's own subject has vanished and the guard has quietly
+-- become a tautology. Here, an aeson whose @decode >=> encode@ became the identity reddens.
+aeson_round_trip_mutations_are_re_measured :: Check
+aeson_round_trip_mutations_are_re_measured =
+  pure_check "aeson_round_trip_mutations_are_re_measured" $ do
+    _ <- expect (length aeson_mutation_vectors >= 2)
+           ("aeson_mutation_vectors has shrunk to " ++ show (length aeson_mutation_vectors)
+             ++ ". Two independent mutations were measured (a small decimal re-rendered in"
+             ++ " exponent form, a large one expanded out of it) and they fail in opposite"
+             ++ " directions, so one vector cannot stand for the pair.")
+    mapM_ one_aeson_vector aeson_mutation_vectors
+
+one_aeson_vector :: (BSL.ByteString, BSL.ByteString) -> Either String ()
+one_aeson_vector (input, expected) =
+  case decode input :: Maybe Value of
+    Nothing ->
+      Left ("the pinned vector " ++ show input ++ " no longer DECODES as JSON, so every assertion"
+             ++ " about what aeson does to it is vacuous. Fix the vector, do not delete it.")
+    Just value ->
+      let out = encode value
+      in do
+        _ <- expect (out /= input)
+               ("aeson's decode->encode has become the identity on " ++ show input
+                 ++ ". The mutation this guard exists to keep off the storage path no longer"
+                 ++ " reproduces, so this check no longer has a subject. Re-measure it against the"
+                 ++ " current aeson and record the new mutation; do NOT delete the check.")
+        expect (out == expected)
+          ("aeson still mutates " ++ show input ++ ", and it mutates it DIFFERENTLY than the"
+            ++ " pinned measurement: got " ++ show out ++ ", pinned " ++ show expected
+            ++ ". The storage path must be re-audited against the new shape before this constant"
+            ++ " is updated.")
+
+-- | THE STORAGE PATH, NAMED FILE BY FILE.
+--
+-- Every module under @offchain\/lib\/Store\/@ is here, INCLUDING the one that does not exist yet.
+-- The list is written out rather than derived by globbing the directory, because a derived list
+-- grows silently: a new storage module would be scanned and nobody would have decided that it
+-- should be, and the day one is added to a different directory the glob would report a clean scan
+-- of the wrong set. A named list makes an omission visible.
+--
+-- There are NO exemptions. @Store\/Types.hs@ was a candidate for one -- it holds the artifact
+-- newtypes and imports no aeson -- and it is here anyway, because \"this file is fine, skip it\"
+-- is how a guard's scope shrinks to the empty set. Its haddock had to be reworded in this same
+-- commit to stop describing the import it does not have, which is the second time prose has turned
+-- out to be inside a grep's blast radius on this branch.
+aeson_storage_path :: [FilePath]
+aeson_storage_path =
+  [ "offchain/lib/Store/Class.hs"
+  , "offchain/lib/Store/Config.hs"
+  , "offchain/lib/Store/Laws.hs"
+  , "offchain/lib/Store/Memory.hs"
+  , "offchain/lib/Store/Postgres.hs"
+  , "offchain/lib/Store/Types.hs"
+  ]
+
+aeson_pattern :: String
+aeson_pattern = "Data\\.Aeson|\\btoJSON\\b|\\bencode\\b|\\bfromJSON\\b|\\beitherDecode\\b"
+
+-- | ONE argument vector, so the positive control runs the identical invocation over different
+-- file operands rather than a lookalike of it. @-H@ is not decoration: without it grep omits the
+-- filename when handed a single operand, and the control asserts that the bait file is NAMED.
+aeson_scan :: [FilePath] -> IO (ExitCode, String, String)
+aeson_scan paths = readProcessWithExitCode "grep" (["-nHE", aeson_pattern] ++ paths) ""
+
+-- | The seeded bait, BUILT rather than written out, for the reason 'purge_control_literal' is
+-- built: a file that spelled the import would be found by the very scan it exists to exercise, and
+-- @offchain\/test\/Main.hs@ is not in 'aeson_storage_path' today but a future storage module in
+-- this file would be.
+aeson_bait_source :: String
+aeson_bait_source =
+  "import " ++ "Data.Aeson (toJSON)\nbait :: Value\nbait = " ++ "toJSON ()\n"
+
+-- | Absence may not read as success until the pattern has been SHOWN matching.
+--
+-- Returns the assertion so the caller orders it FIRST. Two files are seeded, not one: the bait
+-- must be named, and a clean file must NOT be, so an exit-0 is evidence about the PATTERN rather
+-- than about grep's willingness to match something.
+aeson_positive_control :: IO (Either String ())
+aeson_positive_control = do
+  tmp <- getTemporaryDirectory
+  let dir       = tmp </> "byte03-aeson-positive-control"
+      bait      = dir </> "bait.hs"
+      innocent  = dir </> "clean.hs"
+      discard p = do
+        there <- doesFileExist p
+        if there then removeFile p else pure ()
+
+  createDirectoryIfMissing True dir
+  flip finally (mapM_ discard [bait, innocent]) $ do
+    writeFile bait aeson_bait_source
+    writeFile innocent "bait :: ()\nbait = ()\n"
+    (code, out, err) <- aeson_scan [bait, innocent]
+    pure $ do
+      _ <- expect (code == ExitSuccess)
+             ("BYTE-03's POSITIVE CONTROL did not fire: grep exited " ++ show code
+               ++ " over a file that imports the aeson module and calls toJSON. The pattern has"
+               ++ " stopped matching anything, which means the exit-1 the real scan reports is"
+               ++ " absence of MATCHES only by assumption."
+               ++ (if null err then "" else "\n      grep stderr: " ++ err))
+      _ <- expect ("bait.hs" `isInfixOf` out)
+             ("BYTE-03's POSITIVE CONTROL fired but did not NAME the seeded file. grep said:\n"
+               ++ unlines (map ("      " ++) (lines out)))
+      expect (not ("clean.hs" `isInfixOf` out))
+        ("BYTE-03's POSITIVE CONTROL matched a file with no aeson in it at all, so the pattern is"
+          ++ " matching something other than what it claims to. grep said:\n"
+          ++ unlines (map ("      " ++) (lines out)))
+
+-- | BYTE-03, as a source scan with a proven positive control.
+--
+-- Three assertions in this order and the order is the whole design: (1) the pattern is SHOWN
+-- matching a seeded bait; (2) every file in 'aeson_storage_path' EXISTS; (3) the scan finds
+-- nothing.
+--
+-- (2) IS CURRENTLY RED, ON PURPOSE. @offchain\/lib\/Store\/Postgres.hs@ is created by plan 23-03
+-- and does not exist at 23-02, so this check FAILS naming it. The alternative -- scoping the list
+-- to the files that happen to exist -- would make the check pass BECAUSE its subject is absent,
+-- which is the single defect class this project's review history is dominated by, found seven
+-- times. A missing file is a FAILURE naming the plan that creates it, never a pass.
+aeson_is_absent_from_the_storage_path :: Check
+aeson_is_absent_from_the_storage_path =
+  Check "aeson_is_absent_from_the_storage_path" . guarded $ do
+    control <- aeson_positive_control
+    presence <- mapM (\p -> (,) p <$> doesFileExist p) aeson_storage_path
+    let gone = [p | (p, False) <- presence]
+    if not (null gone)
+      then pure $ do
+        _ <- control
+        expect False
+          ("the storage path names files that are not on disk: " ++ intercalate ", " gone
+            ++ ". offchain/lib/Store/Postgres.hs is created by PLAN 23-03 and this check is"
+            ++ " DELIBERATELY RED until it lands. Scoping the list to the files that exist would"
+            ++ " make this check pass because its subject is absent, which is the defect class"
+            ++ " this milestone's standing rule names. If a file was RENAMED, rename it here in"
+            ++ " the same commit.")
+      else do
+        (code, out, err) <- aeson_scan aeson_storage_path
+        pure $ do
+          _ <- control
+          case code of
+            ExitFailure 1 -> Right ()
+            ExitFailure n -> Left ("grep itself failed with exit " ++ show n ++ ": " ++ err)
+            ExitSuccess ->
+              Left ("an aeson Value is on the STORAGE PATH. The bytes in the raw column are the"
+                     ++ " oracle and aeson re-renders numbers and reorders keys -- MEASURED, and"
+                     ++ " asserted as values in aeson_mutation_vectors:\n"
+                     ++ unlines (map ("      " ++) (lines out)))
 
 -- ---------------------------------------------------------------------------------------------
 -- Runner
@@ -5901,6 +6084,8 @@ core_checks = do
           , expected_store_laws_is_the_law_set
           , store_laws_run_against_the_memory_store
           , adversarial_corpus_has_a_silently_corrupted_member
+          , aeson_round_trip_mutations_are_re_measured
+          , aeson_is_absent_from_the_storage_path
           , driv01_capture_round_trips
           , driv01_run_capture_is_present_and_fresh
           , driv01_e3_per_step_matches_submitted

@@ -92,10 +92,16 @@ artifact_sha256 = sha256_hex . artifact_bytes
 -- hole BYTE-02 exists to close, and the compile failure that proves the absence of 'Eq' was
 -- OBSERVED at 23-01 rather than assumed.
 --
--- It wraps 'T.Text' -- the @doc::text@ RENDERING -- and not a @Data.Aeson.Value@. Wrapping
--- @Value@ would force @import Data.Aeson@ onto the storage path and defeat BYTE-03's own grep,
+-- It wraps 'T.Text' -- the @doc::text@ RENDERING -- and NOT the aeson package's @Value@. Wrapping
+-- @Value@ would force the aeson import onto the storage path and defeat BYTE-03's own source scan,
 -- which plan 23-02 installs over that path. The column is still @jsonb@; only the Haskell-side
 -- view of it changes, and the type-level guarantee is identical.
+--
+-- The two sentences above deliberately do NOT spell the aeson module path out. That scan reads
+-- this file, so a comment SAYING the import is absent would be matched by the pattern that looks
+-- for the import -- and this file would then be exempted from its own guard, which is how a
+-- storage module gets a free pass. Prose is inside the grep's blast radius: 23-01 had to unpick
+-- that shape three times, once substantively.
 newtype DerivedDoc = DerivedDoc T.Text
 
 derived_doc_from_text :: T.Text -> DerivedDoc
