@@ -1,0 +1,28 @@
+import v3::util::revert_empty;
+
+// execute_batch: walk the ABI bytes[] at `calls_base_offset` (the array LENGTH word) and
+// @evm_call `target` with each element's bytes, reverting the whole batch on any failure.
+//
+// Per-iteration malloc is intentional: the writer's use has nEvents=8, so the bump allocator's
+// per-element growth is negligible. @evm_gas() forwards all remaining gas (63/64 per EIP-150),
+// matching the Solidity reference's `.call` — so a sub-call OOG becomes `succ=false` and reverts
+// the whole batch, which is the correct revert-all semantics (OOG and revert are both "failure").
+const execute_batch = fn (target: u256, calls_base_offset: u256) void {
+    let count = @evm_calldataload(calls_base_offset);   // array length word
+    let elems_base = calls_base_offset +% 32;           // per-element offsets start here
+    let mut i = 0;
+    while i < count {
+        let elem_off = @evm_calldataload(elems_base +% i *% 32);  // offset relative to elems_base
+        let elem_ptr = elems_base +% elem_off;                    // element LENGTH word
+        let elem_len = @evm_calldataload(elem_ptr);
+        let data_ptr = elem_ptr +% 32;                            // element data in calldata
+
+        let mem = @malloc_uninit(elem_len);
+        @evm_calldatacopy(mem, data_ptr, elem_len);               // calldata -> memory
+
+        let succ = @evm_call(@evm_gas(), target, 0, mem, elem_len, 0, 0);  // output ignored
+        if !succ { revert_empty(); }                              // revert-all
+
+        i = i +% 1;
+    }
+};

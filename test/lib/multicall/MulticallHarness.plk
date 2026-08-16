@@ -1,0 +1,19 @@
+import lib::multicall::MulticallLib::*;
+import std::constructor::return_runtime;
+import v3::util::revert_empty;
+
+// cast sig "multicall(address,bytes[])"
+const SELECTOR_MULTICALL = 0x00c25829;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SELECTOR_MULTICALL {
+        let target = @evm_calldataload(4);
+        let calls_offset = @evm_calldataload(36);   // ABI offset to bytes[], relative to args start (byte 4)
+        execute_batch(target, 4 +% calls_offset);    // base = the array LENGTH word (= 68 for the canonical layout)
+        @evm_stop();
+    }
+    revert_empty();
+}
