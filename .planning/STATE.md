@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 23-01-PLAN.md — the store CONTRACT (Store.Types/Config/Class/Memory) is landed; next /gsd:execute-phase 23 wave 2 (23-02)"
+stopped_at: "Completed 23-02-PLAN.md — Store.Laws executes against Store.Memory inside cabal test; the suite is DELIBERATELY RED on aeson_is_absent_from_the_storage_path (and consequently on sentinel_falsification_harness) until 23-03 creates offchain/lib/Store/Postgres.hs. Next: /gsd:execute-phase 23 wave 3 (23-03)"
 last_updated: "2026-08-16"
-last_activity: "2026-08-16 — 23-01 executed: BYTE-02 made a compile error (3 guard arms observed firing), the 7-member adversarial corpus landed with measured behaviour tags, KEY-07 orphaning observed in Store.Memory against a negative control"
+last_activity: "2026-08-16 — 23-02 executed: seven store laws execute for real against Store.Memory with no socket, all seven OBSERVED firing against named wrong stores; law SET, corpus member SET and BYTE-03's two aeson guards locked; suite at 94/96 with 2 reds by design"
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
+  completed_plans: 2
   blocked_phases: 2
 # NOTE: these counts are v6.0-SCOPED (phases 23-28) on purpose. `gsd-tools state update-progress`
 # was run at 23-01 and rewrote them by scanning EVERY phase directory on disk, producing
@@ -38,15 +38,25 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **23 — Postgres Foundation & the Byte-Exact Schema** (IN PROGRESS — 1/5 plans)
-Plan: **23-01 COMPLETE** (BYTE-02, BYTE-05, DB-02). Next: 23-02 (wave 2, `Store.Laws` × `Store.Memory`).
-Status: the store CONTRACT is landed. `Store.Types`, `Store.Config`, `Store.Class` and
-`Store.Memory` compile inside the library with zero `-Wall` warnings; `postgresql-simple` 0.7.0.1,
-`postgresql-migration` 0.2.1.8 and `crypton` 1.0.6 are in the build plan. **No database was
-provisioned, contacted or required** — the three-tier decision holds so far.
-Next action: `/gsd:execute-phase 23` (wave 2).
+Phase: **23 — Postgres Foundation & the Byte-Exact Schema** (IN PROGRESS — 2/5 plans)
+Plan: **23-02 COMPLETE** (DB-03/BYTE-03/KEY-07 all PARTIAL, none marked complete). Next: 23-03
+(wave 3, schema + migrations).
+Status: the store CONTRACT is landed AND it now EXECUTES. Seven laws in `Store.Laws` run against a
+fresh `Store.Memory` per law inside `cabal test`, with **no socket anywhere in the suite** —
+`grep -cE 'Store\.Postgres|CFMM_REQUIRE_DB|connectPostgreSQL' offchain/test/Main.hs` is 0, so
+DB-03's "no database present" half is structural rather than a branch that can be misconfigured.
+**No database was provisioned, contacted or required** — the three-tier decision still holds.
 
-Last activity: 2026-08-16 — 23-01 executed (commits `69dbd0a`, `e013395`, `ade3348`).
+**THE SUITE IS DELIBERATELY RED, on 2 checks, and 23-03 closes both with one file.**
+`aeson_is_absent_from_the_storage_path` names all six `offchain/lib/Store/*.hs` including
+`Store/Postgres.hs`, which does not exist until 23-03; and `sentinel_falsification_harness`
+correctly refuses to certify against a red baseline. MEASURED with a clean stub `Store/Postgres.hs`
+on disk: **96/96, both green**. Scoping the check to files that exist would make it pass BECAUSE
+its subject is absent — this project's dominant defect class — and was refused.
+
+Next action: `/gsd:execute-phase 23` (wave 3).
+
+Last activity: 2026-08-16 — 23-02 executed (commits `cdeb4e0`, `ea1be79`, `18493b0`).
 
 ### The six phases
 
@@ -147,6 +157,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 
 *Updated after each plan completion*
 | Phase 23 P01 | 41min | 3 tasks | 5 files |
+| Phase 23 P02 | 62min | 3 tasks | 5 files |
 | Phase 19 P01 | 6 | 3 tasks | 3 files |
 | Phase 19 P02 | 33 | 3 tasks | 3 files |
 | Phase 19 P03 | 24 | 3 tasks | 1 files |
@@ -175,6 +186,14 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecting v4.0:
 
 **v6.0 (Phase 23) decisions:**
+
+- [Phase 23]: [23-02 MEASURED, the count every later v6.0 plan compares against] the suite is **94/96** — the 23-01 cold baseline of 91 plus EXACTLY 5 new checks, with 2 RED BY DESIGN. With a clean stub `offchain/lib/Store/Postgres.hs` on disk it is **96/96**, which is what 23-03 lands on. Counts were taken from the BUILT TEST BINARY, not from `cabal test`: `cabal test` buffers the runner's stdout and printed `91/91 checks passed` on one invocation and nothing on the next, so a step that reads `cabal test | tail -3` can silently record no count at all.
+- [Phase 23]: [23-02 OBSERVED, all seven laws, with the correct store as the CONTROL column] every law in `Store.Laws` was seen returning `Left` against a named wrong store: a `byteain` blob write (`member octal-escape went in at 6 bytes and came back at 3 bytes` — the MEASURED PG 18.4 corruption reproduced), a phantom `get_blob`, a key dropping `key_scheme`, a key dropping `model`, last-writer-wins, and a no-op `put`. **HONEST NEGATIVES:** the `key_scheme`-dropping mutant moves EXACTLY TWO laws and leaves the other five untouched (23-01's finding, reproduced through the law set itself); `law_key_scheme_orphans_rather_than_matching` does NOT fire against a store that stores NOTHING, so it is evidence only alongside the round-trip and the two-scheme insert; and last-writer-wins has a SINGLE kill site, which Phase 25's determinism claim rests on.
+- [Phase 23]: [23-02 FINDING, corrects the plan] the corpus BEHAVIOUR-TAG set does **not** discriminate deleting `octal-escape` — `double-backslash` carries the same `SilentlyCorrupted` tag, so all three classes survive and the only surviving instrument was `length == 7`, a count defeated by substitution. `expected_corpus_members` (the member NAME set, both directions, ordered ahead of the count) is what actually caught the deletion.
+- [Phase 23]: [23-02 DECIDED, strengthens the plan] `aeson_storage_path` names **SIX** files — every module under `offchain/lib/Store/`, with NO exemptions — not the plan's four. `Store/Types.hs` was to be exempted, and measurement showed its haddock was the ONLY thing under `offchain/lib/Store/` matching the pattern at all, on two lines SAYING the import is absent. Exempting a storage module because its comments trip the guard is the scope-shrinking defect; the prose was reworded instead.
+- [Phase 23]: [23-02 MEASURED, unsatisfiable gate] the plan's "the suite fails on exactly ONE check" **cannot hold**. `sentinel_falsification_harness` carries an explicit `expect (null baseline)` that refuses to certify against a failing suite, so ANY deliberate red costs TWO FAIL lines. The harness was NOT weakened and no baseline-exemption list was added. Related: a red baseline also EMPTIES the harness — the run drops from ~75s to ~8s because the reader set collapses to the single always-failing check. Do not read a fast harness run as a fast suite.
+- [Phase 23]: [23-02 FINDING, the pattern is now nine-times-over and deserves a pre-commit check] **prose is inside the grep's blast radius**, three more times in one plan — `Store/Laws.hs` naming the aeson module path that its own scan looks for; `Store/Types.hs` likewise; and worst, `store_laws_run_against_the_memory_store`'s haddock spelling `Store.Postgres` and the require-a-database variable while explaining that they are absent, which is EXACTLY the acceptance grep. A first fix reintroduced the token inside the sentence warning about it, caught only by re-running the grep.
+- [Phase 23]: [23-02 PROCEDURE, standing rule] restore a mutated file from a SAVED COPY, never from `git checkout -- <file>`, whenever that file also carries uncommitted work. `git checkout --` on `offchain/test/Main.hs` after a pattern mutation restored it to HEAD and deleted ~170 lines of uncommitted implementation; it was caught only because the before/after digest comparison did not match.
 
 - [Phase 23]: [23-01 MEASURED, the cold baseline every later v6.0 plan compares against] `cabal test` = **91/91 checks passed**; `cabal build --enable-tests -j all` exit 0 with **0** `offchain/` warning lines; `find offchain/{lib,app,test} -name '*.hs' | wc -l` = **28** before, **32** after; `find offchain -name '*.sql' | wc -l` = **0**, so `sc3_literal_purge`'s extension census and its zero-slack `purge_file_floor` of 36 are still untouched. STATE.md's 91/91 and the CI header's 78/85 were NOT inherited — both were re-measured cold. **`cabal build -j all` WITHOUT `--enable-tests` is VACUOUS** (it exits 0 against a non-compiling test suite) and was never used as evidence.
 - [Phase 23]: [23-01 MEASURED, confirms the research rather than contradicting it] `plan.json` set-diff puts the install plan at **152 → 158 units (+6)**. `postgresql-simple` **0.7.0.1** is +4 (`Only-0.1`, `postgresql-libpq-0.11.0.0`, `postgresql-libpq-configure-0.11`, itself); `postgresql-migration` **0.2.1.8** is +2 (itself, `cryptohash-md5-0.11.101.0`); **`crypton` 1.0.6 is +0 — it is in BOTH sets**, because `web3-crypto` already pins `crypton <1.1`. Zero `Downloading` lines. `cryptonite` units in the resolved plan: **0**.

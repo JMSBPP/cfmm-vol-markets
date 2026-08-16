@@ -151,16 +151,16 @@ Filled during roadmap creation (2026-08-16).
 |---|---|---|
 | BYTE-01 | Phase 23 | Pending |
 | BYTE-02 | Phase 23 | **Partial (23-01)** — the "no check compares jsonb to jsonb" clause is DISCHARGED at compile time and OBSERVED firing (`[GHC-39999] No instance for 'Eq DerivedDoc'`, plus `[GHC-01928]` on a converter). The "a jsonb projection EXISTS" clause needs the schema (23-03) and the failing-comparison exhibit (23-04). |
-| BYTE-03 | Phase 23 | Pending |
+| BYTE-03 | Phase 23 | **Partial (23-02)** — both guards exist and both were OBSERVED. `aeson_round_trip_mutations_are_re_measured` is GREEN and re-measures three mutations at aeson 2.2.5.0 as pinned VALUES (`0.00318353 -> 3.18353e-3`, `2.8e19 -> 28000000000000000000`, and a key reorder), so a subject that vanished would redden. `aeson_is_absent_from_the_storage_path` is DELIBERATELY RED: it names all six `offchain/lib/Store/*.hs` with no exemptions, and `Store/Postgres.hs` does not exist until 23-03. Its positive control was OBSERVED firing (pattern mutated to match nothing) and its scan branch was OBSERVED catching a seeded aeson import. Complete when 23-03 lands the file and the check goes green — MEASURED with a clean stub: 96/96. |
 | BYTE-04 | Phase 24 | Pending |
-| BYTE-05 | Phase 23 | **Pending — NOT satisfied by 23-01.** The requirement is a round-trip *through the database*; 23-01 provisioned and contacted no database. What 23-01 landed is its PRECONDITION: the 7-member corpus with measured behaviour tags, including the `SilentlyCorrupted` `a\101b` that SC-1's own five members cannot produce. Lands at 23-04. |
+| BYTE-05 | Phase 23 | **Pending — NOT satisfied by 23-01.** The requirement is a round-trip *through the database*; 23-01 provisioned and contacted no database. What 23-01 landed is its PRECONDITION: the 7-member corpus with measured behaviour tags, including the `SilentlyCorrupted` `a\101b` that SC-1's own five members cannot produce. Lands at 23-04. **23-02 added the corpus SET lock** (`adversarial_corpus_has_a_silently_corrupted_member`, GREEN), and MEASURED that the behaviour-tag set the plan prescribed does NOT discriminate deleting `octal-escape` — `double-backslash` carries the same tag, so all three classes survive the deletion. The member-NAME set, asserted in both directions, is what caught it. |
 | KEY-01 | Phase 25 | Pending |
 | KEY-02 | Phase 25 | Pending |
 | KEY-03 | Phase 25 | Pending |
 | KEY-04 | Phase 25 | Pending |
 | KEY-05 | Phase 25 | Pending |
 | KEY-06 | Phase 25 | Pending |
-| KEY-07 | Phase 23 | Pending |
+| KEY-07 | Phase 23 | **Partial (23-02)** — the orphaning property is now an EXECUTING law rather than a comment: `law_key_scheme_orphans_rather_than_matching` and `law_same_key_under_a_new_scheme_inserts` run against `Store.Memory` inside `cabal test` with no socket, and BOTH were OBSERVED firing against a store keyed on `(model, key)` alone. The requirement's own subject — `key_scheme` inside a Postgres UNIQUE CONSTRAINT — is schema, and lands at 23-03; the live-catalogue assertion lands at 23-04. |
 | STORE-01 | Phase 25 | Pending |
 | STORE-02 | Phase 25 | Pending |
 | STORE-03 | Phase 25 | Pending |
@@ -171,7 +171,7 @@ Filled during roadmap creation (2026-08-16).
 | STORE-08 | Phase 25 | Pending |
 | DB-01 | Phase 23 | Pending |
 | DB-02 | Phase 23 | **Partial (23-01)** — `PGSTORE_DSN`/`STORE_CONFORMANCE` resolve via `lookupEnv` in the `Rig.Manifest` idiom with **zero** credential literals (grep-verified, prose included). Not complete until both are registered in `advertised_overrides` and OBSERVED honoured (23-05); this repo has measured three advertised-and-dead overrides. |
-| DB-03 | Phase 23 | Pending |
+| DB-03 | Phase 23 | **Partial (23-02) — and the "passes" half is RED BY DESIGN right now.** The "still discriminate" half is DELIVERED and measured: `store_laws_run_against_the_memory_store` really executes all seven store laws against a fresh `Store.Memory` per law, and every law was OBSERVED firing against a named wrong store. "No database present" is satisfied STRUCTURALLY — `grep -cE 'Store\.Postgres\|CFMM_REQUIRE_DB\|connectPostgreSQL' offchain/test/Main.hs` = 0, so no socket and no branch to misconfigure. But `cabal test` does NOT currently pass (2 red: `aeson_is_absent_from_the_storage_path` and, consequently, `sentinel_falsification_harness`), so the requirement as written is NOT met until 23-03. |
 | DB-04 | Phase 23 | Pending |
 | GAMS-01 | Phase 24 | Pending |
 | GAMS-02 | Phase 24 | Pending |
