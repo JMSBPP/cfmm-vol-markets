@@ -1,0 +1,30 @@
+import model_libraries::Shock::*;
+import std::constructor::return_runtime;
+import std::regions::*;
+import v3::util::revert_empty;
+
+// cast sig "roundtrip(uint8,int24,uint24,uint24)"
+const SELECTOR_ROUNDTRIP = 0xffa8e21b;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SELECTOR_ROUNDTRIP {
+        // ABI heads: each field is one 32-byte slot (int24/uint24 sign-/zero-extended by the encoder).
+        let flags     = @evm_calldataload(4);
+        let tick_diff = @evm_calldataload(36);
+        let norm_rate = @evm_calldataload(68);
+        let decay     = @evm_calldataload(100);
+
+        let buf = shock_encode(tick_diff, norm_rate, decay, flags);   // bytes(memory), packed
+        let s   = shock_decode(memory, buf);                          // Shock(memory) view
+
+        let out = @malloc_uninit(96);
+        @mstore32(out,       shock_tick_diff(memory, s));             // sign-extended int24 word
+        @mstore32(out +% 32, shock_txl_volm_norm_rate(memory, s));
+        @mstore32(out +% 64, shock_txl_volm_decay(memory, s));
+        @evm_return(out, 96);
+    }
+    revert_empty();
+}
