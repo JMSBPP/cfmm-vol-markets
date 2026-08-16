@@ -87,6 +87,7 @@ library
                     , Store.Config
                     , Store.Class
                     , Store.Memory
+                    , Store.Laws
 
     -- Modules included in this library but not exported.
     -- other-modules:
