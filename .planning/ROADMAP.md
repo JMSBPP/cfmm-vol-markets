@@ -848,10 +848,67 @@ as arguments, so this phase is a leaf, not a store dependency.
   3. CONOPT detection is shown to read the **true solver version** (`C O N O P T version 4.39.0`): a case is exhibited in which the adjacent GAMS-side link version and the `.so` filename differ from it, and both wrong candidates are REJECTED. The method that produced the value is recorded, since §4 forbids *gating* on log text and this is key material, not a gate (GAMS-04).
   4. A child that never exits is terminated by the timeout **and reaped** (no orphan process survives, observed), and a child writing >1 MB to stderr completes without deadlock — the pipe hazard is demonstrated closed, not argued. A timed-out run produces an aborted run-log row and never an output row (GAMS-05).
   5. The invocation environment is an explicit whitelist with `LC_ALL=C` and is recorded: a run with a hostile ambient variable set produces byte-identical output to one without, and a run inheriting the environment is OBSERVED to differ. `dQx`/`dQM` decode as `Integer` — a golden vector proves the `[Double]` decode loses exactly **32 wei** on the first element while `[Integer]` is exact, so the check cannot pass under a tolerance (GAMS-06, BYTE-04).
-**Plans**: TBD
+**Plans**: 6 plans (6 waves — a genuine serial chain: every plan edits `offchain/test/Main.hs`
+and each consumes the previous plan's modules or artifact, the Phase-23 shape)
 
 Plans:
-- [ ] 24-01: TBD
+- [ ] 24-01-PLAN.md — `Gams.{Config,Version,Exit}`: a version unconstructible empty, anchored on
+  the banner's JOB NAME; the CONOPT spaced-letter parse rejecting both decoys; the total
+  `ExitCode -> Verdict` taxonomy; six Tier-A checks (GAMS-01, GAMS-03, GAMS-04) [wave 1]
+- [ ] 24-02-PLAN.md — `Gams.{Argv,Env,Artifact}`: the canonical renderer that decides the bytes,
+  the environment whitelist, the `[Integer]` decoder, BYTE-04's golden vector and the aeson scan's
+  scope-growth guard; nine Tier-A checks (GAMS-02, GAMS-06, BYTE-04) [wave 2]
+- [ ] 24-03-PLAN.md — `Gams.Run`, the one IO edge (fresh exclusive run dir, group-owning timeout,
+  drained pipes, `Aborted` carrying no artifact) and five Tier-B stub checks (GAMS-01, GAMS-02)
+  [wave 3]
+- [ ] 24-04-PLAN.md — the hung GRANDCHILD, the 2 MB stderr flood, the two environment vectors, the
+  missing-banner abort, the GAMS-free structural grep and the three override registrations
+  (GAMS-03, GAMS-05, GAMS-06) [wave 4]
+- [ ] 24-05-PLAN.md — Tier C: `Gams.Invoke`, the capture executable and script, the committed
+  `gams-conformance.json`, nine Tier-C checks and the sixth swept artifact with all floors
+  re-measured (GAMS-01..06, BYTE-04) [wave 5]
+- [ ] 24-06-PLAN.md — migration `003` making an empty version unstorable, the re-captured store
+  evidence, and the phase-closing guard ledger (GAMS-03) [wave 6]
+
+**Four planning-time corrections to the criteria above, from `24-RESEARCH.md`'s measurements.
+These are deviations of record, not drift:**
+
+1. **SC-4's "aborted run-log row" is not deliverable in this phase and is restated at the TYPE
+   level.** `offchain/migrations/` contains `001_model_run.sql` and `002_byte_corpus.sql` and
+   nothing else — the append-only run log is STORE-07, mapped to Phase 25. `ProverOutcome` is a
+   total sum type whose `Aborted` constructor carries no `Artifact` and has no conversion to one
+   (the `DerivedDoc` idiom Phase 23 OBSERVED catching its subject at compile time), so "never an
+   output row" is unrepresentable rather than merely untested. Phase 25 persists the row.
+2. **SC-5's "a run inheriting the environment is OBSERVED to differ" has no byte-level witness on
+   this machine and is restated against the CHILD'S ENVIRONMENT VECTOR.** MEASURED: four hostile
+   ambient variables (`GAMSTHREADS=8 GDXCOMPRESS=1 LC_NUMERIC=de_DE.UTF-8 GAMSDIR=/nonexistent`)
+   changed nothing, a `curdir` `gamsconfig.yaml` lost to an explicit CLI parameter, and `locale -a`
+   offers only `C`, `C.utf8`, `en_US.utf8` and `POSIX` — there is no comma-decimal locale to
+   observe a difference with. Writing the criterion against bytes would produce a check satisfiable
+   only by inventing a variable that matters. The first half — a hostile ambient variable produces
+   byte-identical output — is adopted unchanged and lands in the capture.
+3. **The garbage battery's strongest member is REAL captured output, not an invented string.**
+   MEASURED: `gams` with NO arguments exits **0** and prints a 1239-byte banner carrying the version
+   **three times** — exit 0, non-empty, correctly shaped, WRONG SUBJECT. `gams --version` is parsed
+   as an input filename (exit 6). **Stderr is 0 bytes in every mode**, so a stderr-reading detector
+   gets `""` always. The discriminator is the banner's JOB NAME (`volume_path.gms` vs `?` vs
+   `--version`), which rejects both wrong-subject banners without a denylist.
+4. **GAMS-05's test as normally written CANNOT FAIL, and the plan says so.** MEASURED:
+   `readProcessWithExitCode` drains 2 MB of stderr and `timeout` reaps a DIRECT child with no
+   orphan — but a **grandchild survives at PPID 1**, and GAMS runs CONOPT at `Solvelink=2` as a
+   separate process. The stub is therefore a grandchild, `/usr/bin/timeout -k 1` owns the group,
+   and the negative control (the same stub surviving a direct-child-only kill) is a required
+   observation.
+
+**Also of record:** the artifact bytes are a function of the argv TOKEN — `volume_path.gms:206`
+emits `"%sqrtPriceX96%"` VERBATIM, so a leading zero gives exit 0, every §4 gate green, and sha256
+`d64a7b32…` instead of the golden `e7b14f38…`. Edge normalization is not key hygiene; it decides
+the bytes, and this phase owns the `execve`. `volTgtWad` is a `Scalar` and is NOT token-sensitive
+(`28e18` and `2.8e19` are byte-identical). **`volume_path.gms` does not exist in this worktree** —
+it lives in the sibling `cfmm-wt/gams` worktree, so `GAMS_MODEL` is mandatory here and the capture
+freshness oracle's model half is a named, asserted gap. `volume_path.gms` has **0 `$include`
+directives**, VERIFIED at plan time, and the deliverable is the sorted `(path, sha256)` LIST so a
+future include is covered without a code change.
 
 ### Phase 25: The Content Key & Keyed Store
 **Goal**: A key that describes exactly the invocation that ran and refuses to be built from
