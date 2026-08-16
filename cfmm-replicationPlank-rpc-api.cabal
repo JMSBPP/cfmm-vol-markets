@@ -265,4 +265,11 @@ test-suite cfmm-replicationPlank-rpc-api-test
         memory-hexstring,
         web3-ethereum,
         web3-solidity,
-        mwc-random
+        mwc-random,
+        -- 23-05: the conformance freshness oracle RECOMPUTES each migration's md5 from
+        -- offchain/migrations/ and compares it to the digest the capture recorded, so a .sql edited
+        -- without a re-capture reddens. postgresql-migration stores md5, so md5 is the algorithm
+        -- the comparison has to speak. NOT a new package: crypton-1.0.6 is already resolved in
+        -- this build plan through the library stanza (and through web3-crypto's crypton <1.1 pin),
+        -- so `cabal build --enable-tests -j all` prints no Downloading for it.
+        crypton

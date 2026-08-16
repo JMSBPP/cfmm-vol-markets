@@ -24,6 +24,11 @@ module Main (main) where
 import Control.Exception (IOException, finally, try)
 import Control.Monad (foldM, replicateM)
 import Crypto.Ethereum.Utils (keccak256)
+-- MD5 only, and only for the migration freshness oracle: @postgresql-migration@ stores an md5 of
+-- each script and the capture records the same digest, so the freshness comparison has to speak
+-- that algorithm. It is NOT a security claim about anything. crypton is already resolved in this
+-- build plan through the library stanza (1.0.6), so no package enters the plan for this import.
+import Crypto.Hash (MD5 (..), hashWith)
 import Data.Aeson (Value (..), decode, eitherDecodeFileStrict, encode, encodeFile, toJSON)
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
@@ -113,9 +118,25 @@ import Store.Memory (new_memory_store)
 -- The migration directory and the migration manifest. Both are PURE values imported from the
 -- library, so the checks below compare the tree against what the library says the schema is,
 -- rather than against a transcription of it living in this file.
-import Store.Config (migrations_dir)
+--
+-- 'store_conformance_path' is the RESOLVER, imported rather than transcribed so every Tier-C check
+-- reads the artifact through the same path @STORE_CONFORMANCE@ redirects.
+import Store.Config (migrations_dir, store_conformance_path)
 import Store.Schema (expected_migrations, identity_constraint_columns, identity_constraint_name)
-import Store.Types (CorpusBehaviour (..), adversarial_corpus, cm_behaviour, cm_name)
+-- 'cm_bytes' and the two golden pins are the EXPECTED sides of the conformance digest checks. They
+-- come out of the library's own corpus definition and its Haskell-source pin, never out of the
+-- artifact being checked: a digest read from the same file as the thing it digests is the tautology
+-- this repository has already shipped once.
+import Store.Types
+  ( CorpusBehaviour (..)
+  , adversarial_corpus
+  , cm_behaviour
+  , cm_bytes
+  , cm_name
+  , sha256_hex
+  , volume_path_golden_bytes_len
+  , volume_path_golden_sha256
+  )
 import StochasticOrderGen.Simulate (draw_target_vega)
 import StochasticOrderGen.Types (VegaDraw (..))
 import StochasticPriceGen.Simulate (simulate_path)
@@ -2059,6 +2080,13 @@ json_bool other    = Left ("expected a JSON boolean, got " ++ json_kind other)
 json_array :: Value -> Either String [Value]
 json_array (Array v) = Right (F.toList v)
 json_array other     = Left ("expected a JSON array, got " ++ json_kind other)
+
+-- | The object's members, sorted by key. Used where the KEY SET is the subject rather than a
+-- known key -- 'store_conformance_verdicts_are_all_pass' asserts the law-verdict keys in both
+-- directions, and an accessor that can only reach keys it already names cannot see an extra one.
+json_object_pairs :: Value -> Either String [(String, Value)]
+json_object_pairs (Object o) = Right (sort [(K.toString k, v) | (k, v) <- KM.toList o])
+json_object_pairs other      = Left ("expected a JSON object, got " ++ json_kind other)
 
 -- | FAIL, never skip, when an artifact is absent, and name the command that produces it. A suite
 -- that goes quietly green because a file is missing is worse than one that goes red -- the same
@@ -5118,7 +5146,8 @@ sentinel_write path doc = outside_repo path >>= flip encodeFile doc
 -- the sweep is given, so that a mutation caught by anything else never pays for them. Ordering
 -- only -- nothing is ever dropped from a list because it appears here.
 expensive_checks :: [String]
-expensive_checks = ["sc4_cast_agreement", "sc3_literal_purge"]
+expensive_checks =
+  ["sc4_cast_agreement", "sc3_literal_purge", "no_credential_is_present_in_a_tracked_file"]
 
 -- | Cheap checks first, in their original order.
 cheap_first :: [Check] -> [Check]
@@ -5959,6 +5988,780 @@ expected_corpus_members =
   ]
 
 -- ---------------------------------------------------------------------------------------------
+-- TIER C: the committed conformance evidence, made LOAD-BEARING
+--
+-- Plan 23-04 stood a real @postgres:18-alpine@ up in Docker and DROVE every database-only
+-- observation against it, into @offchain\/rig\/store-conformance.json@. Nothing in @cabal test@
+-- read a byte of it. An artifact asserted by nothing is this repository's own issue #19 and it is
+-- the reason these checks exist: the evidence is only evidence once something reddens when it
+-- changes.
+--
+-- Every check below reads the artifact through 'Store.Config.store_conformance_path', never
+-- through a constant, so @STORE_CONFORMANCE@ redirects them and the sentinel harness can reach
+-- them. Every one FAILS -- never skips -- when the artifact is absent, and names the command that
+-- produces it. The artifact is COMMITTED, so a fresh checkout has it and "fail, never skip" costs
+-- nothing.
+--
+-- NOTHING HERE OPENS A SOCKET. These are assertions over recorded VALUES; the measurement happened
+-- in the capture, under a database, and the separation is what DB-03 is.
+-- ---------------------------------------------------------------------------------------------
+
+store_conformance_command :: String
+store_conformance_command = "bash offchain/rig/capture-store-conformance.sh"
+
+-- | The artifact, through the RESOLVER. FAIL-never-skip and the command, in one place.
+read_store_conformance :: IO (Either String Value)
+read_store_conformance = do
+  path <- store_conformance_path
+  read_json_file path ("re-take it with: " ++ store_conformance_command)
+
+-- | The digest @postgresql-migration@ speaks. See the cabal comment on the crypton dependency.
+md5_hex :: BS.ByteString -> String
+md5_hex bs = show (hashWith MD5 bs)
+
+-- | @(filename, the digest recomputed from the repo's own bytes)@. 'Nothing' when the file is gone.
+recompute_migration_digest :: FilePath -> IO (FilePath, Maybe String)
+recompute_migration_digest name = do
+  let path = migrations_dir </> name
+  present <- doesFileExist path
+  if not present
+    then pure (name, Nothing)
+    else do
+      bytes <- BS.readFile path
+      pure (name, Just (md5_hex bytes))
+
+-- | CHECK 1 -- FRESHNESS, RECOMPUTED FROM THE REPO'S OWN BYTES.
+--
+-- @generatedAt@ is deliberately not consulted. 21-02 MEASURED that it is not a regeneration
+-- witness in this repository -- the capture completes well inside the one-second stamp resolution,
+-- so two back-to-back runs share a timestamp and a stale file passes a timestamp comparison
+-- silently ('reason_generated_at' records that measurement). Freshness here is COMPUTED: each
+-- migration's md5 is taken from @offchain\/migrations\/@ on this disk, right now, and compared to
+-- the digest the capture recorded. Edit a @.sql@ without re-capturing and this reddens with both
+-- numbers.
+--
+-- The filename SET is asserted in BOTH directions against 'expected_migrations'. One direction
+-- alone is satisfied by a rename. A migration in the repo but not in the artifact is a stale
+-- capture; a migration in the artifact but not in the repo is a deleted file nobody re-captured
+-- after, and both are the same class of lie about what the recorded verdicts describe.
+--
+-- @sc_complete@ is separated from staleness on purpose: a truncated run and a stale run need
+-- different instructions, and the failure text gives each its own.
+store_conformance_is_present_and_fresh :: Check
+store_conformance_is_present_and_fresh =
+  Check "store_conformance_is_present_and_fresh" . guarded $ do
+    loaded     <- read_store_conformance
+    recomputed <- mapM recompute_migration_digest (map snd expected_migrations)
+    pure $ do
+      artifact  <- loaded
+      complete  <- json_field "sc_complete" artifact >>= json_bool
+      law_count <- json_field "sc_law_count" artifact >>= json_integer
+      version   <- json_field "schema_version" artifact >>= json_integer
+      entries   <- json_field "migrations" artifact >>= json_array
+      recorded  <- mapM one_recorded_migration entries
+
+      _ <- expect complete
+             ("the capture did not reach the end: sc_complete is False. The flag starts False and"
+               ++ " is flipped last, after every observation block has returned, so this is a"
+               ++ " TRUNCATED run and not a stale one -- the values below were never all produced."
+               ++ " Re-take it: " ++ store_conformance_command)
+      _ <- expect (law_count == toInteger (length expected_store_laws))
+             ("the capture recorded sc_law_count " ++ show law_count ++ " and the expected law"
+               ++ " surface has " ++ show (length expected_store_laws) ++ ". A capture that ran a"
+               ++ " shortened law list reports every law it DID run passing.")
+      _ <- expect (version == 1)
+             ("the capture records schema_version " ++ show version ++ " and this suite is written"
+               ++ " against 1. A schema version bump means the recorded shapes below describe a"
+               ++ " different schema than the checks reading them assume.")
+
+      let recorded_names = map fst recorded
+          wanted_names   = map snd expected_migrations
+          absent   = [n | n <- wanted_names, n `notElem` recorded_names]
+          unlisted = [n | n <- recorded_names, n `notElem` wanted_names]
+          complaints =
+            ["the repo has a migration the capture never saw: " ++ n | n <- absent]
+              ++ ["the capture records a migration the repo does not have: " ++ n | n <- unlisted]
+      _ <- expect (null complaints)
+             (intercalate "\n      " complaints
+               ++ "\n      The migration surface is a SET on both sides, and this is the STALENESS"
+               ++ " instrument: a migration added to the repo and absent from the capture means the"
+               ++ " capture predates it and its verdicts describe a schema that no longer exists."
+               ++ " Re-take it: " ++ store_conformance_command)
+
+      let drifted =
+            [ (name, was, now)
+            | (name, was) <- recorded
+            , Just (Just now) <- [lookup name recomputed]
+            , now /= was
+            ]
+          vanished = [n | (n, Nothing) <- recomputed]
+      _ <- expect (null vanished)
+             ("the migration manifest names files that are not on disk, so their digests could not"
+               ++ " be recomputed and this check would be comparing nothing: "
+               ++ intercalate ", " vanished)
+      expect (null drifted)
+        ("the committed conformance capture is STALE. These migrations have been edited since it"
+          ++ " was taken:\n      "
+          ++ intercalate "\n      "
+               [ name ++ ": recorded=" ++ was ++ " recomputed=" ++ now
+               | (name, was, now) <- drifted
+               ]
+          ++ "\n      Every DB-only verdict in that artifact was measured against the OLD schema."
+          ++ " Nothing here can tell you whether it still holds. Re-take it: "
+          ++ store_conformance_command)
+  where
+    one_recorded_migration e =
+      (,) <$> (json_field "filename" e >>= json_string) <*> (json_field "md5" e >>= json_string)
+
+-- | CHECK 2 -- the law verdicts, as a SET IN BOTH DIRECTIONS.
+--
+-- The count is NOT the instrument, and that is the whole design. A law that was skipped shows up
+-- here as a MISSING VERDICT -- a set mismatch -- rather than as a count that came up short, and a
+-- count that came up short is exactly what a capture with an inflated denominator hides. The
+-- second direction (a verdict key with no expected law) is what keeps the set from being satisfied
+-- by a rename: drop the old name from 'expected_store_laws' and one direction goes quiet while a
+-- law nobody accounts for is still being reported on.
+--
+-- The recorded message travels with any non-@pass@ verdict. A verdict of @"fail: ..."@ that this
+-- check reported only as \"not pass\" would send the reader back to the artifact for the one thing
+-- they need.
+store_conformance_verdicts_are_all_pass :: Check
+store_conformance_verdicts_are_all_pass =
+  Check "store_conformance_verdicts_are_all_pass" . guarded $ do
+    loaded <- read_store_conformance
+    pure $ do
+      artifact <- loaded
+      verdicts <- json_field "law_verdicts" artifact >>= json_object_pairs
+      named    <- mapM (\(k, v) -> (,) k <$> json_string v) verdicts
+
+      let recorded_names = map fst named
+          absent   = [n | n <- expected_store_laws, n `notElem` recorded_names]
+          unlisted = [n | n <- recorded_names, n `notElem` expected_store_laws]
+          complaints =
+            ["a law the set names has NO VERDICT in the capture: " ++ n | n <- absent]
+              ++ ["the capture reports a verdict for a law the set does not name: " ++ n
+                   | n <- unlisted]
+      _ <- expect (null complaints)
+             (intercalate "\n      " complaints
+               ++ "\n      The verdict surface is a SET on both sides, and it is a set rather than"
+               ++ " a count precisely so that a SKIPPED law is unrepresentable: a law that did not"
+               ++ " run has no key here, which is a mismatch, where a count is satisfied by any"
+               ++ " eight verdicts at all. Re-take it: " ++ store_conformance_command)
+
+      let broken = [(n, v) | (n, v) <- named, v /= "pass"]
+      expect (null broken)
+        ("the store contract does NOT hold against a real Postgres. These laws did not pass"
+          ++ " against the live server, and they are the same laws that pass against Store.Memory"
+          ++ " inside this suite -- so the reference store no longer predicts the real one and the"
+          ++ " three-tier design that lets cabal test run with no database has broken:\n      "
+          ++ intercalate "\n      " [n ++ ": " ++ v | (n, v) <- broken])
+
+-- | The corpus rows, keyed by the @name@ each carries.
+conformance_corpus_rows :: Value -> Either String [(String, Value)]
+conformance_corpus_rows artifact = do
+  rows <- json_field "corpus" artifact >>= json_array
+  mapM (\r -> (\n -> (n, r)) <$> (json_field "name" r >>= json_string)) rows
+
+-- | CHECK 3 -- THE NEGATIVE CONTROL, ASSERTED ON VALUES AND NEVER ON \"SOMETHING THREW\".
+--
+-- BYTE-05 is about a WRONG VALUE coming back with no complaint. It is NOT about an exception: a
+-- @SqlError@ is shaped exactly like a dead connection, an unmigrated database or a closed socket,
+-- so a control built on \"an exception was raised\" cannot tell the guard firing from the server
+-- being switched off. Three members were MEASURED silently corrupting on the bare path and they
+-- are what this check is FOR.
+--
+-- @crlf@ and @trailing-newline@ round-trip CORRECTLY through the broken path. They are asserted
+-- here as round-tripping, not as corrupting, and they must never be cited as evidence for the
+-- wart: a check that claimed \"the bare path corrupts\" over the whole corpus would be false.
+--
+-- The anti-collapse arm at the end is the one that matters most. If every member came back
+-- @SqlError@ the corpus would have lost its discriminating members while every count in the file
+-- still added up -- which is finding #3 of this repository's standing defect class, one more time.
+bare_bytestring_is_observed_corrupting_the_artifact :: Check
+bare_bytestring_is_observed_corrupting_the_artifact =
+  Check "bare_bytestring_is_observed_corrupting_the_artifact" . guarded $ do
+    loaded <- read_store_conformance
+    pure $ do
+      artifact <- loaded
+      rows     <- conformance_corpus_rows artifact
+
+      let recorded_names = map fst rows
+          wanted_names   = map cm_name adversarial_corpus
+          absent   = [n | n <- wanted_names, n `notElem` recorded_names]
+          unlisted = [n | n <- recorded_names, n `notElem` wanted_names]
+      _ <- expect (null absent && null unlisted)
+             ("the captured corpus and Store.Types.adversarial_corpus are different SETS. Not"
+               ++ " captured: " ++ intercalate ", " absent
+               ++ " | captured but not defined: " ++ intercalate ", " unlisted
+               ++ ".\n      A count is satisfied by swapping the discriminating member for a"
+               ++ " harmless one; a set in both directions is not. Re-take it: "
+               ++ store_conformance_command)
+
+      observed <- mapM (one_corpus_member rows) adversarial_corpus
+
+      expect (any (== SilentlyCorrupted) observed)
+        ("NOT ONE captured member was recorded as returning a WRONG VALUE with no complaint. The"
+          ++ " corpus has lost its discriminating member, so this negative control is now satisfied"
+          ++ " by a SqlError -- and a SqlError is shaped exactly like a dead connection, an"
+          ++ " unmigrated database, or a socket that was never opened. It proves nothing about byte"
+          ++ " fidelity. Restore a SilentlyCorrupted member and re-take: "
+          ++ store_conformance_command)
+  where
+    one_corpus_member rows member = do
+      let name = cm_name member
+      row <- case lookup name rows of
+        Just r  -> Right r
+        Nothing -> Left ("the captured corpus has no member named " ++ show name)
+      behaviour   <- json_field "behaviour" row >>= json_string
+      in_len      <- json_field "in_len" row >>= json_integer
+      in_sha      <- json_field "in_sha256" row >>= json_string
+      binary_len  <- json_field "binary_out_len" row >>= json_integer
+      binary_sha  <- json_field "binary_out_sha256" row >>= json_string
+      outcome     <- json_field "bare_outcome" row >>= json_string
+      bare_len    <- json_field "bare_out_len" row >>= json_integer
+      bare_sha    <- json_field "bare_out_sha256" row >>= json_string
+      bare_err    <- json_field "bare_error" row
+
+      _ <- expect (behaviour == show (cm_behaviour member))
+             (name ++ ": the capture recorded behaviour " ++ show behaviour
+               ++ " and Store.Types tags it " ++ show (show (cm_behaviour member))
+               ++ ". The tag is the MEASURED behaviour of that member on the bare path; a"
+               ++ " disagreement means one of the two is describing a run that did not happen.")
+
+      -- The Binary path is LOSSLESS FOR EVERY MEMBER. This is BYTE-01 at the corpus, and it is
+      -- what makes the bare-path damage below attributable to the path rather than to the bytes.
+      _ <- expect (binary_len == in_len && binary_sha == in_sha)
+             (name ++ ": the Binary write path did NOT round-trip. in " ++ show in_len
+               ++ " bytes / " ++ in_sha ++ ", out " ++ show binary_len ++ " bytes / " ++ binary_sha
+               ++ ". Every claim this phase makes about byte fidelity rests on that path being"
+               ++ " lossless for all seven members; if it is not, the bare-path comparison below is"
+               ++ " no longer isolating the wart.")
+
+      case cm_behaviour member of
+        SilentlyCorrupted -> do
+          _ <- expect (outcome == "returned")
+                 (name ++ " is the DISCRIMINATING member and the capture records it as "
+                   ++ show outcome ++ ", not as having returned. A SqlError is shaped exactly like"
+                   ++ " a dead connection and cannot distinguish the guard firing from the database"
+                   ++ " being down; only a WRONG VALUE returned with no complaint can.")
+          _ <- expect (bare_len /= in_len && bare_sha /= in_sha)
+                 (name ++ " is the DISCRIMINATING member and it came back UNCHANGED through the"
+                   ++ " bare path: " ++ show in_len ++ " bytes / " ++ in_sha ++ " in, "
+                   ++ show bare_len ++ " bytes / " ++ bare_sha ++ " out. The corruption this"
+                   ++ " control is built on no longer reproduces, so the control has lost its"
+                   ++ " subject -- which is not a licence to relax it. Investigate the client and"
+                   ++ " the server version before touching this check.")
+          _ <- expect (bare_err == Null)
+                 (name ++ ": recorded as having returned, and yet it carries a bare_error. A"
+                   ++ " statement cannot both succeed silently and raise; one of the two fields"
+                   ++ " describes a different run.")
+          pure SilentlyCorrupted
+        ServerRejects -> do
+          _ <- expect (outcome == "SqlError")
+                 (name ++ " is tagged ServerRejects and the capture records bare_outcome "
+                   ++ show outcome ++ ". This member is the LOUD half of the pair and it is only"
+                   ++ " worth recording as long as it stays loud.")
+          _ <- expect (bare_len == (-1) && null bare_sha)
+                 (name ++ ": ServerRejects is recorded as bare_out_len -1 with an empty digest --"
+                   ++ " the encoding for \"there was no readback at all\". This row carries "
+                   ++ show bare_len ++ " and " ++ show bare_sha ++ ", so something WAS read back"
+                   ++ " and the outcome tag is describing a different event.")
+          _ <- expect (bare_err /= Null)
+                 (name ++ ": tagged ServerRejects with a null bare_error. The error text is the"
+                   ++ " only evidence that the rejection happened at all rather than the insert"
+                   ++ " being skipped.")
+          pure ServerRejects
+        RoundTripsAnyway -> do
+          _ <- expect (outcome == "returned")
+                 (name ++ " is tagged RoundTripsAnyway and the capture records bare_outcome "
+                   ++ show outcome ++ ".")
+          _ <- expect (bare_len == in_len && bare_sha == in_sha)
+                 (name ++ " is tagged RoundTripsAnyway -- it is MEASURED to survive the broken path"
+                   ++ " intact -- and the capture shows it changing: " ++ show in_len ++ " bytes / "
+                   ++ in_sha ++ " in, " ++ show bare_len ++ " bytes / " ++ bare_sha ++ " out."
+                   ++ " These two members prove nothing about the wart and are recorded so that"
+                   ++ " nobody cites them as if they did; a change here means the bare path's"
+                   ++ " behaviour moved and the whole corpus needs re-measuring.")
+          pure RoundTripsAnyway
+
+-- | CHECK 4 -- the recorded digests against the PINNED SOURCE, never against the artifact itself.
+--
+-- The expected side is recomputed here, in Haskell, from 'Store.Types.adversarial_corpus'
+-- (@cm_bytes@) and from the two bare pins in that same module. The artifact supplies only the
+-- ACTUAL side. That asymmetry is the point: a digest compared to a digest recorded beside it in the
+-- same file is a statement about the writer's consistency with itself, which this repository has
+-- already shipped once and filed as a finding.
+store_conformance_digests_match_the_pinned_source_digest :: Check
+store_conformance_digests_match_the_pinned_source_digest =
+  Check "store_conformance_digests_match_the_pinned_source_digest" . guarded $ do
+    loaded <- read_store_conformance
+    pure $ do
+      artifact <- loaded
+      rows     <- conformance_corpus_rows artifact
+      mismatched <- fmap catMaybes (mapM (one_member rows) adversarial_corpus)
+      _ <- expect (null mismatched)
+             ("the capture's recorded input digests do not match the digests of the corpus bytes"
+               ++ " in Store.Types:\n      "
+               ++ intercalate "\n      " mismatched
+               ++ "\n      The expected side was recomputed from cm_bytes just now; the recorded"
+               ++ " side came out of the artifact. A disagreement means the capture was taken over"
+               ++ " a DIFFERENT corpus than the one this suite defines, and every behaviour verdict"
+               ++ " in it is about bytes nobody here has seen. Re-take it: "
+               ++ store_conformance_command)
+
+      exhibit <- json_field "jsonb_exhibit" artifact
+      raw_in  <- json_field "raw_in_sha256" exhibit >>= json_string
+      raw_len <- json_field "raw_len" exhibit >>= json_integer
+      _ <- expect (raw_in == volume_path_golden_sha256)
+             ("the jsonb exhibit was run over " ++ raw_in ++ " and the real GAMS artifact's pinned"
+               ++ " digest is " ++ volume_path_golden_sha256 ++ ". The exhibit's whole claim is"
+               ++ " that it exercises the REAL shape; over other bytes it exercises whatever they"
+               ++ " happen to be. The pin lives in Store.Types, in a different file from the bytes,"
+               ++ " on purpose.")
+      expect (raw_len == toInteger volume_path_golden_bytes_len)
+        ("the jsonb exhibit ran over " ++ show raw_len ++ " bytes and the pinned length is "
+          ++ show volume_path_golden_bytes_len ++ ". Length and digest are pinned separately"
+          ++ " because they fail independently: a truncation that happened to be recorded with its"
+          ++ " own digest agrees with itself.")
+  where
+    one_member rows member = do
+      let name     = cm_name member
+          expected = sha256_hex (cm_bytes member)
+      case lookup name rows of
+        Nothing -> Right (Just (name ++ ": not present in the captured corpus"))
+        Just row -> do
+          actual <- json_field "in_sha256" row >>= json_string
+          Right $ if actual == expected
+                    then Nothing
+                    else Just (name ++ ": recorded " ++ actual ++ ", recomputed from cm_bytes "
+                                ++ expected)
+
+-- | CHECK 5 -- BYTE-01 AND BYTE-02 ON THE REAL SHAPE, and the equality that must NEVER hold.
+--
+-- @raw_out == raw_in@ is BYTE-01: the @bytea@ column gave back exactly what it was handed.
+-- @doc_text /= raw_out@ is BYTE-02, and it is asserted as an INEQUALITY on purpose. Equal digests
+-- would not mean @jsonb@ turned out to be safe; they would mean the exhibit stopped exercising
+-- @jsonb@ and the guard lost its subject -- the same shape as an aeson whose round trip became the
+-- identity ('aeson_round_trip_mutations_are_re_measured' guards that one).
+jsonb_round_trip_of_the_real_shape_is_exhibited_failing :: Check
+jsonb_round_trip_of_the_real_shape_is_exhibited_failing =
+  Check "jsonb_round_trip_of_the_real_shape_is_exhibited_failing" . guarded $ do
+    loaded <- read_store_conformance
+    pure $ do
+      artifact <- loaded
+      exhibit  <- json_field "jsonb_exhibit" artifact
+      raw_in   <- json_field "raw_in_sha256" exhibit >>= json_string
+      raw_out  <- json_field "raw_out_sha256" exhibit >>= json_string
+      doc_text <- json_field "doc_text_sha256" exhibit >>= json_string
+
+      let malformed =
+            [ label ++ " = " ++ show d
+            | (label, d) <- [("raw_in_sha256", raw_in), ("raw_out_sha256", raw_out)
+                            , ("doc_text_sha256", doc_text)]
+            , length d /= 64 || not (all (\c -> isHexDigit c && c == toLower c) d)
+            ]
+      _ <- expect (null malformed)
+             ("the exhibit's digests are not 64 bare lowercase hex characters: "
+               ++ intercalate ", " malformed
+               ++ ". A 0x prefix here would also redden sc3_literal_purge, and a short digest is a"
+               ++ " conversion that dropped bytes -- the 64-vs-32 skew this repository has already"
+               ++ " measured once.")
+
+      _ <- expect (raw_out == raw_in)
+             ("BYTE-01 FAILED ON THE REAL ARTIFACT. The bytea column was handed " ++ raw_in
+               ++ " and gave back " ++ raw_out ++ ". This is the byte-exactness the whole milestone"
+               ++ " rests on, measured against the real 606-byte GAMS output.")
+
+      expect (doc_text /= raw_out)
+        ("the exhibit records the jsonb projection and the bytea artifact as BYTE-IDENTICAL. That"
+          ++ " does not mean jsonb is safe -- it means the exhibit has stopped exercising jsonb and"
+          ++ " the guard has lost its subject. jsonb does not preserve whitespace, key order or"
+          ++ " duplicate keys and it re-renders numbers through numeric; MEASURED three times"
+          ++ " independently. Re-take the capture and investigate before touching this check: "
+          ++ store_conformance_command)
+
+-- | CHECK 6 -- DB-01: the drift EXITS NON-ZERO.
+--
+-- @postgresql-migration@ 0.2.1.8 returns a @MigrationError@ and the PROCESS STILL EXITS 0. That
+-- wart is why the runner wraps it, and the recorded pair is what keeps the reason legible: the
+-- library RESULT and the guarded process EXIT are recorded separately, so \"the guard is on the
+-- path\" and \"the library still needs guarding\" are two observations rather than one.
+--
+-- The drift MESSAGE is asserted only for the FILE IT NAMES, and never for the words \"checksum
+-- mismatch\", which do not appear: source-read at 23-03 and confirmed empirically at 23-04, the
+-- payload on this path is @MigrationError \<script name\>@. The filename comes from
+-- 'expected_migrations' rather than from a transcription -- and this arm is not decoration, it is
+-- the arm that caught a real defect: the capture's first run recorded a server @NOTICE@ about
+-- @schema_migrations@ here, which says nothing whatever about the drift.
+store_conformance_records_a_nonzero_exit_on_checksum_drift :: Check
+store_conformance_records_a_nonzero_exit_on_checksum_drift =
+  Check "store_conformance_records_a_nonzero_exit_on_checksum_drift" . guarded $ do
+    loaded <- read_store_conformance
+    pure $ do
+      artifact  <- loaded
+      checks    <- json_field "migration_checks" artifact
+      guarded_x <- json_field "checksum_drift_exit" checks >>= json_integer
+      bare_x    <- json_field "checksum_drift_exit_without_guard" checks >>= json_integer
+      result    <- json_field "checksum_drift_library_result" checks >>= json_string
+      stderr_   <- json_field "checksum_drift_stderr" checks >>= json_string
+
+      _ <- expect (guarded_x == 1)
+             ("the capture recorded exit " ++ show guarded_x ++ " on checksum drift."
+               ++ " postgresql-migration returns a MigrationError and the PROCESS STILL EXITS 0 --"
+               ++ " MEASURED -- so a recorded 0 means the runner's own exitFailure is not on the"
+               ++ " path and DB-01 is unmet: a CI step that ran migrations over a drifted script"
+               ++ " would report success.")
+      _ <- expect (bare_x == 0)
+             ("checksum_drift_exit_without_guard is " ++ show bare_x ++ ". It records the WART --"
+               ++ " the library's own exit status, which is 0 on a failed migration. If the library"
+               ++ " has been fixed upstream this stops being 0, and that is worth knowing rather"
+               ++ " than silently absorbing: the guard could then be simplified, and until someone"
+               ++ " has checked, it must not be.")
+      _ <- expect (result == "MigrationError")
+             ("the drift produced the library result " ++ show result ++ " and not MigrationError."
+               ++ " That is the value-level half of this observation, and the half the exit code"
+               ++ " alone cannot give: a process can exit 1 for any reason at all.")
+      expect (any (`isInfixOf` stderr_) [n | (v, n) <- expected_migrations, v == 1])
+        ("the recorded drift message does not name the migration that drifted:\n      "
+          ++ show stderr_
+          ++ "\n      On this path the payload is the SCRIPT NAME -- source-read at 23-03,"
+          ++ " confirmed empirically at 23-04 -- and the capture's first run recorded a server"
+          ++ " NOTICE here instead, which says nothing about the drift at all. The words"
+          ++ " \"checksum mismatch\" are NOT asserted, because they do not appear on this path;"
+          ++ " they belong to a validation entry point the runner does not take.")
+
+-- | CHECK 7 -- DB-01's concurrency half, WITH ITS RELEASE OBSERVATION.
+--
+-- @try_lock false@ and @applied 0@ against an already-migrated database is satisfied by a migrator
+-- that could never apply anything, by a closed connection, and by a directory with nothing new in
+-- it. So the after-release pair is asserted here as well and it is NOT optional: only
+-- @try true \/ applied 1@ says the lock EXCLUDED work that would otherwise have happened.
+--
+-- @postgresql-migration@ 0.2.1.8 contains no advisory lock at all (source-read: zero @advisory@
+-- hits), so this is the CALLER's guard and the key is the caller's constant. It is asserted
+-- against the value the capture recorded from the exported binding rather than against a
+-- transcription in this file.
+store_conformance_records_the_second_migrator_applying_nothing :: Check
+store_conformance_records_the_second_migrator_applying_nothing =
+  Check "store_conformance_records_the_second_migrator_applying_nothing" . guarded $ do
+    loaded <- read_store_conformance
+    pure $ do
+      artifact <- loaded
+      checks   <- json_field "migration_checks" artifact
+      try_lock <- json_field "second_migrator_try_lock" checks >>= json_bool
+      applied  <- json_field "second_migrator_applied" checks >>= json_integer
+      rel_lock <- json_field "after_release_try_lock" checks >>= json_bool
+      rel_appl <- json_field "after_release_applied" checks >>= json_integer
+      key      <- json_field "advisory_lock_key" checks >>= json_integer
+
+      _ <- expect (not try_lock)
+             ("a second migrator ACQUIRED the advisory lock while the first held it (try_lock "
+               ++ show try_lock ++ "). Two concurrent migrators is CI's normal case, not an edge:"
+               ++ " parallel jobs share a database.")
+      _ <- expect (applied == 0)
+             ("the excluded migrator applied " ++ show applied ++ " migrations. It was supposed to"
+               ++ " apply none, having failed to take the lock.")
+      _ <- expect rel_lock
+             ("THE POSITIVE CONTROL FAILED: after the first migrator released the lock, a second"
+               ++ " one still could not take it. Without this arm the exclusion above is satisfied"
+               ++ " by a migrator that could never have acquired anything -- by a closed"
+               ++ " connection, or by a lock nobody ever released.")
+      _ <- expect (rel_appl == 1)
+             ("THE POSITIVE CONTROL FAILED: after release, the second migrator applied "
+               ++ show rel_appl ++ " migrations. The probe directory carries a third migration"
+               ++ " precisely so that \"applied 0\" above means work was EXCLUDED rather than that"
+               ++ " there was no work to do.")
+      expect (key /= 0)
+        ("the recorded advisory_lock_key is 0. It is read from the exported migration_lock_key"
+          ++ " binding, and a zero there is the numeric-zero sentinel this project has already been"
+          ++ " bitten by: pg_try_advisory_lock(0) is a perfectly valid call on a key every other"
+          ++ " caller in the world may also be using.")
+
+-- | CHECK 8 -- migrating from a COMPLETELY EMPTY database, twice.
+--
+-- @actions\/checkout@ with @clean: true@ runs @git clean -ffdx@, and CI provisions a fresh
+-- container per job, so \"there is no schema at all\" is the NORMAL case rather than an edge one.
+-- The second run applying 0 is the idempotence half: a runner that re-applied its migrations would
+-- fail on the second @create table@ in CI and nowhere else.
+store_conformance_records_two_runs_from_an_empty_database :: Check
+store_conformance_records_two_runs_from_an_empty_database =
+  Check "store_conformance_records_two_runs_from_an_empty_database" . guarded $ do
+    loaded <- read_store_conformance
+    pure $ do
+      artifact <- loaded
+      checks   <- json_field "migration_checks" artifact
+      run1     <- json_field "empty_db_run1" checks >>= json_bool
+      run2     <- json_field "empty_db_run2_applied" checks >>= json_integer
+      _ <- expect run1
+             ("the first migration run against a COMPLETELY EMPTY database did not succeed. That"
+               ++ " is CI's normal case -- a fresh container and a clean checkout every job -- so"
+               ++ " this failing means CI cannot stand the schema up at all.")
+      expect (run2 == 0)
+        ("the second run against the same database applied " ++ show run2 ++ " migrations and"
+          ++ " should have applied none. A runner that re-applies is one that fails on its own"
+          ++ " second create table, and it fails in CI rather than here.")
+
+-- | The image the capture is REQUIRED to provision. DB-04, as a two-sided observation.
+conformance_image_tag :: String
+conformance_image_tag = "postgres:18-alpine"
+
+-- | CHECK 9 -- DB-04: the pin, and the server that actually answered.
+--
+-- Two sides, deliberately: @image_tag@ is what was ASKED FOR and @server_version@ is what REPLIED.
+-- Asserting only the tag would pass against a stale local image or a registry that moved it;
+-- asserting only the version would pass against an unpinned @latest@ that happened to be on 18
+-- today. The version is matched on its MAJOR only -- a patch bump is not a schema change and
+-- pinning it would make this check a maintenance tax that gets relaxed the first time it fires.
+store_conformance_records_the_pinned_image_and_server_version :: Check
+store_conformance_records_the_pinned_image_and_server_version =
+  Check "store_conformance_records_the_pinned_image_and_server_version" . guarded $ do
+    loaded <- read_store_conformance
+    pure $ do
+      artifact <- loaded
+      tag      <- json_field "image_tag" artifact >>= json_string
+      version  <- json_field "server_version" artifact >>= json_string
+      _ <- expect (tag == conformance_image_tag)
+             ("the capture provisioned " ++ show tag ++ " and this suite is written against "
+               ++ show conformance_image_tag ++ ". An unpinned image makes every verdict in this"
+               ++ " artifact a statement about whatever the registry served that day.")
+      expect ("18." `isPrefixOf` version)
+        ("the server that answered reports version " ++ show version ++ ", which is not an 18.x."
+          ++ " The tag above says what was ASKED FOR; this says what REPLIED, and the pair is the"
+          ++ " whole point -- a tag alone passes against a stale local image of the same name.")
+
+-- | CHECK 10 -- the LIVE CATALOGUE half of KEY-07.
+--
+-- 'unique_constraint_names_all_three_columns' asserts the Haskell constant and the DDL TEXT. This
+-- asserts what @pg_indexes@ actually reported after the migration ran, which is a third subject
+-- and a different failure: a DDL file that was never applied leaves the file half green and the
+-- catalogue empty. The columns are compared as an ORDERED list because the index's column order is
+-- what makes a prefix lookup possible, and the constraint name is compared because the insert
+-- path's conflict target is the CONSTRAINT and not a column list.
+store_conformance_records_the_live_identity_constraint :: Check
+store_conformance_records_the_live_identity_constraint =
+  Check "store_conformance_records_the_live_identity_constraint" . guarded $ do
+    loaded <- read_store_conformance
+    pure $ do
+      artifact <- loaded
+      block    <- json_field "unique_constraint" artifact
+      name     <- json_field "name" block >>= json_string
+      cols     <- json_field "columns" block >>= json_array >>= mapM json_string
+      _ <- expect (name == identity_constraint_name)
+             ("the LIVE catalogue reports the identity constraint as " ++ show name
+               ++ " and Store.Schema names it " ++ show identity_constraint_name ++ ". The insert"
+               ++ " path's conflict target is that constraint BY NAME, so a renamed constraint"
+               ++ " turns first-writer-wins into a runtime error rather than a compile-time one.")
+      expect (cols == identity_constraint_columns)
+        ("the LIVE catalogue reports the identity constraint over " ++ show cols
+          ++ " and KEY-07 requires " ++ show identity_constraint_columns ++ ", in that order."
+          ++ " The DDL-file half of this claim is asserted by"
+          ++ " unique_constraint_names_all_three_columns; this half is what says the DDL was"
+          ++ " actually APPLIED. A two-part key does not orphan on a key-formula change -- MEASURED"
+          ++ " at 23-01: it serves the superseded scheme's row and the new scheme's insert"
+          ++ " vanishes.")
+
+-- | The @json_agreement@ probes, by name, so a deleted probe is a set mismatch.
+expected_json_agreement_probes :: [String]
+expected_json_agreement_probes =
+  [ "exponent-1e100000"
+  , "exponent-1e1000"
+  , "invalid-utf8"
+  , "law-fixture-object"
+  , "nul-escape-in-a-string"
+  , "the-disagreeing-document"
+  , "the-non-json-probe"
+  , "trailing-content"
+  , "volume-path-golden"
+  ]
+
+-- | The ONE input on which the hand-written recogniser and @jsonb@ were MEASURED to disagree.
+--
+-- A @\\u0000@ escape inside a string is valid RFC 8259 and refused by @jsonb@, because Postgres
+-- text cannot carry a NUL. Two further divergences were PREDICTED at 23-04 and both were REFUTED
+-- by measurement -- @1e1000@ and @1e100000@ were accepted by the server -- and their probes are
+-- kept under their own names, because a probe deleted for agreeing is a probe that can never
+-- disagree later.
+json_agreement_divergence :: String
+json_agreement_divergence = "nul-escape-in-a-string"
+
+-- | CHECK 11 -- TIER B PREDICTS TIER C, asserted per input rather than argued in a haddock.
+--
+-- The user ruling that made the keyed path require a json value rests on a claim that is
+-- falsifiable: a hand-written recogniser with no server agrees with @jsonb@. That claim is what
+-- lets @cabal test@ run the law suite against 'Store.Memory' and believe the result. This check
+-- asserts the measurement rather than the claim -- every probe agrees EXCEPT the one measured
+-- divergence, and the divergence itself is asserted, so a capture in which it silently stopped
+-- reproducing reddens instead of quietly widening what the recogniser is trusted for.
+json_recogniser_agrees_with_jsonb_except_where_measured :: Check
+json_recogniser_agrees_with_jsonb_except_where_measured =
+  Check "json_recogniser_agrees_with_jsonb_except_where_measured" . guarded $ do
+    loaded <- read_store_conformance
+    pure $ do
+      artifact <- loaded
+      rows     <- json_field "json_agreement" artifact >>= json_array
+      probes   <- mapM one_probe rows
+
+      let recorded_names = [n | (n, _, _) <- probes]
+          absent   = [n | n <- expected_json_agreement_probes, n `notElem` recorded_names]
+          unlisted = [n | n <- recorded_names, n `notElem` expected_json_agreement_probes]
+      _ <- expect (null absent && null unlisted)
+             ("the json-agreement probe SET has moved. Not captured: " ++ intercalate ", " absent
+               ++ " | captured and not expected: " ++ intercalate ", " unlisted
+               ++ ".\n      Two of these probes exist to record a REFUTED prediction and would be"
+               ++ " the first ones a tidying pass deleted. A probe deleted for agreeing is a probe"
+               ++ " that can never disagree later.")
+
+      let disagreeing = [n | (n, m, p) <- probes, m /= p]
+          unexpected  = [n | n <- disagreeing, n /= json_agreement_divergence]
+      _ <- expect (null unexpected)
+             ("the hand-written recogniser and jsonb disagree on inputs where they were MEASURED to"
+               ++ " agree: " ++ intercalate ", " unexpected
+               ++ ".\n      Store.Memory rejects with that recogniser and the real client rejects"
+               ++ " with jsonb. Where they diverge, a law can pass against the reference store and"
+               ++ " fail against the real one -- which is the three-tier design breaking, and the"
+               ++ " only reason cabal test may run with no database.")
+      expect (json_agreement_divergence `elem` disagreeing)
+        ("the ONE measured divergence (" ++ json_agreement_divergence ++ ") no longer reproduces:"
+          ++ " the capture records the recogniser and jsonb agreeing on it. That is not a licence"
+          ++ " to widen what the recogniser is trusted for -- it means either the server's"
+          ++ " behaviour moved or the probe stopped carrying the input it is named for."
+          ++ " Investigate before touching this check.")
+  where
+    one_probe row =
+      (,,) <$> (json_field "name" row >>= json_string)
+           <*> (json_field "memory_accepts" row >>= json_bool)
+           <*> (json_field "postgres_accepts" row >>= json_bool)
+
+-- ---------------------------------------------------------------------------------------------
+-- DB-02: no credential is written down in a tracked file
+-- ---------------------------------------------------------------------------------------------
+
+-- | The pattern, BUILT rather than written, for the reason 'purge_control_literal' is built.
+--
+-- Spelled out contiguously it would match THIS FILE, and a scan that matches the file asserting
+-- its own absence exempts nothing and reddens always. Prose has turned out to be inside a grep's
+-- blast radius four times on this branch; this is the fifth place it is being routed around.
+--
+-- The two @=@ arms require a character that is neither a quote nor a dollar after the @=@, so a
+-- shell expansion (@=\"$GENERATED\"@, @=$GENERATED@) does not match and a LITERAL value does. That
+-- is a deliberate line: the capture script legitimately passes a generated secret through the
+-- environment, and the rule DB-02 states is that no credential is written DOWN.
+credential_pattern :: String
+credential_pattern =
+  intercalate "|"
+    [ "postgres" ++ "://"
+    , "PG" ++ "PASSWORD"
+    , "pass" ++ "word=[^\"$]"
+    , "POSTGRES_" ++ "PASSWORD=[^\"$]"
+    ]
+
+-- | Data as well as code. @.json@ is scanned here and NOT by 'sc3_literal_purge', deliberately: a
+-- DSN pasted into a captured artifact is a leaked credential even though nothing executes it.
+credential_scanned_extensions :: [String]
+credential_scanned_extensions = [".hs", ".sh", ".sql", ".json"]
+
+-- | ONE argument vector, so the positive control runs the identical invocation over a different
+-- root rather than a lookalike of it.
+credential_scan :: FilePath -> IO (ExitCode, String, String)
+credential_scan root =
+  readProcessWithExitCode
+    "grep"
+    (["-rnE", credential_pattern, root] ++ map ("--include=*" ++) credential_scanned_extensions)
+    ""
+
+-- | RE-MEASURED at the end of plan 23-05, cold:
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+--
+-- It exists for the same reason 'purge_file_floor' does and it is the same trap: @grep -r@ exits 1
+-- for \"found nothing\" AND for \"matched no files at all\", so a scan whose @--include@ set stopped
+-- matching reports exactly what a clean scan reports. Re-measure it, never increment it.
+credential_scan_floor :: Int
+credential_scan_floor = 56
+
+-- | The seeded bait, BUILT for the same reason the pattern is.
+credential_bait_source :: String
+credential_bait_source =
+  "DSN=" ++ "postgres" ++ "://u:hunter2@localhost:5432/db\n"
+    ++ "PG" ++ "PASSWORD=hunter2\n"
+    ++ "conninfo=host=localhost " ++ "pass" ++ "word=hunter2\n"
+
+-- | A file that carries the ENVIRONMENT forms the real tree uses, which must NOT match.
+--
+-- This is the arm that keeps the pattern honest in the other direction. Without it the pattern
+-- could be tightened until it matched nothing at all and the absence would still read as success.
+credential_innocent_source :: String
+credential_innocent_source =
+  "docker run -e " ++ "POSTGRES_" ++ "PASSWORD=\"$DB_PASSWORD\"\n"
+    ++ "export DSN=\"host=127.0.0.1 " ++ "pass" ++ "word=$DB_PASSWORD dbname=x\"\n"
+
+-- | Absence may not read as success until the pattern has been SHOWN matching. Returned so the
+-- caller orders it FIRST.
+credential_positive_control :: IO (Either String ())
+credential_positive_control = do
+  tmp <- getTemporaryDirectory
+  let dir       = tmp </> "db02-credential-positive-control"
+      bait      = dir </> "bait.sh"
+      innocent  = dir </> "clean.sh"
+      discard p = do
+        there <- doesFileExist p
+        if there then removeFile p else pure ()
+
+  createDirectoryIfMissing True dir
+  flip finally (mapM_ discard [bait, innocent]) $ do
+    writeFile bait credential_bait_source
+    writeFile innocent credential_innocent_source
+    (code, out, err) <- credential_scan dir
+    pure $ do
+      _ <- expect (code == ExitSuccess)
+             ("DB-02's POSITIVE CONTROL did not fire: grep exited " ++ show code ++ " over a tree"
+               ++ " seeded with a URI-form DSN, a libpq password variable and a literal"
+               ++ " password assignment. The pattern has stopped matching anything, which means the"
+               ++ " exit-1 the real scan reports is absence of MATCHES only by assumption."
+               ++ (if null err then "" else "\n      grep stderr: " ++ err))
+      _ <- expect ("bait.sh" `isInfixOf` out)
+             ("DB-02's POSITIVE CONTROL fired but did not NAME the seeded file. grep said:\n"
+               ++ unlines (map ("      " ++) (lines out)))
+      expect (not ("clean.sh" `isInfixOf` out))
+        ("DB-02's POSITIVE CONTROL matched the ENVIRONMENT forms -- a value passed through a shell"
+          ++ " variable rather than written down. That is the form the capture script legitimately"
+          ++ " uses, and a pattern that matches it would have to be relaxed the first time it"
+          ++ " fired, which is how a credential scan becomes decorative. grep said:\n"
+          ++ unlines (map ("      " ++) (lines out)))
+
+-- | DB-02, as a source scan with a proven positive control and a scanned-file floor.
+--
+-- The connection configuration comes from the environment ('Store.Config' is the only place either
+-- variable is named) and this is the standing assertion that it stayed there. Three arms, in this
+-- order: the pattern is SHOWN matching a seeded bait AND shown NOT matching the environment forms;
+-- the scan reached at least as many files as it did when the floor was measured; the scan finds
+-- nothing.
+no_credential_is_present_in_a_tracked_file :: Check
+no_credential_is_present_in_a_tracked_file =
+  Check "no_credential_is_present_in_a_tracked_file" . guarded $ do
+    control <- credential_positive_control
+    files   <- walk_files "offchain"
+    (code, out, err) <- credential_scan "offchain"
+    let scanned = filter ((`elem` credential_scanned_extensions) . takeExtension) files
+    pure $ do
+      _ <- control
+      _ <- expect (length scanned >= credential_scan_floor)
+             ("the credential scan reached " ++ show (length scanned) ++ " files, below the floor"
+               ++ " of " ++ show credential_scan_floor ++ ". grep exits 1 for \"found nothing\" AND"
+               ++ " for \"matched no files at all\", so a scan that has collapsed reports exactly"
+               ++ " what a clean scan reports. If files were removed on purpose, re-measure this"
+               ++ " floor and say so.")
+      case code of
+        ExitFailure 1 -> Right ()
+        ExitFailure n -> Left ("grep itself failed with exit " ++ show n ++ ": " ++ err)
+        ExitSuccess ->
+          Left ("a credential is written down in a tracked file under offchain/. DB-02 says the"
+                 ++ " connection configuration comes from the environment, and Store.Config's"
+                 ++ " default DSN is the EMPTY STRING for exactly this reason -- there is nothing"
+                 ++ " to leak and nothing to go stale:\n"
+                 ++ unlines (map ("      " ++) (lines out)))
+
+-- ---------------------------------------------------------------------------------------------
 -- BYTE-03: the bytes never pass through an aeson Value on the storage path
 -- ---------------------------------------------------------------------------------------------
 
@@ -6237,6 +7040,18 @@ core_checks = do
           , adversarial_corpus_has_a_silently_corrupted_member
           , migration_list_is_ordered_and_gapless
           , unique_constraint_names_all_three_columns
+          , store_conformance_is_present_and_fresh
+          , store_conformance_verdicts_are_all_pass
+          , bare_bytestring_is_observed_corrupting_the_artifact
+          , store_conformance_digests_match_the_pinned_source_digest
+          , jsonb_round_trip_of_the_real_shape_is_exhibited_failing
+          , store_conformance_records_a_nonzero_exit_on_checksum_drift
+          , store_conformance_records_the_second_migrator_applying_nothing
+          , store_conformance_records_two_runs_from_an_empty_database
+          , store_conformance_records_the_pinned_image_and_server_version
+          , store_conformance_records_the_live_identity_constraint
+          , json_recogniser_agrees_with_jsonb_except_where_measured
+          , no_credential_is_present_in_a_tracked_file
           , aeson_round_trip_mutations_are_re_measured
           , aeson_is_absent_from_the_storage_path
           , driv01_capture_round_trips
