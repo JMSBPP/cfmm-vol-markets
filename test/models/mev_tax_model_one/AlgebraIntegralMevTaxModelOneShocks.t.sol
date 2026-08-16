@@ -16,6 +16,7 @@ import {IAlgebraPoolPermissionedActions} from "@cryptoalgebra/integral-core/inte
 import {IAlgebraSwapCallback} from "@cryptoalgebra/integral-core/interfaces/callback/IAlgebraSwapCallback.sol";
 import {IAlgebraPlugin} from "@cryptoalgebra/integral-core/interfaces/plugin/IAlgebraPlugin.sol";
 import {Vm} from "forge-std/Vm.sol";
+import {console2} from "forge-std/console2.sol";
 
 interface IAlgebraIntegralShocksWriter{
     function init(address,address,address) external;
@@ -140,11 +141,18 @@ contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapC
 
      function test__priceInvarianceUnderVolumePath() public {
          if (!vm.exists(VOLUME_PATH_JSON)) {
-             vm.skip(true, "awaiting volume_path.json - off-chain GAMS->JSON bridge, delegated post-merge");
+             vm.skip(true, "awaiting volume_path.json - off-chain rpc_api bridge (#25), delegated");
              return;
          }
 
          string memory json = vm.readFile(VOLUME_PATH_JSON);
+
+         // Pool identity (#29): ATTACH to the live pool the path was solved against, at its block —
+         // never construct a fresh one. `pool` is the attach target; `blockNumber` pins the fork
+         // (a >53-bit JSON STRING, per §3); `chainId` is the wrong-network guard.
+         address fxPool = json.readAddress(".pool");
+         uint256 fxBlockNumber = vm.parseUint(json.readString(".blockNumber"));
+         uint256 fxChainId = json.readUint(".chainId");
 
          // §3: sqrtPriceX96/liquidity are JSON STRINGS (exceed the 53-bit double-exact ceiling) —
          // read as strings and parse to integers, NEVER as JSON numbers/doubles.
@@ -156,18 +164,34 @@ contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapC
          require(nEvents > 0, "empty path");
          assertEq(dQx.length, nEvents, "dQx length must equal nEvents");
 
-         _createPool();
+         _attachPool(fxPool, fxBlockNumber, fxChainId);
 
-         // The fixture must have been solved for THIS pool's state, or the replay is meaningless.
+         // The fixture must have been solved for THIS pool's state; pinned to fxBlockNumber this is a
+         // determinism guard, not a race (issue #29).
          (uint160 sqrtPrice, , , , , ) = IAlgebraPoolState(activePool).globalState();
          assertEq(uint256(sqrtPrice), uint256(fxSqrtPrice), "pool sqrtPrice != fixture sqrtPriceX96");
          assertEq(uint256(IAlgebraPoolState(activePool).liquidity()), uint256(fxLiquidity), "pool liquidity != fixture liquidity");
 
-         // TODO(shocks_writer SELECTOR_NEXT): route the dQx path through shocks_writer with shocks
-         // as hookData — NOT a direct pool.swap from the test. Snapshot tick before, price-limit the
-         // last swap at SQRT_PRICE_1_1 (VOLUME_PATH.md §3), then assert tickAfter == tickBefore. That
-         // follow-up implements SELECTOR_NEXT (a stub today) and deletes the temporary
-         // algebraSwapCallback above once the writer owns swap payment.
+         // TODO(#26 SELECTOR_NEXT): route the dQx path through the pool's ON-FORK plugin
+         // (IAlgebraPoolState(activePool).plugin()) — NOT setUp's in-process shocks_writer, which has
+         // no code on the fork — with shocks as hookData. Snapshot tick, replay (last swap limited at
+         // SQRT_PRICE_1_1, VOLUME_PATH.md §3), assert tickAfter == tickBefore.
+     }
+
+     /// @notice #29: ATTACH to the live pool the fixture was solved against, at its block. The liveness
+     /// guarantee is vm.createSelectFork reverting loudly (endpoint in the message) when the node is
+     /// unreachable — never a skip or in-process fallback. chainId is the wrong-network guard; the
+     /// code-length check enforces attach-not-construct (the pool must already exist on the fork).
+     /// Endpoint resolves ETH_RPC_URL -> foundry.toml `local` default (the single-source resolver).
+     function _attachPool(address fxPool, uint256 fxBlockNumber, uint256 fxChainId) internal {
+         string memory url = vm.envOr("ETH_RPC_URL", vm.rpcUrl("local"));
+         console2.log("VolumePath: attaching to", url);
+         vm.createSelectFork(url, fxBlockNumber); // reverts loud (endpoint named) if node unreachable
+         require(block.chainid == fxChainId, "VolumePath: wrong chain (check ETH_RPC_URL)");
+         require(fxPool.code.length > 0, "VolumePath: pool not deployed on fork (attach, not construct)");
+         activePool = fxPool;
+         token0 = MockERC20(IAlgebraPoolImmutables(activePool).token0());
+         token1 = MockERC20(IAlgebraPoolImmutables(activePool).token1());
      }
 
      /// @notice EXEC-03: the writer, as the pool's plugin, must set pluginConfig during init to
