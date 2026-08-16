@@ -112,7 +112,28 @@ library
                       -- already depends on it, so 0.13.2.0 was in the build plan before this line
                       -- existed. MEASURED at this commit: `cabal build --enable-tests -j all`
                       -- printed no `Downloading`, and the resolved id is still 0.13.2.0.
-                      vector
+                      vector,
+                      -- Store.Postgres' client, resolved at 0.7.0.1. NEW: +4 packages --
+                      -- MEASURED by plan.json set-diff at 23-01, not estimated: the install plan
+                      -- goes 152 -> 158 units and the four it gains here are Only-0.1,
+                      -- postgresql-libpq-0.11.0.0, postgresql-libpq-configure-0.11 and
+                      -- postgresql-simple itself. Chosen over hasql (+18) and persistent (+43)
+                      -- on footprint; see .planning/research/STACK.md.
+                      postgresql-simple,
+                      -- The migration runner, resolved at 0.2.1.8. NEW: +2 over the client
+                      -- (itself and cryptohash-md5-0.11.101.0) -- same set-diff, same commit.
+                      -- MEASURED wart, and the reason Store.Postgres will wrap it: it returns
+                      -- MigrationError "Checksum mismatch" and the PROCESS STILL EXITS 0. It also
+                      -- has no advisory lock at 0.2.1.8 (source-read), so mutual exclusion is the
+                      -- caller's pg_advisory_lock, not the library's.
+                      postgresql-migration,
+                      -- SHA256 over the artifact and the adversarial corpus, resolved at 1.0.6.
+                      -- NOT a new package, and this was CONFIRMED rather than assumed: crypton-1.0.6
+                      -- appears in the 152-unit plan.json set taken BEFORE this line existed as well
+                      -- as the 158-unit set after, because web3-crypto already pins crypton <1.1.
+                      -- The +6 above is therefore entirely the two postgresql stanzas. cryptonite is
+                      -- deprecated (last upload 2022-03-13) and must not be used.
+                      crypton
 
     -- Directories containing source files.
     hs-source-dirs:   offchain/lib/
