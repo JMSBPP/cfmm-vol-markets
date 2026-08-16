@@ -89,6 +89,7 @@ library
                     , Store.Memory
                     , Store.Laws
                     , Store.Schema
+                    , Store.Postgres
 
     -- Modules included in this library but not exported.
     -- other-modules:
