@@ -86,6 +86,7 @@ library
                     , Store.Types
                     , Store.Config
                     , Store.Class
+                    , Store.Json
                     , Store.Memory
                     , Store.Laws
                     , Store.Schema

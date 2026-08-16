@@ -5709,7 +5709,8 @@ sentinel_falsification_harness =
 -- never about ordering.
 expected_store_laws :: [String]
 expected_store_laws =
-  [ "law_blob_lookup_of_an_absent_name_is_nothing"
+  [ "law_a_non_json_artifact_is_rejected_on_the_keyed_path"
+  , "law_blob_lookup_of_an_absent_name_is_nothing"
   , "law_blob_round_trips_byte_identically"
   , "law_distinct_models_do_not_collide"
   , "law_first_writer_wins_on_the_identity_triple"
@@ -6036,6 +6037,7 @@ aeson_storage_path :: [FilePath]
 aeson_storage_path =
   [ "offchain/lib/Store/Class.hs"
   , "offchain/lib/Store/Config.hs"
+  , "offchain/lib/Store/Json.hs"
   , "offchain/lib/Store/Laws.hs"
   , "offchain/lib/Store/Memory.hs"
   , "offchain/lib/Store/Postgres.hs"

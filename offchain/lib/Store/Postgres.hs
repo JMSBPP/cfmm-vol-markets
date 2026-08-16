@@ -183,7 +183,7 @@ run_migrations_or_exit con dir = with_migration_lock con $ do
 
 -- | The 'Store' seam, backed by a live connection.
 --
--- Same six fields as @Store.Memory@, and the SAME seven laws run against both. That is the point
+-- Same six fields as @Store.Memory@, and the SAME eight laws run against both. That is the point
 -- of the record: the reference implementation and the real one are two subjects for one contract,
 -- and a law that holds against only one of them has found something.
 new_postgres_store :: Connection -> Store
@@ -213,16 +213,23 @@ new_postgres_store con =
 -- exists. That constant is compile-time and never user input, so building it into the 'Query' is
 -- not an injection surface.
 --
--- CARRIED FORWARD TO 23-04, AND IT IS A REAL INCOMPATIBILITY, NOT A NOTE: @doc@ is
--- @not null jsonb@, so every artifact written through THIS path must be valid JSON.
--- @law_first_writer_wins_on_the_identity_triple@ writes the bytes @SECOND-SOLVE-DISAGREED@ as its
--- second put, which is not JSON, so against this store the statement raises
+-- RULED AT 23-04, and the ruling is IMPLEMENTED rather than described: @doc@ is @not null jsonb@,
+-- so every artifact written through THIS path must be a JSON value, and the statement raises
 -- @invalid input syntax for type json@ BEFORE the conflict clause is ever reached -- Postgres
--- computes the row before it resolves the conflict. Against @Store.Memory@ the same law passes.
--- The capture must decide this deliberately: either that law's disagreeing payload becomes a
--- disagreeing JSON DOCUMENT (the message already carries the word \"disagreed\"; the bytes do not
--- need to), or the keyed surface stops requiring JSON. Recording the resulting @SqlError@ as the
--- law's verdict would be recording a schema decision as a store defect.
+-- computes the row before it resolves the conflict, so @do nothing@ does not save it.
+--
+-- 23-03 measured that and refused to decide it, because
+-- @law_first_writer_wins_on_the_identity_triple@ wrote the bytes @SECOND-SOLVE-DISAGREED@ as its
+-- second put and that law PASSED against @Store.Memory@. The USER RULING is that the keyed path
+-- requires JSON, @Store.Memory@ is tightened to match, and the fixture becomes a JSON value that
+-- still disagrees. TIER B MUST PREDICT TIER C: a law suite that passes against the reference store
+-- and fails against this one defeats the three-tier design, which is the only reason @cabal test@
+-- is allowed to run without a server.
+--
+-- The rule is now an executable law rather than this paragraph --
+-- @law_a_non_json_artifact_is_rejected_on_the_keyed_path@ -- and it runs against BOTH stores. The
+-- keyed surface requires JSON; @byte_corpus@ below carries arbitrary bytes and deliberately has no
+-- @jsonb@ column, which is where BYTE-01's requirement is served.
 insert_sql :: Query
 insert_sql =
   "insert into model_run (model, key_scheme, key, raw, doc, gams_ver, conopt_ver) \
