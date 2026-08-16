@@ -377,11 +377,12 @@ jsonb_exhibit con golden = do
 -- both tiers and both answers are recorded, and a divergence becomes a value in a committed
 -- artifact instead of a surprise months later.
 --
--- Two probes are expected to DISAGREE and are here because they do: a NUL escape inside a string
--- and an exponent that overflows @numeric@ are both well-formed RFC 8259 and both refused by
--- @jsonb@. Neither is reachable from any fixture this repository writes. They are recorded, not
--- special-cased -- a recogniser that hard-coded them would be asserting agreement instead of
--- measuring it.
+-- Three probes were expected to DISAGREE and ONE of them does. The NUL escape inside a string is
+-- well-formed RFC 8259 and refused by @jsonb@, measured. The two large exponents were predicted to
+-- overflow @numeric@ and were ACCEPTED at both magnitudes, so that prediction is refuted and the
+-- probes stay under their own names -- a probe deleted for agreeing is a probe that can never
+-- disagree later. Nothing here is special-cased; a recogniser that hard-coded the divergence would
+-- be asserting agreement instead of measuring it.
 agreement_block :: Connection -> BS.ByteString -> IO [Value]
 agreement_block con golden =
   forM (agreement_probes golden) $ \(name, bytes) -> do
@@ -412,7 +413,8 @@ agreement_probes golden =
   , ("trailing-content",         C8.pack "{\"a\":1} {\"b\":2}")
   , ("invalid-utf8",             BS.pack [0xC3, 0x28])
   , ("nul-escape-in-a-string",   C8.pack "\"\\u0000\"")
-  , ("numeric-overflow",         C8.pack "1e1000")
+  , ("exponent-1e1000",          C8.pack "1e1000")
+  , ("exponent-1e100000",        C8.pack "1e100000")
   ]
 
 -- ---------------------------------------------------------------------------------------------
@@ -490,7 +492,7 @@ checksum_drift con = do
   pure ( case code of
            ExitSuccess   -> 0
            ExitFailure n -> n
-       , first_line err
+       , last_message_line err
        , case in_process of
            MigrationSuccess -> "MigrationSuccess"
            MigrationError _ -> "MigrationError"
@@ -628,10 +630,23 @@ scratch_dir tag = do
   createDirectoryIfMissing True dir
   pure dir
 
-first_line :: String -> String
-first_line s = case filter (not . null) (lines s) of
-  (l : _) -> l
-  []      -> ""
+-- | The subprocess's OWN last word, with the server's chatter dropped.
+--
+-- MEASURED at 23-04: the first stderr line of a drifted migration run is a @NOTICE@ from the
+-- server about @schema_migrations@ already existing, so \"the first non-empty line\" recorded
+-- server chatter and said nothing about the drift. The runner's message is the last thing written
+-- before it exits, so that is what is taken.
+--
+-- This field is a courtesy for a human reader and NOTHING may assert on its text: 23-03 source-read
+-- that on drift through this path the library's payload is the SCRIPT NAME, so an assertion here
+-- would be an assertion about a filename. The observation that counts is the exit code.
+last_message_line :: String -> String
+last_message_line s =
+  case reverse (filter interesting (lines s)) of
+    (l : _) -> l
+    []      -> ""
+  where
+    interesting l = not (null l) && take 7 l /= "NOTICE:"
 
 -- | @date@ rather than a new dependency, matching every other capture tool in this tree.
 generated_at :: IO String

@@ -35,17 +35,18 @@
 -- BOTH tiers and records, per input, what each one answered -- so a divergence is a recorded
 -- value in a committed artifact rather than a surprise months later.
 --
--- Two divergences are KNOWN and expected to show up in that block, both in the direction of this
--- recogniser being more permissive than the server:
+-- ONE divergence is MEASURED, at PG 18.4, in the direction of this recogniser being the more
+-- permissive: a @\\u0000@ escape inside a string is well-formed RFC 8259 and is accepted here,
+-- while @jsonb@ refuses it because Postgres text cannot carry a NUL. It is not reachable from any
+-- fixture this repository writes, and it is recorded rather than worked around -- a recogniser
+-- that quietly special-cased it would be asserting agreement instead of measuring it.
 --
---   * a @\\u0000@ escape inside a string is well-formed RFC 8259 and is accepted here; @jsonb@
---     refuses it, because Postgres text cannot carry a NUL;
---   * an exponent large enough to overflow @numeric@ is well-formed RFC 8259 and is accepted
---     here; @jsonb@ refuses it while parsing the number.
---
--- Neither is reachable from any fixture this repository writes, and both are recorded rather than
--- worked around. A recogniser that quietly special-cased them would be asserting agreement instead
--- of measuring it.
+-- A SECOND divergence was predicted at 23-04 and REFUTED by the same measurement. The prediction
+-- was that an exponent large enough to overflow @numeric@ would be accepted here and refused by
+-- @jsonb@. Driven at two magnitudes, @1e1000@ and @1e100000@, the server accepted BOTH. The probes
+-- are kept in the agreement block under their own names precisely because they came out the other
+-- way: a prediction that was wrong is worth more on disk than off it, and a probe deleted for
+-- agreeing is a probe that can never disagree later.
 module Store.Json
   ( recognise_json_value
   , is_json_value

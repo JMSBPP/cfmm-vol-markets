@@ -162,9 +162,11 @@ data CorpusMember = CorpusMember
 -- | The corpus, each member carrying the behaviour it was MEASURED to produce on PG 18.4.
 --
 -- ROADMAP SC-1 states the corpus as @0x00@, @0xFF@, invalid UTF-8, a CRLF and a trailing newline.
--- Those five are the first five entries below, and NONE of them produces a wrong value: three
--- raise @ERROR: invalid byte sequence for encoding \"UTF8\"@ and two round-trip correctly through
--- the broken path. A negative control built from SC-1's corpus alone is green and vacuous.
+-- Those five are the first five entries below, and only ONE of them produces a wrong value --
+-- @0x00@, and for a reason nobody predicted (see the correction below the list). Two raise
+-- @ERROR: invalid byte sequence for encoding \"UTF8\"@ and two round-trip correctly through the
+-- broken path. A negative control built from SC-1's corpus alone would rest entirely on a member
+-- whose behaviour every document describing it got wrong.
 --
 -- The backslash-plus-octal member is the one that makes the control real, and it is MEASURED,
 -- not reasoned:
@@ -176,9 +178,26 @@ data CorpusMember = CorpusMember
 -- because @byteain@ still accepts the legacy escape format and re-reads @\\101@ as one octal byte.
 -- DO NOT REMOVE IT. A corpus without a 'SilentlyCorrupted' member makes the whole negative control
 -- vacuous, which is why the behaviour tag is asserted as a SET and never as a count.
+-- MEASURED CORRECTION AT 23-04, against a real server through the real client. The @nul@ member
+-- was tagged 'ServerRejects' on the strength of the research's transcript, which produced
+-- @ERROR: invalid byte sequence for encoding \"UTF8\": 0x00@. Driven through
+-- @postgresql-simple@'s bare-'BS.ByteString' path it does NOT raise: it goes in at ONE byte and
+-- comes back at ZERO, with no error and no warning.
+--
+-- The mechanism is one layer below the server. @ToField ByteString@ is @Escape@, which hands the
+-- value to libpq's C-string escaper, and a C string ENDS at its first NUL -- so the parameter that
+-- reaches Postgres is the empty string and there is nothing left for the encoding check to reject.
+-- Both readings are true of their own path; only this one is true of the path the corpus is a
+-- corpus FOR. It is recorded in @store-conformance.json@ as @bare_outcome \"returned\"@ with
+-- @bare_out_len 0@.
+--
+-- This STRENGTHENS BYTE-05 rather than weakening it. A total truncation at the first NUL is a
+-- worse silent corruption than the backslash-octal member's 6-to-3, and it had been filed under
+-- the loud behaviour -- the one that is shaped exactly like a dead connection and therefore proves
+-- the least.
 adversarial_corpus :: [CorpusMember]
 adversarial_corpus =
-  [ CorpusMember "nul"              (BS.pack [0x00])       ServerRejects
+  [ CorpusMember "nul"              (BS.pack [0x00])       SilentlyCorrupted
   , CorpusMember "high-byte"        (BS.pack [0xFF])       ServerRejects
   , CorpusMember "invalid-utf8"     (BS.pack [0xC3, 0x28]) ServerRejects
   , CorpusMember "crlf"             (C8.pack "a\r\nb")     RoundTripsAnyway

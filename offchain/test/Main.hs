@@ -868,18 +868,23 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 -- silently become five. A floor that is inherited rather than re-measured records the tree as it
 -- was on the day someone last thought about it.
 --
--- 45 = @find offchain \\( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \\) -type f | wc -l@ at the
--- END of plan 23-03: 36 Haskell, 7 shell, 2 SQL. It was taken TWICE before it was right -- once
--- before this plan's own new library modules existed, which a @>=@ floor accepts in silence, and
--- once between the plan's two commits.
+-- 48 = @find offchain \\( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \\) -type f | wc -l@ at the
+-- END of plan 23-04: 38 Haskell, 8 shell, 2 SQL. 23-03 left it at 45 (36\/7\/2) and 23-04 added
+-- @Store\/Json.hs@, @app\/StoreConformance.hs@ and @rig\/capture-store-conformance.sh@ -- the last
+-- of which is a SCANNED file type and is the reason this block is being edited at all. Before
+-- that it was 36, and it had been 36 for two waves while the tree moved to 41 underneath it.
 --
 -- The rule this records, since it is a floor and not a pin: it is re-measured when the purge's
 -- SCOPE changes or when a plan is already editing this block, and NOT on every added @.hs@. Four
 -- tracks add Haskell here legitimately and often; a number chased on every addition is raised
 -- reflexively and stops being read. What it must never do again is sit unexamined while the tree
--- moves under it, which is what the inherited 36 was doing for two whole waves.
+-- moves under it.
+--
+-- The extension census under @offchain\/@ at this measurement: @hs 38, sh 8, json 8, md 3, txt 2,
+-- sql 2@. The @.json@ count grew by two -- the golden artifact and the conformance capture -- and
+-- both are DATA, already declared and deliberately not scanned.
 purge_file_floor :: Int
-purge_file_floor = 45
+purge_file_floor = 48
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.

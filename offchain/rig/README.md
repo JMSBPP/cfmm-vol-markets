@@ -375,3 +375,56 @@ addresses and `pool.poolId` are stable across from-scratch runs.
 Nothing in the rig reads the wall clock for anything else. The TWAP seed is a fixed literal inside
 `deploy-rig.sh`: a clock-derived seed would still pass the manifest diff above — the seed is not a
 manifest field — while silently making the rig's on-chain STATE irreproducible.
+
+---
+
+## `volume-path-golden.json` — the real GAMS artifact, and where its digest is NOT
+
+`offchain/rig/volume-path-golden.json` is **606 bytes** of real solver output. It is the only
+corpus that can exercise BYTE-02 at all: the adversarial corpus catches *transport* corruption — a
+byte the wire cannot carry — while `jsonb`'s key reorder is a function of the key names and lengths
+and a number re-render is a function of the actual numeric literals, so a shape-dependent
+normalization needs the real shape. A synthetic fixture cannot substitute.
+
+| | |
+|---|---|
+| **Source** | `cfmm-gams`, `model/mev_tax_model_one/volume_path.json` |
+| **Toolchain** | GAMS 54.1 / CONOPT 4.39.0 |
+| **Copied in** | 2026-08-16, at plan 23-04 |
+| **Reproducibility** | MEASURED byte-identical at two independent paths, two runs of the same model |
+| **Last four bytes** | `5d 0a 7d 0a` — `"]\n}\n"`, trailing newline PRESENT |
+
+**The sha256 is deliberately NOT written here.** It is pinned in Haskell source, at
+`offchain/lib/Store/Types.hs`'s `volume_path_golden_sha256`, and the length beside it at
+`volume_path_golden_bytes_len`. A digest recorded next to the thing it digests is a tautology —
+regenerate the bytes and regenerate the digest and the comparison still passes — and this
+repository has already shipped that defect once. The pin lives in a different file, maintained by
+different hands, so that a silent replacement of these bytes reddens rather than agreeing with
+itself. It is also written **bare**, with no `0x` prefix, because `sc3_literal_purge` greps for
+prefixed 64-hex and a prefixed pin would fail the suite on sight.
+
+**The bytes are copied, not read across worktrees.** Reading `cfmm-gams` from this tree at capture
+time is the Phase-28 ownership problem arriving early: this workstream would silently depend on
+another checkout's working state, and a capture taken on a machine without that worktree would
+have no subject at all.
+
+## `capture-store-conformance.sh` — the one script here that needs a database
+
+Everything else under `offchain/rig/` needs a chain. This one needs Postgres, and it is the only
+place in Phase 23 that does: `cabal test` opens no socket, by construction rather than by a branch.
+
+```bash
+bash offchain/rig/capture-store-conformance.sh     # docker required; nothing else
+```
+
+It provisions its own container on a **non-default host port**, creates a **per-run database**,
+runs the capture, gates on VALUES in the result, and tears the container down on every exit path
+including a SIGINT. `CFMM_REQUIRE_DB` lives here and nowhere else: in `cabal test` that variable
+fails *open* — a workflow whose `env:` block drifts silently returns to skip-mode and is green —
+whereas here its failure mode is *no artifact at all*, and a stale artifact is caught by the
+computed freshness oracle rather than by nobody.
+
+The artifact it writes, `offchain/rig/store-conformance.json`, is **committed**, so a fresh
+checkout can assert over real database evidence while staying database-independent. On any failure
+the previous artifact is put back from a saved copy — a capture that fails must not leave the
+operator with a bad artifact and no good one.
