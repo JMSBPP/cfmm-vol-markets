@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 23-02-PLAN.md — Store.Laws executes against Store.Memory inside cabal test; the suite is DELIBERATELY RED on aeson_is_absent_from_the_storage_path (and consequently on sentinel_falsification_harness) until 23-03 creates offchain/lib/Store/Postgres.hs. Next: /gsd:execute-phase 23 wave 3 (23-03)"
+stopped_at: "Completed 23-03-PLAN.md — the schema, the migration manifest and Store.Postgres are landed; BOTH deliberate reds are CLOSED and the suite is GREEN at 98/98, FAIL count 0. Next: /gsd:execute-phase 23 wave 4 (23-04, the conformance capture — the FIRST execution of every DB-facing line in Store.Postgres)"
 last_updated: "2026-08-16"
-last_activity: "2026-08-16 — 23-02 executed: seven store laws execute for real against Store.Memory with no socket, all seven OBSERVED firing against named wrong stores; law SET, corpus member SET and BYTE-03's two aeson guards locked; suite at 94/96 with 2 reds by design"
+last_activity: "2026-08-16 — 23-03 executed: two migrations, Store.Schema, and Store.Postgres (the sole database-client importer, Binary-only writes, doc derived from the same parameter as raw, pg_advisory_lock(872304), exitFailure on MigrationError); .sql added to sc3_literal_purge and PROVEN scanned; four measured corrections to the research incl. execute_ throwing on a returning statement; suite 98/98 green"
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
+  completed_plans: 3
   blocked_phases: 2
 # NOTE: these counts are v6.0-SCOPED (phases 23-28) on purpose. `gsd-tools state update-progress`
 # was run at 23-01 and rewrote them by scanning EVERY phase directory on disk, producing
@@ -38,25 +38,30 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **23 — Postgres Foundation & the Byte-Exact Schema** (IN PROGRESS — 2/5 plans)
-Plan: **23-02 COMPLETE** (DB-03/BYTE-03/KEY-07 all PARTIAL, none marked complete). Next: 23-03
-(wave 3, schema + migrations).
-Status: the store CONTRACT is landed AND it now EXECUTES. Seven laws in `Store.Laws` run against a
-fresh `Store.Memory` per law inside `cabal test`, with **no socket anywhere in the suite** —
-`grep -cE 'Store\.Postgres|CFMM_REQUIRE_DB|connectPostgreSQL' offchain/test/Main.hs` is 0, so
-DB-03's "no database present" half is structural rather than a branch that can be misconfigured.
-**No database was provisioned, contacted or required** — the three-tier decision still holds.
+Phase: **23 — Postgres Foundation & the Byte-Exact Schema** (IN PROGRESS — 3/5 plans)
+Plan: **23-03 COMPLETE** (DB-01/KEY-07/BYTE-01/BYTE-02/BYTE-03 all PARTIAL, none marked complete —
+third plan running). Next: 23-04 (wave 4, the conformance capture).
+Status: the SCHEMA and the CLIENT are landed. Two migrations under `offchain/migrations/`,
+`Store.Schema`'s pure manifest, and `Store.Postgres` — the only file in `offchain/{lib,app,test}`
+matching `Database\.PostgreSQL`. Every `bytea` parameter is `Binary`-wrapped (six sites, inspected
+individually, including the two in `WHERE` clauses the plan's wording did not cover); `doc` is
+derived from the SAME parameter as `raw` in ONE statement; the runner holds
+`pg_advisory_lock(872304)` and calls `exitFailure`.
 
-**THE SUITE IS DELIBERATELY RED, on 2 checks, and 23-03 closes both with one file.**
-`aeson_is_absent_from_the_storage_path` names all six `offchain/lib/Store/*.hs` including
-`Store/Postgres.hs`, which does not exist until 23-03; and `sentinel_falsification_harness`
-correctly refuses to certify against a red baseline. MEASURED with a clean stub `Store/Postgres.hs`
-on disk: **96/96, both green**. Scoping the check to files that exist would make it pass BECAUSE
-its subject is absent — this project's dominant defect class — and was refused.
+**THE SUITE IS GREEN: 98/98, FAIL count 0.** Both of 23-02's deliberate reds closed with one file,
+exactly as its anti-control C2 predicted (96 + this plan's 2 new checks = 98). **No database was
+provisioned, contacted or required** — the three-tier decision holds for the third plan running,
+now with the client module on disk:
+`grep -cE 'Store\.Postgres|CFMM_REQUIRE_DB|connectPostgreSQL' offchain/test/Main.hs` is still 0.
 
-Next action: `/gsd:execute-phase 23` (wave 3).
+**23-04 IS THE FIRST EXECUTION OF EVERY DB-FACING LINE IN `Store.Postgres`.** Nothing in it has
+been run — not the lock, not the runner, not the insert, not the catalogue query. A first failure
+there is a defect in that module until proven otherwise. And it must RULE on the `jsonb` /
+`law_first_writer_wins` incompatibility below before writing the capture.
 
-Last activity: 2026-08-16 — 23-02 executed (commits `cdeb4e0`, `ea1be79`, `18493b0`).
+Next action: `/gsd:execute-phase 23` (wave 4).
+
+Last activity: 2026-08-16 — 23-03 executed (commits `5535582`, `2aa1e96`, `3995d4e`, `c4741b3`).
 
 ### The six phases
 
@@ -158,6 +163,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 *Updated after each plan completion*
 | Phase 23 P01 | 41min | 3 tasks | 5 files |
 | Phase 23 P02 | 62min | 3 tasks | 5 files |
+| Phase 23 P03 | 44min | 2 tasks | 6 files |
 | Phase 19 P01 | 6 | 3 tasks | 3 files |
 | Phase 19 P02 | 33 | 3 tasks | 3 files |
 | Phase 19 P03 | 24 | 3 tasks | 1 files |
@@ -187,6 +193,14 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 **v6.0 (Phase 23) decisions:**
 
+- [Phase 23]: [23-03 MEASURED, the count every later v6.0 plan compares against] the suite is **98/98, FAIL count 0** — 23-02's 96 total plus EXACTLY the 2 checks 23-03 registered, with BOTH deliberate reds closed by the single file `offchain/lib/Store/Postgres.hs`. 23-02's anti-control C2 predicted this to the check. Counts taken from the BUILT TEST BINARY, not from `cabal test`.
+- [Phase 23]: [23-03 MEASURED, a BUG in the research's AND the plan's own prescribed code] `execute` / `execute_` **THROW** on a statement that returns columns — `finishExecute` raises `QueryError "execute resulted in 1-column result"` on `PQ.TuplesOk` (`Internal.hs:408-428`). So `execute_ con "select pg_advisory_lock(872304)"`, the form BOTH the research's §Code Examples and 23-03's task 2 prescribe, compiles cleanly and throws at the FIRST acquisition. Both lock statements go through `query` and consume the row: `[Only ()]` for the void-returning blocking lock (`FromField ()` exists and requires exactly `voidOid`), `[Only Bool]` for try and unlock. **Never use `execute_` for a `select` run for its side effect.**
+- [Phase 23]: [23-03 MEASURED, source-read, binds 23-05] on checksum drift through `runMigrations` the payload is `MigrationError name` — the **SCRIPT NAME** (`Migration.hs:181`) — NOT the string `"Checksum mismatch"`. That wording belongs to the separate `MigrationValidation` path (`:239`), which the runner does not take. A check asserting on the drift payload TEXT would be asserting on a filename. The observation that counts is `echo $?` == 1 either way.
+- [Phase 23]: [23-03 MEASURED, source-read] `postgresql-migration` applies **EVERY entry** in the migration directory — `scriptsInDirectory dir = sort <$> listDirectory dir` (`Migration.hs:155-158`), no extension filter anywhere on the path. A README or an editor backup dropped into `offchain/migrations/` is read and handed to `execute_` as SQL. `migration_list_is_ordered_and_gapless` therefore asserts the directory's WHOLE contents against the manifest, in both directions, and both arms were OBSERVED firing (a rename names both violations in one message; a `[1,3]` version list fires the gapless arm alone).
+- [Phase 23]: [23-03 FINDING, a stale measurement inherited as fact by four documents] the research, the plan, 23-01's summary and 23-02's summary all state `purge_file_floor` is **36 against exactly 36 scanned files, zero slack**. At execution time the scan was **41** — waves 1 and 2 added five `.hs` files — so the stated consequence ("the first `.sql` reddens the floor immediately") was already FALSE; only the extension census would have fired. Re-measured to **45** (36 hs + 7 sh + 2 sql) and the block now records the RULE for when to re-measure, not just the number. It was measured three times and wrong twice, once because it was taken before the commit's own new module existed.
+- [Phase 23]: [23-03 OBSERVED, the anti-control that matters] **declaring an extension is NOT scanning it.** With `.sql` in `purge_known_extensions` but NOT in `purge_scanned_extensions`, a seeded `0x`-prefixed 64-hex literal in a tracked `.sql` file is INVISIBLE to the purge — the floor fires first (42 < 44), and lowering the floor as well makes `sc3_literal_purge` **PASS with the literal on disk**. Two edits, each looking reasonable alone. This is why `.sql` went into BOTH lists, and it is what pins the guard-#19 FAIL to the SCAN rather than to the declaration.
+- [Phase 23]: [23-03 CARRIED FORWARD, a real incompatibility 23-04 must RULE on] `model_run.doc` is `NOT NULL jsonb` derived from `raw`, so every artifact on the keyed path must be valid JSON — and `law_first_writer_wins_on_the_identity_triple` (`Store/Laws.hs:298`) writes the non-JSON bytes `SECOND-SOLVE-DISAGREED` as its second put. Against `Store.Postgres` that statement raises `invalid input syntax for type json` **before the `on conflict` clause is reached** (Postgres computes the row before resolving the conflict); against `Store.Memory` the same law passes. NOT papered over by editing wave 2's fixture. 23-04 chooses: the disagreeing payload becomes a disagreeing JSON *document* (it is the SOLE kill site for the last-writer-wins mutant, so it must still differ in its bytes), or the keyed surface stops requiring JSON. Recording the `SqlError` as the law's verdict would record a schema decision as a store defect.
+- [Phase 23]: [23-03 FINDING, the pattern's TENTH instance and now also its INVERSE] prose in the grep's blast radius struck again on the first attempt in a brand-new file: `Store/Postgres.hs`'s haddock SAYING the `…Simple.Binary` module does not exist was counted by the acceptance grep asserting that import is absent. And the INVERSE appeared for the first time: `Store/Schema.hs` was created in 23-03 task 1 and spent two commits **absent from `aeson_storage_path`** — a storage module BYTE-03's scan did not read. The usual defect is a guard's scope SHRINKING; this is the scope failing to GROW, it is quieter, **nothing reddens**, and it was caught only by the plan's own self-check. A glob would have caught it and would have lost the property the named list exists for.
 - [Phase 23]: [23-02 MEASURED, the count every later v6.0 plan compares against] the suite is **94/96** — the 23-01 cold baseline of 91 plus EXACTLY 5 new checks, with 2 RED BY DESIGN. With a clean stub `offchain/lib/Store/Postgres.hs` on disk it is **96/96**, which is what 23-03 lands on. Counts were taken from the BUILT TEST BINARY, not from `cabal test`: `cabal test` buffers the runner's stdout and printed `91/91 checks passed` on one invocation and nothing on the next, so a step that reads `cabal test | tail -3` can silently record no count at all.
 - [Phase 23]: [23-02 OBSERVED, all seven laws, with the correct store as the CONTROL column] every law in `Store.Laws` was seen returning `Left` against a named wrong store: a `byteain` blob write (`member octal-escape went in at 6 bytes and came back at 3 bytes` — the MEASURED PG 18.4 corruption reproduced), a phantom `get_blob`, a key dropping `key_scheme`, a key dropping `model`, last-writer-wins, and a no-op `put`. **HONEST NEGATIVES:** the `key_scheme`-dropping mutant moves EXACTLY TWO laws and leaves the other five untouched (23-01's finding, reproduced through the law set itself); `law_key_scheme_orphans_rather_than_matching` does NOT fire against a store that stores NOTHING, so it is evidence only alongside the round-trip and the two-scheme insert; and last-writer-wins has a SINGLE kill site, which Phase 25's determinism claim rests on.
 - [Phase 23]: [23-02 FINDING, corrects the plan] the corpus BEHAVIOUR-TAG set does **not** discriminate deleting `octal-escape` — `double-backslash` carries the same `SilentlyCorrupted` tag, so all three classes survive and the only surviving instrument was `length == 7`, a count defeated by substitution. `expected_corpus_members` (the member NAME set, both directions, ordered ahead of the count) is what actually caught the deletion.
