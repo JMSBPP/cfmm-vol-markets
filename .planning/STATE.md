@@ -2,16 +2,21 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
-status: roadmap-complete
-stopped_at: "ROADMAP.md written for v6.0 — 6 phases (23-28), 43/43 requirements mapped; awaiting /gsd:plan-phase 23"
+status: in-progress
+stopped_at: "Completed 23-01-PLAN.md — the store CONTRACT (Store.Types/Config/Class/Memory) is landed; next /gsd:execute-phase 23 wave 2 (23-02)"
 last_updated: "2026-08-16"
-last_activity: "2026-08-16 — v6.0 roadmap created (phases 23-28); GAMS moved ahead of the store, byte-exactness moved into phase 23"
+last_activity: "2026-08-16 — 23-01 executed: BYTE-02 made a compile error (3 guard arms observed firing), the 7-member adversarial corpus landed with measured behaviour tags, KEY-07 orphaning observed in Store.Memory against a negative control"
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 5
+  completed_plans: 1
   blocked_phases: 2
+# NOTE: these counts are v6.0-SCOPED (phases 23-28) on purpose. `gsd-tools state update-progress`
+# was run at 23-01 and rewrote them by scanning EVERY phase directory on disk, producing
+# milestone v2.0 / 25 phases / 37 plans -- it folded the v1.0-v5.0 tracks, which STATE.md itself
+# says are separate and never renumbered, into the v6.0 milestone. Reverted and maintained by
+# hand. total_plans is 5 because phase 23 is the only v6.0 phase planned so far.
 ---
 
 # Project State
@@ -33,14 +38,15 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **23 — Postgres Foundation & the Byte-Exact Schema** (not started)
-Plan: —
-Status: **Roadmap COMPLETE for milestone v6.0.** Six phases, numbered **23–28** (v5.0 ended at
-22). All **43** v6.0 requirements mapped to exactly one phase — no orphans, no duplicates.
-Next action: `/gsd:plan-phase 23`.
+Phase: **23 — Postgres Foundation & the Byte-Exact Schema** (IN PROGRESS — 1/5 plans)
+Plan: **23-01 COMPLETE** (BYTE-02, BYTE-05, DB-02). Next: 23-02 (wave 2, `Store.Laws` × `Store.Memory`).
+Status: the store CONTRACT is landed. `Store.Types`, `Store.Config`, `Store.Class` and
+`Store.Memory` compile inside the library with zero `-Wall` warnings; `postgresql-simple` 0.7.0.1,
+`postgresql-migration` 0.2.1.8 and `crypton` 1.0.6 are in the build plan. **No database was
+provisioned, contacted or required** — the three-tier decision holds so far.
+Next action: `/gsd:execute-phase 23` (wave 2).
 
-Last activity: 2026-08-16 — v6.0 roadmap written (`.planning/ROADMAP.md`), traceability filled
-in `.planning/REQUIREMENTS.md`.
+Last activity: 2026-08-16 — 23-01 executed (commits `69dbd0a`, `e013395`, `ade3348`).
 
 ### The six phases
 
@@ -140,6 +146,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | 18b — Typed Return Encoding | 1 | 27 min | 27 min |
 
 *Updated after each plan completion*
+| Phase 23 P01 | 41min | 3 tasks | 5 files |
 | Phase 19 P01 | 6 | 3 tasks | 3 files |
 | Phase 19 P02 | 33 | 3 tasks | 3 files |
 | Phase 19 P03 | 24 | 3 tasks | 1 files |
@@ -166,6 +173,16 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecting v4.0:
+
+**v6.0 (Phase 23) decisions:**
+
+- [Phase 23]: [23-01 MEASURED, the cold baseline every later v6.0 plan compares against] `cabal test` = **91/91 checks passed**; `cabal build --enable-tests -j all` exit 0 with **0** `offchain/` warning lines; `find offchain/{lib,app,test} -name '*.hs' | wc -l` = **28** before, **32** after; `find offchain -name '*.sql' | wc -l` = **0**, so `sc3_literal_purge`'s extension census and its zero-slack `purge_file_floor` of 36 are still untouched. STATE.md's 91/91 and the CI header's 78/85 were NOT inherited — both were re-measured cold. **`cabal build -j all` WITHOUT `--enable-tests` is VACUOUS** (it exits 0 against a non-compiling test suite) and was never used as evidence.
+- [Phase 23]: [23-01 MEASURED, confirms the research rather than contradicting it] `plan.json` set-diff puts the install plan at **152 → 158 units (+6)**. `postgresql-simple` **0.7.0.1** is +4 (`Only-0.1`, `postgresql-libpq-0.11.0.0`, `postgresql-libpq-configure-0.11`, itself); `postgresql-migration` **0.2.1.8** is +2 (itself, `cryptohash-md5-0.11.101.0`); **`crypton` 1.0.6 is +0 — it is in BOTH sets**, because `web3-crypto` already pins `crypton <1.1`. Zero `Downloading` lines. `cryptonite` units in the resolved plan: **0**.
+- [Phase 23]: [23-01 OBSERVED, BYTE-02 is a compile error and it was seen firing] `probe :: DerivedDoc -> DerivedDoc -> Bool ; probe = (==)` fails with `[GHC-39999] No instance for 'Eq DerivedDoc'`, and an `escape_hatch :: DerivedDoc -> Artifact` written in a DIFFERENT module fails with `[GHC-01928] Illegal term-level use of the type constructor`. **The plan's stated recipe could not fail** — it asked for `deriving Eq` AND the probe together, which compiles. Measured as a PAIR instead: probe alone → exit 1, probe WITH the instance → exit 0. Without that anti-control, a compile error does not tell you WHICH missing thing caused it.
+- [Phase 23]: [23-01 OBSERVED, binds 23-02's law set] `Store.Memory` keyed on the FULL `(model, key_scheme, key)` triple orphans correctly: a lookup under superseded scheme 2 returns `Nothing`, and the same `(model,key)` under scheme 2 INSERTS without disturbing scheme 1. The negative control — keying on `(model, key)` alone — **compiles**, returns the scheme-1 row for a scheme-2 lookup, and SILENTLY DROPS the second insert. **HONEST NEGATIVE: only the superseded-scheme lookup and the two-scheme insert discriminate. Round-trip, first-writer-wins, blob-verbatim and label arms are all UNCHANGED under the mutant** — a law suite without a cross-scheme lookup would pass against a store that has no `key_scheme` at all.
+- [Phase 23]: [23-01 DECIDED, deviation from the research sketch] `DerivedDoc` wraps `Text` (the `doc::text` rendering), NOT `Data.Aeson.Value`. Identical type-level guarantee, and it keeps `Data.Aeson` off the storage path that BYTE-03's own grep polices from 23-02. The `doc` column is still `jsonb`; only the Haskell-side view changes.
+- [Phase 23]: [23-01 FINDING, the eighth self-contradicting-criterion instance in this repo] Three of the plan's acceptance greps counted matches in HADDOCK, not code — `cryptonite` (the plan prescribed a comment containing the token it then forbade), `octal-escape`, `DerivedDoc(..)`, and the credential grep (2 hits, both on the word "password" in comments SAYING there is no password). The last is substantive: DB-02's planned `no_credential_is_present_in_a_tracked_file` check greps exactly those tokens with a positive control, so a comment asserting its own cleanliness would have reddened it. **Prose is inside the grep's blast radius.** Also unsatisfiable as written: `grep -c 'lookupEnv' Store/Config.hs == 2`, since the import line alone makes the floor 3.
+- [Phase 23]: [23-01 FINDING, gsd-tools is not safe on this STATE.md] `gsd-tools state advance-plan` errors (`Cannot parse Current Plan or Total Plans in Phase`) and `state update-progress` rewrote the frontmatter to `milestone: v2.0`, 25 phases / 37 plans by scanning EVERY phase directory on disk — folding the v1.0–v5.0 tracks, which this file says are separate and never renumbered, into v6.0. Reverted; the v6.0 progress block is maintained BY HAND.
 
 - [18b-01 MEASURED, supersedes 18a's number]: N=128 batch gas is now **execGas 3,231,765 + intrinsic 21,000 + EIP-2028 calldata 23,000 = 3,275,765 TOTAL**, a **+28,313 (+0.87%)** move from 18a's 3,247,452. The encoder adds 2 mstores per element plus memory expansion for the 8256-byte buffer; calldata gas is unchanged (the INPUT did not change). Still 3.05x under MCAL-01's 10,000,000 ceiling and well inside the plan's 3,400,000 stop-and-investigate band.
 - [18b-01 MEASURED, the honest negatives — record these rather than the kill count alone]: (a) the **element-base-shift mutant (`base = 32 + 64*i`) is BLIND at N=0** — `test__unit__emptyReturnIsExactlySixtyFourBytes` stayed GREEN under it, because with no elements there is nothing to misplace and the total is 64 bytes either way. Killable only at N >= 1. (b) The **stride mutant (`64 + 32*i`) is blind at N <= 1** — OBSERVED directly: `test__unit__oneAndTwoElementReturnsAreByteExact` reddened at its **N=2** assertion while its N=1 assertion passed, since i=0 makes `64 + stride*i` independent of the stride. (c) The **dropped-outer-offset-word mutant IS killable at N=0** (32 bytes vs 64) — it and the base-shift mutant are COMPLEMENTARY, which is why both are run. A corpus that is N=0-only, or N<=1-only, would silently miss real encoder bugs.

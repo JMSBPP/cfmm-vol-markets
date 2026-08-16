@@ -150,10 +150,10 @@ Filled during roadmap creation (2026-08-16).
 | Requirement | Phase | Status |
 |---|---|---|
 | BYTE-01 | Phase 23 | Pending |
-| BYTE-02 | Phase 23 | Pending |
+| BYTE-02 | Phase 23 | **Partial (23-01)** — the "no check compares jsonb to jsonb" clause is DISCHARGED at compile time and OBSERVED firing (`[GHC-39999] No instance for 'Eq DerivedDoc'`, plus `[GHC-01928]` on a converter). The "a jsonb projection EXISTS" clause needs the schema (23-03) and the failing-comparison exhibit (23-04). |
 | BYTE-03 | Phase 23 | Pending |
 | BYTE-04 | Phase 24 | Pending |
-| BYTE-05 | Phase 23 | Pending |
+| BYTE-05 | Phase 23 | **Pending — NOT satisfied by 23-01.** The requirement is a round-trip *through the database*; 23-01 provisioned and contacted no database. What 23-01 landed is its PRECONDITION: the 7-member corpus with measured behaviour tags, including the `SilentlyCorrupted` `a\101b` that SC-1's own five members cannot produce. Lands at 23-04. |
 | KEY-01 | Phase 25 | Pending |
 | KEY-02 | Phase 25 | Pending |
 | KEY-03 | Phase 25 | Pending |
@@ -170,7 +170,7 @@ Filled during roadmap creation (2026-08-16).
 | STORE-07 | Phase 25 | Pending |
 | STORE-08 | Phase 25 | Pending |
 | DB-01 | Phase 23 | Pending |
-| DB-02 | Phase 23 | Pending |
+| DB-02 | Phase 23 | **Partial (23-01)** — `PGSTORE_DSN`/`STORE_CONFORMANCE` resolve via `lookupEnv` in the `Rig.Manifest` idiom with **zero** credential literals (grep-verified, prose included). Not complete until both are registered in `advertised_overrides` and OBSERVED honoured (23-05); this repo has measured three advertised-and-dead overrides. |
 | DB-03 | Phase 23 | Pending |
 | DB-04 | Phase 23 | Pending |
 | GAMS-01 | Phase 24 | Pending |
