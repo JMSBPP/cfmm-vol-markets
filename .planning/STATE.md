@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
-status: defining-requirements
-stopped_at: Milestone v6.0 started — PROJECT.md updated, research dispatched
+status: roadmap-complete
+stopped_at: "ROADMAP.md written for v6.0 — 6 phases (23-28), 43/43 requirements mapped; awaiting /gsd:plan-phase 23"
 last_updated: "2026-08-16"
-last_activity: "2026-08-16 — v5.0 SHIPPED (19a06f3, PR #9, merged --admin); v6.0 started from issue #25"
+last_activity: "2026-08-16 — v6.0 roadmap created (phases 23-28); GAMS moved ahead of the store, byte-exactness moved into phase 23"
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
+  blocked_phases: 2
 ---
 
 # Project State
@@ -20,26 +21,93 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-19)
 
 **Core value (v4.0):** `VolOrderManagerMod.plk` is a vol-order REGISTRY — `create_order(uint88,uint24,uint16)` (strike/width/skew, selector `0x6501fe94`) validating against the machine-checked `vol_order_is_complete` predicates, assigning a sequential id, storing a packed `VolOrder` word — plus a BEST-EFFORT batch entrypoint running N create_order calls in one tx (invalid tuples skipped, batch never reverts). Built for the rpc_api Haskell `StochasticOrderGen` consumer (PR #9 awaits this surface). Every claim is a CALLED test or an OBSERVED mutation kill; compiling is NOT evidence; the gate is the batch dispatch being CALLED green through FFI-deployed bytecode (**CORRECTED at 19-05** — `PLANK_SKIP` is the rescue queue for entrypoints that do NOT compile, so this module never belonged there; the queue is empty and there was no exit to perform).
-**Current focus:** **MILESTONE v4.0 COMPLETE (2026-07-21).** All five phases (16, 17, 18a, 18b, 19) and all 15 requirements shipped. `VolOrderManagerMod.plk` is a proven vol-order registry: `create_order` and `create_orders` both CALLED green through FFI-deployed bytecode, a 10-application mutation battery with ZERO survivors, an independent-mock sequence differential at tol 0, and a consumer golden fixture from an encoder outside this repo. Next action: tag v4.0 and hand off to peer `mv15a18k`, OR resume v2.0 (`/gsd:plan-phase 10`).
+**Current focus (v6.0):** the **model output store** — a Postgres/JSONB keyed store whose key is
+the shock that produced the output, so an identical shock skips the solve and a re-solve that
+disagrees is caught; and the issue #25 bridge carrying a live Anvil `next` event through the
+GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
+`model/mev_tax_model_one/VOLUME_PATH.md` — consume, do not re-derive.
 
-**Track note:** Fifth milestone — v5.0 is the **rpc_api workstream's** (offchain Haskell, branch `feat/rpc-api`); v6.0 (subgraph, issue #14) queued behind it. v3.0 (VegaAccountMod vault, Phases 12–15) SHIPPED 2026-07-19 (tag `v3.0`). v1.0 (GAMS plumbing, Phases 1–7) PAUSED. v2.0 (vol-oracle differential, Phases 8–11) PAUSED after Phase 9 — VDIFF-05..08 (Phases 10–11) remain pending, NOT part of v4.0. Resuming v2.0 = `/gsd:plan-phase 10`. These phase ranges are separate tracks — never renumbered.
+**Prior focus (v4.0, record):** **MILESTONE v4.0 COMPLETE (2026-07-21).** All five phases (16, 17, 18a, 18b, 19) and all 15 requirements shipped. `VolOrderManagerMod.plk` is a proven vol-order registry: `create_order` and `create_orders` both CALLED green through FFI-deployed bytecode, a 10-application mutation battery with ZERO survivors, an independent-mock sequence differential at tol 0, and a consumer golden fixture from an encoder outside this repo. Next action: tag v4.0 and hand off to peer `mv15a18k`, OR resume v2.0 (`/gsd:plan-phase 10`).
+
+**Track note:** Sixth milestone — **v6.0 is the rpc_api workstream's** (offchain Haskell, branch `feat/rpc-api`), phases 23–28, from issue #25. The **subgraph (issue #14) was renumbered v6.0 → v7.0 on 2026-08-16** and is queued behind this one, on dependency grounds: it needs somewhere to put what it indexes, and v6.0 builds exactly that. v5.0 (VolOrder V2 re-pin + stochastic drivers, phases 20–22) SHIPPED 2026-08-03. v3.0 (VegaAccountMod vault, Phases 12–15) SHIPPED 2026-07-19 (tag `v3.0`). v1.0 (GAMS plumbing, Phases 1–7) PAUSED. v2.0 (vol-oracle differential, Phases 8–11) PAUSED after Phase 9 — VDIFF-05..08 (Phases 10–11) remain pending, NOT part of v4.0. Resuming v2.0 = `/gsd:plan-phase 10`. These phase ranges are separate tracks — never renumbered.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: **23 — Postgres Foundation & the Byte-Exact Schema** (not started)
 Plan: —
-Status: Defining requirements for **milestone v6.0 — Model Output Store + VolumePath Bridge**.
-Six phases approved in brainstorm: (1) Postgres foundation + Haskell client, (2) the keyed
-store, (3) GAMS invocation layer, (4) Anvil read layer, (5) fee splitter, (6) resident loop +
-fixture publication. Phases 1, 2, 3 and 5 need neither a chain nor plank; 4 and 6 are BLOCKED
-on the plank worktree emitting the `next` event. Research dispatched (Haskell Postgres library,
-JSONB schema patterns, content-addressed caching).
-Last activity: 2026-08-16 — Milestone v6.0 started
+Status: **Roadmap COMPLETE for milestone v6.0.** Six phases, numbered **23–28** (v5.0 ended at
+22). All **43** v6.0 requirements mapped to exactly one phase — no orphans, no duplicates.
+Next action: `/gsd:plan-phase 23`.
+
+Last activity: 2026-08-16 — v6.0 roadmap written (`.planning/ROADMAP.md`), traceability filled
+in `.planning/REQUIREMENTS.md`.
+
+### The six phases
+
+| Phase | Name | Reqs | Blocked? |
+|---|---|---|---|
+| 23 | Postgres Foundation & the Byte-Exact Schema | 9 | No |
+| 24 | GAMS Invocation & Toolchain Identity | 7 | No |
+| 25 | The Content Key & Keyed Store | 14 | No |
+| 26 | Shock Assembly — Fee Split & Event Decode | 5 | No |
+| 27 | Anvil Read Layer | 3 | **Yes** — plank must emit `next` (issue #26) |
+| 28 | Resident Loop & Fixture Publication | 5 | **Yes** — inherits 27 |
+
+Execution order 23 → 24 → 25 → 26 → 27 → 28, with **26 parallelizable against 23–25** (zero
+dependencies beyond `base`). **23 → 24 → 25 is a genuine chain.**
+
+### Three changes from the six phases approved in brainstorm
+
+The approved shape was (1) Postgres foundation, (2) keyed store, (3) GAMS invocation, (4) Anvil
+read layer, (5) fee splitter, (6) resident loop. Same six bodies of work; three things moved:
+
+1. **GAMS invocation moved 3rd → 2nd, ahead of the store.** The key contains the GAMS and CONOPT
+   versions (KEY-01), so GAMS-03/GAMS-04 are a *prerequisite* of STORE-01. An emptily-succeeding
+   detector (`"" == ""` — this repo's defect #1, verbatim) poisons every row written before it is
+   fixed, and those rows are indistinguishable afterwards.
+2. **Byte-exactness + `key_scheme` moved into the earliest schema phase (23).** BYTE-01/02/05 and
+   KEY-07 are schema decisions every later phase consumes; an artifact stored only in `jsonb` is
+   unrecoverable as bytes, and a key-formula change without `key_scheme` is a full-table rebuild.
+   Phase 23 is **not plumbing**.
+3. **Fee splitter and Anvil swapped (5th ↔ 4th), and CHAIN-04 pulled out of the Anvil phase into
+   the splitter phase.** The Anvil phase is BLOCKED; the splitter is not. CHAIN-04 is explicitly
+   not blocked — decoding runs against synthetic logs. This makes 23–26 a contiguous chain-free
+   block.
+
+**Unchanged and load-bearing:** the byte-reproduction proof — the milestone's headline falsifiable
+claim — lands at the end of **Phase 25, with no chain and no upstream**. If the plank block
+persists, 23–26 still deliver a complete, verified subsystem.
+
+### Requirement count correction
+
+`REQUIREMENTS.md` said *"39 v6.0 requirements defined"* in both its header and its footer. The
+actual checkbox count is **43** (BYTE 5, KEY 7, STORE 8, DB 4, GAMS 6, FEE 4, CHAIN 4, LOOP 5).
+Corrected in place; nothing was added or dropped to make the arithmetic work.
+
+### Standing rule for every v6.0 success criterion
+
+This project's review history is dominated by **one** defect class: *an assertion that passes
+when its subject is absent* — found six times, each after the previous sweep was declared
+complete (`"" == ""`, numeric zero, a count-preserving rename defeating a count floor, an empty
+ref file, a CI `grep -q` over an empty log, `0x00…00` passing every hex-shape guard), plus a
+seventh (a recorded field derived from the same expression as its own comparison target). v6.0
+hands it five new representations: a content hash, a version string, a subprocess exit code, a
+determinism check, and a DB test that skipped. **Every criterion is stated as something that can
+FAIL** — "X is rejected", "Y aborts when absent", "the mutant Z is OBSERVED caught". "Tests pass"
+is not a criterion; a suite that skips also passes.
+
+### Blocked-work coordination
+
+Phases 27–28 wait on the plank worktree emitting the `next` event (`SELECTOR_NEXT 0xd3827b0b` =
+`next(address,uint160,int24,uint24,uint24)`); it is a stub today, owned by issue #26. Phase 28
+additionally needs the `test/models/mev_tax_model_one/fixtures/` path agreed with the owning
+track **before** planning — it does not exist in this worktree today.
 
 **v5.0 closed:** merged to develop as `19a06f3` (PR #9, 209 commits) on 2026-08-03 with
 `--admin`, bypassing the `gate` check. CI has NEVER validated it; the `haskell` gate job's
-first real execution will be on develop — watch the next develop push. Local evidence at
-merge: `cabal test` 91/91, zero `-Wall` warnings, `forge test` 252/0 (== develop's baseline),
+first real execution will be on develop — and v6.0 adds Postgres as a *second* external
+prerequisite to a job that has not yet survived its first. Local evidence at merge:
+`cabal test` 91/91, zero `-Wall` warnings, `forge test` 252/0 (== develop's baseline),
 `verify-rig.sh`/`verify-import.sh` exit 0. Follow-ups filed: #19 (rig payload asserted by
 nothing), #20 (MixedReadback block unfalsifiable offline).
 

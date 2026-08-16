@@ -145,13 +145,85 @@ exists because three separate layers were measured silently altering them.
 
 ## Traceability
 
-Filled during roadmap creation.
+Filled during roadmap creation (2026-08-16).
 
 | Requirement | Phase | Status |
 |---|---|---|
-| (pending roadmap) | — | Pending |
+| BYTE-01 | Phase 23 | Pending |
+| BYTE-02 | Phase 23 | Pending |
+| BYTE-03 | Phase 23 | Pending |
+| BYTE-04 | Phase 24 | Pending |
+| BYTE-05 | Phase 23 | Pending |
+| KEY-01 | Phase 25 | Pending |
+| KEY-02 | Phase 25 | Pending |
+| KEY-03 | Phase 25 | Pending |
+| KEY-04 | Phase 25 | Pending |
+| KEY-05 | Phase 25 | Pending |
+| KEY-06 | Phase 25 | Pending |
+| KEY-07 | Phase 23 | Pending |
+| STORE-01 | Phase 25 | Pending |
+| STORE-02 | Phase 25 | Pending |
+| STORE-03 | Phase 25 | Pending |
+| STORE-04 | Phase 25 | Pending |
+| STORE-05 | Phase 25 | Pending |
+| STORE-06 | Phase 25 | Pending |
+| STORE-07 | Phase 25 | Pending |
+| STORE-08 | Phase 25 | Pending |
+| DB-01 | Phase 23 | Pending |
+| DB-02 | Phase 23 | Pending |
+| DB-03 | Phase 23 | Pending |
+| DB-04 | Phase 23 | Pending |
+| GAMS-01 | Phase 24 | Pending |
+| GAMS-02 | Phase 24 | Pending |
+| GAMS-03 | Phase 24 | Pending |
+| GAMS-04 | Phase 24 | Pending |
+| GAMS-05 | Phase 24 | Pending |
+| GAMS-06 | Phase 24 | Pending |
+| FEE-01 | Phase 26 | Pending |
+| FEE-02 | Phase 26 | Pending |
+| FEE-03 | Phase 26 | Pending |
+| FEE-04 | Phase 26 | Pending |
+| CHAIN-01 | Phase 27 | Blocked (upstream `next` event, issue #26) |
+| CHAIN-02 | Phase 27 | Blocked (upstream `next` event, issue #26) |
+| CHAIN-03 | Phase 27 | Blocked (upstream `next` event, issue #26) |
+| CHAIN-04 | Phase 26 | Pending |
+| LOOP-01 | Phase 28 | Blocked (upstream `next` event, issue #26) |
+| LOOP-02 | Phase 28 | Blocked (upstream `next` event, issue #26) |
+| LOOP-03 | Phase 28 | Blocked (upstream `next` event, issue #26) |
+| LOOP-04 | Phase 28 | Blocked (upstream `next` event, issue #26) |
+| LOOP-05 | Phase 28 | Blocked (upstream `next` event, issue #26) |
 
-**Coverage:** 39 v6.0 requirements defined; mapping pending.
+**Coverage:** 43 v6.0 requirements defined; **43/43 mapped** to exactly one phase each — no
+orphans, no duplicates.
+
+**Count correction (2026-08-16):** this file previously stated *"39 v6.0 requirements defined"*
+in both the header and here. The actual checkbox count is **43** — BYTE 5, KEY 7, STORE 8, DB 4,
+GAMS 6, FEE 4, CHAIN 4, LOOP 5. The figure is corrected rather than reconciled by dropping four
+requirements; no requirement was added or removed at roadmap time.
+
+| Phase | Requirements | Count | Blocked? |
+|---|---|---|---|
+| 23 — Postgres Foundation & the Byte-Exact Schema | DB-01..04, BYTE-01, BYTE-02, BYTE-03, BYTE-05, KEY-07 | 9 | No |
+| 24 — GAMS Invocation & Toolchain Identity | GAMS-01..06, BYTE-04 | 7 | No |
+| 25 — The Content Key & Keyed Store | KEY-01..06, STORE-01..08 | 14 | No |
+| 26 — Shock Assembly (Fee Split & Event Decode) | FEE-01..04, CHAIN-04 | 5 | No |
+| 27 — Anvil Read Layer | CHAIN-01, CHAIN-02, CHAIN-03 | 3 | **Yes** — plank worktree must emit `next` (issue #26) |
+| 28 — Resident Loop & Fixture Publication | LOOP-01..05 | 5 | **Yes** — inherits Phase 27 |
+
+**Two ordering corrections applied at roadmap time**, both from research, both changing which
+phase a requirement lands in relative to the six approved in brainstorm:
+
+1. **GAMS-03/GAMS-04 precede STORE-01.** The key contains the GAMS and CONOPT versions
+   (KEY-01), so version detection is a *prerequisite* of the store's first production write, not
+   a later phase. The GAMS phase therefore sits at position 2, ahead of the store.
+2. **BYTE-01/02/05 and KEY-07 land in the earliest schema phase (23), not with the store.**
+   They are schema decisions — `bytea` authoritative, `jsonb` derived, the `Binary` newtype, and
+   `key_scheme` inside the unique constraint — that every later phase consumes and each is
+   expensive to retrofit.
+
+Additionally, **CHAIN-04 is mapped to Phase 26, not to the (blocked) Anvil phase**: decoding is
+exercised against synthetic logs, so it is buildable with no chain and no upstream. Only
+CHAIN-01/02/03 are blocked.
 
 ---
-*Requirements defined: 2026-08-16*
+*Requirements defined: 2026-08-16 · Traceability filled: 2026-08-16*
