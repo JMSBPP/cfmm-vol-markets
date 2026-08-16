@@ -786,10 +786,52 @@ consume it and every decision here is expensive to retrofit.
   3. Migrations are applied by an explicit command, run twice from a **completely empty** database (which `git clean -ffdx` makes CI's normal case) and concurrently by two migrators with only one applying; a **deliberately corrupted checksum makes the command exit NON-ZERO** — observed, because `postgresql-migration` returns the error and still exits 0 (DB-01).
   4. A row written under a superseded `key_scheme` is OBSERVED to be **orphaned** — never returned by a lookup under the current scheme, never silently matched — proving the unique constraint is `(model, key_scheme, key)` and that a future key-formula change is additive rather than corrupting (KEY-07).
   5. `cabal test` passes with **no database present** and the store checks still discriminate: with `CFMM_REQUIRE_DB=1` and no database reachable the suite is **RED**, naming the missing prerequisite; a sentinel store deliberately wired wrong is caught; the law **SET** (not a floor — "a floor of thirty is satisfied by thirty pins of which one has been swapped") fails when a law is renamed away; a count floor on executed store checks fails on skip-inflation; and `PGSTORE_DSN`/`STORE_CONFORMANCE` resolve from the environment with no credential in a tracked file, each registered in `advertised_overrides` with the consumer proven to fail loudly naming the path (DB-02, DB-03, DB-04).
-**Plans**: TBD
+**Plans**: 5 plans (5 waves — a genuine serial chain: every plan but the first edits
+`offchain/test/Main.hs`, and each consumes the previous plan's artifact)
 
 Plans:
-- [ ] 23-01: TBD
+- [ ] 23-01-PLAN.md — The store contract: `.cabal` deps, `Store.{Types,Config,Class,Memory}`, the
+  adversarial corpus with its measured behaviour tags, and `DerivedDoc` made uncomparable at the
+  type level (BYTE-02, BYTE-05, DB-02) [wave 1]
+- [ ] 23-02-PLAN.md — `Store.Laws` executing for real against `Store.Memory` inside `cabal test`;
+  the law SET asserted in both directions; the corpus behaviour SET; BYTE-03's two aeson guards
+  (DB-03, BYTE-03, BYTE-05, KEY-07) [wave 2]
+- [ ] 23-03-PLAN.md — The two migration `.sql` files with the `(model, key_scheme, key)`
+  constraint, the pure migration manifest, `Store.Postgres` (the sole `postgresql-simple`
+  importer, `Binary`-only writes, `pg_advisory_lock`, `exitFailure`), and the three
+  `sc3_literal_purge` constants moved in the SAME task (DB-01, KEY-07, BYTE-01..03) [wave 3]
+- [ ] 23-04-PLAN.md — The capture executable + Docker script + the real 606-byte golden bytes;
+  every DB-only guard DRIVEN and recorded in the committed `store-conformance.json`
+  (DB-01, DB-04, BYTE-01, BYTE-02, BYTE-05, KEY-07) [wave 4]
+- [ ] 23-05-PLAN.md — Ten Tier-C checks making the artifact load-bearing, the computed freshness
+  oracle, two new `advertised_overrides` probes, the fifth swept artifact and the re-MEASURED
+  sentinel floors (DB-02, DB-03, DB-04, BYTE-01, BYTE-02, BYTE-05, KEY-07) [wave 5]
+
+**Three planning-time corrections to the criteria above, from `23-RESEARCH.md`'s measurements.
+These are deviations of record, not drift:**
+
+1. **SC-1's corpus is inadequate and is EXTENDED.** MEASURED on PG 18.4: of the five members SC-1
+   names, `0x00`/`0xFF`/invalid UTF-8 raise a LOUD `SqlError` (a shape indistinguishable from a
+   dead connection) and CRLF/trailing-newline **round-trip correctly through the broken path** and
+   prove nothing. The only input that produces the failure the requirement is about — a wrong
+   value returned with no complaint — is `a\101b`: 6 bytes in, 3 bytes out, no error. It is added
+   to the corpus, and the assertion is on **length and digest**, never on "an exception was thrown".
+2. **SC-3's concurrency criterion is not delivered by the library.** `postgresql-migration`
+   0.2.1.8 contains **no advisory lock** (source-read: `checkScript` is a bare `SELECT`, zero
+   `advisory` hits). It is implemented as `pg_advisory_lock(872304)` in `Store.Postgres`.
+3. **SC-5's `CFMM_REQUIRE_DB=1` mechanism is REPLACED.** It fails open — a drifted CI `env:` block
+   silently restores skip-mode, which is `RIG_MANIFEST` advertised-and-dead one layer up. It is
+   RELOCATED to the capture script (where it means "refuse to emit an artifact at all"), and
+   `cabal test`'s discrimination comes instead from a structural guarantee that no check opens a
+   socket, `store_laws` against `Store.Memory`, the law SET asserted in BOTH directions, and a
+   **computed** freshness oracle that recomputes the migration digests from the repo's own `.sql`
+   files. The other SC-5 clauses are adopted unchanged.
+
+**Also of record:** adding the first `.sql` file under `offchain/` reddens `sc3_literal_purge`
+immediately (`purge_file_floor = 36` against exactly 36 scanned files, zero slack; the extension
+census is exactly the five present types). Plan 23-03 moves all three constants in the same task
+as the migrations. And `.github/` belongs to the CI track — no CI change is needed, because under
+the three-tier decision nothing in `cabal test` touches a database.
 
 ### Phase 24: GAMS Invocation & Toolchain Identity
 **Goal**: The prover runs as a controlled subprocess whose success is decided by evidence rather
