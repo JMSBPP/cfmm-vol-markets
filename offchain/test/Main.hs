@@ -7326,6 +7326,8 @@ gams_version_parser_rejects_the_garbage_battery =
 gams_no_fallback_path :: [FilePath]
 gams_no_fallback_path =
   [ "offchain/lib/Gams/Argv.hs"
+  , "offchain/lib/Gams/Artifact.hs"
+  , "offchain/lib/Gams/Env.hs"
   , "offchain/lib/Gams/Exit.hs"
   , "offchain/lib/Gams/Version.hs"
   ]

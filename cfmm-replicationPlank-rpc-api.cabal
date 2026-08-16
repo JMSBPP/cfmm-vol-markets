@@ -96,12 +96,17 @@ library
                     -- (reading the log and the artifact without a locale decoder) and `crypton`
                     -- (sha256) are all already library dependencies of this stanza, so nothing
                     -- new enters the build plan. CONFIRMED, not estimated: at the commit that
-                    -- added these three modules, `cabal build --enable-tests -j all` printed no
-                    -- `Downloading` line and the resolved plan was unchanged.
+                    -- added the first three modules, `cabal build --enable-tests -j all` printed
+                    -- no `Downloading` line and the resolved plan was unchanged. RE-CONFIRMED the
+                    -- same way at 24-02, with Argv, Env and Artifact added: `Downloading` = 0.
+                    -- Gams.Artifact imports Store.Json and NOTHING that parses JSON, which is why
+                    -- the artifact path costs no package either.
                     , Gams.Config
                     , Gams.Version
                     , Gams.Exit
                     , Gams.Argv
+                    , Gams.Env
+                    , Gams.Artifact
 
     -- Modules included in this library but not exported.
     -- other-modules:
