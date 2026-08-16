@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "PHASE 23 COMPLETE (5/5, verified 9/9) — next /gsd:plan-phase 24 (GAMS Invocation & Toolchain Identity)"
+stopped_at: "Completed 24-01-PLAN.md (1/6 in phase 24) — next /gsd:execute-phase 24 (plan 24-02)"
 last_updated: "2026-08-16"
-last_activity: "2026-08-16 — phase 23 executed and verified: 111/111 checks, 0 warnings, suite still DB-free"
+last_activity: "2026-08-16 — 24-01 executed: the pure half of toolchain identity, 117/117 checks, 0 warnings, four firing observations"
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 11
+  completed_plans: 6
 ---
 
 # Project State
@@ -31,6 +31,47 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 **Track note:** Sixth milestone — **v6.0 is the rpc_api workstream's** (offchain Haskell, branch `feat/rpc-api`), phases 23–28, from issue #25. The **subgraph (issue #14) was renumbered v6.0 → v7.0 on 2026-08-16** and is queued behind this one, on dependency grounds: it needs somewhere to put what it indexes, and v6.0 builds exactly that. v5.0 (VolOrder V2 re-pin + stochastic drivers, phases 20–22) SHIPPED 2026-08-03. v3.0 (VegaAccountMod vault, Phases 12–15) SHIPPED 2026-07-19 (tag `v3.0`). v1.0 (GAMS plumbing, Phases 1–7) PAUSED. v2.0 (vol-oracle differential, Phases 8–11) PAUSED after Phase 9 — VDIFF-05..08 (Phases 10–11) remain pending, NOT part of v4.0. Resuming v2.0 = `/gsd:plan-phase 10`. These phase ranges are separate tracks — never renumbered.
 
 ## Current Position
+
+Phase: **24 — GAMS Invocation & Toolchain Identity** — **IN PROGRESS (1/6 plans)**
+Plan: **24-01 COMPLETE.** The PURE half of toolchain identity. **No requirement was marked
+complete** — GAMS-01/03/04 are all held at PARTIAL, because the IO conjuncts (the subprocess
+itself, detection failure ABORTING an invocation) and GAMS-04's Tier-C capture row are not in
+this plan. Phase 23's practice, applied on the first plan rather than the fifth.
+
+Status: **THE EMPTY VERSION IS NOW UNCONSTRUCTIBLE, BEFORE ANY ROW EXISTS.** `Gams.Version`
+withholds both constructors and carries no fallback of any kind; `Gams.Exit.classify_exit` is a
+total function of `ExitCode` alone, so "no decision reads log text" is structural rather than
+asserted. Suite **111/111 → 117/117**, FAIL 0, zero `-Wall` warnings, still DB-free AND GAMS-free.
+
+**FOUR FIRING OBSERVATIONS (five, counting an unplanned one).** The strongest: with the job-name
+rule removed, the REAL exit-0 no-argument help banner was accepted as
+`Right (GamsVersion ("54.1.0","37378ce0"))` — exit 0, non-empty, correctly shaped, wrong subject.
+With the CONOPT marker relaxed, the GAMS-side LINK version was accepted as CONOPT's
+(`Right (ConoptVersion "54.1.0")`). With 7 mapped to `Solved`, an expired licence became a
+successful solve. With `fromMaybe "unknown"` added, the scan named the file AND the line. Every
+source restored **from a saved copy** verified sha256-identical, never by `git checkout`.
+
+**THE PROSE TRAP FIRED FOR REAL, UNPLANNED.** `Gams/Exit.hs` used the phrase "the c-a-t-c-h-all"
+(spelled out) in a haddock comment and the new no-fallback scan REDDENED on it, naming the file
+and the line. The prose moved; the pattern was not relaxed. Eleventh instance on this branch and
+the first where the guard did the catching rather than a plan's self-check.
+
+**BOTH TREE-DERIVED FLOORS RE-MEASURED COLD, in the same commit as the modules that moved them:**
+`purge_file_floor` 48 → **51** and `credential_scan_floor` 56 → **59**, each from
+`find … | wc -l` run at execution time, never by arithmetic. 48 was against exactly 48 scanned
+files — zero slack — so the three new modules would have reddened the scan in the commit that
+created them.
+
+**TWO INHERITED NUMBERS WERE STALE.** The cold baseline was **111/111 at wall 71.8 s**, not the
+97 s carried in this file and in `24-RESEARCH.md`, nor the 66 s in the execution prompt. After:
+117/117 at **87.8 s**. The +16 s is the sentinel harness, which pays every added check ~3250
+times — Tier-B stub checks land inside that multiplier.
+
+Next action: `/gsd:execute-phase 24` (plan 24-02).
+
+Last activity: 2026-08-16 — 24-01 executed (commits `250bb78`, `891d5e2`, `048233e`).
+
+## Phase 23 Closing Position (record)
 
 Phase: **23 — Postgres Foundation & the Byte-Exact Schema** — **COMPLETE (5/5 plans)**
 Plan: **23-05 COMPLETE.** All **nine** phase requirements marked complete for the first time
@@ -67,7 +108,8 @@ new **asserted** `unprobed_overrides` list with a written reason, and the two ha
 measurable (verbatim resolution, differs-from-default) are asserted. `probe_override` was not
 weakened. `STORE_CONFORMANCE` IS registered and was observed firing on three arms.
 
-Next action: `/gsd:plan-phase 24`.
+Next action (at the time): `/gsd:plan-phase 24` — DONE; phase 24 is planned (6 plans) and 24-01
+is executed.
 
 Last activity: 2026-08-16 — 23-05 executed (commits `96736a4`, `90f6c4f`).
 
@@ -174,6 +216,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 23 P03 | 44min | 2 tasks | 6 files |
 | Phase 23 P04 | 33min | 3 tasks | 12 files |
 | Phase 23 P05 | 71min | 2 tasks | 2 files |
+| Phase 24 P01 | 22min | 3 tasks | 5 files |
 | Phase 19 P01 | 6 | 3 tasks | 3 files |
 | Phase 19 P02 | 33 | 3 tasks | 3 files |
 | Phase 19 P03 | 24 | 3 tasks | 1 files |
@@ -200,6 +243,49 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecting v4.0:
+
+**v6.0 (Phase 24) decisions:**
+
+- [Phase 24]: [24-01 DECIDED, from MEASURED M2] **the GAMS version's discriminator is the banner's
+  JOB NAME, not the shape of the version token.** The three real banners — the production run
+  (`volume_path.gms`), the no-argument help banner (`?`, **exit 0**, version present three times,
+  no model run) and the flag (`--version`, exit 6) — differ in exactly one field, and every one of
+  them carries a perfectly well-formed `54.1.0`. So the rule is one equality: the job name must
+  equal the basename of the `.gms` actually invoked. It rejects both wrong-subject banners without
+  a denylist and keeps rejecting the ones nobody has met. A shape-first rule would accept the help
+  banner. OBSERVED: with the equality removed, that banner parses to
+  `Right (GamsVersion ("54.1.0","37378ce0"))`.
+- [Phase 24]: [24-01 DECIDED, from MEASURED M3] **CONOPT is recognised by the SPACED-LETTER form
+  and by scanning every line.** Both decoys carry the token `CONOPT`; only the true line carries
+  `C O N O P T`. Position is refused as evidence because the true line was measured at buffer index
+  38 in the hermetic probe and 47 in the production run. OBSERVED twice: relaxing the marker to the
+  bare token makes the parser reject the TRUE line (its letters are spaced, so it has no bare
+  `CONOPT` token at all — an unplanned finding worth keeping), and making the marker
+  spacing-insensitive makes it accept the GAMS-side link version as `ConoptVersion "54.1.0"`.
+- [Phase 24]: [24-01 DECIDED] **`Unclassified` is a FAILURE and 0 is the only `Solved`, and
+  `gams_code_domain` names the mod-256 IMAGES.** GAMS reports 400/401/402/909 and an exit status is
+  a byte, so a collision argument for the timeout codes made against the unfolded numbers would be
+  about codes no caller ever observes; the domain holds 141/144/145/146. The domain is asserted in
+  BOTH directions — non-membership of 124/137 alone is satisfied by a domain that shrank to nothing.
+- [Phase 24]: [24-01 FINDING, the prose trap caught by a guard rather than by a review] **a haddock
+  comment in `Gams/Exit.hs` reddened the very scan the same commit installed.** The word spelled
+  c-a-t-c-h appeared in a sentence explaining why the fall-through is not success, and the
+  no-fallback pattern matched it, naming the file and the line. The prose moved; the pattern was not
+  relaxed. This is the eleventh instance of prose-inside-a-grep on this branch and the first where
+  the guard did the catching — which is the argument for widening a scan's scope rather than the
+  argument against it.
+- [Phase 24]: [24-01 DECIDED, extending the plan] **the no-fallback scan's file set is asserted
+  against the DIRECTORY, in both directions, with reasoned exemptions.** `Gams/Config.hs` is EXEMPT
+  WITH A WRITTEN REASON (`fromMaybe <default> <$> lookupEnv` IS the `Store.Config` resolver idiom
+  and no version value exists on that path), not omitted. 23-03 measured what a hardcoded list does
+  alone: `Store/Schema.hs` sat unlisted for two commits with nothing red. NOTE the boundary —
+  `aeson_storage_path` still has no such cross-check; `Gams/Artifact.hs` must be added there and
+  plan 24-04 owns it.
+- [Phase 24]: [24-01 MEASURED, correcting two inherited numbers] **the cold `cabal test` baseline
+  was 111/111 at wall 71.8 s**, not the 97 s recorded in this file and in `24-RESEARCH.md` nor the
+  66 s in the execution prompt. Six PURE checks took it to 117/117 at 87.8 s: +16 s, because the
+  sentinel harness re-runs `core_checks` once per (leaf × sentinel) pair and pays every added check
+  roughly 3250 times. Tier-B stub checks spawn subprocesses INSIDE that multiplier.
 
 **v6.0 (Phase 23) decisions:**
 
