@@ -110,6 +110,11 @@ import RealizedVol.Decode
 -- renamed in the library and nowhere else is a set mismatch instead of a silent loss.
 import Store.Laws (law_names, store_laws)
 import Store.Memory (new_memory_store)
+-- The migration directory and the migration manifest. Both are PURE values imported from the
+-- library, so the checks below compare the tree against what the library says the schema is,
+-- rather than against a transcription of it living in this file.
+import Store.Config (migrations_dir)
+import Store.Schema (expected_migrations, identity_constraint_columns, identity_constraint_name)
 import Store.Types (CorpusBehaviour (..), adversarial_corpus, cm_behaviour, cm_name)
 import StochasticOrderGen.Simulate (draw_target_vega)
 import StochasticOrderGen.Types (VegaDraw (..))
@@ -838,19 +843,37 @@ purge_pattern =
 
 -- | The file types the purge SCANS. Kept next to 'purge_known_extensions' so the gap between what
 -- exists and what is scanned is visible in one place.
+--
+-- The SQL entry arrived at 23-03 with @offchain\/migrations\/@, and it is SCANNED rather than
+-- merely declared because SQL is EXECUTED content -- it creates the tables the whole store rests
+-- on. This check's own failure text states the rule: /"Either add it to purge_scanned_extensions
+-- (if code runs from it) or to purge_known_extensions with the reason it is data."/ Free-passing an
+-- executable file type is the worse trade, and it is worse here than it looks: the migration
+-- library applies every file it finds in that directory, with no extension filter at all.
 purge_scanned_extensions :: [String]
-purge_scanned_extensions = [".hs", ".sh"]
+purge_scanned_extensions = [".hs", ".sh", ".sql"]
 
 -- | Every file type that currently exists under @offchain\/@. @.json@, @.md@ and @.txt@ are data
 -- and prose, never executed; @offchain\/spec\/types.md@ deliberately holds a pasted RPC transcript
 -- and redacting it would destroy evidence rather than close a hole. Anything NOT on this list is a
 -- file type nobody has decided about, and an undecided file type must not default to exempt.
 purge_known_extensions :: [String]
-purge_known_extensions = [".hs", ".json", ".md", ".sh", ".txt"]
+purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 
 -- | The scanned-file count at the time this floor was written.
+--
+-- RE-MEASURED at 23-03, cold, and NOT incremented by arithmetic -- which is the only reason the
+-- following is visible: the 36 written here at 23-01 was already STALE. Waves 1 and 2 added five
+-- @.hs@ files, so the scan was at 41 before this commit and the recorded \"zero slack\" had
+-- silently become five. A floor that is inherited rather than re-measured records the tree as it
+-- was on the day someone last thought about it.
+--
+-- 44 = @find offchain \\( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \\) -type f | wc -l@ at
+-- this commit: 35 Haskell, 7 shell, 2 SQL. Measured AFTER every file in the commit was written --
+-- the first attempt at this number was taken before the commit's own new library module existed
+-- and came out one low, which a @>=@ floor accepts in silence.
 purge_file_floor :: Int
-purge_file_floor = 36
+purge_file_floor = 44
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -5804,6 +5827,113 @@ adversarial_corpus_has_a_silently_corrupted_member =
         ("the adversarial corpus has " ++ show (length adversarial_corpus)
           ++ " members and the measured corpus has 7.")
 
+-- | DB-01's ordering half, and the migration surface as a SET IN BOTH DIRECTIONS.
+--
+-- One direction alone is satisfied by a RENAME -- rename the file on disk and drop the old name
+-- from the manifest and \"everything the manifest names exists\" is happy while a file nothing
+-- accounts for is still being executed. So both halves are collected into ONE message, the way
+-- 'expected_store_laws_is_the_law_set' collects its two.
+--
+-- The disk half asserts the directory's WHOLE contents, not just the SQL in it, and that is a
+-- MEASURED decision rather than strictness for its own sake: @postgresql-migration@ 0.2.1.8
+-- resolves a migration directory through @sort \<$\> listDirectory dir@ and applies
+-- @executeMigration@ to EVERY entry, with no extension filter on the path at all
+-- (@Migration.hs:140-158@, source-read). A stray editor backup or a README dropped in there is
+-- read and handed to @execute_@ as SQL. \"Only the migrations are in the migration directory\" is
+-- therefore a real invariant of this schema and not a tidiness rule.
+migration_list_is_ordered_and_gapless :: Check
+migration_list_is_ordered_and_gapless =
+  Check "migration_list_is_ordered_and_gapless" . guarded $ do
+    there   <- doesDirectoryExist migrations_dir
+    on_disk <- if there then sort <$> listDirectory migrations_dir else pure []
+    let versions = map fst expected_migrations
+        names    = map snd expected_migrations
+        absent   = [n | n <- names, n `notElem` on_disk]
+        unlisted = [n | n <- on_disk, n `notElem` names]
+        repeated = [n | n <- nub names, length (filter (== n) names) > 1]
+        complaints =
+          ["the manifest names a migration that is not on disk: " ++ n | n <- absent]
+            ++ ["the migration directory holds a file the manifest does not name: " ++ n
+                 | n <- unlisted]
+            ++ ["the manifest names the same migration file twice: " ++ n | n <- repeated]
+    pure $ do
+      _ <- expect there
+             (migrations_dir ++ " does not exist, so the migration runner would apply NOTHING and"
+               ++ " report success -- the library treats an empty command list as MigrationSuccess."
+               ++ " An absent directory and a fully-migrated database are indistinguishable to"
+               ++ " every caller downstream of it.")
+      _ <- expect (versions == [1 .. length expected_migrations])
+             ("the migration versions are " ++ show versions ++ " and must be "
+               ++ show [1 .. length expected_migrations :: Int] ++ ". They are the ORDER the"
+               ++ " library applies these files in, expressed independently of the filenames it"
+               ++ " sorts by, so a gap means a migration was dropped and a run that skipped it"
+               ++ " still reported success.")
+      _ <- expect (null complaints)
+             (intercalate "\n      " complaints
+               ++ "\n      The migration surface is a SET on both sides. A name the directory does"
+               ++ " not carry is a run that silently applies less than the manifest claims; a file"
+               ++ " the manifest does not name is executed anyway, because the library applies"
+               ++ " EVERY entry in that directory with no extension filter. One direction alone is"
+               ++ " satisfied by a rename.")
+      expect (length expected_migrations >= 2)
+        ("the manifest holds " ++ show (length expected_migrations) ++ " migrations. Two are"
+          ++ " required by this schema -- the keyed store and the byte-fidelity fixture are"
+          ++ " separate tables on purpose -- and a manifest that shrank to one would report the"
+          ++ " remaining one applying cleanly.")
+
+-- | The DDL text the identity constraint must carry, asserted against the FILE.
+--
+-- Written out here once, and it is the only place in this file it appears: the check greps the
+-- migration for it, so a second copy in prose would be a second thing to keep in step for no gain.
+identity_constraint_ddl :: String
+identity_constraint_ddl = "unique (model, key_scheme, key)"
+
+-- | KEY-07's file half: the unique constraint names all THREE columns.
+--
+-- Two subjects, deliberately, because they can drift apart: the Haskell constant that later checks
+-- and the capture read, and the DDL TEXT that Postgres is actually handed. Asserting only the
+-- constant would let @key_scheme@ be dropped from the migration with every Haskell-side check
+-- still green; asserting only the file would let the constant that 23-05's live-catalogue
+-- comparison is built from rot. The live catalogue itself is the third subject and lands at 23-05
+-- -- a DDL file that was never applied is a different failure again.
+--
+-- The migration is resolved through 'expected_migrations' rather than named a second time here, so
+-- a renumbering that the manifest accepts cannot leave this check reading a file that no longer
+-- exists while reporting nothing.
+unique_constraint_names_all_three_columns :: Check
+unique_constraint_names_all_three_columns =
+  Check "unique_constraint_names_all_three_columns" . guarded $
+    case lookup 1 expected_migrations of
+      Nothing ->
+        pure $ expect False
+          ("the migration manifest has no version 1, so the migration that creates the keyed table"
+            ++ " cannot be identified and this check has no subject to read.")
+      Just name -> do
+        let path = migrations_dir </> name
+        present <- doesFileExist path
+        body    <- if present then readFile path else pure ""
+        pure $ do
+          _ <- expect (sort identity_constraint_columns == ["key", "key_scheme", "model"])
+                 ("the identity constraint's declared columns are "
+                   ++ show identity_constraint_columns
+                   ++ " and KEY-07 requires all three of model, key_scheme and key. A two-part key"
+                   ++ " does not orphan on a key-formula change -- MEASURED at 23-01: it serves the"
+                   ++ " superseded scheme's row for a lookup under the new one, and the new"
+                   ++ " scheme's insert vanishes.")
+          _ <- expect present
+                 (path ++ " does not exist, so the DDL half of this check would be reading an"
+                   ++ " empty string and passing on the Haskell constant alone.")
+          _ <- expect (identity_constraint_ddl `isInfixOf` body)
+                 (path ++ " does not contain " ++ show identity_constraint_ddl
+                   ++ ". The Haskell constant above is not the thing Postgres is handed; this is."
+                   ++ " Dropping a column from the DDL while leaving the constant alone is exactly"
+                   ++ " the drift the two subjects exist to catch.")
+          expect (identity_constraint_name `isInfixOf` body)
+            (path ++ " does not name the constraint " ++ show identity_constraint_name
+              ++ ". The insert path relies on that name -- its conflict target is the CONSTRAINT,"
+              ++ " not a column list -- so an unnamed or renamed constraint turns first-writer-wins"
+              ++ " into a runtime error rather than a compile-time one.")
+
 -- | The corpus by NAME, so a deletion or a substitution is a set mismatch rather than arithmetic.
 expected_corpus_members :: [String]
 expected_corpus_members =
@@ -6084,6 +6214,8 @@ core_checks = do
           , expected_store_laws_is_the_law_set
           , store_laws_run_against_the_memory_store
           , adversarial_corpus_has_a_silently_corrupted_member
+          , migration_list_is_ordered_and_gapless
+          , unique_constraint_names_all_three_columns
           , aeson_round_trip_mutations_are_re_measured
           , aeson_is_absent_from_the_storage_path
           , driv01_capture_round_trips
