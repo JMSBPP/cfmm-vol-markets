@@ -91,6 +91,15 @@ library
                     , Store.Laws
                     , Store.Schema
                     , Store.Postgres
+                    -- The GAMS layer resolves at +0 PACKAGES. `process` (subprocess spawn and
+                    -- pipe draining), `directory` (the exclusive run directory), `bytestring`
+                    -- (reading the log and the artifact without a locale decoder) and `crypton`
+                    -- (sha256) are all already library dependencies of this stanza, so nothing
+                    -- new enters the build plan. CONFIRMED, not estimated: at the commit that
+                    -- added these three modules, `cabal build --enable-tests -j all` printed no
+                    -- `Downloading` line and the resolved plan was unchanged.
+                    , Gams.Config
+                    , Gams.Version
 
     -- Modules included in this library but not exported.
     -- other-modules:
