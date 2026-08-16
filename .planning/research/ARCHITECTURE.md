@@ -1,334 +1,846 @@
 # Architecture Research
 
-**Domain:** Plank EVM on-chain module — dynamic-registry + best-effort multicall (VolOrderManagerMod, milestone v4.0)
-**Researched:** 2026-07-19
-**Confidence:** HIGH (all mechanisms transcribed from repo source; only the batch-calldata shape and tuple-array ABI depend on the parallel STACK capability audit, and are flagged not resolved)
+**Domain:** Integrating a Postgres keyed store, a GAMS solver subprocess layer, and a resident event-driven loop into an existing Haskell offchain client (`offchain/lib/`, `hs-web3`, framework-free test suite)
+**Researched:** 2026-08-16
+**Confidence:** HIGH for everything measured in this repo and in the dependency sources; MEDIUM where noted per-claim
+
+> **Read this first.** Two findings below invalidate parts of the milestone brief as written in
+> `.planning/PROJECT.md`. Both were MEASURED, not inferred. See "Anti-Pattern 1" (jsonb destroys
+> the byte-reproduction guarantee) and "Failure propagation" (`runWeb3'`'s `Left` branch is
+> unreachable — the problem is one level worse than the brief states).
 
 ---
 
 ## Standard Architecture
 
-The milestone mirrors the v3.0-proven layering exactly. Nothing here is new *shape*; the two genuinely new elements are (a) a **derived-slot dynamic registry** (the ring's slot-per-index mechanism, minus the wraparound), and (b) a **best-effort batch loop** over calldata.
-
 ### System Overview
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│  src/interfaces/pos_spec/VolOrderManagerInterface.plk                  │
-│  cast-sig-pinned SELECTOR_* strings (create_order 0x6501fe94 + batch)  │
-├──────────────────────────────────────────────────────────────────────┤
-│  src/modules/…/VolOrderManagerMod.plk                   (STATEFUL)     │
-│  ┌────────────┐  ┌──────────────┐  ┌────────────────────────────────┐ │
-│  │ dispatch   │  │ id assignment│  │ batch loop (validate-then-commit│ │
-│  │ shr-224    │  │ orderCount++ │  │  per-call, best-effort skip)    │ │
-│  └─────┬──────┘  └──────┬───────┘  └───────────────┬────────────────┘ │
-│        │                │  sstore/sload ONLY — ZERO arithmetic         │
-├────────┴────────────────┴──────────────────────────┴──────────────────┤
-│  src/lib/… (PURE)                     src/types/pos_spec/VolOrder.plk  │
-│  ┌───────────────────────┐            ┌──────────────────────────────┐│
-│  │ validate_order bounds  │            │ pack_vol_order / unpack       ││
-│  │ (compose is_complete)  │            │ (152-bit packing precedent)   ││
-│  └───────────────────────┘            └──────────────────────────────┘│
-│  v3::storage::array_slot  ── keccak256(base)+index  (slot derivation)  │
-├────────────────────────────────────────────────────────────────────────┤
-│  STORAGE  keccak-derived scalar slot + a keccak-base derived array      │
-│  ┌─────────────────┐   ┌──────────────────────────────────────────────┐│
-│  │ SLOT_ORDER_COUNT│   │ orders[id] @ keccak256(SLOT_ORDERS_BASE)+id   ││
-│  │  (scalar u256)  │   │  one packed VolOrder word per id (128–152 bit) ││
-│  └─────────────────┘   └──────────────────────────────────────────────┘│
-└────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│  EXECUTABLES  offchain/app/                                              │
+│  ┌────────────────┐ ┌──────────────────┐ ┌─────────────────────────────┐ │
+│  │ Main.hs        │ │ CheatSwapProof.hs│ │ VolumePathLoop.hs      NEW  │ │
+│  │ (existing)     │ │ (existing)       │ │ the resident loop           │ │
+│  └────────────────┘ └──────────────────┘ └──────────────┬──────────────┘ │
+├──────────────────────────────────────────────────────────┼───────────────┤
+│  ORCHESTRATION (the only broad exception handler)         ▼               │
+│  ┌────────────────────────────────────────────────────────────────────┐  │
+│  │  Loop.Run          one block per iteration, watermark-driven       │  │
+│  │  Loop.Publish      one file, atomic, raw bytes                     │  │
+│  └───┬──────────────┬──────────────┬───────────────┬──────────────────┘  │
+├──────┼──────────────┼──────────────┼───────────────┼─────────────────────┤
+│  IO EDGES — exactly one module per area touches the outside world        │
+│  ┌───▼─────────┐ ┌──▼───────────┐ ┌▼─────────────┐ ┌▼─────────────────┐  │
+│  │VolumePath   │ │ Gams.Invoke  │ │Store.Postgres│ │ Driver.Capture   │  │
+│  │  .Rpc       │ │ (subprocess) │ │ (SQL only)   │ │ (atomic writes)  │  │
+│  │ (Web3)      │ │              │ │              │ │ EXISTING, extend │  │
+│  └───┬─────────┘ └──┬───────────┘ └┬─────────────┘ └──────────────────┘  │
+├──────┼──────────────┼──────────────┼─────────────────────────────────────┤
+│  PURE CORE — no IO, no chain, no DB, no GAMS. The whole testable surface. │
+│  ┌───▼─────────┐ ┌──▼───────────┐ ┌▼─────────────┐ ┌──────────────────┐  │
+│  │VolumePath   │ │ Gams.Outcome │ │ Store.Logic  │ │ FeeSplit.Split   │  │
+│  │  .Decode    │ │ Gams.Args    │ │ Store.Key    │ │ FeeSplit.Types   │  │
+│  │VolumePath   │ │              │ │ Store.Schema │ │                  │  │
+│  │  .Types     │ │              │ │ Store.Laws   │ │                  │  │
+│  └─────────────┘ └──────────────┘ └──────────────┘ └──────────────────┘  │
+├──────────────────────────────────────────────────────────────────────────┤
+│  STORE IMPLEMENTATIONS behind ONE record-of-functions (Store.Class)       │
+│  ┌──────────────────────┐              ┌──────────────────────────────┐  │
+│  │ Store.Memory (IORef) │              │ Store.Postgres (libpq)       │  │
+│  │ drives cabal test    │              │ drives the capture step only  │ │
+│  └──────────────────────┘              └──────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────┘
+        │                                            │
+        ▼                                            ▼
+  offchain/rig/store-conformance.json      test/models/mev_tax_model_one/
+  (committed evidence, read by cabal test)   fixtures/volume_path.json
+                                             (OTHER workstream's tree)
 ```
 
 ### Component Responsibilities
 
-| Component | Responsibility | Precedent it mirrors |
-|-----------|----------------|----------------------|
-| `VolOrderManagerInterface.plk` | cast-sig-pinned selector strings, shared by module dispatch + Solidity test ABI | `VegaAccountInterface.plk` |
-| `VolOrderManagerMod.plk` | dispatch, `orderCount` id assignment, sstore at derived slot, batch loop, best-effort skip — **no arithmetic, no pricing** | `VegaAccountMod.plk` (module) + `RealizedVolatilityMod.plk` (ring writes) |
-| `validate_order` (new pure lib) | bounds check composed from the existing `*_is_complete` fns; explicit zero-width revert | `vol_order_is_complete` in `VolOrder.plk` |
-| `VolOrder.plk` type | `pack_vol_order`/`unpack_vol_order`; the packed word stored per id | already exists (KEPT type) |
-| `v3::storage::array_slot` | `keccak256(base)+index` slot derivation | already exists (used by the ring) |
+| Component | Responsibility | Implementation |
+|-----------|----------------|----------------|
+| `Store.Class` | The store as a record of `IO` functions; the seam both implementations satisfy | Record-of-functions, **not** a typeclass |
+| `Store.Logic` | Cache-hit / re-solve / mismatch decision; byte-equality verdict | Pure, over what the store returned |
+| `Store.Key` | `H(seven inputs ‖ gamsVer ‖ conoptVer)` | Pure; takes version **strings** as arguments |
+| `Store.Postgres` | SQL. Nothing else. Makes no decision | Only module importing `postgresql-simple` |
+| `Store.Memory` | Reference implementation; the suite's store | `IORef (Map Digest StoredRun)` |
+| `Store.Laws` | The store contract as a shared, executable list | Consumed by BOTH tiers — never transcribed |
+| `Gams.Invoke` | Spawn, collect `(ExitCode, rawBytes)`. Classifies nothing | `readProcessWithExitCode` |
+| `Gams.Outcome` | Exit-code → verdict. Never reads log text | Pure |
+| `FeeSplit.Split` | Closed-form `(φ_X, φ_M)` + feasibility predicate | Pure, base-only |
+| `VolumePath.Rpc` | Block-pinned pool reads; `next` log fetch | The one `Web3` edge |
+| `Loop.Run` | One block per iteration; watermark; shutdown | The one broad exception handler |
+| `Loop.Publish` | One file into another track's tree, atomically, as raw bytes | Delegates to `Driver.Capture` |
 
 ---
 
-## The slot-per-index mechanism (transcribed from actual source)
+## Recommended Project Structure
 
-**Quality-gate item.** The registry stores one order per derived slot using the *exact* helper the RealizedVolatility ring uses. The helper is `array_slot`, from `lib/plankified-univ3/plank/lib/storage.plk:230-235`:
+### Does `{Types,Encoding,Decode,Rpc}` fit a DB-backed area? No — and it does not need to.
 
-```plank
-const array_slot = fn (base_slot: u256, index: u256) u256 {
-    // keccak256(base_slot) + index
-    let buf = @malloc_uninit(32);
-    @mstore32(buf, base_slot);
-    @evm_keccak256(buf, 32) + index
-};
+That template is not actually the repo's convention. Measured across `offchain/lib/`:
+
+| Area | Modules present |
+|------|-----------------|
+| `VolOrder` | Types, Encoding, Decode, Report, Rpc |
+| `PriceSetter` | Encoding, Decode, Report, Rpc (no Types) |
+| `StochasticPriceGen` | Types, **Simulate**, Report, Rpc |
+| `CheatSwap` | Types, Encoding, Rpc (no Decode) |
+| `RealizedVol` | Decode (only) |
+| `Rig` | **Manifest** (only) |
+| `Driver` | **Capture**, **Seed** |
+
+`Rig.Manifest` and `Driver.Capture` — the two closest analogues to the new work (config resolution,
+artifact writing) — already use role-named modules and neither resembles the four-module template.
+
+**The real invariant, and the one to preserve: one directory per concern, module names name the
+ROLE, and exactly ONE module per area touches the outside world.** In every existing area that
+module is `Rpc`. In the new areas it is `Postgres`, `Invoke`, `Rpc`, and `Publish` respectively.
+
+### New modules
+
+```
+offchain/lib/
+├── Store/                       # phases 1-2
+│   ├── Types.hs        NEW  PURE  StoredRun, RunLogEntry, Retention, Decision
+│   ├── Key.hs          NEW  PURE  store_key :: ShockInputs -> Toolchain -> Digest
+│   ├── Logic.hs        NEW  PURE  decide, verify_bytes  <- phase 2's real content
+│   ├── Schema.hs       NEW  PURE  [Migration] as ordered (version, name, sql) values
+│   ├── Class.hs        NEW  IO    the Store record-of-functions (the seam)
+│   ├── Laws.hs         NEW  IO    store_laws :: [(String, Store -> IO (Either String ()))]
+│   ├── Memory.hs       NEW  IO    IORef-backed Store
+│   ├── Config.hs       NEW  IO    PGSTORE_DSN resolution, Rig.Manifest idiom
+│   └── Postgres.hs     NEW  IO    the ONLY postgresql-simple importer
+├── Gams/                        # phase 3
+│   ├── Args.hs         NEW  PURE  render_overrides -> ["--sqrtPriceX96=...", ...]
+│   ├── Outcome.hs      NEW  PURE  classify :: ExitCode -> Maybe ByteString -> Outcome
+│   ├── Version.hs      NEW  IO+PURE  toolchain probe + its parser (exported separately)
+│   └── Invoke.hs       NEW  IO    readProcessWithExitCode
+├── FeeSplit/                    # phase 5 — zero dependencies beyond base
+│   ├── Types.hs        NEW  PURE
+│   └── Split.hs        NEW  PURE  feasible, split
+├── VolumePath/                  # phase 4 (split: Types+Decode unblocked, Rpc blocked)
+│   ├── Types.hs        NEW  PURE  ShockInputs — the seven, VOLUME_PATH.md §2
+│   ├── Decode.hs       NEW  PURE  the `next` event; RealizedVol.Decode idiom
+│   └── Rpc.hs          NEW  IO    BLOCKED — block-pinned pool reads
+└── Loop/                        # phase 6
+    ├── Types.hs        NEW  PURE  Watermark, IterationOutcome
+    ├── Run.hs          NEW  IO    the resident fold
+    └── Publish.hs      NEW  IO    one path, atomic, raw bytes
 ```
 
-So the slot is `keccak256(base_slot) + index`, where `base_slot` is itself a named-string keccak constant (e.g. `SLOT_TIMEPOINT_BUFFER_BASE = 0xe4a8c01f…` = keccak of `"RealizedVolMod.TimepointBuffer"`). It is a **double keccak** at the base plus a linear offset — `@mstore32` writes the u256 as one big-endian 32-byte word, then `@evm_keccak256(buf,32)` hashes that word.
+### Modified existing files
 
-The ring reads through `load_timepoint` (`src/lib/market_state_measurements/RealizedVolatilityLib.plk:84-86`):
+| File | Change | Why |
+|------|--------|-----|
+| `offchain/lib/Driver/Capture.hs` | **Add** `write_bytes_atomically :: FilePath -> ByteString -> IO ()`; redefine `write_json_atomically` on top of it, preserving the existing `onException` cleanup | Lines 356–360 already own the atomic-write primitive and lines 336–355 already document why. The fixture must be the prover's **raw bytes**, and the current entry point goes through aeson — see Anti-Pattern 1 |
+| `cfmm-replicationPlank-rpc-api.cabal` | Add ~20 `exposed-modules`; add `postgresql-simple` and `unix` to the library `build-depends`; add an `executable volume-path-loop` stanza | Follow the existing comment discipline (lines 107–115) recording *whether a new package enters the build plan* |
+| `offchain/test/Main.hs` | Extend `advertised_overrides` (:3562), `swept_artifacts` (:5019), `core_checks` (:5697); add `expected_store_laws` in the `expected_selector_pins` idiom (:424) | Mandatory — see "Testability" below. Skipping this makes every new falsification vacuous |
+| `.gitignore` | Add `test/models/**/fixtures/.*.tmp` | The atomic rename needs a same-directory sibling |
+| `Makefile` | Add `store-conformance`, `volume-path-loop` targets | Mirrors `compile-gams` / `price-setter-deploy` |
 
-```plank
-const load_timepoint = fn(buffer_base: u256, index: u256) Timepoint {
-      unpack_timepoint(@evm_sload(array_slot(buffer_base, index & TIMEPOINT_INDEX_MASK)))
-};
-```
+### New non-Haskell files
 
-and writes through the same slot in `RealizedVolatilityMod.plk:161`:
+| File | Purpose |
+|------|---------|
+| `offchain/rig/capture-store-conformance.sh` | Stands up Postgres in Docker, runs `Store.Laws` against `Store.Postgres`, emits the committed artifact. `deploy-rig.sh` idiom |
+| `offchain/rig/store-conformance.json` | **Committed evidence.** What `cabal test` asserts over |
+| `offchain/app/StoreConformance.hs` | The capture executable, in the `CheatSwapProof.hs` family |
 
-```plank
-@evm_sstore(array_slot(SLOT_TIMEPOINT_BUFFER_BASE, index_updated.current), pack_timepoint(updated));
-```
+### Structure Rationale
 
-**The critical difference for a registry vs. a ring.** The ring MASKS the index to 16 bits (`& TIMEPOINT_INDEX_MASK`, `& INDEX_MODULO_MASK` in `StorageIndex::next`) so it wraps at 2^16 — the mask is documented as *load-bearing, not defensive* (`StorageIndex.plk:19-34`): without it a write at index 65536 lands at `keccak(base)+65536`, OUTSIDE the ring, while reads masked back to 0 and "the oracle silently rewound to its initialization state on wrap." **The registry must NOT mask** — `orderId` is monotonic (`orderCount` only ever increments, never wraps), so `array_slot(SLOT_ORDERS_BASE, orderId)` walks `keccak(base)+0, +1, +2, …`. Because `keccak(base)` is a pseudo-random 256-bit point, linear offsets up to any realistic `orderCount` never collide with each other or with the scalar slot. **Do not import the ring's mask; that is the one line of the ring mechanism that is wrong for a registry.**
-
-### VolOrder packing (transcribed + summed)
-
-**Quality-gate item.** `pack_vol_order` (`src/types/pos_spec/VolOrder.plk:35-40`) packs FOUR fields:
-
-```plank
-@evm_shl(128, self.rangeWidth.width       & 0xFFFFFF)                 // 24 bits @ 128-151
-| @evm_shl(104, self.rangeWidth.tickSpacing & 0xFFFFFF)               // 24 bits @ 104-127
-| @evm_shl(16,  self.volStrike.vol & 0xFFFFFFFFFFFFFFFFFFFFFF)         // 88 bits @  16-103
-| (self.skew.spread & 0xFFFF)                                         // 16 bits @   0- 15
-```
-
-Width sum: `24 (tickSpacing) + 24 (width) + 88 (vol) + 16 (skew) = 152 bits`. The type header comment already states "It fits on 152 bits." **Packing into ONE 256-bit word: YES**, with 104 bits to spare.
-
-**Design tension to surface (do not silently resolve):** the KEPT `VolOrder` packs **four** fields (152 bits, includes `tickSpacing`), but the peer-confirmed `create_order(uint88,uint24,uint16)` selector `0x6501fe94` supplies **three** — strike (u88) + width (u24) + skew (u16) = **128 bits**, NO `tickSpacing`. Two options, each with a downstream consequence:
-
-- **Store the create_order-native 128-bit subset** (`skew | volStrike | width`, offsets 0/16/104, `tickSpacing` bits 128-151 left zero). Matches exactly what the registry receives; `tickSpacing`/pricing is explicitly OUT of scope this milestone (PROJECT.md line 20). Recommended for the registry.
-- **Store the full 152-bit `VolOrder`** — requires a `tickSpacing` source, and `vol_range_width_is_complete` *requires* `tickSpacing ∈ (0, 0xc8]`, so a defaulted 0 would fail the existing validator. This couples the registry to pricing bounds it should not own.
-
-Recommendation: **store the 128-bit subset**, mirror `pack_vol_order`'s offsets for the three shared fields (16/104 unchanged), and add a test-side `VolOrderDecoder` per the `TimepointDecoder` precedent. Flag the 152-vs-128 divergence in the plan so the roadmapper decides whether `tickSpacing` re-enters when pricing lands.
+- **`Store/Class.hs` is a record-of-functions, not a typeclass.** The codebase defines **zero**
+  typeclasses of its own across all 26 library modules. A record can be constructed at runtime,
+  swapped per-check, and partially overridden (a store whose `store_put` fails on the third call is
+  one line) with no newtype-and-instance ceremony.
+- **`Store/Logic.hs` separate from `Store/Postgres.hs`** is what makes phase 2 "mostly pure over an
+  interface" true rather than aspirational. `Postgres.hs` answers *what rows exist*; `Logic.hs`
+  decides *what that means*.
+- **`Store/Key.hs` takes version strings as arguments**, so it does not import `Gams/Version.hs`.
+  This breaks what would otherwise be a phase 2 → phase 3 dependency (the key needs GAMS and CONOPT
+  versions) and makes the key testable against literal strings.
+- **`VolumePath/Types.hs` holds `ShockInputs`** because the shock is what the Anvil layer produces,
+  the store keys, and GAMS consumes. It is pure data transcribed from `VOLUME_PATH.md` §2 and is
+  **not** blocked on the upstream event.
 
 ---
 
-## Layer split (the v3.0 zero-math-in-module rule)
+## Architectural Patterns
 
-The rule that made v3.0 cheap to prove: **the module holds ZERO arithmetic** (`VegaAccountMod.plk:39` — "ALL issuance math routes through the lib"). Applied here:
+### Pattern 1: The store as a record-of-functions with a shared law list
 
-| Concern | Layer | Rationale |
-|---------|-------|-----------|
-| `validate_order` bounds (strike>0, width∈(0,0xffffff], skew∈(0,0xffff)), zero-width revert | **pure lib** (`src/lib/pos_spec/VolOrderManagerLib.plk`, new) | Composes the existing `tick_volatility_is_complete` / `spread_tick_assimetry_is_complete` and a **reduced** width check (NOT `vol_range_width_is_complete`, which needs `tickSpacing`). Independently fuzz-testable with no deploy. |
-| `pack_vol_order` / `unpack_vol_order` | **type** (`VolOrder.plk`, exists) | Already the packing precedent. |
-| Slot derivation `array_slot(base, id)` | **pure lib** (`v3::storage`, exists) | Reuse verbatim — no new slot math in the module. |
-| `orders[id] = packed`, `orderCount++`, id assignment, batch loop, best-effort skip | **module** | Only `sstore`/`sload`/dispatch, exactly like the ring's write path and the vault's accumulators. |
+**What:** One `Store` value; two constructors; one executable law list both are held to.
+**When:** Whenever an implementation needs a service the test suite must not require.
+**Trade-offs:** Costs one indirection. Buys a suite that never opens a socket, and makes it
+*structurally impossible* for the in-memory and Postgres contracts to drift.
 
-**What made v3.0 cheap to prove and must be preserved:** every stored field has a reader (module-not-a-black-box), the module reverts through lib guards (the guard's revert "comes free"), and the differential asserts against a Solidity reference mock at tolerance 0. `validate_order` living in a pure lib means the bounds battery is a pure-function fuzz with no FFI deploy — the fastest surface to redden.
+```haskell
+-- offchain/lib/Store/Class.hs
+data Store = Store
+  { store_lookup     :: Digest -> IO (Maybe StoredRun)
+  , store_put        :: StoredRun -> RunLogEntry -> Watermark -> IO ()  -- ONE transaction
+  , store_pin        :: Digest -> Retention -> IO ()
+  , store_reset      :: IO Int          -- returns rows removed; pinned rows survive
+  , store_log_append :: RunLogEntry -> IO ()
+  , store_watermark  :: IO (Maybe Watermark)
+  }
 
-**Bounds precedents (already in the type layer, ready to compose):**
-- `tick_volatility_is_complete` — `self.vol > 0` (strike must be nonzero).
-- `spread_tick_assimetry_is_complete` — `spread > 0 & spread < 0xffff` (skew bounds).
-- `vol_range_width_is_complete` — `width>0 & width<=0xffffff & tickSpacing>0 & tickSpacing<=0xc8`. The registry needs only the **width** half of this (the `tickSpacing` half depends on data create_order does not carry), so `validate_order` calls a *reduced* width check plus the explicit zero-width revert PROJECT.md line 20 mandates.
-
----
-
-## Storage layout for the dynamic registry
-
-```
-SLOT_ORDER_COUNT   = keccak256("VolOrderManagerMod.orderCount")   // scalar u256, next id
-SLOT_ORDERS_BASE   = keccak256("VolOrderManagerMod.orders")       // array base (a keccak-of-string const)
-
-orders[id]  @  array_slot(SLOT_ORDERS_BASE, id) = keccak256(SLOT_ORDERS_BASE) + id
-            holds ONE packed VolOrder word:
-              bits  0- 15  skew        (u16)
-              bits 16-103  volStrike   (u88)
-              bits104-127  width       (u24)          } create_order supplies these three
-              bits128-151  tickSpacing (u24)  ← zero this milestone (deferred with pricing)
-```
-
-The scalar slot (`SLOT_ORDER_COUNT`) follows the `VegaAccountMod` precedent verbatim (`VegaAccountMod.plk:11-17`): a keccak-of-named-string constant holding a plain u256, **preimage string restated test-side** so `vm.load` addresses are computable in Solidity. The derived array base is the same construction, consumed through `array_slot`.
-
----
-
-## Best-effort multicall — the semantics that make it provable
-
-PROJECT.md line 21: *"failed orders are skipped without reverting the batch, per-call success/order-id results returned; a failed call leaves NO partial state, successful calls persist."*
-
-**Critical architectural decision: validate-BEFORE-commit, not write-then-rollback.** A single Plank call frame has no sub-call try/catch to roll back one order's writes. The way to guarantee "a failed call leaves NO partial state" cheaply is to **validate each order's bounds first, and only `sstore`+`orderCount++` if it passes**. A failing order never touches storage, so "no partial state" is true by construction — no rollback machinery, no self-`CALL`. This mirrors the vault's guard-then-write ordering (`VegaAccountMod.plk`: guards fire *before* the three accumulator writes) and is the reason it stayed cheap to prove.
-
-Per-call result: accumulate a `(success, orderId)` array in memory and ABI-return it. Consumer contract (rpc_api track `mv15a18k`) has confirmed the create_order selector but the **return shape and batch-size bound are still open** (PROJECT.md line 25) — requirements assume `(success, orderId)` pairs until the peer answers.
-
----
-
-## Batch entrypoint — calldata layout options (BOTH presented; capability dependency stated, not resolved)
-
-**Quality-gate item.** Which of these is buildable depends on the STACK capability audit running in parallel (PROJECT.md line 22 names dynamic-array ABI decoding as *"the milestone's main technical risk"* — every existing module selector takes fixed words). Present both; the roadmapper resolves after STACK reports.
-
-### Option A — head-count-then-tuples (dynamic array)
-
-Signature candidates: `create_orders(uint256 count, bytes packed)` **or** `create_orders((uint88,uint24,uint16)[])`.
-
-Calldata (standard ABI dynamic): `selector | offset-word | length-word | element[0] | element[1] | …`. Plank must: read the offset word, follow it to the length word, loop `length` times reading `32*i` strides.
-
-- **Pros:** unbounded N (up to gas/calldata limit); idiomatic ABI; a Solidity/`cast`/Haskell client encodes it natively.
-- **Cons:** Plank calldata decoding of a *dynamic* array is unproven in this codebase — genuinely new ground. The **`(uint88,uint24,uint16)[]` tuple-array encoding in particular may exceed what Plank-side decoding supports** (a tuple array adds head/tail indirection on top of the length prefix). **Flag, do not resolve** — pending STACK.
-
-### Option B — fixed-max-with-count
-
-Signature: `create_orders(uint256 count, uint256[N] packedOrders)` with a compile-time `N` (e.g. 8 or 16), `count ≤ N` valid entries, each entry a pre-packed 128-bit word.
-
-Calldata: `selector | count | word[0] | … | word[N-1]` — **all fixed offsets, no indirection.** Plank reads `@evm_calldataload(4 + 32*i)` in a bounded loop, exactly the fixed-word access every existing selector already uses (`RealizedVolatilityMod.plk` run block, `VegaAccountMod.plk` run block).
-
-- **Pros:** decodable with the calldata primitives already proven in-repo; no dynamic-offset arithmetic; caps gas by construction (bounds the batch-size the consumer asked about).
-- **Cons:** wastes calldata for partial batches; hard N ceiling; the client must pre-pack each order into a word (moves packing off-chain, or requires a 3-arg fixed tuple `(uint88,uint24,uint16)[N]`).
-
-**Dependency statement (unresolved):** if the STACK audit finds Plank cannot decode a dynamic array / tuple array, Option B is the fallback and the peer's batch-size bound becomes the compile-time `N`. If dynamic decoding is supported, Option A with `create_orders(uint256,bytes)` (client packs, Plank slices fixed 16-byte strides out of `bytes`) is the middle path — dynamic length, but each element is fixed-width so no per-element tuple indirection. The `(uint88,uint24,uint16)[]` fully-typed variant is the highest-risk and should not be assumed buildable. **This is the milestone's main technical risk (PROJECT.md line 22) and is deliberately left for STACK to resolve.**
-
----
-
-## Test-side architecture
-
-### Reference mock (mirror the registry)
-
-A trivially-simple Solidity mirror: a `mapping(uint256 => VolOrder)` (or a growable array) + `uint256 count`, plus the **same** `validate_order` bounds re-expressed in Solidity. Precedent: `IssuanceRefMock` behind `VegaAccountE2EDiffTest` — "three uint256 accumulators… A mirror with any arithmetic of its OWN would be a second implementation to distrust." The registry mirror does no math beyond bounds checks and id increment.
-
-### Driver pattern (after-every-write, from v2.0/v3.0)
-
-From `VegaAccount.e2e.t.sol`: the assertion lives **INSIDE** the driver helper (`_depositBoth`/`_setPriceBoth`) so "after every write cannot be forgotten at a call site, and the driver aborts at the EARLIEST write a mutant can diverge." For the registry: a `_createOrderBoth(strike,width,skew)` helper that calls the module, updates the mirror, and asserts `orderCount` + the stored packed word + the returned id all match — every call, tolerance 0. For the batch: a `_batchBoth(orders[])` that runs the same sequence one-at-a-time in the mirror (skipping invalid) and asserts the surviving set + count match the module's best-effort result.
-
-### `vm.load` raw-slot assertions for DERIVED (not constant) slots
-
-The vault raw-loads its four **constant** scalar slots. For the registry's **derived** slots the test computes the same double-keccak the module does:
-
-```solidity
-bytes32 SLOT_ORDERS_BASE = keccak256("VolOrderManagerMod.orders"); // restate the preimage
-uint256 slot = uint256(keccak256(abi.encode(SLOT_ORDERS_BASE))) + orderId; // == array_slot(base, id)
-uint256 word = uint256(vm.load(address(mod), bytes32(slot)));
-VolOrder memory got = VolOrderDecoder.decode(word); // TimepointDecoder-style mirror
+-- offchain/lib/Store/Laws.hs -- consumed by BOTH tiers. Never transcribed.
+store_laws :: [(String, Store -> IO (Either String ()))]
+store_laws =
+  [ ("cache_hit_elides_the_solve",        law_cache_hit)
+  , ("resolve_reproduces_bytes",          law_byte_identity)
+  , ("byte_mismatch_is_loud",             law_mismatch_refused)
+  , ("pin_survives_reset",                law_pin_retained)
+  , ("reset_removes_unpinned",            law_reset_scope)
+  , ("run_log_is_append_only",            law_log_append_only)
+  , ("same_key_twice_is_two_log_rows",    law_provenance_distinct)
+  , ("watermark_advances_with_the_write", law_watermark_atomic)
+  ]
 ```
 
-Note the **double keccak**: `array_slot` hashes the base *word*, so the test side must `keccak256(abi.encode(SLOT_ORDERS_BASE))` (hash the 32-byte base again), then add `orderId`. This is exactly `@mstore32(buf, base); @evm_keccak256(buf,32)+index`. The `VolOrderDecoder` library restates `VolOrder.plk`'s offsets by hand (offsets 0/16/104[/128]) — the `TimepointDecoder` precedent: *"THE single test-side unpacker… The offsets are mirrored, not shared… If Timepoint.plk moves a field, this file must move with it — and the differential is what makes that failure loud."* The existing `test/types/pos_spec/VolOrder.t.sol` already carries `packVolOrder`/`unpackVolOrder` at these exact offsets — promote them into a shared `VolOrderDecoder` rather than a fourth copy.
+The test suite runs `store_laws` against `Store.Memory`. `capture-store-conformance.sh` runs the
+**same list** against `Store.Postgres` and commits the verdicts. A law present in one and absent
+from the other cannot exist. This is the executable form of the rule
+`offchain/test/Main.hs:11-16` states for pins: *a consumption check, not a transcription*.
 
-Complementary reader path: expose `getOrderPacked(uint256 id) -> uint256` (mirror of `getTimepointPacked(uint16)` in `RealizedVolatilityMod.plk:275-278`), so the differential can read through the ABI *and* raw-`vm.load` the same slot — the two must agree, which kills any reader that lies about storage.
+### Pattern 2: The pinned read, recorded from the call and not from intent
 
----
+**What:** Every chain read carries the `DefaultBlock` it was **made at**, not the block it should
+have been made at.
+**When:** Every read in `VolumePath.Rpc` and every read in the loop.
+**Trade-offs:** One extra field per read record. Buys the only detection that exists for a read
+that quietly slid to `Latest`.
 
-## Suggested build order
+This already exists and must be copied, not reinvented — `VolOrder.Rpc.PackedReadback`
+(`offchain/lib/VolOrder/Rpc.hs:205-221`) plus `readback_height`
+(`offchain/app/Main.hs:302-310`), which returns `Nothing` for any unpinned tag rather than
+inventing a height. The haddock at `VolOrder/Rpc.hs:200-204` states the reason: on a
+single-writer local node `Latest` returns byte-identical results, so the slide is invisible in
+every other recorded value.
 
-Each step is independently testable; the arrow marks the dependency.
+```haskell
+data PinnedRead a = PinnedRead
+  { pr_block :: DefaultBlock   -- where the call WENT
+  , pr_value :: a
+  }
+```
 
-1. **Type packing** — `VolOrder.plk` pack/unpack (EXISTS; only decide 128-bit subset vs 152-bit full). *Test:* `VolOrder.t.sol` already round-trips pack/unpack. Independently testable, no module.
-2. **Lib validation** — `validate_order` composing `tick_volatility_is_complete` + a reduced width check + `spread_tick_assimetry_is_complete`, with the explicit zero-width revert. *Test:* pure fuzz, no FFI deploy. Independently testable.
-3. **Interface** — `VolOrderManagerInterface.plk` with ALL selectors: `create_order` (`0x6501fe94`, cast-sig re-verified), readers (`getOrderPacked`, `orderCount`), and the batch selector (shape pending STACK — see below). *Test:* `cast sig` each string.
-4. **Module single-call** — `create_order`: dispatch, validate via lib, pack via type, `orderCount++`, `sstore` at `array_slot(base,id)`. *Test:* selector dispatch + raw-`vm.load` at the derived slot + reader round-trip.
-5. **Module batch** — best-effort loop, validate-before-commit, per-call `(success,orderId)` return. Depends on 4 and on the STACK calldata decision. *Test:* mixed valid/invalid batch, assert survivors persist, invalids leave no state.
-6. **Differential + battery** — reference-mock mirror + after-every-write driver + observed-RED mutation battery, single-call then batch. *Test:* the acceptance surface.
+### Pattern 3: The IO edge that classifies nothing
 
-**Independently testable without the module:** steps 1 (type), 2 (lib) — pure functions, fuzzed with no deploy. **Requires FFI deploy:** 4, 5, 6. **Blocked on STACK:** the batch signature string in 3, and step 5's calldata decoding.
+**What:** The subprocess/SQL/RPC module returns raw material; a pure sibling renders the verdict.
+**When:** All four IO edges.
+**Trade-offs:** Two modules where one would do. Buys full test coverage of the decision logic.
+
+```haskell
+-- offchain/lib/Gams/Invoke.hs -- IO. Decides nothing.
+run_prover :: FilePath -> [String] -> FilePath -> IO (ExitCode, Maybe ByteString)
+
+-- offchain/lib/Gams/Outcome.hs -- PURE. Decides everything.
+data Outcome = Solved ByteString | Aborted Int | NoOutput
+classify :: ExitCode -> Maybe ByteString -> Outcome
+classify (ExitFailure n) _         = Aborted n
+classify ExitSuccess     Nothing   = NoOutput   -- exit 0 with no file IS an abort
+classify ExitSuccess     (Just bs) = Solved bs
+```
+
+`classify` is total, pure, and every branch is a `pure_check` in the suite with no GAMS installed.
+
+**Exit-code gating is sound — MEASURED, resolving a contradiction inside this repo.**
+`Makefile` (the `payoff-fixtures` recipe) asserts *"`gams` exits 0 even on compile errors"* and
+greps the `.lst`; `VOLUME_PATH.md` §4 says *"gate on it, never on log text."* Measured at
+GAMS 54.1 with `action=ce` (the prover's mode):
+
+| case | exit |
+|---|---|
+| clean run | `0` |
+| compile error | `2` |
+| `abort$(...)` fires | `3` |
+
+The exit code is faithful. The Makefile comment is not reproducible at this version and action;
+follow `VOLUME_PATH.md`. The one gap it leaves is *exit 0 with no output file* — closed by the
+`NoOutput` branch above, which is an **absence-of-artifact** test, not a log-text test.
+
+### Pattern 4: One solve, one transaction — and the subprocess is outside it
+
+**What:** The result row, the run-log row, and the watermark advance are a single
+`withTransaction`. The GAMS run is not in it.
+**When:** Every loop iteration that solves.
+
+```haskell
+-- Store/Postgres.hs
+store_put run logEntry mark = withTransaction conn $ do
+  _ <- execute conn "insert into model_run (key, raw, doc, ...) values (?,?,?,...)" ...
+  _ <- execute conn "insert into run_log (ts, key, tx_hash, log_index, block) values (?,?,?,?,?)" ...
+  _ <- execute conn "update store_state set last_processed_block = ?" (Only mark)
+  pure ()
+```
+
+`postgresql-simple`'s `withTransaction` (`Transaction.hs:114`, verified in source) rolls back on
+any exception, async included. So a failure anywhere in an iteration leaves the store exactly as
+it was, the watermark unadvanced, and the block re-processed on restart. **Never write the result
+and the log in two transactions** — that is the only way a partial failure can leave the store
+describing a solve that has no provenance row.
+
+A subprocess cannot be rolled back, so the CONOPT run happens *before* the transaction opens. A
+crash in between costs one re-solve. That is the correct trade: the alternative holds a connection
+and a row lock open across a multi-second solve.
 
 ---
 
 ## Data Flow
 
-### create_order (single)
+### The loop's iteration
 
 ```
-create_order(strike,width,skew)  [selector 0x6501fe94]
-    ↓ dispatch (shr-224)
-validate_order(strike,width,skew)          — pure lib, revert on zero-width / out-of-bounds
-    ↓ ok
-pack_vol_order(...)                          — type: one 128-bit word
-    ↓
-id = sload(SLOT_ORDER_COUNT)
-sstore(array_slot(SLOT_ORDERS_BASE, id), packed)
-sstore(SLOT_ORDER_COUNT, id + 1)
-    ↓
-return id
+      ┌── watermark b0 (a row in the store, not an IORef) ─────────────┐
+      │                                                               │
+      ▼                                                               │
+  eth_blockNumber ──► h                                               │
+      │                                                               │
+      │  for b in [b0+1 .. h]      one block per iteration            │
+      ▼                                                               │
+  eth_getLogs {fromBlock=b, toBlock=b, address=emitter, topic0=next}   │
+      │                                                               │
+      ▼  VolumePath.Decode  (PURE)                                     │
+  decoded `next` args                                                  │
+      │                                                               │
+      ▼  VolumePath.Rpc, EVERY read at BlockWithNumber b               │
+  sqrtPriceX96, liquidity, φ_M                                         │
+      │                                                               │
+      ▼  FeeSplit.Split  (PURE)  ── infeasible ──► refuse, log, advance┤
+  (φ_X, φ_M) proven feasible                                          │
+      │                                                               │
+      ▼  Store.Key  (PURE)                                            │
+  digest ──► store_lookup ── hit ──► Store.Logic.decide = ElideSolve ──┤
+      │ miss                                                          │
+      ▼  Gams.Invoke ──► Gams.Outcome  (PURE)                          │
+  Solved rawBytes                                                      │
+      │                                                               │
+      ▼  ONE transaction: result + log row + watermark := b ──────────┘
+      │
+      ▼  Loop.Publish  (raw bytes, atomic rename)
+  test/models/mev_tax_model_one/fixtures/volume_path.json
 ```
 
-### create_orders (batch, best-effort)
+### Key data flows
 
-```
-create_orders(<count-then-tuples | fixed-max>)
-    ↓ decode count + elements  (Option A dynamic | Option B fixed — pending STACK)
-for each element:
-    validate_order(...)  →  FAIL: record (false, 0), CONTINUE  (no sstore, no state)
-                            OK:   pack, id=sload(count), sstore slot, sstore count+1,
-                                  record (true, id)
-    ↓
-ABI-return [(success, orderId), …]
-```
+1. **Cache elision is keyed on CONTENT; loop idempotency is keyed on PROVENANCE.** Conflating them
+   is the trap. A second `next` event carrying identical shock values produces the identical
+   digest and correctly elides the solve — but it is a genuine second occurrence and gets its own
+   `run_log` row (`UNIQUE (tx_hash, log_index)`). `PROJECT.md` says the log exists "for chronology
+   the content key can't give"; this is that sentence made operational.
+2. **The byte oracle flows through `bytea` and never through `Value`.** `Gams.Invoke` returns
+   `ByteString`; `Store.Key` digests `ByteString`; `Store.Logic.verify_bytes` compares
+   `ByteString`; `Loop.Publish` writes `ByteString`. `Data.Aeson.Value` appears on exactly one
+   path — the queryable `doc jsonb` column — and never on the authoritative one.
 
 ---
 
-## Scaling Considerations
+## Testability: keeping the suite chain-independent AND db-independent
 
-| Scale | Architecture note |
-|-------|-------------------|
-| tens of orders (StochasticOrderGen Poisson batches) | the intended regime; any layout works, gas is dominated by `sstore` (20k/order), not decoding |
-| thousands of orders | monotonic ids never collide; no ring wrap concern; batch gas caps naturally under the block limit — Option B's `N` or Option A's implicit gas ceiling is the real bound |
-| beyond one contract's storage | not a concern for a research registry; sharding is out of scope |
+### What the suite actually is (measured, not assumed)
 
-The only real bottleneck is **calldata decoding cost/complexity of the batch**, which is a correctness/feasibility question (Option A vs B) rather than a throughput one.
+It never opens an RPC — but it is **not** self-contained. `offchain/rig/rig-manifest.json` is
+gitignored (`.gitignore:58`) and 7 of 85 checks hard-require it; the CI job header
+(`.github/workflows/develop-gate.yml:130-155`) records the measurement: 78/85 in a clean checkout.
+So the real property is: **assertions run against captured evidence, never against a live service,
+and an absent subject FAILS.** `sc3_load_succeeds` states it in one sentence
+(`offchain/test/Main.hs:726-728`):
+
+> *Deliberately FAILS rather than skips when the rig is down. […] a suite that goes quietly green
+> because the rig is missing is worse than one that goes red.*
+
+### THE DECISION
+
+**Three tiers. Postgres is never a dependency of `cabal test`. Nothing ever skips.**
+
+| Tier | What | Runs in `cabal test`? | Needs a DB? |
+|------|------|----------------------|-------------|
+| **A — pure** | `Store.Logic`, `Store.Key`, `Store.Schema`, `Gams.Outcome`, `Gams.Args`, `FeeSplit.*`, `VolumePath.Decode`, `Loop` decision fns | Yes, as `pure_check` | No |
+| **B — interface laws** | `store_laws` driven against `Store.Memory` | Yes | No |
+| **C — conformance capture** | The **same** `store_laws` against `Store.Postgres`, out of band; verdicts committed to `offchain/rig/store-conformance.json`; the suite asserts over the artifact | Asserts the artifact only | Only for the capture |
+
+Tier C is the existing `driver-run-capture.json` pattern applied to a database instead of a chain.
+It is the same answer the repo already reached for the chain, and it is the answer for the same
+reason.
+
+### The five anti-vacuity clauses — non-negotiable
+
+This project has a documented history of exactly this failure. Three advertised path overrides were
+measured **advertised-but-dead** (22-03 `RIG_MANIFEST`, 22-04 `RIG_CHEAT_SWAP_PROOF`, 22-07
+`RIG_PINS`), each making every falsification aimed through it come back green. And a thinned pin
+file was measured passing **52/52 with 29 selectors unverified** (`offchain/test/Main.hs:411-414`).
+
+1. **Absent artifact ⇒ FAIL, never skip.** `store_conformance_is_present_and_fresh` in the
+   `rpin05_capture_is_present_and_fresh` idiom.
+2. **A completion flag, not a count.** `sc_complete :: Bool` + `sc_law_count :: Int` in the
+   `dr_complete` / `dr_configured_size` idiom (`Driver/Capture.hs:93-98`), so a truncated
+   conformance run is visible without arithmetic.
+3. **A law SET, not a floor.** `expected_store_laws :: [String]` in the suite, in the
+   `expected_selector_pins` idiom (`offchain/test/Main.hs:424`) — a set, because *"a floor of
+   thirty is satisfied by thirty pins of which one has been swapped."*
+4. **Register the overrides.** `PGSTORE_DSN`, `STORE_CONFORMANCE` and `VOLUME_PATH_FIXTURE` get
+   `OverrideProbe` entries in `advertised_overrides` (`offchain/test/Main.hs:3562`). The probe
+   asserts the resolver returns the override verbatim, differs from the default, **and** that the
+   consumer fails loudly naming the path.
+5. **Register the artifact.** `store-conformance.json` becomes a `MutableArtifact` in
+   `swept_artifacts` (`offchain/test/Main.hs:5019`) so the sentinel harness mutates every leaf and
+   reports any field nothing asserts. Raise `sentinel_pair_floor` and add an
+   `artifact_field_floors` entry deliberately, with the measurement.
+
+### The three alternatives, and where each belongs
+
+| Approach | Verdict |
+|----------|---------|
+| **In-memory implementation** | **ADOPT** as Tier B. The store's laws are properties of the *interface*, not of Postgres. This is where ~90% of phase 2 gets tested. |
+| **Transaction-rollback fixtures** | **ADOPT — but only inside Tier C.** `begin`/`rollback` (verified: `Transaction.hs:182-195`) wrap each law in the capture tool so the conformance run leaves no rows. **REJECT** as a way to make `cabal test` DB-backed: it still needs a live DB and would put a service dependency on the self-hosted `cfmm-build` gate runner. |
+| **testcontainers / `tmp-postgres`** | **REJECT for the suite; ADOPT `docker run` for the capture script.** `tmp-postgres`'s last release is 2019-12-29 and it needs `initdb`/`pg_ctl` on `PATH`. Measured on this machine: only `/usr/bin/psql` exists — client, no server. Docker **is** present. So the capture script does `docker run --rm postgres:18-alpine` with a pinned tag, in the `deploy-rig.sh` idiom. Never from inside `cabal test`. |
+| **"Skip if no DB"** | **FORBIDDEN.** The exact failure class the brief names and `sc3_load_succeeds` rejects. |
+
+---
+
+## Purity Boundaries
+
+**Rule: one named IO edge per area, and the decision is never made inside it.**
+
+| Boundary | Above it (pure, tested with nothing installed) | Below it (IO, exercised only by capture tools) |
+|----------|-----------------------------------------------|-----------------------------------------------|
+| Store | `Logic.decide`, `Logic.verify_bytes`, `Key.store_key`, `Schema.migrations`, `Types` | `Postgres.connect/execute/query` |
+| GAMS | `Outcome.classify`, `Args.render_overrides`, `Version.parse_version` | `Invoke.run_prover`, `Version.probe` |
+| FeeSplit | **all of it** | *(nothing)* |
+| VolumePath | `Decode.decode_next`, `Types` | `Rpc.read_pool_state` |
+| Loop | `next_block`, `Publish.fixture_path`, iteration decision fn | `Run.step`, `Publish.publish` |
+
+**The total non-pure surface is six functions.** Everything else — the whole key computation, the
+whole cache decision, the whole feasibility predicate, the whole event decode, the whole
+exit-code classification, the migration list — is testable in `cabal test` with no chain, no DB
+and no GAMS installed.
+
+Config resolution follows `Rig.Manifest` exactly: mandatory fields, no defaulted fallback,
+`Either String` returned so the caller decides how loudly to fail, and `either fail pure` **at
+startup**. `Rig/Manifest.hs:363-378` is the canonical statement of why (`read` is partial *and*
+lazy, so it throws from wherever the value is first forced — mid-fold, after transactions have
+mined).
+
+---
+
+## The Resident Loop
+
+### Polling, not subscription — and this is FORCED, not preferred
+
+Verified from dependency source:
+
+1. `Network.Ethereum.Api.Eth` exports `newFilter`, `getFilterChanges`, `getLogs`, `newBlockFilter`
+   — and **no `eth_subscribe`**.
+2. `jsonrpc-tinyclient`'s `call` is strictly one `WS.sendTextData` followed by one
+   `WS.receiveData` (`TinyClient.hs:203-205`). It cannot receive unsolicited notifications; a
+   subscription push would be mis-decoded as the response to the next request.
+3. `runWeb3' (WsProvider …)` sends `WS.sendClose` the moment the action returns
+   (`Provider.hs:92`), so a subscription cannot outlive one `runWeb3'` call regardless.
+
+**Use `eth_getLogs` over an explicit closed `[b, b]` range.** Do **not** use
+`newFilter`/`getFilterChanges`: a node-side filter is server state with its own expiry, invisible
+to the artifact, and it returns "changes since last poll" — precisely the un-pinnable,
+un-replayable shape.
+
+### Pinning every read to one block
+
+The loop's unit of work is a **block**, not an event. Every read in an iteration passes
+`BlockWithNumber b` — the log fetch bounded `fromBlock == toBlock == b`, and every `eth_call`
+pinned to the same `b`. `Latest` appears nowhere in `Loop` or `VolumePath.Rpc`. Each read is
+recorded as a `PinnedRead` carrying the block it was made at, rendered through `readback_height`
+so an unpinned tag surfaces as `null` in the artifact rather than as a plausible height.
+
+### Idempotency: two mechanisms, because there are two questions
+
+| Question | Mechanism |
+|----------|-----------|
+| "Have I already *solved* this shock?" | The content key. Identical seven inputs + identical toolchain ⇒ identical digest ⇒ cache hit ⇒ no solve. Replay is free and automatic. |
+| "Have I already *seen* this event?" | The run log, `UNIQUE (tx_hash, log_index)`. Re-processing a block is a no-op on conflict. |
+
+Two distinct `next` events in one block with identical shock values collapse to one key and **must**
+produce two log rows. The content key cannot distinguish them and must not try.
+
+### Backpressure: no queue at all
+
+**The loop is a synchronous fold over a persisted watermark.** One block per iteration; the
+watermark advances in the same transaction as the write.
+
+- Solving slower than block production ⇒ the loop falls behind and `last_processed_block` records
+  exactly how far. A visible, queryable lag instead of a growing heap.
+- Catch-up processes blocks in order without skipping, so no event is ever dropped.
+- Crash recovery is free: restart resumes from the watermark.
+
+**Reject** an in-memory `TQueue`/`IORef` of pending events (invisible on crash, unbounded) and
+"read `Latest` and skip ahead" (drops events silently — the exact failure class this codebase
+keeps rediscovering).
+
+### Clean shutdown
+
+An `IORef Bool` stop-flag set by a `SIGINT`/`SIGTERM` handler (`System.Posix.Signals.installHandler`)
+and checked at the **top** of each iteration — never mid-block. The whole fold sits under `finally`,
+in the idiom of `offchain/app/Main.hs:194`.
+
+Invariant: **a shutdown is only ever observed at a block boundary**, so the watermark is always
+consistent and no iteration is ever half-recorded.
+
+`unix` is a GHC boot package — no new package enters the build plan. Record that in the `.cabal`
+comment, matching the discipline already used for `directory` and `vector` (lines 107–115).
+
+### Interaction with cache elision
+
+A cache hit still: appends a run-log row, advances the watermark, **and re-publishes the fixture**.
+That last one matters — the fixture must reflect the newest *run*, and a run that hit cache is
+still a run. It is also cheap and idempotent (identical bytes, atomic rename).
+
+---
+
+## Failure Propagation
+
+### The measured facts — worse than the brief states
+
+| Fact | Evidence |
+|------|----------|
+| `Web3 = StateT JsonRpcClient IO`, `deriving MonadFail` | `Provider.hs:43-44` |
+| So `fail` = `IO`'s = `throwIO . userError` ⇒ `IOException` | GHC's `MonadFail IO` |
+| `runWeb3'` is `liftIO . try . …` at type `Either Web3Error a` | `Provider.hs:84-86` |
+| **`web3-ethereum` never constructs a `Web3Error`** — 0 occurrences of the string across `src/` | `grep -rc Web3Error` |
+| Real RPC failures throw `JsonRpcException (ParsingException \| CallException)` — a **different** type | `TinyClient.hs:157-161, 216-217` |
+
+**Therefore `runWeb3'`'s `Left` branch is unreachable for this codebase.** The
+`Left web3_error -> putStrLn ("rpc error: " ++ …)` handlers at `offchain/app/Main.hs:235` and
+`offchain/lib/VolOrder/Rpc.hs:279` are dead code. Not only `fail` — *every* real failure, including
+a node error response and a decode failure, arrives as an uncaught exception from anywhere in the
+fold, after transactions may have mined.
+
+### The error model
+
+| Layer | Mechanism |
+|-------|-----------|
+| Pure boundaries (`Store.Logic`, `Store.Config`, `Gams.Outcome`, `FeeSplit`, `VolumePath.Decode`) | **`Either String` / `Either <NamedError>`**, resolved with `either fail pure` at **startup**. The `Rig.Manifest` idiom |
+| `Web3` actions | Leave as-is. `fail` with a message that names the cause, the resolved values, and what was *not* sent — the `CheatSwap.Rpc` guard idiom |
+| Store consistency | **`withTransaction`**, not exception handling |
+| The loop | **`try @SomeException` exactly once, at the iteration boundary.** The only broad catch in the new code |
+
+### `ExceptT` is REJECTED — with the reason
+
+`ExceptT e Web3` cannot help, because it does not catch what actually flies. `fail` throws an
+`IOException` and `remote` throws a `JsonRpcException`; neither becomes a `Left` in an `ExceptT`
+stack. The result is a type that **advertises** total error capture and delivers none — strictly
+worse than plain `IO` plus a documented handler, because it converts a known, documented hazard
+into a false guarantee. That is precisely the advertised-but-dead defect class this suite already
+carries a standing guard against (`every_advertised_override_is_honoured`).
+
+### Why the store stays consistent
+
+`try @SomeException` is at the iteration boundary, and every write in an iteration is inside one
+`withTransaction`. So:
+
+- Exception before the transaction ⇒ nothing written, watermark unmoved, block re-processed.
+- Exception inside it ⇒ rolled back, watermark unmoved, block re-processed.
+- Re-processing a block whose solve had completed hits the content key and elides the re-solve;
+  the log row is deduped by `UNIQUE (tx_hash, log_index)`.
+
+**Every partial failure converges to "the block is processed again," and that is always safe.**
+
+`try @IOException` would be a bug here — `JsonRpcException` is not an `IOException`. Note the suite
+already makes this narrower choice in `guarded` (`offchain/test/Main.hs:385-390`); the loop must not
+copy it.
+
+---
+
+## Publication
+
+### The consumer contract
+
+`test/models/mev_tax_model_one/fixtures/volume_path.json` does **not exist in this worktree** —
+`find test -path "*models*"` returns nothing. The precedent that does exist is
+`test/gamsDiff/fixtures/*.json`, read by `test/gamsDiff/PricingKernelPlank.diff.t.sol:50,63` via
+`vm.readFile` + `vm.parseJsonUintArray`. Same shape, same ownership question.
+
+### The ownership rule: the publisher owns ONE path
+
+- `Loop/Publish.hs` exports one constant (`fixture_path`) and one function. It never enumerates,
+  creates, or removes anything else under `test/`.
+- The path is overridable via `VOLUME_PATH_FIXTURE`, **registered in `advertised_overrides`** —
+  otherwise a forge-side falsification aimed at the fixture is vacuous, three times measured.
+- **The loop never creates the directory.** A missing
+  `test/models/mev_tax_model_one/fixtures/` is a loud failure naming the path and the owning
+  workstream. Creating a directory in another track's tree is how a typo becomes a
+  successfully-published-to-nowhere fixture. (`outside_repo`,
+  `offchain/test/Main.hs:5061-5071`, is the same principle enforced in the other direction.)
+
+### Partial writes are already impossible — reuse, don't reinvent
+
+`Driver.Capture.write_json_atomically` (`offchain/lib/Driver/Capture.hs:356-360`) writes a
+**sibling** temp file then `renameFile`s. Its haddock (lines 336–355) documents why a direct
+`encodeFile` is unsafe (it truncates, then streams a lazily-built ByteString, so a bottom partway
+through leaves the destination truncated) and why the temp file must be a sibling (so the rename
+cannot cross a filesystem and silently degrade to a copy).
+
+**But it goes through aeson, and the fixture must be the prover's bytes.** So:
+
+```haskell
+-- ADD to offchain/lib/Driver/Capture.hs
+write_bytes_atomically :: FilePath -> ByteString -> IO ()
+write_bytes_atomically path bytes = do
+  let tmp = path ++ ".tmp"
+  BS.writeFile tmp bytes `onException` ignoring_errors (removeFile tmp)
+  renameFile tmp path
+
+-- REDEFINE, preserving the existing onException semantics
+write_json_atomically :: ToJSON a => FilePath -> a -> IO ()
+write_json_atomically path = write_bytes_atomically path . BSL.toStrict . encode
+```
+
+One atomic-write primitive, one owner, in the module that already documents why it exists — and
+the fixture is the prover's bytes, not aeson's re-rendering of them. (That distinction is not
+stylistic; see Anti-Pattern 1.)
+
+The temp sibling lands momentarily inside the other track's directory. That is required for rename
+atomicity. Name it `.volume_path.json.tmp` and add `test/models/**/fixtures/.*.tmp` to
+`.gitignore`; state plainly that this is the one extra path the publisher touches.
 
 ---
 
 ## Anti-Patterns
 
-### Anti-Pattern 1: importing the ring's index mask into the registry
+### Anti-Pattern 1: Storing the model output as `jsonb` — DESTROYS the milestone's headline guarantee
 
-**What people do:** reuse `StorageIndex::next` / `& INDEX_MODULO_MASK` because the slot helper came from the ring.
-**Why it's wrong:** the mask makes ids wrap at 2^16; the registry needs monotonic ids. The ring's own comments call the mask "load-bearing" *for a ring* — for a registry it silently overwrites order 0 with order 65536.
-**Do this instead:** monotonic `orderCount`, no mask; `array_slot(base, id)` directly.
+**What the brief says:** *"JSONB schema for keyed model outputs"* and *"re-solving an existing key
+must reproduce it byte-for-byte."*
 
-### Anti-Pattern 2: arithmetic in the module
+**Why it's wrong: those two requirements are incompatible.** MEASURED on Postgres 18 against the
+actual `VOLUME_PATH.md` §3 output shape:
 
-**What people do:** inline the bounds check or the id-derivation math in the dispatch body.
-**Why it's wrong:** breaks the zero-math-in-module rule that made v3.0's mutation battery cheap — arithmetic in the module is a surface the pure-lib fuzz can't reach.
-**Do this instead:** `validate_order` in a pure lib, packing in the type, slot in `v3::storage`. Module = sstore/sload/dispatch only.
+| column type | round-trips byte-identically? |
+|---|---|
+| `bytea` | **true** |
+| `json` | **true** |
+| `jsonb` | **false** |
 
-### Anti-Pattern 3: write-then-rollback for best-effort batch
+The `jsonb` round trip reordered every key (`sqrtPriceX96, liquidity, txlVolumeRate, …` →
+`dQM, dQx, nEvents, phiMpips, phiXpips, liquidity, …`), and `sha256` over the two differed
+(`4075758e…` vs `dd8a3e26…`). Confirmed by the official docs: *"jsonb does not preserve white
+space, does not preserve the order of object keys, and does not keep duplicate object keys"* plus
+number reformatting via `numeric`.
 
-**What people do:** try to `sstore` each order and undo on failure.
-**Why it's wrong:** a single call frame has no partial rollback; "no partial state" becomes unprovable.
-**Do this instead:** validate-before-commit — a failing order never writes.
+**And it is not only Postgres.** MEASURED with aeson at GHC 9.10.3 — `decode` then `encode`
+reorders keys **and reformats numbers**: `0.00318353` became `3.18353e-3`. So routing the prover's
+JSON through `Data.Aeson.Value` **anywhere** destroys byte identity. That rules out `jsonb`
+columns, `postgresql-simple`'s `ToField Value` (which is `toField . JSON.encode`,
+`ToField.hs:314-315`), and the existing `write_json_atomically` on the publication path.
 
-### Anti-Pattern 4: a fourth copy of the VolOrder bit layout
+**Do this instead — two columns, and the digest is over the raw one:**
 
-**What people do:** re-inline `packVolOrder` offsets in the new differential.
-**Why it's wrong:** the `TimepointDecoder` post-mortem — three copies of a bit layout is three chances to desync from the `.plk` source.
-**Do this instead:** one `VolOrderDecoder` library, offsets restated once, the differential makes any future drift loud.
+```sql
+create table model_run (
+  key        bytea primary key,   -- H(seven inputs || gamsVer || conoptVer)
+  raw        bytea not null,      -- THE ARTIFACT. Byte-exact. The oracle.
+  doc        jsonb not null,      -- derived, for querying/indexing. NEVER authoritative.
+  model      text  not null,
+  gams_ver   text  not null,
+  conopt_ver text  not null,
+  pinned     boolean not null default false,
+  created_at timestamptz not null default now()
+);
+```
+
+`Store.Logic.verify_bytes` compares `raw`. `Store.Key` digests `raw`. `doc` exists so a human can
+`select doc->>'deltaRealized'`, and a check must assert it is derived from `raw` — never the
+reverse.
+
+**Rejected alternative:** a `json` (not `jsonb`) column alone. It does preserve bytes, but gives up
+GIN indexing and containment operators, and is fragile — any tool that casts to `jsonb`
+re-normalizes silently.
+
+### Anti-Pattern 2: `ExceptT` over `Web3`
+
+Covered above. It advertises a guarantee the runtime does not provide. Use `Either` at pure
+boundaries and one `try @SomeException` at the loop boundary.
+
+### Anti-Pattern 3: Skipping a check when the DB is absent
+
+Forbidden by `sc3_load_succeeds`'s stated rule and by the milestone brief's own warning. Absent
+subject ⇒ FAIL, naming the resolved path and the command that produces it.
+
+### Anti-Pattern 4: `Latest` anywhere in the loop
+
+On a single-writer local anvil, `Latest` returns byte-identical results to a pinned read
+(`VolOrder/Rpc.hs:200-204`), so the defect is invisible in every recorded value and only appears
+under a lagging replica or a second writer. Pin every read, and record the pin.
+
+### Anti-Pattern 5: Gating GAMS on log text
+
+`VOLUME_PATH.md` §4 forbids it and the measurement above shows exit codes are faithful at
+`action=ce`. The only supplement permitted is **absence of the output file**, which is not log
+text.
+
+### Anti-Pattern 6: The loop creating directories in `test/`
+
+One owned path, never `createDirectoryIfMissing` in another workstream's tree.
+
+### Anti-Pattern 7: A queue between the chain and the solver
+
+Use the persisted watermark. A queue makes lag invisible, unbounded, and lost on crash.
+
+### Anti-Pattern 8: Re-deriving the seven inputs in two places
+
+`Gams.Args.render_overrides` and `Store.Key.store_key` must consume the **same**
+`VolumePath.Types.ShockInputs` value. A key computed over a different rendering than the one handed
+to the prover is a cache that answers the wrong question — and would be invisible, because both
+sides would be self-consistent.
+
+---
+
+## Scaling Considerations
+
+Reframed for this system — user counts are not the axis.
+
+| Load | Adjustment |
+|------|------------|
+| A few shocks/hour (expected) | Single-connection `postgresql-simple`, single-threaded loop, no pool. |
+| Solve slower than block production | Already handled: the watermark records the lag. Add a `store_lag_blocks` readout and a loud warning above a threshold before adding concurrency. |
+| Store grows past interactive query speed | Index `(model, created_at)` and add a GIN index on `doc`. `raw` is never searched, only fetched by key. |
+| Multiple models (`<model>/<key>` layout) | Already in the schema via the `model` column; no structural change. |
+| Multiple concurrent loops | **Do not.** Two loops sharing a watermark is a distributed-lock problem this milestone does not need. If forced: `select … for update` on the watermark row. |
+
+**First bottleneck:** the CONOPT solve, at seconds per uncached shock. The content key is the fix
+and it is already in the design.
+**Second bottleneck:** publishing on every iteration. Only if it becomes measurable, skip the
+rename when the bytes are unchanged — but measure first; a rename is microseconds.
 
 ---
 
 ## Integration Points
 
-### Internal Boundaries
+### External services
+
+| Service | Integration | Gotchas |
+|---------|-------------|---------|
+| Postgres | `postgresql-simple` 0.7.0.1 via `Store.Postgres` only | `jsonb` normalizes — Anti-Pattern 1. **MEASURED:** compiles clean against GHC 9.10.3 / base 4.20.2.0 with `withTransaction`, `begin`/`rollback`, `ToField Value` and `bytea` all type-checking. Its declared bound is `base >=4.12 && <4.22`; tested-with tops out at GHC 9.10.2 vs this repo's 9.10.3 — one patch ahead, and it built here. |
+| GAMS 54.1 | `readProcessWithExitCode` via `Gams.Invoke` | Exit `0/2/3` measured for ok/compile-error/abort at `action=ce`. Exit 0 + no output file is still an abort. Toolchain version feeds the key, so a GAMS upgrade correctly invalidates the cache. |
+| Anvil | `hs-web3` polling via `VolumePath.Rpc` | No `eth_subscribe` on this stack. Blocked on the upstream `next` event. |
+| Docker | `docker run --rm postgres:18-alpine` in the capture script only | Present on this machine. Never invoked from `cabal test`. |
+
+### Internal boundaries
 
 | Boundary | Communication | Notes |
 |----------|---------------|-------|
-| module ↔ pure lib | direct `import` of `validate_order` | ALL bounds/reverts here; module holds none |
-| module ↔ type | direct `import` of `pack_vol_order` | one packed word per id |
-| module ↔ `v3::storage` | `array_slot(base, id)` | reuse verbatim; DO NOT re-derive, DO NOT mask |
-| module ↔ Solidity test | `VolOrderManagerInterface` selector strings | pinned once, drive module dispatch AND test ABI |
-| module ↔ rpc_api track (`mv15a18k`) | `create_order` selector `0x6501fe94` (confirmed) | batch return-shape + size-bound OPEN, awaiting peer |
+| `Loop` ↔ `Store` | `Store.Class` record | The seam that keeps the suite DB-free |
+| `Loop` ↔ `Gams` | `(ExitCode, Maybe ByteString)` → pure `classify` | Never log text |
+| `Loop` ↔ `FeeSplit` | Pure call, **before** GAMS | "Infeasibility is a refusal we explain, not an exit code we interpret" |
+| `Loop` ↔ forge test | One file, atomic rename, raw bytes | The only write into another track's tree |
+| `Loop` ↔ `Rig.Manifest` | `load_rig` at startup, `either fail pure` | Existing; no change |
+| New code ↔ `Driver.Capture` | `write_bytes_atomically` | The one modified existing module |
 
-### External / cross-track dependency (unresolved by design)
+---
 
-| Dependency | Status | Blocks |
-|------------|--------|--------|
-| Plank dynamic-array / tuple-array calldata decoding | pending STACK capability audit (parallel) | the batch calldata layout (Option A vs B) and the batch signature string |
-| Peer batch-size bound + per-call return shape | open (PROJECT.md line 25) | Option B's compile-time `N`; the return ABI |
+## Build Order
+
+### Dependency facts that reshape the phase graph
+
+1. **Phase 5 (FeeSplit) has zero dependencies.** Pure math, base only. Startable immediately.
+2. **Phase 2 needs the GAMS/CONOPT versions** (they are in the key) — a hidden 2→3 edge. **Broken**
+   by having `Store.Key` take version *strings* as arguments; `Gams/Version.hs` becomes an
+   independent leaf.
+3. **`VolumePath/Types.hs` is needed by phases 2 and 3** but is pure data from `VOLUME_PATH.md` §2.
+   Not blocked.
+4. **Phase 4 splits.** The selector (`0xd3827b0b`) and signature
+   (`next(address,uint160,int24,uint24,uint24)`) are known **now**, so `VolumePath/Decode.hs` is
+   buildable and testable against **synthetic logs** — which the suite already does for E1
+   (`.cabal:193`, "the Phase 21 event re-pin builds synthetic logs"). Only `VolumePath/Rpc.hs` is
+   genuinely blocked on the upstream emitting the event.
+
+### Waves
+
+| Wave | Work | Parallel? | Blocked? |
+|------|------|-----------|----------|
+| **1** | **5** FeeSplit (pure, zero deps) · **1** PG foundation + `VolumePath/Types.hs` + `Gams/Version.hs` · **4a** `VolumePath/Decode.hs` vs synthetic logs | All three fully parallel | No |
+| **2** | **2** keyed store (needs 1) · **3** GAMS invocation (needs `VolumePath/Types`, `Gams/Version`) | 2 and 3 parallel | No |
+| **3** | **2+3 integration:** the store↔GAMS round trip incl. the byte-reproduction law, with a hand-supplied shock | — | **No** |
+| **4** | **4b** `VolumePath/Rpc.hs` | — | **YES** — upstream `next` event |
+| **5** | **6** loop + publication (needs 2, 3, 4b, 5) | — | Inherits 4b's block |
+
+### The sequencing point that matters most
+
+**The byte-reproduction guarantee — the milestone's headline falsifiable claim — is provable at the
+end of wave 3, with no chain and no upstream.** The shock is seven values; they can be supplied by
+hand. Do **not** sequence that proof behind phase 4. If the upstream block persists, waves 1–3 still
+deliver the store, the prover integration, the determinism check, and the fee splitter as a
+complete, verified subsystem.
+
+### Suggested phase order for the roadmap
+
+```
+Phase 1  →  Postgres foundation, VolumePath.Types, Gams.Version     [unblocked]
+Phase 5  →  Fee splitter                            [unblocked, fully parallel with 1]
+Phase 4a →  VolumePath.Decode vs synthetic logs     [unblocked, parallel with 1]
+Phase 2  →  The keyed store + Store.Laws + conformance capture      [needs 1]
+Phase 3  →  GAMS invocation layer                   [needs 1; parallel with 2]
+   ── byte-reproduction proven here, chain-free ──
+Phase 4b →  Anvil read layer                        [BLOCKED on upstream `next`]
+Phase 6  →  Resident loop + fixture publication     [needs all]
+```
+
+---
+
+## Open Questions for `/gsd:plan-phase`
+
+1. **Digest function.** `web3-crypto`'s `keccak256` is already a dependency and used by the suite;
+   `sha256` would need `cryptonite`/`crypton`. Recommend keccak256 — no new package. Not yet
+   confirmed against any external consumer's expectation.
+2. **Migration runner.** Recommend `Store/Schema.hs` as an ordered list of pure `(version, sql)`
+   values applied in one transaction against a `schema_version` table (~40 lines, no new
+   dependency, and the list becomes a pure value the suite can assert over: ordering, no gaps, no
+   edits to applied versions). `postgresql-migration` 0.2.1.8 is cached but **unverified** — I did
+   not build or read it.
+3. **`nEvents`** is listed as an input in `VOLUME_PATH.md` §2 and as an open ruling in §6
+   (fixture: 8). It must be in the key. Confirm the production value before the first row lands, or
+   accept that changing it invalidates the whole store.
+4. **Pinned Postgres image tag.** Measured against `postgres:18-alpine`; the server version is part
+   of the conformance evidence and should be recorded in `store-conformance.json`.
+5. **Publication on cache hit** — recommended above (a cache hit is still a run), but it is a
+   product decision, not a technical one.
 
 ---
 
 ## Sources
 
-- `lib/plankified-univ3/plank/lib/storage.plk:230-235` — `array_slot` = `keccak256(base)+index` — HIGH (quoted verbatim)
-- `src/lib/market_state_measurements/RealizedVolatilityLib.plk:84-86` — `load_timepoint` — HIGH (quoted verbatim)
-- `src/modules/market_state_measurements/RealizedVolatilityMod.plk` — ring write/read path, `getTimepointPacked` reader — HIGH (repo source)
-- `src/types/StorageIndex.plk:19-34` — the load-bearing wraparound mask (the one line a registry must drop) — HIGH
-- `src/types/pos_spec/VolOrder.plk:35-60` — `pack_vol_order`/`unpack_vol_order`, 152-bit sum — HIGH
-- `src/types/pos_spec/{VolRangeWidth,TickVolatility,SpreadTickAssimetry}.plk` — the `*_is_complete` bounds the lib validator composes — HIGH
-- `src/types/market_state_measurements/Timepoint.plk` + `test/market_state_measurements/TimepointDecoder.sol` — packing + test-decoder precedent — HIGH
-- `src/modules/exposure/VegaAccountMod.plk` + `src/interfaces/exposure/VegaAccountInterface.plk` — zero-math-in-module, scalar-slot + selector-pinning pattern — HIGH
-- `test/exposure/VegaAccount.e2e.t.sol` — after-every-write driver, trivially-simple mirror, tolerance-0 differential — HIGH
-- `test/types/pos_spec/VolOrder.t.sol` — existing test-side `packVolOrder` offsets (promote to a shared decoder) — HIGH
-- `test/PlankTestBase.sol` — `deployPlank` / module-root deps — HIGH
-- `.planning/PROJECT.md` (v4.0 milestone) — best-effort semantics, dynamic-array-ABI risk flag, peer consumer contract — HIGH
+**Primary — this repository (HIGH confidence, read directly):**
+- `.planning/PROJECT.md` (v6.0 milestone) · `cfmm-replicationPlank-rpc-api.cabal`
+- `offchain/lib/Rig/Manifest.hs` · `offchain/lib/Driver/Capture.hs` · `offchain/lib/Driver/Seed.hs`
+- `offchain/lib/VolOrder/Rpc.hs` · `offchain/lib/CheatSwap/Rpc.hs` · `offchain/app/Main.hs`
+- `offchain/test/Main.hs` (`Check`:379, `sc3_load_succeeds`:729, `advertised_overrides`:3562,
+  `swept_artifacts`:5019, `sentinel_falsification_harness`:5477, `core_checks`:5684)
+- `.github/workflows/develop-gate.yml:130-155` · `Makefile` (`compile-gams`, `payoff-fixtures`)
+- `test/gamsDiff/PricingKernelPlank.diff.t.sol` · `.gitignore:57-58`
+
+**Binding reference (HIGH):**
+- `/home/jmsbpp/cfmms-playground/cfmm-wt/gams/model/mev_tax_model_one/VOLUME_PATH.md` §§1–6
+
+**Dependency sources, read directly (HIGH):**
+- `web3-provider-1.1.0.0` `Network/Web3/Provider.hs:43-44, 84-93` · `web3-ethereum-1.1.0.1`
+  `Network/Ethereum/Api/Eth.hs` · `jsonrpc-tinyclient-1.1.0.0` `TinyClient.hs:157-161, 182-217`
+- `postgresql-simple-0.7.0.1` `Transaction.hs:114-195`, `ToField.hs:314-323`,
+  `FromField.hs:576-588`
+
+**Measured on this machine (HIGH — reproducible):**
+- GAMS 54.1 `action=ce` exit codes: `0` clean / `2` compile error / `3` `abort$`
+- Postgres 18 `bytea` vs `json` vs `jsonb` byte-fidelity on the real `volume_path.json` shape;
+  `sha256` divergence
+- aeson `decode`→`encode` at GHC 9.10.3: key reorder + `0.00318353` → `3.18353e-3`
+- `postgresql-simple` builds clean against GHC 9.10.3 / base 4.20.2.0
+- Toolchain present: GHC 9.10.3, cabal 3.16.1.0, `psql`/`pg_config` 18.4 + `libpq-fe.h`, docker,
+  gams 54.1. **Absent: `initdb`, `pg_ctl`, `postgres` server binaries.**
+
+**External (MEDIUM — official docs):**
+- PostgreSQL `datatype-json` — jsonb normalization
+- Hackage `postgresql-simple` 0.7.0.1 (2025-08-02) · Hackage `tmp-postgres` 1.34.1.0 (2019-12-29)
 
 ---
-*Architecture research for: Plank dynamic-registry + best-effort multicall module (VolOrderManagerMod, v4.0)*
-*Researched: 2026-07-19*
+*Architecture research for: v6.0 Model Output Store + VolumePath Bridge (rpc_api workstream)*
+*Researched: 2026-08-16*

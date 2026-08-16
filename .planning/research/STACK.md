@@ -1,24 +1,36 @@
-# Stack Research — Plank Language Capability Audit (v4.0 Multicall)
+# Stack Research
 
-**Domain:** On-chain EVM language capability audit for `VolOrderManagerMod` + best-effort Multicall
-**Researched:** 2026-07-19
-**Confidence:** HIGH (every claim cites plankc source, the language docs, a compiled diff-test, or existing project `.plk`)
-**Compiler:** Plank `v0.1.1`, backend `sona`/SIR — `lib/plank-monorepo/plankc/`
+**Domain:** Postgres/JSONB content-addressed model-output store + external-solver subprocess layer, in Haskell (GHC 9.10.3)
+**Researched:** 2026-08-16
+**Confidence:** HIGH
 
-> Supersedes the 2026-07-16 STACK.md (v3.0 VegaAccountMod vault). This milestone is a **language-capability audit** for the dynamic-array multicall surface, not a dependency-selection task.
+> **Method note — these are measurements, not recollections.**
+> Every version below was read from a Hackage index refreshed **today** (`cabal update` →
+> `index-state: 2026-08-16T11:47:09Z`). Every GHC-9.10.3 compatibility claim was established by
+> **actually compiling the package** with the project's own `ghc-9.10.3` / `cabal-install 3.16.1.0`,
+> not by reading version bounds. Every dependency-footprint number was computed by diffing
+> `plan.json` package sets against this project's real 152-package baseline. Every JSONB/migration
+> behaviour was executed against a live **PostgreSQL 18.4** instance. The project's `.cabal` was
+> mutated during probing and **restored** (`git diff` clean).
 
 ---
 
-## TL;DR Verdict
+## Headline: the premise of the question is wrong, and that changes the decision
 
-The milestone's load-bearing unknowns all resolve **in favor of feasibility**, with two hard constraints:
+The brief anticipated that "several of these lag on new GHC." **They do not.** I built all of them:
 
-- **Loops:** runtime `while` EXISTS and is fully lowered. `inline while` (comptime unrolling) is parsed but **NOT implemented** — do not rely on it. → loop over N tuples is a plain runtime `while`.
-- **Dynamic calldata:** `@evm_calldataload(computed_offset)` and `@evm_calldatasize()` both EXIST and are proven by a compiled Solidity-differential diff-test. → an unbounded batch length can be read from calldata.
-- **Best-effort containment:** Plank has no try/catch, but `@evm_call`/`@evm_staticcall`/`@evm_address_this`/`@evm_returndatasize` all EXIST → the EVM self-call boundary is available. A **pure-validation pre-check path** (all `if`/`@evm_iszero`, zero checked-ops) is also available and is the cheaper mechanism.
-- **N-result return:** there is **no native array type** and `std::abi` does **not** encode `T[]`. Multi-word return works via the proven manual pattern (`@mstore32` at computed offsets + `@evm_return(ptr, len)`), which you must hand-roll for the results array.
+| Candidate | Builds on GHC 9.10.3? | Evidence |
+|-----------|----------------------|----------|
+| `postgresql-simple` | **YES** | already compiled in the local `ghc-9.10.3` store |
+| `hasql` + `hasql-pool` + `hasql-transaction` | **YES** | built from scratch, exit 0 |
+| `hasql-th` | **YES** | built from scratch, exit 0 |
+| `persistent` + `persistent-postgresql` | **YES** | built from scratch, exit 0 |
+| `esqueleto` | **YES** | built from scratch, exit 0 |
+| `beam-core` + `beam-postgres` | **YES** | built from scratch, exit 0 (slow: drags in `happy`, `haskell-src-exts`) |
+| `opaleye` | **YES** | already compiled in the local `ghc-9.10.3` store |
 
-**Recommended shape: (A) unbounded dynamic batch is expressible**, but **(B) bounded max-N batch with an explicit `count` arg is recommended** — see Feasibility Verdict at the end for the rationale.
+**There is no GHC-9.10.3 exclusion to make this decision for us.** So the decision must be made on
+*footprint, ergonomics, and fit* — which is where the candidates separate sharply.
 
 ---
 
@@ -28,96 +40,145 @@ The milestone's load-bearing unknowns all resolve **in favor of feasibility**, w
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| Plank `while` loop | v0.1.1, lowered at `plankc/frontend/hir/src/lowerer/mod.rs:736` (`InstructionKind::While`) | Iterate over N calldata tuples at runtime | Only runtime loop construct that actually compiles; proven by the `merkle_airdrop` diff-test |
-| `@evm_calldataload(offset)` w/ computed offset | Builtin `plankc/frontend/session/src/builtins.rs:213` | Read the i-th tuple at `base + i*stride` | Variable offset confirmed in a compiled+diff-tested example (see Dynamic Calldata below) |
-| `@evm_calldatasize()` | Builtin `builtins.rs:214` | Derive/validate batch length from calldata size | Lets the loop bound be data-driven instead of a fixed word |
-| Manual return encoding (`@mstore32` + `@evm_return(ptr,len)`) | `@mstore*` builtins `builtins.rs:266-289`; pattern in `VolOrder.plk:15-20`, `merkle_airdrop.plk:74` | Write the N-result array back to the caller | No native array type exists; this is the only path for `>1` dynamic-length return |
+| **PostgreSQL** | **18.4** | JSONB store | Already the target. `jsonb_path_ops` GIN gives smaller/faster `@>` indexes than default `jsonb_ops`. Server is **not installed on this machine** — see CI section. |
+| **`postgresql-simple`** | **0.7.0.1** | DB client | **+4 packages.** Raw SQL, no DSL, no TH, no monad transformer stack. You write the `@>` / `->>` / GIN DDL literally as SQL. This is the only candidate whose model of the world ("a query is a string, a row is a tuple") matches a codebase that hand-rolls its own `Check` list rather than adopt tasty. |
+| **`postgresql-migration`** | **0.2.1.8** | Migrations | **+2 over the client.** Plain `.sql` files in a directory + a runner — the hand-rolled shape — but with **MD5 checksum drift detection** you would otherwise have to write yourself. Verified: it catches a tampered file. |
+| **`typed-process`** | **0.2.13.0** | GAMS subprocess | **+2 packages.** `readProcess` returns `(ExitCode, stdout, stderr)` — the exact triple `VOLUME_PATH.md` §4 needs — and is `bracket`-protected so `System.Timeout.timeout` reliably kills the child. |
+| **`crypton`** | **1.0.6** | Content-address hash | **+0 packages — already in the resolved plan.** Provides `Crypto.Hash (SHA256, hashWith)`. |
 
-### Supporting Builtins (the containment + memory toolkit)
+**Total footprint of the entire recommendation: +9 packages** on a 152-package baseline
+(`Only`, `cryptohash-md5`, `postgresql-libpq`, `postgresql-libpq-configure`, `postgresql-migration`,
+`postgresql-simple`, `resource-pool`, `typed-process`, `unliftio-core`). Measured, not estimated.
 
-| Builtin | Registration | Purpose | When to Use |
-|---------|-------------|---------|-------------|
-| `@evm_call` | `builtins.rs:255` (`=> Call`) | Self-call to own address; the EVM call frame contains a callee revert (success flag returned, batch continues) | Best-effort path **if** per-call logic can revert for reasons pure validation can't pre-screen |
-| `@evm_staticcall` | `builtins.rs:258` | Read-only self-call variant | Same containment, when the sub-call must not mutate |
-| `@evm_address_this` | `builtins.rs:208` (`=> Address`) | Get own address as the self-call target | Required argument for the self-call mechanism |
-| `@evm_returndatasize` / `@evm_returndatacopy` | `builtins.rs:221-222` | Read the sub-call's return payload (orderId on success, revert data on failure) | Collect per-call result after a self-`@evm_call` |
-| `@evm_iszero` | `builtins.rs:192` | Branch without arithmetic (the zero-width guard idiom in `VegaAccountMod.plk:31`) | The pure-validation pre-check path — decision, not revert |
-| `@evm_keccak256` + `std::storage::map_slot_hash` | `builtins.rs:205`; used in `VegaAccountMod.plk` / `merkle_airdrop.plk:93` | Derive the per-order storage slot | Store each `VolOrder` at a keccak-derived slot, `orderCount` accumulator |
-| `@malloc_uninit` / `@malloc_zeroed` / `@mcopy` / `@mstore32` / `@mload32` | `builtins.rs:266-289` | Scratch memory for buffers and the results array | All return-encoding and hashing buffers |
-| `@evm_sload` / `@evm_sstore` | `builtins.rs:240-241` | Registry persistence | Store order fields + count |
-| `@evm_calldatacopy` | `builtins.rs:215` | Bulk-copy a calldata region to memory | Optional: copy a tuple block before decoding |
+### Supporting Libraries
+
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| `resource-pool` | 0.5.1.0 | Connection pool | **Only if you need concurrency.** `postgresql-simple` has no built-in pool. The resident re-solve loop is single-threaded — one `Connection` is correct and simpler. Add this *when* a second concurrent consumer appears, not before. |
+| `aeson` | **2.2.5.0** (pinned) | JSON | Already a direct dep. **Note the pin** (see Version Compatibility). |
+| `bytestring`, `text`, `directory`, `filepath` | in plan | raw bytes / paths | Already direct deps. The canonical-serialization and raw-payload columns use `ByteString`. |
+| `postgresql-libpq` | 0.11.0.0 | FFI to libpq | Transitive via `postgresql-simple`. `libpq 18.4` **is** installed system-wide (`pg_config --version` → 18.4), so this compiles with no extra setup. |
 
 ### Development Tools
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| `PlankDeployer` FFI (`lib/plank-foundry-deployer`) | Compile+deploy `.plk` at test time | Already the project's validated build/deploy bridge (v3.0) |
-| `plankc` diff-tests (`plankc/plank-diff-tests/src/examples/`) | Reference for compilable patterns | `merkle_airdrop.plk` + `MerkleAirdrop.sol` is the canonical "loop over dynamic calldata" precedent |
-| `v3::util` (`plankified-univ3/plank/lib/util.plk`) | `return_u256`, `revert_empty`, `revert_with_return_data` | Reuse; `revert_with_return_data` (util.plk:8-13) already forwards self-call revert data |
+| Docker | Postgres for tests/CI | `docker` 29.5.2 present. `postgres:18-alpine` went from `docker run` to `pg_isready` in **3 seconds** (measured). |
+| `psql` | Manual inspection | `/usr/bin/psql` present (client only). |
+| `cabal build --enable-tests -j all` | The real gate | Unchanged. Per project law, **without** `--enable-tests` it is vacuous. |
 
 ---
 
-## Capability Findings (question-by-question, with evidence)
+## Installation
 
-### 1. LOOPS — EXISTS (runtime `while` only)
+This is a `cabal` project, not npm. Add to `build-depends` in
+`cfmm-replicationPlank-rpc-api.cabal` (library stanza):
 
-- **`while` is the only loop keyword in the grammar.** `plankc/docs/Grammar.md:45`: `while = "inline"? "while" expr block`. There is **no `for`, no `loop`, no `break`/`continue`** rule (grep of `Grammar.md` for those returns only the `while` rule; the `for`/`loop`/`break` tokens seen in a repo-wide grep are Rust compiler source, not Plank grammar).
-- **Runtime `while` is fully lowered:** `plankc/frontend/hir/src/lowerer/mod.rs:736` emits `InstructionKind::While { condition_block, condition, body }`.
-- **Proven end-to-end:** `plankc/plank-diff-tests/src/examples/merkle_airdrop.plk:52-64` uses `let mut i = 0; while i < proof_length { ... i = i + 1; }`, and it ships with a paired `MerkleAirdrop.sol` reference in the diff-test suite — i.e. it compiles and passes a Solidity differential. The docs describe this exact use: `plank-doc/src/examples/merkle-airdrop.md:8` "Iterating over calldata using a `while` loop."
-- **Bounded recursion:** functions are `const fn` values (`what-makes-plank-different.md:97-108`); `abi_helpers.plk` uses recursion but only at **comptime** (`fold` over `@field_count`). No evidence runtime recursion is needed — `while` covers the batch loop.
-- **`inline while` (comptime unroll) is ABSENT in v0.1.1:** parsed (`plankc/frontend/parser/src/parser/mod.rs:740` → `NodeKind::InlineWhileStmt`) but the lowerer rejects it — `lowerer/mod.rs:728` `self.error_not_yet_implemented("inline while", span);`, with a locking test `frontend/hir/src/tests.rs:779 test_inline_while_not_yet_supported` ("error: inline while is not yet supported"). **Do not design around unrolled loops.**
+```cabal
+                      postgresql-simple,      -- 0.7.0.1  DB client
+                      postgresql-migration,   -- 0.2.1.8  checksummed .sql runner
+                      typed-process,          -- 0.2.13.0 GAMS subprocess, exit-code gated
+                      crypton                 -- 1.0.6    SHA256; ALREADY in the plan (+0 pkgs)
+```
 
-→ **Mechanism for "loop over N tuples": runtime `while i < count { ... i = i + 1; }`.**
+Do **not** add `resource-pool` yet (see above). Verify with:
 
-### 2. DYNAMIC CALLDATA — EXISTS
+```bash
+cabal build --enable-tests -j all     # the only gate that counts
+```
 
-- **Computed offset into `@evm_calldataload`:** counterexample to "constants only" found in the diff-tested `merkle_airdrop.plk:54`: `let proof_element = @evm_calldataload(offset + 32 + i * 32);` where both `offset` (`merkle_airdrop.plk:45`, `4 + @evm_calldataload(68)`) and `i` are runtime values. The builtin accepts an arbitrary `u256` offset expression — `builtins.rs:213 CALLDATALOAD "@evm_calldataload" => CallDataLoad`.
-- **`@evm_calldatasize()` is available:** `builtins.rs:214 CALLDATASIZE "@evm_calldatasize" => CallDataSize`. So the batch length can be derived from calldata size (defensive: reject malformed payloads) or trusted from an explicit ABI length word.
-- **`@evm_calldatacopy` available** for bulk region copy: `builtins.rs:215`.
-
-→ **Mechanism for reading the i-th `(uint88,uint24,uint16)` tuple: `@evm_calldataload(base + i*stride)` (constant stride, computed index), bounds-guarded with `@evm_calldatasize()`.**
-
-### 3. INTERNAL ERROR HANDLING (best-effort) — TWO mechanisms, both EXIST
-
-Confirmed: Plank checked ops (`+ - *`) revert (`what-makes-plank-different.md:32-39`), and there is no try/catch keyword in the grammar. Best-effort therefore needs one of:
-
-**(a) Pure-validation pre-check path — EXISTS, RECOMMENDED.**
-The language supports branch-only validation with **no checked-op on the validation path**: `@evm_iszero`, `<`, `>`, `and`/`or`, and `if`/`else` are all non-reverting. Precedent: `VegaAccountMod.plk:31` `if @evm_iszero(collateral) { revert_empty(); }` and `:37`, `:43` — guards expressed as decisions, not arithmetic. For `create_order` the failure conditions are exactly bounds checks (zero-width, field-fits-in-u88/u24/u16), all expressible as pure comparisons. So in the batch loop a "failed" tuple becomes a **skipped branch** (record `success=false`, don't touch storage), never a revert. This contains failure with **zero sub-call gas overhead** and guarantees "a failed call leaves NO partial state" because no state write is reached.
-
-**(b) Self-`@evm_call` boundary — EXISTS, fallback.**
-All required builtins are present: `@evm_call` (`builtins.rs:255`), `@evm_address_this` (`:208`), `@evm_returndatasize`/`@evm_returndatacopy` (`:221-222`), and `revert_with_return_data`/forwarding already implemented in `util.plk:8-13`. A self-call to `@evm_address_this()` with the single-order selector executes `create_order` in a child frame; a revert there rolls back only that frame and returns `success=0` to the loop, which continues. Use this **only if** some failure mode cannot be pre-screened by pure validation (e.g. a future dependency call that reverts for data-dependent reasons). Cost: a full CALL per tuple.
-
-→ **Mechanism for "contain per-call failure": pure-validation pre-check (primary); self-`@evm_call` to `@evm_address_this()` (fallback for un-pre-screenable reverts).** Because v4.0 `create_order` is a pure registry with bounds-only failure, **(a) is sufficient and cheaper** — the self-call boundary is not required for the stated feature set.
-
-### 4. RETURN ENCODING (N results) — EXISTS via manual encoding; NO native array
-
-- **Existing single-word precedent:** `return_u256` (`util.plk:23-27`) = `@malloc_uninit(32); @mstore32(p,v); @evm_return(p,32)`. Used throughout `VegaAccountMod.plk` (e.g. `:74`, `:84`).
-- **Existing multi-field manual pack + dynamic-length return:** `VolOrder.plk:15-20 return_vol_order_incomplete` packs fields and does `@evm_return(out_ptr, 32)`; `merkle_airdrop.plk:74` returns a computed length. Return length is a runtime value, so **>1 word with dynamic length is supported** by writing successive `@mstore32(p +% (i*WORD), val)` then `@evm_return(p, total_len)`.
-- **NO native array/slice type:** grep of `Grammar.md` for `array|[]|slice|vec` returns nothing. `std::abi` (`abi.plk`, `abi_helpers.plk`) encodes only `void`, `u256`, `bool`, `membytes`, and `struct` (`abi_helpers.plk:7-33`) — **there is no `T[]` case.** A Solidity `(bool,uint256)[]` results array is therefore **not auto-encoded**; you must hand-write the ABI dynamic-array head/tail (offset word, length word, then the element words) into a `@malloc`'d buffer and `@evm_return(ptr, len)`. The `membytes` primitive + `abi_encode(membytes, ...)` (shown in `erc20.md:50-55`) can carry an opaque blob, but the canonical `tuple[]` layout must be built manually.
-- No array-return precedent found in `plankified-univ3` or `plank-monorepo/std` (searched; all returns are single-word or struct-packed).
-
-→ **Mechanism for "return N results": manually build the ABI dynamic array (`uint256[]` of packed results, or `(bool,uint256)[]`) in a `@malloc_uninit` buffer via `@mstore32` at computed offsets, then `@evm_return(buf, len)`. Encode results in the SAME `while` loop that processes inputs (write result word i alongside input i).**
-
-### 5. MEMORY — EXISTS
-
-- Scratch memory builtins: `@malloc_uninit`, `@malloc_zeroed` (`builtins.rs:266-267`), `@mcopy` (`:270`), and the full `@mstore1..@mstore32` / `@mload1..@mload32` families (`:271-289`). These are **not** `@evm_`-prefixed (they are IR memory primitives; the compiler controls layout — `what-makes-plank-different.md:54-69`). `@evm_mstore`/`@evm_mload` as literal names do **not** exist; use `@mstore32`/`@mload32`.
-
-→ Full scratch-memory support for buffers, hashing preimages, and the results array.
+System prerequisite already satisfied on this machine: `libpq` 18.4 (`/usr/lib/libpq.so`).
 
 ---
 
-## Complete Builtin Set Found
+## The Postgres client decision — ranked, with reasons
 
-**Source:** exhaustive grep of `plankc/crates/`, `plankc/frontend/`, `std/`; registrations in `plankc/frontend/session/src/builtins.rs`.
+### 1. `postgresql-simple` 0.7.0.1 — **RECOMMENDED**
 
-**`@evm_*` (direct opcode exposure, `builtins.rs`):**
-`@evm_add @evm_sub @evm_mul @evm_div @evm_sdiv @evm_mod @evm_smod @evm_addmod @evm_mulmod @evm_exp @evm_signextend` · `@evm_lt @evm_gt @evm_slt @evm_sgt @evm_eq @evm_iszero @evm_and @evm_or @evm_xor @evm_not @evm_byte @evm_shl @evm_shr @evm_sar` · `@evm_keccak256` · `@evm_address_this @evm_balance @evm_origin @evm_caller @evm_callvalue @evm_calldataload @evm_calldatasize @evm_calldatacopy @evm_codesize @evm_codecopy @evm_gasprice @evm_extcodesize @evm_extcodecopy @evm_returndatasize @evm_returndatacopy @evm_extcodehash @evm_gas` · `@evm_blockhash @evm_coinbase @evm_timestamp @evm_number @evm_difficulty @evm_gaslimit @evm_chainid @evm_selfbalance @evm_basefee @evm_blobhash @evm_blobbasefee` · `@evm_sload @evm_sstore @evm_tload @evm_tstore` · `@evm_log0..@evm_log4` · `@evm_create @evm_create2 @evm_call @evm_callcode @evm_delegatecall @evm_staticcall @evm_return @evm_stop @evm_revert @evm_invalid @evm_selfdestruct`
+**Footprint: +4** (`Only`, `postgresql-libpq`, `postgresql-libpq-configure`, `postgresql-simple`).
+**Template Haskell: none required.** **GHC 9.10.3: builds (already in store).**
 
-**Non-`@evm_` builtins (IR / comptime / memory):**
-`@malloc_zeroed @malloc_uninit @mcopy @mstore1..@mstore32 @mload1..@mload32` · comptime/introspection: `@field_count @field_type @get_field @set_field @is_struct @uninit @in_comptime @identifier @name` · module/init: `@init_end_offset @runtime_start_offset @runtime_length`
-(`@fn0..@fn9`, `@struct*`, `@foo/@bar/@skibidi` etc. are test fixtures, not real builtins.)
+JSONB support verified live against PG 18.4:
 
-**ABSENT (searched, came up empty):** `@evm_mstore`/`@evm_mload` (use `@mstore32`/`@mload32`); `for`/`loop`/`break`/`continue` keywords (grammar has only `while`); native array/slice type; `T[]` ABI codec in `std::abi`; working `inline while` (parsed, lowering rejects it).
+- `FromField JSON.Value` accepts **both** `jsonOid` and `jsonbOid` (source: `FromField.hs:588`).
+- `fromFieldJSONByteString` returns the **raw `ByteString`** — needed for the byte-exact check.
+- `@>`, `->>`, GIN `jsonb_path_ops` all worked in a real query.
+
+It wins because it is the only option that does not interpose a model between you and SQL. The
+store's whole job is operator-heavy JSONB and a byte-exact reproducibility assertion; every other
+candidate makes you either escape out of its abstraction or adopt one you don't need.
+
+**The one genuine wart — and it is subtler than the docs say.** `postgresql-simple` uses `?` as its
+parameter placeholder, which collides with the JSONB existence operators `?`, `?|`, `?&`. Its own
+source comments this (`Simple.hs:285`): *"escapes double '??'s to make literal '?'s possible in
+PostgreSQL queries using the JSON operators."* **But I found empirically that the rule depends on
+which function you call:**
+
+| Function | Substitution runs? | Write the existence operator as |
+|----------|-------------------|--------------------------------|
+| `query` / `execute` (takes params) | yes | `??` |
+| `query_` / `execute_` (no params) | **no — SQL passed verbatim** | `?` |
+
+Using `??` in `query_` fails at runtime with `SqlError … "operator does not exist: jsonb ?? unknown"`.
+Both forms confirmed working in their correct contexts. **`@>` and `->>` contain no `?` and are
+entirely unaffected** — and `@>` is the operator this store actually leans on, so the wart is
+marginal in practice.
+
+### 2. `hasql` 2.0.1.0 (+ `hasql-pool` 1.5.0.1, `hasql-transaction` 1.2.3.0) — strong runner-up
+
+**Footprint: +18** (or **+22** with `hasql-th`). **GHC 9.10.3: builds (verified from scratch).**
+
+Genuinely excellent on the merits: first-class `jsonb`, **`jsonbBytes`**, and `jsonbLazyBytes`
+codecs (`Hasql/Codecs/Encoders/Value.hs:212-226`); `$1` placeholders so the `?` collision **does not
+exist**; pooling is a first-party package rather than an afterthought; typically faster (binary
+protocol).
+
+**Why it still loses here:** it costs **4.5× the dependencies** for a store whose query surface is a
+handful of statements, and it imposes an explicit encoder/decoder ceremony (`Statement`, `Session`,
+`Encoders.param`, `Decoders.column`) on every query. That is precisely the "framework indirection"
+this codebase has repeatedly declined. `hasql-th`'s compile-time SQL checking is the strongest
+argument *for* it — but it is Template Haskell, adds `postgresql-syntax` + `headed-megaparsec` +
+`selective`, and TH is absent from this project today.
+
+**Choose `hasql` instead if** the store later becomes throughput-critical, or if you want
+compile-time-validated SQL badly enough to accept TH. Both are defensible; neither is true yet.
+
+### 3. `opaleye` 0.10.8.0 — no
+
+**Footprint: +7.** **GHC 9.10.3: builds.** Small footprint, but it is a *typed relational-algebra
+DSL* built on top of `postgresql-simple`. JSONB operators are second-class: you reach for
+`Opaleye.Internal` or raw-SQL escape hatches to express `@>`. You pay for a query-composition
+abstraction this store has no use for, and you still end up writing raw SQL for the interesting parts.
+
+### 4. `beam-core` 0.11.1.0 + `beam-postgres` 0.6.3.0 — no
+
+**Footprint: +29.** **GHC 9.10.3: builds** — but slowly, dragging in `happy`, `happy-lib`, and
+`haskell-src-exts`. Heavy type-level machinery (`constraints-extras`, `dependent-sum`,
+`vector-sized`, `finite-typelits`) producing famously difficult type errors. Wrong tool for four tables.
+
+### 5. `persistent` 2.18.1.0 + `persistent-postgresql` 2.14.3.0 (+ `esqueleto` 3.6.0.2) — **no, and it is the worst fit**
+
+**Footprint: +43 / +44.** **GHC 9.10.3: builds.** Disqualifying on three counts:
+
+1. **Template Haskell is not optional** — the entity DSL (`mkPersist`/`share`) *is* the API.
+2. It drags in an entire application substrate the project has no use for: `monad-logger`,
+   `conduit`, `resourcet`, `unliftio`, `fast-logger`, `blaze-html`, `http-api-data`, `vault`.
+3. Its schema model is row-oriented; a `<model>/<key>` JSONB blob store is exactly the shape
+   `persistent` handles worst, and `esqueleto` exists precisely because `persistent` can't express
+   real SQL.
+
+---
+
+## Alternatives Considered
+
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| `postgresql-simple` | `hasql` (+pool, +transaction) | Throughput becomes critical, or many concurrent sessions; or you want `hasql-th` compile-time SQL validation and accept TH. Note `$1` placeholders remove the `?`/`??` wart entirely. |
+| `postgresql-migration` | Hand-rolled `.sql` runner | If +2 packages is truly unacceptable. You then owe yourself the checksum table — the drift detection is the whole value. |
+| `postgresql-migration` | `dbmigrations` 2.1.0 | Solves on 9.10.3, but is a CLI-first tool with a dependency-store abstraction and richer dependency-ordering. Overkill; `postgresql-migration` reads a plain directory. |
+| `typed-process` | `process` 1.6.26.1 (already in plan) | If +2 packages is unacceptable. `readProcessWithExitCode` gives the same `(ExitCode, String, String)` triple — but `String`, not `ByteString`, and you must handle child cleanup on timeout yourself. |
+| `crypton` SHA256 | `web3-crypto` `keccak256` | If you want the key to match an on-chain hash. `Crypto.Ethereum.Utils.keccak256` is confirmed present and is itself a thin wrapper over crypton's `hashWith Keccak_256`. Both are already in the closure; SHA256 is the better default for a *database* key (no EVM semantics implied). |
+| One `Connection` | `resource-pool` 0.5.1.0 | When a second concurrent DB consumer exists. Not at Phase 23. |
 
 ---
 
@@ -125,65 +186,282 @@ All required builtins are present: `@evm_call` (`builtins.rs:255`), `@evm_addres
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| `inline while` (comptime-unrolled loop) | Lowering emits `error_not_yet_implemented` (`lowerer/mod.rs:728`, locked by `tests.rs:779`) — will not compile in v0.1.1 | Runtime `while` (`lowerer/mod.rs:736`) |
-| `@evm_mstore` / `@evm_mload` literal names | Not registered builtins | `@mstore32` / `@mload32` (`builtins.rs:266-289`) |
-| `std::abi::abi_encode` for a `tuple[]` / `uint256[]` result | No array case in the codec (`abi_helpers.plk:7-33`); silently unsupported | Hand-roll the dynamic-array ABI (offset+length+elements) with `@mstore32` + `@evm_return` |
-| Checked arithmetic (`+ - *`) on the validation path | Reverts the whole batch on overflow — breaks best-effort | Pure comparisons (`<`, `@evm_iszero`) as in `VegaAccountMod.plk:31` |
-| Assuming try/catch | No such construct | Pure-validation skip (primary) or self-`@evm_call` frame (fallback) |
-
-## Alternatives Considered
-
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| Pure-validation skip for best-effort | Self-`@evm_call` to `@evm_address_this()` | If a per-order failure mode can't be pre-screened by bounds checks (not the case for a pure registry; becomes relevant if `create_order` later calls a revert-prone dependency) |
-| Explicit `count` arg + bounded loop (shape B) | Data-driven length from `@evm_calldatasize()` (shape A) | If you want a fully self-describing ABI `tuple[]` with no separate count; costs a divmod on calldatasize and a validity check |
-| Manual `tuple[]` return encoding | `membytes` opaque blob via `abi_encode(membytes,...)` | If the Haskell consumer decodes a raw byte blob rather than a typed `(bool,uint256)[]` — confirm with the rpc_api peer |
-
-## Stack Patterns by Variant
-
-**If the rpc_api peer confirms a batch-size cap (expected — PROJECT.md:25 marks batch-size bound "to be confirmed"):**
-- Use **shape (B): explicit `uint N` count + bounded `while i < N`**, reject `N > MAX_BATCH` up front with a pure guard.
-- Because it bounds gas, makes the results-buffer size a simple `@malloc_uninit(head + N*stride)`, and gives a clean revert on oversized batches instead of an out-of-gas surprise.
-
-**If the consumer wants a self-describing ABI `(uint88,uint24,uint16)[]`:**
-- Use shape (A) reading the ABI length word at the array offset (`@evm_calldataload(base_offset)`), then loop.
-- Still cap the decoded length against a `MAX_BATCH` constant before the loop.
-
-## Version Compatibility
-
-| Component | Constraint | Notes |
-|-----------|------------|-------|
-| Plank `v0.1.1` | Pin the binary (PROJECT.md:71) | `inline while` unimplemented at this version — re-check if the pin moves |
-| `std::abi` | No `T[]` codec at this version | Array return is manual until/unless upstream adds it |
-| `PlankDeployer` FFI | v3.0-validated | Same build/deploy path; no change needed |
-
-## Sources
-
-- `plankc/frontend/session/src/builtins.rs:180-289` — complete builtin registration table (HIGH; primary source)
-- `plankc/frontend/hir/src/lowerer/mod.rs:725-736` — `while` lowered, `inline while` rejected (HIGH)
-- `plankc/frontend/hir/src/tests.rs:779` — `test_inline_while_not_yet_supported` locking test (HIGH)
-- `plankc/docs/Grammar.md:45` — `while` is the sole loop rule; no `for`/`loop`/array (HIGH)
-- `plankc/plank-diff-tests/src/examples/merkle_airdrop.plk:45-74` + paired `MerkleAirdrop.sol` — compiled+diff-tested runtime `while` + computed `@evm_calldataload` offset (HIGH)
-- `plank-doc/src/examples/merkle-airdrop.md`, `what-makes-plank-different.md`, `comptime.md`, `getting-started.md` — language semantics (HIGH)
-- `std/abi.plk`, `std/abi_helpers.plk` — ABI codec type coverage (no arrays) (HIGH)
-- `src/modules/exposure/VegaAccountMod.plk`, `src/types/pos_spec/VolOrder.plk`, `plankified-univ3/plank/lib/util.plk` — existing project conventions (`return_u256`, pure guards, manual pack+return) (HIGH)
+| **`cryptonite`** | **Deprecated on Hackage** (last upload 2022-03-13). Hackage explicitly redirects to crypton. Would also be a genuinely *new* package. | `crypton` — **already in the resolved plan, +0 packages** |
+| **`persistent` / `esqueleto`** | +43/+44 packages, mandatory TH, drags in `monad-logger`/`conduit`/`unliftio`/`blaze-html`; worst-fit data model | `postgresql-simple` |
+| **`beam`** | +29 packages incl. `happy` + `haskell-src-exts`; severe type errors | `postgresql-simple` |
+| **`opaleye`** | DSL you don't need; JSONB operators second-class | `postgresql-simple` |
+| **`hasql-th`** | Introduces Template Haskell to a project with none, +22 packages | plain `hasql` if you go that route, else `postgresql-simple` |
+| **Storing the solver payload *only* as `jsonb`** | **`jsonb` destroys bytes** — see the trap below. Silently breaks the milestone's core check. | `jsonb` for querying **plus** `bytea` for the canonical bytes |
+| **Gating GAMS on stdout/stderr text** | `VOLUME_PATH.md` §4 forbids it; log text is not a contract | `ExitCode` from `readProcess` |
+| **Trusting `runMigration`'s exit status** | It returns a `MigrationResult` **value**; a failed migration still exits **0** (measured) | Pattern-match `MigrationError` → `exitFailure` |
 
 ---
 
-## Feasibility Verdict
+## The trap that would have silently broken this milestone
 
-**Which multicall shapes are expressible:**
+**PostgreSQL `jsonb` is a normalizing type. A `jsonb` round-trip is NOT byte-preserving.**
 
-| Shape | Expressible? | Mechanism (all builtins confirmed present) |
-|-------|-------------|--------------------------------------------|
-| **(A) Unbounded dynamic batch** | **YES** | Loop length from `@evm_calldatasize()`/ABI length word; `while i < len`; `@evm_calldataload(base + i*stride)`. Risk: unbounded gas / results-buffer size. |
-| **(B) Bounded max-N batch with `count` arg** | **YES — RECOMMENDED** | Explicit `count` word, pure guard `count <= MAX_BATCH`, `while i < count`, results buffer `@malloc_uninit(head + count*stride)`. |
-| **(C) Fixed-arity only** | YES (trivial fallback) | Unrolled fixed selectors; only if a loop somehow regressed — not needed, `while` works. |
+Official PG 18 docs: *"jsonb does not preserve white space, does not preserve the order of object
+keys, and does not keep duplicate object keys."* I confirmed this live:
 
-**The three required mechanisms, each with a concrete answer:**
+```
+raw   bytea = {"z_last":1,"a_first":2,  "dup":1, "dup":3}
+jsonb text  = {"dup": 3, "z_last": 1, "a_first": 2}
+BYTE-IDENTICAL? False
+```
 
-1. **Loop over N tuples** → runtime `while i < count { let t = @evm_calldataload(base + i*STRIDE); ...; i = i + 1; }` (`lowerer/mod.rs:736`; proven in `merkle_airdrop.plk`).
-2. **Contain per-call failure** → **pure-validation skip** (branch-only bounds checks, no checked-ops, no state write on failure — `VegaAccountMod.plk:31` precedent); self-`@evm_call` to `@evm_address_this()` available as fallback but **not required** for a bounds-only registry.
-3. **Return N results** → hand-built ABI dynamic array (`@malloc_uninit` + `@mstore32` at `head + i*wordsize` + `@evm_return(buf, len)`), written inside the same loop; no native array type, so this is manual (`VolOrder.plk:15-20` + `merkle_airdrop.plk:74` precedent).
+Whitespace stripped, keys **reordered** (note: *not* lexicographic — jsonb orders by key length then
+bytewise), duplicate key dropped with last-wins.
 
-**Recommendation for Requirements:** specify **shape (B) — bounded max-N batch with an explicit `count` argument** and a `MAX_BATCH` constant. It is fully expressible today, bounds gas and buffer sizing, matches the pending peer contract (PROJECT.md:25 batch-size bound "to be confirmed"), and needs **no self-call** (best-effort is a pure-validation skip). Flag one open ABI decision for the rpc_api peer: typed `(bool,uint256)[]` return vs. opaque `membytes` blob — this determines how much manual array encoding the module must carry.
+`PROJECT.md` makes *"same inputs + same toolchain → same bytes"* a **standing falsifiable check**.
+If that check reads back a `jsonb` column, it is **not testing the solver** — it is testing
+Postgres's normalizer, and it will report agreement even when GAMS output differs in key order, or
+report spurious differences across a PG major upgrade.
+
+**Required schema consequence:**
+
+```sql
+CREATE TABLE model_output (
+  key      text  PRIMARY KEY,   -- H(canonical inputs ‖ GAMS ver ‖ CONOPT ver)
+  model    text  NOT NULL,      -- '<model>' half of <model>/<key>
+  payload  jsonb NOT NULL,      -- QUERY surface: @>, ->>, GIN
+  raw      bytea NOT NULL       -- AUTHORITY: exact solver bytes; the byte-check reads THIS
+);
+CREATE INDEX model_output_gin ON model_output USING GIN (payload jsonb_path_ops);
+```
+
+The byte-for-byte re-solve check compares `raw`. The `payload` column is a derived, queryable
+projection. Hash over `raw` (or over the canonical input serialization), **never** over `payload`.
+
+**GIN opclass choice** (from PG 18 docs): `jsonb_path_ops` supports `@>`, `@?`, `@@` and is
+"usually much smaller … search operations typically perform better." Default `jsonb_ops` additionally
+supports `?`, `?|`, `?&`. **Use `jsonb_path_ops`** unless key-existence queries become load-bearing —
+which also happens to sidestep the `??` wart.
+
+---
+
+## Hashing — what the key should be
+
+**Use `crypton`'s SHA256. It costs zero new packages** (`crypton-1.0.6` is already in the resolved
+plan, pulled transitively via `web3-crypto`). Verified working:
+
+```haskell
+import Crypto.Hash (SHA256(..), hashWith)
+contentKey = show (hashWith SHA256 canonicalBytes)   -- lowercase hex, e.g. 2c31d952…
+```
+
+**Canonical serialization is the hard part, not the hash.** For stability across runs and machines:
+
+- Fix field order explicitly (do **not** serialize a `Map`, and do **not** hash an `aeson` `encode`
+  of a record — `aeson`'s object key order is not a stable contract).
+- Render the seven numeric inputs as **exact decimal integers/rationals**. Never hash a `Double`'s
+  textual rendering; binary floating-point formatting is the classic cross-machine drift source.
+- Use an unambiguous separator that cannot occur in a field (I used `\x1f` US) so
+  `("ab","c")` and `("a","bc")` cannot collide.
+- Append the two version strings **inside** the hashed region — that is what makes the
+  toolchain part of the identity, per the milestone definition.
+
+`web3-crypto`'s `keccak256` (confirmed at `Crypto/Ethereum/Utils.hs:19`) is equally available and
+also +0 packages — prefer it only if the key must line up with an on-chain hash.
+
+**Watch for the `memory` skew.** My first attempt failed to compile with
+`No instance for ByteArrayAccess (crypton-1.1.4:Digest SHA256)` because two `memory`/`crypton`
+versions were in scope. Pinning `crypton <1.1` (matching what `web3-crypto` already forces) fixed it.
+Using `show` on the `Digest` avoids the `ByteArray` bridge entirely — simplest and warning-free.
+
+---
+
+## Subprocess — `typed-process`, and why
+
+**Recommendation: `typed-process` 0.2.13.0 (+2 packages: `typed-process`, `unliftio-core`).**
+
+```haskell
+readProcess :: MonadIO m => ProcessConfig s o e -> m (ExitCode, L.ByteString, L.ByteString)
+```
+
+That triple is exactly the §4 contract: **gate on `ExitCode`, keep stdout/stderr as captured
+artifacts, never parse them for control flow.**
+
+**Timeout safety — verified from source, not assumed.** `readProcess` is implemented as
+`withProcess pc' …`, and `withProcess = withProcessTerm`, which is
+`bracket (startProcess config) stopProcess`. Because the release action is `stopProcess`
+(`= pCleanup`), an async exception — including the one `System.Timeout.timeout` delivers — runs
+cleanup and **terminates the child**. So:
+
+```haskell
+System.Timeout.timeout micros (readProcess gamsCfg)
+```
+
+is safe and will not leak an orphaned GAMS process.
+
+Note the haddock on `withProcessTerm` says it is "usually *not* what you want … see
+typed-process#25" — that advice is aimed at people *interacting* with a long-lived child, where you
+want to wait rather than kill. For **run-to-completion-or-timeout**, terminate-on-exception is
+exactly the desired semantics, and `readProcess` already has it.
+
+**`process` 1.6.26.1 is the honest fallback** — it is already in the plan (+0 packages) and
+`readProcessWithExitCode` yields the same triple. It returns `String` rather than `ByteString`
+(lossy/slow for large solver output, and encoding-sensitive), and you carry the cleanup burden
+yourself. `System.Process` is not a separate option — it is the module `process` exports.
+**+2 packages to get `ByteString` output and bracket-guaranteed child termination is worth it.**
+
+---
+
+## Connection/config — no hardcoding, consistent with `RIG_*`
+
+**Verified live:** `connectPostgreSQL ""` connects using **only** libpq's standard environment
+variables — with `DATABASE_URL` unset entirely:
+
+```
+DATABASE_URL present? False
+connected via PG* env to db = probe
+```
+
+Recommended precedence, matching the existing `RIG_MANIFEST` / `RIG_PINS` / `DRIVER_CAPTURE` /
+`RIG_SEED` idiom:
+
+1. **`RIG_DATABASE_URL`** (project-namespaced override — consistent with the existing `RIG_*` family)
+2. **`DATABASE_URL`** (the ecosystem-standard name CI tooling already sets)
+3. **`""`** → libpq falls back to `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` / `PGDATABASE`
+
+All three land in one `ByteString` passed to `connectPostgreSQL`. **Fail loudly** if none resolve —
+do not silently default to `localhost`, or a CI misconfiguration becomes a green run against the
+developer's machine. Keep passwords out of the repo; `PGPASSWORD`/`.pgpass` are the standard routes.
+
+---
+
+## Migrations — `postgresql-migration`, verified end to end
+
+Plain `.sql` files in a directory, applied by a runner — the hand-rolled shape, with the one part
+you'd get wrong done for you. Measured behaviour:
+
+```
+init      = MigrationSuccess
+apply     = MigrationSuccess
+re-apply  = MigrationSuccess          (idempotent)
+validate  = MigrationSuccess          (checksum)
+--- after appending one comment line to 001_init.sql ---
+apply     = MigrationError "001_init.sql"
+validate  = MigrationError "Checksum mismatch: 001_init.sql"
+```
+
+`MigrationDirectory` reads ordinary SQL files; `MigrationValidation` is an **MD5 drift detector**.
+For a milestone whose thesis is reproducibility, a migration set that notices when it has been
+edited underneath you is worth 2 packages. Rolling this yourself means reimplementing the
+`schema_migrations` table and the checksums.
+
+**Two caveats, both measured:**
+
+- **It does not exit non-zero.** `runMigration` returns `MigrationResult`; my tampered run printed
+  `MigrationError` and the process still exited **0**. Pattern-match and call `exitFailure`
+  yourself, or a broken migration passes CI.
+- The API is `Database.PostgreSQL.Simple.Migration` — it is **`postgresql-simple`-native**. If you
+  later switch to `hasql`, this choice does not come with you. That coupling is real and is an
+  argument for deciding the client question once, now.
+
+`dbmigrations` 2.1.0 also solves on 9.10.3 but is a heavier CLI-oriented tool with dependency
+ordering this schema does not need.
+
+---
+
+## Postgres provisioning for CI (self-hosted runner)
+
+**Measured on this machine:** no Postgres **server** (`postgres`, `initdb` absent from `PATH`);
+`psql` client and `libpq` 18.4 present; **Docker 29.5.2 available**. `postgres:18-alpine` reached
+`pg_isready` in **3 seconds**.
+
+| Option | Trade-offs | Verdict |
+|--------|-----------|---------|
+| **GH Actions `services:` container** | Native `services:` block, health-checked, fresh DB per job, auto-torn-down. Requires Docker on the runner (**present**). Note: on a *self-hosted, non-containerized* runner the service port must be mapped to `localhost` (`ports: 5432:5432`) — the automatic container-network hostname trick only applies when the **job itself** runs in a container. | **RECOMMENDED** |
+| **`docker compose` step** | Full control (extensions, `postgresql.conf`, init SQL); more YAML; you own readiness-polling and cleanup, and a crashed job can leak containers on a *persistent* self-hosted runner. | Good fallback if you need custom server config |
+| **Local system cluster on the runner** | Fastest (no container start), but **not installed**, and it is persistent shared state on a runner that already serialises the gate with a host-wide `flock`. Cross-run contamination would undermine the reproducibility claim this milestone exists to make. | **Avoid** |
+
+Two self-hosted-specific cautions this project has already been bitten by:
+
+- **Port collisions.** The runner is shared and the gate is `flock`-serialised host-wide. Bind a
+  **non-default host port** (I used `55433`) or scope the DB per job, so a developer's local
+  Postgres cannot silently satisfy a CI connection.
+- **The `haskell` gate job has never executed** (`19a06f3` merged with `--admin`). Its first real
+  run will now also be the first run of the Postgres service wiring. Expect to debug **both** at
+  once; consider landing the service block in a trivial PR before Phase 23's code depends on it.
+
+---
+
+## Version Compatibility
+
+| Package | Constraint | Notes |
+|---------|-----------|-------|
+| `crypton` | **`>=0.30 && <1.1`** — forced by `web3-crypto` | Plan resolves **1.0.6**, though **1.1.4** is latest. Adding `crypton` directly is fine; **do not request `>=1.1`** or the plan breaks. |
+| `aeson` | **`<2.3`** — forced by `web3-crypto` | Plan pins **2.2.5.0**; latest is **2.3.1.0**. Any new dependency demanding `aeson >=2.3` will conflict. *(Verified: `hasql` still solves inside the real project under this cap.)* |
+| `base` | `web3-crypto` allows `<4.21` | GHC 9.10.3's `base` 4.20.x fits. **A future GHC 9.12 (`base` 4.21) would break `web3-crypto`** — out of scope now, but it caps the compiler. |
+| `postgresql-simple` | `0.7.0.1` | `postgresql-migration` requires `>=0.4 && <0.8` — compatible. |
+| `postgresql-libpq` | `0.11.0.0` | Needs system `libpq`; **18.4 present**. |
+| `process` | `1.6.26.1` in plan (latest 1.6.30.0) | GHC boot library; leave it alone. |
+| PostgreSQL server | **18.x** | Pin the CI image tag (`postgres:18-alpine`). A major-version change can alter `jsonb` numeric rendering — pin it, since `payload::text` stability is assumed nowhere but confusion is cheap to avoid. |
+
+**All candidate integrations were re-verified inside the real project**, not just standalone:
+`postgresql-simple`, `postgresql-simple + postgresql-migration`, `hasql` trio, `hasql + hasql-th`,
+`typed-process`, and `crypton` each produce a valid plan alongside the existing `hs-web3` closure.
+
+---
+
+## Stack Patterns by Variant
+
+**If the store stays single-writer (the resident re-solve loop) — the Phase 23 case:**
+- One `Connection`, no pool. Skip `resource-pool`.
+- Because it is one process against one DB, an advisory lock (`pg_advisory_lock`) is a cheaper
+  mutual-exclusion story than anything application-side.
+
+**If a second concurrent consumer appears (e.g. the v7.0 subgraph writer):**
+- Add `resource-pool` 0.5.1.0 (+1) and wrap `Connection` acquisition.
+- Reconsider `hasql` + `hasql-pool` at that point — its pooling story is first-party and better.
+
+**If compile-time-checked SQL becomes a requirement:**
+- Switch to `hasql` + `hasql-th` (+22) and accept Template Haskell. Do this as a deliberate
+  decision, not incrementally — `postgresql-migration` is `postgresql-simple`-bound and would
+  need replacing too.
+
+---
+
+## Confidence
+
+| Claim | Confidence | Basis |
+|-------|-----------|-------|
+| All candidates build on GHC 9.10.3 | **HIGH** | compiled each one; exit 0 |
+| Dependency footprint numbers | **HIGH** | `plan.json` set-diff vs the real 152-pkg baseline |
+| Versions | **HIGH** | Hackage index refreshed 2026-08-16T11:47:09Z |
+| `jsonb` is not byte-preserving | **HIGH** | official PG 18 docs **+** executed against PG 18.4 |
+| `?` vs `??` differs between `query` and `query_` | **HIGH** | executed both; captured the `SqlError` |
+| `typed-process` kills the child on timeout | **HIGH** | read `bracket … stopProcess` in the source. *Reasoned from the bracket, not from a timeout test I ran.* |
+| Migration checksum drift detection + exit-0 caveat | **HIGH** | executed, including the tampered-file case |
+| `crypton` costs +0 packages | **HIGH** | present in the existing resolved plan |
+| CI service-container recommendation | **MEDIUM** | Docker + image startup measured here; the **GH Actions `services:` wiring on this specific self-hosted runner is not yet exercised** — it has never run. |
+
+**Gaps / things I did not verify:**
+- I did not run `hasql` against the live database — its JSONB codecs were verified by source
+  inspection, not execution. The recommendation against it rests on footprint and style fit, both
+  measured, not on any functional deficiency.
+- I did not measure `postgresql-simple` vs `hasql` throughput. If the resident loop turns out to be
+  DB-bound (unlikely — it is GAMS-bound), that assumption should be revisited.
+- Concurrency/locking semantics for the resident loop's "cache hit elides the solve" race are a
+  **Phase 23 design question**, not a library question, and are unresolved here.
+
+---
+
+## Sources
+
+- **Local toolchain execution** (highest confidence) — `ghc 9.10.3`, `cabal-install 3.16.1.0`;
+  build probes, `plan.json` set-diffs, live PG 18.4 runs
+- **Hackage index** @ `index-state 2026-08-16T11:47:09Z` — all version numbers
+- **Package sources** (`cabal get`) — `postgresql-simple-0.7.0.1` (`Simple.hs:285`,
+  `FromField.hs:576-592`), `hasql-2.0.1.0` (`Codecs/Encoders/Value.hs:212-226`),
+  `typed-process-0.2.13.0` (`Typed.hs:314,411`), `postgresql-migration-0.2.1.8`,
+  `web3-crypto-1.1.0.0` (`Crypto/Ethereum/Utils.hs:19`, `.cabal` bounds)
+- https://www.postgresql.org/docs/18/datatype-json.html — json vs jsonb preservation; GIN opclasses
+- https://hackage.haskell.org/package/cryptonite — deprecation confirmed (last upload 2022-03-13)
+- `.planning/PROJECT.md` — milestone v6.0 goal, `VOLUME_PATH.md` §3/§4 determinism + exit-code rules
+- `cfmm-replicationPlank-rpc-api.cabal` — existing dependency set
+
+---
+*Stack research for: Postgres/JSONB content-addressed model-output store + solver subprocess layer (Haskell, GHC 9.10.3)*
+*Researched: 2026-08-16*
