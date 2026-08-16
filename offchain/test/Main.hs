@@ -104,6 +104,12 @@ import RealizedVol.Decode
   , decode_timepoint_written
   , signed_word
   )
+-- The store contract, executed. Store.Laws is imported for BOTH its verdicts and its NAMES: the
+-- law set is asserted against `law_names` rather than against a transcription of it, so a law
+-- renamed in the library and nowhere else is a set mismatch instead of a silent loss.
+import Store.Laws (law_names, store_laws)
+import Store.Memory (new_memory_store)
+import Store.Types (CorpusBehaviour (..), adversarial_corpus, cm_behaviour, cm_name)
 import StochasticOrderGen.Simulate (draw_target_vega)
 import StochasticOrderGen.Types (VegaDraw (..))
 import StochasticPriceGen.Simulate (simulate_path)
@@ -5658,6 +5664,151 @@ sentinel_falsification_harness =
           with_override (ma_var artifact) scratch (core_checks >>= first_objection)
 
 -- ---------------------------------------------------------------------------------------------
+-- The store contract: DB-03, KEY-07, BYTE-05
+-- ---------------------------------------------------------------------------------------------
+
+-- | THE LAW SURFACE, NAMED HERE SO @Store.Laws@ CANNOT NAME IT.
+--
+-- It is a SET, not a count, for the reason 'expected_selector_pins' is a set and in that
+-- constant's own words: /"a floor of thirty is satisfied by thirty pins of which one has been
+-- swapped."/ A floor on \"how many laws executed\" is defeated by renaming one law, which is
+-- finding #3 in this file verbatim; a set is not. Adding or removing a law means editing this
+-- list, deliberately, in the same commit.
+--
+-- Alphabetical so that a diff against @Store.Laws@'s declaration order is a diff about NAMES and
+-- never about ordering.
+expected_store_laws :: [String]
+expected_store_laws =
+  [ "law_blob_lookup_of_an_absent_name_is_nothing"
+  , "law_blob_round_trips_byte_identically"
+  , "law_distinct_models_do_not_collide"
+  , "law_first_writer_wins_on_the_identity_triple"
+  , "law_key_scheme_orphans_rather_than_matching"
+  , "law_put_then_lookup_returns_the_same_artifact"
+  , "law_same_key_under_a_new_scheme_inserts"
+  ]
+
+-- | The SET, asserted in BOTH directions against the library's own 'law_names'.
+--
+-- One direction alone is satisfied by a RENAME: drop the old name from the set and the
+-- \"everything expected is defined\" half is happy, while a law nothing names has quietly stopped
+-- being accounted for. Both halves are collected into ONE message rather than short-circuited,
+-- because a rename produces one violation of EACH kind and an operator who is shown only the
+-- first has to guess the second.
+expected_store_laws_is_the_law_set :: Check
+expected_store_laws_is_the_law_set =
+  pure_check "expected_store_laws_is_the_law_set" $
+    let defined_unnamed = [n | n <- law_names, n `notElem` expected_store_laws]
+        named_undefined = [n | n <- expected_store_laws, n `notElem` law_names]
+        repeated        = [n | n <- nub law_names, length (filter (== n) law_names) > 1]
+        complaints =
+          ["Store.Laws defines a law this SET does not name: " ++ n | n <- defined_unnamed]
+            ++ ["this SET names a law Store.Laws does not define: " ++ n | n <- named_undefined]
+            ++ ["Store.Laws defines the same law name twice: " ++ n | n <- repeated]
+    in expect (null complaints)
+         (intercalate "\n      " complaints
+           ++ "\n      The law surface is a SET on both sides: a law the set does not name is a"
+           ++ " law whose verdict nothing accounts for, and a name the library does not define is"
+           ++ " a set that has stopped describing anything. A duplicate name would let one law"
+           ++ " pad the surface for two.")
+
+-- | THE CHECK THAT DELIVERS DB-03, AND IT OPENS NO SOCKET.
+--
+-- The requirement is that @cabal test@ passes with no database present AND that the store checks
+-- still discriminate. The first half is satisfied STRUCTURALLY here rather than by a branch: this
+-- check does not import @Store.Postgres@, does not read @PGSTORE_DSN@, does not spawn a process
+-- and does not open a connection. There is nothing here for a @CFMM_REQUIRE_DB@ variable to gate,
+-- and that is the point -- under the three-tier decision NOTHING in @cabal test@ touches a
+-- database, so any check that consulted such a variable would BE a database-dependent check and
+-- would have broken the tier decision on its way to enforcing it. A safety property that lives in
+-- another system's @env:@ block fails open when that block drifts; this one cannot.
+--
+-- The second half is delivered by REAL EXECUTION. Every law in "Store.Laws" runs against a FRESH
+-- 'new_memory_store' -- one store per law, so no law's writes can satisfy another law's read and
+-- a passing set cannot be an artifact of ordering.
+--
+-- The count assertion at the end is a SECONDARY instrument and never the primary one: the primary
+-- is 'expected_store_laws_is_the_law_set' above. It is here in the @dr_complete@ \/
+-- @dr_configured_size@ idiom (@Driver\/Capture.hs:93-98@) so that a truncated law list is visible
+-- without arithmetic.
+store_laws_run_against_the_memory_store :: Check
+store_laws_run_against_the_memory_store =
+  Check "store_laws_run_against_the_memory_store" . guarded $ do
+    verdicts <- mapM against_a_fresh_store store_laws
+    pure $ do
+      let broken = [why | (_, Left why) <- verdicts]
+      _ <- expect (null broken)
+             ("the store contract does not hold against Store.Memory, which is the REFERENCE"
+               ++ " implementation every other store is measured against:\n      "
+               ++ intercalate "\n      " broken)
+      expect (length verdicts == length expected_store_laws)
+        ("Store.Laws executed " ++ show (length verdicts) ++ " laws against Store.Memory and the"
+          ++ " expected surface has " ++ show (length expected_store_laws) ++ ". A law list that"
+          ++ " silently shortened would report every remaining law passing.")
+  where
+    against_a_fresh_store (name, law) = do
+      store <- new_memory_store
+      (,) name <$> law store
+
+-- | BYTE-05's precondition: the corpus can still exercise the failure BYTE-05 is about.
+--
+-- Named for the 'SilentlyCorrupted' clause because that is the load-bearing one, but it asserts
+-- the whole corpus surface: the behaviour-tag SET, the member-NAME set in both directions, name
+-- uniqueness, and the size. The name set is here because the plan's original size assertion is a
+-- COUNT, and a count is satisfied by swapping the discriminating member for a harmless one --
+-- finding #3, again.
+adversarial_corpus_has_a_silently_corrupted_member :: Check
+adversarial_corpus_has_a_silently_corrupted_member =
+  pure_check "adversarial_corpus_has_a_silently_corrupted_member" $
+    let observed  = sort (nub (map cm_behaviour adversarial_corpus))
+        wanted    = [ServerRejects, RoundTripsAnyway, SilentlyCorrupted]
+        absent    = [b | b <- wanted, b `notElem` observed]
+        names     = map cm_name adversarial_corpus
+        missing   = [n | n <- expected_corpus_members, n `notElem` names]
+        unlisted  = [n | n <- names, n `notElem` expected_corpus_members]
+    in do
+      _ <- expect (observed == wanted)
+             ("the corpus no longer carries all three measured behaviour classes. Missing: "
+               ++ intercalate ", " (map show absent)
+               ++ ". Each class means something different and only one of them is the failure"
+               ++ " BYTE-05 is about, so a corpus that has lost a class has lost the ability to"
+               ++ " tell those failures apart.")
+      _ <- expect (any ((== SilentlyCorrupted) . cm_behaviour) adversarial_corpus)
+             ("ROADMAP SC-1's stated corpus (0x00, 0xFF, invalid UTF-8, CRLF, trailing newline)"
+               ++ " contains NO member of this class. MEASURED on PG 18.4: three of those five"
+               ++ " raise ERROR: invalid byte sequence for encoding UTF8 -- a shape"
+               ++ " indistinguishable from a dead connection -- and two round-trip CORRECTLY"
+               ++ " through the broken path. Without a SilentlyCorrupted member the negative"
+               ++ " control in plan 23-05 is satisfied by a SqlError and proves nothing about"
+               ++ " byte fidelity.")
+      _ <- expect (null missing && null unlisted)
+             ("the corpus MEMBER SET has moved. Gone: " ++ intercalate ", " missing
+               ++ " | new and unaccounted for: " ++ intercalate ", " unlisted
+               ++ ". The size assertion below is a count, and a count is satisfied by swapping the"
+               ++ " discriminating member for a harmless one -- which is exactly the substitution"
+               ++ " that would make plan 23-05's negative control vacuous while every number in"
+               ++ " this check still added up.")
+      _ <- expect (names == nub names)
+             ("the corpus has two members with the same name, so one of them will overwrite the"
+               ++ " other on the blob surface and its bytes will never be read back: "
+               ++ intercalate ", " [n | n <- nub names, length (filter (== n) names) > 1])
+      expect (length adversarial_corpus == 7)
+        ("the adversarial corpus has " ++ show (length adversarial_corpus)
+          ++ " members and the measured corpus has 7.")
+
+-- | The corpus by NAME, so a deletion or a substitution is a set mismatch rather than arithmetic.
+expected_corpus_members :: [String]
+expected_corpus_members =
+  [ "crlf"
+  , "double-backslash"
+  , "high-byte"
+  , "invalid-utf8"
+  , "nul"
+  , "octal-escape"
+  , "trailing-newline"
+  ]
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -5747,6 +5898,9 @@ core_checks = do
           , driv01_seed_is_reproducible
           , driv01_seed_replays_the_committed_path
           , every_advertised_override_is_honoured
+          , expected_store_laws_is_the_law_set
+          , store_laws_run_against_the_memory_store
+          , adversarial_corpus_has_a_silently_corrupted_member
           , driv01_capture_round_trips
           , driv01_run_capture_is_present_and_fresh
           , driv01_e3_per_step_matches_submitted
