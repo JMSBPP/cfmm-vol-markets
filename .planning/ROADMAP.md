@@ -983,7 +983,7 @@ at the end of 25.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 23. Postgres Foundation & the Byte-Exact Schema | 3/5 | In Progress|  |
+| 23. Postgres Foundation & the Byte-Exact Schema | 4/5 | In Progress|  |
 | 24. GAMS Invocation & Toolchain Identity | 0/TBD | Not started | - |
 | 25. The Content Key & Keyed Store | 0/TBD | Not started | - |
 | 26. Shock Assembly — Fee Split & Event Decode | 0/TBD | Not started | - |

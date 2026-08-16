@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 23-03-PLAN.md — the schema, the migration manifest and Store.Postgres are landed; BOTH deliberate reds are CLOSED and the suite is GREEN at 98/98, FAIL count 0. Next: /gsd:execute-phase 23 wave 4 (23-04, the conformance capture — the FIRST execution of every DB-facing line in Store.Postgres)"
+stopped_at: "Completed 23-04-PLAN.md — the conformance capture is COMMITTED. A real Postgres 18.4 was provisioned in Docker and all nine DB-only observations came out at their expected values on the FIRST run; the USER RULING on the jsonb/law incompatibility is implemented AND validated (8/8 laws pass against Store.Postgres unchanged — tier B predicted tier C). Suite still 98/98, FAIL 0, DB-free. Next: /gsd:execute-phase 23 wave 5 (23-05, the checks over store-conformance.json — 121 leaves to budget for the sentinel harness)"
 last_updated: "2026-08-16"
-last_activity: "2026-08-16 — 23-03 executed: two migrations, Store.Schema, and Store.Postgres (the sole database-client importer, Binary-only writes, doc derived from the same parameter as raw, pg_advisory_lock(872304), exitFailure on MigrationError); .sql added to sc3_literal_purge and PROVEN scanned; four measured corrections to the research incl. execute_ throwing on a returning statement; suite 98/98 green"
+last_activity: "2026-08-16 — 23-04 executed: Store.Json (a pure RFC 8259 recogniser) + Store.Memory tightened to reject non-json on the keyed path + an eighth law making that rule executable; StoreConformance.hs and capture-store-conformance.sh; the real 606-byte golden copied in with provenance; store-conformance.json committed (121 leaves, sc_complete true, 8/8 verdicts, server_version 18.4). THREE findings recorded rather than adjusted: corpus[nul] is SilentlyCorrupted not ServerRejects (1 byte in, 0 out, no error — libpq's C-string escaper truncates), the predicted Store.Json/jsonb numeric-overflow divergence does NOT exist, and the drift stderr is the SCRIPT NAME (23-03's source-read confirmed empirically)"
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   blocked_phases: 2
 # NOTE: these counts are v6.0-SCOPED (phases 23-28) on purpose. `gsd-tools state update-progress`
 # was run at 23-01 and rewrote them by scanning EVERY phase directory on disk, producing
@@ -38,30 +38,35 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **23 — Postgres Foundation & the Byte-Exact Schema** (IN PROGRESS — 3/5 plans)
-Plan: **23-03 COMPLETE** (DB-01/KEY-07/BYTE-01/BYTE-02/BYTE-03 all PARTIAL, none marked complete —
-third plan running). Next: 23-04 (wave 4, the conformance capture).
-Status: the SCHEMA and the CLIENT are landed. Two migrations under `offchain/migrations/`,
-`Store.Schema`'s pure manifest, and `Store.Postgres` — the only file in `offchain/{lib,app,test}`
-matching `Database\.PostgreSQL`. Every `bytea` parameter is `Binary`-wrapped (six sites, inspected
-individually, including the two in `WHERE` clauses the plan's wording did not cover); `doc` is
-derived from the SAME parameter as `raw` in ONE statement; the runner holds
-`pg_advisory_lock(872304)` and calls `exitFailure`.
+Phase: **23 — Postgres Foundation & the Byte-Exact Schema** (IN PROGRESS — 4/5 plans)
+Plan: **23-04 COMPLETE** (DB-01/DB-04/BYTE-01/BYTE-02/BYTE-05/KEY-07 all PARTIAL, none marked
+complete — fourth plan running). Next: 23-05 (wave 5, the checks over the captured artifact).
+Status: **THE EVIDENCE EXISTS.** A real `postgres:18-alpine` (`server_version` 18.4) was
+provisioned in Docker, every database-only observation was DRIVEN against it, and
+`offchain/rig/store-conformance.json` is committed — 121 leaves, `sc_complete true`, 8/8 law
+verdicts `pass`. One full cold capture takes **4–8 s**. Nothing in `cabal test` reads it yet; that
+is 23-05, and until then the artifact is asserted by nothing (this repository's own issue #19
+shape, budgeted rather than discovered).
 
-**THE SUITE IS GREEN: 98/98, FAIL count 0.** Both of 23-02's deliberate reds closed with one file,
-exactly as its anti-control C2 predicted (96 + this plan's 2 new checks = 98). **No database was
-provisioned, contacted or required** — the three-tier decision holds for the third plan running,
-now with the client module on disk:
+**THE USER RULING IS IMPLEMENTED AND VALIDATED.** 23-03's `jsonb` / `law_first_writer_wins`
+incompatibility was ruled: the keyed path REQUIRES a json value, `Store.Memory` is tightened to
+match (via `Store.Json`, a pure RFC 8259 recogniser — no json library on the storage path), the
+fixture becomes a json value that still disagrees, and the rule is now an executable eighth law with
+a LIVENESS control ordered first. **All eight laws pass against `Store.Postgres` unchanged: tier B
+predicted tier C**, which is the only reason `cabal test` may run without a server.
+
+**THE SUITE IS STILL GREEN AND STILL DB-FREE: 98/98, FAIL count 0**, unchanged because this plan
+registers no check (the new law is DATA inside an existing one).
 `grep -cE 'Store\.Postgres|CFMM_REQUIRE_DB|connectPostgreSQL' offchain/test/Main.hs` is still 0.
+`Database\.PostgreSQL` now matches **two** files — `Store/Postgres.hs` and the capture executable —
+which supersedes 23-03's "exactly one" deliberately.
 
-**23-04 IS THE FIRST EXECUTION OF EVERY DB-FACING LINE IN `Store.Postgres`.** Nothing in it has
-been run — not the lock, not the runner, not the insert, not the catalogue query. A first failure
-there is a defect in that module until proven otherwise. And it must RULE on the `jsonb` /
-`law_first_writer_wins` incompatibility below before writing the capture.
+**Not one defect was found in `Store.Postgres`.** 23-03 warned this plan is the first execution of
+every DB-facing line in it; the capture worked end to end on its first run.
 
-Next action: `/gsd:execute-phase 23` (wave 4).
+Next action: `/gsd:execute-phase 23` (wave 5).
 
-Last activity: 2026-08-16 — 23-03 executed (commits `5535582`, `2aa1e96`, `3995d4e`, `c4741b3`).
+Last activity: 2026-08-16 — 23-04 executed (commits `883a991`, `845d4a2`, `e7687e5`).
 
 ### The six phases
 
@@ -164,6 +169,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 23 P01 | 41min | 3 tasks | 5 files |
 | Phase 23 P02 | 62min | 3 tasks | 5 files |
 | Phase 23 P03 | 44min | 2 tasks | 6 files |
+| Phase 23 P04 | 33min | 3 tasks | 12 files |
 | Phase 19 P01 | 6 | 3 tasks | 3 files |
 | Phase 19 P02 | 33 | 3 tasks | 3 files |
 | Phase 19 P03 | 24 | 3 tasks | 1 files |
@@ -193,6 +199,16 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 **v6.0 (Phase 23) decisions:**
 
+- [Phase 23]: [23-04 USER RULING, implemented AND validated by measurement] the keyed path **REQUIRES a json value** — `model_run.doc` is `not null jsonb` derived from the same parameter as `raw`, and the server computes the row before it resolves the conflict clause, so `on conflict do nothing` does not save a non-json artifact. `Store.Memory` is TIGHTENED to match (rather than the server loosened) because **TIER B MUST PREDICT TIER C**: a law suite that passes against the reference store and fails against Postgres defeats the three-tier design, which is the only reason `cabal test` may run with no database. `law_first_writer_wins`'s second payload became `{"a":2,"note":"SECOND-SOLVE-DISAGREED"}` — still different bytes, so its discriminating power is unchanged — and the old non-json bytes became the probe of the new eighth law. **MEASURED: all 8 laws pass against `Store.Postgres` unchanged.** BYTE-01's arbitrary-bytes requirement is served by `byte_corpus`, which deliberately has no `jsonb` column.
+- [Phase 23]: [23-04 DECIDED] `Store.Json` — a total, pure RFC 8259 recogniser behind a UTF-8 gate — is the predicate the server-free tier rejects with. Hand-written because every module under `offchain/lib/Store/` is in `aeson_storage_path`, and because a RECOGNISER builds no value and therefore cannot re-render a number or reorder a key. Its agreement with `jsonb` is **MEASURED per input** in the capture's `json_agreement` block, never claimed in prose. Added to `aeson_storage_path` in the commit that created it, per the rule 23-03 wrote down and then broke.
+- [Phase 23]: [23-04 MEASURED, FALSIFIES the plan's own guard table AND the research] **`corpus[nul]` is `SilentlyCorrupted`, not `ServerRejects`.** Driven through `postgresql-simple`'s bare-`ByteString` path it goes in at **1 byte and comes back at 0**, with NO error — because `ToField ByteString` is `Escape`, which hands the value to libpq's C-string escaper, and **a C string ends at its first NUL**, so the parameter reaching Postgres is empty and there is nothing left for the encoding check to reject. The research measured a different path (a text literal not going through parameter escaping). The tag is corrected, and this **STRENGTHENS BYTE-05**: a total truncation is a worse silent corruption than `octal-escape`'s 6→3 and had been filed under the loud behaviour that proves the least. Any citation of "the secondary `Binary` observation" must name `high-byte` and `invalid-utf8`, which do raise. Also: `crlf` and `trailing-newline` round-trip CORRECTLY through the broken path and must never be cited as evidence for the wart.
+- [Phase 23]: [23-04 MEASURED, refutes this executor's own prediction] the predicted `Store.Json` / `jsonb` **numeric-overflow divergence DOES NOT EXIST** — `1e1000` and `1e100000` were both ACCEPTED by the server. The one real divergence is a `\u0000` escape inside a string (RFC-valid, refused by `jsonb`, because Postgres text cannot carry a NUL). Both refuted probes are KEPT under their own names: a probe deleted for agreeing is a probe that can never disagree later.
+- [Phase 23]: [23-04 MEASURED, confirms 23-03's source-read EMPIRICALLY] on checksum drift through `runMigrations` the stderr line is `migration FAILED: 001_model_run.sql (dir: …)` — the **SCRIPT NAME**, exactly as 23-03 read out of `Migration.hs:181`, and not the words "checksum mismatch". `checksum_drift_stderr` is recorded for a human reader and **23-05 must not assert on its text**; the exit code (`1`, from the runner's own `exitFailure`) is the observation.
+- [Phase 23]: [23-04 MEASURED, strengthens the plan] an exclusion observation needs its RELEASE observation. `second_migrator_try_lock false` / `applied 0` against an already-migrated database is satisfied by a migrator that could never apply anything, by a closed connection, and by a directory with nothing new in it. The probe directory therefore carries a THIRD migration and the lock is measured again after release: `after_release_try_lock true`, `after_release_applied 1`. Only that pair says the lock EXCLUDED work that would otherwise have happened.
+- [Phase 23]: [23-04 FINDING, a guard PROBE can itself be vacuous] the docker-absent refusal probe did NOT fire on its first attempt: a `chmod 000` `docker` shim placed first on `PATH` is SKIPPED by bash's PATH search, the real binary was found, the capture ran to completion and the artifact CHANGED. It was caught only because the artifact digest was compared before and after rather than the exit code being read alone. The valid probe builds a 2750-entry symlink farm of `/usr/bin` with `docker` omitted and verifies `command -v docker` is empty BEFORE invoking the script. Guard then fired: exit 1, message naming `docker`, artifact byte-identical.
+- [Phase 23]: [23-04 MEASURED, validates a design choice by accident] the capture's **non-default host port `55433` is not taste** — `docker ps` during this plan showed another project's `postgres:18-alpine` bound to `0.0.0.0:5432` on this very machine. On the default port the capture would have connected to a foreign database, migrated it, and reported success.
+- [Phase 23]: [23-04 DECIDED, corrects a self-contradiction in the plan] the artifact FILE is written exactly ONCE, atomically, at the end; only the completeness FLAG starts `False`. The plan's "write `sc_complete` `False` FIRST" taken literally means the tool replaces the committed evidence with an empty skeleton before it has produced any — the precise failure the capture scripts' restore-on-failure shape exists to prevent, and forbidden by this plan's own standards.
+- [Phase 23]: [23-04 MEASURED, 23-05's budget input] `store-conformance.json` has **121 LEAVES**, 70 of them the corpus block (7 members × 10 fields, the plan's own prescribed shape). At ~6 full `core_checks` re-runs per leaf the sentinel harness must be budgeted explicitly; consider ONE iterating check over the corpus array rather than per-field checks. The number is reported rather than trimmed — trimming a recorded field to make a harness cheaper is how fields stop being asserted.
 - [Phase 23]: [23-03 MEASURED, the count every later v6.0 plan compares against] the suite is **98/98, FAIL count 0** — 23-02's 96 total plus EXACTLY the 2 checks 23-03 registered, with BOTH deliberate reds closed by the single file `offchain/lib/Store/Postgres.hs`. 23-02's anti-control C2 predicted this to the check. Counts taken from the BUILT TEST BINARY, not from `cabal test`.
 - [Phase 23]: [23-03 MEASURED, a BUG in the research's AND the plan's own prescribed code] `execute` / `execute_` **THROW** on a statement that returns columns — `finishExecute` raises `QueryError "execute resulted in 1-column result"` on `PQ.TuplesOk` (`Internal.hs:408-428`). So `execute_ con "select pg_advisory_lock(872304)"`, the form BOTH the research's §Code Examples and 23-03's task 2 prescribe, compiles cleanly and throws at the FIRST acquisition. Both lock statements go through `query` and consume the row: `[Only ()]` for the void-returning blocking lock (`FromField ()` exists and requires exactly `voidOid`), `[Only Bool]` for try and unlock. **Never use `execute_` for a `select` run for its side effect.**
 - [Phase 23]: [23-03 MEASURED, source-read, binds 23-05] on checksum drift through `runMigrations` the payload is `MigrationError name` — the **SCRIPT NAME** (`Migration.hs:181`) — NOT the string `"Checksum mismatch"`. That wording belongs to the separate `MigrationValidation` path (`:239`), which the runner does not take. A check asserting on the drift payload TEXT would be asserting on a filename. The observation that counts is `echo $?` == 1 either way.
