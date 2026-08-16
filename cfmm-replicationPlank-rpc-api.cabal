@@ -83,6 +83,8 @@ library
                     , CheatSwap.Rpc
                     , Driver.Seed
                     , Driver.Capture
+                    , Store.Types
+                    , Store.Config
 
     -- Modules included in this library but not exported.
     -- other-modules:
