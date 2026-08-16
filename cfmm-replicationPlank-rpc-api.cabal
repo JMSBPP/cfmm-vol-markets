@@ -85,6 +85,8 @@ library
                     , Driver.Capture
                     , Store.Types
                     , Store.Config
+                    , Store.Class
+                    , Store.Memory
 
     -- Modules included in this library but not exported.
     -- other-modules:
