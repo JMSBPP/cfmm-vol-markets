@@ -109,6 +109,19 @@ exists because three separate layers were measured silently altering them.
       a value that flows into a key.
 - [ ] **CHAIN-04**: Decoding is exercised against synthetic logs, so it is testable before
       the upstream event exists and without a chain.
+- [ ] **CHAIN-05**: The published fixture records the pool identity it was solved for — `pool`
+      (string address), `blockNumber` (**string**, because it can exceed the 53-bit double-exact
+      ceiling) and `chainId` — so the consuming test can ATTACH rather than construct. `token0`/
+      `token1` are deliberately NOT recorded: the test reads them from the pool on-chain, keeping
+      the pool the single source of truth.
+- [ ] **CHAIN-06**: Every endpoint consumer resolves `ETH_RPC_URL` if set, else
+      `http://127.0.0.1:8545` — the four `*/Rpc.hs` providers, `app/Main.hs`,
+      `app/CheatSwapProof.hs`, `deploy-rig.sh` and both `capture-*.sh`. Nine sites, one rule.
+- [ ] **CHAIN-07**: The PRODUCER binds the same endpoint as the consumers — `deploy-rig.sh`
+      derives anvil's `--host`/`--port` AND the deploy `--rpc-url` from one `ETH_RPC_URL`, and
+      asserts `chainid` before any `--broadcast`. A consumer-only resolver does NOT retire the
+      desync: `ETH_RPC_URL=…:9545` would otherwise start anvil on 8545 while the test attaches to
+      9545, which is the exact divergence issue #29 was opened to prevent.
 
 ### Loop and Publication (LOOP)
 
@@ -187,13 +200,16 @@ Filled during roadmap creation (2026-08-16).
 | CHAIN-02 | Phase 27 | Blocked (upstream `next` event, issue #26) |
 | CHAIN-03 | Phase 27 | Blocked (upstream `next` event, issue #26) |
 | CHAIN-04 | Phase 26 | Pending |
+| CHAIN-05 | Phase 27 | Pending — from issue #29's returned contract (plank `f713089`) |
+| CHAIN-06 | Phase 27 | Pending — from issue #29's returned contract (plank `f713089`) |
+| CHAIN-07 | Phase 27 | Pending — from issue #29's returned contract (plank `f713089`) |
 | LOOP-01 | Phase 28 | Blocked (upstream `next` event, issue #26) |
 | LOOP-02 | Phase 28 | Blocked (upstream `next` event, issue #26) |
 | LOOP-03 | Phase 28 | Blocked (upstream `next` event, issue #26) |
 | LOOP-04 | Phase 28 | Blocked (upstream `next` event, issue #26) |
 | LOOP-05 | Phase 28 | Blocked (upstream `next` event, issue #26) |
 
-**Coverage:** 43 v6.0 requirements defined; **43/43 mapped** to exactly one phase each — no
+**Coverage:** 46 v6.0 requirements defined; **46/46 mapped** to exactly one phase each — no
 orphans, no duplicates.
 
 **Count correction (2026-08-16):** this file previously stated *"39 v6.0 requirements defined"*

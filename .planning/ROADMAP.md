@@ -1002,7 +1002,7 @@ block that event was in.
 **Depends on**: Phase 26 (the decoder), Phase 23–25 (somewhere to put the result).
 **BLOCKED** on the plank worktree emitting the `next` event — `SELECTOR_NEXT` is a stub today
 (issue #26, plank workstream). Nothing in phases 23–26 waits on this.
-**Requirements**: CHAIN-01, CHAIN-02, CHAIN-03
+**Requirements**: CHAIN-01, CHAIN-02, CHAIN-03, CHAIN-05, CHAIN-06, CHAIN-07
 **Success Criteria** (what must be TRUE):
   1. A `next` event in a **mined** transaction's logs decodes into the shock it carries, and the decoded values are compared against what the emitting transaction was given — read from the log, never from the request record that produced it (CHAIN-01).
   2. Every read function **requires** a `BlockRef` argument: there is no arity at which a caller can omit it, `Latest` appears nowhere in the read layer (grep-asserted), and each read records the block it was **made at** — an unpinned tag surfaces as `null` in the artifact rather than as a plausible height, in the existing `readback_height` idiom (CHAIN-02).
@@ -1036,6 +1036,54 @@ since `127.0.0.1:8545` is currently hardcoded at **10 sites** and the forge test
 nothing to attach *to*. Phase 27 must emit it. `LOOP-03` says publish to the path the test reads;
 nothing anywhere guarantees the test can USE what we publish, and that is the actual gap.
 
+#### ✅ ISSUE #29 CLOSED (2026-08-16) — plank landed `f713089`, and handed BACK a contract
+
+The plank side is done: `test__priceInvarianceUnderVolumePath` now **attaches** to a live pool
+(pool / blockNumber / chainId read from the fixture, `createSelectFork` pinned to the solved
+block, tokens read on-chain), keeps line 163 as a determinism guard, and its **fail-loud guard was
+OBSERVED firing** — fixture-present + Anvil-down FAILS naming the endpoint, never skips;
+fixture-absent still skips. Spec:
+`docs/superpowers/specs/2026-08-16-volumepath-attach-and-rpc-contract.md`.
+
+**Three pieces of work came back to us, and they are binding on this phase.**
+
+**(a) The fixture gains three fields** — this closes the gap I recorded above ("the fixture
+carries no pool identity"), now specified exactly:
+
+| Field | JSON type | Note |
+|---|---|---|
+| `pool` | **string** (address) | the pool the test attaches to |
+| `blockNumber` | **string** (uint) | pins the fork to the solved block — **string**, because it can exceed the 53-bit double-exact ceiling |
+| `chainId` | number | wrong-network guard; anvil default `31337` |
+
+`sqrtPriceX96`/`liquidity` stay strings. **Do NOT add `token0`/`token1`** — the test reads them
+from the pool on-chain (`IAlgebraPoolImmutables(pool).token0()/token1()`), so the pool is the
+single source of truth. Note `blockNumber` as a string is the same 2^53 discipline BYTE-04 already
+enforces for `dQx`.
+
+**(b) One endpoint resolution:** `ETH_RPC_URL` if set, else `http://127.0.0.1:8545`. Shell:
+`"${ETH_RPC_URL:-http://127.0.0.1:8545}"`. Haskell:
+`fromMaybe "http://127.0.0.1:8545" <$> lookupEnv "ETH_RPC_URL"`. Nine `offchain/` files currently
+hardcode the URL — the four `*/Rpc.hs` providers, `app/Main.hs`, `app/CheatSwapProof.hs`,
+`deploy-rig.sh` and both `capture-*.sh` — and every one converts.
+
+**(c) THE CRITICAL ONE — the producer must bind the SAME endpoint.** The resolver in (b) is for
+**consumers**. `deploy-rig.sh` is the **producer**: it launches `anvil` with no `--port` (so always
+8545) and deploys through the `local` alias literal. Both anvil's `--host`/`--port` **and** the
+deploy `--rpc-url` must derive from the same `ETH_RPC_URL`. Plus a **`chainid` assertion before any
+`--broadcast`**, mirroring the test's `require(block.chainid == fxChainId)`, so a stray
+`ETH_RPC_URL` pointing at a real network cannot get pool deploys broadcast to it.
+
+**Why (c) is not optional:** without it, `ETH_RPC_URL=…:9545` brings anvil up on **8545** while the
+test attaches to **9545** — which is precisely the `RPC_PORT` desync issue #29 was opened to
+prevent, reappearing through the fix for it. A consumer-only resolver does not retire the
+divergence; binding producer and consumer to one source does. This is a sharper statement of the
+problem than the one I filed, and it is correct.
+
+**Still not in scope here:** swap replay and tick closure are **#26** (routed through the pool's
+on-fork plugin, not `setUp`'s in-process writer). The happy-path attach E2E goes green only once
+this phase deploys and drives a pool on Anvil; plank has proven the fail-loud guard alone.
+
 **Plans**: TBD
 
 Plans:
@@ -1064,6 +1112,22 @@ Nothing in `LOOP-01..05` prevents that, because the fix is not ours: the test mu
 live pool rather than construct its own. Tracked as issue #29. Do not "solve" it by loosening
 line 163 — a fixture solved for a different pool than the one replayed is meaningless, and that
 assertion is correct. The two pools must become the same pool.
+
+#### ✅ ISSUE #29 CLOSED (2026-08-16) — the fatal-at-28 collision is retired
+
+The collision recorded above no longer fires: plank's `f713089` makes the test **ATTACH** to the
+live pool rather than construct its own, so a moving price no longer breaks
+`AlgebraIntegralMevTaxModelOneShocks.t.sol:163` — that line survives as a determinism guard
+against a fixture solved for a different pool.
+
+What LOOP-03 must now publish is the fixture shape phase 27 emits, including `pool`,
+`blockNumber` (**string**) and `chainId`. Publishing the old three-field shape would leave the
+test unable to attach — so `LOOP-03`'s "publish to the path the test reads" is now a **typed**
+obligation, not just a path one.
+
+Carry into this phase: the loop is the thing that moves the price, so it is also the thing that
+makes `blockNumber` matter. A fixture published without the block it was solved at cannot be
+replayed against the chain state it describes.
 
 **Plans**: TBD
 
