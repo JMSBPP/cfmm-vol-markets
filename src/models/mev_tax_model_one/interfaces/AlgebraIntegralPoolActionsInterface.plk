@@ -4,3 +4,6 @@ const SELECTOR_ADD_LIQUIDITY = 0xaafe29c0;
 
 //algebraMintCallback(uint256,uint256,bytes)
 const SELECTOR_ADD_LIQUIDITY_CALLBACK = 0x3dd657c5;
+
+//algebraSwapCallback(int256,int256,bytes)
+const SELECTOR_SWAP_CALLBACK = 0x2c8958f6;

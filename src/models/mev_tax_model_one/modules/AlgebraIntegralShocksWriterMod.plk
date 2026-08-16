@@ -49,6 +49,37 @@ run {
 	   transfer_succ = @evm_call(@evm_gas(), numeraire, ZERO_WEI,transfer_call_ptr,68,transfer_ret_ptr,32);
 	   if !transfer_succ or @mload32(transfer_ret_ptr) == 0 {revert_empty();}
 
+     } else if selector == SELECTOR_SWAP_CALLBACK {
+	   let amount0Delta = @evm_calldataload(4);
+	   let amount1Delta = @evm_calldataload(36);
+
+	   let data_offset = @evm_calldataload(68);
+	   let data_len_ptr = 4 +% data_offset;
+	   let data_len = @evm_calldataload(data_len_ptr);
+	   let data_ptr = data_len_ptr +% 32;
+	   if data_len < 40 { revert_empty(); }          // hookData = token0(20) || token1(20) [ || shock... ]
+	   let token0 = @evm_shr(96, @evm_calldataload(data_ptr));
+	   let token1 = @evm_shr(96, @evm_calldataload(data_ptr +% 20));
+
+	   let transfer_call_ptr = @malloc_uninit(68);
+	   let transfer_ret_ptr = @malloc_uninit(32);
+	   // transfer(address,uint256) -> to = the pool (the callback's caller)
+	   @mstore4(transfer_call_ptr, 0xa9059cbb);
+	   @mstore32(transfer_call_ptr +% 4, @evm_caller());
+
+	   // Positive delta = owed TO the pool (pay it); negative = received (pay nothing).
+	   if @evm_sgt(amount0Delta, 0) {
+	      @mstore32(transfer_call_ptr +% 36, amount0Delta);
+	      let s0 = @evm_call(@evm_gas(), token0, ZERO_WEI, transfer_call_ptr, 68, transfer_ret_ptr, 32);
+	      if !s0 or @mload32(transfer_ret_ptr) == 0 { revert_empty(); }
+	   }
+	   if @evm_sgt(amount1Delta, 0) {
+	      @mstore32(transfer_call_ptr +% 36, amount1Delta);
+	      let s1 = @evm_call(@evm_gas(), token1, ZERO_WEI, transfer_call_ptr, 68, transfer_ret_ptr, 32);
+	      if !s1 or @mload32(transfer_ret_ptr) == 0 { revert_empty(); }
+	   }
+	   @evm_stop();
+
      } else if selector == SELECTOR_BEFORE_INITIALIZE {
       	   let ret_ptr = @malloc_uninit(32);
 	   @mstore4(ret_ptr, SELECTOR_BEFORE_INITIALIZE);
