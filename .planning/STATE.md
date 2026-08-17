@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 25-01-PLAN.md — Store.Key covered by six checks, 157/157, exit 0, zero warnings. Next: 25-02 (Store.Cache — elide on hit, persist only a completed run)"
+stopped_at: "Completed 25-03-PLAN.md — PHASE 25 CLOSED (3/3 plans, 9/9 in-scope requirements). 162/162, exit 0, zero warnings, floors 62/71 unmoved. STORE-02/03/04/05/07 DEFERRED by name. Next: /gsd:plan-phase 26"
 last_updated: "2026-08-17"
-last_activity: "2026-08-17 — 25-01 executed: 151/151 -> 157/157 checks, 0 warnings, suite still DB-free AND GAMS-free"
+last_activity: "2026-08-17 — 25-03 executed: 160/160 -> 162/162 checks, 0 warnings, suite still DB-free AND GAMS-free; phase 25 closed"
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 14
 ---
 
 <!--
@@ -43,7 +43,84 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **25 — The Content Key & Keyed Store** — **IN PROGRESS (1/3 plans, post-scope-cut)**
+Phase: **25 — The Content Key & Keyed Store** — **COMPLETE (3/3 plans, post-scope-cut; 9/9 in-scope
+requirements)**
+Plan: **25-03 COMPLETE** (commit `2f6235d`, closeout below). Phase summary:
+`.planning/phases/25-content-key-keyed-store/25-SUMMARY.md`.
+
+**THE SHOCK IS NOW THE KEY.** `Store.Key` frames its preimage so no two distinct inputs collide and
+no per-run path can reach it (KEY-01..06, six checks); `Store.Cache.decide` looks that key up
+BEFORE the solver is reachable and elides on a hit (STORE-01, two checks); an aborted run leaves
+nothing behind (STORE-08, one check with a `Produced` positive control ordered first); and emptying
+the store is a scoped operation the solve path does not name (STORE-06, two checks).
+
+Suite **151/151 → 157/157 → 160/160 → 162/162**, exit 0, zero `-Wall` warnings, 0 `FAIL` lines.
+Both structural greps **0** over `offchain/test/Main.hs` (DB-free and GAMS-free), each captured as
+its OWN exit status, never from a pipeline and never gated on `grep -c`. Floors `purge_file_floor`
+**62** and `credential_scan_floor` **71**, both re-measured cold at close against `find` printing
+exactly 62 and 71 — **zero slack, and they did not move at 25-03, which is the expected reading**
+because that plan adds no file under `offchain/`. Census `hs 50, sh 9, json 9, md 3, txt 2, sql 3`.
+Territory clean.
+
+**FIVE REQUIREMENTS ARE DEFERRED AND THEY ARE NAMED: STORE-02, STORE-03, STORE-04, STORE-05,
+STORE-07.** Not dropped. Each has a written reason in `REQUIREMENTS.md`'s Store deferral block
+(`REQUIREMENTS.md:70-88`) with traceability rows at `:208-214`. A requirement that vanishes without
+a record is indistinguishable from one that was forgotten, so they are listed here, in
+`25-SUMMARY.md`, in `REQUIREMENTS.md` and in `ROADMAP.md`'s phase entry.
+
+**THREE DATABASE-REVIEW FINDINGS STILL BIND ANY FUTURE STORE WRITE.** `DB-B2`: a bare `ByteString`
+on a `bytea` parameter type-checks, runs and CORRUPTS silently (6 bytes in, 3 out, measured on PG
+18.4) — the `Binary` newtype is mandatory and **nothing structurally enforces it**, no compile
+error, no helper, no source scan. `DB-M4`: the derived `doc` column's placeholders are all
+`Binary ByteString`, so **transposing positions 3 and 4 compiles, runs, and derives `doc` from the
+KEY**; a generated column would close it and is unavailable (`convert_from` is STABLE). `DB-M5`:
+`jsonb` refuses the JSON escape for the NUL code point, so a legal RFC-8259 artifact containing it
+**cannot be stored at all** while `doc` is `not null` — the derived projection vetoing the
+authoritative bytes, undecided by this phase. The trigger-hardening findings `DB-B1`, `DB-M1` and
+`DB-M2` attach to `run_log` and `quarantine`, which belong to deferred requirements, and do NOT
+bind — unreached, not resolved.
+
+**STORE-06 IS A TYPE PLUS A SCAN, IN THAT ORDER.** `store_reset :: ResetScope -> IO ()` makes the
+unscoped call unwritable — there is no `store_reset store` that type-checks. What the type cannot do
+is stop a module CALLING the scoped form: the field is in scope wherever `Store (..)` is imported,
+and a typeclass would have the identical property. So the second half is a scan over
+`Store/Cache.hs`. The plan's name `reset_is_unreachable_from_a_solve_or_a_publish` was rejected on
+measurement — there is no publish path in this tree and the field is not unreachable — and it is
+`no_solve_path_names_the_reset_entry_point`.
+
+**THE ABSENCE SCAN READS THE FILE RATHER THAN SHELLING `grep -c`.** `grep -c` prints `0` for a file
+that does not exist, so an absence claim built on it passes for the one reason that should fail it
+loudest. The check asserts the file EXISTS and names `decide`, `store_put` and `store_lookup` —
+fields of the same record, through the same import — before it asserts the reset token is absent.
+
+**`25-02` HAS NO PLAN SUMMARY, AND THAT IS RECORDED RATHER THAN BACK-FILLED.** Its three task
+commits landed (`1b733c4`, `6eba818`, `1164b4d`) and no closeout followed; this file's Current
+Position still read "25-01 COMPLETE" until now, and its progress counters were never advanced for
+25-02. Precedent: 24-05's summary was written and left untracked until 24-06 carried it. 25-02's
+content is in `25-SUMMARY.md` and in its own unusually full commit messages; a summary reconstructed
+after the fact from commit messages is a weaker artifact than the commit messages.
+
+**`Store.Postgres.store_reset` IS NOT EXERCISED BY ANYTHING.** `cabal test` is server-free by
+construction (DB-03) and no capture script drives a reset. Its statement takes no parameters, so it
+carries neither the DB-B2 `Binary` hazard nor a DB-M4 placeholder — but "it compiles" is the whole
+of the evidence for it, and the module haddock says so at the point of definition.
+
+**NO END-TO-END STORE-01.** Nothing builds a production `Solver` from `Gams.Run.run_prover`;
+elision is proven at the seam with a counting test solver. That was reviewer finding M3 and it is
+the first thing phase 26 owes.
+
+**GUARD #21 IS STILL OPEN**, and now closes as a phase-level carry-forward rather than a plan one.
+Phase 24 named the artifact-side echoed-field cross-check as the mutation Phase 25 owed;
+`the_preimage_excludes_every_per_run_token` discharges KEY-02's scope half, and the echoed-field
+mutation was in the cut scope.
+
+Next action: `/gsd:plan-phase 26` (Shock Assembly — the fee splitter and the `next` decoder), whose
+first debt is the production `Solver` adapter that closes STORE-01 end to end.
+
+Last activity: 2026-08-17 — 25-03 executed (commit `2f6235d`), phase 25 closed.
+
+## Phase 25 Plan 01 Position (record)
+
 Plan: **25-01 COMPLETE** (commits `c0e2e9c`, `26378ad`). `Store.Key` shipped at `f00b40b` with no
 check on it; it has six now, and KEY-01..06 are all discharged.
 
@@ -88,10 +165,33 @@ mutation Phase 25 owes. `the_preimage_excludes_every_per_run_token` asserts KEY-
 one renderer, no per-run tokens — but the artifact-side echoed-field mutation is not this plan's
 subject and remains owed.
 
-Next action: `/gsd:execute-phase 25` continues at **25-02** (`Store.Solver` / `Store.Cache`:
-elide on hit, and no cache entry for an aborted run).
+Next action (as recorded then): `/gsd:execute-phase 25` continues at **25-02** (`Store.Solver` /
+`Store.Cache`: elide on hit, and no cache entry for an aborted run).
 
 Last activity: 2026-08-17 — 25-01 executed (commits `c0e2e9c`, `26378ad`).
+
+## Phase 25 Plan 02 Position (reconstructed at close — NO SUMMARY WAS WRITTEN)
+
+Plan: **25-02 COMPLETE** (commits `1b733c4`, `6eba818`, `1164b4d`). No `25-02-SUMMARY.md` exists and
+none was back-filled; see the note in the Current Position above. What it shipped:
+
+- `Store.Solver` — the solver seam, a record of functions over `Gams.Run`'s own `ProverOutcome`. The
+  outcome sum is **RE-EXPORTED, not redefined**: a second sum of the same name would have the cache
+  speaking a type the real prover never returns.
+- `Store.Cache.decide` — lookup FIRST, elide on a hit, persist only a completed run. It takes a
+  `KeyIdentity` and a `Shock` and nothing that varies per invocation, so no budget, kill delay,
+  binary path or per-run working directory can reach the key. `grep -c 'RunRequest'` over the file
+  is 0.
+- Three checks: `an_identical_shock_elides_the_solve`, `a_miss_invokes_the_solver_exactly_once`,
+  `an_aborted_run_produces_no_cache_entry`. Suite **157/157 → 159/159 → 160/160**.
+- **Two throwaway reddening observations, from its commit messages:** `decide` solving before the
+  lookup and discarding the answer gave `FAIL … the solver was invoked 1 times on a shock whose key
+  was already stored` (156/159) **with the VALUE arm still green** — exactly the "ran and was
+  ignored" solver a counter-free check would pass; and `decide` returning the solver's bytes on a
+  hit gave `FAIL … expected Elided with the STORED bytes` (156/159), naming the B′ document it
+  returned. The pair is non-redundant, and that was measured rather than argued.
+- Both floors re-measured by running both `find` commands, twice, once per module-adding commit:
+  purge 60 → 61 → 62, credential 69 → 70 → 71, each against exactly that many files, zero slack.
 
 ## Phase 24 Closing Position (record)
 
