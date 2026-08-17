@@ -88,6 +88,22 @@ import Rig.Manifest
 import Data.ByteArray.HexString (HexString, fromBytes, toBytes)
 import Network.Ethereum.Api.Types (Change (..))
 
+-- The fee splitter's arithmetic core, imported TWICE and for a reason that is a finding rather
+-- than a style. 'Fee.Split' names a constant that 'Store.Key' also names -- the pip denominator --
+-- because the key module was written a phase earlier and imports nothing from here. Two unqualified
+-- imports of the same name is an ambiguity ERROR, not a warning, so the splitter's copy is reached
+-- through the qualified alias and 'compose_is_the_exact_level_constraint' asserts the two are
+-- EQUAL. That turns a duplication into a checked agreement: the day one moves without the other,
+-- a check fails instead of a key silently changing meaning.
+import Fee.Split
+  ( compose_scaled
+  , exact_pairs_for
+  , fee_in_domain
+  , is_admissible
+  , nearest_partner
+  , residual_scaled
+  )
+import qualified Fee.Split as FS
 -- The GAMS layer, PURE HALF ONLY. Both modules are total functions over values this file
 -- constructs; neither can spawn anything. That is what keeps `cabal test` GAMS-free while still
 -- letting it decide whether a version parse and an exit taxonomy are honest.
@@ -11918,6 +11934,236 @@ no_solve_path_names_the_reset_entry_point =
     needle = "reset"
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 26: FEE-01, the level constraint over pips -- Tier A
+-- ---------------------------------------------------------------------------------------------
+
+-- | Pairs the level constraint is asserted over, term by term.
+--
+-- @(500,6000)@ and @(6000,500)@ are the fixture in both orientations; @(1,99)@ is the smallest
+-- interesting pair and @(998,2004)@ and @(752,2250)@ are ordinary band members, chosen so the
+-- corpus is not four restatements of one exact case.
+fee_level_corpus :: [(Integer, Integer)]
+fee_level_corpus =
+  [ (500, 6000), (6000, 500), (100, 900), (998, 2004), (1, 99), (752, 2250) ]
+
+-- | FEE-01. Composition is the level constraint, EXACTLY, and the residual is what it says it is.
+--
+-- Three independent expressions for one quantity, and the third is the one that carries weight.
+-- The first restates @D(x+m) - xm@, which catches a typo but agrees with the function by
+-- construction. The second is the COMPLEMENT form @D^2 - (D-x)(D-m)@ -- what the pair KEEPS rather
+-- than what it takes -- which is the same number by algebra and by nothing else. A splitter that
+-- dropped the @- x*m@ term (the additive misreading, which is the whole reason this check exists)
+-- satisfies neither: at the fixture it returns 6500000000 where the constraint requires
+-- 6497000000, a three-pip error that no tolerance can absorb because there is no tolerance
+-- anywhere on this path.
+--
+-- THE DENOMINATOR ARM IS NOT DECORATION. 'Store.Key' states the pip denominator for the key
+-- preimage (KEY-05, phase 25) and 'Fee.Split' states it again, because the key module was written
+-- first and cannot import the splitter. Neither reads the other's copy, so nothing but this
+-- assertion stops them drifting -- and if they drift, the pips the splitter derives are denominated
+-- in one unit while the key that identifies them is computed in another.
+compose_is_the_exact_level_constraint :: Check
+compose_is_the_exact_level_constraint =
+  pure_check "compose_is_the_exact_level_constraint" $ do
+    _ <- expect (FS.pips_denominator == pips_denominator)
+           ("the splitter's pip denominator is " ++ show FS.pips_denominator
+             ++ " and the key's is " ++ show pips_denominator
+             ++ ". They are stated in two modules because Store.Key was written a phase earlier"
+             ++ " and cannot import Fee.Split, so this equality is the only thing holding them"
+             ++ " together. Drift here denominates the derived fee pips in one unit and keys them"
+             ++ " in another.")
+    mapM_ one fee_level_corpus
+  where
+    one (x, m) = do
+      let composed   = compose_scaled x m
+          restated   = FS.pips_denominator * (x + m) - x * m
+          complement = FS.pips_denominator * FS.pips_denominator
+                         - (FS.pips_denominator - x) * (FS.pips_denominator - m)
+          f          = composed `div` FS.pips_denominator
+      _ <- expect (composed == restated)
+             ("compose_scaled " ++ show x ++ " " ++ show m ++ " is " ++ show composed
+               ++ ", and D*(x+m) - x*m is " ++ show restated ++ ".")
+      _ <- expect (composed == complement)
+             ("compose_scaled " ++ show x ++ " " ++ show m ++ " is " ++ show composed
+               ++ ", but the pair KEEPS (D-" ++ show x ++ ")*(D-" ++ show m ++ ") = "
+               ++ show ((FS.pips_denominator - x) * (FS.pips_denominator - m))
+               ++ " of the input, which makes the composed fee " ++ show complement
+               ++ " scaled units. These two disagree exactly when the product term is wrong:"
+               ++ " dropping - x*m turns the fixture's 6497000000 into 6500000000.")
+      expect (residual_scaled f x m == composed - FS.pips_denominator * f)
+        ("residual_scaled " ++ show f ++ " " ++ show x ++ " " ++ show m ++ " is "
+          ++ show (residual_scaled f x m) ++ ", not the difference "
+          ++ show (composed - FS.pips_denominator * f)
+          ++ " between what the pair composes to and what was asked for.")
+
+-- | FEE-01, the fixture, with a provenance that does not pass through the function under test.
+--
+-- Three 'Integer' equalities. The middle one is a plain multiplication of the two KEPT fractions
+-- and the last is the same number read as a fee: 99.3503% kept is 6497 pips taken. Nothing here
+-- has a tolerance to absorb an error, and nothing here calls 'compose_scaled' twice.
+the_fixture_pair_recomposes_to_6497_pips :: Check
+the_fixture_pair_recomposes_to_6497_pips =
+  pure_check "the_fixture_pair_recomposes_to_6497_pips" $ do
+    _ <- expect (compose_scaled 500 6000 == 6497000000)
+           ("the fixture pair (500, 6000) pips composes to " ++ show (compose_scaled 500 6000)
+             ++ " scaled units, not 6497000000. The fixture's pool fee is 6497 pips and this is"
+             ++ " the pair the whole phase is pinned against.")
+    _ <- expect ((FS.pips_denominator - 500) * (FS.pips_denominator - 6000) == 993503000000)
+           ("999500 * 994000 is not 993503000000, which is arithmetic rather than a claim about"
+             ++ " this codebase.")
+    expect (993503000000 == FS.pips_denominator * 993503)
+      ("993503000000 is not 1000000 * 993503, so the kept fraction is not 99.3503% and the"
+        ++ " provenance of the 6497 above does not hold.")
+
+-- | FEE-01's rarity, asserted in BOTH directions.
+--
+-- A one-directional assertion is satisfied by two DIFFERENT broken splitters. \"6497 has two exact
+-- pairs\" alone passes on an implementation that has started claiming exactness everywhere;
+-- \"3000 has none\" alone passes on one that stopped searching and returns the empty list for
+-- everything. Only the two together say what is meant, which is that exact integer-pip splits are
+-- RARE and that the four canonical Uniswap tiers have none -- the measurement that ruled out
+-- exact-or-refuse and made round-and-report the design.
+--
+-- The count is 2 rather than 1 because 'Fee.Split.exact_pairs_for' is deliberately unrestricted in
+-- orientation: it returns @(500,6000)@ AND @(6000,500)@, so its census is a statement about the
+-- level constraint rather than about the band's @phi_M > phi_X@ convention.
+exact_split_existence_is_measured_in_both_directions :: Check
+exact_split_existence_is_measured_in_both_directions =
+  pure_check "exact_split_existence_is_measured_in_both_directions" $ do
+    _ <- expect (length (exact_pairs_for 6497) == 2)
+           ("f = 6497 pips has " ++ show (length (exact_pairs_for 6497))
+             ++ " exact integer-pip pairs, and it has exactly 2. If this is 0 the search stopped"
+             ++ " early and the negative arms below would pass for the wrong reason.")
+    _ <- expect (sort (exact_pairs_for 6497) == [(500, 6000), (6000, 500)])
+           ("f = 6497's exact pairs are " ++ show (sort (exact_pairs_for 6497))
+             ++ ", not [(500,6000),(6000,500)]. Both orientations are expected: the enumeration is"
+             ++ " unrestricted on purpose.")
+    mapM_ barren [100, 500, 3000, 10000]
+  where
+    barren f =
+      expect (null (exact_pairs_for f))
+        ("f = " ++ show f ++ " pips reports the exact pairs " ++ show (exact_pairs_for f)
+          ++ ", and it has NONE. All four canonical Uniswap tiers admit zero exact integer-pip"
+          ++ " splits -- MEASURED, and it is why this splitter rounds and reports rather than"
+          ++ " refusing what it cannot hit exactly. A pair here means the level constraint has"
+          ++ " been relaxed.")
+
+-- | The @phi_M > phi_X@ band at a target, built the way the splitter builds it.
+--
+-- This is also the enumeration that DIVIDES BY ZERO for a pool fee at or above the denominator:
+-- @x@ reaches 1000000 for every @f > 1000000@ and 'nearest_partner' divides by @D - x@. See the
+-- domain arms of the check below.
+fee_band :: Integer -> Integer -> [(Integer, Integer)]
+fee_band f dstar =
+  [ (x, m)
+  | x <- [1 .. f - 1]
+  , let m = nearest_partner f x
+  , m > x
+  , is_admissible x m dstar
+  ]
+
+-- | @(f, delta*, band size, max abs residual, min abs residual)@, every field MEASURED.
+fee_band_corpus :: [(Integer, Integer, Int, Integer, Integer)]
+fee_band_corpus =
+  [ (100,   490000, 44,   2464,   99)
+  , (500,   490000, 224,  61824,  499)
+  , (3000,  490000, 1344, 499671, 8)
+  , (6497,  490000, 2900, 499240, 0)
+  , (10000, 490000, 4447, 499527, 100)
+  ]
+
+-- | FEE-01's rounding half: the residual is a RECORDED VALUE, it is under a whole pip, and the
+-- band's measured shape is pinned. Plus the domain guard that keeps the enumeration total.
+--
+-- FOUR ARMS PER ROW, IN THIS ORDER, AND THE ORDER IS THE DESIGN.
+--
+-- (1) THE VALUE ARM: the residual equals @compose_scaled x m - D*f@ recomputed. This is what a
+-- changed rounding rule leaves alone and what a changed RESIDUAL breaks.
+--
+-- (2) THE BOUND ARM: @abs residual < D@, one whole pip. Its firing input is @m + 2@, and that is a
+-- measurement rather than a guess. A @floor@ rounder does NOT trip it -- its worst residual over
+-- the whole band is 999799 at @f = 10000@, strictly below the bound -- and @m + 1@ trips it for
+-- ZERO of the 44 members at @f = 100@. At @m + 2@ every member of every band measured is at least
+-- 1.49 pips out. Nearest rounding bounds the residual by @(D - x)/2 < D/2@, so the headroom here is
+-- TWO times. The thousand-fold figure that appears in earlier notes is the band MINIMUM -- the
+-- luckiest pair in the band, 8 units at @f = 3000@ -- and quoting it as headroom describes the best
+-- case as though it were the typical one.
+--
+-- (3) THE SIZE ARM and (4) THE EXTREMA ARM: the band's measured shape. These are what catch the
+-- rounder the bound arm cannot. MEASURED: a @floor@ rounder leaves every band size IDENTICAL
+-- (44/224/1344/2900/4447) and the bound arm GREEN, and moves the extrema -- at @f = 3000@ from
+-- (499671, 8) to (998994, 458). So the extrema arm is the only thing in this suite that sees it.
+--
+-- THE DOMAIN ARMS COME FIRST, AND THEY ARE HERE BECAUSE THIS IS THE CHECK THAT ENUMERATES.
+-- 'fee_band' runs @x@ over @[1 .. f-1]@ and hands each to 'nearest_partner', which divides by
+-- @D - x@. For any @f@ above the denominator that reaches @x = 1000000@ and raises an EXCEPTION --
+-- not a refusal, and 'Fee.Split.SplitRefusal' had no constructor that could carry one. The
+-- falsifying input is a production value: Uniswap v4's @LPFeeLibrary.DYNAMIC_FEE_FLAG@ is 8388608
+-- and @PoolKey.sol@ requires @PoolKey.fee@ to equal it exactly on a dynamic-fee pool, which is the
+-- class of pool this repository's own DynamicFeeHook track creates. 1000000 itself is refused too,
+-- though v4's @isValid@ admits it: at a 100% pool fee the only partner is a 100% leg.
+rounding_residual_is_recorded_and_under_a_pip :: Check
+rounding_residual_is_recorded_and_under_a_pip =
+  pure_check "rounding_residual_is_recorded_and_under_a_pip" $ do
+    _ <- expect (not (fee_in_domain 8388608))
+           ("the splitter admits pool fee 8388608 as in-domain. That is v4's DYNAMIC_FEE_FLAG"
+             ++ " arriving in PoolKey.fee, not a fee of 8388608 pips, and a band enumerated over"
+             ++ " [1 .. f-1] for it reaches x = 1000000, where nearest_partner divides by D - x."
+             ++ " The result is an exception rather than a refusal.")
+    _ <- expect (not (fee_in_domain 1000000))
+           ("the splitter admits pool fee 1000000 as in-domain. v4's isValid does admit it -- it is"
+             ++ " MAX_LP_FEE, a 100% fee -- but the only partner of any x at that fee is m ="
+             ++ " 1000000, which is not a leg fee in [1, 999999]. The two bounds look identical and"
+             ++ " are not.")
+    _ <- expect (not (fee_in_domain 0))
+           "the splitter admits pool fee 0 as in-domain; a zero fee is not a fee schedule."
+    _ <- expect (all (\(f, _, _, _, _) -> fee_in_domain f) fee_band_corpus)
+           ("a pool fee this check enumerates a band for is OUTSIDE the splitter's domain, so the"
+             ++ " arms below would be asserting about an enumeration that cannot be run.")
+    mapM_ one fee_band_corpus
+  where
+    one (f, dstar, expected_size, hi, lo) = do
+      let band      = fee_band f dstar
+          residuals = [abs (residual_scaled f x m) | (x, m) <- band]
+          mismatched =
+            [ (x, m)
+            | (x, m) <- band
+            , residual_scaled f x m /= compose_scaled x m - FS.pips_denominator * f
+            ]
+          over =
+            [ (x, m, residual_scaled f x m)
+            | (x, m) <- band
+            , abs (residual_scaled f x m) >= FS.pips_denominator
+            ]
+      _ <- expect (null mismatched)
+             ("at f = " ++ show f ++ " pips the recorded residual is not the difference between"
+               ++ " what the pair composes to and what was asked for, for "
+               ++ show (length mismatched) ++ " band members, the first being "
+               ++ show (take 1 mismatched) ++ ".")
+      _ <- expect (null over)
+             ("at f = " ++ show f ++ " pips, " ++ show (length over)
+               ++ " band members miss by a WHOLE PIP or more, the first being " ++ show (take 1 over)
+               ++ " (the third element is the residual, in units of 1000000 per pip). Nearest"
+               ++ " rounding bounds this by (D - x)/2, so the alarm has two times headroom and a"
+               ++ " value here means the rounding rule is no longer nearest. MEASURED: a floor"
+               ++ " rounder does NOT reach this bound and m+1 reaches it for none of the 44 members"
+               ++ " at f = 100; m+2 reaches it for every member of every band.")
+      _ <- expect (length band == expected_size)
+             ("the phi_M > phi_X band at f = " ++ show f ++ " pips and target " ++ show dstar
+               ++ " pips has " ++ show (length band) ++ " members, and it was MEASURED at "
+               ++ show expected_size ++ ".")
+      _ <- expect (maximum residuals == hi)
+             ("the largest absolute residual over the band at f = " ++ show f ++ " pips is "
+               ++ show (maximum residuals) ++ ", and it was MEASURED at " ++ show hi
+               ++ ". This is the arm a floor rounder moves while leaving the size and the one-pip"
+               ++ " bound alone: at f = 3000 it goes 499671 -> 998994.")
+      expect (minimum residuals == lo)
+        ("the smallest absolute residual over the band at f = " ++ show f ++ " pips is "
+          ++ show (minimum residuals) ++ ", and it was MEASURED at " ++ show lo
+          ++ ". A zero here at f = 6497 is the exact pair; the same number at f = 3000 would mean"
+          ++ " an exact split exists where none does.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -12087,6 +12333,10 @@ core_checks = do
           , an_aborted_run_produces_no_cache_entry
           , reset_empties_the_store_and_is_scoped
           , no_solve_path_names_the_reset_entry_point
+          , compose_is_the_exact_level_constraint
+          , the_fixture_pair_recomposes_to_6497_pips
+          , exact_split_existence_is_measured_in_both_directions
+          , rounding_residual_is_recorded_and_under_a_pip
           ]
             ++ per_pin_checks pins
   pure checks
