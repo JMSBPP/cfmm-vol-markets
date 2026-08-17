@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "PHASE 24 COMPLETE (6/6 plans, 7/7 requirements, verified passed) — next /gsd:plan-phase 25 (The Content Key & Keyed Store)"
+stopped_at: "Completed 25-01-PLAN.md — Store.Key covered by six checks, 157/157, exit 0, zero warnings. Next: 25-02 (Store.Cache — elide on hit, persist only a completed run)"
 last_updated: "2026-08-17"
-last_activity: "2026-08-17 — phase 24 executed and verified: 151/151 checks, 0 warnings, suite DB-free AND GAMS-free"
+last_activity: "2026-08-17 — 25-01 executed: 151/151 -> 157/157 checks, 0 warnings, suite still DB-free AND GAMS-free"
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 14
+  completed_plans: 12
 ---
 
 <!--
@@ -42,6 +42,58 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 **Track note:** Sixth milestone — **v6.0 is the rpc_api workstream's** (offchain Haskell, branch `feat/rpc-api`), phases 23–28, from issue #25. The **subgraph (issue #14) was renumbered v6.0 → v7.0 on 2026-08-16** and is queued behind this one, on dependency grounds: it needs somewhere to put what it indexes, and v6.0 builds exactly that. v5.0 (VolOrder V2 re-pin + stochastic drivers, phases 20–22) SHIPPED 2026-08-03. v3.0 (VegaAccountMod vault, Phases 12–15) SHIPPED 2026-07-19 (tag `v3.0`). v1.0 (GAMS plumbing, Phases 1–7) PAUSED. v2.0 (vol-oracle differential, Phases 8–11) PAUSED after Phase 9 — VDIFF-05..08 (Phases 10–11) remain pending, NOT part of v4.0. Resuming v2.0 = `/gsd:plan-phase 10`. These phase ranges are separate tracks — never renumbered.
 
 ## Current Position
+
+Phase: **25 — The Content Key & Keyed Store** — **IN PROGRESS (1/3 plans, post-scope-cut)**
+Plan: **25-01 COMPLETE** (commits `c0e2e9c`, `26378ad`). `Store.Key` shipped at `f00b40b` with no
+check on it; it has six now, and KEY-01..06 are all discharged.
+
+Suite **151/151 → 157/157**, exit 0, zero `-Wall` warnings, 157 s wall. Both structural greps still
+**0** over `offchain/test/Main.hs` (DB-free and GAMS-free), each captured as its OWN exit status.
+File floors did not move — no module was added, and that was the expected reading.
+
+**THE FRAMING CHECK'S FIRST ARM IS THE CHECK.** `[("a","bcd"),("e","f")]` and
+`[("ab","cd"),("e","f")]` are asserted byte-identical CONCATENATED BARE before anything is said
+about `frames`. A pair built from fixed-length digests differs bare too and would have passed with
+the framer deleted — the collision has to be exhibited or the separation is green about nothing.
+The third arm carries it to `key_preimage`, so the claim lands on the real preimage.
+
+**KEY-01'S PLAN STEP WAS WRONG AND THE CODE SAID SO.** The plan asked for `key_identity` to return
+`Left` on an absolute model-source path. It does not: `relativise` takes `takeFileName` FIRST, so
+`/var/lib/…/volume_path.gms` becomes `volume_path.gms` — not absolute, no separator — and the
+identity is `Right` with the directory discarded. `AbsoluteModelSourcePath` fires only for a path
+whose file name is EMPTY. The check asserts both halves (relativisation + the directory absent from
+the preimage bytes; refusal naming the ORIGINAL path for the unrelativisable case) and was renamed
+`no_key_identity_carries_an_absolute_model_source_path`, because a check named "refuses" while the
+behaviour is "relativises" is the misleading artifact this repository keeps paying for.
+
+**THE PER-RUN SCOPE CHECK WAS OBSERVED REDDENING, ONCE, THROWAWAY.** Seeding a legitimately-present
+token (`lo=2`) into `key_per_run_tokens` took
+`the_preimage_excludes_every_per_run_token` to FAIL at 155/157. Absence claims are cheap to write
+and free to pass; this one has a live subject. It is the check that stops the store being useless —
+`Gams.Run`'s wrapper vector carries an EXCLUSIVE PER-RUN temp dir, so a preimage containing it
+reconstructs the argv perfectly and hits the cache exactly never.
+
+**ABSENCE IS ASSERTED ON THE FRAMED FORM, NOT AS A BARE SUBSTRING.** The wrapper's budget and kill
+delay are bare integers; a substring claim about them is a claim about which digits happen to occur
+inside a sha256. `frames [token]` makes it a claim about a component. The forbidden tokens and the
+installation path are assembled from string fragments, so the GAMS-free grep over `Main.hs` stays 0
+— instance 19 of that hazard, anticipated rather than discovered.
+
+**FOUR NAMES IN THE PLAN'S API LIST ARE NOT EXPORTED** — `build`, `relativise`, `source_frames`,
+`parse_frames`. They are top-level bindings in `Store.Key` and absent from its export list. Nothing
+was lost (the checks use `frames` and `key_preimage` instead), but 25-02 must not assume them.
+
+**GUARD #21 IS STILL OPEN.** 24's phase-level finding named the echoed-field cross-check as the
+mutation Phase 25 owes. `the_preimage_excludes_every_per_run_token` asserts KEY-02's scope half —
+one renderer, no per-run tokens — but the artifact-side echoed-field mutation is not this plan's
+subject and remains owed.
+
+Next action: `/gsd:execute-phase 25` continues at **25-02** (`Store.Solver` / `Store.Cache`:
+elide on hit, and no cache entry for an aborted run).
+
+Last activity: 2026-08-17 — 25-01 executed (commits `c0e2e9c`, `26378ad`).
+
+## Phase 24 Closing Position (record)
 
 Phase: **24 — GAMS Invocation & Toolchain Identity** — **COMPLETE (6/6 plans, 7/7 requirements)**
 Plan: **24-06 COMPLETE.** `NOT NULL` is not non-empty, and the database was WATCHED saying so.
@@ -498,6 +550,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 24 P01 | 22min | 3 tasks | 5 files |
 | Phase 24 P02 | 33min | 3 tasks | 5 files |
 | Phase 24 P04 | 107min (interrupted; 20:45→22:32 across two sessions) | 3 tasks | 1 file |
+| Phase 25 P01 | 41min | 3 tasks | 1 file |
 | Phase 19 P01 | 6 | 3 tasks | 3 files |
 | Phase 19 P02 | 33 | 3 tasks | 3 files |
 | Phase 19 P03 | 24 | 3 tasks | 1 files |
