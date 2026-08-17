@@ -112,3 +112,10 @@ These are the cheapest items on the whole board: no research, no compute, no pro
 3. **Closing a row is explicit.** Move it to the phase summary with its disposition; do not delete.
 4. **This file is read on resume**, before the roadmap — the roadmap says what the plan is, this says
    what is owed.
+
+## 2026-08-17 — merge-to-develop (PR #10) EXECUTED, gate awaiting approval
+- Plan: .planning/MERGE-DEVELOP-PLAN.md (DevOps review applied; Reality Checker terminated per user no-more-rounds ruling).
+- Commits pushed: c890f2f (lean/archive tarballs off the tip), 41ace64 (lean job: PR #30's cache-get line byte-identical + timeout 20->45), dc83838 (merge origin/develop; .gitignore unioned, model/exp/eta.md deletion accepted), 77a0e52 (OPTION A: Lake packages persist in ~/.cache/lake-packages; packages-only so the sorry-guard stays sound).
+- MEASURED: runner github git transfer ~33KB/s (mathlib clone ~8h -> option B alone dead); CI-realistic lean job = 10m37s (8088 jobs, exit 0).
+- Runner cache SEEDED: ~/.cache/lake-packages (6.9GB) + .manifest-sha stamp, from this worktree's warm tree.
+- RESUME TRIGGER: user approves develop-gate environment on run 32039171794 -> watch jobs -> triage (ours: fix here; pre-existing infra e.g. haskell first-ever run: hand to CI session, NO admin bypass without user ruling) -> merge PR #10 -> push lean tree to cfmm-lean4-spec mirror (still-owed ~15 modules).
