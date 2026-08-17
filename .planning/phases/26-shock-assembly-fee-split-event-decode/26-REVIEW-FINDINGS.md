@@ -175,7 +175,37 @@ already round-trips against the **real emitter** — `assertEq(logs[0].topics[0]
 `abi.decode(logs[0].data, (int24,uint24,uint24))`, and `test__unit__emit_negativeTick_signAwareData`
 asserts `int24(-100)` round-trips. It is READ-ONLY territory: cite it as corroboration, never edit it.
 
-### M3 — `AllZeroPayload` refuses a legal, meaningful production log
+### M3 — **PARTLY REFUTED 2026-08-17.** The conclusion stands; its justification is FALSE, and the consequence INVERTS
+
+**The finding's load-bearing sentence — *"the refusal also buys nothing downstream: `render_argv`'s
+ninth refusal already kills `txlVolumeRate = 0` for free"* — is wrong on both counts.** MEASURED:
+
+```
+offchain/lib/Gams/Argv.hs:137
+  _ <- in_range "txlVolumeRate" (sh_txl_volume_rate shock) 0 999999
+                                                           ^ lower bound ZERO
+```
+
+`render_argv` has **eight** refusals, not nine. Every other field's range starts at **1**
+(`sqrtPriceX96`, `liquidityRaw`, `phiXpips`, `phiMpips`, `volTgtWad`, `nEvents`); `txlVolumeRate`
+alone admits zero. The 26-02 executor's first draft asserted the finding as written and went RED —
+`FAIL an_all_zero_payload_is_rejected: render_argv ACCEPTED the shock` — which is how it was caught.
+
+**I relayed this claim to the executor as measured fact. It was the reviewer's inference, and I did
+not check it before passing it on.** Verified here after the fact.
+
+**What this changes.** The `ZeroShock` rename still ships and the consumer rule is still right — but
+it is no longer tidy-up. **Nothing downstream refuses a zero rate**, and the prover cannot answer one
+(`E(x,m,0) = D⁴xm > 0`, asserted against the shipped `ellipse_test`). So the Phase-27 rule that
+`ZeroShock` means SKIP is **load-bearing**: without it, a quiet period reaches a solver that must
+abort on it. Phase 27 must not treat this as optional. `render_argv` was deliberately left alone —
+it is 26-03's file and is covered by the GAMS conformance digest.
+
+*(Original finding text follows, retained for the record. Its premise — that δ_trans = 0 is
+reachable and produces a legal all-zero log — is CORRECT, and is why the rename ships. Only the
+"buys nothing downstream" clause is refuted.)*
+
+### M3 (original text) — `AllZeroPayload` refuses a legal, meaningful production log
 
 **Owner: `26-02` Task 1 + check 3.**
 
