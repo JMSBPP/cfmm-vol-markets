@@ -1188,8 +1188,18 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
 -- > 64
+--
+-- RE-MEASURED COLD AT THE END-TO-END SPIKE, in the same sitting as 'credential_scan_floor' and by
+-- running the command rather than by adding one to the 64 above it, with
+-- @offchain\/app\/SpikeEndToEnd.hs@ on disk: 65 against exactly 65, zero slack. Census under
+-- @offchain\/@ at that measurement: @hs 53, sh 9, json 9, sql 3@. The spike is THROWAWAY, so this
+-- is the one entry above that is expected to be REMOVED rather than superseded -- and when the
+-- file goes, this floor comes back to 64 by running the command again, not by subtracting one.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
+-- > 65
 purge_file_floor :: Int
-purge_file_floor = 64
+purge_file_floor = 65
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -7807,8 +7817,17 @@ credential_scan root =
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 73
+--
+-- RE-MEASURED COLD AT THE END-TO-END SPIKE, in the same sitting as 'purge_file_floor' and by
+-- running the command below rather than by adding one, with @offchain\/app\/SpikeEndToEnd.hs@ on
+-- disk: @74 = 53 hs + 9 sh + 9 json + 3 sql@, against exactly 74 files, zero slack. Both floors
+-- moved together again, and the two commands were still run separately. The spike is THROWAWAY:
+-- when it is deleted this floor returns to 73 by RUNNING the command, never by subtracting one.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+-- > 74
 credential_scan_floor :: Int
-credential_scan_floor = 73
+credential_scan_floor = 74
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String

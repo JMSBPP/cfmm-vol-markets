@@ -1,8 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
--- THE CAPTURE. The one place in Phase 24 that needs a solver, and the ONLY importer of
--- "Gams.Invoke".
+-- THE CAPTURE. The one place in Phase 24 that needs a solver, and -- until the throwaway
+-- end-to-end spike at @offchain\/app\/SpikeEndToEnd.hs@ joined it -- the only importer of
+-- "Gams.Invoke". Both importers are under @offchain\/app\/@, which is the property that was ever
+-- load-bearing; the count never was.
 --
 -- Nine of the phase's observations can only be made against the real GAMS 54.1 / CONOPT 4.39
 -- toolchain: the golden bytes coming out of a real solve, @action=c@ exiting 0 with no artifact at

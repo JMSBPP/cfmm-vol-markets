@@ -311,9 +311,13 @@ executable store-conformance
 
 -- The GAMS conformance capture. The ONE tool in this package that needs a solver, which is why it
 -- is an executable and not a test: under the three-tier decision nothing in `cabal test` invokes
--- GAMS, and the artifact this writes is what the suite asserts over, offline. It is also the ONLY
--- importer of Gams.Invoke, which is what makes "the suite is structurally incapable of shelling out
--- to the solver" a fact about the import graph rather than a convention.
+-- GAMS, and the artifact this writes is what the suite asserts over, offline. It was the ONLY
+-- importer of Gams.Invoke until the end-to-end spike below; the property that matters is not the
+-- COUNT but the DIRECTORY -- every importer is under offchain/app/ and none is under offchain/test/
+-- -- and that is what makes "the suite is structurally incapable of shelling out to the solver" a
+-- fact about the import graph rather than a convention. The enforcing check is the suite's own
+-- the_suite_never_names_the_real_solver, whose subject is offchain/test/Main.hs alone; there is no
+-- importer-count check anywhere, and this comment is not one.
 --
 -- `aeson` is here deliberately, and for exactly the reason it is in the store-conformance stanza
 -- above. It writes the JSON REPORT -- a description of an experiment -- and never touches an
@@ -333,6 +337,37 @@ executable gams-conformance
         directory,
         filepath,
         process
+    hs-source-dirs:   offchain/app
+    default-language: Haskell2010
+
+-- THE END-TO-END SPIKE. THROWAWAY BY CONSTRUCTION -- not a phase, not a requirement, not a check,
+-- and nothing depends on it. It exists because, measured after phases 23-26 shipped 8,640 lines of
+-- library code and 181 checks, NO app called Store.Cache.decide and NOTHING wired Gams.Run into the
+-- store's Solver seam: every component was proven at its seam against stubs and they had never met.
+-- Phase 28 was the first place they would, and it is the phase with the least slack, so this moves
+-- that meeting forward to where failure is cheap. Delete it whenever it stops being useful.
+--
+-- It is an executable and NOT a test for the same reason gams-conformance is: it needs a solver,
+-- and under the three-tier decision nothing in `cabal test` invokes GAMS. It is the SECOND importer
+-- of Gams.Invoke, and it imports it for the RESOLVERS only -- resolve_gams_bin, resolve_gams_model
+-- and the two budget constants -- because writing a second resolver would be a second place for the
+-- same value to differ, which is the defect that module's own haddock exists to prevent. The
+-- structural property is unchanged: every importer of that module is under offchain/app/, and
+-- offchain/test/Main.hs still names it nowhere.
+--
+-- NO NEW PACKAGE, and no aeson: this tool writes no report. bytestring reads and writes the
+-- artifact's bytes, directory supplies the scratch directory and the home directory the whitelist
+-- is built from, and filepath supplies the model's basename. All three are already library
+-- dependencies, so nothing new enters the build plan.
+executable spike-end-to-end
+    import:           warnings
+    main-is:          SpikeEndToEnd.hs
+    build-depends:
+        base ^>=4.20.2.0,
+        cfmm-replicationPlank-rpc-api,
+        bytestring,
+        directory,
+        filepath
     hs-source-dirs:   offchain/app
     default-language: Haskell2010
 

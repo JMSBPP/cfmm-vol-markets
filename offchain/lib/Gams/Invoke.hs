@@ -11,10 +11,13 @@
 -- to forbid -- with a proven positive control, and with this module's name as one of its three
 -- tokens.
 --
--- So the import graph is the enforcement, and it has exactly two members: this file and
--- @offchain\/app\/GamsConformance.hs@, the capture executable. Everything the suite knows about the
--- real toolchain it knows from @offchain\/rig\/gams-conformance.json@, which that executable writes
--- out of band.
+-- So the import graph is the enforcement, and what it enforces is a DIRECTORY rather than a count:
+-- every importer of this module is under @offchain\/app\/@ and none is under @offchain\/test\/@.
+-- The importers are @GamsConformance.hs@, the capture executable, and @SpikeEndToEnd.hs@, the
+-- throwaway end-to-end spike, which reaches this module for the two RESOLVERS only -- writing a
+-- second resolver rather than importing this one is the failure this module's own resolution
+-- section exists to prevent. Everything the suite knows about the real toolchain it knows from
+-- @offchain\/rig\/gams-conformance.json@, which the capture executable writes out of band.
 --
 -- == RESOLUTION FAILS LOUDLY, AND IT FAILS BY NAME
 --
