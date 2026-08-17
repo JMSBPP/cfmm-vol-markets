@@ -250,6 +250,17 @@ PLANK_DEP := --dep v3=lib/plankified-univ3/plank/lib/ --dep std=lib/plank-monore
 #   non-model entrypoints (plank resolves only imported modules), so declaring them globally is safe.
 PLANK_BACKEND := sona
 PLANK_BUILD   := build/plank
+# plank-toolchain: build the plank_dev compiler from the PINNED plank-monorepo submodule and install
+# it as the PATH `plank`. FFI + compile-plank resolve `plank` from PATH; the self-hosted runner's
+# persistent ~/.plank/bin/plank does NOT track a plank-monorepo pin bump, so the develop-gate runs this
+# per job to keep the compiler+std in lockstep with the pin (a mismatch fails every build).
+PLANK_DEV_EXEC := lib/plank-monorepo/plankc/target/release/plank
+PLANK_PATH_BIN := $(HOME)/.plank/bin/plank
+plank-toolchain:
+	cd lib/plank-monorepo/plankc && cargo build --release
+	mkdir -p $(dir $(PLANK_PATH_BIN))
+	ln -sf $(abspath $(PLANK_DEV_EXEC)) $(PLANK_PATH_BIN)
+	@plank --version
 # Entrypoints are auto-discovered as any .plk under src/ or test/ that contains an
 # `init` block. There is no exclusion list: `src/exp/` (throwaway experiments) and
 # `src/ldf/` were DELETED rather than skipped, because a directory permanently

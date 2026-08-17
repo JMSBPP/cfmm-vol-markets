@@ -36,6 +36,10 @@ jobs:
           git submodule update --init lib/panoptic-v2-core
           git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
           git submodule update --init --recursive
+      # A plank-monorepo pin bump changes the compiler AND std, but the runner's persistent
+      # ~/.plank/bin/plank does NOT auto-track the pin. Rebuild it from the pinned submodule so
+      # compiler+std match; otherwise a bump fails every plank build (measured: 8 ok / 31 failed).
+      - run: make plank-toolchain
       # node_modules became a HARD forge dependency with the premium port (@cryptoalgebra
       # remappings in foundry.toml); package.json/package-lock.json are tracked for exactly
       # this closure (ffcc3b6 + the CI-reproducibility note). Without this step the compile
@@ -88,6 +92,11 @@ jobs:
           submodules: false
           persist-credentials: false
       - run: git submodule update --init lib/plankified-univ3
+      # compile-plank needs --dep std=lib/plank-monorepo/std/ AND a compiler matching the pin.
+      # Init plank-monorepo (the narrow plankified-univ3 init above does not) and rebuild the
+      # toolchain from it, so a plank-monorepo bump is honored (else 8 ok / 31 failed on a bump).
+      - run: git submodule update --init --recursive lib/plank-monorepo
+      - run: make plank-toolchain
       - run: make compile-plank
 
   gamsdiff:
@@ -301,6 +310,10 @@ jobs:
           git submodule update --init lib/panoptic-v2-core
           git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
           git submodule update --init --recursive
+      # Rebuild the plank toolchain from the pinned plank-monorepo (the persistent ~/.plank/bin/plank
+      # does not track the pin; the six deploy scripts FFI `plank build` and would use a stale
+      # compiler+std on a bump). See the plank/forge jobs for the same step.
+      - run: make plank-toolchain
       # node_modules is a HARD forge dependency: foundry.toml:6 lists it in `libs` and
       # foundry.toml:40-45 remap @cryptoalgebra/* into it. Without this the six deploy scripts
       # die on missing @cryptoalgebra sources before anvil is ever useful. The forge job does the
