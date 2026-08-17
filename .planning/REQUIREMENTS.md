@@ -47,20 +47,45 @@ exists because three separate layers were measured silently altering them.
 
 ### Store (STORE)
 
+> **SCOPE CUT 2026-08-17 — user ruling.** v6.0 is the `volume_path` **bridge**, not a
+> content-addressed store with research-grade guarantees. Five of these eight requirements are
+> **DEFERRED to a later milestone**, not dropped: they remain true things we want, but they are not
+> what makes the loop work, and building them was costing more than the bridge itself. The
+> deferred set is what plan 25-05 existed for and what most of 25-07/25-08's capture blocks served.
+>
+> Rationale of record: the verification apparatus had grown larger than the code it verified
+> (11,206 test lines against 9,844 library lines), and the trigger-hardening work the phase-25
+> database review called for amounts to defending an append-only log against a **superuser on a
+> local development Postgres**. That is not this milestone's threat model.
+
+**IN SCOPE for v6.0 — the bridge:**
+
 - [ ] **STORE-01**: An identical shock returns the stored artifact **without invoking the
-      solver**.
-- [ ] **STORE-02**: Re-solving an existing key and getting different bytes is reported as a
-      determinism failure with a non-zero exit.
-- [ ] **STORE-03**: On a determinism failure the original is kept and the divergent bytes are
-      **quarantined**, not discarded — a mismatch becomes evidence.
-- [ ] **STORE-04**: Verification is on demand, not on every cache hit (always-verify defeats
-      the elision the store exists for; Nix shipped it and removed it as broken).
-- [ ] **STORE-05**: A run can be pinned so retention never removes it.
+      solver**. *(The critical one — this is the whole point of the store.)*
 - [ ] **STORE-06**: Reset is a separate, explicit operation that cannot run as a side effect
       of a solve or publish.
-- [ ] **STORE-07**: An append-only run log records `(timestamp, key, event tx, block)` — the
-      chronology a content key cannot carry.
-- [ ] **STORE-08**: A partial or failed run never becomes a cache entry.
+- [ ] **STORE-08**: A partial or failed run never becomes a cache entry. *(Cache correctness:
+      without it, one crashed solve poisons every later run of the same shock.)*
+
+**DEFERRED — revisit after the loop runs end to end:**
+
+- [~] **STORE-02** *(deferred)*: Re-solving an existing key and getting different bytes is reported
+      as a determinism failure with a non-zero exit. **Why deferred:** this turns `VOLUME_PATH.md`
+      §3's determinism guarantee into a standing falsifiable check — a genuinely valuable research
+      property, and one the bridge does not need in order to produce a fixture. It also generates
+      the re-solve driver, the quarantine path, and STORE-04.
+- [~] **STORE-03** *(deferred)*: On a determinism failure the original is kept and the divergent
+      bytes are **quarantined**. **Why deferred:** serves STORE-02 only; nothing consumes a
+      quarantine row in the bridge.
+- [~] **STORE-04** *(deferred)*: Verification on demand rather than on every cache hit. **Why
+      deferred:** serves STORE-02 only. Note the underlying hazard stays recorded — always-verify
+      defeats the elision the store exists for, which is why Nix shipped it and removed it.
+- [~] **STORE-05** *(deferred)*: A run can be pinned so retention never removes it. **Why
+      deferred:** there is no retention sweep in the bridge yet, so pinning has nothing to survive.
+- [~] **STORE-07** *(deferred)*: An append-only run log records `(timestamp, key, event tx, block)`.
+      **Why deferred:** two of its four fields (`event tx`, `block`) are blocked upstream on Phase 27
+      regardless, so it could only ever have closed as PARTIAL in v6.0 — and the append-only
+      enforcement it implies is the trigger-hardening work described above.
 
 ### Database Foundation (DB)
 
@@ -180,12 +205,12 @@ Filled during roadmap creation (2026-08-16).
 | KEY-06 | Phase 25 | Pending |
 | KEY-07 | Phase 23 | **CLOSED (23-05) — phase verified 9/9, 111/111 checks, suite DB-free.** Prior: **Evidence complete (23-04), assertion owed** — `live_identity_constraint_columns` has now been RUN, against a real catalogue, and reports exactly `["model","key_scheme","key"]`. That is the half 23-03 could not reach: a DDL file that was never applied and a catalogue that drifted are different failures, and this one says the file WAS applied. Both KEY-07 laws also pass against real SQL. Prior verdict: **Partial (23-03)** — the constraint now names all THREE columns in the DDL (`constraint model_run_identity unique (model, key_scheme, key)`) AND in Haskell (`Store.Schema.identity_constraint_columns`), asserted as two subjects because they drift; the FILE half was OBSERVED reddening when `key_scheme` was dropped from the DDL with the constant left alone. `live_identity_constraint_columns` exists and reads the catalogue with `with ordinality` but has NEVER BEEN RUN — the live half is 23-04's capture and 23-05's assertion. Prior verdict: **Partial (23-02)** — the orphaning property is now an EXECUTING law rather than a comment: `law_key_scheme_orphans_rather_than_matching` and `law_same_key_under_a_new_scheme_inserts` run against `Store.Memory` inside `cabal test` with no socket, and BOTH were OBSERVED firing against a store keyed on `(model, key)` alone. The requirement's own subject — `key_scheme` inside a Postgres UNIQUE CONSTRAINT — is schema, and lands at 23-03; the live-catalogue assertion lands at 23-04. |
 | STORE-01 | Phase 25 | Pending |
-| STORE-02 | Phase 25 | Pending |
-| STORE-03 | Phase 25 | Pending |
-| STORE-04 | Phase 25 | Pending |
-| STORE-05 | Phase 25 | Pending |
+| STORE-02 | — | **Deferred to a later milestone** (scope cut 2026-08-17) |
+| STORE-03 | — | **Deferred to a later milestone** (scope cut 2026-08-17) |
+| STORE-04 | — | **Deferred to a later milestone** (scope cut 2026-08-17) |
+| STORE-05 | — | **Deferred to a later milestone** (scope cut 2026-08-17) |
 | STORE-06 | Phase 25 | Pending |
-| STORE-07 | Phase 25 | Pending |
+| STORE-07 | — | **Deferred to a later milestone** (scope cut 2026-08-17) |
 | STORE-08 | Phase 25 | Pending |
 | DB-01 | Phase 23 | **CLOSED (23-05) — phase verified 9/9, 111/111 checks, suite DB-free.** Prior: **Evidence complete (23-04), assertion owed** — all four server-requiring clauses are now VALUES in the committed artifact: a corrupted checksum makes the runner exit **1** (`checksum_drift_exit`, from a real subprocess; the library's own in-process result is `MigrationError` with the process still alive, recorded as `checksum_drift_exit_without_guard 0`); two runs from a database created moments ago succeed and the second applies **0**; and a second migrator, while the first holds `pg_advisory_lock(872304)`, gets **`f`** and applies **0** — then, after release, gets **`t`** and applies **1** of a directory carrying a third migration, which is the positive control without which "applied 0" is satisfied by a migrator that could never apply anything. NOTE for 23-05: the drift stderr is `migration FAILED: 001_model_run.sql` — a FILENAME — so nothing may assert on that text. Prior verdict: **Partial (23-03)** — `run_migrations_or_exit` exists, holds `pg_advisory_lock(872304)` (which `postgresql-migration` 0.2.1.8 does NOT provide — zero `advisory` hits, re-grepped) and calls `exitFailure` on `MigrationError` (which the library does NOT do — it exits 0). The manifest is ordered, gapless and locked as a SET in both directions over the directory's WHOLE contents, with two arms OBSERVED firing. But every DB-01 clause that matters is an observation against a SERVER — exit code 1 on drift, the second migrator applying 0, two runs from an empty database — and NONE was made: this plan contacted no database. 23-04. |
 | DB-02 | Phase 23 | **CLOSED (23-05) — phase verified 9/9, 111/111 checks, suite DB-free.** Prior: **Partial (23-01)** — `PGSTORE_DSN`/`STORE_CONFORMANCE` resolve via `lookupEnv` in the `Rig.Manifest` idiom with **zero** credential literals (grep-verified, prose included). Not complete until both are registered in `advertised_overrides` and OBSERVED honoured (23-05); this repo has measured three advertised-and-dead overrides. |
@@ -226,7 +251,7 @@ requirements; no requirement was added or removed at roadmap time.
 |---|---|---|---|
 | 23 — Postgres Foundation & the Byte-Exact Schema | DB-01..04, BYTE-01, BYTE-02, BYTE-03, BYTE-05, KEY-07 | 9 | No |
 | 24 — GAMS Invocation & Toolchain Identity | GAMS-01..06, BYTE-04 | 7 | No |
-| 25 — The Content Key & Keyed Store | KEY-01..06, STORE-01..08 | 14 | No |
+| 25 — The Content Key & Keyed Store | KEY-01..06, STORE-01, STORE-06, STORE-08 | 9 | No |
 | 26 — Shock Assembly (Fee Split & Event Decode) | FEE-01..04, CHAIN-04 | 5 | No |
 | 27 — Anvil Read Layer | CHAIN-01, CHAIN-02, CHAIN-03 | 3 | **Yes** — plank worktree must emit `next` (issue #26) |
 | 28 — Resident Loop & Fixture Publication | LOOP-01..05 | 5 | **Yes** — inherits Phase 27 |

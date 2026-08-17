@@ -918,7 +918,23 @@ headline falsifiable claim — same inputs + same toolchain → same bytes — i
 chain and no upstream.**
 **Depends on**: Phase 23 (schema, `key_scheme`, byte fidelity) and Phase 24 (validated toolchain
 versions — the key cannot be constructed without them, which is the whole reason 24 precedes 25).
-**Requirements**: KEY-01, KEY-02, KEY-03, KEY-04, KEY-05, KEY-06, STORE-01, STORE-02, STORE-03, STORE-04, STORE-05, STORE-06, STORE-07, STORE-08
+**Requirements**: KEY-01, KEY-02, KEY-03, KEY-04, KEY-05, KEY-06, STORE-01, STORE-06, STORE-08
+
+> **SCOPE CUT 2026-08-17 — user ruling. This phase is RE-PLANNED from 9 plans / 28 tasks to 3
+> plans / 8 tasks.** STORE-02, STORE-03, STORE-04, STORE-05 and STORE-07 are **DEFERRED** (rationale
+> and per-requirement reasons in `REQUIREMENTS.md`). The goal statement and success criteria 4 and 5
+> below are the PRE-CUT text and are retained for the record; the clauses covering verification
+> modes, quarantine, pinning and the append-only run log **no longer bind this phase**.
+>
+> What survives: the key (KEY-01..06), **cache elision** (STORE-01 — the requirement the user called
+> critical), explicit reset (STORE-06), and **a failed run never becoming a cache entry** (STORE-08).
+>
+> The nine pre-cut plans are preserved under `plans-precut/` rather than deleted — the reviewer
+> findings against them (`25-REVIEW-FINDINGS.md`) stay valid for whoever picks the deferred work up.
+>
+> Discipline also relaxed on new work: ordinary test practice, no mandatory mutation-and-observed-
+> firing per guard, no positive control per absence claim, and **no growth of the sentinel swept-
+> artifact set**. Existing shipped infrastructure is untouched — it is green and already paid for.
 **Success Criteria** (what must be TRUE):
   1. A crafted pair of **distinct** shocks whose unframed decimal renderings concatenate identically (`"1"‖"23"` vs `"12"‖"3"`) produce **different** keys; and one shock rendered `28e18` and the same shock rendered `28000000000000000000` produce the **same** key. Framing and edge-normalization are each demonstrated by the case that would break them, and no `show`/`printf` on a floating value appears on the key path (`LC_NUMERIC` cannot participate) (KEY-03, KEY-04).
   2. One renderer feeds both the `execve` argv and the hash preimage, proven by reconstructing the argv actually passed to the prover from the stored preimage and comparing — with a mutant that renders the two independently OBSERVED caught. The paired cross-check reads the echoed input fields back out of the **solver's JSON**, not out of the request record, so it is not the tautology. The **pips denominator is in the preimage**: changing it changes every key rather than silently reinterpreting the existing ones (KEY-01, KEY-02, KEY-05).
