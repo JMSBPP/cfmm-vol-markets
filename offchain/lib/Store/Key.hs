@@ -7,8 +7,12 @@
 -- ------------------------------------
 -- MEASURED (25-RESEARCH M1): 343 shock tuples rendered as bare decimals and concatenated produced
 -- __30 collisions__ -- @(1, 1, 23, ...)@ and @(1, 12, 3, ...)@ both render
--- @1123500600028000000000000000008@, and both are ADMITTED by every one of 'render_argv'\'s eight
--- refusals, so the pair is admissible rather than contrived. The same 343 tuples rendered through
+-- @1123500600028000000000000000008@, and both are ADMITTED by every one of the EIGHT refusals
+-- 'render_argv' carried when that sweep was run, so the pair is admissible rather than contrived.
+-- (26-03 added a NINTH -- the prover's own admissibility ellipse. The sweep was not re-run against
+-- it, and it is recorded that way rather than restated as nine: whether either tuple survives the
+-- ninth is unmeasured, and the framing argument below does not depend on the answer.) The same 343
+-- tuples rendered through
 -- 'render_argv'\'s token form produced __0 collisions__ -- but that is luck with an argument behind
 -- it rather than a framer: every token is @--\<literal name\>=\<digits\>@ and neither @-@ nor @=@ is
 -- in the digit alphabet, so the token prefixes ARE a framing, an accidental one. A key that leaned
@@ -284,10 +288,16 @@ key_argv_tokens shock ident = (++ ki_fixed_options ident) <$> render_argv shock
 
 -- | The tagged, framed preimage.
 --
--- It REFUSES BEFORE HASHING whenever 'render_argv' refuses -- the eight range and model refusals
--- of @Gams.Argv@ are inherited here rather than restated, so a shock that cannot be run cannot be
--- keyed either. That is KEY-06's range half: an out-of-range or absent input is an error at
--- construction time and never a default that hashes into a plausible-looking row.
+-- It REFUSES BEFORE HASHING whenever 'render_argv' refuses -- the NINE range, model and
+-- admissibility refusals of @Gams.Argv@ are inherited here rather than restated, so a shock that
+-- cannot be run cannot be keyed either. That is KEY-06's range half: an out-of-range or absent
+-- input is an error at construction time and never a default that hashes into a plausible-looking
+-- row.
+--
+-- Inheriting rather than restating is what made the ninth free. 26-03 installed the prover's own
+-- admissibility ellipse inside 'render_argv' and this function gained it without an edit; a copy of
+-- the refusal list here would have had to be found and updated, and the failure mode of missing it
+-- is a key computed for a shock that can never be run.
 key_preimage :: KeyScheme -> String -> Shock -> KeyIdentity -> Either ArgvError BS.ByteString
 key_preimage scheme model shock ident = do
   tokens <- render_argv shock

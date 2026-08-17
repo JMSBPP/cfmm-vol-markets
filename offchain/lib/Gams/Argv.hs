@@ -61,8 +61,13 @@ module Gams.Argv
   ) where
 
 -- @foldl'@ is in the Prelude at base 4.20, so importing it from @Data.List@ is redundant and
--- -Wall says so. Nothing else is imported here: this module builds no value it was not handed.
+-- -Wall says so.
 import Data.Char (digitToInt, isDigit)
+
+-- The prover's own admissibility test, and the pip unit its bound is stated in. This is the ONLY
+-- import here that is not from @base@, and it exists so the ninth refusal below is the model's test
+-- itself rather than a second transcription of it living beside the first.
+import Fee.Split (ellipse_test, is_admissible, min_admissible_dstar, pips_denominator)
 
 -- ---------------------------------------------------------------------------------------------
 -- The types
@@ -96,6 +101,24 @@ data ArgvError
     -- ^ the field name, the value it carried, and the bound it violated
   | NotADecimalInteger String String
     -- ^ the token verbatim, and what was wrong with it
+  | Inadmissible Integer Integer Integer Integer (Maybe Integer)
+    -- ^ @phiXpips@, @phiMpips@, @txlVolumeRate@, the exact @E@, and the least @txlVolumeRate@ this
+    --   pair admits (@Nothing@ when the pair admits none at all).
+    --
+    --   POSITIONAL AND WITHOUT A SENTENCE FIELD, unlike its two siblings, and that is a decision
+    --   rather than an oversight. The two above carry prose because the value alone does not say
+    --   what was wanted; here every number a reader needs IS one of the five fields, and @show@
+    --   prints all five. A sixth 'String' field would also make the value unpinnable -- a check
+    --   that asserts the whole refusal by equality could then only assert a sentence it had to
+    --   transcribe, and a transcribed sentence agrees with itself.
+    --
+    --   What a reader sees, and what each field is for, in the @in_range@ voice: the pair
+    --   @(phiXpips, phiMpips)@ was handed the target @txlVolumeRate@ pips; the prover's own
+    --   @ellTest@ at that point is @E@, and it must be at or below zero; the admitted range for
+    --   this pair starts at the fifth field and runs to 999999, or the pair admits no target at
+    --   all and there is no boundary to name. That last case is real and not defensive:
+    --   @min_admissible_dstar 3000 3000@ is @Nothing@, because equal legs make the admissibility
+    --   quadratic touch zero at a point that is not an integer number of pips.
   deriving (Eq, Show)
 
 -- ---------------------------------------------------------------------------------------------
@@ -123,18 +146,52 @@ render_decimal = show
 -- different command line for the same shock -- which is the same class of ambiguity the leading
 -- zero produced in the bytes.
 --
--- Eight refusals happen before any token is built, each naming its field and its bound. Seven are
+-- NINE refusals happen before any token is built, each naming its field and its bound. Seven are
 -- range facts. The eighth is a MODEL fact taken from @VOLUME_PATH.md@ §1.2: equal fees on the two
 -- legs are infeasible for EVERY target, so the shock is refused here, in this process, rather than
 -- spawned and recovered as a named abort whose exit code (3) cannot be distinguished from an
 -- unhandled execution error anyway.
+--
+-- THE NINTH IS THE PROVER'S OWN GATE, and it is the model's line rather than a summary of it.
+-- @volume_path.gms:100-108@ computes @ellTest@ and aborts on @ellTest > 0@; 'Fee.Split.ellipse_test'
+-- is that expression transcribed term for term and multiplied through by a power of the pip unit so
+-- it evaluates in exact 'Integer' arithmetic. A shock GAMS would abort on therefore has NO ARGV AT
+-- ALL, which is a stronger statement than \"the abort is recovered\": there is nothing for
+-- @Gams.Run.spawn_into@ to receive, so no process is started, no run directory is created, and the
+-- refusal is a value in this process.
+--
+-- IT SUBSUMES THE @txlVolumeRate = 0@ HOLE RATHER THAN ADDING A SECOND BOUND. The range above
+-- admits @0@ while every other field demands @>= 1@, and that asymmetry is real: a zero rate is a
+-- quiet period, not an absent one. But @E(x, m, 0)@ is @D^4 * x * m@, strictly positive for any two
+-- nonzero fees, so the ninth refusal already refuses it -- and refusing it HERE rather than by
+-- raising the lower bound keeps one bound where a second could drift away from the model it came
+-- from.
+--
+-- IT RUNS AFTER 'distinct_fees', ON PURPOSE, AND THE REASON IS MEASURED. At equal legs the
+-- admissibility quadratic has a double root at a point that is not an integer number of pips, so
+-- @Fee.Split.min_admissible_dstar 3000 3000@ is @Nothing@ -- the ellipse refuses equal fees for
+-- EVERY integer target, entirely on its own. Running it first would leave the refusal COUNT
+-- unchanged while replacing §1.2's specific diagnosis with a generic one, which is a diagnosis lost
+-- without anything going red. The suite asserts this behaviourally rather than by line number,
+-- because a later refactor that splits this function moves the two calls into different functions
+-- and a line-number comparison between them then means nothing: what must survive is that a
+-- @(3000, 3000)@ shock is refused by 'distinct_fees' and NOT by 'Inadmissible'.
+--
+-- THE SYMMETRY THAT MAKES THE LEG ORDER IRRELEVANT HERE. @ellTest@ is symmetric in the two legs --
+-- every term is built from @x+m@, @(m-x)^2@ or @x*m@ -- so this refusal cannot depend on which leg
+-- was handed in first. Only the LEVEL and the ordering convention care about that, and neither is
+-- decided in this module.
 render_argv :: Shock -> Either ArgvError [String]
 render_argv shock = do
   _ <- in_range "sqrtPriceX96" (sh_sqrt_price_x96 shock) 1 (two_pow 160 - 1)
          "a uint160 that is nonzero: a zero price is not a shock, it is an absent one"
   _ <- in_range "liquidityRaw" (sh_liquidity_raw shock) 1 (two_pow 128 - 1)
          "a uint128 that is nonzero: a pool with no liquidity has no path to compute"
-  _ <- in_range "txlVolumeRate" (sh_txl_volume_rate shock) 0 999999
+  -- The upper bound is stated as the pip unit less one rather than as a second copy of 999999,
+  -- because it IS that unit: §4 aborts on a transaction-volume rate at or above 100%. The lower
+  -- bound stays at zero deliberately -- see the ninth refusal below, which is what actually refuses
+  -- a zero rate, and does it with the model's own test instead of a second bound.
+  _ <- in_range "txlVolumeRate" (sh_txl_volume_rate shock) 0 (pips_denominator - 1)
          "pips strictly below 1000000 -- VOLUME_PATH.md section 4 aborts on a transaction-volume\
          \ rate at or above 100%"
   _ <- in_range "phiXpips" (sh_phi_x_pips shock) 1 (two_pow 64)
@@ -147,6 +204,7 @@ render_argv shock = do
          "a positive event count: zero events makes both output arrays empty, and an empty array\
          \ is what an absent subject looks like"
   _ <- distinct_fees shock
+  _ <- admissible_pair shock
   Right
     [ "--sqrtPriceX96="  ++ render_decimal (sh_sqrt_price_x96 shock)
     , "--liquidityRaw="  ++ render_decimal (sh_liquidity_raw shock)
@@ -170,6 +228,29 @@ distinct_fees shock
                ++ " shock has no solution at all and spawning it would spend a solve to learn"
                ++ " something the input already says."))
   | otherwise = Right ()
+
+-- | THE NINTH REFUSAL: @volume_path.gms@'s own @ellTest@, evaluated here, in exact 'Integer'
+-- arithmetic, before any token exists.
+--
+-- Ordered AFTER 'distinct_fees' for the reason recorded in 'render_argv': the ellipse refuses equal
+-- legs too, so putting it first would keep the refusal and lose §1.2's diagnosis.
+--
+-- The boundary is recomputed rather than remembered. 'Fee.Split.min_admissible_dstar' is the same
+-- bisection the splitter uses to fill @fs_boundary_pips@, so the number an operator reads in this
+-- refusal and the number a recorded split carries come from one implementation; a constant here
+-- would be a second answer that could drift, and \"infeasible\" with no number at all is the
+-- failure this constructor exists to prevent.
+admissible_pair :: Shock -> Either ArgvError ()
+admissible_pair shock
+  | is_admissible phi_x phi_m target = Right ()
+  | otherwise =
+      Left (Inadmissible phi_x phi_m target
+             (ellipse_test phi_x phi_m target)
+             (min_admissible_dstar phi_x phi_m))
+  where
+    phi_x  = sh_phi_x_pips shock
+    phi_m  = sh_phi_m_pips shock
+    target = sh_txl_volume_rate shock
 
 in_range :: String -> Integer -> Integer -> Integer -> String -> Either ArgvError ()
 in_range field value low high wanted

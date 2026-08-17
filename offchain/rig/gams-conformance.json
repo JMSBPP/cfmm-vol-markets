@@ -3,7 +3,7 @@
     "artifact_present": false,
     "exit": 0
   },
-  "argv_module_sha256": "e7475dd7095136798c22ee3fd04a784d0e845d368e9344413584aa6d406e0409",
+  "argv_module_sha256": "37e4dc3b8347ee7d7576c0c5031be5393bc31215b97a609d11127bf91b3bee61",
   "artifact_module_sha256": "ac943852c4bc15acc901f6577256c234c3373d28bf06695559f825208a5632e4",
   "conopt_link_version": "54.1.0",
   "conopt_method": "Gams.Version.parse_conopt_version over the stdout of an 8-line hermetic NLP probe run at lo=3, matched on the spaced-letter banner and never on a line position",
@@ -27,7 +27,7 @@
   "gams_version": "54.1.0",
   "gams_version_method": "Gams.Version.parse_gams_version over volume_path.log line 1 of the clean solve, anchored on the job name so the two exit-0 wrong-subject banners cannot satisfy it",
   "gc_complete": true,
-  "generatedAt": "2026-08-17T03:12:17Z",
+  "generatedAt": "2026-08-17T19:17:20Z",
   "golden": {
     "len": 606,
     "sha256": "e7b14f384ab4c027be5450218a52040110d45dbaddbbfb0bb7bd5ab707d0d884"
@@ -61,7 +61,7 @@
   ],
   "no_args": {
     "exit": 0,
-    "line1": "--- Job ? Start 08/16/26 23:12:16 54.1.0 37378ce0 LEX-LEG x86 64bit/Linux",
+    "line1": "--- Job ? Start 08/17/26 15:17:20 54.1.0 37378ce0 LEX-LEG x86 64bit/Linux",
     "parser_verdict": "Left (WrongJob \"?\")",
     "stderr_len": 0,
     "stdout_len": 1239
@@ -106,7 +106,7 @@
   ],
   "version_flag": {
     "exit": 6,
-    "line1": "--- Job --version Start 08/16/26 23:12:17 54.1.0 37378ce0 LEX-LEG x86 64bit/Linux",
+    "line1": "--- Job --version Start 08/17/26 15:17:20 54.1.0 37378ce0 LEX-LEG x86 64bit/Linux",
     "parser_verdict": "Left (WrongJob \"--version\")",
     "stderr_len": 0,
     "stdout_len": 275

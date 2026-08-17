@@ -108,7 +108,8 @@ import Chain.Shock
 -- EQUAL. That turns a duplication into a checked agreement: the day one moves without the other,
 -- a check fails instead of a key silently changing meaning.
 import Fee.Split
-  ( compose_scaled
+  ( FeeSplit (..)
+  , compose_scaled
   , ellipse_test
   , exact_pairs_for
   , fee_in_domain
@@ -116,6 +117,7 @@ import Fee.Split
   , min_admissible_dstar
   , nearest_partner
   , residual_scaled
+  , split_for
   )
 import qualified Fee.Split as FS
 -- The GAMS layer, PURE HALF ONLY. Both modules are total functions over values this file
@@ -12926,23 +12928,33 @@ a_negative_tick_diff_decodes_sign_aware =
 -- === Arms 2 and 3: what happens downstream to a zero rate, MEASURED rather than quoted
 --
 -- RC-M3 justifies the rename by asserting that \"@render_argv@'s ninth refusal already kills
--- @txlVolumeRate = 0@ for free, since @E(x,m,0) = D^4 x m > 0@\". __That is false, and this check
--- is where it was found.__ @render_argv@ has EIGHT refusals, not nine -- seven ranges and
--- @distinct_fees@ -- and the transactional-volume one is @in_range \"txlVolumeRate\" value 0
--- 999999@, whose LOWER bound is @0@. A zero rate renders cleanly and reaches the prover. Arm 2
--- asserts that, so the false premise cannot be quoted again.
+-- @txlVolumeRate = 0@ for free, since @E(x,m,0) = D^4 x m > 0@\". __That was false when 26-02
+-- measured it, and this check is where it was found.__ At that commit @render_argv@ had EIGHT
+-- refusals, not nine -- seven ranges and @distinct_fees@ -- and the transactional-volume one is
+-- @in_range \"txlVolumeRate\" value 0 999999@, whose LOWER bound is @0@. A zero rate rendered
+-- cleanly and reached the prover.
 --
--- Arm 3 is the half of the finding that IS true, and it is the half that matters: the prover's own
--- ellipse at @delta* = 0@ evaluates to @D^4 x m > 0@, which is strictly positive and therefore
--- INADMISSIBLE for every fee pair. Both are asserted against @Fee.Split@'s shipped
--- 'Fee.Split.ellipse_test' and 'Fee.Split.is_admissible' at the fixture's own fee pair, not
--- against a transcription.
+-- __26-03 then ADDED the ninth refusal, so arm 2 has been REWRITTEN rather than deleted, exactly as
+-- its own failure text instructed.__ The refusal the finding described now exists; it did not when
+-- the finding was written, and the order matters because the finding was cited as a reason the
+-- rename was safe. Two facts are asserted here, both still true and both still load-bearing:
 --
--- __The consequence, which is the real reason the rename is safe.__ Nothing downstream refuses a
--- zero rate, and the prover cannot answer one. So the 'ZeroShock' consumer rule -- Phase 27 SKIPS
--- the period -- is LOAD-BEARING rather than merely convenient: it is the only thing standing
--- between a quiet period and a solve that must abort. That is a stronger reason to keep the
--- refusal than the finding's, and it points the opposite way from the finding's.
+--   * the @in_range@ LOWER BOUND IS STILL ZERO. It was not raised. The ninth refusal SUBSUMES the
+--     hole with the model's own test rather than a second bound being added beside the first,
+--     which is why arm 2 now asserts an 'Gams.Argv.Inadmissible' -- naming the ellipse -- and not
+--     a 'Gams.Argv.FieldOutOfRange' naming @txlVolumeRate@. If that ever flips, the bound was
+--     raised and there are two answers to one question.
+--   * the prover cannot answer a zero rate. Arm 3 is the half of the finding that was ALWAYS true:
+--     @E(x, m, 0)@ is @D^4 x m@, strictly positive and therefore INADMISSIBLE for every fee pair,
+--     asserted against @Fee.Split@'s shipped 'Fee.Split.ellipse_test' and
+--     'Fee.Split.is_admissible' at the fixture's own fee pair rather than against a transcription.
+--
+-- __The consequence for 'ZeroShock' is unchanged and is the real reason the rename is safe.__ The
+-- prover cannot answer a zero rate. Refusing it at the argv means a quiet period now arrives at
+-- @Gams.Run.run_prover@ as a REFUSAL rather than as a solve that aborts -- which is better, and is
+-- still not a decode alarm. So Phase 27 must SKIP on 'ZeroShock' rather than raise: the alternative
+-- is a pipeline that turns the most ordinary event there is into a named failure at every layer it
+-- passes through.
 an_all_zero_payload_is_rejected :: Check
 an_all_zero_payload_is_rejected =
   pure_check "an_all_zero_payload_is_rejected" $ do
@@ -12956,14 +12968,21 @@ an_all_zero_payload_is_rejected =
         phi_x     = sh_phi_x_pips fixture_shock
         phi_m     = sh_phi_m_pips fixture_shock
     _ <- case render_argv zero_rate of
-           Right _  -> Right ()
-           Left err ->
-             Left ("render_argv REFUSED a zero transactional-volume rate as " ++ show err
-                    ++ ". As of this commit its bound is in_range \"txlVolumeRate\" value 0 999999,"
-                    ++ " whose LOWER end is 0, so a zero rate renders. If that bound has since been"
-                    ++ " raised to 1, this arm has done its job and should be REWRITTEN to assert"
-                    ++ " the refusal -- not deleted, because the fact it records is what makes the"
-                    ++ " ZeroShock consumer rule load-bearing.")
+           Left (Inadmissible x m 0 _ _)
+             | x == phi_x && m == phi_m -> Right ()
+           Left (FieldOutOfRange field _ _) ->
+             Left ("a zero transactional-volume rate was refused by a RANGE naming " ++ show field
+                    ++ ". Through 26-02 its bound was in_range \"txlVolumeRate\" value 0 999999 --"
+                    ++ " the LOWER end ZERO, unlike every other field -- and 26-03 closed the hole"
+                    ++ " with the ninth refusal (the prover's own ellipse) rather than by raising"
+                    ++ " that bound. A range refusal here means the bound WAS raised, which puts"
+                    ++ " two answers to one question in two places that can drift apart. Pick one.")
+           other ->
+             Left ("a zero transactional-volume rate gave\n        " ++ show other
+                    ++ "\n      and must be refused as Inadmissible at the fixture's own fee pair"
+                    ++ " (" ++ show phi_x ++ ", " ++ show phi_m ++ "). E(x, m, 0) is D^4 * x * m,"
+                    ++ " strictly positive, so the prover cannot answer a quiet period -- which is"
+                    ++ " what makes the ZeroShock consumer rule load-bearing rather than tidy.")
     _ <- expect (ellipse_test phi_x phi_m 0 > 0)
            ("the prover's ellipse at delta* = 0 evaluates to "
              ++ show (ellipse_test phi_x phi_m 0)
@@ -13514,6 +13533,269 @@ the_decoder_holds_no_IO_and_no_chain =
                      ++ unlines (map ("      " ++) (lines out)))
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 26 plan 03: the ninth refusal, the seed that is load-bearing, and the process that was
+-- OBSERVED not starting (FEE-01's remaining clause, FEE-03, FEE-04)
+--
+-- WHAT THE NINTH REFUSAL CHANGES, STATED ONCE HERE. Before this plan an inadmissible shock
+-- rendered seven perfectly good tokens and the prover aborted on them at exit 3 -- a code that
+-- cannot be told apart from an unhandled execution error. After it, the shock has NO
+-- REPRESENTATION that can reach an execve: 'render_argv' returns 'Left' and
+-- 'Gams.Run.run_prover''s three-way case hands that to @refused_before_spawn@, which returns
+-- @Aborted@ with an EMPTY run directory and three empty streams. That is structural. It is
+-- OBSERVED anyway, with a marker stub, because \"the type makes it impossible\" and \"nothing was
+-- seen happening\" are different claims and this repository's standard is both.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The pair FEE-03 is stated at, and the target one pip below the MEASURED boundary.
+--
+-- @ellipse_test 500 6000 82803 == 4991723980281000000000000@, strictly positive, so the prover
+-- aborts; at @82804@ the identical shock renders. Both numbers were recomputed here from
+-- 'Fee.Split' and independently outside the suite before being pinned.
+fee03_boundary_shock :: Shock
+fee03_boundary_shock = fixture_shock { sh_txl_volume_rate = 82803 }
+
+-- | The exact @E@ at the refused point, pinned as a VALUE.
+--
+-- Pinning it is what makes check 12 an equality on the whole refusal rather than a test that some
+-- refusal happened: a gate that fired for a different reason, or that reported an @E@ it did not
+-- compute, cannot satisfy this.
+fee03_boundary_e :: Integer
+fee03_boundary_e = 4991723980281000000000000
+
+-- | The least @txlVolumeRate@ the fixture's fee pair admits. MEASURED, and recomputed in check 13
+-- from 'Fee.Split.min_admissible_dstar' rather than compared to itself.
+fee03_boundary_pip :: Integer
+fee03_boundary_pip = 82804
+
+-- | FEE-03 check 12: an inadmissible shock CANNOT BE RENDERED.
+--
+-- Four arms, and the first is the whole point: the refusal is asserted by EQUALITY on the complete
+-- constructor -- both legs, the requested target, the exact @E@ and the boundary -- so a gate that
+-- refused for some other reason, or that carried a boundary it did not compute, cannot pass.
+--
+-- The second arm is the POSITIVE one and it is not decoration. A renderer that refused everything
+-- would satisfy every other arm here; @82804@ is one pip away from @82803@ and must render all
+-- seven tokens, which is what makes the refusal a statement about the boundary rather than about
+-- the pair.
+--
+-- The fourth arm is the @txlVolumeRate = 0@ hole, closed. Its range is @0 .. 999999@ -- the lower
+-- end is ZERO, unlike every other field, which 26-02 measured and asserted -- so before this plan a
+-- zero rate rendered cleanly and reached a prover that cannot answer it. @E(x, m, 0)@ is
+-- @D^4 * x * m@, strictly positive, so the ninth refusal subsumes the hole instead of a second
+-- bound being added beside the first where the two could drift apart.
+an_inadmissible_shock_cannot_be_rendered_to_argv :: Check
+an_inadmissible_shock_cannot_be_rendered_to_argv =
+  pure_check "an_inadmissible_shock_cannot_be_rendered_to_argv" $ do
+    let refused = render_argv fee03_boundary_shock
+        wanted  = Left (Inadmissible 500 6000 82803 fee03_boundary_e (Just fee03_boundary_pip))
+                    :: Either ArgvError [String]
+    _ <- expect (refused == wanted)
+           ("the shock at txlVolumeRate = 82803 -- ONE PIP below the measured boundary for the"
+             ++ " fee pair (500, 6000) -- gave\n        " ++ show refused
+             ++ "\n      and must give\n        " ++ show wanted
+             ++ "\n      This is asserted as a whole VALUE and not as \"some refusal happened\":"
+             ++ " the pair, the requested target, the exact ellTest and the boundary are all in it,"
+             ++ " so a gate that fired for another reason or reported a number it did not compute"
+             ++ " cannot satisfy it.")
+    admitted <-
+      case render_argv (fixture_shock { sh_txl_volume_rate = fee03_boundary_pip }) of
+        Left err ->
+          Left ("the POSITIVE arm failed: the SAME shock at txlVolumeRate = "
+                 ++ show fee03_boundary_pip ++ " -- the boundary itself, one pip above the refused"
+                 ++ " one -- was REFUSED as " ++ show err
+                 ++ ". A refusal battery is satisfied by a renderer that refuses everything, and"
+                 ++ " this arm is what makes the refusal above a statement about the BOUNDARY"
+                 ++ " rather than about the pair.")
+        Right ts -> Right ts
+    _ <- expect (length admitted == 7)
+           ("the admissible shock at the boundary rendered " ++ show (length admitted)
+             ++ " tokens, expected 7:\n      " ++ show admitted)
+    _ <- expect ("--txlVolumeRate=82804" `elem` admitted)
+           ("the boundary shock rendered without the token it was built from:\n      "
+             ++ show admitted)
+    let zero_rate = render_argv (fixture_shock { sh_txl_volume_rate = 0 })
+    case zero_rate of
+      Left (Inadmissible 500 6000 0 e boundary) ->
+        expect (e > 0 && boundary == Just fee03_boundary_pip)
+          ("the zero-rate refusal carries E = " ++ show e ++ " and boundary " ++ show boundary
+            ++ ". E(x, m, 0) is D^4 * x * m, which is strictly positive for any two nonzero fees,"
+            ++ " and the boundary is the pair's own.")
+      other ->
+        Left ("a zero transactional-volume rate gave\n        " ++ show other
+               ++ "\n      and must be Left Inadmissible. Its in_range bound is 0 .. 999999 --"
+               ++ " the LOWER end is ZERO, unlike every other field -- so before the ninth refusal"
+               ++ " existed a quiet period rendered cleanly and reached a prover that must abort on"
+               ++ " it. The ninth refusal SUBSUMES that hole with the model's own test rather than"
+               ++ " a second bound being added beside the first.")
+
+-- | FEE-03 check 13: the refusal NAMES the boundary and the pair.
+--
+-- \"Infeasible\", with no number in it, is exactly the failure this check exists for: an operator
+-- who reads it learns that something is wrong and nothing about what to do. So the rendered refusal
+-- must contain both legs, the target that was asked for, and the target that would have worked.
+--
+-- The second arm is the one with teeth. The boundary carried by the VALUE is compared against
+-- 'Fee.Split.min_admissible_dstar' recomputed here -- so a constant frozen into the refusal, or a
+-- boundary dropped and replaced by a plausible default, reddens even though the string still looks
+-- right. The recomputation is on ONE side only: the other side is the value the renderer produced.
+the_refusal_names_the_boundary_and_the_pair :: Check
+the_refusal_names_the_boundary_and_the_pair =
+  pure_check "the_refusal_names_the_boundary_and_the_pair" $ do
+    refusal <-
+      case render_argv fee03_boundary_shock of
+        Left err -> Right err
+        Right ts ->
+          Left ("the shock this check reads a refusal from RENDERED instead:\n      " ++ show ts)
+    let rendered = show refusal
+        missing  = [w | w <- ["500", "6000", "82803", "82804"], not (w `isInfixOf` rendered)]
+    _ <- expect (null missing)
+           ("the refusal does not name " ++ intercalate ", " missing ++ ". It said:\n      "
+             ++ rendered
+             ++ "\n      A refusal that says \"infeasible\" and carries no number tells an operator"
+             ++ " that something is wrong and nothing about what would work. Both legs, the target"
+             ++ " that was asked for and the target that would have been admitted all have to be"
+             ++ " in it.")
+    carried <-
+      case refusal of
+        Inadmissible _ _ _ _ boundary -> Right boundary
+        other -> Left ("the refusal is " ++ show other ++ ", expected an Inadmissible.")
+    let recomputed = min_admissible_dstar 500 6000
+    _ <- expect (carried == recomputed)
+           ("the refusal carries the boundary " ++ show carried ++ " and min_admissible_dstar"
+             ++ " recomputed here gives " ++ show recomputed
+             ++ ". The number in the message must come from the same bisection a recorded split's"
+             ++ " fs_boundary_pips comes from; a constant frozen into the refusal is a second"
+             ++ " answer that can drift away from the first without either of them going red.")
+    expect (carried == Just fee03_boundary_pip)
+      ("the recomputation and the refusal agree on " ++ show carried ++ ", and both are wrong: the"
+        ++ " MEASURED boundary for (500, 6000) is " ++ show fee03_boundary_pip
+        ++ ". Two sides that agree with each other are not evidence unless one of them is pinned"
+        ++ " from outside, which is what this arm is.")
+
+-- | FEE-03 check 14: equal fees are refused with §1.2's OWN diagnosis, and NOT by the ellipse.
+--
+-- === Why the constructor arm is the check and the message arm is not
+--
+-- MEASURED: @min_admissible_dstar 3000 3000 == Nothing@. At equal legs the admissibility quadratic
+-- has a double root at a point that is not an integer number of pips, so the ellipse refuses an
+-- equal-fee shock for EVERY integer target, entirely on its own. Delete 'distinct_fees' and the
+-- shock is STILL refused, the refusal COUNT is unchanged, and the only thing lost is
+-- @VOLUME_PATH.md@ §1.2's specific diagnosis -- a diagnosis lost with nothing going red. That is
+-- this phase's own named failure mode.
+--
+-- So this check asserts the CONSTRUCTOR, not merely that a refusal happened: the equal-fee shock
+-- must be refused as a 'FieldOutOfRange' naming @phiXpips@ and must NOT be refused as
+-- 'Inadmissible'.
+--
+-- === Why this is the durable form of the ordering guarantee
+--
+-- The ordering can also be read off the source today -- 'distinct_fees' is called on the line above
+-- 'admissible_pair' inside one do-block -- and that reading EXPIRES. A later refactor that splits
+-- 'render_argv' into an ungated renderer and a gated one puts the two calls in different functions,
+-- where a line-number comparison between them means nothing. This arm survives that split: under
+-- the inverted composition -- the ninth refusal first, the eight afterwards -- an equal-fee shock
+-- comes back as 'Inadmissible' and THIS is what reddens.
+equal_fees_are_refused_in_haskell_with_the_1_2_diagnosis :: Check
+equal_fees_are_refused_in_haskell_with_the_1_2_diagnosis =
+  pure_check "equal_fees_are_refused_in_haskell_with_the_1_2_diagnosis" $ do
+    let equal_fees = fixture_shock { sh_phi_x_pips = 3000, sh_phi_m_pips = 3000 }
+    refusal <-
+      case render_argv equal_fees of
+        Left err -> Right err
+        Right ts ->
+          Left ("an equal-fee shock (3000, 3000) RENDERED:\n      " ++ show ts
+                 ++ "\n      VOLUME_PATH.md section 1.2: equal fees on the two legs are infeasible"
+                 ++ " for EVERY target.")
+    -- THE DISCRIMINATING ARM. It is FIRST because the message arm below passes under the inverted
+    -- ordering for a different refusal that happens to spell the same section number.
+    _ <- case refusal of
+           FieldOutOfRange field _ _
+             | field == "phiXpips" -> Right ()
+             | otherwise ->
+                 Left ("the equal-fee shock was refused naming the field " ++ show field
+                        ++ ", expected \"phiXpips\".")
+           Inadmissible _ _ _ _ boundary ->
+             Left ("the equal-fee shock was refused by the ELLIPSE (Inadmissible, boundary "
+                    ++ show boundary ++ "), not by distinct_fees. MEASURED:"
+                    ++ " min_admissible_dstar 3000 3000 == " ++ show (min_admissible_dstar 3000 3000)
+                    ++ ", so the ellipse refuses equal legs for EVERY integer target on its own."
+                    ++ " The refusal COUNT is identical either way and VOLUME_PATH.md section 1.2's"
+                    ++ " specific diagnosis is what was lost. Either distinct_fees was deleted or"
+                    ++ " the ninth refusal was moved ahead of it.")
+           other ->
+             Left ("the equal-fee shock was refused as " ++ show other
+                    ++ ", expected a FieldOutOfRange naming phiXpips.")
+    let rendered = show refusal
+    _ <- expect ("section 1.2" `isInfixOf` rendered)
+           ("the equal-fee refusal does not cite VOLUME_PATH.md section 1.2 by name. It said:\n"
+             ++ "      " ++ rendered)
+    -- And the fact that makes the arm above necessary, asserted rather than described.
+    expect (isNothing (min_admissible_dstar 3000 3000))
+      ("min_admissible_dstar 3000 3000 is " ++ show (min_admissible_dstar 3000 3000)
+        ++ ", expected Nothing. If the ellipse ever ADMITS an equal-fee pair then deleting"
+        ++ " distinct_fees would make the shock render, the refusal count would drop, and the"
+        ++ " constructor arm above would stop being the only thing guarding the diagnosis --"
+        ++ " which is a different world, and this check would need rewriting for it.")
+
+-- | FEE-01's remaining clause, check 15: the DERIVED pips -- not the pool fee -- reach the argv.
+--
+-- ROADMAP SC-1 rules that the pair the splitter derives is what identifies a run. This is the argv
+-- half of it, and it is the half this phase can assert: the shock is built from the split's OWN
+-- recorded fields and the tokens are then read back. The pool fee 3000 must appear in NEITHER fee
+-- token -- the legs are 752 and 2250, and a renderer handed @f@ by mistake would produce
+-- @--phiXpips=3000@ while every other token stayed identical.
+--
+-- The store half -- that those pips reach the content KEY -- has no implementing task in this
+-- phase and is stated as an open gap in @Fee.Split@'s module haddock rather than asserted here.
+the_derived_pips_are_what_reach_the_argv :: Check
+the_derived_pips_are_what_reach_the_argv =
+  pure_check "the_derived_pips_are_what_reach_the_argv" $ do
+    split <-
+      case split_for 0 3000 490000 of
+        Right s -> Right s
+        Left why ->
+          Left ("split_for 0 3000 490000 was REFUSED as " ++ show why
+                 ++ ". The pool fee 3000 is in domain and its band has 1344 members at this"
+                 ++ " target, so a refusal here is the splitter failing, not the input.")
+    _ <- expect (fs_phi_x_pips split == 752 && fs_phi_m_pips split == 2250)
+           ("split_for 0 3000 490000 derived the pair (" ++ show (fs_phi_x_pips split) ++ ", "
+             ++ show (fs_phi_m_pips split) ++ "), and the pinned pair is (752, 2250)."
+             ++ " Seed 0 selects index 751 of a 1344-member band, ascending in phi_X.")
+    _ <- expect (fs_residual_scaled split == 308000)
+           ("the derived pair's residual is " ++ show (fs_residual_scaled split)
+             ++ " scaled units and the pinned value is 308000. The residual is RECORDED rather"
+             ++ " than discarded because ruling 1 is round-AND-report.")
+    _ <- expect (fs_pool_fee_pips split == 3000 && fs_dstar_pips split == 490000)
+           ("the split records the request as pool fee " ++ show (fs_pool_fee_pips split)
+             ++ " at target " ++ show (fs_dstar_pips split)
+             ++ ", and it was asked for 3000 at 490000.")
+    _ <- expect (fs_realized_scaled split == compose_scaled 752 2250
+                   && not (fs_is_exact split))
+           ("the split records a realized composition of " ++ show (fs_realized_scaled split)
+             ++ " with fs_is_exact = " ++ show (fs_is_exact split)
+             ++ ". It must be compose_scaled of its OWN pair, and the pair is not exact -- no"
+             ++ " canonical Uniswap tier admits an exact integer-pip pair at all.")
+    tokens <-
+      case render_argv (fixture_shock { sh_phi_x_pips      = fs_phi_x_pips split
+                                      , sh_phi_m_pips      = fs_phi_m_pips split
+                                      , sh_txl_volume_rate = fs_dstar_pips split
+                                      }) of
+        Right ts -> Right ts
+        Left why ->
+          Left ("the shock built from the split's own fields did not render: " ++ show why
+                 ++ ". The pair came out of admissible_band at this very target, so the ninth"
+                 ++ " refusal cannot refuse it -- if it did, the band and the gate disagree.")
+    _ <- expect ("--phiXpips=752" `elem` tokens && "--phiMpips=2250" `elem` tokens)
+           ("the argv does not carry the DERIVED pips:\n      " ++ show tokens
+             ++ "\n      ROADMAP SC-1: the derived pips, not f, are what reach the key.")
+    let fee_tokens = [t | t <- tokens, "--phiXpips=" `isPrefixOf` t || "--phiMpips=" `isPrefixOf` t]
+    expect (not (any ("3000" `isInfixOf`) fee_tokens))
+      ("the POOL FEE 3000 appears in a fee token: " ++ show fee_tokens
+        ++ ". That is what a renderer handed f instead of the split's fields produces, and every"
+        ++ " other token in the command line is identical either way -- so nothing but this arm"
+        ++ " would notice.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -13702,6 +13984,10 @@ core_checks = do
           , txl_volm_decay_never_reaches_the_prover
           , the_upstream_shocklib_pin_is_a_live_trip_wire
           , the_decoder_holds_no_IO_and_no_chain
+          , an_inadmissible_shock_cannot_be_rendered_to_argv
+          , the_refusal_names_the_boundary_and_the_pair
+          , equal_fees_are_refused_in_haskell_with_the_1_2_diagnosis
+          , the_derived_pips_are_what_reach_the_argv
           ]
             ++ per_pin_checks pins
   pure checks
