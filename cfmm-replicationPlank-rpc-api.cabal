@@ -90,6 +90,18 @@ library
                     , Store.Memory
                     , Store.Laws
                     , Store.Schema
+                    -- Phase 25's content key. +0 PACKAGES, and CONFIRMED rather than estimated at
+                    -- 25-01: `cabal build --enable-tests -j all` printed no `Downloading` line and
+                    -- the resolved plan was 166 units with this line and 166 without it, measured
+                    -- by running --dry-run against both texts of this file and counting
+                    -- plan.json's install-plan. (166 = 132 global + 28 pre-installed boot
+                    -- packages + 6 components of this package. The "158" recorded at 23-01 counts
+                    -- a tree with fewer executables and is NOT the same quantity; it was
+                    -- re-measured here rather than inherited.) bytestring supplies the builder the
+                    -- netstring framer emits, filepath supplies takeFileName/isAbsolute for the
+                    -- relativisation, crypton arrives through Store.Types.sha256_hex, and every
+                    -- one of the three was already a dependency of this stanza.
+                    , Store.Key
                     , Store.Postgres
                     -- The GAMS layer resolves at +0 PACKAGES. `process` (subprocess spawn and
                     -- pipe draining), `directory` (the exclusive run directory), `bytestring`

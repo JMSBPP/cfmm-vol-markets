@@ -1054,8 +1054,17 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 -- the one kind of file that moves both floors by the same amount in the same commit -- and the two
 -- commands were still both run, because deriving one from the other is what 24-02 did and 24-03 is
 -- how that was found out.
+--
+-- RE-MEASURED COLD AT 25-01, in the same sitting as 'credential_scan_floor' and by running the
+-- command rather than adding one to the number that was beside it: 59 against exactly 59 with the
+-- tree as 24-06 left it, and 60 against exactly 60 once @offchain\/lib\/Store\/Key.hs@ landed. The
+-- floor moves in the SAME COMMIT as the file that moves it, which is why it is here and not in
+-- this plan's last task.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
+-- > 60
 purge_file_floor :: Int
-purge_file_floor = 59
+purge_file_floor = 60
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -7631,8 +7640,17 @@ credential_scan root =
 -- the migration landed (zero slack, 24-05's number confirmed on disk), and 68 against exactly 68
 -- after it. @68 = 47 hs + 9 sh + 9 json + 3 sql@. This is the one file type that moves BOTH floors
 -- together, and both commands were still run separately.
+--
+-- RE-MEASURED COLD AT 25-01 in the same sitting as 'purge_file_floor', by running the command
+-- below rather than by adding one: 68 against exactly 68 with the tree as 24-06 left it, and 69
+-- against exactly 69 once @offchain\/lib\/Store\/Key.hs@ landed. A @.hs@ is a scanned type for
+-- BOTH scans, so this is a commit in which the two floors move together -- and the two commands
+-- were still run separately, because deriving one from the other is the thing 24-03 caught.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+-- > 69
 credential_scan_floor :: Int
-credential_scan_floor = 68
+credential_scan_floor = 69
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -7817,6 +7835,7 @@ aeson_storage_path =
   , "offchain/lib/Store/Class.hs"
   , "offchain/lib/Store/Config.hs"
   , "offchain/lib/Store/Json.hs"
+  , "offchain/lib/Store/Key.hs"
   , "offchain/lib/Store/Laws.hs"
   , "offchain/lib/Store/Memory.hs"
   , "offchain/lib/Store/Postgres.hs"
