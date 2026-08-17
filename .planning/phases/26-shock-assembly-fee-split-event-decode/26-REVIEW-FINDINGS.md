@@ -11,6 +11,84 @@ reviewers:
 
 # Phase 26 — Reviewer Findings, Binding on Execution
 
+---
+
+## UPDATE 2026-08-17 — PR #30 MERGED. The upstream now exists; two findings change.
+
+`gh pr view 30` → **MERGED**, merge commit `291d8a6`, base `develop`. All **17** files of
+`src/models/mev_tax_model_one/` and `test/models/mev_tax_model_one/` are on `origin/develop`,
+including `libraries/ShockLib.plk`, `libraries/Shock.plk` and `shock/ShockRoundTrip.t.sol`. At review
+time that path count was **0**, which is why RC-M7 called check 10 permanently satisfied-by-absence.
+
+**This branch is NOT merged with develop and MUST NOT BE for this phase.** `feat/rpc-api` is 84
+ahead / 293 behind. Read the upstream through git, never by merging and never by editing:
+
+```
+git show origin/develop:src/models/mev_tax_model_one/libraries/ShockLib.plk
+git show origin/develop:test/models/mev_tax_model_one/shock/ShockRoundTrip.t.sol
+```
+
+`src/` and `test/` remain other workstreams' territory — read-only, always.
+
+### The emitter, read from `origin/develop` and verified here
+
+`ShockLib.plk:14-17` — measured, not quoted from a reviewer:
+
+```
+@mstore32(buf,       shock_tick_diff(R, s));
+@mstore32(buf +% 32, shock_txl_volm_norm_rate(R, s));
+@mstore32(buf +% 64, shock_txl_volm_decay(R, s));
+@evm_log2(buf, 96, SHOCK_EVENT_TOPIC0, pool);
+```
+
+Two topics, exactly 96 bytes, word order `[tickDiff, normRate, decay]`. **`26-02`'s model is correct.**
+
+### RC-m7 is now CLOSED — the constant/signature link is verified, not assumed
+
+`ShockLib.plk:7` declares
+`SHOCK_EVENT_TOPIC0 = 0x21b0e4f81f5ef89be4325ca74966f2fb8f57a217e284dd3e0a276fff55987d64`, and
+`cast keccak "Shock(address,int24,uint24,uint24)"` returns **the same 32 bytes**. RC-m7 flagged this
+hop as "a researcher's eyeball restated as prose"; it is now measured. Keep the trip-wire's advice in
+its failure text anyway — re-verify the **constant**, not just the pin.
+
+### Check 10's trip-wire — RE-SCOPE IT, it is now fireable
+
+Its subject was `doesFileExist "src/models/mev_tax_model_one/libraries/ShockLib.plk"` in the working
+tree, which is still ABSENT here and would stay permanently green-by-absence. **Point it at
+`origin/develop` instead** (`git show origin/develop:<path>` succeeding, or `git ls-tree`), so the
+guard has a subject that exists *and* can change. That converts it from a guard that cannot fire into
+one that fires when upstream edits the emitter.
+
+### The independent payload oracle now exists — Solidity **M2** and RC-**M7** are both discharged by it
+
+Both reviewers converged on this independently: the corpus encoder and `decode_shock` share one
+belief about word order and padding, so a shared misreading passes every check. A second ABI coder
+breaks the tautology. **MEASURED here:**
+
+```
+cast abi-encode "f(int24,uint24,uint24)" -- -200 490000 7
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff38
+0000000000000000000000000000000000000000000000000000000000077a10
+0000000000000000000000000000000000000000000000000000000000000007
+```
+
+Add that 192-char **bare** hex string as a `ground_truth` row and assert it equals the
+`negative-tick-and-decay` member's `changeData`. Bare, not `0x`-prefixed: `purge_pattern` requires
+the `0x` prefix, and a 192-char run cannot match `0x[0-9a-fA-F]{64}\b` anyway. **Firing input:**
+transpose words 1 and 2 in the **corpus** and watch it redden — which nothing does today.
+
+`ShockRoundTrip.t.sol` corroborates from the other side: it asserts
+`logs[0].topics[0] == SHOCK_TOPIC0`, `abi.decode(logs[0].data, (int24,uint24,uint24))`, and
+`test__unit__emit_negativeTick_signAwareData` round-trips `int24(-100)`. **Cite it; never edit it.**
+
+### Still open, unchanged by the merge
+
+**RC-B1** (the Tier-C grid is unrealizable — only 1 of 16 invocations behaves as planned) and
+**B1** (`Fee.Split` divides by zero on v4's `DYNAMIC_FEE_FLAG`) are about the prover and the
+splitter. The merge does not touch either. Both remain binding.
+
+---
+
 > **These are executor constraints, not planner input.** By user ruling 2026-08-17 the plans are
 > NOT revised again; the executor implements the plan AND these findings together. Where a finding
 > contradicts a plan step, the finding wins and the deviation is recorded in the task's summary.
