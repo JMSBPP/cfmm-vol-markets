@@ -40,6 +40,7 @@ revised: 2026-08-17
 | **Baseline (measured cold 2026-08-17)** | **151/151**, wall **152.9 s** |
 | **Projected end-of-phase total** | **207** = 151 + 8 + 10 + 3 + 8 + 7 + 7 + 6 + 6 + 1. A projection, not a target: each plan records what its run PRINTS |
 | **Runtime budget** | **900 s ceiling.** Record wall before/after. The sentinel harness pays each added check ~**3828** times. **Extend `store-conformance.json` (+leaves ≈ +0.2 s) rather than add a seventh swept artifact (+19 s).** |
+| **Aggregate gate cost — stated, not hidden** | The 900 s ceiling is **per run**. Every one of the **28** tasks gates on a full `cabal test`, which starts at 152.9 s and rises with the suite toward ~200 s at 207 checks: **roughly 80–90 minutes of gate time across the phase**, and that is before the six Tier-C tasks' Docker capture. This is far above a fast-feedback sampling rate and is an **accepted** trade, not an oversight — one file and one runner means there is no cheaper subset to run, and the alternative (gate on the quick build, defer `cabal test` to wave end) is exactly how a check that reddens in wave 3 gets discovered in wave 9. Recorded here so the cost is chosen rather than absorbed silently |
 | **Hard gates** | zero `-Wall` warnings; **`cabal build -j all` WITHOUT `--enable-tests` is VACUOUS** and never counts |
 | **Chain / DB / GAMS** | **NONE of the three inside `cabal test`.** No row in the req→test map needs a DB or GAMS. Both structural greps stay **0** |
 | **New test file** | **None.** One file, one runner |
