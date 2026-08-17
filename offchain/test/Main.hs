@@ -13076,6 +13076,443 @@ out_of_range_words_are_rejected =
         ++ ", expected \"txlVolumeRate\" (in_range ... 0 999999). The uint24 guard and the pip"
         ++ " domain are DIFFERENT bounds and neither closes the domain alone.")
 
+-- | THE CORPUS'S MEMBER NAMES, PINNED. Sorted, so a reader can diff it against the corpus by eye.
+--
+-- It is a SET assertion in BOTH directions and NOT a count, and the reason is a measurement rather
+-- than a principle: 24-06 MEASURED a count-preserving rename -- @empty_version_rejected@ became
+-- @empty_version_refused@, 14 keys before and 14 after -- leaving a count-based assertion green
+-- while a set comparison reddened in both directions at once.
+shock_corpus_names :: [String]
+shock_corpus_names =
+  [ "all-zero"
+  , "decay-at-2-24"
+  , "decoy-call-selector-as-topic0"
+  , "in-scope-production"
+  , "length-0"
+  , "length-128"
+  , "length-64"
+  , "length-95"
+  , "most-negative-tick"
+  , "most-positive-tick"
+  , "negative-tick-and-decay"
+  , "norm-rate-at-2-24"
+  , "not-an-address"
+  , "one-topic"
+  , "rate-above-a-million"
+  , "three-topics"
+  , "tick-above-range"
+  , "tick-below-range"
+  , "topic0-one-bit-off"
+  , "wrong-emitter"
+  , "zero-pool"
+  ]
+
+-- | CHAIN-04 check 9: the corpus carries what production NEVER emits, and it is asserted as a SET
+-- of names in both directions rather than as a count or as a property of \"some member\".
+--
+-- Three arms after the set. Two of them NAME the members that satisfy them, because a check that
+-- says \"at least one member is negative\" and does not say WHICH one leaves a reader unable to
+-- tell a corpus that lost its negative fixture from one that never had it.
+the_synthetic_corpus_carries_what_production_never_emits :: Check
+the_synthetic_corpus_carries_what_production_never_emits =
+  pure_check "the_synthetic_corpus_carries_what_production_never_emits" $ do
+    let present  = sort [n | (n, _, _) <- shock_corpus]
+        pinned   = sort shock_corpus_names
+        missing  = [n | n <- pinned, n `notElem` present]
+        extra    = [n | n <- present, n `notElem` pinned]
+        decodes  = [ (n, ev)
+                   | (n, l, _) <- shock_corpus
+                   , Right ev <- [decode_shock shock_topic0 shock_emitter l]
+                   ]
+        negative = [n | (n, ev) <- decodes, se_tick_diff ev < 0]
+        decaying = [n | (n, ev) <- decodes, se_txl_decay ev /= 0]
+    _ <- expect (null missing)
+           ("these pinned corpus members are NOT in shock_corpus: " ++ intercalate ", " missing
+             ++ ". A member that vanishes takes every assertion made about it with it, and the"
+             ++ " suite total shrinks silently -- which is why this is a SET and not a count.")
+    _ <- expect (null extra)
+           ("shock_corpus carries members that are not on the pinned list: "
+             ++ intercalate ", " extra
+             ++ ". A count-preserving RENAME passes a count-based assertion and fails this one in"
+             ++ " both directions at once; 24-06 measured exactly that case.")
+    _ <- expect (length present == length (nub present))
+           ("shock_corpus has DUPLICATE member names: "
+             ++ intercalate ", " (nub [n | n <- present, length (filter (== n) present) > 1])
+             ++ ". shock_member returns the first match, so a duplicate silently hides a log.")
+    _ <- expect (not (null negative))
+           ("NO member of the corpus decodes to a negative tickDiff. Issue #28 tags v6.0 hookData"
+             ++ " flags = 0b010, so tickDiff is 0 on every production log by construction -- a"
+             ++ " decoder that never sign-extends is green on all of them forever. The negative"
+             ++ " fixture is the only thing that can tell those two decoders apart.")
+    _ <- expect (not (null decaying))
+           ("NO member of the corpus decodes to a nonzero txlVolmDecay. It is the second"
+             ++ " structurally-zero field, for the same reason, and a decoder that read the wrong"
+             ++ " word would be green on every production log.")
+    _ <- expect ("in-scope-production" `elem` present)
+           ("the corpus has no in-scope-production member. It is the exact shape issue #28"
+             ++ " guarantees -- [0, rate, 0] -- and it is here to be INSUFFICIENT on its own: two"
+             ++ " of its three words are zero, so it cannot distinguish a sign-aware decoder from"
+             ++ " a masking one, from an unconverting one, or from one that defaults to zero.")
+    expect (not (null negative) && not (null decaying))
+      ("the discriminating members are: negative tickDiff in [" ++ intercalate ", " negative
+        ++ "], nonzero decay in [" ++ intercalate ", " decaying ++ "].")
+
+-- | The seven argv token keys, PINNED as a set. @--txlDecayRate@ is not among them and that is the
+-- whole point of check 10.
+argv_token_keys :: [String]
+argv_token_keys =
+  [ "--liquidityRaw"
+  , "--nEvents"
+  , "--phiMpips"
+  , "--phiXpips"
+  , "--sqrtPriceX96"
+  , "--txlVolumeRate"
+  , "--volTgtWad"
+  ]
+
+-- | The scanned file for check 10's second arm. Named once so the arm cannot drift from the check
+-- that guards it.
+argv_module_path :: FilePath
+argv_module_path = "offchain/lib/Gams/Argv.hs"
+
+-- | The decay identifier, in either case. NOT built by concatenation, deliberately: the file this
+-- pattern lives in is not in the scanned set -- the scan is scoped to 'argv_module_path' alone --
+-- and building it would hide the one thing a reader of this arm needs to see. What IS load-bearing
+-- is the scope: @offchain\/test\/Main.hs@ names the decay field constantly, and adding it to this
+-- scan would redden it forever.
+argv_decay_pattern :: String
+argv_decay_pattern = "[Dd]ecay"
+
+-- | The seeded bait for check 10's second arm, and a clean file that must NOT be named.
+argv_decay_bait_source :: String
+argv_decay_bait_source =
+  "-- the closed loop applies a decay rate here\nrate :: Integer\nrate = 1\n"
+
+-- | CHAIN-04 check 10: @txlVolmDecay@ is decoded and RECORDED, and never reaches the prover.
+--
+-- @VOLUME_PATH.md@ section 2, verbatim: \"@txlDecayRate@ is __not__ an input by ruling: the closed
+-- loop is trusted.\" A ruling of that shape is worth nothing unless something fails when it is
+-- broken, and three different things can break it, so there are three arms and each has its own
+-- firing input.
+--
+--   * __Arm 1, the token set.__ @render_argv@ returns exactly seven tokens and the SET of their
+--     @--key@ prefixes equals 'argv_token_keys' in BOTH directions. An eighth token is named.
+--   * __Arm 2, the prose.__ The decay identifier appears NOWHERE in @Gams\/Argv.hs@ -- not in
+--     code, not in a haddock, not in a comment. That makes that file
+--     prose-inside-a-grep's-blast-radius for the REST of this phase: 26-03 edits it and must not
+--     write the word. The scan is shown matching a seeded bait first, because absence may not read
+--     as success until the pattern has been seen matching.
+--   * __Arm 3, the type.__ @Gams.Argv.Shock@ has exactly seven fields, asserted by an EXHAUSTIVE
+--     positional pattern match with no wildcard in it. An eighth field does not fail this check --
+--     it fails the BUILD, which is the point. A wildcard here would silently accept the eighth
+--     field and the arm would be absent while looking present.
+txl_volm_decay_never_reaches_the_prover :: Check
+txl_volm_decay_never_reaches_the_prover =
+  Check "txl_volm_decay_never_reaches_the_prover" . guarded $ do
+    tmp <- getTemporaryDirectory
+    let dir      = tmp </> "chain04-decay-positive-control"
+        bait     = dir </> "bait.hs"
+        innocent = dir </> "clean.hs"
+        discard p = do
+          there <- doesFileExist p
+          if there then removeFile p else pure ()
+    createDirectoryIfMissing True dir
+    control <- flip finally (mapM_ discard [bait, innocent]) $ do
+      writeFile bait argv_decay_bait_source
+      writeFile innocent "rate :: Integer\nrate = 1\n"
+      (code, out, err) <- gams_version_scan argv_decay_pattern [bait, innocent]
+      pure $ do
+        _ <- expect (code == ExitSuccess)
+               ("CHAIN-04's decay POSITIVE CONTROL did not fire: the scan exited " ++ show code
+                 ++ " over a file that spells the word. The pattern has stopped matching anything,"
+                 ++ " so the exit-1 the real scan reports is absence of MATCHES only by assumption."
+                 ++ (if null err then "" else "\n      stderr: " ++ err))
+        _ <- expect ("bait.hs" `isInfixOf` out)
+               ("CHAIN-04's decay POSITIVE CONTROL fired but did not NAME the seeded file:\n"
+                 ++ unlines (map ("      " ++) (lines out)))
+        expect (not ("clean.hs" `isInfixOf` out))
+          ("CHAIN-04's decay POSITIVE CONTROL matched a file with no occurrence in it:\n"
+            ++ unlines (map ("      " ++) (lines out)))
+    there <- doesFileExist argv_module_path
+    if not there
+      then pure $ do
+        _ <- control
+        expect False
+          (argv_module_path ++ " is not on disk, so the scan below would report a clean result"
+            ++ " BECAUSE its subject is absent. grep exits 1 both for \"found nothing\" and for"
+            ++ " \"the file does not exist\", and it prints 0 for a missing file, so the absence"
+            ++ " has to be ruled out before the exit code means anything.")
+      else do
+        (code, out, err) <- gams_version_scan argv_decay_pattern [argv_module_path]
+        pure $ do
+          _ <- control
+          _ <- case code of
+                 ExitFailure 1 -> Right ()
+                 ExitFailure n -> Left ("the decay scan itself failed with exit " ++ show n
+                                         ++ ": " ++ err)
+                 ExitSuccess ->
+                   Left ("the decay identifier appears in " ++ argv_module_path
+                          ++ ", which VOLUME_PATH.md section 2 rules is not an input. It is a"
+                          ++ " grep's blast radius for the rest of this phase -- 26-03 and 26-04"
+                          ++ " both edit this file -- so the word may not be written there even in"
+                          ++ " prose.\n" ++ unlines (map ("      " ++) (lines out)))
+          tokens <-
+            case render_argv fixture_shock of
+              Left err' -> Left ("the fixture shock did not render: " ++ show err')
+              Right ts  -> Right ts
+          -- The SET arms run BEFORE the count arm, and the order is load-bearing: MEASURED here,
+          -- a count arm placed first short-circuits and reports "8, expected 7" without ever
+          -- saying WHICH key the eighth one is. The set says the name; the count, reached only
+          -- once the set agrees, then says the list carries a DUPLICATE.
+          let keys    = sort (map (takeWhile (/= '=')) tokens)
+              pinned  = sort argv_token_keys
+              missing = [k | k <- pinned, k `notElem` keys]
+              extra   = [k | k <- keys, k `notElem` pinned]
+          _ <- expect (null missing)
+                 ("these pinned argv keys are MISSING from the rendered command line: "
+                   ++ intercalate ", " missing)
+          _ <- expect (null extra)
+                 ("the rendered command line carries argv keys that are not pinned: "
+                   ++ intercalate ", " extra
+                   ++ ". VOLUME_PATH.md section 2 rules the decay rate is not an input by ruling:"
+                   ++ " the closed loop is trusted.")
+          _ <- expect (length tokens == 7)
+                 ("render_argv produced " ++ show (length tokens) ++ " tokens, expected exactly 7,"
+                   ++ " and their key SET already agrees with the pinned seven -- so the list"
+                   ++ " carries a DUPLICATE key: " ++ show tokens)
+          -- ARM 3. Exhaustive and positional. NO WILDCARD: a wildcard would keep compiling when an
+          -- eighth field arrived, and the arm would be absent while looking present.
+          let seven = case fixture_shock of
+                Shock a b c d e f g -> [a, b, c, d, e, f, g]
+          _ <- expect (length seven == 7)
+                 ("Gams.Argv.Shock destructured into " ++ show (length seven) ++ " fields.")
+          expect (seven == [ sh_sqrt_price_x96  fixture_shock
+                           , sh_liquidity_raw   fixture_shock
+                           , sh_txl_volume_rate fixture_shock
+                           , sh_phi_x_pips      fixture_shock
+                           , sh_phi_m_pips      fixture_shock
+                           , sh_vol_tgt_wad     fixture_shock
+                           , sh_n_events        fixture_shock
+                           ])
+            ("the seven positional fields of Gams.Argv.Shock are not the seven record selectors in"
+              ++ " declaration order: positional " ++ show seven ++ " vs selectors "
+              ++ show [ sh_sqrt_price_x96 fixture_shock, sh_liquidity_raw fixture_shock
+                      , sh_txl_volume_rate fixture_shock, sh_phi_x_pips fixture_shock
+                      , sh_phi_m_pips fixture_shock, sh_vol_tgt_wad fixture_shock
+                      , sh_n_events fixture_shock ])
+
+-- | The emitter, as it is reachable from HERE: a path inside @origin\/develop@, never a merge.
+shocklib_path :: FilePath
+shocklib_path = "src/models/mev_tax_model_one/libraries/ShockLib.plk"
+
+-- | A path that is NOT in that tree, so the reader below can be shown saying NO as well as YES.
+shocklib_absent_path :: FilePath
+shocklib_absent_path = "src/models/mev_tax_model_one/libraries/NoSuchShockLib.plk"
+
+-- | The SAME path, looked for in THIS worktree. It is a separate name and it is DEFINED as
+-- 'shocklib_path' rather than re-typed, so the two cannot drift, and it exists for one reason:
+-- subject 5 below is the arm that says when the generated-pin idiom becomes available again, and
+-- an arm nobody can make fire is an arm nobody has checked. Repointing this one constant makes it
+-- fire without touching @src\/@, which is another workstream's territory and is read-only here.
+shocklib_local_path :: FilePath
+shocklib_local_path = shocklib_path
+
+-- | The ref the upstream is read through. Never merged: this branch is 84 ahead \/ 293 behind and
+-- @src\/@ is another workstream's territory.
+upstream_ref :: String
+upstream_ref = "origin/develop"
+
+-- | Does @origin\/develop@ carry this path? A read, through git, of a ref this branch does not
+-- merge.
+plk_on_upstream :: FilePath -> IO Bool
+plk_on_upstream path = do
+  (code, _, _) <- readProcessWithExitCode "git" ["cat-file", "-e", upstream_ref ++ ":" ++ path] ""
+  pure (code == ExitSuccess)
+
+-- | The three accessor names the emitter's @\@mstore32@ calls must name, IN ORDER. This is the
+-- word order 'decode_shock' assumes, read back out of the emitter rather than asserted about it.
+shocklib_word_order :: [String]
+shocklib_word_order = ["shock_tick_diff", "shock_txl_volm_norm_rate", "shock_txl_volm_decay"]
+
+-- | CHAIN-04 check 11: the upstream emitter is a LIVE TRIP-WIRE, and it has a subject that exists.
+--
+-- === Why this is not the check the plan specified
+--
+-- The plan's subject was @doesFileExist \<ShockLib.plk\>@ in THIS worktree, asserted to be
+-- 'False'. PR #30 has since merged all 17 files of that model into @origin\/develop@ (merge
+-- @291d8a6@), but this branch is 84 ahead \/ 293 behind and must not merge it, so that subject is
+-- permanently satisfied-by-absence: a guard that cannot become true is not a guard, it is the
+-- zero-address-passing-a-hex-shape-check pattern one level up. RC-M7 said so. The subject is
+-- therefore RE-SCOPED to @origin\/develop@, where the file exists and CAN change.
+--
+-- === What it actually asserts, which is RC-m7 closed by measurement
+--
+-- The pin proves @keccak(signature) == ground_truth@. What decides whether this decoder ever
+-- matches a real log is a different hop: the emitter's HAND-WRITTEN @SHOCK_EVENT_TOPIC0@ constant
+-- @== keccak(signature)@. Until now that hop was a researcher's eyeball restated as prose. It is
+-- parsed out of the upstream file and compared here, along with the word ORDER and the payload
+-- LENGTH the decoder assumes. Upstream editing the emitter reddens this.
+--
+-- === The control comes FIRST, and it runs in BOTH directions
+--
+-- A reader that answered \"present\" for everything would satisfy every subject below while
+-- knowing nothing. So it is shown saying YES to a path that is in the tree and NO to one that is
+-- not, before any verdict about the emitter is taken seriously.
+the_upstream_shocklib_pin_is_a_live_trip_wire :: Check
+the_upstream_shocklib_pin_is_a_live_trip_wire =
+  Check "the_upstream_shocklib_pin_is_a_live_trip_wire" . guarded $ do
+    (ref_code, _, ref_err) <- readProcessWithExitCode "git" ["rev-parse", "--verify", upstream_ref] ""
+    yes <- plk_on_upstream shocklib_path
+    no  <- plk_on_upstream shocklib_absent_path
+    here <- doesFileExist shocklib_local_path
+    (show_code, contents, show_err) <-
+      readProcessWithExitCode "git" ["show", upstream_ref ++ ":" ++ shocklib_path] ""
+    pure $ do
+      _ <- expect (ref_code == ExitSuccess)
+             ("the ref " ++ upstream_ref ++ " is not resolvable in this clone, so every verdict"
+               ++ " below would be about a tree that is not here. Fetch it and re-run:"
+               ++ " git fetch origin develop"
+               ++ (if null ref_err then "" else "\n      git said: " ++ ref_err))
+      -- CONTROL, both directions, before any subject.
+      _ <- expect yes
+             ("the upstream reader cannot see " ++ shocklib_path ++ " in " ++ upstream_ref
+               ++ ", which PR #30 merged there. Either the reader is broken or the emitter moved;"
+               ++ " until that is settled its verdict about anything else means nothing.")
+      _ <- expect (not no)
+             ("the upstream reader reports " ++ shocklib_absent_path ++ " as PRESENT in "
+               ++ upstream_ref ++ ". It says yes to a path that is not there, so its yes about the"
+               ++ " emitter is worth nothing. A trip-wire never seen to say NO is ABSENT.")
+      _ <- expect (show_code == ExitSuccess && not (null contents))
+             ("could not read " ++ shocklib_path ++ " out of " ++ upstream_ref
+               ++ (if null show_err then "" else ": " ++ show_err))
+      -- SUBJECT 1: the CONSTANT, not merely the pin. This is RC-m7.
+      declared <-
+        case [ takeWhile (/= ';') (drop 1 (dropWhile (/= '=') l))
+             | l <- lines contents, "SHOCK_EVENT_TOPIC0" `isInfixOf` l, '=' `elem` l ] of
+          (raw : _) -> integer_of_hex_text raw
+          [] -> Left ("no SHOCK_EVENT_TOPIC0 declaration was found in " ++ shocklib_path
+                       ++ " on " ++ upstream_ref ++ ". The constant is what decides whether this"
+                       ++ " decoder ever matches a real log; the pin only decides whether two"
+                       ++ " copies of a hash agree.")
+      _ <- expect (declared == shock_topic0)
+             ("the emitter's hand-written SHOCK_EVENT_TOPIC0 and keccak of "
+               ++ show shock_signature ++ " are DIFFERENT 32-byte values. The decoder would then"
+               ++ " match no log at all and report nothing, forever, without looking wrong."
+               ++ " RE-VERIFY THE CONSTANT -- re-homing the pin does not touch this hop.")
+      -- SUBJECT 2: the WORD ORDER this decoder assumes, read out of the emitter.
+      let stores = [ name
+                   | l <- lines contents, "@mstore32(" `isInfixOf` l
+                   , name <- shocklib_word_order, name `isInfixOf` l ]
+      _ <- expect (stores == shocklib_word_order)
+             ("the emitter stores its data words in the order " ++ show stores
+               ++ ", and Chain.Shock reads them as " ++ show shocklib_word_order
+               ++ ". A transposition upstream is invisible to every synthetic check in this phase,"
+               ++ " because the corpus is built from the same belief the decoder is tested for.")
+      -- SUBJECT 3: the payload LENGTH and the topic count.
+      _ <- expect (any (\l -> "@evm_log2(" `isInfixOf` l && "96" `isInfixOf` l) (lines contents))
+             ("the emitter's log call is not @evm_log2 over 96 bytes any more. Chain.Shock refuses"
+               ++ " every other length EXACTLY, so a payload-size change upstream turns every real"
+               ++ " log into a WrongDataLength refusal.")
+      -- SUBJECT 4: the two halves of the pin decision cannot drift apart.
+      _ <- expect (T.pack "Shock" `notElem` expected_topic_pins)
+             ("\"Shock\" is in expected_topic_pins, but offchain/rig/generate-pins.sh iterates the"
+               ++ " interface files present in THIS worktree and " ++ shocklib_path ++ " is not one"
+               ++ " of them, so the generator can never produce that pin and"
+               ++ " sc4_pin_surface_is_the_expected_set reddens in its both-directions arm. The"
+               ++ " topic0 lives in ground_truth until the emitter lands here.")
+      -- SUBJECT 5: the condition under which the pin idiom becomes available again.
+      expect (not here)
+        (shocklib_local_path ++ " is now in THIS worktree, so the generated pin surface can carry this"
+          ++ " event and the ground_truth row is no longer the right home for it. Do all four:"
+          ++ " (1) move the topic0 pin out of ground_truth into the generated"
+          ++ " offchain/rig/rig-pins.json surface; (2) add \"Shock\" to expected_topic_pins;"
+          ++ " (3) RE-VERIFY THE CONSTANT -- that the emitter's own SHOCK_EVENT_TOPIC0 equals"
+          ++ " keccak of the signature -- rather than merely re-homing the pin, because those are"
+          ++ " different facts and only the second one decides whether a real log ever matches;"
+          ++ " (4) delete this check, whose subject has been overtaken.")
+
+-- | The pattern for check 12, BUILT rather than spelled for the reason 'purge_control_literal' is
+-- built: three of its five alternations name things @offchain\/test\/Main.hs@ legitimately does,
+-- and a scope change that ever brought this file into the scanned set would then find the pattern
+-- in the sentence asserting its absence.
+chain_shock_io_pattern :: String
+chain_shock_io_pattern =
+  "Sys" ++ "tem\\.Process|unsafe" ++ "PerformIO|Net" ++ "work\\.Ethereum\\.Web3|run"
+    ++ "Web3|:: IO "
+
+-- | The seeded bait, BUILT for the same reason, carrying every alternation.
+chain_shock_io_bait_source :: String
+chain_shock_io_bait_source =
+  "import Sys" ++ "tem.Process (readProcess)\n"
+    ++ "import System.IO.Unsafe (unsafe" ++ "PerformIO)\n"
+    ++ "import Net" ++ "work.Ethereum.Web3 (run" ++ "Web3)\n"
+    ++ "spawn :: IO " ++ "()\n"
+    ++ "spawn = pure ()\n"
+
+-- | The decoder's own path, named once.
+chain_shock_path :: FilePath
+chain_shock_path = "offchain/lib/Chain/Shock.hs"
+
+-- | CHAIN-04 check 12: the decoder holds no IO and no chain.
+--
+-- @cabal test@ is chain-independent by construction and this module is the newest thing on that
+-- boundary: it is named after an on-chain event, it is the module a later phase will hand real
+-- logs to, and the obvious way to make Phase 27 easy is to give it a fetcher. This is what says
+-- no. Its subject is not the module's imports as written down here but the bytes on disk.
+--
+-- Four assertions in this order, and the order is the design: the POSITIVE CONTROL first -- run
+-- with the IDENTICAL argument vector over a bait seeded OUTSIDE the repository, and required to
+-- NAME it -- then the subject's existence, then the scan.
+the_decoder_holds_no_IO_and_no_chain :: Check
+the_decoder_holds_no_IO_and_no_chain =
+  Check "the_decoder_holds_no_IO_and_no_chain" . guarded $ do
+    tmp <- getTemporaryDirectory
+    let dir      = tmp </> "chain04-io-positive-control"
+        bait     = dir </> "bait.hs"
+        innocent = dir </> "clean.hs"
+        discard p = do
+          there <- doesFileExist p
+          if there then removeFile p else pure ()
+    createDirectoryIfMissing True dir
+    control <- flip finally (mapM_ discard [bait, innocent]) $ do
+      writeFile bait chain_shock_io_bait_source
+      writeFile innocent "decode :: Integer -> Integer\ndecode = id\n"
+      (code, out, err) <- gams_version_scan chain_shock_io_pattern [bait, innocent]
+      pure $ do
+        _ <- expect (code == ExitSuccess)
+               ("CHAIN-04's IO POSITIVE CONTROL did not fire: the scan exited " ++ show code
+                 ++ " over a file that imports the process module, the unsafe-IO escape hatch and"
+                 ++ " the web3 runner, and declares an IO action. The pattern has stopped matching"
+                 ++ " anything, so the exit-1 the real scan reports is absence of MATCHES only by"
+                 ++ " assumption."
+                 ++ (if null err then "" else "\n      stderr: " ++ err))
+        _ <- expect ("bait.hs" `isInfixOf` out)
+               ("CHAIN-04's IO POSITIVE CONTROL fired but did not NAME the seeded file:\n"
+                 ++ unlines (map ("      " ++) (lines out)))
+        expect (not ("clean.hs" `isInfixOf` out))
+          ("CHAIN-04's IO POSITIVE CONTROL matched a file with none of those tokens in it:\n"
+            ++ unlines (map ("      " ++) (lines out)))
+    there <- doesFileExist chain_shock_path
+    if not there
+      then pure $ do
+        _ <- control
+        expect False
+          (chain_shock_path ++ " is not on disk, so a clean scan below would be reporting the"
+            ++ " absence of a SUBJECT rather than the absence of matches. grep exits 1 for both.")
+      else do
+        (code, out, err) <- gams_version_scan chain_shock_io_pattern [chain_shock_path]
+        pure $ do
+          _ <- control
+          case code of
+            ExitFailure 1 -> Right ()
+            ExitFailure n -> Left ("the IO scan itself failed with exit " ++ show n ++ ": " ++ err)
+            ExitSuccess ->
+              Left ("the Shock decoder names a process spawn, the unsafe-IO escape hatch, the web3"
+                     ++ " runner or an IO action. It is a total function from a log to an Either,"
+                     ++ " and cabal test is chain-independent by construction -- the fetcher"
+                     ++ " belongs to the caller, in a phase that owns a chain.\n"
+                     ++ unlines (map ("      " ++) (lines out)))
+
 -- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
@@ -13261,6 +13698,10 @@ core_checks = do
           , wrong_topic0_wrong_arity_and_wrong_emitter_are_rejected
           , the_pool_topic_is_a_nonzero_address
           , out_of_range_words_are_rejected
+          , the_synthetic_corpus_carries_what_production_never_emits
+          , txl_volm_decay_never_reaches_the_prover
+          , the_upstream_shocklib_pin_is_a_live_trip_wire
+          , the_decoder_holds_no_IO_and_no_chain
           ]
             ++ per_pin_checks pins
   pure checks
