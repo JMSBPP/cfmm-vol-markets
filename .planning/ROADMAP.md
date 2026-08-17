@@ -925,10 +925,41 @@ versions — the key cannot be constructed without them, which is the whole reas
   3. Every one of the seven inputs has a **negative test**: omitting it, or supplying an unparseable value, makes key construction FAIL naming the field — never `0`, never `""`, never an in-file default silently standing in. The key type carries no `Maybe` and no defaultable field, so `nEvents = 0`, `liquidity = 0` and `sqrtPriceX96 = 0` are refused rather than hashed as shape-valid nothings (KEY-06).
   4. An identical shock returns the stored artifact with the solver **never spawned** — proven by a store whose invoke callback fails the check if it is called at all, not by timing. Verification is a separate explicit mode off the hot path; its two comparands are **distinct newtypes** with `FreshlySolvedBytes` constructible only by the subprocess layer, so comparing a cached row to itself does not type-check. A deliberately corrupted cached row is REPORTED as a determinism failure with a non-zero exit, the original survives, and the divergent bytes are found in **quarantine**. Both sides are asserted non-empty and above a length floor before comparison, so `"" == ""` is unreachable. A determinism-check history with zero rows fails the phase (STORE-01, STORE-02, STORE-03, STORE-04).
   5. A pinned run **survives** `reset`; bare `reset` REFUSES (mandatory scope) and is unreachable as a side effect of a solve or a publish; the run log is append-only and the **same key seen twice yields two log rows** while a single cache entry; and a run that aborts — non-zero exit, timeout, or exit-0-with-no-artifact — produces a run-log row and **no cache entry**, each observed by driving the failure rather than by inspecting the happy path (STORE-05, STORE-06, STORE-07, STORE-08).
-**Plans**: TBD — the largest phase (14 requirements); expect multiple waves.
+**Plans**: 9 plans (9 waves — strictly serial)
+
+**Planning note (three of this phase's own success criteria are UNSOUND as worded; the plans deviate
+deliberately and each deviation is stated in the plan that carries it):**
+1. **SC-1's framing test cannot fail.** MEASURED: 343 shock tuples through `render_argv`'s token
+   form give **0** collisions — every token is `--<literal name>=<digits>` and `-`/`=` are outside
+   the digit alphabet, so the `--name=` prefixes are an ACCIDENTAL framing. The same tuples under
+   bare-decimal concatenation give **30**. 25-01 points the evidence at the FRAMER, at a named
+   bare-decimal negative control, and at the free-form components.
+2. **SC-2's "reconstruct the argv actually passed" is most satisfied by the design that makes the
+   store useless.** `Gams.Run.spawn_into` puts `curdir=<per-run temp dir>` into `wrapper_argv`, so
+   hashing the argv that ran gives a hit rate of exactly zero while passing that check. 25-02 ships
+   TWO instruments that fail on OPPOSITE designs: a two-directional token-set assertion and a
+   hit-rate observation.
+3. **SC-5's append-only run log cannot rest on `REVOKE`.** MEASURED on PG 18.4: after
+   `revoke update, delete … from postgres` a superuser UPDATE LANDED and read back `TAMPERED` with
+   no error — and the application connects as `postgres`. A `BEFORE UPDATE OR DELETE` row trigger
+   refuses it; `truncate` then emptied the table with no error, needing a second
+   `BEFORE TRUNCATE … FOR EACH STATEMENT` trigger. 25-03 ships both, and 25-07 OBSERVES all four
+   refusals plus the REVOKE no-op as recorded values.
+
+**Serialisation:** every plan edits `offchain/test/Main.hs` and most edit the `.cabal`, both of
+which are single-writer surfaces, so the waves are 1..9 in order. Phase 26 also edits `Main.hs` and
+is executed serially with respect to this phase.
 
 Plans:
-- [ ] 25-01: TBD
+- [ ] 25-01-PLAN.md — `Store.Key`: the netstring framer, the tagged eight-component preimage, and a `KeyIdentity` that refuses an absolute path or an absent CONOPT version (KEY-01, KEY-04, KEY-05) [wave 1]
+- [ ] 25-02-PLAN.md — `parse_shock` (KEY-06's omission clause finally has a subject), the argv/preimage token-set assertion and the hit-rate observation (KEY-02, KEY-03, KEY-06) [wave 2]
+- [ ] 25-03-PLAN.md — migrations `004_run_log.sql` (both triggers, no FK) and `005_quarantine.sql`, `Store.Schema` extended, the lock probe renumbered to `900_`, and a re-capture (STORE-05, STORE-06, STORE-07) [wave 3]
+- [ ] 25-04-PLAN.md — `Store.RunLog` plus the store seam grown by eight operations, implemented by BOTH stores, with the `xmax` discriminator (STORE-01, STORE-05, STORE-06, STORE-07) [wave 4]
+- [ ] 25-05-PLAN.md — `Store.Verify`'s two unconstructible-from-each-other newtypes and the `store-admin` entrypoint whose failure is an exit code (STORE-02, STORE-03, STORE-04) [wave 5]
+- [ ] 25-06-PLAN.md — `Store.Solver` and `Store.Cache`: the elision pair and four driven aborts behind a positive control that lands (STORE-01, STORE-04, STORE-08) [wave 6]
+- [ ] 25-07-PLAN.md — capture blocks A: the append-only refusals, the REVOKE no-op, both triggers in the live catalogue, the `xmax` discrimination (STORE-01, STORE-06, STORE-07) [wave 7]
+- [ ] 25-08-PLAN.md — capture blocks B: the quarantine exhibit with its agreement control, the abort-no-entry exhibit, the key round trip (KEY-01, KEY-02, STORE-03, STORE-04, STORE-08) [wave 8]
+- [ ] 25-09-PLAN.md — carried guard #21 (`EchoMismatch`) CLOSED, the 50-row guard ledger reconciled, the phase gate measured cold (KEY-02, STORE-02) [wave 9]
 
 ### Phase 26: Shock Assembly — Fee Split & Event Decode
 **Goal**: The two pure producers of a shock's fields exist and refuse rather than approximate:
@@ -990,10 +1021,30 @@ block, keyed by topic1's `pool`. And `txlVolmDecay` (α_trans) is **not a GAMS i
 record it in the run log, do not feed it to the prover. Only `txlVolmNormRate` becomes GAMS's
 `txlVolumeRate` (δ_trans).
 
-**Plans**: TBD
+**Plans**: 4 plans (4 waves — every plan edits the single-file suite `offchain/test/Main.hs`, so they are strictly serial)
 
 Plans:
-- [ ] 26-01: TBD
+- [ ] 26-01-PLAN.md — `Fee.Split`: the exact integer level constraint, the prover's own `ellTest` transcribed as `E <= 0`, exact-split rarity in both directions, and the float/aeson scan grown in the same commit (FEE-01, FEE-02) [wave 1]
+- [ ] 26-02-PLAN.md — `Chain.Shock`: `Either`-returning decoder with an exact 96-byte length rule, per-word ranges and an explicit all-zero refusal; a 17-member named synthetic corpus carrying a NEGATIVE `tickDiff` and a nonzero `txlVolmDecay`; topic0 COMPUTED from the signature string; the `ShockLib.plk` merge trip-wire with a mandatory positive control (CHAIN-04) [wave 2]
+- [ ] 26-03-PLAN.md — the NINTH refusal inside `Gams.Argv.render_argv` (after `distinct_fees`, so the section 1.2 diagnosis survives), the Tier-B marker-stub observation that no subprocess is spawned, and the seeded pick proven load-bearing over a band proven larger than one (FEE-01, FEE-03, FEE-04) [wave 3]
+- [ ] 26-04-PLAN.md — the Tier-C differential: `render_argv_ungated` with exactly one consumer, `capture-fee-split.sh`, a 12-row two-sided boundary-bracketing grid with 4 controls against the real GAMS toolchain, the SEVENTH swept artifact, and the phase-close floor re-measurements (FEE-02) [wave 4]
+
+**Planning corrections of record (2026-08-17, measured at plan time):**
+1. `26-RESEARCH.md` guard 5's firing input does NOT fire. A `floor` rounder's worst residual over the
+   whole band is 999799, strictly below the one-pip bound; `m + 1` fires for 0 of 44 members at
+   f = 100. The input that fires for every member at every f measured is **`m + 2`**. The residual
+   therefore gets two independent assertions and only one uses the bound.
+2. `26-RESEARCH.md` guard 20's empty-band input does NOT fire. `f = 3000, delta* = 1000` measures a
+   band of **4** (2 under `rho > 1`), not 0. The EMPTY case is `delta* = 200`; the SINGLETON case —
+   the one that makes FEE-04 vacuous — is `delta* = 500`, sole member `(1, 2999)`.
+3. The residual headroom under the one-pip alarm is **2x**, not the ~10^3 M4 implies: 10^3 is the
+   BEST member's residual, while an arbitrary seeded pick measures up to 0.4997 pip.
+4. `min_admissible_dstar 3000 3000 == Nothing` — at equal fees NO integer `delta*` is admissible,
+   which is strictly stronger than section 1.2's prose and is why the ellipse gate must run AFTER
+   `distinct_fees` or the specific diagnosis is silently lost.
+5. The upper root of the prover's gate is **499999** for three of the four grid pairs — an
+   independent reproduction of `VOLUME_PATH.md` section 1.1's `delta <= 1/2` ceiling. The mistaken
+   arithmetic-mean reading gives 1.
 
 ### Phase 27: Anvil Read Layer
 **Goal**: A shock read off a live chain is a snapshot of ONE block, or it is an error. The
