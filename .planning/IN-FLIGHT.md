@@ -119,3 +119,4 @@ These are the cheapest items on the whole board: no research, no compute, no pro
 - MEASURED: runner github git transfer ~33KB/s (mathlib clone ~8h -> option B alone dead); CI-realistic lean job = 10m37s (8088 jobs, exit 0).
 - Runner cache SEEDED: ~/.cache/lake-packages (6.9GB) + .manifest-sha stamp, from this worktree's warm tree.
 - RESUME TRIGGER: user approves develop-gate environment on run 32039171794 -> watch jobs -> triage (ours: fix here; pre-existing infra e.g. haskell first-ever run: hand to CI session, NO admin bypass without user ruling) -> merge PR #10 -> push lean tree to cfmm-lean4-spec mirror (still-owed ~15 modules).
+- USER RULING 2026-08-17: haskell (stale codebase) and plank (its heavy work lives on PR #30) may be BYPASSED for the PR #10 merge — lean green (+ forge already green) is the merge criterion; use --admin if the gate summary is red on those two alone.
