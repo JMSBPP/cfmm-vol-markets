@@ -1,6 +1,6 @@
 -- |
--- Where the GAMS layer's three environment overrides are resolved, and the only place any of the
--- three variables is NAMED.
+-- Where the GAMS layer's four environment overrides are resolved, and the only place any of the
+-- four variables is NAMED.
 --
 -- The shape is @Store.Config@'s, deliberately and verbatim: one constant holding the variable's
 -- name, one constant holding the default, one @IO@ resolver that reads the name constant rather
@@ -27,6 +27,10 @@ module Gams.Config
   , gams_conformance_env_var
   , gams_conformance_path
   , default_gams_conformance_path
+    -- * The committed fee-split differential
+  , fee_split_conformance_env_var
+  , fee_split_conformance_path
+  , default_fee_split_conformance_path
   ) where
 
 import Data.Maybe (fromMaybe)
@@ -93,3 +97,28 @@ default_gams_conformance_path = "offchain/rig/gams-conformance.json"
 -- | @GAMS_CONFORMANCE@, defaulting to the committed evidence.
 gams_conformance_path :: IO FilePath
 gams_conformance_path = fromMaybe default_gams_conformance_path <$> lookupEnv gams_conformance_env_var
+
+-- ---------------------------------------------------------------------------------------------
+-- The committed fee-split differential
+-- ---------------------------------------------------------------------------------------------
+
+fee_split_conformance_env_var :: String
+fee_split_conformance_env_var = "FEE_SPLIT_CONFORMANCE"
+
+-- | The SECOND committed piece of real-solver evidence, and the only one that records the prover
+-- REFUSING something.
+--
+-- @gams-conformance.json@ records what the toolchain does with shocks it accepts: versions, exit
+-- codes, byte identity, the rendering fingerprint. This one records the model's own admissibility
+-- gate saying NO, at four fee pairs, one pip on either side of each pair's exact boundary -- and it
+-- records the model SOURCE LINE the abort came from, because the exit code cannot tell an
+-- admissibility refusal apart from a solver failure. Same shape as its sibling for the same reason:
+-- @cabal test@ is GAMS-free by construction, so everything this package knows about the real prover
+-- is an assertion over a file produced out of band.
+default_fee_split_conformance_path :: FilePath
+default_fee_split_conformance_path = "offchain/rig/fee-split-conformance.json"
+
+-- | @FEE_SPLIT_CONFORMANCE@, defaulting to the committed evidence.
+fee_split_conformance_path :: IO FilePath
+fee_split_conformance_path =
+  fromMaybe default_fee_split_conformance_path <$> lookupEnv fee_split_conformance_env_var

@@ -340,6 +340,39 @@ executable gams-conformance
     hs-source-dirs:   offchain/app
     default-language: Haskell2010
 
+-- The FEE-SPLIT differential capture. The second tool here that needs a solver, and the only one
+-- whose subject is the prover REFUSING something: it drives twelve grid points one pip either side
+-- of four exact admissibility boundaries and records the model's own abort LINE NUMBER, which is
+-- the discriminator the exit code cannot supply (exit 3 means at least six different things).
+--
+-- It is an executable and not a test for the same reason gams-conformance is: under the three-tier
+-- decision nothing in `cabal test` invokes GAMS, and the artifact this writes is what the suite
+-- asserts over, offline. It is the THIRD importer of Gams.Invoke and, like the other two, it lives
+-- under offchain/app/ -- which is the structural property, not the count.
+--
+-- It is also the ONE permitted consumer of Gams.Argv.render_argv_ungated. That is asserted by the
+-- suite's own the_ungated_renderer_has_exactly_one_consumer, in BOTH directions over a scan of
+-- offchain/, because a second consumer is how "an inadmissible shock is refused before any
+-- subprocess" quietly stops being true.
+--
+-- `aeson` is here on the same ruling as the two capture stanzas above: it writes the JSON REPORT
+-- and no artifact byte reaches it -- every byte-level fact travels as a BARE hex digest computed by
+-- Store.Types.sha256_hex. NO NEW PACKAGE: aeson, bytestring, directory, filepath and process are
+-- all already library dependencies.
+executable fee-split-conformance
+    import:           warnings
+    main-is:          FeeSplitConformance.hs
+    build-depends:
+        base ^>=4.20.2.0,
+        cfmm-replicationPlank-rpc-api,
+        aeson,
+        bytestring,
+        directory,
+        filepath,
+        process
+    hs-source-dirs:   offchain/app
+    default-language: Haskell2010
+
 -- THE END-TO-END SPIKE. THROWAWAY BY CONSTRUCTION -- not a phase, not a requirement, not a check,
 -- and nothing depends on it. It exists because, measured after phases 23-26 shipped 8,640 lines of
 -- library code and 181 checks, NO app called Store.Cache.decide and NOTHING wired Gams.Run into the

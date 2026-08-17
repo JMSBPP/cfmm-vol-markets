@@ -54,6 +54,7 @@ module Gams.Argv
     -- * Rendering
   , render_decimal
   , render_argv
+  , render_argv_ungated
     -- * The edge
   , parse_shock_field
     -- * Why a render or a parse failed
@@ -181,8 +182,39 @@ render_decimal = show
 -- every term is built from @x+m@, @(m-x)^2@ or @x*m@ -- so this refusal cannot depend on which leg
 -- was handed in first. Only the LEVEL and the ordering convention care about that, and neither is
 -- decided in this module.
+--
+-- THE FUNCTION IS SPLIT, AND THE COMPOSITION IS FIXED RATHER THAN CHOSEN. The eight refusals live
+-- in 'render_argv_ungated' and the ninth is applied here, AFTER it. Writing this the other way
+-- round -- the ninth bound first, the eight after -- type-checks, keeps the refusal COUNT at nine,
+-- and silently replaces §1.2's diagnosis with a generic one for every equal-fee shock, because
+-- 'Fee.Split.min_admissible_dstar' at equal legs is 'Nothing' for every integer target. The suite
+-- asserts the composition BY CONSTRUCTOR for that reason.
 render_argv :: Shock -> Either ArgvError [String]
 render_argv shock = do
+  argv <- render_argv_ungated shock
+  _    <- admissible_pair shock
+  pure argv
+
+-- | THE EIGHT REFUSALS ONLY -- and it exists for EXACTLY ONE CONSUMER.
+--
+-- That consumer is @offchain\/app\/FeeSplitConformance.hs@, the out-of-band capture that drives the
+-- real prover at points the ninth refusal rejects. It has to: the whole content of that capture is
+-- what GAMS does ONE PIP BELOW each fee pair's admissibility boundary, and 'render_argv' cannot
+-- build a command line for such a shock. That is the point of the ninth refusal and it is not being
+-- weakened here -- it is being stepped around, once, by the tool whose subject is the refusal
+-- itself.
+--
+-- USING THIS ANYWHERE ELSE DEFEATS FEE-03. \"An inadmissible shock is refused before any
+-- subprocess\" is a property of the import graph, not of a comment: a second consumer is how it
+-- quietly stops being true, because nothing about the second one would look wrong. The suite
+-- therefore asserts the CONSUMER SET in both directions -- 'the_ungated_renderer_has_exactly_one_consumer'
+-- scans @offchain\/@ and requires exactly this module and that file. A one-directional assertion
+-- passes on a second consumer appearing, which is why it is a set.
+--
+-- Production callers -- including 'Gams.Run.run_prover', which is the only path to an @execve@ --
+-- go through 'render_argv' and get all nine.
+render_argv_ungated :: Shock -> Either ArgvError [String]
+render_argv_ungated shock = do
   _ <- in_range "sqrtPriceX96" (sh_sqrt_price_x96 shock) 1 (two_pow 160 - 1)
          "a uint160 that is nonzero: a zero price is not a shock, it is an absent one"
   _ <- in_range "liquidityRaw" (sh_liquidity_raw shock) 1 (two_pow 128 - 1)
@@ -204,7 +236,6 @@ render_argv shock = do
          "a positive event count: zero events makes both output arrays empty, and an empty array\
          \ is what an absent subject looks like"
   _ <- distinct_fees shock
-  _ <- admissible_pair shock
   Right
     [ "--sqrtPriceX96="  ++ render_decimal (sh_sqrt_price_x96 shock)
     , "--liquidityRaw="  ++ render_decimal (sh_liquidity_raw shock)

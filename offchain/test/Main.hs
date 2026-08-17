@@ -168,7 +168,9 @@ import Gams.Env
 -- when one is renamed there and nowhere else. Nothing here resolves a binary or spawns anything --
 -- these are four pure @String@s and three @lookupEnv@ wrappers.
 import Gams.Config
-  ( gams_bin
+  ( fee_split_conformance_env_var
+  , fee_split_conformance_path
+  , gams_bin
   , gams_bin_env_var
   , gams_conformance_env_var
   , gams_conformance_path
@@ -3938,6 +3940,15 @@ advertised_overrides =
   -- measurement showing why writing it out is strictly stronger than referring to the constant.
   , OverrideProbe "GAMS_CONFORMANCE" gams_conformance_path
       (json_probe gams_conformance_path gams_conformance_command)
+  -- 26-04. Same shape as GAMS_CONFORMANCE exactly: it resolves a FilePath and
+  -- 'fee_split_conformance_is_present_and_fresh' reads the artifact through it, so all three
+  -- assertions have a real subject and none of them is a resolver whose result nothing reads --
+  -- 23-05's PGSTORE_DSN ruling and 24-04's two NAMED GAPS. The name is WRITTEN OUT for the reason
+  -- recorded at 'store_overrides_are_probed_or_named_as_gaps': 24-04 MEASURED that referring to the
+  -- config constant leaves the whole suite GREEN under a rename in the config module, while the
+  -- literal reddens two independent checks.
+  , OverrideProbe "FEE_SPLIT_CONFORMANCE" fee_split_conformance_path
+      (json_probe fee_split_conformance_path fee_split_conformance_command)
   ]
   where
     rig_probe :: IO (Maybe String)
@@ -3966,6 +3977,14 @@ advertised_overrides =
 -- spelling the command a second time.
 gams_conformance_command :: String
 gams_conformance_command = "bash offchain/rig/capture-gams-conformance.sh"
+
+-- | The out-of-band command that produces the fee-split differential.
+--
+-- Declared once, beside the probe that advertises it, so a rename cannot leave the probe's advice
+-- and the Tier-C failures below pointing at two different scripts -- the same reason its GAMS-side
+-- sibling above is declared here rather than spelled at each use.
+fee_split_conformance_command :: String
+fee_split_conformance_command = "bash offchain/rig/capture-fee-split.sh"
 
 -- | EVERY advertised override is honoured, and the resolved path is actually CONSUMED.
 --
@@ -4171,6 +4190,13 @@ config_env_vars =
   , ("gams_bin_env_var",          gams_bin_env_var)
   , ("gams_model_env_var",        gams_model_env_var)
   , ("gams_conformance_env_var",  gams_conformance_env_var)
+  -- 26-04. The identifier side is the NAME OF THE CONSTANT, because that is what the census is
+  -- compared against -- 26-04-PLAN.md:268 asks for the pair ("FEE_SPLIT_CONFORMANCE", ...) and its
+  -- own next clause says the identifier side must be the constant's name; the shipped list has been
+  -- (identifier, value) since 24-04 and the plan's literal contradicts both. Using the plan's form
+  -- would have put "FEE_SPLIT_CONFORMANCE" into the `undeclared` arm, since no config module
+  -- declares an identifier by that name.
+  , ("fee_split_conformance_env_var", fee_split_conformance_env_var)
   ]
 
 -- | The two modules in which an environment variable of this subsystem is NAMED. Both config
