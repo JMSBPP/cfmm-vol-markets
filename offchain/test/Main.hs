@@ -243,6 +243,7 @@ import Store.Schema
 import Store.Types
   ( Artifact (..)
   , CorpusBehaviour (..)
+  , ResetScope (..)
   , StoredRun (..)
   , adversarial_corpus
   , cm_behaviour
@@ -11726,6 +11727,161 @@ an_aborted_run_produces_no_cache_entry =
           ++ " Whatever it holds, it was not produced by a run that finished.")
 
 -- ---------------------------------------------------------------------------------------------
+-- STORE-06: reset is its own operation
+-- ---------------------------------------------------------------------------------------------
+
+-- | A SECOND shock, differing from the fixture in one field, so the store can be seeded with two
+-- entries that are genuinely two.
+--
+-- @nEvents = 9@ rather than a field the renderer refuses: 'argv_refusal_battery' above lists the
+-- eight tuples that are REJECTED, and a seed built from one of them would give a key that never
+-- computes, so both lookups below would be absent before the reset and the check would pass with
+-- the reset deleted. Nine events is a legal run.
+reset_second_shock :: Shock
+reset_second_shock = fixture_shock { sh_n_events = 9 }
+
+-- | The corpus member the scope must NOT touch. Real bytes from the adversarial corpus rather than
+-- an invented string, so the surviving value is one the byte-fidelity checks already care about.
+reset_blob_name :: String
+reset_blob_name = "store-06-scope-witness"
+
+-- | STORE-06, first half: the emptying happens, it happens to MORE THAN ONE entry, and it stops
+-- where the scope says it stops.
+--
+-- ABSENCE IS THE PASS CONDITION on the two arms that matter, which is the shape that passes
+-- vacuously more often than any other in this repository. Two things are ordered before it:
+--
+--   * the two keys are asserted DIFFERENT. Seeding the same triple twice is first-writer-wins, so
+--     "two entries" would be one entry and a store that removed a single row would satisfy every
+--     assertion below.
+--   * both rows are asserted PRESENT before the reset. Without that, "both lookups are Nothing" is
+--     equally true of a seed that never landed -- and the keyed put RAISES on a non-json artifact,
+--     which is exactly how a fixture stops landing without anyone noticing.
+--
+-- The last arm is the SCOPE, and it is what stops 'ResetScope' being decoration. 'ModelRunOnly'
+-- names the keyed table; the blob surface is a separate table holding measurements rather than
+-- cache entries. A reset that emptied both would pass a check that only looked at the keyed rows,
+-- and the corpus BYTE-05 rests on would be gone.
+reset_empties_the_store_and_is_scoped :: Check
+reset_empties_the_store_and_is_scoped =
+  Check "reset_empties_the_store_and_is_scoped" . guarded $
+    case setting of
+      Left err -> pure (Left err)
+      Right (first_row, second_row, first_key, second_key) -> do
+        store <- new_memory_store
+        store_put store first_row
+        store_put store second_row
+        store_put_blob store reset_blob_name witness
+        before_one  <- store_lookup store gams_model_basename current_key_scheme first_key
+        before_two  <- store_lookup store gams_model_basename current_key_scheme second_key
+        store_reset store ModelRunOnly
+        after_one   <- store_lookup store gams_model_basename current_key_scheme first_key
+        after_two   <- store_lookup store gams_model_basename current_key_scheme second_key
+        after_blob  <- store_get_blob store reset_blob_name
+        pure $ do
+          _ <- expect (first_key /= second_key)
+                 ("the two seeded shocks produced the SAME key, so the store held one entry and not"
+                   ++ " two. Every \"the store is empty\" below would then be a fact about removing"
+                   ++ " a single row.")
+          _ <- expect (isJust before_one && isJust before_two)
+                 ("the seed did not land: entry one is " ++ shape before_one ++ " and entry two is "
+                   ++ shape before_two ++ " BEFORE the reset. Absence after an emptying is the pass"
+                   ++ " condition here, and it is satisfied by a store that was never written to.")
+          _ <- expect (isNothing after_one && isNothing after_two)
+                 ("reset ModelRunOnly left the keyed store populated: entry one is "
+                   ++ shape after_one ++ " and entry two is " ++ shape after_two
+                   ++ ". An emptying that empties some of it is worse than one that empties none --"
+                   ++ " the caller believes the store is clean and it is not.")
+          expect (after_blob == Just witness)
+            ("reset ModelRunOnly removed the blob surface as well, which is OUTSIDE the scope it"
+              ++ " was handed. That table carries the adversarial corpus -- measurements, not cache"
+              ++ " entries -- and a scope argument that does not scope is a parameter the caller"
+              ++ " reads as a promise.")
+  where
+    witness = Artifact (BS.pack [0x00, 0xFF, 0x41])
+
+    shape :: Maybe a -> String
+    shape (Just _) = "present"
+    shape Nothing  = "absent"
+
+    setting = do
+      ident      <- key_fixture_identity
+      first_key  <- cache_key ident
+      second_key <-
+        case content_key current_key_scheme gams_model_basename reset_second_shock ident of
+          Left err               -> Left ("the second fixture key did not compute: " ++ show err)
+          Right (ContentKey raw) -> Right raw
+      first_row  <- cache_row ident cache_stored_doc
+      Right
+        ( first_row
+        , first_row { sr_key = second_key, sr_raw = Artifact cache_solved_doc }
+        , first_key
+        , second_key
+        )
+
+-- | The file the solve path lives in. Named once, and READ rather than grepped, so the check
+-- carries no second process whose exit code has to be disentangled from its output.
+solve_path_source :: FilePath
+solve_path_source = "offchain/lib/Store/Cache.hs"
+
+-- | Tokens that MUST be in 'solve_path_source', so the absence below is an absence.
+--
+-- @store_put@ and @store_lookup@ are the point: they are fields of the SAME record as the reset
+-- entry point, reached through the same @Store (..)@ import, and they are named in that file. So a
+-- scan that reports the reset entry point missing is reporting something about that identifier and
+-- not about its own ability to see a record field -- or about the file existing at all, which is
+-- the failure mode of the @grep -c@ this check replaces: on a renamed or deleted file @grep -c@
+-- prints 0 and the absence claim passes for the one reason that should fail it loudest.
+solve_path_must_name :: [String]
+solve_path_must_name = ["decide", "store_put", "store_lookup"]
+
+-- | STORE-06, second half: the solve path does not name the reset entry point.
+--
+-- RENAMED FROM THE PLAN'S @reset_is_unreachable_from_a_solve_or_a_publish@, and the rename is the
+-- measurement: there is no publish path in this tree -- no module, no function, nothing that writes
+-- to the store outside @Store.Cache@ and the conformance app -- so a check named for one would be
+-- asserting about a subject that does not exist. It is also not "unreachable": the record field is
+-- in scope wherever @Store (..)@ is imported, and no arrangement of a record-of-functions makes it
+-- otherwise. What is true, checkable, and what STORE-06 actually asks for, is that the module which
+-- decides whether to solve does not MENTION it. The name now says that.
+--
+-- The needle is case-folded and bare, so it catches the field, the scope type, a helper named after
+-- either, and PROSE. Prose is deliberate. This repository has nineteen recorded instances of a
+-- comment landing inside the blast radius of a grep, and here the direction is inverted and useful:
+-- a haddock in @Store.Cache@ explaining that it does not reset anything would fail this check, and
+-- that is the right outcome. A module that has to explain its relationship to an operation is a
+-- module whose author was thinking about calling it.
+no_solve_path_names_the_reset_entry_point :: Check
+no_solve_path_names_the_reset_entry_point =
+  Check "no_solve_path_names_the_reset_entry_point" . guarded $ do
+    there <- doesFileExist solve_path_source
+    body  <- if there then readFile solve_path_source else pure ""
+    let folded  = map toLower body
+        missing = [t | t <- solve_path_must_name, not (t `isInfixOf` body)]
+        hits    = [ (n, line)
+                  | (n, line) <- zip [1 :: Int ..] (lines body)
+                  , needle `isInfixOf` map toLower line
+                  ]
+    pure $ do
+      _ <- expect there
+             ("the solve path is not at " ++ solve_path_source ++ ". A scan over a file that is not"
+               ++ " there finds nothing, which is what a clean scan also finds.")
+      _ <- expect (null missing)
+             ("the solve path does not name " ++ intercalate ", " missing
+               ++ ". Those are fields of the same record as the reset entry point and they are"
+               ++ " reached through the same import, so their presence is what makes the absence"
+               ++ " below a fact about one identifier rather than about this scan reading nothing.")
+      expect (not (needle `isInfixOf` folded))
+        ("the solve path names the reset entry point at " ++ solve_path_source ++ ":\n"
+          ++ unlines ["      " ++ show n ++ ": " ++ line | (n, line) <- hits]
+          ++ "      STORE-06 is that emptying the store is a SEPARATE operation. The module that"
+          ++ " decides whether to run the solver cannot invoke what it does not mention, and this"
+          ++ " is the only thing that keeps that true -- the field is in scope there, because the"
+          ++ " whole record is.")
+  where
+    needle = "reset"
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -11893,6 +12049,8 @@ core_checks = do
           , an_identical_shock_elides_the_solve
           , a_miss_invokes_the_solver_exactly_once
           , an_aborted_run_produces_no_cache_entry
+          , reset_empties_the_store_and_is_scoped
+          , no_solve_path_names_the_reset_entry_point
           ]
             ++ per_pin_checks pins
   pure checks

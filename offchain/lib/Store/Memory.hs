@@ -33,7 +33,7 @@
 module Store.Memory (new_memory_store) where
 
 import           Control.Exception     (throwIO)
-import           Data.IORef            (IORef, modifyIORef', newIORef, readIORef)
+import           Data.IORef            (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import qualified Data.ByteString       as BS
 import qualified Data.Map.Strict       as M
 import qualified Data.Text.Encoding    as TE
@@ -44,6 +44,7 @@ import Store.Json (recognise_json_value)
 import Store.Types
   ( Artifact
   , KeyScheme
+  , ResetScope (..)
   , StoredRun (..)
   , artifact_bytes
   , derived_doc_from_text
@@ -71,6 +72,7 @@ new_memory_store = do
     , store_get_blob   = \name -> M.lookup name <$> readIORef blobs
     , store_doc_sha256 = \model scheme key ->
         fmap doc_digest . M.lookup (model, scheme, key) <$> readIORef runs
+    , store_reset      = reset_scope runs
     }
 
 -- | FIRST-WRITER-WINS on the full triple. Re-putting an existing @(model, key_scheme, key)@ is a
@@ -96,6 +98,24 @@ put_run ref sr =
           ++ " so the server raises on this before the conflict clause is reached. The blob"
           ++ " surface carries arbitrary bytes; the keyed surface does not."
     Right () -> modifyIORef' ref (M.insertWith keep_the_first (run_key sr) sr)
+
+-- | STORE-06. The keyed map, emptied; the blob map, untouched.
+--
+-- 'ModelRunOnly' is matched EXPLICITLY rather than ignored with a wildcard. A wildcard would make
+-- this function do the same thing for every scope anyone adds later, silently, and the day a second
+-- constructor lands the compiler would have nothing to say about the store that ignores it. With
+-- the constructor named, a new scope is a non-exhaustive-patterns warning -- and @-Wall@ is a
+-- failure in this tree.
+--
+-- The blob 'IORef' is not in scope in this function's arguments AT ALL, which is a stronger
+-- statement than not writing to it: 'ModelRunOnly' cannot reach the corpus even if the body were
+-- wrong. That map holds the adversarial corpus -- measurements, not cache entries -- and an
+-- emptying that also swept it would destroy evidence while doing exactly what it was told.
+--
+-- There is no @pinned@ predicate here because STORE-05 is deferred and nothing is pinnable. A
+-- @where not pinned@ over a column that does not exist is dead code shaped like a guarantee.
+reset_scope :: IORef (M.Map RunKey StoredRun) -> ResetScope -> IO ()
+reset_scope ref ModelRunOnly = writeIORef ref M.empty
 
 -- | LAST-writer-wins, unlike 'put_run', and deliberately.
 --

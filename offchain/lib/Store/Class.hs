@@ -20,7 +20,7 @@ module Store.Class (Store (..)) where
 
 import qualified Data.ByteString as BS
 
-import Store.Types (Artifact, KeyScheme, StoredRun)
+import Store.Types (Artifact, KeyScheme, ResetScope, StoredRun)
 
 data Store = Store
   { store_label :: String
@@ -44,4 +44,19 @@ data Store = Store
     -- ^ A DIGEST, deliberately. 'Store.Types' exports 'Store.Types.DerivedDoc' abstractly and
     -- there is no way to get bytes back out of one, so this cannot become the oracle by
     -- accident -- not even by a caller who wants it to.
+
+    -- * The destructive operation, which is on this record and nowhere else
+  , store_reset :: ResetScope -> IO ()
+    -- ^ STORE-06. Empty what the 'ResetScope' names, and nothing else.
+    --
+    -- It is a FOURTH surface rather than a mode of one of the three above, because the other three
+    -- are things a request does and this is a thing an operator does. The scope argument is what
+    -- makes it unwritable by accident: there is no @store_reset store@ that type-checks.
+    --
+    -- The seam being a record is what leaves this reachable to a caller that imports @Store (..)@
+    -- and does not call it. That is not a hole -- a typeclass would have exactly the same property,
+    -- since the method would be in scope wherever the constraint was -- and the standing assertion
+    -- that the solve path does not call it is a source scan over @Store.Cache@ in
+    -- @offchain\/test\/Main.hs@, not anything in this type. What the type CAN do is refuse the
+    -- unscoped call, and it does.
   }

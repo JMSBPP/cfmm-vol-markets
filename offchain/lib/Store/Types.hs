@@ -33,6 +33,8 @@ module Store.Types
   , KeyScheme (..)
   , current_key_scheme
   , StoredRun (..)
+    -- * Reset
+  , ResetScope (..)
     -- * The adversarial corpus
   , CorpusBehaviour (..)
   , CorpusMember (..)
@@ -136,6 +138,32 @@ data StoredRun = StoredRun
   , sr_gams_ver   :: String
   , sr_conopt_ver :: String
   } deriving (Eq, Show)
+
+-- ---------------------------------------------------------------------------------------------
+-- Reset
+-- ---------------------------------------------------------------------------------------------
+
+-- | STORE-06. WHAT an emptying is allowed to touch, as a REQUIRED argument.
+--
+-- One constructor today, and the type exists for the ARGUMENT rather than for the choice. A
+-- function of type @IO ()@ can be written down accidentally -- a stray field, a partially applied
+-- helper, a handler that discharges the wrong branch -- and it does the whole thing. A function
+-- whose first argument is this type cannot be CALLED without a caller naming, at the call site and
+-- in the source, which part of the store it means to empty. That is the difference between an
+-- operation you have to ask for and an operation you can fall into, and it is the whole of
+-- STORE-06's "separate, explicit".
+--
+-- 'ModelRunOnly' names the KEYED table and nothing else. The byte-fidelity surface is a separate
+-- table holding the adversarial corpus below, which is a MEASUREMENT rather than a cache, and a
+-- scope that quietly swept it would be destroying evidence while doing what it was asked. A second
+-- constructor is added when something needs it -- not in advance, because a scope nothing selects
+-- is a branch nothing tests.
+--
+-- STORE-05 (a run can be PINNED so retention never removes it) is deferred, so this carries no
+-- @pinned@ predicate and the implementations carry no @where@ clause standing in for one. A
+-- retention sweep with nothing to retain is dead code that reads like a guarantee.
+data ResetScope = ModelRunOnly
+  deriving (Eq, Show)
 
 -- ---------------------------------------------------------------------------------------------
 -- The adversarial corpus

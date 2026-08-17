@@ -75,6 +75,7 @@ import Database.PostgreSQL.Simple
   , close
   , connectPostgreSQL
   , execute
+  , execute_
   , query
   , query_
   )
@@ -90,6 +91,7 @@ import Store.Schema (identity_constraint_name)
 import Store.Types
   ( Artifact (..)
   , KeyScheme (..)
+  , ResetScope (..)
   , StoredRun (..)
   , artifact_bytes
   , derived_doc_from_text
@@ -183,9 +185,16 @@ run_migrations_or_exit con dir = with_migration_lock con $ do
 
 -- | The 'Store' seam, backed by a live connection.
 --
--- Same six fields as @Store.Memory@, and the SAME eight laws run against both. That is the point
+-- Same seven fields as @Store.Memory@, and the SAME eight laws run against both. That is the point
 -- of the record: the reference implementation and the real one are two subjects for one contract,
 -- and a law that holds against only one of them has found something.
+--
+-- The seventh field is 'store_reset', added at 25-03 for STORE-06, and it is the ONE function on
+-- this record that no check in @cabal test@ drives against THIS implementation -- the suite is
+-- server-free by construction (DB-03) and the reset's only in-suite subject is @Store.Memory@.
+-- Recorded here rather than left to be discovered: the statement below is short and takes no
+-- parameters, so it has no @Binary@ hazard and no placeholder to transpose, but "it compiles" is
+-- the whole of the evidence for it and the phase summary says so.
 new_postgres_store :: Connection -> Store
 new_postgres_store con =
   Store
@@ -195,7 +204,26 @@ new_postgres_store con =
     , store_put_blob   = put_blob con
     , store_get_blob   = get_blob con
     , store_doc_sha256 = doc_digest con
+    , store_reset      = reset_scope con
     }
+
+-- | STORE-06, server-side. @model_run@ emptied; @byte_corpus@ untouched.
+--
+-- 'ModelRunOnly' is matched EXPLICITLY, not with a wildcard, so a second scope is a compile-time
+-- warning here rather than a table this function silently keeps not deleting.
+--
+-- @execute_@ and not @execute@: there are no parameters, and the fourth wart in the module haddock
+-- above is the reason a statement's shape gets a sentence here at all -- @execute@ THROWS on
+-- anything that returns columns. A @delete@ with no @returning@ returns none, so this is the safe
+-- side of that trap.
+--
+-- No @where@ clause. STORE-05 (pinning) is DEFERRED, so there is no @pinned@ column to honour and
+-- a predicate written in advance would be a filter that never excludes anything while reading, to
+-- anyone auditing this file, exactly like a retention policy.
+reset_scope :: Connection -> ResetScope -> IO ()
+reset_scope con ModelRunOnly = do
+  _ <- execute_ con "delete from model_run"
+  pure ()
 
 -- | The insert. @doc@ is derived from the SAME parameter as @raw@, in ONE statement.
 --
