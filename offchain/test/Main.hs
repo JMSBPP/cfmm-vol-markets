@@ -63,6 +63,11 @@ import System.Exit (ExitCode (..), exitFailure)
 import System.FilePath (takeExtension, (</>))
 import System.Process (readProcessWithExitCode)
 import System.Random.MWC (create, uniformR)
+-- The Tier-B timeout checks need both: 'threadDelay' to let the kernel finish reaping before
+-- procfs is asked, and 'timeout' so a check that would otherwise DEADLOCK fails with its own name
+-- attached instead of stopping the suite with no indication of which assertion was running.
+import Control.Concurrent (threadDelay)
+import System.Timeout (timeout)
 
 import Rig.Manifest
   ( PinEntry (..)
@@ -8796,6 +8801,277 @@ each_invocation_gets_a_fresh_directory_and_it_is_removed =
                    ++ " both paths, and got:\n      " ++ render_outcome first_run
                    ++ "\n      " ++ render_outcome aborted)
 
+-- ---------------------------------------------------------------------------------------------
+-- GAMS-05: the three hazards a naive test cannot see
+--
+-- MEASURED on 2026-08-16, and this measurement is why the stubs below look the way they do:
+-- 'System.Timeout.timeout' around a DIRECT child terminates AND reaps it with no orphan, so a
+-- hung-child check written against a direct child CANNOT FAIL. Against a GRANDCHILD the same
+-- mechanism leaves the process alive at PPID 1 -- and GAMS runs its solver as a separate process,
+-- so the grandchild is not a hypothetical, it is the actual case. Every stub below that hangs
+-- backgrounds its sleep first.
+-- ---------------------------------------------------------------------------------------------
+
+-- | 2,000,000 bytes, MEASURED: 'readCreateProcessWithExitCode' forks two draining threads and
+-- swallowed exactly this many bytes of stderr with no deadlock. Asserted as an EQUALITY below, so a
+-- drain that truncated would be caught as readily as one that hung.
+stderr_flood_bytes :: Int
+stderr_flood_bytes = 2000000
+
+-- | The five bytes the same stub puts on stdout, so the check can tell a drain that lost the small
+-- stream while keeping the large one.
+stderr_flood_stdout :: String
+stderr_flood_stdout = "hello"
+
+-- | The whole check's own budget, generously above the request's, so a regression FAILS this check
+-- rather than hanging the suite with no name attached to it.
+flood_check_budget_us :: Int
+flood_check_budget_us = 60000000
+
+-- | The budget handed to the two stubs that hang. The research writes this down as a hard ceiling:
+-- these checks run once per full 'core_checks' pass and the sentinel harness makes one pass per
+-- swept artifact, so a larger budget is multiplied rather than paid once.
+hung_child_budget_s :: Int
+hung_child_budget_s = 2
+
+-- | A stub that writes five bytes to stdout, floods stderr, and THEN writes a valid artifact.
+--
+-- The order matters. The flood comes before the artifact so a layer that read the child's output
+-- only after the process exited would fill the pipe buffer and deadlock with the artifact never
+-- written -- which is the failure this check exists to make impossible, and it would show up here
+-- as the check timing out rather than as a wrong answer.
+stub_stderr_flood :: String
+stub_stderr_flood =
+  stub_preamble
+    ++ "printf '" ++ stderr_flood_stdout ++ "'\n"
+    ++ "yes x | head -c " ++ show stderr_flood_bytes ++ " >&2\n"
+    ++ stub_writes_artifact "$S" "$L"
+    ++ stub_writes_log
+    ++ "exit 0\n"
+
+-- | THE STUB IS A GRANDCHILD, AND THAT IS THE WHOLE POINT.
+--
+-- It backgrounds its sleep and waits, so the process that must die is one level BELOW the process
+-- the wrapper was handed. A direct-child kill reaches the shell and not the sleep; MEASURED, the
+-- sleep then survives at PPID 1. The pid is written to a file the CHECK chooses, at an absolute
+-- path outside the run directory, because the run directory is removed before the check can read
+-- anything out of it.
+stub_hung_grandchild :: FilePath -> String
+stub_hung_grandchild pidfile =
+  unlines
+    [ "#!/bin/sh"
+    , "sleep 300 &"
+    , "echo $! > " ++ pidfile
+    , "wait"
+    ]
+
+-- | The same grandchild, with a VALID artifact and a VALID log written FIRST.
+--
+-- A timeout that arrives after the bytes exist is the case a layer checking artifact presence
+-- before the exit code would wrongly call a success.
+stub_writes_then_hangs :: FilePath -> String
+stub_writes_then_hangs pidfile =
+  stub_preamble
+    ++ stub_writes_artifact "$S" "$L"
+    ++ stub_writes_log
+    ++ "sleep 300 &\n"
+    ++ "echo $! > " ++ pidfile ++ "\n"
+    ++ "wait\n"
+
+-- | The pid a hanging stub recorded, or 'Nothing' when it recorded none.
+--
+-- Digits only: a partially-flushed file would otherwise be turned into a @\/proc@ path that cannot
+-- exist, and \"the process is gone\" would then be true because the question was malformed.
+read_recorded_pid :: FilePath -> IO (Maybe String)
+read_recorded_pid path = do
+  there <- doesFileExist path
+  if not there
+    then pure Nothing
+    else do
+      raw <- readFile path
+      let digits = takeWhile isDigit (dropWhile isSpace raw)
+      pure (if null digits then Nothing else Just digits)
+
+-- | LIVENESS IS READ FROM PROCFS, NOT INFERRED.
+--
+-- @\/proc\/\<pid\>@ exists exactly while the kernel has that process, including while it is a
+-- zombie -- so this answers \"terminated AND reaped\" rather than \"stopped running\", which is the
+-- distinction an orphaned solver would live in.
+pid_is_alive :: String -> IO Bool
+pid_is_alive pid = doesDirectoryExist ("/proc/" ++ pid)
+
+-- | What the kernel says about a process that should not be there, for the failure message.
+read_proc_stat :: String -> IO String
+read_proc_stat pid = do
+  let path = "/proc/" ++ pid ++ "/stat"
+  there <- doesFileExist path
+  if not there then pure "(gone by the time the failure message was built)" else readFile path
+
+-- | Kill a survivor on the way to FAILING about it. A check that testifies about process reaping
+-- and leaks a process while doing so has reproduced its own subject.
+reap_survivor :: String -> IO ()
+reap_survivor pid = do
+  _ <- readProcessWithExitCode "kill" ["-9", pid] ""
+  pure ()
+
+-- | GUARD 23: A CHILD MAY FLOOD STDERR AND THE CALL STILL RETURNS.
+--
+-- MEASURED at 2,000,000 bytes with @process-1.6.26.1@: 'readCreateProcessWithExitCode' forks two
+-- draining threads, so the pipe hazard is closed by construction rather than by a hand-rolled
+-- reader pair. The length is asserted as an EQUALITY, so a drain that truncated at some buffer
+-- boundary reddens exactly as loudly as one that deadlocked -- and the deadlock itself shows up as
+-- this check's own timeout, with the check's NAME attached, rather than as a suite that stops.
+a_stderr_flood_completes_without_deadlock :: Check
+a_stderr_flood_completes_without_deadlock =
+  Check "a_stderr_flood_completes_without_deadlock" . guarded $
+    with_tier_b_scratch "stderr-flood" $ \scratch -> do
+      stub <- write_stub scratch "flood.sh" stub_stderr_flood
+      finished <- timeout flood_check_budget_us (run_prover (tier_b_request scratch stub))
+      pure $
+        case finished of
+          Nothing ->
+            Left ("a child writing " ++ show stderr_flood_bytes ++ " bytes to stderr did not"
+                   ++ " return within " ++ show (flood_check_budget_us `div` 1000000) ++ "s."
+                   ++ " That is the PIPE DEADLOCK: an implementation that waits for the process"
+                   ++ " before draining its output fills the kernel's pipe buffer, the child blocks"
+                   ++ " writing, and the parent blocks waiting for a child that can never finish."
+                   ++ " Both sides are then waiting for the other, forever.")
+          Just (Produced _ _ streams) -> do
+            _ <- expect (BS.length (cs_stderr streams) == stderr_flood_bytes)
+                   ("the child wrote " ++ show stderr_flood_bytes ++ " bytes to stderr and "
+                     ++ show (BS.length (cs_stderr streams)) ++ " were captured. This is an"
+                     ++ " EQUALITY on purpose: a drain that stopped at a buffer boundary would"
+                     ++ " satisfy any bound written as \"at least a megabyte\" while silently"
+                     ++ " discarding the rest of a diagnostic.")
+            expect (cs_stdout streams == C8.pack stderr_flood_stdout)
+              ("the child put " ++ show stderr_flood_stdout ++ " on stdout and "
+                ++ show (cs_stdout streams) ++ " was captured. Two streams are drained"
+                ++ " concurrently and the small one is the one a reader that prioritised the"
+                ++ " large one would lose.")
+          Just other ->
+            Left ("the flooding stub wrote a valid artifact and a valid log and exited 0, and did"
+                   ++ " not produce one: " ++ render_outcome other)
+
+-- | GUARD 24: A HUNG GRANDCHILD IS TERMINATED AND REAPED.
+--
+-- THE CHECK THIS PHASE WAS MOST AT RISK OF WRITING WRONGLY, and the risk is not hypothetical --
+-- it was MEASURED. Written against a direct child (@exec sleep 300@) this check CANNOT FAIL:
+-- 'System.Timeout.timeout' around 'readCreateProcessWithExitCode' terminates and reaps a direct
+-- child with no orphan left behind, so the assertion would be green whether or not the wrapper that
+-- owns the process GROUP were there at all.
+--
+-- So the subject is a GRANDCHILD. The stub backgrounds its sleep, records the pid, and waits. The
+-- NEGATIVE CONTROL was OBSERVED once during execution outside this suite: the identical stub driven
+-- through a direct-child-only kill left @sleep@ alive at @PPID 1@, quoted verbatim in this plan's
+-- summary and killed afterwards. Without that observation the green below would be green for a
+-- reason nobody had verified.
+--
+-- Four assertions, in this order: the stub RECORDED a pid at all (a check that read no pid would
+-- conclude \"gone\" from a missing file); the pid is absent from procfs; the outcome is 'Aborted';
+-- and the recorded exit code is 124, which is @timeout(1)@'s own expiry code and appears nowhere in
+-- the mod-256 image of the GAMS return-code table.
+a_hung_grandchild_is_terminated_and_reaped :: Check
+a_hung_grandchild_is_terminated_and_reaped =
+  Check "a_hung_grandchild_is_terminated_and_reaped" . guarded $
+    with_tier_b_scratch "hung-grandchild" $ \scratch -> do
+      let pidfile = scratch </> "grandchild.pid"
+      stub <- write_stub scratch "hang.sh" (stub_hung_grandchild pidfile)
+      outcome <- run_prover
+                   (tier_b_request scratch stub)
+                     { rr_budget_s     = hung_child_budget_s
+                     , rr_kill_after_s = 1
+                     }
+      threadDelay 500000
+      recorded <- read_recorded_pid pidfile
+      case recorded of
+        Nothing ->
+          pure (Left ("the hung stub recorded NO grandchild pid at " ++ pidfile
+                       ++ ". Every assertion below would then be about a process that was never"
+                       ++ " spawned, and \"it is not in /proc\" would be true because nothing ever"
+                       ++ " put it there. Outcome was: " ++ render_outcome outcome))
+        Just pid -> do
+          alive <- pid_is_alive pid
+          stat  <- if alive then read_proc_stat pid else pure ""
+          -- Kill it BEFORE reporting, so the check cannot leak the very process it is failing about.
+          _ <- if alive then reap_survivor pid else pure ()
+          pure $ do
+            _ <- expect (not alive)
+                   ("the backgrounded grandchild " ++ pid ++ " SURVIVED the timeout. /proc/" ++ pid
+                     ++ "/stat said:\n      " ++ takeWhile (/= '\n') stat
+                     ++ "\n      The wrapper signals the process GROUP; a kill aimed at the direct"
+                     ++ " child reaches the shell and not the process it backgrounded. MEASURED:"
+                     ++ " with a direct-child-only kill this same stub leaves its sleep alive at"
+                     ++ " PPID 1, and the real solver runs as a separate process for exactly the"
+                     ++ " same reason -- so a green here without a group-owning wrapper would mean"
+                     ++ " a solver still burning a core after the run was declared over."
+                     ++ " (It has been killed, so this failure does not also leak it.)")
+            case outcome of
+              Aborted (ExitVerdict (TimedOut Expired)) 124 _ -> Right ()
+              _ ->
+                Left ("a run that hung past its " ++ show hung_child_budget_s
+                       ++ "s budget should have given Aborted (ExitVerdict (TimedOut Expired)) at"
+                       ++ " exit 124, and gave " ++ render_outcome outcome
+                       ++ ".\n      124 is the wrapper's own expiry code and it collides with"
+                       ++ " nothing in the mod-256 image of the return-code table, so the layer can"
+                       ++ " tell \"the budget ran out\" from every verdict the prover itself"
+                       ++ " reports.")
+
+-- | GUARD 25: A TIMED-OUT RUN YIELDS 'Aborted', AND THE ARTIFACT IT ALREADY WROTE CHANGES NOTHING.
+--
+-- The stub writes a VALID artifact and a VALID log first, and only then hangs. A layer that checked
+-- artifact presence before the exit code would find a complete, decodable, correctly-echoing
+-- document and call the run a success -- while the process that was supposed to have produced it is
+-- still running.
+--
+-- Pair this with the compile-level fact recorded at 24-03 and quoted in that summary: there is no
+-- total function from an outcome to an artifact, and 'Aborted' carries no artifact field, so
+-- \"a timed-out run never yields an output row\" is UNREPRESENTABLE rather than merely untested.
+-- This check is the other half: it shows the run actually TAKES the aborted branch.
+a_timed_out_run_yields_Aborted_and_no_artifact :: Check
+a_timed_out_run_yields_Aborted_and_no_artifact =
+  Check "a_timed_out_run_yields_Aborted_and_no_artifact" . guarded $
+    with_tier_b_scratch "timeout-after-write" $ \scratch -> do
+      let pidfile = scratch </> "late-hang.pid"
+      stub <- write_stub scratch "write-then-hang.sh" (stub_writes_then_hangs pidfile)
+      outcome <- run_prover
+                   (tier_b_request scratch stub)
+                     { rr_budget_s     = hung_child_budget_s
+                     , rr_kill_after_s = 1
+                     }
+      threadDelay 500000
+      recorded <- read_recorded_pid pidfile
+      alive    <- maybe (pure False) pid_is_alive recorded
+      _        <- if alive then maybe (pure ()) reap_survivor recorded else pure ()
+      let run_dir = outcome_run_dir outcome
+      survived <- if null run_dir then pure False else doesDirectoryExist run_dir
+      pure $ do
+        _ <- expect (recorded /= Nothing)
+               ("the stub recorded no pid at " ++ pidfile ++ ", so the arm asserting that the"
+                 ++ " grandchild is gone would be asserting about nothing. Outcome was: "
+                 ++ render_outcome outcome)
+        _ <- case outcome of
+               Aborted (ExitVerdict (TimedOut Expired)) 124 _ -> Right ()
+               Produced _ _ _ ->
+                 Left ("a run that wrote a VALID artifact and then hung was reported as a"
+                        ++ " SUCCESS: " ++ render_outcome outcome
+                        ++ "\n      The bytes existing says nothing about whether the run"
+                        ++ " finished. This is the ordering that matters: the exit code is the"
+                        ++ " FIRST conjunct, and a layer that looked for the file first would"
+                        ++ " accept the output of a solve that was killed halfway through.")
+               other ->
+                 Left ("a run that wrote a valid artifact and then hung should have given Aborted"
+                        ++ " (ExitVerdict (TimedOut Expired)) at exit 124, and gave "
+                        ++ render_outcome other)
+        _ <- expect (not survived)
+               ("the run directory " ++ show run_dir ++ " SURVIVED a timed-out run. The bracket"
+                 ++ " removes it on every path, and the timeout path is the one where the"
+                 ++ " directory contains a complete-looking artifact -- exactly the leftover the"
+                 ++ " freshness conjunct exists to make unreadable.")
+        expect (not alive)
+          ("the grandchild " ++ show recorded ++ " survived a timeout that happened AFTER the"
+            ++ " artifact was written. The artifact being on disk does not reach the process"
+            ++ " group. (It has been killed, so this failure does not also leak it.)")
+
 -- | The six tokens a verdict built out of log text would be built out of.
 --
 -- @Status:@ and @Normal completion@ are the GAMS listing's own words, @Locally@ opens the two
@@ -9028,6 +9304,9 @@ core_checks = do
           , a_pre_existing_artifact_is_unreachable
           , each_invocation_gets_a_fresh_directory_and_it_is_removed
           , gams_verdict_ignores_the_streams
+          , a_stderr_flood_completes_without_deadlock
+          , a_hung_grandchild_is_terminated_and_reaped
+          , a_timed_out_run_yields_Aborted_and_no_artifact
           ]
             ++ per_pin_checks pins
   pure checks
