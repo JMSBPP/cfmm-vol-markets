@@ -3,15 +3,26 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 24-02-PLAN.md (2/6 in phase 24) — next /gsd:execute-phase 24 (plan 24-03)"
+stopped_at: "Completed 24-03-PLAN.md (3/6 in phase 24) — next /gsd:execute-phase 24 (plan 24-04)"
 last_updated: "2026-08-16"
-last_activity: "2026-08-16 — 24-02 executed: the renderer, the whitelist and the artifact decoder; 126/126 checks, 0 warnings, five firing observations, BYTE-04 COMPLETE"
+last_activity: "2026-08-16 — 24-03 executed: the one IO edge; 131/131 checks, 0 warnings, five firing observations, a GHC error in three arms, and purge_file_floor found four below its subject"
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 11
-  completed_plans: 7
+  completed_plans: 8
 ---
+
+<!--
+FRONTMATTER WARNING, RECORDED AT 24-03 AND STILL BINDING.
+`gsd-tools state record-session`, `state add-decision` and `state update-progress` all REWRITE this
+frontmatter from a global view of the repository's .planning trees, and they get it wrong for this
+one: the milestone reverts to v2.0, `status:` is overwritten with whatever prose the "Status:" line
+of the body happens to start with, and the four progress counters are replaced by machine-wide
+totals (25 phases / 43 plans). 24-03 ran all three and had to restore every field by hand.
+EDIT THIS BLOCK BY HAND. `roadmap update-plan-progress <N>` is the one that is safe.
+-->
+
 
 # Project State
 
@@ -32,7 +43,71 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **24 — GAMS Invocation & Toolchain Identity** — **IN PROGRESS (2/6 plans)**
+Phase: **24 — GAMS Invocation & Toolchain Identity** — **IN PROGRESS (3/6 plans)**
+Plan: **24-03 COMPLETE.** The ONE IO edge. `Gams.Run.run_prover` is the only function in this
+phase that spawns a process, and the verdict it returns is a **conjunction of six** of which not
+one is log text: the exit code classifies as `Solved`; the artifact exists in a directory that
+could not have pre-existed; its mtime is at or after a marker written just before the spawn; it
+decodes; both echoed fields equal the argv token **sent**; and the run's own log carries a job
+banner naming the invoked model.
+
+Status: **EXIT 0 MEANS "GAMS RAN", AND THE SUITE NOW DRIVES THAT RATHER THAN ARGUING IT.** Five
+Tier-B checks spawn real `/bin/sh` children the checks write themselves. A stub whose whole body
+is `exit 0` is REFUSED — MEASURED with the real binary, `action=c` is exactly that shape. The
+**real 606 committed golden bytes** planted at the process's own working directory, with a valid
+job banner beside them and a shock equal to the golden's own inputs, are UNREACHABLE. Two stubs
+with the same exit code and opposite log text (`Normal completion` against `** Locally
+Infeasible`) give the IDENTICAL verdict, and that arm has its own positive control asserting the
+two stdouts actually DIFFER. Suite **126/126 → 131/131**, FAIL 0, zero `-Wall` warnings, still
+DB-free AND GAMS-free, **+0 packages**.
+
+**`Aborted` HAS NO ARTIFACT, AND THE COMPILER SAID SO THREE WAYS.** Correction 1 is stated at the
+type level rather than deferred to Phase 25's run-log table, and the GHC output is quoted verbatim:
+`Patterns of type 'ProverOutcome' not matched: Aborted _ _ _` (the accessor cannot be total),
+`Couldn't match expected type 'ProverArtifact' with actual type 'AbortReason'` (there is nothing of
+that type inside `Aborted`), and `Module 'Gams.Run' does not export 'outcome_artifact'`. A
+consequence measured rather than predicted: **the mutation the plan named for firing observation 1
+is not expressible** — `Produced` demands an artifact and a run that wrote nothing has none.
+
+**THE FRESHNESS CONJUNCT WAS THE BELT, NOT THE BRACES.** Firing observation 2 pointed the artifact
+read at the process CWD instead of the run directory, and the plant was caught by `StaleArtifact`
+— found, decoded, echoed fields matching, and losing on its modification time. Pitfall 8's
+belt-and-braces observed doing the catching.
+
+**`purge_file_floor` HAD NEVER MOVED.** 24-02's summary states it went 51 → 54 in `2a558e3`;
+`git show` on that commit and every commit since reports **51**, against **55** files on disk —
+**four of slack**, in the guard whose entire job is to detect a scan that collapsed. Its twin
+`credential_scan_floor` DID move, so one half of a pair that is always re-measured together landed
+and nothing reddened. Both are now re-measured cold: **51 → 55** and **62 → 63**, zero slack on
+both, with the discrepancy recorded in the floor's own haddock and the rule restated as a pair.
+
+**PROSE INSIDE A GREP'S BLAST RADIUS, THREE MORE TIMES IN ONE PLAN — instances 13, 14 and 15.**
+`Gams/Exit.hs`'s explanation of why a layer must not read the model-status word contained it;
+`Gams/Run.hs`'s haddock spelled all three identifiers its own acceptance criteria grep for at zero;
+and the comment beside the new `Gams.Run` import asserted the three GAMS-free tokens stay out of
+`Main.hs` **while listing all three**, so the verification grep returned 2. Every time the prose
+moved and no pattern was relaxed.
+
+**THE TIMEOUT IS BUILT BUT NOT YET FALSIFIED.** `/usr/bin/timeout -k` (which owns the process
+GROUP, because CONOPT is a grandchild at `Solvelink=2`) and the in-process backstop are both in
+`Gams.Run`, and neither has been OBSERVED firing. Guards 23/24/25 are GAMS-05's and belong to
+24-04; until they run, this phase's own rule treats the timeout as absent.
+
+**THE WALL.** 73.1 s before, **78.3 s** after, both with the binary pre-built. +5.2 s for five
+checks that each spawn several real children, and the reason it is that cheap is `sweep_one`'s
+`readable` filter: these five read no swept artifact, so they run once per full `core_checks` pass
+rather than once per sentinel pair. Budget 900 s.
+
+**GAMS-01 and GAMS-02 stay PARTIAL.** Every Tier-A and Tier-B row of both shipped and every one is
+OBSERVED; each still has exactly one **Tier-C** row that reads a capture artifact which does not
+exist until 24-06.
+
+Next action: `/gsd:execute-phase 24` (plan 24-04).
+
+Last activity: 2026-08-16 — 24-03 executed (commits `847bc9c`, `f557e16`).
+
+## Phase 24 Plan 02 Position (record)
+
 Plan: **24-02 COMPLETE.** The renderer that decides the artifact's bytes, the environment
 whitelist, and the decoder that never builds a 53-bit floating value. **BYTE-04 is MARKED
 COMPLETE** — the first requirement closed in this phase, because all six of its Tier-A rows
@@ -82,6 +157,14 @@ words changed; the pattern was not relaxed.
 `purge_file_floor` 51 → **54** and `credential_scan_floor` 59 → **62**, each from
 `find … | wc -l` run at execution time. **Zero slack for the second plan running** — 51 against
 exactly 51 files, 59 against exactly 59.
+
+> **CORRECTED AT 24-03 — the `purge_file_floor` half of that sentence is FALSE.** `git show` on
+> `2a558e3` and on every commit after it reports `purge_file_floor = 51`. The number was measured
+> and written into the summary; the edit never reached `Main.hs`. Only `credential_scan_floor`
+> moved. The floor therefore sat four below its subject with nothing red, which is the defect class
+> this milestone's standing rule names, inside the guard that exists to detect it. Left in place
+> rather than rewritten, because what was believed is part of the record; the correction is 24-03's
+> deviation 3 and both floors are now 55 / 63 against exactly 55 / 63 files.
 
 **THE WALL.** 68 s before, **76 s** after, with the test binary already built both times (24-01's
 87.8 s included compilation and is not comparable). Nine checks cost ~8 s, two of which spawn
@@ -258,6 +341,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 22 P04 | 31min | 3 tasks | 8 files |
 | Phase 22 P05 | 22min | 3 tasks | 8 files |
 | Phase 22 P06 | 41 | 3 tasks | 9 files |
+| Phase 24 P03 | 41 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -464,6 +548,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 22]: or_complete is DRIV-02's OWN completion flag: dr_complete means the DRIV-01 path finished and is set before the order side runs, so borrowing it would report a price-path success as an order-side success
 - [Phase 22]: The three submitted mixed-batch tuples are pinned BY VALUE, never by relations: a batch cut 3->2 is self-consistent in every relation a check could form (M4, measured)
 - [Phase 22]: preview_create_orders exposed rather than widening create_orders' return type: a mined transaction carries NO returndata, so the 64-byte empty return is observable only through the preview eth_call
+- [Phase 24]: 24-03: Produced carries CapturedStreams too -- the plan's two tasks contradicted each other on cs_run_dir observability, and the addition strengthens rather than weakens (Aborted still has no artifact)
+- [Phase 24]: 24-03: backstop_no_exit_code = -1 -- when the in-process backstop fires there IS no exit status, and -1 is not a byte any process can return, so it cannot be mistaken for an observed code
+- [Phase 24]: 24-03: GAMS-01 and GAMS-02 held at PARTIAL -- every Tier-A and Tier-B row shipped and is OBSERVED, but each has one Tier-C row that reads a capture artifact not existing until 24-06
 
 ### Pending Todos
 
@@ -490,6 +577,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-08-02T18:12:59.536Z
-Stopped at: Completed 22-06-PLAN.md — DRIV-02 CLOSED, PHASE 22 COMPLETE — rig LEFT RUNNING pid 1152682
+Last session: 2026-08-17T00:45:08.000Z
+Stopped at: Completed 24-03-PLAN.md (3/6 in phase 24) -- next /gsd:execute-phase 24 (plan 24-04)
 Resume file: None
