@@ -108,6 +108,12 @@ library
                     -- `cabal build --enable-tests -j all` printed no `Downloading` line with this
                     -- module on disk.
                     , Store.Solver
+                    -- STORE-01's decision function. +0 PACKAGES for the same reason its seam is:
+                    -- it imports Store.Class, Store.Key, Store.Types, Store.Solver, Gams.Argv,
+                    -- Gams.Artifact and Gams.Version and nothing outside this stanza. CONFIRMED
+                    -- at 25-02: `cabal build --enable-tests -j all` printed no `Downloading` line
+                    -- with this module on disk.
+                    , Store.Cache
                     , Store.Postgres
                     -- The GAMS layer resolves at +0 PACKAGES. `process` (subprocess spawn and
                     -- pipe draining), `directory` (the exclusive run directory), `bytestring`

@@ -38,6 +38,10 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as BSL
 import Data.Char (digitToInt, intToDigit, isAlpha, isAlphaNum, isDigit, isHexDigit, isSpace, toLower)
 import qualified Data.Foldable as F
+-- The cache checks' two counters. A solver that increments one on every call is what turns "the
+-- solve was skipped" from a reading of the code into a measurement, and a store wrapper that
+-- records the puts it ACCEPTED is what turns "no entry was written" into one.
+import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.List (intercalate, isInfixOf, isPrefixOf, nub, sort, stripPrefix)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing)
@@ -200,6 +204,15 @@ import RealizedVol.Decode
 -- renamed in the library and nowhere else is a set mismatch instead of a silent loss.
 import Store.Laws (law_names, store_laws)
 import Store.Memory (new_memory_store)
+-- The store seam itself, so the cache checks can WRAP a memory store rather than describe one. The
+-- record-of-functions shape is what makes that a one-line update, and 'Store.Class' says so in its
+-- own haddock: the counting store below is the instrument that shape exists for.
+import Store.Class (Store (..))
+-- STORE-01's decision function and its seam. The solver is imported for its record only; the
+-- outcome sum it re-exports is Gams.Run's, already imported above, so both names below refer to
+-- the same type the real invocation returns.
+import Store.Cache (Decision (..), decide)
+import Store.Solver (Solver (..))
 -- The migration directory and the migration manifest. Both are PURE values imported from the
 -- library, so the checks below compare the tree against what the library says the schema is,
 -- rather than against a transcription of it living in this file.
@@ -228,7 +241,9 @@ import Store.Schema
 -- artifact being checked: a digest read from the same file as the thing it digests is the tautology
 -- this repository has already shipped once.
 import Store.Types
-  ( CorpusBehaviour (..)
+  ( Artifact (..)
+  , CorpusBehaviour (..)
+  , StoredRun (..)
   , adversarial_corpus
   , cm_behaviour
   , cm_bytes
@@ -1087,8 +1102,17 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
 -- > 61
+--
+-- RE-MEASURED COLD AGAIN AT 25-02 TASK 2, both halves of the pair, with
+-- @offchain\/lib\/Store\/Cache.hs@ on disk: 62 against exactly 62, zero slack. Census:
+-- @hs 50, sh 9, json 9, md 3, txt 2, sql 3@. Two commits of this plan each add one @.hs@ and each
+-- re-runs both commands, because the number this floor is compared against is the one @find@
+-- printed at that commit and not the one before it plus one.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
+-- > 62
 purge_file_floor :: Int
-purge_file_floor = 61
+purge_file_floor = 62
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -7682,8 +7706,15 @@ credential_scan root =
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 70
+--
+-- RE-MEASURED COLD AGAIN AT 25-02 TASK 2, in the same sitting as 'purge_file_floor', with
+-- @offchain\/lib\/Store\/Cache.hs@ on disk: @71 = 50 hs + 9 sh + 9 json + 3 sql@, against exactly
+-- 71 files, zero slack.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+-- > 71
 credential_scan_floor :: Int
-credential_scan_floor = 70
+credential_scan_floor = 71
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -7865,6 +7896,7 @@ aeson_storage_path =
   , "offchain/lib/Gams/Invoke.hs"
   , "offchain/lib/Gams/Run.hs"
   , "offchain/lib/Gams/Version.hs"
+  , "offchain/lib/Store/Cache.hs"
   , "offchain/lib/Store/Class.hs"
   , "offchain/lib/Store/Config.hs"
   , "offchain/lib/Store/Json.hs"
@@ -11403,6 +11435,212 @@ the_preimage_excludes_every_per_run_token =
           ++ " reached the key path.")
 
 -- ---------------------------------------------------------------------------------------------
+-- Store.Cache -- STORE-01: the same shock skips the solve
+-- ---------------------------------------------------------------------------------------------
+
+-- | Eight consecutive integers as a JSON array body, from a given start.
+--
+-- The two artifact documents below have to be DIFFERENT bytes and both have to be well formed,
+-- because the elision claim is that the caller got the STORED one -- a claim that says nothing at
+-- all if the two agree.
+cache_series :: Int -> String
+cache_series from = intercalate "," (map show [from .. from + 7])
+
+-- | The bytes already IN the store, and the bytes the solver would produce if it ran.
+--
+-- Both are real artifact documents: 'artifact_doc' is the same builder the decoder's own checks
+-- use, so a fixture that stopped decoding would fail there too rather than only here.
+cache_stored_doc, cache_solved_doc :: BS.ByteString
+cache_stored_doc = artifact_doc "8" (cache_series 1)   (cache_series 1)
+cache_solved_doc = artifact_doc "8" (cache_series 101) (cache_series 101)
+
+-- | The streams a completed run carries. Empty, and that is faithful rather than lazy: MEASURED
+-- under the production model options, both of the child's streams are 0 bytes, and no decision in
+-- 'Store.Cache' reads any of the three. The run directory is the per-run path that must never
+-- reach a key -- the same value 'key_per_run_tokens' asserts is absent from the preimage.
+cache_streams :: CapturedStreams
+cache_streams = CapturedStreams BS.empty BS.empty BS.empty key_run_dir
+
+-- | The raw key bytes the fixture shock and identity produce, under the library's own scheme.
+cache_key :: KeyIdentity -> Either String BS.ByteString
+cache_key ident =
+  case content_key current_key_scheme gams_model_basename fixture_shock ident of
+    Left err               -> Left ("the fixture key did not compute: " ++ show err)
+    Right (ContentKey raw) -> Right raw
+
+-- | A completed run returning the given bytes, assembled through the REAL decoder.
+cache_produced :: BS.ByteString -> Either String ProverOutcome
+cache_produced bytes = do
+  toolchain <- key_toolchain gams_model_basename True
+  case decode_artifact bytes of
+    Left err       -> Left ("the fixture artifact did not decode: " ++ show err)
+    Right artifact -> Right (Produced artifact toolchain cache_streams)
+
+-- | The identity, its key, and a completed run whose bytes are 'cache_solved_doc'.
+cache_setting :: Either String (KeyIdentity, BS.ByteString, ProverOutcome)
+cache_setting = do
+  ident    <- key_fixture_identity
+  key      <- cache_key ident
+  produced <- cache_produced cache_solved_doc
+  Right (ident, key, produced)
+
+-- | A row carrying the given bytes under the fixture's own triple.
+cache_row :: KeyIdentity -> BS.ByteString -> Either String StoredRun
+cache_row ident bytes = do
+  key <- cache_key ident
+  Right StoredRun
+    { sr_model      = gams_model_basename
+    , sr_key_scheme = current_key_scheme
+    , sr_key        = key
+    , sr_raw        = Artifact bytes
+    , sr_gams_ver   = gams_version_text (ki_gams_version ident)
+    , sr_conopt_ver = conopt_version_text (ki_conopt_version ident)
+    }
+
+-- | A solver that always returns the same outcome AND COUNTS ITS OWN INVOCATIONS.
+--
+-- The counter is the instrument the whole of STORE-01 rests on: \"the solve was skipped\" is a
+-- claim about a call that did not happen, and without a counter it is a claim nothing can falsify.
+cache_solver :: String -> ProverOutcome -> IO (Solver, IO Int)
+cache_solver label outcome = do
+  calls <- newIORef (0 :: Int)
+  let run _shock = do
+        modifyIORef' calls (+ 1)
+        pure outcome
+  pure (Solver { solver_label = label, solver_run = run }, readIORef calls)
+
+-- | A memory store that also reports HOW MANY entries it holds.
+--
+-- 'Store.Class' exposes no enumeration -- deliberately: a store is a lookup surface, not a
+-- listing. So the count is taken at the only place an entry can be created, by wrapping
+-- 'store_put' and recording the identity triple of every put the inner store ACCEPTED. On a store
+-- that starts empty the number of distinct triples accepted IS the number of entries, because the
+-- keyed path is first-writer-wins and a rejected put raises before it is recorded.
+--
+-- Wrapping rather than reimplementing is the point of the record shape, and 'Store.Class' names
+-- this exact use: a deliberately-instrumented store is one line of record update against the
+-- reference implementation.
+cache_counting_store :: IO (Store, IO Int)
+cache_counting_store = do
+  inner <- new_memory_store
+  seen  <- newIORef []
+  let record row = do
+        store_put inner row
+        modifyIORef' seen ((sr_model row, sr_key_scheme row, sr_key row) :)
+  pure (inner { store_put = record }, (length . nub) <$> readIORef seen)
+
+-- | 'decide' refusing to key the shock is a failure of the FIXTURE, reported as such.
+cache_decision :: Either ArgvError Decision -> Either String Decision
+cache_decision (Left err) =
+  Left ("decide refused to key the fixture shock: " ++ show err
+         ++ ". That is the renderer's refusal arriving through the cache, so this check never"
+         ++ " reached its subject.")
+cache_decision (Right d) = Right d
+
+-- | STORE-01, AND THE REQUIREMENT THE USER CALLED CRITICAL: the same shock skips the solve.
+--
+-- The store is seeded with B. The solver is handed B', a DIFFERENT well-formed artifact, and it
+-- counts its calls. Two assertions, and neither is sufficient alone:
+--
+--   * the bytes that came back are B and not B' -- a counter alone passes for a solver that ran
+--     and whose answer was then thrown away, which costs a full solve per request while every
+--     byte-level claim stays true;
+--   * the counter is 0 -- a value alone passes for a solver that ran and happened to agree, which
+--     is exactly what a correct solver DOES on a repeat shock, so the value would agree on the
+--     one path this check exists to rule out.
+--
+-- The first arm asserts B and B' actually differ, because both assertions above are satisfied by a
+-- fixture whose two documents are the same bytes.
+an_identical_shock_elides_the_solve :: Check
+an_identical_shock_elides_the_solve =
+  Check "an_identical_shock_elides_the_solve" . guarded $
+    case setting of
+      Left err -> pure (Left err)
+      Right (ident, row, produced) -> do
+        store <- new_memory_store
+        store_put store row
+        (solver, invocations) <- cache_solver "the-solver-that-must-not-be-reached" produced
+        decided <- decide store solver current_key_scheme gams_model_basename fixture_shock ident
+        calls   <- invocations
+        pure $ do
+          _ <- expect (cache_stored_doc /= cache_solved_doc)
+                 ("the stored artifact and the solver's artifact are the SAME bytes, so \"the"
+                   ++ " result is the stored one\" is true of a cache that elides nothing.")
+          d <- cache_decision decided
+          _ <- expect (d == Elided (Artifact cache_stored_doc))
+                 ("a shock whose key is already in the store decided " ++ show d
+                   ++ ", expected Elided with the STORED bytes. Anything else means the caller was"
+                   ++ " served bytes this call produced rather than bytes the store held -- and the"
+                   ++ " store then exists to be written to and never read.")
+          expect (calls == 0)
+            ("the solver was invoked " ++ show calls ++ " times on a shock whose key was already"
+              ++ " stored. STORE-01 is that the solve is SKIPPED: an invocation whose answer is"
+              ++ " discarded returns the right bytes and costs the whole run, which is the failure"
+              ++ " a check that asserted only the bytes would report as a pass.")
+  where
+    setting = do
+      ident    <- key_fixture_identity
+      row      <- cache_row ident cache_stored_doc
+      produced <- cache_produced cache_solved_doc
+      Right (ident, row, produced)
+
+-- | The other side of the same requirement: a MISS solves, exactly once, and the next one hits.
+--
+-- Five arms. The first two are the plan's -- the counter reads 1 and the bytes now in the store
+-- are the solver's. The rest are what makes the pair a cache rather than two independent facts:
+-- the SAME call made a second time elides, the counter is still 1, and the store holds ONE entry
+-- rather than two. Without them the store could be written under a key no lookup will ever
+-- recompute -- a per-run value inside the key does exactly that, and every assertion above it
+-- stays green.
+a_miss_invokes_the_solver_exactly_once :: Check
+a_miss_invokes_the_solver_exactly_once =
+  Check "a_miss_invokes_the_solver_exactly_once" . guarded $
+    case cache_setting of
+      Left err -> pure (Left err)
+      Right (ident, key, produced) -> do
+        (store, entries) <- cache_counting_store
+        (solver, invocations) <- cache_solver "the-solver-that-must-run-once" produced
+        first_call  <- decide store solver current_key_scheme gams_model_basename fixture_shock ident
+        after_first <- invocations
+        row         <- store_lookup store gams_model_basename current_key_scheme key
+        second_call <- decide store solver current_key_scheme gams_model_basename fixture_shock ident
+        after_both  <- invocations
+        held        <- entries
+        pure $ do
+          d1 <- cache_decision first_call
+          _  <- expect (d1 == Stored (Artifact cache_solved_doc))
+                  ("a shock whose key was ABSENT decided " ++ show d1
+                    ++ ", expected Stored with the solver's bytes.")
+          _  <- expect (after_first == 1)
+                  ("the solver was invoked " ++ show after_first ++ " times on a miss, expected"
+                    ++ " exactly 1. Zero means nothing solved and the store was written from"
+                    ++ " somewhere else; more than one means the miss path runs the model more"
+                    ++ " than once per request.")
+          _  <- case row of
+                  Nothing ->
+                    Left ("nothing is stored under the triple decide itself computed. The decision"
+                           ++ " said Stored, so either the put went to a different key -- which is"
+                           ++ " what a per-run value inside the key does, and every lookup misses"
+                           ++ " forever afterwards -- or it never happened.")
+                  Just stored ->
+                    expect (sr_raw stored == Artifact cache_solved_doc)
+                      ("the stored row carries " ++ show (sr_raw stored)
+                        ++ ", not the bytes the solver produced.")
+          d2 <- cache_decision second_call
+          _  <- expect (d2 == Elided (Artifact cache_solved_doc))
+                  ("the SECOND identical request decided " ++ show d2
+                    ++ ", expected Elided. The first call stored the bytes, so the second must find"
+                    ++ " them -- and if it does not, the key is not a function of the request.")
+          _  <- expect (after_both == 1)
+                  ("the solver has been invoked " ++ show after_both ++ " times after two identical"
+                    ++ " requests, expected 1. The second solve is the cost this whole subsystem"
+                    ++ " exists to remove.")
+          expect (held == 1)
+            ("the store holds " ++ show held ++ " entries after two identical requests, expected 1."
+              ++ " A hit that also WRITES is how one shock accumulates rows under a store whose"
+              ++ " reads all look healthy.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -11567,6 +11805,8 @@ core_checks = do
           , no_key_identity_carries_an_absolute_model_source_path
           , key_identity_refuses_an_absent_conopt_version
           , the_preimage_excludes_every_per_run_token
+          , an_identical_shock_elides_the_solve
+          , a_miss_invokes_the_solver_exactly_once
           ]
             ++ per_pin_checks pins
   pure checks
