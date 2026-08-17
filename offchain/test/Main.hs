@@ -120,6 +120,19 @@ import Gams.Env
   , whitelist_for
   , whitelist_keys
   )
+-- The GAMS layer's three environment overrides, imported as RESOLVERS and as NAME constants, for
+-- the same reason 'Store.Config' is: the config module is the only place any of the three is named,
+-- so the override sweep below can compare the names IT writes out against the library's and redden
+-- when one is renamed there and nowhere else. Nothing here resolves a binary or spawns anything --
+-- these are four pure @String@s and three @lookupEnv@ wrappers.
+import Gams.Config
+  ( gams_bin
+  , gams_bin_env_var
+  , gams_conformance_env_var
+  , gams_conformance_path
+  , gams_model
+  , gams_model_env_var
+  )
 -- The IO edge. `Gams.Run` is deliberately NOT one of the three tokens the GAMS-free grep forbids:
 -- the suite must be able to DRIVE the invocation against stubs it writes itself while remaining
 -- structurally incapable of naming the real prover. Those three tokens -- the module that will
@@ -129,6 +142,12 @@ import Gams.Env
 -- They are described here rather than listed, because the first draft of this comment LISTED them
 -- and the grep found all three, in the sentence claiming they were absent. Fifteenth instance on
 -- this branch; the prose moved and the pattern did not.
+--
+-- 24-04: the grep referred to above is no longer a verification-time command an executor has to
+-- remember to run. It is 'the_suite_never_names_the_real_solver', with 'gams_free_pattern' built by
+-- concatenation and a positive control that seeds all three tokens into a bait file and asserts the
+-- pattern NAMES it -- so the zero this file reports is the absence of matches rather than the
+-- absence of a scan.
 import Gams.Run
   ( AbortReason (..)
   , CapturedStreams (..)
@@ -996,6 +1015,12 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 -- sql 2@. Only @.hs@ moved since 24-01, by four -- three library modules from 24-02 and
 -- @Gams\/Run.hs@ from 24-03. The @.json@ count is unchanged: 24-03 writes no capture artifact, and
 -- every stub it spawns is BUILT into a temp directory rather than committed.
+--
+-- RE-MEASURED COLD AGAIN at 24-04, both halves of the pair together, and NEITHER moved: 55 against
+-- exactly 55 files, ZERO slack, census unchanged at @hs 45, sh 8, json 8, md 3, txt 2, sql 2@. The
+-- whole plan lands in this one file, so the tree did not move -- but the rule is that a floor is
+-- re-measured whenever a plan is already editing this block, and 24-02 is why: it recorded a
+-- measurement whose edit never reached the source, and no arithmetic would have caught that.
 purge_file_floor :: Int
 purge_file_floor = 55
 
@@ -3729,6 +3754,13 @@ advertised_overrides =
   -- read it through 'read_store_conformance', so all three assertions below have a real subject.
   , OverrideProbe "STORE_CONFORMANCE" store_conformance_path
       (json_probe store_conformance_path store_conformance_command)
+  -- 24-04. Same shape as STORE_CONFORMANCE exactly: it resolves a FilePath and plan 24-05's
+  -- Tier-C checks read it through the shared JSON reader, so all three assertions below have a
+  -- real subject. The name is WRITTEN OUT here and compared against the config module's constant
+  -- by 'store_overrides_are_probed_or_named_as_gaps' -- see that check's haddock for the
+  -- measurement showing why writing it out is strictly stronger than referring to the constant.
+  , OverrideProbe "GAMS_CONFORMANCE" gams_conformance_path
+      (json_probe gams_conformance_path gams_conformance_command)
   ]
   where
     rig_probe :: IO (Maybe String)
@@ -3745,6 +3777,16 @@ advertised_overrides =
       pure $ case outcome of
         Left err -> Just err
         Right _  -> Nothing
+
+-- | The out-of-band command that produces the GAMS conformance artifact.
+--
+-- It does not exist yet -- plan 24-05 writes it -- and that is deliberate: the probe below points
+-- the variable at a path that CANNOT exist, so what it exercises is the resolver and the reader,
+-- neither of which depends on the real artifact being present. The advice string is here so that
+-- when the reader does fail it tells an operator what to run, which is the same contract every
+-- other capture in this file honours.
+gams_conformance_command :: String
+gams_conformance_command = "bash offchain/rig/capture-gams-conformance.sh"
 
 -- | EVERY advertised override is honoured, and the resolved path is actually CONSUMED.
 --
@@ -3865,42 +3907,217 @@ reason_dsn_has_no_offline_consumer =
   \ -- are asserted; the third is owed by the capture, which drives the real consumer and records a\
   \ server_version that no unconsumed DSN could have produced."
 
+-- | WHY THE PROVER BINARY'S OVERRIDE IS NOT IN 'advertised_overrides'.
+--
+-- 23-05's @PGSTORE_DSN@ ruling, applied unchanged to a second layer, and the reason it transfers is
+-- that the obstruction is the same one: assertion (3) needs a CONSUMER that fails naming the
+-- resolved value, and this variable's consumer is the invocation module -- the one
+-- 'the_suite_never_names_the_real_solver' makes unreachable from @cabal test@ BY CONSTRUCTION.
+--
+-- The two ways to manufacture a subject are both rejected, and they are rejected in the same order
+-- and for the same reasons as they were for the DSN:
+--
+--   * import the invocation module and let the probe attempt a resolution. That breaks the
+--     GAMS-free property on its way to enforcing it, and turns every contributor's first
+--     @cabal test@ into a hunt for a solver they do not have installed.
+--   * write a validator in the config module that rejects the probe value, and assert that it
+--     rejected. This is the worse of the two BECAUSE IT LOOKS RIGHT. The function would exist only
+--     to be probed; its rejection would prove that a function written to reject rejects, and would
+--     say nothing at all about whether the variable steers an @execve@.
+--
+-- Where the real evidence lives: the capture script EXPORTS this variable and the artifact it
+-- produces records the resolved ABSOLUTE path and the sha256 of the executable that actually ran.
+-- Those are two facts no unconsumed variable could have produced, and they are the two facts
+-- GAMS-03 asks for -- which is also why neither is written down in the config module or here:
+-- both differ on every install.
+reason_bin_has_no_offline_consumer :: String
+reason_bin_has_no_offline_consumer =
+  "GAP, and a deliberate one, following 23-05's PGSTORE_DSN ruling unchanged. The consumer of this\
+  \ variable is the invocation module that resolves the live prover, and that module is unreachable\
+  \ from cabal test BY CONSTRUCTION -- the_suite_never_names_the_real_solver is the structural form\
+  \ of it. So probe_override's third assertion (the consumer fails NAMING the resolved value) has no\
+  \ subject here, and the only two ways to give it one are to import the invocation module from the\
+  \ suite, which breaks the GAMS-free property on its way to enforcing it, or to write a validator\
+  \ that exists solely to be probed, which is a registered-but-vacuous probe -- the exact defect\
+  \ this sweep exists to catch, installed to close the sweep's own list. The two measurable halves\
+  \ (verbatim resolution, differing from the unset default) are asserted; the third is owed by the\
+  \ capture, which exports this variable and records the resolved absolute path and the sha256 of\
+  \ the executable that ran -- two facts no unconsumed variable could have produced."
+
+-- | WHY THE MODEL'S OVERRIDE IS NOT IN 'advertised_overrides', AND WHY IT IS NOT OPTIONAL HERE.
+--
+-- The same ruling as 'reason_bin_has_no_offline_consumer', plus one fact of record that belongs in
+-- an asserted list rather than in a comment: @volume_path.gms@ DOES NOT EXIST IN THIS WORKTREE. It
+-- lives in the sibling GAMS worktree, whose checkout of the monorepo carries the model tree this
+-- branch does not. So the default this variable falls back to resolves to a path that is ABSENT on
+-- purpose, and a real run from here REQUIRES the override rather than merely accepting it.
+--
+-- That is also why the honest half of this entry is worth asserting at all: a resolver that stopped
+-- reading the environment would leave every run pointed at a file that is not here, and the failure
+-- would name the default rather than the override the operator set.
+reason_model_has_no_offline_consumer :: String
+reason_model_has_no_offline_consumer =
+  "GAP, on the same ruling as the binary's, and with one extra fact: volume_path.gms DOES NOT EXIST\
+  \ IN THIS WORKTREE -- it lives in the sibling GAMS worktree, whose checkout carries the model tree\
+  \ this branch does not, so the default resolves to an absent path on purpose and a real run from\
+  \ here REQUIRES this override. The consumer is the invocation module, unreachable from cabal test\
+  \ by construction, so probe_override's third assertion has no subject; importing that module would\
+  \ break the GAMS-free property on its way to enforcing it, and a validator written only to be\
+  \ probed would be a registered-but-vacuous probe, which is the defect the sweep exists to catch.\
+  \ The two measurable halves are asserted below. The third is owed by the capture, which exports\
+  \ this variable and records the job banner naming the model that was actually invoked -- the model\
+  \ path and the version's subject are the same fact, resolved once."
+
 unprobed_overrides :: [UnprobedOverride]
 unprobed_overrides =
   [ UnprobedOverride "PGSTORE_DSN" pgstore_dsn reason_dsn_has_no_offline_consumer
+  -- 24-04. Both entries are the binary and the model, in that order, and both names are WRITTEN
+  -- OUT for the reason the probed list's are.
+  , UnprobedOverride "GAMS_BIN" gams_bin reason_bin_has_no_offline_consumer
+  , UnprobedOverride "GAMS_MODEL" gams_model reason_model_has_no_offline_consumer
   ]
 
--- | THE STORE'S TWO OVERRIDES ARE EACH IN EXACTLY ONE LIST, AND THE GAP IS ASSERTED.
+-- | THE TWO CONFIG MODULES' FIVE VARIABLES, AND WHERE THE LIST ITSELF IS ASSERTED.
 --
--- Four assertions, and the first is the one that keeps the other three from drifting: the variable
--- NAMES written out in 'advertised_overrides' and 'unprobed_overrides' are compared to the
--- constants in the config module, which is the only place either variable is named. Rename one
--- there and nowhere else and this reddens -- where without it the sweep would go on probing a
--- variable the library no longer reads, and reporting it honoured.
+-- Each variable is paired with the NAME OF THE CONSTANT that holds it, because the pair is what
+-- makes the list checkable: the value side is compared against the override lists, and the
+-- identifier side is compared against a census of the declarations in the config modules
+-- themselves. Without the second comparison this list is a transcription with no growth guard --
+-- a sixth variable could be added to either module and every assertion below would go on passing,
+-- which is the advertised-and-dead defect one level up from the one the sweep already catches.
+config_env_vars :: [(String, String)]
+config_env_vars =
+  [ ("store_conformance_env_var", store_conformance_env_var)
+  , ("pgstore_dsn_env_var",       pgstore_dsn_env_var)
+  , ("gams_bin_env_var",          gams_bin_env_var)
+  , ("gams_model_env_var",        gams_model_env_var)
+  , ("gams_conformance_env_var",  gams_conformance_env_var)
+  ]
+
+-- | The two modules in which an environment variable of this subsystem is NAMED. Both config
+-- modules and nothing else: @Driver.Capture@ and @Driver.Seed@ carry their own variables and their
+-- own guards, and widening this set to @offchain@ would pull in this file, which writes the
+-- identifiers out and would therefore always match.
+config_modules :: [FilePath]
+config_modules =
+  [ "offchain/lib/Store/Config.hs"
+  , "offchain/lib/Gams/Config.hs"
+  ]
+
+-- | A top-level @_env_var@ declaration, anchored at both ends so a mention in prose or a local
+-- binding cannot be counted as one.
+config_env_var_declaration_pattern :: String
+config_env_var_declaration_pattern = "^[a-z_]+_env_var :: String$"
+
+-- | Every @_env_var@ constant the two config modules DECLARE, read out of the modules.
+--
+-- @grep@ exits 1 for \"found nothing\" and for \"matched no files at all\" alike, and both of those
+-- are reported here as failures rather than as an empty census: a census that collapsed would
+-- otherwise agree with a list that had been emptied, and the two would pass each other.
+config_env_var_census :: IO (Either String [String])
+config_env_var_census = do
+  presence <- mapM (\p -> (,) p <$> doesFileExist p) config_modules
+  let gone = [p | (p, False) <- presence]
+  if not (null gone)
+    then pure (Left ("the config-module census names files that are not on disk: "
+                      ++ intercalate ", " gone
+                      ++ ". Scoping the census to the files that happen to exist would make it"
+                      ++ " agree with any list at all."))
+    else do
+      (code, out, err) <- gams_version_scan config_env_var_declaration_pattern config_modules
+      pure $ case code of
+        ExitFailure 1 ->
+          Left ("the config-module census matched NO declaration in "
+                 ++ intercalate ", " config_modules
+                 ++ ". Every one of these modules is supposed to declare at least one, so this is"
+                 ++ " the scan having collapsed rather than the modules having emptied.")
+        ExitFailure n -> Left ("the config-module census failed with exit " ++ show n ++ ": " ++ err)
+        ExitSuccess   -> Right [i | Just i <- map declared_identifier (lines out)]
+  where
+    -- @grep -nHE@ prints @path:line:text@; the path holds no colon, so two splits reach the text.
+    declared_identifier :: String -> Maybe String
+    declared_identifier ln =
+      case break (== ':') ln of
+        (_, ':' : rest) ->
+          case break (== ':') rest of
+            (_, ':' : body) ->
+              case takeWhile (/= ' ') body of
+                []    -> Nothing
+                ident -> Just ident
+            _ -> Nothing
+        _ -> Nothing
+
+-- | THE FIVE OVERRIDES ARE EACH IN EXACTLY ONE LIST, THE GAPS ARE ASSERTED, AND THE LIST GROWS.
+--
+-- Six assertions now, across two config modules -- @Store.Config@'s two variables and
+-- @Gams.Config@'s three -- and the check keeps its 23-05 name because the name is what the phase
+-- record and the acceptance criteria refer to, not because the scope is still the store's.
+--
+-- The first assertion is the one that keeps the others from drifting: the variable NAMES written
+-- out in 'advertised_overrides' and 'unprobed_overrides' are compared to the constants in the
+-- config modules, which are the only places any of the five is named. Rename one there and nowhere
+-- else and this reddens -- where without it the sweep would go on probing a variable the library no
+-- longer reads, and reporting it honoured.
+--
+-- == WHY THE NAMES ARE WRITTEN OUT AND NOT REFERRED TO THROUGH THE CONSTANT
+--
+-- 24-04's plan asked for the opposite (@grep -c 'GAMS_CONFORMANCE'@ = 0, \"referenced through
+-- 'gams_conformance_env_var', never re-spelled, which is what makes a rename in the config module
+-- redden the sweep\"). MEASURED, that is backwards, and the measurement is recorded here because it
+-- is the kind of thing that gets re-proposed: with the constant in the list, @uncovered@ compares
+-- the constant against itself and is TRUE for every possible value, and 'probe_override' sets the
+-- environment by the same constant, so BOTH detectors follow the rename together. Renaming
+-- 'gams_conformance_env_var' in the config module with the constant in the list was OBSERVED
+-- leaving the whole suite GREEN. With the literal, the same rename reddens two independent checks.
 --
 -- The two lists are also asserted DISJOINT. A variable in both would be pardoned as a named gap
 -- while also being counted as probed, which is how an ignore list starts covering things that are
 -- asserted.
 --
--- The last assertion is the one that makes an 'unprobed_overrides' entry more than a comment: the
--- resolver is exercised. It is NOT the missing third assertion and does not pretend to be.
+-- The reason floor makes an 'unprobed_overrides' entry more than a comment, and the resolvers of
+-- the pardoned entries are exercised. That is NOT the missing third assertion and does not pretend
+-- to be.
+--
+-- The last two are the growth guard added at 24-04: the identifiers this file pairs its values with
+-- are compared BOTH WAYS against the declarations in the two config modules. A sixth variable added
+-- to either module and to no list is named here; an identifier listed here that no module declares
+-- is named too, because a typo in the pairing would otherwise silently shrink the covered set.
 store_overrides_are_probed_or_named_as_gaps :: Check
 store_overrides_are_probed_or_named_as_gaps =
   Check "store_overrides_are_probed_or_named_as_gaps" . guarded $ do
     resolved <- mapM measure_resolution unprobed_overrides
+    census   <- config_env_var_census
     pure $ do
+      declared <- census
       let probed   = map ov_var advertised_overrides
           unprobed = map uo_var unprobed_overrides
-          store_vars = [store_conformance_env_var, pgstore_dsn_env_var]
-          uncovered = [v | v <- store_vars, v `notElem` probed, v `notElem` unprobed]
+          listed   = map fst config_env_vars
+          config_vars = map snd config_env_vars
+          uncovered = [v | v <- config_vars, v `notElem` probed, v `notElem` unprobed]
           both      = [v | v <- probed, v `elem` unprobed]
+          unlisted  = [i | i <- declared, i `notElem` listed]
+          undeclared = [i | i <- listed, i `notElem` declared]
 
+      _ <- expect (null unlisted)
+             ("these environment-variable constants are DECLARED in "
+               ++ intercalate " / " config_modules ++ " and this file's config_env_vars list names"
+               ++ " none of them: " ++ intercalate ", " unlisted
+               ++ ".\n      An override the sweep has never heard of is advertised and unprobed at"
+               ++ " the same time, and every assertion below would go on passing while it was --"
+               ++ " which is the defect this sweep exists to catch, one level up from where it"
+               ++ " catches it.")
+      _ <- expect (null undeclared)
+             ("this file's config_env_vars list pairs its values with these identifiers, and no"
+               ++ " config module declares them: " ++ intercalate ", " undeclared
+               ++ ".\n      The identifier side of each pair is what the census is compared"
+               ++ " against; a typo there silently shrinks the covered set to the pairs that"
+               ++ " happen to match.")
       _ <- expect (null uncovered)
-             ("the store advertises these environment variables and this file's override lists"
-               ++ " name NEITHER of them: " ++ intercalate ", " uncovered
+             ("the config modules advertise these environment variables and this file's override"
+               ++ " lists name NONE of them: " ++ intercalate ", " uncovered
                ++ ".\n      The names in those lists are written out; the names here come from the"
-               ++ " config module, which is the only place either variable is named. A rename there"
-               ++ " and nowhere else leaves the sweep probing a variable nothing reads and"
+               ++ " config modules, which are the only places any of the five is named. A rename"
+               ++ " there and nowhere else leaves the sweep probing a variable nothing reads and"
                ++ " reporting it honoured -- which is the advertised-and-dead defect, measured"
                ++ " three times in this module already, arriving through the guard against it.")
       _ <- expect (null both)
@@ -7007,6 +7224,11 @@ credential_scan root =
 -- It exists for the same reason 'purge_file_floor' does and it is the same trap: @grep -r@ exits 1
 -- for \"found nothing\" AND for \"matched no files at all\", so a scan whose @--include@ set stopped
 -- matching reports exactly what a clean scan reports. Re-measure it, never increment it.
+--
+-- RE-MEASURED COLD AGAIN at 24-04, in the same sitting as 'purge_file_floor': 63 against exactly 63
+-- files, ZERO slack, and no move -- 24-04 adds no file, it adds checks to one that already existed.
+-- Both numbers were read off @find@ and compared to what is written here; neither was derived from
+-- the other and neither was incremented.
 credential_scan_floor :: Int
 credential_scan_floor = 63
 
@@ -9464,6 +9686,153 @@ gams_verdict_ignores_the_streams =
                      ++ " right answer was to move the prose rather than relax the pattern.")
 
 -- ---------------------------------------------------------------------------------------------
+-- THE STRUCTURAL GUARANTEE: cabal test CANNOT REACH THE REAL PROVER
+-- ---------------------------------------------------------------------------------------------
+
+-- | The three tokens whose presence in this file would mean the suite can reach the live solver.
+--
+-- BUILT, never written as one literal, exactly as 'credential_pattern' and 'purge_control_literal'
+-- are built and for the identical reason: spelled contiguously the pattern would match THIS FILE,
+-- and a scan that matches the file asserting its own absence exempts nothing and reddens always.
+-- On this branch prose has now been inside a grep's blast radius sixteen times; this is the
+-- sixteenth, and the answer was the same every time -- move the words, never relax the pattern.
+--
+-- The three tokens are DESCRIBED here rather than listed, because the first draft of the comment
+-- above the corresponding import listed all three inside the sentence claiming they were absent:
+--
+--   1. the module that resolves the LIVE binary and the model out of @Gams.Config@. It is imported
+--      by exactly one place, the conformance executable plan 24-05 writes, and by nothing this
+--      test binary links. @Gams.Run@ -- the testable IO edge, which is handed its binary path
+--      explicitly -- is deliberately NOT a token: the Tier-B checks above drive it against
+--      @\/bin\/sh@ stubs they write themselves, and that is the whole design rather than a
+--      loophole in it.
+--   2. the capture script's require-a-real-solver gate. 23-RESEARCH's ruling on its store-side
+--      twin applies verbatim: gating a suite on \"if the tool is installed\" fails OPEN, so on
+--      every machine without the tool the assertion reports success for the reason it exists to
+--      forbid.
+--   3. the absolute installation prefix of the real binary on the research machine. It is a
+--      machine-specific accident and a source file that names it is a source file that has stopped
+--      being portable AND started being able to invoke a solver.
+gams_free_pattern :: String
+gams_free_pattern =
+  intercalate "|"
+    [ "Gams" ++ "\\.Invoke"
+    , "CFMM_REQUIRE" ++ "_GAMS"
+    , "/usr/" ++ "gams"
+    ]
+
+-- | The scanned file: this one, and only this one.
+--
+-- The scope is the TEST binary's own source because that is what the claim is about -- the library
+-- may name whatever it needs, and 24-05's executable will name all three. The DB-free twin this
+-- mirrors has the same scope for the same reason.
+gams_free_path :: FilePath
+gams_free_path = "offchain/test/Main.hs"
+
+-- | The seeded bait, BUILT for the reason the pattern is: all three tokens, in the three shapes
+-- they would actually appear in -- an import, an environment gate compared as a string, and an
+-- absolute path constant.
+gams_free_bait_source :: String
+gams_free_bait_source =
+  "import Gams" ++ ".Invoke (resolve_prover)\n"
+    ++ "gate :: String\n"
+    ++ "gate = \"CFMM_REQUIRE" ++ "_GAMS\"\n"
+    ++ "installed :: FilePath\n"
+    ++ "installed = \"/usr/" ++ "gams/gams\"\n"
+
+-- | A file carrying the forms this suite legitimately uses, which must NOT match.
+--
+-- This is the arm that keeps the pattern honest in the other direction, and here it is doing real
+-- work rather than ceremony: the IO edge and the stub path below are what every Tier-B check in
+-- this file is made of, and a pattern tightened until it matched them would have to be relaxed the
+-- first time it fired -- at which point the absence it reports would be the absence of a scan.
+gams_free_innocent_source :: String
+gams_free_innocent_source =
+  "import Gams.Run (run_prover)\n"
+    ++ "stub :: FilePath\n"
+    ++ "stub = \"/bin/sh\"\n"
+    ++ "budget_s :: Int\n"
+    ++ "budget_s = 2\n"
+
+-- | Absence may not read as success until the pattern has been SHOWN matching. Returned so the
+-- caller orders it FIRST, following 'credential_positive_control'.
+gams_free_positive_control :: IO (Either String ())
+gams_free_positive_control = do
+  tmp <- getTemporaryDirectory
+  let dir       = tmp </> "gams24-free-positive-control"
+      bait      = dir </> "bait.hs"
+      innocent  = dir </> "clean.hs"
+      discard p = do
+        there <- doesFileExist p
+        if there then removeFile p else pure ()
+
+  createDirectoryIfMissing True dir
+  flip finally (mapM_ discard [bait, innocent]) $ do
+    writeFile bait gams_free_bait_source
+    writeFile innocent gams_free_innocent_source
+    (code, out, err) <- gams_version_scan gams_free_pattern [bait, innocent]
+    pure $ do
+      _ <- expect (code == ExitSuccess)
+             ("the GAMS-free POSITIVE CONTROL did not fire: the scan exited " ++ show code
+               ++ " over a file that imports the resolving module, compares the"
+               ++ " require-a-real-solver gate as a string, and pins the installation prefix as an"
+               ++ " absolute path. The pattern has stopped matching anything, which means the exit-1"
+               ++ " the real scan reports is absence of MATCHES only by assumption."
+               ++ (if null err then "" else "\n      stderr: " ++ err))
+      _ <- expect ("bait.hs" `isInfixOf` out)
+             ("the GAMS-free POSITIVE CONTROL fired but did not NAME the seeded file. It said:\n"
+               ++ unlines (map ("      " ++) (lines out)))
+      expect (not ("clean.hs" `isInfixOf` out))
+        ("the GAMS-free POSITIVE CONTROL matched the forms this suite legitimately uses -- the IO"
+          ++ " edge that is handed its binary path, and the shell the stubs actually run under. A"
+          ++ " pattern that matches those would have to be relaxed the first time it fired, which"
+          ++ " is how a structural guarantee becomes decorative. It said:\n"
+          ++ unlines (map ("      " ++) (lines out)))
+
+-- | GAMS-05's structural half, and the DB-free scan's twin: THE SUITE CANNOT NAME THE REAL SOLVER.
+--
+-- Three assertions in this order: (1) the pattern is SHOWN matching a seeded bait and shown NOT
+-- matching the forms this file is made of; (2) the scanned file EXISTS -- @grep@ reports exit 2 for
+-- a missing operand and exit 1 for an empty one, and neither may be read as a clean scan; (3) the
+-- scan finds nothing.
+--
+-- What this buys, and it is not a style rule: every claim this file makes about the invocation
+-- layer is made against a @\/bin\/sh@ script the check itself wrote, so a contributor with no
+-- solver installed gets the same verdict as the research machine, and the two variables that DO
+-- steer the real thing are honestly recorded as gaps in 'unprobed_overrides' rather than given a
+-- probe with no subject. Absence of a probe is a stated gap; a probe whose consumer is unreachable
+-- is a green light with nothing behind it.
+the_suite_never_names_the_real_solver :: Check
+the_suite_never_names_the_real_solver =
+  Check "the_suite_never_names_the_real_solver" . guarded $ do
+    control <- gams_free_positive_control
+    there   <- doesFileExist gams_free_path
+    if not there
+      then pure $ do
+        _ <- control
+        expect False
+          ("the GAMS-free scan's subject is not on disk: " ++ gams_free_path
+            ++ ". grep exits 2 for a missing operand and 1 for a clean scan, and a check that"
+            ++ " reported success here would be reporting the absence of its own subject.")
+      else do
+        (code, out, err) <- gams_version_scan gams_free_pattern [gams_free_path]
+        pure $ do
+          _ <- control
+          case code of
+            ExitFailure 1 -> Right ()
+            ExitFailure n -> Left ("the scan itself failed with exit " ++ show n ++ ": " ++ err)
+            ExitSuccess ->
+              Left ("this test suite NAMES the real solver:\n"
+                     ++ unlines (map ("      " ++) (lines out))
+                     ++ "      One of three tokens is present: the module that resolves the live"
+                     ++ " binary and model, the capture script's require-a-real-solver gate, or the"
+                     ++ " installation's absolute path. Any of them makes cabal test able to reach"
+                     ++ " a solver, which turns every contributor's first run into a hunt for an"
+                     ++ " install and turns this suite's verdict into a fact about one machine."
+                     ++ " A comment is inside this scan's blast radius too, and every time on this"
+                     ++ " branch the right answer was to move the prose, not relax the pattern.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -9608,6 +9977,7 @@ core_checks = do
           , the_child_environment_is_exactly_the_whitelist
           , an_inherited_environment_is_observed_to_differ
           , version_detection_failure_aborts_the_invocation
+          , the_suite_never_names_the_real_solver
           ]
             ++ per_pin_checks pins
   pure checks
