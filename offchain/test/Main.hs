@@ -5548,6 +5548,13 @@ swept_artifacts =
   -- this phase is a recorded value here and nowhere else, so a leaf of it that nothing reads is a
   -- database-only claim that survived the whole phase unasserted.
   , MutableArtifact "STORE_CONFORMANCE" store_conformance_path "store-conformance.json"
+  -- 24-05. The SIXTH, and the first one whose subject is a SOLVER. Every real-GAMS observation in
+  -- this phase is a recorded value here and nowhere else -- there is no second copy of the exit-code
+  -- taxonomy, of the two wrong-subject banners, of CONOPT's true version beside its two decoys, or
+  -- of the leading-zero digest anywhere in this repository. So a leaf of this file that nothing
+  -- reads is a solver-only claim that survived the entire phase unasserted, which is precisely the
+  -- shape issue #19 names and precisely why the sweep is pointed at it.
+  , MutableArtifact "GAMS_CONFORMANCE" gams_conformance_path "gams-conformance.json"
   ]
 
 -- | THE HONEST GAP, NAMED. Committed artifacts the suite reads that this sweep cannot reach,
@@ -5969,6 +5976,18 @@ absorbed_by_design =
   , ( "store-conformance.json.generatedAt"
     , [("empty-string", 1), ("numeric-zero", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1), ("json-null", 1)]
     , reason_generated_at )
+  -- 24-05, the sixth artifact, and its first run over this file reported exactly ONE absorbed field.
+  -- Not four, as the store artifact's first run did: 75 of its 76 leaves are read by one of the ten
+  -- Tier-C checks, which is what the plan meant by designing the document NARROW. The one that is
+  -- not is the same field 21-02 already measured as not being a regeneration witness, and it is
+  -- pardoned for the same measured reason rather than a new one. Every other candidate for a pardon
+  -- was ASSERTED instead: the two line indices are compared to each other AND required positive, the
+  -- two method strings must NAME the parser that produced their value, the hostile variables must
+  -- each carry a key Gams.Env independently calls hostile, and the recorded whitelist is compared to
+  -- Gams.Env.whitelist_keys in both directions.
+  , ( "gams-conformance.json.generatedAt"
+    , [("empty-string", 1), ("numeric-zero", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1), ("json-null", 1)]
+    , reason_generated_at )
   ]
 
 -- | @steps[3].e3.tick@ -> @steps[].e3.tick@.
@@ -6005,8 +6024,24 @@ absorbed_expectations =
 -- Note for anyone budgeting the NEXT artifact: 134 is the count this harness enumerates, and the
 -- 121 carried forward from plan 23-04 is @jq 'paths(scalars)'@, which omits JSON nulls. The
 -- harness mutates nulls, so its number is the larger one and it is the one to budget with.
+--
+-- 3250 (five artifacts) -> 3698 (six), RE-MEASURED AT 24-05 the same way: by raising the constant
+-- until the harness reported the number it had actually reached, never by adding an estimate to the
+-- old one. The arithmetic is written down because it is the CHECK on the measurement.
+-- @gams-conformance.json@ enumerates 76 leaves and there are six sentinels, so 456 pairs are
+-- possible and 448 were exercised: @3698 - 3250 = 448@, and the 8 missing ones are mutations the
+-- harness SKIPS because the sentinel already equals the value there. All eight are the numeric zero
+-- against a recorded zero, and naming them is the point -- @exit_codes.clean@,
+-- @exit_codes.no_args@, @exit_codes.action_c@, @action_c.exit@, @no_args.exit@,
+-- @no_args.stderr_len@, @version_flag.stderr_len@ and @leading_zero_run.exit@ are all legitimately
+-- 0, and three of those zeroes are the whole finding (exit 0 means GAMS RAN, and stderr is empty in
+-- every mode). A sweep of the five older artifacts therefore still contributes exactly the 3250
+-- this number replaced, which is what says none of them silently shrank while this one was added.
+--
+-- @jq 'paths(scalars)'@ counts 75 for the same file. The harness's 76 is the larger number and it is
+-- the one budgeted with, exactly as the paragraph above says.
 sentinel_pair_floor :: Int
-sentinel_pair_floor = 3250
+sentinel_pair_floor = 3698
 
 -- | THE PER-ARTIFACT FLOOR. The total alone is satisfiable by one artifact growing while another
 -- drops out entirely, which is the same substitution the pin-surface SET exists to stop.
@@ -6015,6 +6050,18 @@ sentinel_pair_floor = 3250
 -- numbers they were written with, which is the point of re-measuring them rather than assuming: a
 -- new entry added beside four stale ones records the tree as it was on the day someone last
 -- thought about it.
+--
+-- ALL SIX RE-MEASURED AT 24-05, in ONE run and by the only method that reports a number rather than
+-- confirming one: every floor was raised by exactly 1 so that the harness had to name what each
+-- artifact actually enumerated, and it named all six at once --
+--
+-- >  rig-manifest.json: 20        rig-pins.json: 110         driver-run-capture.json: 151
+-- >  cheat-swap-proof.json: 130   store-conformance.json: 134  gams-conformance.json: 76
+--
+-- The five older entries came back at EXACTLY the numbers written here, so none of them has drifted
+-- since 23-05. That is a measurement and not an assumption, and it is the reason the whole list is
+-- re-measured rather than appended to: a new entry beside five stale ones records the tree as it was
+-- on the day someone last thought about it.
 artifact_field_floors :: [(String, Int)]
 artifact_field_floors =
   [ ("rig-manifest.json", 20)
@@ -6022,6 +6069,7 @@ artifact_field_floors =
   , ("driver-run-capture.json", 151)
   , ("cheat-swap-proof.json", 130)
   , ("store-conformance.json", 134)
+  , ("gams-conformance.json", 76)
   ]
 
 -- | A key nothing in this suite reads, injected into the manifest for the NEGATIVE control.
