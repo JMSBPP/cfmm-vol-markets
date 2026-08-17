@@ -6062,8 +6062,19 @@ absorbed_expectations =
 --
 -- @jq 'paths(scalars)'@ counts 75 for the same file. The harness's 76 is the larger number and it is
 -- the one budgeted with, exactly as the paragraph above says.
+--
+-- 3698 -> 3828 AT 24-06, and this move is a re-capture rather than a seventh artifact: migration
+-- @003@ added the @empty_version_rejected@ block to @store-conformance.json@, which went from 134
+-- leaves to 156. RE-MEASURED the same way -- the constant raised until the harness named 3828 --
+-- and the arithmetic checks it: @3828 - 3698 = 130@ against @22 x 6 = 132@ possible, so exactly TWO
+-- pairs were skipped as identities. Both are the numeric zero against a recorded zero and they are
+-- named rather than counted: @empty_version_rejected.columns[].rows_after@ for each of the two
+-- version columns. Those two zeroes are not incidental -- they are the SERVER'S OWN count saying the
+-- refused row did not land, which is a different claim from \"an exception was raised\". The five
+-- other artifacts still contribute exactly what they did, which is what says none of them shrank
+-- while this one grew.
 sentinel_pair_floor :: Int
-sentinel_pair_floor = 3698
+sentinel_pair_floor = 3828
 
 -- | THE PER-ARTIFACT FLOOR. The total alone is satisfiable by one artifact growing while another
 -- drops out entirely, which is the same substitution the pin-surface SET exists to stop.
@@ -6084,13 +6095,29 @@ sentinel_pair_floor = 3698
 -- since 23-05. That is a measurement and not an assumption, and it is the reason the whole list is
 -- re-measured rather than appended to: a new entry beside five stale ones records the tree as it was
 -- on the day someone last thought about it.
+--
+-- ALL SIX RE-MEASURED AGAIN AT 24-06, in ONE run and by the same method -- every floor raised until
+-- the harness had to name what each artifact enumerated. It named all six at once:
+--
+-- >  rig-manifest.json: 20         rig-pins.json: 110          driver-run-capture.json: 151
+-- >  cheat-swap-proof.json: 130    store-conformance.json: 156  gams-conformance.json: 76
+--
+-- ONE moved. @store-conformance.json@ went 134 -> 156 because the re-capture that migration @003@
+-- forced carries the @empty_version_rejected@ block: two per-column attempts at 7 leaves each plus
+-- six of conjunction, control and constraint name. (It read 158 on the first capture; the two
+-- leaves that went are a per-column @attempted@ the harness reported ABSORBED, deleted rather than
+-- asserted -- it was the literal True and nothing could have asserted it except by comparing a
+-- constant to itself.) The other FIVE came back at exactly the numbers
+-- written above -- including @gams-conformance.json@, taken one plan ago -- so none of them shrank
+-- while this one grew, which is the whole reason the list is re-measured rather than edited in one
+-- place.
 artifact_field_floors :: [(String, Int)]
 artifact_field_floors =
   [ ("rig-manifest.json", 20)
   , ("rig-pins.json", 110)
   , ("driver-run-capture.json", 151)
   , ("cheat-swap-proof.json", 130)
-  , ("store-conformance.json", 134)
+  , ("store-conformance.json", 156)
   , ("gams-conformance.json", 76)
   ]
 
@@ -6746,6 +6773,31 @@ store_conformance_is_present_and_fresh =
     one_recorded_migration e =
       (,) <$> (json_field "filename" e >>= json_string) <*> (json_field "md5" e >>= json_string)
 
+-- | Every top-level block the capture is required to carry, and NOTHING ELSE.
+--
+-- Written out rather than derived from the artifact, for the reason 'Store.Schema' gives about its
+-- own manifest: a list read off the file it is compared to agrees with whatever is there by
+-- construction. @generatedAt@ is in the set although 'reason_generated_at' records that it is not a
+-- regeneration witness in this repository -- its PRESENCE is still a claim, and a capture that
+-- stopped emitting it would be a capture whose writer changed shape.
+expected_store_observation_blocks :: [String]
+expected_store_observation_blocks =
+  [ "corpus"
+  , "empty_version_rejected"
+  , "generatedAt"
+  , "image_tag"
+  , "json_agreement"
+  , "jsonb_exhibit"
+  , "law_verdicts"
+  , "migration_checks"
+  , "migrations"
+  , "sc_complete"
+  , "sc_law_count"
+  , "schema_version"
+  , "server_version"
+  , "unique_constraint"
+  ]
+
 -- | CHECK 2 -- the law verdicts, as a SET IN BOTH DIRECTIONS.
 --
 -- The count is NOT the instrument, and that is the whole design. A law that was skipped shows up
@@ -6758,12 +6810,37 @@ store_conformance_is_present_and_fresh =
 -- The recorded message travels with any non-@pass@ verdict. A verdict of @"fail: ..."@ that this
 -- check reported only as \"not pass\" would send the reader back to the artifact for the one thing
 -- they need.
+--
+-- ADDED AT 24-06: the artifact's OWN TOP-LEVEL BLOCKS, as a set in both directions.
+--
+-- The law verdicts have been a set since 23-05, but the OBSERVATION BLOCKS beside them were not:
+-- deleting @jsonb_exhibit@ or @empty_version_rejected@ from a capture reddened only the one check
+-- that happened to read it, and adding a block nothing reads was invisible. That is
+-- 24-05's finding about lists without growth guards, one layer out -- the FIFTH such list found in
+-- this phase and the fifth to get one. Now a block that vanishes is a set mismatch and a block that
+-- appears has to be accounted for by somebody.
 store_conformance_verdicts_are_all_pass :: Check
 store_conformance_verdicts_are_all_pass =
   Check "store_conformance_verdicts_are_all_pass" . guarded $ do
     loaded <- read_store_conformance
     pure $ do
       artifact <- loaded
+      blocks   <- json_object_pairs artifact
+      let block_names   = map fst blocks
+          block_absent  = [n | n <- expected_store_observation_blocks, n `notElem` block_names]
+          block_unnamed = [n | n <- block_names, n `notElem` expected_store_observation_blocks]
+      _ <- expect (null block_absent && null block_unnamed)
+             (intercalate "\n      "
+                (["an observation block the set names has NO entry in the capture: " ++ n
+                   | n <- block_absent]
+                  ++ ["the capture carries a block the set does not name: " ++ n
+                       | n <- block_unnamed])
+               ++ "\n      The artifact's own top-level surface is a SET on both sides. A block that"
+               ++ " vanished would otherwise redden only whichever check happened to read it -- and"
+               ++ " a block nothing reads yet would be invisible entirely, which is the"
+               ++ " artifact-asserted-by-nothing shape these checks exist to close. Re-take it: "
+               ++ store_conformance_command)
+
       verdicts <- json_field "law_verdicts" artifact >>= json_object_pairs
       named    <- mapM (\(k, v) -> (,) k <$> json_string v) verdicts
 
@@ -7258,6 +7335,152 @@ store_conformance_records_the_live_identity_constraint =
           ++ " actually APPLIED. A two-part key does not orphan on a key-formula change -- MEASURED"
           ++ " at 23-01: it serves the superseded scheme's row and the new scheme's insert"
           ++ " vanishes.")
+
+-- | PostgreSQL's @check_violation@ SQLSTATE, class 23 (integrity constraint violation).
+--
+-- Pinned as a VALUE rather than accepted as \"non-empty\". A non-empty SQLSTATE is produced by every
+-- error the server can raise -- @23505@ for a unique violation, @22P02@ for a malformed input,
+-- @42P01@ for a table that is not there -- and every one of those is also what a mis-built exhibit
+-- produces. The claim is that the CHECK refused, and only @23514@ says that.
+check_violation_sqlstate :: String
+check_violation_sqlstate = "23514"
+
+-- | CHECK 12 -- GAMS-03's last owed conjunct: an empty toolchain version is UNSTORABLE.
+--
+-- @NOT NULL@ does not forbid @''@. MEASURED at 24-RESEARCH M14 and, before migration @003@ existed,
+-- the schema would have stored it -- which is the poisoned-row scenario this phase's sequencing
+-- exists to prevent, sitting one layer below the Haskell guard that prevents it. Phase 24 built a
+-- @GamsVersion@ with no empty inhabitant; this is the layer that outlives every Haskell refactor
+-- and every future writer that is not the one client module in this tree.
+--
+-- (That module is DESCRIBED rather than named. Naming it here would put a DB-free token into the
+-- file whose own scan asserts that no such token is in it -- INSTANCE 18 of prose landing inside a
+-- grep's blast radius on this branch, found by the verification grep returning 1. The answer has
+-- been the same all eighteen times: move the words, never relax the pattern.)
+--
+-- 'version_columns_are_unstorable_empty_in_the_ddl' asserts the DDL FILE. This asserts what the
+-- SERVER DID when the store's own @Binary@-wrapped write path handed it an empty version, and the
+-- two are different failures: a DDL file that was never applied leaves the file half green.
+--
+-- FOUR THINGS ARE ASSERTED THAT \"the insert was refused\" DOES NOT COVER, in this order:
+--
+--   1. @attempted@. Without it, an exhibit that never ran the insert and an exhibit whose insert was
+--      refused look identical -- this repository's defect class relocated into the evidence.
+--   2. The column SET, in both directions against 'versions_nonempty_columns', plus @emptied@ and
+--      @other_nonempty@ per attempt. One attempt says nothing about whether the constraint mentions
+--      the other column, and an attempt that emptied BOTH columns is one observation recorded twice.
+--   3. THE POSITIVE CONTROL, evaluated BEFORE the rejections. \"It raised\" is satisfied by a dead
+--      connection, a malformed key, a @doc@ that is not JSON and a table that does not exist. The
+--      identical row with non-empty versions must LAND, and @control_rows_after@ must be 1.
+--   4. @rows_after == 0@ per attempt -- the SERVER'S OWN count, not the client's judgement -- and
+--      the server's message naming the constraint. @23514@ alone says only that SOME check refused,
+--      and this table is free to grow other checks later.
+store_conformance_records_the_empty_version_rejection :: Check
+store_conformance_records_the_empty_version_rejection =
+  Check "store_conformance_records_the_empty_version_rejection" . guarded $ do
+    loaded <- read_store_conformance
+    pure $ do
+      artifact  <- loaded
+      block     <- json_field "empty_version_rejected" artifact
+      attempted <- json_field "attempted" block >>= json_bool
+      rejected  <- json_field "rejected" block >>= json_bool
+      state     <- json_field "sqlstate" block >>= json_string
+      cname     <- json_field "constraint_name" block >>= json_string
+      ctrl_ok   <- json_field "control_accepted" block >>= json_bool
+      ctrl_rows <- json_field "control_rows_after" block >>= json_integer
+      entries   <- json_field "columns" block >>= json_array
+      attempts  <- mapM one_attempt entries
+
+      _ <- expect attempted
+             ("the capture records attempted False for the empty-version observation, so no insert"
+               ++ " was ever driven. An exhibit that never ran and an exhibit that was refused are"
+               ++ " indistinguishable without this field, and the second is the only one that is"
+               ++ " evidence. Re-take it: " ++ store_conformance_command)
+
+      let recorded  = [c | (c, _, _, _, _, _, _) <- attempts]
+          absent    = [c | c <- versions_nonempty_columns, c `notElem` recorded]
+          unlisted  = [c | c <- recorded, c `notElem` versions_nonempty_columns]
+      _ <- expect (null absent && null unlisted)
+             (intercalate "\n      "
+                (["the constraint covers a column the capture never attempted: " ++ c | c <- absent]
+                  ++ ["the capture attempted a column the constraint does not name: " ++ c
+                       | c <- unlisted])
+               ++ "\n      Both version columns are attempted INDEPENDENTLY because a CHECK covering"
+               ++ " only gams_ver is exactly the shape a copy-paste produces, and KEY-01 folds BOTH"
+               ++ " strings into the content key. Re-take it: " ++ store_conformance_command)
+
+      let malformed =
+            [ c | (c, emptied, other, _, _, _, _) <- attempts, not emptied || not other ]
+      _ <- expect (null malformed)
+             ("these attempts either emptied nothing or emptied both version columns at once: "
+               ++ intercalate ", " malformed
+               ++ ".\n      An attempt that emptied nothing is refused for some other reason"
+               ++ " entirely; an attempt that emptied both is one observation recorded twice, and"
+               ++ " the per-column claim this block makes is then false.")
+
+      _ <- expect (ctrl_ok && ctrl_rows == 1)
+             ("the empty-version POSITIVE CONTROL recorded accepted " ++ show ctrl_ok
+               ++ " and " ++ show ctrl_rows ++ " row(s) after, and it must be True and 1."
+               ++ "\n      Without it every rejection below is satisfied by a dead connection, a"
+               ++ " malformed key, a doc that is not JSON and a table that does not exist. The"
+               ++ " control sends the IDENTICAL row with non-empty versions, so the refusals are"
+               ++ " attributable to the one thing that differs between them and it.")
+
+      let survived = [c | (c, _, _, r, _, _, _) <- attempts, not r]
+      _ <- expect (null survived && rejected)
+             ("the server STORED an empty toolchain version in: " ++ intercalate ", " survived
+               ++ " (the block's own conjunction reports rejected " ++ show rejected ++ ")."
+               ++ "\n      NOT NULL does not forbid '' and migration 003's CHECK is what does."
+               ++ " KEY-01 folds both version strings into the content key, so an empty one makes"
+               ++ " every toolchain hash to the same key component -- and afterwards the poisoned"
+               ++ " rows are INDISTINGUISHABLE, because the only witness of which toolchain produced"
+               ++ " them is the column that was emptied.")
+
+      let wrong_state =
+            [ c ++ " reported " ++ show s
+            | (c, _, _, _, s, _, _) <- attempts, s /= check_violation_sqlstate ]
+      _ <- expect (null wrong_state && state == check_violation_sqlstate)
+             ("the empty-version refusal did not report SQLSTATE "
+               ++ show check_violation_sqlstate ++ " (check_violation): "
+               ++ intercalate ", " wrong_state
+               ++ " | the block's conjunction reports " ++ show state
+               ++ ".\n      An empty conjunction means the two attempts DISAGREED. Any other code"
+               ++ " means a different gate refused the insert -- 23505 is a unique violation, 22P02"
+               ++ " a malformed input, 42P01 a missing table -- and this exhibit would then be about"
+               ++ " the wrong constraint while still looking like a guard firing.")
+
+      let landed = [c ++ " left " ++ show n ++ " row(s)"
+                   | (c, _, _, _, _, _, n) <- attempts, n /= 0]
+      _ <- expect (null landed)
+             ("model_run was NOT empty after a refused insert: " ++ intercalate ", " landed
+               ++ ".\n      This count comes from the server, not from the client's reading of an"
+               ++ " exception, and it is what says the row did not land. 'It raised' and 'nothing"
+               ++ " was written' are different claims.")
+
+      _ <- expect (cname == versions_nonempty_constraint_name)
+             ("the capture records the constraint name " ++ show cname ++ " and Store.Schema names"
+               ++ " it " ++ show versions_nonempty_constraint_name ++ ". The recorded evidence and"
+               ++ " the constraint the DDL declares cannot be allowed to drift apart, because the"
+               ++ " message assertion below is what turns 23514 from 'some check refused' into"
+               ++ " 'this one did'.")
+
+      let anonymous = [c | (c, _, _, _, _, m, _) <- attempts, not (cname `isInfixOf` m)]
+      expect (null anonymous)
+        ("the server's own error message does not name " ++ show cname ++ " for: "
+          ++ intercalate ", " anonymous
+          ++ ".\n      SQLSTATE 23514 says a CHECK refused; it does not say WHICH, and model_run is"
+          ++ " free to grow other checks later. Without the name in the message this observation is"
+          ++ " about the class of constraint violations rather than about migration 003.")
+  where
+    one_attempt e =
+      (,,,,,,)
+        <$> (json_field "column" e >>= json_string)
+        <*> (json_field "emptied" e >>= json_bool)
+        <*> (json_field "other_nonempty" e >>= json_bool)
+        <*> (json_field "rejected" e >>= json_bool)
+        <*> (json_field "sqlstate" e >>= json_string)
+        <*> (json_field "message" e >>= json_string)
+        <*> (json_field "rows_after" e >>= json_integer)
 
 -- | The @json_agreement@ probes, by name, so a deleted probe is a set mismatch.
 expected_json_agreement_probes :: [String]
@@ -10899,6 +11122,7 @@ core_checks = do
           , store_conformance_records_two_runs_from_an_empty_database
           , store_conformance_records_the_pinned_image_and_server_version
           , store_conformance_records_the_live_identity_constraint
+          , store_conformance_records_the_empty_version_rejection
           , json_recogniser_agrees_with_jsonb_except_where_measured
           , no_credential_is_present_in_a_tracked_file
           , aeson_round_trip_mutations_are_re_measured

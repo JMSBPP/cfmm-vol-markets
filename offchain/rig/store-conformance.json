@@ -85,7 +85,35 @@
       "name": "double-backslash"
     }
   ],
-  "generatedAt": "2026-08-16T16:49:31Z",
+  "empty_version_rejected": {
+    "attempted": true,
+    "columns": [
+      {
+        "column": "gams_ver",
+        "emptied": true,
+        "message": "new row for relation \"model_run\" violates check constraint \"model_run_versions_nonempty\"",
+        "other_nonempty": true,
+        "rejected": true,
+        "rows_after": 0,
+        "sqlstate": "23514"
+      },
+      {
+        "column": "conopt_ver",
+        "emptied": true,
+        "message": "new row for relation \"model_run\" violates check constraint \"model_run_versions_nonempty\"",
+        "other_nonempty": true,
+        "rejected": true,
+        "rows_after": 0,
+        "sqlstate": "23514"
+      }
+    ],
+    "constraint_name": "model_run_versions_nonempty",
+    "control_accepted": true,
+    "control_rows_after": 1,
+    "rejected": true,
+    "sqlstate": "23514"
+  },
+  "generatedAt": "2026-08-17T04:57:27Z",
   "image_tag": "postgres:18-alpine",
   "json_agreement": [
     {
@@ -171,6 +199,10 @@
     {
       "filename": "002_byte_corpus.sql",
       "md5": "9e89722c2ca66bd632f4f5f343934e2f"
+    },
+    {
+      "filename": "003_version_columns_nonempty.sql",
+      "md5": "944a9e1d04f12869f41a524002e64fcb"
     }
   ],
   "sc_complete": true,

@@ -49,7 +49,7 @@ import qualified Data.Aeson.Key as K
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import Data.IORef (newIORef, readIORef, writeIORef)
-import Data.List (sort)
+import Data.List (nub, sort)
 import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 
@@ -60,6 +60,7 @@ import Database.PostgreSQL.Simple
   , Connection
   , Only (..)
   , Query
+  , SqlError (..)
   , execute
   , execute_
   , query
@@ -100,7 +101,11 @@ import Store.Postgres
   , with_connection
   , with_migration_lock
   )
-import Store.Schema (identity_constraint_name)
+import Store.Schema
+  ( identity_constraint_name
+  , versions_nonempty_columns
+  , versions_nonempty_constraint_name
+  )
 import Store.Types
   ( Artifact (..)
   , CorpusMember (..)
@@ -138,8 +143,14 @@ exhibit_conopt_ver = "4.39.0"
 -- It lives only in a scratch directory: the working tree's migration directory is never written,
 -- because the library applies EVERY entry it finds there and the suite asserts that directory's
 -- whole contents against a manifest.
+--
+-- RENUMBERED 003 -> 004 AT 24-06, when the real migration @003@ landed. The library sorts by
+-- FILENAME, so two files sharing a numeric prefix are ordered by the rest of the name and
+-- @003_lock_probe.sql@ would have sorted BEFORE @003_version_columns_nonempty.sql@ -- a probe
+-- interleaved into the middle of the real sequence. It still worked; it was still wrong to leave,
+-- because the next reader has to re-derive the sort order to know that it did.
 lock_probe_filename :: FilePath
-lock_probe_filename = "003_lock_probe.sql"
+lock_probe_filename = "004_lock_probe.sql"
 
 lock_probe_sql :: String
 lock_probe_sql = "create table lock_probe (n integer not null);\n"
@@ -209,6 +220,7 @@ capture = do
     corpus    <- corpus_block con
     agreement <- agreement_block con golden
     migchecks <- migration_checks con dsn primary
+    emptyver  <- empty_version_block con golden
     columns   <- live_identity_constraint_columns con
     digests   <- migration_digests
     stamp     <- generated_at
@@ -229,6 +241,7 @@ capture = do
         , "jsonb_exhibit"     .= exhibit
         , "json_agreement"    .= agreement
         , "migration_checks"  .= migchecks
+        , "empty_version_rejected" .= emptyver
         , "unique_constraint" .= object
             [ "name"    .= identity_constraint_name
             , "columns" .= columns
@@ -543,6 +556,126 @@ concurrency dsn primary = do
 applied_count :: Connection -> IO Int
 applied_count con = do
   rows <- query_ con "select count(*)::int from schema_migrations"
+  pure $ case rows of
+    (Only n : _) -> n
+    []           -> -1
+
+-- ---------------------------------------------------------------------------------------------
+-- (e) The empty toolchain version, refused by the SERVER
+-- ---------------------------------------------------------------------------------------------
+
+-- | One attempt to store an empty version string in ONE column.
+--
+-- 'ea_emptied' and 'ea_other_nonempty' are not decoration. Without the first, an attempt that
+-- emptied nothing (a column name the writer below does not know about) is indistinguishable from
+-- one that did and was refused for some other reason; without the second, emptying BOTH columns
+-- would make the two attempts one attempt recorded twice, and \"both columns are covered\" would be
+-- a claim about a constraint that might only mention one of them.
+data EmptyVersionAttempt = EmptyVersionAttempt
+  { ea_column         :: String
+  , ea_emptied        :: Bool
+  , ea_other_nonempty :: Bool
+  , ea_rejected       :: Bool
+  , ea_sqlstate       :: String
+  , ea_message        :: String
+  , ea_rows_after     :: Int
+  }
+
+-- | GAMS-03's last owed conjunct, DRIVEN rather than argued from the DDL.
+--
+-- @NOT NULL@ does not forbid @''@ -- MEASURED at 24-RESEARCH M14 -- so migration @003@ adds a named
+-- CHECK, and a CHECK nobody has seen reject is treated by this phase as absent. This block attempts
+-- the insert through 'store_put', which is the store's OWN @Binary@-wrapped write path and the same
+-- statement production uses, so the observation is about the schema this repository writes through
+-- and not about a bespoke statement written to be refused.
+--
+-- BOTH COLUMNS ARE ATTEMPTED INDEPENDENTLY, each with the other left non-empty. A constraint that
+-- covered only @gams_ver@ is exactly what a copy-paste produces, and it would satisfy an exhibit
+-- that only ever emptied the first column.
+--
+-- THE POSITIVE CONTROL IS NOT OPTIONAL. \"The insert was refused\" is satisfied by a broken
+-- connection, a malformed key, a @doc@ that is not JSON, and a table that does not exist. The
+-- control sends the IDENTICAL row with both versions non-empty and it must LAND -- so the two
+-- rejections above are attributable to the one thing that differs between them and it.
+--
+-- Nothing here asserts. The SQLSTATE, the server's own message and the row count after each attempt
+-- are recorded as values; @cabal test@ and the capture script are what redden on them.
+empty_version_block :: Connection -> BS.ByteString -> IO Value
+empty_version_block con golden = do
+  attempts <- mapM one_column (zip [0 ..] versions_nonempty_columns)
+  control  <- control_attempt
+  control_rows <- model_run_count con
+  let states = nub [ea_sqlstate a | a <- attempts]
+  pure $ object
+    [ -- The three fields the acceptance criteria read, each a CONJUNCTION over the attempts rather
+      -- than the first one's answer. A divergent SQLSTATE collapses to the empty string, which the
+      -- suite reddens on, instead of being hidden behind whichever attempt ran first.
+      "attempted"          .= not (null attempts)
+    , "rejected"           .= (not (null attempts) && all ea_rejected attempts)
+    , "sqlstate"           .= (case states of [s] -> s; _ -> "")
+    , "constraint_name"    .= versions_nonempty_constraint_name
+    , "control_accepted"   .= control
+    , "control_rows_after" .= control_rows
+    , "columns"            .= map render attempts
+    ]
+  where
+    st = new_postgres_store con
+
+    -- There is deliberately NO per-column @attempted@ field. The first version of this block had
+    -- one and it was the literal 'True', which the sentinel harness reported ABSORBED -- nothing
+    -- could assert it except by comparing a constant to itself, which is 24-04's measured defect
+    -- (a suite stayed 138/138 green with the library renamed underneath it for exactly that
+    -- reason). The honest per-column form is the ENTRY: an attempt that did not run has no member
+    -- here, and the suite compares this array's column set against 'versions_nonempty_columns' in
+    -- BOTH directions, so a missing attempt is a set mismatch rather than a shorter list.
+    render a = object
+      [ "column"         .= ea_column a
+      , "emptied"        .= ea_emptied a
+      , "other_nonempty" .= ea_other_nonempty a
+      , "rejected"       .= ea_rejected a
+      , "sqlstate"       .= ea_sqlstate a
+      , "message"        .= ea_message a
+      , "rows_after"     .= ea_rows_after a
+      ]
+
+    -- The row is the real 606-byte artifact, so @doc@'s @jsonb@ conversion succeeds and the ONLY
+    -- thing that can refuse this insert is the version CHECK. A non-JSON body would raise before
+    -- the constraint was ever evaluated and the recorded SQLSTATE would be about the wrong gate.
+    run_for i gams conopt = StoredRun
+      { sr_model      = exhibit_model
+      , sr_key_scheme = current_key_scheme
+      , sr_key        = BS.pack [0xe0, 0x00, fromIntegral (i :: Int)]
+      , sr_raw        = Artifact golden
+      , sr_gams_ver   = gams
+      , sr_conopt_ver = conopt
+      }
+
+    one_column (i, col) = do
+      truncate_tables con
+      let gams   = if col == "gams_ver"   then "" else exhibit_gams_ver
+          conopt = if col == "conopt_ver" then "" else exhibit_conopt_ver
+      outcome <- try (store_put st (run_for i gams conopt)) :: IO (Either SqlError ())
+      n <- model_run_count con
+      let emptied = (col == "gams_ver" && null gams) || (col == "conopt_ver" && null conopt)
+          other   = if col == "gams_ver" then not (null conopt) else not (null gams)
+      pure $ case outcome of
+        Right () -> EmptyVersionAttempt col emptied other False "" "" n
+        Left e   -> EmptyVersionAttempt col emptied other True
+                      (C8.unpack (sqlState e)) (C8.unpack (sqlErrorMsg e)) n
+
+    control_attempt = do
+      truncate_tables con
+      outcome <- try (store_put st (run_for 9 exhibit_gams_ver exhibit_conopt_ver))
+                   :: IO (Either SqlError ())
+      pure $ case outcome of
+        Right () -> True
+        Left _   -> False
+
+-- | How many rows @model_run@ holds. @-1@ would mean the count did not come back at all, which is
+-- a different fact from zero and is recorded as such.
+model_run_count :: Connection -> IO Int
+model_run_count con = do
+  rows <- query_ con "select count(*)::int from model_run"
   pure $ case rows of
     (Only n : _) -> n
     []           -> -1

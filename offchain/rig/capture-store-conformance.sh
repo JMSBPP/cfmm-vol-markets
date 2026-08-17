@@ -14,6 +14,12 @@
 # DRIVEN here rather than argued. This is the only place in the phase that needs
 # a database at all -- `cabal test` opens no socket, by construction.
 #
+# AN EIGHTH LANDED AT 24-06, and it is GAMS-03's last owed conjunct: migration
+# 003's CHECK refusing an empty gams_ver or conopt_ver. `text not null` does NOT
+# forbid '' -- MEASURED -- and the refusal is observed here, through the store's
+# own Binary-wrapped write path, on BOTH columns independently, with a positive
+# control that lands the identical row when the versions are non-empty.
+#
 # THE GATE IS A VALUE, NOT A GREEN BUILD
 #   jq -r '.corpus[] | select(.name=="octal-escape") | .bare_out_len'
 # must print 3 while .in_len prints 6 and .bare_outcome is "returned" -- six
@@ -145,9 +151,31 @@ fi
 
 # Bounded, and it fails loudly rather than hanging. A readiness poll with no
 # ceiling turns "the database never came up" into "the capture is still going".
+#
+# THE -h IS LOAD-BEARING. MEASURED at 24-06 after THREE consecutive captures died
+# on `server closed the connection unexpectedly`: without it, pg_isready connects
+# over the container's UNIX SOCKET, and the postgres entrypoint runs a TEMPORARY
+# bootstrap server on that socket while initdb is still working. Worse,
+# pg_isready reports a server that answers with `FATAL: database "..." does not
+# exist` as ACCEPTING CONNECTIONS -- so the poll passed, the entrypoint then shut
+# the bootstrap server down to restart the real one, and the client's first query
+# hit the close. The container log said it plainly:
+#
+#   FATAL:  database "..." does not exist
+#   LOG:  received fast shutdown request
+#
+# The bootstrap server listens on the socket ONLY (`listen_addresses` empty), so
+# a TCP probe cannot be satisfied by it. That is the discriminator, and it is why
+# this is `-h 127.0.0.1` rather than a longer sleep: a readiness gate that a
+# not-yet-ready server can satisfy is a gate that reports what it is asked.
+#
+# It failed SAFELY every time -- the artifact was never replaced, because the
+# restore-on-failure trap put the previous one back and proved it by digest --
+# but a flaky gate whose failure mode is "re-run it" is how a real regression
+# gets re-run until it passes.
 READY=0
 for _ in $(seq 1 60); do
-  if docker exec "$CONTAINER" pg_isready -U postgres -d "$DB_NAME" >/dev/null 2>&1; then
+  if docker exec "$CONTAINER" pg_isready -h 127.0.0.1 -U postgres -d "$DB_NAME" >/dev/null 2>&1; then
     READY=1
     break
   fi
@@ -320,6 +348,101 @@ if [ "$COLUMNS" != '["model","key_scheme","key"]' ]; then
   exit 1
 fi
 
+# --- Self-check 4b: an empty toolchain version is REFUSED by the server ----
+# GAMS-03's last owed conjunct. `text not null` does not forbid '' -- MEASURED
+# at 24-RESEARCH M14 -- so migration 003 adds a named CHECK and this is where
+# the refusal is OBSERVED rather than argued from the DDL.
+#
+# THE CARDINALITY COMES FIRST AND FROM A DIFFERENT FIELD, for the same reason
+# it does in self-check 1: an attempts array that lost a member yields nothing
+# from a `select`, and every comparison below would be "" against a literal.
+# Two attempts, one per version column, each with the OTHER column non-empty --
+# a constraint covering only one of them is what a copy-paste produces.
+N_EV=$(jq -r '.empty_version_rejected.columns | length' "$OUT")
+if [ "$N_EV" != "2" ]; then
+  echo "CAPTURE FAIL: the empty-version block records $N_EV column attempts, expected 2." >&2
+  echo "              Both version columns are attempted independently. One attempt cannot say" >&2
+  echo "              whether the CHECK mentions the other column at all." >&2
+  exit 1
+fi
+# ONE jq CALL PER FIELD, and NOT the `read -r a b c <<< "$(jq ... )"` idiom the
+# self-checks above use. MEASURED while proving the restore path: sqlstate is
+# legitimately the EMPTY STRING when the two column attempts disagree, and an
+# empty field in a space-joined line collapses under word splitting -- every
+# variable after it takes its neighbour's value. The gate still fired, but it
+# fired on the wrong arm and printed `accepted=1 rows_after=` for a run whose
+# real defect was a half-written constraint. A positional read over a field that
+# has a legitimate empty value is the "" == "" defect in the instrument.
+EV_ATT=$(jq -r '.empty_version_rejected.attempted' "$OUT")
+EV_REJ=$(jq -r '.empty_version_rejected.rejected' "$OUT")
+EV_SQL=$(jq -r '.empty_version_rejected.sqlstate' "$OUT")
+EV_NAME=$(jq -r '.empty_version_rejected.constraint_name' "$OUT")
+EV_CTRL=$(jq -r '.empty_version_rejected.control_accepted' "$OUT")
+EV_CTRLROWS=$(jq -r '.empty_version_rejected.control_rows_after' "$OUT")
+if [ "$EV_ATT" != "true" ]; then
+  echo "CAPTURE FAIL: the empty-version block records attempted=$EV_ATT." >&2
+  echo "              An exhibit that never ran the insert and an exhibit whose insert was refused" >&2
+  echo "              look identical without this field." >&2
+  exit 1
+fi
+# THE POSITIVE CONTROL IS EVALUATED BEFORE THE REJECTION. "It was refused" is
+# satisfied by a dead connection, a malformed key and a table that is not
+# there; only an IDENTICAL row with non-empty versions LANDING makes the two
+# rejections attributable to the one thing that differs.
+if [ "$EV_CTRL" != "true" ] || [ "$EV_CTRLROWS" != "1" ]; then
+  echo "CAPTURE FAIL: the empty-version POSITIVE CONTROL recorded accepted=$EV_CTRL" >&2
+  echo "              rows_after=$EV_CTRLROWS, expected true and 1. The same row with NON-empty" >&2
+  echo "              versions must be storable, or the refusals above are about something else." >&2
+  exit 1
+fi
+if [ "$EV_REJ" != "true" ]; then
+  echo "CAPTURE FAIL: the empty-version block records rejected=$EV_REJ." >&2
+  echo "              The server STORED an empty toolchain version. KEY-01 folds both version" >&2
+  echo "              strings into the content key, so every toolchain then hashes to the same key" >&2
+  echo "              component and the poisoned rows are indistinguishable afterwards. Report it" >&2
+  echo "              as a FINDING about migration 003; do not adjust the numbers." >&2
+  exit 1
+fi
+if [ "$EV_SQL" != "23514" ]; then
+  echo "CAPTURE FAIL: the empty-version refusal reported SQLSTATE '$EV_SQL', expected 23514." >&2
+  echo "              23514 is check_violation. An empty value here means the two attempts" >&2
+  echo "              disagreed; anything else means a DIFFERENT gate refused the insert and this" >&2
+  echo "              exhibit is about the wrong constraint. Record the real value and investigate." >&2
+  exit 1
+fi
+# Iterated by INDEX and read one field at a time, for the reason recorded above:
+# a per-column sqlstate is the empty string exactly when that attempt was NOT
+# refused, which is the case this loop exists to catch, and a space-joined read
+# loses it precisely then.
+for EV_I in $(seq 0 $((N_EV - 1))); do
+  C_COL=$(jq -r --argjson i "$EV_I" '.empty_version_rejected.columns[$i].column' "$OUT")
+  C_EMPTIED=$(jq -r --argjson i "$EV_I" '.empty_version_rejected.columns[$i].emptied' "$OUT")
+  C_OTHER=$(jq -r --argjson i "$EV_I" '.empty_version_rejected.columns[$i].other_nonempty' "$OUT")
+  C_REJ=$(jq -r --argjson i "$EV_I" '.empty_version_rejected.columns[$i].rejected' "$OUT")
+  C_SQL=$(jq -r --argjson i "$EV_I" '.empty_version_rejected.columns[$i].sqlstate' "$OUT")
+  C_ROWS=$(jq -r --argjson i "$EV_I" '.empty_version_rejected.columns[$i].rows_after' "$OUT")
+  if [ "$C_EMPTIED" != "true" ] || [ "$C_OTHER" != "true" ]; then
+    echo "CAPTURE FAIL: attempt for $C_COL recorded emptied=$C_EMPTIED other_nonempty=$C_OTHER." >&2
+    echo "              An attempt that emptied nothing, or that emptied both columns at once," >&2
+    echo "              is not the per-column observation this block claims to be." >&2
+    exit 1
+  fi
+  if [ "$C_REJ" != "true" ] || [ "$C_SQL" != "23514" ] || [ "$C_ROWS" != "0" ]; then
+    echo "CAPTURE FAIL: attempt for $C_COL recorded rejected=$C_REJ sqlstate=$C_SQL rows=$C_ROWS," >&2
+    echo "              expected true / 23514 / 0. rows_after is the server's own count and it is" >&2
+    echo "              what says the row did not land -- 'an exception was raised' does not." >&2
+    exit 1
+  fi
+  if ! jq -e --arg c "$C_COL" --arg n "$EV_NAME" \
+       '.empty_version_rejected.columns[] | select(.column==$c) | .message | contains($n)' \
+       "$OUT" >/dev/null; then
+    echo "CAPTURE FAIL: the server's message for $C_COL does not name $EV_NAME." >&2
+    echo "              23514 alone says only that SOME check refused. The constraint name is what" >&2
+    echo "              says WHICH, and this table is free to grow other checks later." >&2
+    exit 1
+  fi
+done
+
 # --- Self-check 5: the freshness oracle has something to bite on -----------
 N_MIGRATIONS=$(jq -r '.migrations | length' "$OUT")
 N_ON_DISK=$(ls -A "$MIGRATIONS" | wc -l)
@@ -339,5 +462,6 @@ echo "  BYTE-02:   the jsonb rendering digests DIFFERENTLY -- bytea is authorita
 echo "  DB-01:     checksum drift exited $M_DRIFT; empty-db second run applied $M_RUN2"
 echo "  LOCK:      excluded try=$M_TRY applied=$M_APPLIED, after release try=$M_FREEDTRY applied=$M_FREEDAPPLIED"
 echo "  KEY-07:    live catalogue columns $COLUMNS"
+echo "  GAMS-03:   empty version REFUSED on $N_EV columns, SQLSTATE $EV_SQL, control landed $EV_CTRLROWS row"
 echo "  LAWS:      $N_VERDICTS/$N_LAWS pass against $(jq -r '.server_version' "$OUT") ($(jq -r '.image_tag' "$OUT"))"
 echo "  LEAVES:    $(jq -r 'paths(scalars) | join(".")' "$OUT" | wc -l)  (plan 23-05's sentinel budget input)"
