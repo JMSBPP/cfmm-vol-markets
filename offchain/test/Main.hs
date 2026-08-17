@@ -1200,8 +1200,18 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
 -- > 65
+--
+-- RE-MEASURED COLD AT 26-04, in the same sitting as 'credential_scan_floor' and by running the
+-- command rather than by adding two to the 65 above it: 67 against exactly 67, zero slack. Census
+-- under @offchain\/@ at that measurement: @hs 54, sh 10, json 10, sql 3@. The wave-start reading,
+-- taken COLD before this plan edited anything, was 65, and this plan adds exactly two files this
+-- scan can see -- @offchain\/app\/FeeSplitConformance.hs@ and @offchain\/rig\/capture-fee-split.sh@.
+-- The prediction and the measurement agree, and both ends were RUN.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
+-- > 67
 purge_file_floor :: Int
-purge_file_floor = 65
+purge_file_floor = 67
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -5747,6 +5757,14 @@ swept_artifacts =
   -- reads is a solver-only claim that survived the entire phase unasserted, which is precisely the
   -- shape issue #19 names and precisely why the sweep is pointed at it.
   , MutableArtifact "GAMS_CONFORMANCE" gams_conformance_path "gams-conformance.json"
+  -- 26-04. The SEVENTH, and the only artifact in this repository that records the prover REFUSING
+  -- something. Its sibling above records what the toolchain does with shocks it accepts; every one
+  -- of those nine observations is about a run that worked. The four rows here where GAMS aborts at
+  -- model line 109 are the only place in the whole tree where the real solver is ever seen saying
+  -- NO, and there is no second copy of them anywhere. So a leaf of this file that nothing reads is
+  -- a real-solver claim that survived the entire phase unasserted -- and worse than the general
+  -- case, because the claim it would be is FEE-02's own headline.
+  , MutableArtifact "FEE_SPLIT_CONFORMANCE" fee_split_conformance_path "fee-split-conformance.json"
   ]
 
 -- | THE HONEST GAP, NAMED. Committed artifacts the suite reads that this sweep cannot reach,
@@ -6180,6 +6198,22 @@ absorbed_by_design =
   , ( "gams-conformance.json.generatedAt"
     , [("empty-string", 1), ("numeric-zero", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1), ("json-null", 1)]
     , reason_generated_at )
+  -- 26-04, the seventh artifact, and its first run over this file reported exactly ONE absorbed
+  -- field -- the same one the two captures before it did, pardoned for the same measured reason
+  -- rather than a new one. 124 of its 125 leaves are read by one of checks 21-23. The three that
+  -- were CANDIDATES for a pardon on that first run were ASSERTED instead, and all three are worth
+  -- naming because each was a real hole:
+  --
+  --   * @gams_version@ and @conopt_version@ were absorbed under the zero address, the zero word and
+  --     the null object id, because the arm asserted only non-emptiness and all three are non-empty
+  --     strings. They are now asserted as DOTTED NUMERALS.
+  --   * @grid[].gams_exit@ and @grid[].gams_abort_line@ were each absorbed under the numeric zero
+  --     on the eight ADMISSIBLE rows. The first of those is RC-B2's own stated falsifying input.
+  --     Both are now tied to each other -- an abort names a line and a line implies an abort -- and
+  --     the line must be in volume_path.gms's known abort taxonomy.
+  , ( "fee-split-conformance.json.generatedAt"
+    , [("empty-string", 1), ("numeric-zero", 1), ("zero-address", 1), ("zero-word", 1), ("git-null-object-id", 1), ("json-null", 1)]
+    , reason_generated_at )
   ]
 
 -- | @steps[3].e3.tick@ -> @steps[].e3.tick@.
@@ -6243,8 +6277,23 @@ absorbed_expectations =
 -- refused row did not land, which is a different claim from \"an exception was raised\". The five
 -- other artifacts still contribute exactly what they did, which is what says none of them shrank
 -- while this one grew.
+--
+-- 3828 -> 4574 AT 26-04, and this one IS a seventh artifact. RE-MEASURED by the same method and by
+-- no other: the constant was raised to a number nothing could reach and the harness NAMED 4574.
+-- The arithmetic is the check on it. @fee-split-conformance.json@ enumerates 125 leaves and there
+-- are six sentinels, so 750 pairs are possible and @4574 - 3828 = 746@ were exercised -- exactly
+-- FOUR skipped as identities, and they are NAMED rather than counted: the numeric zero against
+-- @controls[].control_exit@, which is legitimately 0 for all four controls. That zero is the whole
+-- point of a control. A pair whose control exits 0 through the unmodified production path is a pair
+-- the toolchain can answer at all, which is what makes an abort at that pair's boundary
+-- attributable to the target rather than to the pair.
+--
+-- The six older artifacts therefore still contribute exactly the 3828 this number replaced, which
+-- is what says none of them shrank while this one was added -- and it says something else this
+-- time: @26-VALIDATION.md@ predicted phase 25 would grow @store-conformance.json@ by about 22
+-- leaves, and it did not grow it at all.
 sentinel_pair_floor :: Int
-sentinel_pair_floor = 3828
+sentinel_pair_floor = 4574
 
 -- | THE PER-ARTIFACT FLOOR. The total alone is satisfiable by one artifact growing while another
 -- drops out entirely, which is the same substitution the pin-surface SET exists to stop.
@@ -6281,6 +6330,30 @@ sentinel_pair_floor = 3828
 -- written above -- including @gams-conformance.json@, taken one plan ago -- so none of them shrank
 -- while this one grew, which is the whole reason the list is re-measured rather than edited in one
 -- place.
+--
+-- ALL SEVEN RE-MEASURED AT 26-04, in ONE run and by the same method -- every existing floor raised
+-- by exactly 1, and the new one set to a number nothing could reach, so the harness had to name what
+-- each artifact enumerated. It named all seven at once:
+--
+-- >  rig-manifest.json: 20         rig-pins.json: 110          driver-run-capture.json: 151
+-- >  cheat-swap-proof.json: 130    store-conformance.json: 156  gams-conformance.json: 76
+-- >  fee-split-conformance.json: 125
+--
+-- NOT ONE OF THE SIX MOVED, and that is reported in BOTH directions. @26-VALIDATION.md@'s standing
+-- guidance was that phase 25 would extend @store-conformance.json@ by about 22 leaves rather than
+-- add an artifact, so this list was re-measured EXPECTING that entry to have grown. It did not:
+-- 156 is still the number migration @003@ put there at 24-06, and phase 25 added no leaf to any of
+-- the six. A prediction that did not come true is recorded here rather than quietly dropped,
+-- because the whole reason the list is re-measured as VALUES is that a stale entry beside a fresh
+-- one records the tree as it was on the day someone last thought about it.
+--
+-- @fee-split-conformance.json@'s 125 is the HARNESS's count and it is the one to budget with.
+-- @jq '[paths(scalars)] | length'@ reports 117 for the same file -- eight fewer -- and the eight are
+-- exactly its @False@ leaves: four @haskell_admits@ and four @gams_admits@, one pair per boundary
+-- refusal row. @paths(f)@ is a @select@ over the value at each path, so a path whose value IS
+-- @false@ is discarded by the very mechanism meant to enumerate it. That is the same trap the note
+-- on 'sentinel_pair_floor' records for nulls, met a second time on a different value, and the
+-- harness's number is the larger one in both cases.
 artifact_field_floors :: [(String, Int)]
 artifact_field_floors =
   [ ("rig-manifest.json", 20)
@@ -6289,6 +6362,7 @@ artifact_field_floors =
   , ("cheat-swap-proof.json", 130)
   , ("store-conformance.json", 156)
   , ("gams-conformance.json", 76)
+  , ("fee-split-conformance.json", 125)
   ]
 
 -- | A key nothing in this suite reads, injected into the manifest for the NEGATIVE control.
@@ -7850,10 +7924,20 @@ credential_scan root =
 -- moved together again, and the two commands were still run separately. The spike is THROWAWAY:
 -- when it is deleted this floor returns to 73 by RUNNING the command, never by subtracting one.
 --
+-- RE-MEASURED COLD AT 26-04, in the same sitting as 'purge_file_floor' and by running the command
+-- below rather than by adding three to the 74 beside it: @77 = 54 hs + 10 sh + 10 json + 3 sql@,
+-- against exactly 77 files, zero slack. THIS floor moves by THREE where its twin moves by two,
+-- and the extra one is the whole reason the two lists differ: @.json@ is scanned HERE because a
+-- credential pasted into an artifact is the case this scan exists for, and this plan commits an
+-- artifact. The two commands were still run separately.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+-- > 77
+--
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 74
 credential_scan_floor :: Int
-credential_scan_floor = 74
+credential_scan_floor = 77
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -14241,6 +14325,617 @@ the_admissible_band_has_more_than_one_member =
           | otherwise -> Right ()
 
 -- ---------------------------------------------------------------------------------------------
+-- FEE-02 TIER C: THE DIFFERENTIAL AGAINST THE REAL PROVER
+--
+-- Four checks over @offchain\/rig\/fee-split-conformance.json@, which is the ONLY place in this
+-- repository where GAMS is ever observed REFUSING something. Every other real-solver observation
+-- the suite makes -- the whole of @gams-conformance.json@ -- is about runs that worked.
+--
+-- THE DISCRIMINATOR IS THE MODEL'S SOURCE LINE AND NOT THE EXIT CODE, and that is the single fact
+-- these checks are built on. MEASURED over 160 real invocations and re-measured by the capture on
+-- every run: @gams@ exits 3 for at least six different reasons and the abort message reaches
+-- neither stdout nor stderr. It lands in @volume_path.log@ and it names the model's own line --
+-- 109 is the half-ellipse refusal, 171 and 173 are CONOPT failing to reach an ADMISSIBLE point,
+-- 103 is a fixture property, 91 is equal fees. At this fixture's @volTgtWad@ every one of the eight
+-- rows at and above a boundary is CONOPT-infeasible, so a verdict derived from @exit == 0@ would
+-- report a disagreement on eight of twelve and call a solver limitation a splitter bug.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The artifact, through the RESOLVER. FAIL-never-skip, and the advice is
+-- 'fee_split_conformance_command', declared once beside the override probe that also advertises it.
+read_fee_split_conformance :: IO (Either String Value)
+read_fee_split_conformance = do
+  path <- fee_split_conformance_path
+  read_json_file path ("re-take it with: " ++ fee_split_conformance_command)
+
+-- | @(phiXpips, phiMpips, boundary, control target)@ -- the four pairs the capture drove.
+--
+-- The BOUNDARY is stated here so check 23 can re-bisect it; it is never read out of the artifact.
+-- The CONTROL target is MEASURED and not chosen: 490000 -- ROADMAP SC-2's own 0.49 -- is solvable
+-- for three of the four pairs at this fixture's volume, and (700, 800) is the outlier that
+-- ellipse-refuses everything below 495954 and needs 497000.
+fee_split_pinned_pairs :: [(Integer, Integer, Integer, Integer)]
+fee_split_pinned_pairs =
+  [ (500,  6000, 82804,  490000)
+  , (100,  900,  109769, 490000)
+  , (1000, 3000, 300361, 490000)
+  , (700,  800,  495953, 497000)
+  ]
+
+-- | The SIXTEEN keys the capture must carry: three grid points per pair and one control.
+--
+-- A SET, never a count. A truncated capture with a renamed row survives a count and is named here.
+fee_split_grid_keys, fee_split_control_keys :: [(Integer, Integer, Integer)]
+fee_split_grid_keys =
+  [ (x, m, b + offset) | (x, m, b, _) <- fee_split_pinned_pairs, offset <- [-1, 0, 1] ]
+fee_split_control_keys =
+  [ (x, m, c) | (x, m, _, c) <- fee_split_pinned_pairs ]
+
+-- | The model source line the HALF-ELLIPSE gate aborts at, and the only line number that means
+-- \"this pair does not admit this target\".
+--
+-- 'volume_path.gms' line 109 is @abort$(ellTest > 0)@. It is pinned against the model's sha256,
+-- which the capture records and check 21 asserts the shape of: a source line is stable exactly as
+-- long as the file is.
+fee_split_ellipse_line :: Integer
+fee_split_ellipse_line = 109
+
+-- | One grid row, read out of the artifact. No field here is a judgement; the judgements are in
+-- check 22, which RECOMPUTES them.
+data FsRow = FsRow
+  { fr_x       :: Integer
+  , fr_m       :: Integer
+  , fr_target  :: Integer
+  , fr_e       :: Integer
+  , fr_haskell :: Bool
+  , fr_exit    :: Integer
+  , fr_line    :: Integer
+  , fr_gams    :: Bool
+  }
+
+fr_key :: FsRow -> (Integer, Integer, Integer)
+fr_key row = (fr_x row, fr_m row, fr_target row)
+
+one_fs_row :: Value -> Either String FsRow
+one_fs_row v = do
+  x       <- gc_integer ["phiXpips"] v
+  m       <- gc_integer ["phiMpips"] v
+  target  <- gc_integer ["txlVolumeRate"] v
+  e_text  <- gc_string  ["haskell_E"] v
+  haskell <- gc_bool    ["haskell_admits"] v
+  code    <- gc_integer ["gams_exit"] v
+  line    <- gc_integer ["gams_abort_line"] v
+  gams    <- gc_bool    ["gams_admits"] v
+  e <- case reads e_text :: [(Integer, String)] of
+         [(n, "")] -> Right n
+         _         -> Left ("haskell_E is " ++ show e_text ++ ", which is not a decimal Integer."
+                             ++ " It is a STRING in the artifact because these values exceed the"
+                             ++ " 53-bit double-exact ceiling, which is the same rule"
+                             ++ " VOLUME_PATH.md section 3 states for sqrtPriceX96 and liquidity.")
+  pure (FsRow x m target e haskell code line gams)
+
+-- | One control: the pair, the target it was driven at, its exit code and whether it produced.
+data FsControl = FsControl
+  { fc_x        :: Integer
+  , fc_m        :: Integer
+  , fc_target   :: Integer
+  , fc_exit     :: Integer
+  , fc_artifact :: Bool
+  }
+
+fc_key :: FsControl -> (Integer, Integer, Integer)
+fc_key c = (fc_x c, fc_m c, fc_target c)
+
+one_fs_control :: Value -> Either String FsControl
+one_fs_control v =
+  FsControl
+    <$> gc_integer ["phiXpips"] v
+    <*> gc_integer ["phiMpips"] v
+    <*> gc_integer ["txlVolumeRate"] v
+    <*> gc_integer ["control_exit"] v
+    <*> gc_bool    ["control_artifact_present"] v
+
+fee_split_rows :: Value -> Either String ([FsRow], [FsControl])
+fee_split_rows artifact = do
+  grid     <- gc_at ["grid"] artifact >>= json_array >>= mapM one_fs_row
+  controls <- gc_at ["controls"] artifact >>= json_array >>= mapM one_fs_control
+  pure (grid, controls)
+
+show_key :: (Integer, Integer, Integer) -> String
+show_key (x, m, d) = "(" ++ show x ++ ", " ++ show m ++ ") @ " ++ show d
+
+-- | CHECK 21 -- PRESENT, COMPLETE, THE RIGHT SIXTEEN POINTS, AND FRESH.
+--
+-- This check carries the artifact's entire provenance, so it is the one that must not be able to
+-- pass on a document that has quietly become about something else.
+--
+-- The row and control key SETS are compared in BOTH directions against the pinned sixteen. A COUNT
+-- would survive a capture that dropped @(700, 800) \@ 495952@ and added a second row at a target
+-- nothing brackets, which is the substitution the pin-surface SET exists to stop one layer up.
+--
+-- @splitter_source_sha256@ is RECOMPUTED from this repository's own disk. Every @haskell_admits@
+-- and every @haskell_E@ in the artifact came out of that module, so editing it without re-capturing
+-- means twelve recorded verdicts about code nobody ran -- 23-05's migration oracle and 24-05's
+-- @argv_module_sha256@, applied to a third subject.
+--
+-- @generatedAt@ is deliberately NOT consulted: 21-02 MEASURED that it is not a regeneration witness
+-- in this repository. It is also why this artifact is NOT byte-stable across two consecutive
+-- captures -- MEASURED here, the same fact 24-05 recorded for its sibling: two runs taken 39
+-- seconds apart differ in that field and in nothing else at all.
+fee_split_conformance_is_present_and_fresh :: Check
+fee_split_conformance_is_present_and_fresh =
+  Check "fee_split_conformance_is_present_and_fresh" . guarded $ do
+    loaded    <- read_fee_split_conformance
+    splitter  <- doesFileExist fee_splitter_path
+    recomputed <- if splitter then Just . sha256_hex <$> BS.readFile fee_splitter_path
+                              else pure Nothing
+    pure $ do
+      artifact <- loaded
+      complete <- gc_bool    ["complete"] artifact
+      recorded <- gc_string  ["splitter_source_sha256"] artifact
+      model    <- gc_string  ["model_sha256"] artifact
+      gams_v   <- gc_string  ["gams_version"] artifact
+      conopt_v <- gc_string  ["conopt_version"] artifact
+      line     <- gc_integer ["ellipse_abort_line"] artifact
+      vol_tgt  <- gc_string  ["vol_tgt_wad"] artifact
+      events   <- gc_integer ["n_events"] artifact
+      (grid, controls) <- fee_split_rows artifact
+
+      _ <- expect complete
+             ("the fee-split capture did not reach the end: complete is False. The flag starts"
+               ++ " False and is flipped after every row and every control has returned, and the"
+               ++ " FILE is written exactly once, at the end, through an atomic rename -- so this"
+               ++ " is a TRUNCATED run, not a stale one. (\"Written last\" is not observable in a"
+               ++ " single JSON document; the rename is the guarantee and it is the one asserted"
+               ++ " here.) Re-take it: " ++ fee_split_conformance_command)
+
+      let got_grid    = map fr_key grid
+          got_control = map fc_key controls
+          missing_g   = [k | k <- fee_split_grid_keys, k `notElem` got_grid]
+          extra_g     = [k | k <- got_grid, k `notElem` fee_split_grid_keys]
+          missing_c   = [k | k <- fee_split_control_keys, k `notElem` got_control]
+          extra_c     = [k | k <- got_control, k `notElem` fee_split_control_keys]
+      _ <- expect (null missing_g && null extra_g && null missing_c && null extra_c)
+             ("the capture's (phiXpips, phiMpips, txlVolumeRate) key set is not the pinned sixteen."
+               ++ concat ["\n      MISSING grid point: " ++ show_key k | k <- missing_g]
+               ++ concat ["\n      UNPINNED grid point: " ++ show_key k | k <- extra_g]
+               ++ concat ["\n      MISSING control: " ++ show_key k | k <- missing_c]
+               ++ concat ["\n      UNPINNED control: " ++ show_key k | k <- extra_c]
+               ++ "\n      This is a SET and not a count on purpose: a truncated capture that"
+               ++ " renamed a row would keep the count and take every assertion made about the"
+               ++ " missing point with it.")
+
+      _ <- case recomputed of
+             Nothing ->
+               Left (fee_splitter_path ++ " is not on disk, so the freshness digest below would"
+                      ++ " compare nothing. Every haskell verdict in the capture came out of that"
+                      ++ " module.")
+             Just now ->
+               expect (now == recorded)
+                 ("the committed fee-split differential is STALE. " ++ fee_splitter_path
+                   ++ " has been edited since it was taken:\n      recorded=" ++ recorded
+                   ++ "\n      recomputed=" ++ now
+                   ++ "\n      Every haskell_admits and every haskell_E in that artifact was"
+                   ++ " produced by the OLD arithmetic and nothing here can tell you whether the"
+                   ++ " prover still agrees with the new one. Re-take it: "
+                   ++ fee_split_conformance_command)
+
+      _ <- expect (line == fee_split_ellipse_line)
+             ("the capture records the half-ellipse abort at model line " ++ show line
+               ++ " and this suite keys its verdict on line " ++ show fee_split_ellipse_line
+               ++ ". That number is the ONLY thing separating an admissibility refusal from a"
+               ++ " CONOPT failure -- exit 3 covers both -- so the two must be the same line or"
+               ++ " every gams_admits below is about the wrong gate.")
+      _ <- expect (is_bare_sha256 model)
+             ("the recorded model_sha256 is " ++ show model ++ ", which is not 64 bare lowercase"
+               ++ " hex characters. It cannot be recomputed here -- volume_path.gms lives in the"
+               ++ " sibling cfmm-wt/gams worktree -- so SHAPE is what this suite can assert, on"
+               ++ " 23-05's PGSTORE_DSN precedent. It is recorded because the abort LINE NUMBER is"
+               ++ " a line of that file.")
+      let bad_versions = [v | v <- [gams_v, conopt_v], not (is_dotted_numeral v)]
+      _ <- expect (null bad_versions)
+             ("these recorded toolchain versions are not dotted numerals: "
+               ++ intercalate ", " (map show bad_versions)
+               ++ ".\n      Both come from the SHIPPED parsers applied to a run that PRODUCED an"
+               ++ " artifact, so the shape is the parser's own output and not a convention. A"
+               ++ " non-emptiness test alone is not enough and that is MEASURED: the sentinel"
+               ++ " harness replaced each of these with the zero address, the zero word and the"
+               ++ " null object id, and all three are non-empty strings, so all six mutations were"
+               ++ " ABSORBED until this arm was written the way it is.")
+      expect (vol_tgt == show fixture_vol_tgt_wad && events == fixture_n_events)
+        ("the capture drove volTgtWad " ++ vol_tgt ++ " and nEvents " ++ show events
+          ++ ", and this suite's fixture is " ++ show fixture_vol_tgt_wad ++ " / "
+          ++ show fixture_n_events ++ ".\n      Those two are what decide which ADMISSIBLE points"
+          ++ " CONOPT can actually reach, so a capture taken at a different volume is measuring a"
+          ++ " different experiment. Raising volTgtWad to rescue an infeasible row was MEASURED not"
+          ++ " to work -- six values and three nEvents settings all still abort, because the"
+          ++ " model's own u box of [1e-3, 1e3] bounds what any volume can reach.")
+
+-- | @VOLUME_PATH.md@ section 2's fixture, restated here so check 21 can assert the capture drove it.
+fixture_vol_tgt_wad, fixture_n_events :: Integer
+fixture_vol_tgt_wad = 28000000000000000000
+fixture_n_events    = 8
+
+-- | @54.1.0@ and @4.39.0@ have this shape; the zero address, the zero word and the 40-character
+-- null object id do not, and a non-emptiness test admits all three.
+--
+-- @take 1@ and @drop (n-1)@ rather than @head@ and @last@: this package builds under @-Wx-partial@
+-- and a partial function here is a build warning, which is a gate failure in this tree.
+is_dotted_numeral :: String -> Bool
+is_dotted_numeral s =
+  not (null s)
+    && all (\c -> isDigit c || c == '.') s
+    && '.' `elem` s
+    && take 1 s /= "."
+    && drop (length s - 1) s /= "."
+
+-- | THE ABORT LINES @volume_path.gms@ IS KNOWN TO HALT AT, plus @0@ for a run that did not abort.
+--
+-- Read off the model at sha256 @79940449..ca53ad@ and cross-checked against the 160-run sweep:
+-- @77 \/ 88 \/ 89 \/ 90@ are input-shape aborts, @91@ is equal fees, @103@ is the kappa range,
+-- @109@ is the half-ellipse, @171 \/ 173@ are @solveStat@ and @modelStat@, and @195-199@ are the
+-- tolerance gates on the solved path. A recorded line outside this set is a gate this taxonomy has
+-- never seen, which is precisely the state in which @gams_admits@ stops being decidable.
+fee_split_known_abort_lines :: [Integer]
+fee_split_known_abort_lines =
+  [0, 77, 88, 89, 90, 91, 103, 109, 171, 173, 195, 196, 197, 198, 199]
+
+-- | CHECK 22 -- THE PHASE'S HEADLINE. FEE-02, against the real prover, on every grid point.
+--
+-- The Haskell verdict is RECOMPUTED in-suite from @(phiXpips, phiMpips, txlVolumeRate)@ by calling
+-- 'Fee.Split.is_admissible', and is then compared to BOTH recorded verdicts. Reading
+-- @haskell_admits@ and comparing it to @gams_admits@ would be an assertion about two fields of one
+-- document; recomputing makes it an assertion about the shipped arithmetic.
+--
+-- == THE DERIVATION OF @gams_admits@ IS PINNED HERE, NOT LEFT IMPLICIT
+--
+-- @gams_admits == (gams_abort_line \/= 109)@, asserted on every row. Without this arm the recorded
+-- verdict is a number nothing ties to an observable, and a capture that wrote
+-- @gams_admits = haskell_admits@ -- the most natural mistake, and this repository's own most
+-- frequent defect -- would make the whole differential a tautology with no GAMS run load-bearing at
+-- all. FALSIFYING INPUT, and it must redden here: hand-edit the artifact so every @gams_exit@ is 0
+-- while leaving @gams_admits@ untouched.
+--
+-- == THE FOUR ROWS WHERE GAMS ACTUALLY REFUSES
+--
+-- Every @boundary - 1@ row must carry @gams_exit \/= 0@ AND @gams_abort_line == 109@. Those four
+-- rows are the only place in this entire repository where the real prover is ever seen rejecting
+-- anything, and a guard never observed rejecting is treated as ABSENT. The exit code alone is not
+-- enough and that is the whole finding: it is 3 for the ellipse refusal, for CONOPT infeasibility,
+-- for the kappa range check and for an unhandled execution error alike.
+--
+-- == THE ONE-PIP ATTRIBUTION ARM, AND WHY IT IS NOT THE ONE THE PLAN ASKED FOR
+--
+-- 26-04-PLAN.md asks this check to assert @gams_exit == 0@ on every @boundary + 1@ row. MEASURED
+-- against the real prover: that is FALSE for all four pairs. Every row at and above a boundary
+-- aborts at line 171 or 173 -- CONOPT cannot reach an admissible point at this fixture's volume --
+-- and three of the plan's four vertex controls abort too. The arm that survives is STRICTLY
+-- STRONGER than the one asked for, because it names the gate rather than inferring it: the
+-- @boundary + 1@ row must have @gams_abort_line \/= 109@. A row that the ellipse refuses one pip
+-- below and does NOT refuse one pip above cannot be explained by anything that varies smoothly in
+-- @dStar@ -- the kappa range check does not move by one pip, and CONOPT's infeasibility is recorded
+-- under its own two line numbers rather than under the ellipse's.
+--
+-- The vertex CONTROL is still asserted and still does its own job, which is different: a pair whose
+-- control produced an artifact through the unmodified production path is a pair the toolchain can
+-- answer at all, so its aborts are about the target rather than about the pair being unrunnable.
+haskell_and_gams_agree_on_every_grid_point :: Check
+haskell_and_gams_agree_on_every_grid_point =
+  Check "haskell_and_gams_agree_on_every_grid_point" . guarded $ do
+    loaded <- read_fee_split_conformance
+    pure $ do
+      artifact <- loaded
+      (grid, controls) <- fee_split_rows artifact
+
+      -- (1) THE DIFFERENTIAL. Recomputed, never re-read.
+      let disagree =
+            [ show_key (fr_key row) ++ ": Fee.Split.is_admissible recomputes " ++ show recompute
+                ++ ", the capture recorded haskell_admits " ++ show (fr_haskell row)
+                ++ " and gams_admits " ++ show (fr_gams row)
+                ++ " (exit " ++ show (fr_exit row) ++ ", model line " ++ show (fr_line row) ++ ")"
+            | row <- grid
+            , let recompute = is_admissible (fr_x row) (fr_m row) (fr_target row)
+            , recompute /= fr_haskell row || recompute /= fr_gams row
+            ]
+      _ <- expect (null disagree)
+             ("Fee.Split and the REAL prover do not agree on every grid point:\n      "
+               ++ intercalate "\n      " disagree
+               ++ "\n      FEE-02: a disagreement is a bug in one of them and fails the phase; it"
+               ++ " is not absorbed by a tolerance. 26-RESEARCH.md M5 records the smallest exact"
+               ++ " margin at these fee magnitudes as 4.99e-12 at the (500, 6000) boundary pip,"
+               ++ " about 10^10 times the double noise floor, so a disagreement here is a real"
+               ++ " defect and never a rounding artifact.")
+
+      -- (2) The recorded E, against the same function recomputed.
+      let wrong_e =
+            [ show_key (fr_key row) ++ ": recorded " ++ show (fr_e row) ++ ", recomputed "
+                ++ show (ellipse_test (fr_x row) (fr_m row) (fr_target row))
+            | row <- grid
+            , ellipse_test (fr_x row) (fr_m row) (fr_target row) /= fr_e row
+            ]
+      _ <- expect (null wrong_e)
+             ("these rows record an ellipse_test value the shipped function does not produce:\n      "
+               ++ intercalate "\n      " wrong_e)
+
+      -- (3) THE DERIVATION, tied to the one real GAMS observable in the document.
+      let underived =
+            [ show_key (fr_key row) ++ ": gams_admits " ++ show (fr_gams row)
+                ++ " with abort line " ++ show (fr_line row)
+            | row <- grid
+            , fr_gams row /= (fr_line row /= fee_split_ellipse_line)
+            ]
+      _ <- expect (null underived)
+             ("these rows record a gams_admits that is not (gams_abort_line /= "
+               ++ show fee_split_ellipse_line ++ "):\n      " ++ intercalate "\n      " underived
+               ++ "\n      That identity is the whole differential. A capture that wrote"
+               ++ " gams_admits = haskell_admits instead would satisfy every agreement arm above"
+               ++ " with no GAMS run load-bearing anywhere, which is the tautology class this"
+               ++ " repository has measured seven representations of.")
+
+      -- (3b) THE EXIT AND THE LINE ARE TIED TO EACH OTHER, AND THE LINE IS IN THE TAXONOMY.
+      --
+      -- Arm (3) alone is satisfiable by damaging EITHER of its two inputs on an admissible row:
+      -- setting a 173 to 0 keeps @0 /= 109@ true, and setting a 3 to 0 touches nothing arm (3)
+      -- reads. MEASURED, both: the sentinel harness reported
+      -- @grid[].gams_abort_line := numeric-zero x8@ and @grid[].gams_exit := numeric-zero x8@
+      -- ABSORBED SILENTLY until this arm existed -- and the second of those two IS RC-B2's stated
+      -- falsifying input, \"hand-edit the artifact so every gams_exit is 0\", landing on the eight
+      -- rows arm (4) does not cover.
+      let untied =
+            [ show_key (fr_key row) ++ ": exit " ++ show (fr_exit row) ++ ", model line "
+                ++ show (fr_line row)
+            | row <- grid
+            , (fr_exit row /= 0) /= (fr_line row /= 0)
+                || fr_line row `notElem` fee_split_known_abort_lines
+            ]
+      _ <- expect (null untied)
+             ("these rows record an exit code and an abort line that cannot both be true, or a line"
+               ++ " outside volume_path.gms's known abort taxonomy:\n      "
+               ++ intercalate "\n      " untied
+               ++ "\n      A run that halted at an abort$ NAMES a source line in its log, and a run"
+               ++ " that named none did not abort. An abort with no line, or a line from a run that"
+               ++ " exited 0, is a state in which gams_admits is not decidable from anything the"
+               ++ " document records.")
+
+      -- (4) THE FOUR ROWS WHERE GAMS REFUSES. The only place it is ever seen rejecting.
+      -- The ABSENT list is separate from the count for a measured reason: a first draft asserted
+      -- @length ... == 4 && null not_refused@ and, under a capture with a refusal row DELETED,
+      -- printed a failure whose body was EMPTY -- the count was wrong and the list of offenders was
+      -- not, so the message named nothing at all.
+      let refusals = [ (x, m, b - 1) | (x, m, b, _) <- fee_split_pinned_pairs ]
+          absent   = [ "no row at all for " ++ show_key k
+                     | k <- refusals, k `notElem` map fr_key grid ]
+          not_refused =
+            [ show_key (fr_key row) ++ ": exit " ++ show (fr_exit row) ++ ", model line "
+                ++ show (fr_line row)
+            | row <- grid
+            , fr_key row `elem` refusals
+            , fr_exit row == 0 || fr_line row /= fee_split_ellipse_line
+            ]
+      _ <- expect (null absent && null not_refused)
+             ("the four boundary-minus-one rows are the ONLY place the real prover is ever observed"
+               ++ " REFUSING anything, and they do not all abort at model line "
+               ++ show fee_split_ellipse_line ++ " with a non-zero exit:\n      "
+               ++ intercalate "\n      " (absent ++ not_refused)
+               ++ "\n      A guard never observed rejecting is ABSENT. Note what is NOT asserted"
+               ++ " here: exit 3 alone says nothing, because volume_path.gms exits 3 for abort$,"
+               ++ " for execerror, for the kappa range check at line 103 and for CONOPT"
+               ++ " infeasibility at 171/173 alike.")
+
+      -- (5) THE ONE-PIP ATTRIBUTION.
+      let above = [ (x, m, b + 1) | (x, m, b, _) <- fee_split_pinned_pairs ]
+          still_refused =
+            [ show_key (fr_key row)
+            | row <- grid, fr_key row `elem` above, fr_line row == fee_split_ellipse_line
+            ]
+      _ <- expect (null still_refused)
+             ("these rows sit ONE PIP ABOVE their pair's boundary and the prover still refused them"
+               ++ " at the ellipse: " ++ intercalate ", " still_refused
+               ++ ".\n      The refusal one pip below is only attributable to the ellipse gate if"
+               ++ " the row one pip above is not refused by it. Nothing that varies smoothly in"
+               ++ " dStar -- the kappa range check, CONOPT's own feasibility -- changes across one"
+               ++ " pip, and both of those abort under their own line numbers anyway.")
+
+      -- (6) TWO-SIDED, in both directions.
+      _ <- expect (any fr_haskell grid && any (not . fr_haskell) grid)
+             ("the grid carries only one verdict ("
+               ++ (if any fr_haskell grid then "every point ADMITTED" else "every point REFUSED")
+               ++ "), so the agreement asserted above is vacuous in the other direction: a"
+               ++ " predicate that answered the same way always would pass it. 26-RESEARCH.md"
+               ++ " pitfall C. The grid is three points per pair, one pip either side of an exact"
+               ++ " boundary, so it is two-sided BY CONSTRUCTION and a one-sided one is a"
+               ++ " truncation.")
+
+      -- (7) The controls, which are what make an abort ATTRIBUTABLE.
+      let bad =
+            [ show_key (fc_key c) ++ ": exit " ++ show (fc_exit c)
+                ++ ", artifact " ++ show (fc_artifact c)
+            | c <- controls, fc_exit c /= 0 || not (fc_artifact c)
+            ]
+      expect (length controls == 4 && null bad)
+        ("these controls did not produce an artifact through the unmodified production path:\n      "
+          ++ intercalate "\n      " bad
+          ++ "\n      26-RESEARCH.md guard 17: exit 3 covers abort$, execerror, the kappa range"
+          ++ " check and Locally Infeasible alike, so an UNATTRIBUTED abort is not evidence about"
+          ++ " the ellipse gate. A pair whose control cannot be solved at all leaves its boundary"
+          ++ " aborts unexplained. Pick a control target the sweep measured as solvable for that"
+          ++ " pair; do NOT raise volTgtWad, which was measured not to work.")
+
+-- | CHECK 23 -- THE GRID BRACKETS EACH BOUNDARY BY ONE PIP, AND THE BOUNDARY IS RE-BISECTED.
+--
+-- This check carries ROADMAP SC-2's boundary-bracketing clause. The four boundaries are RECOMPUTED
+-- here by 'Fee.Split.min_admissible_dstar' and compared to the pinned integers; a check that read
+-- the boundary out of the artifact and then asserted the artifact bracketed it would be two fields
+-- of one document agreeing.
+--
+-- == THE SUBSTITUTION SC-2 UNDERWENT, RECORDED RATHER THAN LEFT TO BE DISCOVERED
+--
+-- SC-2 names the grid point @rho* = 3.8198 / delta* = 0.49@. That point is not a boundary: 3.8198
+-- is the root of @2*rho\/(1+rho^2) = 0.49@, the arithmetic-mean reading 26-RESEARCH.md M1 measured
+-- as exactly 2x too large, and the correct leading-order root at @delta* = 0.49@ is 1.2234668.
+-- Worse, the exact boundary is not a function of @rho@ alone at all, because the prover's
+-- @phiBar = phiX + phiM - phiX*phiM@ carries the product term. What replaces it is bracketing in
+-- the @delta*@ direction at four FIXED pairs, at the exact integer boundary each pair actually has.
+-- SC-2's falsifiable clause -- the AGREEMENT -- is check 22 and is unchanged.
+--
+-- @delta* = 490000@ IS SC-2's own 0.49, and it is in the differential after all: it is the control
+-- target for three of the four pairs, MEASURED as the single most useful grid point there is over
+-- 160 real invocations. One fact worth recording rather than hiding: at 490000 the pair (700, 800)
+-- is INADMISSIBLE, its boundary being 495953, so SC-2's named target is not even uniformly
+-- admissible across this grid's own pairs.
+--
+-- == THE UPPER ROOT, WHICH IS THE DECISIVE EVIDENCE THAT THE TRANSCRIPTION IS THE RIGHT ONE
+--
+-- @delta* = 500000@ is INADMISSIBLE for all four pairs, and 499999 is admissible for three of them.
+-- That is the prover's own gate reproducing @VOLUME_PATH.md@ section 1.1's INDEPENDENTLY derived
+-- ceiling @delta <= 1\/2@ as its upper root. The arithmetic-mean misreading gives 1, so this arm
+-- would be false under it by a factor of two -- which is why it is asserted here and not merely
+-- mentioned. (700, 800) tops out at 499991, so the arm is stated per pair rather than as one
+-- number.
+the_grid_brackets_each_boundary_by_one_pip :: Check
+the_grid_brackets_each_boundary_by_one_pip =
+  Check "the_grid_brackets_each_boundary_by_one_pip" . guarded $ do
+    loaded <- read_fee_split_conformance
+    pure $ do
+      artifact <- loaded
+      (grid, _) <- fee_split_rows artifact
+
+      -- (1) The boundary, RE-BISECTED in-suite.
+      let wrong =
+            [ "(" ++ show x ++ ", " ++ show m ++ "): the grid is pinned at boundary " ++ show b
+                ++ " and min_admissible_dstar bisects " ++ show (min_admissible_dstar x m)
+            | (x, m, b, _) <- fee_split_pinned_pairs
+            , min_admissible_dstar x m /= Just b
+            ]
+      _ <- expect (null wrong)
+             ("a pinned boundary is not the one Fee.Split re-bisects here:\n      "
+               ++ intercalate "\n      " wrong
+               ++ "\n      The boundary is RECOMPUTED and not re-read, so this arm proves the grid"
+               ++ " brackets the gate rather than bracketing a number somebody wrote down.")
+
+      -- (2) The bracket: three rows per pair, at exactly b-1, b, b+1.
+      let present = map fr_key grid
+          gaps =
+            [ "(" ++ show x ++ ", " ++ show m ++ ") has no row at delta* = " ++ show d
+                ++ " (" ++ role ++ ")"
+            | (x, m, b, _) <- fee_split_pinned_pairs
+            , (d, role) <- [(b - 1, "boundary - 1"), (b, "boundary"), (b + 1, "boundary + 1")]
+            , (x, m, d) `notElem` present
+            ]
+      _ <- expect (null gaps)
+             ("the grid does not bracket every boundary by one pip on each side:\n      "
+               ++ intercalate "\n      " gaps
+               ++ "\n      One pip either side is what makes this a statement about the prover's"
+               ++ " gate rather than about a closed form nothing implements.")
+
+      -- (3) The verdicts across the bracket, recomputed.
+      let mis =
+            [ "(" ++ show x ++ ", " ++ show m ++ "): is_admissible at " ++ show d ++ " is "
+                ++ show (is_admissible x m d) ++ ", and at " ++ role ++ " it must be " ++ show want
+            | (x, m, b, _) <- fee_split_pinned_pairs
+            , (d, role, want) <- [ (b - 1, "boundary - 1", False)
+                                 , (b,     "boundary",     True)
+                                 , (b + 1, "boundary + 1", True) ]
+            , is_admissible x m d /= want
+            ]
+      _ <- expect (null mis)
+             ("the bracket does not straddle the gate:\n      " ++ intercalate "\n      " mis)
+
+      -- (4) THE UPPER ROOT.
+      let ceilings =
+            [ (x, m, is_admissible x m 500000, is_admissible x m ceiling_pips
+              , is_admissible x m (ceiling_pips + 1))
+            | (x, m, ceiling_pips) <- [(500, 6000, 499999), (100, 900, 499999)
+                                      , (1000, 3000, 499999), (700, 800, 499991)]
+            ]
+          broken =
+            [ "(" ++ show x ++ ", " ++ show m ++ "): 500000 admissible=" ++ show half
+                ++ ", the pinned ceiling admissible=" ++ show at_ceiling
+                ++ ", one pip above=" ++ show above
+            | (x, m, half, at_ceiling, above) <- ceilings
+            , half || not at_ceiling || above
+            ]
+      expect (null broken)
+        ("the prover's own gate no longer reproduces VOLUME_PATH.md section 1.1's delta <= 1/2"
+          ++ " ceiling as its upper root:\n      " ++ intercalate "\n      " broken
+          ++ "\n      delta* = 500000 must be REFUSED by every pair and the pinned ceiling must be"
+          ++ " the last admitted pip. This is the decisive evidence that the ellipse transcription"
+          ++ " is the right one: the arithmetic-mean misreading -- the one 3.8198 comes from --"
+          ++ " puts that ceiling at 1 instead of 1/2, so it would admit roughly 500000 pips this"
+          ++ " gate refuses.")
+
+-- | The token, BUILT rather than written out.
+--
+-- This file must not contain the identifier it scans for, or it would match itself and the consumer
+-- set could never be the two files it has to be. Same construction as 'aeson_bait_source' and
+-- 'splitter_io_bait_source', for the same reason.
+ungated_renderer_token :: String
+ungated_renderer_token = "render_argv" ++ "_ungated"
+
+-- | The two files allowed to name it: the module that defines it, and the ONE capture that consumes
+-- it.
+expected_ungated_consumers :: [FilePath]
+expected_ungated_consumers =
+  [ "offchain/app/FeeSplitConformance.hs"
+  , "offchain/lib/Gams/Argv.hs"
+  ]
+
+-- | CHECK 24 -- THE UNGATED RENDERER HAS EXACTLY ONE CONSUMER, ASSERTED IN BOTH DIRECTIONS.
+--
+-- FEE-03 is \"an inadmissible shock is refused BEFORE any subprocess\", and 26-03 made that
+-- structural: 'Gams.Argv.render_argv' cannot build a command line for one, so there is nothing for
+-- 'Gams.Run.spawn_into' to receive. The split this plan performed put the eight pre-existing
+-- refusals into a function that does NOT carry the ninth, because the fee-split capture has to
+-- drive the prover at points the ninth rejects -- that is the whole content of the differential.
+--
+-- A SECOND consumer is how FEE-03 quietly stops being true, and nothing about the second one would
+-- look wrong at the call site. So the set is asserted BOTH WAYS: a one-directional assertion (\"the
+-- two files still name it\") passes on a third appearing, and the other direction alone passes if
+-- the module stops defining it.
+--
+-- == THIS FILE MAY NOT SPELL THE NAME, AND THAT IS NOT AN INCONVENIENCE
+--
+-- The scan is over ALL of @offchain@ with no exclusion, including this file -- deliberately, because
+-- the suite calling the ungated renderer WOULD be a second consumer and excluding the scanner from
+-- its own scan is how a check stops being able to see the most likely violation. So the identifier
+-- is built at runtime in 'ungated_renderer_token' and never written out here, and the prose above
+-- says \"the ungated renderer\" rather than naming it. MEASURED: the first draft of this check
+-- carried the identifier in one haddock line -- a FIRING INPUT sentence -- and the scan returned
+-- three files with @offchain\/test\/Main.hs@ reported as the SECOND CONSUMER. That is instance 25 of
+-- prose inside a grep's blast radius on this branch; 24 was 26-02's @sed@ range and 23 was 26-01's
+-- @\\bsqrt\\b@.
+--
+-- FIRING INPUT: add a call to the ungated renderer in @offchain\/app\/Main.hs@.
+the_ungated_renderer_has_exactly_one_consumer :: Check
+the_ungated_renderer_has_exactly_one_consumer =
+  Check "the_ungated_renderer_has_exactly_one_consumer" . guarded $ do
+    (code, out, err) <-
+      readProcessWithExitCode "grep"
+        ["-rlF", "--include=*.hs", ungated_renderer_token, "offchain"] ""
+    pure $ do
+      _ <- case code of
+             ExitSuccess   -> Right ()
+             ExitFailure 1 ->
+               Left ("no file under offchain/ names " ++ ungated_renderer_token ++ " at all. grep"
+                      ++ " exits 1 for \"found nothing\" and for \"matched no files\" alike, and"
+                      ++ " both mean the same thing here: the scan has no subject, so the set"
+                      ++ " comparison below would be two empty lists agreeing.")
+             ExitFailure n -> Left ("the consumer scan failed with exit " ++ show n ++ ": " ++ err)
+      let found   = sort (lines out)
+          missing = [p | p <- expected_ungated_consumers, p `notElem` found]
+          extra   = [p | p <- found, p `notElem` expected_ungated_consumers]
+      expect (null missing && null extra)
+        ("the consumer set of the UNGATED renderer is not the two files it must be."
+          ++ concat ["\n      NO LONGER NAMES IT: " ++ p | p <- missing]
+          ++ concat ["\n      SECOND CONSUMER:    " ++ p | p <- extra]
+          ++ "\n      That function performs the EIGHT pre-existing refusals and NOT the ninth,"
+          ++ " which is the prover's own admissibility gate. Its one permitted consumer is the"
+          ++ " out-of-band capture whose entire subject is that gate refusing -- it has to build a"
+          ++ " command line one pip below each boundary, and the gated renderer cannot. Anywhere"
+          ++ " else it means an inadmissible shock now HAS an argv, and FEE-03's \"refused before"
+          ++ " any subprocess\" stops being a property of the import graph.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -14438,6 +15133,10 @@ core_checks = do
           , the_seeded_pick_is_a_pure_function_of_seed_and_band
           , a_different_seed_produces_a_different_rho
           , the_admissible_band_has_more_than_one_member
+          , fee_split_conformance_is_present_and_fresh
+          , haskell_and_gams_agree_on_every_grid_point
+          , the_grid_brackets_each_boundary_by_one_pip
+          , the_ungated_renderer_has_exactly_one_consumer
           ]
             ++ per_pin_checks pins
   pure checks
