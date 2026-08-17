@@ -137,7 +137,7 @@ exists because three separate layers were measured silently altering them.
       at `latest`.
 - [ ] **CHAIN-03**: A read that returns an absent, zero or unparseable value is an error, not
       a value that flows into a key.
-- [ ] **CHAIN-04**: Decoding is exercised against synthetic logs, so it is testable before
+- [x] **CHAIN-04**: Decoding is exercised against synthetic logs, so it is testable before
       the upstream event exists and without a chain.
 - [ ] **CHAIN-05**: The published fixture records the pool identity it was solved for — `pool`
       (string address), `blockNumber` (**string**, because it can exceed the 53-bit double-exact
@@ -229,7 +229,7 @@ Filled during roadmap creation (2026-08-16).
 | CHAIN-01 | Phase 27 | Blocked (upstream `next` event, issue #26) |
 | CHAIN-02 | Phase 27 | Blocked (upstream `next` event, issue #26) |
 | CHAIN-03 | Phase 27 | Blocked (upstream `next` event, issue #26) |
-| CHAIN-04 | Phase 26 | Pending |
+| CHAIN-04 | Phase 26 | Complete |
 | CHAIN-05 | Phase 27 | Pending — from issue #29's returned contract (plank `f713089`) |
 | CHAIN-06 | Phase 27 | Pending — from issue #29's returned contract (plank `f713089`) |
 | CHAIN-07 | Phase 27 | Pending — from issue #29's returned contract (plank `f713089`) |

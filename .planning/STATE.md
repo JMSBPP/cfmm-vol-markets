@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 26-01-PLAN.md — Fee.Split shipped (162/162 -> 169/169, exit 0, zero warnings, floors re-measured 63/72). Three PLAN defects found and fixed with the measurement that found them; blocker B1's guard landed as fee_in_domain + FeeOutOfDomain. Next: 26-02 (Chain.Shock, the event decoder)"
+stopped_at: "Completed 26-02-PLAN.md — Chain.Shock shipped (169/169 -> 181/181, exit 0, zero warnings, floors re-measured 64/73). CHAIN-04 complete: 12 checks, 17 firings observed. RC-M3's justification for the ZeroShock rename measured FALSE (render_argv has 8 refusals, not 9, and its txlVolumeRate lower bound is 0). Next: 26-03 (Fee.Split's split_for + the argv assembly)"
 last_updated: "2026-08-17"
-last_activity: "2026-08-17 — 26-01 executed: 162/162 -> 169/169 checks, 0 warnings, suite still DB-free AND GAMS-free; seven guards, eight firings observed"
+last_activity: "2026-08-17 — 26-02 executed: 169/169 -> 181/181 checks, 0 warnings, suite still DB-free AND GAMS-free; twelve guards, seventeen firings observed"
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 18
-  completed_plans: 15
+  completed_plans: 16
 ---
 
 <!--
@@ -43,10 +43,61 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **26 — Shock Assembly (Fee Split & Event Decode)** — **IN PROGRESS (1/4 plans)**
-Plan: **26-01 COMPLETE** (commits `cfce3d1`, `1c4f79e`, `59328ab`). Summary:
-`.planning/phases/26-shock-assembly-fee-split-event-decode/26-01-SUMMARY.md`. Next: **26-02**
-(`Chain.Shock`, the `next`/Shock event decoder).
+Phase: **26 — Shock Assembly (Fee Split & Event Decode)** — **IN PROGRESS (2/4 plans)**
+Plan: **26-02 COMPLETE** (commits `b22b637`, `e69a2e8`, `d536d08`). Summary:
+`.planning/phases/26-shock-assembly-fee-split-event-decode/26-02-SUMMARY.md`. Next: **26-03**
+(`split_for`, `admissible_band`, and the argv assembly).
+
+**CHAIN-04 IS COMPLETE. `Chain.Shock` DECODES AN EVENT WHOSE EVERY PRODUCTION LOG IS TWO-THIRDS
+ZERO.** 259 lines, six imports, +0 packages, no IO, no hexadecimal literal, `Either` with ten named
+refusals: arity, topic0, EMITTER, address shape, zero pool, exact-96 length, the zero shock, and
+three per-word ranges. Suite **169/169 → 181/181**, exit 0, zero warnings, wall **176 s** against a
+900 s ceiling. Floors re-measured COLD as a pair with the module on disk: `purge_file_floor`
+**63 → 64**, `credential_scan_floor` **72 → 73**, zero slack, census `hs 52, sh 9, json 9, sql 3`.
+Twelve guards, **seventeen firings observed**, every one restored from a sha256-verified copy. Both
+structural greps **0**. Territory clean; `develop` never merged and `ShockLib.plk`, `Shock.plk` and
+`ShockRoundTrip.t.sol` were read with `git show origin/develop:…` and cited, never edited.
+
+**RC-M3'S JUSTIFICATION FOR THE `ZeroShock` RENAME IS FALSE, AND THE CONSEQUENCE INVERTS IT.** The
+finding says *"`render_argv`'s ninth refusal already kills `txlVolumeRate = 0` for free"*. MEASURED
+at `Gams/Argv.hs:137`: the bound is `in_range "txlVolumeRate" value 0 999999` — **lower bound 0** —
+and `render_argv` has **eight** refusals, not nine. A zero rate renders cleanly and reaches the
+prover, which cannot answer it (`E(x, m, 0) = D⁴xm > 0`, asserted against the shipped
+`ellipse_test`). So the `ZeroShock` **consumer rule is load-bearing**: Phase 27 must SKIP the
+period, and it is the only thing between a quiet period and a solve that must abort. The first
+draft of check 4 asserted the finding and went red, which is how this was caught.
+
+**AN EVENT TOPIC IS UNAUTHENTICATED, AND THE DECODER NOW SAYS SO WITH A GUARD (RC-M4).**
+`decode_shock` takes `expected_emitter` alongside `expected_topic0` and refuses `WrongEmitter`.
+`synthetic_log` hardcodes one address for every log it builds, so no phase-26 check could observe
+emitter discrimination even in principle until a `shock_log_from` helper and a `wrong-emitter`
+corpus member existed. **STILL OPEN and Phase 27's to discharge:** `ShockEvent` carries no block,
+log index or transaction, so a batch decode must keep the `Change` beside the event or two blocks
+mix silently. The obligation is haddocked in the module's MUST-NOT-BE-TRUSTED-ON paragraph.
+
+**THE DATA LAYOUT NOW HAS AN INDEPENDENT ORACLE (M2 / RC-M7).** The corpus and the decoder shared
+one belief about word order and padding, so a shared misreading passed every check and the headline
+claim was a tautology. `cast abi-encode "f(int24,uint24,uint24)" -- -200 490000 7` is pinned as 192
+bare hex characters and compared to the `negative-tick-and-decay` member's `changeData`; transposing
+two words in the corpus reddens it, which nothing did before. It is a SIBLING constant, **not** a
+`ground_truth` row — `sc4_ground_truth_encoder` hashes every row's signature and would redden on a
+192-char payload.
+
+**RC-m7 IS CLOSED BY MEASUREMENT AND THE TRIP-WIRE WAS RE-SCOPED.** PR #30 merged the model into
+`origin/develop` (`291d8a6`), so check 10's old subject — the emitter's absence from this worktree —
+was permanently satisfied-by-absence. It now reads `origin/develop` through `git`, with a control
+shown saying YES and NO, and asserts the emitter's hand-written `SHOCK_EVENT_TOPIC0` **equals**
+`keccak(shock_signature)`, plus the word order and the 96-byte payload the decoder assumes. Its
+failure text keeps the advice: **re-verify the CONSTANT, not merely re-home the pin.** This adds
+`git` as a suite dependency alongside `grep` and `/bin/sh`; if `origin/develop` is unresolvable the
+check fails loudly with `git fetch origin develop`.
+
+**`"Shock"` IS DELIBERATELY NOT IN `expected_topic_pins`**, with the reason in the file:
+`generate-pins.sh` iterates LOCAL interface files and the emitter is not one, so the generator could
+never produce that pin. **New prose-in-a-grep instance (24):** the plan's own acceptance command
+`sed -n '/expected_topic_pins/,/^$/p' | grep -c Shock` prints **2**, not 0, because `sed` restarts
+its range at the comment that explains the exclusion. Anchored to `^expected_topic_pins ::` it
+prints 0.
 
 **`Fee.Split` IS THE SPLITTER'S ARITHMETIC, AND IT IS TOTAL.** 465 lines, one import
 (`Data.Word`), no floating value, no rational type, no IO, no hexadecimal literal. `compose_scaled`
@@ -165,11 +216,16 @@ Phase 24 named the artifact-side echoed-field cross-check as the mutation Phase 
 `the_preimage_excludes_every_per_run_token` discharges KEY-02's scope half, and the echoed-field
 mutation was in the cut scope.
 
-Next action: **execute 26-02** (`Chain.Shock`, the event decoder). Phase 26's own standing debts are
-above; the production `Solver` adapter that closes STORE-01 end to end is still owed and 26-01 did
-not touch it.
+Next action: **execute 26-03** (`split_for`, `admissible_band`, the argv assembly). It carries three
+inherited debts by name: blocker B1's `split_for` step-0 guard and its
+`split_for 0 8388608 490000 == Left (FeeOutOfDomain 8388608)` arm; RC-M6's corrected empty-band size
+(**2**, not 4 — `admissible_band 3000 1000 == [(1,2999),(2,2998)]`); and RC-m11's seven unasserted
+`FeeSplit` fields. **`offchain/lib/Gams/Argv.hs` is now inside a grep's blast radius**: check 10's
+second arm requires the decay identifier to appear NOWHERE in that file, prose included, and 26-03
+and 26-04 both edit it — that arm has been OBSERVED firing on a haddock line. The production
+`Solver` adapter that closes STORE-01 end to end is still owed and 26-02 did not touch it.
 
-Last activity: 2026-08-17 — 26-01 executed (commits `cfce3d1`, `1c4f79e`, `59328ab`), 169/169.
+Last activity: 2026-08-17 — 26-02 executed (commits `b22b637`, `e69a2e8`, `d536d08`), 181/181.
 
 ## Phase 25 Plan 01 Position (record)
 
@@ -726,6 +782,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 24 P03 | 41 | 2 tasks | 4 files |
 | Phase 24 P05 | 110min | 3 tasks | 7 files |
 | Phase 24 P06 | 120min | 2 tasks | 6 files |
+| Phase 26 P02 | ~5h | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -849,6 +906,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 23]: [23-01 DECIDED, deviation from the research sketch] `DerivedDoc` wraps `Text` (the `doc::text` rendering), NOT `Data.Aeson.Value`. Identical type-level guarantee, and it keeps `Data.Aeson` off the storage path that BYTE-03's own grep polices from 23-02. The `doc` column is still `jsonb`; only the Haskell-side view changes.
 - [Phase 23]: [23-01 FINDING, the eighth self-contradicting-criterion instance in this repo] Three of the plan's acceptance greps counted matches in HADDOCK, not code — `cryptonite` (the plan prescribed a comment containing the token it then forbade), `octal-escape`, `DerivedDoc(..)`, and the credential grep (2 hits, both on the word "password" in comments SAYING there is no password). The last is substantive: DB-02's planned `no_credential_is_present_in_a_tracked_file` check greps exactly those tokens with a positive control, so a comment asserting its own cleanliness would have reddened it. **Prose is inside the grep's blast radius.** Also unsatisfiable as written: `grep -c 'lookupEnv' Store/Config.hs == 2`, since the import line alone makes the floor 3.
 - [Phase 23]: [23-01 FINDING, gsd-tools is not safe on this STATE.md] `gsd-tools state advance-plan` errors (`Cannot parse Current Plan or Total Plans in Phase`) and `state update-progress` rewrote the frontmatter to `milestone: v2.0`, 25 phases / 37 plans by scanning EVERY phase directory on disk — folding the v1.0–v5.0 tracks, which this file says are separate and never renumbered, into v6.0. Reverted; the v6.0 progress block is maintained BY HAND.
+- [Phase 26]: [26-02 CONFIRMED, the 23-01 finding RECURS] `gsd-tools state advance-plan` errored identically (`Cannot parse Current Plan or Total Plans in Phase`) and `state update-progress` again rewrote the frontmatter to `milestone: v2.0`, `milestone_name: milestone`, a `status` line made of a stray sentence fragment, and 25 phases / 50 plans / 47 complete by scanning every phase directory on disk. Reverted by hand at 26-02's closeout and the v6.0 counters set by hand (15 -> 16 of 18). `state record-metric` and `roadmap update-plan-progress` are SAFE and were used. `requirements mark-complete` is SAFE and was used. **Do not run `state update-progress` or `state advance-plan` against this file.**
 
 - [18b-01 MEASURED, supersedes 18a's number]: N=128 batch gas is now **execGas 3,231,765 + intrinsic 21,000 + EIP-2028 calldata 23,000 = 3,275,765 TOTAL**, a **+28,313 (+0.87%)** move from 18a's 3,247,452. The encoder adds 2 mstores per element plus memory expansion for the 8256-byte buffer; calldata gas is unchanged (the INPUT did not change). Still 3.05x under MCAL-01's 10,000,000 ceiling and well inside the plan's 3,400,000 stop-and-investigate band.
 - [18b-01 MEASURED, the honest negatives — record these rather than the kill count alone]: (a) the **element-base-shift mutant (`base = 32 + 64*i`) is BLIND at N=0** — `test__unit__emptyReturnIsExactlySixtyFourBytes` stayed GREEN under it, because with no elements there is nothing to misplace and the total is 64 bytes either way. Killable only at N >= 1. (b) The **stride mutant (`64 + 32*i`) is blind at N <= 1** — OBSERVED directly: `test__unit__oneAndTwoElementReturnsAreByteExact` reddened at its **N=2** assertion while its N=1 assertion passed, since i=0 makes `64 + stride*i` independent of the stride. (c) The **dropped-outer-offset-word mutant IS killable at N=0** (32 bytes vs 64) — it and the base-shift mutant are COMPLEMENTARY, which is why both are run. A corpus that is N=0-only, or N<=1-only, would silently miss real encoder bugs.

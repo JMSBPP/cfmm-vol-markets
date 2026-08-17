@@ -1250,7 +1250,7 @@ at the end of 25.
 | 23. Postgres Foundation & the Byte-Exact Schema | 5/5 | Complete    | 2026-08-16 |
 | 24. GAMS Invocation & Toolchain Identity | 6/6 | Complete    | 2026-08-17 |
 | 25. The Content Key & Keyed Store | 3/3 | Complete    | 2026-08-17 |
-| 26. Shock Assembly — Fee Split & Event Decode | 1/4 | In Progress|  |
+| 26. Shock Assembly — Fee Split & Event Decode | 2/4 | In Progress|  |
 | 27. Anvil Read Layer (PARTIAL: CHAIN-05/06/07 actionable) | 0/TBD | Partially blocked | - |
 | 28. Resident Loop & Fixture Publication (BLOCKED) | 0/TBD | Blocked | - |
 
