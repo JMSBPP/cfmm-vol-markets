@@ -97,9 +97,11 @@ import Network.Ethereum.Api.Types (Change (..))
 -- a check fails instead of a key silently changing meaning.
 import Fee.Split
   ( compose_scaled
+  , ellipse_test
   , exact_pairs_for
   , fee_in_domain
   , is_admissible
+  , min_admissible_dstar
   , nearest_partner
   , residual_scaled
   )
@@ -12164,6 +12166,316 @@ rounding_residual_is_recorded_and_under_a_pip =
           ++ " an exact split exists where none does.")
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 26: FEE-02 Tier A, the prover's own admissibility test
+-- ---------------------------------------------------------------------------------------------
+
+-- | @(phi_X, phi_M, least admissible delta*)@, every row MEASURED in exact 'Integer' arithmetic.
+--
+-- @(99, 101)@ is here because a REVIEWER found it, not because it is a fee anyone charges. The
+-- bisection this corpus exercises was specified with its right end at @floor(vertex)@, and at that
+-- pair the least admissible target sits at @floor(vertex) + 1@: the specified rule reports
+-- 'Nothing' where 499975 is admissible. None of the other six rows reaches that branch, so a corpus
+-- without it cannot catch the bug -- which is the whole reason it is pinned here.
+--
+-- @(3000, 3000)@ is @VOLUME_PATH.md@ section 1.2 as a machine-checked fact, and stronger than that
+-- section's prose: at equal fees the quadratic has a DOUBLE root at @1/(2-phi) = 0.50075...@, which
+-- is not an integer number of pips, so NO integer target at all is admissible.
+ellipse_boundary_corpus :: [(Integer, Integer, Maybe Integer)]
+ellipse_boundary_corpus =
+  [ (500,  6000, Just 82804)
+  , (100,  900,  Just 109769)
+  , (1000, 3000, Just 300361)
+  , (50,   9950, Just 5026)
+  , (700,  800,  Just 495953)
+  , (99,   101,  Just 499975)
+  , (3000, 3000, Nothing)
+  ]
+
+-- | FEE-02, Tier A. Admissibility is the PROVER'S OWN @ellTest@, pinned as exact integers.
+--
+-- WHAT phiBar AND dphi ARE, AND WHY THE PLAUSIBLE RE-DERIVATION IS NOT ADMISSIBLE HERE.
+-- @volume_path.gms@ sets @phiBar@ to the COMPOSED fee @1 - (1-phiX)(1-phiM)@ and @dphi@ to the FULL
+-- gap @phiM - phiX@. Reading them instead as the arithmetic MEAN of the two fees and as the
+-- ellipse SEMI-axis gives a test that is exactly TWO TIMES too large. MEASURED at the fixture fees:
+-- that form's roots are @[0.165517, 1.000000]@ against the prover's @[0.082803, 0.500000]@; it
+-- disagrees with the prover on 36 of 70 near-boundary points; and it falsely refuses 82713 pips of
+-- admissible target, each of which is a phase failure by SC-2's own wording. Its corollary that no
+-- target is reachable unless the leg ratio is at least @2 + sqrt 3@ is FALSE, and the prover's form
+-- independently reproduces @VOLUME_PATH.md@ section 1.1's ceiling of one half as its upper root
+-- where the misreading gives one.
+--
+-- THAT SENTENCE LIVES HERE RATHER THAN IN THE MODULE, and the move is instance 22 of a class this
+-- repository has recorded twenty-one times: prose inside a grep's blast radius. @Fee\/Split.hs@ is
+-- scanned for the name of a floating-point operation, and the corollary cannot be refuted without
+-- spelling it. The scan is not relaxed to admit the prose; the prose moves to a file outside the
+-- scanned set. This one was authored INTO the plan rather than inherited -- the plan required the
+-- sentence in the module and gated on a pattern that forbids it.
+--
+-- The zero row is not decoration either: @ellipse_test x m 0 = D^4 * x * m > 0@, so a target of
+-- zero is refused BY THE ELLIPSE with no separate bound -- which is what closes @Gams.Argv@'s live
+-- hole admitting @txlVolumeRate = 0@.
+admissibility_is_the_provers_own_ellipse_test :: Check
+admissibility_is_the_provers_own_ellipse_test =
+  pure_check "admissibility_is_the_provers_own_ellipse_test" $ do
+    _ <- pinned 490000 (-295056739100000000000000000000) True
+    _ <- pinned 82803 4991723980281000000000000 False
+    _ <- pinned 82804 (-25238725702256000000000000) True
+    _ <- pinned 0 3000000000000000000000000000000 False
+    mapM_ boundary ellipse_boundary_corpus
+  where
+    pinned d expected admissible = do
+      _ <- expect (ellipse_test 500 6000 d == expected)
+             ("ellipse_test 500 6000 " ++ show d ++ " is " ++ show (ellipse_test 500 6000 d)
+               ++ ", and the prover's own ellTest times D^6 at that point is " ++ show expected
+               ++ ". These are exact integers: nothing here has a tolerance.")
+      expect (is_admissible 500 6000 d == admissible)
+        ("the fixture pair (500, 6000) at target " ++ show d ++ " pips is reported "
+          ++ (if is_admissible 500 6000 d then "ADMISSIBLE" else "REFUSED")
+          ++ " and it is " ++ (if admissible then "admissible" else "refused")
+          ++ ". 82803 and 82804 are one pip apart across the boundary, so a test that is off by any"
+          ++ " scale factor at all separates them differently.")
+
+    boundary (x, m, expected) = do
+      _ <- expect (min_admissible_dstar x m == expected)
+             ("min_admissible_dstar " ++ show x ++ " " ++ show m ++ " is "
+               ++ show (min_admissible_dstar x m) ++ ", and it was MEASURED at " ++ show expected
+               ++ (if x == 99
+                     then ". This is the pair a reviewer found: the bisection's right end must be"
+                            ++ " tried at BOTH floor(vertex) and floor(vertex)+1, because"
+                            ++ " ellipse_test 99 101 499974 is positive and"
+                            ++ " ellipse_test 99 101 499975 is not."
+                     else "")
+               ++ (if x == m
+                     then ". At equal fees the discriminant vanishes and the single root"
+                            ++ " 1/(2-phi) is not an integer number of pips, so NO integer target"
+                            ++ " is admissible -- which is why an equal-fee shock needs its own"
+                            ++ " refusal, ahead of this test, to be diagnosed for the right reason."
+                     else ""))
+      case expected of
+        Nothing -> Right ()
+        Just b  -> do
+          _ <- expect (is_admissible x m b)
+                 ("the pair (" ++ show x ++ ", " ++ show m ++ ") refuses its own boundary "
+                   ++ show b ++ " pips, where ellipse_test is " ++ show (ellipse_test x m b) ++ ".")
+          expect (not (is_admissible x m (b - 1)))
+            ("the pair (" ++ show x ++ ", " ++ show m ++ ") ADMITS " ++ show (b - 1)
+              ++ " pips, one pip below the boundary it reports, where ellipse_test is "
+              ++ show (ellipse_test x m (b - 1))
+              ++ ". A boundary that is not bracketed on both sides is a number the search returned,"
+              ++ " not a boundary.")
+
+-- | @'FS.pips_denominator'@ raised to a power, by repeated multiplication.
+--
+-- Written this way rather than with an exponent operator because the exponent's type would default
+-- and @-Wall@ reports that; the check below needs several powers of it.
+denominator_pow :: Int -> Integer
+denominator_pow k = product (replicate k FS.pips_denominator)
+
+-- | @ellTest@ evaluated a SECOND, INDEPENDENT way: as a fraction, combined by hand.
+--
+-- Every quantity of @volume_path.gms@'s own line is built here as an explicit
+-- @(numerator, denominator)@ pair over the integers, and the three combinators below are ordinary
+-- fraction arithmetic. NOTHING IS REDUCED and no library is involved -- the rational module of
+-- @base@ is deliberately not imported, so this is a second construction rather than a rename of the
+-- first.
+--
+-- @phiBar@ is built as the COMPLEMENT of what the pair keeps -- @D^2 - (D-x)(D-m)@ -- which is the
+-- form the GAMS line writes, rather than as the expanded @D(x+m) - xm@ the module uses. That is
+-- where the independence is: a transposed term, a flipped sign or a changed coefficient in the
+-- module's expanded form does not appear here.
+--
+-- The denominator comes out as @D^15@: the combinators multiply denominators unconditionally and
+-- nothing cancels them. That is not a defect -- it is what \"nothing is reduced\" means -- and the
+-- check divides it down to @D^6@, the scale the module's 'Integer' form is stated at, asserting the
+-- division is EXACT rather than assuming it.
+ell_as_fraction :: Integer -> Integer -> Integer -> (Integer, Integer)
+ell_as_fraction x m d = add (sub term1 term2) term3
+  where
+    dd      = FS.pips_denominator
+    phi_x   = (x, dd)
+    phi_m   = (m, dd)
+    d_star  = (d, dd)
+    phi_bar = (dd * dd - (dd - x) * (dd - m), dd * dd)
+    dphi    = (m - x, dd)
+    mul (a, b) (c, e) = (a * c, b * e)
+    add (a, b) (c, e) = (a * e + c * b, b * e)
+    sub (a, b) (c, e) = (a * e - c * b, b * e)
+    term1 = mul (add (mul phi_bar phi_bar) (mul dphi dphi)) (mul d_star d_star)
+    term2 = mul (mul (add phi_x phi_m) phi_bar) d_star
+    term3 = mul phi_x phi_m
+
+-- | Triples for the standing sweep, from a fixed integer recurrence.
+--
+-- No generator from a package and no IO: the sequence is a linear congruence over the integers, so
+-- the sample is the same on every machine and in every run, and the check states its own size in
+-- its failure message. The research-time verification ran 20000 triples; this is the standing
+-- in-suite sample.
+ell_sweep_triples :: Int -> [(Integer, Integer, Integer)]
+ell_sweep_triples n = take n (go 20260817)
+  where
+    step s = (s * 6364136223846793005 + 1442695040888963407) `mod` 18446744073709551616
+    go s0 =
+      let s1 = step s0
+          s2 = step s1
+          s3 = step s2
+      in (1 + s1 `mod` 999999, 1 + s2 `mod` 999999, s3 `mod` 1000000) : go s3
+
+-- | The pinned triples the sweep is anchored on: each boundary and one pip either side, plus three
+-- ordinary interior points.
+ell_pinned_triples :: [(Integer, Integer, Integer)]
+ell_pinned_triples =
+  [ (x, m, b + offset)
+  | (x, m, Just b) <- ellipse_boundary_corpus
+  , offset <- [-1, 0, 1]
+  ]
+    ++ [ (3, 7, 362071), (998, 2004, 399519), (752, 2250, 300912) ]
+
+-- | FEE-02, Tier A. The 'Integer' form and an independently built fraction agree, in VALUE and in
+-- VERDICT, on every triple.
+--
+-- Two arms per triple and they fail differently. The VERDICT arm asks whether
+-- @numerator <= 0@ agrees with 'is_admissible' -- which is the only thing the prover's abort
+-- actually reads. The VALUE arm asserts the fraction's numerator, divided down to the @D^6@ scale,
+-- EQUALS the module's integer, so a test that agreed on every sign while being off by a factor
+-- still fails.
+--
+-- THE SWEEP IS ASSERTED NOT TO BE ONE-SIDED. A sample that happened to be entirely inadmissible
+-- would make the verdict arm vacuous in one direction, which is the shape of a guard that has
+-- stopped guarding. MEASURED over the 2000 triples this recurrence produces: 189 admissible and
+-- 1811 refused.
+the_integer_form_equals_the_rational_evaluation :: Check
+the_integer_form_equals_the_rational_evaluation =
+  pure_check "the_integer_form_equals_the_rational_evaluation" $ do
+    let sweep    = ell_sweep_triples 2000
+        triples  = ell_pinned_triples ++ sweep
+        admitted = length [() | (x, m, d) <- sweep, is_admissible x m d]
+    _ <- expect (length sweep == 2000)
+           ("the standing sweep produced " ++ show (length sweep) ++ " triples, not 2000.")
+    _ <- expect (admitted > 0 && admitted < length sweep)
+           ("of the " ++ show (length sweep) ++ " swept triples " ++ show admitted
+             ++ " are admissible, so the agreement below is being asserted over a sample with only"
+             ++ " one verdict in it. MEASURED at 189 admissible and 1811 refused. A one-sided"
+             ++ " sample makes the verdict arm vacuous in the other direction.")
+    mapM_ agree triples
+  where
+    agree (x, m, d) = do
+      let (num, den) = ell_as_fraction x m d
+          scale      = denominator_pow 9
+          integer_form = ellipse_test x m d
+      _ <- expect (den == denominator_pow 15)
+             ("the hand-built fraction for (" ++ show x ++ ", " ++ show m ++ ", " ++ show d
+               ++ ") has denominator " ++ show den ++ ", and combining the GAMS line's own"
+               ++ " quantities without reducing gives D^15. A different denominator means the"
+               ++ " expression's SHAPE changed, not just its value.")
+      _ <- expect ((num <= 0) == is_admissible x m d)
+             ("the two evaluations DISAGREE ON THE VERDICT at (" ++ show x ++ ", " ++ show m
+               ++ ", " ++ show d ++ "): the hand-built numerator is " ++ show num
+               ++ " and the module's integer form is " ++ show integer_form
+               ++ ". The prover aborts on the sign, so this is the arm that decides whether the"
+               ++ " transcription is the prover's test or merely something like it.")
+      _ <- expect (num `mod` scale == 0)
+             ("the hand-built numerator at (" ++ show x ++ ", " ++ show m ++ ", " ++ show d
+               ++ ") is not divisible by D^9, so it cannot be stated at the D^6 scale the module's"
+               ++ " integer form uses. num = " ++ show num)
+      expect (num `div` scale == integer_form)
+        ("the two evaluations disagree in VALUE at (" ++ show x ++ ", " ++ show m ++ ", " ++ show d
+          ++ "): the fraction reduces to " ++ show (num `div` scale) ++ " at the D^6 scale and the"
+          ++ " module's integer form is " ++ show integer_form
+          ++ ". This is the first disagreeing triple in the corpus order (pinned boundaries first,"
+          ++ " then the 2000-triple sweep).")
+
+-- | The pattern, BUILT rather than spelled, so this file does not match its own scan.
+--
+-- TWO ALTERNATIONS ARE WORD-ANCHORED, AND THAT IS A MEASUREMENT RATHER THAN A PREFERENCE. The
+-- unanchored form this check was specified with matches @sqrtPriceX96@ -- a field name in
+-- @Gams\/Argv.hs@, @Gams\/Artifact.hs@ and @Gams\/Run.hs@, all three of which are in the scanned
+-- set. RUN BEFORE THIS SHIPPED: the unanchored pattern matches 13 lines across those three files
+-- and the scan exits 0, so the check could never have passed. Instance 23 of prose-and-identifiers
+-- inside a grep's blast radius, and resolved the way the other twenty-two were: the pattern is
+-- narrowed to what it MEANS -- the operation, as a whole word -- rather than the scanned set being
+-- narrowed to the files that happen not to trip it.
+fee_float_pattern :: String
+fee_float_pattern =
+  "Dou" ++ "ble|Flo" ++ "at|real" ++ "ToFrac|from" ++ "Rational|Data\\.Ra" ++ "tio"
+    ++ "|\\bRa" ++ "tional\\b|\\bsq" ++ "rt\\b"
+
+-- | The seeded bait, BUILT for the same reason 'artifact_float_bait_source' is.
+fee_float_bait_source :: String
+fee_float_bait_source =
+  "budget :: " ++ "Dou" ++ "ble\n"
+    ++ "budget = " ++ "sq" ++ "rt 2.0\n"
+    ++ "ratio :: " ++ "Ra" ++ "tional\n"
+    ++ "ratio = real" ++ "ToFrac budget\n"
+
+-- | FEE-02's scan half: no floating value, and no rational type, anywhere on the fee path.
+--
+-- Three assertions and the order is the design. The POSITIVE CONTROL is first, because absence may
+-- not read as success until the pattern has been SHOWN matching -- and it must NAME the bait file,
+-- which is what @-H@ is for. The MEMBERSHIP arm is second: the scanned set must actually contain
+-- @offchain\/lib\/Fee\/Split.hs@, so this check cannot pass by scanning a list the splitter was
+-- never added to. The scan itself is third.
+--
+-- WHY NO FLOATING VALUE IS PERMITTED HERE AT ALL, rather than a tolerance being chosen. The
+-- exact-versus-53-bit margin at the smallest interesting fees -- @(3, 7)@ pips -- is 4.4e-18, which
+-- is only about 4e4 times the double-precision noise floor. That is the ratio that decides whether
+-- a comparison is a measurement or a coin flip, and it is why the research grid stays at fees of
+-- 100 pips and above. On this path the pips are key components: a value that moves in the last bit
+-- moves a key.
+no_floating_value_is_on_the_fee_path :: Check
+no_floating_value_is_on_the_fee_path =
+  Check "no_floating_value_is_on_the_fee_path" . guarded $ do
+    tmp <- getTemporaryDirectory
+    let dir      = tmp </> "fee01-float-positive-control"
+        bait     = dir </> "bait.hs"
+        innocent = dir </> "clean.hs"
+        discard p = do
+          there <- doesFileExist p
+          if there then removeFile p else pure ()
+    createDirectoryIfMissing True dir
+    control <- flip finally (mapM_ discard [bait, innocent]) $ do
+      writeFile bait fee_float_bait_source
+      writeFile innocent "budget :: Integer\nbudget = 2\n"
+      (code, out, err) <- gams_version_scan fee_float_pattern [bait, innocent]
+      pure $ do
+        _ <- expect (code == ExitSuccess)
+               ("FEE-02's POSITIVE CONTROL did not fire: the scan exited " ++ show code
+                 ++ " over a file that declares a 53-bit floating value, calls the square-root"
+                 ++ " operation and names the rational type. The pattern has stopped matching"
+                 ++ " anything, so the exit-1 the real scan reports is absence of MATCHES only by"
+                 ++ " assumption."
+                 ++ (if null err then "" else "\n      stderr: " ++ err))
+        _ <- expect ("bait.hs" `isInfixOf` out)
+               ("FEE-02's POSITIVE CONTROL fired but did not NAME the seeded file. It said:\n"
+                 ++ unlines (map ("      " ++) (lines out)))
+        expect (not ("clean.hs" `isInfixOf` out))
+          ("FEE-02's POSITIVE CONTROL matched a file with no floating value in it, so the pattern"
+            ++ " is matching something other than what it claims to. It said:\n"
+            ++ unlines (map ("      " ++) (lines out)))
+    let splitter = "offchain/lib/Fee/Split.hs"
+    if splitter `notElem` artifact_float_path
+      then pure $ do
+        _ <- control
+        expect False
+          (splitter ++ " is NOT in the scanned set, so this check would be reporting a clean scan"
+            ++ " of a list the fee path is not on. The set is aeson_storage_path, and a module"
+            ++ " joins it in the commit that creates it. Removing it from that list reddens this"
+            ++ " arm AND the_artifact_path_scan_covers_every_module_on_it, which names it as a"
+            ++ " module on disk that nothing decided about.")
+      else do
+        (code, out, err) <- gams_version_scan fee_float_pattern artifact_float_path
+        pure $ do
+          _ <- control
+          case code of
+            ExitFailure 1 -> Right ()
+            ExitFailure n -> Left ("the scan itself failed with exit " ++ show n ++ ": " ++ err)
+            ExitSuccess ->
+              Left ("a floating value or a rational type is on the FEE PATH. The pips this path"
+                     ++ " derives are key components, and the exact-versus-53-bit margin at (3, 7)"
+                     ++ " pips is 4.4e-18 -- about 4e4 times the noise floor, which is why the"
+                     ++ " answer here is none rather than a tolerance.\n"
+                     ++ unlines (map ("      " ++) (lines out)))
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -12337,6 +12649,9 @@ core_checks = do
           , the_fixture_pair_recomposes_to_6497_pips
           , exact_split_existence_is_measured_in_both_directions
           , rounding_residual_is_recorded_and_under_a_pip
+          , admissibility_is_the_provers_own_ellipse_test
+          , the_integer_form_equals_the_rational_evaluation
+          , no_floating_value_is_on_the_fee_path
           ]
             ++ per_pin_checks pins
   pure checks
