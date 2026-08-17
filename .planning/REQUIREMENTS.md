@@ -84,7 +84,7 @@ exists because three separate layers were measured silently altering them.
       that finds nothing **fails loudly** rather than yielding an empty string.
 - [ ] **GAMS-04**: CONOPT version detection reads the true solver version (`C O N O P T
       version 4.39.0`) and not the adjacent GAMS-side link version or the `.so` filename.
-- [ ] **GAMS-05**: A hung solve is bounded by a timeout that terminates the child process.
+- [x] **GAMS-05**: A hung solve is bounded by a timeout that terminates the child process.
 - [ ] **GAMS-06**: The invocation environment is controlled, so ambient variables cannot
       change what the solver computes.
 
@@ -190,7 +190,7 @@ Filled during roadmap creation (2026-08-16).
 | GAMS-02 | Phase 24 | Pending |
 | GAMS-03 | Phase 24 | Pending |
 | GAMS-04 | Phase 24 | Pending |
-| GAMS-05 | Phase 24 | Pending |
+| GAMS-05 | Phase 24 | Complete |
 | GAMS-06 | Phase 24 | Pending |
 | FEE-01 | Phase 26 | Pending |
 | FEE-02 | Phase 26 | Pending |

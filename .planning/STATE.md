@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 24-03-PLAN.md (3/6 in phase 24) — next /gsd:execute-phase 24 (plan 24-04)"
+stopped_at: "Completed 24-04-PLAN.md (4/6 in phase 24) — next /gsd:execute-phase 24 (plan 24-05)"
 last_updated: "2026-08-16"
-last_activity: "2026-08-16 — 24-03 executed: the one IO edge; 131/131 checks, 0 warnings, five firing observations, a GHC error in three arms, and purge_file_floor found four below its subject"
+last_activity: "2026-08-16 — 24-04 executed (INTERRUPTED then CONTINUED): the hung grandchild, two environment vectors, the GAMS-free structural grep; 138/138 checks, 0 warnings, seven firing observations, GAMS-05 COMPLETE, and one plan acceptance criterion measured BACKWARDS and rejected"
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 11
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 <!--
@@ -43,7 +43,87 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **24 — GAMS Invocation & Toolchain Identity** — **IN PROGRESS (3/6 plans)**
+Phase: **24 — GAMS Invocation & Toolchain Identity** — **IN PROGRESS (4/6 plans)**
+Plan: **24-04 COMPLETE.** The hung GRANDCHILD, two real environment vectors, a version that cannot
+be missing, and the structural guarantee that `cabal test` cannot reach the real prover. Suite
+**131/131 → 138/138**, FAIL 0, zero `-Wall` warnings, still DB-free AND GAMS-free, **+0 packages**.
+
+**THIS PLAN WAS INTERRUPTED AND CONTINUED.** Tasks 1 and 2 were committed (`8f5d2ef`, `a8a3a21`)
+and the executor then died mid-Task-3 on a connection loss, not a code failure. A second executor
+re-measured every inherited claim cold before touching anything — build, suite, both greps,
+`git status`, both commits — and only then executed Task 3 (`76184d0`) and closed the plan out.
+
+**THE TIMEOUT IS NOW FALSIFIED, AND ON THE RIGHT SUBJECT.** 24-03 left guards 23/24/25 built and
+never observed firing, and this phase's own rule treats an unobserved guard as ABSENT. The stub
+backgrounds `sleep 300 &` and `wait`s, so the process under test is a GRANDCHILD — **MEASURED,
+written against a direct child the check CANNOT FAIL**, because `System.Timeout.timeout` reaps a
+direct child with no orphan and the assertion would be green with or without the group-owning
+`/usr/bin/timeout -k`. Liveness is read from `/proc/<pid>`. The negative control was OBSERVED: with
+`Gams.Run` spawning the binary directly, `/proc/3896506/stat` reported `3896506 (sleep) Z 1 …` —
+the grandchild reparented to PID 1 and still present. `pgrep -a 'sleep 3'` is 0 after the suite.
+
+**THE WHITELIST IS PROVEN IN FORCE BY TWO REAL VECTORS, NOT BY BYTES.** The inherited child carries
+**64 keys** against the whitelist's 3, and `shell_injected_env_keys = ["PWD","SHLVL","_"]` was
+MEASURED on this host rather than copied from the plan. A byte comparison could not do this work:
+four hostile ambient variables changed nothing and there is no comma-decimal locale on this machine.
+**And the check as planned COULD NOT FAIL** — its expected side was `whitelist_for scratch`, the
+same expression as its subject, so deleting `LC_ALL` moved both sides together. OBSERVED, then
+fixed against `whitelist_keys`. **Seventh representation of this project's standing defect, found
+inside the check written to catch the sixth.**
+
+**`cabal test` IS NOW STRUCTURALLY INCAPABLE OF NAMING THE REAL SOLVER, AND SAYS SO IN-SUITE.**
+`the_suite_never_names_the_real_solver` is the DB-free scan's twin: three tokens BUILT by
+concatenation, scanned over `offchain/test/Main.hs`, with a **PROVEN positive control** — a seeded
+bait carrying all three in the shapes they would really appear in must be NAMED, a clean file
+carrying the IO edge and `/bin/sh` must not be, and the control is ordered FIRST. It is no longer a
+verification-time command an executor has to remember.
+
+**23-05's `PGSTORE_DSN` RULING TRANSFERS UNWEAKENED.** `GAMS_CONFORMANCE` is registered and probed;
+`GAMS_BIN` and `GAMS_MODEL` are NAMED GAPS with written reasons, because their consumer is the
+module the grep above makes unreachable, and both ways of manufacturing a subject are rejected —
+importing it breaks the GAMS-free property on its way to enforcing it, and a validator written only
+to be probed is a registered-but-vacuous probe. `probe_override` was not weakened.
+
+**A PLAN ACCEPTANCE CRITERION WAS MEASURED BACKWARDS AND REJECTED.** Criterion 5 asked for the
+variable to be referenced through `gams_conformance_env_var` rather than spelled, *"which is what
+makes a rename in the config module redden the sweep"*. It is the reverse, and the plan contradicts
+itself (its action says "same shape as `STORE_CONFORMANCE` exactly", which is a literal). MEASURED:
+with the constant in the list, renaming it in `Gams.Config` leaves the whole suite at **138/138,
+exit 0**; with the literal, the identical rename reddens **two independent checks**. The literal is
+kept and the counter-measurement is written into the check's haddock so it is not re-proposed.
+
+**THE LIST ITSELF GOT A GROWTH GUARD.** `config_env_vars` now pairs each value with the NAME of the
+constant holding it, and a census grepped out of `offchain/lib/{Store,Gams}/Config.hs` is compared
+BOTH WAYS. Dropping a variable from the list was OBSERVED leaving the pre-existing coverage arm
+GREEN — it is a per-variable arm — and the census is what reddened. A sixth variable in either
+config module can no longer be added silently.
+
+**GAMS-05 IS COMPLETE.** Every row of roadmap SC-4 shipped and every one is OBSERVED, and "never an
+output row" was discharged at the TYPE level at 24-03 under planning correction 1. **GAMS-03 and
+GAMS-06 stay PARTIAL**, each owing exactly one capture-artifact row that does not exist until 24-05:
+the resolved absolute binary path plus executable sha256 (GAMS-03), and a hostile ambient variable
+producing byte-identical output (GAMS-06).
+
+**BOTH FLOORS RE-MEASURED COLD, TOGETHER, AND NEITHER MOVED:** `purge_file_floor` **55** against
+exactly 55 files, `credential_scan_floor` **63** against exactly 63 — zero slack on both. This plan
+adds no file; the re-measurement was done because the rule is that a floor is re-measured whenever a
+plan is already editing this block, and 24-02 is why.
+
+**PROSE INSIDE A GREP'S BLAST RADIUS — INSTANCE 16.** Task 3 wrote a check, a pattern, a bait, a
+positive control and three override reasons that all have to DESCRIBE the three forbidden tokens
+without naming them, inside the file being scanned. Every one describes rather than lists; pattern
+and bait are both built by concatenation. Sixteen times now, and the answer has never changed.
+
+**THE WALL.** 78.3 s at 24-03's end → **140.9 s**, all with the binary pre-built. Tasks 1-2 cost
++61.7 s (six checks that each spawn several real children, one waiting out a 2 s budget, one pushing
+2,000,000 bytes through a pipe); Task 3's structural check costs **+0.9 s**. Budget 900 s.
+
+Next action: `/gsd:execute-phase 24` (plan 24-05).
+
+Last activity: 2026-08-16 — 24-04 executed (commits `8f5d2ef`, `a8a3a21`, `76184d0`).
+
+## Phase 24 Plan 03 Position (record)
+
 Plan: **24-03 COMPLETE.** The ONE IO edge. `Gams.Run.run_prover` is the only function in this
 phase that spawns a process, and the verdict it returns is a **conjunction of six** of which not
 one is log text: the exit code classifies as `Solved`; the artifact exists in a directory that
@@ -321,6 +401,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 23 P05 | 71min | 2 tasks | 2 files |
 | Phase 24 P01 | 22min | 3 tasks | 5 files |
 | Phase 24 P02 | 33min | 3 tasks | 5 files |
+| Phase 24 P04 | 107min (interrupted; 20:45→22:32 across two sessions) | 3 tasks | 1 file |
 | Phase 19 P01 | 6 | 3 tasks | 3 files |
 | Phase 19 P02 | 33 | 3 tasks | 3 files |
 | Phase 19 P03 | 24 | 3 tasks | 1 files |
