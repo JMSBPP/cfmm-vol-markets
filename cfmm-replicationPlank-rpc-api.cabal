@@ -158,6 +158,17 @@ library
                     -- other line in it. Nothing here parses, spawns, hashes or does IO: every
                     -- function is Integer arithmetic over values it was handed.
                     , Fee.Split
+                    -- Phase 26's Shock event decoder. +0 PACKAGES, and CONFIRMED rather than
+                    -- estimated at 26-02: with this module on disk,
+                    -- `cabal build --enable-tests -j all` printed no `Downloading` line. Its five
+                    -- imports are bytestring (the payload length), memory-hexstring (toBytes),
+                    -- web3-solidity (toHexString, for the emitting address the topic cannot
+                    -- authenticate), web3-ethereum (the Change record) and two modules of this
+                    -- same stanza. All four packages were already dependencies here -- three of
+                    -- them are what RealizedVol.Decode is built from -- so nothing new enters the
+                    -- build plan. Nothing here does IO, spawns, hashes or parses: it is a total
+                    -- function from a log to an Either.
+                    , Chain.Shock
 
     -- Modules included in this library but not exported.
     -- other-modules:

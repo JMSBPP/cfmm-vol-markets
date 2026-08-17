@@ -1140,8 +1140,18 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
 -- > 63
+--
+-- RE-MEASURED COLD AT 26-02 TASK 1, in the same sitting as 'credential_scan_floor' and by running
+-- the command rather than by adding one to the 63 above it, with @offchain\/lib\/Chain\/Shock.hs@
+-- on disk: 64 against exactly 64, zero slack. Census under @offchain\/@ at that measurement:
+-- @hs 52, sh 9, json 9, sql 3@. The wave-start reading, taken COLD before this plan edited
+-- anything, was 63 — so the delta is the one @.hs@ this plan creates, and it was CONFIRMED by
+-- running the command at both ends rather than inferred from the file count.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
+-- > 64
 purge_file_floor :: Int
-purge_file_floor = 63
+purge_file_floor = 64
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -7751,8 +7761,16 @@ credential_scan root =
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 72
+--
+-- RE-MEASURED COLD AT 26-02 TASK 1, in the same sitting as 'purge_file_floor' and by running the
+-- command below rather than by adding one, with @offchain\/lib\/Chain\/Shock.hs@ on disk:
+-- @73 = 52 hs + 9 sh + 9 json + 3 sql@, against exactly 73 files, zero slack. Both floors moved
+-- together again, and the two commands were still run separately.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+-- > 73
 credential_scan_floor :: Int
-credential_scan_floor = 72
+credential_scan_floor = 73
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -7933,9 +7951,16 @@ one_aeson_vector (input, expected) =
 -- 'artifact_path_directories' in that same commit, because adding one without the other makes
 -- 'the_artifact_path_scan_covers_every_module_on_it' red in its OTHER direction -- a listed file
 -- under no scanned directory is a phantom.
+--
+-- 26-02 EXTENDED IT AGAIN, TO THE SHOCK DECODER, IN THE COMMIT THAT CREATED THE MODULE.
+-- @Chain\/Shock.hs@ decodes @txlVolmNormRate@, and that ONE field is what becomes the prover's
+-- @txlVolumeRate@ argv token and therefore a key component. A 53-bit floating value anywhere on
+-- that path would move a pip count. @offchain\/lib\/Chain@ went into 'artifact_path_directories'
+-- in the same commit, for the same both-directions reason 26-01 records above.
 aeson_storage_path :: [FilePath]
 aeson_storage_path =
-  [ "offchain/lib/Fee/Split.hs"
+  [ "offchain/lib/Chain/Shock.hs"
+  , "offchain/lib/Fee/Split.hs"
   , "offchain/lib/Gams/Argv.hs"
   , "offchain/lib/Gams/Artifact.hs"
   , "offchain/lib/Gams/Config.hs"
@@ -9096,9 +9121,11 @@ no_Double_and_no_aeson_on_the_artifact_path =
 -- on an absent directory, by design, because an enumeration of a directory that is not there is
 -- empty and an empty enumeration agrees with every list. A later plan that creates a module under
 -- a new directory adds the directory in ITS commit.
+-- @offchain\/lib\/Chain@ joined at 26-02, in the commit that created the one module under it, for
+-- the same reason and under the same rule.
 artifact_path_directories :: [FilePath]
 artifact_path_directories =
-  [ "offchain/lib/Fee", "offchain/lib/Gams", "offchain/lib/Store" ]
+  [ "offchain/lib/Chain", "offchain/lib/Fee", "offchain/lib/Gams", "offchain/lib/Store" ]
 
 -- | Modules under those directories that are deliberately NOT scanned, each with its reason.
 --
