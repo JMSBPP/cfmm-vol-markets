@@ -108,6 +108,7 @@ import Gams.Argv
   , Shock (..)
   , parse_shock_field
   , render_argv
+  , render_decimal
   )
 import Gams.Artifact
   ( ArtifactError (..)
@@ -1028,7 +1029,9 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 -- 'credential_scan_floor' reads. Both numbers below come from running the two @find@ commands at
 -- execution time, in the same sitting, and NEITHER from adding three to the old value: 58 against
 -- exactly 58 scanned files, zero slack. Census under @offchain\/@ at that measurement:
--- @hs 47, sh 9, json 9, md 3, txt 2, sql 2@.
+-- @hs 47, sh 9, json 8, md 3, txt 2, sql 2@; @.json@ went to 9 one commit later when the capture
+-- artifact landed, which moved 'credential_scan_floor' a second time and left this one alone --
+-- the two are re-measured together every time and they do NOT always move together.
 purge_file_floor :: Int
 purge_file_floor = 58
 
@@ -3788,11 +3791,13 @@ advertised_overrides =
 
 -- | The out-of-band command that produces the GAMS conformance artifact.
 --
--- It does not exist yet -- plan 24-05 writes it -- and that is deliberate: the probe below points
--- the variable at a path that CANNOT exist, so what it exercises is the resolver and the reader,
--- neither of which depends on the real artifact being present. The advice string is here so that
--- when the reader does fail it tells an operator what to run, which is the same contract every
--- other capture in this file honours.
+-- It did not exist when this constant was written -- 24-04's carry-forward said 24-05 owed it --
+-- and that was deliberate: the probe below points the variable at a path that CANNOT exist, so what
+-- it exercises is the resolver and the reader, neither of which depends on the real artifact being
+-- present. The advice string is here so that when the reader does fail it tells an operator what to
+-- run, which is the same contract every other capture in this file honours. 24-05 shipped the
+-- script, and the ten Tier-C checks below name this same constant in their failures rather than
+-- spelling the command a second time.
 gams_conformance_command :: String
 gams_conformance_command = "bash offchain/rig/capture-gams-conformance.sh"
 
@@ -7238,14 +7243,19 @@ credential_scan root =
 -- Both numbers were read off @find@ and compared to what is written here; neither was derived from
 -- the other and neither was incremented.
 --
--- RE-MEASURED COLD AT 24-05, in the same sitting as 'purge_file_floor' and by the same rule. 66 =
--- 47 Haskell + 9 shell + 8 JSON + 2 SQL, against exactly 66 files, zero slack. It moves TWICE in
--- this plan and both moves are separate measurements: the three scanned-type source files land with
--- the resolving module and the capture tooling, and @rig\/gams-conformance.json@ lands with the
--- capture itself -- a @.json@ this scan reads and 'purge_file_floor' deliberately does not, because a DSN
--- pasted into a captured artifact is a leaked credential even though nothing executes it.
+-- RE-MEASURED COLD AT 24-05, in the same sitting as 'purge_file_floor' and by the same rule, TWICE,
+-- because this plan moves it twice and each move is its own measurement rather than an increment.
+--
+--   * with the resolving module and the capture tooling on disk: 66 = 47 hs + 9 sh + 8 json + 2 sql;
+--   * with @rig\/gams-conformance.json@ committed beside them: 67 = 47 hs + 9 sh + 9 json + 2 sql.
+--
+-- 67 against exactly 67 files, zero slack. That second move is one this scan sees and
+-- 'purge_file_floor' deliberately does not: @.json@ is scanned HERE because a DSN pasted into a
+-- captured artifact is a leaked credential even though nothing executes it. The pair is re-measured
+-- together every time AND the two numbers do not always move together -- which is the point of
+-- running both commands rather than deriving one from the other.
 credential_scan_floor :: Int
-credential_scan_floor = 66
+credential_scan_floor = 67
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -9784,6 +9794,704 @@ gams_verdict_ignores_the_streams =
                      ++ " right answer was to move the prose rather than relax the pattern.")
 
 -- ---------------------------------------------------------------------------------------------
+-- TIER C: the committed REAL-SOLVER evidence, made LOAD-BEARING
+--
+-- Plan 24-05 drove the real GAMS 54.1 / CONOPT 4.39 toolchain once, out of band, into
+-- @offchain\/rig\/gams-conformance.json@. Tier A proves the pure functions are right and Tier B
+-- proves the guards fire against stubs; ONLY the assertions below say the guards were aimed at the
+-- real thing. An artifact asserted by nothing is this repository's own issue #19, which is why
+-- these ten exist at all: the evidence is only evidence once something reddens when it changes.
+--
+-- Every check reads the artifact through 'Gams.Config.gams_conformance_path', never through a
+-- constant, so @GAMS_CONFORMANCE@ redirects them and the sentinel harness can reach them. Every one
+-- FAILS -- never skips -- when the artifact is absent, and names the command that produces it. The
+-- artifact is COMMITTED, so a fresh checkout has it and \"fail, never skip\" costs nothing.
+--
+-- NOTHING HERE INVOKES A SOLVER. These are assertions over recorded VALUES; the measurement
+-- happened in the capture, under a real toolchain, and the separation is what
+-- 'the_suite_never_names_the_real_solver' enforces structurally.
+--
+-- WHAT IS NEVER PINNED HERE: the resolved binary path, its digest, its size, and the model source
+-- digests. All four are MACHINE-SPECIFIC -- pinning @79cd3a57...@ would make @cabal test@ fail on
+-- every other install. Their SHAPE and their cross-consistency with the rest of the document are
+-- asserted instead, which is evidence about the capture rather than about one machine.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The artifact, through the RESOLVER. FAIL-never-skip and the command -- which is
+-- 'gams_conformance_command', declared once beside the override probe that also advertises it, so a
+-- rename cannot leave the probe's advice and these ten failures pointing at two different scripts.
+read_gams_conformance :: IO (Either String Value)
+read_gams_conformance = do
+  path <- gams_conformance_path
+  read_json_file path ("re-take it with: " ++ gams_conformance_command)
+
+-- | Walk a path of object keys. @gc_at [\"golden\", \"sha256\"]@ is @.golden.sha256@.
+gc_at :: [String] -> Value -> Either String Value
+gc_at names v = foldM (flip json_field) v names
+
+gc_string :: [String] -> Value -> Either String String
+gc_string names v = gc_at names v >>= json_string
+
+gc_integer :: [String] -> Value -> Either String Integer
+gc_integer names v = gc_at names v >>= json_integer
+
+gc_bool :: [String] -> Value -> Either String Bool
+gc_bool names v = gc_at names v >>= json_bool
+
+gc_strings :: [String] -> Value -> Either String [String]
+gc_strings names v = gc_at names v >>= json_array >>= mapM json_string
+
+-- | 64 lowercase hex digits with NO @0x@ prefix. The prefix would also redden 'sc3_literal_purge'
+-- in every file that carried one, which is why "Store.Types" renders bare and why this is the shape
+-- asserted rather than \"looks like a digest\".
+is_bare_sha256 :: String -> Bool
+is_bare_sha256 s = length s == 64 && all bare s
+  where bare c = isDigit c || (c >= 'a' && c <= 'f')
+
+-- | The build id's MEASURED shape: eight lowercase hex digits.
+is_build_id_shape :: String -> Bool
+is_build_id_shape s = length s == 8 && all bare s
+  where bare c = isDigit c || (c >= 'a' && c <= 'f')
+
+-- | THE HALF OF THE FRESHNESS ORACLE THAT CANNOT BE RECOMPUTED, NAMED RATHER THAN OMITTED.
+--
+-- 23-05's @PGSTORE_DSN@ ruling, applied to a different obstruction of the same kind: where a gap
+-- exists, it is written down and asserted where it CAN be, and a subject is never manufactured in
+-- order to have something to check.
+gams_conformance_unrecomputable :: [(String, String)]
+gams_conformance_unrecomputable =
+  [ ( "model_sources"
+    , "volume_path.gms is NOT in this repository. It lives in the sibling cfmm-wt/gams worktree,\
+      \ whose checkout carries the model/ tree this branch does not, so the suite cannot open the\
+      \ file whose digest the capture recorded and cannot recompute it offline -- which is the\
+      \ whole reason GAMS_MODEL is a required override here rather than an optional one. The\
+      \ recorded list is therefore asserted on SHAPE instead: non-empty, every path ABSOLUTE, and\
+      \ every digest 64 BARE hex characters. That is strictly less than the Haskell half, where\
+      \ argv_module_sha256 and artifact_module_sha256 are recomputed from this repository's own\
+      \ disk and a renderer edited without a re-capture reddens. Recorded as a GAP following\
+      \ 23-05's PGSTORE_DSN precedent: a gap that is written down and asserted where it can be is\
+      \ evidence about the boundary; a manufactured subject is a green light with nothing behind\
+      \ it." )
+  ]
+
+-- | The two library modules whose digests the oracle recomputes from this repository's own disk.
+gams_freshness_subjects :: [FilePath]
+gams_freshness_subjects = ["offchain/lib/Gams/Argv.hs", "offchain/lib/Gams/Artifact.hs"]
+
+recompute_gams_module_digest :: FilePath -> IO (FilePath, Maybe String)
+recompute_gams_module_digest path = do
+  there <- doesFileExist path
+  if not there
+    then pure (path, Nothing)
+    else do
+      bytes <- BS.readFile path
+      pure (path, Just (sha256_hex bytes))
+
+-- | CHECK 1 -- PRESENT, COMPLETE, AND FRESH IN THE HALF THAT CAN BE RECOMPUTED.
+--
+-- @generatedAt@ is deliberately not consulted: 21-02 MEASURED that it is not a regeneration witness
+-- in this repository, so freshness here is COMPUTED. The renderer that decides the argv token and
+-- the decoder that reads the bytes back are digested from THIS disk, right now, and compared to what
+-- the capture recorded -- edit either without re-capturing and this reddens naming the file.
+--
+-- The golden anchor is checked here too, and it is what stops the three environment runs from being
+-- compared only with each other: @golden.sha256@ is the digest the capture took of the COMMITTED
+-- @volume-path-golden.json@, and it is compared against 'Store.Types.volume_path_golden_sha256' --
+-- a Haskell constant that is a third place entirely.
+gams_conformance_is_present_and_fresh :: Check
+gams_conformance_is_present_and_fresh =
+  Check "gams_conformance_is_present_and_fresh" . guarded $ do
+    loaded     <- read_gams_conformance
+    recomputed <- mapM recompute_gams_module_digest gams_freshness_subjects
+    pure $ do
+      artifact <- loaded
+      complete <- gc_bool ["gc_complete"] artifact
+      argv_was     <- gc_string ["argv_module_sha256"] artifact
+      artifact_was <- gc_string ["artifact_module_sha256"] artifact
+      golden_sha   <- gc_string ["golden", "sha256"] artifact
+      golden_len   <- gc_integer ["golden", "len"] artifact
+      sources      <- gc_at ["model_sources"] artifact >>= json_array
+      recorded     <- mapM one_model_source sources
+
+      _ <- expect complete
+             ("the capture did not reach the end: gc_complete is False. The flag starts False and"
+               ++ " is flipped last, after every observation block has returned, so this is a"
+               ++ " TRUNCATED run and not a stale one -- the values below were never all produced."
+               ++ " Re-take it: " ++ gams_conformance_command)
+
+      let vanished = [p | (p, Nothing) <- recomputed]
+      _ <- expect (null vanished)
+             ("the freshness oracle's subjects are not on disk: " ++ intercalate ", " vanished
+               ++ ". A digest recomputed from a file that is gone compares nothing, and an oracle"
+               ++ " that compares nothing reports the same green a fresh capture reports.")
+
+      let drifted =
+            [ (p, was, now)
+            | (p, was) <- zip gams_freshness_subjects [argv_was, artifact_was]
+            , Just (Just now) <- [lookup p recomputed]
+            , now /= was
+            ]
+      _ <- expect (null drifted)
+             ("the committed GAMS conformance capture is STALE. These modules have been edited"
+               ++ " since it was taken:\n      "
+               ++ intercalate "\n      "
+                    [p ++ ": recorded=" ++ was ++ " recomputed=" ++ now | (p, was, now) <- drifted]
+               ++ "\n      The first renders the argv token that DECIDES the artifact's bytes and"
+               ++ " the second decodes them back; every byte claim in that artifact was measured"
+               ++ " against the OLD code and nothing here can tell you whether it still holds."
+               ++ " Re-take it: " ++ gams_conformance_command)
+
+      _ <- expect (golden_sha == volume_path_golden_sha256 && golden_len
+                     == toInteger volume_path_golden_bytes_len)
+             ("the capture recorded the committed golden as " ++ golden_sha ++ " / "
+               ++ show golden_len ++ " bytes and Store.Types pins "
+               ++ volume_path_golden_sha256 ++ " / " ++ show volume_path_golden_bytes_len
+               ++ ".\n      That field is the ANCHOR every byte claim in the artifact is stated"
+               ++ " against -- the three environment runs are compared to IT, not to each other."
+               ++ " If it is not the committed file's digest then those comparisons are three runs"
+               ++ " agreeing with a fourth run, which they would do whatever the bytes were.")
+
+      -- The NAMED GAP, asserted where it can be.
+      _ <- expect (length gams_conformance_unrecomputable == 1
+                     && all ((>= 200) . length . snd) gams_conformance_unrecomputable)
+             ("gams_conformance_unrecomputable does not carry exactly one entry with a written"
+               ++ " reason. It is the record of what this oracle CANNOT check, and a gap with no"
+               ++ " reason is indistinguishable from an omission.")
+      _ <- expect (not (null recorded))
+             ("the capture recorded NO model sources. The list is the only description of which"
+               ++ " model text produced these bytes, and an empty one is what an absent subject"
+               ++ " looks like. Re-take it: " ++ gams_conformance_command)
+      let bad_sources =
+            [ p ++ " / " ++ d
+            | (p, d) <- recorded
+            , not ("/" `isPrefixOf` p) || not (is_bare_sha256 d)
+            ]
+      expect (null bad_sources)
+        ("these recorded model sources are not an absolute path paired with a 64-character bare"
+          ++ " hex digest:\n      " ++ intercalate "\n      " bad_sources
+          ++ "\n      SHAPE is all this suite can assert about them, and the reason is written down"
+          ++ " in gams_conformance_unrecomputable: the model lives in a sibling worktree this"
+          ++ " repository cannot open.")
+  where
+    one_model_source e =
+      (,) <$> (json_field "path" e >>= json_string) <*> (json_field "sha256" e >>= json_string)
+
+-- | The exit codes MEASURED against the real binary, as a map. A SET on both sides.
+expected_gams_exit_codes :: [(String, Integer)]
+expected_gams_exit_codes =
+  [ ("clean", 0)
+  , ("compile_error", 2)
+  , ("abort", 3)
+  , ("exec_error", 3)
+  , ("missing_file", 6)
+  , ("no_args", 0)
+  , ("action_c", 0)
+  ]
+
+-- | CHECK 2 -- the taxonomy, DRIVEN, as a SET of key\/value pairs in both directions.
+--
+-- A missing key is a set mismatch and never a shorter list, because a count over a map that lost
+-- its discriminating entry is satisfied by any six pairs at all.
+--
+-- The finding this encodes is @abort@ and @exec_error@ both being 3: exit 3 does NOT distinguish a
+-- named VOLUME_PATH.md section 4 abort from an unhandled execution error, so \"code 3 means a named
+-- abort\" is FALSE and the reason is log text, which is diagnostic only and never a gate.
+gams_conformance_records_the_measured_exit_codes :: Check
+gams_conformance_records_the_measured_exit_codes =
+  Check "gams_conformance_records_the_measured_exit_codes" . guarded $ do
+    loaded <- read_gams_conformance
+    pure $ do
+      artifact <- loaded
+      pairs    <- gc_at ["exit_codes"] artifact >>= json_object_pairs
+      recorded <- mapM (\(k, v) -> (,) k <$> json_integer v) pairs
+
+      let absent   = [k | (k, _) <- expected_gams_exit_codes, k `notElem` map fst recorded]
+          unlisted = [k | (k, _) <- recorded, k `notElem` map fst expected_gams_exit_codes]
+          wrong    = [ k ++ ": recorded " ++ show got ++ ", measured " ++ show want
+                     | (k, want) <- expected_gams_exit_codes
+                     , Just got <- [lookup k recorded]
+                     , got /= want
+                     ]
+          complaints =
+            ["an exit-code observation with NO entry in the capture: " ++ k | k <- absent]
+              ++ ["the capture records an exit code nothing expects: " ++ k | k <- unlisted]
+              ++ wrong
+      expect (null complaints)
+        (intercalate "\n      " complaints
+          ++ "\n      The taxonomy is a SET on both sides, so a case the capture stopped driving"
+          ++ " has no key here -- a mismatch -- where a count is satisfied by any seven numbers."
+          ++ "\n      Note what abort=3 and exec_error=3 mean together: exit 3 does NOT"
+          ++ " distinguish a NAMED section-4 abort from an unhandled execution error. Both were"
+          ++ " measured at 3 with the real binary, so the reason is log text and log text is"
+          ++ " diagnostic, never a gate."
+          ++ "\n      Re-take it: " ++ gams_conformance_command)
+
+-- | CHECK 3 -- GAMS-02's FIRING INPUT, PRODUCED BY THE REAL BINARY.
+--
+-- @action=c@ exits 0, writes @volume_path.log@ and @volume_path.lst@, and writes NO
+-- @volume_path.json@ at all. Both halves are asserted because either one alone is satisfiable by an
+-- exhibit that stopped exercising the case: exit 0 with an artifact present is an ordinary solve,
+-- and an absent artifact at a non-zero exit is an ordinary failure. It is the CONJUNCTION that says
+-- \"exit 0 means GAMS ran, not that the model solved\".
+gams_conformance_records_action_c_exit_zero_with_no_artifact :: Check
+gams_conformance_records_action_c_exit_zero_with_no_artifact =
+  Check "gams_conformance_records_action_c_exit_zero_with_no_artifact" . guarded $ do
+    loaded <- read_gams_conformance
+    pure $ do
+      artifact <- loaded
+      code     <- gc_integer ["action_c", "exit"] artifact
+      present  <- gc_bool ["action_c", "artifact_present"] artifact
+      expect (code == 0 && not present)
+        ("the capture records action=c at exit " ++ show code ++ " with artifact_present "
+          ++ show present ++ ", and the MEASURED pair is 0 / False."
+          ++ "\n      That pair is GAMS-02's firing input produced by the REAL binary rather than"
+          ++ " by a stub: a compile-only run succeeds and writes nothing. Either half alone is"
+          ++ " satisfiable by an exhibit that stopped exercising the case -- exit 0 with an"
+          ++ " artifact is an ordinary solve, and no artifact at a non-zero exit is an ordinary"
+          ++ " failure. If the toolchain has started writing an artifact under action=c, report it"
+          ++ " as a FINDING. Re-take it: " ++ gams_conformance_command)
+
+-- | CHECK 4 -- THE TWO WRONG-SUBJECT BANNERS, AND THE STREAM THAT IS ALWAYS EMPTY.
+--
+-- @gams@ with no arguments exits __0__ and prints a 1239-byte banner carrying the version three
+-- times; @gams --version@ is parsed as a FILENAME and exits __6__. Both are exit-shaped, non-empty
+-- and version-shaped, and both ran no model -- the phase's defect class in its most seductive form,
+-- captured verbatim rather than invented.
+--
+-- The @parser_verdict@ fields are not transcriptions: this check RECOMPUTES the parse over the
+-- recorded first line with the shipped parser and requires the answer to be a 'WrongJob' rejection
+-- AND to be the very string the capture recorded. The capture parsed the whole stdout and this
+-- parses one line, so agreement is a real claim about where the banner is rather than a comparison
+-- of one expression with itself.
+--
+-- The two @stderr_len == 0@ assertions are the point of the whole check: a detector reading stderr
+-- gets @\"\"@ in every GAMS mode, on the good path and the bad one alike.
+gams_conformance_records_the_wrong_subject_banners :: Check
+gams_conformance_records_the_wrong_subject_banners =
+  Check "gams_conformance_records_the_wrong_subject_banners" . guarded $ do
+    loaded <- read_gams_conformance
+    pure $ do
+      artifact <- loaded
+      _ <- one_banner artifact "no_args" 0 1239
+      one_banner artifact "version_flag" 6 275
+  where
+    one_banner artifact block want_exit want_stdout = do
+      code    <- gc_integer [block, "exit"] artifact
+      out_len <- gc_integer [block, "stdout_len"] artifact
+      err_len <- gc_integer [block, "stderr_len"] artifact
+      line1   <- gc_string [block, "line1"] artifact
+      verdict <- gc_string [block, "parser_verdict"] artifact
+      let recomputed = parse_gams_version gams_model_basename (C8.pack line1)
+      _ <- expect (code == want_exit && out_len == want_stdout)
+             ("the capture records " ++ block ++ " at exit " ++ show code ++ " with "
+               ++ show out_len ++ " stdout bytes; MEASURED " ++ show want_exit ++ " / "
+               ++ show want_stdout ++ ". An invocation that ran NO MODEL and still reported a"
+               ++ " version is what the job-name anchor exists to reject, and if these numbers"
+               ++ " moved the exhibit is describing a different toolchain."
+               ++ " Re-take it: " ++ gams_conformance_command)
+      _ <- expect (err_len == 0)
+             ("the capture records " ++ show err_len ++ " stderr bytes for " ++ block
+               ++ ", and the MEASURED value is 0. That zero is the point: the real tool leaves"
+               ++ " stderr EMPTY in every mode, so a detector reading stderr for a version -- or"
+               ++ " for a verdict -- compares the empty string against the empty string on every"
+               ++ " single run.")
+      case recomputed of
+        Left (WrongJob _) -> Right ()
+        other ->
+          Left ("the recorded first line of " ++ block ++ " does not recompute to a wrong-subject"
+                 ++ " rejection. This suite ran the SHIPPED parser over it and got " ++ show other
+                 ++ ".\n      line1: " ++ show line1
+                 ++ "\n      A WrongJob rejection is the discriminating answer: it means the parser"
+                 ++ " read a well-formed banner and refused it because the job name was not the"
+                 ++ " model. An EmptyInput or NoJobBanner answer here means the recorded line is"
+                 ++ " not a banner at all, and then the exhibit proves nothing about the"
+                 ++ " discriminator.")
+      expect (verdict == show recomputed)
+        ("the capture recorded parser_verdict " ++ show verdict ++ " for " ++ block
+          ++ " and the shipped parser re-run over the recorded first line answers "
+          ++ show (show recomputed) ++ "."
+          ++ "\n      The capture parsed the WHOLE stdout and this recomputation parses line 1"
+          ++ " only, so agreement is a claim about where the banner is. Disagreement means the"
+          ++ " recorded verdict describes a different buffer than the recorded line does.")
+
+-- | CHECK 5 -- THE RESOLVED BINARY: SHAPE AND CROSS-CONSISTENCY, NEVER THE VALUE.
+--
+-- Pinning @79cd3a57...@ or @1822256@ in Haskell would make @cabal test@ fail on every install that
+-- is not the research machine, which is the difference between pinning EVIDENCE and pinning an
+-- ACCIDENT. What is asserted instead is that the path is absolute (a bare name resolved through
+-- @PATH@ is a shadow surface, and a digest taken beside one is a digest of whatever the lookup
+-- found), that the digest is 64 BARE hex characters, that the size is positive, and that the version
+-- agrees with a SECOND, INDEPENDENT reading of it.
+--
+-- That second reading is @conopt_link_version@: the GAMS-side CONOPT link line in the NLP probe's
+-- output carries the GAMS base version, and the probe is a different invocation from the clean solve
+-- whose job banner produced @gams_version@. Two invocations, two parses, one number. If an install
+-- ever ships a link version that differs from its base version, this reddens -- and that is a
+-- FINDING about the install, not a number to relax.
+gams_conformance_records_the_resolved_binary_and_its_digest :: Check
+gams_conformance_records_the_resolved_binary_and_its_digest =
+  Check "gams_conformance_records_the_resolved_binary_and_its_digest" . guarded $ do
+    loaded <- read_gams_conformance
+    pure $ do
+      artifact <- loaded
+      path     <- gc_string ["gams_path"] artifact
+      digest   <- gc_string ["gams_sha256"] artifact
+      byte_size <- gc_integer ["gams_size"] artifact
+      version  <- gc_string ["gams_version"] artifact
+      build    <- gc_string ["gams_build"] artifact
+      method   <- gc_string ["gams_version_method"] artifact
+      link     <- gc_string ["conopt_link_version"] artifact
+
+      _ <- expect ("/" `isPrefixOf` path)
+             ("the capture records gams_path " ++ show path ++ ", which is not absolute. A bare"
+               ++ " name is resolved through PATH at exec time, so the file that ran is a property"
+               ++ " of the caller's environment and the digest recorded beside it is the digest of"
+               ++ " whatever the lookup happened to find.")
+      _ <- expect (is_bare_sha256 digest)
+             ("the capture records gams_sha256 " ++ show digest ++ ", which is not 64 lowercase hex"
+               ++ " characters. A 0x prefix here would also redden sc3_literal_purge wherever the"
+               ++ " value travelled, and a short digest is a digest of something else.")
+      _ <- expect (byte_size > 0)
+             ("the capture records gams_size " ++ show byte_size ++ ". A zero-length executable did not"
+               ++ " produce these bytes.")
+      _ <- expect (is_build_id_shape build)
+             ("the capture records gams_build " ++ show build ++ ", which is not the MEASURED"
+               ++ " eight-lowercase-hex shape. The build id is half of the toolchain identity"
+               ++ " Phase 25 folds into the content key.")
+      _ <- expect ("parse_gams_version" `isInfixOf` method)
+             ("gams_version_method does not name the parser that produced the version: "
+               ++ show method ++ ". A method field that does not identify the expression under"
+               ++ " test is prose, and prose is not a record of how a number was obtained.")
+      expect (version == link)
+        ("the capture records gams_version " ++ show version ++ " from the clean solve's job banner"
+          ++ " and conopt_link_version " ++ show link ++ " from the NLP probe's GAMS-side link"
+          ++ " line.\n      Those are two DIFFERENT invocations parsed two DIFFERENT ways, and the"
+          ++ " link line carries the GAMS base version -- so they agreeing is the cross-consistency"
+          ++ " that stands in for a pinned value this suite must not pin. If an install genuinely"
+          ++ " ships a link version different from its base version, report it as a FINDING about"
+          ++ " that install rather than relaxing this.")
+
+-- | CHECK 6 -- CONOPT'S TRUE VERSION, AND BOTH DECOYS STILL BESIDE IT.
+--
+-- Three candidates existed simultaneously on the research machine and all three were plausible: the
+-- true banner @    C O N O P T   version 4.39.0@, the GAMS-side link line @CONOPT 4  54.1.0 ...@,
+-- and the shared object @libconopt464.so@ -- @464@, which is neither. Equality with either decoy
+-- means the exhibit LOST the thing it exists to distinguish, so both are asserted as inequalities.
+--
+-- The two line indices are what retires positional parsing as a RECORDED FACT rather than a claim:
+-- the true banner sits at a different offset in the probe's output than in the production run's own
+-- log. Both are asserted positive first, because @0 \/= 47@ is satisfied by an index that was never
+-- measured at all.
+gams_conformance_records_conopt_and_the_method_that_found_it :: Check
+gams_conformance_records_conopt_and_the_method_that_found_it =
+  Check "gams_conformance_records_conopt_and_the_method_that_found_it" . guarded $ do
+    loaded <- read_gams_conformance
+    pure $ do
+      artifact    <- loaded
+      version     <- gc_string ["conopt_version"] artifact
+      method      <- gc_string ["conopt_method"] artifact
+      link        <- gc_string ["conopt_link_version"] artifact
+      so_name     <- gc_string ["conopt_so_name"] artifact
+      probe_index <- gc_integer ["conopt_true_line_index_probe"] artifact
+      real_index  <- gc_integer ["conopt_true_line_index_real"] artifact
+
+      _ <- expect ("4.39." `isPrefixOf` version)
+             ("the capture records conopt_version " ++ show version ++ ", and the MEASURED solver"
+               ++ " is 4.39.x. A different major-minor means the artifact describes a different"
+               ++ " solver, and VOLUME_PATH.md section 3 warns that a different CONOPT may select a"
+               ++ " different member of the underdetermined path family while passing every gate.")
+      _ <- expect ("parse_conopt_version" `isInfixOf` method)
+             ("conopt_method does not name the parser that produced the version: " ++ show method
+               ++ ". The method is the record of WHICH of three plausible candidates was read.")
+      _ <- expect ("libconopt" `isPrefixOf` so_name && ".so" `isSuffixOf_` so_name)
+             ("the capture records conopt_so_name " ++ show so_name ++ ", which is not a"
+               ++ " libconopt*.so filename. That file is the second decoy; recording anything else"
+               ++ " for it makes the inequality below pass because its subject is absent.")
+      _ <- expect (version /= link && version /= so_name)
+             ("the true CONOPT version " ++ show version ++ " EQUALS a decoy (link " ++ show link
+               ++ ", shared object " ++ show so_name ++ ").\n      All three candidates exist on"
+               ++ " the machine at once and all three are plausible; the whole of GAMS-04 is that"
+               ++ " the parser takes the spaced-letter banner and refuses the other two. Equality"
+               ++ " here means the exhibit no longer contains the thing the parser is tested"
+               ++ " against.")
+      _ <- expect (probe_index > 0 && real_index > 0)
+             ("the capture records the true CONOPT banner at line " ++ show probe_index
+               ++ " of the probe and line " ++ show real_index ++ " of the real run, and a"
+               ++ " non-positive index is one that was never measured. The inequality below would"
+               ++ " then hold for a reason unrelated to line positions.")
+      expect (probe_index /= real_index)
+        ("the true CONOPT banner is recorded at the SAME line index (" ++ show probe_index
+          ++ ") in the probe's output and in the production run's own log.\n      Those two"
+          ++ " positions differing is what retires positional parsing as a recorded fact: a parser"
+          ++ " anchored on a line number would answer correctly for one of them and wrongly for"
+          ++ " the other. If they have genuinely converged, the exhibit no longer demonstrates why"
+          ++ " parse_conopt_version scans every line.")
+
+-- | Suffix test. @Data.List.isSuffixOf@ is not imported here and one more import for one use is
+-- more churn than the three words it replaces.
+isSuffixOf_ :: String -> String -> Bool
+isSuffixOf_ needle hay = needle `isPrefixOf` reverse_pair
+  where reverse_pair = reverse (take (length needle) (reverse hay))
+
+-- | @Data.Either.isRight@ under another name, for the same reason as above.
+isRight_ :: Either a b -> Bool
+isRight_ (Right _) = True
+isRight_ (Left _)  = False
+
+-- | The four ambient variables MEASURED inert against the artifact's bytes.
+--
+-- Pinned as a SET so that a capture whose hostile set silently shrank is a mismatch rather than a
+-- shorter list -- and every one of them is ALSO required to carry a key the library's own
+-- 'Gams.Env.forbidden_key_prefixes' excludes, which is the outside oracle that keeps this pin from
+-- being a transcription of itself.
+expected_hostile_env_vars :: [String]
+expected_hostile_env_vars =
+  [ "GAMSDIR=/nonexistent"
+  , "GAMSTHREADS=8"
+  , "GDXCOMPRESS=1"
+  , "LC_NUMERIC=de_DE.UTF-8"
+  ]
+
+-- | CHECK 7 -- FOUR HOSTILE AMBIENT VARIABLES CHANGED NOTHING.
+--
+-- The second conjunct is not decoration. An EMPTY hostile set makes the byte-identity claim vacuous
+-- -- \"the bytes did not change when nothing was changed\" -- so the set is asserted in both
+-- directions and every member is required to be a variable the whitelist's own exclusion rule
+-- names.
+gams_conformance_records_byte_identity_under_a_hostile_environment :: Check
+gams_conformance_records_byte_identity_under_a_hostile_environment =
+  Check "gams_conformance_records_byte_identity_under_a_hostile_environment" . guarded $ do
+    loaded <- read_gams_conformance
+    pure $ do
+      artifact   <- loaded
+      vars       <- gc_strings ["hostile_env_run", "vars"] artifact
+      host_sha   <- gc_string ["hostile_env_run", "sha256"] artifact
+      golden_sha <- gc_string ["golden", "sha256"] artifact
+
+      let absent   = [v | v <- expected_hostile_env_vars, v `notElem` vars]
+          unlisted = [v | v <- vars, v `notElem` expected_hostile_env_vars]
+          unruled  = [ v
+                     | v <- vars
+                     , let key = takeWhile (/= '=') v
+                     , not (any (`isPrefixOf` key) forbidden_key_prefixes)
+                     ]
+      _ <- expect (length vars >= 4 && null absent && null unlisted)
+             ("the recorded hostile environment is not the MEASURED set."
+               ++ (if null absent then "" else "\n      expected and not recorded: "
+                                                 ++ intercalate ", " absent)
+               ++ (if null unlisted then "" else "\n      recorded and not expected: "
+                                                   ++ intercalate ", " unlisted)
+               ++ "\n      An empty or shrunken hostile set makes the byte-identity claim below"
+               ++ " vacuous: 'the bytes did not change when nothing was changed' is true of every"
+               ++ " toolchain there has ever been. Re-take it: " ++ gams_conformance_command)
+      _ <- expect (null unruled)
+             ("these recorded hostile variables carry a key that Gams.Env.forbidden_key_prefixes"
+               ++ " does not exclude: " ++ intercalate ", " unruled
+               ++ ".\n      The pin above is only worth having because the library independently"
+               ++ " calls each of these variables hostile; a member the whitelist would have"
+               ++ " admitted anyway proves nothing about the whitelist.")
+      expect (host_sha == golden_sha)
+        ("the hostile-environment run produced " ++ host_sha ++ " and the committed golden is "
+          ++ golden_sha ++ ".\n      GAMS-06's measured half is that a thread count, a container"
+          ++ " encoding, a comma-decimal locale and a bogus system directory all leave the bytes"
+          ++ " ALONE when the binary is invoked by absolute path. A difference here is a FINDING"
+          ++ " about the toolchain's determinism, not a number to adjust.")
+
+-- | CHECK 8 -- THE MINIMAL VECTOR THAT STILL REPRODUCES THE BYTES.
+--
+-- @whitelist_run.vars@ is compared against 'Gams.Env.whitelist_keys' in BOTH directions: a recorded
+-- whitelist carrying a variable the library does not name means the capture and the library have
+-- drifted, and a library key the capture never passed means the recorded run was not the whitelisted
+-- one.
+--
+-- @minimal_run@ is asserted to be a PROPER subset -- two keys, no @HOME@ -- because \"minimal\" is
+-- the claim, and a minimal run that quietly carried the full whitelist would reproduce the bytes for
+-- the reason the whitelisted run does.
+gams_conformance_records_the_minimal_whitelist_reproducing_the_golden_bytes :: Check
+gams_conformance_records_the_minimal_whitelist_reproducing_the_golden_bytes =
+  Check "gams_conformance_records_the_minimal_whitelist_reproducing_the_golden_bytes" . guarded $ do
+    loaded <- read_gams_conformance
+    pure $ do
+      artifact   <- loaded
+      wl_vars    <- gc_strings ["whitelist_run", "vars"] artifact
+      wl_sha     <- gc_string ["whitelist_run", "sha256"] artifact
+      min_vars   <- gc_strings ["minimal_run", "vars"] artifact
+      min_sha    <- gc_string ["minimal_run", "sha256"] artifact
+      golden_sha <- gc_string ["golden", "sha256"] artifact
+
+      let absent   = [k | k <- whitelist_keys, k `notElem` wl_vars]
+          unlisted = [k | k <- wl_vars, k `notElem` whitelist_keys]
+      _ <- expect (null absent && null unlisted)
+             ("the recorded whitelist and Gams.Env.whitelist_keys are different SETS."
+               ++ (if null absent then "" else "\n      named by the library, not passed: "
+                                                 ++ intercalate ", " absent)
+               ++ (if null unlisted then "" else "\n      passed, not named by the library: "
+                                                   ++ intercalate ", " unlisted)
+               ++ "\n      Either direction means the capture and the library have drifted, and"
+               ++ " the bytes below were then produced under an environment this suite is not"
+               ++ " describing. Re-take it: " ++ gams_conformance_command)
+
+      let stray = [k | k <- min_vars, k `notElem` whitelist_keys]
+      _ <- expect (null stray && length min_vars == 2 && "HOME" `notElem` min_vars)
+             ("the recorded minimal environment is " ++ show min_vars ++ ", and the MEASURED one"
+               ++ " is the whitelist WITHOUT HOME -- two keys, both named by the library."
+               ++ (if null stray then "" else " Stray keys: " ++ intercalate ", " stray ++ ".")
+               ++ "\n      'Minimal' is the whole claim. A minimal run that quietly carried the"
+               ++ " full whitelist would reproduce the bytes for exactly the reason the whitelisted"
+               ++ " run does, and the second observation would be the first one twice.")
+
+      expect (wl_sha == golden_sha && min_sha == golden_sha)
+        ("the environment runs did not reproduce the committed golden bytes:"
+          ++ "\n      whitelist " ++ wl_sha
+          ++ "\n      minimal   " ++ min_sha
+          ++ "\n      golden    " ++ golden_sha
+          ++ "\n      Both are compared to the COMMITTED artifact's digest and never to each"
+          ++ " other, which is what stops three runs of one toolchain from agreeing with"
+          ++ " themselves and being read as reproducibility.")
+
+-- | CHECK 9 -- THE ASYMMETRY THAT MAKES THE RENDERER LOAD-BEARING.
+--
+-- @volume_path.gms:206-207@ emits @\"%sqrtPriceX96%\"@ -- a COMPILE-TIME substitution of the raw
+-- command-line string -- so the two echoed string fields are TOKEN-sensitive while the numeric ones
+-- are re-rendered by GAMS and are not. MEASURED both ways:
+--
+--   * a leading zero on the price token gives exit 0, every section-4 gate green, and DIFFERENT
+--     bytes;
+--   * two spellings of @volTgtWad@ give byte-identical output, because it is a GAMS @Scalar@ and is
+--     never echoed.
+--
+-- The digest of the leading-zero run is asserted as an INEQUALITY rather than pinned: the value is a
+-- product of this machine's run and the CLAIM is that it differs. The TOKEN, by contrast, is
+-- computed here from 'Gams.Argv.render_decimal' over the same shock the Tier-B checks send -- an
+-- outside oracle, so a doctored token is caught without a transcription.
+--
+-- The two @volTgtWad@ spellings are checked through 'Gams.Argv.parse_shock_field', the shipped edge
+-- normaliser, which is what says they denote ONE value; pinning the two strings would only say the
+-- capture wrote down what the capture wrote down.
+gams_conformance_records_the_leading_zero_changing_the_bytes :: Check
+gams_conformance_records_the_leading_zero_changing_the_bytes =
+  Check "gams_conformance_records_the_leading_zero_changing_the_bytes" . guarded $ do
+    loaded <- read_gams_conformance
+    pure $ do
+      artifact   <- loaded
+      token      <- gc_string ["leading_zero_run", "token"] artifact
+      code       <- gc_integer ["leading_zero_run", "exit"] artifact
+      zero_sha   <- gc_string ["leading_zero_run", "sha256"] artifact
+      golden_sha <- gc_string ["golden", "sha256"] artifact
+      spelling_a <- gc_string ["voltgt_rendering", "a"] artifact
+      spelling_b <- gc_string ["voltgt_rendering", "b"] artifact
+      sha_a      <- gc_string ["voltgt_rendering", "sha256_a"] artifact
+      sha_b      <- gc_string ["voltgt_rendering", "sha256_b"] artifact
+
+      let wanted_token = '0' : render_decimal (sh_sqrt_price_x96 tier_b_shock)
+      _ <- expect (token == wanted_token)
+             ("the capture records the leading-zero token " ++ show token ++ " and the canonical"
+               ++ " price token with a zero glued on is " ++ show wanted_token
+               ++ ".\n      That expected value is COMPUTED from Gams.Argv.render_decimal over the"
+               ++ " same shock the Tier-B checks send, so it is an outside oracle rather than a"
+               ++ " transcription -- and the whole observation is about which STRING reached the"
+               ++ " execve.")
+      _ <- expect (code == 0 && is_bare_sha256 zero_sha)
+             ("the leading-zero run is recorded at exit " ++ show code ++ " with digest "
+               ++ show zero_sha ++ ", and the MEASURED result is exit 0 with a real digest."
+               ++ "\n      The point is that it SUCCEEDS -- every VOLUME_PATH.md section 4 gate"
+               ++ " passes -- and still produces different bytes. A refusal would prove nothing"
+               ++ " about rendering, and an absent digest would make the inequality below pass"
+               ++ " because its subject was missing.")
+      _ <- expect (zero_sha /= golden_sha)
+             ("the leading-zero run digests IDENTICALLY to the golden (" ++ golden_sha ++ ")."
+               ++ "\n      Then two spellings of one value give one artifact, the argv renderer is"
+               ++ " not load-bearing, and Phase 25's key normalisation has lost the measurement it"
+               ++ " rests on. Report it as a FINDING about the model's echo fields; do not adjust"
+               ++ " it.")
+      -- THE EDGE IS STRICTER THAN GAMS, AND THAT IS THE ASSERTION.
+      --
+      -- MEASURED at 24-05, and it corrected this check's first draft: @28e18@ is ACCEPTED by
+      -- 'Gams.Argv.parse_shock_field' and denotes the golden's volTgtWad exactly, while @2.8e19@ is
+      -- REFUSED -- a fractional mantissa is rejected on FORM, because admitting it would require
+      -- deciding when a floating spelling is exact and that decision does not belong at an edge.
+      -- GAMS accepts both and produces IDENTICAL bytes. So the two spellings cannot both be run
+      -- through the normaliser as one oracle; what is asserted instead is the real relationship,
+      -- with the shipped function used in BOTH directions.
+      _ <- expect (spelling_a /= spelling_b
+                     && parse_shock_field spelling_a == Right (sh_vol_tgt_wad tier_b_shock)
+                     && not (isRight_ (parse_shock_field spelling_b))
+                     && '.' `elem` spelling_b)
+             ("the two recorded volTgtWad spellings are " ++ show spelling_a ++ " and "
+               ++ show spelling_b ++ ", and the MEASURED relationship between them is:"
+               ++ "\n      they are DIFFERENT strings;"
+               ++ "\n      the first is ADMITTED by Gams.Argv.parse_shock_field and denotes "
+               ++ render_decimal (sh_vol_tgt_wad tier_b_shock) ++ ";"
+               ++ "\n      the second carries a decimal point and is REFUSED by that same"
+               ++ " function, on FORM -- got " ++ show (parse_shock_field spelling_b) ++ "."
+               ++ "\n      That asymmetry is the finding, not an inconvenience: this repository's"
+               ++ " edge is STRICTER than the solver. GAMS accepts both spellings and the digests"
+               ++ " below show it produced identical bytes from them, while parse_shock_field"
+               ++ " refuses a fractional mantissa rather than decide when a floating spelling is"
+               ++ " exact. Both halves are asserted with the SHIPPED function, so neither side of"
+               ++ " this is a transcription of the capture.")
+      expect (sha_a == golden_sha && sha_b == sha_a)
+        ("the two volTgtWad spellings did not produce the golden bytes: a=" ++ sha_a ++ " b="
+          ++ sha_b ++ " golden=" ++ golden_sha
+          ++ ".\n      This is the OTHER half of the asymmetry: volTgtWad is a GAMS Scalar and is"
+          ++ " never echoed into the artifact, so its rendering cannot reach the bytes -- while the"
+          ++ " two echoed STRING fields are compile-time substitutions of the raw token and can."
+          ++ " Both halves are needed; the first one alone would read as 'GAMS is sensitive to"
+          ++ " argv', which is false.")
+
+-- | The observation NAMES the capture must carry. A SET, in both directions.
+--
+-- 23-05 MEASURED why this is a set and not a count: a deleted law passed a count over the same
+-- document while the set caught it.
+expected_gams_observations :: [String]
+expected_gams_observations =
+  [ "a_hostile_environment_leaves_the_bytes_identical"
+  , "action_c_exits_zero_and_writes_no_artifact"
+  , "clean_solve_reproduces_the_committed_golden_bytes"
+  , "conopt_true_version_differs_from_both_decoys"
+  , "no_arguments_exits_zero_with_a_wrong_subject_banner"
+  , "the_exit_code_taxonomy_was_driven"
+  , "the_leading_zero_token_changes_the_bytes"
+  , "the_minimal_whitelist_reproduces_the_golden_bytes"
+  , "version_flag_exits_six_with_a_wrong_subject_banner"
+  ]
+
+-- | CHECK 10 -- EVERY OBSERVATION PASSED, AND THE OBSERVATION SET IS THE ONE THAT WAS ASKED FOR.
+gams_conformance_verdicts_are_all_pass :: Check
+gams_conformance_verdicts_are_all_pass =
+  Check "gams_conformance_verdicts_are_all_pass" . guarded $ do
+    loaded <- read_gams_conformance
+    pure $ do
+      artifact <- loaded
+      entries  <- gc_at ["observations"] artifact >>= json_array
+      recorded <- mapM one_observation entries
+
+      let names    = map fst recorded
+          absent   = [n | n <- expected_gams_observations, n `notElem` names]
+          unlisted = [n | n <- names, n `notElem` expected_gams_observations]
+          complaints =
+            ["an observation the set names has NO entry in the capture: " ++ n | n <- absent]
+              ++ ["the capture reports an observation the set does not name: " ++ n | n <- unlisted]
+      _ <- expect (null complaints)
+             (intercalate "\n      " complaints
+               ++ "\n      The observation surface is a SET on both sides, and it is a set rather"
+               ++ " than a count precisely so that a SKIPPED observation is unrepresentable: one"
+               ++ " that did not run has no entry here, which is a mismatch, where a count is"
+               ++ " satisfied by any nine entries at all. 23-05 MEASURED a count passing exactly"
+               ++ " this deletion. Re-take it: " ++ gams_conformance_command)
+
+      let broken = [(n, v) | (n, v) <- recorded, v /= "pass"]
+      expect (null broken)
+        ("the real toolchain did NOT do what this phase's guards were designed against. These"
+          ++ " observations did not pass when the capture drove the live solver:\n      "
+          ++ intercalate "\n      " [n ++ ": " ++ v | (n, v) <- broken]
+          ++ "\n      Every guard in Tier A and Tier B fires against pure values and shell stubs;"
+          ++ " these are the only assertions that say the guards were aimed at the real thing.")
+  where
+    one_observation e =
+      (,) <$> (json_field "name" e >>= json_string) <*> (json_field "verdict" e >>= json_string)
+
+-- ---------------------------------------------------------------------------------------------
 -- THE STRUCTURAL GUARANTEE: cabal test CANNOT REACH THE REAL PROVER
 -- ---------------------------------------------------------------------------------------------
 
@@ -10077,6 +10785,16 @@ core_checks = do
           , an_inherited_environment_is_observed_to_differ
           , version_detection_failure_aborts_the_invocation
           , the_suite_never_names_the_real_solver
+          , gams_conformance_is_present_and_fresh
+          , gams_conformance_records_the_measured_exit_codes
+          , gams_conformance_records_action_c_exit_zero_with_no_artifact
+          , gams_conformance_records_the_wrong_subject_banners
+          , gams_conformance_records_the_resolved_binary_and_its_digest
+          , gams_conformance_records_conopt_and_the_method_that_found_it
+          , gams_conformance_records_byte_identity_under_a_hostile_environment
+          , gams_conformance_records_the_minimal_whitelist_reproducing_the_golden_bytes
+          , gams_conformance_records_the_leading_zero_changing_the_bytes
+          , gams_conformance_verdicts_are_all_pass
           ]
             ++ per_pin_checks pins
   pure checks
