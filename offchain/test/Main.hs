@@ -109,15 +109,20 @@ import Chain.Shock
 -- a check fails instead of a key silently changing meaning.
 import Fee.Split
   ( FeeSplit (..)
+  , SplitRefusal (..)
+  , admissible_band
   , compose_scaled
   , ellipse_test
   , exact_pairs_for
   , fee_in_domain
   , is_admissible
   , min_admissible_dstar
+  , mix64
   , nearest_partner
+  , pick_from_band
   , residual_scaled
   , split_for
+  , splitter_version
   )
 import qualified Fee.Split as FS
 -- The GAMS layer, PURE HALF ONLY. Both modules are total functions over values this file
@@ -13795,6 +13800,401 @@ the_derived_pips_are_what_reach_the_argv =
         ++ " other token in the command line is identical either way -- so nothing but this arm"
         ++ " would notice.")
 
+-- | The pinned seed list FEE-04 is measured over. Eight values, spanning the whole 'Word32' range.
+--
+-- A LIST rather than a pair, because a cherry-picked pair that happens to differ is not evidence
+-- that the seed is load-bearing: it is one observation, and one observation is what a selector that
+-- reads only the low bit would also produce.
+fee04_seeds :: [Word32]
+fee04_seeds = [0, 1, 2, 7, 42, 1337, 4294967295, 20260817]
+
+-- | The stub whose ENTIRE body is a marker touch. It writes no artifact and no log on purpose:
+-- this check is about whether a child ran at all, and giving it more to do would let a failure be
+-- explained by something other than the spawn.
+stub_touches_marker :: FilePath -> String
+stub_touches_marker marker =
+  "#!/bin/sh\n: > '" ++ marker ++ "'\nexit 0\n"
+
+-- | FEE-03 Tier B, check 16: NO SUBPROCESS IS SPAWNED FOR AN INADMISSIBLE SHOCK -- OBSERVED.
+--
+-- === Why this exists when the type already says it
+--
+-- 'Gams.Run.run_prover' cases on 'render_argv' and hands a 'Left' to @refused_before_spawn@, which
+-- returns @Aborted why 0@ with three empty streams and an EMPTY run directory. So \"refused before
+-- any subprocess\" is true BY CONSTRUCTION: there is no argv for an inadmissible shock and
+-- @spawn_into@ cannot be reached without one. That is an argument about code.
+--
+-- This is the observation. A @\/bin\/sh@ stub whose whole body touches a marker is handed to
+-- 'Gams.Run.run_prover' as the binary; the marker's presence is then a FACT about whether a process
+-- ran, taken from the filesystem rather than from reading the case expression. Both, or neither:
+-- neither alone is this project's standard.
+--
+-- Doing it at all is possible because @gams_free_pattern@ is exactly three concatenated tokens --
+-- the module that resolves the live binary, its require-a-real-solver override, and the
+-- installation's absolute path -- and @Gams.Run@ is deliberately NOT one of them. The suite drives
+-- the IO edge against scripts it wrote itself while staying structurally incapable of naming the
+-- real prover, and the require-a-real-solver override belongs in the capture script and nowhere
+-- near @cabal test@.
+--
+-- === The order of the two runs is mandatory
+--
+-- The POSITIVE CONTROL runs FIRST and its shock differs from the subject's by ONE PIP: 82804, the
+-- measured boundary, against 82803. It asserts the marker EXISTS and that @cs_run_dir@ is NON-empty
+-- -- that a child ran and a directory was made. Without it, \"the marker is absent\" below is
+-- satisfied by a harness that spawned nothing at all, which is this repository's entire defect
+-- class and is why the control cannot be second.
+--
+-- The subject then asserts three things, and the third is the strongest: the marker is ABSENT, the
+-- outcome is @Aborted (ArgvRejected (Inadmissible 500 6000 82803 ...)) 0@, and @cs_run_dir@ is the
+-- EMPTY STRING -- the run directory was never created at all, which says more than \"no marker\".
+no_subprocess_is_spawned_for_an_inadmissible_shock :: Check
+no_subprocess_is_spawned_for_an_inadmissible_shock =
+  Check "no_subprocess_is_spawned_for_an_inadmissible_shock" . guarded $
+    with_tier_b_scratch "no-spawn" $ \scratch -> do
+      -- The scratch directory is asserted to be OUTSIDE the working tree before anything is written
+      -- into it. This check creates files and runs a child; a scratch path that resolved inside the
+      -- repository would put both in the tree the suite exists to verify.
+      _ <- outside_repo scratch
+      let marker = scratch </> "the-child-ran"
+      stub <- write_stub scratch "marker.sh" (stub_touches_marker marker)
+      let request rate = RunRequest
+            { rr_binary       = stub
+            , rr_model        = scratch </> gams_model_basename
+            , rr_shock        = tier_b_shock { sh_txl_volume_rate = rate }
+            , rr_env          = Just (whitelist_for scratch)
+            , rr_budget_s     = 5
+            , rr_kill_after_s = 1
+            }
+      -- POSITIVE CONTROL, FIRST.
+      control_outcome <- run_prover (request fee03_boundary_pip)
+      control_marker  <- doesFileExist marker
+      let control_dir = outcome_run_dir control_outcome
+      -- Remove it, so the subject's absence is about the subject.
+      control_gone <-
+        if control_marker then removeFile marker >> pure True else pure False
+      -- SUBJECT.
+      subject_outcome <- run_prover (request 82803)
+      subject_marker  <- doesFileExist marker
+      pure $ do
+        _ <- expect control_marker
+               ("the POSITIVE CONTROL did not fire: an ADMISSIBLE shock (txlVolumeRate = "
+                 ++ show fee03_boundary_pip ++ ", one pip above the refused one) was driven through"
+                 ++ " run_prover with a stub whose whole body touches a marker, and the marker was"
+                 ++ " NOT created. The outcome was " ++ render_outcome control_outcome
+                 ++ ".\n      The harness spawned nothing at all, so \"the marker is absent\" below"
+                 ++ " is satisfied by a harness that ran nothing -- which is this repository's"
+                 ++ " entire defect class and the reason this arm is evaluated first.")
+        _ <- expect (not (null control_dir))
+               ("the POSITIVE CONTROL's run reported an EMPTY run directory. cs_run_dir is empty"
+                 ++ " ONLY when no directory was ever created, which happens exactly when the shock"
+                 ++ " was refused before any spawn -- so the control was itself refused and proves"
+                 ++ " nothing. Outcome: " ++ render_outcome control_outcome)
+        _ <- expect control_gone
+               "the control's marker could not be removed, so the subject's absence would be stale."
+        _ <- expect (not subject_marker)
+               ("A CHILD RAN FOR AN INADMISSIBLE SHOCK. The marker at " ++ marker
+                 ++ " exists after driving run_prover at txlVolumeRate = 82803, which the prover's"
+                 ++ " own ellipse refuses (E = " ++ show fee03_boundary_e ++ " > 0). The stub's"
+                 ++ " entire body is that touch, so its presence means execve happened -- and the"
+                 ++ " ninth refusal is supposed to make the argv nonexistent, not merely unused."
+                 ++ "\n      Outcome: " ++ render_outcome subject_outcome)
+        _ <- case subject_outcome of
+               Aborted (ArgvRejected (Inadmissible 500 6000 82803 _ _)) 0 _ -> Right ()
+               other ->
+                 Left ("the inadmissible shock gave " ++ render_outcome other
+                        ++ ", expected Aborted (ArgvRejected (Inadmissible 500 6000 82803 ...)) 0."
+                        ++ " The abort reason is what says the refusal came from the RENDERER"
+                        ++ " rather than from a child that ran and failed; an exit-3 abort would"
+                        ++ " look similar and would mean the opposite.")
+        expect (null (outcome_run_dir subject_outcome))
+          ("the refused shock reports the run directory "
+            ++ show (outcome_run_dir subject_outcome) ++ ", and it must be the EMPTY STRING."
+            ++ " cs_run_dir is empty ONLY when no directory was ever created. That is a stronger"
+            ++ " statement than \"no marker\": a directory that was made and then removed would"
+            ++ " leave no marker either, and this arm tells the two apart.")
+
+-- | The pattern for check 17, BUILT by concatenation so this file does not match its own scan.
+splitter_io_pattern :: String
+splitter_io_pattern =
+  "Sys" ++ "tem\\.Process|read" ++ "Process|unsafe" ++ "PerformIO|:: IO |get" ++ "Env|look" ++ "upEnv"
+
+-- | The seeded bait, BUILT for the same reason, carrying every alternation.
+splitter_io_bait_source :: String
+splitter_io_bait_source =
+  "import Sys" ++ "tem.Process (read" ++ "Process)\n"
+    ++ "import System.IO.Unsafe (unsafe" ++ "PerformIO)\n"
+    ++ "import System.Environment (get" ++ "Env, look" ++ "upEnv)\n"
+    ++ "spawn :: IO " ++ "()\n"
+    ++ "spawn = pure ()\n"
+
+-- | The splitter's own path, named once.
+fee_splitter_path :: FilePath
+fee_splitter_path = "offchain/lib/Fee/Split.hs"
+
+-- | FEE-04 check 17: the splitter holds no IO and names no process.
+--
+-- This is what keeps FEE-04 Tier A. If 'Fee.Split.split_for' could read an environment variable or
+-- draw from an entropy source, the seed would be one input among several and \"the same seed gives
+-- the same pair\" would be a statement about this host at this moment. The two environment readers
+-- are in the pattern for that reason specifically: @Driver.Seed@ is the ONLY resolver of a seed in
+-- this codebase, and a second one here would let a typo'd seed silently become a drawn one in a
+-- module whose whole output is keyed on it.
+--
+-- Three assertions in this order. The POSITIVE CONTROL is FIRST and runs the IDENTICAL argument
+-- vector over a bait seeded OUTSIDE the repository, and is required to NAME it -- absence may not
+-- read as success until the pattern has been SHOWN matching. Then the subject's existence, because
+-- grep exits 1 both for \"found nothing\" and for \"the file is not there\". Then the scan.
+the_splitter_holds_no_IO_and_names_no_process :: Check
+the_splitter_holds_no_IO_and_names_no_process =
+  Check "the_splitter_holds_no_IO_and_names_no_process" . guarded $ do
+    tmp <- getTemporaryDirectory
+    dir <- outside_repo (tmp </> "fee04-io-positive-control")
+    let bait     = dir </> "bait.hs"
+        innocent = dir </> "clean.hs"
+        discard p = do
+          there <- doesFileExist p
+          if there then removeFile p else pure ()
+    createDirectoryIfMissing True dir
+    control <- flip finally (mapM_ discard [bait, innocent]) $ do
+      writeFile bait splitter_io_bait_source
+      writeFile innocent "pick :: Integer -> Integer\npick = id\n"
+      (code, out, err) <- gams_version_scan splitter_io_pattern [bait, innocent]
+      pure $ do
+        _ <- expect (code == ExitSuccess)
+               ("FEE-04's IO POSITIVE CONTROL did not fire: the scan exited " ++ show code
+                 ++ " over a file that imports the process module, the unsafe-IO escape hatch and"
+                 ++ " both environment readers, and declares an IO action. The pattern has stopped"
+                 ++ " matching anything, so the exit-1 the real scan reports is absence of MATCHES"
+                 ++ " only by assumption."
+                 ++ (if null err then "" else "\n      stderr: " ++ err))
+        _ <- expect ("bait.hs" `isInfixOf` out)
+               ("FEE-04's IO POSITIVE CONTROL fired but did not NAME the seeded file:\n"
+                 ++ unlines (map ("      " ++) (lines out)))
+        expect (not ("clean.hs" `isInfixOf` out))
+          ("FEE-04's IO POSITIVE CONTROL matched a file with none of those tokens in it:\n"
+            ++ unlines (map ("      " ++) (lines out)))
+    there <- doesFileExist fee_splitter_path
+    if not there
+      then pure $ do
+        _ <- control
+        expect False
+          (fee_splitter_path ++ " is not on disk, so a clean scan below would be reporting the"
+            ++ " absence of a SUBJECT rather than the absence of matches. grep exits 1 for both.")
+      else do
+        (code, out, err) <- gams_version_scan splitter_io_pattern [fee_splitter_path]
+        pure $ do
+          _ <- control
+          case code of
+            ExitFailure 1 -> Right ()
+            ExitFailure n -> Left ("the IO scan itself failed with exit " ++ show n ++ ": " ++ err)
+            ExitSuccess ->
+              Left ("the fee splitter names a process spawn, the unsafe-IO escape hatch, an IO"
+                     ++ " action or an environment reader. Every function in it is arithmetic over"
+                     ++ " values it was handed; the seed ARRIVES as an argument and Driver.Seed"
+                     ++ " stays the only resolver, which is what stops a typo'd seed becoming a"
+                     ++ " drawn one inside the module whose output is keyed on it.\n"
+                     ++ unlines (map ("      " ++) (lines out)))
+
+-- | FEE-04 check 18: the seeded pick is a PURE FUNCTION of the seed and the band.
+--
+-- The first two arms are determinism: two evaluations of the same call are equal, and the band
+-- index is stable. They are necessary and they are cheap to satisfy -- a selector that ignores the
+-- seed entirely passes both, which is why check 19 exists and is separate.
+--
+-- The third arm is the one those two cannot fake: @fs_seed@ in the result must equal the seed that
+-- was passed in. A 'Fee.Split.split_for' that discarded its seed argument would still return the
+-- same pair twice, and this is what notices.
+--
+-- The mixer itself is pinned too, one level below the pick: @mix64 0 \`mod\` 1344 == 751@ is the
+-- index seed 0 resolves to in the @f = 3000@ band. Pinning it means a mixer whose stream moved is
+-- named HERE rather than showing up as an unexplained pair change three checks away -- and the
+-- stream moving is exactly what a library generator would have done silently under a version bump.
+--
+-- @fs_ellipse_e@, @fs_boundary_pips@ and @fs_splitter_version@ are asserted here. They were the
+-- three 'Fee.Split.FeeSplit' fields no check in this phase's plans read, and an unread record field
+-- is a claim that survived the phase unasserted.
+the_seeded_pick_is_a_pure_function_of_seed_and_band :: Check
+the_seeded_pick_is_a_pure_function_of_seed_and_band =
+  pure_check "the_seeded_pick_is_a_pure_function_of_seed_and_band" $ do
+    _ <- expect (split_for 0 3000 490000 == split_for 0 3000 490000)
+           "split_for 0 3000 490000 evaluated twice gave two different results."
+    let band = admissible_band 3000 490000
+    _ <- expect (pick_from_band 0 band == pick_from_band 0 band)
+           "pick_from_band 0 over the pinned band gave two different members."
+    _ <- expect (pick_from_band 0 band == Just (752, 2250))
+           ("pick_from_band 0 over the 3000/490000 band gave " ++ show (pick_from_band 0 band)
+             ++ ", and the pinned member is Just (752, 2250).")
+    _ <- expect (mix64 0 `mod` toInteger (length band) == 751)
+           ("mix64 0 selects index " ++ show (mix64 0 `mod` toInteger (length band))
+             ++ " of the " ++ show (length band) ++ "-member band, and the pinned index is 751."
+             ++ " The mixer is written out in this repository, with its constants in decimal,"
+             ++ " precisely so that a stream which moved is a change somebody made rather than one"
+             ++ " a package upgrade made -- and a moved stream orphans every recorded split without"
+             ++ " changing a single stored byte.")
+    split <-
+      case split_for 7 3000 490000 of
+        Right s -> Right s
+        Left why -> Left ("split_for 7 3000 490000 was refused as " ++ show why)
+    _ <- expect (fs_seed split == 7)
+           ("the split records fs_seed = " ++ show (fs_seed split) ++ " and was handed 7."
+             ++ " A split_for that DISCARDED its seed argument returns the same pair twice and"
+             ++ " passes every determinism arm above; this is the arm that notices.")
+    _ <- expect (fs_splitter_version split == splitter_version)
+           ("the split records the splitter version " ++ show (fs_splitter_version split)
+             ++ " and the module's own constant is " ++ show splitter_version ++ ".")
+    _ <- expect (fs_ellipse_e split == ellipse_test (fs_phi_x_pips split) (fs_phi_m_pips split)
+                                         (fs_dstar_pips split))
+           ("the split records fs_ellipse_e = " ++ show (fs_ellipse_e split)
+             ++ " and the prover's own quantity at its OWN pair and target is "
+             ++ show (ellipse_test (fs_phi_x_pips split) (fs_phi_m_pips split)
+                       (fs_dstar_pips split))
+             ++ ". The value is recorded rather than just its sign, so a downstream reader can see"
+             ++ " how far inside the ellipse a split sat.")
+    _ <- expect (Just (fs_boundary_pips split)
+                   == min_admissible_dstar (fs_phi_x_pips split) (fs_phi_m_pips split))
+           ("the split records fs_boundary_pips = " ++ show (fs_boundary_pips split)
+             ++ " and min_admissible_dstar recomputed for its own pair gives "
+             ++ show (min_admissible_dstar (fs_phi_x_pips split) (fs_phi_m_pips split)) ++ ".")
+    expect (fs_boundary_pips split <= fs_dstar_pips split)
+      ("the split's boundary " ++ show (fs_boundary_pips split) ++ " is ABOVE the target it was"
+        ++ " admitted at, " ++ show (fs_dstar_pips split)
+        ++ ". The pair came out of admissible_band at that very target, so this is the two"
+        ++ " disagreeing -- which is the RC-M4 bug class exactly.")
+
+-- | FEE-04 check 19: A DIFFERENT SEED PRODUCES A DIFFERENT PAIR.
+--
+-- Two kinds of arm, and neither is sufficient alone.
+--
+-- The CARDINALITY arm counts distinct pairs over the whole pinned seed list and requires at least
+-- two, at BOTH @f = 3000@ and @f = 6497@. A cherry-picked pair that happens to differ is one
+-- observation; a selector reading only the low bit of the seed would produce it.
+--
+-- The NAMED arms pin seed 0 and seed 1 by VALUE at both fees. A cardinality alone is satisfied by a
+-- selector that is sensitive to the seed in some way nobody chose -- and, worse, by a band with one
+-- member, where every seed maps to index 0 and the cardinality would be 1 rather than 2. That last
+-- vacuity is what check 20 exists to exclude, and it is asserted there rather than here because a
+-- check that guarded its own premise would go green when the premise went away.
+--
+-- The measured cardinality is REPORTED in the failure message, not just compared, so a collapse to
+-- 1 says how far it collapsed.
+a_different_seed_produces_a_different_rho :: Check
+a_different_seed_produces_a_different_rho =
+  pure_check "a_different_seed_produces_a_different_rho" $ do
+    pairs_3000 <- mapM (pair_for 3000) fee04_seeds
+    pairs_6497 <- mapM (pair_for 6497) fee04_seeds
+    _ <- cardinality 3000 pairs_3000
+    _ <- named 3000 0 (752, 2250) pairs_3000
+    _ <- named 3000 1 (66, 2934) pairs_3000
+    _ <- cardinality 6497 pairs_6497
+    _ <- named 6497 0 (1036, 5467) pairs_6497
+    _ <- named 6497 1 (2466, 4041) pairs_6497
+    _ <- expect (take 1 pairs_3000 /= take 1 (drop 1 pairs_3000))
+           ("seeds 0 and 1 select the SAME pair at f = 3000: " ++ show (take 2 pairs_3000))
+    expect (take 1 pairs_6497 /= take 1 (drop 1 pairs_6497))
+      ("seeds 0 and 1 select the SAME pair at f = 6497: " ++ show (take 2 pairs_6497))
+  where
+    pair_for :: Integer -> Word32 -> Either String (Integer, Integer)
+    pair_for f seed =
+      case split_for seed f 490000 of
+        Right s -> Right (fs_phi_x_pips s, fs_phi_m_pips s)
+        Left why ->
+          Left ("split_for " ++ show seed ++ " " ++ show f ++ " 490000 was refused as "
+                 ++ show why ++ ". Every one of the eight pinned seeds must resolve to a member of"
+                 ++ " a band this size; a refusal here means the band or the mixer moved.")
+
+    cardinality :: Integer -> [(Integer, Integer)] -> Either String ()
+    cardinality f pairs =
+      expect (length (nub pairs) >= 2)
+        ("the eight pinned seeds select " ++ show (length (nub pairs)) ++ " DISTINCT pair(s) at"
+          ++ " f = " ++ show f ++ ": " ++ show (nub pairs)
+          ++ ".\n      At least two are required. One means the seed is not load-bearing -- either"
+          ++ " the selector ignores it, or the band it indexes has a single member, and"
+          ++ " the_admissible_band_has_more_than_one_member is the check that tells those apart.")
+
+    named :: Integer -> Word32 -> (Integer, Integer) -> [(Integer, Integer)] -> Either String ()
+    named f seed wanted pairs =
+      case drop (length (takeWhile (/= seed) fee04_seeds)) pairs of
+        (got : _) ->
+          expect (got == wanted)
+            ("seed " ++ show seed ++ " at f = " ++ show f ++ " selects " ++ show got
+              ++ ", and the pinned pair is " ++ show wanted ++ ".")
+        [] -> Left ("seed " ++ show seed ++ " is not in the pinned seed list.")
+
+-- | FEE-04 check 20: THE BAND HAS MORE THAN ONE MEMBER -- and the two degenerate inputs, by VALUE.
+--
+-- Check 19 cannot guard its own premise. Over a band with ONE member every seed resolves to index
+-- 0, the recorded pair is identical for a reason that has nothing to do with the mixer, and a
+-- cardinality arm would report 1 without being able to say why. So the sizes are pinned here, and
+-- the two degenerate inputs are pinned BY VALUE rather than by size -- a size arm passes on the
+-- wrong members.
+--
+-- === A PLANNING CORRECTION, MEASURED
+--
+-- @26-RESEARCH.md@ guard 20 and @26-VALIDATION.md@ both name @f = 3000, delta* = 1000@ as the
+-- empty-band firing input, and @26-03-PLAN.md@'s own table calls its size __4__ while labelling the
+-- column @rho > 1@. Both are wrong for 'Fee.Split.admissible_band', and this check asserts the
+-- correction rather than describing it:
+--
+-- > admissible_band 3000 1000 == [(1, 2999), (2, 2998)]     -- size 2
+--
+-- The 4 is the count WITHOUT the @m > x@ restriction: @(1,2999)@, @(2,2998)@, @(2998,2)@ and
+-- @(2999,1)@. So it describes a band this function does not return, and substituting @delta* = 1000@
+-- for the empty case makes the empty arm redden printing 2 -- which is how the correction was
+-- confirmed rather than asserted.
+--
+-- The EMPTY input is @delta* = 200@ and the SINGLETON is @delta* = 500@.
+the_admissible_band_has_more_than_one_member :: Check
+the_admissible_band_has_more_than_one_member =
+  pure_check "the_admissible_band_has_more_than_one_member" $ do
+    _ <- mapM_ sized [(100, 44), (3000, 1344), (6497, 2900)]
+    -- The SINGLETON, by value. This is the input under which check 19 would be vacuous.
+    _ <- expect (admissible_band 3000 500 == [(1, 2999)])
+           ("admissible_band 3000 500 is " ++ show (admissible_band 3000 500)
+             ++ ", and the pinned value is [(1,2999)] -- a SINGLETON. It is pinned because it is"
+             ++ " the shape under which a_different_seed_produces_a_different_rho goes VACUOUS:"
+             ++ " all eight seeds map to index 0 and the pairs agree for a reason that has nothing"
+             ++ " to do with the mixer.")
+    _ <- case split_for 0 3000 500 of
+           Right s ->
+             expect (fs_band_size s == 1)
+               ("split_for 0 3000 500 records fs_band_size = " ++ show (fs_band_size s)
+                 ++ " over a band that has exactly one member. The size is a RECORDED field"
+                 ++ " precisely so a one-member band is visible in the artifact rather than"
+                 ++ " inferred by whoever reads it.")
+           Left why -> Left ("split_for 0 3000 500 was refused as " ++ show why)
+    -- The EMPTY input, by value, and the refusal it produces.
+    _ <- expect (null (admissible_band 3000 200))
+           ("admissible_band 3000 200 is " ++ show (admissible_band 3000 200)
+             ++ " with size " ++ show (length (admissible_band 3000 200))
+             ++ ", and it must be EMPTY. The research and the plan both name delta* = 1000 as the"
+             ++ " empty input; MEASURED, that one has TWO members -- [(1,2999),(2,2998)] -- because"
+             ++ " the 4 those documents quote is the count WITHOUT the m > x restriction. 200 is"
+             ++ " the empty one.")
+    _ <- expect (split_for 0 3000 200 == Left (EmptyBand 3000 200 0))
+           ("split_for 0 3000 200 gave " ++ show (split_for 0 3000 200)
+             ++ ", expected Left (EmptyBand 3000 200 0).")
+    -- The correction itself, asserted rather than described.
+    expect (admissible_band 3000 1000 == [(1, 2999), (2, 2998)])
+      ("admissible_band 3000 1000 is " ++ show (admissible_band 3000 1000)
+        ++ " with size " ++ show (length (admissible_band 3000 1000))
+        ++ ", and the MEASURED value is [(1,2999),(2,2998)] -- size 2. 26-RESEARCH.md guard 20"
+        ++ " calls this input EMPTY and 26-03-PLAN.md's table calls its size 4 under a column"
+        ++ " labelled rho > 1; the 4 counts both orientations. This arm pins the correction so it"
+        ++ " cannot drift back into prose.")
+  where
+    sized :: (Integer, Int) -> Either String ()
+    sized (f, wanted) =
+      let got = length (admissible_band f 490000) in
+      case () of
+        _ | got /= wanted ->
+              Left ("length (admissible_band " ++ show f ++ " 490000) is " ++ show got
+                     ++ ", and the pinned size is " ++ show wanted ++ ".")
+          | got <= 1 ->
+              Left ("the band at f = " ++ show f ++ " has " ++ show got
+                     ++ " member(s), so every seed resolves to the same one and FEE-04's evidence"
+                     ++ " is vacuous at this fee.")
+          | otherwise -> Right ()
+
 -- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
@@ -13988,6 +14388,11 @@ core_checks = do
           , the_refusal_names_the_boundary_and_the_pair
           , equal_fees_are_refused_in_haskell_with_the_1_2_diagnosis
           , the_derived_pips_are_what_reach_the_argv
+          , no_subprocess_is_spawned_for_an_inadmissible_shock
+          , the_splitter_holds_no_IO_and_names_no_process
+          , the_seeded_pick_is_a_pure_function_of_seed_and_band
+          , a_different_seed_produces_a_different_rho
+          , the_admissible_band_has_more_than_one_member
           ]
             ++ per_pin_checks pins
   pure checks
