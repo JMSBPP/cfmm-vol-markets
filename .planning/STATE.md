@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "PHASE 24 COMPLETE (6/6 plans, 7/7 requirements) — next /gsd:plan-phase 25"
+stopped_at: "PHASE 24 COMPLETE (6/6 plans, 7/7 requirements, verified passed) — next /gsd:plan-phase 25 (The Content Key & Keyed Store)"
 last_updated: "2026-08-17"
-last_activity: "2026-08-17 — 24-06 executed: migration 003 makes an empty gams_ver/conopt_ver UNSTORABLE and SQLSTATE 23514 was OBSERVED against a real Postgres 18.4 on BOTH columns independently, through the store's own Binary-wrapped write path, with a positive control that lands; 151/151 checks, 0 warnings, eight firing observations, GAMS-03 COMPLETE and phase 24 CLOSED"
+last_activity: "2026-08-17 — phase 24 executed and verified: 151/151 checks, 0 warnings, suite DB-free AND GAMS-free"
 progress:
   total_phases: 6
   completed_phases: 2
