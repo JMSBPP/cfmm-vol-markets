@@ -55,9 +55,29 @@ created: 2026-08-17
 
 ## Per-Task Verification Map
 
-**PENDING — filled from the PLAN files once `gsd-planner` has run.** Every task's quick gate will
-be `cabal build --enable-tests -j all` with zero warnings. No task may cite the bare
-`cabal build -j all`.
+FILLED 2026-08-17 from the four PLAN files. Every task's quick gate is
+`cabal build --enable-tests -j all` with zero `-Wall` warnings, followed by `cabal test`. The
+variant that omits `--enable-tests` is VACUOUS and is cited by no task.
+
+| Plan / task | Tier | What it verifies | Expected `cabal test` total |
+|---|---|---|---|
+| 26-01 T1 | A | `Fee.Split` compiles; one import; no hex literal, no float, no `Rational`; `Downloading = 0` | 151 (baseline) |
+| 26-01 T2 | A | FEE-01: exact level constraint, fixture recomposes to 6497, exact-split rarity both ways, residual recorded AND bounded | 155 |
+| 26-01 T3 | A | FEE-02 Tier A: the prover's own `ellTest`, the integer/rational agreement, the float scan with a proven bait | 158 |
+| 26-02 T1 | A | `Chain.Shock` compiles; `== 96` not `>= 96`; no 24-bit mask; nine positional error constructors | 158 |
+| 26-02 T2 | A | CHAIN-04 decode: computed topic0, sign-aware negative tick, all-zero refusal, wrong length/topic/pool/range | 165 |
+| 26-02 T3 | A | corpus discriminates as a NAME SET; decay never reaches the argv; the `ShockLib.plk` trip-wire fires under its positive control | 169 |
+| 26-03 T1 | A | the band, the decimal-constant mixer, the seeded pick, `split_for` — still zero IO, zero float | 169 |
+| 26-03 T2 | A | the NINTH refusal, its boundary in the message, the section 1.2 diagnosis kept distinct, derived pips in the argv | 173 |
+| 26-03 T3 | **B** + A | no subprocess spawned for an inadmissible shock (marker stub, positive control FIRST); seed load-bearing; band size > 1 | 178 |
+| 26-04 T1 | A | `render_argv_ungated` with one consumer; the capture executable and shell driver build clean; `cabal test` still cannot name the solver | 178 |
+| 26-04 T2 | **C** (capture) | the real GAMS run: 12 rows, 4 controls, 0 disagreements, 2 verdicts present, 0 bad controls, <= 120 leaves | n/a (out of band) |
+| 26-04 T3 | **C** | the five Tier-C checks, the seventh swept artifact, all four floors re-measured | 183 |
+
+**Guard-to-task allocation.** The 39-row ledger in `26-RESEARCH.md` maps as: guards 1-5, 12-13 to
+26-01; 21-33 to 26-02; 6-11, 14-15, 19-20 to 26-03; 16-18, 34-36, 39 to 26-04; 37-38 to every plan's
+verify block. The phase gate reconciles the whole ledger and reports any guard with a standing
+assertion and NO observed firing **by name**.
 
 ---
 
@@ -123,6 +143,29 @@ go into `expected_topic_pins`. Use a bare-hex `ground_truth` row plus a merge tr
 
 topic0 = `0x21b0e4f81f5ef89be4325ca74966f2fb8f57a217e284dd3e0a276fff55987d64`, **computed in the
 test from the signature string `Shock(address,int24,uint24,uint24)`**, never transcribed.
+
+### 3b. TWO of this document's named firing inputs were re-measured at plan time and DO NOT FIRE
+
+Both were recomputed in exact `Integer` arithmetic on 2026-08-17. The plans carry the corrected
+inputs; this note exists so the originals are not restored from here.
+
+- **Guard 5 (rounding residual).** A `floor` rounder's worst residual over the whole `rho > 1` band
+  is **999799** at f = 10000 — strictly BELOW the one-pip bound, so it never trips it. `m + 1` fires
+  for **0 of 44** members at f = 100. The input that fires for every member at every f measured is
+  **`m + 2`** (minimum abs residual 1997448 / 1499790 / 1497248 / 1493931 at f = 100 / 3000 / 6497 /
+  10000). The residual therefore gets TWO assertions — a recorded VALUE and a bound — and only the
+  bound uses `m + 2`. Relatedly, the "~10^3 headroom" figure is the band MINIMUM; an arbitrary
+  seeded pick measures up to **0.4997 pip**, so the real headroom is **2x**.
+- **Guard 20 (band non-degenerate).** `f = 3000, delta* = 1000` is named as "band EMPTY". MEASURED:
+  it is a band of **4** (2 under `rho > 1`). The EMPTY input is `delta* = 200`; the SINGLETON input
+  — the one that makes FEE-04 vacuous, since all eight pinned seeds then map to index 0 — is
+  `delta* = 500`, sole member `(1, 2999)`.
+
+Two further plan-time measurements worth carrying: `min_admissible_dstar 3000 3000 == Nothing`
+(at equal fees NO integer `delta*` is admissible, strictly stronger than section 1.2's prose, and
+the reason the ellipse gate must run AFTER `distinct_fees`); and the gate's upper root is **499999**
+for three of the four grid pairs, independently reproducing `VOLUME_PATH.md` section 1.1's
+`delta <= 1/2` ceiling that the arithmetic-mean misreading gives as 1.
 
 ### 4. Other measured facts
 
