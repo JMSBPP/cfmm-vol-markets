@@ -1112,8 +1112,18 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
 -- > 62
+--
+-- RE-MEASURED COLD AT 26-01 TASK 1, in the same sitting as 'credential_scan_floor' and by running
+-- the command rather than by adding one to the 62 above it, with @offchain\/lib\/Fee\/Split.hs@ on
+-- disk: 63 against exactly 63, zero slack. Census under @offchain\/@ at that measurement:
+-- @hs 51, sh 9, json 9, sql 3@. The number below is what @find@ PRINTED at this commit; the
+-- pre-phase-25 figures this plan was drafted against (59, then 60) were hypotheses by the time it
+-- ran, because phase 25 executed first and landed three @.hs@ files of its own under @offchain@.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
+-- > 63
 purge_file_floor :: Int
-purge_file_floor = 62
+purge_file_floor = 63
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -7714,8 +7724,17 @@ credential_scan root =
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 71
+--
+-- RE-MEASURED COLD AT 26-01 TASK 1, in the same sitting as 'purge_file_floor' and by running the
+-- command below rather than by adding one, with @offchain\/lib\/Fee\/Split.hs@ on disk:
+-- @72 = 51 hs + 9 sh + 9 json + 3 sql@, against exactly 72 files, zero slack. A @.hs@ is a scanned
+-- type for BOTH scans, so this is another commit in which the two floors move together -- and the
+-- two commands were still run separately, which is the rule 24-03 exists to enforce.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+-- > 72
 credential_scan_floor :: Int
-credential_scan_floor = 71
+credential_scan_floor = 72
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -7887,9 +7906,19 @@ one_aeson_vector (input, expected) =
 -- @Store\/Schema.hs@ out. And 'the_artifact_path_scan_covers_every_module_on_it' now asserts this
 -- list against @offchain\/lib\/{Store,Gams}\/@ in BOTH directions, so the rule above no longer
 -- depends on anyone remembering it.
+--
+-- 26-01 EXTENDED IT AGAIN, TO THE FEE SPLITTER, IN THE COMMIT THAT CREATED THE MODULE.
+-- @Fee\/Split.hs@ is on the artifact path in the strictest sense available: it decides the two fee
+-- fields that reach the argv, and ROADMAP SC-1 rules that the DERIVED PIPS are what reach the key.
+-- A 53-bit floating value there would move a pip count, and a pip count is a key component. It
+-- went in here in the same commit as the file, and @offchain\/lib\/Fee@ went into
+-- 'artifact_path_directories' in that same commit, because adding one without the other makes
+-- 'the_artifact_path_scan_covers_every_module_on_it' red in its OTHER direction -- a listed file
+-- under no scanned directory is a phantom.
 aeson_storage_path :: [FilePath]
 aeson_storage_path =
-  [ "offchain/lib/Gams/Argv.hs"
+  [ "offchain/lib/Fee/Split.hs"
+  , "offchain/lib/Gams/Argv.hs"
   , "offchain/lib/Gams/Artifact.hs"
   , "offchain/lib/Gams/Config.hs"
   , "offchain/lib/Gams/Env.hs"
@@ -9043,8 +9072,15 @@ no_Double_and_no_aeson_on_the_artifact_path =
                        ++ unlines (map ("      " ++) (lines out)))
 
 -- | The directories whose every @.hs@ file must be a DECIDED member of the aeson scan.
+--
+-- @offchain\/lib\/Fee@ joined at 26-01, in the commit that created the one module under it. There
+-- is deliberately NO entry here for a directory that does not exist yet: this check fails LOUDLY
+-- on an absent directory, by design, because an enumeration of a directory that is not there is
+-- empty and an empty enumeration agrees with every list. A later plan that creates a module under
+-- a new directory adds the directory in ITS commit.
 artifact_path_directories :: [FilePath]
-artifact_path_directories = [ "offchain/lib/Gams", "offchain/lib/Store" ]
+artifact_path_directories =
+  [ "offchain/lib/Fee", "offchain/lib/Gams", "offchain/lib/Store" ]
 
 -- | Modules under those directories that are deliberately NOT scanned, each with its reason.
 --

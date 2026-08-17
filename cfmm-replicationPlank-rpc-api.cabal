@@ -150,6 +150,14 @@ library
                     -- same way as its four predecessors: `cabal build --enable-tests -j all`
                     -- printed no `Downloading` line.
                     , Gams.Invoke
+                    -- Phase 26's fee splitter, arithmetic core. +0 PACKAGES, and CONFIRMED rather
+                    -- than estimated at 26-01: with this module on disk,
+                    -- `cabal build --enable-tests -j all` printed no `Downloading` line. It has
+                    -- exactly ONE import -- Data.Word, for the seed field's Word32 -- and
+                    -- Data.Word is base, which was in the build plan before this stanza had any
+                    -- other line in it. Nothing here parses, spawns, hashes or does IO: every
+                    -- function is Integer arithmetic over values it was handed.
+                    , Fee.Split
 
     -- Modules included in this library but not exported.
     -- other-modules:
