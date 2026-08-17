@@ -348,9 +348,9 @@ documents as deliberate.
 ### DB-M5 — `jsonb` cannot store every legal JSON artifact, and `doc not null` lets that VETO the authoritative bytes
 
 The split is the right call and normalization was verified (`{"b":1,"a":2,"a":3,"n":1.500,"e":1e2}`
-→ reordered, duplicate dropped, `1e2` → `100`). **But:** `{"a":" "}` is RFC-8259-valid, aeson
+→ reordered, duplicate dropped, `1e2` → `100`). **But:** `{"a":"\u0000"}` is RFC-8259-valid, aeson
 accepts it, `::json` accepts it, and `::jsonb` **refuses** it — *"unsupported Unicode escape
-sequence …   cannot be converted to text."* Because `doc` is `not null` and derived in the same
+sequence … \u0000 cannot be converted to text."* Because `doc` is `not null` and derived in the same
 statement, **a legal prover artifact containing that escape cannot be stored at all** — the derived
 projection vetoes the authoritative bytes, the exact inversion the schema comment is written
 against. Same class: a JSON number overflowing `numeric`.
