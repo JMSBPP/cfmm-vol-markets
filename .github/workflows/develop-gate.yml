@@ -122,9 +122,29 @@ jobs:
             echo "::notice::no Lean project on develop yet (PR #2 pending) — lean gate passes (nothing to check)"; exit 0
           fi
           elan show >/dev/null 2>&1 || curl -sSf https://elan.lean-lang.org/elan-init.sh | sh -s -- -y
+          # Lake's package clones + dep oleans persist OUTSIDE the git-clean-wiped workspace
+          # (same class as ~/.elan and ~/.cache/mathlib). Reason this is load-bearing and not an
+          # optimization: github git transfer measured ~33KB/s on this runner (2026-08-17), so the
+          # ~1GB mathlib clone alone is ~8h — no timeout can cover a fresh clone. Lake re-validates
+          # every package's checked-out rev against lake-manifest.json and re-fetches ONLY on
+          # mismatch (self-healing but slow over this link; on a dependency bump, reseed
+          # ~/.cache/lake-packages from a warm local tree instead of letting CI re-clone).
+          # DELIBERATELY packages-only — the workspace build dir (lean/.lake/build) is NOT cached:
+          # the sorry-guard below reads compiler warnings, which only fresh compiles emit, so our
+          # own modules must always rebuild from source for the guard to stay sound.
+          if [ -d "$HOME/.cache/lake-packages" ] && [ ! -d lean/.lake/packages ]; then
+            mkdir -p lean/.lake && cp -a "$HOME/.cache/lake-packages" lean/.lake/packages
+          fi
           out="$(cd lean && lake exe cache get >/dev/null 2>&1; lake build 2>&1)"; echo "$out"
           # no-sorry guard via Lean's OWN compiler warning (comment/identifier-safe, unlike a source grep)
           echo "$out" | grep -qE "declaration uses '(sorry|admit)'" && { echo "::error::Lean proof uses sorry/admit"; exit 1; }
+          # cache-out, only when the manifest moved (one-time cost per dependency bump)
+          SHA=$(sha256sum lean/lake-manifest.json | cut -d' ' -f1)
+          if [ -d lean/.lake/packages ] && [ "$(cat "$HOME/.cache/lake-packages.manifest-sha" 2>/dev/null)" != "$SHA" ]; then
+            rm -rf "$HOME/.cache/lake-packages"
+            cp -a lean/.lake/packages "$HOME/.cache/lake-packages"
+            echo "$SHA" > "$HOME/.cache/lake-packages.manifest-sha"
+          fi
           echo "lean: lake build clean, no sorry/admit"
 
   haskell:
