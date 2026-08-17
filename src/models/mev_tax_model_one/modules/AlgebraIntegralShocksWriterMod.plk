@@ -1,0 +1,213 @@
+import model_interfaces::AlgebraIntegralShocksWriterInterface::*;
+import model_interfaces::AlgebraIntegralPoolActionsInterface::*;
+import model_libraries::Constants::*;
+import model_libraries::Shock::*;
+import model_libraries::ShockLib::*;
+import std::constructor::return_runtime;
+import std::regions::*;
+import v3::util::revert_empty;
+import v3::math::tick_math::*;
+import std::membytes::*;
+
+// keccak "vol_market.mev_tax_model_one"
+const ALGEBRA_FACTORY_SLOT = 0xfe49854de90edba29487cdbfda9320523854b3fa414549b6c007d755ca3c1237;
+
+init{ return_runtime();}
+
+run {
+    let selector = @evm_shr(224,@evm_calldataload(0));
+    if selector == SELECTOR_NEXT {
+       let pool = @evm_calldataload(4);
+       // todo:
+       // 1. Encode calldata on Shocks {price,tick,volume,volumeDecay}
+       // 2. Build Shocks -> VolumePath[]
+       // 3. Send VolumePath on batch and Shocks as HookData
+       // 4. Verify they match Shocks (This can be done directly on Shocks -> VolumePath[])
+       @evm_stop();
+    } else if selector == SELECTOR_ADD_LIQUIDITY_CALLBACK {	
+           let amountAsset = @evm_calldataload(4);
+	   let amountNumeraire = @evm_calldataload(36);
+
+
+	   let data_offset = @evm_calldataload(68);
+	   let data_len_ptr = 4 +% data_offset;
+	   let data_len = @evm_calldataload(data_len_ptr);
+	   let data_ptr = data_len_ptr +% 32;
+	   if data_len != 40 { revert_empty();}
+	   let asset = @evm_shr(96, @evm_calldataload(data_ptr));
+	   let numeraire = @evm_shr(96, @evm_calldataload(data_ptr +% 20));
+
+	   
+	   let mut transfer_call_ptr = @malloc_uninit(68);
+	   let mut transfer_ret_ptr = @malloc_uninit(32);
+	   // transfer(address,uint256)
+	   @mstore4(transfer_call_ptr, 0xa9059cbb);	   
+	   @mstore32(transfer_call_ptr +% 4, @evm_caller());
+	   @mstore32(transfer_call_ptr +% 36, amountAsset);
+
+	   let mut transfer_succ = @evm_call(@evm_gas(), asset, ZERO_WEI,transfer_call_ptr,68,transfer_ret_ptr,32);
+	   if !transfer_succ or @mload32(transfer_ret_ptr) == 0 {revert_empty();}
+	   @mstore32(transfer_call_ptr +% 36, amountNumeraire);
+	   transfer_succ = @evm_call(@evm_gas(), numeraire, ZERO_WEI,transfer_call_ptr,68,transfer_ret_ptr,32);
+	   if !transfer_succ or @mload32(transfer_ret_ptr) == 0 {revert_empty();}
+
+     } else if selector == SELECTOR_SWAP_CALLBACK {
+	   let amount0Delta = @evm_calldataload(4);
+	   let amount1Delta = @evm_calldataload(36);
+
+	   let data_offset = @evm_calldataload(68);
+	   let data_len_ptr = 4 +% data_offset;
+	   let data_len = @evm_calldataload(data_len_ptr);
+	   let data_ptr = data_len_ptr +% 32;
+	   if data_len < 40 { revert_empty(); }          // hookData = token0(20) || token1(20) [ || shock... ]
+	   let token0 = @evm_shr(96, @evm_calldataload(data_ptr));
+	   let token1 = @evm_shr(96, @evm_calldataload(data_ptr +% 20));
+
+	   let transfer_call_ptr = @malloc_uninit(68);
+	   let transfer_ret_ptr = @malloc_uninit(32);
+	   // transfer(address,uint256) -> to = the pool (the callback's caller)
+	   @mstore4(transfer_call_ptr, 0xa9059cbb);
+	   @mstore32(transfer_call_ptr +% 4, @evm_caller());
+
+	   // Positive delta = owed TO the pool (pay it); negative = received (pay nothing).
+	   if @evm_sgt(amount0Delta, 0) {
+	      @mstore32(transfer_call_ptr +% 36, amount0Delta);
+	      let s0 = @evm_call(@evm_gas(), token0, ZERO_WEI, transfer_call_ptr, 68, transfer_ret_ptr, 32);
+	      if !s0 or @mload32(transfer_ret_ptr) == 0 { revert_empty(); }
+	   }
+	   if @evm_sgt(amount1Delta, 0) {
+	      @mstore32(transfer_call_ptr +% 36, amount1Delta);
+	      let s1 = @evm_call(@evm_gas(), token1, ZERO_WEI, transfer_call_ptr, 68, transfer_ret_ptr, 32);
+	      if !s1 or @mload32(transfer_ret_ptr) == 0 { revert_empty(); }
+	   }
+	   @evm_stop();
+
+     } else if selector == SELECTOR_BEFORE_INITIALIZE {
+      	   let ret_ptr = @malloc_uninit(32);
+	   @mstore4(ret_ptr, SELECTOR_BEFORE_INITIALIZE);
+	   @evm_return(ret_ptr, 32);
+
+    } else if selector == SELECTOR_BEFORE_SWAP {
+	   // data is the 7th arg (dynamic bytes): its offset is at calldata word 6 (byte 196).
+	   let data_offset  = @evm_calldataload(196);
+	   let data_len_ptr = 4 +% data_offset;
+	   let data_len     = @evm_calldataload(data_len_ptr);
+	   let data_ptr     = data_len_ptr +% 32;
+
+	   let cd = bytes(calldata) { ptr: data_ptr, length: data_len };   // zero-copy calldata view
+	   let s  = shock_decode(calldata, cd);
+	   shock_emit(calldata, @evm_caller(), s);      // pool = the caller (pool calls its plugin)
+
+	   // return (bytes4 selector, uint24 feeOverride = 0, uint24 pluginFee = 0) -> fee-0 (DYNAMIC_FEE)
+	   let ret = @malloc_zeroed(96);
+	   @mstore4(ret, SELECTOR_BEFORE_SWAP);
+	   @evm_return(ret, 96);
+
+    } else if selector == SELECTOR_BEFORE_CREATE_POOL_HOOK {
+
+      	   let pool = @evm_calldataload(4);
+	   let creator = @evm_calldataload(36);
+	   let deployer = @evm_calldataload(68);
+	   let asset = @evm_calldataload(100);
+	   let numeraire = @evm_calldataload(132);
+	   let data_len = @evm_calldataload(164);
+	   let data = @evm_calldataload(196);
+
+
+	   let ret_ptr = @malloc_uninit(32);
+	   @mstore32(ret_ptr, @evm_address_this());
+	   @evm_return(ret_ptr, 32);
+	   
+	   } else if selector == SELECTOR_INIT {
+
+	       let algebra_factory = @evm_calldataload(4);
+ 	       let asset = @evm_calldataload(36);
+    	       let numeraire = @evm_calldataload(68);
+
+	       
+    	       if @evm_address_this() != @evm_caller() {
+
+               	  let self_calldata = @malloc_uninit(100);
+
+        	  @mstore4(self_calldata, SELECTOR_INIT);
+		  @mstore32(self_calldata +% 4, algebra_factory);
+		  @mstore32(self_calldata +% 36, asset);
+		  @mstore32(self_calldata +% 68, numeraire);
+
+		  let ret_ptr = @malloc_uninit(32);
+
+        	  let succ = @evm_call(@evm_gas(),@evm_address_this(),ZERO_WEI,self_calldata,100,ret_ptr,32);
+
+        	  if !succ {revert_empty();}
+
+        	  @evm_return(ret_ptr, 32);
+    	       }
+
+
+    	       let factory_calldata = @malloc_uninit(132);
+
+	       @mstore4(factory_calldata, 0x321935c6);
+	       @mstore32(factory_calldata +% 4, asset);
+	       @mstore32(factory_calldata +% 36, numeraire);
+	       @mstore32(factory_calldata +% 68, 0x60);
+	       @mstore32(factory_calldata +% 100, 0);
+
+	       let ret_ptr = @malloc_uninit(32);
+
+	       let create_succ = @evm_call(@evm_gas(),algebra_factory,ZERO_WEI,factory_calldata,132,ret_ptr,32);
+
+	       if !create_succ {revert_empty();}
+
+	       let pool = @mload32(ret_ptr);
+
+	       let initialize_calldata = @malloc_uninit(36);
+
+	       @mstore4(initialize_calldata, 0xf637731d);
+	       @mstore32(initialize_calldata +% 4, SQRT_PRICE_1_1);
+
+	       let initialize_succ = @evm_call(@evm_gas(),pool,ZERO_WEI,initialize_calldata,36,initialize_calldata,0);
+	       if !initialize_succ {revert_empty();}
+
+	       // EXEC-03: set pluginConfig = BEFORE_SWAP | DYNAMIC_FEE (0x81) so the pool calls beforeSwap
+	       // with the swap hookData and honors beforeSwap's feeOverride (fee-0). The writer IS the
+	       // plugin, so it may call this permissioned action on its own pool.
+	       let set_cfg_call_ptr = @malloc_uninit(36);
+	       @mstore4(set_cfg_call_ptr, SELECTOR_SET_PLUGIN_CONFIG);
+	       @mstore32(set_cfg_call_ptr +% 4, MEV_TAX_PLUGIN_CONFIG);   // uint8 0x81, right-aligned
+	       let set_cfg_succ = @evm_call(@evm_gas(),pool,ZERO_WEI,set_cfg_call_ptr,36,set_cfg_call_ptr,0);
+	       if !set_cfg_succ {revert_empty();}
+
+
+	       let seed_init_liquidity_call_ptr = @malloc_uninit(292);
+
+	       @mstore4(seed_init_liquidity_call_ptr, SELECTOR_ADD_LIQUIDITY);
+
+	       @mstore32(seed_init_liquidity_call_ptr +% 4,   @evm_address_this());
+	       @mstore32(seed_init_liquidity_call_ptr +% 36,  @evm_address_this());
+	       let bottom_tick_raw = getTickAtSqrtRatio(SQRT_PRICE_1_4);
+	       let bottom_tick = bottom_tick_raw -% @evm_smod(bottom_tick_raw, 60);
+
+	       let top_tick_raw = getTickAtSqrtRatio(SQRT_PRICE_4_1);
+	       let top_tick = top_tick_raw -% @evm_smod(top_tick_raw, 60);
+	       @mstore32(seed_init_liquidity_call_ptr +% 68, bottom_tick);
+	       @mstore32(seed_init_liquidity_call_ptr +% 100, top_tick);
+	       @mstore32(seed_init_liquidity_call_ptr +% 132, UNIT_LIQUIDITY);
+
+	       @mstore32(seed_init_liquidity_call_ptr +% 164, 0xc0);
+	       @mstore32(seed_init_liquidity_call_ptr +% 196, 40);
+
+	       @mstore20(seed_init_liquidity_call_ptr +% 228, asset);
+	       @mstore20(seed_init_liquidity_call_ptr +% 248, numeraire);
+	       
+	       let seed_init_liquidity_return_ptr = @malloc_uninit(96);
+	       let seed_init_liquidity_succ = @evm_call(@evm_gas(),pool,ZERO_WEI,seed_init_liquidity_call_ptr, 292, seed_init_liquidity_return_ptr, 96);
+
+	       if !seed_init_liquidity_succ {revert_empty();}
+	       
+	       @evm_return(seed_init_liquidity_return_ptr, 96);
+ 	}
+
+
+	@evm_stop();
+
+}

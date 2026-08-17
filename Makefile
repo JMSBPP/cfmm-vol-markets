@@ -239,12 +239,28 @@ PLANK         ?= plank
 # `types::pos_spec::X`.
 PLANK_DEP := --dep v3=lib/plankified-univ3/plank/lib/ --dep std=lib/plank-monorepo/std/ --dep pos_spec=src/types/pos_spec \
              --dep lib=src/lib --dep types=src/types --dep interfaces=src/interfaces \
-             --dep helpers=test/protocol_integrations/helpers
+             --dep helpers=test/protocol_integrations/helpers \
+             --dep model_interfaces=src/models/mev_tax_model_one/interfaces/ \
+             --dep model_libraries=src/models/mev_tax_model_one/libraries/
 # ^ `helpers`: test-only Plank helper libs (PriceUpdateLogWithSwap) that a src module's
 #   TEST-oriented entrypoint (PriceSetterHook.write_price) imports. Kept in sync with
 #   test/PlankTestBase.sol:plankOpts().
+# ^ `model_interfaces`/`model_libraries`: the mev_tax_model_one dep roots so compile-plank can
+#   build the model's own entrypoints (AlgebraIntegralShocksWriterMod, ShockHarness). Unused by
+#   non-model entrypoints (plank resolves only imported modules), so declaring them globally is safe.
 PLANK_BACKEND := sona
 PLANK_BUILD   := build/plank
+# plank-toolchain: build the plank_dev compiler from the PINNED plank-monorepo submodule and install
+# it as the PATH `plank`. FFI + compile-plank resolve `plank` from PATH; the self-hosted runner's
+# persistent ~/.plank/bin/plank does NOT track a plank-monorepo pin bump, so the develop-gate runs this
+# per job to keep the compiler+std in lockstep with the pin (a mismatch fails every build).
+PLANK_DEV_EXEC := lib/plank-monorepo/plankc/target/release/plank
+PLANK_PATH_BIN := $(HOME)/.plank/bin/plank
+plank-toolchain:
+	cd lib/plank-monorepo/plankc && cargo build --release
+	mkdir -p $(dir $(PLANK_PATH_BIN))
+	ln -sf $(abspath $(PLANK_DEV_EXEC)) $(PLANK_PATH_BIN)
+	@plank --version
 # Entrypoints are auto-discovered as any .plk under src/ or test/ that contains an
 # `init` block. There is no exclusion list: `src/exp/` (throwaway experiments) and
 # `src/ldf/` were DELETED rather than skipped, because a directory permanently
