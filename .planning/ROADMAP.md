@@ -1084,6 +1084,32 @@ problem than the one I filed, and it is correct.
 on-fork plugin, not `setUp`'s in-process writer). The happy-path attach E2E goes green only once
 this phase deploys and drives a pool on Anvil; plank has proven the fail-loud guard alone.
 
+#### 🔓 BLOCKER DOWNGRADED (2026-08-17) — the event EXISTS; what remains is a MERGE
+
+Issue #28 landed `ShockLib.shock_emit` (`341e409`) and issue #29 closed with plank's test
+attaching to a live pool. The `Shock` event is built and its signature is pinned. The blocker has
+changed KIND, not merely status.
+
+**MEASURED here, 2026-08-17:** `src/models/mev_tax_model_one/` is on `exp/mev_tax_model_one`
+**only** — `git ls-tree -r origin/develop | grep -c 'models/mev_tax_model_one'` = **0**, absent
+from this worktree, and `exp` is **153 commits ahead of develop**. So the emitter cannot be
+deployed on Anvil from any branch we build from until that work reaches develop.
+
+**What this phase can now do WITHOUT waiting:**
+
+| Requirements | State |
+|---|---|
+| **CHAIN-05, CHAIN-06, CHAIN-07** | **Fully actionable.** These came back from issue #29's contract and are entirely ours — the fixture's pool identity, the `ETH_RPC_URL` resolution across nine sites, and the producer/consumer binding with the `chainid` guard. No plank dependency whatsoever. |
+| **CHAIN-04** | Actionable, and always was — decoding is exercised against synthetic logs. It sits in Phase 26. |
+| **CHAIN-01, CHAIN-02, CHAIN-03** | Blocked on the MERGE of `exp/mev_tax_model_one` → `develop` → here. Not on anyone writing code. |
+
+**Consequence for sequencing:** this phase no longer has to wait as a unit. CHAIN-05/06/07 can be
+planned and executed now; CHAIN-01/02/03 wait for the merge. A plan that bundles all six would
+stall on the merge for no reason.
+
+**Do NOT read this as "unblocked".** The live-read half still cannot be executed, and a plan that
+claims otherwise would be asserting a capability the tree does not have.
+
 **Plans**: TBD
 
 Plans:
@@ -1148,7 +1174,7 @@ at the end of 25.
 | 24. GAMS Invocation & Toolchain Identity | 6/6 | Complete    | 2026-08-17 |
 | 25. The Content Key & Keyed Store | 0/TBD | Not started | - |
 | 26. Shock Assembly — Fee Split & Event Decode | 0/TBD | Not started | - |
-| 27. Anvil Read Layer (BLOCKED) | 0/TBD | Blocked | - |
+| 27. Anvil Read Layer (PARTIAL: CHAIN-05/06/07 actionable) | 0/TBD | Partially blocked | - |
 | 28. Resident Loop & Fixture Publication (BLOCKED) | 0/TBD | Blocked | - |
 
 ## Coverage (Milestone v6.0)
