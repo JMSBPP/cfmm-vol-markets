@@ -148,7 +148,6 @@ All 30 v1 requirements in REQUIREMENTS.md are mapped to exactly one phase:
 | 1 | REPO-01, REPO-02, REPO-03, REPO-04, REPO-05 | 5 |
 | 2 | GAMS-01, KERN-01, KERN-02, KERN-03, TOOL-01, TOOL-02 | 6 |
 | 3 | MAP-01, MAP-02, MAP-03, MAP-04, MAP-05, MAP-06, REF-01, REF-02 | 8 |
-| Complete    | 2026-07-16 | 4 |
 | 5 | GAMS-02 | 1 |
 | 6 | BRDG-01, BRDG-02, BRDG-03, BRDG-04 | 4 |
 | 7 | PIPE-01, PIPE-02 | 2 |
@@ -175,6 +174,442 @@ The two-step review confirmed all original BLOCKERs/MAJORs resolved. The followi
 - **PIPE-02** (Phase 7): the v1 e2e path has no simulate-update step — phrase the open-loop guard as a **structural** assertion (no controller/update code on the path), not a runtime guard on a non-existent step.
 - **Minor:** pin the concrete scale base for `alpha`/`priceElasticity` (MAP-02); add Phase 4 `Depends on: Phase 2`; define the PIPE-01 "payoff spec" as a fixed v1 input fixture; for KERN-02 prefer the checked field-by-field cross-reference (GAMS `$include` and Plank `import` can't share one file).
 
+### Phase 8: panoptic vol-claim lean4 formalization
+
+**Goal:** Formalize `spec/panoptic.md` in the `lean/` Lake project: the contract as a volatility option (payoff π^σ = ΔQ_v·(σ²(i(t)) − σ²_K)⁺), the vol-claim price as an option-replication cost (Demeterfi et al. variance-swap decomposition + Panoptic streaming-premium θ kernel), and identification of the vega-like greek υ ≡ Δπ/Δσ² in its analytical/contract-level form (econometric identification via the Panoptic subgraph is scoped during discussion). Owned by the Lean4+math session (worktree `lean4-spec`, branch `feat/lean4-spec`).
+**Requirements**: no formal REQ-IDs — the locked decisions in `08-CONTEXT.md` are the requirements (CTX-HYGIENE, CTX-VENDOR, CTX-PAYOFF, CTX-REPLIC, CTX-PREMIUM, CTX-CRR-THETA, CTX-UPSILON, CTX-CONJ, CTX-ECONO, CTX-THETA-PROOF)
+**Depends on:** Phase 1 only (Lean4 track — builds on the conglomerated `lean/` Lake project, independent of Phases 2–7 owned by other sessions)
+**Plans:** 5/5 plans complete
+
+Plans:
+- [ ] 08-01-PLAN.md — Spec hygiene (fix θ sign, Demeterfi citekey, de-path NOTE) + vendor cfmm-discrete notes; commit the pinned spec [Wave 1]
+- [ ] 08-02-PLAN.md — Panoptic.lean: π^σ payoff + ΔQ_v identity + structural replication + premium Finset.sum + CRR operator + lattice θ (center column) + sorry'd θ_ATM theorem [Wave 2]
+- [ ] 08-03-PLAN.md — Econometric υ-identification model spec via the structural-econometrics skill (markdown; not Lean) [Wave 2]
+- [ ] 08-04-PLAN.md — Upsilon.lean: υ finite-difference + ΔQ_v dimensional bridge + ATM/OTM Prop conjecture [Wave 3]
+- [ ] 08-05-PLAN.md — Aristotle stage: strictly-serial NEW-project θ_ATM = kσ/√(8πτ) derivation, integrate proof, verify sorry-free + axiom-clean [Wave 4]
+
+### Phase 9: upsilon econometric estimation lean-aware
+
+**Goal:** Execute the approved υ-identification econometric spec (`notes/structural-econometrcics/specs/2026-07-19-panoptic-upsilon-identification.md`) **in conjunction with the Lean formalization**: build the position-epoch panel from Panoptic on-chain data (premium π_it, variance estimator σ̂²_t, moneyness |i_K − i_t|), run the NLS/GMM estimation with the committed tests (υ₀ > 0, κ > 0, κ⁺ = κ⁻) and the four scheduled alternative specifications — with Lean-awareness made literal: the estimated objects mirror the Lean definitions (`Upsilon.upsilon` finite difference, `Upsilon.ATMOTMNullHypothesis`), including a bridging lemma that the exponential-moneyness family with κ > 0 satisfies `ATMOTMNullHypothesis` (so κ̂ > 0 ⇒ the fitted profile witnesses the Lean conjecture). Owned by the Lean4+math session (worktree `lean4-spec`, branch `feat/lean4-spec`).
+**Requirements**: CTX-PANEL, CTX-VAR, CTX-EST, CTX-TEST, CTX-ALT, CTX-BRIDGE, CTX-XCHECK, CTX-AUDIT (CTX-* tags minted at planning, per the Phase-8 convention)
+**Depends on:** Phase 8 (Lean modules + approved econometric spec); independent of Phases 2–7 (other sessions)
+**Plans:** 11 plans in 6 waves
+
+Plans:
+- [ ] 09-01-PLAN.md — Haskell `econometrics/` Stack scaffold (hmatrix + hmatrix-gsl) + hspec harness + sandwich-SE golden fixture (CTX-EST) [Wave 1]
+- [ ] 09-02-PLAN.md — Data-source discovery gate: mainnet/L2 subgraph endpoint + BigQuery + Swap topic0 [checkpoint] (CTX-PANEL, CTX-VAR) [Wave 1]
+- [ ] 09-03-PLAN.md — Lean: correct `ATMOTMNullHypothesis` conjunct 3 (slope-centered) + state sorry'd bridging lemma (CTX-BRIDGE) [Wave 1]
+- [ ] 09-04-PLAN.md — CTX-PANEL: subgraph client + cumulative→delta position-epoch panel (λ=1.0001 grid) [Wave 2]
+- [x] 09-05-PLAN.md — CTX-VAR: σ̂²_t + disjoint-window EIV instrument from Base V4 eth_getLogs RPC swap ticks (BigQuery dropped) [Wave 2]
+- [ ] 09-06-PLAN.md — CTX-BRIDGE: single serial Aristotle proof of the bridging lemma, integrate sorry-free/axiom-clean [Wave 2]
+- [ ] 09-07-PLAN.md — CTX-EST: Lean-mirrored model + GSL-LM primary NLS (+ ad cross-check) + EIV IV/GMM [Wave 3]
+- [ ] 09-08-PLAN.md — CTX-EST/CTX-TEST: hand-rolled cluster-robust sandwich SE (golden 1e-9) + υ₀>0, κ>0, κ⁺=κ⁻ tests [Wave 4]
+- [ ] 09-09-PLAN.md — CTX-ALT: four alternative specs + live estimation run → self-describing analysis output + witness [Wave 5]
+- [ ] 09-10-PLAN.md — CTX-XCHECK: GAMS point-estimate cross-check handoff via claude-peers [checkpoint, non-blocking] [Wave 6]
+- [ ] 09-11-PLAN.md — CTX-AUDIT: audit-econ gate (3 agents) on the analysis output; fix Critical/High → PASS [checkpoint] [Wave 6]
+
+### Phase 10: streaming premium reconstruction and reestimation
+
+**Goal:** Fix the measurement failure that made Phase 9's estimate uninformative. Reconstruct the per-position, per-epoch **streaming premium π_it** accrued inside each position's tick range, replacing the subgraph's absent/zero `premiaSettled*` fields. **ROUTE AMENDED 2026-07-20:** the original full-V4-replay-from-cached-swap-logs route is **WITHDRAWN** — `swap-ticks-base-v4-full.csv` is a two-column `timestamp_unix,tick` file carrying no fee amount, no liquidity and no block number, and exact replay from events alone is impossible because `feeGrowthGlobal` updates per swap *step* with a step-varying liquidity divisor that the `Swap` event does not expose. The approved route reads the exact per-liquidity premium accumulator (X64, utilization multiplier ν = 1/VEGOID = 1/8 included) from the deployed `SemiFungiblePositionManagerV4.getAccountPremium` via archive `eth_call`s on the keyless Base endpoint — evaluating the identity inside the contract that defines it. Full replay survives only as an optional, non-blocking cross-check. This restores the approved spec's **position-epoch panel** (≈55 positions × ~119 epochs vs. 61 lifetime spells) and its within-position variation, then re-runs the unchanged Phase-9 estimator (GSL-LM NLS, tokenId-clustered CR0 sandwich SEs, the three committed tests, the four alternatives incl. the now-identifiable position-FE diagnostic). Success is an **informative** estimate — a υ₀ confidence interval materially tighter than Phase 9's [−2.48e-4, +2.48e-4] — whether or not κ̂ > 0 obtains; if it does, the fitted profile witnesses the proved `Upsilon.exp_family_witnesses_ATMOTM`. Owned by the Lean4+math session (`lean4-spec`, `feat/lean4-spec`).
+**Requirements**: CTX-SIZE (width!=0 panel-size blocker), CTX-FEE (chain layer: ABI, RPC, feeGrowthInside, block index), CTX-PREM (SFPM getAccountPremium read + premium identity), CTX-GATE (hard reconciliation gate: median rel. error <=1% on OptionBurn.premium0 in ETH wei, stratified short/long), CTX-PANEL2 (restored position-epoch panel), CTX-EST2 (re-estimation under the pre-committed, result-independent stopping rule), CTX-XWALK (Lean/Haskell cross-walk multiplier wedge), CTX-REPLAY-OPT (optional, non-blocking replay cross-check)
+**Depends on:** Phase 9 (estimator, inference, Lean witness, cached swap logs — all reused unchanged; only the LHS construction changes)
+**Phase outcome (2026-07-27, FINAL):** Wave-0 census **GO** (hourly re-scope; daily grid returned STOP and it was honoured). Reconciliation gate **PASS** — 61/61 spells, short-stratum median relative error 0.000000 in ETH wei, 53/61 exact to the wei, worst 5.447268e-4 against a tolerance of 0.01 that was never modified. Stopping rule **UNINFORMATIVE**, under BOTH LHS constructions (υ₀ CI half-widths 1.479533e-1 and 1.979569e-1 against the never-moved 6.2e-5 bar): **this market cannot identify υ.** The phase's own success criterion is therefore NOT met, and that is the reported result — no respecification, no subsample hunting, no estimator fishing. Genuinely new and reported without over-reading: **κ̂ > 0 rejects H₀ of a flat vega profile under both constructions** (p = 9.534719e-3 and 7.308348e-3), the first rejection in this project — a statement about the profile's SHAPE, not a substitute for the rule, which is about υ₀'s LEVEL. The **formal witness does NOT obtain** (`hk` supported, `hu` sign-only); `Upsilon.exp_family_witnesses_ATMOTM` stays proved and axiom-clean and `ATMOTMNullHypothesis` stays OPEN. The binding constraint is the **55-cluster ceiling**, which no LHS transformation can touch.
+**Plans:** 11/12 plans complete
+
+Plans:
+- [x] 10-01-PLAN.md — CTX-SIZE: width!=0 census, achievable panel size, STOP/GO checkpoint (WAVE-0 BLOCKER)
+- [x] 10-02-PLAN.md — CTX-FEE: Chain.Abi + Chain.Rpc, frozen golden eth_call returndata fixture
+- [x] 10-03-PLAN.md — CTX-FEE/PANEL2: Chain.BlockIndex, epoch->block map, RPC throughput probe
+- [x] 10-04-PLAN.md — CTX-PANEL2: Panoptic.Chunk getTicks/liquidity, deduplicated read schedule
+- [x] 10-05-PLAN.md — CTX-PREM/GATE: Panoptic.Sfpm + Panoptic.Premium, X64 scaling, telescoping
+- [x] 10-06-PLAN.md — CTX-PREM: checkpointed, resumable bulk accumulator read (~8k-15k eth_calls)
+- [x] 10-07-PLAN.md — CTX-GATE: Panel.Reconcile + 5-spell pre-check
+- [x] 10-08-PLAN.md — CTX-GATE: the hard 61-spell stratified gate + verdict checkpoint
+- [x] 10-09-PLAN.md — CTX-PANEL2: position-epoch panel + zero-unmatched variance join
+- [x] 10-10-PLAN.md — CTX-EST2: re-estimation (estimator UNCHANGED) + stopping-rule checkpoint — **TERMINAL: STOPPING_RULE UNINFORMATIVE under BOTH LHS constructions; this market cannot identify υ. κ>0 rejects in both (p 9.5e-3, 7.3e-3); Lean witness does NOT obtain.**
+- [x] 10-11-PLAN.md — CTX-XWALK: multiplier-wedge cross-walk, ROADMAP/STATE close-out — wedge recorded as a MEASURED distribution (median 1.112500, p90 1.291667, 38.9% exactly 1, max R/N 2.333333), the quoted 1.125 bound corrected, witness status and the seller-side sign convention recorded
+- [ ] 10-12-PLAN.md — CTX-REPLAY-OPT (OPTIONAL, NON-BLOCKING): _getPremiaDeltas cross-check — **SKIPPED 2026-07-27.** Reason: its purpose is an independent check that the reconstructed premium really is the protocol's, and that purpose is already served — the 10-08 gate reconciles all 61 spells against `OptionBurn.premium0` in exact Integer ETH wei with 53/61 exact to the wei, and two independent anti-fabrication reviewers returned CLEAN (live re-read against the Base archive, 32/32 integers exact; full offline recomputation in Python, no planted literals). A narrow-window replay would re-derive a quantity already validated wei-exactly against on-chain ground truth. The plan was optional and non-blocking by construction and nothing downstream depends on it. **CTX-REPLAY-OPT is therefore NOT satisfied and is not claimed to be.** The user may request the run later; the plan file stays in place, unexecuted.
+
+### Phase 11: MEV hazard-rate metric and infimum program (λ_MEV)
+
+**Goal:** Define a discrete λ_MEV hazard functional analogous to
+`FlairOptimization.flairHazard` — anchored on Milionis–Moallemi–Roughgarden
+*Arbitrage Profits in the Presence of Fees* (fee-DEcreasing arb-profit
+rate; PDFs acquired in `../plank/refs/mev/`) — over the SAME multi-sigmoid
+parameter space `Θ_φ = {γ, φ̄, β, α(, α_R)}` of `VolInstrument.multiFee`;
+identify `Θ_{λ_MEV} ⊂ Θ_φ` and SOLVE the infimum program `inf λ_MEV`
+(mirror of the solved `sup λ_FLAIR`; the level block `{φ̄, α, u}` has
+OPPOSITE monotonicity — fees up ⟹ FLAIR up, MEV down); then state the
+joint sup-FLAIR/inf-MEV program. The original intent is recorded and
+CORRECTED: it read "where the shape block `(β, γ)` becomes essential",
+and that expectation is **REFUTED, machine-checked** — the unconstrained
+joint program is DEGENERATE (`joint_corner_degeneracy`,
+`joint_beta_degeneracy`, `joint_scalarization_degeneracy`), so there is no
+trade-off over `Θ_φ` and the shape block is NOT essential. The trade-off
+appears only under a FIXED FLAIR fee budget, and even there only at
+constant volatility (see the plan-11-05 verdict below).
+Formalization is doc-driven via Aristotle
+(`VOLATILITY_INSTRUMENTS.md ### MEV` is the reference note; notation
+binding per LEAN_TRACEABILITY). Angstrom (SorellaLabs/angstrom,
+angstrom-v4, l2-angstrom) is the implementation reference that minimizes
+λ_MEV mechanically — its auction mechanism informs which parameters are
+protocol-controllable.
+**Requirements**: CTX-MEVDOC (λ_MEV LaTeX spec into `VOLATILITY_INSTRUMENTS.md ### MEV`,
+user-approved), CTX-PTRADE (the fee-decreasing kernel `ptrade` + the MMR ARB/FEE/LVR split),
+CTX-MEVHAZ (`mevHazard`/`mevMulti` discrete functionals + the CPMM instantiation), CTX-INF
+(`Θ_{λ_MEV}` identification + the SOLVED infimum program), CTX-JOINT (the joint program:
+degeneracy + the constrained/Jensen reformulation), CTX-ANGSTROM (τ-rebate argmin invariance,
+the `Δt` cadence lever, sandwich nulling), CTX-TRACE (LEAN_TRACEABILITY rows + close-out),
+CTX-REVIEW (two-reviewer gate on every pre-submission spec artifact)
+**Depends on:** Phase 10 (and the FlairOptimization.lean layer, commits 6914fba/5e08578)
+**Directory:** `.planning/phases/11-mev-hazard-inf-program/`
+**Plans:** 6/6 plans complete
+**Phase outcome (2026-07-31, FINAL):** All eight CTX-* requirements SATISFIED, and the two headline
+results are both NEGATIVE ones, reported as results rather than softened. **(1) The unconstrained
+joint program is DEGENERATE** — one admissible point simultaneously maximizes `λ_FLAIR` and
+minimizes `λ_ARB`, in the levels and in the shape coordinate, robustly to every scalarization
+`κ ≥ 0`; the phase brief's "the shape block becomes essential" expectation is machine-checked as
+refuted. **(2) T24 — the σ-varying flat-fee optimality claim, the phase's declared main mathematical
+risk — is REFUTED, not open**: `mev_ge_flat_under_flair_budget_false`, witness recomputed in exact
+rationals (flat `31/22` vs tilted `4/3`). The `Θ_φ`-restricted isotone case remains OPEN and is not
+claimed either way. What is positively proved: `ptrade` with all seven M1 properties (both strict
+forms strict), the `mevHazard`/`mevMulti` functionals commensurable with FLAIR by construction, the
+SOLVED infimum program `Θ_{λ_ARB} = {φ̄, α, u}` at its upper corner, the constant-σ path-level
+constrained result, and the whole Angstrom bridge (`τ` and `Δt` formally outside `Θ_φ`;
+`mevTotal := λ_ARB + λ_sandwich` as plain hazard addition). Two disclosed corrections
+(T15's `hfee` guard, T17's admissibility constraint — both at `ptrade`'s negative-fee pole) and one
+omission (T19: block M3(ii)'s exact CPMM kernel has no formal carrier, so the `σ²Δt < 8` guard lives
+nowhere). `arb_add_fee_eq_lvr` is a bridge identity, NOT a formalization of MMR Theorem 3/4.
+
+> **Planning correction (2026-07-30, from 11-RESEARCH.md F5; CONFIRMED MACHINE-CHECKED 2026-07-31):**
+> the goal above anticipated that in the joint program "the shape block `(β, γ)` becomes essential".
+> This is **refuted for the unconstrained functional** — `ptrade` is antitone in the fee, so
+> `inf λ_MEV` and `sup λ_FLAIR` sit at the SAME point in every coordinate of `Θ_φ` (level corner top
+> and `β → −∞`), robustly to linear scalarization. Research asserted it; `MevJointProgram.lean`
+> (11-05) now proves it. The trade-off is recovered only under a FIXED FLAIR fee budget, where
+> convexity of `ptrade` makes a flat fee the MEV minimizer — **and 11-05 further narrowed that
+> recovery**: it holds at CONSTANT volatility over fee PATHS, while the general σ-VARYING
+> schedule-level version is FALSE. The phase ships all three claims separately; the degeneracy and
+> the refutation are reportable results, not failures.
+
+Plans:
+- [x] 11-01-PLAN.md — CTX-MEVDOC/CTX-REVIEW: λ_MEV doc spec (LaTeX blocks M0–M8), notation gate, two-reviewer gate, HEAVY USER APPROVAL — **COMPLETE** (4 BLOCKERs + 12 MAJORs resolved; user-approved; blocks landed in plank's `### MEV`, bytes pinned by `APPROVED-DOC-SHA256`; M6a REFUTES the "(β,γ) becomes essential" expectation)
+- [x] 11-02-PLAN.md — CTX-PTRADE/CTX-MEVHAZ/CTX-INF/CTX-REVIEW: Aristotle bundle A + numbered T1–T19 prompt, prompt gate, serial submit — **COMPLETE, TASK IN FLIGHT** (project `cb371ee5`, task `d1c57297`, `IN_PROGRESS` at close; bundled doc PROVED byte-identical to the approved text by sha256 pin + M-block diff; prompt gate found 2 BLOCKERs — a dropped `·Δt` re-introducing 11-01's own defect, and a provably false T17 — plus 3 MAJORs, all resolved; queue proven empty, exactly one task in flight). CTX-PTRADE/MEVHAZ/INF are NOT yet satisfied: nothing is proven until 11-03 integrates the returned module
+- [x] 11-03-PLAN.md — CTX-PTRADE/CTX-MEVHAZ/CTX-INF: integrate bundle A — build, axiom sweep, T1–T19 fidelity diff, push both remotes — **COMPLETE. CTX-PTRADE, CTX-MEVHAZ and CTX-INF are now SATISFIED** (`lean/vol_markets/MevOptimization.lean`, 1046 lines, 25 declarations, sorry-free, 25/25 axiom-clean, `lake build` green, pushed to origin `42c8e60` + `cfmm-lean4-spec` `19afcdd`). All ten bundled dependency modules returned byte-identical; T1–T18 all present with NONE narrowed (T6 strict, T13 a path SUM, T8 kept `·Δt`, T17 proves `ContinuousOn`). Two recorded qualifications: T15 needed an Aristotle-ADDED hypothesis because the limit as specified was FALSE at `ptrade`'s negative-fee pole, and optional **T19 was OMITTED** so block M3(ii)'s exact CPMM kernel has no formal carrier. Queue FREE ⟹ 11-04 unblocked
+- [x] 11-04-PLAN.md — CTX-JOINT/CTX-ANGSTROM/CTX-REVIEW: bundle B + T20–T30 prompt (degeneracy, constrained/Jensen with σ-varying primary and σ-constant fallback, Angstrom bridge), gate, serial submit — **COMPLETE, TASK IN FLIGHT AT CLOSE** (project `19f777ab`, task `f8840dab`). The two-reviewer gate earned its keep: both reviewers independently found the SAME BLOCKER — the plan's own text specified `mevTotal := probOr lamARB lamSand`, which approved block M7 explicitly forbids, and which the project's already-proven `VolInstrument.probOr_hazard` refutes; corrected to plain addition with the correspondence kept as its own lemma. Executor-found before either reviewer ran: the plan's T25 was a TRIVIALITY at the schedule level, fixed by introducing path-level carriers. Doc fidelity re-proved against all three copies at submit time. CTX-JOINT/CTX-ANGSTROM NOT yet satisfied at close: nothing proven until 11-05 integrates
+- [x] 11-05-PLAN.md — CTX-JOINT/CTX-ANGSTROM: integrate bundle B — build, axiom sweep, T20–T30 fidelity, the explicit T24 verdict, push — **COMPLETE. CTX-JOINT and CTX-ANGSTROM are now SATISFIED** (`lean/vol_markets/MevJointProgram.lean`, 481 lines, 27 declarations, sorry-free, 27/27 axiom-clean, `lake build` 8063 jobs green, pushed to origin `94e7fa9` + `cfmm-lean4-spec` `81b2729`). 11/11 bundled modules byte-identical; T20–T30 ALL byte-identical to the sha-verified prompt, none narrowed, ZERO corrective hypotheses. **THE T24 VERDICT IS REFUTED** — `mev_ge_flat_under_flair_budget_false`, Aristotle's outcome 3, flat `31/22` vs tilted `4/3` recomputed independently in exact rationals. The `Θ_φ`-restricted varying-σ case is recorded OPEN; the supporting numerics are labelled NOT machine-checked. The unconstrained degeneracy (T20–T22) is machine-checked
+- [x] 11-06-PLAN.md — CTX-TRACE: LEAN_TRACEABILITY §0/§6/§7 rows, addendum back-annotation, ROADMAP/STATE close-out — **COMPLETE. CTX-TRACE SATISFIED.** §0 carries the MEV notation rows, the three resolved collisions and the λ_ARB/λ_MEV distinction; new §7.1 carries 14 claim rows, every backticked identifier grep-verified to be a real declaration in one of the two modules; `arb_add_fee_eq_lvr` is labelled a bridge identity and explicitly NOT a formalization of MMR Theorem 3/4; the degeneracy and the T24 refutation are recorded as RESULTS with `REFUTED`/`OPEN` statuses taken verbatim from the fidelity records; §6's stale "MEV section (empty in the doc)" clause is replaced by five precisely named gaps. Addendum back-annotated M1–M7 with M6b amended OPEN → REFUTED; the plank-owned `VOLATILITY_INSTRUMENTS.md` carries the same amendment, uncommitted, handed to `ul2inqpl`
+
+### Phase 12: Optimal η for the FLAIR/MEV trade-off (interior curvature controller)
+
+**Goal:** Derive and formalize the optimal `η` — the pricing-geometry
+curvature / asset-demand substitution elasticity (`VolInstrument.priceEta`,
+plank todo #227) — as the unique interior controller of the FLAIR/MEV
+trade-off. Transcribe Capponi–Jia §5.1 (arXiv:2103.08842; PDF at
+`../plank/refs/mev/CapponiJiaAdoptionDEX.pdf`) into the doc's geometry
+under the binding notation-precedence rule (their curvature `k` maps ONTO
+our `η`; our symbols never reassigned): the curvature family, the two-sided
+lemma (arb-loss ratio ↓ curvature AND investor-surplus ratio ↓ curvature),
+and the interior-optimum proposition (LP payoff single-peaked at `k*` —
+our `η*`). Then state and solve the JOINT program over `(Θ_φ, η)`: the fee
+block stays at its proven corner (Phase 11 M6a degeneracy), and `η` carries
+the genuine interior trade-off — `λ_ARB` decreasing in `η` through the
+slippage channel while the demand/volume side decreases too, yielding
+`η* ∈ (0, 1)`-analog existence + first-order characterization where
+provable, with honest OPEN labels where the doc's discrete geometry departs
+from Capponi's continuum model. Doc-driven Aristotle (new doc block, HEAVY
+USER APPROVAL, notation gate); results land beside the Phase 11 modules;
+traceability + doc summarization close the cycle.
+
+> **PLANNING CORRECTIONS (2026-07-31, from 12-RESEARCH's reading of the v4 PDF — the
+> goal above is kept verbatim; these correct it in place rather than replacing it).**
+> **(1) THERE IS NO FIRST-ORDER CHARACTERIZATION, and none may be requested.** `k*` is the
+> BRANCH POINT `k₁ = 1 − √((1+f)/(1+α))`, where the investor's trade switches from draining
+> the pool to an interior marginal condition. It is a KINK; the derivative jumps there and is
+> not zero. `η*` is obtained by INVERTING a closed form, giving
+> `η* = ln((1+ϱ_I)/(1+φ)) / (Δi²·ln λ)` — existence AND location in one step, no optimisation
+> argument. A prompt asking for a stationary point would return a false or vacuous theorem.
+> **(2) The anchor's results are Lemma 3, Proposition 5 and Proposition 6** — not "Lemma 1"
+> and not "the curvature proposition". Lemma 1 is the unrelated one-token-shock arbitrage-profit
+> result. **(3) Capponi's `α` and `β` are NOT arrival probabilities** (as 12-CONTEXT.md states):
+> `α` is the investor's PRIVATE-USE PREMIUM and `β` the price-shock MAGNITUDE. This is
+> load-bearing — `α` is the demand-side valuation parameter that `MevJointProgram`'s degeneracy
+> docstring and `LEAN_TRACEABILITY` §6(b) both name as the missing layer, so this phase fills a
+> gap the project had already identified. **(4) The mapping `k ↔ η` is not direct:** the bridge
+> is the discrete curvature index `χ(η) = 1 − λ^(−Δi²η/2)`, a strictly monotone bijection
+> `(0,∞) → (0,1)`, and Capponi's economics is transcribed over `χ` with every equilibrium
+> aggregate frozen into a constant. **(5) The interior-optimum claim is not a first for the
+> repository:** `lean/exp/DynamicsOptimization.lean` already carries an interior-`η` result in a
+> DIFFERENT model, but it HYPOTHESIZES the maximizer and characterizes it by an FOC. What is new
+> here is the CONSTRUCTION. **(6) `η = 1` is the standard sqrt-price grid, NOT Capponi's `k = 1`.**
+> **(7) The equilibrium transfer — that our tick-grid AMM actually has Capponi's closed forms — is
+> an ASSUMPTION and is labelled OPEN, not derived.**
+
+> **BINDING USER DECISIONS FROM 12-01 (2026-07-31). These correct the goal above in place and
+> GOVERN what 12-02 may ask Aristotle to prove.**
+> **(8) THE CURVATURE INDEX IS `κ_φ` (`\kappa_{\varphi}`), NOT `χ`** — user amendment. Correction (4)
+> above and every `χ` in 12-RESEARCH are superseded on the glyph. Lean binders are `kphiS`, `kphiI`,
+> `kphiStar`, with `curvIndex` the definition and `curv` the bound variable. Applying it exposed a
+> second, consequential collision: the draft used `\varphi` for the FEE, contradicting the master
+> document's own M0 (`\varphi` is bound to the QUOTE FUNCTION), so **the fee is `\phi`** and `\varphi`
+> appears only as `κ`'s subscript. Both reviewers missed this.
+> **(9) CTX-DEGEN IS NARROWED — THERE IS NO LITERAL DE-DEGENERATION THEOREM.** The goal's "state and
+> solve the JOINT program over `(Θ_φ, η)` … the de-degeneration" is NOT deliverable as written:
+> `mevMulti` contains no `η`, no `κ_φ` and no `ϱ_I`, so nothing in the curvature layer moves the
+> Phase-11 objective and the `Θ_φ` degeneracy stands exactly where Phase 11 left it. Contrasting
+> Capponi's `arbLoss`-minimizer with the `λ_ARB`-minimizer is comparing two objects the document
+> itself declares NOT IDENTIFIED. **What ships instead:** the interior optimum in the
+> Capponi-anchored model, the `η`-bridge transport, and the Phase-11 contrast as an honest SCOPE
+> statement — with `ϱ_I` a CANDIDATE for the demand-elasticity layer `LEAN_TRACEABILITY` §6(b)
+> names, not a closure of it. A real de-degeneration needs one objective carrying both a
+> demand-elastic investor and `λ_ARB`; that object exists in neither model and is OPEN.
+> **(10) 12-RESEARCH.md CARRIES THREE DEFECTS FORWARD** — F8's interior-optimum mechanism (the peak
+> comes from the LP revenue term's corner→interior regime switch, NOT from two antitone objectives
+> having opposite corners, which is an UNSOUND scalarization argument), F8's de-degeneration
+> framing, and F3's "curvIndex covers curvatures beyond his range" (the map covers `(0,1) ⊊ [0,1]`,
+> so it neither reaches nor extends the anchor's corners). **Correct these at 12-04** so no later
+> plan re-injects them.
+
+> **PLANNING CORRECTION CONFIRMED AT CLOSE (2026-08-02).** Correction (1) above is no longer a
+> reading of the PDF — it is **machine-checked**. `EtaCurvature.lpExcess_isMaxOn` establishes the
+> maximum from the TWO ONE-SIDED strict monotonicity results `lpExcess_strictMonoOn` /
+> `lpExcess_strictAntiOn`; `kphiStar_eq_kphiI` locates it at the branch point. **There is no
+> first-order condition anywhere in the landed module** — `κ_φ⋆` is a KINK, and `η⋆` comes from
+> INVERTING the `curvIndex` bijection in closed form (`curvIndex_etaStar`, an EQUALITY). The Goal's
+> "first-order characterization where provable" is therefore answered: it was not provable, because
+> it is not true, and the construction supersedes it. Correction (5) also stands as written —
+> `exp/DynamicsOptimization` (`foc_eta`, `optimal_controls`) still carries its own interior-η claim
+> in a different model with a HYPOTHESIZED maximizer and an FOC; what this phase added is
+> CONSTRUCTION, and `LEAN_TRACEABILITY` §7.2 says so explicitly so the two are never conflated.
+> Correction (10)'s three 12-RESEARCH defects were handled by neutralization at 12-02 (the false E7
+> sentence was quoted as approved-doc text and explicitly PROHIBITED from being formalized) and by
+> the ESC-1 correction landing in both document copies; **`12-RESEARCH.md` itself was left unedited**
+> — it is a dated research artifact, and the corrections live in the ROADMAP block above, in E7's
+> `CORRECTION (2026-07-31, ESC-1)` line and in `LEAN_TRACEABILITY` §13.
+
+> **CONTINGENCY DISPOSITION: `12-CONTINGENCY.md` WAS INVOKED, at 12-03.** The first Aristotle run
+> (project `4878ca32`, task `e1c846ae`) returned **`OUT_OF_BUDGET`** with 36/51 declarations proven
+> and 15 `sorry`s — resource exhaustion, not a payload or logic failure (all 18 bundled inputs came
+> back byte-identical). The partial was **NOT integrated**, because `lean/vol_markets/` requires
+> sorry-free axiom-clean modules and hand-proving the gap is barred. The contingency's **option 1
+> (second bundle)** was taken over option 2 (close with 15 honest `OPEN` rows), at the user's
+> `submit eta -b`: project `c3a617f3`, task `4ec89173`, the original 18 inputs plus the partial as
+> working base, prompt scoped to the 15 gaps with a transport hint and a budget priority order.
+> **Outcome: `COMPLETE` — 51/51, 0 sorries, declaration list identical to the submitted partial.**
+
+**Phase outcome (2026-08-02, FINAL):** Six of the seven CTX-* requirements SATISFIED; **CTX-DEGEN
+SATISFIED AS NARROWED** per the user's binding 2026-07-31 ruling (decision (9) above) — there is no
+literal de-degeneration of the `Θ_φ` program and none was attempted. The phase delivered the
+**first CONSTRUCTED interior optimum in this program**, `η⋆ = ln((1+ϱ_I)/(1+φ))/(Δi²·ln λ)`, where
+everything in `Θ_φ` had been a corner or a saturation limit — and it delivered it without a
+first-order condition, which is the opposite of what the Goal asked for and is recorded as such.
+Two things the record refuses to overstate: the **equilibrium transfer is an ASSUMPTION** (every
+theorem is about `lpExcess ∘ curvIndex`, none is about this project's AMM), and the user's
+η-identity decision is only **PARTIALLY discharged** — exponent half PROVEN, factor-share half OPEN.
+
+**Requirements**: CTX-CURVDOC, CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN, CTX-REVIEW, CTX-TRACE
+> NOTE, UPDATED 2026-08-02: at planning time `REQUIREMENTS.md` carried no `CTX-` rows at all, so
+> `requirements mark-complete` was a no-op for this phase. **That gap is now closed for Phase 12
+> only:** a `### Lean4 + Math track (CTX-*)` section was added to `REQUIREMENTS.md` carrying these
+> seven ids with their dispositions, plus traceability rows. Phases 8–11's CTX-* ids remain
+> undeclared there and are still tracked only in this file — recorded rather than silently patched,
+> since back-filling them belongs to the roadmapper, not to a phase close-out.
+**Depends on:** Phase 11 (MevOptimization/MevJointProgram layer; the M6a degeneracy theorem is the motivation), EndogenousMaturity (independent)
+**Directory:** `.planning/phases/12-eta-tradeoff-optimum/`
+**Plans:** 4/4 plans complete — **PHASE COMPLETE 2026-08-02**
+
+Plans:
+- [x] 12-01-PLAN.md — CTX-CURVDOC, CTX-REVIEW: **COMPLETE.** E0–E8 authored from the PDF (Lemma 3 / Prop 5 / Prop 6), INVERTED notation gate written (η REQUIRED; proven to FAIL on the Phase-11 addendum with the Rule-1 message) and later hardened with negative-tested Rules 4b/4c for `κ_φ`; two reviewers ran blind in parallel and returned **3 BLOCKER + 9 MAJOR, all resolved** — two of the BLOCKERs were defects the PLAN and 12-RESEARCH had specified; HEAVY USER APPROVAL obtained plus a binding `κ_φ` notation amendment and the CTX-DEGEN narrowing; inserted at the user-authored `## FLAIR & MEV` stub — NOT a new `## ETA` section, per the user's placement ruling — and pinned `APPROVED-ETA-SHA256 4f5362c1…`. Plank file written, NOT committed (owner `ul2inqpl`). `autonomous: false`
+- [x] 12-02-PLAN.md — CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN, CTX-REVIEW: **COMPLETE, TASK IN FLIGHT AT CLOSE** (project `4878ca32`, task `e1c846ae`, `IN_PROGRESS`). Bundle assembled as **EIGHTEEN** modules, not the planned seventeen — `JitLiquidity` landed mid-plan and the binding rule is doc + ALL proved modules — with the **import closure PROVEN** (14 distinct imports all resolving, the check that catches the `CESLongVolPayoff` class 12-RESEARCH F7.3 missed) and all 18 copies byte-identical to the landed modules; `12-02-MODULE-MAP.txt` written because 12-03's inverse rewrite is **NOT a single sed** (`RequestProject.eta` → `exp.eta` but `RequestProject.VolInstrument` → `vol_markets.VolInstrument`). A 1232-line, 35-item T1'–T31' prompt with E0–E7 spliced VERBATIM by script. **The two-reviewer gate found 2 BLOCKER + 1 MAJOR + 11 MINOR, 0 unresolved — and one BLOCKER was in the APPROVED, BYTE-PINNED DOCUMENT:** block E7's scalarization-impossibility sentence is FALSE on `[κ_φ,S, κ_φ,I]` (the two ratios switch branches at DIFFERENT points), recomputed independently to a stationary interior maximum at `κ_φ ≈ 0.2412`, at no branch point, and it had been mandated verbatim into a permanent Lean docstring. The second BLOCKER was a typechecking defect on the headline chain (`lpExcessEta` applying 8 args to a 7-param `lpExcess`, reintroducing `cOne` as free and silently falsifying the branch agreement the peak rests on); the MAJOR was T8' FALSE as displayed, missing the symmetric `Real.sqrt` guard on `premInv`. All fixed pre-submission. Doc fidelity re-proved at submit time (`APPROVED == BUNDLED == LIVE` = `4f5362c1…`) **while the live whole-file hash moved twice** — the section is the gate, not the file. Queue proven clear (20/20 IDLE, zero `eta-curvature` projects), exactly one task in flight. **USER RULING: the document amendment for ESC-1/ESC-2/ESC-3 is DEFERRED to 12-04** so the live doc cannot desync from the copy Aristotle proves against. **CTX-CAPTRANS/CTX-INTERIOR/CTX-ETABRIDGE/CTX-DEGEN are NOT yet satisfied: nothing is proven until 12-03 integrates the returned module.** CTX-REVIEW is satisfied by the gate itself. `autonomous: false`
+- [x] 12-03-PLAN.md — CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE, CTX-DEGEN: **COMPLETE — and it took TWO Aristotle runs, which the plan did not anticipate.** `4878ca32` returned **`OUT_OF_BUDGET`** at 36/51 with 15 `sorry`s and was NOT integrated; the `12-CONTINGENCY` second bundle (`c3a617f3`, at the user's `submit eta -b`) closed the remaining 15 with the partial as its working base. Landed: `lean/vol_markets/EtaCurvature.lean`, **1269 lines, 51 declarations, 0 sorries, 51/51 axiom-clean**, root appended, `lake build` green (8067 jobs), origin `b02caf7` + mirror `lean4-spec main d25fd75`. All 18 bundled inputs byte-identical in BOTH runs; declaration list identical to the submitted partial (no renames, drops or additions). **Fidelity: 13/15 verbatim, 2 AMENDED with added hypotheses and conclusions intact, ZERO narrowed** — `lpExcess_strictAntiOn` gains E0's own ordering `φ < ϱ_S ≤ ϱ_I`, and `etaStar_pos_iff` gains `−1 < ϱ_I` because **Mathlib's `Real.log` is `log|x|`** (witness `ϱ_I = −3, φ = 0`), exactly the log-sign trap the 12-02 Model QA review predicted. **CTX-CAPTRANS, CTX-INTERIOR, CTX-ETABRIDGE SATISFIED; CTX-DEGEN SATISFIED AS NARROWED.** Optional **T28'b came back ABSENT** as pre-authorized ⟹ E8(6) OPEN and the η-identity decision is **PARTIALLY discharged**, not closed. Executed manually by the orchestrator; `12-03-SUMMARY.md` written retroactively at 12-04 and marked as such
+- [x] 12-04-PLAN.md — CTX-TRACE: **COMPLETE. CTX-TRACE SATISFIED.** `LEAN_TRACEABILITY` §0 gained rows for `premInv`/`premShock` (**declared PREMIA, NOT probabilities** — the misreading that makes `κ_φ⋆` uninterpretable), the four absorbed `ϖ_*` constants, `kphiS`/`kphiI`/`kphiStar`, `cOne…cThree` and `etaStar`; a binding paragraph recording the Capponi remaps, the absorptions and their reasons, the `f ≡ φ` identification, the **η protection and the gate INVERSION of Phase-11's Rule 1**, the ν avoidance, the deliberate `λ` overload (tick base vs subscripted hazard) and the **`arbLossRatio` / `mevMulti` NON-IDENTIFICATION**; and the η-identity outcome recorded as **PARTIALLY discharged**, citing `exp/eta.lean`'s own `P_half` docstring ("η does not enter the tick→price map") as the reason the second half is a modelling claim. New **§7.2** is the ETA entry point plus the **nine-item E8 OPEN ledger**, and it **points at §13 rather than duplicating it** — §13 had already landed with the module at `b02caf7`, following the §8-onward convention, so a second claim table would have created two sources of truth. §6(b) **AMENDED, not deleted**: `ϱ_I` is a PARTIAL carrier; the equilibrium transfer and MMR eq. (27) stay OPEN. Every backticked identifier in §7.2 grep-verified to be a real declaration, scoped to that section (11-06's defect fixed, not repeated). The addendum carried **no** `> LEAN` annotation while the plank copy did — the two had DRIFTED — so the annotation was mirrored byte-identical, and the **sha-pin invalidation is now disclosed** (`4f5362c1…` → live `54d10b59…`, safe because both gates were already consumed and passed). `../plank/todo.md` line 227 answered with the quotable controller law, its four strict comparative statics, its carriers, and the unobservability / factor-share / equilibrium-transfer caveats — **no on-chain proxy invented, deliberately**. Plank HEAD `08039da` before and after; M0→end-of-M8 bytes proven unchanged; **no `.lean` file touched**
+
+---
+
+### Phase 12.1 (INSERTED): Definitional Re-Ordering of the Document Opening
+
+**Goal:** Carry out the user's re-ordering of the doc's opening — formal definition of `θ`, then the
+streamia assignment, then a named assignment for the time-integrated streamia — with `π^σ` promoted
+to a DEFINITION (conditional on "if already formalized") and the replication weights renamed off `α`.
+
+**Requirements**: CTX-DEFORDER
+**Status:** BLOCKED — nothing may be started. TWO preconditions: HEAVY USER APPROVAL, and resolution
+of the live θ exponent-sign FLAG (θ cannot become a definition while its display carries an
+unresolved sign).
+**Registered as a decimal insertion** so an indefinite user gate does not hold a phase open.
+**Directory:** `.planning/phases/12.1-doc-definitional-reorder/`
+**Plans:** 0/1 — none written; blocked.
+
+> All three user comments are blocked, including the `α → c₁,c₂` rename: `c₁`/`c₂` are ALREADY TAKEN
+> as the E4 branch coefficients (13 sites, `c₁`'s sign load-bearing in four displays), so the rename
+> as literally stated creates a collision. A free symbol pair must be proposed to the user first.
+
+---
+
+### Phase 13: Capponi `F` → `φ` Convention Closure
+
+**Goal:** Close the `F → φ` transition the machine forced open — the CES lock, the Angeris canonical
+form, and the curvature verdict machine-checked, with the document's notation corrected to match and
+no false statements left behind.
+
+**Requirements**: CTX-PHIDOC
+**Status:** IN FLIGHT. Four Lean modules landed axiom-clean (`PhiCES` 12, `CanonicalCurve` 16,
+`CurvatureTwo` 18, `EtaTilde` 23 — the last landed AFTER Phase 12 closed and was previously
+registered nowhere). Rename set applied (`601e7ba`, `758e964`, `634ded6`, `838289f`).
+**Depends on:** Phase 12 — this phase is its correction: `curvOfTilde_not_curvature` proves the
+Phase-12 index was never a curvature, so E1–E7 stand as mathematics but read as SHARE statements.
+**Directory:** `.planning/phases/13-phi-convention-closure/`
+**Plans:** 0/3 — none written yet; see `TRACKS.md` OPEN items (a)–(j).
+
+> Item (c), the stale `eta-notation-gate.sh`, is a **blocking predecessor of every doc insertion in
+> the program** — Phases 12.1 and 14 both end in doc blocks and neither can be gated until it is
+> refreshed. Items (e)–(g) are defects sitting in the already-committed document, including one FALSE
+> LINE the rename itself created (repaired `838289f`) and a `χ` leg-orientation contradiction now
+> FLAGGED in the doc for author decision.
+
+---
+
+### Phase 14: Kristensen Implied-Volatility Integration
+
+**Goal:** Integrate Kristensen's implied-volatility LEVEL — the σ_IV extraction with anchors, the
+VOL/AMT ↔ `u` relation as a proved lemma or recorded refutation, and the four new symbols declared
+rather than smuggled.
+
+**Requirements**: CTX-IVLEVEL
+**Status:** RESEARCH DONE, GATED — not executable. Blocks V0–V9 drafted. The user's `2·√` hypothesis
+is REFUTED as a CES specialization (both factors Gaussian); the headline is that Kristensen's
+constant-`AMT_tick` assumption holds exactly iff `ξ = ξ⋆`, the log-contract ladder.
+**Depends on:** Phase 13 (c) — notation gate; Phase 13 (g) — the signed-`ΔQ` ruling, which is a
+Phase-13 doc defect this phase consumes.
+**Directory:** `.planning/phases/14-kristensen-integration/`
+**Plans:** 0/4 — none written; gated.
+
+> Ordering constraint with Phase 12.1: 12.1 renumbers definitions and renames the replication
+> weights, and the V-blocks are drafted against the current numbering. **12.1 runs strictly BEFORE
+> all V-blocks or strictly AFTER them — never interleaved.**
+
+---
+
+### Phase 15: Greeks Formalization (the UNFORMALIZED bundle)
+
+**Goal:** Formalize the Greeks layer the document already carries as blocks G0–G6 but which exists in
+no Lean module — the `D_p` and `Γ` ladder displays, the θ split, the `Δθ_fee/Δσ` statics, and above
+all the **G4 deficit lemmas**.
+
+**Requirements**: CTX-GREEKS
+**Core claim:** CC-GREEK
+**Status:** NOT STARTED and **not yet bundleable** — two decisions must land first.
+**Directory:** `.planning/phases/15-greeks-formalization/`
+**Plans:** 0/3 — none written; gated on PR-CARRY and PR-THETA.
+
+> **The headline is a NEGATIVE result and it is what is unformalized.** G4's underspecification
+> deficit is **structural, not numeric**: the matrix is block-triangular and `(β_j,γ_j)`'s column is
+> **zero on every shape row**, so the free `(β,γ)` provably **cannot** close it. That is the formal
+> answer to "can Greeks bind the free (β,γ)?" — no, and by rank.
+>
+> **G2 is OFF-BUNDLE**: its skew law is an `η_L` statement and E8(6) (`η_L = η`) is OPEN (PR-ETAL).
+>
+> **PR-CARRY decides what gets proved**, not how — per-event (M6b) vs time-integrated (λ_FLAIR);
+> G6(4) says decide before bundling, and the M2 hedge claim needs the time-integrated form.
+>
+> The Bunni-v2 LDF port (`ℓ(ξ,ι;·) ⇝ ℓ_LDF(θ_LDF;i_K)`) is the user-declared FUTURE MILESTONE that
+> the deficit count points at — **not part of this phase**.
+
+---
+
+### Phase 15.1 (INSERTED): Intrinsic Liquidity and the General-φ Ladder
+
+**Goal:** Make the trading curve's liquidity a **dimensionally consistent, local** object, and
+establish the reduction that lets any member of the family run on the half-kernel machinery on-chain
+protocols actually instantiate.
+
+**Requirements**: CTX-ELL, CTX-HALFKERNEL
+**Status:** IN FLIGHT — Aristotle project `9786b137-f7e7-4175-af83-738c330b4022`
+(`scratch/ell-submit/EllIntrinsic.lean`, 8 targets, priority L1 > L7 > L4 > L2 > L3 > L5 > L6).
+**Directory:** `.planning/phases/15.1-intrinsic-liquidity/`
+**Plans:** 0/2 — none written; the bundle's verdict determines what they contain.
+**Sources (vendored):** `plank/refs/cfmm/risk_tung_wang-pricing_hedging_liquidity_provision-2026.pdf`
+(arXiv:2603.01344v1 §2.1), prerequisite
+`plank/refs/cfmm/tung_wang-clmm_dynamics_continuous_time-2024.pdf` (arXiv:2412.18580, App. B).
+
+> **WHY THIS PHASE EXISTS — Rule 5 is doing silent dimensional work.** The level of
+> `φ_(χ,ε)` carries physical dimension `X^χ · M^(1−χ)`, so it is only comparable across curves at
+> `χ = 1/2`. Every `L̄`-denominated statement in the document is therefore dimensionally valid ONLY
+> because Rule 5 pins `χ ← 1/2`. Unpinning χ without adopting the intrinsic liquidity would break
+> them as a TYPE ERROR, not as an approximation. The source's `ℓ` repairs exactly this: it always
+> lands in the half-kernel dimension `√(X·M)`, it is LOCAL (a field `ℓ(x,y)`, not a global constant),
+> and it is invariant under reparametrization of the curve.
+>
+> **ESTABLISHED BEFORE SUBMISSION (hand-derived, numerically verified — not conjecture):**
+> their `ℓ = −2p^{3/2}/(dp/dQ_X)`, hence by the envelope relation `Γ = −½ ℓ p^{−3/2}` — which is the
+> G1 ladder display VERBATIM. **Their `ℓ` IS our `L(i_K)`, and is NOT `κ_φ`**: dimensions decide it
+> (`ℓ ~ √(X·M)` vs `κ_φ` dimensionless), and `ℓ`'s dimensionless factor depends on the SHARE while
+> `κ_φ` is a function of the SUBSTITUTION parameter alone — orthogonal axes. Also established:
+> `ℓ/√(xy)` is state-constant ONLY on the ρ = 0 slice (it sweeps 1.297→1.977 across the reserve ratio
+> at ρ = 0.5), so off Cobb–Douglas the intrinsic liquidity is a genuine FIELD.
+>
+> **THE IMPLEMENTATION-FACING RESULT (L7).** The constant-product pool carrying `L ← ℓ` reproduces a
+> general member's marginal price AND its first-order price impact: the half-kernel is the
+> **osculating** instrument at every state, not an approximation to one. That is why
+> `(sqrtPriceX96, per-tick L)` suffices on-chain to instantiate curves that are not constant-product —
+> and it is the reason LDFs work at all. Honest limits, to be stated in any doc block: the match is
+> local and second-order (it pins Γ, NOT `d²p/dQ_X²`), and value functions come from integrating, so
+> a local match is not a global value match.
+>
+> **Notation ruling (binding):** the object is indexed by the parameters that characterize the family
+> — `ℓ_(χ,ε)` — never by a family-name subscript. It is told apart from the ladder weight `ℓ(ξ,ι;i_K)`
+> by its index tuple.
+
+---
+
+### Phase 15.2 (INSERTED): Bunni-v2 LDF Port
+
+**Goal:** Replace the pinned geometric weight profile with a parametrized liquidity density —
+`ℓ(ξ,ι;·) ⇝ ℓ_LDF(θ_LDF; i_K)`, `Σ ℓ_LDF = 1` — closing the G4 ladder deficit.
+
+**Requirements**: CTX-LDF
+**Status:** NOT STARTED — **downstream of Phase 15.1 and gated on it.**
+**Directory:** `.planning/phases/15.2-bunni-ldf-port/`
+**Plans:** 0/TBD.
+
+> This was the user-declared FUTURE MILESTONE at G4. It is now SEQUENCED, not merely queued: Phase
+> 15.1 supplies the geometric object (`ℓ_(χ,ε)`, the local intrinsic liquidity field) that an LDF
+> parametrizes. Porting the engineering first would mean re-deriving that object afterwards.
+> G4's arithmetic is unchanged — `dim θ_LDF ≥ ι − 2` ⟹ ladder deficit 0; hazard rows are already at
+> deficit 0. Reference: `plank/refs/bunni-v2.pdf` §2.2 (`l_r = L · LDF_w(r)`), §2.2.1 the geometric
+> base example.
+
+---
+
+### Research spike (NOT a phase): `T_ITM/T` occupancy
+
+`.planning/occupancy/OCCUPANCY-SPIKE.md`. Demoted from a requirement 2026-08-03: it rests on one user
+sentence with no research, and its own next action is to determine *whether Kristensen's `T` is a
+maturity at all* given perpetual options have none. Promoted to a CTX requirement only if the spike
+finds a connectable object.
+
+---
+
+## Resume ledger — read BEFORE this file
+
+`.planning/IN-FLIGHT.md` records what is **handed off and waiting** (Aristotle bundles in flight)
+and what is **parked as a leaf**, each with an explicit RESUME TRIGGER. The roadmap says what the
+plan is; that file says what is owed. A hand-off adds a row there in the same action.
+
+## Core claims & prerequisites
+
+`.planning/PREREQUISITES.md` is the register: seven core claims (`CC-*`) grounded in the document's
+own block structure, and fourteen prerequisites (`PR-*`) with their blocking edges. Read the critical
+path off that file, not off the phase files.
+
+**Two prerequisites sit underneath the program's central claim and neither is discharged.** `CC-REPL`
+— the replication claim the whole document exists to support — rests on Theorem 1, which depends on
+`PR-REGION` (an admissibility region **literally absent from the page**, leaving `u` ill-posed on
+exactly the swaps it measures if the `ΔQ` legs are signed) and `PR-ORIENT` (a `χ` leg orientation
+that contradicts itself between two displays).
+
+**`PR-GATE` is the widest blocker** — the stale notation gate stops every pending doc insertion in
+the program, making it the cheapest high-value item on the board.
 ---
 
 # Milestone v2.0 — Realized-Volatility Oracle Differential Testing
