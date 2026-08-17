@@ -61,6 +61,12 @@ module Fee.Split
   , ellipse_test
   , is_admissible
   , min_admissible_dstar
+    -- * The band, the mixer, and the seeded pick
+  , admissible_band
+  , mix64
+  , pick_from_band
+    -- * The split itself
+  , split_for
     -- * The result, and why one was refused
   , FeeSplit (..)
   , SplitRefusal (..)
@@ -69,9 +75,13 @@ module Fee.Split
   , splitter_version
   ) where
 
--- The seed field's type, and the only import this module has. Nothing else is needed: every
--- function below is arithmetic over values it was handed.
+-- The seed field's type. Nothing here resolves it from anywhere: the seed ARRIVES as an argument
+-- and @Driver.Seed@ stays the only resolver, so this module cannot turn a typo'd seed into a drawn
+-- one by looking somewhere else for it.
 import Data.Word (Word32)
+-- The mixer's three primitives, and the second and last import this module has. Everything else
+-- below is arithmetic over values it was handed.
+import Data.Bits ((.&.), shiftR, xor)
 
 -- ---------------------------------------------------------------------------------------------
 -- The unit
@@ -341,6 +351,131 @@ min_admissible_dstar x m
           in if is_admissible x m mid then bisect lo mid else bisect (mid + 1) hi
 
 -- ---------------------------------------------------------------------------------------------
+-- The band, the mixer, and the seeded pick
+-- ---------------------------------------------------------------------------------------------
+
+-- | Every pair that composes to @f@ under the rounding rule AND is admissible at @delta*@,
+-- ASCENDING IN @phi_X@.
+--
+-- THE ORDER IS LOAD-BEARING AND IS NOT A PRESENTATION CHOICE. 'pick_from_band' selects by INDEX,
+-- so the index a seed resolves to is only reproducible if the list it indexes is. @x@ runs
+-- @[1 .. f-1]@ in increasing order and nothing is sorted afterwards, so the position of a member is
+-- a function of @f@ and @delta*@ alone. A band that came back in the order a set iterator happened
+-- to yield would replay a DIFFERENT pair from the same seed, and nothing in the recorded split
+-- would have changed.
+--
+-- @m > x@ IS LOCKED DECISION 3 (@rho > 1@), not a tie-break. @VOLUME_PATH.md@ section 2's two legs
+-- are asymmetric -- the numeraire leg and the other one are different quantities in the model -- and
+-- the fixture's own orientation is @(500, 6000)@. Keeping both orientations would put @(x, m)@ and
+-- @(m, x)@ in the band as separate members with identical composed fees, which doubles the band and
+-- makes the seeded index mean half as much. 'exact_pairs_for' is DELIBERATELY unrestricted and
+-- therefore counts BOTH orientations; that is why its census at @f = 6497@ is 2 and not 1, and the
+-- two functions are not measuring the same thing.
+--
+-- PARTIAL EXACTLY WHERE 'nearest_partner' IS, AND THE GUARD IS ELSEWHERE. The enumeration reaches
+-- @x = 1000000@ for every @f > 1000000@, and 'nearest_partner' divides by @1000000 - x@ there. That
+-- is an exception rather than a refusal, so 'split_for' tests 'fee_in_domain' BEFORE it ever calls
+-- this function. Calling this one directly on a fee outside the domain is the caller's error and it
+-- is not defended against here, because a defence here would have to invent a band for a fee that
+-- has none.
+--
+-- The sizes, MEASURED, at @delta* = 490000@:
+--
+-- > length (admissible_band 100   490000) == 44
+-- > length (admissible_band 500   490000) == 224
+-- > length (admissible_band 3000  490000) == 1344
+-- > length (admissible_band 6497  490000) == 2900
+-- > length (admissible_band 10000 490000) == 4447
+--
+-- and the two degenerate inputs the seed's evidence depends on:
+--
+-- > admissible_band 3000 500 == [(1, 2999)]     -- a SINGLETON
+-- > admissible_band 3000 200 == []              -- EMPTY
+--
+-- A PLANNING CORRECTION, MEASURED HERE. @26-RESEARCH.md@ guard 20 and @26-VALIDATION.md@ both name
+-- @f = 3000, delta* = 1000@ as the empty-band input, and @26-03-PLAN.md@'s table calls its size 4.
+-- Neither is right for this function:
+--
+-- > admissible_band 3000 1000 == [(1, 2999), (2, 2998)]   -- size 2
+--
+-- The 4 is the count WITHOUT the @m > x@ restriction -- @(1,2999)@, @(2,2998)@, @(2998,2)@ and
+-- @(2999,1)@ -- so it describes a band this function does not return. The empty input is
+-- @delta* = 200@ and the singleton is @delta* = 500@.
+admissible_band :: Integer -> Integer -> [(Integer, Integer)]
+admissible_band f dstar =
+  [ (x, m)
+  | x <- [1 .. f - 1]
+  , let m = nearest_partner f x
+  , m > x
+  , is_admissible x m dstar
+  ]
+
+-- | The splitmix64 finalizer, in exact 'Integer' arithmetic with every intermediate masked to 64
+-- bits.
+--
+-- WHY A HAND-ROLLED, DOCUMENTED MIXER RATHER THAN A LIBRARY GENERATOR. @fs_seed@ is what a run log
+-- replays a split FROM. A generator whose stream is an implementation detail of a package would
+-- move under a version bump -- silently, and without changing a single stored byte -- and every
+-- split ever recorded would then resolve to a different pair while still looking internally
+-- consistent. That is the same failure the driver's seed contract names: a value the operator
+-- believes is a replay and is not, with nothing downstream able to tell. So the stream is written
+-- down here, in five lines, with its constants in DECIMAL. Bumping any of them is a
+-- 'splitter_version' change.
+--
+-- The constants, named rather than spelled inline, are the published finalizer's: the 64-bit mask
+-- @18446744073709551615@, the golden-ratio addend @11400714819323198485@, and the two multipliers
+-- @13787848793156543929@ and @10723151780598845931@, with shifts 30, 27 and 31. They are decimal
+-- because this file must carry no hexadecimal literal -- the repository scans for exactly that --
+-- and decimal is the same value, not a weaker statement of it.
+--
+-- Total on every 'Integer'. A negative argument is masked into the same 64-bit window as a positive
+-- one, so there is no input on which this diverges or throws; in practice the only caller passes a
+-- 'Word32'.
+mix64 :: Integer -> Integer
+mix64 seed = z3 `xor` (z3 `shiftR` 31)
+  where
+    z0 = (seed + golden_ratio_addend) .&. word64_mask
+    z1 = ((z0 `xor` (z0 `shiftR` 30)) * mixer_multiplier_one) .&. word64_mask
+    z2 = ((z1 `xor` (z1 `shiftR` 27)) * mixer_multiplier_two) .&. word64_mask
+    z3 = z2
+
+-- | @2^64 - 1@, in decimal.
+word64_mask :: Integer
+word64_mask = 18446744073709551615
+
+-- | @floor(2^64 \/ phi)@, the finalizer's addend, in decimal.
+golden_ratio_addend :: Integer
+golden_ratio_addend = 11400714819323198485
+
+-- | The finalizer's first multiplier, in decimal.
+mixer_multiplier_one :: Integer
+mixer_multiplier_one = 13787848793156543929
+
+-- | The finalizer's second multiplier, in decimal.
+mixer_multiplier_two :: Integer
+mixer_multiplier_two = 10723151780598845931
+
+-- | The band member a seed selects: a PURE function of @(seed, band)@ and of nothing else.
+--
+-- That purity is the whole of FEE-04's Tier-A standing. Nothing here reads a clock, an environment
+-- variable or an entropy source, so the same @(seed, band)@ gives the same member in any process on
+-- any host, and a check can assert it without a rig.
+--
+-- 'Nothing' EXACTLY when the band is empty, which is what lets 'split_for' treat the emptiness test
+-- and the pick as one test rather than two that could disagree.
+--
+-- The indexing operator is partial and the guard is the @mod@ immediately above it: @size@ is
+-- strictly positive on the branch that indexes, so the index lies in @[0, size-1]@ and the operator
+-- cannot be reached out of range. Said here because a partial operator with its guard three lines
+-- away is how a total-looking function acquires an unreachable-until-it-is-not branch.
+pick_from_band :: Word32 -> [(Integer, Integer)] -> Maybe (Integer, Integer)
+pick_from_band seed band
+  | null band = Nothing
+  | otherwise = Just (band !! fromInteger (mix64 (toInteger seed) `mod` size))
+  where
+    size = toInteger (length band)
+
+-- ---------------------------------------------------------------------------------------------
 -- The result, and why one was refused
 -- ---------------------------------------------------------------------------------------------
 
@@ -404,6 +539,16 @@ data SplitRefusal
     -- ^ the pool fee, the requested @delta*@, and the size of the band that came back (zero)
   | ResidualTooLarge Integer Integer Integer Integer
     -- ^ the pool fee, @phi_x@, @phi_m@, and the residual that exceeded one whole pip
+  | NoBoundaryForAnAdmissiblePair Integer Integer Integer
+    -- ^ @phi_x@, @phi_m@ and the @delta*@ they were ADMITTED at. This is an INTERNAL
+    --   INCONSISTENCY, not an input error: the pair reached 'split_for' through
+    --   'admissible_band', so 'is_admissible' said yes at this target, and
+    --   'min_admissible_dstar' then reported that the pair admits no target at all. Those two
+    --   statements cannot both be true. It exists as a refusal rather than as a defaulted
+    --   boundary because a default here is exactly the shape RC-M4 found: the bisection that
+    --   returns 'Nothing' on an admissible pair is a real bug this module already had once, and a
+    --   @0@ or a @fromMaybe@ in its place would have shipped a legal split carrying a boundary
+    --   nobody measured.
   deriving (Eq, Show)
 
 -- | The operator-facing sentence for a refusal. Total: one arm per constructor.
@@ -441,6 +586,13 @@ refusal_message refusal =
         ++ show f ++ " pips by " ++ show residual ++ " scaled units, which is at or beyond one"
         ++ " whole pip (" ++ show pips_denominator ++ "). Nearest rounding bounds this below half"
         ++ " a pip, so a value here means the rounding rule changed."
+    NoBoundaryForAnAdmissiblePair phi_x phi_m dstar ->
+      "the pair (" ++ show phi_x ++ ", " ++ show phi_m ++ ") pips was ADMITTED at target "
+        ++ show dstar ++ " pips by is_admissible, and min_admissible_dstar then reported that it"
+        ++ " admits NO integer target at all. Those two cannot both be true, so this is an"
+        ++ " inconsistency INSIDE the splitter and not a fact about the input. It is reported"
+        ++ " rather than defaulted: a boundary invented here would travel into a recorded split as"
+        ++ " a measurement nobody made."
 
 -- | The boundary a refusal carries, when it carries one. Total.
 refusal_boundary :: SplitRefusal -> Maybe Integer
@@ -463,3 +615,97 @@ dynamic_fee_flag_value = 8388608
 -- give.
 splitter_version :: String
 splitter_version = "fee-split-1"
+
+-- ---------------------------------------------------------------------------------------------
+-- The split
+-- ---------------------------------------------------------------------------------------------
+
+-- | @(seed, pool fee in pips, delta* in pips)@ to a fully populated 'FeeSplit', or to the named
+-- reason there is none.
+--
+-- FIVE STEPS, AND THE ORDER OF THE FIRST TWO IS THE WHOLE DESIGN.
+--
+-- 1. __The domain of @f@, FIRST.__ @unless (fee_in_domain f)@, this is 'FeeOutOfDomain'. It is
+--    ahead of the band because the band ENUMERATES @x@ over @[1 .. f-1]@ and hands each to
+--    'nearest_partner', which divides by @1000000 - x@: for any @f > 1000000@ that reaches
+--    @x = 1000000@ and raises an EXCEPTION, which no 'Either' can carry. The falsifying input is a
+--    production value, not a hypothetical --
+--
+--    > split_for 0 8388608 490000 == Left (FeeOutOfDomain 8388608)
+--
+--    and 8388608 is Uniswap v4's @DYNAMIC_FEE_FLAG@ arriving in @PoolKey.fee@ (see
+--    'fee_in_domain'), which this repository's own dynamic-fee hook track produces. It is NOT a fee
+--    of 8388608 pips.
+--
+--    THIS STEP DOES NOT PREEMPT THE EQUAL-FEE DIAGNOSIS, and that is deliberate. It tests @f@ --
+--    the POOL fee -- and says nothing about the two legs. An in-domain request with equal legs
+--    never reaches this function as a pair at all: the legs are what this function DERIVES.
+--    @Gams.Argv.render_argv@ is where a caller-supplied pair is diagnosed, and there the
+--    equal-fee refusal runs before the ellipse for exactly the same reason this step runs before
+--    the band -- the more specific diagnosis must not be swallowed by a more general one that
+--    happens to refuse the same input.
+--
+-- 2. __The band, and the pick, as ONE test.__ 'pick_from_band' answers 'Nothing' exactly when the
+--    band is empty, so there is no second emptiness test that could disagree with it and no
+--    unreachable branch needing an invented message. The refusal carries the size the band
+--    actually came back with, which is @0@ on this path by construction -- and if it ever printed
+--    anything else, that number is itself the diagnosis.
+--
+-- 3. __The residual alarm.__ @abs r >= 1000000@ is 'ResidualTooLarge'. Nearest rounding bounds
+--    @|r|@ by @(D - x) \/ 2 < D \/ 2@, so this is a two-times headroom alarm on the ROUNDING RULE
+--    rather than a tolerance: it can only fire if 'nearest_partner' stopped rounding to nearest.
+--
+-- 4. __The boundary.__ 'min_admissible_dstar' is 'Just' here because the pair came out of
+--    'admissible_band' and is therefore admissible AT @dstar@. The impossible 'Nothing' is
+--    'NoBoundaryForAnAdmissiblePair' -- a refusal, never a @fromMaybe@ default. RC-M4 is why: the
+--    bisection specified for this module returned 'Nothing' on the admissible pair @(99, 101)@,
+--    and under a default that split would have shipped with a boundary of zero and nothing red.
+--
+-- 5. __The record__, with everything that was rounded away kept.
+--
+-- THE TWO WAYS FEE-04 GOES VACUOUS, AND WHY @fs_band_size@ IS A FIELD. A test that runs one seed
+-- twice is green under a selector that IGNORES the seed, and a test that runs eight seeds is green
+-- under a band with ONE member -- every seed then resolves to index 0 and the recorded pair is the
+-- same for a reason that has nothing to do with the mixer. The first is caught by comparing two
+-- different seeds; the second cannot be caught from the outside at all, which is why the band size
+-- is RECORDED in the result rather than inferred by whoever reads it. MEASURED:
+-- @admissible_band 3000 500@ is the singleton @[(1, 2999)]@, so @split_for s 3000 500@ returns the
+-- same pair for every @s@ in the universe, and the artifact says @fs_band_size = 1@ where a reader
+-- can see it.
+--
+-- The four named results, pinned:
+--
+-- > split_for 0 3000 490000  -> (752, 2250)   residual   308000, band 1344, boundary 300912
+-- > split_for 1 3000 490000  -> ( 66, 2934)   residual  -193644, band 1344, boundary  22486
+-- > split_for 0 6497 490000  -> (1036, 5467)  residual   336188, band 2900, boundary 183150
+-- > split_for 1 6497 490000  -> (2466, 4041)  residual    34894, band 2900, boundary 445955
+--
+-- > split_for 0 3000 200 == Left (EmptyBand 3000 200 0)
+split_for :: Word32 -> Integer -> Integer -> Either SplitRefusal FeeSplit
+split_for seed f dstar
+  | not (fee_in_domain f) = Left (FeeOutOfDomain f)
+  | otherwise =
+      let band = admissible_band f dstar
+      in case pick_from_band seed band of
+           Nothing -> Left (EmptyBand f dstar (length band))
+           Just (x, m) ->
+             let r = residual_scaled f x m
+             in if abs r >= pips_denominator
+                  then Left (ResidualTooLarge f x m r)
+                  else case min_admissible_dstar x m of
+                         Nothing -> Left (NoBoundaryForAnAdmissiblePair x m dstar)
+                         Just boundary ->
+                           Right FeeSplit
+                             { fs_pool_fee_pips    = f
+                             , fs_dstar_pips       = dstar
+                             , fs_phi_x_pips       = x
+                             , fs_phi_m_pips       = m
+                             , fs_realized_scaled  = compose_scaled x m
+                             , fs_residual_scaled  = r
+                             , fs_is_exact         = r == 0
+                             , fs_ellipse_e        = ellipse_test x m dstar
+                             , fs_boundary_pips    = boundary
+                             , fs_band_size        = length band
+                             , fs_seed             = seed
+                             , fs_splitter_version = splitter_version
+                             }
