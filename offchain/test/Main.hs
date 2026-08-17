@@ -245,7 +245,9 @@ import Store.Types
 import Store.Key
   ( ContentKey (..)
   , KeyIdentity (..)
+  , KeyIdentityError (..)
   , content_key
+  , fixed_model_options
   , frames
   , key_identity
   , key_preimage
@@ -11212,6 +11214,177 @@ the_pips_denominator_is_in_the_preimage =
         ++ " else would share a key.")
 
 -- ---------------------------------------------------------------------------------------------
+-- Store.Key -- the refusing identity and the shared renderer
+-- ---------------------------------------------------------------------------------------------
+
+-- | A machine-specific model-source path, and the directory part that must never reach a key.
+key_absolute_source, key_absolute_dir :: FilePath
+key_absolute_source = key_absolute_dir ++ gams_model_basename
+key_absolute_dir    = "/var/lib/cfmm-replication/models/"
+
+-- | KEY-01. No key is ever computed over a machine-specific path.
+--
+-- Two arms, because the module settles this in TWO ways and only one of them is a refusal.
+--
+-- The first: an ordinary absolute path is RELATIVISED -- the identity keeps the file name, the
+-- directory is gone, and the directory is absent from the preimage's bytes. That is the arm that
+-- matters operationally: an absolute path folded into the preimage makes the key machine-specific,
+-- so the same shock solved on another box keys a second row while the store looks healthy, and
+-- nothing ever goes red.
+--
+-- The second: a path that CANNOT be relativised -- one whose file name is empty -- is refused, and
+-- the refusal names the ORIGINAL path rather than the empty string it reduced to. A component
+-- silently truncated to nothing is the shape this repository keeps rediscovering.
+no_key_identity_carries_an_absolute_model_source_path :: Check
+no_key_identity_carries_an_absolute_model_source_path =
+  pure_check "no_key_identity_carries_an_absolute_model_source_path" $ do
+    toolchain <- key_toolchain key_absolute_source True
+    ident <-
+      case key_identity toolchain of
+        Left err    -> Left ("an absolute model-source path was refused as " ++ show err
+                              ++ ". It is meant to be RELATIVISED: the file name is the component,"
+                              ++ " and refusing the ordinary case would move the problem to whoever"
+                              ++ " remembered to basename it first.")
+        Right ident -> Right ident
+    _ <- expect (ki_model_sources ident == [(gams_model_basename, key_fixture_digest)])
+           ("the relativised identity carries " ++ show (ki_model_sources ident)
+             ++ ", expected exactly [(" ++ show gams_model_basename ++ ", <the digest>)]."
+             ++ " The CONTENT is what gets digested; the path is reduced to its file name.")
+    bytes <- key_fixture_preimage ident
+    _ <- expect (not (key_absolute_dir `isInfixOf` C8.unpack bytes))
+           ("the directory " ++ show key_absolute_dir ++ " survived into the preimage:\n      "
+             ++ show bytes
+             ++ "\n      A key carrying it is a key that only this machine can recompute, so the"
+             ++ " same shock on another box misses the cache forever and stores a duplicate row --"
+             ++ " silently, because nothing about a miss is an error.")
+    case key_identity (unrelativisable toolchain) of
+      Left (AbsoluteModelSourcePath named)
+        | named == key_absolute_dir -> Right ()
+        | otherwise ->
+            Left ("the refusal named " ++ show named ++ ", expected the ORIGINAL path "
+                   ++ show key_absolute_dir
+                   ++ ". A refusal that reports the truncated remainder tells the operator nothing"
+                   ++ " about what was handed in.")
+      Left other ->
+        Left ("a model source with no file name failed as " ++ show other
+               ++ ", expected AbsoluteModelSourcePath naming " ++ show key_absolute_dir ++ ".")
+      Right ident' ->
+        Left ("a model source with no file name was ACCEPTED as "
+               ++ show (ki_model_sources ident')
+               ++ ". A component that relativised to nothing is an absent subject, not a short one.")
+  where
+    unrelativisable toolchain =
+      toolchain { ti_model_sources = [(key_absolute_dir, key_fixture_digest)] }
+
+-- | KEY-02's refusal half. An absent solver version is a refusal NAMING the field, never a default.
+--
+-- Phase 24 built a version type that cannot be constructed empty and then wrapped it in a 'Maybe'.
+-- @Nothing@ reaching the preimage is that same hole one constructor up: the rows written under an
+-- emptied version component are indistinguishable from good ones afterwards, because the only
+-- evidence of which toolchain produced them is the component that was emptied.
+key_identity_refuses_an_absent_conopt_version :: Check
+key_identity_refuses_an_absent_conopt_version =
+  pure_check "key_identity_refuses_an_absent_conopt_version" $ do
+    toolchain <- key_toolchain gams_model_basename False
+    _ <- expect (isNothing (ti_conopt_version toolchain))
+           "the fixture for this check was built WITH a solver version, so it asserts nothing."
+    case key_identity toolchain of
+      Left ConoptVersionAbsent -> Right ()
+      Left other ->
+        Left ("an absent solver version failed as " ++ show other
+               ++ ", expected ConoptVersionAbsent. A refusal that fires for the wrong reason is not"
+               ++ " the refusal being asserted.")
+      Right ident ->
+        Left ("an absent solver version was turned into the keyable version "
+               ++ show (conopt_version_text (ki_conopt_version ident))
+               ++ ". Whatever that string is -- empty, a placeholder, a default -- it is a value"
+               ++ " nobody measured, hashed into a row that looks exactly like a good one.")
+
+-- | The per-run working directory, budget and kill delay a real invocation would carry.
+--
+-- Concrete values, because the claim is that NONE of them is reachable from any signature on the
+-- key path. Multi-digit and distinctive on purpose: a single-digit budget would collide with the
+-- key scheme's own component and this check would go red about arithmetic instead of about scope.
+key_run_dir :: FilePath
+key_run_dir = "/tmp/cfmm-prover-run-4f1c9a2e"
+
+key_run_budget_s, key_run_kill_after_s :: Int
+key_run_budget_s     = 900
+key_run_kill_after_s = 30
+
+-- | Every token the invocation adds and the request does not, each with what it varies with.
+--
+-- Assembled from fragments rather than spelled: 'the_suite_never_names_the_real_solver' greps this
+-- file for the installation path, and a list asserting the path is absent from a preimage would
+-- otherwise be the thing that puts it in the file.
+key_per_run_tokens :: [(String, String)]
+key_per_run_tokens =
+  [ ("the timeout wrapper's kill-delay flag", "-" ++ "k")
+  , ("the kill delay",                        show key_run_kill_after_s)
+  , ("the budget",                            show key_run_budget_s)
+  , ("the timeout wrapper binary",            "/usr/" ++ "bin/timeout")
+  , ("the absolute solver binary",            key_solver_path)
+  , ("the per-run working directory option",  "cur" ++ "dir=" ++ key_run_dir)
+  ]
+
+-- | KEY-06, AND THE CHECK THAT STOPS THE STORE BEING USELESS.
+--
+-- @Gams.Run@ builds its wrapper vector with the timeout binary, a kill delay, a budget, the
+-- absolute solver path and an option naming the EXCLUSIVE PER-RUN TEMPORARY DIRECTORY the run
+-- executes in. That directory is a different path on every invocation by design -- it is the
+-- stale-file defence. A preimage that folded the vector in would satisfy "the argv is
+-- reconstructible from the stored preimage" perfectly while giving a cache hit rate of exactly
+-- zero, and every other check in this section would still be green.
+--
+-- The positive arm is first and it is what makes the absences mean anything: the seven rendered
+-- shock tokens and both fixed model options ARE in the preimage, framed. An empty preimage
+-- satisfies six absence claims and nothing else.
+--
+-- Absence is asserted on the FRAMED form rather than as a bare substring, so the numeric tokens are
+-- a claim about a component and not about which digits happen to appear inside a digest.
+the_preimage_excludes_every_per_run_token :: Check
+the_preimage_excludes_every_per_run_token =
+  pure_check "the_preimage_excludes_every_per_run_token" $ do
+    ident  <- key_fixture_identity
+    bytes  <- key_fixture_preimage ident
+    tokens <-
+      case render_argv fixture_shock of
+        Left err -> Left ("the fixture shock did not render: " ++ show err)
+        Right ts -> Right ts
+    let text = C8.unpack bytes
+    _ <- mapM_ (present text) (tokens ++ fixed_model_options)
+    _ <- mapM_ (absent text) key_per_run_tokens
+    mapM_ (bare_absent text)
+      [ ("the per-run working directory option", "cur" ++ "dir=")
+      , ("the timeout wrapper binary",           "/usr/" ++ "bin/timeout")
+      , ("the absolute solver binary",           key_solver_path)
+      ]
+  where
+    framed token = C8.unpack (frames [C8.pack token])
+
+    present text token =
+      expect (framed token `isInfixOf` text)
+        ("the preimage does NOT carry the request token " ++ show token ++ ":\n      " ++ text
+          ++ "\n      One renderer feeds both the argv and the preimage. A preimage missing a token"
+          ++ " the invocation passes keys a different request than the one that ran -- and it also"
+          ++ " makes every absence claimed below true of nothing.")
+
+    absent text (label, token) =
+      expect (not (framed token `isInfixOf` text))
+        ("the preimage carries " ++ label ++ ", " ++ show token ++ ":\n      " ++ text
+          ++ "\n      That token varies with the INVOCATION, not with the request. A key computed"
+          ++ " over it never repeats, so every solve stores a new row and no lookup ever hits --"
+          ++ " while the argv reconstructs perfectly and nothing goes red.")
+
+    bare_absent text (label, needle) =
+      expect (not (needle `isInfixOf` text))
+        ("the preimage carries " ++ label ++ " -- " ++ show needle ++ " occurs in it:\n      "
+          ++ text
+          ++ "\n      Asserted unframed as well as framed because this one is identifying on its"
+          ++ " own: it cannot appear in a preimage for any reason except that the wrapper vector"
+          ++ " reached the key path.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -11373,6 +11546,9 @@ core_checks = do
           , framing_separates_what_concatenation_conflates
           , edge_normalization_is_single_pass
           , the_pips_denominator_is_in_the_preimage
+          , no_key_identity_carries_an_absolute_model_source_path
+          , key_identity_refuses_an_absent_conopt_version
+          , the_preimage_excludes_every_per_run_token
           ]
             ++ per_pin_checks pins
   pure checks
