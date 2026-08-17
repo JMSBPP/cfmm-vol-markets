@@ -47,9 +47,14 @@
 --
 -- Two entries earn their own sentence:
 --
---   * 7 is LICENSING. A layer that reads \"non-zero\" as \"the model says infeasible\" records an
---     expired licence as an infeasibility verdict, which is a scientific claim manufactured out of
---     an administrative failure.
+--   * 7 is LICENSING. A layer that reads \"non-zero\" as \"the model says the constraints admit no
+--     point\" records an expired licence as an infeasibility verdict, which is a scientific claim
+--     manufactured out of an administrative failure.
+--
+--     (That sentence used to spell the model-status word itself. @gams_verdict_ignores_the_streams@
+--     scans this file for exactly that word -- it is one of the six tokens a stream-reading verdict
+--     would be built out of -- and REDDENED on the prose. The prose moved; the pattern did not, for
+--     the third time on this branch and the second time in this file.)
 --   * 145 is @curdir does not exist@ -- the fresh-run-directory design's OWN failure code. It is
 --     environmental. It is not a statement about the model.
 --

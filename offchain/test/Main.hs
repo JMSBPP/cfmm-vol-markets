@@ -49,10 +49,14 @@ import System.Directory
   , doesDirectoryExist
   , doesFileExist
   , getCurrentDirectory
+  , getPermissions
   , getTemporaryDirectory
   , listDirectory
   , makeAbsolute
+  , removeDirectoryRecursive
   , removeFile
+  , setOwnerExecutable
+  , setPermissions
   )
 import System.Environment (lookupEnv, setEnv, unsetEnv)
 import System.Exit (ExitCode (..), exitFailure)
@@ -110,6 +114,25 @@ import Gams.Env
   , validate_env
   , whitelist_for
   , whitelist_keys
+  )
+-- The IO edge. `Gams.Run` is deliberately NOT one of the three tokens the GAMS-free grep forbids:
+-- the suite must be able to DRIVE the invocation against stubs it writes itself while remaining
+-- structurally incapable of naming the real prover. Those three tokens -- the module that will
+-- resolve the live binary, its require-a-real-solver override, and the installation's absolute
+-- path -- stay out of this file, and every child spawned below is a /bin/sh script this file wrote.
+--
+-- They are described here rather than listed, because the first draft of this comment LISTED them
+-- and the grep found all three, in the sentence claiming they were absent. Fifteenth instance on
+-- this branch; the prose moved and the pattern did not.
+import Gams.Run
+  ( AbortReason (..)
+  , CapturedStreams (..)
+  , ProverOutcome (..)
+  , RunRequest (..)
+  , ToolchainIdentity (..)
+  , artifact_name
+  , log_name
+  , run_prover
   )
 
 import VolOrder.Decode
@@ -935,13 +958,23 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 -- silently become five. A floor that is inherited rather than re-measured records the tree as it
 -- was on the day someone last thought about it.
 --
--- 51 = @find offchain \\( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \\) -type f | wc -l@,
--- RE-MEASURED COLD on 2026-08-16 during plan 24-01, with the three new modules on disk: 41
--- Haskell, 8 shell, 2 SQL. It was 48 immediately before, against EXACTLY 48 scanned files -- zero
--- slack -- so this plan's @Gams\/{Config,Version,Exit}.hs@ would have reddened the scan in the
--- commit that created them if the floor had not moved with them. It was moved by running the
--- command above, NOT by adding three to 48; the two happen to agree here and the day they stop
--- agreeing is the day the difference is the whole point.
+-- 55 = @find offchain \\( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \\) -type f | wc -l@,
+-- RE-MEASURED COLD on 2026-08-16 during plan 24-03 with @Gams\/Run.hs@ on disk: 45 Haskell, 8
+-- shell, 2 SQL.
+--
+-- AND THE RE-MEASUREMENT IS WHY THIS PARAGRAPH IS LONGER THAN IT WAS. It read 51 immediately
+-- before, against 55 scanned files -- FOUR of slack, not the zero the previous wave recorded.
+-- 24-02's summary states this floor moved 51 -> 54 in commit @2a558e3@; @git show@ on that commit
+-- and on every commit after it reports @purge_file_floor = 51@. It never moved. Its twin
+-- 'credential_scan_floor' DID move (59 -> 62) in the same commit, so one half of a pair that is
+-- always re-measured together landed and the other did not, and nothing reddened -- because a
+-- floor with slack is a guard that passes for a reason unrelated to its subject, which is this
+-- milestone's standing defect wearing yet another representation. Recorded here rather than
+-- quietly corrected: the summary of record is wrong about this number, and the number on disk is
+-- what the suite was actually enforcing.
+--
+-- 51 was itself measured at 24-01, when it was 48 immediately before against EXACTLY 48 scanned
+-- files. It is moved by running the command above, NOT by arithmetic.
 --
 -- 48 was itself measured at the END of plan 23-04: 38 Haskell, 8 shell, 2 SQL. 23-03 left it at
 -- 45 (36\/7\/2) and 23-04 added @Store\/Json.hs@, @app\/StoreConformance.hs@ and
@@ -954,11 +987,12 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 -- reflexively and stops being read. What it must never do again is sit unexamined while the tree
 -- moves under it.
 --
--- The extension census under @offchain\/@ at this measurement: @hs 41, sh 8, json 8, md 3, txt 2,
--- sql 2@. Only @.hs@ moved, by three, and all three are library modules. The @.json@ count is
--- unchanged: this plan is the PURE half of the phase and writes no capture artifact.
+-- The extension census under @offchain\/@ at this measurement: @hs 45, sh 8, json 8, md 3, txt 2,
+-- sql 2@. Only @.hs@ moved since 24-01, by four -- three library modules from 24-02 and
+-- @Gams\/Run.hs@ from 24-03. The @.json@ count is unchanged: 24-03 writes no capture artifact, and
+-- every stub it spawns is BUILT into a temp directory rather than committed.
 purge_file_floor :: Int
-purge_file_floor = 51
+purge_file_floor = 55
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -6951,20 +6985,25 @@ credential_scan root =
     (["-rnE", credential_pattern, root] ++ map ("--include=*" ++) credential_scanned_extensions)
     ""
 
--- | RE-MEASURED COLD on 2026-08-16 during plan 24-02, in the same commit as the three
--- @Gams\/*.hs@ modules that moved it:
+-- | RE-MEASURED COLD on 2026-08-16 during plan 24-03, in the same commit as @Gams\/Run.hs@:
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 --
--- 62 = 44 Haskell + 8 shell + 8 JSON + 2 SQL. It was 59 at the end of 24-01 against exactly 59
--- files, and 56 at the end of 23-05 against exactly 56. Re-measured by RUNNING the command each
--- time, never by adding three.
+-- 63 = 45 Haskell + 8 shell + 8 JSON + 2 SQL. It was 62 immediately before, against exactly 62
+-- files -- ZERO slack, so @Gams\/Run.hs@ would have reddened this scan in the commit that created
+-- it had the floor not moved with it. 62 was measured at 24-02, 59 at 24-01, 56 at 23-05, each
+-- against exactly that many files.
+--
+-- This floor and 'purge_file_floor' are re-measured TOGETHER, and 24-03 found out why that matters:
+-- at 24-02 this one moved and that one did not, the summary of record said both had, and the
+-- unmoved one sat four below its subject with nothing red. Run both commands; compare both numbers
+-- to what is written down; never add.
 --
 -- It exists for the same reason 'purge_file_floor' does and it is the same trap: @grep -r@ exits 1
 -- for \"found nothing\" AND for \"matched no files at all\", so a scan whose @--include@ set stopped
 -- matching reports exactly what a clean scan reports. Re-measure it, never increment it.
 credential_scan_floor :: Int
-credential_scan_floor = 62
+credential_scan_floor = 63
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -8357,6 +8396,500 @@ the_artifact_path_scan_covers_every_module_on_it =
               ++ " omission visible without making it impossible.")
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 24 Tier B: the IO edge, driven against stubs these checks write themselves
+--
+-- THE SUITE STAYS GAMS-FREE. Every subprocess below is a /bin/sh script one of these checks wrote
+-- into a temp directory moments earlier. None of the three forbidden tokens is in this file -- see
+-- the note beside the `Gams.Run` import, which also records why they are described there instead of
+-- listed. `Gams.Run` is deliberately OUTSIDE that token set so the IO edge can be driven without
+-- the suite becoming structurally capable of naming the real prover.
+--
+-- Spawning is not new here. `purge_scan` and `aeson_scan` have spawned `grep` since 22-08, and
+-- `purge_positive_control` and `aeson_positive_control` both build a temp directory, write files
+-- into it and clean up with `finally`. These checks are that idiom with a different child.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The shock every Tier-B check sends, and it is the GOLDEN artifact's own inputs.
+--
+-- That is not decoration. 'a_pre_existing_artifact_is_unreachable' plants the real 606 committed
+-- bytes where a careless layer would find them, and those bytes echo
+-- @79228162514264337593543950336@ and @18446744073709551616@ back. If the shock carried anything
+-- else, the plant would be caught by the ECHO conjunct or by the decoder -- and the check would
+-- then be evidence about the decoder rather than about the isolation it exists to prove.
+tier_b_shock :: Shock
+tier_b_shock = Shock
+  { sh_sqrt_price_x96  = 79228162514264337593543950336
+  , sh_liquidity_raw   = 18446744073709551616
+  , sh_txl_volume_rate = 490000
+  , sh_phi_x_pips      = 500
+  , sh_phi_m_pips      = 6000
+  , sh_vol_tgt_wad     = 28000000000000000000
+  , sh_n_events        = 8
+  }
+
+-- | Writes an executable @\/bin\/sh@ script into a scratch directory and returns its ABSOLUTE path.
+--
+-- Stubs are BUILT, never committed, for the reason 'aeson_bait_source' and 'purge_control_literal'
+-- are built: a committed stub would spell a GAMS version banner inside @offchain\/@, where the
+-- scans that exist to find exactly that would find it. Building it keeps the bait inside the check
+-- that needs it and outside every scan's scope.
+--
+-- @directory@ is already a test dependency, so @getPermissions@\/@setPermissions@ cost nothing;
+-- @unix@ is NOT a dependency of this stanza and is not needed for one chmod.
+write_stub :: FilePath -> String -> String -> IO FilePath
+write_stub dir name body = do
+  createDirectoryIfMissing True dir
+  path <- makeAbsolute (dir </> name)
+  writeFile path body
+  perms <- getPermissions path
+  setPermissions path (setOwnerExecutable True perms)
+  pure path
+
+-- | Every stub receives the argv 'Gams.Run.run_prover' builds, so it parses out what it needs.
+--
+-- @curdir=@ is how a stub learns which directory to write into, and it is the ONLY way it can
+-- learn: the run directory is chosen inside 'Gams.Run.run_prover' and cannot be predicted from
+-- here, which is the same fact 'a_pre_existing_artifact_is_unreachable' turns into evidence.
+stub_preamble :: String
+stub_preamble =
+  unlines
+    [ "#!/bin/sh"
+    , "D="
+    , "S="
+    , "L="
+    , "for a in \"$@\"; do"
+    , "  case \"$a\" in"
+    , "    curdir=*) D=${a#curdir=} ;;"
+    , "    --sqrtPriceX96=*) S=${a#--sqrtPriceX96=} ;;"
+    , "    --liquidityRaw=*) L=${a#--liquidityRaw=} ;;"
+    , "  esac"
+    , "done"
+    ]
+
+-- | The artifact a well-behaved stub writes: the golden document, with the two echoed fields taken
+-- from the shell expressions handed in.
+--
+-- Passing @\"$S\"@ produces the honest echo; passing a literal produces the input for the echo
+-- conjunct's own firing.
+stub_writes_artifact :: String -> String -> String
+stub_writes_artifact echo_sqrt echo_liquidity =
+  unlines
+    [ "cat > \"$D/" ++ artifact_name ++ "\" <<EOF"
+    , "{"
+    , "  \"sqrtPriceX96\": \"" ++ echo_sqrt ++ "\","
+    , "  \"liquidity\": \"" ++ echo_liquidity ++ "\","
+    , "  \"txlVolumeRate\": 490000,"
+    , "  \"phiXpips\": 500,"
+    , "  \"phiMpips\": 6000,"
+    , "  \"nEvents\": 8,"
+    , "  \"deltaRealized\": 0.4900000000,"
+    , "  \"rPhiRealized\": 0.0031835300,"
+    , "  \"dQx\": [-2613128317657530400, -2680707973111378000, 4861675431041821000,"
+        ++ " 4608884887749073000, 4529439681209106400, -2884368647455834000,"
+        ++ " -2898559031733104600, -2923236030042153000],"
+    , "  \"dQM\": [3044390494897843700, 4380130746753610000, -6981993058607328000,"
+        ++ " -3848149233948789000, -2509044703947784000, 1489464758822659600,"
+        ++ " 1901839408803925500, 2523361587209160700]"
+    , "}"
+    , "EOF"
+    ]
+
+-- | The log a well-behaved stub writes: the REAL captured banner shape, with the job name equal to
+-- the basename of the model that was invoked, plus the true spaced-letter CONOPT line.
+stub_writes_log :: String
+stub_writes_log =
+  unlines
+    [ "cat > \"$D/" ++ log_name ++ "\" <<EOF"
+    , "--- Job " ++ gams_model_basename
+        ++ " Start 08/16/26 15:52:25 54.1.0 37378ce0 LEX-LEG x86 64bit/Linux"
+    , "    C O N O P T   version 4.39.0"
+    , "EOF"
+    ]
+
+-- | The clean stub: writes both files, echoes both tokens, exits 0.
+stub_clean :: String
+stub_clean =
+  stub_preamble ++ stub_writes_artifact "$S" "$L" ++ stub_writes_log ++ "exit 0\n"
+
+-- | The stub whose whole body is an exit-0. MEASURED with the REAL binary: @action=c@ produces
+-- exactly this shape -- exit 0, @volume_path.log@ and @volume_path.lst@ present,
+-- @volume_path.json@ ABSENT.
+stub_silent_success :: String
+stub_silent_success = "#!/bin/sh\nexit 0\n"
+
+-- | A stub that exits with a chosen code and writes nothing.
+stub_exits :: Int -> String
+stub_exits code = stub_preamble ++ "exit " ++ show code ++ "\n"
+
+-- | The clean stub, plus a line of stdout. TWO of these with the SAME exit code and DIFFERENT
+-- stdout must produce the same verdict, and without that arm the exit-code check is satisfied by a
+-- layer that reads the log.
+stub_clean_saying :: String -> String
+stub_clean_saying line =
+  stub_preamble ++ stub_writes_artifact "$S" "$L" ++ stub_writes_log
+    ++ "echo '" ++ line ++ "'\n" ++ "exit 0\n"
+
+-- | A scratch directory carrying a stand-in for the model file, torn down afterwards.
+--
+-- The model file must EXIST: 'Gams.Run.run_prover' digests it into 'ToolchainIdentity', so a run
+-- against a model that is not there fails loudly rather than recording an absent source.
+with_tier_b_scratch :: String -> (FilePath -> IO a) -> IO a
+with_tier_b_scratch label body = do
+  tmp <- getTemporaryDirectory
+  dir <- makeAbsolute (tmp </> ("gams24-tier-b-" ++ label))
+  createDirectoryIfMissing True dir
+  writeFile (dir </> gams_model_basename)
+    "* a stand-in for volume_path.gms. No stub reads it; run_prover digests it.\n"
+  body dir `finally` removeDirectoryRecursive dir
+
+-- | The request every Tier-B check sends: the whitelisted environment, an absolute stub, a five
+-- second budget and a one second kill grace.
+tier_b_request :: FilePath -> FilePath -> RunRequest
+tier_b_request scratch stub = RunRequest
+  { rr_binary       = stub
+  , rr_model        = scratch </> gams_model_basename
+  , rr_shock        = tier_b_shock
+  , rr_env          = Just (whitelist_for scratch)
+  , rr_budget_s     = 5
+  , rr_kill_after_s = 1
+  }
+
+-- | Enough of an outcome to NAME it in a failure message, without ever claiming an artifact the
+-- outcome does not carry.
+render_outcome :: ProverOutcome -> String
+render_outcome (Produced artifact identity streams) =
+  "Produced (" ++ show (BS.length (pa_bytes artifact)) ++ " artifact bytes, GAMS "
+    ++ gams_version_text (ti_gams_version identity) ++ ", run dir " ++ show (cs_run_dir streams)
+    ++ ")"
+render_outcome (Aborted why code streams) =
+  "Aborted " ++ show why ++ " at exit " ++ show code ++ " (run dir "
+    ++ show (cs_run_dir streams) ++ ")"
+
+-- | The run directory an outcome reports, whichever outcome it is.
+outcome_run_dir :: ProverOutcome -> FilePath
+outcome_run_dir (Produced _ _ streams) = cs_run_dir streams
+outcome_run_dir (Aborted _ _ streams)  = cs_run_dir streams
+
+-- | THE EXIT CODE DRIVES THE VERDICT, AND THE STREAMS DO NOT.
+--
+-- Six stubs. Four fix the code-to-verdict map at values that MATTER -- 2 and 3 are the two
+-- measured model-level codes, 7 is licensing and must not read as a statement about the model, and
+-- exit 0 with a valid artifact is the only door to 'Produced'.
+--
+-- The fifth and sixth are the arm without which this check is satisfied by a layer that reads the
+-- log: two stubs with the SAME exit code, the SAME artifact and DIFFERENT stdout -- one announcing
+-- a clean finish, the other announcing a failed solve -- must give the IDENTICAL verdict. The
+-- stdout difference is asserted to be REAL before the verdicts are compared, because two identical
+-- empty streams would make the comparison true about nothing.
+stub_exit_codes_drive_the_verdict :: Check
+stub_exit_codes_drive_the_verdict =
+  Check "stub_exit_codes_drive_the_verdict" . guarded $
+    with_tier_b_scratch "exit-codes" $ \scratch -> do
+      clean  <- write_stub scratch "clean.sh"  stub_clean
+      two    <- write_stub scratch "exit2.sh"  (stub_exits 2)
+      three  <- write_stub scratch "exit3.sh"  (stub_exits 3)
+      seven  <- write_stub scratch "exit7.sh"  (stub_exits 7)
+      chatty_ok  <- write_stub scratch "chatty-ok.sh"  (stub_clean_saying "Normal completion")
+      chatty_bad <- write_stub scratch "chatty-bad.sh" (stub_clean_saying "** Locally Infeasible")
+      let run stub = run_prover (tier_b_request scratch stub)
+      o_clean <- run clean
+      o_two   <- run two
+      o_three <- run three
+      o_seven <- run seven
+      o_ok    <- run chatty_ok
+      o_bad   <- run chatty_bad
+      pure $ do
+        _ <- aborted_as "exit 2" (ExitVerdict (ModelLevel CompilationError)) 2 o_two
+        _ <- aborted_as "exit 3" (ExitVerdict (ModelLevel ExecutionError)) 3 o_three
+        _ <- aborted_as "exit 7" (ExitVerdict (Environmental LicensingError)) 7 o_seven
+        _ <- case o_clean of
+               Produced artifact identity _ -> do
+                 _ <- expect (pa_n_events artifact == 8)
+                        ("the clean stub produced an artifact whose nEvents is "
+                          ++ show (pa_n_events artifact) ++ ", not 8.")
+                 expect (isJust (ti_conopt_version identity))
+                   ("the clean run reached Produced with NO CONOPT version. Nothing is permitted"
+                     ++ " to carry no solver banner except a run that aborted before the solve,"
+                     ++ " and a Produced outcome is not one -- so a Nothing here means the parse"
+                     ++ " found nothing and the run recorded that as an identity anyway.")
+               other ->
+                 expect False
+                   ("the stub that exits 0 having written a valid artifact and a log with a"
+                     ++ " matching job banner did not produce one: " ++ render_outcome other)
+        -- The stream-independence arm's own positive control: assert the two stdouts DIFFER before
+        -- concluding anything from the verdicts agreeing.
+        _ <- expect (stdout_of o_ok /= stdout_of o_bad)
+               ("the two chatty stubs produced IDENTICAL stdout ("
+                 ++ show (stdout_of o_ok) ++ "), so the stream-independence arm below would be"
+                 ++ " comparing two runs that said the same thing. Either the stubs stopped"
+                 ++ " printing or the capture stopped reaching this check.")
+        expect (verdict_shape o_ok == verdict_shape o_bad)
+          ("two stubs with the SAME exit code and DIFFERENT stdout produced DIFFERENT verdicts."
+            ++ "\n      said " ++ show (stdout_of o_ok) ++ ": " ++ render_outcome o_ok
+            ++ "\n      said " ++ show (stdout_of o_bad) ++ ": " ++ render_outcome o_bad
+            ++ "\n      No decision may read a stream. VOLUME_PATH.md section 4: gate on the exit"
+            ++ " code, never on log text -- and MEASURED, stderr is 0 BYTES in every GAMS mode, so"
+            ++ " a stream reader compares the empty string against the empty string on the good"
+            ++ " path and on the bad one alike.")
+  where
+    stdout_of (Produced _ _ streams) = cs_stdout streams
+    stdout_of (Aborted _ _ streams)  = cs_stderr streams `BS.append` cs_stdout streams
+
+    -- The verdict, with the diagnostic material projected OUT: two runs differ in run directory and
+    -- in captured streams by construction, and neither is a verdict.
+    verdict_shape :: ProverOutcome -> Either (AbortReason, Int) BS.ByteString
+    verdict_shape (Produced artifact _ _) = Right (pa_bytes artifact)
+    verdict_shape (Aborted why code _)    = Left (why, code)
+
+    aborted_as :: String -> AbortReason -> Int -> ProverOutcome -> Either String ()
+    aborted_as label wanted wanted_code outcome =
+      case outcome of
+        Aborted why code _
+          | why == wanted && code == wanted_code -> Right ()
+        _ ->
+          Left ("the stub that " ++ label ++ " should have given Aborted (" ++ show wanted
+                 ++ ") at exit " ++ show wanted_code ++ ", and gave " ++ render_outcome outcome
+                 ++ ". Exit 7 is LICENSING: a layer that reads any non-zero code as a statement"
+                 ++ " about the model records an expired licence as a scientific claim.")
+
+-- | GAMS-02, DRIVEN RATHER THAN READ.
+--
+-- A stub whose entire body is @exit 0@. If this check ever goes green on a layer that reports
+-- success, that layer is trusting exit 0 alone -- and MEASURED with the REAL binary on 2026-08-16,
+-- @action=c@ produces exactly this shape: exit 0, @volume_path.log@ and @volume_path.lst@ written,
+-- @volume_path.json@ ABSENT. GAMS's own documentation says exit 0 means /GAMS ran/, not /the model
+-- solved/.
+exit_zero_without_artifact_is_refused :: Check
+exit_zero_without_artifact_is_refused =
+  Check "exit_zero_without_artifact_is_refused" . guarded $
+    with_tier_b_scratch "silent-success" $ \scratch -> do
+      stub <- write_stub scratch "silent.sh" stub_silent_success
+      outcome <- run_prover (tier_b_request scratch stub)
+      pure $
+        case outcome of
+          Aborted NoArtifact 0 _ -> Right ()
+          _ ->
+            Left ("a child that exits 0 and writes NOTHING was not refused: "
+                   ++ render_outcome outcome
+                   ++ "\n      Exit 0 is the FIRST conjunct and never the only one. MEASURED with"
+                   ++ " the real binary: `action=c` exits 0, writes the log and the listing, and"
+                   ++ " writes no volume_path.json at all -- so a layer that reported success here"
+                   ++ " would report a solve for a run that compiled and stopped.")
+
+-- | The bytes a careless layer would find, and the two places it would look.
+cwd_plant_artifact :: FilePath
+cwd_plant_artifact = artifact_name
+
+cwd_plant_log :: FilePath
+cwd_plant_log = log_name
+
+-- | THE PLANT, AND THE PROOF THAT THE RUN DIRECTORY CANNOT BE PREDICTED.
+--
+-- The real 606 committed golden bytes are planted at the process's own working directory, together
+-- with a log carrying a valid job banner -- so a layer reading from the CWD would find an artifact
+-- that satisfies EVERY remaining conjunct: it decodes, its arrays agree with nEvents, and both
+-- echoed fields equal the tokens 'tier_b_shock' sends. Then an exit-0-writes-nothing stub is run.
+-- The answer must be @Aborted NoArtifact@, because the run happened in a directory that was created
+-- moments earlier by 'System.Directory.createDirectory' -- which FAILS if the path exists -- and
+-- that directory cannot contain a file nobody put there.
+--
+-- The plant uses the REAL bytes on purpose. A placeholder would be refused by the DECODER, and the
+-- check would then be evidence about the decoder instead of about the isolation.
+--
+-- THE SAFETY IS MANDATORY, NOT DEFENSIVE. Neither planted path may already exist -- this check
+-- FAILS rather than clobbering -- both are removed in a `finally`, and `git status --porcelain` is
+-- asked afterwards whether either name appears. A harness that can leave a file in the tree is the
+-- class this repository keeps rediscovering.
+a_pre_existing_artifact_is_unreachable :: Check
+a_pre_existing_artifact_is_unreachable =
+  Check "a_pre_existing_artifact_is_unreachable" . guarded $ do
+    golden <- BS.readFile volume_path_golden_file
+    artifact_there <- doesFileExist cwd_plant_artifact
+    log_there      <- doesFileExist cwd_plant_log
+    cwd            <- getCurrentDirectory
+    if artifact_there || log_there
+      then pure (Left ("this check plants files at the process working directory (" ++ cwd
+                        ++ ") and one of them is ALREADY THERE: "
+                        ++ intercalate ", " ([cwd_plant_artifact | artifact_there]
+                                              ++ [cwd_plant_log | log_there])
+                        ++ ". It refuses to clobber. Remove or rename it and re-run."))
+      else do
+        planted <- with_tier_b_scratch "plant" (\scratch -> do
+          let discard p = do
+                there <- doesFileExist p
+                if there then removeFile p else pure ()
+          flip finally (mapM_ discard [cwd_plant_artifact, cwd_plant_log]) $ do
+            BS.writeFile cwd_plant_artifact golden
+            writeFile cwd_plant_log
+              ("--- Job " ++ gams_model_basename
+                ++ " Start 08/16/26 15:52:25 54.1.0 37378ce0 LEX-LEG x86 64bit/Linux\n"
+                ++ "    C O N O P T   version 4.39.0\n")
+            BS.writeFile (scratch </> artifact_name) golden
+            stub <- write_stub scratch "silent.sh" stub_silent_success
+            run_prover (tier_b_request scratch stub))
+        (_, git_out, _) <- readProcessWithExitCode "git" ["status", "--porcelain"] ""
+        pure $ do
+          _ <- expect (BS.length golden == volume_path_golden_bytes_len)
+                 ("the planted bytes are " ++ show (BS.length golden) ++ " long and the committed"
+                   ++ " golden artifact is " ++ show volume_path_golden_bytes_len
+                   ++ ". A short plant would be refused by the decoder, and this check would then"
+                   ++ " be measuring the decoder instead of the isolation.")
+          _ <- case planted of
+                 Aborted NoArtifact 0 _ -> Right ()
+                 _ ->
+                   Left ("a valid-looking " ++ artifact_name ++ " planted at the caller's working"
+                          ++ " directory WAS REACHABLE: " ++ render_outcome planted
+                          ++ "\n      The run happens in a directory created moments earlier with"
+                          ++ " the exclusive createDirectory, so no file anyone else wrote can be"
+                          ++ " at the path the artifact is read from. These are the real 606"
+                          ++ " committed golden bytes, which satisfy every other conjunct --"
+                          ++ " they decode, the arrays agree with nEvents, and both echoed fields"
+                          ++ " equal the tokens this check sent -- so anything other than"
+                          ++ " NoArtifact here means the layer read someone else's file.")
+          expect (not (artifact_name `isInfixOf` git_out)
+                    && not (log_name `isInfixOf` git_out))
+            ("this check planted files at " ++ cwd ++ " and git still sees one of them:\n"
+              ++ unlines (map ("      " ++) (lines git_out)))
+
+-- | GUARD 19: TWO INVOCATIONS, TWO DIRECTORIES, AND NEITHER SURVIVES EITHER OUTCOME.
+--
+-- Three assertions, and the first one is not decoration: a run directory reported as the empty
+-- string would make @doesDirectoryExist@ answer False and the removal arm would pass BECAUSE its
+-- subject was absent -- the defect class this milestone's standing rule names, reproduced inside
+-- the check written to catch a neighbouring one.
+--
+-- The abort arm is separate on purpose. A `bracket` that removed the directory only on the success
+-- path would leave every failed run's scratch behind, and a failed run is exactly the one whose
+-- leftovers a later run could read.
+each_invocation_gets_a_fresh_directory_and_it_is_removed :: Check
+each_invocation_gets_a_fresh_directory_and_it_is_removed =
+  Check "each_invocation_gets_a_fresh_directory_and_it_is_removed" . guarded $
+    with_tier_b_scratch "fresh-dir" $ \scratch -> do
+      clean <- write_stub scratch "clean.sh" stub_clean
+      two   <- write_stub scratch "exit2.sh" (stub_exits 2)
+      first_run  <- run_prover (tier_b_request scratch clean)
+      second_run <- run_prover (tier_b_request scratch clean)
+      aborted    <- run_prover (tier_b_request scratch two)
+      let dirs = map outcome_run_dir [first_run, second_run, aborted]
+      survivors <- mapM doesDirectoryExist dirs
+      pure $ do
+        _ <- expect (all (not . null) dirs)
+               ("an invocation reported an EMPTY run directory: " ++ show dirs
+                 ++ ". doesDirectoryExist \"\" is False, so the removal assertion below would pass"
+                 ++ " because its subject was absent rather than because the directory was gone.")
+        _ <- expect (outcome_run_dir first_run /= outcome_run_dir second_run)
+               ("two successive invocations used the SAME run directory "
+                 ++ show (outcome_run_dir first_run)
+                 ++ ". The directory is the stale-file defence, and a name that can repeat is a"
+                 ++ " name a previous run's artifact can still be sitting under.")
+        _ <- expect (and (map not survivors))
+               ("a run directory SURVIVED the invocation: "
+                 ++ intercalate ", " [d | (d, True) <- zip dirs survivors]
+                 ++ ". The bracket removes it on every path -- success, abort and exception alike."
+                 ++ " The third of these is the ABORT path (a stub exiting 2), which is the one a"
+                 ++ " success-only teardown would leave behind, and a leftover run directory is"
+                 ++ " precisely what the freshness conjunct exists to make unreadable.")
+        case (first_run, aborted) of
+          (Produced _ _ _, Aborted (ExitVerdict (ModelLevel CompilationError)) 2 _) -> Right ()
+          _ ->
+            Left ("this check needs one Produced run and one Aborted run to be asserting about"
+                   ++ " both paths, and got:\n      " ++ render_outcome first_run
+                   ++ "\n      " ++ render_outcome aborted)
+
+-- | The six tokens a verdict built out of log text would be built out of.
+--
+-- @Status:@ and @Normal completion@ are the GAMS listing's own words, @Locally@ opens the two
+-- model-status lines that matter, and @isInfixOf@ is how a Haskell layer would go looking for any
+-- of them.
+gams_stream_pattern :: String
+gams_stream_pattern = "isInfixOf|infeasible|optimal|Locally|Normal completion|Status:"
+
+-- | The two modules in which a verdict is decided.
+--
+-- 'Gams.Exit' holds the taxonomy and 'Gams.Run' holds the conjunction; there is no third place a
+-- decision could be made. Note what that means for scope: THIS file holds the pattern, so it
+-- matches it, so it can never be a member of this set -- which is why the set is the two library
+-- modules and not @offchain@.
+gams_verdict_path :: [FilePath]
+gams_verdict_path =
+  [ "offchain/lib/Gams/Exit.hs"
+  , "offchain/lib/Gams/Run.hs"
+  ]
+
+-- | Absence may not read as success until the pattern has been SHOWN matching. Returned so the
+-- caller orders it FIRST, following 'aeson_positive_control'.
+gams_stream_positive_control :: IO (Either String ())
+gams_stream_positive_control = do
+  tmp <- getTemporaryDirectory
+  let dir       = tmp </> "gams24-stream-positive-control"
+      bait      = dir </> "bait.hs"
+      innocent  = dir </> "clean.hs"
+      discard p = do
+        there <- doesFileExist p
+        if there then removeFile p else pure ()
+
+  createDirectoryIfMissing True dir
+  flip finally (mapM_ discard [bait, innocent]) $ do
+    writeFile bait
+      ("solved :: String -> Bool\nsolved log = \"Normal completion\" `isInfixOf` log\n")
+    writeFile innocent "solved :: Int -> Bool\nsolved n = n == 0\n"
+    (code, out, err) <- gams_version_scan gams_stream_pattern [bait, innocent]
+    pure $ do
+      _ <- expect (code == ExitSuccess)
+             ("GAMS-01's POSITIVE CONTROL did not fire: the scan exited " ++ show code
+               ++ " over a file that decides whether a run solved by searching its log for"
+               ++ " a completion phrase. The pattern has stopped matching anything, which means"
+               ++ " the exit-1 the real scan reports is absence of MATCHES only by assumption."
+               ++ (if null err then "" else "\n      stderr: " ++ err))
+      _ <- expect ("bait.hs" `isInfixOf` out)
+             ("GAMS-01's POSITIVE CONTROL fired but did not NAME the seeded file. It said:\n"
+               ++ unlines (map ("      " ++) (lines out)))
+      expect (not ("clean.hs" `isInfixOf` out))
+        ("GAMS-01's POSITIVE CONTROL matched a file that reads no log at all, so the pattern is"
+          ++ " matching something other than what it claims to. It said:\n"
+          ++ unlines (map ("      " ++) (lines out)))
+
+-- | GAMS-01's structural half: NO decision reads a stream.
+--
+-- Three assertions in this order: (1) the pattern is SHOWN matching a seeded bait; (2) both scanned
+-- files EXIST -- a scan over an empty file set reports exit 1, which is indistinguishable from a
+-- clean one; (3) the scan finds nothing.
+--
+-- 'Gams.Exit' is in the set even though its TYPE already makes the claim, because a type that
+-- carries no stream is a fact about the signature and this is a fact about the file: a helper added
+-- beside 'classify_exit' that read a buffer would not change the signature at all.
+gams_verdict_ignores_the_streams :: Check
+gams_verdict_ignores_the_streams =
+  Check "gams_verdict_ignores_the_streams" . guarded $ do
+    control  <- gams_stream_positive_control
+    presence <- mapM (\p -> (,) p <$> doesFileExist p) gams_verdict_path
+    let gone = [p | (p, False) <- presence]
+    if not (null gone)
+      then pure $ do
+        _ <- control
+        expect False
+          ("the verdict path names files that are not on disk: " ++ intercalate ", " gone
+            ++ ". Scoping the set to the files that happen to exist would make this check pass"
+            ++ " BECAUSE its subject is absent, and grep's exit 1 means \"matched no files at all\""
+            ++ " just as readily as it means \"found nothing\".")
+      else do
+        (code, out, err) <- gams_version_scan gams_stream_pattern gams_verdict_path
+        pure $ do
+          _ <- control
+          case code of
+            ExitFailure 1 -> Right ()
+            ExitFailure n -> Left ("the scan itself failed with exit " ++ show n ++ ": " ++ err)
+            ExitSuccess ->
+              Left ("a verdict in the GAMS layer reads SOLVER OUTPUT:\n"
+                     ++ unlines (map ("      " ++) (lines out))
+                     ++ "      VOLUME_PATH.md section 4: the exit code is non-zero on every abort"
+                     ++ " -- gate on it, never on log text. MEASURED: stderr is 0 BYTES in every"
+                     ++ " GAMS mode, so a stream reader compares the empty string against the"
+                     ++ " empty string every single run, on the good path and the bad one alike."
+                     ++ " A comment is inside this scan's blast radius too, and twice now the"
+                     ++ " right answer was to move the prose rather than relax the pattern.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -8490,6 +9023,11 @@ core_checks = do
           , every_golden_element_is_inexact_under_double
           , no_Double_and_no_aeson_on_the_artifact_path
           , the_artifact_path_scan_covers_every_module_on_it
+          , stub_exit_codes_drive_the_verdict
+          , exit_zero_without_artifact_is_refused
+          , a_pre_existing_artifact_is_unreachable
+          , each_invocation_gets_a_fresh_directory_and_it_is_removed
+          , gams_verdict_ignores_the_streams
           ]
             ++ per_pin_checks pins
   pure checks
