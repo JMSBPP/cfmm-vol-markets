@@ -43,10 +43,17 @@ check** rather than prose: re-solving an existing key must reproduce it byte-for
   `next(address,uint160,int24,uint24,uint24)`), read price/liquidity/fee, **every read
   pinned to one block**. BLOCKED on the plank worktree emitting the event.
 - **Fee splitter** — the pool fee splits into (φ_X, φ_M) under two constraints:
-  `(1−φ_X)(1−φ_M) = 1−f` sets the **level**, and §1.3 reduces to `δ* ≥ 2ρ/(1+ρ²)` with
-  `ρ = φ_M/φ_X` which sets the **skew** (boundary `ρ* = 3.8198` at `δ* = 0.49`,
-  independent of the pool fee). Closed form, no optimizer — **proved feasible before GAMS
-  is invoked**, so infeasibility is a refusal we explain, not an exit code we interpret.
+  `(1−φ_X)(1−φ_M) = 1−f` sets the **level** — and note this makes φ̄, the prover's composed
+  fee, equal to `f` exactly. Admissibility is the prover's own §1.3 test transcribed from
+  `volume_path.gms:100-108`: `(φ̄²+Δφ²)δ*² − (φ_X+φ_M)·φ̄·δ* + φ_X·φ_M ≤ 0`, with **φ̄ the
+  COMPOSED fee** and **Δφ the FULL gap `φ_M−φ_X`**. Exact integer arithmetic over pips.
+  **CORRECTION (2026-08-17):** an earlier reading here took φ̄ as the arithmetic mean and Δφ as
+  the ellipse SEMI-axis, giving `δ* ≥ 2ρ/(1+ρ²)`. That is WRONG — measured against the prover it
+  is 2× too large, falsely refuses ~82,700 pips of admissible δ* at the fixture fees, and its
+  corollary "no target reachable unless ρ ≥ 2+√3" is false. The prover's form independently
+  reproduces §1.1's `δ ≤ 1/2` ceiling as its upper root; the mistaken form gives 1. Closed form,
+  no optimizer — **proved feasible before GAMS is invoked**, so infeasibility is a refusal we
+  explain, not an exit code we interpret.
 - **The resident loop + fixture publication** — the loop re-solves continuously; publishing
   the newest run to `test/models/mev_tax_model_one/fixtures/volume_path.json` is what keeps
   the forge test's input from being a moving target.
