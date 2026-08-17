@@ -1,10 +1,100 @@
 ---
 kind: spike
-status: approved
+status: COMPLETE
 created: 2026-08-17
 approved_by: user
 runs_after: 26-03
 blocks: nothing
+binding_on: phase-28
+commit: e0b3600
+---
+
+# RESULT — the chain mates, and it reproduces a golden captured before it existed
+
+**The headline, verified independently:**
+
+```
+golden, committed phase 23-04 (e7687e5, 2026-08-16):
+  e7b14f384ab4c027be5450218a52040110d45dbaddbbfb0bb7bd5ab707d0d884
+spike, end to end, 2026-08-17:
+  e7b14f384ab4c027be5450218a52040110d45dbaddbbfb0bb7bd5ab707d0d884
+```
+
+That golden predates `Fee/Split.hs` (`cfce3d1`), `Store/Cache.hs` (`6eba818`) and `Store/Key.hs`
+(`f00b40b`). So splitter → shock → real toolchain → key → real solve → store → elision reproduces
+bytes captured by an **entirely different code path**. The milestone's headline claim — *same inputs
++ same toolchain → same bytes* — is exercised end to end for the first time.
+
+Elision confirmed against the real prover: `DECIDE 2 Elided`, **solver invocations 1**, bytes
+identical. A second independent process printed the same content key, so the key is stable across
+two real prover runs.
+
+Split landed on **(500, 6000)** at δ\* = 490000 — one of the three pairs measured SOLVED there —
+with `residual 0, is_exact True` (`f = 6497` is the one fee admitting an exact integer-pip split, so
+that zero is computed, not a tolerance met). The classifier's positive control was driven out of
+band: δ\* = 82803, one pip below the pinned boundary, gives `exit 3` and `*** Error at line 109`
+verbatim.
+
+---
+
+## THREE SEAMS DID NOT MATE — all binding on phase 28
+
+Recorded in `SpikeEndToEnd.hs`'s haddock; none papered over. **This is the spike succeeding.**
+
+### S1 — A `KeyIdentity` can only be obtained from a COMPLETED RUN *(most consequential)*
+
+`Store.Key.key_identity` needs a `ToolchainIdentity`, and the **only** producer of one in this
+package is the `Produced` arm of `Gams.Run.run_prover`. But `Store.Cache.decide` needs the identity
+**before** it can compute the key — i.e. before the first solve. **There is no `detect_toolchain`
+anywhere.**
+
+The spike therefore pays a **bootstrap solve whose only product is the identity**. A phase-28 poller
+must either detect once at startup by solving something throwaway, or the library needs a detection
+function that does not require a solve. **Decide this before phase 28 plans its loop** — it changes
+the loop's startup shape.
+
+### S2 — `Gams.Invoke.invoke_shock` does not fit the `Store.Solver` seam
+
+Its type is `EnvChoice -> Shock -> IO (Either InvokeError ProverOutcome)`; the seam wants
+`Shock -> IO ProverOutcome`. **`Gams.Run.AbortReason` has no constructor for "binary or model could
+not be resolved"**, so an `InvokeError` arriving inside a solver has nowhere truthful to go — it
+must throw, or be mapped to a lie.
+
+The spike resolves binary and model **once, outside the seam**, and closes over them, calling
+`run_prover` directly — which is what `Store.Solver`'s own haddock prescribes. So this is a shape
+mismatch rather than a defect, **but the composition function you would reach for first is the wrong
+one**, and phase 28 will reach for it.
+
+### S3 — `Store.Cache.Decision` drops `CapturedStreams`, so a caller cannot classify a failure
+
+`NotPersisted` carries only the reason and the exit code. The abort **line number** — the
+discriminator `26-PROVER-SWEEP.md` measured, **109 = ellipse refusal vs 171/173 = CONOPT
+infeasible** — lives only in `volume_path.log`, inside a run directory `Gams.Run` **deletes on every
+exit path**.
+
+**A caller of `decide` cannot tell an inadmissible shock from an unsolvable one.** The spike's
+solver wrapper stashes the outcome so the executable can classify. Phase 28 needs the same wrapper
+or a wider `Decision` — and it matters, because those two failures call for opposite responses:
+inadmissible means *fix the shock*, infeasible means *the fixture cannot answer this one*.
+
+---
+
+## Constraints honoured
+
+Not in `cabal test` (one `executable` stanza, +0 packages); `cabal test` unchanged at **190/190**;
+both structural greps **0**; floors re-measured by running each `find` separately, 64/73 → **65/74**;
+fixture written to `/tmp/cfmm-spike-end-to-end/`, nothing into `test/models/.../fixtures/`;
+territory grep empty.
+
+**No importer-count check existed** — checked before adding the second importer of `Gams.Invoke`.
+What did exist were **three prose claims** that `GamsConformance.hs` is the ONLY importer (cabal
+file, `Gams/Invoke.hs`, `GamsConformance.hs`), all corrected in the same commit: the load-bearing
+property is the **directory** (every importer under `offchain/app/`, none under `offchain/test/`),
+never the count.
+
+**Reproduce:**
+`GAMS_BIN=... GAMS_MODEL=... cabal run -v0 spike-end-to-end`
+
 ---
 
 # Spike — the seams mate, end to end, once
