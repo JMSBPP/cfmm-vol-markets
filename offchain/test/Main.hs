@@ -8167,12 +8167,29 @@ every_golden_element_is_inexact_under_double =
 -- The artifact path's source scans, and the scope that must GROW
 -- ---------------------------------------------------------------------------------------------
 
--- | The two modules on the artifact path that may not construct a 53-bit floating value.
-artifact_float_path :: [FilePath]
-artifact_float_path =
+-- | The two modules BYTE-04 names by number, asserted PRESENT in the scanned set below.
+--
+-- They are written out because the requirement is about THEM: @Gams\/Artifact.hs@ decodes the
+-- arrays and @Gams\/Argv.hs@ renders the shock that produced them. A scan that silently stopped
+-- covering either one would still pass every set comparison if the set it was compared against had
+-- shrunk in the same commit.
+byte04_named_modules :: [FilePath]
+byte04_named_modules =
   [ "offchain/lib/Gams/Argv.hs"
   , "offchain/lib/Gams/Artifact.hs"
   ]
+
+-- | THE SAME SET THE AESON SCAN READS, AND THAT IS THE POINT.
+--
+-- The first draft of this scan listed two files. MEASURED at 24-02, before it shipped: every @.hs@
+-- under @offchain\/lib\/{Store,Gams}\/@ is already free of the pattern, so covering two of them
+-- cost thirteen files of coverage and bought nothing -- and it left the float scan with a
+-- hardcoded list and NO growth guard, which is the very defect
+-- 'the_artifact_path_scan_covers_every_module_on_it' exists to close, reproduced inside the commit
+-- that closes it. Pointing both scans at ONE set means the directory-vs-list assertion covers both,
+-- so a module added under either directory is scanned for a 53-bit value on the day it lands.
+artifact_float_path :: [FilePath]
+artifact_float_path = aeson_storage_path
 
 artifact_float_pattern :: String
 artifact_float_pattern = "Double|Float|realToFrac|fromRational"
@@ -8220,10 +8237,10 @@ artifact_float_positive_control = do
 -- | BYTE-04's structural half: the artifact path carries neither a 53-bit floating value nor a
 -- JSON library, and the module that decodes the artifact is ON the aeson scan's list.
 --
--- Four assertions in this order: (1) the float pattern is SHOWN matching a seeded bait; (2) both
--- scanned files EXIST; (3) both are members of 'aeson_storage_path', so the no-aeson claim about
--- them is made by a scan that actually reads them rather than by this check's name; (4) the float
--- scan finds nothing.
+-- Four assertions in this order: (1) the float pattern is SHOWN matching a seeded bait; (2) every
+-- scanned file EXISTS; (3) the two modules BYTE-04 names are IN the scanned set, so the claim is
+-- made by a scan that actually reads them rather than by this check's name; (4) the float scan
+-- finds nothing.
 --
 -- (3) is the pre-empted Phase-23 finding in its narrowest form. @Gams\/Artifact.hs@ was added to
 -- 'aeson_storage_path' in the SAME COMMIT that created it, which is the rule that list's own
@@ -8234,7 +8251,7 @@ no_Double_and_no_aeson_on_the_artifact_path =
     control  <- artifact_float_positive_control
     presence <- mapM (\p -> (,) p <$> doesFileExist p) artifact_float_path
     let gone     = [p | (p, False) <- presence]
-        unscanned = [p | p <- artifact_float_path, p `notElem` aeson_storage_path]
+        unscanned = [p | p <- byte04_named_modules, p `notElem` artifact_float_path]
     if not (null gone)
       then pure $ do
         _ <- control
@@ -8246,11 +8263,13 @@ no_Double_and_no_aeson_on_the_artifact_path =
         then pure $ do
           _ <- control
           expect False
-            ("these artifact-path modules are NOT in aeson_storage_path: "
+            ("the two modules BYTE-04 names are NOT in the scanned set: "
               ++ intercalate ", " unscanned
-              ++ ". This check's name claims no aeson is on the artifact path, and the scan that"
-              ++ " would say so does not read them. 23-03 MEASURED the consequence: Store/Schema.hs"
-              ++ " sat unlisted for two commits and nothing reddened.")
+              ++ ". The scanned set is aeson_storage_path, so this fires when that list shrinks"
+              ++ " away from the artifact's own decoder -- the shape a set comparison alone cannot"
+              ++ " catch, because a list and a directory can shrink together. 23-03 MEASURED the"
+              ++ " neighbouring case: Store/Schema.hs sat unlisted for two commits and nothing"
+              ++ " reddened.")
         else do
           (code, out, err) <- gams_version_scan artifact_float_pattern artifact_float_path
           pure $ do
