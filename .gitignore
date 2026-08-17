@@ -19,8 +19,6 @@ model/**/*.lst
 model/**/*.g00
 model/**/*.lxi
 model/**/*.gdx
-!model/price_impact_kernel.gdx
-!model/payoff_zero_slippage.gdx
 model/225*/
 model/build/
 
@@ -62,6 +60,12 @@ scratch/
 # fully regenerable via `econometrics variance --from <n> --to <n>`. The derived
 # per-epoch series (variance.csv) IS tracked; the raw cache is not.
 notes/structural-econometrcics/data/swap-ticks-base-v4-full.csv
+
+# VolumePath prover emissions (regenerated every run; never committed)
+model/mev_tax_model_one/volume_path.json
+model/mev_tax_model_one/volume_path.txt
+model/**/build/
+
 # forge script deploy artifacts (local anvil runs)
 broadcast/
 
