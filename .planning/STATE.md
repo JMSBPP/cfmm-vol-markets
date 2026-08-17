@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 26-03-PLAN.md — the NINTH refusal shipped (181/181 -> 190/190, exit 0, zero warnings, floors re-measured 64/73 UNCHANGED, no file added). FEE-01/FEE-03/FEE-04 complete: 9 checks, 10 firings observed, blocker B1 CLOSED (split_for 0 8388608 490000 == Left (FeeOutOfDomain 8388608)). gams-conformance.json RE-TAKEN against the real GAMS 54.1 with the gate in place — golden bytes reproduce, 9/9 verdicts pass. Next: 26-04 (the Tier-C GAMS differential; RC-B1 says sweep the grid against the real prover FIRST)"
+stopped_at: "Completed 26-04-PLAN.md — PHASE 26 CLOSED (190/190 -> 194/194, exit 0, zero warnings, wall 173 s). FEE-02 complete against the REAL prover: 12 grid rows bracketing four exact boundaries by one pip, DISAGREE=0, VERDICTS=2, BADCTL=0, four rows refused at model line 109. The discriminator is the model's SOURCE LINE, never the exit code (exit 3 means six things). RC-B1 closed — (1000,3000)'s boundary is 300361, agreeing with min_admissible_dstar exactly. RC-B2 closed by a different derivation than the finding proposed, with the finding's own falsifying input RUN. Seventh swept artifact; all seven field floors + sentinel_pair_floor re-measured in one run (4574); purge/credential floors 67/77. FEE-01's text in REQUIREMENTS.md and PROJECT.md corrected to round-and-report. Next: phase 27"
 last_updated: "2026-08-17"
-last_activity: "2026-08-17 — 26-03 executed: 181/181 -> 190/190 checks, 0 warnings, suite still DB-free AND GAMS-free; nine guards, ten firings observed; RC-M6 confirmed at 2 and both documents corrected"
+last_activity: "2026-08-17 — 26-04 executed and PHASE 26 CLOSED: 190/190 -> 194/194 checks, 0 warnings, suite still DB-free AND GAMS-free; four guards, thirteen firings observed (two under two-part mutations for dominated arms); the sentinel harness found two real holes unprompted and both were ASSERTED"
 progress:
   total_phases: 6
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 18
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 <!--
@@ -43,10 +43,58 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **26 — Shock Assembly (Fee Split & Event Decode)** — **IN PROGRESS (3/4 plans)**
-Plan: **26-03 COMPLETE** (commits `25a956c`, `0df4f12`, `5edf629`). Summary:
-`.planning/phases/26-shock-assembly-fee-split-event-decode/26-03-SUMMARY.md`. Next: **26-04**
-(the Tier-C GAMS differential).
+Phase: **26 — Shock Assembly (Fee Split & Event Decode)** — **COMPLETE (4/4 plans)**
+Plan: **26-04 COMPLETE** (commits `89fb495`, `3799a84`, `d8b1d37`). Summary:
+`.planning/phases/26-shock-assembly-fee-split-event-decode/26-04-SUMMARY.md`, which is also the
+PHASE RECORD: the 39-row guard ledger reconciled, the SC-2 substitution, the two upstream document
+corrections, and what phase 27 inherits. Next: **phase 27**.
+
+**FEE-02 IS PROVEN AGAINST THE REAL PROVER, AND THE DISCRIMINATOR IS NOT THE EXIT CODE.**
+`Fee.Split.is_admissible` and `volume_path.gms`'s own `ellTest` gate agree on twelve points that
+bracket four exact boundaries — 82804 / 109769 / 300361 / 495953 — by one pip on each side.
+**All twelve rows exit 3.** What separates the four the prover REFUSES from the eight it merely
+cannot solve is the model's own SOURCE LINE: **109 is the half-ellipse refusal; 171 and 173 are
+CONOPT failing to reach an ADMISSIBLE point**, which is `admissible-but-unsolved` and never a
+disagreement. `gams_admits = (abort_line /= 109)`, pinned in the capture, in the shell gate and in
+three in-suite arms. Gates: `DISAGREE=0`, `VERDICTS=2`, `BADCTL=0`, `complete=true`, and four rows
+refused at line 109. GAMS 54.1.0 / CONOPT 4.39.0, model `79940449…ca53ad`, sixteen invocations in
+**846 ms** (a solve is 35 ms; the sweep doc's "~2 s per run" was its own script's overhead).
+
+**RC-B1 CLOSED.** The 160-run sweep left `(1000, 3000)` open because its grid stepped
+300000 → 400000. Re-swept at ten points here: last ELLIPSE **300360**, first non-ellipse
+**300361**, and `min_admissible_dstar 1000 3000 == Just 300361`. **All four pairs now agree with
+the prover at the boundary exactly.** The controls are the sweep's MEASURED solvable targets —
+490000 (ROADMAP SC-2's own 0.49) for three pairs and 497000 for `(700, 800)` — not the plan's
+parabola vertices, three of which abort.
+
+**RC-B2 CLOSED, by a DIFFERENT derivation than the finding proposed.** Its
+`(gams_exit == 0 && gams_artifact_present)` is measured FALSE here — `gams_artifact_present` is
+false on all twelve rows and eight of them are admissible. Its own falsifying input (every
+`gams_exit` set to 0, `gams_admits` untouched) was RUN and reddens naming **all twelve rows**, on an
+arm that ties the exit to the line and requires the line to be in the model's known abort taxonomy.
+
+Suite **190/190 → 194/194**, exit 0, zero warnings, wall **173 s** against a 900 s ceiling. Phase
+arithmetic `162 + 32 = 194` (the plan says 31; the extra one is 26-02's own recorded twelfth check).
+Seventh swept artifact; all seven field floors named by the harness in ONE run
+(20 / 110 / 151 / 130 / 156 / 76 / **125**) and **none of the six moved** — including
+`store-conformance.json`, which `26-VALIDATION.md` predicted phase 25 would grow by ~22 and which
+did not grow at all. `sentinel_pair_floor` **3828 → 4574**, the four identity skips NAMED. Floors
+re-measured COLD as a pair: `purge_file_floor` **67**, `credential_scan_floor` **77**. Four guards,
+**thirteen firings observed**, every one restored from a sha256-verified copy. Both structural greps
+**0**. Territory clean.
+
+**FEE-01's text is corrected in BOTH documents.** `REQUIREMENTS.md` and `PROJECT.md` claimed the
+composition is exact; it is not. Exactness needs `10⁶ ∣ φ_X·φ_M`, true for **4.935 %** of
+`f ∈ [1, 20000]` (987 of 20000, recomputed today) and for **none** of 100 / 500 / 3000 / 10000 pips.
+`split_for 0 3000 490000` gives `(752, 2250)` composing to **3000.308** pips. Both now say
+round-and-report, with the measured numbers. `ROADMAP.md` was not edited.
+
+**CARRY-FORWARD (replacing "phase 26 owes phase 25 nothing else").** `fs_seed` and
+`fs_splitter_version` exist and are asserted by check 18, and all twelve `FeeSplit` fields are read
+by a check — but `splitter_version` has **no consumer**: phase 25 ran first and imports nothing from
+`Fee.Split`. Wiring it into the content key is non-destructive via `key_scheme` — RC-M5's anchor
+**ROADMAP:1288-1289**, whose sentence has since drifted to **ROADMAP:1304-1305** — and belongs to
+whoever next touches `Store.Key`. SC-1's store half is likewise still open.
 
 **AN INADMISSIBLE SHOCK HAS NO ARGV AT ALL, AND THE PROCESS WAS OBSERVED NOT STARTING.**
 `volume_path.gms:100-108`'s own `ellTest` is `render_argv`'s **ninth** refusal, in exact `Integer`

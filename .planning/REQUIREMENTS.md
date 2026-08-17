@@ -116,7 +116,18 @@ exists because three separate layers were measured silently altering them.
 ### Fee Split (FEE)
 
 - [x] **FEE-01**: Given a pool fee `f` and a target `δ*`, the splitter produces (φ_X, φ_M)
-      satisfying `(1−φ_X)(1−φ_M) = 1−f` exactly.
+      whose COMPOSED fee `1−(1−φ_X)(1−φ_M)` reproduces `f` under a **rounding rule pinned in
+      writing** (ROADMAP SC-1). Exactness is a DIVISOR problem over the integer pip grid, not a
+      rounding problem: `(10⁶−φ_X)(10⁶−φ_M) = 10⁶(10⁶−f)` has a solution only when
+      `10⁶ ∣ φ_X·φ_M`, which holds for **4.935 %** of `f ∈ [1, 20000]` — 987 of 20000, recomputed
+      2026-08-17 by full factorisation — and for **NONE** of the canonical tiers 100 / 500 / 3000 /
+      10000 pips (`exact_pairs_for` is empty at all four; `f = 6497` admits exactly two pairs,
+      `(500, 6000)` and its mirror). The splitter therefore rounds the partner leg to NEAREST
+      (ties up), records the exact realized fee and the exact residual as first-class fields, marks
+      whether the pair is exact, and REFUSES when `|residual| ≥ 1` pip. Nearest rounding bounds the
+      residual by `(10⁶−φ_X)/2`, so the one-pip alarm has **2x** headroom, not the 10³ a
+      band-minimum reading suggests (MEASURED worst-in-band: 0.4997 pip at `f = 3000`). The
+      DERIVED pips — not `f` — are what reach GAMS and the key.
 - [x] **FEE-02**: The pair satisfies the prover's own admissibility test, transcribed from
       `volume_path.gms:100-108` and checked **before** the solver is invoked:
       `ellTest = (φ̄² + Δφ²)δ*² − (φ_X+φ_M)·φ̄·δ* + φ_X·φ_M ≤ 0`, where **φ̄ is the COMPOSED fee**

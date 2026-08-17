@@ -767,7 +767,7 @@ mutant Z is OBSERVED caught" — never as "the tests pass".
 - [x] **Phase 23: Postgres Foundation & the Byte-Exact Schema** - The schema that returns the bytes it was given, migrations that fail loudly, `key_scheme` inside the unique constraint, and a suite that goes RED rather than skipping when its subject is absent (DB-01..04, BYTE-01, BYTE-02, BYTE-03, BYTE-05, KEY-07) (completed 2026-08-16)
 - [x] **Phase 24: GAMS Invocation & Toolchain Identity** - The prover as a controlled subprocess gated on evidence not log text, with version detection that aborts rather than yielding an empty key component — landed BEFORE the store's first production write (GAMS-01..06, BYTE-04) (completed 2026-08-17)
 - [x] **Phase 25: The Content Key & Keyed Store** - Framed, edge-normalized keys that refuse to be built from an absent input; cache elision, abort safety and a scoped reset the solve path cannot name — chain-free (KEY-01..06, STORE-01, STORE-06, STORE-08) (completed 2026-08-17). **SCOPE CUT 2026-08-17, user ruling:** on-demand verification, quarantine, pinning and the append-only run log — **STORE-02, STORE-03, STORE-04, STORE-05, STORE-07** — are DEFERRED to a later milestone, not dropped, each with a written reason in `REQUIREMENTS.md`'s Store deferral block. The byte-reproduction proof they carried is deferred with them; what lands here is the bridge's cache.
-- [ ] **Phase 26: Shock Assembly — Fee Split & Event Decode** - The two pure producers of a shock's fields: the closed-form splitter that refuses infeasibility before the solver is spawned, and the `next` decoder proven against synthetic logs before the event exists (FEE-01..04, CHAIN-04)
+- [x] **Phase 26: Shock Assembly — Fee Split & Event Decode** - The two pure producers of a shock's fields: the closed-form splitter that refuses infeasibility before the solver is spawned, and the `next` decoder proven against synthetic logs before the event exists (FEE-01..04, CHAIN-04) (completed 2026-08-17)
 - [ ] **Phase 27: Anvil Read Layer** - A shock read off a live chain is a snapshot of ONE block or it is an error — **BLOCKED** on the plank worktree emitting `next` (CHAIN-01, CHAIN-02, CHAIN-03)
 - [ ] **Phase 28: Resident Loop & Fixture Publication** - A loop that survives its own crash, never double-counts an event, and publishes one file the forge test can never observe half-written — **BLOCKED** (inherits Phase 27) (LOOP-01..05)
 
@@ -1250,7 +1250,7 @@ at the end of 25.
 | 23. Postgres Foundation & the Byte-Exact Schema | 5/5 | Complete    | 2026-08-16 |
 | 24. GAMS Invocation & Toolchain Identity | 6/6 | Complete    | 2026-08-17 |
 | 25. The Content Key & Keyed Store | 3/3 | Complete    | 2026-08-17 |
-| 26. Shock Assembly — Fee Split & Event Decode | 3/4 | In Progress|  |
+| 26. Shock Assembly — Fee Split & Event Decode | 4/4 | Complete   | 2026-08-17 |
 | 27. Anvil Read Layer (PARTIAL: CHAIN-05/06/07 actionable) | 0/TBD | Partially blocked | - |
 | 28. Resident Loop & Fixture Publication (BLOCKED) | 0/TBD | Blocked | - |
 

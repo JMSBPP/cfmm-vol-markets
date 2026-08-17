@@ -43,8 +43,16 @@ check** rather than prose: re-solving an existing key must reproduce it byte-for
   `next(address,uint160,int24,uint24,uint24)`), read price/liquidity/fee, **every read
   pinned to one block**. BLOCKED on the plank worktree emitting the event.
 - **Fee splitter** — the pool fee splits into (φ_X, φ_M) under two constraints:
-  `(1−φ_X)(1−φ_M) = 1−f` sets the **level** — and note this makes φ̄, the prover's composed
-  fee, equal to `f` exactly. Admissibility is the prover's own §1.3 test transcribed from
+  `(1−φ_X)(1−φ_M) = 1−f` sets the **level**, so φ̄ — the prover's composed fee — IS `f` in exact
+  rational arithmetic. **Over the integer pip grid it is not generally attainable**, and that is a
+  property of the grid rather than a defect: the identity holds only when `10⁶` divides
+  `φ_X·φ_M`, true for 4.935 % of fees (987 of 20000) and for none of 100 / 500 / 3000 / 10000
+  pips (MEASURED 2026-08-17). The splitter therefore rounds to nearest and records the exact
+  residual as a first-class field: φ̄ equals `f` exactly only on the exact pairs, and otherwise
+  equals `f` plus that recorded residual, bounded below half a pip by construction (MEASURED:
+  `split_for 0 3000 490000` yields (752, 2250) composing to **3000.308** pips). The derived pips,
+  not `f`, are what reach GAMS and the key — ROADMAP SC-1, which already provides for the rounding
+  rule. Admissibility is the prover's own §1.3 test transcribed from
   `volume_path.gms:100-108`: `(φ̄²+Δφ²)δ*² − (φ_X+φ_M)·φ̄·δ* + φ_X·φ_M ≤ 0`, with **φ̄ the
   COMPOSED fee** and **Δφ the FULL gap `φ_M−φ_X`**. Exact integer arithmetic over pips.
   **CORRECTION (2026-08-17):** an earlier reading here took φ̄ as the arithmetic mean and Δφ as
