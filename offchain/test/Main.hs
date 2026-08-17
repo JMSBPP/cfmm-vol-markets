@@ -11640,6 +11640,91 @@ a_miss_invokes_the_solver_exactly_once =
               ++ " A hit that also WRITES is how one shock accumulates rows under a store whose"
               ++ " reads all look healthy.")
 
+-- | The three shapes a run aborts in, each with the exit code the invocation reports.
+--
+-- The verdicts are computed by the library's own taxonomy rather than written out: a transcribed
+-- constructor would keep agreeing with itself after 'classify_exit' moved. 124 is in the list
+-- because it is the TIMEOUT WRAPPER's code and not one GAMS ever returns -- 'gams_code_domain'
+-- excludes it on purpose -- so the budget expiring is a distinct abort shape rather than a
+-- re-spelling of the first one.
+cache_abort_battery :: [(String, AbortReason, Int)]
+cache_abort_battery =
+  [ ( "a non-zero exit: the model failed to execute"
+    , ExitVerdict (classify_exit (ExitFailure 3)), 3 )
+  , ( "the budget expired: the wrapper's own code, outside the solver's domain"
+    , ExitVerdict (classify_exit (ExitFailure 124)), 124 )
+  , ( "exit 0 with no artifact -- MEASURED with the real binary, compile-only produces exactly this"
+    , NoArtifact, 0 )
+  ]
+
+-- | STORE-08. A run that did not complete leaves NOTHING behind.
+--
+-- An entry written for an aborted run is worse than no cache at all: every later request for that
+-- shock is served the ABSENCE of a solve, permanently and silently, and the store's reads all look
+-- healthy while it happens.
+--
+-- ABSENCE IS THE PASS CONDITION HERE, which is the shape that most often passes vacuously -- a
+-- store that never worked satisfies \"the store is empty\" for all three variants and for every
+-- variant anyone adds later. So the POSITIVE CONTROL is ordered first and asserted from the same
+-- two instruments the absence arms use: a completed run against a fresh store leaves exactly one
+-- entry and that entry is findable under the triple. If the control does not land, the check fails
+-- and the absences below are never reached.
+--
+-- Both instruments, not one. The count catches a put that landed under some OTHER key -- which is
+-- what a per-run value inside the key produces, and which a lookup under the computed key reports
+-- as a clean absence.
+an_aborted_run_produces_no_cache_entry :: Check
+an_aborted_run_produces_no_cache_entry =
+  Check "an_aborted_run_produces_no_cache_entry" . guarded $
+    case cache_setting of
+      Left err -> pure (Left err)
+      Right (ident, key, produced) -> do
+        control <- drive ident key produced
+        aborts  <- mapM
+                     (\(label, why, code) -> do
+                        observed <- drive ident key (Aborted why code cache_streams)
+                        pure (label, why, code, observed))
+                     cache_abort_battery
+        pure $ do
+          _ <- control_arm control
+          _ <- expect (not (null cache_abort_battery))
+                 "the abort battery is empty, so there is nothing here that could fail."
+          mapM_ abort_arm aborts
+  where
+    drive ident key outcome = do
+      (store, entries)  <- cache_counting_store
+      (solver, _calls)  <- cache_solver "the-solver-whose-run-does-not-complete" outcome
+      decided <- decide store solver current_key_scheme gams_model_basename fixture_shock ident
+      held    <- entries
+      found   <- store_lookup store gams_model_basename current_key_scheme key
+      pure (decided, held, found)
+
+    control_arm (decided, held, found) = do
+      d <- cache_decision decided
+      _ <- expect (d == Stored (Artifact cache_solved_doc))
+             ("the POSITIVE CONTROL did not land: a COMPLETED run against a fresh store decided "
+               ++ show d ++ ", expected Stored. Every \"nothing was written\" below would then be"
+               ++ " a fact about a cache that writes nothing at all.")
+      _ <- expect (held == 1)
+             ("the POSITIVE CONTROL left " ++ show held ++ " entries, expected 1. The counter this"
+               ++ " check reads absence from has never been seen reporting a presence.")
+      expect (isJust found)
+        ("the POSITIVE CONTROL stored nothing findable under the triple decide computed, so the"
+          ++ " lookups below report absence for a reason unrelated to the run aborting.")
+
+    abort_arm (label, why, code, (decided, held, found)) = do
+      d <- cache_decision decided
+      _ <- expect (d == NotPersisted why code)
+             ("the abort case " ++ show label ++ " decided " ++ show d ++ ", expected NotPersisted "
+               ++ show why ++ " " ++ show code ++ ".")
+      _ <- expect (held == 0)
+             ("the abort case " ++ show label ++ " left " ++ show held
+               ++ " entries in a fresh store, expected 0. A cache entry for a run that did not"
+               ++ " complete serves the absence of a solve to every later request for this shock.")
+      expect (isNothing found)
+        ("the abort case " ++ show label ++ " is retrievable under the triple decide computed."
+          ++ " Whatever it holds, it was not produced by a run that finished.")
+
 -- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
@@ -11807,6 +11892,7 @@ core_checks = do
           , the_preimage_excludes_every_per_run_token
           , an_identical_shock_elides_the_solve
           , a_miss_invokes_the_solver_exactly_once
+          , an_aborted_run_produces_no_cache_entry
           ]
             ++ per_pin_checks pins
   pure checks
