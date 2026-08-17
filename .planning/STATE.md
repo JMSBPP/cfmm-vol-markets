@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 25-03-PLAN.md — PHASE 25 CLOSED (3/3 plans, 9/9 in-scope requirements). 162/162, exit 0, zero warnings, floors 62/71 unmoved. STORE-02/03/04/05/07 DEFERRED by name. Next: /gsd:plan-phase 26"
+stopped_at: "Completed 26-01-PLAN.md — Fee.Split shipped (162/162 -> 169/169, exit 0, zero warnings, floors re-measured 63/72). Three PLAN defects found and fixed with the measurement that found them; blocker B1's guard landed as fee_in_domain + FeeOutOfDomain. Next: 26-02 (Chain.Shock, the event decoder)"
 last_updated: "2026-08-17"
-last_activity: "2026-08-17 — 25-03 executed: 160/160 -> 162/162 checks, 0 warnings, suite still DB-free AND GAMS-free; phase 25 closed"
+last_activity: "2026-08-17 — 26-01 executed: 162/162 -> 169/169 checks, 0 warnings, suite still DB-free AND GAMS-free; seven guards, eight firings observed"
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 14
-  completed_plans: 14
+  total_plans: 18
+  completed_plans: 15
 ---
 
 <!--
@@ -43,10 +43,61 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **25 — The Content Key & Keyed Store** — **COMPLETE (3/3 plans, post-scope-cut; 9/9 in-scope
-requirements)**
-Plan: **25-03 COMPLETE** (commit `2f6235d`, closeout below). Phase summary:
-`.planning/phases/25-content-key-keyed-store/25-SUMMARY.md`.
+Phase: **26 — Shock Assembly (Fee Split & Event Decode)** — **IN PROGRESS (1/4 plans)**
+Plan: **26-01 COMPLETE** (commits `cfce3d1`, `1c4f79e`, `59328ab`). Summary:
+`.planning/phases/26-shock-assembly-fee-split-event-decode/26-01-SUMMARY.md`. Next: **26-02**
+(`Chain.Shock`, the `next`/Shock event decoder).
+
+**`Fee.Split` IS THE SPLITTER'S ARITHMETIC, AND IT IS TOTAL.** 465 lines, one import
+(`Data.Word`), no floating value, no rational type, no IO, no hexadecimal literal. `compose_scaled`
+is the level constraint exactly; `ellipse_test` is `volume_path.gms:100-108` transcribed term for
+term times `D^6`; `min_admissible_dstar` bisects. Suite **162/162 → 169/169**, exit 0, zero
+warnings, wall **181 s** against a 900 s ceiling. Floors re-measured COLD as a pair with the module
+on disk: `purge_file_floor` **62 → 63**, `credential_scan_floor` **71 → 72**, zero slack, census
+`hs 51, sh 9, json 9, sql 3`. Both structural greps **0**. Territory clean.
+
+**BASE WAS 162, NOT 151.** Every gate in phase 26 is `BASE + N` against a BASE measured cold at
+`2026-08-17T16:07:46Z`, before any edit. The 151 the phase was drafted against, and the 149.5 s wall
+beside it, both predate phase 25 and are dead. The comparand wall is **191 s**.
+
+**THREE DEFECTS WERE FOUND IN THE PLAN ITSELF, each fixed with the measurement that found it.**
+(1) `RC-M4`: the specified bisection returns `Nothing` at `x = 99, m = 101` though `499975` is
+admissible — and the reviewer's own one-line fix is wrong in the mirrored case, so the shipped code
+tries BOTH candidate right ends and haddocks why that is complete. (2) `RC-B3`: the plan mandated a
+haddock sentence containing `sqrt` in a file its own gate scans for `sqrt`; the sentence moved to the
+check's haddock. (3) **NEW**: the plan's float-scan pattern matches `sqrtPriceX96` on **13 lines** of
+the already-scanned set, so the check could never have exited 1 — the pattern is word-anchored, the
+scanned set is not narrowed.
+
+**BLOCKER B1 IS HALF-CLOSED, AND THE OTHER HALF IS NAMED.** `nearest_partner` divides by `D - x` and
+a band over `[1 .. f-1]` reaches `x = 1000000` for every `f > 1000000` — which v4's
+`DYNAMIC_FEE_FLAG` (8388608) is. `fee_in_domain` and `FeeOutOfDomain` landed here with three
+asserted arms. **26-03 owes** `split_for`'s step-0 guard and the
+`split_for 0 8388608 490000 == Left (FeeOutOfDomain 8388608)` arm, with "delete the guard, observe
+the exception" as its firing input.
+
+**FEE-01 AND FEE-02 ARE NOT MARKED COMPLETE, DELIBERATELY.** FEE-01's text says "the splitter
+produces (φ_X, φ_M)" and `split_for` does not exist until 26-03; its word "exactly" is FALSE under
+the round-and-report ruling and 26-04 owns the correction. FEE-02's "checked before the solver is
+invoked" is 26-03's ninth refusal and its Tier-C grid agreement is 26-04's. What shipped is FEE-01's
+arithmetic and FEE-02's Tier-A half. Marking either complete now would be the assertion-without-an-
+implementing-task shape this milestone keeps finding.
+
+**SEVEN OF `FeeSplit`'S TWELVE FIELDS ARE ASSERTED BY NO CHECK IN ANY PLAN OF THIS PHASE**
+(`fs_pool_fee_pips`, `fs_dstar_pips`, `fs_realized_scaled`, `fs_is_exact`, `fs_ellipse_e`,
+`fs_boundary_pips`, `fs_band_size`) — reviewer minor `RC-m11`. The record is an interface for
+26-03's constructor. If 26-03 does not assert them they are unread fields, and the phase close must
+report them by name.
+
+**THE CHAIN FLOORS WHAT THE SPLITTER DOES NOT.** `ProtocolFeeLibrary.calculateSwapFee` computes
+`x + m - div(mul(x,m), 1000000)` under truncating EVM `div`, so the realized on-chain fee is high by
+`frac(xm/D)` — up to a whole pip, always the same direction — independent of the splitter's own
+signed half-pip residual. Phase 27's `compose(read pair) == pool fee` reconciliation will disagree by
+exactly that term and must not read it as a splitter bug. **Also OPEN**: v4's `MAX_PROTOCOL_FEE` is
+1000 pips and the pinned `f = 6497` seed-0 result `(1036, 5467)` exceeds it on BOTH legs, so which
+two on-chain fields the legs are realized in is undecided.
+
+### Phase 25 — closed, and the record below still binds
 
 **THE SHOCK IS NOW THE KEY.** `Store.Key` frames its preimage so no two distinct inputs collide and
 no per-run path can reach it (KEY-01..06, six checks); `Store.Cache.decide` looks that key up
@@ -114,10 +165,11 @@ Phase 24 named the artifact-side echoed-field cross-check as the mutation Phase 
 `the_preimage_excludes_every_per_run_token` discharges KEY-02's scope half, and the echoed-field
 mutation was in the cut scope.
 
-Next action: `/gsd:plan-phase 26` (Shock Assembly — the fee splitter and the `next` decoder), whose
-first debt is the production `Solver` adapter that closes STORE-01 end to end.
+Next action: **execute 26-02** (`Chain.Shock`, the event decoder). Phase 26's own standing debts are
+above; the production `Solver` adapter that closes STORE-01 end to end is still owed and 26-01 did
+not touch it.
 
-Last activity: 2026-08-17 — 25-03 executed (commit `2f6235d`), phase 25 closed.
+Last activity: 2026-08-17 — 26-01 executed (commits `cfce3d1`, `1c4f79e`, `59328ab`), 169/169.
 
 ## Phase 25 Plan 01 Position (record)
 
