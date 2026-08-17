@@ -490,8 +490,21 @@ left pending against a clause that is satisfied.
 5. **`splitter_version` still has no consumer.** Phase 25 executed first and imports nothing from
    `Fee.Split`. Check 18 asserts the field round-trips into the record; nothing outside the splitter
    reads it. Recorded as the same named carry-forward 26-01 made.
-6. **An untracked `.planning/SPIKE-end-to-end.md` appeared in the worktree during this execution**
-   (timestamped 15:19, `runs_after: 26-03`). It was not written by this plan and was left untracked
-   and unedited.
+6. **ANOTHER AGENT WAS EDITING THIS WORKTREE CONCURRENTLY, AND EVERY NUMBER ABOVE IS FROM BEFORE
+   THAT.** `.planning/SPIKE-end-to-end.md` appeared at 15:19 (`runs_after: 26-03`), commit
+   `db45654` (`docs(26): the prover sweep`) landed on top of `5edf629` while this summary was being
+   written, and by the close of this plan `offchain/app/SpikeEndToEnd.hs` was on disk untracked with
+   `offchain/app/GamsConformance.hs`, `offchain/lib/Gams/Invoke.hs` and **`offchain/test/Main.hs`**
+   carrying uncommitted modifications that are not this plan's.
+
+   **What that means for the readings.** `190/190`, `WARN=0`, `PURGE=64`, `CRED=73` and the whole
+   firing ledger were measured on the tree this plan committed, verified: `git show HEAD:<path>` for
+   all four files this plan owns is byte-identical to the sha256-verified saved copies
+   (`Fee/Split.hs` `b3510f82…`, `Gams/Argv.hs` `37e4dc3b…`, `test/Main.hs` `eb4dcb79…`,
+   `rig/gams-conformance.json` `5eaa3a46…`). A `cabal test` run AFTER the concurrent edits landed
+   also reported `190/190` and `WARN=0`, but it reports `PURGE=65` / `CRED=74` — the floors are `>=`,
+   so the extra file does not redden them, and `offchain/app/SpikeEndToEnd.hs` is somebody else's to
+   list in `aeson_storage_path`. Anyone reproducing these numbers must check out `0d8b35e` rather
+   than reading the working tree.
 
 ## Self-Check: PASSED
