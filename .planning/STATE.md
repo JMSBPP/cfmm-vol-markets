@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 26-02-PLAN.md — Chain.Shock shipped (169/169 -> 181/181, exit 0, zero warnings, floors re-measured 64/73). CHAIN-04 complete: 12 checks, 17 firings observed. RC-M3's justification for the ZeroShock rename measured FALSE (render_argv has 8 refusals, not 9, and its txlVolumeRate lower bound is 0). Next: 26-03 (Fee.Split's split_for + the argv assembly)"
+stopped_at: "Completed 26-03-PLAN.md — the NINTH refusal shipped (181/181 -> 190/190, exit 0, zero warnings, floors re-measured 64/73 UNCHANGED, no file added). FEE-01/FEE-03/FEE-04 complete: 9 checks, 10 firings observed, blocker B1 CLOSED (split_for 0 8388608 490000 == Left (FeeOutOfDomain 8388608)). gams-conformance.json RE-TAKEN against the real GAMS 54.1 with the gate in place — golden bytes reproduce, 9/9 verdicts pass. Next: 26-04 (the Tier-C GAMS differential; RC-B1 says sweep the grid against the real prover FIRST)"
 last_updated: "2026-08-17"
-last_activity: "2026-08-17 — 26-02 executed: 169/169 -> 181/181 checks, 0 warnings, suite still DB-free AND GAMS-free; twelve guards, seventeen firings observed"
+last_activity: "2026-08-17 — 26-03 executed: 181/181 -> 190/190 checks, 0 warnings, suite still DB-free AND GAMS-free; nine guards, ten firings observed; RC-M6 confirmed at 2 and both documents corrected"
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 18
-  completed_plans: 16
+  completed_plans: 17
 ---
 
 <!--
@@ -43,10 +43,74 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **26 — Shock Assembly (Fee Split & Event Decode)** — **IN PROGRESS (2/4 plans)**
-Plan: **26-02 COMPLETE** (commits `b22b637`, `e69a2e8`, `d536d08`). Summary:
-`.planning/phases/26-shock-assembly-fee-split-event-decode/26-02-SUMMARY.md`. Next: **26-03**
-(`split_for`, `admissible_band`, and the argv assembly).
+Phase: **26 — Shock Assembly (Fee Split & Event Decode)** — **IN PROGRESS (3/4 plans)**
+Plan: **26-03 COMPLETE** (commits `25a956c`, `0df4f12`, `5edf629`). Summary:
+`.planning/phases/26-shock-assembly-fee-split-event-decode/26-03-SUMMARY.md`. Next: **26-04**
+(the Tier-C GAMS differential).
+
+**AN INADMISSIBLE SHOCK HAS NO ARGV AT ALL, AND THE PROCESS WAS OBSERVED NOT STARTING.**
+`volume_path.gms:100-108`'s own `ellTest` is `render_argv`'s **ninth** refusal, in exact `Integer`
+arithmetic, evaluated AFTER `distinct_fees`. `Gams.Run.run_prover` hands the `Left` to
+`refused_before_spawn`, so there is no argv for `spawn_into` to receive — and a `/bin/sh` stub whose
+whole body touches a marker was driven through the real edge to say so from the filesystem rather
+than from the case expression: POSITIVE CONTROL first at `txlVolumeRate = 82804` (marker present,
+`cs_run_dir` non-empty), then the subject at `82803` — marker ABSENT,
+`Aborted (ArgvRejected (Inadmissible 500 6000 82803 …)) 0`, and **`cs_run_dir == ""`**, which says
+more than "no marker". Suite **181/181 → 190/190**, exit 0, zero warnings, wall **158 s** against a
+900 s ceiling. Floors re-measured COLD as a pair: `purge_file_floor` **64**, `credential_scan_floor`
+**73** — UNCHANGED, this plan creates no file. Nine guards, **ten firings observed**, every one
+restored from a sha256-verified copy. Both structural greps **0**. Territory clean.
+
+**BLOCKER B1 IS CLOSED.** `split_for` tests `fee_in_domain f` BEFORE `admissible_band`, because that
+enumeration reaches `x = 1000000` for every `f > 1000000` and `nearest_partner` divides by zero
+there — an exception no `Either` can carry. Asserted as a value:
+`split_for 0 8388608 490000 == Left (FeeOutOfDomain 8388608)`, and 8388608 is v4's
+`DYNAMIC_FEE_FLAG` in `PoolKey.fee`, not a fee of 8388608 pips. **The finding's ordering clause
+cannot bite:** step 0 tests the POOL fee and says nothing about the legs, which `split_for` DERIVES;
+an in-domain `(3000, 3000)` shock is still `FieldOutOfRange "phiXpips"` citing §1.2. **26-01's
+boundary disagreement is CARRIED, not resolved:** v4's `isValid` admits `f = 1000000` and the
+splitter does not, and the domain was NOT widened to match.
+
+**THE ORDERING GUARANTEE IS NOW BEHAVIOURAL, AND ITS LINE-NUMBER HALF EXPIRES AT 26-04.**
+`distinct_fees` is at `Gams/Argv.hs:206` and `admissible_pair` at `:207` today. Deleting
+`distinct_fees` was OBSERVED leaving the refusal INTACT as
+`Inadmissible 6000 6000 490000 18944769600000000000000000000 Nothing` — the count unchanged, §1.2's
+diagnosis gone — while `equal_fees_are_refused_in_haskell_with_the_1_2_diagnosis` reddened naming
+the constructor. **That constructor arm is what 26-04's `render_argv_ungated` split must leave
+standing**; the composition must be `render_argv_ungated >>= then admissible_pair`, never the
+inverse.
+
+**RC-M6 IS CONFIRMED AT 2, AND BOTH DOCUMENTS ARE CORRECTED.**
+`admissible_band 3000 1000 == [(1,2999),(2,2998)]`, size **2** — measured independently and again by
+the check's own failure text. The **4** in `26-03-PLAN.md:178` and `26-VALIDATION.md:232` is the
+count of BOTH orientations; `admissible_band` keeps only `m > x`. The EMPTY input is
+`delta* = 200`, the SINGLETON is `delta* = 500` (`[(1,2999)]`, `fs_band_size == 1`), and both are
+now asserted BY VALUE.
+
+**`gams-conformance.json` HAD TO BE RE-TAKEN, AND NO PLAN OF THIS PHASE SAYS SO.**
+`gams_freshness_subjects` is `["offchain/lib/Gams/Argv.hs", "offchain/lib/Gams/Artifact.hs"]` and the
+oracle recomputes both digests from disk, so touching the renderer reddens it. It was re-driven
+against the REAL GAMS 54.1 (`CFMM_REQUIRE_GAMS=1`, `GAMS_BIN=/usr/gams/gams54.1_…/gams`,
+`GAMS_MODEL=…/cfmm-wt/gams/model/mev_tax_model_one/volume_path.gms`), exit 0, **9/9 verdicts pass**.
+The whole diff is `argv_module_sha256` and two banner timestamps: **with the ninth refusal installed
+the golden artifact still reproduces at `e7b14f38..07d0d884`.** **26-04 must re-take it too** — its
+`render_argv_ungated` split necessarily edits that file.
+
+**FOUR PLAN DEFECTS, EACH WITH THE MEASUREMENT THAT FOUND IT.** (1) `ResidualTooLarge`'s arguments
+are specified as `(x, m, f, r)` and 26-01 shipped `(f, x, m, r)` — four `Integer`s, nothing would
+have type-checked differently and the message would have named the fee as a leg. (2) The plan's
+step 1 and step 2 are the SAME test, because `pick_from_band` is `Nothing` exactly when the band is
+empty; merged, so no branch needs a message for a state that cannot exist. (3) Check 16's stated
+firing input — "move the ninth refusal after the token list" — is a NO-OP in an `Either` do-block;
+the only mutation that produces an argv is one that takes the gate off the rendering path. (4) The
+`BADDEPS` collision RC-B3 warns about does NOT bite this gate: it scans `Fee/Split.hs` only, which
+has no `sqrtPriceX96`, and the unanchored pattern prints 0 there too. It DOES bite
+`no_floating_value_is_on_the_fee_path`, which 26-01 already anchored.
+
+**RC-m11 IS CLOSED.** All twelve `FeeSplit` fields are now read by a check; `fs_ellipse_e` and
+`fs_boundary_pips` are asserted against `Fee.Split` recomputed at the split's own pair and target.
+A sixth `SplitRefusal` constructor, `NoBoundaryForAnAdmissiblePair`, carries RC-M4's impossible
+`Nothing` as a named refusal rather than a `fromMaybe` default.
 
 **CHAIN-04 IS COMPLETE. `Chain.Shock` DECODES AN EVENT WHOSE EVERY PRODUCTION LOG IS TWO-THIRDS
 ZERO.** 259 lines, six imports, +0 packages, no IO, no hexadecimal literal, `Either` with ten named
@@ -783,6 +847,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 24 P05 | 110min | 3 tasks | 7 files |
 | Phase 24 P06 | 120min | 2 tasks | 6 files |
 | Phase 26 P02 | ~5h | 3 tasks | 3 files |
+| Phase 26 P03 | 180min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -907,6 +972,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 23]: [23-01 FINDING, the eighth self-contradicting-criterion instance in this repo] Three of the plan's acceptance greps counted matches in HADDOCK, not code — `cryptonite` (the plan prescribed a comment containing the token it then forbade), `octal-escape`, `DerivedDoc(..)`, and the credential grep (2 hits, both on the word "password" in comments SAYING there is no password). The last is substantive: DB-02's planned `no_credential_is_present_in_a_tracked_file` check greps exactly those tokens with a positive control, so a comment asserting its own cleanliness would have reddened it. **Prose is inside the grep's blast radius.** Also unsatisfiable as written: `grep -c 'lookupEnv' Store/Config.hs == 2`, since the import line alone makes the floor 3.
 - [Phase 23]: [23-01 FINDING, gsd-tools is not safe on this STATE.md] `gsd-tools state advance-plan` errors (`Cannot parse Current Plan or Total Plans in Phase`) and `state update-progress` rewrote the frontmatter to `milestone: v2.0`, 25 phases / 37 plans by scanning EVERY phase directory on disk — folding the v1.0–v5.0 tracks, which this file says are separate and never renumbered, into v6.0. Reverted; the v6.0 progress block is maintained BY HAND.
 - [Phase 26]: [26-02 CONFIRMED, the 23-01 finding RECURS] `gsd-tools state advance-plan` errored identically (`Cannot parse Current Plan or Total Plans in Phase`) and `state update-progress` again rewrote the frontmatter to `milestone: v2.0`, `milestone_name: milestone`, a `status` line made of a stray sentence fragment, and 25 phases / 50 plans / 47 complete by scanning every phase directory on disk. Reverted by hand at 26-02's closeout and the v6.0 counters set by hand (15 -> 16 of 18). `state record-metric` and `roadmap update-plan-progress` are SAFE and were used. `requirements mark-complete` is SAFE and was used. **Do not run `state update-progress` or `state advance-plan` against this file.**
+- [Phase 26]: [26-03 FINDING, the "safe" list is WRONG and this is the SEVENTH occurrence] `gsd-tools state record-metric` ALSO rewrites this frontmatter to `milestone: v2.0`, `milestone_name: milestone`, a `status` line made of a stray prose fragment, 25 phases / 50 plans / 48 complete, and it reverts `stopped_at` and `last_activity` to older values. 26-02's own note lists it as SAFE and the 26-03 execution brief repeated that. **BISECTED at 26-03 on a scratch copy, one command at a time, checking line 3 after each:** `state record-metric` -> `milestone: v2.0`; `roadmap update-plan-progress 26` -> `milestone: v6.0`; `requirements mark-complete FEE-01` -> `milestone: v6.0`. So the culprit is `record-metric` alone, and the other two are genuinely safe. The metrics row it appends is CORRECT and worth having -- it also writes the duration without the `min` suffix every other row carries -- so the rule is: run it, then restore the frontmatter by hand and fix the units. **Do not run `state update-progress`, `state advance-plan` or `state record-metric` against this file without restoring the frontmatter afterwards.**
 
 - [18b-01 MEASURED, supersedes 18a's number]: N=128 batch gas is now **execGas 3,231,765 + intrinsic 21,000 + EIP-2028 calldata 23,000 = 3,275,765 TOTAL**, a **+28,313 (+0.87%)** move from 18a's 3,247,452. The encoder adds 2 mstores per element plus memory expansion for the 8256-byte buffer; calldata gas is unchanged (the INPUT did not change). Still 3.05x under MCAL-01's 10,000,000 ceiling and well inside the plan's 3,400,000 stop-and-investigate band.
 - [18b-01 MEASURED, the honest negatives — record these rather than the kill count alone]: (a) the **element-base-shift mutant (`base = 32 + 64*i`) is BLIND at N=0** — `test__unit__emptyReturnIsExactlySixtyFourBytes` stayed GREEN under it, because with no elements there is nothing to misplace and the total is 64 bytes either way. Killable only at N >= 1. (b) The **stride mutant (`64 + 32*i`) is blind at N <= 1** — OBSERVED directly: `test__unit__oneAndTwoElementReturnsAreByteExact` reddened at its **N=2** assertion while its N=1 assertion passed, since i=0 makes `64 + stride*i` independent of the stride. (c) The **dropped-outer-offset-word mutant IS killable at N=0** (32 bytes vs 64) — it and the base-shift mutant are COMPLEMENTARY, which is why both are run. A corpus that is N=0-only, or N<=1-only, would silently miss real encoder bugs.

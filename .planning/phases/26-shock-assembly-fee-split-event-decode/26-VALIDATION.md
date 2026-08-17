@@ -229,7 +229,12 @@ inputs; this note exists so the originals are not restored from here.
   bound uses `m + 2`. Relatedly, the "~10^3 headroom" figure is the band MINIMUM; an arbitrary
   seeded pick measures up to **0.4997 pip**, so the real headroom is **2x**.
 - **Guard 20 (band non-degenerate).** `f = 3000, delta* = 1000` is named as "band EMPTY". MEASURED:
-  it is a band of **4** (2 under `rho > 1`). The EMPTY input is `delta* = 200`; the SINGLETON input
+  `admissible_band 3000 1000 == [(1,2999),(2,2998)]`, a band of **2**. *(CORRECTED AT EXECUTION,
+  RC-M6, 2026-08-17: this line said **4**. Four is the count of BOTH orientations —
+  `(1,2999)`, `(2,2998)`, `(2998,2)`, `(2999,1)` — and `admissible_band` keeps only `m > x`, so
+  what the function returns, and what the check's failure message prints, is 2. Observed verbatim:
+  `admissible_band 3000 1000 is [(1,2999),(2,2998)] with size 2`.)* The EMPTY input is
+  `delta* = 200`; the SINGLETON input
   — the one that makes FEE-04 vacuous, since all eight pinned seeds then map to index 0 — is
   `delta* = 500`, sole member `(1, 2999)`.
 

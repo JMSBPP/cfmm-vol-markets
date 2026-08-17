@@ -115,18 +115,18 @@ exists because three separate layers were measured silently altering them.
 
 ### Fee Split (FEE)
 
-- [ ] **FEE-01**: Given a pool fee `f` and a target `δ*`, the splitter produces (φ_X, φ_M)
+- [x] **FEE-01**: Given a pool fee `f` and a target `δ*`, the splitter produces (φ_X, φ_M)
       satisfying `(1−φ_X)(1−φ_M) = 1−f` exactly.
-- [ ] **FEE-02**: The pair satisfies the prover's own admissibility test, transcribed from
+- [x] **FEE-02**: The pair satisfies the prover's own admissibility test, transcribed from
       `volume_path.gms:100-108` and checked **before** the solver is invoked:
       `ellTest = (φ̄² + Δφ²)δ*² − (φ_X+φ_M)·φ̄·δ* + φ_X·φ_M ≤ 0`, where **φ̄ is the COMPOSED fee**
       `1−(1−φ_X)(1−φ_M)` and **Δφ is the FULL gap** `φ_M−φ_X`. Evaluated in exact integer
       arithmetic over pips — never `Double`, never `Rational`. NOTE: an earlier reading of φ̄ as
       the arithmetic mean and Δφ as the ellipse SEMI-axis is WRONG — it yields a bound exactly
       2× too large and falsely refuses ~82,700 pips of admissible δ* at the fixture fees.
-- [ ] **FEE-03**: An infeasible request is refused with the reason and the boundary value,
+- [x] **FEE-03**: An infeasible request is refused with the reason and the boundary value,
       rather than being discovered as a solver exit code.
-- [ ] **FEE-04**: The choice of ρ within the admissible band is reproducible from a recorded
+- [x] **FEE-04**: The choice of ρ within the admissible band is reproducible from a recorded
       seed.
 
 ### Chain Reads (CHAIN)
@@ -222,10 +222,10 @@ Filled during roadmap creation (2026-08-16).
 | GAMS-04 | Phase 24 | Complete |
 | GAMS-05 | Phase 24 | Complete |
 | GAMS-06 | Phase 24 | Complete |
-| FEE-01 | Phase 26 | Pending |
-| FEE-02 | Phase 26 | Pending |
-| FEE-03 | Phase 26 | Pending |
-| FEE-04 | Phase 26 | Pending |
+| FEE-01 | Phase 26 | Complete |
+| FEE-02 | Phase 26 | Complete |
+| FEE-03 | Phase 26 | Complete |
+| FEE-04 | Phase 26 | Complete |
 | CHAIN-01 | Phase 27 | Blocked (upstream `next` event, issue #26) |
 | CHAIN-02 | Phase 27 | Blocked (upstream `next` event, issue #26) |
 | CHAIN-03 | Phase 27 | Blocked (upstream `next` event, issue #26) |
