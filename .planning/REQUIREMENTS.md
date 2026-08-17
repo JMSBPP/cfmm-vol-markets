@@ -80,7 +80,7 @@ exists because three separate layers were measured silently altering them.
       **exit code**, never by log text.
 - [x] **GAMS-02**: A run that exits 0 without producing the artifact is a failure (GAMS exit
       0 means "GAMS ran", not "the model solved").
-- [ ] **GAMS-03**: The GAMS and CONOPT versions are detected and fed into the key; detection
+- [x] **GAMS-03**: The GAMS and CONOPT versions are detected and fed into the key; detection
       that finds nothing **fails loudly** rather than yielding an empty string.
 - [x] **GAMS-04**: CONOPT version detection reads the true solver version (`C O N O P T
       version 4.39.0`) and not the adjacent GAMS-side link version or the `.so` filename.
@@ -188,7 +188,7 @@ Filled during roadmap creation (2026-08-16).
 | DB-04 | Phase 23 | **CLOSED (23-05) — phase verified 9/9, 111/111 checks, suite DB-free.** Prior: **Partial (23-04)** — `offchain/rig/capture-store-conformance.sh` provisions Postgres via Docker for local runs: `postgres:18-alpine` on host port **55433** (deliberately NOT 5432 — another project's Postgres is bound to `0.0.0.0:5432` on this machine, so the default would let a foreign database silently satisfy the connection), a per-run database, a bounded readiness poll, and teardown on every exit path including SIGINT. Cold run **4–8 s**. The artifact records BOTH sides of the pin: `image_tag` (`postgres:18-alpine`, what was asked for) and `server_version` (`18.4`, what replied). Still owed: the CI half of "local and CI" — that is the CI track's coordination item, not this workstream's, and no `.github/` file was touched. No check compares the two recorded fields yet (23-05). |
 | GAMS-01 | Phase 24 | Complete |
 | GAMS-02 | Phase 24 | Complete |
-| GAMS-03 | Phase 24 | Pending |
+| GAMS-03 | Phase 24 | Complete |
 | GAMS-04 | Phase 24 | Complete |
 | GAMS-05 | Phase 24 | Complete |
 | GAMS-06 | Phase 24 | Complete |

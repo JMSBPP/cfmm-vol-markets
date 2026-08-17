@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 24-05-PLAN.md (5/6 in phase 24) — next /gsd:execute-phase 24 (plan 24-06, the last)"
+stopped_at: "PHASE 24 COMPLETE (6/6 plans, 7/7 requirements) — next /gsd:plan-phase 25"
 last_updated: "2026-08-17"
-last_activity: "2026-08-17 — 24-05 executed: the real GAMS 54.1/CONOPT 4.39 toolchain driven once into a committed artifact, ten Tier-C checks resting on it, the sixth swept artifact, four floors re-measured; 149/149 checks, 0 warnings, fourteen firing observations, GAMS-01/02/04/06 COMPLETE"
+last_activity: "2026-08-17 — 24-06 executed: migration 003 makes an empty gams_ver/conopt_ver UNSTORABLE and SQLSTATE 23514 was OBSERVED against a real Postgres 18.4 on BOTH columns independently, through the store's own Binary-wrapped write path, with a positive control that lands; 151/151 checks, 0 warnings, eight firing observations, GAMS-03 COMPLETE and phase 24 CLOSED"
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 <!--
@@ -43,7 +43,103 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **24 — GAMS Invocation & Toolchain Identity** — **IN PROGRESS (4/6 plans)**
+Phase: **24 — GAMS Invocation & Toolchain Identity** — **COMPLETE (6/6 plans, 7/7 requirements)**
+Plan: **24-06 COMPLETE.** `NOT NULL` is not non-empty, and the database was WATCHED saying so.
+
+**A `"" == ""` LIVE SINCE PHASE 23 IS CLOSED ONE LAYER BELOW THE HASKELL GUARD.**
+`001_model_run.sql` declares `gams_ver` and `conopt_ver` `text not null`, and **`text not null` does
+not forbid `''`** — so the schema underneath `Gams.Version`'s unconstructible-empty newtype would
+still have accepted the empty string from any other writer. Migration
+`003_version_columns_nonempty.sql` adds a NAMED `check (length(gams_ver) > 0 and length(conopt_ver)
+> 0)`, and the refusal was **OBSERVED against a real Postgres 18.4**, not argued from the DDL:
+SQLSTATE **`23514`**, on **`gams_ver` and `conopt_ver` independently** (each with the other column
+left non-empty), through **`store_put` — the store's own `Binary`-wrapped write path**, with the
+server's own message naming the constraint and `rows_after` **0** from the server's own count. Suite
+**149/149 → 151/151**, FAIL 0, zero `-Wall` warnings, still DB-free AND GAMS-free, wall 150.0 s
+against 900 s.
+
+**THE POSITIVE CONTROL IS WHAT MAKES THE REFUSAL MEAN ANYTHING.** The identical row with both
+versions non-empty **LANDS** (`control_accepted true`, `control_rows_after 1`). "It raised" is
+satisfied by a dead connection, a malformed key, a `doc` that is not JSON and a table that does not
+exist — this repository's whole defect class. The control is evaluated BEFORE the rejections in both
+the script gate and the in-suite check.
+
+**THE COPY-PASTE CONSTRAINT WAS MEASURED, NOT ARGUED.** With `003` cut down to
+`check (length(gams_ver) > 0)` and nothing else changed, the capture recorded **`rejected: false`** —
+the server **STORED** an empty `conopt_ver`. The two-conjunct constraint is not tidiness, and the
+same run is the restore-on-failure proof: the capture DID write a new artifact, the gate fired, and
+the committed evidence came back **byte-identical by DIGEST** (`4111b1f3…520f18e8`), which is the
+instrument phase 23's first docker probe taught us to use instead of an exit code.
+
+**A FIELD THE HARNESS CAUGHT WAS DELETED, NOT ASSERTED.** The first version of the observation
+carried a per-column `attempted` and it was the literal `True`; the sentinel sweep reported all six
+of its mutations ABSORBED. Asserting it would have compared a constant to itself — 24-04 MEASURED
+that shape leaving a suite **138/138 green with the library renamed underneath it**. The honest
+per-column form is the ENTRY, and the array's column set is compared to
+`Store.Schema.versions_nonempty_columns` in BOTH directions.
+
+**THE STORE ARTIFACT'S TOP-LEVEL SURFACE IS NOW A SET IN BOTH DIRECTIONS** —
+`expected_store_observation_blocks`. **Fifth list found in this phase without a growth guard and the
+fifth to get one.** OBSERVED with the COUNT-PRESERVING RENAME control:
+`empty_version_rejected` → `empty_version_refused` leaves **14 keys before and 14 after**, so a
+count passes, and the set reddens in both directions at once.
+
+**THE READINESS POLL WAS NOT A READINESS GATE, AND IT COST THREE CAPTURES.**
+`pg_isready` over the container's UNIX SOCKET is satisfied by the entrypoint's TEMPORARY bootstrap
+server — and it reports `FATAL: database "..." does not exist` as *accepting connections*. The poll
+passed, the bootstrap server shut down, and the client's first query hit the close. `-h 127.0.0.1`
+is the discriminator, because the bootstrap server has no TCP listener. Pre-existing since 23-04; it
+failed in the SAFE direction every time, which is exactly why it survived. A companion bug in the
+same block: `read -r a b c <<< "$(jq …)"` collapses when `sqlstate` is legitimately empty — one `jq`
+call per field now.
+
+**BOTH TREE-DERIVED FLOORS RE-MEASURED COLD, BEFORE AND AFTER, and the brief was wrong.** The plan
+brief said `purge_file_floor` 55 / `credential_scan_floor` 63; those are **24-04's** numbers.
+Measured cold on disk before anything was edited: **58 / 67**, zero slack. After the migration:
+**59 / 68**, zero slack, census `hs 47, sh 9, json 9, md 3, txt 2, sql 3`. `sentinel_pair_floor`
+**3698 → 3828** and `artifact_field_floors`'s `store-conformance.json` **134 → 156**, both raised
+until the harness NAMED what it reached; the five other artifacts came back at exactly their old
+numbers.
+
+**PROSE INSIDE A GREP'S BLAST RADIUS — INSTANCE 18.** This plan's own haddock said "every future
+writer that is not `Store.Postgres`", inside the file whose scan asserts no such token is in it. The
+verification grep returned 1. Eighteen times now; the answer has never changed.
+
+**PHASE-LEVEL FINDING: FOUR of 24-RESEARCH's 41 guards have a standing assertion and NO mutation.**
+Named, not omitted (23-05's guard #13 precedent): **#11** `conopt_parse_is_position_independent`
+(never falsified — 24-01 records it staying GREEN under a sibling's mutation, which is not an
+observation of it); **#21** the echoed-field cross-check (24-03 exercised it and it PASSED; the
+freshness conjunct did the catching); **#23** the 2 MB stderr drain (its firing input is a deadlock
+and no mutation removed the drain); and **#28/#30** (the empty hostile-variable set and the
+fewer-than-16-of-16 arm, both asserted every run, neither mutated). Guard #21 is the one Phase 25
+must close — KEY-02's own success criterion asks for exactly that mutation.
+
+**ALL SEVEN PHASE-24 REQUIREMENTS ARE COMPLETE**, and `24-RESEARCH`'s five-part gate on starting
+Phase 25 is discharged in full.
+
+Next action: `/gsd:plan-phase 25`.
+
+Last activity: 2026-08-17 — 24-06 executed (commits `158ca84`, `79f8ad8`).
+
+## Phase 24 Plan 05 Position (record)
+
+Plan: **24-05 COMPLETE** (commits `15c539c`, `2e1a390`, `ac607bd`, closeout `1df084a`). The real
+GAMS 54.1.0 / CONOPT 4.39.0 driven once out of band into `offchain/rig/gams-conformance.json`; ten
+Tier-C checks resting on it; 75 of the artifact's 76 leaves read by one of them; the sixth swept
+artifact; four floors re-measured; fourteen firing observations; `cabal test` still structurally
+unable to name the solver. Suite **138/138 → 149/149**. GAMS-01/02/04/06 marked COMPLETE.
+**Its summary was written but never committed** — `24-05-SUMMARY.md` was untracked until 24-06's
+metadata commit carried it, unmodified. A phase record that exists only on one machine's disk is not
+a record.
+
+Its three carry-forwards that outlive the phase: `gams-conformance.json` is NOT byte-stable across
+re-captures (`generatedAt` and two banner `line1`s carry a wall clock, MEASURED);
+`Gams.Invoke.raw_gams`'s timeout has never been observed firing (the production path through
+`run_prover` HAS been, at 24-04); and `conopt_true_line_index_real` is **48**, not the 47
+`24-RESEARCH` records.
+
+## Phase 24 Plan 04 Position (record)
+
 Plan: **24-04 COMPLETE.** The hung GRANDCHILD, two real environment vectors, a version that cannot
 be missing, and the structural guarantee that `cabal test` cannot reach the real prover. Suite
 **131/131 → 138/138**, FAIL 0, zero `-Wall` warnings, still DB-free AND GAMS-free, **+0 packages**.
@@ -423,6 +519,8 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 22 P05 | 22min | 3 tasks | 8 files |
 | Phase 22 P06 | 41 | 3 tasks | 9 files |
 | Phase 24 P03 | 41 | 2 tasks | 4 files |
+| Phase 24 P05 | 110min | 3 tasks | 7 files |
+| Phase 24 P06 | 120min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -432,6 +530,35 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 **v6.0 (Phase 24) decisions:**
 
+- [Phase 24]: [24-06 DECIDED, from MEASURED M14] **the schema refuses the empty version, and the
+  refusal is a NAMED check.** `text not null` does not forbid `''`, so `Gams.Version`'s abstract
+  newtype — the primary defence — protects only the writers that go through Haskell. Migration
+  `003_version_columns_nonempty.sql` adds `check (length(gams_ver) > 0 and length(conopt_ver) > 0)`
+  under the name `model_run_versions_nonempty`, and the name is load-bearing rather than stylistic:
+  SQLSTATE `23514` says only that SOME check refused, and `model_run` is free to grow other checks.
+  The recorded evidence asserts the server's own message CONTAINS that name. OBSERVED against
+  Postgres 18.4 on both columns independently, with a positive control that lands.
+- [Phase 24]: [24-06 DECIDED] **a refusal exhibit that does not also record an ACCEPTANCE is not
+  evidence.** "The insert raised" is satisfied by a dead connection, a malformed key, a `doc` that
+  is not JSON and a missing table. `empty_version_rejected` therefore carries `control_accepted` and
+  `control_rows_after` — the identical row with non-empty versions, which must land exactly one row
+  — and both the shell gate and the in-suite check evaluate the control BEFORE the rejections.
+  `rows_after` per attempt is the SERVER'S own count, because "an exception was raised" and "nothing
+  was written" are different claims.
+- [Phase 24]: [24-06 DECIDED, MEASURED by the sentinel harness] **a field the writer hardcodes is
+  DELETED, never asserted.** The first version of the observation carried a per-column `attempted`
+  that was the literal `True`; the harness reported all six of its mutations ABSORBED. Asserting it
+  would have compared a constant to itself, which is 24-04's measured defect (a suite green with the
+  library renamed underneath it). The honest per-column form is the ENTRY, compared to
+  `Store.Schema.versions_nonempty_columns` in both directions, so a missing attempt is a set
+  mismatch rather than a shorter list.
+- [Phase 24]: [24-06 DECIDED] **`pg_isready` over a container's unix socket is not a readiness
+  gate.** The postgres entrypoint runs a temporary bootstrap server on that socket during `initdb`,
+  and `pg_isready` reports a server answering `FATAL: database "..." does not exist` as accepting
+  connections. THREE consecutive captures died on the subsequent shutdown. The gate is now
+  `pg_isready -h 127.0.0.1`, because the bootstrap server has no TCP listener — a discriminator,
+  not a longer sleep. Pre-existing since 23-04 and invisible because it failed in the safe
+  direction.
 - [Phase 24]: [24-01 DECIDED, from MEASURED M2] **the GAMS version's discriminator is the banner's
   JOB NAME, not the shape of the version token.** The three real banners — the production run
   (`volume_path.gms`), the no-argument help banner (`?`, **exit 0**, version present three times,
@@ -658,6 +785,6 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-08-17T00:45:08.000Z
-Stopped at: Completed 24-03-PLAN.md (3/6 in phase 24) -- next /gsd:execute-phase 24 (plan 24-04)
+Last session: 2026-08-17T05:13:03.000Z
+Stopped at: PHASE 24 COMPLETE (6/6 plans, 7/7 requirements) -- next /gsd:plan-phase 25
 Resume file: None
