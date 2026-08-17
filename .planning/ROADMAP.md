@@ -966,12 +966,20 @@ Plans:
 the closed-form fee splitter, whose infeasibility is a refusal we explain rather than an exit
 code we interpret, and the `next` decoder, proven against synthetic logs before the upstream
 event exists. Zero dependencies beyond `base` and the existing decode idiom.
-**Depends on**: Nothing structural — fully parallelizable with 23–25. Sequenced here so all
-chain-free work is contiguous and phases 27–28 carry the entire upstream block.
+**Depends on**: Nothing structural — but **NOT parallelizable with 23–25**, and the original
+"fully parallelizable" claim here was wrong. Every check in this project lives in the single
+file `offchain/test/Main.hs`, so two phases editing it concurrently collide and lose work.
+**26 executes AFTER 25** (`depends_on_phases: ["25"]` in all four plans), and every phase-26
+task gate is expressed as `BASE + N` with `BASE` re-measured at the wave's start rather than
+inherited — 25 adds ~56 checks to the same `core_checks`, which would invalidate any absolute
+total pinned at plan time. Sequenced here so all chain-free work is contiguous and phases
+27–28 carry the entire upstream block.
 **Requirements**: FEE-01, FEE-02, FEE-03, FEE-04, CHAIN-04
 **Success Criteria** (what must be TRUE):
   1. Over a grid of `(f, δ*)` including boundary points and one pip either side, the produced (φ_X, φ_M) satisfy `(1−φ_X)(1−φ_M) = 1−f` under a **rounding rule pinned in writing**; a rounding that breaks the level constraint by a pip is REPORTED rather than absorbed, and the derived pips (not `f`) are what reach the key, since they are what GAMS receives (FEE-01).
-  2. The admissibility predicate is the PROVER'S OWN test transcribed from `volume_path.gms:100-108` — `(φ̄²+Δφ²)δ*² − (φ_X+φ_M)·φ̄·δ* + φ_X·φ_M ≤ 0` with **φ̄ = the COMPOSED fee `1−(1−φ_X)(1−φ_M)`** and **Δφ = the FULL gap `φ_M−φ_X`** (NOT the arithmetic mean and semi-axis — that reading is 2× too large and falsely refuses ~82,700 pips). Evaluated in exact INTEGER arithmetic over pips — never `Double` — and the Haskell verdict **AGREES with the GAMS prover's verdict on every grid point**, including the `ρ* = 3.8198` / `δ* = 0.49` boundary and one pip either side. A disagreement is a bug in one of them and fails the phase; it is not absorbed by a tolerance (FEE-02).
+  2. The admissibility predicate is the PROVER'S OWN test transcribed from `volume_path.gms:100-108` — `(φ̄²+Δφ²)δ*² − (φ_X+φ_M)·φ̄·δ* + φ_X·φ_M ≤ 0` with **φ̄ = the COMPOSED fee `1−(1−φ_X)(1−φ_M)`** and **Δφ = the FULL gap `φ_M−φ_X`** (NOT the arithmetic mean and semi-axis — that reading is 2× too large and falsely refuses ~82,700 pips). Evaluated in exact INTEGER arithmetic over pips — never `Double` — and the Haskell verdict **AGREES with the GAMS prover's verdict on every grid point**, bracketing each boundary by one pip on each side. A disagreement is a bug in one of them and fails the phase; it is not absorbed by a tolerance (FEE-02).
+
+  **CORRECTED 2026-08-17.** This criterion previously named "the `ρ* = 3.8198` / `δ* = 0.49` boundary". That number is a residue of the same arithmetic-mean/semi-axis misreading `c6c2646` corrected in the clause above: `3.8198417` is the root of the REFUTED `δ* = 2ρ/(1+ρ²)` form, and the corrected `δ* = ρ/(1+ρ²)` puts the leading-order boundary at `ρ ≈ 1.2234668` (MEASURED). Rather than substitute one closed-form point, the Tier-C differential brackets in the **δ\* direction** at four fixed `(f, δ*)` pairs with boundaries measured from the prover itself — `δ* ∈ {82803 … 495954}`, each with a `boundary±1` row. `δ* = 490000` is exercised in Tier A only: at that target the pair `(700, 800)` is inadmissible (boundary `495953`), so it cannot appear in a GAMS agreement grid. Rationale and leaf budget: `26-VALIDATION.md` §3c.
   3. An infeasible request is REFUSED **before any subprocess is spawned**, with the reason and the boundary value in the message — verified by a check that fails if the solver is invoked at all, so "checked before" is observed rather than assumed. The structurally infeasible `φ_X == φ_M` case (§1.2: equal fees are infeasible for *every* target) is among the refusals, caught in Haskell rather than read back as a GAMS abort (FEE-02, FEE-03).
   4. Re-running with the **recorded seed** reproduces the same ρ within the admissible band, and a **different** seed produces a different ρ — so the seed is proven load-bearing rather than decorative, which a same-seed-only test cannot establish (FEE-04).
   5. `decode_next` is exercised against **synthetic logs with no chain**: the 4-byte selector is COMPUTED in the test from the signature string `next(address,uint160,int24,uint24,uint24)` and matched against `0xd3827b0b` (derived, never a transcribed literal); signed `int24` decodes correctly including negative ticks; and a log with the wrong topic, the wrong data length, a truncated payload, or an **all-zero payload** is REJECTED rather than decoded into a plausible-looking shock — the zero-word trap, one type over (CHAIN-04).
@@ -1213,8 +1221,10 @@ Plans:
 
 ## Progress (Milestone v6.0)
 
-**Execution Order:** 23 → 24 → 25 → 26 → 27 → 28, with 26 parallelizable against 23–25 (it has
-zero dependencies beyond `base`). 23 → 24 → 25 is a genuine chain: 24 must land before 25's
+**Execution Order:** 23 → 24 → 25 → 26 → 27 → 28, **strictly serial**. The earlier claim that
+26 was parallelizable against 23–25 was wrong: 26's *dependencies* are indeed only `base`, but
+parallelism is bounded by the single-file test suite (`offchain/test/Main.hs`), not by the
+dependency graph. 23 → 24 → 25 is additionally a genuine chain: 24 must land before 25's
 first production write, and 25 consumes 23's schema. **27 and 28 are BLOCKED on another
 workstream**; 23–26 are the complete chain-free subsystem and the byte-reproduction proof lands
 at the end of 25.
