@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 24-01-PLAN.md (1/6 in phase 24) — next /gsd:execute-phase 24 (plan 24-02)"
+stopped_at: "Completed 24-02-PLAN.md (2/6 in phase 24) — next /gsd:execute-phase 24 (plan 24-03)"
 last_updated: "2026-08-16"
-last_activity: "2026-08-16 — 24-01 executed: the pure half of toolchain identity, 117/117 checks, 0 warnings, four firing observations"
+last_activity: "2026-08-16 — 24-02 executed: the renderer, the whitelist and the artifact decoder; 126/126 checks, 0 warnings, five firing observations, BYTE-04 COMPLETE"
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 11
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -32,44 +32,64 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **24 — GAMS Invocation & Toolchain Identity** — **IN PROGRESS (1/6 plans)**
-Plan: **24-01 COMPLETE.** The PURE half of toolchain identity. **No requirement was marked
-complete** — GAMS-01/03/04 are all held at PARTIAL, because the IO conjuncts (the subprocess
-itself, detection failure ABORTING an invocation) and GAMS-04's Tier-C capture row are not in
-this plan. Phase 23's practice, applied on the first plan rather than the fifth.
+Phase: **24 — GAMS Invocation & Toolchain Identity** — **IN PROGRESS (2/6 plans)**
+Plan: **24-02 COMPLETE.** The renderer that decides the artifact's bytes, the environment
+whitelist, and the decoder that never builds a 53-bit floating value. **BYTE-04 is MARKED
+COMPLETE** — the first requirement closed in this phase, because all six of its Tier-A rows
+shipped here and every conjunct has a check that reads it. GAMS-02 and GAMS-06 stay PARTIAL:
+their remaining halves are Tier-B subprocess checks that do not exist yet.
 
-Status: **THE EMPTY VERSION IS NOW UNCONSTRUCTIBLE, BEFORE ANY ROW EXISTS.** `Gams.Version`
-withholds both constructors and carries no fallback of any kind; `Gams.Exit.classify_exit` is a
-total function of `ExitCode` alone, so "no decision reads log text" is structural rather than
-asserted. Suite **111/111 → 117/117**, FAIL 0, zero `-Wall` warnings, still DB-free AND GAMS-free.
+Status: **THE LEADING ZERO CANNOT REACH THE `execve`.** `parse_shock_field` NORMALIZES at the
+edge, so `079228162514264337593543950336` and `79228162514264337593543950336` become one
+`Integer` and one token — which also settles Phase 25's KEY-04 (`28e18` and
+`28000000000000000000` are the same value) upstream of any row. `Shock` carries seven strict
+`Integer`s with no optional and no defaultable field, and eight shape-valid shocks are refused BY
+FIELD NAME. Suite **117/117 → 126/126**, FAIL 0, zero `-Wall` warnings, still DB-free AND
+GAMS-free, +0 packages.
 
-**FOUR FIRING OBSERVATIONS (five, counting an unplanned one).** The strongest: with the job-name
-rule removed, the REAL exit-0 no-argument help banner was accepted as
-`Right (GamsVersion ("54.1.0","37378ce0"))` — exit 0, non-empty, correctly shaped, wrong subject.
-With the CONOPT marker relaxed, the GAMS-side LINK version was accepted as CONOPT's
-(`Right (ConoptVersion "54.1.0")`). With 7 mapped to `Solved`, an expired licence became a
-successful solve. With `fromMaybe "unknown"` added, the scan named the file AND the line. Every
+**BYTE-04 IS TWO EQUALITIES ON `Integer`s, TIED TO THE FILE BY A DIGEST CHECKED FIRST.**
+`dQx[0]`'s 53-bit image is pinned at `-2613128317657530368` and the move is asserted as
+`image - exact = +32` — the research table's sign convention, now STATED, because the check was
+first written the other way round and its own first run caught it (an `abs` would have hidden it).
+16 of 16 elements are shown inexact, `|delta|` in `[4, 328]`. The provenance digest runs BEFORE
+the decode, so an edited artifact fires on identity rather than producing a
+different-but-plausible vector.
+
+**THE REASSIGNED HOLE IS CLOSED, NOT DEFERRED.** `aeson_storage_path` had no directory
+cross-check and wave 1 proposed 24-04. `Gams/Artifact.hs` went onto the list in the commit that
+created it, all five sibling GAMS modules with it, and research guard 34 landed in the same
+commit — a both-directions assertion over `offchain/lib/{Store,Gams}/` with an EMPTY, reasoned
+exemption list. Then the same defect was found INSIDE the fix: the new float scan was a
+hardcoded two-file list with no growth guard of its own. `artifact_float_path` is now
+`aeson_storage_path` — one set, one growth guard, thirteen more files covered at zero cost, and
+`budget :: Double` seeded into `Gams/Env.hs` was OBSERVED reddening it by file and line, which
+before that fix would have been silent.
+
+**FIVE FIRING OBSERVATIONS.** A leading-zero renderer named the `=0` token; an edge that REFUSED
+the leading zero instead of normalizing it fired the M7 arm the plan named (the planned mutation
+fired the positive arm first, so both were run and both recorded, as at 24-01); a decoder that
+took `1.5` as `1` put a wrong wei amount into `dQx`; ONE byte of
+`offchain/rig/volume-path-golden.json` — length unchanged at 606 — fired on the DIGEST before
+the decode; and an unlisted `Gams/Publish.hs` was named by BOTH directory-vs-list guards. Every
 source restored **from a saved copy** verified sha256-identical, never by `git checkout`.
 
-**THE PROSE TRAP FIRED FOR REAL, UNPLANNED.** `Gams/Exit.hs` used the phrase "the c-a-t-c-h-all"
-(spelled out) in a haddock comment and the new no-fallback scan REDDENED on it, naming the file
-and the line. The prose moved; the pattern was not relaxed. Eleventh instance on this branch and
-the first where the guard did the catching rather than a plan's self-check.
+**THE PROSE TRAP FIRED A TWELFTH TIME — AND THIS TIME IT WAS IN THE PLAN.** 24-02's task 1 action
+asked for a haddock explaining why `show` on a `Double` is locale-dependent, while its own
+acceptance criterion greps that file for `Double` expecting 0. The reasoning was kept and the
+words changed; the pattern was not relaxed.
 
 **BOTH TREE-DERIVED FLOORS RE-MEASURED COLD, in the same commit as the modules that moved them:**
-`purge_file_floor` 48 → **51** and `credential_scan_floor` 56 → **59**, each from
-`find … | wc -l` run at execution time, never by arithmetic. 48 was against exactly 48 scanned
-files — zero slack — so the three new modules would have reddened the scan in the commit that
-created them.
+`purge_file_floor` 51 → **54** and `credential_scan_floor` 59 → **62**, each from
+`find … | wc -l` run at execution time. **Zero slack for the second plan running** — 51 against
+exactly 51 files, 59 against exactly 59.
 
-**TWO INHERITED NUMBERS WERE STALE.** The cold baseline was **111/111 at wall 71.8 s**, not the
-97 s carried in this file and in `24-RESEARCH.md`, nor the 66 s in the execution prompt. After:
-117/117 at **87.8 s**. The +16 s is the sentinel harness, which pays every added check ~3250
-times — Tier-B stub checks land inside that multiplier.
+**THE WALL.** 68 s before, **76 s** after, with the test binary already built both times (24-01's
+87.8 s included compilation and is not comparable). Nine checks cost ~8 s, two of which spawn
+`grep` inside the sentinel harness's ~3250-pair multiplier. Budget 900 s.
 
-Next action: `/gsd:execute-phase 24` (plan 24-02).
+Next action: `/gsd:execute-phase 24` (plan 24-03).
 
-Last activity: 2026-08-16 — 24-01 executed (commits `250bb78`, `891d5e2`, `048233e`).
+Last activity: 2026-08-16 — 24-02 executed (commits `2a62cce`, `46ba4fc`, `2a558e3`, `8fc2bd6`).
 
 ## Phase 23 Closing Position (record)
 
@@ -217,6 +237,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 23 P04 | 33min | 3 tasks | 12 files |
 | Phase 23 P05 | 71min | 2 tasks | 2 files |
 | Phase 24 P01 | 22min | 3 tasks | 5 files |
+| Phase 24 P02 | 33min | 3 tasks | 5 files |
 | Phase 19 P01 | 6 | 3 tasks | 3 files |
 | Phase 19 P02 | 33 | 3 tasks | 3 files |
 | Phase 19 P03 | 24 | 3 tasks | 1 files |
