@@ -102,6 +102,12 @@ library
                     -- relativisation, crypton arrives through Store.Types.sha256_hex, and every
                     -- one of the three was already a dependency of this stanza.
                     , Store.Key
+                    -- Phase 25's solver seam. +0 PACKAGES and nothing to weigh: it declares one
+                    -- record and re-exports the outcome sum from Gams.Run, so it imports only
+                    -- modules of this same stanza. CONFIRMED rather than estimated at 25-02:
+                    -- `cabal build --enable-tests -j all` printed no `Downloading` line with this
+                    -- module on disk.
+                    , Store.Solver
                     , Store.Postgres
                     -- The GAMS layer resolves at +0 PACKAGES. `process` (subprocess spawn and
                     -- pipe draining), `directory` (the exclusive run directory), `bytestring`

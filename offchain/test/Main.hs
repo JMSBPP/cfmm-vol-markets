@@ -1079,8 +1079,16 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
 -- > 60
+--
+-- RE-MEASURED COLD AT 25-02 TASK 1, in the same sitting as 'credential_scan_floor' and by running
+-- the command rather than by adding one to the number above it, with
+-- @offchain\/lib\/Store\/Solver.hs@ on disk. Census under @offchain\/@ at that measurement:
+-- @hs 49, sh 9, json 9, md 3, txt 2, sql 3@. 61 against exactly 61 scanned files, zero slack.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
+-- > 61
 purge_file_floor :: Int
-purge_file_floor = 60
+purge_file_floor = 61
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -7665,8 +7673,17 @@ credential_scan root =
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 69
+--
+-- RE-MEASURED COLD AT 25-02 TASK 1, in the same sitting as 'purge_file_floor' and by running the
+-- command below rather than by adding one, with @offchain\/lib\/Store\/Solver.hs@ on disk:
+-- @70 = 49 hs + 9 sh + 9 json + 3 sql@, against exactly 70 files, zero slack. A @.hs@ is a scanned
+-- type for BOTH scans, so this is another commit in which the two floors move together -- and the
+-- two commands were still run separately.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+-- > 70
 credential_scan_floor :: Int
-credential_scan_floor = 69
+credential_scan_floor = 70
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -7856,6 +7873,7 @@ aeson_storage_path =
   , "offchain/lib/Store/Memory.hs"
   , "offchain/lib/Store/Postgres.hs"
   , "offchain/lib/Store/Schema.hs"
+  , "offchain/lib/Store/Solver.hs"
   , "offchain/lib/Store/Types.hs"
   ]
 
