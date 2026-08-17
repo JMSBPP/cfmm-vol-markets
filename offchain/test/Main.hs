@@ -216,7 +216,13 @@ import Store.Config
   , store_conformance_env_var
   , store_conformance_path
   )
-import Store.Schema (expected_migrations, identity_constraint_columns, identity_constraint_name)
+import Store.Schema
+  ( expected_migrations
+  , identity_constraint_columns
+  , identity_constraint_name
+  , versions_nonempty_columns
+  , versions_nonempty_constraint_name
+  )
 -- 'cm_bytes' and the two golden pins are the EXPECTED sides of the conformance digest checks. They
 -- come out of the library's own corpus definition and its Haskell-source pin, never out of the
 -- artifact being checked: a digest read from the same file as the thing it digests is the tautology
@@ -1032,8 +1038,24 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 -- @hs 47, sh 9, json 8, md 3, txt 2, sql 2@; @.json@ went to 9 one commit later when the capture
 -- artifact landed, which moved 'credential_scan_floor' a second time and left this one alone --
 -- the two are re-measured together every time and they do NOT always move together.
+--
+-- RE-MEASURED COLD AT 24-06, both halves of the pair together, BEFORE and AFTER the one file this
+-- plan adds. Before: 58 against exactly 58, zero slack, confirming 24-05's number on disk rather
+-- than inheriting it -- which matters, because the plan brief this executor was handed said 55 and
+-- 55 is 24-04's stale number. After @migrations\/003_version_columns_nonempty.sql@ landed:
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
+-- > 59
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+-- > 68
+--
+-- 59 against exactly 59 scanned files, zero slack. Census under @offchain\/@ at that measurement:
+-- @hs 47, sh 9, json 9, md 3, txt 2, sql 3@. A @.sql@ is a SCANNED type for BOTH scans, so this is
+-- the one kind of file that moves both floors by the same amount in the same commit -- and the two
+-- commands were still both run, because deriving one from the other is what 24-02 did and 24-03 is
+-- how that was found out.
 purge_file_floor :: Int
-purge_file_floor = 58
+purge_file_floor = 59
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -6449,11 +6471,13 @@ migration_list_is_ordered_and_gapless =
                ++ " the manifest does not name is executed anyway, because the library applies"
                ++ " EVERY entry in that directory with no extension filter. One direction alone is"
                ++ " satisfied by a rename.")
-      expect (length expected_migrations >= 2)
-        ("the manifest holds " ++ show (length expected_migrations) ++ " migrations. Two are"
-          ++ " required by this schema -- the keyed store and the byte-fidelity fixture are"
-          ++ " separate tables on purpose -- and a manifest that shrank to one would report the"
-          ++ " remaining one applying cleanly.")
+      expect (length expected_migrations >= 3)
+        ("the manifest holds " ++ show (length expected_migrations) ++ " migrations. THREE are"
+          ++ " required by this schema -- the keyed store and the byte-fidelity fixture are separate"
+          ++ " tables on purpose, and 003 is the CHECK that makes an empty toolchain version"
+          ++ " unstorable -- and a manifest that shrank would report the remaining ones applying"
+          ++ " cleanly. This floor moved from 2 at 24-06 with the migration that made it three, and"
+          ++ " it is a floor rather than an equality so a fourth migration is not a red.")
 
 -- | The DDL text the identity constraint must carry, asserted against the FILE.
 --
@@ -6507,6 +6531,82 @@ unique_constraint_names_all_three_columns =
               ++ ". The insert path relies on that name -- its conflict target is the CONSTRAINT,"
               ++ " not a column list -- so an unnamed or renamed constraint turns first-writer-wins"
               ++ " into a runtime error rather than a compile-time one.")
+
+-- | GAMS-03's schema half, asserted against the FILE.
+--
+-- The Haskell smart constructor is the primary defence and it is already in place: @GamsVersion@'s
+-- constructor is not exported, so an empty one does not type-check outside its module. This is the
+-- OTHER layer, and it exists because @model_run@ is written to by a process rather than by a type.
+-- MEASURED at 24-RESEARCH M14 and re-observed against a real server by the capture:
+-- @text not null@ does not forbid @''@.
+--
+-- FOUR SUBJECTS, and they can drift apart:
+--
+--   1. the constraint NAME, as a Haskell constant the capture's error-message assertion reads;
+--   2. the constrained COLUMN SET, pinned here so dropping one from the Haskell list reddens;
+--   3. the DDL TEXT of migration @003@, which is what Postgres is actually handed;
+--   4. migration @001@'s own column declarations, so a constraint over a column this table does not
+--      have is caught here rather than at apply time in someone else's CI.
+--
+-- The LIVE half -- the server refusing a real insert with SQLSTATE @23514@ -- is
+-- 'store_conformance_records_the_empty_version_rejection', over the committed capture. A DDL file
+-- that was never applied and a catalogue that drifted from its DDL are different failures, exactly
+-- as they are for the identity constraint.
+--
+-- The migrations are resolved through 'expected_migrations' rather than named again here, so a
+-- renumbering the manifest accepts cannot leave this check reading files that no longer exist while
+-- reporting nothing.
+version_columns_are_unstorable_empty_in_the_ddl :: Check
+version_columns_are_unstorable_empty_in_the_ddl =
+  Check "version_columns_are_unstorable_empty_in_the_ddl" . guarded $
+    case (lookup 3 expected_migrations, lookup 1 expected_migrations) of
+      (Nothing, _) ->
+        pure $ expect False
+          ("the migration manifest has no version 3, so the migration that makes an empty toolchain"
+            ++ " version unstorable cannot be identified and this check has no subject to read.")
+      (_, Nothing) ->
+        pure $ expect False
+          ("the migration manifest has no version 1, so the table the constraint is declared on"
+            ++ " cannot be identified and the column cross-check has no subject to read.")
+      (Just guard_name, Just table_name) -> do
+        let guard_path = migrations_dir </> guard_name
+            table_path = migrations_dir </> table_name
+        guard_present <- doesFileExist guard_path
+        table_present <- doesFileExist table_path
+        guard_body <- if guard_present then readFile guard_path else pure ""
+        table_body <- if table_present then readFile table_path else pure ""
+        pure $ do
+          _ <- expect (sort versions_nonempty_columns == ["conopt_ver", "gams_ver"])
+                 ("the constrained column set is " ++ show versions_nonempty_columns
+                   ++ " and both version columns are required. KEY-01 folds BOTH strings into the"
+                   ++ " content key, so a constraint covering only one of them leaves the other"
+                   ++ " emptily storable -- which is exactly the shape a copy-paste produces.")
+          _ <- expect (guard_present && table_present)
+                 ("one of " ++ guard_path ++ " / " ++ table_path ++ " does not exist, so the DDL"
+                   ++ " half of this check would be reading an empty string and passing on the"
+                   ++ " Haskell constants alone.")
+          _ <- expect (versions_nonempty_constraint_name `isInfixOf` guard_body)
+                 (guard_path ++ " does not name the constraint "
+                   ++ show versions_nonempty_constraint_name ++ ". An unnamed CHECK still produces"
+                   ++ " SQLSTATE 23514, and 23514 alone says only that SOME check refused. The"
+                   ++ " capture asserts the server's own message carries this string, and that"
+                   ++ " assertion is about a constant nothing declares if the DDL does not use it.")
+          let missing_predicate =
+                [ col | col <- versions_nonempty_columns
+                      , not (("length(" ++ col ++ ") > 0") `isInfixOf` guard_body) ]
+          _ <- expect (null missing_predicate)
+                 (guard_path ++ " carries no emptiness predicate for: "
+                   ++ intercalate ", " missing_predicate
+                   ++ ".\n      NOT NULL does not forbid the empty string -- MEASURED, the schema"
+                   ++ " stored it -- so the NOT NULL in the table's own DDL is not this claim and"
+                   ++ " cannot stand in for it.")
+          let undeclared =
+                [ col | col <- versions_nonempty_columns, not (col `isInfixOf` table_body) ]
+          expect (null undeclared)
+            (table_path ++ " does not declare these columns, so the constraint above is written over"
+              ++ " something this table does not have: " ++ intercalate ", " undeclared
+              ++ ".\n      Postgres would refuse the ALTER at apply time; this catches it in the"
+              ++ " commit that writes it rather than in whoever runs the migrations next.")
 
 -- | The corpus by NAME, so a deletion or a substitution is a set mismatch rather than arithmetic.
 expected_corpus_members :: [String]
@@ -7302,8 +7402,14 @@ credential_scan root =
 -- captured artifact is a leaked credential even though nothing executes it. The pair is re-measured
 -- together every time AND the two numbers do not always move together -- which is the point of
 -- running both commands rather than deriving one from the other.
+--
+-- RE-MEASURED COLD AT 24-06, in the same sitting as 'purge_file_floor' and by running the command
+-- above rather than adding one to the number beside it: 67 against exactly 67 immediately before
+-- the migration landed (zero slack, 24-05's number confirmed on disk), and 68 against exactly 68
+-- after it. @68 = 47 hs + 9 sh + 9 json + 3 sql@. This is the one file type that moves BOTH floors
+-- together, and both commands were still run separately.
 credential_scan_floor :: Int
-credential_scan_floor = 67
+credential_scan_floor = 68
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -10782,6 +10888,7 @@ core_checks = do
           , adversarial_corpus_has_a_silently_corrupted_member
           , migration_list_is_ordered_and_gapless
           , unique_constraint_names_all_three_columns
+          , version_columns_are_unstorable_empty_in_the_ddl
           , store_conformance_is_present_and_fresh
           , store_conformance_verdicts_are_all_pass
           , bare_bytestring_is_observed_corrupting_the_artifact

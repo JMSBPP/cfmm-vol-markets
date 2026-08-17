@@ -15,6 +15,8 @@ module Store.Schema
   ( expected_migrations
   , identity_constraint_name
   , identity_constraint_columns
+  , versions_nonempty_constraint_name
+  , versions_nonempty_columns
   ) where
 
 -- | The migrations, in application order.
@@ -29,6 +31,7 @@ expected_migrations :: [(Int, FilePath)]
 expected_migrations =
   [ (1, "001_model_run.sql")
   , (2, "002_byte_corpus.sql")
+  , (3, "003_version_columns_nonempty.sql")
   ]
 
 -- | KEY-07, stated as data so a check can compare it to the LIVE catalogue and not only to the
@@ -44,3 +47,23 @@ identity_constraint_name = "model_run_identity"
 -- insert vanished.
 identity_constraint_columns :: [String]
 identity_constraint_columns = ["model", "key_scheme", "key"]
+
+-- | Migration @003@'s CHECK, stated as data for the same reason 'identity_constraint_name' is.
+--
+-- The constraint is named rather than left to Postgres's generated identifier because the capture
+-- asserts that the SERVER'S OWN error message carries this string. A system-generated name would
+-- still produce SQLSTATE @23514@, and @23514@ alone says only \"some check refused\" -- it does not
+-- say WHICH, and this table is free to grow other checks later. The recorded evidence has to name
+-- the constraint or it is evidence about the class and not about this guard.
+versions_nonempty_constraint_name :: String
+versions_nonempty_constraint_name = "model_run_versions_nonempty"
+
+-- | Both columns, because ONE of them is the failure this is written against.
+--
+-- @NOT NULL@ does not forbid @''@ (24-RESEARCH M14), and a CHECK that covered only @gams_ver@ is
+-- precisely the shape a copy-paste produces -- it would pass every test written about the GAMS
+-- version while leaving the CONOPT version emptily storable, and KEY-01 folds BOTH into the key.
+-- The capture attempts an empty value in each column independently and records the two outcomes
+-- separately, so a half-covered constraint is a red rather than a green with a hole in it.
+versions_nonempty_columns :: [String]
+versions_nonempty_columns = ["gams_ver", "conopt_ver"]
