@@ -428,3 +428,33 @@ The artifact it writes, `offchain/rig/store-conformance.json`, is **committed**,
 checkout can assert over real database evidence while staying database-independent. On any failure
 the previous artifact is put back from a saved copy — a capture that fails must not leave the
 operator with a bad artifact and no good one.
+
+## `capture-gams-conformance.sh` — the one script here that needs a solver
+
+Its twin one section up needs Postgres. This one needs the real GAMS 54.1 / CONOPT 4.39 toolchain,
+and it is the only place in Phase 24 that does: `cabal test` invokes no solver, by construction, and
+a scanning check inside the suite forbids `offchain/test/Main.hs` from even *naming* one.
+
+```bash
+GAMS_MODEL=/abs/path/to/volume_path.gms \
+  bash offchain/rig/capture-gams-conformance.sh
+```
+
+| variable | meaning |
+|---|---|
+| `GAMS_BIN` | the prover. Resolved with `command -v gams` when unset, then made **absolute** — invoking by absolute path deletes the `PATH`-shadow surface rather than policing it. |
+| `GAMS_MODEL` | **required here.** `volume_path.gms` is *not in this worktree*; it lives in the sibling `cfmm-wt/gams` checkout, which carries the `model/` tree this branch does not. The path is machine-specific and belongs in the shell, never in a tracked file. |
+| `CFMM_REQUIRE_GAMS` | must be `1`. There is no other mode, and the variable lives **here** and nowhere near `cabal test` — gating a suite on it fails *open*. |
+
+It writes every probe model and every run directory into its **own scratch directory** under the
+system temp directory, removes them on exit, and never writes into `model/`, which is another
+workstream's territory. It gates on **values** — `action=c` exiting 0 with `artifact_present` false,
+the leading-zero argv token digesting differently from the golden, and CONOPT's true version
+differing from both of its decoys — and on any failure the previous artifact is put back from a
+saved copy, verified by digest.
+
+The artifact it writes, `offchain/rig/gams-conformance.json`, is **committed**, so a fresh checkout
+can assert over real-solver evidence while staying solver-independent. `Gams.Invoke` — the module
+that resolves the live binary and model — is imported by `offchain/app/GamsConformance.hs` and by
+nothing else in the package; that import graph is what makes the suite's solver-freedom a structural
+fact rather than a convention.

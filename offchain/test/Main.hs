@@ -1021,8 +1021,16 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 -- whole plan lands in this one file, so the tree did not move -- but the rule is that a floor is
 -- re-measured whenever a plan is already editing this block, and 24-02 is why: it recorded a
 -- measurement whose edit never reached the source, and no arithmetic would have caught that.
+--
+-- RE-MEASURED COLD AT 24-05, twice, and the number moved for the first time since 24-03. Plan
+-- 24-05 adds THREE files of scanned types -- @lib\/Gams\/Invoke.hs@, @app\/GamsConformance.hs@ and
+-- @rig\/capture-gams-conformance.sh@ -- and a fourth, @rig\/gams-conformance.json@, which only
+-- 'credential_scan_floor' reads. Both numbers below come from running the two @find@ commands at
+-- execution time, in the same sitting, and NEITHER from adding three to the old value: 58 against
+-- exactly 58 scanned files, zero slack. Census under @offchain\/@ at that measurement:
+-- @hs 47, sh 9, json 9, md 3, txt 2, sql 2@.
 purge_file_floor :: Int
-purge_file_floor = 55
+purge_file_floor = 58
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -7229,8 +7237,15 @@ credential_scan root =
 -- files, ZERO slack, and no move -- 24-04 adds no file, it adds checks to one that already existed.
 -- Both numbers were read off @find@ and compared to what is written here; neither was derived from
 -- the other and neither was incremented.
+--
+-- RE-MEASURED COLD AT 24-05, in the same sitting as 'purge_file_floor' and by the same rule. 66 =
+-- 47 Haskell + 9 shell + 8 JSON + 2 SQL, against exactly 66 files, zero slack. It moves TWICE in
+-- this plan and both moves are separate measurements: the three scanned-type source files land with
+-- the resolving module and the capture tooling, and @rig\/gams-conformance.json@ lands with the
+-- capture itself -- a @.json@ this scan reads and 'purge_file_floor' deliberately does not, because a DSN
+-- pasted into a captured artifact is a leaked credential even though nothing executes it.
 credential_scan_floor :: Int
-credential_scan_floor = 63
+credential_scan_floor = 66
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -7409,6 +7424,7 @@ aeson_storage_path =
   , "offchain/lib/Gams/Config.hs"
   , "offchain/lib/Gams/Env.hs"
   , "offchain/lib/Gams/Exit.hs"
+  , "offchain/lib/Gams/Invoke.hs"
   , "offchain/lib/Gams/Run.hs"
   , "offchain/lib/Gams/Version.hs"
   , "offchain/lib/Store/Class.hs"
@@ -7628,6 +7644,7 @@ gams_no_fallback_path =
   , "offchain/lib/Gams/Artifact.hs"
   , "offchain/lib/Gams/Env.hs"
   , "offchain/lib/Gams/Exit.hs"
+  , "offchain/lib/Gams/Invoke.hs"
   , "offchain/lib/Gams/Run.hs"
   , "offchain/lib/Gams/Version.hs"
   ]
@@ -9600,17 +9617,98 @@ version_detection_failure_aborts_the_invocation =
 gams_stream_pattern :: String
 gams_stream_pattern = "isInfixOf|infeasible|optimal|Locally|Normal completion|Status:"
 
--- | The two modules in which a verdict is decided.
+-- | The modules in which a verdict is decided.
 --
--- 'Gams.Exit' holds the taxonomy and 'Gams.Run' holds the conjunction; there is no third place a
--- decision could be made. Note what that means for scope: THIS file holds the pattern, so it
--- matches it, so it can never be a member of this set -- which is why the set is the two library
--- modules and not @offchain@.
+-- 'Gams.Exit' holds the taxonomy, 'Gams.Run' holds the conjunction, and 24-05's resolving module --
+-- the one this file may not name, and which the path literal in the list below is not a naming of,
+-- because the GAMS-free pattern is anchored on the DOTTED module form -- composes the two with a
+-- resolved binary and a resolved model. Note what that means for scope:
+-- THIS file holds the pattern, so it matches it, so it can never be a member of this set -- which
+-- is why the set is library modules and not @offchain@.
+--
+-- 24-03 LEFT THIS LIST WITHOUT A GROWTH GUARD ON PURPOSE AND SAID SO, and its carry-forward named
+-- the condition that ends the exemption: /\"the day a third such module lands, that list must
+-- either grow or gain a guard\"/. That module is the third one, so this list does both --
+-- 'gams_verdict_scope_is_decided_module_by_module' compares this list plus
+-- 'gams_verdict_exempt' against the DIRECTORY in both directions, which is the third list in this
+-- phase found without a growth guard and the third one to get one.
 gams_verdict_path :: [FilePath]
 gams_verdict_path =
   [ "offchain/lib/Gams/Exit.hs"
+  , "offchain/lib/Gams/Invoke.hs"
   , "offchain/lib/Gams/Run.hs"
   ]
+
+-- | The GAMS-layer modules that decide NOTHING, each with the reason it is one.
+--
+-- The exemptions matter more here than in the aeson scan's list, because this pattern does not mean
+-- the same thing everywhere. @isInfixOf@ inside a module that decides an outcome is a verdict built
+-- out of log text; @isInfixOf@ inside a BANNER PARSER is how a banner is legitimately read. Scanning
+-- 'Gams.Version' would therefore forbid the parse rather than the verdict, which is why the growth
+-- guard is a per-module DECISION and not a widening of the scan.
+gams_verdict_exempt :: [(FilePath, String)]
+gams_verdict_exempt =
+  [ ( "offchain/lib/Gams/Argv.hs"
+    , "a pure renderer with no IO at all: its only argument is a Shock and it has no stream to"
+        ++ " read. It carries the model-status adjective, and that is the point -- the word appears"
+        ++ " there as VOLUME_PATH.md section 1.2's own term for a fact known from the INPUT (equal"
+        ++ " fees are infeasible for every target), in a refusal made before any process exists."
+        ++ " Rewording it would cost fidelity to the spec to satisfy a pattern aimed at a different"
+        ++ " thing entirely." )
+  , ( "offchain/lib/Gams/Artifact.hs"
+    , "decides SHAPE, not outcome. It answers whether a byte buffer is a well-formed document with"
+        ++ " matching array lengths; it never says whether the run succeeded, and the caller that"
+        ++ " does treats a rejection here as one conjunct of six." )
+  , ( "offchain/lib/Gams/Config.hs"
+    , "three environment-variable resolvers and their defaults. There is no run, no stream and no"
+        ++ " outcome in this module for a verdict to be about." )
+  , ( "offchain/lib/Gams/Env.hs"
+    , "the whitelist as DATA, plus a validator over a candidate environment. Its subject is what"
+        ++ " goes IN to the child, decided before the spawn, and it sees no output of any kind." )
+  , ( "offchain/lib/Gams/Version.hs"
+    , "the BANNER PARSER, and it is exempt for a reason specific to this pattern rather than a"
+        ++ " generic one: substring search is how a banner is legitimately read, so scanning this"
+        ++ " module would forbid the parse instead of the verdict. A parse is not a verdict --"
+        ++ " it either names the toolchain or ABORTS the run, and the abort is Gams.Run's, which"
+        ++ " is scanned." )
+  ]
+
+-- | THE GROWTH GUARD 24-03 SAID THIS LIST WOULD NEED.
+--
+-- Both directions, against the directory. A module under @offchain\/lib\/Gams\/@ that is neither
+-- scanned nor exempt is a failure NAMING it; a listed file with nothing on disk is a failure too,
+-- because a list scoped to the files that happen to exist passes over an empty set. Same shape as
+-- 'the_artifact_path_scan_covers_every_module_on_it', and 24-02 measured why that shape is worth
+-- having: its own first draft was a hardcoded two-file list with no guard, inside the commit that
+-- closed the identical hole one level up.
+gams_verdict_scope_is_decided_module_by_module :: Check
+gams_verdict_scope_is_decided_module_by_module =
+  Check "gams_verdict_scope_is_decided_module_by_module" . guarded $ do
+    on_disk <- gams_layer_modules
+    let decided  = sort (gams_verdict_path ++ map fst gams_verdict_exempt)
+        unlisted = [m | m <- on_disk, m `notElem` decided]
+        phantom  = [m | m <- decided, m `notElem` on_disk]
+        thin     = [p | (p, why) <- gams_verdict_exempt, length why < 120]
+    pure $ do
+      _ <- expect (not (null on_disk))
+             ("no .hs file was found under offchain/lib/Gams. The set comparison below would then"
+               ++ " be an assertion about nothing, and the scan it governs would be scanning an"
+               ++ " empty set while reporting the same exit 1 a clean scan reports.")
+      _ <- expect (null thin)
+             ("these gams_verdict_exempt entries carry no real reason: " ++ intercalate ", " thin
+               ++ ". An exemption without a defended reason is how a scan's scope shrinks to the"
+               ++ " empty set one plausible file at a time.")
+      expect (null unlisted && null phantom)
+        ("the modules on disk under offchain/lib/Gams are not the set the verdict scan decided"
+          ++ " about."
+          ++ (if null unlisted then ""
+                else "\n      on disk but neither scanned nor exempt: " ++ intercalate ", " unlisted)
+          ++ (if null phantom then ""
+                else "\n      scanned or exempt but not on disk: " ++ intercalate ", " phantom)
+          ++ "\n      A new module in this layer is added to gams_verdict_path -- or to"
+          ++ " gams_verdict_exempt WITH A WRITTEN REASON -- in the commit that creates it. 24-03"
+          ++ " left this list unguarded deliberately and wrote down the condition that would end"
+          ++ " the exemption; Gams/Invoke.hs is that condition.")
 
 -- | Absence may not read as success until the pattern has been SHOWN matching. Returned so the
 -- caller orders it FIRST, following 'aeson_positive_control'.
@@ -9971,6 +10069,7 @@ core_checks = do
           , a_pre_existing_artifact_is_unreachable
           , each_invocation_gets_a_fresh_directory_and_it_is_removed
           , gams_verdict_ignores_the_streams
+          , gams_verdict_scope_is_decided_module_by_module
           , a_stderr_flood_completes_without_deadlock
           , a_hung_grandchild_is_terminated_and_reaped
           , a_timed_out_run_yields_Aborted_and_no_artifact

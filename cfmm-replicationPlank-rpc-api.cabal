@@ -115,6 +115,17 @@ library
                     -- takes it and never named in a signature, so no module of that package is
                     -- imported.
                     , Gams.Run
+                    -- Gams.Invoke is the module that NAMES the real prover: it resolves a live
+                    -- binary and a live model out of Gams.Config and composes them with
+                    -- Gams.Run.run_prover. It is exposed so ONE consumer can import it -- the
+                    -- gams-conformance executable below -- and the test-suite stanza's own
+                    -- structural check (the_suite_never_names_the_real_solver) forbids
+                    -- offchain/test/Main.hs from naming it at all. +0 packages again: directory
+                    -- supplies findExecutable/makeAbsolute, filepath supplies isPathSeparator, and
+                    -- process, bytestring and crypton were already here. CONFIRMED at 24-05 the
+                    -- same way as its four predecessors: `cabal build --enable-tests -j all`
+                    -- printed no `Downloading` line.
+                    , Gams.Invoke
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -252,6 +263,33 @@ executable store-conformance
         crypton,
         postgresql-simple,
         postgresql-migration
+    hs-source-dirs:   offchain/app
+    default-language: Haskell2010
+
+-- The GAMS conformance capture. The ONE tool in this package that needs a solver, which is why it
+-- is an executable and not a test: under the three-tier decision nothing in `cabal test` invokes
+-- GAMS, and the artifact this writes is what the suite asserts over, offline. It is also the ONLY
+-- importer of Gams.Invoke, which is what makes "the suite is structurally incapable of shelling out
+-- to the solver" a fact about the import graph rather than a convention.
+--
+-- `aeson` is here deliberately, and for exactly the reason it is in the store-conformance stanza
+-- above. It writes the JSON REPORT -- a description of an experiment -- and never touches an
+-- artifact byte: every byte-level fact in that report travels as a length and a BARE hex digest
+-- computed by Store.Types.sha256_hex over the bytes themselves. BYTE-03's source scan is scoped to
+-- the library's storage modules for precisely that reason, so a report that never carries bytes
+-- cannot re-render a number or reorder a key. NO NEW PACKAGE: aeson, bytestring, directory,
+-- filepath and process are all already library dependencies.
+executable gams-conformance
+    import:           warnings
+    main-is:          GamsConformance.hs
+    build-depends:
+        base ^>=4.20.2.0,
+        cfmm-replicationPlank-rpc-api,
+        aeson,
+        bytestring,
+        directory,
+        filepath,
+        process
     hs-source-dirs:   offchain/app
     default-language: Haskell2010
 
