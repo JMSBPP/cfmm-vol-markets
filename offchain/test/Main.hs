@@ -233,9 +233,23 @@ import Store.Types
   , cm_behaviour
   , cm_bytes
   , cm_name
+  , current_key_scheme
   , sha256_hex
   , volume_path_golden_bytes_len
   , volume_path_golden_sha256
+  )
+-- The content key's pure core. 'pips_denominator' and 'fixed_model_options' are imported rather
+-- than transcribed for the reason every other constant on this page is: the checks below assert
+-- that the denominator is INSIDE the preimage and that the fixed options are the only wrapper
+-- entries in it, and a transcribed copy would keep agreeing with itself after the library moved.
+import Store.Key
+  ( ContentKey (..)
+  , KeyIdentity (..)
+  , content_key
+  , frames
+  , key_identity
+  , key_preimage
+  , pips_denominator
   )
 import StochasticOrderGen.Simulate (draw_target_vega)
 import StochasticOrderGen.Types (VegaDraw (..))
@@ -11035,6 +11049,169 @@ the_suite_never_names_the_real_solver =
                      ++ " branch the right answer was to move the prose, not relax the pattern.")
 
 -- ---------------------------------------------------------------------------------------------
+-- Store.Key -- the framer, the normalization edge and the denominator
+-- ---------------------------------------------------------------------------------------------
+
+-- | The model-source digest the fixtures carry, COMPUTED rather than typed: a 64-hex literal in
+-- this file is what 'sc3_literal_purge' exists to find.
+key_fixture_digest :: String
+key_fixture_digest = sha256_hex (C8.pack "volume_path.gms -- content-key fixture body")
+
+-- | The installation path a real toolchain identity carries, SPELLED IN FRAGMENTS.
+--
+-- 'the_suite_never_names_the_real_solver' greps this file for exactly this string, so a fixture
+-- that wrote it out would be the thing that reddens the scan. It is here at all because the
+-- toolchain identity carries it and the preimage must not.
+key_solver_path :: FilePath
+key_solver_path = "/usr/" ++ "gams" ++ "/gams"
+
+-- | The measured toolchain, varying only the two things the refusal arms need to vary.
+--
+-- Both versions come from the REAL captured banners already pinned in this file, so the identity a
+-- key is computed over here is the identity a run would produce.
+key_toolchain :: FilePath -> Bool -> Either String ToolchainIdentity
+key_toolchain source conopt_present = do
+  gams <- parsed "the GAMS banner"
+            (parse_gams_version gams_model_basename (C8.pack gams_real_banner))
+  conopt <-
+    if conopt_present
+      then Just <$> parsed "the CONOPT banner"
+                      (parse_conopt_version (C8.pack (conopt_true_line ++ "\n")))
+      else Right Nothing
+  Right ToolchainIdentity
+    { ti_gams_version   = gams
+    , ti_conopt_version = conopt
+    , ti_gams_path      = key_solver_path
+    , ti_gams_sha256    = sha256_hex (C8.pack "the solver executable's bytes")
+    , ti_model_sources  = [(source, key_fixture_digest)]
+    }
+  where
+    parsed :: Show e => String -> Either e a -> Either String a
+    parsed what (Left err) = Left (what ++ " did not parse: " ++ show err)
+    parsed _    (Right v)  = Right v
+
+-- | The identity every check below starts from.
+key_fixture_identity :: Either String KeyIdentity
+key_fixture_identity = do
+  toolchain <- key_toolchain gams_model_basename True
+  case key_identity toolchain of
+    Left err    -> Left ("the fixture toolchain was refused as " ++ show err)
+    Right ident -> Right ident
+
+-- | The fixture shock's preimage under a caller-supplied identity.
+key_fixture_preimage :: KeyIdentity -> Either String BS.ByteString
+key_fixture_preimage ident =
+  case key_preimage current_key_scheme gams_model_basename fixture_shock ident of
+    Left err    -> Left ("the fixture preimage did not render: " ++ show err)
+    Right bytes -> Right bytes
+
+-- | KEY-04. Two source lists that are the SAME BYTES concatenated bare and different bytes framed.
+--
+-- The pair is @[(\"a\",\"bcd\"),(\"e\",\"f\")]@ against @[(\"ab\",\"cd\"),(\"e\",\"f\")]@ -- both
+-- @abcdef@ unframed. A pair built from real fixed-length digests would differ unframed too, so it
+-- would pass with the framer deleted and this check would be green about nothing. The first arm
+-- asserts the conflation is REAL, and the last one carries the claim all the way to the preimage:
+-- the framer is not merely different in isolation, it is what makes the two model-source lists two
+-- keys.
+framing_separates_what_concatenation_conflates :: Check
+framing_separates_what_concatenation_conflates =
+  pure_check "framing_separates_what_concatenation_conflates" $ do
+    _ <- expect (BS.concat (flat key_left_sources) == BS.concat (flat key_right_sources))
+           ("the two source lists do NOT collide unframed: "
+             ++ show (BS.concat (flat key_left_sources)) ++ " against "
+             ++ show (BS.concat (flat key_right_sources))
+             ++ ". This arm is what makes the rest of the check mean anything -- a pair that already"
+             ++ " differs bare would separate with the framer deleted.")
+    _ <- expect (frames (flat key_left_sources) /= frames (flat key_right_sources))
+           ("the framer rendered the two colliding source lists as the same bytes: "
+             ++ show (frames (flat key_left_sources))
+             ++ ". A framer that had become the identity function looks exactly like this.")
+    ident <- key_fixture_identity
+    left  <- key_fixture_preimage ident { ki_model_sources = key_left_sources }
+    right <- key_fixture_preimage ident { ki_model_sources = key_right_sources }
+    expect (left /= right)
+      ("two DIFFERENT model-source lists produced the same preimage:\n      " ++ show left
+        ++ "\n      Concatenation conflates them and framing separates them, so a preimage that"
+        ++ " cannot tell them apart is keying by concatenation somewhere below the component"
+        ++ " boundary -- which is where the free-form collision actually lives.")
+  where
+    flat :: [(FilePath, String)] -> [BS.ByteString]
+    flat = concatMap (\(name, digest) -> [C8.pack name, C8.pack digest])
+
+key_left_sources, key_right_sources :: [(FilePath, String)]
+key_left_sources  = [("a", "bcd"), ("e", "f")]
+key_right_sources = [("ab", "cd"), ("e", "f")]
+
+-- | KEY-03. Two spellings of one shock value are one key, and a DIFFERENT value is a different one.
+--
+-- The negative arm is not decoration: @content_key@ returning a constant satisfies the equality on
+-- its own. The 32-byte arm is the third: 'Store.Key' drops any byte outside the hex alphabet rather
+-- than substituting a zero, precisely so a key computed from a damaged digest comes out SHORT
+-- instead of plausible.
+edge_normalization_is_single_pass :: Check
+edge_normalization_is_single_pass =
+  pure_check "edge_normalization_is_single_pass" $ do
+    ident         <- key_fixture_identity
+    exponent_form <- field_value "28e18"
+    decimal_form  <- field_value "28000000000000000000"
+    left  <- keyed ident exponent_form
+    right <- keyed ident decimal_form
+    _ <- expect (left == right)
+           ("\"28e18\" and \"28000000000000000000\" keyed differently: " ++ show left
+             ++ " against " ++ show right
+             ++ ". MEASURED at the argv layer: the two spellings produce BYTE-IDENTICAL artifacts,"
+             ++ " so two keys here means one artifact stored twice and a cache that misses on the"
+             ++ " spelling the caller did not happen to use. Normalization happens ONCE, at the"
+             ++ " edge, and the key path inherits it.")
+    other <- field_value "29000000000000000000"
+    moved <- keyed ident other
+    _ <- expect (moved /= left)
+           ("a DIFFERENT shock value produced the same key " ++ show left
+             ++ ". The equality above is satisfied by a key function that returns a constant, and"
+             ++ " this is the arm that rules that out.")
+    case left of
+      ContentKey raw ->
+        expect (BS.length raw == 32)
+          ("the content key is " ++ show (BS.length raw) ++ " bytes, expected 32."
+            ++ " A short key is the module's designed symptom of a digest that lost bytes -- the"
+            ++ " alternative, a substituted zero, would be a plausible-looking key computed from an"
+            ++ " absent digest.")
+  where
+    field_value token =
+      case parse_shock_field token of
+        Left err -> Left ("the edge refused " ++ show token ++ " as " ++ show err)
+        Right v  -> Right v
+    keyed ident value =
+      case content_key current_key_scheme gams_model_basename
+             fixture_shock { sh_vol_tgt_wad = value } ident of
+        Left err -> Left ("the key did not compute: " ++ show err)
+        Right k  -> Right k
+
+-- | KEY-05. The pip denominator is a COMPONENT, so moving it moves every key.
+--
+-- The denominator is read from the library rather than spelled here: it is stated once, in
+-- 'Store.Key', and a transcribed copy in this file would keep agreeing with itself after the
+-- library changed -- which is the whole failure this check is about.
+the_pips_denominator_is_in_the_preimage :: Check
+the_pips_denominator_is_in_the_preimage =
+  pure_check "the_pips_denominator_is_in_the_preimage" $ do
+    ident <- key_fixture_identity
+    _ <- expect (ki_pips_denom ident == pips_denominator)
+           ("key_identity built an identity whose denominator is " ++ show (ki_pips_denom ident)
+             ++ ", not the library's " ++ show pips_denominator
+             ++ ". The one path from a measured toolchain to a keyable identity is where this"
+             ++ " constant enters, and an identity that carries a different one keys a different"
+             ++ " protocol.")
+    pinned <- key_fixture_preimage ident
+    moved  <- key_fixture_preimage ident { ki_pips_denom = pips_denominator + 1 }
+    expect (pinned /= moved)
+      ("changing the pip denominator left the preimage unchanged:\n      " ++ show pinned
+        ++ "\n      Then the denominator is a compile-time convention rather than a component, and"
+        ++ " changing it REINTERPRETS every stored row in place instead of orphaning it -- a shock"
+        ++ " whose fee fields meant hundredths of a basis point and one whose fields mean something"
+        ++ " else would share a key.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -11193,6 +11370,9 @@ core_checks = do
           , gams_conformance_records_the_minimal_whitelist_reproducing_the_golden_bytes
           , gams_conformance_records_the_leading_zero_changing_the_bytes
           , gams_conformance_verdicts_are_all_pass
+          , framing_separates_what_concatenation_conflates
+          , edge_normalization_is_single_pass
+          , the_pips_denominator_is_in_the_preimage
           ]
             ++ per_pin_checks pins
   pure checks
