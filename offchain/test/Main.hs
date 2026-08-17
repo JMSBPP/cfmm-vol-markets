@@ -9072,6 +9072,304 @@ a_timed_out_run_yields_Aborted_and_no_artifact =
             ++ " artifact was written. The artifact being on disk does not reach the process"
             ++ " group. (It has been killed, so this failure does not also leak it.)")
 
+-- ---------------------------------------------------------------------------------------------
+-- GAMS-06's honest half: TWO REAL ENVIRONMENT VECTORS, COMPARED
+--
+-- The measured limit this is built around: NO ambient variable and NO configuration file on this
+-- machine changes the artifact's bytes, and @locale -a@ offers no comma-decimal locale at all, so
+-- there is nothing here a byte comparison could observe. A check written against bytes could only
+-- be satisfied by inventing a variable that matters -- or by passing because its subject is absent,
+-- which is this milestone's standing defect.
+--
+-- The child's own environment vector is the subject that IS unambiguous, and it is the one that
+-- actually proves the whitelist is in force: a whitelist that silently fell back to inheritance is
+-- exactly what these two checks catch, while a byte comparison would report success either way.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The keys @\/bin\/sh@ exports to its own children, MEASURED on 2026-08-16 by running the
+-- env-printing stub below through the real invocation path with the whitelist in force and printing
+-- the difference.
+--
+-- The whitelisted child's environment came back as exactly six pairs: the three the whitelist
+-- names, plus @PWD@ (the run directory), @SHLVL@ and @_@. These are the SHELL'S, not the caller's:
+-- the stub carries a @#!\/bin\/sh@ shebang, so the kernel runs a shell, and a shell sets these
+-- three for the command it executes. They cannot be removed from the interface by anything this
+-- module controls, and pretending they are part of the whitelist would be worse -- the point of a
+-- whitelist is that everything outside it is named.
+--
+-- This list is a MEASUREMENT and it is asserted as an upper bound in both spirit and code: a key
+-- that appears and is not named here FAILS the check naming it, rather than being absorbed.
+shell_injected_env_keys :: [String]
+shell_injected_env_keys = ["PWD", "SHLVL", "_"]
+
+-- | A stub whose whole body is a capture of its own environment, into a file the CHECK chooses.
+--
+-- The path is absolute and outside the run directory, because the run directory is removed by the
+-- bracket before the check can read anything out of it.
+stub_prints_env :: FilePath -> String
+stub_prints_env envfile =
+  unlines
+    [ "#!/bin/sh"
+    , "env > " ++ envfile
+    , "exit 0"
+    ]
+
+-- | An environment vector as pairs.
+--
+-- A line counts as a pair only when what precedes the first @=@ is a plausible variable NAME. That
+-- is not fastidiousness: an inherited environment can carry a value containing a newline, and the
+-- continuation line would otherwise be read as a variable whose name is arbitrary text -- which
+-- would then show up as an unnamed key and fail the whitelist check for a reason that has nothing
+-- to do with the whitelist.
+parse_env_capture :: String -> [(String, String)]
+parse_env_capture body =
+  [ (key, drop 1 rest)
+  | line <- lines body
+  , let (key, rest) = break (== '=') line
+  , not (null rest)
+  , not (null key)
+  , all (\c -> isAlphaNum c || c == '_') key
+  ]
+
+-- | The captured vector, or a failure naming the file that was never written.
+--
+-- FAIL, never an empty list: an empty environment satisfies every \"no forbidden key is present\"
+-- rule ever written, so a capture that silently came back empty is the shape of a check passing
+-- because its subject is absent.
+read_env_capture :: String -> FilePath -> IO (Either String [(String, String)])
+read_env_capture label path = do
+  there <- doesFileExist path
+  if not there
+    then pure (Left ("the " ++ label ++ " child never wrote its environment to " ++ path
+                      ++ ". Every assertion about that vector would then be an assertion about the"
+                      ++ " empty list, which agrees with every rule about what must be absent."))
+    else do
+      body <- readFile path
+      let pairs = parse_env_capture body
+      pure $
+        if null pairs
+          then Left ("the " ++ label ++ " child wrote " ++ show (length body) ++ " bytes to "
+                      ++ path ++ " and not one line of it parsed as a variable.")
+          else Right pairs
+
+-- | THE LOCALE PIN, WRITTEN OUT HERE, AND THAT IS THE WHOLE REASON IT IS HERE.
+--
+-- MEASURED during execution, and it is a correction of record. The first draft of the check below
+-- compared the child's captured environment against @whitelist_for scratch@ -- and when @LC_ALL@
+-- was deleted from that very function, the check went GREEN. Both sides of the comparison had moved
+-- together, so the test was asserting that a function equals itself. That is a recorded field
+-- derived from the same expression as its own comparison target, which is the SEVENTH
+-- representation of this project's standing defect, arriving inside the check written to catch the
+-- sixth.
+--
+-- So the one fact GAMS-06 is actually about -- the decimal separator is pinned in the process that
+-- writes the bytes -- is spelled HERE, in the file doing the asserting, and it cannot move when the
+-- library moves. The key SET is likewise compared against 'whitelist_keys', which is the OTHER
+-- constant in that module: deleting a pair from 'whitelist_for' alone now reddens this check as
+-- well as its pure sibling.
+child_locale_pin :: (String, String)
+child_locale_pin = ("LC_ALL", "C")
+
+-- | GUARD 26 (first half): THE WHITELISTED CHILD'S ENVIRONMENT IS THE WHITELIST.
+--
+-- Four assertions. The key SET is compared in BOTH directions against 'whitelist_keys' -- a subset
+-- rule one way only is satisfied by a child that inherited everything and happened to also carry
+-- the three. The locale pin is compared against this file's own copy, for the reason
+-- 'child_locale_pin' records. And every key the child carries beyond the whitelist must be one this
+-- file has named and explained.
+the_child_environment_is_exactly_the_whitelist :: Check
+the_child_environment_is_exactly_the_whitelist =
+  Check "the_child_environment_is_exactly_the_whitelist" . guarded $
+    with_tier_b_scratch "env-whitelist" $ \scratch -> do
+      let envfile = scratch </> "whitelisted.env"
+      stub    <- write_stub scratch "printenv.sh" (stub_prints_env envfile)
+      outcome <- run_prover (tier_b_request scratch stub)
+      captured <- read_env_capture "whitelisted" envfile
+      pure $ do
+        _ <- case outcome of
+               Aborted NoArtifact 0 _ -> Right ()
+               _ ->
+                 Left ("the env-printing stub exits 0 and writes no artifact, so this check needs"
+                        ++ " Aborted NoArtifact to know the spawn actually happened and was not"
+                        ++ " refused before it: " ++ render_outcome outcome)
+        pairs <- captured
+        let wanted  = whitelist_for scratch
+            present = map fst pairs
+            missing = [k | k <- whitelist_keys, k `notElem` present]
+            wrong   = [ (k, got, v)
+                      | (k, v) <- wanted, (k', got) <- pairs, k == k', got /= v ]
+            extra   = [k | k <- present, k `notElem` whitelist_keys
+                                       , k `notElem` shell_injected_env_keys]
+            (locale_key, locale_pinned_to) = child_locale_pin
+            pinned  = [v | (k, v) <- pairs, k == locale_key]
+        _ <- expect (null missing)
+               ("the whitelisted child's environment is MISSING " ++ intercalate ", " missing
+                 ++ ". The expected key set is whitelist_keys, which is a DIFFERENT constant from"
+                 ++ " the one that builds the vector -- deliberately, because comparing the child"
+                 ++ " against the very function that produced it is a comparison that cannot fail."
+                 ++ " Captured: " ++ show (sort present))
+        _ <- expect (pinned == [locale_pinned_to])
+               ("the whitelisted child carried " ++ show pinned ++ " for " ++ locale_key
+                 ++ " and this file requires exactly " ++ show [locale_pinned_to]
+                 ++ ". The pin is written out HERE rather than read from the library, because"
+                 ++ " MEASURED: with the expected side read from the library, deleting this pair"
+                 ++ " from the library moved BOTH sides of the comparison and the check stayed"
+                 ++ " green. A pinned decimal separator that arrives unpinned is not a pin, and the"
+                 ++ " process this vector is handed to is the one that writes the bytes.")
+        _ <- expect (null wrong)
+               ("the whitelisted child carried the wrong value for "
+                 ++ intercalate ", " [k ++ " (" ++ show got ++ ", wanted " ++ show v ++ ")"
+                                     | (k, got, v) <- wrong])
+        expect (null extra)
+          ("the whitelisted child carried variables that are in neither whitelist_keys nor the"
+            ++ " MEASURED set a shell exports to its own children: " ++ intercalate ", " (sort extra)
+            ++ ".\n      Captured " ++ show (length pairs) ++ " pairs: " ++ show (sort present)
+            ++ "\n      Either the whitelist stopped being handed to the child -- which is the"
+            ++ " silent fallback to inheritance this pair of checks exists to catch -- or the"
+            ++ " shell-injected set has changed on this host and shell_injected_env_keys has to be"
+            ++ " RE-MEASURED and the new key explained. It is not absorbed either way.")
+
+-- | GUARD 26 (second half): AN INHERITED ENVIRONMENT IS OBSERVED TO DIFFER.
+--
+-- The same function, the same stub, run twice -- once with the whitelist and once inheriting -- and
+-- the two captured vectors compared. This is what actually proves the whitelist is IN FORCE: the
+-- check above would still pass if the invocation layer ignored its environment argument on a host
+-- whose ambient environment happened to be small, and this one would not.
+--
+-- WHAT IS ASSERTED IS NOT \"A STRICT SUPERSET\", AND THAT IS A CORRECTION OF RECORD. Measured
+-- during execution: the inherited vector carries 67 keys against the whitelisted vector's 6, and it
+-- does NOT contain @LC_ALL@ at all -- this machine's ambient environment sets @LANG@ and no
+-- @LC_ALL@. So the two sets differ in BOTH directions and a superset assertion would have been
+-- asserting something false. What is asserted instead is the load-bearing half, unchanged in
+-- strength: the inherited vector is strictly LARGER, and it names at least one variable that is
+-- neither in the whitelist nor in the shell-injected set. The variable it names is reported.
+an_inherited_environment_is_observed_to_differ :: Check
+an_inherited_environment_is_observed_to_differ =
+  Check "an_inherited_environment_is_observed_to_differ" . guarded $
+    with_tier_b_scratch "env-inherited" $ \scratch -> do
+      let pinned_file    = scratch </> "pinned.env"
+          inherited_file = scratch </> "inherited.env"
+      pinned_stub    <- write_stub scratch "printenv-pinned.sh" (stub_prints_env pinned_file)
+      inherited_stub <- write_stub scratch "printenv-inherited.sh" (stub_prints_env inherited_file)
+      _ <- run_prover (tier_b_request scratch pinned_stub)
+      _ <- run_prover ((tier_b_request scratch inherited_stub) { rr_env = Nothing })
+      pinned_capture    <- read_env_capture "whitelisted" pinned_file
+      inherited_capture <- read_env_capture "inheriting" inherited_file
+      pure $ do
+        pinned    <- pinned_capture
+        inherited <- inherited_capture
+        let pinned_keys    = sort (nub (map fst pinned))
+            inherited_keys = sort (nub (map fst inherited))
+            excluded = [ k | k <- inherited_keys
+                           , k `notElem` whitelist_keys
+                           , k `notElem` shell_injected_env_keys ]
+            lacked   = [k | k <- whitelist_keys, k `notElem` inherited_keys]
+        _ <- expect (length inherited_keys > length pinned_keys)
+               ("the inheriting child's environment carries " ++ show (length inherited_keys)
+                 ++ " keys and the whitelisted one carries " ++ show (length pinned_keys)
+                 ++ ". Two runs of the SAME function through the SAME stub, one asking for the"
+                 ++ " whitelist and one asking to inherit, produced environments the same size --"
+                 ++ " so either the environment argument is being ignored (the silent fallback to"
+                 ++ " inheritance) or the caller's own environment is as small as the whitelist,"
+                 ++ " in which case this check has no discriminating power on this host and must"
+                 ++ " be reported rather than believed."
+                 ++ "\n      whitelisted: " ++ show pinned_keys)
+        expect (not (null excluded))
+          ("the inheriting child's environment names NOTHING outside the whitelist and the"
+            ++ " MEASURED shell-injected set, so \"the whitelist excludes something real\" is"
+            ++ " unobserved here. It carried: " ++ show inherited_keys
+            ++ "\n      This is the honest form of GAMS-06's second half. It is NOT asserted on"
+            ++ " artifact bytes, and the reason is a measurement: four hostile ambient variables"
+            ++ " changed nothing about the artifact, and locale -a on this machine offers only C,"
+            ++ " C.utf8, en_US.utf8 and POSIX -- there is no comma-decimal locale to observe a byte"
+            ++ " difference with, so a byte-level version of this check could only pass by"
+            ++ " inventing a variable that matters."
+            ++ (if null lacked then ""
+                  else "\n      Also of record: the inherited vector does not carry "
+                         ++ intercalate ", " lacked ++ " at all, so it is not a SUPERSET of the"
+                         ++ " whitelist -- the two differ in both directions."))
+
+-- | A stub that exits 0 with a VALID artifact and a log carrying NO job banner.
+--
+-- The log it writes is the solver-execution line and nothing else -- real text from a real run,
+-- carrying the solver's name and no version and no job banner. A parser anchored on \"a token that
+-- looks like a version somewhere near a familiar word\" would find nothing here and could report
+-- that as an absent optional field rather than as a failure.
+stub_log_without_a_job_banner :: String
+stub_log_without_a_job_banner =
+  stub_preamble
+    ++ stub_writes_artifact "$S" "$L"
+    ++ "cat > \"$D/" ++ log_name ++ "\" <<EOF\n"
+    ++ "--- Executing CONOPT (Solvelink=2)\n"
+    ++ "EOF\n"
+    ++ "exit 0\n"
+
+-- | A stub that exits 0 with a VALID artifact, writes NO log at all, and puts the real banner on
+-- STDERR instead.
+--
+-- MEASURED: the real tool leaves stderr at 0 bytes in every mode, so a detector that read stderr
+-- would be handed the empty string on every honest run and would have to treat empty as absent --
+-- and here it would be handed a perfectly good banner from a run whose own log has none. Both
+-- halves of that are wrong, and the layer must abort on both.
+stub_banner_on_stderr_only :: String
+stub_banner_on_stderr_only =
+  stub_preamble
+    ++ stub_writes_artifact "$S" "$L"
+    ++ "echo '--- Job " ++ gams_model_basename
+         ++ " Start 08/16/26 15:52:25 54.1.0 37378ce0 LEX-LEG x86 64bit/Linux' >&2\n"
+    ++ "exit 0\n"
+
+-- | GAMS-03, DRIVEN: DETECTION THAT FINDS NOTHING ABORTS THE RUN.
+--
+-- Two stubs, both of which exit 0 and both of which write a VALID, decodable, correctly-echoing
+-- artifact. Everything about them is right except the one thing the key is made of. Accepting
+-- either means a run COMPLETED with an empty version component -- and the schema will not catch it,
+-- because @not null@ does not forbid the empty string. That is the poisoned-row scenario this
+-- phase's sequencing exists to prevent: every toolchain would hash to the same key component, and
+-- afterwards the poisoned rows are indistinguishable from good ones, because the only evidence of
+-- which toolchain produced them is the column that was emptied.
+--
+-- The second stub's banner is on STDERR, and the check asserts it ARRIVED there -- so the refusal
+-- is observed against a run where the right text was available on the wrong channel, rather than
+-- against a run with no text anywhere.
+version_detection_failure_aborts_the_invocation :: Check
+version_detection_failure_aborts_the_invocation =
+  Check "version_detection_failure_aborts_the_invocation" . guarded $
+    with_tier_b_scratch "version-detection" $ \scratch -> do
+      no_banner   <- write_stub scratch "no-banner.sh" stub_log_without_a_job_banner
+      wrong_chan  <- write_stub scratch "banner-on-stderr.sh" stub_banner_on_stderr_only
+      o_no_banner <- run_prover (tier_b_request scratch no_banner)
+      o_wrong     <- run_prover (tier_b_request scratch wrong_chan)
+      pure $ do
+        _ <- unreadable "a log with no job banner" o_no_banner
+        _ <- unreadable "a banner written to stderr while the log has none" o_wrong
+        expect (banner_reached_stderr o_wrong)
+          ("the stub that writes its banner to STDERR did not put it there, so the refusal above"
+            ++ " was observed against a run with no banner ANYWHERE rather than against one whose"
+            ++ " banner arrived on the wrong channel -- which is the case a stream-reading detector"
+            ++ " would have accepted. Captured stderr: "
+            ++ show (C8.unpack (stderr_of o_wrong)))
+  where
+    stderr_of (Produced _ _ streams) = cs_stderr streams
+    stderr_of (Aborted _ _ streams)  = cs_stderr streams
+
+    banner_reached_stderr outcome = "--- Job " `isInfixOf` C8.unpack (stderr_of outcome)
+
+    unreadable label outcome =
+      case outcome of
+        Aborted (VersionUnreadable _) _ _ -> Right ()
+        _ ->
+          Left ("a run with " ++ label ++ " was not refused: " ++ render_outcome outcome
+                 ++ "\n      It exited 0 and wrote a VALID artifact, so every other conjunct is"
+                 ++ " satisfied and only the version is missing. Accepting it means a run COMPLETED"
+                 ++ " with an empty version component, and `not null` does not forbid the empty"
+                 ++ " string -- so the row would be written, and afterwards nothing distinguishes"
+                 ++ " it from a good one, because the evidence of which toolchain produced it is"
+                 ++ " the column that was emptied."
+                 ++ "\n      MEASURED: the real tool leaves stderr at 0 BYTES in every mode, so a"
+                 ++ " detector that read stderr instead of the run's own log would be comparing the"
+                 ++ " empty string against the empty string on every single honest run.")
+
 -- | The six tokens a verdict built out of log text would be built out of.
 --
 -- @Status:@ and @Normal completion@ are the GAMS listing's own words, @Locally@ opens the two
@@ -9307,6 +9605,9 @@ core_checks = do
           , a_stderr_flood_completes_without_deadlock
           , a_hung_grandchild_is_terminated_and_reaped
           , a_timed_out_run_yields_Aborted_and_no_artifact
+          , the_child_environment_is_exactly_the_whitelist
+          , an_inherited_environment_is_observed_to_differ
+          , version_detection_failure_aborts_the_invocation
           ]
             ++ per_pin_checks pins
   pure checks
