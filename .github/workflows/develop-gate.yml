@@ -131,7 +131,11 @@ jobs:
             echo "::notice::no Lean project on develop yet (PR #2 pending) — lean gate passes (nothing to check)"; exit 0
           fi
           elan show >/dev/null 2>&1 || curl -sSf https://elan.lean-lang.org/elan-init.sh | sh -s -- -y
-          out="$(cd lean && lake build 2>&1)"; echo "$out"
+          # Fetch mathlib's prebuilt .oleans before building. git clean -ffdx wipes the workspace
+          # .lake every run, so a bare `lake build` recompiles mathlib FROM SOURCE (30min-1hr) and
+          # blows the 20-min timeout. `cache get` pulls the community cache (~1-2min); `lake build`
+          # then only builds exp.eta. Non-fatal (`;`) so a cache miss still attempts the build.
+          out="$(cd lean && lake exe cache get >/dev/null 2>&1; lake build 2>&1)"; echo "$out"
           # no-sorry guard via Lean's OWN compiler warning (comment/identifier-safe, unlike a source grep)
           echo "$out" | grep -qE "declaration uses '(sorry|admit)'" && { echo "::error::Lean proof uses sorry/admit"; exit 1; }
           echo "lean: lake build clean, no sorry/admit"
