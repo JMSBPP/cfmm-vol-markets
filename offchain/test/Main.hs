@@ -7143,6 +7143,7 @@ aeson_storage_path =
   , "offchain/lib/Gams/Config.hs"
   , "offchain/lib/Gams/Env.hs"
   , "offchain/lib/Gams/Exit.hs"
+  , "offchain/lib/Gams/Run.hs"
   , "offchain/lib/Gams/Version.hs"
   , "offchain/lib/Store/Class.hs"
   , "offchain/lib/Store/Config.hs"
@@ -7361,6 +7362,7 @@ gams_no_fallback_path =
   , "offchain/lib/Gams/Artifact.hs"
   , "offchain/lib/Gams/Env.hs"
   , "offchain/lib/Gams/Exit.hs"
+  , "offchain/lib/Gams/Run.hs"
   , "offchain/lib/Gams/Version.hs"
   ]
 

@@ -107,6 +107,14 @@ library
                     , Gams.Argv
                     , Gams.Env
                     , Gams.Artifact
+                    -- Gams.Run is the ONE module in the layer that spawns a process. It resolves
+                    -- at +0 packages too, and that was CONFIRMED at 24-03 the same way: process,
+                    -- directory, bytestring, filepath and crypton were all already here, and
+                    -- Data.Unique / System.Timeout / System.IO.Error are base. `time` is NOT
+                    -- added: getModificationTime's result is compared inside the function that
+                    -- takes it and never named in a signature, so no module of that package is
+                    -- imported.
+                    , Gams.Run
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -132,6 +140,16 @@ library
                       -- package that the test-suite stanza already depends on, so it was in the
                       -- build plan before this line existed and no new package is resolved.
                       directory,
+                      -- Gams.Run's `</>`, `takeFileName` and `isAbsolute`. The run directory is
+                      -- built from a temp root and the job name is the model's basename, and
+                      -- hand-rolling either is the "don't hand-roll" row this phase's research
+                      -- writes down. NOT a new package: filepath-1.5.4.0 is a GHC boot package
+                      -- that the test-suite stanza already depends on and that directory pulls in
+                      -- regardless, so it was in the build plan before this line existed -- it was
+                      -- merely HIDDEN from the library stanza, which is how the build failed at
+                      -- 24-03 with "It is a member of the hidden package". MEASURED at that
+                      -- commit: `cabal build --enable-tests -j all` printed no `Downloading`.
+                      filepath,
                       -- Driver.Seed's `initialize (V.singleton w)`. NOT a new package: mwc-random
                       -- already depends on it, so 0.13.2.0 was in the build plan before this line
                       -- existed. MEASURED at this commit: `cabal build --enable-tests -j all`
