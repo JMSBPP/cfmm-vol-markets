@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 24-04-PLAN.md (4/6 in phase 24) — next /gsd:execute-phase 24 (plan 24-05)"
-last_updated: "2026-08-16"
-last_activity: "2026-08-16 — 24-04 executed (INTERRUPTED then CONTINUED): the hung grandchild, two environment vectors, the GAMS-free structural grep; 138/138 checks, 0 warnings, seven firing observations, GAMS-05 COMPLETE, and one plan acceptance criterion measured BACKWARDS and rejected"
+stopped_at: "Completed 24-05-PLAN.md (5/6 in phase 24) — next /gsd:execute-phase 24 (plan 24-06, the last)"
+last_updated: "2026-08-17"
+last_activity: "2026-08-17 — 24-05 executed: the real GAMS 54.1/CONOPT 4.39 toolchain driven once into a committed artifact, ten Tier-C checks resting on it, the sixth swept artifact, four floors re-measured; 149/149 checks, 0 warnings, fourteen firing observations, GAMS-01/02/04/06 COMPLETE"
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 11
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 <!--

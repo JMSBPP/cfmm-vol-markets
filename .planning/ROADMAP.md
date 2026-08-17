@@ -1145,7 +1145,7 @@ at the end of 25.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 23. Postgres Foundation & the Byte-Exact Schema | 5/5 | Complete    | 2026-08-16 |
-| 24. GAMS Invocation & Toolchain Identity | 4/6 | In Progress|  |
+| 24. GAMS Invocation & Toolchain Identity | 5/6 | In Progress|  |
 | 25. The Content Key & Keyed Store | 0/TBD | Not started | - |
 | 26. Shock Assembly — Fee Split & Event Decode | 0/TBD | Not started | - |
 | 27. Anvil Read Layer (BLOCKED) | 0/TBD | Blocked | - |
