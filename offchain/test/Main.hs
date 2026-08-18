@@ -1256,8 +1256,19 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
 -- > 69
+--
+-- RE-MEASURED COLD AT 27-02 TASK 1, in the same sitting as 'credential_scan_floor' and by RUNNING
+-- the command rather than by adding one to the 69 above it: 70 against exactly 70, zero slack.
+-- Census under @offchain\/@ at that measurement: @hs 56, sh 11, json 10, sql 3@. The wave-start
+-- reading, taken COLD before this plan edited anything, was 69, and this task adds exactly ONE file
+-- this scan can see -- @offchain\/lib\/Chain\/Read.hs@. Both floors move by one here and BOTH ENDS
+-- WERE RUN; the task that adds the capture script and its artifact moves them again and by
+-- DIFFERENT amounts, which is why they are re-measured per task and not per plan.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
+-- > 70
 purge_file_floor :: Int
-purge_file_floor = 69
+purge_file_floor = 70
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -7992,8 +8003,17 @@ credential_scan root =
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 79
+--
+-- RE-MEASURED COLD AT 27-02 TASK 1, in the same sitting as 'purge_file_floor' and by running the
+-- command below rather than by adding one to the 79 beside it: @80 = 56 hs + 11 sh + 10 json +
+-- 3 sql@, against exactly 80 files, zero slack. One new @.hs@ and no artifact yet, so the two
+-- floors move together by one; they part company again at 27-02 task 3, which commits a @.json@
+-- this scan reads and the purge does not.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+-- > 80
 credential_scan_floor :: Int
-credential_scan_floor = 79
+credential_scan_floor = 80
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -8193,6 +8213,7 @@ one_aeson_vector (input, expected) =
 aeson_storage_path :: [FilePath]
 aeson_storage_path =
   [ "offchain/lib/Chain/Endpoint.hs"
+  , "offchain/lib/Chain/Read.hs"
   , "offchain/lib/Chain/Shock.hs"
   , "offchain/lib/Fee/Split.hs"
   , "offchain/lib/Gams/Argv.hs"

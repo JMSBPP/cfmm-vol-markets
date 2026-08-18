@@ -177,6 +177,18 @@ library
                     -- it. It opens no socket and reaches no chain: it returns a String, and every
                     -- consumer already reports its own RPC failure.
                     , Chain.Endpoint
+                    -- Phase 27's pinned read layer (CHAIN-02, CHAIN-03). +0 PACKAGES, and
+                    -- CONFIRMED rather than estimated at 27-02: with this module on disk,
+                    -- `cabal build --enable-tests -j all` printed no `Downloading` line. Its
+                    -- imports are base (Data.Bits, Data.Char, Data.List), bytestring, transformers
+                    -- (liftIO, which arrives with web3-provider's Web3 stack), memory-hexstring,
+                    -- web3-solidity, web3-ethereum, web3-provider, and two modules of this same
+                    -- stanza -- CheatSwap.Encoding for the extsload calldata and CheatSwap.Types
+                    -- for the pool state slot, both CONSUMED rather than re-derived because two
+                    -- derivations of one slot is two things that can disagree and a disagreement
+                    -- there returns a zero word instead of reverting. Every one of those packages
+                    -- was already a dependency of this stanza.
+                    , Chain.Read
 
     -- Modules included in this library but not exported.
     -- other-modules:
