@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 26-04-PLAN.md — PHASE 26 CLOSED (190/190 -> 194/194, exit 0, zero warnings, wall 173 s). FEE-02 complete against the REAL prover: 12 grid rows bracketing four exact boundaries by one pip, DISAGREE=0, VERDICTS=2, BADCTL=0, four rows refused at model line 109. The discriminator is the model's SOURCE LINE, never the exit code (exit 3 means six things). RC-B1 closed — (1000,3000)'s boundary is 300361, agreeing with min_admissible_dstar exactly. RC-B2 closed by a different derivation than the finding proposed, with the finding's own falsifying input RUN. Seventh swept artifact; all seven field floors + sentinel_pair_floor re-measured in one run (4574); purge/credential floors 67/77. FEE-01's text in REQUIREMENTS.md and PROJECT.md corrected to round-and-report. Next: phase 27"
+stopped_at: "Completed 27-01-PLAN.md — CHAIN-06 and CHAIN-07 RETIRED, no chain needed (194/194 -> 198/198, exit 0, zero warnings). One resolver in two languages, the two statements of the default asserted BYTE-EQUAL; a 15-entry site manifest closed in BOTH directions; deploy-rig.sh binds anvil --host/--port and every --rpc-url to one reading of one variable and asserts cast chain-id BEFORE the first --broadcast. THREE PLAN ERRORS FOUND BY MEASUREMENT: verify-rig.sh is an ELEVENTH site CHAIN-06's nine cannot see (it reached the chain through foundry's alias); the plan's census pattern found 10 before the fix and 8 after, so it would have reported the fix as a regression; and 'cast call' matched 'cast calldata'. My own empty-variable check MEASURED GREEN against an unguarded resolver because setEnv k \"\" routes to unsetEnv — repaired with a pure endpoint_from and the premise observed in a child shell. Floors 67/77 -> 69/79, re-measured by RUNNING find. Next: 27-02 (pinned read layer, CHAIN-02/03)."
 last_updated: "2026-08-17"
-last_activity: "2026-08-17 — 26-04 executed and PHASE 26 CLOSED: 190/190 -> 194/194 checks, 0 warnings, suite still DB-free AND GAMS-free; four guards, thirteen firings observed (two under two-part mutations for dominated arms); the sentinel harness found two real holes unprompted and both were ASSERTED"
+last_activity: "2026-08-17 — 27-01 executed: 194/194 -> 198/198, 0 warnings, no chain required. Four guards, eleven firings OBSERVED (one mutation fired two checks independently; two arms proved neither alone catches both the move and the delete). Every plan error is recorded with its measurement rather than worked around."
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 18
-  completed_plans: 18
+  total_plans: 21
+  completed_plans: 19
 ---
 
 <!--
@@ -43,11 +43,38 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **26 — Shock Assembly (Fee Split & Event Decode)** — **COMPLETE (4/4 plans)**
-Plan: **26-04 COMPLETE** (commits `89fb495`, `3799a84`, `d8b1d37`). Summary:
-`.planning/phases/26-shock-assembly-fee-split-event-decode/26-04-SUMMARY.md`, which is also the
-PHASE RECORD: the 39-row guard ledger reconciled, the SC-2 substitution, the two upstream document
-corrections, and what phase 27 inherits. Next: **phase 27**.
+Phase: **27 — Anvil Read Layer** — IN PROGRESS (1/3 plans)
+Plan: **27-01 COMPLETE** (commits `e067e31`, `4bf504b`, `36bc427`). Summary:
+`.planning/phases/27-anvil-read-layer/27-01-SUMMARY.md`. **CHAIN-06 and CHAIN-07 retired, no chain
+needed.** 194/194 → **198/198**, exit 0, zero warnings; floors 67/77 → **69/79**, both re-measured
+by RUNNING `find`. Next: **27-02** (the pinned read layer, CHAIN-02/03).
+
+**ONE RESOLVER, IN TWO LANGUAGES, WITH THE TWO STATEMENTS ASSERTED BYTE-EQUAL.**
+`Chain.Endpoint` states `ETH_RPC_URL` and the default authority once for the Haskell tree;
+`offchain/rig/endpoint.sh` states the default once for the three bash sites and splits it into
+`RPC_URL` / `RPC_HOST` / `RPC_PORT`. `bash` cannot import a Haskell module, so the value exists
+twice by necessity and `the_producer_and_the_consumers_bind_one_endpoint` compares them — the move
+`Fee.Split` and `Store.Key` already make for the pip denominator.
+
+**WHAT CHAIN-06 DESCRIBES IS NOT WHAT WAS THERE.** It reads as though nine sites each implement the
+rule and might drift. MEASURED: the rule was implemented **ZERO** times — the only occurrence of the
+variable under `offchain/` was a COMMENT in `deploy-rig.sh` saying the deploy scripts scrub it.
+
+**THREE PLAN ERRORS, EACH FOUND BY MEASUREMENT.** (1) `offchain/rig/verify-rig.sh` is an **ELEVENTH
+site** that CHAIN-06's list of nine does not contain: fourteen `cast` calls against a live rig,
+reached through foundry's `--rpc-url local` alias, so it named neither token and no pattern built
+from them could see it. (2) The plan's census pattern would have reported the fix as a regression —
+it found 10 before the rewiring and **8 after**, because five of the six Haskell consumers stop
+naming either token the moment they name the resolver. (3) `"cast call"` matched
+`CheatSwap/Encoding.hs`'s `cast calldata`: the 26-03 longer-wrong-value shape, and
+`offchain/rig/README.md`'s hand-run grep still carries it.
+
+**A CHECK OF MINE WAS VACUOUS AND ITS OWN MUTATION PROVED IT.**
+`an_empty_eth_rpc_url_does_not_resolve_to_the_empty_string`, written against the environment,
+MEASURED GREEN against a deliberately unguarded resolver. `System.Environment.setEnv k ""` routes an
+empty value to `unsetEnv`, so it was driving the UNSET path twice — the passes-because-the-subject-is-
+absent defect, inside the guard against it. Repaired by factoring the rule into the pure
+`endpoint_from`, with the empty export's reachability OBSERVED in a child shell.
 
 **FEE-02 IS PROVEN AGAINST THE REAL PROVER, AND THE DISCRIMINATOR IS NOT THE EXIT CODE.**
 `Fee.Split.is_admissible` and `volume_path.gms`'s own `ellTest` gate agree on twelve points that
@@ -896,12 +923,60 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 24 P06 | 120min | 2 tasks | 6 files |
 | Phase 26 P02 | ~5h | 3 tasks | 3 files |
 | Phase 26 P03 | 180min | 3 tasks | 5 files |
+| Phase 27 P01 | ~2h | 4 tasks | 16 files |
 
 ## Accumulated Context
 
 ### Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecting v4.0:
+**v6.0 (Phase 27) decisions:**
+
+- [Phase 27]: [27-01 MEASURED] **CHAIN-06's "nine sites" is wrong three ways, and each was measured
+  rather than reasoned about.** It is TEN by its own pattern (`offchain/spec/types.md` is the tenth,
+  a pasted RPC transcript). It is ELEVEN counting `offchain/rig/verify-rig.sh` — fourteen `cast`
+  calls against a live rig, reached through foundry's `--rpc-url local` ALIAS, so it named neither
+  the variable nor the authority and **no pattern built from those two tokens could ever have found
+  it**. And the rule was implemented ZERO times, not nine: the only occurrence of `ETH_RPC_URL`
+  under `offchain/` was a COMMENT in `deploy-rig.sh`. **Correct the requirement text at phase close.**
+- [Phase 27]: [27-01 DECIDED] **A census term set is anchored to what the census MEANS, not to the
+  tokens that happened to find the current members.** MEASURED both ways: the plan's pattern ("names
+  the variable or the authority") found 10 sites BEFORE the rewiring and only 8 AFTER, because five
+  of the six Haskell consumers stop naming either token the moment they name `resolve_endpoint`. A
+  census on that pattern would have reported five correctly-fixed files as missing.
+  `endpoint_census_terms` therefore closes over the resolver, the shell resolver's path, and the two
+  shapes of REACHING a chain — and that last pair is what found `verify-rig.sh`.
+- [Phase 27]: [27-01 FINDING] **`"cast call"` is a prefix of `"cast calldata"`.** It was a census
+  term because `offchain/rig/README.md`'s hand-run chain-independence grep names it; on its first run
+  it matched `CheatSwap/Encoding.hs`, whose haddock says the calldata is built by shelling to `cast
+  calldata` — purely local, no endpoint. The 26-03 shape (`"828040"` contains `"82804"`) in mirror.
+  Dropped: an endpoint flag is the anchored form. **README's grep still carries the bug** and has
+  simply never met a file that says `cast calldata`.
+- [Phase 27]: [27-01 FINDING, base] **`System.Environment.setEnv k ""` routes an empty value to
+  `unsetEnv`.** OBSERVED: `setEnv "PROBE_VAR" "" >> lookupEnv` returns `Nothing`. So a check that
+  sets a variable empty and asserts a default comes back drives the UNSET path twice — and the first
+  draft of `an_empty_eth_rpc_url_does_not_resolve_to_the_empty_string` MEASURED GREEN against a
+  deliberately unguarded resolver. A shell reaches the state easily (`export VAR=` leaves it present
+  and empty). **A rule that must be tested at a value the process cannot install in its own
+  environment is factored into a PURE function of that value**, with the value's reachability
+  observed in a child process rather than assumed.
+- [Phase 27]: [27-01 DECIDED] **A duplication a check compares is a checked agreement.** `bash`
+  cannot import a Haskell module, so the default authority is stated once per language and the two
+  statements are asserted byte-equal — the move `Fee.Split` and `Store.Key` already make for the pip
+  denominator. The alternative (inlining the parameter expansion in three shells) would have been
+  four statements, three of them unchecked.
+- [Phase 27]: [27-01 DECIDED] **Existence and ORDER are separate assertions over the same subject.**
+  OBSERVED that neither alone suffices: moving the chainId assertion below the first `--broadcast`
+  fires only the order arm; deleting it fires only the existence arm. That is 26-03's finding, where
+  an ordering gate written only as line numbers was structurally voided by 26-04's refactor while
+  staying green.
+- [Phase 27]: [27-01 DECIDED] **Prose inside the census's blast radius is DECLARED, never argued
+  away.** `offchain/spec/types.md` and `offchain/rig/README.md` are `Transcript` sites and
+  `offchain/test/Main.hs` is a `Census` site whose rule is the inverse of every other kind's — it
+  must NAME the resolver and name none of `chain_reaching_terms`, which makes README's hand-run
+  chain-independence grep executable. Instance 26 of prose caught by a pattern on this branch was
+  hit during this plan; the prose moved, as it did the other 25 times.
+
+Older decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecting v4.0:
 
 **v6.0 (Phase 24) decisions:**
 

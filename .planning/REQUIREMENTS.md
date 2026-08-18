@@ -155,10 +155,10 @@ exists because three separate layers were measured silently altering them.
       ceiling) and `chainId` — so the consuming test can ATTACH rather than construct. `token0`/
       `token1` are deliberately NOT recorded: the test reads them from the pool on-chain, keeping
       the pool the single source of truth.
-- [ ] **CHAIN-06**: Every endpoint consumer resolves `ETH_RPC_URL` if set, else
+- [x] **CHAIN-06**: Every endpoint consumer resolves `ETH_RPC_URL` if set, else
       `http://127.0.0.1:8545` — the four `*/Rpc.hs` providers, `app/Main.hs`,
       `app/CheatSwapProof.hs`, `deploy-rig.sh` and both `capture-*.sh`. Nine sites, one rule.
-- [ ] **CHAIN-07**: The PRODUCER binds the same endpoint as the consumers — `deploy-rig.sh`
+- [x] **CHAIN-07**: The PRODUCER binds the same endpoint as the consumers — `deploy-rig.sh`
       derives anvil's `--host`/`--port` AND the deploy `--rpc-url` from one `ETH_RPC_URL`, and
       asserts `chainid` before any `--broadcast`. A consumer-only resolver does NOT retire the
       desync: `ETH_RPC_URL=…:9545` would otherwise start anvil on 8545 while the test attaches to
@@ -242,8 +242,8 @@ Filled during roadmap creation (2026-08-16).
 | CHAIN-03 | Phase 27 | Blocked (upstream `next` event, issue #26) |
 | CHAIN-04 | Phase 26 | Complete |
 | CHAIN-05 | Phase 27 | Pending — from issue #29's returned contract (plank `f713089`) |
-| CHAIN-06 | Phase 27 | Pending — from issue #29's returned contract (plank `f713089`) |
-| CHAIN-07 | Phase 27 | Pending — from issue #29's returned contract (plank `f713089`) |
+| CHAIN-06 | Phase 27 | Complete (27-01) — **but its text says "Nine sites" and that is wrong three ways.** MEASURED: TEN by its own pattern (`offchain/spec/types.md` is the tenth); ELEVEN counting `offchain/rig/verify-rig.sh`, which reached the chain through foundry's `--rpc-url local` alias and so named neither token, making it invisible to any pattern built from them; and the rule was implemented ZERO times, not nine. **Correct this text at phase close**, with CHAIN-01's stale `next`-event wording. |
+| CHAIN-07 | Phase 27 | Complete (27-01) — `deploy-rig.sh` binds anvil's `--host`/`--port` and every `--rpc-url` to one reading of `ETH_RPC_URL`, and asserts `cast chain-id` before the first `--broadcast`. The alias could NOT be the mechanism: `foundry.toml:59` pins it to the default and is outside this workstream's territory. |
 | LOOP-01 | Phase 28 | Blocked (upstream `next` event, issue #26) |
 | LOOP-02 | Phase 28 | Blocked (upstream `next` event, issue #26) |
 | LOOP-03 | Phase 28 | Blocked (upstream `next` event, issue #26) |
