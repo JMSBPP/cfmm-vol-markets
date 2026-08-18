@@ -169,6 +169,14 @@ library
                     -- build plan. Nothing here does IO, spawns, hashes or parses: it is a total
                     -- function from a log to an Either.
                     , Chain.Shock
+                    -- Phase 27's endpoint resolver. +0 PACKAGES, and CONFIRMED rather than
+                    -- estimated at 27-01: with this module on disk,
+                    -- `cabal build --enable-tests -j all` printed no `Downloading` line. It has
+                    -- exactly ONE import -- System.Environment, for lookupEnv -- and that is
+                    -- base, which was in the build plan before this stanza had any other line in
+                    -- it. It opens no socket and reaches no chain: it returns a String, and every
+                    -- consumer already reports its own RPC failure.
+                    , Chain.Endpoint
 
     -- Modules included in this library but not exported.
     -- other-modules:

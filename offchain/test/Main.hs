@@ -1210,8 +1210,20 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
 -- > 67
+--
+-- RE-MEASURED COLD AT 27-01, in the same sitting as 'credential_scan_floor' and by running the
+-- command rather than by adding two to the 67 above it: 69 against exactly 69, zero slack. Census
+-- under @offchain\/@ at that measurement: @hs 55, sh 11, json 10, sql 3@. The wave-start reading,
+-- taken COLD before this plan edited anything, was 67, and this plan adds exactly two files this
+-- scan can see -- @offchain\/lib\/Chain\/Endpoint.hs@ and @offchain\/rig\/endpoint.sh@, the two
+-- halves of the one endpoint resolver. The prediction and the measurement agree, and both ends
+-- were RUN. Note that this floor and its twin move by the SAME two here, where 26-04 moved them by
+-- two and three: this plan commits no artifact, so the @.json@ census is unchanged at 10.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
+-- > 69
 purge_file_floor :: Int
-purge_file_floor = 67
+purge_file_floor = 69
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -7936,8 +7948,18 @@ credential_scan root =
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 74
+--
+-- RE-MEASURED COLD AT 27-01, in the same sitting as 'purge_file_floor' and by running the command
+-- below rather than by adding two to the 77 beside it: @79 = 55 hs + 11 sh + 10 json + 3 sql@,
+-- against exactly 79 files, zero slack. This time the two floors move by the SAME amount, and the
+-- reason is the mirror of 26-04's: this plan commits NO artifact, so the @.json@ census is
+-- unchanged at 10 and the only new files are one @.hs@ and one @.sh@, which both scans see. The
+-- two commands were still run separately.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+-- > 79
 credential_scan_floor :: Int
-credential_scan_floor = 77
+credential_scan_floor = 79
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -8124,9 +8146,20 @@ one_aeson_vector (input, expected) =
 -- @txlVolumeRate@ argv token and therefore a key component. A 53-bit floating value anywhere on
 -- that path would move a pip count. @offchain\/lib\/Chain@ went into 'artifact_path_directories'
 -- in the same commit, for the same both-directions reason 26-01 records above.
+--
+-- 27-01 ADDED @Chain\/Endpoint.hs@ IN THE COMMIT THAT CREATED IT, and it is the first member whose
+-- reason is NOT that it is on the artifact path. It is not: it resolves a URL and touches no
+-- amount. It is here because the directory it lives under is already enumerated by
+-- 'the_artifact_path_scan_covers_every_module_on_it', so the choice was never "scan it or not" --
+-- it was "scan it, or exempt it WITH A WRITTEN REASON". An exemption reading "this module has
+-- nothing to do with the artifact" is true today and is exactly the sentence that gets copied onto
+-- the next module, which is how an exemption list stops being a list of decisions and becomes the
+-- default. A module with no floating value in it costs nothing to scan and passes on the day it
+-- lands, so it is scanned.
 aeson_storage_path :: [FilePath]
 aeson_storage_path =
-  [ "offchain/lib/Chain/Shock.hs"
+  [ "offchain/lib/Chain/Endpoint.hs"
+  , "offchain/lib/Chain/Shock.hs"
   , "offchain/lib/Fee/Split.hs"
   , "offchain/lib/Gams/Argv.hs"
   , "offchain/lib/Gams/Artifact.hs"
