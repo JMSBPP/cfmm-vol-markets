@@ -50,6 +50,8 @@ import Network.Ethereum.Api.Types (Quantity, unQuantity)
 import Network.Web3.Provider (Provider (HttpProvider), Web3, Web3Error, runWeb3')
 import System.Process (readProcess)
 
+-- CHAIN-06. One resolver for every site, including this one.
+import Chain.Endpoint (resolve_endpoint)
 import Driver.Capture (write_json_atomically)
 import CheatSwap.Rpc
   ( CheatSwapClock (AdvanceTo, ForceTimestamp, LeaveClockAlone)
@@ -82,8 +84,18 @@ output_path = "offchain/rig/cheat-swap-proof.json"
 import_ref_path :: FilePath
 import_ref_path = "offchain/rig/import-ref.txt"
 
-provider :: Provider
-provider = HttpProvider "http://127.0.0.1:8545"
+-- | CHAIN-06, and the type change is the whole fix.
+--
+-- This was a top-level pure @Provider@ holding the authority as a literal. A CAF cannot read the
+-- environment, so making it honour @ETH_RPC_URL@ is not an edit to its right-hand side -- it has
+-- to become an action, and every use site has to run it. There is exactly one use site
+-- ('attempt_group'), which is why the whole change is four lines.
+--
+-- Resolved per group rather than once, and that is safe here in the way it would NOT be in the
+-- demo driver: each group is an independent measurement that records its own failure, and the
+-- artifact names which groups succeeded. A group is the unit this tool already treats as atomic.
+provider :: IO Provider
+provider = HttpProvider <$> resolve_endpoint
 
 -- | Measurement A's cheated tick.
 --
@@ -332,7 +344,8 @@ run_extreme_tick submitted_ref target = do
 -- program before any artifact is written.
 attempt_group :: String -> Web3 GroupResult -> IO [Measured]
 attempt_group label action = do
-  raw <- try (runWeb3' provider action)
+  resolved <- provider
+  raw <- try (runWeb3' resolved action)
   case raw :: Either IOException (Either Web3Error GroupResult) of
     Right (Right results) -> pure [Measured n (Right r) | (n, r) <- results]
     Right (Left err) -> do

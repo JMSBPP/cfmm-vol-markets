@@ -16,6 +16,9 @@ import Network.Ethereum.Api.Types (Call (..), DefaultBlock (Latest))
 import Network.JsonRpc.TinyClient (remote)
 import Network.Web3.Provider (Provider (HttpProvider), Web3, runWeb3')
 
+-- CHAIN-06. This module used to write the authority out as a literal and read no environment at
+-- all, so ETH_RPC_URL was accepted by the shell and ignored here.
+import Chain.Endpoint (resolve_endpoint)
 import PriceSetter.Decode (decode_address)
 import PriceSetter.Encoding
   ( encode_pack_slot0_for
@@ -75,9 +78,10 @@ anvil_set_storage_at = remote "anvil_setStorageAt"
 
 write_price_and_report :: Address -> Integer -> IO ()
 write_price_and_report hook tick = do
+  endpoint <- resolve_endpoint
   result <-
     runWeb3'
-      (HttpProvider "http://127.0.0.1:8545")
+      (HttpProvider endpoint)
       (write_price hook tick)
 
   case result of

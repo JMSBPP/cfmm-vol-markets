@@ -13,6 +13,8 @@ import Network.Ethereum.Api.Types (TxReceipt)
 import Network.Web3.Provider (Provider (HttpProvider), Web3, runWeb3')
 import System.Random.MWC (GenIO)
 
+-- CHAIN-06. One resolver for every site, including this one.
+import Chain.Endpoint (resolve_endpoint)
 import StochasticOrderGen.Report (report_batch_result)
 import StochasticOrderGen.Simulate (draw_target_vega, simulate_batch_count)
 import StochasticOrderGen.Types (OrderShape (..), StochasticOrderGen (..), VegaDraw)
@@ -79,9 +81,10 @@ chunk n xs = take n xs : chunk n (drop n xs)
 
 run_order_gen_and_report :: Address -> Address -> StochasticOrderGen -> GenIO -> IO ()
 run_order_gen_and_report owner manager config gen = do
+  endpoint <- resolve_endpoint
   result <-
     runWeb3'
-      (HttpProvider "http://127.0.0.1:8545")
+      (HttpProvider endpoint)
       (run_order_gen owner manager config gen)
 
   case result of

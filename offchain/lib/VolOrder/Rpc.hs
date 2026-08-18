@@ -27,6 +27,8 @@ import Network.Ethereum.Api.Types (Call (..), DefaultBlock (..), TxReceipt (..))
 import qualified Network.Ethereum.Api.Eth as GlobalState
 import Network.Web3.Provider (Provider (HttpProvider), Web3, runWeb3')
 
+-- CHAIN-06. One resolver for every site, including this one.
+import Chain.Endpoint (resolve_endpoint)
 import VolOrder.Decode
   ( check_minted_id_run
   , decode_create_orders_result
@@ -270,9 +272,10 @@ wait_for_receipt tx_hash = go (50 :: Int)
 -- loader, so the manifest is read exactly once, at startup, by the driver.
 create_order_and_report :: Integer -> Address -> Address -> VolOrder -> IO ()
 create_order_and_report topic_e1 owner manager vol_order = do
+  endpoint <- resolve_endpoint
   result <-
     runWeb3'
-      (HttpProvider "http://127.0.0.1:8545")
+      (HttpProvider endpoint)
       (create_order owner manager vol_order)
 
   case result of

@@ -69,6 +69,8 @@ import Network.Ethereum.Api.Types
   )
 import Network.Web3.Provider (Provider (HttpProvider), Web3, runWeb3')
 
+-- CHAIN-06. One resolver for every site, including this one.
+import Chain.Endpoint (resolve_endpoint)
 import CheatSwap.Rpc (CheatSwapStep (..), CheatSwapTarget (..))
 import Driver.Capture
   ( DriverRig (..)
@@ -190,10 +192,17 @@ main = do
 
   capture <- capture_path
 
+  -- CHAIN-06, and the POSITION is the point. This is resolved BEFORE the `finally` below arms the
+  -- flush, so a resolution that fails cannot leave a half-written artifact behind: the run has not
+  -- started, so there is nothing to flush. It is resolved ONCE for the whole run rather than per
+  -- call, because a driver that re-read the variable between steps could write half its steps to
+  -- one chain and half to another and the artifact would describe neither.
+  endpoint <- resolve_endpoint
+
   result <-
     flip finally (flush rig seed steps_ref legacy_ref done_ref orders_ref capture) $
       runWeb3'
-        (HttpProvider "http://127.0.0.1:8545")
+        (HttpProvider endpoint)
         (do receipt <- create_order sender manager sample_order
 
             -- DRIV-02 / SC-2: the single order's E1 and its receipt-block-pinned readback,

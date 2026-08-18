@@ -48,7 +48,12 @@ cd "$(git rev-parse --show-toplevel)"
 MANIFEST="${RIG_MANIFEST:-offchain/rig/rig-manifest.json}"
 GOLDEN="test/pos_spec/fixtures/vol_order_return_golden.json"
 OUT=offchain/rig/batch-return-capture.json
-RPC=http://127.0.0.1:8545
+# CHAIN-06. This line used to be the authority written out as a literal, so ETH_RPC_URL was
+# accepted by the shell and ignored here -- the capture went to 8545 no matter what the operator
+# exported, and so did the rig it claims to describe. The resolver is sourced, never re-spelled:
+# offchain/rig/endpoint.sh is the ONE place the shell side states the default.
+. offchain/rig/endpoint.sh
+RPC="$RPC_URL"
 SIG='create_orders(uint256,uint256[])'
 
 # --- Preconditions: fail loudly, never default -----------------------------

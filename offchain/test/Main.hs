@@ -99,6 +99,36 @@ import Chain.Shock
   , decode_shock
   , shock_signature
   )
+-- Phase 27's endpoint resolver, imported for its MANIFEST and its SEARCH TERMS as much as for the
+-- resolver itself. Every string the census below greps for lives in THAT module and NOT ONE of
+-- them is spelled here, which is not tidiness. @offchain\/rig\/README.md@ records a hand-run grep
+-- over this file for three tokens -- the two ways of reaching a chain, one per language, and the
+-- default authority's port -- and states that it counts 0, which is the standing claim that
+-- @cabal test@ opens no socket. A scan that spelled its own subjects would be the thing that
+-- falsified the property it exists to assert. The tokens are DESCRIBED here rather than listed,
+-- for the same reason the GAMS-free note above describes its three instead of listing them: the
+-- first draft of THAT comment listed them and the grep found all three, in the sentence claiming
+-- they were absent. MEASURED at 27-01 before anything was written: all three counted 0, and the
+-- Census arm of 'every_endpoint_site_resolves_rather_than_hardcodes' is that hand-run grep made
+-- executable -- this file is a site in 'endpoint_sites' precisely so that it is.
+--
+-- 'resolve_endpoint' IS named here, deliberately and unavoidably: the third check below drives it.
+-- Naming the resolver is what the Census arm REQUIRES; naming a way to reach a chain is what it
+-- forbids. Those are different strings and the distinction is the whole design.
+import Chain.Endpoint
+  ( EndpointSite (..)
+  , SiteKind (..)
+  , chain_reaching_terms
+  , default_endpoint
+  , endpoint_authority
+  , endpoint_census_terms
+  , endpoint_env_var
+  , endpoint_from
+  , endpoint_sites
+  , resolve_endpoint
+  , shell_resolver
+  , site_paths
+  )
 
 -- The fee splitter's arithmetic core, imported TWICE and for a reason that is a finding rather
 -- than a style. 'Fee.Split' names a constant that 'Store.Key' also names -- the pip denominator --
@@ -14969,6 +14999,333 @@ the_ungated_renderer_has_exactly_one_consumer =
           ++ " any subprocess\" stops being a property of the import graph.")
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 27 plan 01: CHAIN-06 / CHAIN-07 -- one endpoint rule, PRODUCER INCLUDED
+--
+-- What was actually wrong is worth stating precisely, because it is not what CHAIN-06 describes.
+-- The requirement reads as though nine sites each implemented the rule and might drift. MEASURED
+-- at 27-01: the rule was implemented ZERO times. The only occurrence of the variable's name under
+-- @offchain\/@ was a COMMENT in @deploy-rig.sh@ saying the deploy scripts scrub it. Nine files
+-- wrote the authority out as a literal and read no environment, so the variable was accepted by
+-- every shell and honoured by nothing.
+-- ---------------------------------------------------------------------------------------------
+
+-- | A file's lines with WHOLE-LINE comments removed, and the reason it is whole-line only.
+--
+-- Two of the sites narrate the old literal in a comment, and one of those narrations is a MEASURED
+-- transcript: @deploy-rig.sh@'s Step-0b block records a real diagnostic session in which the rig
+-- was observed still answering after a failed teardown, and the endpoint it was polled on is part
+-- of what was typed. Redacting a measurement to satisfy a grep destroys evidence rather than
+-- closing a hole -- which is the ruling 'purge_known_extensions' already made, in those words, for
+-- @offchain\/spec\/types.md@.
+--
+-- Restricting the hardcode scan to code is also the ANCHORED form of the question. What the check
+-- means is \"this file does not BIND its endpoint to a literal\", and a @#@ or @--@ line binds
+-- nothing in either language. The \"names the resolver\" arm is restricted the same way and for
+-- the mirror reason: a file that named the resolver only in a comment while binding a literal in
+-- code would otherwise pass both arms.
+--
+-- WHOLE-LINE ONLY, never trailing. A trailing comment is left in scope, so the scan is strictly
+-- stricter there than the argument above requires -- the cheap direction to be wrong in. Only
+-- lines whose first non-space characters are the marker are dropped, so a marker inside a string
+-- literal cannot blind the scan to the rest of that line.
+comment_free :: FilePath -> String -> [String]
+comment_free path body =
+  [l | l <- lines body, not (marker `isPrefixOf` dropWhile isSpace l)]
+  where
+    marker = if takeExtension path == ".hs" then "--" else "#"
+
+-- | How many of a file's CODE lines contain a term.
+lines_naming :: String -> [String] -> Int
+lines_naming term = length . filter (term `isInfixOf`)
+
+-- | CHAIN-06's first half: every site RESOLVES, and the two that may hold the literal are the two
+-- that define it.
+--
+-- The order of the arms is the design. Existence is asserted before anything is read, because a
+-- scan over a file that is not there finds nothing and reports it as cleanliness -- 25-03 was
+-- bitten by exactly that shape, where @grep -c@ over a renamed subject printed 0 and the check
+-- passed for the one reason that should have failed loudest. Then the POSITIVE CONTROL: the two
+-- resolver sites must each hold the authority in code EXACTLY ONCE. That is not a formality --
+-- every \"does not hardcode\" verdict below is the ABSENCE of that string, and an absence means
+-- nothing until the string has been shown present somewhere. The control has a real subject rather
+-- than a temp bait, because the resolvers are the files that are supposed to hold it.
+--
+-- \"Exactly once\", not \"at least once\", on the resolvers: the value of a single declaration is
+-- that there is a single declaration. A resolver that stated it twice would satisfy every other
+-- assertion here while being the defect this module exists to remove, one file further in.
+--
+-- The 'Census' arm is the odd one and it is the point of that kind. This file must NAME the
+-- resolver and must name NONE of 'chain_reaching_terms' -- @offchain\/rig\/README.md@'s standing
+-- claim that @cabal test@ opens no socket, which was prose with a hand-run grep beside it until
+-- now. It is scanned WHOLE, comments included, because that claim is about the file and not about
+-- its executable lines.
+--
+-- FIRING INPUTS, each OBSERVED at 27-01: write the authority back into one provider and this names
+-- that file; delete the resolver import from one provider and this names it as not resolving;
+-- state the default twice in @Chain\/Endpoint.hs@ and the positive control names it.
+every_endpoint_site_resolves_rather_than_hardcodes :: Check
+every_endpoint_site_resolves_rather_than_hardcodes =
+  Check "every_endpoint_site_resolves_rather_than_hardcodes" . guarded $ do
+    presence <- mapM (\s -> (,) s <$> doesFileExist (site_path s)) endpoint_sites
+    let gone = [site_path s | (s, False) <- presence]
+    if not (null gone)
+      then pure (Left ("the endpoint manifest names files that are not on disk: "
+                        ++ intercalate ", " gone
+                        ++ ".\n      Every assertion below is a grep, and a grep over a file that"
+                        ++ " is not there finds nothing and reports it as cleanliness -- 25-03"
+                        ++ " MEASURED that shape, where a count over a renamed subject printed 0"
+                        ++ " and the check passed for the one reason that should have failed"
+                        ++ " loudest. If a site was RENAMED, rename it in Chain.Endpoint in the"
+                        ++ " same commit."))
+      else do
+        bodies <- mapM (\s -> (,) s <$> readFile (site_path s)) endpoint_sites
+        let held = [ (site_path s, lines_naming endpoint_authority (comment_free (site_path s) b))
+                   | (s, b) <- bodies
+                   , site_kind s `elem` [HaskellResolver, ShellResolver] ]
+            control_broken = [(p, n) | (p, n) <- held, n /= 1]
+            complaints = concatMap judge bodies
+        pure $ do
+          _ <- expect (length held == 2)
+                 ("this check expects EXACTLY TWO resolver sites -- one per language -- and the"
+                   ++ " manifest declares " ++ show (length held)
+                   ++ ". The positive control below is that both hold the default; a manifest with"
+                   ++ " a different number of them means the control is measuring something else.")
+          _ <- expect (null control_broken)
+                 ("THE POSITIVE CONTROL FAILED. Each resolver must hold the default authority in"
+                    ++ " CODE exactly once, and these do not:"
+                    ++ concat ["\n      " ++ p ++ ": " ++ show n ++ " code line(s)"
+                              | (p, n) <- control_broken]
+                    ++ "\n      Every \"does not hardcode\" verdict below is the ABSENCE of that"
+                    ++ " string, and an absence is evidence only once the string has been shown"
+                    ++ " present. A count of 0 means the search term no longer matches what the"
+                    ++ " resolvers write, so every site below passes vacuously. A count above 1"
+                    ++ " means the value this module exists to state ONCE is stated twice.")
+          expect (null complaints)
+            ("the endpoint rule is not honoured at every site:"
+              ++ concat ["\n      " ++ c | c <- complaints]
+              ++ "\n      One resolver, not N copies. MEASURED at 27-01, before this shipped: the"
+              ++ " rule was implemented ZERO times -- nine files wrote the authority out as a"
+              ++ " literal and read no environment at all, so the variable was accepted by every"
+              ++ " shell and honoured by nothing.")
+  where
+    judge (s, body) =
+      let path  = site_path s
+          code  = comment_free path body
+          auth  = lines_naming endpoint_authority code
+          hs_r  = lines_naming "resolve_endpoint" code
+          sh_r  = lines_naming shell_resolver code
+          hardcoded =
+            [path ++ " HARDCODES the default on " ++ show auth ++ " code line(s) instead of"
+              ++ " resolving it. That is the state every site was in before 27-01." | auth > 0]
+          must_name term how =
+            [path ++ " does not name " ++ how ++ " on any code line, so nothing there reads the"
+              ++ " environment: " ++ term ++ " is how this kind of site resolves." | True]
+      in case site_kind s of
+           HaskellResolver -> []   -- the positive control above is its whole rule
+           ShellResolver   -> []
+           Transcript      -> []
+           HaskellConsumer -> hardcoded ++ (if hs_r > 0 then [] else must_name "resolve_endpoint" "the resolver")
+           ShellConsumer   -> hardcoded ++ (if sh_r > 0 then [] else must_name shell_resolver "the shell resolver")
+           ShellProducer   -> hardcoded ++ (if sh_r > 0 then [] else must_name shell_resolver "the shell resolver")
+           Census ->
+             hardcoded
+               ++ (if hs_r > 0 then []
+                     else [path ++ " does not name resolve_endpoint, so the third check below is"
+                            ++ " not driving the real resolver."])
+               ++ [path ++ " names " ++ show t ++ ", a way of REACHING a chain. Under the"
+                    ++ " three-tier decision cabal test opens no socket, and offchain/rig/README.md"
+                    ++ " states that as a count of 0 over this file. A suite that can reach a chain"
+                    ++ " turns its own verdict into a fact about one machine."
+                  | t <- chain_reaching_terms, t `isInfixOf` body]
+
+-- | The census scan: every file under @offchain\/@ that touches the endpoint by ANY route.
+--
+-- @-l@ so the subject is the FILE. @-F@ so the terms are fixed strings: the authority is full of
+-- dots, and an unescaped @.@ in a regular expression is a wildcard matching a host nobody wrote.
+--
+-- NO @--include@, deliberately, and this is where it differs from 'purge_scan' and
+-- 'credential_scan', which both scan an extension whitelist. Those two are backed by an extension
+-- CENSUS that makes an undeclared type visible; this one has no such census, so an extension
+-- whitelist here would silently exempt every file type nobody thought of. Reading everything costs
+-- nothing -- the sites already span @.hs@, @.sh@ and @.md@ -- and it means a new site of any type
+-- is named on the day it lands.
+endpoint_census_scan :: IO (ExitCode, String, String)
+endpoint_census_scan =
+  readProcessWithExitCode
+    "grep"
+    (["-rlF"] ++ concat [["-e", t] | t <- endpoint_census_terms] ++ ["offchain"])
+    ""
+
+-- | CHAIN-06's second half: THE CENSUS COUNTS WHAT IS ON DISK, IN BOTH DIRECTIONS.
+--
+-- This is what stops an eleventh site being added silently, and 27-01 is the plan that proves the
+-- shape is needed rather than assuming it -- because the eleventh site ALREADY EXISTED.
+-- @offchain\/rig\/verify-rig.sh@ makes fourteen @cast@ calls against a live rig and CHAIN-06's
+-- list of nine does not contain it, because it reached the chain through foundry's ENDPOINT ALIAS
+-- -- the @local@ name that @foundry.toml@ resolves -- and so named neither the variable nor the
+-- authority. No pattern built from those two could ever have seen it. That is why
+-- 'endpoint_census_terms' includes the two shapes of REACHING a chain and not only the two shapes
+-- of naming its address: a grep must be anchored to what it MEANS, and \"names the variable\" is
+-- not \"reaches a chain\".
+--
+-- THE FLAG IS NOT SPELLED IN THIS PARAGRAPH, and that is the same discipline the GAMS-free note
+-- observes. It is one of 'chain_reaching_terms', this file is a 'Census' site, and the arm above
+-- scans this file WHOLE -- comments included. A sentence describing the flag by name would be
+-- reported as the suite reaching a chain. MEASURED at 27-01: the first draft of this paragraph
+-- wrote the flag out and this check named offchain/test/Main.hs on the very next run. Instance 26
+-- of prose inside a grep's blast radius on this branch, and the answer is the same as the other
+-- 25 -- move the prose, never relax the pattern.
+--
+-- The terms also had to survive the fix itself, which was MEASURED both ways. Under the plan's own
+-- pattern -- the variable or the authority -- the scan found the original ten BEFORE the rewiring
+-- and only EIGHT after it, because five of the six Haskell consumers stop naming either token the
+-- moment they start naming the resolver instead. A census on that pattern would have reported the
+-- five correctly-fixed files as missing from disk.
+--
+-- BOTH DIRECTIONS, and the second is the one a one-way check cannot do. @unlisted@ catches a file
+-- the tree grew past the manifest; @phantom@ catches a manifest entry the tree no longer has. A
+-- list scoped to whatever the tree happens to hold agrees with every tree, which is the defect
+-- 23-03 measured when a storage module sat unlisted for two commits with nothing red.
+--
+-- FIRING INPUTS, each OBSERVED at 27-01: delete an entry from the manifest and the @unlisted@ arm
+-- names its file; add a path nothing on disk matches and the @phantom@ arm names it.
+the_endpoint_site_census_grows_with_the_tree :: Check
+the_endpoint_site_census_grows_with_the_tree =
+  Check "the_endpoint_site_census_grows_with_the_tree" . guarded $ do
+    (code, out, err) <- endpoint_census_scan
+    on_disk <- mapM doesFileExist site_paths
+    pure $ do
+      _ <- case code of
+             ExitSuccess   -> Right ()
+             ExitFailure 1 ->
+               Left ("the census scan matched NO file under offchain/ at all. grep exits 1 for"
+                      ++ " \"found nothing\" and for \"matched no files\" alike, and either way the"
+                      ++ " set comparison below would be two lists agreeing about an empty tree."
+                      ++ " The terms come from Chain.Endpoint; if they were renamed there, this is"
+                      ++ " where it shows.")
+             ExitFailure n -> Left ("the census scan itself failed with exit " ++ show n ++ ": " ++ err)
+      let found    = sort (nub (lines out))
+          listed   = sort site_paths
+          unlisted = [p | p <- found, p `notElem` listed]
+          phantom  = [p | p <- listed, p `notElem` found]
+          absent   = [p | (p, False) <- zip site_paths on_disk]
+          repeated = [p | p <- nub site_paths, length (filter (== p) site_paths) > 1]
+      _ <- expect (null repeated)
+             ("the endpoint manifest lists these paths more than once: "
+               ++ intercalate ", " repeated
+               ++ ". A repeated entry is counted twice by the set comparison and decided about"
+               ++ " once, and the two kinds it was given may differ.")
+      _ <- expect (not (null found))
+             "the census scan produced no filenames, so the comparison below is about nothing."
+      expect (null unlisted && null phantom)
+        ("the files under offchain/ that touch the endpoint are not the set the manifest decided"
+          ++ " about."
+          ++ (if null unlisted then ""
+                else "\n      ON DISK, NOT IN THE MANIFEST: " ++ intercalate ", " unlisted
+                       ++ "\n      A new endpoint site must be added to Chain.Endpoint's"
+                       ++ " endpoint_sites, with its kind, IN THE COMMIT THAT CREATES IT.")
+          ++ (if null phantom then ""
+                else "\n      IN THE MANIFEST, NOT FOUND BY THE SCAN: " ++ intercalate ", " phantom
+                       ++ concat ["\n        " ++ p ++ " is NOT ON DISK." | p <- phantom, p `elem` absent]
+                       ++ concat ["\n        " ++ p ++ " IS on disk but matches no census term, so"
+                                   ++ " it no longer touches the endpoint by any route this check"
+                                   ++ " knows -- either it stopped being a site (remove it) or it"
+                                   ++ " reaches a chain by a route endpoint_census_terms cannot"
+                                   ++ " see, which is exactly how verify-rig.sh stayed invisible to"
+                                   ++ " CHAIN-06's own list of nine."
+                                 | p <- phantom, p `notElem` absent])
+          ++ "\n      Asserted BOTH WAYS on purpose: a list scoped to whatever the tree happens to"
+          ++ " hold agrees with every tree.")
+
+-- | An empty @ETH_RPC_URL@ resolves to the DEFAULT, never to the empty string.
+--
+-- @lookupEnv@ returns @Just \"\"@ for an exported-but-empty variable, so the obvious @fromMaybe@
+-- resolver hands back @\"\"@ -- and an empty value that travels until it meets another empty value
+-- is this repository's most-hit defect, six recorded instances, the nearest being an empty
+-- @import-ref.txt@ that wrote an empty @generatedFrom@ into the manifest and then passed every
+-- downstream freshness check by comparing one empty string to another.
+--
+-- == THE FIRST DRAFT OF THIS CHECK WAS VACUOUS, AND IT WAS THE SAME DEFECT
+--
+-- It set the variable to @\"\"@ and asserted the default came back. MEASURED at 27-01 against a
+-- resolver deliberately mutated to be unguarded: TEST EXIT 0. THE MUTATION WAS NOT CAUGHT.
+--
+-- The reason is a trap in base rather than in the resolver:
+-- @System.Environment.setEnv k \"\"@ routes an empty value to @unsetEnv@, so the next @lookupEnv@
+-- returns @Nothing@ and not @Just \"\"@. Observed directly, in this sitting:
+--
+-- > setEnv "PROBE_VAR" ""  >> lookupEnv "PROBE_VAR"   ==>  Nothing
+-- > setEnv "PROBE_VAR" "x" >> lookupEnv "PROBE_VAR"   ==>  Just "x"
+--
+-- So the check was driving the UNSET path twice and reporting on the empty one: an assertion that
+-- passed because its subject was absent, which is this milestone's standing defect appearing
+-- INSIDE the guard written against it.
+--
+-- Four arms now, and the first two are the repair. The state is real -- a shell reaches it -- so
+-- arm one OBSERVES that rather than asserting it: a child @\/bin\/sh@ exports the variable empty
+-- and @printenv@ is asked whether it is present. Arm two then drives the RULE at exactly the value
+-- @lookupEnv@ hands back for that state, which is possible only because 'endpoint_from' is a pure
+-- function of that argument. Without arm one, arm two would be an assertion about a @Maybe@ nobody
+-- had shown the system produces.
+--
+-- Arms three and four are the wiring, through the environment, for the two states a process CAN
+-- set. Four exists because one, two and three are ALL satisfied by a resolver that ignores the
+-- variable and returns the default always -- the advertised-and-dead shape this file has measured
+-- three separate times (22-03, 22-04, 22-07). It is 'probe_override' assertion (2) applied here: a
+-- distinctive value must come back VERBATIM.
+--
+-- FIRING INPUT, OBSERVED at 27-01 after the repair: make the rule unguarded so @Just \"\"@ resolves
+-- to the empty string.
+an_empty_eth_rpc_url_does_not_resolve_to_the_empty_string :: Check
+an_empty_eth_rpc_url_does_not_resolve_to_the_empty_string =
+  Check "an_empty_eth_rpc_url_does_not_resolve_to_the_empty_string" . guarded $ do
+    -- The premise, OBSERVED in a child process: a shell CAN export a variable that is present and
+    -- empty, which is the state this Haskell process is unable to create for itself.
+    (probe_code, probe_out, _) <-
+      readProcessWithExitCode "/bin/sh"
+        ["-c", "export " ++ endpoint_env_var ++ "=; "
+                 ++ "if printenv " ++ endpoint_env_var ++ " >/dev/null; "
+                 ++ "then echo present; else echo absent; fi"]
+        ""
+    original <- lookupEnv endpoint_env_var
+    let restore = maybe (unsetEnv endpoint_env_var) (setEnv endpoint_env_var) original
+        -- A host and port the rig never uses, so the value cannot be mistaken for a default.
+        distinct = "http://10.1.2.3:19545"
+    flip finally restore $ do
+      unsetEnv endpoint_env_var
+      unset <- resolve_endpoint
+      setEnv endpoint_env_var distinct
+      supplied <- resolve_endpoint
+      pure $ do
+        _ <- expect (probe_code == ExitSuccess && "present" `isInfixOf` probe_out)
+               ("the PREMISE was not observed: a child shell exported " ++ endpoint_env_var
+                 ++ " empty and printenv reported " ++ show (filter (not . isSpace) probe_out)
+                 ++ " (exit " ++ show probe_code ++ "). The arm below asserts what the rule does"
+                 ++ " with Just \"\", and that argument is worth asserting about only while an"
+                 ++ " empty export really is a state the environment can hold. If it is not, this"
+                 ++ " check is reasoning about a value nothing produces.")
+        _ <- expect (endpoint_from (Just "") == default_endpoint)
+               ("the rule maps an EMPTY exported value to "
+                 ++ show (endpoint_from (Just ""))
+                 ++ ", and the default is " ++ show default_endpoint
+                 ++ ". lookupEnv hands back Just \"\" for the export the arm above just observed,"
+                 ++ " so a resolver written with fromMaybe resolves it to the empty string. This is"
+                 ++ " asserted against the PURE rule and not through the environment because"
+                 ++ " setEnv cannot create the state: it routes an empty value to unsetEnv, and the"
+                 ++ " first draft of this check MEASURED green against an unguarded resolver for"
+                 ++ " exactly that reason.")
+        _ <- expect (unset == default_endpoint)
+               ("with " ++ endpoint_env_var ++ " UNSET the resolver returned " ++ show unset
+                 ++ ", and the default is " ++ show default_endpoint ++ ".")
+        expect (supplied == distinct)
+          ("with " ++ endpoint_env_var ++ " set to " ++ show distinct ++ " the resolver returned "
+            ++ show supplied ++ ". Every arm above is also satisfied by a resolver that IGNORES the"
+            ++ " variable and returns the default always -- the advertised-and-dead shape this file"
+            ++ " has measured three times (22-03, 22-04, 22-07). This arm is the one that"
+            ++ " distinguishes them, and it is the only one that proves resolve_endpoint reads"
+            ++ " endpoint_env_var at all.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -15170,6 +15527,9 @@ core_checks = do
           , haskell_and_gams_agree_on_every_grid_point
           , the_grid_brackets_each_boundary_by_one_pip
           , the_ungated_renderer_has_exactly_one_consumer
+          , every_endpoint_site_resolves_rather_than_hardcodes
+          , the_endpoint_site_census_grows_with_the_tree
+          , an_empty_eth_rpc_url_does_not_resolve_to_the_empty_string
           ]
             ++ per_pin_checks pins
   pure checks

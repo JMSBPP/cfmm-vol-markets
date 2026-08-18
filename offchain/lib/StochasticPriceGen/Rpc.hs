@@ -32,6 +32,8 @@ import Data.Solidity.Prim.Address (Address)
 import Network.Web3.Provider (Provider (HttpProvider), Web3, runWeb3')
 import System.Random.MWC (GenIO)
 
+-- CHAIN-06. One resolver for every site, including this one.
+import Chain.Endpoint (resolve_endpoint)
 import CheatSwap.Rpc
   ( CheatSwapClock (AdvanceTo)
   , CheatSwapStep (..)
@@ -53,9 +55,10 @@ run_price_gen hook config gen = do
 
 run_price_gen_and_report :: Address -> StochasticPriceGen -> GenIO -> IO ()
 run_price_gen_and_report hook config gen = do
+  endpoint <- resolve_endpoint
   result <-
     runWeb3'
-      (HttpProvider "http://127.0.0.1:8545")
+      (HttpProvider endpoint)
       (run_price_gen hook config gen)
 
   case result of

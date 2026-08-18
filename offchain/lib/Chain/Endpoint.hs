@@ -54,12 +54,17 @@ module Chain.Endpoint
   , EndpointSite (..)
   , endpoint_env_var
   , default_endpoint
+  , endpoint_from
   , resolve_endpoint
   , shell_resolver
   , endpoint_sites
   , site_paths
+  , endpoint_census_terms
+  , chain_reaching_terms
+  , endpoint_authority
   ) where
 
+import Data.List (stripPrefix, tails)
 import System.Environment (lookupEnv)
 
 -- | The variable, written down ONCE.
@@ -98,12 +103,34 @@ default_endpoint = "http://127.0.0.1:8545"
 -- No trimming, and that is a decision rather than an omission: @\" \"@ is not empty, and a
 -- resolver that silently repaired whitespace would be quietly interpreting an operator's input.
 -- A value with a space in it reaches the provider and the provider says so.
+--
+-- == WHY THE RULE IS A SEPARATE, PURE FUNCTION
+--
+-- Not style. MEASURED at 27-01, and it is a small trap with a large consequence:
+-- @System.Environment.setEnv k \"\"@ does NOT export an empty variable -- base's implementation
+-- routes an empty value to @unsetEnv@, so the very next @lookupEnv k@ returns @Nothing@. Observed
+-- directly:
+--
+-- > setEnv "PROBE_VAR" ""  >> lookupEnv "PROBE_VAR"   ==>  Nothing
+-- > setEnv "PROBE_VAR" "x" >> lookupEnv "PROBE_VAR"   ==>  Just "x"
+--
+-- A shell can do what @setEnv@ will not (@export VAR=@ leaves the variable PRESENT and empty, and
+-- @printenv VAR@ exits 0 on it), so the state is entirely reachable in production and entirely
+-- unreachable from an in-process test that sets the variable. A check written against the
+-- environment therefore exercises the UNSET path twice while reporting on the empty one -- an
+-- assertion that passes because its subject is absent, which is this milestone's standing defect
+-- and would have been that defect INSIDE the guard against it. 27-01 wrote that check first and
+-- MEASURED it green against a deliberately unguarded resolver.
+--
+-- 'endpoint_from' is the rule as a total function of exactly what @lookupEnv@ returns, so
+-- @Just \"\"@ can be handed to it directly. 'resolve_endpoint' is the wiring, and the suite still
+-- drives the wiring through the environment for the two states a process CAN set.
+endpoint_from :: Maybe String -> String
+endpoint_from (Just value) | not (null value) = value
+endpoint_from _                               = default_endpoint
+
 resolve_endpoint :: IO String
-resolve_endpoint = do
-  supplied <- lookupEnv endpoint_env_var
-  pure $ case supplied of
-    Just value | not (null value) -> value
-    _                             -> default_endpoint
+resolve_endpoint = endpoint_from <$> lookupEnv endpoint_env_var
 
 -- | The shell half of the SAME resolver, sourced by every @bash@ site.
 --
@@ -135,19 +162,26 @@ data SiteKind
     -- anvil on from the resolved value -- the half CHAIN-07 says a consumer-only resolver leaves
     -- open.
   | Transcript
-    -- ^ Prose or a recorded RPC session. Reads nothing and starts nothing.
+    -- ^ Prose, documentation, or a recorded RPC session. Reads nothing and starts nothing.
     --
-    -- @offchain\/spec\/types.md@ is the only member and it is here DELIBERATELY. It is not a
-    -- consumer and the resolver rule does not apply to it, but it is inside the census grep's
-    -- blast radius, and a file inside a grep's radius that the grep's list does not know about is
-    -- how a scan gets narrowed on the day it first fires. Twenty-five instances of prose caught by
-    -- a pattern are on record on this branch, and the answer every time was to move or declare the
-    -- prose, never to relax the pattern. So it is DECLARED, and what is asserted about it is
-    -- exactly what is true of it: it exists, and it is known.
+    -- Two members, and both are here DELIBERATELY. Neither is a consumer and the resolver rule
+    -- does not apply to either, but both are inside the census grep's blast radius, and a file
+    -- inside a grep's radius that the grep's list does not know about is how a scan gets narrowed
+    -- on the day it first fires. Twenty-five instances of prose caught by a pattern are on record
+    -- on this branch, and the answer every time was to move or declare the prose, never to relax
+    -- the pattern. So both are DECLARED, and what is asserted about them is exactly what is true:
+    -- they exist, and they are known.
+  | Census
+    -- ^ @offchain\/test\/Main.hs@: the suite that asserts this manifest.
     --
-    -- @offchain\/rig\/README.md@ is NOT here, and that is a measurement rather than an oversight:
-    -- it names neither the variable nor the authority today. If it ever does, the census's
-    -- unlisted arm names it.
+    -- It is a site because it NAMES the resolver -- it has to, in order to check it -- and a
+    -- census whose own observer is outside its scope has a hole exactly where the observer is.
+    -- What is asserted about it is the opposite of every other kind: it must name the resolver and
+    -- must name NONE of 'chain_reaching_terms', which is @offchain\/rig\/README.md@'s standing
+    -- claim that @cabal test@ opens no socket, made executable. That claim was prose with a
+    -- hand-run grep beside it until 27-01; MEASURED at 27-01 before anything was written, all
+    -- three of its tokens were 0, so what shipped is a guard around a property that already held
+    -- rather than a repair.
   deriving (Eq, Show)
 
 -- | One site: where it is, what it is, and why it is that.
@@ -157,9 +191,72 @@ data EndpointSite = EndpointSite
   , site_note :: String
   }
 
--- | THE MANIFEST. Twelve entries: ten measured sites plus the two resolvers.
+-- | The authority alone -- 'default_endpoint' without its scheme.
 --
--- The ten were MEASURED at 27-01, not inherited from CHAIN-06's count of nine:
+-- COMPUTED, never spelled a second time. It is what a "does this file hardcode the default?" scan
+-- has to look for, and the scan runs from @offchain\/test\/Main.hs@, which must not contain the
+-- literal: @offchain\/rig\/README.md@ records that @grep -cE \'cast call|HttpProvider|8545\'@ over
+-- that file is 0, and a check that spelled its own subject would be the thing that broke the
+-- property it asserts. Deriving it here means the suite names nothing and a change to
+-- 'default_endpoint' carries the scan with it.
+-- The scheme is stripped with 'stripPrefix' over 'tails' rather than a hand-rolled search: a
+-- three-line substring scan written here would be a fourth implementation of something base
+-- already has, and this repository has a standing note about not hand-rolling what a boot package
+-- supplies. Falls back to the whole string if there is no scheme, so the scan degrades to
+-- searching for MORE than it needs rather than for nothing.
+endpoint_authority :: String
+endpoint_authority =
+  case [rest | tail_ <- tails default_endpoint, Just rest <- [stripPrefix "://" tail_]] of
+    (rest : _) -> rest
+    []         -> default_endpoint
+
+-- | HOW A FILE IS RECOGNISED AS TOUCHING THE ENDPOINT AT ALL.
+--
+-- This list is the whole difference between a census that closes and one that reports the fix as a
+-- regression, and 27-01 MEASURED both. The plan's census pattern was "names the variable OR the
+-- default authority", which is what found the original ten. Run again AFTER the consumers were
+-- rewired it found EIGHT: five of the six Haskell consumers no longer name either token, because
+-- naming 'resolve_endpoint' instead is exactly what the fix is. A census on that pattern would
+-- have reported the five correctly-fixed files as missing.
+--
+-- 'chain_reaching_terms' is the second correction and it is the one that found a site nobody had.
+-- CHAIN-06 lists nine and @offchain\/rig\/verify-rig.sh@ is not among them -- because it reached
+-- the chain through foundry's @--rpc-url local@ ALIAS, so it named neither token and no pattern
+-- built from them could see it, while making fourteen @cast@ calls against a live rig. A pattern
+-- that matches "names the variable" does not mean "reaches a chain". These two terms mean the
+-- second thing, and they are what closes the census over files that reach a chain by any route.
+--
+-- Matched as FIXED STRINGS, not as a regular expression: the authority is full of dots, and an
+-- unescaped @.@ is a wildcard that would match a host nobody wrote.
+endpoint_census_terms :: [String]
+endpoint_census_terms = [endpoint_env_var, endpoint_authority, "resolve_endpoint", shell_resolver]
+                          ++ chain_reaching_terms
+
+-- | The two shapes of REACHING a chain, one per language.
+--
+-- Held here rather than in the suite so the suite can scan for them without containing them.
+--
+-- == WHY @cast call@ IS NOT A THIRD TERM, MEASURED
+--
+-- It was, for one run. @offchain\/rig\/README.md@'s chain-independence claim is a hand-run
+-- @grep -cE@ that names it, so the first draft inherited it -- and it MATCHED
+-- @offchain\/lib\/CheatSwap\/Encoding.hs@, whose haddock says the calldata is built by shelling to
+-- @cast calldata@. That call reaches nothing: it formats an ABI payload locally, like @cast sig@
+-- and @cast keccak@, and no endpoint is involved. The term matched because @cast call@ is a PREFIX
+-- of @cast calldata@ -- the same shape 26-03 measured when a naming assertion passed on a longer
+-- wrong value because @\"828040\"@ contains @\"82804\"@. The README's grep carries the same defect
+-- and has simply never met a file that says @cast calldata@.
+--
+-- Dropping it loses nothing, because it was neither necessary nor sufficient. A @cast@ invocation
+-- that reaches a chain MUST name an endpoint flag, and every one in @verify-rig.sh@ and both
+-- capture scripts does; the local ones never do. @--rpc-url@ is the anchored form of the question,
+-- and @cast call@ was a lookalike for it.
+chain_reaching_terms :: [String]
+chain_reaching_terms = ["--rpc-url", "HttpProvider"]
+
+-- | THE MANIFEST. Fifteen entries.
+--
+-- Ten were MEASURED at 27-01 by the pattern CHAIN-06's own wording implies, which reported nine:
 --
 -- > git grep -l -e 'ETH_RPC_URL' -e '127\.0\.0\.1:8545' -- offchain | wc -l
 -- > 10
@@ -168,8 +265,12 @@ data EndpointSite = EndpointSite
 -- documents, historical @docs\/superpowers\/@ plans, @foundry.toml@, a workflow and a Solidity
 -- test -- none of them under this workstream's territory and none of them a consumer. The census
 -- is therefore scoped to @offchain\/@, and that scope is asserted rather than assumed: the check
--- that reads this list enumerates every file under @offchain\/@ with NO extension filter, so a
--- new site of any type is named on the day it lands.
+-- that reads this list enumerates every file under @offchain\/@ with NO extension filter, so a new
+-- site of any type is named on the day it lands.
+--
+-- The remaining five are the two resolvers, the suite, and TWO FILES THE MEASURED PATTERN COULD
+-- NOT SEE -- see 'endpoint_census_terms' for how each was found. @verify-rig.sh@ in particular is
+-- a real eleventh consumer that CHAIN-06's list of nine does not contain.
 --
 -- BOTH DIRECTIONS, and the second one is the one that matters. A list compared only against what
 -- the tree holds still passes when the tree grows past it; a list compared only against itself
@@ -201,6 +302,10 @@ endpoint_sites =
       "Captures the empty-batch return shape with cast against a standing rig."
   , EndpointSite "offchain/rig/capture-cheat-swap-proof.sh" ShellConsumer
       "Captures the cheat-swap proof with cast against a standing rig."
+  , EndpointSite "offchain/rig/verify-rig.sh" ShellConsumer
+      "SC-2. THE SITE CHAIN-06's LIST OF NINE DOES NOT CONTAIN: fourteen cast calls against a live\
+      \ rig, reached through foundry's --rpc-url local alias, so it named neither the variable nor\
+      \ the authority and the pattern that found the other nine could not see it."
   , EndpointSite "offchain/rig/deploy-rig.sh" ShellProducer
       "The PRODUCER. Owns anvil: kills the stale listener on the resolved port, starts the chain\
       \ on the resolved host and port, and passes the resolved URL to every forge and cast\
@@ -208,6 +313,13 @@ endpoint_sites =
   , EndpointSite "offchain/spec/types.md" Transcript
       "A pasted RPC transcript kept as evidence. Reads nothing, starts nothing, and is listed so\
       \ the census over offchain/ is CLOSED rather than quietly narrowed around it."
+  , EndpointSite "offchain/rig/README.md" Transcript
+      "Operator documentation. It names the alias in the commands it tells an operator to run, so\
+      \ the census sees it; it executes nothing itself."
+  , EndpointSite "offchain/test/Main.hs" Census
+      "The suite. Names the resolver in order to assert about it, and is asserted to name none of\
+      \ chain_reaching_terms -- README.md's claim that cabal test opens no socket, made\
+      \ executable."
   ]
 
 -- | The manifest's paths, in the order it declares them.
