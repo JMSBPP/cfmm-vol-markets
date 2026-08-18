@@ -122,10 +122,14 @@ import Chain.Endpoint
   , default_endpoint
   , endpoint_authority
   , endpoint_census_terms
+  , broadcast_token
+  , chain_id_assertion_token
   , endpoint_env_var
   , endpoint_from
   , endpoint_sites
+  , producer_binding_tokens
   , resolve_endpoint
+  , shell_default_var
   , shell_resolver
   , site_paths
   )
@@ -15325,6 +15329,145 @@ an_empty_eth_rpc_url_does_not_resolve_to_the_empty_string =
             ++ " distinguishes them, and it is the only one that proves resolve_endpoint reads"
             ++ " endpoint_env_var at all.")
 
+-- | The value the shell resolver states its default as, read out of that file.
+--
+-- Returns 'Nothing' when the assignment line is not found at all, so the caller can say WHICH of
+-- the two failures happened -- a renamed variable and a changed value are different diagnoses and
+-- a 'Maybe' collapsed into a comparison would report both as \"they disagree\".
+shell_stated_default :: [String] -> Maybe String
+shell_stated_default code =
+  case [l | l <- code, (shell_default_var ++ "=") `isPrefixOf` dropWhile isSpace l] of
+    []      -> Nothing
+    (l : _) -> case dropWhile (/= '"') l of
+      ('"' : rest) -> Just (takeWhile (/= '"') rest)
+      _            -> Nothing
+
+-- | CHAIN-07: THE PRODUCER BINDS THE SAME ENDPOINT THE CONSUMERS RESOLVE.
+--
+-- The requirement says in its own words that /a consumer-only resolver does NOT retire/ it, and
+-- this is the check that makes that true rather than intended. Four things, and each is a
+-- different way the producer can drift from the readers.
+--
+-- (1) __The two statements of the default agree, byte for byte.__ @bash@ cannot import a Haskell
+-- module, so the value is written down twice, in two languages. That is a duplication, and this is
+-- what turns it into a checked agreement -- the same move 'compose_is_the_exact_level_constraint'
+-- makes for the pip denominator, which @Fee.Split@ and @Store.Key@ each name. Without it, the
+-- Haskell tree and the shell tree could default to different chains and every other assertion here
+-- would still pass.
+--
+-- (2) __anvil is started on the RESOLVED host and port.__ This is the assertion that is easy to
+-- believe unnecessary, and the reason it is necessary is that omitting it is SURVIVABLE: anvil's
+-- own defaults are the same authority the resolver defaults to, so with the variable unset a
+-- producer that binds nothing behaves identically to one that binds correctly. It diverges for
+-- every other value of the variable -- which is precisely the state issue #29 was opened about,
+-- and precisely the state no default-configuration run ever visits.
+--
+-- (3) __A chainId assertion EXISTS.__ Separately from where it is.
+--
+-- (4) __It comes before the first broadcast.__ Order, by position in the file.
+--
+-- (3) and (4) are two assertions on purpose, and that is 26-03's finding rather than caution: an
+-- ordering gate expressed ONLY as line numbers was structurally voided by 26-04's refactor while
+-- staying green, because the positions it compared had both moved. Asserting existence separately
+-- means DELETING the assertion reddens even when nothing has shifted, and asserting order
+-- separately means moving it below a broadcast reddens even though it still exists. Neither
+-- assertion alone catches both mutations, and 27-01 OBSERVED each catching its own.
+--
+-- Positions are taken over CODE lines only, for the reason 'comment_free' records: this file's
+-- Step-0b block narrates a broadcast in prose, and a comment broadcasts nothing.
+--
+-- FIRING INPUTS, each OBSERVED at 27-01: move the chainId assertion below the first broadcast;
+-- delete it entirely; drop the host and port flags from the anvil invocation; change the shell
+-- resolver's default by one character.
+the_producer_and_the_consumers_bind_one_endpoint :: Check
+the_producer_and_the_consumers_bind_one_endpoint =
+  Check "the_producer_and_the_consumers_bind_one_endpoint" . guarded $ do
+    let producers = [site_path s | s <- endpoint_sites, site_kind s == ShellProducer]
+    case producers of
+      [producer] -> do
+        there  <- doesFileExist producer
+        shell  <- doesFileExist shell_resolver
+        if not (there && shell)
+          then pure (Left ("CHAIN-07's subjects are not both on disk: "
+                            ++ intercalate ", " ([producer | not there] ++ [shell_resolver | not shell])
+                            ++ ". Every assertion below is a scan, and a scan over a file that is"
+                            ++ " not there finds nothing and reports it as agreement."))
+          else do
+            producer_code <- comment_free producer <$> readFile producer
+            shell_code    <- comment_free shell_resolver <$> readFile shell_resolver
+            let stated   = shell_stated_default shell_code
+                anvil_ls = [l | l <- producer_code, "anvil" `isInfixOf` l]
+                bound    = [t | t <- producer_binding_tokens
+                              , not (any (\l -> t `isInfixOf` l && "anvil" `isInfixOf` l) anvil_ls)]
+                indexed  = zip [(1 :: Int) ..] producer_code
+                asserts  = [i | (i, l) <- indexed, chain_id_assertion_token `isInfixOf` l]
+                casts    = [i | (i, l) <- indexed, broadcast_token `isInfixOf` l]
+            pure $ do
+              _ <- case stated of
+                     Nothing ->
+                       Left (shell_resolver ++ " has no `" ++ shell_default_var ++ "=\"...\"` line"
+                              ++ " on any code line, so the shell side's statement of the default"
+                              ++ " cannot be compared to the Haskell side's at all. If the variable"
+                              ++ " was renamed, rename it in Chain.Endpoint's shell_default_var in"
+                              ++ " the same commit -- the name is written out there precisely so a"
+                              ++ " rename reddens instead of ending the comparison.")
+                     Just value ->
+                       expect (value == default_endpoint)
+                         ("THE TWO STATEMENTS OF THE DEFAULT DISAGREE. " ++ shell_resolver
+                           ++ " states " ++ show value ++ " and Chain.Endpoint states "
+                           ++ show default_endpoint
+                           ++ ".\n      bash cannot import a Haskell module, so this value is"
+                           ++ " written down twice by necessity. This assertion is what makes that"
+                           ++ " a checked agreement instead of two chains -- the Haskell drivers"
+                           ++ " would default to one and the rig to the other, and nothing else"
+                           ++ " here would notice.")
+              _ <- expect (not (null anvil_ls))
+                     (producer ++ " has no code line naming anvil, so the binding assertion below"
+                       ++ " has nothing to read. The producer is the script that OWNS the chain;"
+                       ++ " if it no longer starts one, this check is guarding a file that stopped"
+                       ++ " being the producer.")
+              _ <- expect (null bound)
+                     (producer ++ " starts anvil without " ++ intercalate " and " bound
+                       ++ ", so the chain it STARTS is not bound to the endpoint the readers"
+                       ++ " RESOLVE.\n      This is the assertion that looks unnecessary and is"
+                       ++ " not: anvil's own defaults are the same authority the resolver defaults"
+                       ++ " to, so with " ++ endpoint_env_var ++ " unset an unbound producer"
+                       ++ " behaves identically to a bound one. It diverges for every OTHER value"
+                       ++ " -- the state issue #29 was opened about, and the state no"
+                       ++ " default-configuration run ever visits.")
+              _ <- expect (not (null asserts))
+                     (producer ++ " contains no `" ++ chain_id_assertion_token ++ "` on any code"
+                       ++ " line. CHAIN-07 requires the chainId asserted before any broadcast, and"
+                       ++ " EXISTENCE is asserted separately from ORDER on purpose: 26-03 measured"
+                       ++ " an ordering gate written only as line numbers being structurally voided"
+                       ++ " by a later refactor while staying green. A deletion must redden even"
+                       ++ " when nothing has moved.")
+              _ <- expect (not (null casts))
+                     (producer ++ " contains no `" ++ broadcast_token ++ "` on any code line, so"
+                       ++ " the ordering assertion below compares against nothing and would pass"
+                       ++ " over an empty set. If the producer stopped broadcasting, this check is"
+                       ++ " no longer about the producer.")
+              expect (not (null asserts) && not (null casts) && minimum asserts < minimum casts)
+                ("the chainId assertion in " ++ producer ++ " is at code line "
+                  ++ show (minimum asserts) ++ " and the FIRST " ++ broadcast_token
+                  ++ " is at code line " ++ show (minimum casts)
+                  ++ ", so the first broadcast happens BEFORE the chain is identified."
+                  ++ "\n      A chainId checked after a broadcast is a report on a transaction"
+                  ++ " that already landed. " ++ endpoint_env_var ++ " is an operator input: aimed"
+                  ++ " at a shared or public node, the producer's kill-the-listener step is a"
+                  ++ " no-op, anvil binds a port nobody reads, and the six deploy scripts send real"
+                  ++ " transactions to the far end. It is the one failure in that script that"
+                  ++ " re-running does not undo."
+                  ++ "\n      (Line numbers here count CODE lines only -- the producer narrates a"
+                  ++ " broadcast in prose, and a comment broadcasts nothing.)")
+      _ ->
+        pure (Left ("this check expects EXACTLY ONE ShellProducer in endpoint_sites and the"
+                     ++ " manifest declares " ++ show (length producers) ++ ": "
+                     ++ intercalate ", " producers
+                     ++ ". CHAIN-07 is about THE script that owns anvil; with none there is no"
+                     ++ " subject, and with two the endpoint has two producers and the requirement"
+                     ++ " does not say which binds."))
+
 -- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
@@ -15530,6 +15673,7 @@ core_checks = do
           , every_endpoint_site_resolves_rather_than_hardcodes
           , the_endpoint_site_census_grows_with_the_tree
           , an_empty_eth_rpc_url_does_not_resolve_to_the_empty_string
+          , the_producer_and_the_consumers_bind_one_endpoint
           ]
             ++ per_pin_checks pins
   pure checks

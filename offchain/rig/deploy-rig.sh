@@ -318,6 +318,48 @@ for _ in $(seq 1 50); do
 done
 [ "$CHAIN_UP" = "1" ] || { echo "FATAL: anvil did not answer on ${RPC_PORT} within 10s (see $LOG_DIR/anvil.log)" >&2; exit 1; }
 
+# --- Step 2a: CHAIN-07 -- assert the chainId BEFORE the first --broadcast ---
+#
+# The poll above proves SOMETHING answers at $RPC_URL. It does not prove it is OUR anvil, and the
+# difference is the whole reason this block exists. Step 1 kills the listener on the resolved port
+# and starts a chain there, but the resolved endpoint need not be local at all: ETH_RPC_URL is an
+# operator input, and pointed at a shared or public node the kill is a no-op (nothing of ours is
+# listening), anvil binds a port on a host nobody reads, and every deploy below then BROADCASTS
+# REAL TRANSACTIONS against whatever is at the far end. That is the one failure in this script that
+# is not recoverable by re-running it.
+#
+# ORDER IS THE CONTENT. This is asserted here -- after the chain answers, before the first
+# --broadcast, which is the FS array a dozen lines below -- because a check after the first
+# broadcast is a report on a transaction that already landed. Both facts are asserted by the suite
+# (the_producer_and_the_consumers_bind_one_endpoint): that this exists AT ALL, and that it comes
+# first. Existence is asserted separately on purpose, because 26-03 measured an ordering gate
+# expressed only as line numbers being structurally voided by a later refactor, and a deletion must
+# redden even when positions shift.
+#
+# `cast chain-id` and not `cast client-version`: the chainId is what every broadcast is signed
+# against and what the manifest records, so it is the value a mismatch would corrupt.
+if ! LIVE_CHAIN_ID=$(cast chain-id --rpc-url "$RPC_URL" 2>/dev/null); then
+  echo "FATAL: could not read the chainId from $RPC_URL, although it answered eth_blockNumber." >&2
+  exit 1
+fi
+LIVE_CHAIN_ID=$(printf '%s' "$LIVE_CHAIN_ID" | tr -d ' \t\r\n')
+# SHAPE-GATED BEFORE COMPARED. An empty capture would otherwise meet the empty side of a
+# comparison and pass -- the "" == "" failure this repository has recorded six times, and which the
+# import-ref block above narrates for the closest instance.
+case "$LIVE_CHAIN_ID" in
+  ''|*[!0-9]*)
+    echo "FATAL: chainId did not parse from $RPC_URL (got '$LIVE_CHAIN_ID')." >&2
+    exit 1 ;;
+esac
+[ "$LIVE_CHAIN_ID" = "$CHAIN_ID" ] || {
+  echo "FATAL: the chain at $RPC_URL reports chainId $LIVE_CHAIN_ID, and this rig deploys against" >&2
+  echo "       $CHAIN_ID. NOTHING HAS BEEN BROADCAST -- this is asserted before the first" >&2
+  echo "       --broadcast precisely so that stays true." >&2
+  echo "       ETH_RPC_URL is '${ETH_RPC_URL-<unset>}'. If it points at a chain this rig does not" >&2
+  echo "       own, the six deploy scripts below would have sent real transactions to it." >&2
+  exit 1; }
+echo "  chainId asserted BEFORE any broadcast: $LIVE_CHAIN_ID at $RPC_URL"
+
 # --- Step 3: delete stale broadcast records. NOT OPTIONAL. -----------------
 # A script that fails leaves the PREVIOUS run's run-latest.json on disk, and the
 # generator below would then emit a stale address. Deleting first turns that

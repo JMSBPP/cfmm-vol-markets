@@ -57,6 +57,10 @@ module Chain.Endpoint
   , endpoint_from
   , resolve_endpoint
   , shell_resolver
+  , shell_default_var
+  , producer_binding_tokens
+  , chain_id_assertion_token
+  , broadcast_token
   , endpoint_sites
   , site_paths
   , endpoint_census_terms
@@ -139,6 +143,37 @@ resolve_endpoint = endpoint_from <$> lookupEnv endpoint_env_var
 -- default once, and the check asserts the literal it states is byte-equal to 'default_endpoint'.
 shell_resolver :: FilePath
 shell_resolver = "offchain/rig/endpoint.sh"
+
+-- | The name of the shell variable 'shell_resolver' states the default in.
+--
+-- Held here so the suite can find that line without spelling anything itself, and WRITTEN OUT
+-- rather than derived: 24-04 MEASURED that referring to a name through a constant makes both sides
+-- of a comparison follow a rename together, leaving the whole suite green under it, while a
+-- written-out name reddens. A rename in the shell file therefore fails
+-- @the_producer_and_the_consumers_bind_one_endpoint@ rather than silently ending the comparison.
+shell_default_var :: String
+shell_default_var = "ETH_RPC_URL_DEFAULT"
+
+-- | The producer's two obligations under CHAIN-07, as the tokens that witness them.
+--
+-- @--host@ and @--port@ are what make the chain @deploy-rig.sh@ STARTS the chain every reader
+-- RESOLVES. They are worth asserting precisely because omitting them is survivable: anvil's own
+-- defaults are the same authority the resolver defaults to, so with the variable unset a rig with
+-- no flags at all behaves identically -- and diverges for every other value.
+producer_binding_tokens :: [String]
+producer_binding_tokens = ["--host", "--port"]
+
+-- | The assertion that must precede the first broadcast, and the token that marks a broadcast.
+--
+-- Two strings rather than one check, because 26-03 measured what happens when an ordering claim is
+-- expressed only as a position: a later refactor moved the lines and the gate was structurally
+-- voided while staying green. Existence and order are asserted separately, so DELETING the
+-- assertion reddens even when nothing has moved.
+chain_id_assertion_token :: String
+chain_id_assertion_token = "cast chain-id"
+
+broadcast_token :: String
+broadcast_token = "--broadcast"
 
 -- | What kind of thing a site is, and therefore which half of the rule applies to it.
 --
