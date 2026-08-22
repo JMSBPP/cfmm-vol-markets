@@ -53,8 +53,22 @@
 -- @keccak(poolId || POOLS_SLOT)@ on the manager being read -- and it is reachable by a stale
 -- poolId, a @POOLS_SLOT@ that has drifted from the deployed manager's layout, an uninitialised
 -- pool, the wrong manager, or a pin to a block BEFORE the pool was initialised. That last one is
--- new here and it is not hypothetical: it was OBSERVED against the live rig at 27-02, where the
--- same pinned read returns an all-zero word at block 5 and a well-formed one at block 13.
+-- new here and it is not hypothetical: it was OBSERVED against the live rig at 27-02.
+--
+-- The observation is RE-MEASURED and it CORRECTS an earlier draft of this paragraph, which said
+-- "an all-zero word at block 5". Block 5 does not produce an all-zero word. Walking every height
+-- of a from-scratch rig with @cast code@ and @cast storage@:
+--
+-- > blocks 0..5   PoolManager has NO CODE           -> the call returns the BARE 0x marker
+-- > blocks 6..7   code, pool NOT initialised        -> an ALL-ZERO WORD
+-- > block  8      pool initialised at tick 0        -> a well-formed word
+-- > block  13     after the rig's probe swap        -> tick -1, the word quoted below
+--
+-- Those are TWO DIFFERENT DIAGNOSES and the earlier draft merged them. A code-less call and an
+-- uninitialised slot are the exact pair 'decode_word_token' keeps apart, and the rig reaches both
+-- -- which is why the refusal for one must not be reachable by the other. Heights shift between
+-- deploys (21-02 measured three from-scratch runs landing at 9, 11 and 10), so what is durable
+-- here is the ORDER of the three regimes, not the numbers.
 --
 -- == WHY 'LpFee' IS NOT ZERO-REFUSED, AND WHY THAT IS A MEASUREMENT
 --

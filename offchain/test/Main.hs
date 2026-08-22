@@ -1299,8 +1299,19 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
 -- > 70
+--
+-- RE-MEASURED COLD AT 27-02 TASK 3, in the same sitting as 'credential_scan_floor' and by RUNNING
+-- the command rather than by adding two to the 70 above it: 72 against exactly 72, zero slack.
+-- Census under @offchain\/@ at that measurement: @hs 57, sh 12, json 11, sql 3@. This task adds
+-- exactly TWO files this scan can see -- @offchain\/app\/ChainReadConformance.hs@ and
+-- @offchain\/rig\/capture-chain-read.sh@ -- and a THIRD, @chain-read-conformance.json@, that it
+-- cannot. So the two floors part company here by exactly one, which is what task 1's note above
+-- predicted in advance. Prediction and measurement agree and BOTH ENDS WERE RUN.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
+-- > 72
 purge_file_floor :: Int
-purge_file_floor = 70
+purge_file_floor = 72
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -3457,6 +3468,27 @@ default_proof_file = "offchain/rig/cheat-swap-proof.json"
 proof_command :: String
 proof_command = "bash offchain/rig/capture-cheat-swap-proof.sh"
 
+-- | 27-02's artifact: CHAIN-02's OBSERVATIONAL half, produced out of band.
+--
+-- Overridable for the reason 'proof_file' is, and that reason is a measurement rather than a
+-- convention: three path constants in this module have been caught advertised-and-dead (22-03,
+-- 22-04, 22-07), and in each case the check's input path was a constant, so the check could not be
+-- aimed at a mutant and could only be falsified by damaging the evidence it guards.
+--
+-- SCOPE, stated so the two halves cannot drift the way 22-03's did: this variable redirects the
+-- CHECKS only. @offchain\/rig\/capture-chain-read.sh@ always writes the committed path, because a
+-- capture that could be redirected is a capture that can silently fail to update the artifact
+-- everything else reads.
+chain_read_conformance_path :: IO FilePath
+chain_read_conformance_path =
+  fromMaybe default_chain_read_conformance <$> lookupEnv "CHAIN_READ_CONFORMANCE"
+
+default_chain_read_conformance :: FilePath
+default_chain_read_conformance = "offchain/rig/chain-read-conformance.json"
+
+chain_read_conformance_command :: String
+chain_read_conformance_command = "bash offchain/rig/capture-chain-read.sh"
+
 -- | The measurements the artifact must carry, in order. A group that fails at capture time still
 -- emits a placeholder row, so a SHORTER list means a measurement was dropped rather than recorded
 -- -- which is the one outcome plan 22-04 calls a failure.
@@ -4048,6 +4080,12 @@ advertised_overrides =
   -- literal reddens two independent checks.
   , OverrideProbe "FEE_SPLIT_CONFORMANCE" fee_split_conformance_path
       (json_probe fee_split_conformance_path fee_split_conformance_command)
+  -- 27-02. Same shape as FEE_SPLIT_CONFORMANCE exactly: it resolves a FilePath and
+  -- 'the_pinned_read_held_while_the_unpinned_read_moved' reads the artifact through it, so all
+  -- three assertions have a real subject and none of them is a resolver whose result nothing
+  -- reads.
+  , OverrideProbe "CHAIN_READ_CONFORMANCE" chain_read_conformance_path
+      (json_probe chain_read_conformance_path chain_read_conformance_command)
   ]
   where
     rig_probe :: IO (Maybe String)
@@ -5856,11 +5894,27 @@ swept_artifacts =
   , MutableArtifact "FEE_SPLIT_CONFORMANCE" fee_split_conformance_path "fee-split-conformance.json"
   ]
 
--- | THE HONEST GAP, NAMED. Committed artifacts the suite reads that this sweep cannot reach,
--- because no environment variable redirects them and mutating them would mean editing a committed
--- file. Anything added here without an override is a field surface the harness does not cover.
+-- | THE HONEST GAP, NAMED. Committed artifacts the suite reads that this sweep does not reach.
+--
+-- The first three are here because NO environment variable redirects them, so mutating them would
+-- mean editing a committed file. The fourth is a different and weaker reason, and it is stated
+-- rather than blurred into theirs.
+--
+-- @chain-read-conformance.json@ (27-02) DOES have an override -- @CHAIN_READ_CONFORMANCE@, probed
+-- in 'advertised_overrides' -- so this sweep COULD reach it, and it does not. That is a stated
+-- coverage gap and not an impossibility: folding it in means enumerating its leaves against six
+-- sentinels and writing an 'absorbed_by_design' entry, with its count and its reason, for every
+-- pair the checks do not object to. 27-02 ships the artifact and the assertions over it; that
+-- enumeration is a separate decision with its own measurement and it is carried forward rather
+-- than done silently here. Recording it in this list is what stops it from being forgotten:
+-- everything below is asserted to EXIST, so a disclaimer about a file that is gone cannot sit here
+-- reading as coverage.
+--
+-- Anything added here that has an override and no reason is a field surface the harness does not
+-- cover and nobody decided about.
 unswept_artifacts :: [FilePath]
-unswept_artifacts = [capture_file, golden_file, import_ref_file]
+unswept_artifacts =
+  [capture_file, golden_file, import_ref_file, default_chain_read_conformance]
 
 -- | One mutation and what it did.
 data SentinelOutcome = SentinelOutcome
@@ -8044,8 +8098,17 @@ credential_scan root =
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 80
+--
+-- RE-MEASURED COLD AT 27-02 TASK 3, in the same sitting as 'purge_file_floor' and by RUNNING the
+-- command rather than by adding three to the 80 above it: 83 against exactly 83, zero slack.
+-- Census: @hs 57, sh 12, json 11, sql 3@. Three new files this scan reads -- the capture
+-- executable, the capture script, and @chain-read-conformance.json@ -- against two the purge reads,
+-- so the pair parts company by one exactly as task 1 said it would. Both ends were RUN.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+-- > 83
 credential_scan_floor :: Int
-credential_scan_floor = 80
+credential_scan_floor = 83
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -15872,6 +15935,177 @@ latest_appears_nowhere_in_the_read_layer =
                      ++ " scan's blast radius deliberately, and on this branch the answer has been"
                      ++ " the same twenty-six times: move the words, never relax the pattern.")
 
+-- ---------------------------------------------------------------------------------------------
+-- THE THIRD STRUCTURAL GREP: cabal test REACHES NO CHAIN
+-- ---------------------------------------------------------------------------------------------
+
+-- | The tokens that would make this suite able to open a socket.
+--
+-- BUILT, never written as one literal, exactly as 'gams_free_pattern' and 'credential_pattern' are
+-- built and for the identical reason: spelled contiguously they would match THIS FILE, and a scan
+-- that matches the file asserting its own absence exempts nothing and reddens always. This is the
+-- twenty-eighth time prose has been inside a grep's blast radius on this branch and the answer has
+-- never once been to relax the pattern.
+--
+-- The three, DESCRIBED rather than listed:
+--
+--   1. the provider module. Nothing that opens a socket in this package does so without it -- it
+--      is where the @Provider@ and the runner live -- so it is the anchored form of "reaches a
+--      chain" on the Haskell side, in the way naming an endpoint FLAG is on the shell side.
+--      (That flag and the provider's constructor are both members of 'chain_reaching_terms', and
+--      this paragraph may not spell either: 27-01's census scans this file for them INCLUDING its
+--      comments, and it fired on the first draft of this very haddock. Instance twenty-eight,
+--      same answer as the other twenty-seven.)
+--   2. the JSON-RPC method module. The transport's TYPES are legitimately named here (the log
+--      record this file decodes comes from it) and the METHODS are not, which is the whole
+--      distinction this pattern has to draw -- see the innocent source below.
+--   3. a require-a-real-chain gate, the twin of the GAMS-free scan's. It does not exist and this
+--      is the guard that keeps it from being introduced: 23-RESEARCH's ruling is that a suite
+--      gated on "if the thing is reachable" fails OPEN, so on every machine without a rig it would
+--      report success for the reason it exists to forbid.
+--
+-- THE THREE ARE NOT EQUALLY LOAD-BEARING, and 27-02 MEASURED which is which rather than assuming
+-- they were interchangeable. (2)'s package is ALREADY a dependency of this stanza, so that module
+-- can be imported today and nothing but this scan stops it -- the firing input compiled and the
+-- scan caught it. (1)'s package is NOT a dependency of the test stanza, so the import does not
+-- compile at all; that firing input had to be driven as a comment instead, which works because the
+-- scan covers the whole file deliberately. So (2) guards a state reachable in one line of Haskell
+-- and (1) guards one reachable in one line of .cabal, and the second is defence in depth rather
+-- than the primary lock. Recording the difference is the point: a pattern whose tokens are assumed
+-- equivalent is a pattern nobody has driven.
+chain_free_pattern :: String
+chain_free_pattern =
+  intercalate "|"
+    [ "Network\\." ++ "Web3"
+    , "Network\\.Ethereum\\.Api\\." ++ "Eth"
+    , "CFMM_REQUIRE" ++ "_CHAIN"
+    ]
+
+-- | The scanned file: this one, and only this one.
+--
+-- Same scope as its two twins and for the same reason: the LIBRARY must name the transport --
+-- 'Chain.Read' cannot read a chain without it -- and so must the capture executable. The claim is
+-- about the TEST BINARY, which is the thing that runs on a contributor's machine with no rig.
+chain_free_path :: FilePath
+chain_free_path = "offchain/test/Main.hs"
+
+-- | The seeded bait: all three tokens in the three shapes they would actually appear in.
+chain_free_bait_source :: String
+chain_free_bait_source =
+  -- The provider's CONSTRUCTOR is deliberately absent from this bait even though a real import
+  -- would name it. It is a member of 'chain_reaching_terms', which 27-01's census counts over this
+  -- file at 0 -- so spelling it here to make the bait look realistic would break a different
+  -- guard to decorate this one. MEASURED: the first draft did spell it, and
+  -- every_endpoint_site_resolves_rather_than_hardcodes named this file on the next run. The bait
+  -- only has to carry the three tokens 'chain_free_pattern' looks for, and it does.
+  "import Network." ++ "Web3.Provider (Web3, runWeb3')\n"
+    ++ "import qualified Network.Ethereum.Api." ++ "Eth as GlobalState\n"
+    ++ "gate :: String\n"
+    ++ "gate = \"CFMM_REQUIRE" ++ "_CHAIN\"\n"
+
+-- | The forms this suite legitimately uses, which must NOT match.
+--
+-- Doing real work rather than ceremony, and this is the arm that decided the pattern's shape. This
+-- file imports the transport's TYPE module at line 90 -- @Change@, the log record every decode
+-- check in here is driven with -- and a pattern anchored on the package or on the two path
+-- components would match it. It would then have to be relaxed on its very first run, at which
+-- point the absence it reports would be the absence of a scan. MEASURED at 27-02: the innocent arm
+-- below is what caught that, before the main arm was ever pointed at the real file.
+chain_free_innocent_source :: String
+chain_free_innocent_source =
+  "import Network.Ethereum.Api.Types (Change (..))\n"
+    ++ "import Chain.Read (refuse_or_value, decode_word_token)\n"
+    ++ "import Chain.Endpoint (endpoint_from, resolve_endpoint)\n"
+
+-- | Absence may not read as success until the pattern has been SHOWN matching. Ordered FIRST by
+-- its caller, following 'gams_free_positive_control'.
+chain_free_positive_control :: IO (Either String ())
+chain_free_positive_control = do
+  tmp <- getTemporaryDirectory
+  let dir       = tmp </> "chain27-free-positive-control"
+      bait      = dir </> "bait.hs"
+      innocent  = dir </> "clean.hs"
+      discard q = do
+        there <- doesFileExist q
+        if there then removeFile q else pure ()
+
+  createDirectoryIfMissing True dir
+  flip finally (mapM_ discard [bait, innocent]) $ do
+    writeFile bait chain_free_bait_source
+    writeFile innocent chain_free_innocent_source
+    (code, out, err) <- gams_version_scan chain_free_pattern [bait, innocent]
+    pure $ do
+      _ <- expect (code == ExitSuccess)
+             ("the CHAIN-FREE POSITIVE CONTROL did not fire: the scan exited " ++ show code
+               ++ " over a file that imports the provider, imports the JSON-RPC method module, and"
+               ++ " compares a require-a-real-chain gate as a string. The pattern has stopped"
+               ++ " matching anything, which means the exit-1 the real scan reports is absence of"
+               ++ " MATCHES only by assumption."
+               ++ (if null err then "" else "\n      stderr: " ++ err))
+      _ <- expect ("bait.hs" `isInfixOf` out)
+             ("the CHAIN-FREE POSITIVE CONTROL fired but did not NAME the seeded file. It said:\n"
+               ++ unlines (map ("      " ++) (lines out)))
+      expect (not ("clean.hs" `isInfixOf` out))
+        ("the CHAIN-FREE POSITIVE CONTROL matched the forms this suite legitimately uses. This"
+          ++ " file imports the transport's TYPE module -- Change, the log record every decode"
+          ++ " check here is driven with -- and it imports the read layer and the endpoint"
+          ++ " resolver. A pattern that matched any of those would have to be relaxed the first"
+          ++ " time it fired, and the absence it reported afterwards would be the absence of a"
+          ++ " scan. It said:\n"
+          ++ unlines (map ("      " ++) (lines out)))
+
+-- | THE THIRD STRUCTURAL GREP, beside the DB-free and GAMS-free ones: @cabal test@ REACHES NO CHAIN.
+--
+-- Three assertions in this order, the same three its two twins make: (1) the pattern is SHOWN
+-- matching a seeded bait and shown NOT matching the forms this file is made of; (2) the scanned
+-- file EXISTS -- @grep@ exits 2 for a missing operand and 1 for an empty one, and neither may be
+-- read as a clean scan; (3) the scan finds nothing.
+--
+-- == WHY THIS ARRIVES WITH CHAIN-02 AND NOT EARLIER
+--
+-- Until 27-02 nothing in this suite had any reason to reach a chain. This plan gives it one: it
+-- adds a read layer whose whole subject is a live pool, and the shortest way to test a pinned read
+-- is to make one. That is precisely the pressure this grep exists to hold, and it is why it ships
+-- in the same commit as the capture rather than afterwards -- the honest time to install a guard
+-- is before the thing it guards against becomes convenient.
+--
+-- 27-01's census already asserts that this file names none of 'chain_reaching_terms'. That is a
+-- DIFFERENT claim and both are worth having: the census asks whether this file reaches a chain the
+-- way the SHELL sites do, and this asks whether it can reach one the way the HASKELL sites do.
+-- Neither pattern contains the other's tokens.
+--
+-- FIRING INPUT, OBSERVED at 27-02: import the provider into this file.
+the_suite_never_reaches_a_chain :: Check
+the_suite_never_reaches_a_chain =
+  Check "the_suite_never_reaches_a_chain" . guarded $ do
+    control <- chain_free_positive_control
+    there   <- doesFileExist chain_free_path
+    if not there
+      then pure $ do
+        _ <- control
+        expect False
+          ("the chain-free scan's subject is not on disk: " ++ chain_free_path
+            ++ ". grep exits 2 for a missing operand and 1 for a clean scan, and a check that"
+            ++ " reported success here would be reporting the absence of its own subject.")
+      else do
+        (code, out, err) <- gams_version_scan chain_free_pattern [chain_free_path]
+        pure $ do
+          _ <- control
+          case code of
+            ExitFailure 1 -> Right ()
+            ExitFailure n -> Left ("the scan itself failed with exit " ++ show n ++ ": " ++ err)
+            ExitSuccess ->
+              Left ("this test suite can REACH A CHAIN:\n"
+                     ++ unlines (map ("      " ++) (lines out))
+                     ++ "      One of three tokens is present: the provider module, the JSON-RPC"
+                     ++ " method module, or a require-a-real-chain gate. Any of them turns this"
+                     ++ " suite's verdict into a fact about one machine with a rig standing, and"
+                     ++ " turns every contributor's first run into a hunt for an anvil. CHAIN-02's"
+                     ++ " observational evidence belongs in the committed artifact"
+                     ++ " chain-read-conformance.json, produced out of band by"
+                     ++ " offchain/rig/capture-chain-read.sh, and asserted over here offline."
+                     ++ " A comment is inside this scan's blast radius too.")
+
 -- | A 32-byte word as the @0x@ token a transport would hand back.
 --
 -- Rendered at RUNTIME from an 'Integer' for the reason every other hex in this file is: a 64-digit
@@ -15890,13 +16124,33 @@ word_token n =
 measured_live_slot0 :: Integer
 measured_live_slot0 = (16777215 `shiftL` 160) .|. 79228162514264258373304252324
 
--- | The heights the live word was measured at, and the one before the pool existed.
+-- | A height at which the pool DOES NOT EXIST YET, and the word is ALL ZERO.
 --
--- MEASURED at 27-02 with the same pinned read against the standing rig: block 5 returns an all-zero
--- word (no pool yet), block 12 returns the price at tick 0, block 13 returns the word above. Those
--- three readings are what make the divergence in the capture CONSTRUCTIBLE rather than hoped for.
+-- == THIS VALUE WAS 5, AND 5 WAS WRONG. RE-MEASURED AT 27-02.
+--
+-- The first draft recorded "block 5 returns an all-zero word (no pool yet)". It does not. Walking
+-- every height of a from-scratch rig with @cast code@ and @cast storage@ -- and confirmed by the
+-- committed capture, whose scan refuses every height below the pool and records the text of both
+-- refusals:
+--
+-- > blocks 0..5   PoolManager has NO CODE       -> the call returns the BARE 0x marker
+-- > blocks 6..7   code, pool NOT initialised    -> an ALL-ZERO WORD
+-- > block  8      pool initialised at tick 0    -> a well-formed word
+-- > block  13     after the rig's probe swap    -> 'measured_live_slot0'
+--
+-- Blocks 0..5 produce the marker, not the zero word: at those heights the manager has no code at
+-- all, and @eth_call@ to a code-less address returns empty. That is a DIFFERENT diagnosis from an
+-- uninitialised slot, and keeping the two apart is what 'decode_word_token' exists for -- so a
+-- constant labelled "the pre-pool block" that actually names the pre-DEPLOY block would have this
+-- table exercising the wrong arm while claiming the other. 7 is the largest height at which the
+-- manager has code and the pool does not.
+--
+-- The value is a TAG on synthetic rows, never a height this suite asks a node about, which is why
+-- a number that shifts between deploys is safe here at all: 21-02 measured three from-scratch runs
+-- landing at 9, 11 and 10. What is durable is the ORDER of the three regimes; the committed
+-- artifact records the run's actual heights.
 measured_pre_pool_block :: Integer
-measured_pre_pool_block = 5
+measured_pre_pool_block = 7
 
 -- | Every refusal this rule must produce, as (name, field, where, what the transport handed back,
 -- the fragment that names the DIAGNOSIS).
@@ -16099,6 +16353,174 @@ a_zero_or_absent_read_is_refused_by_field_name =
                                                     (decode_word_token token)))
             ("CHAIN-03: " ++ name ++ " decoded to " ++ show value ++ " and the measurement is "
               ++ show expected ++ ".")
+
+-- | Pull one measurement out of the capture by name.
+--
+-- BY NAME and never by index. A capture that dropped a measurement would silently shift every
+-- index below it, and each of the three assertions here would then be made about a different
+-- subject while still passing -- the substitution 20-05's criteria were caught making.
+chain_read_measurement :: String -> Value -> Either String Value
+chain_read_measurement name doc = do
+  rows <- json_field "measurements" doc >>= json_array
+  named <- mapM (\row -> (,) <$> (json_field "name" row >>= json_string) <*> pure row) rows
+  case [row | (n, row) <- named, n == name] of
+    [row] -> Right row
+    []    -> Left ("the capture has no measurement named " ++ show name ++ ". It has: "
+                    ++ intercalate ", " (map fst named)
+                    ++ ". A measurement that vanished is not a measurement that passed.")
+    many  -> Left ("the capture has " ++ show (length many) ++ " measurements named " ++ show name
+                    ++ ", and every assertion below would be made about whichever came first.")
+
+-- | A named boolean field of a measurement, with the failure naming BOTH the field and the row.
+chain_read_flag :: String -> Value -> Either String Bool
+chain_read_flag field row = json_field field row >>= json_bool
+
+-- | CHAIN-02's OBSERVATIONAL half, asserted OFFLINE over the committed capture.
+--
+-- == WHY THE CENTRAL ASSERTION IS ABOUT THE UNPINNED READ
+--
+-- Because without it this check is vacuous and would stay green forever. On a single-writer local
+-- anvil a pinned read and an unpinned read return the same value in every recorded field, so
+-- "pinned_equals_block_b" is satisfied by a chain that simply did not change -- and a pinned read
+-- agreeing with itself across a state change that never happened says nothing whatever about
+-- pinning. @unpinned_differs@ is the assertion that the divergence was CONSTRUCTED, and
+-- @pinned_and_unpinned_disagree@ is the assertion that the two reads came apart. Neither implies
+-- the other: a capture where the chain moved and BOTH reads followed it satisfies the first and
+-- fails the second, and that case is the defect itself.
+--
+-- == THE THIRD ARM, WHICH NEEDS NO STATE CHANGE AT ALL
+--
+-- The capture also reads the same slot at every height from 0 to b and records where the pool
+-- first becomes readable. That arm is independent evidence that the block parameter reaches the
+-- node: a pin being ignored would return the live word at every one of those heights. It is worth
+-- having separately because it survives a capture whose state change failed, and because the two
+-- refusals it records are DIFFERENT diagnoses -- a code-less manager returns the bare marker, an
+-- uninitialised pool returns an all-zero word -- which is the distinction 'decode_word_token'
+-- exists to draw, observed on a real chain rather than only in the synthetic table above.
+--
+-- == WHAT THIS CHECK DOES NOT DO
+--
+-- Reach a chain. It reads a committed file, and 'the_suite_never_reaches_a_chain' asserts this
+-- binary structurally cannot do otherwise.
+--
+-- FIRING INPUTS, each OBSERVED at 27-02 against a doctored copy pointed at by
+-- @CHAIN_READ_CONFORMANCE@ -- never by damaging the committed artifact: flip unpinned_differs to
+-- false; flip pinned_equals_block_b to false; flip pinned_and_unpinned_disagree to false; rename a
+-- measurement; blank generatedFrom.
+the_pinned_read_held_while_the_unpinned_read_moved :: Check
+the_pinned_read_held_while_the_unpinned_read_moved =
+  Check "the_pinned_read_held_while_the_unpinned_read_moved" $ do
+    path <- chain_read_conformance_path
+    loaded <- read_json_file path ("produce it with: " ++ chain_read_conformance_command)
+    ref <- readFile import_ref_file
+    pure $ do
+      doc <- loaded
+
+      -- PROVENANCE FIRST. An artifact from a tree that is not this one is an artifact about a
+      -- different read layer, and every value below would be true of something else.
+      recorded_ref <- json_field "generatedFrom" doc >>= json_string
+      _ <- expect (not (null (strip_ws recorded_ref)))
+             ("the capture records an EMPTY generatedFrom. This repository has measured what an"
+               ++ " empty provenance field does six times: it flows on, meets another empty value,"
+               ++ " and \"\" == \"\" exits 0 having verified nothing.")
+      _ <- expect (strip_ws recorded_ref == strip_ws ref)
+             ("the capture was produced from ref " ++ show (strip_ws recorded_ref)
+               ++ " and the tree's " ++ import_ref_file ++ " says " ++ show (strip_ws ref)
+               ++ ". Re-take it: " ++ chain_read_conformance_command)
+      chain <- json_field "chainId" doc >>= json_integer
+      _ <- expect (chain > 0)
+             ("the capture records chainId " ++ show chain ++ ", and a chain id is positive. A"
+               ++ " zero here is the shape-valid meaningless value this whole plan is about.")
+
+      -- (1) THE DIVERGENCE.
+      m <- chain_read_measurement "pinned_read_survives_a_state_change" doc
+      b <- json_field "block_b" m >>= json_integer
+      after <- json_field "block_after" m >>= json_integer
+      write_head <- json_field "write_head" m >>= json_integer
+
+      moved <- chain_read_flag "unpinned_differs" m
+      _ <- expect moved
+           ("THE CAPTURE IS VOID: unpinned_differs is false, so the unpinned read did not move and"
+             ++ " the divergence was never constructed. Every other field in that artifact is then"
+             ++ " a pinned read agreeing with itself on a chain that did not change, which is not"
+             ++ " evidence about pinning. This is the assertion that stops the whole capture"
+             ++ " passing vacuously on a quiet chain, and it is why it is made FIRST.")
+
+      held <- chain_read_flag "pinned_equals_block_b" m
+      _ <- expect held
+           ("the read PINNED at block " ++ show b ++ " did not return that block's value after the"
+             ++ " state change. That is CHAIN-02's defect, observed. Before treating it as one,"
+             ++ " check write_landed_above_b: MEASURED at 27-02, anvil_setStorageAt writes into the"
+             ++ " state OF THE CURRENT HEAD rather than creating a block, so a capture that pinned"
+             ++ " at the head recorded exactly this while the pin was working perfectly.")
+
+      disagreed <- chain_read_flag "pinned_and_unpinned_disagree" m
+      _ <- expect disagreed
+           ("the pinned and unpinned reads returned the SAME value across a state change the"
+             ++ " capture confirms happened. The pin is being ignored: both reads followed the"
+             ++ " head. unpinned_differs alone cannot see this, which is why both are asserted.")
+
+      above <- chain_read_flag "write_landed_above_b" m
+      _ <- expect above
+           ("the state change landed at height " ++ show write_head ++ " and the pinned height is "
+             ++ show b ++ ", so the write was not strictly above the block being pinned to. The"
+             ++ " capture cannot distinguish a broken pin from a construction that wrote into the"
+             ++ " very block it then read.")
+
+      _ <- expect (after > b)
+             ("the capture records block_after " ++ show after ++ " and block_b " ++ show b
+               ++ ". No block was mined, so \"pinned at b\" and \"unpinned\" name the same height"
+               ++ " and every assertion above is satisfied by an identity.")
+
+      -- The recording tag, in the artifact rather than only in the type.
+      pinned_h <- json_field "pinned_readback_height" m >>= json_integer
+      unpinned_h <- json_field "unpinned_readback_height" m
+      _ <- expect (pinned_h == b)
+             ("the pinned reading records height " ++ show pinned_h ++ " and was pinned at "
+               ++ show b ++ ".")
+      _ <- expect (unpinned_h == Null)
+             ("the UNPINNED reading records " ++ show unpinned_h ++ " where the artifact must"
+               ++ " carry null. A sentinel like 0 or -1 is a plausible height a downstream reader"
+               ++ " cannot tell from a real one, which is the whole reason readback_height is a"
+               ++ " Maybe.")
+
+      -- (2) THE WHOLE FIELD SURFACE, not one word.
+      fields_row <- chain_read_measurement "every_field_pinned_at_block_b" doc
+      readings <- json_field "readings" fields_row >>= json_array
+      names <- mapM (\r -> json_field "field" r >>= json_string) readings
+      _ <- expect (sort names == sort (map pool_field_name pool_fields))
+             ("the capture read " ++ show (sort names) ++ " and the layer declares "
+               ++ show (sort (map pool_field_name pool_fields))
+               ++ ". A field added to the layer and not to the capture is a field with no live"
+               ++ " reading behind it.")
+      refusals <- mapM (chain_read_flag "refused") readings
+      _ <- expect (not (or refusals))
+             ("a field was REFUSED at the pinned block on a standing rig: "
+               ++ intercalate ", " [n | (n, True) <- zip names refusals]
+               ++ ". Every one of these must read, or the acceptances in the synthetic table are"
+               ++ " asserting a shape the real chain does not produce.")
+
+      -- (3) THE PIN, EVIDENCED WITHOUT A STATE CHANGE.
+      scan <- chain_read_measurement "the_pin_locates_the_block_the_pool_appeared" doc
+      first_ok <- json_field "first_readable_block" scan >>= json_integer
+      below <- json_field "refused_below_count" scan >>= json_integer
+      all_ref <- chain_read_flag "all_below_refused" scan
+      all_named <- chain_read_flag "all_below_name_the_field" scan
+      _ <- expect (below > 0)
+             ("the capture refused ZERO reads below the pool's first block, so this arm exercised"
+               ++ " nothing. On a rig the pool is initialised several blocks in; a count of 0 means"
+               ++ " the scan did not run or the pin is returning the live word at every height.")
+      _ <- expect (first_ok > 0)
+             ("the capture says the pool is readable from block " ++ show first_ok
+               ++ ". At height 0 the manager has no code at all, so a first-readable block of 0"
+               ++ " means the block parameter is not reaching the node.")
+      _ <- expect all_ref
+             ("a read pinned BELOW the block where the pool appears returned a VALUE. The pin is"
+               ++ " not being honoured: the node is answering from the head.")
+      expect all_named
+        ("a refusal below the pool's first block did not NAME the field. CHAIN-03 says an absent,"
+          ++ " zero or unparseable read is an error naming the field -- never a value that flows"
+          ++ " into a content key -- and these are the refusals a real chain actually produced.")
 
 -- ---------------------------------------------------------------------------------------------
 -- Runner
@@ -16306,6 +16728,8 @@ core_checks = do
           , the_endpoint_site_census_grows_with_the_tree
           , an_empty_eth_rpc_url_does_not_resolve_to_the_empty_string
           , the_producer_and_the_consumers_bind_one_endpoint
+          , the_suite_never_reaches_a_chain
+          , the_pinned_read_held_while_the_unpinned_read_moved
           , no_read_can_omit_its_block
           , latest_appears_nowhere_in_the_read_layer
           , a_zero_or_absent_read_is_refused_by_field_name

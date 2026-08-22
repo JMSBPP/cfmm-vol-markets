@@ -337,6 +337,24 @@ endpoint_sites =
       "Captures the empty-batch return shape with cast against a standing rig."
   , EndpointSite "offchain/rig/capture-cheat-swap-proof.sh" ShellConsumer
       "Captures the cheat-swap proof with cast against a standing rig."
+  , EndpointSite "offchain/app/ChainReadConformance.hs" HaskellConsumer
+      "27-02. CHAIN-02's observational half: reads the pool pinned at a block, changes the state,\
+      \ and reads again both ways. It is also the ONLY thing that executes Chain.Read's wiring --\
+      \ read_pool_field, read_raw_word_token and block_param are unreachable from cabal test by\
+      \ construction, and an unexercised surface is this package's advertised-and-dead shape."
+  , EndpointSite "offchain/rig/capture-chain-read.sh" ShellConsumer
+      "27-02. Owns the preconditions, the artifact preservation and the self-checks around the\
+      \ executable above. Its cast calls are the liveness probe and the chainId assertion, and it\
+      \ FAILS rather than skipping when nothing answers."
+  , EndpointSite "offchain/rig/chain-read-conformance.json" Transcript
+      "27-02's committed artifact, and the THIRD member of this kind. It is not a consumer: it is\
+      \ a recorded RPC session, and the resolver rule does not apply to it. It is DECLARED for the\
+      \ reason spec/types.md and rig/README.md are -- its provenance note NAMES the shell resolver\
+      \ (to say that the endpoint is deliberately not recorded), which puts it inside this census's\
+      \ blast radius, and a file inside the radius that this list does not know about is how a scan\
+      \ gets narrowed on the day it first fires. MEASURED at 27-02: it fired on this file's first\
+      \ run, and the answer is the twenty-seventh instance of the same one -- declare the prose,\
+      \ never relax the pattern."
   , EndpointSite "offchain/rig/verify-rig.sh" ShellConsumer
       "SC-2. THE SITE CHAIN-06's LIST OF NINE DOES NOT CONTAIN: fourteen cast calls against a live\
       \ rig, reached through foundry's --rpc-url local alias, so it named neither the variable nor\

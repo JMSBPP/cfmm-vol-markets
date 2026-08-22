@@ -285,6 +285,39 @@ executable cfmm-replicationPlank-rpc-api
 -- Main.hs, for two reasons: plan 22-05 rewires that Main.hs substantially and an env-flag branch
 -- there would collide, and this belongs to the same family as offchain/rig/capture-batch-return.sh
 -- -- a thing you run once against a live rig to produce a committed artifact -- not to the driver.
+-- CHAIN-02's observational half. It is an EXECUTABLE and not a check for the reason every capture
+-- in this package is one: `cabal test` opens no socket, and three structural greps assert it. It
+-- also exists so Chain.Read's WIRING half is executed by something -- `read_pool_field`,
+-- `read_raw_word_token` and `block_param` are unreachable from the suite by construction, and an
+-- unexercised surface is this package's advertised-and-dead shape (measured three times: 22-03,
+-- 22-04, 22-07).
+--
+-- +0 PACKAGES, and the claim is narrower than the sibling stanza's so it stays true. This list is
+-- NOT identical to cheat-swap-proof's: `web3-solidity` and `jsonrpc-tinyclient` are named here and
+-- not there. Neither is new to the BUILD PLAN -- the library already depends on both (Chain.Read
+-- imports Data.Solidity.Prim.Address, CheatSwap.Rpc imports Network.JsonRpc.TinyClient) -- they
+-- were simply invisible to this stanza until listed. MEASURED at 27-02 rather than argued: the
+-- first build of this executable FAILED with GHC-87110 naming both as hidden packages, and with
+-- them listed `cabal build --enable-tests -j all` printed 0 `Downloading` lines. The honest
+-- statement is "no package enters the plan", not "the dependency lists match".
+executable chain-read-conformance
+    import:           warnings
+    main-is:          ChainReadConformance.hs
+    build-depends:
+        base ^>=4.20.2.0,
+        cfmm-replicationPlank-rpc-api,
+        aeson,
+        bytestring,
+        text,
+        process,
+        memory-hexstring,
+        web3-ethereum,
+        web3-provider,
+        web3-solidity,
+        jsonrpc-tinyclient
+    hs-source-dirs:   offchain/app
+    default-language: Haskell2010
+
 executable cheat-swap-proof
     import:           warnings
     main-is:          CheatSwapProof.hs
