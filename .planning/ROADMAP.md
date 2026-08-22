@@ -1251,7 +1251,7 @@ at the end of 25.
 | 24. GAMS Invocation & Toolchain Identity | 6/6 | Complete    | 2026-08-17 |
 | 25. The Content Key & Keyed Store | 3/3 | Complete    | 2026-08-17 |
 | 26. Shock Assembly — Fee Split & Event Decode | 4/4 | Complete   | 2026-08-17 |
-| 27. Anvil Read Layer (PARTIAL: CHAIN-05/06/07 actionable) | 1/3 | In Progress|  |
+| 27. Anvil Read Layer (PARTIAL: only CHAIN-01 is blocked) | 2/3 | In Progress|  |
 | 28. Resident Loop & Fixture Publication (BLOCKED) | 0/TBD | Blocked | - |
 
 ## Coverage (Milestone v6.0)

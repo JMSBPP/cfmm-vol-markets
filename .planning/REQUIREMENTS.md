@@ -144,9 +144,9 @@ exists because three separate layers were measured silently altering them.
 
 - [ ] **CHAIN-01**: The `next` event is decoded from a mined transaction's logs into the
       shock it carries.
-- [ ] **CHAIN-02**: Pool price, liquidity and fee are read **pinned to a single block**, not
+- [x] **CHAIN-02**: Pool price, liquidity and fee are read **pinned to a single block**, not
       at `latest`.
-- [ ] **CHAIN-03**: A read that returns an absent, zero or unparseable value is an error, not
+- [x] **CHAIN-03**: A read that returns an absent, zero or unparseable value is an error, not
       a value that flows into a key.
 - [x] **CHAIN-04**: Decoding is exercised against synthetic logs, so it is testable before
       the upstream event exists and without a chain.
@@ -238,8 +238,8 @@ Filled during roadmap creation (2026-08-16).
 | FEE-03 | Phase 26 | Complete |
 | FEE-04 | Phase 26 | Complete |
 | CHAIN-01 | Phase 27 | Blocked (upstream `next` event, issue #26) |
-| CHAIN-02 | Phase 27 | Blocked (upstream `next` event, issue #26) |
-| CHAIN-03 | Phase 27 | Blocked (upstream `next` event, issue #26) |
+| CHAIN-02 | Phase 27 | Complete (27-02) — **and it was never blocked.** 27-CONTEXT measured that only CHAIN-01 depends on the upstream `next` emitter; a pinned read needs a POOL, and `deploy-rig.sh` has stood one up since 22-03. The "Blocked" this row carried was inherited from CHAIN-01's row, not measured. Evidence: `offchain/rig/chain-read-conformance.json`, in which a read pinned at block 13 returns tick −1 while the unpinned read returns the tick 5000 the state change wrote. |
+| CHAIN-03 | Phase 27 | Complete (27-02) — same correction as CHAIN-02: never blocked. The rule is a PURE total function of the field, where the read was made and what the transport handed back, so it is driven at arguments no chain will produce on demand (a truncated word, a non-hex character, an absent answer). Twelve refusals across five diagnoses and four acceptances; every refusal names its field DELIMITED, because `liquidity` is a strict prefix of v4's real `liquidityNet`. |
 | CHAIN-04 | Phase 26 | Complete |
 | CHAIN-05 | Phase 27 | Pending — from issue #29's returned contract (plank `f713089`) |
 | CHAIN-06 | Phase 27 | Complete (27-01) — **but its text says "Nine sites" and that is wrong three ways.** MEASURED: TEN by its own pattern (`offchain/spec/types.md` is the tenth); ELEVEN counting `offchain/rig/verify-rig.sh`, which reached the chain through foundry's `--rpc-url local` alias and so named neither token, making it invisible to any pattern built from them; and the rule was implemented ZERO times, not nine. **Correct this text at phase close**, with CHAIN-01's stale `next`-event wording. |

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 27-01-PLAN.md — CHAIN-06 and CHAIN-07 RETIRED, no chain needed (194/194 -> 198/198, exit 0, zero warnings). One resolver in two languages, the two statements of the default asserted BYTE-EQUAL; a 15-entry site manifest closed in BOTH directions; deploy-rig.sh binds anvil --host/--port and every --rpc-url to one reading of one variable and asserts cast chain-id BEFORE the first --broadcast. THREE PLAN ERRORS FOUND BY MEASUREMENT: verify-rig.sh is an ELEVENTH site CHAIN-06's nine cannot see (it reached the chain through foundry's alias); the plan's census pattern found 10 before the fix and 8 after, so it would have reported the fix as a regression; and 'cast call' matched 'cast calldata'. My own empty-variable check MEASURED GREEN against an unguarded resolver because setEnv k \"\" routes to unsetEnv — repaired with a pure endpoint_from and the premise observed in a child shell. Floors 67/77 -> 69/79, re-measured by RUNNING find. Next: 27-02 (pinned read layer, CHAIN-02/03)."
-last_updated: "2026-08-17"
-last_activity: "2026-08-17 — 27-01 executed: 194/194 -> 198/198, 0 warnings, no chain required. Four guards, eleven firings OBSERVED (one mutation fired two checks independently; two arms proved neither alone catches both the move and the delete). Every plan error is recorded with its measurement rather than worked around."
+stopped_at: "Completed 27-02-PLAN.md — CHAIN-02 and CHAIN-03 RETIRED (198/198 -> 203/203, exit 0, zero warnings, 0 Downloading). BlockRef is a newtype with ONE constructor, so the moving-head tag is not avoided but INEXPRESSIBLE; every read takes it positionally; five refusals name their field DELIMITED. THE CORRECTION THIS PLAN CARRIES: the naming arm's decoy was hand-spelled, and the mutation that drops the delimiters from the producer MEASURED 201/201 exit 0 NOT CAUGHT — the decoy kept its own quotes so the two strings could never collide, and the arm passed by construction. Routed through refusal_naming_of it fires at 199/201. THE CAPTURE FINDING: the first run recorded pinned_equals_block_b=false and looked exactly like a broken pin; driven with cast independently, anvil_setStorageAt does NOT create a block — it writes into the state OF THE CURRENT HEAD, so pinning at the head pins to the block the cheat occupies. Fixed with one evm_mine BEFORE the write; write_landed_above_b is now recorded and asserted so the construction can never again be read as the defect. Also CORRECTED a claim this plan had already committed: measured_pre_pool_block 5 -> 7, because blocks 0..5 have no PoolManager code and return the bare 0x marker, a DIFFERENT diagnosis from the all-zero word at 6..7. 21 firings observed (11 source, 10 artifact through CHAIN_READ_CONFORMANCE with the committed evidence byte-identical before and after). Floors 70/80 -> 72/83, re-measured by RUNNING find. Next: 27-03 (CHAIN-05, phase close)."
+last_updated: "2026-08-22"
+last_activity: "2026-08-22 — 27-02 executed (resumed from an interruption; task 2 was on disk, uncommitted and internally inconsistent, and was reconciled by re-measurement rather than trusted). 198/198 -> 203/203, 0 warnings, 0 Downloading. Five checks, a third structural grep so cabal test still opens no socket, and CHAIN-02's observational half committed as an artifact. Two guards that already existed caught this plan's own new files and then its own prose — the prose moved, the pattern did not."
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 21
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 <!--
@@ -43,11 +43,54 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **27 — Anvil Read Layer** — IN PROGRESS (1/3 plans)
-Plan: **27-01 COMPLETE** (commits `e067e31`, `4bf504b`, `36bc427`). Summary:
-`.planning/phases/27-anvil-read-layer/27-01-SUMMARY.md`. **CHAIN-06 and CHAIN-07 retired, no chain
-needed.** 194/194 → **198/198**, exit 0, zero warnings; floors 67/77 → **69/79**, both re-measured
-by RUNNING `find`. Next: **27-02** (the pinned read layer, CHAIN-02/03).
+Phase: **27 — Anvil Read Layer** — IN PROGRESS (2/3 plans)
+Plan: **27-02 COMPLETE** (commits `596ed38`, `10a3231`, `28e7ffa`). Summary:
+`.planning/phases/27-anvil-read-layer/27-02-SUMMARY.md`. **CHAIN-02 and CHAIN-03 retired.**
+198/198 → **203/203**, exit 0, zero warnings, 0 `Downloading`; floors 70/80 → **72/83**, both
+re-measured by RUNNING `find`. Next: **27-03** (CHAIN-05, fixture pool identity, phase close).
+
+**THE PIN IS A TYPE, NOT A CONVENTION.** `BlockRef` is a `newtype` with one constructor, so the
+moving-head tag is not something the read layer avoids — it is something the type cannot express,
+and re-opening the question means changing `newtype` to `data`, a diff nobody writes by accident.
+Every read takes it as a required positional argument. `latest_appears_nowhere_in_the_read_layer`
+then closes the corridor the type leaves open (a string handed to the transport, a second import),
+with a positive control that greps a SEEDED COPY of the read layer beside a CLEAN copy of it.
+
+**CHAIN-03 IS A PURE TOTAL FUNCTION**, drivable at arguments a local anvil will not produce on
+demand: twelve refusals across five diagnoses (negative height, absent answer, four unparseable
+shapes, an ALL-ZERO WORD, a decoded zero) and four acceptances, because a rule that refuses
+everything passes a refusal table. `lpFee` is NOT zero-refused, and that is a measurement: a
+dynamic-fee pool stores it as zero at initialise, so a blanket rule would refuse the rig's own
+genesis state on every call.
+
+**THE DECOY HAD TO BE BUILT BY THE FUNCTION UNDER TEST.** The naming arm's control was hand-spelled
+first, and the mutation that drops the delimiters from `refusal_naming_of` MEASURED **201/201,
+exit 0, NOT CAUGHT** — the hand-spelled decoy kept *its* quotes while the producer lost them, so the
+two strings stopped being able to collide and the arm that exists to observe the collision passed by
+construction. Routed through the producer, the same mutation fires at 199/201.
+
+**anvil_setStorageAt DOES NOT CREATE A BLOCK.** The first capture recorded
+`pinned_equals_block_b = false` and looked exactly like CHAIN-02's defect. Driven with `cast`
+independently: the cheat writes into the state OF THE CURRENT HEAD, so pinning at the head pins to
+the block the cheat is about to occupy. The pin was never broken — the same run reads block 0 and
+gets the bare `0x` marker, which it could only do if the block parameter were reaching the node.
+Fixed with one `evm_mine` BEFORE the write; `write_landed_above_b` is now a recorded and asserted
+field so the construction can never again be mistaken for the defect. **This binds anything else
+that constructs a historical divergence on this rig.**
+
+**A CLAIM THIS PLAN HAD ALREADY COMMITTED WAS WRONG.** `measured_pre_pool_block` moves **5 → 7**.
+Walking every height of a from-scratch rig: blocks 0–5 the PoolManager has NO CODE and the call
+returns the bare `0x` marker; blocks 6–7 it has code and the pool is uninitialised, returning an
+ALL-ZERO WORD; block 8 the pool is live at tick 0; block 13 tick −1 after the probe swap. Those are
+two different diagnoses and the earlier draft merged them.
+
+**cabal test STILL OPENS NO SOCKET**, now asserted by a **third** structural grep beside the DB-free
+and GAMS-free ones. Its tokens are not equally load-bearing and that was measured: `web3-ethereum`
+IS a test dependency so the JSON-RPC method module can be imported today and only the scan stops it
+(the firing input compiled and was caught); `web3-provider` is NOT, so that import does not build at
+all and its firing input had to be a comment.
+
+### 27-01, still standing (the record, and it caught this plan twice)
 
 **ONE RESOLVER, IN TWO LANGUAGES, WITH THE TWO STATEMENTS ASSERTED BYTE-EQUAL.**
 `Chain.Endpoint` states `ETH_RPC_URL` and the default authority once for the Haskell tree;
@@ -930,6 +973,68 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 ### Decisions
 
 **v6.0 (Phase 27) decisions:**
+
+- [Phase 27]: [27-02 MEASURED, and it is the plan's headline] **`anvil_setStorageAt` does not create
+  a block — it writes into the state OF THE CURRENT HEAD.** The first capture pinned at the head,
+  read back the value the cheat had just written, and recorded `pinned_equals_block_b = false`,
+  which is indistinguishable from CHAIN-02's defect. Driven with `cast` independently of the
+  program: `head = 19; setStorageAt; evm_mine x3` leaves `--block 19` showing the WRITE and
+  `--block 18` showing the old word. The pin was never broken — the same program reads block 0 and
+  gets the bare `0x` marker, which it could only do if the block parameter were reaching the node.
+  The construction now mines ONE block before the write, and `write_landed_above_b` is a recorded
+  and asserted field so the two causes can never be confused again. **Binds anything else that
+  constructs a historical divergence on this rig.**
+
+- [Phase 27]: [27-02 FINDING] **A decoy a check compares against must be BUILT BY THE FUNCTION UNDER
+  TEST.** The naming arm was written with the delimiters spelled out inside the check; the mutation
+  that drops them from the producer MEASURED **201/201, exit 0, NOT CAUGHT**, because the
+  hand-spelled decoy kept its own quotes and the two strings could no longer collide. The arm was
+  asserting about its own literal. Routed through `refusal_naming_of` the same mutation fires at
+  199/201. Same shape as 27-01's `setEnv k ""` finding one level in: an assertion passing because its
+  subject is absent, inside the guard written against exactly that.
+
+- [Phase 27]: [27-02 CORRECTED, a committed measurement that was false] **`measured_pre_pool_block`
+  5 → 7.** Blocks 0–5 of a from-scratch rig have NO PoolManager code, so the call returns the bare
+  `0x` marker; blocks 6–7 have code and no pool, returning an ALL-ZERO WORD; block 8 is the first
+  readable. Those are two DIFFERENT diagnoses and the earlier draft merged them — the exact pair
+  `decode_word_token` exists to keep apart. Heights shift between deploys (21-02: 9, 11, 10), so
+  what is durable is the ORDER of the three regimes, not the numbers.
+
+- [Phase 27]: [27-02 DECIDED] **A capture that constructs a divergence must record BOTH "the chain
+  moved" and "the two reads came apart", because neither implies the other.** `unpinned_differs`
+  false means the divergence was never constructed and the artifact is void;
+  `pinned_and_unpinned_disagree` false means both reads followed the head, which is the defect
+  itself. A capture where the chain moved and both reads followed it satisfies the first and fails
+  the second.
+
+- [Phase 27]: [27-02 DECIDED] **The capture is an EXECUTABLE, not only a shell script.**
+  `Chain.Read`'s wiring half (`read_pool_field`, `read_raw_word_token`, `block_param`) is
+  unreachable from `cabal test` by construction, and an unexercised surface is this package's
+  advertised-and-dead shape — measured three times at 22-03, 22-04 and 22-07. Its cabal stanza is
+  `+0 packages` in the build plan but NOT `+0 dependency lines`: the first build failed `GHC-87110`
+  naming two packages the library already depends on, and the comment states the narrower true claim
+  rather than copying the sibling stanza's.
+
+- [Phase 27]: [27-02 FINDING] **A structural grep's tokens are not interchangeable, and which one is
+  load-bearing is measurable.** `the_suite_never_reaches_a_chain` names three. `web3-ethereum` IS a
+  test-suite dependency, so the JSON-RPC method module can be imported today and only this scan
+  stops it — that firing input COMPILED and was caught. `web3-provider` is NOT, so that import does
+  not build at all and its firing input had to be a comment, which works only because the scan
+  covers the whole file deliberately. One guards a state reachable in a line of Haskell, the other
+  one reachable in a line of `.cabal`.
+
+- [Phase 27]: [27-02 DECIDED] **A positive control built from a COPY OF THE SUBJECT beats a
+  three-line bait.** `latest_appears_nowhere_in_the_read_layer` greps a seeded copy of the read layer
+  beside a clean copy of it. OBSERVED: when the token is seeded into the real file, the control's
+  third arm fires FIRST and says so more precisely than the main scan — "the real file already
+  carries the token and the main arm below is about to report the same thing less clearly."
+
+- [Phase 27]: [27-02 STATED GAP] **`chain-read-conformance.json` has an override
+  (`CHAIN_READ_CONFORMANCE`, probed) and is NOT in the sentinel sweep.** The sweep COULD reach it, so
+  it is recorded in `unswept_artifacts` with its own reason and that list's haddock now states the
+  reason per entry rather than one blanket claim that would be false for this member. Folding it in
+  means an `absorbed_by_design` entry, with a count and a reason, for every (leaf, sentinel) pair no
+  check objects to.
 
 - [Phase 27]: [27-01 MEASURED] **CHAIN-06's "nine sites" is wrong three ways, and each was measured
   rather than reasoned about.** It is TEN by its own pattern (`offchain/spec/types.md` is the tenth,
