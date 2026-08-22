@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 27-03-PLAN.md and CLOSED PHASE 27. CHAIN-05 RETIRED (203/203 -> 205/205, exit 0, zero warnings). The published fixture now carries pool / blockNumber (STRING) / chainId, exactly the contract issue #29 handed back at plank f713089, so the consuming forge test can ATTACH rather than construct; token0/token1 stay ABSENT because the test reads them from the pool. THE STRING IS A MEASUREMENT: 9007199254740993 (2^53+1) through a JSON number decoded into the 53-bit carrier comes back 9007199254740992 -- short by exactly 1, an equality no tolerance can absorb, and equal to BYTE-04 double_image of the same integer. THE FINDING BESIDE IT: the suite own JSON value type carries that number EXACTLY, so the hazard is invisible from inside this suite -- the loss belongs to the CONSUMER carrier, not to the JSON text, which is precisely why publishing a string is the remedy. NONE OF THE SUBJECT IS SPELLED: the pool is se_pool of a corpus member decoded by decode_shock, the height and chain id are block_b and chainId out of the committed capture; only the three CONTRACT KEY NAMES are written by hand, because a key set derived from the producer is the producer agreeing with itself. Four firings observed. M4 WAS NOT PREDICTED: with the ordering guard REMOVED and the witness still below the ceiling the check STILL reddened, through a different arm -- so there are two independent guards against a vacuous subject and they give DIFFERENT diagnoses. PHASE CLOSE: CHAIN-01 recorded BLOCKED by name with its dependency (plank/mev-migrate, issue #26, SELECTOR_NEXT 0xd3827b0b) and with what would discharge it; CHAIN-01 stale next-event wording and CHAIN-06 nine-sites count both corrected in REQUIREMENTS.md. Next: phase 28 (LOOP), and S1 must be decided BEFORE it plans its loop."
+stopped_at: "Completed 28-01-PLAN.md. 205/205 -> 211/211, exit 0, zero warnings, zero Downloading. S2 and S3 are CLOSED IN THE LIBRARY. S2: resolution moved to the caller -- Loop.Solve takes already-resolved absolute paths and the AbortReason constructor for a resolution failure was DELIBERATELY NOT ADDED, because a startup fact recorded under the same discriminator as a solver failure is exactly the conflation S3 exists to prevent. S3 IS NARROWER THAN 27-SUMMARY STATES, and it was MEASURED not read: render_argv's ninth refusal is applied before any argv exists, content_key inherits it, and decide returns Left (Inadmissible ...) BEFORE the solver is reachable -- so the two failures with opposite policies are already two different constructors, and the solver handed to decide THROWS if called and was not called. The abort-line discriminator (109 vs 171/173) is needed only by the capture that drives the eight-refusal renderer. Migration 004 landed: loop_event unique on (tx_hash, log_index) plus the single-row loop_watermark, whose two guards are BOTH load-bearing (the primary key is the upsert conflict target; check (only_row) is what forbids a second row carrying false). ledger_commit_block takes the block AND its rows -- one call, one transaction, no arity at which a caller can forget the watermark. Docker was verified BEFORE the migration was written (exit 0, Server Version 29.5.2) and the store-conformance capture was RE-TAKEN against postgres 18.4 (sc_complete true, 8/8 laws, four migrations), never hand-edited -- and the staleness oracle was OBSERVED firing at 203/205 with the pre-004 capture restored. SIX CHECKS, SIX FIRINGS, all observed red and all four baselines sha256sum -c OK. M1 REFUTED THE PLAN'S OWN PREDICTION: dropping the ledger_seen guard was supposed to redden the invocation arm at 2 and DOES NOT -- the content key still hits, so the counter stays at 1 and the row count stays at 1, and only the do-nothing arm fires. So ledger_seen does not save a solve; the key already does. It saves the lookup and the write attempt and protects the pipeline doing NOTHING on a replay. 27-03 M4 shape again. Two mutations were caught by a SECOND independent guard (M2 also reddened the commit check's positive control; M5 also reddened the capture digest oracle). Floors 72/83 -> 75/86, both re-measured by RUNNING find, zero slack, census hs 59 sh 12 json 11 sql 4. Next: 28-02 (the loop itself, detect_toolchain, the drift comparison the stash exists to feed)."
 last_updated: "2026-08-22"
-last_activity: "2026-08-22 — 27-03 executed and PHASE 27 CLOSED. 203/203 -> 205/205, 0 warnings, 0 Downloading. Two checks over the fixture identity, four firing inputs observed, both floors re-measured by RUNNING find and UNCHANGED at 72/83 (this plan creates no file). Six of seven CHAIN requirements retired; CHAIN-01 blocked externally and named as such. 27-SUMMARY.md written."
+last_activity: "2026-08-22 — 28-01 executed. 205/205 -> 211/211, 0 warnings, 0 Downloading. Loop.Solve (S2 + S3) and Loop.Ledger shipped, migration 004 landed, store-conformance capture RE-TAKEN against a real server (18.4, four migrations) with its staleness oracle observed firing at 203/205 first. Six checks, six firing inputs observed; M1 refuted its own prediction. Floors 72/83 -> 75/86, both re-measured by running find. 28-01-SUMMARY.md written."
 progress:
   total_phases: 6
   completed_phases: 5
-  total_plans: 21
-  completed_plans: 21
+  total_plans: 26
+  completed_plans: 22
 ---
 
 <!--
@@ -43,13 +43,88 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **27 — Anvil Read Layer** — **COMPLETE (3/3 plans)**, with ONE requirement blocked
-externally and named as such. Phase summary:
-`.planning/phases/27-anvil-read-layer/27-SUMMARY.md`.
-Plan: **27-03 COMPLETE** (commit `306b587` + this close). Summary:
-`.planning/phases/27-anvil-read-layer/27-03-SUMMARY.md`. **CHAIN-05 retired.**
-203/203 → **205/205**, exit 0, zero warnings, 0 `Downloading`; floors **72/83** UNCHANGED and both
-re-measured by RUNNING `find` (this plan creates no file). Next: **phase 28 (LOOP)**.
+Phase: **28 — Resident Loop & Fixture Publication** — **IN PROGRESS (1/5 plans)**.
+Plan: **28-01 COMPLETE** (commits `c2f465a`, `873204c`, `8c27802` + this close). Summary:
+`.planning/phases/28-resident-loop-fixture-publication/28-01-SUMMARY.md`.
+205/205 → **211/211**, exit 0, zero warnings, 0 `Downloading`; floors **72/83 → 75/86**, both
+re-measured by RUNNING `find`, zero slack (census `hs 59, sh 12, json 11, sql 4`).
+Next: **28-02** — the loop itself, `detect_toolchain` (S1), and the drift comparison
+`solver_for`'s stash exists to feed.
+
+**28-01 DISPOSITION — SPIKE SEAMS S2 AND S3 ARE CLOSED IN THE LIBRARY.** `Loop.Solve`,
+`Loop.Ledger`, migration `004_loop_ledger.sql`, a re-taken `store-conformance.json` and six
+checks. **LOOP-02 is NOT closed** — its two directions are asserted against the reference
+implementations through a pipeline the suite composes, and the requirement is stated over the
+loop, which 28-02 writes. Phase 27's record continues below, unchanged.
+
+**S2 IS ANSWERED BY MOVING RESOLUTION OUT, NOT BY WIDENING `AbortReason`.** The constructor
+meaning "the binary or the model could not be resolved" was deliberately NOT added and
+`Loop.Solve` deliberately does not import the resolving module (`grep -c` = 0). An
+`AbortReason` is written into a ledger row and read by a post-mortem; "the model file was not
+where the process expected it" recorded under the same discriminator as "CONOPT could not reach
+an admissible point" is exactly the conflation S3 exists to prevent, arriving from the other
+end. Resolution is a STARTUP precondition of the caller.
+
+**S3 IS NARROWER THAN 27-SUMMARY STATES, AND IT WAS MEASURED.** The spike recorded that a caller
+of `decide` cannot tell an inadmissible shock from an unsolvable one, because `NotPersisted`
+drops the streams and the abort line (109 = ellipse refusal vs 171/173 = CONOPT) lives only in a
+deleted run directory. True of the ABORT PATH, and not the whole picture: `render_argv`'s NINTH
+refusal is applied before any argv exists, `content_key` inherits it, and `decide` returns
+`Left (Inadmissible …)` **before the solver is reachable** — so the two failures 28-CONTEXT gives
+OPPOSITE policies to are already two different constructors of `Either ArgvError Decision`. The
+solver handed to `decide` in the check **throws if it is called**, and it was not called; the
+witness is DERIVED (one pip below `min_admissible_dstar` for the fixture's own pair) with both
+sides of the boundary asserted first. The abort-line discriminator is still needed by exactly one
+consumer: the capture that drives the eight-refusal renderer on purpose.
+
+**M1 REFUTED THE PLAN'S OWN PREDICTION, AND THAT IS THE FINDING.** The plan said removing the
+`ledger_seen` guard would redden the invocation arm **at 2**. It does not. The counter stays at 1
+and the row count stays at 1, because the CONTENT KEY still hits on the replay and the ledger's
+first-writer rule still holds; only the do-nothing arm fires (209/211,
+`decided Just OutcomeElided`). So `ledger_seen` does **not** save a solve — the key already does.
+It saves the store lookup and the write attempt, and what it protects is the pipeline doing
+NOTHING on a replay. The haddock now records the measurement instead of the prediction. **27-03's
+M4 shape arriving again:** the arm the plan aimed at stayed green and a different one caught the
+defect, with a different diagnosis.
+
+**TWO MUTATIONS WERE CAUGHT BY A SECOND, INDEPENDENT GUARD.** M2 (key the ledger on the content
+key) reddened the row-count arm at *"1 row(s) for the first event and 0 for the second"* AND the
+positive control of the commit check, which sees the same collapse from the commit side. M5
+(delete the unique clause from `004`) reddened the DDL check AND
+`store_conformance_is_present_and_fresh`, because editing a migration moves its digest — one says
+the guarantee is gone, the other says the recorded evidence no longer describes the schema it was
+measured against.
+
+**DOCKER BEFORE THE MIGRATION, AND THE CAPTURE RE-TAKEN.** `docker info` exit 0, Server Version
+29.5.2, verified BEFORE `004` was written — because adding it turns the freshness oracle red and
+an executor who finds that out with no server is one step from weakening the check. The capture
+was re-taken (`server_version 18.4`, `postgres:18-alpine`, `sc_complete true`, 8/8 laws,
+`generatedAt 2026-08-22T23:02:43Z`, `004_loop_ledger.sql` at md5 `ab6f60d9…d703b5`, which
+`md5sum` recomputes). And the staleness instrument was OBSERVED firing first: with the pre-004
+capture restored, **203/205**, *"the repo has a migration the capture never saw"*, then restored
+under `sha256sum -c`.
+
+**THE WATERMARK'S TWO GUARDS ARE BOTH LOAD-BEARING.** `primary key (only_row)` is what the
+upsert's conflict target names; `check (only_row)` is what forbids a SECOND row carrying `false`,
+which the primary key alone would happily admit and which would give the table two rows, one of
+them a watermark nothing reads. `ledger_commit_block` takes the block AND its rows, so LOOP-05 is
+a property of the SIGNATURE rather than a rule about call order.
+
+**THE REFERENCE LEDGER REFUSES WHAT THE SERVER REFUSES.** 23-04's ruling repeated: the memory
+implementation applies migration 004's row CHECKs and RAISES, before it mutates anything, over
+ONE `IORef` carrying both the rows and the watermark — two refs cannot make a half-applied commit
+unrepresentable, because one of them is already updated when the other fails.
+
+**TWO PLAN ERRORS, BOTH MEASURED.** (1) Task 2's acceptance asks `grep -c` to print 1 for each of
+the four outcome tokens; `'inadmissible'` prints **2** and both occurrences are in the DDL the
+plan itself prescribes, because `loop_event_keyed_unless_inadmissible` names it a second time.
+The stronger form was checked instead. (2) Task 2's verify command reads `m['name']` out of
+`store-conformance.json`; the capture writes `filename`, and the suite reads `filename` too.
+
+**`new_postgres_ledger` HAS NO IN-SUITE SUBJECT**, and that is recorded rather than left to be
+discovered: `cabal test` is server-free by construction (DB-03), the in-suite subject is the
+memory implementation, and the structural arm asserts only that the file names
+`withTransaction`. A Tier-C capture driving it belongs with 28-02's.
 
 **Phase 28 context gathered (2026-08-22):**
 `.planning/phases/28-resident-loop-fixture-publication/28-CONTEXT.md`. Phase 27 verified

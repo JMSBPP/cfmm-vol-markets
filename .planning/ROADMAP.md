@@ -1257,7 +1257,7 @@ at the end of 25.
 | 25. The Content Key & Keyed Store | 3/3 | Complete    | 2026-08-17 |
 | 26. Shock Assembly — Fee Split & Event Decode | 4/4 | Complete   | 2026-08-17 |
 | 27. Anvil Read Layer (6 of 7 shipped; only CHAIN-01 is blocked) | 3/3 | Complete   | 2026-08-22 |
-| 28. Resident Loop & Fixture Publication (planned; live half BLOCKED on #26) | 0/5 | Planned | - |
+| 28. Resident Loop & Fixture Publication (S2/S3 closed 28-01; live half BLOCKED on #26) | 1/5 | In Progress | - |
 
 ## Coverage (Milestone v6.0)
 
