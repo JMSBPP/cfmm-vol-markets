@@ -51,6 +51,22 @@ Plan: **27-03 COMPLETE** (commit `306b587` + this close). Summary:
 203/203 → **205/205**, exit 0, zero warnings, 0 `Downloading`; floors **72/83** UNCHANGED and both
 re-measured by RUNNING `find` (this plan creates no file). Next: **phase 28 (LOOP)**.
 
+**Phase 28 context gathered (2026-08-22):**
+`.planning/phases/28-resident-loop-fixture-publication/28-CONTEXT.md`. Phase 27 verified
+`passed` (10/10, `27-VERIFICATION.md`, commit `b376399`). **S1 DECIDED:** a `detect_toolchain`
+version-only probe in the library, pinned for the process lifetime; **user ruling on drift: adopt
+the new identity and continue** (logged, ledger-reconstructible), not halt. LOOP-02's
+"run-log rows" are satisfied by a **minimal per-event ledger** (unique `(tx_hash, log_index)`,
+every outcome recorded) while STORE-07's append-only enforcement stays deferred; watermark is a
+dedicated single-row table advanced in the same transaction. Failure policy: skip inadmissible,
+halt on unsolvable (watermark not advanced), retry-then-halt on RPC. Modes: resident + `--once`,
+1 s `eth_blockNumber` poll, one JSON line per block, fixed exit-code table. **TWO PREREQUISITES
+before `/gsd:plan-phase 28`:** (1) the `#24` track must land
+`test/models/mev_tax_model_one/fixtures/` on develop — requested on issue #25; (2) CHAIN-01 stays
+BLOCKED on #26, so LOOP-01..05 are to be proven chain-free with a Tier-C capture gated as in 27.
+NOTE: `gsd-tools phase complete 27` was run at phase close and REVERTED — it rewrote this file's
+frontmatter to `milestone: v2.0` (fourth subcommand observed doing so).
+
 **PHASE 27 DISPOSITION.** CHAIN-02, CHAIN-03 (27-02), CHAIN-05 (27-03), CHAIN-06, CHAIN-07 (27-01)
 shipped; CHAIN-04 was already done at 26-02; **CHAIN-01 is BLOCKED**. Suite **194 → 205** across the
 phase. CHAIN-02 and CHAIN-03 were carried in marked *Blocked* and **were never blocked** — that was
