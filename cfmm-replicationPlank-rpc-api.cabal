@@ -189,6 +189,16 @@ library
                     -- there returns a zero word instead of reverting. Every one of those packages
                     -- was already a dependency of this stanza.
                     , Chain.Read
+                    -- Phase 28's two spike seams, S2 and S3, closed in the library. +0 PACKAGES,
+                    -- and CONFIRMED rather than estimated at 28-01: with this module on disk,
+                    -- `cabal build --enable-tests -j all` printed no `Downloading` line. Its
+                    -- imports are Data.IORef (base, for the one stash the seam allocates) and five
+                    -- modules of this same stanza -- Gams.Argv, Gams.Run, Store.Cache,
+                    -- Store.Solver and Store.Types. It does NOT import the module that resolves a
+                    -- live binary and a live model: resolution is a startup precondition of the
+                    -- caller, which is what closes S2 without inventing an AbortReason that would
+                    -- lie about why a solve produced nothing.
+                    , Loop.Solve
 
     -- Modules included in this library but not exported.
     -- other-modules:
