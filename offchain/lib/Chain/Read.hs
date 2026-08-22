@@ -115,6 +115,7 @@ module Chain.Read
   , decode_word_token
   , refuse_or_value
   , refusal_naming
+  , refusal_naming_of
     -- * The reads. Every one of them REQUIRES a 'BlockRef'.
   , read_raw_word_token
   , read_pool_field
@@ -335,14 +336,32 @@ decode_word_token token
                                                        ++ " characters)"
                                                 else "")
 
--- | THE REFUSAL PREFIX, and the ONE place the field's name is delimited into a message.
+-- | THE DELIMITING RULE, over a bare NAME rather than over a field.
 --
 -- The quotes are load-bearing rather than typography. Every naming assertion in the suite is an
 -- @isInfixOf@, and an undelimited @\"liquidity\"@ is satisfied by a message about
 -- 'decoy_field_name'. Delimited, it is not. That is 26-03's finding written into the producer
 -- instead of into each consumer.
+--
+-- == WHY THIS TAKES A 'String' AND 'refusal_naming' IS DEFINED THROUGH IT, MEASURED
+--
+-- Because the suite has to build a message about a name that is NOT a field, and it must build it
+-- with THIS function. 27-02 wrote that control the obvious way first -- spelling
+-- @\"field '\" ++ decoy ++ \"'\"@ inside the check -- and MEASURED the mutation that drops these
+-- quotes: @TEST_EXIT=0, 201/201, NOT CAUGHT.@ The hand-spelled decoy kept its quotes while the
+-- producer lost them, so the two strings stopped being able to collide and the arm that exists to
+-- observe the collision passed by construction. The control was testing the check's own literal.
+--
+-- That is this milestone's standing defect one level in: an assertion passing because its subject
+-- is absent, inside the guard written against exactly that. Routed through here, the decoy is built
+-- by the function under test, so dropping the delimiters makes @refusal_naming Liquidity@ an infix
+-- of a message about @liquidityNet@ and the arm fires.
+refusal_naming_of :: String -> String
+refusal_naming_of name = "field '" ++ name ++ "'"
+
+-- | How a refusal names the field it is about.
 refusal_naming :: PoolField -> String
-refusal_naming field = "field '" ++ pool_field_name field ++ "'"
+refusal_naming = refusal_naming_of . pool_field_name
 
 -- | __THE RULE.__ A total function of the field, where the read was made, and exactly what the
 -- transport handed back.

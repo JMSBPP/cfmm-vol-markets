@@ -42,7 +42,8 @@ import qualified Data.Foldable as F
 -- solve was skipped" from a reading of the code into a measurement, and a store wrapper that
 -- records the puts it ACCEPTED is what turns "no entry was written" into one.
 import Data.IORef (modifyIORef', newIORef, readIORef)
-import Data.List (intercalate, isInfixOf, isPrefixOf, nub, sort, stripPrefix)
+import Data.List (dropWhileEnd, intercalate, isInfixOf, isPrefixOf, isSuffixOf, nub, sort,
+                  stripPrefix)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing)
 import Data.Solidity.Prim.Address (Address, fromHexString)
@@ -132,6 +133,37 @@ import Chain.Endpoint
   , shell_default_var
   , shell_resolver
   , site_paths
+  )
+
+-- Phase 27 plan 02's read layer, imported for its PURE HALF ONLY. Not one of these names has a
+-- type that mentions the transport, and that is the whole point of the split: the RULE (what a
+-- refusal is, and which answers are refused) is a total function of the field, where the read was
+-- made, and exactly what a transport handed back, so it can be driven at arguments a local anvil
+-- will not produce on demand -- a truncated word, a non-hexadecimal character, an absent answer.
+-- 27-01 measured what happens when a rule is only reachable through its wiring: the check passed at
+-- the one value the wiring could not create. The WIRING here is exercised by the out-of-band
+-- capture, against a real chain, and its evidence is the committed artifact the fourth check below
+-- reads.
+--
+-- 'BlockRef' is imported with its ONE constructor named explicitly rather than as @(..)@. That is
+-- deliberate: if a second constructor is ever added, this import stops being exhaustive and the
+-- structural claim below has to be looked at again, where @(..)@ would follow the change silently.
+import Chain.Read
+  ( BlockRef (AtBlock)
+  , PoolField (..)
+  , ReadAt (..)
+  , decode_word_token
+  , decoy_field_name
+  , extract_pool_field
+  , pool_field_name
+  , pool_fields
+  , readback_height
+  , refusal_naming
+  , refusal_naming_of
+  , refuse_or_value
+  , render_word_token
+  , word_hex_digits
+  , zero_is_refused
   )
 
 -- The fee splitter's arithmetic core, imported TWICE and for a reason that is a finding rather
@@ -15490,6 +15522,585 @@ the_producer_and_the_consumers_bind_one_endpoint =
                      ++ " does not say which binds."))
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 27 plan 02: CHAIN-02 / CHAIN-03 -- the pinned read layer
+--
+-- CHAIN-02's OBVIOUS TEST CANNOT FAIL, and that is the fact the whole plan is shaped around. On a
+-- single-writer local anvil a pinned read and an unpinned read return the same value in every
+-- recorded field, so a check that made both and compared them would pass whether or not the pin
+-- existed. The defect is invisible unless the divergence is CONSTRUCTED, and constructing it needs
+-- a chain. So CHAIN-02 is split: its STRUCTURAL half is asserted here, offline, and its
+-- OBSERVATIONAL half is asserted over the committed artifact of an out-of-band capture that reads
+-- at a block, changes the pool's state, and reads again both ways.
+--
+-- CHAIN-03 is entirely offline, and that is not a compromise -- it is the stronger place for it.
+-- The rule is a total function of what a transport hands back, and a local anvil will not hand a
+-- caller a truncated word or a non-hexadecimal character on request.
+-- ---------------------------------------------------------------------------------------------
+
+chain_read_path :: FilePath
+chain_read_path = "offchain/lib/Chain/Read.hs"
+
+-- | The type whose presence in a read's signature IS the pin.
+block_ref_token :: String
+block_ref_token = "BlockRef"
+
+-- | The prefix every read in the layer carries.
+--
+-- The scan below is over the FILE and not over the export list, which is stricter than the
+-- requirement in the one direction that matters: an UNEXPORTED read that omits its block is a read
+-- the module itself can call, and a helper that quietly drops the pin is exactly how a pinned API
+-- ends up with an unpinned implementation underneath it.
+read_prefix :: String
+read_prefix = "read_"
+
+-- | Every read the layer must have, as a SET compared in BOTH directions.
+--
+-- One-way is the shape 23-03 measured: a list scoped to whatever the file happens to declare
+-- agrees with every file, including one that has lost a read. The other direction catches a read
+-- added without a decision -- and a new read is precisely the thing that has to be looked at,
+-- because "does it take a block?" is the question this check exists to ask.
+expected_pinned_reads :: [String]
+expected_pinned_reads =
+  [ "read_liquidity"
+  , "read_lp_fee"
+  , "read_pool_field"
+  , "read_pool_state_word"
+  , "read_raw_word_token"
+  , "read_sqrt_price_x96"
+  ]
+
+-- | Every top-level type signature in a body, as @(name, type)@.
+--
+-- One LINE each, and that limitation is asserted rather than assumed -- see 'signature_is_complete'
+-- and the control below. An extractor that silently captured the first line of a multi-line
+-- signature would report a fragment, and a fragment that happens not to contain the pin's name
+-- would be read as a violation while a fragment that happens to contain it would be read as
+-- compliance. Neither is a measurement.
+top_signatures :: [String] -> [(String, String)]
+top_signatures body =
+  [ (name, sig)
+  | l <- body
+  -- Top-level means column zero, and this is written with 'take' rather than 'head' because
+  -- 'head' is partial and -Wall says so: the empty line is the case, and @take 1 ""@ is @""@,
+  -- which is not a leading space and is filtered by the empty-name test below anyway.
+  , take 1 l /= " " && take 1 l /= "\t"
+  , let (name, rest) = span (\c -> isAlphaNum c || c == '_' || c == '\'') l
+  , not (null name)
+  , Just sig <- [stripPrefix " :: " rest]
+  ]
+
+-- | Whether a captured signature is a WHOLE type rather than the first line of one.
+--
+-- Paren-balanced, and not left hanging on an arrow or a comma. A signature that fails this is a
+-- LOUD failure of the check, never a silent pass: the extractor reads one line, and the honest
+-- report of a type it cannot see all of is that it cannot see all of it.
+signature_is_complete :: String -> Bool
+signature_is_complete sig =
+  paren_balance sig == 0 && not (any (`isSuffixOf` trimmed) ["->", "=>", "::", ",", "("])
+  where
+    trimmed = dropWhileEnd isSpace sig
+
+paren_balance :: String -> Int
+paren_balance = foldl step (0 :: Int)
+  where
+    step n '(' = n + 1
+    step n ')' = n - 1
+    step n _   = n
+
+-- | The three ways a read can fail to require its block, and one way the layer can carry a default.
+--
+-- Returned as four lists so the check names WHICH failure it is. A single "these are wrong" list
+-- collapses four different diagnoses -- and 27-01 recorded the cost of that collapse for the shell
+-- resolver, where a renamed variable and a changed value both reported as "they disagree".
+data ReadSurface = ReadSurface
+  { rs_names      :: [String]
+  , rs_incomplete :: [(String, String)]
+  , rs_unpinned   :: [(String, String)]
+  , rs_optional   :: [(String, String)]
+  , rs_defaults   :: [String]
+  }
+
+read_surface :: [String] -> ReadSurface
+read_surface body =
+  ReadSurface
+    { rs_names      = sort (map fst reads_)
+    , rs_incomplete = [p | p <- reads_, not (signature_is_complete (snd p))]
+    , rs_unpinned   = [p | p <- reads_, signature_is_complete (snd p)
+                                      , not (block_ref_token `isInfixOf` snd p)]
+    , rs_optional   = [p | p <- reads_, ("Maybe " ++ block_ref_token) `isInfixOf` snd p]
+    -- A top-level binding whose WHOLE type is the pin is a default block value, and this is the
+    -- anchored form of that question. Scanning for the word "default" is not: the transport's own
+    -- block type is spelled with that word in it, so the unanchored scan would name the one import
+    -- the layer cannot do without and would have to be relaxed on its first run.
+    , rs_defaults   = [n | (n, s) <- everything, dropWhileEnd isSpace s == block_ref_token]
+    }
+  where
+    everything = top_signatures body
+    reads_     = [p | p <- everything, read_prefix `isPrefixOf` fst p]
+
+-- | THE CONTROL. The extractor, shown reporting each of the four violations and shown NOT reporting
+-- the compliant form.
+--
+-- Pure, and over a body written here rather than a scratch file, because the extractor is a pure
+-- function of lines and a temp file would add IO without adding evidence. Every arm below is a
+-- violation this check claims it would catch, so every arm is OBSERVED being caught before the
+-- absence of any of them over the real file is read as compliance.
+read_surface_control_body :: [String]
+read_surface_control_body =
+  [ "read_no_block :: Address -> Integer -> Web3 (Either String Integer)"
+  , "read_optional_block :: Address -> Maybe " ++ block_ref_token
+      ++ " -> Web3 (Either String Integer)"
+  , "read_split_over_lines :: Address -> Integer ->"
+  , "  " ++ block_ref_token ++ " -> Web3 (Either String Integer)"
+  , "read_pinned :: Address -> Integer -> " ++ block_ref_token
+      ++ " -> Web3 (Either String Integer)"
+  , "default_block :: " ++ block_ref_token
+  , "  indented_not_top_level :: " ++ block_ref_token
+  ]
+
+read_surface_control :: Either String ()
+read_surface_control =
+  let s = read_surface read_surface_control_body
+      named xs = sort (map fst xs)
+  in do
+    _ <- expect (rs_names s == ["read_no_block", "read_optional_block", "read_pinned",
+                                "read_split_over_lines"])
+           ("THE READ-SURFACE CONTROL's extractor did not find the four seeded reads. It found "
+             ++ show (rs_names s) ++ ". If the extractor finds nothing, every arm over the real"
+             ++ " file below is satisfied by an empty list -- absence of a violation and absence of"
+             ++ " a scan report the same verdict.")
+    _ <- expect (named (rs_unpinned s) == ["read_no_block"])
+           ("THE READ-SURFACE CONTROL's unpinned arm reported " ++ show (named (rs_unpinned s))
+             ++ " and the seeded body has exactly one read that omits the pin, plus one that takes"
+             ++ " it. An arm that reports neither cannot see a violation; an arm that reports both"
+             ++ " cannot see compliance.")
+    _ <- expect (named (rs_optional s) == ["read_optional_block"])
+           ("THE READ-SURFACE CONTROL's optional arm reported " ++ show (named (rs_optional s))
+             ++ ". An OPTIONAL pin is the same defect as a missing one with a longer signature:"
+             ++ " every call site that does not think about the question passes Nothing.")
+    _ <- expect (named (rs_incomplete s) == ["read_split_over_lines"])
+           ("THE READ-SURFACE CONTROL's completeness arm reported " ++ show (named (rs_incomplete s))
+             ++ ". The extractor reads ONE line, so a signature broken across lines must be a loud"
+             ++ " failure rather than a fragment judged as if it were a type.")
+    expect (rs_defaults s == ["default_block"])
+      ("THE READ-SURFACE CONTROL's default arm reported " ++ show (rs_defaults s)
+        ++ ", and the seeded body has exactly one top-level binding whose whole type is the pin"
+        ++ " (the indented one is not top-level and must not be counted). A default block value is"
+        ++ " how a required argument becomes optional again one layer up.")
+
+-- | CHAIN-02's structural half: NO READ IN THE LAYER CAN BE MADE WITHOUT SAYING WHICH BLOCK.
+--
+-- Six assertions, and the first two are what make the other four mean anything: the CONTROL shows
+-- the extractor catching each violation, and the SUBJECT is shown to exist before it is scanned --
+-- 25-03 measured a count over a renamed subject printing 0 and the check passing for the one reason
+-- that should have failed loudest.
+--
+-- The structural claim itself is the last one and it is the strongest available: the pin is a
+-- @newtype@, so a moving-head constructor is not something the layer avoids, it is something the
+-- type cannot hold. Asserting that here rather than trusting it means the change from @newtype@ to
+-- @data@ -- which is what re-opening the question would look like -- reddens.
+--
+-- FIRING INPUTS, each OBSERVED at 27-02: drop the pin from one read's signature; make it a Maybe;
+-- add a top-level binding of that type; break a signature over two lines; change @newtype@ to
+-- @data@; rename a read.
+no_read_can_omit_its_block :: Check
+no_read_can_omit_its_block =
+  Check "no_read_can_omit_its_block" . guarded $ do
+    there <- doesFileExist chain_read_path
+    if not there
+      then pure $ do
+        _ <- read_surface_control
+        expect False
+          ("the read layer is not on disk: " ++ chain_read_path
+            ++ ". Every arm of this check reads that file, and an extractor over a file that is not"
+            ++ " there finds no signatures and reports every arm satisfied -- which is the absent"
+            ++ " subject passing as compliance, again.")
+      else do
+        body <- lines <$> readFile chain_read_path
+        pure $ do
+          _ <- read_surface_control
+          let s        = read_surface body
+              missing  = [n | n <- expected_pinned_reads, n `notElem` rs_names s]
+              unlisted = [n | n <- rs_names s, n `notElem` expected_pinned_reads]
+              newtypes = [l | l <- body, ("newtype " ++ block_ref_token ++ " ") `isPrefixOf` l]
+              datas    = [l | l <- body, ("data " ++ block_ref_token ++ " ") `isPrefixOf` l]
+          _ <- expect (null missing && null unlisted)
+                 ("the read layer's export surface is not the set this check decided about."
+                   ++ concat ["\n      GONE: " ++ n | n <- missing]
+                   ++ concat ["\n      NEW AND UNDECIDED: " ++ n | n <- unlisted]
+                   ++ "\n      A new read is exactly the thing that has to be looked at, because"
+                   ++ " \"does it take a block?\" is the question this check exists to ask. Add it"
+                   ++ " to expected_pinned_reads in the commit that creates it.")
+          _ <- expect (null (rs_incomplete s))
+                 ("these signatures are not whole types on one line, and this check reads one line:"
+                   ++ concat ["\n      " ++ n ++ " :: " ++ t | (n, t) <- rs_incomplete s]
+                   ++ "\n      Reported as a FAILURE rather than judged as a fragment. A fragment"
+                   ++ " that happens to contain the pin's name reads as compliance and a fragment"
+                   ++ " that happens not to reads as a violation; neither is a measurement.")
+          _ <- expect (null (rs_unpinned s))
+                 ("these reads can be made without saying which block:"
+                   ++ concat ["\n      " ++ n ++ " :: " ++ t | (n, t) <- rs_unpinned s]
+                   ++ "\n      CHAIN-02 is not \"reads are usually pinned\". There must be no arity"
+                   ++ " at which a caller omits it, because the unpinned form is the shorter one to"
+                   ++ " type and every call site that does not think about the question gets it.")
+          _ <- expect (null (rs_optional s))
+                 ("these reads take the pin OPTIONALLY:"
+                   ++ concat ["\n      " ++ n ++ " :: " ++ t | (n, t) <- rs_optional s]
+                   ++ "\n      Which is the same defect with a longer signature.")
+          _ <- expect (null (rs_defaults s))
+                 ("the read layer declares a DEFAULT block value: "
+                   ++ intercalate ", " (rs_defaults s)
+                   ++ ". A top-level binding of that type is how a required argument becomes"
+                   ++ " optional again one layer up -- every call site can name the constant"
+                   ++ " instead of deciding.")
+          expect (length newtypes == 1 && null datas)
+            ("the pin is no longer a newtype with exactly one constructor. Found "
+              ++ show (length newtypes) ++ " newtype declaration(s) and " ++ show (length datas)
+              ++ " data declaration(s) for it."
+              ++ "\n      This is the assertion that makes the moving-head scan honest rather than"
+              ++ " aspirational: while the pin is a newtype, a second constructor is not something"
+              ++ " the layer AVOIDS -- it is something the language will not let it have. Changing"
+              ++ " newtype to data is what re-opening that question looks like, and it is a diff"
+              ++ " nobody writes by accident.")
+
+-- | The moving-head tag, BUILT rather than written, and the reason is the one this file has now
+-- observed twenty-six times: a scan whose subject is spelled inside the scanner is a scan that
+-- matches itself. This file is not in the scanned set today -- the subject is the read layer alone
+-- -- but the bait below is a COPY OF THAT LAYER with one line added, and a token written out here
+-- would be one scope change away from being what it is looking for.
+moving_head_token :: String
+moving_head_token = "lat" ++ "est"
+
+-- | ANCHORED, and the anchoring is the finding rather than a nicety.
+--
+-- A bare substring matches prose: three gates in phase 26 could never have printed their required
+-- value for exactly that reason, and this file's own history has twenty-six recorded instances of a
+-- pattern catching a comment. Word boundaries make the pattern mean \"the layer says this WORD\",
+-- which is the claim -- and it is deliberately a claim about the whole file, code and prose alike,
+-- because a comment explaining that the layer conceptually reads the moving head is a comment
+-- describing a design this requirement forbids. Case-insensitive for the same reason: the
+-- capitalised form is the transport constructor's name, and that is the one that would actually
+-- appear.
+moving_head_pattern :: String
+moving_head_pattern = "\\b" ++ moving_head_token ++ "\\b"
+
+-- | ONE argument vector, so the control runs the identical invocation over different operands
+-- rather than a lookalike of it. @-H@ is not decoration: without it grep omits the filename when
+-- handed a single operand and the control cannot assert that the bait was NAMED.
+moving_head_scan :: [FilePath] -> IO (ExitCode, String, String)
+moving_head_scan paths = readProcessWithExitCode "grep" (["-inHE", moving_head_pattern] ++ paths) ""
+
+-- | Absence may not read as success until the pattern has been SHOWN matching -- and here it is
+-- shown matching INSIDE A COPY OF THE SUBJECT rather than inside a three-line bait.
+--
+-- That difference is worth the extra IO. A bait file written from scratch proves the pattern
+-- matches a file somebody wrote to be matched; a copy of the real layer with ONE line added proves
+-- the pattern matches THAT TOKEN IN THAT FILE'S CONTEXT, which is the thing the exit-1 below is
+-- being read as the absence of. The clean copy is the same bytes without the seeded line, so if the
+-- real file already carried the token this control fails first and says which arm saw it.
+moving_head_positive_control :: String -> IO (Either String ())
+moving_head_positive_control subject_body = do
+  tmp <- getTemporaryDirectory
+  let dir       = tmp </> "chain27-moving-head-positive-control"
+      bait      = dir </> "bait.hs"
+      innocent  = dir </> "clean.hs"
+      seeded    = subject_body ++ "\nblock_tag :: String\nblock_tag = \"" ++ moving_head_token
+                    ++ "\"\n"
+      discard p = do
+        there <- doesFileExist p
+        if there then removeFile p else pure ()
+
+  createDirectoryIfMissing True dir
+  flip finally (mapM_ discard [bait, innocent]) $ do
+    writeFile bait seeded
+    writeFile innocent subject_body
+    (code, out, err) <- moving_head_scan [bait, innocent]
+    pure $ do
+      _ <- expect (code == ExitSuccess)
+             ("THE MOVING-HEAD POSITIVE CONTROL did not fire: the scan exited " ++ show code
+               ++ " over a copy of the read layer with the token seeded into a binding. The pattern"
+               ++ " has stopped matching anything, which means the exit-1 the real scan reports is"
+               ++ " absence of MATCHES only by assumption."
+               ++ (if null err then "" else "\n      stderr: " ++ err))
+      _ <- expect ("bait.hs" `isInfixOf` out)
+             ("THE MOVING-HEAD POSITIVE CONTROL fired but did not NAME the seeded copy. It said:\n"
+               ++ unlines (map ("      " ++) (lines out)))
+      expect (not ("clean.hs" `isInfixOf` out))
+        ("THE MOVING-HEAD POSITIVE CONTROL matched the UNSEEDED copy of the read layer, so the real"
+          ++ " file already carries the token and the main arm below is about to report the same"
+          ++ " thing less clearly. It said:\n"
+          ++ unlines (map ("      " ++) (lines out)))
+
+-- | CHAIN-02's second structural half: THE MOVING-HEAD TAG APPEARS NOWHERE IN THE READ LAYER.
+--
+-- This is the scan the type already makes unnecessary, and it is here because the two claims are
+-- different. 'no_read_can_omit_its_block' asserts the pin cannot EXPRESS the moving head;
+-- this asserts the layer does not REACH it by another route -- a string handed to the transport, a
+-- second import, a helper that renders the tag itself. The type closes one door and the scan closes
+-- the corridor.
+--
+-- FIRING INPUT, OBSERVED at 27-02: add a binding naming the token to the read layer.
+latest_appears_nowhere_in_the_read_layer :: Check
+latest_appears_nowhere_in_the_read_layer =
+  Check "latest_appears_nowhere_in_the_read_layer" . guarded $ do
+    there <- doesFileExist chain_read_path
+    if not there
+      then do
+        control <- moving_head_positive_control ""
+        pure $ do
+          _ <- control
+          expect False
+            ("the read layer is not on disk: " ++ chain_read_path
+              ++ ". grep exits 2 for a missing operand and 1 for a clean scan, and neither may be"
+              ++ " read as \"the token is absent\".")
+      else do
+        subject_body <- readFile chain_read_path
+        control      <- moving_head_positive_control subject_body
+        (code, out, err) <- moving_head_scan [chain_read_path]
+        pure $ do
+          _ <- control
+          case code of
+            ExitFailure 1 -> Right ()
+            ExitFailure n -> Left ("the scan itself failed with exit " ++ show n ++ ": " ++ err)
+            ExitSuccess ->
+              Left ("the read layer names the moving-head tag:\n"
+                     ++ unlines (map ("      " ++) (lines out))
+                     ++ "      CHAIN-02 says reads are pinned to ONE block. The pin's type cannot"
+                     ++ " express the moving head, so a mention of it here is either a route around"
+                     ++ " that type -- a string handed to the transport, a second import -- or a"
+                     ++ " comment describing a design the requirement forbids. Prose is inside this"
+                     ++ " scan's blast radius deliberately, and on this branch the answer has been"
+                     ++ " the same twenty-six times: move the words, never relax the pattern.")
+
+-- | A 32-byte word as the @0x@ token a transport would hand back.
+--
+-- Rendered at RUNTIME from an 'Integer' for the reason every other hex in this file is: a 64-digit
+-- literal here is what 'sc3_literal_purge' exists to find, and this file is inside its scope.
+word_token :: Integer -> String
+word_token n =
+  "0x" ++ [intToDigit (fromIntegral ((n `shiftR` (4 * i)) .&. 15)) | i <- [63, 62 .. 0 :: Int]]
+
+-- | THE LIVE @Slot0@ WORD, MEASURED at 27-02 against the standing rig and RECOMPOSED here from its
+-- decoded parts rather than pasted.
+--
+-- Recomposed for two reasons. The purge is one. The other is that the parts are the measurement:
+-- @sqrtPriceX96 = 79228162514264258373304252324@ and @tick = -1@ (whose 24-bit two's-complement
+-- form is 16777215), with @protocolFee@ and @lpFee@ both ZERO -- which is the fact that decided
+-- 'zero_is_refused'. Pasting the word would hide all four numbers inside one opaque literal.
+measured_live_slot0 :: Integer
+measured_live_slot0 = (16777215 `shiftL` 160) .|. 79228162514264258373304252324
+
+-- | The heights the live word was measured at, and the one before the pool existed.
+--
+-- MEASURED at 27-02 with the same pinned read against the standing rig: block 5 returns an all-zero
+-- word (no pool yet), block 12 returns the price at tick 0, block 13 returns the word above. Those
+-- three readings are what make the divergence in the capture CONSTRUCTIBLE rather than hoped for.
+measured_pre_pool_block :: Integer
+measured_pre_pool_block = 5
+
+-- | Every refusal this rule must produce, as (name, field, where, what the transport handed back,
+-- the fragment that names the DIAGNOSIS).
+--
+-- The fragment matters as much as the @Left@: five of these are refusals of the same field and a
+-- check that only asserted \"it refused\" would be satisfied by a rule that returned the same
+-- message for all of them, which is a rule that cannot tell a reverting call from a truncated one
+-- from an uninitialised pool.
+chain_read_refusals :: [(String, PoolField, ReadAt, Maybe String, String)]
+chain_read_refusals =
+  [ ( "an absent answer"
+    , PoolStateWord, Pinned (AtBlock 13), Nothing, "returned NOTHING" )
+  , ( "the bare marker with an empty payload -- the reverting call"
+    , PoolStateWord, Pinned (AtBlock 13), Just "0x", "EMPTY payload" )
+  , ( "a non-hexadecimal character"
+    , PoolStateWord, Pinned (AtBlock 13), Just ("0x" ++ replicate 62 '0' ++ "zz")
+    , "non-hexadecimal" )
+  , ( "a word of the wrong length"
+    , PoolStateWord, Pinned (AtBlock 13), Just ("0x" ++ replicate 30 '1'), "hex digits and a" )
+  , ( "no marker at all"
+    , PoolStateWord, Pinned (AtBlock 13), Just (replicate 64 '1'), "0x marker" )
+  , ( "an all-zero word, read as the raw word"
+    , PoolStateWord, Pinned (AtBlock measured_pre_pool_block), Just (word_token 0), "ALL ZERO" )
+  , ( "an all-zero word, read as the price"
+    , SqrtPriceX96, Pinned (AtBlock measured_pre_pool_block), Just (word_token 0), "ALL ZERO" )
+  , ( "an all-zero word, read as the liquidity"
+    , Liquidity, Pinned (AtBlock measured_pre_pool_block), Just (word_token 0), "ALL ZERO" )
+  , ( "an all-zero word, read as the fee -- refused even though a zero FEE is not"
+    , LpFee, Pinned (AtBlock measured_pre_pool_block), Just (word_token 0), "ALL ZERO" )
+  , ( "a well-formed word whose price decodes to zero -- the NotBound shape"
+    , SqrtPriceX96, Pinned (AtBlock 13), Just (word_token (16777215 `shiftL` 160))
+    , "decodes to ZERO" )
+  , ( "a well-formed word whose liquidity decodes to zero"
+    , Liquidity, Pinned (AtBlock 13), Just (word_token (1 `shiftL` 200)), "decodes to ZERO" )
+  , ( "a negative height, refused before any call"
+    , SqrtPriceX96, Pinned (AtBlock (-1)), Just (word_token measured_live_slot0), "is negative" )
+  ]
+
+-- | Every answer this rule must ACCEPT, as (name, field, where, token, value).
+--
+-- Without these the rule is satisfied by one that refuses everything, which is the mirror of the
+-- advertised-and-dead shape this file has measured three times. The 'LpFee' row is the one that
+-- carries an argument: it is a ZERO that is NOT refused, because a dynamic-fee pool stores it as
+-- zero at initialise and a blanket rule would refuse the rig's own genesis state on every call.
+chain_read_acceptances :: [(String, PoolField, ReadAt, String, Integer)]
+chain_read_acceptances =
+  [ ( "the live price"
+    , SqrtPriceX96, Pinned (AtBlock 13), word_token measured_live_slot0
+    , 79228162514264258373304252324 )
+  , ( "the live raw word"
+    , PoolStateWord, Pinned (AtBlock 13), word_token measured_live_slot0, measured_live_slot0 )
+  , ( "the live fee -- ZERO, and NOT refused"
+    , LpFee, Pinned (AtBlock 13), word_token measured_live_slot0, 0 )
+  , ( "the live liquidity"
+    , Liquidity, Pinned (AtBlock 13), word_token 1000000000000000000000, 1000000000000000000000 )
+  ]
+
+-- | CHAIN-03: AN ABSENT, ZERO OR UNPARSEABLE READ IS AN ERROR THAT NAMES THE FIELD.
+--
+-- == THE TRAP THIS IS ABOUT, OBSERVED HERE RATHER THAN DESCRIBED
+--
+-- The first arm drives 'be_integer' at the empty byte string and asserts it is @0@. That is not
+-- a test of @foldl@ -- it is the mechanism: @VolOrder.Decode.hex_to_integer@ is
+-- @be_integer . toBytes@, and @toBytes@ of the bare marker a reverting @staticcall@ returns IS the
+-- empty byte string. So on the existing read path a transport-level FAILURE and a genuine zero
+-- arrive at a caller as the same 'Integer', and there is nothing downstream that can separate them
+-- again. The arm after it shows the layer producing exactly that token from exactly those bytes,
+-- and the table then shows the rule refusing it.
+--
+-- == THE NAMING ARM, AND THE 26-03 SHAPE
+--
+-- Every refusal must NAME its field, and \"names\" is delimited. 26-03 MEASURED a naming assertion
+-- PASSING on a longer wrong value because @\"828040\"@ contains @\"82804\"@, and this suite has 68
+-- @isInfixOf@ uses. Here the hazard is real and not invented: @liquidityNet@ is v4's per-tick
+-- signed liquidity delta and @\"liquidity\"@ is a strict prefix of it. So the check OBSERVES the
+-- undelimited form ACCEPTING a message about the wrong field and the delimited form REJECTING it,
+-- in the same breath, before it relies on the delimited form for the twelve rows.
+--
+-- The third naming arm is the one a single-field check cannot have: each refusal must name its own
+-- field and NO OTHER. A message that named two fields would satisfy every per-field assertion here
+-- while telling an operator nothing.
+--
+-- FIRING INPUTS, each OBSERVED at 27-02: return the extracted value instead of refusing a zero;
+-- drop the all-zero-word arm; drop the delimiters from the refusal prefix; refuse the fee's zero
+-- too.
+a_zero_or_absent_read_is_refused_by_field_name :: Check
+a_zero_or_absent_read_is_refused_by_field_name =
+  pure_check "a_zero_or_absent_read_is_refused_by_field_name" $ do
+    -- (1) THE MECHANISM. The empty byte string's big-endian value is the number zero.
+    _ <- expect (be_integer BS.empty == 0)
+           ("the empty byte string no longer decodes to 0 (it gave "
+             ++ show (be_integer BS.empty) ++ "). This check's whole subject is that a reverting"
+             ++ " call's empty return becomes a well-formed zero on the existing read path; if that"
+             ++ " has stopped being true, the refusals below are guarding something else.")
+    _ <- expect (render_word_token BS.empty == "0x")
+           ("the layer renders the empty return as " ++ show (render_word_token BS.empty)
+             ++ " and the token a node sends for it is the bare marker. The rule refuses that token"
+             ++ " BY NAME, so a renderer that produced anything else would route the case past it.")
+    _ <- expect (length (word_token 0) == word_hex_digits + 2)
+           ("this check's own word fixtures are " ++ show (length (word_token 0) - 2)
+             ++ " hex digits and the layer says a storage word has " ++ show word_hex_digits
+             ++ ". The wrong-length row below would then be testing the same thing as every other"
+             ++ " row.")
+
+    -- (2) THE NAMING ARM'S OWN CONTROL, both directions, before anything relies on it.
+    -- The decoy is BUILT BY THE FUNCTION UNDER TEST, and that is a MEASURED correction rather
+    -- than a preference. 27-02 wrote this the obvious way first -- spelling the delimiters out
+    -- here as @"field '" ++ decoy_field_name ++ "'"@ -- and drove the mutation that drops them
+    -- from 'refusal_naming_of'. OBSERVED: @201/201 checks passed, TEST_EXIT=0, NOT CAUGHT@. The
+    -- hand-spelled decoy kept ITS quotes while the producer lost them, so the two strings stopped
+    -- being able to collide at all and the arm that exists to observe the collision passed by
+    -- construction. It was asserting about its own literal. Routed through 'refusal_naming_of',
+    -- dropping the delimiters makes @refusal_naming Liquidity@ an infix of a message about
+    -- @liquidityNet@ and the second arm fires -- RE-MEASURED at 27-02 after the refactor, and the
+    -- observation is in the summary, not inferred from this comment.
+    let decoy_message =
+          "chain read REFUSED for " ++ refusal_naming_of decoy_field_name
+            ++ " pinned at block 13: ..."
+    _ <- expect (pool_field_name Liquidity `isInfixOf` decoy_message)
+           ("the UNDELIMITED naming test no longer accepts a message about " ++ decoy_field_name
+             ++ ", so the hazard this arm exists to demonstrate is not present and the delimited"
+             ++ " form below is being preferred over nothing. " ++ decoy_field_name ++ " is v4's"
+             ++ " per-tick signed liquidity delta and " ++ show (pool_field_name Liquidity)
+             ++ " must be a strict prefix of it for this control to mean anything.")
+    _ <- expect (not (refusal_naming Liquidity `isInfixOf` decoy_message))
+           ("the DELIMITED naming test accepts a message about " ++ decoy_field_name
+             ++ ", so it is no better than the undelimited one and every naming assertion below is"
+             ++ " satisfiable by a refusal about a different field. This is 26-03's finding exactly:"
+             ++ " a naming arm PASSED because \"828040\" contains \"82804\".")
+
+    -- (3) THE REFUSALS.
+    _ <- expect (length chain_read_refusals >= 12)
+           ("the refusal table has " ++ show (length chain_read_refusals) ++ " rows and it is the"
+             ++ " whole of what this check drives; a table that silently shortened would report"
+             ++ " every remaining row passing.")
+    _ <- mapM_ one_refusal chain_read_refusals
+
+    -- (4) THE ACCEPTANCES. Without them a rule that refuses everything passes (3).
+    _ <- mapM_ one_acceptance chain_read_acceptances
+    _ <- expect (not (zero_is_refused LpFee) && all zero_is_refused [PoolStateWord, SqrtPriceX96,
+                                                                    Liquidity])
+           ("the zero-refusal set has moved. MEASURED at 27-02 against the standing rig: lpFee = 0"
+             ++ " and protocolFee = 0 on the live pool, because a dynamic-fee pool stores the fee"
+             ++ " as zero at initialise and supplies it per swap from the hook. A zero-refusing fee"
+             ++ " read therefore refuses the rig's own genesis state on every call, and the only way"
+             ++ " to ship it green is to relax it on its first run. The refusal set is AIMED, per"
+             ++ " field, and this is where that decision is recorded.")
+
+    -- (5) The recording tag: an unpinned value surfaces as NOTHING, never as a plausible height.
+    _ <- expect (readback_height Unpinned == Nothing)
+           ("an unpinned read records a height. A sentinel like 0 or -1 is a plausible-looking"
+             ++ " number a downstream reader cannot tell from a real one, which is why this is a"
+             ++ " Maybe and why the artifact carries null.")
+    _ <- expect (readback_height (Pinned (AtBlock 13)) == Just 13)
+           "a pinned read no longer records the height it was pinned to."
+
+    -- (6) The decoder is total over the shapes the transport can produce.
+    expect (either (const True) (const False) (decode_word_token "0x")
+              && either (const False) (== measured_live_slot0)
+                   (decode_word_token (word_token measured_live_slot0)))
+      ("the token decoder no longer separates the bare marker from a well-formed word. Those two"
+        ++ " are the only shapes an anvil actually produces, and conflating them is the whole"
+        ++ " defect.")
+  where
+    other_fields field = [f | f <- pool_fields, f /= field]
+    one_refusal (name, field, at, supplied, fragment) =
+      case refuse_or_value field at supplied of
+        Right value ->
+          Left ("CHAIN-03: " ++ name ++ " was ACCEPTED for " ++ refusal_naming field
+                 ++ " and returned " ++ show value ++ ". A shape-valid meaningless value that"
+                 ++ " reaches a caller is a value that reaches a content key, and there is nothing"
+                 ++ " downstream that can tell it from a measurement.")
+        Left why -> do
+          _ <- expect (refusal_naming field `isInfixOf` why)
+                 ("CHAIN-03: " ++ name ++ " was refused but the message does not name "
+                   ++ refusal_naming field ++ ". It said:\n      " ++ why
+                   ++ "\n      A refusal that does not name its field sends an operator to read the"
+                   ++ " code to find out which read failed.")
+          _ <- expect (null [f | f <- other_fields field, refusal_naming f `isInfixOf` why])
+                 ("CHAIN-03: " ++ name ++ "'s refusal names a field it is not about: "
+                   ++ intercalate ", " [pool_field_name f | f <- other_fields field
+                                                          , refusal_naming f `isInfixOf` why]
+                   ++ ". It said:\n      " ++ why)
+          expect (fragment `isInfixOf` why)
+            ("CHAIN-03: " ++ name ++ " was refused, and by the right field, but the message does"
+              ++ " not carry " ++ show fragment ++ " -- so it is not THIS diagnosis. It said:\n      "
+              ++ why
+              ++ "\n      Five rows of this table refuse the same field, and a rule that returned"
+              ++ " one message for all of them cannot tell a reverting call from a truncated one"
+              ++ " from an uninitialised pool.")
+    one_acceptance (name, field, at, token, expected) =
+      case refuse_or_value field at (Just token) of
+        Left why ->
+          Left ("CHAIN-03: " ++ name ++ " was REFUSED, and it must not be: " ++ why
+                 ++ "\n      Every refusal above is also produced by a rule that refuses"
+                 ++ " everything, which is this file's advertised-and-dead shape in mirror.")
+        Right value ->
+          expect (value == expected && value == extract_pool_field field
+                                                 (either (const 0) id
+                                                    (decode_word_token token)))
+            ("CHAIN-03: " ++ name ++ " decoded to " ++ show value ++ " and the measurement is "
+              ++ show expected ++ ".")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -15695,6 +16306,9 @@ core_checks = do
           , the_endpoint_site_census_grows_with_the_tree
           , an_empty_eth_rpc_url_does_not_resolve_to_the_empty_string
           , the_producer_and_the_consumers_bind_one_endpoint
+          , no_read_can_omit_its_block
+          , latest_appears_nowhere_in_the_read_layer
+          , a_zero_or_absent_read_is_refused_by_field_name
           ]
             ++ per_pin_checks pins
   pure checks
