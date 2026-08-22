@@ -32,6 +32,7 @@ expected_migrations =
   [ (1, "001_model_run.sql")
   , (2, "002_byte_corpus.sql")
   , (3, "003_version_columns_nonempty.sql")
+  , (4, "004_loop_ledger.sql")
   ]
 
 -- | KEY-07, stated as data so a check can compare it to the LIVE catalogue and not only to the

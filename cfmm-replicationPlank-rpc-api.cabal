@@ -199,6 +199,16 @@ library
                     -- caller, which is what closes S2 without inventing an AbortReason that would
                     -- lie about why a solve produced nothing.
                     , Loop.Solve
+                    -- Phase 28's per-event ledger and single-row watermark. +0 PACKAGES, and
+                    -- CONFIRMED rather than estimated at 28-01: with this module on disk,
+                    -- `cabal build --enable-tests -j all` printed no `Downloading` line. Its
+                    -- imports are base (Control.Exception, Data.IORef), bytestring, containers
+                    -- (the reference implementation's one map), postgresql-simple -- which
+                    -- Store.Postgres has depended on since 23-01 and which is where
+                    -- `withTransaction` comes from -- and two modules of this same stanza,
+                    -- Loop.Solve for the outcome vocabulary and Store.Types for the key scheme.
+                    -- Every one of those packages was already a dependency here.
+                    , Loop.Ledger
 
     -- Modules included in this library but not exported.
     -- other-modules:
