@@ -768,7 +768,7 @@ mutant Z is OBSERVED caught" — never as "the tests pass".
 - [x] **Phase 24: GAMS Invocation & Toolchain Identity** - The prover as a controlled subprocess gated on evidence not log text, with version detection that aborts rather than yielding an empty key component — landed BEFORE the store's first production write (GAMS-01..06, BYTE-04) (completed 2026-08-17)
 - [x] **Phase 25: The Content Key & Keyed Store** - Framed, edge-normalized keys that refuse to be built from an absent input; cache elision, abort safety and a scoped reset the solve path cannot name — chain-free (KEY-01..06, STORE-01, STORE-06, STORE-08) (completed 2026-08-17). **SCOPE CUT 2026-08-17, user ruling:** on-demand verification, quarantine, pinning and the append-only run log — **STORE-02, STORE-03, STORE-04, STORE-05, STORE-07** — are DEFERRED to a later milestone, not dropped, each with a written reason in `REQUIREMENTS.md`'s Store deferral block. The byte-reproduction proof they carried is deferred with them; what lands here is the bridge's cache.
 - [x] **Phase 26: Shock Assembly — Fee Split & Event Decode** - The two pure producers of a shock's fields: the closed-form splitter that refuses infeasibility before the solver is spawned, and the `next` decoder proven against synthetic logs before the event exists (FEE-01..04, CHAIN-04) (completed 2026-08-17)
-- [ ] **Phase 27: Anvil Read Layer** - A shock read off a live chain is a snapshot of ONE block or it is an error — **BLOCKED** on the plank worktree emitting `next` (CHAIN-01, CHAIN-02, CHAIN-03)
+- [x] **Phase 27: Anvil Read Layer** - A shock read off a live chain is a snapshot of ONE block or it is an error (CHAIN-02, CHAIN-03, CHAIN-05, CHAIN-06, CHAIN-07 shipped; CHAIN-04 landed at 26-02) (completed 2026-08-22). **CHAIN-01 alone remains BLOCKED** on the plank / mev-migrate worktree emitting a mined `Shock` (issue #26, `SELECTOR_NEXT 0xd3827b0b`) — recorded by name in `27-SUMMARY.md` with what would discharge it. **TEXT CORRECTED AT CLOSE:** this line read "**BLOCKED** … (CHAIN-01, CHAIN-02, CHAIN-03)", which was wrong twice — CHAIN-02 and CHAIN-03 were never blocked (a pinned read needs a POOL, and `deploy-rig.sh` has stood one up since 22-03; the status was inherited from CHAIN-01's row rather than measured), and the phase also carried CHAIN-05, CHAIN-06 and CHAIN-07.
 - [ ] **Phase 28: Resident Loop & Fixture Publication** - A loop that survives its own crash, never double-counts an event, and publishes one file the forge test can never observe half-written — **BLOCKED** (inherits Phase 27) (LOOP-01..05)
 
 ## Phase Details
@@ -1251,7 +1251,7 @@ at the end of 25.
 | 24. GAMS Invocation & Toolchain Identity | 6/6 | Complete    | 2026-08-17 |
 | 25. The Content Key & Keyed Store | 3/3 | Complete    | 2026-08-17 |
 | 26. Shock Assembly — Fee Split & Event Decode | 4/4 | Complete   | 2026-08-17 |
-| 27. Anvil Read Layer (PARTIAL: only CHAIN-01 is blocked) | 2/3 | In Progress|  |
+| 27. Anvil Read Layer (6 of 7 shipped; only CHAIN-01 is blocked) | 3/3 | Complete   | 2026-08-22 |
 | 28. Resident Loop & Fixture Publication (BLOCKED) | 0/TBD | Blocked | - |
 
 ## Coverage (Milestone v6.0)

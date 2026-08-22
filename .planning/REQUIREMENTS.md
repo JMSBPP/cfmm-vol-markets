@@ -142,22 +142,40 @@ exists because three separate layers were measured silently altering them.
 
 ### Chain Reads (CHAIN)
 
-- [ ] **CHAIN-01**: The `next` event is decoded from a mined transaction's logs into the
-      shock it carries.
+- [ ] **CHAIN-01**: The `Shock` event is decoded from a mined transaction's logs into the
+      shock it carries. **TEXT CORRECTED AT PHASE 27 CLOSE (27-03).** It read *"the `next`
+      event"*, and `next(address,uint160,int24,uint24,uint24)` is a FUNCTION SELECTOR
+      (`0xd3827b0b`) on `AlgebraIntegralShocksWriterInterface.plk` — **never an event.** 26-02
+      established this against the merged source and demoted it to a NEGATIVE fixture: a log whose
+      topic0 is that selector left-padded is exactly the thing a decoder must refuse. The event is
+      `Shock(address indexed pool, int24, uint24, uint24)`, topic0
+      `0x21b0e4f81f5ef89be4325ca74966f2fb8f57a217e284dd3e0a276fff55987d64`, verified equal to
+      `cast keccak` of that signature. Same defect class as FEE-01's "exactly", corrected in 26-04.
+      **Still OPEN and BLOCKED** — the correction is to the wording, not to the status.
 - [x] **CHAIN-02**: Pool price, liquidity and fee are read **pinned to a single block**, not
       at `latest`.
 - [x] **CHAIN-03**: A read that returns an absent, zero or unparseable value is an error, not
       a value that flows into a key.
 - [x] **CHAIN-04**: Decoding is exercised against synthetic logs, so it is testable before
       the upstream event exists and without a chain.
-- [ ] **CHAIN-05**: The published fixture records the pool identity it was solved for — `pool`
+- [x] **CHAIN-05**: The published fixture records the pool identity it was solved for — `pool`
       (string address), `blockNumber` (**string**, because it can exceed the 53-bit double-exact
       ceiling) and `chainId` — so the consuming test can ATTACH rather than construct. `token0`/
       `token1` are deliberately NOT recorded: the test reads them from the pool on-chain, keeping
       the pool the single source of truth.
 - [x] **CHAIN-06**: Every endpoint consumer resolves `ETH_RPC_URL` if set, else
       `http://127.0.0.1:8545` — the four `*/Rpc.hs` providers, `app/Main.hs`,
-      `app/CheatSwapProof.hs`, `deploy-rig.sh` and both `capture-*.sh`. Nine sites, one rule.
+      `app/CheatSwapProof.hs`, `deploy-rig.sh` and both `capture-*.sh`. One rule.
+      **TEXT CORRECTED AT PHASE 27 CLOSE (27-03): this sentence ended "Nine sites, one rule", and
+      the count was wrong three ways.** MEASURED at 27-01: **TEN** by the pattern the sentence
+      itself implies — the tenth is `offchain/spec/types.md`, prose inside the grep's blast radius;
+      **ELEVEN** counting `offchain/rig/verify-rig.sh`, which makes fourteen `cast` calls against a
+      live rig but reached it through foundry's `--rpc-url local` ALIAS, so it named neither token
+      and **no pattern built from those two tokens could ever have found it**; and the rule was
+      implemented **ZERO** times, not nine — the only occurrence of the variable under `offchain/`
+      was a comment. A count in prose is not the durable form: what replaces it is
+      `Chain.Endpoint.endpoint_sites`, a manifest checked in BOTH directions against the tree,
+      holding **18** entries as of 27-02.
 - [x] **CHAIN-07**: The PRODUCER binds the same endpoint as the consumers — `deploy-rig.sh`
       derives anvil's `--host`/`--port` AND the deploy `--rpc-url` from one `ETH_RPC_URL`, and
       asserts `chainid` before any `--broadcast`. A consumer-only resolver does NOT retire the
@@ -237,11 +255,11 @@ Filled during roadmap creation (2026-08-16).
 | FEE-02 | Phase 26 | Complete |
 | FEE-03 | Phase 26 | Complete |
 | FEE-04 | Phase 26 | Complete |
-| CHAIN-01 | Phase 27 | Blocked (upstream `next` event, issue #26) |
+| CHAIN-01 | Phase 27 | **BLOCKED, and named as such at phase close (27-03).** Dependency: the plank / mev-migrate workstream, issue #26 — `SELECTOR_NEXT 0xd3827b0b`. There is no deploy script for the Shock writer (`foundry-scripts/mev_tax_model_one/` holds only `DeployAlgebraFactory.s.sol`) and the event is emitted from a forge **test**, not from a deployable contract another process can drive. **Not this workstream's to build.** What would discharge it: one driver that emits a single `Shock` in a MINED transaction on the resolved endpoint. Everything on this side is ready — `Chain.Shock` decodes it (CHAIN-04, 12 checks, 21-member corpus) and `Chain.Read` pins the reads to its block. |
 | CHAIN-02 | Phase 27 | Complete (27-02) — **and it was never blocked.** 27-CONTEXT measured that only CHAIN-01 depends on the upstream `next` emitter; a pinned read needs a POOL, and `deploy-rig.sh` has stood one up since 22-03. The "Blocked" this row carried was inherited from CHAIN-01's row, not measured. Evidence: `offchain/rig/chain-read-conformance.json`, in which a read pinned at block 13 returns tick −1 while the unpinned read returns the tick 5000 the state change wrote. |
 | CHAIN-03 | Phase 27 | Complete (27-02) — same correction as CHAIN-02: never blocked. The rule is a PURE total function of the field, where the read was made and what the transport handed back, so it is driven at arguments no chain will produce on demand (a truncated word, a non-hex character, an absent answer). Twelve refusals across five diagnoses and four acceptances; every refusal names its field DELIMITED, because `liquidity` is a strict prefix of v4's real `liquidityNet`. |
 | CHAIN-04 | Phase 26 | Complete |
-| CHAIN-05 | Phase 27 | Pending — from issue #29's returned contract (plank `f713089`) |
+| CHAIN-05 | Phase 27 | Complete (27-03) — the fixture publishes `pool` (string address), `blockNumber` (**string**) and `chainId` (number), exactly the contract issue #29 handed back at plank `f713089`. `token0`/`token1` deliberately absent: the consuming test reads them from the pool. The string choice is OBSERVED, not asserted — `9007199254740993` through a JSON number decoded into the 53-bit carrier comes back `9007199254740992`, short by exactly 1 and equal to BYTE-04's own image of that integer. **The pool is SYNTHETIC** (`decode_shock` of a corpus member), because CHAIN-01's emitter is blocked; the height and chain id are `block_b` and `chainId` out of the committed capture. |
 | CHAIN-06 | Phase 27 | Complete (27-01) — **but its text says "Nine sites" and that is wrong three ways.** MEASURED: TEN by its own pattern (`offchain/spec/types.md` is the tenth); ELEVEN counting `offchain/rig/verify-rig.sh`, which reached the chain through foundry's `--rpc-url local` alias and so named neither token, making it invisible to any pattern built from them; and the rule was implemented ZERO times, not nine. **Correct this text at phase close**, with CHAIN-01's stale `next`-event wording. |
 | CHAIN-07 | Phase 27 | Complete (27-01) — `deploy-rig.sh` binds anvil's `--host`/`--port` and every `--rpc-url` to one reading of `ETH_RPC_URL`, and asserts `cast chain-id` before the first `--broadcast`. The alias could NOT be the mechanism: `foundry.toml:59` pins it to the default and is outside this workstream's territory. |
 | LOOP-01 | Phase 28 | Blocked (upstream `next` event, issue #26) |

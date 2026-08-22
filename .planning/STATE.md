@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 27-02-PLAN.md — CHAIN-02 and CHAIN-03 RETIRED (198/198 -> 203/203, exit 0, zero warnings, 0 Downloading). BlockRef is a newtype with ONE constructor, so the moving-head tag is not avoided but INEXPRESSIBLE; every read takes it positionally; five refusals name their field DELIMITED. THE CORRECTION THIS PLAN CARRIES: the naming arm's decoy was hand-spelled, and the mutation that drops the delimiters from the producer MEASURED 201/201 exit 0 NOT CAUGHT — the decoy kept its own quotes so the two strings could never collide, and the arm passed by construction. Routed through refusal_naming_of it fires at 199/201. THE CAPTURE FINDING: the first run recorded pinned_equals_block_b=false and looked exactly like a broken pin; driven with cast independently, anvil_setStorageAt does NOT create a block — it writes into the state OF THE CURRENT HEAD, so pinning at the head pins to the block the cheat occupies. Fixed with one evm_mine BEFORE the write; write_landed_above_b is now recorded and asserted so the construction can never again be read as the defect. Also CORRECTED a claim this plan had already committed: measured_pre_pool_block 5 -> 7, because blocks 0..5 have no PoolManager code and return the bare 0x marker, a DIFFERENT diagnosis from the all-zero word at 6..7. 21 firings observed (11 source, 10 artifact through CHAIN_READ_CONFORMANCE with the committed evidence byte-identical before and after). Floors 70/80 -> 72/83, re-measured by RUNNING find. Next: 27-03 (CHAIN-05, phase close)."
+stopped_at: "Completed 27-03-PLAN.md and CLOSED PHASE 27. CHAIN-05 RETIRED (203/203 -> 205/205, exit 0, zero warnings). The published fixture now carries pool / blockNumber (STRING) / chainId, exactly the contract issue #29 handed back at plank f713089, so the consuming forge test can ATTACH rather than construct; token0/token1 stay ABSENT because the test reads them from the pool. THE STRING IS A MEASUREMENT: 9007199254740993 (2^53+1) through a JSON number decoded into the 53-bit carrier comes back 9007199254740992 -- short by exactly 1, an equality no tolerance can absorb, and equal to BYTE-04 double_image of the same integer. THE FINDING BESIDE IT: the suite own JSON value type carries that number EXACTLY, so the hazard is invisible from inside this suite -- the loss belongs to the CONSUMER carrier, not to the JSON text, which is precisely why publishing a string is the remedy. NONE OF THE SUBJECT IS SPELLED: the pool is se_pool of a corpus member decoded by decode_shock, the height and chain id are block_b and chainId out of the committed capture; only the three CONTRACT KEY NAMES are written by hand, because a key set derived from the producer is the producer agreeing with itself. Four firings observed. M4 WAS NOT PREDICTED: with the ordering guard REMOVED and the witness still below the ceiling the check STILL reddened, through a different arm -- so there are two independent guards against a vacuous subject and they give DIFFERENT diagnoses. PHASE CLOSE: CHAIN-01 recorded BLOCKED by name with its dependency (plank/mev-migrate, issue #26, SELECTOR_NEXT 0xd3827b0b) and with what would discharge it; CHAIN-01 stale next-event wording and CHAIN-06 nine-sites count both corrected in REQUIREMENTS.md. Next: phase 28 (LOOP), and S1 must be decided BEFORE it plans its loop."
 last_updated: "2026-08-22"
-last_activity: "2026-08-22 — 27-02 executed (resumed from an interruption; task 2 was on disk, uncommitted and internally inconsistent, and was reconciled by re-measurement rather than trusted). 198/198 -> 203/203, 0 warnings, 0 Downloading. Five checks, a third structural grep so cabal test still opens no socket, and CHAIN-02's observational half committed as an artifact. Two guards that already existed caught this plan's own new files and then its own prose — the prose moved, the pattern did not."
+last_activity: "2026-08-22 — 27-03 executed and PHASE 27 CLOSED. 203/203 -> 205/205, 0 warnings, 0 Downloading. Two checks over the fixture identity, four firing inputs observed, both floors re-measured by RUNNING find and UNCHANGED at 72/83 (this plan creates no file). Six of seven CHAIN requirements retired; CHAIN-01 blocked externally and named as such. 27-SUMMARY.md written."
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 21
-  completed_plans: 20
+  completed_plans: 21
 ---
 
 <!--
@@ -43,11 +43,79 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **27 — Anvil Read Layer** — IN PROGRESS (2/3 plans)
-Plan: **27-02 COMPLETE** (commits `596ed38`, `10a3231`, `28e7ffa`). Summary:
-`.planning/phases/27-anvil-read-layer/27-02-SUMMARY.md`. **CHAIN-02 and CHAIN-03 retired.**
-198/198 → **203/203**, exit 0, zero warnings, 0 `Downloading`; floors 70/80 → **72/83**, both
-re-measured by RUNNING `find`. Next: **27-03** (CHAIN-05, fixture pool identity, phase close).
+Phase: **27 — Anvil Read Layer** — **COMPLETE (3/3 plans)**, with ONE requirement blocked
+externally and named as such. Phase summary:
+`.planning/phases/27-anvil-read-layer/27-SUMMARY.md`.
+Plan: **27-03 COMPLETE** (commit `306b587` + this close). Summary:
+`.planning/phases/27-anvil-read-layer/27-03-SUMMARY.md`. **CHAIN-05 retired.**
+203/203 → **205/205**, exit 0, zero warnings, 0 `Downloading`; floors **72/83** UNCHANGED and both
+re-measured by RUNNING `find` (this plan creates no file). Next: **phase 28 (LOOP)**.
+
+**PHASE 27 DISPOSITION.** CHAIN-02, CHAIN-03 (27-02), CHAIN-05 (27-03), CHAIN-06, CHAIN-07 (27-01)
+shipped; CHAIN-04 was already done at 26-02; **CHAIN-01 is BLOCKED**. Suite **194 → 205** across the
+phase. CHAIN-02 and CHAIN-03 were carried in marked *Blocked* and **were never blocked** — that was
+inherited from CHAIN-01's row rather than measured, and a pinned read needs only a POOL.
+
+**CHAIN-01 — BLOCKED, BY NAME, WITH ITS DEPENDENCY.** Plank / mev-migrate workstream, issue #26,
+`SELECTOR_NEXT 0xd3827b0b`. There is no deploy script for the Shock writer —
+`foundry-scripts/mev_tax_model_one/` holds only `DeployAlgebraFactory.s.sol` — and the event is
+emitted from a forge **test**, not from a deployable contract another process can drive. **Not this
+workstream's to build.** WHAT WOULD DISCHARGE IT: one driver that emits a single `Shock` in a MINED
+transaction on the resolved endpoint. Everything on this side is ready: `Chain.Shock` decodes it
+(CHAIN-04, 12 checks, 21-member corpus), `Chain.Read` pins the reads to its block, `Chain.Endpoint`
+resolves the endpoint it would be pointed at, and CHAIN-05's fixture already carries the identity
+slot the decoded pool goes into.
+
+**TWO REQUIREMENT TEXTS CORRECTED AT CLOSE, neither by changing a status.** CHAIN-01 said *"the
+`next` event"* and `next(address,uint160,int24,uint24,uint24)` is a FUNCTION SELECTOR
+(`0xd3827b0b`), never an event — the event is `Shock(address indexed pool, int24, uint24, uint24)`,
+topic0 `0x21b0e4f8…55987d64`. CHAIN-06 said *"Nine sites, one rule"* and the count was wrong three
+ways: TEN by its own pattern, ELEVEN counting `verify-rig.sh` (invisible to any pattern built from
+those two tokens, because it reached the chain through foundry's alias), and the rule was
+implemented **ZERO** times. The durable form is `endpoint_sites`, checked in both directions, **18**
+entries.
+
+**THE FIXTURE SAYS WHICH POOL, AND THE STRING IS A MEASUREMENT.** `pool` (string address),
+`blockNumber` (**STRING**) and `chainId` (number) — issue #29's returned contract, plank `f713089`.
+`token0`/`token1` deliberately ABSENT: the consuming test reads them from the pool, so the pool
+stays the single source of truth. OBSERVED, not asserted: `9007199254740993` through a JSON number
+decoded into the 53-bit carrier comes back `9007199254740992`, short by **exactly 1**, equal to
+BYTE-04's own `double_image` of that integer. **AND THE FINDING BESIDE IT:** the suite's own JSON
+value type carries that number EXACTLY, so the hazard is invisible from inside this suite — the loss
+belongs to the CONSUMER'S carrier, not to the JSON text, which is precisely why publishing a string
+is the remedy. Asserting only the exact path would have been reassuring and wrong.
+
+**NONE OF THE SUBJECT IS SPELLED IN THE CHECK.** The pool is `se_pool` of a corpus member decoded by
+`decode_shock`; the height and chain id are `block_b` and `chainId` out of the COMMITTED capture,
+which is what "the identity it was SOLVED FOR" means. Only the three CONTRACT KEY NAMES are written
+by hand, and deliberately: they are external, so a key set derived from the producer would be the
+producer agreeing with itself. **The pool is SYNTHETIC and labelled so** — CHAIN-01's emitter is
+blocked, the rig is a v4 pool with a 32-byte `poolId` and no Algebra pool ADDRESS, and recording the
+manager's address under the key `pool` would have been a recorded measurement that is FALSE.
+
+**M4 WAS NOT PREDICTED, AND IT IS THE FINDING.** The plan's third firing input exists to show the
+ordering guard is load-bearing. M3 showed it fires. M4 asked the harder question — with that arm
+REMOVED and the witness still below the ceiling, does the rest go green? **It does not:** the check
+still reddens, through a DIFFERENT arm ("came back UNCHANGED"). So there are two independent guards
+against a vacuous subject and they give **different diagnoses** — the ordering arm says the WITNESS
+was chosen wrong, the inequality arm says the CARRIER stopped losing it, and only the first is true.
+26-03's existence-versus-order finding, arriving from a direction nobody aimed at.
+
+**M2 IS WHY THE SHAPE ARM AND THE ZERO ARM ARE SEPARATE.** The zero address is shape-VALID — `0x`
+plus forty lowercase hex digits, every guard satisfied — so folded into one arm the zero arm would
+be unreachable. Measured: M2 fired the zero arm ALONE while the shape arm stayed green.
+
+**S1 BINDS PHASE 28 AND MUST BE DECIDED BEFORE IT PLANS ITS LOOP.** From
+`.planning/SPIKE-end-to-end.md`: a `KeyIdentity` can only be obtained from a COMPLETED RUN
+(`key_identity` needs a `ToolchainIdentity` whose only producer is `run_prover`'s `Produced` arm,
+yet `decide` needs the identity BEFORE the first solve, and there is no `detect_toolchain`), so the
+loop bootstraps with a throwaway solve or the library grows a detection function. **S2:**
+`invoke_shock` does not fit the `Solver` seam and `AbortReason` has no constructor for a resolution
+failure, so the composition function phase 28 will reach for first is the wrong one. **S3:**
+`Decision` drops `CapturedStreams`, so a caller cannot tell an inadmissible shock (abort line 109)
+from an unsolvable one (171/173) — which touches CHAIN-03's spirit directly.
+
+### 27-02, still standing (the record)
 
 **THE PIN IS A TYPE, NOT A CONVENTION.** `BlockRef` is a `newtype` with one constructor, so the
 moving-head tag is not something the read layer avoids — it is something the type cannot express,
