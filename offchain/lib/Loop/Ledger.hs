@@ -186,11 +186,24 @@ new_memory_ledger = do
     Ledger
       { ledger_label        = "Loop.Ledger (memory)"
       , ledger_commit_block = memory_commit ref
-      , ledger_seen         = \eid -> M.member eid . ls_rows <$> readIORef ref
-      , ledger_rows_for     = \eid ->
-          maybe [] (: []) . M.lookup eid . ls_rows <$> readIORef ref
+      , ledger_seen         = \eid -> not . null <$> memory_rows_for ref eid
+      , ledger_rows_for     = memory_rows_for ref
       , ledger_watermark    = ls_watermark <$> readIORef ref
       }
+
+-- | Every row whose OWN identity field is this event, found by SCANNING rather than by looking the
+-- map key up.
+--
+-- The two are equivalent while the map is keyed on 'lr_event', and the scan is written anyway,
+-- deliberately: a reader that looks up the key it assumes the writer used cannot OBSERVE the
+-- writer keying on something else. A ledger keyed on the content key instead of the position is
+-- the precise defect LOOP-02's second direction exists to catch -- two distinct events carrying an
+-- identical shock collapsing into one row -- and with a lookup-based reader that mutation makes
+-- BOTH events unfindable, which reddens for a reason nobody wrote down. With the scan it reddens
+-- by returning ONE row where two were committed, which is the failure as stated.
+memory_rows_for :: IORef LedgerState -> EventId -> IO [LedgerRow]
+memory_rows_for ref eid =
+  filter ((== eid) . lr_event) . M.elems . ls_rows <$> readIORef ref
 
 -- | FIRST-WRITER-WINS on the event identity, and the same rule the server applies.
 --

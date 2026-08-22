@@ -21,7 +21,7 @@
 -- strip trailing parameter identifiers, strip whitespace -- idempotently.
 module Main (main) where
 
-import Control.Exception (IOException, finally, try)
+import Control.Exception (IOException, finally, throwIO, try)
 import Control.Monad (foldM, replicateM)
 import Crypto.Ethereum.Utils (keccak256)
 -- MD5 only, and only for the migration freshness oracle: @postgresql-migration@ stores an md5 of
@@ -43,7 +43,7 @@ import qualified Data.Foldable as F
 -- records the puts it ACCEPTED is what turns "no entry was written" into one.
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.List (dropWhileEnd, intercalate, isInfixOf, isPrefixOf, isSuffixOf, nub, sort,
-                  stripPrefix)
+                  stripPrefix, tails)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing)
 import Data.Solidity.Prim.Address (Address, fromHexString)
@@ -316,6 +316,30 @@ import RealizedVol.Decode
 -- The store contract, executed. Store.Laws is imported for BOTH its verdicts and its NAMES: the
 -- law set is asserted against `law_names` rather than against a transcription of it, so a law
 -- renamed in the library and nowhere else is a set mismatch instead of a silent loss.
+-- Phase 28's two library seams. Loop.Solve is imported for its CLASSIFIER and its outcome
+-- vocabulary only -- not for solver_for, which builds a real invocation and has no business in a
+-- suite that spawns nothing. Loop.Ledger is imported for its record and its REFERENCE
+-- implementation; new_postgres_ledger is deliberately not named here, for the same reason
+-- Store.Postgres' own constructor is not: this suite opens no socket.
+import Loop.Solve
+  ( Classified (..)
+  , Outcome (..)
+  , classify
+  , outcome_token
+  )
+-- 'outcomes' is reached through the alias and NOT imported unqualified, for the reason 'Fee.Split'
+-- is imported twice: FIVE separate bindings in this file are already called @outcomes@ -- the
+-- override sweep's, the runner's, the sentinel harness's and two more -- and an unqualified import
+-- shadows every one of them. -Wall makes shadowing a warning and a warning is a gate failure here,
+-- so the choice was rename five long-standing local bindings or qualify the one new name. The
+-- library's list keeps its name; the alias is what a check reaches through.
+import qualified Loop.Solve as LS
+import Loop.Ledger
+  ( EventId (..)
+  , Ledger (..)
+  , LedgerRow (..)
+  , new_memory_ledger
+  )
 import Store.Laws (law_names, store_laws)
 import Store.Memory (new_memory_store)
 -- The store seam itself, so the cache checks can WRAP a memory store rather than describe one. The
@@ -1317,10 +1341,20 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 -- cannot. So the two floors part company here by exactly one, which is what task 1's note above
 -- predicted in advance. Prediction and measurement agree and BOTH ENDS WERE RUN.
 --
+-- RE-MEASURED COLD AT 28-01, in the same sitting as 'credential_scan_floor' and by RUNNING the
+-- command rather than by adding three to the 72 above it: 75 against exactly 75, zero slack.
+-- Census under @offchain\/@ at that measurement: @hs 59, sh 12, json 11, sql 4@. The wave-start
+-- reading, taken COLD before this plan edited anything, was 72, and this plan adds exactly THREE
+-- files both scans can see -- @offchain\/lib\/Loop\/Solve.hs@, @offchain\/lib\/Loop\/Ledger.hs@ and
+-- @offchain\/migrations\/004_loop_ledger.sql@. A @.sql@ is a scanned type for BOTH scans, and this
+-- plan RE-TAKES the store-conformance capture rather than creating one, so the @.json@ census is
+-- unchanged at 11 and the two floors move by the SAME three for the first time since 24-06.
+-- Prediction and measurement agree and BOTH ENDS WERE RUN.
+--
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
--- > 72
+-- > 75
 purge_file_floor :: Int
-purge_file_floor = 72
+purge_file_floor = 75
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -8116,8 +8150,18 @@ credential_scan root =
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 83
+--
+-- RE-MEASURED COLD AT 28-01, in the same sitting as 'purge_file_floor' and by RUNNING the command
+-- rather than by adding three to the 83 above it: 86 against exactly 86, zero slack. Census under
+-- @offchain\/@ at that measurement: @hs 59, sh 12, json 11, sql 4@. The pair moves by the SAME
+-- three here, and that is a measurement rather than an assumption: this plan adds two @.hs@ and one
+-- @.sql@, and it RE-TAKES @store-conformance.json@ instead of creating an artifact, so the @.json@
+-- census does not move at all. Both ends were RUN.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+-- > 86
 credential_scan_floor :: Int
-credential_scan_floor = 83
+credential_scan_floor = 86
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -8328,6 +8372,8 @@ aeson_storage_path =
   , "offchain/lib/Gams/Invoke.hs"
   , "offchain/lib/Gams/Run.hs"
   , "offchain/lib/Gams/Version.hs"
+  , "offchain/lib/Loop/Ledger.hs"
+  , "offchain/lib/Loop/Solve.hs"
   , "offchain/lib/Store/Cache.hs"
   , "offchain/lib/Store/Class.hs"
   , "offchain/lib/Store/Config.hs"
@@ -9484,7 +9530,8 @@ no_Double_and_no_aeson_on_the_artifact_path =
 -- the same reason and under the same rule.
 artifact_path_directories :: [FilePath]
 artifact_path_directories =
-  [ "offchain/lib/Chain", "offchain/lib/Fee", "offchain/lib/Gams", "offchain/lib/Store" ]
+  [ "offchain/lib/Chain", "offchain/lib/Fee", "offchain/lib/Gams", "offchain/lib/Loop"
+  , "offchain/lib/Store" ]
 
 -- | Modules under those directories that are deliberately NOT scanned, each with its reason.
 --
@@ -16812,6 +16859,533 @@ a_block_number_above_two_to_the_fifty_three_is_OBSERVED_losing_precision_as_a_nu
     digits_to_integer = foldl (\acc c -> acc * 10 + toInteger (digitToInt c)) 0
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 28 plan 01: LOOP-02's two directions, S3's discrimination, and the one-transaction commit
+--
+-- Every check below runs against 'Store.Memory', 'new_memory_ledger' and a counting stub 'Solver'.
+-- No chain, no database, no solver -- the three structural greps stay 0 and this whole block sits
+-- inside their blast radius, which is why nothing here names a transport, a client or the real
+-- prover even in prose.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The migration this plan lands, and the module that writes to the tables it creates.
+loop_migration_path, loop_ledger_module :: FilePath
+loop_migration_path = "offchain/migrations/004_loop_ledger.sql"
+loop_ledger_module  = "offchain/lib/Loop/Ledger.hs"
+
+-- | Two synthetic event positions that differ ONLY in their log index.
+--
+-- The transaction identifier is a LABEL and is deliberately not hash-SHAPED. A real one is
+-- sixty-four hexadecimal digits behind a two-character prefix, which is precisely what
+-- 'sc3_literal_purge' scans this file for; and nothing in this plan's subject reads the shape of
+-- one -- 'EventId' carries a 'String' and the column is @text@. A plausible-looking digest nobody
+-- measured would be a fixture pretending to be evidence.
+--
+-- That they share a transaction and differ in the index is the SUBJECT of the second check, not a
+-- convenience, so that check asserts the relation rather than assuming it.
+loop_event_alpha, loop_event_beta :: EventId
+loop_event_alpha = EventId "the-shock-carrying-transaction" 0
+loop_event_beta  = EventId "the-shock-carrying-transaction" 1
+
+-- | The block every event below is read at. One number, so a check that expected the watermark to
+-- move can say which value it expected.
+loop_block :: Integer
+loop_block = 11
+
+-- | A decided event, as the row that will be read after the fact.
+--
+-- The key is COMPUTED from the shock and the identity through the library's own 'content_key',
+-- never handed in: a row whose key came from somewhere other than the function the store keys on
+-- is a row no lookup will ever match, and that is the defect the store's own checks already
+-- measure. @Nothing@ arrives here by exactly one route -- the key REFUSING to compute -- which is
+-- the inadmissible arm and the only outcome migration 004 lets carry no key.
+loop_row :: KeyIdentity -> EventId -> Shock -> Classified -> LedgerRow
+loop_row ident eid shock decision =
+  LedgerRow
+    { lr_event      = eid
+    , lr_block      = loop_block
+    , lr_model      = gams_model_basename
+    , lr_key_scheme = current_key_scheme
+    , lr_key        =
+        case content_key current_key_scheme gams_model_basename shock ident of
+          Left _                 -> Nothing
+          Right (ContentKey raw) -> Just raw
+    , lr_outcome    = cl_outcome decision
+    , lr_reason     = cl_reason decision
+    , lr_gams_ver   = gams_version_text (ki_gams_version ident)
+    , lr_conopt_ver = conopt_version_text (ki_conopt_version ident)
+    }
+
+-- | THE PER-EVENT PIPELINE 28-02's loop will be, with every seam replaced by its reference
+-- implementation.
+--
+-- @Nothing@ means the event had already been recorded and NOTHING was done -- no lookup, no solve,
+-- no second row. That is the shape of the requirement: \"no second solve\" is a claim about a call
+-- that did not happen, and the counting solver is what turns it into a measurement.
+--
+-- The guard is 'ledger_seen' and not the content key, and the two are not interchangeable. The
+-- key would elide the SOLVE on a replay and still write a second row; this guard is what makes a
+-- replay a no-op end to end.
+loop_step
+  :: Store
+  -> Ledger
+  -> Solver
+  -> KeyIdentity
+  -> EventId
+  -> Shock
+  -> IO (Maybe Classified)
+loop_step store ledger solver ident eid shock = do
+  already <- ledger_seen ledger eid
+  if already
+    then pure Nothing
+    else do
+      decided <- decide store solver current_key_scheme gams_model_basename shock ident
+      let decision = classify decided
+      ledger_commit_block ledger loop_block [loop_row ident eid shock decision]
+      pure (Just decision)
+
+-- | LOOP-02, first direction: the SAME event replayed is one row and no second solve.
+--
+-- The arms are ordered so the FIRST pass is asserted to have produced a row and a solve before
+-- anything about the second pass is read. Absence is the pass condition on the replay, and a
+-- pipeline that never ran satisfies every absence there is -- so the pass condition has to be
+-- reached from a state that was OBSERVED to be non-empty.
+--
+-- Three instruments, and none of them is sufficient alone: the ledger row count (which a ledger
+-- that writes nothing satisfies), the solver's invocation counter (which a pipeline that solves
+-- twice and stores once does not move correctly), and the store's entry count (which catches a put
+-- that landed under some other key).
+--
+-- FIRING INPUT, OBSERVED -- AND THE PLAN'S PREDICTION ABOUT IT WAS WRONG. The mutation is to
+-- remove the 'ledger_seen' guard from 'loop_step' so a replay is processed again. The plan said
+-- "the invocation arm reddens at 2". MEASURED: it does not. The suite came back 209/211 through
+-- the @isNothing second_pass@ arm alone, reading @Just OutcomeElided@ -- because the CONTENT KEY
+-- still hits on the replay, so the solver is not called a second time and the ledger's own
+-- first-writer rule still keeps the row count at 1.
+--
+-- That is the finding, and it sharpens what 'ledger_seen' is FOR. It does not save a solve: the
+-- key already does. What it saves is the store lookup and the write attempt, and what it protects
+-- is the pipeline doing NOTHING on a replay -- which is the only one of the three instruments that
+-- can tell the guard is gone. The @after_both == 1@ arm is therefore not falsified by THIS
+-- mutation; it is falsified by a pipeline that re-solves, which is a different defect, and saying
+-- so is more useful than leaving a prediction on the page that the measurement contradicts.
+--
+-- The same shape 27-03 met at its M4: an arm the plan expected to fire stayed green and a
+-- different one caught the defect, and the two give different diagnoses.
+the_same_event_twice_produces_one_row_and_no_second_solve :: Check
+the_same_event_twice_produces_one_row_and_no_second_solve =
+  Check "the_same_event_twice_produces_one_row_and_no_second_solve" . guarded $
+    case cache_setting of
+      Left err -> pure (Left err)
+      Right (ident, _key, produced) -> do
+        (store, entries)      <- cache_counting_store
+        ledger                <- new_memory_ledger
+        (solver, invocations) <- cache_solver "the-solver-counted-across-a-replay" produced
+        first_pass  <- loop_step store ledger solver ident loop_event_alpha fixture_shock
+        after_first <- invocations
+        rows_first  <- ledger_rows_for ledger loop_event_alpha
+        held_first  <- entries
+        second_pass <- loop_step store ledger solver ident loop_event_alpha fixture_shock
+        after_both  <- invocations
+        rows_both   <- ledger_rows_for ledger loop_event_alpha
+        held_both   <- entries
+        mark        <- ledger_watermark ledger
+        pure $ do
+          _ <- expect (fmap cl_outcome first_pass == Just OutcomeStored)
+                 ("the FIRST pass over a fresh store decided "
+                   ++ show (fmap cl_outcome first_pass) ++ ", expected Just OutcomeStored. Every"
+                   ++ " assertion below is about a REPLAY, and a replay of an event that was never"
+                   ++ " processed is not the subject.")
+          _ <- expect (after_first == 1)
+                 ("the solver was invoked " ++ show after_first ++ " times on the first pass,"
+                   ++ " expected exactly 1.")
+          _ <- expect (length rows_first == 1)
+                 ("the ledger holds " ++ show (length rows_first) ++ " rows for the first event,"
+                   ++ " expected exactly 1. The absence arms below pass for a ledger that never"
+                   ++ " wrote anything, so this one is what makes them mean something.")
+          _ <- expect (held_first == 1)
+                 ("the store holds " ++ show held_first ++ " entries after one solve, expected 1.")
+          _ <- expect (isNothing second_pass)
+                 ("the SAME event replayed was processed again and decided "
+                   ++ show (fmap cl_outcome second_pass)
+                   ++ ", expected the pipeline to do nothing at all. ledger_seen is what stops"
+                   ++ " re-work on a replayed EVENT, and it is a different mechanism from the"
+                   ++ " content key -- the key would elide the solve and still write a second row.")
+          _ <- expect (after_both == 1)
+                 ("the solver has been invoked " ++ show after_both ++ " times after the SAME event"
+                   ++ " was seen twice, expected 1. A second invocation here is a full model run"
+                   ++ " paid for a log entry that was already answered.")
+          _ <- expect (length rows_both == 1)
+                 ("the ledger holds " ++ show (length rows_both) ++ " rows for one event seen"
+                   ++ " twice, expected exactly 1. Two rows for one position is a chronology that"
+                   ++ " reports an event happening twice, and nothing downstream can tell that"
+                   ++ " from two events.")
+          _ <- expect (held_both == 1)
+                 ("the store holds " ++ show held_both ++ " entries after the same event twice,"
+                   ++ " expected 1.")
+          expect (mark == Just loop_block)
+            ("the watermark reads " ++ show mark ++ " after a block was committed, expected "
+              ++ show (Just loop_block) ++ ". The block's rows and its watermark advance are ONE"
+              ++ " call, so a watermark that did not move means the commit did not happen.")
+
+-- | LOOP-02, second direction: two DISTINCT events carrying one shock are ONE entry and TWO rows.
+--
+-- Both halves of the ROADMAP criterion are in this one check and neither is sufficient alone. One
+-- entry alone is satisfied by a ledger that de-duplicated the events; two rows alone is satisfied
+-- by a store that solved twice. The invocation counter separates them, and the two outcome tokens
+-- say WHICH event was the one that paid for the solve.
+--
+-- The fixture's own relation is asserted rather than assumed: the two identities must share a
+-- transaction and differ in the log index, or this check is about two unrelated events and its
+-- verdict is about nothing.
+--
+-- FIRING INPUT, OBSERVED: key the memory ledger on the content key instead of on the event
+-- position. The row-count arm reddens, reading "1 row(s) for the first event and 0 for the
+-- second" -- one row for two events, which is the collapse. A SECOND guard caught it in the same
+-- run: the positive control of 'a_block_commit_is_one_transaction_on_both_ledgers' also went red,
+-- because a two-row commit that lands one row is the same defect seen from the commit side.
+two_distinct_events_with_one_shock_make_one_entry_and_two_rows :: Check
+two_distinct_events_with_one_shock_make_one_entry_and_two_rows =
+  Check "two_distinct_events_with_one_shock_make_one_entry_and_two_rows" . guarded $
+    case cache_setting of
+      Left err -> pure (Left err)
+      Right (ident, _key, produced) -> do
+        (store, entries)      <- cache_counting_store
+        ledger                <- new_memory_ledger
+        (solver, invocations) <- cache_solver "the-solver-counted-across-two-events" produced
+        alpha  <- loop_step store ledger solver ident loop_event_alpha fixture_shock
+        beta   <- loop_step store ledger solver ident loop_event_beta  fixture_shock
+        calls  <- invocations
+        rows_a <- ledger_rows_for ledger loop_event_alpha
+        rows_b <- ledger_rows_for ledger loop_event_beta
+        held   <- entries
+        pure $ do
+          _ <- expect (ev_tx_hash loop_event_alpha == ev_tx_hash loop_event_beta
+                        && ev_log_index loop_event_alpha /= ev_log_index loop_event_beta)
+                 ("the two fixture identities are " ++ show loop_event_alpha ++ " and "
+                   ++ show loop_event_beta ++ ", which do not differ ONLY in the log index. Two"
+                   ++ " events that already differ in their transaction are separated by the"
+                   ++ " coarser field, and this check would then never exercise the index at all.")
+          _ <- expect (length rows_a == 1 && length rows_b == 1)
+                 ("the ledger holds " ++ show (length rows_a) ++ " row(s) for the first event and "
+                   ++ show (length rows_b) ++ " for the second, expected 1 and 1. Two DISTINCT"
+                   ++ " events carrying identical shock values are two entries in the chronology."
+                   ++ " A ledger keyed on the content key would collapse them into one and satisfy"
+                   ++ " every replay assertion in the check above while doing it.")
+          _ <- expect (held == 1)
+                 ("the store holds " ++ show held ++ " entries for two events carrying an"
+                   ++ " IDENTICAL shock, expected 1. The key is a function of the shock, so the"
+                   ++ " second event must find the first one's bytes.")
+          _ <- expect (calls == 1)
+                 ("the solver was invoked " ++ show calls ++ " times for two events carrying an"
+                   ++ " identical shock, expected exactly 1. The second solve is the cost this"
+                   ++ " whole subsystem exists to remove.")
+          _ <- expect (fmap cl_outcome alpha == Just OutcomeStored)
+                 ("the FIRST event decided " ++ show (fmap cl_outcome alpha)
+                   ++ ", expected Just OutcomeStored -- it is the one that paid for the solve.")
+          expect (fmap cl_outcome beta == Just OutcomeElided)
+            ("the SECOND event decided " ++ show (fmap cl_outcome beta)
+              ++ ", expected Just OutcomeElided. A cache hit is still an event and still gets a"
+              ++ " row -- the ledger is what a post-mortem reads, and a hit that left no trace is"
+              ++ " an event the log says never arrived.")
+
+-- | An inadmissible target, DERIVED from the splitter's own boundary rather than spelled.
+--
+-- One pip BELOW @min_admissible_dstar@ for the fixture's own fee pair. Deriving it is the point:
+-- a number written out here would keep agreeing with itself after the ellipse moved, and 26-04
+-- already measured that the boundaries are not where a plausible re-derivation puts them.
+--
+-- Returns the shock and the three numbers, so the check can assert the boundary in BOTH directions
+-- before it asserts anything about the refusal.
+loop_inadmissible_shock :: Either String (Shock, Integer, Integer, Integer)
+loop_inadmissible_shock =
+  case min_admissible_dstar phi_x phi_m of
+    Nothing ->
+      Left ("the fixture fee pair (" ++ show phi_x ++ ", " ++ show phi_m ++ ") admits NO target at"
+             ++ " all, so there is no boundary to step one pip below and this check has no"
+             ++ " subject.")
+    Just boundary
+      | boundary <= 0 ->
+          Left ("the fixture pair's least admissible target is " ++ show boundary
+                 ++ ", so one pip below it is not a target the renderer would even range-check."
+                 ++ " The refusal this check is about would then be a different one.")
+      | otherwise ->
+          Right (fixture_shock { sh_txl_volume_rate = boundary - 1 }, phi_x, phi_m, boundary - 1)
+  where
+    phi_x = sh_phi_x_pips fixture_shock
+    phi_m = sh_phi_m_pips fixture_shock
+
+-- | S3, MEASURED rather than asserted: the two failures with OPPOSITE policies are already two
+-- different constructors, and telling them apart needs no log.
+--
+-- @.planning\/SPIKE-end-to-end.md@ records that a caller of 'decide' cannot separate an
+-- INADMISSIBLE shock from an UNSOLVABLE one, because @NotPersisted@ drops the captured streams and
+-- the abort line number lives only in a run directory the invocation deletes. That is true of the
+-- ABORT PATH and it is not the whole picture: an inadmissible shock never reaches the prover at
+-- all, because the renderer's ninth refusal is applied before an argument vector exists and
+-- 'content_key' inherits it, so 'decide' returns @Left (Inadmissible ...)@ before the solver is
+-- reachable.
+--
+-- The solver handed in here THROWS if it is called, which is what turns \"the solver is not
+-- reachable\" from a reading of the code into an observation. The two boundary arms come first: a
+-- target that is actually admissible would make the refusal below a different one, and a check
+-- driving the wrong refusal reports the right verdict for the wrong reason.
+--
+-- FIRING INPUT, OBSERVED: flip 'cl_halts' on the inadmissible arm of 'classify'. The check names
+-- that arm.
+an_inadmissible_shock_is_told_apart_from_an_unsolvable_one :: Check
+an_inadmissible_shock_is_told_apart_from_an_unsolvable_one =
+  Check "an_inadmissible_shock_is_told_apart_from_an_unsolvable_one" . guarded $
+    case (,) <$> key_fixture_identity <*> loop_inadmissible_shock of
+      Left err -> pure (Left err)
+      Right (ident, (shock, phi_x, phi_m, below)) -> do
+        store <- new_memory_store
+        let solver =
+              Solver
+                { solver_label = "the-solver-that-must-never-be-reached"
+                , solver_run   = \_shock ->
+                    throwIO . userError $
+                      "the solver was REACHED for a shock the ninth refusal rejects. That is the"
+                        ++ " whole of FEE-03: an inadmissible shock is refused BEFORE any"
+                        ++ " subprocess, so this call is the property failing rather than a"
+                        ++ " fixture problem."
+                }
+        attempted <- try (decide store solver current_key_scheme gams_model_basename shock ident)
+        pure $ do
+          _ <- expect (not (is_admissible phi_x phi_m below))
+                 ("the target " ++ show below ++ " IS admissible for the pair (" ++ show phi_x
+                   ++ ", " ++ show phi_m ++ "), so the refusal this check reads below is not the"
+                   ++ " ninth one and the subject is missing.")
+          _ <- expect (is_admissible phi_x phi_m (below + 1))
+                 ("the target one pip ABOVE the witness is also inadmissible, so the witness was"
+                   ++ " not taken one pip below the boundary and the derivation that produced it"
+                   ++ " is wrong. A pair that admits nothing anywhere passes an inadmissibility"
+                   ++ " assertion for the one reason that should fail it.")
+          decided <- case attempted of
+            Left err ->
+              Left ("the solver RAN for an inadmissible shock, so nothing on the key path refused"
+                     ++ " it: " ++ show (err :: IOException))
+            Right d -> Right d
+          _ <- case decided of
+                 Left (Inadmissible {}) -> Right ()
+                 Left other ->
+                   Left ("decide refused the shock as " ++ show other ++ ", not as Inadmissible."
+                          ++ " That is a DIFFERENT refusal -- a range or model one -- and the loop's"
+                          ++ " skip-and-continue policy is written against the admissibility one.")
+                 Right d ->
+                   Left ("decide returned " ++ show d ++ " for a shock the ellipse refuses. The"
+                          ++ " ninth refusal is applied before any argument vector is produced, so"
+                          ++ " reaching a Decision at all means the key path stopped inheriting it.")
+          let inadmissible = classify decided
+              unsolvable =
+                classify (Right (NotPersisted (ExitVerdict (classify_exit (ExitFailure 3))) 3))
+          _ <- expect (cl_outcome inadmissible == OutcomeInadmissible)
+                 ("classify called the refusal " ++ show (cl_outcome inadmissible)
+                   ++ ", expected OutcomeInadmissible.")
+          _ <- expect (not (cl_halts inadmissible))
+                 ("classify HALTS the loop on an inadmissible shock. 28-CONTEXT's ruling is the"
+                   ++ " opposite: bad input is skipped VISIBLY -- a row is written and the"
+                   ++ " watermark advances -- because one unrenderable event must not stop a"
+                   ++ " resident process.")
+          _ <- expect (cl_outcome unsolvable == OutcomeNotPersisted)
+                 ("classify called an aborted run " ++ show (cl_outcome unsolvable)
+                   ++ ", expected OutcomeNotPersisted.")
+          _ <- expect (cl_halts unsolvable)
+                 ("classify CONTINUES past an admissible shock the prover could not answer."
+                   ++ " 28-CONTEXT's ruling is that this halts at the block boundary without"
+                   ++ " advancing the watermark: a model problem that is skipped silently is a"
+                   ++ " model problem nobody ever reads about.")
+          expect (cl_halts inadmissible /= cl_halts unsolvable)
+            ("both failures carry cl_halts " ++ show (cl_halts inadmissible)
+              ++ ". The two policies are OPPOSITE and this is the only place that says so -- if"
+              ++ " they agree, the discriminator exists and nothing acts on it.")
+
+-- | The tokens quoted inside migration @004@'s @loop_event_outcome_known@ check.
+--
+-- Anchored on the CONSTRAINT NAME first and then on its @in (@, rather than on the quoted strings
+-- themselves: a scan that looked for the four tokens directly would find them in this file's own
+-- expectations if the extraction ever ran over the wrong operand.
+outcome_check_tokens :: String -> [String]
+outcome_check_tokens body =
+  case text_after "loop_event_outcome_known" body >>= text_after "in (" of
+    Nothing   -> []
+    Just rest -> quoted_tokens (takeWhile (/= ')') rest)
+
+-- | Everything after the first occurrence of a needle, or 'Nothing' when it does not occur.
+text_after :: String -> String -> Maybe String
+text_after needle hay =
+  case [rest | t <- tails hay, Just rest <- [stripPrefix needle t]] of
+    (rest : _) -> Just rest
+    []         -> Nothing
+
+-- | Every single-quoted run in a fragment.
+quoted_tokens :: String -> [String]
+quoted_tokens s =
+  case break (== '\'') s of
+    (_, '\'' : rest) ->
+      case break (== '\'') rest of
+        (token, '\'' : more) -> token : quoted_tokens more
+        _                    -> []
+    _ -> []
+
+-- | THE VOCABULARY IS ONE SET, STATED IN TWO LANGUAGES, AND BOTH DIRECTIONS ARE ASSERTED.
+--
+-- 'outcomes' is @[minBound .. maxBound]@, so a fifth constructor cannot be added without arriving
+-- here; the SQL side is read out of the migration file rather than transcribed, so a token removed
+-- from the DDL arrives here too. A one-directional comparison passes on whichever side grew.
+--
+-- The extraction is asserted NON-EMPTY first. A scan that matched nothing agrees with a list that
+-- was emptied, and this repository has already shipped that shape once.
+--
+-- FIRING INPUT, OBSERVED: add a fifth 'Outcome' constructor with its own token and leave the SQL
+-- alone. The unlisted arm names it.
+the_ledger_outcome_tokens_are_exactly_the_migration_check_list :: Check
+the_ledger_outcome_tokens_are_exactly_the_migration_check_list =
+  Check "the_ledger_outcome_tokens_are_exactly_the_migration_check_list" . guarded $ do
+    there <- doesFileExist loop_migration_path
+    if not there
+      then pure (Left (loop_migration_path ++ " is not on disk, so the SQL side of this comparison"
+                        ++ " is the empty set -- which agrees with every list there is."))
+      else do
+        body <- readFile loop_migration_path
+        let found   = sort (nub (outcome_check_tokens body))
+            wanted  = sort (map outcome_token LS.outcomes)
+            missing = [t | t <- wanted, t `notElem` found]
+            extra   = [t | t <- found, t `notElem` wanted]
+        pure $ do
+          _ <- expect (not (null found))
+                 ("the outcome tokens could not be extracted from " ++ loop_migration_path
+                   ++ ". The constraint loop_event_outcome_known, or the @in (@ that follows it,"
+                   ++ " is not there in the shape this extraction reads -- so the comparison below"
+                   ++ " would be against nothing and would agree with anything.")
+          expect (null missing && null extra)
+            ("the ledger's outcome vocabulary and the migration's check list are not the same set."
+              ++ (if null missing then ""
+                    else "\n      the type has these and the DDL does not: "
+                           ++ intercalate ", " missing)
+              ++ (if null extra then ""
+                    else "\n      the DDL has these and the type does not: "
+                           ++ intercalate ", " extra)
+              ++ "\n      Every outcome is a row, and a row whose outcome the CHECK refuses is a"
+              ++ " row the loop cannot write at all -- so a fifth outcome added in Haskell turns"
+              ++ " into a runtime insert failure on the first event that carries it.")
+
+-- | The two identity guarantees, read off the DDL that has to carry them.
+--
+-- The file's existence is asserted FIRST and the text is READ rather than scanned by a subprocess.
+-- That is deliberate: the usual instrument here exits 1 both for \"no match\" and for \"no such
+-- file\", so a check built on it reports a missing subject and a clean subject identically. Reading
+-- the file designs that conflation out instead of guarding against it.
+--
+-- FIRING INPUT, OBSERVED: delete the unique clause from the migration. The first arm names it --
+-- and 'store_conformance_is_present_and_fresh' went red beside it, because editing a migration
+-- moves its digest and the capture's freshness oracle reads that. Two independent instruments,
+-- different diagnoses: one says the guarantee is gone, the other says the recorded evidence no
+-- longer describes the schema it was taken against.
+the_event_identity_and_the_single_row_watermark_are_in_the_ddl :: Check
+the_event_identity_and_the_single_row_watermark_are_in_the_ddl =
+  Check "the_event_identity_and_the_single_row_watermark_are_in_the_ddl" . guarded $ do
+    there <- doesFileExist loop_migration_path
+    if not there
+      then pure (Left (loop_migration_path ++ " is not on disk. Every assertion below is the"
+                        ++ " presence of a substring, and a substring is never present in a file"
+                        ++ " that is not there -- which is a failure and not a clean scan."))
+      else do
+        body <- readFile loop_migration_path
+        pure $ do
+          _ <- expect ("unique (tx_hash, log_index)" `isInfixOf` body)
+                 ("migration 004 does not constrain the event position to be unique. Without it a"
+                   ++ " replay writes a SECOND row for the same log entry, and the chronology then"
+                   ++ " reports one event as two -- indistinguishable afterwards from two events"
+                   ++ " that really happened. ledger_seen would still work in memory and the"
+                   ++ " database would still accept every insert.")
+          _ <- expect ("primary key (only_row)" `isInfixOf` body)
+                 ("the watermark table has no primary key on its single-row discriminator, so the"
+                   ++ " conflict target the advance upserts on does not exist and every commit"
+                   ++ " appends a new watermark row instead of moving the one.")
+          expect ("check (only_row)" `isInfixOf` body)
+            ("the watermark table admits a row whose discriminator is false. The primary key alone"
+              ++ " does not forbid it -- false is a perfectly good second key -- so the table gets"
+              ++ " two rows, one of them a watermark nothing reads and nothing advances.")
+
+-- | LOOP-05's core: a block's rows and its watermark are INDIVISIBLE, on both implementations.
+--
+-- TWO ARMS, and the structural one alone is a claim about text. The real one drives the reference
+-- ledger with a row list whose second element is unstorable -- an outcome that requires a key,
+-- carrying none, which is what migration 004's @loop_event_keyed_unless_inadmissible@ refuses --
+-- and observes that afterwards NEITHER row is there and the watermark never moved.
+--
+-- The POSITIVE CONTROL runs first and is the same two rows with the defect removed: two rows land
+-- and the watermark reads the block. Without it the torn-commit arm passes for a ledger that never
+-- stores anything and never advances anything, which is every absence assertion's standing hazard.
+--
+-- FIRING INPUT, OBSERVED: advance the watermark before the rows are validated in the memory
+-- implementation. The behavioural arm observes an advanced watermark with no rows.
+a_block_commit_is_one_transaction_on_both_ledgers :: Check
+a_block_commit_is_one_transaction_on_both_ledgers =
+  Check "a_block_commit_is_one_transaction_on_both_ledgers" . guarded $
+    case key_fixture_identity of
+      Left err -> pure (Left err)
+      Right ident -> do
+        there <- doesFileExist loop_ledger_module
+        body  <- if there then readFile loop_ledger_module else pure ""
+        let stored     = Classified OutcomeStored "" Nothing False
+            good_alpha = loop_row ident loop_event_alpha fixture_shock stored
+            good_beta  = loop_row ident loop_event_beta  fixture_shock stored
+            unstorable = good_beta { lr_key = Nothing }
+        control        <- new_memory_ledger
+        control_landed <- try (ledger_commit_block control loop_block [good_alpha, good_beta])
+        control_a      <- ledger_rows_for control loop_event_alpha
+        control_b      <- ledger_rows_for control loop_event_beta
+        control_mark   <- ledger_watermark control
+        ledger <- new_memory_ledger
+        torn   <- try (ledger_commit_block ledger loop_block [good_alpha, unstorable])
+        rows_a <- ledger_rows_for ledger loop_event_alpha
+        rows_b <- ledger_rows_for ledger loop_event_beta
+        mark   <- ledger_watermark ledger
+        pure $ do
+          _ <- expect there
+                 (loop_ledger_module ++ " is not on disk, so the structural arm below would be"
+                   ++ " reading the empty string and reporting its cleanliness.")
+          _ <- expect ("withTransaction" `isInfixOf` body)
+                 (loop_ledger_module ++ " never names withTransaction, so the row inserts and the"
+                   ++ " watermark advance are separate statements on the real ledger. Everything"
+                   ++ " the behavioural arm below observes would still hold in memory, and a"
+                   ++ " process that died between the two would leave a watermark past rows that"
+                   ++ " were never written.")
+          _ <- case control_landed of
+                 Left err ->
+                   Left ("THE POSITIVE CONTROL FAILED: a clean two-row commit raised "
+                          ++ show (err :: IOException) ++ ". Every absence below is then the"
+                          ++ " absence of a ledger that works at all.")
+                 Right () -> Right ()
+          _ <- expect (length control_a == 1 && length control_b == 1)
+                 ("THE POSITIVE CONTROL FAILED: a clean two-row commit left "
+                   ++ show (length control_a) ++ " and " ++ show (length control_b)
+                   ++ " rows, expected 1 and 1. The torn-commit arm asserts rows are ABSENT, and"
+                   ++ " absence is evidence only once presence has been shown.")
+          _ <- expect (control_mark == Just loop_block)
+                 ("THE POSITIVE CONTROL FAILED: a clean commit left the watermark at "
+                   ++ show control_mark ++ ", expected " ++ show (Just loop_block)
+                   ++ ". A watermark that never advances satisfies \"it did not advance\".")
+          _ <- case torn of
+                 Right () ->
+                   Left ("a block whose second row is unstorable committed SUCCESSFULLY. The"
+                          ++ " reference ledger must refuse exactly what the server's CHECK"
+                          ++ " refuses -- Tier B has to predict Tier C, which is the only reason"
+                          ++ " cabal test is allowed to run without a database.")
+                 Left err -> Right (err :: IOException) >> Right ()
+          _ <- expect (null rows_a && null rows_b)
+                 ("a block whose second row was refused still left " ++ show (length rows_a)
+                   ++ " and " ++ show (length rows_b) ++ " rows behind. The block's rows are one"
+                   ++ " step: the first row landing while the second was refused is exactly the"
+                   ++ " half-written block LOOP-05 says cannot exist.")
+          expect (isNothing mark)
+            ("the watermark reads " ++ show mark ++ " after a block that was REFUSED, expected"
+              ++ " Nothing. An advanced watermark over rows that were never written is the one"
+              ++ " failure that is silent AND permanent: the restart skips the block, so the"
+              ++ " events in it are never processed and nothing ever says so.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -17024,6 +17598,12 @@ core_checks = do
           , a_zero_or_absent_read_is_refused_by_field_name
           , the_fixture_carries_the_pool_identity_it_was_solved_for
           , a_block_number_above_two_to_the_fifty_three_is_OBSERVED_losing_precision_as_a_number
+          , the_same_event_twice_produces_one_row_and_no_second_solve
+          , two_distinct_events_with_one_shock_make_one_entry_and_two_rows
+          , an_inadmissible_shock_is_told_apart_from_an_unsolvable_one
+          , the_ledger_outcome_tokens_are_exactly_the_migration_check_list
+          , the_event_identity_and_the_single_row_watermark_are_in_the_ddl
+          , a_block_commit_is_one_transaction_on_both_ledgers
           ]
             ++ per_pin_checks pins
   pure checks
