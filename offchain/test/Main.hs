@@ -150,10 +150,17 @@ import Chain.Endpoint
 -- structural claim below has to be looked at again, where @(..)@ would follow the change silently.
 import Chain.Read
   ( BlockRef (AtBlock)
+  -- The identity is imported with its CONSTRUCTOR only, not @(..)@: the suite builds one and reads
+  -- what the renderer produced, never a field back out of the value it just built. A selector
+  -- imported and unused is a selector the next check reaches for instead of the published bytes.
+  , FixtureIdentity (FixtureIdentity)
   , PoolField (..)
   , ReadAt (..)
+  , address_hex_digits
+  , block_number_precision_witness
   , decode_word_token
   , decoy_field_name
+  , exact_integer_ceiling
   , extract_pool_field
   , pool_field_name
   , pool_fields
@@ -161,8 +168,10 @@ import Chain.Read
   , refusal_naming
   , refusal_naming_of
   , refuse_or_value
+  , render_fixture_identity
   , render_word_token
   , word_hex_digits
+  , zero_address_token
   , zero_is_refused
   )
 
@@ -16522,6 +16531,286 @@ the_pinned_read_held_while_the_unpinned_read_moved =
           ++ " zero or unparseable read is an error naming the field -- never a value that flows"
           ++ " into a content key -- and these are the refusals a real chain actually produced.")
 
+-- | THE CONTRACT'S THREE NAMES, SORTED, SPELLED HERE AND NOWHERE IN THE PRODUCER.
+--
+-- This list is deliberately NOT derived from 'render_fixture_identity'. A key set compared against
+-- one the producer also supplies is the producer agreeing with itself, which is this milestone's
+-- standing defect and the exact shape 27-02 measured when a decoy kept its own quotes. These three
+-- names are an EXTERNAL contract -- plank's @f713089@, closing issue #29 -- and the consuming forge
+-- test reads them by name, so the suite is where they have to be written down.
+--
+-- The 27-02 rule that a decoy must be built by the function under test is not in tension with this.
+-- That rule is about CONTROLS, whose job is to collide with the subject. This is an EXPECTATION
+-- imported from outside, and the subject it is held against -- the rendered document -- is built by
+-- the producer.
+fixture_identity_contract :: [String]
+fixture_identity_contract = ["blockNumber", "chainId", "pool"]
+
+-- | CHAIN-05: THE PUBLISHED FIXTURE SAYS WHICH POOL, AT WHICH HEIGHT, ON WHICH CHAIN.
+--
+-- == WHY THIS IS A REQUIREMENT AND NOT A CONVENIENCE
+--
+-- The consuming forge test used to CONSTRUCT its subject: it deployed two fresh mock tokens and
+-- initialised a pool at the prover's own self-test defaults, then asserted the fixture agreed with
+-- it. That passes only while the read happens to land on a genesis-state pool, and it is fatal the
+-- moment a loop moves the price. Issue #29 asked for an ATTACH, plank landed it, and a test that
+-- attaches has to be told WHAT to attach to -- a pool that was never published is a pool nothing
+-- downstream can find. Forking alone cannot substitute: a constructed pool mints new token
+-- addresses every run, so its pool id can never equal an observed one.
+--
+-- == WHERE EACH THIRD OF THE SUBJECT COMES FROM, AND WHY NONE OF IT IS SPELLED HERE
+--
+-- The pool is 'se_pool' of a corpus member DECODED BY 'decode_shock' -- the same function that will
+-- produce it in production -- so the fixture's pool is the one the SHOCK named. The height and the
+-- chain id come from the COMMITTED CAPTURE: @block_b@ is the height the pinned reads were actually
+-- made at and @chainId@ is the chain they were made against, which is what \"the identity it was
+-- SOLVED FOR\" means. A check that spelled all three would be asserting about its own literals.
+--
+-- The pool is SYNTHETIC and that is stated rather than hidden: CHAIN-01 is blocked on an upstream
+-- emitter, so no mined @Shock@ exists to take a real pool address from. This is the same stance
+-- CHAIN-04 takes -- decoding is exercised against synthetic logs so it is testable before the
+-- upstream event exists -- and the SHAPE assertions below are exactly the ones that do not care
+-- whether the address was mined.
+--
+-- == THE ZERO ARM
+--
+-- The zero address passes every hex-shape guard ever written and is what an absent subject looks
+-- like. 'the_pool_topic_is_a_nonzero_address' refuses it in the topic; this refuses it at the
+-- publication edge, which is a different place: a pool that decoded fine and was then rendered from
+-- an unset field would satisfy the first and fail here.
+--
+-- FIRING INPUTS, each OBSERVED at 27-03: publish @blockNumber@ as a JSON number; point the
+-- identity's pool at the zero address.
+the_fixture_carries_the_pool_identity_it_was_solved_for :: Check
+the_fixture_carries_the_pool_identity_it_was_solved_for =
+  Check "the_fixture_carries_the_pool_identity_it_was_solved_for" . guarded $ do
+    path <- chain_read_conformance_path
+    loaded <- read_json_file path ("produce it with: " ++ chain_read_conformance_command)
+    pure $ do
+      capture <- loaded
+      chain <- json_field "chainId" capture >>= json_integer
+      row <- chain_read_measurement "pinned_read_survives_a_state_change" capture
+      solved_block <- json_field "block_b" row >>= json_integer
+      event <- shock_right "negative-tick-and-decay"
+
+      -- (0) THE SUBJECT IS REAL BEFORE ANYTHING IS ASSERTED ABOUT ITS RENDERING. 25-03 measured a
+      -- count taken over a renamed subject printing 0 and the check passing for the one reason
+      -- that should have failed loudest.
+      _ <- expect (chain > 0)
+             ("the capture records chainId " ++ show chain ++ " and a chain id is positive. Every"
+               ++ " assertion below would then be made about a fixture published for no chain.")
+      _ <- expect (solved_block > 0)
+             ("the capture records block_b " ++ show solved_block ++ ", and the pool is not"
+               ++ " readable at height 0 -- the manager has no code there. A height of 0 published"
+               ++ " as the solved block is a plausible-looking number a consumer cannot tell from a"
+               ++ " real one, which is the whole reason readback_height is a Maybe one layer down.")
+
+      let identity = FixtureIdentity (se_pool event) (AtBlock solved_block) chain
+          rendered = render_fixture_identity identity
+
+      -- (1) IT PARSES AT ALL, WITH A REAL PARSER.
+      document <-
+        case decode (BSL.fromStrict (C8.pack rendered)) :: Maybe Value of
+          Nothing ->
+            Left ("the published identity block does not parse as JSON. It said:\n      "
+                   ++ rendered
+                   ++ "\n      Every arm below reads a key out of a parsed document, so an"
+                   ++ " unparseable one would make all of them unreachable rather than false.")
+          Just parsed -> Right parsed
+      entries <- json_object_pairs document
+
+      -- (2) THE KEY SET, IN BOTH DIRECTIONS. A missing field is a consumer that cannot attach; an
+      -- extra one is a field nothing agreed to and nothing reads.
+      _ <- expect (map fst entries == fixture_identity_contract)
+             ("the published identity carries the keys " ++ show (map fst entries)
+               ++ " and the contract plank handed back at f713089 names "
+               ++ show fixture_identity_contract ++ ". Both directions matter: a MISSING key is a"
+               ++ " test that has nothing to attach to, and an EXTRA one is a field nobody agreed"
+               ++ " to publish and nothing on the other side reads.")
+
+      -- (3) pool: A 20-BYTE ADDRESS, LOWER CASE, AND NOT THE ONE THAT MEANS NOTHING.
+      pool_token <-
+        case lookup "pool" entries of
+          Just (String t) -> Right (T.unpack t)
+          Just other ->
+            Left ("pool is published as " ++ json_kind other ++ " and the contract says a STRING"
+                   ++ " address. The consuming test casts it to a pool interface; a number there"
+                   ++ " loses the leading zeros of an address that has them.")
+          Nothing -> Left "pool is absent from the published identity."
+      _ <- expect (take 2 pool_token == "0x"
+                     && length pool_token == address_hex_digits + 2
+                     && all isHexDigit (drop 2 pool_token)
+                     && map toLower pool_token == pool_token)
+             ("pool is published as " ++ show pool_token ++ ", which is not a 20-byte hex address"
+               ++ " in lower case (0x plus " ++ show address_hex_digits ++ " digits). The renderer"
+               ++ " does NOT mask to the low 160 bits, so a value too large for an address arrives"
+               ++ " here LONGER rather than silently becoming a different pool, and a negative one"
+               ++ " arrives carrying a sign character rather than wrapped.")
+      _ <- expect (pool_token /= zero_address_token)
+             ("pool is published as the ZERO ADDRESS. That passes every hex-shape guard ever"
+               ++ " written and is exactly what an absent subject looks like -- a consuming test"
+               ++ " would attach to it, get a call with no code behind it, and read the outcome as"
+               ++ " a pool with nothing in it. This repository has recorded the zero address"
+               ++ " passing a hex-shape guard before, which is why this arm is separate from the"
+               ++ " shape arm above rather than folded into it.")
+
+      -- (4) blockNumber: A STRING OF DIGITS, AND THE HEIGHT THE READS WERE ACTUALLY PINNED AT.
+      block_token <-
+        case lookup "blockNumber" entries of
+          Just (String t) -> Right (T.unpack t)
+          Just (Number n) ->
+            Left ("blockNumber is published as a JSON NUMBER (" ++ show n ++ ") and the contract"
+                   ++ " says a STRING. A JSON number is carried by ordinary consumers through the"
+                   ++ " 53-bit binary64 mantissa, which holds no integer above "
+                   ++ show exact_integer_ceiling ++ " exactly. BYTE-04 measured this repository"
+                   ++ " losing 32 wei of a swap amount to that same carrier. The companion check"
+                   ++ " drives the witness and records what comes back.")
+          Just other -> Left ("blockNumber is published as " ++ json_kind other ++ ".")
+          Nothing -> Left "blockNumber is absent from the published identity."
+      _ <- expect (not (null block_token) && all isDigit block_token)
+             ("blockNumber is published as " ++ show block_token ++ ", which is not a string of"
+               ++ " decimal digits. An empty string is the shape this repository has measured six"
+               ++ " times flowing on to meet another empty string and exiting 0.")
+      _ <- expect (digits_to_integer block_token == solved_block)
+             ("blockNumber is published as " ++ show block_token ++ " and the capture says the"
+               ++ " pinned reads were made at block " ++ show solved_block ++ ". A fixture that"
+               ++ " names a height its own reads were not made at sends the consuming test to fork"
+               ++ " at a state nothing was measured against.")
+
+      -- (5) chainId: A NUMBER, AND THE CHAIN THE READS WERE MADE AGAINST.
+      published_chain <-
+        case lookup "chainId" entries of
+          Just (Number n) -> Right (truncate n :: Integer)
+          Just other ->
+            Left ("chainId is published as " ++ json_kind other ++ " and the contract says a"
+                   ++ " NUMBER. It is a wrong-network guard the consuming test compares against the"
+                   ++ " chain it is running on, and it is five digits on the rig -- nowhere near"
+                   ++ " the ceiling that makes the height a string.")
+          Nothing -> Left "chainId is absent from the published identity."
+      _ <- expect (published_chain == chain)
+             ("chainId is published as " ++ show published_chain ++ " and the reads were made"
+               ++ " against chain " ++ show chain ++ ". A fixture that names a different chain is a"
+               ++ " wrong-network guard pointed at the wrong network.")
+      expect (published_chain > 0)
+        ("chainId is published as " ++ show published_chain ++ ", and a chain id is positive.")
+  where
+    digits_to_integer = foldl (\acc c -> acc * 10 + toInteger (digitToInt c)) 0
+
+-- | CHAIN-05's REASON, DRIVEN RATHER THAN ASSERTED: WHY @blockNumber@ IS A STRING.
+--
+-- The requirement says the height is a string \"because it can exceed the 53-bit double-exact
+-- ceiling\". That is a claim about a carrier, and a claim about a carrier is testable, so it is
+-- tested here instead of being carried in prose that nobody can falsify.
+--
+-- == THE ARM THAT COMES FIRST, AND WHY
+--
+-- The witness must be strictly ABOVE the ceiling. At or below it the 53-bit carrier is EXACT, so
+-- every arm below would go green against a subject that cannot fail -- the passing-because-the-
+-- subject-is-absent defect this milestone has now recorded at 27-01 (a rule driven at the unset
+-- path twice while reporting on the empty one) and at 27-02 (a decoy that kept its own quotes).
+-- So the ordering is asserted before anything the carrier did is looked at.
+--
+-- == A FINDING THIS CHECK RECORDS, AND IT IS WHY THE HAZARD IS EASY TO MISS FROM HERE
+--
+-- The suite's own JSON value type carries a number as an EXACT decimal, so a round trip through it
+-- does NOT lose the witness -- and arm (3) asserts exactly that. The loss is a property of the
+-- CONSUMER'S CARRIER, not of the JSON text: it appears the moment anything decodes that number
+-- into the 53-bit type, which is what JavaScript does unconditionally and what this repository's
+-- own BYTE-04 measured on @dQx@. Publishing a string is what makes the fixture independent of a
+-- decoder this workstream does not control. Asserting only the exact path would be reassuring and
+-- wrong; both paths are driven and both are recorded.
+--
+-- FIRING INPUT, OBSERVED at 27-03: move the witness below the ceiling.
+a_block_number_above_two_to_the_fifty_three_is_OBSERVED_losing_precision_as_a_number :: Check
+a_block_number_above_two_to_the_fifty_three_is_OBSERVED_losing_precision_as_a_number =
+  pure_check "a_block_number_above_two_to_the_fifty_three_is_OBSERVED_losing_precision_as_a_number" $ do
+    let witness = block_number_precision_witness
+
+    -- (1) THE SUBJECT CAN FAIL. THIS ARM IS FIRST ON PURPOSE.
+    _ <- expect (exact_integer_ceiling == 9007199254740992)
+           ("the layer says the 53-bit carrier is exact up to " ++ show exact_integer_ceiling
+             ++ " and 2^53 is 9007199254740992. Every arm below is stated relative to that number.")
+    _ <- expect (witness > exact_integer_ceiling)
+           ("the witness is " ++ show witness ++ " and the ceiling is "
+             ++ show exact_integer_ceiling ++ ". A witness AT OR BELOW the ceiling is carried"
+             ++ " EXACTLY by the 53-bit type, so the arms below would report a round trip that"
+             ++ " agrees -- green against a subject that CANNOT FAIL. That is the defect this"
+             ++ " milestone keeps meeting, and this arm is the guard against writing it again.")
+
+    -- (2) THE NUMBER PATH, THROUGH THE 53-BIT CARRIER, OBSERVED WRONG.
+    carried <-
+      case decode (BSL.fromStrict (C8.pack (show witness))) :: Maybe Double of
+        Nothing ->
+          Left ("the witness " ++ show witness ++ " did not parse as a JSON number at all, so this"
+                 ++ " check measured nothing about what the carrier does to it.")
+        Just value -> Right (round value :: Integer)
+    _ <- expect (carried /= witness)
+           ("the witness " ++ show witness ++ " came back from a JSON NUMBER decoded into the"
+             ++ " 53-bit type UNCHANGED. If that has become true, the reason blockNumber is a"
+             ++ " string no longer has a subject -- RE-MEASURE it, do not delete it.")
+    _ <- expect (carried == exact_integer_ceiling)
+           ("the witness " ++ show witness ++ " came back as " ++ show carried
+             ++ " and the MEASURED image is " ++ show exact_integer_ceiling
+             ++ ". This is an EQUALITY on Integers, following BYTE-04: a check written as \"the"
+             ++ " difference is small\" would pass under the very carrier this requirement exists"
+             ++ " to keep out of the fixture.")
+    _ <- expect (witness - carried == 1)
+           ("the witness moves by " ++ show (witness - carried) ++ " through the JSON number path"
+             ++ " and the measured move is exactly 1. NO TOLERANCE CAN ABSORB THIS: it is an"
+             ++ " equality, and one block is the difference between a fork pinned at the state the"
+             ++ " reads were made against and a fork pinned at the one before it.")
+    _ <- expect (carried == double_image witness)
+           ("the JSON number path gave " ++ show carried ++ " and BYTE-04's own 53-bit image of the"
+             ++ " same integer is " ++ show (double_image witness) ++ ". These must agree: if they"
+             ++ " do not, this check and the dQx measurement are talking about different carriers"
+             ++ " and only one of them is the one a consumer uses.")
+
+    -- (3) THE EXACT PATH IS EXACT, WHICH IS THE FINDING.
+    exact <-
+      case decode (BSL.fromStrict (C8.pack (show witness))) :: Maybe Value of
+        Nothing -> Left ("the witness did not parse as a JSON value.")
+        Just value -> json_integer value
+    _ <- expect (exact == witness)
+           ("the suite's own JSON value type moved the witness from " ++ show witness ++ " to "
+             ++ show exact ++ ". It is not supposed to: it carries a number as an exact decimal,"
+             ++ " and that is precisely why the hazard is invisible from inside this suite. If this"
+             ++ " arm ever fires, arm (2)'s framing has to change with it -- the loss would then be"
+             ++ " in the JSON text and not only in the consumer's carrier.")
+
+    -- (4) THE STRING FORM ROUND-TRIPS EXACTLY.
+    text <-
+      case decode (BSL.fromStrict (C8.pack (show (show witness)))) :: Maybe Value of
+        Just (String t) -> Right (T.unpack t)
+        Just other -> Left ("the quoted witness parsed as " ++ json_kind other ++ ", not a string.")
+        Nothing -> Left "the quoted witness did not parse as JSON at all."
+    _ <- expect (all isDigit text && digits_to_integer text == witness)
+           ("the witness published as a STRING came back as " ++ show text ++ " and it must come"
+             ++ " back as " ++ show witness ++ " exactly. The string form is the whole remedy; if"
+             ++ " it also loses digits there is nothing left to publish.")
+
+    -- (5) AND IT IS THE PRODUCER THAT PUBLISHES IT THAT WAY.
+    -- Arms (2) to (4) are about a carrier. This one is about THIS renderer: without it the
+    -- measurement above could be perfectly true of a fixture that still publishes a number.
+    -- The chain id here is a WITNESS and not a measurement -- check 1 above is where the
+    -- published chain id is held against the capture's.
+    published <-
+      case decode (BSL.fromStrict (C8.pack (render_fixture_identity
+                                              (FixtureIdentity 1 (AtBlock witness) 1)))) of
+        Just parsed -> json_field "blockNumber" parsed
+        Nothing -> Left "the published identity did not parse as JSON."
+    case published of
+      String t ->
+        expect (digits_to_integer (T.unpack t) == witness)
+          ("the renderer published the height " ++ show witness ++ " as " ++ show (T.unpack t)
+            ++ ". The string is exact by construction, so a mismatch here is the renderer losing"
+            ++ " the value on the way out rather than the carrier losing it on the way in.")
+      other ->
+        Left ("the renderer published a height above the ceiling as " ++ json_kind other
+               ++ ", not as a string. That is the exact value arms (2) to (4) just OBSERVED the"
+               ++ " number path getting wrong by one, and the fixture would carry it.")
+  where
+    digits_to_integer = foldl (\acc c -> acc * 10 + toInteger (digitToInt c)) 0
+
 -- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
@@ -16733,6 +17022,8 @@ core_checks = do
           , no_read_can_omit_its_block
           , latest_appears_nowhere_in_the_read_layer
           , a_zero_or_absent_read_is_refused_by_field_name
+          , the_fixture_carries_the_pool_identity_it_was_solved_for
+          , a_block_number_above_two_to_the_fifty_three_is_OBSERVED_losing_precision_as_a_number
           ]
             ++ per_pin_checks pins
   pure checks

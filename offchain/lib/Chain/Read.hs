@@ -130,6 +130,15 @@ module Chain.Read
   , refuse_or_value
   , refusal_naming
   , refusal_naming_of
+    -- * CHAIN-05: the pool identity the published fixture records
+  , FixtureIdentity (..)
+  , fixture_identity_entries
+  , render_fixture_identity
+  , render_address_token
+  , address_hex_digits
+  , zero_address_token
+  , exact_integer_ceiling
+  , block_number_precision_witness
     -- * The reads. Every one of them REQUIRES a 'BlockRef'.
   , read_raw_word_token
   , read_pool_field
@@ -143,7 +152,7 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Bits (shiftL, shiftR, (.&.))
 import qualified Data.ByteString as BS
 import Data.Char (intToDigit, isHexDigit, digitToInt)
-import Data.List (isPrefixOf)
+import Data.List (intercalate, isPrefixOf)
 
 import Data.ByteArray.HexString (toBytes)
 import Data.Solidity.Prim.Address (Address)
@@ -438,6 +447,147 @@ refuse_or_value field at supplied
     site = case at of
       Pinned ref -> "pinned at block " ++ show (block_height ref)
       Unpinned   -> "with NO block pin"
+
+-- ---------------------------------------------------------------------------------------------
+-- CHAIN-05: the pool identity the published fixture records
+-- ---------------------------------------------------------------------------------------------
+
+-- | THE THREE THINGS A CONSUMING TEST NEEDS IN ORDER TO ATTACH TO A POOL RATHER THAN CONSTRUCT ONE.
+--
+-- Not a shape invented here. It came BACK across a cross-track handoff: issue #29 asked the
+-- plank\/test workstream to stop constructing its own subject, plank landed @f713089@, and the
+-- contract it handed back names exactly these three fields and their JSON types. A test that
+-- constructs its pool mints fresh token addresses on every run, so its pool id can never match the
+-- one a read layer observed -- which is why attaching is the only shape that can work at all, and
+-- why the fixture has to say WHICH pool, at WHICH height, on WHICH chain.
+--
+-- @token0@ and @token1@ are deliberately ABSENT, and that is the same contract's ruling: the
+-- consuming test reads them from the pool itself, so the pool stays the single source of truth.
+-- Recording them here would be a second statement of one fact with nothing comparing the two.
+--
+-- == WHY @blockNumber@ IS A STRING, AND WHY IT IS NOT TAKEN ON FAITH
+--
+-- A JSON number is carried by ordinary consumers through the 53-bit binary64 mantissa, which holds
+-- every integer up to 'exact_integer_ceiling' and not one above it. THIS REPOSITORY HAS ALREADY
+-- BEEN BITTEN BY THIS EXACT CLASS: BYTE-04 measured @dQx[0]@ -- a swap amount in wei -- moving by
+-- 32 wei through that carrier, which would have executed a swap for an amount the model never
+-- chose. A block height is a smaller number than a wei amount today, and that is not the argument:
+-- the ceiling is a property of the CARRIER, and a fixture is a file other workstreams parse with
+-- decoders this one does not control.
+--
+-- So the height is published as a STRING, and the reason is OBSERVED rather than asserted. The
+-- suite drives 'block_number_precision_witness' -- the first integer above the ceiling -- through a
+-- JSON number and through this renderer's string form and records what each hands back. See
+-- @a_block_number_above_two_to_the_fifty_three_is_OBSERVED_losing_precision_as_a_number@.
+--
+-- @chainId@ stays a NUMBER, by the same contract: it is a wrong-network guard the consuming test
+-- compares against the chain id it is running on, and it is five digits on the rig.
+data FixtureIdentity = FixtureIdentity
+  { fi_pool     :: Integer
+    -- ^ The pool, as the 160-bit value an indexed @address@ topic carries. 'Chain.Shock' hands the
+    -- pool over in exactly this shape, so the published pool is the one the SHOCK named rather
+    -- than a second reading of it made somewhere else.
+  , fi_block    :: BlockRef
+    -- ^ The height the reads were pinned at. A 'BlockRef' and not an 'Integer', so the fixture
+    -- cannot record a height at which no read could have been made.
+  , fi_chain_id :: Integer
+  }
+  deriving (Eq, Show)
+
+-- | @2^53@. Every integer up to and including this one is carried exactly by the 53-bit binary64
+-- mantissa, and none above it is.
+exact_integer_ceiling :: Integer
+exact_integer_ceiling = 2 ^ (53 :: Int)
+
+-- | The FIRST integer the 53-bit mantissa cannot represent, and the value the suite drives.
+--
+-- It must be strictly ABOVE 'exact_integer_ceiling' or the measurement has no subject: at or below
+-- the ceiling the carrier is exact, and a check comparing the two paths would go green against a
+-- value that CANNOT FAIL. The suite asserts that ordering FIRST, before it looks at anything the
+-- carrier did, because this milestone's standing defect is an assertion passing because its
+-- subject is absent.
+block_number_precision_witness :: Integer
+block_number_precision_witness = exact_integer_ceiling + 1
+
+-- | An address is 20 bytes, so its token carries this many hex digits after the marker.
+address_hex_digits :: Int
+address_hex_digits = 40
+
+-- | The address that is not an address.
+--
+-- Named here so the publication edge can refuse it, because it passes every hex-shape guard ever
+-- written and is exactly what an absent subject looks like. 'Chain.Shock' already refuses it in a
+-- topic; this is the same refusal one layer later, at the point where the value would leave this
+-- workstream and become something another repository attaches to.
+zero_address_token :: String
+zero_address_token = "0x" ++ replicate address_hex_digits '0'
+
+-- | The hex digits of a value, with no marker and no padding.
+--
+-- Non-negative BY CONTRACT, and total rather than partial: a non-positive argument gives @\"0\"@.
+-- The one caller strips the sign before calling, so a negative address stays visible as a sign
+-- character instead of being carried in here and shifted forever.
+hex_digits :: Integer -> String
+hex_digits n
+  | n <= 0    = "0"
+  | otherwise = go n ""
+  where
+    go 0 acc = acc
+    go m acc = go (m `shiftR` 4) (intToDigit (fromInteger (m .&. 0xf)) : acc)
+
+-- | An address value as its @0x@ token, left-padded to 20 bytes, lower case.
+--
+-- NOT MASKED, and that is the decision. A value too large for 20 bytes renders LONGER than an
+-- address token and the suite's shape arm names it; masking to the low 160 bits would silently
+-- publish a DIFFERENT pool, which is the zero-word trap in mirror -- a shape-valid value that is
+-- not the one anybody measured. A negative value renders with a sign character, which is not
+-- hexadecimal, so it is refused by shape rather than wrapped into a plausible address.
+render_address_token :: Integer -> String
+render_address_token n
+  | n < 0     = "0x-" ++ hex_digits (negate n)
+  | otherwise = "0x" ++ replicate (address_hex_digits - length digits) '0' ++ digits
+  where
+    digits = hex_digits n
+
+-- | A JSON string token.
+--
+-- No escaping, and that is a CONTRACT rather than an omission: every value this module puts through
+-- it is a hex token or a decimal digit string, and neither can carry a quote or a backslash. A
+-- field that could would need escaping, and it would be cheaper to add it than to discover its
+-- absence.
+json_text_token :: String -> String
+json_text_token s = "\"" ++ s ++ "\""
+
+-- | The identity's three entries as @(name, JSON value token)@, IN THE ORDER THEY ARE PUBLISHED.
+--
+-- Split out of 'render_fixture_identity' so the names and the JSON TYPES are one expression a
+-- reader can hold against the contract without reading punctuation: @pool@ and @blockNumber@ go
+-- through 'json_text_token' and @chainId@ does not, and that asymmetry IS the requirement.
+fixture_identity_entries :: FixtureIdentity -> [(String, String)]
+fixture_identity_entries identity =
+  [ ("pool",        json_text_token (render_address_token (fi_pool identity)))
+  , ("blockNumber", json_text_token (show (block_height (fi_block identity))))
+  , ("chainId",     show (fi_chain_id identity))
+  ]
+
+-- | The identity block of the published fixture, as the bytes a consumer parses.
+--
+-- Rendered here rather than handed to a serialisation library, for the reason 'render_word_token'
+-- gives about the token shape: what leaves this workstream is a decision this module makes and not
+-- a dependency's formatting choice. This module is also on the scanned storage path, where a
+-- library that carries an integer through a floating type is precisely what is forbidden.
+--
+-- The rendering is checked BY A PARSER and not by reading it: the suite decodes what comes out of
+-- here and asserts the JSON TYPE of every field, so a height emitted as a number reddens instead
+-- of looking fine in a diff.
+render_fixture_identity :: FixtureIdentity -> String
+render_fixture_identity identity =
+  "{"
+    ++ intercalate ","
+         [ json_text_token name ++ ":" ++ value
+         | (name, value) <- fixture_identity_entries identity
+         ]
+    ++ "}"
 
 -- ---------------------------------------------------------------------------------------------
 -- The reads. EVERY ONE REQUIRES A BlockRef, POSITIONALLY.
