@@ -247,11 +247,14 @@ import Loop.Config
 -- where the shape floor and the identity splice are decided, and every refusal arm below is driven
 -- against it rather than through a file.
 import Loop.Publish
-  ( PublishRefusal (..)
+  ( PublishPrecondition (..)
+  , PublishRefusal (..)
   , fixture_min_bytes
   , identity_prefix
   , publish_bytes
   , publish_fixture
+  , publish_precondition
+  , publish_precondition_message
   , splice_identity
   )
 import Loop.Poll
@@ -14312,8 +14315,12 @@ upstream_ref = "origin/develop"
 
 -- | Does @origin\/develop@ carry this path? A read, through git, of a ref this branch does not
 -- merge.
-plk_on_upstream :: FilePath -> IO Bool
-plk_on_upstream path = do
+--
+-- Named for a PATH rather than for the emitter it was written for, because 28-04 asks the same
+-- question of the CONSUMING forge test. One reader, two subjects: a second copy would be a second
+-- place for the ref to drift.
+path_on_upstream :: FilePath -> IO Bool
+path_on_upstream path = do
   (code, _, _) <- readProcessWithExitCode "git" ["cat-file", "-e", upstream_ref ++ ":" ++ path] ""
   pure (code == ExitSuccess)
 
@@ -14350,8 +14357,8 @@ the_upstream_shocklib_pin_is_a_live_trip_wire :: Check
 the_upstream_shocklib_pin_is_a_live_trip_wire =
   Check "the_upstream_shocklib_pin_is_a_live_trip_wire" . guarded $ do
     (ref_code, _, ref_err) <- readProcessWithExitCode "git" ["rev-parse", "--verify", upstream_ref] ""
-    yes <- plk_on_upstream shocklib_path
-    no  <- plk_on_upstream shocklib_absent_path
+    yes <- path_on_upstream shocklib_path
+    no  <- path_on_upstream shocklib_absent_path
     here <- doesFileExist shocklib_local_path
     (show_code, contents, show_err) <-
       readProcessWithExitCode "git" ["show", upstream_ref ++ ":" ++ shocklib_path] ""
@@ -19314,6 +19321,503 @@ a_cache_hit_publishes_at_the_events_own_block =
               ++ " stored -- byte for byte -- with only the identity fields differing.")
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 28 plan 04: LOOP-04 -- exactly one file, the refusal that names its owner, and the
+-- default path pinned to the CONSUMER'S own constant
+--
+-- The claim "publication adds exactly one file and nothing else" is settled by a BEFORE/AFTER TREE
+-- DIFF over a directory seeded with decoys, not by reading 'Loop.Publish'. Reading the code
+-- establishes what the author believed; the diff establishes what the filesystem did, and the two
+-- differ exactly when it matters -- a temp sibling that survived, a rename that degraded to a copy,
+-- a writer that cleared its destination first.
+--
+-- Nothing here creates @test\/models\/mev_tax_model_one\/fixtures@, and one check exists to say so:
+-- the directory is absent from THIS worktree and from @origin\/develop@, and that is registered as
+-- a verdict rather than written down as a paragraph, because a paragraph cannot notice the day it
+-- stops being true.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The files a publication must leave alone, name to bytes.
+--
+-- TWO of them, and they are seeded inside the publication directory before anything is written.
+-- Without them "nothing else changed" has no subject: an empty before-set makes every set
+-- difference trivially right, and a publisher that WIPED the directory before writing would satisfy
+-- every arm of a check that started from nothing. The bytes are read back and compared, so a
+-- publisher that kept the names and rewrote the contents is caught too.
+publication_decoys :: [(FilePath, BS.ByteString)]
+publication_decoys =
+  [ ( "decoy-one.txt"
+    , C8.pack "a file this workstream did not write and must not touch\n" )
+  , ( "decoy-two.json"
+    , C8.pack "{\"owner\":\"mev_tax_model_one\",\"why\":\"issues #24 and #25\"}\n" )
+  ]
+
+-- | The file seeded in the PARENT, beside the publication directory.
+--
+-- Arm (e)'s subject. \"Nothing was created outside that directory\" needs an outside that is
+-- observed rather than assumed, and a parent holding only the publication directory would report
+-- the same empty difference whether or not anything else was written.
+publication_parent_decoy :: BS.ByteString
+publication_parent_decoy = C8.pack "the parent of the publication directory, and not its business\n"
+
+-- | A directory as the SORTED SET of paths it holds, relative to itself.
+--
+-- Built on 'walk_files', the same recursive lister the census checks use, so a tree that this
+-- function could not see is a tree those cannot see either.
+directory_entries :: FilePath -> IO [FilePath]
+directory_entries dir = sort . map (drop (length dir + 1)) <$> walk_files dir
+
+-- | What appeared, and what went away. Set differences over the snapshots, sorted so a failure
+-- message is stable.
+tree_added, tree_removed :: [FilePath] -> [FilePath] -> [FilePath]
+tree_added   before after = sort [p | p <- after,  p `notElem` before]
+tree_removed before after = sort [p | p <- before, p `notElem` after]
+
+-- | A publication that must have HAPPENED, or the reason every difference below is about nothing.
+--
+-- Ordered first for the reason 28-03's race checks order their floor arm first: a publisher that
+-- refused every document adds no file, removes no file and leaves no temp sibling, which is
+-- indistinguishable from a perfect one under (b) through (e) alone.
+publication_happened :: String -> Either PublishRefusal FilePath -> Either String ()
+publication_happened which outcome =
+  case outcome of
+    Right _ -> Right ()
+    Left refusal ->
+      Left (which ++ " publication was REFUSED with " ++ show refusal
+             ++ ". Every set difference below would then be a statement about a file nothing wrote,"
+             ++ " and all of them would be satisfied.")
+
+-- | LOOP-04's first half, MEASURED: one file appears, nothing else moves, and no temp sibling
+-- survives -- across TWO publications of different bytes.
+--
+-- === Why the second publication is not a repetition
+--
+-- A temp sibling that survives the FIRST write is invisible: the directory gains
+-- @volume_path.json@ and @volume_path.json.tmp@, and the arm that would catch it is (d) alone. The
+-- second publication is where a surviving sibling becomes a COLLISION -- the writer fills a path
+-- that already exists -- and it is also the only way to observe that the second document actually
+-- replaced the first rather than being refused into a green nothing.
+--
+-- === The five arms, in the order they are asserted
+--
+--   (a) the BEFORE snapshot is NON-EMPTY. An empty before-set makes every difference below
+--       trivially right, and this is the arm that fails if the decoys stop being seeded.
+--   (b) @added@ is exactly @[\"volume_path.json\"]@ -- one file, by name, not \"one file\".
+--   (c) @removed@ is empty AND the decoys' BYTES are unchanged. Two statements: a publisher that
+--       deleted a decoy fails the first, one that rewrote it in place fails the second.
+--   (d) nothing matching @*.tmp@ survives.
+--   (e) nothing was created OUTSIDE the publication directory: the PARENT is snapshotted too, and
+--       the only path that may appear in it is the fixture, under the directory's own name.
+--
+-- === FIRING INPUT, AND WHAT IT ACTUALLY REDDENS -- MEASURED, AND THE PREDICTION WAS REFUTED
+--
+-- 28-04-PLAN.md predicted that pointing 'Driver.Capture.write_atomically'\'s temp sibling at
+-- @getTemporaryDirectory@ instead of the destination's own directory would redden ARM (e). IT DOES
+-- NOT, and the reason is worth writing down rather than rediscovering: the sibling is created and
+-- then RENAMED AWAY, so a before\/after snapshot of the parent -- taken after the call returns --
+-- sees nothing at all. Arm (e) can only see a file that SURVIVES outside the directory, and the
+-- whole point of the temp sibling is that it does not survive.
+--
+-- What the mutation reddens instead is the FIRST arm, 'publication_happened', and it reddens it
+-- with the exact hazard @Driver.Capture@'s haddock is about:
+-- @unsupported operation (Invalid cross-device link)@. @\/tmp@ on this machine is @tmpfs@ (device
+-- 50) and this repository is on @ext4@ (device 66306), so with the destination moved onto the
+-- repository's own filesystem the rename crosses a device boundary and @rename()@ refuses outright.
+-- That is the sibling rule earning its place by MEASUREMENT for the first time in this repository:
+-- the failure is not a silent degradation to a copy, it is a hard @EXDEV@, and the publication
+-- throws rather than tearing. Both drives are recorded in 28-04-SUMMARY.md.
+publication_adds_exactly_one_file_and_nothing_else :: Check
+publication_adds_exactly_one_file_and_nothing_else =
+  Check "publication_adds_exactly_one_file_and_nothing_else" . guarded $ do
+    parent <- fresh_temp_dir "loop04-tree-diff"
+    let dir       = parent </> "fixtures"
+        published = dir </> fixture_file_name
+        inside p  = "fixtures" </> p
+    createDirectoryIfMissing True dir
+    BS.writeFile (parent </> "parent-decoy.txt") publication_parent_decoy
+    mapM_ (\(n, b) -> BS.writeFile (dir </> n) b) publication_decoys
+
+    before_dir    <- directory_entries dir
+    before_parent <- directory_entries parent
+    before_decoys <- mapM (BS.readFile . (dir </>) . fst) publication_decoys
+
+    first_outcome <- publish_fixture dir publication_identity publication_artifact_alpha
+    one_dir       <- directory_entries dir
+    one_parent    <- directory_entries parent
+    one_decoys    <- mapM (BS.readFile . (dir </>) . fst) publication_decoys
+    one_bytes     <- read_if_present published
+
+    second_outcome <- publish_fixture dir publication_identity publication_artifact_beta
+    two_dir        <- directory_entries dir
+    two_parent     <- directory_entries parent
+    two_decoys     <- mapM (BS.readFile . (dir </>) . fst) publication_decoys
+    two_bytes      <- read_if_present published
+
+    let temps entries = [p | p <- entries, takeExtension p == ".tmp"]
+        report label entries = label ++ " = " ++ show entries
+    pure $ do
+      _ <- publication_happened "the FIRST" first_outcome
+      _ <- publication_happened "the SECOND" second_outcome
+      -- (a)
+      _ <- expect (length before_dir == length publication_decoys)
+             ("the BEFORE snapshot of the publication directory holds "
+               ++ show (length before_dir) ++ " entr(ies), expected the "
+               ++ show (length publication_decoys) ++ " seeded decoys: " ++ report "before"
+                    before_dir
+               ++ ". An empty before-set makes every set difference below trivially right, and a"
+               ++ " publisher that WIPED the directory would pass all of them.")
+      -- (b)
+      _ <- expect (tree_added before_dir one_dir == [fixture_file_name])
+             ("the FIRST publication added " ++ show (tree_added before_dir one_dir)
+               ++ " to the publication directory, and LOOP-04 says it adds exactly "
+               ++ show [fixture_file_name] ++ ". " ++ report "after" one_dir)
+      -- (c)
+      _ <- expect (null (tree_removed before_dir one_dir))
+             ("the FIRST publication REMOVED " ++ show (tree_removed before_dir one_dir)
+               ++ " from the publication directory. That directory belongs to the"
+               ++ " mev_tax_model_one track and this workstream writes ONE file into it.")
+      _ <- expect (before_decoys == one_decoys)
+             ("the FIRST publication rewrote a decoy's BYTES in place. Before: "
+               ++ show (map BS.length before_decoys) ++ " bytes, after: "
+               ++ show (map BS.length one_decoys)
+               ++ ". A name that survives is not a file that survives.")
+      -- (d)
+      _ <- expect (null (temps one_dir))
+             ("a temp sibling SURVIVED the first publication: " ++ show (temps one_dir)
+               ++ ". The rename is supposed to consume it, and a leftover is a half-written"
+               ++ " document sitting in another workstream's tree.")
+      -- (e)
+      _ <- expect (tree_added before_parent one_parent == [inside fixture_file_name])
+             ("outside the publication directory, the first publication added "
+               ++ show (tree_added before_parent one_parent) ++ " to its PARENT, and the only"
+               ++ " path it may add there is " ++ show (inside fixture_file_name) ++ ". "
+               ++ report "parent after" one_parent)
+      _ <- expect (null (tree_removed before_parent one_parent))
+             ("the first publication REMOVED " ++ show (tree_removed before_parent one_parent)
+               ++ " from the parent of the publication directory.")
+      -- The SECOND publication, differing bytes, re-asserting (b) and (d) against the SAME before.
+      _ <- expect (tree_added before_dir two_dir == [fixture_file_name])
+             ("after a SECOND publication of different bytes the directory has gained "
+               ++ show (tree_added before_dir two_dir) ++ " relative to the seeded state, and"
+               ++ " LOOP-04 says exactly " ++ show [fixture_file_name]
+               ++ ". A temp sibling that survived the first write is invisible until the second"
+               ++ " one collides with it. " ++ report "after" two_dir)
+      _ <- expect (null (temps two_dir))
+             ("a temp sibling SURVIVED the second publication: " ++ show (temps two_dir) ++ ".")
+      _ <- expect (null (tree_removed before_dir two_dir) && before_decoys == two_decoys)
+             ("the second publication disturbed the decoys. Removed: "
+               ++ show (tree_removed before_dir two_dir) ++ "; byte lengths "
+               ++ show (map BS.length before_decoys) ++ " -> "
+               ++ show (map BS.length two_decoys) ++ ".")
+      _ <- expect (tree_added before_parent two_parent == [inside fixture_file_name]
+                     && null (tree_removed before_parent two_parent))
+             ("after the second publication the PARENT has gained "
+               ++ show (tree_added before_parent two_parent) ++ " and lost "
+               ++ show (tree_removed before_parent two_parent) ++ ".")
+      -- The two publications must actually have been DIFFERENT, or "one file" is one write.
+      _ <- expect (isJust one_bytes && isJust two_bytes && one_bytes /= two_bytes)
+             ("the two publications left the SAME bytes on disk ("
+               ++ show (fmap BS.length one_bytes) ++ " then "
+               ++ show (fmap BS.length two_bytes)
+               ++ "), so the second one is not evidence about a second write. The two artifacts"
+               ++ " differ in length by construction -- see publication_artifact_alpha.")
+      expect (two_bytes == either (const Nothing) Just
+                             (publish_bytes publication_identity publication_artifact_beta))
+        ("the file left on disk is not the document publish_bytes builds for the SECOND artifact."
+          ++ " On disk: " ++ show (fmap BS.length two_bytes) ++ " bytes.")
+
+-- ---------------------------------------------------------------------------------------------
+
+-- | LOOP-04's second half: a missing directory is a LOUD, NAMED refusal, and the tree is untouched
+-- afterwards.
+--
+-- Four things the message must carry, asserted one at a time so a failure says WHICH is missing:
+-- the RESOLVED path, the owning workstream by name, an issue reference, and -- through
+-- 'exit_code_for_precondition' -- the number a shell sees.
+--
+-- === The arm that matters is the LAST state of the filesystem, not the first
+--
+-- Every arm above is satisfied by a function that reports the refusal and then creates the
+-- directory anyway. @doesDirectoryExist p == False@ AFTER the call is what says the refusal was a
+-- refusal. FIRING INPUT: add a directory-maker to 'Loop.Publish.publish_precondition' -- that arm
+-- reddens and nothing else does.
+--
+-- === Two diagnoses, and they are asserted to be two
+--
+-- An ABSENT path and a FILE at that path have different repairs, and one message reused for both
+-- would name neither. The two rendered strings are asserted DIFFERENT, which is the arm that would
+-- notice them being folded together.
+--
+-- === The RUNNING loop's guard is driven here too
+--
+-- 'publish_fixture' refuses the same directory with 'PublicationDirectoryAbsent', and that is a
+-- different event from the startup stop: a directory removed while the loop runs was there when the
+-- process started. Both are driven, because a startup check that was the only one would make the
+-- running loop's behaviour depend on nothing having changed underneath it.
+a_missing_fixture_directory_is_a_loud_named_failure :: Check
+a_missing_fixture_directory_is_a_loud_named_failure =
+  Check "a_missing_fixture_directory_is_a_loud_named_failure" . guarded $ do
+    root <- fresh_temp_dir "loop04-missing-dir"
+    let absent   = root </> "fixtures"
+        occupied = root </> "a-file-where-a-directory-belongs"
+    BS.writeFile occupied (C8.pack "not a directory\n")
+
+    absent_verdict <- publish_precondition absent
+    absent_is_dir  <- doesDirectoryExist absent
+    absent_is_file <- doesFileExist absent
+
+    occupied_verdict <- publish_precondition occupied
+    occupied_is_dir  <- doesDirectoryExist occupied
+    occupied_is_file <- doesFileExist occupied
+
+    running       <- publish_fixture absent publication_identity publication_artifact_alpha
+    running_after <- doesDirectoryExist absent
+    root_after    <- directory_entries root
+
+    let absent_text   = publish_precondition_message (FixtureDirAbsent absent)
+        occupied_text = publish_precondition_message (FixtureDirNotADirectory occupied)
+        code          = exit_code_for_precondition (FixtureDirMissing absent)
+    pure $ do
+      _ <- expect (absent_verdict == Left (FixtureDirAbsent absent))
+             ("publish_precondition answered " ++ show absent_verdict ++ " for a path that does"
+               ++ " not exist, expected Left (FixtureDirAbsent " ++ show absent ++ ").")
+      _ <- expect (absent `isInfixOf` absent_text)
+             ("the refusal does not name the RESOLVED path " ++ show absent
+               ++ ". An operator who overrode FIXTURE_DIR and mistyped it cannot tell which path"
+               ++ " was looked at:\n      " ++ absent_text)
+      _ <- expect ("mev_tax_model_one" `isInfixOf` absent_text)
+             ("the refusal does not name the workstream that OWNS the directory. Without it the"
+               ++ " message says a directory is missing and not whose it is, and the operator's"
+               ++ " next move is to create it:\n      " ++ absent_text)
+      _ <- expect ("#24" `isInfixOf` absent_text && "#25" `isInfixOf` absent_text)
+             ("the refusal does not carry both issue references (#24, #25), which are where the"
+               ++ " directory is actually asked for:\n      " ++ absent_text)
+      _ <- expect (code == 40)
+             ("exit_code_for_precondition (FixtureDirMissing _) is " ++ show code
+               ++ ", and LOOP-04's precondition code is 40. The forty-family means the loop never"
+               ++ " started; a code from the thirty-family would tell an operator that blocks were"
+               ++ " processed.")
+      -- THE ARM THAT MATTERS.
+      _ <- expect (not absent_is_dir && not absent_is_file)
+             ("after publish_precondition refused " ++ show absent ++ ", something IS there:"
+               ++ (if absent_is_dir then " a directory." else " a file.")
+               ++ " Every arm above is satisfied by a function that reports the refusal and creates"
+               ++ " the directory anyway, which is exactly the failure LOOP-04 exists to prevent.")
+      _ <- expect (occupied_verdict == Left (FixtureDirNotADirectory occupied))
+             ("publish_precondition answered " ++ show occupied_verdict ++ " for a path holding a"
+               ++ " FILE, expected Left (FixtureDirNotADirectory " ++ show occupied ++ ").")
+      _ <- expect (occupied_is_file && not occupied_is_dir)
+             ("after refusing " ++ show occupied ++ " the file that was there is"
+               ++ (if occupied_is_file then " still there" else " GONE")
+               ++ (if occupied_is_dir then " and a directory now exists at that path." else "."))
+      _ <- expect (absent_text /= occupied_text)
+             ("the ABSENT and NOT-A-DIRECTORY refusals render the SAME message, so the two"
+               ++ " diagnoses are one message reused and neither repair is named:\n      "
+               ++ absent_text)
+      _ <- expect ("mev_tax_model_one" `isInfixOf` occupied_text
+                     && occupied `isInfixOf` occupied_text)
+             ("the NOT-A-DIRECTORY refusal drops the path or the owning workstream:\n      "
+               ++ occupied_text)
+      -- The RUNNING loop's own guard, which is a different event.
+      _ <- expect (running == Left (PublicationDirectoryAbsent absent))
+             ("publish_fixture answered " ++ show running ++ " for a directory that does not"
+               ++ " exist, expected Left (PublicationDirectoryAbsent " ++ show absent ++ ")."
+               ++ " The startup check is not the only guard: a directory removed while the loop"
+               ++ " runs was there when the process started.")
+      expect (not running_after && sort root_after == ["a-file-where-a-directory-belongs"])
+        ("publish_fixture left something behind. The temp root now holds " ++ show root_after
+          ++ ", expected only the seeded file. A publisher that created its own destination on the"
+          ++ " way to refusing it has published into a path this workstream invented.")
+
+-- ---------------------------------------------------------------------------------------------
+
+-- | The CONSUMING forge test, as it is reachable from here: a path inside @origin\/develop@.
+--
+-- Never a merge. This branch does not carry @test\/models\/@ at all and must not: that tree belongs
+-- to the @mev_tax_model_one@ track.
+consumer_test_path :: FilePath
+consumer_test_path = "test/models/mev_tax_model_one/AlgebraIntegralMevTaxModelOneShocks.t.sol"
+
+-- | A path that is NOT in that tree, so the upstream reader can be shown saying NO as well as YES.
+consumer_absent_path :: FilePath
+consumer_absent_path = "test/models/mev_tax_model_one/NoSuchConsumer.t.sol"
+
+-- | The name of the consumer's own path constant. The contract of issue #25, in one identifier.
+consumer_path_constant :: String
+consumer_path_constant = "VOLUME_PATH_JSON"
+
+-- | The string literals DECLARED for a named Solidity constant, in source order.
+--
+-- Three conditions, and the third is what makes the extraction unambiguous: the line must name the
+-- constant, must be an assignment, and must be a @constant@ DECLARATION. Without the third,
+-- @string memory json = vm.readFile(VOLUME_PATH_JSON);@ is an assignment naming the constant and
+-- the extractor would have to guess. The caller asserts the result has exactly ONE element, so an
+-- extractor that started matching two lines fails HERE rather than silently taking the first.
+solidity_constant_literals :: String -> String -> [String]
+solidity_constant_literals name contents =
+  [ takeWhile (/= '"') (drop 1 (dropWhile (/= '"') l))
+  | l <- lines contents
+  , name `isInfixOf` l
+  , "constant" `isInfixOf` l
+  , '=' `elem` l
+  , '"' `elem` l
+  ]
+
+-- | LOOP-04's cross-track contract, as a LIVE TRIP-WIRE on @origin\/develop@.
+--
+-- 'Loop.Config.default_fixture_path' is compared BYTE FOR BYTE against the consumer's own
+-- @VOLUME_PATH_JSON@, read out of the forge test through @git show@. 28-03 could only compare it
+-- against @default_fixture_dir \<\/\> fixture_file_name@ -- a join, which is this side agreeing with
+-- itself and is true for every possible value of both halves.
+--
+-- The shape is 'the_upstream_shocklib_pin_is_a_live_trip_wire'\'s, and every part of it is
+-- load-bearing:
+--
+--   * the ref's RESOLVABILITY is asserted FIRST, and its failure says @git fetch origin develop@.
+--     It is never a skip: a check that skips when it cannot see its subject is a check that is
+--     green on every machine that has not fetched.
+--   * the reader is shown saying YES to a path that is in the tree and NO to one that is not,
+--     before any verdict about the constant. A reader that answered \"present\" for everything
+--     would satisfy the subject while knowing nothing.
+--   * the extraction is asserted to have found EXACTLY ONE literal, and that literal is asserted
+--     NON-EMPTY, before the comparison. An extractor that matched nothing agrees with any default,
+--     which is this milestone's standing defect -- an assertion holding because its subject is
+--     absent -- arriving at the one comparison the whole bridge rests on.
+--
+-- FIRING INPUT, OBSERVED: change one character of 'Loop.Config.default_fixture_dir'. The failure
+-- names BOTH strings, because \"they differ\" without the two values is a failure an operator has to
+-- reproduce to act on.
+the_default_fixture_path_is_the_consumers_own_constant :: Check
+the_default_fixture_path_is_the_consumers_own_constant =
+  Check "the_default_fixture_path_is_the_consumers_own_constant" . guarded $ do
+    (ref_code, _, ref_err) <-
+      readProcessWithExitCode "git" ["rev-parse", "--verify", upstream_ref] ""
+    yes <- path_on_upstream consumer_test_path
+    no  <- path_on_upstream consumer_absent_path
+    (show_code, contents, show_err) <-
+      readProcessWithExitCode "git" ["show", upstream_ref ++ ":" ++ consumer_test_path] ""
+    pure $ do
+      _ <- expect (ref_code == ExitSuccess)
+             ("the ref " ++ upstream_ref ++ " is not resolvable in this clone, so every verdict"
+               ++ " below would be about a tree that is not here. Fetch it and re-run:"
+               ++ " git fetch origin develop"
+               ++ (if null ref_err then "" else "\n      git said: " ++ ref_err))
+      _ <- expect yes
+             ("the upstream reader cannot see " ++ consumer_test_path ++ " in " ++ upstream_ref
+               ++ ". That file is the CONSUMER of this whole workstream -- issue #25 -- so either"
+               ++ " the reader is broken or the consuming test moved. Until that is settled its"
+               ++ " verdict about the path constant means nothing.")
+      _ <- expect (not no)
+             ("the upstream reader reports " ++ consumer_absent_path ++ " as PRESENT in "
+               ++ upstream_ref ++ ". It says yes to a path that is not there, so its yes about the"
+               ++ " consumer is worth nothing. A trip-wire never seen to say NO is ABSENT.")
+      _ <- expect (show_code == ExitSuccess && not (null contents))
+             ("could not read " ++ consumer_test_path ++ " out of " ++ upstream_ref
+               ++ (if null show_err then "" else ": " ++ show_err))
+      let declared = solidity_constant_literals consumer_path_constant contents
+      _ <- expect (length declared == 1)
+             ("the extractor found " ++ show (length declared) ++ " declarations of "
+               ++ consumer_path_constant ++ " in " ++ consumer_test_path ++ " on " ++ upstream_ref
+               ++ ", expected exactly 1: " ++ show declared
+               ++ ". An extractor that matched NOTHING agrees with any default this side happens"
+               ++ " to hold, and one that matched two is guessing which is the contract.")
+      literal <-
+        case declared of
+          (l : _) -> Right l
+          []      -> Left ("no " ++ consumer_path_constant ++ " declaration was found in "
+                            ++ consumer_test_path ++ " on " ++ upstream_ref ++ ".")
+      _ <- expect (not (null literal))
+             ("the " ++ consumer_path_constant ++ " declaration was found and its string literal is"
+               ++ " EMPTY. An empty value that travels until it meets another empty value is this"
+               ++ " repository's most-hit defect.")
+      expect (literal == default_fixture_path)
+        ("THE CONSUMER AND THIS SIDE NAME DIFFERENT FILES.\n      "
+          ++ consumer_path_constant ++ " on " ++ upstream_ref ++ " is " ++ show literal
+          ++ "\n      Loop.Config.default_fixture_path is " ++ show default_fixture_path
+          ++ "\n      The consumer moved its fixture path, so this side's default is WRONG."
+          ++ " RE-VERIFY THE CONTRACT on issue #25 -- do not merely re-home the constant to match,"
+          ++ " because the reason it moved decides whether the directory, the file name or both"
+          ++ " changed, and the consuming test SKIPS while the file is absent so neither side goes"
+          ++ " red on its own.")
+
+-- ---------------------------------------------------------------------------------------------
+
+-- | 28-CONTEXT'S FIRST PREREQUISITE, AS A VERDICT RATHER THAN AS A PARAGRAPH.
+--
+-- @test\/models\/mev_tax_model_one\/fixtures@ is on NEITHER tree: not in this worktree, not on
+-- @origin\/develop@. That is recorded here because a check can notice the day it stops being true
+-- and a paragraph cannot.
+--
+-- === WHAT A PASS MEANS
+--
+-- LOOP-04's LIVE half is blocked. The @#24@ track has not landed the directory (issue #25), so the
+-- loop's behaviour against the REAL publication target is proven only through @FIXTURE_DIR@ and a
+-- temporary directory. Everything asserted about publication in this file is asserted somewhere
+-- else on disk. That is honest and it is not the same as proven against the real tree.
+--
+-- === WHAT A FAILURE MEANS
+--
+-- The directory ARRIVED. Nothing is broken; the block is over. LOOP-04 must be re-stated against
+-- the real tree at the phase close: the loop pointed at 'Loop.Config.default_fixture_dir' with no
+-- override, one @volume_path.json@ observed appearing in another workstream's directory, and the
+-- consuming forge test observed no longer skipping. Then this check is retired -- not weakened --
+-- and its retirement is what records that the prerequisite closed.
+--
+-- === Why the directory string is written out here
+--
+-- 'default_fixture_dir' is ALSO compared against the constant, and that is the only arm that ties
+-- this check's subject to the resolver. 24-04 MEASURED the alternative: referring to the config
+-- constant alone leaves the whole suite green under a rename in the config module, while the
+-- literal reddens. The literal here is the directory half of the string
+-- 'the_default_fixture_path_is_the_consumers_own_constant' pins to @origin\/develop@, so the two
+-- checks cannot drift apart without one of them going red.
+the_fixtures_directory_is_recorded_absent_from_both_trees :: Check
+the_fixtures_directory_is_recorded_absent_from_both_trees =
+  Check "the_fixtures_directory_is_recorded_absent_from_both_trees" . guarded $ do
+    (ref_code, _, ref_err) <-
+      readProcessWithExitCode "git" ["rev-parse", "--verify", upstream_ref] ""
+    (ls_code, listing, ls_err) <-
+      readProcessWithExitCode "git" ["ls-tree", "-r", "--name-only", upstream_ref] ""
+    here_dir  <- doesDirectoryExist default_fixture_dir
+    here_file <- doesFileExist default_fixture_path
+    let tracked = lines listing
+        under   = [p | p <- tracked, (default_fixture_dir ++ "/") `isPrefixOf` p]
+    pure $ do
+      _ <- expect (ref_code == ExitSuccess)
+             ("the ref " ++ upstream_ref ++ " is not resolvable in this clone, so \"absent from"
+               ++ " origin/develop\" would be absence of the TREE rather than of the directory."
+               ++ " Fetch it and re-run: git fetch origin develop"
+               ++ (if null ref_err then "" else "\n      git said: " ++ ref_err))
+      _ <- expect (ls_code == ExitSuccess && not (null tracked))
+             ("could not list " ++ upstream_ref ++ ": an empty listing reports every path as"
+               ++ " absent" ++ (if null ls_err then "" else "\n      git said: " ++ ls_err))
+      _ <- expect (consumer_test_path `elem` tracked)
+             ("the listing of " ++ upstream_ref ++ " does not contain " ++ consumer_test_path
+               ++ ", which IS there. A listing that finds nothing reports every directory as"
+               ++ " absent, so this control comes before the verdict.")
+      _ <- expect (default_fixture_dir == "test/models/mev_tax_model_one/fixtures")
+             ("Loop.Config.default_fixture_dir is " ++ show default_fixture_dir
+               ++ " and this check's subject is"
+               ++ " \"test/models/mev_tax_model_one/fixtures\". The resolver's default moved and"
+               ++ " the two are no longer about the same directory.")
+      _ <- expect (null under)
+             ("THE PREREQUISITE HAS CLOSED, AND THAT IS NOT A DEFECT. "
+               ++ upstream_ref ++ " now carries " ++ show under
+               ++ " under " ++ default_fixture_dir ++ ", so the #24 track has landed the"
+               ++ " publication directory (issue #25). LOOP-04's live half is no longer blocked."
+               ++ " Re-state it against the REAL tree at the phase close -- the loop with no"
+               ++ " FIXTURE_DIR override, one volume_path.json observed appearing there, and the"
+               ++ " consuming forge test observed no longer skipping -- and then RETIRE this check"
+               ++ " rather than weakening it.")
+      expect (not here_dir && not here_file)
+        ("THIS WORKTREE now carries " ++ default_fixture_dir
+          ++ (if here_dir then " as a directory" else "")
+          ++ (if here_file then " with a volume_path.json in it" else "")
+          ++ ". Nothing in cabal test may create it -- every publication check publishes into a"
+          ++ " temporary directory -- so either the branch merged test/models/ or a check has"
+          ++ " started writing into another workstream's tree. Check git status --porcelain test/"
+          ++ " before anything else.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -19557,6 +20061,14 @@ core_checks = do
           , the_shape_floor_refuses_what_it_must_and_admits_the_golden
           , the_published_fixture_carries_the_artifact_bytes_verbatim
           , a_cache_hit_publishes_at_the_events_own_block
+          -- 28-04. LOOP-04: exactly one file into another workstream's tree, the refusal that
+          -- names its owner, and the default path pinned to the CONSUMER'S own constant on
+          -- origin/develop. The first two run against temporary directories; the last two read
+          -- origin/develop through git and never merge it.
+          , publication_adds_exactly_one_file_and_nothing_else
+          , a_missing_fixture_directory_is_a_loud_named_failure
+          , the_default_fixture_path_is_the_consumers_own_constant
+          , the_fixtures_directory_is_recorded_absent_from_both_trees
           ]
             ++ per_pin_checks pins
   pure checks
