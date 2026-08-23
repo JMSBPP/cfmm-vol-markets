@@ -19243,7 +19243,7 @@ a_cache_hit_publishes_at_the_events_own_block =
         logs_ref <- newIORef [(b1, [loop_mined_log b1 i1]), (b2, [loop_mined_log b2 i2])]
         head_ref <- newIORef b2
         asked    <- newIORef []
-        store    <- new_memory_store
+        (store, entries) <- cache_counting_store
         ledger   <- new_memory_ledger
         (solver, invocations) <- cache_solver "the-solver-behind-a-cache-hit" produced
         publish_dir <- fresh_temp_dir "loop03-cache-hit"
@@ -19257,6 +19257,14 @@ a_cache_hit_publishes_at_the_events_own_block =
         (_, second_report) <- process_block env ident b2
         after_both         <- invocations
         second_read        <- read_if_present path
+        -- LOOP-02's SECOND DIRECTION, over the LOOP. 28-01 asserted it against the reference
+        -- implementations through a pipeline the suite composed; the requirement is stated over the
+        -- loop, and this check already stages exactly its subject -- two DISTINCT events at
+        -- different heights carrying an IDENTICAL shock -- so the two counts are read here rather
+        -- than in a second check that would have to re-stage the same collision.
+        ledger_rows   <- sequence [ fmap length (ledger_rows_for ledger e)
+                                  | Right e <- [loop_mined_id b1 i1, loop_mined_id b2 i2] ]
+        store_entries <- entries
 
         let first_document  = fromMaybe BS.empty first_read
             second_document = fromMaybe BS.empty second_read
@@ -19288,6 +19296,23 @@ a_cache_hit_publishes_at_the_events_own_block =
                  ("the solver was invoked " ++ show after_both ++ " times across two events"
                    ++ " carrying an identical shock, expected 1. Without the elision the second"
                    ++ " publication is a second solve and this check is not about a cache hit.")
+          -- LOOP-02, second direction, asserted over the LOOP rather than over a composed
+          -- pipeline. Both instruments, because neither is sufficient: the ENTRY count catches a
+          -- ledger keyed on the content key (two events collapsing into one row), and the ROW
+          -- counts catch a store keyed on the event position (one shock solved twice). A ledger
+          -- that de-duplicates is a set, and the chronology it destroys is the one thing the
+          -- content key cannot reconstruct.
+          _ <- expect (ledger_rows == [1, 1])
+                 ("TWO DISTINCT EVENTS CARRYING AN IDENTICAL SHOCK LEFT " ++ show ledger_rows
+                   ++ " ledger row(s), expected [1, 1]. They are two positions in the chain and"
+                   ++ " they must be two rows -- the content key is a function of the SHOCK and a"
+                   ++ " shock does not know which log it arrived on, so a ledger keyed on it would"
+                   ++ " satisfy the replay direction and silently collapse this one.")
+          _ <- expect (store_entries == 1)
+                 ("the store holds " ++ show store_entries ++ " entries after two events carrying"
+                   ++ " an identical shock, expected 1. Two entries under one shock means the key"
+                   ++ " carries something per-event, and every later request recomputes a key"
+                   ++ " nothing looks up.")
           _ <- expect (map er_outcome (br_outcomes second_report)
                          == [outcome_token LS.OutcomeElided])
                  ("the SECOND block's outcomes are "
