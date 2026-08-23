@@ -38,10 +38,10 @@ module Main (main) where
 import qualified Data.ByteString.Char8 as C8
 import Data.List (isInfixOf)
 import qualified Data.Text as T
-import System.Directory (doesDirectoryExist, getHomeDirectory)
+import System.Directory (getHomeDirectory)
 import System.Environment (getArgs, getProgName)
 import System.Exit (ExitCode (ExitFailure), exitSuccess, exitWith)
-import System.FilePath (takeFileName, (</>))
+import System.FilePath (takeFileName)
 import System.IO (hPutStrLn, stderr)
 
 import Crypto.Ethereum.Utils (keccak256)
@@ -59,10 +59,14 @@ import Loop.Config
   , exit_code_for_precondition
   , exit_usage
   , fixture_dir
-  , fixture_file_name
   , loop_poll_ms
   )
 import Loop.Ledger (new_postgres_ledger)
+import Loop.Publish
+  ( PublishPrecondition (..)
+  , publish_precondition
+  , publish_precondition_message
+  )
 import Loop.Poll (ChainSource (..))
 import Loop.Run (Env (..), Mode (..), run_loop)
 import Loop.Solve (ProverPaths (..), solver_for)
@@ -138,11 +142,20 @@ main = do
   ident     <- precondition_either (ToolchainUnreadable . show) (key_identity toolchain)
   putStrLn "IDENTITY  probed once, with no production model and no production solve"
 
-  -- (4) LOOP-04: THE PUBLICATION DIRECTORY. The loop never creates it. One resolver, and the
-  --     failure names the path it RESOLVED rather than the default it might not have used.
+  -- (4) LOOP-04: THE PUBLICATION DIRECTORY, ASKED ABOUT BEFORE THE FIRST BLOCK. The loop never
+  --     creates it. One resolver, and the failure names the path it RESOLVED rather than the
+  --     default it might not have used.
+  --
+  --     The question and its text are 'Loop.Publish.publish_precondition' rather than a
+  --     'doesDirectoryExist' spelled here, so the sentence naming the owning workstream lives in
+  --     the module that refuses, next to the guard 'publish_fixture' keeps for the RUNNING loop.
+  --     Two guards, two different events: a directory removed mid-run is not one that was never
+  --     there.
   publish_dir <- fixture_dir
-  there <- doesDirectoryExist publish_dir
-  if there then pure () else stop (FixtureDirMissing (publish_dir </> fixture_file_name))
+  ready <- publish_precondition publish_dir
+  case ready of
+    Right ()     -> pure ()
+    Left refusal -> stop_publishing publish_dir refusal
 
   -- The chain id the fixture is stamped with, asked for ONCE.
   chain <- source_chain_id source
@@ -224,6 +237,19 @@ stop p = do
   hPutStrLn stderr (precondition_advice p)
   exitWith (ExitFailure (exit_code_for_precondition p))
 
+-- | LOOP-04's precondition failure, by the same table, with the LIBRARY's own text.
+--
+-- The exit code comes from 'FixtureDirMissing' -- one code for \"the publication directory is not
+-- usable\" -- while the sentence an operator reads is
+-- 'Loop.Publish.publish_precondition_message', which distinguishes an ABSENT directory from a FILE
+-- at that path. The code answers a shell; the text answers a person, and they are allowed to be
+-- coarser and finer respectively.
+stop_publishing :: FilePath -> PublishPrecondition -> IO a
+stop_publishing dir refusal = do
+  hPutStrLn stderr ("PRECONDITION " ++ show refusal)
+  hPutStrLn stderr ("  " ++ publish_precondition_message refusal)
+  exitWith (ExitFailure (exit_code_for_precondition (FixtureDirMissing dir)))
+
 -- | A halt, by the table.
 halt :: Halt -> IO a
 halt h = do
@@ -232,11 +258,10 @@ halt h = do
 
 -- | What an operator can do about it. Prose, on stderr, beside the machine-readable exit code.
 precondition_advice :: Precondition -> String
+-- LOOP-04's advice is DEFINED as the library's, never re-typed: two copies of the sentence naming
+-- the owning workstream are two places for that workstream to stop being named.
 precondition_advice (FixtureDirMissing path) =
-  "  The loop NEVER creates the publication directory (LOOP-04). " ++ path
-    ++ " is owned by the mev_tax_model_one track -- GitHub issues #24 and #25. This is a STOP"
-    ++ " rather than a publication to a path this workstream invented. Point FIXTURE_DIR at a"
-    ++ " directory that exists to publish somewhere else."
+  "  " ++ publish_precondition_message (FixtureDirAbsent path)
 precondition_advice (ToolchainUnreadable why) =
   "  The startup probe could not name the toolchain: " ++ why
     ++ ". An empty key component is never written, so there is nothing to fall back to."

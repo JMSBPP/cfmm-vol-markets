@@ -47,12 +47,20 @@
 -- -------------------------------------------
 -- LOOP-04. The publication directory belongs to the @mev_tax_model_one@ track (GitHub issues #24
 -- and #25). A loop that created it would publish into a directory of its own invention and report
--- success. 'publish_fixture' refuses instead, naming the path; the STARTUP precondition that stops
--- a run before its first block -- with its exit code and its text naming the owning workstream --
--- is @Loop.Config.Precondition.FixtureDirMissing@ and belongs to plan 28-04.
+-- success. 'publish_fixture' refuses instead, naming the path, and 'publish_precondition' -- 28-04's
+-- addition -- refuses the same directory BEFORE the first block, with the text an operator reads.
+-- Nothing in this module makes a directory on any path, and the property is STRUCTURAL rather than
+-- careful: the @System.Directory@ import list carries the two QUESTIONS -- @doesDirectoryExist@ and
+-- @doesFileExist@ -- and no maker of any kind, so the branch that could do it does not typecheck.
+-- The suite scans this file for the maker's name and expects to find it ZERO times, in code and in
+-- prose alike, which is why neither is spelled anywhere below.
 module Loop.Publish
   ( -- * Why a fixture was not published
     PublishRefusal (..)
+    -- * Why a loop must not start
+  , PublishPrecondition (..)
+  , publish_precondition
+  , publish_precondition_message
     -- * The floor
   , fixture_min_bytes
     -- * The pure core
@@ -66,7 +74,7 @@ module Loop.Publish
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import Data.List (intercalate)
-import System.Directory (doesDirectoryExist)
+import System.Directory (doesDirectoryExist, doesFileExist)
 import System.FilePath ((</>))
 
 import Chain.Read
@@ -78,7 +86,7 @@ import Chain.Read
   )
 import Driver.Capture (write_bytes_atomically)
 import Gams.Artifact (ArtifactError, decode_artifact)
-import Loop.Config (fixture_file_name)
+import Loop.Config (fixture_dir_env_var, fixture_file_name)
 
 -- ---------------------------------------------------------------------------------------------
 -- Why a fixture was not published
@@ -115,6 +123,84 @@ data PublishRefusal
     -- named; the workstream that owns it is named by 28-04's startup precondition, which is where
     -- an operator meets this condition before any block is processed.
   deriving (Eq, Show)
+
+-- ---------------------------------------------------------------------------------------------
+-- Why a loop must not start
+-- ---------------------------------------------------------------------------------------------
+
+-- | The two states of the publication directory that stop a loop BEFORE its first block.
+--
+-- Distinct from 'PublishRefusal' on purpose, and the distinction is not tidiness. A
+-- 'PublishRefusal' is a fact about ONE document at ONE moment of a RUNNING loop; these two are
+-- facts about the process's environment, discovered before any block was read, and they exit by
+-- @Loop.Config.exit_code_for_precondition@ rather than being written into a report.
+--
+-- 'FixtureDirNotADirectory' is separate from 'FixtureDirAbsent' for the reason 27-03 recorded about
+-- the zero address: an operator who typed a path that is a FILE has a different repair from one
+-- whose directory has not landed yet, and one message covering both would name neither. The suite
+-- asserts the two rendered messages DIFFER, so they cannot quietly become one message reused.
+data PublishPrecondition
+  = FixtureDirAbsent FilePath
+    -- ^ nothing exists at the RESOLVED path. Today this is the live case in every clone of this
+    -- branch: @test\/models\/mev_tax_model_one\/fixtures@ is on neither this worktree nor
+    -- @origin\/develop@.
+  | FixtureDirNotADirectory FilePath
+    -- ^ something exists at the resolved path and it is a FILE. Not created over, not removed.
+  deriving (Eq, Show)
+
+-- | IS THE PUBLICATION DIRECTORY THERE? A question, never an action.
+--
+-- MAKES NOTHING on any path -- not in a fallback, not in an error branch, not \"just this once\".
+-- See the module header for why that is structural rather than careful. The suite asserts the
+-- filesystem is UNCHANGED after a refusal, which is the arm that would notice a repair made in the
+-- wrong direction.
+--
+-- == WHY THE TEXT BELOW IS THIS SPECIFIC, AND IT IS TWO REASONS RATHER THAN ONE
+--
+-- 1. A loop that CREATED the directory turns a typo into a fixture published where nothing reads
+--    it. The bytes reach a disk, the write succeeds, the report says @published@, and the file sits
+--    in a directory this workstream invented. Nothing anywhere is red.
+-- 2. The consuming forge test SKIPS while the file is absent --
+--    @vm.skip(true, \"awaiting volume_path.json - off-chain rpc_api bridge (#25), delegated\")@.
+--    So a wrong path produces a GREEN test on both sides of the boundary and no evidence anywhere
+--    that the bridge is not working. The two failure modes compose into silence, and the only place
+--    to break the silence is here, before anything has run.
+--
+-- == WHY THIS RUNS AT STARTUP AND 'publish_fixture' STILL KEEPS ITS OWN GUARD
+--
+-- At STARTUP because a loop that discovers this on its first EVENT has already advanced a watermark
+-- past blocks it could not publish for -- LOOP-05's ordering, arriving from the publication side.
+-- And 'publish_fixture' keeps its guard because the two are DIFFERENT EVENTS: a directory removed
+-- while the loop runs is not a directory that was never there, and a startup check that was the
+-- only one would make the running loop's behaviour depend on nothing having changed underneath it.
+publish_precondition :: FilePath -> IO (Either PublishPrecondition ())
+publish_precondition dir = do
+  is_directory <- doesDirectoryExist dir
+  is_file      <- doesFileExist dir
+  pure $
+    if is_directory
+      then Right ()
+      else Left (if is_file then FixtureDirNotADirectory dir else FixtureDirAbsent dir)
+
+-- | THE REFUSAL, RENDERED: the resolved path, the workstream that owns it, the refusal to create
+-- it, and the repair.
+--
+-- One message carries all four because an operator meets this once, on stderr, next to an exit
+-- code. Splitting it across a @show@ and a runbook is how the owning workstream stops being named.
+publish_precondition_message :: PublishPrecondition -> String
+publish_precondition_message (FixtureDirAbsent dir) =
+  "the publication directory " ++ show dir ++ " DOES NOT EXIST, and this process will not create"
+    ++ " it. That directory belongs to the mev_tax_model_one workstream -- GitHub issues #24 and"
+    ++ " #25 -- and a loop that created it would publish a fixture into a path of its own"
+    ++ " invention, report success, and leave the consuming forge test skipping forever. Land the"
+    ++ " directory on develop from the #24 track, or point " ++ fixture_dir_env_var
+    ++ " at a directory that already exists."
+publish_precondition_message (FixtureDirNotADirectory dir) =
+  "the publication directory " ++ show dir ++ " EXISTS AND IS A FILE, not a directory. This process"
+    ++ " will not remove it and will not create a directory over it. That path belongs to the"
+    ++ " mev_tax_model_one workstream -- GitHub issues #24 and #25 -- so a file sitting there is"
+    ++ " either their tree or a typo in this side's override. Repair the tree on develop, or point "
+    ++ fixture_dir_env_var ++ " at a real directory."
 
 -- ---------------------------------------------------------------------------------------------
 -- The floor
