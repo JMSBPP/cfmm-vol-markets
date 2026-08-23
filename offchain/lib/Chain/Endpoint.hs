@@ -386,6 +386,12 @@ endpoint_sites =
   , EndpointSite "offchain/rig/README.md" Transcript
       "Operator documentation. It names the alias in the commands it tells an operator to run, so\
       \ the census sees it; it executes nothing itself."
+  , EndpointSite "offchain/LOOP.md" Transcript
+      "The loop's operator manual. It states ETH_RPC_URL and its default in the environment table\
+      \ it tells an operator to set, so the census sees it; it executes nothing itself. It was the\
+      \ thirty-first instance of prose caught by the pattern, and the first caught by the develop\
+      \ gate rather than locally: it was committed after the suite's last run. Declared, as the\
+      \ thirty before it were."
   , EndpointSite "offchain/test/Main.hs" Census
       "The suite. Names the resolver in order to assert about it, and is asserted to name none of\
       \ chain_reaching_terms -- README.md's claim that cabal test opens no socket, made\
