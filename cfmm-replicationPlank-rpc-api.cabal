@@ -150,6 +150,18 @@ library
                     -- same way as its four predecessors: `cabal build --enable-tests -j all`
                     -- printed no `Downloading` line.
                     , Gams.Invoke
+                    -- Phase 28's startup identity probe -- SPIKE SEAM S1, closed in the library.
+                    -- +0 PACKAGES, and CONFIRMED rather than estimated at 28-02: with this module
+                    -- on disk, `cabal build --enable-tests -j all` printed no `Downloading` line.
+                    -- Its imports are base (Control.Exception, Data.List, Data.Unique,
+                    -- System.Exit, System.IO.Error), bytestring, directory (the exclusive probe
+                    -- directory), filepath, process (the one spawn) and three modules of this same
+                    -- stanza -- Gams.Run for ToolchainIdentity, Gams.Version for the two parsers it
+                    -- REUSES rather than re-implements, and Store.Types for sha256_hex. Every one
+                    -- of those packages was already a dependency here. It does NOT import the
+                    -- module that resolves a live binary and a live model: what to probe is the
+                    -- caller's startup precondition, the same ruling that closed S2 at 28-01.
+                    , Gams.Detect
                     -- Phase 26's fee splitter, arithmetic core. +0 PACKAGES, and CONFIRMED rather
                     -- than estimated at 26-01: with this module on disk,
                     -- `cabal build --enable-tests -j all` printed no `Downloading` line. It has

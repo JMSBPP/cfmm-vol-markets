@@ -211,6 +211,12 @@ import Gams.Exit
   , classify_exit
   , gams_code_domain
   )
+import Gams.Detect
+  ( DetectError (..)
+  , detect_toolchain
+  , probe_model_name
+  , toolchain_from_probe
+  )
 import Gams.Version
   ( VersionError (..)
   , conopt_version_text
@@ -8367,6 +8373,7 @@ aeson_storage_path =
   , "offchain/lib/Gams/Argv.hs"
   , "offchain/lib/Gams/Artifact.hs"
   , "offchain/lib/Gams/Config.hs"
+  , "offchain/lib/Gams/Detect.hs"
   , "offchain/lib/Gams/Env.hs"
   , "offchain/lib/Gams/Exit.hs"
   , "offchain/lib/Gams/Invoke.hs"
@@ -8592,6 +8599,11 @@ gams_no_fallback_path :: [FilePath]
 gams_no_fallback_path =
   [ "offchain/lib/Gams/Argv.hs"
   , "offchain/lib/Gams/Artifact.hs"
+  -- 28-02. S1's probe is on the identity path and therefore on the no-fallback path: every
+  -- failure in it is a DetectError naming what was read, and the one retry it does perform asks
+  -- for a DIFFERENT directory name rather than reusing a taken one or continuing without a
+  -- directory.
+  , "offchain/lib/Gams/Detect.hs"
   , "offchain/lib/Gams/Env.hs"
   , "offchain/lib/Gams/Exit.hs"
   , "offchain/lib/Gams/Invoke.hs"
@@ -10625,6 +10637,16 @@ gams_verdict_exempt =
   , ( "offchain/lib/Gams/Env.hs"
     , "the whitelist as DATA, plus a validator over a candidate environment. Its subject is what"
         ++ " goes IN to the child, decided before the spawn, and it sees no output of any kind." )
+  , ( "offchain/lib/Gams/Detect.hs"
+    , "S1's startup probe, and it is exempt for the SAME reason Gams/Version.hs is -- restated for"
+        ++ " this module rather than copied without thought, because the two are not the same"
+        ++ " module and an exemption reused without a reason is how this list stops being a list"
+        ++ " of decisions. It PARSES two banners out of a captured stream, by calling"
+        ++ " Gams.Version's own parsers rather than re-implementing them, and substring search is"
+        ++ " how a banner is legitimately read. Scanning it would forbid the parse instead of the"
+        ++ " verdict. It decides no outcome of any run: it either names the toolchain or returns a"
+        ++ " DetectError, and the only judgement it makes about a process is on the EXIT STATUS,"
+        ++ " which is the very thing this pattern exists to keep verdicts anchored to." )
   , ( "offchain/lib/Gams/Version.hs"
     , "the BANNER PARSER, and it is exempt for a reason specific to this pattern rather than a"
         ++ " generic one: substring search is how a banner is legitimately read, so scanning this"
@@ -11440,6 +11462,292 @@ gams_conformance_verdicts_are_all_pass =
   where
     one_observation e =
       (,) <$> (json_field "name" e >>= json_string) <*> (json_field "verdict" e >>= json_string)
+
+-- ---------------------------------------------------------------------------------------------
+-- Phase 28 / SPIKE SEAM S1: the startup identity, obtained without a production solve
+--
+-- Both checks below drive Gams.Detect. NEITHER invokes a solver: the pure one is fed the REAL
+-- banner lines committed in offchain/rig/gams-conformance.json, and the IO one spawns a /bin/sh
+-- script it wrote moments earlier -- the same idiom every Tier-B check in this file is made of.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The spaced-letter CONOPT banner, BUILT from the version the committed capture recorded.
+--
+-- The version is never typed here. gams-conformance.json's @conopt_method@ says how that number
+-- was obtained, and reading it back is what keeps this file free of a second statement of it --
+-- a transcription would agree with the capture on the day it was written and never again.
+detect_conopt_line :: String -> String
+detect_conopt_line version =
+  "      C O N O P T   version " ++ version ++ "                              TRUE"
+
+-- | The recorded banner with ONLY the job field replaced.
+--
+-- The job field is the THIRD whitespace-delimited token of @--- Job \<name\> Start ...@, and it is
+-- reached positionally on purpose: this is the one field the positive control is allowed to differ
+-- in, and asserting that it is the only one is what stops the positive control from being a
+-- string that shares nothing with the real thing.
+detect_retarget_job :: String -> String -> Either String String
+detect_retarget_job job line =
+  case words line of
+    (dashes : keyword : _wrong : rest) -> Right (unwords (dashes : keyword : job : rest))
+    _ -> Left ("the recorded banner has fewer than four whitespace-delimited fields, so the job"
+                ++ " field cannot be replaced in it: " ++ show line)
+
+-- | The stand-in binary path the pure arm reports. @\/bin\/sh@ is what every stub in this file
+-- actually runs under, so it is not an invented value.
+detect_stand_in_binary :: FilePath
+detect_stand_in_binary = "/bin/sh"
+
+-- | A digest, COMPUTED. A bare 64-hex literal in this file is what 'sc3_literal_purge' exists to
+-- find, and the pure arm needs a well-shaped one for a field it does not assert about.
+detect_stand_in_digest :: String
+detect_stand_in_digest = sha256_hex (C8.pack "Gams.Detect -- stand-in binary digest")
+
+-- | The PRODUCTION sources the pure arm hands in, so the identity it returns can be shown to carry
+-- them and not the probe's own name.
+detect_stand_in_sources :: [(FilePath, String)]
+detect_stand_in_sources =
+  [(gams_model_basename, sha256_hex (C8.pack "Gams.Detect -- stand-in model body"))]
+
+-- | 'toolchain_from_probe' over a captured banner plus a CONOPT line.
+detect_from_lines :: [String] -> Either DetectError ToolchainIdentity
+detect_from_lines ls =
+  toolchain_from_probe
+    probe_model_name
+    (C8.pack (unlines ls))
+    detect_stand_in_binary
+    detect_stand_in_digest
+    detect_stand_in_sources
+
+-- | The parser's own reason, when the refusal was a version refusal, so the recorded verdict
+-- string can be compared against it rather than against a re-description of it.
+detect_version_error :: Either DetectError ToolchainIdentity -> Either String VersionError
+detect_version_error (Left (ProbeVersionUnreadable why)) = Right why
+detect_version_error (Left other) =
+  Left ("the banner was refused, but NOT as a version refusal: " ++ show other
+         ++ ". The whole claim is that the JOB NAME is what rejects it.")
+detect_version_error (Right _) =
+  Left "the banner was ACCEPTED, so a wrong-subject banner produced a toolchain identity."
+
+-- | S1'S REFUSAL, WITH THE TOOL'S OWN WRONG-SUBJECT OUTPUT AS THE NEGATIVE CONTROL.
+--
+-- The two negatives are the REAL first lines the toolchain printed on 2026-08-17, read out of
+-- @offchain\/rig\/gams-conformance.json@ rather than typed here -- @gams --version@ (exit 6, the
+-- flag parsed as a filename) and @gams@ with no arguments (exit 0, 1239 bytes, the version string
+-- three times, no model run). Both are non-empty, correctly shaped and carry the true version. The
+-- only thing wrong with either is its SUBJECT, and the capture's own @parser_verdict@ strings say
+-- so; those strings are compared against what the parser says HERE, so a drift in either direction
+-- reddens.
+--
+-- The POSITIVE control is the same recorded line with ONLY the job field replaced by the probe's
+-- basename. That construction is asserted FIRST: a positive control that shared nothing with the
+-- real banner would prove that this module accepts SOMETHING, which is not the claim. The claim is
+-- that one field decides it.
+--
+-- The fourth arm is the CONOPT half. 'Store.Key.key_identity' refuses an absent solver-side
+-- version outright, so admitting one here would only move the refusal to a place where it reads as
+-- a key problem rather than as a detection problem.
+--
+-- No version string is written in this file by this check: every expected value is read out of the
+-- committed capture.
+detect_toolchain_refuses_every_wrong_subject_banner :: Check
+detect_toolchain_refuses_every_wrong_subject_banner =
+  Check "detect_toolchain_refuses_every_wrong_subject_banner" . guarded $ do
+    loaded <- read_gams_conformance
+    pure $ do
+      artifact     <- loaded
+      flag_line    <- gc_string ["version_flag", "line1"] artifact
+      flag_verdict <- gc_string ["version_flag", "parser_verdict"] artifact
+      args_line    <- gc_string ["no_args", "line1"] artifact
+      args_verdict <- gc_string ["no_args", "parser_verdict"] artifact
+      want_gams    <- gc_string ["gams_version"] artifact
+      want_conopt  <- gc_string ["conopt_version"] artifact
+      positive     <- detect_retarget_job probe_model_name args_line
+
+      let conopt_line = detect_conopt_line want_conopt
+          job_field l = case words l of
+                          (_ : _ : job : _) -> job
+                          _                 -> ""
+          differs_only_in_the_job l =
+            let a = words positive
+                b = words l
+            in length a == length b
+                 && [i | (i, x, y) <- zip3 [(0 :: Int) ..] a b, x /= y] == [2]
+
+      _ <- expect (differs_only_in_the_job flag_line && differs_only_in_the_job args_line)
+             ("the positive control does not differ from the two recorded banners in the JOB FIELD"
+               ++ " ALONE, so the arms below would be comparing this module's answer on three"
+               ++ " unrelated strings."
+               ++ "\n      positive: " ++ show positive
+               ++ "\n      version flag: " ++ show flag_line
+               ++ "\n      no arguments: " ++ show args_line
+               ++ "\n      A positive control that shares nothing with the real banner proves that"
+               ++ " this module accepts something, which is not the claim. The claim is that ONE"
+               ++ " field decides it.")
+      _ <- expect (job_field flag_line /= probe_model_name
+                     && job_field args_line /= probe_model_name)
+             ("a recorded wrong-subject banner already carries the probe's own job name ("
+               ++ show probe_model_name ++ "), so it is not a wrong subject for this caller and"
+               ++ " the refusals below would be asserting nothing.")
+
+      flag_why <- detect_version_error (detect_from_lines [flag_line, conopt_line])
+      _ <- expect (("Left (" ++ show flag_why ++ ")") == flag_verdict)
+             ("the version-flag banner was refused as " ++ show flag_why ++ ", and the capture"
+               ++ " recorded the verdict " ++ show flag_verdict ++ " when the same parser was"
+               ++ " driven over the same bytes under the REAL toolchain. Those are the same"
+               ++ " sentence or the library and the evidence have drifted apart.")
+      args_why <- detect_version_error (detect_from_lines [args_line, conopt_line])
+      _ <- expect (("Left (" ++ show args_why ++ ")") == args_verdict)
+             ("the no-argument banner was refused as " ++ show args_why ++ ", and the capture"
+               ++ " recorded " ++ show args_verdict ++ ".")
+
+      _ <- case detect_from_lines [positive, conopt_line] of
+             Left why ->
+               Left ("the POSITIVE arm failed: the recorded banner re-aimed at the probe's own job"
+                      ++ " name was refused as " ++ show why
+                      ++ ".\n      banner: " ++ show positive
+                      ++ "\n      A battery of refusals is satisfied by a detector that refuses"
+                      ++ " everything, so this arm is what keeps the two above meaningful.")
+             Right identity -> do
+               _ <- expect (gams_version_text (ti_gams_version identity) == want_gams)
+                      ("the positive banner parsed but reported GAMS version "
+                        ++ show (gams_version_text (ti_gams_version identity))
+                        ++ ", and the committed capture recorded " ++ show want_gams ++ ".")
+               _ <- expect (fmap conopt_version_text (ti_conopt_version identity)
+                              == Just want_conopt)
+                      ("the probe output carried the spaced-letter CONOPT banner and this module"
+                        ++ " reported "
+                        ++ show (fmap conopt_version_text (ti_conopt_version identity))
+                        ++ ", against the capture's " ++ show want_conopt ++ ".")
+               expect (ti_model_sources identity == detect_stand_in_sources)
+                 ("the identity carries model sources " ++ show (ti_model_sources identity)
+                   ++ " and the PRODUCTION sources handed in were "
+                   ++ show detect_stand_in_sources
+                   ++ ".\n      A probe that leaked into the identity would key every stored row to"
+                   ++ " a throwaway file, so every row would agree with every other row about a"
+                   ++ " model none of them ran.")
+
+      case detect_from_lines [positive] of
+        Left (ProbeConoptUnreadable _) -> Right ()
+        other ->
+          Left ("a probe output with a GOOD job banner and NO spaced-letter CONOPT line gave "
+                 ++ show (fmap ti_gams_path other)
+                 ++ ", and the required answer is a CONOPT refusal. Store.Key.key_identity refuses"
+                 ++ " an absent solver-side version outright, so admitting one here would only move"
+                 ++ " the refusal to where it reads as a key problem rather than a detection one.")
+
+-- | A stub that prints a recorded probe output on stdout and exits 0.
+--
+-- A quoted here-document, so nothing in the recorded bytes is expanded by the shell.
+detect_stub_echoing :: String -> String
+detect_stub_echoing output =
+  "#!/bin/sh\ncat <<'PROBEOUT'\n" ++ output ++ "PROBEOUT\nexit 0\n"
+
+-- | The prefix the probe directory is named with, so leftovers are observable from outside.
+detect_probe_dir_prefix :: String
+detect_probe_dir_prefix = "cfmm-gams-probe-"
+
+-- | Every probe directory currently sitting under the system temp directory.
+detect_probe_dirs :: IO [FilePath]
+detect_probe_dirs = do
+  tmp <- getTemporaryDirectory
+  entries <- listDirectory tmp
+  pure (sort [e | e <- entries, detect_probe_dir_prefix `isPrefixOf` e])
+
+-- | S1 DRIVEN END TO END, AGAINST A STUB THIS CHECK WROTE.
+--
+-- Two arms. The first hands 'detect_toolchain' a @\/bin\/sh@ script that prints a probe output and
+-- exits 0, and asserts the four facts that make the returned identity USABLE: the binary path is
+-- the stub, its digest is the stub's own recomputed digest, the model sources name the temp model
+-- and NOT the probe, and 'Store.Key.key_identity' accepts the result -- which is the only thing
+-- that matters downstream, because a content key cannot be computed from anything else.
+--
+-- The second hands it a stub that exits 3 and asserts the exit status is reported as itself. The
+-- probe directory is asserted GONE after BOTH arms, from outside the module, by enumerating the
+-- system temp directory: the directory's name is chosen inside 'Gams.Detect' and cannot be
+-- predicted from here, which is exactly what makes counting the leftovers the honest instrument.
+--
+-- FIRING INPUT, OBSERVED at 28-02: make the successful stub echo the recorded @--version@ banner
+-- instead of the re-aimed one. The check reddens naming the job-name refusal.
+detect_toolchain_is_driven_end_to_end_against_a_stub :: Check
+detect_toolchain_is_driven_end_to_end_against_a_stub =
+  Check "detect_toolchain_is_driven_end_to_end_against_a_stub" . guarded $ do
+    loaded <- read_gams_conformance
+    case loaded of
+      Left why -> pure (Left why)
+      Right artifact ->
+        case (,) <$> gc_string ["no_args", "line1"] artifact
+                 <*> gc_string ["conopt_version"] artifact of
+          Left why -> pure (Left why)
+          Right (args_line, want_conopt) ->
+            case detect_retarget_job probe_model_name args_line of
+              Left why -> pure (Left why)
+              Right positive -> do
+                let probe_output = unlines [positive, detect_conopt_line want_conopt]
+                tmp <- getTemporaryDirectory
+                dir <- makeAbsolute (tmp </> "gams28-detect-stub")
+                createDirectoryIfMissing True dir
+                flip finally (removeDirectoryRecursive dir) $ do
+                  let model = dir </> gams_model_basename
+                  writeFile model "* a stand-in for the PRODUCTION model. The probe never runs it.\n"
+                  model_bytes <- BS.readFile model
+                  ok_stub  <- write_stub dir "probe-ok.sh" (detect_stub_echoing probe_output)
+                  bad_stub <- write_stub dir "probe-exit3.sh" "#!/bin/sh\nexit 3\n"
+                  ok_bytes <- BS.readFile ok_stub
+
+                  before  <- detect_probe_dirs
+                  good    <- detect_toolchain ok_stub model Nothing
+                  between <- detect_probe_dirs
+                  bad     <- detect_toolchain bad_stub model Nothing
+                  after   <- detect_probe_dirs
+
+                  pure $ do
+                    identity <- case good of
+                      Left why ->
+                        Left ("detect_toolchain refused a stub that printed a well-formed probe"
+                               ++ " output and exited 0: " ++ show why
+                               ++ ".\n      probe output:\n"
+                               ++ unlines (map ("        " ++) (lines probe_output)))
+                      Right ok -> Right ok
+                    _ <- expect (ti_gams_path identity == ok_stub)
+                           ("the identity reports binary " ++ show (ti_gams_path identity)
+                             ++ " and the stub that ran is " ++ show ok_stub ++ ".")
+                    _ <- expect (ti_gams_sha256 identity == sha256_hex ok_bytes)
+                           ("the identity's binary digest is not the digest of the file that ran."
+                             ++ " A digest of something else is a toolchain component that cannot"
+                             ++ " be checked against the thing it names.")
+                    _ <- expect (ti_model_sources identity == [(model, sha256_hex model_bytes)])
+                           ("the identity carries model sources "
+                             ++ show (ti_model_sources identity)
+                             ++ " and the PRODUCTION model handed in was " ++ show model
+                             ++ ".\n      The probe is written into a directory this module removes;"
+                             ++ " if its name reached the identity, every row keyed under it would"
+                             ++ " name a file that no longer exists.")
+                    _ <- expect (not (any ((probe_model_name `isInfixOf`) . fst)
+                                          (ti_model_sources identity)))
+                           ("the PROBE's own name reached ti_model_sources: "
+                             ++ show (ti_model_sources identity))
+                    _ <- case key_identity identity of
+                           Right _  -> Right ()
+                           Left why ->
+                             Left ("Store.Key.key_identity refused the detected identity: "
+                                    ++ show why
+                                    ++ ".\n      That is the only consumer that matters: a content"
+                                    ++ " key cannot be computed from anything else, so an identity"
+                                    ++ " it refuses is an identity the loop cannot start with.")
+                    _ <- expect (bad == Left (ProbeExitNonZero 3))
+                           ("a stub that exits 3 was reported as " ++ show bad
+                             ++ ", and the required answer names the status itself. A non-zero probe"
+                             ++ " reached neither banner reliably, and reading its output anyway is"
+                             ++ " how an environmental failure becomes a version string.")
+                    expect (between == before && after == before)
+                      ("the probe directory was left behind. " ++ show detect_probe_dir_prefix
+                        ++ " entries under the system temp directory: " ++ show before
+                        ++ " before, " ++ show between ++ " after the successful probe, "
+                        ++ show after ++ " after the failing one."
+                        ++ "\n      The directory is removed on EVERY exit path, and the failing"
+                        ++ " path is the one where that is easy to lose.")
+
 
 -- ---------------------------------------------------------------------------------------------
 -- THE STRUCTURAL GUARANTEE: cabal test CANNOT REACH THE REAL PROVER
@@ -17544,6 +17852,12 @@ core_checks = do
           , gams_conformance_records_the_minimal_whitelist_reproducing_the_golden_bytes
           , gams_conformance_records_the_leading_zero_changing_the_bytes
           , gams_conformance_verdicts_are_all_pass
+          -- 28-02. SPIKE SEAM S1: the startup identity, obtained with no production model and no
+          -- production solve. Both are chain-free, database-free and solver-free -- the pure one
+          -- reads the committed capture's own banner lines, the driven one spawns a /bin/sh stub
+          -- it wrote itself.
+          , detect_toolchain_refuses_every_wrong_subject_banner
+          , detect_toolchain_is_driven_end_to_end_against_a_stub
           , framing_separates_what_concatenation_conflates
           , edge_normalization_is_single_pass
           , the_pips_denominator_is_in_the_preimage
