@@ -38,10 +38,12 @@
 -- WHY THE RENAME IS NOT IN THIS FILE
 -- ----------------------------------
 -- It is @Driver.Capture.write_bytes_atomically@, and there is exactly one rename in this
--- repository. The temp file is a SIBLING of the destination for the reason that module records:
--- a rename that crossed a filesystem would silently degrade to a copy, and a copy is precisely the
--- torn read this requirement exists to prevent. A second writer here would be a second place for
--- that rule to be forgotten.
+-- repository. The temp file is a SIBLING of the destination, and the reason lives in that module's
+-- haddock where 28-04 MEASURED it: a rename that crosses a filesystem does not degrade to a copy --
+-- that sentence stood here unchecked for three phases and is false -- it raises
+-- @unsupported operation (Invalid cross-device link)@ and the publication dies at the last step
+-- with the previous document still in place. A second writer here would be a second place for that
+-- rule, and for its reason, to be got wrong.
 --
 -- WHY THIS MODULE NEVER CREATES THE DIRECTORY
 -- -------------------------------------------

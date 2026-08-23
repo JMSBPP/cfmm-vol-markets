@@ -19408,23 +19408,36 @@ publication_happened which outcome =
 --   (e) nothing was created OUTSIDE the publication directory: the PARENT is snapshotted too, and
 --       the only path that may appear in it is the fixture, under the directory's own name.
 --
--- === FIRING INPUT, AND WHAT IT ACTUALLY REDDENS -- MEASURED, AND THE PREDICTION WAS REFUTED
+-- === THE FIRING INPUT WAS REFUTED, DRIVEN A SECOND WAY, AND THE ARM'S REAL SUBJECT NAMED
 --
--- 28-04-PLAN.md predicted that pointing 'Driver.Capture.write_atomically'\'s temp sibling at
--- @getTemporaryDirectory@ instead of the destination's own directory would redden ARM (e). IT DOES
--- NOT, and the reason is worth writing down rather than rediscovering: the sibling is created and
--- then RENAMED AWAY, so a before\/after snapshot of the parent -- taken after the call returns --
--- sees nothing at all. Arm (e) can only see a file that SURVIVES outside the directory, and the
--- whole point of the temp sibling is that it does not survive.
+-- 28-04-PLAN.md predicted that pointing 'Driver.Capture.write_atomically'\'s temp file at
+-- @getTemporaryDirectory@ instead of the destination's own directory would redden ARM (e). DRIVEN:
+-- the suite came back @228\/228@, ZERO failures. Arm (e) did not fire and neither did anything
+-- else.
 --
--- What the mutation reddens instead is the FIRST arm, 'publication_happened', and it reddens it
--- with the exact hazard @Driver.Capture@'s haddock is about:
--- @unsupported operation (Invalid cross-device link)@. @\/tmp@ on this machine is @tmpfs@ (device
--- 50) and this repository is on @ext4@ (device 66306), so with the destination moved onto the
--- repository's own filesystem the rename crosses a device boundary and @rename()@ refuses outright.
--- That is the sibling rule earning its place by MEASUREMENT for the first time in this repository:
--- the failure is not a silent degradation to a copy, it is a hard @EXDEV@, and the publication
--- throws rather than tearing. Both drives are recorded in 28-04-SUMMARY.md.
+-- The reason is worth writing down rather than rediscovering, and it is a limit of this check
+-- rather than a defect in it: the temp file is created and then RENAMED AWAY, so a before\/after
+-- snapshot taken once the call has returned sees nothing at all. Arm (e)'s real subject is a file
+-- that SURVIVES outside the publication directory -- a writer that leaves litter, or one that
+-- writes its destination in the wrong place entirely -- and the whole point of a temp file is that
+-- it does not survive. A BEFORE\/AFTER TREE DIFF CANNOT SEE WHERE A TEMP FILE LIVED. Only a
+-- concurrent observer can, and that is 28-03's race harness, which costs the suite about 350
+-- seconds and is not re-run here.
+--
+-- DRIVEN A SECOND WAY, and this one reddens: the same mutation with the destination moved onto the
+-- REPOSITORY'S filesystem. @\/tmp@ on this machine is @tmpfs@ (device 50) and this repository is
+-- @ext4@ (device 66306), so the rename crosses a device boundary. OBSERVED at @226\/228@, through
+-- the FIRST arm rather than arm (e), verbatim:
+--
+-- > FAIL publication_adds_exactly_one_file_and_nothing_else: unexpected IO error:
+-- > renameFile:renamePath:rename '/tmp/volume_path.json.tmp' to
+-- > '.../dist-newstyle/loop04-xdev/fixtures/volume_path.json':
+-- > unsupported operation (Invalid cross-device link)
+--
+-- That is the sibling rule earning its place by measurement for the first time in this repository,
+-- and it CORRECTED @Driver.Capture@'s standing haddock rather than confirming it: the failure is
+-- not a silent degradation to a copy -- POSIX @rename(2)@ does not copy -- it is a hard @EXDEV@.
+-- See 'Driver.Capture.write_atomically' for the corrected sentence.
 publication_adds_exactly_one_file_and_nothing_else :: Check
 publication_adds_exactly_one_file_and_nothing_else =
   Check "publication_adds_exactly_one_file_and_nothing_else" . guarded $ do
