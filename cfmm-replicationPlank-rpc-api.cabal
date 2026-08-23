@@ -246,6 +246,17 @@ library
                     -- both are the caller's, which is what keeps S2 closed and keeps every
                     -- importer of the resolving module under offchain/app/.
                     , Loop.Run
+                    -- Phase 28's publication: the shape floor, the identity splice and the atomic
+                    -- write. +0 PACKAGES, and CONFIRMED rather than estimated at 28-03: with this
+                    -- module on disk, `cabal build --enable-tests -j all` printed no `Downloading`
+                    -- line. Its imports are base (Data.List), bytestring, directory (the one
+                    -- doesDirectoryExist that makes LOOP-04 a refusal rather than a mkdir),
+                    -- filepath, and four modules of this same stanza -- Chain.Read for the CHAIN-05
+                    -- identity entries, Driver.Capture for the ONE rename in this repository,
+                    -- Gams.Artifact for the decoder whose post-conditions ARE the shape floor's
+                    -- hard half, and Loop.Config for the fixed file name. It names no JSON library:
+                    -- the artifact's bytes are spliced, never re-rendered.
+                    , Loop.Publish
 
     -- Modules included in this library but not exported.
     -- other-modules:

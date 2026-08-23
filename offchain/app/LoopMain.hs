@@ -21,12 +21,13 @@
 -- Preconditions exit by 'Loop.Config.exit_code_for_precondition' and halts by
 -- 'Loop.Config.exit_code_for_halt'. Nothing in this file writes a number.
 --
--- WHAT IS DEFERRED, AND SAID OUT LOUD
--- ----------------------------------
--- Publication is 28-03's, so 'Loop.Run.env_publish' here REPORTS the bytes it was handed and
--- writes none. A publisher that wrote the raw prover artifact to the path the consuming forge test
--- reads would be the wrong bytes in the right place, which is worse than nothing in either. The
--- directory precondition ahead of it is real and fires today.
+-- PUBLICATION IS REAL FROM 28-03 ON
+-- --------------------------------
+-- The directory comes from 'Loop.Config.fixture_dir' -- one resolver, an env override, a
+-- repo-relative default -- and the writing is 'Loop.Publish.publish_fixture', called from
+-- 'Loop.Run' for every outcome that carries an artifact. This file no longer states the fixture
+-- path: it resolves it, which is what makes @FIXTURE_DIR@ something a falsification can be aimed
+-- through.
 --
 -- CHAIN-01 IS BLOCKED, AND THIS EXECUTABLE IS WHERE THAT IS FELT. Issue #26 is the plank
 -- workstream landing a contract that MINES a @Shock@; until it does, the rig manifest names no
@@ -34,14 +35,13 @@
 -- @cabal test@ waits on it.
 module Main (main) where
 
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import Data.List (isInfixOf)
 import qualified Data.Text as T
 import System.Directory (doesDirectoryExist, getHomeDirectory)
 import System.Environment (getArgs, getProgName)
 import System.Exit (ExitCode (ExitFailure), exitSuccess, exitWith)
-import System.FilePath (takeDirectory, takeFileName)
+import System.FilePath (takeFileName, (</>))
 import System.IO (hPutStrLn, stderr)
 
 import Crypto.Ethereum.Utils (keccak256)
@@ -58,6 +58,8 @@ import Loop.Config
   , exit_code_for_halt
   , exit_code_for_precondition
   , exit_usage
+  , fixture_dir
+  , fixture_file_name
   , loop_poll_ms
   )
 import Loop.Ledger (new_postgres_ledger)
@@ -68,19 +70,12 @@ import qualified Rig.Manifest as Rig
 import Store.Config (migrations_dir, pgstore_dsn)
 import Store.Key (key_identity)
 import Store.Postgres (new_postgres_store, run_migrations_or_exit, with_connection)
-import Store.Types (Artifact, artifact_bytes, current_key_scheme, sha256_hex)
+import Store.Types (current_key_scheme)
 import VolOrder.Decode (be_integer, hex_to_integer)
 
 -- ---------------------------------------------------------------------------------------------
 -- The values this plan does not yet resolve, stated once and labelled
 -- ---------------------------------------------------------------------------------------------
-
--- | Issue #25's contract string, stated once here until 28-03 gives it a resolver.
---
--- The loop NEVER creates this directory -- LOOP-04 -- so a missing one is a precondition failure
--- naming the path AND the workstream that owns it.
-fixture_relative_path :: FilePath
-fixture_relative_path = "test/models/mev_tax_model_one/fixtures/volume_path.json"
 
 -- | The contract in the rig manifest that EMITS the shock this loop consumes.
 --
@@ -143,10 +138,15 @@ main = do
   ident     <- precondition_either (ToolchainUnreadable . show) (key_identity toolchain)
   putStrLn "IDENTITY  probed once, with no production model and no production solve"
 
-  -- (4) LOOP-04: THE PUBLICATION DIRECTORY. The loop never creates it.
-  let fixture_dir = takeDirectory fixture_relative_path
-  there <- doesDirectoryExist fixture_dir
-  if there then pure () else stop (FixtureDirMissing fixture_relative_path)
+  -- (4) LOOP-04: THE PUBLICATION DIRECTORY. The loop never creates it. One resolver, and the
+  --     failure names the path it RESOLVED rather than the default it might not have used.
+  publish_dir <- fixture_dir
+  there <- doesDirectoryExist publish_dir
+  if there then pure () else stop (FixtureDirMissing (publish_dir </> fixture_file_name))
+
+  -- The chain id the fixture is stamped with, asked for ONCE.
+  chain <- source_chain_id source
+  putStrLn ("CHAIN ID  " ++ show chain)
 
   -- (5) THE STORE AND THE LEDGER, on one connection.
   dsn  <- pgstore_dsn
@@ -172,10 +172,10 @@ main = do
           , env_emitter       = hex_to_integer (toHexString emitter)
           , env_topic0        = shock_topic0
           , env_pool_id       = pool_id
+          , env_chain_id      = chain
           , env_vol_tgt_wad   = loop_vol_tgt_wad
           , env_n_events      = loop_n_events
-          , env_fixture_path  = fixture_relative_path
-          , env_publish       = deferred_publication
+          , env_fixture_dir   = publish_dir
           , env_poll_ms       = poll
           , env_log           = putStrLn
           }
@@ -183,19 +183,6 @@ main = do
     case finished of
       Right ()    -> exitSuccess
       Left halted -> halt halted
-
--- | 28-03's publisher, ANNOUNCED rather than performed.
---
--- It names the block, the digest and the length of the bytes it was handed, so a run before 28-03
--- still shows which artifact WOULD have been published and when. It writes nothing: the typed
--- fixture shape -- @pool@, @blockNumber@ as a string, @chainId@, plus the golden's ten fields --
--- and the atomic rename are LOOP-03's, and publishing the raw prover artifact to the path the
--- consuming forge test reads would be the wrong bytes in the right place.
-deferred_publication :: Integer -> Artifact -> IO ()
-deferred_publication block artifact = do
-  let bytes = artifact_bytes artifact
-  putStrLn ("PUBLISH   DEFERRED to plan 28-03. block " ++ show block ++ "  sha256 "
-             ++ sha256_hex bytes ++ "  " ++ show (BS.length bytes) ++ " bytes")
 
 -- ---------------------------------------------------------------------------------------------
 -- Arguments
@@ -247,9 +234,9 @@ halt h = do
 precondition_advice :: Precondition -> String
 precondition_advice (FixtureDirMissing path) =
   "  The loop NEVER creates the publication directory (LOOP-04). " ++ path
-    ++ " is owned by the mev_tax_model_one track -- GitHub issues #24 and #25 -- and the resolver"
-    ++ " for it lands with plan 28-03. This is a STOP rather than a publication to a path this"
-    ++ " plan invented."
+    ++ " is owned by the mev_tax_model_one track -- GitHub issues #24 and #25. This is a STOP"
+    ++ " rather than a publication to a path this workstream invented. Point FIXTURE_DIR at a"
+    ++ " directory that exists to publish somewhere else."
 precondition_advice (ToolchainUnreadable why) =
   "  The startup probe could not name the toolchain: " ++ why
     ++ ". An empty key component is never written, so there is nothing to fall back to."

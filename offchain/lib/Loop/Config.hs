@@ -35,6 +35,13 @@ module Loop.Config
   , default_poll_ms
   , poll_ms_from
   , loop_poll_ms
+    -- * Where the fixture is published
+  , fixture_dir_env_var
+  , default_fixture_dir
+  , fixture_file_name
+  , default_fixture_path
+  , fixture_dir_from
+  , fixture_dir
     -- * The first block a loop with no watermark starts at
   , loop_first_block
     -- * What stops a running loop
@@ -52,6 +59,7 @@ module Loop.Config
 import Control.Exception (throwIO)
 import Data.Char (isDigit)
 import System.Environment (lookupEnv)
+import System.FilePath ((</>))
 
 import Loop.Ledger (EventId)
 
@@ -115,6 +123,62 @@ loop_poll_ms = do
   case poll_ms_from raw of
     Right ms  -> pure ms
     Left  why -> throwIO (userError ("Loop.Config: " ++ why))
+
+-- ---------------------------------------------------------------------------------------------
+-- Where the fixture is published
+-- ---------------------------------------------------------------------------------------------
+
+-- | The one place this variable is NAMED, following the same idiom as the cadence above.
+--
+-- ONE RESOLVER, an env override, a repo-relative default -- 28-CONTEXT rules this is exactly the
+-- @Chain.Endpoint@ shape, and the reason it is a resolver rather than a constant is that
+-- @cabal test@ must be able to aim a publication somewhere harmless. The real directory belongs to
+-- another workstream and does not exist in this worktree; every publication check in the suite
+-- points this variable at a temporary directory it created moments earlier.
+fixture_dir_env_var :: String
+fixture_dir_env_var = "FIXTURE_DIR"
+
+-- | The DIRECTORY the consuming forge test reads its fixture out of, relative to the repository
+-- root.
+--
+-- Stated ONCE, here. It is the @mev_tax_model_one@ track\'s directory (GitHub issues #24 and #25)
+-- and the loop never creates it -- LOOP-04. Plan 28-04 asserts the joined path below against the
+-- consuming test on @origin\/develop@ rather than against a copy of the string kept here, which is
+-- the only comparison that can see the two drifting apart.
+default_fixture_dir :: FilePath
+default_fixture_dir = "test/models/mev_tax_model_one/fixtures"
+
+-- | The file name, FIXED. The consuming test names one path and there is exactly one fixture.
+fixture_file_name :: FilePath
+fixture_file_name = "volume_path.json"
+
+-- | The default path, joined once so no caller joins it a second time.
+--
+-- Byte-equal to the consuming test\'s own @VOLUME_PATH_JSON@ constant. That equality is the whole
+-- contract of issue #25 and it is asserted by plan 28-04 against the file on @origin\/develop@.
+default_fixture_path :: FilePath
+default_fixture_path = default_fixture_dir </> fixture_file_name
+
+-- | THE RULE, AS A PURE FUNCTION OF WHAT @lookupEnv@ HANDS BACK.
+--
+-- Pure for the reason \'poll_ms_from\' is pure: @System.Environment.setEnv k ""@ routes an empty
+-- value to @unsetEnv@, so the present-but-EMPTY case cannot be created from inside this process
+-- and a check that tried would be driving the absent case twice while reporting on the empty one.
+-- 27-01 MEASURED a whole check going vacuous on exactly that.
+--
+-- An empty value resolves to the DEFAULT here, and that is the opposite of the cadence\'s ruling
+-- one section up. The two differ because the failures differ: an unreadable cadence has no
+-- interpretation at all, while an empty directory string would resolve to the process\'s working
+-- directory and publish the fixture into the repository root -- a real file, in the wrong place,
+-- with nothing to say so. Falling back to the declared default puts the miss where LOOP-04\'s
+-- missing-directory precondition can see it.
+fixture_dir_from :: Maybe String -> FilePath
+fixture_dir_from (Just raw) | not (null raw) = raw
+fixture_dir_from _                           = default_fixture_dir
+
+-- | The rule, through the environment.
+fixture_dir :: IO FilePath
+fixture_dir = fixture_dir_from <$> lookupEnv fixture_dir_env_var
 
 -- ---------------------------------------------------------------------------------------------
 -- The first block

@@ -73,6 +73,8 @@ import System.Random.MWC (create, uniformR)
 -- attached instead of stopping the suite with no indication of which assertion was running.
 import Control.Concurrent (threadDelay)
 import System.Timeout (timeout)
+-- 'getMonotonicTimeNSec' is the unique suffix 'fresh_temp_dir' names its scratch directories with.
+import GHC.Clock (getMonotonicTimeNSec)
 
 import Rig.Manifest
   ( PinEntry (..)
@@ -215,16 +217,26 @@ import Loop.Config
   ( Halt (..)
   , Precondition (..)
   , default_poll_ms
+  , default_fixture_dir
+  , default_fixture_path
   , exit_code_for_halt
   , exit_code_for_precondition
   , exit_ok
   , exit_table
   , exit_usage
+  , fixture_dir
+  , fixture_dir_env_var
+  , fixture_dir_from
+  , fixture_file_name
   , loop_first_block
   , loop_poll_ms
   , loop_poll_ms_env_var
   , poll_ms_from
   )
+-- 28-03's publication. Imported for its PURE CORE as much as for the edge: 'publish_bytes' is
+-- where the shape floor and the identity splice are decided, and every refusal arm below is driven
+-- against it rather than through a file.
+import Loop.Publish (publish_fixture)
 import Loop.Poll
   ( ChainSource (..)
   , event_identity
@@ -1397,8 +1409,17 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
 -- > 81
+-- RE-MEASURED COLD AT 28-03, in the same sitting as 'credential_scan_floor' and by RUNNING the
+-- command rather than by adding one to the 81 above it: 82 against exactly 82, zero slack. Census
+-- under @offchain\/@ at that measurement: @hs 66, sh 12, json 11, sql 4@. This plan adds exactly
+-- ONE file both scans can see -- @offchain\/lib\/Loop\/Publish.hs@ -- and commits no artifact and
+-- no script, so the @.json@ and @.sh@ censuses do not move and the two floors move by the SAME
+-- one. Prediction and measurement agree, and both ends were RUN.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
+-- > 82
 purge_file_floor :: Int
-purge_file_floor = 81
+purge_file_floor = 82
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -4173,8 +4194,26 @@ advertised_overrides =
   -- reads.
   , OverrideProbe "CHAIN_READ_CONFORMANCE" chain_read_conformance_path
       (json_probe chain_read_conformance_path chain_read_conformance_command)
+  -- 28-03. The publication DIRECTORY, and it belongs in this list rather than in
+  -- 'value_overrides' because its value IS a path -- the distinction that list's haddock draws.
+  -- The consumer that has to fail loudly is 'Loop.Publish.publish_fixture', and the failure it
+  -- produces is LOOP-04 itself: a directory that does not exist is refused with the path NAMED,
+  -- never created. So the third assertion has a real subject and the subject is the requirement.
+  , OverrideProbe "FIXTURE_DIR" fixture_dir fixture_dir_probe
   ]
   where
+    -- The probe publishes a WELL-FORMED artifact, so the only thing that can stop it is the
+    -- directory. A refusal from the shape floor would satisfy the "consumer failed" arm for a
+    -- reason that has nothing to do with the override, and the arm would then be green under a
+    -- resolver that had been deleted.
+    fixture_dir_probe :: IO (Maybe String)
+    fixture_dir_probe = do
+      dir <- fixture_dir
+      outcome <- publish_fixture dir publication_identity publication_artifact_alpha
+      pure $ case outcome of
+        Left refusal -> Just (show refusal)
+        Right _      -> Nothing
+
     rig_probe :: IO (Maybe String)
     rig_probe = do
       attempt <- try load_rig
@@ -4238,7 +4277,44 @@ every_advertised_override_is_honoured =
   Check "every_advertised_override_is_honoured" . guarded $ do
     outcomes <- mapM probe_override advertised_overrides
     valued   <- mapM probe_value_override value_overrides
-    pure (mapM_ id outcomes >> mapM_ id valued)
+    pure (mapM_ id outcomes >> mapM_ id valued >> fixture_dir_rule_assertions)
+
+-- | @FIXTURE_DIR@'s two arms that 'probe_override' cannot reach, folded into the sweep above.
+--
+-- 'probe_override' drives the variable through @setEnv@, and @System.Environment.setEnv k ""@
+-- routes an empty value to @unsetEnv@ -- 27-01 MEASURED a whole check going vacuous on exactly
+-- that, driving the absent path twice while reporting on the empty one. So the present-but-EMPTY
+-- state is asserted against the PURE rule, which is what the resolver hands its argument to.
+--
+-- An empty value resolves to the DEFAULT here, which is the OPPOSITE of the cadence's ruling one
+-- section up, and the asymmetry is the point: an unreadable cadence has no interpretation at all,
+-- while an empty directory string resolves to the process's working directory and would publish a
+-- real fixture into the repository root with nothing to say so.
+--
+-- These are folded in rather than registered as a sixth check, for the reason 28-02 folded
+-- 'value_overrides' in: the sweep is the guard that runs over EVERY advertised override, and a
+-- second check restating one variable's rule is a second place for it to be edited.
+fixture_dir_rule_assertions :: Either String ()
+fixture_dir_rule_assertions = do
+  _ <- expect (fixture_dir_from (Just "") == default_fixture_dir)
+         (fixture_dir_env_var ++ " set and EMPTY resolves to "
+           ++ show (fixture_dir_from (Just "")) ++ " and the declared default is "
+           ++ show default_fixture_dir ++ ". An empty directory string resolves to the process's"
+           ++ " working directory, which publishes a real fixture into the repository root with"
+           ++ " nothing to say so.")
+  _ <- expect (fixture_dir_from Nothing == default_fixture_dir)
+         (fixture_dir_env_var ++ " ABSENT resolves to " ++ show (fixture_dir_from Nothing)
+           ++ ", expected " ++ show default_fixture_dir ++ ".")
+  _ <- expect (fixture_dir_from (Just "/tmp/a-directory-nobody-declared")
+                 == "/tmp/a-directory-nobody-declared")
+         (fixture_dir_env_var ++ " does not return a set value verbatim: it answered "
+           ++ show (fixture_dir_from (Just "/tmp/a-directory-nobody-declared")) ++ ".")
+  expect (default_fixture_path == default_fixture_dir </> fixture_file_name)
+    ("default_fixture_path is " ++ show default_fixture_path ++ " and the directory joined to the"
+      ++ " file name is " ++ show (default_fixture_dir </> fixture_file_name)
+      ++ ". The joined path is stated once so no caller joins it a second time; plan 28-04 asserts"
+      ++ " it against the consuming test on origin/develop rather than against a copy of the"
+      ++ " string.")
 
 -- ---------------------------------------------------------------------------------------------
 -- THE THIRD SHAPE: AN OVERRIDE WHOSE VALUE IS NOT A PATH
@@ -4526,6 +4602,11 @@ config_env_vars =
   -- 28-02. The loop's poll cadence. Its value is not a path, so it is covered by 'value_overrides'
   -- rather than by 'advertised_overrides'.
   , ("loop_poll_ms_env_var", loop_poll_ms_env_var)
+  -- 28-03. The publication directory. Its value IS a path, so unlike its neighbour above it goes
+  -- into 'advertised_overrides' and is probed by the ordinary three assertions: the consumer that
+  -- has to fail loudly is 'Loop.Publish.publish_fixture', which refuses a directory that does not
+  -- exist and NAMES it -- LOOP-04 -- rather than creating one.
+  , ("fixture_dir_env_var", fixture_dir_env_var)
   ]
 
 -- | The two modules in which an environment variable of this subsystem is NAMED. Both config
@@ -8325,8 +8406,16 @@ credential_scan root =
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 92
+-- RE-MEASURED COLD AT 28-03, in the same sitting as 'purge_file_floor' and by RUNNING the command
+-- rather than by adding one to the 92 above it: 93 against exactly 93, zero slack. Census under
+-- @offchain\/@ at that measurement: @hs 66, sh 12, json 11, sql 4@. Both floors move by the SAME
+-- one here -- @offchain\/lib\/Loop\/Publish.hs@ -- because this plan commits no artifact and no
+-- script. Both ends were RUN.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+-- > 93
 credential_scan_floor :: Int
-credential_scan_floor = 92
+credential_scan_floor = 93
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -8542,6 +8631,15 @@ aeson_storage_path =
   , "offchain/lib/Loop/Config.hs"
   , "offchain/lib/Loop/Ledger.hs"
   , "offchain/lib/Loop/Poll.hs"
+  -- 28-03. THE MODULE THAT CARRIES THE ARTIFACT'S BYTES OUT OF THIS WORKSTREAM, listed in the
+  -- commit that created it. It is on the artifact path in the most literal sense in this list:
+  -- every byte the prover wrote passes through 'Loop.Publish.splice_identity' on its way to a file
+  -- another repository parses. Its whole design is that it NEVER decodes and re-renders those
+  -- bytes -- the golden's @dQx[0]@ is -2613128317657530400 and BYTE-04 measured that class of
+  -- value moving by 32 wei through a carrier that re-renders it -- so a JSON library appearing here
+  -- would be exactly the defect this scan was built for, arriving at the last point where it could
+  -- still do damage.
+  , "offchain/lib/Loop/Publish.hs"
   , "offchain/lib/Loop/Run.hs"
   , "offchain/lib/Loop/Solve.hs"
   , "offchain/lib/Store/Cache.hs"
@@ -17888,6 +17986,41 @@ loop_pool_reading = (79228162514264337593543950336, 18446744073709551616, loop_p
 loop_pool_id :: Integer
 loop_pool_id = shock_pool
 
+-- | The chain id the synthetic chain reports, stated ONCE so 'loop_chain' and 'loop_env' cannot
+-- disagree about it.
+--
+-- 31337 is anvil's default and it is what @Chain.Endpoint@'s captures were taken against. The
+-- value matters to nothing in this file except that the SAME number reaches the fixture the loop
+-- publishes and the transport the reads were made through -- which is the wrong-network guard the
+-- consuming forge test compares against the chain it is running on.
+loop_chain_id :: Integer
+loop_chain_id = 31337
+
+-- | A FRESH, EMPTY, UNIQUELY NAMED directory under the system temp root.
+--
+-- Every publication check in this file aims @FIXTURE_DIR@\'s value -- or
+-- 'Loop.Run.env_fixture_dir' directly -- at one of these, because the real publication directory
+-- belongs to another workstream, does not exist in this worktree, and must never be created by
+-- this suite. @git status --porcelain test\/@ is empty after every run and that is asserted.
+--
+-- THE MONOTONIC SUFFIX IS NOT DECORATION, AND IT REPLACED A REMOVE-AND-RECREATE THAT WAS
+-- MEASURED FAILING. The first version reused one directory per label and cleared it with
+-- @removeDirectoryRecursive@. That raised
+-- @removeContentsRecursive: unsatisfied constraints (Directory not empty)@ -- OBSERVED at 28-03 on
+-- @\/tmp\/cfmm-loop-loop03-atomic-race@ -- because @sentinel_falsification_harness@ re-runs the
+-- whole suite many times over, a temp path under @\/tmp@ is shared with every other process on the
+-- machine, and a publisher writing its sibling temp file between the listing and the @rmdir@ is
+-- enough. A fresh name per call cannot collide with anything, so the instrument stops having a
+-- failure mode of its own -- and an instrument that fails intermittently makes every verdict it
+-- reports unreadable.
+fresh_temp_dir :: String -> IO FilePath
+fresh_temp_dir name = do
+  tmp   <- getTemporaryDirectory
+  stamp <- getMonotonicTimeNSec
+  let dir = tmp </> ("cfmm-loop-" ++ name ++ "-" ++ show stamp)
+  createDirectoryIfMissing True dir
+  pure dir
+
 -- | A MINED @Shock@ log at a position: block, log index, and the three payload words.
 --
 -- 'synthetic_log' leaves all four optional fields absent, which is what a PENDING log looks like.
@@ -17926,16 +18059,19 @@ loop_chain logs head_ref asked =
         table <- readIORef logs
         pure (concat [es | (b, es) <- table, b >= from, b <= to])
     , source_reads = \_pool _ref -> pure (Right loop_pool_reading)
-    , source_chain_id = pure 31337
+    , source_chain_id = pure loop_chain_id
     }
 
 -- | The loop's environment over reference implementations and a chain the check supplies.
 --
--- The publish action RECORDS the blocks it was handed rather than writing anything: publication is
--- 28-03's and what this plan asserts is which events reached it.
+-- The publication directory is a TEMPORARY one the check created moments earlier, and it is a real
+-- directory rather than a stub: 28-03 made 'Loop.Run' call 'Loop.Publish.publish_fixture' directly,
+-- so a fake publisher here would be an instrument measuring itself. @test\/@ is never touched --
+-- the other workstream's tree is not this suite's to write into, and
+-- @git status --porcelain test\/@ is empty after every run.
 loop_env
-  :: Store -> Ledger -> Solver -> ChainSource -> IORef [Integer] -> Env
-loop_env store ledger solver source published =
+  :: Store -> Ledger -> Solver -> ChainSource -> FilePath -> Env
+loop_env store ledger solver source publish_dir =
   Env
     { env_store         = store
     , env_ledger        = ledger
@@ -17947,10 +18083,10 @@ loop_env store ledger solver source published =
     , env_emitter       = shock_emitter
     , env_topic0        = shock_topic0
     , env_pool_id       = loop_pool_id
+    , env_chain_id      = loop_chain_id
     , env_vol_tgt_wad   = sh_vol_tgt_wad fixture_shock
     , env_n_events      = sh_n_events fixture_shock
-    , env_fixture_path  = "the-fixture-28-03-will-resolve"
-    , env_publish       = \block _bytes -> modifyIORef' published (block :)
+    , env_fixture_dir   = publish_dir
     , env_poll_ms       = default_poll_ms
     , env_log           = \_line -> pure ()
     }
@@ -17991,11 +18127,11 @@ a_restart_resumes_at_the_watermark_and_skips_nothing =
         store     <- new_memory_store
         ledger    <- new_memory_ledger
         (solver, _invocations) <- cache_solver "the-solver-across-a-restart" produced
-        published <- newIORef []
+        publish_dir <- fresh_temp_dir "loop01-restart"
         let source = loop_chain logs_ref head_ref asked
 
         -- The loop, running.
-        first_pass <- run_loop Once (loop_env store ledger solver source published) ident
+        first_pass <- run_loop Once (loop_env store ledger solver source publish_dir) ident
         mark_first <- ledger_watermark ledger
         early_first <- loop_row_counts ledger (take 2 ids)
 
@@ -18005,7 +18141,7 @@ a_restart_resumes_at_the_watermark_and_skips_nothing =
         during <- source_logs source 6 7
 
         -- THE RESTART: a fresh Env over the SAME store and ledger.
-        second_pass <- run_loop Once (loop_env store ledger solver source published) ident
+        second_pass <- run_loop Once (loop_env store ledger solver source publish_dir) ident
         mark_second <- ledger_watermark ledger
         down_rows   <- loop_row_counts ledger (drop 2 ids)
         early_again <- loop_row_counts ledger (take 2 ids)
@@ -18073,9 +18209,9 @@ the_watermark_advances_through_event_free_blocks =
         store     <- new_memory_store
         ledger    <- new_memory_ledger
         (solver, _invocations) <- cache_solver "the-solver-over-a-quiet-stretch" produced
-        published <- newIORef []
+        publish_dir <- fresh_temp_dir "loop01-quiet-stretch"
         let source = loop_chain logs_ref head_ref asked
-            env    = loop_env store ledger solver source published
+            env    = loop_env store ledger solver source publish_dir
 
         _ <- run_loop Once env ident
         mark_after_event <- ledger_watermark ledger
@@ -18137,9 +18273,9 @@ the_scanned_range_is_the_closed_single_block =
         store     <- new_memory_store
         ledger    <- new_memory_ledger
         (solver, _invocations) <- cache_solver "the-solver-over-a-closed-range" produced
-        published <- newIORef []
+        publish_dir <- fresh_temp_dir "loop01-closed-ranges"
         let source = loop_chain logs_ref head_ref asked
-        _ <- run_loop Once (loop_env store ledger solver source published) ident
+        _ <- run_loop Once (loop_env store ledger solver source publish_dir) ident
         ranges <- reverse <$> readIORef asked
         pure $ do
           _ <- expect (next_range (Just 5) 5 == Nothing)
@@ -18383,6 +18519,28 @@ an_unparseable_poll_interval_is_refused_rather_than_defaulted =
           Left why ->
             expect ("-5" `isInfixOf` why)
               ("a negative poll interval was refused without naming it:\n      " ++ why)
+
+-- ---------------------------------------------------------------------------------------------
+-- Phase 28 plan 03 task 1: the publication target, and the fixture it is probed with
+--
+-- 'Loop.Config.default_fixture_dir' -- the real publication directory -- belongs to the
+-- @mev_tax_model_one@ track, does not exist in this worktree and is never created here. The
+-- FIXTURE_DIR probe in 'advertised_overrides' points the variable at a path that cannot exist and
+-- asserts that 'Loop.Publish.publish_fixture' refuses it BY NAME, which is LOOP-04 itself.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The identity the publication probe stamps its fixture with.
+--
+-- 'loop_pool_id' is @2^159 + 12345@ -- below the address ceiling, so it renders as forty hex
+-- digits, and nowhere near zero, so neither pool arm of 'Loop.Publish.publish_bytes' fires by
+-- accident and the probe's refusal is the DIRECTORY's.
+publication_identity :: FixtureIdentity
+publication_identity = FixtureIdentity loop_pool_id (AtBlock 4242) loop_chain_id
+
+-- | A well-formed artifact for the probe, built by 'artifact_doc' -- the same builder the
+-- decoder's own checks use, so a document that stopped decoding would fail there too.
+publication_artifact_alpha :: BS.ByteString
+publication_artifact_alpha = cache_stored_doc
 
 -- ---------------------------------------------------------------------------------------------
 -- Runner

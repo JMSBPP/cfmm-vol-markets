@@ -27,7 +27,9 @@
 -- The fixture tracks the newest EVENT, not the newest solve. An @elided@ outcome carries the
 -- stored bytes and they are published, stamped with the block THIS event was read at. The bytes
 -- are content-keyed and the identity fields are per-event; those are different things and 28-CONTEXT
--- rules that the second one is what the consuming test attaches to.
+-- rules that the second one is what the consuming test attaches to. 'publish_for' is the one place
+-- that decision is spelled, and it does not branch on the outcome at all -- it branches on whether
+-- there are bytes.
 --
 -- WHY THERE IS NO JSON LIBRARY HERE
 -- ---------------------------------
@@ -64,20 +66,23 @@ import Data.Word (Word32)
 
 import Network.Ethereum.Api.Types (Change)
 
-import Chain.Read (BlockRef (AtBlock))
+import System.FilePath ((</>))
+
+import Chain.Read (BlockRef (AtBlock), FixtureIdentity (..))
 import Chain.Shock (ShockEvent (..), decode_shock)
 import Fee.Split (FeeSplit (..), refusal_message, split_for)
 import Gams.Argv (Shock (..))
 import Gams.Version (conopt_version_text, gams_version_text)
-import Loop.Config (Halt (..))
+import Loop.Config (Halt (..), fixture_file_name)
 import Loop.Ledger (EventId (..), Ledger (..), LedgerRow (..))
 import Loop.Poll (ChainSource (..), event_identity, next_range)
+import Loop.Publish (publish_fixture)
 import Loop.Solve (Classified (..), Outcome (..), classify, outcome_token)
 import Store.Cache (decide)
 import Store.Class (Store)
 import Store.Key (ContentKey (..), KeyIdentity (..), content_key, content_key_hex, key_identity)
 import Store.Solver (Solver)
-import Store.Types (Artifact, KeyScheme)
+import Store.Types (Artifact, artifact_bytes, KeyScheme)
 import Gams.Run (ToolchainIdentity)
 
 -- ---------------------------------------------------------------------------------------------
@@ -116,12 +121,16 @@ data Env = Env
     -- ^ the contract the logs must have been emitted BY. An event topic is unauthenticated.
   , env_topic0        :: Integer
   , env_pool_id       :: Integer
+  , env_chain_id      :: Integer
+    -- ^ resolved ONCE at startup, not per block. It is a wrong-network guard the consuming test
+    -- compares against the chain it is running on, and re-asking the transport for it on every
+    -- publication would be a second answer that can differ from the one the reads were made
+    -- against.
   , env_vol_tgt_wad   :: Integer
   , env_n_events      :: Integer
-  , env_fixture_path  :: FilePath
-  , env_publish       :: Integer -> Artifact -> IO ()
-    -- ^ block and bytes. 28-03 supplies the atomic implementation; the block is an argument
-    -- because the fixture is stamped with the block the EVENT was read at.
+  , env_fixture_dir   :: FilePath
+    -- ^ the DIRECTORY, resolved by 'Loop.Config.fixture_dir'. The file name is fixed and the join
+    -- happens in one expression below, so no caller can publish beside the file it reports.
   , env_poll_ms       :: Int
   , env_log           :: String -> IO ()
   }
@@ -145,6 +154,9 @@ data BlockReport = BlockReport
   { br_block     :: !Integer
   , br_events    :: !Int
   , br_published :: !Bool
+    -- ^ BYTES REACHED DISK. 28-02 shipped this meaning "an artifact was handed to the publish
+    -- action" and recorded the gap; the publisher\'s own success is the publisher\'s to report and
+    -- 'publish_for' now reports it.
   , br_fixture   :: !FilePath
   , br_outcomes  :: ![EventReport]
   , br_halt      :: !(Maybe Halt)
@@ -300,7 +312,7 @@ process_block env ident block = do
       { br_block     = block
       , br_events    = length reports
       , br_published = published
-      , br_fixture   = env_fixture_path env
+      , br_fixture   = env_fixture_dir env </> fixture_file_name
       , br_outcomes  = reverse reports
       , br_halt      = Nothing
       , br_notes     = reverse notes
@@ -417,14 +429,11 @@ process_block env ident block = do
                                              then ""
                                              else prefix
                          }
-                   published' <- case cl_artifact decision of
-                     Nothing -> pure published
-                     Just bytes -> do
-                       env_publish env block bytes
-                       pure True
+                   (published', publish_notes) <- publish_for env block (cl_artifact decision)
+                                                     published notes
                    reported <- env_read_identity env
                    let (next_ident, drift) = adopt_identity current reported
-                       notes' = maybe notes (\n -> note block n : notes) drift
+                       notes' = maybe publish_notes (\n -> note block n : publish_notes) drift
                    if cl_halts decision
                      then pure (Left ( HaltUnsolvable eid
                                      , next_ident
@@ -445,6 +454,51 @@ event_index entry =
 -- | A note, stamped with the block it happened in.
 note :: Integer -> String -> String
 note block message = "block " ++ show block ++ ": " ++ message
+
+-- | PUBLISH, FOR EVERY OUTCOME THAT CARRIES AN ARTIFACT -- @elided@ INCLUDED.
+--
+-- The identity is built HERE, per event, and the block is THIS EVENT\'S. The artifact\'s bytes are
+-- content-keyed and a cache hit hands back bytes that were solved at some earlier height; the
+-- three identity fields are not content-keyed and describe the event that caused the publication.
+-- 28-CONTEXT rules that the fixture tracks the newest EVENT, and the consuming test attaches to
+-- the pool at the height the fixture names, so a hit that republished at the solve\'s height would
+-- point another workstream at a block nothing had just observed.
+--
+-- @br_published@ is the RESULT and no longer "an artifact was handed to a publish action": 28-02
+-- recorded that distinction as this plan\'s to close. A refusal or a failed write leaves the flag
+-- @False@ and puts the reason in the notes, where the same stream carries every other thing that
+-- happened which is not an outcome.
+--
+-- The write is wrapped in \'try\' because it is the one step of the pipeline that touches a
+-- filesystem this process does not own. A publication that threw would take down a resident loop
+-- over a full disk or a directory that vanished mid-run, and neither is a reason to stop
+-- processing the chain -- the ledger is the record that matters and it has already been decided.
+publish_for
+  :: Env
+  -> Integer
+  -> Maybe Artifact
+  -> Bool
+  -> [String]
+  -> IO (Bool, [String])
+publish_for _   _     Nothing         published notes = pure (published, notes)
+publish_for env block (Just artifact) published notes = do
+  attempt <-
+    try (publish_fixture (env_fixture_dir env) identity (artifact_bytes artifact))
+  pure $ case attempt of
+    Left err ->
+      ( published
+      , note block ("PUBLISH the write to " ++ (env_fixture_dir env </> fixture_file_name)
+                     ++ " threw: " ++ show (err :: SomeException)) : notes )
+    Right (Left refusal) ->
+      ( published
+      , note block ("PUBLISH REFUSED, nothing was written: " ++ show refusal) : notes )
+    Right (Right path) -> (True, note block ("PUBLISH " ++ path) : notes)
+  where
+    identity = FixtureIdentity
+      { fi_pool     = env_pool_id env
+      , fi_block    = AtBlock block
+      , fi_chain_id = env_chain_id env
+      }
 
 -- ---------------------------------------------------------------------------------------------
 -- The loop around it

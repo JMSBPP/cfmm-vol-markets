@@ -71,11 +71,15 @@ module Driver.Capture
   , capture_path
   , write_capture
   , write_json_atomically
+  , write_bytes_atomically
   , step_record
   ) where
 
 import Control.Exception (SomeException, onException, try)
 import Data.Aeson (ToJSON (..), Value, encodeFile, object, (.=))
+-- 28-03: 'write_bytes_atomically', the generalization of the artifact writer below. NOT a new
+-- package -- bytestring has been a dependency of this stanza since Store.Types.
+import qualified Data.ByteString as BS
 import Data.Maybe (fromMaybe)
 import Data.Word (Word32)
 import System.Directory (removeFile, renameFile)
@@ -354,9 +358,38 @@ write_capture = write_json_atomically
 -- replaced: a cleanup that threw would swap a diagnosable failure for a mystery, which is the same
 -- rule the flush handler follows one layer up.
 write_json_atomically :: ToJSON a => FilePath -> a -> IO ()
-write_json_atomically path value = do
+write_json_atomically path value = write_atomically path (\tmp -> encodeFile tmp value)
+
+-- | THE SAME RENAME, OVER BYTES SOMEBODY ELSE PRODUCED.
+--
+-- Added at 28-03 as a GENERALIZATION rather than as a second writer, and the distinction is the
+-- whole point: @Loop.Publish@ needs the identical temp-sibling-then-rename discipline for a
+-- document it has already built, and a second copy of it in another module would be a second place
+-- for the sibling rule to be forgotten. The rename now lives in exactly one expression in this
+-- repository -- 'write_atomically' below -- and both writers are that expression with a different
+-- way of filling the temp file.
+--
+-- Every sentence of 'write_json_atomically'’s reasoning carries over unchanged, because it was
+-- never about @aeson@: a writer that opens the destination and streams into it leaves a reader a
+-- window in which the file is neither the old document nor the new one. LOOP-03's consumer is a
+-- forge test in another workstream that parses this file, and a half-written one is a red test
+-- somebody else has to diagnose.
+--
+-- The temp file stays a SIBLING, in the same directory as the destination, for the reason stated
+-- above: a rename that crossed a filesystem would silently degrade to a copy, and a copy is
+-- exactly the tear this requirement exists to prevent.
+write_bytes_atomically :: FilePath -> BS.ByteString -> IO ()
+write_bytes_atomically path bytes = write_atomically path (\tmp -> BS.writeFile tmp bytes)
+
+-- | THE ONE RENAME. Fill a sibling temp file, then let it become the destination.
+--
+-- Both public writers are this function; nothing else in this repository renames a file into
+-- place. That is deliberate rather than tidy: the sibling rule and the re-raise rule are each one
+-- line, and one line duplicated across two modules is one line that gets edited in one of them.
+write_atomically :: FilePath -> (FilePath -> IO ()) -> IO ()
+write_atomically path fill = do
   let tmp = path ++ ".tmp"
-  encodeFile tmp value `onException` ignoring_errors (removeFile tmp)
+  fill tmp `onException` ignoring_errors (removeFile tmp)
   renameFile tmp path
 
 -- | Best-effort cleanup. Swallows its own failure so it cannot displace the exception it is running
