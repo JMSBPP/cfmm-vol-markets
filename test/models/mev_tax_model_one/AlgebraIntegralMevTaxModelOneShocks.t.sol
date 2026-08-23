@@ -15,6 +15,8 @@ import {IAlgebraPoolActions} from "@cryptoalgebra/integral-core/interfaces/pool/
 import {IAlgebraPoolPermissionedActions} from "@cryptoalgebra/integral-core/interfaces/pool/IAlgebraPoolPermissionedActions.sol";
 import {IAlgebraSwapCallback} from "@cryptoalgebra/integral-core/interfaces/callback/IAlgebraSwapCallback.sol";
 import {IAlgebraPlugin} from "@cryptoalgebra/integral-core/interfaces/plugin/IAlgebraPlugin.sol";
+import {PositionValue} from "@cryptoalgebra/integral-periphery/libraries/PositionValue.sol";
+import {INonfungiblePositionManager} from "@cryptoalgebra/integral-periphery/interfaces/INonfungiblePositionManager.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {console2} from "forge-std/console2.sol";
 
@@ -42,6 +44,11 @@ uint160 constant SQRT_PRICE_4_1 = 158456325028528675187087900672;  // 2^97
 
 // keccak256("Shock(address,int24,uint24,uint24)") — ShockLib.shock_emit; topic1 = pool (indexed).
 bytes32 constant SHOCK_TOPIC0 = 0x21b0e4f81f5ef89be4325ca74966f2fb8f57a217e284dd3e0a276fff55987d64;
+
+// The writer implements the INonfungiblePositionManager subset PositionValue reads (positions +
+// poolDeployer), exposing its own seeded liquidity as tokenId 1. Until that plank surface exists,
+// PositionValue.total reverts (RED). See the north-star test below.
+uint256 constant WRITER_POSITION_ID = 1;
 
 
 contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapCallback {
@@ -244,6 +251,45 @@ contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapC
              }
          }
          assertTrue(found, "Shock event emitted");
+     }
+
+     /// @notice NORTH-STAR (hard-RED, self-contained, never skips): the MEV-tax thesis in one test.
+     /// A price round-trip (out, then back to the start price) leaves the tick UNCHANGED (price
+     /// invariant), yet the LP's position value — read via the periphery PositionValue library, with
+     /// the WRITER ITSELF standing in as the INonfungiblePositionManager — is STRICTLY GREATER after
+     /// than before. At the invariant price the principal term is identical, so the entire positive
+     /// delta is fees accrued: the LP captured value on a net-zero price move.
+     ///
+     /// LOCKS the goal — stays RED until ALL of:
+     ///   (1) the writer implements the INonfungiblePositionManager subset (positions + poolDeployer),
+     ///       else PositionValue.total reverts here;
+     ///   (2) the round-trip closes the tick (the writer's swap routing / #26 SELECTOR_NEXT);
+     ///   (3) the model applies a non-zero MEV fee (phi_M) on-chain, else fees == 0 and the payoff is
+     ///       not strictly positive (today beforeSwap returns feeOverride = 0).
+     function test__e2e__priceInvariantWithPositiveLpPayoff() public {
+         _createPool(); // writer creates + seeds the pool at SQRT_PRICE_1_1 across [1/4, 4]
+
+         INonfungiblePositionManager nfpm = INonfungiblePositionManager(address(shocks_writer));
+
+         (uint160 sqrtBefore, int24 tickBefore, , , , ) = IAlgebraPoolState(activePool).globalState();
+         (uint256 a0Before, uint256 a1Before) = PositionValue.total(nfpm, WRITER_POSITION_ID, sqrtBefore);
+
+         // Self-contained round-trip through the plugin (beforeSwap fires -> shock + fee). The last leg
+         // limits at SQRT_PRICE_1_1 so price halts exactly at tick 0.
+         bytes memory shockData = abi.encodePacked(uint8(0x02), uint24(222));
+         // out: sell token0, price down (stops short of the 1/4 band edge)
+         IAlgebraPoolActions(activePool).swap(address(this), true, int256(1e16), SQRT_PRICE_1_4 + 1, shockData);
+         // back: sell token1, price up, halting EXACTLY at the start price (tick 0)
+         IAlgebraPoolActions(activePool).swap(address(this), false, int256(1e18), SQRT_PRICE_1_1, shockData);
+
+         (uint160 sqrtAfter, int24 tickAfter, , , , ) = IAlgebraPoolState(activePool).globalState();
+         (uint256 a0After, uint256 a1After) = PositionValue.total(nfpm, WRITER_POSITION_ID, sqrtAfter);
+
+         // (a) price invariant — the round-trip returns to the start
+         assertEq(tickAfter, tickBefore, "price must return to start (invariant round-trip)");
+         // (b) strictly positive LP payoff — at the invariant price the whole delta is fees
+         assertGt(a0After, a0Before, "LP fee payoff in token0 must be strictly positive");
+         assertGt(a1After, a1Before, "LP fee payoff in token1 must be strictly positive");
      }
 
 }
