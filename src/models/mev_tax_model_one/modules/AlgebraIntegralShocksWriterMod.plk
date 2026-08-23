@@ -12,6 +12,22 @@ import std::membytes::*;
 // keccak "vol_market.mev_tax_model_one"
 const ALGEBRA_FACTORY_SLOT = 0xfe49854de90edba29487cdbfda9320523854b3fa414549b6c007d755ca3c1237;
 
+// #33: the INonfungiblePositionManager subset PositionValue reads. SELECTOR_INIT persists these;
+// positions()/poolDeployer() serve them so the periphery library can value the writer's own seed.
+const SLOT_FACTORY    = 0x01;
+const SLOT_TOKEN0     = 0x02;
+const SLOT_TOKEN1     = 0x03;
+const SLOT_TICK_LOWER = 0x04;
+const SLOT_TICK_UPPER = 0x05;
+const SLOT_POOL       = 0x06;
+
+// positions(uint256)=0x99fbab88, poolDeployer()=0x3119049a (also the factory's selector),
+// pool.positions(bytes32)=0x514ea4bf. Position key = owner<<48 | (bottomTick&mask)<<24 | (topTick&mask).
+const SELECTOR_POSITIONS      = 0x99fbab88;
+const SELECTOR_POOL_DEPLOYER  = 0x3119049a;
+const SELECTOR_POOL_POSITIONS = 0x514ea4bf;
+const POSITION_TICK_MASK      = 0xffffff;
+
 init{ return_runtime();}
 
 run {
@@ -189,6 +205,16 @@ run {
 
 	       let top_tick_raw = getTickAtSqrtRatio(SQRT_PRICE_4_1);
 	       let top_tick = top_tick_raw -% @evm_smod(top_tick_raw, 60);
+
+	       // #33: persist the NFPM-subset fields (asset<numeraire is enforced by the caller, so
+	       // asset=pool.token0, numeraire=pool.token1). positions()/poolDeployer() read these.
+	       @evm_sstore(SLOT_FACTORY, algebra_factory);
+	       @evm_sstore(SLOT_TOKEN0, asset);
+	       @evm_sstore(SLOT_TOKEN1, numeraire);
+	       @evm_sstore(SLOT_TICK_LOWER, bottom_tick);
+	       @evm_sstore(SLOT_TICK_UPPER, top_tick);
+	       @evm_sstore(SLOT_POOL, pool);
+
 	       @mstore32(seed_init_liquidity_call_ptr +% 68, bottom_tick);
 	       @mstore32(seed_init_liquidity_call_ptr +% 100, top_tick);
 	       @mstore32(seed_init_liquidity_call_ptr +% 132, UNIT_LIQUIDITY);
@@ -205,7 +231,65 @@ run {
 	       if !seed_init_liquidity_succ {revert_empty();}
 	       
 	       @evm_return(seed_init_liquidity_return_ptr, 96);
- 	}
+ 	} else if selector == SELECTOR_POOL_DEPLOYER {
+	       // #33: poolDeployer() -> factory.poolDeployer() (the deployer PositionValue recomputes with)
+	       let factory = @evm_sload(SLOT_FACTORY);
+	       let dep_call = @malloc_uninit(4);
+	       @mstore4(dep_call, SELECTOR_POOL_DEPLOYER);
+	       let dep_ret = @malloc_uninit(32);
+	       let dep_succ = @evm_call(@evm_gas(), factory, ZERO_WEI, dep_call, 4, dep_ret, 32);
+	       if !dep_succ { revert_empty(); }
+	       @evm_return(dep_ret, 32);
+
+	} else if selector == SELECTOR_POSITIONS {
+	       // #33: positions(uint256) -> the 12-tuple PositionValue reads, proxying the pool's own
+	       // position checkpoint (tokenId ignored; the writer holds a single seed = tokenId 1).
+	       let token0 = @evm_sload(SLOT_TOKEN0);
+	       let token1 = @evm_sload(SLOT_TOKEN1);
+	       let tick_lower = @evm_sload(SLOT_TICK_LOWER);
+	       let tick_upper = @evm_sload(SLOT_TICK_UPPER);
+	       let pool = @evm_sload(SLOT_POOL);
+	       let factory = @evm_sload(SLOT_FACTORY);
+
+	       let dep_call = @malloc_uninit(4);
+	       @mstore4(dep_call, SELECTOR_POOL_DEPLOYER);
+	       let dep_ret = @malloc_uninit(32);
+	       let dep_succ = @evm_call(@evm_gas(), factory, ZERO_WEI, dep_call, 4, dep_ret, 32);
+	       if !dep_succ { revert_empty(); }
+	       let deployer = @mload32(dep_ret);
+
+	       // Algebra position key = owner<<48 | (bottomTick & mask)<<24 | (topTick & mask); owner=this.
+	       let key = @evm_shl(48, @evm_address_this()) | @evm_shl(24, tick_lower & POSITION_TICK_MASK) | (tick_upper & POSITION_TICK_MASK);
+
+	       let pos_call = @malloc_uninit(36);
+	       @mstore4(pos_call, SELECTOR_POOL_POSITIONS);
+	       @mstore32(pos_call +% 4, key);
+	       let pos_ret = @malloc_uninit(160);   // (uint256 liquidity, innerFG0, innerFG1, uint128 fees0, fees1)
+	       let pos_succ = @evm_call(@evm_gas(), pool, ZERO_WEI, pos_call, 36, pos_ret, 160);
+	       if !pos_succ { revert_empty(); }
+	       let liquidity = @mload32(pos_ret);
+	       let inner_fg0 = @mload32(pos_ret +% 32);
+	       let inner_fg1 = @mload32(pos_ret +% 64);
+	       let fees0 = @mload32(pos_ret +% 96);
+	       let fees1 = @mload32(pos_ret +% 128);
+
+	       // (nonce, operator, token0, token1, deployer, tickLower, tickUpper, liquidity,
+	       //  feeGrowthInside0LastX128, feeGrowthInside1LastX128, tokensOwed0, tokensOwed1)
+	       let out = @malloc_uninit(384);
+	       @mstore32(out,        0);
+	       @mstore32(out +% 32,  0);
+	       @mstore32(out +% 64,  token0);
+	       @mstore32(out +% 96,  token1);
+	       @mstore32(out +% 128, deployer);
+	       @mstore32(out +% 160, tick_lower);   // int24, already sign-extended (getTickAtSqrtRatio)
+	       @mstore32(out +% 192, tick_upper);
+	       @mstore32(out +% 224, liquidity);
+	       @mstore32(out +% 256, inner_fg0);
+	       @mstore32(out +% 288, inner_fg1);
+	       @mstore32(out +% 320, fees0);
+	       @mstore32(out +% 352, fees1);
+	       @evm_return(out, 384);
+	}
 
 
 	@evm_stop();

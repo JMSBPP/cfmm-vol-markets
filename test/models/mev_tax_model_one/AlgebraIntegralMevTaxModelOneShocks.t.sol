@@ -253,6 +253,17 @@ contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapC
          assertTrue(found, "Shock event emitted");
      }
 
+     /// @notice #33: the writer serves the INonfungiblePositionManager subset PositionValue reads
+     /// (positions + poolDeployer). PositionValue.total must return the writer's seeded-position value
+     /// WITHOUT reverting — the value is non-zero (there is real seeded liquidity). RED until #33.
+     function test__unit__writerAsNfpm_positionValueReadable() public {
+         _createPool();
+         INonfungiblePositionManager nfpm = INonfungiblePositionManager(address(shocks_writer));
+         (uint160 sqrtP, , , , , ) = IAlgebraPoolState(activePool).globalState();
+         (uint256 a0, uint256 a1) = PositionValue.total(nfpm, WRITER_POSITION_ID, sqrtP);
+         assertTrue(a0 > 0 || a1 > 0, "writer NFPM position must have non-zero value");
+     }
+
      /// @notice NORTH-STAR (hard-RED, self-contained, never skips): the MEV-tax thesis in one test.
      /// A price round-trip (out, then back to the start price) leaves the tick UNCHANGED (price
      /// invariant), yet the LP's position value — read via the periphery PositionValue library, with
