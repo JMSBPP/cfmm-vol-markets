@@ -50,6 +50,11 @@ bytes32 constant SHOCK_TOPIC0 = 0x21b0e4f81f5ef89be4325ca74966f2fb8f57a217e284dd
 // PositionValue.total reverts (RED). See the north-star test below.
 uint256 constant WRITER_POSITION_ID = 1;
 
+// keccak256("SwapFee(address,uint24,uint24)") — the pool emits this with the applied override.
+bytes32 constant SWAPFEE_TOPIC0 = 0x9443903d84c9719611bd4bba871daaf18a3950d00d5d78b1a2fa701f76df54ff;
+// v6.0 shock payload: flags=0b010 (txlVolmNormRate only), rate = 222 pips = phi_M for the north-star.
+uint24 constant NORTH_STAR_PHI_M = 222;
+
 
 contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapCallback {
      BuildOptions model_opts;
@@ -221,10 +226,10 @@ contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapC
          assertEq(uint256(pluginConfig), 0x81, "writer must set pluginConfig = BEFORE_SWAP | DYNAMIC_FEE");
      }
 
-     /// @notice EXEC-03: the writer's beforeSwap decodes the packed shock hookData, emits the Shock
-     /// event keyed by the calling pool, and returns feeOverride=0 (fee-0 via DYNAMIC_FEE). Calls
-     /// beforeSwap directly, pranked as the pool, so the EVM caller (the emitted pool topic) == pool.
-     function test__unit__beforeSwap_emitsShock_andReturnsFeeZero() public {
+     /// @notice #34: the writer's beforeSwap decodes the packed shock hookData, emits the Shock event
+     /// keyed by the calling pool, and returns feeOverride = phi_M = the shock's txlVolmNormRate (the
+     /// MEV tax, applied via DYNAMIC_FEE). Calls beforeSwap directly, pranked as the pool.
+     function test__unit__beforeSwap_emitsShock_andAppliesPhiM() public {
          _createPool();
          bytes memory hookData = abi.encodePacked(uint8(0x02), uint24(222)); // v6.0: txlVolmNormRate only
 
@@ -235,7 +240,7 @@ contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapC
                  address(this), address(this), true, int256(1), SQRT_PRICE_1_1, false, hookData
              );
          assertEq(sel, IAlgebraPlugin.beforeSwap.selector, "returns beforeSwap selector");
-         assertEq(uint256(feeOverride), 0, "feeOverride = 0");
+         assertEq(uint256(feeOverride), 222, "feeOverride = phi_M (the shock's txlVolmNormRate)");
          assertEq(uint256(pluginFee), 0, "pluginFee = 0");
 
          Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -287,7 +292,8 @@ contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapC
 
          // Self-contained round-trip through the plugin (beforeSwap fires -> shock + fee). The last leg
          // limits at SQRT_PRICE_1_1 so price halts exactly at tick 0.
-         bytes memory shockData = abi.encodePacked(uint8(0x02), uint24(222));
+         bytes memory shockData = abi.encodePacked(uint8(0x02), NORTH_STAR_PHI_M);
+         vm.recordLogs();
          // out: sell token0, price down (stops short of the 1/4 band edge)
          IAlgebraPoolActions(activePool).swap(address(this), true, int256(1e16), SQRT_PRICE_1_4 + 1, shockData);
          // back: sell token1, price up, halting EXACTLY at the start price (tick 0)
@@ -298,7 +304,22 @@ contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapC
 
          // (a) price invariant — the round-trip returns to the start
          assertEq(tickAfter, tickBefore, "price must return to start (invariant round-trip)");
-         // (b) strictly positive LP payoff — at the invariant price the whole delta is fees
+
+         // (b) the applied fee is the MEV tax phi_M (the shock's txlVolmNormRate), NOT the pool default
+         //     500 — so the payoff traces to the tax, not the vanilla fee. beforeSwap returns
+         //     feeOverride = phi_M; the pool emits SwapFee(overrideFee = phi_M) per swap.
+         Vm.Log[] memory logs = vm.getRecordedLogs();
+         uint256 taxedSwaps;
+         for (uint256 i = 0; i < logs.length; i++) {
+             if (logs[i].topics[0] == SWAPFEE_TOPIC0) {
+                 (uint24 overrideFee, ) = abi.decode(logs[i].data, (uint24, uint24));
+                 assertEq(uint256(overrideFee), uint256(NORTH_STAR_PHI_M), "applied fee must be phi_M (the MEV tax), not the default");
+                 taxedSwaps++;
+             }
+         }
+         assertEq(taxedSwaps, 2, "both round-trip swaps must apply the tax");
+
+         // (c) strictly positive LP payoff — at the invariant price the whole delta is fees from phi_M
          assertGt(a0After, a0Before, "LP fee payoff in token0 must be strictly positive");
          assertGt(a1After, a1Before, "LP fee payoff in token1 must be strictly positive");
      }
