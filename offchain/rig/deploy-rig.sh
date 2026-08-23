@@ -23,8 +23,35 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-RPC_ALIAS="local"                 # foundry.toml [rpc_endpoints] local = http://127.0.0.1:8545
-RPC_PORT=8545
+# --- CHAIN-06 / CHAIN-07: THE ENDPOINT, RESOLVED ONCE, FOR THE PRODUCER TOO ------------------
+#
+# This script is the PRODUCER: it owns anvil. CHAIN-07 exists because a resolver only the readers
+# honour is not a rule -- it is an agreement among everyone who cannot start a chain. Before this
+# block, `RPC_PORT=8545` and the alias below were literals, so `ETH_RPC_URL=...:9545` would have
+# started anvil on 8545 while every reader attached to 9545. That is the divergence issue #29 was
+# opened to prevent, and it is the half CHAIN-07's own text says a consumer-only resolver leaves
+# open.
+#
+# WHAT THE ALIAS COST, AND WHY IT IS GONE. This used to be `RPC_ALIAS="local"`, resolved by
+# foundry.toml:59 to a hardcoded authority. foundry.toml is OUTSIDE this workstream's territory, so
+# the alias could not be made to honour the variable: binding through it would have pinned the
+# producer to 8545 by construction no matter what the resolver returned. Every forge and cast
+# invocation below now takes the resolved URL directly. The alias still exists in foundry.toml and
+# nothing in the rig uses it.
+#
+# WHY THIS IS SOURCED ABOVE THE `--stop` BRANCH, WHICH THIS FILE OTHERWISE TREATS AS A RED FLAG.
+# Step 0b below narrates two gates that sat above `--stop` and leaked anvil, and the rule it draws
+# is specific: a precondition of DEPLOYING must not stand between a teardown and the process it
+# exists to kill. This is not one. `--stop` cannot run at all without RPC_PORT -- it kills the
+# listener BY PORT and polls the endpoint to confirm -- so this is the same class as the toolchain
+# preflight, which this file already places above `--stop` for exactly that reason. A malformed
+# ETH_RPC_URL therefore fails the teardown, and that is the correct outcome rather than a
+# regression: a teardown that does not know which port it owns must not pick one.
+#
+# The resolver is SOURCED and never re-spelled. offchain/rig/endpoint.sh is the ONE place the shell
+# side states the default, and offchain/lib/Chain/Endpoint.hs is the ONE place the Haskell side
+# does; the suite asserts the two literals are byte-equal.
+. offchain/rig/endpoint.sh    # sets RPC_URL, RPC_HOST, RPC_PORT
 LOG_DIR=/tmp/rig-logs
 
 # RIG_MANIFEST IS HONOURED HERE, exactly as every reader honours it: verify-rig.sh:23,
@@ -72,7 +99,7 @@ CHAIN_ID=31337
 #
 # `cast` is the sharp one. wait_for_port_release() below treats the ABSENCE of a
 # `cast` response as proof the port is free:
-#     cast block-number --rpc-url "$RPC_ALIAS" >/dev/null 2>&1 || return 0
+#     cast block-number --rpc-url "$RPC_URL" >/dev/null 2>&1 || return 0
 # A missing `cast` is indistinguishable from an unoccupied port, so the script sails
 # past the release check, starts anvil, then polls with the same missing binary and
 # reports "FATAL: anvil did not answer on 8545" -- pointing the operator at a
@@ -142,7 +169,7 @@ kill_rpc_listener() {
 wait_for_port_release() {
   local i mode="${1:-fatal}"
   for i in $(seq 1 50); do
-    cast block-number --rpc-url "$RPC_ALIAS" >/dev/null 2>&1 || return 0
+    cast block-number --rpc-url "$RPC_URL" >/dev/null 2>&1 || return 0
     pause 0.2
   done
   [ "$mode" = "report" ] && return 1
@@ -268,7 +295,16 @@ wait_for_port_release
 # with wall time from that anchor (MEASURED on anvil 1.5.1: 13 s of real time -> block
 # timestamp 1700000013), and InitSwappableRig below adds a further +5 s of its own. A
 # driver must therefore READ THE CHAIN HEAD, never assume the head equals INIT_TS.
-nohup anvil --silent --timestamp "$INIT_TS" >"$LOG_DIR/anvil.log" 2>&1 &
+#
+# --host/--port ARE THE CHAIN-07 BINDING ITSELF. anvil defaults to 127.0.0.1:8545, which is the
+# same authority the resolver defaults to -- so with ETH_RPC_URL unset these two flags change
+# nothing, and that is exactly why omitting them was survivable and wrong. They are what makes the
+# chain this script STARTS the chain every reader RESOLVES, for every value of the variable rather
+# than for the one value where the two happen to coincide. Both come from the same
+# offchain/rig/endpoint.sh parse that produced the URL passed to forge and cast above and below,
+# so there is one reading of one variable and no arithmetic between the producer and the consumers.
+nohup anvil --silent --host "$RPC_HOST" --port "$RPC_PORT" --timestamp "$INIT_TS" \
+  >"$LOG_DIR/anvil.log" 2>&1 &
 ANVIL_PID=$!
 # Keep-alive is the DEFAULT -- the rig must survive this script. anvil is killed
 # only on a failure path.
@@ -277,10 +313,52 @@ trap 'rc=$?; if [ $rc -ne 0 ]; then kill $ANVIL_PID 2>/dev/null || true; fi; exi
 # --- Step 2: poll until the chain answers (never a fixed wait) -------------
 CHAIN_UP=0
 for _ in $(seq 1 50); do
-  if cast block-number --rpc-url "$RPC_ALIAS" >/dev/null 2>&1; then CHAIN_UP=1; break; fi
+  if cast block-number --rpc-url "$RPC_URL" >/dev/null 2>&1; then CHAIN_UP=1; break; fi
   pause 0.2
 done
 [ "$CHAIN_UP" = "1" ] || { echo "FATAL: anvil did not answer on ${RPC_PORT} within 10s (see $LOG_DIR/anvil.log)" >&2; exit 1; }
+
+# --- Step 2a: CHAIN-07 -- assert the chainId BEFORE the first --broadcast ---
+#
+# The poll above proves SOMETHING answers at $RPC_URL. It does not prove it is OUR anvil, and the
+# difference is the whole reason this block exists. Step 1 kills the listener on the resolved port
+# and starts a chain there, but the resolved endpoint need not be local at all: ETH_RPC_URL is an
+# operator input, and pointed at a shared or public node the kill is a no-op (nothing of ours is
+# listening), anvil binds a port on a host nobody reads, and every deploy below then BROADCASTS
+# REAL TRANSACTIONS against whatever is at the far end. That is the one failure in this script that
+# is not recoverable by re-running it.
+#
+# ORDER IS THE CONTENT. This is asserted here -- after the chain answers, before the first
+# --broadcast, which is the FS array a dozen lines below -- because a check after the first
+# broadcast is a report on a transaction that already landed. Both facts are asserted by the suite
+# (the_producer_and_the_consumers_bind_one_endpoint): that this exists AT ALL, and that it comes
+# first. Existence is asserted separately on purpose, because 26-03 measured an ordering gate
+# expressed only as line numbers being structurally voided by a later refactor, and a deletion must
+# redden even when positions shift.
+#
+# `cast chain-id` and not `cast client-version`: the chainId is what every broadcast is signed
+# against and what the manifest records, so it is the value a mismatch would corrupt.
+if ! LIVE_CHAIN_ID=$(cast chain-id --rpc-url "$RPC_URL" 2>/dev/null); then
+  echo "FATAL: could not read the chainId from $RPC_URL, although it answered eth_blockNumber." >&2
+  exit 1
+fi
+LIVE_CHAIN_ID=$(printf '%s' "$LIVE_CHAIN_ID" | tr -d ' \t\r\n')
+# SHAPE-GATED BEFORE COMPARED. An empty capture would otherwise meet the empty side of a
+# comparison and pass -- the "" == "" failure this repository has recorded six times, and which the
+# import-ref block above narrates for the closest instance.
+case "$LIVE_CHAIN_ID" in
+  ''|*[!0-9]*)
+    echo "FATAL: chainId did not parse from $RPC_URL (got '$LIVE_CHAIN_ID')." >&2
+    exit 1 ;;
+esac
+[ "$LIVE_CHAIN_ID" = "$CHAIN_ID" ] || {
+  echo "FATAL: the chain at $RPC_URL reports chainId $LIVE_CHAIN_ID, and this rig deploys against" >&2
+  echo "       $CHAIN_ID. NOTHING HAS BEEN BROADCAST -- this is asserted before the first" >&2
+  echo "       --broadcast precisely so that stays true." >&2
+  echo "       ETH_RPC_URL is '${ETH_RPC_URL-<unset>}'. If it points at a chain this rig does not" >&2
+  echo "       own, the six deploy scripts below would have sent real transactions to it." >&2
+  exit 1; }
+echo "  chainId asserted BEFORE any broadcast: $LIVE_CHAIN_ID at $RPC_URL"
 
 # --- Step 3: delete stale broadcast records. NOT OPTIONAL. -----------------
 # A script that fails leaves the PREVIOUS run's run-latest.json on disk, and the
@@ -339,7 +417,7 @@ console_field() {   # $1 = label prefix, $2 = log file
   printf '%s\n' "$line" | sed 's/.*: *//' | tr -d '\r' | tr 'A-Z' 'a-z'
 }
 
-FS=(--rpc-url "$RPC_ALIAS" --broadcast --ffi --via-ir)
+FS=(--rpc-url "$RPC_URL" --broadcast --ffi --via-ir)
 
 # --- the env scrub. EVERY forge script below runs hermetically. -------------
 # The deploy scripts read exactly seven variables from the environment:
@@ -387,8 +465,17 @@ FS=(--rpc-url "$RPC_ALIAS" --broadcast --ffi --via-ir)
 # the actual environment. FOUNDRY_ is foundry's own figment prefix, DAPP_ is its dapptools
 # compatibility prefix, and ETH_ covers ETH_FROM / ETH_RPC_URL / ETH_GAS_* which forge and cast
 # read directly. Nothing in this script sets any of the three, so scrubbing them cannot remove
-# a value the rig itself supplies -- the RPC endpoint comes from `--rpc-url "$RPC_ALIAS"` on
+# a value the rig itself supplies -- the RPC endpoint comes from `--rpc-url "$RPC_URL"` on
 # the command line, and the deployer from ANVIL_MNEMONIC.
+#
+# 27-01: THE ETH_ SCRUB SURVIVES CHAIN-06 UNCHANGED, AND IT IS NOW LOAD-BEARING IN A SECOND WAY.
+# ETH_RPC_URL is, since this plan, a value the rig DOES read -- so "scrubbing them cannot remove a
+# value the rig itself supplies" needs its reason restated rather than inherited. The rig reads
+# that variable ONCE, at the top of this file, and what it hands every child is the RESOLVED URL on
+# the command line. Leaving the raw variable in the children's environment would give forge and
+# cast a SECOND, independent reading of it, and two readings of one variable is precisely how a
+# producer and its consumers diverge -- the defect CHAIN-07 exists to close, re-entered through the
+# guard against it. Scrubbed, there is one parse of one value and `--rpc-url` carries it.
 AMBIENT_NAMES=()
 AMBIENT_SCRUB=()
 while IFS= read -r v; do
@@ -470,7 +557,7 @@ run_deploy "$LOG_DIR/05-psh.log" \
 run_deploy "$LOG_DIR/06-swappable.log" \
   "${SCRUB[@]}" POOL_MANAGER="$PM" HOOK="$HOOK" TOKEN0="$CURRENCY0" TOKEN1="$CURRENCY1" \
   forge script foundry-scripts/deploy/InitSwappableRig.s.sol --tc InitSwappableRig \
-    --rpc-url "$RPC_ALIAS" --broadcast --via-ir
+    --rpc-url "$RPC_URL" --broadcast --via-ir
 
 # --- Step 5c: the probe swap PROVED the write path -------------------------
 # The script's own `require(tsAfter > tsBefore)` already enforces this, but the rig owns

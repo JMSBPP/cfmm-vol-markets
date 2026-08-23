@@ -1098,3 +1098,689 @@ legally-padded head is rejected with an empty revert); **`N = 0` returns exactly
 truthy 2 would silently disagree with `abi.decode` about the same bytes). The shipped
 `decode_create_orders_result` already enforces the last of these — RPIN-05 confirms it against
 the live V2 module rather than re-litigating it.
+
+---
+
+# Milestone v6.0 — Model Output Store + VolumePath Bridge (rpc_api workstream)
+
+## Overview
+
+A Postgres/JSONB **keyed store for model outputs** whose key is the shock that produced them,
+so an identical shock skips the solve and a re-solve that disagrees is caught — and, on top of
+it, the issue #25 bridge that carries a live Anvil `next` event through the GAMS VolumePath
+prover to the fixture the forge test reads.
+
+Source: GitHub issue #25. Binding reference: `model/mev_tax_model_one/VOLUME_PATH.md` (§2 the
+seven inputs, §3 the output shape and determinism guarantee, §4 every abort named and gated on
+exit code, never log text). **Consume, do not re-derive.** Working branch `feat/rpc-api`; the
+code under change is `offchain/` (Haskell). The only thing written into `test/` is one fixture
+file.
+
+Phase numbering continues at **23** (v5.0 ended at 22). Earlier ranges are other tracks —
+paused, untouched, never renumbered.
+
+## What changed from the six phases approved in brainstorm — and why
+
+The approved shape was: (1) Postgres foundation + Haskell client, (2) keyed store, (3) GAMS
+invocation, (4) Anvil read layer, (5) fee splitter, (6) resident loop + publication. **Still six
+phases, same six bodies of work.** Research found ordering defects; three things moved.
+
+| # | Change | Why |
+|---|---|---|
+| **1** | **GAMS invocation moved from 3rd to 2nd — ahead of the store.** | The key contains the GAMS and CONOPT versions (KEY-01), so GAMS-03/GAMS-04 are a **prerequisite** of STORE-01, not a later phase. An emptily-succeeding detector (`"" == ""`, this repo's defect #1, verbatim) poisons every row written before it is fixed, and the poisoned rows are indistinguishable afterwards unless the version was also stored in its own column. Sequencing the detector after the first production write makes the recovery cost MEDIUM–HIGH instead of zero. |
+| **2** | **Byte-exactness and `key_scheme` moved INTO the earliest schema phase (23), out of the store phase.** | BYTE-01/02/05 are schema decisions (`bytea` authoritative, `jsonb` derived, the `Binary` newtype), and KEY-07 is literally a column inside a unique constraint. Every later phase consumes them and each is expensive to retrofit: an artifact stored only in `jsonb` is unrecoverable as bytes, and a key-formula change without `key_scheme` is a full-table rebuild with no way to identify affected rows. Phase 23 is therefore **not plumbing** — it owns the milestone's headline guarantee. |
+| **3** | **Fee splitter and Anvil read layer swapped (5th ↔ 4th), and CHAIN-04 pulled OUT of the Anvil phase into the fee-splitter phase.** | Consequence of the hard blocking constraint, not a preference. The Anvil phase is BLOCKED on the plank worktree emitting `next` (`SELECTOR_NEXT` is a stub today, issue #26); the fee splitter is not. Putting the unblocked phase first makes phases 23–26 a contiguous chain-free block. CHAIN-04 is explicitly *not* blocked — decoding is exercised against synthetic logs, a pattern the suite already uses for the Phase 21 event re-pin — so it belongs with the unblocked work, beside the other pure producer of shock fields. |
+
+**Unchanged and load-bearing:** the byte-reproduction proof — this milestone's headline
+falsifiable claim — lands at the end of **Phase 25, with no chain and no upstream**. The shock
+is seven values and can be supplied by hand. If the plank block persists indefinitely, phases
+23–26 still deliver the store, the prover integration, the determinism check and the fee
+splitter as a complete, verified subsystem.
+
+## Binding domain constraints — copied here so no phase re-derives them
+
+- **`jsonb` cannot carry a byte-identity guarantee, and `PROJECT.md` as written asked it to.**
+  MEASURED on PG 18/18.4 against the real §3 output shape: the `jsonb` round trip reorders every
+  key and the two sha256s differ (`4075758e…` vs `dd8a3e26…`). `bytea` is authoritative;
+  `jsonb` is a derived projection for querying only. A determinism check reading `jsonb` tests
+  **Postgres's normalizer, not GAMS**.
+- **aeson's `decode → encode` is NOT the identity** at GHC 9.10.3 — measured, four mutations in
+  one round-trip including `0.00318353 → 3.18353e-3` (aeson *introduces* exponent notation).
+  aeson and `jsonb` normalize in **opposite directions**, so three mutually incompatible
+  canonical forms sit between the solver and the forge test. The prover's bytes pass through
+  `Data.Aeson.Value` nowhere. This rules out reusing `Driver.Capture.write_json_atomically` on
+  the publication path.
+- **`dQx`/`dQM` as `[Double]` loses 32 wei on the first element** — measured. The forge test
+  would execute the wrong amounts. `[Integer]` is exact. Non-negotiable.
+- **Exit code `0` means "GAMS ran", not "the model solved"** (GAMS's own docs). §4's exit-code
+  gate is a property of `volume_path.gms`'s abort coverage, not of GAMS — and that file is under
+  active development in another worktree. Exit 0 is the FIRST conjunct, never the only one; the
+  supplement is **absence of the output artifact**, which is not log text.
+- **`ToField ByteString` sends a quoted text literal, not `bytea`.** The `Binary` newtype is
+  required and **nothing complains at compile time**.
+- **`postgresql-migration` exits 0 on a checksum mismatch** — it returns `MigrationError` and
+  the process still exits 0. The caller must pattern-match and `exitFailure`.
+- **Polling is FORCED, not chosen.** `eth_subscribe` is absent from the `hs-web3` Eth API and
+  `jsonrpc-tinyclient` is structurally request/response. The loop is a watermark-driven fold
+  over closed `[b, b]` ranges. `newFilter`/`getFilterChanges` is rejected: node-side state with
+  its own expiry, returning "changes since last poll" — un-pinnable and un-replayable.
+- **`ExceptT` over `Web3` is REJECTED.** `runWeb3'` catches only `Web3Error`, which
+  `web3-ethereum` **never constructs** (0 occurrences in `src/`); real failures throw
+  `JsonRpcException` or `IOException`. Its `Left` branch is unreachable and the handlers at
+  `offchain/app/Main.hs:235` and `offchain/lib/VolOrder/Rpc.hs:279` are dead code. Adding
+  `ExceptT` would advertise a guarantee the runtime does not provide — the exact
+  advertised-but-dead class `every_advertised_override_is_honoured` already guards against.
+- **No Postgres server on this machine** (`psql` yes; `postgres`/`initdb`/`pg_ctl` no). Docker
+  works; `postgres:18-alpine` ready in 3 seconds. **Postgres is never a `cabal test` dependency** —
+  three tiers, with the conformance verdicts committed as evidence.
+- **The `haskell` gate job has NEVER executed** (v5.0 merged `--admin`). Its first run debuts
+  both the gate and the Postgres wiring.
+- **"It type-checks" is NEVER acceptance.** Every success criterion below is a passing test, an
+  observed failure, or an observed live result — never "it builds", and never "the suite is
+  green" (a suite that skips is also green).
+
+## The one defect class every criterion below is written against
+
+> **A guard that passes must have *read information*. A comparand that is empty, zero,
+> defaulted, absent, or derived from its own comparison target proves nothing.**
+
+Found six times across three review rounds, each after the previous sweep was declared complete:
+`"" == ""`, `tickSpacing = 0`, a count-preserving rename defeating a count floor, an empty ref
+file, a CI `grep -q` over an empty log, and `0x00…00` passing every hex-shape guard. Plus a
+seventh: a recorded field derived from the same expression as the thing it would be checked
+against, making the assertion a tautology.
+
+This milestone hands that class **five brand-new representations it has never worn**: a content
+hash (`H("")`); a version string (`""` from a failed parse); a subprocess exit code (`0` because
+GAMS *ran*); a determinism check (`bytes == bytes` where both sides came from the same cached
+row); and a DB-backed test that is green because it **skipped**. Every criterion below is
+therefore stated as something that can FAIL — "X is rejected", "Y aborts when absent", "the
+mutant Z is OBSERVED caught" — never as "the tests pass".
+
+## Phases
+
+- [x] **Phase 23: Postgres Foundation & the Byte-Exact Schema** - The schema that returns the bytes it was given, migrations that fail loudly, `key_scheme` inside the unique constraint, and a suite that goes RED rather than skipping when its subject is absent (DB-01..04, BYTE-01, BYTE-02, BYTE-03, BYTE-05, KEY-07) (completed 2026-08-16)
+- [x] **Phase 24: GAMS Invocation & Toolchain Identity** - The prover as a controlled subprocess gated on evidence not log text, with version detection that aborts rather than yielding an empty key component — landed BEFORE the store's first production write (GAMS-01..06, BYTE-04) (completed 2026-08-17)
+- [x] **Phase 25: The Content Key & Keyed Store** - Framed, edge-normalized keys that refuse to be built from an absent input; cache elision, abort safety and a scoped reset the solve path cannot name — chain-free (KEY-01..06, STORE-01, STORE-06, STORE-08) (completed 2026-08-17). **SCOPE CUT 2026-08-17, user ruling:** on-demand verification, quarantine, pinning and the append-only run log — **STORE-02, STORE-03, STORE-04, STORE-05, STORE-07** — are DEFERRED to a later milestone, not dropped, each with a written reason in `REQUIREMENTS.md`'s Store deferral block. The byte-reproduction proof they carried is deferred with them; what lands here is the bridge's cache.
+- [x] **Phase 26: Shock Assembly — Fee Split & Event Decode** - The two pure producers of a shock's fields: the closed-form splitter that refuses infeasibility before the solver is spawned, and the `next` decoder proven against synthetic logs before the event exists (FEE-01..04, CHAIN-04) (completed 2026-08-17)
+- [x] **Phase 27: Anvil Read Layer** - A shock read off a live chain is a snapshot of ONE block or it is an error (CHAIN-02, CHAIN-03, CHAIN-05, CHAIN-06, CHAIN-07 shipped; CHAIN-04 landed at 26-02) (completed 2026-08-22). **CHAIN-01 alone remains BLOCKED** on the plank / mev-migrate worktree emitting a mined `Shock` (issue #26, `SELECTOR_NEXT 0xd3827b0b`) — recorded by name in `27-SUMMARY.md` with what would discharge it. **TEXT CORRECTED AT CLOSE:** this line read "**BLOCKED** … (CHAIN-01, CHAIN-02, CHAIN-03)", which was wrong twice — CHAIN-02 and CHAIN-03 were never blocked (a pinned read needs a POOL, and `deploy-rig.sh` has stood one up since 22-03; the status was inherited from CHAIN-01's row rather than measured), and the phase also carried CHAIN-05, CHAIN-06 and CHAIN-07.
+- [x] **Phase 28: Resident Loop & Fixture Publication** - A loop that survives its own crash, never double-counts an event, and publishes one file the forge test can never observe half-written — **COMPLETE 2026-08-23, chain-free; the LIVE half of all five requirements is BLOCKED on issue #26 (no deployable `Shock` emitter) and issues #24/#25 (the publication directory is on neither tree)** (LOOP-01..05)
+
+## Phase Details
+
+### Phase 23: Postgres Foundation & the Byte-Exact Schema
+**Goal**: A migrated Postgres schema whose artifact column returns exactly the bytes it was
+given, and a test suite that goes RED — never green, never skipped — when the database or its
+committed evidence is absent. This phase owns the milestone's headline guarantee; phases 24–28
+consume it and every decision here is expensive to retrofit.
+**Depends on**: Nothing (first v6.0 phase).
+**Requirements**: DB-01, DB-02, DB-03, DB-04, BYTE-01, BYTE-02, BYTE-03, BYTE-05, KEY-07
+**Success Criteria** (what must be TRUE):
+  1. An adversarial byte corpus — containing `0x00`, `0xFF`, invalid UTF-8, a CRLF and a trailing newline — round-trips through the store **byte-identically**, verified by hashing on the way in and on the way out; and the same corpus sent as a bare `ByteString` instead of through the `Binary` newtype is OBSERVED to fail that round-trip. A guard that has never been seen to reject is the empty-log `grep -q` finding again (BYTE-01, BYTE-05).
+  2. The `bytea` column is authoritative and `jsonb` is derived, each half demonstrated by the case that would break it: a `jsonb` round-trip of the real `volume_path.json` shape is exhibited FAILING a sha256 comparison; a check reddens if any identity comparison reads the `jsonb` column; and `Data.Aeson.Value` is absent from the storage path, asserted by a check that fails when an `encode`/`toJSON` is introduced onto it. The aeson `0.00318353 → 3.18353e-3` mutation is re-measured here, not cited (BYTE-02, BYTE-03).
+  3. Migrations are applied by an explicit command, run twice from a **completely empty** database (which `git clean -ffdx` makes CI's normal case) and concurrently by two migrators with only one applying; a **deliberately corrupted checksum makes the command exit NON-ZERO** — observed, because `postgresql-migration` returns the error and still exits 0 (DB-01).
+  4. A row written under a superseded `key_scheme` is OBSERVED to be **orphaned** — never returned by a lookup under the current scheme, never silently matched — proving the unique constraint is `(model, key_scheme, key)` and that a future key-formula change is additive rather than corrupting (KEY-07).
+  5. `cabal test` passes with **no database present** and the store checks still discriminate: with `CFMM_REQUIRE_DB=1` and no database reachable the suite is **RED**, naming the missing prerequisite; a sentinel store deliberately wired wrong is caught; the law **SET** (not a floor — "a floor of thirty is satisfied by thirty pins of which one has been swapped") fails when a law is renamed away; a count floor on executed store checks fails on skip-inflation; and `PGSTORE_DSN`/`STORE_CONFORMANCE` resolve from the environment with no credential in a tracked file, each registered in `advertised_overrides` with the consumer proven to fail loudly naming the path (DB-02, DB-03, DB-04).
+**Plans**: 5 plans (5 waves — a genuine serial chain: every plan but the first edits
+`offchain/test/Main.hs`, and each consumes the previous plan's artifact)
+
+Plans:
+- [x] 23-01-PLAN.md — The store contract: `.cabal` deps, `Store.{Types,Config,Class,Memory}`, the
+  adversarial corpus with its measured behaviour tags, and `DerivedDoc` made uncomparable at the
+  type level (BYTE-02, BYTE-05, DB-02) [wave 1]
+- [x] 23-02-PLAN.md — `Store.Laws` executing for real against `Store.Memory` inside `cabal test`;
+  the law SET asserted in both directions; the corpus behaviour SET; BYTE-03's two aeson guards
+  (DB-03, BYTE-03, BYTE-05, KEY-07) [wave 2]
+- [x] 23-03-PLAN.md — The two migration `.sql` files with the `(model, key_scheme, key)`
+  constraint, the pure migration manifest, `Store.Postgres` (the sole `postgresql-simple`
+  importer, `Binary`-only writes, `pg_advisory_lock`, `exitFailure`), and the three
+  `sc3_literal_purge` constants moved in the SAME task (DB-01, KEY-07, BYTE-01..03) [wave 3]
+- [x] 23-04-PLAN.md — The capture executable + Docker script + the real 606-byte golden bytes;
+  every DB-only guard DRIVEN and recorded in the committed `store-conformance.json`
+  (DB-01, DB-04, BYTE-01, BYTE-02, BYTE-05, KEY-07) [wave 4]
+- [x] 23-05-PLAN.md — Ten Tier-C checks making the artifact load-bearing, the computed freshness
+  oracle, two new `advertised_overrides` probes, the fifth swept artifact and the re-MEASURED
+  sentinel floors (DB-02, DB-03, DB-04, BYTE-01, BYTE-02, BYTE-05, KEY-07) [wave 5]
+
+**Three planning-time corrections to the criteria above, from `23-RESEARCH.md`'s measurements.
+These are deviations of record, not drift:**
+
+1. **SC-1's corpus is inadequate and is EXTENDED.** MEASURED on PG 18.4: of the five members SC-1
+   names, `0x00`/`0xFF`/invalid UTF-8 raise a LOUD `SqlError` (a shape indistinguishable from a
+   dead connection) and CRLF/trailing-newline **round-trip correctly through the broken path** and
+   prove nothing. The only input that produces the failure the requirement is about — a wrong
+   value returned with no complaint — is `a\101b`: 6 bytes in, 3 bytes out, no error. It is added
+   to the corpus, and the assertion is on **length and digest**, never on "an exception was thrown".
+2. **SC-3's concurrency criterion is not delivered by the library.** `postgresql-migration`
+   0.2.1.8 contains **no advisory lock** (source-read: `checkScript` is a bare `SELECT`, zero
+   `advisory` hits). It is implemented as `pg_advisory_lock(872304)` in `Store.Postgres`.
+3. **SC-5's `CFMM_REQUIRE_DB=1` mechanism is REPLACED.** It fails open — a drifted CI `env:` block
+   silently restores skip-mode, which is `RIG_MANIFEST` advertised-and-dead one layer up. It is
+   RELOCATED to the capture script (where it means "refuse to emit an artifact at all"), and
+   `cabal test`'s discrimination comes instead from a structural guarantee that no check opens a
+   socket, `store_laws` against `Store.Memory`, the law SET asserted in BOTH directions, and a
+   **computed** freshness oracle that recomputes the migration digests from the repo's own `.sql`
+   files. The other SC-5 clauses are adopted unchanged.
+
+**Also of record:** adding the first `.sql` file under `offchain/` reddens `sc3_literal_purge`
+immediately (`purge_file_floor = 36` against exactly 36 scanned files, zero slack; the extension
+census is exactly the five present types). Plan 23-03 moves all three constants in the same task
+as the migrations. And `.github/` belongs to the CI track — no CI change is needed, because under
+the three-tier decision nothing in `cabal test` touches a database.
+
+### Phase 24: GAMS Invocation & Toolchain Identity
+**Goal**: The prover runs as a controlled subprocess whose success is decided by evidence rather
+than log text, and the toolchain versions the content key depends on are either read for real or
+the run aborts. Sequenced **before** the store so no production row can be written under a key
+component that a broken detector silently emptied.
+**Depends on**: Phase 23 (the run-log table an aborted run lands in; the `Integer`-not-`Double`
+artifact discipline). Structurally independent of the store — `Store.Key` takes version *strings*
+as arguments, so this phase is a leaf, not a store dependency.
+**Requirements**: GAMS-01, GAMS-02, GAMS-03, GAMS-04, GAMS-05, GAMS-06, BYTE-04
+**Success Criteria** (what must be TRUE):
+  1. A stub that **exits 0 and writes nothing** is REFUSED, and a stub that exits 0 while a valid-looking `volume_path.json` pre-exists at the expected path is REFUSED — the run works in a fresh per-invocation temp directory so the stale file is unreachable. Model-level codes (`2` compile error, `3` `abort$`) are distinguished from environmental ones (licence, disk, missing binary), so an expired licence is never recorded as an infeasibility verdict. No decision anywhere reads solver stdout/stderr; both are captured for diagnosis and labelled non-authoritative in a comment (GAMS-01, GAMS-02).
+  2. The version parser REJECTS every member of a garbage battery — `""`, `"\n"`, a help banner, a localised banner, output on stderr rather than stdout — and no `GamsVersion`/`ConoptVersion` value is constructible empty or whitespace-only. Detection that finds nothing **aborts the run**; there is no `fromMaybe "unknown"`, no `<|> pure ""`, no `catch (\_ -> return "")` on the version path. The absolute resolved binary path and a sha256 of the `gams` executable are recorded alongside the version, because that is the one component a wrapper script or `PATH` shadow cannot lie about (GAMS-03).
+  3. CONOPT detection is shown to read the **true solver version** (`C O N O P T version 4.39.0`): a case is exhibited in which the adjacent GAMS-side link version and the `.so` filename differ from it, and both wrong candidates are REJECTED. The method that produced the value is recorded, since §4 forbids *gating* on log text and this is key material, not a gate (GAMS-04).
+  4. A child that never exits is terminated by the timeout **and reaped** (no orphan process survives, observed), and a child writing >1 MB to stderr completes without deadlock — the pipe hazard is demonstrated closed, not argued. A timed-out run produces an aborted run-log row and never an output row (GAMS-05).
+  5. The invocation environment is an explicit whitelist with `LC_ALL=C` and is recorded: a run with a hostile ambient variable set produces byte-identical output to one without, and a run inheriting the environment is OBSERVED to differ. `dQx`/`dQM` decode as `Integer` — a golden vector proves the `[Double]` decode loses exactly **32 wei** on the first element while `[Integer]` is exact, so the check cannot pass under a tolerance (GAMS-06, BYTE-04).
+**Plans**: 6 plans (6 waves — a genuine serial chain: every plan edits `offchain/test/Main.hs`
+and each consumes the previous plan's modules or artifact, the Phase-23 shape)
+
+Plans:
+- [ ] 24-01-PLAN.md — `Gams.{Config,Version,Exit}`: a version unconstructible empty, anchored on
+  the banner's JOB NAME; the CONOPT spaced-letter parse rejecting both decoys; the total
+  `ExitCode -> Verdict` taxonomy; six Tier-A checks (GAMS-01, GAMS-03, GAMS-04) [wave 1]
+- [ ] 24-02-PLAN.md — `Gams.{Argv,Env,Artifact}`: the canonical renderer that decides the bytes,
+  the environment whitelist, the `[Integer]` decoder, BYTE-04's golden vector and the aeson scan's
+  scope-growth guard; nine Tier-A checks (GAMS-02, GAMS-06, BYTE-04) [wave 2]
+- [ ] 24-03-PLAN.md — `Gams.Run`, the one IO edge (fresh exclusive run dir, group-owning timeout,
+  drained pipes, `Aborted` carrying no artifact) and five Tier-B stub checks (GAMS-01, GAMS-02)
+  [wave 3]
+- [ ] 24-04-PLAN.md — the hung GRANDCHILD, the 2 MB stderr flood, the two environment vectors, the
+  missing-banner abort, the GAMS-free structural grep and the three override registrations
+  (GAMS-03, GAMS-05, GAMS-06) [wave 4]
+- [ ] 24-05-PLAN.md — Tier C: `Gams.Invoke`, the capture executable and script, the committed
+  `gams-conformance.json`, nine Tier-C checks and the sixth swept artifact with all floors
+  re-measured (GAMS-01..06, BYTE-04) [wave 5]
+- [ ] 24-06-PLAN.md — migration `003` making an empty version unstorable, the re-captured store
+  evidence, and the phase-closing guard ledger (GAMS-03) [wave 6]
+
+**Four planning-time corrections to the criteria above, from `24-RESEARCH.md`'s measurements.
+These are deviations of record, not drift:**
+
+1. **SC-4's "aborted run-log row" is not deliverable in this phase and is restated at the TYPE
+   level.** `offchain/migrations/` contains `001_model_run.sql` and `002_byte_corpus.sql` and
+   nothing else — the append-only run log is STORE-07, mapped to Phase 25. `ProverOutcome` is a
+   total sum type whose `Aborted` constructor carries no `Artifact` and has no conversion to one
+   (the `DerivedDoc` idiom Phase 23 OBSERVED catching its subject at compile time), so "never an
+   output row" is unrepresentable rather than merely untested. Phase 25 persists the row.
+2. **SC-5's "a run inheriting the environment is OBSERVED to differ" has no byte-level witness on
+   this machine and is restated against the CHILD'S ENVIRONMENT VECTOR.** MEASURED: four hostile
+   ambient variables (`GAMSTHREADS=8 GDXCOMPRESS=1 LC_NUMERIC=de_DE.UTF-8 GAMSDIR=/nonexistent`)
+   changed nothing, a `curdir` `gamsconfig.yaml` lost to an explicit CLI parameter, and `locale -a`
+   offers only `C`, `C.utf8`, `en_US.utf8` and `POSIX` — there is no comma-decimal locale to
+   observe a difference with. Writing the criterion against bytes would produce a check satisfiable
+   only by inventing a variable that matters. The first half — a hostile ambient variable produces
+   byte-identical output — is adopted unchanged and lands in the capture.
+3. **The garbage battery's strongest member is REAL captured output, not an invented string.**
+   MEASURED: `gams` with NO arguments exits **0** and prints a 1239-byte banner carrying the version
+   **three times** — exit 0, non-empty, correctly shaped, WRONG SUBJECT. `gams --version` is parsed
+   as an input filename (exit 6). **Stderr is 0 bytes in every mode**, so a stderr-reading detector
+   gets `""` always. The discriminator is the banner's JOB NAME (`volume_path.gms` vs `?` vs
+   `--version`), which rejects both wrong-subject banners without a denylist.
+4. **GAMS-05's test as normally written CANNOT FAIL, and the plan says so.** MEASURED:
+   `readProcessWithExitCode` drains 2 MB of stderr and `timeout` reaps a DIRECT child with no
+   orphan — but a **grandchild survives at PPID 1**, and GAMS runs CONOPT at `Solvelink=2` as a
+   separate process. The stub is therefore a grandchild, `/usr/bin/timeout -k 1` owns the group,
+   and the negative control (the same stub surviving a direct-child-only kill) is a required
+   observation.
+
+**Also of record:** the artifact bytes are a function of the argv TOKEN — `volume_path.gms:206`
+emits `"%sqrtPriceX96%"` VERBATIM, so a leading zero gives exit 0, every §4 gate green, and sha256
+`d64a7b32…` instead of the golden `e7b14f38…`. Edge normalization is not key hygiene; it decides
+the bytes, and this phase owns the `execve`. `volTgtWad` is a `Scalar` and is NOT token-sensitive
+(`28e18` and `2.8e19` are byte-identical). **`volume_path.gms` does not exist in this worktree** —
+it lives in the sibling `cfmm-wt/gams` worktree, so `GAMS_MODEL` is mandatory here and the capture
+freshness oracle's model half is a named, asserted gap. `volume_path.gms` has **0 `$include`
+directives**, VERIFIED at plan time, and the deliverable is the sorted `(path, sha256)` LIST so a
+future include is covered without a code change.
+
+### Phase 25: The Content Key & Keyed Store
+**Goal**: A key that describes exactly the invocation that ran and refuses to be built from
+anything absent, and a store that elides the solve on a hit, reports and preserves a
+disagreement, and never records a run that did not complete. **This is where the milestone's
+headline falsifiable claim — same inputs + same toolchain → same bytes — is proven, with no
+chain and no upstream.**
+**Depends on**: Phase 23 (schema, `key_scheme`, byte fidelity) and Phase 24 (validated toolchain
+versions — the key cannot be constructed without them, which is the whole reason 24 precedes 25).
+**Requirements**: KEY-01, KEY-02, KEY-03, KEY-04, KEY-05, KEY-06, STORE-01, STORE-06, STORE-08
+
+> **SCOPE CUT 2026-08-17 — user ruling. This phase is RE-PLANNED from 9 plans / 28 tasks to 3
+> plans / 8 tasks.** STORE-02, STORE-03, STORE-04, STORE-05 and STORE-07 are **DEFERRED** (rationale
+> and per-requirement reasons in `REQUIREMENTS.md`). The goal statement and success criteria 4 and 5
+> below are the PRE-CUT text and are retained for the record; the clauses covering verification
+> modes, quarantine, pinning and the append-only run log **no longer bind this phase**.
+>
+> What survives: the key (KEY-01..06), **cache elision** (STORE-01 — the requirement the user called
+> critical), explicit reset (STORE-06), and **a failed run never becoming a cache entry** (STORE-08).
+>
+> The nine pre-cut plans are preserved under `plans-precut/` rather than deleted — the reviewer
+> findings against them (`25-REVIEW-FINDINGS.md`) stay valid for whoever picks the deferred work up.
+>
+> Discipline also relaxed on new work: ordinary test practice, no mandatory mutation-and-observed-
+> firing per guard, no positive control per absence claim, and **no growth of the sentinel swept-
+> artifact set**. Existing shipped infrastructure is untouched — it is green and already paid for.
+**Success Criteria** (what must be TRUE):
+  1. A crafted pair of **distinct** shocks whose unframed decimal renderings concatenate identically (`"1"‖"23"` vs `"12"‖"3"`) produce **different** keys; and one shock rendered `28e18` and the same shock rendered `28000000000000000000` produce the **same** key. Framing and edge-normalization are each demonstrated by the case that would break them, and no `show`/`printf` on a floating value appears on the key path (`LC_NUMERIC` cannot participate) (KEY-03, KEY-04).
+  2. One renderer feeds both the `execve` argv and the hash preimage, proven by reconstructing the argv actually passed to the prover from the stored preimage and comparing — with a mutant that renders the two independently OBSERVED caught. The paired cross-check reads the echoed input fields back out of the **solver's JSON**, not out of the request record, so it is not the tautology. The **pips denominator is in the preimage**: changing it changes every key rather than silently reinterpreting the existing ones (KEY-01, KEY-02, KEY-05).
+  3. Every one of the seven inputs has a **negative test**: omitting it, or supplying an unparseable value, makes key construction FAIL naming the field — never `0`, never `""`, never an in-file default silently standing in. The key type carries no `Maybe` and no defaultable field, so `nEvents = 0`, `liquidity = 0` and `sqrtPriceX96 = 0` are refused rather than hashed as shape-valid nothings (KEY-06).
+  4. An identical shock returns the stored artifact with the solver **never spawned** — proven by a store whose invoke callback fails the check if it is called at all, not by timing. Verification is a separate explicit mode off the hot path; its two comparands are **distinct newtypes** with `FreshlySolvedBytes` constructible only by the subprocess layer, so comparing a cached row to itself does not type-check. A deliberately corrupted cached row is REPORTED as a determinism failure with a non-zero exit, the original survives, and the divergent bytes are found in **quarantine**. Both sides are asserted non-empty and above a length floor before comparison, so `"" == ""` is unreachable. A determinism-check history with zero rows fails the phase (STORE-01, STORE-02, STORE-03, STORE-04).
+  5. A pinned run **survives** `reset`; bare `reset` REFUSES (mandatory scope) and is unreachable as a side effect of a solve or a publish; the run log is append-only and the **same key seen twice yields two log rows** while a single cache entry; and a run that aborts — non-zero exit, timeout, or exit-0-with-no-artifact — produces a run-log row and **no cache entry**, each observed by driving the failure rather than by inspecting the happy path (STORE-05, STORE-06, STORE-07, STORE-08).
+**Plans**: 9 plans (9 waves — strictly serial)
+
+**Planning note (three of this phase's own success criteria are UNSOUND as worded; the plans deviate
+deliberately and each deviation is stated in the plan that carries it):**
+1. **SC-1's framing test cannot fail.** MEASURED: 343 shock tuples through `render_argv`'s token
+   form give **0** collisions — every token is `--<literal name>=<digits>` and `-`/`=` are outside
+   the digit alphabet, so the `--name=` prefixes are an ACCIDENTAL framing. The same tuples under
+   bare-decimal concatenation give **30**. 25-01 points the evidence at the FRAMER, at a named
+   bare-decimal negative control, and at the free-form components.
+2. **SC-2's "reconstruct the argv actually passed" is most satisfied by the design that makes the
+   store useless.** `Gams.Run.spawn_into` puts `curdir=<per-run temp dir>` into `wrapper_argv`, so
+   hashing the argv that ran gives a hit rate of exactly zero while passing that check. 25-02 ships
+   TWO instruments that fail on OPPOSITE designs: a two-directional token-set assertion and a
+   hit-rate observation.
+3. **SC-5's append-only run log cannot rest on `REVOKE`.** MEASURED on PG 18.4: after
+   `revoke update, delete … from postgres` a superuser UPDATE LANDED and read back `TAMPERED` with
+   no error — and the application connects as `postgres`. A `BEFORE UPDATE OR DELETE` row trigger
+   refuses it; `truncate` then emptied the table with no error, needing a second
+   `BEFORE TRUNCATE … FOR EACH STATEMENT` trigger. 25-03 ships both, and 25-07 OBSERVES all four
+   refusals plus the REVOKE no-op as recorded values.
+
+**Serialisation:** every plan edits `offchain/test/Main.hs` and most edit the `.cabal`, both of
+which are single-writer surfaces, so the waves are 1..9 in order. Phase 26 also edits `Main.hs` and
+is executed serially with respect to this phase.
+
+Plans:
+- [ ] 25-01-PLAN.md — `Store.Key`: the netstring framer, the tagged eight-component preimage, and a `KeyIdentity` that refuses an absolute path or an absent CONOPT version (KEY-01, KEY-04, KEY-05) [wave 1]
+- [ ] 25-02-PLAN.md — `parse_shock` (KEY-06's omission clause finally has a subject), the argv/preimage token-set assertion and the hit-rate observation (KEY-02, KEY-03, KEY-06) [wave 2]
+- [ ] 25-03-PLAN.md — migrations `004_run_log.sql` (both triggers, no FK) and `005_quarantine.sql`, `Store.Schema` extended, the lock probe renumbered to `900_`, and a re-capture (STORE-05, STORE-06, STORE-07) [wave 3]
+- [ ] 25-04-PLAN.md — `Store.RunLog` plus the store seam grown by eight operations, implemented by BOTH stores, with the `xmax` discriminator (STORE-01, STORE-05, STORE-06, STORE-07) [wave 4]
+- [ ] 25-05-PLAN.md — `Store.Verify`'s two unconstructible-from-each-other newtypes and the `store-admin` entrypoint whose failure is an exit code (STORE-02, STORE-03, STORE-04) [wave 5]
+- [ ] 25-06-PLAN.md — `Store.Solver` and `Store.Cache`: the elision pair and four driven aborts behind a positive control that lands (STORE-01, STORE-04, STORE-08) [wave 6]
+- [ ] 25-07-PLAN.md — capture blocks A: the append-only refusals, the REVOKE no-op, both triggers in the live catalogue, the `xmax` discrimination (STORE-01, STORE-06, STORE-07) [wave 7]
+- [ ] 25-08-PLAN.md — capture blocks B: the quarantine exhibit with its agreement control, the abort-no-entry exhibit, the key round trip (KEY-01, KEY-02, STORE-03, STORE-04, STORE-08) [wave 8]
+- [ ] 25-09-PLAN.md — carried guard #21 (`EchoMismatch`) CLOSED, the 50-row guard ledger reconciled, the phase gate measured cold (KEY-02, STORE-02) [wave 9]
+
+### Phase 26: Shock Assembly — Fee Split & Event Decode
+**Goal**: The two pure producers of a shock's fields exist and refuse rather than approximate:
+the closed-form fee splitter, whose infeasibility is a refusal we explain rather than an exit
+code we interpret, and the `next` decoder, proven against synthetic logs before the upstream
+event exists. Zero dependencies beyond `base` and the existing decode idiom.
+**Depends on**: Nothing structural — but **NOT parallelizable with 23–25**, and the original
+"fully parallelizable" claim here was wrong. Every check in this project lives in the single
+file `offchain/test/Main.hs`, so two phases editing it concurrently collide and lose work.
+**26 executes AFTER 25** (`depends_on_phases: ["25"]` in all four plans), and every phase-26
+task gate is expressed as `BASE + N` with `BASE` re-measured at the wave's start rather than
+inherited — 25 adds ~56 checks to the same `core_checks`, which would invalidate any absolute
+total pinned at plan time. Sequenced here so all chain-free work is contiguous and phases
+27–28 carry the entire upstream block.
+**Requirements**: FEE-01, FEE-02, FEE-03, FEE-04, CHAIN-04
+**Success Criteria** (what must be TRUE):
+  1. Over a grid of `(f, δ*)` including boundary points and one pip either side, the produced (φ_X, φ_M) satisfy `(1−φ_X)(1−φ_M) = 1−f` under a **rounding rule pinned in writing**; a rounding that breaks the level constraint by a pip is REPORTED rather than absorbed, and the derived pips (not `f`) are what reach the key, since they are what GAMS receives (FEE-01).
+  2. The admissibility predicate is the PROVER'S OWN test transcribed from `volume_path.gms:100-108` — `(φ̄²+Δφ²)δ*² − (φ_X+φ_M)·φ̄·δ* + φ_X·φ_M ≤ 0` with **φ̄ = the COMPOSED fee `1−(1−φ_X)(1−φ_M)`** and **Δφ = the FULL gap `φ_M−φ_X`** (NOT the arithmetic mean and semi-axis — that reading is 2× too large and falsely refuses ~82,700 pips). Evaluated in exact INTEGER arithmetic over pips — never `Double` — and the Haskell verdict **AGREES with the GAMS prover's verdict on every grid point**, bracketing each boundary by one pip on each side. A disagreement is a bug in one of them and fails the phase; it is not absorbed by a tolerance (FEE-02).
+
+  **CORRECTED 2026-08-17.** This criterion previously named "the `ρ* = 3.8198` / `δ* = 0.49` boundary". That number is a residue of the same arithmetic-mean/semi-axis misreading `c6c2646` corrected in the clause above: `3.8198417` is the root of the REFUTED `δ* = 2ρ/(1+ρ²)` form, and the corrected `δ* = ρ/(1+ρ²)` puts the leading-order boundary at `ρ ≈ 1.2234668` (MEASURED). Rather than substitute one closed-form point, the Tier-C differential brackets in the **δ\* direction** at four fixed `(f, δ*)` pairs with boundaries measured from the prover itself — `δ* ∈ {82803 … 495954}`, each with a `boundary±1` row. `δ* = 490000` is exercised in Tier A only: at that target the pair `(700, 800)` is inadmissible (boundary `495953`), so it cannot appear in a GAMS agreement grid. Rationale and leaf budget: `26-VALIDATION.md` §3c.
+  3. An infeasible request is REFUSED **before any subprocess is spawned**, with the reason and the boundary value in the message — verified by a check that fails if the solver is invoked at all, so "checked before" is observed rather than assumed. The structurally infeasible `φ_X == φ_M` case (§1.2: equal fees are infeasible for *every* target) is among the refusals, caught in Haskell rather than read back as a GAMS abort (FEE-02, FEE-03).
+  4. Re-running with the **recorded seed** reproduces the same ρ within the admissible band, and a **different** seed produces a different ρ — so the seed is proven load-bearing rather than decorative, which a same-seed-only test cannot establish (FEE-04).
+  5. `decode_next` is exercised against **synthetic logs with no chain**: the 4-byte selector is COMPUTED in the test from the signature string `next(address,uint160,int24,uint24,uint24)` and matched against `0xd3827b0b` (derived, never a transcribed literal); signed `int24` decodes correctly including negative ticks; and a log with the wrong topic, the wrong data length, a truncated payload, or an **all-zero payload** is REJECTED rather than decoded into a plausible-looking shock — the zero-word trap, one type over (CHAIN-04).
+
+#### ⚠ SUPERSEDING NOTE — the event signature is now pinned (issue #28, 2026-08-16)
+
+`ShockLib.shock_emit` (`src/models/mev_tax_model_one/libraries/ShockLib.plk`, commit `341e409`)
+emits the event the decoder is actually for. Spec:
+`docs/superpowers/specs/2026-08-16-mev-tax-shock-library-design.md` §5.
+
+```solidity
+event Shock(address indexed pool, int24 tickDiff, uint24 txlVolmNormRate, uint24 txlVolmDecay);
+```
+
+| | |
+|---|---|
+| **topic0** | `0x21b0e4f81f5ef89be4325ca74966f2fb8f57a217e284dd3e0a276fff55987d64` — VERIFIED here with `cast keccak "Shock(address,int24,uint24,uint24)"`, not transcribed |
+| **topic1** | `pool`, indexed `address` — shocks are keyed by pool |
+| **data** | exactly 3 non-indexed 32-byte words, always all present (absent components emit `0`) |
+
+Data words, in order: `tickDiff` (**int24, ABI sign-extended to int256 — decode SIGN-AWARE**),
+`txlVolmNormRate` (uint24, zero-padded), `txlVolmDecay` (uint24, zero-padded). Rates are pips over
+`FEE_DENOMINATOR = 1e6` (Algebra convention) — which independently confirms **KEY-05**'s
+requirement that the denominator belong in the key preimage.
+
+**Success Criterion 5 above is SUPERSEDED and was aimed at the wrong artifact.** It computes a
+4-byte *function selector* from `next(address,uint160,int24,uint24,uint24)` = `0xd3827b0b`. That is
+the selector of the CALL. The decoder's subject is an EVENT, matched on **topic0**. Everything
+else in SC-5 stands — compute the value in the test from the signature string rather than
+transcribing the literal, decode signed fields sign-aware, and reject a log with the wrong topic,
+wrong data length, or a truncated payload rather than decoding it into a plausible shock.
+
+**The v6.0-scope guarantee is a trap, and the plan must not walk into it.** Issue #28 states that
+in v6.0 scope only `txlVolmNormRate` is nonzero: `tickDiff == 0` and `txlVolmDecay == 0` are
+*guaranteed by construction* (on-chain hookData tagged `flags = 0b010`). So **two of the three
+data words are always zero in production**. A decoder exercised only on v6.0-scope events cannot
+distinguish "decoded 0 correctly" from "failed to decode and defaulted to 0" — and `tickDiff` is
+precisely the sign-extended field, where a decode bug is INVISIBLE at zero. This is the
+`tickSpacing = 0` finding again, arriving pre-guaranteed. Therefore the synthetic logs **MUST**
+carry a non-zero, **negative** `tickDiff` and a non-zero `txlVolmDecay`, even though production
+never emits either, and the all-zero payload must be REJECTED rather than decoded (already SC-5).
+
+**What the event does NOT carry**, which confirms rather than changes phase 27: there is no
+`sqrtPriceX96` and no `liquidity` in it. Those stay **CHAIN-02** pool-state reads, pinned to one
+block, keyed by topic1's `pool`. And `txlVolmDecay` (α_trans) is **not a GAMS input** —
+`VOLUME_PATH.md` §2 rules `txlDecayRate` out explicitly ("the closed loop is trusted"). Decode it,
+record it in the run log, do not feed it to the prover. Only `txlVolmNormRate` becomes GAMS's
+`txlVolumeRate` (δ_trans).
+
+**Plans**: 4 plans (4 waves — every plan edits the single-file suite `offchain/test/Main.hs`, so they are strictly serial)
+
+Plans:
+- [ ] 26-01-PLAN.md — `Fee.Split`: the exact integer level constraint, the prover's own `ellTest` transcribed as `E <= 0`, exact-split rarity in both directions, and the float/aeson scan grown in the same commit (FEE-01, FEE-02) [wave 1]
+- [ ] 26-02-PLAN.md — `Chain.Shock`: `Either`-returning decoder with an exact 96-byte length rule, per-word ranges and an explicit all-zero refusal; a 17-member named synthetic corpus carrying a NEGATIVE `tickDiff` and a nonzero `txlVolmDecay`; topic0 COMPUTED from the signature string; the `ShockLib.plk` merge trip-wire with a mandatory positive control (CHAIN-04) [wave 2]
+- [ ] 26-03-PLAN.md — the NINTH refusal inside `Gams.Argv.render_argv` (after `distinct_fees`, so the section 1.2 diagnosis survives), the Tier-B marker-stub observation that no subprocess is spawned, and the seeded pick proven load-bearing over a band proven larger than one (FEE-01, FEE-03, FEE-04) [wave 3]
+- [ ] 26-04-PLAN.md — the Tier-C differential: `render_argv_ungated` with exactly one consumer, `capture-fee-split.sh`, a 12-row two-sided boundary-bracketing grid with 4 controls against the real GAMS toolchain, the SEVENTH swept artifact, and the phase-close floor re-measurements (FEE-02) [wave 4]
+
+**Planning corrections of record (2026-08-17, measured at plan time):**
+1. `26-RESEARCH.md` guard 5's firing input does NOT fire. A `floor` rounder's worst residual over the
+   whole band is 999799, strictly below the one-pip bound; `m + 1` fires for 0 of 44 members at
+   f = 100. The input that fires for every member at every f measured is **`m + 2`**. The residual
+   therefore gets two independent assertions and only one uses the bound.
+2. `26-RESEARCH.md` guard 20's empty-band input does NOT fire. `f = 3000, delta* = 1000` measures a
+   band of **4** (2 under `rho > 1`), not 0. The EMPTY case is `delta* = 200`; the SINGLETON case —
+   the one that makes FEE-04 vacuous — is `delta* = 500`, sole member `(1, 2999)`.
+3. The residual headroom under the one-pip alarm is **2x**, not the ~10^3 M4 implies: 10^3 is the
+   BEST member's residual, while an arbitrary seeded pick measures up to 0.4997 pip.
+4. `min_admissible_dstar 3000 3000 == Nothing` — at equal fees NO integer `delta*` is admissible,
+   which is strictly stronger than section 1.2's prose and is why the ellipse gate must run AFTER
+   `distinct_fees` or the specific diagnosis is silently lost.
+5. The upper root of the prover's gate is **499999** for three of the four grid pairs — an
+   independent reproduction of `VOLUME_PATH.md` section 1.1's `delta <= 1/2` ceiling. The mistaken
+   arithmetic-mean reading gives 1.
+
+### Phase 27: Anvil Read Layer
+**Goal**: A shock read off a live chain is a snapshot of ONE block, or it is an error. The
+decoder built in Phase 26 meets a real mined `next` event, and every pool read is pinned to the
+block that event was in.
+**Depends on**: Phase 26 (the decoder), Phase 23–25 (somewhere to put the result).
+**BLOCKED** on the plank worktree emitting the `next` event — `SELECTOR_NEXT` is a stub today
+(issue #26, plank workstream). Nothing in phases 23–26 waits on this.
+**Requirements**: CHAIN-01, CHAIN-02, CHAIN-03, CHAIN-05, CHAIN-06, CHAIN-07
+**Success Criteria** (what must be TRUE):
+  1. A `next` event in a **mined** transaction's logs decodes into the shock it carries, and the decoded values are compared against what the emitting transaction was given — read from the log, never from the request record that produced it (CHAIN-01).
+  2. Every read function **requires** a `BlockRef` argument: there is no arity at which a caller can omit it, `Latest` appears nowhere in the read layer (grep-asserted), and each read records the block it was **made at** — an unpinned tag surfaces as `null` in the artifact rather than as a plausible height, in the existing `readback_height` idiom (CHAIN-02).
+  3. The pinning is proven by a case that would otherwise slide: with blocks mined between the event and the reads, the pinned read returns the **event-block** value while an unpinned read is OBSERVED returning a different one. On a single-writer local anvil this defect is invisible in every other recorded value, so it can only be caught by constructing the divergence (CHAIN-02).
+  4. An absent, zero or unparseable read is an ERROR **naming the field**, never a value that flows into a key: `sqrtPriceX96 = 0`, `liquidity = 0`, an uninitialised pool, and a read against a block whose hash no longer resolves (`anvil_reset`/`evm_revert` replace history) each REFUSE — each demonstrated by driving that exact condition (CHAIN-03).
+#### ⚠ CROSS-TRACK HANDOFF — issue #29 (2026-08-16)
+
+`CHAIN-02` is where the fixture stops describing a hypothetical pool and starts describing a
+**live one at a pinned block** — and that is where it collides with the consuming forge test.
+
+`test/models/mev_tax_model_one/AlgebraIntegralMevTaxModelOneShocks.t.sol` runs entirely
+**in-process** (verified: no `createFork`, no RPC, no `8545` anywhere in it). `_createPool()`
+deploys two fresh `MockERC20`s and initializes at `SQRT_PRICE_1_1 = 2^96` / `UNIT_LIQUIDITY =
+2^64`, then asserts the fixture agrees at **line 163**. **The test constructs its subject; this
+bridge observes one.** Those are incompatible. Today it passes only because the fixture carries
+the `volume_path.gms` self-test defaults, which are the same two numbers.
+
+Benign here while the read happens to land on a genesis-state pool. **Fatal at phase 28**, when
+the loop moves the price and `assertEq` hard-fails.
+
+**Filed as issue #29** against the plank/test track, asking for three things: ATTACH to the
+deployed pool rather than merely forking (forking alone cannot help — `_createPool()` mints new
+token addresses every run, so its `poolId` can never match); assert Anvil is genuinely open and
+**FAIL loudly naming the endpoint** rather than falling back to the in-process EVM (a silent
+fallback passes while testing nothing — the defect class); and settle ONE endpoint resolution,
+since `127.0.0.1:8545` is currently hardcoded at **10 sites** and the forge test would be the
+11th.
+
+**REQUIREMENT GAP ON OUR SIDE, and it is ours to close.** The fixture records `sqrtPriceX96` and
+`liquidity` but **no pool identity** — no pool address, no token pair. A test that attaches has
+nothing to attach *to*. Phase 27 must emit it. `LOOP-03` says publish to the path the test reads;
+nothing anywhere guarantees the test can USE what we publish, and that is the actual gap.
+
+#### ✅ ISSUE #29 CLOSED (2026-08-16) — plank landed `f713089`, and handed BACK a contract
+
+The plank side is done: `test__priceInvarianceUnderVolumePath` now **attaches** to a live pool
+(pool / blockNumber / chainId read from the fixture, `createSelectFork` pinned to the solved
+block, tokens read on-chain), keeps line 163 as a determinism guard, and its **fail-loud guard was
+OBSERVED firing** — fixture-present + Anvil-down FAILS naming the endpoint, never skips;
+fixture-absent still skips. Spec:
+`docs/superpowers/specs/2026-08-16-volumepath-attach-and-rpc-contract.md`.
+
+**Three pieces of work came back to us, and they are binding on this phase.**
+
+**(a) The fixture gains three fields** — this closes the gap I recorded above ("the fixture
+carries no pool identity"), now specified exactly:
+
+| Field | JSON type | Note |
+|---|---|---|
+| `pool` | **string** (address) | the pool the test attaches to |
+| `blockNumber` | **string** (uint) | pins the fork to the solved block — **string**, because it can exceed the 53-bit double-exact ceiling |
+| `chainId` | number | wrong-network guard; anvil default `31337` |
+
+`sqrtPriceX96`/`liquidity` stay strings. **Do NOT add `token0`/`token1`** — the test reads them
+from the pool on-chain (`IAlgebraPoolImmutables(pool).token0()/token1()`), so the pool is the
+single source of truth. Note `blockNumber` as a string is the same 2^53 discipline BYTE-04 already
+enforces for `dQx`.
+
+**(b) One endpoint resolution:** `ETH_RPC_URL` if set, else `http://127.0.0.1:8545`. Shell:
+`"${ETH_RPC_URL:-http://127.0.0.1:8545}"`. Haskell:
+`fromMaybe "http://127.0.0.1:8545" <$> lookupEnv "ETH_RPC_URL"`. Nine `offchain/` files currently
+hardcode the URL — the four `*/Rpc.hs` providers, `app/Main.hs`, `app/CheatSwapProof.hs`,
+`deploy-rig.sh` and both `capture-*.sh` — and every one converts.
+
+**(c) THE CRITICAL ONE — the producer must bind the SAME endpoint.** The resolver in (b) is for
+**consumers**. `deploy-rig.sh` is the **producer**: it launches `anvil` with no `--port` (so always
+8545) and deploys through the `local` alias literal. Both anvil's `--host`/`--port` **and** the
+deploy `--rpc-url` must derive from the same `ETH_RPC_URL`. Plus a **`chainid` assertion before any
+`--broadcast`**, mirroring the test's `require(block.chainid == fxChainId)`, so a stray
+`ETH_RPC_URL` pointing at a real network cannot get pool deploys broadcast to it.
+
+**Why (c) is not optional:** without it, `ETH_RPC_URL=…:9545` brings anvil up on **8545** while the
+test attaches to **9545** — which is precisely the `RPC_PORT` desync issue #29 was opened to
+prevent, reappearing through the fix for it. A consumer-only resolver does not retire the
+divergence; binding producer and consumer to one source does. This is a sharper statement of the
+problem than the one I filed, and it is correct.
+
+**Still not in scope here:** swap replay and tick closure are **#26** (routed through the pool's
+on-fork plugin, not `setUp`'s in-process writer). The happy-path attach E2E goes green only once
+this phase deploys and drives a pool on Anvil; plank has proven the fail-loud guard alone.
+
+#### 🔓 BLOCKER DOWNGRADED (2026-08-17) — the event EXISTS; what remains is a MERGE
+
+Issue #28 landed `ShockLib.shock_emit` (`341e409`) and issue #29 closed with plank's test
+attaching to a live pool. The `Shock` event is built and its signature is pinned. The blocker has
+changed KIND, not merely status.
+
+**MEASURED here, 2026-08-17:** `src/models/mev_tax_model_one/` is on `exp/mev_tax_model_one`
+**only** — `git ls-tree -r origin/develop | grep -c 'models/mev_tax_model_one'` = **0**, absent
+from this worktree, and `exp` is **153 commits ahead of develop**. So the emitter cannot be
+deployed on Anvil from any branch we build from until that work reaches develop.
+
+**What this phase can now do WITHOUT waiting:**
+
+| Requirements | State |
+|---|---|
+| **CHAIN-05, CHAIN-06, CHAIN-07** | **Fully actionable.** These came back from issue #29's contract and are entirely ours — the fixture's pool identity, the `ETH_RPC_URL` resolution across nine sites, and the producer/consumer binding with the `chainid` guard. No plank dependency whatsoever. |
+| **CHAIN-04** | Actionable, and always was — decoding is exercised against synthetic logs. It sits in Phase 26. |
+| **CHAIN-01, CHAIN-02, CHAIN-03** | Blocked on the MERGE of `exp/mev_tax_model_one` → `develop` → here. Not on anyone writing code. |
+
+**Consequence for sequencing:** this phase no longer has to wait as a unit. CHAIN-05/06/07 can be
+planned and executed now; CHAIN-01/02/03 wait for the merge. A plan that bundles all six would
+stall on the merge for no reason.
+
+**Do NOT read this as "unblocked".** The live-read half still cannot be executed, and a plan that
+claims otherwise would be asserting a capability the tree does not have.
+
+**Plans**: TBD
+
+Plans:
+- [ ] 27-01: TBD
+
+### Phase 28: Resident Loop & Fixture Publication
+**Goal**: A loop that survives its own crash, never double-counts an event, never conflates
+"already solved this shock" with "already saw this event", and publishes exactly one file the
+forge test can never observe half-written.
+**Depends on**: Phases 25, 26, 27. **BLOCKED** — inherits Phase 27's upstream block.
+**Requirements**: LOOP-01, LOOP-02, LOOP-03, LOOP-04, LOOP-05
+**Success Criteria** (what must be TRUE):
+  1. New `next` events are discovered by polling `eth_getLogs` over an explicit closed `[b, b]` range from a **persisted** watermark (a row in the store, not an `IORef` and not a file). Killing the loop and restarting it resumes at the watermark and skips nothing — proven by a run in which events occur while the loop is down, which is the only way a restart-from-`latest` bug is visible (LOOP-01).
+  2. Replaying the same `(txHash, logIndex)` produces exactly **one** run-log row and no second solve; two **distinct** events carrying identical shock values produce **one** cache entry and **two** run-log rows. Both directions are asserted, because collapsing them destroys the chronology the run log exists to provide and the content key cannot reconstruct (LOOP-02).
+  3. A reader loop racing the publisher for 10 seconds observes **zero** unparseable or truncated fixtures — and a non-atomic write is OBSERVED producing a torn read in the same harness, so the atomic rename is demonstrated to be what prevents it. A fixture below a shape floor (parses, `length dQx == nEvents`, size above a minimum) is REFUSED rather than published (LOOP-03).
+  4. Publication writes **exactly one file** plus its same-directory temp sibling into the other workstream's tree and nothing else — asserted by a before/after tree diff, not by reading the code. A missing `test/models/mev_tax_model_one/fixtures/` directory is a **loud failure naming the path and the owning workstream**; the loop never creates a directory there, because that is how a typo becomes a successfully-published-to-nowhere fixture (LOOP-04).
+  5. A SIGINT and an injected exception at **each** stage of an iteration leave the store and the published fixture consistent: the watermark is unadvanced, no half-written row exists, the block is re-processed on restart, and the fixture still parses and carries the content key of a run that completed. A shutdown is only ever observed at a block boundary, never mid-block (LOOP-05).
+#### ⚠ CROSS-TRACK HANDOFF — issue #29 (2026-08-16)
+
+**This is the phase where the collision described under Phase 27 becomes fatal.** The resident
+loop moves the pool price, so the published fixture's `sqrtPriceX96` stops being `2^96`, and
+`AlgebraIntegralMevTaxModelOneShocks.t.sol:163`'s `assertEq` hard-fails — the consuming test goes
+red precisely when this pipeline starts working.
+
+Nothing in `LOOP-01..05` prevents that, because the fix is not ours: the test must ATTACH to the
+live pool rather than construct its own. Tracked as issue #29. Do not "solve" it by loosening
+line 163 — a fixture solved for a different pool than the one replayed is meaningless, and that
+assertion is correct. The two pools must become the same pool.
+
+#### ✅ ISSUE #29 CLOSED (2026-08-16) — the fatal-at-28 collision is retired
+
+The collision recorded above no longer fires: plank's `f713089` makes the test **ATTACH** to the
+live pool rather than construct its own, so a moving price no longer breaks
+`AlgebraIntegralMevTaxModelOneShocks.t.sol:163` — that line survives as a determinism guard
+against a fixture solved for a different pool.
+
+What LOOP-03 must now publish is the fixture shape phase 27 emits, including `pool`,
+`blockNumber` (**string**) and `chainId`. Publishing the old three-field shape would leave the
+test unable to attach — so `LOOP-03`'s "publish to the path the test reads" is now a **typed**
+obligation, not just a path one.
+
+Carry into this phase: the loop is the thing that moves the price, so it is also the thing that
+makes `blockNumber` matter. A fixture published without the block it was solved at cannot be
+replayed against the chain state it describes.
+
+**Plans**: 5 plans (5 waves — strictly serial: every plan edits the single-file suite
+`offchain/test/Main.hs`, which is what bounds parallelism here, not the dependency graph)
+
+Plans:
+- [x] 28-01-PLAN.md — Spike seams S2/S3 closed in the library (`Loop.Solve`: a `Solver` over resolved paths, `classify` returning outcome + halt as data) plus migration `004`, the per-event ledger and single-row watermark, and a re-taken store-conformance capture (LOOP-02) [wave 1]
+- [x] 28-02-PLAN.md — Seam S1 closed (`Gams.Detect.detect_toolchain`, a version-only hermetic probe driveable against a `/bin/sh` stub), the poll, the one iteration function with `--once`/resident, the complete exit-code table, and the restart-skips-nothing proof over events that occurred while the loop was down (LOOP-01) [wave 2]
+- [x] 28-03-PLAN.md — Publication: `write_bytes_atomically` generalized from the existing JSON writer, the textual identity splice that keeps the artifact's bytes verbatim, the shape floor, and the ten-second race harness with its torn-read positive control OBSERVED (LOOP-03) [wave 3]
+- [x] 28-04-PLAN.md — Exactly one file by before/after tree diff, the missing-directory precondition naming the path and the owning workstream, and the default path pinned byte-equal to the consumer's own `VOLUME_PATH_JSON` read live from `origin/develop` (LOOP-04) [wave 4]
+- [x] 28-05-PLAN.md — SIGINT observed only at a block boundary, an exception injected at EACH stage leaving the watermark unadvanced, the live Tier-C `capture-loop.sh` written/gated/recorded as blocked on issue #26, and the phase close by hand (LOOP-05) [wave 5]
+
+**Phase summary:** `.planning/phases/28-resident-loop-fixture-publication/28-SUMMARY.md`
+
+**Note for `roadmap update-plan-progress 28`:** it counts `*-SUMMARY.md` in the phase directory and
+this phase keeps its phase-level summary there, so it writes `6/5`. Phase 27 recorded `4/3` for
+exactly the same reason. The table below is correct BY HAND at `5/5`; correct it again after any
+re-run.
+
+## Progress (Milestone v6.0)
+
+**Execution Order:** 23 → 24 → 25 → 26 → 27 → 28, **strictly serial**. The earlier claim that
+26 was parallelizable against 23–25 was wrong: 26's *dependencies* are indeed only `base`, but
+parallelism is bounded by the single-file test suite (`offchain/test/Main.hs`), not by the
+dependency graph. 23 → 24 → 25 is additionally a genuine chain: 24 must land before 25's
+first production write, and 25 consumes 23's schema. **27 and 28 are BLOCKED on another
+workstream**; 23–26 are the complete chain-free subsystem and the byte-reproduction proof lands
+at the end of 25.
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 23. Postgres Foundation & the Byte-Exact Schema | 5/5 | Complete    | 2026-08-16 |
+| 24. GAMS Invocation & Toolchain Identity | 6/6 | Complete    | 2026-08-17 |
+| 25. The Content Key & Keyed Store | 3/3 | Complete    | 2026-08-17 |
+| 26. Shock Assembly — Fee Split & Event Decode | 4/4 | Complete   | 2026-08-17 |
+| 27. Anvil Read Layer (6 of 7 shipped; only CHAIN-01 is blocked) | 3/3 | Complete   | 2026-08-22 |
+| 28. Resident Loop & Fixture Publication (S1/S2/S3 all closed in the library; LOOP-01..05 proven CHAIN-FREE — 205/205 → 232/232 across the phase; the LIVE half of all five is BLOCKED on #26 for the `Shock` emitter and on the #24 track for the fixtures directory, and `offchain/rig/capture-loop.sh` is the unrun capture that would discharge it) | 5/5 | Complete | 2026-08-23 |
+
+## Coverage (Milestone v6.0)
+
+| Phase | Requirements | Count |
+|-------|--------------|-------|
+| 23 | DB-01, DB-02, DB-03, DB-04, BYTE-01, BYTE-02, BYTE-03, BYTE-05, KEY-07 | 9 |
+| 24 | GAMS-01, GAMS-02, GAMS-03, GAMS-04, GAMS-05, GAMS-06, BYTE-04 | 7 |
+| 25 | KEY-01, KEY-02, KEY-03, KEY-04, KEY-05, KEY-06, STORE-01, STORE-06, STORE-08 **shipped**; STORE-02, STORE-03, STORE-04, STORE-05, STORE-07 **deferred** (scope cut 2026-08-17) | 14 mapped, 9 shipped |
+| 26 | FEE-01, FEE-02, FEE-03, FEE-04, CHAIN-04 | 5 |
+| 27 | CHAIN-01, CHAIN-02, CHAIN-03 | 3 |
+| 28 | LOOP-01, LOOP-02, LOOP-03, LOOP-04, LOOP-05 | 5 |
+
+**Total mapped: 43/43** — no orphans, no duplicates.
+
+**Count correction recorded at roadmap time (2026-08-16):** `REQUIREMENTS.md`'s header and its
+Traceability footer both said *"39 v6.0 requirements defined"*. The actual checkbox count is
+**43** (BYTE 5, KEY 7, STORE 8, DB 4, GAMS 6, FEE 4, CHAIN 4, LOOP 5). The stale figure is
+corrected in `REQUIREMENTS.md` rather than reconciled by dropping four requirements — an
+unexplained 4-requirement gap between a header and a body is exactly the kind of arithmetic
+this project's review history says not to trust silently.
+
+## Research Flags (Milestone v6.0)
+
+- **Phase 23 — no research gap on the schema; it is MEASURED.** `bytea` vs `json` vs `jsonb`
+  byte-fidelity was measured on PG 18/18.4 against the real §3 output shape, and
+  `postgresql-simple` 0.7.0.1 (`+4` packages, the smallest of six candidates) was chosen by
+  `plan.json` set-diff against the real 152-package baseline. The open items are operational,
+  not architectural: the **pinned Postgres image tag** (`postgres:18-alpine`, and the server
+  version belongs in the conformance evidence), and **whether GH Actions `services:` containers
+  work on the `cfmm-build` executor** — unverified, which is precisely why the per-run-database
+  strategy was chosen: it does not depend on the answer. Note `web3-crypto` caps **`aeson <2.3`**
+  and `crypton <1.1`; `crypton-1.0.6` is already resolved, so hashing is `+0` packages.
+- **Phase 24 — TWO genuine unknowns, both cheap and both settled by ONE prover run.**
+  (a) **CONOPT version detection has no clean method** — `gams --version` does not report it and
+  the only obvious source is listing/log text, which §4 forbids *gating* on (it is key material,
+  not a gate, so it is permissible if total, non-empty and shape-checked; record which method
+  produced it). LOW confidence. (b) **Is `volTgtWad` an integer or a float on the GAMS side?**
+  §2's own example passes `28e18`. This decides the canonical key rendering and must be answered
+  **before Phase 25 freezes the key formula**. One prover run against a scratch directory settles
+  CONOPT detection, `volTgtWad`'s type, the trailing-newline question, whether §3's example JSON
+  is byte-accurate (the prover emits `deltaRealized` via `dReal:0:10`, ten decimals, while §3
+  shows `0.49`), and the exit-code behaviour — all at once. Do it first.
+- **Phase 25 — the key formula's SCOPE is the open question, not its implementation.**
+  `VOLUME_PATH.md` §2's seven inputs are not the complete set of things the output depends on:
+  the **model source digest** and **solver options digest** are prior-art recommendations that
+  KEY-01 adopts, and `nEvents` (§6 open ruling 1, fixture value 8) must have its production
+  value confirmed before the first row lands or changing it invalidates the whole store. Also
+  bounded here: `volume_path.gms:202` sets `fj.pw = 4000`, so the put line wraps around
+  **N ≈ 180 events** — production `nEvents` must stay under that. The `splitter_version` is a
+  Phase 26 product; `key_scheme` (Phase 23) is what makes adding it later non-destructive.
+- **Phase 26 — the differential against the model is the work, not the closed form.** "Closed
+  form, no optimizer" reads as trivially correct; closed forms are exactly where rounding
+  conventions hide. The `(f, δ*)` grid differential against the GAMS prover, evaluated in
+  `Rational`, is the deliverable. The `next` selector and signature are **known now** — consume,
+  do not re-derive.
+- **Phase 27 — blocked, not unresearched.** Everything needed is pinned; the gap is upstream
+  emission (issue #26). Do not open research here; open coordination.
+- **Phase 28 — coordinate the `test/` path with the owning track BEFORE planning, not during.**
+  `test/models/mev_tax_model_one/fixtures/volume_path.json` **does not exist in this worktree**
+  (`find test -path "*models*"` returns nothing); the precedent that does exist is
+  `test/gamsDiff/fixtures/*.json`. Also: the repo has **no `.gitattributes` at all** — verified —
+  so nothing today prevents EOL normalisation from rewriting a published fixture's bytes in
+  transit. Whether the committed fixture comes from an explicit promotion or straight from the
+  loop is a product decision to settle at plan time, not a technical one.
+
+## Scope Boundary (Milestone v6.0)
+
+The store lives under `offchain/` (ours). The **only** thing written into `test/` is the latest
+fixture copy — one file into another track's tree, not a database.
+
+Explicitly OUT: **changing `VOLUME_PATH.md`'s emitted JSON shape** (`model/` is the GAMS
+workstream's territory; the §3 shape is their contract); **implementing `SELECTOR_NEXT`'s event
+emission** (plank workstream, issue #26); **fixing the test's `shock(...)` signature mismatch**
+(belongs with issue #26, which owns the alignment); **asserting the rig's computed payload**
+(`e5.fee`, σ, accumulators — filed as issue #19, a different concern from this store); and
+**`ExceptT` error plumbing over `Web3`** (`runWeb3'`'s `Left` is unreachable; it would advertise
+a guarantee the runtime does not provide).
+
+Deferred to v7.0+: a **numeric-aware diff** of divergent artifacts (byte inequality plus both
+digests suffices until a mismatch actually happens); **garbage collection** of unpinned entries
+(artifacts are low-KB, and its reachability predicate depends on pinning and the run log landing
+first); **single-flight concurrent solves** (assumes one loop); and a **second store tenant**
+(the `<model>/<key>` layout is model-agnostic from the start, but building a second tenant
+before a second model exists is speculative).

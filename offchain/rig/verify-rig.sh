@@ -19,7 +19,23 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-RPC_ALIAS="local"
+# CHAIN-06, AND THIS FILE IS THE ONE THE REQUIREMENT'S OWN LIST MISSED.
+#
+# CHAIN-06 names nine sites and this is not among them, because it reached the chain through
+# foundry's `--rpc-url local` ALIAS and therefore named neither ETH_RPC_URL nor the default
+# authority -- so the grep that found the other nine could not see it. It makes FOURTEEN cast calls
+# against a live rig, which makes it as much a consumer as either capture script.
+#
+# The alias resolved through foundry.toml:59 to a hardcoded authority, and foundry.toml is outside
+# this workstream's territory, so `ETH_RPC_URL=...:9545` sent this script to 8545 while the rig it
+# was verifying ran on 9545 -- it would have reported SC-2 FAIL against whatever else happened to
+# be listening, or against nothing. That is the CHAIN-06 defect exactly, in the file that exists to
+# say the rig is what the manifest claims.
+#
+# The lesson is recorded in the census that now guards this: a pattern matching "names the variable
+# or the authority" does not mean "reaches a chain", and the census terms are the second thing, not
+# the first.
+. offchain/rig/endpoint.sh    # sets RPC_URL, RPC_HOST, RPC_PORT
 MANIFEST="${RIG_MANIFEST:-offchain/rig/rig-manifest.json}"
 
 if [ ! -f "$MANIFEST" ]; then
@@ -66,7 +82,7 @@ echo "PASS keyset contracts: exactly the $EXPECT_N expected keys, no more and no
 N=0
 for name in $(m '.contracts | keys[]'); do
   addr=$(jq -r --arg n "$name" '.contracts[$n]' "$MANIFEST")
-  if ! code=$(cast code "$addr" --rpc-url "$RPC_ALIAS" 2>/dev/null); then
+  if ! code=$(cast code "$addr" --rpc-url "$RPC_URL" 2>/dev/null); then
     echo "SC-2 FAIL: cast code failed for $name at $addr (is anvil running?)" >&2
     exit 1
   fi
@@ -83,7 +99,7 @@ done
 # not asserted -- "0 means live" is fragile on its own, which is exactly why
 # probe 1 above pairs with it.
 VOM=$(m '.contracts.VolOrderManagerMod')
-if ! COUNT=$(cast call "$VOM" "orderCount()(uint256)" --rpc-url "$RPC_ALIAS" 2>/dev/null | first_token); then
+if ! COUNT=$(cast call "$VOM" "orderCount()(uint256)" --rpc-url "$RPC_URL" 2>/dev/null | first_token); then
   echo "SC-2 FAIL: VolOrderManagerMod at $VOM did not answer orderCount()" >&2
   exit 1
 fi
@@ -96,11 +112,11 @@ echo "PASS orderCount VolOrderManagerMod: decoded $COUNT"
 # Timepoint.plk's OFF_INITIALIZED = 240 makes a seeded timepoint's packed word
 # nonzero regardless of the tick, so ZERO here means the seed did not take.
 RVM=$(m '.contracts.RealizedVolatilityMod')
-if ! IDX=$(cast call "$RVM" "lastIndex()(uint16)" --rpc-url "$RPC_ALIAS" 2>/dev/null | first_token); then
+if ! IDX=$(cast call "$RVM" "lastIndex()(uint16)" --rpc-url "$RPC_URL" 2>/dev/null | first_token); then
   echo "SC-2 FAIL: RealizedVolatilityMod at $RVM did not answer lastIndex()" >&2
   exit 1
 fi
-if ! PACKED=$(cast call "$RVM" "getTimepointPacked(uint16)(uint256)" --rpc-url "$RPC_ALIAS" "$IDX" 2>/dev/null | first_token); then
+if ! PACKED=$(cast call "$RVM" "getTimepointPacked(uint16)(uint256)" --rpc-url "$RPC_URL" "$IDX" 2>/dev/null | first_token); then
   echo "SC-2 FAIL: RealizedVolatilityMod at $RVM did not answer getTimepointPacked($IDX)" >&2
   exit 1
 fi
@@ -113,7 +129,7 @@ echo "PASS seeded RealizedVolatilityMod: lastIndex=$IDX getTimepointPacked=$PACK
 # --- Probe 4: DynamicFeeMod captured TOFU ownership ------------------------
 DFM=$(m '.contracts.DynamicFeeMod')
 DEPLOYER=$(m '.accounts.deployer' | lower)
-if ! OWNER=$(cast call "$DFM" "owner()(address)" --rpc-url "$RPC_ALIAS" 2>/dev/null | first_token | lower); then
+if ! OWNER=$(cast call "$DFM" "owner()(address)" --rpc-url "$RPC_URL" 2>/dev/null | first_token | lower); then
   echo "SC-2 FAIL: DynamicFeeMod at $DFM did not answer owner()" >&2
   exit 1
 fi
@@ -125,7 +141,7 @@ echo "PASS owner DynamicFeeMod: owner()=$OWNER == manifest accounts.deployer"
 HOOK=$(m '.contracts.DynamicFeeHook')
 WANT_PM=$(m '.contracts.PoolManager' | lower)
 WANT_PID=$(m '.pool.poolId' | lower)
-if ! GOT_PM=$(cast call "$HOOK" "poolManager()(address)" --rpc-url "$RPC_ALIAS" 2>/dev/null | first_token | lower); then
+if ! GOT_PM=$(cast call "$HOOK" "poolManager()(address)" --rpc-url "$RPC_URL" 2>/dev/null | first_token | lower); then
   echo "SC-2 FAIL: DynamicFeeHook at $HOOK did not answer poolManager()" >&2
   exit 1
 fi
@@ -133,7 +149,7 @@ fi
   echo "SC-2 FAIL: DynamicFeeHook poolManager()=$GOT_PM but the manifest PoolManager is $WANT_PM" >&2; exit 1; }
 echo "PASS poolManager DynamicFeeHook: poolManager()=$GOT_PM == manifest contracts.PoolManager"
 
-if ! GOT_PID=$(cast call "$HOOK" "poolId()(bytes32)" --rpc-url "$RPC_ALIAS" 2>/dev/null | first_token | lower); then
+if ! GOT_PID=$(cast call "$HOOK" "poolId()(bytes32)" --rpc-url "$RPC_URL" 2>/dev/null | first_token | lower); then
   echo "SC-2 FAIL: DynamicFeeHook at $HOOK did not answer poolId()" >&2
   exit 1
 fi
@@ -161,7 +177,7 @@ for router in PoolSwapTest PoolModifyLiquidityTest; do
     echo "           bash offchain/rig/deploy-rig.sh" >&2
     exit 1
   fi
-  if ! GOT_RPM=$(cast call "$RADDR" "manager()(address)" --rpc-url "$RPC_ALIAS" 2>/dev/null | first_token | lower); then
+  if ! GOT_RPM=$(cast call "$RADDR" "manager()(address)" --rpc-url "$RPC_URL" 2>/dev/null | first_token | lower); then
     echo "SC-2 FAIL: $router at $RADDR did not answer manager()" >&2
     exit 1
   fi
@@ -186,7 +202,7 @@ done
 # bound -- the PriceSetter analogue of probe 3's seed check.
 PSH=$(m '.contracts.PriceSetterHook')
 WANT_PSPM=$(m '.contracts.PriceSetterPoolManager' | lower)
-if ! GOT_PSPM=$(cast call "$PSH" "poolManager()(address)" --rpc-url "$RPC_ALIAS" 2>/dev/null | first_token | lower); then
+if ! GOT_PSPM=$(cast call "$PSH" "poolManager()(address)" --rpc-url "$RPC_URL" 2>/dev/null | first_token | lower); then
   echo "SC-2 FAIL: PriceSetterHook at $PSH did not answer poolManager()" >&2
   exit 1
 fi
@@ -198,7 +214,7 @@ fi
   exit 1; }
 echo "PASS poolManager PriceSetterHook: poolManager()=$GOT_PSPM == manifest contracts.PriceSetterPoolManager"
 
-if ! SLOT0SLOT=$(cast call "$PSH" "slot0Slot()(bytes32)" --rpc-url "$RPC_ALIAS" 2>/dev/null | first_token | tr 'A-Z' 'a-z'); then
+if ! SLOT0SLOT=$(cast call "$PSH" "slot0Slot()(bytes32)" --rpc-url "$RPC_URL" 2>/dev/null | first_token | tr 'A-Z' 'a-z'); then
   echo "SC-2 FAIL: PriceSetterHook at $PSH did not answer slot0Slot()" >&2
   exit 1
 fi
@@ -211,7 +227,7 @@ case "$SLOT0SLOT" in
 esac
 echo "PASS slot0Slot PriceSetterHook: $SLOT0SLOT (nonzero == bound)"
 
-if ! PS_TICK=$(cast call "$PSH" "readTick()(int24)" --rpc-url "$RPC_ALIAS" 2>/dev/null | first_token); then
+if ! PS_TICK=$(cast call "$PSH" "readTick()(int24)" --rpc-url "$RPC_URL" 2>/dev/null | first_token); then
   echo "SC-2 FAIL: PriceSetterHook at $PSH did not answer readTick() -- it is onlyBound, so a" >&2
   echo "           revert here means the hook cannot read its manager's slot0 at all" >&2
   exit 1
@@ -228,7 +244,7 @@ echo "PASS readTick PriceSetterHook: decoded $PS_TICK"
 # the two contracts are the same pool's two halves -- probe 1 sees neither.
 PSPM=$(m '.contracts.PriceSetterPoolManager')
 DEPLOYER_L=$(m '.accounts.deployer' | lower)
-if ! PSPM_OWNER=$(cast call "$PSPM" "owner()(address)" --rpc-url "$RPC_ALIAS" 2>/dev/null | first_token | lower); then
+if ! PSPM_OWNER=$(cast call "$PSPM" "owner()(address)" --rpc-url "$RPC_URL" 2>/dev/null | first_token | lower); then
   echo "SC-2 FAIL: PriceSetterPoolManager at $PSPM did not answer owner()" >&2
   exit 1
 fi
@@ -237,7 +253,7 @@ fi
   exit 1; }
 echo "PASS owner PriceSetterPoolManager: owner()=$PSPM_OWNER == manifest accounts.deployer"
 
-if ! PS_SLOT0=$(cast call "$PSPM" "extsload(bytes32)(bytes32)" "$SLOT0SLOT" --rpc-url "$RPC_ALIAS" 2>/dev/null | first_token | tr 'A-Z' 'a-z'); then
+if ! PS_SLOT0=$(cast call "$PSPM" "extsload(bytes32)(bytes32)" "$SLOT0SLOT" --rpc-url "$RPC_URL" 2>/dev/null | first_token | tr 'A-Z' 'a-z'); then
   echo "SC-2 FAIL: PriceSetterPoolManager at $PSPM did not answer extsload($SLOT0SLOT)" >&2
   exit 1
 fi

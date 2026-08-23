@@ -71,11 +71,15 @@ module Driver.Capture
   , capture_path
   , write_capture
   , write_json_atomically
+  , write_bytes_atomically
   , step_record
   ) where
 
 import Control.Exception (SomeException, onException, try)
 import Data.Aeson (ToJSON (..), Value, encodeFile, object, (.=))
+-- 28-03: 'write_bytes_atomically', the generalization of the artifact writer below. NOT a new
+-- package -- bytestring has been a dependency of this stanza since Store.Types.
+import qualified Data.ByteString as BS
 import Data.Maybe (fromMaybe)
 import Data.Word (Word32)
 import System.Directory (removeFile, renameFile)
@@ -348,15 +352,73 @@ write_capture = write_json_atomically
 --
 -- 'renameFile' within one directory is atomic on POSIX, so the destination is only ever the OLD
 -- complete bytes or the NEW complete bytes. The temp file is a sibling rather than a @\/tmp@ entry
--- precisely so the rename cannot cross a filesystem and silently degrade to a copy.
+-- precisely so the rename cannot cross a filesystem -- see 'write_atomically' for what that costs,
+-- MEASURED at 28-04.
 --
 -- On failure the partial temp file is removed and the ORIGINAL exception is re-raised, never
 -- replaced: a cleanup that threw would swap a diagnosable failure for a mystery, which is the same
 -- rule the flush handler follows one layer up.
 write_json_atomically :: ToJSON a => FilePath -> a -> IO ()
-write_json_atomically path value = do
+write_json_atomically path value = write_atomically path (\tmp -> encodeFile tmp value)
+
+-- | THE SAME RENAME, OVER BYTES SOMEBODY ELSE PRODUCED.
+--
+-- Added at 28-03 as a GENERALIZATION rather than as a second writer, and the distinction is the
+-- whole point: @Loop.Publish@ needs the identical temp-sibling-then-rename discipline for a
+-- document it has already built, and a second copy of it in another module would be a second place
+-- for the sibling rule to be forgotten. The rename now lives in exactly one expression in this
+-- repository -- 'write_atomically' below -- and both writers are that expression with a different
+-- way of filling the temp file.
+--
+-- Every sentence of 'write_json_atomically'’s reasoning carries over unchanged, because it was
+-- never about @aeson@: a writer that opens the destination and streams into it leaves a reader a
+-- window in which the file is neither the old document nor the new one. LOOP-03's consumer is a
+-- forge test in another workstream that parses this file, and a half-written one is a red test
+-- somebody else has to diagnose.
+--
+-- The temp file stays a SIBLING, in the same directory as the destination. See 'write_atomically'
+-- for what a non-sibling actually costs -- 28-04 drove it and the answer is not the one this
+-- haddock used to give.
+write_bytes_atomically :: FilePath -> BS.ByteString -> IO ()
+write_bytes_atomically path bytes = write_atomically path (\tmp -> BS.writeFile tmp bytes)
+
+-- | THE ONE RENAME. Fill a sibling temp file, then let it become the destination.
+--
+-- Both public writers are this function; nothing else in this repository renames a file into
+-- place. That is deliberate rather than tidy: the sibling rule and the re-raise rule are each one
+-- line, and one line duplicated across two modules is one line that gets edited in one of them.
+--
+-- == WHAT A NON-SIBLING TEMP FILE ACTUALLY COSTS, MEASURED AT 28-04 (AND IT IS NOT WHAT THIS
+-- == HADDOCK SAID FOR THREE PHASES)
+--
+-- Every version of this comment from Phase 22 to 28-03 said a rename that crossed a filesystem
+-- \"would silently degrade to a copy\", and a copy is the tear the whole discipline exists to
+-- prevent. That sentence is FALSE for this code path and it was never driven. POSIX @rename(2)@
+-- does not copy; it fails with @EXDEV@, and @renameFile@ raises. DRIVEN both ways at 28-04, with
+-- the temp file moved to @getTemporaryDirectory@:
+--
+--   * destination ALSO under @\/tmp@ (same @tmpfs@, device 50): the rename SUCCEEDS, the temp file
+--     is consumed, and the whole suite stays GREEN at @228\/228@. A non-sibling temp file on one
+--     filesystem is INVISIBLE to any after-the-fact observation, because the thing that would give
+--     it away is exactly the thing @rename()@ removes.
+--   * destination under this repository (@ext4@, device 66306): OBSERVED, verbatim --
+--     @renameFile:renamePath:rename \'\/tmp\/volume_path.json.tmp\' to \'...\/volume_path.json\':
+--     unsupported operation (Invalid cross-device link)@.
+--
+-- So the sibling rule is RIGHT and the old reason for it was wrong. The hazard is not a silent
+-- copy: it is a write that either works by luck of the mount table or dies at the last step, after
+-- the bytes have been produced, with the destination still holding the previous document. That is a
+-- publication that reports failure having changed nothing -- recoverable, but it is a resident
+-- loop's halt rather than the tear it was said to be.
+--
+-- The consequence for a CHECK is worth stating because it is not obvious: a before\/after tree diff
+-- cannot see a non-sibling temp file. 28-04's
+-- @publication_adds_exactly_one_file_and_nothing_else@ says so in its own haddock rather than
+-- claiming an arm it does not have.
+write_atomically :: FilePath -> (FilePath -> IO ()) -> IO ()
+write_atomically path fill = do
   let tmp = path ++ ".tmp"
-  encodeFile tmp value `onException` ignoring_errors (removeFile tmp)
+  fill tmp `onException` ignoring_errors (removeFile tmp)
   renameFile tmp path
 
 -- | Best-effort cleanup. Swallows its own failure so it cannot displace the exception it is running

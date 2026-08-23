@@ -1,170 +1,231 @@
-# Project Research Summary
+# Research Summary — Milestone v6.0
 
-**Project:** VolOrderManagerMod + best-effort Multicall (milestone v4.0)
-**Domain:** Plank/EVM on-chain dynamic-registry module with a best-effort batch entrypoint, consumed by the rpc_api Haskell `StochasticOrderGen` (Poisson order-arrival generator)
-**Researched:** 2026-07-19
-**Confidence:** HIGH
+**Model Output Store + VolumePath Bridge (rpc_api workstream)**
+Synthesized 2026-08-16 from STACK.md, FEATURES.md, ARCHITECTURE.md, PITFALLS.md.
 
-## Executive Summary
-
-This milestone builds `VolOrderManagerMod.plk`: a single-function self-batcher that validates `(strike, width, skew)` tuples against the already machine-checked `vol_order_is_complete` predicates, assigns sequential ids, and stores a packed `VolOrder` word — plus a best-effort batch entrypoint that runs N of that same internal `create_order` in one transaction, skipping invalid tuples without reverting the batch. It is explicitly **not** a generic Multicall3-style call router: the input is always `(strike,width,skew)` tuples, never `(address,bytes)`, and there is deliberately no arbitrary-target dispatch, no auth model, and no on-chain pricing. Expert precedent for the *result semantics* (parallel `(success, payload)[]`, positional alignment, `tryAggregate(false,...)`-style best-effort) is Multicall3, but the architecture stays a closed, single-opcode-path batcher, which is what keeps reentrancy and delegatecall risk off the table entirely (verified N/A by PITFALLS).
-
-The recommended approach, now that STACK has closed out the milestone's load-bearing unknowns: everything required is expressible in Plank v0.1.1. Loop over N tuples with a plain runtime `while` (proven via the diff-tested `merkle_airdrop.plk`); read the batch from calldata with `@evm_calldataload`/`@evm_calldatasize` at computed offsets; contain per-call failure with a **pure-validation pre-check** (branch-only bounds checks, no checked-ops, no state write on failure) rather than a self-call boundary, because `create_order` is a pure bounds-only registry with no revert-prone dependency calls; and hand-roll the dynamic `(bool,uint256)[]` return since Plank has no native array type or `T[]` ABI codec. The architecture mirrors v3.0's proven layering exactly (zero arithmetic in the module, all bounds/reverts in a pure lib, packing in the type layer, slot derivation reused verbatim from `v3::storage::array_slot`) with one adaptation: the registry's ids are monotonic and must **not** import the RealizedVolatility ring's 16-bit wraparound mask.
-
-The dominant risk is not "can Plank express this" (STACK resolved that to yes) but **proving the best-effort contract is actually total**: because inline pre-validation runs in a single call frame with no sub-call to unwind, any revert path the validation didn't enumerate — a checked-add overflow, a `VolOrder` smart-constructor precondition — aborts the *entire* batch, silently converting "best-effort" into "all-or-nothing." The second-order risks are a missing `calldatasize` guard (calldata reads past `calldatasize` return zero-padded words, not a revert, so a truncated batch can validate a phantom order), an unbounded `MAX_BATCH` (out-of-gas cannot be contained by any best-effort mechanism — it unwinds the whole tx, including already-processed successes), and the batch's dynamic return encoding (this module's first-ever dynamic ABI output, no compiler-checked encoder). All four are addressed below with concrete phase-level acceptance criteria.
-
-## Key Findings
-
-### Recommended Stack
-
-This milestone is a Plank v0.1.1 **language-capability audit**, not a dependency-selection task — the "stack" is the confirmed set of compiler builtins the module needs, each independently verified against `plankc` source, the grammar, and a compiled diff-test.
-
-**Core mechanisms:**
-- Runtime `while` loop (`lowerer/mod.rs:736`) — the only loop construct in the grammar; proven end-to-end by the diff-tested `merkle_airdrop.plk`. `inline while` (comptime unroll) is parsed but **not implemented** in v0.1.1 (lowering emits `error_not_yet_implemented`, locked by a regression test) — do not design around it.
-- `@evm_calldataload(computed_offset)` + `@evm_calldatasize()` — both exist and are proven with a runtime-computed offset in the same diff-test; this is the mechanism for reading the i-th tuple and for the mandatory truncation guard.
-- Manual return encoding (`@malloc_uninit` + `@mstore32` at computed offsets + `@evm_return(ptr,len)`) — no native array type exists and `std::abi` does not encode `T[]`, so the dynamic `(bool,uint256)[]` result must be hand-built; this is the same pattern already used for `VolOrder.plk`'s packed-word return and `merkle_airdrop.plk`'s dynamic-length return.
-- Pure-validation pre-check (branch-only, `@evm_iszero`/comparisons, no checked-ops) as the best-effort containment mechanism, **not** a self-`@evm_call` boundary — sufficient and cheaper because `create_order`'s only failure modes are bounds checks, with the self-call kept as a documented fallback if a future dependency call needs it.
-- `v3::storage::array_slot(base, index) = keccak256(base) + index` — reused verbatim from the RealizedVolatility ring, **without** the ring's 16-bit wraparound mask (that mask is load-bearing for a ring, corruption-causing for a monotonic-id registry).
-
-### Expected Features
-
-**Must have (table stakes):**
-- `create_order(uint88,uint24,uint16)` — cast-sig-verified selector `0x6501fe94`, strict/revert single-call path, reusing `vol_order_is_complete`'s constituent predicates verbatim
-- Sequential `uint256` id from 1 (0 reserved as null sentinel), `orderCount` accumulator doubling as id source
-- Persistent storage at a keccak-derived slot per order (`array_slot`), monotonic, no wraparound
-- Best-effort batch entrypoint — the milestone's reason to exist; dynamic-length calldata in, dynamic `(success, orderId)[]` results out, never reverting on empty or all-fail input
-- Readers `orderCount()` and `getOrder(uint256)`/`getOrderPacked(uint256)` returning the packed word (0 for nonexistent ids, no revert)
-- Interface file with cast-sig-pinned selector strings, shared byte-for-byte with the rpc_api Haskell consumer
-
-**Should have (differentiators):**
-- No-partial-state guarantee on failed calls (validate-before-any-write, proven by raw `vm.load`, not getters)
-- Batch == exact N-fold composition of the same internal `create_order` (single ≡ batch-of-1 differential; prevents batch/single logic drift)
-- Solidity reference-mock differential for the batch, extending v3.0's constructed-corpus + observed-red discipline to the new dynamic-array surface
-
-**Defer (v4.x / later):**
-- `MAX_BATCH` numeric value and the typed-vs-opaque return-shape decision — both pending peer confirmation (see Cross-Resolutions below); proceed with placeholders now, tune after
-- Per-owner order books / `msg.sender` auth — no auth primitive in v1, orders anonymous by design
-- Events for an indexer — no log-subscribing consumer this milestone
-- On-chain pricing (`tick_bucket_from_vol_order`) — pos_spec pricing has 4 red harness tests and stays explicitly out of scope; registry stores the raw validated tuple only
-
-### Architecture Approach
-
-The module mirrors v3.0's proven layering: **zero arithmetic in the module** (dispatch, `orderCount++`, `sstore`/`sload` only), with all bounds checks in a new pure lib (`validate_order`, composing the existing `tick_volatility_is_complete` / `spread_tick_assimetry_is_complete` / a reduced width check), packing in the existing `VolOrder.plk` type, and slot derivation reused verbatim from `v3::storage`. The two genuinely new elements are a derived-slot dynamic registry (the ring's slot-per-index mechanism, minus the wraparound mask) and a best-effort batch loop over calldata.
-
-**Major components:**
-1. `VolOrderManagerInterface.plk` — cast-sig-pinned selector strings for `create_order`, the batch entrypoint, and readers; shared by module dispatch and the Solidity test ABI
-2. `VolOrderManagerMod.plk` — dispatch, id assignment (`orderCount++`), `sstore` at `array_slot(SLOT_ORDERS_BASE, id)`, the best-effort batch loop (validate-before-commit, per-call skip) — no arithmetic
-3. `validate_order` (new pure lib) — composes existing `*_is_complete` predicates plus the explicit zero-width revert; independently fuzz-testable with no FFI deploy
-4. `VolOrder.plk` (existing type) — `pack_vol_order`/`unpack_vol_order`; stores the create_order-native **128-bit subset** (see Cross-Resolutions)
-5. Test-side `VolOrderDecoder` (new, `TimepointDecoder`-precedent) — the single test-side unpacker restating the type's offsets, used by raw-`vm.load` differential assertions
-
-### Critical Pitfalls
-
-1. **Incomplete validation silently converts best-effort into all-or-nothing** — inline pre-validation runs in one call frame with no sub-call to unwind, so any store-path revert the validation didn't enumerate (checked-add overflow, a `VolOrder` constructor precondition) aborts the whole batch. Avoid by proving **totality**: full-width-`uint256` fuzz that the batch entrypoint never reverts at the batch level, plus a `multicall_flag(tuple) == fail ⟺ standalone create_order reverts` completeness differential. A deleted validation branch must redden the totality fuzz with a *batch revert*, not a wrong value.
-2. **Partial state on a skipped call** — a write (id allocation, slot write) that precedes the failure check persists because there is no frame to unwind. Avoid by enforcing validate-completely-before-any-write in source, and proving no-footprint with raw `vm.load` on the touched slot set (not getters — getters miss slot aliasing).
-3. **Calldata-length lies** — `calldataload` past `calldatasize` returns zero-padded words silently; a truncated batch can validate a phantom `(0,0,0)`-ish tuple. Avoid with a mandatory `calldatasize >= HEADER + N*STRIDE` guard that **reverts the whole tx** on a malformed batch — this is a structural failure, not a per-call skip, and supersedes any reliance on the zero-width guard as truncation defence.
-4. **Unbounded N cannot be best-effort'd** — OOG unwinds the entire transaction including already-processed successes; no containment mechanism catches resource exhaustion. `MAX_BATCH`, checked before any work, is load-bearing, not hygiene — `N=MAX_BATCH+1` must revert before any `sstore`, and `N=MAX_BATCH` must be gas-measured under the block limit.
-5. **Return-data encoding bugs** — the module's first-ever dynamic ABI return (offset word → length word → elements); off-by-one in length/offset/index is the classic footgun with no compiler-checked encoder. Avoid via a differential against an independently-simple Solidity reference mock (never one that echoes Plank's own output), corpus including `N=0` (trickiest edge) and mixed success/failure.
-
-## Cross-Resolutions (research files disagreed or left open — resolved here so requirements does not inherit ambiguity)
-
-1. **Plank loop mechanics — PITFALLS flagged MEDIUM/LOW-confidence open ("Plank v0.1.1 loop/recursion constructs unverified"); STACK resolved it with compiler citations.** Resolution: runtime `while` EXISTS and is fully lowered (`lowerer/mod.rs:736`), proven end-to-end by the diff-tested `merkle_airdrop.plk`. There is no `for`/`loop`/`break`/`continue` in the grammar, and `inline while` (comptime unroll) is parsed but **not implemented** — do not design around it. The multicall is a plain bounded `while i < count { ... }`, not unrolled and not recursive. PITFALLS' gap note is superseded; carry its off-by-one/OOG test discipline forward against this confirmed mechanism.
-
-2. **tickSpacing 152-bit vs 128-bit tension.** FEATURES frames this as "pin a default so the width validator has an operand"; ARCHITECTURE frames it as "store the 128-bit subset." **These compose, they do not conflict:** `create_order(uint88,uint24,uint16)` supplies strike/width/skew only (128 bits), no `tickSpacing`. The registry (a) **stores** the 128-bit subset (`skew | volStrike | width` at offsets 0/16/104; bits 128-151 zeroed, `tickSpacing` deferred with pricing) and (b) **validates** width against a reduced check (`width>0 & width<=0xffffff`) that does not need a `tickSpacing` operand at all — so no default value is actually consumed by validation. **Flag as a decision of record:** if a future caller path needs the full `vol_range_width_is_complete` (unlikely this milestone, since pricing is out of scope), the test corpus's `tickSpacing=20` convention (`VolOrder.t.sol:102`) is the candidate default — pin it explicitly if that path is ever exercised.
-
-3. **Truncation defence — PITFALLS' calldatasize-guard-REVERT supersedes FEATURES' zero-width-catches-it framing.** FEATURES did not treat truncation as a distinct case; PITFALLS shows the zero-width backstop is insufficient on its own (a truncation that zeroes only the `skew` field can still produce a plausibly-valid tuple). Resolution: a malformed/short batch (`calldatasize < HEADER + N*STRIDE`) **reverts the whole transaction**, it does not silently skip or fall through to zero-width validation. Zero-width remains a backstop for genuinely-submitted zero-width tuples, not the truncation defence.
-
-4. **Batch shape — STACK's verdict resolves ARCHITECTURE's open Option A vs B.** ARCHITECTURE presented both a head-count-then-dynamic-tuples layout (Option A) and a fixed-max-with-count layout (Option B) without resolving between them, pending the capability audit. STACK confirms both are technically expressible (loops and computed calldata offsets both exist) but recommends, and this summary adopts, **shape B: bounded max-N batch with an explicit `count` argument** — a pure guard `count <= MAX_BATCH` before the loop, `while i < count`, results buffer sized `head + count*stride`. This bounds gas deterministically, gives a clean early revert on oversized batches instead of an OOG surprise, and matches the pending peer batch-size-cap expectation. Requirements should specify shape B, not present both as still-open.
-
-5. **Still genuinely open (peer-dependent — do not resolve, do not block on):**
-   - **`MAX_BATCH` numeric value** — pending confirmation from peer `mv15a18k`. Requirements should carry a **named placeholder constant** (not a guessed number) with the acceptance criteria from PITFALLS Pitfall 4 (`N=MAX_BATCH+1` early-reverts, `N=MAX_BATCH` gas-measured) written against the placeholder so the value can be substituted without touching test structure.
-   - **Typed `(bool,uint256)[]` vs opaque `membytes` blob** for the batch return — STACK flags this as an open ABI decision affecting how much manual array encoding the module carries; FEATURES recommends the typed pair on Haskell-ABI-decoder-ergonomics grounds (a static-tuple array needs no recursive offset chasing) with MEDIUM-HIGH confidence. **Requirements should proceed with the typed `(bool success, uint256 orderId)[]` pair** as the working design, flagged for peer confirmation rather than left undecided — this is the FEATURES recommendation and it is architecturally compatible with everything else resolved above.
-
-## Implications for Roadmap
-
-Based on combined research, four phases (continuing numbering from 16 — v3.0 ended at phase 15):
-
-### Phase 16: Type Packing & Validation Foundation
-**Rationale:** Pure functions, independently fuzz-testable with no FFI deploy — the cheapest surface to get right first, and everything downstream (module, batch) depends on it. Resolves the 128-bit-subset packing decision (Cross-Resolution 2) up front.
-**Delivers:** `VolOrder.plk` pack/unpack confirmed for the 128-bit create_order-native subset (offsets 0/16/104, bits 128-151 zeroed); new `validate_order` pure lib composing `tick_volatility_is_complete`, a reduced width check (`width>0 & width<=0xffffff`, no `tickSpacing` operand needed), and `spread_tick_assimetry_is_complete`, with explicit zero-width revert and dirty-high-bit rejection.
-**Addresses:** FEATURES table-stakes "bounds validation via `vol_order_is_complete`."
-**Avoids:** PITFALLS Security Mistake (unmasked/unvalidated dirty high bits on u88/u24/u16 fields); lays the groundwork for Pitfall 1 (validation completeness) by keeping the guard set enumerable from day one.
-
-### Phase 17: Interface & Single-Call Module
-**Rationale:** The single-call path is the peer-confirmed contract of record (`0x6501fe94`) and the base case the batch will compose N times — get it CALLED-green and differentially tested before building the batch on top.
-**Delivers:** `VolOrderManagerInterface.plk` with cast-sig-pinned `create_order` selector plus reader selectors; `VolOrderManagerMod.plk` single-call dispatch — validate via lib, pack via type, `orderCount++`, `sstore` at `array_slot(SLOT_ORDERS_BASE, id)` (monotonic, no ring mask); readers `orderCount()`/`getOrderPacked(uint256)`.
-**Uses:** `v3::storage::array_slot` reused verbatim; `@evm_sload`/`@evm_sstore`/`@evm_iszero` from the STACK builtin audit.
-**Implements:** the module/lib/type layer split from ARCHITECTURE (zero arithmetic in the module).
-**Avoids:** Anti-Pattern 1 (importing the ring's wraparound mask); Pitfall 6 groundwork (id/count on the correct side of validation); Pitfall 7 (selector drift — cast-sig test from day one).
-
-### Phase 18: Best-Effort Batch Entrypoint
-**Rationale:** The milestone's stated main technical risk and reason to exist; depends on Phases 16-17 (the internal `create_order` fn and validation lib it composes N times) and on the batch-shape decision now resolved (Cross-Resolution 4: shape B).
-**Delivers:** batch selector decoding `count` + bounded `while i < count` over fixed-stride tuples (`@evm_calldataload(base + i*STRIDE)`); a **mandatory `calldatasize` guard** that reverts the whole tx on a malformed/short batch (Cross-Resolution 3); a `MAX_BATCH` placeholder constant with `count <= MAX_BATCH` checked before any work; validate-before-commit per tuple (pure-validation skip, no self-call); manual `(bool success, uint256 orderId)[]` ABI encoding built in the same loop, `@malloc_uninit` + `@mstore32` + `@evm_return`.
-**Addresses:** FEATURES "best-effort batch entrypoint," "per-call `(success, orderId)` result."
-**Avoids:** PITFALLS Pitfall 1 (containment leak — totality fuzz + completeness differential as this phase's acceptance property, not hygiene), Pitfall 2 (partial state — validate-before-write, raw `vm.load` footprint battery), Pitfall 3 (calldata-length lies), Pitfall 4 (unbounded N/OOG), Pitfall 5 (return-encoding off-by-one, especially the `N=0` edge).
-
-### Phase 19: Differential, Mutation Battery & Consumer Fixture
-**Rationale:** Closes the milestone against v3.0's acceptance discipline — every prior phase's claims must be CALLED-green through FFI and mutation-killed, not merely "compiles." This is also where the peer-open items (Cross-Resolution 5) get pinned against a real fixture.
-**Delivers:** independently-simple Solidity reference mock (not an echo of Plank output) mirroring both single-call and batch semantics; after-every-write driver (`_createOrderBoth`/`_batchBoth`) asserting `orderCount` + stored packed word + returned id/results at tolerance 0; raw-`vm.load` derived-slot assertions via a new `VolOrderDecoder` (promoted from `VolOrder.t.sol`'s existing pack/unpack, not a fourth copy); observed-RED mutation battery per PITFALLS §Pitfall-to-Phase Mapping (id-density, checked-vs-wrapping, `@evm_iszero`-vs-`@evm_not`, cached-fuzz-replay-with-unit-anchor); captured golden calldata/return fixture from the peer's PR #9 to close out `0x6501fe94` + the `Result` ABI shape; `PLANK_SKIP` exit gated on CALLED-green multicall dispatch.
-**Addresses:** FEATURES "v3.0 test discipline" MVP item; resolves the two peer-dependent open items from Cross-Resolution 5 against real peer data if available by this point.
-**Avoids:** PITFALLS Pitfall 8 (repo-catalogued loop failure modes — `vm.assume` exhaustion, cached-fuzz replay, checked-vs-wrapping, `@evm_not` bitwise trap, dead-module green compile), Technical Debt Pattern "reuse Plank output in the Solidity mock" (vacuous differential).
-
-### Phase Ordering Rationale
-
-- Pure-function phases (16) precede FFI-deploy phases (17-19) — cheapest, fastest-to-redden surface first, matching ARCHITECTURE's "independently testable without the module" split.
-- Single-call (17) precedes batch (18) because the batch is an exact N-fold composition of the same internal fn (FEATURES differentiator) — proving the base case first makes the `single ≡ batch-of-1` differential meaningful rather than aspirational.
-- Batch (18) is isolated as its own phase because it carries the milestone's five critical pitfalls and its own STACK-resolved calldata/loop mechanics — bundling it with 17 would mix a well-precedented pattern (single-call, mirrors `VegaAccountMod.plk` almost exactly) with the genuinely novel one (dynamic calldata + dynamic return).
-- The acceptance/battery phase (19) is deliberately last and separate, not folded into 18, because PITFALLS treats totality-proof and mutation-kill as *the* acceptance property of the whole milestone, not incidental hygiene — it needs the full module (16-18) in place to run the cross-batch stateful invariant and the consumer fixture.
-
-### Research Flags
-
-Needs deeper research during planning:
-- **Phase 18 (Best-Effort Batch Entrypoint):** the dynamic-array-ABI-in-Plank surface is genuinely new ground for this codebase (no existing selector takes anything but fixed words). Even with STACK's capability audit confirming the underlying builtins, the exact `while`-loop + computed-offset idiom and the hand-rolled ABI dynamic-array head/tail encoding should get a focused `/gsd:research-phase` pass before implementation, using `merkle_airdrop.plk` as the primary precedent to study line-by-line.
-- **Phase 19 (fixture pinning):** if the peer (`mv15a18k`) has not yet answered the open semantics message (MAX_BATCH value, return-shape confirmation) by the time this phase starts, treat it as a coordination checkpoint, not a research gap — proceed with the placeholder constant and typed-pair design per Cross-Resolution 5, and do not block phase completion on peer response.
-
-Standard patterns (skip research-phase):
-- **Phase 16 (Type & Validation):** directly mirrors existing `*_is_complete` predicates and `VolOrder.plk`'s existing packing precedent; no new mechanism.
-- **Phase 17 (Interface & Single-Call Module):** near-verbatim mirror of `VegaAccountMod.plk`'s dispatch/scalar-slot/reader pattern, already proven in v3.0.
-
-## Confidence Assessment
-
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Stack | HIGH | Every claim in STACK.md cites `plankc` source line numbers, the grammar doc, or a compiled+diff-tested example (`merkle_airdrop.plk`); the loop-mechanics gap PITFALLS flagged is fully closed by this. |
-| Features | HIGH | Validation bounds cited from actual kept `.plk` types and cross-checked against the Lean spec (`PosSpec.lean`); multicall result-shape verified against real Multicall3 source, not inference. |
-| Architecture | HIGH | Slot derivation, packing layout, and layer-split rules are transcribed verbatim from existing repo source (`storage.plk`, `RealizedVolatilityMod.plk`, `VegaAccountMod.plk`); the one item ARCHITECTURE itself left open (batch shape A vs B) is resolved by Cross-Resolution 4 above. |
-| Pitfalls | HIGH | On repo-specific/EVM semantics (grounded in `.planning/STATE.md` catalogued kills and standard `calldataload`/OOG/revert-frame behavior); the one flagged gap (Plank loop semantics) is resolved by Cross-Resolution 1. |
-
-**Overall confidence:** HIGH
-
-### Gaps to Address
-
-- **`MAX_BATCH` numeric value** — not yet confirmed by peer `mv15a18k`. Handle in Phase 18/19 by using a named placeholder constant with test structure written against it (per PITFALLS Pitfall 4's acceptance criteria), so the value substitutes cleanly once confirmed.
-- **Typed `(bool,uint256)[]` vs opaque `membytes` return** — FEATURES recommends typed pairs (MEDIUM-HIGH confidence) but this is not yet peer-confirmed. Handle by building the typed-pair design in Phase 18 and treating peer disagreement as a late Phase 19 adjustment, not a blocker — the underlying loop/validation/storage logic is unaffected either way.
-- **Batch selector string** — depends on the finalized signature once the count/tuple layout (shape B) is locked; pin it in Phase 17's interface file alongside `create_order`, then cast-sig-verify again in Phase 19 once the peer confirms.
-
-## Sources
-
-### Primary (HIGH confidence)
-- `plankc/frontend/session/src/builtins.rs:180-289` — complete builtin registration table
-- `plankc/frontend/hir/src/lowerer/mod.rs:725-736` — `while` lowered, `inline while` rejected
-- `plankc/frontend/hir/src/tests.rs:779` — `test_inline_while_not_yet_supported` locking test
-- `plankc/docs/Grammar.md:45` — `while` is the sole loop rule
-- `plankc/plank-diff-tests/src/examples/merkle_airdrop.plk` + paired `MerkleAirdrop.sol` — compiled+diff-tested runtime `while` + computed `@evm_calldataload` offset
-- `lib/plankified-univ3/plank/lib/storage.plk:230-235` — `array_slot` slot derivation
-- `src/types/pos_spec/VolOrder.plk`, `VolRangeWidth.plk`, `TickVolatility.plk`, `SpreadTickAssimetry.plk` — kept types and `*_is_complete` bounds
-- `src/modules/exposure/VegaAccountMod.plk` + `src/interfaces/exposure/VegaAccountInterface.plk` — zero-math-in-module, scalar-slot + selector-pinning precedent
-- `src/modules/market_state_measurements/RealizedVolatilityMod.plk`, `src/types/StorageIndex.plk:19-34` — ring write/read path and the wraparound mask that must NOT be imported
-- `test/exposure/VegaAccount.e2e.t.sol`, `test/types/pos_spec/VolOrder.t.sol` — after-every-write driver, differential discipline, existing pack/unpack test conventions
-- `lean4-spec/lean/vol_markets/PosSpec.lean` — skew open-interval justification
-- Multicall3 source `github.com/mds1/multicall` — `aggregate3`/`tryAggregate`/`aggregate` semantics (verified)
-- `.planning/PROJECT.md` — milestone goal, consumer contract, anti-scope
-- `.planning/STATE.md` Accumulated Context — catalogued kills (checked-vs-wrapping, `@evm_not` trap, `vm.assume` exhaustion, cached-fuzz replay, slot-aliasing, vacuous-mock discipline)
-- EVM semantics — `calldataload` zero-padding past `calldatasize`, OOG/revert frame-unwind behavior, 63/64 gas rule (standard)
-
-### Secondary (MEDIUM confidence)
-- ERC-4337 `executeBatch` atomic-batch contrast (training-derived, used only to justify rejecting atomicity)
+> Replaces a stale v4.0-era SUMMARY.md (plank `VolOrderManagerMod` milestone, 2026-07-19).
+> If anything downstream cites "SUMMARY.md" with a July date, it is reading the wrong file.
 
 ---
-*Research completed: 2026-07-19*
-*Ready for roadmap: yes*
+
+## The one finding that reshapes the milestone
+
+**`jsonb` cannot carry a byte-identity guarantee, and `PROJECT.md` as written asked it to.**
+
+Confirmed three times independently — from the Postgres docs, and by live measurement on
+PG 18 and PG 18.4:
+
+```
+raw   bytea = {"z_last":1,"a_first":2,  "dup":1, "dup":3}
+jsonb text  = {"dup": 3, "z_last": 1, "a_first": 2}
+BYTE-IDENTICAL? False
+```
+
+`jsonb` does not preserve whitespace, key order, or duplicate keys, and re-renders numbers
+through `numeric`. A determinism check reading a `jsonb` column tests **Postgres's
+normalizer, not GAMS** — it would pass on real non-determinism. That is the milestone's
+headline guarantee, silently voided.
+
+**Resolution:** `output_bytes bytea` is authoritative (digested, compared, published);
+`output_jsonb` is a **derived projection**, for querying only. Cheap — but it must land in
+the earliest schema, because everything downstream consumes it.
+
+### The same hazard, one layer up
+
+`aeson`'s `decode → encode` is **not the identity** at GHC 9.10.3 — measured against this
+project's own build plan, four mutations in one round-trip, including
+`0.00318353 → 3.18353e-3` (aeson *introduces* exponent notation) and `2.8e19 →
+28000000000000000000`.
+
+So the prover's bytes must never pass through `Data.Aeson.Value` at all. That **rules out
+reusing `Driver.Capture.write_json_atomically`** on the publication path — the helper this
+workstream already trusts for committed artifacts is the wrong tool for this one.
+
+Note `aeson` and `jsonb` normalize in **opposite directions**, so three mutually
+incompatible canonical forms sit between the solver and the forge test.
+
+### And a correctness bug waiting in the consumer
+
+Decoding `dQx` as `[Double]` **loses 32 wei on the first element**. The forge test would
+execute the wrong amounts. `[Integer]` is exact. Non-negotiable.
+
+---
+
+## Stack decision
+
+**`postgresql-simple` 0.7.0.1.** The briefing premise — "several candidates lag on new
+GHC" — was **wrong**: all six candidates compile clean on GHC 9.10.3. The decision had to
+be made on footprint and fit, measured by `plan.json` set-diff against the real
+152-package baseline:
+
+| Candidate | New packages |
+|---|---|
+| **postgresql-simple** | **+4** |
+| opaleye | +7 |
+| hasql trio | +18 (+22 with `hasql-th`) |
+| beam | +29 |
+| persistent / +esqueleto | +43 / +44 |
+
+Full recommendation (client + migrations + subprocess + hashing) = **+9 packages**.
+`hasql` is a strong runner-up — better JSONB codecs, first-party pooling — losing on 4.5×
+dependencies and ceremony, not merit. `persistent` is the worst fit (mandatory TH, drags
+`monad-logger`/`conduit`/`blaze-html`).
+
+**Hashing is free:** `crypton-1.0.6` is *already resolved* via `web3-crypto` (+0 packages).
+`cryptonite` is deprecated (last upload 2022-03-13).
+
+**Two hidden pins found:** `web3-crypto` caps `crypton <1.1` **and `aeson <2.3`**. Any
+future dependency wanting `aeson >=2.3` will conflict.
+
+---
+
+## Key design
+
+All seven inputs are **integers on the wire**; the floats (`deltaRealized`, `rPhiRealized`)
+are outputs, not key material. So the canonical-serialization problem is far smaller than
+it first appears.
+
+**RFC 8785 (JCS) is the wrong tool** — it mandates numbers be IEEE-754 double-expressible,
+and three inputs exceed binary64 (`sqrtPriceX96` uint160, `liquidityRaw` uint128,
+`volTgtWad` wei; §3 already measured 2⁶⁴ printing 384 wei off).
+
+**Recommended:** one renderer feeds both `execve` argv and the hash preimage, so
+key/invocation agreement is **structural, not asserted** — you cannot have hashed something
+other than what you ran. Riders:
+
+- normalize at the edge (`28e18` → `28000000000000000000`) once, never between uses;
+- **frame the fields** — unframed `H(a‖b‖c)` admits collisions;
+- put the **pips denominator** in the preimage (§6 open ruling 2 is unresolved; if it
+  changes later, every stored key means something different *without any key's bytes
+  changing*).
+
+**The key omits the model source.** Edit `volume_path.gms` and every existing key still
+hits, silently, forever. Add `model_source_digest` and `solver_options_digest`, and a
+`key_scheme` column **inside the unique constraint** so a future key-formula change
+*orphans* rows rather than *corrupting* them. Cheapest insurance in the milestone.
+
+---
+
+## Cache and verification policy
+
+Prior art disagrees, and the disagreement is informative: ccache never checks; Bazel's
+ActionCache is last-write-wins (which is *why* poisoning is hard to find there); Nix keeps
+the original and errors; Nix CA-derivations refuse a conflicting realisation outright;
+rebuilderd publishes the disagreement as data.
+
+**Nix shipped always-verify and deleted it** — `--repeat` and `enforce-determinism` were
+removed in 2.13 (2023-01-17) as "broken under many circumstances for a long time." What
+survived is on-demand `--check`: exit 1, keep the original, discard the divergent build.
+
+**Recommended:** first-writer-wins, non-zero exit on mismatch, and **quarantine** the
+divergent bytes rather than discard them — a mismatch becomes evidence instead of a lost
+artifact. Verification is on-demand, not on every hit; always-verify defeats the cache
+elision that motivated the store.
+
+**Correction to the brief:** Bazel's `--experimental_repeated_by` **does not exist** —
+absent from the flag reference, `bazel_flags.proto` and release notes. Bazel has no
+repeat-and-compare build flag; its real workflow is out-of-band execution-log diffing.
+
+---
+
+## Architecture decisions
+
+- **Module shape:** the `{Types,Encoding,Decode,Rpc}` template is *not* this repo's actual
+  convention — `Rig.Manifest` and `Driver.Capture` already use role-named modules. The
+  invariant to preserve is **one IO edge per area**.
+- **Testing:** three tiers, and **Postgres is never a `cabal test` dependency** — pure
+  checks, `Store.Laws` against an in-memory store, plus a committed conformance artifact
+  (the `driver-run-capture.json` pattern applied to a DB). `tmp-postgres` **rejected**: it
+  shells out to `initdb`/`pg_ctl`, and this machine has client-only Postgres.
+- **Polling is forced, not chosen.** `eth_subscribe` is not in the Eth API surface and
+  `jsonrpc-tinyclient` is structurally request/response. The loop is a watermark-driven
+  fold.
+- **`ExceptT` rejected.** `runWeb3'` catches only `Web3Error`, which `web3-ethereum`
+  **never constructs** (0 occurrences in `src/`); real failures throw `JsonRpcException` or
+  `IOException`, neither caught. Its `Left` branch is unreachable — the handlers at
+  `offchain/app/Main.hs:235` and `offchain/lib/VolOrder/Rpc.hs:279` are **dead code**.
+  Adding `ExceptT` would advertise a guarantee the runtime does not provide, which is the
+  advertised-but-dead class the suite already guards against.
+- **Build order:** the byte-reproduction proof lands with **no chain and no upstream**.
+  Do not sequence it behind the Anvil phase.
+
+---
+
+## Library warts that bite silently
+
+| Wart | Why it is dangerous |
+|---|---|
+| `ToField ByteString` sends a **quoted text literal**, not `bytea` | The `Binary` newtype is required. Types line up; **nothing complains at compile time**. |
+| `postgresql-simple` `?` vs `??` depends on **which function** | `query`/`execute` need `??`; `query_`/`execute_` pass SQL verbatim and need `?`. Wrong form throws `operator does not exist: jsonb ?? unknown`. `@>` and `->>` unaffected. |
+| `postgresql-migration` **exits 0** on checksum mismatch | Returns `MigrationError "Checksum mismatch"` and the process still exits 0. The caller must pattern-match and `exitFailure`. |
+| `typed-process` timeout | **Verified from source**: `readProcess = bracket (startProcess …) stopProcess`, so `timeout` does terminate the child, and it returns exactly the `(ExitCode, stdout, stderr)` triple §4 needs. |
+
+---
+
+## GAMS reality check
+
+**Exit code `0` means "GAMS ran", not "the model solved."** GAMS's own docs: *"the model may
+have been infeasible or may have failed in another way while the return code says all is
+fine."* So `VOLUME_PATH.md` §4's "gate on exit code" is a property of **`volume_path.gms`'s
+abort coverage**, not of GAMS — and that file is under active development in another
+worktree.
+
+Measured here at 54.1 with `action=ce`: exit codes 0/2/3, so the `Makefile` comment that
+"`gams` exits 0 even on compile errors" is **not reproducible**. The residual gap is
+exit-0-with-no-output, closed by an **absence-of-artifact** test rather than log parsing.
+
+**No wrapping landmine:** `volume_path.gms:202` sets `fj.pw = 4000` explicitly, not the
+255 default. Bound worth recording: `dQx` elements are ~22 chars, so the line wraps around
+**N ≈ 180 events**. `nEvents` defaults to 8; §6 open ruling 1 ("production `nEvents`") must
+stay under that.
+
+**`volTgtWad` is a GAMS `Scalar`** (double), defaulting to `28e18` = 2.8e19 — past 2⁵³, so
+not exactly representable, which is exactly why §3 documents ~128–512 wei granularity.
+
+---
+
+## Six pitfalls that are reincarnations of this repo's recurring defect class
+
+The class — *an assertion that passes when its subject is absent* — was found six times
+across three review rounds, each after the previous sweep was declared complete. It has
+six new homes here:
+
+1. an emptily-succeeding `gams --version` parse (`"" == ""`, verbatim);
+2. `nEvents` absent → `0` before hashing (`tickSpacing = 0`, one type over);
+3. a determinism check that compares a cached row **to itself** (the tautology);
+4. DB tests that **skip** when Postgres is absent (`grep -q` over an empty log);
+5. GAMS exit code `0`;
+6. unframed `H(a‖b‖c)` concatenation collisions.
+
+Every one must be answered with a check that fails loudly on absence, not one that reads
+nothing and reports clean.
+
+---
+
+## Environment
+
+- **No Postgres server on this machine** — `psql`/`createdb`/`pg_isready` present;
+  `postgres`/`initdb`/`pg_ctl` absent; nothing listening on 5432.
+- **Docker 29.5.2 works**; `postgres:18-alpine` was ready in 3 seconds.
+- Recommended: GH Actions `services:` container — with the caveat that on a
+  *non-containerized* self-hosted runner you must map ports to localhost.
+- **The `haskell` gate job has never executed** (v5.0 merged `--admin`), so its first run
+  debuts both the gate itself and the Postgres wiring.
+
+---
+
+## Open questions carried into requirements
+
+1. **CONOPT version detection has no clean method.** `gams --version` does not report it;
+   the only obvious source is listing/log text, which §4 forbids gating on. Phase 3 must
+   settle this — and it feeds the key.
+2. **Is `VOLUME_PATH.md` §3's example JSON byte-accurate?** The prover emits
+   `deltaRealized` via `dReal:0:10` (ten decimals) while §3 shows `0.49`. Unverified.
+   One prover run against the scratch directory would settle this, the trailing newline,
+   exit-code behaviour and CONOPT detection at once.
+3. **Does the `volume_path.gms` source digest enter the key?** Prior-art recommendation,
+   not a stated requirement. Without it, editing the model gives silent stale hits.
+4. **The resident loop's concurrency shape** decides whether single-flight is P1 or P2.
+5. Whether GH Actions `services:` containers work on the `cfmm-build` executor was not
+   verified; the per-run-database recommendation was chosen partly because it does not
+   depend on the answer.

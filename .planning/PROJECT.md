@@ -12,7 +12,70 @@ A target contingent payoff can flow end-to-end — **payoff → GAMS solves opti
 
 **v3.0 — VegaAccountMod Vault (H1 issuance, exogenous risk price): SHIPPED.** `VegaAccountMod.plk` is a live, proven deposit-only vault: deposit collateral → vega-exposure shares at `p_risk = oracle/(1−h)`, every claim a CALLED test or an OBSERVED mutation kill, verified phase-by-phase with independent mutant re-kills against the machine-checked Lean authority. `PLANK_SKIP` is empty; commands of record: `make compile` 11 ok/0/0, `make test` 74 pass / 4 pre-existing pos_spec fails (vol-type track's). Details: `.planning/MILESTONES.md`, tag `v3.0`.
 
-## Current Milestone: v5.0 — VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
+## Current Milestone: v6.0 — Model Output Store + VolumePath Bridge (rpc_api workstream)
+
+**Goal:** A Postgres/JSONB **keyed store for model outputs** whose key is the shock that
+produced them, so an identical shock **skips the solve** and a re-solve that disagrees is
+caught — and, on top of it, the issue #25 bridge that carries a live Anvil `next` event
+through the GAMS VolumePath prover to the fixture the forge test reads.
+
+**Source:** GitHub issue #25 (`rpc_api: volume_path bridge — Anvil state → GAMS prover →
+foundry fixture`). Binding reference: `model/mev_tax_model_one/VOLUME_PATH.md` — §2 the
+seven inputs, §3 the output shape and determinism guarantee, §4 every abort is named and
+**gated on exit code, never log text**. Consume, do not re-derive.
+
+**Why the store comes first:** this is roadmap items 6–8 (`Integrate a PostGreDB with
+haskell API`, `haskell DB API to GAMS`, `haskell API from GAMS`) arriving with their first
+real tenant. The key is `H(seven inputs ‖ GAMS version ‖ CONOPT version)`, which makes
+`VOLUME_PATH.md` §3's *"same inputs + same toolchain → same bytes"* a **standing falsifiable
+check** rather than prose: re-solving an existing key must reproduce it byte-for-byte.
+
+**Target features:**
+- **Postgres foundation + Haskell client** — library decision (open; `postgresql-simple` is
+  a prior, not a conclusion), connection/config, migrations, JSONB schema for keyed model
+  outputs. Model-agnostic layout (`<model>/<key>`); only the `volume_path` tenant is built.
+- **The keyed store** — cache hit elides the solve; re-solve of an existing key must
+  reproduce bytes; pin/retain flags; **reset as its own operation**; append-only run log
+  carrying `(timestamp, key, next-tx-hash, block)` for chronology the content key can't give.
+- **GAMS invocation layer** — subprocess, gate on exit code (§4), toolchain version
+  detection feeding the key.
+- **Anvil read layer** — decode the `next` event (`SELECTOR_NEXT 0xd3827b0b` =
+  `next(address,uint160,int24,uint24,uint24)`), read price/liquidity/fee, **every read
+  pinned to one block**. BLOCKED on the plank worktree emitting the event.
+- **Fee splitter** — the pool fee splits into (φ_X, φ_M) under two constraints:
+  `(1−φ_X)(1−φ_M) = 1−f` sets the **level**, so φ̄ — the prover's composed fee — IS `f` in exact
+  rational arithmetic. **Over the integer pip grid it is not generally attainable**, and that is a
+  property of the grid rather than a defect: the identity holds only when `10⁶` divides
+  `φ_X·φ_M`, true for 4.935 % of fees (987 of 20000) and for none of 100 / 500 / 3000 / 10000
+  pips (MEASURED 2026-08-17). The splitter therefore rounds to nearest and records the exact
+  residual as a first-class field: φ̄ equals `f` exactly only on the exact pairs, and otherwise
+  equals `f` plus that recorded residual, bounded below half a pip by construction (MEASURED:
+  `split_for 0 3000 490000` yields (752, 2250) composing to **3000.308** pips). The derived pips,
+  not `f`, are what reach GAMS and the key — ROADMAP SC-1, which already provides for the rounding
+  rule. Admissibility is the prover's own §1.3 test transcribed from
+  `volume_path.gms:100-108`: `(φ̄²+Δφ²)δ*² − (φ_X+φ_M)·φ̄·δ* + φ_X·φ_M ≤ 0`, with **φ̄ the
+  COMPOSED fee** and **Δφ the FULL gap `φ_M−φ_X`**. Exact integer arithmetic over pips.
+  **CORRECTION (2026-08-17):** an earlier reading here took φ̄ as the arithmetic mean and Δφ as
+  the ellipse SEMI-axis, giving `δ* ≥ 2ρ/(1+ρ²)`. That is WRONG — measured against the prover it
+  is 2× too large, falsely refuses ~82,700 pips of admissible δ* at the fixture fees, and its
+  corollary "no target reachable unless ρ ≥ 2+√3" is false. The prover's form independently
+  reproduces §1.1's `δ ≤ 1/2` ceiling as its upper root; the mistaken form gives 1. Closed form,
+  no optimizer — **proved feasible before GAMS is invoked**, so infeasibility is a refusal we
+  explain, not an exit code we interpret.
+- **The resident loop + fixture publication** — the loop re-solves continuously; publishing
+  the newest run to `test/models/mev_tax_model_one/fixtures/volume_path.json` is what keeps
+  the forge test's input from being a moving target.
+
+**Territory:** the store lives under `offchain/` (ours). The only thing written into
+`test/` is the latest fixture copy — one file into another track's tree, not a database.
+
+## Superseded Milestone Header: v5.0 — VolOrder V2 Offchain Re-Pin + Stochastic Drivers (rpc_api workstream)
+
+**SHIPPED 2026-08-03** — merged to develop as `19a06f3` (PR #9, 209 commits). Note the
+merge used `--admin`, bypassing the `gate` check: CI has **never** validated it, and the
+`haskell` gate job's first real execution will be on develop. Verified locally instead:
+`cabal test` 91/91, zero `-Wall` warnings, `forge test` 252/0 (== develop's baseline),
+`verify-rig.sh`/`verify-import.sh` exit 0.
 
 **Goal:** The rpc_api Haskell client speaks the VolOrder **V2 (targetVega) ABI** and both
 stochastic drivers — price diffusion and Poisson VolOrder creation — run end-to-end
@@ -36,13 +99,19 @@ events, cast/solc-verified), `.planning/rpc-api-volorder-v2-HANDOFF.md`,
   price diffusion (E3 `TimepointWritten` per step) + stochastic V2 VolOrder creation
   (single + batch, preview/readback consistency incl. targetVega).
 
-## Queued Milestone: v6.0 — Subgraph for the vol-instrument event set
+## Queued Milestone: v7.0 — Subgraph for the vol-instrument event set
+
+**Renumbered from v6.0 (2026-08-16)** — the model output store took v6.0 on dependency
+grounds: the subgraph needs somewhere to put what it indexes, and v6.0 builds exactly that
+(Postgres + JSONB + a Haskell DB layer). Doing it first means this milestone inherits
+storage infrastructure instead of inventing its own. Nothing about issue #14's scope
+changed; only its number and its position in the queue.
 
 GitHub issue #14: index E1v2/E3/E4/E5/E6 per `notes/DATA_CONTRACT.md` and materialize
 the position-epoch panel (keyed by uint48 `seriesIdHash`) that the cfmm-gams
 `execute_loadDC` reader consumes (cfmm-gams#1) — the chain → subgraph → GAMS missing
-middle. Sequenced after v5.0 because it consumes the event stream v5.0's drivers
-generate. Hard rules already pinned by the issue: v1 E1 topic0 retired-never-live;
+middle. Originally sequenced after v5.0 because it consumes the event stream v5.0's drivers
+generate; now after v6.0. Hard rules already pinned by the issue: v1 E1 topic0 retired-never-live;
 E5↔`Swap` same-tx nearest-preceding-logIndex join with `FeeApplied.fee == Swap.fee`
 integrity assert; `tObs` = E3's EMITTED timestamp; σ² windowed from E6 history;
 sign-extension + golden vectors for tokenId decode when E2 ships.
@@ -135,4 +204,4 @@ sign-extension + golden vectors for tokenId decode when E2 ships.
 | Lean lemmas are the v3.0 test oracle (each lemma → a fuzz property vs a Solidity reference mock) | Same differential discipline that proved the vol oracle; the lemmas are machine-checked so the properties are not aspirational | ✓ Good — with one honest carve-out: issuance_haircut_equiv is ℝ-only; integers get the one-sided transfer |
 
 ---
-*Last updated: 2026-07-30 — started milestone v5.0 (VolOrder V2 offchain re-pin + stochastic drivers, rpc_api workstream, from issue #13); queued v6.0 (subgraph, issue #14)*
+*Last updated: 2026-08-16 — started milestone v6.0 (model output store + VolumePath bridge, rpc_api workstream, from issue #25); v5.0 SHIPPED 2026-08-03 as 19a06f3 (PR #9, merged --admin, CI never ran); subgraph (issue #14) renumbered v6.0 → v7.0*

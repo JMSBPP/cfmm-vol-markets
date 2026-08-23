@@ -38,7 +38,11 @@ cd "$(git rev-parse --show-toplevel)"
 MANIFEST="${RIG_MANIFEST:-offchain/rig/rig-manifest.json}"
 IMPORT_REF=offchain/rig/import-ref.txt
 OUT=offchain/rig/cheat-swap-proof.json
-RPC=http://127.0.0.1:8545
+# CHAIN-06. Was the authority as a literal; ETH_RPC_URL reached this script's environment and
+# nothing here read it. Sourced, never re-spelled -- offchain/rig/endpoint.sh states the default
+# once for the shell side.
+. offchain/rig/endpoint.sh
+RPC="$RPC_URL"
 
 # --- Preconditions: fail loudly, never default -----------------------------
 if [ ! -f "$MANIFEST" ]; then
