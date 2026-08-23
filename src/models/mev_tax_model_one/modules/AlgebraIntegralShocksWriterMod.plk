@@ -249,14 +249,6 @@ run {
 	       let tick_lower = @evm_sload(SLOT_TICK_LOWER);
 	       let tick_upper = @evm_sload(SLOT_TICK_UPPER);
 	       let pool = @evm_sload(SLOT_POOL);
-	       let factory = @evm_sload(SLOT_FACTORY);
-
-	       let dep_call = @malloc_uninit(4);
-	       @mstore4(dep_call, SELECTOR_POOL_DEPLOYER);
-	       let dep_ret = @malloc_uninit(32);
-	       let dep_succ = @evm_call(@evm_gas(), factory, ZERO_WEI, dep_call, 4, dep_ret, 32);
-	       if !dep_succ { revert_empty(); }
-	       let deployer = @mload32(dep_ret);
 
 	       // Algebra position key = owner<<48 | (bottomTick & mask)<<24 | (topTick & mask); owner=this.
 	       let key = @evm_shl(48, @evm_address_this()) | @evm_shl(24, tick_lower & POSITION_TICK_MASK) | (tick_upper & POSITION_TICK_MASK);
@@ -280,7 +272,7 @@ run {
 	       @mstore32(out +% 32,  0);
 	       @mstore32(out +% 64,  token0);
 	       @mstore32(out +% 96,  token1);
-	       @mstore32(out +% 128, deployer);
+	       @mstore32(out +% 128, 0);            // default pool (createPool) -> PoolKey.deployer = 0
 	       @mstore32(out +% 160, tick_lower);   // int24, already sign-extended (getTickAtSqrtRatio)
 	       @mstore32(out +% 192, tick_upper);
 	       @mstore32(out +% 224, liquidity);
