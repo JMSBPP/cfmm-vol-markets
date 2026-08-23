@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 28-02-PLAN.md. 211/211 -> 219/219 (BASE_2 + 8), exit 0, zero warnings, zero Downloading. LOOP-01 IS CLOSED and S1 IS CLOSED IN THE LIBRARY, so all three spike seams are now shut. The watermark is a ROW IN THE STORE and run_loop re-reads it from the ledger on every pass; the restart proof injects events at blocks 6 and 7 WHILE NO LOOP IS RUNNING, builds a SECOND Env over the SAME store and ledger, and asserts the down-time events exist in the source FIRST, then that their rows landed, the watermark reads 8, and the EARLY events did NOT gain a second row -- which is the arm that tells resuming apart from starting over. FIRING INPUT OBSERVED: next_range starting from the head when a watermark is present -> 216/219, \"Row counts [0,0] for the events at blocks [6,7]\". LOOP-01's Blocked attribution was INHERITED, not measured -- the third time after CHAIN-02/03; the LIVE poll is still unexercised (CHAIN-01, issue #26) and that is written into its traceability row. S1: version-only means no production model and no production SOLVE, NOT no process -- the version flag is parsed as a FILENAME and is refused Left (WrongJob \"--version\") by the very parser Gams.Detect reuses, and CONOPT states its version only in a run that reaches the solver; both facts were already committed in gams-conformance.json and both negative controls are read out of it, so no version string is typed in the suite (git diff | grep -c = 0). ti_model_sources is the PRODUCTION digest and never the probe's. The exit table is COMPLETE on day one (nine non-zero entries including 28-03/04/05's) and Loop/Config.hs states none of the colliding numerals -- the disjointness is asserted against Gams.Exit.gams_code_domain itself. TWO CENSUS FINDINGS, both observed red first: sc3_literal_purge named the 0xffffffff mask in split_seed (Word32's fromInteger IS the modular reduction), and every_endpoint_site_resolves_rather_than_hardcodes named Loop/Chain.hs because a HaskellConsumer must name the resolver on a CODE line -- repaired with resolved_chain_source, which resolves once and returns the endpoint ALONGSIDE the source. LoopMain.hs is NOT an endpoint site; the manifest is nineteen, and its haddock had said fifteen while holding eighteen. LOOP_POLL_MS needed a THIRD override shape (value_overrides): probe_override asserts a bogus PATH comes back verbatim and unprobed_overrides is for an unreachable consumer, and neither fits a variable that resolves to a number and IS reachable. SIX FIRING INPUTS TOTAL, all observed, all baselines sha256sum -c OK; TWO caught by a second independent guard (M3 also reddened the restart check, M6 also reddened the override sweep). Floors 75/86 -> 81/92, both re-measured by RUNNING find, zero slack, census hs 65 sh 12 json 11 sql 4. Next: 28-03 (publication: the fixture-directory resolver, the typed shape, the atomic rename and its torn-read positive control)."
+stopped_at: "Completed 28-03-PLAN.md. 219/219 -> 224/224 (BASE_3 + 5), exit 0, zero warnings, zero Downloading, measured wall clock 528 s against the 900 s ceiling. LOOP-03 IS CLOSED. A reader racing publish_fixture for TEN SECONDS completed 204555 reads across 142623 publications and found ZERO unparseable; the SAME reader, the SAME two documents, the SAME deadline, with only the rename removed, found 1240687 torn reads out of 1333592 -- 93.0%. The harness is parameterised by the WRITER, so the two arms differ in exactly one expression, and the counters were obtained by INVERTING each verdict so they were printed rather than inferred from a green line. Driver.Capture.write_bytes_atomically is a GENERALIZATION and not a second writer: exactly ONE renameFile call site now exists in offchain/lib and offchain/app (measured -- the other three matches are an import and two haddock lines). Loop.Publish decides in an order that is the design (decode, byte floor, pool token on TWO arms, textual splice) and never creates a directory. THREE PLAN PREDICTIONS REFUTED AND THE HADDOCK CORRECTED RATHER THAN THE CHECK BENT: (1) the 150-byte truncation is ArtifactUnparseable, not BelowShapeFloor, because the decoder runs first -- the floor's real subject is a CONSTRUCTED valid-but-tiny artifact; (2) an aeson Value round trip does NOT lose the dQx[0] digits, because Scientific is exact -- driven both ways, the byte arm catches any rebuild and the digit arm names Double; (3) THE WALL-CLOCK BUDGET WAS WRONG BY SEVENTEEN -- the plan said 173 -> ~195 s, and sentinel_falsification_harness re-runs core_checks about fifteen times, so twenty seconds of racing costs the suite 342 (186 s without, 528 s with). The torn control is System.Posix.IO because GHC's per-inode lock table raises \"resource busy (file is locked)\" against System.IO -- the runtime defending the very invariant the control exists to violate; unix is a boot library, +0 packages MEASURED. fresh_temp_dir names each directory uniquely after \"Directory not empty\" was OBSERVED under the sweep, which had cost 2328 s and reddened the harness's own NEGATIVE CONTROL. FIVE FIRING INPUTS, all observed, all baselines sha256sum -c OK; M1 left the control GREEN, M3 reddened three structural guards, M5 reddened six including the override sweep. Floors 81/92 -> 82/93, both re-measured by RUNNING find, zero slack, census hs 66 sh 12 json 11 sql 4. git status --porcelain test/ EMPTY. Next: 28-04 (exactly one file by tree diff, the missing-directory precondition, and default_fixture_path pinned byte-equal against origin/develop)."
 last_updated: "2026-08-23"
-last_activity: "2026-08-23 — 28-02 executed. 211/211 -> 219/219, 0 warnings, 0 Downloading. Gams.Detect (S1), Loop.Config, Loop.Poll, Loop.Chain, Loop.Run and offchain/app/LoopMain.hs shipped with the executable loop stanza. LOOP-01 CLOSED: the restart proof injects events while the loop is down and the restart-from-head mutation was observed reddening at 216/219. Eight checks, six firing inputs observed (two caught by a second independent guard), two census findings repaired after being seen red. Floors 75/86 -> 81/92, both re-measured by running find. 28-02-SUMMARY.md written."
+last_activity: "2026-08-23 — 28-03 executed (RESUMED after the previous executor was killed mid-Task-1). 219/219 -> 224/224, 0 warnings, 0 Downloading, 528 s. Loop.Publish shipped with the generalized Driver.Capture.write_bytes_atomically, the one-resolver fixture directory, and Loop.Run.publish_for at the EVENT's block. LOOP-03 CLOSED: ten seconds of racing, 0 of 204555 reads torn; the non-atomic control OBSERVED tearing 1240687 of 1333592. Five checks, five firing inputs observed, three plan predictions refuted and corrected. Floors 81/92 -> 82/93. 28-03-SUMMARY.md written."
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 26
-  completed_plans: 23
+  completed_plans: 24
 ---
 
 <!--
@@ -43,14 +43,90 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **28 — Resident Loop & Fixture Publication** — **IN PROGRESS (2/5 plans)**.
-Plan: **28-02 COMPLETE** (commits `153460d`, `631cf31`, `3ab9d7e` + this close). Summary:
-`.planning/phases/28-resident-loop-fixture-publication/28-02-SUMMARY.md`.
-211/211 → **219/219** (`BASE_2 + 8`), exit 0, zero warnings, 0 `Downloading`; floors
-**75/86 → 81/92**, both re-measured by RUNNING `find`, zero slack (census
-`hs 65, sh 12, json 11, sql 4`).
-Next: **28-03** — publication: the fixture-directory resolver, the typed shape, and the atomic
-rename with its torn-read positive control.
+Phase: **28 — Resident Loop & Fixture Publication** — **IN PROGRESS (3/5 plans)**.
+Plan: **28-03 COMPLETE** (commits `ed9f483`, `dc96987` + this close). Summary:
+`.planning/phases/28-resident-loop-fixture-publication/28-03-SUMMARY.md`.
+219/219 → **224/224** (`BASE_3 + 5`), exit 0, zero warnings, 0 `Downloading`, measured wall clock
+**528 s** against the 900 s ceiling; floors **81/92 → 82/93**, both re-measured by RUNNING `find`,
+zero slack (census `hs 66, sh 12, json 11, sql 4`).
+Next: **28-04** — exactly one file by before/after tree diff, the missing-directory precondition
+naming the path and the owning workstream, and `default_fixture_path` pinned byte-equal against
+the consumer's own `VOLUME_PATH_JSON` read live from `origin/develop`.
+
+**28-03 DISPOSITION — LOOP-03 IS CLOSED, AND THE HEADLINE IS FALSIFIABLE BECAUSE THE CONTROL WAS
+OBSERVED.** `Loop.Publish`, `Driver.Capture.write_bytes_atomically`, `Loop.Config`'s publication
+target, `Loop.Run.publish_for` and five checks. **This plan was RESUMED**: the previous executor
+was killed mid-Task-1 with six files dirty, `offchain/lib/Loop/Publish.hs` untracked, and the tree
+not building (`loop_chain_id` and `fresh_temp_dir` referenced and defined nowhere). Nothing was
+discarded; the task split is by concern, and Task 1's commit was verified GREEN at 219/219 by
+RUNNING the suite at that state before Task 2 was committed.
+
+**THE RACE, MEASURED ON BOTH ARMS BY INVERTING EACH VERDICT SO THE COUNTERS WERE PRINTED.**
+`publish_fixture` (temp sibling + rename): **142,623 publications, 204,555 completed reads, 0
+unparseable.** No temp file, no rename, same reader, same two documents, same deadline: **6,079
+publications, 1,333,592 completed reads, 1,240,687 unparseable — 93.0%.** Nine reads in ten are
+torn the moment the rename is removed. `publication_race` takes the WRITER as a parameter, so the
+two arms differ in exactly one expression; both checks order the "did the race actually run" arm
+(floor 100 on both counters) FIRST, because a green "no torn read" over a race that did not happen
+is a check about nothing.
+
+**THERE IS EXACTLY ONE `renameFile` CALL SITE IN THE TREE.** `write_bytes_atomically` was added as
+a GENERALIZATION and both public writers are now `write_atomically`; `grep -rn "renameFile"
+offchain/lib offchain/app` prints four lines, of which one is an import and two are haddock
+sentences. `Loop.Publish` names no rename (`grep -c` = 0), no `Data.Aeson`, no `Double` and no
+`createDirectory`, and there is no aeson anywhere under `offchain/lib/Loop/`.
+
+**THREE OF THE PLAN'S PREDICTIONS WERE REFUTED AND THE HADDOCK WAS CORRECTED, NEVER THE CHECK.**
+(1) The 150-byte truncation is `ArtifactUnparseable`, not `BelowShapeFloor` — the plan prescribes
+both the decode-first ordering and the floor refusal, and a prefix of the golden stops being JSON
+long before it gets small. The floor's real subject is a CONSTRUCTED artifact that decodes and is
+still under 200 bytes, whose decode is asserted FIRST. (2) **An aeson `Value` round trip does NOT
+lose the `dQx[0]` digits.** Driven: it reddens the BYTE arm (539 against 605) and never reaches the
+digit arm; with the byte arm neutered the check came back GREEN, because `Scientific` is
+arbitrary-precision and its encoder prints an integral value verbatim. Re-driven through `Double`,
+the digit arm reddens exactly as written — so the two arms catch DIFFERENT re-renderers and the
+carrier BYTE-04 measured is `Double`, never "a JSON value type" in general. (3) **THE WALL-CLOCK
+BUDGET WAS WRONG BY A FACTOR OF SEVENTEEN.** The plan said `173 s → ~195 s` on the arithmetic that
+two ten-second harnesses run once each. `sentinel_falsification_harness` re-runs `core_checks`
+about fifteen times — once per swept artifact through `all_objections`, once for its own baseline,
+and once per negative control through `first_objection`, which cannot short-circuit because their
+whole point is that nothing objects. **MEASURED at both ends: 186 s without the races, 528 s with.**
+The number is now in `race_window_seconds`'s haddock and in `deferred-items.md`.
+
+**THE TORN CONTROL CANNOT BE WRITTEN IN `System.IO`, AND THE REASON IS THE RUNTIME DEFENDING THE
+INVARIANT.** `withBinaryFile ... WriteMode` raises **`resource busy (file is locked)`** — OBSERVED —
+because GHC keeps a per-inode lock table and the harness's reader holds the file open. Catching and
+retrying would have been wrong twice: the reader's own `readFile` would fail with the same lock
+error inside the window, and the harness would count a LOCK failure as a torn read. `System.Posix.IO`
+issues the `open()` itself; `unix` is a GHC boot library `process` already depends on, `+0 packages`
+MEASURED. The same fact is why the atomic writer is unaffected — a SIBLING is a different inode and
+`rename()` opens nothing.
+
+**THE INSTRUMENT HAD TWO FAILURE MODES OF ITS OWN AND BOTH WERE OBSERVED BEFORE THEY WERE FIXED.**
+`fresh_temp_dir` cleared a shared per-label directory and raised `removeContentsRecursive:
+Directory not empty`, and on another run left the publisher writing into a directory that had just
+been removed. **The cost of not fixing it was measured:** the flaky check entered the sweep's reader
+sets and the suite ran **2328 s** instead of 528, and the harness's own NEGATIVE CONTROL went red
+(*"the sweep reported it CAUGHT by a_reader_racing_the_publisher_sees_no_torn_fixture"*) — the
+harness correctly refusing to believe a flaky check. Each directory now carries a
+`getMonotonicTimeNSec` suffix. A publication that threw also escaped to `guarded` as an anonymous
+IO error; `race_write_fails` is now an ordered arm and the cache-hit check reads through
+`read_if_present`.
+
+**FIVE FIRING INPUTS, EVERY ONE OBSERVED, EVERY BASELINE RESTORED `sha256sum -c` CLEAN.** M1
+(publisher → torn writer) reddened check 1 at *"1223305 bad read(s) out of 1326222 completed, across
+5953 publications"* **and left the control GREEN**, which is the pair working. M2 (fold the
+zero-pool arm) named the zero arm. M3 (re-render through `Double`) reddened the digit arm **and
+three independent structural guards** — the aeson scan, the artifact-path `Double` scan and the fee-path
+scan. M4 (skip publication on `OutcomeElided`) reddened at *"THE CACHE HIT DID NOT PUBLISH"*. M5
+(`fixture_min_bytes = 700`, above the 606-byte golden) reddened **six**, including
+`every_advertised_override_is_honoured` — with the floor above every artifact the publisher refuses
+on the FLOOR before it reaches the directory check, so the `FIXTURE_DIR` probe's failure stops
+naming the resolved path, which is that probe's third assertion earning its place.
+
+**`git status --porcelain test/` IS EMPTY AFTER EVERY RUN.** Every publication check runs against a
+temporary directory; `Loop.Config.default_fixture_dir` — the `mev_tax_model_one` track's — was never
+created, and `Loop.Publish` cannot create it.
 
 **28-02 DISPOSITION — LOOP-01 IS CLOSED AND S1 IS CLOSED IN THE LIBRARY.** `Gams.Detect`,
 `Loop.Config`, `Loop.Poll`, `Loop.Chain`, `Loop.Run`, `offchain/app/LoopMain.hs`, the
@@ -1198,10 +1274,60 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 | Phase 26 P02 | ~5h | 3 tasks | 3 files |
 | Phase 26 P03 | 180min | 3 tasks | 5 files |
 | Phase 27 P01 | ~2h | 4 tasks | 16 files |
+| Phase 28 P03 | 155min (resumed; the previous executor was killed mid-Task-1) | 2 tasks | 6 files |
 
 ## Accumulated Context
 
 ### Decisions
+
+**v6.0 (Phase 28) decisions:**
+
+- [Phase 28]: [28-03 MEASURED, and it binds every future check in this suite] **A CHECK THAT COSTS
+  T SECONDS COSTS `cabal test` ABOUT 15T.** `sentinel_falsification_harness` re-runs `core_checks`
+  once per swept artifact through `all_objections` (seven), once more for its own baseline, and once
+  per negative control through `first_objection` — and the negative controls cannot short-circuit,
+  because their whole point is that nothing objects. Measured at both ends: **186 s without 28-03's
+  two ten-second race harnesses, 528 s with them**, so twenty seconds of racing costs the suite 342.
+  `expensive_checks` is an ORDERING list and drops nothing, so it does not help. 28-03-PLAN.md
+  budgeted `173 s → ~195 s` on the assumption that a check runs once. **Multiply by fifteen, not by
+  two.** The 900 s ceiling now has 372 s of headroom for 28-04 and 28-05 together.
+
+- [Phase 28]: [28-03 MEASURED] **`Data.Aeson.Value` is NOT the carrier that loses wei — `Double`
+  is.** A publisher that round-trips the golden through `encode <$> decodeStrict` produces
+  DIFFERENT BYTES (539 against 605: whitespace and key order) and the SAME digits, because a number
+  is carried as `Scientific`, which is arbitrary-precision, and its encoder prints an integral value
+  verbatim. Driven both ways: with the byte-identity arm neutered the check came back GREEN under
+  the aeson re-render, and reddened at *"the decimal digit string of dQx[0] -- -2613128317657530400
+  -- does not occur in the published bytes"* only once every number was pushed through
+  `realToFrac … :: Double`. **Consequence:** "we round-tripped it through aeson" is not by itself the
+  BYTE-04 defect, and a check aimed at BYTE-04 must name `Double`. The byte-identity arm is what
+  catches an exact rebuild, and the two arms are not redundant.
+
+- [Phase 28]: [28-03 MEASURED] **GHC's runtime keeps a per-inode file lock, and it makes a
+  non-atomic writer unwritable in `System.IO`.** `withBinaryFile path WriteMode` raises `resource
+  busy (file is locked)` while any handle in the same process holds that file open for reading. A
+  torn-write positive control therefore has to go through `System.Posix.IO`; catching and retrying
+  would make the READER fail with the same lock error inside the window, and the harness would count
+  a lock failure as a torn read. The same fact is why a temp-sibling-then-rename writer is
+  unaffected: a sibling is a different inode and `rename()` opens nothing. **Binds any future
+  in-process concurrency check on a file.**
+
+- [Phase 28]: [28-03 OBSERVED, twice, in two different ways] **A temp directory shared by name is an
+  instrument with a failure mode of its own, and under the sentinel sweep it WILL fire.** A
+  per-label directory cleared with `removeDirectoryRecursive` raised `removeContentsRecursive:
+  unsatisfied constraints (Directory not empty)` and, on another run, left a publisher writing into
+  a directory that had just been removed. The cost was measured: the flaky check entered the sweep's
+  reader sets, the suite ran **2328 s instead of 528**, and the harness's own NEGATIVE CONTROL went
+  red naming it. Name each scratch directory uniquely (`getMonotonicTimeNSec`), and give any
+  operation that can throw inside a harness its own ORDERED ARM — an anonymous `unexpected IO error`
+  at `guarded` is the least useful form of a real finding.
+
+- [Phase 28]: [28-03] **An EMPTY `FIXTURE_DIR` resolves to the default, and that is the OPPOSITE of
+  `LOOP_POLL_MS`'s ruling.** The failures differ: an unreadable cadence has no interpretation at all,
+  while an empty directory string resolves to the process's working directory and would publish a
+  real fixture into the repository root with nothing to say so. Falling back puts the miss where
+  LOOP-04's missing-directory precondition can see it. Both are driven through the PURE rule, never
+  through `setEnv`, because `setEnv k ""` routes to `unsetEnv` (27-01).
 
 **v6.0 (Phase 27) decisions:**
 

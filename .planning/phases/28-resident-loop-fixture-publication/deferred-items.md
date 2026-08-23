@@ -20,3 +20,25 @@ Discovered during execution, OUT OF SCOPE for the plan that found them. Not fixe
   `Chain.Endpoint.resolve_endpoint` cannot fail -- it returns the default -- so the constructor's
   live producers in `offchain/app/LoopMain.hs` are the rig-manifest lookups (the pool manager, the
   shock emitter, the pool id). The name is the plan's and was kept; the haddock says what it covers.
+
+## 28-03
+
+- **`sentinel_falsification_harness` multiplies every check's cost by about fifteen, and nothing
+  says so at the point where a check is written.** MEASURED at 28-03: the suite runs in 186 s
+  without this plan's two ten-second race harnesses and 528 s with them, so twenty seconds of
+  racing costs the suite 342. The cause is structural rather than a defect -- `reader_set` runs
+  `core_checks >>= all_objections` once per swept artifact (seven), the harness runs it once more
+  for its own baseline, and the six negative controls run `core_checks >>= first_objection`, which
+  cannot short-circuit because their whole point is that nothing objects. `expensive_checks` exists
+  and is ORDERING only ("nothing is ever dropped from a list because it appears here"), so it does
+  not help. The number is recorded in `race_window_seconds`'s haddock; whether the sweep should be
+  able to EXCLUDE a check that reads no artifact -- soundly, in the direction `reader_set`'s own
+  haddock already argues -- is a change to the harness and belongs to whoever owns it. 28-03 did
+  not need it: 528 s is inside the 900 s ceiling.
+
+- **`Loop.Publish.publish_fixture` reports success from the WRITE, and nothing re-reads the file.**
+  `br_published` now means "bytes reached disk" in the sense that `write_bytes_atomically`
+  returned. A rename that succeeded and a file that a consumer can read are the same thing on
+  POSIX, and 28-03's race harness measures exactly that from the outside -- but the LOOP itself
+  never verifies its own publication. If a plan ever wants "the loop confirms what it published",
+  it is a read-back, and it belongs with 28-04's before/after tree diff rather than here.
