@@ -1449,7 +1449,7 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
 -- > 82
 purge_file_floor :: Int
-purge_file_floor = 82
+purge_file_floor = 83
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -8445,7 +8445,7 @@ credential_scan root =
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 93
 credential_scan_floor :: Int
-credential_scan_floor = 93
+credential_scan_floor = 94
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -19845,6 +19845,80 @@ the_fixtures_directory_is_recorded_absent_from_both_trees =
 -- and a real @SIGINT@ is not.
 -- ---------------------------------------------------------------------------------------------
 
+-- | The Tier-C capture that would observe LOOP-01..05 end to end, and the artifact it would write.
+--
+-- Both stated once, here, so the check below names neither a second time.
+live_loop_capture, live_loop_artifact :: FilePath
+live_loop_capture  = "offchain/rig/capture-loop.sh"
+live_loop_artifact = "offchain/rig/loop-conformance.json"
+
+-- | THE LIVE RUN IS OWED, AND ITS ABSENCE IS THE ASSERTION.
+--
+-- This check is written INVERTED on purpose and the inversion is the only interesting thing about
+-- it. It passes while @offchain\/rig\/loop-conformance.json@ does NOT exist, and it fails on the day
+-- it appears. Those two directions mean different things and the failure text says which:
+--
+--   * while it PASSES, the live end-to-end run is OWED and BLOCKED. The capture exists, is gated
+--     exactly as Phase 27 gated its two, and cannot be executed -- there is no deployable emitter
+--     of @Shock@ (CHAIN-01, issue #26) and the publication directory is absent from this worktree
+--     and from @origin\/develop@ (LOOP-04, issues #24 and #25, MEASURED at 28-04).
+--   * when it FAILS, the capture HAS been run and there is an artifact to assert over. That is not
+--     a defect: it is the phase close's cue to replace this check with ones that read the recorded
+--     watermark, the recorded ledger rows and the recorded fixture digest, and to RETIRE this one
+--     rather than weaken it.
+--
+-- The alternative was a check that reads the artifact and reports something reassuring when it is
+-- missing. 'aeson_is_absent_from_the_storage_path' already carries this milestone's ruling on that
+-- in its own haddock: a check whose SUBJECT is absent must be a FAILURE naming the plan that
+-- creates the subject, never a pass. So nothing here reads the artifact, and what is asserted about
+-- the script is only what can be asserted about a file that has never run: that it exists, that it
+-- resolves the endpoint through the shared resolver rather than stating one, and that its own
+-- refusal text names the two blocks by number.
+--
+-- 27-02's gating precedent is the shape: resolve through @offchain\/rig\/endpoint.sh@, FAIL LOUDLY
+-- AND BY NAME when nothing answers, never skip. 23-RESEARCH's ruling is why -- a capture gated on
+-- \"if the tool is present\" fails OPEN, so on every machine without the tool it reports success
+-- for the reason it exists to forbid.
+the_live_loop_capture_is_present_and_names_its_block :: Check
+the_live_loop_capture_is_present_and_names_its_block =
+  Check "the_live_loop_capture_is_present_and_names_its_block" . guarded $ do
+    there    <- doesFileExist live_loop_capture
+    body     <- if there then readFile live_loop_capture else pure ""
+    captured <- doesFileExist live_loop_artifact
+    pure $ do
+      _ <- expect there
+             (live_loop_capture ++ " is not on disk. Plan 28-05 creates it; a missing subject is a"
+               ++ " FAILURE naming the plan that makes it, never a pass.")
+      _ <- expect (shell_resolver `isInfixOf` body)
+             ("the capture does not source " ++ shell_resolver ++ ". CHAIN-06 is one rule in two"
+               ++ " languages, and a capture that stated its own endpoint would be a third"
+               ++ " statement of the default that nothing compares.")
+      _ <- expect (not (endpoint_authority `isInfixOf` body))
+             ("the capture HOLDS the default authority as a literal. A ShellConsumer resolves; only"
+               ++ " the two resolvers hold it, and the suite asserts their two copies byte-equal.")
+      _ <- expect ("#26" `isInfixOf` body)
+             ("the capture's refusal text does not name issue #26. The block is CHAIN-01 -- there is"
+               ++ " no deployable emitter of Shock, only a forge test -- and a capture that refused"
+               ++ " without naming what blocks it leaves an operator to rediscover it.")
+      _ <- expect ("#24" `isInfixOf` body && "#25" `isInfixOf` body)
+             ("the capture's refusal text does not name issues #24 AND #25, which own"
+               ++ " " ++ default_fixture_dir ++ ". That directory is the second precondition this"
+               ++ " capture cannot meet, and the loop refuses to create it (LOOP-04).")
+      _ <- expect (default_fixture_dir `isInfixOf` body)
+             ("the capture does not name " ++ default_fixture_dir ++ ", so its missing-directory"
+               ++ " refusal is about some other path.")
+      expect (not captured)
+        ("THE LIVE CAPTURE HAS BEEN RUN, and that is NEWS rather than a defect: "
+          ++ live_loop_artifact ++ " is on disk. This check asserts the artifact is ABSENT, because"
+          ++ " while it is absent the live end-to-end run is OWED and BLOCKED -- CHAIN-01 / issue"
+          ++ " #26 for the emitter, issues #24 and #25 for " ++ default_fixture_dir
+          ++ " -- and a paragraph saying so cannot notice the day it stops being true. Now that the"
+          ++ " artifact exists, REPLACE this check with ones that read it: the recorded watermark"
+          ++ " before and after, the recorded ledger rows and their outcomes, the recorded fixture"
+          ++ " digest and byte length, and the recorded exit code. Then RETIRE this check rather"
+          ++ " than weakening it, and re-state LOOP-01..05's live halves in REQUIREMENTS.md against"
+          ++ " what the artifact actually says.")
+
 -- | ONE STAGE OF 'Loop.Run.process_block', AN @Env@ THAT MAKES IT RAISE, AND WHAT THE ITERATION IS
 -- SUPPOSED TO DO ABOUT IT.
 --
@@ -20599,6 +20673,10 @@ core_checks = do
           , an_exception_at_each_stage_leaves_the_watermark_unadvanced
           , an_interrupt_is_observed_only_at_a_block_boundary
           , the_published_fixture_survives_an_interrupted_iteration
+          -- 28-05. The live Tier-C run, WRITTEN AND GATED AND UNRUN. This one is INVERTED: it
+          -- passes while the artifact does not exist, because while it does not exist the live
+          -- half is owed and blocked by name.
+          , the_live_loop_capture_is_present_and_names_its_block
           ]
             ++ per_pin_checks pins
   pure checks

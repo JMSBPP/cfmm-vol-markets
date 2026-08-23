@@ -289,7 +289,7 @@ endpoint_census_terms = [endpoint_env_var, endpoint_authority, "resolve_endpoint
 chain_reaching_terms :: [String]
 chain_reaching_terms = ["--rpc-url", "HttpProvider"]
 
--- | THE MANIFEST. Nineteen entries.
+-- | THE MANIFEST. Twenty entries.
 --
 -- Ten were MEASURED at 27-01 by the pattern CHAIN-06's own wording implies, which reported nine:
 --
@@ -362,6 +362,16 @@ endpoint_sites =
       \ that record as an argument and is therefore drivable with no node, which is the whole\
       \ reason LOOP-01's restart proof can exist: the check supplies the source, so the check is\
       \ what the chain did while the loop was down."
+  , EndpointSite "offchain/rig/capture-loop.sh" ShellConsumer
+      "28-05. LOOP-01..05's LIVE half, and the only capture in this directory that HAS NEVER BEEN\
+      \ RUN. It stands a fresh rig up, drives one Shock, runs the loop with --once and records the\
+      \ watermark either side, every ledger row, the published fixture's digest and the observed\
+      \ exit code. It cannot execute today and it refuses by NUMBER rather than skipping: there is\
+      \ no deployable emitter of Shock (CHAIN-01, issue #26) and the publication directory is on\
+      \ neither tree (LOOP-04, issues #24 and #25). Its artifact,\
+      \ offchain/rig/loop-conformance.json, is deliberately ABSENT and the suite asserts that\
+      \ absence -- the only form in which \"this evidence does not exist yet\" can itself be\
+      \ evidence."
   , EndpointSite "offchain/rig/verify-rig.sh" ShellConsumer
       "SC-2. THE SITE CHAIN-06's LIST OF NINE DOES NOT CONTAIN: fourteen cast calls against a live\
       \ rig, reached through foundry's --rpc-url local alias, so it named neither the variable nor\
