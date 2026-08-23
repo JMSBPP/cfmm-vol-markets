@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 28-01-PLAN.md. 205/205 -> 211/211, exit 0, zero warnings, zero Downloading. S2 and S3 are CLOSED IN THE LIBRARY. S2: resolution moved to the caller -- Loop.Solve takes already-resolved absolute paths and the AbortReason constructor for a resolution failure was DELIBERATELY NOT ADDED, because a startup fact recorded under the same discriminator as a solver failure is exactly the conflation S3 exists to prevent. S3 IS NARROWER THAN 27-SUMMARY STATES, and it was MEASURED not read: render_argv's ninth refusal is applied before any argv exists, content_key inherits it, and decide returns Left (Inadmissible ...) BEFORE the solver is reachable -- so the two failures with opposite policies are already two different constructors, and the solver handed to decide THROWS if called and was not called. The abort-line discriminator (109 vs 171/173) is needed only by the capture that drives the eight-refusal renderer. Migration 004 landed: loop_event unique on (tx_hash, log_index) plus the single-row loop_watermark, whose two guards are BOTH load-bearing (the primary key is the upsert conflict target; check (only_row) is what forbids a second row carrying false). ledger_commit_block takes the block AND its rows -- one call, one transaction, no arity at which a caller can forget the watermark. Docker was verified BEFORE the migration was written (exit 0, Server Version 29.5.2) and the store-conformance capture was RE-TAKEN against postgres 18.4 (sc_complete true, 8/8 laws, four migrations), never hand-edited -- and the staleness oracle was OBSERVED firing at 203/205 with the pre-004 capture restored. SIX CHECKS, SIX FIRINGS, all observed red and all four baselines sha256sum -c OK. M1 REFUTED THE PLAN'S OWN PREDICTION: dropping the ledger_seen guard was supposed to redden the invocation arm at 2 and DOES NOT -- the content key still hits, so the counter stays at 1 and the row count stays at 1, and only the do-nothing arm fires. So ledger_seen does not save a solve; the key already does. It saves the lookup and the write attempt and protects the pipeline doing NOTHING on a replay. 27-03 M4 shape again. Two mutations were caught by a SECOND independent guard (M2 also reddened the commit check's positive control; M5 also reddened the capture digest oracle). Floors 72/83 -> 75/86, both re-measured by RUNNING find, zero slack, census hs 59 sh 12 json 11 sql 4. Next: 28-02 (the loop itself, detect_toolchain, the drift comparison the stash exists to feed)."
-last_updated: "2026-08-22"
-last_activity: "2026-08-22 — 28-01 executed. 205/205 -> 211/211, 0 warnings, 0 Downloading. Loop.Solve (S2 + S3) and Loop.Ledger shipped, migration 004 landed, store-conformance capture RE-TAKEN against a real server (18.4, four migrations) with its staleness oracle observed firing at 203/205 first. Six checks, six firing inputs observed; M1 refuted its own prediction. Floors 72/83 -> 75/86, both re-measured by running find. 28-01-SUMMARY.md written."
+stopped_at: "Completed 28-02-PLAN.md. 211/211 -> 219/219 (BASE_2 + 8), exit 0, zero warnings, zero Downloading. LOOP-01 IS CLOSED and S1 IS CLOSED IN THE LIBRARY, so all three spike seams are now shut. The watermark is a ROW IN THE STORE and run_loop re-reads it from the ledger on every pass; the restart proof injects events at blocks 6 and 7 WHILE NO LOOP IS RUNNING, builds a SECOND Env over the SAME store and ledger, and asserts the down-time events exist in the source FIRST, then that their rows landed, the watermark reads 8, and the EARLY events did NOT gain a second row -- which is the arm that tells resuming apart from starting over. FIRING INPUT OBSERVED: next_range starting from the head when a watermark is present -> 216/219, \"Row counts [0,0] for the events at blocks [6,7]\". LOOP-01's Blocked attribution was INHERITED, not measured -- the third time after CHAIN-02/03; the LIVE poll is still unexercised (CHAIN-01, issue #26) and that is written into its traceability row. S1: version-only means no production model and no production SOLVE, NOT no process -- the version flag is parsed as a FILENAME and is refused Left (WrongJob \"--version\") by the very parser Gams.Detect reuses, and CONOPT states its version only in a run that reaches the solver; both facts were already committed in gams-conformance.json and both negative controls are read out of it, so no version string is typed in the suite (git diff | grep -c = 0). ti_model_sources is the PRODUCTION digest and never the probe's. The exit table is COMPLETE on day one (nine non-zero entries including 28-03/04/05's) and Loop/Config.hs states none of the colliding numerals -- the disjointness is asserted against Gams.Exit.gams_code_domain itself. TWO CENSUS FINDINGS, both observed red first: sc3_literal_purge named the 0xffffffff mask in split_seed (Word32's fromInteger IS the modular reduction), and every_endpoint_site_resolves_rather_than_hardcodes named Loop/Chain.hs because a HaskellConsumer must name the resolver on a CODE line -- repaired with resolved_chain_source, which resolves once and returns the endpoint ALONGSIDE the source. LoopMain.hs is NOT an endpoint site; the manifest is nineteen, and its haddock had said fifteen while holding eighteen. LOOP_POLL_MS needed a THIRD override shape (value_overrides): probe_override asserts a bogus PATH comes back verbatim and unprobed_overrides is for an unreachable consumer, and neither fits a variable that resolves to a number and IS reachable. SIX FIRING INPUTS TOTAL, all observed, all baselines sha256sum -c OK; TWO caught by a second independent guard (M3 also reddened the restart check, M6 also reddened the override sweep). Floors 75/86 -> 81/92, both re-measured by RUNNING find, zero slack, census hs 65 sh 12 json 11 sql 4. Next: 28-03 (publication: the fixture-directory resolver, the typed shape, the atomic rename and its torn-read positive control)."
+last_updated: "2026-08-23"
+last_activity: "2026-08-23 — 28-02 executed. 211/211 -> 219/219, 0 warnings, 0 Downloading. Gams.Detect (S1), Loop.Config, Loop.Poll, Loop.Chain, Loop.Run and offchain/app/LoopMain.hs shipped with the executable loop stanza. LOOP-01 CLOSED: the restart proof injects events while the loop is down and the restart-from-head mutation was observed reddening at 216/219. Eight checks, six firing inputs observed (two caught by a second independent guard), two census findings repaired after being seen red. Floors 75/86 -> 81/92, both re-measured by running find. 28-02-SUMMARY.md written."
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 26
-  completed_plans: 22
+  completed_plans: 23
 ---
 
 <!--
@@ -43,19 +43,91 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **28 — Resident Loop & Fixture Publication** — **IN PROGRESS (1/5 plans)**.
-Plan: **28-01 COMPLETE** (commits `c2f465a`, `873204c`, `8c27802` + this close). Summary:
-`.planning/phases/28-resident-loop-fixture-publication/28-01-SUMMARY.md`.
-205/205 → **211/211**, exit 0, zero warnings, 0 `Downloading`; floors **72/83 → 75/86**, both
-re-measured by RUNNING `find`, zero slack (census `hs 59, sh 12, json 11, sql 4`).
-Next: **28-02** — the loop itself, `detect_toolchain` (S1), and the drift comparison
-`solver_for`'s stash exists to feed.
+Phase: **28 — Resident Loop & Fixture Publication** — **IN PROGRESS (2/5 plans)**.
+Plan: **28-02 COMPLETE** (commits `153460d`, `631cf31`, `3ab9d7e` + this close). Summary:
+`.planning/phases/28-resident-loop-fixture-publication/28-02-SUMMARY.md`.
+211/211 → **219/219** (`BASE_2 + 8`), exit 0, zero warnings, 0 `Downloading`; floors
+**75/86 → 81/92**, both re-measured by RUNNING `find`, zero slack (census
+`hs 65, sh 12, json 11, sql 4`).
+Next: **28-03** — publication: the fixture-directory resolver, the typed shape, and the atomic
+rename with its torn-read positive control.
+
+**28-02 DISPOSITION — LOOP-01 IS CLOSED AND S1 IS CLOSED IN THE LIBRARY.** `Gams.Detect`,
+`Loop.Config`, `Loop.Poll`, `Loop.Chain`, `Loop.Run`, `offchain/app/LoopMain.hs`, the
+`executable loop` stanza and eight checks. All three spike seams — S1, S2, S3 — are now closed.
+
+**LOOP-01 IS PROVEN THE ONLY WAY IT CAN BE, AND ITS "BLOCKED" ATTRIBUTION WAS INHERITED RATHER
+THAN MEASURED** — the third time on this branch after CHAIN-02/03. The watermark is a ROW IN THE
+STORE and `run_loop` re-reads it from the ledger on every pass, so nothing in-process can report
+a restart-safe watermark while holding an in-process one.
+`a_restart_resumes_at_the_watermark_and_skips_nothing` drains a head of 5, then — WITH NO LOOP
+RUNNING — adds events at blocks 6 and 7 and raises the head to 8, then builds a **second `Env`
+over the same store and ledger**, which is what a restart is here. It asserts the down-time
+events EXIST in the source FIRST (an empty second window satisfies "nothing was skipped" for a
+loop that skipped everything), then that the down-time rows landed, the watermark reads 8, and
+the EARLY events did **not** gain a second row — which is the arm that tells resuming apart from
+starting over, because a loop that re-scans from the beginning also lands the down-time rows.
+**FIRING INPUT OBSERVED:** `next_range` starting from the head when a watermark is present →
+216/219, *"THE EVENTS THAT OCCURRED WHILE THE LOOP WAS DOWN WERE SKIPPED. Row counts [0,0] for
+the events at blocks [6,7]"*. Ranges are CLOSED `[b, b]`, asserted on the CALLS the iteration
+made rather than on the function that computes them, and a quiet block still advances the
+watermark. The LIVE poll is still unexercised — CHAIN-01, issue #26 — and that is recorded in
+LOOP-01's traceability row rather than left to be discovered.
+
+**S1: "VERSION-ONLY" MEANS NO PRODUCTION MODEL AND NO PRODUCTION SOLVE, NOT NO PROCESS.** Both
+halves are MEASURED and already committed: `gams --version` is parsed as a FILENAME, exits 6, and
+its banner is refused `Left (WrongJob "--version")` by the very parser `Gams.Detect` reuses
+(`gams-conformance.json` `version_flag/parser_verdict`); and CONOPT states its own version only
+in the output of a run that reaches the solver (`conopt_method`). So the probe SOLVES a five-line
+hermetic NLP in a directory it makes and removes, and the production model is DIGESTED and never
+run. `ti_model_sources` carries the PRODUCTION digest and never the probe's — a probe that leaked
+into the identity would key every stored row to a throwaway file. Both negative controls are the
+toolchain's own committed banner lines, the positive control is the same line with ONLY the job
+field replaced (asserted to differ in that field ALONE, index 2 and no other), and
+`git diff offchain/test/Main.hs | grep -cE "54\.1\.0|4\.39\.0|37378ce0"` prints **0**.
+
+**THE EXIT TABLE IS COMPLETE ON DAY ONE, AND `Loop/Config.hs` STATES NONE OF THE COLLIDING
+NUMERALS.** Nine non-zero entries including 28-03/04/05's conditions, because a table that grows
+one code per plan is a table nothing can assert is TOTAL. The disjointness is asserted in the
+suite against `Gams.Exit.gams_code_domain` itself rather than against a transcription of it, so
+it follows a change to the prover's table. Task 2's acceptance criterion
+(`grep -cE "\b(11|124|137|145)\b"` = 0) is unsatisfiable by the same task's own prescribed
+prose; the PROSE MOVED, 27-01's rule for the twenty-eighth time.
+
+**TWO CENSUS FINDINGS, BOTH OBSERVED RED FIRST.** (1) `sc3_literal_purge` named
+`offchain/lib/Loop/Run.hs:268` for the `0xffffffff` mask in `split_seed` — an eight-hex literal
+reads as a selector, and `Word32`'s own `fromInteger` IS the modular reduction, so the literal
+was never necessary. (2) `every_endpoint_site_resolves_rather_than_hardcodes` named
+`offchain/lib/Loop/Chain.hs`: a `HaskellConsumer` must obtain the authority from the resolver on
+a **code line**, and `web3_chain_source` takes it as an argument. The repair is
+`resolved_chain_source`, which resolves once and returns the endpoint ALONGSIDE the source, so
+nothing resolves twice and the caller reports the authority it actually used.
+`offchain/app/LoopMain.hs` is **not** an endpoint site — it matches no census term — so the
+manifest went to **nineteen**, and its haddock had said "Fifteen entries" while holding eighteen.
+
+**`LOOP_POLL_MS` NEEDED A THIRD OVERRIDE SHAPE.** `probe_override` asserts a bogus PATH comes
+back verbatim, which is meaningless for a resolver that returns a number; `unprobed_overrides` is
+the gap list for a variable whose CONSUMER is unreachable from `cabal test`, and this one's is a
+pure library function called by two checks. Pardoning it would be an ignore list covering
+something fully measurable. `value_overrides` transposes the three assertions instead — a
+distinctive value honoured, the default when absent, and a bogus value REFUSED with a message
+that NAMES it — and is folded into `every_advertised_override_is_honoured` so the total stays at
+`BASE_2 + 8`.
+
+**FIVE FIRING INPUTS IN TASK 3 PLUS ONE IN TASK 1, EVERY ONE OBSERVED, EVERY BASELINE RESTORED
+`sha256sum -c` CLEAN. TWO WERE CAUGHT BY A SECOND, INDEPENDENT GUARD:** M3 (advance the watermark
+only on event blocks) reddened the quiet-stretch check at *"reads Just 9, expected Just 12"* AND
+the restart check at *"after the first pass over a head of 5 the watermark reads Just 4"*; M6 (an
+unreadable poll value falling back to the default) reddened its own check AND
+`every_advertised_override_is_honoured`, from the sweep side — which is the value-override probe
+earning its place rather than restating the dedicated one.
 
 **28-01 DISPOSITION — SPIKE SEAMS S2 AND S3 ARE CLOSED IN THE LIBRARY.** `Loop.Solve`,
 `Loop.Ledger`, migration `004_loop_ledger.sql`, a re-taken `store-conformance.json` and six
-checks. **LOOP-02 is NOT closed** — its two directions are asserted against the reference
-implementations through a pipeline the suite composes, and the requirement is stated over the
-loop, which 28-02 writes. Phase 27's record continues below, unchanged.
+checks. **LOOP-02 is NOT closed by 28-01** — its two directions are asserted against the
+reference implementations through a pipeline the suite composes, and the requirement is stated
+over the loop, which 28-02 wrote; the loop-level assertion is still owed. Phase 27's record
+continues below, unchanged.
 
 **S2 IS ANSWERED BY MOVING RESOLUTION OUT, NOT BY WIDENING `AbortReason`.** The constructor
 meaning "the binary or the model could not be resolved" was deliberately NOT added and
