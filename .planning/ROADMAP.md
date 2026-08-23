@@ -769,7 +769,7 @@ mutant Z is OBSERVED caught" — never as "the tests pass".
 - [x] **Phase 25: The Content Key & Keyed Store** - Framed, edge-normalized keys that refuse to be built from an absent input; cache elision, abort safety and a scoped reset the solve path cannot name — chain-free (KEY-01..06, STORE-01, STORE-06, STORE-08) (completed 2026-08-17). **SCOPE CUT 2026-08-17, user ruling:** on-demand verification, quarantine, pinning and the append-only run log — **STORE-02, STORE-03, STORE-04, STORE-05, STORE-07** — are DEFERRED to a later milestone, not dropped, each with a written reason in `REQUIREMENTS.md`'s Store deferral block. The byte-reproduction proof they carried is deferred with them; what lands here is the bridge's cache.
 - [x] **Phase 26: Shock Assembly — Fee Split & Event Decode** - The two pure producers of a shock's fields: the closed-form splitter that refuses infeasibility before the solver is spawned, and the `next` decoder proven against synthetic logs before the event exists (FEE-01..04, CHAIN-04) (completed 2026-08-17)
 - [x] **Phase 27: Anvil Read Layer** - A shock read off a live chain is a snapshot of ONE block or it is an error (CHAIN-02, CHAIN-03, CHAIN-05, CHAIN-06, CHAIN-07 shipped; CHAIN-04 landed at 26-02) (completed 2026-08-22). **CHAIN-01 alone remains BLOCKED** on the plank / mev-migrate worktree emitting a mined `Shock` (issue #26, `SELECTOR_NEXT 0xd3827b0b`) — recorded by name in `27-SUMMARY.md` with what would discharge it. **TEXT CORRECTED AT CLOSE:** this line read "**BLOCKED** … (CHAIN-01, CHAIN-02, CHAIN-03)", which was wrong twice — CHAIN-02 and CHAIN-03 were never blocked (a pinned read needs a POOL, and `deploy-rig.sh` has stood one up since 22-03; the status was inherited from CHAIN-01's row rather than measured), and the phase also carried CHAIN-05, CHAIN-06 and CHAIN-07.
-- [ ] **Phase 28: Resident Loop & Fixture Publication** - A loop that survives its own crash, never double-counts an event, and publishes one file the forge test can never observe half-written — **BLOCKED** (inherits Phase 27) (LOOP-01..05)
+- [x] **Phase 28: Resident Loop & Fixture Publication** - A loop that survives its own crash, never double-counts an event, and publishes one file the forge test can never observe half-written — **COMPLETE 2026-08-23, chain-free; the LIVE half of all five requirements is BLOCKED on issue #26 (no deployable `Shock` emitter) and issues #24/#25 (the publication directory is on neither tree)** (LOOP-01..05)
 
 ## Phase Details
 
@@ -1234,11 +1234,18 @@ replayed against the chain state it describes.
 `offchain/test/Main.hs`, which is what bounds parallelism here, not the dependency graph)
 
 Plans:
-- [ ] 28-01-PLAN.md — Spike seams S2/S3 closed in the library (`Loop.Solve`: a `Solver` over resolved paths, `classify` returning outcome + halt as data) plus migration `004`, the per-event ledger and single-row watermark, and a re-taken store-conformance capture (LOOP-02) [wave 1]
-- [ ] 28-02-PLAN.md — Seam S1 closed (`Gams.Detect.detect_toolchain`, a version-only hermetic probe driveable against a `/bin/sh` stub), the poll, the one iteration function with `--once`/resident, the complete exit-code table, and the restart-skips-nothing proof over events that occurred while the loop was down (LOOP-01) [wave 2]
+- [x] 28-01-PLAN.md — Spike seams S2/S3 closed in the library (`Loop.Solve`: a `Solver` over resolved paths, `classify` returning outcome + halt as data) plus migration `004`, the per-event ledger and single-row watermark, and a re-taken store-conformance capture (LOOP-02) [wave 1]
+- [x] 28-02-PLAN.md — Seam S1 closed (`Gams.Detect.detect_toolchain`, a version-only hermetic probe driveable against a `/bin/sh` stub), the poll, the one iteration function with `--once`/resident, the complete exit-code table, and the restart-skips-nothing proof over events that occurred while the loop was down (LOOP-01) [wave 2]
 - [x] 28-03-PLAN.md — Publication: `write_bytes_atomically` generalized from the existing JSON writer, the textual identity splice that keeps the artifact's bytes verbatim, the shape floor, and the ten-second race harness with its torn-read positive control OBSERVED (LOOP-03) [wave 3]
 - [x] 28-04-PLAN.md — Exactly one file by before/after tree diff, the missing-directory precondition naming the path and the owning workstream, and the default path pinned byte-equal to the consumer's own `VOLUME_PATH_JSON` read live from `origin/develop` (LOOP-04) [wave 4]
-- [ ] 28-05-PLAN.md — SIGINT observed only at a block boundary, an exception injected at EACH stage leaving the watermark unadvanced, the live Tier-C `capture-loop.sh` written/gated/recorded as blocked on issue #26, and the phase close by hand (LOOP-05) [wave 5]
+- [x] 28-05-PLAN.md — SIGINT observed only at a block boundary, an exception injected at EACH stage leaving the watermark unadvanced, the live Tier-C `capture-loop.sh` written/gated/recorded as blocked on issue #26, and the phase close by hand (LOOP-05) [wave 5]
+
+**Phase summary:** `.planning/phases/28-resident-loop-fixture-publication/28-SUMMARY.md`
+
+**Note for `roadmap update-plan-progress 28`:** it counts `*-SUMMARY.md` in the phase directory and
+this phase keeps its phase-level summary there, so it writes `6/5`. Phase 27 recorded `4/3` for
+exactly the same reason. The table below is correct BY HAND at `5/5`; correct it again after any
+re-run.
 
 ## Progress (Milestone v6.0)
 
@@ -1257,7 +1264,7 @@ at the end of 25.
 | 25. The Content Key & Keyed Store | 3/3 | Complete    | 2026-08-17 |
 | 26. Shock Assembly — Fee Split & Event Decode | 4/4 | Complete   | 2026-08-17 |
 | 27. Anvil Read Layer (6 of 7 shipped; only CHAIN-01 is blocked) | 3/3 | Complete   | 2026-08-22 |
-| 28. Resident Loop & Fixture Publication (S1/S2/S3 closed; LOOP-01 proven 28-02, LOOP-03 proven 28-03, LOOP-04's chain-free half proven 28-04; live half BLOCKED on #26 and on the #24 track landing the fixtures directory) | 4/5 | In Progress | - |
+| 28. Resident Loop & Fixture Publication (S1/S2/S3 all closed in the library; LOOP-01..05 proven CHAIN-FREE — 205/205 → 232/232 across the phase; the LIVE half of all five is BLOCKED on #26 for the `Shock` emitter and on the #24 track for the fixtures directory, and `offchain/rig/capture-loop.sh` is the unrun capture that would discharge it) | 5/5 | Complete | 2026-08-23 |
 
 ## Coverage (Milestone v6.0)
 

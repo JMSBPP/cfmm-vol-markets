@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 28-04-PLAN.md. 224/224 -> 228/228 (BASE_4 + 4), exit 0, zero warnings, zero Downloading, 532 s -> 534 s against the 900 s ceiling -- FOUR CHECKS COST THE SUITE ONE TO TWO SECONDS, because 28-03's multiply-by-fifteen rule was applied BEFORE they were written and none of them races. LOOP-04's chain-free half is CLOSED. Publication was OBSERVED adding exactly ONE file to a directory holding two decoys: added [volume_path.json], removed [], decoy BYTES unchanged (read back, not just the names), no *.tmp surviving, and the PARENT gaining only fixtures/volume_path.json -- across TWO publications of different bytes, because a temp sibling that survives the first write is invisible until the second collides with it. Loop.Publish.publish_precondition refuses a missing directory in ONE sentence carrying the RESOLVED path, the owning workstream (mev_tax_model_one, GitHub issues #24 AND #25), the refusal to create it and the repair; LoopMain calls it once at STARTUP, before the first poll, exiting 40 -- because a loop that discovers this on its first EVENT has already advanced a watermark past blocks it could not publish for. Nothing in Loop.Publish can make a directory and the property is STRUCTURAL: the System.Directory import list carries the two QUESTIONS and no maker, so the branch does not typecheck. default_fixture_path is now pinned BYTE-EQUAL to the consumer's own VOLUME_PATH_JSON read live from origin/develop through git show (28-03 could only compare the join, which is this side agreeing with itself), with the extraction asserted to find EXACTLY ONE non-empty literal FIRST. And 28-CONTEXT's outstanding prerequisite is now a VERDICT rather than a paragraph: the_fixtures_directory_is_recorded_absent_from_both_trees, whose failure text says what a PASS means (LOOP-04's live half blocked on the #24 track) and what a FAIL means (the directory ARRIVED -- re-state LOOP-04 against the real tree, then RETIRE this check rather than weaken it). THE PLAN'S FIRST FIRING INPUT WAS REFUTED AND DRIVING IT A SECOND WAY CORRECTED A HADDOCK THAT HAD BEEN WRONG SINCE PHASE 22: moving write_atomically's temp file to getTemporaryDirectory came back 228/228 NOT CAUGHT, because the file is RENAMED AWAY and a before/after tree diff cannot see where a temp file lived; re-driven with the destination on the repository's ext4 (device 66306) against /tmp's tmpfs (device 50) it reddens through the FIRST arm at \"unsupported operation (Invalid cross-device link)\". So Driver.Capture's three-phase-old \"silently degrade to a copy\" sentence is FALSE -- POSIX rename(2) does not copy, it raises EXDEV -- the sibling rule is right and its stated reason was wrong, and both haddocks now carry the measurement. TWO PLAN ERRORS, BOTH MEASURED: grep -cE createDirectory = 0 is unsatisfiable by the same task's own prescribed haddock (printed 2, both prose -- THE PROSE MOVED, 27-01's rule for the twenty-ninth time), and \"find test -path *fixtures* returns nothing\" was FALSE when it was written (three unrelated fixture directories predate this workstream; the real subject is *mev_tax_model_one*). FIVE DRIVES, every one OBSERVED, every baseline restored sha256sum -c OK; M3 was caught by TWO checks with different diagnoses. git status --porcelain test/ EMPTY. Floors 82/93 UNCHANGED, both re-measured by RUNNING find. Next: 28-05 (SIGINT at a block boundary, the injected exception at each stage, the gated Tier-C capture, and the phase close by hand)."
+stopped_at: "Completed 28-05-PLAN.md AND THE PHASE. 228/228 -> 232/232 (BASE_5 + 4), exit 0, zero warnings, zero Downloading, 534 s -> 551 s against the 900 s ceiling -- four checks cost SEVENTEEN seconds, because 28-03's multiply-by-fifteen rule was applied before they were written and none of them races. LOOP-05 CLOSED and LOOP-02 CLOSED OVER THE LOOP; PHASE 28 COMPLETE, chain-free, with the LIVE half of all five requirements BLOCKED by name. AN EXCEPTION WAS INJECTED AT SEVEN STAGES of one iteration and every abandoned block left the watermark exactly where it was, no row for the event, and a block a clean pass RE-PROCESSED UNDER THE SAME CONTENT KEY -- the battery drives run_loop and NOT process_block, because four of the seven stages are components the iteration does not wrap and driving it directly measures the wrong composition (OBSERVED at 229/231 in the first version). TWO of the seven stages have a DIFFERENT disposition and both are earlier plans' deliberate rulings, recorded as DATA rather than forced into a uniform claim: the PUBLISH stage does not abandon the block (28-03 wrapped the write in try on purpose -- a full disk is not a reason to stop processing the chain), and the store legitimately HOLDS an entry for the three stages that throw after the solve, because decide writes it and that write is content-keyed. THE SHUTDOWN IS A QUESTION THE LOOP ASKS: Env gained env_interrupted and run_loop reads it at exactly two points, both BETWEEN blocks; LoopMain owns the IORef and installs a SIGINT/SIGTERM handler that writes it and does NOTHING else, because GHC's default throws UserInterrupt at the main thread asynchronously at a point nobody chose and that point includes the middle of the ledger's one commit. The iteration is now WRAPPED and HaltBlockException / exit 34 is the TENTH table entry -- DEMANDED by the totality check rather than permitted by it, since before this an escaping exception killed the process with no exit code from any table at all. offchain/rig/capture-loop.sh is WRITTEN, GATED exactly as Phase 27 gated its two, listed in endpoint_sites (19 -> 20) in the same commit, and UNRUN: its gate was EXERCISED with no rig stood up (\"CAPTURE FAIL: nothing answered eth_blockNumber\", exit 1, nothing written) and its artifact is deliberately ABSENT, which the suite asserts as a VERDICT whose failure text says what each direction means. FOUR DRIVES, THREE LANDED: hoisting the commit above the event loop -> 228/231 caught by TWO checks (the plan's own prescribed input for that check would have been INERT, and the reason names what the arm really guards); reading the flag between EVENTS -> 229/231 at \"Row counts by block: [(1,1),(2,0),(2,0),(3,0)]\"; a surviving temp sibling -> 228/231 caught by this check AND 28-04's tree diff. THE FOURTH WAS ABANDONED AT 52 MINUTES OF CPU: rename -> copy reddens the ten-second race, which puts a ten-second check into the sweep's reader sets, so a whole CLASS of firing input cannot be driven on this suite -- 28-03's 2328 s finding, sharper. grep -c ledger_commit_block over Loop/Run.hs prints 1 after TWO haddock sentences moved, one of them 28-02's and PREDATING this plan -- 27-01's rule for the thirtieth time and the first time it caught prose the executing plan did not write. Floors 82/93 -> 83/94, both re-measured by RUNNING find, both moved by the SAME one .sh; census hs 66, sh 13, json 11, sql 4 -- the .json census did NOT move, which is the artifact being absent stated as a number. Phase totals: 205/205 -> 232/232, +27 across five plans. Next: /gsd:verify-phase 28, then capture-loop.sh when #26 lands an emitter and the #24 track lands the fixtures directory."
 last_updated: "2026-08-23"
-last_activity: "2026-08-23 — 28-04 executed. 224/224 -> 228/228, 0 warnings, 0 Downloading, 534 s. LOOP-04's chain-free half CLOSED: exactly one file proven by a BEFORE/AFTER TREE DIFF over a decoy-seeded directory, the missing-directory precondition naming the path AND the owning workstream at startup, default_fixture_path pinned byte-equal to the consumer's VOLUME_PATH_JSON on origin/develop, and the outstanding prerequisite registered as a check. The plan's first firing input was REFUTED (228/228) and the second drive OBSERVED EXDEV, correcting Driver.Capture's sibling-rule haddock which had been wrong since Phase 22. Floors 82/93 unchanged. 28-04-SUMMARY.md written."
+last_activity: "2026-08-23 -- 28-05 executed AND PHASE 28 CLOSED BY HAND. 228/228 -> 232/232, 0 warnings, 0 Downloading, 551 s. LOOP-05 and LOOP-02 closed; all five LOOP requirements complete CHAIN-FREE with the live half BLOCKED on issue #26 (no deployable Shock emitter) and issues #24/#25 (the publication directory is on neither tree). An exception at SEVEN stages leaves the watermark unadvanced and the block re-processable under the same content key; the shutdown lands block 2 whole and never enters block 3. offchain/rig/capture-loop.sh written, gated, census-listed and UNRUN, with its absence registered as a verdict. Floors 82/93 -> 83/94. 28-05-SUMMARY.md and 28-SUMMARY.md written; REQUIREMENTS.md, ROADMAP.md and this file edited BY HAND -- no gsd-tools state subcommand and no phase complete was run."
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 26
-  completed_plans: 25
+  completed_plans: 26
 ---
 
 <!--
@@ -43,15 +43,122 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **28 — Resident Loop & Fixture Publication** — **IN PROGRESS (4/5 plans)**.
-Plan: **28-04 COMPLETE** (commits `31d4d37`, `e73693e`, `e45b3b6` + this close). Summary:
-`.planning/phases/28-resident-loop-fixture-publication/28-04-SUMMARY.md`.
-224/224 → **228/228** (`BASE_4 + 4`), exit 0, zero warnings, 0 `Downloading`, measured wall clock
-**532 s → 534 s** against the 900 s ceiling; floors **82/93 UNCHANGED**, both re-measured by
-RUNNING `find` (census `hs 66, sh 12, json 11, sql 4`, also unchanged — this plan creates no file).
-Next: **28-05** — SIGINT observed only at a block boundary, an exception injected at EACH stage
-leaving the watermark unadvanced, the live Tier-C `capture-loop.sh` written and gated and recorded
-as blocked on issue #26, and the phase close BY HAND.
+Phase: **28 — Resident Loop & Fixture Publication** — **COMPLETE (5/5 plans), 2026-08-23.**
+Phase summary: `.planning/phases/28-resident-loop-fixture-publication/28-SUMMARY.md`.
+Plan: **28-05 COMPLETE** (commits `63e0c84`, `478845d`, `e2b801d` + this close). Summary:
+`.planning/phases/28-resident-loop-fixture-publication/28-05-SUMMARY.md`.
+228/228 → **232/232** (`BASE_5 + 4`), exit 0, zero warnings, 0 `Downloading`, measured wall clock
+**534 s → 551 s** against the 900 s ceiling; floors **82/93 → 83/94**, both re-measured by RUNNING
+`find` and both moved by the SAME one `.sh` (census `hs 66, sh 13, json 11, sql 4` — the `.json`
+census did NOT move, which is the capture's artifact being absent, stated as a number).
+**Phase totals: 205/205 → 232/232, +27 across five plans.**
+Next: **`/gsd:verify-phase 28`**, then the live `capture-loop.sh` run when issue #26 lands an
+emitter and the `#24` track lands the fixtures directory.
+
+**MILESTONE v6.0 IS 6/6 PHASES AND ITS `status:` IS DELIBERATELY STILL `in-progress`** — phase 28
+is closed, not verified, and the milestone is not this plan's to declare finished.
+
+**28-05 DISPOSITION — LOOP-05 IS CLOSED, LOOP-02 IS CLOSED OVER THE LOOP, AND THE PHASE IS COMPLETE
+CHAIN-FREE WITH THE LIVE HALF OF ALL FIVE REQUIREMENTS BLOCKED BY NAME.**
+
+**AN EXCEPTION WAS INJECTED AT SEVEN STAGES OF ONE ITERATION** — `source_logs`, `ledger_seen`,
+`source_reads`, `solver_run`, `env_read_identity`, the publish write (a DIRECTORY placed at the
+sibling temp path) and `ledger_commit_block` — and every abandoned block left the watermark exactly
+where it was, no row for the event, and a block a clean pass RE-PROCESSED under the SAME content
+key. The battery's PREMISE arm is ordered first: a clean pass over the same block must leave one
+row, one store entry and a watermark, or every "nothing was written" arm is satisfied by a pipeline
+that writes nothing ever.
+
+**IT DRIVES `run_loop` AND NOT `process_block`, AND THE FIRST VERSION MEASURED THE WRONG
+COMPOSITION** — OBSERVED at 229/231. Four of the seven stages are components the iteration does NOT
+wrap, so their exceptions escape it into a caller that is always there in production. A battery
+reporting those four as "escaping" would be a true fact about a function nobody calls alone.
+
+**TWO OF THE SEVEN STAGES HAVE A DIFFERENT DISPOSITION AND BOTH ARE EARLIER PLANS' DELIBERATE
+RULINGS, RECORDED AS DATA RATHER THAN FORCED INTO A UNIFORM CLAIM.** The PUBLISH stage does not
+abandon the block — 28-03 wrapped the write in `try` on purpose, because a full disk or a directory
+that vanished mid-run is not a reason to stop processing the chain. The store legitimately HOLDS an
+entry for the three stages that throw after the solve, because `decide` writes it and that write is
+CONTENT-KEYED, so the re-processed block recomputes the same key and elides. Asserting "every stage
+leaves the store untouched" would have been false, and asserting "every stage abandons the block"
+would have required reverting a shipped ruling to make a check pass — which is a check measuring
+itself. What IS uniform is the arm that matters, and it is the requirement.
+
+**THE SHUTDOWN IS A QUESTION THE LOOP ASKS, AND THE PROPERTY IS STATED AS A PLACE.**
+`Loop.Run.env_interrupted` is read at exactly two points and both are BETWEEN blocks: at the top of
+a pass before a range is planned, and after an iteration returns before the next block is entered.
+`LoopMain` owns the `IORef Bool` and installs `installHandler sigINT`/`sigTERM` with a handler that
+writes it and does NOTHING else — no logging, no exit, no IO. **GHC's DEFAULT `SIGINT` has exactly
+the shape being avoided:** it throws `UserInterrupt` at the main thread asynchronously, at a point
+nobody chose, and that point includes the middle of the ledger's one commit. `installHandler`
+replaces it, so no exception is delivered at all. A clean drain returns `Right ()` and exits 0.
+OBSERVED: the flag set from inside `source_logs` while it serves block 2 (which carries TWO events)
+lands block 2 whole — both rows and its watermark, together — and block 3 is never entered.
+
+**THE ITERATION IS WRAPPED, AND `HaltBlockException` / EXIT 34 IS THE TENTH TABLE ENTRY DEMANDED BY
+THE TOTALITY CHECK RATHER THAN PERMITTED BY IT.** Before this, an exception escaping a stage killed
+the process with a bare Haskell exception and **no exit code from any table at all** — the condition
+did not exist until the wrapper did, which is a different thing from a code that was forgotten. It
+is deliberately NOT mapped onto `HaltDb` or `HaltRpcExhausted`: an outer wrapper cannot tell which
+stage threw, and a chain failure under a ledger discriminator is 28-01's conflation from the far end.
+
+**`offchain/rig/capture-loop.sh` IS WRITTEN, GATED, CENSUS-LISTED AND UNRUN**, and its gate was
+EXERCISED with no rig stood up: *"CAPTURE FAIL: nothing answered eth_blockNumber at …  This is NOT
+a skip."*, exit 1, nothing written, `git status` unchanged. Its artifact is deliberately ABSENT and
+`the_live_loop_capture_is_present_and_names_its_block` asserts that absence — passing while the live
+run is OWED and BLOCKED, failing the day it appears, with failure text saying what to do then. No
+check reads a non-existent artifact: `aeson_is_absent_from_the_storage_path`'s own haddock rules
+that a missing subject is a FAILURE naming the plan that creates it, never a pass. Listed as a
+`ShellConsumer` in `endpoint_sites` (**19 → 20**) in the SAME commit that created the file.
+
+**FOUR DRIVES, THREE LANDED, EVERY BASELINE RESTORED `sha256sum -c` CLEAN.** Hoisting the commit
+above the EVENT LOOP → **228/231**, caught by TWO checks with different diagnoses; the plan's own
+prescribed input for that check (*move the commit ahead of the publish stage*) would have been
+INERT, because the commit is already after publication and a publish exception is already swallowed
+— and saying why names what the arm really guards. Reading the flag between EVENTS → **229/231**,
+*"Row counts by block: [(1,1),(2,0),(2,0),(3,0)]"*. A surviving temp sibling → **228/231**, caught by
+this plan's check AND 28-04's tree diff.
+
+**THE FOURTH WAS ABANDONED AT 52 MINUTES OF CPU, AND THAT IS A FINDING ABOUT THE HARNESS.** Driving
+the rename→copy mutation reddens 28-03's ten-second race check, which puts a ten-second check into
+`sentinel_falsification_harness`'s reader sets. 28-03 measured that shape at 2328 s against a normal
+528; this one never finished. **A whole CLASS of firing input — anything that reddens an expensive
+check — cannot be driven on this suite in reasonable time.** The repair is to re-aim the mutation
+surgically at the arm under test, which is what was done (keep the rename, re-fill the temp file
+after it), and the arm reddened in a normal 553 s.
+
+**`grep -c "ledger_commit_block"` OVER `Loop/Run.hs` PRINTS 1 AFTER TWO HADDOCK SENTENCES MOVED, AND
+ONE OF THEM WAS NOT THIS PLAN'S.** It printed 3; the other prose was 28-02's, in the module header,
+present since the file was created. 27-01's rule for the **thirtieth** time on this branch and the
+first time it has caught prose the executing plan did not write. The replacement is stronger than a
+quieter version of the same claim: the header now STATES the property the grep holds.
+
+**LOOP-02 WAS CLOSED OVER THE LOOP, WITHOUT MOVING THE TOTAL.** 28-01 asserted both directions
+against the reference implementations through a pipeline the SUITE composed and recorded that the
+requirement is stated over `Loop.Run`. The replay direction reached the loop through the stage
+battery's re-run arm; the distinct-events direction was folded into
+`a_cache_hit_publishes_at_the_events_own_block`, which already stages exactly that collision — two
+positions at DIFFERENT heights whose `split_for` answers agree, FOUND by search and CONFIRMED
+through the full `split_for` — as `[1, 1]` ledger rows and `1` store entry, through a counting
+store. Both instruments, because neither is sufficient: the entry count catches a ledger keyed on
+the content key, the row counts catch a store keyed on the event position.
+
+**STORE-07 IS PARTIAL BY CONSTRUCTION AND STAYS DEFERRED.** Migration `004` carries three of its
+four fields plus `observed_at`, unique on the event position, every outcome recorded. What is ABSENT
+is the append-only ENFORCEMENT: no trigger, nothing forbidding an `update` or a `delete`. Nothing
+issues one either — but "nobody does it" is a fact about callers and "the server refuses it" is a
+fact about the schema, and STORE-07 asks for the second.
+
+**FOUR OF THE FIVE LOOP REQUIREMENTS WERE CARRIED IN MARKED *Blocked* AND THE ATTRIBUTION WAS
+INHERITED RATHER THAN MEASURED EVERY TIME** — LOOP-01 at 28-02, LOOP-03 at 28-03, LOOP-04 at 28-04,
+LOOP-05 at 28-05. Phase 27 made the identical correction for CHAIN-02/03 and wrote that it is "the
+kind of inheritance that costs a phase". It cost this one four more instances.
+
+**`gsd-tools state …` AND `phase complete` WERE NOT RUN.** Every document in this close was edited
+BY HAND and this frontmatter was verified intact afterwards — `milestone: v6.0`, `status:`, and four
+counters that are a COUNT of the plan files per v6.0 phase (5+6+3+4+3+5 = 26), not an addition.
+`roadmap update-plan-progress 28` would write `6/5` because it counts the phase-level summary as a
+plan; the table says `5/5` by hand.
 
 **28-04 DISPOSITION — LOOP-04's CHAIN-FREE HALF IS CLOSED, AND ITS HEADLINE IS A TREE DIFF RATHER
 THAN A READING OF THE WRITER.** Publication was OBSERVED adding **exactly one file** to a directory
