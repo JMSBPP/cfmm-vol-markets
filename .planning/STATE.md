@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 28-03-PLAN.md. 219/219 -> 224/224 (BASE_3 + 5), exit 0, zero warnings, zero Downloading, measured wall clock 528 s against the 900 s ceiling. LOOP-03 IS CLOSED. A reader racing publish_fixture for TEN SECONDS completed 204555 reads across 142623 publications and found ZERO unparseable; the SAME reader, the SAME two documents, the SAME deadline, with only the rename removed, found 1240687 torn reads out of 1333592 -- 93.0%. The harness is parameterised by the WRITER, so the two arms differ in exactly one expression, and the counters were obtained by INVERTING each verdict so they were printed rather than inferred from a green line. Driver.Capture.write_bytes_atomically is a GENERALIZATION and not a second writer: exactly ONE renameFile call site now exists in offchain/lib and offchain/app (measured -- the other three matches are an import and two haddock lines). Loop.Publish decides in an order that is the design (decode, byte floor, pool token on TWO arms, textual splice) and never creates a directory. THREE PLAN PREDICTIONS REFUTED AND THE HADDOCK CORRECTED RATHER THAN THE CHECK BENT: (1) the 150-byte truncation is ArtifactUnparseable, not BelowShapeFloor, because the decoder runs first -- the floor's real subject is a CONSTRUCTED valid-but-tiny artifact; (2) an aeson Value round trip does NOT lose the dQx[0] digits, because Scientific is exact -- driven both ways, the byte arm catches any rebuild and the digit arm names Double; (3) THE WALL-CLOCK BUDGET WAS WRONG BY SEVENTEEN -- the plan said 173 -> ~195 s, and sentinel_falsification_harness re-runs core_checks about fifteen times, so twenty seconds of racing costs the suite 342 (186 s without, 528 s with). The torn control is System.Posix.IO because GHC's per-inode lock table raises \"resource busy (file is locked)\" against System.IO -- the runtime defending the very invariant the control exists to violate; unix is a boot library, +0 packages MEASURED. fresh_temp_dir names each directory uniquely after \"Directory not empty\" was OBSERVED under the sweep, which had cost 2328 s and reddened the harness's own NEGATIVE CONTROL. FIVE FIRING INPUTS, all observed, all baselines sha256sum -c OK; M1 left the control GREEN, M3 reddened three structural guards, M5 reddened six including the override sweep. Floors 81/92 -> 82/93, both re-measured by RUNNING find, zero slack, census hs 66 sh 12 json 11 sql 4. git status --porcelain test/ EMPTY. Next: 28-04 (exactly one file by tree diff, the missing-directory precondition, and default_fixture_path pinned byte-equal against origin/develop)."
+stopped_at: "Completed 28-04-PLAN.md. 224/224 -> 228/228 (BASE_4 + 4), exit 0, zero warnings, zero Downloading, 532 s -> 534 s against the 900 s ceiling -- FOUR CHECKS COST THE SUITE ONE TO TWO SECONDS, because 28-03's multiply-by-fifteen rule was applied BEFORE they were written and none of them races. LOOP-04's chain-free half is CLOSED. Publication was OBSERVED adding exactly ONE file to a directory holding two decoys: added [volume_path.json], removed [], decoy BYTES unchanged (read back, not just the names), no *.tmp surviving, and the PARENT gaining only fixtures/volume_path.json -- across TWO publications of different bytes, because a temp sibling that survives the first write is invisible until the second collides with it. Loop.Publish.publish_precondition refuses a missing directory in ONE sentence carrying the RESOLVED path, the owning workstream (mev_tax_model_one, GitHub issues #24 AND #25), the refusal to create it and the repair; LoopMain calls it once at STARTUP, before the first poll, exiting 40 -- because a loop that discovers this on its first EVENT has already advanced a watermark past blocks it could not publish for. Nothing in Loop.Publish can make a directory and the property is STRUCTURAL: the System.Directory import list carries the two QUESTIONS and no maker, so the branch does not typecheck. default_fixture_path is now pinned BYTE-EQUAL to the consumer's own VOLUME_PATH_JSON read live from origin/develop through git show (28-03 could only compare the join, which is this side agreeing with itself), with the extraction asserted to find EXACTLY ONE non-empty literal FIRST. And 28-CONTEXT's outstanding prerequisite is now a VERDICT rather than a paragraph: the_fixtures_directory_is_recorded_absent_from_both_trees, whose failure text says what a PASS means (LOOP-04's live half blocked on the #24 track) and what a FAIL means (the directory ARRIVED -- re-state LOOP-04 against the real tree, then RETIRE this check rather than weaken it). THE PLAN'S FIRST FIRING INPUT WAS REFUTED AND DRIVING IT A SECOND WAY CORRECTED A HADDOCK THAT HAD BEEN WRONG SINCE PHASE 22: moving write_atomically's temp file to getTemporaryDirectory came back 228/228 NOT CAUGHT, because the file is RENAMED AWAY and a before/after tree diff cannot see where a temp file lived; re-driven with the destination on the repository's ext4 (device 66306) against /tmp's tmpfs (device 50) it reddens through the FIRST arm at \"unsupported operation (Invalid cross-device link)\". So Driver.Capture's three-phase-old \"silently degrade to a copy\" sentence is FALSE -- POSIX rename(2) does not copy, it raises EXDEV -- the sibling rule is right and its stated reason was wrong, and both haddocks now carry the measurement. TWO PLAN ERRORS, BOTH MEASURED: grep -cE createDirectory = 0 is unsatisfiable by the same task's own prescribed haddock (printed 2, both prose -- THE PROSE MOVED, 27-01's rule for the twenty-ninth time), and \"find test -path *fixtures* returns nothing\" was FALSE when it was written (three unrelated fixture directories predate this workstream; the real subject is *mev_tax_model_one*). FIVE DRIVES, every one OBSERVED, every baseline restored sha256sum -c OK; M3 was caught by TWO checks with different diagnoses. git status --porcelain test/ EMPTY. Floors 82/93 UNCHANGED, both re-measured by RUNNING find. Next: 28-05 (SIGINT at a block boundary, the injected exception at each stage, the gated Tier-C capture, and the phase close by hand)."
 last_updated: "2026-08-23"
-last_activity: "2026-08-23 — 28-03 executed (RESUMED after the previous executor was killed mid-Task-1). 219/219 -> 224/224, 0 warnings, 0 Downloading, 528 s. Loop.Publish shipped with the generalized Driver.Capture.write_bytes_atomically, the one-resolver fixture directory, and Loop.Run.publish_for at the EVENT's block. LOOP-03 CLOSED: ten seconds of racing, 0 of 204555 reads torn; the non-atomic control OBSERVED tearing 1240687 of 1333592. Five checks, five firing inputs observed, three plan predictions refuted and corrected. Floors 81/92 -> 82/93. 28-03-SUMMARY.md written."
+last_activity: "2026-08-23 — 28-04 executed. 224/224 -> 228/228, 0 warnings, 0 Downloading, 534 s. LOOP-04's chain-free half CLOSED: exactly one file proven by a BEFORE/AFTER TREE DIFF over a decoy-seeded directory, the missing-directory precondition naming the path AND the owning workstream at startup, default_fixture_path pinned byte-equal to the consumer's VOLUME_PATH_JSON on origin/develop, and the outstanding prerequisite registered as a check. The plan's first firing input was REFUTED (228/228) and the second drive OBSERVED EXDEV, correcting Driver.Capture's sibling-rule haddock which had been wrong since Phase 22. Floors 82/93 unchanged. 28-04-SUMMARY.md written."
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 26
-  completed_plans: 24
+  completed_plans: 25
 ---
 
 <!--
@@ -43,18 +43,100 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 
 ## Current Position
 
-Phase: **28 — Resident Loop & Fixture Publication** — **IN PROGRESS (3/5 plans)**.
-Plan: **28-03 COMPLETE** (commits `ed9f483`, `dc96987` + this close). Summary:
-`.planning/phases/28-resident-loop-fixture-publication/28-03-SUMMARY.md`.
-219/219 → **224/224** (`BASE_3 + 5`), exit 0, zero warnings, 0 `Downloading`, measured wall clock
-**528 s** against the 900 s ceiling; floors **81/92 → 82/93**, both re-measured by RUNNING `find`,
-zero slack (census `hs 66, sh 12, json 11, sql 4`).
-Next: **28-04** — exactly one file by before/after tree diff, the missing-directory precondition
-naming the path and the owning workstream, and `default_fixture_path` pinned byte-equal against
-the consumer's own `VOLUME_PATH_JSON` read live from `origin/develop`.
+Phase: **28 — Resident Loop & Fixture Publication** — **IN PROGRESS (4/5 plans)**.
+Plan: **28-04 COMPLETE** (commits `31d4d37`, `e73693e`, `e45b3b6` + this close). Summary:
+`.planning/phases/28-resident-loop-fixture-publication/28-04-SUMMARY.md`.
+224/224 → **228/228** (`BASE_4 + 4`), exit 0, zero warnings, 0 `Downloading`, measured wall clock
+**532 s → 534 s** against the 900 s ceiling; floors **82/93 UNCHANGED**, both re-measured by
+RUNNING `find` (census `hs 66, sh 12, json 11, sql 4`, also unchanged — this plan creates no file).
+Next: **28-05** — SIGINT observed only at a block boundary, an exception injected at EACH stage
+leaving the watermark unadvanced, the live Tier-C `capture-loop.sh` written and gated and recorded
+as blocked on issue #26, and the phase close BY HAND.
+
+**28-04 DISPOSITION — LOOP-04's CHAIN-FREE HALF IS CLOSED, AND ITS HEADLINE IS A TREE DIFF RATHER
+THAN A READING OF THE WRITER.** Publication was OBSERVED adding **exactly one file** to a directory
+holding two decoys: `added = ["volume_path.json"]`, `removed = []`, the decoys' **BYTES** unchanged
+(read back, not merely their names), **no `*.tmp` surviving**, and the PARENT gaining only
+`fixtures/volume_path.json` — across **TWO** publications of different bytes, because a temp sibling
+that survives the first write is invisible until the second one collides with it. The
+"before-set is non-empty" arm is ordered FIRST: an empty before-set makes every set difference
+trivially right, and a publisher that WIPED the directory would pass all of them.
+
+**THE REFUSAL NAMES ITS OWNER, AND IT DOES SO BEFORE THE FIRST BLOCK.**
+`Loop.Publish.publish_precondition` carries the RESOLVED path, the workstream that owns the
+directory (`mev_tax_model_one`, GitHub issues **#24 AND #25**), the sentence that this process will
+not create it, and the repair — all in ONE message, because an operator meets this once, on stderr,
+next to an exit code. `LoopMain` calls it at STARTUP, exiting **40**, and that is deliberate: a loop
+that discovers this on its first EVENT has already advanced a watermark past blocks it could not
+publish for. `publish_fixture` keeps its own guard and the suite drives both — a directory removed
+mid-run is not a directory that was never there. **Nothing in the module can make a directory and
+the property is STRUCTURAL rather than careful:** the `System.Directory` import list carries
+`doesDirectoryExist` and `doesFileExist` and no maker, so the branch does not typecheck.
+
+**THE DEFAULT PATH IS NOW PINNED TO THE CONSUMER'S OWN DECLARATION, READ LIVE.**
+`git show origin/develop:test/models/mev_tax_model_one/AlgebraIntegralMevTaxModelOneShocks.t.sol`
+gives `string constant VOLUME_PATH_JSON = "test/models/mev_tax_model_one/fixtures/volume_path.json"`,
+and `Loop.Config.default_fixture_path` is byte-equal to it. 28-03 could only compare the default
+against `default_fixture_dir </> fixture_file_name` — a join, which is this side agreeing with itself
+and is true for every possible value of both halves. The check is in
+`the_upstream_shocklib_pin_is_a_live_trip_wire`'s shape: the ref's resolvability asserted FIRST with
+`git fetch origin develop` in the failure and never a skip, the reader shown saying YES and NO, and
+the extraction asserted to have found **exactly ONE non-empty literal** before the comparison —
+because an extractor that matched nothing agrees with any default this side happens to hold.
+
+**28-CONTEXT'S OUTSTANDING PREREQUISITE IS NOW A VERDICT RATHER THAN A PARAGRAPH.**
+`test/models/mev_tax_model_one/fixtures` is absent from THIS worktree and from
+`git ls-tree -r --name-only origin/develop`, and
+`the_fixtures_directory_is_recorded_absent_from_both_trees` says so in both directions. Its failure
+text states what a PASS means (LOOP-04's live half is blocked on the `#24` track landing the
+directory, issue #25, and the loop's behaviour there is proven only through `FIXTURE_DIR`) and what
+a FAIL means (the directory ARRIVED — re-state LOOP-04 against the real tree at the phase close, and
+then **RETIRE** this check rather than weaken it). A paragraph cannot notice the day it stops being
+true.
+
+**THE PLAN'S FIRST FIRING INPUT WAS REFUTED, AND DRIVING IT A SECOND WAY CORRECTED A HADDOCK THAT
+HAD BEEN WRONG SINCE PHASE 22.** Moving `Driver.Capture.write_atomically`'s temp file to
+`getTemporaryDirectory` was predicted to redden arm (e). **DRIVEN: `228/228`, NOT CAUGHT** — the file
+is created and RENAMED AWAY, so **a before/after tree diff cannot see where a temp file lived**;
+arm (e)'s real subject is a file that SURVIVES outside the directory. Re-driven with the destination
+on this repository's `ext4` (device 66306) against `/tmp`'s `tmpfs` (device 50), it reddens through
+the FIRST arm: `renameFile:renamePath:rename '/tmp/volume_path.json.tmp' to '…': unsupported
+operation (Invalid cross-device link)`. **So `Driver.Capture`'s three-phase-old "silently degrade to
+a copy" sentence is FALSE** — POSIX `rename(2)` does not copy, it raises `EXDEV`. The sibling rule is
+right and the reason given for it was wrong: the hazard is a write that either works by luck of the
+mount table or dies at the last step with the destination still holding the previous document, which
+for a resident loop is a HALT and not a tear. Both haddocks now carry the measurement and both
+drives; arm (e) is KEPT with its limit written into its own haddock rather than removed or turned
+into a 350-second race.
+
+**TWO PLAN ERRORS, BOTH MEASURED.** (1) Task 1's `grep -cE "createDirectory" = 0` is unsatisfiable by
+the same task's own prescribed haddock, which the plan requires to say the module creates nothing. It
+printed **2**, both prose. **THE PROSE MOVED** — 27-01's rule for the twenty-ninth time on this branch
+and the second time in phase 28 — and the replacement is stronger, naming the import list as the
+mechanism instead of promising restraint. (2) Task 2's `find test -path "*fixtures*"` "returns
+nothing" was FALSE when it was written: `test/pos_spec/fixtures` and `test/gamsDiff/fixtures` predate
+this workstream. The real subject is `find test -path "*mev_tax_model_one*"`, and the stronger form —
+`doesDirectoryExist default_fixture_dir` — is what the check asserts.
+
+**FIVE DRIVES, EVERY ONE OBSERVED, EVERY BASELINE RESTORED `sha256sum -c` CLEAN.** M1 (`228/228`,
+refuted) and M1b (`226/228`, EXDEV) above; M2 (the precondition creates the directory and still
+refuses) reddened **the arm that matters and only that arm** — *"after publish_precondition refused
+…/fixtures, something IS there: a directory"* — which is the after-state arm earning its place, since
+the verdict, the message, the four required contents and the exit code were all still correct under a
+function that had already done the forbidden thing. M3 (one character out of `default_fixture_dir`)
+was caught by **TWO checks with different diagnoses**, naming both strings. M4
+(`mkdir -p test/models/mev_tax_model_one/fixtures`) reddened the worktree arm and rehearsed the day
+the prerequisite closes.
+
+**`git status --porcelain test/` IS EMPTY** and `find test -path "*mev_tax_model_one*"` returns
+nothing. **FOUR CHECKS COST THE SUITE ONE TO TWO SECONDS** — 28-03's multiply-by-fifteen rule was
+applied *before* they were written, and **366 s of headroom against the 900 s ceiling remain for
+28-05**, which is roughly 24 seconds of its own work.
 
 **28-03 DISPOSITION — LOOP-03 IS CLOSED, AND THE HEADLINE IS FALSIFIABLE BECAUSE THE CONTROL WAS
-OBSERVED.** `Loop.Publish`, `Driver.Capture.write_bytes_atomically`, `Loop.Config`'s publication
+OBSERVED (the record).**
+
+`Loop.Publish`, `Driver.Capture.write_bytes_atomically`, `Loop.Config`'s publication
 target, `Loop.Run.publish_for` and five checks. **This plan was RESUMED**: the previous executor
 was killed mid-Task-1 with six files dirty, `offchain/lib/Loop/Publish.hs` untracked, and the tree
 not building (`loop_chain_id` and `fresh_temp_dir` referenced and defined nowhere). Nothing was

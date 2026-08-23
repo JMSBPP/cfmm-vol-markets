@@ -1237,7 +1237,7 @@ Plans:
 - [ ] 28-01-PLAN.md — Spike seams S2/S3 closed in the library (`Loop.Solve`: a `Solver` over resolved paths, `classify` returning outcome + halt as data) plus migration `004`, the per-event ledger and single-row watermark, and a re-taken store-conformance capture (LOOP-02) [wave 1]
 - [ ] 28-02-PLAN.md — Seam S1 closed (`Gams.Detect.detect_toolchain`, a version-only hermetic probe driveable against a `/bin/sh` stub), the poll, the one iteration function with `--once`/resident, the complete exit-code table, and the restart-skips-nothing proof over events that occurred while the loop was down (LOOP-01) [wave 2]
 - [x] 28-03-PLAN.md — Publication: `write_bytes_atomically` generalized from the existing JSON writer, the textual identity splice that keeps the artifact's bytes verbatim, the shape floor, and the ten-second race harness with its torn-read positive control OBSERVED (LOOP-03) [wave 3]
-- [ ] 28-04-PLAN.md — Exactly one file by before/after tree diff, the missing-directory precondition naming the path and the owning workstream, and the default path pinned byte-equal to the consumer's own `VOLUME_PATH_JSON` read live from `origin/develop` (LOOP-04) [wave 4]
+- [x] 28-04-PLAN.md — Exactly one file by before/after tree diff, the missing-directory precondition naming the path and the owning workstream, and the default path pinned byte-equal to the consumer's own `VOLUME_PATH_JSON` read live from `origin/develop` (LOOP-04) [wave 4]
 - [ ] 28-05-PLAN.md — SIGINT observed only at a block boundary, an exception injected at EACH stage leaving the watermark unadvanced, the live Tier-C `capture-loop.sh` written/gated/recorded as blocked on issue #26, and the phase close by hand (LOOP-05) [wave 5]
 
 ## Progress (Milestone v6.0)
@@ -1257,7 +1257,7 @@ at the end of 25.
 | 25. The Content Key & Keyed Store | 3/3 | Complete    | 2026-08-17 |
 | 26. Shock Assembly — Fee Split & Event Decode | 4/4 | Complete   | 2026-08-17 |
 | 27. Anvil Read Layer (6 of 7 shipped; only CHAIN-01 is blocked) | 3/3 | Complete   | 2026-08-22 |
-| 28. Resident Loop & Fixture Publication (S1/S2/S3 closed; LOOP-01 proven 28-02, LOOP-03 proven 28-03; live half BLOCKED on #26) | 3/5 | In Progress | - |
+| 28. Resident Loop & Fixture Publication (S1/S2/S3 closed; LOOP-01 proven 28-02, LOOP-03 proven 28-03, LOOP-04's chain-free half proven 28-04; live half BLOCKED on #26 and on the #24 track landing the fixtures directory) | 4/5 | In Progress | - |
 
 ## Coverage (Milestone v6.0)
 
