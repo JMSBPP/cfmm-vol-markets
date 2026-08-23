@@ -89,7 +89,56 @@ IFACES=(
   "src/interfaces/exposure/VegaAccountInterface.plk"
 )
 
-for f in "${IFACES[@]}" "$REF_FILE" "$STALE_TOPIC_SRC" "$DATA_CONTRACT"; do
+# QUOTED-SIGNATURE TOPIC SOURCES -- a topic0 const whose file carries NO marker line
+# ---------------------------------------------------------------------------------
+# CHAIN-04's Shock event is emitted by src/models/mev_tax_model_one/libraries/ShockLib.plk,
+# which arrived in this worktree with the develop merge. It is ANOTHER TRACK'S SOURCE and is
+# only ever READ here -- adding the `// event::` marker line the IFACES parser wants is not
+# this script's edit to make. What the file DOES carry, on the comment line directly above the
+# declaration, is the signature in its keccak256("...") form:
+#
+#     // keccak256("Shock(address,int24,uint24,uint24)"); pool is topic1 (indexed).
+#     const SHOCK_EVENT_TOPIC0 = 0x...;
+#
+# So the signature is DERIVED from that comment -- the text between the first `keccak256("` and
+# the `")` that closes it -- and, as everywhere else in this file, never typed here.
+#
+# WHY THIS IS A SEPARATE STEP rather than another IFACES entry. Point the IFACES parser at this
+# file as-is and its bare-comment fallback (rule 2) matches `// keccak256(`, reads the head
+# `keccak256` as the signature NAME, and hashes the string `keccak256("Shock(address,int24,
+# uint24,uint24)")`. That is a perfectly valid-looking 32-byte hash that matches no log ever --
+# research 7.3's failure mode with a different cause -- and it would key the pin as `keccak256`.
+#
+# MEASURED, by running a copy of this script with that path appended to IFACES:
+#
+#   FATAL: computed value disagrees with the declared const
+#     source     : src/models/mev_tax_model_one/libraries/ShockLib.plk:6  (SHOCK_EVENT_TOPIC0, shape=bare)
+#     signature  : keccak256("Shock(address,int24,uint24,uint24)")
+#     declared   : 0x21b0...7d64   (the emitter's own constant)
+#     computed   : 0x948d...7e4a   (keccak of the wrapper, truncated HERE on purpose: no hex
+#                                   value is ever typed into this script, not even a wrong one)
+#
+# So the cross-check DOES catch it, and catches it as a FATAL rather than a wrong pin -- which is
+# why the extraction is explicit here instead of a widened regex in the shared parser.
+#
+# The cross-check is the SAME one the IFACES loop uses and it is not weakened: `cast keccak` of
+# the derived signature is what gets written, the file's own const is compared against it, and a
+# disagreement ABORTS. Every other failure mode here -- no such const, no keccak256("...")
+# comment above it, an unterminated one, a signature with whitespace in it -- is a named FATAL
+# too, so this pin cannot be dropped SILENTLY the way a floor exists to prevent. On the consumer
+# side "Shock" is in expected_topic_pins in offchain/test/Main.hs, and
+# sc4_pin_surface_is_the_expected_set reddens in its both-directions arm if this block ever
+# stops producing it. That is why MIN_TOPICS is not bumped: the floors above are a floor, and
+# adding a pin is expected not to need an edit there.
+#
+# Each row is: file | the const name that carries the topic0
+QUOTED_SIG_SPECS=(
+  "src/models/mev_tax_model_one/libraries/ShockLib.plk|SHOCK_EVENT_TOPIC0"
+)
+QUOTED_SIG_FILES=()
+for spec in "${QUOTED_SIG_SPECS[@]}"; do QUOTED_SIG_FILES+=("${spec%%|*}"); done
+
+for f in "${IFACES[@]}" "${QUOTED_SIG_FILES[@]}" "$REF_FILE" "$STALE_TOPIC_SRC" "$DATA_CONTRACT"; do
   [ -f "$f" ] || { echo "FATAL: missing input $ROOT/$f" >&2; exit 1; }
 done
 command -v cast >/dev/null || { echo "FATAL: cast (foundry) not on PATH" >&2; exit 1; }
@@ -356,6 +405,99 @@ while IFS=$'\t' read -r tag kind sig declared src cname lineno shape; do
 done < "$PARSED"
 
 echo "   $n_pin unique pins, $n_dup duplicate declarations cross-file (all agreed)"
+echo
+
+# --------------------------------------------------------------------------------------------
+# QUOTED-SIGNATURE TOPICS. See QUOTED_SIG_SPECS above for why these are not IFACES entries.
+#
+# The parser is deliberately NARROW: it finds ONE named const, walks backward through the
+# contiguous comment block directly above it exactly as the IFACES parser does, and takes the
+# CLOSEST `keccak256("...")` line. It does not guess, it does not fall back, and every way of
+# not finding what it is looking for is a FATAL on stderr with an exit code -- so this pin is
+# never dropped by a parse that matched nothing and still exited 0.
+# --------------------------------------------------------------------------------------------
+QUOTED_PARSER='
+function die(msg) { printf("FATAL: quoted parser: %s: %s\n", src, msg) > "/dev/stderr"; exit 3 }
+
+{ line[NR] = $0 }
+
+END {
+  n = NR
+  for (i = 1; i <= n; i++) {
+    if (line[i] !~ "^[ \t]*const[ \t]+" cname "[ \t]*=") continue
+
+    rhs = line[i]
+    sub("^[ \t]*const[ \t]+" cname "[ \t]*=", "", rhs)
+    sub(/;.*$/, "", rhs)
+    gsub(/[ \t\r]/, "", rhs)
+    if (rhs !~ /^0[xX][0-9a-fA-F]+$/) die("const " cname " (line " i ") has no hex value")
+    if (length(rhs) != 66) die("const " cname " is " (length(rhs) - 2) " hex digits, not 64")
+
+    for (j = i - 1; j >= 1; j--) {
+      if (line[j] !~ /^[ \t]*\/\//) break
+      k = index(line[j], "keccak256(\"")
+      if (k == 0) continue
+      rest = substr(line[j], k + 11)
+      e = index(rest, "\")")
+      if (e == 0) die("unterminated keccak256(\"...\") comment on line " j)
+      sig = substr(rest, 1, e - 1)
+      if (sig ~ /[ \t]/) die("the quoted signature on line " j " has whitespace in it: " sig)
+      if (sig !~ /^[A-Za-z_][A-Za-z0-9_]*\(.*\)$/) die("line " j " does not quote a signature: " sig)
+      printf("QSIG\t%s\t%s\t%d\n", sig, tolower(rhs), j)
+      exit 0
+    }
+    die("no keccak256(\"...\") comment above const " cname " (line " i ")")
+  }
+  die("no const " cname " declaration found")
+}
+'
+
+echo "== computing topic0s from quoted-signature sources =="
+for spec in "${QUOTED_SIG_SPECS[@]}"; do
+  IFS='|' read -r qfile qconst <<< "$spec"
+  if ! qrow="$(awk -v src="$qfile" -v cname="$qconst" "$QUOTED_PARSER" "$qfile")"; then
+    echo "FATAL: quoted parser aborted on $qfile -- see the message above; no pin file written" >&2
+    exit 3
+  fi
+  IFS=$'\t' read -r qtag qsig qdeclared qlineno <<< "$qrow"
+  [ "$qtag" = "QSIG" ] || { echo "FATAL: quoted parser emitted '$qrow' for $qfile" >&2; exit 3; }
+
+  qname="${qsig%%(*}"
+  qcomputed="$(cast keccak "$qsig")"
+  qcomputed="$(printf '%s' "$qcomputed" | tr 'A-F' 'a-f')"
+
+  # SAME cross-check as the IFACES loop: computed is what is written, the file's own const is
+  # only ever the second opinion, and a disagreement is a finding on both sides.
+  if [ "$qcomputed" != "$qdeclared" ]; then
+    {
+      echo "FATAL: computed value disagrees with the declared const"
+      echo "  source     : $qfile:$qlineno  ($qconst, shape=quoted)"
+      echo "  signature  : $qsig"
+      echo "  declared   : $qdeclared"
+      echo "  computed   : $qcomputed"
+      echo "  Either the quoted signature was mis-derived or the emitter is wrong."
+      echo "  Both are findings. Do not resolve this by preferring one side."
+    } >&2
+    exit 1
+  fi
+
+  if [ -n "${SEEN_SIG[$qname]+x}" ]; then
+    {
+      echo "FATAL: $qname is declared both in an interface file and as a quoted-signature source"
+      echo "  first : ${SEEN_SRC[$qname]}  ${SEEN_SIG[$qname]}  ${SEEN_VAL[$qname]}"
+      echo "  second: $qfile  $qsig  $qcomputed"
+      echo "  A pin with two producers is a pin whose second producer nobody reads."
+    } >&2
+    exit 1
+  fi
+  SEEN_SIG[$qname]="$qsig"; SEEN_VAL[$qname]="$qcomputed"; SEEN_SRC[$qname]="$qfile"
+  n_pin=$((n_pin + 1))
+
+  jq -nc --arg k "$qname" --arg s "$qsig" --arg v "$qcomputed" --arg f "$qfile" \
+    '{key:$k, entry:{signature:$s, topic0:$v, source:$f}}' >> "$TOPS"
+  printf '   ok(quoted) %-28s %s  (%s:%s)\n' "$qname" "$qsig" "$qfile" "$qlineno"
+done
+echo
 
 # --- THE FLOOR. Nothing below may run on an empty parse. --------------------
 n_sel=$(grep -c . "$SELS" || true)
