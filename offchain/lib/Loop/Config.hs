@@ -6,14 +6,22 @@
 -- reader consults from a shell script or a CI log, and a surface stated in two places is a surface
 -- that disagrees with itself the first time one of them is edited.
 --
--- THE TABLE IS COMPLETE ON DAY ONE
--- --------------------------------
--- 'exit_table' already names the conditions plans 28-03, 28-04 and 28-05 will raise -- the missing
--- fixture directory, the unreachable ledger, the unresolvable prover paths. That is deliberate. A
--- table that grows one code per plan is a table nothing can assert is TOTAL: the check over it
--- would be comparing a list against the constructors that happen to exist today, and would agree
--- with every future in which a code was forgotten. Every 'Halt' and every 'Precondition' maps to a
--- code here, the codes are pairwise distinct, and the suite says so.
+-- THE TABLE WAS COMPLETE ON DAY ONE FOR THE CONDITIONS THAT EXISTED, AND 28-05 ADDED A TENTH
+-- ------------------------------------------------------------------------------------------
+-- 'exit_table' already named the conditions plans 28-03, 28-04 and 28-05 would raise -- the
+-- missing fixture directory, the unreachable ledger, the unresolvable prover paths. That is
+-- deliberate. A table that grows one code per plan is a table nothing can assert is TOTAL: the
+-- check over it would be comparing a list against the constructors that happen to exist today, and
+-- would agree with every future in which a code was forgotten. Every 'Halt' and every
+-- 'Precondition' maps to a code here, the codes are pairwise distinct, and the suite says so.
+--
+-- What 28-05 added is not a code for a condition that was already reachable and unnamed: it is a
+-- code for a condition that did not EXIST until the iteration was wrapped. Before 28-05 an
+-- exception escaping a stage of 'Loop.Run.process_block' killed the process with a bare Haskell
+-- exception and no exit code from any table at all; 'HaltBlockException' is what that becomes, and
+-- the totality check is what REQUIRED the entry rather than merely permitting it. A table that
+-- grows because a new condition was created is a different thing from a table that grows because
+-- an old one was forgotten, and only the second is the failure the paragraph above is about.
 --
 -- WHY THESE NUMBERS AND NOT SMALLER ONES
 -- --------------------------------------
@@ -54,6 +62,7 @@ module Loop.Config
   , exit_table
   , exit_code_for_halt
   , exit_code_for_precondition
+  , halt_name
   ) where
 
 import Control.Exception (throwIO)
@@ -197,7 +206,7 @@ loop_first_block = 0
 -- What stops a running loop
 -- ---------------------------------------------------------------------------------------------
 
--- | The four ways a loop that STARTED can stop, each carrying what a post-mortem needs.
+-- | The five ways a loop that STARTED can stop, each carrying what a post-mortem needs.
 --
 -- Every one of these leaves the watermark where it was, so the block is re-processed on restart.
 -- That is the whole of LOOP-05 on this side: the halt happens BEFORE the commit, not after it.
@@ -217,6 +226,22 @@ data Halt
     -- ^ the solver seam threw rather than returning an outcome. Distinct from 'HaltUnsolvable' on
     -- purpose: an exception is a fact about the process, and recording it as an infeasibility
     -- verdict would manufacture a scientific claim out of a crash.
+  | HaltBlockException Integer String
+    -- ^ 28-05. AN EXCEPTION ESCAPED A STAGE OF THE ITERATION, carrying the block it escaped from
+    -- and what was thrown.
+    --
+    -- The three classes above are the ones a caller CAN tell apart, because each is raised at a
+    -- site that knows what it was doing: the solver seam, the ledger, the pinned read. This one is
+    -- the outer wrapper around the whole iteration, and it is deliberately NOT mapped onto one of
+    -- them. An outer wrapper genuinely cannot tell which stage threw -- the log fetch, the replay
+    -- lookup, the toolchain stash -- and reporting a chain failure as 'HaltDb' would put a wrong
+    -- diagnosis in a ledger-shaped post-mortem, which is the same conflation 28-01 refused to add
+    -- an @AbortReason@ constructor for.
+    --
+    -- What it guarantees is the only thing LOOP-05 asks: the block was abandoned WITHOUT a commit.
+    -- 'Loop.Ledger.ledger_commit_block' is the last statement of the iteration and nothing before
+    -- it writes anything, so an exception from any earlier stage leaves the watermark where it was
+    -- and the block is re-processed on restart.
   deriving (Eq, Show)
 
 -- ---------------------------------------------------------------------------------------------
@@ -263,7 +288,7 @@ exit_usage = 64
 
 -- | THE COMPLETE TABLE, name to code, stated once.
 --
--- The names are the ones a runbook uses; the codes are what a shell sees. Nine non-zero entries,
+-- The names are the ones a runbook uses; the codes are what a shell sees. Ten non-zero entries,
 -- one per constructor of 'Halt' and 'Precondition' between them, and the suite asserts both
 -- directions.
 exit_table :: [(String, Int)]
@@ -272,6 +297,7 @@ exit_table =
   , ("halt_rpc_exhausted",       31)
   , ("halt_db",                  32)
   , ("halt_solver_exception",    33)
+  , ("halt_block_exception",     34)
   , ("precondition_fixture_dir", 40)
   , ("precondition_toolchain",   41)
   , ("precondition_endpoint",    42)
@@ -285,12 +311,20 @@ exit_table =
 -- The miss branch returns a code that is in neither family precisely so that a future edit which
 -- broke the correspondence would produce an obviously wrong number rather than a plausible one.
 exit_code_for_halt :: Halt -> Int
-exit_code_for_halt h = coded (halt_name h)
-  where
-    halt_name (HaltUnsolvable _)       = "halt_unsolvable"
-    halt_name (HaltRpcExhausted _ _)   = "halt_rpc_exhausted"
-    halt_name (HaltDb _)               = "halt_db"
-    halt_name (HaltSolverException _)  = "halt_solver_exception"
+exit_code_for_halt = coded . halt_name
+
+-- | The runbook NAME of a halt, exported so a caller can say which condition ended the run without
+-- keeping a second table of its own.
+--
+-- @offchain\/app\/LoopMain.hs@ prints it on the final machine-readable line beside the code, and
+-- the code is 'exit_code_for_halt' of the same value -- so the line and the status byte cannot
+-- disagree about which condition they describe.
+halt_name :: Halt -> String
+halt_name (HaltUnsolvable _)         = "halt_unsolvable"
+halt_name (HaltRpcExhausted _ _)     = "halt_rpc_exhausted"
+halt_name (HaltDb _)                 = "halt_db"
+halt_name (HaltSolverException _)    = "halt_solver_exception"
+halt_name (HaltBlockException _ _)   = "halt_block_exception"
 
 -- | The code for a precondition failure, through the same table.
 exit_code_for_precondition :: Precondition -> Int

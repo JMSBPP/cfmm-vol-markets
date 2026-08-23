@@ -268,7 +268,7 @@ import Loop.Run
   ( BlockReport (..)
   , Env (..)
   , EventReport (..)
-  , Mode (Once)
+  , Mode (..)
   , process_block
   , run_loop
   , split_seed
@@ -18122,6 +18122,7 @@ loop_env store ledger solver source publish_dir =
     , env_n_events      = sh_n_events fixture_shock
     , env_fixture_dir   = publish_dir
     , env_poll_ms       = default_poll_ms
+    , env_interrupted   = pure False
     , env_log           = \_line -> pure ()
     }
 
@@ -18435,6 +18436,10 @@ the_loop_exit_codes_are_total_and_disjoint_from_the_gams_domain =
           , HaltRpcExhausted 11 3
           , HaltDb "the ledger refused"
           , HaltSolverException "the seam threw"
+          -- 28-05. The tenth entry, and it is here because the TOTALITY arm below demanded it: the
+          -- outer wrapper around the iteration created a condition that did not exist before, and
+          -- a constructor with no table entry is what the second direction of that arm catches.
+          , HaltBlockException 11 "a stage threw"
           ]
         preconditions =
           [ FixtureDirMissing "a/path"
@@ -19831,6 +19836,510 @@ the_fixtures_directory_is_recorded_absent_from_both_trees =
           ++ " before anything else.")
 
 -- ---------------------------------------------------------------------------------------------
+-- Phase 28 plan 05: LOOP-05 -- the exception at EVERY stage, and the interrupt at a block boundary
+--
+-- Every check below runs against 'Store.Memory', 'new_memory_ledger', a counting stub 'Solver' and
+-- a chain the CHECK ITSELF supplies, publishing into a temporary directory. There is no node, no
+-- database, no solver and no signal: the interrupt is 'Loop.Run.env_interrupted', a question the
+-- loop asks, so "the flag was set DURING the log fetch of block 2" is a moment a check can arrange
+-- and a real @SIGINT@ is not.
+-- ---------------------------------------------------------------------------------------------
+
+-- | ONE STAGE OF 'Loop.Run.process_block', AN @Env@ THAT MAKES IT RAISE, AND WHAT THE ITERATION IS
+-- SUPPOSED TO DO ABOUT IT.
+--
+-- The disposition is DATA rather than a uniform assumption, and that is the finding this battery
+-- produced rather than a weakening of it. Two of the three facts differ by stage and both
+-- differences are deliberate design decisions made in earlier plans:
+--
+--   * 'sb_commits' -- the PUBLISH stage does not abandon the block. 28-03 wrapped the write in
+--     'try' on purpose (@Loop.Run.publish_for@'s haddock): a full disk or a directory that vanished
+--     mid-run is not a reason to stop processing the chain, the ledger is the record that matters
+--     and it has already been decided. So a publish exception becomes a NOTE, @br_published@ stays
+--     'False', and the block commits. Asserting "every stage leaves the watermark unadvanced" would
+--     have required reverting that ruling, and a check that forces a design change in order to pass
+--     is a check measuring itself.
+--   * 'sb_solved' -- the store legitimately HOLDS an entry for stages that throw after the solve.
+--     @decide@ writes it, and that write is content-keyed: the re-processed block recomputes the
+--     same key, finds it, and elides. A store entry surviving an abandoned block is not a
+--     half-written anything, and the arm that proves it is harmless is the RE-RUN arm below, not an
+--     assertion that the entry is absent.
+--
+-- What is uniform, and what LOOP-05 actually asks, is the last arm: whatever else happened, the
+-- block can be processed again and produces the row it should, under the SAME content key.
+data StageBreak = StageBreak
+  { sb_stage   :: String
+    -- ^ the stage's name, printed in every failure this entry produces.
+  , sb_break   :: FilePath -> Env -> IO Env
+    -- ^ the publication directory, and the @Env@ with exactly one component replaced by one that
+    -- raises. @IO@ because the publish stage is broken by the FILESYSTEM rather than by a field.
+  , sb_commits :: Bool
+    -- ^ does the iteration still commit this block?
+  , sb_solved  :: Bool
+    -- ^ had the solve already reached the store when this stage threw?
+  }
+
+-- | THE STAGES, IN THE ORDER 'Loop.Run.process_block' RUNS THEM.
+--
+-- Seven, and the word in LOOP-05 is EACH. They are the stages that can be made to raise from
+-- OUTSIDE the function -- through a record field it was handed, or through the filesystem it
+-- writes to -- because a stage broken by editing 'Loop.Run' would be measuring a source tree
+-- rather than a composition. The pure stages between them (@event_identity@, @decode_shock@,
+-- @split_for@, @content_key@, @classify@) are total functions of their arguments and have no
+-- component to replace; each already refuses rather than raising, and 28-01 and 28-02 drove those
+-- refusals.
+loop_stage_breaks :: [StageBreak]
+loop_stage_breaks =
+  [ StageBreak "logs" (\_ env -> pure env
+      { env_source = (env_source env)
+          { source_logs = \_ _ -> throwIO (userError (stage_bomb "source_logs")) } })
+      False False
+  , StageBreak "seen" (\_ env -> pure env
+      { env_ledger = (env_ledger env)
+          { ledger_seen = \_ -> throwIO (userError (stage_bomb "ledger_seen")) } })
+      False False
+  , StageBreak "reads" (\_ env -> pure env
+      { env_source = (env_source env)
+          { source_reads = \_ _ -> throwIO (userError (stage_bomb "source_reads")) } })
+      False False
+  , StageBreak "solve" (\_ env -> pure env
+      { env_solver = (env_solver env)
+          { solver_run = \_ -> throwIO (userError (stage_bomb "solver_run")) } })
+      False False
+  , StageBreak "identity" (\_ env -> pure env
+      { env_read_identity = throwIO (userError (stage_bomb "env_read_identity")) })
+      False True
+    -- The publish stage is broken WITHOUT touching the Env: a DIRECTORY is created at the sibling
+    -- temp path 'Driver.Capture.write_atomically' fills, so the very first thing the writer does --
+    -- open @volume_path.json.tmp@ for writing -- raises "inappropriate type". A directory is used
+    -- rather than a permission bit because a permission bit does not stop the process that owns the
+    -- directory, and this suite runs as the owner.
+  , StageBreak "publish" (\dir env -> do
+      createDirectoryIfMissing True (dir </> (fixture_file_name ++ ".tmp"))
+      pure env)
+      True True
+  , StageBreak "commit" (\_ env -> pure env
+      { env_ledger = (env_ledger env)
+          { ledger_commit_block = \_ _ -> throwIO (userError (stage_bomb "ledger_commit_block")) } })
+      False True
+  ]
+
+-- | The message every injected exception carries, so a failure that reports one can be told from a
+-- failure that reports the instrument breaking on its own.
+stage_bomb :: String -> String
+stage_bomb component = "LOOP-05 STAGE BATTERY: " ++ component ++ " was replaced by one that raises"
+
+-- | Only the parts of a row that a re-processed block MUST reproduce.
+--
+-- Not the whole row, and the exclusion is the point. 'lr_outcome' legitimately differs between the
+-- first pass and the re-run for the three late stages: the solve already reached the store, so the
+-- re-processed block finds the key and reports @elided@ where a fresh one reported @stored@. What
+-- must not differ is WHERE in the chain the row is and WHICH CONTENT KEY it was written under --
+-- a re-run that recomputed a different key would be re-solving the same event under a new identity,
+-- which is the failure that makes a store useless without ever looking wrong.
+row_identity :: LedgerRow -> (EventId, Integer, Maybe BS.ByteString)
+row_identity row = (lr_event row, lr_block row, lr_key row)
+
+-- | LOOP-05's first half: AN EXCEPTION AT EVERY STAGE, AND THE BLOCK STILL RE-PROCESSABLE.
+--
+-- The premise is asserted before the battery and it is the arm that makes the rest mean anything:
+-- a CLEAN iteration over the same block must produce exactly one row, one store entry and a
+-- watermark. Without it every "nothing was written" arm below is satisfied by a pipeline that does
+-- nothing at all, which is this milestone's most-measured defect.
+--
+-- Then, for each stage in 'loop_stage_breaks': the iteration halts (or does not, for the one stage
+-- where 28-03 ruled it must not), the watermark is where it was, no row exists for the event, the
+-- store holds what the stage's own position says it should -- and then a CLEAN 'Env' over the SAME
+-- store and ledger processes the SAME block and produces the row, under the same content key. That
+-- last arm is the requirement: the block was re-processed, not skipped.
+--
+-- FIRING INPUT: hoist the commit in 'Loop.Run.process_block' so the block's watermark is written
+-- BEFORE its events are decided. Every abandoning stage then observes an advanced watermark, and
+-- each one names itself.
+an_exception_at_each_stage_leaves_the_watermark_unadvanced :: Check
+an_exception_at_each_stage_leaves_the_watermark_unadvanced =
+  Check "an_exception_at_each_stage_leaves_the_watermark_unadvanced" . guarded $
+    case (,) <$> cache_setting <*> loop_mined_id stage_block 0 of
+      Left err -> pure (Left err)
+      Right ((ident, _key, produced), eid) -> do
+        -- The PREMISE, in its own store and ledger: what a clean pass over this block does.
+        clean_dir <- fresh_temp_dir "loop05-stage-premise"
+        (clean_store, clean_entries) <- cache_counting_store
+        clean_ledger <- new_memory_ledger
+        (clean_solver, _) <- cache_solver "the-clean-stage-solver" produced
+        clean_source <- stage_source
+        clean_pass <-
+          run_loop Once (loop_env clean_store clean_ledger clean_solver clean_source clean_dir)
+            ident
+        clean_rows  <- ledger_rows_for clean_ledger eid
+        clean_mark  <- ledger_watermark clean_ledger
+        clean_count <- clean_entries
+
+        results <- mapM (drive_stage ident produced eid) loop_stage_breaks
+
+        pure $ do
+          _ <- expect (length loop_stage_breaks >= 5)
+                 ("the stage battery has " ++ show (length loop_stage_breaks)
+                   ++ " entries. LOOP-05's word is EACH, and a battery small enough to have missed"
+                   ++ " a stage proves nothing about the one it missed.")
+          _ <- expect (clean_pass == Right () && length clean_rows == 1
+                         && clean_mark == Just stage_block && clean_count == 1)
+                 ("THE PREMISE FAILED: a CLEAN pass over block " ++ show stage_block
+                   ++ " returned " ++ show clean_pass ++ ", left "
+                   ++ show (length clean_rows) ++ " row(s), a watermark of " ++ show clean_mark
+                   ++ " and " ++ show clean_count ++ " store entry(ies) -- expected Right (), one"
+                   ++ " row, Just " ++ show stage_block ++ " and one entry. Every \"nothing was"
+                   ++ " written\" arm below is satisfied by a pipeline that writes nothing ever,"
+                   ++ " so this arm comes first.")
+          expected <- case clean_rows of
+                        (row : _) -> Right (row_identity row)
+                        []        -> Left "unreachable: the premise arm above already refused this."
+          mapM_ (stage_verdict expected) results
+          Right ()
+  where
+    -- THE ONLY BLOCK THE PASS SEES, and it is 'Loop.Config.loop_first_block' on purpose: the
+    -- battery asserts the watermark is UNCHANGED after an abandoned block, and a sweep that had
+    -- crossed quiet blocks first would have advanced it through them legitimately. One block, one
+    -- event, one thing that can have moved.
+    stage_block :: Integer
+    stage_block = loop_first_block
+
+    stage_source :: IO ChainSource
+    stage_source = do
+      logs_ref <- newIORef [(stage_block, [loop_mined_log stage_block 0])]
+      head_ref <- newIORef stage_block
+      asked    <- newIORef []
+      pure (loop_chain logs_ref head_ref asked)
+
+    -- Drive ONE stage: break it, run the loop, read the world, then run it again CLEAN over the
+    -- same store and ledger.
+    --
+    -- 'run_loop' and not 'process_block'. Four of the seven stages are components 'process_block'
+    -- does NOT wrap -- the log fetch, the replay lookup, the pinned read and the toolchain stash --
+    -- and their exceptions are caught by the wrapper in 'run_loop'. Driving the iteration directly
+    -- would MEASURE THE WRONG COMPOSITION: it would report those four as escaping, which they do,
+    -- into a caller that is always there in production.
+    drive_stage ident produced eid stage = do
+      dir <- fresh_temp_dir ("loop05-stage-" ++ sb_stage stage)
+      (store, entries) <- cache_counting_store
+      ledger <- new_memory_ledger
+      (solver, _) <- cache_solver ("the-solver-under-" ++ sb_stage stage) produced
+      source <- stage_source
+      let sound = loop_env store ledger solver source dir
+      broken  <- sb_break stage dir sound
+      outcome <- run_loop Once broken ident
+      rows    <- ledger_rows_for ledger eid
+      mark    <- ledger_watermark ledger
+      count   <- entries
+      -- THE RE-RUN. A fresh publication directory, because the publish stage left a directory
+      -- sitting on the temp path and the re-run must not be blocked by the previous run's damage --
+      -- the claim is about the LEDGER and the STORE surviving, not about the filesystem healing
+      -- itself.
+      again_dir <- fresh_temp_dir ("loop05-stage-" ++ sb_stage stage ++ "-again")
+      again_source <- stage_source
+      again <- run_loop Once (loop_env store ledger solver again_source again_dir) ident
+      again_rows <- ledger_rows_for ledger eid
+      again_mark <- ledger_watermark ledger
+      pure (stage, outcome, rows, mark, count, again, again_rows, again_mark)
+
+    stage_verdict expected (stage, outcome, rows, mark, count, again, again_rows, again_mark) = do
+      let name   = sb_stage stage
+          halted = case outcome of
+                     Left h   -> Just h
+                     Right () -> Nothing
+      _ <- expect ((not (sb_commits stage)) == isJust halted)
+             ("STAGE " ++ name ++ ": the pass " ++ (if isJust halted then "HALTED with "
+                                                     ++ show halted else "returned Right ()")
+               ++ ", and this stage is recorded as one that "
+               ++ (if sb_commits stage then "COMMITS" else "ABANDONS the block")
+               ++ ". See StageBreak's haddock for why the publish stage is the one that commits.")
+      _ <- expect (case halted of
+                     Nothing -> True
+                     Just h  -> exit_code_for_halt h `elem` map snd exit_table)
+             ("STAGE " ++ name ++ ": the halt " ++ show halted ++ " exits with "
+               ++ show (fmap exit_code_for_halt halted) ++ ", which Loop.Config.exit_table does not"
+               ++ " name. An injected exception must become a CONDITION with a runbook entry, not"
+               ++ " an anonymous crash: the whole point of catching it is that an operator can look"
+               ++ " the number up.")
+      _ <- expect (mark == (if sb_commits stage then Just stage_block else Nothing))
+             ("STAGE " ++ name ++ ": THE WATERMARK READS " ++ show mark ++ " and this stage"
+               ++ (if sb_commits stage then " commits, so it must read Just "
+                     ++ show stage_block ++ "."
+                   else " abandons the block, so it must be UNCHANGED at Nothing. A watermark"
+                     ++ " advanced over an abandoned block is the one failure that is silent AND"
+                     ++ " permanent: the restart skips the block and nothing ever says so."))
+      _ <- expect (length rows == (if sb_commits stage then 1 else 0))
+             ("STAGE " ++ name ++ ": the ledger holds " ++ show (length rows) ++ " row(s) for the"
+               ++ " event, expected " ++ show (if sb_commits stage then 1 :: Int else 0)
+               ++ ". A row written for a block whose watermark did not move is the half-written"
+               ++ " row LOOP-05 says cannot exist.")
+      _ <- expect (count == (if sb_solved stage then 1 else 0))
+             ("STAGE " ++ name ++ ": the store holds " ++ show count ++ " entry(ies), expected "
+               ++ show (if sb_solved stage then 1 :: Int else 0)
+               ++ ". A stage that threw BEFORE the solve must leave the store untouched; one that"
+               ++ " threw after it legitimately leaves the content-keyed entry behind, and the"
+               ++ " re-run arm below is what shows that entry is harmless rather than an"
+               ++ " assertion that it is absent.")
+      _ <- expect (again == Right ())
+             ("STAGE " ++ name ++ ": THE BLOCK COULD NOT BE RE-PROCESSED. A clean pass over the"
+               ++ " same block, on the same store and ledger, returned " ++ show again)
+      _ <- expect (map row_identity again_rows == [expected])
+             ("STAGE " ++ name ++ ": after re-processing block " ++ show stage_block
+               ++ " the ledger holds " ++ show (length again_rows) ++ " row(s) with identities "
+               ++ show (map row_identity again_rows) ++ ", and a clean first pass produces exactly "
+               ++ show [expected] ++ ". The event was SKIPPED or re-keyed rather than"
+               ++ " re-processed, and either one turns an abandoned block into a permanent hole.")
+      expect (again_mark == Just stage_block)
+        ("STAGE " ++ name ++ ": after re-processing, the watermark reads " ++ show again_mark
+          ++ " and must read Just " ++ show stage_block ++ ".")
+
+-- | LOOP-05's second half: A SHUTDOWN IS OBSERVED ONLY AT A BLOCK BOUNDARY.
+--
+-- Three event-carrying blocks, and the flag is set by @source_logs@ WHILE IT SERVES BLOCK 2 -- so
+-- the request arrives at the earliest possible moment inside that block's work, before a single one
+-- of its events has been decided. The block that was in flight must still complete: both of its
+-- rows and its watermark, together. Block 3 must not be started.
+--
+-- Block 2 carries TWO events on purpose. A loop that read the flag between EVENTS instead of
+-- between blocks would abandon block 2 after the flag was seen, and with one event there would be
+-- nothing to abandon in the middle of.
+--
+-- 'Resident' rather than 'Once', because 'Once' returns after one sweep anyway and would satisfy
+-- "block 3 was not processed" for the wrong reason. The resident loop's own re-entry is what has to
+-- notice the flag, and the head is left ABOVE block 2 so a loop that ignored it would carry
+-- straight on -- and, since the source never runs out of head, would never return at all.
+--
+-- FIRING INPUT: read the flag between events instead of between blocks. The check then observes a
+-- watermark at 1 with block-2's rows missing.
+an_interrupt_is_observed_only_at_a_block_boundary :: Check
+an_interrupt_is_observed_only_at_a_block_boundary =
+  Check "an_interrupt_is_observed_only_at_a_block_boundary" . guarded $
+    case (,) <$> cache_setting <*> mapM (uncurry loop_mined_id) interrupt_positions of
+      Left err -> pure (Left err)
+      Right ((ident, _key, produced), ids) -> do
+        flag     <- newIORef False
+        logs_ref <- newIORef [ (b, [loop_mined_log b i | (b', i) <- interrupt_positions, b' == b])
+                             | b <- [1, 2, 3] ]
+        head_ref <- newIORef 3
+        asked    <- newIORef []
+        store    <- new_memory_store
+        ledger   <- new_memory_ledger
+        (solver, _) <- cache_solver "the-solver-under-a-shutdown" produced
+        publish_dir <- fresh_temp_dir "loop05-interrupt"
+        let plain = loop_chain logs_ref head_ref asked
+            -- The one difference from every other chain in this file: serving block 2's logs is
+            -- what raises the shutdown. Nothing else about the source changes.
+            source = plain
+              { source_logs = \from to -> do
+                  answered <- source_logs plain from to
+                  if from <= 2 && 2 <= to then writeIORef flag True else pure ()
+                  pure answered
+              }
+            env = (loop_env store ledger solver source publish_dir)
+                    { env_interrupted = readIORef flag }
+
+        finished <- run_loop Resident env ident
+        mark     <- ledger_watermark ledger
+        counts   <- loop_row_counts ledger ids
+        ranges   <- readIORef asked
+        raised   <- readIORef flag
+
+        let per_block = [(b, n) | ((b, _), n) <- zip interrupt_positions counts]
+        pure $ do
+          _ <- expect raised
+                 ("the shutdown was never requested: the source served block 2 and the flag is"
+                   ++ " still False, so every arm below is about an ordinary drained run.")
+          _ <- expect (any (\(from, to) -> from <= 2 && 2 <= to) ranges)
+                 ("block 2 was never asked for -- the ranges the loop requested are "
+                   ++ show (reverse ranges) ++ ". The flag is set BY that request, so a run that"
+                   ++ " never made it cannot have been interrupted at block 2.")
+          _ <- expect (finished == Right ())
+                 ("run_loop returned " ++ show finished ++ ", expected Right (). A shutdown that"
+                   ++ " was asked for and granted is not a failure: the last block completed and"
+                   ++ " the next was not started, which is exit 0.")
+          _ <- expect ([n | ((b, _), n) <- zip interrupt_positions counts, b <= 2] == [1, 1, 1])
+                 ("THE BLOCK THAT WAS IN FLIGHT DID NOT COMPLETE. Row counts by block: "
+                   ++ show per_block ++ ". Blocks 1 and 2 were entered before the shutdown was"
+                   ++ " seen, and block 2 carries TWO events -- a loop that read the flag between"
+                   ++ " EVENTS would abandon it part-way and leave one or both of those rows"
+                   ++ " missing. The current block's transaction completes or rolls back; it is"
+                   ++ " never half.")
+          _ <- expect (mark == Just 2)
+                 ("the watermark reads " ++ show mark ++ ", expected Just 2. Block 2 was in flight"
+                   ++ " when the shutdown was requested, so its rows AND its watermark land"
+                   ++ " together -- they are one call. A watermark of Just 1 with block 2's rows"
+                   ++ " present is the flag being read inside the block; a watermark of Just 3 is"
+                   ++ " the flag not being read at all.")
+          expect ([n | ((b, _), n) <- zip interrupt_positions counts, b == 3] == [0])
+            ("BLOCK 3 WAS PROCESSED AFTER A SHUTDOWN WAS REQUESTED. Row counts by block: "
+              ++ show per_block ++ ". The flag was set while block 2's logs were being served and"
+              ++ " it is read after that block returns, so block 3 is never entered.")
+  where
+    -- Block 2 carries two events. That is what gives a between-events read something to abandon.
+    interrupt_positions :: [(Integer, Integer)]
+    interrupt_positions = [(1, 0), (2, 0), (2, 1), (3, 0)]
+
+-- | LOOP-05's third half: THE FIXTURE ON DISK AFTER AN INTERRUPTED ITERATION PARSES, AND BELONGS TO
+-- A RUN THAT COMPLETED.
+--
+-- Staged on two positions at DIFFERENT heights carrying an IDENTICAL shock -- the same pair
+-- 'a_cache_hit_publishes_at_the_events_own_block' is built on, found by search rather than written
+-- down. The first block completes: it solves, publishes, and commits. The second block is then
+-- driven with the stage AFTER publication broken (@env_read_identity@ raises), so the publication
+-- HAPPENS and the iteration is abandoned immediately afterwards -- which is the sharpest form of
+-- "interrupted mid-iteration, with bytes already on disk" this composition can produce.
+--
+-- What is then true, and what the requirement asks:
+--
+--   * the file parses -- as JSON, AND as an artifact under its own identity prefix, because a tear
+--     between two documents can leave valid JSON that is not a valid artifact (28-03);
+--   * it carries the ten artifact fields, read out of the committed golden's own bytes, and the
+--     three identity fields issue #29 handed across the boundary;
+--   * no @*.tmp@ survives beside it;
+--   * and the LAST COMPLETED block's ledger row carries a content key, and the bytes on disk are
+--     the artifact stored under THAT key. The abandoned block published bytes it had elided from
+--     the completed one, so the fixture belongs to a run that finished even though the iteration
+--     that wrote it did not.
+--
+-- FIRING INPUT: make 'Driver.Capture.write_atomically' copy into place and leave its temp file
+-- behind instead of renaming. The surviving-sibling arm reddens.
+the_published_fixture_survives_an_interrupted_iteration :: Check
+the_published_fixture_survives_an_interrupted_iteration =
+  Check "the_published_fixture_survives_an_interrupted_iteration" . guarded $
+    case (,) <$> cache_setting <*> publication_colliding_positions of
+      Left err -> pure (Left err)
+      Right ((ident, _key, produced), ((b1, i1), (b2, i2), _, _)) ->
+        case (,) <$> loop_mined_id b1 i1 <*> loop_mined_id b2 i2 of
+          Left err -> pure (Left err)
+          Right (eid1, _eid2) -> do
+            logs_ref <- newIORef [(b1, [loop_mined_log b1 i1]), (b2, [loop_mined_log b2 i2])]
+            head_ref <- newIORef b2
+            asked    <- newIORef []
+            store    <- new_memory_store
+            ledger   <- new_memory_ledger
+            (solver, _) <- cache_solver "the-solver-behind-an-interruption" produced
+            dir <- fresh_temp_dir "loop05-interrupted-publication"
+            let source = loop_chain logs_ref head_ref asked
+                sound  = loop_env store ledger solver source dir
+                path   = dir </> fixture_file_name
+                after_publication = sound
+                  { env_read_identity =
+                      throwIO (userError (stage_bomb "env_read_identity, after publication")) }
+
+            (_, first_report) <- process_block sound ident b1
+            interrupted <- try (process_block after_publication ident b2)
+                             :: IO (Either IOException (KeyIdentity, BlockReport))
+            mark        <- ledger_watermark ledger
+            rows        <- ledger_rows_for ledger eid1
+            -- THE RUN THE LEDGER SAYS COMPLETED, looked up under the key that ledger row carries --
+            -- never under a key this check recomputed. A check that recomputed the key would be
+            -- comparing the store against its own arithmetic; reading the row's own bytes is what
+            -- makes "the fixture belongs to a run that COMPLETED" a statement about the record.
+            stored      <- case rows of
+                             (row : _) | Just k <- lr_key row ->
+                               store_lookup store (lr_model row) (lr_key_scheme row) k
+                             _ -> pure Nothing
+            document    <- read_if_present path
+            leftovers   <- listDirectory dir
+            golden_here <- doesFileExist volume_path_golden_file
+            golden      <- if golden_here then Just <$> BS.readFile volume_path_golden_file
+                                          else pure Nothing
+
+            pure $ do
+              _ <- expect (br_published first_report && isNothing (br_halt first_report))
+                     ("THE FIRST BLOCK DID NOT COMPLETE: br_published = "
+                       ++ show (br_published first_report) ++ ", halt = "
+                       ++ show (br_halt first_report) ++ ". There is then no completed run for the"
+                       ++ " fixture to belong to and every arm below is about nothing."
+                       ++ "\n      notes: " ++ intercalate " | " (br_notes first_report))
+              _ <- expect (case interrupted of
+                             Left _            -> True
+                             Right (_, report) -> isJust (br_halt report))
+                     ("the SECOND block was not interrupted at all: it returned "
+                       ++ (case interrupted of
+                             Left err          -> "an exception " ++ show err
+                             Right (_, report) -> "a clean report, halt " ++ show (br_halt report))
+                       ++ ". This check is about a fixture written by an iteration that then did"
+                       ++ " not finish, and an iteration that finished is not that.")
+              _ <- expect (mark == Just b1)
+                     ("the watermark reads " ++ show mark ++ ", expected Just " ++ show b1
+                       ++ " -- the LAST COMPLETED block. The interrupted iteration published and"
+                       ++ " was then abandoned, so it must not have advanced anything.")
+              bytes <- case document of
+                         Nothing -> Left ("NOTHING IS ON DISK at " ++ show path
+                                            ++ ". The interrupted iteration was supposed to publish"
+                                            ++ " before it was abandoned.")
+                         Just b  -> Right b
+              _ <- expect (is_json_value bytes)
+                     ("THE FIXTURE ON DISK DOES NOT PARSE. " ++ show (BS.length bytes)
+                       ++ " bytes, beginning " ++ show (C8.unpack (BS.take 96 bytes))
+                       ++ ". A consumer that read this file after the interruption would see a"
+                       ++ " document that is not JSON at all.")
+              let prefix  = identity_prefix (FixtureIdentity loop_pool_id (AtBlock b2) loop_chain_id)
+                  payload = BS.drop (BS.length prefix) bytes
+              _ <- expect (prefix `BS.isPrefixOf` bytes)
+                     ("the fixture does not begin with the identity prefix for block " ++ show b2
+                       ++ ". It begins " ++ show (C8.unpack (BS.take 96 bytes)) ++ ".")
+              _ <- case decode_artifact (C8.pack "{" `BS.append` payload) of
+                     Left err -> Left ("the fixture's artifact half does NOT decode after the"
+                                         ++ " interruption: " ++ show err ++ ". Valid JSON is not"
+                                         ++ " enough -- 28-03 measured that a tear between two"
+                                         ++ " documents of different lengths can leave a parseable"
+                                         ++ " document that is not a parseable artifact.")
+                     Right _  -> Right ()
+              artifact_keys <- case golden of
+                                 Nothing -> Left (volume_path_golden_file ++ " is not on disk, so"
+                                                    ++ " the ten field names have no source and"
+                                                    ++ " this arm would be about an empty list.")
+                                 Just g  -> Right (json_key_tokens g)
+              _ <- expect (length artifact_keys >= 10)
+                     ("the golden's key extractor found " ++ show (length artifact_keys)
+                       ++ " names (" ++ show artifact_keys ++ ") and the golden carries ten. An"
+                       ++ " extractor that found nothing makes the next arm vacuous.")
+              let wanted  = artifact_keys ++ ["pool", "blockNumber", "chainId"]
+                  missing = [k | k <- wanted
+                               , not (C8.pack ("\"" ++ k ++ "\"") `BS.isInfixOf` bytes)]
+              _ <- expect (null missing)
+                     ("the fixture left on disk by the interrupted iteration is missing the field(s)"
+                       ++ " " ++ show missing ++ ". Ten of them are read out of the committed"
+                       ++ " golden's own bytes and three are issue #29's contract.")
+              _ <- expect (null [f | f <- leftovers, ".tmp" `isSuffixOf` f])
+                     ("a temp sibling SURVIVED the interrupted publication: "
+                       ++ show (sort leftovers) ++ ". The directory must hold the fixture and"
+                       ++ " nothing else -- a surviving *.tmp is a half-written document sitting"
+                       ++ " beside the real one, and the next publication collides with it.")
+              _ <- expect (sort leftovers == [fixture_file_name])
+                     ("the publication directory holds " ++ show (sort leftovers) ++ ", expected "
+                       ++ show [fixture_file_name] ++ ".")
+              _ <- expect (length rows == 1)
+                     ("the ledger holds " ++ show (length rows) ++ " row(s) for the event at block "
+                       ++ show b1 ++ ", which is the LAST COMPLETED block, and there must be"
+                       ++ " exactly one. Without it there is no recorded content key for the bytes"
+                       ++ " on disk to belong to.")
+              run <- case stored of
+                       Just sr -> Right sr
+                       Nothing -> Left ("the content key the completed block's ledger row carries"
+                                          ++ " finds NOTHING in the store. The row says a run was"
+                                          ++ " persisted under that key and the store disagrees,"
+                                          ++ " which is the ledger and the store having different"
+                                          ++ " opinions about the same event.")
+              let solved      = case sr_raw run of Artifact b -> b
+                  solved_tail = BS.drop 1 (BS.dropWhile (/= 123) solved)
+              _ <- expect (not (BS.null solved_tail))
+                     ("the run stored under the completed block's key has no bytes after an opening"
+                       ++ " brace, so the comparison below would be two empty strings agreeing.")
+              expect (payload == solved_tail)
+                ("THE BYTES ON DISK ARE NOT THE ONES THE COMPLETED RUN STORED. The fixture's"
+                  ++ " artifact half is " ++ show (BS.length payload) ++ " bytes and the run the"
+                  ++ " ledger's last completed row is keyed to holds " ++ show (BS.length solved)
+                  ++ " bytes (" ++ show (BS.length solved_tail) ++ " after its opening brace)."
+                  ++ " The interrupted iteration ELIDED against that key -- the two events carry an"
+                  ++ " identical shock -- so the document on disk must be the completed run's, byte"
+                  ++ " for byte, behind a different identity prefix. That is what \"the fixture"
+                  ++ " carries the content key of a run that COMPLETED\" means when the iteration"
+                  ++ " that wrote it did not.")
+
+-- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
 
@@ -20082,6 +20591,14 @@ core_checks = do
           , a_missing_fixture_directory_is_a_loud_named_failure
           , the_default_fixture_path_is_the_consumers_own_constant
           , the_fixtures_directory_is_recorded_absent_from_both_trees
+          -- 28-05. LOOP-05: crash consistency and the shutdown. The stage battery injects an
+          -- exception at EVERY stage of one iteration that can be broken from outside the
+          -- function; the interrupt is a flag the check sets from inside the chain source, which
+          -- is how "during block 2's log fetch" becomes a moment a check can arrange. No signal,
+          -- no node, no database, no solver.
+          , an_exception_at_each_stage_leaves_the_watermark_unadvanced
+          , an_interrupt_is_observed_only_at_a_block_boundary
+          , the_published_fixture_survives_an_interrupted_iteration
           ]
             ++ per_pin_checks pins
   pure checks

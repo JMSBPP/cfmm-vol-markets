@@ -36,6 +36,7 @@
 module Main (main) where
 
 import qualified Data.ByteString.Char8 as C8
+import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List (isInfixOf)
 import qualified Data.Text as T
 import System.Directory (getHomeDirectory)
@@ -43,6 +44,7 @@ import System.Environment (getArgs, getProgName)
 import System.Exit (ExitCode (ExitFailure), exitSuccess, exitWith)
 import System.FilePath (takeFileName)
 import System.IO (hPutStrLn, stderr)
+import System.Posix.Signals (Handler (Catch), installHandler, sigINT, sigTERM)
 
 import Crypto.Ethereum.Utils (keccak256)
 import Data.Solidity.Prim.Address (Address, toHexString)
@@ -59,6 +61,7 @@ import Loop.Config
   , exit_code_for_precondition
   , exit_usage
   , fixture_dir
+  , halt_name
   , loop_poll_ms
   )
 import Loop.Ledger (new_postgres_ledger)
@@ -68,7 +71,7 @@ import Loop.Publish
   , publish_precondition_message
   )
 import Loop.Poll (ChainSource (..))
-import Loop.Run (Env (..), Mode (..), run_loop)
+import Loop.Run (Env (..), Mode (..), json_token, run_loop)
 import Loop.Solve (ProverPaths (..), solver_for)
 import qualified Rig.Manifest as Rig
 import Store.Config (migrations_dir, pgstore_dsn)
@@ -161,6 +164,25 @@ main = do
   chain <- source_chain_id source
   putStrLn ("CHAIN ID  " ++ show chain)
 
+  -- (4b) LOOP-05: THE SHUTDOWN FLAG, AND A HANDLER THAT DOES NOTHING ELSE.
+  --
+  --      One 'IORef Bool'. The handler writes it and returns; it does not log, does not exit, and
+  --      touches no transaction. That restraint is the whole design: GHC's DEFAULT SIGINT
+  --      behaviour throws 'UserInterrupt' at the main thread asynchronously, at a point nobody
+  --      chose, and \"a point nobody chose\" includes the middle of the ledger's one commit.
+  --      'installHandler' REPLACES that behaviour, so no exception is delivered at all and the
+  --      only thing that happens is a boolean.
+  --
+  --      WHERE it is acted on is 'Loop.Run.run_loop', between blocks, and nowhere else.
+  --
+  --      SIGTERM is caught by the same handler because a resident process is stopped by a
+  --      supervisor far more often than by a keyboard, and a supervisor's default TERM would kill
+  --      this process mid-block -- the exact state the flag exists to make unreachable.
+  interrupted <- newIORef False
+  let request_shutdown = writeIORef interrupted True
+  _ <- installHandler sigINT  (Catch request_shutdown) Nothing
+  _ <- installHandler sigTERM (Catch request_shutdown) Nothing
+
   -- (5) THE STORE AND THE LEDGER, on one connection.
   dsn  <- pgstore_dsn
   poll <- loop_poll_ms
@@ -190,11 +212,22 @@ main = do
           , env_n_events      = loop_n_events
           , env_fixture_dir   = publish_dir
           , env_poll_ms       = poll
+          , env_interrupted   = readIORef interrupted
           , env_log           = putStrLn
           }
     finished <- run_loop mode env ident
+    stopped  <- readIORef interrupted
     case finished of
-      Right ()    -> exitSuccess
+      Right () -> do
+        -- A CLEAN DRAIN IS NOT A FAILURE. The last block completed, its rows and its watermark
+        -- landed together, and the next one was never started -- so exit 0, and say on stderr
+        -- which of the two clean endings this was.
+        if stopped
+          then hPutStrLn stderr
+                 ("SHUTDOWN a shutdown was requested and taken at a block boundary. The last block"
+                   ++ " completed; the next was not started. Restarting resumes at the watermark.")
+          else pure ()
+        exitSuccess
       Left halted -> halt halted
 
 -- ---------------------------------------------------------------------------------------------
@@ -250,9 +283,18 @@ stop_publishing dir refusal = do
   hPutStrLn stderr ("  " ++ publish_precondition_message refusal)
   exitWith (ExitFailure (exit_code_for_precondition (FixtureDirMissing dir)))
 
--- | A halt, by the table.
+-- | A halt, by the table, with ONE machine-readable final line naming the condition.
+--
+-- The line goes to stdout, beside the per-block report lines, because that is the stream a CI job
+-- parses; the prose goes to stderr, beside every other precondition sentence. Both the name and
+-- the code come from 'Loop.Config' -- 'halt_name' and 'exit_code_for_halt' of the SAME value -- so
+-- the line and the status byte cannot describe different conditions. The detail is escaped by
+-- 'Loop.Run.json_token', the same escaper the report line uses, rather than by a second one here.
 halt :: Halt -> IO a
 halt h = do
+  putStrLn ("{\"halt\":" ++ json_token (halt_name h)
+             ++ ",\"code\":" ++ show (exit_code_for_halt h)
+             ++ ",\"detail\":" ++ json_token (show h) ++ "}")
   hPutStrLn stderr ("HALT " ++ show h)
   exitWith (ExitFailure (exit_code_for_halt h))
 

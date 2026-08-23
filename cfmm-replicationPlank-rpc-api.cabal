@@ -551,6 +551,16 @@ executable loop
         text,
         directory,
         filepath,
+        -- 28-05 / LOOP-05. System.Posix.Signals, for the SIGINT and SIGTERM handler that writes
+        -- one Bool and does nothing else. +0 PACKAGES: unix is a GHC boot library that `process`
+        -- already depends on, and the test-suite stanza below already names it for the same
+        -- reason -- MEASURED, zero `Downloading` lines on the build that added this.
+        --
+        -- The dependency is here and NOT in the library: nothing under offchain/lib/Loop/ installs
+        -- a handler, and nothing there should. Loop.Run READS a flag it was handed; who sets it,
+        -- and from which signal, is the executable's business -- which is what lets cabal test
+        -- drive the interrupt at a moment no signal could produce.
+        unix,
         web3-crypto,
         web3-solidity
     hs-source-dirs:   offchain/app

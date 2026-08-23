@@ -9,10 +9,16 @@
 -- WHY A QUIET BLOCK STILL COMMITS
 -- ------------------------------
 -- A block with no logs commits an EMPTY row list and advances the watermark anyway. That is what
--- makes a restart skip a quiet stretch instead of re-scanning it, and it is why
--- 'Loop.Ledger.ledger_commit_block' takes the block and its rows in one call: a watermark that
--- could be advanced separately from the rows it covers would let a caller advance it for a block
--- whose rows were refused.
+-- makes a restart skip a quiet stretch instead of re-scanning it, and it is why the ledger's block
+-- commit takes the block and its rows in ONE call: a watermark that could be advanced separately
+-- from the rows it covers would let a caller advance it for a block whose rows were refused.
+--
+-- THE COMMIT IS NAMED EXACTLY ONCE IN THIS MODULE AND IT IS THE LAST STATEMENT OF THE ITERATION.
+-- That is a property a grep can hold -- @grep -c@ for the seam's name over this file prints 1 --
+-- and it is stated here as a place rather than as a promise, because "nothing is written before
+-- the commit" is what every abandoned-block guarantee below rests on. The two haddock sentences
+-- that used to spell the name were MOVED at 28-05 rather than argued about; 27-01's rule, for the
+-- thirtieth time on this branch.
 --
 -- WHERE THE HALT SITS RELATIVE TO THE COMMIT
 -- ------------------------------------------
@@ -46,6 +52,7 @@ module Loop.Run
   , EventReport (..)
   , BlockReport (..)
   , block_report_line
+  , json_token
     -- * The iteration, and the loop around it
   , process_block
   , run_loop
@@ -132,6 +139,18 @@ data Env = Env
     -- ^ the DIRECTORY, resolved by 'Loop.Config.fixture_dir'. The file name is fixed and the join
     -- happens in one expression below, so no caller can publish beside the file it reports.
   , env_poll_ms       :: Int
+  , env_interrupted   :: IO Bool
+    -- ^ LOOP-05. THE SHUTDOWN REQUEST, AS A QUESTION THE LOOP ASKS RATHER THAN AS AN EVENT THAT
+    -- HAPPENS TO IT.
+    --
+    -- The producer is @offchain\/app\/LoopMain.hs@: an @IORef Bool@ that a @SIGINT@ handler SETS
+    -- and does nothing else with -- no logging, no exit, no IO of any kind. This field is that
+    -- ref's reader, and 'run_loop' is the only caller. It is read between blocks and nowhere else;
+    -- see 'run_loop'.
+    --
+    -- It is a field rather than a global for the reason every other seam in this layer is one: the
+    -- suite has to be able to decide WHEN the flag is set relative to the work, and \"during the
+    -- log fetch of block 2\" is not a moment a check can arrange by sending itself a signal.
   , env_log           :: String -> IO ()
   }
 
@@ -509,21 +528,60 @@ publish_for env block (Just artifact) published notes = do
 -- The watermark is re-read from the LEDGER on every pass rather than carried in a local: the
 -- watermark is a row in the store, and a loop that trusted its own memory of it would report a
 -- restart-safe watermark while holding an in-process one. That is the difference LOOP-01 is about.
+--
+-- == LOOP-05: THE INTERRUPT IS READ BETWEEN BLOCKS, AND THE PROPERTY IS STATED AS A PLACE
+--
+-- 'env_interrupted' is asked exactly twice below -- at the top of a pass, before a range is
+-- planned, and after 'process_block' returns, before the next block is entered. Both are BETWEEN
+-- blocks. A block that has begun always finishes, and "finishes" includes the one commit that ends
+-- it; a block that has not begun is never begun.
+--
+-- The property is stated as a PLACE rather than as a promise because the alternative is a handler
+-- that acts. A @SIGINT@ handler that logs, or that calls @exitWith@, runs in the middle of
+-- whatever the main thread was doing -- and \"whatever it was doing\" includes an open database
+-- transaction. GHC's own default @SIGINT@ behaviour has the same shape: it throws @UserInterrupt@
+-- at the main thread, asynchronously, at a point nobody chose. So @LoopMain@ REPLACES that
+-- handler with one that writes a single 'Bool' and returns, and the decision about when to act on
+-- it is made here, at two named points, by code that can see where it is.
+--
+-- A clean drain is not a failure: an interrupted loop returns @Right ()@ and the caller exits 0.
+-- The watermark it leaves behind is the last block it fully processed, which is what a restart
+-- resumes from.
+--
+-- == AND THE ITERATION IS WRAPPED, SO A STAGE THAT THROWS ABANDONS THE BLOCK RATHER THAN THE RUN
+--
+-- 'process_block' catches the two failures it can name -- the solver seam and the ledger commit --
+-- and reports them as halts. Everything else it does can still throw: the log fetch, the replay
+-- lookup, the pinned read, the toolchain stash. Before 28-05 those killed the process with a bare
+-- Haskell exception and no exit code from any table. They are caught HERE, as
+-- 'Loop.Config.HaltBlockException', and the block is abandoned WITHOUT a commit -- which costs
+-- nothing, because the commit is the last statement of the iteration and everything before it is
+-- recomputable from the chain and the store.
 run_loop :: Mode -> Env -> KeyIdentity -> IO (Either Halt ())
 run_loop mode env = pass
   where
     pass ident = do
-      watermark  <- ledger_watermark (env_ledger env)
-      head_block <- source_head (env_source env)
-      case next_range watermark head_block of
-        Nothing -> caught_up ident
-        Just (from, to) -> do
-          walked <- walk ident from to
-          case walked of
-            Left halted   -> pure (Left halted)
-            Right ident'  -> case mode of
-              Once     -> pure (Right ())
-              Resident -> pass ident'
+      -- BETWEEN BLOCKS (1 of 2): before a range is planned. This is what stops a RESIDENT loop
+      -- from starting another sweep after 'walk' returned on a set flag.
+      stopping <- env_interrupted env
+      if stopping
+        then drained
+        else do
+          watermark  <- ledger_watermark (env_ledger env)
+          head_block <- source_head (env_source env)
+          case next_range watermark head_block of
+            Nothing -> caught_up ident
+            Just (from, to) -> do
+              walked <- walk ident from to
+              case walked of
+                Left halted   -> pure (Left halted)
+                Right ident'  -> case mode of
+                  Once     -> pure (Right ())
+                  Resident -> pass ident'
+
+    -- A shutdown that was asked for and granted. Not a halt: nothing failed, and the exit table's
+    -- thirty-something family is for a loop that STOPPED, not for one that was told to stop.
+    drained = pure (Right ())
 
     caught_up ident = case mode of
       Once     -> pure (Right ())
@@ -534,9 +592,24 @@ run_loop mode env = pass
     walk ident b to
       | b > to = pure (Right ident)
       | otherwise = do
-          (ident', report) <- process_block env ident b
-          env_log env (block_report_line report)
-          mapM_ (env_log env) (br_notes report)
-          case br_halt report of
-            Just halted -> pure (Left halted)
-            Nothing     -> walk ident' (b + 1) to
+          attempted <- try (process_block env ident b)
+          case attempted of
+            Left err -> do
+              env_log env
+                (note b ("STAGE an exception escaped the iteration and NOTHING was committed for"
+                          ++ " this block -- the watermark did not move and the block is"
+                          ++ " re-processed on restart: " ++ show (err :: SomeException)))
+              pure (Left (HaltBlockException b (show err)))
+            Right (ident', report) -> do
+              env_log env (block_report_line report)
+              mapM_ (env_log env) (br_notes report)
+              case br_halt report of
+                Just halted -> pure (Left halted)
+                Nothing -> do
+                  -- BETWEEN BLOCKS (2 of 2): block @b@ is committed or was never going to be, and
+                  -- block @b + 1@ has not been touched. THIS IS THE ONLY PLACE INSIDE A SWEEP THE
+                  -- FLAG IS READ. Reading it inside 'process_block' -- between events, say --
+                  -- would leave the block half-decided with its rows uncommitted, which is
+                  -- precisely the state LOOP-05 says cannot be observed.
+                  stopping <- env_interrupted env
+                  if stopping then pure (Right ident') else walk ident' (b + 1) to
