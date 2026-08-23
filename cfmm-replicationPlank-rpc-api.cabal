@@ -514,6 +514,37 @@ executable spike-end-to-end
     hs-source-dirs:   offchain/app
     default-language: Haskell2010
 
+-- THE RESIDENT LOOP. The one tool in this package that needs a chain AND a database AND a solver
+-- at the same time, which is exactly why it is an executable: under the three-tier decision
+-- nothing in `cabal test` reaches any of the three, and the LOOP-01 proofs are driven in the suite
+-- against synthetic logs and Store.Memory. It is the FOURTH importer of the module that resolves
+-- the live binary and model and, like the other three, it lives under offchain/app/ -- which is
+-- the structural property (the_suite_never_names_the_real_solver's subject is the test binary
+-- alone), not the count.
+--
+-- +0 PACKAGES, and the claim is stated the way 27-02 measured its own stanza rather than by
+-- copying a neighbour's list: this list is what GHC actually demanded. `web3-crypto` is here
+-- because the Shock topic0 is RECOMPUTED from the signature string rather than transcribed;
+-- `web3-solidity` for the Address the rig resolves; `directory` for the LOOP-04 directory
+-- precondition; `filepath` for the model's basename; `bytestring` and `text` for the digest line
+-- and the manifest's Text keys. Every one of the six is already a library dependency, so no
+-- package enters the build plan. MEASURED at 28-02: `cabal build --enable-tests -j all` printed
+-- 0 `Downloading` lines and 0 warnings with this stanza on disk.
+executable loop
+    import:           warnings
+    main-is:          LoopMain.hs
+    build-depends:
+        base ^>=4.20.2.0,
+        cfmm-replicationPlank-rpc-api,
+        bytestring,
+        text,
+        directory,
+        filepath,
+        web3-crypto,
+        web3-solidity
+    hs-source-dirs:   offchain/app
+    default-language: Haskell2010
+
 test-suite cfmm-replicationPlank-rpc-api-test
     -- Import common warning flags.
     import:           warnings

@@ -41,7 +41,7 @@ import qualified Data.Foldable as F
 -- The cache checks' two counters. A solver that increments one on every call is what turns "the
 -- solve was skipped" from a reading of the code into a measurement, and a store wrapper that
 -- records the puts it ACCEPTED is what turns "no entry was written" into one.
-import Data.IORef (modifyIORef', newIORef, readIORef)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (dropWhileEnd, intercalate, isInfixOf, isPrefixOf, isSuffixOf, nub, sort,
                   stripPrefix, tails)
 import qualified Data.Map.Strict as Map
@@ -212,9 +212,30 @@ import Gams.Exit
   , gams_code_domain
   )
 import Loop.Config
-  ( default_poll_ms
+  ( Halt (..)
+  , Precondition (..)
+  , default_poll_ms
+  , exit_code_for_halt
+  , exit_code_for_precondition
+  , exit_ok
+  , exit_table
+  , exit_usage
+  , loop_first_block
+  , loop_poll_ms
   , loop_poll_ms_env_var
   , poll_ms_from
+  )
+import Loop.Poll
+  ( ChainSource (..)
+  , event_identity
+  , log_block
+  , next_range
+  , shock_filter_fields
+  )
+import Loop.Run
+  ( Env (..)
+  , Mode (Once)
+  , run_loop
   )
 import Gams.Detect
   ( DetectError (..)
@@ -1364,8 +1385,20 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
 -- > 75
+-- RE-MEASURED COLD AT 28-02, in the same sitting as 'credential_scan_floor' and by RUNNING the
+-- command rather than by adding six to the 75 above it: 81 against exactly 81, zero slack. Census
+-- under @offchain\/@ at that measurement: @hs 65, sh 12, json 11, sql 4@. The wave-start reading,
+-- taken COLD before this plan edited anything, was 75, and this plan adds exactly SIX files both
+-- scans can see -- @offchain\/lib\/Gams\/Detect.hs@, @offchain\/lib\/Loop\/Config.hs@,
+-- @offchain\/lib\/Loop\/Poll.hs@, @offchain\/lib\/Loop\/Chain.hs@,
+-- @offchain\/lib\/Loop\/Run.hs@ and @offchain\/app\/LoopMain.hs@. This plan commits no
+-- artifact and no script, so the @.json@ and @.sh@ censuses do not move and the two floors move by
+-- the SAME six. Prediction and measurement agree, and both ends were RUN.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
+-- > 81
 purge_file_floor :: Int
-purge_file_floor = 75
+purge_file_floor = 81
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -8284,8 +8317,16 @@ credential_scan root =
 --
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 86
+-- RE-MEASURED COLD AT 28-02, in the same sitting as 'purge_file_floor' and by RUNNING the command
+-- rather than by adding six to the 86 above it: 92 against exactly 92, zero slack. Census under
+-- @offchain\/@ at that measurement: @hs 65, sh 12, json 11, sql 4@. Both floors move by the SAME
+-- six here -- all of them @.hs@ -- because this plan commits no artifact and no script, so neither
+-- the @.json@ nor the @.sh@ census moves. Both ends were RUN.
+--
+-- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
+-- > 92
 credential_scan_floor :: Int
-credential_scan_floor = 86
+credential_scan_floor = 92
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -17815,6 +17856,534 @@ a_block_commit_is_one_transaction_on_both_ledgers =
               ++ " failure that is silent AND permanent: the restart skips the block, so the"
               ++ " events in it are never processed and nothing ever says so.")
 
+
+-- ---------------------------------------------------------------------------------------------
+-- Phase 28 plan 02: LOOP-01 -- the persisted watermark, and a restart that skips NOTHING
+--
+-- Every check below runs against 'Store.Memory', 'new_memory_ledger', a counting stub 'Solver' and
+-- a chain the CHECK ITSELF supplies. There is no node and no database: 'Loop.Poll.ChainSource' is
+-- a record of five actions, so what the chain did while the loop was down is something a check can
+-- decide rather than something it has to arrange. The three structural greps stay 0 and this whole
+-- block sits inside their blast radius.
+-- ---------------------------------------------------------------------------------------------
+
+-- | The pool fee the synthetic chain reports, in pips.
+--
+-- 6497 is the composed fee of the fixture pair -- @999500 * 994000@ keeps 99.3503% -- and it is
+-- the one fee in this repository that admits an EXACT integer-pip split, which is why the spike
+-- uses it. The band at @(6497, 490000)@ has thousands of members, so the seed
+-- 'Loop.Run.split_seed' derives from the event's position lands on an admissible pair whatever the
+-- position is.
+loop_pool_fee_pips :: Integer
+loop_pool_fee_pips = 6497
+
+-- | The pinned pool read every block answers with: @VOLUME_PATH.md@ section 2's fixture price and
+-- liquidity, plus the fee above. Constant across blocks on purpose -- this plan's subject is WHICH
+-- BLOCKS ARE SCANNED, and a price that moved would put a second variable in every arm.
+loop_pool_reading :: (Integer, Integer, Integer)
+loop_pool_reading = (79228162514264337593543950336, 18446744073709551616, loop_pool_fee_pips)
+
+-- | The pool the loop is pointed at. Any non-zero value below the address ceiling; the decoder
+-- refuses both boundaries and 'shock_corpus' already asserts that.
+loop_pool_id :: Integer
+loop_pool_id = shock_pool
+
+-- | A MINED @Shock@ log at a position: block, log index, and the three payload words.
+--
+-- 'synthetic_log' leaves all four optional fields absent, which is what a PENDING log looks like.
+-- The loop refuses those by field name -- 'a_log_without_an_identity_is_refused_by_field_name' is
+-- about exactly that -- so a log that is supposed to be processed has to carry the three fields
+-- that give it an identity, and this is where they are put on.
+loop_mined_log :: Integer -> Integer -> Change
+loop_mined_log block ix =
+  (shock_log shock_topics shock_negative_words)
+    { changeBlockNumber     = Just (fromInteger block)
+    , changeLogIndex        = Just (fromInteger ix)
+    , changeTransactionHash = Just (hexstring_of (block * 4096 + ix))
+    }
+
+-- | The identity the loop will give that log, computed by the library rather than by this file.
+loop_mined_id :: Integer -> Integer -> Either String EventId
+loop_mined_id block ix = event_identity (loop_mined_log block ix)
+
+-- | A chain the check controls: an assoc list of block to logs, a head, and a RECORD of every
+-- range it was asked for.
+--
+-- The recorded ranges are what makes @[b, b]@ observable from outside 'Loop.Run': the closedness
+-- is a property of the calls the iteration makes, and asserting it on the calls is stronger than
+-- asserting it on the function that computes them.
+loop_chain
+  :: IORef [(Integer, [Change])]
+  -> IORef Integer
+  -> IORef [(Integer, Integer)]
+  -> ChainSource
+loop_chain logs head_ref asked =
+  ChainSource
+    { source_label = "the LOOP-01 checks' own chain"
+    , source_head  = readIORef head_ref
+    , source_logs  = \from to -> do
+        modifyIORef' asked ((from, to) :)
+        table <- readIORef logs
+        pure (concat [es | (b, es) <- table, b >= from, b <= to])
+    , source_reads = \_pool _ref -> pure (Right loop_pool_reading)
+    , source_chain_id = pure 31337
+    }
+
+-- | The loop's environment over reference implementations and a chain the check supplies.
+--
+-- The publish action RECORDS the blocks it was handed rather than writing anything: publication is
+-- 28-03's and what this plan asserts is which events reached it.
+loop_env
+  :: Store -> Ledger -> Solver -> ChainSource -> IORef [Integer] -> Env
+loop_env store ledger solver source published =
+  Env
+    { env_store         = store
+    , env_ledger        = ledger
+    , env_solver        = solver
+    , env_read_identity = pure Nothing
+    , env_source        = source
+    , env_model         = gams_model_basename
+    , env_scheme        = current_key_scheme
+    , env_emitter       = shock_emitter
+    , env_topic0        = shock_topic0
+    , env_pool_id       = loop_pool_id
+    , env_vol_tgt_wad   = sh_vol_tgt_wad fixture_shock
+    , env_n_events      = sh_n_events fixture_shock
+    , env_fixture_path  = "the-fixture-28-03-will-resolve"
+    , env_publish       = \block _bytes -> modifyIORef' published (block :)
+    , env_poll_ms       = default_poll_ms
+    , env_log           = \_line -> pure ()
+    }
+
+-- | How many rows the ledger holds for each of a list of positions.
+loop_row_counts :: Ledger -> [EventId] -> IO [Int]
+loop_row_counts ledger = mapM (fmap length . ledger_rows_for ledger)
+
+-- | THE REQUIREMENT. A restart resumes at the watermark and skips NOTHING -- proven with events
+-- that occurred while the loop was DOWN.
+--
+-- The staging is the whole check. A first @--once@ pass runs over a head of 5 and drains it. Then,
+-- WITH NO LOOP RUNNING, two events are added at blocks 6 and 7 and the head is raised to 8. A
+-- SECOND 'Loop.Run.Env' is built over the SAME store and the SAME ledger -- a fresh record is what
+-- a restart is here, because nothing in-process carries over: the watermark is read back out of
+-- the ledger on the first line of 'run_loop'.
+--
+-- The down-time events are asserted to EXIST in the source before anything is read out of the
+-- ledger. Without that arm an empty second window satisfies \"nothing was skipped\" for a loop
+-- that skipped everything, which is the absence-as-success shape this suite has measured seven
+-- times.
+--
+-- The early events are counted again at the end. A restart that RE-SCANNED from the beginning
+-- would also land the down-time rows, and only the second count tells the two apart.
+--
+-- FIRING INPUT, OBSERVED at 28-02: make 'Loop.Poll.next_range' start from the head when a
+-- watermark is present -- the restart-from-latest bug. The check reddens naming the two blocks
+-- whose events have no row.
+a_restart_resumes_at_the_watermark_and_skips_nothing :: Check
+a_restart_resumes_at_the_watermark_and_skips_nothing =
+  Check "a_restart_resumes_at_the_watermark_and_skips_nothing" . guarded $
+    case (,) <$> cache_setting <*> mapM (uncurry loop_mined_id) loop_positions of
+      Left err -> pure (Left err)
+      Right ((ident, _key, produced), ids) -> do
+        logs_ref  <- newIORef [(b, [loop_mined_log b ix]) | (b, ix) <- take 2 loop_positions]
+        head_ref  <- newIORef 5
+        asked     <- newIORef []
+        store     <- new_memory_store
+        ledger    <- new_memory_ledger
+        (solver, _invocations) <- cache_solver "the-solver-across-a-restart" produced
+        published <- newIORef []
+        let source = loop_chain logs_ref head_ref asked
+
+        -- The loop, running.
+        first_pass <- run_loop Once (loop_env store ledger solver source published) ident
+        mark_first <- ledger_watermark ledger
+        early_first <- loop_row_counts ledger (take 2 ids)
+
+        -- The loop is DOWN. Two events happen and the head moves.
+        modifyIORef' logs_ref (++ [(b, [loop_mined_log b ix]) | (b, ix) <- drop 2 loop_positions])
+        writeIORef head_ref 8
+        during <- source_logs source 6 7
+
+        -- THE RESTART: a fresh Env over the SAME store and ledger.
+        second_pass <- run_loop Once (loop_env store ledger solver source published) ident
+        mark_second <- ledger_watermark ledger
+        down_rows   <- loop_row_counts ledger (drop 2 ids)
+        early_again <- loop_row_counts ledger (take 2 ids)
+
+        pure $ do
+          _ <- expect (length during == 2)
+                 ("the two DOWN-TIME events are not in the source: it answered " ++ show (length during)
+                   ++ " log(s) for the closed range [6, 7]. Every arm below would then be true of a"
+                   ++ " window with nothing in it, and an empty second window satisfies \"nothing was"
+                   ++ " skipped\" for a loop that skipped everything.")
+          _ <- expect (first_pass == Right () && second_pass == Right ())
+                 ("a pass HALTED: first " ++ show first_pass ++ ", second " ++ show second_pass
+                   ++ ". Neither is supposed to: the solver is a stub that always produces, and a"
+                   ++ " halt would mean the arms below are about a loop that stopped early.")
+          _ <- expect (mark_first == Just 5)
+                 ("after the first pass over a head of 5 the watermark reads " ++ show mark_first
+                   ++ ", expected Just 5. The watermark is the LAST BLOCK FULLY PROCESSED and the"
+                   ++ " head was drained, quiet blocks included.")
+          _ <- expect (all (== 1) early_first)
+                 ("the first pass produced row counts " ++ show early_first ++ " for the events at"
+                   ++ " blocks " ++ show (map fst (take 2 loop_positions))
+                   ++ ", expected one each. The restart below is only evidence if there was"
+                   ++ " something to restart from.")
+          _ <- expect (mark_second == Just 8)
+                 ("after the restart over a head of 8 the watermark reads " ++ show mark_second
+                   ++ ", expected Just 8.")
+          _ <- expect (all (== 1) down_rows)
+                 ("THE EVENTS THAT OCCURRED WHILE THE LOOP WAS DOWN WERE SKIPPED. Row counts "
+                   ++ show down_rows ++ " for the events at blocks "
+                   ++ show [b | ((b, _), n) <- zip (drop 2 loop_positions) down_rows, n == 0]
+                   ++ " -- every one of those blocks is between the watermark the loop stopped at"
+                   ++ " (5) and the head it restarted against (8), and a loop that resumes at the"
+                   ++ " HEAD instead of at the watermark loses exactly them. That is LOOP-01, and"
+                   ++ " it is invisible while the loop is up.")
+          expect (all (== 1) early_again)
+            ("the restart RE-PROCESSED the blocks the first pass had already drained: row counts "
+              ++ show early_again ++ " for the events at blocks "
+              ++ show (map fst (take 2 loop_positions)) ++ ", expected one each."
+              ++ " A loop that re-scans from the beginning also lands the down-time rows, so this"
+              ++ " arm is the one that tells resuming apart from starting over.")
+  where
+    -- Two events before the stop, two while it is down. The blocks are not contiguous on purpose:
+    -- 3 and 5 are quiet, and the first pass has to advance through them.
+    loop_positions :: [(Integer, Integer)]
+    loop_positions = [(2, 0), (4, 1), (6, 0), (7, 2)]
+
+-- | THE QUIET STRETCH. A block with no logs still advances the watermark.
+--
+-- Two passes. The first drains a head of 9 with one event in it; the second drains a head of 12
+-- with nothing in it at all. A loop that advanced only on event blocks would leave the watermark
+-- at 9 and re-scan 10, 11 and 12 on every pass, forever, and nothing would ever say so -- the
+-- rows would be right and the work would be unbounded.
+--
+-- FIRING INPUT, OBSERVED at 28-02: advance the watermark only when the block produced rows. The
+-- check observes 9 where it expects 12.
+the_watermark_advances_through_event_free_blocks :: Check
+the_watermark_advances_through_event_free_blocks =
+  Check "the_watermark_advances_through_event_free_blocks" . guarded $
+    case (,) <$> cache_setting <*> loop_mined_id 9 0 of
+      Left err -> pure (Left err)
+      Right ((ident, _key, produced), only_event) -> do
+        logs_ref  <- newIORef [(9, [loop_mined_log 9 0])]
+        head_ref  <- newIORef 9
+        asked     <- newIORef []
+        store     <- new_memory_store
+        ledger    <- new_memory_ledger
+        (solver, _invocations) <- cache_solver "the-solver-over-a-quiet-stretch" produced
+        published <- newIORef []
+        let source = loop_chain logs_ref head_ref asked
+            env    = loop_env store ledger solver source published
+
+        _ <- run_loop Once env ident
+        mark_after_event <- ledger_watermark ledger
+        rows_after_event <- loop_row_counts ledger [only_event]
+
+        writeIORef head_ref 12
+        quiet <- source_logs source 10 12
+        _ <- run_loop Once env ident
+        mark_after_quiet <- ledger_watermark ledger
+        rows_after_quiet <- loop_row_counts ledger [only_event]
+
+        pure $ do
+          _ <- expect (null quiet)
+                 ("the blocks 10 to 12 are NOT event-free: the source answered " ++ show (length quiet)
+                   ++ " log(s) for them, so the arm below would be about a stretch that had work in"
+                   ++ " it.")
+          _ <- expect (mark_after_event == Just 9 && rows_after_event == [1])
+                 ("after the first pass the watermark reads " ++ show mark_after_event
+                   ++ " with row counts " ++ show rows_after_event
+                   ++ ", expected Just 9 and exactly one row.")
+          _ <- expect (mark_after_quiet == Just 12)
+                 ("after a pass over three EVENT-FREE blocks the watermark reads "
+                   ++ show mark_after_quiet ++ ", expected Just 12. A loop that advances only on"
+                   ++ " event blocks re-scans a quiet stretch on every pass and never finishes"
+                   ++ " catching up -- with correct rows the whole time, which is why only the"
+                   ++ " watermark can say so.")
+          expect (rows_after_quiet == [1])
+            ("the quiet pass wrote another row for the event at block 9: counts "
+              ++ show rows_after_quiet ++ ", expected one. A watermark that advanced without the"
+              ++ " block being scanned would be one defect; re-offering an already-ledgered event"
+              ++ " is another.")
+
+-- | THE RANGE IS A CLOSED SINGLE BLOCK, and the calls prove it.
+--
+-- Four arms over 'Loop.Poll.next_range' -- caught up, a gap, no watermark, and the one that
+-- matters: with NO watermark the scan starts at 'Loop.Config.loop_first_block' and not at the
+-- head. The head used there is asserted to DIFFER from the first block, because if they were equal
+-- the arm would pass for a loop that starts at the head.
+--
+-- The fifth arm is over the calls a real run made: every range 'Loop.Run.process_block' asked the
+-- source for has @from == to@, and the blocks it asked for are exactly the ones the window covers,
+-- in order. The closedness is a property of the calls; asserting it there rather than on the
+-- function that computes them is what makes it evidence about the iteration.
+--
+-- The sixth is 'Loop.Poll.shock_filter_fields': the two block fields of the filter it builds are
+-- the same block, in the transport's own type.
+--
+-- FIRING INPUT, OBSERVED at 28-02: have 'Loop.Run' hand the whole window to the source in one
+-- call. The check names the range it saw.
+the_scanned_range_is_the_closed_single_block :: Check
+the_scanned_range_is_the_closed_single_block =
+  Check "the_scanned_range_is_the_closed_single_block" . guarded $
+    case cache_setting of
+      Left err -> pure (Left err)
+      Right (ident, _key, produced) -> do
+        logs_ref  <- newIORef [(2, [loop_mined_log 2 0])]
+        head_ref  <- newIORef 4
+        asked     <- newIORef []
+        store     <- new_memory_store
+        ledger    <- new_memory_ledger
+        (solver, _invocations) <- cache_solver "the-solver-over-a-closed-range" produced
+        published <- newIORef []
+        let source = loop_chain logs_ref head_ref asked
+        _ <- run_loop Once (loop_env store ledger solver source published) ident
+        ranges <- reverse <$> readIORef asked
+        pure $ do
+          _ <- expect (next_range (Just 5) 5 == Nothing)
+                 ("next_range (Just 5) 5 = " ++ show (next_range (Just 5) 5)
+                   ++ ", expected Nothing. The watermark names the last block FULLY PROCESSED, so a"
+                   ++ " head equal to it is caught up and re-scanning it would re-offer every event"
+                   ++ " in it.")
+          _ <- expect (next_range (Just 5) 7 == Just (6, 7))
+                 ("next_range (Just 5) 7 = " ++ show (next_range (Just 5) 7)
+                   ++ ", expected Just (6, 7).")
+          _ <- expect (loop_first_block /= 3)
+                 ("the configured first block is 3, which is also the head this arm uses, so the"
+                   ++ " assertion below would pass for a loop that starts at the head. Change the"
+                   ++ " head, not the assertion.")
+          _ <- expect (next_range Nothing 3 == Just (loop_first_block, 3))
+                 ("with NO watermark, next_range over a head of 3 gave " ++ show (next_range Nothing 3)
+                   ++ " and it must start at the configured first block, "
+                   ++ show loop_first_block ++ ". A loop that starts at the head has already"
+                   ++ " skipped every event before it, and on a chain that has produced no event"
+                   ++ " yet the two behaviours are indistinguishable.")
+          _ <- expect (not (null ranges))
+                 "the run asked the source for NO range at all, so the arm below is about nothing."
+          _ <- expect (ranges == [(b, b) | b <- [loop_first_block .. 4]])
+                 ("the run asked the source for " ++ show ranges ++ " and the required calls are "
+                   ++ show [(b, b) | b <- [loop_first_block .. (4 :: Integer)]]
+                   ++ ".\n      Every one is a CLOSED [b, b], and they are contiguous: a run that"
+                   ++ " asked for a wider window would read logs from blocks whose reads it never"
+                   ++ " pinned, and a run that skipped one would have a watermark covering a block"
+                   ++ " it never scanned.")
+          let (_addrs, from_block, to_block, _topics) =
+                shock_filter_fields (address_of shock_emitter) shock_topic0 7 7
+          expect (from_block == to_block)
+            ("shock_filter_fields built a filter whose block bounds are " ++ show from_block
+              ++ " and " ++ show to_block ++ " for the single block 7. The fields are returned"
+              ++ " rather than the transport's own request type precisely so this can be asserted"
+              ++ " without naming that type here.")
+
+-- | A LOG WITH NO IDENTITY IS REFUSED, BY FIELD NAME.
+--
+-- Four inputs: one complete, and one each with the transaction hash, the log index and the block
+-- number removed. Four of @Change@'s fields are optional and three of them are this identity; a
+-- PENDING log carries none of them, and ledgering one under a fabricated key is how a replay stops
+-- being detectable.
+--
+-- THE LONGER-WRONG-VALUE TRAP APPLIES AND IS ASSERTED AGAINST. Each refusal must name its OWN
+-- field and NEITHER of the other two: 27-02 measured a naming arm passing on an infix collision --
+-- @\"828040\"@ contains @\"82804\"@ -- and the three field names here share a prefix by
+-- construction, so \"the message mentions a field\" is not the same claim as \"the message names
+-- the right one\".
+--
+-- FIRING INPUT, OBSERVED at 28-02: make the missing-index refusal name the transaction-hash field
+-- instead. The check names both the field it wanted and the message it got.
+a_log_without_an_identity_is_refused_by_field_name :: Check
+a_log_without_an_identity_is_refused_by_field_name =
+  pure_check "a_log_without_an_identity_is_refused_by_field_name" $ do
+    let complete = loop_mined_log 3 1
+        without_tx    = complete { changeTransactionHash = Nothing }
+        without_index = complete { changeLogIndex        = Nothing }
+        without_block = complete { changeBlockNumber     = Nothing }
+        field_names   = ["changeTransactionHash", "changeLogIndex", "changeBlockNumber"]
+
+    _ <- case event_identity complete of
+           Right eid ->
+             expect (ev_log_index eid == 1)
+               ("the COMPLETE log was identified with log index " ++ show (ev_log_index eid)
+                 ++ ", expected 1. Three refusals are satisfied by a function that refuses"
+                 ++ " everything, so this arm is what keeps them meaningful.")
+           Left why ->
+             Left ("the POSITIVE arm failed: a log carrying all three fields was refused -- " ++ why)
+
+    let refuses subject wanted =
+          case event_identity subject of
+            Right _ ->
+              Left ("a log with no " ++ wanted ++ " was ACCEPTED. It has no position in the chain,"
+                     ++ " so the ledger row it would produce is keyed on an identity nobody"
+                     ++ " observed.")
+            Left why -> do
+              _ <- expect (wanted `isInfixOf` why)
+                     ("a log with no " ++ wanted ++ " was refused, but the refusal does not name"
+                       ++ " that field:\n      " ++ why)
+              expect (null [other | other <- field_names, other /= wanted, other `isInfixOf` why])
+                ("the refusal for a missing " ++ wanted ++ " ALSO names "
+                  ++ intercalate " and " [o | o <- field_names, o /= wanted, o `isInfixOf` why]
+                  ++ ", so an operator cannot tell which field was absent:\n      " ++ why
+                  ++ "\n      27-02 measured a naming arm passing on an infix collision, which is"
+                  ++ " why this is asserted in both directions rather than as \"the message"
+                  ++ " mentions a field\".")
+
+    _ <- refuses without_tx "changeTransactionHash"
+    _ <- refuses without_index "changeLogIndex"
+    _ <- refuses without_block "changeBlockNumber"
+
+    case log_block without_block of
+      Right n -> Left ("log_block answered " ++ show n ++ " for a log with no block number.")
+      Left why ->
+        expect ("changeBlockNumber" `isInfixOf` why)
+          ("log_block refused a log with no height but did not name the field:\n      " ++ why)
+
+-- | THE EXIT TABLE IS TOTAL, AND NO GAMS CODE CAN BE MISTAKEN FOR A LOOP CODE.
+--
+-- Five arms. The table is non-empty FIRST, because every set comparison below is satisfied by two
+-- empty lists. Then: every 'Loop.Config.Halt' and every 'Loop.Config.Precondition' constructor
+-- maps to a code the table names, and every code the table names is produced by one of them --
+-- both directions, so a constructor added without a code is caught and so is a code nobody can
+-- reach. Then the codes are pairwise distinct. Then none of them is in
+-- 'Gams.Exit.gams_code_domain', and none is one of the timeout wrapper's two -- a loop exiting
+-- inside the prover's domain for a reason of its own is indistinguishable, in a CI log, from a
+-- solver status a later reader looks up. Then the two codes that are NOT in the table --
+-- clean and usage -- are distinct from it and from each other.
+--
+-- The constructors are listed with witness payloads rather than enumerated, because neither type
+-- derives @Enum@: a payload-carrying sum cannot. The list is therefore checked by the SECOND
+-- direction -- a constructor left out of it produces no code, so a table entry goes unreached and
+-- the comparison names it.
+--
+-- FIRING INPUT, OBSERVED at 28-02: move one table code into the prover's domain. The check names
+-- the entry and the code.
+the_loop_exit_codes_are_total_and_disjoint_from_the_gams_domain :: Check
+the_loop_exit_codes_are_total_and_disjoint_from_the_gams_domain =
+  pure_check "the_loop_exit_codes_are_total_and_disjoint_from_the_gams_domain" $ do
+    let halts =
+          [ HaltUnsolvable (EventId "a-transaction" 0)
+          , HaltRpcExhausted 11 3
+          , HaltDb "the ledger refused"
+          , HaltSolverException "the seam threw"
+          ]
+        preconditions =
+          [ FixtureDirMissing "a/path"
+          , ToolchainUnreadable "the probe said no"
+          , EndpointUnresolvable "no such contract"
+          , ProverPathsUnresolvable "no such binary"
+          , LedgerUnreachable "no connection"
+          ]
+        produced = map exit_code_for_halt halts ++ map exit_code_for_precondition preconditions
+        tabled   = map snd exit_table
+        -- The timeout wrapper's two statuses, named here and not in the library, so the library
+        -- carries no numeral that could be read as an exit code of its own.
+        wrapper_codes = [124, 137]
+
+    _ <- expect (not (null exit_table))
+           "the exit table is EMPTY, so every set comparison below is two empty lists agreeing."
+    _ <- expect (sort (nub produced) == sort (nub tabled))
+           ("the codes the constructors produce and the codes the table names are different sets."
+             ++ "\n      produced: " ++ show (sort (nub produced))
+             ++ "\n      tabled:   " ++ show (sort (nub tabled))
+             ++ "\n      A constructor with no entry produces a code the table does not name; a"
+             ++ " table entry nothing reaches is a code no run can ever exit with. Asserted BOTH"
+             ++ " ways because neither type derives Enum -- a payload-carrying sum cannot -- so"
+             ++ " the witness list above is itself checked by the second direction.")
+    _ <- expect (length (nub produced) == length produced)
+           ("two conditions share an exit code: " ++ show (sort produced)
+             ++ ". A shared code makes two different failures one thing to whatever reads it.")
+    _ <- expect (null [c | c <- produced, c `elem` gams_code_domain])
+           ("these loop exit codes are inside the prover's own code domain: "
+             ++ show [c | c <- produced, c `elem` gams_code_domain]
+             ++ ".\n      A loop exiting there for a reason of its own is indistinguishable, in a"
+             ++ " CI log, from a solver status a later reader looks up in the vendor's table.")
+    _ <- expect (null [c | c <- produced, c `elem` wrapper_codes])
+           ("these loop exit codes collide with the timeout wrapper's: "
+             ++ show [c | c <- produced, c `elem` wrapper_codes]
+             ++ ". One of them is the wrapper expiring and the other is its group kill, and both"
+             ++ " reach a caller of this loop through the same status byte.")
+    _ <- expect (exit_ok == 0 && exit_ok `notElem` produced)
+           ("the clean exit is " ++ show exit_ok ++ " and it appears in the failure table: "
+             ++ show produced ++ ". A failure that exits with the success code is the one failure"
+             ++ " nothing downstream can see.")
+    expect (exit_usage `notElem` produced && exit_usage /= exit_ok
+              && exit_usage `notElem` gams_code_domain && exit_usage `notElem` wrapper_codes)
+      ("the usage exit " ++ show exit_usage ++ " is not distinct from everything else the process"
+        ++ " can exit with. It is deliberately outside the table -- a command line that was never"
+        ++ " a valid invocation ended no run -- and that only means anything while it is"
+        ++ " distinguishable from the codes that did.")
+
+-- | AN UNPARSEABLE POLL INTERVAL IS REFUSED, NOT DEFAULTED.
+--
+-- Four states, and the first one is the reason this check exists at all. @setEnv k \"\"@ routes an
+-- empty value to @unsetEnv@, so a check that set the variable empty and asserted the default came
+-- back would be driving the ABSENT path twice and reporting on the empty one -- 27-01 MEASURED
+-- exactly that, against a deliberately unguarded resolver, and the suite exited 0.
+--
+-- So the empty state is OBSERVED in a child shell (a shell can export a present-and-empty
+-- variable; this process cannot) and then driven through the PURE rule at the argument that state
+-- produces. The other three go through the environment, because a process can reach them.
+--
+-- FIRING INPUT, OBSERVED at 28-02: make an unreadable value fall back to the default. The check
+-- names the value and the cadence it was silently given.
+an_unparseable_poll_interval_is_refused_rather_than_defaulted :: Check
+an_unparseable_poll_interval_is_refused_rather_than_defaulted =
+  Check "an_unparseable_poll_interval_is_refused_rather_than_defaulted" . guarded $ do
+    (probe_code, probe_out, _) <-
+      readProcessWithExitCode "/bin/sh"
+        ["-c", "export " ++ loop_poll_ms_env_var ++ "=; "
+                 ++ "if printenv " ++ loop_poll_ms_env_var ++ " >/dev/null; "
+                 ++ "then echo present; else echo absent; fi"]
+        ""
+    original <- lookupEnv loop_poll_ms_env_var
+    let restore = maybe (unsetEnv loop_poll_ms_env_var) (setEnv loop_poll_ms_env_var) original
+    flip finally restore $ do
+      unsetEnv loop_poll_ms_env_var
+      unset <- loop_poll_ms
+      setEnv loop_poll_ms_env_var "250"
+      supplied <- loop_poll_ms
+      setEnv loop_poll_ms_env_var "soon"
+      raised <- try loop_poll_ms
+      pure $ do
+        _ <- expect (probe_code == ExitSuccess && "present" `isInfixOf` probe_out)
+               ("the PREMISE was not observed: a child shell exported " ++ loop_poll_ms_env_var
+                 ++ " empty and printenv reported "
+                 ++ show (filter (not . isSpace) probe_out) ++ " (exit " ++ show probe_code
+                 ++ "). The empty arm below asserts what the rule does with Just \"\", and that"
+                 ++ " argument is worth asserting about only while a shell can produce the state"
+                 ++ " that yields it.")
+        _ <- expect (unset == default_poll_ms)
+               ("with " ++ loop_poll_ms_env_var ++ " unset the cadence resolved to " ++ show unset
+                 ++ ", and the declared default is " ++ show default_poll_ms ++ ".")
+        _ <- expect (supplied == 250 && supplied /= default_poll_ms)
+               ("with " ++ loop_poll_ms_env_var ++ " set to \"250\" the cadence resolved to "
+                 ++ show supplied ++ ". A distinctive value must come back VERBATIM, or the"
+                 ++ " override is advertised and dead -- measured three times in this module"
+                 ++ " already.")
+        _ <- case raised of
+               Right ms ->
+                 Left (loop_poll_ms_env_var ++ " was set to \"soon\" and the loop resolved a"
+                        ++ " cadence of " ++ show ms ++ " milliseconds anyway. A silent return to"
+                        ++ " the default is indistinguishable from the variable being unset, so an"
+                        ++ " operator's typo is reported as a working override.")
+               Left err ->
+                 expect ("soon" `isInfixOf` show (err :: IOException))
+                   ("the unreadable value was refused, but the refusal does not name what was"
+                     ++ " read:\n      " ++ show (err :: IOException))
+        _ <- case poll_ms_from (Just "") of
+               Right ms ->
+                 Left (loop_poll_ms_env_var ++ " set and EMPTY resolves to " ++ show ms
+                        ++ ". An empty value that travels until it meets another empty value is"
+                        ++ " this repository's most-hit defect, six recorded instances.")
+               Left _ -> Right ()
+        case poll_ms_from (Just "-5") of
+          Right ms ->
+            Left ("a NEGATIVE poll interval resolved to " ++ show ms
+                   ++ " milliseconds. A cadence is not a signed quantity.")
+          Left why ->
+            expect ("-5" `isInfixOf` why)
+              ("a negative poll interval was refused without naming it:\n      " ++ why)
+
 -- ---------------------------------------------------------------------------------------------
 -- Runner
 -- ---------------------------------------------------------------------------------------------
@@ -18040,6 +18609,16 @@ core_checks = do
           , the_ledger_outcome_tokens_are_exactly_the_migration_check_list
           , the_event_identity_and_the_single_row_watermark_are_in_the_ddl
           , a_block_commit_is_one_transaction_on_both_ledgers
+          -- 28-02. LOOP-01: the persisted watermark, the closed [b, b] range, the exit table and
+          -- the poll cadence. Every one runs against Store.Memory, new_memory_ledger, a counting
+          -- stub Solver and a ChainSource the check itself supplies -- no chain, no database, no
+          -- solver.
+          , a_restart_resumes_at_the_watermark_and_skips_nothing
+          , the_watermark_advances_through_event_free_blocks
+          , the_scanned_range_is_the_closed_single_block
+          , a_log_without_an_identity_is_refused_by_field_name
+          , the_loop_exit_codes_are_total_and_disjoint_from_the_gams_domain
+          , an_unparseable_poll_interval_is_refused_rather_than_defaulted
           ]
             ++ per_pin_checks pins
   pure checks

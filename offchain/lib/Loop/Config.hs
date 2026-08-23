@@ -43,6 +43,7 @@ module Loop.Config
   , Precondition (..)
     -- * The table
   , exit_ok
+  , exit_usage
   , exit_table
   , exit_code_for_halt
   , exit_code_for_precondition
@@ -186,6 +187,15 @@ data Precondition
 -- | Drained, or the requested pass completed. The only zero.
 exit_ok :: Int
 exit_ok = 0
+
+-- | THE PROCESS WAS INVOKED WRONGLY, which is neither a halt nor a precondition.
+--
+-- It is not in 'exit_table' for the same reason 'exit_ok' is not: the table is about the two
+-- families a RUN can end in, and a command line that was never a valid invocation ended no run.
+-- The value is the conventional usage status, and the suite asserts it is distinct from every
+-- entry of the table and outside the prover's domain along with them.
+exit_usage :: Int
+exit_usage = 64
 
 -- | THE COMPLETE TABLE, name to code, stated once.
 --
