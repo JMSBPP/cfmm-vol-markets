@@ -211,6 +211,11 @@ import Gams.Exit
   , classify_exit
   , gams_code_domain
   )
+import Loop.Config
+  ( default_poll_ms
+  , loop_poll_ms_env_var
+  , poll_ms_from
+  )
 import Gams.Detect
   ( DetectError (..)
   , detect_toolchain
@@ -4199,7 +4204,109 @@ every_advertised_override_is_honoured :: Check
 every_advertised_override_is_honoured =
   Check "every_advertised_override_is_honoured" . guarded $ do
     outcomes <- mapM probe_override advertised_overrides
-    pure (mapM_ id outcomes)
+    valued   <- mapM probe_value_override value_overrides
+    pure (mapM_ id outcomes >> mapM_ id valued)
+
+-- ---------------------------------------------------------------------------------------------
+-- THE THIRD SHAPE: AN OVERRIDE WHOSE VALUE IS NOT A PATH
+-- ---------------------------------------------------------------------------------------------
+
+-- | An advertised override that resolves to something other than a file path.
+--
+-- WHY THIS IS A THIRD LIST AND NOT A FOURTH ENTRY IN EITHER OF THE OTHER TWO.
+-- 'probe_override' points the variable at a path that cannot exist and asserts the resolver
+-- returns it VERBATIM; that assertion is meaningless for a variable whose resolver returns a
+-- number. 'unprobed_overrides' is the honestly-named gap for a variable whose CONSUMER is
+-- unreachable from @cabal test@ -- and this one's consumer is not: 'Loop.Config.poll_ms_from' is
+-- a pure function in the library and it is called here. Filing it as a gap would pardon a
+-- variable that is fully measurable, which is how an ignore list starts covering things that are
+-- asserted.
+--
+-- So the three assertions of 'probe_override' are transposed rather than dropped: a distinctive
+-- VALID value comes back verbatim, the unset case gives the default and the two differ, and a
+-- value the resolver must REFUSE is refused with a message that NAMES it. The third is the one
+-- that matters, and it is not a validator written only to be probed -- 28-CONTEXT rules that an
+-- unparseable cadence is a refusal, because a loop that polled at the default after being told to
+-- poll at something else would be advertising an override it does not honour.
+data ValueOverride = ValueOverride
+  { vo_var     :: String
+  , vo_default :: String
+    -- ^ what the resolver answers with the variable ABSENT, rendered.
+  , vo_valid   :: (String, String)
+    -- ^ a distinctive value the resolver must honour, and the rendering it must produce.
+  , vo_bogus   :: String
+    -- ^ a value the resolver must REFUSE.
+  , vo_resolve :: Maybe String -> Either String String
+    -- ^ the RULE, as a pure function of what @lookupEnv@ hands back.
+  }
+
+-- | The loop's poll cadence. One entry, and the list exists so a second one has a home.
+value_overrides :: [ValueOverride]
+value_overrides =
+  [ ValueOverride
+      { vo_var     = loop_poll_ms_env_var
+      , vo_default = show default_poll_ms
+      , vo_valid   = ("250", "250")
+      , vo_bogus   = "soon"
+      , vo_resolve = fmap show . poll_ms_from
+      }
+  ]
+
+-- | The three assertions, plus the PREMISE that the empty state is reachable at all.
+--
+-- The empty case is driven through the pure rule and NOT through @setEnv@, because
+-- @System.Environment.setEnv k ""@ routes an empty value to @unsetEnv@ -- 27-01 MEASURED a whole
+-- check being vacuous on exactly that, driving the unset path twice while reporting on the empty
+-- one. The state is real, a shell reaches it, and 'an_empty_eth_rpc_url_does_not_resolve_to_the_empty_string'
+-- OBSERVES that in a child process; what is asserted here is what the RULE does with the argument
+-- that state produces.
+probe_value_override :: ValueOverride -> IO (Either String ())
+probe_value_override vo = do
+  let var = vo_var vo
+      rule = vo_resolve vo
+      (distinct, expected) = vo_valid vo
+  original <- lookupEnv var
+  let restore = maybe (unsetEnv var) (setEnv var) original
+  flip finally restore $ do
+    unsetEnv var
+    absent <- lookupEnv var
+    setEnv var distinct
+    supplied <- lookupEnv var
+    pure $ do
+      _ <- expect (rule absent == Right (vo_default vo))
+             (var ++ " with the variable ABSENT resolves to " ++ show (rule absent)
+               ++ " and the declared default is " ++ show (vo_default vo) ++ ".")
+      _ <- expect (supplied == Just distinct)
+             ("the environment did not take " ++ var ++ " = " ++ show distinct
+               ++ "; lookupEnv answered " ++ show supplied ++ ". The two arms below assert what"
+               ++ " the rule does with that argument, and they are worth asserting about only"
+               ++ " while the process can actually produce it.")
+      _ <- expect (rule supplied == Right expected)
+             (var ++ " is ADVERTISED and DEAD: with the variable set to " ++ show distinct
+               ++ " the rule answered " ++ show (rule supplied) ++ " and the honoured answer is "
+               ++ show expected ++ ". Every falsification aimed through this variable is vacuous"
+               ++ " until it is honoured -- measured three times in this module already.")
+      _ <- expect (rule supplied /= rule absent)
+             (var ++ " resolves to " ++ show (rule absent) ++ " both with and without the variable"
+               ++ " set -- the override is vacuous.")
+      case rule (Just (vo_bogus vo)) of
+        Right value ->
+          Left (var ++ " was set to " ++ show (vo_bogus vo) ++ " and the rule RESOLVED it to "
+                 ++ show value ++ " instead of refusing it. A silent return to the default is how"
+                 ++ " an operator's typo becomes a cadence nobody asked for, and it is"
+                 ++ " indistinguishable from the variable being unset.")
+        Left why ->
+          expect (vo_bogus vo `isInfixOf` why)
+            (var ++ " was set to " ++ show (vo_bogus vo) ++ " and the rule refused, but the"
+              ++ " refusal does not NAME the value it read, so an operator cannot tell which"
+              ++ " setting was rejected:\n      " ++ why)
+      _ <- expect (rule (Just "") /= Right (vo_default vo))
+             (var ++ " set and EMPTY resolves to the DEFAULT. An empty value that travels until it"
+               ++ " meets another empty value is this repository's most-hit defect, and here it"
+               ++ " would report a typo as a working override. This arm is driven through the PURE"
+               ++ " rule because setEnv routes an empty value to unsetEnv -- 27-01 measured a check"
+               ++ " being vacuous on exactly that.")
+      Right ()
 
 probe_override :: OverrideProbe -> IO (Either String ())
 probe_override op = do
@@ -4383,6 +4490,9 @@ config_env_vars =
   -- would have put "FEE_SPLIT_CONFORMANCE" into the `undeclared` arm, since no config module
   -- declares an identifier by that name.
   , ("fee_split_conformance_env_var", fee_split_conformance_env_var)
+  -- 28-02. The loop's poll cadence. Its value is not a path, so it is covered by 'value_overrides'
+  -- rather than by 'advertised_overrides'.
+  , ("loop_poll_ms_env_var", loop_poll_ms_env_var)
   ]
 
 -- | The two modules in which an environment variable of this subsystem is NAMED. Both config
@@ -4393,6 +4503,11 @@ config_modules :: [FilePath]
 config_modules =
   [ "offchain/lib/Store/Config.hs"
   , "offchain/lib/Gams/Config.hs"
+  -- 28-02. The loop's own config module, added in the commit that created it. It declares one
+  -- variable, and that variable is probed by 'value_overrides' rather than by 'probe_override':
+  -- see that list's haddock for why a THIRD shape was needed rather than a fourth entry in either
+  -- of the two that already exist.
+  , "offchain/lib/Loop/Config.hs"
   ]
 
 -- | A top-level @_env_var@ declaration, anchored at both ends so a mention in prose or a local
@@ -4484,8 +4599,11 @@ store_overrides_are_probed_or_named_as_gaps =
           unprobed = map uo_var unprobed_overrides
           listed   = map fst config_env_vars
           config_vars = map snd config_env_vars
-          uncovered = [v | v <- config_vars, v `notElem` probed, v `notElem` unprobed]
+          valued    = map vo_var value_overrides
+          uncovered = [v | v <- config_vars, v `notElem` probed, v `notElem` unprobed
+                                           , v `notElem` valued]
           both      = [v | v <- probed, v `elem` unprobed]
+                        ++ [v | v <- valued, v `elem` probed || v `elem` unprobed]
           unlisted  = [i | i <- declared, i `notElem` listed]
           undeclared = [i | i <- listed, i `notElem` declared]
 
@@ -8379,7 +8497,11 @@ aeson_storage_path =
   , "offchain/lib/Gams/Invoke.hs"
   , "offchain/lib/Gams/Run.hs"
   , "offchain/lib/Gams/Version.hs"
+  , "offchain/lib/Loop/Chain.hs"
+  , "offchain/lib/Loop/Config.hs"
   , "offchain/lib/Loop/Ledger.hs"
+  , "offchain/lib/Loop/Poll.hs"
+  , "offchain/lib/Loop/Run.hs"
   , "offchain/lib/Loop/Solve.hs"
   , "offchain/lib/Store/Cache.hs"
   , "offchain/lib/Store/Class.hs"

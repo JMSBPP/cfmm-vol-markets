@@ -289,7 +289,7 @@ endpoint_census_terms = [endpoint_env_var, endpoint_authority, "resolve_endpoint
 chain_reaching_terms :: [String]
 chain_reaching_terms = ["--rpc-url", "HttpProvider"]
 
--- | THE MANIFEST. Fifteen entries.
+-- | THE MANIFEST. Nineteen entries.
 --
 -- Ten were MEASURED at 27-01 by the pattern CHAIN-06's own wording implies, which reported nine:
 --
@@ -355,6 +355,13 @@ endpoint_sites =
       \ gets narrowed on the day it first fires. MEASURED at 27-02: it fired on this file's first\
       \ run, and the answer is the twenty-seventh instance of the same one -- declare the prose,\
       \ never relax the pattern."
+  , EndpointSite "offchain/lib/Loop/Chain.hs" HaskellConsumer
+      "28-02. THE ONLY module in the loop layer that names the transport: it builds a\
+      \ Loop.Poll.ChainSource -- a record of five actions -- out of a resolved endpoint and the\
+      \ three addresses the Shock filter needs. Everything else under offchain/lib/Loop/ takes\
+      \ that record as an argument and is therefore drivable with no node, which is the whole\
+      \ reason LOOP-01's restart proof can exist: the check supplies the source, so the check is\
+      \ what the chain did while the loop was down."
   , EndpointSite "offchain/rig/verify-rig.sh" ShellConsumer
       "SC-2. THE SITE CHAIN-06's LIST OF NINE DOES NOT CONTAIN: fourteen cast calls against a live\
       \ rig, reached through foundry's --rpc-url local alias, so it named neither the variable nor\

@@ -221,6 +221,31 @@ library
                     -- Loop.Solve for the outcome vocabulary and Store.Types for the key scheme.
                     -- Every one of those packages was already a dependency here.
                     , Loop.Ledger
+                    -- Phase 28's loop configuration and the COMPLETE exit-code table. +0 PACKAGES,
+                    -- and CONFIRMED rather than estimated at 28-02: with this module on disk,
+                    -- `cabal build --enable-tests -j all` printed no `Downloading` line. Its
+                    -- imports are base (Control.Exception, Data.Char, System.Environment) and one
+                    -- module of this same stanza, Loop.Ledger, for the EventId a halt names.
+                    , Loop.Config
+                    -- Phase 28's PURE chain edge: the range arithmetic, a log's identity, and the
+                    -- filter as fields. +0 PACKAGES, CONFIRMED the same way at 28-02. Its imports
+                    -- are base (Data.Bits), bytestring, memory-hexstring, web3-solidity,
+                    -- web3-ethereum (the Change and DefaultBlock records) and three modules of this
+                    -- same stanza. It names no provider and opens no socket; Loop.Chain does, and
+                    -- is listed in Chain.Endpoint.endpoint_sites for exactly that reason.
+                    , Loop.Poll
+                    -- Phase 28's transport wiring, and the ONLY module in the loop layer that
+                    -- names it. +0 PACKAGES, CONFIRMED the same way at 28-02: web3-provider and
+                    -- web3-ethereum have been dependencies of this stanza since Chain.Read.
+                    , Loop.Chain
+                    -- Phase 28's ONE iteration function. +0 PACKAGES, CONFIRMED the same way at
+                    -- 28-02. Its imports are base (Control.Concurrent, Control.Exception,
+                    -- Data.Bits, Data.List, Data.Word), web3-ethereum for the Change it orders,
+                    -- and ten modules of this same stanza. It does NOT import the module that
+                    -- resolves a live binary and a live model, and it does not name the transport:
+                    -- both are the caller's, which is what keeps S2 closed and keeps every
+                    -- importer of the resolving module under offchain/app/.
+                    , Loop.Run
 
     -- Modules included in this library but not exported.
     -- other-modules:
