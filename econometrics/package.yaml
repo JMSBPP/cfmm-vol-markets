@@ -1,0 +1,101 @@
+name:                econometrics
+version:             0.1.0.0
+synopsis:            Panoptic upsilon structural econometrics (Phase 9)
+description: |
+  Haskell-only NLS/GMM estimation of the exponential-moneyness vega profile
+  pi = b0 + u0 * exp(-kappa * |iK - it|) * sigma^2 + v, with cluster-robust
+  (by tokenId) sandwich standard errors. Numeric core links hmatrix + hmatrix-gsl
+  (system GSL) and ad for exact Jacobians. No Python/R anywhere in the pipeline.
+category:            Math
+build-type:          Simple
+
+ghc-options:
+  - -Wall
+  - -Wcompat
+
+default-extensions:
+  - OverloadedStrings
+
+dependencies:
+  - base >= 4.7 && < 5
+
+library:
+  source-dirs: src
+  dependencies:
+    - hmatrix
+    - hmatrix-gsl
+    - ad
+    - statistics
+    - math-functions
+    - vector
+    - containers
+    - time
+    - cassava
+    - aeson
+    - req
+    - http-conduit
+    - bytestring
+    - text
+    - optparse-applicative
+    - crypton
+    - memory
+    - directory
+
+executables:
+  econometrics:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - econometrics
+      - optparse-applicative
+      - text
+      - containers
+      - bytestring
+      - cassava
+      - vector
+      - ad
+      - hmatrix
+      - hmatrix-gsl
+      - time
+      - filepath
+      - process
+
+tests:
+  unit:
+    main:                Spec.hs
+    source-dirs:         test
+    other-modules:
+      - Golden.SandwichFixture
+      - Panel.BuildSpec
+      - Panel.VarianceSpec
+      - Panel.ReconcileSpec
+      - Model.UpsilonSpec
+      - Model.NLSSpec
+      - Model.SandwichSpec
+      - Tests.SpecificationSpec
+      - AlternativesSpec
+      - Chain.AbiSpec
+      - Chain.RpcSpec
+      - Chain.BlockIndexSpec
+      - Panoptic.ChunkSpec
+      - Panoptic.SfpmSpec
+      - Panoptic.PremiumSpec
+      - Panoptic.ReadDriverSpec
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - econometrics
+      - hspec
+      - text
+      - bytestring
+      - containers
+      - time
+      - hmatrix
+      - aeson
+      - directory

@@ -239,12 +239,28 @@ PLANK         ?= plank
 # `types::pos_spec::X`.
 PLANK_DEP := --dep v3=lib/plankified-univ3/plank/lib/ --dep std=lib/plank-monorepo/std/ --dep pos_spec=src/types/pos_spec \
              --dep lib=src/lib --dep types=src/types --dep interfaces=src/interfaces \
-             --dep helpers=test/protocol_integrations/helpers
+             --dep helpers=test/protocol_integrations/helpers \
+             --dep model_interfaces=src/models/mev_tax_model_one/interfaces/ \
+             --dep model_libraries=src/models/mev_tax_model_one/libraries/
 # ^ `helpers`: test-only Plank helper libs (PriceUpdateLogWithSwap) that a src module's
 #   TEST-oriented entrypoint (PriceSetterHook.write_price) imports. Kept in sync with
 #   test/PlankTestBase.sol:plankOpts().
+# ^ `model_interfaces`/`model_libraries`: the mev_tax_model_one dep roots so compile-plank can
+#   build the model's own entrypoints (AlgebraIntegralShocksWriterMod, ShockHarness). Unused by
+#   non-model entrypoints (plank resolves only imported modules), so declaring them globally is safe.
 PLANK_BACKEND := sona
 PLANK_BUILD   := build/plank
+# plank-toolchain: build the plank_dev compiler from the PINNED plank-monorepo submodule and install
+# it as the PATH `plank`. FFI + compile-plank resolve `plank` from PATH; the self-hosted runner's
+# persistent ~/.plank/bin/plank does NOT track a plank-monorepo pin bump, so the develop-gate runs this
+# per job to keep the compiler+std in lockstep with the pin (a mismatch fails every build).
+PLANK_DEV_EXEC := lib/plank-monorepo/plankc/target/release/plank
+PLANK_PATH_BIN := $(HOME)/.plank/bin/plank
+plank-toolchain:
+	cd lib/plank-monorepo/plankc && cargo build --release
+	mkdir -p $(dir $(PLANK_PATH_BIN))
+	ln -sf $(abspath $(PLANK_DEV_EXEC)) $(PLANK_PATH_BIN)
+	@plank --version
 # Entrypoints are auto-discovered as any .plk under src/ or test/ that contains an
 # `init` block. There is no exclusion list: `src/exp/` (throwaway experiments) and
 # `src/ldf/` were DELETED rather than skipped, because a directory permanently
@@ -318,113 +334,62 @@ clean-plank:
 
 
 #####################################################################
-# GAMS algebraic model (off-chain solver track)                     #
+# GAMS — the VolumePath prover (off-chain solver track)             #
 #####################################################################
-# GAMS resolves relative `$$include` against the *working directory* of
-# the invocation, so every compile runs from $(GAMS_DIR). `action=c`
-# does a compile/syntax check only — no Model/Solve exists yet, so no
-# license or solver is required. Authoritative reference: model/BUILD.md.
-GAMS       ?= gams
-GAMS_DIR   := model
-GAMS_BUILD := build
-# Files to skip (none — every .gms is compile-checked). Add space-separated
-# paths relative to $(GAMS_DIR) here if a file should be excluded.
-GAMS_SKIP  :=
+# Two working targets, both gating on GAMS exit codes (measured on GAMS
+# 54.1: rc=2 compile error, rc=3 execution abort — never scrape listings,
+# the status line lives on the LOG stream and `lo=0` destroys it).
+# The prover needs CONOPT. Usage contract: model/mev_tax_model_one/VOLUME_PATH.md.
+GAMS     ?= gams
+VP_DIR   := model/mev_tax_model_one
+VP_BUILD := build
 
-# compile-gams: compile-check every .gms file under model/ with action=c.
-# Fails (non-zero) if any file does not compile, so broken models redden
-# the build instead of hiding.
 compile-gams:
-	@mkdir -p $(GAMS_DIR)/$(GAMS_BUILD)
-	@cd $(GAMS_DIR) && rc=0; ok=0; fail=0; skip=0; \
-	for f in $$(find . -name '*.gms' -not -path './test/*' -not -path './build/*' | sed 's|^\./||' | sort); do \
-		case " $(GAMS_SKIP) " in \
-			*" $$f "*) printf '   SKIP %s  (fragment/stub — BUILD.md)\n' "$$f"; skip=$$((skip+1)); continue;; \
-		esac; \
-		out="$(GAMS_BUILD)/$$(echo "$$f" | tr / _ | sed 's/\.gms$$//').lst"; \
+	@set -e; rc=0; ok=0; fail=0; \
+	for f in $$(git ls-files '*.gms' | sort); do \
+		d=$$(dirname "$$f"); b=$$(basename "$$f"); \
+		mkdir -p "$$d/$(VP_BUILD)"; \
 		printf '>> compiling %s\n' "$$f"; \
-		if $(GAMS) "$$f" action=c o="$$out" scrdir="$(GAMS_BUILD)" lo=0 >/dev/null 2>&1; then \
+		if (cd "$$d" && $(GAMS) "$$b" action=c o="$(VP_BUILD)/$${b%.gms}.lst" scrdir="$(VP_BUILD)" lo=0 >/dev/null 2>&1); then \
 			printf '   OK   %s\n' "$$f"; ok=$$((ok+1)); \
 		else \
-			printf '   FAIL %s  (gams rc=%s) -> %s/%s\n' "$$f" "$$?" "$(GAMS_DIR)" "$$out"; \
+			printf '   FAIL %s -> %s/$(VP_BUILD)/%s.lst\n' "$$f" "$$d" "$${b%.gms}"; \
 			fail=$$((fail+1)); rc=1; \
 		fi; \
 	done; \
-	printf '\ncompile-gams: %s ok, %s failed, %s skipped\n' "$$ok" "$$fail" "$$skip"; \
-	exit $$rc
+	if [ $$((ok+fail)) -eq 0 ]; then printf 'compile-gams FAIL: no .gms tracked\n'; exit 1; fi; \
+	printf '\ncompile-gams: %s ok, %s failed\n' "$$ok" "$$fail"; exit $$rc
 
-# test-gams: run GAMS assertion tests under model/test/ with action=ce (execute,
-# so `abort$$(...)` checks actually fire). A failing assertion returns a non-zero
-# GAMS exit code, which fails the build. No Model/Solve -> no solver/license.
+# The prover aborts non-zero if ANY of its gates fails (solver status, both
+# rate targets, volume, closure, swap-sign), so a green run certifies the
+# emitted JSON. The double run pins determinism: same inputs -> same bytes.
 test-gams:
-	@mkdir -p $(GAMS_DIR)/$(GAMS_BUILD)
-	@cd $(GAMS_DIR) && rc=0; ok=0; fail=0; \
-	for f in $$(find test -name '*.gms' 2>/dev/null | sed 's|^\./||' | sort); do \
-		out="$(GAMS_BUILD)/$$(echo "$$f" | tr / _ | sed 's/\.gms$$//').lst"; \
-		printf '>> testing %s\n' "$$f"; \
-		if $(GAMS) "$$f" action=ce o="$$out" scrdir="$(GAMS_BUILD)" lo=0 >/dev/null 2>&1; then \
-			printf '   PASS %s\n' "$$f"; ok=$$((ok+1)); \
-		else \
-			printf '   FAIL %s  (gams rc=%s) -> %s/%s\n' "$$f" "$$?" "$(GAMS_DIR)" "$$out"; \
-			fail=$$((fail+1)); rc=1; \
-		fi; \
-	done; \
-	printf '\ntest-gams: %s passed, %s failed\n' "$$ok" "$$fail"; \
-	exit $$rc
+	@set -e; cd $(VP_DIR); mkdir -p $(VP_BUILD); \
+	printf '>> run 1: volume_path.gms (self-test fixture)\n'; \
+	$(GAMS) volume_path.gms action=ce o=$(VP_BUILD)/run1.lst scrdir=$(VP_BUILD) lo=0 >/dev/null 2>&1 \
+		|| { printf 'test-gams FAIL: see %s/$(VP_BUILD)/run1.lst\n' "$(VP_DIR)"; \
+		     sed -n 's/^\*\*\*\* *//p' $(VP_BUILD)/run1.lst | head -8; exit 1; }; \
+	python3 -c "import json; d=json.load(open('volume_path.json')); \
+assert len(d['dQx'])==d['nEvents'], 'dQx length != nEvents'; \
+assert all(x*m<0 for x,m in zip(d['dQx'],d['dQM'])), 'a step is not a swap'" \
+		|| { printf 'test-gams FAIL: emitted JSON invalid\n'; exit 1; }; \
+	cp volume_path.json $(VP_BUILD)/run1.json; \
+	printf '>> run 2: determinism\n'; \
+	$(GAMS) volume_path.gms action=ce o=$(VP_BUILD)/run2.lst scrdir=$(VP_BUILD) lo=0 >/dev/null 2>&1; \
+	cmp -s volume_path.json $(VP_BUILD)/run1.json \
+		|| { printf 'test-gams FAIL: two identical runs emitted different JSON\n'; exit 1; }; \
+	printf '\ntest-gams: prover gates PASS, JSON valid, byte-identical across 2 runs\n'
 
-# clean-gams: remove GAMS listings, save/scratch, and build artifacts.
 clean-gams:
-	@rm -rf $(GAMS_DIR)/$(GAMS_BUILD) $(GAMS_DIR)/225* \
-		$(GAMS_DIR)/*.lst $(GAMS_DIR)/*.g00 $(GAMS_DIR)/*.lxi
-
-# payoff-fixtures: regenerate committed per-theorem payoff GDX(s).
-# Detects compile/execution errors by post-grepping the .lst — `gams` exits 0
-# even on compile errors, so the recipe MUST grep, not rely on exit code alone.
-.PHONY: payoff-fixtures
-payoff-fixtures:
-	@mkdir -p $(GAMS_DIR)/$(GAMS_BUILD)
-	@cd $(GAMS_DIR) && rc=0; \
-	for f in $$(find payoff -name 'eta_*.gms' 2>/dev/null | sort); do \
-		out="$(GAMS_BUILD)/$$(echo "$$f" | tr / _ | sed 's/\.gms$$//').lst"; \
-		printf '>> regenerating fixture from %s\n' "$$f"; \
-		$(GAMS) "$$f" action=ce o="$$out" scrdir="$(GAMS_BUILD)" lo=0 >/dev/null 2>&1 ; \
-		if grep -qE 'Status: (Compilation|Execution) error' "$$out"; then \
-			printf '   FAIL %s -> %s/%s (status line indicates error)\n' "$$f" "$(GAMS_DIR)" "$$out"; rc=1; \
-		else \
-			printf '   OK %s\n' "$$f"; \
-		fi; \
-	done; \
-	exit $$rc
-
-# spec-preflight: extract code blocks from the rev-4 spec MD into a mirror of
-# the production layout (model/payoff/* + model/PayoffModule.gms) and drive
-# the orchestrator the way production does. Catches divergences in include
-# paths, file boundaries, and orchestrator wiring that a flat-concat preflight
-# would miss. Codifies the rev-4 discipline: before any spec commit, this
-# target must pass.
-.PHONY: spec-preflight
-spec-preflight:
-	@rm -rf $(GAMS_DIR)/$(GAMS_BUILD)/spec
-	@mkdir -p $(GAMS_DIR)/$(GAMS_BUILD)/spec/payoff $(GAMS_DIR)/$(GAMS_BUILD)/spec/test
-	@SPEC=docs/superpowers/specs/2026-06-28-payoff-zero-slippage-design.md; \
-	ROOT=$(GAMS_DIR)/$(GAMS_BUILD)/spec; \
-	python3 -c "import re; text = open('$$SPEC').read(); secs = re.split(r'^(## \d+\.[^\n]*)\n', text, flags=re.M); body = {n: next((secs[i+1] for i in range(1,len(secs),2) if secs[i].startswith('## %s.' % n)), None) for n in (5,6,7,8)}; missing = [n for n,b in body.items() if b is None]; assert not missing, 'spec sections missing: %s' % missing; blocks = {n: re.search(r'\`\`\`gams\n(.*?)\n\`\`\`', b, re.S) for n,b in body.items()}; missing = [n for n,m in blocks.items() if m is None]; assert not missing, 'no gams code block in sections: %s' % missing; open('$$ROOT/payoff/_PayoffScaffolding.gms','w').write(blocks[5].group(1)); open('$$ROOT/payoff/eta_pi_trader_zero_slippage.gms','w').write(blocks[6].group(1)); open('$$ROOT/PayoffModule.gms','w').write(blocks[7].group(1)); open('$$ROOT/test/PayoffModuleTest.gms','w').write(blocks[8].group(1))"; \
-	cp $(GAMS_DIR)/PricingKernel.gms $(GAMS_DIR)/primitives.gms $(GAMS_DIR)/$(GAMS_BUILD)/spec/; \
-	cd $(GAMS_DIR)/$(GAMS_BUILD)/spec && \
-	$(GAMS) test/PayoffModuleTest.gms action=ce o=run.lst scrdir=. lo=0 >/dev/null 2>&1 ; \
-	if grep -qE 'Status: (Compilation|Execution) error' run.lst; then \
-		printf 'spec-preflight FAIL: see $(GAMS_DIR)/$(GAMS_BUILD)/spec/run.lst\n'; \
-		grep -A1 '^\*\*\*\*' run.lst | head -10; exit 1; \
-	else \
-		printf 'spec-preflight OK (production layout: test/PayoffModuleTest.gms → PayoffModule.gms → payoff/*)\n'; \
-	fi
+	@rm -rf $(VP_DIR)/$(VP_BUILD) $(VP_DIR)/volume_path.json $(VP_DIR)/volume_path.txt \
+		model/build model/*.lst model/225* 225*
 
 # gams-fixtures: regenerate committed GAMS->Solidity diff fixtures (read-only GAMS run).
 .PHONY: gams-fixtures
 gams-fixtures:
 	uv run --project tools/gamsdiff gamsdiff
 
-.PHONY: compile-plank clean-plank compile-gams test-gams clean-gams payoff-fixtures spec-preflight
+.PHONY: compile-plank clean-plank compile-gams test-gams clean-gams
 
 # --- PriceSetterHook: local tick-experiment rig -------------------------------
 # Stands up PoolManager + a flag-mined PriceSetterHook + a bound (liquidity-free) pool
