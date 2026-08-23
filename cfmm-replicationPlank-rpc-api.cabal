@@ -597,6 +597,18 @@ test-suite cfmm-replicationPlank-rpc-api-test
         process,
         directory,
         filepath,
+        -- 28-03's torn-read POSITIVE CONTROL, and it is here because of a MEASUREMENT rather than
+        -- a preference. The control has to stream a document into the destination while a reader
+        -- is looping on it, and `System.IO.withBinaryFile path WriteMode` cannot: GHC's runtime
+        -- keeps a per-inode lock table, so a handle opened for writing while another handle in the
+        -- SAME process holds the file open for reading raises
+        -- "resource busy (file is locked)". OBSERVED at 28-03 -- the control failed with exactly
+        -- that text before this line existed. `System.Posix.IO` issues the open() itself and is
+        -- outside that table, which is what lets the control do the one thing it exists to do.
+        -- +0 PACKAGES: unix is a GHC boot library and `process` already depends on it, so it was
+        -- in the build plan before this line existed. MEASURED at this commit:
+        -- `cabal build --enable-tests -j all` printed no `Downloading` line.
+        unix,
         memory-hexstring,
         web3-ethereum,
         web3-solidity,

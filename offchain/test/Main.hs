@@ -73,8 +73,18 @@ import System.Random.MWC (create, uniformR)
 -- attached instead of stopping the suite with no indication of which assertion was running.
 import Control.Concurrent (threadDelay)
 import System.Timeout (timeout)
--- 'getMonotonicTimeNSec' is the unique suffix 'fresh_temp_dir' names its scratch directories with.
-import GHC.Clock (getMonotonicTimeNSec)
+-- LOOP-03's race harness. 'forkIO' is the READER and the main thread is the publisher; the MVar is
+-- how the check knows the reader stopped before it reads its counters, because counters read while
+-- a thread is still writing them are a race inside the instrument. 'getMonotonicTime' rather than a
+-- wall clock: the deadline must not move if the machine's clock is stepped mid-run.
+import Control.Concurrent (forkIO)
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import GHC.Clock (getMonotonicTime, getMonotonicTimeNSec)
+-- The torn writer's open(), OUTSIDE GHC's per-inode lock table. See 'write_bytes_torn' for the
+-- measurement that put this import here: `System.IO.withBinaryFile ... WriteMode` raises
+-- "resource busy (file is locked)" while the harness's reader holds the same file open, which is
+-- the runtime protecting exactly the invariant the control exists to violate.
+import qualified System.Posix.IO.ByteString as Posix
 
 import Rig.Manifest
   ( PinEntry (..)
@@ -236,7 +246,14 @@ import Loop.Config
 -- 28-03's publication. Imported for its PURE CORE as much as for the edge: 'publish_bytes' is
 -- where the shape floor and the identity splice are decided, and every refusal arm below is driven
 -- against it rather than through a file.
-import Loop.Publish (publish_fixture)
+import Loop.Publish
+  ( PublishRefusal (..)
+  , fixture_min_bytes
+  , identity_prefix
+  , publish_bytes
+  , publish_fixture
+  , splice_identity
+  )
 import Loop.Poll
   ( ChainSource (..)
   , event_identity
@@ -245,9 +262,13 @@ import Loop.Poll
   , shock_filter_fields
   )
 import Loop.Run
-  ( Env (..)
+  ( BlockReport (..)
+  , Env (..)
+  , EventReport (..)
   , Mode (Once)
+  , process_block
   , run_loop
+  , split_seed
   )
 import Gams.Detect
   ( DetectError (..)
@@ -347,6 +368,7 @@ import Driver.Capture
   , StepRecord (..)
   , capture_path
   , no_orders
+  , write_bytes_atomically
   , write_capture
   )
 import Driver.Seed (gen_from_seed, resolve_seed, seed_env_var)
@@ -411,6 +433,11 @@ import Store.Config
   , store_conformance_env_var
   , store_conformance_path
   )
+-- The recogniser LOOP-03's reader classifies every read with. It is this repository's OWN
+-- predicate rather than a second one written for the harness: "unparseable" has to mean the same
+-- thing here as it does everywhere else, or a torn read that the store would refuse could be
+-- counted as a clean one.
+import Store.Json (is_json_value)
 import Store.Schema
   ( expected_migrations
   , identity_constraint_columns
@@ -18521,26 +18548,770 @@ an_unparseable_poll_interval_is_refused_rather_than_defaulted =
               ("a negative poll interval was refused without naming it:\n      " ++ why)
 
 -- ---------------------------------------------------------------------------------------------
--- Phase 28 plan 03 task 1: the publication target, and the fixture it is probed with
+-- Phase 28 plan 03: LOOP-03 -- the atomic publication, the shape floor and the identity splice
 --
--- 'Loop.Config.default_fixture_dir' -- the real publication directory -- belongs to the
--- @mev_tax_model_one@ track, does not exist in this worktree and is never created here. The
--- FIXTURE_DIR probe in 'advertised_overrides' points the variable at a path that cannot exist and
--- asserts that 'Loop.Publish.publish_fixture' refuses it BY NAME, which is LOOP-04 itself.
+-- Every check below publishes into a TEMPORARY directory created moments earlier by
+-- 'fresh_temp_dir'. 'Loop.Config.default_fixture_dir' -- the real one -- belongs to the
+-- @mev_tax_model_one@ track, does not exist in this worktree and is never created here:
+-- @git status --porcelain test/@ is empty after every run. No node, no database, no solver; the
+-- three structural greps stay 0 and this whole block sits inside their blast radius.
 -- ---------------------------------------------------------------------------------------------
 
--- | The identity the publication probe stamps its fixture with.
+-- | The identity every publication check stamps its fixture with, unless it is varying one field.
 --
 -- 'loop_pool_id' is @2^159 + 12345@ -- below the address ceiling, so it renders as forty hex
--- digits, and nowhere near zero, so neither pool arm of 'Loop.Publish.publish_bytes' fires by
--- accident and the probe's refusal is the DIRECTORY's.
+-- digits, and nowhere near zero, so neither pool arm of 'publish_bytes' fires by accident.
 publication_identity :: FixtureIdentity
 publication_identity = FixtureIdentity loop_pool_id (AtBlock 4242) loop_chain_id
 
--- | A well-formed artifact for the probe, built by 'artifact_doc' -- the same builder the
--- decoder's own checks use, so a document that stopped decoding would fail there too.
-publication_artifact_alpha :: BS.ByteString
+-- | Two well-formed artifacts of DIFFERENT LENGTHS -- 'Store.Cache''s own fixtures, reused.
+--
+-- The lengths differ (264 and 296 bytes) and that is the point rather than a coincidence: a
+-- publisher that alternated between two documents of the SAME length could tear invisibly, because
+-- a reader that caught the second write half-done would still see a full-length file and could
+-- still find a syntactically complete document if the two happened to agree at the split. Reusing
+-- 'cache_stored_doc' and 'cache_solved_doc' also means both are built by 'artifact_doc', the same
+-- builder the decoder's own checks use, so a document that stopped decoding would fail there too.
+publication_artifact_alpha, publication_artifact_beta :: BS.ByteString
 publication_artifact_alpha = cache_stored_doc
+publication_artifact_beta  = cache_solved_doc
+
+publication_documents :: [BS.ByteString]
+publication_documents = [publication_artifact_alpha, publication_artifact_beta]
+
+-- | A document that is a VALID artifact in every structural sense and far too small to be a solve.
+--
+-- This is the subject the byte floor exists for, and it has to be CONSTRUCTED rather than obtained
+-- by truncating something: a truncation stops being JSON long before it gets small, so it is
+-- refused by the decoder and never reaches the floor at all. One event, one element per leg, the
+-- two price fields as one-character strings. Below 'fixture_min_bytes', and the check asserts that
+-- rather than assuming it.
+publication_undersized_artifact :: BS.ByteString
+publication_undersized_artifact =
+  C8.pack (concat
+    [ "{\"sqrtPriceX96\":\"1\",\"liquidity\":\"1\""
+    , ",\"txlVolumeRate\":1,\"phiXpips\":1,\"phiMpips\":1,\"nEvents\":1"
+    , ",\"deltaRealized\":0.1,\"rPhiRealized\":0.1"
+    , ",\"dQx\":[1],\"dQM\":[1]}"
+    ])
+
+-- | THE READER'S VERDICT ON ONE READ. 'Nothing' is a clean read.
+--
+-- Three questions, in the order a consumer would hit them. First this repository's own JSON
+-- recogniser -- 'Store.Json.is_json_value', not a second predicate written for the harness, so
+-- \"unparseable\" means here what it means in the store. Then the identity prefix, because a
+-- document that parses and does not carry it is not the thing the publisher writes. Then the
+-- ARTIFACT under the identity, reassembled by putting back the brace the splice dropped: a tear
+-- between two documents of different lengths can leave valid JSON that is not a valid artifact,
+-- and a check that stopped at 'is_json_value' would call that a clean read.
+classify_published_read :: BS.ByteString -> Maybe String
+classify_published_read bytes
+  | not (is_json_value bytes) =
+      Just ("a read of " ++ show (BS.length bytes) ++ " bytes is NOT a JSON value. It begins "
+             ++ show (C8.unpack (BS.take 40 bytes)) ++ " and ends "
+             ++ show (C8.unpack (last_bytes 24 bytes)) ++ ".")
+  | not (prefix `BS.isPrefixOf` bytes) =
+      Just ("a read of " ++ show (BS.length bytes) ++ " bytes parses as JSON but does not begin"
+             ++ " with the identity prefix the publisher writes. It begins "
+             ++ show (C8.unpack (BS.take 40 bytes)) ++ ".")
+  | otherwise =
+      case decode_artifact (C8.cons '{' (BS.drop (BS.length prefix) bytes)) of
+        Left err ->
+          Just ("a read of " ++ show (BS.length bytes) ++ " bytes parses as JSON and carries the"
+                 ++ " identity, and the ARTIFACT under it did not decode: " ++ show err)
+        Right _ -> Nothing
+  where
+    prefix = identity_prefix publication_identity
+
+-- | The last @n@ bytes, for a failure message that shows both ends of a suspicious read.
+last_bytes :: Int -> BS.ByteString -> BS.ByteString
+last_bytes n bs = BS.drop (max 0 (BS.length bs - n)) bs
+
+-- | The bytes, or 'Nothing' if the file is not there -- rather than an exception.
+--
+-- \"The publisher wrote nothing\" is a verdict a check should REPORT, and a @readFile@ that throws
+-- hands it to 'guarded' as an anonymous IO error naming a temp path. MEASURED at 28-03 under the
+-- floor-above-every-artifact mutation.
+read_if_present :: FilePath -> IO (Maybe BS.ByteString)
+read_if_present path = do
+  there <- doesFileExist path
+  if there then Just <$> BS.readFile path else pure Nothing
+
+-- | How long the two race harnesses run, in seconds.
+--
+-- Ten, per LOOP-03.
+--
+-- TWENTY SECONDS OF RACING COSTS THE SUITE ABOUT 350, AND THAT IS A MEASUREMENT THIS PLAN OWES ITS
+-- SUCCESSORS. 28-03-PLAN.md budgeted \"~173 s to roughly 195 s\" on the arithmetic that two
+-- ten-second harnesses run twice. They do not: 'sentinel_falsification_harness' re-runs
+-- @core_checks@ through 'all_objections' once for its own baseline and once per swept artifact,
+-- and through 'first_objection' for each of the six negative controls -- which cannot short-circuit,
+-- because their whole point is that nothing objects. That is roughly fifteen full passes. MEASURED
+-- COLD at 28-03: @224\/224 checks passed@ in **522 seconds**, against the 900-second ceiling and
+-- against 173 seconds at 28-02. The margin is real but it is a third of what the plan assumed, and
+-- the next check that wants a wall-clock budget should multiply by fifteen rather than by two.
+race_window_seconds :: Double
+race_window_seconds = 10
+
+-- | The floor BOTH counters must clear before either verdict means anything.
+--
+-- A race that barely ran is a green \"no torn read\" about nothing, and it is the failure mode
+-- this whole harness is most likely to arrive at silently -- a publisher that refused every
+-- document, or a reader starved by the non-threaded scheduler, both produce a clean sweep.
+race_floor :: Int
+race_floor = 100
+
+-- | What one ten-second race observed.
+data RaceOutcome = RaceOutcome
+  { race_publishes   :: Int
+  , race_reads       :: Int
+  , race_unparseable :: Int
+  , race_samples     :: [String]
+  , race_write_fails :: [String]
+    -- ^ publications that THREW rather than completing. Carried as an arm of its own rather than
+    -- allowed to escape: a writer that dies mid-race arrives at 'guarded' as an anonymous
+    -- \"unexpected IO error\" naming a temp file, which is the least useful form of a real
+    -- finding. OBSERVED at 28-03 -- @volume_path.json.tmp: does not exist@, the publication
+    -- directory removed underneath a running race -- and it is a failure of the HARNESS's
+    -- environment, not of the rename, so it gets its own sentence.
+  }
+
+-- | THE HARNESS, PARAMETERISED BY THE WRITER -- which is what makes the positive control a control.
+--
+-- The two arms differ in ONE expression: how the finished document reaches the destination. The
+-- document itself is built by 'publish_bytes' in both, from the same two artifacts, alternating.
+-- 27-02's discipline is that the divergence must be CONSTRUCTED or the observation proves nothing,
+-- and a control that also changed what was written would be measuring two things at once.
+--
+-- The seed is written ATOMICALLY in both arms and is not part of the race: the reader must never
+-- meet an absent file, because @ENOENT@ is not a torn read and counting it as one would make the
+-- control fire for the wrong reason.
+publication_race
+  :: String
+  -> (FilePath -> BS.ByteString -> IO ())
+  -> IO (Either String RaceOutcome)
+publication_race label writer =
+  case publish_bytes publication_identity publication_artifact_alpha of
+    Left refusal ->
+      pure (Left ("the race could not be SEEDED: publish_bytes refused the fixture artifact with "
+                   ++ show refusal ++ ". Every arm below would then be about a file nothing wrote."))
+    Right seed -> do
+      dir <- fresh_temp_dir label
+      let path = dir </> fixture_file_name
+      write_bytes_atomically path seed
+      deadline  <- (+ race_window_seconds) <$> getMonotonicTime
+      reads_ref <- newIORef (0 :: Int)
+      bad_ref   <- newIORef ([] :: [String])
+      pubs_ref  <- newIORef (0 :: Int)
+      wfail_ref <- newIORef ([] :: [String])
+      stopped   <- newEmptyMVar
+      _ <- forkIO (reader path deadline reads_ref bad_ref `finally` putMVar stopped ())
+      publisher dir deadline pubs_ref wfail_ref (cycle publication_documents)
+      takeMVar stopped
+      publishes <- readIORef pubs_ref
+      completed <- readIORef reads_ref
+      bad       <- reverse <$> readIORef bad_ref
+      wfails    <- reverse <$> readIORef wfail_ref
+      pure (Right RaceOutcome
+              { race_publishes   = publishes
+              , race_reads       = completed
+              , race_unparseable = length bad
+              , race_samples     = take 3 bad
+              , race_write_fails = take 3 wfails
+              })
+  where
+    reader path deadline reads_ref bad_ref = go
+      where
+        go = do
+          now <- getMonotonicTime
+          if now >= deadline
+            then pure ()
+            else do
+              outcome <- try (BS.readFile path)
+              case outcome of
+                Left err ->
+                  modifyIORef' bad_ref
+                    (("the read itself failed: " ++ show (err :: IOException)) :)
+                Right bytes -> do
+                  modifyIORef' reads_ref (+ 1)
+                  case classify_published_read bytes of
+                    Nothing  -> pure ()
+                    Just why -> modifyIORef' bad_ref (why :)
+              go
+
+    publisher _   _        _        _         []           = pure ()
+    publisher dir deadline pubs_ref wfail_ref (doc : rest) = do
+      now <- getMonotonicTime
+      if now >= deadline
+        then pure ()
+        else do
+          attempt <- try (writer dir doc)
+          case attempt of
+            Left err ->
+              modifyIORef' wfail_ref
+                (("a publication THREW: " ++ show (err :: IOException)) :)
+            Right () -> modifyIORef' pubs_ref (+ 1)
+          publisher dir deadline pubs_ref wfail_ref rest
+
+-- | The writer under test: the real publication path, rename and all.
+atomic_race_writer :: FilePath -> BS.ByteString -> IO ()
+atomic_race_writer dir artifact = do
+  outcome <- publish_fixture dir publication_identity artifact
+  case outcome of
+    Right _      -> pure ()
+    Left refusal -> throwIO (userError ("publish_fixture refused mid-race: " ++ show refusal))
+
+-- | The CONTROL's writer: the same document, put there without a temp file and without a rename.
+torn_race_writer :: FilePath -> BS.ByteString -> IO ()
+torn_race_writer dir artifact =
+  case publish_bytes publication_identity artifact of
+    Left refusal ->
+      throwIO (userError ("publish_bytes refused mid-race: " ++ show refusal))
+    Right document -> write_bytes_torn (dir </> fixture_file_name) document
+
+-- | A DELIBERATELY NON-ATOMIC WRITE, local to this suite and never exported by the library.
+--
+-- Open the destination truncating, write the first half, yield, write the rest, close. This is the
+-- writer 'Driver.Capture.write_bytes_atomically' exists to not be, and the window between the two
+-- halves is the one a consumer falls into. The delay is 200 microseconds -- long enough that the
+-- reader is scheduled inside the window on a non-threaded runtime, short enough that the
+-- ten-second race still runs thousands of publications.
+--
+-- WHY THIS IS @System.Posix.IO@ AND NOT @System.IO.withBinaryFile@, MEASURED.
+-- The first version was @withBinaryFile path WriteMode@ and it does not work, for a reason that is
+-- worth writing down rather than rediscovering: GHC's runtime keeps a per-inode lock table, and a
+-- handle opened for WRITING while another handle in the same process holds the file open for
+-- READING raises @resource busy (file is locked)@. The control failed with exactly that text --
+-- OBSERVED at 28-03, at @\/tmp\/cfmm-loop-loop03-torn-control\/volume_path.json@ -- and the
+-- failure is the runtime protecting the very invariant the control is trying to violate. Catching
+-- and retrying would have been the wrong repair twice over: the reader's own @readFile@ would then
+-- fail with the same lock error inside the window, and the harness would count a LOCK failure as a
+-- torn read, which is a control firing for a reason that has nothing to do with the rename.
+-- @System.Posix.IO@ issues the @open()@ itself and is outside that table.
+--
+-- This is ALSO why the atomic writer is unaffected: it fills a sibling temp file -- a different
+-- inode -- and then renames, and @rename()@ opens nothing at all.
+write_bytes_torn :: FilePath -> BS.ByteString -> IO ()
+write_bytes_torn path bytes = do
+  fd <- Posix.openFd (C8.pack path) Posix.WriteOnly
+          Posix.defaultFileFlags { Posix.trunc = True, Posix.creat = Just 0o644 }
+  flip finally (Posix.closeFd fd) $ do
+    let (front, back) = BS.splitAt (BS.length bytes `div` 2) bytes
+    _ <- Posix.fdWrite fd front
+    threadDelay 200
+    _ <- Posix.fdWrite fd back
+    pure ()
+
+-- | THE REQUIREMENT, MEASURED: ten seconds of racing and not one unparseable read.
+--
+-- A reader loops on the published file for ten seconds while the main thread republishes as fast
+-- as it can, alternating between two artifacts of different lengths. Every read is classified by
+-- 'classify_published_read' -- this repository's own JSON recogniser plus a decode of the artifact
+-- under the identity -- and the counters are read only after the reader has stopped.
+--
+-- THE FLOOR ARM COMES FIRST and it is not decoration: a race that ran twice is a green check about
+-- nothing, and \"zero torn reads\" is exactly the verdict a harness that never raced produces.
+--
+-- MEASURED at 28-03, by inverting the verdict so the counters were PRINTED rather than inferred
+-- from a green line:
+--
+-- > 142623 publications, 204555 completed reads, 0 unparseable
+--
+-- Three orders of magnitude above the floor of 100 on both counters.
+--
+-- FIRING INPUT, OBSERVED: point this check's publisher at 'torn_race_writer'. It reddens at
+-- @1223305 bad read(s) out of 1326222 completed, across 5953 publications@ -- and
+-- 'a_non_atomic_writer_is_observed_tearing_the_same_reader' stays GREEN under it, which is what
+-- says the two checks are looking at the same thing from opposite sides.
+a_reader_racing_the_publisher_sees_no_torn_fixture :: Check
+a_reader_racing_the_publisher_sees_no_torn_fixture =
+  Check "a_reader_racing_the_publisher_sees_no_torn_fixture" . guarded $ do
+    outcome <- publication_race "loop03-atomic-race" atomic_race_writer
+    pure $ case outcome of
+      Left why -> Left why
+      Right r -> do
+        _ <- expect (null (race_write_fails r))
+               ("A PUBLICATION THREW during the race, so the file the reader was classifying is"
+                 ++ " not the one this check is about: "
+                 ++ intercalate "\n      " (race_write_fails r))
+        _ <- expect (race_publishes r >= race_floor && race_reads r >= race_floor)
+               ("THE RACE BARELY RAN: " ++ show (race_publishes r) ++ " publication(s) and "
+                 ++ show (race_reads r) ++ " completed read(s) over "
+                 ++ show race_window_seconds ++ " seconds, and the floor is "
+                 ++ show race_floor ++ " each. The verdict below is about nothing until both"
+                 ++ " counters clear it, which is why this arm is ordered first.")
+        expect (race_unparseable r == 0)
+          ("A CONSUMER RACING THE PUBLISHER READ A TORN FIXTURE. " ++ show (race_unparseable r)
+            ++ " bad read(s) out of " ++ show (race_reads r) ++ " completed, across "
+            ++ show (race_publishes r) ++ " publications. The rename is what prevents this and"
+            ++ " 'a_non_atomic_writer_is_observed_tearing_the_same_reader' is what shows the"
+            ++ " harness can see it happen. First failures:\n      "
+            ++ intercalate "\n      " (race_samples r))
+
+-- | THE POSITIVE CONTROL, and the check above is worthless without it.
+--
+-- Identical harness, identical documents, identical deadline. The ONLY difference is that the
+-- finished document is streamed into the destination instead of renamed onto it. If this does not
+-- observe a tear then the harness cannot see one at all, and \"zero torn reads\" next door is
+-- unfalsifiable rather than true -- so the failure text says THAT, and the honest response is to
+-- fix the harness rather than to relax either check.
+--
+-- MEASURED at 28-03, by the same inversion that printed the counters next door:
+--
+-- > 6079 publications, 1333592 completed reads, 1240687 unparseable  (93.0%)
+--
+-- Not one marginal sighting: NINE READS IN TEN are torn the moment the rename is removed. That is
+-- the size of the window the sibling check reports as zero, and the two numbers were taken by the
+-- SAME reader against the SAME documents in the same sitting.
+a_non_atomic_writer_is_observed_tearing_the_same_reader :: Check
+a_non_atomic_writer_is_observed_tearing_the_same_reader =
+  Check "a_non_atomic_writer_is_observed_tearing_the_same_reader" . guarded $ do
+    outcome <- publication_race "loop03-torn-control" torn_race_writer
+    pure $ case outcome of
+      Left why -> Left why
+      Right r -> do
+        _ <- expect (null (race_write_fails r))
+               ("A PUBLICATION THREW during the control's race: "
+                 ++ intercalate "\n      " (race_write_fails r))
+        _ <- expect (race_publishes r >= race_floor && race_reads r >= race_floor)
+               ("THE CONTROL BARELY RAN: " ++ show (race_publishes r) ++ " publication(s) and "
+                 ++ show (race_reads r) ++ " completed read(s), floor " ++ show race_floor
+                 ++ " each. A control that did not race observes no tear for the same reason a"
+                 ++ " correct writer does not produce one, and the two are indistinguishable.")
+        expect (race_unparseable r >= 1)
+          ("THE HARNESS CANNOT SEE A TEAR ON THIS MACHINE. A writer with NO temp file and NO"
+            ++ " rename -- truncate, write half, yield, write the rest -- was raced by the same"
+            ++ " reader for " ++ show race_window_seconds ++ " seconds over "
+            ++ show (race_publishes r) ++ " publications and " ++ show (race_reads r)
+            ++ " completed reads, and produced " ++ show (race_unparseable r)
+            ++ " unparseable reads. Until this observes at least one,"
+            ++ " 'a_reader_racing_the_publisher_sees_no_torn_fixture' is unfalsifiable and its"
+            ++ " green verdict is evidence about the harness rather than about the rename. Fix"
+            ++ " the harness -- do NOT relax either check.")
+
+-- | THE SHAPE FLOOR, over 'publish_bytes' alone. Six refusals and one admission.
+--
+-- The @fixture_min_bytes < volume_path_golden_bytes_len@ arm is asserted BEFORE anything is
+-- driven, and it is the arm that stops this whole table from being satisfied vacuously: a floor
+-- set above every real artifact refuses everything, passes its own refusal table, and publishes
+-- nothing forever.
+--
+-- TWO DEPARTURES FROM THE PLAN'S TABLE, BOTH MEASURED RATHER THAN ARGUED.
+--
+-- 1. 28-03-PLAN.md asks that the golden TRUNCATED TO 150 BYTES be refused 'BelowShapeFloor'. It is
+--    not, and it cannot be: 'publish_bytes' decodes FIRST -- the plan's own ordering, and the right
+--    one, because a document that is not an artifact at all should be reported as that rather than
+--    as a small one -- and a 150-byte prefix of the golden stops being JSON long before it gets
+--    small. It comes back 'ArtifactUnparseable', which is asserted here as such. The floor's real
+--    subject is 'publication_undersized_artifact': a document that DECODES and is still too small
+--    to be a solve. Its decode is asserted first, so that arm cannot pass for the truncation's
+--    reason.
+-- 2. 'NotAJsonObject' is driven against 'splice_identity' DIRECTLY. Through 'publish_bytes' it is
+--    unreachable -- the decoder refuses a non-object top level before the splice is called -- and
+--    that unreachability is asserted here too, in the same arm, rather than left as a claim in the
+--    module's haddock.
+--
+-- FIRING INPUT, OBSERVED: fold the zero-pool arm into the shape arm in 'Loop.Publish.publish_bytes'.
+the_shape_floor_refuses_what_it_must_and_admits_the_golden :: Check
+the_shape_floor_refuses_what_it_must_and_admits_the_golden =
+  Check "the_shape_floor_refuses_what_it_must_and_admits_the_golden" . guarded $ do
+    there <- doesFileExist volume_path_golden_file
+    if not there
+      then pure (Left (volume_path_golden_file ++ " is not on disk, so the ADMISSION arm has no"
+                        ++ " subject and a table of refusals alone is satisfied by a floor that"
+                        ++ " refuses everything."))
+      else do
+        golden <- BS.readFile volume_path_golden_file
+        pure $ do
+          _ <- expect (fixture_min_bytes < volume_path_golden_bytes_len)
+                 ("fixture_min_bytes is " ++ show fixture_min_bytes ++ " and the committed golden"
+                   ++ " is " ++ show volume_path_golden_bytes_len ++ " bytes. A floor at or above"
+                   ++ " every real artifact refuses everything and passes every refusal arm below"
+                   ++ " while doing it.")
+          _ <- expect (sha256_hex golden == volume_path_golden_sha256)
+                 ("the golden on disk digests to " ++ sha256_hex golden ++ " and Store.Types pins "
+                   ++ volume_path_golden_sha256 ++ ".")
+          -- THE ADMISSION.
+          _ <- case publish_bytes publication_identity golden of
+                 Left refusal ->
+                   Left ("the COMMITTED GOLDEN was refused publication with " ++ show refusal
+                          ++ ". Every refusal arm below is satisfied by a publisher that refuses"
+                          ++ " everything, and this is the arm that says it does not.")
+                 Right document ->
+                   expect (is_json_value document)
+                     ("the golden was admitted and the document the splice produced is not a JSON"
+                       ++ " value. It begins " ++ show (C8.unpack (BS.take 64 document)) ++ ".")
+          -- THE FLOOR'S REAL SUBJECT: decodes, and is too small.
+          _ <- case decode_artifact publication_undersized_artifact of
+                 Left err ->
+                   Left ("the undersized fixture does not DECODE (" ++ show err ++ "), so the arm"
+                          ++ " below would be about the decoder rather than about the byte floor.")
+                 Right _ ->
+                   expect (BS.length publication_undersized_artifact < fixture_min_bytes)
+                     ("the undersized fixture is "
+                       ++ show (BS.length publication_undersized_artifact) ++ " bytes and the floor"
+                       ++ " is " ++ show fixture_min_bytes ++ ", so it is not under it.")
+          _ <- case publish_bytes publication_identity publication_undersized_artifact of
+                 Left (BelowShapeFloor observed floor_) ->
+                   expect (observed == BS.length publication_undersized_artifact
+                            && floor_ == fixture_min_bytes)
+                     ("BelowShapeFloor reported " ++ show (observed, floor_)
+                       ++ " and the observation is "
+                       ++ show (BS.length publication_undersized_artifact, fixture_min_bytes)
+                       ++ ". A floor reported without the observation is a failure an operator has"
+                       ++ " to reproduce to understand.")
+                 other ->
+                   Left ("a VALID artifact of "
+                          ++ show (BS.length publication_undersized_artifact) ++ " bytes, under a"
+                          ++ " floor of " ++ show fixture_min_bytes ++ ", was answered with "
+                          ++ show other ++ " rather than BelowShapeFloor.")
+          -- THE TRUNCATION. Not the floor: the decoder, and the plan predicted otherwise.
+          _ <- case publish_bytes publication_identity (BS.take 150 golden) of
+                 Left (ArtifactUnparseable _) -> Right ()
+                 other ->
+                   Left ("the golden truncated to 150 bytes was answered with " ++ show other
+                          ++ ", expected ArtifactUnparseable. publish_bytes decodes BEFORE it"
+                          ++ " measures, and a truncation stops being JSON long before it gets"
+                          ++ " small.")
+          -- A WELL-FORMED ARTIFACT WITH ONE dQx ELEMENT TOO FEW: the decoder's own post-condition,
+          -- which is the same equality the consuming forge test asserts.
+          _ <- case publish_bytes publication_identity
+                      (artifact_doc "8" (intercalate "," (map show [1 .. 7 :: Int]))
+                                        (intercalate "," (map show [1 .. 8 :: Int]))) of
+                 Left (ArtifactUnparseable err) ->
+                   expect (artifact_error_kind err == "ShapeMismatch")
+                     ("a short dQx was refused as " ++ artifact_error_kind err
+                       ++ ", expected the decoder's ShapeMismatch.")
+                 other ->
+                   Left ("an artifact whose dQx is one element shorter than nEvents was answered"
+                          ++ " with " ++ show other ++ ". That is the equality the consuming forge"
+                          ++ " test asserts at assertEq(dQx.length, nEvents), and the publisher"
+                          ++ " borrows it from the decoder rather than restating it.")
+          -- THE ZERO POOL, ON ITS OWN ARM.
+          _ <- case publish_bytes (FixtureIdentity 0 (AtBlock 4242) loop_chain_id) golden of
+                 Left PoolIsTheZeroAddress -> Right ()
+                 other ->
+                   Left ("a ZERO pool was answered with " ++ show other
+                          ++ ", expected PoolIsTheZeroAddress. The zero address is SHAPE-VALID --"
+                          ++ " it is forty hex digits -- so folding this arm into the shape arm"
+                          ++ " leaves it unreachable, which 27-03 MEASURED.")
+          -- A POOL ABOVE THE ADDRESS CEILING. render_address_token does NOT mask, so it renders
+          -- LONGER rather than wrapping into a plausible pool nobody measured.
+          _ <- case publish_bytes
+                      (FixtureIdentity (2 ^ (160 :: Int)) (AtBlock 4242) loop_chain_id) golden of
+                 Left (PoolIsNotAnAddressToken token) ->
+                   expect (length token /= 2 + address_hex_digits)
+                     ("a pool above the address ceiling rendered as " ++ show token
+                       ++ ", which is " ++ show (2 + address_hex_digits) ++ " characters after"
+                       ++ " all -- so the value was MASKED somewhere and the refusal is about"
+                       ++ " something else.")
+                 other ->
+                   Left ("a pool of 2^160 was answered with " ++ show other
+                          ++ ", expected PoolIsNotAnAddressToken.")
+          -- A NON-OBJECT PAYLOAD, at the splice and at the caller.
+          _ <- case splice_identity publication_identity (C8.pack "[1,2,3]") of
+                 Left (NotAJsonObject found) ->
+                   expect ("[1,2,3]" `isPrefixOf` found)
+                     ("NotAJsonObject reported " ++ show found ++ " and the payload begins"
+                       ++ " \"[1,2,3]\". The refusal names what was found instead of a brace, or an"
+                       ++ " operator cannot tell an array from an empty file.")
+                 other ->
+                   Left ("splice_identity over a JSON ARRAY answered " ++ show other
+                          ++ ", expected NotAJsonObject.")
+          case publish_bytes publication_identity (C8.pack "[1,2,3]") of
+            Left (ArtifactUnparseable _) -> Right ()
+            other ->
+              Left ("through publish_bytes the same array was answered with " ++ show other
+                     ++ ", expected ArtifactUnparseable. The decoder runs first and refuses a"
+                     ++ " non-object top level, which is exactly why the NotAJsonObject branch is"
+                     ++ " exercised against splice_identity directly rather than through a caller"
+                     ++ " that cannot produce it.")
+
+-- | Every top-level key NAME in a JSON object, taken from the bytes themselves.
+--
+-- A quoted token immediately followed by optional whitespace and a colon. Written by hand rather
+-- than taken from a JSON library for the reason the whole publication path avoids one: what is
+-- being asserted is that particular BYTES survived a splice, and a value type in the middle of
+-- that assertion is a second renderer sitting exactly where the first one is under test. It is
+-- deliberately not a parser -- it does not know nesting -- and the check that uses it asserts a
+-- floor on how many names it found, so a broken extractor cannot make the arm vacuous.
+json_key_tokens :: BS.ByteString -> [String]
+json_key_tokens = go . C8.unpack
+  where
+    go ('"' : rest) =
+      let (name, after) = span (/= '"') rest
+      in case dropWhile (`elem` (" \t\n\r" :: String)) (drop 1 after) of
+           (':' : _) -> name : go (drop 1 after)
+           _         -> go (drop 1 after)
+    go (_ : rest) = go rest
+    go []         = []
+
+-- | THE SOLVER'S BYTES, VERBATIM, behind three spliced identity fields.
+--
+-- The comparison is against the GOLDEN ITSELF and never against a re-serialisation of it: the
+-- published document's tail after the identity prefix must be the golden's own tail after its
+-- opening brace, byte for byte. Then the decimal digit string of @dQx[0]@, taken from
+-- 'Gams.Artifact''s decode of the golden rather than written here, must occur verbatim in the
+-- published bytes -- that element is @-2613128317657530400@, above the 53-bit exact ceiling, and
+-- BYTE-04 measured that class of value moving by 32 wei through a carrier that re-renders it.
+--
+-- No artifact field VALUE and no artifact key NAME is spelled in this check. The key names are
+-- extracted from the golden's own bytes; only @pool@, @blockNumber@ and @chainId@ are written by
+-- hand, because those three are the CONTRACT issue #29 handed across the workstream boundary and a
+-- key set derived from the producer is the producer agreeing with itself (27-03).
+--
+-- == THE FIRING INPUT, AND THE PLAN'S PREDICTION ABOUT IT WAS WRONG
+--
+-- 28-03-PLAN.md says: re-render the artifact through the suite's JSON value type instead of
+-- splicing, and \"the @dQx[0]@ digit-string arm must redden\". MEASURED, in two steps, and the
+-- prediction does not hold in the form it was written.
+--
+-- 1. @splice_identity@ replaced by @encode <$> decodeStrict@ over @Data.Aeson.Value@. The BYTE
+--    arm reddens -- @the published tail is 539 bytes and the golden's own tail after its opening
+--    brace is 605@ -- and the @dQx[0]@ arm is never reached. With the byte arm neutered so the
+--    later arms could run, the whole check came back GREEN: the digit string SURVIVES an aeson
+--    round trip. @Value@ carries a number as @Data.Scientific.Scientific@, which is
+--    arbitrary-precision, and its encoder prints an integral value verbatim. The 539 against 605
+--    is whitespace and key order, not digits.
+-- 2. The same re-render with every number pushed through @Double@ and back --
+--    @realToFrac (realToFrac n :: Double)@ -- IS what the arm was written for, and it reddens
+--    exactly as stated: @the decimal digit string of dQx[0] -- -2613128317657530400 -- does not
+--    occur in the published bytes@. Three structural guards went red in the same run:
+--    'aeson_is_absent_from_the_storage_path', 'no_Double_and_no_aeson_on_the_artifact_path' and
+--    'no_floating_value_is_on_the_fee_path'.
+--
+-- So the two arms catch DIFFERENT re-renderers and neither is redundant. The byte arm catches any
+-- rebuild at all, including an exact one. The digit-string arm names the carrier BYTE-04 measured
+-- losing 32 wei, and that carrier is @Double@ -- never \"a JSON value type\" in general.
+the_published_fixture_carries_the_artifact_bytes_verbatim :: Check
+the_published_fixture_carries_the_artifact_bytes_verbatim =
+  Check "the_published_fixture_carries_the_artifact_bytes_verbatim" . guarded $ do
+    there <- doesFileExist volume_path_golden_file
+    if not there
+      then pure (Left (volume_path_golden_file ++ " is not on disk; this check has no subject."))
+      else do
+        golden <- BS.readFile volume_path_golden_file
+        pure $ do
+          _ <- expect (sha256_hex golden == volume_path_golden_sha256)
+                 ("the golden on disk digests to " ++ sha256_hex golden ++ " and Store.Types pins "
+                   ++ volume_path_golden_sha256 ++ ", so the bytes below are not the pinned ones.")
+          artifact <- case decode_artifact golden of
+                        Left err -> Left ("the committed golden did not decode: " ++ show err)
+                        Right a  -> Right a
+          first_dqx <- case pa_dqx artifact of
+                         (v : _) -> Right v
+                         []      -> Left ("the golden's dQx is empty, so there is no element to"
+                                            ++ " follow through the splice.")
+          document <- case publish_bytes publication_identity golden of
+                        Left refusal -> Left ("the golden was refused: " ++ show refusal)
+                        Right d      -> Right d
+          let prefix     = identity_prefix publication_identity
+              tail_out   = BS.drop (BS.length prefix) document
+              tail_in    = BS.drop 1 (BS.dropWhile (/= 123) golden)
+              keys       = json_key_tokens golden
+              contract   = ["pool", "blockNumber", "chainId"]
+              missing ks = [k | k <- ks, not (C8.pack ("\"" ++ k ++ "\"") `BS.isInfixOf` document)]
+          _ <- expect (prefix `BS.isPrefixOf` document)
+                 ("the published document does not begin with the identity prefix. It begins "
+                   ++ show (C8.unpack (BS.take 64 document)) ++ ".")
+          _ <- expect (tail_out == tail_in)
+                 ("THE ARTIFACT'S BYTES DID NOT SURVIVE THE SPLICE. The published tail is "
+                   ++ show (BS.length tail_out) ++ " bytes and the golden's own tail after its"
+                   ++ " opening brace is " ++ show (BS.length tail_in) ++ ". The publisher emits"
+                   ++ " the stored bytes; it does not decode them and print them back.")
+          _ <- expect (C8.pack (show first_dqx) `BS.isInfixOf` document)
+                 ("the decimal digit string of dQx[0] -- " ++ show first_dqx
+                   ++ ", read out of the decoder rather than written here -- does not occur in the"
+                   ++ " published bytes. That element is above the 53-bit exact ceiling and BYTE-04"
+                   ++ " measured its class moving by 32 wei through a carrier that re-renders it,"
+                   ++ " so a publisher that rebuilt the document is the defect this arm exists"
+                   ++ " for.")
+          _ <- expect (length keys >= 10)
+                 ("the key extractor found " ++ show (length keys) ++ " top-level names in the"
+                   ++ " golden (" ++ show keys ++ ") and the golden carries ten fields. Every arm"
+                   ++ " below is vacuous under an extractor that found nothing.")
+          _ <- expect (null (missing keys))
+                 ("the published document is missing the artifact key(s) " ++ show (missing keys)
+                   ++ ", which were read out of the golden's own bytes.")
+          _ <- expect (all (`notElem` keys) contract)
+                 ("the golden already carries one of " ++ show contract ++ " -- its own keys are "
+                   ++ show keys ++ ". The three identity fields must come from the SPLICE, and an"
+                   ++ " arm that found them in the artifact would pass without the splice"
+                   ++ " happening.")
+          expect (null (missing contract))
+            ("the published document is missing the contract key(s) " ++ show (missing contract)
+              ++ ". Those three are what issue #29 handed back across the workstream boundary and"
+              ++ " they are the only key names written by hand in this check.")
+
+-- | Two event positions in DIFFERENT blocks whose fee splits agree, found rather than written.
+--
+-- 'Loop.Run.split_seed' derives the splitter's seed from the event's POSITION, so two events at
+-- different heights normally land on different @(phi_x, phi_m)@ pairs, which are content-key
+-- components -- and then there is no cache hit to observe at all. The band for the fixture pool
+-- has 2900 members, so agreeing pairs exist and are found by search; writing a pair of blocks out
+-- here would be a constant that keeps agreeing with itself after the mixer moves.
+--
+-- The SEARCH goes through 'pick_from_band' over a band computed ONCE, which is the same selector
+-- 'split_for' uses -- @split_for@ rebuilds the 2900-member band on every call and 600 of those is
+-- minutes of the suite's wall clock. The two positions it returns are then CONFIRMED through the
+-- full 'split_for' by the check itself, so the cheap search decides nothing on its own.
+--
+-- Returns both positions and both pairs, so the check asserts the premise in both directions
+-- rather than trusting this function.
+publication_colliding_positions
+  :: Either String ((Integer, Integer), (Integer, Integer), (Integer, Integer), (Integer, Integer))
+publication_colliding_positions =
+  case decode_shock shock_topic0 shock_emitter (loop_mined_log 1 0) of
+    Left why -> Left ("the fixture log does not decode as a shock: " ++ show why)
+    Right ev ->
+      let band = admissible_band lp_fee (se_norm_rate ev)
+      in if length band < 2
+           then Left ("the fixture pool's admissible band has " ++ show (length band)
+                       ++ " member(s), so every seed resolves to the same pair and a collision"
+                       ++ " between two heights would say nothing about the splitter.")
+           else search band [] [(b, 0) | b <- [1 .. 600]]
+  where
+    lp_fee = case loop_pool_reading of (_, _, f) -> f
+
+    search _ _ [] =
+      Left ("no two of the first 600 blocks pick the same pair out of the fixture pool's band, so"
+             ++ " there is no pair of DISTINCT heights carrying an identical shock and the cache"
+             ++ " hit this check is about cannot be staged.")
+    search band seen ((b, i) : rest) =
+      case pick_from_band (split_seed b i) band of
+        Nothing -> search band seen rest
+        Just pair ->
+          case [p | (q, p) <- seen, q == pair] of
+            ((b0, i0) : _) | b0 /= b -> Right ((b0, i0), (b, i), pair, pair)
+            _                        -> search band ((pair, (b, i)) : seen) rest
+
+-- | The pair 'Loop.Run.process_block' will actually key an event at this position with.
+--
+-- Through the FULL 'split_for' rather than through the band selector the search above uses, so the
+-- check confirms its own premise against the function the loop calls rather than against the
+-- shortcut that found the positions.
+publication_split_at :: Integer -> Integer -> Either String (Integer, Integer)
+publication_split_at b i =
+  case decode_shock shock_topic0 shock_emitter (loop_mined_log b i) of
+    Left why -> Left ("the log at " ++ show (b, i) ++ " does not decode: " ++ show why)
+    Right ev ->
+      case loop_pool_reading of
+        (_, _, lp_fee) ->
+          case split_for (split_seed b i) lp_fee (se_norm_rate ev) of
+            Left refusal -> Left ("the split at " ++ show (b, i) ++ " was refused: "
+                                   ++ show refusal)
+            Right fee    -> Right (fs_phi_x_pips fee, fs_phi_m_pips fee)
+
+-- | LOOP-03's cache clause: an ELIDED outcome still publishes, stamped with THIS EVENT'S block.
+--
+-- Two distinct events carrying an identical shock at two different heights, driven through
+-- 'Loop.Run.process_block' over 'Store.Memory' and a counting stub solver. The solver runs once --
+-- that is what makes the second one a hit rather than a second solve -- and both blocks publish.
+--
+-- The two facts that matter are asserted TOGETHER and neither is sufficient: the fixture on disk
+-- after the second block carries the SECOND block's number, and its artifact bytes are byte-
+-- identical to the first publication's. The bytes are content-keyed and the identity fields are
+-- per-event; a publisher that stamped the block the bytes were first SOLVED at would point the
+-- consuming test at a height nothing had just observed, and a publisher that re-solved would move
+-- the bytes.
+--
+-- BOTH READS ARE GUARDED BY @doesFileExist@ RATHER THAN LEFT TO THROW, and that is a measurement
+-- rather than caution: under the M5 firing input -- a byte floor above every real artifact --
+-- nothing was published and this check came back @unexpected IO error: ...volume_path.json:
+-- withBinaryFile: does not exist@. That is the right verdict reported in the least useful way, and
+-- an anonymous IO error at 'guarded' says nothing about which of the two blocks failed to publish.
+--
+-- FIRING INPUT, OBSERVED: skip publication on 'OutcomeElided' in 'Loop.Run.process_block'.
+a_cache_hit_publishes_at_the_events_own_block :: Check
+a_cache_hit_publishes_at_the_events_own_block =
+  Check "a_cache_hit_publishes_at_the_events_own_block" . guarded $
+    case (,) <$> cache_setting <*> publication_colliding_positions of
+      Left err -> pure (Left err)
+      Right ((ident, _key, produced), ((b1, i1), (b2, i2), _, _)) -> do
+        logs_ref <- newIORef [(b1, [loop_mined_log b1 i1]), (b2, [loop_mined_log b2 i2])]
+        head_ref <- newIORef b2
+        asked    <- newIORef []
+        store    <- new_memory_store
+        ledger   <- new_memory_ledger
+        (solver, invocations) <- cache_solver "the-solver-behind-a-cache-hit" produced
+        publish_dir <- fresh_temp_dir "loop03-cache-hit"
+        let source = loop_chain logs_ref head_ref asked
+            env    = loop_env store ledger solver source publish_dir
+            path   = publish_dir </> fixture_file_name
+
+        (_, first_report)  <- process_block env ident b1
+        after_first        <- invocations
+        first_read         <- read_if_present path
+        (_, second_report) <- process_block env ident b2
+        after_both         <- invocations
+        second_read        <- read_if_present path
+
+        let first_document  = fromMaybe BS.empty first_read
+            second_document = fromMaybe BS.empty second_read
+            prefix1  = identity_prefix (FixtureIdentity loop_pool_id (AtBlock b1) loop_chain_id)
+            prefix2  = identity_prefix (FixtureIdentity loop_pool_id (AtBlock b2) loop_chain_id)
+            payload1 = BS.drop (BS.length prefix1) first_document
+            payload2 = BS.drop (BS.length prefix2) second_document
+            stamp b  = C8.pack ("\"blockNumber\":\"" ++ show b ++ "\"")
+        pure $ do
+          _ <- expect (isJust first_read && isJust second_read)
+                 ("NOTHING WAS PUBLISHED: after block " ++ show b1 ++ " the fixture at "
+                   ++ show path ++ (if isJust first_read then " was present" else " was ABSENT")
+                   ++ ", and after block " ++ show b2
+                   ++ (if isJust second_read then " it was present" else " it was ABSENT")
+                   ++ ". Notes: " ++ intercalate " | "
+                        (br_notes first_report ++ br_notes second_report))
+          split1 <- publication_split_at b1 i1
+          split2 <- publication_split_at b2 i2
+          _ <- expect (b1 /= b2 && split1 == split2)
+                 ("the two staged positions are " ++ show (b1, i1) ++ " and " ++ show (b2, i2)
+                   ++ ", and split_for -- the function the loop itself calls -- answers "
+                   ++ show split1 ++ " and " ++ show split2
+                   ++ ". They must sit at DIFFERENT heights and carry an IDENTICAL shock, or there"
+                   ++ " is no cache hit here and every arm below is about two ordinary solves.")
+          _ <- expect (after_first == 1)
+                 ("the solver was invoked " ++ show after_first ++ " times for the FIRST event,"
+                   ++ " expected exactly 1.")
+          _ <- expect (after_both == 1)
+                 ("the solver was invoked " ++ show after_both ++ " times across two events"
+                   ++ " carrying an identical shock, expected 1. Without the elision the second"
+                   ++ " publication is a second solve and this check is not about a cache hit.")
+          _ <- expect (map er_outcome (br_outcomes second_report)
+                         == [outcome_token LS.OutcomeElided])
+                 ("the SECOND block's outcomes are "
+                   ++ show (map er_outcome (br_outcomes second_report)) ++ ", expected exactly "
+                   ++ show [outcome_token LS.OutcomeElided] ++ ".")
+          _ <- expect (br_published first_report)
+                 ("the FIRST block reports br_published = False. br_published means BYTES REACHED"
+                   ++ " DISK, and the notes say why not: "
+                   ++ intercalate " | " (br_notes first_report))
+          _ <- expect (br_published second_report)
+                 ("THE CACHE HIT DID NOT PUBLISH. The second block reports br_published = False."
+                   ++ " An elided outcome carries the stored bytes and LOOP-03's \"newest run\""
+                   ++ " means the newest EVENT, so a hit is still news. Notes: "
+                   ++ intercalate " | " (br_notes second_report))
+          _ <- expect (br_fixture second_report == path)
+                 ("the second block reports the fixture at " ++ show (br_fixture second_report)
+                   ++ " and the file this check read is " ++ show path ++ ".")
+          _ <- expect (prefix1 `BS.isPrefixOf` first_document
+                        && prefix2 `BS.isPrefixOf` second_document)
+                 ("a published document does not begin with the identity prefix for its own"
+                   ++ " block. The first begins " ++ show (C8.unpack (BS.take 48 first_document))
+                   ++ " and the second " ++ show (C8.unpack (BS.take 48 second_document)) ++ ".")
+          _ <- expect (stamp b2 `BS.isInfixOf` second_document)
+                 ("after the second block the fixture does not carry \"blockNumber\":\""
+                   ++ show b2 ++ "\". It begins "
+                   ++ show (C8.unpack (BS.take 96 second_document))
+                   ++ ". The identity fields describe the EVENT, and the block the bytes were first"
+                   ++ " solved at is not it.")
+          _ <- expect (not (stamp b1 `BS.isInfixOf` second_document))
+                 ("after the second block the fixture still carries the FIRST block's number ("
+                   ++ show b1 ++ "), so the publication was not restamped.")
+          expect (payload1 == payload2)
+            ("the artifact bytes MOVED between the two publications: "
+              ++ show (BS.length payload1) ++ " bytes then " ++ show (BS.length payload2)
+              ++ ". The second event was a cache hit, so it must publish the bytes the first one"
+              ++ " stored -- byte for byte -- with only the identity fields differing.")
 
 -- ---------------------------------------------------------------------------------------------
 -- Runner
@@ -18777,6 +19548,15 @@ core_checks = do
           , a_log_without_an_identity_is_refused_by_field_name
           , the_loop_exit_codes_are_total_and_disjoint_from_the_gams_domain
           , an_unparseable_poll_interval_is_refused_rather_than_defaulted
+          -- 28-03. LOOP-03: the atomic publication, the shape floor and the identity splice.
+          -- Every one publishes into a temporary directory; the real publication directory belongs
+          -- to another workstream and is never created here. The first two are a matched pair --
+          -- the second is what makes the first falsifiable.
+          , a_reader_racing_the_publisher_sees_no_torn_fixture
+          , a_non_atomic_writer_is_observed_tearing_the_same_reader
+          , the_shape_floor_refuses_what_it_must_and_admits_the_golden
+          , the_published_fixture_carries_the_artifact_bytes_verbatim
+          , a_cache_hit_publishes_at_the_events_own_block
           ]
             ++ per_pin_checks pins
   pure checks
