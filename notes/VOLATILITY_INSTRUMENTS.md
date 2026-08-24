@@ -486,7 +486,7 @@ WELL-POSEDNESS is PROVED: \(\kappa_{\varphi} \in (0,1)\) and \(\bar\nu_{\varphi}
 
 **Theorem 45 (Principal payoff structure).** (i) Definition 9's amounts invert the liquidity maps in both directions (`amounts_invert_liquidity`); (ii) in range, \(\pi^{\Delta Q_X}\) is the asset amount held on \([p_{(\eta,\Delta_i)}(i_K), p_{1/2}]\) plus \(p_{1/2}^{2}\) times the money amount held on \([p_{1/2}, p_{(\eta,\Delta_i)}(i_K+\Delta_i)]\) (`principal_inRange`); (iii) continuous in \(p_{1/2}\) (`principal_continuous`); (iv) **concave in the PRICE \(p_{1/2}^{2}\) — NOT in \(p_{1/2}\)** (below the range it is \(p_{1/2}^{2}\Delta Q_M^{L}\), convex in \(p_{1/2}\); refuted numerically): proved as the infimum of the in-range tangent family \(T_t(P) = L\,(t - p_{(\eta,\Delta_i)}(i_K) + P/t - P/p_{(\eta,\Delta_i)}(i_K+\Delta_i))\), \(t\) in the range (`principal_concaveOn_price`).
 
-**Proposition 17 (The principal payoff is Definition 38's carrier).** In range, the second derivative of \(\pi^{\Delta Q_X}\) in the price \(P = p_{1/2}^{2}\) is \(-\tfrac12\,L(i_K)\,P^{-3/2} = -\tfrac12\,L(i_K)\,\Gamma_{\varphi}(P)\) — exactly Theorem 38's grid value \(-\tfrac12\,\bar L_{(1/2,0)}\,\Gamma_{\varphi}(i)\) read per strike. The principal payoff IS the payoff whose second derivative Definition 38 names; the gamma atlas and the ladder-replication block share one carrier. *Asserted* (calculus on Definition 49's in-range branch); machine proof queued with the per-tick CLMM identity bundle.
+**Theorem 48 (The principal payoff is Definition 38's carrier) — promoted from Proposition 17 (number retired).** In range, the second derivative of \(\pi^{\Delta Q_X}\) in the price \(P = p_{1/2}^{2}\) is \(-\tfrac12\,L(i_K)\,P^{-3/2} = -\tfrac12\,L(i_K)\,\Gamma_{\varphi}(P)\) — exactly Theorem 38's grid value \(-\tfrac12\,\bar L_{(1/2,0)}\,\Gamma_{\varphi}(i)\) read per strike. The principal payoff IS the payoff whose second derivative Definition 38 names; the gamma atlas and the ladder-replication block share one carrier. *Formalized* (`ClmmIdentity`, project `63e575db`, 5/5 axiom-clean): `principal_price_second_deriv` on the open price range \((p_{(\eta,\Delta_i)}(i_K)^{2},\ p_{(\eta,\Delta_i)}(i_K+\Delta_i)^{2})\).
 
 **Definition 50 (Two-kernel geometric profile — the first \(\theta_{\text{LDF}}\) instance).** With the strike at rung \(\iota_P\) of \(\iota\) (derived from \(i^{\star}\), never free), the put kernel of base \(\xi_P\) on rungs \([0,\iota_P)\) and the call kernel of base \(\xi_C\) on \([\iota_P,\iota)\), each Rule 3's \(\ell(\xi,\cdot;\cdot)\) normalized on its own sub-span, mixed with weight \(\omega\) on the put side:
 
@@ -503,6 +503,26 @@ WELL-POSEDNESS is PROVED: \(\kappa_{\varphi} \in (0,1)\) and \(\bar\nu_{\varphi}
 **Theorem 46 (Collapse and bin laws).** (i) Partition of unity for every \(\omega\) (`mixWeight_sum`); (ii) with a common base \(\xi\), the two-kernel profile equals \(\ell(\xi,\iota;\cdot)\) on every rung **iff** \(\omega = (1-\xi^{\iota_P})/(1-\xi^{\iota})\) — the single profile's put-side mass (`mix_eq_single_iff`); (iii) **binning loss**: over a fixed bin with positive per-rung conversion weights \(c_x\), the \(c\)-weighted mean minimizes \(\sum_x c_x(L_x-m)^{2}\) (`wMean_minimizes`) — the Panoptic leg liquidity is this mean, never the sum.
 
 **Theorem 47 (\(\xi^{\star}\) as the \(L^{2}\) argmin — the liquidity layer).** The log-contract profile \(K^{-1/2}\) sampled on the price grid and normalized over \(\iota\) rungs **is** \(\ell(\xi^{\star},\iota;\cdot)\), \(\xi^{\star}=\lambda^{-\Delta_i/2}\) (`logLiqWeight_eq_geom`); over the geometric family the finite-sum \(L^{2}\) distance to it is minimized at \(\xi^{\star}\), with distance 0, uniquely for \(\iota\ge2\) (`xiStar_argmin`). This is Theorem 42's liquidity-layer ratio, not the strike-notional \(\lambda^{-\Delta_i}\) of the \(dK/K^{2}\) weights — the two layers remain distinct.
+
+**Theorem 49 (The per-tick CLMM identity).** Write \(a = p_{(\eta,\Delta_i)}(i_K)\), \(b = p_{(\eta,\Delta_i)}(i_K+\Delta_i)\), the sqrt-strike \(k = \sqrt{ab}\) and the sqrt-price ratio \(r = b/a\). With the range accrual note
+
+\[
+	\mathrm{RAN}(k, r;\,p_{1/2}) \, \equiv \,
+	\begin{cases}
+		0 & p_{1/2} < k/\sqrt r\\
+		\big(2p_{1/2}k\sqrt r - p_{1/2}^{2}r - k^{2}\big)/(r-1) & k/\sqrt r \le p_{1/2} < k\\
+		\big(2p_{1/2}k\sqrt r - p_{1/2}^{2} - k^{2}r\big)/(r-1) & k \le p_{1/2} < k\sqrt r\\
+		0 & p_{1/2} \ge k\sqrt r
+	\end{cases}
+\]
+
+and the unit CLMM payoff \(U(k,r;p_{1/2}) \equiv \min(p_{1/2}^{2}, k^{2}) + \mathrm{RAN}(k,r;p_{1/2})\) (covered call plus RAN), the principal payoff factors for EVERY \(p_{1/2} > 0\) as
+
+\[
+	\pi^{\Delta Q_X}(i_K;\,p_{1/2}) \, = \, \Delta Q_M^{L}(i_K)\cdot U(k, r;\,p_{1/2})
+\]
+
+— the normalization is the unit chunk's MONEY-leg amount, a function of \((i_K, \Delta_i)\), not a per-spacing constant, and \(r\) is the SQRT-price ratio. \(\mathrm{RAN}\) vanishes at both range endpoints, is non-positive on the range (needs only \(r > 1\)), and equals \(-k^{2}(\sqrt r-1)^{2}/(r-1)\) at the strike; on the two arms it reduces to \(-b(p_{1/2}-a)^{2}/(b-a)\) and \(a(2p_{1/2}b - p_{1/2}^{2} - b^{2})/(b-a)\). *Formalized* (`ClmmIdentity`, project `63e575db`, 5/5 axiom-clean): `ran`, `unitPayoff`, `principal_eq_amount0_mul_unit`, `ran_endpoints`, `ran_nonpos`, `ran_at_strike`. Scratchpad witness: cfmm-volInstrumentsFormal PR #53 (45 grid points).
 
 
 
