@@ -77,6 +77,7 @@ import System.Directory
 import System.Exit (ExitCode (..))
 import System.FilePath (isAbsolute, takeFileName, (</>))
 import System.IO.Error (isAlreadyExistsError)
+import System.Posix.Process (getProcessID)
 import System.Process
   ( CreateProcess (..)
   , proc
@@ -262,7 +263,8 @@ with_fresh_probe_dir body = do
   where
     allocate tmp = do
       u <- newUnique
-      let dir = tmp </> ("cfmm-gams-probe-" ++ show (hashUnique u))
+      pid <- getProcessID
+      let dir = tmp </> ("cfmm-gams-probe-" ++ show pid ++ "-" ++ show (hashUnique u))
       made <- try (createDirectory dir)
       case made of
         Right () -> pure dir

@@ -85,6 +85,7 @@ import GHC.Clock (getMonotonicTime, getMonotonicTimeNSec)
 -- "resource busy (file is locked)" while the harness's reader holds the same file open, which is
 -- the runtime protecting exactly the invariant the control exists to violate.
 import qualified System.Posix.IO.ByteString as Posix
+import System.Posix.Process (getProcessID)
 
 import Rig.Manifest
   ( PinEntry (..)
@@ -1173,7 +1174,7 @@ sc3_corrupted_manifest_fails = Check "sc3_corrupted_manifest_fails" . guarded $ 
   if not present
     then pure (Left ("no " ++ mf ++ " -- stand the rig up first: " ++ deploy_command))
     else do
-      tmp <- getTemporaryDirectory
+      tmp <- suite_tmp
       let missing_path = tmp </> "rig-manifest-missing-contract.json"
           broken_path  = tmp </> "rig-manifest-not-json.json"
       decoded <- eitherDecodeFileStrict mf :: IO (Either String Value)
@@ -1505,7 +1506,7 @@ purge_control_literal = "0x" ++ replicate 40 'a'
 -- unscanned one. Returns the assertion, so the caller orders it first.
 purge_positive_control :: IO (Either String ())
 purge_positive_control = do
-  tmp <- getTemporaryDirectory
+  tmp <- suite_tmp
   let dir      = tmp </> "sc3-purge-positive-control"
       hs_bait  = dir </> "bait.hs"
       sh_bait  = dir </> "bait.sh"
@@ -4844,7 +4845,7 @@ driv01_capture_round_trips = Check "driv01_capture_round_trips" . guarded $ do
   original <- lookupEnv capture_env_var
   let restore = maybe (unsetEnv capture_env_var) (setEnv capture_env_var) original
 
-  tmp <- getTemporaryDirectory
+  tmp <- suite_tmp
   let path = tmp </> "driv01-capture-round-trip.json"
 
   decoded <- flip finally restore $ do
@@ -6932,7 +6933,7 @@ harness_probe_key = "__sentinel_harness_probe"
 sentinel_falsification_harness :: Check
 sentinel_falsification_harness =
   Check "sentinel_falsification_harness" . guarded $ do
-    tmp <- getTemporaryDirectory
+    tmp <- suite_tmp
     let scratch_dir = tmp </> "cfmm-sentinel-falsification"
     -- The directory is guarded before it is created, not only the writes into it, so the harness
     -- does not leave so much as an empty directory behind inside the tree.
@@ -8575,7 +8576,7 @@ credential_innocent_source =
 -- caller orders it FIRST.
 credential_positive_control :: IO (Either String ())
 credential_positive_control = do
-  tmp <- getTemporaryDirectory
+  tmp <- suite_tmp
   let dir       = tmp </> "db02-credential-positive-control"
       bait      = dir </> "bait.sh"
       innocent  = dir </> "clean.sh"
@@ -8817,7 +8818,7 @@ aeson_bait_source =
 -- than about grep's willingness to match something.
 aeson_positive_control :: IO (Either String ())
 aeson_positive_control = do
-  tmp <- getTemporaryDirectory
+  tmp <- suite_tmp
   let dir       = tmp </> "byte03-aeson-positive-control"
       bait      = dir </> "bait.hs"
       innocent  = dir </> "clean.hs"
@@ -9058,7 +9059,7 @@ gams_version_bait_source =
 -- caller orders it FIRST.
 gams_version_positive_control :: IO (Either String ())
 gams_version_positive_control = do
-  tmp <- getTemporaryDirectory
+  tmp <- suite_tmp
   let dir       = tmp </> "gams03-version-positive-control"
       bait      = dir </> "bait.hs"
       innocent  = dir </> "clean.hs"
@@ -9852,7 +9853,7 @@ artifact_float_bait_source =
 -- caller orders it FIRST.
 artifact_float_positive_control :: IO (Either String ())
 artifact_float_positive_control = do
-  tmp <- getTemporaryDirectory
+  tmp <- suite_tmp
   let dir       = tmp </> "byte04-float-positive-control"
       bait      = dir </> "bait.hs"
       innocent  = dir </> "clean.hs"
@@ -10148,9 +10149,25 @@ stub_clean_saying line =
 --
 -- The model file must EXIST: 'Gams.Run.run_prover' digests it into 'ToolchainIdentity', so a run
 -- against a model that is not there fails loudly rather than recording an absent source.
+-- | The scratch root every check builds its temporary files under: the system temp directory
+-- with THIS PROCESS's id appended. Issue #40, third instance (2026-08-24): the self-hosted gate
+-- runner is this laptop, so a gate's copy of this suite runs CONCURRENTLY with a developer's.
+-- With fixed names ("$TMPDIR/gams24-tier-b-hung-grandchild", "$TMPDIR/cfmm-sentinel-falsification",
+-- ...) the two runs overwrote each other's pidfiles and control files and deleted each other's
+-- scratch mid-check -- observed as an empty /proc/<pid>/stat "SURVIVED the timeout" from the
+-- reaper check and as sc3_load_succeeds decoding the OTHER run's control-negative.json as an
+-- INCOMPLETE manifest. Nineteen sites, one root, one process id.
+suite_tmp :: IO FilePath
+suite_tmp = do
+  tmp <- getTemporaryDirectory
+  pid <- getProcessID
+  let dir = tmp </> ("cfmm-suite-" ++ show pid)
+  createDirectoryIfMissing True dir
+  pure dir
+
 with_tier_b_scratch :: String -> (FilePath -> IO a) -> IO a
 with_tier_b_scratch label body = do
-  tmp <- getTemporaryDirectory
+  tmp <- suite_tmp
   dir <- makeAbsolute (tmp </> ("gams24-tier-b-" ++ label))
   createDirectoryIfMissing True dir
   writeFile (dir </> gams_model_basename)
@@ -11100,7 +11117,7 @@ gams_verdict_scope_is_decided_module_by_module =
 -- caller orders it FIRST, following 'aeson_positive_control'.
 gams_stream_positive_control :: IO (Either String ())
 gams_stream_positive_control = do
-  tmp <- getTemporaryDirectory
+  tmp <- suite_tmp
   let dir       = tmp </> "gams24-stream-positive-control"
       bait      = dir </> "bait.hs"
       innocent  = dir </> "clean.hs"
@@ -12055,8 +12072,13 @@ detect_probe_dir_prefix = "cfmm-gams-probe-"
 detect_probe_dirs :: IO [FilePath]
 detect_probe_dirs = do
   tmp <- getTemporaryDirectory
+  pid <- getProcessID
   entries <- listDirectory tmp
-  pure (sort [e | e <- entries, detect_probe_dir_prefix `isPrefixOf` e])
+  -- Only THIS process's probe directories: the library names them with its pid (issue #40 --
+  -- the gate runner's copy of this suite runs on the same laptop and its probes were being
+  -- counted as this run's leftovers).
+  let mine = detect_probe_dir_prefix ++ show pid ++ "-"
+  pure (sort [e | e <- entries, mine `isPrefixOf` e])
 
 -- | S1 DRIVEN END TO END, AGAINST A STUB THIS CHECK WROTE.
 --
@@ -12088,7 +12110,7 @@ detect_toolchain_is_driven_end_to_end_against_a_stub =
               Left why -> pure (Left why)
               Right positive -> do
                 let probe_output = unlines [positive, detect_conopt_line want_conopt]
-                tmp <- getTemporaryDirectory
+                tmp <- suite_tmp
                 dir <- makeAbsolute (tmp </> "gams28-detect-stub")
                 createDirectoryIfMissing True dir
                 flip finally (removeDirectoryRecursive dir) $ do
@@ -12226,7 +12248,7 @@ gams_free_innocent_source =
 -- caller orders it FIRST, following 'credential_positive_control'.
 gams_free_positive_control :: IO (Either String ())
 gams_free_positive_control = do
-  tmp <- getTemporaryDirectory
+  tmp <- suite_tmp
   let dir       = tmp </> "gams24-free-positive-control"
       bait      = dir </> "bait.hs"
       innocent  = dir </> "clean.hs"
@@ -13569,7 +13591,7 @@ fee_float_bait_source =
 no_floating_value_is_on_the_fee_path :: Check
 no_floating_value_is_on_the_fee_path =
   Check "no_floating_value_is_on_the_fee_path" . guarded $ do
-    tmp <- getTemporaryDirectory
+    tmp <- suite_tmp
     let dir      = tmp </> "fee01-float-positive-control"
         bait     = dir </> "bait.hs"
         innocent = dir </> "clean.hs"
@@ -14330,7 +14352,7 @@ argv_decay_bait_source =
 txl_volm_decay_never_reaches_the_prover :: Check
 txl_volm_decay_never_reaches_the_prover =
   Check "txl_volm_decay_never_reaches_the_prover" . guarded $ do
-    tmp <- getTemporaryDirectory
+    tmp <- suite_tmp
     let dir      = tmp </> "chain04-decay-positive-control"
         bait     = dir </> "bait.hs"
         innocent = dir </> "clean.hs"
@@ -14567,7 +14589,7 @@ chain_shock_path = "offchain/lib/Chain/Shock.hs"
 the_decoder_holds_no_IO_and_no_chain :: Check
 the_decoder_holds_no_IO_and_no_chain =
   Check "the_decoder_holds_no_IO_and_no_chain" . guarded $ do
-    tmp <- getTemporaryDirectory
+    tmp <- suite_tmp
     let dir      = tmp </> "chain04-io-positive-control"
         bait     = dir </> "bait.hs"
         innocent = dir </> "clean.hs"
@@ -15024,7 +15046,7 @@ fee_splitter_path = "offchain/lib/Fee/Split.hs"
 the_splitter_holds_no_IO_and_names_no_process :: Check
 the_splitter_holds_no_IO_and_names_no_process =
   Check "the_splitter_holds_no_IO_and_names_no_process" . guarded $ do
-    tmp <- getTemporaryDirectory
+    tmp <- suite_tmp
     dir <- outside_repo (tmp </> "fee04-io-positive-control")
     let bait     = dir </> "bait.hs"
         innocent = dir </> "clean.hs"
@@ -16630,7 +16652,7 @@ moving_head_scan paths = readProcessWithExitCode "grep" (["-inHE", moving_head_p
 -- real file already carried the token this control fails first and says which arm saw it.
 moving_head_positive_control :: String -> IO (Either String ())
 moving_head_positive_control subject_body = do
-  tmp <- getTemporaryDirectory
+  tmp <- suite_tmp
   let dir       = tmp </> "chain27-moving-head-positive-control"
       bait      = dir </> "bait.hs"
       innocent  = dir </> "clean.hs"
@@ -16788,7 +16810,7 @@ chain_free_innocent_source =
 -- its caller, following 'gams_free_positive_control'.
 chain_free_positive_control :: IO (Either String ())
 chain_free_positive_control = do
-  tmp <- getTemporaryDirectory
+  tmp <- suite_tmp
   let dir       = tmp </> "chain27-free-positive-control"
       bait      = dir </> "bait.hs"
       innocent  = dir </> "clean.hs"
@@ -18158,7 +18180,7 @@ loop_chain_id = 31337
 -- reports unreadable.
 fresh_temp_dir :: String -> IO FilePath
 fresh_temp_dir name = do
-  tmp   <- getTemporaryDirectory
+  tmp   <- suite_tmp
   stamp <- getMonotonicTimeNSec
   let dir = tmp </> ("cfmm-loop-" ++ name ++ "-" ++ show stamp)
   createDirectoryIfMissing True dir
