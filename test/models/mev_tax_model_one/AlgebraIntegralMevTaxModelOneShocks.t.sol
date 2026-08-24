@@ -176,7 +176,9 @@ contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapC
          require(nEvents > 0, "empty path");
          assertEq(dQx.length, nEvents, "dQx length must equal nEvents");
 
-         _attachPool(fxPool, fxBlockNumber, fxChainId);
+         // Gate A guard: skips (naming the endpoint + arm) when no rig serves the fork. Below runs only
+         // when a live rig is attached — so CI's --offline forge job skips here, unblocking #45's gate.
+         if (!_attachPool(fxPool, fxBlockNumber, fxChainId)) return;
 
          // The fixture must have been solved for THIS pool's state; pinned to fxBlockNumber this is a
          // determinism guard, not a race (issue #29).
@@ -190,20 +192,63 @@ contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapC
          // SQRT_PRICE_1_1, VOLUME_PATH.md §3), assert tickAfter == tickBefore.
      }
 
-     /// @notice #29: ATTACH to the live pool the fixture was solved against, at its block. The liveness
-     /// guarantee is vm.createSelectFork reverting loudly (endpoint in the message) when the node is
-     /// unreachable — never a skip or in-process fallback. chainId is the wrong-network guard; the
-     /// code-length check enforces attach-not-construct (the pool must already exist on the fork).
-     /// Endpoint resolves ETH_RPC_URL -> foundry.toml `local` default (the single-source resolver).
-     function _attachPool(address fxPool, uint256 fxBlockNumber, uint256 fxChainId) internal {
+     /// @notice #29 + Gate A: ATTACH to the live rig the fixture was published against, at its block —
+     /// never construct a fresh pool. EXPLICIT EXCEPTION to #29's "never skip / fail-loud" rule, written
+     /// here so the two rules stop contradicting: this is a LIVE-RIG INTEGRATION test, run as the
+     /// sequence deploy-rig -> capture-loop -> forge -> deploy-rig --stop. On CI the forge job runs
+     /// --offline with no rig, so when NO node is reachable at the endpoint, or its head is below the
+     /// fork target, this SKIPS and NAMES the endpoint + which arm failed (a bare skip would fail-open,
+     /// the shape 23-RESEARCH forbids). #29's fail-loud STILL governs the rig-present-but-wrong cases:
+     /// wrong chainId and attach-not-construct both `require`-revert below, never skip. Endpoint resolves
+     /// ETH_RPC_URL -> foundry.toml `local` default. Returns false (already skipped) when no rig serves
+     /// the fork; true when attached.
+     function _attachPool(address fxPool, uint256 fxBlockNumber, uint256 fxChainId)
+         internal
+         returns (bool attached)
+     {
          string memory url = vm.envOr("ETH_RPC_URL", vm.rpcUrl("local"));
+
+         // Liveness arms, fails-CLOSED. __rigHead forks in an EXTERNAL self-call so the cheatcode revert
+         // on an unreachable/offline endpoint is a catchable external-call revert (a same-contract
+         // cheatcode revert is not try/catch-able). Arm 1: no node reachable. Arm 2: head < fork target.
+         try this.__rigHead(url) returns (uint256 head) {
+             if (head < fxBlockNumber) {
+                 vm.skip(true, string.concat(
+                     "VolumePath: rig head ", vm.toString(head), " < fork target ",
+                     vm.toString(fxBlockNumber), " at ", url,
+                     " -- run deploy-rig -> capture-loop -> this test on the SAME rig (its forkHeight)."
+                 ));
+                 return false;
+             }
+         } catch {
+             vm.skip(true, string.concat(
+                 "VolumePath: no node reachable at ", url,
+                 " -- live-rig integration test; CI's --offline forge job has no rig, so it skips here."
+             ));
+             return false;
+         }
+
          console2.log("VolumePath: attaching to", url);
-         vm.createSelectFork(url, fxBlockNumber); // reverts loud (endpoint named) if node unreachable
+         vm.createSelectFork(url, fxBlockNumber); // rig confirmed live above; fails loud on a real problem
          require(block.chainid == fxChainId, "VolumePath: wrong chain (check ETH_RPC_URL)");
          require(fxPool.code.length > 0, "VolumePath: pool not deployed on fork (attach, not construct)");
          activePool = fxPool;
+         // TODO(Gate B): `.pool` is the PoolManager (v4-style singleton, per the fixture's topic1 ruling),
+         // NOT an Algebra pool contract -- token0()/token1()/globalState()/liquidity() on it revert. The
+         // dQx replay must read pool state via PoolManager.extsload keyed by poolId (as the loop does),
+         // not through IAlgebraPool* on activePool. The guard skips before this on the offline gate.
          token0 = MockERC20(IAlgebraPoolImmutables(activePool).token0());
          token1 = MockERC20(IAlgebraPoolImmutables(activePool).token1());
+         return true;
+     }
+
+     /// @dev External so a fork attempt against an unreachable/offline endpoint reverts as a CATCHABLE
+     /// external-call revert (a same-contract cheatcode revert cannot be try/catch-ed). Returns the
+     /// reachable rig's head block; _attachPool compares it to the fork target and skips if below.
+     function __rigHead(string calldata url) external returns (uint256) {
+         uint256 forkId = vm.createFork(url); // reverts (caught by _attachPool) if unreachable/offline
+         vm.selectFork(forkId);
+         return block.number;
      }
 
      /// @notice EXEC-03: the writer, as the pool's plugin, must set pluginConfig during init to
