@@ -506,6 +506,14 @@ WELL-POSEDNESS is PROVED: \(\kappa_{\varphi} \in (0,1)\) and \(\bar\nu_{\varphi}
 
 **Theorem 49 (The per-tick CLMM identity).** Write \(a = p_{(\eta,\Delta_i)}(i_K)\), \(b = p_{(\eta,\Delta_i)}(i_K+\Delta_i)\), the sqrt-strike \(k = \sqrt{ab}\) and the sqrt-price ratio \(r = b/a\). With the range accrual note
 
+**Theorem 50 (The hedged ladder converges to the log portfolio).** Take Rule 3's ladder over a span of \(S\) ticks with the strike at its midpoint, each rung a LONG position hedged at mint — mint value minus \(\pi^{\Delta Q_X}\) (token1 received below the strike, token0 marked at the price above it; a Lean-only construction, no document glyph by ruling) — weighted by \(\ell(\xi^{\star},\iota;\cdot)\) and normalized by the ladder's token1 mint notional. As \(\Delta_i \to 0\) (\(\iota\to\infty\)), for every \(p_{1/2}\) strictly inside the span the normalized ladder payoff converges to \(c\cdot\Pi^{\sigma}\) — Definition 6's log portfolio with the variance term dropped, **evaluated at the price \(p_{1/2}^{2}\) against \(p^{\star 2}\)** — with the \(p\)-independent constant
+
+\[
+	c \, = \, \frac{1}{2\big(\ln\lambda\cdot S/4 \, + \, (1-\lambda^{-S/2})/2\big)}, \qquad c\big|_{S=4000} = 2.6229 .
+\]
+
+*Formalized* (`LadderLimit`, project `c23da4ef`, 5/5 axiom-clean): `ladder_tendsto_logPortfolio`, `ladder_tendsto_logPortfolio_explicit`; riders `hedgedRung_atStrike` (every rung vanishes at \(p^{\star}\)), `hedgedRung_nonneg`, `hedgedRung_closed_forms`. The \(O(\Delta_i)\) rate and the general strike position are OPEN. **FINDING:** the limit lands on Definition 6's formula with PRICE arguments; Definition 6 is written on the grid coordinate \(p_{(\eta,\Delta_i)}\) — the coordinate Definition 6 intends needs a ruling.
+
 \[
 	\mathrm{RAN}(k, r;\,p_{1/2}) \, \equiv \,
 	\begin{cases}
