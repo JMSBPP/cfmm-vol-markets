@@ -1,0 +1,79 @@
+{
+  "chainId": "31337",
+  "endpoint": "http://127.0.0.1:8545",
+  "events": [
+    {
+      "block": 28,
+      "conopt_ver": "4.39.0",
+      "fee_source": "DynamicFeeHook.getAverageVolatility+DynamicFeeMod.getCurrentFee",
+      "gams_ver": "54.1.0",
+      "key_hex": "d7aa87e7e167644b0d13bfda763d87443579c39a18a0fedffd78fcc7e1c2072d",
+      "key_scheme": 2,
+      "log_index": 0,
+      "model": "volume_path.gms",
+      "outcome": "stored",
+      "reason": "",
+      "tx_hash": "0xabd2f36f5fe31776afbd8f6a6075bb4c5ad79bb0e707981d3d15b04d1771c94a"
+    },
+    {
+      "block": 29,
+      "conopt_ver": "4.39.0",
+      "fee_source": "DynamicFeeHook.getAverageVolatility+DynamicFeeMod.getCurrentFee",
+      "gams_ver": "54.1.0",
+      "key_hex": "e8f3a9b0dfd611b4cd64e5eac1a400ea8748c61094c1c7f85a30a49a80290d22",
+      "key_scheme": 2,
+      "log_index": 0,
+      "model": "volume_path.gms",
+      "outcome": "stored",
+      "reason": "",
+      "tx_hash": "0x98fbd686b414a2c6282635c37b5395a5e6bc1b546557549b802e8c93b9b8a23a"
+    },
+    {
+      "block": 30,
+      "conopt_ver": "4.39.0",
+      "fee_source": "DynamicFeeHook.getAverageVolatility+DynamicFeeMod.getCurrentFee",
+      "gams_ver": "54.1.0",
+      "key_hex": "044d3828301cc4ebe65756d5476be93d014b98398ac18119cd65c71c16036946",
+      "key_scheme": 2,
+      "log_index": 0,
+      "model": "volume_path.gms",
+      "outcome": "stored",
+      "reason": "",
+      "tx_hash": "0x3615db46b2fe4a285edea737e7d121b89456859acdd936a8aa13bd0ac1e16971"
+    },
+    {
+      "block": 31,
+      "conopt_ver": "4.39.0",
+      "fee_source": "DynamicFeeHook.getAverageVolatility+DynamicFeeMod.getCurrentFee",
+      "gams_ver": "54.1.0",
+      "key_hex": "dd325b62ebd84e2c5380b5506907201c3fcec7ab6917dc020eecb49f64cf9bfc",
+      "key_scheme": 2,
+      "log_index": 0,
+      "model": "volume_path.gms",
+      "outcome": "stored",
+      "reason": "",
+      "tx_hash": "0x21f7fee66eba2d345a47a667b1839b083449530925daa81bb471528b73fe78c6"
+    }
+  ],
+  "exitCode": 0,
+  "fixture": {
+    "bytes": 806,
+    "path": "test/models/mev_tax_model_one/fixtures/volume_path.json",
+    "sha256": "2c082f29a279f3ae6bf2e93bfc8caadcddba5be622a4361c5fc184e6ab81a5aa"
+  },
+  "generatedAt": "2026-08-24T19:26:46Z",
+  "generatedFrom": "2039f2783598866a337115df4a265a75e8842e82",
+  "head": {
+    "afterEmit": 31,
+    "before": 30
+  },
+  "rig": {
+    "emitter": "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707",
+    "poolId": "0xddeccdba8a991fdd6d817db1eeafb6c86ad38d8a51be918d14e67f6a88bfacd1",
+    "poolManager": "0x0165878a594ca255338adfa4d48449f69242eb8f"
+  },
+  "watermark": {
+    "after": 31,
+    "before": 30
+  }
+}

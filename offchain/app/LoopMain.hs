@@ -108,6 +108,10 @@ shock_topic0 = be_integer (keccak256 (C8.pack shock_signature))
 -- where a live one would come from. They are NOT zero: a zero volume target is refused by the
 -- argument renderer for every fee pair, so a placeholder there would make every event inadmissible
 -- and the ledger would fill with refusals that say nothing about the chain.
+-- | The volume target AT A LIQUIDITY OF 2^64 -- 'Loop.Run.vol_target_for' scales it to the pinned
+-- liquidity of the pool the shock was read from. 28e18 at 2^64 is VOLUME_PATH.md section 2's own
+-- fixture, kappa 1.518; handed to the prover verbatim on the rig's 1e21 pool it was kappa 0.028
+-- and CONOPT could not reach an admissible point (first live run, 2026-08-24).
 loop_vol_tgt_wad :: Integer
 loop_vol_tgt_wad = 28000000000000000000
 

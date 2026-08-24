@@ -147,7 +147,10 @@ fi
 EMITTER=$(jq -r --arg k "$SHOCK_EMITTER" '.contracts[$k] // ""' "$MANIFEST")
 if [ -z "$EMITTER" ]; then
   fail "$(realpath -m "$MANIFEST") names no contracts.$SHOCK_EMITTER, so there is nothing to emit a Shock." \
-    "CHAIN-01 IS BLOCKED, ON GITHUB ISSUE #26 -- the plank / mev-migrate workstream." \
+    "deploy-rig.sh step 3b (DeployShockWriter.s.sol, shipped by PR #42 for issue #26) did not" \
+    "run, or the manifest predates it. Re-run: bash offchain/rig/deploy-rig.sh" \
+    "HISTORY, kept so the refusal reads the same to an operator who last saw the old one:" \
+    "CHAIN-01 WAS BLOCKED, ON GITHUB ISSUE #26 -- the plank / mev-migrate workstream." \
     "The Shock event is emitted from a forge TEST, not from a deployable contract" \
     "another process can drive: foundry-scripts/mev_tax_model_one/ holds only" \
     "DeployAlgebraFactory.s.sol. The SELECTOR_NEXT constant is a FUNCTION SELECTOR on" \
@@ -225,8 +228,17 @@ restore_on_failure() {
 trap restore_on_failure EXIT
 
 # --- BEFORE ----------------------------------------------------------------
-WM_BEFORE=$(psql "$DSN" -Atqc "select coalesce(max(block)::text, 'null') from loop_watermark" \
-              | head -1)
+# A FRESH database has no loop_watermark table yet: the loop applies migrations 001-005 itself at
+# startup (LoopMain.run_migrations_or_exit), so on the first run the table appears AFTER this
+# read. MEASURED on the first live run: `relation "loop_watermark" does not exist`, and under
+# set -e that ended the capture at 0s having driven nothing. A missing table is honestly
+# "no watermark" -- the same null the empty table yields -- and is recorded as exactly that.
+if [ "$(psql "$DSN" -Atqc "select to_regclass('loop_watermark') is not null" | head -1)" = t ]; then
+  WM_BEFORE=$(psql "$DSN" -Atqc "select coalesce(max(block)::text, 'null') from loop_watermark" \
+                | head -1)
+else
+  WM_BEFORE=null
+fi
 [ -n "$WM_BEFORE" ] || WM_BEFORE=null
 HEAD_BEFORE=$(cast block-number --rpc-url "$RPC")
 
@@ -283,7 +295,7 @@ WM_AFTER=$(psql "$DSN" -Atqc "select coalesce(max(block)::text, 'null') from loo
 EVENTS_JSON=$(psql "$DSN" -Atqc \
   "select coalesce(json_agg(row_to_json(e) order by e.block, e.log_index)::text, '[]') \
      from (select tx_hash, log_index, block, model, key_scheme, \
-                  encode(key, 'hex') as key_hex, outcome, reason, gams_ver, conopt_ver \
+                  encode(key, 'hex') as key_hex, outcome, reason, gams_ver, conopt_ver, fee_source \
              from loop_event) e")
 
 PUBLISHED="$FIXTURES/$FIXTURE_FILE"

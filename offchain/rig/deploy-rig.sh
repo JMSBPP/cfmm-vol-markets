@@ -501,6 +501,16 @@ run_deploy "$LOG_DIR/02-rvm.log" \
 run_deploy "$LOG_DIR/03-dfm.log" \
   "${SCRUB[@]}" \
   forge script foundry-scripts/deploy/DeployDynamicFeeMod.s.sol "${FS[@]}"
+# --- Step 3b: the Shock emitter (CHAIN-01, issue #26, shipped by PR #42) ---
+# ShockWriterMod.plk via plankDeployFFI -- a top-level CREATE with contractName NULL, the
+# DynamicFeeMod shape addr_of() extracts. Its only job is to emit
+# Shock(address indexed pool, int24, uint24, uint24) from a MINED transaction when
+# shock(address,int24,uint24,uint24) is called, so the resident loop has a real log to read.
+# It touches no pool: capture-loop.sh passes PoolManager as the pool argument because the loop
+# keys every read by pool.poolId and never by that field.
+run_deploy "$LOG_DIR/03b-shockwriter.log" \
+  "${SCRUB[@]}" \
+  forge script foundry-scripts/mev_tax_model_one/DeployShockWriter.s.sol "${FS[@]}"
 # DeployDynamicFeeHook.s.sol declares two contracts (DeployDynamicFeeHook,
 # MinimalToken) so forge cannot pick a target on its own.
 run_deploy "$LOG_DIR/04-hook.log" \
@@ -617,8 +627,9 @@ B_RVM=broadcast/DeployRealizedVolatilityMod.s.sol/31337/run-latest.json
 B_DFM=broadcast/DeployDynamicFeeMod.s.sol/31337/run-latest.json
 B_PSH=broadcast/PriceSetterHook.s.sol/31337/run-latest.json
 B_SWAP=broadcast/InitSwappableRig.s.sol/31337/run-latest.json
+B_SW=broadcast/DeployShockWriter.s.sol/31337/run-latest.json
 
-for f in "$B_VOM" "$B_RVM" "$B_DFM" "$B_HOOK" "$B_PSH" "$B_SWAP"; do
+for f in "$B_VOM" "$B_RVM" "$B_DFM" "$B_HOOK" "$B_PSH" "$B_SWAP" "$B_SW"; do
   [ -f "$f" ] || { echo "FATAL: broadcast record missing: $f" >&2; exit 1; }
 done
 
@@ -630,6 +641,7 @@ addr_of() {
 VOM=$(addr_of "$B_VOM")
 RVM=$(addr_of "$B_RVM")
 DFM=$(addr_of "$B_DFM")
+SW=$(addr_of "$B_SW")
 
 # PriceSetterHook.s.sol uses `new X{salt:...}`, which foundry records as a
 # top-level CREATE2 WITH a populated contractName -- so key it by name.
@@ -667,7 +679,7 @@ LIQR=$(jq -r '[.transactions[] | select(.contractName=="PoolModifyLiquidityTest"
 
 for pair in "VolOrderManagerMod:$VOM" "RealizedVolatilityMod:$RVM" "DynamicFeeMod:$DFM" \
             "DynamicFeeHook:$HOOK" "PoolManager:$PM" "PriceSetterHook:$PSH" "PriceSetterPoolManager:$PSPM" \
-            "PoolSwapTest:$SWAPR" "PoolModifyLiquidityTest:$LIQR"; do
+            "PoolSwapTest:$SWAPR" "PoolModifyLiquidityTest:$LIQR" "ShockWriter:$SW"; do
   n=${pair%%:*}; v=${pair#*:}
   case "$v" in
     0x????????????????????????????????????????) ;;
@@ -793,6 +805,7 @@ jq -n \
   --arg     pspm          "$PSPM" \
   --arg     swapr         "$SWAPR" \
   --arg     liqr          "$LIQR" \
+  --arg     sw            "$SW" \
   --arg     pshInitcode   "$PSH_INITCODE" \
   --arg     poolId        "$POOL_ID" \
   --arg     currency0     "$CURRENCY0" \
@@ -814,7 +827,8 @@ jq -n \
        PriceSetterHook: $psh,
        PriceSetterPoolManager: $pspm,
        PoolSwapTest: $swapr,
-       PoolModifyLiquidityTest: $liqr
+       PoolModifyLiquidityTest: $liqr,
+       ShockWriter: $sw
      },
      initcode: { PriceSetterHook: $pshInitcode },
      pool: { poolId: $poolId, currency0: $currency0, currency1: $currency1, tickSpacing: $tickSpacing },
@@ -833,7 +847,8 @@ printf '  %-24s %s\n' \
   PriceSetterHook        "$PSH" \
   PriceSetterPoolManager "$PSPM" \
   PoolSwapTest           "$SWAPR" \
-  PoolModifyLiquidityTest "$LIQR"
+  PoolModifyLiquidityTest "$LIQR" \
+  ShockWriter            "$SW"
 printf '  %-24s %s\n' deployer "$DEPLOYER" sender "$SENDER" poolId "$POOL_ID"
 printf '  %-24s %s\n' 'PriceSetterHook initcode' "$PSH_INITCODE"
 echo "  manifest: $MANIFEST   (anvil pid $ANVIL_PID left RUNNING; stop with $0 --stop)"

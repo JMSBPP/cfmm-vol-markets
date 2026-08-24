@@ -144,7 +144,7 @@ provenance-bearing artifacts instead. Two things are still needed, for two diffe
   have no file to read on a fresh checkout. They FAIL rather than skip, naming
   `deploy-rig.sh`. The rig does not have to still be *running*; the file has to exist.
 
-`RIG_MANIFEST=<path>` points the suite at a different manifest, which is how the nine-contract
+`RIG_MANIFEST=<path>` points the suite at a different manifest, which is how the ten-contract
 requirement is falsified.
 
 ### What the last step does and does not prove
@@ -315,9 +315,9 @@ wrong thing under the same name.
 - The rig holds exactly ONE liquidity position, the full-range one `InitSwappableRig` mints.
   Adding a second range breaks the cheat-swap invariant silently.
 
-## The nine contracts
+## The ten contracts
 
-`deploy-rig.sh` runs six deploy scripts and records nine contracts under `contracts` in the
+`deploy-rig.sh` runs seven deploy scripts and records ten contracts under `contracts` in the
 manifest:
 
 | contract | what it is for |
@@ -331,14 +331,15 @@ manifest:
 | `PriceSetterPoolManager` | that hook's OWN second manager — a distinct contract, not a copy |
 | `PoolSwapTest` | v4-core's unlock-callback swap router. Without it no EOA can swap, so `beforeSwap` can never fire. |
 | `PoolModifyLiquidityTest` | v4-core's unlock-callback liquidity router; mints the one full-range position |
+| `ShockWriter` | the `Shock(address indexed pool, int24, uint24, uint24)` emitter PR #42 shipped for CHAIN-01 (#26); `capture-loop.sh` drives one `shock(...)` into a mined transaction for the resident loop to read |
 
-All nine are mandatory — a manifest missing one is a broken rig, and `Rig.Manifest` refuses to
+All ten are mandatory — a manifest missing one is a broken rig, and `Rig.Manifest` refuses to
 load it rather than handing a driver a zero address. The two routers are mandatory for a reason
 worth stating: their absence means the `InitSwappableRig` step did not run, which means a
 zero-liquidity pool where no timepoint can ever be written — and that fault is invisible to every
 other check, because the remaining seven deployments are all live and all answer.
 
-`verify-rig.sh` asserts the `contracts` key set is EXACTLY these nine before it probes anything.
+`verify-rig.sh` asserts the `contracts` key set is EXACTLY these ten before it probes anything.
 That gate is not decoration: the probe loop walks `.contracts | keys[]`, so a key deleted from the
 manifest used to delete its own probe and the run ended `SC-2 OK: 7 contracts live`. Measured
 against a copy with both `PriceSetter*` keys removed, before the gate existed: **exit 0**.

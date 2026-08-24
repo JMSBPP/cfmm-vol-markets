@@ -28,8 +28,8 @@ import Crypto.Ethereum.Utils (keccak256)
 -- each script and the capture records the same digest, so the freshness comparison has to speak
 -- that algorithm. It is NOT a security claim about anything. crypton is already resolved in this
 -- build plan through the library stanza (1.0.6), so no package enters the plan for this import.
-import Crypto.Hash (MD5 (..), hashWith)
-import Data.Aeson (Value (..), decode, eitherDecodeFileStrict, encode, encodeFile, toJSON)
+import Crypto.Hash (MD5 (..), SHA256 (..), hashWith)
+import Data.Aeson (Value (..), decode, eitherDecodeFileStrict, eitherDecodeStrict, encode, encodeFile, toJSON)
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
 import Data.Bits (shiftL, shiftR, xor, (.&.), (.|.))
@@ -1157,9 +1157,10 @@ sc3_load_succeeds = Check "sc3_load_succeeds" . guarded $ do
         Left err -> Left ("load_rig_from failed on the real files: " ++ show (err :: IOException))
         Right rig ->
           let n = Map.size (rig_contracts (rig_addrs rig))
-          in expect (n == 9)
-               ("expected 9 contracts in the manifest (the seven Phase-20 deployments plus the "
-                 ++ "two InitSwappableRig routers PoolSwapTest and PoolModifyLiquidityTest), found "
+          in expect (n == 10)
+               ("expected 10 contracts in the manifest (the seven Phase-20 deployments, the "
+                 ++ "two InitSwappableRig routers PoolSwapTest and PoolModifyLiquidityTest, and "
+                 ++ "the ShockWriter emitter PR #42 shipped for CHAIN-01), found "
                  ++ show n)
 
 -- | A manifest missing a core contract, and a manifest that is not JSON at all, must BOTH stop
@@ -6388,6 +6389,17 @@ first_objection (c : cs) = do
     Left _   -> pure (Just (check_name c))
     Right () -> first_objection cs
 
+-- | The first objecting check AND what it said. Issue #40 (item 3): the controls reported only
+-- the NAME, so a control that failed for a reason unrelated to the mutated field left nothing
+-- to read. Used by the controls; the sweep keeps 'first_objection' because it records names.
+first_objection_text :: [Check] -> IO (Maybe (String, String))
+first_objection_text [] = pure Nothing
+first_objection_text (c : cs) = do
+  outcome <- check_run c
+  case outcome of
+    Left why -> pure (Just (check_name c, why))
+    Right () -> first_objection_text cs
+
 -- | Every failing check name. Used only for the baseline.
 all_objections :: [Check] -> IO [String]
 all_objections cs = do
@@ -7089,16 +7101,19 @@ sentinel_falsification_harness =
         expect (all isNothing negatives)
           ("NEGATIVE CONTROL FAILED: " ++ K.toString harness_probe_key ++ " is a key nothing"
             ++ " in this suite reads, and the sweep reported it CAUGHT by "
-            ++ intercalate ", " (nub (catMaybes negatives)) ++ ". Whatever that check is"
+            ++ intercalate ", " (nub (map fst (catMaybes negatives))) ++ ". Whatever that check is"
             ++ " objecting to, it is not the mutated field -- so \"caught\" does not"
-            ++ " discriminate and the absorbed list below it means nothing.")
+            ++ " discriminate and the absorbed list below it means nothing."
+            ++ "\n      WHAT IT SAID (issue #40: the text, so the cause is readable here):"
+            ++ concat [ "\n      [" ++ n ++ "] " ++ takeWhile (/= '\n') t
+                      | (n, t) <- nub (catMaybes negatives) ])
 
     one_pair scratch artifact doc path sentinel =
       case set_json_at path (sentinel_value sentinel) doc of
-        Nothing -> pure (Just "<control path does not exist>")
+        Nothing -> pure (Just ("<control path does not exist>", ""))
         Just doctored -> do
           sentinel_write scratch doctored
-          with_override (ma_var artifact) scratch (core_checks >>= first_objection)
+          with_override (ma_var artifact) scratch (core_checks >>= first_objection_text)
 
 -- ---------------------------------------------------------------------------------------------
 -- The store contract: DB-03, KEY-07, BYTE-05
@@ -8538,7 +8553,7 @@ credential_scan root =
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 93
 credential_scan_floor :: Int
-credential_scan_floor = 95
+credential_scan_floor = 96
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -10346,8 +10361,13 @@ a_pre_existing_artifact_is_unreachable =
                           ++ " they decode, the arrays agree with nEvents, and both echoed fields"
                           ++ " equal the tokens this check sent -- so anything other than"
                           ++ " NoArtifact here means the layer read someone else's file.")
-          expect (not (artifact_name `isInfixOf` git_out)
-                    && not (log_name `isInfixOf` git_out))
+          -- EXACT porcelain entries for the two paths this check planted at the ROOT, not a
+          -- substring over the whole status. MEASURED 2026-08-24, the first run with a published
+          -- fixture in the tree: the substring form flagged
+          -- test/models/mev_tax_model_one/fixtures/volume_path.json -- the loop's own output,
+          -- which shares the artifact's basename -- as a leaked plant. A plant lives at cwd, so
+          -- its porcelain path IS the bare name.
+          expect (not (any (\l -> drop 3 l `elem` [artifact_name, log_name]) (lines git_out)))
             ("this check planted files at " ++ cwd ++ " and git still sees one of them:\n"
               ++ unlines (map ("      " ++) (lines git_out)))
 
@@ -19975,46 +19995,147 @@ live_loop_artifact = "offchain/rig/loop-conformance.json"
 -- AND BY NAME when nothing answers, never skip. 23-RESEARCH's ruling is why -- a capture gated on
 -- \"if the tool is present\" fails OPEN, so on every machine without the tool it reports success
 -- for the reason it exists to forbid.
-the_live_loop_capture_is_present_and_names_its_block :: Check
-the_live_loop_capture_is_present_and_names_its_block =
-  Check "the_live_loop_capture_is_present_and_names_its_block" . guarded $ do
+-- === RE-STATED 2026-08-24 -- the live run happened, and this is what it recorded.
+--
+-- The check this replaces, @the_live_loop_capture_is_present_and_names_its_block@, asserted the
+-- artifact was ABSENT while the live run was owed and blocked, and its own text said what to do the
+-- day that stopped being true: REPLACE it with checks that READ the artifact, then retire it. On
+-- 2026-08-24 @capture-loop.sh@ ran against the rig's ShockWriter (PR #42), a live Postgres and
+-- GAMS 54.1, and wrote @offchain\/rig\/loop-conformance.json@ with exit 0. Three defects stood
+-- between the first attempt and that run, each found by the run itself and each fixed in the same
+-- commit: the capture read the watermark before the loop had migrated a fresh database; the
+-- loop's volume target was a constant sized for the golden's liquidity (kappa 0.028 on the rig's
+-- 1e21 pool, CONOPT abort at volume_path.gms:173) and is now a ratio to the PINNED liquidity; and
+-- the published pool was the manifest's 32-byte poolId, refused as not an address token, and is
+-- now the pool the SHOCK named. None of the three was reachable chain-free.
+--
+-- What is asserted here is what the artifact says, and its two subjects on disk: the artifact
+-- itself and the fixture it reports publishing, which must AGREE byte-for-byte on digest and
+-- length or one of them is not the file the other describes.
+the_live_loop_capture_records_a_run_that_solved_and_published :: Check
+the_live_loop_capture_records_a_run_that_solved_and_published =
+  Check "the_live_loop_capture_records_a_run_that_solved_and_published" . guarded $ do
     there    <- doesFileExist live_loop_capture
     body     <- if there then readFile live_loop_capture else pure ""
-    captured <- doesFileExist live_loop_artifact
+    loaded   <- read_json_file live_loop_artifact
+                  ("run the live capture: bash offchain/rig/capture-loop.sh (needs a rig, a"
+                    ++ " database and the prover; see offchain/LOOP.md)")
+    published <- doesFileExist default_fixture_path
+    fixture_bytes <- if published then BS.readFile default_fixture_path else pure BS.empty
+    mf <- manifest_file
+    manifest_present <- doesFileExist mf
+    rig_outcome <-
+      if manifest_present
+        then do
+          pins_path <- pins_file
+          attempt <- try (load_rig_from pins_path mf)
+          pure (Just (attempt :: Either IOException Rig))
+        else pure Nothing
     pure $ do
-      _ <- expect there
-             (live_loop_capture ++ " is not on disk. Plan 28-05 creates it; a missing subject is a"
-               ++ " FAILURE naming the plan that makes it, never a pass.")
+      _ <- expect there (live_loop_capture ++ " is not on disk.")
       _ <- expect (shell_resolver `isInfixOf` body)
-             ("the capture does not source " ++ shell_resolver ++ ". CHAIN-06 is one rule in two"
-               ++ " languages, and a capture that stated its own endpoint would be a third"
-               ++ " statement of the default that nothing compares.")
+             ("the capture does not source " ++ shell_resolver ++ " (CHAIN-06).")
       _ <- expect (not (endpoint_authority `isInfixOf` body))
-             ("the capture HOLDS the default authority as a literal. A ShellConsumer resolves; only"
-               ++ " the two resolvers hold it, and the suite asserts their two copies byte-equal.")
-      _ <- expect ("#26" `isInfixOf` body)
-             ("the capture's refusal text does not name issue #26. The block is CHAIN-01 -- there is"
-               ++ " no deployable emitter of Shock, only a forge test -- and a capture that refused"
-               ++ " without naming what blocks it leaves an operator to rediscover it.")
-      _ <- expect ("#24" `isInfixOf` body && "#25" `isInfixOf` body)
-             ("the capture's refusal text does not name issues #24 AND #25, which own"
-               ++ " " ++ default_fixture_dir ++ ". That directory is the second precondition this"
-               ++ " capture cannot meet, and the loop refuses to create it (LOOP-04).")
-      _ <- expect (default_fixture_dir `isInfixOf` body)
-             ("the capture does not name " ++ default_fixture_dir ++ ", so its missing-directory"
-               ++ " refusal is about some other path.")
-      expect (not captured)
-        ("THE LIVE CAPTURE HAS BEEN RUN, and that is NEWS rather than a defect: "
-          ++ live_loop_artifact ++ " is on disk. This check asserts the artifact is ABSENT, because"
-          ++ " while it is absent the live end-to-end run is OWED and BLOCKED -- CHAIN-01 / issue"
-          ++ " #26 for the emitter, issues #24 and #25 for " ++ default_fixture_dir
-          ++ " -- and a paragraph saying so cannot notice the day it stops being true. Now that the"
-          ++ " artifact exists, REPLACE this check with ones that read it: the recorded watermark"
-          ++ " before and after, the recorded ledger rows and their outcomes, the recorded fixture"
-          ++ " digest and byte length, and the recorded exit code. Then RETIRE this check rather"
-          ++ " than weakening it, and re-state LOOP-01..05's live halves in REQUIREMENTS.md against"
-          ++ " what the artifact actually says.")
+             "the capture HOLDS the default authority as a literal; only the two resolvers may."
+      _ <- expect ("ShockWriter" `isInfixOf` body)
+             "the capture does not name the ShockWriter manifest key it drives (CHAIN-01, PR #42)."
+      artifact <- loaded
+      exit_code <- json_field "exitCode" artifact >>= json_integer
+      _ <- expect (exit_code == 0)
+             ("the recorded live run exited " ++ show exit_code ++ ". Every non-zero code is in"
+               ++ " Loop.Config.exit_table; an artifact recording one is evidence of a halt, not of"
+               ++ " the loop, and this check reads only a run that completed.")
+      wm <- json_field "watermark" artifact
+      after <- json_field "after" wm >>= json_integer
+      before <- case json_field "before" wm >>= json_integer of
+                  Right n -> Right (Just n)
+                  Left _  -> Right Nothing
+      _ <- expect (maybe True (< after) before)
+             ("the watermark did not advance: before " ++ show before ++ ", after " ++ show after
+               ++ ". LOOP-01's live half is that a persisted watermark moves past the block the"
+               ++ " shock was in.")
+      events <- json_field "events" artifact >>= json_array
+      _ <- expect (not (null events))
+             "the artifact records NO events: a green statement about an empty chain (issue #26's old default)."
+      outcomes <- mapM (\e -> json_field "outcome" e >>= json_string) events
+      _ <- expect (all (`elem` ["stored", "elided"]) outcomes)
+             ("an event's outcome is not a solved one: " ++ show outcomes
+               ++ ". inadmissible and not_persisted are refusals, and a capture carrying one"
+               ++ " recorded a run that did not reach the store.")
+      sources <- mapM (\e -> json_field "fee_source" e >>= json_string) events
+      _ <- expect (all (`elem` [fee_source_token FeeFromSlot0, fee_source_token FeeFromHook]) sources)
+             ("an event's fee_source is not one of the two tokens: " ++ show sources
+               ++ " -- issue #41's ledger column is a closed set.")
+      keys <- mapM (\e -> json_field "key_hex" e >>= json_string) events
+      _ <- expect (all is_sha256_text keys)
+             ("an event's key_hex is not a 64-hex content key: " ++ show keys)
+      -- THE EMITTER THE RUN WAS DRIVEN AGAINST IS THE MANIFEST'S ShockWriter. The sentinel
+      -- harness found contracts.ShockWriter absorbed under four sentinels the day it was added
+      -- (2026-08-24): the tenth contract was recorded and compared to nothing -- issue #19's
+      -- shape, on a leaf one commit old. 'addresses_agree' shape-guards and zero-floors BOTH
+      -- sides, so an emptied, zeroed or null-object-id manifest entry is refused here rather than
+      -- compared equal to a matching corruption of the artifact.
+      rig <- case rig_outcome of
+        Nothing         -> Left ("no " ++ mf ++ " -- it is gitignored, so a fresh checkout has no"
+                                  ++ " copy. Stand the rig up: " ++ deploy_command)
+        Just (Left err) -> Left ("load_rig_from failed on the real files: " ++ show err)
+        Just (Right r)  -> Right r
+      recorded_emitter <- map toLower <$> (json_field "rig" artifact >>= json_field "emitter" >>= json_string)
+      manifest_emitter <- manifest_address (rig_addrs rig) "ShockWriter"
+      _ <- addresses_agree "ShockWriter" manifest_emitter "loop-conformance.json rig.emitter"
+             recorded_emitter "bash offchain/rig/capture-loop.sh"
+             "The live run was driven against a DIFFERENT emitter than the rig now holds."
+      fx <- json_field "fixture" artifact
+      fx_bytes <- json_field "bytes" fx >>= json_integer
+      fx_sha   <- json_field "sha256" fx >>= json_string
+      _ <- expect (fx_bytes >= toInteger fixture_min_bytes)
+             ("the artifact reports a published fixture of " ++ show fx_bytes ++ " bytes, below"
+               ++ " Loop.Publish.fixture_min_bytes = " ++ show fixture_min_bytes ++ ".")
+      _ <- expect (is_sha256_text fx_sha)
+             ("the artifact's fixture.sha256 is " ++ show fx_sha ++ ", not a 64-hex digest.")
+      _ <- not_a_zero_word "the artifact's fixture.sha256" fx_sha
+      _ <- expect published
+             (default_fixture_path ++ " is not on disk, but the artifact says it was published"
+               ++ " there. The two subjects disagree; re-run the capture.")
+      _ <- expect (toInteger (BS.length fixture_bytes) == fx_bytes)
+             ("the fixture on disk is " ++ show (BS.length fixture_bytes) ++ " bytes; the artifact"
+               ++ " recorded " ++ show fx_bytes ++ ". One of them is not the file the other describes.")
+      _ <- expect (sha256_hex_of fixture_bytes == fx_sha)
+             ("the fixture on disk digests to " ++ sha256_hex_of fixture_bytes ++ "; the artifact"
+               ++ " recorded " ++ fx_sha ++ ".")
+      fixture <- case eitherDecodeStrict fixture_bytes :: Either String Value of
+                   Left err -> Left ("the published fixture does not decode: " ++ err)
+                   Right v  -> Right v
+      pool <- json_field "pool" fixture >>= json_string
+      _ <- expect (is_address_text pool)
+             ("the published pool is " ++ show pool ++ ", not a 20-byte address token. MEASURED"
+               ++ " on the first live attempt: the manifest's 32-byte poolId landed here.")
+      _ <- not_a_zero_word "the published pool" pool
+      height <- json_field "blockNumber" fixture >>= json_string
+      _ <- expect (not (null height) && all isDigit height)
+             ("the published blockNumber is " ++ show height ++ ", not a digit string (CHAIN-05).")
+      _ <- expect (read height == after)
+             ("the published blockNumber " ++ height ++ " is not the watermark's block "
+               ++ show after ++ ": the fixture was stamped at a height the loop did not finish.")
+      src <- json_field "feeSource" fixture >>= json_string
+      expect (src `elem` sources)
+        ("the published feeSource " ++ show src ++ " is none of the recorded events' sources "
+          ++ show sources ++ ".")
 
+
+-- | Hex digest of bytes, for comparing a file on disk to what an artifact recorded about it.
+sha256_hex_of :: BS.ByteString -> String
+sha256_hex_of bs = show (hashWith SHA256 bs)
+
+-- | THE STAGES, IN THE ORDER 'Loop.Run.process_block' RUNS THEM.
+--
+-- Seven, and the word in LOOP-05 is EACH. They are the stages that can be made to raise from
+-- OUTSIDE the function -- through a record field it was handed, or through the filesystem it
+-- writes to -- because a stage broken by editing 'Loop.Run' would be measuring a source tree
+-- rather than a composition. The pure stages between them (@event_identity@, @decode_shock@,
+-- @split_for@, @content_key@, @classify@) are total functions of their arguments and have no
+-- component to replace; each already refuses rather than raising, and 28-01 and 28-02 drove those
+-- refusals.
 -- | ONE STAGE OF 'Loop.Run.process_block', AN @Env@ THAT MAKES IT RAISE, AND WHAT THE ITERATION IS
 -- SUPPOSED TO DO ABOUT IT.
 --
@@ -20049,15 +20170,6 @@ data StageBreak = StageBreak
     -- ^ had the solve already reached the store when this stage threw?
   }
 
--- | THE STAGES, IN THE ORDER 'Loop.Run.process_block' RUNS THEM.
---
--- Seven, and the word in LOOP-05 is EACH. They are the stages that can be made to raise from
--- OUTSIDE the function -- through a record field it was handed, or through the filesystem it
--- writes to -- because a stage broken by editing 'Loop.Run' would be measuring a source tree
--- rather than a composition. The pure stages between them (@event_identity@, @decode_shock@,
--- @split_for@, @content_key@, @classify@) are total functions of their arguments and have no
--- component to replace; each already refuses rather than raising, and 28-01 and 28-02 drove those
--- refusals.
 loop_stage_breaks :: [StageBreak]
 loop_stage_breaks =
   [ StageBreak "logs" (\_ env -> pure env
@@ -20771,7 +20883,7 @@ core_checks = do
           -- 28-05. The live Tier-C run, WRITTEN AND GATED AND UNRUN. This one is INVERTED: it
           -- passes while the artifact does not exist, because while it does not exist the live
           -- half is owed and blocked by name.
-          , the_live_loop_capture_is_present_and_names_its_block
+          , the_live_loop_capture_records_a_run_that_solved_and_published
           ]
             ++ per_pin_checks pins
   pure checks
