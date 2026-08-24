@@ -302,9 +302,17 @@ PUBLISHED="$FIXTURES/$FIXTURE_FILE"
 if [ -f "$PUBLISHED" ]; then
   FIXTURE_SHA=$(sha256sum "$PUBLISHED" | cut -d' ' -f1)
   FIXTURE_LEN=$(wc -c < "$PUBLISHED" | tr -d ' ')
+  # THE FORK HEIGHT for the consuming forge test (plank's Gate B): the block the fixture was
+  # published at, read back out of the fixture itself so this record and the file cannot
+  # disagree. On a fresh single-shock run it equals head.afterEmit; the consumer's guard is
+  # head >= blockNumber, then createSelectFork AT blockNumber -- the pool's state is
+  # block-invariant after InitSwappableRig (the emitter never touches the pool), so the assert
+  # at the fixture's own block is meaningful and a later shock on the same chain only raises head.
+  FORK_HEIGHT=$(jq -r '.blockNumber // empty' "$PUBLISHED")
 else
   FIXTURE_SHA=""
   FIXTURE_LEN=0
+  FORK_HEIGHT=""
 fi
 
 jq -n -S \
@@ -318,6 +326,7 @@ jq -n -S \
   --arg fixturePath   "$PUBLISHED" \
   --arg fixtureSha256 "$FIXTURE_SHA" \
   --argjson fixtureBytes "$FIXTURE_LEN" \
+  --arg     forkHeight    "$FORK_HEIGHT" \
   --argjson exitCode     "$LOOP_EXIT" \
   --argjson headBefore   "$HEAD_BEFORE" \
   --argjson headAfter    "$HEAD_AFTER_EMIT" \
@@ -330,6 +339,7 @@ jq -n -S \
      head: { before: $headBefore, afterEmit: $headAfter },
      watermark: { before: $wmBefore, after: $wmAfter },
      exitCode: $exitCode,
+     forkHeight: (if $forkHeight == "" then null else $forkHeight end),
      fixture: { path: $fixturePath, sha256: $fixtureSha256, bytes: $fixtureBytes },
      events: $events }' > "$OUT.tmp"
 mv "$OUT.tmp" "$OUT"
@@ -388,3 +398,16 @@ jq -r '"  endpoint          : \(.endpoint) (chain \(.chainId))",
 echo
 echo "wrote $(realpath -m "$OUT")"
 echo "Commit it: cabal test asserts over this file and opens no socket of its own."
+
+# --- NEXT: the consuming forge test, against THIS rig, before deploy-rig --stop -----------------
+# plank's Gate B replays the published dQx on-chain against the pool the fixture names. It needs
+# the rig UP and the fork pinned at the fixture's own block; the three-arm guard on its side is
+# chainId == fixture.chainId, code at fixture.pool, head >= fixture.blockNumber. Printed with the
+# RESOLVED endpoint and the height read back from the file, so the replay's inputs are this run's.
+if [ -n "${FORK_HEIGHT:-}" ]; then
+  echo
+  echo "NEXT  the consuming forge test, against this rig (anvil is still up; stop it AFTER):"
+  echo "      forge test --match-test test__priceInvarianceUnderVolumePath \\"
+  echo "        --fork-url $RPC --fork-block-number $FORK_HEIGHT -vv"
+  echo "      then: bash offchain/rig/deploy-rig.sh --stop"
+fi
