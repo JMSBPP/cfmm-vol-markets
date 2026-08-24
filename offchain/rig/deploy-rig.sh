@@ -636,6 +636,29 @@ DFM=$(addr_of "$B_DFM")
 PSH=$(jq -r '[.transactions[] | select(.contractName=="PriceSetterHook")][0].contractAddress' "$B_PSH" | tr 'A-Z' 'a-z')
 PSPM=$(jq -r '[.transactions[] | select(.contractName=="PoolManager")][0].contractAddress' "$B_PSH" | tr 'A-Z' 'a-z')
 
+# Issue #38. PriceSetterHook's address is CREATE2-MINED over its initcode, and the initcode
+# carries solc's metadata hash -- so a change to ANY global compiler input (remappings.txt,
+# foundry.toml, the solc version, the contract's own source or even its comments) moves the
+# address while no offchain file changes. Recording the initcode's digest beside the address
+# is what lets a freshness check NAME that cause instead of reporting a bare "different
+# deployment". The digest is sha256 over the lowercase hex TEXT of the broadcast's creation
+# input (no 0x), so it needs nothing beyond jq + sha256sum and is reproducible by hand:
+#   jq -r '<tx>.transaction.input' run-latest.json | sed 's/^0x//' | tr A-F a-f | sha256sum
+# Only PriceSetterHook is recorded: its `new X{salt:...}` is a top-level CREATE2 whose
+# transaction.input IS the initcode. DynamicFeeHook is created by a raw .call to a CREATE2
+# proxy, so its input is proxy CALLDATA (salt ++ initcode ++ ...) and a digest of it would
+# describe the wrong thing under the same name.
+PSH_INPUT=$(jq -r '[.transactions[] | select(.contractName=="PriceSetterHook")][0].transaction.input // empty' "$B_PSH")
+case "$PSH_INPUT" in
+  0x[0-9a-fA-F]*) ;;
+  *) echo "FATAL: no creation input recorded for PriceSetterHook in $B_PSH (got '${PSH_INPUT:0:16}')" >&2; exit 1 ;;
+esac
+PSH_INITCODE=$(printf '%s' "$PSH_INPUT" | sed 's/^0x//' | tr 'A-F' 'a-f' | sha256sum | cut -d' ' -f1)
+case "$PSH_INITCODE" in
+  ????????????????????????????????????????????????????????????????) ;;
+  *) echo "FATAL: initcode digest for PriceSetterHook is not 64 hex chars (got '$PSH_INITCODE')" >&2; exit 1 ;;
+esac
+
 # Both routers are plain `new X(...)` under startBroadcast, so foundry records them as
 # TOP-LEVEL CREATE with a POPULATED contractName -- the PriceSetterHook pattern, NOT the
 # nameless-Plank-CREATE pattern addr_of() handles. Key them by name.
@@ -770,6 +793,7 @@ jq -n \
   --arg     pspm          "$PSPM" \
   --arg     swapr         "$SWAPR" \
   --arg     liqr          "$LIQR" \
+  --arg     pshInitcode   "$PSH_INITCODE" \
   --arg     poolId        "$POOL_ID" \
   --arg     currency0     "$CURRENCY0" \
   --arg     currency1     "$CURRENCY1" \
@@ -792,6 +816,7 @@ jq -n \
        PoolSwapTest: $swapr,
        PoolModifyLiquidityTest: $liqr
      },
+     initcode: { PriceSetterHook: $pshInitcode },
      pool: { poolId: $poolId, currency0: $currency0, currency1: $currency1, tickSpacing: $tickSpacing },
      seed: { initTs: $initTs, initTick: $initTick }
    }' > "$MANIFEST"
@@ -810,4 +835,5 @@ printf '  %-24s %s\n' \
   PoolSwapTest           "$SWAPR" \
   PoolModifyLiquidityTest "$LIQR"
 printf '  %-24s %s\n' deployer "$DEPLOYER" sender "$SENDER" poolId "$POOL_ID"
+printf '  %-24s %s\n' 'PriceSetterHook initcode' "$PSH_INITCODE"
 echo "  manifest: $MANIFEST   (anvil pid $ANVIL_PID left RUNNING; stop with $0 --stop)"

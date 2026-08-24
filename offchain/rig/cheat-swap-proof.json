@@ -1,31 +1,31 @@
 {
   "_provenance": "Every value below was produced by offchain/app/CheatSwapProof.hs against the live rig stood up by offchain/rig/deploy-rig.sh. Nothing here was transcribed. Measurement B is the phase's blocker EXECUTED ON PURPOSE: it is identical to measurement A except that the slot0 write is aimed at PriceSetterPoolManager, the manager DynamicFeeHook does not read. Its receipt is expected to look perfectly healthy -- status 1, one E3, one E5 -- while carrying a tick that is not the cheated one. blockNumber is deliberately absent: three from-scratch deploys were measured at heights 9, 11 and 10, so it is not a provenance field.",
   "chainId": 31337,
-  "generatedAt": "2026-08-23T21:48:59Z",
+  "generatedAt": "2026-08-24T17:19:28Z",
   "generatedFrom": "2039f2783598866a337115df4a265a75e8842e82",
   "measurements": [
     {
       "e3": {
-        "averageTick": 1714,
+        "averageTick": 1666,
         "tick": 5000,
         "tickCumulative": "60000",
-        "timestamp": 1700000040,
-        "volatilityCumulative": "201850884"
+        "timestamp": 1700000042,
+        "volatilityCumulative": "204238551"
       },
       "e3_count": 1,
       "e5": {
         "fee": 15000,
-        "sigma": "5936790"
+        "sigma": "5835387"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000040,
+      "head_ts_after": 1700000042,
       "name": "cheat_to_5000_then_swap",
       "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 5000,
-      "ts": 1700000040,
-      "tx_hash": "0xc61c2f72f186d523a128cef181bd20a4f4d1a321600f214142bdbf5ff00146fa",
+      "ts": 1700000042,
+      "tx_hash": "0xfcbdfc2985a3bd5ef1995f88521d18271d954098e8af770a11616a16f53d769a",
       "word_before": "24519927192352584402830634309948276735881064672309344164",
       "word_before_high184": "0",
       "word_written": "7307508186654514591018525893284256416917456691626270",
@@ -33,26 +33,26 @@
     },
     {
       "e3": {
-        "averageTick": 2552,
+        "averageTick": 2499,
         "tick": 4999,
         "tickCumulative": "119988",
-        "timestamp": 1700000052,
-        "volatilityCumulative": "298728645"
+        "timestamp": 1700000054,
+        "volatilityCumulative": "304584299"
       },
       "e3_count": 1,
       "e5": {
         "fee": 15000,
-        "sigma": "6494100"
+        "sigma": "6480517"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000052,
+      "head_ts_after": 1700000054,
       "name": "cheat_wrong_pool_then_swap",
       "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 7000,
-      "ts": 1700000052,
-      "tx_hash": "0xa37900a9838741380cae9e6c8d0c9235b7822459c376d6d7a3088fc737183f64",
+      "ts": 1700000054,
+      "tx_hash": "0x0add6a28f5c3b6c0d29cbe414fea1efa31fa1571fdb69ed3fbfd0cc450278cf6",
       "word_before": "7306046685017183688100322208451540133769138196049033",
       "word_before_high184": "0",
       "word_written": "10230511461316320427425906257160961173700696698234316",
@@ -60,26 +60,26 @@
     },
     {
       "e3": {
-        "averageTick": 3070,
+        "averageTick": 3019,
         "tick": 5100,
         "tickCumulative": "181188",
-        "timestamp": 1700000064,
-        "volatilityCumulative": "360689245"
+        "timestamp": 1700000066,
+        "volatilityCumulative": "369404506"
       },
       "e3_count": 1,
       "e5": {
         "fee": 15000,
-        "sigma": "6218780"
+        "sigma": "6261093"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000064,
+      "head_ts_after": 1700000066,
       "name": "same_second_repeat_step1",
       "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 5100,
-      "ts": 1700000064,
-      "tx_hash": "0xd67324b289400dff6203f982698d597133deb27a6bd91ad8b891b87c98fb125e",
+      "ts": 1700000066,
+      "tx_hash": "0xc017f8c4fd2eca911ddc96659dc2a6c530bfba174972ee1c37a1ae34b2399c7f",
       "word_before": "7306046685017183688100322208451540133640475633014773",
       "word_before_high184": "0",
       "word_written": "7453658350387604882838894886452584032450164334429923",
@@ -90,17 +90,17 @@
       "e3_count": 0,
       "e5": {
         "fee": 15000,
-        "sigma": "6218780"
+        "sigma": "6261093"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000064,
+      "head_ts_after": 1700000066,
       "name": "same_second_repeat_step2",
       "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 5200,
-      "ts": 1700000064,
-      "tx_hash": "0x3967ae99705835ca83ca74cf1d090181fc0559e26428d2e40a9e05efb71ee06f",
+      "ts": 1700000066,
+      "tx_hash": "0x0c95e84841cbbf1da47d1f03724a725c14d62ca0eea34833e158f7bccd1d0247",
       "word_before": "7452196848750273979920691201619867749300552823570188",
       "word_before_high184": "0",
       "word_written": "7599808514120695174659263882176651384846337872451926",
@@ -111,17 +111,17 @@
       "e3_count": 0,
       "e5": {
         "fee": 15000,
-        "sigma": "6218780"
+        "sigma": "6261093"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000064,
+      "head_ts_after": 1700000066,
       "name": "clock_untouched_repeat_step3",
       "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 5300,
-      "ts": 1700000064,
-      "tx_hash": "0x09fe4033b76ce8face777767dcc1ebf9a90ca86d053e39ff752dec99ad036bbb",
+      "ts": 1700000066,
+      "tx_hash": "0xc0bb9615b5c0bb70a72042182a2d193943ea6ec2a584e76806da956cfe03577e",
       "word_before": "7598347012483364271741060197343935101695420351943024",
       "word_before_high184": "0",
       "word_written": "7745958677853785466479632880469268530753482931918767",
@@ -129,26 +129,26 @@
     },
     {
       "e3": {
-        "averageTick": -147407,
+        "averageTick": -145360,
         "tick": -887259,
         "tickCumulative": "-10465920",
-        "timestamp": 1700000076,
-        "volatilityCumulative": "7873136412548"
+        "timestamp": 1700000078,
+        "volatilityCumulative": "7893606396920"
       },
       "e3_count": 1,
       "e5": {
         "fee": 15000,
-        "sigma": "112473377322"
+        "sigma": "111177554886"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000076,
+      "head_ts_after": 1700000078,
       "name": "extreme_tick_near_floor",
       "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": -887259,
-      "ts": 1700000076,
-      "tx_hash": "0xb1ff2a28630f6254edb918e3a76ba26e5bcbb1d9df2b214be162d3e8f3035fb7",
+      "ts": 1700000078,
+      "tx_hash": "0x83f8091791be1421b15d5c0ac41ff3b6f02514d5df853569ebaeebaf197d5404",
       "word_before": "7744497176216454563561429195636552247601246276805033",
       "word_before_high184": "0",
       "word_written": "23223198172617642141431069233413930382162922907087213372",
@@ -161,6 +161,7 @@
     "poolId": "0x00c35757198030cc0408784a49b5de3ee9c0fad958b0564592e118604b49ab8a",
     "poolManager": "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707",
     "priceSetterHook": "0x2b17970ca2c5f0429149bce2444de61b4fa8f000",
+    "priceSetterHookInitcode": "33cd4de3be4549c1e74a9146dc57c3240e5fa44a82f6f19beea1b7a02fda5ddb",
     "priceSetterPoolManager": "0xb7f8bc63bbcad18155201308c8f3540b07f84f5e",
     "swapRouter": "0x9a676e781a523b5d0c0e43731313a708cb607508",
     "tickSpacing": 20
