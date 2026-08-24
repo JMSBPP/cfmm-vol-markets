@@ -1,6 +1,7 @@
 # VOLATILITY_INSTRUMENTS
 
-> NOTE: [CALCULUS IS THIS ONE](~/learning/cfmm-theory/cfmm-discrete/**) . We need to fgind the discrete ficnacnial caluclus pdf byut Frogy eithr online or locally
+> NOTE: [CALCULUS IS THIS ONE](~/learning/cfmm-theory/cfmm-discrete/**) . We need to fgind the discrete f
+icnacnial caluclus pdf byut Frogy eithr online or locally
 
 # PAYOFF
 
@@ -417,7 +418,8 @@ The state-space closed form (Theorem 32) and this grid-space reading COINCIDE �
 	\end{aligned}
 \]
 
-The \(\kappa\)-map is a LOGARITHMIC coordinate where \(p_{(\eta,\Delta_i)}(i)\) and \(\Gamma_{\varphi}(i)\) are exponential ones: its log-base is the tick-independent marginal-price step \(\xi^{2\eta\Delta_i}\) (the proved denominator), so \(\kappa_{\varphi}(i) = \log_{\xi^{2\eta\Delta_i}}\big(L_{(1/2,\,0)}(i+\Delta_i)/L_{(1/2,\,0)}(i)\big)\); its VALUE on the geometric book is the TRADING BASE \(1/(2\eta\Delta_i)\) (Theorem 43(iii)). THE ATLAS BASES: \(\lambda\) the tick base (price), \(\xi\) the liquidity base, \(1/(2\eta\Delta_i)\) the trading base — each pinned by the structural layer above it; the trading base is written as \(\kappa_{\varphi}(i)\)'s value on the geometric book (user glyph ruling 2026-08-11 — the \(\kappa_{\varphi}\) glyph, argument-disambiguated; no separate symbol).
+The \(\kappa\)-map is a LOGARITHMIC coordinate where \(p_{(\eta,\Delta_i)}(i)\) and \(\Gamma_{\varphi}(i)\) are exponential ones: its log-base is the tick-independent marginal-price step \(\xi^{2\eta\Delta_i}\) (the proved denominator), so
+\(\kappa_{\varphi}(i) = \log_{\xi^{2\eta\Delta_i}}\big(L_{(1/2,\,0)}(i+\Delta_i)/L_{(1/2,\,0)}(i)\big)\); its VALUE on the geometric book is the TRADING BASE \(1/(2\eta\Delta_i)\) (Theorem 43(iii)). THE ATLAS BASES: \(\lambda\) the tick base (price), \(\xi\) the liquidity base, \(1/(2\eta\Delta_i)\) the trading base — each pinned by the structural layer above it; the trading base is written as \(\kappa_{\varphi}(i)\)'s value on the geometric book (user glyph ruling 2026-08-11 — the \(\kappa_{\varphi}\) glyph, argument-disambiguated; no separate symbol).
 
 **Theorem 43 (The atlas verdicts).** (i) The normalized gamma coordinate is PURE — the liquidity factor cancels in the ratio (`gamma_ratio_pure`); (ii) the gamma map and the price-impact map are RECIPROCAL — their product is 1, the \((Q_X^L, p_{\varphi})\) primal–dual pair (`gamma_impact_reciprocal`); (iii) on the geometric ladder \(\kappa_{\varphi}(i)\) is the CONSTANT \(1/(2\eta\Delta_i)\) — **THE TRADING BASE** (user ruling 2026-08-11): a constant pinned by structural parameters IS a base, exactly as \(\xi\) is constant given \(\Delta_i\) and is the LIQUIDITY BASE; this is the trading axis's reference value, from which a non-geometric book's \(\kappa_{\varphi}(i)\) departs — equal to \(3/2\) at the flatness threshold \(\eta\Delta_i = 1/3\) (`kappaMap_geometric_const`); (iv) **\(\kappa_{\varphi}(i)\) is tick-constant IFF the density is geometric** (`kappaMap_const_iff_geometric`, both directions — the marginal-price log-step is tick-independent, forcing the single ratio). The curvature axis gets its coordinate FROM THE BOOK, not the member (\(\kappa_{\varphi}\) is tick-constant on every CES member); the \(\kappa\)-coordinate degenerates exactly on the geometric family — the SAME slice where Proposition 12's \(\Theta_{\varphi} \to \Theta_{\ell}\) map exists. One slice, two degeneracies.
 
@@ -468,6 +470,40 @@ WELL-POSEDNESS is PROVED: \(\kappa_{\varphi} \in (0,1)\) and \(\bar\nu_{\varphi}
 **Definition 48 (Rate→price pullbacks).** With a GAMMA-RATE argument \(G > 0\): \(p_{\varphi}(G) \, \equiv \, G^{-2/3}\) — the inverse of Definition 41's price-argument map \(\Gamma_{\varphi}(p) = p^{-3/2}\), well-defined by its strict monotonicity. With a UTILIZATION argument \(\nu \in (0,1)\): \(p_{\varphi}(\nu)\) is the COMPOSITE through the \(\kappa\)-tree — \(\nu \mapsto g = \ln\nu/\ln\kappa_{\varphi}\) (unique, `kappa_power_representation`) \(\mapsto\) the tick by the fee-tree accumulator's injectivity \(\mapsto p_{\varphi}(i)\). COHERENCE (the joint on the price base): pulling back the gamma reading and the utilization reading OF THE SAME TICK lands on the same price. The flow-form \(\pi^{\phi}\) is a SEPARATE object — its equality to Definition 24's \(\pi^{\phi}\) is a claim to be PROVED, not a redefinition. *Formalized* (`PricePullback`, project `7ca5c21d`, 4/4 axiom-clean): both round trips (`gamma_pullback_roundtrips`); COHERENCE — a tick's gamma reading pulls back to exactly that tick's marginal price (`pullback_coherence`); injectivity of both chains (`gammaRead_strictMono`, `gMfee_strictAnti`). The joint LIVES ON THE PRICE BASE, no new algebra.
 
 *(Theorem 42's chain is now CLOSED end to end: sampling half `logContractLiquidity_geometric` + `strikeWeight_bridge`; replication premise \(\Gamma_{\varphi}[\pi^{\log}] = -1/p_{\varphi}^{2}\) `piLog_gamma`; the channel half Theorem 34.)*
+
+**Definition 49 (Principal payoff).** For liquidity \(L(i_K)\) on the strike range \([\,p_{(\eta,\Delta_i)}(i_K),\ p_{(\eta,\Delta_i)}(i_K+\Delta_i)\,]\) and the current sqrt-price \(p_{1/2}\), the principal payoff is the value in \(M\), at \(p_{1/2}\), of the amounts held:
+
+\[
+	\pi^{\Delta Q_X}(i_K;\,p_{1/2}) \, \equiv \,
+	\begin{cases}
+		p_{1/2}^{2}\,\Delta Q_M^{L}(i_K) & p_{1/2} < p_{(\eta,\Delta_i)}(i_K)\\[2pt]
+		L(i_K)\big(2p_{1/2} - p_{(\eta,\Delta_i)}(i_K) - p_{1/2}^{2}/p_{(\eta,\Delta_i)}(i_K+\Delta_i)\big) & p_{(\eta,\Delta_i)}(i_K) \le p_{1/2} < p_{(\eta,\Delta_i)}(i_K+\Delta_i)\\[2pt]
+		\Delta Q_X^{L}(i_K) & p_{1/2} \ge p_{(\eta,\Delta_i)}(i_K+\Delta_i)
+	\end{cases}
+\]
+
+— all money below the range, all asset above it (Definition 9's amounts), the mix in between. *Formalized* (`LadderPrincipal`, project `32b8b48e`, 4/4 axiom-clean): `principal L sa sb sp`; Lean `amount1 ≡ ΔQ_X^L`, `amount0 ≡ ΔQ_M^L`.
+
+**Theorem 45 (Principal payoff structure).** (i) Definition 9's amounts invert the liquidity maps in both directions (`amounts_invert_liquidity`); (ii) in range, \(\pi^{\Delta Q_X}\) is the asset amount held on \([p_{(\eta,\Delta_i)}(i_K), p_{1/2}]\) plus \(p_{1/2}^{2}\) times the money amount held on \([p_{1/2}, p_{(\eta,\Delta_i)}(i_K+\Delta_i)]\) (`principal_inRange`); (iii) continuous in \(p_{1/2}\) (`principal_continuous`); (iv) **concave in the PRICE \(p_{1/2}^{2}\) — NOT in \(p_{1/2}\)** (below the range it is \(p_{1/2}^{2}\Delta Q_M^{L}\), convex in \(p_{1/2}\); refuted numerically): proved as the infimum of the in-range tangent family \(T_t(P) = L\,(t - p_{(\eta,\Delta_i)}(i_K) + P/t - P/p_{(\eta,\Delta_i)}(i_K+\Delta_i))\), \(t\) in the range (`principal_concaveOn_price`).
+
+**Proposition 17 (The principal payoff is Definition 38's carrier).** In range, the second derivative of \(\pi^{\Delta Q_X}\) in the price \(P = p_{1/2}^{2}\) is \(-\tfrac12\,L(i_K)\,P^{-3/2} = -\tfrac12\,L(i_K)\,\Gamma_{\varphi}(P)\) — exactly Theorem 38's grid value \(-\tfrac12\,\bar L_{(1/2,0)}\,\Gamma_{\varphi}(i)\) read per strike. The principal payoff IS the payoff whose second derivative Definition 38 names; the gamma atlas and the ladder-replication block share one carrier. *Asserted* (calculus on Definition 49's in-range branch); machine proof queued with the per-tick CLMM identity bundle.
+
+**Definition 50 (Two-kernel geometric profile — the first \(\theta_{\text{LDF}}\) instance).** With the strike at rung \(\iota_P\) of \(\iota\) (derived from \(i^{\star}\), never free), the put kernel of base \(\xi_P\) on rungs \([0,\iota_P)\) and the call kernel of base \(\xi_C\) on \([\iota_P,\iota)\), each Rule 3's \(\ell(\xi,\cdot;\cdot)\) normalized on its own sub-span, mixed with weight \(\omega\) on the put side:
+
+\[
+	\ell_{\text{LDF}}\big((\xi_P,\xi_C,\omega);x\big) \, \equiv \,
+	\begin{cases}
+		\omega\,\ell(\xi_P,\iota_P;x) & x<\iota_P\\
+		(1-\omega)\,\ell(\xi_C,\iota-\iota_P;x-\iota_P) & x\ge\iota_P
+	\end{cases}
+\]
+
+— Bunni v2 §2.2's DoubleGeometric (its kernel 1, the left block, is the put kernel). \(\dim\theta_{\text{LDF}} = 3\); at the Carr–Madan point \(\omega\) is pinned (Theorem 46 ii), leaving 2 free dimensions — the G4 ladder deficit \(\iota-2\) at \(\iota=4\). *Formalized* (`GeomMixture`, same project, 5/5 axiom-clean): `mixWeight`.
+
+**Theorem 46 (Collapse and bin laws).** (i) Partition of unity for every \(\omega\) (`mixWeight_sum`); (ii) with a common base \(\xi\), the two-kernel profile equals \(\ell(\xi,\iota;\cdot)\) on every rung **iff** \(\omega = (1-\xi^{\iota_P})/(1-\xi^{\iota})\) — the single profile's put-side mass (`mix_eq_single_iff`); (iii) **binning loss**: over a fixed bin with positive per-rung conversion weights \(c_x\), the \(c\)-weighted mean minimizes \(\sum_x c_x(L_x-m)^{2}\) (`wMean_minimizes`) — the Panoptic leg liquidity is this mean, never the sum.
+
+**Theorem 47 (\(\xi^{\star}\) as the \(L^{2}\) argmin — the liquidity layer).** The log-contract profile \(K^{-1/2}\) sampled on the price grid and normalized over \(\iota\) rungs **is** \(\ell(\xi^{\star},\iota;\cdot)\), \(\xi^{\star}=\lambda^{-\Delta_i/2}\) (`logLiqWeight_eq_geom`); over the geometric family the finite-sum \(L^{2}\) distance to it is minimized at \(\xi^{\star}\), with distance 0, uniquely for \(\iota\ge2\) (`xiStar_argmin`). This is Theorem 42's liquidity-layer ratio, not the strike-notional \(\lambda^{-\Delta_i}\) of the \(dK/K^{2}\) weights — the two layers remain distinct.
+
 
 
 # TRADING_REGION
