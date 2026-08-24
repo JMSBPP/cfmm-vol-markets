@@ -75,7 +75,7 @@ import Network.Ethereum.Api.Types (Change)
 
 import System.FilePath ((</>))
 
-import Chain.Read (BlockRef (AtBlock), FixtureIdentity (..))
+import Chain.Read (BlockRef (AtBlock), FeeSource, FixtureIdentity (..), fee_source_token)
 import Chain.Shock (ShockEvent (..), decode_shock)
 import Fee.Split (FeeSplit (..), refusal_message, split_for)
 import Gams.Argv (Shock (..))
@@ -370,11 +370,11 @@ process_block env ident block = do
                                  , note block ("READ the pinned pool read at block " ++ show block
                                                 ++ " refused: " ++ why) : notes
                                  , published ))
-                    Right (price, liquidity, lp_fee) ->
+                    Right (price, liquidity, lp_fee, fee_source) ->
                       decided current rest rows reports notes published eid shock_event
-                        price liquidity lp_fee
+                        price liquidity lp_fee fee_source
 
-    decided current rest rows reports notes published eid shock_event price liquidity lp_fee =
+    decided current rest rows reports notes published eid shock_event price liquidity lp_fee fee_source =
       let dstar = se_norm_rate shock_event
           seed  = split_seed block (ev_log_index eid)
       in case split_for seed lp_fee dstar of
@@ -390,6 +390,7 @@ process_block env ident block = do
                    , lr_reason     = reason
                    , lr_gams_ver   = gams_version_text (ki_gams_version current)
                    , lr_conopt_ver = conopt_version_text (ki_conopt_version current)
+                   , lr_fee_source = fee_source_token fee_source
                    }
                  entry_report = EventReport
                    { er_tx         = ev_tx_hash eid
@@ -439,6 +440,7 @@ process_block env ident block = do
                          , lr_reason     = cl_reason decision
                          , lr_gams_ver   = gams_version_text (ki_gams_version current)
                          , lr_conopt_ver = conopt_version_text (ki_conopt_version current)
+                         , lr_fee_source = fee_source_token fee_source
                          }
                        entry_report = EventReport
                          { er_tx         = ev_tx_hash eid
@@ -448,8 +450,8 @@ process_block env ident block = do
                                              then ""
                                              else prefix
                          }
-                   (published', publish_notes) <- publish_for env block (cl_artifact decision)
-                                                     published notes
+                   (published', publish_notes) <- publish_for env block fee_source
+                                                     (cl_artifact decision) published notes
                    reported <- env_read_identity env
                    let (next_ident, drift) = adopt_identity current reported
                        notes' = maybe publish_notes (\n -> note block n : publish_notes) drift
@@ -495,12 +497,13 @@ note block message = "block " ++ show block ++ ": " ++ message
 publish_for
   :: Env
   -> Integer
+  -> FeeSource
   -> Maybe Artifact
   -> Bool
   -> [String]
   -> IO (Bool, [String])
-publish_for _   _     Nothing         published notes = pure (published, notes)
-publish_for env block (Just artifact) published notes = do
+publish_for _   _     _          Nothing         published notes = pure (published, notes)
+publish_for env block fee_source (Just artifact) published notes = do
   attempt <-
     try (publish_fixture (env_fixture_dir env) identity (artifact_bytes artifact))
   pure $ case attempt of
@@ -514,9 +517,10 @@ publish_for env block (Just artifact) published notes = do
     Right (Right path) -> (True, note block ("PUBLISH " ++ path) : notes)
   where
     identity = FixtureIdentity
-      { fi_pool     = env_pool_id env
-      , fi_block    = AtBlock block
-      , fi_chain_id = env_chain_id env
+      { fi_pool       = env_pool_id env
+      , fi_block      = AtBlock block
+      , fi_chain_id   = env_chain_id env
+      , fi_fee_source = fee_source
       }
 
 -- ---------------------------------------------------------------------------------------------

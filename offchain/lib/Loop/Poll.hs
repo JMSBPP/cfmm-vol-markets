@@ -32,7 +32,7 @@ import Data.Solidity.Prim.Address (Address)
 
 import Network.Ethereum.Api.Types (Change (..), DefaultBlock (BlockWithNumber))
 
-import Chain.Read (BlockRef, render_word_token, word_hex_digits)
+import Chain.Read (BlockRef, FeeSource, render_word_token, word_hex_digits)
 import Loop.Config (loop_first_block)
 import Loop.Ledger (EventId (..))
 
@@ -52,8 +52,10 @@ data ChainSource = ChainSource
     -- ^ the highest block the chain will admit to having.
   , source_logs     :: Integer -> Integer -> IO [Change]
     -- ^ the logs in the CLOSED range @[from, to]@.
-  , source_reads    :: Integer -> BlockRef -> IO (Either String (Integer, Integer, Integer))
-    -- ^ pool id and block to @(sqrtPriceX96, liquidity, lpFee)@, every one of them PINNED.
+  , source_reads    :: Integer -> BlockRef -> IO (Either String (Integer, Integer, Integer, FeeSource))
+    -- ^ pool id and block to @(sqrtPriceX96, liquidity, fee, where the fee came from)@, every one
+    -- of them PINNED. Issue #41: the fee is the EFFECTIVE one -- slot0's when slot0 has one, the
+    -- hook route's when slot0 says zero -- and the fourth element says which.
   , source_chain_id :: IO Integer
     -- ^ the network the three above were answered by. A wrong-network guard, never an input.
   }

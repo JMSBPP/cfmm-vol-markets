@@ -185,6 +185,8 @@ import Chain.Read
   , word_hex_digits
   , zero_address_token
   , zero_is_refused
+  , FeeSource (..)
+  , fee_source_token
   )
 
 -- The fee splitter's arithmetic core, imported TWICE and for a reason that is a finding rather
@@ -1469,7 +1471,7 @@ purge_known_extensions = [".hs", ".json", ".md", ".sh", ".sql", ".txt"]
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' \) -type f | wc -l
 -- > 82
 purge_file_floor :: Int
-purge_file_floor = 83
+purge_file_floor = 84
 
 -- | The purge scan, as ONE argument vector, so the positive control runs the identical invocation
 -- over a different root rather than a lookalike of it.
@@ -8536,7 +8538,7 @@ credential_scan root =
 -- > find offchain \( -name '*.hs' -o -name '*.sh' -o -name '*.sql' -o -name '*.json' \) -type f | wc -l
 -- > 93
 credential_scan_floor :: Int
-credential_scan_floor = 94
+credential_scan_floor = 95
 
 -- | The seeded bait, BUILT for the same reason the pattern is.
 credential_bait_source :: String
@@ -16373,6 +16375,8 @@ expected_pinned_reads =
   , "read_pool_state_word"
   , "read_raw_word_token"
   , "read_sqrt_price_x96"
+  , "read_hook_fee"
+  , "read_effective_fee"
   ]
 
 -- | Every top-level type signature in a body, as @(name, type)@.
@@ -17278,7 +17282,7 @@ the_pinned_read_held_while_the_unpinned_read_moved =
 -- imported from outside, and the subject it is held against -- the rendered document -- is built by
 -- the producer.
 fixture_identity_contract :: [String]
-fixture_identity_contract = ["blockNumber", "chainId", "pool"]
+fixture_identity_contract = ["blockNumber", "chainId", "feeSource", "pool"]
 
 -- | CHAIN-05: THE PUBLISHED FIXTURE SAYS WHICH POOL, AT WHICH HEIGHT, ON WHICH CHAIN.
 --
@@ -17339,7 +17343,7 @@ the_fixture_carries_the_pool_identity_it_was_solved_for =
                ++ " as the solved block is a plausible-looking number a consumer cannot tell from a"
                ++ " real one, which is the whole reason readback_height is a Maybe one layer down.")
 
-      let identity = FixtureIdentity (se_pool event) (AtBlock solved_block) chain
+      let identity = FixtureIdentity (se_pool event) (AtBlock solved_block) chain FeeFromSlot0
           rendered = render_fixture_identity identity
 
       -- (1) IT PARSES AT ALL, WITH A REAL PARSER.
@@ -17529,7 +17533,7 @@ a_block_number_above_two_to_the_fifty_three_is_OBSERVED_losing_precision_as_a_nu
     -- published chain id is held against the capture's.
     published <-
       case decode (BSL.fromStrict (C8.pack (render_fixture_identity
-                                              (FixtureIdentity 1 (AtBlock witness) 1)))) of
+                                              (FixtureIdentity 1 (AtBlock witness) 1 FeeFromSlot0)))) of
         Just parsed -> json_field "blockNumber" parsed
         Nothing -> Left "the published identity did not parse as JSON."
     case published of
@@ -17600,6 +17604,7 @@ loop_row ident eid shock decision =
     , lr_reason     = cl_reason decision
     , lr_gams_ver   = gams_version_text (ki_gams_version ident)
     , lr_conopt_ver = conopt_version_text (ki_conopt_version ident)
+    , lr_fee_source = fee_source_token FeeFromSlot0
     }
 
 -- | THE PER-EVENT PIPELINE 28-02's loop will be, with every seam replaced by its reference
@@ -18096,8 +18101,8 @@ loop_pool_fee_pips = 6497
 -- | The pinned pool read every block answers with: @VOLUME_PATH.md@ section 2's fixture price and
 -- liquidity, plus the fee above. Constant across blocks on purpose -- this plan's subject is WHICH
 -- BLOCKS ARE SCANNED, and a price that moved would put a second variable in every arm.
-loop_pool_reading :: (Integer, Integer, Integer)
-loop_pool_reading = (79228162514264337593543950336, 18446744073709551616, loop_pool_fee_pips)
+loop_pool_reading :: (Integer, Integer, Integer, FeeSource)
+loop_pool_reading = (79228162514264337593543950336, 18446744073709551616, loop_pool_fee_pips, FeeFromSlot0)
 
 -- | The pool the loop is pointed at. Any non-zero value below the address ceiling; the decoder
 -- refuses both boundaries and 'shock_corpus' already asserts that.
@@ -18658,7 +18663,7 @@ an_unparseable_poll_interval_is_refused_rather_than_defaulted =
 -- 'loop_pool_id' is @2^159 + 12345@ -- below the address ceiling, so it renders as forty hex
 -- digits, and nowhere near zero, so neither pool arm of 'publish_bytes' fires by accident.
 publication_identity :: FixtureIdentity
-publication_identity = FixtureIdentity loop_pool_id (AtBlock 4242) loop_chain_id
+publication_identity = FixtureIdentity loop_pool_id (AtBlock 4242) loop_chain_id FeeFromSlot0
 
 -- | Two well-formed artifacts of DIFFERENT LENGTHS -- 'Store.Cache''s own fixtures, reused.
 --
@@ -19084,7 +19089,7 @@ the_shape_floor_refuses_what_it_must_and_admits_the_golden =
                           ++ " test asserts at assertEq(dQx.length, nEvents), and the publisher"
                           ++ " borrows it from the decoder rather than restating it.")
           -- THE ZERO POOL, ON ITS OWN ARM.
-          _ <- case publish_bytes (FixtureIdentity 0 (AtBlock 4242) loop_chain_id) golden of
+          _ <- case publish_bytes (FixtureIdentity 0 (AtBlock 4242) loop_chain_id FeeFromSlot0) golden of
                  Left PoolIsTheZeroAddress -> Right ()
                  other ->
                    Left ("a ZERO pool was answered with " ++ show other
@@ -19094,7 +19099,7 @@ the_shape_floor_refuses_what_it_must_and_admits_the_golden =
           -- A POOL ABOVE THE ADDRESS CEILING. render_address_token does NOT mask, so it renders
           -- LONGER rather than wrapping into a plausible pool nobody measured.
           _ <- case publish_bytes
-                      (FixtureIdentity (2 ^ (160 :: Int)) (AtBlock 4242) loop_chain_id) golden of
+                      (FixtureIdentity (2 ^ (160 :: Int)) (AtBlock 4242) loop_chain_id FeeFromSlot0) golden of
                  Left (PoolIsNotAnAddressToken token) ->
                    expect (length token /= 2 + address_hex_digits)
                      ("a pool above the address ceiling rendered as " ++ show token
@@ -19205,7 +19210,7 @@ the_published_fixture_carries_the_artifact_bytes_verbatim =
               tail_out   = BS.drop (BS.length prefix) document
               tail_in    = BS.drop 1 (BS.dropWhile (/= 123) golden)
               keys       = json_key_tokens golden
-              contract   = ["pool", "blockNumber", "chainId"]
+              contract   = ["pool", "blockNumber", "chainId", "feeSource"]
               missing ks = [k | k <- ks, not (C8.pack ("\"" ++ k ++ "\"") `BS.isInfixOf` document)]
           _ <- expect (prefix `BS.isPrefixOf` document)
                  ("the published document does not begin with the identity prefix. It begins "
@@ -19267,7 +19272,7 @@ publication_colliding_positions =
                        ++ " between two heights would say nothing about the splitter.")
            else search band [] [(b, 0) | b <- [1 .. 600]]
   where
-    lp_fee = case loop_pool_reading of (_, _, f) -> f
+    lp_fee = case loop_pool_reading of (_, _, f, _) -> f
 
     search _ _ [] =
       Left ("no two of the first 600 blocks pick the same pair out of the fixture pool's band, so"
@@ -19292,7 +19297,7 @@ publication_split_at b i =
     Left why -> Left ("the log at " ++ show (b, i) ++ " does not decode: " ++ show why)
     Right ev ->
       case loop_pool_reading of
-        (_, _, lp_fee) ->
+        (_, _, lp_fee, _) ->
           case split_for (split_seed b i) lp_fee (se_norm_rate ev) of
             Left refusal -> Left ("the split at " ++ show (b, i) ++ " was refused: "
                                    ++ show refusal)
@@ -19352,8 +19357,8 @@ a_cache_hit_publishes_at_the_events_own_block =
 
         let first_document  = fromMaybe BS.empty first_read
             second_document = fromMaybe BS.empty second_read
-            prefix1  = identity_prefix (FixtureIdentity loop_pool_id (AtBlock b1) loop_chain_id)
-            prefix2  = identity_prefix (FixtureIdentity loop_pool_id (AtBlock b2) loop_chain_id)
+            prefix1  = identity_prefix (FixtureIdentity loop_pool_id (AtBlock b1) loop_chain_id FeeFromSlot0)
+            prefix2  = identity_prefix (FixtureIdentity loop_pool_id (AtBlock b2) loop_chain_id FeeFromSlot0)
             payload1 = BS.drop (BS.length prefix1) first_document
             payload2 = BS.drop (BS.length prefix2) second_document
             stamp b  = C8.pack ("\"blockNumber\":\"" ++ show b ++ "\"")
@@ -19899,69 +19904,49 @@ the_default_fixture_path_is_the_consumers_own_constant =
 -- literal reddens. The literal here is the directory half of the string
 -- 'the_default_fixture_path_is_the_consumers_own_constant' pins to @origin\/develop@, so the two
 -- checks cannot drift apart without one of them going red.
-the_fixtures_directory_is_recorded_absent_from_both_trees :: Check
-the_fixtures_directory_is_recorded_absent_from_both_trees =
-  Check "the_fixtures_directory_is_recorded_absent_from_both_trees" . guarded $ do
-    (ref_code, _, ref_err) <-
-      readProcessWithExitCode "git" ["rev-parse", "--verify", upstream_ref] ""
-    (ls_code, listing, ls_err) <-
-      readProcessWithExitCode "git" ["ls-tree", "-r", "--name-only", upstream_ref] ""
-    here_dir  <- doesDirectoryExist default_fixture_dir
-    here_file <- doesFileExist default_fixture_path
-    let tracked = lines listing
-        under   = [p | p <- tracked, (default_fixture_dir ++ "/") `isPrefixOf` p]
-    pure $ do
-      _ <- expect (ref_code == ExitSuccess)
-             ("the ref " ++ upstream_ref ++ " is not resolvable in this clone, so \"absent from"
-               ++ " origin/develop\" would be absence of the TREE rather than of the directory."
-               ++ " Fetch it and re-run: git fetch origin develop"
-               ++ (if null ref_err then "" else "\n      git said: " ++ ref_err))
-      _ <- expect (ls_code == ExitSuccess && not (null tracked))
-             ("could not list " ++ upstream_ref ++ ": an empty listing reports every path as"
-               ++ " absent" ++ (if null ls_err then "" else "\n      git said: " ++ ls_err))
-      _ <- expect (consumer_test_path `elem` tracked)
-             ("the listing of " ++ upstream_ref ++ " does not contain " ++ consumer_test_path
-               ++ ", which IS there. A listing that finds nothing reports every directory as"
-               ++ " absent, so this control comes before the verdict.")
-      _ <- expect (default_fixture_dir == "test/models/mev_tax_model_one/fixtures")
-             ("Loop.Config.default_fixture_dir is " ++ show default_fixture_dir
-               ++ " and this check's subject is"
-               ++ " \"test/models/mev_tax_model_one/fixtures\". The resolver's default moved and"
-               ++ " the two are no longer about the same directory.")
-      _ <- expect (null under)
-             ("THE PREREQUISITE HAS CLOSED, AND THAT IS NOT A DEFECT. "
-               ++ upstream_ref ++ " now carries " ++ show under
-               ++ " under " ++ default_fixture_dir ++ ", so the #24 track has landed the"
-               ++ " publication directory (issue #25). LOOP-04's live half is no longer blocked."
-               ++ " Re-state it against the REAL tree at the phase close -- the loop with no"
-               ++ " FIXTURE_DIR override, one volume_path.json observed appearing there, and the"
-               ++ " consuming forge test observed no longer skipping -- and then RETIRE this check"
-               ++ " rather than weakening it.")
-      expect (not here_dir && not here_file)
-        ("THIS WORKTREE now carries " ++ default_fixture_dir
-          ++ (if here_dir then " as a directory" else "")
-          ++ (if here_file then " with a volume_path.json in it" else "")
-          ++ ". Nothing in cabal test may create it -- every publication check publishes into a"
-          ++ " temporary directory -- so either the branch merged test/models/ or a check has"
-          ++ " started writing into another workstream's tree. Check git status --porcelain test/"
-          ++ " before anything else.")
-
--- ---------------------------------------------------------------------------------------------
--- Phase 28 plan 05: LOOP-05 -- the exception at EVERY stage, and the interrupt at a block boundary
+-- === RETIRED 2026-08-23 -- the prerequisite closed, and this is the record of it.
 --
--- Every check below runs against 'Store.Memory', 'new_memory_ledger', a counting stub 'Solver' and
--- a chain the CHECK ITSELF supplies, publishing into a temporary directory. There is no node, no
--- database, no solver and no signal: the interrupt is 'Loop.Run.env_interrupted', a question the
--- loop asks, so "the flag was set DURING the log fetch of block 2" is a moment a check can arrange
--- and a real @SIGINT@ is not.
--- ---------------------------------------------------------------------------------------------
+-- @the_fixtures_directory_is_recorded_absent_from_both_trees@ asserted that
+-- @test\/models\/mev_tax_model_one\/fixtures@ existed on NEITHER @origin\/develop@ NOR this worktree, and
+-- its own failure text said what to do the day that stopped being true: re-state LOOP-04 against
+-- the real tree and RETIRE the check rather than weaken it. The directory landed by a one-time
+-- territory exception our user granted (the check and the directory had to move in ONE commit or
+-- the gate reddened either way -- plank-cf found the circularity, issue #35), credited to the
+-- plank track that owns it. The retirement IS the record; nothing replaces the absence assertion,
+-- because the thing it asserted is no longer true and a check asserting presence would be a
+-- tautology against a tracked @.gitkeep@.
 
--- | The Tier-C capture that would observe LOOP-01..05 end to end, and the artifact it would write.
---
--- Both stated once, here, so the check below names neither a second time.
 live_loop_capture, live_loop_artifact :: FilePath
 live_loop_capture  = "offchain/rig/capture-loop.sh"
 live_loop_artifact = "offchain/rig/loop-conformance.json"
+
+-- | THE LIVE RUN IS OWED, AND ITS ABSENCE IS THE ASSERTION.
+--
+-- This check is written INVERTED on purpose and the inversion is the only interesting thing about
+-- it. It passes while @offchain\/rig\/loop-conformance.json@ does NOT exist, and it fails on the day
+-- it appears. Those two directions mean different things and the failure text says which:
+--
+--   * while it PASSES, the live end-to-end run is OWED and BLOCKED. The capture exists, is gated
+--     exactly as Phase 27 gated its two, and cannot be executed -- there is no deployable emitter
+--     of @Shock@ (CHAIN-01, issue #26) and the publication directory is absent from this worktree
+--     and from @origin\/develop@ (LOOP-04, issues #24 and #25, MEASURED at 28-04).
+--   * when it FAILS, the capture HAS been run and there is an artifact to assert over. That is not
+--     a defect: it is the phase close's cue to replace this check with ones that read the recorded
+--     watermark, the recorded ledger rows and the recorded fixture digest, and to RETIRE this one
+--     rather than weaken it.
+--
+-- The alternative was a check that reads the artifact and reports something reassuring when it is
+-- missing. 'aeson_is_absent_from_the_storage_path' already carries this milestone's ruling on that
+-- in its own haddock: a check whose SUBJECT is absent must be a FAILURE naming the plan that
+-- creates the subject, never a pass. So nothing here reads the artifact, and what is asserted about
+-- the script is only what can be asserted about a file that has never run: that it exists, that it
+-- resolves the endpoint through the shared resolver rather than stating one, and that its own
+-- refusal text names the two blocks by number.
+--
+-- 27-02's gating precedent is the shape: resolve through @offchain\/rig\/endpoint.sh@, FAIL LOUDLY
+-- AND BY NAME when nothing answers, never skip. 23-RESEARCH's ruling is why -- a capture gated on
+-- \"if the tool is present\" fails OPEN, so on every machine without the tool it reports success
+-- for the reason it exists to forbid.
 
 -- | THE LIVE RUN IS OWED, AND ITS ABSENCE IS THE ASSERTION.
 --
@@ -20460,7 +20445,7 @@ the_published_fixture_survives_an_interrupted_iteration =
                        ++ " bytes, beginning " ++ show (C8.unpack (BS.take 96 bytes))
                        ++ ". A consumer that read this file after the interruption would see a"
                        ++ " document that is not JSON at all.")
-              let prefix  = identity_prefix (FixtureIdentity loop_pool_id (AtBlock b2) loop_chain_id)
+              let prefix  = identity_prefix (FixtureIdentity loop_pool_id (AtBlock b2) loop_chain_id FeeFromSlot0)
                   payload = BS.drop (BS.length prefix) bytes
               _ <- expect (prefix `BS.isPrefixOf` bytes)
                      ("the fixture does not begin with the identity prefix for block " ++ show b2
@@ -20481,7 +20466,7 @@ the_published_fixture_survives_an_interrupted_iteration =
                      ("the golden's key extractor found " ++ show (length artifact_keys)
                        ++ " names (" ++ show artifact_keys ++ ") and the golden carries ten. An"
                        ++ " extractor that found nothing makes the next arm vacuous.")
-              let wanted  = artifact_keys ++ ["pool", "blockNumber", "chainId"]
+              let wanted  = artifact_keys ++ ["pool", "blockNumber", "chainId", "feeSource"]
                   missing = [k | k <- wanted
                                , not (C8.pack ("\"" ++ k ++ "\"") `BS.isInfixOf` bytes)]
               _ <- expect (null missing)
@@ -20775,7 +20760,6 @@ core_checks = do
           , publication_adds_exactly_one_file_and_nothing_else
           , a_missing_fixture_directory_is_a_loud_named_failure
           , the_default_fixture_path_is_the_consumers_own_constant
-          , the_fixtures_directory_is_recorded_absent_from_both_trees
           -- 28-05. LOOP-05: crash consistency and the shutdown. The stage battery injects an
           -- exception at EVERY stage of one iteration that can be broken from outside the
           -- function; the interrupt is a flag the check sets from inside the chain source, which

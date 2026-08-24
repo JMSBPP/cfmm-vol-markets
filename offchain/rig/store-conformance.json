@@ -113,7 +113,7 @@
     "rejected": true,
     "sqlstate": "23514"
   },
-  "generatedAt": "2026-08-22T23:02:43Z",
+  "generatedAt": "2026-08-24T18:58:07Z",
   "image_tag": "postgres:18-alpine",
   "json_agreement": [
     {
@@ -207,6 +207,10 @@
     {
       "filename": "004_loop_ledger.sql",
       "md5": "ab6f60d921c98dea109cc7e0e6d703b5"
+    },
+    {
+      "filename": "005_loop_event_fee_source.sql",
+      "md5": "137c78b49e66958589197178853e8b77"
     }
   ],
   "sc_complete": true,

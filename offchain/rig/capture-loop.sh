@@ -245,9 +245,17 @@ HEAD_BEFORE=$(cast block-number --rpc-url "$RPC")
 # one line against the interface they ship; the refusal above is what stops the
 # script reaching it in the meantime, and a plausible-looking call that was never
 # executed is exactly the kind of thing that gets believed.
+# CONFIRMED against the emitter shipped in PR #42 (issue #26): ShockWriterMod.plk,
+# shock(address pool, int24 tickDiff, uint24 txlVolmNormRate, uint24 txlVolmDecay), flags
+# internal. The pool is an ADDRESS -- the loop keys its reads by pool.poolId through PoolManager
+# and never by this field, so the manifest's PoolManager is the truthful value. The values are
+# VOLUME_PATH.md section 2's: tickDiff 0, txlVolmNormRate 490000 (that is delta*, 0.49 in pips --
+# Loop.Run takes it as se_norm_rate), txlVolmDecay 0 (26-02 asserts decay never reaches the
+# prover). The earlier draft carried 6497 here: that is the golden fixture's COMPOSED FEE, which the
+# loop reads from the chain and never from the shock -- issue #41 records why that mattered.
 cast send "$EMITTER" \
-  'shock(bytes32,int24,uint24,uint24)' \
-  "$POOL_ID" 0 6497 490000 \
+  'shock(address,int24,uint24,uint24)' \
+  "$MANAGER" 0 490000 0 \
   --rpc-url "$RPC" \
   --mnemonic "test test test test test test test test test test test junk" \
   >/dev/null
