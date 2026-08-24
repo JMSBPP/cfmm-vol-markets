@@ -102,6 +102,7 @@ import Rig.Manifest
   , RigAddresses (..)
   , RigPool (..)
   , contract_address
+  , contract_initcode
   , hex_to_integer
   , load_rig
   , pin_topic0
@@ -458,6 +459,7 @@ flush rig seed steps_ref legacy_ref done_ref orders_ref path = do
               { drg_pool_manager      = manifest_contract rig "PoolManager"
               , drg_dynamic_fee_hook  = manifest_contract rig "DynamicFeeHook"
               , drg_price_setter_hook = manifest_contract rig "PriceSetterHook"
+              , drg_price_setter_hook_initcode = manifest_initcode rig "PriceSetterHook"
               , drg_swap_router       = manifest_contract rig "PoolSwapTest"
               , drg_vol_order_manager = manifest_contract rig "VolOrderManagerMod"
               , drg_pool_id           = T.unpack (rig_pool_id pool)
@@ -563,6 +565,12 @@ manifest_contract :: Rig -> T.Text -> String
 manifest_contract rig name =
   either (error . (("driver capture: " ++ T.unpack name ++ " -- ") ++)) T.unpack
          (contract_address rig name)
+
+-- | The initcode digest beside the address -- same startup path, same loudness (issue #38).
+manifest_initcode :: Rig -> T.Text -> String
+manifest_initcode rig name =
+  either (error . (("driver capture: initcode " ++ T.unpack name ++ " -- ") ++)) T.unpack
+         (contract_initcode rig name)
 
 -- | @0x@-prefixed lowercase hex, rendered from the bytes so the shape is this program's decision
 -- and so nothing here is a source literal the offchain purge could match.

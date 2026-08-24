@@ -116,6 +116,9 @@ data DriverRig = DriverRig
   { drg_pool_manager      :: String
   , drg_dynamic_fee_hook  :: String
   , drg_price_setter_hook :: String
+    -- | sha256 of the initcode 'drg_price_setter_hook' was mined from (issue #38). Recorded so a
+    -- freshness check can tell "a compiler input moved the mined address" from rig drift.
+  , drg_price_setter_hook_initcode :: String
   , drg_swap_router       :: String
   , drg_vol_order_manager :: String
   , drg_pool_id           :: String
@@ -457,6 +460,7 @@ instance ToJSON DriverRig where
       [ "poolManager"     .= drg_pool_manager g
       , "dynamicFeeHook"  .= drg_dynamic_fee_hook g
       , "priceSetterHook" .= drg_price_setter_hook g
+      , "priceSetterHookInitcode" .= drg_price_setter_hook_initcode g
       , "swapRouter"      .= drg_swap_router g
       , "volOrderManager" .= drg_vol_order_manager g
       , "poolId"          .= drg_pool_id g

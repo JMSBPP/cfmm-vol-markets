@@ -67,6 +67,7 @@ import Rig.Manifest
   , RigAddresses (..)
   , RigPool (..)
   , contract_address
+  , contract_initcode
   , hex_to_integer
   , load_rig
   , pin_topic0
@@ -196,6 +197,7 @@ main = do
         , "priceSetterPoolManager" .= manifest_contract rig "PriceSetterPoolManager"
         , "dynamicFeeHook"         .= manifest_contract rig "DynamicFeeHook"
         , "priceSetterHook"        .= manifest_contract rig "PriceSetterHook"
+        , "priceSetterHookInitcode" .= manifest_initcode rig "PriceSetterHook"
         , "swapRouter"             .= manifest_contract rig "PoolSwapTest"
         , "poolId"                 .= rig_pool_id pool
         , "tickSpacing"            .= rig_tick_spacing pool
@@ -451,6 +453,12 @@ summarise m = case m_outcome m of
 -- ---------------------------------------------------------------------------------------------
 -- Small helpers
 -- ---------------------------------------------------------------------------------------------
+
+-- | The initcode digest beside the address -- issue #38.
+manifest_initcode :: Rig -> T.Text -> T.Text
+manifest_initcode rig name =
+  either (error . (("cheat-swap proof: initcode " ++ T.unpack name ++ " -- ") ++)) id
+         (contract_initcode rig name)
 
 manifest_contract :: Rig -> T.Text -> T.Text
 manifest_contract rig name =

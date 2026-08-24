@@ -3750,6 +3750,7 @@ driv01_cheat_swap_proof_is_present_and_fresh =
       -- poolManager equality survived 'fecdc8b' only because contracts.PoolManager happens to be
       -- read in a DIFFERENT check, so emptying both sides left THIS one passing while a neighbour
       -- failed. The other five fields were not compared at all until now.
+      _ <- hook_identity_agrees proof addrs "the proof" proof_command
       _ <- rig_block_matches proof addrs proof_rig_address_fields "the proof" proof_command
       _ <- pool_id_matches proof addrs "the proof" proof_command
 
@@ -4930,6 +4931,7 @@ fixture_rig =
     { drg_pool_manager      = "fixture"
     , drg_dynamic_fee_hook  = "fixture"
     , drg_price_setter_hook = "fixture"
+    , drg_price_setter_hook_initcode = "fixture"
     , drg_swap_router       = "fixture"
     , drg_vol_order_manager = "fixture"
     , drg_pool_id           = "fixture"
@@ -5045,6 +5047,7 @@ driv01_run_capture_is_present_and_fresh =
 
       -- The WHOLE rig block. This was two fields out of seven; priceSetterHook, swapRouter,
       -- deployer, sender and volOrderManager were recorded and never compared.
+      _ <- hook_identity_agrees capture addrs "the run" driver_capture_command
       _ <- rig_block_matches capture addrs driver_rig_address_fields "the run"
              driver_capture_command
       _ <- pool_id_matches capture addrs "the run" driver_capture_command
@@ -5158,6 +5161,74 @@ refs_are_real subject captured pinned = do
       ++ " against, and comparing it to anything proves nothing.")
 
 -- | One @contracts.<name>@ from the manifest, or a failure naming the deploy command.
+-- | ISSUE #38 -- NAME THE CAUSE, NOT JUST THE FACT.
+--
+-- @PriceSetterHook@'s address is CREATE2-MINED over its initcode, and the initcode carries solc's
+-- metadata hash. So the address moves whenever ANY global compiler input moves -- @remappings.txt@,
+-- @foundry.toml@, the solc version, the hook's own source or even its comments -- while no
+-- @offchain\/@ file changes and 'addresses_agree' can only say "different deployment, re-take".
+-- MEASURED on PR #37: two added remappings changed EVERY contract's initcode, but only the
+-- CREATE2-mined hook moved; the CREATE-deployed contracts kept their (deployer, nonce) addresses.
+--
+-- With the initcode digest recorded beside the address (manifest @initcode.PriceSetterHook@,
+-- artifact @rig.priceSetterHookInitcode@), the four combinations each mean one thing, and the
+-- failure text says which. Runs BEFORE 'rig_block_matches' so the address comparison that follows
+-- never gets to report the bare version of a mismatch this one has already explained.
+--
+-- Both sides are shape-guarded and floored exactly as the addresses are: a 64-hex digest, not the
+-- zero word, on BOTH sides -- an empty or zeroed digest comparing equal to another is the same
+-- degeneracy this module already carries two scars from.
+hook_identity_agrees :: Value -> RigAddresses -> String -> String -> Either String ()
+hook_identity_agrees capture addrs subject retake = do
+  block <- json_field "rig" capture
+  captured_addr <- map toLower <$> (json_field "priceSetterHook" block >>= json_string)
+  captured_init <- map toLower <$> (json_field "priceSetterHookInitcode" block >>= json_string)
+  manifest_addr <- manifest_address addrs "PriceSetterHook"
+  manifest_init <- case Map.lookup "PriceSetterHook" (rig_initcode addrs) of
+    Nothing -> Left ("the manifest has no initcode.PriceSetterHook -- deploy-rig.sh records the"
+                       ++ " digest of the initcode the hook was mined from (issue #38); re-run: "
+                       ++ deploy_command)
+    Just t  -> Right (map toLower (T.unpack t))
+  _ <- expect (is_sha256_text manifest_init)
+         ("the manifest's initcode.PriceSetterHook is " ++ show manifest_init
+           ++ ", not a 64-hex sha256 -- re-run: " ++ deploy_command)
+  _ <- expect (is_sha256_text captured_init)
+         (subject ++ " records rig.priceSetterHookInitcode = " ++ show captured_init
+           ++ ", not a 64-hex sha256. An artifact that cannot say which initcode its hook was"
+           ++ " mined from cannot explain a moved address -- re-take it: " ++ retake)
+  _ <- not_a_zero_word "the manifest's initcode.PriceSetterHook" manifest_init
+  _ <- not_a_zero_word (subject ++ "'s rig.priceSetterHookInitcode") captured_init
+  let init_same = captured_init == manifest_init
+      addr_same = captured_addr == manifest_addr
+      pair what a b = what ++ " " ++ a ++ " (artifact) vs " ++ b ++ " (manifest)"
+  case (init_same, addr_same) of
+    (True, True)   -> Right ()
+    (False, False) -> Left
+      (subject ++ ": PriceSetterHook's INITCODE CHANGED and its mined address moved with it -- "
+        ++ pair "initcode" captured_init manifest_init ++ "; "
+        ++ pair "address" captured_addr manifest_addr
+        ++ ". A GLOBAL COMPILER INPUT moved: remappings.txt, foundry.toml, the solc version, or"
+        ++ " the hook's own source or comments (all feed solc's metadata hash, which is part of"
+        ++ " the initcode the CREATE2 salt is mined over). This is not rig drift and not a stale"
+        ++ " checkout -- the PR that changed the compiler input owes the re-take, in the PR"
+        ++ " (issue #38). Re-take it: " ++ retake)
+    (True, False)  -> Left
+      (subject ++ ": PriceSetterHook has the SAME initcode but a DIFFERENT address -- "
+        ++ pair "address" captured_addr manifest_addr
+        ++ ". The compiler did not move; the CREATE2 SALT or the DEPLOYER did (a re-mined salt,"
+        ++ " a changed deployer account, or a different CREATE2 proxy). Re-take it: " ++ retake)
+    (False, True)  -> Left
+      (subject ++ ": PriceSetterHook's initcode changed but its address did NOT -- "
+        ++ pair "initcode" captured_init manifest_init
+        ++ ". A CREATE2-mined address cannot survive an initcode change unless the salt was"
+        ++ " re-mined onto the old address on purpose, or one of these two records is wrong."
+        ++ " Treat as a rig fault, not as fresh: re-run " ++ deploy_command ++ " then re-take: "
+        ++ retake)
+
+-- | A 64-character hex digest. SHAPE ONLY -- see 'is_git_object_name'.
+is_sha256_text :: String -> Bool
+is_sha256_text s = length s == 64 && all isHexDigit s
+
 manifest_address :: RigAddresses -> T.Text -> Either String String
 manifest_address addrs name =
   case Map.lookup name (rig_contracts addrs) of

@@ -267,6 +267,37 @@ The `--ghc-arg=-package` pair is required on ghc 9.10.3 — without it `runghc` 
 `runghc -package X file.hs` and `runghc -- -package X file.hs` spellings both die with
 `Not in scope: main`.
 
+### Why a capture goes stale when no `offchain/` file changed (issue #38)
+
+`PriceSetterHook`'s address is **CREATE2-mined** over its initcode, and the initcode ends in
+solc's metadata hash. So a change to **any global compiler input** — `remappings.txt`,
+`foundry.toml`, the solc version, or the hook's own source *or comments* — moves the hook's
+address while nothing under `offchain/` changes, and both `driv01_*_is_present_and_fresh`
+checks go red on the develop gate. Measured on PR #37: two added `@cryptoalgebra` remappings
+changed **every** contract's initcode (metadata hash), but only the CREATE2-mined hook moved —
+the CREATE-deployed contracts keep their `(deployer, nonce)` addresses.
+
+Since the gate only fires on PRs, this surfaces as *the PR's* gate failing, not develop's, and
+the fix belongs **in that PR**: the PR that changed the compiler input owes the re-take.
+
+To make the cause nameable rather than guessed, `deploy-rig.sh` records
+`initcode.PriceSetterHook` in the manifest — `sha256` over the lowercase hex text of the
+broadcast's creation input — and both captures carry it as `rig.priceSetterHookInitcode`. The
+freshness checks compare the digest **before** the address (`hook_identity_agrees` in
+`offchain/test/Main.hs`), so a red gate says which of these it is:
+
+| initcode | address | meaning |
+|---|---|---|
+| same | same | fresh |
+| changed | moved | **a global compiler input moved** — re-take in the PR that changed it |
+| same | moved | the CREATE2 salt or the deployer moved, not the compiler |
+| changed | same | impossible for a mined address unless the salt was re-mined onto it — rig fault |
+
+Only `PriceSetterHook` is recorded: its `new X{salt: …}` is a top-level CREATE2 whose
+`transaction.input` **is** the initcode. `DynamicFeeHook` is created by a raw `.call` to a
+CREATE2 proxy, so its recorded input is proxy calldata, and a digest of it would describe the
+wrong thing under the same name.
+
 ## Rules
 
 - No address, selector or topic0 is ever typed. Selectors and topic0s are computed from the

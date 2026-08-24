@@ -36,8 +36,10 @@ module Rig.Manifest
   , load_rig
   , load_rig_from
   , required_contracts
+  , required_initcode
     -- * Lookups
   , contract_address
+  , contract_initcode
   , account_address
   , pin_selector
   , pin_topic0
@@ -114,6 +116,12 @@ data RigAddresses = RigAddresses
   , rig_generated_from :: Text
   , rig_accounts       :: RigAccounts
   , rig_contracts      :: Map Text Text
+    -- | sha256 (over the lowercase hex text of the creation input) of the initcode a
+    -- CREATE2-mined contract was deployed from, keyed by the same name as 'rig_contracts'.
+    -- Issue #38: the mined ADDRESS moves whenever any global compiler input moves, so an
+    -- artifact that records only the address cannot say WHY it went stale. Mandatory, like
+    -- every other field; 'required_initcode' says which names must be present.
+  , rig_initcode       :: Map Text Text
   , rig_pool           :: RigPool
   , rig_seed           :: RigSeed
   }
@@ -181,6 +189,7 @@ instance FromJSON RigAddresses where
       <*> o .: "generatedFrom"
       <*> o .: "accounts"
       <*> o .: "contracts"
+      <*> o .: "initcode"
       <*> o .: "pool"
       <*> o .: "seed"
 
@@ -219,7 +228,13 @@ load_rig_from pins_file manifest_file = do
   pins  <- read_json "static pin file" "RIG_PINS" pins_file
   addrs <- read_json "rig address manifest" "RIG_MANIFEST" manifest_file
   case missing_contracts addrs of
-    []      -> pure Rig { rig_pins = pins, rig_addrs = addrs }
+    []      ->
+      case filter (\n -> not (Map.member n (rig_initcode addrs))) required_initcode of
+        []       -> pure Rig { rig_pins = pins, rig_addrs = addrs }
+        missing  -> fail ("rig manifest " ++ manifest_file ++ " has no initcode digest for "
+                            ++ intercalate ", " (map T.unpack missing)
+                            ++ " -- deploy-rig.sh records one for every CREATE2-mined contract"
+                            ++ " (issue #38); re-run it")
     missing -> fail (incomplete_message manifest_file missing (rig_contracts addrs))
 
 -- | The contract names the rig manifest schema mandates.
@@ -316,6 +331,16 @@ malformed_message what env_var path detail =
 contract_address :: Rig -> Text -> Either String Text
 contract_address rig name =
   look_up "contract" name (rig_contracts (rig_addrs rig))
+
+-- | Digest of the initcode a CREATE2-mined contract was deployed from -- see 'rig_initcode'.
+contract_initcode :: Rig -> Text -> Either String Text
+contract_initcode rig name =
+  look_up "initcode" name (rig_initcode (rig_addrs rig))
+
+-- | The names whose initcode digest the manifest must carry: every contract whose address is
+-- CREATE2-mined from its initcode, which today is exactly 'PriceSetterHook'.
+required_initcode :: [Text]
+required_initcode = ["PriceSetterHook"]
 
 -- | Address of one of the rig's funded accounts by name -- @deployer@ or @sender@.
 --
