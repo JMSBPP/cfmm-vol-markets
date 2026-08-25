@@ -53,6 +53,7 @@ module Loop.Run
   , BlockReport (..)
   , block_report_line
   , json_token
+  , vol_target_for
     -- * The iteration, and the loop around it
   , process_block
   , run_loop
@@ -75,7 +76,7 @@ import Network.Ethereum.Api.Types (Change)
 
 import System.FilePath ((</>))
 
-import Chain.Read (BlockRef (AtBlock), FixtureIdentity (..))
+import Chain.Read (BlockRef (AtBlock), FeeSource, FixtureIdentity (..), fee_source_token)
 import Chain.Shock (ShockEvent (..), decode_shock)
 import Fee.Split (FeeSplit (..), refusal_message, split_for)
 import Gams.Argv (Shock (..))
@@ -134,6 +135,14 @@ data Env = Env
     -- publication would be a second answer that can differ from the one the reads were made
     -- against.
   , env_vol_tgt_wad   :: Integer
+    -- ^ THE VOLUME TARGET AT A LIQUIDITY OF 2^64 -- a RATIO, not the shock's volume. MEASURED on
+    -- the first live run (2026-08-24): this constant handed to the prover verbatim gave
+    -- kappa = volTgt/Lbar = 28e18/1e21 = 0.028 on the rig's real pool and CONOPT aborted at
+    -- volume_path.gms:173 (modelStat: infeasible); the identical pair and delta* solved at
+    -- kappa 1.5 by either liquidity. The model's own header states the law -- delta* = 0.49
+    -- needs kappa >= 1.4980 -- so the shock's volume is 'vol_target_for' the PINNED liquidity,
+    -- and this field is the numerator of that ratio. 28e18 at 2^64 is the golden fixture's own
+    -- kappa (1.518), so the golden reproduces unchanged.
   , env_n_events      :: Integer
   , env_fixture_dir   :: FilePath
     -- ^ the DIRECTORY, resolved by 'Loop.Config.fixture_dir'. The file name is fixed and the join
@@ -166,6 +175,17 @@ data EventReport = EventReport
   , er_key_prefix :: !String
     -- ^ the first sixteen hex characters of the content key, or the empty string for an
     -- inadmissible event -- which has no key, because it was refused before one could be computed.
+  , er_reason     :: !String
+    -- ^ the refusal or the abort, rendered; empty for the two success arms. MEASURED on the
+    -- first live run (2026-08-24): a HaltUnsolvable rolled the ledger row back -- correctly,
+    -- LOOP-05 -- and this report carried only the outcome, so the reason the prover gave was
+    -- computed and then LOST. The one line an operator has to read must say why.
+  , er_fee_source :: !String
+    -- ^ 'Chain.Read.fee_source_token' of the read that supplied the splitter's fee (issue #41).
+  , er_fee        :: !Integer
+    -- ^ that fee, in pips.
+  , er_split      :: !String
+    -- ^ @phiX/phiM@ in pips as the splitter chose them, or empty when it refused.
   } deriving (Eq, Show)
 
 -- | One block, as the report line carries it.
@@ -207,6 +227,10 @@ block_report_line report =
         ++ ",\"logIndex\":" ++ show (er_log_index e)
         ++ ",\"outcome\":" ++ json_token (er_outcome e)
         ++ ",\"keyPrefix\":" ++ json_token (er_key_prefix e)
+        ++ ",\"reason\":" ++ json_token (er_reason e)
+        ++ ",\"feeSource\":" ++ json_token (er_fee_source e)
+        ++ ",\"fee\":" ++ show (er_fee e)
+        ++ ",\"split\":" ++ json_token (er_split e)
         ++ "}"
 
 -- | A JSON string token.
@@ -370,11 +394,11 @@ process_block env ident block = do
                                  , note block ("READ the pinned pool read at block " ++ show block
                                                 ++ " refused: " ++ why) : notes
                                  , published ))
-                    Right (price, liquidity, lp_fee) ->
+                    Right (price, liquidity, lp_fee, fee_source) ->
                       decided current rest rows reports notes published eid shock_event
-                        price liquidity lp_fee
+                        price liquidity lp_fee fee_source
 
-    decided current rest rows reports notes published eid shock_event price liquidity lp_fee =
+    decided current rest rows reports notes published eid shock_event price liquidity lp_fee fee_source =
       let dstar = se_norm_rate shock_event
           seed  = split_seed block (ev_log_index eid)
       in case split_for seed lp_fee dstar of
@@ -390,12 +414,17 @@ process_block env ident block = do
                    , lr_reason     = reason
                    , lr_gams_ver   = gams_version_text (ki_gams_version current)
                    , lr_conopt_ver = conopt_version_text (ki_conopt_version current)
+                   , lr_fee_source = fee_source_token fee_source
                    }
                  entry_report = EventReport
                    { er_tx         = ev_tx_hash eid
                    , er_log_index  = ev_log_index eid
                    , er_outcome    = outcome_token OutcomeInadmissible
                    , er_key_prefix = ""
+                   , er_reason     = reason
+                   , er_fee_source = fee_source_token fee_source
+                   , er_fee        = lp_fee
+                   , er_split      = ""
                    }
              in step current rest (row : rows) (entry_report : reports) notes published
            Right fee ->
@@ -405,7 +434,7 @@ process_block env ident block = do
                    , sh_txl_volume_rate = fs_dstar_pips fee
                    , sh_phi_x_pips      = fs_phi_x_pips fee
                    , sh_phi_m_pips      = fs_phi_m_pips fee
-                   , sh_vol_tgt_wad     = env_vol_tgt_wad env
+                   , sh_vol_tgt_wad     = vol_target_for liquidity (env_vol_tgt_wad env)
                    , sh_n_events        = env_n_events env
                    }
              in do
@@ -439,6 +468,7 @@ process_block env ident block = do
                          , lr_reason     = cl_reason decision
                          , lr_gams_ver   = gams_version_text (ki_gams_version current)
                          , lr_conopt_ver = conopt_version_text (ki_conopt_version current)
+                         , lr_fee_source = fee_source_token fee_source
                          }
                        entry_report = EventReport
                          { er_tx         = ev_tx_hash eid
@@ -447,8 +477,13 @@ process_block env ident block = do
                          , er_key_prefix = if cl_outcome decision == OutcomeInadmissible
                                              then ""
                                              else prefix
+                         , er_reason     = cl_reason decision
+                         , er_fee_source = fee_source_token fee_source
+                         , er_fee        = lp_fee
+                         , er_split      = show (fs_phi_x_pips fee) ++ "/" ++ show (fs_phi_m_pips fee)
                          }
-                   (published', publish_notes) <- publish_for env block (cl_artifact decision)
+                   (published', publish_notes) <- publish_for env block fee_source
+                                                     (se_pool shock_event) (cl_artifact decision)
                                                      published notes
                    reported <- env_read_identity env
                    let (next_ident, drift) = adopt_identity current reported
@@ -492,15 +527,29 @@ note block message = "block " ++ show block ++ ": " ++ message
 -- filesystem this process does not own. A publication that threw would take down a resident loop
 -- over a full disk or a directory that vanished mid-run, and neither is a reason to stop
 -- processing the chain -- the ledger is the record that matters and it has already been decided.
+-- | The shock's volume target for a pool of this liquidity: @liquidity * per_2_64 / 2^64@ in
+-- exact integer arithmetic. At @liquidity = 2^64@ this is @per_2_64@ itself, digit for digit.
+vol_target_for :: Integer -> Integer -> Integer
+vol_target_for liquidity per_2_64 = (liquidity * per_2_64) `div` (2 ^ (64 :: Int))
+
 publish_for
   :: Env
   -> Integer
+  -> FeeSource
+  -> Integer
+     -- ^ the pool THE SHOCK NAMED -- 'Chain.Shock.se_pool', the 160-bit value the indexed topic
+     -- carried. MEASURED on the first live run (2026-08-24): this used to be 'env_pool_id', the
+     -- manifest's 32-byte poolId, which renders as a 66-character token and 'publish_bytes'
+     -- refuses as @PoolIsNotAnAddressToken@ -- so a run that SOLVED and STORED published nothing.
+     -- The chain-free proofs used a small integer for the pool id and never reached that arm.
+     -- 'Chain.Read.FixtureIdentity' documents the field as the shock's pool; this is the wiring
+     -- that makes it so, and the consuming test's @readAddress(".pool")@ is what it attaches to.
   -> Maybe Artifact
   -> Bool
   -> [String]
   -> IO (Bool, [String])
-publish_for _   _     Nothing         published notes = pure (published, notes)
-publish_for env block (Just artifact) published notes = do
+publish_for _   _     _          _    Nothing         published notes = pure (published, notes)
+publish_for env block fee_source pool (Just artifact) published notes = do
   attempt <-
     try (publish_fixture (env_fixture_dir env) identity (artifact_bytes artifact))
   pure $ case attempt of
@@ -514,9 +563,10 @@ publish_for env block (Just artifact) published notes = do
     Right (Right path) -> (True, note block ("PUBLISH " ++ path) : notes)
   where
     identity = FixtureIdentity
-      { fi_pool     = env_pool_id env
-      , fi_block    = AtBlock block
-      , fi_chain_id = env_chain_id env
+      { fi_pool       = pool
+      , fi_block      = AtBlock block
+      , fi_chain_id   = env_chain_id env
+      , fi_fee_source = fee_source
       }
 
 -- ---------------------------------------------------------------------------------------------

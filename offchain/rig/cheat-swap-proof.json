@@ -1,31 +1,31 @@
 {
   "_provenance": "Every value below was produced by offchain/app/CheatSwapProof.hs against the live rig stood up by offchain/rig/deploy-rig.sh. Nothing here was transcribed. Measurement B is the phase's blocker EXECUTED ON PURPOSE: it is identical to measurement A except that the slot0 write is aimed at PriceSetterPoolManager, the manager DynamicFeeHook does not read. Its receipt is expected to look perfectly healthy -- status 1, one E3, one E5 -- while carrying a tick that is not the cheated one. blockNumber is deliberately absent: three from-scratch deploys were measured at heights 9, 11 and 10, so it is not a provenance field.",
   "chainId": 31337,
-  "generatedAt": "2026-08-24T17:19:28Z",
+  "generatedAt": "2026-08-24T19:17:58Z",
   "generatedFrom": "2039f2783598866a337115df4a265a75e8842e82",
   "measurements": [
     {
       "e3": {
-        "averageTick": 1666,
+        "averageTick": 2500,
         "tick": 5000,
         "tickCumulative": "60000",
-        "timestamp": 1700000042,
-        "volatilityCumulative": "204238551"
+        "timestamp": 1700000030,
+        "volatilityCumulative": "165711805"
       },
       "e3_count": 1,
       "e5": {
         "fee": 15000,
-        "sigma": "5835387"
+        "sigma": "7204861"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000042,
+      "head_ts_after": 1700000030,
       "name": "cheat_to_5000_then_swap",
-      "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
+      "state_slot": "0x1e9bde080e8c93005fa3ee55498e5b725dba0f3a4cab6d40cdcc27ab961deaa6",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 5000,
-      "ts": 1700000042,
-      "tx_hash": "0xfcbdfc2985a3bd5ef1995f88521d18271d954098e8af770a11616a16f53d769a",
+      "ts": 1700000030,
+      "tx_hash": "0x63c9b79fb28bea67ddc5134e1e65dc730ef68f6f6525baca45f06f0ba18a08a6",
       "word_before": "24519927192352584402830634309948276735881064672309344164",
       "word_before_high184": "0",
       "word_written": "7307508186654514591018525893284256416917456691626270",
@@ -33,26 +33,26 @@
     },
     {
       "e3": {
-        "averageTick": 2499,
+        "averageTick": 3333,
         "tick": 4999,
         "tickCumulative": "119988",
-        "timestamp": 1700000054,
-        "volatilityCumulative": "304584299"
+        "timestamp": 1700000042,
+        "volatilityCumulative": "216722283"
       },
       "e3_count": 1,
       "e5": {
         "fee": 15000,
-        "sigma": "6480517"
+        "sigma": "6192065"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000054,
+      "head_ts_after": 1700000042,
       "name": "cheat_wrong_pool_then_swap",
-      "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
+      "state_slot": "0x1e9bde080e8c93005fa3ee55498e5b725dba0f3a4cab6d40cdcc27ab961deaa6",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 7000,
-      "ts": 1700000054,
-      "tx_hash": "0x0add6a28f5c3b6c0d29cbe414fea1efa31fa1571fdb69ed3fbfd0cc450278cf6",
+      "ts": 1700000042,
+      "tx_hash": "0xfcf32d4f05475373c48069a93889d3db02166dc43f0c44c2b6b602bf97d3a871",
       "word_before": "7306046685017183688100322208451540133769138196049033",
       "word_before_high184": "0",
       "word_written": "10230511461316320427425906257160961173700696698234316",
@@ -60,26 +60,26 @@
     },
     {
       "e3": {
-        "averageTick": 3019,
+        "averageTick": 3774,
         "tick": 5100,
         "tickCumulative": "181188",
-        "timestamp": 1700000066,
-        "volatilityCumulative": "369404506"
+        "timestamp": 1700000054,
+        "volatilityCumulative": "244937405"
       },
       "e3_count": 1,
       "e5": {
         "fee": 15000,
-        "sigma": "6261093"
+        "sigma": "5211434"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000066,
+      "head_ts_after": 1700000054,
       "name": "same_second_repeat_step1",
-      "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
+      "state_slot": "0x1e9bde080e8c93005fa3ee55498e5b725dba0f3a4cab6d40cdcc27ab961deaa6",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 5100,
-      "ts": 1700000066,
-      "tx_hash": "0xc017f8c4fd2eca911ddc96659dc2a6c530bfba174972ee1c37a1ae34b2399c7f",
+      "ts": 1700000054,
+      "tx_hash": "0x35837ba67dd3cbdbc0646e1fa1cec233055b95552990fdf2bec7a710fa5fd943",
       "word_before": "7306046685017183688100322208451540133640475633014773",
       "word_before_high184": "0",
       "word_written": "7453658350387604882838894886452584032450164334429923",
@@ -90,17 +90,17 @@
       "e3_count": 0,
       "e5": {
         "fee": 15000,
-        "sigma": "6261093"
+        "sigma": "5211434"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000066,
+      "head_ts_after": 1700000054,
       "name": "same_second_repeat_step2",
-      "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
+      "state_slot": "0x1e9bde080e8c93005fa3ee55498e5b725dba0f3a4cab6d40cdcc27ab961deaa6",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 5200,
-      "ts": 1700000066,
-      "tx_hash": "0x0c95e84841cbbf1da47d1f03724a725c14d62ca0eea34833e158f7bccd1d0247",
+      "ts": 1700000054,
+      "tx_hash": "0x1ebb7853005b0ae88e6d9a80e3dd22230572e4e3a82bedaa7e1f94286240ec76",
       "word_before": "7452196848750273979920691201619867749300552823570188",
       "word_before_high184": "0",
       "word_written": "7599808514120695174659263882176651384846337872451926",
@@ -111,17 +111,17 @@
       "e3_count": 0,
       "e5": {
         "fee": 15000,
-        "sigma": "6261093"
+        "sigma": "5211434"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000066,
+      "head_ts_after": 1700000054,
       "name": "clock_untouched_repeat_step3",
-      "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
+      "state_slot": "0x1e9bde080e8c93005fa3ee55498e5b725dba0f3a4cab6d40cdcc27ab961deaa6",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": 5300,
-      "ts": 1700000066,
-      "tx_hash": "0xc0bb9615b5c0bb70a72042182a2d193943ea6ec2a584e76806da956cfe03577e",
+      "ts": 1700000054,
+      "tx_hash": "0x09ef6d662dccaa454e8f7dd3d20469092aa3c1b3160d4dd3784cb479ebb4f202",
       "word_before": "7598347012483364271741060197343935101695420351943024",
       "word_before_high184": "0",
       "word_written": "7745958677853785466479632880469268530753482931918767",
@@ -129,26 +129,26 @@
     },
     {
       "e3": {
-        "averageTick": -145360,
+        "averageTick": -174432,
         "tick": -887259,
         "tickCumulative": "-10465920",
-        "timestamp": 1700000078,
-        "volatilityCumulative": "7893606396920"
+        "timestamp": 1700000066,
+        "volatilityCumulative": "7606635351761"
       },
       "e3_count": 1,
       "e5": {
         "fee": 15000,
-        "sigma": "111177554886"
+        "sigma": "128926022911"
       },
       "e5_count": 1,
-      "head_ts_after": 1700000078,
+      "head_ts_after": 1700000066,
       "name": "extreme_tick_near_floor",
-      "state_slot": "0x9b0e565d23708a2c71ed19e38b727f891d27a8e35186bcdfb17c1f0160cb7492",
+      "state_slot": "0x1e9bde080e8c93005fa3ee55498e5b725dba0f3a4cab6d40cdcc27ab961deaa6",
       "status": 1,
       "swap_calldata_bytes": 388,
       "tick": -887259,
-      "ts": 1700000078,
-      "tx_hash": "0x83f8091791be1421b15d5c0ac41ff3b6f02514d5df853569ebaeebaf197d5404",
+      "ts": 1700000066,
+      "tx_hash": "0x17bf54d722672e659c2c3fc96f9ba170c4e34ae8bb6dee2c5ffd313cc425efa3",
       "word_before": "7744497176216454563561429195636552247601246276805033",
       "word_before_high184": "0",
       "word_written": "23223198172617642141431069233413930382162922907087213372",
@@ -158,12 +158,12 @@
   "rig": {
     "deployer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
     "dynamicFeeHook": "0x233069526f587b8c8ce56c365e0449ab034e0080",
-    "poolId": "0x00c35757198030cc0408784a49b5de3ee9c0fad958b0564592e118604b49ab8a",
-    "poolManager": "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707",
-    "priceSetterHook": "0x2b17970ca2c5f0429149bce2444de61b4fa8f000",
-    "priceSetterHookInitcode": "33cd4de3be4549c1e74a9146dc57c3240e5fa44a82f6f19beea1b7a02fda5ddb",
-    "priceSetterPoolManager": "0xb7f8bc63bbcad18155201308c8f3540b07f84f5e",
-    "swapRouter": "0x9a676e781a523b5d0c0e43731313a708cb607508",
+    "poolId": "0xddeccdba8a991fdd6d817db1eeafb6c86ad38d8a51be918d14e67f6a88bfacd1",
+    "poolManager": "0x0165878a594ca255338adfa4d48449f69242eb8f",
+    "priceSetterHook": "0x8c092ff19efd0efdf5dec33f8054b150c63f3000",
+    "priceSetterHookInitcode": "855249c500ff8049f0cfd71137d210992cb00bea3c2355027a29935aaf786f60",
+    "priceSetterPoolManager": "0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0",
+    "swapRouter": "0x0b306bf915c4d645ff596e518faf3f9669b97016",
     "tickSpacing": 20
   }
 }

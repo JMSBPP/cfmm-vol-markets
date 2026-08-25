@@ -132,6 +132,13 @@ module Chain.Read
   , refusal_naming_of
     -- * CHAIN-05: the pool identity the published fixture records
   , FixtureIdentity (..)
+    -- * Issue #41: where the fee came from, and the hook route that answers when slot0 cannot
+  , FeeSource (..)
+  , fee_source_token
+  , HookFeeRoute (..)
+  , slot0_tick_of
+  , read_hook_fee
+  , read_effective_fee
   , fixture_identity_entries
   , render_fixture_identity
   , render_address_token
@@ -154,11 +161,11 @@ import qualified Data.ByteString as BS
 import Data.Char (intToDigit, isHexDigit, digitToInt)
 import Data.List (intercalate, isPrefixOf)
 
-import Data.ByteArray.HexString (toBytes)
+import Data.ByteArray.HexString (fromBytes, toBytes)
 import Data.Solidity.Prim.Address (Address)
 
 import qualified Network.Ethereum.Api.Eth as GlobalState
-import Network.Ethereum.Api.Types (Call (..), DefaultBlock (BlockWithNumber))
+import Network.Ethereum.Api.Types (Call (..), DefaultBlock (BlockWithNumber), blockTimestamp, unQuantity)
 import Network.Web3.Provider (Web3)
 
 import CheatSwap.Encoding (encode_extsload)
@@ -491,8 +498,147 @@ data FixtureIdentity = FixtureIdentity
     -- ^ The height the reads were pinned at. A 'BlockRef' and not an 'Integer', so the fixture
     -- cannot record a height at which no read could have been made.
   , fi_chain_id :: Integer
+  , fi_fee_source :: FeeSource
+    -- ^ Issue #41: WHICH read supplied the fee the splitter was given. A dynamic-fee pool's slot0
+    -- carries @lpFee = 0@ by construction, so the fee that actually reaches the key came from the
+    -- hook route below, and a fixture that did not say so would be indistinguishable from one
+    -- solved against a static-fee pool with the same pips.
   }
   deriving (Eq, Show)
+
+-- ---------------------------------------------------------------------------------------------
+-- ISSUE #41: THE FEE OF A DYNAMIC-FEE POOL IS NOT IN SLOT0
+--
+-- MEASURED on the rig (this module's own haddock above, live-confirmed at 27-02): a dynamic-fee
+-- pool stores @lpFee = 0@ at initialise, because the fee is supplied per swap by the hook. The
+-- loop handed that zero to @Fee.Split.split_for@, which refuses it as @FeeOutOfDomain 0@ -- so
+-- every live @Shock@ on the rig's own pool was going to be ledgered inadmissible and never solved.
+--
+-- What the hook actually charges, read from @DynamicFeeHook.plk@'s @beforeSwap@: the pre-swap
+-- tick from slot0, then @rv_get_average_volatility(.., tick, now)@ over its stored window, then
+-- @get_fee(vol, config)@. Two of those three are externally callable at a pinned block --
+-- @DynamicFeeHook.getAverageVolatility(int24 tick, uint32 timestamp)@ (the hook's OWN selector;
+-- the second argument is a TIMESTAMP, the window lives in the hook's storage) and
+-- @DynamicFeeMod.getCurrentFee(uint88 volatility)@ -- and the third, the config, is the same
+-- Algebra default on both contracts. MEASURED before this was written: for every step of the
+-- committed driver capture, @DynamicFeeMod.getCurrentFee(e5.sigma) == e5.fee@ -- 15000 for 15000,
+-- five of five. The route reproduces the charged fee, and that measurement is what licenses
+-- reading one contract to stand in for the other.
+--
+-- The tick is the pool's slot0 tick AT THE PINNED BLOCK and the timestamp is THAT BLOCK's, so the
+-- two calls describe the same state the price and liquidity reads describe. A read that used
+-- the moving head for either would be the exact drift 'BlockRef' exists to make unrepresentable.
+-- ---------------------------------------------------------------------------------------------
+
+-- | Which read the splitter's fee came from. Recorded in the ledger row and the fixture, and part
+-- of what @key_scheme@ 2 means -- see 'Store.Types.current_key_scheme'.
+data FeeSource
+  = FeeFromSlot0
+    -- ^ slot0's @lpFee@ was nonzero: a static-fee pool, or a dynamic pool that stored one.
+  | FeeFromHook
+    -- ^ slot0's @lpFee@ was zero; the fee is what the hook would charge at this block.
+  deriving (Eq, Show)
+
+-- | The token the ledger column and the fixture carry. Names the CALLS, so a reader can re-derive
+-- the value with @cast call@ and nothing else.
+fee_source_token :: FeeSource -> String
+fee_source_token FeeFromSlot0 = "slot0.lpFee"
+fee_source_token FeeFromHook  = "DynamicFeeHook.getAverageVolatility+DynamicFeeMod.getCurrentFee"
+
+-- | The two contracts and the two selectors the hook route calls. Selectors arrive as the
+-- @0x@-prefixed 4-byte tokens the pin file carries -- resolved by the executable through
+-- 'Rig.Manifest.pin_selector', never spelled here.
+data HookFeeRoute = HookFeeRoute
+  { hfr_hook                        :: Address
+  , hfr_fee_module                  :: Address
+  , hfr_average_volatility_selector :: String
+  , hfr_current_fee_selector        :: String
+  }
+  deriving (Eq, Show)
+
+-- | v4 @Slot0@ bits [160,184), sign-extended: the pool's current tick.
+slot0_tick_of :: Integer -> Integer
+slot0_tick_of w =
+  let raw = (w `shiftR` 160) .&. ((1 `shiftL` 24) - 1)
+  in if raw >= 1 `shiftL` 23 then raw - (1 `shiftL` 24) else raw
+
+-- | @selector ++ words@, each word 32 bytes big-endian, negative values in two's complement.
+encode_selector_call :: String -> [Integer] -> Either String BS.ByteString
+encode_selector_call selector args =
+  case selector of
+    '0':'x':body | length body == 8 && all isHexDigit body ->
+      Right (BS.pack (hex_bytes body) <> BS.concat (map word32be args))
+    _ -> Left ("a 4-byte selector token is 0x followed by 8 hex digits; got " ++ show selector)
+  where
+    hex_bytes (a:b:rest) = fromIntegral (digitToInt a * 16 + digitToInt b) : hex_bytes rest
+    hex_bytes _          = []
+    word32be n =
+      let m = n `mod` (1 `shiftL` 256)
+      in BS.pack [fromIntegral ((m `shiftR` (8 * i)) .&. 255) | i <- [31, 30 .. 0]]
+
+-- | One pinned @eth_call@, refused by name when the answer is empty -- which is what a call to an
+-- address with no code returns, and the likeliest way this route is ever wrong.
+call_word :: String -> Address -> BS.ByteString -> BlockRef -> Web3 (Either String Integer)
+call_word label to calldata ref = do
+  returned <-
+    GlobalState.call
+      Call
+        { callFrom     = Nothing
+        , callTo       = Just to
+        , callGas      = Nothing
+        , callGasPrice = Nothing
+        , callValue    = Nothing
+        , callData     = Just (fromBytes calldata)
+        , callNonce    = Nothing
+        }
+      (block_param ref)
+  let bytes = toBytes returned
+  pure $ if BS.null bytes
+    then Left (label ++ " returned NO DATA at block " ++ show (block_height ref)
+                 ++ " -- an eth_call to an address with no code answers with empty bytes, so the"
+                 ++ " likeliest cause is that the manifest names a contract this chain does not"
+                 ++ " hold. Re-run: bash offchain/rig/deploy-rig.sh")
+    else Right (BS.foldl' (\acc b -> acc * 256 + toInteger b) 0 bytes)
+
+-- | The fee the hook would charge at this block: @(fee, volatility)@, both read at 'BlockRef'.
+read_hook_fee :: HookFeeRoute -> Address -> Integer -> BlockRef -> Web3 (Either String (Integer, Integer))
+read_hook_fee route manager pool_id ref = do
+  word <- read_pool_field manager pool_id PoolStateWord ref
+  found <- GlobalState.getBlockByNumber (fromInteger (block_height ref))
+  case (word, found) of
+    (Left why, _) -> pure (Left why)
+    (_, Nothing)  ->
+      pure (Left ("eth_getBlockByNumber returned nothing for block " ++ show (block_height ref)
+                    ++ ", so the hook's timestamp argument has no value to be pinned to"))
+    (Right w, Just blk) -> do
+      let tick = slot0_tick_of w
+          ts   = unQuantity (blockTimestamp blk)
+      case encode_selector_call (hfr_average_volatility_selector route) [tick, ts] of
+        Left why -> pure (Left ("getAverageVolatility calldata: " ++ why))
+        Right vol_call -> do
+          vol <- call_word "DynamicFeeHook.getAverageVolatility(tick, timestamp)"
+                   (hfr_hook route) vol_call ref
+          case vol of
+            Left why -> pure (Left why)
+            Right v ->
+              case encode_selector_call (hfr_current_fee_selector route) [v] of
+                Left why -> pure (Left ("getCurrentFee calldata: " ++ why))
+                Right fee_call -> do
+                  fee <- call_word "DynamicFeeMod.getCurrentFee(volatility)"
+                           (hfr_fee_module route) fee_call ref
+                  pure ((\f -> (f, v)) <$> fee)
+
+-- | THE FEE THE SPLITTER IS GIVEN, and where it came from. slot0 when slot0 has one; the hook
+-- route when slot0 says zero, because on a dynamic-fee pool zero means "ask the hook", not "free".
+read_effective_fee :: HookFeeRoute -> Address -> Integer -> BlockRef -> Web3 (Either String (Integer, FeeSource))
+read_effective_fee route manager pool_id ref = do
+  slot <- read_lp_fee manager pool_id ref
+  case slot of
+    Left why -> pure (Left why)
+    Right lp | lp /= 0 -> pure (Right (lp, FeeFromSlot0))
+    Right _ -> do
+      hook <- read_hook_fee route manager pool_id ref
+      pure ((\(fee, _) -> (fee, FeeFromHook)) <$> hook)
 
 -- | @2^53@. Every integer up to and including this one is carried exactly by the 53-bit binary64
 -- mantissa, and none above it is.
@@ -568,6 +714,7 @@ fixture_identity_entries identity =
   [ ("pool",        json_text_token (render_address_token (fi_pool identity)))
   , ("blockNumber", json_text_token (show (block_height (fi_block identity))))
   , ("chainId",     show (fi_chain_id identity))
+  , ("feeSource",   json_text_token (fee_source_token (fi_fee_source identity)))
   ]
 
 -- | The identity block of the published fixture, as the bytes a consumer parses.

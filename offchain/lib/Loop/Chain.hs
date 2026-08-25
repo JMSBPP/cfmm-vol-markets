@@ -37,7 +37,7 @@ import Network.Ethereum.Api.Types (Filter (..))
 import Network.Web3.Provider (Provider (HttpProvider), Web3, runWeb3')
 
 import Chain.Endpoint (resolve_endpoint)
-import Chain.Read (BlockRef, read_liquidity, read_lp_fee, read_sqrt_price_x96)
+import Chain.Read (BlockRef, FeeSource, HookFeeRoute, read_effective_fee, read_liquidity, read_sqrt_price_x96)
 import Loop.Poll (ChainSource (..), shock_filter_fields)
 
 -- | A source over a live node.
@@ -47,8 +47,8 @@ import Loop.Poll (ChainSource (..), shock_filter_fields)
 -- because an event topic is unauthenticated -- any contract can emit any topic0 with any word in
 -- topic 1 -- and the emitter is the only thing that says the log came from the writer this loop
 -- was pointed at.
-web3_chain_source :: String -> Address -> Address -> Integer -> ChainSource
-web3_chain_source endpoint pool_manager emitter topic0 =
+web3_chain_source :: String -> Address -> HookFeeRoute -> Address -> Integer -> ChainSource
+web3_chain_source endpoint pool_manager fee_route emitter topic0 =
   ChainSource
     { source_label = "Loop.Chain over " ++ endpoint
     , source_head =
@@ -82,12 +82,12 @@ web3_chain_source endpoint pool_manager emitter topic0 =
     -- provider. Read together rather than one call at a time because they describe ONE state: a
     -- triple assembled from three separately-opened sessions could straddle a re-org and produce a
     -- price from one block and a liquidity from another, with nothing in the result saying so.
-    pool_triple :: Integer -> BlockRef -> Web3 (Either String (Integer, Integer, Integer))
+    pool_triple :: Integer -> BlockRef -> Web3 (Either String (Integer, Integer, Integer, FeeSource))
     pool_triple pool_id ref = do
       price     <- read_sqrt_price_x96 pool_manager pool_id ref
       liquidity <- read_liquidity pool_manager pool_id ref
-      fee       <- read_lp_fee pool_manager pool_id ref
-      pure ((,,) <$> price <*> liquidity <*> fee)
+      fee       <- read_effective_fee fee_route pool_manager pool_id ref
+      pure ((\p l (f, src) -> (p, l, f, src)) <$> price <*> liquidity <*> fee)
 
 -- | The endpoint, RESOLVED, and a source over it -- in that order and in one place.
 --
@@ -100,7 +100,7 @@ web3_chain_source endpoint pool_manager emitter topic0 =
 -- executable is the census's own rule: a Haskell site that builds a provider must obtain the
 -- authority from the resolver and hold no literal. 'web3_chain_source' is kept separate and takes
 -- the authority as an argument so the wiring stays a pure function of it.
-resolved_chain_source :: Address -> Address -> Integer -> IO (String, ChainSource)
-resolved_chain_source pool_manager emitter topic0 = do
+resolved_chain_source :: Address -> HookFeeRoute -> Address -> Integer -> IO (String, ChainSource)
+resolved_chain_source pool_manager fee_route emitter topic0 = do
   endpoint <- resolve_endpoint
-  pure (endpoint, web3_chain_source endpoint pool_manager emitter topic0)
+  pure (endpoint, web3_chain_source endpoint pool_manager fee_route emitter topic0)

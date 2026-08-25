@@ -122,8 +122,13 @@ derived_doc_sha256 (DerivedDoc t) = sha256_hex (TE.encodeUtf8 t)
 newtype KeyScheme = KeyScheme Int
   deriving (Eq, Ord, Show)
 
+-- Scheme 2 (issue #41, 2026-08-23): the fee inside the key may now come from the HOOK ROUTE
+-- (DynamicFeeHook.getAverageVolatility at the pinned block fed into DynamicFeeMod.getCurrentFee)
+-- when slot0's lpFee is zero, and not only from slot0. Two pools with equal pips from different
+-- sources are different inputs, so scheme-1 rows are orphaned rather than matched -- KEY-07 is
+-- exactly the mechanism that makes this a bump and not a silent reinterpretation.
 current_key_scheme :: KeyScheme
-current_key_scheme = KeyScheme 1
+current_key_scheme = KeyScheme 2
 
 -- | One row of @model_run@, minus the derived projection.
 --

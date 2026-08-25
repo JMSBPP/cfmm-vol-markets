@@ -147,7 +147,10 @@ fi
 EMITTER=$(jq -r --arg k "$SHOCK_EMITTER" '.contracts[$k] // ""' "$MANIFEST")
 if [ -z "$EMITTER" ]; then
   fail "$(realpath -m "$MANIFEST") names no contracts.$SHOCK_EMITTER, so there is nothing to emit a Shock." \
-    "CHAIN-01 IS BLOCKED, ON GITHUB ISSUE #26 -- the plank / mev-migrate workstream." \
+    "deploy-rig.sh step 3b (DeployShockWriter.s.sol, shipped by PR #42 for issue #26) did not" \
+    "run, or the manifest predates it. Re-run: bash offchain/rig/deploy-rig.sh" \
+    "HISTORY, kept so the refusal reads the same to an operator who last saw the old one:" \
+    "CHAIN-01 WAS BLOCKED, ON GITHUB ISSUE #26 -- the plank / mev-migrate workstream." \
     "The Shock event is emitted from a forge TEST, not from a deployable contract" \
     "another process can drive: foundry-scripts/mev_tax_model_one/ holds only" \
     "DeployAlgebraFactory.s.sol. The SELECTOR_NEXT constant is a FUNCTION SELECTOR on" \
@@ -225,8 +228,17 @@ restore_on_failure() {
 trap restore_on_failure EXIT
 
 # --- BEFORE ----------------------------------------------------------------
-WM_BEFORE=$(psql "$DSN" -Atqc "select coalesce(max(block)::text, 'null') from loop_watermark" \
-              | head -1)
+# A FRESH database has no loop_watermark table yet: the loop applies migrations 001-005 itself at
+# startup (LoopMain.run_migrations_or_exit), so on the first run the table appears AFTER this
+# read. MEASURED on the first live run: `relation "loop_watermark" does not exist`, and under
+# set -e that ended the capture at 0s having driven nothing. A missing table is honestly
+# "no watermark" -- the same null the empty table yields -- and is recorded as exactly that.
+if [ "$(psql "$DSN" -Atqc "select to_regclass('loop_watermark') is not null" | head -1)" = t ]; then
+  WM_BEFORE=$(psql "$DSN" -Atqc "select coalesce(max(block)::text, 'null') from loop_watermark" \
+                | head -1)
+else
+  WM_BEFORE=null
+fi
 [ -n "$WM_BEFORE" ] || WM_BEFORE=null
 HEAD_BEFORE=$(cast block-number --rpc-url "$RPC")
 
@@ -245,9 +257,17 @@ HEAD_BEFORE=$(cast block-number --rpc-url "$RPC")
 # one line against the interface they ship; the refusal above is what stops the
 # script reaching it in the meantime, and a plausible-looking call that was never
 # executed is exactly the kind of thing that gets believed.
+# CONFIRMED against the emitter shipped in PR #42 (issue #26): ShockWriterMod.plk,
+# shock(address pool, int24 tickDiff, uint24 txlVolmNormRate, uint24 txlVolmDecay), flags
+# internal. The pool is an ADDRESS -- the loop keys its reads by pool.poolId through PoolManager
+# and never by this field, so the manifest's PoolManager is the truthful value. The values are
+# VOLUME_PATH.md section 2's: tickDiff 0, txlVolmNormRate 490000 (that is delta*, 0.49 in pips --
+# Loop.Run takes it as se_norm_rate), txlVolmDecay 0 (26-02 asserts decay never reaches the
+# prover). The earlier draft carried 6497 here: that is the golden fixture's COMPOSED FEE, which the
+# loop reads from the chain and never from the shock -- issue #41 records why that mattered.
 cast send "$EMITTER" \
-  'shock(bytes32,int24,uint24,uint24)' \
-  "$POOL_ID" 0 6497 490000 \
+  'shock(address,int24,uint24,uint24)' \
+  "$MANAGER" 0 490000 0 \
   --rpc-url "$RPC" \
   --mnemonic "test test test test test test test test test test test junk" \
   >/dev/null
@@ -275,16 +295,24 @@ WM_AFTER=$(psql "$DSN" -Atqc "select coalesce(max(block)::text, 'null') from loo
 EVENTS_JSON=$(psql "$DSN" -Atqc \
   "select coalesce(json_agg(row_to_json(e) order by e.block, e.log_index)::text, '[]') \
      from (select tx_hash, log_index, block, model, key_scheme, \
-                  encode(key, 'hex') as key_hex, outcome, reason, gams_ver, conopt_ver \
+                  encode(key, 'hex') as key_hex, outcome, reason, gams_ver, conopt_ver, fee_source \
              from loop_event) e")
 
 PUBLISHED="$FIXTURES/$FIXTURE_FILE"
 if [ -f "$PUBLISHED" ]; then
   FIXTURE_SHA=$(sha256sum "$PUBLISHED" | cut -d' ' -f1)
   FIXTURE_LEN=$(wc -c < "$PUBLISHED" | tr -d ' ')
+  # THE FORK HEIGHT for the consuming forge test (plank's Gate B): the block the fixture was
+  # published at, read back out of the fixture itself so this record and the file cannot
+  # disagree. On a fresh single-shock run it equals head.afterEmit; the consumer's guard is
+  # head >= blockNumber, then createSelectFork AT blockNumber -- the pool's state is
+  # block-invariant after InitSwappableRig (the emitter never touches the pool), so the assert
+  # at the fixture's own block is meaningful and a later shock on the same chain only raises head.
+  FORK_HEIGHT=$(jq -r '.blockNumber // empty' "$PUBLISHED")
 else
   FIXTURE_SHA=""
   FIXTURE_LEN=0
+  FORK_HEIGHT=""
 fi
 
 jq -n -S \
@@ -298,6 +326,7 @@ jq -n -S \
   --arg fixturePath   "$PUBLISHED" \
   --arg fixtureSha256 "$FIXTURE_SHA" \
   --argjson fixtureBytes "$FIXTURE_LEN" \
+  --arg     forkHeight    "$FORK_HEIGHT" \
   --argjson exitCode     "$LOOP_EXIT" \
   --argjson headBefore   "$HEAD_BEFORE" \
   --argjson headAfter    "$HEAD_AFTER_EMIT" \
@@ -310,6 +339,7 @@ jq -n -S \
      head: { before: $headBefore, afterEmit: $headAfter },
      watermark: { before: $wmBefore, after: $wmAfter },
      exitCode: $exitCode,
+     forkHeight: (if $forkHeight == "" then null else $forkHeight end),
      fixture: { path: $fixturePath, sha256: $fixtureSha256, bytes: $fixtureBytes },
      events: $events }' > "$OUT.tmp"
 mv "$OUT.tmp" "$OUT"
@@ -368,3 +398,16 @@ jq -r '"  endpoint          : \(.endpoint) (chain \(.chainId))",
 echo
 echo "wrote $(realpath -m "$OUT")"
 echo "Commit it: cabal test asserts over this file and opens no socket of its own."
+
+# --- NEXT: the consuming forge test, against THIS rig, before deploy-rig --stop -----------------
+# plank's Gate B replays the published dQx on-chain against the pool the fixture names. It needs
+# the rig UP and the fork pinned at the fixture's own block; the three-arm guard on its side is
+# chainId == fixture.chainId, code at fixture.pool, head >= fixture.blockNumber. Printed with the
+# RESOLVED endpoint and the height read back from the file, so the replay's inputs are this run's.
+if [ -n "${FORK_HEIGHT:-}" ]; then
+  echo
+  echo "NEXT  the consuming forge test, against this rig (anvil is still up; stop it AFTER):"
+  echo "      forge test --match-test test__priceInvarianceUnderVolumePath \\"
+  echo "        --fork-url $RPC --fork-block-number $FORK_HEIGHT -vv"
+  echo "      then: bash offchain/rig/deploy-rig.sh --stop"
+fi

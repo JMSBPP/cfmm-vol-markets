@@ -60,7 +60,7 @@ first_token() { awk '{print $1}'; }
 #
 # Compared as a SET (`keys` is already sorted, and $want is sorted here) so key
 # ORDER in the file is not asserted -- only membership.
-WANT_CONTRACTS='["VolOrderManagerMod","RealizedVolatilityMod","DynamicFeeMod","DynamicFeeHook","PoolManager","PriceSetterHook","PriceSetterPoolManager","PoolSwapTest","PoolModifyLiquidityTest"]'
+WANT_CONTRACTS='["VolOrderManagerMod","RealizedVolatilityMod","DynamicFeeMod","DynamicFeeHook","PoolManager","PriceSetterHook","PriceSetterPoolManager","PoolSwapTest","PoolModifyLiquidityTest","ShockWriter"]'
 EXPECT_N=$(jq -n --argjson want "$WANT_CONTRACTS" '$want | length')
 if ! jq -e --argjson want "$WANT_CONTRACTS" '(.contracts | keys) == ($want | sort)' "$MANIFEST" >/dev/null; then
   echo "SC-2 FAIL: contracts key set is not the $EXPECT_N the rig deploys." >&2

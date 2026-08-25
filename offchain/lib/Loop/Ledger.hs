@@ -117,6 +117,10 @@ data LedgerRow = LedgerRow
   , lr_reason     :: !String
   , lr_gams_ver   :: !String
   , lr_conopt_ver :: !String
+  , lr_fee_source :: !String
+    -- ^ Issue #41: 'Chain.Read.fee_source_token' of the read that supplied the splitter's fee.
+    -- Migration @005@ adds the column with a CHECK over the two tokens, so the ledger cannot
+    -- carry a fee whose origin nobody can name.
   } deriving (Eq, Show)
 
 -- | Migration @004@'s two row-level CHECKs, stated ONCE in Haskell.
@@ -130,6 +134,10 @@ ledger_row_refusal row
              ++ " and NO key. loop_event_keyed_unless_inadmissible refuses that: a keyed outcome"
              ++ " with no key is a run nothing can ever find again. Only an inadmissible shock"
              ++ " legitimately has none, because it was refused before a key could be computed.")
+  | null (lr_fee_source row) =
+      Just ("the row carries an EMPTY fee source. loop_event_fee_source_known refuses that (migration"
+             ++ " 005): a key built from a fee nobody can say the origin of cannot be reconciled"
+             ++ " against the chain that supplied it.")
   | null (lr_gams_ver row) || null (lr_conopt_ver row) =
       Just ("the row carries an EMPTY toolchain version (gams " ++ show (lr_gams_ver row)
              ++ ", conopt " ++ show (lr_conopt_ver row)
@@ -279,6 +287,7 @@ insert_event con row = do
       , lr_reason row
       , lr_gams_ver row
       , lr_conopt_ver row
+      , lr_fee_source row
       )
   pure ()
 
@@ -289,8 +298,9 @@ insert_event con row = do
 insert_event_sql :: Query
 insert_event_sql =
   "insert into loop_event \
-  \ (tx_hash, log_index, block, model, key_scheme, key, outcome, reason, gams_ver, conopt_ver) \
-  \ values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+  \ (tx_hash, log_index, block, model, key_scheme, key, outcome, reason, gams_ver, conopt_ver, \
+  \  fee_source) \
+  \ values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
   \ on conflict on constraint loop_event_identity do nothing"
 
 -- | The single row, upserted on its own primary key.
@@ -313,7 +323,7 @@ rows_for con eid = do
   found <-
     query
       con
-      "select block, model, key_scheme, key, outcome, reason, gams_ver, conopt_ver \
+      "select block, model, key_scheme, key, outcome, reason, gams_ver, conopt_ver, fee_source \
       \ from loop_event where tx_hash = ? and log_index = ?"
       (ev_tx_hash eid, ev_log_index eid)
   mapM rebuild found
@@ -322,7 +332,7 @@ rows_for con eid = do
     -- unreachable today, and a default here is what would keep it unreachable-looking on the day
     -- the check is dropped: a corrupt token silently read back as one of the four is a row whose
     -- post-mortem reads a verdict nobody wrote. Detection that finds nothing aborts.
-    rebuild (block, model, scheme, key, token, reason, gams, conopt) =
+    rebuild (block, model, scheme, key, token, reason, gams, conopt, fee_source) =
       case outcome_from_token token of
         Nothing ->
           throwIO . userError $
@@ -343,6 +353,7 @@ rows_for con eid = do
               , lr_reason     = reason
               , lr_gams_ver   = gams
               , lr_conopt_ver = conopt
+              , lr_fee_source = fee_source
               }
 
 watermark :: Connection -> IO (Maybe Integer)

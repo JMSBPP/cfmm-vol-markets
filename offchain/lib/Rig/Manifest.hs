@@ -265,6 +265,10 @@ required_contracts =
   , "PriceSetterPoolManager"
   , "PoolSwapTest"
   , "PoolModifyLiquidityTest"
+  , "ShockWriter"
+    -- ^ CHAIN-01 (issue #26): the Shock emitter PR #42 shipped. Mandatory because the resident
+    -- loop has nothing to read without it, and a rig whose 3b step did not run would otherwise
+    -- look complete to every other check.
   ]
 
 missing_contracts :: RigAddresses -> [Text]

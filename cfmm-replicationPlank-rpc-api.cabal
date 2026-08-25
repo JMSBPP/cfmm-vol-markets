@@ -266,6 +266,8 @@ library
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.20.2.0,
+                      -- unix: getProcessID -- Gams.Detect names its probe directory per process (issue #40)
+                      unix,
                       web3-ethereum,
                       web3-solidity,
                       web3-provider,

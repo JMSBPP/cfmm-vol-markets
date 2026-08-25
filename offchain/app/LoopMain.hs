@@ -53,6 +53,7 @@ import Chain.Shock (shock_signature)
 import Gams.Detect (detect_toolchain)
 import Gams.Env (whitelist_for)
 import Gams.Invoke (raw_budget_s, raw_kill_after_s, resolve_gams_bin, resolve_gams_model)
+import Chain.Read (HookFeeRoute (..))
 import Loop.Chain (resolved_chain_source)
 import Loop.Config
   ( Halt
@@ -107,6 +108,10 @@ shock_topic0 = be_integer (keccak256 (C8.pack shock_signature))
 -- where a live one would come from. They are NOT zero: a zero volume target is refused by the
 -- argument renderer for every fee pair, so a placeholder there would make every event inadmissible
 -- and the ledger would fill with refusals that say nothing about the chain.
+-- | The volume target AT A LIQUIDITY OF 2^64 -- 'Loop.Run.vol_target_for' scales it to the pinned
+-- liquidity of the pool the shock was read from. 28e18 at 2^64 is VOLUME_PATH.md section 2's own
+-- fixture, kappa 1.518; handed to the prover verbatim on the rig's 1e21 pool it was kappa 0.028
+-- and CONOPT could not reach an admissible point (first live run, 2026-08-24).
 loop_vol_tgt_wad :: Integer
 loop_vol_tgt_wad = 28000000000000000000
 
@@ -128,7 +133,19 @@ main = do
   manager <- required (Rig.resolve_contract rig "PoolManager")
   emitter <- required (Rig.resolve_contract rig shock_emitter_contract)
   pool_id <- required_pool rig
-  (endpoint, source) <- resolved_chain_source manager emitter shock_topic0
+  -- Issue #41: the fee of a dynamic-fee pool is not in slot0. The two contracts and two selectors
+  -- the hook route calls come from the manifest and the pin file, like everything else here.
+  hook     <- required (Rig.resolve_contract rig "DynamicFeeHook")
+  fee_mod  <- required (Rig.resolve_contract rig "DynamicFeeMod")
+  avg_sel  <- required_pin (Rig.pin_selector rig "getAverageVolatility")
+  fee_sel  <- required_pin (Rig.pin_selector rig "getCurrentFee")
+  let fee_route = HookFeeRoute
+        { hfr_hook                        = hook
+        , hfr_fee_module                  = fee_mod
+        , hfr_average_volatility_selector = avg_sel
+        , hfr_current_fee_selector        = fee_sel
+        }
+  (endpoint, source) <- resolved_chain_source manager fee_route emitter shock_topic0
   putStrLn ("ENDPOINT  " ++ endpoint)
   putStrLn ("SOURCE    " ++ source_label source)
 
@@ -323,6 +340,11 @@ precondition_either as_precondition = either (stop . as_precondition) pure
 required :: Either String Address -> IO Address
 required (Right address) = pure address
 required (Left why)      = stop (EndpointUnresolvable (why ++ chain01_note why))
+
+-- | A selector pin the hook route needs, by the same startup path and with the same loudness.
+required_pin :: Either String T.Text -> IO String
+required_pin (Right token) = pure (T.unpack token)
+required_pin (Left why)    = stop (EndpointUnresolvable why)
 
 -- | The pool id, from the manifest, as the number the reads take.
 required_pool :: Rig.Rig -> IO Integer

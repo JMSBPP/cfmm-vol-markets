@@ -355,6 +355,12 @@ endpoint_sites =
       \ gets narrowed on the day it first fires. MEASURED at 27-02: it fired on this file's first\
       \ run, and the answer is the twenty-seventh instance of the same one -- declare the prose,\
       \ never relax the pattern."
+  , EndpointSite "offchain/rig/loop-conformance.json" Transcript
+      "28-05's committed artifact, written by the FIRST live run on 2026-08-24, and the FOURTH\
+      \ member of this kind. Not a consumer: it RECORDS the endpoint the loop attached to\
+      \ (\"endpoint\": the resolved URL), which puts the authority's text inside this census's\
+      \ blast radius. Declared, never relaxed around -- the same ruling as chain-read-conformance.json\
+      \ one entry up. Its presence is what retired the check that asserted its absence."
   , EndpointSite "offchain/lib/Loop/Chain.hs" HaskellConsumer
       "28-02. THE ONLY module in the loop layer that names the transport: it builds a\
       \ Loop.Poll.ChainSource -- a record of five actions -- out of a resolved endpoint and the\
@@ -363,15 +369,14 @@ endpoint_sites =
       \ reason LOOP-01's restart proof can exist: the check supplies the source, so the check is\
       \ what the chain did while the loop was down."
   , EndpointSite "offchain/rig/capture-loop.sh" ShellConsumer
-      "28-05. LOOP-01..05's LIVE half, and the only capture in this directory that HAS NEVER BEEN\
-      \ RUN. It stands a fresh rig up, drives one Shock, runs the loop with --once and records the\
-      \ watermark either side, every ledger row, the published fixture's digest and the observed\
-      \ exit code. It cannot execute today and it refuses by NUMBER rather than skipping: there is\
-      \ no deployable emitter of Shock (CHAIN-01, issue #26) and the publication directory is on\
-      \ neither tree (LOOP-04, issues #24 and #25). Its artifact,\
-      \ offchain/rig/loop-conformance.json, is deliberately ABSENT and the suite asserts that\
-      \ absence -- the only form in which \"this evidence does not exist yet\" can itself be\
-      \ evidence."
+      "28-05. LOOP-01..05's LIVE half. It stands a fresh rig up, drives one Shock into a mined\
+      \ transaction through contracts.ShockWriter (PR #42, issue #26), runs the loop with --once\
+      \ and records the watermark either side, every ledger row, the published fixture's digest\
+      \ and the observed exit code. FIRST RUN 2026-08-24, exit 0: its artifact,\
+      \ offchain/rig/loop-conformance.json, is the Transcript entry above, and the check that\
+      \ asserted that artifact's ABSENCE is retired per its own text. HISTORY: until then it was\
+      \ the only capture here that had never been run, refusing by number on CHAIN-01 (#26) and\
+      \ LOOP-04 (#24, #25)."
   , EndpointSite "offchain/rig/verify-rig.sh" ShellConsumer
       "SC-2. THE SITE CHAIN-06's LIST OF NINE DOES NOT CONTAIN: fourteen cast calls against a live\
       \ rig, reached through foundry's --rpc-url local alias, so it named neither the variable nor\
