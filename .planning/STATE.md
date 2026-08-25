@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Model Output Store + VolumePath Bridge (rpc_api workstream)
 status: in-progress
-stopped_at: "Completed 28-05-PLAN.md AND THE PHASE. 228/228 -> 232/232 (BASE_5 + 4), exit 0, zero warnings, zero Downloading, 534 s -> 551 s against the 900 s ceiling -- four checks cost SEVENTEEN seconds, because 28-03's multiply-by-fifteen rule was applied before they were written and none of them races. LOOP-05 CLOSED and LOOP-02 CLOSED OVER THE LOOP; PHASE 28 COMPLETE, chain-free, with the LIVE half of all five requirements BLOCKED by name. AN EXCEPTION WAS INJECTED AT SEVEN STAGES of one iteration and every abandoned block left the watermark exactly where it was, no row for the event, and a block a clean pass RE-PROCESSED UNDER THE SAME CONTENT KEY -- the battery drives run_loop and NOT process_block, because four of the seven stages are components the iteration does not wrap and driving it directly measures the wrong composition (OBSERVED at 229/231 in the first version). TWO of the seven stages have a DIFFERENT disposition and both are earlier plans' deliberate rulings, recorded as DATA rather than forced into a uniform claim: the PUBLISH stage does not abandon the block (28-03 wrapped the write in try on purpose -- a full disk is not a reason to stop processing the chain), and the store legitimately HOLDS an entry for the three stages that throw after the solve, because decide writes it and that write is content-keyed. THE SHUTDOWN IS A QUESTION THE LOOP ASKS: Env gained env_interrupted and run_loop reads it at exactly two points, both BETWEEN blocks; LoopMain owns the IORef and installs a SIGINT/SIGTERM handler that writes it and does NOTHING else, because GHC's default throws UserInterrupt at the main thread asynchronously at a point nobody chose and that point includes the middle of the ledger's one commit. The iteration is now WRAPPED and HaltBlockException / exit 34 is the TENTH table entry -- DEMANDED by the totality check rather than permitted by it, since before this an escaping exception killed the process with no exit code from any table at all. offchain/rig/capture-loop.sh is WRITTEN, GATED exactly as Phase 27 gated its two, listed in endpoint_sites (19 -> 20) in the same commit, and UNRUN: its gate was EXERCISED with no rig stood up (\"CAPTURE FAIL: nothing answered eth_blockNumber\", exit 1, nothing written) and its artifact is deliberately ABSENT, which the suite asserts as a VERDICT whose failure text says what each direction means. FOUR DRIVES, THREE LANDED: hoisting the commit above the event loop -> 228/231 caught by TWO checks (the plan's own prescribed input for that check would have been INERT, and the reason names what the arm really guards); reading the flag between EVENTS -> 229/231 at \"Row counts by block: [(1,1),(2,0),(2,0),(3,0)]\"; a surviving temp sibling -> 228/231 caught by this check AND 28-04's tree diff. THE FOURTH WAS ABANDONED AT 52 MINUTES OF CPU: rename -> copy reddens the ten-second race, which puts a ten-second check into the sweep's reader sets, so a whole CLASS of firing input cannot be driven on this suite -- 28-03's 2328 s finding, sharper. grep -c ledger_commit_block over Loop/Run.hs prints 1 after TWO haddock sentences moved, one of them 28-02's and PREDATING this plan -- 27-01's rule for the thirtieth time and the first time it caught prose the executing plan did not write. Floors 82/93 -> 83/94, both re-measured by RUNNING find, both moved by the SAME one .sh; census hs 66, sh 13, json 11, sql 4 -- the .json census did NOT move, which is the artifact being absent stated as a number. Phase totals: 205/205 -> 232/232, +27 across five plans. Next: /gsd:verify-phase 28, then capture-loop.sh when #26 lands an emitter and the #24 track lands the fixtures directory."
-last_updated: "2026-08-23"
-last_activity: "2026-08-23 -- 28-05 executed AND PHASE 28 CLOSED BY HAND. 228/228 -> 232/232, 0 warnings, 0 Downloading, 551 s. LOOP-05 and LOOP-02 closed; all five LOOP requirements complete CHAIN-FREE with the live half BLOCKED on issue #26 (no deployable Shock emitter) and issues #24/#25 (the publication directory is on neither tree). An exception at SEVEN stages leaves the watermark unadvanced and the block re-processable under the same content key; the shutdown lands block 2 whole and never enters block 3. offchain/rig/capture-loop.sh written, gated, census-listed and UNRUN, with its absence registered as a verdict. Floors 82/93 -> 83/94. 28-05-SUMMARY.md and 28-SUMMARY.md written; REQUIREMENTS.md, ROADMAP.md and this file edited BY HAND -- no gsd-tools state subcommand and no phase complete was run."
+stopped_at: "v6.0 BRIDGE LANDED ON DEVELOP (PR #45 -> 358edce, 2026-08-24). Gate B cued to plank-94. Open: STORE-02/03/04/05/07 deferrals, #40 sweep filter, #44 CI contention."
+last_updated: "2026-08-24"
+last_activity: "2026-08-24 -- PR #45 merged into develop (358edce) after plank's fork guard PR #47 and a merge-forward (a7358df). Golden regenerated on a fresh single-shock rig: block 17, split 31/69, forkHeight recorded. Two findings: fresh deploy-rig block height is timing-dependent (20/17/14); the #40 flake was a $TMPDIR collision with the gate runner's concurrent suite (fixed 42912f1, per-pid scratch)."
 progress:
   total_phases: 6
   completed_phases: 6
@@ -42,6 +42,27 @@ GAMS VolumePath prover to the fixture the forge test reads. Binding reference:
 **Track note:** Sixth milestone — **v6.0 is the rpc_api workstream's** (offchain Haskell, branch `feat/rpc-api`), phases 23–28, from issue #25. The **subgraph (issue #14) was renumbered v6.0 → v7.0 on 2026-08-16** and is queued behind this one, on dependency grounds: it needs somewhere to put what it indexes, and v6.0 builds exactly that. v5.0 (VolOrder V2 re-pin + stochastic drivers, phases 20–22) SHIPPED 2026-08-03. v3.0 (VegaAccountMod vault, Phases 12–15) SHIPPED 2026-07-19 (tag `v3.0`). v1.0 (GAMS plumbing, Phases 1–7) PAUSED. v2.0 (vol-oracle differential, Phases 8–11) PAUSED after Phase 9 — VDIFF-05..08 (Phases 10–11) remain pending, NOT part of v4.0. Resuming v2.0 = `/gsd:plan-phase 10`. These phase ranges are separate tracks — never renumbered.
 
 ## Current Position
+
+**v6.0 LANDED ON DEVELOP — 2026-08-24, merge 358edce (PR #45).** The bridge ran live end to end
+(Anvil `Shock` → pinned reads incl. the DynamicFeeHook fee route → split → key → GAMS/CONOPT →
+Postgres → `test/models/mev_tax_model_one/fixtures/volume_path.json`). Merge order that broke the
+gate circularity: plank's fork guard PR #47 first (their fixture test un-skipped on the fixture
+and hard-reverted in the rig-less `--offline` forge job), then `origin/develop` merged forward
+into `feat/rpc-api` (a PR's checks run on the merge ref at push time), then #45 green → merged.
+
+Settled golden: sha256 79f9c7cd5c8565de…, `blockNumber "17"` == `loop-conformance.json`
+`forkHeight`, pool = PoolManager, split 31/69, nEvents 8. **Block height on a fresh deploy-rig is
+timing-dependent** (three fresh rigs: 20, 17, 14 — same txs, same addresses, anvil packs blocks by
+arrival) so only the same-rig `forkHeight` is a fork target; `capture-loop.sh` prints the exact
+forge line. Gate B (plank-94: dQx replay + extsload-by-poolId state read) cued 2026-08-24.
+
+Also landed in #45: the #40 "sentinel flake" root cause — every suite scratch path was a fixed
+`$TMPDIR` name and the self-hosted gate's concurrent copy of the suite deleted mine mid-check;
+now `suite_tmp = $TMPDIR/cfmm-suite-<pid>` (42912f1). #40 stays open for its sweep-filter defect.
+
+Open after v6.0: STORE-02/03/04/05/07 (deferred by the "cut both" ruling), #40 sweep filter,
+#44/#16 CI contention (CI track).
+
 
 Phase: **28 — Resident Loop & Fixture Publication** — **COMPLETE (5/5 plans), 2026-08-23.**
 Phase summary: `.planning/phases/28-resident-loop-fixture-publication/28-SUMMARY.md`.
