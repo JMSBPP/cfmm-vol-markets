@@ -10,7 +10,6 @@ import {IAlgebraFactory} from "@cryptoalgebra/integral-core/interfaces/IAlgebraF
 import {IAlgebraPoolDeployer} from "@cryptoalgebra/integral-core/interfaces/IAlgebraPoolDeployer.sol";
 import {IAlgebraPoolState} from "@cryptoalgebra/integral-core/interfaces/pool/IAlgebraPoolState.sol";
 import {IAlgebraPoolImmutables} from "@cryptoalgebra/integral-core/interfaces/pool/IAlgebraPoolImmutables.sol";
-import {stdJson} from "forge-std/StdJson.sol";
 import {IAlgebraPoolActions} from "@cryptoalgebra/integral-core/interfaces/pool/IAlgebraPoolActions.sol";
 import {IAlgebraPoolPermissionedActions} from "@cryptoalgebra/integral-core/interfaces/pool/IAlgebraPoolPermissionedActions.sol";
 import {IAlgebraSwapCallback} from "@cryptoalgebra/integral-core/interfaces/callback/IAlgebraSwapCallback.sol";
@@ -30,9 +29,8 @@ uint160 constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
 uint256 constant MAX_SUPPLY = type(uint256).max;
 bytes constant ZERO_BYTES = new bytes(0);
 
-// The delegated handoff contract: the off-chain GAMS→JSON component (follow-up issue,
-// post-merge) MUST write the solver output here. VOLUME_PATH.md §3 is the byte shape.
-string constant VOLUME_PATH_JSON = "test/models/mev_tax_model_one/fixtures/volume_path.json";
+// The VolumePath replay moved to the v4 file MevTaxVolumePathV4.t.sol (the fixture is a v4
+// DynamicFeeHook pool; @cryptoalgebra 0.8.20 and v4-core 0.8.26 cannot share this graph).
 
 // Seeded liquidity band edges (mirror Constants.plk: SQRT_PRICE_1_4 = 2^95, SQRT_PRICE_4_1 = 2^97).
 // The pool has liquidity ONLY in price [1/4, 4], so these — not TickMath's extremes — are the
@@ -65,8 +63,6 @@ contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapC
      MockERC20 token0;  // asset      (token0 < token1 enforced in _createPool)
      MockERC20 token1;  // numeraire
 
-     using stdJson for string;
-     
      function setUp() public {
 	model_opts.backend = "sona";
 
@@ -149,106 +145,6 @@ contract AlgebraIntegralMevTaxModelOneShocksTest is PlankTestBase, IAlgebraSwapC
 	assertEq(IAlgebraPoolImmutables(pool).token0(), address(asset));
 	assertEq(IAlgebraPoolState(pool).plugin(),address(shocks_writer));
 
-     }
-
-     function test__priceInvarianceUnderVolumePath() public {
-         if (!vm.exists(VOLUME_PATH_JSON)) {
-             vm.skip(true, "awaiting volume_path.json - off-chain rpc_api bridge (#25), delegated");
-             return;
-         }
-
-         string memory json = vm.readFile(VOLUME_PATH_JSON);
-
-         // Pool identity (#29): ATTACH to the live pool the path was solved against, at its block —
-         // never construct a fresh one. `pool` is the attach target; `blockNumber` pins the fork
-         // (a >53-bit JSON STRING, per §3); `chainId` is the wrong-network guard.
-         address fxPool = json.readAddress(".pool");
-         uint256 fxBlockNumber = vm.parseUint(json.readString(".blockNumber"));
-         uint256 fxChainId = json.readUint(".chainId");
-
-         // §3: sqrtPriceX96/liquidity are JSON STRINGS (exceed the 53-bit double-exact ceiling) —
-         // read as strings and parse to integers, NEVER as JSON numbers/doubles.
-         uint160 fxSqrtPrice = uint160(vm.parseUint(json.readString(".sqrtPriceX96")));
-         uint128 fxLiquidity = uint128(vm.parseUint(json.readString(".liquidity")));
-         int256[] memory dQx = json.readIntArray(".dQx");
-         uint256 nEvents = json.readUint(".nEvents");
-
-         require(nEvents > 0, "empty path");
-         assertEq(dQx.length, nEvents, "dQx length must equal nEvents");
-
-         // Gate A guard: skips (naming the endpoint + arm) when no rig serves the fork. Below runs only
-         // when a live rig is attached — so CI's --offline forge job skips here, unblocking #45's gate.
-         if (!_attachPool(fxPool, fxBlockNumber, fxChainId)) return;
-
-         // The fixture must have been solved for THIS pool's state; pinned to fxBlockNumber this is a
-         // determinism guard, not a race (issue #29).
-         (uint160 sqrtPrice, , , , , ) = IAlgebraPoolState(activePool).globalState();
-         assertEq(uint256(sqrtPrice), uint256(fxSqrtPrice), "pool sqrtPrice != fixture sqrtPriceX96");
-         assertEq(uint256(IAlgebraPoolState(activePool).liquidity()), uint256(fxLiquidity), "pool liquidity != fixture liquidity");
-
-         // TODO(#26 SELECTOR_NEXT): route the dQx path through the pool's ON-FORK plugin
-         // (IAlgebraPoolState(activePool).plugin()) — NOT setUp's in-process shocks_writer, which has
-         // no code on the fork — with shocks as hookData. Snapshot tick, replay (last swap limited at
-         // SQRT_PRICE_1_1, VOLUME_PATH.md §3), assert tickAfter == tickBefore.
-     }
-
-     /// @notice #29 + Gate A: ATTACH to the live rig the fixture was published against, at its block —
-     /// never construct a fresh pool. EXPLICIT EXCEPTION to #29's "never skip / fail-loud" rule, written
-     /// here so the two rules stop contradicting: this is a LIVE-RIG INTEGRATION test, run as the
-     /// sequence deploy-rig -> capture-loop -> forge -> deploy-rig --stop. On CI the forge job runs
-     /// --offline with no rig, so when NO node is reachable at the endpoint, or its head is below the
-     /// fork target, this SKIPS and NAMES the endpoint + which arm failed (a bare skip would fail-open,
-     /// the shape 23-RESEARCH forbids). #29's fail-loud STILL governs the rig-present-but-wrong cases:
-     /// wrong chainId and attach-not-construct both `require`-revert below, never skip. Endpoint resolves
-     /// ETH_RPC_URL -> foundry.toml `local` default. Returns false (already skipped) when no rig serves
-     /// the fork; true when attached.
-     function _attachPool(address fxPool, uint256 fxBlockNumber, uint256 fxChainId)
-         internal
-         returns (bool attached)
-     {
-         string memory url = vm.envOr("ETH_RPC_URL", vm.rpcUrl("local"));
-
-         // Liveness arms, fails-CLOSED. __rigHead forks in an EXTERNAL self-call so the cheatcode revert
-         // on an unreachable/offline endpoint is a catchable external-call revert (a same-contract
-         // cheatcode revert is not try/catch-able). Arm 1: no node reachable. Arm 2: head < fork target.
-         try this.__rigHead(url) returns (uint256 head) {
-             if (head < fxBlockNumber) {
-                 vm.skip(true, string.concat(
-                     "VolumePath: rig head ", vm.toString(head), " < fork target ",
-                     vm.toString(fxBlockNumber), " at ", url,
-                     " -- run deploy-rig -> capture-loop -> this test on the SAME rig (its forkHeight)."
-                 ));
-                 return false;
-             }
-         } catch {
-             vm.skip(true, string.concat(
-                 "VolumePath: no node reachable at ", url,
-                 " -- live-rig integration test; CI's --offline forge job has no rig, so it skips here."
-             ));
-             return false;
-         }
-
-         console2.log("VolumePath: attaching to", url);
-         vm.createSelectFork(url, fxBlockNumber); // rig confirmed live above; fails loud on a real problem
-         require(block.chainid == fxChainId, "VolumePath: wrong chain (check ETH_RPC_URL)");
-         require(fxPool.code.length > 0, "VolumePath: pool not deployed on fork (attach, not construct)");
-         activePool = fxPool;
-         // TODO(Gate B): `.pool` is the PoolManager (v4-style singleton, per the fixture's topic1 ruling),
-         // NOT an Algebra pool contract -- token0()/token1()/globalState()/liquidity() on it revert. The
-         // dQx replay must read pool state via PoolManager.extsload keyed by poolId (as the loop does),
-         // not through IAlgebraPool* on activePool. The guard skips before this on the offline gate.
-         token0 = MockERC20(IAlgebraPoolImmutables(activePool).token0());
-         token1 = MockERC20(IAlgebraPoolImmutables(activePool).token1());
-         return true;
-     }
-
-     /// @dev External so a fork attempt against an unreachable/offline endpoint reverts as a CATCHABLE
-     /// external-call revert (a same-contract cheatcode revert cannot be try/catch-ed). Returns the
-     /// reachable rig's head block; _attachPool compares it to the fork target and skips if below.
-     function __rigHead(string calldata url) external returns (uint256) {
-         uint256 forkId = vm.createFork(url); // reverts (caught by _attachPool) if unreachable/offline
-         vm.selectFork(forkId);
-         return block.number;
      }
 
      /// @notice EXEC-03: the writer, as the pool's plugin, must set pluginConfig during init to
