@@ -27,7 +27,6 @@ model/build/
 
 # Node / embedded reference apps
 node_modules/
-/refs/
 
 # Untracked NON-submodule lib/ trees — unpublished IP, never publish.
 # The 8 real submodules in .gitmodules are unaffected by these path-anchored ignores.
