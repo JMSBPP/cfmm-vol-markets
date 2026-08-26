@@ -4,8 +4,8 @@ Spec: `.planning/events-subgraph-gams-SPEC.md` (v2, two-step-reviewed). Consumer
 `execute_loadDC` reader) is the cfmm-gams repo's work, delegated by issue (EV-06); this
 document is written so that agent can implement WITHOUT reading Plank sources.
 
-Notation is binding: doc symbols come from `notes/VOLATILITY_INSTRUMENTS.md` and
-`cfmm-gams/model/spec/*.md`; Algebra field names are verbatim from
+Notation is binding: doc symbols come from `JMSBPP/cfmm-vol-markets-spec`
+`notes/VOLATILITY_INSTRUMENTS.md` and `cfmm-gams/model/spec/*.md`; Algebra field names are verbatim from
 `AlgebraFeeConfiguration`. No interpretive renames on either side.
 
 ## 1. Event catalog

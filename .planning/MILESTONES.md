@@ -5,7 +5,7 @@
 **Phases completed:** 4 phases (12–15), 7 plans, 41 commits (`034f963..8f4d7eb`), 17 source/test files (+1259/−215), 2026-07-16 → 2026-07-19.
 (The archive tool's "7 phases / 14 plans" count swept the v2.0 phase dirs too — corrected here.)
 
-**Delivered:** `VegaAccountMod.plk` went from a non-compiling skeleton in `PLANK_SKIP` to a proven deposit-only vault — deposit collateral, receive vega-exposure shares at `p_risk = oracle/(1−h)` — with every claim resting on a CALLED test or an OBSERVED mutation kill, measured against the machine-checked Lean design authority (`../cfmm-wt/lean4-spec/lean/vol_markets/`).
+**Delivered:** `VegaAccountMod.plk` went from a non-compiling skeleton in `PLANK_SKIP` to a proven deposit-only vault — deposit collateral, receive vega-exposure shares at `p_risk = oracle/(1−h)` — with every claim resting on a CALLED test or an OBSERVED mutation kill, measured against the machine-checked Lean design authority (`JMSBPP/cfmm-vol-markets-spec`: `lean/vol_markets/`).
 
 **Key accomplishments:**
 - **Spec correction first (Phase 12):** the Lean-REFUTED `price/haircut` formula killed in `risk.md` and its code embodiment (`RiskDiscount.plk`/`RiskMeasureLib.plk`) deleted; the H1 integer realization pinned to the operation level (Q64.96/Q0.96, p_risk rounds UP, shares FLOOR, checked subtraction, ℝ-only counterexample 12-vs-13 recorded with reproducing inputs).

@@ -220,8 +220,8 @@ Inout latex code on Volatilti insttruments that corrects it according to the wor
 > bounds/monotonicity + single-term = FeeSchedule (s_f = 1/γ). F: ⊗_φ abelian
 > monoid + exact hazard correspondence. G: FLAIR sup solved (Θ_λ = {φ̄,α,u},
 > corner + β→−∞ saturation). One FLAG pending: θ exponent sign (author call).
-> Lemma-level map: lean4-spec worktree model/vol_markets/LEAN_TRACEABILITY.md;
-> proofs at JMSBPP/cfmm-lean4-spec main. Re your GeometricDistribution.plk
+> Lemma-level map: JMSBPP/cfmm-vol-markets-spec notes/agents/vol_markets/LEAN_TRACEABILITY.md;
+> proofs at JMSBPP/cfmm-vol-markets-spec main. Re your GeometricDistribution.plk
 > item: proven cumulative APIs are cumulativeQM/cumulativeQX (Q_M^L, Q_X^L).
 
 - Note that \(\xi, \iota\) are partially mapped to controlling strike wights and option ratios  on pacoptic, the sigmoid params are being associted with FLAIR, MEV controls BUT \(\eta\) is still misisng a location not only on the hook for prciing swaps it intuititvley seems it enters on either beforeSwap or afterSwap . \eta is an asset demand parameter since is accountably a substitution elasticity between asset and cash. This is the next thin g to be done the math formalization Find the best economic controller aPPLICATION FOR \eta then the plank worktree uses this info to map it to implementation
