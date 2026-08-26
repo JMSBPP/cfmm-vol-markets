@@ -6,7 +6,7 @@ The issuance risk price is the haircut-adjusted oracle price:
 
     p_risk = oracle / (1 − h)
 
-Design authority — machine-checked Lean (`../cfmm-wt/lean4-spec/lean/vol_markets/RiskDesign.lean`, no `sorry`):
+Design authority — machine-checked Lean (`JMSBPP/cfmm-vol-markets-spec`: `lean/vol_markets/RiskDesign.lean`, no `sorry`):
 
 - `haircutRiskPrice` (RiskDesign.lean ~line 113) — the definition above.
 - `haircutRiskPrice_ge_oracle` (RiskDesign.lean ~line 119) — `p_risk ≥ oracle` for all `0 ≤ oracle` and `0 ≤ h < 1`.

@@ -160,8 +160,8 @@ Extend `test/.../VolOrderToPanopticTokenId*` (or a sibling harness). Differentia
 7. **Ordering guard.** A crafted boundary violation reverts (not a 2^256 leg).
 
 ## 9. References
-- `../lean4-spec/lean/vol_markets/GeomProfile.lean` (geomWeight/sum/strictAnti/logContractLiquidity).
-- `notes/VOLATILITY_INSTRUMENTS.md`; `refs/DemeterfietalVarianceSwaps.pdf` (App A, 1/K²).
+- `JMSBPP/cfmm-vol-markets-spec` `lean/vol_markets/GeomProfile.lean` (geomWeight/sum/strictAnti/logContractLiquidity).
+- `JMSBPP/cfmm-vol-markets-spec` `notes/VOLATILITY_INSTRUMENTS.md`; `refs/DemeterfietalVarianceSwaps.pdf` (App A, 1/K²).
 - `src/lib/ldf/GeometricDistribution.plk` (density + cumulative amounts, primitives).
 - `src/lib/protocol_integrations/PanopticTokenIdSetterLib.plk` (Layer 1; shared-helper source).
 - `.planning/cr-i2-vol-order-to-panoptic-token-id-SPEC.md` (Layer 1, the 3-layer split).

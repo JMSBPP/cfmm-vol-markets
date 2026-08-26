@@ -61,8 +61,8 @@ $macro tunablePricingKernel(s, t, e) ( (lambda / unity) ** (tickVal(t) * tickSpa
 * `_Add1` (token1-input) and a potential `_Sub0/_Sub1` (add=false branch) will
 * share the `priceImpactKernel_` prefix.
 *
-* TODO(eta-CES): a tunable-η post-trade form is reachable via the lean4-spec
+* TODO(eta-CES): a tunable-η post-trade form is reachable via the cfmm-vol-markets-spec
 * kernel-split identity (CFMM.Eta.eta_split_kernel_identity, see
-* lean4-spec/lean/exp/eta.lean), but blocked on an η-CES post-trade EVM
+* JMSBPP/cfmm-vol-markets-spec lean/exp/eta.lean), but blocked on an η-CES post-trade EVM
 * function existing to diff against.
 $macro priceImpactKernel_Add0(sqrtP, L, dx) ( (L) * (sqrtP) / ( (L) + (dx) * (sqrtP) / power(2, 96) ) )

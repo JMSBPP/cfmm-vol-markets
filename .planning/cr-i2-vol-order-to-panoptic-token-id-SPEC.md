@@ -14,7 +14,7 @@ Reality Checker. The parity math is confirmed sound (Solidity review, incl. the 
 ## 0. Layering (the architecture the reviews forced out)
 
 A `VolOrder` (a variance-swap order) is replicated in three stacked layers. The doc's own
-decomposition `π^σ = ΔQ_v·(σ²_R − σ²_K)⁺` (`notes/VOLATILITY_INSTRUMENTS.md`) *is* this stack:
+decomposition `π^σ = ΔQ_v·(σ²_R − σ²_K)⁺` (`JMSBPP/cfmm-vol-markets-spec` `notes/VOLATILITY_INSTRUMENTS.md`) *is* this stack:
 
 - **Layer 1 — position STRUCTURE / SKELETON (THIS deliverable, CR-I2).** `VolOrder → PanopticTokenId`:
   a 4-leg, all-long Panoptic position whose legs tile the strike support `[i_l, i_u]` and split
@@ -253,8 +253,8 @@ Layer-1 correctness = **valid + mintable + correctly structured** (NOT variance-
 
 - Demeterfi–Derman–Kamal–Zou, *Variance/Volatility Swaps*, GS 1999 — `refs/DemeterfietalVarianceSwaps.pdf`.
 - Derman–Kani, *Stochastic Implied Trees*, GS 1997 — `refs/stochastic_implied_tree.pdf`.
-- `notes/VOLATILITY_INSTRUMENTS.md` (the `ΔQ_v·(σ²_R−σ²_K)⁺` stack = the 3 layers).
-- `../lean4-spec/lean/vol_markets/{PosSpec,GeomProfile,VolInstrument,Panoptic}.lean`.
+- `JMSBPP/cfmm-vol-markets-spec` `notes/VOLATILITY_INSTRUMENTS.md` (the `ΔQ_v·(σ²_R−σ²_K)⁺` stack = the 3 layers).
+- `JMSBPP/cfmm-vol-markets-spec` `lean/vol_markets/{PosSpec,GeomProfile,VolInstrument,Panoptic}.lean`.
 - Panoptic schema: `lib/panoptic-v2-core/contracts/types/TokenId.sol` (validate 473–518),
   `libraries/PanopticMath.sol:406–466` (getTicks/getRangesFromStrike), `libraries/Constants.sol:12–15`.
 - Reused primitives: `src/types/protocol_integrations/PanopticTokenId.plk:24–56`.

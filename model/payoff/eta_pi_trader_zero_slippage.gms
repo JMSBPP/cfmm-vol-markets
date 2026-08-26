@@ -176,7 +176,7 @@ optimum('enumeration', 'sqrtPX96_at_DiStar')  = sqrtPX96_at(lambdaWad, iCfg, diS
 
 # Lean-theorem provenance.
 Set theoremNameSet      / 'pi_trader_half_zero_at_deltaI_star' /;
-Set leanFileSet         / 'lean4-spec/lean/exp/eta.lean' /;
+Set leanFileSet         / 'cfmm-vol-markets-spec/lean/exp/eta.lean' /;
 Set leanLineSet         / 'eta.lean:518' /;
 Set aristotleProjectSet / '88d393e7-ec4e-438f-a5fd-9f34aab1c2e5' /;
 Scalar theoremStatus / 1 /;                                # 1=proven

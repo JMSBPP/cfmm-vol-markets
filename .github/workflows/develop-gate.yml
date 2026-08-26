@@ -106,35 +106,14 @@ jobs:
           persist-credentials: false
       - run: cd tools/gamsdiff && uv sync --frozen && uv run pytest
 
-  lean:
-    needs: [approve]
-    runs-on: [self-hosted, cfmm-build]
-    timeout-minutes: 20
-    env:
-      GIT_TERMINAL_PROMPT: "0"
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: false
-          persist-credentials: false
-      - run: |
-          if [ ! -f lean/lakefile.toml ] && [ ! -f lean/lakefile.lean ]; then
-            echo "::notice::no Lean project on develop yet (PR #2 pending) — lean gate passes (nothing to check)"; exit 0
-          fi
-          elan show >/dev/null 2>&1 || curl -sSf https://elan.lean-lang.org/elan-init.sh | sh -s -- -y
-          out="$(cd lean && lake build 2>&1)"; echo "$out"
-          # no-sorry guard via Lean's OWN compiler warning (comment/identifier-safe, unlike a source grep)
-          echo "$out" | grep -qE "declaration uses '(sorry|admit)'" && { echo "::error::Lean proof uses sorry/admit"; exit 1; }
-          echo "lean: lake build clean, no sorry/admit"
-
   gate:                          # the SOLE required check. Do NOT add `name:` (would change the context string)
-    needs: [approve, forge, gams, plank, gamsdiff, lean]
+    needs: [approve, forge, gams, plank, gamsdiff]
     if: always()
     runs-on: ubuntu-latest       # hosted: only reads results, needs no toolchain
     timeout-minutes: 5
     steps:
       - run: |
-          for x in '${{ needs.forge.result }}' '${{ needs.gams.result }}' '${{ needs.plank.result }}' '${{ needs.gamsdiff.result }}' '${{ needs.lean.result }}'; do
+          for x in '${{ needs.forge.result }}' '${{ needs.gams.result }}' '${{ needs.plank.result }}' '${{ needs.gamsdiff.result }}'; do
             case "$x" in success|skipped) ;; *) echo "::error::a gate job result was '$x'"; exit 1;; esac
           done
           echo "all gate jobs green"

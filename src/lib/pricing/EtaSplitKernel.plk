@@ -2,8 +2,8 @@ import v3::math::tick_math::getSqrtRatioAtTick;
 import v3::math::full_math::mulDiv;
 import types::Numerics::{Q96};
 
-// The η-split price kernel — the on-chain form of the lean4-spec theorem `eta_split_kernel_identity`
-// (lean/exp/eta.lean, proven, closed by `ring`):
+// The η-split price kernel — the on-chain form of the cfmm-vol-markets-spec theorem `eta_split_kernel_identity`
+// (JMSBPP/cfmm-vol-markets-spec: lean/exp/eta.lean, proven, closed by `ring`):
 //
 //     P_half(⌊η·i⌋) · P_half(i − ⌊η·i⌋)  =  P_half(i)          for η ∈ (0,1)
 //
