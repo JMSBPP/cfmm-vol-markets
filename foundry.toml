@@ -27,7 +27,6 @@ compilation_restrictions = [
     { paths = "lib/panoptic-v2-core/contracts/SemiFungiblePositionManagerV4.sol", via_ir = false },
 ]
 fs_permissions = [
-    { access = "read", path = "./test/gamsDiff/fixtures" },
     { access = "read", path = "./test/pos_spec/fixtures" },
     { access = "read", path = "./src/interfaces/pos_spec" },
     # The E2E deploys the legacy-compiled SFPM artifact by reading its JSON directly:
