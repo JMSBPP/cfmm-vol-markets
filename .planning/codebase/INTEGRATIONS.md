@@ -96,7 +96,7 @@ on the fly using Foundry's FFI mechanism.
   - `v3-core`, `v3-periphery` as above
 - Used via `@base/`, `@contracts/`, `@libraries/`, `@tokens/`, `@types/`, `@scripts/`,
   `@helper/`, `@test_periphery/`, `@uniswap/` remapping prefixes
-- Currently used in `NOTES.md` design notes for Centrifuge integration test scaffolding
+- Currently used in `notes/STOCHASTIC_MODEL.md` design notes for Centrifuge integration test scaffolding
 
 ## Centrifuge Protocol
 
@@ -104,7 +104,7 @@ on the fly using Foundry's FFI mechanism.
 - GitHub: `https://github.com/centrifuge/protocol`
 - Remapped as (none — not yet remapped in `remappings.txt`)
 - A multi-chain, permissioned protocol for tokenizing financial products (6 chains live)
-- Referenced in `NOTES.md` for `BalanceSheetTestDeposit` integration testing
+- Referenced in `notes/STOCHASTIC_MODEL.md` for `BalanceSheetTestDeposit` integration testing
   (`testDepositERC6909`, `testDepositERC20`)
 - Not yet integrated into any `.plk` or `.sol` in this project's `src/` or `test/`
 

@@ -1,6 +1,6 @@
-# Backlog Coverage Ledger — `todo.md` + `NOTES.md`
+# Backlog Coverage Ledger — `todo.md` + `notes/STOCHASTIC_MODEL.md`
 
-Purpose: account for **100% of the items** in `todo.md` and `NOTES.md` — every atom gets a
+Purpose: account for **100% of the items** in `todo.md` and `notes/STOCHASTIC_MODEL.md` — every atom gets a
 disposition, so nothing is silently dropped. "Coverage" = every item is *accounted for*, not
 that every item is *implemented in this session*. Ordering is a **proposal** pending user
 approval. Nothing here is executed without the user approving each code change (heavy-
@@ -47,7 +47,7 @@ Disposition is my recommendation; the **Scope** and **Order** are the two decisi
 | T24 | Accumulator type at EVM level (16 sect.) | ❓ RESEARCH | `std/utils.plk` study | research note |
 | T25 | feat/arrays upgrades multicall for vega create order | 🔀 OTHER-TRACK | pointer; depends on Plank `feat/arrays` branch | track, don't build |
 
-## B. `NOTES.md`
+## B. `notes/STOCHASTIC_MODEL.md`
 
 | ID | Item | Status | Evidence / Note | Disposition |
 |----|------|--------|-----------------|-------------|
@@ -116,7 +116,7 @@ Disposition is my recommendation; the **Scope** and **Order** are the two decisi
 ## Reframe (2026-07-27, user)
 
 - **Executable spec = `todo.md` items + the inline code-comment sketches in both files.**
-  NOTES.md *prose/math* (the λ/Poisson/LogNormal derivation N3, moment relations) is **secondary
+  notes/STOCHASTIC_MODEL.md *prose/math* (the λ/Poisson/LogNormal derivation N3, moment relations) is **secondary
   context, NOT a build target.** The code SKETCHES are authoritative; the surrounding math is support.
 - **Process space = pure TICK process on a NO-LIQUIDITY pool.** Drops the amount↔tick map (Solidity
   B1), the LogNormal primitive gap (Reality B1), and the moment check (Reality M3) — all tied to the
@@ -128,8 +128,8 @@ Disposition is my recommendation; the **Scope** and **Order** are the two decisi
 
 ## Atom-count correction (Reality m1/m2)
 
-N7 (LDF PriceCoordinate/PricePair/PriceBucket) is NOT from NOTES.md — it is `todo.md`§16, already
-tracked as **T19**. So T19≡N7 (one source, one atom). NOTES.md has **12** atoms (N0–N6, N8–N12),
+N7 (LDF PriceCoordinate/PricePair/PriceBucket) is NOT from notes/STOCHASTIC_MODEL.md — it is `todo.md`§16, already
+tracked as **T19**. So T19≡N7 (one source, one atom). notes/STOCHASTIC_MODEL.md has **12** atoms (N0–N6, N8–N12),
 not 13. Raw-bullet coverage of both files is complete; the earlier "38 atoms" tally double-counted
 the paired items (N3/T14, N0/T16, T19/N7). True in-scope build-item count = **10**.
 

@@ -256,7 +256,7 @@ Plank distinguishes wrapping operators (`*%`, `+%`, `-%`) from panicking operato
 
 ---
 
-## Mathematical / Spec Conventions (`spec/` and `NOTES.md`)
+## Mathematical / Spec Conventions (`spec/` and `notes/STOCHASTIC_MODEL.md`)
 
 ### Spec Layer (`spec/protocol/entities/Types.md`)
 
@@ -270,9 +270,9 @@ type Generic<A, B> -> result {}
 
 Numeric formats are named constants in a `DirectAddressMap`: `Natural`, `Rational`, `Q64.96`, `Q128.128`, `RAY`, `WAD`. `BoundedValue<NumberFormat, lowerBound, upperBound>` is the canonical bounded numeric type.
 
-### NOTES.md Mathematical Notation
+### notes/STOCHASTIC_MODEL.md Mathematical Notation
 
-`NOTES.md` uses LaTeX-style inline math (`\[...\]`, `\(...\)`) with standard stochastic process notation:
+`notes/STOCHASTIC_MODEL.md` uses LaTeX-style inline math (`\[...\]`, `\(...\)`) with standard stochastic process notation:
 
 - Greek: `\lambda_t` (arrival rate), `\sigma_{\Delta y}` (log-normal vol), `\bar{\Delta y}_t` (mean swap size)
 - Process notation: `N_t | \lambda_t \sim \mathrm{Poisson}(\lambda_t)`, `\Delta y_{n,t} \sim \mathrm{LogNormal}(\mu_t, \sigma^2)`
