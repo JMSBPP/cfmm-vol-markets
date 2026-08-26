@@ -60,3 +60,6 @@ offchain/rig/rig-manifest.json
 # following that sequence to accidentally commit.
 dist-newstyle/
 .stack-work/
+
+# Local Claude Code settings (per-user, not repo config)
+.agents/settings.local.json

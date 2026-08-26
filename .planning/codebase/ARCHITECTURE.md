@@ -104,7 +104,7 @@
 - Test conformance: `test/LiquidityDensityFunctionPlankTest.t.sol` extends `bunni-v2/test/ldf/LiquidityDensityFunctionTest` to enforce behavioral parity
 
 **BinomialProxy (direction generator):**
-- Purpose: On-chain pseudo-random direction sampler; models `P(I=+1) = P(I=-1) = 1/2` from the stochastic model in `NOTES.md`
+- Purpose: On-chain pseudo-random direction sampler; models `P(I=+1) = P(I=-1) = 1/2` from the stochastic model in `notes/STOCHASTIC_MODEL.md`
 - File: `src/lib/BinomialProxy.plk`
 - Mechanism: reads `@evm_difficulty()` (maps to `block.prevrandao` post-merge), returns `(seed & 1)` — 0 or 1
 - Selector: `ping()` = `0x5c36b186`
@@ -190,8 +190,8 @@ init { return_runtime(); }
 | CFMM invariant (liquidity cone) | `L = X^eta * Y^(1-eta)` | geometric LDF shape | `TradingRegion.gms`, `src/ldf/GeometricDistribution.plk` |
 | Price grid (tick→price) | `priceKernel(tickSpacing, tick) = lambda^(tick*ts)` | `TickMath.getSqrtRatioAtTick` | `PricingKernel.gms`, `lib/plankified-univ3/plank/lib/math/tick_math.plk` |
 | Initial inventory | `init(X) = 100e18, init(Y) = 10000e18` | `(cashStock = 100e18)` in DynamicCFMM INIT_STATE | `dynamic/InitState.gms`, `src/DynamicCFMM.plk` |
-| Swap direction indicator | stochastic `I_{n,t} ∈ {-1,+1}` | `BinomialProxy.ping() → {0,1}` | `NOTES.md`, `src/lib/BinomialProxy.plk` |
-| Swap amount process | `Delta_y(t) = 19 + 1.0001^(eta*t^4)` | `SwapAmtGen.swapAmount(t)` | `NOTES.md`, `src/lib/SwapAmtGen.plk` |
+| Swap direction indicator | stochastic `I_{n,t} ∈ {-1,+1}` | `BinomialProxy.ping() → {0,1}` | `notes/STOCHASTIC_MODEL.md`, `src/lib/BinomialProxy.plk` |
+| Swap amount process | `Delta_y(t) = 19 + 1.0001^(eta*t^4)` | `SwapAmtGen.swapAmount(t)` | `notes/STOCHASTIC_MODEL.md`, `src/lib/SwapAmtGen.plk` |
 
 The intended connection layer:
 1. GAMS solves for optimal `(xi*, iota*)` given a target payoff function

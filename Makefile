@@ -133,7 +133,7 @@ test-realized-vol:
 # closure is false assurance. Red here means the baseline moved -- every "bit-exact vs Algebra"
 # claim downstream is void until it is restored or deliberately re-pinned.
 check-algebra-ref-pin:
-	@bash script/check-algebra-ref-pin.sh
+	@bash scripts/check-algebra-ref-pin.sh
 
 # Everything that must be green for the oracle: the pinned baseline refs, then the whole vol
 # suite. The pin runs FIRST: verifying the baseline after diffing against it proves nothing.

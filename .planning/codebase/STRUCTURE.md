@@ -41,10 +41,10 @@ cfmm-replicationPlank/
 │   ├── v3-core/                # Uniswap V3 core (reference)
 │   ├── v4-core/                # Uniswap V4 core
 │   ├── panoptic-v2-core/       # Panoptic V2 (source of solady, v3-core remaps)
-│   ├── unistrata/              # Unistrata hook (referenced in NOTES.md)
-│   ├── shizo/                  # Shizo module (referenced in NOTES.md)
-│   ├── mochi-yield/            # Mochi yield (referenced in NOTES.md)
-│   └── protocol/               # Centrifuge protocol (referenced in NOTES.md)
+│   ├── unistrata/              # Unistrata hook (referenced in notes/STOCHASTIC_MODEL.md)
+│   ├── shizo/                  # Shizo module (referenced in notes/STOCHASTIC_MODEL.md)
+│   ├── mochi-yield/            # Mochi yield (referenced in notes/STOCHASTIC_MODEL.md)
+│   └── protocol/               # Centrifuge protocol (referenced in notes/STOCHASTIC_MODEL.md)
 ├── refs/                       # EVM opcode and precompile reference docs (Next.js app)
 ├── .planning/
 │   └── codebase/               # GSD codebase analysis documents (this directory)
@@ -53,8 +53,8 @@ cfmm-replicationPlank/
 ├── foundry.toml                # Forge config: ffi=true, runs=10, mainnet RPC endpoint
 ├── remappings.txt              # Solidity import remappings (45 entries)
 ├── Makefile                    # Build targets for individual Plank contracts + test runner
-├── NOTES.md                    # Engineering scratch space: stochastic model, architecture sketch
-└── README.md                   # Foundry boilerplate (not project-specific)
+├── notes/                      # Binding spec docs: DATA_CONTRACT, UNITS_AND_SCALES, STOCHASTIC_MODEL
+└── README.md                   # Project README: identity, submodule map, Foundry/Plank build
 ```
 
 Vendored GAMS module (`model/`):
