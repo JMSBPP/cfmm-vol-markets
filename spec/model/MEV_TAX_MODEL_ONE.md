@@ -17,6 +17,25 @@ UniswapV4MevTaxModelOneShocksWriter::
 	
 		-->  As a router it unblocks the poolManager, sends a swap wtih fixed calldata such that hookData has
 
+
+
+\[
+	\begin{aligned}
+		\text{shocks} := (p_{\varphi} (i_{t+1}), i_{t+1})
+	\end{aligned}
+\]
+
+- How algebra keeps track of \(\nu\) on the Dynamic Fee sigmoid plugin ?
+
+
+
+(liquidity, volumePerLiquidityInBlock) 
+	= (currentLiquidity,
+	   cache.volumePerLiquidityInBlock + IDataStorageOperator(dataStorageOperator).calculateVolumePerLiquidity(currentLiquidity, amount0, amount1)
+	  
+
+
+
 UniswapV4MevTaxModelOneShocksExecutor:: 
 
 library :: before_swap
