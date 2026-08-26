@@ -6,7 +6,7 @@
 // note: `basis 1.0001` from todo §16 is NOT a stored field — no TickMath implementation carries
 // 1.0001 as a value; it is embedded in the tick_math.plk magic constants. The frame honors the
 // basis by delegating pricing to that port via the η-split kernel (see lib::pricing::EtaSplitKernel,
-// proven by lean4-spec `eta_split_kernel_identity`).
+// proven by cfmm-vol-markets-spec `eta_split_kernel_identity`).
 
 import lib::pricing::EtaSplitKernel::*;
 

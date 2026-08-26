@@ -40,26 +40,10 @@ node_modules/
 __pycache__/
 *.pyc
 
-# Aristotle result archives (from `aristotle submit/download` to lean/)
-lean/.aristotle-*.tar.gz
-lean/.aristotle-out/
-# Lake build artifacts (lean/)
-lean/.lake/
-
 # gamsdiff: transient all-symbols GDX from the price-impact driver run
 model/price_impact_all.gdx
 
-# Aristotle archive: only the canonical latest tarball per proof family is tracked
-lean/archive/*
-!lean/archive/aristotleFOCThree.tar.gz
-!lean/archive/9804c2b5-a6a5-4a7f-a67b-89119b4b7bfb-aristotle.tar.gz
-!lean/archive/arsitotleTaoCFMM.tar.gz
 scratch/
-
-# Raw Base V4 Swap-log tick cache (phase 09 econometrics): ~570k rows / ~11 MB,
-# fully regenerable via `econometrics variance --from <n> --to <n>`. The derived
-# per-epoch series (variance.csv) IS tracked; the raw cache is not.
-notes/structural-econometrcics/data/swap-ticks-base-v4-full.csv
 
 # VolumePath prover emissions (regenerated every run; never committed)
 model/mev_tax_model_one/volume_path.json
