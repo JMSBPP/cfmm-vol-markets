@@ -17,9 +17,9 @@ off-chain consumer surface, and (iv) under-pinned deleverage semantics.**
 3. **The mint map codomain is the PAIR** `(PanopticTokenId, positionSize)`.
 
 Math basis: the VOL ORDER COMPLETION — ENDOGENOUS MATURITY block in
-`notes/VOLATILITY_INSTRUMENTS.md` (staged). Formalization delegated:
-cfmm-lean4-spec issue #1 (maturity bridge, deleverage-law properties, the open
-recalibration law). All cited lemmas verified real: `variancePortfolio_upsilon` (= t/2),
+`JMSBPP/cfmm-vol-markets-spec` `notes/VOLATILITY_INSTRUMENTS.md`. Formalization:
+`cfmm-vol-markets-spec` `lean/vol_markets/EndogenousMaturity.lean` (maturity bridge,
+deleverage-law properties, the open recalibration law). All cited lemmas verified real: `variancePortfolio_upsilon` (= t/2),
 `variancePortfolio_unit_upsilon`, `admissible_iff_mul` (NOTE: carries hypothesis
 `0 < p_risk` — see D5).
 
@@ -185,6 +185,6 @@ research-scope stub with the production blocker declared.
 
 - The enforcement ACTOR (#13; ε_h value fixed there).
 - The p_vol(σ̄) oracle implementation (research stub + declared invariant).
-- The recalibration law's σ²-accrual component (cfmm-lean4-spec issue #1).
+- The recalibration law's σ²-accrual component (`cfmm-vol-markets-spec` `lean/vol_markets/EndogenousMaturity.lean`).
 - The >4-strike list-of-pairs generalization.
 - UX wrapper layer.

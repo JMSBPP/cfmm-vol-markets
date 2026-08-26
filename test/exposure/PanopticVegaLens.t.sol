@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import {Test} from "forge-std/Test.sol";
 import {PlankTestBase} from "../PlankTestBase.sol";
 
-// PanopticVegaLens.vol_option_payoff realizes lean4-spec Panoptic.lean `volOptionPayoff`:
+// PanopticVegaLens.vol_option_payoff realizes cfmm-vol-markets-spec lean/vol_markets/Panoptic.lean `volOptionPayoff`:
 //   pi^sigma = dQv * max(0, sig2 - sig2K)
 // proven there: nonneg (dQv>=0), and deltaQv_of_payoff (the ITM difference quotient in sig2 equals dQv).
 contract PanopticVegaLensTest is PlankTestBase {

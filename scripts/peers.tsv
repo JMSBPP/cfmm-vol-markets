@@ -1,5 +1,4 @@
 gams	feat/gams	no
-lean4-spec	feat/lean4-spec	no
 plank	feat/plank	yes
 sol-tests	feat/sol-tests	yes
 gamsdiff	feat/gamsdiff	no

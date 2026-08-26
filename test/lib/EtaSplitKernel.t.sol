@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {PlankTestBase} from "../PlankTestBase.sol";
 import {TickMath} from "univ4-core/libraries/TickMath.sol";
 
-/// @notice On-chain realization of the lean4-spec theorem `eta_split_kernel_identity` (lean/exp/eta.lean):
+/// @notice On-chain realization of the cfmm-vol-markets-spec theorem `eta_split_kernel_identity` (lean/exp/eta.lean):
 ///         for η ∈ (0,1), P_half(⌊η·i⌋) · P_half(i−⌊η·i⌋) = P_half(i). In the Q64.96 sqrt-price domain
 ///         P_half = getSqrtRatioAtTick, so the product recombines (÷2^96) to the canonical v4 price.
 contract EtaSplitKernelTest is PlankTestBase {
