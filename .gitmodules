@@ -10,7 +10,7 @@
 	[submodule "lib/plank-foundry-deployer"]
 	path = lib/plank-foundry-deployer
 	url = https://github.com/plankevm/plank-foundry-deployer
-	branch = feat/constructor-args
+	branch = main
 [submodule "lib/panoptic-v2-core"]
 	path = lib/panoptic-v2-core
 	url = https://github.com/panoptic-labs/panoptic-v2-core
