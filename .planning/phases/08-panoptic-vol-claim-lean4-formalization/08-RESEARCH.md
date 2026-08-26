@@ -28,10 +28,10 @@
 - **API key**: stored in this worktree's `.env` (gitignored, never committed); aristotle commands read it at call time via `--api-key` or the `ARISTOTLE_API_KEY` env var.
 
 **Spec hygiene & references**
-- **Fix the θ sign typo in `spec/panoptic.md`** against the cfmm-discrete derivation (Gaussian kernel needs exp(−[·]²/2σ²t)) so markdown and Lean agree.
+- **Fix the θ sign typo in `spec/protocol/panoptic.md`** against the cfmm-discrete derivation (Gaussian kernel needs exp(−[·]²/2σ²t)) so markdown and Lean agree.
 - **Demeterfi et al.**: replace the dangling `../refs/DemeterfietalVarianceSwaps.pdf` link with **URL + citekey** (Demeterfi, Derman, Kamal, Zou 1999, "More Than You Ever Wanted To Know About Volatility Swaps", Goldman Sachs QS Research Notes). Do NOT vendor the PDF.
-- **cfmm-discrete notes**: **both** — vendor the load-bearing notes (user's own writing: at minimum FINANCE.md, STREAMING_PREMIUM.md, DIFFERENTIATION.md; planner judges the rest) into `spec/refs/cfmm-discrete/`, AND keep the citekey pointing at the cfmm-theory knowledge base as canonical. No `~/`/`$HOME` paths may remain in tracked files (Phase-1 rule).
-- **Commit timing**: clean + commit `spec/panoptic.md` at **phase start** — first plan task fixes sign + refs, vendors notes, commits; formalization proceeds from a pinned, tracked spec.
+- **cfmm-discrete notes**: **both** — vendor the load-bearing notes (user's own writing: at minimum FINANCE.md, STREAMING_PREMIUM.md, DIFFERENTIATION.md; planner judges the rest) into `spec/protocol/refs/cfmm-discrete/`, AND keep the citekey pointing at the cfmm-theory knowledge base as canonical. No `~/`/`$HOME` paths may remain in tracked files (Phase-1 rule).
+- **Commit timing**: clean + commit `spec/protocol/panoptic.md` at **phase start** — first plan task fixes sign + refs, vendors notes, commits; formalization proceeds from a pinned, tracked spec.
 
 ### Claude's Discretion
 - Exact module/file split inside `vol_markets` and lemma naming.
@@ -49,7 +49,7 @@
 
 ## Summary
 
-This phase formalizes `spec/panoptic.md` as Lean4 modules inside the existing `vol_markets` Lake library. The mathematical substance is a **discrete Cox–Ross–Rubinstein (CRR) lattice option calculus** already fully worked out in the user's own `cfmm-discrete/` notes (Forgy's discrete stochastic calculus): the tick axis `i = log_λ P_X` is the diffusion axis, `Δt = (Δi)²` collapses drift+diffusion to the discrete Black–Scholes/heat operator, and options are priced by backward induction with a **constant** risk-neutral probability `q = (λe^{rΔt}−1)/(λ²−1)`. Everything the Lean proofs must mirror is stated in those notes (load-bearing: FINANCE.md §6.7/§6.18, STREAMING_PREMIUM.md, DIFFERENTIATION.md; supporting: BINARY_TREES.md, COORDINATES.md, INTEGRATION.md).
+This phase formalizes `spec/protocol/panoptic.md` as Lean4 modules inside the existing `vol_markets` Lake library. The mathematical substance is a **discrete Cox–Ross–Rubinstein (CRR) lattice option calculus** already fully worked out in the user's own `cfmm-discrete/` notes (Forgy's discrete stochastic calculus): the tick axis `i = log_λ P_X` is the diffusion axis, `Δt = (Δi)²` collapses drift+diffusion to the discrete Black–Scholes/heat operator, and options are priced by backward induction with a **constant** risk-neutral probability `q = (λe^{rΔt}−1)/(λ²−1)`. Everything the Lean proofs must mirror is stated in those notes (load-bearing: FINANCE.md §6.7/§6.18, STREAMING_PREMIUM.md, DIFFERENTIATION.md; supporting: BINARY_TREES.md, COORDINATES.md, INTEGRATION.md).
 
 The existing `vol_markets` code (`PosSpec.lean`, `Flow.lean`, `RiskDesign.lean`) and the `exp/eta.lean` reference establish strong, reusable conventions: `import Mathlib` wholesale, `set_option maxHeartbeats 4000000 / relaxedAutoImplicit false / autoImplicit false`, real-valued definitions first with EVM fixed-point images as separate lemmas, `noncomputable def` for `rpow`/`Real` objects, `Finset.sum`/`Finset.range` accumulators, and the tick→price grid `tickPrice Δi i = λ^{(i/2)·Δi}` with `λ = 1.0001`. The new modules reuse this grid for the strike tick `i_K` and mirror `Flow.deltaShares` (ΔQ_v = ΔQ_M / p_risk) for the υ dimensional-bridge lemma.
 
@@ -111,7 +111,7 @@ spec/
 └── refs/
     └── cfmm-discrete/               # NEW: vendor FINANCE.md, STREAMING_PREMIUM.md, DIFFERENTIATION.md (+ planner's call)
 ```
-(`spec/refs/` does not yet exist; `spec/panoptic.md` is currently untracked — confirmed via `git status`.)
+(`spec/protocol/refs/` does not yet exist; `spec/protocol/panoptic.md` is currently untracked — confirmed via `git status`.)
 
 ### Pattern 1: Real-first, EVM-image-second (house style)
 **What:** Every economic object is a `ℝ`-valued `def`; fixed-point (Q64.96/X96/RAY) behaviour is a *separate* lemma section, never mixed into the real definition.
@@ -185,7 +185,7 @@ noncomputable def streamingPremium (θ : ℕ → ℝ) (Δt : ℝ) (N : ℕ) : �
 **Warning signs:** a definition of θ_ATM whose value doesn't diverge as `τ→0`.
 
 ### Pitfall 3: Sign typo propagating from spec to Lean
-**What goes wrong:** The spec's θ kernel (line 36 of `spec/panoptic.md`) has a **positive** exponent `exp( [−ln(p/K)+σ²t/2]² / (2σ²t) )` — a Gaussian requires a **negative** exponent. If transcribed as-is, the Lean kernel blows up instead of decaying and no closed form matches.
+**What goes wrong:** The spec's θ kernel (line 36 of `spec/protocol/panoptic.md`) has a **positive** exponent `exp( [−ln(p/K)+σ²t/2]² / (2σ²t) )` — a Gaussian requires a **negative** exponent. If transcribed as-is, the Lean kernel blows up instead of decaying and no closed form matches.
 **Why it happens:** Missing leading minus inside `exp`.
 **How to avoid:** The first hygiene task must correct it to `exp( −[−ln(p(t0)/K)+σ²t/2]² / (2σ²(·)t) )` (CONTEXT: "Gaussian kernel needs exp(−[·]²/2σ²t)"). Verified against STREAMING_PREMIUM.md's `θ_ATM(τ)=kσ/√(8πτ)` and `∫₀ᵀθ dτ = kσ√(T/2π)`: only the negative-exponent form yields these. Formalize from the *corrected* spec.
 **Warning signs:** Lean and markdown disagree; the ATM specialization doesn't reduce to the closed form.
@@ -289,7 +289,7 @@ For a Lean formalization the "test" is compilation: a theorem is validated iff i
 
 | Decision | Behavior | Test Type | Automated Command | File Exists? |
 |----------|----------|-----------|-------------------|-------------|
-| Spec hygiene | θ sign fixed, refs de-pathed, notes vendored, spec committed | build+grep | `git ls-files spec/panoptic.md && ! grep -rn '\$HOME\|/home/jmsbpp' spec/` | ❌ Wave 0 (spec untracked, `spec/refs/` absent) |
+| Spec hygiene | θ sign fixed, refs de-pathed, notes vendored, spec committed | build+grep | `git ls-files spec/protocol/panoptic.md && ! grep -rn '\$HOME\|/home/jmsbpp' spec/` | ❌ Wave 0 (spec untracked, `spec/protocol/refs/` absent) |
 | π^σ payoff + ΔQ_v identity | payoff def + identity lemmas compile | unit | `cd lean && lake build vol_markets` (Panoptic.lean) | ❌ Wave 0 (module new) |
 | Replication decomposition (structural) | affine-in-options def + consistency/dimension lemmas | unit | `cd lean && lake build vol_markets` | ❌ Wave 0 |
 | Premium `Finset.sum` | Σ θ·Δt def + telescoping lemma | unit | `cd lean && lake build vol_markets` | ❌ Wave 0 |
@@ -303,8 +303,8 @@ For a Lean formalization the "test" is compilation: a theorem is validated iff i
 - **Phase gate:** full `lake build` green **and** the θ theorem carries no `sorry`/no unexpected `axiom` (`#print axioms panoptic_theta_atm` shows only `propext`/`Classical.choice`/`Quot.sound`) before `/gsd:verify-work`.
 
 ### Wave 0 Gaps
-- [ ] `spec/panoptic.md` — correct θ sign, replace Demeterfi PDF link with citekey/URL, remove `~/` NOTE path, then `git add`/commit (currently untracked).
-- [ ] `spec/refs/cfmm-discrete/` — create; vendor FINANCE.md, STREAMING_PREMIUM.md, DIFFERENTIATION.md, BINARY_TREES.md; neutralize dangling sibling links.
+- [ ] `spec/protocol/panoptic.md` — correct θ sign, replace Demeterfi PDF link with citekey/URL, remove `~/` NOTE path, then `git add`/commit (currently untracked).
+- [ ] `spec/protocol/refs/cfmm-discrete/` — create; vendor FINANCE.md, STREAMING_PREMIUM.md, DIFFERENTIATION.md, BINARY_TREES.md; neutralize dangling sibling links.
 - [ ] `lean/vol_markets/Panoptic.lean` — new module (payoff, replication, premium, CRR, θ).
 - [ ] `lean/vol_markets/Upsilon.lean` — new module (υ, bridge, conjecture).
 - [ ] `lean/lakefile.toml` — add both new files to the `vol_markets` `roots`.
@@ -324,7 +324,7 @@ Framework install: none needed (toolchain, Mathlib `.lake` prebuilt, Aristotle 2
 - Live commands: `lake build vol_markets` (GREEN, 8030 jobs); `git status` (spec untracked); `.env` (ARISTOTLE_API_KEY present, gitignored).
 
 ### Secondary (MEDIUM confidence)
-- `spec/panoptic.md` (the target; contains the sign typo to fix) — read directly.
+- `spec/protocol/panoptic.md` (the target; contains the sign typo to fix) — read directly.
 - 08-CONTEXT.md, .planning/REQUIREMENTS.md, .planning/STATE.md, CLAUDE.md — scope/ownership.
 
 ### Tertiary (LOW confidence)

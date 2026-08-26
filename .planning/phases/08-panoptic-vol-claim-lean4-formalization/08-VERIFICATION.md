@@ -7,7 +7,7 @@ score: 11/11 must-haves verified
 
 # Phase 8: Panoptic Vol-Claim Lean4 Formalization Verification Report
 
-**Phase Goal:** Formalize `spec/panoptic.md` in the `lean/` Lake project: the contract as a
+**Phase Goal:** Formalize `spec/protocol/panoptic.md` in the `lean/` Lake project: the contract as a
 volatility option (payoff π^σ = ΔQ_v·(σ²(i(t)) − σ²_K)⁺), the vol-claim price as an
 option-replication cost (structural decomposition + Panoptic streaming-premium θ kernel derived
 from the lattice), and identification of the vega-like greek υ ≡ Δπ/Δσ² (finite-difference form,
@@ -25,8 +25,8 @@ econometric model-spec artifact via the structural-econometrics skill.
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | `spec/panoptic.md` is git-tracked, committed, and spec-hygiene-fixed (negative-exponent θ kernel, no home-absolute paths, Demeterfi as URL/citekey) | ✓ VERIFIED | `git ls-files --error-unmatch spec/panoptic.md` exits 0; line 36 has `\exp \Big (-\,\frac{...}` (negative exponent); `grep -rn '/home/\|$HOME\|~/' spec/ notes/` returns nothing; line 12 has the Demeterfi URL+citekey, no `.pdf` link |
-| 2 | The load-bearing `cfmm-discrete` calculus notes are vendored in-tree | ✓ VERIFIED | `spec/refs/cfmm-discrete/{FINANCE,STREAMING_PREMIUM,DIFFERENTIATION,BINARY_TREES,INTEGRATION,COORDINATES}.md` exist; STREAMING_PREMIUM.md has 10 Θ/Theta hits, FINANCE.md has 2 CRR hits |
+| 1 | `spec/protocol/panoptic.md` is git-tracked, committed, and spec-hygiene-fixed (negative-exponent θ kernel, no home-absolute paths, Demeterfi as URL/citekey) | ✓ VERIFIED | `git ls-files --error-unmatch spec/protocol/panoptic.md` exits 0; line 36 has `\exp \Big (-\,\frac{...}` (negative exponent); `grep -rn '/home/\|$HOME\|~/' spec/ notes/` returns nothing; line 12 has the Demeterfi URL+citekey, no `.pdf` link |
+| 2 | The load-bearing `cfmm-discrete` calculus notes are vendored in-tree | ✓ VERIFIED | `spec/protocol/refs/cfmm-discrete/{FINANCE,STREAMING_PREMIUM,DIFFERENTIATION,BINARY_TREES,INTEGRATION,COORDINATES}.md` exist; STREAMING_PREMIUM.md has 10 Θ/Theta hits, FINANCE.md has 2 CRR hits |
 | 3 | `Panoptic.lean` formalizes the payoff, replication decomposition, streaming-premium sum, CRR operator, and center-column lattice θ, wired into `vol_markets` | ✓ VERIFIED | `lean/vol_markets/Panoptic.lean` (145 lines) contains `volOptionPayoff`, `replicationPrice`, `streamingPremium` (Finset.sum), `crrStep`/`q` (CRR), `latticeTheta`/`thetaAtm`; `lakefile.toml` roots include `vol_markets.Panoptic` |
 | 4 | `thetaAtm` reads the strike-tick CENTER COLUMN, not the i=j diagonal | ✓ VERIFIED | `thetaAtm (pl) (Δt) (iK) (j) := |latticeTheta pl Δt iK j|` — `iK` is fixed, `j` varies; docstring explicitly guards against the diagonal read |
 | 5 | The θ_ATM closed-form theorem `θ_ATM(τ) = kσ/√(8πτ)` is a proved THEOREM (not a def), sorry-free | ✓ VERIFIED | `Panoptic.theta_atm_closed_form` proved (lines 139-143), no `sorry` in file; `lake build vol_markets` exits 0 |
@@ -43,10 +43,10 @@ econometric model-spec artifact via the structural-econometrics skill.
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `spec/panoptic.md` | Pinned, tracked, sign-corrected spec | ✓ VERIFIED | Tracked (git ls-files exits 0); negative-exponent θ; no dangling PDF/home paths |
-| `spec/refs/cfmm-discrete/STREAMING_PREMIUM.md` | θ_ATM lattice derivation source | ✓ VERIFIED | Present, 10 Theta/θ hits |
-| `spec/refs/cfmm-discrete/FINANCE.md` | CRR operator + σ-bridge source | ✓ VERIFIED | Present, 2 CRR hits |
-| `spec/refs/README.md` | Vendoring provenance note | ✓ VERIFIED | Present, no home-path guard violations |
+| `spec/protocol/panoptic.md` | Pinned, tracked, sign-corrected spec | ✓ VERIFIED | Tracked (git ls-files exits 0); negative-exponent θ; no dangling PDF/home paths |
+| `spec/protocol/refs/cfmm-discrete/STREAMING_PREMIUM.md` | θ_ATM lattice derivation source | ✓ VERIFIED | Present, 10 Theta/θ hits |
+| `spec/protocol/refs/cfmm-discrete/FINANCE.md` | CRR operator + σ-bridge source | ✓ VERIFIED | Present, 2 CRR hits |
+| `spec/protocol/refs/README.md` | Vendoring provenance note | ✓ VERIFIED | Present, no home-path guard violations |
 | `lean/vol_markets/Panoptic.lean` | π^σ, ΔQ_v, replication, premium, CRR, θ, closed-form theorem | ✓ VERIFIED | 145 lines, all defs/theorems present, zero sorries, four axiom-clean theorems (2 of 4 live here) |
 | `lean/vol_markets/Upsilon.lean` | υ finite difference, dimensional bridge, ATM/OTM Prop | ✓ VERIFIED | 75 lines, zero sorries, no axiom declarations |
 | `lean/lakefile.toml` | `vol_markets` roots include Panoptic + Upsilon | ✓ VERIFIED | `roots = [..., "vol_markets.Panoptic", "vol_markets.Upsilon"]` |
@@ -56,12 +56,12 @@ econometric model-spec artifact via the structural-econometrics skill.
 
 | From | To | Via | Status | Details |
 |------|-----|-----|--------|---------|
-| `spec/panoptic.md` | `spec/refs/cfmm-discrete/` | in-tree relative reference | ✓ WIRED | Line 2 NOTE points to `refs/cfmm-discrete/`, no `~/` path |
+| `spec/protocol/panoptic.md` | `spec/protocol/refs/cfmm-discrete/` | in-tree relative reference | ✓ WIRED | Line 2 NOTE points to `refs/cfmm-discrete/`, no `~/` path |
 | `lean/vol_markets/Panoptic.lean` | `lean/vol_markets/Flow.lean` | `import vol_markets.Flow` | ✓ WIRED | Import present (line 3); `deltaQv_of_payoff` docstring ties to `Flow.deltaShares` shape |
 | `lean/vol_markets/Panoptic.lean` | `lean/vol_markets/PosSpec.lean` | `import vol_markets.PosSpec` | ✓ WIRED | Import present (line 2) |
 | `lean/vol_markets/Upsilon.lean` | `lean/vol_markets/Panoptic.lean` | `import vol_markets.Panoptic` | ✓ WIRED | Import present (line 4); `upsilon_volOption` calls `Panoptic.volOptionPayoff`/`Panoptic.deltaQv_of_payoff` |
 | `lean/vol_markets/Upsilon.lean` | `lean/vol_markets/Flow.lean` | `Flow.deltaShares` reference | ✓ WIRED | `upsilon_eq_deltaShares_slot` proved equal to `Flow.deltaShares dQv 1` |
-| `notes/.../2026-07-19-panoptic-upsilon-identification.md` | `spec/panoptic.md` | formalizes ECONOMETRIC section | ✓ WIRED | Line 6 explicitly cross-references `spec/panoptic.md` and the Lean twins |
+| `notes/.../2026-07-19-panoptic-upsilon-identification.md` | `spec/protocol/panoptic.md` | formalizes ECONOMETRIC section | ✓ WIRED | Line 6 explicitly cross-references `spec/protocol/panoptic.md` and the Lean twins |
 
 ### Requirements Coverage
 
@@ -86,7 +86,7 @@ No orphaned requirements found — all CTX tags declared in plan frontmatter map
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| `spec/panoptic.md` | 4 | `> TODO: Formalize in lean4` | ℹ️ Info | Stale header predating the phase; the formalization it references is now complete (Panoptic.lean/Upsilon.lean exist and build sorry-free). Does not block the goal — cosmetic spec-hygiene leftover, not part of the phase's declared must_haves. |
+| `spec/protocol/panoptic.md` | 4 | `> TODO: Formalize in lean4` | ℹ️ Info | Stale header predating the phase; the formalization it references is now complete (Panoptic.lean/Upsilon.lean exist and build sorry-free). Does not block the goal — cosmetic spec-hygiene leftover, not part of the phase's declared must_haves. |
 | `lean/vol_markets/Panoptic.lean` | 49 | `unused variable h2` (lint warning) | ℹ️ Info | Documents "in-the-money at both endpoints" intent per plan; noted and accepted in 08-02-SUMMARY as a known non-blocking warning. |
 
 No blocker or warning-level anti-patterns found in the verified deliverables. No `axiom`, no `sorry`, no placeholder/stub bodies in either Lean module.

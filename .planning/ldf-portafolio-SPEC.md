@@ -28,7 +28,7 @@ Build the missing `Portafolio` type and wire the last two `LiquidityAmounts` fun
 position's liquidity `L̄` and its token amounts `(Q_M, Q_X)` are inter-convertible.
 
 ## `Portafolio` type
-Per `spec/REQUIREMENTS.md:32` (`Portafolio<Asset, Cash> { grossOutputAmt: Asset<Quantity>, grossInputAmt:
+Per `spec/protocol/REQUIREMENTS.md:32` (`Portafolio<Asset, Cash> { grossOutputAmt: Asset<Quantity>, grossInputAmt:
 Cash<Quantity> }`) and the notes' `ΔQ = (ΔQ_M, ΔQ_X)`. v1 concrete record:
 ```
 const Portafolio = struct {

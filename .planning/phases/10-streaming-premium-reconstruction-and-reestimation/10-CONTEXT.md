@@ -69,7 +69,7 @@ Fix the **measurement failure** that made Phase 9's estimate uninformative. Reco
 - `notes/structural-econometrcics/specs/2026-07-19-panoptic-upsilon-identification.md` — the approved spec; §1 position-epoch unit is RESTORED by this phase, §4.3 equation, §5 tests, §6.2 alternatives all unchanged
 
 ### Theory of the object being reconstructed
-- `spec/refs/cfmm-discrete/STREAMING_PREMIUM.md` — streaming premium ≡ LP fee revenue per unit liquidity (the identity motivating the reconstruction)
+- `spec/protocol/refs/cfmm-discrete/STREAMING_PREMIUM.md` — streaming premium ≡ LP fee revenue per unit liquidity (the identity motivating the reconstruction)
 - `lean/vol_markets/Panoptic.lean` — `streamingPremium` (Finset.sum of θ·Δt), `latticeTheta`, `thetaAtm`, proved `theta_atm_closed_form`
 - `lean/vol_markets/Upsilon.lean` — `ATMOTMNullHypothesis`, **proved** `exp_family_witnesses_ATMOTM` (axiom-clean); the witness target
 - `notes/structural-econometrcics/analysis/lean-haskell-crosswalk.md` — must be EXTENDED with the Panoptic-multiplier wedge

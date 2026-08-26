@@ -18,7 +18,7 @@ score: 6/6 must-haves verified
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | A reader of risk.md sees `p_risk = oracle/(1−h)` and the per-operation integer realization (ceil p_risk, floor shares), not the refuted price-over-haircut formula | ✓ VERIFIED | `spec/entities/types/risk.md` §1–3 contain the exact formula, all four integer operations, and correct revert attribution (zero-denominator from `full_math`, not the subtraction) |
+| 1 | A reader of risk.md sees `p_risk = oracle/(1−h)` and the per-operation integer realization (ceil p_risk, floor shares), not the refuted price-over-haircut formula | ✓ VERIFIED | `spec/protocol/entities/types/risk.md` §1–3 contain the exact formula, all four integer operations, and correct revert attribution (zero-denominator from `full_math`, not the subtraction) |
 | 2 | The refuted expression `collateralAmount* (self.price/haircut)` appears nowhere under spec/ or src/ (scoped grep is empty) | ✓ VERIFIED | `git grep -nF 'price/haircut' -- spec/ src/` exits 1, no output |
 | 3 | The refuted-concept .plk files (RiskDiscount.plk, RiskMeasureLib.plk) are DELETED, so the concept exists nowhere in src/ | ✓ VERIFIED | Both files absent; `src/types/risk/` and `src/lib/risk/` directories no longer exist; `git grep -n 'RiskDiscount\|RiskMeasureLib' -- src/ test/` exits 1 |
 | 4 | risk.md records `issuance_haircut_equiv` holds over ℝ ONLY, with the verified integer counterexample (deposit=10, oracleX96=10·2^92, hX96=3·2^92 → composed 12 vs direct 13) and only composed ≤ direct transfers | ✓ VERIFIED | §4 states this exactly; arithmetic independently recomputed in Python and matches risk.md verbatim (pRiskX96 = 60944740395587951995033807951, composed=12, direct=13, gap-of-6 at deposit=2^100 confirmed) |
@@ -31,9 +31,9 @@ score: 6/6 must-haves verified
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `spec/entities/types/risk.md` | H1 issuance spec: oracle/(1−h), integer realization, quote convention, share units, ℝ-only caveat + counterexample | ✓ VERIFIED | All 13 required literal substrings present (formula, three integer ops, lemma names, `0 ≤ oracle`, counterexample numbers, gap-of-6 input, quote convention, share units, zero-denominator attribution) |
+| `spec/protocol/entities/types/risk.md` | H1 issuance spec: oracle/(1−h), integer realization, quote convention, share units, ℝ-only caveat + counterexample | ✓ VERIFIED | All 13 required literal substrings present (formula, three integer ops, lemma names, `0 ≤ oracle`, counterexample numbers, gap-of-6 input, quote convention, share units, zero-denominator attribution) |
 | `src/types/exposure/VegaExposure.plk` | Two-live-field VegaExposure record + RiskPriceX96/Haircut newtypes | ✓ VERIFIED | `exposure: u256`, `priceVolX96: u256`, `const RiskPriceX96`, `const Haircut` all present; no `collateralUnits`; no init block; fully ASCII (`grep -P '[^\x00-\x7F]'` finds nothing) |
-| `spec/entities/types/exposure.md` | Deferred-fields note + v1 priceVolX96-carries-p_risk tension | ✓ VERIFIED | `oracle-wiring`, `carries the EXOGENOUS`, `N_v`, and all three deferred field names (`collateralToken`, `underlyingToken`, `riskOracleId`) present |
+| `spec/protocol/entities/types/exposure.md` | Deferred-fields note + v1 priceVolX96-carries-p_risk tension | ✓ VERIFIED | `oracle-wiring`, `carries the EXOGENOUS`, `N_v`, and all three deferred field names (`collateralToken`, `underlyingToken`, `riskOracleId`) present |
 | `src/types/risk/RiskDiscount.plk` (deletion) | Must not exist | ✓ VERIFIED | File and parent directory absent |
 | `src/lib/risk/RiskMeasureLib.plk` (deletion) | Must not exist | ✓ VERIFIED | File and parent directory absent |
 
@@ -41,8 +41,8 @@ score: 6/6 must-haves verified
 
 | From | To | Via | Status | Details |
 |------|-----|-----|--------|---------|
-| `spec/entities/types/risk.md` | `RiskDesign.lean` | lemma citation by name and file | ✓ WIRED | `haircutRiskPrice_ge_oracle` and `issuance_haircut_equiv` both cited; cross-checked against `../cfmm-wt/lean4-spec/lean/vol_markets/RiskDesign.lean` — `haircutRiskPrice` def at line 113, `haircutRiskPrice_ge_oracle` at line 119 (hypotheses `0 ≤ oracle`, `0 ≤ h`, `h < 1` match risk.md exactly), `issuance_haircut_equiv` at line 123. All line numbers and lemma names in risk.md are accurate. |
-| `src/types/exposure/VegaExposure.plk` | `spec/entities/types/exposure.md` | field names match the spec record | ✓ WIRED | Both files declare identical field names/types/comments for `exposure: u256`/`priceVolX96: u256` — verbatim match |
+| `spec/protocol/entities/types/risk.md` | `RiskDesign.lean` | lemma citation by name and file | ✓ WIRED | `haircutRiskPrice_ge_oracle` and `issuance_haircut_equiv` both cited; cross-checked against `../cfmm-wt/lean4-spec/lean/vol_markets/RiskDesign.lean` — `haircutRiskPrice` def at line 113, `haircutRiskPrice_ge_oracle` at line 119 (hypotheses `0 ≤ oracle`, `0 ≤ h`, `h < 1` match risk.md exactly), `issuance_haircut_equiv` at line 123. All line numbers and lemma names in risk.md are accurate. |
+| `src/types/exposure/VegaExposure.plk` | `spec/protocol/entities/types/exposure.md` | field names match the spec record | ✓ WIRED | Both files declare identical field names/types/comments for `exposure: u256`/`priceVolX96: u256` — verbatim match |
 
 ### Requirements Coverage
 

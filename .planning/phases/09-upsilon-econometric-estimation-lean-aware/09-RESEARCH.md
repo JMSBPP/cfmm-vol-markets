@@ -22,7 +22,7 @@
 ### Claude's Discretion
 - Numeric packages (survey and recommend with build implications).
 - Exact Haskell module layout, GHC/LTS version choice (subject to what is installable), subgraph pagination strategy, BigQuery SQL shape, and **the bridging-lemma statement details** (explicitly including whether the moneyness-in-slope form is needed).
-- Whether results feed back to the plank session's `spec/protocol_integrations/panoptic.md` — coordination note only, not a deliverable.
+- Whether results feed back to the plank session's `spec/protocol/protocol_integrations/panoptic.md` — coordination note only, not a deliverable.
 
 ### Deferred Ideas (OUT OF SCOPE)
 - Feeding estimation results back into the plank session's panoptic copy (peer `ul2inqpl` coordination).

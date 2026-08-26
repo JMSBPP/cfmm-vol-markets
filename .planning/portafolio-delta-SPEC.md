@@ -62,7 +62,7 @@ formulas inlined in the test (cited to BalanceDelta.sol:14-71) — plus hand-com
 - **sign handling**: negative amount0/amount1 round-trip (the `sar`/`signextend` are the whole subtlety).
 
 ## OUT OF SCOPE (follow-up, flagged for review)
-The fuller `Portafolio` accounting from `spec/REQUIREMENTS.md:32` — `netOutputAmt`/`netInputAmt`
+The fuller `Portafolio` accounting from `spec/protocol/REQUIREMENTS.md:32` — `netOutputAmt`/`netInputAmt`
 (`Accumulator<TickGrid, step>`), `exchangeRate: ExchangeRate<Cash:Numeraire, Asset:Underlying>`,
 `add(...)` (cross-asset via exchangeRate), `weight(...)` — depends on `ExchangeRate` and `Accumulator` types
 that do not exist yet. Those are separate designs; this spec ships only `PortafolioDelta` + a stated `apply_delta`

@@ -10,7 +10,7 @@
 - All on-chain CFMM logic is written in `.plk` (Plank language), compiled to raw EVM bytecode at test time via FFI
 - Solidity files exist only as thin glue: test harnesses, script scaffolding, and the `PlankDeployer` FFI bridge
 - The GAMS module (vendored in-repo at `model/`) is the algebraic "solver" that determines optimal parameter values — currently separate from the on-chain code with no automated bridge yet
-- `spec/entities/Types.md` is the shared type kernel that defines the formal type system used by both tracks
+- `spec/protocol/entities/Types.md` is the shared type kernel that defines the formal type system used by both tracks
 
 ## Layers
 
@@ -81,7 +81,7 @@
 
 **VolatilityTermStructure (control surface):**
 - Purpose: The three-parameter control vector that the adaptive feedback controller manipulates to replicate a target payoff
-- Defined in: `spec/entities/Types.md` (formal spec), `src/types/VolatilityTermStructure.plk` (Plank type), `src/MarketState.plk` (storage slot)
+- Defined in: `spec/protocol/entities/Types.md` (formal spec), `src/types/VolatilityTermStructure.plk` (Plank type), `src/MarketState.plk` (storage slot)
 - Fields: `priceElasticity: BoundedValue<Q64x96, 0, Q96_ONE>`, `statePartitionDelta: BoundedValue<Natural, 1, 200>`, `baseTick: BoundedValue<Integer, -, ...>`
 - GAMS counterparts: `xi` (xiDomain), `iota` (iotaDomain), `tick` (baseTick)
 

@@ -34,3 +34,6 @@
 [submodule "offchain"]
 	path = offchain
 	url = https://github.com/JMSBPP/gams-evm-transport.git
+[submodule "spec"]
+	path = spec
+	url = https://github.com/JMSBPP/cfmm-vol-markets-spec.git

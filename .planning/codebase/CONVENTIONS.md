@@ -258,7 +258,7 @@ Plank distinguishes wrapping operators (`*%`, `+%`, `-%`) from panicking operato
 
 ## Mathematical / Spec Conventions (`spec/` and `NOTES.md`)
 
-### Spec Layer (`spec/entities/Types.md`)
+### Spec Layer (`spec/protocol/entities/Types.md`)
 
 The spec uses a custom pseudotype notation (not a formal language):
 
