@@ -3,31 +3,31 @@
   "endpoint": "http://127.0.0.1:8545",
   "events": [
     {
-      "block": 17,
+      "block": 14,
       "conopt_ver": "4.39.0",
       "fee_source": "DynamicFeeHook.getAverageVolatility+DynamicFeeMod.getCurrentFee",
       "gams_ver": "54.1.0",
-      "key_hex": "0435ea78df5c275493c5394918833b940e3019b977f5bcdc364abcca14f8b7b3",
+      "key_hex": "5f8a7efbcf18380424250c605f9e4d04559d1db8bf0ebaf84c97df1180338e07",
       "key_scheme": 2,
       "log_index": 0,
       "model": "volume_path.gms",
       "outcome": "stored",
       "reason": "",
-      "tx_hash": "0x5d8723a50da65ae2b6fb9ed60fc1c55dfe9304dd3939dad54da9227fff3f9561"
+      "tx_hash": "0xd730a2a78efd7c1c0642700e80077c37de92e0c84db46a3ee1277995b0149a05"
     }
   ],
   "exitCode": 0,
   "fixture": {
-    "bytes": 801,
+    "bytes": 797,
     "path": "test/models/mev_tax_model_one/fixtures/volume_path.json",
-    "sha256": "79f9c7cd5c8565ded6887f675bdb01de2eb5f3711f4b7550763f6a028952074a"
+    "sha256": "ddbba9c23449827a5d00d58e11fd1a87cdb9643d582e0bcadb00d22b8f389618"
   },
-  "forkHeight": "17",
-  "generatedAt": "2026-08-24T21:32:51Z",
+  "forkHeight": "14",
+  "generatedAt": "2026-08-25T09:38:06Z",
   "generatedFrom": "2039f2783598866a337115df4a265a75e8842e82",
   "head": {
-    "afterEmit": 17,
-    "before": 16
+    "afterEmit": 14,
+    "before": 13
   },
   "rig": {
     "emitter": "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707",
@@ -35,7 +35,7 @@
     "poolManager": "0x0165878a594ca255338adfa4d48449f69242eb8f"
   },
   "watermark": {
-    "after": 17,
+    "after": 14,
     "before": null
   }
 }
