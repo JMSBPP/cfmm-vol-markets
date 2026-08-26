@@ -9,8 +9,8 @@
 
 DOC + TYPE-DECLARATION ONLY. Two deliverable groups, nothing else:
 
-1. `spec/entities/types/risk.md` rewritten: the Lean-refuted `price/haircut` formula removed, the H1 integer realization pinned to the operation level, the quote convention and share units stated, the ℝ-only status of `issuance_haircut_equiv` recorded.
-2. `src/types/exposure/VegaExposure.plk` completed as the live-fields-only record + risk Q-type newtypes; `spec/entities/types/exposure.md` updated with the deferred-fields note and the v1 meaning of `priceVolX96`.
+1. `spec/protocol/entities/types/risk.md` rewritten: the Lean-refuted `price/haircut` formula removed, the H1 integer realization pinned to the operation level, the quote convention and share units stated, the ℝ-only status of `issuance_haircut_equiv` recorded.
+2. `src/types/exposure/VegaExposure.plk` completed as the live-fields-only record + risk Q-type newtypes; `spec/protocol/entities/types/exposure.md` updated with the deferred-fields note and the v1 meaning of `priceVolX96`.
 
 NO arithmetic functions, NO lib code, NO module code, NO tests — those are Phases 13–15. This phase BLOCKS them: nothing arithmetic may be written against the stale spec.
 
@@ -57,11 +57,11 @@ NO arithmetic functions, NO lib code, NO module code, NO tests — those are Pha
 
 ### Design authority (machine-checked; the content being transcribed)
 - `../cfmm-wt/lean4-spec/lean/vol_markets/RiskDesign.lean` — `haircutRiskPrice` (line ~113), `haircutRiskPrice_ge_oracle` (~119), `issuance_haircut_equiv` (~123), `mulX96Down`/`mulX96Down_le`/`mulX96Down_one` (~135-150). ℝ/ℕ statements — the ℝ-only caveat comes from here.
-- `../cfmm-wt/lean4-spec/model/vol_markets/RISK_ALTERNATIVES.md` — H1 recommendation (§3), typed pipeline + rounding directions (§4), the draft-formula correction narrative.
+- `../cfmm-wt/lean4-spec/protocol/model/vol_markets/RISK_ALTERNATIVES.md` — H1 recommendation (§3), typed pipeline + rounding directions (§4), the draft-formula correction narrative.
 
 ### Files being modified
-- `spec/entities/types/risk.md` — 30 lines, carries the refuted formula at line 12 and `Q0.64` at line 10.
-- `spec/entities/types/exposure.md` — 65 lines, the N_v = ΔM/p_vol derivation + 5-field struct sketch.
+- `spec/protocol/entities/types/risk.md` — 30 lines, carries the refuted formula at line 12 and `Q0.64` at line 10.
+- `spec/protocol/entities/types/exposure.md` — 65 lines, the N_v = ΔM/p_vol derivation + 5-field struct sketch.
 - `src/types/exposure/VegaExposure.plk` — 6-line stub with mis-named fields.
 
 ### Conventions to mirror

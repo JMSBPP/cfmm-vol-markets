@@ -1471,7 +1471,7 @@ Progress (v4.0): [██████████] 100% — 5/5 phases (16, 17, 1
 
 ### Roadmap Evolution
 
-- Phase 8 added (2026-07-18): panoptic vol-claim lean4 formalization — formalize `spec/panoptic.md` (vol-option payoff, replication-cost pricing, υ identification) in the `lean/` Lake project. Lean4-track phase, independent of Phases 2–7.
+- Phase 8 added (2026-07-18): panoptic vol-claim lean4 formalization — formalize `spec/protocol/panoptic.md` (vol-option payoff, replication-cost pricing, υ identification) in the `lean/` Lake project. Lean4-track phase, independent of Phases 2–7.
 - Phase 11 added (2026-07-30): MEV hazard-rate metric and infimum program (λ_MEV) — λ_MEV analogous to flairHazard over the shared Θ_φ, identify Θ_{λ_MEV}, solve inf λ_MEV (opposite level-block monotonicity to the solved sup λ_FLAIR), joint sup/inf program; Angstrom = implementation reference; refs acquired in ../plank/refs/{flair,mev}/. Dir: phases/11-mev-hazard-inf-program/.
 
 ### Decisions
@@ -2012,7 +2012,7 @@ Recent decisions affecting current work:
 - Plumbing-first scope: prove the connection layer carries parameters correctly with a stub GAMS solver; real optimization model + replication proof + LDF conformance are v2.
 - Phase order fixed: Plank bridge-surface is implemented AND compiled (Phase 4) BEFORE the bridge wiring (Phase 6) — resolves the prior phase-order inversion BLOCKER.
 - Phases 1 and 2 are serialized (no parallelism) to avoid the repo-identity race during the public flip / fork migration.
-- Theory grounding links to cfmm-theory `KERNEL.md` by URL/citekey (no submodule); refs under `spec/refs/`.
+- Theory grounding links to cfmm-theory `KERNEL.md` by URL/citekey (no submodule); refs under `spec/protocol/refs/`.
 - [Phase 11]: 11-01: the three MMR notation collisions resolved as γ→φ, λ→Δt, η never named — enforced by an executable grep gate (`mev-notation-gate.sh`) with a bounded header/M0 whitelist marker, not by convention; the gate caught three genuine violations during authoring and was never weakened
 - [Phase 11]: 11-01: λ_ARB (the arbitrage channel; ASCII `lambda_ARB`) and λ_MEV (the total, λ_ARB ⊕ λ_sandwich; ASCII `lambda_MEV`) are DISTINCT symbols and are never interchangeable; the infimum program is on λ_ARB, and the two coincide only under M7's uniform-batch-clearing reduction. λ_ARB ABSORBS the "arb toxicity" hazard-index entry — carrying both would double-count
 - [Phase 11]: 11-01: the doc states the DEGENERACY (M6a) and the CONSTRAINED result (M6b) as two separate, well-posed claims rather than one arg-set equality — the phase brief's "the shape block (β, γ) becomes essential" expectation is refuted unconstrained, and the doc says so in those words
@@ -2022,7 +2022,7 @@ Recent decisions affecting current work:
 - [Phase 11]: the Angstrom tax stays PARAMETRIC in τ = k/(k+1) with k free; the l2-angstrom repo snapshot and the live docs disagree on the constants, so no numeric enters a theorem — the dated k = 49 / τ = 0.98 instance lives only in prose
 - [Phase 11]: 11-06: doc-over-plan again at close — where the plan's mechanical criteria contradicted the artifacts (an identifier loop reaching into §8's pre-existing `joint_candidates_disagree`, a `/home/` scan hitting ROADMAP's own quoted scrub command, an assumed `Requirements: TBD` that a prior pass had filled), the criteria were recorded as defective and the semantic requirement verified properly, rather than editing the artifacts to satisfy the regex
 - [Phase 01]: 01-01: MIT LICENSE (wvs-finance); orphan-branch squash to one sanitized baseline; GAMS paths relativized to in-repo model/; recovery bundle + backup/pre-squash captured before rewrite
-- [Phase 08]: 08-01: negated θ kernel exponent (Gaussian must decay), Demeterfi cited by URL/citekey not vendored PDF, six cfmm-discrete notes vendored under spec/refs/
+- [Phase 08]: 08-01: negated θ kernel exponent (Gaussian must decay), Demeterfi cited by URL/citekey not vendored PDF, six cfmm-discrete notes vendored under spec/protocol/refs/
 - [Phase 08]: 08-02: renamed lattice value binder π→pl (π is reserved Mathlib notation for Real.pi); θ_ATM=kσ/√(8πτ) stated as τ→0⁺ asymptotic with hΘ pinning, sole Aristotle obligation is centralBinom_isEquivalent (sharp central-binomial asymptotic)
 - [Phase ?]: User-directed: no hand-proving. Upsilon.lean statements + conjecture drafted locally; one Aristotle submission (project 6bda0e2c-cc54-4663-9a4f-ffeada3bda6f, task 2c102a3e) covers all 4 sorry'd goals; integrate from returned archive.
 - [Phase ?]: First submission sat QUEUED with zero events; user chose cancel+resubmit. Same bundle, same 4 goals. Single in-flight task preserved.

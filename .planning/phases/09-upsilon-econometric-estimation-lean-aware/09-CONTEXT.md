@@ -34,7 +34,7 @@ Execute the approved υ-identification econometric spec (`notes/structural-econo
 
 ### Claude's Discretion
 - Exact Haskell module layout, GHC/LTS version choice (subject to what's installable on this machine), subgraph pagination strategy, BigQuery SQL shape, and the bridging-lemma statement details.
-- Whether results feed back to the plank session's `spec/protocol_integrations/panoptic.md` copy — coordination note for peer `ul2inqpl`, not a deliverable.
+- Whether results feed back to the plank session's `spec/protocol/protocol_integrations/panoptic.md` copy — coordination note for peer `ul2inqpl`, not a deliverable.
 
 </decisions>
 
@@ -54,7 +54,7 @@ Execute the approved υ-identification econometric spec (`notes/structural-econo
 - `lean/vol_markets/Upsilon.lean` — `upsilon`, `upsilonTickSlope`, `ATMOTMNullHypothesis` (the bridging lemma lands here)
 - `lean/vol_markets/Panoptic.lean` — `volOptionPayoff`, `streamingPremium`, `thetaAtm`, `theta_atm_closed_form`
 - `lean/vol_markets/PosSpec.lean` — `lam` = 1.0001, `tickPrice` (the tick grid the moneyness distance is defined on)
-- `spec/panoptic.md` — the pinned protocol spec (ECONOMETRIC section is the seed)
+- `spec/protocol/panoptic.md` — the pinned protocol spec (ECONOMETRIC section is the seed)
 
 ### Workflow rules
 - Memory: lean-aristotle-heavy-workflow — statements local, proofs via serial Aristotle, integrate from returned archive
@@ -95,7 +95,7 @@ Execute the approved υ-identification econometric spec (`notes/structural-econo
 <deferred>
 ## Deferred Ideas
 
-- Feeding estimation results back into the plank session's `spec/protocol_integrations/panoptic.md` — coordination with peer `ul2inqpl`, separate step
+- Feeding estimation results back into the plank session's `spec/protocol/protocol_integrations/panoptic.md` — coordination with peer `ul2inqpl`, separate step
 - Epoch-length sensitivity (deliberately one-shot at daily)
 - Multi-market extension (spec's environment is single-market by locked decision)
 - On-chain Lens read of υ (contract-level identification) — plank/solidity tracks

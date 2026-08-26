@@ -41,7 +41,7 @@ created: 2026-07-19
 
 | Task ID | Plan | Wave | Requirement (decision) | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|------------------------|-----------|-------------------|-------------|--------|
-| TBD | TBD | 0 | Spec hygiene: θ sign fixed, refs de-pathed, notes vendored, spec committed | build+grep | `git ls-files --error-unmatch spec/panoptic.md && ! grep -rn '\$HOME\|/home/' spec/` | ❌ W0 | ⬜ pending |
+| TBD | TBD | 0 | Spec hygiene: θ sign fixed, refs de-pathed, notes vendored, spec committed | build+grep | `git ls-files --error-unmatch spec/protocol/panoptic.md && ! grep -rn '\$HOME\|/home/' spec/` | ❌ W0 | ⬜ pending |
 | TBD | TBD | 1 | π^σ payoff + ΔQ_v identity lemmas compile | unit | `cd lean && lake build vol_markets` | ❌ W0 (Panoptic.lean new) | ⬜ pending |
 | TBD | TBD | 1 | Replication decomposition (structural def + consistency/dimension lemmas) | unit | `cd lean && lake build vol_markets` | ❌ W0 | ⬜ pending |
 | TBD | TBD | 1 | Premium `Finset.sum` def + telescoping lemma | unit | `cd lean && lake build vol_markets` | ❌ W0 | ⬜ pending |
@@ -55,8 +55,8 @@ created: 2026-07-19
 
 ## Wave 0 Requirements
 
-- [ ] `spec/panoptic.md` — correct θ sign, replace Demeterfi PDF link with citekey/URL, remove `~/` NOTE path, then commit (currently untracked)
-- [ ] `spec/refs/cfmm-discrete/` — create; vendor FINANCE.md, STREAMING_PREMIUM.md, DIFFERENTIATION.md, BINARY_TREES.md; neutralize dangling sibling links
+- [ ] `spec/protocol/panoptic.md` — correct θ sign, replace Demeterfi PDF link with citekey/URL, remove `~/` NOTE path, then commit (currently untracked)
+- [ ] `spec/protocol/refs/cfmm-discrete/` — create; vendor FINANCE.md, STREAMING_PREMIUM.md, DIFFERENTIATION.md, BINARY_TREES.md; neutralize dangling sibling links
 - [ ] `lean/vol_markets/Panoptic.lean` — new module (payoff, replication, premium, CRR lattice, θ)
 - [ ] `lean/vol_markets/Upsilon.lean` — new module (υ, ΔQ_v bridge, conjecture)
 - [ ] `lean/lakefile.toml` — add both new files to the `vol_markets` `roots`

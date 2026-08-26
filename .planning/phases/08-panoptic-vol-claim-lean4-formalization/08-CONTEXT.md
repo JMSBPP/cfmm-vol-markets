@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Formalize `spec/panoptic.md` in the `lean/` Lake project: the contract as a volatility option (payoff π^σ = ΔQ_v·(σ²(i(t)) − σ²_K)⁺ and the ΔQ_v identity), the vol-claim price as an option-replication cost (structural decomposition p_πσ = p₀ + α₁·p_call + α₂·p_put), the streaming-premium θ kernel (derived on the lattice), and the vega-like greek υ ≡ Δπ/Δσ² with its ATM/OTM identification hypotheses. Includes spec hygiene (fix θ sign typo, repair references, commit the spec) and vendoring the load-bearing cfmm-discrete notes. Lean4-track phase, independent of Phases 2–7 (owned by other peer sessions).
+Formalize `spec/protocol/panoptic.md` in the `lean/` Lake project: the contract as a volatility option (payoff π^σ = ΔQ_v·(σ²(i(t)) − σ²_K)⁺ and the ΔQ_v identity), the vol-claim price as an option-replication cost (structural decomposition p_πσ = p₀ + α₁·p_call + α₂·p_put), the streaming-premium θ kernel (derived on the lattice), and the vega-like greek υ ≡ Δπ/Δσ² with its ATM/OTM identification hypotheses. Includes spec hygiene (fix θ sign typo, repair references, commit the spec) and vendoring the load-bearing cfmm-discrete notes. Lean4-track phase, independent of Phases 2–7 (owned by other peer sessions).
 
 </domain>
 
@@ -32,10 +32,10 @@ Formalize `spec/panoptic.md` in the `lean/` Lake project: the contract as a vola
 - **API key**: stored in this worktree's `.env` (gitignored, never committed); aristotle commands read it at call time via `--api-key`.
 
 ### Spec hygiene & references
-- **Fix the θ sign typo in `spec/panoptic.md`** against the cfmm-discrete derivation (Gaussian kernel needs exp(−[·]²/2σ²t)) so markdown and Lean agree.
+- **Fix the θ sign typo in `spec/protocol/panoptic.md`** against the cfmm-discrete derivation (Gaussian kernel needs exp(−[·]²/2σ²t)) so markdown and Lean agree.
 - **Demeterfi et al.**: replace the dangling `../refs/DemeterfietalVarianceSwaps.pdf` link with **URL + citekey** (Demeterfi, Derman, Kamal, Zou 1999, "More Than You Ever Wanted To Know About Volatility Swaps", Goldman Sachs QS Research Notes). Do NOT vendor the PDF (public repo; redistribution rights unclear).
-- **cfmm-discrete notes**: **both** — vendor the load-bearing notes (user's own writing: at minimum FINANCE.md, STREAMING_PREMIUM.md, DIFFERENTIATION.md; planner judges the rest) into `spec/refs/cfmm-discrete/`, AND keep the citekey pointing at the cfmm-theory knowledge base as canonical. No `~/`/`$HOME` paths may remain in tracked files (Phase-1 rule).
-- **Commit timing**: clean + commit `spec/panoptic.md` at **phase start** — first plan task fixes sign + refs, vendors notes, commits; the formalization proceeds from a pinned, tracked spec.
+- **cfmm-discrete notes**: **both** — vendor the load-bearing notes (user's own writing: at minimum FINANCE.md, STREAMING_PREMIUM.md, DIFFERENTIATION.md; planner judges the rest) into `spec/protocol/refs/cfmm-discrete/`, AND keep the citekey pointing at the cfmm-theory knowledge base as canonical. No `~/`/`$HOME` paths may remain in tracked files (Phase-1 rule).
+- **Commit timing**: clean + commit `spec/protocol/panoptic.md` at **phase start** — first plan task fixes sign + refs, vendors notes, commits; the formalization proceeds from a pinned, tracked spec.
 
 ### Claude's Discretion
 - Exact module/file split inside `vol_markets` and lemma naming.
@@ -51,14 +51,14 @@ Formalize `spec/panoptic.md` in the `lean/` Lake project: the contract as a vola
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Phase target
-- `spec/panoptic.md` — the spec being formalized (currently untracked; committed after hygiene fixes as the first task). Defines π^σ, the replication decomposition, the θ kernel, and υ.
+- `spec/protocol/panoptic.md` — the spec being formalized (currently untracked; committed after hygiene fixes as the first task). Defines π^σ, the replication decomposition, the θ kernel, and υ.
 
 ### Discrete financial calculus (proof source material)
-- Local cfmm-theory knowledge base, `cfmm-discrete/` notes — **to be vendored into `spec/refs/cfmm-discrete/` at phase start**; until then they live in the user's local KB outside the repo:
+- Local cfmm-theory knowledge base, `cfmm-discrete/` notes — **to be vendored into `spec/protocol/refs/cfmm-discrete/` at phase start**; until then they live in the user's local KB outside the repo:
   - `FINANCE.md` §6.7 (dt-leg of dπ), §6.18 (backward induction) — the lattice Black–Scholes machinery the θ derivation must follow
   - `STREAMING_PREMIUM.md` — lattice theta Θ(i,j), ATM column selection (center column at i_K, NOT the i=j diagonal), θ_ATM(τ) = kσ/√(8πτ), ∫θ dτ = kσ√(T/2π); equates streaming premium with LP fee revenue
   - `DIFFERENTIATION.md`, `INTEGRATION.md`, `BINARY_TREES.md`, `COORDINATES.md` — supporting lattice calculus
-- Reference these ONLY via the vendored `spec/refs/cfmm-discrete/` paths or citekey in tracked files — never via home-absolute paths.
+- Reference these ONLY via the vendored `spec/protocol/refs/cfmm-discrete/` paths or citekey in tracked files — never via home-absolute paths.
 
 ### Existing Lean modules (build on, don't duplicate)
 - `lean/vol_markets/PosSpec.lean` — tick/price grid `tickPrice Δi i = λ^((i/2)·Δi)` with λ = 1.0001; skew tick; the strike tick i_K machinery should reuse this grid
@@ -103,7 +103,7 @@ Formalize `spec/panoptic.md` in the `lean/` Lake project: the contract as a vola
 - The spec's own NOTE declares the cfmm-discrete notes the authoritative calculus ("CALCULUS IS THIS ONE") — the lattice-first decision implements that directive.
 - υ matters because it "dimensionally lives in the place of ΔQ_v" — the formalization should surface this as an explicit type/dimension correspondence lemma, since it is the bridge on which "build on top of panoptic from our protocol or vice versa" rests.
 - θ_ATM must be read at the strike-tick **center column** of the tree, not the i=j diagonal (STREAMING_PREMIUM.md is explicit; a natural formalization mistake to guard against).
-- The plank worktree carries its own copy at `spec/protocol_integrations/panoptic.md` (opened in the user's IDE) — this phase's canonical target is THIS worktree's `spec/panoptic.md`; divergence between the two copies is a coordination note for the plank session (`ul2inqpl`), not this phase's problem.
+- The plank worktree carries its own copy at `spec/protocol/protocol_integrations/panoptic.md` (opened in the user's IDE) — this phase's canonical target is THIS worktree's `spec/protocol/panoptic.md`; divergence between the two copies is a coordination note for the plank session (`ul2inqpl`), not this phase's problem.
 
 </specifics>
 

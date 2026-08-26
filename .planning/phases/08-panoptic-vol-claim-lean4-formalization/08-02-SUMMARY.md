@@ -7,7 +7,7 @@ tags: [lean4, mathlib, cfmm, volatility-option, crr-lattice, streaming-premium, 
 # Dependency graph
 requires:
   - phase: 08-01
-    provides: spec/panoptic.md (sign-corrected θ kernel) + vendored cfmm-discrete proof-source notes under spec/refs/
+    provides: spec/protocol/panoptic.md (sign-corrected θ kernel) + vendored cfmm-discrete proof-source notes under spec/protocol/refs/
 provides:
   - "Panoptic.lean analytical core: π^σ payoff + ΔQ_v finite-difference identity"
   - "structural replication decomposition p = p₀ + α₁·p_call + α₂·p_put (affine-in-options def)"

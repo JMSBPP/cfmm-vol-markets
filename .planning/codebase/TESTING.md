@@ -234,7 +234,7 @@ No BTT test trees are present. There is no `test/` subdirectory structure with `
 
 ### `spec/` Directory
 
-`spec/entities/Types.md` contains a domain-model type specification written in informal pseudocode. It defines `NumberFormat`, `BoundedValue`, `VolatilityTermStructure`, `VolatilityGrid`, and `VolatilityGridLens` with notational constraints. This spec is used to guide Plank type definitions (see `src/types/Numerics.plk`, `src/types/VolatilityTermStructure.plk`) but is not processed by any test framework. It is a design artifact, not executable.
+`spec/protocol/entities/Types.md` contains a domain-model type specification written in informal pseudocode. It defines `NumberFormat`, `BoundedValue`, `VolatilityTermStructure`, `VolatilityGrid`, and `VolatilityGridLens` with notational constraints. This spec is used to guide Plank type definitions (see `src/types/Numerics.plk`, `src/types/VolatilityTermStructure.plk`) but is not processed by any test framework. It is a design artifact, not executable.
 
 ---
 

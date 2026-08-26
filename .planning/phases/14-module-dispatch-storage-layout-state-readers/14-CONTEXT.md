@@ -70,7 +70,7 @@ CALLED green only; ONE test file for the module surface; non-fuzz anchor beside 
 ### The contract being implemented
 - `.planning/ROADMAP.md` Phase 14 section — five review-hardened SCs (the acceptance contract).
 - `.planning/REQUIREMENTS.md` — VMOD-01..05 exact statements.
-- `spec/entities/types/risk.md` — the H1 spec (the module exposes what the lib computes; no new math).
+- `spec/protocol/entities/types/risk.md` — the H1 spec (the module exposes what the lib computes; no new math).
 
 ### Code composed / mirrored (read before writing)
 - `src/modules/market_state_measurements/RealizedVolatilityMod.plk` — THE dispatch/storage/init pattern, mirrored verbatim (selector chain, SLOT_* consts, state word packing conventions, readers).

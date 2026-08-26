@@ -26,8 +26,8 @@ key-files:
   created:
     - .planning/phases/12-spec-correction-type-completion/12-01-SUMMARY.md
   modified:
-    - spec/entities/types/risk.md
-    - spec/entities/types/exposure.md
+    - spec/protocol/entities/types/risk.md
+    - spec/protocol/entities/types/exposure.md
     - src/types/exposure/VegaExposure.plk
   deleted:
     - src/types/risk/RiskDiscount.plk
@@ -79,9 +79,9 @@ Each task was committed atomically:
 **Plan metadata:** committed separately (docs: complete plan).
 
 ## Files Created/Modified
-- `spec/entities/types/risk.md` - H1 issuance spec: `oracle/(1−h)`, integer realization, quote convention, share units, ℝ-only caveat + counterexample, inexact-division anchor
+- `spec/protocol/entities/types/risk.md` - H1 issuance spec: `oracle/(1−h)`, integer realization, quote convention, share units, ℝ-only caveat + counterexample, inexact-division anchor
 - `src/types/exposure/VegaExposure.plk` - Two-live-field VegaExposure record + RiskPriceX96/Haircut newtypes
-- `spec/entities/types/exposure.md` - Deferred-fields note + v1 priceVolX96-carries-p_risk tension
+- `spec/protocol/entities/types/exposure.md` - Deferred-fields note + v1 priceVolX96-carries-p_risk tension
 - `src/types/risk/RiskDiscount.plk` - DELETED (refuted-concept embodiment, empty body, zero importers)
 - `src/lib/risk/RiskMeasureLib.plk` - DELETED (imports the above; refuted-concept stub)
 

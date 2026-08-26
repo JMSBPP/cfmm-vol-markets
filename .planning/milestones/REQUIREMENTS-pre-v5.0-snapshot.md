@@ -38,8 +38,8 @@ Each maps to exactly one roadmap phase.
 
 ### Theory Grounding
 
-- [ ] **REF-01**: each mapped parameter has a reference markdown under `spec/refs/` linking it to its grounding note in `cfmm-theory` — primary target `KERNEL.md`, extensible (`cfmm-control/ELASTICITY_CONTROL.md`, `cfmm-options/PAYOFF.md`, …) — cited by URL/citekey with **no code dependency** on the cfmm-theory tree
-- [ ] **REF-02**: in the `spec/refs/` markdown, each key control parameter is annotated with the behavioral theorem/assumption/market regime it encodes (supporting level — not a formal review)
+- [ ] **REF-01**: each mapped parameter has a reference markdown under `spec/protocol/refs/` linking it to its grounding note in `cfmm-theory` — primary target `KERNEL.md`, extensible (`cfmm-control/ELASTICITY_CONTROL.md`, `cfmm-options/PAYOFF.md`, …) — cited by URL/citekey with **no code dependency** on the cfmm-theory tree
+- [ ] **REF-02**: in the `spec/protocol/refs/` markdown, each key control parameter is annotated with the behavioral theorem/assumption/market regime it encodes (supporting level — not a formal review)
 
 ### Plank Bridge-Surface Implementation
 

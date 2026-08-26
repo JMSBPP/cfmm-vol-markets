@@ -136,7 +136,7 @@ sign-extension + golden vectors for tokenId decode when E2 ships.
 <!-- Inferred from existing code (brownfield). "existing" = present in repo, not necessarily hardened/verified. -->
 
 - ✓ Plank→EVM FFI build/deploy bridge (`lib/plank-foundry-deployer/src/PlankDeployer.sol`, `plankDeployFFI`) — existing
-- ✓ Draft shared type kernel (`spec/entities/Types.md`: `NumberFormat`, `BoundedValue`, `VolatilityTermStructure`, `Grid`/`Lens` types) — existing
+- ✓ Draft shared type kernel (`spec/protocol/entities/Types.md`: `NumberFormat`, `BoundedValue`, `VolatilityTermStructure`, `Grid`/`Lens` types) — existing
 - ✓ GAMS algebraic model skeleton (`primitives.gms`, `PricingKernel.gms`, `LiquidityKernel.gms`, `TradingRegion.gms`, `PayoffModule.gms`, `dynamic/InitState.gms`) — existing, outside repo at `../experiments/gams`
 - ✓ ~~bunni-v2 LDF conformance harness~~ — DELETED 2026-07-16 (`ead50b8`, empty scaffold); recover from git history with LDF-01
 - ✓ ~~Stochastic swap-flow proxy (`BinomialProxy.plk`/`SwapAmtGen.plk`) and canonical market-state (`ReferenceMarket.plk`)~~ — DELETED 2026-07-16 (`ead50b8`) as unmaintained; recover from git history when the v1.0 pipeline resumes
@@ -154,7 +154,7 @@ sign-extension + golden vectors for tokenId decode when E2 ships.
 
 **Earlier active list (plank workstream snapshot, unmodified):**
 
-- [ ] Elevate `spec/entities/Types.md` into the **authoritative shared kernel** both tracks conform to (types, units, bounds, semantics)
+- [ ] Elevate `spec/protocol/entities/Types.md` into the **authoritative shared kernel** both tracks conform to (types, units, bounds, semantics)
 - [ ] Define the **GAMS↔Plank parameter map** with explicit fixed-point encodings (`xi`↔`priceElasticity`/LDF `alpha`, `iota`↔`statePartitionDelta`/`tickSpacing`, `baseTick`; WAD / Q64.96 conventions)
 - [ ] Vendor the GAMS sources into `model/` inside this repo (currently external `../experiments/gams`, 232K)
 - [ ] Build the **open-loop runtime bridge**: GAMS optimization output → serialized/encoded parameters → Plank `IMarketDynamics.initVolTermStructure()` (selector `0xd9c112ef`)
@@ -174,7 +174,7 @@ sign-extension + golden vectors for tokenId decode when E2 ships.
 ## Context
 
 - **Two-language duality is the defining trait.** On-chain CFMM logic is written in **Plank** (`.plk`, custom EVM language with its own compiler at `lib/plank-monorepo/plankc/`, `v0.1.1`), compiled to bytecode via FFI at test time; Solidity/Foundry is thin glue. GAMS is the off-chain algebraic solver. The research contribution lives in the bridge between them.
-- **The shared "file kernel"** is `spec/entities/Types.md` — the formal type system both tracks reference. The parameter→behavior grounding connects out to the **`cfmm-theory`** knowledge base (local; cited by `KERNEL.md` citekey, no code dependency), whose root **`KERNEL.md`** is the primary upstream reference (extensible to notes like `cfmm-control/ELASTICITY_CONTROL.md`, `cfmm-options/PAYOFF.md`, `cfmm-options/FEE_PREMIUM.md`). The link is **by URL/citekey only** (no submodule/code dependency, because this repo is public); the reference markdown lives under `spec/refs/`, separate from the existing `refs/` Plank-playground web app.
+- **The shared "file kernel"** is `spec/protocol/entities/Types.md` — the formal type system both tracks reference. The parameter→behavior grounding connects out to the **`cfmm-theory`** knowledge base (local; cited by `KERNEL.md` citekey, no code dependency), whose root **`KERNEL.md`** is the primary upstream reference (extensible to notes like `cfmm-control/ELASTICITY_CONTROL.md`, `cfmm-options/PAYOFF.md`, `cfmm-options/FEE_PREMIUM.md`). The link is **by URL/citekey only** (no submodule/code dependency, because this repo is public); the reference markdown lives under `spec/protocol/refs/`, separate from the existing `refs/` Plank-playground web app.
 - **Stochastic model** (`NOTES.md`): swap direction `I_{n,t} ∈ {-1,+1}` (P=½ each), counts `N_t ~ Poisson(λ_t)`, amounts `Δy_{n,t} ~ LogNormal(μ_t, σ²)`, with deterministic proxy `Δy(t) = 19 + 1.0001^{η·t⁴}`. Canonical start state: `(di=20, i=100, i_l=-120, i_u=120, L=1e18, Y=100e18)`.
 - **Maturity is early.** Per the codebase map (`.planning/codebase/CONCERNS.md`), most `.plk` files are stubs or have parse/type errors; tests are largely empty shells; the Plank↔GAMS bridge is a zero-line gap (the core deliverable). The repo had no history before this initialization.
 - **Reference ecosystem** in `lib/`: bunni-v2 (LDF interface + Geometric reference), Uniswap v3/v4 core, panoptic-v2-core, plankified-univ3 (Plank UniV3 math), plus Unistrata/Shizo/Mochi-Yield/Centrifuge references cited in `NOTES.md`.
@@ -197,7 +197,7 @@ sign-extension + golden vectors for tokenId decode when E2 ships.
 | Literature = supporting input only (no formal review) | Notes + key references suffice to ground parameter→behavior mapping now | — Pending |
 | Vendor GAMS into `model/` inside the repo | Single-repo dual-track; bridge work needs both sides co-located | — Pending |
 | `wvs-finance` owns canonical public repo; `JMSBPP` forks | Org ownership / public visibility requirement | — Pending |
-| Theory grounding links to `cfmm-theory` `KERNEL.md` by URL/citekey (no submodule); refs under `spec/refs/` | Repo is public — cfmm-theory is local-only, so cite rather than depend | — Pending |
+| Theory grounding links to `cfmm-theory` `KERNEL.md` by URL/citekey (no submodule); refs under `spec/protocol/refs/` | Repo is public — cfmm-theory is local-only, so cite rather than depend | — Pending |
 | v3.0 vault pipeline is **H1 only** (`p_risk = oracle/(1−h)`, `h<1` enforced); distance D2 and P0/P2 composition deferred | Smallest proven core first — mirrors how the oracle track grew; the Lean decision table's issuance row backs H1 | ✓ Good — shipped v3.0 in 3 days, 0 arithmetic defects found |
 | v3.0 `p_risk` is **exogenous/settable** (validated > 0); RealizedVolatilityMod wiring deferred | tbd.md's own stated assumption; keeps the vault testable in isolation; vol→price conversion depends on pos_spec types that still have red harness tests | ✓ Good — isolation made the e2e differential and battery cheap |
 | v3.0 keeps `totalDeposits` / `totalShares` / `riskWeightedShares` as **three distinct state variables** (d ≡ 1 in v1) | Lean `discounted_claim_counterexample` refutes conflating the risk-adjusted subtotal with the accounting total | ✓ Good — read-conflation proved unkillable except by raw vm.load, vindicating the slot discipline |

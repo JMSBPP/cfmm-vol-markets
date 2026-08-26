@@ -98,7 +98,7 @@ model/
 - `VolatilityTermStructure.plk`: composes `BoundedValue` fields into the control-parameter struct
 - Both are imported by other `.plk` files using `import types::numerics::BoundedValue` style paths
 
-**`spec/entities/Types.md` — Formal type kernel:**
+**`spec/protocol/entities/Types.md` — Formal type kernel:**
 - The specification document that governs the type system for both tracks
 - Defines: `NumberFormat`, `BoundedValue<NumberFormat, lowerBound, upperBound>`, `VolatilityTermStructure { priceElasticity, statePartitionDelta, baseTick }`, `VolatilityGrid`, `VolatilityGridLens`
 - Any new type added to either the GAMS or Plank track should be specified here first
@@ -135,7 +135,7 @@ model/
 - `test/LiquidityDensityFunctionPlankTest.t.sol`: LDF conformance tests
 
 **Specification:**
-- `spec/entities/Types.md`: canonical type definitions
+- `spec/protocol/entities/Types.md`: canonical type definitions
 
 **Configuration:**
 - `foundry.toml`: `ffi = true` (required for Plank FFI), `runs = 10` (fuzz), mainnet RPC endpoint
@@ -205,7 +205,7 @@ model/
 - Create conformance test extending `bunni-v2/test/ldf/LiquidityDensityFunctionTest.sol`
 
 **New type definition:**
-- Spec first: add to `spec/entities/Types.md`
+- Spec first: add to `spec/protocol/entities/Types.md`
 - Plank type constructor: `src/types/NewType.plk`
 - GAMS equivalent (if applicable): add set/parameter in the relevant `.gms` file
 

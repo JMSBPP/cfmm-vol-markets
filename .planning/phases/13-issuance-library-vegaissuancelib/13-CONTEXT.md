@@ -23,7 +23,7 @@ Requirements: VLIB-01, VLIB-02, VLIB-03, VLIB-04. The roadmap Phase 13 SCs (1–
 ## Implementation Decisions (all locked upstream)
 
 ### The spec of record
-`spec/entities/types/risk.md` (rewritten + verified 6/6 in Phase 12) pins everything: the four integer operations, checked `-` (never `-%`) for `2^96 − hX96`, the revert attribution (hX96 > 2^96 → checked-subtraction revert; hX96 == 2^96 → zero-denominator revert from `full_math.plk:13–24`, an explicit `h < 1` guard is OPTIONAL and its deletion mutant is EQUIVALENT, not a kill), quote convention (collateral per vega unit, raw smallest units, LINEAR Q64.96), share units (collateral decimals, Q96 cancels), the ℝ-only status of `issuance_haircut_equiv`, the 12-vs-13 counterexample, the gap-of-6 input (deposit = 2^100), and the one-sided `composed ≤ direct`.
+`spec/protocol/entities/types/risk.md` (rewritten + verified 6/6 in Phase 12) pins everything: the four integer operations, checked `-` (never `-%`) for `2^96 − hX96`, the revert attribution (hX96 > 2^96 → checked-subtraction revert; hX96 == 2^96 → zero-denominator revert from `full_math.plk:13–24`, an explicit `h < 1` guard is OPTIONAL and its deletion mutant is EQUIVALENT, not a kill), quote convention (collateral per vega unit, raw smallest units, LINEAR Q64.96), share units (collateral decimals, Q96 cancels), the ℝ-only status of `issuance_haircut_equiv`, the 12-vs-13 counterexample, the gap-of-6 input (deposit = 2^100), and the one-sided `composed ≤ direct`.
 
 ### The differential shape (roadmap SC-2, resolves review BLOCKER B1)
 - Tolerance-0 diff is IDENTICAL-ALGORITHM ONLY: Plank composed path vs `IssuanceRefMock.sol` computing the same mulDivUp-then-mulDiv composition. NOT vs the direct path.
@@ -62,7 +62,7 @@ ONE test file for this surface; non-fuzz unit anchor beside every fuzz; corpora 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### The spec being implemented (verbatim authority)
-- `spec/entities/types/risk.md` — the whole file; Phase 13 implements it line-for-line.
+- `spec/protocol/entities/types/risk.md` — the whole file; Phase 13 implements it line-for-line.
 - `.planning/ROADMAP.md` Phase 13 section — the four SCs (acceptance contract).
 - `.planning/REQUIREMENTS.md` — VLIB-01..04 exact statements.
 
