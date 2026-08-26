@@ -33,7 +33,10 @@
 	url = https://github.com/Reactive-Network/reactive-smart-contract-demos
 [submodule "offchain"]
 	path = offchain
-	url = https://github.com/JMSBPP/gams-evm-transport.git
+	url = https://github.com/d2p-finance/gams-evm-transport.git
 [submodule "spec"]
 	path = spec
-	url = https://github.com/JMSBPP/cfmm-vol-markets-spec.git
+	url = https://github.com/d2p-finance/cfmm-vol-markets-spec.git
+[submodule "refs"]
+	path = refs
+	url = https://github.com/d2p-finance/cfmm-refs.git
