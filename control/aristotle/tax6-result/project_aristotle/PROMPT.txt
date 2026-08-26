@@ -1,0 +1,107 @@
+Formalize the transactional channel in RequestProject/TAX6_ADDENDUM.md, blocks M36-M40.
+
+THE CHANGE (author ruling). A second exogenous shock enters: a PRIVATE VALUATION SHOCK V,
+independent of the price shock, carried by benign/transactional traders whose payoff
+object is pi^{transactional}. Everything stays in SHOCK SPACE: no volume function is
+parametrized; participation is a shock crossing a protocol-set band, exactly as
+P_{Delta_ARB} already is. The transactional probability measure carries a
+1 - P_{Delta_ARB} STRUCTURE: benign execution lives on the complement of the arb event,
+P_trans = (1 - P_ARB) * h(phi), with h(phi) = P(|V| > band). Under an exponential tail
+with rate alpha, h(phi) = e^{-alpha phi} -- the literature's Form A hazard
+(arXiv:2606.21769 sec 2.4, arXiv:2506.02869 sec 2) IS a shock-space participation
+probability, and alpha is the TAIL RATE of the valuation distribution. Elasticity appears
+nowhere as a primitive.
+
+WHY. MevTaxShock.Theorem47_shared_driver_leaves_no_root proved the FOC has no root at any
+tax because both channels shared one driver; Theorem47_benign_residual_is_not_an_
+exogenous_path proved benign flow entered the loop GAIN, not the exogenous input. The
+valuation shock is the second, genuinely independent edge. Published confirmation:
+arXiv:2606.21769 Prop 4.1 (alpha = 0 gives boundary optimum -- our machine-checked result,
+in print) and its sec 6.2 (the demand response "restores strict concavity ... and rules
+out the degenerate bang-bang equilibrium").
+
+FOUR NEW TYPED ASSUMPTIONS -- same class as H1/H2/ScaleHomogeneous, assume by name, never
+prove, never estimate: (A-ind) V independent of the price shock -- THE load-bearing one;
+(A-tail) exponential tail with rate alpha, with the register's finding attached that NO
+causal estimate of alpha exists; (A-size) benign trade size delta exogenous -- rate
+responds, size does not; (A-route) the tau share of the composed fee is NOT routed to LPs
+(monoid entry (A), NO compensation routed; DOC Rule 6 accrues leg fees only).
+
+A REFUTATION IS A SUCCESSFUL OUTCOME. All five prior bundles returned refutations that
+redirected this project. Do not narrow a claim to make it provable. Exhibit the witness.
+
+WHAT IS ALREADY PROVED -- cite by declaration name AND file, do not redo.
+
+RequestProject/MevTaxControl.lean: Theorem29_monoid_path_is_direct,
+  Theorem32_hazard_strictAntiOn_tau, H1_dLbar_dpiPhi_pos, H2_dnu_dlamMEV_pos
+RequestProject/MevTaxProgram.lean: Proposition16_corrected_law (:1054), totalDeriv,
+  focCore, pathGate, hasDerivAt_phiTot,
+  Proposition15_level_reading_second_order_undetermined
+RequestProject/MevLVRCancellation.lean (MevTaxLVR): Theorem37_LVR_cancellation,
+  Theorem37_K_pos, Corollary37_root_invariance
+RequestProject/MevChannelClosure.lean (MevTaxChannels):
+  Theorem38_two_routes_close_a_loop -- the loop system M37 extends,
+  Theorem38a_one_sided_flow_refutes_strict_monotonicity,
+  Theorem39_arb_side_does_not_close, Theorem39_elasticity_closes, ScaleHomogeneous
+RequestProject/MevReturnsReduction.lean (MevTaxReturns): Theorem40_returns_reduction,
+  Theorem40d_loop_correction_removes_epsilon,
+  Theorem44_objective_reading_does_not_discriminate -- the squared-derivative objective
+  cannot distinguish min from max; M40's objective is m, the LP PnL drift, NOT that form
+RequestProject/MevShockInput.lean (MevTaxShock): Theorem45_shock_driven_utilization
+  (nu = g(s, phi, kappa_phi), g explicit), Theorem46_shock_flow_is_two_legged,
+  Theorem46_one_sided_is_unreachable, Theorem47_shared_driver_is_one_edge,
+  Theorem47_no_exogenous_hazard_input -- THE HYPOTHESIS M37 RELAXES,
+  Theorem47_shared_driver_leaves_no_root -- the result that must FAIL in the extended
+  model, with the relaxed hypothesis named so the two stand side by side,
+  Theorem45_benign_factorization_is_a_demand_elasticity -- the slot being filled, now
+  deliberately, by author ruling
+
+SOURCES. RequestProject/SRC_VOLATILITY_INSTRUMENTS_MEV.md is SRC, pinned at commit
+d61f223 / blob 584b05e. RequestProject/VOLATILITY_INSTRUMENTS.md is DOC (peer-owned,
+read-only): Proposition 9 (the MMR split), Definition 21 (P_ARB), Rule 6 (leg-fee
+accrual), the monoid entry (A). RequestProject/TAX5_RETURN_prior.md is bundle 5's return.
+
+SIX STANDING BANS, stated in full in the addendum. New ones: ban 3 extends -- pi^varphi
+!= pi^phi != pi^{transactional} (the last is a TRADER-side object); ban 6 -- isoelastic
+demand Q ~ phi^{-eps} is BANNED as a specification: monotone, cannot produce an interior
+optimum, appears nowhere in the literature. The hazard h is the only admissible demand
+object.
+
+THE FIVE BLOCKS, one line each:
+
+  M36 (Theorem 48): the complement measure completes Proposition 9 -- partition, the
+      NT_FEE term MMR eq. (27) leaves unspecified, the (c) COMPARISON between
+      complement-conditioned and unconditional benign execution derived BOTH ways with
+      the accounting-consistent reading identified (note (1 - P_ARB) is INCREASING in
+      phi -- what does that second channel do to the root?), and pi^{transactional}
+      well-defined and decreasing in phi.
+
+  M37 (Theorem 49): the loop gains exogenous input i != 0, Theorem 47's no-root
+      conclusion FAILS in the extended model, and the exact relaxed hypothesis is named
+      (it should be Theorem47_no_exogenous_hazard_input's premise and nothing else).
+
+  M38 (Theorem 50): interior optimum -- profitability condition sup m > 0, uniqueness
+      under (A-tail), the carrier analogue of phi* > 1/alpha, THE TOP-UP LAW
+      tau* = (phi* - phi_base)/(1 - phi_base) with tau* in (0,1) iff phi_base < phi*,
+      pro-cyclicality d(phi*)/d(sigma) > 0, and the corner taxonomy including the
+      shutdown regime stated as loss-minimization, not optimization.
+
+  M39 (Theorem 51): THE INCIDENCE QUESTION -- derive the FOC under (A-route) no-routing
+      AND under counterfactual full-routing. Does the interior root survive no-routing?
+      Sign and magnitude of tau*_noroute - tau*_route: NO SIGN IS ASSERTED BY THE
+      AUTHOR, deliberately -- reasoning-without-checking has been wrong repeatedly in
+      this project. Also: is there a discontinuous term at tau = 0?
+
+  M40 (Theorem 52): second order at the interior root -- strict concavity of m, single
+      crossing stated explicitly, and the split between what (A-tail) contributes and
+      what survives for general log-concave h. If uniqueness fails for some admissible
+      h, exhibit it.
+
+M39 IS THE ONE MOST LIKELY TO SURPRISE. Every paper in the literature has the fee-setter
+keep the revenue; our monoid choice does not. If the no-routing FOC behaves qualitatively
+differently -- root disappears, sign flips, discontinuity at zero -- that is the
+deliverable, not a nuisance.
+
+DELIVERABLE. Theorems 48-52 with the comparisons derived both ways where demanded, or
+witnesses refuting them. No new sorry. A stated OPEN with a reason beats a narrowed
+theorem. Every declaration #print axioms-clean or its dependency stated.

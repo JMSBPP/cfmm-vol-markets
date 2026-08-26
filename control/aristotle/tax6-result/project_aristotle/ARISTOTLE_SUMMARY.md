@@ -1,0 +1,21 @@
+# Summary of changes for run 4feb57df-0234-4775-93ef-db1209985e9f
+Blocks M36–M40 of `RequestProject/TAX6_ADDENDUM.md` are formalized and machine-checked. Two new modules, both compiling with **no `sorry`** and every Theorem 48–52 declaration `#print axioms`-clean (`propext`, `Classical.choice`, `Quot.sound` only):
+
+* `RequestProject/MevTransactional.lean` — primitives + **M36 (Theorem 48)**
+* `RequestProject/MevTransactionalOptimum.lean` — **M37–M40 (Theorems 49–52)**
+
+A prose return, `RequestProject/TAX6_RETURN.md`, states each result, each refutation with its witness, and the OPENs.
+
+Model (shock space only, no volume function): `ℙ_arb = σ/(σ+cφ)` with `c = √(2/Δt)` (definitionally `MevOptimization.ptrade`), `ℙ_trans = (1−ℙ_arb)·h(φ)`, `h(φ) = ℙ(|V|>φ) = e^{-αφ}` grounded against Mathlib's exponential measure, `m(φ) = NT_FEE(φ) − Lvr·ℙ_arb(φ)` with `Lvr = σ²Δt/8`. The four assumptions are carried as typed objects, never proved or estimated: (A-ind) as `IndepFun S Vabs μ`, used in exactly one theorem; (A-tail) as `hazTail`; (A-size) as the constant `δ`; (A-route) as `dK = 0` versus counterfactual `dK = δ`, both regimes carried side by side. Elasticity is derived (`ε(φ) = −αφ`), never a primitive.
+
+**M36 (48).** (a) partition holds numerically and as events, with the `1−ℙ_ARB` factorization from independence; (b) the `NT_FEE` term is pinned down. (c) derived **both ways**: the exact marginal gap, strictly positive under (A-route) and any nonincreasing `h`, so the complement channel pushes the root **up**; the complement reading is the accounting-consistent one — the unconditional one is not a partition (`ℙ_ARB + h > 1` witness). (d) `E[(|V|−b)⁺] = e^{-αb}/α` proved; **(d) as stated is REFUTED**: the complement-weighted block form is not decreasing (witness), and the conditional form is strictly *increasing*; the object that is decreasing is the per-opportunity payoff.
+
+**M37 (49).** The relaxed hypothesis is named exactly: the fee-sufficiency premise of `MevTaxShock.Theorem47_no_exogenous_hazard_input`. It holds verbatim under full routing and **fails** under (A-route) (witness). With the exogenous input, Theorem 47's no-root conclusion fails: an interior `τ* ∈ (0,1)` with vanishing total derivative and nondegenerate fee path.
+
+**M38 (50).** (a) the profitability condition `sup m > 0` is **refuted as an iff in both directions** (two witnesses) and replaced by exact threshold laws: `m(φ*)<0 ⟺ αφ*>1` under (A-route), threshold `2` under full routing. (b) carrier analogue `αφ* > ℙ_ARB(φ*)` (weaker than `φ* > 1/α`, which is recovered exactly under full routing). (c) the top-up law `τ* = (φ*−φ_base)/(1−φ_base)`, interior iff `φ_base < φ* < 1`. (d) pro-cyclicality: `σ(σ+cφ)Φ_σ = Khσcφ + Lvrσ(2σ+3cφ) > 0`, routing terms cancelling, hence `dτ*/dσ > 0`. (e) corner and shutdown regimes, the latter stated as loss minimization.
+
+**M39 (51), the incidence question.** Both FOCs derived; the exact wedge is `δ[hφ(σ+cφ) + (φ−φ_base)(hσ + h'φ(σ+cφ))]`. The interior root **survives** no-routing. The shift has **no unconditional sign**: full routing dominates when `α(φ−φ_base) < 1`, and the inequality **reverses** at `φ = 9/10` (witness) — derived, not asserted. At `τ = 0` there is no discontinuity within a regime, but a strictly positive gap `δ h(φ_base)φ_base(σ+cφ_base)` **between** the regimes: routing is a discrete change of objective, not a limit of no-routing.
+
+**M40 (52).** `m''(φ*) = (c/(σ+cφ*)²)(−Kαh(φ*)q(φ*))` with `q = 2σ+2cφ−ασφ−αcφ²`; `q>0` gives a strict local maximum. **Single crossing and global concavity fail even under (A-tail)** (witness with sign pattern `+,−,+`), so uniqueness of the stationary point already fails inside the log-concave class. What (A-tail) contributes is the counting: at most two stationary points on `(0,∞)`, hence at most one interior local maximiser. All pointwise sign laws are stated for an arbitrary differentiable hazard.
+
+Stated OPENs (with reasons, in the return): the global maximiser may sit at the excluded endpoint, so the counting bounds local maximisers only; and whether any condition beyond log-concavity bounds stationary points for general `h`. Prior results are cited by declaration name and file and not redone; the only one applied is `MevTaxReturns.Theorem40d_loop_correction_removes_epsilon`. All work is committed and pushed.

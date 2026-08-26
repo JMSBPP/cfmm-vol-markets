@@ -17,7 +17,7 @@ import [MEV](feat/plank::notes/VOLATILITY_INSTRUMENTS.md)
 > `Definition 32 (Event-time plant)` — routed to the entry-point doc's owner.)
 
 **Convention 7 (Event time) [M11].** The iteration index is the **swap event**, not the
-block and not calendar time:
+  block and not calendar time:
 
 \[
 	\begin{aligned}
@@ -164,128 +164,196 @@ block and not calendar time:
 	\end{aligned}
 \]
 
-**Proposition 12 (Kernel differentiation) [M20].** *Under (A1).*
+From $\Theta_{\sigma}$ define the left- and right-hand cardinalities of the volatility ladder:
+
+\[
+\begin{aligned}
+n_{-}
+&=
+\left\lfloor
+\frac{\#_{\sigma}-1}{2}
+\left(1-s_{\sigma}\right)
+\right\rfloor,
+\\[4pt]
+n_{+}
+&=
+\left(\#_{\sigma}-1\right)-n_{-}.
+\end{aligned}
+\]
+
+Define the strike-volatility coordinate
+
+\[
+i_{\sigma_K}
+:=
+i_K(\sigma_K),
+\]
+
+and the fixed support of the volatility claim
+
+\[
+\begin{aligned}
+i_{\sigma}^{-}
+&=
+i_{\sigma_K}-n_{-}\Delta_i,
+\\
+i_{\sigma}^{+}
+&=
+i_{\sigma_K}+n_{+}\Delta_i.
+\end{aligned}
+\]
+
+At event $t$, realized volatility induces the volatility coordinate
+
+\[
+i_{\sigma}(t)
+:=
+i_K\!\left(\sigma(i(t))\right).
+\]
+
+Its displacement from the strike in volatility-grid units is
+
+\[
+k_{\sigma}(t)
+:=
+\left\lfloor
+\frac{
+i_{\sigma}(t)-i_{\sigma_K}
+}{
+\Delta_i
+}
+\right\rfloor.
+\]
+
+Hence the realized volatility node is
+
+\[
+i_K(t)
+=
+i_{\sigma_K}
++
+k_{\sigma}(t)\Delta_i.
+\]
+
+The realized volatility lies inside the instrument support iff
+
+\[
+-n_{-}
+\leq
+k_{\sigma}(t)
+\leq
+n_{+} \iff i_{\sigma}^{-}
+\leq
+i_K (t)
+\leq
+i_{\sigma}^{+}
+\]
+
+Then recall:
 
 \[
 	\begin{aligned}
-		\text{(A1)} \qquad \pi^{\phi} \; \to \; \widehat\pi^{\sigma} \quad \text{only via} \quad L
+		\Delta Q_{\upsilon} \, (\sigma^2 - \sigma^2_K)^+ \, \equiv \pi^{\sigma} \, \equiv \, \sum_{i_K = i_{\sigma}^{-}}^{i_{\sigma}^{+}} L_{(\chi_{X/M} , \epsilon_{(X/M)})} \, (i_K) \, \pi^{\varphi} \, (i_K)
 	\end{aligned}
 \]
+
+Then:
+\[
+	\begin{aligned}
+		\frac{\partial}{\partial t} \, \Big [ \Delta Q_{\upsilon} \, (\sigma^2 - \sigma^2_K)^+\Big] \, \equiv \frac{\partial \pi^{\sigma}}{\partial t} \, \equiv \frac{\partial}{\partial t} \, \Big [ \sum_{i_K = i_{\sigma}^{-}}^{i_{\sigma}^{+}} L_{(\chi_{X/M} , \epsilon_{(X/M)})} \, (i_K) \, \pi^{\varphi} \, (i_K)\Big]
+	\end{aligned}
+\]
+
+> TODO: The belwo mentioned definition is to be modefied to include the derivative terms of LVR and pi^{\phi} and the identity of derivative with respect to time of \pi^{\varphi} is the difference between these two
+
+Using **Definition 16** and expanding:
 
 \[
 	\begin{aligned}
-		\widehat\pi^{\sigma} \; &= \; \sum_{i_K} L (i_K) \, \pi^{l} \, (\sigma \, (i_K; \cdot)) \\[4pt]
-		\frac{\partial \widehat\pi^{\sigma}}{\partial \pi^{\phi}} \; &\overset{\text{(A1)}}{=} \; \sum_{i_K} \, \frac{\partial L (i_K)}{\partial \pi^{\phi}} \, \pi^{l} \, (\sigma \, (i_K; \cdot)) \\[4pt]
-		\frac{\partial \widehat\pi^{\sigma}}{\partial L (i_K)} \; &= \; \pi^{l} \, (\sigma \, (i_K; \cdot))
+		\frac{\partial \Delta Q_{\upsilon}}{\partial t} \, (\sigma^2 \, - \,\sigma^2_K)^+ \, + \, \frac{\partial \, (\sigma^2 \, - \,\sigma^2_K)^+}{\partial t} \, \Delta Q_{\upsilon} \, = \, \Big (\frac{(1-\phi)(1+\phi)}{\phi} \, \frac{\Delta p}{p} - \frac{\sigma^2}{8}\Big) \,  \sum_{i_K} \, L (i_K) + \sum_{i_K}\, \frac{\partial L (i_K)}{\partial t} \, \pi^{\varphi} \, (i_K) 
 	\end{aligned}
 \]
-
-
-**Theorem 31 (The section sum is ill-posed) [M13].**
+ 
+From where using **Convention 8** we have:
 
 \[
 	\begin{aligned}
-		(\phi_M, \phi_X, \tau_{\text{MEV}}) \; &\longmapsto \; \phi
-		\qquad \text{is a submersion } \mathbb{R}^3 \to \mathbb{R} \\[4pt]
-		\Longrightarrow \quad \frac{\partial \phi_M}{\partial \phi}, \; \frac{\partial \phi_X}{\partial \phi} \; &\text{ not simultaneously defined} \\[4pt]
-		\Longrightarrow \quad \frac{\partial \phi_M}{\partial \phi}\,\Delta Q_M \, + \, p_{(\eta,\Delta_i)}\,\frac{\partial \phi_X}{\partial \phi}\,\Delta Q_X \; &\text{ has no section-independent value}
+		\frac{\partial \, (\sigma^2 \, - \,\sigma^2_K)^+}{\partial t} \, = \, \frac{(1-\phi)(1+\phi)}{\phi} \, \frac{\Delta p}{p} - \frac{\sigma^2}{8}
 	\end{aligned}
 \]
 
 
-
-**Hypothesis (H1) [M25].**
+And:
 
 \[
 	\begin{aligned}
-		\frac{\partial \bar L_{(1/2,\,0)}}{\partial \pi^{\phi}} \; > \; 0
+		\frac{\partial \Delta Q_{\upsilon}}{\partial t} \, (\sigma^2 \, - \,\sigma^2_K)^+ \, = \,  \sum_{i_K} \,\Big [ \frac{\partial L (i_K)}{\partial t} \, \pi^{\varphi} \, (i_K) \Big]
 	\end{aligned}
 \]
 
-**Hypothesis (H2) [M18].**
+Deriving **Convention 8** we have:
 
 \[
 	\begin{aligned}
-		\bar{\mathcal{G}}_{(\nu, \lambda_{\text{MEV}})} \; := \; \frac{\partial \nu}{\partial \lambda_{\text{MEV}}} \; > \; 0
+		\bigg (\sum_{i_K} \, \frac{\partial L (i_K)}{\partial t}\bigg) \, (\sigma^2 \, - \,\sigma^2_K)^+ \, = \,  \sum_{i_K} \,\Big [ \frac{\partial L (i_K)}{\partial t} \, \pi^{\varphi} \, (i_K) \Big]
 	\end{aligned}
 \]
 
-**Hypothesis (H3 — ScaleHomogeneous) [M27].**
+
+Note: 
+\[
+	\begin{aligned}
+		\frac{\partial \hat \pi^{\sigma}}{\partial \tau_{\text{MEV}}} \, = \, 0 \, \implies \sum_{i_K} \, \frac{\partial L (i_K)}{\partial \tau_{\text{MEV}}} \, \pi^{\varphi} \, (i_K) \, = - \sum_{i_K} \frac{\partial \pi^{\varphi}}{\partial \tau_{\text{MEV}}} \, L(i_K)
+	\end{aligned}
+\]
+
+
+
+Define the common normalization factor and **normalized payoff returns** as:
+\[ 
+	\begin{aligned}
+	\mathcal N_{\pi}
+	:=
+	\frac{1}{\pi^{\mathrm{linear}}(t_0)}  \, \implies \, \begin{cases} r_t^{\phi}
+:=
+\frac{\pi_t^{\phi}}
+{\pi^{\mathrm{linear}}(t_0)} \\
+r_t^{\mathrm{LVR}}
+:=
+\frac{\pi_t^{\mathrm{LVR}}}
+{\pi^{\mathrm{linear}}(t_0)}
+\end{cases}
+ \implies r_t^{\varphi}
+=
+r_t^\phi-r_t^{\mathrm{LVR}}
+ 
+	\end{aligned}
+\]
+
+Where
 
 \[
 	\begin{aligned}
-		\bar L_{(\chi_{X/M},\,\epsilon_{X/M})} \; \to \; c\,\bar L_{(\chi_{X/M},\,\epsilon_{X/M})}
-		\quad &\Longrightarrow \quad
-		\text{band}(\phi) \;\; \text{invariant}, \qquad \nu(s, \phi, \kappa_{\varphi}) \;\; \text{invariant}
+		r_t^\phi = \phi_t,\delta_{\mathrm{trans},t} \\
+		r_t^{\mathrm{LVR}} = \frac{\sigma_t^2}{8}\Delta t
 	\end{aligned}
 \]
 
-**Definition 36 (Tax program) [M19, M38].**
-*The $(\partial\widehat\pi^{\sigma}/\partial\tau_{\text{MEV}})^2$ reading is superseded — every root minimizes it (`Theorem44_objective_reading_does_not_discriminate`). Objective in returns coordinates (per $\pi^{\varphi}$, DOC Proposition 9); under (A-route), (A-size).*
+for the CPMM specialization.
+
+Thus; normalized control objective becomes:
 
 \[
-	\begin{aligned}
-		\max_{\tau_{\text{MEV}} \in [0,1]}
-		\;\; \bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\,
-		\mathbb{P}_{\Delta_{\text{transactional}}}\,
-		\bigl(\phi_M \otimes_{\phi} \phi_X\bigr)\,\delta_{\text{transactional}}
-		\; - \; \frac{\sigma^2 \Delta t}{8}\,\mathbb{P}_{\Delta_{\text{ARB}}}
-		\qquad \text{s.t.} \quad \pi^{\sigma} \; = \; \widehat\pi^{\sigma}
-	\end{aligned}
+\boxed{
+\max_{\tau_{\mathrm{MEV}}}
+;
+\mathbb E
+\left[
+r_t^\phi-r_t^{\mathrm{LVR}}
+\right].
+}
 \]
 
-**Proposition 13 (Corrected law) [M24].** *All of $\phi_X$, $\partial\phi_X/\partial\nu$, $\partial\nu/\partial\tau_{\text{MEV}}$ evaluated at $\nu(\tau^{\star}_{\text{MEV}})$. Both guard conjuncts of the second display are DISCHARGED by Theorem 42 — $0 < \partial\phi_X/\partial\nu$ iff $\bar\phi < \phi_X$, and $\partial\nu/\partial\tau_{\text{MEV}} < 0$ survives the loop ($\mathcal{F}_{\phi\to\nu\to\phi} > 1$); (H2) is no longer load-bearing here. The law degenerates exactly at $\partial\phi_X/\partial\nu = 0$ (fee at floor), where this block's $\tau^{\star}_{\text{MEV}}$ ceases to exist. The slot is the BARE gate derivative, per `MevTaxProgram.hasDerivAt_phiTot`; the monoid Jacobian is carried separately.*
-
-\[
-	\begin{aligned}
-		\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; = \; 0
-		\quad &\Longleftrightarrow \quad
-		\tau^{\star}_{\text{MEV}} \; = \; 1 \; + \; \frac{1-\phi_X}{\bigl(\partial\phi_X/\partial\nu\bigr)\,\bigl(\partial\nu/\partial\tau_{\text{MEV}}\bigr)}
-		\qquad \Bigl[\bigl(\partial\phi_X/\partial\nu\bigr)\,\bigl(\partial\nu/\partial\tau_{\text{MEV}}\bigr) \neq 0\Bigr]
-	\end{aligned}
-\]
-
-\[
-	\begin{aligned}
-		0 \; < \; \frac{\partial\phi_X}{\partial\nu},
-		\qquad \frac{\partial\nu}{\partial\tau_{\text{MEV}}} \; < \; 0,
-		\qquad \phi_X \; < \; 1
-		\quad &\Longrightarrow \quad
-		\begin{cases}
-			\tau^{\star}_{\text{MEV}} \; < \; 1 \\[4pt]
-			\tau^{\star}_{\text{MEV}} \; > \; 0 \; \Longleftrightarrow \; 1-\phi_X \; < \; \bigl|\bigl(\partial\phi_X/\partial\nu\bigr)\,\bigl(\partial\nu/\partial\tau_{\text{MEV}}\bigr)\bigr|
-		\end{cases}
-	\end{aligned}
-\]
-
-**Theorem 32 (LVR cancellation) [M25].** *Under (A1) and DOC Proposition 9.*
-
-\[
-	\begin{aligned}
-		\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}}
-		\; &= \; K \cdot \Bigl[\,(1-\phi_M)(1-\phi_X) \; + \; \frac{\partial \phi}{\partial \nu}\,\frac{\partial \nu}{\partial \tau_{\text{MEV}}}\,\Bigr] \\[8pt]
-		K \; &= \; \Bigl[\sum_{i_K} \frac{\partial L(i_K)}{\partial \pi^{\phi}}\,\pi^{l}(\sigma(i_K;\cdot))\Bigr]
-		\cdot \Bigl[\pi^{\mathrm{LVR}}\Bigl(-\frac{\partial \mathbb{P}_{\Delta_{\text{ARB}}}}{\partial \phi}\Bigr)\Bigr] \\[8pt]
-		K \; &> \; 0
-		\qquad \bigl[(H1),\; \pi^{l} > 0,\; \pi^{\mathrm{LVR}} > 0,\; \sigma > 0\bigr]
-	\end{aligned}
-\]
-
-**Definition 37 (Transactional payoff and valuation shock) [M36].**
-*Under (A-ind): $\Delta\pi^{\text{transactional}}/\pi^{\text{transactional}}$ independent of $\Delta p/p$.*
-
-\[
-	\begin{aligned}
-		\pi^{\text{transactional}} \; &: \; \text{benign-trader payoff} \\[6pt]
-		\mathbb{P}_{\Delta_{\text{transactional}}}(\phi) \; &\equiv \;
-		\mathbb{P}\Bigl(\Bigl|\tfrac{\Delta \pi^{\text{transactional}}}{\pi^{\text{transactional}}}\Bigr| \, > \, \phi\Bigr)
-		\; = \; e^{-\alpha_{\text{transactional}}\phi} \quad \text{under (A-tail)} \\[8pt]
-		1 \; &= \; \underbrace{\mathbb{P}_{\Delta_{\text{ARB}}}}_{\text{arb}}
-		\; + \; \underbrace{\bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\,\mathbb{P}_{\Delta_{\text{transactional}}}}_{\text{transactional}}
-		\; + \; \underbrace{\bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\bigl(1-\mathbb{P}_{\Delta_{\text{transactional}}}\bigr)}_{\text{idle}} \\[8pt]
-		\mathbb{E}\Bigl[\Bigl(\Bigl|\tfrac{\Delta \pi^{\text{transactional}}}{\pi^{\text{transactional}}}\Bigr| - b\Bigr)^{+}\Bigr] \; &= \; \frac{e^{-\alpha_{\text{transactional}} b}}{\alpha_{\text{transactional}}}
-	\end{aligned}
-\]
 
 **Rule 14 (Standing assumptions of the transactional channel) [M36].**
 
@@ -306,22 +374,22 @@ block and not calendar time:
 \]
 
 **Theorem 36 (Shock-driven utilization) [M33].**
-*Under (H3) and Convention 11. Participation iff $(1+\Delta p/p)(1-\phi) > 1$.*
+*Under Convention 11. Participation iff $(1+\Delta p/p)(1-\phi) > 1$.*
 
 \[
 	\begin{aligned}
-		\nu \; &= \; \Bigl|\,
+		\frac{\partial \nu}{\partial t} \; &= \; \Bigl|\,
 		\bigl((1+\tfrac{\Delta p}{p})(1-\phi)\bigr)^{\frac{1-\kappa_{\varphi}}{4\kappa_{\varphi}}}
 		\, - \,
 		\bigl((1+\tfrac{\Delta p}{p})(1-\phi)\bigr)^{-\frac{1-\kappa_{\varphi}}{4\kappa_{\varphi}}}
 		\,\Bigr| \\[8pt]
 		\frac{1-\kappa_{\varphi}}{4\kappa_{\varphi}} \; &= \; \frac{1}{2\,\bigl|\epsilon_{p/X}\bigr|} \\[8pt]
-		\Delta Q \; &= \; \bar L_{(\chi_{X/M},\,\epsilon_{X/M})} \, \nu
 	\end{aligned}
 \]
 
+
 **Theorem 37 (One driver, no root) [M35].**
-*Price-shock-only model — before Definition 37. Under Convention 11 and Theorem 36.*
+*Price-shock-only model — before Definition 36. Under Convention 11 and Theorem 36.*
 
 \[
 	\begin{aligned}
@@ -332,25 +400,82 @@ block and not calendar time:
 		\mathcal{F}_{\phi \to \nu \to \phi} \; &\equiv \; 1 \, - \, \frac{\partial \nu}{\partial \phi}\,(1-\phi_M)(1-\tau_{\text{MEV}})\,\frac{\partial \phi_X}{\partial \nu} \\[8pt]
 		\Bigl[(1-\phi_M)(1-\phi_X) \, + \, \frac{\partial\phi}{\partial\nu}\,\frac{\partial\nu}{\partial\tau_{\text{MEV}}}\Bigr]
 		\cdot\mathcal{F}_{\phi \to \nu \to \phi} \; &= \; (1-\phi_M)(1-\phi_X) \\[8pt]
-		\forall\, \tau_{\text{MEV}} \in [0,1] \, : \;\; \frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; > \; 0
-		\qquad &\Longrightarrow \qquad
-		\neg\,\exists\, \tau_{\text{MEV}} \in [0,1] \, : \;\; \frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; = \; 0
 	\end{aligned}
 \]
 
-**Theorem 38 (The transactional channel restores the root) [M37].**
-*Under Definitions 36–37 and Rule 14. Relaxes exactly one premise of Theorem 37 — the fee-sufficiency hypothesis (`Theorem47_no_exogenous_hazard_input`), which holds under full routing and fails under (A-route). Theorem 37 stands on its own domain.*
+
+Define the replication residual*
+
+\[
+e^{\sigma}(\tau_{\mathrm{MEV}})
+\, \equiv\, \widehat{\pi}^{\sigma}(\tau_{\mathrm{MEV}})
+-
+\pi^{\sigma},
+\]
+
+*where the contractual volatility payoff \(\pi^\sigma\) is invariant to the MEV tax.* Hence, on the admissible domain,
+
+\[
+
+\forall,
+\tau_{\mathrm{MEV}}\in[0,1]:
+\qquad
+\frac{\partial e^\sigma}
+{\partial\tau_{\mathrm{MEV}}}
+
+> 0
+\]
+
+Therefore \(e^\sigma\) is strictly increasing in \(\tau_{\mathrm{MEV}}\), and consequently
+
+\[
+	|
+		\tau_{\mathrm{MEV}}\in[0,1]
+	:
+	e^\sigma(\tau_{\mathrm{MEV}})=0
+	|
+	\leq 1.
+    
+\]
+
+In particular, the price-shock-only plant admits **at most one exact replication tax**.
+
+
+
+**Definition 36 (Transactional payoff and valuation shock) [M36].**
+*Under (A-ind): $\Delta\pi^{\text{transactional}}/\pi^{\text{transactional}}$ independent of $\Delta p/p$.*
 
 \[
 	\begin{aligned}
-		\neg\,\forall\, \tau_{\text{MEV}} \in [0,1] \, &: \;\;
-		\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}} \; > \; 0 \\[8pt]
-		\exists\, \tau^{\star}_{\text{MEV}} \in (0,1) \, &: \;\;
-		\frac{\partial \widehat\pi^{\sigma}}{\partial \tau_{\text{MEV}}}\bigg|_{\tau^{\star}_{\text{MEV}}} \; = \; 0,
-		\qquad
-		\frac{\partial \phi}{\partial \tau_{\text{MEV}}}\bigg|_{\tau^{\star}_{\text{MEV}}} \; \neq \; 0
+		\pi^{\text{transactional}} \; &: \; \text{benign-trader payoff} \\[6pt]
+		\mathbb{P}_{\Delta_{\text{transactional}}}(\phi) \; &\equiv \;
+		\mathbb{P}\Bigl(\Bigl|\tfrac{\Delta \pi^{\text{transactional}}}{\pi^{\text{transactional}}}\Bigr| \, > \, \phi\Bigr)
+		\; = \; e^{-\alpha_{\text{transactional}}\phi} \quad \text{under (A-tail)} \\[8pt]
+		1 \; &= \; \underbrace{\mathbb{P}_{\Delta_{\text{ARB}}}}_{\text{arb}}
+		\; + \; \underbrace{\bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\,\mathbb{P}_{\Delta_{\text{transactional}}}}_{\text{transactional}}
+		\; + \; \underbrace{\bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\bigl(1-\mathbb{P}_{\Delta_{\text{transactional}}}\bigr)}_{\text{idle}} \\[8pt]
+		\mathbb{E}\Bigl[\Bigl(\Bigl|\tfrac{\Delta \pi^{\text{transactional}}}{\pi^{\text{transactional}}}\Bigr| - b\Bigr)^{+}\Bigr] \; &= \; \frac{e^{-\alpha_{\text{transactional}} b}}{\alpha_{\text{transactional}}}
 	\end{aligned}
 \]
+
+**Definition 37 (Tax program) [M19, M38].**
+Objective in returns coordinates (per $\pi^{\varphi}$, DOC Proposition 9); under (A-route), (A-size).*
+
+\[
+	\begin{aligned}
+		\max_{\tau_{\text{MEV}} \in [0,1]}
+		\;\; \bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}} (\phi)\bigr)\,
+		\mathbb{P}_{\Delta_{\text{transactional}}}\,
+	    (\phi_M \, \otimes_{\phi} \phi_X) \,\delta_{\text{trans}}
+		\; - \; \frac{\sigma^2 \Delta t}{8}\,\mathbb{P}_{\Delta_{\text{ARB}}} (\phi) \\
+		\qquad \text{s.t.} \\
+		e^{\sigma} (\tau_{\text{MEV}}) = 0\\
+	     \\
+		\text{Definition 36}
+	\end{aligned}
+\]
+
+
 
 **Theorem 39 (Top-up law and pro-cyclicality) [M38].**
 *Under Definitions 36–37, Rule 14, (A-tail). The shutdown regime — objective negative at every fee — is loss-minimization, not optimization.*
@@ -358,10 +483,10 @@ block and not calendar time:
 \[
 	\begin{aligned}
 		\phi^{\star} \; &\equiv \; \arg\max_{\phi\,\in\,[0,1)}
-		\Bigl[\,\bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}}\bigr)\,
+		\Bigl[\,\bigl(1-\mathbb{P}_{\Delta_{\text{ARB}}} (\phi)\big)\,
 		\mathbb{P}_{\Delta_{\text{transactional}}}\,
 		\bigl(\phi_M \otimes_{\phi} \phi_X\bigr)\,\delta_{\text{transactional}}
-		\; - \; \tfrac{\sigma^2\Delta t}{8}\,\mathbb{P}_{\Delta_{\text{ARB}}}\,\Bigr] \\[8pt]
+		\; - \; \tfrac{\sigma^2\Delta t}{8}\,\mathbb{P}_{\Delta_{\text{ARB}}} (\phi)\,\Bigr] \\[8pt]
 		\tau^{\star}_{\text{MEV}} \; &= \;
 		\frac{\phi^{\star} \, - \, \phi_M \otimes_{\phi} \phi_X}{1 \, - \, \phi_M \otimes_{\phi} \phi_X},
 		\qquad
@@ -422,7 +547,7 @@ block and not calendar time:
 	\end{aligned}
 \]
 
-**Theorem 42 (Explicit gate derivative — Proposition 13's guard discharged) [M42].**
+**Theorem 42 (Explicit gate derivative) [M42].**
 *Under Rule 13 and `DOC` Definition 18; `u` is `DOC` Theorem 1's gate value — distinct from Definition 32's `u_ex`, `u_en`. Slots per Convention 9 as marked. Lean: `MevTaxGate.Theorem54a_gate_derivative_closed_form` … `Theorem54d_bound_attained`.*
 
 \[
@@ -436,45 +561,4 @@ block and not calendar time:
 	\end{aligned}
 \]
 
-**Theorem 43 (Equating the corrected law and the top-up law) [M41].**
-*Under Convention 12. $\tau^{\star}_{\text{corrected}}$ ≡ Proposition 13's $\tau^{\star}_{\text{MEV}}$, $\tau^{\star}_{\text{top-up}}$ ≡ Theorem 39's — subscripts from the blocks' own titles, this block only. The controller objective is Definition 36's, so $\tau^{\star}_{\text{top-up}}$ is operative; equality below is a diagnostic locus, not a design point. Lean: `MevTaxEquating.Theorem53a_algebraic_reduction`, `Theorem53a_is_bracket_zero_restated`, `Theorem53a_bare_slot_is_not_the_bracket`, `Theorem53b_locus_is_codimension_one`, `Theorem53b_point_on_the_locus`, `Theorem53b_point_off_the_locus`, `Theorem53b_no_tau_star_law_under_the_loop`, `Theorem53c_conditional_pinning`, `Theorem53c_pinning_is_vacuous_under_the_loop`.*
 
-\[
-	\begin{aligned}
-		\tau^{\star}_{\text{corrected}} \; = \; \tau^{\star}_{\text{top-up}}
-		\quad &\Longleftrightarrow \quad
-		\frac{\partial\phi_X}{\partial\nu}\,\frac{\partial\nu}{\partial\tau_{\text{MEV}}}\bigg|_{\tau^{\star}}
-		\; = \; -\,\frac{1-\phi_X}{1-\tau^{\star}_{\text{MEV}}}
-		\; = \; -\,\frac{(1-\phi_M)(1-\phi_X)^2}{1-\phi^{\star}} \\[8pt]
-		\text{bracket-zero restatement: \textbf{composed slot only}}
-		\qquad &\text{bare} \; - \; \text{bracket} \; = \; \bigl(1-(1-\phi_M)(1-\tau_{\text{MEV}})\bigr)\,\frac{\partial\phi_X}{\partial\nu}\,\frac{\partial\nu}{\partial\tau_{\text{MEV}}} \\[8pt]
-		\text{(Convention 12)}\quad \forall\,\text{parameter point}\;\; \exists!\;\frac{\partial\nu}{\partial\tau_{\text{MEV}}}\;\text{on the locus:}
-		\quad &\frac{\partial\nu}{\partial\tau_{\text{MEV}}} \; = \; -\,\frac{1-\phi_X}{(1-\tau_{\text{MEV}})\,\bigl(\partial\phi_X/\partial\nu\bigr)}
-		\qquad \text{(codimension one)} \\[8pt]
-		\exists\,\text{witness on locus}\;\bigl(\phi_M,\phi_X,\phi^{\star}\bigr)=\bigl(0,\tfrac14,\tfrac12\bigr):\;\text{both laws}=\tfrac13;
-		\qquad &\exists\,\text{witness off locus: } \tau^{\star}_{\text{corrected}}=\tfrac14\neq\tfrac13=\tau^{\star}_{\text{top-up}}
-		\qquad \bigl[q=\tfrac54>0\bigr] \\[8pt]
-		\nu = \nu_{\Delta_{\text{ARB}}}\;\text{alone (arb-only reading — refuted fork half):}
-		\quad &\text{FOC core} \; = \; \frac{1-\phi_X}{\mathcal{F}_{\phi\to\nu\to\phi}} \; > \; 0 \;\;\forall\,\tau_{\text{MEV}}
-		\;\Longrightarrow\; \neg\,\exists\,\tau^{\star}_{\text{corrected}} \\[8pt]
-		\text{on the locus (Theorem 42):}
-		\quad &\frac{\partial\nu}{\partial\tau_{\text{MEV}}} \; = \; -\,\frac{1-\phi_X}{(1-\tau_{\text{MEV}})\,\gamma_R\,(\phi_X-\bar\phi)\,(1-u/\alpha_R)}
-		\qquad \text{(all protocol-known or observable)}
-	\end{aligned}
-\]
-
-**Theorem 44 (Computability of φ* — the on-chain artifact) [M43].**
-*Under Definitions 36–37, Rule 14, (A-tail), (A-route), (A-input). This block only: $W$ the Lambert function; $\partial_{\phi}^{\text{red}}(\text{Def. 36})$ the reduced first-order condition (positive factors of $\partial_{\phi}(\text{Def. 36})$ divided out; Lean `focTail`); $T$ the iteration map; $[a,b] \subset [0,1)$ the bracket; $m_T, M_T$ the slope bounds; $q_{lo}$ the endpoint lower bound of Theorem 41's quadratic. The Lean symbols `Φ`, `K`, `c`, `Lvr`, `m`, `M` are NOT imported ($\Phi$ = Rule 13's schedule, $K$ = Theorem 32's scalar) — written inline. OPEN: (i) impossibility of an elementary/Lambert closed form for $\sqrt{2/\Delta t} \neq 0$ — differential-Galois, machinery unavailable; (ii) the σ-monotonicity side condition $\alpha_{\text{transactional}}\,\phi \leq 1$ — pointwise hypothesis, standing-vs-local ruling pending. Lean: `MevTaxCompute.Theorem55a_foc_is_exponential_times_quadratic`, `Theorem55a_lambert_reduction_at_c_zero`, `Theorem55b_geometric_convergence`, `Theorem55b_focTail_iteration`, `Theorem55b_explicit_ratio`, `Theorem55b_iteration_witness`, `Theorem55c_focTail_mono_sigma`, `Theorem55c_iterate_mono_in_sigma`, `Theorem55c_root_mono_in_sigma`, `Theorem55d_shutdown_predicate`, `Theorem55d_corner_at_zero_predicate`, `Theorem55d_interior_predicate`.*
-
-\[
-	\begin{aligned}
-		\partial_{\phi}(\text{Def. 36}) = 0 \quad &\Longleftrightarrow \quad e^{-\alpha_{\text{transactional}}\phi}\bigl(\alpha_{\text{transactional}}\sqrt{2/\Delta t}\,\phi^2 + \alpha_{\text{transactional}}\,\sigma\phi - \sigma\bigr) \; = \; \frac{(\sigma^2\Delta t/8)\,\sigma}{(\phi_M\otimes_{\phi}\phi_X)\,\delta_{\text{transactional}}} \qquad \text{(exponential × quadratic)} \\[8pt]
-		\sqrt{2/\Delta t} = 0 \text{ (formal degenerate case):} \quad &\phi^{\star} \; = \; \frac{1 - W\!\Bigl(-e\,\tfrac{\sigma^2\Delta t/8}{(\phi_M\otimes_{\phi}\phi_X)\,\delta_{\text{transactional}}}\Bigr)}{\alpha_{\text{transactional}}}; \qquad \sqrt{2/\Delta t} > 0:\;\text{no Lambert form exhibited — OPEN(i)} \\[8pt]
-		T(x) \; = \; x + \frac{\partial_{\phi}^{\text{red}}(\text{Def. 36})(x)}{M_T}, \qquad &\bigl|T^{[n]}x_0 - \phi^{\star}\bigr| \; \leq \; \Bigl(1-\frac{m_T}{M_T}\Bigr)^{n}(b-a) \qquad \forall\, x_0 \in [a,b], \;\; \exists!\,\phi^{\star}\in[a,b] \\[8pt]
-		m_T \; = \; (\phi_M\otimes_{\phi}\phi_X)\,\delta_{\text{transactional}}\,\alpha_{\text{transactional}}\,e^{-\alpha_{\text{transactional}}b}\,q_{lo}, \qquad &M_T \; = \; (\phi_M\otimes_{\phi}\phi_X)\,\delta_{\text{transactional}}\,\alpha_{\text{transactional}}\,e^{-\alpha_{\text{transactional}}a}\bigl(2\sigma+2\sqrt{2/\Delta t}\,b\bigr) \\[8pt]
-		1-\frac{m_T}{M_T} \; = \; 1 - e^{-\alpha_{\text{transactional}}(b-a)}\,\frac{q_{lo}}{2\sigma+2\sqrt{2/\Delta t}\,b} \qquad &\text{— independent of } (\phi_M\otimes_{\phi}\phi_X)\,\delta_{\text{transactional}}; \quad \exists\,\text{witness } [a,b]=[\tfrac14,\tfrac34]:\; \leq \tfrac{10}{13} \\[8pt]
-		\alpha_{\text{transactional}}\,\phi \leq 1 \;\Longrightarrow\; \sigma_1 \leq \sigma_2 \;\Rightarrow\; &T^{[n]}_{\sigma_1}x_0 \leq T^{[n]}_{\sigma_2}x_0 \;\;\forall n, \qquad \phi^{\star}(\sigma_1) \leq \phi^{\star}(\sigma_2) \qquad \text{(orbit-level pro-cyclicality, Theorem 39)} \\[8pt]
-		\text{shutdown:}\;\; (\phi_M\otimes_{\phi}\phi_X)\,\delta_{\text{transactional}}\sqrt{2/\Delta t} \leq \tfrac{\sigma^2\Delta t}{8}\,\sigma \;&\Rightarrow\; \text{Def. 36} < 0 \;\;\forall\phi; \qquad \partial_{\phi}^{\text{red}}(\text{Def. 36})\bigl(\phi_M\otimes_{\phi}\phi_X\bigr) \leq 0 \;\Rightarrow\; \tau^{\star}_{\text{MEV}} = 0 \\[8pt]
-		\partial_{\phi}^{\text{red}}(\text{Def. 36})\bigl(\phi_M\otimes_{\phi}\phi_X\bigr) > 0 > \partial_{\phi}^{\text{red}}(\text{Def. 36})(b) \;&\Longrightarrow\; \exists!\,\phi^{\star}\in\bigl(\phi_M\otimes_{\phi}\phi_X,\,b\bigr), \qquad \tau^{\star}_{\text{MEV}} \in (0,1) \;\text{via Theorem 39}
-	\end{aligned}
-\]
