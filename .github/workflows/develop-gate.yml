@@ -33,6 +33,10 @@ jobs:
       # panoptic-v2-core -> infinite recursion). Init panoptic one level, block panoptic-helper, then
       # full recursive init; forge test --offline then finds everything present (no re-init hang).
       - run: |
+          # Persistent self-hosted runner caches submodule URLs in .git/config; `update --init`
+          # reads that, NOT .gitmodules. Sync first so a repointed URL (e.g. plank-foundry-deployer
+          # JMSBPP->plankevm) is honored instead of 404-ing on the stale cached URL.
+          git submodule sync --recursive
           git submodule update --init lib/panoptic-v2-core
           git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
           git submodule update --init --recursive -- lib/
@@ -72,6 +76,8 @@ jobs:
         with:
           submodules: false
           persist-credentials: false
+      # sync first: honor repointed submodule URLs on the reused runner (see forge job note)
+      - run: git submodule sync --recursive
       - run: git submodule update --init lib/plankified-univ3
       # compile-plank needs --dep std=lib/plank-monorepo/std/ AND a compiler matching the pin.
       # Init plank-monorepo (the narrow plankified-univ3 init above does not) and rebuild the
