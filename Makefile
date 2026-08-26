@@ -237,9 +237,15 @@ PLANK         ?= plank
 # import fails with "unknown module". `pos_spec` stays declared separately
 # because 16 imports still reference it bare (`pos_spec::X`) rather than via
 # `types::pos_spec::X`.
-PLANK_DEP := --dep v3=lib/plankified-univ3/plank/lib/ --dep std=lib/plank-monorepo/std/ --dep pos_spec=src/types/pos_spec \
+PLANK_DEP := --dep v3=lib/plankified-univ3/plank/lib/ --dep std=lib/plank-monorepo/std/ \
+             --dep cfmm_types=lib/cfmm-types/src/ \
+             --dep pos_spec=src/types/pos_spec \
              --dep lib=src/lib --dep types=src/types --dep interfaces=src/interfaces \
              --dep helpers=test/protocol_integrations/helpers
+# ^ `cfmm_types`: external shared vol-market types, wired like `std`/`v3` from a lib/ submodule
+# (JMSBPP/cfmm-types, https://github.com/JMSBPP/cfmm-types.git). `import cfmm_types::X` resolves to
+# lib/cfmm-types/src/X.plk. The submodule is presently the empty scaffold (no .plk yet); the dep is
+# in place so shared types added to cfmm-types/src/ resolve here without further wiring.
 # ^ `helpers`: test-only Plank helper libs (PriceUpdateLogWithSwap) that a src module's
 #   TEST-oriented entrypoint (PriceSetterHook.write_price) imports. Kept in sync with
 #   test/PlankTestBase.sol:plankOpts().
