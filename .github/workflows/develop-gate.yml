@@ -35,7 +35,7 @@ jobs:
       - run: |
           git submodule update --init lib/panoptic-v2-core
           git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
-          git submodule update --init --recursive
+          git submodule update --init --recursive -- lib/
       # A plank-monorepo pin bump changes the compiler AND std, but the runner's persistent
       # ~/.plank/bin/plank does NOT auto-track the pin. Rebuild it from the pinned submodule so
       # compiler+std match; otherwise a bump fails every plank build (measured: 8 ok / 31 failed).
@@ -61,25 +61,6 @@ jobs:
           --skip "*PriceSetterHook*" "*VolRangeWidth*" "*SpreadTickAssimetryHelper*"
           "*PanopticVegaLens.t.sol*"
 
-  gams:
-    # DISABLED (issue #16): stale monorepo copy, NOT runner rot — reproduced locally:
-    # model/LiquidityKernel.gms `$include PricingKernel.gms` but the file moved to
-    # model/pricing_geometry/ (GAMS-repo-split reorg; model/ is canonical in cfmm-gams).
-    # 4 ok / 6 failed on rc=2 include errors. The CI workstream decides whether the
-    # monorepo copy is re-pinned here or the job moves to cfmm-gams. Gate accepts 'skipped'.
-    if: false
-    needs: [approve]
-    runs-on: [self-hosted, cfmm-build]
-    timeout-minutes: 10
-    env:
-      GIT_TERMINAL_PROMPT: "0"
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: false
-          persist-credentials: false
-      - run: make compile-gams
-
   plank:
     needs: [approve]
     runs-on: [self-hosted, cfmm-build]
@@ -99,24 +80,8 @@ jobs:
       - run: make plank-toolchain
       - run: make compile-plank
 
-  gamsdiff:
-    # DISABLED (issue #16): runner-env rot — GamsException on a doubled-suffix path
-    # (model/PricingKernel.gms.gms) + rc=2; and model/ now lives canonically in the
-    # cfmm-gams repo, so the CI workstream decides whether this job is fixed here or
-    # moves there. The gate summary accepts 'skipped'.
-    if: false
-    needs: [approve]
-    runs-on: [self-hosted, cfmm-build]
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: false
-          persist-credentials: false
-      - run: cd tools/gamsdiff && uv sync --frozen && uv run pytest
-
   gate:                          # the SOLE required check. Do NOT add `name:` (would change the context string)
-    needs: [approve, forge, gams, plank, gamsdiff]
+    needs: [approve, forge, plank]
     if: always()
     runs-on: ubuntu-latest       # hosted: only reads results, needs no toolchain
     timeout-minutes: 5
@@ -131,14 +96,13 @@ jobs:
           #
           # 'success' is the only acceptable value: approve carries no `if:`, so on a PR it always
           # runs, and it has no `needs` that could skip it. That also makes this the COMPLETE fix
-          # -- the only other way a job below reaches 'skipped' is its own `if:` (deliberate, see
-          # gams/gamsdiff), because approve is the single dependency every one of them declares.
+          # -- the only other way a job below reaches 'skipped' is its own `if:` (none currently
+          # set), because approve is the single dependency every one of them declares.
           case '${{ needs.approve.result }}' in
             success) ;;
             *) echo "::error::approve was '${{ needs.approve.result }}' -- the environment review did not pass, so every gate job was skipped and NOTHING ran"; exit 1;;
           esac
-          # 'skipped' stays acceptable here on purpose: gams and gamsdiff are `if: false` (issue #16).
-          for x in '${{ needs.forge.result }}' '${{ needs.gams.result }}' '${{ needs.plank.result }}' '${{ needs.gamsdiff.result }}'; do
+          for x in '${{ needs.forge.result }}' '${{ needs.plank.result }}'; do
             case "$x" in success|skipped) ;; *) echo "::error::a gate job result was '$x'"; exit 1;; esac
           done
           echo "all gate jobs green"
