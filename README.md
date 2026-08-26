@@ -1,57 +1,60 @@
-# Sample Hardhat 3 Project (`node:test` and `viem`)
+# cfmm-vol-markets
 
-This project showcases a Hardhat 3 project using the native Node.js test runner (`node:test`) and the `viem` library for Ethereum interactions.
+The **on-chain protocol core** for typed volatility markets — the Plank/Solidity
+contracts, their Foundry test surface, and the type kernel that binds them. Renamed
+from `cfmm-replicationPlank`.
 
-To learn more about Hardhat 3, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3](https://hardhat.org/hardhat3-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+## Repository split
 
-## Project Overview
+This repo is one member of a multi-repo ecosystem. The **`d2p-finance`** GitHub org owns
+the canonical/upstream repos; the **`JMSBPP/*`** repos are the develop forks.
 
-This example project includes:
+| Concern | Repo | Mounted here as |
+|---|---|---|
+| On-chain protocol core (this repo) | `d2p-finance/cfmm-vol-markets` | — |
+| Lean/math + protocol spec | `d2p-finance/cfmm-vol-markets-spec` | `spec/` (submodule) |
+| Off-chain RPC / rig | `d2p-finance/gams-evm-transport` | `offchain/` (submodule) |
+| Research shelf (extracted paper text + manifest + topic cards — **not** PDFs) | `d2p-finance/cfmm-refs` | `refs/` (submodule) |
+| GAMS numerical model | `d2p-finance/cfmm-numopt` | — |
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using [`node:test`](nodejs.org/api/test.html), the new Node.js native test runner, and [`viem`](https://viem.sh/).
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+## Contributing / workflow
 
-## Usage
+**All changes are made on the `JMSBPP/*` forks and reach the `d2p-finance/*` canonical
+repos ONLY through pull requests (fork → upstream).** Never commit or push directly to a
+`d2p-finance` canonical repo — push to the `JMSBPP` fork and open a PR to canonical.
 
-### Running Tests
+`develop` on the fork is branch-protected: the sole required check is the `develop-gate`
+(`.github/workflows/develop-gate.yml`), which runs a human environment approval, then the
+Foundry (`forge`) and Plank (`plank`) build/test jobs on a self-hosted runner.
 
-To run all the tests in the project, execute the following command:
+## Layout
 
-```shell
-npx hardhat test
+```
+src/              Plank (custom EVM language) + Solidity protocol sources (*.plk, *.sol)
+test/             Foundry unit/integration tests (*.t.sol)
+foundry-scripts/  Foundry scripts (forge script)
+lib/              git-submodule dependencies (forge-std, panoptic-v2-core, bunni-v2,
+                  plankified-univ3, plank-monorepo, v3-core, plank-foundry-deployer, …)
+spec/ offchain/ refs/   canonical-repo submodules (see the split table above)
+notes/            binding spec docs (DATA_CONTRACT.md, UNITS_AND_SCALES.md)
+.planning/        GSD planning tree
 ```
 
-You can also selectively run the Solidity or `node:test` tests:
+## Build & test
 
-```shell
-npx hardhat test solidity
-npx hardhat test nodejs
+The build is **Foundry + the Plank toolchain** (there is no Hardhat step).
+
+```bash
+git submodule update --init --recursive -- lib/   # protocol deps
+npm ci --ignore-scripts                            # @cryptoalgebra Solidity sources (forge dep)
+make plank-toolchain                               # build/install the Plank compiler from the pinned submodule
+make compile-plank                                 # compile every Plank entrypoint to EVM bytecode
+forge test --via-ir --offline                      # run the Foundry suite
 ```
 
-### Make a deployment to Sepolia
+The `refs/`, `offchain/`, and `spec/` submodules are not initialized by the build or CI —
+init them explicitly (`git submodule update --init <path>`) only when you need their content.
 
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
+## License
 
-To run the deployment to a local chain:
-
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
-```
-
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
-
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
-
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
-
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
-```
-
-After setting the variable, you can run the deployment with the Sepolia network:
-
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
-```
+See `LICENSE`.
