@@ -12,7 +12,7 @@ Requirements for this milestone. Each maps to a roadmap phase.
 - [ ] **RED-01**: `test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol` exists and compiles under `--via-ir`, alongside the existing structural suite and harness
 - [ ] **RED-02**: The file carries the inherited `.diff.t.sol` doctrine header, oriented as **neither side sacrosanct** — a divergence is a finding about either implementation, adjudicated case by case, and neither the spec nor the Plank map may be bent merely to restore green
 - [ ] **RED-03**: The test observes the established differential discipline — corpora **constructed** with `bound` rather than filtered with `vm.assume`, every fuzz backed by a non-fuzz anchor case, and non-vacuity asserted rather than assumed
-- [ ] **RED-04**: `SpecHelper` exposes `readTokenId(…)` as a stub that reverts when called, **plus a wiring probe** the test queries first
+- [ ] **RED-04**: The spec seam exists as a stub shaped to the interface `evm-spec-bridge` will generate — `library SpecOracle` with `volOrderToTokenId(bytes,uint64)` **reverting** (`SpecOracleNotWired`, fail-safe: a struct-returning stub would let a caller silently "agree" on a fabricated `tokenId == 0`) and `health()` returning the full tagged envelope as the **single wiring predicate** the test queries first, observed across a real external call boundary
 - [ ] **RED-05**: The fuzz body is written against the real assertion (`assertEq(specTokenId, implTokenId)`) and guarded by `vm.skip` on the wiring probe, so the branch pushes clean through `develop-gate` with **no skip-ledger edit**
 - [ ] **RED-06**: The organization — file layout, naming, and the Solidity↔spec transport boundary — is documented so later phases extend it rather than redesign it
 
