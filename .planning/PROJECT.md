@@ -97,8 +97,8 @@ If the executable spec and the on-chain implementation can silently disagree, th
 
 ## Constraints
 
-- **Workflow**: Every unit of work (feature, refactor, fix) starts with a git worktree named after its
-  `feat/…` branch and a tracking issue on `develop` — general rule, not a per-task choice.
+- **Workflow**: Phases start **inline, in the current tree** — no per-phase git worktree. (Superseded
+  the earlier worktree-per-unit rule after Phase 1.1.) A tracking issue on `develop` still applies.
 - **Validation**: CI is the gate *and the only build environment*. There is no internal/local
   compilation step — dependencies and submodules are deliberately left uninitialized locally; the CI
   syncs and manages them, and the compiler's answer is read from whether `develop-gate` passed. This

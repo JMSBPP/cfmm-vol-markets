@@ -21,8 +21,9 @@ decision; it is not a formality to be short-circuited.
 
 - **Phase directory layout:** `.planning/phases/FEATURES/feat-<slug>/` containing
   `<NN>-<NN>-PLAN.md` / `<NN>-<NN>-SUMMARY.md`. Phases are FEATURES. (Requirement PROC-01.)
-- **Worktree + issue per phase:** every phase starts with a git worktree named after its `feat/…`
-  branch and a tracking issue on `develop`. No phase begins without both.
+- **Phases start INLINE:** work happens in the current tree. Do NOT create a per-phase git
+  worktree — that rule was retired after Phase 1.1, where a worktree turned out to be the only
+  place a needed file existed. A tracking issue on `develop` still applies.
 - **CI is the validation gate — and the only build environment:** there is no internal/local
   compilation step. Dependencies and submodules are deliberately left *uninitialized* locally; the CI
   is what syncs, updates and manages them, and the compiler's answer is always read from whether
