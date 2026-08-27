@@ -115,7 +115,6 @@ None yet.
 - Every phase = one git worktree named after its `feat/…` branch + a tracking issue on `develop`.
 - CI (`develop-gate`) is the sole validation gate. Never report work as verified from a local build or local `forge test`.
 - Regression floor: `test/protocol_integrations/VolOrderToPanopticTokenId.t.sol` stays green in every gate run.
-- Every plan passes the two-step review (Reality Checker + one matched specialist, in parallel) before execution.
 
 ## Session Continuity
 

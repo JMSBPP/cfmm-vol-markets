@@ -36,8 +36,6 @@ decision; it is not a formality to be short-circuited.
   that a test tightly coupled to the old `VolOrder` shape is eliminated or rewritten. Coverage lost
   that way is replaced, never merely dropped, and no test is removed or `--skip`-ed to turn a red
   gate green.
-- **Review:** every plan passes the two-step review (Reality Checker + one matched specialist, in
-  parallel) before execution.
 
 ## Phases
 
@@ -46,6 +44,7 @@ decision; it is not a formality to be short-circuited.
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [ ] **Phase 1: RED Differential Scaffold** - The first clean push: a compiling, skip-guarded `.diff.t.sol` with its doctrine and transport boundary
+- [ ] **Phase 1.1: Foundry Toolchain Pin** (INSERTED) - pin an explicit forge version in the gate and stamp it into every run's evidence
 - [ ] **Phase 2: VolOrder(T) Minimal Instantiation** - `VolOrder` becomes a comptime constructor with today's output bit-identical
 - [ ] **Phase 3: VolOrder(T) Rich Instantiation** - The Haskell-shaped payload: 4-tuple of `optionRatio`s plus the `asset` bit
 - [ ] **Phase 4: VolOrder(T) Wire Format** - A serialization that carries *which* `T` it is, decodable from the bytes alone
@@ -85,11 +84,44 @@ assertion it will eventually make, and guarded so it costs the gate nothing unti
 
 Plans:
 - [x] 01-01-PLAN.md — worktree, tracking issue, and the FEATURES layout committed to `develop` (PROC-01)
-- [ ] 01-02-PLAN.md — `SpecHelper.sol`: the reverting `readTokenId` stub, the `isWired` probe, the external probe boundary (RED-04)
+- [ ] 01-02-PLAN.md — `SpecHelper.sol`: the reverting `volOrderToTokenId` stub, `health()` as the wiring predicate, the external boundary (RED-04)
 - [ ] 01-03-PLAN.md — `VolOrderToPanopticTokenId.diff.t.sol`: doctrine, discipline, probe-skipped `assertEq(specTokenId, implTokenId)` (RED-01/02/03/05)
 - [ ] 01-04-PLAN.md — `notes/DIFFERENTIAL_LAYOUT.md` + the `test-vol-order-tokenid-diff` make target (RED-06)
 - [ ] 01-05-PLAN.md — PR into `develop`, `develop-gate` run, gate evidence harvested and confirmed (RED-01/05; has a checkpoint)
 - [ ] 01-06-PLAN.md — merge to `develop`, verify criteria 4 and 5 against the merged tree, close out
+
+### Phase 1.1: Foundry Toolchain Pin (INSERTED)
+**Directory**: `.planning/phases/FEATURES/feat-foundry-pin/`
+**Branch**: `feat/foundry-pin`
+**Goal**: Make every `develop-gate` result attributable to a known toolchain, so gate evidence means
+something and drift becomes visible instead of silent.
+**Depends on**: Phase 1 waves 1–4 (the scaffold exists). **Must land on `develop` BEFORE Phase 1's
+wave-5 PR runs**, so that run's evidence — including the `try`/`catch` transport finding — is
+version-scoped to a pinned toolchain rather than to whatever was on the box.
+**Why this was inserted**: Foundry is pinned NOWHERE in this repo — no version key in `foundry.toml`,
+no `foundry-toolchain` action or `foundryup` step in the workflow, no `.foundryrc`/`.tool-versions`.
+The self-hosted runner is *persistent*, so its `forge` drifts silently on any `foundryup`, with no
+diff and no log line. Every transport behaviour recorded in STATE.md is measured at `1.5.1-stable`
+`b0a9dd9`; v1.8.0 (published 2026-08-27) encodes `vm.rpc` returns differently and adds `vm.rpcJson`.
+An unpinned floating Foundry makes wire behaviour non-deterministic across runs — a silent-divergence
+source of exactly the class this milestone exists to eliminate.
+**Requirements**: CI-05, CI-06
+**Success Criteria** (what must be TRUE):
+  1. `develop-gate` resolves an explicit, declared Foundry version — not the ambient one — and a gate
+     run on `feat/foundry-pin` is green with the pinned toolchain in use.
+  2. That gate run's log shows the resolved `forge --version` including version, commit SHA and build
+     timestamp, so any later run can be attributed to a toolchain.
+  3. The pinned version is recorded in the repo (not only in workflow YAML) alongside the reason,
+     citing that the transport findings hold at `1.5.1-stable` `b0a9dd9`.
+  4. The existing suite is unaffected: the same gate run still reports
+     `VolOrderToPanopticTokenId.t.sol` green, and the `--skip` ledger line is untouched.
+  5. Changing the pin is a visible, reviewable diff — a future upgrade cannot happen by someone
+     running `foundryup` on the runner.
+**Open question for planning**: installing a pinned Foundry on a *persistent self-hosted* runner is
+not the same problem as on a fresh container — `foundry-rs/foundry-toolchain@v1` vs an explicit
+`foundryup --version`, tool-cache behaviour, and whether it collides with the system `forge` already
+installed there. Settle during phase planning; do not assume the hosted-runner recipe transfers.
+**Plans**: TBD
 
 ### Phase 2: VolOrder(T) Minimal Instantiation
 **Directory**: `.planning/phases/FEATURES/feat-volorder-t-minimal/`
@@ -364,11 +396,12 @@ fails the build, with no silent-skip path left.
 
 ## Progress
 
-**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11
+**Execution Order:** 1 (waves 1-4) → 1.1 → 1 (waves 5-6) → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. RED Differential Scaffold | 1/6 | In Progress | - |
+| 1.1 RED Foundry Toolchain Pin (INSERTED) | 0/TBD | Not started | - |
 | 2. VolOrder(T) Minimal Instantiation | 0/TBD | Not started | - |
 | 3. VolOrder(T) Rich Instantiation | 0/TBD | Not started | - |
 | 4. VolOrder(T) Wire Format | 0/TBD | Not started | - |
@@ -385,6 +418,7 @@ fails the build, with no silent-skip path left.
 | Phase | Requirements | Count |
 |-------|--------------|-------|
 | 1 | RED-01, RED-02, RED-03, RED-04, RED-05, RED-06, PROC-01 | 7 |
+| 1.1 | CI-05, CI-06 | 2 |
 | 2 | VORD-01, VORD-02, VORD-03 | 3 |
 | 3 | VORD-04, VORD-05 | 2 |
 | 4 | VORD-06 | 1 |
@@ -395,7 +429,7 @@ fails the build, with no silent-skip path left.
 | 9 | GUARD-04, GUARD-05 | 2 |
 | 10 | DIFF-01, DIFF-02 | 2 |
 | 11 | CI-01, CI-02, CI-03, CI-04 | 4 |
-| **Total** | | **32 / 32** |
+| **Total** | | **34 / 34** |
 
 No orphaned requirements. No requirement mapped to more than one phase.
 

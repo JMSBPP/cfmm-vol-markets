@@ -106,8 +106,6 @@ If the executable spec and the on-chain implementation can silently disagree, th
 - **Fork → PR**: `d2p-finance/*` are canonical; `JMSBPP/*` are the develop forks. Changes reach
   canonical repos only via pull request. This milestone touches the `spec/` submodule, so spec-side
   changes require their own fork → PR plus a submodule pin bump here.
-- **Review**: Every spec/plan must pass the two-step review (Reality Checker + one matched specialist,
-  in parallel) before it is executed.
 - **Sequencing**: The `VolOrder(T)` refactor is a blocking prerequisite — it must land and pass
   `develop-gate` before the differential-test phase begins.
 - **Regression floor**: The refactor must not break the existing green suite; today's tokenId output
