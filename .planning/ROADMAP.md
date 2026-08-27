@@ -131,6 +131,22 @@ actually builds on the event that produces code.
      still declares `needs: [approve, forge, plank]`; neither `forge` nor `plank` gained an `if:`,
      which is what would reopen the skipped-jobs-green incident. `push-build.yml` remains
      environment-free and secret-free.
+     → **RUN-TIME HALF: FALSIFIED AS WRITTEN, and NOT by this phase.** The first gate run of this phase,
+     [`33112404579`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33112404579) (`pull_request`,
+     `7591034`, **success**), required **ZERO** approvals: `pending_deployments` was `[]` at every poll and
+     the `approve` job ran unattended (`20:15:07Z` created → `20:15:11Z` started → `20:15:15Z` done).
+     Cause, read from the API: the `develop-gate` **environment** has `protection_rules: []`,
+     `deployment_branch_policy: null`, `can_admins_bypass: true`, and `created_at == updated_at ==
+     2026-06-28T21:28:40Z` — it has never been configured. The `environment:` key therefore produces a
+     deployment record and **no approval gate**. This is PRE-EXISTING: gate runs from 2026-08-26, before
+     this phase existed, show the same unattended `approve` (`33012911523` +4 s, `33008976085` +3 s), and
+     plan 05's `+84 / −0` proves the phase did not remove it. **Total approvals for the whole change: 0,
+     not the expected 1.** What the gate's authority actually rests on is `develop`'s required status-check
+     context `gate` (`contexts: ["gate"]`, app 15368) plus `required_approving_review_count: 1` with
+     `enforce_admins: false`. The required check is real; the environment approval is decorative.
+     **Criterion 2 cannot be ticked as written** — it needs either a configured reviewer on the
+     `develop-gate` environment, or restatement in terms of the required `gate` status check, which IS
+     enforced. Maintainer decision; this executor did not attempt any self-approval or config change.
   3. Pushes to `develop` do **not** trigger the push build (merges are the PR gate's job).
   4. Both workflows resolve an explicit, declared Foundry version rather than the ambient one, and
      each run's log shows the resolved `forge --version` including version and commit SHA.
@@ -140,6 +156,15 @@ actually builds on the event that produces code.
      `33109459584`, both `forge 1.5.1-v1.5.1` / `b0a9dd9…`, with `which -a forge` showing the pinned
      binary ahead of the box's own). **No `develop-gate` run exists yet**, so CI-05 and CI-06 stay
      `Pending` until plan 06's PR produces one.
+     → **NOW MET ON BOTH PATHS.** Gate run
+     [`33112404579`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33112404579) stamped
+     `forge Version: 1.5.1-v1.5.1` / `Commit SHA: b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2` /
+     `Build Timestamp: 2025-12-19T14:07:55.455914129Z`, with `which -a forge` listing
+     `/home/jmsbpp/.foundry-pins/v1.5.1/bin/forge` ahead of the box's own — byte-identical to both push
+     builds. The install step was a **0-second** pin-keyed cache hit emitting no output (`##[endgroup]` is
+     its last line), confirming the cache is keyed by pin and not by workflow, exactly as plan 05
+     predicted; the *stamp* step's `grep -qF "$FOUNDRY_COMMIT"` is what re-asserted the pin, and it
+     passed. CI-05/CI-06 are now evidence-backed on the gate path; they close with plan 06.
   5. The pinned version is recorded in the repo — not only in workflow YAML — with the reason, citing
      that the transport findings hold at `1.5.1-stable` `b0a9dd9`. Changing the pin is a visible,
      reviewable diff; it cannot happen by someone running `foundryup` on the runner.
@@ -217,6 +242,15 @@ Plans:
       `push-build.yml`'s; trigger, `environment` approval, `gate` contract, ledger and seed all
       proven unmoved. NOT pushed — plan 06 owns the PR and the first gate run.
 - [ ] 01.1-06-PLAN.md — PR, gate run, merge, and the develop-exclusion proof; close out (CI-05/06/07; has a checkpoint)
+      — **PAUSED at its blocking checkpoint (task 2 of 3).** Task 1 done: `7591034` pushed, **PR #59** open
+      against `develop` on the fork (`Closes #58`). Both workflows fired on the same SHA from different
+      events — push-build `33112355047` (`push`, success, `pending_deployments: []`, +3 s) and the first
+      develop-gate run `33112404579` (`pull_request`, **success**, all four jobs green,
+      `VolOrderToPanopticTokenId.t.sol` 10 passed / 0 failed, suite 271 passed / 0 failed / 1 skipped).
+      **The merge is WITHHELD** pending a maintainer decision on criterion 2 above: the gate required zero
+      approvals because its environment has no protection rules at all. Criterion 3 is still UNPROVEN — its
+      empty "before" is recorded (`gh run list --workflow push-build.yml --branch develop` → `[]` at
+      `2026-08-27T20:13:37Z` and again at `20:20:26Z`, both pre-merge).
 
 ### Phase 2: VolOrder(T) Minimal Instantiation
 **Directory**: `.planning/phases/FEATURES/feat-volorder-t-minimal/`
