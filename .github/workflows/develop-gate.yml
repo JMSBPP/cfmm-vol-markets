@@ -28,6 +28,90 @@ jobs:
         with:
           submodules: false
           persist-credentials: false
+      # The toolchain is resolved from the tracked pin, not from whatever `forge` this
+      # PERSISTENT runner happens to have. Requirement CI-05; the reason, and the four measured
+      # findings that depend on b0a9dd9, are in notes/TOOLCHAIN_PINS.md. Placed BEFORE the
+      # submodule/plank/npm work on purpose: a wrong toolchain fails here in seconds rather than
+      # after twenty minutes of setup. Body is byte-identical to push-build.yml's -- one pin,
+      # one mechanism, two workflows.
+      - name: Install the pinned Foundry toolchain
+        run: |
+          set -euo pipefail
+          . ./.github/foundry-version
+          : "${FOUNDRY_VERSION:?}" "${FOUNDRY_COMMIT:?}" "${FOUNDRYUP_INSTALLER_COMMIT:?}"
+
+          # NOT $HOME/.foundry. On this PERSISTENT runner that is the box's shared foundry
+          # dir -- the one a human's `foundryup` writes, and the one
+          # foundry-rs/foundry-toolchain@v1 installs into (src/index.ts:
+          # FOUNDRY_DIR = path.join(os.homedir(), ".foundry")). Installing there would have
+          # this unattended workflow rewrite the machine's default forge on every push,
+          # which is the drift the pin exists to stop. A per-pin directory cannot collide,
+          # and $GITHUB_PATH is PREPENDED, so the pinned binary wins for this job only.
+          PINS="$HOME/.foundry-pins"
+          export FOUNDRY_DIR="$PINS/$FOUNDRY_VERSION"
+          STAMP="$FOUNDRY_DIR/.installed-$FOUNDRY_COMMIT"
+          mkdir -p "$PINS"
+
+          # Two jobs can enter here at once on this runner (a push build and the gate).
+          # Serialize the install; the stamp makes the second entrant a no-op. The stamp is
+          # written only AFTER the commit assertion below, so a half-finished install is
+          # never mistaken for a good one.
+          exec 9>"$PINS/.lock"
+          flock 9
+
+          if [ ! -f "$STAMP" ]; then
+            mkdir -p "$FOUNDRY_DIR"
+            curl -fsSL --retry 3 \
+              "https://raw.githubusercontent.com/foundry-rs/foundryup/${FOUNDRYUP_INSTALLER_COMMIT}/foundryup-init.sh" \
+              -o "$RUNNER_TEMP/foundryup-init.sh"
+            # The installer exits non-zero when it cannot find a shell rc file to edit,
+            # which is the normal CI case; foundry-toolchain@v1 swallows exactly this
+            # string. Any OTHER failure is real and must not be swallowed.
+            set +e
+            out="$(bash "$RUNNER_TEMP/foundryup-init.sh" 2>&1)"; rc=$?
+            set -e
+            printf '%s\n' "$out"
+            if [ "$rc" -ne 0 ] && ! printf '%s' "$out" | grep -q 'could not detect shell'; then
+              echo "::error::foundryup-init.sh failed (exit $rc)"; exit 1
+            fi
+            # `--install`, not `--version`: foundry-toolchain@v1's action.yml documents its
+            # version input as "Passed to `foundryup --install <version>`", and strips the
+            # leading v. Older foundryup spelled this `--version`; if this line ever fails
+            # with an unknown-flag error, the installer pin moved.
+            "$FOUNDRY_DIR/bin/foundryup" --install "${FOUNDRY_VERSION#v}"
+            "$FOUNDRY_DIR/bin/forge" --version | grep -qF "$FOUNDRY_COMMIT" || {
+              echo "::error::foundryup installed a forge whose commit is not $FOUNDRY_COMMIT"
+              exit 1
+            }
+            touch "$STAMP"
+          fi
+          echo "$FOUNDRY_DIR/bin" >> "$GITHUB_PATH"
+
+      # CI-06: every gate run carries the resolved toolchain as evidence, in the log and in the
+      # run summary, and a mismatch is RED. `which -a` records the collision with the runner's
+      # pre-existing forge so "which binary ran" is never a guess. The assertion greps the whole
+      # output for the commit rather than parsing a named line, so a change to forge's --version
+      # format is not a false red.
+      - name: Stamp the resolved forge version
+        run: |
+          set -euo pipefail
+          . ./.github/foundry-version
+          which -a forge || true
+          forge --version | tee "$RUNNER_TEMP/forge-version.txt"
+          {
+            echo "### Foundry toolchain (pinned)"
+            echo ""
+            echo '```'
+            cat "$RUNNER_TEMP/forge-version.txt"
+            echo '```'
+            echo ""
+            echo "pin: \`$FOUNDRY_VERSION\` / \`$FOUNDRY_COMMIT\` (.github/foundry-version)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -qF "$FOUNDRY_COMMIT" "$RUNNER_TEMP/forge-version.txt" || {
+            echo "::error::resolved forge does not match the pin in .github/foundry-version"
+            exit 1
+          }
+
       # forge needs lib/panoptic-v2-core's nested v4-core + solady (remappings @uniswap/v4-core/ and
       # solady/ point into them). The ONLY pathological part is panoptic-helper (it contains
       # panoptic-v2-core -> infinite recursion). Init panoptic one level, block panoptic-helper, then
