@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 2
+current_plan: 1
 status: executing
-stopped_at: "Completed 01-02-PLAN.md — SpecHelper.sol SpecOracle seam (dd83cf9) on feat/red-diff-scaffold"
-last_updated: "2026-08-27T17:25:57.645Z"
-last_activity: "2026-08-27 — Plan 01-02 executed: SpecHelper.sol SpecOracle seam (dd83cf9) on feat/red-diff-scaffold"
+stopped_at: "Completed 01.1-01-PLAN.md — Phase 1.1 opened (issue #58, worktree feat/ci-feedback-loop, FEATURES symlink on develop 90dacaa)"
+last_updated: "2026-08-27T18:05:30.966Z"
+last_activity: "2026-08-27 — Plan 01.1-01 executed: Phase 1.1 opened (issue #58, worktree feat/ci-feedback-loop, FEATURES symlink on develop 90dacaa)"
 progress:
   total_phases: 12
   completed_phases: 0
-  total_plans: 6
-  completed_plans: 2
-  percent: 33
+  total_plans: 12
+  completed_plans: 3
+  percent: 25
 ---
 
 # Project State
@@ -22,24 +22,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-27)
 
 **Core value:** A fuzzed input that produces a different `tokenId` in Haskell than in Plank must fail the build.
-**Current focus:** Phase 1 — RED Differential Scaffold
+**Current focus:** Phase 1.1 — CI Feedback Loop (INSERTED; Phase 1 paused at plan 01-03)
 
 ## Current Position
 
-Phase: 1 of 12 (RED Differential Scaffold)
-Plan: 2 of 6 in current phase
-Current Plan: 2
+Phase: 1.1 of 12 (CI Feedback Loop — INSERTED; runs before Phase 1 wave 3)
+Plan: 1 of 6 in current phase
+Current Plan: 1
 Total Plans in Phase: 6
-Status: Executing — plans 01-01 and 01-02 complete, 01-03 next
-Last activity: 2026-08-27 — Plan 01-02 executed: SpecHelper.sol SpecOracle seam (dd83cf9) on feat/red-diff-scaffold
+Status: Executing — Phase 1.1 plan 01.1-01 complete, 01.1-02 next. Phase 1 is PAUSED at 2 of 6 (01-03 resumes after 1.1 merges).
+Last activity: 2026-08-27 — Plan 01.1-01 executed: Phase 1.1 opened (issue #58, worktree feat/ci-feedback-loop, FEATURES symlink on develop 90dacaa)
 
-Progress: [███░░░░░░░] 33%
+Progress: [███░░░░░░░] 25%  (3 of 12 plans across the two open phases: 1 and 1.1)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 3 min
+- Total plans completed: 3
+- Average duration: 2.7 min
 - Total execution time: 0.1 hours
 
 **By Phase:**
@@ -47,6 +47,7 @@ Progress: [███░░░░░░░] 33%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | Phase 1 | 2/6 | 6 min | 3 min |
+| Phase 1.1 | 1/6 | 2 min | 2 min |
 
 **Per-plan:**
 
@@ -54,10 +55,11 @@ Progress: [███░░░░░░░] 33%
 |------|----------|-------|-------|
 | Phase 01 P01 | 3min | 3 tasks | 2 files |
 | Phase 01 P02 | 3min | 1 tasks | 1 files |
+| Phase 01.1 P01 | 2min | 3 tasks | 2 files |
 
 **Recent Trend:**
-- Last 5 plans: 3 min, 3 min
-- Trend: flat (2 data points)
+- Last 5 plans: 3 min, 3 min, 2 min
+- Trend: flat (3 data points)
 
 *Updated after each plan completion*
 
@@ -81,6 +83,9 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 - [Phase 01]: SpecOracle seam shaped to the interface evm-spec-bridge GENERATES (library SpecOracle, volOrderToTokenId(bytes,uint64), health()); isWired() collapsed into health() — one wiring mechanism
 - [Phase 01]: Status lives as a field ON Health (not (Status,Health)) so the skip predicate is health().status == Status.TransportFailure — the SAME predicate Phase 7 keeps. Provisional pending generation
 - [Phase 01]: Phase 1 stub REVERTS (SpecOracleNotWired) rather than returning a zero struct — fail-safe, not fail-open. Phase 7's real impl RETURNS the tagged struct and must not revert (GUARD-05)
+- [Phase 01.1]: Phase 1.1 opened on develop tip 90dacaa: tracking issue JMSBPP/cfmm-vol-markets#58, worktree /home/jmsbpp/cfmms-playground/cfmm-wt/ci-feedback-loop on feat/ci-feedback-loop (pushed to origin, zero divergence)
+- [Phase 01.1]: Decimal/INSERTED phases use the identical FEATURES convention — the numbered tool-facing dir carries the decimal (01.1-ci-feedback-loop) and the FEATURES entry is the same mode-120000 symlink; now written into FEATURES/README.md
+- [Phase 01.1]: feat/ci-feedback-loop pushed with no new content BEFORE push-build.yml exists — GitHub picks push-event workflows from the pushed ref, so plan 03's push is by construction the first observable trigger, not by assumption
 
 **Open by design — owned by phase planning, do not pre-resolve:**
 
@@ -127,8 +132,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T17:25:57.640Z
-Stopped at: Completed 01-02-PLAN.md — SpecHelper.sol SpecOracle seam (dd83cf9) on feat/red-diff-scaffold
+Last session: 2026-08-27T18:05:19.288Z
+Stopped at: Completed 01.1-01-PLAN.md — Phase 1.1 opened (issue #58, worktree feat/ci-feedback-loop, FEATURES symlink on develop 90dacaa)
 Resume file: None
 
-Next: execute `.planning/phases/FEATURES/feat-red-diff-scaffold/01-02-PLAN.md` (SpecHelper.sol stub + isWired probe) in the `feat/red-diff-scaffold` worktree
+Next: execute `.planning/phases/FEATURES/feat-ci-feedback-loop/01.1-02-PLAN.md` (`.github/foundry-version` + `notes/TOOLCHAIN_PINS.md` — the pin recorded in-repo with its reason, CI-05) in the `feat/ci-feedback-loop` worktree at /home/jmsbpp/cfmms-playground/cfmm-wt/ci-feedback-loop.
+Phase 1 resumes at `01-03-PLAN.md` in the `feat/red-diff-scaffold` worktree once Phase 1.1 merges.
