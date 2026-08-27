@@ -43,7 +43,7 @@ if ! diff -u <(seed "$GATE") <(seed "$PUSH") > /tmp/skip-seed.diff 2>&1; then
   rc=1
 fi
 
-# A guard that passes when it found nothing to compare is not a guard. The gate has four
+# A guard that passes when it found nothing to compare is not a guard. The gate has three
 # entries and one seed today; require BOTH sides to be non-empty so an accidental YAML
 # restructure that hides the ledger from the extractor reddens instead of silently agreeing.
 n_gate="$(skips "$GATE" | grep -c .)" || true
