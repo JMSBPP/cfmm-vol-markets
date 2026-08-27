@@ -44,7 +44,7 @@ decision; it is not a formality to be short-circuited.
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: RED Differential Scaffold** - The first clean push: a compiling, skip-guarded `.diff.t.sol` with its doctrine and transport boundary
+- [x] **Phase 1: RED Differential Scaffold** - The first clean push: a compiling, skip-guarded `.diff.t.sol` with its doctrine and transport boundary
 - [x] **Phase 1.1: CI Feedback Loop** (INSERTED) - push-triggered build so every commit compiles, plus an explicit pinned forge version stamped into every run
 - [ ] **Phase 2: VolOrder(T) Minimal Instantiation** - `VolOrder` becomes a comptime constructor with today's output bit-identical
 - [ ] **Phase 3: VolOrder(T) Rich Instantiation** - The Haskell-shaped payload: 4-tuple of `optionRatio`s plus the `asset` bit
@@ -79,8 +79,19 @@ assertion it will eventually make, and guarded so it costs the gate nothing unti
      **constructed** with `bound`, never filtered with `vm.assume`; every fuzz backed by a non-fuzz
      anchor; non-vacuity asserted), and a written description of the file layout, naming, and
      Solidity↔spec transport boundary that Phases 6–11 extend rather than redesign.
+     → **VERIFIED ON THE MERGED TREE** (plan 06, merge `b090b2e`), read with `git show origin/develop:`
+     rather than from the branch. All five strings present in
+     `VolOrderToPanopticTokenId.diff.t.sol`: `NEITHER SIDE SACROSANCT`, `adjudicated case by case`,
+     `never filtered with vm.assume`, `every fuzz names a non-fuzz anchor`,
+     `non-vacuity is ASSERTED via a live counter`. **Zero executable `vm.assume` calls**
+     (`grep -c 'vm.assume('` → `0`; the four textual hits are the doctrine comment that bans it).
+     `notes/DIFFERENTIAL_LAYOUT.md` carries 10 `## ` sections incl. the transport boundary;
+     `SpecHelper.sol` carries `SpecOracleNotWired` 3×.
   5. `.planning/phases/FEATURES/feat-red-diff-scaffold/` exists on `develop`, establishing the
      FEATURES layout for the milestone.
+     → **VERIFIED ON `origin/develop`** (plan 06). `git ls-tree origin/develop` shows the entry at
+     mode **`120000`** → `../01-red-differential-scaffold`, resolving to **6** `01-0*-PLAN.md` files,
+     beside `README.md` and the sibling `feat-ci-feedback-loop` symlink.
 **Plans**: 6 plans in 6 waves (strictly sequential — each wave's output is the next wave's input)
 
 Plans:
@@ -89,7 +100,7 @@ Plans:
 - [x] 01-03-PLAN.md — `VolOrderToPanopticTokenId.diff.t.sol`: doctrine, discipline, `setUp`-cached wiring probe, three-outcome separation before `assertEq(specTokenId, implTokenId)` (RED-01/02/03/05)
 - [x] 01-04-PLAN.md — `notes/DIFFERENTIAL_LAYOUT.md` (10 sections: generated-interface boundary + measured transport constraints, each with its evidence) + the make target (RED-06)
 - [x] 01-05-PLAN.md — PR into `develop`, gate run, evidence harvested incl. runner `forge --version` (RED-01/05; has a checkpoint)
-- [ ] 01-06-PLAN.md — merge to `develop`, verify criteria 4 and 5 against the merged tree, close out
+- [x] 01-06-PLAN.md — merge to `develop`, verify criteria 4 and 5 against the merged tree, close out
 
 ### Phase 1.1: CI Feedback Loop (INSERTED)
 **Directory**: `.planning/phases/FEATURES/feat-ci-feedback-loop/`
@@ -553,7 +564,7 @@ fails the build, with no silent-skip path left.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. RED Differential Scaffold | 5/6 | In Progress | - |
+| 1. RED Differential Scaffold | 6/6 | Complete | 2026-08-27 |
 | 1.1 CI Feedback Loop (INSERTED) | 6/6 | Complete | - |
 | 2. VolOrder(T) Minimal Instantiation | 0/TBD | Not started | - |
 | 3. VolOrder(T) Rich Instantiation | 0/TBD | Not started | - |

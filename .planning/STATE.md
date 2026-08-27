@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 5
-status: executing
-stopped_at: "Completed 01-05-PLAN.md tasks 1-2; AT THE BLOCKING CHECKPOINT (task 3). PR #60 (feat/red-diff-scaffold -> develop) is OPEN and develop-gate run `33123496782` on `8f01abf` is GREEN on all four jobs: approve/forge/plank/gate all success, `gate` check `pass` on the PR. The two differential tests SKIP on the probe's own reason string, both evidence tests PASS, the regression floor holds 10/10, suite 273/0/3/276 byte-identical to push-build `33117651701`, runner stamped forge 1.5.1 / `b0a9dd9`. `git diff develop..HEAD -- .github/` is 0 bytes. THE FINDING: `pending_deployments` returned `[]` and `approve` completed unattended in 2s -- the corrected claim about the develop-gate environment is now confirmed on a LIVE run, not just from the API. Evidence at `01-05-GATE-EVIDENCE.md` (`c4dcd67`). AWAITING the maintainer's resume signal; 01-06 must not merge until then."
-last_updated: "2026-08-27T22:50:00.000Z"
-last_activity: "2026-08-27 -- Phase 1 met the only build environment that can prove its first three criteria. PR #60 opened, develop-gate run 33123496782 green, evidence harvested verbatim from the forge job log. Two plan facts were stale and were corrected rather than quoted: the skip ledger is three patterns not four, and the PR is 13 files not 4 (planning artifacts ride the branch under the inline-tree workflow) -- the SOURCE diff is exactly the four named files."
+current_plan: 6
+status: phase-complete
+stopped_at: "Completed 01-06-PLAN.md — PHASE 1 IS COMPLETE (6/6). PR #60 merged into `develop` as `b090b2e8cf026cf7a4ac4dad703ce772e36cf99e` (`Merge pull request #60 from JMSBPP/feat/red-diff-scaffold`, 2026-08-27T23:05:34Z), merge-commit style preserved. Criteria 4 and 5 verified against `origin/develop` with `git show`, not against the branch: all five doctrine/discipline strings present, ZERO executable `vm.assume` calls, `notes/DIFFERENTIAL_LAYOUT.md` at 10 `## ` sections, `SpecHelper.sol` carrying `SpecOracleNotWired` 3x, and `.planning/phases/FEATURES/feat-red-diff-scaffold` a mode-120000 symlink resolving to 6 PLAN files. `git diff 8dfbff7 b090b2e -- .github/` is 0 bytes and so is the regression floor. Issue #57 CLOSED with comment 5446282366 naming the merge SHA. Branch retired locally and on origin after `git log origin/develop..feat/red-diff-scaffold` came back empty; `-D` never used. THE FINDING: `develop` branch protection has NO `required_pull_request_reviews` block at all -- only the `gate` status check, `enforce_admins: false` -- so the merge went through with a PLAIN `gh pr merge --merge` and the authorized `--admin` bypass was NEVER exercised. Next: Phase 2 -- VolOrder(T) Minimal Instantiation, which OPENS with a brainstorm-and-decide regression assessment WITH the maintainer before any code moves."
+last_updated: "2026-08-27T23:20:00.000Z"
+last_activity: "2026-08-27 -- Phase 1 landed. The scaffold is on `develop`, and the two criteria that are statements ABOUT `develop` were checked against `develop` itself rather than against the branch that produced them. Three plan criteria could not be met as literally written and were verified at their intent instead of by deleting content to satisfy a regex: `grep -c vm.assume == 0` is unsatisfiable in a file whose doctrine forbids `vm.assume` by name (0 executable calls), `grep -c PanopticVegaLens == 1` misses the ledger's own documenting comment (0-byte .github/ diff is the stronger proof), and the worktree teardown targeted a worktree that no longer exists. The merge also falsified the premise it was authorized under -- there is no review requirement on `develop`, so no bypass was used."
 progress:
   total_phases: 12
-  completed_phases: 0
+  completed_phases: 2
   total_plans: 12
-  completed_plans: 10
-  percent: 83
+  completed_plans: 12
+  percent: 100
 ---
 
 # Project State
@@ -22,32 +22,38 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-27)
 
 **Core value:** A fuzzed input that produces a different `tokenId` in Haskell than in Plank must fail the build.
-**Current focus:** Phase 1 — RED Differential Scaffold, plan 5 of 6 complete, **halted at the 01-05 checkpoint** (Phase 1.1 merged)
+**Current focus:** **Phase 1 COMPLETE (6/6) and merged to `develop`.** Next: Phase 2 — VolOrder(T) Minimal Instantiation, opening with a maintainer-facing regression assessment
 
 ## Current Position
 
-Phase: 1 of 12 (RED Differential Scaffold) — RESUMED after Phase 1.1 merged
-Plan: 5 of 6 in current phase
-Current Plan: 5
+Phase: 1 of 12 (RED Differential Scaffold) — **COMPLETE**. Next: Phase 2 (VolOrder(T) Minimal Instantiation)
+Plan: 6 of 6 in current phase — all complete
+Current Plan: 6
 Total Plans in Phase: 6
-Status: **PHASE 1 plan 01-05 TASKS 1-2 COMPLETE — HALTED AT THE BLOCKING CHECKPOINT (task 3).** PR [#60](https://github.com/JMSBPP/cfmm-vol-markets/pull/60) is OPEN, `feat/red-diff-scaffold` → `develop` on the JMSBPP fork, referencing tracking issue #57. **`develop-gate` run [`33123496782`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33123496782) on `8f01abf` is GREEN**: approve/forge/plank/gate all `success`, and the sole required check `gate` is `pass` on the PR. From the forge job log: the two differential tests report `[SKIP: spec oracle not wired: SpecOracle.health() reports TransportFailure (RED-05)...]`, both evidence tests report `[PASS]` (so the file is provably not inert), `VolOrderToPanopticTokenIdTest` holds `Suite result: ok. 10 passed; 0 failed; 0 skipped`, and the whole suite is `273 passed, 0 failed, 3 skipped (276)` — byte-identical to push-build `33117651701`. Runner stamped `forge Version: 1.5.1-v1.5.1` / `Commit SHA: b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2`. `git diff develop..HEAD -- .github/` is **0 bytes**; so is the regression-floor file's diff. **Phase 1 criteria 1, 2 and 3 are established with citable evidence** at `.planning/phases/01-red-differential-scaffold/01-05-GATE-EVIDENCE.md` (`c4dcd67`). NOTHING IS MERGED. Next: the maintainer's resume signal, then plan 01-06 (merge, verify criteria 4-5 on the merged tree, close #57).
-Last activity: 2026-08-27 — The scaffold met the gate. The run also CONFIRMED, on live data, the correction made to this plan before execution: `pending_deployments` returned `[]` and the `approve` job ran `22:41:30Z → 22:41:32Z` unattended. No approval was requested, none was given, and none is reported.
+Status: **PHASE 1 IS COMPLETE — 6 of 6 plans, all five success criteria true of `develop`.** PR [#60](https://github.com/JMSBPP/cfmm-vol-markets/pull/60) merged into `develop` as **`b090b2e8cf026cf7a4ac4dad703ce772e36cf99e`** at `2026-08-27T23:05:34Z`, subject `Merge pull request #60 from JMSBPP/feat/red-diff-scaffold` — a merge commit, preserving the `#54/#55/#56` history style. Criteria 1-3 rest on gate run [`33123496782`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33123496782) (`8f01abf`), re-confirmed at the merged head `7a6b25f` by run [`33124709716`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33124709716); the `8f01abf..7a6b25f` delta is `.planning/`-only, so the harvested evidence still describes the merged SOURCE tree byte-for-byte. Criteria 4-5 were read off `origin/develop` with `git show`: all five doctrine/discipline strings present, `grep -c 'vm.assume('` → **0**, `notes/DIFFERENTIAL_LAYOUT.md` at **10** `## ` sections incl. the transport boundary, `SpecHelper.sol` carrying `SpecOracleNotWired` **3x**, and `.planning/phases/FEATURES/feat-red-diff-scaffold` a mode-**120000** symlink → `../01-red-differential-scaffold` resolving to **6** PLAN files. `git diff 8dfbff7 b090b2e -- .github/` → **0 bytes**; the regression floor likewise. Tracking issue **#57 CLOSED** (auto-closed by the merge; [comment `5446282366`](https://github.com/JMSBPP/cfmm-vol-markets/issues/57#issuecomment-5446282366) added to name the SHA). `feat/red-diff-scaffold` retired locally and on `origin` after `git log origin/develop..feat/red-diff-scaffold` came back **empty** — `git branch -d` succeeded first try, `-D` never used, and the branch tip `7a6b25f` survives as the merge's second parent.
+Last activity: 2026-08-27 — The merge falsified the premise it was authorized under. This plan was cleared to use `--admin` on the stated basis that `develop` requires one approving review; a live re-measurement immediately before merging returned **no `required_pull_request_reviews` key at all** — protection is `contexts: ["gate"]`, `strict: false`, `enforce_admins: false`, and `mergeStateStatus` was `CLEAN`. A plain `gh pr merge --merge` succeeded. **The bypass was authorized and NOT used.**
 
-Progress: [████████░░] 83%  (10 of 12 plans: Phase 1.1 complete at 6/6, Phase 1 at 5/6)
+Progress: [██████████] 100%  (12 of 12 PLANNED plans: Phase 1 at 6/6, Phase 1.1 at 6/6)
+
+**Read that 100% correctly: it is 100% of the plans that have been WRITTEN, not of the milestone.**
+`total_plans: 12` counts only Phases 1 and 1.1, the only two phases decomposed into plans so far.
+Phases 2–11 are `0/TBD` in the ROADMAP progress table and will raise the denominator the moment
+Phase 2 is planned. **2 of 12 phases are complete; 10 remain.**
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: 8.3 min
-- Total execution time: 1.25 hours
+- Total plans completed: 12 (of which **10 are timed** — 01-03 ran via the superpowers path and
+  01.1-06 was never recorded, so both are absent from the table below and from these averages)
+- Average duration: 9.3 min (93 min over the 10 timed plans)
+- Total execution time: 1.55 hours (timed plans only)
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| Phase 1 | 4/6 | 40 min | 10.0 min |
-| Phase 1.1 | 5/6 | 35 min | 7 min |
+| Phase 1 | 6/6 done, 5 timed | 58 min | 11.6 min |
+| Phase 1.1 | 6/6 done, 5 timed | 35 min | 7.0 min |
 
 **Per-plan:**
 
@@ -61,14 +67,17 @@ Progress: [████████░░] 83%  (10 of 12 plans: Phase 1.1 compl
 | Phase 01.1 P04 | 18min | 2 tasks | 3 files |
 | Phase 01.1 P05 | 7min | 2 tasks | 5 files |
 | Phase 01 P04 | 23min | 2 tasks | 2 files |
-| Phase 01 P05 | 11min | 2 tasks | 3 files |
+| Phase 01 P05 | 11min | 3 tasks | 3 files |
+| Phase 01 P06 | 18min | 2 tasks | 4 files |
 
 **Recent Trend:**
-- Last 5 plans: 6 min, 18 min, 7 min, 23 min, 11 min
-- Trend: up, and the shape is still explained rather than alarming — 01.1-04 (18 min) waited on two
-  real CI runs and a maintainer checkpoint; 01-04 (23 min) wrote a 325-line binding document from
-  fifteen recorded measurements and then waited on one CI run. Plans that touch CI cost wall-clock the
-  moment they need a run; plans that write binding prose cost reading time (8 data points).
+- Last 5 plans: 18 min, 7 min, 23 min, 11 min, 18 min
+- Trend: flat-to-up, and still explained rather than alarming. The pattern across 9 data points is
+  now clear enough to plan against: **a plan's wall-clock is dominated by what it must WAIT for, not
+  by what it writes.** 01.1-04 (18) waited on two CI runs plus a checkpoint; 01-04 (23) wrote a
+  325-line binding document from fifteen measurements then waited on a run; 01-06 (18) had to push an
+  unpushed correction and wait out a full extra gate cycle before it could merge. Plans that touch CI
+  cost a run each (~3 min of pure waiting); plans that touch nothing but `.planning/` finish in 2-3.
 
 *Updated after each plan completion*
 
@@ -76,6 +85,9 @@ Progress: [████████░░] 83%  (10 of 12 plans: Phase 1.1 compl
 
 ### Decisions
 
+- **[Phase 01, plan 05 checkpoint] The maintainer authorized the merge with the single word `approved`.** The prompt offered two mutually exclusive branches — authorize, or describe what is wrong — and the answer took the first without qualification. Recorded verbatim in `01-05-SUMMARY.md` rather than normalized to the prompt's suggested `approved — merge` phrasing. Plan 01-06 was released on it and merged PR #60 as `b090b2e`.
+- **[Phase 01, plan 06] `develop` has NO review requirement — the anticipated bypass was never used.** The plan was authorized to merge with `--admin` on the stated basis that `develop` requires one approving review. Live re-measurement immediately before merging returned **no `required_pull_request_reviews` key at all**: protection is `required_status_checks.contexts: ["gate"]` (`strict: false`), `enforce_admins: false`, `allow_force_pushes: false`, `allow_deletions: false`, everything else off. `mergeStateStatus` was `CLEAN`, and a plain `gh pr merge --merge` succeeded. **Consequence to decide, not to forget: if reviews are meant to be required on `develop`, protection needs configuring; if they are not, the "bypass" framing must be dropped from future plans, because it has now twice described a constraint that does not exist.** The `gate` context remains the branch's ONLY enforced check, which makes the never-rename-the-`gate`-job rule below the single load-bearing protection on the default branch.
+- **[Phase 01, plan 06] Criteria are verified at their INTENT when the literal check is unsatisfiable — content is never deleted to satisfy a regex.** Three cases in this phase alone: `grep -c 'vm.assume' == 0` is impossible in a file whose doctrine forbids `vm.assume` **by name** (verified `grep -c 'vm.assume('` → 0 and 0 after stripping `//` comments); `grep -c 'PanopticVegaLens' == 1` misses the ledger's own documenting comment (the 0-byte `.github/` diff proves "ledger intact" far more strongly than any count); and the worktree teardown targeted a worktree retired by `8dfbff7`. Each was recorded as a criterion defect with the substitute check, not quietly passed.
 - **[Phase 01.1, plan 06 checkpoint] Criterion 2 is RESTATED, not repaired — Option B, maintainer verbatim.** Shown that `develop-gate`'s environment has no protection rules, the maintainer chose: *"Restate the criterion, merge as-is"* and *"Yes, merge with bypass"*. So criterion 2 is amended to rest on what is actually enforced — `develop`'s required status-check context `gate` plus `required_approving_review_count: 1` — and the `environment:` key is recorded as **documentary**. **The repo configuration is deliberately NOT changed**; no required reviewer was added to the `develop-gate` environment. Consequence to carry forward: **the `gate` job must never be given a `name:`**, because `contexts: ["gate"]` is the branch's only enforced check and a rename would silently un-protect `develop`. Plan 05's insistence on this is confirmed load-bearing rather than stylistic.
 Full log in PROJECT.md Key Decisions table. Affecting current work:
 
@@ -170,38 +182,63 @@ None yet.
 - Regression floor: `test/protocol_integrations/VolOrderToPanopticTokenId.t.sol` stays green in every gate run.
 - **NEVER give the `gate` job a `name:`.** `develop`'s branch protection requires the status-check context `gate`, which binds to the job id. A rename silently un-protects the default branch.
 - **`environment:` in a workflow is not an approval gate.** Verify with the environment's `protection_rules` and a run's `pending_deployments` before claiming one exists.
+- **Re-measure branch protection immediately before every merge; never carry a prior reading forward.** Two plans in a row were written against a `required_approving_review_count: 1` that the API does not report. `gh api /repos/JMSBPP/cfmm-vol-markets/branches/develop/protection` costs one call.
+- **Verify a criterion against the tree it is stated about.** Criteria about `develop` are read with `git show origin/develop:<path>` — never from the working tree, never from the source branch.
+- **Delete a branch only after `git log origin/develop..<branch>` is empty, and never escalate `git branch -d` to `-D`.** A refusal means something did not reach `develop`.
 
 ## Session Continuity
 
-Last session: 2026-08-27T22:50:00Z
-Stopped at: **01-05 task 3 — the BLOCKING CHECKPOINT.** Tasks 1 and 2 are complete and committed
-(`c4dcd67`). PR #60 is OPEN and green; NOTHING IS MERGED.
-Resume file: .planning/phases/01-red-differential-scaffold/01-05-PLAN.md (task 3)
+Last session: 2026-08-27T23:20:00Z
+Stopped at: **Completed 01-06-PLAN.md. PHASE 1 IS COMPLETE (6/6) and merged.** `develop` is at
+`b090b2e`; the working tree is checked out on `develop` and fast-forwarded to it.
+Resume file: none — Phase 1 is closed. Next action is planning Phase 2.
 
-Next: **Awaiting the maintainer's resume signal on the 01-05 checkpoint.** On approval, plan
-01-06 merges PR #60 into `develop`, verifies criteria 4 and 5 against the merged tree, and closes
-tracking issue #57.
+Next: **Phase 2 — VolOrder(T) Minimal Instantiation** (VORD-01, VORD-02, VORD-03).
+**It OPENS with a regression assessment that is a brainstorm-and-decide step WITH the maintainer,
+before any code moves.** Phase 2's criterion 1 requires a recorded assessment enumerating every
+test and dependency coupled to the old `VolOrder` shape, each classified, each elimination
+candidate carrying a **user-agreed** decision plus rationale. Do not start editing `VolOrder`
+and back-fill the assessment afterwards — the decision is the deliverable, and criterion 4 makes
+every eliminated or rewritten test traceable to it.
 
 State it inherits:
 
-- **PR [#60](https://github.com/JMSBPP/cfmm-vol-markets/pull/60)** — `feat/red-diff-scaffold` →
-  `develop` on the JMSBPP fork, OPEN, referencing #57 via `Closes #57`.
-- **`develop-gate` run [`33123496782`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33123496782)**
-  on `8f01abf` — approve/forge/plank/gate all `success`; the required `gate` check is `pass`.
-  Evidence quoted verbatim in `01-05-GATE-EVIDENCE.md`.
-- The branch has advanced past `8f01abf` with planning-only commits (`c4dcd67` and this plan's
-  metadata commit). **Those retrigger `develop-gate`, and 01-06 must confirm the run on the
-  FINAL head SHA is green before merging** — the required check binds to the head commit, and no
-  source file changed, so a re-run is expected to be green for the same reasons.
+- **`develop` at `b090b2e`** — merge commit `Merge pull request #60 from JMSBPP/feat/red-diff-scaffold`.
+  All four Phase 1 source files are on it: `test/protocol_integrations/SpecHelper.sol`,
+  `test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol`, `notes/DIFFERENTIAL_LAYOUT.md`,
+  and the `Makefile` target.
+- **The differential compiles and SKIPs on its own wiring probe**, with two evidence tests PASSing
+  so it cannot go inert unnoticed. **Phase 2 must keep the `SpecHelper` seam and the
+  `notes/DIFFERENTIAL_LAYOUT.md` transport boundary intact** while `VolOrder` becomes `VolOrder(T)`,
+  and the differential must still compile and still skip in Phase 2's gate run (its criterion 5).
+- **The regression floor `test/protocol_integrations/VolOrderToPanopticTokenId.t.sol` must keep
+  passing 10/10 with NO EDITS to that file** (Phase 2 criterion 3) — that is what makes the minimal
+  instantiation's `tokenId` bit-identical to today's `vol_order_to_panoptic_token_id`.
+- **`feat/red-diff-scaffold` no longer exists** locally or on `origin`. Phase 2 branches from
+  `develop`. The old branch tip `7a6b25f` survives as `b090b2e^2`.
+- **RED-01…RED-06 and PROC-01 are ticked and Complete.** Nothing to re-tick.
+
+Open items carried out of Phase 1 (full list in `01-06-SUMMARY.md`):
+
+1. **`timeout-minutes` cold-runner headroom is UNMEASURED** — every gate run so far had warm caches.
+2. **Issue #16 items 2 and 3 were closed UNADDRESSED and are now untracked** — the seed-dependent
+   width-type fuzz bug behind the `*VolRangeWidth*` / `*SpreadTickAssimetryHelper*` skip patterns,
+   and the gamsdiff runner environment. Two of the three patterns still on the gate's `--skip`
+   ledger have no open issue behind them.
+3. **`develop` now carries a second unreviewed merge.** NOT an admin bypass — `develop` has no
+   review requirement configured at all. Whether it should is an open decision.
+4. **`try`/`catch` against a cheatcode-originated revert is still OPEN**, and the non-Ethereum
+   JSON-RPC round trip is untested. Phase 5's RPC-03 skeleton is the first run that can answer
+   either; Phase 7 must not rely on them before then.
+5. **The `.planning` position counter is phase-agnostic** — STATE.md's position block is maintained
+   BY HAND. Do not call `state advance-plan` / `update-progress` / `roadmap update-plan-progress`:
+   they return rich payloads while writing zero bytes, `update-progress` has reverted correct
+   hand-set values, and every state-writing verb corrupts `milestone: v1.0` → `v1.8`. Edit by hand,
+   prove with `git diff`, and check `grep -c '^milestone: v1.0$' .planning/STATE.md` → 1 before and
+   after.
 - **Do NOT commit any `lib/*` submodule.** Seven are checked out at NON-pinned commits in the
   working tree from an earlier local `forge test` attempt. Also not ours: `.planning/config.json`,
   `offchain`, `spec`, `src/modules/premium/DynamicFeeMod.plk`, `TODO.md`,
   `docs/superpowers/specs/2026-08-26-*.md`. Name every file on every `git add`.
-- **RED-01…RED-06 and PROC-01 are already ticked** in `REQUIREMENTS.md` and in the ROADMAP plan
-  list. 01-06 must NOT re-tick them. The `deferred-items.md` entry that asked for it was cleared
-  by `3d56870`.
-- The merge will need the branch-protection bypass (`required_approving_review_count: 1`,
-  `enforce_admins: false`) — the same path Phase 1.1 took, with the maintainer's prior consent
-  recorded in the Decisions section. Ask; do not assume it carries over.
 - `gh` needs `-R JMSBPP/cfmm-vol-markets` (two remotes). Never open or push anything against
   `d2p-finance`.

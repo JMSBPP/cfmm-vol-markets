@@ -59,7 +59,7 @@ authorized to prove them.**
 ## Performance
 
 - **Duration:** 11 min (of which ~3.5 min was the gate run itself)
-- **Tasks:** 2 of 3 complete; task 3 is the blocking checkpoint
+- **Tasks:** 3 of 3 complete (task 3 was the blocking checkpoint; resolved 2026-08-27 — see below)
 - **Files modified:** 1 created, 2 modified (all `.planning/`); zero source files
 
 ## Task Commits
@@ -68,7 +68,7 @@ authorized to prove them.**
    a GitHub PR (#60) and a workflow run (`33123496782`), recorded here rather than manufactured
    as an empty commit. The branch push moved `origin/feat/red-diff-scaffold` `3d56870 → 8f01abf`.
 2. **Task 2: Harvest the gate log, write the evidence** — `c4dcd67` (docs)
-3. **Task 3: Checkpoint** — reached, awaiting the maintainer.
+3. **Task 3: Checkpoint** — reached, and **RESOLVED** by the maintainer (see "Checkpoint (task 3) — RESOLVED"). No repo commit: a checkpoint's artifact is the answer, recorded here.
 
 ## The run
 
@@ -193,10 +193,40 @@ None newly ticked. RED-01 and RED-05 — the two the plan names — are now back
 rather than only by push-build evidence, which is what Phase 1's criteria 1 and 2 are actually
 stated against.
 
+## Checkpoint (task 3) — RESOLVED
+
+The prompt asked the maintainer to authorize the merge, and read:
+
+> Type 'approved — merge' to authorize plan 01-06 to merge PR #60 into develop and close #57, or
+> describe what is wrong.
+
+**The maintainer's answer, verbatim and in full:**
+
+```
+approved
+```
+
+That is the complete response — one word, no qualification, no "but", nothing described as wrong.
+It is recorded here exactly as given rather than normalized to the prompt's suggested phrasing.
+The prompt offered two mutually exclusive branches (authorize, or describe what is wrong) and the
+answer is unambiguously the first. Plan 01-06 was released on it and merged PR #60 as
+`b090b2e8cf026cf7a4ac4dad703ce772e36cf99e`.
+
+**What the approval was known to cost, and what it actually cost.** The checkpoint disclosed that
+merging would land an unreviewed PR. Plan 01-06 re-measured branch protection immediately before
+merging (`gh api /repos/JMSBPP/cfmm-vol-markets/branches/develop/protection`) and found **no
+`required_pull_request_reviews` block at all** — the only requirement is the status-check context
+`gate`, with `enforce_admins: false`. `mergeStateStatus` was `CLEAN`. **No `--admin` bypass was
+used and none was needed.** The disclosed cost was therefore larger than the real one; the
+disclosure is left standing here rather than edited away, because it is what the maintainer was
+shown when they answered.
+
+Plan 01-05 is **complete** — 3 of 3 tasks.
+
 ## Next
 
-**Plan 01-06** merges PR #60 into `develop`, verifies criteria 4 and 5 against the merged tree, and
-closes tracking issue #57. It must not run until the maintainer answers the checkpoint below.
+**Plan 01-06** merged PR #60 into `develop`, verified criteria 4 and 5 against the merged tree, and
+closed tracking issue #57. See `01-06-SUMMARY.md`. Phase 1 is complete.
 
 ## Self-Check: PASSED
 
