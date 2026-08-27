@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-27)
 
 ## Current Position
 
-Phase: 1.1 of 12 (CI Feedback Loop — INSERTED) — **COMPLETE AND MERGED**; Phase 1 resumes next
-Plan: 6 of 6 in current phase — ALL COMPLETE
-Current Plan: 6
+Phase: 1 of 12 (RED Differential Scaffold) — RESUMED after Phase 1.1 merged
+Plan: 3 of 6 in current phase
+Current Plan: 3
 Total Plans in Phase: 6
-Status: **PHASE 1.1 COMPLETE AND MERGED.** PR #59 merged as `e6276f2` (merge commit, admin bypass). `push-build.yml`, `.github/foundry-version`, `notes/TOOLCHAIN_PINS.md` and `scripts/check-ci-skip-ledger.sh` are live on `origin/develop`, and `develop-gate` there sources the pin twice. Gate run `33112404579` (`pull_request`, success) stamped `b0a9dd9…` with `VolOrderToPanopticTokenId.t.sol` 10/10 and the suite at 271 / 0 / 1 skipped. Criterion 3 proven: two pushes to `develop` with the workflow present (`e6276f2`, `62d35b2`) produced ZERO push-build runs. CI-05/06/07 ticked; issue #58 closed. **Phase 1 remains independently PAUSED at 2 of 6 (issue #57 OPEN) and resumes at plan 01-03 — its first action should be bringing `feat/red-diff-scaffold` up to `origin/develop`, since a branch that has not inherited `push-build.yml` gets no push builds.**
+Status: **PHASE 1 RESUMED, plan 01-03 COMPLETE.** The differential test `test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol` exists, compiles and runs (commits `1c78102`, `263f96d`). Verified by push-build run `33116421403` on `263f96d`, conclusion SUCCESS: the diff suite reports **2 passed / 0 failed / 2 skipped**, the two skips naming their own reason in the gate log, and the suite total moved 271/1/272 -> **273 passed / 0 failed / 3 skipped / 276**. Regression floor held; `.github/` untouched — the skip is self-computed, not a ledger entry. RED-01/02/03/05 satisfied. Executed via the superpowers writing-plans/executing-plans path (`docs/superpowers/plans/2026-08-27-volorder-tokenid-differential-test.md`) because the GSD plan's acceptance criteria were hardcoded to the removed `red-diff-scaffold` worktree. Phase 1.1 is COMPLETE AND MERGED (PR #59 as `e6276f2`); issue #58 closed, #57 open. Next: plan 01-04, `notes/DIFFERENTIAL_LAYOUT.md` + the make target (RED-06).
 Last activity: 2026-08-27 — Phase 1.1 merged. The pinned toolchain is now stamped on BOTH CI paths, every push to a non-`develop` branch compiles unattended, and pushes to `develop` provably do not. The phase's checkpoint also corrected a long-standing false belief about `develop-gate`'s approval step.
 
 Progress: [███████░░░] 67%  (8 of 12 plans: Phase 1.1 complete at 6/6, Phase 1 paused at 2/6)
