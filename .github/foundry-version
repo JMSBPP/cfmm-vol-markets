@@ -1,0 +1,29 @@
+# THE Foundry toolchain both CI workflows resolve. Requirement CI-05.
+#
+# This file exists so that changing what CI compiles with is a REVIEWABLE DIFF. The
+# self-hosted `cfmm-build` runner is persistent: anyone running `foundryup` on that box
+# silently changes what every future run measures, with no commit, no PR and no trace. A
+# version literal living only inside workflow YAML would also let the push workflow and the
+# PR gate drift apart. Both workflows source THIS file, so there is exactly one pin and
+# moving it costs a commit.
+#
+# WHY THIS VERSION -- and what breaks if it moves: notes/TOOLCHAIN_PINS.md.
+#
+# Format: shell-sourceable KEY=value. Consumed by
+#   .github/workflows/push-build.yml    (unattended push build)
+#   .github/workflows/develop-gate.yml  (the PR/merge gate, forge job)
+# via `. ./.github/foundry-version`. Keep it sourceable: no spaces around `=`, no command
+# substitution, comments only on their own lines.
+
+# The release tag. Passed to `foundryup --install "${FOUNDRY_VERSION#v}"`.
+FOUNDRY_VERSION=v1.5.1
+
+# The commit the pinned release was built from. THIS is the assertion the workflows make --
+# a tag can in principle be re-cut, and "1.5.1" alone would not notice. `forge --version`
+# prints this SHA, so a run either matches it or goes red.
+FOUNDRY_COMMIT=b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2
+
+# The foundryup INSTALLER is pinned too: an unpinned installer is an unpinned supply chain
+# for the pinned toolchain. This is the same commit foundry-rs/foundry-toolchain@v1 pins in
+# its own src/index.ts (FOUNDRYUP_INSTALLER_COMMIT).
+FOUNDRYUP_INSTALLER_COMMIT=a27902ef04dcb43061fabf343365cb5afc95fc48
