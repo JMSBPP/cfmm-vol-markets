@@ -136,7 +136,34 @@ actually builds on the event that produces code.
     the accepted tradeoff for immediacy (approval stays on the PR path), but the workflow should avoid
     exposing secrets it does not need — note `develop-gate`'s forge job passes `API_KEY`.
   - Whether the push build should reuse `develop-gate`'s skip ledger or run the full suite.
-**Plans**: TBD
+**Resolved during planning** (rationale in the plans, not repeated here):
+  - **Not** `foundry-rs/foundry-toolchain@v1`. Read from its source: it installs into
+    `$HOME/.foundry` (`src/index.ts`: `FOUNDRY_DIR = path.join(os.homedir(), ".foundry")`), which on
+    a *persistent* runner is the box's shared foundry dir — so the action would have an unattended
+    workflow rewrite the machine's default `forge` on every push, reintroducing the exact drift the
+    pin exists to stop. It also runs on `node24`, unverified on this runner. Both workflows instead
+    drive the same pinned `foundryup` installer into a pin-keyed `$HOME/.foundry-pins/$VERSION` and
+    prepend it to the job's `PATH`: job-scoped, collision-free, installed once per pin, and it beats
+    the system `forge` because `$GITHUB_PATH` prepends. `which -a forge` is logged so the collision
+    is observable rather than assumed. The residual unknowns (runner egress, `flock`, the pre-existing
+    system `forge`) are answered from the real run in plan 04, not asserted.
+  - **The push build reuses the ledger and the seed.** Its job is to predict the gate; a different
+    surface would go red on pre-existing known-broken families and train everyone to ignore it. The
+    duplicated ledger is guarded by `scripts/check-ci-skip-ledger.sh`, which fails the push build if
+    the two copies diverge (extracting the copy into one shared place is unavailable — the gate's
+    ledger line may not move).
+  - **No secrets on the push workflow.** `develop-gate`'s forge job passes `API_KEY`; the unattended
+    workflow does not receive it. It runs `--offline` with no mainnet-fork test, and `${...}` in
+    `[rpc_endpoints]` is measured to resolve at alias *use*, not at config load.
+**Plans**: 6 plans in 6 waves (strictly sequential — each wave's output is the next wave's input)
+
+Plans:
+- [ ] 01.1-01-PLAN.md — worktree, tracking issue, FEATURES layout for the inserted phase (CI-07)
+- [ ] 01.1-02-PLAN.md — `.github/foundry-version` + `notes/TOOLCHAIN_PINS.md`: the pin recorded in-repo with its reason (CI-05)
+- [ ] 01.1-03-PLAN.md — `.github/workflows/push-build.yml` + `scripts/check-ci-skip-ledger.sh`, pushed (the workflow's own first trigger) (CI-06/07)
+- [ ] 01.1-04-PLAN.md — harvest the actual run into `01.1-CI-EVIDENCE.md`; answers the self-hosted pinning question from observation (CI-06/07; has a checkpoint)
+- [ ] 01.1-05-PLAN.md — the same pin + stamp in `develop-gate`'s forge job, proven purely additive (CI-05/06)
+- [ ] 01.1-06-PLAN.md — PR, gate run, merge, and the develop-exclusion proof; close out (CI-05/06/07; has a checkpoint)
 
 ### Phase 2: VolOrder(T) Minimal Instantiation
 **Directory**: `.planning/phases/FEATURES/feat-volorder-t-minimal/`
@@ -416,7 +443,7 @@ fails the build, with no silent-skip path left.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. RED Differential Scaffold | 2/6 | In Progress | - |
-| 1.1 CI Feedback Loop (INSERTED) | 0/TBD | Not started | - |
+| 1.1 CI Feedback Loop (INSERTED) | 0/6 | Not started | - |
 | 2. VolOrder(T) Minimal Instantiation | 0/TBD | Not started | - |
 | 3. VolOrder(T) Rich Instantiation | 0/TBD | Not started | - |
 | 4. VolOrder(T) Wire Format | 0/TBD | Not started | - |
