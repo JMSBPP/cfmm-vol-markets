@@ -202,6 +202,24 @@ test-vol-order-return:
 test-vol-order-diff:
 	forge test --match-path 'test/pos_spec/VolOrderManager.diff.t.sol' --via-ir --optimize
 
+# test-vol-order-tokenid-diff: the Haskell<->Plank volOrderToTokenId DIFFERENTIAL (RED-01..RED-06).
+# One input driven into BOTH spec/src/Panoptic/NId.hs::volOrderToTokenId and the Plank map
+# vol_order_to_panoptic_token_id (via VolOrderToPanopticTokenIdHarness.plk), asserted equal at
+# tolerance 0. Distinct from test-vol-order-diff, which is the pos_spec MODULE sequence
+# differential against a Solidity mock -- different subject, different oracle, different doctrine
+# (there the mock is disposable; here NEITHER SIDE IS SACROSANCT).
+# UNTIL PHASE 7 THIS IS SKIP-GUARDED and reports SKIP: SpecOracle.volOrderToTokenId is a stub
+# that reverts, SpecOracle.health() reports TransportFailure, setUp caches that once, and the two
+# differential tests self-skip on it. That is the intended RED state, not a failure. The two
+# evidence tests (test_specHelper_stubRevertsAndProbeReportsNotWired, test_implSide_answersOnAnchor)
+# DO run and must PASS -- without them, "everything skipped" and "the file is inert" would look
+# identical in the log.
+# Layout, naming and the transport boundary this file obeys: notes/DIFFERENTIAL_LAYOUT.md.
+# NOTE: develop-gate is the only build environment for this repo; this target is a convenience
+# entry point, not the validation path.
+test-vol-order-tokenid-diff:
+	forge test --match-path 'test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol' --via-ir --optimize
+
 # test-vol-order-fixture: the MVER-03 CONSUMER GOLDEN FIXTURE. The module's returndata compared
 # byte-for-byte against bytes produced by `cast abi-encode` (alloy) -- an encoder OUTSIDE this
 # repo and a different implementation from solc's -- plus the selector-completeness gate over
@@ -221,7 +239,7 @@ test-vol-order-fixture:
 # .planning/phases/19-*/19-MUTATION-BATTERY.md as recorded OBSERVATIONS.
 test-vol-order-acceptance: test-vol-order-validation test-vol-order-manager test-vol-order-batch test-vol-order-return test-vol-order-diff test-vol-order-fixture
 
-.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation test-vol-order-manager test-vol-order-batch test-vol-order-return test-vol-order-diff test-vol-order-fixture test-vol-order-acceptance
+.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation test-vol-order-manager test-vol-order-batch test-vol-order-return test-vol-order-diff test-vol-order-fixture test-vol-order-acceptance test-vol-order-tokenid-diff
 
 
 #####################################################################
