@@ -31,7 +31,11 @@ decision; it is not a formality to be short-circuited.
 - **Fork → PR:** `d2p-finance/*` is canonical, `JMSBPP/*` is the fork. Changes reach canonical only
   via PR. Phase 6 touches the `spec/` submodule and therefore carries a two-repo cost.
 - **Regression floor:** `test/protocol_integrations/VolOrderToPanopticTokenId.t.sol` stays green in
-  every gate run from Phase 1 onward.
+  every gate run from Phase 1 onward. The one sanctioned exception is Phase 2's regression
+  assessment, which may decide — explicitly, with the user, and *before* the refactor is written —
+  that a test tightly coupled to the old `VolOrder` shape is eliminated or rewritten. Coverage lost
+  that way is replaced, never merely dropped, and no test is removed or `--skip`-ed to turn a red
+  gate green.
 - **Review:** every plan passes the two-step review (Reality Checker + one matched specialist, in
   parallel) before execution.
 
@@ -83,20 +87,34 @@ assertion it will eventually make, and guarded so it costs the gate nothing unti
 **Directory**: `.planning/phases/FEATURES/feat-volorder-t-minimal/`
 **Branch**: `feat/volorder-t-minimal`
 **Goal**: `VolOrder` is a comptime type constructor carrying `extra: T`, and instantiating it with the
-empty payload reproduces today's behavior exactly — a refactor no existing caller can feel.
+empty payload reproduces today's behavior exactly — a refactor whose blast radius is *measured and
+decided up front* rather than discovered while writing it.
 **Depends on**: Phase 1
 **Requirements**: VORD-01, VORD-02, VORD-03
+**Regression assessment comes first.** Before the refactor is written, enumerate every test and
+dependency coupled to the concrete `VolOrder` shape and classify each one: *survives untouched*,
+*needs a mechanical call-site update*, or *is tightly coupled to the old format and should be
+eliminated*. The elimination candidates are a brainstorm-and-decide step with the user, not a
+judgement call made mid-refactor — and the decisions are recorded with their rationale before any
+code moves. This assessment is what makes the "no edits" criterion below meaningful rather than
+aspirational: it establishes *which* files were expected to be untouched in the first place.
 **Success Criteria** (what must be TRUE):
-> We need to asses first the reggtrssions caused by this refactor and braisntorm decisions to be made on eliminating tests/depdendices iof this that are tightly coipuled with theo  old format
-   1. `develop-gate` is green on `feat/volorder-t-minimal`: the plank job compiles `VolOrder(T)`
+  1. A recorded regression assessment enumerates every test and dependency coupled to the old
+     `VolOrder` shape, classifies each into the three buckets above, and carries a user-agreed
+     decision plus rationale for every elimination candidate.
+  2. `develop-gate` is green on `feat/volorder-t-minimal`: the plank job compiles `VolOrder(T)`
      following the in-repo `Shock(R)` pattern, and the forge job runs the full existing suite.
-  2. The gate run reports every golden vector and fuzz case in `VolOrderToPanopticTokenId.t.sol`
-     passing **with no edits to that file** — the minimal instantiation's `tokenId` is bit-identical
-     to today's `vol_order_to_panoptic_token_id`.
-  3. The plank job compiles `vol_order_to_mint`, `position_size_for_target_vega`,
+  3. Every test classified *survives untouched* — including the golden vectors and fuzz cases in
+     `VolOrderToPanopticTokenId.t.sol` — passes in that gate run with **no edits to those files**,
+     making the minimal instantiation's `tokenId` bit-identical to today's
+     `vol_order_to_panoptic_token_id`.
+  4. Every eliminated or rewritten test is traceable to a decision from criterion 1. Nothing is
+     deleted, weakened or `--skip`-ed merely to make the gate green; a coupled test that would have
+     caught a real regression is replaced, not dropped.
+  5. The plank job compiles `vol_order_to_mint`, `position_size_for_target_vega`,
      `vol_order_leg_split` and `VolOrderToPanopticTokenIdHarness.plk` against the minimal
-     instantiation with no change at their call sites.
-  4. The differential test still compiles and still skips in the same run (Phase 1 state preserved).
+     instantiation, and the differential test still compiles and still skips in the same run
+     (Phase 1 state preserved).
 **Plans**: TBD
 
 ### Phase 3: VolOrder(T) Rich Instantiation
