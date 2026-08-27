@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 2
+current_plan: 3
 status: executing
-stopped_at: "Completed 01.1-02-PLAN.md — Foundry pin recorded in-repo (.github/foundry-version + notes/TOOLCHAIN_PINS.md), commit dddb26b on feat/ci-feedback-loop, unpushed"
-last_updated: "2026-08-27T19:12:36.596Z"
-last_activity: "2026-08-27 — Plan 01.1-02 executed: Foundry pin recorded in-repo (.github/foundry-version v1.5.1/b0a9dd9 + notes/TOOLCHAIN_PINS.md), commit dddb26b on feat/ci-feedback-loop, unpushed, no CI run triggered"
+stopped_at: "Completed 01.1-03-PLAN.md — push-build.yml + check-ci-skip-ledger.sh pushed as bdeecb3; run 33107877073 triggered BY that push (event=push, in_progress at hand-off)"
+last_updated: "2026-08-27T19:23:04.211Z"
+last_activity: "2026-08-27 — Plan 01.1-03 executed: push-build.yml + scripts/check-ci-skip-ledger.sh committed as bdeecb3 and PUSHED to origin/feat/ci-feedback-loop — the push triggered run 33107877073 (event=push, sha bdeecb3), the first CI run and first compile this project has ever had"
 progress:
   total_phases: 12
   completed_phases: 0
   total_plans: 12
-  completed_plans: 4
-  percent: 33
+  completed_plans: 5
+  percent: 42
 ---
 
 # Project State
@@ -27,27 +27,27 @@ See: .planning/PROJECT.md (updated 2026-08-27)
 ## Current Position
 
 Phase: 1.1 of 12 (CI Feedback Loop — INSERTED; runs before Phase 1 wave 3)
-Plan: 2 of 6 in current phase
-Current Plan: 2
+Plan: 3 of 6 in current phase
+Current Plan: 3
 Total Plans in Phase: 6
-Status: Executing — Phase 1.1 plan 01.1-02 complete, 01.1-03 next. Phase 1 is PAUSED at 2 of 6 (01-03 resumes after 1.1 merges).
-Last activity: 2026-08-27 — Plan 01.1-02 executed: Foundry pin recorded in-repo (.github/foundry-version v1.5.1/b0a9dd9 + notes/TOOLCHAIN_PINS.md), commit dddb26b on feat/ci-feedback-loop, unpushed, no CI run triggered
+Status: Executing — Phase 1.1 plan 01.1-03 complete (push-build.yml pushed; run 33107877073 in flight), 01.1-04 next. Phase 1 is PAUSED at 2 of 6 (01-03 resumes after 1.1 merges).
+Last activity: 2026-08-27 — Plan 01.1-03 executed: push-build.yml + scripts/check-ci-skip-ledger.sh committed as bdeecb3 and PUSHED to origin/feat/ci-feedback-loop — the push triggered run 33107877073 (event=push, sha bdeecb3), the first CI run and first compile this project has ever had
 
-Progress: [███░░░░░░░] 33%  (4 of 12 plans across the two open phases: 1 and 1.1)
+Progress: [████░░░░░░] 42%  (5 of 12 plans across the two open phases: 1 and 1.1)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 2.5 min
-- Total execution time: 0.2 hours
+- Total plans completed: 5
+- Average duration: 3.2 min
+- Total execution time: 0.27 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | Phase 1 | 2/6 | 6 min | 3 min |
-| Phase 1.1 | 2/6 | 4 min | 2 min |
+| Phase 1.1 | 3/6 | 10 min | 3.3 min |
 
 **Per-plan:**
 
@@ -57,10 +57,11 @@ Progress: [███░░░░░░░] 33%  (4 of 12 plans across the two op
 | Phase 01 P02 | 3min | 1 tasks | 1 files |
 | Phase 01.1 P01 | 2min | 3 tasks | 2 files |
 | Phase 01.1 P02 | 2min | 2 tasks | 2 files |
+| Phase 01.1 P03 | 6min | 3 tasks | 2 files |
 
 **Recent Trend:**
-- Last 5 plans: 3 min, 3 min, 2 min, 2 min
-- Trend: flat (4 data points)
+- Last 5 plans: 3 min, 3 min, 2 min, 2 min, 6 min
+- Trend: up — 01.1-03 is the first plan that pushed and waited on a real CI run (5 data points)
 
 *Updated after each plan completion*
 
@@ -90,6 +91,10 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 - [Phase 01.1]: Foundry pinned in-repo at .github/foundry-version: v1.5.1 / commit b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2 / installer a27902ef04dcb43061fabf343365cb5afc95fc48 — a shell-sourceable KEY=value file both workflows will source, so the push build and the PR gate cannot pin different versions
 - [Phase 01.1]: The pin asserts on the COMMIT SHA, not the tag, and its rationale lives in notes/TOOLCHAIN_PINS.md (binding spec per CLAUDE.md) — a bump is a two-file diff whose review must re-measure the four transport findings; v1.8.0 refused despite vm.rpcJson because it encodes returns differently
 - [Phase 01.1]: CI installs the pin into $HOME/.foundry-pins/$FOUNDRY_VERSION and prepends it to PATH, deliberately NOT $HOME/.foundry — on the persistent cfmm-build runner that shared dir IS the box's default forge, so installing there would have CI rewrite the machine for every other job
+
+- [Phase 01.1]: push-build.yml is a SEPARATE unattended workflow (no environment:, no secrets., no API_KEY reaching the job) — verified structurally against the PARSED YAML, not by grep: every occurrence of those tokens is a YAML comment explaining the omission, and GitHub does not evaluate ${{ }} in comments
+- [Phase 01.1]: MEASURED on run 33107877073: the cfmm-build runner DOES have egress to raw.githubusercontent.com, flock IS present, and foundryup --install "${FOUNDRY_VERSION#v}" resolves v1.5.1/b0a9dd9 — the pinned install into $HOME/.foundry-pins/$FOUNDRY_VERSION and the commit assertion both went green, closing three of plan 03's four residual unknowns from observation rather than assumption
+- [Phase 01.1]: The push build COPIES develop-gate's --skip ledger and seed rather than sharing it (the gate's ledger line may not move), and scripts/check-ci-skip-ledger.sh makes the copy's parity ENFORCED not reviewed — comment lines are stripped first so a comment cannot satisfy it, and a vacuous zero-pattern extraction is red
 
 **Open by design — owned by phase planning, do not pre-resolve:**
 
@@ -136,9 +141,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T19:12:29.534Z
-Stopped at: Completed 01.1-02-PLAN.md — Foundry pin recorded in-repo (.github/foundry-version + notes/TOOLCHAIN_PINS.md), commit dddb26b on feat/ci-feedback-loop, unpushed
+Last session: 2026-08-27T19:22:22Z
+Stopped at: Completed 01.1-03-PLAN.md — push-build.yml + check-ci-skip-ledger.sh pushed as bdeecb3; run 33107877073 triggered BY that push
 Resume file: None
 
-Next: execute `.planning/phases/FEATURES/feat-ci-feedback-loop/01.1-03-PLAN.md` (`.github/workflows/push-build.yml` + `scripts/check-ci-skip-ledger.sh`, sourcing `.github/foundry-version`; this plan's push is the FIRST that carries the workflow and therefore the first that can trigger it — CI-06/CI-07) in the `feat/ci-feedback-loop` worktree at /home/jmsbpp/cfmms-playground/cfmm-wt/ci-feedback-loop. `feat/ci-feedback-loop` currently has 1 unpushed commit (dddb26b).
+Next: execute `.planning/phases/FEATURES/feat-ci-feedback-loop/01.1-04-PLAN.md` — harvest run **33107877073** (https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33107877073, event=push, sha bdeecb3, in_progress at hand-off with 8 steps green through `npm ci` and `forge build` running) into `01.1-CI-EVIDENCE.md`. Plan 04 owns the interpretation and the contingency table; plan 03 deliberately did not diagnose. `feat/ci-feedback-loop` is at bdeecb3 on origin, 2 commits ahead of origin/develop, nothing unpushed.
 Phase 1 resumes at `01-03-PLAN.md` in the `feat/red-diff-scaffold` worktree once Phase 1.1 merges.
