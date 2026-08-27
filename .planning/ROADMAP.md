@@ -86,9 +86,9 @@ assertion it will eventually make, and guarded so it costs the gate nothing unti
 Plans:
 - [x] 01-01-PLAN.md — worktree, tracking issue, and the FEATURES layout committed to `develop` (PROC-01)
 - [x] 01-02-PLAN.md — `SpecHelper.sol`: the reverting `volOrderToTokenId` stub, `health()` as the wiring predicate, the external boundary (RED-04)
-- [ ] 01-03-PLAN.md — `VolOrderToPanopticTokenId.diff.t.sol`: doctrine, discipline, `setUp`-cached wiring probe, three-outcome separation before `assertEq(specTokenId, implTokenId)` (RED-01/02/03/05)
-- [ ] 01-04-PLAN.md — `notes/DIFFERENTIAL_LAYOUT.md` (10 sections: generated-interface boundary + measured transport constraints, each with its evidence) + the make target (RED-06)
-- [ ] 01-05-PLAN.md — PR into `develop`, gate run, evidence harvested incl. runner `forge --version` (RED-01/05; has a checkpoint)
+- [x] 01-03-PLAN.md — `VolOrderToPanopticTokenId.diff.t.sol`: doctrine, discipline, `setUp`-cached wiring probe, three-outcome separation before `assertEq(specTokenId, implTokenId)` (RED-01/02/03/05)
+- [x] 01-04-PLAN.md — `notes/DIFFERENTIAL_LAYOUT.md` (10 sections: generated-interface boundary + measured transport constraints, each with its evidence) + the make target (RED-06)
+- [x] 01-05-PLAN.md — PR into `develop`, gate run, evidence harvested incl. runner `forge --version` (RED-01/05; has a checkpoint)
 - [ ] 01-06-PLAN.md — merge to `develop`, verify criteria 4 and 5 against the merged tree, close out
 
 ### Phase 1.1: CI Feedback Loop (INSERTED)
@@ -553,7 +553,7 @@ fails the build, with no silent-skip path left.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. RED Differential Scaffold | 2/6 | In Progress | - |
+| 1. RED Differential Scaffold | 5/6 | In Progress | - |
 | 1.1 CI Feedback Loop (INSERTED) | 6/6 | Complete | - |
 | 2. VolOrder(T) Minimal Instantiation | 0/TBD | Not started | - |
 | 3. VolOrder(T) Rich Instantiation | 0/TBD | Not started | - |
