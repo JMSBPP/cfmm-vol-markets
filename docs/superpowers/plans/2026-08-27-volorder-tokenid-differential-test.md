@@ -343,10 +343,13 @@ grep -q 'SpecOracle.Status internal s_wiring;' "$F" \
  && grep -q 'function test_specHelper_stubRevertsAndProbeReportsNotWired' "$F" \
  && grep -q 'function test_implSide_answersOnAnchor' "$F" \
  && [ "$(grep -c '_probeWiring()' "$F")" = "2" ] \
- && [ "$(grep -c 'SpecOracle.health(' "$F")" = "0" ] \
+ && [ -z "$(grep -vE '^\s*(//|///|\*|/\*)' "$F" | sed 's/"[^"]*"//g' | grep 'SpecOracle\.health(')" ] \
  && echo OK
 ```
-Expected: `OK`. `_probeWiring()` appearing exactly twice is the declaration plus its single call in `setUp` — a third occurrence means something probes more than once.
+Expected: `OK`. Note the health() check strips comments AND string literals first: the doctrine
+header and `SKIP_REASON` both legitimately mention `SpecOracle.health()` in prose, so a naive
+`grep -c` returns 2 and would fail against the file this plan mandates. The intent is "no test body
+CALLS health()". `_probeWiring()` appearing exactly twice is the declaration plus its single call in `setUp` — a third occurrence means something probes more than once.
 
 - [ ] **Step 6: Commit Task 1**
 
@@ -480,7 +483,7 @@ grep -q 'assertEq(specTokenId, implTokenId, "spec vs impl tokenId, tol 0");' "$F
  && grep -q 'function test_differential__volOrder__anchor() public' "$F" \
  && [ "$(grep -c 'vm.assume' "$F")" = "0" ] \
  && [ "$(grep -c 'vm.skip(true, SKIP_REASON);' "$F")" = "2" ] \
- && [ "$(grep -c 'SpecOracle.health(' "$F")" = "0" ] \
+ && [ -z "$(grep -vE '^\s*(//|///|\*|/\*)' "$F" | sed 's/"[^"]*"//g' | grep 'SpecOracle\.health(')" ] \
  && [ "$(grep -c 'result.detail' "$F")" = "0" ] \
  && [ -z "$(git diff develop --name-only -- .github/)" ] \
  && [ "$(tail -c 2 "$F")" = "}" ] \
