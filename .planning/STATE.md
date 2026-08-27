@@ -154,7 +154,7 @@ None yet.
 
 ## Reminders
 
-- Every phase = one git worktree named after its `feat/…` branch + a tracking issue on `develop`.
+- **Phases start INLINE, in the current tree — no per-phase worktree** (retired after Phase 1.1). A tracking issue on `develop` still applies.
 - CI (`develop-gate`) is the sole validation gate. Never report work as verified from a local build or local `forge test`.
 - Regression floor: `test/protocol_integrations/VolOrderToPanopticTokenId.t.sol` stays green in every gate run.
 - **NEVER give the `gate` job a `name:`.** `develop`'s branch protection requires the status-check context `gate`, which binds to the job id. A rename silently un-protects the default branch.
