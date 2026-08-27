@@ -4,15 +4,15 @@ milestone: v1.0
 milestone_name: milestone
 current_plan: 6
 status: executing
-stopped_at: "01.1-06-PLAN.md BLOCKED at task 3 of 3, one command short of done. Task 1 complete (7591034 pushed, PR #59 open, Closes #58); task 2 checkpoint ANSWERED — maintainer chose Option B, 'Restate the criterion, merge as-is' and 'Yes, merge with bypass', repo config NOT changed. Task 3 cannot start: `gh pr merge 59 --merge --admin` was DENIED by the permission system, and an agent decision is not user consent, so the denial stands and was not routed around (no local merge commit pushed to develop). Everything downstream — criterion 3's two-push proof, the evidence append, CI-05/06/07, the issue close — waits on that one merge. Criterion 3 before-state recorded empty FOUR times pre-merge (20:13:37Z, 20:20:26Z, 20:23:50Z, 20:26:42Z), all correctly NOT proof because push-build.yml is still absent from origin/develop."
-last_updated: "2026-08-27T20:27:00.000Z"
-last_activity: "2026-08-27 - Plan 01.1-06 task 1: branch pushed, PR #59 opened, and the first develop-gate run in this phase (33112404579) went GREEN on all four jobs with the pinned toolchain stamped (forge 1.5.1-v1.5.1 / b0a9dd9...) and VolOrderToPanopticTokenId at 10 passed / 0 failed. Install step was a 0-second pin-keyed cache hit with zero output, as plan 05 predicted. PAUSED at task 2: the gate needed NO environment approval because the develop-gate environment has no protection rules at all - reported, not worked around."
+stopped_at: "Completed 01.1-06-PLAN.md — PHASE 1.1 IS COMPLETE AND MERGED. PR #59 merged as e6276f2; push-build.yml, .github/foundry-version, notes/TOOLCHAIN_PINS.md and scripts/check-ci-skip-ledger.sh are live on origin/develop, and develop-gate resolves the pin there. First gate run 33112404579 (pull_request, success) stamped b0a9dd9... with VolOrderToPanopticTokenId 10/10 and the suite at 271/0/1. Criterion 3 proven: two pushes to develop with the workflow present (e6276f2, 62d35b2) produced ZERO push-build runs. CI-05/06/07 ticked; issue #58 closed. THE FINDING: develop-gate has no approval gate and never has — criterion 2 restated per Option B, repo config unchanged. NEXT: Phase 1 resumes at plan 01-03, and its FIRST action should be bringing feat/red-diff-scaffold up to origin/develop so it inherits push builds."
+last_updated: "2026-08-27T20:36:00.000Z"
+last_activity: "2026-08-27 — Plan 01.1-06 completed Phase 1.1: PR #59 merged as e6276f2 with an admin bypass, both CI workflows now live on develop, the pinned toolchain stamped on the gate path for the first time, and the develop-exclusion proven across two real pushes. Its checkpoint produced the phase's most valuable finding — develop-gate has never had an approval gate (protection_rules: []) — which corrected a belief that had been used to argue design decisions here and in a sibling project."
 progress:
   total_phases: 12
   completed_phases: 0
   total_plans: 12
-  completed_plans: 7
-  percent: 58
+  completed_plans: 8
+  percent: 67
 ---
 
 # Project State
@@ -26,14 +26,14 @@ See: .planning/PROJECT.md (updated 2026-08-27)
 
 ## Current Position
 
-Phase: 1.1 of 12 (CI Feedback Loop — INSERTED; runs before Phase 1 wave 3)
-Plan: 6 of 6 in current phase
+Phase: 1.1 of 12 (CI Feedback Loop — INSERTED) — **COMPLETE AND MERGED**; Phase 1 resumes next
+Plan: 6 of 6 in current phase — ALL COMPLETE
 Current Plan: 6
 Total Plans in Phase: 6
-Status: EXECUTING — 01.1-06 BLOCKED at task 3 of 3, one command short of complete. Tasks 1 and 2 are done: `7591034` pushed, **PR #59** open against `develop` on the fork (`Closes #58`, MERGEABLE/CLEAN), and the first develop-gate run of this phase, `33112404579`, is SUCCESS on all four jobs with the pin stamped on the gate path (`b0a9dd9…`) and `VolOrderToPanopticTokenId.t.sol` 10/10. The task-2 checkpoint was ANSWERED — **Option B**: restate criterion 2 against what is actually enforced, merge as-is with the admin bypass, change no repo configuration. **Task 3 has not started:** `gh pr merge 59 --merge --admin` was DENIED by the permission system. A coordinating agent's authorisation is not the user's consent, so the denial was honoured rather than worked around — no locally-built merge commit was pushed to `develop`. Awaiting the user's own go-ahead on that single command. Phase 1 remains independently PAUSED at 2 of 6.
-Last activity: 2026-08-27 — Plan 01.1-06 task 1: branch pushed, PR #59 opened, and both workflows fired on the same SHA from different events — push-build 33112355047 (`push`, success, `pending_deployments: []`, job started +3 s) and develop-gate 33112404579 (`pull_request`, success). The gate's install step was a 0-second pin-keyed cache hit emitting no output, exactly as plan 05 predicted; the *stamp* step re-asserted the pin and passed. Suite on the gate path: 271 passed, 0 failed, 1 skipped across 74 suites.
+Status: **PHASE 1.1 COMPLETE AND MERGED.** PR #59 merged as `e6276f2` (merge commit, admin bypass). `push-build.yml`, `.github/foundry-version`, `notes/TOOLCHAIN_PINS.md` and `scripts/check-ci-skip-ledger.sh` are live on `origin/develop`, and `develop-gate` there sources the pin twice. Gate run `33112404579` (`pull_request`, success) stamped `b0a9dd9…` with `VolOrderToPanopticTokenId.t.sol` 10/10 and the suite at 271 / 0 / 1 skipped. Criterion 3 proven: two pushes to `develop` with the workflow present (`e6276f2`, `62d35b2`) produced ZERO push-build runs. CI-05/06/07 ticked; issue #58 closed. **Phase 1 remains independently PAUSED at 2 of 6 (issue #57 OPEN) and resumes at plan 01-03 — its first action should be bringing `feat/red-diff-scaffold` up to `origin/develop`, since a branch that has not inherited `push-build.yml` gets no push builds.**
+Last activity: 2026-08-27 — Phase 1.1 merged. The pinned toolchain is now stamped on BOTH CI paths, every push to a non-`develop` branch compiles unattended, and pushes to `develop` provably do not. The phase's checkpoint also corrected a long-standing false belief about `develop-gate`'s approval step.
 
-Progress: [██████░░░░] 58%  (7 of 12 plans across the two open phases: 1 and 1.1)
+Progress: [███████░░░] 67%  (8 of 12 plans: Phase 1.1 complete at 6/6, Phase 1 paused at 2/6)
 
 ## Performance Metrics
 
@@ -157,6 +157,8 @@ None yet.
 - Every phase = one git worktree named after its `feat/…` branch + a tracking issue on `develop`.
 - CI (`develop-gate`) is the sole validation gate. Never report work as verified from a local build or local `forge test`.
 - Regression floor: `test/protocol_integrations/VolOrderToPanopticTokenId.t.sol` stays green in every gate run.
+- **NEVER give the `gate` job a `name:`.** `develop`'s branch protection requires the status-check context `gate`, which binds to the job id. A rename silently un-protects the default branch.
+- **`environment:` in a workflow is not an approval gate.** Verify with the environment's `protection_rules` and a run's `pending_deployments` before claiming one exists.
 
 ## Session Continuity
 

@@ -44,7 +44,7 @@ decision; it is not a formality to be short-circuited.
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [ ] **Phase 1: RED Differential Scaffold** - The first clean push: a compiling, skip-guarded `.diff.t.sol` with its doctrine and transport boundary
-- [ ] **Phase 1.1: CI Feedback Loop** (INSERTED) - push-triggered build so every commit compiles, plus an explicit pinned forge version stamped into every run
+- [x] **Phase 1.1: CI Feedback Loop** (INSERTED) - push-triggered build so every commit compiles, plus an explicit pinned forge version stamped into every run
 - [ ] **Phase 2: VolOrder(T) Minimal Instantiation** - `VolOrder` becomes a comptime constructor with today's output bit-identical
 - [ ] **Phase 3: VolOrder(T) Rich Instantiation** - The Haskell-shaped payload: 4-tuple of `optionRatio`s plus the `asset` bit
 - [ ] **Phase 4: VolOrder(T) Wire Format** - A serialization that carries *which* `T` it is, decodable from the bytes alone
@@ -161,6 +161,13 @@ actually builds on the event that produces code.
      `environment:`, no secrets and no ability to satisfy the `gate` context, and the gate's `+84 / −0`
      edit left the `gate` job's `name`-lessness and `needs: [approve, forge, plank]` untouched.
   3. Pushes to `develop` do **not** trigger the push build (merges are the PR gate's job).
+     → **PROVEN** (plan 06). Two real pushes to `develop` with `push-build.yml` present at the ref:
+     the merge `e6276f2` (`2026-08-27T20:28:51Z`) and the evidence commit `62d35b2`
+     (`20:33:15Z`). `gh run list --workflow push-build.yml --branch develop` was `[]` after both
+     (`20:29:36Z`, `20:34:44Z`), and `gh run list --branch develop` shows the branch's only run ever
+     is a Dependency Graph run from 2026-07-10. The four PRE-merge `[]` readings are recorded in the
+     evidence file as explicitly **NOT** proof, since `push-build.yml` was absent from `develop` at
+     the time and a workflow that does not exist at a ref cannot run there.
   4. Both workflows resolve an explicit, declared Foundry version rather than the ambient one, and
      each run's log shows the resolved `forge --version` including version and commit SHA.
      → **HALF MET.** *File half:* both workflows now `.`-source `.github/foundry-version` twice
@@ -192,6 +199,10 @@ actually builds on the event that produces code.
      Because `--skip` matches on filename, that entry had also been masking `src/…/PriceSetterHook.sol`
      and `foundry-scripts/PriceSetterHook.s.sol` — both now compile clean. Criterion 6's intent (no
      regression, no widening of the ledger) holds; its letter does not.
+     → **CONFIRMED ON THE GATE PATH** (plan 06). Gate run `33112404579`:
+     `Suite result: ok. 10 passed; 0 failed; 0 skipped` for `VolOrderToPanopticTokenId.t.sol`, and
+     `271 tests passed, 0 failed, 1 skipped` across 74 suites. `bash scripts/check-ci-skip-ledger.sh`
+     on the merged `develop` tree exits 0 with `skip-ledger parity OK: 3 patterns, seed 4880`.
 **Open questions for planning**:
   - ~~Pinning Foundry on a *persistent self-hosted* runner is not the hosted-container problem —
     `foundry-rs/foundry-toolchain@v1` vs an explicit `foundryup --version`, tool-cache behaviour, and
@@ -254,16 +265,15 @@ Plans:
       — `7591034`, **+84 / −0** against `origin/develop`; install+stamp bodies byte-identical to
       `push-build.yml`'s; trigger, `environment` approval, `gate` contract, ledger and seed all
       proven unmoved. NOT pushed — plan 06 owns the PR and the first gate run.
-- [ ] 01.1-06-PLAN.md — PR, gate run, merge, and the develop-exclusion proof; close out (CI-05/06/07; has a checkpoint)
-      — **PAUSED at its blocking checkpoint (task 2 of 3).** Task 1 done: `7591034` pushed, **PR #59** open
-      against `develop` on the fork (`Closes #58`). Both workflows fired on the same SHA from different
-      events — push-build `33112355047` (`push`, success, `pending_deployments: []`, +3 s) and the first
-      develop-gate run `33112404579` (`pull_request`, **success**, all four jobs green,
-      `VolOrderToPanopticTokenId.t.sol` 10 passed / 0 failed, suite 271 passed / 0 failed / 1 skipped).
-      **The merge is WITHHELD** pending a maintainer decision on criterion 2 above: the gate required zero
-      approvals because its environment has no protection rules at all. Criterion 3 is still UNPROVEN — its
-      empty "before" is recorded (`gh run list --workflow push-build.yml --branch develop` → `[]` at
-      `2026-08-27T20:13:37Z` and again at `20:20:26Z`, both pre-merge).
+- [x] 01.1-06-PLAN.md — PR, gate run, merge, and the develop-exclusion proof; close out (CI-05/06/07; has a checkpoint)
+      — **COMPLETE.** PR [#59](https://github.com/JMSBPP/cfmm-vol-markets/pull/59) merged as `e6276f2`
+      (merge commit, admin bypass). Both workflows fired on the same SHA from different events:
+      push-build `33112355047` (`push`, success, `pending_deployments: []`, +3 s) and the first
+      develop-gate run of this phase, `33112404579` (`pull_request`, **success**, all four jobs green,
+      pin stamped `b0a9dd9…`, `VolOrderToPanopticTokenId.t.sol` 10/10, suite 271 / 0 / 1 skipped).
+      Criterion 3 proven across two pushes to `develop`. Issue #58 closed. CI-05/06/07 ticked.
+      **Its checkpoint produced the phase's most valuable finding** — `develop-gate` has no approval
+      gate and never has — resolved by restating criterion 2, not by changing repo configuration.
 
 ### Phase 2: VolOrder(T) Minimal Instantiation
 **Directory**: `.planning/phases/FEATURES/feat-volorder-t-minimal/`
@@ -543,7 +553,7 @@ fails the build, with no silent-skip path left.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. RED Differential Scaffold | 2/6 | In Progress | - |
-| 1.1 CI Feedback Loop (INSERTED) | 5/6 | In Progress | - |
+| 1.1 CI Feedback Loop (INSERTED) | 6/6 | Complete | - |
 | 2. VolOrder(T) Minimal Instantiation | 0/TBD | Not started | - |
 | 3. VolOrder(T) Rich Instantiation | 0/TBD | Not started | - |
 | 4. VolOrder(T) Wire Format | 0/TBD | Not started | - |
