@@ -66,6 +66,7 @@ Requirements for this milestone. Each maps to a roadmap phase.
 
 - [ ] **CI-05**: `develop-gate` resolves an **explicit, pinned Foundry version** rather than whatever `forge` happens to be installed on the persistent self-hosted runner, so gate results are attributable and reproducible
 - [ ] **CI-06**: Every gate run emits the resolved `forge --version` (version, commit SHA, build timestamp) as run evidence, making toolchain drift visible the first time it occurs
+- [ ] **CI-07**: A push to any branch other than `develop` **immediately** triggers a build that initializes submodules, installs dependencies, builds the Plank toolchain, and runs `forge build` + `forge test` — **without manual approval** — so code committed at any execution step gets compile feedback without waiting for a PR
 
 ### Planning Layout
 
@@ -131,20 +132,21 @@ Populated during roadmap creation (2026-08-27). Phase directories live at
 | GUARD-05 | Phase 9 — Guard Parity Assertion | Pending |
 | DIFF-01 | Phase 10 — Passing Differential Test | Pending |
 | DIFF-02 | Phase 10 — Passing Differential Test | Pending |
-| CI-05 | Phase 1.1 — Foundry Toolchain Pin | Pending |
-| CI-06 | Phase 1.1 — Foundry Toolchain Pin | Pending |
+| CI-05 | Phase 1.1 — CI Feedback Loop | Pending |
+| CI-06 | Phase 1.1 — CI Feedback Loop | Pending |
+| CI-07 | Phase 1.1 — CI Feedback Loop | Pending |
 | CI-01 | Phase 11 — develop-gate Enforcement | Pending |
 | CI-02 | Phase 11 — develop-gate Enforcement | Pending |
 | CI-03 | Phase 11 — develop-gate Enforcement | Pending |
 | CI-04 | Phase 11 — develop-gate Enforcement | Pending |
 
 **Coverage:**
-- v1 requirements: 34 total
-- Mapped to phases: 34 ✓
+- v1 requirements: 35 total
+- Mapped to phases: 35 ✓
 - Unmapped: 0
 - Duplicated across phases: 0
 
-Phase distribution: P1=7, P1.1=2, P2=3, P3=2, P4=1, P5=3, P6=3, P7=2, P8=3, P9=2, P10=2, P11=4.
+Phase distribution: P1=7, P1.1=3, P2=3, P3=2, P4=1, P5=3, P6=3, P7=2, P8=3, P9=2, P10=2, P11=4.
 
 ---
 *Requirements defined: 2026-08-27 · Traceability populated: 2026-08-27*

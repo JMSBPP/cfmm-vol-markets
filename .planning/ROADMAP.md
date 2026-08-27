@@ -44,7 +44,7 @@ decision; it is not a formality to be short-circuited.
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [ ] **Phase 1: RED Differential Scaffold** - The first clean push: a compiling, skip-guarded `.diff.t.sol` with its doctrine and transport boundary
-- [ ] **Phase 1.1: Foundry Toolchain Pin** (INSERTED) - pin an explicit forge version in the gate and stamp it into every run's evidence
+- [ ] **Phase 1.1: CI Feedback Loop** (INSERTED) - push-triggered build so every commit compiles, plus an explicit pinned forge version stamped into every run
 - [ ] **Phase 2: VolOrder(T) Minimal Instantiation** - `VolOrder` becomes a comptime constructor with today's output bit-identical
 - [ ] **Phase 3: VolOrder(T) Rich Instantiation** - The Haskell-shaped payload: 4-tuple of `optionRatio`s plus the `asset` bit
 - [ ] **Phase 4: VolOrder(T) Wire Format** - A serialization that carries *which* `T` it is, decodable from the bytes alone
@@ -90,37 +90,52 @@ Plans:
 - [ ] 01-05-PLAN.md — PR into `develop`, gate run, evidence harvested incl. runner `forge --version` (RED-01/05; has a checkpoint)
 - [ ] 01-06-PLAN.md — merge to `develop`, verify criteria 4 and 5 against the merged tree, close out
 
-### Phase 1.1: Foundry Toolchain Pin (INSERTED)
-**Directory**: `.planning/phases/FEATURES/feat-foundry-pin/`
-**Branch**: `feat/foundry-pin`
-**Goal**: Make every `develop-gate` result attributable to a known toolchain, so gate evidence means
-something and drift becomes visible instead of silent.
-**Depends on**: Phase 1 waves 1–4 (the scaffold exists). **Must land on `develop` BEFORE Phase 1's
-wave-5 PR runs**, so that run's evidence — including the `try`/`catch` transport finding — is
-version-scoped to a pinned toolchain rather than to whatever was on the box.
-**Why this was inserted**: Foundry is pinned NOWHERE in this repo — no version key in `foundry.toml`,
-no `foundry-toolchain` action or `foundryup` step in the workflow, no `.foundryrc`/`.tool-versions`.
-The self-hosted runner is *persistent*, so its `forge` drifts silently on any `foundryup`, with no
-diff and no log line. Every transport behaviour recorded in STATE.md is measured at `1.5.1-stable`
-`b0a9dd9`; v1.8.0 (published 2026-08-27) encodes `vm.rpc` returns differently and adds `vm.rpcJson`.
-An unpinned floating Foundry makes wire behaviour non-deterministic across runs — a silent-divergence
-source of exactly the class this milestone exists to eliminate.
-**Requirements**: CI-05, CI-06
+### Phase 1.1: CI Feedback Loop (INSERTED)
+**Directory**: `.planning/phases/FEATURES/feat-ci-feedback-loop/`
+**Branch**: `feat/ci-feedback-loop`
+**Goal**: Close the hole in the CI-is-the-only-build-environment doctrine — make every push compile
+immediately and unattended, and make every result attributable to a known toolchain.
+**Depends on**: Phase 1 waves 1–2 (the `SpecOracle` seam exists and is pushed).
+**Runs BEFORE Phase 1 wave 3**, so waves 3–6 get compile feedback on every push rather than
+discovering breakage at the wave-5 PR.
+**Why this was inserted**: two gaps found during Phase 1 execution.
+
+*(a) The doctrine had no feedback path.* `develop-gate` is `on: pull_request` only — deliberately, per
+its own comment ("PR-only; merges go through PRs, no double-approval from a push trigger"). Combined
+with dependencies being intentionally uninitialized locally, that means code can be written, committed
+and pushed with **zero compile feedback** until someone opens a PR. `SpecHelper.sol` is on the remote
+right now and nothing has ever compiled it. "CI is the only build environment" only holds if CI
+actually builds on the event that produces code.
+
+*(b) Foundry is pinned nowhere* — no version key in `foundry.toml`, no `foundry-toolchain` action or
+`foundryup` step, no `.foundryrc`/`.tool-versions`. The self-hosted runner is *persistent*, so its
+`forge` drifts silently on any `foundryup`. **Four** recorded findings rest on `1.5.1-stable`
+`b0a9dd9` specifically: the `json_value_to_token` coercion behaviour, the `vm.rpc` return encoding,
+`${...}` alias resolution being lazy, and `try`/`catch` catching a cheatcode revert. v1.8.0 (published
+2026-08-27) encodes returns differently.
+**Requirements**: CI-05, CI-06, CI-07
 **Success Criteria** (what must be TRUE):
-  1. `develop-gate` resolves an explicit, declared Foundry version — not the ambient one — and a gate
-     run on `feat/foundry-pin` is green with the pinned toolchain in use.
-  2. That gate run's log shows the resolved `forge --version` including version, commit SHA and build
-     timestamp, so any later run can be attributed to a toolchain.
-  3. The pinned version is recorded in the repo (not only in workflow YAML) alongside the reason,
-     citing that the transport findings hold at `1.5.1-stable` `b0a9dd9`.
-  4. The existing suite is unaffected: the same gate run still reports
-     `VolOrderToPanopticTokenId.t.sol` green, and the `--skip` ledger line is untouched.
-  5. Changing the pin is a visible, reviewable diff — a future upgrade cannot happen by someone
-     running `foundryup` on the runner.
-**Open question for planning**: installing a pinned Foundry on a *persistent self-hosted* runner is
-not the same problem as on a fresh container — `foundry-rs/foundry-toolchain@v1` vs an explicit
-`foundryup --version`, tool-cache behaviour, and whether it collides with the system `forge` already
-installed there. Settle during phase planning; do not assume the hosted-runner recipe transfers.
+  1. A push to a non-`develop` branch triggers a build with **no manual approval**, which initializes
+     submodules, builds the Plank toolchain, runs `npm ci`, and runs `forge build` + `forge test`.
+     Demonstrated by an actual run on `feat/ci-feedback-loop`.
+  2. That workflow is **separate** from `develop-gate`, which keeps its `environment` approval and its
+     role as the PR/merge authority — no double-approval, and no push path that can approve a merge.
+  3. Pushes to `develop` do **not** trigger the push build (merges are the PR gate's job).
+  4. Both workflows resolve an explicit, declared Foundry version rather than the ambient one, and
+     each run's log shows the resolved `forge --version` including version and commit SHA.
+  5. The pinned version is recorded in the repo — not only in workflow YAML — with the reason, citing
+     that the transport findings hold at `1.5.1-stable` `b0a9dd9`. Changing the pin is a visible,
+     reviewable diff; it cannot happen by someone running `foundryup` on the runner.
+  6. The existing suite is unaffected: a run still reports `VolOrderToPanopticTokenId.t.sol` green and
+     the `--skip` ledger line is untouched.
+**Open questions for planning**:
+  - Pinning Foundry on a *persistent self-hosted* runner is not the hosted-container problem —
+    `foundry-rs/foundry-toolchain@v1` vs an explicit `foundryup --version`, tool-cache behaviour, and
+    collision with the system `forge` already installed there. Do not assume the hosted recipe transfers.
+  - Unattended builds on a self-hosted runner execute pushed code without a human in the loop. That is
+    the accepted tradeoff for immediacy (approval stays on the PR path), but the workflow should avoid
+    exposing secrets it does not need — note `develop-gate`'s forge job passes `API_KEY`.
+  - Whether the push build should reuse `develop-gate`'s skip ledger or run the full suite.
 **Plans**: TBD
 
 ### Phase 2: VolOrder(T) Minimal Instantiation
@@ -396,12 +411,12 @@ fails the build, with no silent-skip path left.
 
 ## Progress
 
-**Execution Order:** 1 (waves 1-4) → 1.1 → 1 (waves 5-6) → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11
+**Execution Order:** 1 (waves 1-2) → **1.1** → 1 (waves 3-6) → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. RED Differential Scaffold | 2/6 | In Progress | - |
-| 1.1 RED Foundry Toolchain Pin (INSERTED) | 0/TBD | Not started | - |
+| 1.1 CI Feedback Loop (INSERTED) | 0/TBD | Not started | - |
 | 2. VolOrder(T) Minimal Instantiation | 0/TBD | Not started | - |
 | 3. VolOrder(T) Rich Instantiation | 0/TBD | Not started | - |
 | 4. VolOrder(T) Wire Format | 0/TBD | Not started | - |
@@ -418,7 +433,7 @@ fails the build, with no silent-skip path left.
 | Phase | Requirements | Count |
 |-------|--------------|-------|
 | 1 | RED-01, RED-02, RED-03, RED-04, RED-05, RED-06, PROC-01 | 7 |
-| 1.1 | CI-05, CI-06 | 2 |
+| 1.1 | CI-05, CI-06, CI-07 | 3 |
 | 2 | VORD-01, VORD-02, VORD-03 | 3 |
 | 3 | VORD-04, VORD-05 | 2 |
 | 4 | VORD-06 | 1 |
@@ -429,7 +444,7 @@ fails the build, with no silent-skip path left.
 | 9 | GUARD-04, GUARD-05 | 2 |
 | 10 | DIFF-01, DIFF-02 | 2 |
 | 11 | CI-01, CI-02, CI-03, CI-04 | 4 |
-| **Total** | | **34 / 34** |
+| **Total** | | **35 / 35** |
 
 No orphaned requirements. No requirement mapped to more than one phase.
 
