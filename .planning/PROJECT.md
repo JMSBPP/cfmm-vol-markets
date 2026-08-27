@@ -99,8 +99,10 @@ If the executable spec and the on-chain implementation can silently disagree, th
 
 - **Workflow**: Every unit of work (feature, refactor, fix) starts with a git worktree named after its
   `feat/…` branch and a tracking issue on `develop` — general rule, not a per-task choice.
-- **Validation**: CI is the gate. Work is *not* validated by compiling or running the suite locally;
-  the branch is pushed and `develop-gate` decides. Never report work as verified from a local build.
+- **Validation**: CI is the gate *and the only build environment*. There is no internal/local
+  compilation step — dependencies and submodules are deliberately left uninitialized locally; the CI
+  syncs and manages them, and the compiler's answer is read from whether `develop-gate` passed. This
+  holds for pushes and for PRs. Never report work as verified from a local build.
 - **Fork → PR**: `d2p-finance/*` are canonical; `JMSBPP/*` are the develop forks. Changes reach
   canonical repos only via pull request. This milestone touches the `spec/` submodule, so spec-side
   changes require their own fork → PR plus a submodule pin bump here.
@@ -124,10 +126,12 @@ If the executable spec and the on-chain implementation can silently disagree, th
 | Fuzz the VolOrder geometry, not just `(poolId, ratios)` | Leg splits, negative ticks and guards are where divergence hides | — Pending |
 | Plank is the fuzz source; inputs are transported to Haskell | Independently constructing inputs on each side lets them drift, defeating the test | — Pending |
 | Enforce the diff test inside `develop-gate` | A self-skipping test is silently unenforced; CI is the gate | — Pending |
+| A dedicated RPC design phase precedes the spec oracle | Transport and the spec-service/test-process responsibility split are a design problem, not a lookup; settling them before there is domain payload to carry avoids rework | — Pending |
+| The spec oracle is built test-first (TDD) | Its architecture and specification drive the implementation, across both repos of the fork → PR | — Pending |
 | Adopt `.planning/phases/FEATURES/feat-*/`; defer GSD tooling | Get the layout's benefit now without a detour into GSD internals | — Pending |
 | Scope milestone to `volOrderToTokenId` only | Prove the differential harness on one map before generalizing | — Pending |
 | **OPEN — `VolOrder(T)` wire format: Shock-style tagged vs per-variant layout** | Tagged = one decoder covers every `T`; per-variant = simpler each, but the variant must travel out-of-band. Settle in phase planning | — Pending |
-| **OPEN — spec transport: `vm.ffi` binary vs Haskell JSON-RPC service** | `vm.rpc(alias, method, params)` forwards arbitrary methods, so a warm spec service avoids per-case process spawn and generalizes to the whole spec surface; ffi is simpler and already enabled | — Pending |
+| **OPEN — spec transport: `vm.ffi` binary vs Haskell JSON-RPC service** | Owned by Phase 5, a dedicated *interactive design* phase — the appropriate transport is learned through back-and-forth and the reasoning is part of the deliverable. `vm.rpc(alias, method, params)` forwards arbitrary methods, so a warm spec service avoids per-case process spawn and generalizes to the whole spec surface; ffi is simpler and already enabled | — Pending |
 | **OPEN — oracle packaging: new cabal exe vs mode on `cfmm-scratchpad-exe`** | The existing exe is a Chart/cairo plotting binary — heavy to build in CI | — Pending |
 
 ---

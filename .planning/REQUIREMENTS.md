@@ -25,10 +25,16 @@ Requirements for this milestone. Each maps to a roadmap phase.
 - [ ] **VORD-05**: The rich instantiation emits the Haskell-equivalent `tokenId` — per-leg `optionRatio` from the tuple, `asset = 1` on all four legs
 - [ ] **VORD-06**: `VolOrder(T)` has a defined serialization that carries *which* `T` was instantiated, decodable by a consumer from the bytes alone
 
+### RPC / Transport Architecture
+
+- [ ] **RPC-01**: The transport architecture is decided and recorded — `vm.ffi` binary **vs** a JSON-RPC service via `vm.rpc` — with the rationale from the exploration, not merely the verdict
+- [ ] **RPC-02**: Responsibility delegation between the two participants — the Haskell spec service and the Foundry test process — is specified: which side owns wire encoding/decoding, input validation, guard evaluation, and error classification
+- [ ] **RPC-03**: A minimal protocol skeleton (health/echo method) runs and is exercised end-to-end, proving the transport shape works **independent of** `volOrderToTokenId`
+
 ### Spec Oracle (Haskell side)
 
 - [ ] **SPEC-01**: The Haskell decodes the `VolOrder(T)` wire format into its own `VolOrder` + extra payload, so Plank-originated inputs drive the spec unmodified
-- [ ] **SPEC-02**: The spec exposes `volOrderToTokenId` through an external entrypoint callable from outside the Haskell process
+- [ ] **SPEC-02**: The spec exposes `volOrderToTokenId` through an external entrypoint callable from outside the Haskell process, built test-first (TDD) against its architecture and specification
 - [ ] **SPEC-03**: Spec-side changes land in `d2p-finance/cfmm-vol-markets-spec` via `JMSBPP` fork → PR, and the `spec/` submodule pin is bumped here
 
 ### Transport
@@ -51,7 +57,7 @@ Requirements for this milestone. Each maps to a roadmap phase.
 
 ### CI Enforcement
 
-- [ ] **CI-01**: `develop-gate` checks out the `spec/` submodule
+- [ ] **CI-01**: `develop-gate` checks out the `spec/` submodule — extending the gate's existing, deliberate submodule management (`git submodule sync --recursive` + selective init), since dependencies are intentionally left uninitialized locally
 - [ ] **CI-02**: `develop-gate` builds the Haskell oracle on the self-hosted runner (GHC/cabal availability confirmed or provisioned)
 - [ ] **CI-03**: The differential test executes and is **enforced** in `develop-gate` — it cannot silently skip
 - [ ] **CI-04**: The interim `vm.skip` wiring guard from RED-05 is **removed** once the oracle is reachable, so the end state has no silent-skip path
@@ -87,16 +93,51 @@ Deferred. Tracked but not in this roadmap.
 
 ## Traceability
 
-Populated during roadmap creation.
+Populated during roadmap creation (2026-08-27). Phase directories live at
+`.planning/phases/FEATURES/feat-<slug>/` — see ROADMAP.md for slugs and branch names.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RED-01 … PROC-01 | TBD | Pending |
+| RED-01 | Phase 1 — RED Differential Scaffold | Pending |
+| RED-02 | Phase 1 — RED Differential Scaffold | Pending |
+| RED-03 | Phase 1 — RED Differential Scaffold | Pending |
+| RED-04 | Phase 1 — RED Differential Scaffold | Pending |
+| RED-05 | Phase 1 — RED Differential Scaffold | Pending |
+| RED-06 | Phase 1 — RED Differential Scaffold | Pending |
+| PROC-01 | Phase 1 — RED Differential Scaffold | Pending |
+| VORD-01 | Phase 2 — VolOrder(T) Minimal Instantiation | Pending |
+| VORD-02 | Phase 2 — VolOrder(T) Minimal Instantiation | Pending |
+| VORD-03 | Phase 2 — VolOrder(T) Minimal Instantiation | Pending |
+| VORD-04 | Phase 3 — VolOrder(T) Rich Instantiation | Pending |
+| VORD-05 | Phase 3 — VolOrder(T) Rich Instantiation | Pending |
+| VORD-06 | Phase 4 — VolOrder(T) Wire Format | Pending |
+| RPC-01 | Phase 5 — RPC Design & Protocol Skeleton | Pending |
+| RPC-02 | Phase 5 — RPC Design & Protocol Skeleton | Pending |
+| RPC-03 | Phase 5 — RPC Design & Protocol Skeleton | Pending |
+| SPEC-01 | Phase 6 — Haskell Spec Oracle | Pending |
+| SPEC-02 | Phase 6 — Haskell Spec Oracle | Pending |
+| SPEC-03 | Phase 6 — Haskell Spec Oracle | Pending |
+| XPORT-01 | Phase 7 — Solidity↔Spec Transport | Pending |
+| XPORT-02 | Phase 7 — Solidity↔Spec Transport | Pending |
+| GUARD-01 | Phase 8 — Plank Guard Additions | Pending |
+| GUARD-02 | Phase 8 — Plank Guard Additions | Pending |
+| GUARD-03 | Phase 8 — Plank Guard Additions | Pending |
+| GUARD-04 | Phase 9 — Guard Parity Assertion | Pending |
+| GUARD-05 | Phase 9 — Guard Parity Assertion | Pending |
+| DIFF-01 | Phase 10 — Passing Differential Test | Pending |
+| DIFF-02 | Phase 10 — Passing Differential Test | Pending |
+| CI-01 | Phase 11 — develop-gate Enforcement | Pending |
+| CI-02 | Phase 11 — develop-gate Enforcement | Pending |
+| CI-03 | Phase 11 — develop-gate Enforcement | Pending |
+| CI-04 | Phase 11 — develop-gate Enforcement | Pending |
 
 **Coverage:**
-- v1 requirements: 29 total
-- Mapped to phases: 0
-- Unmapped: 29 ⚠️
+- v1 requirements: 32 total
+- Mapped to phases: 32 ✓
+- Unmapped: 0
+- Duplicated across phases: 0
+
+Phase distribution: P1=7, P2=3, P3=2, P4=1, P5=3, P6=3, P7=2, P8=3, P9=2, P10=2, P11=4.
 
 ---
-*Requirements defined: 2026-08-27*
+*Requirements defined: 2026-08-27 · Traceability populated: 2026-08-27*
