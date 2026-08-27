@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 4
+current_plan: 5
 status: executing
-stopped_at: "01.1-04-PLAN.md PAUSED at its blocking human-verify checkpoint (task 2 of 2). Task 1 done: 01.1-CI-EVIDENCE.md committed 79602e2 and pushed to origin/develop, harvesting BOTH runs — 33107877073 (bdeecb3, failure at forge build) and 33109459584 (fb546e8, SUCCESS: 271 passed, 0 failed, 1 skipped). Awaiting maintainer approval before plan 05."
-last_updated: "2026-08-27T19:23:04.211Z"
-last_activity: "2026-08-27 — Plan 01.1-04 task 1 executed: 01.1-CI-EVIDENCE.md harvests BOTH push-build runs. Run 33109459584 is the FIRST time this project has been confirmed to compile AND pass its suite in CI (271 passed / 0 failed / 1 skipped, 74 suites, 11.21s). Plan PAUSED at the human-verify checkpoint."
+stopped_at: "Completed 01.1-05-PLAN.md. develop-gate's forge job now resolves .github/foundry-version and stamps forge --version (7591034), install/stamp bodies byte-identical to push-build.yml's, proven purely additive at +84/-0 vs origin/develop. Plan 01.1-04 also closed: its blocking human-verify checkpoint was APPROVED and recorded verbatim. NOT pushed — plan 01.1-06 owns the PR, the first develop-gate run and the merge; CI-05/06/07 all close there."
+last_updated: "2026-08-27T20:12:00.000Z"
+last_activity: "2026-08-27 — Plan 01.1-05 executed: the pin + version stamp landed in develop-gate's forge job (7591034), placed before the ~20 min of submodule/plankc/npm setup so a drifted toolchain reddens in seconds. Seven static assertions prove the edit purely additive (84 insertions, 0 deletions) with the PR-only trigger, the single environment approval, the gate-job contract, the 3-entry ledger and seed 4880 all unmoved. Plan 01.1-04's checkpoint approval recorded verbatim; 01.1-04 marked complete."
 progress:
   total_phases: 12
   completed_phases: 0
   total_plans: 12
-  completed_plans: 5
-  percent: 42
+  completed_plans: 7
+  percent: 58
 ---
 
 # Project State
@@ -27,27 +27,27 @@ See: .planning/PROJECT.md (updated 2026-08-27)
 ## Current Position
 
 Phase: 1.1 of 12 (CI Feedback Loop — INSERTED; runs before Phase 1 wave 3)
-Plan: 4 of 6 in current phase
-Current Plan: 4
+Plan: 5 of 6 in current phase
+Current Plan: 5
 Total Plans in Phase: 6
-Status: PAUSED AT CHECKPOINT — Phase 1.1 plan 01.1-04 is mid-execution: task 1 (evidence harvest) is done and pushed as 79602e2; task 2 is a BLOCKING human-verify checkpoint awaiting the maintainer. Plan 05 must not start until it resolves. Phase 1 remains independently PAUSED at 2 of 6 (01-03 resumes after 1.1 merges).
-Last activity: 2026-08-27 — Plan 01.1-04 task 1: 01.1-CI-EVIDENCE.md harvests BOTH push-build runs (33107877073 red at forge build; 33109459584 GREEN end to end). Run 2 is the first confirmed compile AND passing suite in this project's history: 271 passed, 0 failed, 1 skipped across 74 suites, with VolOrderToPanopticTokenId.t.sol 10/10. Plan PAUSED at its human-verify checkpoint.
+Status: EXECUTING — Phase 1.1 plans 01.1-04 and 01.1-05 are both COMPLETE. Plan 04's blocking human-verify checkpoint was APPROVED by the maintainer ("…Ther approve"), recorded verbatim in 01.1-04-SUMMARY.md. Plan 05 added the pin+stamp to develop-gate's forge job (7591034, +84/-0, NOT pushed). Only 01.1-06 remains: PR, first gate run, merge, close-out. Phase 1 remains independently PAUSED at 2 of 6 (01-03 resumes after 1.1 merges).
+Last activity: 2026-08-27 — Plan 01.1-05: develop-gate's forge job now resolves .github/foundry-version and stamps the resolved forge --version, with install/stamp bodies BYTE-IDENTICAL to push-build.yml's, inserted BEFORE the submodule/plankc/npm setup. Proven purely additive: 84 insertions / 0 deletions vs origin/develop, no `-` line anywhere in the diff; trigger, environment approval, gate-job contract, --skip ledger and --fuzz-seed 4880 all provably unmoved. CI-05/CI-06 still NOT ticked — no develop-gate run exists yet.
 
-Progress: [████░░░░░░] 42%  (5 of 12 plans across the two open phases: 1 and 1.1)
+Progress: [██████░░░░] 58%  (7 of 12 plans across the two open phases: 1 and 1.1)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 3.2 min
-- Total execution time: 0.27 hours
+- Total plans completed: 7
+- Average duration: 5.9 min
+- Total execution time: 0.68 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | Phase 1 | 2/6 | 6 min | 3 min |
-| Phase 1.1 | 3/6 | 10 min | 3.3 min |
+| Phase 1.1 | 5/6 | 35 min | 7 min |
 
 **Per-plan:**
 
@@ -58,10 +58,14 @@ Progress: [████░░░░░░] 42%  (5 of 12 plans across the two op
 | Phase 01.1 P01 | 2min | 3 tasks | 2 files |
 | Phase 01.1 P02 | 2min | 2 tasks | 2 files |
 | Phase 01.1 P03 | 6min | 3 tasks | 2 files |
+| Phase 01.1 P04 | 18min | 2 tasks | 3 files |
+| Phase 01.1 P05 | 7min | 2 tasks | 5 files |
 
 **Recent Trend:**
-- Last 5 plans: 3 min, 3 min, 2 min, 2 min, 6 min
-- Trend: up — 01.1-03 is the first plan that pushed and waited on a real CI run (5 data points)
+- Last 5 plans: 2 min, 2 min, 6 min, 18 min, 7 min
+- Trend: up, and the shape is explained rather than alarming — 01.1-04 (18 min) waited on two real CI
+  runs and a maintainer checkpoint; 01.1-05 (7 min) is back to file work plus static proof. Plans that
+  touch CI cost wall-clock the moment they need a run (7 data points).
 
 *Updated after each plan completion*
 
@@ -101,6 +105,11 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 - [Phase 01.1]: FIRST CONFIRMED COMPILE in this project's history is run 33109459584 (`fb546e8`, push, SUCCESS): `Ran 74 test suites in 11.21s: 271 tests passed, 0 failed, 1 skipped (272 total)`, with `VolOrderToPanopticTokenId.t.sol` at 10/10 — the regression floor, held in CI for the first time. Against the last recorded local baseline of 252 passed, with a SMALLER skip ledger (3 patterns, seed 4880).
 - [Phase 01.1]: `--skip` MATCHES ON FILENAME, so a ledger entry masks more than the file that motivated it. `--skip "*PriceSetterHook*"` had also been excluding `src/modules/protocol_integrations/PriceSetterHook.sol` and `foundry-scripts/PriceSetterHook.s.sol` from the test build; retiring it exposed both to compilation for the first time and they are CLEAN. General hazard of glob-shaped skip ledgers — check what else a pattern catches before adding one.
 - [Phase 01.1]: `forge build` deliberately carries NO `--skip`. Run 1 went red on `Error (5005)` linearization in `PriceSetterHook.t.sol:19` — skip-ledger entry #1, predicted verbatim by `develop-gate.yml:55`. The gate had never run a bare `forge build`, so the break was real, known, documented and STRUCTURALLY INVISIBLE to the only CI that existed. Teaching `forge build` the ledger would restore that blindness; the fix was to delete the uncompilable test instead.
+- [Phase 01.1]: CHECKPOINT APPROVED (plan 04, verbatim): "remove the PriceSetterHook skip from develop since is no longer there but do not create a worktree for such fix but make it under the current tree. Ther approve" — the unattended-execution tradeoff is ACCEPTED UNMODIFIED (no environment:, no secrets, no approval on push-build.yml). The one requested change was already `12e1fb9` on develop. The `timeout-minutes` headroom question was NOT answered and is NOT treated as answered: 30 min (and the gate's tighter 25) remains comfortable AS OBSERVED and unproven COLD.
+- [Phase 01.1]: develop-gate's forge job now resolves the pin and stamps `forge --version` (7591034), with install+stamp `run:` bodies copied BYTE-FOR-BYTE from push-build.yml — inline comments included — so `diff` of the extracted regions is empty. Divergence between the two workflows is now mechanically detectable rather than a matter of reading both files carefully. The plan's own text re-worded those comments; the plan's own acceptance criterion forbade that. Criterion and stated intent won.
+- [Phase 01.1]: The pin+stamp steps go BEFORE the submodule/plankc/npm block in BOTH workflows (gate: line 37 vs line 123). A drifted or unavailable toolchain reddens in seconds instead of after ~20 min of setup. Nothing before that point needs forge.
+- [Phase 01.1]: "Purely additive" is proven as a diff SHAPE assertion, not a review: `git diff --numstat origin/develop` deleted-field == 0 (`84  0`) plus `git diff | grep '^-' | grep -v '^---'` empty. A reflowed comment fails it as loudly as a deleted job. Precondition: the baseline diff must be EMPTY before the edit — verified — otherwise `84/0` is not attributable to this plan.
+- [Phase 01.1]: The ledger-parity guard is deliberately NOT copied into develop-gate. Drift arrives via an edit, an edit arrives via a push, and every push already runs the guard; a second copy buys nothing and widens the diff on the one workflow that must stay reviewable at a glance.
 - [Phase 01.1]: TOOLING — `state add-decision` is worse than plan 03 recorded: it REGENERATES the frontmatter from a scrape of the BODY. Probed directly this session: it corrupted `milestone: v1.0 -> v1.8`, forced `status: executing -> paused`, and REVERTED `stopped_at` to the previous plan's value while stripping its quotes — because the body's "Stopped at:" line had not been updated yet. **Consequence: frontmatter edits made BEFORE body edits are silently reverted by any state verb.** It also filed the decision below the "Open by design" block, as previously recorded. Restored from a pre-call backup and hand-edited instead.
 
 **Open by design — owned by phase planning, do not pre-resolve:**
@@ -148,32 +157,47 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T19:53:00Z
-Stopped at: 01.1-04-PLAN.md task 2 — the BLOCKING human-verify checkpoint. Task 1 complete and pushed (79602e2).
-Resume file: .planning/phases/01.1-ci-feedback-loop/01.1-CI-EVIDENCE.md
+Last session: 2026-08-27T20:12:00Z
+Stopped at: Completed 01.1-05-PLAN.md (both tasks). Plan 01.1-04 also closed out — its checkpoint was approved.
+Resume file: .planning/phases/01.1-ci-feedback-loop/01.1-06-PLAN.md
 
-Next: **WAITING ON THE MAINTAINER.** Plan 01.1-04 is PAUSED at its blocking human-verify checkpoint
-(task 2 of 2). Task 1 is done: `.planning/phases/01.1-ci-feedback-loop/01.1-CI-EVIDENCE.md`, committed
-`79602e2` and pushed to `origin/develop`, harvesting BOTH runs on `feat/ci-feedback-loop`:
+Next: **Plan 01.1-06 — the PR, the first `develop-gate` run, the merge, and the develop-exclusion
+proof.** This is the wave that closes CI-05, CI-06 and CI-07 together, and it is the ONLY thing left
+in Phase 1.1.
 
-- **33107877073** (`bdeecb3`, push, **failure**) — https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33107877073
-  Eight steps green, then `forge build` red on one hard error (`Error (5005)` linearization,
-  `PriceSetterHook.t.sol:19`), `forge test` skipped. Closed all four residual unknowns from
-  observation: runner egress works, `flock` present, `--install` correct, `v1.5.1` -> `b0a9dd9`.
-- **33109459584** (`fb546e8`, push, **SUCCESS**) — https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33109459584
-  ALL steps green including `forge build` AND `forge test`: `271 tests passed, 0 failed, 1 skipped`.
+State it inherits:
 
-The maintainer must review the run in the Actions UI and re-affirm (or amend) the unattended-execution
-tradeoff, and judge whether `timeout-minutes: 30` is enough headroom — noting that submodules, the
-cargo cache and the forge cache were WARM in both runs, so the cold-runner cost is UNMEASURED.
-**Plan 05 (pin + stamp into `develop-gate`) does not begin until this resolves.**
+- `feat/ci-feedback-loop` is at **`7591034`**, **4 commits ahead of `origin/develop`** (`dddb26b`,
+  `bdeecb3`, `fb546e8`, `7591034`) and **NOT pushed**. Plan 06 pushes and opens the PR
+  (`gh` needs `-R JMSBPP/cfmm-vol-markets`).
+- `develop-gate.yml` now carries the pin+stamp: **+84 / −0** against `origin/develop`, with the
+  PR-only trigger, the single `environment: develop-gate` approval on `approve`, the unnamed `gate`
+  job's `needs: [approve, forge, plank]`, the 3-entry `--skip` ledger and `--fuzz-seed 4880` all
+  proven unmoved by seven static assertions (recorded verbatim in `01.1-05-SUMMARY.md`).
+- **Expect `pending_deployments` to be NON-empty** on the gate run — unlike every push-build run so
+  far. That is the `environment: develop-gate` approval doing its job, not a fault.
+- **Expect the gate's install step to take 0 s and print nothing** (stamp cache hit at
+  `$HOME/.foundry-pins/v1.5.1/.installed-b0a9dd9…`, keyed by pin not by workflow). The pin is
+  re-asserted by the **stamp** step, which must be green and must show
+  `forge Version: 1.5.1-v1.5.1` / `Commit SHA: b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2`. A silent
+  install step is correct, not a step that failed to run.
+- Expected gate `forge test`: `271 passed, 0 failed, 1 skipped` across 74 suites, with
+  `VolOrderToPanopticTokenId.t.sol` at 10/10. The gate runs `forge test` only — no bare `forge
+  build` — so it measures a subset of what the push build measured.
+- **CI-05, CI-06 and CI-07 all remain `Pending` in REQUIREMENTS.md.** All three close at plan 06, on
+  the gate run's evidence. CI-06's sentence is "every **GATE** run emits the resolved
+  `forge --version`" — a workflow file that *would* stamp is not a run that *did*.
+- Criterion 3 (pushes to `develop` do NOT trigger the push build) is still unproven and needs the
+  merge itself: after the PR merges to `develop`, confirm no `push-build` run appears for that push.
 
-Live loose end for that conversation: issue #16 was closed at 19:44:12Z with items 2
-(seed-dependent width-type fuzz bug, still masked behind `*VolRangeWidth*` /
-`*SpreadTickAssimetryHelper*`) and 3 (gamsdiff runner env) UNADDRESSED and now untracked.
+Live loose ends carried forward, neither owned by plan 06:
 
-CI-05/06/07 all remain `Pending` in REQUIREMENTS.md — unchanged by this plan. CI-07's sentence is now
-factually true on the push path, but the tick is reserved for plan 06 and could still be invalidated
-by the checkpoint's answer.
+- Issue #16 was closed at 19:44:12Z with items 2 (seed-dependent width-type fuzz bug, still masked
+  behind `*VolRangeWidth*` / `*SpreadTickAssimetryHelper*`) and 3 (gamsdiff runner env) UNADDRESSED
+  and untracked in `.planning/`.
+- **Cold-runner timeout headroom is UNMEASURED** and the checkpoint response was silent on it.
+  Submodules, the plankc `cargo build --release` and the forge compile cache were warm in both
+  push-build runs; only the pin install was measured cold (19 s). The gate's `timeout-minutes: 25`
+  is tighter than the push build's 30, and plan 06's run will very likely be warm again.
 
 Phase 1 resumes at `01-03-PLAN.md` in the `feat/red-diff-scaffold` worktree once Phase 1.1 merges.

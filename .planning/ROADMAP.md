@@ -123,9 +123,23 @@ actually builds on the event that produces code.
      obligations green including `forge build` AND `forge test`. Awaiting the plan-04 checkpoint.
   2. That workflow is **separate** from `develop-gate`, which keeps its `environment` approval and its
      role as the PR/merge authority — no double-approval, and no push path that can approve a merge.
+     → **ESTABLISHED STATICALLY** (plan 05, `7591034`). After the gate gained the pin+stamp, the edit
+     is `84` insertions / **`0`** deletions against `origin/develop` and the diff contains no `-`
+     line at all. `develop-gate.yml`'s `on:` still parses to exactly
+     `{'pull_request': {'branches': ['develop']}}`; `environment:` occurs exactly once (line 14, in
+     `approve`); the `gate` job still has no `name:` (branch-protection context string intact) and
+     still declares `needs: [approve, forge, plank]`; neither `forge` nor `plank` gained an `if:`,
+     which is what would reopen the skipped-jobs-green incident. `push-build.yml` remains
+     environment-free and secret-free.
   3. Pushes to `develop` do **not** trigger the push build (merges are the PR gate's job).
   4. Both workflows resolve an explicit, declared Foundry version rather than the ambient one, and
      each run's log shows the resolved `forge --version` including version and commit SHA.
+     → **HALF MET.** *File half:* both workflows now `.`-source `.github/foundry-version` twice
+     (install + stamp) with **byte-identical** step bodies — the extracted regions `diff` empty
+     (plan 05, `7591034`). *Run half:* proven on the push path only (runs `33107877073` /
+     `33109459584`, both `forge 1.5.1-v1.5.1` / `b0a9dd9…`, with `which -a forge` showing the pinned
+     binary ahead of the box's own). **No `develop-gate` run exists yet**, so CI-05 and CI-06 stay
+     `Pending` until plan 06's PR produces one.
   5. The pinned version is recorded in the repo — not only in workflow YAML — with the reason, citing
      that the transport findings hold at `1.5.1-stable` `b0a9dd9`. Changing the pin is a visible,
      reviewable diff; it cannot happen by someone running `foundryup` on the runner.
@@ -157,9 +171,14 @@ actually builds on the event that produces code.
   - Unattended builds on a self-hosted runner execute pushed code without a human in the loop. That is
     the accepted tradeoff for immediacy (approval stays on the PR path), but the workflow should avoid
     exposing secrets it does not need — note `develop-gate`'s forge job passes `API_KEY`.
-    → **Mechanism verified; the tradeoff itself is at plan 04's checkpoint for the maintainer to
-    re-affirm now that it is concrete.** `pending_deployments` is `[]` on both runs and each started
-    3 s after its push, so "no human in the loop" is measured rather than claimed.
+    → **RESOLVED — the tradeoff was re-affirmed at plan 04's checkpoint and ACCEPTED UNMODIFIED.**
+    `pending_deployments` is `[]` on both runs and each started 3 s after its push, so "no human in
+    the loop" is measured rather than claimed; shown that, the maintainer asked for no change to
+    `push-build.yml` and approved ("…Ther approve", verbatim in `01.1-04-SUMMARY.md`). The workflow
+    ships with no `environment:`, no secrets and no approval, as measured. **Still open, because the
+    response was silent on it:** whether `timeout-minutes: 30` (and the gate's tighter `25`) has
+    headroom on a genuinely COLD runner — submodules, the plankc `cargo build --release` and the
+    forge compile cache were warm in both runs; only the pin install was measured cold, at 19 s.
   - ~~Whether the push build should reuse `develop-gate`'s skip ledger or run the full suite.~~
     → Resolved during planning (reuse + parity guard); the ledger is now **3 patterns / seed 4880**
     in both workflows after the `*PriceSetterHook*` entry was retired between the two runs.
@@ -188,10 +207,15 @@ Plans:
 - [x] 01.1-01-PLAN.md — worktree, tracking issue, FEATURES layout for the inserted phase (CI-07)
 - [x] 01.1-02-PLAN.md — `.github/foundry-version` + `notes/TOOLCHAIN_PINS.md`: the pin recorded in-repo with its reason (CI-05)
 - [x] 01.1-03-PLAN.md — `.github/workflows/push-build.yml` + `scripts/check-ci-skip-ledger.sh`, pushed (the workflow's own first trigger) (CI-06/07)
-- [~] 01.1-04-PLAN.md — harvest the actual run into `01.1-CI-EVIDENCE.md`; answers the self-hosted pinning question from observation (CI-06/07; has a checkpoint)
-      — **task 1 DONE** (`79602e2`: `01.1-CI-EVIDENCE.md`, harvesting BOTH runs `33107877073` red
-      and `33109459584` green); **PAUSED at task 2, the blocking human-verify checkpoint**
-- [ ] 01.1-05-PLAN.md — the same pin + stamp in `develop-gate`'s forge job, proven purely additive (CI-05/06)
+- [x] 01.1-04-PLAN.md — harvest the actual run into `01.1-CI-EVIDENCE.md`; answers the self-hosted pinning question from observation (CI-06/07; has a checkpoint)
+      — task 1 `79602e2` (`01.1-CI-EVIDENCE.md`, harvesting BOTH runs `33107877073` red and
+      `33109459584` green); **task 2's blocking human-verify checkpoint APPROVED** by the maintainer
+      ("…Ther approve"), recorded verbatim in `01.1-04-SUMMARY.md`. Timeout-headroom question left
+      unanswered by the response and NOT treated as answered.
+- [x] 01.1-05-PLAN.md — the same pin + stamp in `develop-gate`'s forge job, proven purely additive (CI-05/06)
+      — `7591034`, **+84 / −0** against `origin/develop`; install+stamp bodies byte-identical to
+      `push-build.yml`'s; trigger, `environment` approval, `gate` contract, ledger and seed all
+      proven unmoved. NOT pushed — plan 06 owns the PR and the first gate run.
 - [ ] 01.1-06-PLAN.md — PR, gate run, merge, and the develop-exclusion proof; close out (CI-05/06/07; has a checkpoint)
 
 ### Phase 2: VolOrder(T) Minimal Instantiation
@@ -472,7 +496,7 @@ fails the build, with no silent-skip path left.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. RED Differential Scaffold | 2/6 | In Progress | - |
-| 1.1 CI Feedback Loop (INSERTED) | 3/6 (04 at checkpoint) | In Progress | - |
+| 1.1 CI Feedback Loop (INSERTED) | 5/6 | In Progress | - |
 | 2. VolOrder(T) Minimal Instantiation | 0/TBD | Not started | - |
 | 3. VolOrder(T) Rich Instantiation | 0/TBD | Not started | - |
 | 4. VolOrder(T) Wire Format | 0/TBD | Not started | - |
