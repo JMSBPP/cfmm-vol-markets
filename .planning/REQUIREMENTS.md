@@ -14,7 +14,7 @@ Requirements for this milestone. Each maps to a roadmap phase.
 - [ ] **RED-03**: The test observes the established differential discipline — corpora **constructed** with `bound` rather than filtered with `vm.assume`, every fuzz backed by a non-fuzz anchor case, and non-vacuity asserted rather than assumed
 - [x] **RED-04**: The spec seam exists as a stub shaped to the interface `evm-spec-bridge` will generate — `library SpecOracle` with `volOrderToTokenId(bytes,uint64)` **reverting** (`SpecOracleNotWired`, fail-safe: a struct-returning stub would let a caller silently "agree" on a fabricated `tokenId == 0`) and `health()` returning the full tagged envelope as the **single wiring predicate** the test queries first, observed across a real external call boundary
 - [ ] **RED-05**: The fuzz body is written against the real assertion (`assertEq(specTokenId, implTokenId)`) and guarded by `vm.skip` on the wiring probe, so the branch pushes clean through `develop-gate` with **no skip-ledger edit**
-- [ ] **RED-06**: The organization — file layout, naming, and the Solidity↔spec transport boundary — is documented so later phases extend it rather than redesign it
+- [x] **RED-06**: The organization — file layout, naming, and the Solidity↔spec transport boundary — is documented so later phases extend it rather than redesign it
 
 ### VolOrder(T) Refactor — blocking prerequisite
 
@@ -109,7 +109,7 @@ Populated during roadmap creation (2026-08-27). Phase directories live at
 | RED-03 | Phase 1 — RED Differential Scaffold | Pending |
 | RED-04 | Phase 1 — RED Differential Scaffold | Complete |
 | RED-05 | Phase 1 — RED Differential Scaffold | Pending |
-| RED-06 | Phase 1 — RED Differential Scaffold | Pending |
+| RED-06 | Phase 1 — RED Differential Scaffold | Complete |
 | PROC-01 | Phase 1 — RED Differential Scaffold | Complete |
 | VORD-01 | Phase 2 — VolOrder(T) Minimal Instantiation | Pending |
 | VORD-02 | Phase 2 — VolOrder(T) Minimal Instantiation | Pending |

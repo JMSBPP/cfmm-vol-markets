@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 6
+current_plan: 4
 status: executing
-stopped_at: "Completed 01.1-06-PLAN.md — PHASE 1.1 IS COMPLETE AND MERGED. PR #59 merged as e6276f2; push-build.yml, .github/foundry-version, notes/TOOLCHAIN_PINS.md and scripts/check-ci-skip-ledger.sh are live on origin/develop, and develop-gate resolves the pin there. First gate run 33112404579 (pull_request, success) stamped b0a9dd9... with VolOrderToPanopticTokenId 10/10 and the suite at 271/0/1. Criterion 3 proven: two pushes to develop with the workflow present (e6276f2, 62d35b2) produced ZERO push-build runs. CI-05/06/07 ticked; issue #58 closed. THE FINDING: develop-gate has no approval gate and never has — criterion 2 restated per Option B, repo config unchanged. NEXT: Phase 1 resumes at plan 01-03, and its FIRST action should be bringing feat/red-diff-scaffold up to origin/develop so it inherits push builds."
-last_updated: "2026-08-27T20:36:00.000Z"
-last_activity: "2026-08-27 — Plan 01.1-06 completed Phase 1.1: PR #59 merged as e6276f2 with an admin bypass, both CI workflows now live on develop, the pinned toolchain stamped on the gate path for the first time, and the develop-exclusion proven across two real pushes. Its checkpoint produced the phase's most valuable finding — develop-gate has never had an approval gate (protection_rules: []) — which corrected a belief that had been used to argue design decisions here and in a sibling project."
+stopped_at: "Completed 01-04-PLAN.md — `notes/DIFFERENTIAL_LAYOUT.md` (325 lines, ten mandated sections) and `make test-vol-order-tokenid-diff` are on `feat/red-diff-scaffold` at commits `8bdec47` and `470c916`, pushed. Push-build run `33117651701` on `470c916` conclusion SUCCESS: suite `273 passed / 0 failed / 3 skipped / 276`, byte-identical to `ef186ec`, regression floor 10/10, and the runner stamped `forge 1.5.1` / `b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2` — the exact binary every measurement in the new document is scoped to. RED-06 ticked. THE FINDING: the plan mandated a live \"Foundry is UNPINNED\" risk that Phase 1.1 had already closed, so it was recorded as CLOSED with the pin-bump residual named instead — a binding document must not carry a stale risk about the property its other claims depend on. NEXT: plan 01-05 — the PR into `develop`, the `develop-gate` run, and the evidence harvest (has a checkpoint)."
+last_updated: "2026-08-27T21:24:00.000Z"
+last_activity: "2026-08-27 — Plan 01-04 wrote the differential's binding organization document and gave the new differential a make target. Verified by push-build run 33117651701 (SUCCESS), whose forge stamp matched the pin the document's measurements are scoped to. The plan's mandated open-risk row was stale (Phase 1.1 already pinned Foundry) and was recorded as closed rather than copied forward."
 progress:
   total_phases: 12
   completed_phases: 0
   total_plans: 12
-  completed_plans: 8
-  percent: 67
+  completed_plans: 9
+  percent: 75
 ---
 
 # Project State
@@ -22,31 +22,31 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-27)
 
 **Core value:** A fuzzed input that produces a different `tokenId` in Haskell than in Plank must fail the build.
-**Current focus:** Phase 1.1 — CI Feedback Loop (INSERTED; Phase 1 paused at plan 01-03)
+**Current focus:** Phase 1 — RED Differential Scaffold, plan 4 of 6 complete (Phase 1.1 merged)
 
 ## Current Position
 
 Phase: 1 of 12 (RED Differential Scaffold) — RESUMED after Phase 1.1 merged
-Plan: 3 of 6 in current phase
-Current Plan: 3
+Plan: 4 of 6 in current phase
+Current Plan: 4
 Total Plans in Phase: 6
-Status: **PHASE 1 RESUMED, plan 01-03 COMPLETE.** The differential test `test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol` exists, compiles and runs (commits `1c78102`, `263f96d`). Verified by push-build run `33116421403` on `263f96d`, conclusion SUCCESS: the diff suite reports **2 passed / 0 failed / 2 skipped**, the two skips naming their own reason in the gate log, and the suite total moved 271/1/272 -> **273 passed / 0 failed / 3 skipped / 276**. Regression floor held; `.github/` untouched — the skip is self-computed, not a ledger entry. RED-01/02/03/05 satisfied. Executed via the superpowers writing-plans/executing-plans path (`docs/superpowers/plans/2026-08-27-volorder-tokenid-differential-test.md`) because the GSD plan's acceptance criteria were hardcoded to the removed `red-diff-scaffold` worktree. Phase 1.1 is COMPLETE AND MERGED (PR #59 as `e6276f2`); issue #58 closed, #57 open. Next: plan 01-04, `notes/DIFFERENTIAL_LAYOUT.md` + the make target (RED-06).
-Last activity: 2026-08-27 — Phase 1.1 merged. The pinned toolchain is now stamped on BOTH CI paths, every push to a non-`develop` branch compiles unattended, and pushes to `develop` provably do not. The phase's checkpoint also corrected a long-standing false belief about `develop-gate`'s approval step.
+Status: **PHASE 1 plan 01-04 COMPLETE.** `notes/DIFFERENTIAL_LAYOUT.md` (325 lines; all ten mandated H2 sections, verbatim, in order) and the `test-vol-order-tokenid-diff` make target are on `feat/red-diff-scaffold` at `8bdec47` and `470c916`, pushed. Verified by push-build run `33117651701`, conclusion SUCCESS: **273 passed / 0 failed / 3 skipped / 276** — byte-identical to `ef186ec`, so a docs+Makefile plan moved nothing — regression floor `VolOrderToPanopticTokenId.t.sol` 10/10, `.github/` untouched. The run stamped `forge Version: 1.5.1-v1.5.1` / `Commit SHA: b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2`, the exact binary every transport measurement in the new document is scoped to — the document's measurement scope and the gate's actual binary verified as the same thing, in the run that accepted the document. RED-06 ticked in REQUIREMENTS.md. The source diff vs `develop` is exactly the four files 01-05 opens a PR for: `Makefile`, `notes/DIFFERENTIAL_LAYOUT.md`, `test/protocol_integrations/SpecHelper.sol`, `test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol`. Next: plan 01-05 — the PR, the `develop-gate` run, the evidence harvest (has a checkpoint).
+Last activity: 2026-08-27 — The differential's organization is written down at the path both source files already cited, so those cross-references resolve for the first time. The plan's mandated "Foundry is UNPINNED" open risk was stale and was recorded as CLOSED-by-Phase-1.1 with the real residual (a pin bump invalidates the measurements) named in its place.
 
-Progress: [███████░░░] 67%  (8 of 12 plans: Phase 1.1 complete at 6/6, Phase 1 paused at 2/6)
+Progress: [████████░░] 75%  (9 of 12 plans: Phase 1.1 complete at 6/6, Phase 1 at 4/6)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 5.9 min
-- Total execution time: 0.68 hours
+- Total plans completed: 8
+- Average duration: 8.0 min
+- Total execution time: 1.07 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| Phase 1 | 2/6 | 6 min | 3 min |
+| Phase 1 | 3/6 | 29 min | 9.7 min |
 | Phase 1.1 | 5/6 | 35 min | 7 min |
 
 **Per-plan:**
@@ -60,12 +60,14 @@ Progress: [███████░░░] 67%  (8 of 12 plans: Phase 1.1 comple
 | Phase 01.1 P03 | 6min | 3 tasks | 2 files |
 | Phase 01.1 P04 | 18min | 2 tasks | 3 files |
 | Phase 01.1 P05 | 7min | 2 tasks | 5 files |
+| Phase 01 P04 | 23min | 2 tasks | 2 files |
 
 **Recent Trend:**
-- Last 5 plans: 2 min, 2 min, 6 min, 18 min, 7 min
-- Trend: up, and the shape is explained rather than alarming — 01.1-04 (18 min) waited on two real CI
-  runs and a maintainer checkpoint; 01.1-05 (7 min) is back to file work plus static proof. Plans that
-  touch CI cost wall-clock the moment they need a run (7 data points).
+- Last 5 plans: 2 min, 6 min, 18 min, 7 min, 23 min
+- Trend: up, and the shape is still explained rather than alarming — 01.1-04 (18 min) waited on two
+  real CI runs and a maintainer checkpoint; 01-04 (23 min) wrote a 325-line binding document from
+  fifteen recorded measurements and then waited on one CI run. Plans that touch CI cost wall-clock the
+  moment they need a run; plans that write binding prose cost reading time (8 data points).
 
 *Updated after each plan completion*
 
@@ -89,6 +91,10 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 - [Phase 01]: Phase 1 opened on develop tip 04dea0a: tracking issue JMSBPP/cfmm-vol-markets#57, worktree /home/jmsbpp/cfmms-playground/cfmm-wt/red-diff-scaffold on feat/red-diff-scaffold (pushed to origin)
 - [Phase 01]: SpecOracle seam shaped to the interface evm-spec-bridge GENERATES (library SpecOracle, volOrderToTokenId(bytes,uint64), health()); isWired() collapsed into health() — one wiring mechanism
 - [Phase 01]: Status lives as a field ON Health (not (Status,Health)) so the skip predicate is health().status == Status.TransportFailure — the SAME predicate Phase 7 keeps. Provisional pending generation
+- [Phase 01]: RED-06 is satisfied by notes/DIFFERENTIAL_LAYOUT.md, not a .planning/ doc — SpecHelper.sol and the diff test already cite that path, and notes/ is this repo's binding-spec directory (DATA_CONTRACT.md, UNITS_AND_SCALES.md, TOOLCHAIN_PINS.md)
+- [Phase 01]: Every transport constraint in DIFFERENTIAL_LAYOUT.md carries the MEASUREMENT that produced it — a rule with its evidence attached survives, a bare rule gets 'simplified' away, and each of these simplified away reintroduces a false green
+- [Phase 01]: eth_rpc_timeout is NAMED in DIFFERENTIAL_LAYOUT.md as a knob that does NOT reach vm.rpc, overriding an acceptance criterion that forbade the token. Naming the key a future engineer would reach for is the whole value; the criterion's intent (record no USABLE knob) is met
+- [Phase 01]: The 'Foundry is UNPINNED' open risk is recorded as CLOSED-by-Phase-1.1, not copied forward. A binding document must not carry a stale risk about the property its other claims depend on
 - [Phase 01]: Phase 1 stub REVERTS (SpecOracleNotWired) rather than returning a zero struct — fail-safe, not fail-open. Phase 7's real impl RETURNS the tagged struct and must not revert (GUARD-05)
 - [Phase 01.1]: Phase 1.1 opened on develop tip 90dacaa: tracking issue JMSBPP/cfmm-vol-markets#58, worktree /home/jmsbpp/cfmms-playground/cfmm-wt/ci-feedback-loop on feat/ci-feedback-loop (pushed to origin, zero divergence)
 - [Phase 01.1]: Decimal/INSERTED phases use the identical FEATURES convention — the numbered tool-facing dir carries the decimal (01.1-ci-feedback-loop) and the FEATURES entry is the same mode-120000 symlink; now written into FEATURES/README.md
@@ -140,7 +146,7 @@ None yet.
 - **MEASURED — the JSON→ABI coercion is VALUE-DEPENDENT, which is the fuzzing hazard.** The same record decodes to different ABI types by number *magnitude*: `tokenId "0"` → `tuple(string,string,string)`; `tokenId "18446744073709551616"` → `tuple(string,string,uint256)`. A fuzz campaign hits both; a decoder correct for one is wrong for the other, intermittently, by input magnitude — and would present as a Plank divergence. Together with alphabetical key reordering and `null` → 32 zero bytes, this makes the **one even-length `0x`-hex string with a tag byte the single highest-value constraint in the design**.
 - **MEASURED — selector-matching cannot distinguish failure modes.** JSON-RPC error object, HTTP 500, connection-refused, timeout, and calling an absent cheatcode ALL revert with `CheatcodeError(string)` = `0xeeaa9e6f`, differing only in unstable English text. The three-way distinction exists ONLY because rejection rides the HTTP-200 `result` channel with a tag.
 - **MEASURED — a bare-string `health()` proves the wrong thing.** `"ok"` is a `string`, one of the few cleanly-decoding shapes, so a green health check says nothing about whether domain payloads survive. `health()` must return the **same tagged hex envelope** a domain method returns. Expected future fixtures: `spec_fixtureRejection`, `spec_fixtureTransportFault`.
-- **OPEN RISK — Foundry is UNPINNED in this repo and in CI.** Verified: no version key in `foundry.toml`, no `foundry-toolchain` action or `foundryup` step in `develop-gate`, no `.foundryrc`/`.tool-versions`. The self-hosted runner uses whatever `forge` is on the box, and being *persistent* it drifts silently on any `foundryup`. Local is `1.5.1-stable` `b0a9dd9` — the exact commit all transport findings were measured at; v1.8.0 (published 2026-08-27) encodes returns differently. Unpinned Foundry makes wire behaviour non-deterministic across runs. Candidate for `/gsd:insert-phase`; NOT in RED-01..06, so not absorbed into Phase 1 unilaterally.
+- **CLOSED 2026-08-27 (Phase 1.1 / CI-05) — the "Foundry is UNPINNED" risk no longer holds; do not carry it forward.** It was true as written (no version key in `foundry.toml`, no `foundryup` step in `develop-gate`, no `.foundryrc`/`.tool-versions`) and every clause is now false: `.github/foundry-version` pins the release, the commit and the foundryup INSTALLER commit; both workflows install into `$HOME/.foundry-pins/$FOUNDRY_VERSION`, prepend it to `PATH`, and FAIL the run unless `forge --version` contains `b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2`; and `notes/TOOLCHAIN_PINS.md` records why. Observed on push-build run `33117651701`: `forge Version: 1.5.1-v1.5.1` / `Commit SHA: b0a9dd9...`. The `/gsd:insert-phase` candidacy this entry proposed IS the insertion that happened. **The residual that replaces it:** a pin BUMP silently invalidates every transport measurement recorded here and in `notes/DIFFERENTIAL_LAYOUT.md`; `notes/TOOLCHAIN_PINS.md` §6 makes re-measurement part of the bump, and the Phase 5 (RPC-03) coercion-conformance fixture is the layer that turns a missed re-measurement into a named red. Kept rather than deleted because plan 01-04's own PLAN.md mandated the stale version as live content — the next planner writing from this file must see that it was retired.
 - **STANDING RULE — Foundry docs track `master`, not the shipped binary.** A researcher recommended `vm.rpcJson` at HIGH confidence, correctly read from real documentation, for a cheatcode absent from every binary anyone runs. Documentation is a claim about `master`; only `cheatcodes.json` at a *release tag* is a claim about what ships. Never cite Foundry docs as evidence about the installed toolchain.
 - **RECURRING DESIGN PULL to resist: "the adapter/transport validates."** An independent researcher concluded the bridge should own guard evaluation. That is a coherent transport design and wrong only because of a property specific to this project — the spec must be the SOLE oracle, or the differential test degenerates into comparing Plank against a re-implementation (exactly the hand-ported `validate()` problem this milestone exists to kill). Nothing about the transport makes that obvious, so the pull will recur and will look reasonable each time. Guard evaluation is the spec's, without exception.
 - **Coercion-conformance fixture → assigned to Phase 5 (RPC-03), NOT the pin phase.** Idea from `evm_spec_rpc`: a test asserting the specific `vm.rpc` behaviours depended on (a `0x`-hex result round-trips byte-exactly; the value-dependent coercion still behaves as measured), so a forge bump on the runner goes red with a named cause instead of silently reclassifying outcomes mid-fuzz. It is the third drift layer — pin prevents, version-stamp reveals, fixture *fails*. It is NOT cheap here: `vm.rpc` makes a real HTTP request, so the fixture needs a responder, which does not exist until Phase 5's skeleton server plus CI-01/CI-02. **Assertion lines to include:** a `0x`-hex result round-trips byte-exactly; the value-dependent coercion still behaves as measured; and `expectRevert` on `environment variable ... not found` proving `${...}` alias resolution is still lazy rather than load-time.
@@ -162,47 +168,31 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T20:12:00Z
-Stopped at: Completed 01.1-05-PLAN.md (both tasks). Plan 01.1-04 also closed out — its checkpoint was approved.
-Resume file: .planning/phases/01.1-ci-feedback-loop/01.1-06-PLAN.md
+Last session: 2026-08-27T21:24:00Z
+Stopped at: Completed 01-04-PLAN.md (both tasks), pushed, CI green on run `33117651701`.
+Resume file: .planning/phases/01-red-differential-scaffold/01-05-PLAN.md
 
-Next: **Plan 01.1-06 — the PR, the first `develop-gate` run, the merge, and the develop-exclusion
-proof.** This is the wave that closes CI-05, CI-06 and CI-07 together, and it is the ONLY thing left
-in Phase 1.1.
+Next: **Plan 01-05 — the PR into `develop`, the first `develop-gate` run on this branch, and the
+evidence harvest (RED-01/RED-05). It HAS A CHECKPOINT.**
 
 State it inherits:
 
-- `feat/ci-feedback-loop` is at **`7591034`**, **4 commits ahead of `origin/develop`** (`dddb26b`,
-  `bdeecb3`, `fb546e8`, `7591034`) and **NOT pushed**. Plan 06 pushes and opens the PR
-  (`gh` needs `-R JMSBPP/cfmm-vol-markets`).
-- `develop-gate.yml` now carries the pin+stamp: **+84 / −0** against `origin/develop`, with the
-  PR-only trigger, the single `environment: develop-gate` approval on `approve`, the unnamed `gate`
-  job's `needs: [approve, forge, plank]`, the 3-entry `--skip` ledger and `--fuzz-seed 4880` all
-  proven unmoved by seven static assertions (recorded verbatim in `01.1-05-SUMMARY.md`).
-- **Expect `pending_deployments` to be NON-empty** on the gate run — unlike every push-build run so
-  far. That is the `environment: develop-gate` approval doing its job, not a fault.
-- **Expect the gate's install step to take 0 s and print nothing** (stamp cache hit at
-  `$HOME/.foundry-pins/v1.5.1/.installed-b0a9dd9…`, keyed by pin not by workflow). The pin is
-  re-asserted by the **stamp** step, which must be green and must show
-  `forge Version: 1.5.1-v1.5.1` / `Commit SHA: b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2`. A silent
-  install step is correct, not a step that failed to run.
-- Expected gate `forge test`: `271 passed, 0 failed, 1 skipped` across 74 suites, with
-  `VolOrderToPanopticTokenId.t.sol` at 10/10. The gate runs `forge test` only — no bare `forge
-  build` — so it measures a subset of what the push build measured.
-- **CI-05, CI-06 and CI-07 all remain `Pending` in REQUIREMENTS.md.** All three close at plan 06, on
-  the gate run's evidence. CI-06's sentence is "every **GATE** run emits the resolved
-  `forge --version`" — a workflow file that *would* stamp is not a run that *did*.
-- Criterion 3 (pushes to `develop` do NOT trigger the push build) is still unproven and needs the
-  merge itself: after the PR merges to `develop`, confirm no `push-build` run appears for that push.
-
-Live loose ends carried forward, neither owned by plan 06:
-
-- Issue #16 was closed at 19:44:12Z with items 2 (seed-dependent width-type fuzz bug, still masked
-  behind `*VolRangeWidth*` / `*SpreadTickAssimetryHelper*`) and 3 (gamsdiff runner env) UNADDRESSED
-  and untracked in `.planning/`.
-- **Cold-runner timeout headroom is UNMEASURED** and the checkpoint response was silent on it.
-  Submodules, the plankc `cargo build --release` and the forge compile cache were warm in both
-  push-build runs; only the pin install was measured cold (19 s). The gate's `timeout-minutes: 25`
-  is tighter than the push build's 30, and plan 06's run will very likely be warm again.
-
-Phase 1 resumes at `01-03-PLAN.md` in the `feat/red-diff-scaffold` worktree once Phase 1.1 merges.
+- `feat/red-diff-scaffold` is at **`470c916`**, PUSHED, and green on push-build `33117651701`
+  (273/0/3/276; runner forge `b0a9dd9...`). Planning artifacts ride the same branch and merge at
+  01-06 — the inline-tree workflow, no worktree.
+- The SOURCE diff vs `develop` is exactly four files: `Makefile`,
+  `notes/DIFFERENTIAL_LAYOUT.md`, `test/protocol_integrations/SpecHelper.sol`,
+  `test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol`.
+  `git diff develop -- .github/` is EMPTY and must stay empty — the skip is self-computed.
+- **Do NOT commit any `lib/*` submodule.** Seven of them (`bunni-v2`, `forge-std`,
+  `plank-monorepo`, `plankified-univ3`, `protocol`, `reactive-smart-contract-demos`, `v3-core`)
+  are checked out at NON-pinned commits in the working tree from an earlier local `forge test`
+  attempt. Also not ours: `.planning/config.json`, `offchain`, `spec`,
+  `src/modules/premium/DynamicFeeMod.plk`, `TODO.md`, `docs/superpowers/specs/2026-08-26-*.md`.
+  Name every file on every `git add`.
+- **RED-01, RED-02, RED-03 and RED-05 are satisfied and CI-verified but still `Pending` in
+  `REQUIREMENTS.md`** — 01-03 ran via the superpowers path, which does not touch it. 01-05 or
+  01-06 should tick all four, preferably against the `develop-gate` run rather than push-build,
+  since Phase 1's criteria 1-3 are stated against the gate. Logged in
+  `.planning/phases/01-red-differential-scaffold/deferred-items.md`.
+- `gh` needs `-R JMSBPP/cfmm-vol-markets`.
