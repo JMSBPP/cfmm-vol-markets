@@ -4,10 +4,12 @@
 
 A differential-testing program that makes the Haskell executable spec (`spec/src/Panoptic/NId.hs`)
 the *authoritative oracle* for the on-chain Plank implementation
-(`src/lib/protocol_integrations/PanopticTokenIdSetterLib.plk`). Foundry fuzz tests call the Haskell
-spec and the Plank implementation with the same inputs and assert byte-equality of the results.
+(`src/lib/protocol_integrations/PanopticTokenIdSetterLib.plk`). Foundry fuzz tests drive both
+implementations with the same inputs and assert byte-equality of the results.
 
-The first deliverable is a passing differential fuzz test for `volOrderToTokenId` — the
+Reaching that requires first generalizing `VolOrder` into a comptime type constructor `VolOrder(T)`,
+where `T` is the extra payload that selects which tokenId gets built. The milestone delivers that
+refactor and then a passing differential fuzz test for `volOrderToTokenId` — the
 `VolOrder → PanopticTokenId` map (Layer 1 of the variance-swap replication stack).
 
 ## Core Value
@@ -24,7 +26,8 @@ If the executable spec and the on-chain implementation can silently disagree, th
 - ✓ Haskell `volOrderToTokenId :: VolOrder -> Integer -> (Integer,Integer,Integer,Integer) -> PanopticTokenId` — existing
 - ✓ Plank `vol_order_to_panoptic_token_id(vo, pool_id)` Layer-1 map (4-leg, all-long, floor-strike encoder) — existing
 - ✓ Plank harness `VolOrderToPanopticTokenIdHarness.plk` exposing `tokenIdFromVolOrder`/`bucketFromVolOrder`/`centerTick` — existing
-- ✓ Structural/golden/fuzz test suite `VolOrderToPanopticTokenId.t.sol` against a hand-ported `validate()` oracle — existing
+- ✓ Structural/golden/fuzz suite `VolOrderToPanopticTokenId.t.sol` against a hand-ported `validate()` oracle — existing
+- ✓ Comptime type constructors are supported and proven in-repo (`Shock(R)` in `src/models/mev_tax_model_one/libraries/Shock.plk`) — existing
 - ✓ `ffi = true` already enabled in `foundry.toml` — existing
 - ✓ `develop-gate` as sole required check on `develop` (approve → forge + plank on self-hosted runner) — existing
 
@@ -32,10 +35,19 @@ If the executable spec and the on-chain implementation can silently disagree, th
 
 <!-- Hypotheses until shipped and validated. -->
 
+**Prerequisite refactor (own worktree, must land first):**
+
+- [ ] `VolOrder` becomes a comptime type constructor `VolOrder(T)` carrying an `extra: T` payload
+- [ ] The minimal instantiation reproduces today's tokenId exactly — existing callers
+      (`vol_order_to_mint`, `position_size_for_target_vega`, the harness, the green test suite) keep working
+- [ ] A richer instantiation carries the data the Haskell takes (4-tuple of `optionRatio`s 1..127, `asset`)
+      and produces the Haskell-equivalent tokenId
+- [ ] `VolOrder(T)` has a defined serialization that survives the Plank→Haskell hop
+
+**Differential test:**
+
 - [ ] A `SpecHelper` transport lets Solidity tests obtain the Haskell spec's `tokenId` for arbitrary inputs
 - [ ] The Haskell spec is reachable from a Foundry test run inside `develop-gate` (spec submodule checked out + built in CI)
-- [ ] Plank `vol_order_to_panoptic_token_id` accepts a caller-supplied 4-tuple of `optionRatio`s (1..127) and pins `asset = 1` on all legs, matching the Haskell
-- [ ] Both sides share one `VolOrder` wire format, so a fuzzed VolOrder decodes identically in Haskell and Plank
 - [ ] Both sides agree on **rejection**, not just on returned values — the guard sets are reconciled
 - [ ] `test__fuzz_differential__volOrder` passes over fuzzed `(VolOrder, poolId, OptionRatio[4])`
 - [ ] `.planning/phases/FEATURES/feat-*/` is adopted as the milestone layout for feature work
@@ -46,9 +58,9 @@ If the executable spec and the on-chain implementation can silently disagree, th
   feature; this milestone isolates the scale-free tokenId.
 - **`NId` scaling helpers (`mkNId`, `nSigma`, `scaleByNId`)** — Hop-A optional-space scaling, not part
   of the tokenId map.
-- **Panoptic decoder helpers (`panopticStrike`, `panopticWidth`, …) as diff targets** — they are read
-  paths used *by* the test, not subjects of it.
-- **Building GSD tooling for FEATURES phases** — deferred; adopt the directory convention now, make it
+- **Panoptic decoder helpers (`panopticStrike`, `panopticWidth`, …) as diff targets** — read paths used
+  *by* the test, not subjects of it.
+- **Building GSD tooling for FEATURES phases** — adopt the directory convention now, make it
   first-class in GSD later.
 - **Layer-2 geometric weights and Layer-3 payoff cap** — pre-existing future work, unchanged by this.
 
@@ -58,23 +70,29 @@ If the executable spec and the on-chain implementation can silently disagree, th
   `d2p-finance/cfmm-vol-markets-spec`) is the executable specification; `src/**.plk` is the on-chain
   implementation. Today they are *not the same function*: the Haskell takes a 4-tuple of
   `optionRatio`s and sets `asset = 1`; the Plank map hardcodes `optionRatio = 1` and leaves `asset`
-  unset (it is added afterward by `vol_order_to_mint`). The diff test cannot pass until this is closed.
+  unset (added afterward by `vol_order_to_mint`). `VolOrder(T)` is how that gap closes without
+  breaking existing callers.
+- **Plank is the fuzz source.** Inputs originate on the Plank/Foundry side and must be transported to
+  the Haskell — not constructed independently on each side, which would let the two drift.
+- **`Shock(R)` is the template.** The in-repo precedent pairs a comptime type constructor with a
+  *self-describing tagged* wire format: a leading `flags` byte, present-components-only payload, and a
+  `length` derived from the flags and rejected on mismatch. That tagging mechanism is what lets a
+  consumer recover which variant it received from the bytes alone.
 - **Guard divergence is the hard part.** Haskell additionally rejects ratios outside 1..127, per-leg
   `span < Δ`, and ticks outside `|tick| ≤ uniswapMaxTick`. Plank checks none of these. Differential
   fuzzing targets exactly these gaps, so the sides must agree on *when they revert*.
-- **VolOrder has no shared wire format.** Haskell builds `VolOrder` from structured fields
-  (`mkVolRangeWidth`, `mkVolStrike`, `mkVolSkew`); Plank consumes a packed `u256`
-  (`width@128 | tickSpacing@104 | vol@16 | spread@0`). Fuzzing the VolOrder requires one shared
-  encoding — likely `unpackVolOrder` on the Haskell side.
+- **VolOrder packing today.** Plank packs to a `u256`
+  (`skew@0 | volStrike@16 | tickSpacing@104 | width@128 | targetVega@152`, 248 bits); the Haskell has no
+  unpacker and builds from structured fields (`mkVolRangeWidth`, `mkVolStrike`, `mkVolSkew`).
 - **The existing test's oracle is hand-written.** `VolOrderToPanopticTokenId.t.sol` validates against a
-  verbatim Solidity port of Panoptic's `validate()` plus hardcoded golden vectors. That is a
-  *re-implementation*, not the spec — this project replaces it with the real Haskell as oracle.
+  verbatim Solidity port of Panoptic's `validate()` plus hardcoded golden vectors — a
+  *re-implementation*, not the spec. This project replaces it with the real Haskell as oracle.
 - **CI does not see `spec/`.** `develop-gate` checks out with `submodules: false` and inits only
   `lib/`, so the spec submodule is absent on the runner. GHC 9.10.3 / cabal 3.16.1.0 exist on the
   developer machine; availability on the self-hosted runner is unverified.
 - **Prior planning was deliberately reset.** Commit `663c70b chore: reset GSD planning tree` cleared
   `.planning/` ahead of this fresh cycle. Earlier design work survives in git history — notably
-  `.planning/cr-i2-vol-order-to-panoptic-token-id-SPEC.md` at `790d476`, which documents the Layer-1/2/3
+  `.planning/cr-i2-vol-order-to-panoptic-token-id-SPEC.md` at `790d476`, documenting the Layer-1/2/3
   decomposition and the review findings behind the current Plank map.
 
 ## Constraints
@@ -88,22 +106,28 @@ If the executable spec and the on-chain implementation can silently disagree, th
   changes require their own fork → PR plus a submodule pin bump here.
 - **Review**: Every spec/plan must pass the two-step review (Reality Checker + one matched specialist,
   in parallel) before it is executed.
+- **Sequencing**: The `VolOrder(T)` refactor is a blocking prerequisite — it must land and pass
+  `develop-gate` before the differential-test phase begins.
+- **Regression floor**: The refactor must not break the existing green suite; today's tokenId output
+  must be bit-identical under the minimal instantiation.
 - **Tech stack**: Foundry (`--via-ir`, `ffi = true`, fuzz runs 256) + the Plank toolchain + GHC/cabal.
   No Hardhat.
-- **Dependency**: The Plank signature change ripples into `vol_order_to_mint`, `position_size_for_target_vega`,
-  and the existing harness/tests, which must stay green.
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Haskell spec is the oracle; Solidity ports are not | A hand-ported `validate()` tests our re-reading of Panoptic, not the spec | — Pending |
-| Change the Plank signature in place (add ratios, pin `asset`) rather than add a parallel map | One source of truth; two near-identical maps would drift | — Pending |
+| `VolOrder` becomes `VolOrder(T)` with an `extra: T` payload | Lets the Haskell-equivalent tokenId be a *different instantiation* rather than a breaking signature change; follows the proven `Shock(R)` pattern | — Pending |
+| ~~Change the Plank signature in place~~ | **Superseded** by `VolOrder(T)` — the minimal instantiation preserves today's callers, so no in-place break is needed | ⚠️ Revisited |
+| Refactor is a blocking prerequisite, on its own worktree | The diff test consumes the generic type; testing the old static map would be throwaway work | — Pending |
 | Fuzz the VolOrder geometry, not just `(poolId, ratios)` | Leg splits, negative ticks and guards are where divergence hides | — Pending |
+| Plank is the fuzz source; inputs are transported to Haskell | Independently constructing inputs on each side lets them drift, defeating the test | — Pending |
 | Enforce the diff test inside `develop-gate` | A self-skipping test is silently unenforced; CI is the gate | — Pending |
 | Adopt `.planning/phases/FEATURES/feat-*/`; defer GSD tooling | Get the layout's benefit now without a detour into GSD internals | — Pending |
 | Scope milestone to `volOrderToTokenId` only | Prove the differential harness on one map before generalizing | — Pending |
-| **OPEN — spec transport: `vm.ffi` binary vs Haskell JSON-RPC service** | `vm.rpc(alias, method, params)` forwards arbitrary methods, so a warm spec service avoids per-case process spawn and generalizes to the whole spec surface; ffi is simpler and already enabled. Settle in phase planning | — Pending |
+| **OPEN — `VolOrder(T)` wire format: Shock-style tagged vs per-variant layout** | Tagged = one decoder covers every `T`; per-variant = simpler each, but the variant must travel out-of-band. Settle in phase planning | — Pending |
+| **OPEN — spec transport: `vm.ffi` binary vs Haskell JSON-RPC service** | `vm.rpc(alias, method, params)` forwards arbitrary methods, so a warm spec service avoids per-case process spawn and generalizes to the whole spec surface; ffi is simpler and already enabled | — Pending |
 | **OPEN — oracle packaging: new cabal exe vs mode on `cfmm-scratchpad-exe`** | The existing exe is a Chart/cairo plotting binary — heavy to build in CI | — Pending |
 
 ---
