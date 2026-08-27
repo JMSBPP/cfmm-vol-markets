@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 4
+current_plan: 5
 status: executing
-stopped_at: "Completed 01-04-PLAN.md — `notes/DIFFERENTIAL_LAYOUT.md` (325 lines, ten mandated sections) and `make test-vol-order-tokenid-diff` are on `feat/red-diff-scaffold` at commits `8bdec47` and `470c916`, pushed. Push-build run `33117651701` on `470c916` conclusion SUCCESS: suite `273 passed / 0 failed / 3 skipped / 276`, byte-identical to `ef186ec`, regression floor 10/10, and the runner stamped `forge 1.5.1` / `b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2` — the exact binary every measurement in the new document is scoped to. RED-06 ticked. THE FINDING: the plan mandated a live \"Foundry is UNPINNED\" risk that Phase 1.1 had already closed, so it was recorded as CLOSED with the pin-bump residual named instead — a binding document must not carry a stale risk about the property its other claims depend on. NEXT: plan 01-05 — the PR into `develop`, the `develop-gate` run, and the evidence harvest (has a checkpoint)."
-last_updated: "2026-08-27T21:24:00.000Z"
-last_activity: "2026-08-27 — Plan 01-04 wrote the differential's binding organization document and gave the new differential a make target. Verified by push-build run 33117651701 (SUCCESS), whose forge stamp matched the pin the document's measurements are scoped to. The plan's mandated open-risk row was stale (Phase 1.1 already pinned Foundry) and was recorded as closed rather than copied forward."
+stopped_at: "Completed 01-05-PLAN.md tasks 1-2; AT THE BLOCKING CHECKPOINT (task 3). PR #60 (feat/red-diff-scaffold -> develop) is OPEN and develop-gate run `33123496782` on `8f01abf` is GREEN on all four jobs: approve/forge/plank/gate all success, `gate` check `pass` on the PR. The two differential tests SKIP on the probe's own reason string, both evidence tests PASS, the regression floor holds 10/10, suite 273/0/3/276 byte-identical to push-build `33117651701`, runner stamped forge 1.5.1 / `b0a9dd9`. `git diff develop..HEAD -- .github/` is 0 bytes. THE FINDING: `pending_deployments` returned `[]` and `approve` completed unattended in 2s -- the corrected claim about the develop-gate environment is now confirmed on a LIVE run, not just from the API. Evidence at `01-05-GATE-EVIDENCE.md` (`c4dcd67`). AWAITING the maintainer's resume signal; 01-06 must not merge until then."
+last_updated: "2026-08-27T22:50:00.000Z"
+last_activity: "2026-08-27 -- Phase 1 met the only build environment that can prove its first three criteria. PR #60 opened, develop-gate run 33123496782 green, evidence harvested verbatim from the forge job log. Two plan facts were stale and were corrected rather than quoted: the skip ledger is three patterns not four, and the PR is 13 files not 4 (planning artifacts ride the branch under the inline-tree workflow) -- the SOURCE diff is exactly the four named files."
 progress:
   total_phases: 12
   completed_phases: 0
   total_plans: 12
-  completed_plans: 9
-  percent: 75
+  completed_plans: 10
+  percent: 83
 ---
 
 # Project State
@@ -22,31 +22,31 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-27)
 
 **Core value:** A fuzzed input that produces a different `tokenId` in Haskell than in Plank must fail the build.
-**Current focus:** Phase 1 — RED Differential Scaffold, plan 4 of 6 complete (Phase 1.1 merged)
+**Current focus:** Phase 1 — RED Differential Scaffold, plan 5 of 6 complete, **halted at the 01-05 checkpoint** (Phase 1.1 merged)
 
 ## Current Position
 
 Phase: 1 of 12 (RED Differential Scaffold) — RESUMED after Phase 1.1 merged
-Plan: 4 of 6 in current phase
-Current Plan: 4
+Plan: 5 of 6 in current phase
+Current Plan: 5
 Total Plans in Phase: 6
-Status: **PHASE 1 plan 01-04 COMPLETE.** `notes/DIFFERENTIAL_LAYOUT.md` (325 lines; all ten mandated H2 sections, verbatim, in order) and the `test-vol-order-tokenid-diff` make target are on `feat/red-diff-scaffold` at `8bdec47` and `470c916`, pushed. Verified by push-build run `33117651701`, conclusion SUCCESS: **273 passed / 0 failed / 3 skipped / 276** — byte-identical to `ef186ec`, so a docs+Makefile plan moved nothing — regression floor `VolOrderToPanopticTokenId.t.sol` 10/10, `.github/` untouched. The run stamped `forge Version: 1.5.1-v1.5.1` / `Commit SHA: b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2`, the exact binary every transport measurement in the new document is scoped to — the document's measurement scope and the gate's actual binary verified as the same thing, in the run that accepted the document. RED-06 ticked in REQUIREMENTS.md. The source diff vs `develop` is exactly the four files 01-05 opens a PR for: `Makefile`, `notes/DIFFERENTIAL_LAYOUT.md`, `test/protocol_integrations/SpecHelper.sol`, `test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol`. Next: plan 01-05 — the PR, the `develop-gate` run, the evidence harvest (has a checkpoint).
-Last activity: 2026-08-27 — The differential's organization is written down at the path both source files already cited, so those cross-references resolve for the first time. The plan's mandated "Foundry is UNPINNED" open risk was stale and was recorded as CLOSED-by-Phase-1.1 with the real residual (a pin bump invalidates the measurements) named in its place.
+Status: **PHASE 1 plan 01-05 TASKS 1-2 COMPLETE — HALTED AT THE BLOCKING CHECKPOINT (task 3).** PR [#60](https://github.com/JMSBPP/cfmm-vol-markets/pull/60) is OPEN, `feat/red-diff-scaffold` → `develop` on the JMSBPP fork, referencing tracking issue #57. **`develop-gate` run [`33123496782`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33123496782) on `8f01abf` is GREEN**: approve/forge/plank/gate all `success`, and the sole required check `gate` is `pass` on the PR. From the forge job log: the two differential tests report `[SKIP: spec oracle not wired: SpecOracle.health() reports TransportFailure (RED-05)...]`, both evidence tests report `[PASS]` (so the file is provably not inert), `VolOrderToPanopticTokenIdTest` holds `Suite result: ok. 10 passed; 0 failed; 0 skipped`, and the whole suite is `273 passed, 0 failed, 3 skipped (276)` — byte-identical to push-build `33117651701`. Runner stamped `forge Version: 1.5.1-v1.5.1` / `Commit SHA: b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2`. `git diff develop..HEAD -- .github/` is **0 bytes**; so is the regression-floor file's diff. **Phase 1 criteria 1, 2 and 3 are established with citable evidence** at `.planning/phases/01-red-differential-scaffold/01-05-GATE-EVIDENCE.md` (`c4dcd67`). NOTHING IS MERGED. Next: the maintainer's resume signal, then plan 01-06 (merge, verify criteria 4-5 on the merged tree, close #57).
+Last activity: 2026-08-27 — The scaffold met the gate. The run also CONFIRMED, on live data, the correction made to this plan before execution: `pending_deployments` returned `[]` and the `approve` job ran `22:41:30Z → 22:41:32Z` unattended. No approval was requested, none was given, and none is reported.
 
-Progress: [████████░░] 75%  (9 of 12 plans: Phase 1.1 complete at 6/6, Phase 1 at 4/6)
+Progress: [████████░░] 83%  (10 of 12 plans: Phase 1.1 complete at 6/6, Phase 1 at 5/6)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 8.0 min
-- Total execution time: 1.07 hours
+- Total plans completed: 9
+- Average duration: 8.3 min
+- Total execution time: 1.25 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| Phase 1 | 3/6 | 29 min | 9.7 min |
+| Phase 1 | 4/6 | 40 min | 10.0 min |
 | Phase 1.1 | 5/6 | 35 min | 7 min |
 
 **Per-plan:**
@@ -61,9 +61,10 @@ Progress: [████████░░] 75%  (9 of 12 plans: Phase 1.1 comple
 | Phase 01.1 P04 | 18min | 2 tasks | 3 files |
 | Phase 01.1 P05 | 7min | 2 tasks | 5 files |
 | Phase 01 P04 | 23min | 2 tasks | 2 files |
+| Phase 01 P05 | 11min | 2 tasks | 3 files |
 
 **Recent Trend:**
-- Last 5 plans: 2 min, 6 min, 18 min, 7 min, 23 min
+- Last 5 plans: 6 min, 18 min, 7 min, 23 min, 11 min
 - Trend: up, and the shape is still explained rather than alarming — 01.1-04 (18 min) waited on two
   real CI runs and a maintainer checkpoint; 01-04 (23 min) wrote a 325-line binding document from
   fifteen recorded measurements and then waited on one CI run. Plans that touch CI cost wall-clock the
@@ -96,6 +97,10 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 - [Phase 01]: eth_rpc_timeout is NAMED in DIFFERENTIAL_LAYOUT.md as a knob that does NOT reach vm.rpc, overriding an acceptance criterion that forbade the token. Naming the key a future engineer would reach for is the whole value; the criterion's intent (record no USABLE knob) is met
 - [Phase 01]: The 'Foundry is UNPINNED' open risk is recorded as CLOSED-by-Phase-1.1, not copied forward. A binding document must not carry a stale risk about the property its other claims depend on
 - [Phase 01]: Phase 1 stub REVERTS (SpecOracleNotWired) rather than returning a zero struct — fail-safe, not fail-open. Phase 7's real impl RETURNS the tagged struct and must not revert (GUARD-05)
+- [Phase 01]: CONFIRMED ON A LIVE GATE RUN (`33123496782`, PR #60) — the `develop-gate` environment gates NOTHING. `pending_deployments` returned `[]` and the `approve` job ran `22:41:30Z → 22:41:32Z` unattended. The plan's assertion that `approve` "forces exactly one approval BEFORE untrusted code runs" was corrected in place BEFORE execution from the Phase 1.1 API measurement, and this run turns that correction from an API reading into an observation on the actual event type (`pull_request`) the claim was made about. The standing rule holds: a workflow `environment:` key is a REQUEST for a gate, not proof of one.
+- [Phase 01]: Phase 1 criteria 1-3 are PROVEN on `develop-gate` run `33123496782` (`8f01abf`), not on push-build. The differential compiles under `--via-ir`, its two differential tests SKIP on the probe's own reason string while both evidence tests PASS (so an inert file cannot hide behind "everything skipped"), the regression floor holds 10/10, and `git diff develop..HEAD -- .github/` is 0 bytes — no skip-ledger entry was bought. Evidence quoted verbatim in `01-05-GATE-EVIDENCE.md`.
+- [Phase 01]: The gate `--skip` ledger is THREE patterns, not the four every Phase 1 plan document quotes. `*PriceSetterHook*` was retired by Phase 1.1 (`12e1fb9`). Plan text describing CI is stale the moment CI changes; quote the workflow file, never the plan. Quoting the plan here would have put a fabricated line in an evidence file.
+- [Phase 01]: The PR body states the SOURCE diff is four files AND names the nine planning artifacts riding the branch, rather than repeating the plan's "4 files" claim. Under the inline-tree workflow `gh pr view --json files` returns 13; a reviewer opening the Files-changed tab would have caught the literal claim as false in ten seconds. State the shape that is true, not the shape the plan predicted.
 - [Phase 01.1]: Phase 1.1 opened on develop tip 90dacaa: tracking issue JMSBPP/cfmm-vol-markets#58, worktree /home/jmsbpp/cfmms-playground/cfmm-wt/ci-feedback-loop on feat/ci-feedback-loop (pushed to origin, zero divergence)
 - [Phase 01.1]: Decimal/INSERTED phases use the identical FEATURES convention — the numbered tool-facing dir carries the decimal (01.1-ci-feedback-loop) and the FEATURES entry is the same mode-120000 symlink; now written into FEATURES/README.md
 - [Phase 01.1]: feat/ci-feedback-loop pushed with no new content BEFORE push-build.yml exists — GitHub picks push-event workflows from the pushed ref, so plan 03's push is by construction the first observable trigger, not by assumption
@@ -168,31 +173,35 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T21:24:00Z
-Stopped at: Completed 01-04-PLAN.md (both tasks), pushed, CI green on run `33117651701`.
-Resume file: .planning/phases/01-red-differential-scaffold/01-05-PLAN.md
+Last session: 2026-08-27T22:50:00Z
+Stopped at: **01-05 task 3 — the BLOCKING CHECKPOINT.** Tasks 1 and 2 are complete and committed
+(`c4dcd67`). PR #60 is OPEN and green; NOTHING IS MERGED.
+Resume file: .planning/phases/01-red-differential-scaffold/01-05-PLAN.md (task 3)
 
-Next: **Plan 01-05 — the PR into `develop`, the first `develop-gate` run on this branch, and the
-evidence harvest (RED-01/RED-05). It HAS A CHECKPOINT.**
+Next: **Awaiting the maintainer's resume signal on the 01-05 checkpoint.** On approval, plan
+01-06 merges PR #60 into `develop`, verifies criteria 4 and 5 against the merged tree, and closes
+tracking issue #57.
 
 State it inherits:
 
-- `feat/red-diff-scaffold` is at **`470c916`**, PUSHED, and green on push-build `33117651701`
-  (273/0/3/276; runner forge `b0a9dd9...`). Planning artifacts ride the same branch and merge at
-  01-06 — the inline-tree workflow, no worktree.
-- The SOURCE diff vs `develop` is exactly four files: `Makefile`,
-  `notes/DIFFERENTIAL_LAYOUT.md`, `test/protocol_integrations/SpecHelper.sol`,
-  `test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol`.
-  `git diff develop -- .github/` is EMPTY and must stay empty — the skip is self-computed.
-- **Do NOT commit any `lib/*` submodule.** Seven of them (`bunni-v2`, `forge-std`,
-  `plank-monorepo`, `plankified-univ3`, `protocol`, `reactive-smart-contract-demos`, `v3-core`)
-  are checked out at NON-pinned commits in the working tree from an earlier local `forge test`
-  attempt. Also not ours: `.planning/config.json`, `offchain`, `spec`,
-  `src/modules/premium/DynamicFeeMod.plk`, `TODO.md`, `docs/superpowers/specs/2026-08-26-*.md`.
-  Name every file on every `git add`.
-- **RED-01, RED-02, RED-03 and RED-05 are satisfied and CI-verified but still `Pending` in
-  `REQUIREMENTS.md`** — 01-03 ran via the superpowers path, which does not touch it. 01-05 or
-  01-06 should tick all four, preferably against the `develop-gate` run rather than push-build,
-  since Phase 1's criteria 1-3 are stated against the gate. Logged in
-  `.planning/phases/01-red-differential-scaffold/deferred-items.md`.
-- `gh` needs `-R JMSBPP/cfmm-vol-markets`.
+- **PR [#60](https://github.com/JMSBPP/cfmm-vol-markets/pull/60)** — `feat/red-diff-scaffold` →
+  `develop` on the JMSBPP fork, OPEN, referencing #57 via `Closes #57`.
+- **`develop-gate` run [`33123496782`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33123496782)**
+  on `8f01abf` — approve/forge/plank/gate all `success`; the required `gate` check is `pass`.
+  Evidence quoted verbatim in `01-05-GATE-EVIDENCE.md`.
+- The branch has advanced past `8f01abf` with planning-only commits (`c4dcd67` and this plan's
+  metadata commit). **Those retrigger `develop-gate`, and 01-06 must confirm the run on the
+  FINAL head SHA is green before merging** — the required check binds to the head commit, and no
+  source file changed, so a re-run is expected to be green for the same reasons.
+- **Do NOT commit any `lib/*` submodule.** Seven are checked out at NON-pinned commits in the
+  working tree from an earlier local `forge test` attempt. Also not ours: `.planning/config.json`,
+  `offchain`, `spec`, `src/modules/premium/DynamicFeeMod.plk`, `TODO.md`,
+  `docs/superpowers/specs/2026-08-26-*.md`. Name every file on every `git add`.
+- **RED-01…RED-06 and PROC-01 are already ticked** in `REQUIREMENTS.md` and in the ROADMAP plan
+  list. 01-06 must NOT re-tick them. The `deferred-items.md` entry that asked for it was cleared
+  by `3d56870`.
+- The merge will need the branch-protection bypass (`required_approving_review_count: 1`,
+  `enforce_admins: false`) — the same path Phase 1.1 took, with the maintainer's prior consent
+  recorded in the Decisions section. Ask; do not assume it carries over.
+- `gh` needs `-R JMSBPP/cfmm-vol-markets` (two remotes). Never open or push anything against
+  `d2p-finance`.
