@@ -223,4 +223,94 @@ contract VolOrderToPanopticTokenIdDiffTest is PlankTestBase {
         uint256 tid = _implTokenId(_anchorPackedVO(), ANCHOR_POOL_ID);
         assertTrue(tid != 0, "impl tokenId is non-zero on the anchor geometry");
     }
+
+    // --- THE DIFFERENTIAL --------------------------------------------------------------
+
+    /// @notice The whole point of the file. Tolerance 0, both sides named in the message.
+    /// @dev The three outcomes are separated BEFORE any comparison. A transport failure is not
+    ///      agreement and not a rejection; a rejection is not agreement. Conflating any two of
+    ///      them is how a differential test goes silently green (XPORT-02).
+    ///      `result.detail` is diagnostics only and is NEVER asserted on.
+    function _assertAgree(uint256 packedVO, uint64 poolId, uint256[4] memory ratios) internal {
+        SpecOracle.TokenIdResult memory result =
+            SpecOracle.volOrderToTokenId(_provisionalWire(packedVO, ratios), poolId);
+
+        assertTrue(
+            result.status != SpecOracle.Status.TransportFailure,
+            "spec oracle transport failure - this is not a comparison and must never pass as one"
+        );
+        // This corpus is CONSTRUCTED so that no spec guard can fire (see the bound arithmetic in
+        // the fuzz). A rejection here means the CORPUS is wrong, not that the two sides
+        // disagree. Rejection PARITY -- revert-vs-return, over result.guard -- is Phase 9's
+        // subject (GUARD-05); mixing it in here would make a future red ambiguous.
+        assertTrue(
+            result.status != SpecOracle.Status.Rejected,
+            "spec rejected an input this corpus constructed to be legal"
+        );
+
+        uint256 specTokenId = result.tokenId;
+        uint256 implTokenId = _implTokenId(packedVO, poolId);
+        assertEq(specTokenId, implTokenId, "spec vs impl tokenId, tol 0");
+        comparisons++;
+    }
+
+    /// @notice THE NON-FUZZ ANCHOR for test__fuzz_differential__volOrder. One fixed, known-good
+    ///         geometry -- the regression floor's golden vector -- so that a fuzz failure can be
+    ///         localised to the input rather than to the whole map, and so that a fuzz that
+    ///         mysteriously passes has a fixed case to be checked against.
+    function test_differential__volOrder__anchor() public {
+        if (!_specWired()) {
+            vm.skip(true, SKIP_REASON);
+            return;
+        }
+        _assertAgree(_anchorPackedVO(), ANCHOR_POOL_ID, _anchorRatios());
+        assertGt(comparisons, 0, "anchor: non-vacuity - at least one comparison must have run");
+    }
+
+    /// @notice THE ASSERTION THIS PHASE IS FOR. Skipped until Phase 7 wires the oracle and
+    ///         Phase 11 removes the guard; written now, in full, against the real assertion.
+    function test__fuzz_differential__volOrder(
+        uint256 widthR,
+        uint256 spreadR,
+        uint256 poolIdR,
+        uint256 r0R,
+        uint256 r1R,
+        uint256 r2R,
+        uint256 r3R
+    ) public {
+        // THE CACHED WIRING STATUS IS READ FIRST. Everything below this point would reach the
+        // reverting stub; vm.skip fires before any of it runs. This is a state read, NOT a
+        // health() call -- the probe ran once, in setUp, and that is deliberate.
+        if (!_specWired()) {
+            vm.skip(true, SKIP_REASON);
+            return;
+        }
+
+        // CORPUS CONSTRUCTION (RED-03). Not one vm.assume: every bound below is chosen so the
+        // map's preconditions hold BY CONSTRUCTION. The arithmetic, stated so a later reader
+        // can check it rather than trust it:
+        //   ts = 10 and vol = 1 pin i* = 0 with the bucket centred there (the golden geometry).
+        //   width in [1000, 40000] and spread in [0x2000, 0xE000] (0.125 .. 0.875) give
+        //     putSide, callSide >= 0.125 * 1000 = 125 ticks, vs the required 2*ts = 20;
+        //     max leg span     <= 0.875 * 40000 / 2 = 17500 ticks = 1750*ts, vs the 12-bit
+        //                         width field's 4096*ts ceiling;
+        //     max |tick|       <= 0.875 * 40000 = 35000, vs uniswapMaxTick = 887272.
+        //   Bucket rounding contributes at most one tickSpacing (10 ticks) of slack against a
+        //   125-tick margin, so no bound here is marginal.
+        //   ratios in [1,127] is the spec's own optionRatio guard, so no input is constructed
+        //   that the Haskell would reject -- rejection PARITY is Phase 8/9's subject, not this
+        //   file's, and mixing the two would make a red ambiguous.
+        uint256 width = bound(widthR, 1000, 40000);
+        uint256 spread = bound(spreadR, 0x2000, 0xE000);
+        uint64 poolId = uint64(bound(poolIdR, 0, type(uint64).max));
+        uint256[4] memory ratios = [
+            bound(r0R, 1, 127),
+            bound(r1R, 1, 127),
+            bound(r2R, 1, 127),
+            bound(r3R, 1, 127)
+        ];
+
+        _assertAgree(_packVO(width, ANCHOR_TS, ANCHOR_VOL, spread), poolId, ratios);
+        assertGt(comparisons, 0, "fuzz: non-vacuity - at least one comparison must have run");
+    }
 }

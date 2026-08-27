@@ -478,13 +478,17 @@ Run:
 ```bash
 cd /home/jmsbpp/cfmms-playground/cfmm-wt/vol-markets
 F=test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol
+# Strip comments AND string literals first. The file's own doctrine says "There is not one
+# vm.assume in this file", and the _assertAgree natspec names `result.detail` to forbid it --
+# so naive greps for the forbidden tokens match the prose that forbids them.
+CODE=$(grep -vE '^\s*(//|///|\*|/\*)' "$F" | sed 's/"[^"]*"//g')
 grep -q 'assertEq(specTokenId, implTokenId, "spec vs impl tokenId, tol 0");' "$F" \
  && grep -q 'function test__fuzz_differential__volOrder(' "$F" \
  && grep -q 'function test_differential__volOrder__anchor() public' "$F" \
- && [ "$(grep -c 'vm.assume' "$F")" = "0" ] \
+ && [ "$(echo "$CODE" | grep -c 'vm\.assume')" = "0" ] \
  && [ "$(grep -c 'vm.skip(true, SKIP_REASON);' "$F")" = "2" ] \
  && [ -z "$(grep -vE '^\s*(//|///|\*|/\*)' "$F" | sed 's/"[^"]*"//g' | grep 'SpecOracle\.health(')" ] \
- && [ "$(grep -c 'result.detail' "$F")" = "0" ] \
+ && [ "$(echo "$CODE" | grep -c 'result\.detail')" = "0" ] \
  && [ -z "$(git diff develop --name-only -- .github/)" ] \
  && [ "$(tail -c 2 "$F")" = "}" ] \
  && echo OK
