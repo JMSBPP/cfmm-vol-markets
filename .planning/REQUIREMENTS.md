@@ -27,9 +27,9 @@ Requirements for this milestone. Each maps to a roadmap phase.
 
 ### RPC / Transport Architecture
 
-- [ ] **RPC-01**: The transport architecture is decided and recorded — `vm.ffi` binary **vs** a JSON-RPC service via `vm.rpc` — with the rationale from the exploration, not merely the verdict
+- [ ] **RPC-01**: The transport decision is **recorded** with its rationale — resolved as JSON-RPC at `evm-spec-bridge` initialization, outside this phase, overriding Phase 5's ownership. The record must show the override rather than smooth it over. (Reworded from "decided and recorded": the deciding was taken elsewhere.)
 - [ ] **RPC-02**: Responsibility delegation between the two participants — the Haskell spec service and the Foundry test process — is specified: which side owns wire encoding/decoding, input validation, guard evaluation, and error classification
-- [ ] **RPC-03**: A minimal protocol skeleton (health/echo method) runs and is exercised end-to-end, proving the transport shape works **independent of** `volOrderToTokenId`
+- [ ] **RPC-03**: A minimal protocol skeleton (`health()`) runs and is exercised end-to-end against the bridge's server, proving the transport shape works **independent of** `volOrderToTokenId`, and carrying the spec commit SHA the running binary was **built from** — asserted against this repo's spec authority, failing loudly on mismatch and never skipping past it
 
 ### Spec Oracle (Haskell side)
 

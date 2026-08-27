@@ -167,28 +167,38 @@ variant travelling out-of-band. Resolve during phase planning, not before.
 ### Phase 5: RPC Design & Protocol Skeleton
 **Directory**: `.planning/phases/FEATURES/feat-rpc-design/`
 **Branch**: `feat/rpc-design`
-**Goal**: Decide *how* the two sides talk before building what they say — the transport, and the
-division of labour between the Haskell spec service and the Foundry test process — and prove the
-shape works with a minimal protocol skeleton carrying no domain payload.
+**Goal**: State the contract `evm-spec-bridge` must satisfy for this milestone to continue, settle the
+division of labour between the Haskell spec service and the Foundry test process, and prove the shape
+works with a minimal protocol skeleton carrying no domain payload.
 **Depends on**: Phase 4
-**Owns open decision**: transport — `vm.ffi` binary (simpler, already enabled via `ffi = true`)
-**vs** a Haskell JSON-RPC service reached by `vm.rpc` (warm process, no per-case spawn, generalizes
-to the whole spec surface). This phase resolves it; Phase 7 only implements the result.
-**Nature of the work**: this is an interactive design phase, not an execution phase. The transport is
-learned through back-and-forth — what is appropriate, and *why* — and the reasoning is the
-deliverable alongside the verdict. Do not short-circuit it by picking a transport and moving on.
+**MODIFIED — the transport decision was taken outside this phase.** At `evm-spec-bridge`
+initialization the user resolved the transport as **JSON-RPC**, knowingly overriding this phase's
+ownership of it (`evm_spec_rpc` flagged the conflict before acting; the user confirmed directly).
+This phase is therefore no longer the phase that *builds* the transport — it is the **reference
+contract for what `evm-spec-bridge` delivers**. RPC-01 records the decision and its rationale rather
+than making it. RPC-02 remains genuinely open and owned here.
+**Cross-repo**: `evm-spec-bridge` (canonical `d2p-finance/evm-spec-bridge`, `JMSBPP` fork, PR-only)
+enters this repo as a **submodule**. It is a Haskell library plus a JSON-RPC server exe, depends on
+`cfmm-vol-markets-spec`, and generates the Solidity interface from the same schema as its Haskell
+protocol types so the two sides cannot drift silently.
 **Requirements**: RPC-01, RPC-02, RPC-03
 **Success Criteria** (what must be TRUE):
-  1. The transport choice is recorded in `PROJECT.md` as a resolved decision **with its rationale** —
-     what was considered, what the tradeoffs were, and what decided it — not merely the verdict.
+  1. `PROJECT.md` records the transport as **resolved: JSON-RPC**, with the rationale *and* the fact
+     that it was decided at bridge initialization rather than in this phase — the override is visible
+     in the record, not smoothed over.
   2. A written responsibility delegation states, for each of wire encoding/decoding, input validation,
-     guard evaluation, and error classification, which of the two participants owns it: the Haskell
-     spec service or the Foundry test process. No responsibility is unassigned or shared by default.
-  3. `develop-gate` is green on `feat/rpc-design` with a minimal protocol skeleton — a health/echo
-     method carrying **no** `volOrderToTokenId` payload — exercised end-to-end over the chosen
-     transport, proving the shape works before any domain logic depends on it.
+     guard evaluation, and error classification, which participant owns it. No responsibility is
+     unassigned or shared by default. Binding constraint: **the Foundry test process owns none of
+     them** — any semantics it holds is a re-implementation of the spec, which is the failure this
+     milestone exists to eliminate. Guard evaluation is the spec's, without exception.
+  3. `develop-gate` is green with a minimal protocol skeleton — a health/echo method carrying **no**
+     `volOrderToTokenId` payload — exercised end-to-end against the bridge's server, proving the shape
+     works before any domain logic depends on it.
   4. The skeleton demonstrates the failure path as well as the success path: an unreachable or
      non-responding service is reported as *transport failure*, distinguishably, in the same run.
+  5. The health/echo response carries the **spec commit SHA the bridge was built against**, and a test
+     asserts it equals this repo's `spec/` pin — see the skew hazard in Sequencing Notes. A mismatch
+     must fail loudly rather than produce a meaningless green.
 **Plans**: TBD
 
 ### Phase 6: Haskell Spec Oracle
@@ -222,13 +232,18 @@ the entrypoint's contract are written before the entrypoint, on both sides of th
 **Goal**: `SpecHelper` stops being a stub — a Foundry test can obtain the spec's answer for an
 arbitrary `(VolOrder(T), poolId)`, and can tell "the spec said no" apart from "the transport broke".
 **Depends on**: Phase 6
-**Inherits**: the transport chosen and the responsibility delegation fixed in Phase 5, and the
-protocol skeleton proven there. This phase implements against those, it does not revisit them.
+**Inherits**: the JSON-RPC transport, the responsibility delegation fixed in Phase 5, and the protocol
+skeleton proven there. This phase implements against those, it does not revisit them.
+**Generated interface, not hand-written.** `SpecHelper` implements the Solidity interface **generated
+by `evm-spec-bridge`** from the same schema as its Haskell protocol types. Phase 1's `SpecHelper.sol`
+is a deliberately minimal stub whose boundary is documented as provisional precisely so this phase
+adopts the generated interface rather than redesigning the seam (RED-06).
 **Requirements**: XPORT-01, XPORT-02
 **Success Criteria** (what must be TRUE):
   1. `develop-gate` green on `feat/spec-transport`: `SpecHelper.readTokenId(…)` is implemented against
-     the Phase 4 wire format and the Phase 5 entrypoint, and the wiring probe still governs execution
-     on the runner (spec absent there until Phase 11).
+     the bridge's **generated** Solidity interface and the Phase 4 wire format, and the wiring probe
+     still governs execution on the runner. No hand-written restatement of the protocol types exists
+     in `test/` — drift is prevented by construction, not by review.
   2. The transport returns three distinguishable outcomes — spec success with a `tokenId`, spec
      rejection with the rejecting guard identifiable, and transport failure — and a test asserts they
      are never conflated.
@@ -322,13 +337,30 @@ fails the build, with no silent-skip path left.
   derived convenience. Phase 1 ships first specifically so the differential file exists and pushes
   clean before there is anything to diff against; Phases 2–4 are the blocking prerequisite refactor;
   and Phase 5 settles how the two sides talk before Phase 6 gives them something to say.
-- **Known tension, deliberately accepted:** CI-01/CI-02 (spec on the runner) are what make Phases 6–10
-  gate-observable, yet they sit in Phase 11. The RED-05 wiring probe is the mechanism that absorbs
-  this: Phases 6–10 push clean with the differential path skip-guarded on the runner, and Phase 11
-  flips it on. If Phase 7 or 10 planning finds the skip-guard insufficient, pull CI-01/CI-02 forward
-  via `/gsd:insert-phase` rather than reordering silently.
-- Three decisions stay open by design and are owned by phase planning: wire format (Phase 4),
-  transport (Phase 5), oracle packaging (Phase 6). Do not pre-resolve them.
+- **The CI tension is no longer merely "accepted" — the JSON-RPC decision escalated it.** The original
+  framing was that CI-01/CI-02 (spec on the runner) make Phases 6–10 gate-observable while sitting in
+  Phase 11, absorbed by the RED-05 wiring probe. That framing **no longer holds**: RPC-03 requires the
+  protocol skeleton be "exercised end-to-end over the chosen transport", and a *service* transport
+  means the self-hosted runner must build **and run** a long-lived Haskell process for **Phase 5
+  itself** to be gate-observable. CI-01/CI-02 are therefore a prerequisite for Phase 5, not Phase 11.
+  Expect to pull them forward via `/gsd:insert-phase`; do not treat the skip-guard as covering this.
+  Compounding unknowns: GHC/cabal on the self-hosted `cfmm-build` runner is still unverified (present
+  on the dev machine at GHC 9.10.3 / cabal 3.16.1.0), the gate currently checks out no `spec/` at all,
+  and a persistent self-hosted runner adds service-ready/test-start races, port collisions and leaked
+  processes surviving between runs.
+- **Spec-version skew is a correctness hazard, not a build hazard.** `evm-spec-bridge` depends on
+  `cfmm-vol-markets-spec`, and this repo pins `spec/` directly — two paths to the oracle. Nothing
+  fails if they diverge, which is exactly what makes it dangerous: the differential test would compare
+  Plank against a *different spec version than the roadmap believes is the oracle*, and stay green.
+  A false green here is worse than a red, because the milestone's whole premise is that disagreement
+  fails the build. Mitigation is mandatory, not optional — the bridge reports the spec commit SHA it
+  was built against in the health/echo response (Phase 5 criterion 5) and a test asserts it equals the
+  `spec/` pin. Preferred topology if the bridge can support it: pin only the bridge and let it be the
+  single authority on the spec version, eliminating the second path entirely.
+- Two decisions stay open by design and are owned by phase planning: wire format (Phase 4) and oracle
+  packaging (Phase 6). Do not pre-resolve them. Transport is **resolved (JSON-RPC)**, decided outside
+  Phase 5 at bridge initialization. RPC-02 — the responsibility split — remains open and owned by
+  Phase 5.
 
 ## Progress
 

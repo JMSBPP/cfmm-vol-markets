@@ -81,7 +81,8 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 **Open by design — owned by phase planning, do not pre-resolve:**
 
 - `VolOrder(T)` wire format: Shock-style tagged vs per-variant layout → **Phase 4**
-- Spec transport: `vm.ffi` binary vs Haskell JSON-RPC service (`vm.rpc`) → **Phase 5** (owns it; an interactive design phase, not a pick-and-go)
+- ~~Spec transport~~ → **RESOLVED: JSON-RPC**, decided at `evm-spec-bridge` initialization outside Phase 5 (user override, confirmed directly). Phase 5 now *records* it and remains the reference contract for the bridge.
+- **STILL OPEN — RPC-02 responsibility split** → **Phase 5**. A strong prior has been sent to `evm_spec_rpc` and accepted by them: guard evaluation is the spec's without exception; protocol well-formedness is the bridge's while domain validation IS guard evaluation; codec generated from one schema; error classification the bridge's, carrying the rejecting guard. Not yet ratified by the user.
 - Oracle packaging: new cabal exe vs a mode on `cfmm-scratchpad-exe` → **Phase 6**
 
 ### Pending Todos
@@ -90,7 +91,8 @@ None yet.
 
 ### Blockers/Concerns
 
-- **GHC/cabal on the self-hosted runner is unverified.** Phase 11 (CI-02) may require provisioning the toolchain, not just invoking it. Surface early during Phase 5/6 planning.
+- **UNVERIFIED AND LOAD-BEARING: does `vm.rpc` forward arbitrary non-`eth_*` methods to a non-Ethereum endpoint, and how does it surface results to Solidity?** The entire JSON-RPC decision rests on this. It was asserted confidently earlier in planning from recollection, NOT from Foundry source or docs. `evm_spec_rpc` has a researcher verifying it against source. If it only proxies `eth_*` to a real node, the transport decision collapses and both roadmaps change.
+- **GHC/cabal on the self-hosted runner is unverified.** Now a Phase 5 prerequisite, not Phase 11 — a service transport means the runner must build AND RUN a long-lived process. Present on the dev machine (GHC 9.10.3 / cabal 3.16.1.0); unverified on the runner. The persistent self-hosted runner also risks leaked processes answering later runs on a stale spec commit — mitigated by the `specCommit` assertion plus an ephemeral port rather than a fixed one.
 - **CI ordering tension (accepted).** CI-01/CI-02 put the spec on the runner but sit in Phase 11, while Phases 6–10 need spec reachability to be gate-observable. The RED-05 wiring probe absorbs this; if it proves insufficient, pull CI-01/CI-02 forward via `/gsd:insert-phase` rather than reordering silently.
 - **Two-repo cost in Phase 6.** Spec changes land via `JMSBPP` fork → PR into `d2p-finance/cfmm-vol-markets-spec` plus a submodule pin bump here.
 
