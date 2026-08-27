@@ -64,9 +64,9 @@ Requirements for this milestone. Each maps to a roadmap phase.
 
 ### Toolchain Determinism
 
-- [ ] **CI-05**: `develop-gate` resolves an **explicit, pinned Foundry version** rather than whatever `forge` happens to be installed on the persistent self-hosted runner, so gate results are attributable and reproducible
-- [ ] **CI-06**: Every gate run emits the resolved `forge --version` (version, commit SHA, build timestamp) as run evidence, making toolchain drift visible the first time it occurs
-- [ ] **CI-07**: A push to any branch other than `develop` **immediately** triggers a build that initializes submodules, installs dependencies, builds the Plank toolchain, and runs `forge build` + `forge test` — **without manual approval** — so code committed at any execution step gets compile feedback without waiting for a PR
+- [x] **CI-05**: `develop-gate` resolves an **explicit, pinned Foundry version** rather than whatever `forge` happens to be installed on the persistent self-hosted runner, so gate results are attributable and reproducible
+- [x] **CI-06**: Every gate run emits the resolved `forge --version` (version, commit SHA, build timestamp) as run evidence, making toolchain drift visible the first time it occurs
+- [x] **CI-07**: A push to any branch other than `develop` **immediately** triggers a build that initializes submodules, installs dependencies, builds the Plank toolchain, and runs `forge build` + `forge test` — **without manual approval** — so code committed at any execution step gets compile feedback without waiting for a PR
 
 ### Planning Layout
 
@@ -132,9 +132,9 @@ Populated during roadmap creation (2026-08-27). Phase directories live at
 | GUARD-05 | Phase 9 — Guard Parity Assertion | Pending |
 | DIFF-01 | Phase 10 — Passing Differential Test | Pending |
 | DIFF-02 | Phase 10 — Passing Differential Test | Pending |
-| CI-05 | Phase 1.1 — CI Feedback Loop | Pending |
-| CI-06 | Phase 1.1 — CI Feedback Loop | Pending |
-| CI-07 | Phase 1.1 — CI Feedback Loop | Pending |
+| CI-05 | Phase 1.1 — CI Feedback Loop | Complete |
+| CI-06 | Phase 1.1 — CI Feedback Loop | Complete |
+| CI-07 | Phase 1.1 — CI Feedback Loop | Complete |
 | CI-01 | Phase 11 — develop-gate Enforcement | Pending |
 | CI-02 | Phase 11 — develop-gate Enforcement | Pending |
 | CI-03 | Phase 11 — develop-gate Enforcement | Pending |
