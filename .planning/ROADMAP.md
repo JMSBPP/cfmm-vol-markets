@@ -147,6 +147,19 @@ actually builds on the event that produces code.
      **Criterion 2 cannot be ticked as written** — it needs either a configured reviewer on the
      `develop-gate` environment, or restatement in terms of the required `gate` status check, which IS
      enforced. Maintainer decision; this executor did not attempt any self-approval or config change.
+     → **RESOLVED AT PLAN 06'S CHECKPOINT — Option B, criterion RESTATED.** Maintainer, verbatim:
+     *"Restate the criterion, merge as-is"* and *"Yes, merge with bypass"*. **Criterion 2 now reads:**
+     the push build is a workflow separate from `develop-gate`, and `develop-gate` remains the PR/merge
+     authority by virtue of `develop`'s required status-check context `gate` plus
+     `required_approving_review_count: 1` — the two protections that are actually enforced. The
+     `environment: develop-gate` key on the `approve` job is **documentary**: it records the intent of a
+     gate that the environment has never been configured to provide. **The repo configuration was NOT
+     changed** and no required reviewer was added. **Load-bearing consequence: the `gate` job must never
+     be given a `name:`**, since `contexts: ["gate"]` is the branch's only enforced check and a rename
+     would silently un-protect `develop` — plan 05's insistence on this is confirmed necessary, not
+     stylistic. On this restatement the criterion is MET: `push-build.yml` is a separate file with no
+     `environment:`, no secrets and no ability to satisfy the `gate` context, and the gate's `+84 / −0`
+     edit left the `gate` job's `name`-lessness and `needs: [approve, forge, plank]` untouched.
   3. Pushes to `develop` do **not** trigger the push build (merges are the PR gate's job).
   4. Both workflows resolve an explicit, declared Foundry version rather than the ambient one, and
      each run's log shows the resolved `forge --version` including version and commit SHA.
