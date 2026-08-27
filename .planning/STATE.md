@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 3
+current_plan: 4
 status: executing
-stopped_at: "Completed 01.1-03-PLAN.md — push-build.yml + check-ci-skip-ledger.sh pushed as bdeecb3; run 33107877073 triggered BY that push (event=push, in_progress at hand-off)"
+stopped_at: "01.1-04-PLAN.md PAUSED at its blocking human-verify checkpoint (task 2 of 2). Task 1 done: 01.1-CI-EVIDENCE.md committed 79602e2 and pushed to origin/develop, harvesting BOTH runs — 33107877073 (bdeecb3, failure at forge build) and 33109459584 (fb546e8, SUCCESS: 271 passed, 0 failed, 1 skipped). Awaiting maintainer approval before plan 05."
 last_updated: "2026-08-27T19:23:04.211Z"
-last_activity: "2026-08-27 — Plan 01.1-03 executed: push-build.yml + scripts/check-ci-skip-ledger.sh committed as bdeecb3 and PUSHED to origin/feat/ci-feedback-loop — the push triggered run 33107877073 (event=push, sha bdeecb3), the first CI run and first compile this project has ever had"
+last_activity: "2026-08-27 — Plan 01.1-04 task 1 executed: 01.1-CI-EVIDENCE.md harvests BOTH push-build runs. Run 33109459584 is the FIRST time this project has been confirmed to compile AND pass its suite in CI (271 passed / 0 failed / 1 skipped, 74 suites, 11.21s). Plan PAUSED at the human-verify checkpoint."
 progress:
   total_phases: 12
   completed_phases: 0
@@ -27,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-08-27)
 ## Current Position
 
 Phase: 1.1 of 12 (CI Feedback Loop — INSERTED; runs before Phase 1 wave 3)
-Plan: 3 of 6 in current phase
-Current Plan: 3
+Plan: 4 of 6 in current phase
+Current Plan: 4
 Total Plans in Phase: 6
-Status: Executing — Phase 1.1 plan 01.1-03 complete (push-build.yml pushed; run 33107877073 in flight), 01.1-04 next. Phase 1 is PAUSED at 2 of 6 (01-03 resumes after 1.1 merges).
-Last activity: 2026-08-27 — Plan 01.1-03 executed: push-build.yml + scripts/check-ci-skip-ledger.sh committed as bdeecb3 and PUSHED to origin/feat/ci-feedback-loop — the push triggered run 33107877073 (event=push, sha bdeecb3), the first CI run and first compile this project has ever had
+Status: PAUSED AT CHECKPOINT — Phase 1.1 plan 01.1-04 is mid-execution: task 1 (evidence harvest) is done and pushed as 79602e2; task 2 is a BLOCKING human-verify checkpoint awaiting the maintainer. Plan 05 must not start until it resolves. Phase 1 remains independently PAUSED at 2 of 6 (01-03 resumes after 1.1 merges).
+Last activity: 2026-08-27 — Plan 01.1-04 task 1: 01.1-CI-EVIDENCE.md harvests BOTH push-build runs (33107877073 red at forge build; 33109459584 GREEN end to end). Run 2 is the first confirmed compile AND passing suite in this project's history: 271 passed, 0 failed, 1 skipped across 74 suites, with VolOrderToPanopticTokenId.t.sol 10/10. Plan PAUSED at its human-verify checkpoint.
 
 Progress: [████░░░░░░] 42%  (5 of 12 plans across the two open phases: 1 and 1.1)
 
@@ -96,6 +96,13 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 - [Phase 01.1]: MEASURED on run 33107877073: the cfmm-build runner DOES have egress to raw.githubusercontent.com, flock IS present, and foundryup --install "${FOUNDRY_VERSION#v}" resolves v1.5.1/b0a9dd9 — the pinned install into $HOME/.foundry-pins/$FOUNDRY_VERSION and the commit assertion both went green, closing three of plan 03's four residual unknowns from observation rather than assumption
 - [Phase 01.1]: The push build COPIES develop-gate's --skip ledger and seed rather than sharing it (the gate's ledger line may not move), and scripts/check-ci-skip-ledger.sh makes the copy's parity ENFORCED not reviewed — comment lines are stripped first so a comment cannot satisfy it, and a vacuous zero-pattern extraction is red
 
+- [Phase 01.1]: MEASURED on runs 33107877073 + 33109459584 — the pin-keyed install ANSWERS the ROADMAP's persistent-self-hosted open question. `which -a forge` printed `$HOME/.foundry-pins/v1.5.1/bin/forge` AHEAD of `$HOME/.foundry/bin/forge` (which the box already had, listed TWICE on PATH) in both runs; `$HOME/.foundry` was never written to. `foundry-toolchain@v1` would have collided on the first push — that was reasoned during planning and is now observed, with foundryup itself warning "There are multiple binaries with the name 'forge' present in your 'PATH'". Cold install 19 s, warm 0 s via the stamp file. Open question CLOSED BY OBSERVATION.
+- [Phase 01.1]: The pin is re-asserted on EVERY run by the STAMP step, not by the install step. Run 2's install step took 0 s and emitted zero output (stamp-file cache hit), so the `grep -qF "$FOUNDRY_COMMIT"` inside the install branch did NOT run — but the stamp step's own identical assertion did, and passed. Anyone editing the stamp step must know it is now the only per-run pin assertion.
+- [Phase 01.1]: FIRST CONFIRMED COMPILE in this project's history is run 33109459584 (`fb546e8`, push, SUCCESS): `Ran 74 test suites in 11.21s: 271 tests passed, 0 failed, 1 skipped (272 total)`, with `VolOrderToPanopticTokenId.t.sol` at 10/10 — the regression floor, held in CI for the first time. Against the last recorded local baseline of 252 passed, with a SMALLER skip ledger (3 patterns, seed 4880).
+- [Phase 01.1]: `--skip` MATCHES ON FILENAME, so a ledger entry masks more than the file that motivated it. `--skip "*PriceSetterHook*"` had also been excluding `src/modules/protocol_integrations/PriceSetterHook.sol` and `foundry-scripts/PriceSetterHook.s.sol` from the test build; retiring it exposed both to compilation for the first time and they are CLEAN. General hazard of glob-shaped skip ledgers — check what else a pattern catches before adding one.
+- [Phase 01.1]: `forge build` deliberately carries NO `--skip`. Run 1 went red on `Error (5005)` linearization in `PriceSetterHook.t.sol:19` — skip-ledger entry #1, predicted verbatim by `develop-gate.yml:55`. The gate had never run a bare `forge build`, so the break was real, known, documented and STRUCTURALLY INVISIBLE to the only CI that existed. Teaching `forge build` the ledger would restore that blindness; the fix was to delete the uncompilable test instead.
+- [Phase 01.1]: TOOLING — `state add-decision` is worse than plan 03 recorded: it REGENERATES the frontmatter from a scrape of the BODY. Probed directly this session: it corrupted `milestone: v1.0 -> v1.8`, forced `status: executing -> paused`, and REVERTED `stopped_at` to the previous plan's value while stripping its quotes — because the body's "Stopped at:" line had not been updated yet. **Consequence: frontmatter edits made BEFORE body edits are silently reverted by any state verb.** It also filed the decision below the "Open by design" block, as previously recorded. Restored from a pre-call backup and hand-edited instead.
+
 **Open by design — owned by phase planning, do not pre-resolve:**
 
 - `VolOrder(T)` wire format: Shock-style tagged vs per-variant layout → **Phase 4**
@@ -141,9 +148,32 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T19:22:22Z
-Stopped at: Completed 01.1-03-PLAN.md — push-build.yml + check-ci-skip-ledger.sh pushed as bdeecb3; run 33107877073 triggered BY that push
-Resume file: None
+Last session: 2026-08-27T19:53:00Z
+Stopped at: 01.1-04-PLAN.md task 2 — the BLOCKING human-verify checkpoint. Task 1 complete and pushed (79602e2).
+Resume file: .planning/phases/01.1-ci-feedback-loop/01.1-CI-EVIDENCE.md
 
-Next: execute `.planning/phases/FEATURES/feat-ci-feedback-loop/01.1-04-PLAN.md` — harvest run **33107877073** (https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33107877073, event=push, sha bdeecb3, in_progress at hand-off with 8 steps green through `npm ci` and `forge build` running) into `01.1-CI-EVIDENCE.md`. Plan 04 owns the interpretation and the contingency table; plan 03 deliberately did not diagnose. `feat/ci-feedback-loop` is at bdeecb3 on origin, 2 commits ahead of origin/develop, nothing unpushed.
+Next: **WAITING ON THE MAINTAINER.** Plan 01.1-04 is PAUSED at its blocking human-verify checkpoint
+(task 2 of 2). Task 1 is done: `.planning/phases/01.1-ci-feedback-loop/01.1-CI-EVIDENCE.md`, committed
+`79602e2` and pushed to `origin/develop`, harvesting BOTH runs on `feat/ci-feedback-loop`:
+
+- **33107877073** (`bdeecb3`, push, **failure**) — https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33107877073
+  Eight steps green, then `forge build` red on one hard error (`Error (5005)` linearization,
+  `PriceSetterHook.t.sol:19`), `forge test` skipped. Closed all four residual unknowns from
+  observation: runner egress works, `flock` present, `--install` correct, `v1.5.1` -> `b0a9dd9`.
+- **33109459584** (`fb546e8`, push, **SUCCESS**) — https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33109459584
+  ALL steps green including `forge build` AND `forge test`: `271 tests passed, 0 failed, 1 skipped`.
+
+The maintainer must review the run in the Actions UI and re-affirm (or amend) the unattended-execution
+tradeoff, and judge whether `timeout-minutes: 30` is enough headroom — noting that submodules, the
+cargo cache and the forge cache were WARM in both runs, so the cold-runner cost is UNMEASURED.
+**Plan 05 (pin + stamp into `develop-gate`) does not begin until this resolves.**
+
+Live loose end for that conversation: issue #16 was closed at 19:44:12Z with items 2
+(seed-dependent width-type fuzz bug, still masked behind `*VolRangeWidth*` /
+`*SpreadTickAssimetryHelper*`) and 3 (gamsdiff runner env) UNADDRESSED and now untracked.
+
+CI-05/06/07 all remain `Pending` in REQUIREMENTS.md — unchanged by this plan. CI-07's sentence is now
+factually true on the push path, but the tick is reserved for plan 06 and could still be invalidated
+by the checkpoint's answer.
+
 Phase 1 resumes at `01-03-PLAN.md` in the `feat/red-diff-scaffold` worktree once Phase 1.1 merges.

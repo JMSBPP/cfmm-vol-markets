@@ -118,6 +118,9 @@ actually builds on the event that produces code.
   1. A push to a non-`develop` branch triggers a build with **no manual approval**, which initializes
      submodules, builds the Plank toolchain, runs `npm ci`, and runs `forge build` + `forge test`.
      Demonstrated by an actual run on `feat/ci-feedback-loop`.
+     → **DEMONSTRATED** by run [`33109459584`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33109459584)
+     (`push`, `fb546e8`, **success**): `pending_deployments: []`, job started +3 s, all five
+     obligations green including `forge build` AND `forge test`. Awaiting the plan-04 checkpoint.
   2. That workflow is **separate** from `develop-gate`, which keeps its `environment` approval and its
      role as the PR/merge authority — no double-approval, and no push path that can approve a merge.
   3. Pushes to `develop` do **not** trigger the push build (merges are the PR gate's job).
@@ -128,14 +131,38 @@ actually builds on the event that produces code.
      reviewable diff; it cannot happen by someone running `foundryup` on the runner.
   6. The existing suite is unaffected: a run still reports `VolOrderToPanopticTokenId.t.sol` green and
      the `--skip` ledger line is untouched.
+     → **Regression half MET, ledger half DEPARTED FROM — deliberately.** Run `33109459584`:
+     `VolOrderToPanopticTokenId.t.sol` is `10 passed; 0 failed; 0 skipped`, and the suite is
+     `271 tests passed, 0 failed, 1 skipped (272 total)` against the last recorded local baseline of
+     252 passed. The ledger line was **not** untouched: a maintainer-authorised cleanup (`fb546e8`,
+     outside any plan) deleted the uncompilable `PriceSetterHook.t.sol` + its orphaned `TickCheat.sol`
+     and retired that ledger entry, 4 patterns → 3, in **both** workflows with the parity guard green.
+     Because `--skip` matches on filename, that entry had also been masking `src/…/PriceSetterHook.sol`
+     and `foundry-scripts/PriceSetterHook.s.sol` — both now compile clean. Criterion 6's intent (no
+     regression, no widening of the ledger) holds; its letter does not.
 **Open questions for planning**:
-  - Pinning Foundry on a *persistent self-hosted* runner is not the hosted-container problem —
+  - ~~Pinning Foundry on a *persistent self-hosted* runner is not the hosted-container problem —
     `foundry-rs/foundry-toolchain@v1` vs an explicit `foundryup --version`, tool-cache behaviour, and
-    collision with the system `forge` already installed there. Do not assume the hosted recipe transfers.
+    collision with the system `forge` already installed there. Do not assume the hosted recipe transfers.~~
+    → **CLOSED BY OBSERVATION** (plan 04, `01.1-CI-EVIDENCE.md`). Runs `33107877073` and `33109459584`
+    both printed `which -a forge` as `/home/jmsbpp/.foundry-pins/v1.5.1/bin/forge` **ahead of**
+    `/home/jmsbpp/.foundry/bin/forge` — the box **did** already have its own forge (listed twice on
+    `PATH`), the pinned binary won via the `$GITHUB_PATH` prepend, and `$HOME/.foundry` was never
+    written to. The hosted recipe would have collided on the very first push; the collision was real,
+    not hypothetical, and foundryup said so itself
+    (`There are multiple binaries with the name 'forge' present in your 'PATH'`). All four
+    install-mechanism unknowns also answered: runner egress works, `flock` is present, `--install` is
+    the right flag, `v1.5.1` resolves to `b0a9dd9…`. Cold install 19 s; warm 0 s via the stamp file,
+    with the pin still re-asserted every run by the *stamp* step.
   - Unattended builds on a self-hosted runner execute pushed code without a human in the loop. That is
     the accepted tradeoff for immediacy (approval stays on the PR path), but the workflow should avoid
     exposing secrets it does not need — note `develop-gate`'s forge job passes `API_KEY`.
-  - Whether the push build should reuse `develop-gate`'s skip ledger or run the full suite.
+    → **Mechanism verified; the tradeoff itself is at plan 04's checkpoint for the maintainer to
+    re-affirm now that it is concrete.** `pending_deployments` is `[]` on both runs and each started
+    3 s after its push, so "no human in the loop" is measured rather than claimed.
+  - ~~Whether the push build should reuse `develop-gate`'s skip ledger or run the full suite.~~
+    → Resolved during planning (reuse + parity guard); the ledger is now **3 patterns / seed 4880**
+    in both workflows after the `*PriceSetterHook*` entry was retired between the two runs.
 **Resolved during planning** (rationale in the plans, not repeated here):
   - **Not** `foundry-rs/foundry-toolchain@v1`. Read from its source: it installs into
     `$HOME/.foundry` (`src/index.ts`: `FOUNDRY_DIR = path.join(os.homedir(), ".foundry")`), which on
@@ -161,7 +188,9 @@ Plans:
 - [x] 01.1-01-PLAN.md — worktree, tracking issue, FEATURES layout for the inserted phase (CI-07)
 - [x] 01.1-02-PLAN.md — `.github/foundry-version` + `notes/TOOLCHAIN_PINS.md`: the pin recorded in-repo with its reason (CI-05)
 - [x] 01.1-03-PLAN.md — `.github/workflows/push-build.yml` + `scripts/check-ci-skip-ledger.sh`, pushed (the workflow's own first trigger) (CI-06/07)
-- [ ] 01.1-04-PLAN.md — harvest the actual run into `01.1-CI-EVIDENCE.md`; answers the self-hosted pinning question from observation (CI-06/07; has a checkpoint)
+- [~] 01.1-04-PLAN.md — harvest the actual run into `01.1-CI-EVIDENCE.md`; answers the self-hosted pinning question from observation (CI-06/07; has a checkpoint)
+      — **task 1 DONE** (`79602e2`: `01.1-CI-EVIDENCE.md`, harvesting BOTH runs `33107877073` red
+      and `33109459584` green); **PAUSED at task 2, the blocking human-verify checkpoint**
 - [ ] 01.1-05-PLAN.md — the same pin + stamp in `develop-gate`'s forge job, proven purely additive (CI-05/06)
 - [ ] 01.1-06-PLAN.md — PR, gate run, merge, and the develop-exclusion proof; close out (CI-05/06/07; has a checkpoint)
 
@@ -443,7 +472,7 @@ fails the build, with no silent-skip path left.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. RED Differential Scaffold | 2/6 | In Progress | - |
-| 1.1 CI Feedback Loop (INSERTED) | 3/6 | In Progress | - |
+| 1.1 CI Feedback Loop (INSERTED) | 3/6 (04 at checkpoint) | In Progress | - |
 | 2. VolOrder(T) Minimal Instantiation | 0/TBD | Not started | - |
 | 3. VolOrder(T) Rich Instantiation | 0/TBD | Not started | - |
 | 4. VolOrder(T) Wire Format | 0/TBD | Not started | - |
