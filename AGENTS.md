@@ -35,6 +35,13 @@ or fix — work in the checkout you are already in. (An earlier rule here requir
 worktree per unit of work; it was retired after Phase 1.1.) Tracking issues on `develop` are a
 separate matter and still apply.
 
+**Close the branch that did the merge.** A phase is not finished when its PR merges — it is
+finished when the branch is retired. Return the tree to `develop`, confirm the branch is fully
+merged, then delete it locally **and on origin**. Never `git branch -D`: if `-d` refuses,
+unmerged commits mean something did not reach `develop` — inspect and report. Under the inline
+rule this replaces `git worktree remove` as the teardown step, and a stale branch on a merged PR
+is a trap for the next phase.
+
 `d2p-finance/*` are the canonical/upstream repos; `JMSBPP/*` are the develop forks. **All
 changes land on the `JMSBPP` fork and reach `d2p-finance` ONLY via pull request
 (fork → upstream).** Never push directly to a `d2p-finance` canonical repo.
