@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 1
+current_plan: 2
 status: executing
-stopped_at: "Completed 01-01-PLAN.md — FEATURES layout on develop (04dea0a), issue #57, worktree feat/red-diff-scaffold"
-last_updated: "2026-08-27T16:48:45.222Z"
-last_activity: "2026-08-27 — Plan 01-01 executed: FEATURES layout on develop (04dea0a), tracking issue #57, worktree feat/red-diff-scaffold"
+stopped_at: "Completed 01-02-PLAN.md — SpecHelper.sol SpecOracle seam (dd83cf9) on feat/red-diff-scaffold"
+last_updated: "2026-08-27T17:25:57.645Z"
+last_activity: "2026-08-27 — Plan 01-02 executed: SpecHelper.sol SpecOracle seam (dd83cf9) on feat/red-diff-scaffold"
 progress:
-  total_phases: 11
+  total_phases: 12
   completed_phases: 0
   total_plans: 6
-  completed_plans: 1
-  percent: 17
+  completed_plans: 2
+  percent: 33
 ---
 
 # Project State
@@ -26,37 +26,38 @@ See: .planning/PROJECT.md (updated 2026-08-27)
 
 ## Current Position
 
-Phase: 1 of 11 (RED Differential Scaffold)
-Plan: 1 of 6 in current phase
-Current Plan: 1
+Phase: 1 of 12 (RED Differential Scaffold)
+Plan: 2 of 6 in current phase
+Current Plan: 2
 Total Plans in Phase: 6
-Status: Executing — plan 01-01 complete, 01-02 next
-Last activity: 2026-08-27 — Plan 01-01 executed: FEATURES layout on develop (04dea0a), tracking issue #57, worktree feat/red-diff-scaffold
+Status: Executing — plans 01-01 and 01-02 complete, 01-03 next
+Last activity: 2026-08-27 — Plan 01-02 executed: SpecHelper.sol SpecOracle seam (dd83cf9) on feat/red-diff-scaffold
 
-Progress: [██░░░░░░░░] 17%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
+- Total plans completed: 2
 - Average duration: 3 min
-- Total execution time: 0.05 hours
+- Total execution time: 0.1 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| Phase 1 | 1/6 | 3 min | 3 min |
+| Phase 1 | 2/6 | 6 min | 3 min |
 
 **Per-plan:**
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P01 | 3min | 3 tasks | 2 files |
+| Phase 01 P02 | 3min | 1 tasks | 1 files |
 
 **Recent Trend:**
-- Last 5 plans: 3 min
-- Trend: — (single data point)
+- Last 5 plans: 3 min, 3 min
+- Trend: flat (2 data points)
 
 *Updated after each plan completion*
 
@@ -77,6 +78,9 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 - No local compilation: dependencies/submodules are deliberately left uninitialized locally; CI manages them and the compiler's answer is read from `develop-gate`, for pushes and PRs alike.
 - [Phase 01]: FEATURES phase dirs are git-tracked symlinks (mode 120000) into the numbered GSD path — gsd-tools' phase scan does not follow symlinks, so the numbered path stays tool-facing
 - [Phase 01]: Phase 1 opened on develop tip 04dea0a: tracking issue JMSBPP/cfmm-vol-markets#57, worktree /home/jmsbpp/cfmms-playground/cfmm-wt/red-diff-scaffold on feat/red-diff-scaffold (pushed to origin)
+- [Phase 01]: SpecOracle seam shaped to the interface evm-spec-bridge GENERATES (library SpecOracle, volOrderToTokenId(bytes,uint64), health()); isWired() collapsed into health() — one wiring mechanism
+- [Phase 01]: Status lives as a field ON Health (not (Status,Health)) so the skip predicate is health().status == Status.TransportFailure — the SAME predicate Phase 7 keeps. Provisional pending generation
+- [Phase 01]: Phase 1 stub REVERTS (SpecOracleNotWired) rather than returning a zero struct — fail-safe, not fail-open. Phase 7's real impl RETURNS the tagged struct and must not revert (GUARD-05)
 
 **Open by design — owned by phase planning, do not pre-resolve:**
 
@@ -122,8 +126,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T16:47:41.001Z
-Stopped at: Completed 01-01-PLAN.md — FEATURES layout on develop (04dea0a), issue #57, worktree feat/red-diff-scaffold
+Last session: 2026-08-27T17:25:57.640Z
+Stopped at: Completed 01-02-PLAN.md — SpecHelper.sol SpecOracle seam (dd83cf9) on feat/red-diff-scaffold
 Resume file: None
 
 Next: execute `.planning/phases/FEATURES/feat-red-diff-scaffold/01-02-PLAN.md` (SpecHelper.sol stub + isWired probe) in the `feat/red-diff-scaffold` worktree
