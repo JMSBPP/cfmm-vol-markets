@@ -81,7 +81,15 @@ assertion it will eventually make, and guarded so it costs the gate nothing unti
      Solidity↔spec transport boundary that Phases 6–11 extend rather than redesign.
   5. `.planning/phases/FEATURES/feat-red-diff-scaffold/` exists on `develop`, establishing the
      FEATURES layout for the milestone.
-**Plans**: TBD
+**Plans**: 6 plans in 6 waves (strictly sequential — each wave's output is the next wave's input)
+
+Plans:
+- [ ] 01-01-PLAN.md — worktree, tracking issue, and the FEATURES layout committed to `develop` (PROC-01)
+- [ ] 01-02-PLAN.md — `SpecHelper.sol`: the reverting `readTokenId` stub, the `isWired` probe, the external probe boundary (RED-04)
+- [ ] 01-03-PLAN.md — `VolOrderToPanopticTokenId.diff.t.sol`: doctrine, discipline, probe-skipped `assertEq(specTokenId, implTokenId)` (RED-01/02/03/05)
+- [ ] 01-04-PLAN.md — `notes/DIFFERENTIAL_LAYOUT.md` + the `test-vol-order-tokenid-diff` make target (RED-06)
+- [ ] 01-05-PLAN.md — PR into `develop`, `develop-gate` run, gate evidence harvested and confirmed (RED-01/05; has a checkpoint)
+- [ ] 01-06-PLAN.md — merge to `develop`, verify criteria 4 and 5 against the merged tree, close out
 
 ### Phase 2: VolOrder(T) Minimal Instantiation
 **Directory**: `.planning/phases/FEATURES/feat-volorder-t-minimal/`
@@ -328,7 +336,7 @@ fails the build, with no silent-skip path left.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. RED Differential Scaffold | 0/TBD | Not started | - |
+| 1. RED Differential Scaffold | 0/6 | Planned | - |
 | 2. VolOrder(T) Minimal Instantiation | 0/TBD | Not started | - |
 | 3. VolOrder(T) Rich Instantiation | 0/TBD | Not started | - |
 | 4. VolOrder(T) Wire Format | 0/TBD | Not started | - |
