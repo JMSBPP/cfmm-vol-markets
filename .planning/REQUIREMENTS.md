@@ -64,7 +64,7 @@ Requirements for this milestone. Each maps to a roadmap phase.
 
 ### Planning Layout
 
-- [ ] **PROC-01**: `.planning/phases/FEATURES/feat-*/` is adopted as the directory layout for this milestone's feature phases
+- [x] **PROC-01**: `.planning/phases/FEATURES/feat-*/` is adopted as the directory layout for this milestone's feature phases
 
 ## v2 Requirements
 
@@ -104,7 +104,7 @@ Populated during roadmap creation (2026-08-27). Phase directories live at
 | RED-04 | Phase 1 — RED Differential Scaffold | Pending |
 | RED-05 | Phase 1 — RED Differential Scaffold | Pending |
 | RED-06 | Phase 1 — RED Differential Scaffold | Pending |
-| PROC-01 | Phase 1 — RED Differential Scaffold | Pending |
+| PROC-01 | Phase 1 — RED Differential Scaffold | Complete |
 | VORD-01 | Phase 2 — VolOrder(T) Minimal Instantiation | Pending |
 | VORD-02 | Phase 2 — VolOrder(T) Minimal Instantiation | Pending |
 | VORD-03 | Phase 2 — VolOrder(T) Minimal Instantiation | Pending |

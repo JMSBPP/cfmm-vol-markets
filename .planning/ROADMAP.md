@@ -84,7 +84,7 @@ assertion it will eventually make, and guarded so it costs the gate nothing unti
 **Plans**: 6 plans in 6 waves (strictly sequential — each wave's output is the next wave's input)
 
 Plans:
-- [ ] 01-01-PLAN.md — worktree, tracking issue, and the FEATURES layout committed to `develop` (PROC-01)
+- [x] 01-01-PLAN.md — worktree, tracking issue, and the FEATURES layout committed to `develop` (PROC-01)
 - [ ] 01-02-PLAN.md — `SpecHelper.sol`: the reverting `readTokenId` stub, the `isWired` probe, the external probe boundary (RED-04)
 - [ ] 01-03-PLAN.md — `VolOrderToPanopticTokenId.diff.t.sol`: doctrine, discipline, probe-skipped `assertEq(specTokenId, implTokenId)` (RED-01/02/03/05)
 - [ ] 01-04-PLAN.md — `notes/DIFFERENTIAL_LAYOUT.md` + the `test-vol-order-tokenid-diff` make target (RED-06)
@@ -336,7 +336,7 @@ fails the build, with no silent-skip path left.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. RED Differential Scaffold | 0/6 | Planned | - |
+| 1. RED Differential Scaffold | 1/6 | In Progress | - |
 | 2. VolOrder(T) Minimal Instantiation | 0/TBD | Not started | - |
 | 3. VolOrder(T) Rich Instantiation | 0/TBD | Not started | - |
 | 4. VolOrder(T) Wire Format | 0/TBD | Not started | - |

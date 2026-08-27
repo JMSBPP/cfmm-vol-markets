@@ -1,3 +1,20 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+current_plan: 1
+status: executing
+stopped_at: "Completed 01-01-PLAN.md — FEATURES layout on develop (04dea0a), issue #57, worktree feat/red-diff-scaffold"
+last_updated: "2026-08-27T16:48:45.222Z"
+last_activity: "2026-08-27 — Plan 01-01 executed: FEATURES layout on develop (04dea0a), tracking issue #57, worktree feat/red-diff-scaffold"
+progress:
+  total_phases: 11
+  completed_phases: 0
+  total_plans: 6
+  completed_plans: 1
+  percent: 17
+---
+
 # Project State
 
 ## Project Reference
@@ -10,28 +27,36 @@ See: .planning/PROJECT.md (updated 2026-08-27)
 ## Current Position
 
 Phase: 1 of 11 (RED Differential Scaffold)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-08-27 — Roadmap created and revised; 32/32 v1 requirements mapped across 11 feature phases
+Plan: 1 of 6 in current phase
+Current Plan: 1
+Total Plans in Phase: 6
+Status: Executing — plan 01-01 complete, 01-02 next
+Last activity: 2026-08-27 — Plan 01-01 executed: FEATURES layout on develop (04dea0a), tracking issue #57, worktree feat/red-diff-scaffold
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 17%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: 0.0 hours
+- Total plans completed: 1
+- Average duration: 3 min
+- Total execution time: 0.05 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| Phase 1 | 1/6 | 3 min | 3 min |
+
+**Per-plan:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01 P01 | 3min | 3 tasks | 2 files |
 
 **Recent Trend:**
-- Last 5 plans: —
-- Trend: —
+- Last 5 plans: 3 min
+- Trend: — (single data point)
 
 *Updated after each plan completion*
 
@@ -50,6 +75,8 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 - Phase 5 is a dedicated interactive RPC/transport design phase: it owns the transport decision and fixes the responsibility split between the Haskell spec service and the Foundry test process, proven by a payload-free protocol skeleton.
 - Phase 6 (spec oracle) is built test-first (TDD) from its architecture and specification.
 - No local compilation: dependencies/submodules are deliberately left uninitialized locally; CI manages them and the compiler's answer is read from `develop-gate`, for pushes and PRs alike.
+- [Phase 01]: FEATURES phase dirs are git-tracked symlinks (mode 120000) into the numbered GSD path — gsd-tools' phase scan does not follow symlinks, so the numbered path stays tool-facing
+- [Phase 01]: Phase 1 opened on develop tip 04dea0a: tracking issue JMSBPP/cfmm-vol-markets#57, worktree /home/jmsbpp/cfmms-playground/cfmm-wt/red-diff-scaffold on feat/red-diff-scaffold (pushed to origin)
 
 **Open by design — owned by phase planning, do not pre-resolve:**
 
@@ -76,8 +103,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27
-Stopped at: ROADMAP.md revised with Phase 5 (RPC Design) inserted; REQUIREMENTS.md traceability repopulated for 11 phases.
+Last session: 2026-08-27T16:47:41.001Z
+Stopped at: Completed 01-01-PLAN.md — FEATURES layout on develop (04dea0a), issue #57, worktree feat/red-diff-scaffold
 Resume file: None
 
-Next: `/gsd:plan-phase 1`
+Next: execute `.planning/phases/FEATURES/feat-red-diff-scaffold/01-02-PLAN.md` (SpecHelper.sol stub + isWired probe) in the `feat/red-diff-scaffold` worktree
