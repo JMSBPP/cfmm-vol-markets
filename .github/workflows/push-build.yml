@@ -1,0 +1,198 @@
+name: push-build
+
+# WHY THIS IS A SEPARATE FILE AND NOT A `push:` TRIGGER ON develop-gate.yml
+# -------------------------------------------------------------------------
+# develop-gate is `on: pull_request` ONLY, deliberately, per its own comment: it owns an
+# `environment:` approval and is the merge authority. Adding a push trigger there would
+# either demand a second human approval per push, or -- if the approval were relaxed to
+# avoid that -- create a push path into the merge gate. So the feedback loop lives HERE:
+# a separate workflow with NO environment, NO approval, NO secrets and NO authority over
+# merges. develop-gate is untouched as the PR/merge gate.
+#
+# Requirement CI-07 (immediate unattended compile feedback) + CI-05/CI-06 (pinned,
+# stamped toolchain). Phase 1.1.
+
+on:
+  push:
+    branches-ignore:
+      - develop
+    # `develop` is excluded because merges land there through the PR gate: a push build on
+    # develop would be a second, unapproved build of code develop-gate has already judged.
+    #
+    # No `tags:` key, so tag pushes do not trigger this (a `push` event with only
+    # branches-ignore matches branch pushes).
+    #
+    # No `paths-ignore:` ON PURPOSE. CI-07 says a push to any branch other than develop
+    # IMMEDIATELY triggers a build. A path filter reintroduces "pushed but never compiled"
+    # for whatever it excludes -- the exact hole this workflow closes.
+
+concurrency:
+  # One in-flight push build per branch. The heavy job runs on the SINGLE self-hosted
+  # cfmm-build executor that develop-gate also needs; without this, a burst of pushes
+  # queues N full builds and starves the PR gate behind them.
+  group: push-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# NO `environment:` AND NO SECRETS ANYWHERE IN THIS FILE -- both deliberate, both load-bearing.
+#
+# develop-gate's forge job sets API_KEY: ${{ secrets.API_KEY }} for foundry.toml's
+# [rpc_endpoints] mainnet = "https://eth-mainnet.g.alchemy.com/v2/${API_KEY}". THIS workflow
+# runs UNATTENDED: any push, on any branch, from anyone with write access, executes on the
+# self-hosted runner with no human in the loop. That is the accepted tradeoff for immediacy,
+# and it is only acceptable while the blast radius is bounded -- so this job gets the
+# minimum, and it does not need that key:
+#   * it runs the suite --offline, and the maintained surface has no mainnet-fork test;
+#   * `${...}` in [rpc_endpoints] is MEASURED to resolve at alias USE, not at config load
+#     (forge 1.5.1-stable b0a9dd9: with the variable unset, `forge build` exits 0 and
+#     `forge config` stores the literal, uninterpolated string).
+# So an absent API_KEY costs nothing here, and the worst it could ever cause is a
+# self-describing "environment variable API_KEY not found" from a test that uses the alias.
+# If a future test genuinely needs a forked RPC, it belongs in develop-gate -- behind the
+# approval -- not here.
+
+jobs:
+  build:
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 30
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+
+      # Pure grep, no toolchain, FIRST: a ledger divergence costs seconds here instead of
+      # being discovered after a full build, or worse, never.
+      - name: skip-ledger parity with develop-gate
+        run: bash scripts/check-ci-skip-ledger.sh
+
+      # --- the pinned toolchain (CI-05) ---------------------------------------------------
+      - name: Install the pinned Foundry toolchain
+        run: |
+          set -euo pipefail
+          . ./.github/foundry-version
+          : "${FOUNDRY_VERSION:?}" "${FOUNDRY_COMMIT:?}" "${FOUNDRYUP_INSTALLER_COMMIT:?}"
+
+          # NOT $HOME/.foundry. On this PERSISTENT runner that is the box's shared foundry
+          # dir -- the one a human's `foundryup` writes, and the one
+          # foundry-rs/foundry-toolchain@v1 installs into (src/index.ts:
+          # FOUNDRY_DIR = path.join(os.homedir(), ".foundry")). Installing there would have
+          # this unattended workflow rewrite the machine's default forge on every push,
+          # which is the drift the pin exists to stop. A per-pin directory cannot collide,
+          # and $GITHUB_PATH is PREPENDED, so the pinned binary wins for this job only.
+          PINS="$HOME/.foundry-pins"
+          export FOUNDRY_DIR="$PINS/$FOUNDRY_VERSION"
+          STAMP="$FOUNDRY_DIR/.installed-$FOUNDRY_COMMIT"
+          mkdir -p "$PINS"
+
+          # Two jobs can enter here at once on this runner (a push build and the gate).
+          # Serialize the install; the stamp makes the second entrant a no-op. The stamp is
+          # written only AFTER the commit assertion below, so a half-finished install is
+          # never mistaken for a good one.
+          exec 9>"$PINS/.lock"
+          flock 9
+
+          if [ ! -f "$STAMP" ]; then
+            mkdir -p "$FOUNDRY_DIR"
+            curl -fsSL --retry 3 \
+              "https://raw.githubusercontent.com/foundry-rs/foundryup/${FOUNDRYUP_INSTALLER_COMMIT}/foundryup-init.sh" \
+              -o "$RUNNER_TEMP/foundryup-init.sh"
+            # The installer exits non-zero when it cannot find a shell rc file to edit,
+            # which is the normal CI case; foundry-toolchain@v1 swallows exactly this
+            # string. Any OTHER failure is real and must not be swallowed.
+            set +e
+            out="$(bash "$RUNNER_TEMP/foundryup-init.sh" 2>&1)"; rc=$?
+            set -e
+            printf '%s\n' "$out"
+            if [ "$rc" -ne 0 ] && ! printf '%s' "$out" | grep -q 'could not detect shell'; then
+              echo "::error::foundryup-init.sh failed (exit $rc)"; exit 1
+            fi
+            # `--install`, not `--version`: foundry-toolchain@v1's action.yml documents its
+            # version input as "Passed to `foundryup --install <version>`", and strips the
+            # leading v. Older foundryup spelled this `--version`; if this line ever fails
+            # with an unknown-flag error, the installer pin moved.
+            "$FOUNDRY_DIR/bin/foundryup" --install "${FOUNDRY_VERSION#v}"
+            "$FOUNDRY_DIR/bin/forge" --version | grep -qF "$FOUNDRY_COMMIT" || {
+              echo "::error::foundryup installed a forge whose commit is not $FOUNDRY_COMMIT"
+              exit 1
+            }
+            touch "$STAMP"
+          fi
+          echo "$FOUNDRY_DIR/bin" >> "$GITHUB_PATH"
+
+      # CI-06: the resolved toolchain is RUN EVIDENCE -- in the log AND in the run summary --
+      # and a mismatch is RED, not a footnote. `which -a forge` records the collision with
+      # whatever forge the persistent runner already had, so "which binary actually ran" is
+      # never a guess. The assertion greps the WHOLE output for the commit rather than
+      # parsing a named line, so a future change to forge's --version format is not a false
+      # red.
+      - name: Stamp the resolved forge version
+        run: |
+          set -euo pipefail
+          . ./.github/foundry-version
+          which -a forge || true
+          forge --version | tee "$RUNNER_TEMP/forge-version.txt"
+          {
+            echo "### Foundry toolchain (pinned)"
+            echo ""
+            echo '```'
+            cat "$RUNNER_TEMP/forge-version.txt"
+            echo '```'
+            echo ""
+            echo "pin: \`$FOUNDRY_VERSION\` / \`$FOUNDRY_COMMIT\` (.github/foundry-version)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -qF "$FOUNDRY_COMMIT" "$RUNNER_TEMP/forge-version.txt" || {
+            echo "::error::resolved forge does not match the pin in .github/foundry-version"
+            exit 1
+          }
+
+      # --- the dependency closure: the same three problems develop-gate's forge job solves --
+      - name: Submodules
+        run: |
+          # Sync FIRST. This runner is persistent and caches submodule URLs in .git/config,
+          # NOT .gitmodules, so a repointed URL 404s on the stale cached one without this.
+          git submodule sync --recursive
+          # forge needs lib/panoptic-v2-core's nested v4-core + solady (the @uniswap/v4-core
+          # and solady remappings point into them). The pathological part is panoptic-helper:
+          # it contains panoptic-v2-core, so a plain recursive init never terminates. Init
+          # panoptic one level, block panoptic-helper, then init the rest recursively.
+          git submodule update --init lib/panoptic-v2-core
+          git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
+          git submodule update --init --recursive -- lib/
+
+      # A plank-monorepo pin bump changes the compiler AND std, but the runner's persistent
+      # ~/.plank/bin/plank does NOT auto-track the pin. Rebuild it from the pinned submodule
+      # so compiler and std match; otherwise a bump fails every plank build (measured:
+      # 8 ok / 31 failed). forge needs this too -- the test path shells out to `plank build`
+      # over FFI at test time.
+      - name: Plank toolchain
+        run: make plank-toolchain
+
+      # node_modules is a HARD forge dependency (the @cryptoalgebra remappings in
+      # foundry.toml resolve into it); package.json/package-lock.json are tracked for exactly
+      # this closure. Without this the compile dies on missing @cryptoalgebra sources before
+      # any test runs.
+      - name: Node dependencies
+        run: npm ci --ignore-scripts
+
+      # CI-07 asks for BOTH build and test, and they are not redundant here. `forge build` is
+      # the compile-only signal this whole workflow exists to deliver: it separates "your
+      # commit does not compile" from "your commit fails a test", and it says so in minutes
+      # instead of after the full suite. (foundry.toml already sets via_ir/optimizer; the
+      # explicit flag matches develop-gate's style and survives a config change.)
+      - name: forge build
+        run: forge build --via-ir --offline
+
+      # The skip ledger, byte-identical to develop-gate's and enforced identical by the
+      # parity step above, with the same pinned seed so push and PR measure one surface.
+      # Every entry is a PRE-EXISTING known-broken family (issue #16 owns burning them down);
+      # this workflow is not the place to change that list.
+      - name: forge test
+        run: >
+          forge test --via-ir --offline --fuzz-seed 4880
+          --skip "*PriceSetterHook*" "*VolRangeWidth*" "*SpreadTickAssimetryHelper*"
+          "*PanopticVegaLens.t.sol*"
