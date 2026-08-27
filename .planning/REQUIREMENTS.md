@@ -12,7 +12,7 @@ Requirements for this milestone. Each maps to a roadmap phase.
 - [ ] **RED-01**: `test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol` exists and compiles under `--via-ir`, alongside the existing structural suite and harness
 - [ ] **RED-02**: The file carries the inherited `.diff.t.sol` doctrine header, oriented as **neither side sacrosanct** — a divergence is a finding about either implementation, adjudicated case by case, and neither the spec nor the Plank map may be bent merely to restore green
 - [ ] **RED-03**: The test observes the established differential discipline — corpora **constructed** with `bound` rather than filtered with `vm.assume`, every fuzz backed by a non-fuzz anchor case, and non-vacuity asserted rather than assumed
-- [ ] **RED-04**: `SpecHelper` exposes `readTokenId(…)` as a stub that reverts when called, **plus a wiring probe** the test queries first
+- [x] **RED-04**: The spec seam exists as a stub shaped to the interface `evm-spec-bridge` will generate — `library SpecOracle` with `volOrderToTokenId(bytes,uint64)` **reverting** (`SpecOracleNotWired`, fail-safe: a struct-returning stub would let a caller silently "agree" on a fabricated `tokenId == 0`) and `health()` returning the full tagged envelope as the **single wiring predicate** the test queries first, observed across a real external call boundary
 - [ ] **RED-05**: The fuzz body is written against the real assertion (`assertEq(specTokenId, implTokenId)`) and guarded by `vm.skip` on the wiring probe, so the branch pushes clean through `develop-gate` with **no skip-ledger edit**
 - [ ] **RED-06**: The organization — file layout, naming, and the Solidity↔spec transport boundary — is documented so later phases extend it rather than redesign it
 
@@ -27,9 +27,9 @@ Requirements for this milestone. Each maps to a roadmap phase.
 
 ### RPC / Transport Architecture
 
-- [ ] **RPC-01**: The transport architecture is decided and recorded — `vm.ffi` binary **vs** a JSON-RPC service via `vm.rpc` — with the rationale from the exploration, not merely the verdict
+- [ ] **RPC-01**: The transport decision is **recorded** with its rationale — resolved as JSON-RPC at `evm-spec-bridge` initialization, outside this phase, overriding Phase 5's ownership. The record must show the override rather than smooth it over. (Reworded from "decided and recorded": the deciding was taken elsewhere.)
 - [ ] **RPC-02**: Responsibility delegation between the two participants — the Haskell spec service and the Foundry test process — is specified: which side owns wire encoding/decoding, input validation, guard evaluation, and error classification
-- [ ] **RPC-03**: A minimal protocol skeleton (health/echo method) runs and is exercised end-to-end, proving the transport shape works **independent of** `volOrderToTokenId`
+- [ ] **RPC-03**: A minimal protocol skeleton (`health()`) runs and is exercised end-to-end against the bridge's server, proving the transport shape works **independent of** `volOrderToTokenId`, and carrying the spec commit SHA the running binary was **built from** — asserted against this repo's spec authority, failing loudly on mismatch and never skipping past it
 
 ### Spec Oracle (Haskell side)
 
@@ -62,9 +62,15 @@ Requirements for this milestone. Each maps to a roadmap phase.
 - [ ] **CI-03**: The differential test executes and is **enforced** in `develop-gate` — it cannot silently skip
 - [ ] **CI-04**: The interim `vm.skip` wiring guard from RED-05 is **removed** once the oracle is reachable, so the end state has no silent-skip path
 
+### Toolchain Determinism
+
+- [x] **CI-05**: `develop-gate` resolves an **explicit, pinned Foundry version** rather than whatever `forge` happens to be installed on the persistent self-hosted runner, so gate results are attributable and reproducible
+- [x] **CI-06**: Every gate run emits the resolved `forge --version` (version, commit SHA, build timestamp) as run evidence, making toolchain drift visible the first time it occurs
+- [x] **CI-07**: A push to any branch other than `develop` **immediately** triggers a build that initializes submodules, installs dependencies, builds the Plank toolchain, and runs `forge build` + `forge test` — **without manual approval** — so code committed at any execution step gets compile feedback without waiting for a PR
+
 ### Planning Layout
 
-- [ ] **PROC-01**: `.planning/phases/FEATURES/feat-*/` is adopted as the directory layout for this milestone's feature phases
+- [x] **PROC-01**: `.planning/phases/FEATURES/feat-*/` is adopted as the directory layout for this milestone's feature phases
 
 ## v2 Requirements
 
@@ -101,10 +107,10 @@ Populated during roadmap creation (2026-08-27). Phase directories live at
 | RED-01 | Phase 1 — RED Differential Scaffold | Pending |
 | RED-02 | Phase 1 — RED Differential Scaffold | Pending |
 | RED-03 | Phase 1 — RED Differential Scaffold | Pending |
-| RED-04 | Phase 1 — RED Differential Scaffold | Pending |
+| RED-04 | Phase 1 — RED Differential Scaffold | Complete |
 | RED-05 | Phase 1 — RED Differential Scaffold | Pending |
 | RED-06 | Phase 1 — RED Differential Scaffold | Pending |
-| PROC-01 | Phase 1 — RED Differential Scaffold | Pending |
+| PROC-01 | Phase 1 — RED Differential Scaffold | Complete |
 | VORD-01 | Phase 2 — VolOrder(T) Minimal Instantiation | Pending |
 | VORD-02 | Phase 2 — VolOrder(T) Minimal Instantiation | Pending |
 | VORD-03 | Phase 2 — VolOrder(T) Minimal Instantiation | Pending |
@@ -126,18 +132,21 @@ Populated during roadmap creation (2026-08-27). Phase directories live at
 | GUARD-05 | Phase 9 — Guard Parity Assertion | Pending |
 | DIFF-01 | Phase 10 — Passing Differential Test | Pending |
 | DIFF-02 | Phase 10 — Passing Differential Test | Pending |
+| CI-05 | Phase 1.1 — CI Feedback Loop | Complete |
+| CI-06 | Phase 1.1 — CI Feedback Loop | Complete |
+| CI-07 | Phase 1.1 — CI Feedback Loop | Complete |
 | CI-01 | Phase 11 — develop-gate Enforcement | Pending |
 | CI-02 | Phase 11 — develop-gate Enforcement | Pending |
 | CI-03 | Phase 11 — develop-gate Enforcement | Pending |
 | CI-04 | Phase 11 — develop-gate Enforcement | Pending |
 
 **Coverage:**
-- v1 requirements: 32 total
-- Mapped to phases: 32 ✓
+- v1 requirements: 35 total
+- Mapped to phases: 35 ✓
 - Unmapped: 0
 - Duplicated across phases: 0
 
-Phase distribution: P1=7, P2=3, P3=2, P4=1, P5=3, P6=3, P7=2, P8=3, P9=2, P10=2, P11=4.
+Phase distribution: P1=7, P1.1=3, P2=3, P3=2, P4=1, P5=3, P6=3, P7=2, P8=3, P9=2, P10=2, P11=4.
 
 ---
 *Requirements defined: 2026-08-27 · Traceability populated: 2026-08-27*

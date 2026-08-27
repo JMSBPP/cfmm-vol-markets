@@ -36,8 +36,6 @@ decision; it is not a formality to be short-circuited.
   that a test tightly coupled to the old `VolOrder` shape is eliminated or rewritten. Coverage lost
   that way is replaced, never merely dropped, and no test is removed or `--skip`-ed to turn a red
   gate green.
-- **Review:** every plan passes the two-step review (Reality Checker + one matched specialist, in
-  parallel) before execution.
 
 ## Phases
 
@@ -46,6 +44,7 @@ decision; it is not a formality to be short-circuited.
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [ ] **Phase 1: RED Differential Scaffold** - The first clean push: a compiling, skip-guarded `.diff.t.sol` with its doctrine and transport boundary
+- [x] **Phase 1.1: CI Feedback Loop** (INSERTED) - push-triggered build so every commit compiles, plus an explicit pinned forge version stamped into every run
 - [ ] **Phase 2: VolOrder(T) Minimal Instantiation** - `VolOrder` becomes a comptime constructor with today's output bit-identical
 - [ ] **Phase 3: VolOrder(T) Rich Instantiation** - The Haskell-shaped payload: 4-tuple of `optionRatio`s plus the `asset` bit
 - [ ] **Phase 4: VolOrder(T) Wire Format** - A serialization that carries *which* `T` it is, decodable from the bytes alone
@@ -84,12 +83,197 @@ assertion it will eventually make, and guarded so it costs the gate nothing unti
 **Plans**: 6 plans in 6 waves (strictly sequential — each wave's output is the next wave's input)
 
 Plans:
-- [ ] 01-01-PLAN.md — worktree, tracking issue, and the FEATURES layout committed to `develop` (PROC-01)
-- [ ] 01-02-PLAN.md — `SpecHelper.sol`: the reverting `readTokenId` stub, the `isWired` probe, the external probe boundary (RED-04)
-- [ ] 01-03-PLAN.md — `VolOrderToPanopticTokenId.diff.t.sol`: doctrine, discipline, probe-skipped `assertEq(specTokenId, implTokenId)` (RED-01/02/03/05)
-- [ ] 01-04-PLAN.md — `notes/DIFFERENTIAL_LAYOUT.md` + the `test-vol-order-tokenid-diff` make target (RED-06)
-- [ ] 01-05-PLAN.md — PR into `develop`, `develop-gate` run, gate evidence harvested and confirmed (RED-01/05; has a checkpoint)
+- [x] 01-01-PLAN.md — worktree, tracking issue, and the FEATURES layout committed to `develop` (PROC-01)
+- [x] 01-02-PLAN.md — `SpecHelper.sol`: the reverting `volOrderToTokenId` stub, `health()` as the wiring predicate, the external boundary (RED-04)
+- [ ] 01-03-PLAN.md — `VolOrderToPanopticTokenId.diff.t.sol`: doctrine, discipline, `setUp`-cached wiring probe, three-outcome separation before `assertEq(specTokenId, implTokenId)` (RED-01/02/03/05)
+- [ ] 01-04-PLAN.md — `notes/DIFFERENTIAL_LAYOUT.md` (10 sections: generated-interface boundary + measured transport constraints, each with its evidence) + the make target (RED-06)
+- [ ] 01-05-PLAN.md — PR into `develop`, gate run, evidence harvested incl. runner `forge --version` (RED-01/05; has a checkpoint)
 - [ ] 01-06-PLAN.md — merge to `develop`, verify criteria 4 and 5 against the merged tree, close out
+
+### Phase 1.1: CI Feedback Loop (INSERTED)
+**Directory**: `.planning/phases/FEATURES/feat-ci-feedback-loop/`
+**Branch**: `feat/ci-feedback-loop`
+**Goal**: Close the hole in the CI-is-the-only-build-environment doctrine — make every push compile
+immediately and unattended, and make every result attributable to a known toolchain.
+**Depends on**: Phase 1 waves 1–2 (the `SpecOracle` seam exists and is pushed).
+**Runs BEFORE Phase 1 wave 3**, so waves 3–6 get compile feedback on every push rather than
+discovering breakage at the wave-5 PR.
+**Why this was inserted**: two gaps found during Phase 1 execution.
+
+*(a) The doctrine had no feedback path.* `develop-gate` is `on: pull_request` only — deliberately, per
+its own comment ("PR-only; merges go through PRs, no double-approval from a push trigger"). Combined
+with dependencies being intentionally uninitialized locally, that means code can be written, committed
+and pushed with **zero compile feedback** until someone opens a PR. `SpecHelper.sol` is on the remote
+right now and nothing has ever compiled it. "CI is the only build environment" only holds if CI
+actually builds on the event that produces code.
+
+*(b) Foundry is pinned nowhere* — no version key in `foundry.toml`, no `foundry-toolchain` action or
+`foundryup` step, no `.foundryrc`/`.tool-versions`. The self-hosted runner is *persistent*, so its
+`forge` drifts silently on any `foundryup`. **Four** recorded findings rest on `1.5.1-stable`
+`b0a9dd9` specifically: the `json_value_to_token` coercion behaviour, the `vm.rpc` return encoding,
+`${...}` alias resolution being lazy, and `try`/`catch` catching a cheatcode revert. v1.8.0 (published
+2026-08-27) encodes returns differently.
+**Requirements**: CI-05, CI-06, CI-07
+**Success Criteria** (what must be TRUE):
+  1. A push to a non-`develop` branch triggers a build with **no manual approval**, which initializes
+     submodules, builds the Plank toolchain, runs `npm ci`, and runs `forge build` + `forge test`.
+     Demonstrated by an actual run on `feat/ci-feedback-loop`.
+     → **DEMONSTRATED** by run [`33109459584`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33109459584)
+     (`push`, `fb546e8`, **success**): `pending_deployments: []`, job started +3 s, all five
+     obligations green including `forge build` AND `forge test`. Awaiting the plan-04 checkpoint.
+  2. That workflow is **separate** from `develop-gate`, which keeps its `environment` approval and its
+     role as the PR/merge authority — no double-approval, and no push path that can approve a merge.
+     → **ESTABLISHED STATICALLY** (plan 05, `7591034`). After the gate gained the pin+stamp, the edit
+     is `84` insertions / **`0`** deletions against `origin/develop` and the diff contains no `-`
+     line at all. `develop-gate.yml`'s `on:` still parses to exactly
+     `{'pull_request': {'branches': ['develop']}}`; `environment:` occurs exactly once (line 14, in
+     `approve`); the `gate` job still has no `name:` (branch-protection context string intact) and
+     still declares `needs: [approve, forge, plank]`; neither `forge` nor `plank` gained an `if:`,
+     which is what would reopen the skipped-jobs-green incident. `push-build.yml` remains
+     environment-free and secret-free.
+     → **RUN-TIME HALF: FALSIFIED AS WRITTEN, and NOT by this phase.** The first gate run of this phase,
+     [`33112404579`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33112404579) (`pull_request`,
+     `7591034`, **success**), required **ZERO** approvals: `pending_deployments` was `[]` at every poll and
+     the `approve` job ran unattended (`20:15:07Z` created → `20:15:11Z` started → `20:15:15Z` done).
+     Cause, read from the API: the `develop-gate` **environment** has `protection_rules: []`,
+     `deployment_branch_policy: null`, `can_admins_bypass: true`, and `created_at == updated_at ==
+     2026-06-28T21:28:40Z` — it has never been configured. The `environment:` key therefore produces a
+     deployment record and **no approval gate**. This is PRE-EXISTING: gate runs from 2026-08-26, before
+     this phase existed, show the same unattended `approve` (`33012911523` +4 s, `33008976085` +3 s), and
+     plan 05's `+84 / −0` proves the phase did not remove it. **Total approvals for the whole change: 0,
+     not the expected 1.** What the gate's authority actually rests on is `develop`'s required status-check
+     context `gate` (`contexts: ["gate"]`, app 15368) plus `required_approving_review_count: 1` with
+     `enforce_admins: false`. The required check is real; the environment approval is decorative.
+     **Criterion 2 cannot be ticked as written** — it needs either a configured reviewer on the
+     `develop-gate` environment, or restatement in terms of the required `gate` status check, which IS
+     enforced. Maintainer decision; this executor did not attempt any self-approval or config change.
+     → **RESOLVED AT PLAN 06'S CHECKPOINT — Option B, criterion RESTATED.** Maintainer, verbatim:
+     *"Restate the criterion, merge as-is"* and *"Yes, merge with bypass"*. **Criterion 2 now reads:**
+     the push build is a workflow separate from `develop-gate`, and `develop-gate` remains the PR/merge
+     authority by virtue of `develop`'s required status-check context `gate` plus
+     `required_approving_review_count: 1` — the two protections that are actually enforced. The
+     `environment: develop-gate` key on the `approve` job is **documentary**: it records the intent of a
+     gate that the environment has never been configured to provide. **The repo configuration was NOT
+     changed** and no required reviewer was added. **Load-bearing consequence: the `gate` job must never
+     be given a `name:`**, since `contexts: ["gate"]` is the branch's only enforced check and a rename
+     would silently un-protect `develop` — plan 05's insistence on this is confirmed necessary, not
+     stylistic. On this restatement the criterion is MET: `push-build.yml` is a separate file with no
+     `environment:`, no secrets and no ability to satisfy the `gate` context, and the gate's `+84 / −0`
+     edit left the `gate` job's `name`-lessness and `needs: [approve, forge, plank]` untouched.
+  3. Pushes to `develop` do **not** trigger the push build (merges are the PR gate's job).
+     → **PROVEN** (plan 06). Two real pushes to `develop` with `push-build.yml` present at the ref:
+     the merge `e6276f2` (`2026-08-27T20:28:51Z`) and the evidence commit `62d35b2`
+     (`20:33:15Z`). `gh run list --workflow push-build.yml --branch develop` was `[]` after both
+     (`20:29:36Z`, `20:34:44Z`), and `gh run list --branch develop` shows the branch's only run ever
+     is a Dependency Graph run from 2026-07-10. The four PRE-merge `[]` readings are recorded in the
+     evidence file as explicitly **NOT** proof, since `push-build.yml` was absent from `develop` at
+     the time and a workflow that does not exist at a ref cannot run there.
+  4. Both workflows resolve an explicit, declared Foundry version rather than the ambient one, and
+     each run's log shows the resolved `forge --version` including version and commit SHA.
+     → **HALF MET.** *File half:* both workflows now `.`-source `.github/foundry-version` twice
+     (install + stamp) with **byte-identical** step bodies — the extracted regions `diff` empty
+     (plan 05, `7591034`). *Run half:* proven on the push path only (runs `33107877073` /
+     `33109459584`, both `forge 1.5.1-v1.5.1` / `b0a9dd9…`, with `which -a forge` showing the pinned
+     binary ahead of the box's own). **No `develop-gate` run exists yet**, so CI-05 and CI-06 stay
+     `Pending` until plan 06's PR produces one.
+     → **NOW MET ON BOTH PATHS.** Gate run
+     [`33112404579`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33112404579) stamped
+     `forge Version: 1.5.1-v1.5.1` / `Commit SHA: b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2` /
+     `Build Timestamp: 2025-12-19T14:07:55.455914129Z`, with `which -a forge` listing
+     `/home/jmsbpp/.foundry-pins/v1.5.1/bin/forge` ahead of the box's own — byte-identical to both push
+     builds. The install step was a **0-second** pin-keyed cache hit emitting no output (`##[endgroup]` is
+     its last line), confirming the cache is keyed by pin and not by workflow, exactly as plan 05
+     predicted; the *stamp* step's `grep -qF "$FOUNDRY_COMMIT"` is what re-asserted the pin, and it
+     passed. CI-05/CI-06 are now evidence-backed on the gate path; they close with plan 06.
+  5. The pinned version is recorded in the repo — not only in workflow YAML — with the reason, citing
+     that the transport findings hold at `1.5.1-stable` `b0a9dd9`. Changing the pin is a visible,
+     reviewable diff; it cannot happen by someone running `foundryup` on the runner.
+  6. The existing suite is unaffected: a run still reports `VolOrderToPanopticTokenId.t.sol` green and
+     the `--skip` ledger line is untouched.
+     → **Regression half MET, ledger half DEPARTED FROM — deliberately.** Run `33109459584`:
+     `VolOrderToPanopticTokenId.t.sol` is `10 passed; 0 failed; 0 skipped`, and the suite is
+     `271 tests passed, 0 failed, 1 skipped (272 total)` against the last recorded local baseline of
+     252 passed. The ledger line was **not** untouched: a maintainer-authorised cleanup (`fb546e8`,
+     outside any plan) deleted the uncompilable `PriceSetterHook.t.sol` + its orphaned `TickCheat.sol`
+     and retired that ledger entry, 4 patterns → 3, in **both** workflows with the parity guard green.
+     Because `--skip` matches on filename, that entry had also been masking `src/…/PriceSetterHook.sol`
+     and `foundry-scripts/PriceSetterHook.s.sol` — both now compile clean. Criterion 6's intent (no
+     regression, no widening of the ledger) holds; its letter does not.
+     → **CONFIRMED ON THE GATE PATH** (plan 06). Gate run `33112404579`:
+     `Suite result: ok. 10 passed; 0 failed; 0 skipped` for `VolOrderToPanopticTokenId.t.sol`, and
+     `271 tests passed, 0 failed, 1 skipped` across 74 suites. `bash scripts/check-ci-skip-ledger.sh`
+     on the merged `develop` tree exits 0 with `skip-ledger parity OK: 3 patterns, seed 4880`.
+**Open questions for planning**:
+  - ~~Pinning Foundry on a *persistent self-hosted* runner is not the hosted-container problem —
+    `foundry-rs/foundry-toolchain@v1` vs an explicit `foundryup --version`, tool-cache behaviour, and
+    collision with the system `forge` already installed there. Do not assume the hosted recipe transfers.~~
+    → **CLOSED BY OBSERVATION** (plan 04, `01.1-CI-EVIDENCE.md`). Runs `33107877073` and `33109459584`
+    both printed `which -a forge` as `/home/jmsbpp/.foundry-pins/v1.5.1/bin/forge` **ahead of**
+    `/home/jmsbpp/.foundry/bin/forge` — the box **did** already have its own forge (listed twice on
+    `PATH`), the pinned binary won via the `$GITHUB_PATH` prepend, and `$HOME/.foundry` was never
+    written to. The hosted recipe would have collided on the very first push; the collision was real,
+    not hypothetical, and foundryup said so itself
+    (`There are multiple binaries with the name 'forge' present in your 'PATH'`). All four
+    install-mechanism unknowns also answered: runner egress works, `flock` is present, `--install` is
+    the right flag, `v1.5.1` resolves to `b0a9dd9…`. Cold install 19 s; warm 0 s via the stamp file,
+    with the pin still re-asserted every run by the *stamp* step.
+  - Unattended builds on a self-hosted runner execute pushed code without a human in the loop. That is
+    the accepted tradeoff for immediacy (approval stays on the PR path), but the workflow should avoid
+    exposing secrets it does not need — note `develop-gate`'s forge job passes `API_KEY`.
+    → **RESOLVED — the tradeoff was re-affirmed at plan 04's checkpoint and ACCEPTED UNMODIFIED.**
+    `pending_deployments` is `[]` on both runs and each started 3 s after its push, so "no human in
+    the loop" is measured rather than claimed; shown that, the maintainer asked for no change to
+    `push-build.yml` and approved ("…Ther approve", verbatim in `01.1-04-SUMMARY.md`). The workflow
+    ships with no `environment:`, no secrets and no approval, as measured. **Still open, because the
+    response was silent on it:** whether `timeout-minutes: 30` (and the gate's tighter `25`) has
+    headroom on a genuinely COLD runner — submodules, the plankc `cargo build --release` and the
+    forge compile cache were warm in both runs; only the pin install was measured cold, at 19 s.
+  - ~~Whether the push build should reuse `develop-gate`'s skip ledger or run the full suite.~~
+    → Resolved during planning (reuse + parity guard); the ledger is now **3 patterns / seed 4880**
+    in both workflows after the `*PriceSetterHook*` entry was retired between the two runs.
+**Resolved during planning** (rationale in the plans, not repeated here):
+  - **Not** `foundry-rs/foundry-toolchain@v1`. Read from its source: it installs into
+    `$HOME/.foundry` (`src/index.ts`: `FOUNDRY_DIR = path.join(os.homedir(), ".foundry")`), which on
+    a *persistent* runner is the box's shared foundry dir — so the action would have an unattended
+    workflow rewrite the machine's default `forge` on every push, reintroducing the exact drift the
+    pin exists to stop. It also runs on `node24`, unverified on this runner. Both workflows instead
+    drive the same pinned `foundryup` installer into a pin-keyed `$HOME/.foundry-pins/$VERSION` and
+    prepend it to the job's `PATH`: job-scoped, collision-free, installed once per pin, and it beats
+    the system `forge` because `$GITHUB_PATH` prepends. `which -a forge` is logged so the collision
+    is observable rather than assumed. The residual unknowns (runner egress, `flock`, the pre-existing
+    system `forge`) are answered from the real run in plan 04, not asserted.
+  - **The push build reuses the ledger and the seed.** Its job is to predict the gate; a different
+    surface would go red on pre-existing known-broken families and train everyone to ignore it. The
+    duplicated ledger is guarded by `scripts/check-ci-skip-ledger.sh`, which fails the push build if
+    the two copies diverge (extracting the copy into one shared place is unavailable — the gate's
+    ledger line may not move).
+  - **No secrets on the push workflow.** `develop-gate`'s forge job passes `API_KEY`; the unattended
+    workflow does not receive it. It runs `--offline` with no mainnet-fork test, and `${...}` in
+    `[rpc_endpoints]` is measured to resolve at alias *use*, not at config load.
+**Plans**: 6 plans in 6 waves (strictly sequential — each wave's output is the next wave's input)
+
+Plans:
+- [x] 01.1-01-PLAN.md — worktree, tracking issue, FEATURES layout for the inserted phase (CI-07)
+- [x] 01.1-02-PLAN.md — `.github/foundry-version` + `notes/TOOLCHAIN_PINS.md`: the pin recorded in-repo with its reason (CI-05)
+- [x] 01.1-03-PLAN.md — `.github/workflows/push-build.yml` + `scripts/check-ci-skip-ledger.sh`, pushed (the workflow's own first trigger) (CI-06/07)
+- [x] 01.1-04-PLAN.md — harvest the actual run into `01.1-CI-EVIDENCE.md`; answers the self-hosted pinning question from observation (CI-06/07; has a checkpoint)
+      — task 1 `79602e2` (`01.1-CI-EVIDENCE.md`, harvesting BOTH runs `33107877073` red and
+      `33109459584` green); **task 2's blocking human-verify checkpoint APPROVED** by the maintainer
+      ("…Ther approve"), recorded verbatim in `01.1-04-SUMMARY.md`. Timeout-headroom question left
+      unanswered by the response and NOT treated as answered.
+- [x] 01.1-05-PLAN.md — the same pin + stamp in `develop-gate`'s forge job, proven purely additive (CI-05/06)
+      — `7591034`, **+84 / −0** against `origin/develop`; install+stamp bodies byte-identical to
+      `push-build.yml`'s; trigger, `environment` approval, `gate` contract, ledger and seed all
+      proven unmoved. NOT pushed — plan 06 owns the PR and the first gate run.
+- [x] 01.1-06-PLAN.md — PR, gate run, merge, and the develop-exclusion proof; close out (CI-05/06/07; has a checkpoint)
+      — **COMPLETE.** PR [#59](https://github.com/JMSBPP/cfmm-vol-markets/pull/59) merged as `e6276f2`
+      (merge commit, admin bypass). Both workflows fired on the same SHA from different events:
+      push-build `33112355047` (`push`, success, `pending_deployments: []`, +3 s) and the first
+      develop-gate run of this phase, `33112404579` (`pull_request`, **success**, all four jobs green,
+      pin stamped `b0a9dd9…`, `VolOrderToPanopticTokenId.t.sol` 10/10, suite 271 / 0 / 1 skipped).
+      Criterion 3 proven across two pushes to `develop`. Issue #58 closed. CI-05/06/07 ticked.
+      **Its checkpoint produced the phase's most valuable finding** — `develop-gate` has no approval
+      gate and never has — resolved by restating criterion 2, not by changing repo configuration.
 
 ### Phase 2: VolOrder(T) Minimal Instantiation
 **Directory**: `.planning/phases/FEATURES/feat-volorder-t-minimal/`
@@ -167,28 +351,38 @@ variant travelling out-of-band. Resolve during phase planning, not before.
 ### Phase 5: RPC Design & Protocol Skeleton
 **Directory**: `.planning/phases/FEATURES/feat-rpc-design/`
 **Branch**: `feat/rpc-design`
-**Goal**: Decide *how* the two sides talk before building what they say — the transport, and the
-division of labour between the Haskell spec service and the Foundry test process — and prove the
-shape works with a minimal protocol skeleton carrying no domain payload.
+**Goal**: State the contract `evm-spec-bridge` must satisfy for this milestone to continue, settle the
+division of labour between the Haskell spec service and the Foundry test process, and prove the shape
+works with a minimal protocol skeleton carrying no domain payload.
 **Depends on**: Phase 4
-**Owns open decision**: transport — `vm.ffi` binary (simpler, already enabled via `ffi = true`)
-**vs** a Haskell JSON-RPC service reached by `vm.rpc` (warm process, no per-case spawn, generalizes
-to the whole spec surface). This phase resolves it; Phase 7 only implements the result.
-**Nature of the work**: this is an interactive design phase, not an execution phase. The transport is
-learned through back-and-forth — what is appropriate, and *why* — and the reasoning is the
-deliverable alongside the verdict. Do not short-circuit it by picking a transport and moving on.
+**MODIFIED — the transport decision was taken outside this phase.** At `evm-spec-bridge`
+initialization the user resolved the transport as **JSON-RPC**, knowingly overriding this phase's
+ownership of it (`evm_spec_rpc` flagged the conflict before acting; the user confirmed directly).
+This phase is therefore no longer the phase that *builds* the transport — it is the **reference
+contract for what `evm-spec-bridge` delivers**. RPC-01 records the decision and its rationale rather
+than making it. RPC-02 remains genuinely open and owned here.
+**Cross-repo**: `evm-spec-bridge` (canonical `d2p-finance/evm-spec-bridge`, `JMSBPP` fork, PR-only)
+enters this repo as a **submodule**. It is a Haskell library plus a JSON-RPC server exe, depends on
+`cfmm-vol-markets-spec`, and generates the Solidity interface from the same schema as its Haskell
+protocol types so the two sides cannot drift silently.
 **Requirements**: RPC-01, RPC-02, RPC-03
 **Success Criteria** (what must be TRUE):
-  1. The transport choice is recorded in `PROJECT.md` as a resolved decision **with its rationale** —
-     what was considered, what the tradeoffs were, and what decided it — not merely the verdict.
+  1. `PROJECT.md` records the transport as **resolved: JSON-RPC**, with the rationale *and* the fact
+     that it was decided at bridge initialization rather than in this phase — the override is visible
+     in the record, not smoothed over.
   2. A written responsibility delegation states, for each of wire encoding/decoding, input validation,
-     guard evaluation, and error classification, which of the two participants owns it: the Haskell
-     spec service or the Foundry test process. No responsibility is unassigned or shared by default.
-  3. `develop-gate` is green on `feat/rpc-design` with a minimal protocol skeleton — a health/echo
-     method carrying **no** `volOrderToTokenId` payload — exercised end-to-end over the chosen
-     transport, proving the shape works before any domain logic depends on it.
+     guard evaluation, and error classification, which participant owns it. No responsibility is
+     unassigned or shared by default. Binding constraint: **the Foundry test process owns none of
+     them** — any semantics it holds is a re-implementation of the spec, which is the failure this
+     milestone exists to eliminate. Guard evaluation is the spec's, without exception.
+  3. `develop-gate` is green with a minimal protocol skeleton — a health/echo method carrying **no**
+     `volOrderToTokenId` payload — exercised end-to-end against the bridge's server, proving the shape
+     works before any domain logic depends on it.
   4. The skeleton demonstrates the failure path as well as the success path: an unreachable or
      non-responding service is reported as *transport failure*, distinguishably, in the same run.
+  5. The health/echo response carries the **spec commit SHA the bridge was built against**, and a test
+     asserts it equals this repo's `spec/` pin — see the skew hazard in Sequencing Notes. A mismatch
+     must fail loudly rather than produce a meaningless green.
 **Plans**: TBD
 
 ### Phase 6: Haskell Spec Oracle
@@ -222,13 +416,18 @@ the entrypoint's contract are written before the entrypoint, on both sides of th
 **Goal**: `SpecHelper` stops being a stub — a Foundry test can obtain the spec's answer for an
 arbitrary `(VolOrder(T), poolId)`, and can tell "the spec said no" apart from "the transport broke".
 **Depends on**: Phase 6
-**Inherits**: the transport chosen and the responsibility delegation fixed in Phase 5, and the
-protocol skeleton proven there. This phase implements against those, it does not revisit them.
+**Inherits**: the JSON-RPC transport, the responsibility delegation fixed in Phase 5, and the protocol
+skeleton proven there. This phase implements against those, it does not revisit them.
+**Generated interface, not hand-written.** `SpecHelper` implements the Solidity interface **generated
+by `evm-spec-bridge`** from the same schema as its Haskell protocol types. Phase 1's `SpecHelper.sol`
+is a deliberately minimal stub whose boundary is documented as provisional precisely so this phase
+adopts the generated interface rather than redesigning the seam (RED-06).
 **Requirements**: XPORT-01, XPORT-02
 **Success Criteria** (what must be TRUE):
   1. `develop-gate` green on `feat/spec-transport`: `SpecHelper.readTokenId(…)` is implemented against
-     the Phase 4 wire format and the Phase 5 entrypoint, and the wiring probe still governs execution
-     on the runner (spec absent there until Phase 11).
+     the bridge's **generated** Solidity interface and the Phase 4 wire format, and the wiring probe
+     still governs execution on the runner. No hand-written restatement of the protocol types exists
+     in `test/` — drift is prevented by construction, not by review.
   2. The transport returns three distinguishable outcomes — spec success with a `tokenId`, spec
      rejection with the rejecting guard identifiable, and transport failure — and a test asserts they
      are never conflated.
@@ -322,21 +521,39 @@ fails the build, with no silent-skip path left.
   derived convenience. Phase 1 ships first specifically so the differential file exists and pushes
   clean before there is anything to diff against; Phases 2–4 are the blocking prerequisite refactor;
   and Phase 5 settles how the two sides talk before Phase 6 gives them something to say.
-- **Known tension, deliberately accepted:** CI-01/CI-02 (spec on the runner) are what make Phases 6–10
-  gate-observable, yet they sit in Phase 11. The RED-05 wiring probe is the mechanism that absorbs
-  this: Phases 6–10 push clean with the differential path skip-guarded on the runner, and Phase 11
-  flips it on. If Phase 7 or 10 planning finds the skip-guard insufficient, pull CI-01/CI-02 forward
-  via `/gsd:insert-phase` rather than reordering silently.
-- Three decisions stay open by design and are owned by phase planning: wire format (Phase 4),
-  transport (Phase 5), oracle packaging (Phase 6). Do not pre-resolve them.
+- **The CI tension is no longer merely "accepted" — the JSON-RPC decision escalated it.** The original
+  framing was that CI-01/CI-02 (spec on the runner) make Phases 6–10 gate-observable while sitting in
+  Phase 11, absorbed by the RED-05 wiring probe. That framing **no longer holds**: RPC-03 requires the
+  protocol skeleton be "exercised end-to-end over the chosen transport", and a *service* transport
+  means the self-hosted runner must build **and run** a long-lived Haskell process for **Phase 5
+  itself** to be gate-observable. CI-01/CI-02 are therefore a prerequisite for Phase 5, not Phase 11.
+  Expect to pull them forward via `/gsd:insert-phase`; do not treat the skip-guard as covering this.
+  Compounding unknowns: GHC/cabal on the self-hosted `cfmm-build` runner is still unverified (present
+  on the dev machine at GHC 9.10.3 / cabal 3.16.1.0), the gate currently checks out no `spec/` at all,
+  and a persistent self-hosted runner adds service-ready/test-start races, port collisions and leaked
+  processes surviving between runs.
+- **Spec-version skew is a correctness hazard, not a build hazard.** `evm-spec-bridge` depends on
+  `cfmm-vol-markets-spec`, and this repo pins `spec/` directly — two paths to the oracle. Nothing
+  fails if they diverge, which is exactly what makes it dangerous: the differential test would compare
+  Plank against a *different spec version than the roadmap believes is the oracle*, and stay green.
+  A false green here is worse than a red, because the milestone's whole premise is that disagreement
+  fails the build. Mitigation is mandatory, not optional — the bridge reports the spec commit SHA it
+  was built against in the health/echo response (Phase 5 criterion 5) and a test asserts it equals the
+  `spec/` pin. Preferred topology if the bridge can support it: pin only the bridge and let it be the
+  single authority on the spec version, eliminating the second path entirely.
+- Two decisions stay open by design and are owned by phase planning: wire format (Phase 4) and oracle
+  packaging (Phase 6). Do not pre-resolve them. Transport is **resolved (JSON-RPC)**, decided outside
+  Phase 5 at bridge initialization. RPC-02 — the responsibility split — remains open and owned by
+  Phase 5.
 
 ## Progress
 
-**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11
+**Execution Order:** 1 (waves 1-2) → **1.1** → 1 (waves 3-6) → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. RED Differential Scaffold | 0/6 | Planned | - |
+| 1. RED Differential Scaffold | 2/6 | In Progress | - |
+| 1.1 CI Feedback Loop (INSERTED) | 6/6 | Complete | - |
 | 2. VolOrder(T) Minimal Instantiation | 0/TBD | Not started | - |
 | 3. VolOrder(T) Rich Instantiation | 0/TBD | Not started | - |
 | 4. VolOrder(T) Wire Format | 0/TBD | Not started | - |
@@ -353,6 +570,7 @@ fails the build, with no silent-skip path left.
 | Phase | Requirements | Count |
 |-------|--------------|-------|
 | 1 | RED-01, RED-02, RED-03, RED-04, RED-05, RED-06, PROC-01 | 7 |
+| 1.1 | CI-05, CI-06, CI-07 | 3 |
 | 2 | VORD-01, VORD-02, VORD-03 | 3 |
 | 3 | VORD-04, VORD-05 | 2 |
 | 4 | VORD-06 | 1 |
@@ -363,7 +581,7 @@ fails the build, with no silent-skip path left.
 | 9 | GUARD-04, GUARD-05 | 2 |
 | 10 | DIFF-01, DIFF-02 | 2 |
 | 11 | CI-01, CI-02, CI-03, CI-04 | 4 |
-| **Total** | | **32 / 32** |
+| **Total** | | **35 / 35** |
 
 No orphaned requirements. No requirement mapped to more than one phase.
 

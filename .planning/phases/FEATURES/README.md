@@ -29,6 +29,7 @@ Making FEATURES phases a first-class GSD structure is deferred to v2 (requiremen
 | Phase | FEATURES path | Branch |
 |-------|---------------|--------|
 | 1 | `feat-red-diff-scaffold` | `feat/red-diff-scaffold` |
+| 1.1 (INSERTED) | `feat-ci-feedback-loop` | `feat/ci-feedback-loop` |
 | 2 | `feat-volorder-t-minimal` | `feat/volorder-t-minimal` |
 | 3 | `feat-volorder-t-rich` | `feat/volorder-t-rich` |
 | 4 | `feat-volorder-t-wire-format` | `feat/volorder-t-wire-format` |
@@ -39,3 +40,7 @@ Making FEATURES phases a first-class GSD structure is deferred to v2 (requiremen
 | 9 | `feat-guard-parity` | `feat/guard-parity` |
 | 10 | `feat-diff-test-green` | `feat/diff-test-green` |
 | 11 | `feat-ci-enforcement` | `feat/ci-enforcement` |
+
+Inserted phases (decimal numbers, per the ROADMAP's "Phase Numbering") follow the identical
+convention: the numbered tool-facing directory carries the decimal (`01.1-ci-feedback-loop`) and
+the FEATURES entry is the same kind of tracked symlink into it.
