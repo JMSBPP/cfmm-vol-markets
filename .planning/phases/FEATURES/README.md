@@ -32,6 +32,7 @@ Making FEATURES phases a first-class GSD structure is deferred to v2 (requiremen
 | 1 | `feat-red-diff-scaffold` | `feat/red-diff-scaffold` |
 | 1.1 (INSERTED) | `feat-ci-feedback-loop` | `feat/ci-feedback-loop` |
 | 2 | `feat-volorder-t-minimal` | `feat/volorder-t-minimal` |
+| 2.5 (INSERTED) | `feat-volmarketkey` | `feat/volmarketkey` |
 | 3 | `feat-volorder-t-rich` | `feat/volorder-t-rich` |
 | 4 | `feat-volorder-t-wire-format` | `feat/volorder-t-wire-format` |
 | 5 | `feat-rpc-design` | `feat/rpc-design` |

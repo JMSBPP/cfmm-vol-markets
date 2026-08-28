@@ -47,6 +47,7 @@ decision; it is not a formality to be short-circuited.
 - [x] **Phase 1: RED Differential Scaffold** - The first clean push: a compiling, skip-guarded `.diff.t.sol` with its doctrine and transport boundary
 - [x] **Phase 1.1: CI Feedback Loop** (INSERTED) - push-triggered build so every commit compiles, plus an explicit pinned forge version stamped into every run
 - [x] **Phase 2: VolOrder(T) Minimal Instantiation** - `VolOrder` becomes a comptime constructor with today's output bit-identical
+- [ ] **Phase 2.5: Venue-Tagged Market Key & Payload Widening** (INSERTED) - the key names its venue in the type and proves its poolId against the SFPM; the `FLAG_PANOPTIC` payload widens to 40 bits
 - [ ] **Phase 3: VolOrder(T) Rich Instantiation** - The Haskell-shaped payload: 4-tuple of `optionRatio`s plus the `asset` bit
 - [ ] **Phase 4: VolOrder(T) Wire Format** - A serialization that carries *which* `T` it is, decodable from the bytes alone
 - [ ] **Phase 5: RPC Design & Protocol Skeleton** - The transport decision and the spec-service/test-process responsibility split, proven by a payload-free skeleton
@@ -335,6 +336,103 @@ Plans:
 - [x] 02-03-PLAN.md — `02-REGRESSION-ASSESSMENT.md`: every coupled `.plk`/`.sol` classified with the evidence bar, elimination bucket predicted empty (HARD STOP otherwise), the design recorded (local `none` tag, explicit `comptime T`, `extra: bytes(T)`, `vol_order_base`); blocking maintainer checkpoint (VORD-01/02/03; has a checkpoint)
 - [x] 02-04-PLAN.md — (reopened and re-executed 2026-08-28 to `02-REGRESSION-ASSESSMENT.md` §4a; the plan's own edit list was VOID after chunk review) — the refactor: `VolOrder(T)` in 4 files only, `comptime T` on the tokenId path only, harness surface frozen; gate green with 02-01's counts, floor 10/10 untouched, differential still skips, stamp selector set identical (VORD-01/02/03)
 - [x] 02-05-PLAN.md — assessment FINAL from the gate evidence, `--skip` decision applied or deferred, PR ready, protection re-measured, merge, criteria verified on `origin/develop`, branch retired with `-d`, STATE/ROADMAP/REQUIREMENTS hand-edited (VORD-01/02/03)
+
+### Phase 2.5: Venue-Tagged Market Key & Payload Widening (INSERTED)
+**Directory**: `.planning/phases/FEATURES/feat-volmarketkey/`
+**Branch**: `feat/volmarketkey`
+**Goal**: `VolMarketKey(V)` resolves a venue-tagged market key to its venue's pool identity — an
+SFPM-verified Panoptic `poolId` for V4 and V3, a registry-verified pool address for Algebra — and the
+`FLAG_PANOPTIC` payload carries per-leg `tokenType` plus `vegoid`, each PROVED against an
+independently derived value rather than trusted. `MarketId.plk` is retired into it.
+**Depends on**: Phase 2
+**Runs BEFORE Phase 3**, which is paused: Phase 3 has no directory, no CONTEXT.md and no plans, so
+this phase unpicks nothing. Phase 3's criteria and VORD-04/05 are restated against the payload width
+THIS phase merges.
+**Requirements**: KEY-01, KEY-02, KEY-03, KEY-04, KEY-05, VORD-07, VORD-08
+**Spec**: `docs/superpowers/specs/2026-08-28-volmarketkey-and-extra-payload-widening-design.md`
+**Why this was inserted**: Phase 3's criteria were written against a 28-bit `FLAG_PANOPTIC` payload
+carrying four `optionRatio`s and nothing else. Reading Panoptic's own sources produced findings that
+make that payload insufficient and one of its premises false.
+
+*(a) The Panoptic `poolId` is STATEFUL.* Both SFPMs loop
+`while (s_poolIdToKey[poolId].tickSpacing != 0) poolId = incrementPoolPattern(poolId)` on collision
+and enforce the stored value at mint. A key that derives a `poolId` purely emits tokenIds that revert
+at mint whenever a collision occurred, so the identifier must be derived as a CANDIDATE and verified
+against the SFPM — a capability Phase 3 has nowhere to put. This also supplies the mechanical
+justification `§4a` decision 7 previously lacked: a value depending on SFPM storage cannot be derived
+inside a pure builder, so `pool_id` must stay an explicit parameter.
+
+*(b) The payload is short of the map's operands.* `vegoid` (1..255) and per-leg `tokenType` both
+belong to the tokenId the Haskell emits; at 28 bits there is room for neither. Widening after Phase 3
+has producers would break a merged wire format; widening while it has none is free. 28 was itself the
+76 → 28 correction (PR #65 / `b2868cc`, merged one day earlier), so this reopens a recent decision —
+deliberately, with maintainer approval, not by drift.
+**Success Criteria** (what must be TRUE):
+  1. `develop-gate` green: the plank job compiles ALL THREE instantiations —
+     `VolMarketKey(V4)`, `(V3)`, `(Algebra)`. Plank only type-checks an INSTANTIATED comptime branch,
+     so each must be instantiated, not merely declared (the Phase 2 vacuous-negative-test lesson).
+  2. Passing a `VolMarketKey(Algebra)` to the Panoptic arm is a COMPILE error, not a runtime revert —
+     demonstrated via `vm.tryFfi`, not asserted in prose. Algebra terminates at a verified pool
+     address because no `PanopticFactoryAlgebra` exists; the dead-end is a type-level fact.
+  3. `extra_decode` REQUIRES 40 and REJECTS 28, with all three sites moving together
+     (`EXTRA_PANOPTIC_BITS`, the `require` in `extra_decode`, and `PANOPTIC_BITS` plus its wrong-len
+     revert test), RED-first. Leg `k` at `[8k..8k+7]`: `optionRatio` 7b @`8k`, `tokenType` 1b
+     @`8k+7`; `vegoid` 8b @32.
+  4. Every guard reverts with its own case in the gate: `vegoid == 0`;
+     `vegoid_payload != pool_id[40..47]` INCLUDING the both-zero pair that satisfies the equality and
+     must still revert; `ratio_k == 0`; `tt_k` disagreeing with the geometric `tt_k`; and
+     `vo.rangeWidth.tickSpacing != key.tick_spacing` (`tickSpacing` has two producers and must be
+     reconciled).
+  5. The `poolId` candidate is verified against the SFPM: an agreeing pair passes, and a
+     collision-incremented mismatch reverts with OUR error at build time rather than Panoptic's at
+     mint. The two venue patterns are asserted SEPARATELY, not assumed identical —
+     V4 = `uint40` of the low bits of the v4 PoolId, V3 = `uint40(uint160(pool) >> 120)`.
+  6. `panoptic_asset_bit == 1 -% asset_index` asserted for BOTH values of `asset_index`, and the
+     `asset` bit has exactly ONE writer: `vol_order_to_mint`'s four `panoptic_add_asset` calls are
+     removed in the SAME commit that adds the Layer-1 write, with a dedicated test pinning that no
+     double-add occurs. `panoptic_add_asset` is additive, so a second write carries into
+     `optionRatio`'s LSB — and the golden vectors cannot catch it, because they exercise Layer 1 only.
+  7. `test/protocol_integrations/VolOrderToPanopticTokenId.t.sol` is still 10/10 green with NO EDITS
+     to that file, and `test__unit__phase2MapStillHardcodesRatioOneAndNoAsset` is updated or retired
+     as a TRACEABLE, ARGUED change with its reason recorded — never silently deleted to get green.
+  8. `MarketId.plk` is deleted and its three real consumers migrated — `MarketId.t.sol`,
+     `MarketIdHarness.plk`, and the `MarketStateSocket.t.sol:22` comment — with the V4 pattern shown
+     to subsume `market_id_from_pool_key`'s keccak rather than duplicating it.
+  9. The two findings carrying the most risk are INDEPENDENTLY VERIFIED inside this phase, by
+     something other than the two sessions that produced them: (i) F1's `panoptic_asset_bit ==
+     1 -% asset_index`, a single NOT whose failure mode is a valid position on the WRONG SIDE of the
+     pair, and (ii) the §9.1 zero band, derived jointly and therefore not independently held by
+     either author. Both currently rest on exactly two readers.
+**Two-step review: WAIVED.** The standing rule (Reality Checker + one specialist, in parallel, before
+any pre-commit spec is treated as ready) was offered twice with two named candidates — Solidity Smart
+Contract Engineer for the mechanics, Blockchain Security Auditor for the silent-wrong-answer modes —
+and DECLINED by the maintainer. Recorded here rather than left as an absence, because the consequence
+travels: the spec's findings carry only its author's verification and this session's, with no
+independent adversarial pass. Criterion 9 is the in-phase substitute, which is cheaper but is not the
+same thing.
+**Open questions for planning**:
+  - **The phase's own evidence base is not reproducible in CI.** `lib/panoptic-v2-core` is
+    UNINITIALIZED and its stale partial checkout blocks `git submodule update --init`; findings F1–F5
+    rest on a scratchpad clone OUTSIDE the repo, so no gate job and no other session can re-verify
+    them. Whether repairing the submodule belongs to this phase is unresolved — but under the
+    CI-is-the-only-validation-gate doctrine, unreproducible evidence is a gap, not a detail.
+  - `lib/plank-monorepo`'s working directory is empty (pin `00c0a1a`, objects intact), so
+    `make plank-toolchain` cannot run in this checkout; std was read via
+    `git -C lib/plank-monorepo cat-file -p 00c0a1a:<path>`. Whether the runner's checkout is
+    populated — i.e. whether this phase can compile at all in the gate — is unverified.
+  - Decision 6 (registry lookup over CREATE2) has consequences past Phase 3 and is flagged in the
+    spec for EXPLICIT maintainer review, not merely carried as ruled.
+  - The residual Haskell divergence: the oracle sets `asset = 1` unconditionally and cannot express
+    `asset_index == 1`. Key-driven asset shrinks the Phase 7 gap without closing it; whose phase
+    reconciles the remainder is unassigned.
+  - **`asset == 0` sizing is deferred to Phase 3.5 and carries a known BLOCKER.** `getLiquidityForAmount0`'s
+    inner `mulDiv96(hi, lo)` floors to ZERO for every leg below tick ≈ −665455 (a 221,817-tick band,
+    25% of the negative range), so Panoptic itself would deploy those legs as empty liquidity. All
+    four legs inside it makes `S0 == 0` and divides by zero; some legs inside makes `S0` silently too
+    small and `positionSize` too LARGE with no revert. The companion overflow is BOUNDED and cannot
+    occur: `term_k ≈ √/(ε·n) ≤ 2^174.3`, ~80 bits of headroom below `u256`.
+**Plans**: TBD — the spec is unblocked (review waived, see above) and awaits the maintainer's own
+read. Planning starts from `docs/superpowers/specs/2026-08-28-volmarketkey-and-extra-payload-widening-design.md`.
 
 ### Phase 3: VolOrder(T) Rich Instantiation
 **Directory**: `.planning/phases/FEATURES/feat-volorder-t-rich/`
