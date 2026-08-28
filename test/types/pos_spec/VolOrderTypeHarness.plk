@@ -25,6 +25,15 @@ const SEL_EXTRA_ENCODE_ROUND_TRIP = 0x031e3809;
 const SEL_PACK_IGNORES_EXTRA = 0xfc9384ff;
 // cast sig "unwrapNoneReverts(uint256)"            -> 0xc0e8737e
 const SEL_UNWRAP_NONE_REVERTS = 0xc0e8737e;
+// Phase 2.5 (VORD-07): the 40-bit FLAG_PANOPTIC payload.
+// cast sig "payloadOptionRatio(uint256,uint256)"   -> 0x2f731a5b
+const SEL_PAYLOAD_OPTION_RATIO = 0x2f731a5b;
+// cast sig "payloadTokenType(uint256,uint256)"     -> 0x6c16f796
+const SEL_PAYLOAD_TOKEN_TYPE = 0x6c16f796;
+// cast sig "payloadVegoid(uint256)"                -> 0xe1a7fc3d
+const SEL_PAYLOAD_VEGOID = 0xe1a7fc3d;
+// cast sig "payloadValidate(uint256)"              -> 0x52525605
+const SEL_PAYLOAD_VALIDATE = 0x52525605;
 
 init { return_runtime(); }
 
@@ -88,6 +97,27 @@ run {
     if selector == SEL_UNWRAP_NONE_REVERTS {
         let vo = unpack_vol_order(@evm_calldataload(4));
         return_1(unwrap(vo.extra).flags);
+    }
+
+    // ---- Phase 2.5 (VORD-07): the 40-bit payload. Leg k at [8k..8k+7]; vegoid at 32..39. ----
+
+    if selector == SEL_PAYLOAD_OPTION_RATIO {
+        return_1(extra_payload_option_ratio(@evm_calldataload(4), @evm_calldataload(36)));
+    }
+
+    if selector == SEL_PAYLOAD_TOKEN_TYPE {
+        return_1(extra_payload_token_type(@evm_calldataload(4), @evm_calldataload(36)));
+    }
+
+    if selector == SEL_PAYLOAD_VEGOID {
+        return_1(extra_payload_vegoid(@evm_calldataload(4)));
+    }
+
+    // Returns 1 on success; the interesting outcome is the REVERT on a zero vegoid or a zero
+    // optionRatio, which is the only reachable invalid value in either field.
+    if selector == SEL_PAYLOAD_VALIDATE {
+        extra_payload_validate(@evm_calldataload(4));
+        return_1(1);
     }
 
     @evm_stop();
