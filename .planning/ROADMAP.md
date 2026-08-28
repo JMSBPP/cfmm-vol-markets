@@ -46,7 +46,7 @@ decision; it is not a formality to be short-circuited.
 
 - [x] **Phase 1: RED Differential Scaffold** - The first clean push: a compiling, skip-guarded `.diff.t.sol` with its doctrine and transport boundary
 - [x] **Phase 1.1: CI Feedback Loop** (INSERTED) - push-triggered build so every commit compiles, plus an explicit pinned forge version stamped into every run
-- [ ] **Phase 2: VolOrder(T) Minimal Instantiation** - `VolOrder` becomes a comptime constructor with today's output bit-identical
+- [x] **Phase 2: VolOrder(T) Minimal Instantiation** - `VolOrder` becomes a comptime constructor with today's output bit-identical
 - [ ] **Phase 3: VolOrder(T) Rich Instantiation** - The Haskell-shaped payload: 4-tuple of `optionRatio`s plus the `asset` bit
 - [ ] **Phase 4: VolOrder(T) Wire Format** - A serialization that carries *which* `T` it is, decodable from the bytes alone
 - [ ] **Phase 5: RPC Design & Protocol Skeleton** - The transport decision and the spec-service/test-process responsibility split, proven by a payload-free skeleton
@@ -306,19 +306,24 @@ aspirational: it establishes *which* files were expected to be untouched in the 
   1. A recorded regression assessment enumerates every test and dependency coupled to the old
      `VolOrder` shape, classifies each into the three buckets above, and carries a user-agreed
      decision plus rationale for every elimination candidate.
+     → **VERIFIED ON origin/develop** (plan 05, merge `790c413`): `git show origin/develop:…/02-REGRESSION-ASSESSMENT.md | grep -c '^**Status:** FINAL'` → 1, `grep -c '(02-05 fills)'` → 0, `grep -c 'NONE FOUND (02-04)'` → 1.
   2. `develop-gate` is green on `feat/volorder-t-minimal`: the plank job compiles `VolOrder(T)`
      following the in-repo `Shock(R)` pattern, and the forge job runs the full existing suite.
+     → **VERIFIED ON origin/develop** (plan 05, merge `790c413`): gate run 33184231798 green on `790c413^2` = 56b3c4d (source diff to develop 0 bytes); `const VolOrder = fn (comptime T: type) type` → 1, `fn (comptime T: type, vo: VolOrder(T), pool_id: u256)` → 1, `const Extra = fn (comptime T: type) type` → 1; 76 suites / 287 passed / 0 failed / 3 skipped; compile-plank 39 ok.
   3. Every test classified *survives untouched* — including the golden vectors and fuzz cases in
      `VolOrderToPanopticTokenId.t.sol` — passes in that gate run with **no edits to those files**,
      making the minimal instantiation's `tokenId` bit-identical to today's
      `vol_order_to_panoptic_token_id`.
+     → **VERIFIED ON origin/develop** (plan 05, merge `790c413`): `git diff b090b2e origin/develop -- test/protocol_integrations/VolOrderToPanopticTokenId.t.sol` → **0 bytes**; that suite `Suite result: ok. 10 passed; 0 failed; 0 skipped` in run 33184231798.
   4. Every eliminated or rewritten test is traceable to a decision from criterion 1. Nothing is
      deleted, weakened or `--skip`-ed merely to make the gate green; a coupled test that would have
      caught a real regression is replaced, not dropped.
+     → **VERIFIED ON origin/develop** (plan 05, merge `790c413`): elimination bucket NONE PREDICTED / NONE FOUND; `--diff-filter=D` over `test/` since b090b2e → 0 files; `--skip` ledger on develop still 3 patterns (never widened).
   5. The plank job compiles `vol_order_to_mint`, `position_size_for_target_vega`,
      `vol_order_leg_split` and `VolOrderToPanopticTokenIdHarness.plk` against the minimal
      instantiation, and the differential test still compiles and still skips in the same run
      (Phase 1 state preserved).
+     → **VERIFIED ON origin/develop** (plan 05, merge `790c413`): `compile-plank: 39 ok, 0 failed` incl. `OK test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk` and `OK test/protocol_integrations/VolOrderMintSizingHarness.plk`; differential still 2× `[SKIP: spec oracle not wired…]` + 2× PASS with a 0-byte diff since b090b2e.
 **Plans**: 5 plans in 5 waves (strictly sequential — the toolchain bump must be green on the
 unchanged suite before instrumentation, instrumentation before the assessment, the assessment's
 checkpoint before the refactor, the refactor's gate run before the merge). **Every plan carries the
@@ -329,7 +334,7 @@ Plans:
 - [x] 02-02-PLAN.md — `make abi-edge-stamp` + additive push-build step stamping the harness's sha256 + PUSH4 selector set (pre-refactor reference); the ONE-TIME `--skip` probe for `*VolRangeWidth*` / `*SpreadTickAssimetryHelper*`, measured and reverted; a new scoped issue (VORD-02/03)
 - [x] 02-03-PLAN.md — `02-REGRESSION-ASSESSMENT.md`: every coupled `.plk`/`.sol` classified with the evidence bar, elimination bucket predicted empty (HARD STOP otherwise), the design recorded (local `none` tag, explicit `comptime T`, `extra: bytes(T)`, `vol_order_base`); blocking maintainer checkpoint (VORD-01/02/03; has a checkpoint)
 - [x] 02-04-PLAN.md — (reopened and re-executed 2026-08-28 to `02-REGRESSION-ASSESSMENT.md` §4a; the plan's own edit list was VOID after chunk review) — the refactor: `VolOrder(T)` in 4 files only, `comptime T` on the tokenId path only, harness surface frozen; gate green with 02-01's counts, floor 10/10 untouched, differential still skips, stamp selector set identical (VORD-01/02/03)
-- [ ] 02-05-PLAN.md — assessment FINAL from the gate evidence, `--skip` decision applied or deferred, PR ready, protection re-measured, merge, criteria verified on `origin/develop`, branch retired with `-d`, STATE/ROADMAP/REQUIREMENTS hand-edited (VORD-01/02/03)
+- [x] 02-05-PLAN.md — assessment FINAL from the gate evidence, `--skip` decision applied or deferred, PR ready, protection re-measured, merge, criteria verified on `origin/develop`, branch retired with `-d`, STATE/ROADMAP/REQUIREMENTS hand-edited (VORD-01/02/03)
 
 ### Phase 3: VolOrder(T) Rich Instantiation
 **Directory**: `.planning/phases/FEATURES/feat-volorder-t-rich/`
@@ -576,7 +581,7 @@ fails the build, with no silent-skip path left.
 |-------|----------------|--------|-----------|
 | 1. RED Differential Scaffold | 6/6 | Complete | 2026-08-27 |
 | 1.1 CI Feedback Loop (INSERTED) | 6/6 | Complete | - |
-| 2. VolOrder(T) Minimal Instantiation | 4/5 | In progress | 2026-08-28 |
+| 2. VolOrder(T) Minimal Instantiation | 5/5 | Complete | 2026-08-28 |
 | 3. VolOrder(T) Rich Instantiation | 0/TBD | Not started | - |
 | 4. VolOrder(T) Wire Format | 0/TBD | Not started | - |
 | 5. RPC Design & Protocol Skeleton | 0/TBD | Not started | - |

@@ -18,9 +18,9 @@ Requirements for this milestone. Each maps to a roadmap phase.
 
 ### VolOrder(T) Refactor — blocking prerequisite
 
-- [ ] **VORD-01**: `VolOrder` is a comptime type constructor `VolOrder(T)` carrying an `extra: T` payload, following the in-repo `Shock(R)` pattern
-- [ ] **VORD-02**: The minimal instantiation produces a **bit-identical** `tokenId` to today's `vol_order_to_panoptic_token_id` for every input the current suite covers
-- [ ] **VORD-03**: Existing callers — `vol_order_to_mint`, `position_size_for_target_vega`, `vol_order_leg_split`, `VolOrderToPanopticTokenIdHarness.plk` — compile and pass unchanged against the minimal instantiation
+- [x] **VORD-01**: `VolOrder` is a comptime type constructor `VolOrder(T)` carrying an `extra: T` payload, following the in-repo `Shock(R)` pattern
+- [x] **VORD-02**: The minimal instantiation produces a **bit-identical** `tokenId` to today's `vol_order_to_panoptic_token_id` for every input the current suite covers
+- [x] **VORD-03**: Existing callers — `vol_order_to_mint`, `position_size_for_target_vega`, `vol_order_leg_split`, `VolOrderToPanopticTokenIdHarness.plk` — compile and pass unchanged against the minimal instantiation
 - [ ] **VORD-04**: A rich instantiation carries the data the Haskell map takes: a 4-tuple of `optionRatio`s (each 1..127) and the `asset` bit
 - [ ] **VORD-05**: The rich instantiation emits the Haskell-equivalent `tokenId` — per-leg `optionRatio` from the tuple, `asset = 1` on all four legs
 - [ ] **VORD-06**: `VolOrder(T)` has a defined serialization that carries *which* `T` was instantiated, decodable by a consumer from the bytes alone
@@ -111,9 +111,9 @@ Populated during roadmap creation (2026-08-27). Phase directories live at
 | RED-05 | Phase 1 — RED Differential Scaffold | Complete |
 | RED-06 | Phase 1 — RED Differential Scaffold | Complete |
 | PROC-01 | Phase 1 — RED Differential Scaffold | Complete |
-| VORD-01 | Phase 2 — VolOrder(T) Minimal Instantiation | Pending |
-| VORD-02 | Phase 2 — VolOrder(T) Minimal Instantiation | Pending |
-| VORD-03 | Phase 2 — VolOrder(T) Minimal Instantiation | Pending |
+| VORD-01 | Phase 2 — VolOrder(T) Minimal Instantiation | Complete |
+| VORD-02 | Phase 2 — VolOrder(T) Minimal Instantiation | Complete |
+| VORD-03 | Phase 2 — VolOrder(T) Minimal Instantiation | Complete |
 | VORD-04 | Phase 3 — VolOrder(T) Rich Instantiation | Pending |
 | VORD-05 | Phase 3 — VolOrder(T) Rich Instantiation | Pending |
 | VORD-06 | Phase 4 — VolOrder(T) Wire Format | Pending |

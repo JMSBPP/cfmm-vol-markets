@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 4
-status: executing
-stopped_at: "Completed 02-04-PLAN.md (Phase 2, 4/5) -- re-executed to assessment section 4a after the first attempt (c9844d1) was rejected at chunk review and reverted (3af40fb). GREEN on develop-gate 33182346548: 76 suites / 287 passed / 0 failed / 3 skipped (290), compile-plank 39 ok / 0 failed. Deltas vs the 02-01 baseline are exactly the new work: +1 suite, +14 tests, +1 plank entrypoint. Floor VolOrderToPanopticTokenId.t.sol 10/10 with a 0-byte diff; differential still 2x SKIP + 2x PASS; ABI-edge selector set IDENTICAL to the 02-02 stamp (7 selectors), sha256 moved. WHAT LANDED: src/types/Extra.plk (NEW) -- Extra(T) is a tagged slice DESCRIPTOR (flags 248..255 | offset 216..247 | len 200..215) saying WHERE the operands are (poolId 48 bits + 4 x 7-bit ratios = 76 bits, packed), carrying NO tokenId, with an is_region guard; VolOrder(T) carries extra: Option(Extra(T)) with absence as the std VALUE None; the builder is generic over T but STILL returns PanopticTokenId; everything pre-Phase-2 concrete on VolOrder(calldata). NOT MERGED: 26 commits on feat/volorder-t-minimal behind DRAFT PR 62; origin/develop still at a623b97. Next: 02-05 -- fill the assessment evidence cells from run 33182346548, mark PR 62 ready, re-measure branch protection live, merge, retire the branch with -d, close issue 61, tick VORD-01..03."
-last_updated: "2026-08-28T18:05:00.000Z"
-last_activity: "2026-08-28 -- 02-04 done properly the second time, and the RED leg earned its keep: run 33181644493 had plank GREEN and forge 13/14 because the NEGATIVE test caught ITSELF being vacuous -- bad() was never called from run{}, and plank does not type-check unreachable code (the hazard Makefile:compile-plank documents). Under write-then-test that fixture would have sat green and meaningless. Also rewrote 02-04-GATE-EVIDENCE.md and 02-04-SUMMARY.md, whose first versions documented the reverted c9844d1 design and were false in every substantive claim against the tree."
+current_plan: 5
+status: phase-complete
+stopped_at: "PHASE 2 IS COMPLETE (5/5) and MERGED. PR #62 merged into develop as 790c413eb8c0ef00593b034a98a79984bbb354d9 (Merge pull request #62 from JMSBPP/feat/volorder-t-minimal, merge-commit style, 2026-08-28T11:20:19-04:00). Branch protection re-measured immediately before merging: {contexts:[gate], enforce_admins:false, reviews:null, strict:false} -- NO review requirement, so a plain gh pr merge --merge was used and NO admin bypass was exercised. Criteria 1-5 each verified against origin/develop with git show / git diff, never against the branch: assessment FINAL with 0 unfilled cells and NONE FOUND; VolOrder(T) + Extra(T) + the generic builder signature all present; floor VolOrderToPanopticTokenId.t.sol 0 bytes vs pre-phase b090b2e; 0 test files deleted and the --skip ledger still 3 patterns; compile-plank 39 ok with the two harnesses OK and the differential still skipping. Gate run 33184231798 is green on MERGE^2 = 56b3c4d whose source diff to develop is 0 bytes. Issue #61 CLOSED with comment 5454339417 naming the merge SHA. Branch retired: git branch -d succeeded first try (was 56b3c4d), -D never used, gone locally and on origin. VORD-01..03 ticked Complete. Next: Phase 3 -- VolOrder(T) Rich Instantiation (VORD-04/05)."
+last_updated: "2026-08-28T19:30:00.000Z"
+last_activity: "2026-08-28 -- Phase 2 landed. The phase was re-executed after its first refactor attempt was rejected at code-chunk review, and the two process rules set mid-phase (chunks approved before commit; tests written RED first) are what produced its best result: the RED leg caught a negative test that was silently vacuous. The --skip retirement stayed MOOT (both masked suites measured RED, #63), so develop-gate.yml is byte-identical to pre-phase develop."
 progress:
   total_phases: 12
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 17
-  completed_plans: 16
-  percent: 94
+  completed_plans: 17
+  percent: 100
 ---
 
 # Project State
@@ -26,14 +26,14 @@ See: .planning/PROJECT.md (updated 2026-08-27)
 
 ## Current Position
 
-Phase: 2 of 12 (VolOrder(T) Minimal Instantiation) — **IN PROGRESS**, branch `feat/volorder-t-minimal`, issue #61, draft PR #62
-Plan: 4 of 5 in current phase complete
-Current Plan: 4
+Phase: 2 of 12 (VolOrder(T) Minimal Instantiation) — **COMPLETE**, merged as `790c413`. Next: Phase 3 (VolOrder(T) Rich Instantiation)
+Plan: 5 of 5 in current phase — all complete
+Current Plan: 5
 Total Plans in Phase: 5
 Status: **02-04 COMPLETE — `VolOrder(T)` is in, green on the first push.** Refactor `c9844d1`, exactly the 4 mechanical files, one commit. [`develop-gate` `33171200236`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33171200236): **75 / 273 / 0 / 3** (= 02-01), `compile-plank 38/0/0` entry set identical; **regression floor 10/10 all PASS, 0-byte diff — VORD-02 bit-identity is evidence**; MintSizing 8/8 (VORD-03); differential 2× SKIP on `SKIP_REASON` + 2× PASS, 0-byte diff. ABI edge: **selector set IDENTICAL**, sha256 different (internals only, recorded). No assessment row mispredicted. Next: **02-05** — finalize assessment, PR, re-measure protection, merge, retire branch.
 Last activity: 2026-08-28 — 02-04: refactor green first push, floor 10/10 untouched, selector set identical. Earlier: 02-03: assessment approved verbatim (`approve`), elimination bucket empty. Earlier: 02-02: probe measured both masked suites RED (4 failures, seed 4880), reverted, #63 opened. Earlier: 02-01 landed after one red run whose cause (`addr` struct layout change upstream) the plan had not sanctioned; stopped, sized, maintainer chose to amend the plan first, then fixed. Prior entry: 2026-08-27 — The merge falsified the premise it was authorized under. This plan was cleared to use `--admin` on the stated basis that `develop` requires one approving review; a live re-measurement immediately before merging returned **no `required_pull_request_reviews` key at all** — protection is `contexts: ["gate"]`, `strict: false`, `enforce_admins: false`, and `mergeStateStatus` was `CLEAN`. A plain `gh pr merge --merge` succeeded. **The bypass was authorized and NOT used.**
 
-Progress: [█████████░] 94%  (16 of 17 PLANNED plans: Phase 1 at 6/6, Phase 1.1 at 6/6, Phase 2 at 4/5)
+Progress: [██████████] 100%  (17 of 17 PLANNED plans: Phase 1 at 6/6, Phase 1.1 at 6/6, Phase 2 at 5/5)
 
 **Read that 100% correctly: it is 100% of the plans that have been WRITTEN, not of the milestone.**
 `total_plans: 12` counts only Phases 1 and 1.1, the only two phases decomposed into plans so far.
@@ -85,6 +85,13 @@ Phase 2 is planned. **2 of 12 phases are complete; 10 remain.**
 
 ### Decisions
 
+- **[Phase 02, plan 05] Merged as `790c413` with NO bypass — protection was re-measured live and reported `reviews: null`.** Third phase running: `develop` has `contexts: ["gate"]`, `enforce_admins: false`, and no review requirement at all. Phase 1 wrote two plans against a review requirement the API does not report; this plan measured instead of assuming and used a plain `gh pr merge --merge`. **The `gate` context remains the branch's ONLY enforced protection**, which keeps the never-rename-the-`gate`-job rule load-bearing.
+- **[Phase 02, plan 05] Every criterion was verified against `origin/develop`, not the branch**, and each is a quoted command result: `git show origin/develop:<path>` for content, `git diff b090b2e origin/develop -- <path>` for the byte-identity claims (pre-phase baseline), and gate run `33184231798` on `MERGE^2` for the run-time half — with `git diff MERGE^2 origin/develop -- src/ test/ .github/ Makefile` → 0 bytes proving the run describes the merged source.
+- **[Phase 02] `Extra(T)` is a tagged slice DESCRIPTOR, not a payload** (`src/types/Extra.plk`): `flags | offset | len` in one packed word, saying WHERE the operands live and nothing about what is built from them. It carries no tokenId. Absence is the std VALUE `Option`/`None`, NOT a tag type, so there is one `VolOrder` per region. `std::slice::Slice(R, T, arity)` — new at plank `00c0a1a` — is the typed view Phase 3 builds over the ratios; std has no tagged descriptor, which is all `Extra.plk` adds.
+- **[Phase 02] `comptime T` is threaded EXPLICITLY, Shock-style, and only on the tokenId path.** `$T` inference exists in Plank std but would infer the whole struct type; every pre-Phase-2 function stayed concrete on `VolOrder(calldata)`.
+- **[Phase 02] The ABI-edge stamp lives in `push-build.yml` ONLY; `develop-gate.yml` is byte-identical to pre-phase `develop`.** The frozen-surface proof is the sorted `PUSH4` selector set (7 entries) compared across two runs; sha256 moved and that is recorded, not hidden.
+- **[Phase 02] Unreachable Plank code is never type-checked — a negative fixture must be CALLED from `run{}`.** Gate `33181644493` had plank green and forge 13/14 because the `is_region` guard never fired: the fixture's function was dead. Second instance of the hazard `Makefile:compile-plank` documents, and the reason the RED-first order earned its keep.
+- **[Phase 02] `--evm-version` contingency NOT needed** (plank `00c0a1a` defaults to Osaka; forge 1.5.1 accepted every opcode). **`memptr` in `lib/plankified-univ3` is unreachable** — nothing imports `v3::abi` — so v3 was not bumped.
 - **[Phase 02, 02-04 re-apply review, 2026-08-28] The maintainer REJECTED `c9844d1` at chunk review and set the design of record** (`02-REGRESSION-ASSESSMENT.md` §4a): **no local `none` tag** — absence is std `Option`/`None(T)`, a runtime VALUE not a type; **`Extra(T)` is ours**, Shock-shaped `{ data: bytes(T), flags, token_id: Option(PanopticTokenId) }`, whose `data` is a tagged **address space** (`FLAG_PANOPTIC` + a POINTER into region `T` to `(poolId, OptionRatio[4])`); **`vol_order_to_panoptic_token_id` returns the updated `VolOrder(T)`** with the tokenId landed in `extra`; **every existing caller is `VolOrder(calldata)`** with `extra = None`; **Phase 2 = type + None path, Phase 3 = the PANOPTIC dereference**, Phase 4 = the wire format. Two process rules set the same day and written into AGENTS.md + memory: **code chunks are approved in `AskUserQuestion` approve/modify blocks BEFORE commit** (auto mode is not approval), and **tests are written RED-first for any new type** — "the existing suite still passes" is regression evidence, not test-first. **Consequence: 02-04's plan edit list is VOID.** The branch carries the revert of `c9844d1` plus RED tests; both the tests and the implementation are rewritten to §4a.
 - **[Phase 02, plan 03 checkpoint] The maintainer approved the regression assessment with the single word `approve`** (2026-08-28, offered approve / amend / halt; no annotation). What that fixes before any VolOrder edit: 4 files may change (`VolOrder.plk`, `PanopticTokenIdSetterLib.plk`, `VolOrderValidationLib.plk`, `VolOrderToPanopticTokenIdHarness.plk` — internal only, ABI surface frozen at the 02-02 stamp) via the exact edit list in `02-REGRESSION-ASSESSMENT.md` §4; 31 rows + the out-of-scope `src/modules/VolOrderManagerMod.plk` must show a 0-byte diff; the two masked suites are UNVERIFIED (#63) and untouched by the refactor. Design 1-6 approved: local `none` tag (not `ctime`), explicit `comptime T` (not `$T`), `extra: bytes(T)`, `vol_order_base` projection, generic only on `vol_order_to_panoptic_token_id`, phantom-type-as-region-index. `--skip` retirement MOOT — both probe results red. HARD STOP on any elimination candidate confirmed. **Consequence: a 02-04 diff on any file outside the four is a misprediction to report, never to absorb.**
 - **[Phase 01, plan 05 checkpoint] The maintainer authorized the merge with the single word `approved`.** The prompt offered two mutually exclusive branches — authorize, or describe what is wrong — and the answer took the first without qualification. Recorded verbatim in `01-05-SUMMARY.md` rather than normalized to the prompt's suggested `approved — merge` phrasing. Plan 01-06 was released on it and merged PR #60 as `b090b2e`.
@@ -196,10 +203,12 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-28 — 02-04 complete, re-executed to §4a (VolOrder(T) + Extra(T), RED→GREEN, gate 33182346548)
+Last session: 2026-08-28 — Phase 2 COMPLETE and merged to `develop` as `790c413`
 Previous stop: **Completed 01-06-PLAN.md. PHASE 1 IS COMPLETE (6/6) and merged.** `develop` is at
 `b090b2e`; the working tree is checked out on `develop` and fast-forwarded to it.
-Resume file: `.planning/phases/02-volorder-t-minimal-instantiation/02-05-PLAN.md` — the merge plan, run INLINE. **NOTHING of Phase 2 is on `develop` yet**: 26 commits sit on `feat/volorder-t-minimal` behind DRAFT PR #62; `origin/develop` is at `a623b97` and has no `src/types/Extra.plk`. Evidence for the assessment's `(02-05 fills)` cells: run `33182346548` (`02-04-GATE-EVIDENCE.md`). The `--skip` decision is MOOT (both probe suites red, #63). Re-measure `develop` protection live before merging; `git branch -d` only, never `-D`.
+Resume file: none — Phase 2 is closed and on `develop`. Next action is `/gsd:plan-phase 3`.
+
+**What Phase 3 inherits:** `VolOrder(T)` carrying `extra: Option(Extra(T))`; `Extra(T)` a tagged descriptor in `src/types/Extra.plk` (`flags` bits 248..255 | `offset` 216..247 | `len` 200..215) pointing at poolId 48 bits + 4 × 7-bit ratios = **76 bits packed**, with `FLAG_PANOPTIC` the only flag defined and reserved bits rejected on decode; the builder generic over `T` but still returning `PanopticTokenId` on the no-payload path; every pre-Phase-2 caller concrete on `VolOrder(calldata)`. At the pin: `@type_index` **and `std::slice::Slice(R, T, arity)`** — the typed region-generic view Phase 3 should build over the four ratios rather than reinvent. Phase 3's job is the `FLAG_PANOPTIC` dereference (VORD-04/05): read `(poolId, OptionRatio[4])` through the descriptor's offset, emit per-leg ratios and `asset = 1`, and retire the `pool_id` parameter. `test__unit__phase2MapStillHardcodesRatioOneAndNoAsset` will go RED when that lands — by design.
 
 **Phase 2 EXECUTION GATE (maintainer, verbatim intent): plans are executed by the superpowers INLINE executor in the maintainer's session. gsd-executor and background agents are BARRED. Every Phase 2 PLAN.md carries this gate at its top.**
 
