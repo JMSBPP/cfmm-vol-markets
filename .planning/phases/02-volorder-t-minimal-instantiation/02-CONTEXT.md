@@ -53,7 +53,10 @@ say so rather than proceed.
 
 ### The minimal instantiation
 
-- **A dedicated empty tag, decided as "a third tag `none`".** Upstream `main` already ships this
+- **⚠️ STALE (superseded 2026-08-28 at the 02-04 chunk review — see `02-REGRESSION-ASSESSMENT.md` §4a).**
+  Absence is now the std VALUE `Option`/`None`, not a tag type, and the payload is a tagged
+  descriptor `Extra(T)` in `src/types/Extra.plk`. Original text:
+  **A dedicated empty tag, decided as "a third tag `none`".** Upstream `main` already ships this
   concept as **`ctime`** (`std/regions.plk`): a fourth region whose `region_ptr_type` is
   `@compile_error("ctime region has no pointer type")` and whose `bytes(ctime)` collapses to
   `cbytes`. Planning decides whether to adopt `ctime` directly or declare a local `none`; the
@@ -124,10 +127,13 @@ say so rather than proceed.
 
 ### Claude's Discretion
 
-- Whether to adopt upstream `ctime` or declare a local `none` tag (semantics are fixed; the choice is
+- ⚠️ STALE — resolved differently: neither. Absence is std `Option`/`None`. Original text:
+  Whether to adopt upstream `ctime` or declare a local `none` tag (semantics are fixed; the choice is
   planning's).
 - Whether the tokenId path uses `$T` implicit generics or explicit `comptime T` threading.
-- The concrete shape of `extra` on the type (`bytes(T)` view vs bare `region_ptr_type(T)`).
+- ⚠️ STALE — resolved as neither: `extra: Option(Extra(T))`, where `Extra(T)` is a tagged
+  descriptor (`flags | offset | len`). Original text:
+  The concrete shape of `extra` on the type (`bytes(T)` view vs bare `region_ptr_type(T)`).
 - Where the regression assessment document lives and what it is called.
 
 </decisions>

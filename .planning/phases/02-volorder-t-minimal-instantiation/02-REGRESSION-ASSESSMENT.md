@@ -65,7 +65,11 @@ Every `.sol` reaches Plank only through packed `u256` words and a `.plk` harness
 
 Note on the two UNVERIFIED rows: 16/18 and 1/3 of their tests DID pass on the bumped toolchain (02-02-SKIP-PROBE.md). Those named passes may be cited as partial evidence in 02-05, but the FILES stay UNVERIFIED because the gate cannot run them. The refactor does not touch `VolRangeWidth` or `SpreadTickAssimetry` (they remain plain fields of the struct), so their status is independent of Phase 2 either way.
 
-## 4. The refactor design that makes §2-3 true by construction
+## 4. The refactor design that makes §2-3 true by construction — ⚠️ STALE, SUPERSEDED BY §4a
+
+> Rejected at the 02-04 chunk review (2026-08-28). Implemented as `c9844d1`, green on gate
+> `33171200236`, reverted by `3af40fb`. **Read §4a instead.** Kept verbatim: it is what the
+> maintainer approved at the 02-03 checkpoint, and the record of why it changed is the point.
 
 **Governing note (maintainer, `TODO.md`, verbatim):** "T must point to a calldata and/or memory region where is guaranteed to find the (poolId, OptionRatio[4]) types." and "In this way the unpack, pack is agnostic and thus is expected to have less regressions."
 
