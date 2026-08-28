@@ -8,9 +8,10 @@ import {Vm} from "forge-std/Vm.sol";
 interface IVolOrderTypeHarness {
     function roundTripNone(uint256 packed) external returns (uint256);
     function extraIsNoneAfterUnpack(uint256 packed) external returns (uint256);
-    function tokenIdViaExtra(uint256 packed, uint256 poolId) external returns (uint256);
-    function extraDecodeFlags(bytes calldata data) external returns (uint256);
-    function packIgnoresExtra(uint256 packed, bytes calldata data) external returns (uint256);
+    function tokenIdWithNoneExtra(uint256 packed, uint256 poolId) external returns (uint256);
+    function extraDecodeFields(uint256 word) external returns (uint256, uint256, uint256);
+    function extraEncodeRoundTrip(uint256 word) external returns (uint256);
+    function packIgnoresExtra(uint256 packed, uint256 word) external returns (uint256);
     function unwrapNoneReverts(uint256 packed) external returns (uint256);
 }
 
@@ -20,26 +21,26 @@ interface IVolOrderToPanopticTokenIdHarness {
 }
 
 /// @title VolOrderTypeTest
-/// @notice Tests for the VolOrder(T) TYPE (Phase 2, VORD-01), written to
-///         .planning/phases/02-volorder-t-minimal-instantiation/02-REGRESSION-ASSESSMENT.md §4a and
-///         RED-first: they are pushed against a tree WITHOUT the type and must fail, proving they
-///         detect its absence, before the implementation is written.
-/// @dev What §4a makes testable, and what each test pins:
-///      - absence is std Option/None, a VALUE -- so `extra` is None after unpack, and reading
-///        through it REVERTS at runtime rather than yielding zero;
-///      - Extra(T).data is a tagged ADDRESS SPACE (flags byte, plus a pointer word under
-///        FLAG_PANOPTIC) whose length must be the one the flags imply -- Shock's rule;
-///      - pack/unpack stay region-agnostic: `extra` never enters the 248-bit word;
-///      - the builder RETURNS the updated VolOrder(T) with the tokenId landed in `extra`, and that
-///        tokenId is bit-identical to the pre-refactor map's.
-///      Plank type-checks only what something instantiates, so the negatives cannot live in a green
-///      harness: they are static fixtures under fixtures/plank-negative/ built through vm.tryFfi.
+/// @notice Tests for the VolOrder(T) TYPE and the Extra(T) DESCRIPTOR (Phase 2, VORD-01), written
+///         RED-first against a tree without them, per
+///         .planning/phases/02-volorder-t-minimal-instantiation/02-REGRESSION-ASSESSMENT.md §4a.
+/// @dev What these pin:
+///      - absence is std Option/None, a VALUE -- `extra` is None after unpack, and reading through
+///        it REVERTS rather than yielding zero;
+///      - Extra(T) is a tagged DESCRIPTOR, flags(u8)@248 | offset(u32)@216 | len(u16)@200, whose
+///        len must be the one its flags imply (76 bits under FLAG_PANOPTIC, 0 otherwise);
+///      - Extra carries NO tokenId: the builder still returns PanopticTokenId, and Phase 2 walks
+///        the no-payload path only, so the id stays bit-identical to the pre-refactor map;
+///      - pack/unpack never touch `extra`.
+///      Plank type-checks only what something instantiates, so the negatives are static fixtures
+///      under fixtures/plank-negative/ built through vm.tryFfi.
 contract VolOrderTypeTest is PlankTestBase {
     IVolOrderTypeHarness internal h;
     IVolOrderToPanopticTokenIdHarness internal ref;
 
     uint256 internal constant MASK_248 = (uint256(1) << 248) - 1;
     uint256 internal constant FLAG_PANOPTIC = 0x01;
+    uint256 internal constant PANOPTIC_BITS = 76; // poolId 48 + 4 x 7-bit ratios
 
     // A valid packed VolOrder: width 2000, tickSpacing 10, volStrike 1, skew 0x8000, targetVega 0.
     uint256 internal constant VO =
@@ -50,6 +51,10 @@ contract VolOrderTypeTest is PlankTestBase {
         ref = IVolOrderToPanopticTokenIdHarness(
             deployPlank("test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk")
         );
+    }
+
+    function _descriptor(uint256 flags, uint256 offset, uint256 len) internal pure returns (uint256) {
+        return (flags << 248) | (offset << 216) | (len << 200);
     }
 
     // ---- absence is a VALUE (Option/None), not a tag type -------------------------------------
@@ -67,55 +72,69 @@ contract VolOrderTypeTest is PlankTestBase {
         h.unwrapNoneReverts(VO);
     }
 
-    // ---- Extra(T).data is a tagged address space ----------------------------------------------
+    // ---- Extra(T) is a validated tagged descriptor --------------------------------------------
 
-    function test__unit__flagsZeroAcceptsExactlyTheFlagByte() public {
-        assertEq(h.extraDecodeFlags(hex"00"), 0, "flags=0 with a 1-byte payload must decode");
+    function test__unit__panopticDescriptorDecodesToItsThreeFields() public {
+        (uint256 flags, uint256 offset, uint256 len) =
+            h.extraDecodeFields(_descriptor(FLAG_PANOPTIC, 0x24, PANOPTIC_BITS));
+        assertEq(flags, FLAG_PANOPTIC, "flags");
+        assertEq(offset, 0x24, "offset");
+        assertEq(len, PANOPTIC_BITS, "len");
     }
 
-    function test__unit__panopticFlagRequiresThePointerWord() public {
-        bytes memory withPtr = abi.encodePacked(uint8(FLAG_PANOPTIC), uint256(0x1234));
-        assertEq(h.extraDecodeFlags(withPtr), FLAG_PANOPTIC, "flags=PANOPTIC with a pointer must decode");
+    function test__unit__emptyDescriptorDecodes() public {
+        (uint256 flags, uint256 offset, uint256 len) = h.extraDecodeFields(0);
+        assertEq(flags, 0);
+        assertEq(offset, 0);
+        assertEq(len, 0, "an unflagged descriptor must carry no payload");
     }
 
-    function test__unit__panopticFlagWithoutThePointerReverts() public {
+    function test__unit__panopticFlagWithTheWrongLengthReverts() public {
         vm.expectRevert();
-        h.extraDecodeFlags(hex"01"); // FLAG_PANOPTIC but no pointer word: length contradicts flags
+        h.extraDecodeFields(_descriptor(FLAG_PANOPTIC, 0x24, 80)); // 80 != 76: len contradicts flags
+    }
+
+    function test__unit__unflaggedDescriptorWithAPayloadLengthReverts() public {
+        vm.expectRevert();
+        h.extraDecodeFields(_descriptor(0, 0x24, PANOPTIC_BITS));
     }
 
     function test__unit__reservedFlagBitsRevert() public {
         vm.expectRevert();
-        h.extraDecodeFlags(hex"02"); // nothing but FLAG_PANOPTIC is defined in Phase 2
+        h.extraDecodeFields(_descriptor(0x02, 0, 0)); // only FLAG_PANOPTIC is defined in Phase 2
     }
 
-    // ---- pack/unpack stay region-agnostic -----------------------------------------------------
+    function test__fuzz__descriptorSurvivesEncodeDecode(uint32 offset) public {
+        uint256 word = _descriptor(FLAG_PANOPTIC, offset, PANOPTIC_BITS);
+        assertEq(h.extraEncodeRoundTrip(word), word, "the packed layout is not a bijection");
+    }
+
+    // ---- pack/unpack never touch `extra` ------------------------------------------------------
 
     function test__fuzz__packIgnoresExtraEntirely(uint256 x) public {
-        bytes memory withPtr = abi.encodePacked(uint8(FLAG_PANOPTIC), uint256(0xdeadbeef));
         assertEq(
-            h.packIgnoresExtra(x, withPtr),
+            h.packIgnoresExtra(x, _descriptor(FLAG_PANOPTIC, 0x24, PANOPTIC_BITS)),
             x & MASK_248,
             "carrying Some(Extra) changed the packed word"
         );
     }
 
-    // ---- the builder returns VolOrder(T) with the tokenId landed in `extra` --------------------
+    // ---- the builder: generic over T, still returns PanopticTokenId, bit-identical -------------
 
-    function test__fuzz__tokenIdLandsInExtraAndIsBitIdentical(uint64 poolId) public {
+    function test__fuzz__tokenIdIsBitIdenticalOnTheNoPayloadPath(uint64 poolId) public {
         assertEq(
-            h.tokenIdViaExtra(VO, poolId),
+            h.tokenIdWithNoneExtra(VO, poolId),
             ref.tokenIdFromVolOrder(VO, poolId),
-            "tokenId read out of `extra` differs from the pre-refactor map"
+            "the generic builder changed the tokenId"
         );
     }
 
     // Phase 2's map is NOT the Haskell map yet: the Haskell volOrderToTokenId takes a 4-tuple of
     // optionRatios (1..127) and sets asset = 1 on every leg, while the Plank Layer-1 map hardcodes
     // optionRatio = 1 and leaves asset unset (vol_order_to_mint adds it). Pinned here so Phase 3
-    // (VORD-04/05, the FLAG_PANOPTIC dereference) has to flip it deliberately and this test reddens
-    // when it does -- rather than the difference living only in prose.
+    // (VORD-04/05, the FLAG_PANOPTIC dereference) has to flip it deliberately.
     function test__unit__phase2MapStillHardcodesRatioOneAndNoAsset() public {
-        uint256 tid = h.tokenIdViaExtra(VO, 42);
+        uint256 tid = h.tokenIdWithNoneExtra(VO, 42);
         for (uint256 leg = 0; leg < 4; leg++) {
             uint256 base = 64 + 48 * leg;
             assertEq((tid >> (base + 1)) & 0x7f, 1, "optionRatio is not the Haskell tuple yet (VORD-04)");
@@ -125,16 +144,16 @@ contract VolOrderTypeTest is PlankTestBase {
 
     // ---- what must NOT compile ----------------------------------------------------------------
 
-    // VolOrder(u256) is rejected transitively: Extra(T) holds bytes(T), and std's region_ptr_type
-    // ends in a compile error for an unrecognised region. (Plain comment, not NatSpec: solc reads a
-    // leading at-sign in /// as a doc tag -- Error 6546.)
+    /// Extra.plk guards T with std::regions::is_region, so a non-region T is our error, not a
+    /// stray one from deeper in std.
     function test__unit__nonRegionTagDoesNotCompile() public {
         Vm.FfiResult memory r = _tryBuild("fixtures/plank-negative/VolOrderBadRegion.plk");
-        assertTrue(r.exitCode != 0, "VolOrder(u256) compiled; nothing rejects a non-region T");
+        assertTrue(r.exitCode != 0, "VolOrder(u256) compiled; Extra must reject a non-region T");
+        assertTrue(_contains(r.stderr, "Extra: T must be a region"), "wrong failure: not Extra's guard");
     }
 
-    /// `extra` is an Option, so its payload is not a directly reachable field.
-    function test__unit__extraPayloadNeedsUnwrap() public {
+    /// `extra` is an Option, so the descriptor's fields are not directly reachable.
+    function test__unit__extraFieldsNeedUnwrap() public {
         Vm.FfiResult memory r = _tryBuild("fixtures/plank-negative/VolOrderExtraNeedsUnwrap.plk");
         assertTrue(r.exitCode != 0, "vo.extra.flags compiled; Option's payload must need unwrap");
     }
@@ -153,5 +172,18 @@ contract VolOrderTypeTest is PlankTestBase {
         a[15] = "--dep"; a[16] = "interfaces=src/interfaces";
         a[17] = "--dep"; a[18] = "helpers=test/protocol_integrations/helpers";
         return vm.tryFfi(a);
+    }
+
+    function _contains(bytes memory hay, string memory needle) internal pure returns (bool) {
+        bytes memory n = bytes(needle);
+        if (n.length > hay.length) return false;
+        for (uint256 i = 0; i + n.length <= hay.length; i++) {
+            bool ok = true;
+            for (uint256 j = 0; j < n.length; j++) {
+                if (hay[i + j] != n[j]) { ok = false; break; }
+            }
+            if (ok) return true;
+        }
+        return false;
     }
 }

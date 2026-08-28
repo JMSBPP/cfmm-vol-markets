@@ -1,8 +1,8 @@
-// NEGATIVE fixture (Phase 2, VORD-01, assessment §4a): `extra` is an Option(Extra(T)), so its
-// payload is NOT directly reachable -- `vo.extra.flags` must be a missing-field compile error.
-// Absence is a VALUE you unwrap, not a field you may read. See VolOrderBadRegion.plk for why this
-// file lives here and how it is driven.
+// NEGATIVE fixture (Phase 2, VORD-01): `extra` is an Option(Extra(T)), so the descriptor's fields
+// are NOT directly reachable -- `vo.extra.flags` must be a missing-field compile error. Absence is a
+// VALUE you unwrap, not a field you may read. See VolOrderBadRegion.plk for why this file lives here.
 import std::constructor::return_runtime;
+import std::regions::calldata;
 import pos_spec::VolOrder::*;
 
 const reads_without_unwrap = fn (vo: VolOrder(calldata)) u256 { vo.extra.flags };
