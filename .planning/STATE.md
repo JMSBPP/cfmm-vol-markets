@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 1
+current_plan: 2
 status: executing
-stopped_at: "Completed 02-01-PLAN.md (Phase 2, 1/5). lib/plank-monorepo pinned 30f3bdc -> 00c0a1a (main; feat/arrays is HTTP 404) on feat/volorder-t-minimal, issue #61, DRAFT PR #62. develop-gate 33168567137 on 5ccefd6 GREEN with the suite UNCHANGED against the last green develop gate 33124709716: 75 suites / 273 passed / 0 failed / 3 skipped, floor 10/10, 3 identical SKIP lines, compile-plank 38/0/0 with an identical entry set, forge b0a9dd9. The compiler moved alone -- VORD-02 attribution safeguard holds. Two deviations, both plan-amended (a3aedb9) before being relied on: a zero-diff draft PR is refused by GitHub so GATE_PRE cannot exist (baseline = last green develop gate, source tree proved byte-identical); and a 4th migration cost the census missed -- upstream addr is now { as_uint: u160 }, three .raw reads went through cast_addr after the maintainer chose amend-the-plan-first. Next: 02-02 (ABI-edge stamp + the one-time --skip probe)."
-last_updated: "2026-08-28T12:05:00.000Z"
-last_activity: "2026-08-28 -- 02-01 done. The first red gate run of Phase 2 (33168041777) was caused by a std STRUCT-LAYOUT change (addr.raw gone), a shape the plan had not sanctioned; per plan the executor stopped, sized it (3 sites), and the maintainer chose to amend the plan before the fix. Cold plankc rebuild at a new pin measured at 52 s -- closes the timeout-minutes headroom item for the plank toolchain."
+stopped_at: "Completed 02-02-PLAN.md (Phase 2, 2/5). Both measuring instruments are in place BEFORE the refactor. (1) ABI-edge stamp: make abi-edge-stamp + an additive push-build step; pre-refactor reference from push-build 33169215017 -- sha256 e801b0e1...77d9, 7 PUSH4 immediates (4 dispatch selectors + Error(string), Panic(uint256), 0xffffffff); same-push gate 33169217185 green at 02-01 counts. (2) The one-time --skip probe f815e25 (reverted by 7e32678): BOTH masked suites are RED on plank 00c0a1a + forge b0a9dd9 seed 4880 -- VolRangeWidthTest 16/2, SpreadTickAssimetryTest 1/2, whole suite 77/290/4/3, delta exactly the two suites; revert gate 33169960869 back to 75/273/0/3. Tracked by NEW issue #63 (#16 untouched). develop-gate.yml is 0 bytes vs develop again; parity 3 patterns. Next: 02-03 -- the regression assessment + maintainer CHECKPOINT; the two masked files are classified UNVERIFIED-with-reason (measured RED, cannot run in the gate)."
+last_updated: "2026-08-28T13:10:00.000Z"
+last_activity: "2026-08-28 -- 02-02 done. The probe answered the census hole with a measured word: RED, 4 failures at seed 4880 (2+2), consistent with the ledger comment. Three of four fail at runs: 0 on inputs carrying a literal 0 in a tick-spacing slot -- recorded on #63 as an observation about the tests bounds, not a conclusion. One executor slip caught by its own check: git revert -q is not a flag; the first revert did nothing, the 0-byte diff check read 570, re-run correctly."
 progress:
   total_phases: 12
   completed_phases: 2
   total_plans: 17
-  completed_plans: 13
-  percent: 76
+  completed_plans: 14
+  percent: 82
 ---
 
 # Project State
@@ -27,13 +27,13 @@ See: .planning/PROJECT.md (updated 2026-08-27)
 ## Current Position
 
 Phase: 2 of 12 (VolOrder(T) Minimal Instantiation) — **IN PROGRESS**, branch `feat/volorder-t-minimal`, issue #61, draft PR #62
-Plan: 1 of 5 in current phase complete
-Current Plan: 1
+Plan: 2 of 5 in current phase complete
+Current Plan: 2
 Total Plans in Phase: 5
-Status: **02-01 COMPLETE — plank pin bumped, gate green on the unchanged suite.** `lib/plank-monorepo` `30f3bdc` → `00c0a1a` (`main`; `feat/arrays` is HTTP 404), `.gitmodules` repointed, 15 planned std moves + 3 unplanned `addr.raw` → `cast_addr` reads. [`develop-gate` `33168567137`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33168567137) on `5ccefd6`: **75 suites, 273/0/3, floor 10/10, 3 identical SKIP lines, compile-plank 38/0/0 (entry set identical), forge `b0a9dd9`** — line-for-line equal to the last green `develop` gate `33124709716`. Evidence: `02-01-GATE-EVIDENCE.md`. Phase 1 state preserved: both differential tests still skip on `spec oracle not wired`. Next: **02-02** (ABI-edge stamp + one-time `--skip` probe).
-Last activity: 2026-08-28 — 02-01 landed after one red run whose cause (`addr` struct layout change upstream) the plan had not sanctioned; stopped, sized, maintainer chose to amend the plan first, then fixed. Prior entry: 2026-08-27 — The merge falsified the premise it was authorized under. This plan was cleared to use `--admin` on the stated basis that `develop` requires one approving review; a live re-measurement immediately before merging returned **no `required_pull_request_reviews` key at all** — protection is `contexts: ["gate"]`, `strict: false`, `enforce_admins: false`, and `mergeStateStatus` was `CLEAN`. A plain `gh pr merge --merge` succeeded. **The bypass was authorized and NOT used.**
+Status: **02-02 COMPLETE — both measuring instruments in place before the refactor.** ABI-edge stamp on every push build; pre-refactor reference `02-02-ABI-EDGE-BASELINE.md` (run [`33169215017`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33169215017): sha256 `e801b0e1…77d9`, **7 selectors** incl. the 4 dispatch). One-time `--skip` probe `f815e25` → reverted `7e32678`: **both masked suites RED** (VolRangeWidthTest 16/2, SpreadTickAssimetryTest 1/2; 77 suites / 290 / 4 / 3, delta exactly the two suites), record `02-02-SKIP-PROBE.md`, owned by **#63**. Revert gate [`33169960869`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33169960869) back at 75 / 273 / 0 / 3. `develop-gate.yml` 0 bytes vs `develop`. Next: **02-03** — regression assessment + maintainer checkpoint.
+Last activity: 2026-08-28 — 02-02: probe measured both masked suites RED (4 failures, seed 4880), reverted, #63 opened. Earlier: 02-01 landed after one red run whose cause (`addr` struct layout change upstream) the plan had not sanctioned; stopped, sized, maintainer chose to amend the plan first, then fixed. Prior entry: 2026-08-27 — The merge falsified the premise it was authorized under. This plan was cleared to use `--admin` on the stated basis that `develop` requires one approving review; a live re-measurement immediately before merging returned **no `required_pull_request_reviews` key at all** — protection is `contexts: ["gate"]`, `strict: false`, `enforce_admins: false`, and `mergeStateStatus` was `CLEAN`. A plain `gh pr merge --merge` succeeded. **The bypass was authorized and NOT used.**
 
-Progress: [████████░░] 76%  (13 of 17 PLANNED plans: Phase 1 at 6/6, Phase 1.1 at 6/6, Phase 2 at 1/5)
+Progress: [████████░░] 82%  (14 of 17 PLANNED plans: Phase 1 at 6/6, Phase 1.1 at 6/6, Phase 2 at 2/5)
 
 **Read that 100% correctly: it is 100% of the plans that have been WRITTEN, not of the milestone.**
 `total_plans: 12` counts only Phases 1 and 1.1, the only two phases decomposed into plans so far.
@@ -194,10 +194,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-28 — 02-01 complete (plank pin bump, gate green on unchanged suite)
+Last session: 2026-08-28 — 02-02 complete (ABI-edge stamp + --skip probe, both instruments in place)
 Previous stop: **Completed 01-06-PLAN.md. PHASE 1 IS COMPLETE (6/6) and merged.** `develop` is at
 `b090b2e`; the working tree is checked out on `develop` and fast-forwarded to it.
-Resume file: `.planning/phases/02-volorder-t-minimal-instantiation/02-02-PLAN.md` — next action is `/superpowers:executing-plans` on it, INLINE. Tree is on `feat/volorder-t-minimal` at `bca07e2`+; draft PR #62 is open so every push re-runs the gate.
+Resume file: `.planning/phases/02-volorder-t-minimal-instantiation/02-03-PLAN.md` — next action is `/superpowers:executing-plans` on it, INLINE. It contains a blocking maintainer CHECKPOINT; inputs are `02-02-ABI-EDGE-BASELINE.md` and `02-02-SKIP-PROBE.md` (both masked files → UNVERIFIED, measured RED). Tree is on `feat/volorder-t-minimal` at `bca07e2`+; draft PR #62 is open so every push re-runs the gate.
 
 **Phase 2 EXECUTION GATE (maintainer, verbatim intent): plans are executed by the superpowers INLINE executor in the maintainer's session. gsd-executor and background agents are BARRED. Every Phase 2 PLAN.md carries this gate at its top.**
 
