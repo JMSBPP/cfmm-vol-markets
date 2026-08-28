@@ -1,0 +1,7 @@
+{
+  "ink":    { "light": "#0E1116", "dark": "#E8EAED" },
+  "canvas": { "light": "#FFFFFF", "dark": "#0D1117" },
+  "accent": "#1B9E5A",
+  "accent_contrast": { "light": 3.45, "dark": 5.48 },
+  "min_contrast": 3.0
+}

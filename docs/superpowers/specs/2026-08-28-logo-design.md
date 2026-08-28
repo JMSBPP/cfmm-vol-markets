@@ -171,19 +171,25 @@ two variants rather than four.
 
 A candidate failing either bound is rejected regardless of preference.
 
-**Finding (planning, 2026-08-28):** the two candidates originally named here — `#2FBF71`
-and `#E0A526` — BOTH FAIL the light-canvas bound. Hand computation gives 2.38 and 2.10
-against `#FFFFFF` respectively, while both clear the dark bound comfortably (7.85, 8.92).
-A single fixed accent serving both canvases must be mid-luminance; solving the two
-inequalities gives the required window
+**Finding (2026-08-28), measured by `assets/logo/tools/check_accent.py`:** the two candidates
+originally named here — `#2FBF71` and `#E0A526` — BOTH FAIL the light-canvas bound. A single
+fixed accent serving both canvases must be mid-luminance; solving the two inequalities gives the
+required window
 
-> **L ∈ [0.1182, 0.3000]**
+> **L ∈ [0.1164, 0.3000]**
 
-which is non-empty and comfortable. `#1B9E5A` (L ≈ 0.254; 3.45 light / 5.43 dark) and
-`#B07A12` (L ≈ 0.232; 3.73 / 5.02) are computed to sit inside it and are the working
-candidates. These figures are hand-derived and MUST be confirmed by
-`assets/logo/tools/check_accent.py` at execution; the tool, not this note, is
-authoritative.
+which is non-empty and comfortable.
+
+| Candidate | L | vs `#FFFFFF` | vs `#0D1117` | Verdict |
+|---|---|---|---|---|
+| `#2FBF71` | 0.3906 | 2.38 | 7.94 | FAIL |
+| `#E0A526` | 0.4290 | 2.19 | 8.63 | FAIL |
+| `#1B9E5A` | 0.2542 | 3.45 | 5.48 | **PASS — selected** |
+| `#B07A12` | 0.2319 | 3.72 | 5.08 | PASS |
+
+These are tool-measured, superseding the hand estimates this note first carried. The selected
+accent and its two ratios are recorded in `assets/logo/palette.json`; that file and the tool,
+not this table, are authoritative.
 
 ### 5.1 Theme delivery
 
