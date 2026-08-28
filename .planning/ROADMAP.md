@@ -319,7 +319,17 @@ aspirational: it establishes *which* files were expected to be untouched in the 
      `vol_order_leg_split` and `VolOrderToPanopticTokenIdHarness.plk` against the minimal
      instantiation, and the differential test still compiles and still skips in the same run
      (Phase 1 state preserved).
-**Plans**: TBD
+**Plans**: 5 plans in 5 waves (strictly sequential — the toolchain bump must be green on the
+unchanged suite before instrumentation, instrumentation before the assessment, the assessment's
+checkpoint before the refactor, the refactor's gate run before the merge). **Every plan carries the
+EXECUTION GATE: superpowers INLINE executor in the maintainer's session only; `autonomous: false`.**
+
+Plans:
+- [ ] 02-01-PLAN.md — tracking issue + `feat/volorder-t-minimal` + draft PR; `lib/plank-monorepo` `30f3bdc` → `00c0a1a` (`main`; `feat/arrays` is 404) with the ~15 std moves and NOTHING else; gate GREEN on the unchanged suite = the VORD-02 attribution safeguard (VORD-02)
+- [ ] 02-02-PLAN.md — `make abi-edge-stamp` + additive push-build step stamping the harness's sha256 + PUSH4 selector set (pre-refactor reference); the ONE-TIME `--skip` probe for `*VolRangeWidth*` / `*SpreadTickAssimetryHelper*`, measured and reverted; a new scoped issue (VORD-02/03)
+- [ ] 02-03-PLAN.md — `02-REGRESSION-ASSESSMENT.md`: every coupled `.plk`/`.sol` classified with the evidence bar, elimination bucket predicted empty (HARD STOP otherwise), the design recorded (local `none` tag, explicit `comptime T`, `extra: bytes(T)`, `vol_order_base`); blocking maintainer checkpoint (VORD-01/02/03; has a checkpoint)
+- [ ] 02-04-PLAN.md — the refactor: `VolOrder(T)` in 4 files only, `comptime T` on the tokenId path only, harness surface frozen; gate green with 02-01's counts, floor 10/10 untouched, differential still skips, stamp selector set identical (VORD-01/02/03)
+- [ ] 02-05-PLAN.md — assessment FINAL from the gate evidence, `--skip` decision applied or deferred, PR ready, protection re-measured, merge, criteria verified on `origin/develop`, branch retired with `-d`, STATE/ROADMAP/REQUIREMENTS hand-edited (VORD-01/02/03)
 
 ### Phase 3: VolOrder(T) Rich Instantiation
 **Directory**: `.planning/phases/FEATURES/feat-volorder-t-rich/`
