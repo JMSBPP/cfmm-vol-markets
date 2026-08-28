@@ -40,3 +40,6 @@
 [submodule "refs"]
 	path = refs
 	url = https://github.com/d2p-finance/cfmm-refs.git
+[submodule "evm-spec-bridge"]
+	path = evm-spec-bridge
+	url = https://github.com/d2p-finance/evm-spec-bridge.git
