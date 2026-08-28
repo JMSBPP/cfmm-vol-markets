@@ -283,13 +283,30 @@ single `_optionRatio` assert would.
 
 **Constraint:** *asset is written in exactly one place*, pinned by a dedicated test.
 
-### 7.1 The Phase-2 pin is retired deliberately
+### 7.1 The Phase-2 pin is RENAMED, not retired — CORRECTED 2026-08-28
+
+> **An earlier version of this section was titled "The Phase-2 pin is retired deliberately" and
+> claimed the pin "goes RED the moment Layer 1 sets asset."** That premise was **wrong**. It is
+> corrected here rather than swapped out, so the same treatment the roadmap and `03-CONTEXT.md`
+> received applies to this document too and none of the three pretends the belief was never held.
+> Found by a peer session measuring the signature-change blast radius rather than reasoning about it.
 
 `test__unit__phase2MapStillHardcodesRatioOneAndNoAsset` (`VolOrderType.t.sol`) asserts
-`optionRatio == 1` and `asset == 0` on all four legs. It goes RED the moment Layer 1 sets asset. It is
-Phase 3 criterion 5's pin and exists precisely to make this moment visible. It is updated or retired
-as a **traceable, argued change with the reason recorded** — silently deleting the assertion to get
-green is the failure the criterion was written to catch.
+`optionRatio == 1` and `asset == 0` on all four legs — and it calls `tokenIdWithNoneExtra`, the
+**no-payload path**. Phase 3 leaves that path alone by design: its criteria 3 and 4 **require**
+`optionRatio == 1` and `asset == 0` to stay true there. The harnesses behind the pin and the floor
+keep their ABIs and pass a literal `0` for the new asset-bit parameter, so neither output moves.
+
+**The assertions stay byte-identical. What became false is the NAME.**
+`…MapStillHardcodes…` implies *not yet* — a temporary state awaiting correction. After Phase 3 it is
+the permanent, intended behaviour of the no-payload path. So it is renamed, not retired.
+
+**The requirement is unchanged.** §7's demand that the pin be handled as a *"traceable, argued change
+with the reason recorded"* survives intact: a rename is both traceable and argued. Only the **reason**
+this section gave for it was wrong. A reader meeting a correction usually assumes the requirement
+moved too; here it did not.
+
+Silently deleting the assertion to get green remains the failure the criterion was written to catch.
 
 ### 7.2 Why the 10/10 floor is not breached
 
