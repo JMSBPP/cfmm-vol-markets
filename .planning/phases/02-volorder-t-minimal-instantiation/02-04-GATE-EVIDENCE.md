@@ -19,6 +19,11 @@
 
 Job conclusions: approve=success forge=success plank=success gate=success.
 
+Verbatim, one run per line:
+
+    02-01 33168567137  compile-plank: 38 ok, 0 failed, 0 skipped
+    02-04 33171200236  compile-plank: 38 ok, 0 failed, 0 skipped
+
 `compile-plank` OK lines for the VolOrder(T) entrypoints:
    OK   src/modules/pos_spec/VolOrderManagerMod.plk -> build/plank/src_modules_pos_spec_VolOrderManagerMod.hex
    OK   test/protocol_integrations/VolOrderMintSizingHarness.plk -> build/plank/test_protocol_integrations_VolOrderMintSizingHarness.hex

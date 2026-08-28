@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 3
+current_plan: 4
 status: executing
-stopped_at: "Completed 02-03-PLAN.md (Phase 2, 3/5). 02-REGRESSION-ASSESSMENT.md is on the branch and APPROVED 2026-08-28 by the maintainer (resume signal verbatim: approve). Census re-measured: 17 .plk (CONTEXT said 12 -- a src/-only grep; content unchanged) + 19 .sol + 2 masked. Classification: 4 mechanical (VolOrder.plk, PanopticTokenIdSetterLib.plk, VolOrderValidationLib.plk, the harness -- internal only, surface frozen), 31 survives-untouched rows, 1 OUT OF SCOPE (src/modules/VolOrderManagerMod.plk own struct), 2 UNVERIFIED (masked, measured RED, #63). Elimination bucket: NONE PREDICTED. Design 1-6 approved: local none tag, explicit comptime T, extra: bytes(T), vol_order_base projection, generic only on vol_order_to_panoptic_token_id, phantom-type concept. --skip retirement MOOT (red). HARD STOP confirmed. Next: 02-04 -- the refactor, 4 files, ONE commit, exact edit list in assessment section 4."
-last_updated: "2026-08-28T13:40:00.000Z"
-last_activity: "2026-08-28 -- 02-03 done. The decision is the deliverable and it is on record: which files may change (4, with an exact edit list) and which may not (33 rows + 2 UNVERIFIED), approved verbatim before the first VolOrder edit. Only literal-criterion friction: the string OUT OF SCOPE appeared twice (row + a sentence referring to it); the sentence was reworded rather than the intent argued."
+stopped_at: "Completed 02-04-PLAN.md (Phase 2, 4/5). THE REFACTOR IS IN: c9844d1, exactly the 4 assessment-mechanical files (+94/-38), ONE commit, GREEN ON THE FIRST PUSH. develop-gate 33171200236: 75 suites / 273 / 0 / 3 (equal to 02-01), compile-plank 38/0/0 with an identical entry set, forge b0a9dd9. Criterion 3: VolOrderToPanopticTokenId.t.sol 10/10 all PASS with a 0-byte diff -- VORD-02 bit-identity is now evidence. Criterion 5: VolOrderMintSizing.t.sol 8/8 (all VORD-03 callers), differential 2x SKIP on the exact SKIP_REASON + 2x PASS, 0-byte diff. ABI edge: selector set IDENTICAL (7), sha256 DIFFERENT (internals moved, surface did not -- recorded). Committed diff vs develop is exactly 12 files (8 std moves + 4 refactor). No misprediction in the assessment. Evidence: 02-04-GATE-EVIDENCE.md. Next: 02-05 -- assessment FINAL from this run, PR ready, protection re-measured live, merge, branch retired with -d, VORD-01..03 ticked."
+last_updated: "2026-08-28T14:30:00.000Z"
+last_activity: "2026-08-28 -- 02-04 done, green first push. Plank comptime-if pruning and T == none behaved exactly as Shock(R) and std/regions.plk implied. Two executor findings: the plan sed missed two sites with a space before the comma (self: VolOrder ,skew) -- reconciled by hand, sed not loosened; and the plan inserts comments containing VolOrder(none) that inflate its own grep -c counts (20 vs 18, 6 vs 5) -- comment-stripped counts exact. set -e did not abort the executor shell on a failed count; nothing wrong was committed."
 progress:
   total_phases: 12
   completed_phases: 2
   total_plans: 17
-  completed_plans: 15
-  percent: 88
+  completed_plans: 16
+  percent: 94
 ---
 
 # Project State
@@ -27,13 +27,13 @@ See: .planning/PROJECT.md (updated 2026-08-27)
 ## Current Position
 
 Phase: 2 of 12 (VolOrder(T) Minimal Instantiation) — **IN PROGRESS**, branch `feat/volorder-t-minimal`, issue #61, draft PR #62
-Plan: 3 of 5 in current phase complete
-Current Plan: 3
+Plan: 4 of 5 in current phase complete
+Current Plan: 4
 Total Plans in Phase: 5
-Status: **02-03 COMPLETE — regression assessment APPROVED before any code moves.** `02-REGRESSION-ASSESSMENT.md` (branch `2723615`+): 17 `.plk` + 19 `.sol` + 2 masked, every file a row; **4 mechanical, 31 survive, 1 out-of-scope, 2 UNVERIFIED (#63), elimination bucket NONE**. Design 1-6 and the exact 4-file edit list approved; maintainer signal verbatim `approve`; `--skip` question MOOT (red); HARD STOP confirmed. Next: **02-04** — the refactor, one commit, then the gate + ABI stamp read against 02-01/02-02 references.
-Last activity: 2026-08-28 — 02-03: assessment approved verbatim (`approve`), elimination bucket empty. Earlier: 02-02: probe measured both masked suites RED (4 failures, seed 4880), reverted, #63 opened. Earlier: 02-01 landed after one red run whose cause (`addr` struct layout change upstream) the plan had not sanctioned; stopped, sized, maintainer chose to amend the plan first, then fixed. Prior entry: 2026-08-27 — The merge falsified the premise it was authorized under. This plan was cleared to use `--admin` on the stated basis that `develop` requires one approving review; a live re-measurement immediately before merging returned **no `required_pull_request_reviews` key at all** — protection is `contexts: ["gate"]`, `strict: false`, `enforce_admins: false`, and `mergeStateStatus` was `CLEAN`. A plain `gh pr merge --merge` succeeded. **The bypass was authorized and NOT used.**
+Status: **02-04 COMPLETE — `VolOrder(T)` is in, green on the first push.** Refactor `c9844d1`, exactly the 4 mechanical files, one commit. [`develop-gate` `33171200236`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33171200236): **75 / 273 / 0 / 3** (= 02-01), `compile-plank 38/0/0` entry set identical; **regression floor 10/10 all PASS, 0-byte diff — VORD-02 bit-identity is evidence**; MintSizing 8/8 (VORD-03); differential 2× SKIP on `SKIP_REASON` + 2× PASS, 0-byte diff. ABI edge: **selector set IDENTICAL**, sha256 different (internals only, recorded). No assessment row mispredicted. Next: **02-05** — finalize assessment, PR, re-measure protection, merge, retire branch.
+Last activity: 2026-08-28 — 02-04: refactor green first push, floor 10/10 untouched, selector set identical. Earlier: 02-03: assessment approved verbatim (`approve`), elimination bucket empty. Earlier: 02-02: probe measured both masked suites RED (4 failures, seed 4880), reverted, #63 opened. Earlier: 02-01 landed after one red run whose cause (`addr` struct layout change upstream) the plan had not sanctioned; stopped, sized, maintainer chose to amend the plan first, then fixed. Prior entry: 2026-08-27 — The merge falsified the premise it was authorized under. This plan was cleared to use `--admin` on the stated basis that `develop` requires one approving review; a live re-measurement immediately before merging returned **no `required_pull_request_reviews` key at all** — protection is `contexts: ["gate"]`, `strict: false`, `enforce_admins: false`, and `mergeStateStatus` was `CLEAN`. A plain `gh pr merge --merge` succeeded. **The bypass was authorized and NOT used.**
 
-Progress: [█████████░] 88%  (15 of 17 PLANNED plans: Phase 1 at 6/6, Phase 1.1 at 6/6, Phase 2 at 3/5)
+Progress: [█████████░] 94%  (16 of 17 PLANNED plans: Phase 1 at 6/6, Phase 1.1 at 6/6, Phase 2 at 4/5)
 
 **Read that 100% correctly: it is 100% of the plans that have been WRITTEN, not of the milestone.**
 `total_plans: 12` counts only Phases 1 and 1.1, the only two phases decomposed into plans so far.
@@ -195,10 +195,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-28 — 02-03 complete (regression assessment APPROVED at the checkpoint)
+Last session: 2026-08-28 — 02-04 complete (VolOrder(T) refactor green on first push)
 Previous stop: **Completed 01-06-PLAN.md. PHASE 1 IS COMPLETE (6/6) and merged.** `develop` is at
 `b090b2e`; the working tree is checked out on `develop` and fast-forwarded to it.
-Resume file: `.planning/phases/02-volorder-t-minimal-instantiation/02-04-PLAN.md` — next action is `/superpowers:executing-plans` on it, INLINE. The exact edit list is `02-REGRESSION-ASSESSMENT.md` §4; references to diff against: `02-01-GATE-EVIDENCE.md` (suite counts) and `02-02-ABI-EDGE-BASELINE.md` (sha256 + 7 selectors). Any elimination candidate = HARD STOP. Tree is on `feat/volorder-t-minimal` at `bca07e2`+; draft PR #62 is open so every push re-runs the gate.
+Resume file: `.planning/phases/02-volorder-t-minimal-instantiation/02-05-PLAN.md` — next action is `/superpowers:executing-plans` on it, INLINE. Inputs: `02-04-GATE-EVIDENCE.md` fills every `(02-05 fills)` cell of the assessment; `--skip` decision is MOOT (red); re-measure `develop` protection live before merging; `git branch -d` only. Tree is on `feat/volorder-t-minimal` at `bca07e2`+; draft PR #62 is open so every push re-runs the gate.
 
 **Phase 2 EXECUTION GATE (maintainer, verbatim intent): plans are executed by the superpowers INLINE executor in the maintainer's session. gsd-executor and background agents are BARRED. Every Phase 2 PLAN.md carries this gate at its top.**
 
