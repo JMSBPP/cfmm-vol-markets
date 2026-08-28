@@ -411,15 +411,16 @@ travels: the spec's findings carry only its author's verification and this sessi
 independent adversarial pass. Criterion 9 is the in-phase substitute, which is cheaper but is not the
 same thing.
 **Open questions for planning**:
-  - **The phase's own evidence base is not reproducible in CI.** `lib/panoptic-v2-core` is
-    UNINITIALIZED and its stale partial checkout blocks `git submodule update --init`; findings F1–F5
-    rest on a scratchpad clone OUTSIDE the repo, so no gate job and no other session can re-verify
-    them. Whether repairing the submodule belongs to this phase is unresolved — but under the
-    CI-is-the-only-validation-gate doctrine, unreproducible evidence is a gap, not a detail.
-  - `lib/plank-monorepo`'s working directory is empty (pin `00c0a1a`, objects intact), so
-    `make plank-toolchain` cannot run in this checkout; std was read via
-    `git -C lib/plank-monorepo cat-file -p 00c0a1a:<path>`. Whether the runner's checkout is
-    populated — i.e. whether this phase can compile at all in the gate — is unverified.
+  - **Stale LOCAL checkouts, not a CI gap** (corrected 2026-08-28; an earlier draft of this entry
+    claimed the evidence base was unreproducible in CI, which is FALSE). `develop-gate.yml:123-126`
+    syncs, inits `lib/panoptic-v2-core` one level, blocks `panoptic-helper` — it contains
+    `panoptic-v2-core` and would recurse infinitely — then recursive-inits `lib/`; both the forge and
+    plank jobs then run `make plank-toolchain`, which rebuilds the compiler from the pinned submodule
+    because the runner's persistent `~/.plank/bin/plank` does not track the pin. So `contracts/` IS
+    present in the gate, findings F1–F5 ARE re-checkable there, and 2.5 will compile. What is broken
+    is this working tree — a stale 6-file partial checkout for panoptic, an empty worktree for
+    plank-monorepo — which is developer ergonomics, not validation. The open question is whether
+    cleaning them belongs to this phase, so a developer can re-verify without a scratchpad clone.
   - Decision 6 (registry lookup over CREATE2) has consequences past Phase 3 and is flagged in the
     spec for EXPLICIT maintainer review, not merely carried as ruled.
   - The residual Haskell divergence: the oracle sets `asset = 1` unconditionally and cannot express
