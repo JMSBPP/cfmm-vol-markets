@@ -302,18 +302,19 @@ contract VolMarketKeyTest is PlankTestBase {
             "the id must be keccak over exactly these five fields, in this order"
         );
 
-        // Perturbing any single field must change the id. Constructed, not assumed: each variant
-        // differs from the base in exactly one position.
-        assertTrue(got != _v4PoolIdFor(c0 + 1, c1, fee, tickSpacing, hooks), "currency0 not hashed");
-        assertTrue(got != _v4PoolIdFor(c0, c1 + 1, fee, tickSpacing, hooks), "currency1 not hashed");
+        // Perturbing any single field must change the id. XOR 1 rather than + 1: the fuzzer found
+        // that `hooks + 1` panics with 0x11 when hooks == type(uint256).max (run 28 of
+        // 33211646329). XOR flips the low bit, always changes the value, and cannot overflow.
+        assertTrue(got != _v4PoolIdFor(c0 ^ 1, c1, fee, tickSpacing, hooks), "currency0 not hashed");
+        assertTrue(got != _v4PoolIdFor(c0, c1 ^ 1, fee, tickSpacing, hooks), "currency1 not hashed");
         assertTrue(
-            got != _v4PoolIdFor(c0, c1, uint256(fee) + 1, tickSpacing, hooks), "fee not hashed"
+            got != _v4PoolIdFor(c0, c1, uint256(fee) ^ 1, tickSpacing, hooks), "fee not hashed"
         );
         assertTrue(
-            got != _v4PoolIdFor(c0, c1, fee, uint256(tickSpacing) + 1, hooks),
+            got != _v4PoolIdFor(c0, c1, fee, uint256(tickSpacing) ^ 1, hooks),
             "tickSpacing not hashed"
         );
-        assertTrue(got != _v4PoolIdFor(c0, c1, fee, tickSpacing, hooks + 1), "hooks not hashed");
+        assertTrue(got != _v4PoolIdFor(c0, c1, fee, tickSpacing, hooks ^ 1), "hooks not hashed");
     }
 
     function _v4PoolIdFor(uint256 c0, uint256 c1, uint256 fee, uint256 ts, uint256 hooks)
