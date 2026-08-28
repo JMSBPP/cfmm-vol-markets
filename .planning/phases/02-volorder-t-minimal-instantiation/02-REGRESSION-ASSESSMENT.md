@@ -170,8 +170,10 @@ such Extra(T) ? I am aware there is Option and None ?"* — answered: no, std su
    The region's data has STRUCTURE — a tagged **address space**: `flags(u8) || [ptr(u256) if
    FLAG_PANOPTIC]`, with `FLAG_PANOPTIC = 0x01` and reserved bits rejected on decode (Shock's rule:
    length derived from flags, mismatch reverts).
-3. **Pointer, not copy.** Under `FLAG_PANOPTIC` the data holds an OFFSET into region `T` where
-   `(poolId, OptionRatio[4])` live; the builder dereferences it. Phase 3.
+3. **Pointer, not copy.** Under `FLAG_PANOPTIC` the data holds an OFFSET into region `T` where the
+   operands live; the builder dereferences it. Phase 3.
+   **AMENDED 2026-08-28 (maintainer: "keep it"):** the operands are the **four optionRatios ONLY**.
+   `pool_id` STAYS an explicit parameter of `vol_order_to_panoptic_token_id` — see decision 7.
 4. **The tokenId LANDS in `extra`.**
    `vol_order_to_panoptic_token_id = fn (comptime T: type, vo: VolOrder(T), pool_id: u256) VolOrder(T)`
    returns `vo` with `extra = Some(Extra { …, token_id: Some(tid) })`. `PanopticTokenId` stops being
@@ -180,10 +182,25 @@ such Extra(T) ? I am aware there is Option and None ?"* — answered: no, std su
    `unpack_vol_order`, `build_vol_order`, the four setters, `VolOrderValidationLib`,
    `VolOrderManagerMod`, both harnesses. `pack_vol_order` ignores `extra`: region-agnostic, unchanged.
 6. **Scope split.** Phase 2 = the type, `Extra(T)` decode for `flags ∈ {0, FLAG_PANOPTIC}` (structure
-   only), the `None` path of the builder (geometry exactly as today, `pool_id` still a parameter,
-   tokenId written into `extra`), and RED→GREEN tests for all of it. Phase 3 = the `FLAG_PANOPTIC`
-   dereference — `pool_id` and the four ratios read through the pointer, and the `pool_id` parameter
-   retires. Phase 4 = the wire format of `data` beyond the flag byte.
+   only), the `None` path of the builder (geometry exactly as today, `pool_id` still a parameter),
+   and RED→GREEN tests for all of it. Phase 3 = the `FLAG_PANOPTIC` dereference — the four ratios
+   read through the pointer. Phase 4 = the wire format of `data` beyond the flag byte.
+
+7. **`pool_id` STAYS AN EXPLICIT PARAMETER (maintainer, 2026-08-28: "keep it").** An earlier draft of
+   this section said the parameter "retires" once the descriptor could reach `(poolId, ratios)`.
+   That was the executor's inference, not a maintainer decision, and it was written here as settled —
+   corrected on being questioned. **Reason to keep it:** the Haskell oracle keeps it explicit —
+   `volOrderToTokenId :: VolOrder -> Integer -> (Integer,Integer,Integer,Integer) -> PanopticTokenId`
+   — and `spec/` is the authority for this milestone; matching its shape is worth more than removing a
+   parameter. Retiring it would also have been the only way to avoid a dual source for one datum,
+   which is now moot: poolId is not in the descriptor at all.
+   **Consequence, owned by Phase 3:** the `FLAG_PANOPTIC` payload is the **four optionRatios only —
+   4 × 7 = 28 bits**, not 76. `EXTRA_PANOPTIC_BITS = 76` in `src/types/Extra.plk` (and the `PANOPTIC_BITS`
+   constant plus four assertions in `VolOrderType.t.sol`) still say 76 and must move to 28 when Phase 3
+   defines the payload. They are not changed now: nothing dereferences the descriptor yet, so the value
+   is inert, and moving it would cost a branch, PR and gate cycle to change a number no code reads.
+   **Also stale for the same reason:** the comment at `src/lib/protocol_integrations/PanopticTokenIdSetterLib.plk:28`
+   ends "…and retire the pool_id parameter" — Phase 3 fixes it when it edits that function.
 
 **Consequences for §2-3.** The four rows classified *mechanical* stay mechanical, but their edit is
 larger than §4's: every `VolOrder` struct literal gains `extra: None(Extra(calldata))`, and both
