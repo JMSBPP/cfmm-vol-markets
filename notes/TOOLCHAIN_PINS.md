@@ -103,6 +103,11 @@ methods (#292), and the fix for a frontend panic when a generic function shadows
 - `std::addr::*` → `std::core::addr::*` (`3df1d1a` rearranged std): 3 import lines.
 - `std::core_ops::bool_to_u256` removed from std (`77f3afd`): 5 imports deleted, 7 call sites →
   builtin `@bool_to_u256`.
+- `addr` struct layout: `{ raw: u256 }` → `{ as_uint: u160 }` with the accessor `cast_addr(this, Dst)`.
+  NOT caught by the planning-time census (which grepped import paths, not field reads); found by
+  GATE_POST `33168041777` going red on `error: unknown field`. 3 field reads → `cast_addr(x, u256)`,
+  1 import extended. Lesson for the next bump: grep **field accesses** on every imported std type,
+  not just the import paths.
 - `memptr` removed (`a87d2ef`): 0 occurrences in `src/` and `test/`. `lib/plankified-univ3`
   (`9a89319`) still uses it in `plank/lib/abi.plk`, which nothing imports — unreachable, not bumped.
 - CLI: `build`, `--backend sona`, `--dep` unchanged; NEW `--evm-version` (Cancun|Prague|Osaka,
