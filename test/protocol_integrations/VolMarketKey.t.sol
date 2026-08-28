@@ -30,6 +30,49 @@ contract VolMarketKeyTest is PlankTestBase {
         assertEq(abi.decode(r, (uint256)), 57, "venue codes wrong: a comptime branch is mis-wired");
     }
 
+    // ---- KEY-06 / F1: the asset/numeraire inversion ---------------------------------------------
+
+    /// Panoptic's `asset` bit names the CASH token that positionSize is denominated in
+    /// (TokenId.sol:112-116; PanopticMath.getLiquidityChunk "in TradFi, the asset is always cash").
+    /// This protocol calls that token the NUMERAIRE and calls the OTHER one the asset, so the
+    /// mapping INVERTS asset_index.
+    ///
+    /// BOTH values are asserted deliberately: a copy instead of a NOT agrees at asset_index == 1
+    /// and differs only at 0, so a single-value test would pass on the wrong implementation.
+    ///
+    /// This is the highest-consequence assertion in the phase. Inverted, the builder emits a
+    /// STRUCTURALLY VALID tokenId denominated in the wrong token: Panoptic's validate() passes,
+    /// the position mints, position_size_for_target_vega inverts the wrong formula, and nothing
+    /// reverts. It survives a green gate, which is why the phase's criterion 9 singles it out.
+    function test__unit__panopticAssetBitInvertsAssetIndex() public {
+        (bool ok0, bytes memory r0) =
+            harness.staticcall(abi.encodeWithSignature("panopticAssetBit(uint256)", uint256(0)));
+        require(ok0, "panopticAssetBit(0) reverted");
+        assertEq(
+            abi.decode(r0, (uint256)),
+            1,
+            "asset_index 0 (currency0 is the asset) => numeraire is currency1 => Panoptic bit 1"
+        );
+
+        (bool ok1, bytes memory r1) =
+            harness.staticcall(abi.encodeWithSignature("panopticAssetBit(uint256)", uint256(1)));
+        require(ok1, "panopticAssetBit(1) reverted");
+        assertEq(
+            abi.decode(r1, (uint256)),
+            0,
+            "asset_index 1 (currency1 is the asset) => numeraire is currency0 => Panoptic bit 0"
+        );
+    }
+
+    /// asset_index indexes a PAIR, so its domain is {0, 1}. Anything else is a caller error and
+    /// must revert rather than be silently masked -- a masked 2 would read as 0 and pick the wrong
+    /// currency, which is the same failure as the inversion with a different cause.
+    function test__unit__assetIndexAboveOneReverts() public {
+        (bool ok,) =
+            harness.staticcall(abi.encodeWithSignature("panopticAssetBit(uint256)", uint256(2)));
+        assertFalse(ok, "asset_index == 2 must revert, not mask to 0");
+    }
+
     // ---- what must NOT compile -----------------------------------------------------------------
 
     /// VolMarketKey.plk guards V with is_venue, so a non-venue tag is OUR error, not a stray one

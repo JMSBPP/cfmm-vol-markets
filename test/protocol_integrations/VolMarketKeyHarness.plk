@@ -10,6 +10,8 @@ import types::protocol_integrations::VolMarketKey::*;
 
 // cast sig "venueWitness()"            -> 0xbe55e3a4
 const SEL_VENUE_WITNESS = 0xbe55e3a4;
+// cast sig "panopticAssetBit(uint256)" -> 0x62135fee
+const SEL_PANOPTIC_ASSET_BIT = 0x62135fee;
 
 init { return_runtime(); }
 
@@ -50,6 +52,22 @@ run {
             | @evm_shl(2, venue_code(V3, k3))
             | @evm_shl(4, venue_code(Algebra, ka))
         );
+    }
+
+    // panopticAssetBit(asset_index) -> the Panoptic asset bit a key with that asset_index derives.
+    // KEY-06 / F1. The mapping is a NOT, so the test asserts BOTH values: a copy would agree at
+    // asset_index == 1 and disagree only at 0.
+    if selector == SEL_PANOPTIC_ASSET_BIT {
+        let k = VolMarketKey(V4) {
+            currency0: 0,
+            currency1: 0,
+            asset_index: @evm_calldataload(4),
+            fee: 0,
+            tick_spacing: 0,
+            registry: 0,
+            pool: 0
+        };
+        return_1(vol_market_key_panoptic_asset_bit(V4, k));
     }
 
     @evm_stop();
