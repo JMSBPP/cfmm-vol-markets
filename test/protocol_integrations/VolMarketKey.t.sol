@@ -97,7 +97,9 @@ contract VolMarketKeyTest is PlankTestBase {
     /// The two derivations must not be assumed identical. Fed the same word they disagree, which
     /// is the property a shared implementation would silently break.
     function test__unit__v3AndV4PatternsDifferForTheSameWord() public {
-        uint256 w = 0x1234567890abcdef1122334455667788aabbccdd;
+        // Leading 00 is REQUIRED, not cosmetic: a bare 40-hex-digit literal is parsed by solc as an
+        // address literal and rejected for a bad checksum (Error 9429). Same numeric value.
+        uint256 w = 0x001234567890abcdef1122334455667788aabbccdd;
         (, bytes memory r4) = harness.staticcall(abi.encodeWithSignature("v4Pattern(uint256)", w));
         (, bytes memory r3) = harness.staticcall(abi.encodeWithSignature("v3Pattern(uint256)", w));
         assertTrue(
