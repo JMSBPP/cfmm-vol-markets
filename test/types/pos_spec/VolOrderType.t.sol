@@ -13,6 +13,12 @@ interface IVolOrderTypeHarness {
     function extraEncodeRoundTrip(uint256 word) external returns (uint256);
     function packIgnoresExtra(uint256 packed, uint256 word) external returns (uint256);
     function unwrapNoneReverts(uint256 packed) external returns (uint256);
+    // Phase 2.5 (VORD-07): the 40-bit FLAG_PANOPTIC payload.
+    function payloadOptionRatio(uint256 payload, uint256 leg) external returns (uint256);
+    function payloadTokenType(uint256 payload, uint256 leg) external returns (uint256);
+    function payloadVegoid(uint256 payload) external returns (uint256);
+    function payloadValidate(uint256 payload) external returns (uint256);
+    function payloadRequireVegoidAgrees(uint256 payload, uint256 poolId) external returns (uint256);
 }
 
 /// @notice The pre-refactor tokenId map, for the bit-identity comparison.
@@ -31,7 +37,9 @@ interface IVolOrderToPanopticTokenIdHarness {
 ///        200..215. (Bit positions in prose, never with a leading at-sign: solc parses that in
 ///        NatSpec as a documentation tag and rejects the file with Error 6546 -- the same trap
 ///        test/pos_spec/VolOrderDecoder.sol documents.) Its len must be the one its flags
-///        imply: 28 bits under FLAG_PANOPTIC (four 7-bit optionRatios), 0 otherwise;
+///        imply: 40 bits under FLAG_PANOPTIC, 0 otherwise. WIDENED from 28 in Phase 2.5: leg k
+///        occupies bits 8k..8k+7 (optionRatio 7 bits at 8k, tokenType 1 bit at 8k+7) and vegoid
+///        occupies bits 32..39. The leg STRIDE moved from 7 to 8, so every offset moved;
 ///      - Extra carries NO tokenId: the builder still returns PanopticTokenId, and Phase 2 walks
 ///        the no-payload path only, so the id stays bit-identical to the pre-refactor map;
 ///      - pack/unpack never touch `extra`.
@@ -43,7 +51,9 @@ contract VolOrderTypeTest is PlankTestBase {
 
     uint256 internal constant MASK_248 = (uint256(1) << 248) - 1;
     uint256 internal constant FLAG_PANOPTIC = 0x01;
-    uint256 internal constant PANOPTIC_BITS = 28; // 4 x 7-bit optionRatios; poolId is a parameter, not payload
+    // 4 legs x (7-bit optionRatio + 1-bit tokenType) = 32, plus an 8-bit vegoid = 40.
+    // WIDENED from 28 in Phase 2.5 (VORD-07). poolId remains a parameter, not payload.
+    uint256 internal constant PANOPTIC_BITS = 40;
 
     // A valid packed VolOrder: width 2000, tickSpacing 10, volStrike 1, skew 0x8000, targetVega 0.
     uint256 internal constant VO =
@@ -94,7 +104,116 @@ contract VolOrderTypeTest is PlankTestBase {
 
     function test__unit__panopticFlagWithTheWrongLengthReverts() public {
         vm.expectRevert();
-        h.extraDecodeFields(_descriptor(FLAG_PANOPTIC, 0x24, 80)); // 80 != 28: len contradicts flags
+        h.extraDecodeFields(_descriptor(FLAG_PANOPTIC, 0x24, 80)); // 80 != 40: len contradicts flags
+    }
+
+    /// 28 was the Phase 2 width (four 7-bit optionRatios, nothing else). It is now REJECTED.
+    /// This assertion is the INVERSE of the pre-2.5 one and is changed deliberately: the payload
+    /// widened to 40 to carry per-leg tokenType and vegoid. 28 was itself the 76 -> 28 correction
+    /// (PR #65 / b2868cc), so this reopens a recent decision -- with approval, not by drift.
+    function test__unit__extraDecodeRejectsTheOldTwentyEightBitWidth() public {
+        vm.expectRevert();
+        h.extraDecodeFields(_descriptor(FLAG_PANOPTIC, 0x24, 28));
+    }
+
+    // ---- the 40-bit FLAG_PANOPTIC payload (VORD-07) --------------------------------------------
+
+    /// Leg k occupies [8k..8k+7]: optionRatio 7 bits at 8k, tokenType 1 bit at 8k+7.
+    /// Every leg gets a DISTINCT ratio and an alternating tokenType, so neither a stride bug
+    /// (7 vs 8) nor a leg-index swap can pass this.
+    function test__unit__payloadAccessorsPerLeg() public {
+        uint256 p = _payload(1, 127, 64, 13, 200);
+        p |= (uint256(1) << 15); // leg1 tokenType
+        p |= (uint256(1) << 31); // leg3 tokenType
+
+        assertEq(h.payloadOptionRatio(p, 0), 1, "leg0 ratio");
+        assertEq(h.payloadOptionRatio(p, 1), 127, "leg1 ratio");
+        assertEq(h.payloadOptionRatio(p, 2), 64, "leg2 ratio");
+        assertEq(h.payloadOptionRatio(p, 3), 13, "leg3 ratio");
+        assertEq(h.payloadTokenType(p, 0), 0, "leg0 tokenType");
+        assertEq(h.payloadTokenType(p, 1), 1, "leg1 tokenType");
+        assertEq(h.payloadTokenType(p, 2), 0, "leg2 tokenType");
+        assertEq(h.payloadTokenType(p, 3), 1, "leg3 tokenType");
+        assertEq(h.payloadVegoid(p), 200, "vegoid");
+    }
+
+    /// A leg's tokenType bit must not bleed into the NEXT leg's optionRatio. With stride 8 the
+    /// tokenType is the top bit of the leg's byte, so an off-by-one stride would show up here.
+    function test__unit__tokenTypeDoesNotBleedIntoTheNextLegsRatio() public {
+        uint256 p = _payload(1, 1, 1, 1, 9);
+        p |= (uint256(1) << 7);  // leg0 tokenType only
+        assertEq(h.payloadOptionRatio(p, 1), 1, "leg0 tokenType leaked into leg1 ratio");
+        assertEq(h.payloadTokenType(p, 0), 1, "leg0 tokenType");
+    }
+
+    /// vegoid is 1..255 -- both SFPMs revert InvalidTokenIdParameter(0) on zero. At 8 bits,
+    /// anything above the max is unrepresentable, so ZERO is the only reachable invalid value.
+    function test__unit__payloadRejectsZeroVegoid() public {
+        vm.expectRevert();
+        h.payloadValidate(_payload(1, 1, 1, 1, 0));
+    }
+
+    /// optionRatio is 1..127, and by the same argument zero is its only reachable invalid value.
+    function test__unit__payloadRejectsZeroOptionRatio() public {
+        vm.expectRevert();
+        h.payloadValidate(_payload(1, 1, 0, 1, 9)); // leg2 == 0
+    }
+
+    function test__unit__payloadAcceptsTheBoundaryValues() public {
+        assertEq(h.payloadValidate(_payload(1, 127, 1, 127, 1)), 1, "min/max ratios and vegoid 1");
+        assertEq(h.payloadValidate(_payload(127, 1, 127, 1, 255)), 1, "vegoid 255");
+    }
+
+    // ---- the payload's vegoid must agree with pool_id[40..47] (VORD-07) ----------------------
+
+    /// poolId layout is [16b tickSpacing at 48][8b vegoid at 40][40b pattern at 0]
+    /// (PanopticMath.sol:28). The payload declares a vegoid; the poolId carries one; they must
+    /// agree. Both operands belong to this phase -- poolId comes from VolMarketKey, the payload
+    /// from Extra(T) -- and Extra(T) has no VolOrder dependency, which is why this guard is here
+    /// and not in Phase 3.
+    function test__unit__vegoidAgreesWithPoolId() public {
+        uint256 poolId = (uint256(200) << 40) | 0x1122334455;
+        assertEq(
+            h.payloadRequireVegoidAgrees(_payload(1, 1, 1, 1, 200), poolId), 1, "agreeing pair"
+        );
+    }
+
+    function test__unit__vegoidMismatchReverts() public {
+        uint256 poolId = (uint256(201) << 40) | 0x1122334455;
+        vm.expectRevert();
+        h.payloadRequireVegoidAgrees(_payload(1, 1, 1, 1, 200), poolId);
+    }
+
+    /// THE HOLE. `require(a == b)` passes happily when BOTH sides are zero, and vegoid == 0 is
+    /// invalid (both SFPMs revert InvalidTokenIdParameter(0)). So a zero-vegoid payload checked
+    /// against a poolId whose bits 40..47 are also zero satisfies the equality and would sail
+    /// through on the equality alone. The separate `!= 0` check is what stops it, and this test
+    /// is the reason that check is not redundant.
+    function test__unit__vegoidZeroOnBothSidesStillReverts() public {
+        uint256 poolId = 0x1122334455; // bits 40..47 are zero
+        vm.expectRevert();
+        h.payloadRequireVegoidAgrees(_payload(1, 1, 1, 1, 0), poolId);
+    }
+
+    /// The check must read ONLY bits 40..47 of the poolId. A tickSpacing in the high bits or a
+    /// pattern in the low bits must not perturb it.
+    function test__fuzz__vegoidCheckIgnoresTheRestOfThePoolId(uint40 pattern, uint16 tickSpacing)
+        public
+    {
+        uint256 poolId = (uint256(tickSpacing) << 48) | (uint256(77) << 40) | uint256(pattern);
+        assertEq(
+            h.payloadRequireVegoidAgrees(_payload(1, 1, 1, 1, 77), poolId),
+            1,
+            "the check is reading bits outside 40..47"
+        );
+    }
+
+    function _payload(uint256 r0, uint256 r1, uint256 r2, uint256 r3, uint256 vegoid)
+        internal
+        pure
+        returns (uint256)
+    {
+        return r0 | (r1 << 8) | (r2 << 16) | (r3 << 24) | (vegoid << 32);
     }
 
     function test__unit__unflaggedDescriptorWithAPayloadLengthReverts() public {
