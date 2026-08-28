@@ -161,13 +161,50 @@ invariant, verified alongside §2.5's curve identity.
 
 ## 4. Lockups
 
-Two, both setting `cfmm-vol-markets` in **JetBrains Mono**:
+Three, all setting `cfmm-vol-markets` in **JetBrains Mono Light**:
 
-- **Horizontal** — mark left, name right. README headers, docs banners.
-- **Stacked** — mark above, name below. Square contexts, slides, social.
+| Lockup | Mark used | viewBox | Aspect | **Minimum width** |
+|---|---|---|---|---|
+| `lockup-horizontal-*` | tier A full mark | `0 0 2212 436` | 5.0734 : 1 | **649px** |
+| `lockup-horizontal-b-*` | tier B icon | `0 0 2212 436` | 5.0734 : 1 | **325px** |
+| `lockup-stacked-*` | tier A full mark | `0 0 512 576` | 8 : 9 | **160px** |
 
 Monospace is native to a kebab-case repository name and ties the mark to the Plank/Foundry
-toolchain register.
+toolchain register. **Light, not Regular:** a Regular stem is ~15u against the mark's 6–8u
+strokes, and the wordmark then shouts over the mark it is meant to accompany.
+
+### 4.1 Minimum sizes are derived, not chosen
+
+The tier ladder of §3 governs lockups too. A lockup's floor is the width at which its
+embedded mark reaches that mark's own tier floor:
+
+- **Horizontal, tier A** — the mark is 436u of 2212u width, i.e. 19.7%. Tier A's floor is
+  128px, so the lockup floor is 128 / 0.197 = **649px**. Below that the fractions and axis
+  letters are unreadable. This is why the tier-B variant exists at all: README headers are
+  typically 400–600px, which is *under* this floor.
+- **Horizontal, tier B** — the icon is rescaled by s = 0.9693 (arc 44u → 42.65u), a pure
+  similarity, so it reproduces the standalone tier-B margin exactly when the icon sits at
+  its own 64px floor — lockup width ≈ 285px. Rounded up to **325px** for margin. The arc
+  itself does not fall under 2px until ≈104px of lockup width, but the *wordmark* becomes
+  unreadable long before that, so the wordmark, not the arc, is the binding constraint here.
+- **Stacked, tier A** — the mark occupies 435.662u of the 576u height, and height is 1.125×
+  width, so the mark is 0.851× the lockup width. 128 / 0.851 = 150px, rounded to **160px**.
+
+**Below its floor, a lockup is not used — the bare mark or icon is.** A lockup rendered
+under its floor is the same defect §7.1 rejects at the other end of the ladder: art shown at
+a size it was not drawn for.
+
+### 4.2 Vendored outlines
+
+**Glyph outlines MUST be vendored into the SVG** (converted to paths). No `font-family`
+reference, and no `<text>` element, may survive in a delivered file — a lockup that depends
+on an installed font is a lockup that renders wrong on someone else's machine. JetBrains
+Mono is OFL-licensed, so embedding outlines is permitted; the licence notice belongs in
+`assets/logo/BRAND.md`.
+
+Note for whoever edits these in Figma: `figma.flatten()` outlines text but **drops the
+fill's variable binding**, which silently ships a dark variant in `#000000`. Re-bind the
+fill after outlining and verify the dark files contain `#E8EAED` and no `#000000`.
 
 **Glyph outlines MUST be vendored into the SVG** (converted to paths). No `font-family`
 reference may survive in a delivered file — a lockup that depends on an installed font is
@@ -324,6 +361,12 @@ visible as a raster logo; the vector PDF is what `\includegraphics` should recei
 
 **Why `safari-pinned-tab.svg` is separate:** it must be a single-colour, single-path SVG
 with no strokes — a distinct artefact, not a copy of an existing master.
+
+**The social card needs an explicit inset rule, not scale-to-fit.** The horizontal lockup is
+5.0734 : 1 and the card is 1280 × 640, i.e. 2 : 1. Naive fitting fails both ways: fit-to-width
+yields a 252px-tall lockup adrift in a 640px card, and fit-to-height yields a 1624px-wide
+lockup that overflows. Task 8 must place the lockup at a stated width with stated margins —
+letterboxed deliberately — rather than scaling it to the frame.
 
 ## 8. Production pipeline
 
