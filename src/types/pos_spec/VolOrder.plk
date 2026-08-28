@@ -5,6 +5,9 @@ import pos_spec::SpreadTickAssimetry::*;
 import pos_spec::TickVolatility::*;
 import pos_spec::VegaTarget::*;
 import std::error::require;
+import std::regions::calldata;
+import std::option::{Option, Some, None};
+import types::Extra::{Extra, extra_none_payload};
 
 // V2 STORAGE LAYOUT (vol-order-v2-target-vega-SPEC.md D2; notes/UNITS_AND_SCALES.md):
 //   skew        bits   0.. 15  u16
@@ -14,40 +17,69 @@ import std::error::require;
 //   targetVega  bits 152..247  u96   (DeltaQ_v*, raw LIQUIDITY units -- dimension (ii))
 // 248 bits total; the 0-sentinel survives: a valid order has strike > 0 (bits 16..103) and
 // skew > 0 (bits 0..15), so a validly packed word is NEVER zero regardless of targetVega.
-const VolOrder = struct {
-      rangeWidth: VolRangeWidth,
-      volStrike: TickVolatility,
-      skew: SpreadTickAssimetry,
-      targetVega: VegaTarget
+// PHASE 2 (VORD-01). Design of record: .planning/phases/02-volorder-t-minimal-instantiation/
+// 02-REGRESSION-ASSESSMENT.md §4a, as corrected at the 02-04 chunk review.
+//
+// VolOrder(T) is a comptime TYPE CONSTRUCTOR over a REGION T -- a phantom type parameter used as a
+// region index (Haskell: the `s` in `ST s` / `runST`). T says WHERE the tokenId builder is
+// guaranteed to find its operands, and nothing else. There is ONE VolOrder type per region:
+// ABSENCE of an extra is the std VALUE `None`, not a separate tag type.
+//
+// `extra` is a DESCRIPTOR (types::Extra) -- flags | offset | len -- not the data and not the
+// result. It never enters pack_vol_order / unpack_vol_order, which is what keeps this refactor's
+// regression surface at zero for every packed-word consumer.
+//
+// Every function below that predates Phase 2 is CONCRETE on VolOrder(calldata): the create_order
+// path reads orders from calldata and the Panoptic operands live there. Only the tokenId builder
+// (PanopticTokenIdSetterLib) and the geometry projection below take a comptime T.
+const VolOrder = fn (comptime T: type) type {
+    return struct {
+        rangeWidth: VolRangeWidth,
+        volStrike: TickVolatility,
+        skew: SpreadTickAssimetry,
+        targetVega: VegaTarget,
+        extra: Option(Extra(T))
+    };
+};
+
+// Attach a descriptor to an order. The four packed fields are untouched.
+const vol_order_with_extra = fn (comptime T: type, vo: VolOrder(T), e: Extra(T)) VolOrder(T) {
+    VolOrder(T) {
+        rangeWidth: vo.rangeWidth,
+        volStrike: vo.volStrike,
+        skew: vo.skew,
+        targetVega: vo.targetVega,
+        extra: Some(e)
+    }
 };
 
 const OFF_TARGET_VEGA = 152;
 const MASK_U96_VO = 0xFFFFFFFFFFFFFFFFFFFFFFFF;
 
-const return_vol_order_incomplete = fn(self:VolOrder) never {
+const return_vol_order_incomplete = fn(self:VolOrder(calldata)) never {
       let packed = pack_vol_order(self);
       let out_ptr = @malloc_uninit(32);
       @mstore32(out_ptr, packed);
       @evm_return(out_ptr,32);
 };
 
-const return_vol_order = fn (self:VolOrder) never {
+const return_vol_order = fn (self:VolOrder(calldata)) never {
       vol_order_revert_incomplete(self);
       return_vol_order_incomplete(self);
 };
 
-const vol_order_is_complete = fn (volOrder :VolOrder) bool {
+const vol_order_is_complete = fn (volOrder :VolOrder(calldata)) bool {
       let res = (vol_range_width_is_complete(volOrder.rangeWidth)) & (spread_tick_assimetry_is_complete(volOrder.skew)) & (tick_volatility_is_complete(volOrder.volStrike)) & (vega_target_is_complete(volOrder.targetVega));
       res
 };
 
-const vol_order_revert_incomplete = fn(volOrder:VolOrder) void {require(vol_order_is_complete(volOrder))};
+const vol_order_revert_incomplete = fn(volOrder:VolOrder(calldata)) void {require(vol_order_is_complete(volOrder))};
 
 // Masks are mechanical truncation AFTER validation (units-table rule 2): the width bounds
 // live in the validation lib (strike_fits_packed / target_vega_fits_packed), so for every
 // ACCEPTED order the mask is an identity -- pinned by the mask-identity fuzz in
 // VolOrderTargetVega.t.sol.
-const pack_vol_order = fn(self: VolOrder) u256 {
+const pack_vol_order = fn(self: VolOrder(calldata)) u256 {
     @evm_shl(OFF_TARGET_VEGA, self.targetVega.vega & MASK_U96_VO)
     | @evm_shl(128, self.rangeWidth.width & 0xFFFFFF)
     | @evm_shl(104, self.rangeWidth.tickSpacing & 0xFFFFFF)
@@ -55,14 +87,14 @@ const pack_vol_order = fn(self: VolOrder) u256 {
     | (self.skew.spread & 0xFFFF)
 };
 
-const unpack_vol_order = fn(_packed: u256) VolOrder {
+const unpack_vol_order = fn(_packed: u256) VolOrder(calldata) {
     let width       = @evm_shr(128, _packed) & 0xffffff;
     let tickSpacing = @evm_shr(104, _packed) & 0xffffff;
     let volStrike   = @evm_shr(16, _packed) & 0xffffffffffffffffffffff;
     let skew        = _packed & 0xffff;
     let targetVega  = @evm_shr(OFF_TARGET_VEGA, _packed) & MASK_U96_VO;
 
-    VolOrder {
+    VolOrder(calldata) {
         rangeWidth: VolRangeWidth {
             width: width,
             tickSpacing: tickSpacing
@@ -75,53 +107,65 @@ const unpack_vol_order = fn(_packed: u256) VolOrder {
         },
         targetVega: VegaTarget {
             vega: targetVega
-        }
+        },
+        extra: None(Extra(calldata))
     }
 };
 
 // note: This calls for type checks on each of the dependant types
-const set_vol_order_vol_strike = fn(self: VolOrder, volStrike:TickVolatility) VolOrder {
-      VolOrder {
+const set_vol_order_vol_strike = fn(self: VolOrder(calldata), volStrike:TickVolatility) VolOrder(calldata) {
+      VolOrder(calldata) {
       	       rangeWidth: self.rangeWidth,
 	       volStrike: volStrike,
 	       skew: self.skew,
-	       targetVega: self.targetVega
+	       targetVega: self.targetVega,
+	       extra: self.extra
       }
 };
 
 
-const set_vol_order_skew = fn(self: VolOrder ,skew:SpreadTickAssimetry) VolOrder {
-      VolOrder {
+const set_vol_order_skew = fn(self: VolOrder(calldata),skew:SpreadTickAssimetry) VolOrder(calldata) {
+      VolOrder(calldata) {
       	       rangeWidth: self.rangeWidth,
 	       volStrike: self.volStrike,
 	       skew : skew,
-	       targetVega: self.targetVega
+	       targetVega: self.targetVega,
+	       extra: self.extra
       }
 };
 
 
-const set_vol_order_range_width = fn(self: VolOrder ,vol_range_width :VolRangeWidth) VolOrder {
-      VolOrder {
+const set_vol_order_range_width = fn(self: VolOrder(calldata),vol_range_width :VolRangeWidth) VolOrder(calldata) {
+      VolOrder(calldata) {
       	       rangeWidth: vol_range_width,
 	       volStrike: self.volStrike,
 	       skew: self.skew,
-	       targetVega: self.targetVega
+	       targetVega: self.targetVega,
+	       extra: self.extra
       }
 };
 
-const set_vol_order_target_vega = fn(self: VolOrder, target_vega: VegaTarget) VolOrder {
-      VolOrder {
+const set_vol_order_target_vega = fn(self: VolOrder(calldata), target_vega: VegaTarget) VolOrder(calldata) {
+      VolOrder(calldata) {
       	       rangeWidth: self.rangeWidth,
 	       volStrike: self.volStrike,
 	       skew: self.skew,
-	       targetVega: target_vega
+	       targetVega: target_vega,
+	       extra: self.extra
       }
 };
 
 // note: This can use the return function for tickbuckert instead of its own
-const tick_bucket_from_vol_order = fn(volOrder:VolOrder) TickBucket{
+// The ONE region-generic geometry read: the tick bucket of any VolOrder(T). It touches only the
+// four packed fields, never `extra` -- the same property that keeps pack/unpack agnostic.
+const tick_bucket_from_vol_order_in = fn(comptime T: type, volOrder: VolOrder(T)) TickBucket{
       // 1. get the tick for the volOrder
       let tick_volatility = tick_volatility_tick(volOrder.volStrike);
       let bucket = split_tick(volOrder.skew, volOrder.rangeWidth, tick_volatility);
       bucket
+};
+
+// The concrete wrapper its pre-Phase-2 callers keep using unchanged.
+const tick_bucket_from_vol_order = fn(volOrder:VolOrder(calldata)) TickBucket{
+      tick_bucket_from_vol_order_in(calldata, volOrder)
 };

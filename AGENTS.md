@@ -51,6 +51,19 @@ compiling or running the suite locally. Push the branch and read the GitHub Acti
 `develop-gate` result — the push is accepted only if `develop-gate` passes. Never report work
 as verified on the basis of a local build.
 
+**Code chunks are approved before they are committed.** Present every source chunk (a file's
+diff, or one coherent hunk) to the maintainer in an `AskUserQuestion` block whose options are
+**approve** / **modify**, wait for the answer, and only then `git commit`. Auto mode permitting an
+edit is not the maintainer approving it; a plan step that says "commit and push" means
+"show → approve → commit → push". Set 2026-08-28 after a refactor was committed unseen.
+
+**Tests are written FIRST, RED, for any new type or behaviour.** "The existing suite still
+passes" is regression evidence, not test-first. A phase that introduces a type constructor or a
+new behaviour gets a harness + test file that exercises **every branch** of it before the
+implementation is written, and the first push is red on purpose. Phase criteria must say
+"compiles AND exercises every branch" — Plank only type-checks a comptime branch that something
+instantiates, so an un-instantiated branch is text the compiler has never seen.
+
 ## Docs
 
 - Foundry — https://book.getfoundry.sh

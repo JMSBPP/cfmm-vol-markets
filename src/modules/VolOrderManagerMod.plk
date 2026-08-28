@@ -1,5 +1,5 @@
 import std::constructor::return_runtime;
-import std::addr::{msg_sender, addr};
+import std::core::addr::{msg_sender, addr, cast_addr};
 import std::membytes::membytes_write;
 import std::abi::abi_encode;
 import std::type::sizeof;
@@ -35,7 +35,7 @@ const log_create_order = fn(
     @mstore32(log_data +% 96, rangeWidth & 0xffffff);
     @mstore32(log_data +% 128, skew & 0xffff);
 
-    @evm_log3(log_data, 160, TOPIC_ORDER_CREATED, owner.raw, blockTimestamp);
+    @evm_log3(log_data, 160, TOPIC_ORDER_CREATED, cast_addr(owner, u256), blockTimestamp);
 };
 
 run {

@@ -30,7 +30,6 @@
 // the third word as uninitialized malloc memory. That shape is NOT reproduced here.
 
 import std::constructor::return_runtime;
-import std::core_ops::bool_to_u256;
 import lib::pos_spec::VolOrderValidationLib::*;
 import pos_spec::VolOrder::*;
 import v3::util::{return_u256};
@@ -48,7 +47,7 @@ run {
     if selector == SELECTOR_VALIDATE_ORDER {
         // calldata: (strike @4, width @36, skew @68)
         let order = build_vol_order(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68), @evm_calldataload(100));
-        return_u256(bool_to_u256(validate_order(order)));
+        return_u256(@bool_to_u256(validate_order(order)));
     }
     if selector == SELECTOR_VALIDATE_ORDER_STRICT {
         let order = build_vol_order(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68), @evm_calldataload(100));

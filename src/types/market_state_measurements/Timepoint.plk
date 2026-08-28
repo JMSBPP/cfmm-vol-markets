@@ -1,7 +1,6 @@
 
 import pos_spec::TickVolatility::*;
 import lib::market_state_measurements::RealizedVolatilityLib::*;
-import std::core_ops::bool_to_u256;
 
 const INIT_STORAGE_INDEX = 0;
 const INIT_TIME_WINDOW = 0;
@@ -57,7 +56,7 @@ const pack_timepoint = fn(self: Timepoint) u256 {
     | @evm_shl(OFF_AVG_TICK, self.avg_tick & MASK_I24)
     | @evm_shl(OFF_TICK_CUMULATIVE, self.tick_cumulative & MASK_I56)
     | @evm_shl(OFF_WINDOW_START_INDEX, self.time_window_start_index & MASK_U16)
-    | @evm_shl(OFF_INITIALIZED, bool_to_u256(self.initialized))
+    | @evm_shl(OFF_INITIALIZED, @bool_to_u256(self.initialized))
 };
 
 // unpack_timepoint SIGN-EXTENDS every signed field.

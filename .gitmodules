@@ -24,7 +24,7 @@
 [submodule "lib/plank-monorepo"]
 	path = lib/plank-monorepo
 	url = https://github.com/plankevm/plank-monorepo
-	branch = feat/arrays
+	branch = main
 [submodule "lib/reactive-test-lib"]
 	path = lib/reactive-test-lib
 	url = https://github.com/Reactive-Network/reactive-test-lib

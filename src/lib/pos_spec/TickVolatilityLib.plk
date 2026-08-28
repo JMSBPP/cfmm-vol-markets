@@ -1,5 +1,5 @@
 import pos_spec::TickVolatility::*;
-import std::addr::*;
+import std::core::addr::*;
 import v3::math::tick_math::{getSqrtRatioAtTick, getTickAtSqrtRatio};
 import v3::util::revert_empty;
 
@@ -23,7 +23,7 @@ const return_lnVolX96 = fn(expMathImpl: addr, self: TickVolatility) never {
 
     let succ = @evm_staticcall(
         @evm_gas(),
-        expMathImpl.raw,
+        cast_addr(expMathImpl, u256),
         call_ptr,
         36,
         out_ptr,
@@ -51,7 +51,7 @@ const return_lnVolWAD = fn(expMathImpl: addr, self: TickVolatility) never {
 
     let succ = @evm_staticcall(
         @evm_gas(),
-        expMathImpl.raw,
+        cast_addr(expMathImpl, u256),
         call_ptr,
         36,
         out_ptr,

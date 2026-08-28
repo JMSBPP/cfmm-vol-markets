@@ -1,6 +1,5 @@
 import pos_spec::VolRangeWidth::*;
 import std::constructor::return_runtime;
-import std::core_ops::bool_to_u256;
 // signature :: pack_vol_range_width(uint24,uint24)
 
 const SELECTOR_PACK_VOL_RANGE_WIDTH = 0xa4614a1;
@@ -70,22 +69,22 @@ run {
      } else if (selector == SELECTOR_EQ_VOL_RANGE_WIDTH) {
        	    let res = eq(vol_range_width_1, vol_range_width_2);
     	    let out_ptr = @malloc_uninit(32);
-    	    @mstore32(out_ptr, bool_to_u256(res));
+    	    @mstore32(out_ptr, @bool_to_u256(res));
     	    @evm_return(out_ptr, 32);
      } else if (selector == SELECTOR_NEQ_VOL_RANGE_WIDTH) {
        	    let res = neq(vol_range_width_1, vol_range_width_2);
     	    let out_ptr = @malloc_uninit(32);
-    	    @mstore32(out_ptr, bool_to_u256(res));
+    	    @mstore32(out_ptr, @bool_to_u256(res));
     	    @evm_return(out_ptr, 32);
      } else if (selector == SELECTOR_LEQ_VOL_RANGE_WIDTH) {
        	    let res = leq(vol_range_width_1, vol_range_width_2);
     	    let out_ptr = @malloc_uninit(32);
-    	    @mstore32(out_ptr, bool_to_u256(res));
+    	    @mstore32(out_ptr, @bool_to_u256(res));
     	    @evm_return(out_ptr, 32);
      } else if (selector == SELECTOR_GEQ_VOL_RANGE_WIDTH) {
        	    let res = geq(vol_range_width_1, vol_range_width_2);
     	    let out_ptr = @malloc_uninit(32);
-    	    @mstore32(out_ptr, bool_to_u256(res));
+    	    @mstore32(out_ptr, @bool_to_u256(res));
     	    @evm_return(out_ptr, 32);
       }     
       

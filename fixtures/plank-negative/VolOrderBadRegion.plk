@@ -1,0 +1,23 @@
+// NEGATIVE fixture (Phase 2, VORD-01): Extra(T), and therefore VolOrder(T), must reject a T that is
+// not a region. Extra.plk guards it explicitly with std::regions::is_region, so the failure carries
+// our message rather than an incidental one from deeper in std.
+//
+// Lives outside src/ and test/ so `make compile-plank` (which scans those two roots for entrypoints)
+// never builds it; test/types/pos_spec/VolOrderType.t.sol builds it via vm.tryFfi and asserts a
+// non-zero exit.
+import std::constructor::return_runtime;
+import pos_spec::VolOrder::*;
+
+const bad = fn (vo: VolOrder(u256)) u256 { vo.rangeWidth.width };
+
+init { return_runtime(); }
+run {
+    // `bad` must be REACHABLE from run{} or plank never type-checks it and Extra's is_region guard
+    // never fires -- the defect this fixture had on gate 33181644493, and exactly the hazard
+    // Makefile:compile-plank documents ("plank does not type-check anything unreachable from
+    // run{}"). @uninit yields a value of the type without constructing one.
+    let vo = @uninit(VolOrder(u256));
+    let out = @malloc_uninit(32);
+    @mstore32(out, bad(vo));
+    @evm_return(out, 32);
+}
