@@ -1,3 +1,5 @@
+import std::error::require;
+
 // VolMarketKey(V): a market key TAGGED BY VENUE.
 //
 // `V` is a phantom type parameter used as a venue index, exactly as `Extra(T)` uses a region and
@@ -50,4 +52,23 @@ const VolMarketKey = fn (comptime V: type) type {
         registry: u256,     // V4: hooks | V3: univ3 factory | Algebra: algebra factory
         pool: u256          // V3/Algebra: the ASSERTED pool address. V4: 0
     };
+};
+
+// The Panoptic `asset` bit this key derives. IT IS A NOT, NOT A COPY.
+//
+// Panoptic's bit names the CASH token positionSize is denominated in; this protocol denominates
+// vega in the NUMERAIRE and calls the OTHER currency the asset. With exactly two currencies,
+// numeraire_index = 1 - asset_index. See the header block for the citations.
+//
+// Getting this backwards is silent: it emits a STRUCTURALLY VALID tokenId denominated in the wrong
+// token, Panoptic's validate() accepts it, the position mints, and
+// position_size_for_target_vega inverts the wrong formula. Nothing reverts, so no test that only
+// checks "does it revert" can catch it -- which is why KEY-06 asserts both values of asset_index.
+//
+// asset_index indexes a PAIR, so {0, 1} is its whole domain. A value above 1 REVERTS rather than
+// being masked: a masked 2 would read as 0 and select the wrong currency, reproducing the
+// inversion's failure by another route.
+const vol_market_key_panoptic_asset_bit = fn (comptime V: type, k: VolMarketKey(V)) u256 {
+    require(k.asset_index <= 1);
+    1 -% k.asset_index
 };
