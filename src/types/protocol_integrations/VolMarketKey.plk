@@ -72,3 +72,37 @@ const vol_market_key_panoptic_asset_bit = fn (comptime V: type, k: VolMarketKey(
     require(k.asset_index <= 1);
     1 -% k.asset_index
 };
+
+// ---- KEY-02: the 40-bit pool PATTERN, and the poolId it composes into ------------------------
+//
+// PanopticMath.sol:28 is authoritative on the layout:
+//     poolId = [16-bit tickSpacing][8-bit vegoid][40-bit poolPattern]
+// The prose comment in BOTH SFPMs says "most significant 48 bits" of the pool address / PoolId.
+// The CODE says 40. Trust the code -- and note the two venues derive their 40 bits from opposite
+// ENDS of their respective inputs, which is why they are separate functions rather than one.
+
+const MASK_U40 = 0xffffffffff;
+const MASK_U160 = 0xffffffffffffffffffffffffffffffffffffffff;
+const POOL_ID_OFF_VEGOID_KEY = 40;
+const POOL_ID_OFF_TICK_SPACING = 48;
+
+// SFPM V4: uint40(uint256(PoolId.unwrap(idV4))) -- the LOW 40 bits of the v4 PoolId.
+const vol_market_key_v4_pattern = fn (pool_id_v4: u256) u256 { pool_id_v4 & MASK_U40 };
+
+// SFPM V3: uint40(uint160(univ3pool) >> 120) -- the HIGH 40 bits of the 160-bit ADDRESS.
+// NOT the low bits, and not the same end as V4. Deriving this by analogy with the V4 case is the
+// most likely way to get it wrong; test__unit__v3AndV4PatternsDifferForTheSameWord pins that a
+// shared implementation cannot satisfy both.
+const vol_market_key_v3_pattern = fn (pool_addr: u256) u256 {
+    @evm_shr(120, pool_addr & MASK_U160) & MASK_U40
+};
+
+// vegoid == 0 is rejected HERE as well as in the payload. The two are different entry points and
+// neither may depend on the other having been called: a poolId composed with vegoid 0 carries a
+// value the SFPM itself refuses (Errors.InvalidTokenIdParameter(0)).
+const vol_market_key_compose_pool_id = fn (pattern: u256, vegoid: u256, tick_spacing: u256) u256 {
+    require(vegoid != 0);
+    (pattern & MASK_U40)
+    | @evm_shl(POOL_ID_OFF_VEGOID_KEY, vegoid & 0xff)
+    | @evm_shl(POOL_ID_OFF_TICK_SPACING, tick_spacing & 0xffff)
+};
