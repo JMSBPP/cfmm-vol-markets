@@ -282,6 +282,53 @@ contract VolMarketKeyTest is PlankTestBase {
         return uint64(pattern | (uint256(vegoid) << 40) | (tickSpacing << 48));
     }
 
+    /// Ported from MarketId.t.sol's round-trip test before that file is retired (KEY-05).
+    ///
+    /// The fixed-key test above pins ONE value. This pins the STRUCTURE: every one of the five
+    /// PoolKey fields must feed the hash, so a field omitted from the keccak buffer, or two fields
+    /// transposed, changes the id and is caught. MarketId.plk proved this by handing back the
+    /// stored key; VolMarketKey IS the key, so the equivalent evidence is field sensitivity.
+    function test__fuzz__everyPoolKeyFieldFeedsTheV4PoolId(
+        uint256 c0,
+        uint256 c1,
+        uint24 fee,
+        uint24 tickSpacing,
+        uint256 hooks
+    ) public {
+        uint256 got = _v4PoolIdFor(c0, c1, fee, tickSpacing, hooks);
+        assertEq(
+            got,
+            uint256(keccak256(abi.encode(c0, c1, uint256(fee), uint256(tickSpacing), hooks))),
+            "the id must be keccak over exactly these five fields, in this order"
+        );
+
+        // Perturbing any single field must change the id. Constructed, not assumed: each variant
+        // differs from the base in exactly one position.
+        assertTrue(got != _v4PoolIdFor(c0 + 1, c1, fee, tickSpacing, hooks), "currency0 not hashed");
+        assertTrue(got != _v4PoolIdFor(c0, c1 + 1, fee, tickSpacing, hooks), "currency1 not hashed");
+        assertTrue(
+            got != _v4PoolIdFor(c0, c1, uint256(fee) + 1, tickSpacing, hooks), "fee not hashed"
+        );
+        assertTrue(
+            got != _v4PoolIdFor(c0, c1, fee, uint256(tickSpacing) + 1, hooks),
+            "tickSpacing not hashed"
+        );
+        assertTrue(got != _v4PoolIdFor(c0, c1, fee, tickSpacing, hooks + 1), "hooks not hashed");
+    }
+
+    function _v4PoolIdFor(uint256 c0, uint256 c1, uint256 fee, uint256 ts, uint256 hooks)
+        internal
+        returns (uint256)
+    {
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature(
+                "v4PoolIdFor(uint256,uint256,uint256,uint256,uint256)", c0, c1, fee, ts, hooks
+            )
+        );
+        require(ok, "v4PoolIdFor reverted");
+        return abi.decode(r, (uint256));
+    }
+
     // ---- what must NOT compile -----------------------------------------------------------------
 
     /// KEY-04: there is no PanopticFactoryAlgebra, so the Algebra arm has no Panoptic continuation

@@ -26,6 +26,8 @@ const SEL_VERIFY_POOL_ALGEBRA = 0xe6d8bcb5;
 const SEL_PANOPTIC_POOL_ID_V4 = 0xfbfe139f;
 // cast sig "v4PoolId()"                         -> 0xa18615b6
 const SEL_V4_POOL_ID = 0xa18615b6;
+// cast sig "v4PoolIdFor(uint256,uint256,uint256,uint256,uint256)" -> 0xbc01e5d0
+const SEL_V4_POOL_ID_FOR = 0xbc01e5d0;
 
 // The fixed V4 key the Panoptic-arm arms build. Mirrored in VolMarketKey.t.sol; if the two drift,
 // test__unit__v4PoolIdIsTheCanonicalUniV4PoolId fails, which is the intended alarm.
@@ -144,6 +146,23 @@ run {
         let k = VolMarketKey(V4) {
             currency0: K_C0, currency1: K_C1, asset_index: 0, fee: K_FEE,
             tick_spacing: K_TICK_SPACING, registry: K_HOOKS, pool: 0
+        };
+        return_1(vol_market_key_v4_pool_id(k));
+    }
+
+    // v4PoolIdFor(c0, c1, fee, tickSpacing, hooks) -- the id for an ARBITRARY key. Ported from
+    // MarketId.t.sol's round-trip test: the point is that every one of the five fields feeds the
+    // hash, so omitting one or swapping two in the keccak buffer is detectable. A single fixed-key
+    // test cannot see that.
+    if selector == SEL_V4_POOL_ID_FOR {
+        let k = VolMarketKey(V4) {
+            currency0: @evm_calldataload(4),
+            currency1: @evm_calldataload(36),
+            asset_index: 0,
+            fee: @evm_calldataload(68),
+            tick_spacing: @evm_calldataload(100),
+            registry: @evm_calldataload(132),
+            pool: 0
         };
         return_1(vol_market_key_v4_pool_id(k));
     }
