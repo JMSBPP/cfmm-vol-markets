@@ -1,6 +1,6 @@
 # Phase 2 regression assessment — VolOrder → VolOrder(T)
 
-**Status:** APPROVED 2026-08-28 (plan 02-03 checkpoint); **§4 DESIGN SUPERSEDED 2026-08-28 at the 02-04 re-apply chunk review — see §4a and §7** — FINAL evidence to be filled by 02-05
+**Status:** FINAL 2026-08-28 — every row evidenced from develop-gate [`33182346548`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33182346548). Approved 2026-08-28 at the plan 02-03 checkpoint; **§4 DESIGN SUPERSEDED 2026-08-28 at the 02-04 re-apply chunk review — see §4a and §7** — FINAL evidence to be filled by 02-05
 **Tree assessed:** `703e7449ffd0bd7fcd37f8d9e5426a8864943b35` on `feat/volorder-t-minimal` (plank `00c0a1aa3cb40b63de81c6ca4f92bec392b423c3`, forge `1.5.1` / `b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2`). Source diff vs `origin/develop` is the 02-01 std moves only (9 files, +22/−43); no VolOrder-shaped file has changed.
 **Frame (ROADMAP Phase 2, verbatim):**
 > **Regression assessment comes first.** Before the refactor is written, enumerate every test and dependency coupled to the concrete `VolOrder` shape and classify each one: *survives untouched*, *needs a mechanical call-site update*, or *is tightly coupled to the old format and should be eliminated*. The elimination candidates are a brainstorm-and-decide step with the user, not a judgement call made mid-refactor — and the decisions are recorded with their rationale before any code moves. This assessment is what makes the "no edits" criterion below meaningful rather than aspirational: it establishes *which* files were expected to be untouched in the first place.
@@ -16,50 +16,50 @@
 - **UNVERIFIED (reason)** = cannot meet the bar because the gate never runs it (the two `--skip` entries) — classified from the 02-02 probe, never from being masked.
 
 ## 2. Classification — `.plk` (17 files)
-| File | Coupling (what it touches) | Predicted class | Evidence (02-05 fills) |
+| File | Coupling (what it touches) | Predicted class | Evidence (filled 02-05 from gate `33182346548`) |
 |---|---|---|---|
-| `src/types/pos_spec/VolOrder.plk` | the definition (`:17`) + 16 type/literal sites (`:27,34,39,44,50,58,65,83,84,93,94,103,104,112,113,122`) | mechanical | diff = §4 edits only; VolOrder.t.sol + VolOrderValidation.t.sol green (02-05 fills) |
-| `src/lib/protocol_integrations/PanopticTokenIdSetterLib.plk` | import `:2`; 6 signatures `:21,99,124,141,161,176`; the tokenId path | mechanical (+ the ONE generic signature, `:21`) | diff = §4 edits only; VolOrderToPanopticTokenId.t.sol 10/10 + VolOrderMintSizing.t.sol green (02-05 fills) |
-| `src/lib/pos_spec/VolOrderValidationLib.plk` | `build_vol_order` `:69-70`, `validate_order` `:86`, `validate_order_strict` `:93` | mechanical | diff = §4 edits only; VolOrderValidation.t.sol + VolOrderManager*.t.sol green (02-05 fills) |
-| `test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk` | ONE call site `:38`; external surface FROZEN (02-02 stamp, 7 selectors) | mechanical (internal only; ABI edge stamp equal) | 02-02 stamp `e801b0e1…77d9` / 7 selectors vs 02-04 stamp (02-05 fills) |
-| `src/modules/pos_spec/VolOrderManagerMod.plk` | imports `pack_vol_order`, `build_vol_order`, `validate_order*` — types inferred, never named | survives untouched | diff empty; VolOrderManager.t.sol / Batch / Fixture / TargetVega / .diff green (02-05 fills) |
-| `test/protocol_integrations/VolOrderMintSizingHarness.plk` | imports `unpack_vol_order` + `PanopticTokenIdSetterLib::*`; calls `vol_order_to_mint` / `induced_leg_liquidities` / `average_density_chunks` (all stay `VolOrder(none)`) | survives untouched | diff empty; VolOrderMintSizing.t.sol green (02-05 fills) |
-| `test/types/pos_spec/VolOrderHelper.plk` | `import pos_spec::VolOrder::*`; setters / pack / unpack | survives untouched | diff empty; VolOrder.t.sol green (02-05 fills) |
-| `test/types/pos_spec/VolOrderValidationHarness.plk` | wildcard imports; `build_vol_order` / `validate_order` | survives untouched | diff empty; VolOrderValidation.t.sol green (02-05 fills) |
-| `src/lib/events/VolEventsLib.plk` | comment mention only | survives untouched (trivial) | diff empty (02-05 fills) |
-| `src/interfaces/pos_spec/VolOrderManagerInterface.plk` | comment mention only | survives untouched (trivial) | diff empty (02-05 fills) |
-| `src/types/pos_spec/VegaTarget.plk` | comment mention only | survives untouched (trivial) | diff empty (02-05 fills) |
-| `src/lib/exposure/VegaIssuanceLib.plk` | commented-out sketch only | survives untouched (trivial) | diff empty (02-05 fills) |
-| `src/types/protocol_integrations/PanopticTokenId.plk` | comment mention only | survives untouched (trivial) | diff empty (02-05 fills) |
-| `src/types/pricing/TickUtils.plk` | comment mention only (`vol_order_split_points` is a name, not the type) | survives untouched (trivial) | diff empty (02-05 fills) |
-| `src/lib/ldf/LDFLib.plk` | comment mention only | survives untouched (trivial) | diff empty (02-05 fills) |
-| `test/lib/ldf/GeometricWeightsHarness.plk` | comment mention only | survives untouched (trivial) | diff empty (02-05 fills) |
-| `src/modules/VolOrderManagerMod.plk` | defines its OWN unrelated `const VolOrder = struct { volTarget, rangeWidth, skew }`; does not import `pos_spec::VolOrder` | OUT OF SCOPE — do not touch | diff empty (02-05 fills) |
+| `src/types/pos_spec/VolOrder.plk` | the definition (`:17`) + 16 type/literal sites (`:27,34,39,44,50,58,65,83,84,93,94,103,104,112,113,122`) | mechanical | **8244 B** (refactor); compiled via `test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk` |
+| `src/lib/protocol_integrations/PanopticTokenIdSetterLib.plk` | import `:2`; 6 signatures `:21,99,124,141,161,176`; the tokenId path | mechanical (+ the ONE generic signature, `:21`) | **5331 B** (refactor); compiled via `test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk` |
+| `src/lib/pos_spec/VolOrderValidationLib.plk` | `build_vol_order` `:69-70`, `validate_order` `:86`, `validate_order_strict` `:93` | mechanical | **2582 B** (refactor); compiled via `src/modules/pos_spec/VolOrderManagerMod.plk` |
+| `test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk` | ONE call site `:38`; external surface FROZEN (02-02 stamp, 7 selectors) | mechanical (internal only; ABI edge stamp equal) | **1247 B** (refactor); `OK test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk` |
+| `src/modules/pos_spec/VolOrderManagerMod.plk` | imports `pack_vol_order`, `build_vol_order`, `validate_order*` — types inferred, never named | survives untouched | **0 bytes**; `OK src/modules/pos_spec/VolOrderManagerMod.plk` |
+| `test/protocol_integrations/VolOrderMintSizingHarness.plk` | imports `unpack_vol_order` + `PanopticTokenIdSetterLib::*`; calls `vol_order_to_mint` / `induced_leg_liquidities` / `average_density_chunks` (all stay `VolOrder(none)`) | survives untouched | **0 bytes**; `OK test/protocol_integrations/VolOrderMintSizingHarness.plk` |
+| `test/types/pos_spec/VolOrderHelper.plk` | `import pos_spec::VolOrder::*`; setters / pack / unpack | survives untouched | **0 bytes**; `OK test/types/pos_spec/VolOrderHelper.plk` |
+| `test/types/pos_spec/VolOrderValidationHarness.plk` | wildcard imports; `build_vol_order` / `validate_order` | survives untouched | 1119 B vs `develop`, **0 B vs `5ccefd6`** (02-01 std move only); `OK test/types/pos_spec/VolOrderValidationHarness.plk` |
+| `src/lib/events/VolEventsLib.plk` | comment mention only | survives untouched (trivial) | **0 bytes**; compiled via `src/modules/pos_spec/VolOrderManagerMod.plk` |
+| `src/interfaces/pos_spec/VolOrderManagerInterface.plk` | comment mention only | survives untouched (trivial) | **0 bytes**; compiled via `src/modules/pos_spec/VolOrderManagerMod.plk` |
+| `src/types/pos_spec/VegaTarget.plk` | comment mention only | survives untouched (trivial) | **0 bytes**; compiled via `src/modules/pos_spec/VolOrderManagerMod.plk` |
+| `src/lib/exposure/VegaIssuanceLib.plk` | commented-out sketch only | survives untouched (trivial) | **0 bytes**; compiled via `(comment-only; no importer)` |
+| `src/types/protocol_integrations/PanopticTokenId.plk` | comment mention only | survives untouched (trivial) | **0 bytes**; compiled via `test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk` |
+| `src/types/pricing/TickUtils.plk` | comment mention only (`vol_order_split_points` is a name, not the type) | survives untouched (trivial) | **0 bytes**; compiled via `test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk` |
+| `src/lib/ldf/LDFLib.plk` | comment mention only | survives untouched (trivial) | **0 bytes**; compiled via `test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk` |
+| `test/lib/ldf/GeometricWeightsHarness.plk` | comment mention only | survives untouched (trivial) | **0 bytes**; `OK test/lib/ldf/GeometricWeightsHarness.plk` |
+| `src/modules/VolOrderManagerMod.plk` | defines its OWN unrelated `const VolOrder = struct { volTarget, rangeWidth, skew }`; does not import `pos_spec::VolOrder` | OUT OF SCOPE — do not touch | 782 B vs `develop`, **0 B vs `5ccefd6`** (02-01 std move only); `OK src/modules/VolOrderManagerMod.plk` |
 
 ## 3. Classification — `.sol` (19 files + 2 masked)
 Every `.sol` reaches Plank only through packed `u256` words and a `.plk` harness (the ABI edge); none names a Plank type.
 
-| File | Reaches Plank via | Predicted class | Evidence (02-05 fills) |
+| File | Reaches Plank via | Predicted class | Evidence (filled 02-05 from gate `33182346548`) |
 |---|---|---|---|
-| `test/protocol_integrations/VolOrderToPanopticTokenId.t.sol` | harness ABI (4 dispatch selectors) | survives untouched — **NO EDITS (criterion 3)** | diff empty; `Ran 10 tests … Suite result: ok` (02-05 fills) |
-| `test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol` | same harness + SpecHelper | survives untouched; must still compile AND skip on `SKIP_REASON` | diff empty; 2× `[SKIP: spec oracle not wired…]` + 2× `[PASS]` (02-05 fills) |
-| `test/protocol_integrations/SpecHelper.sol` | none (the Phase 1 seam) | survives untouched | diff empty; compiles (02-05 fills) |
-| `test/protocol_integrations/VolOrderMintSizing.t.sol` | VolOrderMintSizingHarness.plk | survives untouched | diff empty; green (02-05 fills) |
-| `test/protocol_integrations/DynamicFeeHookE2E.t.sol` | DynamicFeeHook.plk (packed words only) | survives untouched | diff empty; green (02-05 fills) |
-| `test/events/VolOrderCreatedEvent.t.sol` | VolOrderManagerMod.plk event | survives untouched | diff empty; green (02-05 fills) |
-| `test/pos_spec/VolOrderDecoder.sol` | the packed WORD layout — unchanged by design (the extra never enters the word); NatSpec: "THE single test-side decoder for the packed VolOrder word … decode() is total on all of uint256" | survives untouched | diff empty; VolOrderManager*.t.sol green (02-05 fills) |
-| `test/mocks/VolOrderRefMock.sol` | independent Solidity oracle of the registry SPEC; NatSpec: "IT MUST NEVER MIRROR THE MODULE'S MANUAL ENCODING" | survives untouched | diff empty; VolOrderManager.diff.t.sol green (02-05 fills) |
-| `test/pos_spec/VolOrderManager.diff.t.sol` | VolOrderManagerMod.plk vs RefMock | survives untouched | diff empty; green (02-05 fills) |
-| `test/pos_spec/VolOrderTargetVega.t.sol` | VolOrderManagerMod.plk (mask-identity fuzz) | survives untouched | diff empty; green (02-05 fills) |
-| `test/pos_spec/VolOrderManagerBatch.t.sol` | VolOrderManagerMod.plk | survives untouched | diff empty; green (02-05 fills) |
-| `test/pos_spec/VolOrderManager.t.sol` | VolOrderManagerMod.plk | survives untouched | diff empty; green (02-05 fills) |
-| `test/pos_spec/VolOrderManagerFixture.t.sol` | VolOrderManagerMod.plk + Interface | survives untouched | diff empty; green (02-05 fills) |
-| `test/types/pos_spec/VolOrder.t.sol` | VolOrderHelper.plk | survives untouched | diff empty; green (02-05 fills) |
-| `test/types/pos_spec/VolOrderValidation.t.sol` | VolOrderValidationHarness.plk | survives untouched | diff empty; green (02-05 fills) |
-| `src/modules/VolOrderManager.s.sol` | deploy script (bytecode via deployer) | survives untouched | diff empty; compiles (02-05 fills) |
-| `foundry-scripts/VolOrderManager.s.sol` | deploy script | survives untouched | diff empty; compiles (02-05 fills) |
-| `foundry-scripts/deploy/DeployDynamicFeeHook.s.sol` | deploy script | survives untouched | diff empty; compiles (02-05 fills) |
-| `foundry-scripts/deploy/DeployVolOrderManagerMod.s.sol` | deploy script | survives untouched | diff empty; compiles (02-05 fills) |
+| `test/protocol_integrations/VolOrderToPanopticTokenId.t.sol` | harness ABI (4 dispatch selectors) | survives untouched — **NO EDITS (criterion 3)** | **0 bytes**; `Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 285.63ms (230.69ms CPU time)` |
+| `test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol` | same harness + SpecHelper | survives untouched; must still compile AND skip on `SKIP_REASON` | **0 bytes**; `Suite result: ok. 2 passed; 0 failed; 2 skipped; finished in 170.99ms (1.38ms CPU time)` |
+| `test/protocol_integrations/SpecHelper.sol` | none (the Phase 1 seam) | survives untouched | **0 bytes**; compiled in the 33182346548 forge job (non-test source) |
+| `test/protocol_integrations/VolOrderMintSizing.t.sol` | VolOrderMintSizingHarness.plk | survives untouched | **0 bytes**; `Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 394.06ms (228.62ms CPU time)` |
+| `test/protocol_integrations/DynamicFeeHookE2E.t.sol` | DynamicFeeHook.plk (packed words only) | survives untouched | **0 bytes**; `Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 294.99ms (14.55ms CPU time)` |
+| `test/events/VolOrderCreatedEvent.t.sol` | VolOrderManagerMod.plk event | survives untouched | **0 bytes**; `Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 71.86ms (930.68µs CPU time)` |
+| `test/pos_spec/VolOrderDecoder.sol` | the packed WORD layout — unchanged by design (the extra never enters the word); NatSpec: "THE single test-side decoder for the packed VolOrder word … decode() is total on all of uint256" | survives untouched | **0 bytes**; compiled in the 33182346548 forge job (non-test source) |
+| `test/mocks/VolOrderRefMock.sol` | independent Solidity oracle of the registry SPEC; NatSpec: "IT MUST NEVER MIRROR THE MODULE'S MANUAL ENCODING" | survives untouched | **0 bytes**; compiled in the 33182346548 forge job (non-test source) |
+| `test/pos_spec/VolOrderManager.diff.t.sol` | VolOrderManagerMod.plk vs RefMock | survives untouched | **0 bytes**; `Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 5.84s (5.74s CPU time)` |
+| `test/pos_spec/VolOrderTargetVega.t.sol` | VolOrderManagerMod.plk (mask-identity fuzz) | survives untouched | **0 bytes**; `Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 155.50ms (35.29ms CPU time)` |
+| `test/pos_spec/VolOrderManagerBatch.t.sol` | VolOrderManagerMod.plk | survives untouched | **0 bytes**; `Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 81.01ms (112.63µs CPU time)` / `Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 150.20ms (74.35ms CPU time)` / `Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 145.96ms (17.94ms CPU time)` / `Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 145.72ms (14.04ms CPU time)` / `Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 105.48ms (421.02µs CPU time)` / `Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 254.40ms (180.51ms CPU time)` / `Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 304.14ms (210.54ms CPU time)` |
+| `test/pos_spec/VolOrderManager.t.sol` | VolOrderManagerMod.plk | survives untouched | **0 bytes**; `Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 97.85ms (96.28µs CPU time)` / `Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 303.17µs (104.44µs CPU time)` / `Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 72.09ms (469.02µs CPU time)` / `Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 66.20ms (305.93µs CPU time)` / `Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 311.03ms (263.31ms CPU time)` |
+| `test/pos_spec/VolOrderManagerFixture.t.sol` | VolOrderManagerMod.plk + Interface | survives untouched | **0 bytes**; `Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 535.06ms (454.10ms CPU time)` / `Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 20.05ms (19.87ms CPU time)` |
+| `test/types/pos_spec/VolOrder.t.sol` | VolOrderHelper.plk | survives untouched | **0 bytes**; `Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 270.66ms (112.61ms CPU time)` |
+| `test/types/pos_spec/VolOrderValidation.t.sol` | VolOrderValidationHarness.plk | survives untouched | **0 bytes**; `Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 83.40ms (749.88µs CPU time)` / `Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 202.91ms (86.00ms CPU time)` / `Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 123.03ms (395.58µs CPU time)` |
+| `src/modules/VolOrderManager.s.sol` | deploy script (bytecode via deployer) | survives untouched | **0 bytes**; compiled in the 33182346548 forge job (non-test source) |
+| `foundry-scripts/VolOrderManager.s.sol` | deploy script | survives untouched | **0 bytes**; compiled in the 33182346548 forge job (non-test source) |
+| `foundry-scripts/deploy/DeployDynamicFeeHook.s.sol` | deploy script | survives untouched | **0 bytes**; compiled in the 33182346548 forge job (non-test source) |
+| `foundry-scripts/deploy/DeployVolOrderManagerMod.s.sol` | deploy script | survives untouched | **0 bytes**; compiled in the 33182346548 forge job (non-test source) |
 | `test/types/pos_spec/VolRangeWidth.t.sol` | masked by `*VolRangeWidth*` (also masks `src/types/pos_spec/VolRangeWidth.plk`, `VolRangeWidthHelper.plk`) | UNVERIFIED — red on seed 4880: 2 failing (`volWidthRangeBuildVolRangeWidth_valid`, `volWidthRangeSub_valid`), see #63 | probe run `33169585831` (02-02-SKIP-PROBE.md) |
 | `test/types/pos_spec/SpreadTickAssimetryHelper.t.sol` | masked by `*SpreadTickAssimetryHelper*` (also masks `SpreadTickAssimetryHelper.plk`) | UNVERIFIED — red on seed 4880: 2 failing (`spreadTickAssimetrySplitTick__Valid`, `tickFromSplittedTickBucket__Valid`), see #63 | probe run `33169585831` (02-02-SKIP-PROBE.md) |
 
@@ -196,8 +196,47 @@ The elimination-bucket prediction stands: **NONE**.
 and go RED — proving they detect the type's absence — before the implementation is written, and every
 code chunk is approved in an `AskUserQuestion` approve/modify block before it is committed.
 
+## 4b. Evidence baseline, and what the two halves mean
+
+**Diff half.** `origin/develop` is `a623b97` — it predates plan 02-01, so a file touched by 02-01's
+std moves shows a non-zero diff against it while being untouched by the *refactor*. Two census
+files are in that position, and both are reported with **both** numbers above:
+
+| File | vs `origin/develop` | vs `5ccefd6` (post-02-01) | Touched by |
+|---|---|---|---|
+| `src/modules/VolOrderManagerMod.plk` | 782 B | **0 B** | `8872eca`, `5ccefd6` — `std::core::addr` + `cast_addr`, 02-01 only |
+| `test/types/pos_spec/VolOrderValidationHarness.plk` | 1119 B | **0 B** | `8872eca` — `@bool_to_u256`, 02-01 only |
+
+Their §2 prediction ("survives untouched" / "OUT OF SCOPE — do not touch") is therefore **correct
+about the refactor**, and the assessment says so rather than reporting a bare non-zero and leaving
+a reader to guess. Every other census file is **0 bytes against `origin/develop` itself** — 30 of
+the 39 paths measured, the four mechanical rows and the five additions below accounting for the rest.
+
+**Run half.** Quoted from gate `33182346548`: the `Suite result:` line for each `.sol` suite (26
+suites, all `ok`), and the `OK <path>` line from the plank job for each `.plk` entrypoint. A `.plk`
+library or type has no entrypoint of its own, so its run half names the entrypoint that imports it —
+`compile-plank` compiles those transitively, which is the only way they are type-checked at all.
+
+## 4c. Files this phase ADDED (no §2/§3 row predicted them)
+
+The assessment classified *existing* coupling, so additions need their own record:
+
+| File | What it is | Evidence |
+|---|---|---|
+| `src/types/Extra.plk` | the tagged slice descriptor (§4a) | new; compiled transitively via `test/types/pos_spec/VolOrderTypeHarness.plk` |
+| `test/types/pos_spec/VolOrderTypeHarness.plk` | type/descriptor harness, 7 entrypoints | new; `OK test/types/pos_spec/VolOrderTypeHarness.plk` |
+| `test/types/pos_spec/VolOrderType.t.sol` | the 14 type tests | new; `Suite result: ok. 14 passed; 0 failed; 0 skipped` |
+| `fixtures/plank-negative/VolOrderBadRegion.plk` | negative: non-region `T` | new; built via `vm.tryFfi`, asserted to FAIL |
+| `fixtures/plank-negative/VolOrderExtraNeedsUnwrap.plk` | negative: `Option` payload not a field | new; built via `vm.tryFfi`, asserted to FAIL |
+
+`compile-plank` went 38 → **39 ok**; the forge suite 75 → **76 suites**, 273 → **287 passed**. The
+deltas are exactly these additions.
+
 ## 5. Elimination candidates
-NONE PREDICTED. Both files CONTEXT.md flagged as the likeliest candidates (`VolOrderDecoder.sol`, `VolOrderRefMock.sol`) are coupled to the packed WORD layout, which does not change; each row in §3 cites the file's own NatSpec for why.
+NONE PREDICTED. **NONE FOUND (02-04).** The refactor touched exactly the four files §2 classified
+mechanical; no test was deleted, weakened or `--skip`-ed to make the gate green, and the executor
+never had to invoke the HARD STOP rule. Criterion 4's traceability requirement is satisfied
+vacuously — there is nothing to trace. Both files CONTEXT.md flagged as the likeliest candidates (`VolOrderDecoder.sol`, `VolOrderRefMock.sol`) are coupled to the packed WORD layout, which does not change; each row in §3 cites the file's own NatSpec for why.
 
 ## 6. Decisions for the checkpoint
 1. Approve the classification in §2-3 (or name the row that is wrong).
