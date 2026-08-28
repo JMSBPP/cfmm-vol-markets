@@ -1,0 +1,53 @@
+// VolMarketKey(V): a market key TAGGED BY VENUE.
+//
+// `V` is a phantom type parameter used as a venue index, exactly as `Extra(T)` uses a region and
+// `Shock(R)` uses a region. `struct V { ... }` makes VolMarketKey(V4) and VolMarketKey(Algebra)
+// DISTINCT types even though the fields are identical, so an Algebra key can never be read as a V4
+// one -- a cross-venue call site is a COMPILE error, not a runtime revert.
+//
+// Verified supported at plank 00c0a1a: the struct tag accepts any comptime value -- std/slice.plk
+// tags with `struct (R, T, arity.inner)`, whose third element is a u256 VALUE, not a type -- and
+// `is_region` is an ordinary `fn ... bool` in std/regions.plk, not a language rule. Extra.plk's
+// region restriction is a library choice in that file, not a constraint on this one.
+//
+// ---------------------------------------------------------------------------------------------
+// ASSET vs NUMERAIRE -- read this before touching asset_index.
+//
+// Panoptic's `asset` BIT names the CASH/collateral token that positionSize is denominated in:
+//   TokenId.sol:112-116  "Get the asset basis for this TokenId ... 0 if asset is token0, 1 if
+//                         asset is token1"
+//   PanopticMath.getLiquidityChunk  "The asset is the 'basis' of the position. In TradFi, the
+//                         asset is always cash and selling a $1000 put requires the user to lock
+//                         $1000", then branching asset==0 -> getLiquidityForAmount0, else
+//                         getLiquidityForAmount1.
+// THIS protocol calls that token the NUMERAIRE (AlgebraIntegralShocksWriterMod.plk:214:
+// "asset=pool.token0, numeraire=pool.token1") and denominates vega in it
+// (PanopticTokenIdSetterLib.plk:130: "asset = 1 (token1 = the vega numeraire)").
+//
+// The two vocabularies therefore use "asset" for OPPOSITE roles, and the mapping from this key to
+// Panoptic's bit is a NOT -- see vol_market_key_panoptic_asset_bit. Read from panoptic-v2-core
+// @ 5555b32; the citations are there so this can be re-checked rather than trusted.
+// ---------------------------------------------------------------------------------------------
+
+const V4 = struct {};
+const V3 = struct {};
+const Algebra = struct {};
+
+const is_venue = fn (comptime V: type) bool {
+    V == V4 or V == V3 or V == Algebra
+};
+
+const VolMarketKey = fn (comptime V: type) type {
+    if !is_venue(V) {
+        @compile_error("VolMarketKey: V must be V4, V3 or Algebra");
+    }
+    return struct V {
+        currency0: u256,    // sorted: currency0 < currency1
+        currency1: u256,
+        asset_index: u256,  // 0 => currency0 is the ASSET; the other currency is the numeraire
+        fee: u256,          // V4/V3; unused on Algebra (dynamic fee)
+        tick_spacing: u256, // V4 explicit; V3/Algebra verified against the pool
+        registry: u256,     // V4: hooks | V3: univ3 factory | Algebra: algebra factory
+        pool: u256          // V3/Algebra: the ASSERTED pool address. V4: 0
+    };
+};
