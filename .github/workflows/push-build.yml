@@ -176,6 +176,22 @@ jobs:
       # foundry.toml resolve into it); package.json/package-lock.json are tracked for exactly
       # this closure. Without this the compile dies on missing @cryptoalgebra sources before
       # any test runs.
+      # Phase 2 (VORD-02): stamp the harness ABI edge on every push so the VolOrder(T) refactor
+      # can be checked for a frozen external surface WITHOUT a local build -- the executor diffs
+      # the pre- and post-refactor lines read off two runs. Purely additive; develop-gate is not
+      # touched (its diff against develop stays empty for the whole phase). The lines are also
+      # copied into the run summary so they are readable without opening the log.
+      - name: Harness ABI edge stamp
+        run: |
+          set -euo pipefail
+          make abi-edge-stamp | tee "$RUNNER_TEMP/abi-edge.txt"
+          {
+            echo "### Harness ABI edge (test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk)"
+            echo ""
+            echo '```'
+            grep -E '^abi-edge ' "$RUNNER_TEMP/abi-edge.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Node dependencies
         run: npm ci --ignore-scripts
 

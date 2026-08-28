@@ -351,7 +351,29 @@ clean-plank:
 	@rm -rf $(PLANK_BUILD)
 
 
-.PHONY: compile-plank clean-plank
+# abi-edge-stamp (Phase 2, VORD-02): the harness ABI edge, stamped MECHANICALLY in CI.
+# VolOrderToPanopticTokenIdHarness.plk's external surface is frozen for the VolOrder(T)
+# refactor; there is no local build, so the proof is two lines printed by every push build:
+#   abi-edge sha256:   <sha256 of the compiled creation hex>
+#   abi-edge selector: <each PUSH4 immediate, sorted, one per line>
+# The selector set is the dispatch surface (run{} compares @evm_shr(224, calldataload(0))
+# against PUSH4 constants). Byte-identical hex is the strongest possible reading; an equal
+# selector set with a moved hash means internals changed and the surface did not.
+# Same invocation as compile-plank (line ~340) and as PlankTestBase.plankOpts() over FFI,
+# so the stamped bytes are the bytes the tests deploy. Reads: cast (pinned foundry), plank.
+ABI_EDGE_HARNESS := test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk
+ABI_EDGE_DIR     := $(PLANK_BUILD)/abi-edge
+abi-edge-stamp:
+	@mkdir -p $(ABI_EDGE_DIR)
+	$(PLANK) build $(ABI_EDGE_HARNESS) $(PLANK_DEP) --backend '$(PLANK_BACKEND)' > $(ABI_EDGE_DIR)/VolOrderToPanopticTokenIdHarness.hex
+	@printf 'abi-edge sha256: %s\n' "$$(sha256sum $(ABI_EDGE_DIR)/VolOrderToPanopticTokenIdHarness.hex | cut -d' ' -f1)"
+	@cast disassemble "$$(tr -d '[:space:]' < $(ABI_EDGE_DIR)/VolOrderToPanopticTokenIdHarness.hex)" \
+	  | grep -oE 'PUSH4[^0-9a-fx]*0x[0-9a-fA-F]{8}' | grep -oE '0x[0-9a-fA-F]{8}' | tr 'A-F' 'a-f' | sort -u \
+	  > $(ABI_EDGE_DIR)/VolOrderToPanopticTokenIdHarness.selectors
+	@sed 's/^/abi-edge selector: /' $(ABI_EDGE_DIR)/VolOrderToPanopticTokenIdHarness.selectors
+	@printf 'abi-edge selector-count: %s\n' "$$(wc -l < $(ABI_EDGE_DIR)/VolOrderToPanopticTokenIdHarness.selectors)"
+
+.PHONY: compile-plank clean-plank abi-edge-stamp
 
 # --- PriceSetterHook: local tick-experiment rig -------------------------------
 # Stands up PoolManager + a flag-mined PriceSetterHook + a bound (liquidity-free) pool
