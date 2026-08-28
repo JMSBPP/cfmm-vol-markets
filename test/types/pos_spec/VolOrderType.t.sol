@@ -18,6 +18,7 @@ interface IVolOrderTypeHarness {
     function payloadTokenType(uint256 payload, uint256 leg) external returns (uint256);
     function payloadVegoid(uint256 payload) external returns (uint256);
     function payloadValidate(uint256 payload) external returns (uint256);
+    function payloadRequireVegoidAgrees(uint256 payload, uint256 poolId) external returns (uint256);
 }
 
 /// @notice The pre-refactor tokenId map, for the bit-identity comparison.
@@ -161,6 +162,50 @@ contract VolOrderTypeTest is PlankTestBase {
     function test__unit__payloadAcceptsTheBoundaryValues() public {
         assertEq(h.payloadValidate(_payload(1, 127, 1, 127, 1)), 1, "min/max ratios and vegoid 1");
         assertEq(h.payloadValidate(_payload(127, 1, 127, 1, 255)), 1, "vegoid 255");
+    }
+
+    // ---- the payload's vegoid must agree with pool_id[40..47] (VORD-07) ----------------------
+
+    /// poolId layout is [16b tickSpacing at 48][8b vegoid at 40][40b pattern at 0]
+    /// (PanopticMath.sol:28). The payload declares a vegoid; the poolId carries one; they must
+    /// agree. Both operands belong to this phase -- poolId comes from VolMarketKey, the payload
+    /// from Extra(T) -- and Extra(T) has no VolOrder dependency, which is why this guard is here
+    /// and not in Phase 3.
+    function test__unit__vegoidAgreesWithPoolId() public {
+        uint256 poolId = (uint256(200) << 40) | 0x1122334455;
+        assertEq(
+            h.payloadRequireVegoidAgrees(_payload(1, 1, 1, 1, 200), poolId), 1, "agreeing pair"
+        );
+    }
+
+    function test__unit__vegoidMismatchReverts() public {
+        uint256 poolId = (uint256(201) << 40) | 0x1122334455;
+        vm.expectRevert();
+        h.payloadRequireVegoidAgrees(_payload(1, 1, 1, 1, 200), poolId);
+    }
+
+    /// THE HOLE. `require(a == b)` passes happily when BOTH sides are zero, and vegoid == 0 is
+    /// invalid (both SFPMs revert InvalidTokenIdParameter(0)). So a zero-vegoid payload checked
+    /// against a poolId whose bits 40..47 are also zero satisfies the equality and would sail
+    /// through on the equality alone. The separate `!= 0` check is what stops it, and this test
+    /// is the reason that check is not redundant.
+    function test__unit__vegoidZeroOnBothSidesStillReverts() public {
+        uint256 poolId = 0x1122334455; // bits 40..47 are zero
+        vm.expectRevert();
+        h.payloadRequireVegoidAgrees(_payload(1, 1, 1, 1, 0), poolId);
+    }
+
+    /// The check must read ONLY bits 40..47 of the poolId. A tickSpacing in the high bits or a
+    /// pattern in the low bits must not perturb it.
+    function test__fuzz__vegoidCheckIgnoresTheRestOfThePoolId(uint40 pattern, uint16 tickSpacing)
+        public
+    {
+        uint256 poolId = (uint256(tickSpacing) << 48) | (uint256(77) << 40) | uint256(pattern);
+        assertEq(
+            h.payloadRequireVegoidAgrees(_payload(1, 1, 1, 1, 77), poolId),
+            1,
+            "the check is reading bits outside 40..47"
+        );
     }
 
     function _payload(uint256 r0, uint256 r1, uint256 r2, uint256 r3, uint256 vegoid)

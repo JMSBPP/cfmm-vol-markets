@@ -34,6 +34,8 @@ const SEL_PAYLOAD_TOKEN_TYPE = 0x6c16f796;
 const SEL_PAYLOAD_VEGOID = 0xe1a7fc3d;
 // cast sig "payloadValidate(uint256)"              -> 0x52525605
 const SEL_PAYLOAD_VALIDATE = 0x52525605;
+// cast sig "payloadRequireVegoidAgrees(uint256,uint256)" -> 0x365f4b6e
+const SEL_PAYLOAD_REQUIRE_VEGOID_AGREES = 0x365f4b6e;
 
 init { return_runtime(); }
 
@@ -117,6 +119,13 @@ run {
     // optionRatio, which is the only reachable invalid value in either field.
     if selector == SEL_PAYLOAD_VALIDATE {
         extra_payload_validate(@evm_calldataload(4));
+        return_1(1);
+    }
+
+    // Returns 1 on success; the interesting outcomes are the REVERTS -- on a mismatch, and on a
+    // zero vegoid even when the poolId's vegoid nibble is also zero and the equality holds.
+    if selector == SEL_PAYLOAD_REQUIRE_VEGOID_AGREES {
+        extra_payload_require_vegoid_agrees(@evm_calldataload(4), @evm_calldataload(36));
         return_1(1);
     }
 
