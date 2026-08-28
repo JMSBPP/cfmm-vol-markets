@@ -1,5 +1,13 @@
 # cfmm-vol-markets
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo/png/mark-full-dark-1024.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/logo/png/mark-full-light-1024.png">
+    <img alt="cfmm-vol-markets — a constant-function market maker curve and a volatility skew are the same curve, read on different axes" src="assets/logo/png/mark-full-light-1024.png" width="360">
+  </picture>
+</p>
+
 The **on-chain protocol core** for typed volatility markets — the Plank/Solidity
 contracts, their Foundry test surface, and the type kernel that binds them. Renamed
 from `cfmm-replicationPlank`.
