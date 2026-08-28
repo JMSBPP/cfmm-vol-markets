@@ -78,7 +78,8 @@ contract VolOrderTypeTest is PlankTestBase {
 
     // ---- What must NOT compile ---------------------------------------------------------------
 
-    /// VolOrder(u256) hits the constructor's @compile_error fallthrough.
+    // VolOrder(u256) hits the constructor's @compile_error fallthrough. (Plain comment, not NatSpec:
+    // solc reads a leading at-sign in NatSpec as a doc tag -- Error 6546 -- see VolOrderDecoder.sol.)
     function test__unit__badRegionTagDoesNotCompile() public {
         Vm.FfiResult memory r = _tryBuild("fixtures/plank-negative/VolOrderBadTag.plk");
         assertTrue(r.exitCode != 0, "VolOrder(u256) compiled; the @compile_error fallthrough is dead");
