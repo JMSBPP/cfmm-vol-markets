@@ -4,6 +4,7 @@ import types::pos_spec::VolOrder::{unpack_vol_order, tick_bucket_from_vol_order}
 import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
 import types::pricing::TickUtils::round_tick;
 import lib::protocol_integrations::PanopticTokenIdSetterLib::vol_order_to_panoptic_token_id;
+import std::regions::calldata;
 
 // Harness for CR-I2 (VolOrder -> PanopticTokenId, Layer 1).
 //  - legFromBucket exercises the floor-strike leg encoder (Increment 1).
@@ -35,7 +36,7 @@ run {
     // tokenIdFromVolOrder(packedVO@4, poolId@36) -> uint256 tokenId
     if selector == SEL_TOKEN_ID {
         let vo = unpack_vol_order(@evm_calldataload(4));
-        let res = vol_order_to_panoptic_token_id(vo, @evm_calldataload(36));
+        let res = vol_order_to_panoptic_token_id(calldata, vo, @evm_calldataload(36));
         let out = @malloc_uninit(32);
         @mstore32(out, res.tokenId);
         @evm_return(out, 32);

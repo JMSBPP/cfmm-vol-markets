@@ -1,0 +1,85 @@
+import std::regions::{is_region};
+import std::error::require;
+
+// Extra(T): a TAGGED SLICE DESCRIPTOR into region T.
+//
+// It says WHERE a payload lives and HOW MANY BITS it occupies -- and nothing about what is built
+// from it. `T` is a phantom type parameter used as a region index (Haskell: the `s` in `ST s`);
+// `struct T { ... }` makes Extra(memory) and Extra(calldata) distinct types even though the fields
+// are identical, so a calldata descriptor can never be read as a memory one.
+//
+// The descriptor is ONE packed word:
+//
+//     flags(u8) @248 | offset(u32) @216 | len(u16) @200
+//
+//   flags   -- FLAG_PANOPTIC is the only bit defined; every other bit is RESERVED and rejected on
+//              decode, so a future flag cannot be smuggled past an old decoder (Shock's rule).
+//   offset  -- BYTE offset into region T at which the payload starts.
+//   len     -- payload size in BITS.
+//
+// Under FLAG_PANOPTIC the payload is the operand set the Panoptic tokenId is built from:
+// poolId (48 bits, the `& 0xffffffffffff` mask both PanopticTokenIdSetterLib and the Haskell
+// spec/src/Panoptic/NId.hs apply) plus four optionRatios at 7 bits each (`& 0x7f`, 1..127) --
+// 48 + 28 = 76 bits, packed. Dereferencing it is Phase 3; Phase 2 only carries the descriptor.
+//
+// NOT reinvented from std: `std::slice::Slice(R, T, arity)` (new at plank 00c0a1a) is the typed
+// region-generic view a Phase 3 dereference will build over the four ratios, and
+// `std::calldata::unsafe_calldata_read` reads the poolId word. std has no TAGGED descriptor, which
+// is the one thing this file adds.
+const Extra = fn (comptime T: type) type {
+    if !is_region(T) {
+        @compile_error("Extra: T must be a region (std::regions::memory or ::calldata)");
+    }
+    return struct T {
+        flags: u256,
+        offset: u256,
+        len: u256
+    };
+};
+
+const FLAG_PANOPTIC = 0x01;
+const EXTRA_FLAGS_MASK = 0x01;
+
+// poolId(48) + 4 optionRatios(7 each) = 76 bits, packed. The only payload Phase 2 recognises.
+const EXTRA_PANOPTIC_BITS = 76;
+
+const EXTRA_OFF_FLAGS = 248;
+const EXTRA_OFF_OFFSET = 216;
+const EXTRA_OFF_LEN = 200;
+const MASK_U32_EXTRA = 0xffffffff;
+const MASK_U16_EXTRA = 0xffff;
+
+// Decode = split the word, reject reserved flag bits, and require the length the flags imply.
+// A descriptor whose len contradicts its flags is malformed, not merely unusual.
+const extra_decode = fn (comptime T: type, word: u256) Extra(T) {
+    let flags = @evm_shr(EXTRA_OFF_FLAGS, word);
+    require(flags <= EXTRA_FLAGS_MASK);
+    let len = @evm_shr(EXTRA_OFF_LEN, word) & MASK_U16_EXTRA;
+    if (flags & FLAG_PANOPTIC) != 0 {
+        require(len == EXTRA_PANOPTIC_BITS);
+    } else {
+        require(len == 0);
+    }
+    Extra(T) {
+        flags: flags,
+        offset: @evm_shr(EXTRA_OFF_OFFSET, word) & MASK_U32_EXTRA,
+        len: len
+    }
+};
+
+// The inverse, so a caller can build a descriptor without knowing the bit layout.
+const extra_encode = fn (comptime T: type, e: Extra(T)) u256 {
+    @evm_shl(EXTRA_OFF_FLAGS, e.flags & EXTRA_FLAGS_MASK)
+    | @evm_shl(EXTRA_OFF_OFFSET, e.offset & MASK_U32_EXTRA)
+    | @evm_shl(EXTRA_OFF_LEN, e.len & MASK_U16_EXTRA)
+};
+
+// An empty descriptor: no flags, no payload. What an order carries when it points at nothing.
+const extra_none_payload = fn (comptime T: type) Extra(T) {
+    Extra(T) { flags: 0, offset: 0, len: 0 }
+};
+
+// Is this descriptor the Panoptic operand set?
+const extra_is_panoptic = fn (comptime T: type, e: Extra(T)) bool {
+    (e.flags & FLAG_PANOPTIC) != 0
+};
