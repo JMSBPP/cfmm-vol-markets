@@ -194,13 +194,14 @@ such Extra(T) ? I am aware there is Option and None ?"* — answered: no, std su
    — and `spec/` is the authority for this milestone; matching its shape is worth more than removing a
    parameter. Retiring it would also have been the only way to avoid a dual source for one datum,
    which is now moot: poolId is not in the descriptor at all.
-   **Consequence, owned by Phase 3:** the `FLAG_PANOPTIC` payload is the **four optionRatios only —
-   4 × 7 = 28 bits**, not 76. `EXTRA_PANOPTIC_BITS = 76` in `src/types/Extra.plk` (and the `PANOPTIC_BITS`
-   constant plus four assertions in `VolOrderType.t.sol`) still say 76 and must move to 28 when Phase 3
-   defines the payload. They are not changed now: nothing dereferences the descriptor yet, so the value
-   is inert, and moving it would cost a branch, PR and gate cycle to change a number no code reads.
-   **Also stale for the same reason:** the comment at `src/lib/protocol_integrations/PanopticTokenIdSetterLib.plk:28`
-   ends "…and retire the pool_id parameter" — Phase 3 fixes it when it edits that function.
+   **Consequence, APPLIED (PR #65 / issue #64, merged as `b2868cc`):** the `FLAG_PANOPTIC` payload is
+   the **four optionRatios only — 4 × 7 = 28 bits**, not 76. `EXTRA_PANOPTIC_BITS` (`src/types/Extra.plk`)
+   and `PANOPTIC_BITS` (`VolOrderType.t.sol`) are now **28**, and the stale "…retire the pool_id
+   parameter" comment at `PanopticTokenIdSetterLib.plk` is gone. `extra_decode` now REQUIRES `len == 28`
+   and REJECTS 76 — a behaviour change, verified by gate `33186747172`: 76 suites / 287 passed / 0
+   failed / 3 skipped, `compile-plank 39 ok`, and all four descriptor tests green against the new value
+   (`panopticDescriptorDecodesToItsThreeFields`, `panopticFlagWithTheWrongLengthReverts`,
+   `unflaggedDescriptorWithAPayloadLengthReverts`, `descriptorSurvivesEncodeDecode`).
 
 **Consequences for §2-3.** The four rows classified *mechanical* stay mechanical, but their edit is
 larger than §4's: every `VolOrder` struct literal gains `extra: None(Extra(calldata))`, and both
