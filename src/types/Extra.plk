@@ -17,10 +17,15 @@ import std::error::require;
 //   offset  -- BYTE offset into region T at which the payload starts.
 //   len     -- payload size in BITS.
 //
-// Under FLAG_PANOPTIC the payload is the operand set the Panoptic tokenId is built from:
-// poolId (48 bits, the `& 0xffffffffffff` mask both PanopticTokenIdSetterLib and the Haskell
-// spec/src/Panoptic/NId.hs apply) plus four optionRatios at 7 bits each (`& 0x7f`, 1..127) --
-// 48 + 28 = 76 bits, packed. Dereferencing it is Phase 3; Phase 2 only carries the descriptor.
+// Under FLAG_PANOPTIC the payload is the FOUR optionRatios, 7 bits each (`& 0x7f`, 1..127) --
+// 4 * 7 = 28 bits, packed. Dereferencing it is Phase 3; Phase 2 only carries the descriptor.
+//
+// poolId is deliberately NOT here. It stays an explicit parameter of
+// vol_order_to_panoptic_token_id because the Haskell oracle keeps it explicit --
+//   volOrderToTokenId :: VolOrder -> Integer -> (Integer,Integer,Integer,Integer) -> PanopticTokenId
+// (spec/src/Panoptic/NId.hs) -- and spec/ is the authority for this milestone; matching its shape
+// is worth more than removing a parameter. Putting poolId in the descriptor as well would give one
+// datum two sources with nothing reconciling them.
 //
 // NOT reinvented from std: `std::slice::Slice(R, T, arity)` (new at plank 00c0a1a) is the typed
 // region-generic view a Phase 3 dereference will build over the four ratios, and
@@ -40,8 +45,9 @@ const Extra = fn (comptime T: type) type {
 const FLAG_PANOPTIC = 0x01;
 const EXTRA_FLAGS_MASK = 0x01;
 
-// poolId(48) + 4 optionRatios(7 each) = 76 bits, packed. The only payload Phase 2 recognises.
-const EXTRA_PANOPTIC_BITS = 76;
+// 4 optionRatios, 7 bits each = 28 bits, packed. The only payload Phase 2 recognises.
+// (NOT 48 + 28: poolId is an explicit parameter, not part of the descriptor -- see above.)
+const EXTRA_PANOPTIC_BITS = 28;
 
 const EXTRA_OFF_FLAGS = 248;
 const EXTRA_OFF_OFFSET = 216;

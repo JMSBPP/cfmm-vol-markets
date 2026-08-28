@@ -24,8 +24,9 @@ import std::error::require;
 // RETURNS the PanopticTokenId. Phase 2 is the `None`/no-payload path only -- the geometry is
 // exactly today's and `pool_id` is still a parameter, so the emitted id is bit-identical to the
 // pre-refactor map (pinned by the untouched golden vectors in VolOrderToPanopticTokenId.t.sol).
-// Phase 3 adds the FLAG_PANOPTIC branch: dereference extra's offset for (poolId, OptionRatio[4])
-// -- as a Slice(T, u256, Some(4)) over the ratios -- and retire the pool_id parameter.
+// Phase 3 adds the FLAG_PANOPTIC branch: dereference extra's offset for the four optionRatios --
+// as a Slice(T, u256, Some(4)) over them. `pool_id` STAYS an explicit parameter, matching the
+// Haskell oracle's signature (spec/src/Panoptic/NId.hs); it is not in the descriptor.
 const vol_order_to_panoptic_token_id = fn (comptime T: type, vo: VolOrder(T), pool_id: u256) PanopticTokenId {
     let ts = vo.rangeWidth.tickSpacing;
     let i_star = round_tick(tick_volatility_tick(vo.volStrike), ts);
