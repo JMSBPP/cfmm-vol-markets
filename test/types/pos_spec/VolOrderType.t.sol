@@ -31,7 +31,7 @@ interface IVolOrderToPanopticTokenIdHarness {
 ///        200..215. (Bit positions in prose, never with a leading at-sign: solc parses that in
 ///        NatSpec as a documentation tag and rejects the file with Error 6546 -- the same trap
 ///        test/pos_spec/VolOrderDecoder.sol documents.) Its len must be the one its flags
-///        imply: 76 bits under FLAG_PANOPTIC, 0 otherwise;
+///        imply: 28 bits under FLAG_PANOPTIC (four 7-bit optionRatios), 0 otherwise;
 ///      - Extra carries NO tokenId: the builder still returns PanopticTokenId, and Phase 2 walks
 ///        the no-payload path only, so the id stays bit-identical to the pre-refactor map;
 ///      - pack/unpack never touch `extra`.
@@ -43,7 +43,7 @@ contract VolOrderTypeTest is PlankTestBase {
 
     uint256 internal constant MASK_248 = (uint256(1) << 248) - 1;
     uint256 internal constant FLAG_PANOPTIC = 0x01;
-    uint256 internal constant PANOPTIC_BITS = 76; // poolId 48 + 4 x 7-bit ratios
+    uint256 internal constant PANOPTIC_BITS = 28; // 4 x 7-bit optionRatios; poolId is a parameter, not payload
 
     // A valid packed VolOrder: width 2000, tickSpacing 10, volStrike 1, skew 0x8000, targetVega 0.
     uint256 internal constant VO =
@@ -94,7 +94,7 @@ contract VolOrderTypeTest is PlankTestBase {
 
     function test__unit__panopticFlagWithTheWrongLengthReverts() public {
         vm.expectRevert();
-        h.extraDecodeFields(_descriptor(FLAG_PANOPTIC, 0x24, 80)); // 80 != 76: len contradicts flags
+        h.extraDecodeFields(_descriptor(FLAG_PANOPTIC, 0x24, 80)); // 80 != 28: len contradicts flags
     }
 
     function test__unit__unflaggedDescriptorWithAPayloadLengthReverts() public {
