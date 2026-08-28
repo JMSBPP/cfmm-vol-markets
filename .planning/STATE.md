@@ -194,10 +194,12 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-27T23:20:00Z
-Stopped at: **Completed 01-06-PLAN.md. PHASE 1 IS COMPLETE (6/6) and merged.** `develop` is at
+Last session: 2026-08-28 — Phase 2 context gathered (`02-CONTEXT.md`)
+Previous stop: **Completed 01-06-PLAN.md. PHASE 1 IS COMPLETE (6/6) and merged.** `develop` is at
 `b090b2e`; the working tree is checked out on `develop` and fast-forwarded to it.
-Resume file: none — Phase 1 is closed. Next action is planning Phase 2.
+Resume file: `.planning/phases/02-volorder-t-minimal-instantiation/02-CONTEXT.md` — next action is `/gsd:plan-phase 2`.
+
+**Phase 2 EXECUTION GATE (maintainer, verbatim intent): plans are executed by the superpowers INLINE executor in the maintainer's session. gsd-executor and background agents are BARRED. Every Phase 2 PLAN.md carries this gate at its top.**
 
 Next: **Phase 2 — VolOrder(T) Minimal Instantiation** (VORD-01, VORD-02, VORD-03).
 **It OPENS with a regression assessment that is a brainstorm-and-decide step WITH the maintainer,

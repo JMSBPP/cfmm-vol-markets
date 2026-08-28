@@ -9,8 +9,9 @@ directory layout. Requirement PROC-01.
         <NN>-<NN>-PLAN.md
         <NN>-<NN>-SUMMARY.md
 
-Every phase is a FEATURE, named after the `feat/<slug>` git branch it is built on, and every
-phase starts with a git worktree on that branch plus a tracking issue on `develop`.
+Every phase is a FEATURE, named after the `feat/<slug>` git branch it is built on, plus a
+tracking issue on `develop`. Phases start **inline, in the current tree** — the earlier
+worktree-per-phase rule was retired after Phase 1.1.
 
 ## Why the entries here are symlinks
 
