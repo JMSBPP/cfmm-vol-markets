@@ -21,8 +21,8 @@ Requirements for this milestone. Each maps to a roadmap phase.
 - [x] **VORD-01**: `VolOrder` is a comptime type constructor `VolOrder(T)` carrying an `extra: T` payload, following the in-repo `Shock(R)` pattern
 - [x] **VORD-02**: The minimal instantiation produces a **bit-identical** `tokenId` to today's `vol_order_to_panoptic_token_id` for every input the current suite covers
 - [x] **VORD-03**: Existing callers — `vol_order_to_mint`, `position_size_for_target_vega`, `vol_order_leg_split`, `VolOrderToPanopticTokenIdHarness.plk` — compile and pass unchanged against the minimal instantiation
-- [ ] **VORD-04**: A rich instantiation carries the data the Haskell map takes: a 4-tuple of `optionRatio`s (each 1..127) and the `asset` bit
-- [ ] **VORD-05**: The rich instantiation emits the Haskell-equivalent `tokenId` — per-leg `optionRatio` from the tuple, `asset = 1` on all four legs
+- [ ] **VORD-04**: The `Extra(T)` descriptor, when flagged `FLAG_PANOPTIC`, points at the data the Haskell map takes — four `optionRatio`s (each 1..127) — and the builder sets the `asset` bit. (Restated 2026-08-28 from "a rich instantiation carries…": there is no second instantiation; see 02-REGRESSION-ASSESSMENT.md §4a. `pool_id` stays an explicit parameter, §4a decision 7.)
+- [ ] **VORD-05**: With a `FLAG_PANOPTIC` descriptor the builder emits the Haskell-equivalent `tokenId` — per-leg `optionRatio` from the four values the descriptor points at, `asset = 1` on all four legs. (Restated 2026-08-28; mechanism only, outcome unchanged.)
 - [ ] **VORD-06**: `VolOrder(T)` has a defined serialization that carries *which* `T` was instantiated, decodable by a consumer from the bytes alone
 
 ### RPC / Transport Architecture

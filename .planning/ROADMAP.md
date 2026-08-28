@@ -339,20 +339,35 @@ Plans:
 ### Phase 3: VolOrder(T) Rich Instantiation
 **Directory**: `.planning/phases/FEATURES/feat-volorder-t-rich/`
 **Branch**: `feat/volorder-t-rich`
-**Goal**: A second instantiation carries what the Haskell map actually takes, and emits the tokenId
-the Haskell would emit — closing the "not the same function" gap without breaking the first.
+**Goal**: The tokenId builder reads its operands through the `Extra(T)` descriptor and emits the
+tokenId the Haskell would emit — closing the "not the same function" gap without breaking the
+no-payload path.
 **Depends on**: Phase 2
 **Requirements**: VORD-04, VORD-05
+> **Criteria restated 2026-08-28 to the Phase 2 design of record**
+> (`.planning/phases/02-volorder-t-minimal-instantiation/02-REGRESSION-ASSESSMENT.md` §4a). They were
+> written when "rich instantiation" meant a SECOND `VolOrder(T)` variant. There is no second variant:
+> there is one `VolOrder(T)` per region carrying an `Option(Extra(T))` descriptor, and the operands
+> arrive through the `FLAG_PANOPTIC` dereference. **The outcomes below are unchanged** — ratios
+> 1..127, `asset = 1` on four legs, the minimal path untouched; only the mechanism is corrected.
 **Success Criteria** (what must be TRUE):
-  1. `develop-gate` green: the plank job compiles **both** instantiations in the same run, the rich
-     one carrying a 4-tuple of `optionRatio`s (each 1..127) and the `asset` bit.
-  2. The forge job runs non-fuzz anchor cases showing the rich instantiation writes per-leg
-     `optionRatio` from the tuple and `asset = 1` on all four legs, checked against the existing
-     Panoptic `validate()` structural oracle (the Haskell oracle is not yet reachable).
-  3. The same gate run still reports the minimal-instantiation golden vectors green.
-  4. Choosing the rich instantiation changes only the `optionRatio`/`asset` fields — the strike,
-     width, tokenType and pool-id bits are identical to the minimal instantiation for the same
+  1. `develop-gate` green: the plank job compiles the `FLAG_PANOPTIC` branch of
+     `vol_order_to_panoptic_token_id`, which dereferences `Extra(T)`'s offset to read the four
+     `optionRatio`s (each 1..127) from region `T` and sets the `asset` bit. `pool_id` remains an
+     explicit parameter (§4a decision 7).
+  2. The forge job runs non-fuzz anchor cases showing that a `FLAG_PANOPTIC` descriptor makes the
+     builder write per-leg `optionRatio` from the four values it points at and `asset = 1` on all
+     four legs, checked against the existing Panoptic `validate()` structural oracle — the Haskell
+     oracle is not yet reachable (Phase 7 wires it).
+  3. The same gate run still reports the no-payload path's golden vectors green:
+     `test/protocol_integrations/VolOrderToPanopticTokenId.t.sol` 10/10 with **no edits to that file**.
+  4. Supplying a `FLAG_PANOPTIC` descriptor changes only the `optionRatio`/`asset` fields — the
+     strike, width, tokenType and pool-id bits are identical to the no-payload path for the same
      geometry, asserted in the gate.
+  5. `test__unit__phase2MapStillHardcodesRatioOneAndNoAsset` (`VolOrderType.t.sol`) is updated or
+     retired **deliberately**, with the change traceable to this phase — it asserts today that the
+     map emits `optionRatio = 1` and `asset = 0`, and it goes RED the moment criterion 2 is met. It
+     is a pin, not a regression; deleting it silently is the failure this criterion exists to catch.
 **Plans**: TBD
 
 ### Phase 4: VolOrder(T) Wire Format
