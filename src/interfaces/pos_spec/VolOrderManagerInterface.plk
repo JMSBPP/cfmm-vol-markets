@@ -33,7 +33,7 @@ const SELECTOR_GET_ORDER_PACKED = 0xa9bcabc1;
 //      topic0s cast-verified and solc-asserted in test/pos_spec/VolOrderTargetVega.t.sol) ----
 // event:: VolOrderCreated(uint256 indexed orderId, uint88 strike, uint24 width, uint16 skew, uint96 targetVega)
 //   data = 4 words (strike, width, skew, targetVega); targetVega = DeltaQ_v* in RAW LIQUIDITY
-//   units (notes/UNITS_AND_SCALES.md section 2). Emitted per successful create_order and per
+//   units (vol-order-v2-target-vega-SPEC.md section 2). Emitted per successful create_order and per
 //   SUCCESS inside create_orders (skips emit nothing, successors unshifted).
 //   The v1 4-field signature/topic0 0x6a5dc726... is RETIRED-NEVER-LIVE (DATA_CONTRACT.md).
 const TOPIC0_EVENT_VOL_ORDER_CREATED = 0x18bd4d460f8957f6b903aec33a3229ee1bf02b6e303c5178c5aa49a70b9de4e6;

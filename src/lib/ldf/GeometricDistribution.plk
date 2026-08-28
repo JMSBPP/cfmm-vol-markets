@@ -3,8 +3,8 @@ import v3::math::full_math::{mulDiv, mulDivRoundingUp};
 import v3::math::tick_math::getSqrtRatioAtTick;
 import types::Numerics::{Q96};
 
-// Geometric LDF liquidity density — the normalized geometric weight l(xi, iota; i) in Q96 from
-// notes/VOLATILITY_INSTRUMENTS.md, realized as a faithful port of Bunni's
+// Geometric LDF liquidity density — the normalized geometric weight l(xi, iota; i) in Q96,
+// realized as a faithful port of Bunni's
 // LibGeometricDistribution.liquidityDensityX96. Params: xi_x96 = xi (Q96), min_tick = i_min,
 // iota = iota (# rounded ticks in the support). Reverts (via mulDiv) when xi == 1, as in Bunni.
 

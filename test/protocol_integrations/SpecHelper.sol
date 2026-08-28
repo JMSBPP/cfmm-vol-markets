@@ -4,8 +4,7 @@ pragma solidity ^0.8.26;
 /// @title SpecOracle
 /// @notice THE ONE SEAM between the Foundry test process and the Haskell executable
 ///         specification (`spec/src/Panoptic/NId.hs :: volOrderToTokenId`), reached over the
-///         JSON-RPC transport that `evm-spec-bridge` serves.
-///         See notes/DIFFERENTIAL_LAYOUT.md for the boundary this file defines.
+///         JSON-RPC transport that `evm-spec-bridge` serves (RED-06 transport boundary).
 ///
 /// @dev PROVISIONAL HAND-WRITTEN STAND-IN - NOT YET GENERATED.
 ///      `evm-spec-bridge` GENERATES this library from the same schema as its Haskell protocol
@@ -43,9 +42,9 @@ pragma solidity ^0.8.26;
 ///
 ///      TRANSPORT MECHANICS ARE OUT OF SCOPE FOR THIS FILE. The transport is RESOLVED
 ///      (JSON-RPC, decided at `evm-spec-bridge` initialization outside Phase 5), but no cheatcode
-///      call appears here: Phase 1 needs the SHAPE, not the mechanics. The mechanics - and the
-///      questions still open about them - are recorded in notes/DIFFERENTIAL_LAYOUT.md. Nothing
-///      in this file changes depending on how those questions resolve.
+///      call appears here: Phase 1 needs the SHAPE, not the mechanics. Transport rules bind
+///      every caller: check vm.rpc success before touching returned bytes; three-way outcomes
+///      (Ok / Rejected / TransportFailure) must never be conflated.
 ///
 ///      BINDING RULE FOR EVERY CALLER, NOW AND IN PHASE 7: a call to this seam MUST bind its
 ///      boolean success value and check it BEFORE touching the returned bytes. No call site may
@@ -53,8 +52,7 @@ pragma solidity ^0.8.26;
 ///      accepts the connection and never answers costs a HARDCODED 45 s per call - there is no
 ///      timeout knob for `vm.rpc` - and the test PASSED, because the call site ignored `success`.
 ///      At `fuzz.runs = 256` that is 3.2 hours of green CI meaning nothing: this project's
-///      founding failure mode, reproduced against the transport we chose. See
-///      notes/DIFFERENTIAL_LAYOUT.md for the measurement and the rest of the transport rules.
+///      founding failure mode, reproduced against the transport we chose.
 ///
 ///      EXTENSION POINTS - later phases fill these in, they do not redesign them:
 ///        Phase 4  - `volOrderWire` becomes the `VolOrder(T)` wire format bytes. It is OPAQUE
@@ -122,10 +120,9 @@ library SpecOracle {
 
     /// @notice THE WIRING PREDICATE. Reports whether the spec oracle can be reached.
     /// @dev Phase 1 always reports `TransportFailure`: there is no oracle. Callers MUST treat
-    ///      that as "skip this comparison", NEVER as "the spec rejected this input" - an
+    ///      that as "skip this comparison", NEVER as "spec rejected this input" - an
     ///      unreachable oracle masquerading as a rejection is exactly how a differential test
-    ///      goes silently green. Callers MUST probe ONCE and cache; see
-    ///      notes/DIFFERENTIAL_LAYOUT.md for why that rule is binding.
+    ///      goes silently green. Callers MUST probe ONCE and cache (RED-06).
     ///
     ///      THIS IS NOT A BARE-STRING PING. It returns the full `Health` struct and rides the
     ///      SAME tagged envelope as `TokenIdResult`, deliberately: a simple-typed health method
@@ -168,7 +165,7 @@ library SpecOracle {
 ///      CALLERS SHOULD REACH THIS WITH A LOW-LEVEL `address(probe).call(...)` RATHER THAN
 ///      `try`/`catch`. Whether `try`/`catch` behaves against a cheatcode-originated revert is an
 ///      OPEN question (it performs an `extcodesize` check against the cheatcode address); the
-///      low-level form sidesteps it. Recorded in notes/DIFFERENTIAL_LAYOUT.md.
+///      low-level form sidesteps it (RED-06 transport boundary).
 contract SpecHelperProbe {
     function health() external returns (SpecOracle.Health memory) {
         return SpecOracle.health();

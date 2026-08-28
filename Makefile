@@ -214,7 +214,7 @@ test-vol-order-diff:
 # evidence tests (test_specHelper_stubRevertsAndProbeReportsNotWired, test_implSide_answersOnAnchor)
 # DO run and must PASS -- without them, "everything skipped" and "the file is inert" would look
 # identical in the log.
-# Layout, naming and the transport boundary this file obeys: notes/DIFFERENTIAL_LAYOUT.md.
+# Transport-boundary target: see test/protocol_integrations/SpecHelper.sol (RED-06).
 # NOTE: develop-gate is the only build environment for this repo; this target is a convenience
 # entry point, not the validation path.
 test-vol-order-tokenid-diff:

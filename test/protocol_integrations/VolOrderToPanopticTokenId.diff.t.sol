@@ -54,7 +54,7 @@ import {SpecOracle, SpecHelperProbe} from "./SpecHelper.sol";
 // silently. SpecHelper.sol hand-writes that shape as a PROVISIONAL stand-in; Phase 7 replaces
 // it with the generated artifact. Everything this file touches -- SpecOracle.Status,
 // TokenIdResult, Health, the skip predicate -- is the shape Phase 7 keeps. No transport
-// mechanics appear here; they are recorded in notes/DIFFERENTIAL_LAYOUT.md.
+// mechanics appear here; RED-06 transport boundary rules bind every vm.rpc call site.
 //
 // WHY IT SKIPS TODAY (RED-05; the skip is REMOVED in Phase 11 / CI-04). There is no oracle
 // yet: SpecOracle.volOrderToTokenId is a stub that reverts, and SpecOracle.health() reports
@@ -74,8 +74,8 @@ import {SpecOracle, SpecHelperProbe} from "./SpecHelper.sol";
 // neither hazard; the patterns are established now, while they are free, because Phase 7
 // inherits whatever this file establishes.
 //
-// LAYOUT, NAMING AND THE Solidity<->spec TRANSPORT BOUNDARY: notes/DIFFERENTIAL_LAYOUT.md
-// (RED-06). Phases 6-11 extend that organization; they do not redesign it.
+// LAYOUT, NAMING AND THE Solidity<->spec TRANSPORT BOUNDARY (RED-06). Phases 6-11 extend
+// that organization; they do not redesign it.
 // ===========================================================================================
 contract VolOrderToPanopticTokenIdDiffTest is PlankTestBase {
     /// @dev FFI-deployed Plank harness. Same entrypoint the structural suite uses.

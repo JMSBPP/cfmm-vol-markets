@@ -1,6 +1,6 @@
 // VegaTarget -- the target vega DeltaQ_v* of a VolOrder (V2-01, vol-order-v2-target-vega-SPEC.md).
 //
-// UNITS (notes/UNITS_AND_SCALES.md section 2, dimension decision (ii)): RAW LIQUIDITY units --
+// UNITS (vol-order-v2-target-vega-SPEC.md section 2, dimension (ii)): RAW LIQUIDITY units --
 // the Uniswap L dimension, the quantity of the priced vol asset (VOLATILITY_INSTRUMENTS line
 // 177, pi^sigma = Sum L(i_K)*I). NOT X96, NOT WAD, NOT collateral-denominated. The
 // collateral-per-vol-unit greek (line 10) is the LENS READOUT, never stored.
