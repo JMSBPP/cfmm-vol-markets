@@ -372,8 +372,17 @@ deliberately, with maintainer approval, not by drift.
      `VolMarketKey(V4)`, `(V3)`, `(Algebra)`. Plank only type-checks an INSTANTIATED comptime branch,
      so each must be instantiated, not merely declared (the Phase 2 vacuous-negative-test lesson).
   2. Passing a `VolMarketKey(Algebra)` to the Panoptic arm is a COMPILE error, not a runtime revert —
-     demonstrated via `vm.tryFfi`, not asserted in prose. Algebra terminates at a verified pool
-     address because no `PanopticFactoryAlgebra` exists; the dead-end is a type-level fact.
+     demonstrated via `vm.tryFfi`, not asserted in prose — and the negative test MATCHES THE ERROR
+     TEXT, not merely a non-zero exit code. A fixture containing a typo also fails to compile, so an
+     exit-code-only assertion goes green while proving nothing about the property under test: the
+     same vacuity as an unreachable fixture, arriving through a different door. Copy
+     `test__unit__nonRegionTagDoesNotCompile` (asserts `_contains(r.stderr, "Extra: T must be a
+     region")`), NOT `test__unit__extraFieldsNeedUnwrap` two lines below it, which checks only the
+     exit code. **This carries a design obligation:** the Panoptic arm must reject a non-Panoptic
+     venue through an explicit guard with its own distinctive message, mirroring `Extra.plk`'s, since
+     a bare structural type mismatch yields a generic diagnostic a typo could also produce — cheaper
+     to build in than to retrofit. Algebra terminates at a verified pool address because no
+     `PanopticFactoryAlgebra` exists; the dead-end is a type-level fact.
   3. `extra_decode` REQUIRES 40 and REJECTS 28, with all three sites moving together
      (`EXTRA_PANOPTIC_BITS`, the `require` in `extra_decode`, and `PANOPTIC_BITS` plus its wrong-len
      revert test), RED-first. Leg `k` at `[8k..8k+7]`: `optionRatio` 7b @`8k`, `tokenType` 1b
@@ -421,6 +430,11 @@ same thing.
     is this working tree — a stale 6-file partial checkout for panoptic, an empty worktree for
     plank-monorepo — which is developer ergonomics, not validation. The open question is whether
     cleaning them belongs to this phase, so a developer can re-verify without a scratchpad clone.
+    **Standing hazard, not two one-off errors:** neither the spec author's session nor this one can
+    build locally, so every structural claim either makes is inference until the gate or a source
+    read confirms it. It has already produced two wrong conclusions — a "Panoptic is v4-only" finding
+    reasoned from a test-only checkout, and this entry's own retracted CI claim reasoned from a
+    broken worktree. That is the argument for attaching the cleanup here rather than deferring it.
   - Decision 6 (registry lookup over CREATE2) has consequences past Phase 3 and is flagged in the
     spec for EXPLICIT maintainer review, not merely carried as ruled.
   - The residual Haskell divergence: the oracle sets `asset = 1` unconditionally and cannot express
