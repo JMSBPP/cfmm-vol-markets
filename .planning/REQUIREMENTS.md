@@ -24,17 +24,17 @@ Requirements for this milestone. Each maps to a roadmap phase.
 - [ ] **VORD-04**: The `Extra(T)` descriptor, when flagged `FLAG_PANOPTIC`, points at the data the Haskell map takes — four `optionRatio`s (each 1..127) — and the builder sets the `asset` bit. (Restated 2026-08-28 from "a rich instantiation carries…": there is no second instantiation; see 02-REGRESSION-ASSESSMENT.md §4a. `pool_id` stays an explicit parameter, §4a decision 7.)
 - [ ] **VORD-05**: With a `FLAG_PANOPTIC` descriptor the builder emits the Haskell-equivalent `tokenId` — per-leg `optionRatio` from the four values the descriptor points at, `asset = 1` on all four legs. (Restated 2026-08-28; mechanism only, outcome unchanged.)
 - [ ] **VORD-06**: `VolOrder(T)` has a defined serialization that carries *which* `T` was instantiated, decodable by a consumer from the bytes alone
-- [ ] **VORD-07**: The `Extra(T)` `FLAG_PANOPTIC` payload is 40 bits — leg `k` at `[8k..8k+7]` with `optionRatio` 7b @`8k` and `tokenType` 1b @`8k+7`, plus `vegoid` 8b @32 — and `extra_decode` accepts 40 while REJECTING 28. Every redundant field is CHECKED against a value the builder derives independently (the caller declares, the contract proves): `tokenType` against the i\* split, `vegoid` against `pool_id[40..47]` with a SEPARATE `!= 0` check since equality alone passes when both sides are zero, and `vo.rangeWidth.tickSpacing` against `key.tick_spacing`.
+- [x] **VORD-07**: The `Extra(T)` `FLAG_PANOPTIC` payload is 40 bits — leg `k` at `[8k..8k+7]` with `optionRatio` 7b @`8k` and `tokenType` 1b @`8k+7`, plus `vegoid` 8b @32 — and `extra_decode` accepts 40 while REJECTING 28. Every redundant field is CHECKED against a value the builder derives independently (the caller declares, the contract proves): `tokenType` against the i\* split, `vegoid` against `pool_id[40..47]` with a SEPARATE `!= 0` check since equality alone passes when both sides are zero, and `vo.rangeWidth.tickSpacing` against `key.tick_spacing`.
 - [ ] **VORD-08**: The `asset` bit has exactly ONE writer in the codebase, and the removal of `vol_order_to_mint`'s four `panoptic_add_asset` calls is ATOMIC with the addition of the Layer-1 write — one commit, not two. `panoptic_add_asset` is additive, so between the two changes a second write carries into `optionRatio`'s least significant bit, which the Layer-1 golden vectors cannot observe. The atomicity IS the requirement; it is the first thing lost at a phase handoff, which is why it is in the text rather than left to the plan.
 
 ### Venue-Tagged Market Key — inserted prerequisite
 
-- [ ] **KEY-01**: `VolMarketKey(V)` is a comptime type constructor over a VENUE tag (`V4`, `V3`, `Algebra`), so passing a key of one venue where another is expected is a COMPILE error, not a runtime revert. All three venues are instantiated — Plank never type-checks an un-instantiated comptime branch.
-- [ ] **KEY-02**: The Panoptic arm (V4 and V3) DERIVES the 40-bit pool pattern venue-specifically — V4 from the low 40 bits of the v4 PoolId, V3 from `uint40(uint160(pool) >> 120)` — and VERIFIES it against the SFPM's stored value, reverting on mismatch. The Panoptic `poolId` is STATEFUL (the SFPM increments the pattern on collision), so a pure derivation yields a candidate, not an answer.
-- [ ] **KEY-03**: The v3 and Algebra pool addresses are obtained by REGISTRY LOOKUP (`factory.getPool` / `factory.poolByPair`) and verified, never CREATE2-derived; no `POOL_INIT_CODE_HASH` is pinned anywhere in the repo.
-- [ ] **KEY-04**: The Algebra arm terminates at a verified pool ADDRESS and goes no further — there is no `PanopticFactoryAlgebra` — and passing `VolMarketKey(Algebra)` to the tokenId builder is a COMPILE error, making the dead-end a type-level fact rather than a runtime surprise.
-- [ ] **KEY-05**: `src/types/protocol_integrations/MarketId.plk` is retired and subsumed by `VolMarketKey(V4)`, whose pattern derives from the same keccak of the 5-field PoolKey that `market_id_from_pool_key` already computes. Its three real consumers are migrated.
-- [ ] **KEY-06**: `VolMarketKey(V)` DERIVES the Panoptic `asset` bit from the key's own `asset_index` — `panoptic_asset_bit == 1 -% asset_index` — as a standalone function of the key, tested for BOTH values of `asset_index`. The inversion is a NOT, not a copy: Panoptic's `asset` bit names the CASH/collateral token that `positionSize` is denominated in (what this protocol calls the NUMERAIRE), so a failure here yields a valid position on the WRONG SIDE of the pair.
+- [x] **KEY-01**: `VolMarketKey(V)` is a comptime type constructor over a VENUE tag (`V4`, `V3`, `Algebra`), so passing a key of one venue where another is expected is a COMPILE error, not a runtime revert. All three venues are instantiated — Plank never type-checks an un-instantiated comptime branch.
+- [x] **KEY-02**: The Panoptic arm (V4 and V3) DERIVES the 40-bit pool pattern venue-specifically — V4 from the low 40 bits of the v4 PoolId, V3 from `uint40(uint160(pool) >> 120)` — and VERIFIES it against the SFPM's stored value, reverting on mismatch. The Panoptic `poolId` is STATEFUL (the SFPM increments the pattern on collision), so a pure derivation yields a candidate, not an answer.
+- [x] **KEY-03**: The v3 and Algebra pool addresses are obtained by REGISTRY LOOKUP (`factory.getPool` / `factory.poolByPair`) and verified, never CREATE2-derived; no `POOL_INIT_CODE_HASH` is pinned anywhere in the repo.
+- [x] **KEY-04**: The Algebra arm terminates at a verified pool ADDRESS and goes no further — there is no `PanopticFactoryAlgebra` — and passing `VolMarketKey(Algebra)` to the tokenId builder is a COMPILE error, making the dead-end a type-level fact rather than a runtime surprise.
+- [x] **KEY-05**: `src/types/protocol_integrations/MarketId.plk` is retired and subsumed by `VolMarketKey(V4)`, whose pattern derives from the same keccak of the 5-field PoolKey that `market_id_from_pool_key` already computes. Its three real consumers are migrated.
+- [x] **KEY-06**: `VolMarketKey(V)` DERIVES the Panoptic `asset` bit from the key's own `asset_index` — `panoptic_asset_bit == 1 -% asset_index` — as a standalone function of the key, tested for BOTH values of `asset_index`. The inversion is a NOT, not a copy: Panoptic's `asset` bit names the CASH/collateral token that `positionSize` is denominated in (what this protocol calls the NUMERAIRE), so a failure here yields a valid position on the WRONG SIDE of the pair.
 
 ### RPC / Transport Architecture
 
@@ -128,13 +128,13 @@ Populated during roadmap creation (2026-08-27). Phase directories live at
 | VORD-04 | Phase 3 — VolOrder(T) Rich Instantiation | Pending |
 | VORD-05 | Phase 3 — VolOrder(T) Rich Instantiation | Pending |
 | VORD-06 | Phase 4 — VolOrder(T) Wire Format | Pending |
-| KEY-01 | Phase 2.5 — Venue-Tagged Market Key & Payload Widening | Pending |
-| KEY-02 | Phase 2.5 — Venue-Tagged Market Key & Payload Widening | Pending |
-| KEY-03 | Phase 2.5 — Venue-Tagged Market Key & Payload Widening | Pending |
-| KEY-04 | Phase 2.5 — Venue-Tagged Market Key & Payload Widening | Pending |
-| KEY-05 | Phase 2.5 — Venue-Tagged Market Key & Payload Widening | Pending |
-| KEY-06 | Phase 2.5 — Venue-Tagged Market Key & Payload Widening | Pending |
-| VORD-07 | Phase 2.5 — Venue-Tagged Market Key & Payload Widening | Pending |
+| KEY-01 | Phase 2.5 — Venue-Tagged Market Key & Payload Widening | Complete |
+| KEY-02 | Phase 2.5 — Venue-Tagged Market Key & Payload Widening | Complete |
+| KEY-03 | Phase 2.5 — Venue-Tagged Market Key & Payload Widening | Complete |
+| KEY-04 | Phase 2.5 — Venue-Tagged Market Key & Payload Widening | Complete |
+| KEY-05 | Phase 2.5 — Venue-Tagged Market Key & Payload Widening | Complete |
+| KEY-06 | Phase 2.5 — Venue-Tagged Market Key & Payload Widening | Complete |
+| VORD-07 | Phase 2.5 — Venue-Tagged Market Key & Payload Widening | Complete |
 | VORD-08 | Phase 3 — VolOrder(T) Rich Instantiation | Pending |
 | RPC-01 | Phase 5 — RPC Design & Protocol Skeleton | Pending |
 | RPC-02 | Phase 5 — RPC Design & Protocol Skeleton | Pending |

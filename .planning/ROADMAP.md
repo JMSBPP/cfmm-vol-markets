@@ -47,7 +47,7 @@ decision; it is not a formality to be short-circuited.
 - [x] **Phase 1: RED Differential Scaffold** - The first clean push: a compiling, skip-guarded `.diff.t.sol` with its doctrine and transport boundary
 - [x] **Phase 1.1: CI Feedback Loop** (INSERTED) - push-triggered build so every commit compiles, plus an explicit pinned forge version stamped into every run
 - [x] **Phase 2: VolOrder(T) Minimal Instantiation** - `VolOrder` becomes a comptime constructor with today's output bit-identical
-- [ ] **Phase 2.5: Venue-Tagged Market Key & Payload Widening** (INSERTED) - the key names its venue in the type and proves its poolId against the SFPM; the `FLAG_PANOPTIC` payload widens to 40 bits
+- [x] **Phase 2.5: Venue-Tagged Market Key & Payload Widening** (INSERTED) - the key names its venue in the type and proves its poolId against the SFPM; the `FLAG_PANOPTIC` payload widens to 40 bits
 - [ ] **Phase 3: VolOrder(T) Rich Instantiation** - The Haskell-shaped payload: 4-tuple of `optionRatio`s plus the `asset` bit
 - [ ] **Phase 4: VolOrder(T) Wire Format** - A serialization that carries *which* `T` it is, decodable from the bytes alone
 - [ ] **Phase 5: RPC Design & Protocol Skeleton** - The transport decision and the spec-service/test-process responsibility split, proven by a payload-free skeleton
@@ -494,23 +494,47 @@ no-payload path.
 > the key and the payload format; this phase consumes them. The criteria below still describe the
 > 28-bit payload and are restated once 2.5 merges.
 **Success Criteria** (what must be TRUE):
+  > *Restated 2026-08-28 against the MERGED payload, read from merge commit `081bb7e`:
+  > `EXTRA_PANOPTIC_BITS = 40`, `PAYLOAD_LEG_STRIDE = 8`, `PAYLOAD_OFF_VEGOID = 32`. The prior
+  > criteria described a 28-bit, ratios-only payload and no key. Decisions in `03-CONTEXT.md`.*
   1. `develop-gate` green: the plank job compiles the `FLAG_PANOPTIC` branch of
-     `vol_order_to_panoptic_token_id`, which dereferences `Extra(T)`'s offset to read the four
-     `optionRatio`s (each 1..127) from region `T` and sets the `asset` bit. `pool_id` remains an
-     explicit parameter (§4a decision 7).
-  2. The forge job runs non-fuzz anchor cases showing that a `FLAG_PANOPTIC` descriptor makes the
-     builder write per-leg `optionRatio` from the four values it points at and `asset = 1` on all
-     four legs, checked against the existing Panoptic `validate()` structural oracle — the Haskell
-     oracle is not yet reachable (Phase 7 wires it).
+     `vol_order_to_panoptic_token_id`, which DEREFERENCES `Extra(T)`'s offset to read the 40-bit
+     payload word from region `T` — the first code in this project that follows a pointer into a
+     region. `pool_id` remains an explicit parameter (§4a decision 7, now also justified by the
+     poolId being stateful), and the `asset` bit arrives as a COMPUTED `u256` so the builder stays
+     generic over one tag and F1's inversion stays tested in 2.5.
+  2. The forge job runs a DIFFERENTIAL against Panoptic's own `TokenId` library — the oracle is
+     `@types/TokenId.sol`, already imported and compiling in this suite
+     (`DynamicFeeHookE2E.t.sol:17`, `:179`). Expected values are built with
+     `TokenId.wrap(0).addPoolId(…).addLeg(…)` and asserted equal to the Plank builder over a
+     `bound`-constructed corpus, plus ONE literal anchor tokenId. **Field decoders are supporting
+     assertions, not the driver** — a decoder written as `(tid >> (64 + 48*leg + 1)) & 0x7f` is the
+     implementation's own arithmetic, so a wrong offset makes test and code wrong together.
   3. The same gate run still reports the no-payload path's golden vectors green:
      `test/protocol_integrations/VolOrderToPanopticTokenId.t.sol` 10/10 with **no edits to that file**.
-  4. Supplying a `FLAG_PANOPTIC` descriptor changes only the `optionRatio`/`asset` fields — the
-     strike, width, tokenType and pool-id bits are identical to the no-payload path for the same
-     geometry, asserted in the gate.
-  5. `test__unit__phase2MapStillHardcodesRatioOneAndNoAsset` (`VolOrderType.t.sol`) is updated or
-     retired **deliberately**, with the change traceable to this phase — it asserts today that the
-     map emits `optionRatio = 1` and `asset = 0`, and it goes RED the moment criterion 2 is met. It
-     is a pin, not a regression; deleting it silently is the failure this criterion exists to catch.
+  4. Supplying a `FLAG_PANOPTIC` descriptor changes only the `optionRatio`, `tokenType` and `asset`
+     fields — strike, width, pool-id and tickSpacing bits are identical to the no-payload path for
+     the same geometry, asserted in the gate.
+  5. Every cross-check this phase owns reverts with its own case: `tt_k` disagreeing with the
+     geometric i\* split; `vo.rangeWidth.tickSpacing` disagreeing with `key.tick_spacing` (spec §6.2,
+     a self-review finding that exists only because the spec was written out); and a descriptor
+     offset running PAST `calldatasize()`, which the EVM reads as zeros and 2.5's
+     `extra_payload_validate` rejects on the first `ratio_k == 0` — demonstrated by a test that
+     deliberately points past the end, not reasoned about.
+  6. **VORD-08:** the `asset` bit is written in exactly ONE place. `vol_order_to_mint`'s four
+     `panoptic_add_asset` calls are removed in the SAME COMMIT that adds the Layer-1 write, with a
+     dedicated test pinning that no double-add occurs. `panoptic_add_asset` is additive, so a
+     surviving second write carries into `optionRatio`'s LSB — and the golden vectors cannot catch
+     it, because they exercise Layer 1 only.
+  7. `test__unit__phase2MapStillHardcodesRatioOneAndNoAsset` is REPLACED by a differently-named
+     successor asserting the new behaviour — not edited in place. A test whose name says
+     `phase2MapStillHardcodes` cannot honestly carry inverted assertions.
+  8. A successor GAP PIN records what is still NOT Haskell-equivalent after this phase, so Phase 8
+     must retire it deliberately in turn: no `|tick| <= uniswapMaxTick` guard, no per-leg span guard
+     (both GUARD-01/02/03), and `asset_index == 1` being inexpressible in the oracle, which sets
+     `asset = 1` unconditionally. An unrecorded known gap at a phase boundary is this project's
+     recurring failure mode.
+
 **Plans**: TBD
 
 ### Phase 4: VolOrder(T) Wire Format
