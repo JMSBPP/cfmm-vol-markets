@@ -5,6 +5,7 @@ import pos_spec::SpreadTickAssimetry::*;
 import pos_spec::TickVolatility::*;
 import pos_spec::VegaTarget::*;
 import std::error::require;
+import std::regions::*;
 
 // V2 STORAGE LAYOUT (vol-order-v2-target-vega-SPEC.md D2; notes/UNITS_AND_SCALES.md):
 //   skew        bits   0.. 15  u16
@@ -14,40 +15,88 @@ import std::error::require;
 //   targetVega  bits 152..247  u96   (DeltaQ_v*, raw LIQUIDITY units -- dimension (ii))
 // 248 bits total; the 0-sentinel survives: a valid order has strike > 0 (bits 16..103) and
 // skew > 0 (bits 0..15), so a validly packed word is NEVER zero regardless of targetVega.
-const VolOrder = struct {
-      rangeWidth: VolRangeWidth,
-      volStrike: TickVolatility,
-      skew: SpreadTickAssimetry,
-      targetVega: VegaTarget
+// PHASE 2 (VORD-01): VolOrder is a comptime TYPE CONSTRUCTOR VolOrder(T), following the in-repo
+// Shock(R) template. T is a REGION TAG -- a phantom type parameter used as a region index
+// (Haskell: the `s` in `ST s` / `runST`): it says WHERE the tokenId builder is guaranteed to find
+// the (poolId, OptionRatio[4]) operands (maintainer's TODO.md note), and nothing else. The packed
+// 248-bit word is region-agnostic: `extra` NEVER enters pack_vol_order / unpack_vol_order, which is
+// what keeps this refactor's regression surface at zero for every packed-word consumer.
+//
+//   VolOrder(none)              -- the MINIMAL instantiation: today's four fields, NO `extra` field.
+//                                  Reading `.extra` on it is a missing-field COMPILE error, never a
+//                                  runtime check. Every current caller uses this one.
+//   VolOrder(memory|calldata)   -- carries `extra: bytes(T)`, a {ptr,length} view into region T
+//                                  (Phase 3 defines the payload layout; Phase 4 the wire format).
+//   anything else               -- @compile_error, like region_ptr_type in std/regions.plk.
+//
+// `none` is declared HERE rather than adopting upstream `ctime` (std/regions.plk @ 00c0a1a): the
+// semantics are the same ("no region"), but bytes(ctime) collapses to cbytes -- a comptime-only
+// type -- and carrying that as a runtime struct field is an unverified corner of the compiler.
+// Omitting the field is the strongest possible "cannot reach extra".
+const none = struct {};
+
+const VolOrder = fn (comptime T: type) type {
+    if T == none {
+        return struct {
+            rangeWidth: VolRangeWidth,
+            volStrike: TickVolatility,
+            skew: SpreadTickAssimetry,
+            targetVega: VegaTarget
+        };
+    }
+    if T == memory or T == calldata {
+        return struct {
+            rangeWidth: VolRangeWidth,
+            volStrike: TickVolatility,
+            skew: SpreadTickAssimetry,
+            targetVega: VegaTarget,
+            extra: bytes(T)
+        };
+    }
+    @compile_error("VolOrder: T must be none, memory or calldata");
+};
+
+// The ONE region-agnostic projection: the four packed fields of any VolOrder(T), as VolOrder(none).
+// Identity for T == none. The generic tokenId path reads its geometry through this, so the only
+// T-dependent read anywhere is (from Phase 3) `extra`. Mirrors shock_load_word being Shock's single
+// region-branching site.
+const vol_order_base = fn (comptime T: type, vo: VolOrder(T)) VolOrder(none) {
+    if T == none { return vo; }
+    VolOrder(none) {
+        rangeWidth: vo.rangeWidth,
+        volStrike: vo.volStrike,
+        skew: vo.skew,
+        targetVega: vo.targetVega
+    }
 };
 
 const OFF_TARGET_VEGA = 152;
 const MASK_U96_VO = 0xFFFFFFFFFFFFFFFFFFFFFFFF;
 
-const return_vol_order_incomplete = fn(self:VolOrder) never {
+const return_vol_order_incomplete = fn(self:VolOrder(none)) never {
       let packed = pack_vol_order(self);
       let out_ptr = @malloc_uninit(32);
       @mstore32(out_ptr, packed);
       @evm_return(out_ptr,32);
 };
 
-const return_vol_order = fn (self:VolOrder) never {
+const return_vol_order = fn (self:VolOrder(none)) never {
       vol_order_revert_incomplete(self);
       return_vol_order_incomplete(self);
 };
 
-const vol_order_is_complete = fn (volOrder :VolOrder) bool {
+const vol_order_is_complete = fn (volOrder :VolOrder(none)) bool {
       let res = (vol_range_width_is_complete(volOrder.rangeWidth)) & (spread_tick_assimetry_is_complete(volOrder.skew)) & (tick_volatility_is_complete(volOrder.volStrike)) & (vega_target_is_complete(volOrder.targetVega));
       res
 };
 
-const vol_order_revert_incomplete = fn(volOrder:VolOrder) void {require(vol_order_is_complete(volOrder))};
+const vol_order_revert_incomplete = fn(volOrder:VolOrder(none)) void {require(vol_order_is_complete(volOrder))};
 
 // Masks are mechanical truncation AFTER validation (units-table rule 2): the width bounds
 // live in the validation lib (strike_fits_packed / target_vega_fits_packed), so for every
 // ACCEPTED order the mask is an identity -- pinned by the mask-identity fuzz in
 // VolOrderTargetVega.t.sol.
-const pack_vol_order = fn(self: VolOrder) u256 {
+const pack_vol_order = fn(self: VolOrder(none)) u256 {
     @evm_shl(OFF_TARGET_VEGA, self.targetVega.vega & MASK_U96_VO)
     | @evm_shl(128, self.rangeWidth.width & 0xFFFFFF)
     | @evm_shl(104, self.rangeWidth.tickSpacing & 0xFFFFFF)
@@ -55,14 +104,14 @@ const pack_vol_order = fn(self: VolOrder) u256 {
     | (self.skew.spread & 0xFFFF)
 };
 
-const unpack_vol_order = fn(_packed: u256) VolOrder {
+const unpack_vol_order = fn(_packed: u256) VolOrder(none) {
     let width       = @evm_shr(128, _packed) & 0xffffff;
     let tickSpacing = @evm_shr(104, _packed) & 0xffffff;
     let volStrike   = @evm_shr(16, _packed) & 0xffffffffffffffffffffff;
     let skew        = _packed & 0xffff;
     let targetVega  = @evm_shr(OFF_TARGET_VEGA, _packed) & MASK_U96_VO;
 
-    VolOrder {
+    VolOrder(none) {
         rangeWidth: VolRangeWidth {
             width: width,
             tickSpacing: tickSpacing
@@ -80,8 +129,8 @@ const unpack_vol_order = fn(_packed: u256) VolOrder {
 };
 
 // note: This calls for type checks on each of the dependant types
-const set_vol_order_vol_strike = fn(self: VolOrder, volStrike:TickVolatility) VolOrder {
-      VolOrder {
+const set_vol_order_vol_strike = fn(self: VolOrder(none), volStrike:TickVolatility) VolOrder(none) {
+      VolOrder(none) {
       	       rangeWidth: self.rangeWidth,
 	       volStrike: volStrike,
 	       skew: self.skew,
@@ -90,8 +139,8 @@ const set_vol_order_vol_strike = fn(self: VolOrder, volStrike:TickVolatility) Vo
 };
 
 
-const set_vol_order_skew = fn(self: VolOrder ,skew:SpreadTickAssimetry) VolOrder {
-      VolOrder {
+const set_vol_order_skew = fn(self: VolOrder(none),skew:SpreadTickAssimetry) VolOrder(none) {
+      VolOrder(none) {
       	       rangeWidth: self.rangeWidth,
 	       volStrike: self.volStrike,
 	       skew : skew,
@@ -100,8 +149,8 @@ const set_vol_order_skew = fn(self: VolOrder ,skew:SpreadTickAssimetry) VolOrder
 };
 
 
-const set_vol_order_range_width = fn(self: VolOrder ,vol_range_width :VolRangeWidth) VolOrder {
-      VolOrder {
+const set_vol_order_range_width = fn(self: VolOrder(none),vol_range_width :VolRangeWidth) VolOrder(none) {
+      VolOrder(none) {
       	       rangeWidth: vol_range_width,
 	       volStrike: self.volStrike,
 	       skew: self.skew,
@@ -109,8 +158,8 @@ const set_vol_order_range_width = fn(self: VolOrder ,vol_range_width :VolRangeWi
       }
 };
 
-const set_vol_order_target_vega = fn(self: VolOrder, target_vega: VegaTarget) VolOrder {
-      VolOrder {
+const set_vol_order_target_vega = fn(self: VolOrder(none), target_vega: VegaTarget) VolOrder(none) {
+      VolOrder(none) {
       	       rangeWidth: self.rangeWidth,
 	       volStrike: self.volStrike,
 	       skew: self.skew,
@@ -119,7 +168,7 @@ const set_vol_order_target_vega = fn(self: VolOrder, target_vega: VegaTarget) Vo
 };
 
 // note: This can use the return function for tickbuckert instead of its own
-const tick_bucket_from_vol_order = fn(volOrder:VolOrder) TickBucket{
+const tick_bucket_from_vol_order = fn(volOrder:VolOrder(none)) TickBucket{
       // 1. get the tick for the volOrder
       let tick_volatility = tick_volatility_tick(volOrder.volStrike);
       let bucket = split_tick(volOrder.skew, volOrder.rangeWidth, tick_volatility);

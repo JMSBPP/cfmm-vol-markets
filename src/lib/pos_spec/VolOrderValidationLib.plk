@@ -66,8 +66,8 @@ const target_vega_fits_packed = fn(self: VegaTarget) bool {
 // and 18a MUST build orders through this function so TICK_SPACING is pinned in exactly one
 // place. Argument order matches create_order(uint88,uint24,uint16,uint96) =
 // (strike, width, skew, targetVega).
-const build_vol_order = fn(strike: u256, width: u256, skew: u256, target_vega: u256) VolOrder {
-      VolOrder {
+const build_vol_order = fn(strike: u256, width: u256, skew: u256, target_vega: u256) VolOrder(none) {
+      VolOrder(none) {
             rangeWidth: VolRangeWidth { width: width, tickSpacing: TICK_SPACING },
             volStrike: TickVolatility { vol: strike },
             skew: SpreadTickAssimetry { spread: skew },
@@ -83,13 +83,13 @@ const build_vol_order = fn(strike: u256, width: u256, skew: u256, target_vega: u
 //                                    (PosSpec.lean:52,56 skewTick_zero/skewTick_one: they
 //                                    collapse the position to a one-sided range).
 //   strike_fits_packed            -> strike in [1, 2^88-1]. The authored bound.
-const validate_order = fn(self: VolOrder) bool {
+const validate_order = fn(self: VolOrder(none)) bool {
       let res = vol_range_width_is_complete(self.rangeWidth) & spread_tick_assimetry_is_complete(self.skew) & strike_fits_packed(self.volStrike) & target_vega_fits_packed(self.targetVega);
       res
 };
 
 // THE WRAPPER. Reverts EMPTY (std::error::require) on an invalid order. Phase 17's strict
 // create_order path calls this; Phase 18a's batch calls validate_order directly.
-const validate_order_strict = fn(self: VolOrder) void {
+const validate_order_strict = fn(self: VolOrder(none)) void {
       require(validate_order(self));
 };

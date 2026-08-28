@@ -1,5 +1,5 @@
 import types::protocol_integrations::PanopticTokenId::*;
-import types::pos_spec::VolOrder::{VolOrder, tick_bucket_from_vol_order};
+import types::pos_spec::VolOrder::{VolOrder, none, vol_order_base, tick_bucket_from_vol_order};
 import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
 import lib::ldf::LDFLib::{geometric_leg_weights, LegWeights};
 import types::pricing::TickUtils::{round_tick, vol_order_split_points};
@@ -18,10 +18,17 @@ import std::error::require;
 // i*  = round_tick(vol tick, Δ) is the ATM-forward p* boundary (proven PosSpec.skewTick center).
 // legs = 4 contiguous sub-buckets tiling [i_l, i_u], split at i* and its two mid-points m_p, m_c.
 // Each leg is encoded with the floor-strike panoptic_add_leg_from_bucket (exact getTicks reconstruct).
-const vol_order_to_panoptic_token_id = fn (vo: VolOrder, pool_id: u256) PanopticTokenId {
-    let ts = vo.rangeWidth.tickSpacing;
-    let i_star = round_tick(tick_volatility_tick(vo.volStrike), ts);
-    let tb = tick_bucket_from_vol_order(vo);
+// PHASE 2 (VORD-01/02): generic over the region tag T -- the ONLY comptime-T signature in this
+// file. The geometry is read through vol_order_base (identity for none), so with T == none this
+// body is the pre-refactor body verbatim and the tokenId is bit-identical (pinned by the
+// untouched golden vectors + fuzz in VolOrderToPanopticTokenId.t.sol). Phase 3 adds the
+// `if T != none { ... vo.extra ... }` read for optionRatio/asset; on VolOrder(none) that read does
+// not compile, which is the whole point of the tag.
+const vol_order_to_panoptic_token_id = fn (comptime T: type, vo: VolOrder(T), pool_id: u256) PanopticTokenId {
+    let base = vol_order_base(T, vo);
+    let ts = base.rangeWidth.tickSpacing;
+    let i_star = round_tick(tick_volatility_tick(base.volStrike), ts);
+    let tb = tick_bucket_from_vol_order(base);
     let i_l = tb.low;
     let i_u = tb.up;
 
@@ -96,7 +103,7 @@ const LegSplit = struct { i_l: u256, m_p: u256, i_star: u256, m_c: u256, i_u: u2
 
 // The SHARED split geometry (identical to vol_order_to_panoptic_token_id's -- one source of
 // truth so sizing and leg placement can never drift).
-const vol_order_leg_split = fn (vo: VolOrder) LegSplit {
+const vol_order_leg_split = fn (vo: VolOrder(none)) LegSplit {
     let ts = vo.rangeWidth.tickSpacing;
     let i_star = round_tick(tick_volatility_tick(vo.volStrike), ts);
     let tb = tick_bucket_from_vol_order(vo);
@@ -121,7 +128,7 @@ const leg_dsqrt = fn (lo: u256, hi: u256) u256 {
 //     positionSize = mulDiv(DeltaQ_v*, Q96, S)      -- delivered <= target, MAXIMAL.
 // The ASSET BIT IS LOAD-BEARING: asset = 0 flips the exponent sign of the induced ladder
 // (L proportional to 1.0001^(+t/2), the INVERSE weighting) -- pinned to 1 here and tested.
-const position_size_for_target_vega = fn (vo: VolOrder) u256 {
+const position_size_for_target_vega = fn (vo: VolOrder(none)) u256 {
     let s = vol_order_leg_split(vo);
     let s_sum = mulDiv(Q96, Q96, leg_dsqrt(s.i_l, s.m_p))
         + mulDiv(Q96, Q96, leg_dsqrt(s.m_p, s.i_star))
@@ -138,8 +145,8 @@ const position_size_for_target_vega = fn (vo: VolOrder) u256 {
 
 // vol_order_to_mint: the V2 codomain. Layer-1 tokenId + the PINNED asset = 1 on all legs +
 // the DeltaQ_v*-derived positionSize. iota <= 4 legs is structural (layer 1 always emits 4).
-const vol_order_to_mint = fn (vo: VolOrder, pool_id: u256) MintPlan {
-    let base = vol_order_to_panoptic_token_id(vo, pool_id);
+const vol_order_to_mint = fn (vo: VolOrder(none), pool_id: u256) MintPlan {
+    let base = vol_order_to_panoptic_token_id(none, vo, pool_id);
     let mut tid = base.tokenId;
     // asset = 1 (token1 = the vega numeraire). panoptic_add_asset is additive-shl; the
     // layer-1 word has these bits at 0, so the adds are exact bit-sets.
@@ -158,7 +165,7 @@ const LegLiquidities = struct { l0: u256, l1: u256, l2: u256, l3: u256 };
 
 // The INDUCED per-leg profile (what Panoptic's chunk derivation will deploy for this plan):
 // L_k = mulDiv(positionSize, Q96, dsqrt_k) -- getLiquidityForAmount1 restated.
-const induced_leg_liquidities = fn (vo: VolOrder) LegLiquidities {
+const induced_leg_liquidities = fn (vo: VolOrder(none)) LegLiquidities {
     let s = vol_order_leg_split(vo);
     let ps = position_size_for_target_vega(vo);
     LegLiquidities {
@@ -173,7 +180,7 @@ const induced_leg_liquidities = fn (vo: VolOrder) LegLiquidities {
 // size_k = L_bar * w_k / n_k with L_bar = DeltaQ_v*, w_k the geometric leg masses, n_k the
 // leg's column count): the LDF-side realization the lens computes against. The COUPLING
 // TEST compares this profile to the induced one.
-const average_density_chunks = fn (vo: VolOrder) LegLiquidities {
+const average_density_chunks = fn (vo: VolOrder(none)) LegLiquidities {
     let s = vol_order_leg_split(vo);
     let w = geometric_leg_weights(s.i_l, s.i_u, s.ts, s.i_star, s.m_p, s.m_c);
     let tv = vo.targetVega.vega;
