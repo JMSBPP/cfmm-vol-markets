@@ -106,3 +106,108 @@ const vol_market_key_compose_pool_id = fn (pattern: u256, vegoid: u256, tick_spa
     | @evm_shl(POOL_ID_OFF_VEGOID_KEY, vegoid & 0xff)
     | @evm_shl(POOL_ID_OFF_TICK_SPACING, tick_spacing & 0xffff)
 };
+
+// ---- KEY-03 / KEY-02: registry verification and the SFPM-checked poolId ----------------------
+//
+// Plank std has NO general external-call helper: across std/ at 00c0a1a only std/precompile.plk
+// makes calls, and it is hardcoded to precompiles 0x01-0x05. This is that same idiom -- malloc,
+// mstore, staticcall, require(success), mload -- which is also what
+// AlgebraIntegralShocksWriterMod builds by hand. Nothing is being reinvented.
+
+// getPool(address,address,uint24)   univ3 factory
+const SEL_GET_POOL = 0x1698ee82;
+// poolByPair(address,address)       algebra factory
+const SEL_POOL_BY_PAIR = 0xd9a641e1;
+// getPoolId(bytes,uint8)            BOTH SFPMs (V4.sol:1369, V3.sol:1558)
+const SEL_SFPM_GET_POOL_ID = 0xb33eb6f3;
+
+const staticcall_word = fn (target: u256, args_ptr: u256, args_len: u256) u256 {
+    let ret = @malloc_uninit(32);
+    let ok = @evm_staticcall(@evm_gas(), target, args_ptr, args_len, ret, 32);
+    require(ok);
+    @mload32(ret)
+};
+
+// The canonical univ4 PoolId: keccak256 over the 5-field PoolKey, 160 bytes. Generic over V so the
+// Panoptic arm can call it from inside a comptime branch without relying on VolMarketKey(V)
+// unifying with VolMarketKey(V4) -- a unification nothing in std attests.
+const vol_market_key_pool_key_hash = fn (comptime V: type, k: VolMarketKey(V)) u256 {
+    let buf = @malloc_uninit(160);
+    @mstore32(buf, k.currency0);
+    @mstore32(buf +% 32, k.currency1);
+    @mstore32(buf +% 64, k.fee);
+    @mstore32(buf +% 96, k.tick_spacing);
+    @mstore32(buf +% 128, k.registry);   // V4: hooks
+    @evm_keccak256(buf, 160)
+};
+
+// The V4-only public spelling. This is the value market_id_from_pool_key computes in MarketId.plk,
+// which VolMarketKey(V4) SUBSUMES rather than duplicates (KEY-05).
+const vol_market_key_v4_pool_id = fn (k: VolMarketKey(V4)) u256 {
+    vol_market_key_pool_key_hash(V4, k)
+};
+
+// Verify the SUPPLIED pool address against the venue registry. Never CREATE2: SFPM V3 resolves its
+// own pool as FACTORY.getPool(token0, token1, fee), and taking the same route means no
+// POOL_INIT_CODE_HASH is pinned anywhere, so a fork with a patched pool contract cannot silently
+// yield a wrong address.
+const vol_market_key_verify_pool = fn (comptime V: type, k: VolMarketKey(V)) void {
+    let resolved = if V == V3 {
+        let p = @malloc_uninit(100);
+        @mstore4(p, SEL_GET_POOL);
+        @mstore32(p +% 4, k.currency0);
+        @mstore32(p +% 36, k.currency1);
+        @mstore32(p +% 68, k.fee);
+        staticcall_word(k.registry, p, 100)
+    } else if V == Algebra {
+        let p = @malloc_uninit(68);
+        @mstore4(p, SEL_POOL_BY_PAIR);
+        @mstore32(p +% 4, k.currency0);
+        @mstore32(p +% 36, k.currency1);
+        staticcall_word(k.registry, p, 68)
+    } else {
+        @compile_error("VolMarketKey: only V3 and Algebra have a pool address to verify");
+    };
+    require(resolved == k.pool);
+};
+
+// DERIVE the candidate, then VERIFY it against the SFPM.
+//
+// The Panoptic poolId is STATEFUL. Both SFPMs loop
+//     while (s_poolIdToKey[poolId].tickSpacing != 0) poolId = incrementPoolPattern(poolId)
+// on a 40-bit pattern collision -- "a modern GPU can generate a collision in such a space
+// relatively quickly" -- and enforce the stored value at mint (V4.sol:787). So a pure derivation
+// yields a CANDIDATE, not an answer, and verifying here makes a collision fail with OUR error at
+// build time instead of Panoptic's three calls away at mint.
+//
+// V4 and V3 ONLY. There is no PanopticFactoryAlgebra, so the Algebra arm has no Panoptic
+// continuation and must not be given a synthetic one (KEY-04).
+const vol_market_key_to_panoptic_pool_id =
+    fn (comptime V: type, k: VolMarketKey(V), sfpm: u256, vegoid: u256) u256 {
+    let pattern = if V == V4 {
+        vol_market_key_v4_pattern(vol_market_key_pool_key_hash(V, k))
+    } else if V == V3 {
+        vol_market_key_verify_pool(V, k);
+        vol_market_key_v3_pattern(k.pool)
+    } else {
+        @compile_error("VolMarketKey: the Panoptic arm accepts only V4 or V3");
+    };
+
+    let candidate = vol_market_key_compose_pool_id(pattern, vegoid, k.tick_spacing);
+
+    // The id word the SFPM decodes: the v4 PoolId for V4, the pool ADDRESS for V3.
+    let id_word = if V == V4 { vol_market_key_pool_key_hash(V, k) } else { k.pool };
+
+    // getPoolId(bytes id, uint8 vegoid). `id` is a DYNAMIC type, so this is NOT a two-word frame:
+    //     0   selector | 4  offset = 0x40 | 36  vegoid | 68  id.length = 32 | 100  id word
+    // = 132 bytes. An earlier draft used 68 and the SFPM would have decoded garbage.
+    let p = @malloc_uninit(132);
+    @mstore4(p, SEL_SFPM_GET_POOL_ID);
+    @mstore32(p +% 4, 0x40);
+    @mstore32(p +% 36, vegoid);
+    @mstore32(p +% 68, 32);
+    @mstore32(p +% 100, id_word);
+    require(candidate == staticcall_word(sfpm, p, 132));
+
+    candidate
+};
