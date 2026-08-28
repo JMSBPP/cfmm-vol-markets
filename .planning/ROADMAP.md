@@ -338,8 +338,10 @@ Plans:
 - [x] 02-05-PLAN.md — assessment FINAL from the gate evidence, `--skip` decision applied or deferred, PR ready, protection re-measured, merge, criteria verified on `origin/develop`, branch retired with `-d`, STATE/ROADMAP/REQUIREMENTS hand-edited (VORD-01/02/03)
 
 ### Phase 2.5: Venue-Tagged Market Key & Payload Widening (INSERTED)
-**Directory**: `.planning/phases/FEATURES/feat-volmarketkey/`
-**Branch**: `feat/volmarketkey`
+**Directory**: `.planning/phases/FEATURES/feat-volmarketkey/` → `.planning/phases/02.5-volmarketkey/`
+**Branch**: `feat/volmarketkey` (cut from `ccdd7bc`) · **Tracking issue**: #68
+**Worktree**: `../vol-markets-volmarketkey` — a maintainer-set exception for THIS phase only; the
+inline rule remains the default for every other phase (see `AGENTS.md`).
 **Goal**: `VolMarketKey(V)` resolves a venue-tagged market key to its venue's pool identity — an
 SFPM-verified Panoptic `poolId` for V4 and V3, a registry-verified pool address for Algebra — and the
 `FLAG_PANOPTIC` payload carries per-leg `tokenType` plus `vegoid`, each PROVED against an

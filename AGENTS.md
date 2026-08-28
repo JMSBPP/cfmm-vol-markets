@@ -35,6 +35,12 @@ or fix — work in the checkout you are already in. (An earlier rule here requir
 worktree per unit of work; it was retired after Phase 1.1.) Tracking issues on `develop` are a
 separate matter and still apply.
 
+*Standing exception, Phase 2.5 only (set 2026-08-28):* the maintainer reinstated a worktree for
+`feat/volmarketkey`, which runs in `../vol-markets-volmarketkey`. It is **phase-scoped and does not
+change the default** — every other phase, including Phase 3, starts inline. Recorded here because a
+session that hears about 2.5's worktree second-hand would otherwise read it as the rule having
+changed back.
+
 **Close the branch that did the merge.** A phase is not finished when its PR merges — it is
 finished when the branch is retired. Return the tree to `develop`, confirm the branch is fully
 merged, then delete it locally **and on origin**. Never `git branch -D`: if `-d` refuses,
