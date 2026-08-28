@@ -1,59 +1,33 @@
 import std::constructor::return_runtime;
 import std::regions::*;
+import std::option::{Option, Some, None, is_some, is_none, unwrap};
+import std::error::require;
+import types::protocol_integrations::PanopticTokenId::*;
 import pos_spec::VolOrder::*;
 import lib::protocol_integrations::PanopticTokenIdSetterLib::vol_order_to_panoptic_token_id;
 
-// Harness for the VolOrder(T) TYPE itself (Phase 2, VORD-01). Written RED-first: it instantiates
-// every branch of the constructor -- none, memory, calldata -- so the plank job type-checks all
-// three (plank only checks a comptime branch that something instantiates; see Makefile
-// compile-plank note 2). The negative branches (@compile_error on a bad tag; `.extra` missing on
-// VolOrder(none)) live in fixtures/plank-negative/ and are driven from the .t.sol via vm.tryFfi.
+// Harness for the VolOrder(T) TYPE (Phase 2, VORD-01), written to 02-REGRESSION-ASSESSMENT.md §4a.
+// RED-first: it exercises Extra(T), the Option-valued `extra`, and the builder's None path, so the
+// plank job type-checks them. Absence is std Option/None -- a VALUE, not a tag type -- so there is
+// ONE VolOrder type per region and `T` here is always `calldata`, matching every current caller.
 //
-// ABI: a `bytes` argument is (offset @ its slot, length @ 4+offset, data @ 4+offset+32).
+// The two things that must NOT compile live in fixtures/plank-negative/ (outside compile-plank's
+// src/test scan) and are driven from VolOrderType.t.sol through vm.tryFfi.
 
-// cast sig "roundTripNone(uint256)"                    -> 0x5784c808
-const SEL_ROUND_TRIP_NONE = 0x5784c808;
-// cast sig "baseOfMemory(uint256,bytes)"               -> 0xcb14369f
-const SEL_BASE_OF_MEMORY = 0xcb14369f;
-// cast sig "baseOfCalldata(uint256,bytes)"             -> 0x84f9bf85
-const SEL_BASE_OF_CALLDATA = 0x84f9bf85;
-// cast sig "tokenIdOfNone(uint256,uint256)"            -> 0x82167d06
-const SEL_TOKEN_ID_OF_NONE = 0x82167d06;
-// cast sig "tokenIdOfMemory(uint256,uint256,bytes)"    -> 0xa6dfc52f
-const SEL_TOKEN_ID_OF_MEMORY = 0xa6dfc52f;
-// cast sig "tokenIdOfCalldata(uint256,uint256,bytes)"  -> 0xf833649e
-const SEL_TOKEN_ID_OF_CALLDATA = 0xf833649e;
+// cast sig "roundTripNone(uint256)"            -> 0x5784c808
+const SEL_ROUND_TRIP = 0x5784c808;
+// cast sig "extraIsNoneAfterUnpack(uint256)"   -> 0xd60b13a1
+const SEL_EXTRA_IS_NONE = 0xd60b13a1;
+// cast sig "tokenIdViaExtra(uint256,uint256)"  -> 0xc85cb95b
+const SEL_TOKEN_ID_VIA_EXTRA = 0xc85cb95b;
+// cast sig "extraDecodeFlags(bytes)"           -> 0x461539b8
+const SEL_EXTRA_DECODE_FLAGS = 0x461539b8;
+// cast sig "packIgnoresExtra(uint256,bytes)"   -> 0x7cbf1d93
+const SEL_PACK_IGNORES_EXTRA = 0x7cbf1d93;
+// cast sig "unwrapNoneReverts(uint256)"        -> 0xc0e8737e
+const SEL_UNWRAP_NONE_REVERTS = 0xc0e8737e;
 
 init { return_runtime(); }
-
-// The rich instantiations, built from a packed word plus a bytes argument at `bytes_slot`.
-const vol_order_in_memory = fn (packed: u256, bytes_slot: u256) VolOrder(memory) {
-    let b = unpack_vol_order(packed);
-    let off = @evm_calldataload(bytes_slot);
-    let len = @evm_calldataload(4 +% off);
-    let ptr = @malloc_uninit(len);
-    @evm_calldatacopy(ptr, 4 +% off +% 32, len);
-    VolOrder(memory) {
-        rangeWidth: b.rangeWidth, volStrike: b.volStrike, skew: b.skew, targetVega: b.targetVega,
-        extra: bytes(memory) { ptr: ptr, length: len }
-    }
-};
-
-const vol_order_in_calldata = fn (packed: u256, bytes_slot: u256) VolOrder(calldata) {
-    let b = unpack_vol_order(packed);
-    let off = @evm_calldataload(bytes_slot);
-    let len = @evm_calldataload(4 +% off);
-    VolOrder(calldata) {
-        rangeWidth: b.rangeWidth, volStrike: b.volStrike, skew: b.skew, targetVega: b.targetVega,
-        extra: bytes(calldata) { ptr: 4 +% off +% 32, length: len }
-    }
-};
-
-const return_3 = fn (a: u256, b: u256, c: u256) never {
-    let out = @malloc_uninit(96);
-    @mstore32(out, a); @mstore32(out +% 32, b); @mstore32(out +% 64, c);
-    @evm_return(out, 96);
-};
 
 const return_1 = fn (a: u256) never {
     let out = @malloc_uninit(32);
@@ -61,46 +35,56 @@ const return_1 = fn (a: u256) never {
     @evm_return(out, 32);
 };
 
+// A bytes(calldata) view over the ABI `bytes` argument whose head word sits at `slot`.
+const calldata_bytes_at = fn (slot: u256) bytes(calldata) {
+    let off = @evm_calldataload(slot);
+    bytes(calldata) { ptr: 4 +% off +% 32, length: @evm_calldataload(4 +% off) }
+};
+
 run {
     let selector = @evm_shr(224, @evm_calldataload(0));
 
-    // roundTripNone(packed) -> pack(unpack(packed)) on VolOrder(none): the minimal instantiation
-    // IS the old struct, and the codec is untouched by T.
-    if selector == SEL_ROUND_TRIP_NONE {
+    // roundTripNone(packed) -- the codec is untouched by the Option-valued `extra`: pack(unpack(x))
+    // is still the identity on the 248-bit word, and `extra` never enters it.
+    if selector == SEL_ROUND_TRIP {
         return_1(pack_vol_order(unpack_vol_order(@evm_calldataload(4))));
     }
 
-    // baseOfMemory(packed, extra) -> (pack(vol_order_base(memory, vo)), extra.length, first word of
-    // extra READ THROUGH THE MEMORY VIEW). Proves: the memory branch compiles, `extra` is a live
-    // bytes(memory), and the projection drops exactly `extra`.
-    if selector == SEL_BASE_OF_MEMORY {
-        let vo = vol_order_in_memory(@evm_calldataload(4), 36);
-        let first = if vo.extra.length == 0 { 0 } else { @mload32(vo.extra.ptr) };
-        return_3(pack_vol_order(vol_order_base(memory, vo)), vo.extra.length, first);
-    }
-
-    // baseOfCalldata(packed, extra) -> same, with the view living in calldata.
-    if selector == SEL_BASE_OF_CALLDATA {
-        let vo = vol_order_in_calldata(@evm_calldataload(4), 36);
-        let first = if vo.extra.length == 0 { 0 } else { @evm_calldataload(vo.extra.ptr) };
-        return_3(pack_vol_order(vol_order_base(calldata, vo)), vo.extra.length, first);
-    }
-
-    // tokenIdOfNone(packed, poolId) -> the Phase 2 tokenId through the generic path, T = none.
-    if selector == SEL_TOKEN_ID_OF_NONE {
+    // extraIsNoneAfterUnpack(packed) -> 1 if the unpacked order's `extra` is None. The minimal
+    // instantiation is a VALUE (None), not a distinct type.
+    if selector == SEL_EXTRA_IS_NONE {
         let vo = unpack_vol_order(@evm_calldataload(4));
-        return_1(vol_order_to_panoptic_token_id(none, vo, @evm_calldataload(36)).tokenId);
+        return_1(if is_none(Extra(calldata), vo.extra) { 1 } else { 0 });
     }
 
-    // tokenIdOfMemory / tokenIdOfCalldata(packed, poolId, extra) -> the same map with a rich T.
-    // Phase 2's claim: T does not leak into the tokenId. (Phase 3 makes it leak on purpose.)
-    if selector == SEL_TOKEN_ID_OF_MEMORY {
-        let vo = vol_order_in_memory(@evm_calldataload(4), 68);
-        return_1(vol_order_to_panoptic_token_id(memory, vo, @evm_calldataload(36)).tokenId);
+    // tokenIdViaExtra(packed, poolId) -- the builder's None path: it returns the UPDATED
+    // VolOrder(T) and the tokenId LANDS in `extra`. Read it back out; unwrap reverts if the
+    // builder failed to land it, so a silent no-op cannot pass.
+    if selector == SEL_TOKEN_ID_VIA_EXTRA {
+        let vo = unpack_vol_order(@evm_calldataload(4));
+        let built = vol_order_to_panoptic_token_id(calldata, vo, @evm_calldataload(36));
+        return_1(unwrap(unwrap(built.extra).token_id).tokenId);
     }
-    if selector == SEL_TOKEN_ID_OF_CALLDATA {
-        let vo = vol_order_in_calldata(@evm_calldataload(4), 68);
-        return_1(vol_order_to_panoptic_token_id(calldata, vo, @evm_calldataload(36)).tokenId);
+
+    // extraDecodeFlags(data) -- the tagged ADDRESS SPACE: flags(u8) || [ptr(u256) if PANOPTIC].
+    // Returns the flag byte; reverts on a reserved bit or on a length the flags do not imply.
+    if selector == SEL_EXTRA_DECODE_FLAGS {
+        return_1(extra_decode(calldata, calldata_bytes_at(4)).flags);
+    }
+
+    // packIgnoresExtra(packed, data) -- an order carrying Some(Extra) packs to the same word as
+    // the same order carrying None. This is the "pack/unpack stays region-agnostic" claim, tested.
+    if selector == SEL_PACK_IGNORES_EXTRA {
+        let vo = unpack_vol_order(@evm_calldataload(4));
+        let rich = vol_order_with_extra(calldata, vo, extra_decode(calldata, calldata_bytes_at(36)));
+        return_1(pack_vol_order(rich));
+    }
+
+    // unwrapNoneReverts(packed) -- reading through a None `extra` is a runtime REVERT, not a
+    // zero value. Pairs with the compile-time negative in fixtures/plank-negative/.
+    if selector == SEL_UNWRAP_NONE_REVERTS {
+        let vo = unpack_vol_order(@evm_calldataload(4));
+        return_1(unwrap(vo.extra).flags);
     }
 
     @evm_stop();
