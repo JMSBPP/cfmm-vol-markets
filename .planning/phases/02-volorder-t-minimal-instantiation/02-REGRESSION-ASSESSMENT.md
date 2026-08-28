@@ -1,6 +1,6 @@
 # Phase 2 regression assessment — VolOrder → VolOrder(T)
 
-**Status:** DRAFT — awaiting maintainer approval (plan 02-03 checkpoint)
+**Status:** APPROVED 2026-08-28 (plan 02-03 checkpoint) — FINAL evidence to be filled by 02-05
 **Tree assessed:** `703e7449ffd0bd7fcd37f8d9e5426a8864943b35` on `feat/volorder-t-minimal` (plank `00c0a1aa3cb40b63de81c6ca4f92bec392b423c3`, forge `1.5.1` / `b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2`). Source diff vs `origin/develop` is the 02-01 std moves only (9 files, +22/−43); no VolOrder-shaped file has changed.
 **Frame (ROADMAP Phase 2, verbatim):**
 > **Regression assessment comes first.** Before the refactor is written, enumerate every test and dependency coupled to the concrete `VolOrder` shape and classify each one: *survives untouched*, *needs a mechanical call-site update*, or *is tightly coupled to the old format and should be eliminated*. The elimination candidates are a brainstorm-and-decide step with the user, not a judgement call made mid-refactor — and the decisions are recorded with their rationale before any code moves. This assessment is what makes the "no edits" criterion below meaningful rather than aspirational: it establishes *which* files were expected to be untouched in the first place.
@@ -149,7 +149,8 @@ NONE PREDICTED. Both files CONTEXT.md flagged as the likeliest candidates (`VolO
 4. Confirm the HARD STOP rule: any elimination candidate found during 02-04 halts the plan.
 
 ## 7. Decision log (maintainer, verbatim)
-_(filled at the checkpoint)_
+- **2026-08-28 — checkpoint 02-03.** Presented: §2-3 tables, §5 (NONE), §4 decisions 1-6 + the exact edit list, the 02-02 probe result (both RED), the four questions. Maintainer's resume signal, verbatim: **`approve`** (selected from approve / amend / halt; no annotation).
+- Question 1 (classification §2-3): approved. Question 2 (design 1-6, edit list): approved. Question 3 (`--skip` retirement): **MOOT (red)** — both probe results red, both entries stay on the ledger, #63 owns them. Question 4 (HARD STOP rule): confirmed — any elimination candidate found during 02-04 halts the plan.
 
 ## Appendix A — census as measured (2026-08-28, tree `703e744`)
 - `.plk` files referencing `VolOrder|vol_order_` in `src/` + `test/`: **17** (CONTEXT.md's "12" was a `src/`-only grep; the plan's own context already enumerated all 17 — the delta is scope, not content).
