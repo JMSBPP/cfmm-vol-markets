@@ -1,121 +1,105 @@
-# Phase 2 / plan 02-04 gate evidence — VolOrder(T) minimal instantiation
+# Phase 2 / plan 02-04 gate evidence — VolOrder(T) over a region + the Extra(T) descriptor
 
-- **Refactor commit:** `c9844d1a7a18739812fab09eebcfb712aac40ee0` (4 files, +94/−38)  **Branch:** `feat/volorder-t-minimal`  **PR:** https://github.com/JMSBPP/cfmm-vol-markets/pull/62
-- **Runs:** develop-gate `33171200236` (https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33171200236), push-build `33171197208` (https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33171197208) — both success, FIRST push, no fix commits
-- **Baseline:** develop-gate `33168567137` (02-01 GATE_POST2) — same toolchain (plank `00c0a1aa3cb40b63de81c6ca4f92bec392b423c3`, forge `b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2`)
-- **Harvested:** 2026-08-28T12:34:28Z
+> **This file was rewritten on 2026-08-28.** Its first version documented the `c9844d1` refactor
+> (a local `none` tag, `vol_order_base`, `VolOrder(none)` everywhere). That design was REJECTED by
+> the maintainer at the 02-04 chunk review and reverted by `3af40fb`; the assessment's §4 was
+> superseded by §4a. Every number and identifier below comes from the design that is actually in
+> the tree. The earlier runs are kept in "Superseded runs" because they are real facts about a
+> design that was tried, measured and dropped — not evidence for what merges.
 
-## Toolchain
-    forge Version: 1.5.1-v1.5.1
-    Commit SHA: b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2
+- **Implementation commit:** `dbc1259` (5 files) + `1dd1ce0` (negative-fixture fix)
+- **Test commits (written FIRST, red):** `613ad65`, `e4f0e0d`
+- **Branch:** `feat/volorder-t-minimal`  **PR:** https://github.com/JMSBPP/cfmm-vol-markets/pull/62 (draft)
+- **GREEN run:** develop-gate [`33182346548`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33182346548) — approve/forge/plank/gate all success; push-build `33182342689` success
+- **Baseline:** develop-gate `33168567137` (02-01 GATE_POST2), same toolchain (plank `00c0a1a`, forge `b0a9dd9`)
+- **Harvested:** 2026-08-28
 
-## Criterion 2 — gate green; plank compiles VolOrder(T); forge runs the full suite
-| | 02-01 baseline `33168567137` | 02-04 `33171200236` |
+## The RED→GREEN sequence (AGENTS.md: tests are written RED first)
+
+| Run | Result | What it established |
 |---|---|---|
-| `Ran N test suites …` | `Ran 75 test suites in 6.41s (31.21s CPU time): 273 tests passed, 0 failed, 3 skipped (276 total tests)` | `Ran 75 test suites in 6.33s (31.48s CPU time): 273 tests passed, 0 failed, 3 skipped (276 total tests)` |
-| `compile-plank:` | `compile-plank: 38 ok, 0 failed, 0 skipped` | `compile-plank: 38 ok, 0 failed, 0 skipped` |
-| compile-plank OK/FAIL entry set | 38 | **IDENTICAL** (`diff` empty) |
-| `warning` lines (forge job) | 236 | 236 |
+| [`33181053911`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33181053911) | RED | The tests DETECT the absence of the type: `unresolved identifier 'Extra'` ×2, `'extra_decode'` ×6, `'extra_encode'` ×2, `'vol_order_with_extra'` ×2, `unknown field` ×2. `compile-plank: 38 ok, 1 failed`; forge 76 suites / 273 passed / **1 failed**; floor still 10/10; 75 other suites ok. |
+| [`33181644493`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33181644493) | plank green, forge 13/14 | The implementation compiles. **The negative test caught ITSELF being vacuous**: `test__unit__nonRegionTagDoesNotCompile` failed with *"VolOrder(u256) compiled; Extra must reject a non-region T"* — because the fixture's `bad()` was never called from `run{}`, and plank does not type-check unreachable code. Exactly the hazard `Makefile:compile-plank` documents. |
+| [`33182346548`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33182346548) | **GREEN** | Fixture made reachable (`1dd1ce0`, fixture only — `Extra` unchanged). The `is_region` guard fires; 14/14. |
 
-Job conclusions: approve=success forge=success plank=success gate=success.
+The middle run is the value of the order: under write-then-test that fixture would have sat green and meaningless.
 
-Verbatim, one run per line:
+## Criterion 2 — gate green; plank compiles the type; forge runs the full suite
 
-    02-01 33168567137  compile-plank: 38 ok, 0 failed, 0 skipped
-    02-04 33171200236  compile-plank: 38 ok, 0 failed, 0 skipped
+| | 02-01 baseline `33168567137` | 02-04 `33182346548` |
+|---|---|---|
+| `Ran N test suites …` | `Ran 75 test suites in 6.41s (31.21s CPU time): 273 tests passed, 0 failed, 3 skipped (276 total tests)` | `Ran 76 test suites in 6.53s (32.41s CPU time): 287 tests passed, 0 failed, 3 skipped (290 total tests)` |
+| `compile-plank:` | `compile-plank: 38 ok, 0 failed, 0 skipped` | `compile-plank: 39 ok, 0 failed, 0 skipped` |
+| `Suite result: ok` / `FAILED` | 75 / 0 | 76 / 0 |
 
-`compile-plank` OK lines for the VolOrder(T) entrypoints:
-   OK   src/modules/pos_spec/VolOrderManagerMod.plk -> build/plank/src_modules_pos_spec_VolOrderManagerMod.hex
-   OK   test/protocol_integrations/VolOrderMintSizingHarness.plk -> build/plank/test_protocol_integrations_VolOrderMintSizingHarness.hex
-   OK   test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk -> build/plank/test_protocol_integrations_VolOrderToPanopticTokenIdHarness.hex
-   OK   test/types/pos_spec/VolOrderHelper.plk -> build/plank/test_types_pos_spec_VolOrderHelper.hex
-   OK   test/types/pos_spec/VolOrderValidationHarness.plk -> build/plank/test_types_pos_spec_VolOrderValidationHarness.hex
+The deltas are exactly the new work and nothing else: **+1 suite** (`VolOrderType.t.sol`), **+14 tests**, **+1 plank entrypoint** (`test/types/pos_spec/VolOrderTypeHarness.plk`; `src/types/Extra.plk` has no `init` block so it is compiled transitively, not as an entrypoint). No pre-existing count moved.
 
 ## Criterion 3 — regression floor untouched and green (VORD-02 bit-identity)
+
 `git diff origin/develop -- test/protocol_integrations/VolOrderToPanopticTokenId.t.sol` → **0 bytes**.
+
     Ran 10 tests for test/protocol_integrations/VolOrderToPanopticTokenId.t.sol:VolOrderToPanopticTokenIdTest
-    [PASS] testFuzz_legFromBucket_reconstructs(int256,uint256,int256) (runs: 256, μ: 12984, ~: 12902)
-    [PASS] testFuzz_map_validAndTiles(uint256,uint256) (runs: 256, μ: 41850, ~: 41911)
-    [PASS] test_legFromBucket_negativeOdd() (gas: 7667)
-    [PASS] test_legFromBucket_positiveEven() (gas: 7897)
-    [PASS] test_legFromBucket_positiveOdd() (gas: 7941)
-    [PASS] test_map_goldenStructure() (gas: 23979)
-    [PASS] test_map_guard_passesAtExactly2ts() (gas: 17796)
-    [PASS] test_map_guard_revertsOnNarrowSide() (gas: 13986)
-    [PASS] test_map_guard_revertsOnWidthOverflow() (gas: 14572)
-    [PASS] test_map_validatesAsPanoptic() (gas: 22171)
-    Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 221.52ms (119.33ms CPU time)
+    Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 285.63ms (230.69ms CPU time)
 
-## Criterion 5 — VORD-03 callers + harness compile; differential still compiles and skips
-`vol_order_to_mint`, `position_size_for_target_vega`, `vol_order_leg_split`, `induced_leg_liquidities`, `average_density_chunks` — all reached through `VolOrderMintSizingHarness.plk`, whose diff is 0 bytes:
-    Ran 8 tests for test/protocol_integrations/VolOrderMintSizing.t.sol:VolOrderMintSizingTest
-    [PASS] test__coupling__fineGridProfilesCoincide() (gas: 96805)
-    [PASS] test__coupling__totalsAgreeOnAnyGrid() (gas: 136335)
-    [PASS] test__fuzz__oneSidedIdentityAcrossOrders(uint256,uint256,uint96) (runs: 256, μ: 52444, ~: 52462)
-    [PASS] test__unit__assetBitPinnedToOne() (gas: 38534)
-    [PASS] test__unit__dustTargetReverts() (gas: 36669)
-    [PASS] test__unit__inducedProfileMatchesPlan() (gas: 87191)
-    [PASS] test__unit__positionSizeIsMaximalOneSided() (gas: 56480)
-    [PASS] test__unit__positionSizeMatchesOracle() (gas: 48221)
-    Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 231.90ms (115.14ms CPU time)
-    Ran 3 tests for test/pos_spec/VolOrderManagerFixture.t.sol:VolOrderManagerFixtureTest
-    [PASS] test__unit__externalEncoderConfirmsTheEmptyEncodingIsSixtyFourBytes() (gas: 11982)
+Reinforced directly by a new fuzz test rather than only by the floor: `test__fuzz__tokenIdIsBitIdenticalOnTheNoPayloadPath(uint64)` (256 runs) compares the generic builder's id against the pre-refactor harness's `tokenIdFromVolOrder` for the same packed order and pool id.
 
-Differential (`SKIP_REASON` at `VolOrderToPanopticTokenId.diff.t.sol:109`):
-    Ran 4 tests for test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol:VolOrderToPanopticTokenIdDiffTest
-    [SKIP: spec oracle not wired: SpecOracle.health() reports TransportFailure (RED-05). Wired in Phase 7, enforced in Phase 11 (CI-04).] test__fuzz_differential__volOrder(uint256,uint256,uint256,uint256,uint256,uint256,uint256) (runs: 0, μ: 0, ~: 0)
-    [SKIP: spec oracle not wired: SpecOracle.health() reports TransportFailure (RED-05). Wired in Phase 7, enforced in Phase 11 (CI-04).] test_differential__volOrder__anchor() (gas: 0)
-    [PASS] test_implSide_answersOnAnchor() (gas: 18152)
-    [PASS] test_specHelper_stubRevertsAndProbeReportsNotWired() (gas: 16680)
-    Suite result: ok. 2 passed; 0 failed; 2 skipped; finished in 99.98ms (1.33ms CPU time)
+## Criterion 5 — differential still compiles and skips; Phase 1 state preserved
 
-`git diff origin/develop -- test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol test/protocol_integrations/SpecHelper.sol` → **0 bytes**.
+    [SKIP: loop-conformance.json absent at offchain/rig/loop-conformance.json - run the live sequence] test__priceInvarianceUnderVolumePath()
+    [SKIP: spec oracle not wired: SpecOracle.health() reports TransportFailure (RED-05). Wired in Phase 7, enforced in Phase 11 (CI-04).] test__fuzz_differential__volOrder(...)
+    [SKIP: spec oracle not wired: SpecOracle.health() reports TransportFailure (RED-05). Wired in Phase 7, enforced in Phase 11 (CI-04).] test_differential__volOrder__anchor()
+
+Three `[SKIP` lines, identical to the baseline. `git diff origin/develop -- …diff.t.sol …SpecHelper.sol` → **0 bytes**.
+
+## The 14 type tests (all passing)
+
+`test__fuzz__packUnpackIsUnchangedByTheOptionField` · `test__unit__unpackYieldsANoneExtra` ·
+`test__unit__readingThroughANoneExtraReverts` · `test__unit__panopticDescriptorDecodesToItsThreeFields` ·
+`test__unit__emptyDescriptorDecodes` · `test__unit__panopticFlagWithTheWrongLengthReverts` ·
+`test__unit__unflaggedDescriptorWithAPayloadLengthReverts` · `test__unit__reservedFlagBitsRevert` ·
+`test__fuzz__descriptorSurvivesEncodeDecode` · `test__fuzz__packIgnoresExtraEntirely` ·
+`test__fuzz__tokenIdIsBitIdenticalOnTheNoPayloadPath` · `test__unit__phase2MapStillHardcodesRatioOneAndNoAsset` ·
+`test__unit__nonRegionTagDoesNotCompile` · `test__unit__extraFieldsNeedUnwrap`
+
+    Ran 14 tests for test/types/pos_spec/VolOrderType.t.sol:VolOrderTypeTest
+    Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 479.43ms (220.45ms CPU time)
 
 ## ABI edge — frozen surface (CONTEXT.md)
-PRE (02-02, run `33169215017`):
-    abi-edge sha256: e801b0e1dea74b1316ce8991663c914da64b31ab359127c67f56a788689077d9
-    abi-edge selector: 0x08c379a0
-    abi-edge selector: 0x4e487b71
-    abi-edge selector: 0x728ebb96
-    abi-edge selector: 0xa00af595
-    abi-edge selector: 0xed7143d4
-    abi-edge selector: 0xfe7ebf55
-    abi-edge selector: 0xffffffff
-    abi-edge selector-count: 7
----
-POST (02-04, run `33171197208`):
-    abi-edge sha256: eb0636086f73cbc5e7fd5170a8918dff8d96d242b7709d5970de47df022d2d33
-    abi-edge selector: 0x08c379a0
-    abi-edge selector: 0x4e487b71
-    abi-edge selector: 0x728ebb96
-    abi-edge selector: 0xa00af595
-    abi-edge selector: 0xed7143d4
-    abi-edge selector: 0xfe7ebf55
-    abi-edge selector: 0xffffffff
-    abi-edge selector-count: 7
 
-**Selector set: IDENTICAL** (all 7, including the four dispatch selectors `0xfe7ebf55 0xa00af595 0xed7143d4 0x728ebb96`).
-**sha256: DIFFERENT** — the compiled bytes moved while the dispatch surface did not. Expected: the tokenId path now routes through `vol_order_base(T, vo)` and the import set changed; the surface claim rests on the selector set plus the untouched golden vectors passing 10/10, which is exactly what the 02-02 baseline said would be judged either way.
+PRE (02-02, run `33169215017`) vs POST (02-04, run `33182342689`):
 
-## Files changed vs origin/develop (committed; src/ test/ foundry-scripts/)
-- `src/lib/market_state_measurements/RealizedVolatilityStateLib.plk`
-- `src/lib/pos_spec/TickVolatilityLib.plk`
-- `src/lib/pos_spec/VolOrderValidationLib.plk`
-- `src/lib/protocol_integrations/PanopticTokenIdSetterLib.plk`
-- `src/modules/VolOrderManagerMod.plk`
-- `src/types/market_state_measurements/Timepoint.plk`
-- `src/types/pos_spec/VolOrder.plk`
-- `src/types/pos_spec/VolRangeWidth.plk`
-- `test/lib/pos_spec/TickVolatilityLibHelper.plk`
-- `test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk`
-- `test/types/pos_spec/VolOrderValidationHarness.plk`
-- `test/types/pos_spec/VolRangeWidthHelper.plk`
+    abi-edge sha256: e801b0e1dea74b1316ce8991663c914da64b31ab359127c67f56a788689077d9   (pre)
+    abi-edge sha256: 3bca10fc733de57182329d8b543ec850256cd7e29fce9bd20beaa2e598bf5b2b   (post)
+    abi-edge selector: 0x08c379a0  0x4e487b71  0x728ebb96  0xa00af595
+    abi-edge selector: 0xed7143d4  0xfe7ebf55  0xffffffff
+    abi-edge selector-count: 7   (both)
 
-12 paths: the 8 std-move files from 02-01 + the 4 refactor files. (`git diff origin/develop` without `HEAD` shows 13 because `src/modules/premium/DynamicFeeMod.plk` is a pre-existing UNCOMMITTED dirty file in the working tree — never staged, not on the branch.)
+**Selector set: IDENTICAL** — all 7, including the four dispatch selectors `0xfe7ebf55` `0xa00af595`
+`0xed7143d4` `0x728ebb96`. **sha256: DIFFERENT** — the harness now passes `calldata` to a builder
+whose signature gained a `comptime T`, so the compiled bytes moved while the dispatch surface did
+not. The surface claim rests on the selector set plus the untouched golden vectors passing 10/10,
+which is what the 02-02 baseline said would be judged either way.
+
+## Superseded runs (kept as history, NOT evidence for what merges)
+
+- `33171200236` / `33171197208` — green on `c9844d1`, the local-`none`-tag design. Real measurements
+  (75 suites / 273 / 0 / 3; `compile-plank: 38 ok`; selector set identical; sha256 `eb063608…`), but
+  of code the maintainer rejected at chunk review and `3af40fb` removed. Nothing in the merged tree
+  corresponds to them.
+- `33176185381`, `33178710089`, `33180603688` — earlier RED legs of superseded test drafts.
 
 ## Anomalies
-1. **sha256 moved, selector set did not** — recorded above. Not a surface change; internals only.
-2. **Two mechanical sites the plan's sed missed:** `VolOrder.plk` `set_vol_order_skew` and `set_vol_order_range_width` had `self: VolOrder ,skew` (space before the comma), which `VolOrder([,)])` does not match. Reconciled by hand per the plan; the sed was not loosened.
-3. **The plan's own comments inflate its own counts:** `grep -c 'VolOrder(none)'` reads 20 (not 18) in `VolOrder.plk` and 6 (not 5) in `PanopticTokenIdSetterLib.plk` because the comment blocks the plan itself inserts contain the string. Comment-stripped counts are exactly 18 and 5. Same class as Phase 1's seven grep-forbids-its-own-documentation cases; also the `@compile_error("VolOrder: …")` STRING LITERAL matches the "bare VolOrder" regex.
-4. `set -e` in the executor's shell did not abort on the first failed count, so Task 2's edits ran before Task 1's reconciliation. No wrong state was committed — the reconciliation happened before the single commit.
-5. First-push green: no `fix(02-04)` commit was needed; Plank's comptime-if pruning and `T == none` comparison behaved exactly as `Shock(R)` and `std/regions.plk` implied.
+
+1. **The negative test was vacuous until `1dd1ce0`** — see the RED→GREEN table. Second instance in
+   this phase of "unreachable Plank code is never type-checked"; the first was the `compile-plank`
+   note it is derived from.
+2. **`@248` in NatSpec is solc Error 6546**, hit TWICE in `VolOrderType.t.sol` (first with
+   `@compile_error`, then with the bit offsets). `test/pos_spec/VolOrderDecoder.sol` already
+   documented the trap; the reference is now in this file's NatSpec too.
+3. **`std::slice::Slice(R, T, arity)` exists at plank `00c0a1a`** (absent at the old pin) and is the
+   typed region-generic view a Phase 3 dereference should build over the four ratios —
+   `Slice(T, u256, Some(4))`. Recorded so Phase 3 does not reinvent it.
+4. **sha256 moved with the selector set fixed** — internals only, as in the superseded run.
+5. Backticks in a `git commit -m` string were executed by bash, silently deleting two spans from
+   `dbc1259`'s message; amended from a file (`--force-with-lease`). Use `-F` for messages containing
+   backticks.
