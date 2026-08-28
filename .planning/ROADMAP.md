@@ -348,7 +348,7 @@ independently derived value rather than trusted. `MarketId.plk` is retired into 
 **Runs BEFORE Phase 3**, which is paused: Phase 3 has no directory, no CONTEXT.md and no plans, so
 this phase unpicks nothing. Phase 3's criteria and VORD-04/05 are restated against the payload width
 THIS phase merges.
-**Requirements**: KEY-01, KEY-02, KEY-03, KEY-04, KEY-05, VORD-07, VORD-08
+**Requirements**: KEY-01, KEY-02, KEY-03, KEY-04, KEY-05, KEY-06, VORD-07
 **Spec**: `docs/superpowers/specs/2026-08-28-volmarketkey-and-extra-payload-widening-design.md`
 **Why this was inserted**: Phase 3's criteria were written against a 28-bit `FLAG_PANOPTIC` payload
 carrying four `optionRatio`s and nothing else. Reading Panoptic's own sources produced findings that
@@ -387,23 +387,28 @@ deliberately, with maintainer approval, not by drift.
      (`EXTRA_PANOPTIC_BITS`, the `require` in `extra_decode`, and `PANOPTIC_BITS` plus its wrong-len
      revert test), RED-first. Leg `k` at `[8k..8k+7]`: `optionRatio` 7b @`8k`, `tokenType` 1b
      @`8k+7`; `vegoid` 8b @32.
-  4. Every guard reverts with its own case in the gate: `vegoid == 0`;
-     `vegoid_payload != pool_id[40..47]` INCLUDING the both-zero pair that satisfies the equality and
-     must still revert; `ratio_k == 0`; `tt_k` disagreeing with the geometric `tt_k`; and
-     `vo.rangeWidth.tickSpacing != key.tick_spacing` (`tickSpacing` has two producers and must be
-     reconciled).
+  4. Every guard THIS PHASE OWNS reverts with its own case in the gate: `vegoid == 0`; `ratio_k == 0`;
+     a length that is not 40; a reserved flag bit; and `vegoid_payload != pool_id[40..47]` INCLUDING
+     the both-zero pair that satisfies the equality and must still revert. That last one is the
+     phase's most valuable guard test and it stays here because BOTH its operands are 2.5's —
+     `pool_id` is `VolMarketKey`'s SFPM-verified output and the payload is `Extra(T)`'s format, and
+     `Extra.plk` imports only `std`, so no `VolOrder` is involved. The two guards that DO need a
+     `VolOrder` — `tt_k` against the geometric split, and `vo.rangeWidth.tickSpacing` against
+     `key.tick_spacing` — belong to Phase 3 under the seam below.
   5. The `poolId` candidate is verified against the SFPM: an agreeing pair passes, and a
      collision-incremented mismatch reverts with OUR error at build time rather than Panoptic's at
      mint. The two venue patterns are asserted SEPARATELY, not assumed identical —
      V4 = `uint40` of the low bits of the v4 PoolId, V3 = `uint40(uint160(pool) >> 120)`.
-  6. `panoptic_asset_bit == 1 -% asset_index` asserted for BOTH values of `asset_index`, and the
-     `asset` bit has exactly ONE writer: `vol_order_to_mint`'s four `panoptic_add_asset` calls are
-     removed in the SAME commit that adds the Layer-1 write, with a dedicated test pinning that no
-     double-add occurs. `panoptic_add_asset` is additive, so a second write carries into
-     `optionRatio`'s LSB — and the golden vectors cannot catch it, because they exercise Layer 1 only.
+  6. `panoptic_asset_bit == 1 -% asset_index` is asserted for BOTH values of `asset_index`, as a
+     standalone function of the key (KEY-06). This is a pure key property — no builder, no
+     `VolOrder` — which is why F1's inversion, the single NOT whose failure mode is a valid position
+     on the WRONG SIDE of the pair, is verified HERE and is where criterion 9's independent check
+     belongs. The single-writer property and its atomic commit are VORD-08, delivered by Phase 3,
+     because the Layer-1 write it must be atomic with lives in that phase's function.
   7. `test/protocol_integrations/VolOrderToPanopticTokenId.t.sol` is still 10/10 green with NO EDITS
-     to that file, and `test__unit__phase2MapStillHardcodesRatioOneAndNoAsset` is updated or retired
-     as a TRACEABLE, ARGUED change with its reason recorded — never silently deleted to get green.
+     to that file. (`test__unit__phase2MapStillHardcodesRatioOneAndNoAsset` is PHASE 3's to retire —
+     it can only be retired once, and a second claim on it invites whichever phase runs later to
+     treat the criterion as already satisfied and drop it, which is the exact failure it guards.)
   8. `MarketId.plk` is deleted and its three real consumers migrated — `MarketId.t.sol`,
      `MarketIdHarness.plk`, and the `MarketStateSocket.t.sol:22` comment — with the V4 pattern shown
      to subsume `market_id_from_pool_key`'s keccak rather than duplicating it.
@@ -412,6 +417,19 @@ deliberately, with maintainer approval, not by drift.
      1 -% asset_index`, a single NOT whose failure mode is a valid position on the WRONG SIDE of the
      pair, and (ii) the §9.1 zero band, derived jointly and therefore not independently held by
      either author. Both currently rest on exactly two readers.
+**Scope seam with Phase 3 — DATA vs BUILDER** (agreed by both sessions 2026-08-28). The deciding
+property is whether a thing needs a `VolOrder`, not whether it "needs the builder" — that is the test
+that actually sorts the cases. **2.5 delivers** `VolMarketKey(V)` (SFPM-verified `poolId`,
+`asset_index`, the derived asset bit) and the 40-bit `Extra(T)` payload FORMAT with every guard whose
+operands are the key and the payload alone. `Extra.plk` imports only `std`, so none of that touches
+`VolOrder`. **Phase 3 owns every edit to `vol_order_to_panoptic_token_id`**: the dereference, the
+per-leg writes, the asset write and its atomic single-writer commit (VORD-08), the two cross-checks
+that need a `VolOrder` (`tt_k` vs the geometric split; `vo.rangeWidth.tickSpacing` vs
+`key.tick_spacing`, from spec §6.2), and the Phase-2 pin. Each phase is then testable without the
+other's code, and neither edits a function the other owns. A second consequence, deliberate: F1's
+asset inversion is verified in 2.5 and the §9.1 underflow in 3.5, so criterion 9's two highest-risk
+findings land in different phases and neither is checked by the phase that would most want it to pass.
+
 **Two-step review: WAIVED.** The standing rule (Reality Checker + one specialist, in parallel, before
 any pre-commit spec is treated as ready) was offered twice with two named candidates — Solidity Smart
 Contract Engineer for the mechanics, Blockchain Security Auditor for the silent-wrong-answer modes —
@@ -456,13 +474,23 @@ read. Planning starts from `docs/superpowers/specs/2026-08-28-volmarketkey-and-e
 tokenId the Haskell would emit — closing the "not the same function" gap without breaking the
 no-payload path.
 **Depends on**: Phase 2
-**Requirements**: VORD-04, VORD-05
+**Requirements**: VORD-04, VORD-05, VORD-08
 > **Criteria restated 2026-08-28 to the Phase 2 design of record**
 > (`.planning/phases/02-volorder-t-minimal-instantiation/02-REGRESSION-ASSESSMENT.md` §4a). They were
 > written when "rich instantiation" meant a SECOND `VolOrder(T)` variant. There is no second variant:
 > there is one `VolOrder(T)` per region carrying an `Option(Extra(T))` descriptor, and the operands
 > arrive through the `FLAG_PANOPTIC` dereference. **The outcomes below are unchanged** — ratios
 > 1..127, `asset = 1` on four legs, the minimal path untouched; only the mechanism is corrected.
+> **Scope seam with Phase 2.5 — this phase owns the BUILDER** (agreed 2026-08-28; see Phase 2.5's
+> seam paragraph). Every edit to `vol_order_to_panoptic_token_id` is Phase 3's: the dereference, the
+> per-leg writes, the asset write and its ATOMIC single-writer commit (**VORD-08**, moved here from
+> 2.5 because the commit that satisfies it must be atomic with the Layer-1 write), the two
+> cross-checks that need a `VolOrder` — `tt_k` against the geometric i\* split, and
+> `vo.rangeWidth.tickSpacing` against `key.tick_spacing` (spec §6.2, a self-review finding that
+> exists only because the spec was written out and which nothing in this entry would otherwise
+> reproduce) — and `test__unit__phase2MapStillHardcodesRatioOneAndNoAsset`, EXCLUSIVELY. 2.5 delivers
+> the key and the payload format; this phase consumes them. The criteria below still describe the
+> 28-bit payload and are restated once 2.5 merges.
 **Success Criteria** (what must be TRUE):
   1. `develop-gate` green: the plank job compiles the `FLAG_PANOPTIC` branch of
      `vol_order_to_panoptic_token_id`, which dereferences `Extra(T)`'s offset to read the four
