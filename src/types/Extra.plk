@@ -127,3 +127,21 @@ const extra_payload_validate = fn (p: u256) void {
     require(extra_payload_option_ratio(p, 2) != 0);
     require(extra_payload_option_ratio(p, 3) != 0);
 };
+
+const POOL_ID_OFF_VEGOID = 40;
+
+// The payload's declared vegoid must agree with pool_id bits 40..47.
+//
+// THE `!= 0` CHECK IS NOT REDUNDANT WITH THE EQUALITY. `require(a == b)` passes when BOTH sides
+// are zero, and vegoid == 0 is invalid -- both SFPMs revert Errors.InvalidTokenIdParameter(0). So
+// a zero-vegoid payload against a poolId whose vegoid byte is also zero satisfies the equality and
+// would pass on it alone. Do not delete either line as a duplicate of the other; the test
+// test__unit__vegoidZeroOnBothSidesStillReverts exists to make that removal fail.
+//
+// This reads ONLY bits 40..47 of the poolId: the tickSpacing at 48..63 and the 40-bit pattern
+// below are none of its business.
+const extra_payload_require_vegoid_agrees = fn (p: u256, pool_id: u256) void {
+    let v = extra_payload_vegoid(p);
+    require(v != 0);
+    require(v == (@evm_shr(POOL_ID_OFF_VEGOID, pool_id) & MASK_U8_PAYLOAD));
+};
