@@ -1,5 +1,5 @@
 import std::constructor::return_runtime;
-import std::addr::{msg_sender, addr};
+import std::core::addr::{msg_sender, addr};
 import std::membytes::membytes_write;
 import std::abi::abi_encode;
 import std::type::sizeof;

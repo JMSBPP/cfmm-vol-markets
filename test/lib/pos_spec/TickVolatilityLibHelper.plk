@@ -1,7 +1,7 @@
 import lib::pos_spec::TickVolatilityLib::*;
 import std::constructor::return_runtime;
 import pos_spec::TickVolatility::*;
-import std::addr::addr_from_u256;
+import std::core::addr::addr_from_u256;
 // it receives the address of the implementation and stores it on bytecode as immutable
 
 

@@ -84,3 +84,34 @@ job is mutated.
    named cause. That is the third drift layer working:
    **the pin prevents, the version stamp reveals, the fixture fails.**
    Turning any of the three off is how a green run comes to mean nothing.
+
+## 7. Plank — `lib/plank-monorepo` @ `00c0a1aa3cb40b63de81c6ca4f92bec392b423c3` (`main`, 2026-08-17)
+
+The pin is the submodule gitlink; `.gitmodules` tracks `main` for `--remote` convenience only —
+the SHA is what CI builds (`make plank-toolchain` compiles `lib/plank-monorepo/plankc` and installs
+it as `~/.plank/bin/plank`; both workflows re-run it every job because the runner is persistent).
+
+**Why it moved (Phase 2, plan 02-01).** The previous pin `30f3bdcd405057ef7394dd9bf703f5923b03134a`
+tracked branch `feat/arrays`, which no longer exists on the remote (HTTP 404). A submodule tracking
+a deleted branch fails silently on `--remote` updates. `00c0a1a` is `main` HEAD — 46 commits ahead,
+0 behind — and carries what Phase 2 needs: `ctime` region + `memptr` removal (#267), native
+`@bool_to_u256` (#270), `@type_index` (#238, a VORD-06 candidate), `@typename`/`@fieldname` (#240),
+methods (#292), and the fix for a frontend panic when a generic function shadows an imported type
+(#307) — directly relevant to a codebase adding `VolOrder(T)`.
+
+**Measured migration cost (all mechanical, applied in the same commit as the pin):**
+- `std::addr::*` → `std::core::addr::*` (`3df1d1a` rearranged std): 3 import lines.
+- `std::core_ops::bool_to_u256` removed from std (`77f3afd`): 5 imports deleted, 7 call sites →
+  builtin `@bool_to_u256`.
+- `memptr` removed (`a87d2ef`): 0 occurrences in `src/` and `test/`. `lib/plankified-univ3`
+  (`9a89319`) still uses it in `plank/lib/abi.plk`, which nothing imports — unreachable, not bumped.
+- CLI: `build`, `--backend sona`, `--dep` unchanged; NEW `--evm-version` (Cancun|Prague|Osaka,
+  default **Osaka**). Not pinned by this repo; if the Osaka default ever emits an opcode the pinned
+  forge (`1.5.1` / `b0a9dd9`) rejects, the lever is `BuildOptions.overrideDefaultEvmVersion` in
+  `test/PlankTestBase.sol:plankOpts()` plus `--evm-version` in `Makefile`'s `PLANK_DEP` line — both
+  places, or the push build and the FFI path compile different EVMs.
+
+**Attribution rule this pin encodes:** the bump landed ALONE, on a gate run whose suite counts
+equal the pre-bump run's (`02-01-GATE-EVIDENCE.md`). Any later `tokenId` divergence therefore has
+one candidate cause. A future plank bump follows the same shape: pin commit alone, green gate on
+the unchanged suite, THEN source changes.

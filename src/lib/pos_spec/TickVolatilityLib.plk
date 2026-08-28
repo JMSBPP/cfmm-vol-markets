@@ -1,5 +1,5 @@
 import pos_spec::TickVolatility::*;
-import std::addr::*;
+import std::core::addr::*;
 import v3::math::tick_math::{getSqrtRatioAtTick, getTickAtSqrtRatio};
 import v3::util::revert_empty;
 

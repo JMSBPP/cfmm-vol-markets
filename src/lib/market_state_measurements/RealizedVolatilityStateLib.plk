@@ -23,7 +23,6 @@ import lib::market_state_measurements::RealizedVolatilityLib::*;
 import lib::events::VolEventsLib::{emit_timepoint_written, emit_window_changed};
 import v3::storage::{array_slot};
 import std::error::require;
-import std::core_ops::bool_to_u256;
 
 const RV_ZERO = 0;
 
@@ -36,7 +35,7 @@ const RealizedVolatilityState = struct {
 const pack_realized_volatility_state = fn(self: RealizedVolatilityState) u256 {
     (self.ss_index.current & 0xFFFF)
     | @evm_shl(16, self.lastTimepointTimestamp & 0xFFFFFFFF)
-    | @evm_shl(48, bool_to_u256(self.isInitialized))
+    | @evm_shl(48, @bool_to_u256(self.isInitialized))
 };
 
 const unpack_realized_volatility_state = fn(_packed: u256) RealizedVolatilityState {
