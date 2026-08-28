@@ -1,0 +1,7 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="icon-micro-dark">
+<rect id="block-source" x="32" y="340" width="140" height="140" fill="#E8EAED"/>
+<rect id="block-target" x="340" y="32" width="140" height="140" fill="#E8EAED"/>
+<path id="morphism-arc" d="M192 320C234.668 256.075 277.331 220.479 320 192" stroke="#1B9E5A" stroke-width="80" stroke-linecap="round"/>
+</g>
+</svg>
