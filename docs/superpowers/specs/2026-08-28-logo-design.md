@@ -313,11 +313,13 @@ assets/logo/
 │   ├── icon-{light,dark,currentcolor}.svg          tier B — ≥64px, notched + σ² label
 │   ├── icon-mid-{light,dark}.svg                   tier C — 24–63px, notched, no label
 │   ├── icon-micro-{light,dark}.svg                 tier D — 16–23px, plain blocks
-│   └── lockup-{horizontal,stacked}-{light,dark}.svg
+│   ├── lockup-horizontal-{light,dark}.svg          tier-A mark  — use ≥649px
+│   ├── lockup-horizontal-b-{light,dark}.svg        tier-B icon  — use ≥325px
+│   └── lockup-stacked-{light,dark}.svg             tier-A mark  — use ≥160px
 ├── png/
 │   ├── mark-full-{light,dark}-{512,1024,2048}.png
 │   ├── icon-{light,dark}-{16,32,48,64,128,256,512}.png
-│   └── lockup-horizontal-{light,dark}-{512,1024,2048}.png
+│   └── lockup-{horizontal,horizontal-b,stacked}-{light,dark}-{512,1024,2048}.png
 ├── favicon/
 │   ├── favicon.ico             multi-resolution 16/32/48
 │   ├── favicon-{16x16,32x32}.png
@@ -348,6 +350,12 @@ one master at sizes it was not drawn for.
 | `png/icon-*-{64,128,256,512}.png`, `apple-touch-icon.png` (180), `android-chrome-{192,512}` | `icon-*` (tier B, ≥64px) |
 | `png/mark-full-*`, `pdf/mark-full.pdf` | `mark-full-*` (tier A) |
 | `png/lockup-horizontal-*`, `social/og-card-1280x640.png` | `lockup-horizontal-*` |
+| `png/lockup-horizontal-b-*` | `lockup-horizontal-b-*` |
+| `png/lockup-stacked-*` | `lockup-stacked-*` |
+
+All three lockup families rasterise at the same `{512, 1024, 2048}` widths — **width only**,
+never `-h`. They are 5.0734 : 1 and 8 : 9; forcing a height distorts them. Only the mark and
+icons are square and take both dimensions.
 
 Note `apple-touch-icon.png` at 180px and `android-chrome-192x192.png` sit in tier B and
 therefore carry the σ² label; the 32 and 48 favicon entries sit in tier C and do not. That
