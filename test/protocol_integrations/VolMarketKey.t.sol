@@ -4,6 +4,51 @@ pragma solidity ^0.8.26;
 import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "test/PlankTestBase.sol";
 
+/// Minimal stand-in for BOTH SFPMs: they share the signature
+/// `getPoolId(bytes memory id, uint8 vegoid) external view returns (uint64)`
+/// (SemiFungiblePositionManagerV4.sol:1369, V3.sol:1558). `id` is a DYNAMIC type, so a caller must
+/// encode offset and length words -- the stub decodes nothing and simply returns what it was built
+/// with, which is enough to exercise agreement and disagreement.
+contract SfpmStub {
+    uint64 internal immutable ID;
+
+    constructor(uint64 id_) {
+        ID = id_;
+    }
+
+    function getPoolId(bytes calldata, uint8) external view returns (uint64) {
+        return ID;
+    }
+}
+
+/// Univ3 factory stand-in: `getPool(address,address,uint24)`. SFPM V3 resolves its pool exactly
+/// this way, which is why KEY-03 verifies against the registry rather than deriving via CREATE2.
+contract V3FactoryStub {
+    address internal immutable POOL;
+
+    constructor(address pool_) {
+        POOL = pool_;
+    }
+
+    function getPool(address, address, uint24) external view returns (address) {
+        return POOL;
+    }
+}
+
+/// Algebra Integral factory stand-in: `poolByPair(address,address)` -- no fee in the lookup, since
+/// Algebra pools are keyed on the pair alone.
+contract AlgebraFactoryStub {
+    address internal immutable POOL;
+
+    constructor(address pool_) {
+        POOL = pool_;
+    }
+
+    function poolByPair(address, address) external view returns (address) {
+        return POOL;
+    }
+}
+
 /// Phase 2.5 (KEY-01): VolMarketKey(V) is a comptime type constructor over a VENUE tag.
 ///
 /// The property under test is a TYPE-LEVEL one, so the evidence is split in two:
@@ -143,7 +188,113 @@ contract VolMarketKeyTest is PlankTestBase {
         assertFalse(ok, "vegoid == 0 must revert at composition");
     }
 
+    // ---- KEY-03: the pool address is VERIFIED against the venue registry -----------------------
+
+    /// Never CREATE2-derived, so no POOL_INIT_CODE_HASH is pinned anywhere and the same code works
+    /// across forks and chains where a patched pool contract would change the init hash.
+    function test__unit__v3PoolAddressVerifiedAgainstTheFactory() public {
+        address pool = address(0xBEEF);
+        address factory = address(new V3FactoryStub(pool));
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature("verifyPoolV3(address,address)", factory, pool)
+        );
+        assertTrue(ok, "a pool matching the registry must verify");
+    }
+
+    function test__unit__v3PoolAddressMismatchReverts() public {
+        address factory = address(new V3FactoryStub(address(0xBEEF)));
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature("verifyPoolV3(address,address)", factory, address(0xDEAD))
+        );
+        assertFalse(ok, "a pool the registry does not know must revert");
+    }
+
+    function test__unit__algebraPoolAddressVerifiedAgainstTheFactory() public {
+        address pool = address(0xCAFE);
+        address factory = address(new AlgebraFactoryStub(pool));
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature("verifyPoolAlgebra(address,address)", factory, pool)
+        );
+        assertTrue(ok, "algebra pool matching poolByPair must verify");
+    }
+
+    function test__unit__algebraPoolAddressMismatchReverts() public {
+        address factory = address(new AlgebraFactoryStub(address(0xCAFE)));
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature("verifyPoolAlgebra(address,address)", factory, address(0xDEAD))
+        );
+        assertFalse(ok, "algebra mismatch must revert");
+    }
+
+    // ---- KEY-02: the poolId is a CANDIDATE, verified against the SFPM --------------------------
+
+    /// The Panoptic poolId is STATEFUL: both SFPMs loop
+    ///   while (s_poolIdToKey[poolId].tickSpacing != 0) poolId = incrementPoolPattern(poolId)
+    /// on a 40-bit pattern collision, and enforce the stored value at mint. So deriving it purely
+    /// yields a candidate, not an answer. When the SFPM agrees, the candidate is returned.
+    function test__unit__poolIdCandidateMatchingTheSfpmIsReturned() public {
+        uint64 expected = _expectedV4PoolId(VEGOID, TICK_SPACING);
+        address sfpm = address(new SfpmStub(expected));
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature("panopticPoolIdV4(address,uint256)", sfpm, uint256(VEGOID))
+        );
+        require(ok, "matching candidate reverted");
+        assertEq(abi.decode(r, (uint256)), expected, "the verified candidate must be returned");
+    }
+
+    /// A collision-incremented poolId must fail with OUR error at build time rather than inside
+    /// Panoptic at mint with InvalidTokenIdParameter -- an error pointing at the derivation, not at
+    /// a contract three calls away.
+    function test__unit__poolIdCollisionMismatchReverts() public {
+        uint64 incremented = _expectedV4PoolId(VEGOID, TICK_SPACING) + 1;
+        address sfpm = address(new SfpmStub(incremented));
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature("panopticPoolIdV4(address,uint256)", sfpm, uint256(VEGOID))
+        );
+        assertFalse(ok, "a collision-incremented poolId must revert at build time");
+    }
+
+    /// The v4 pool id is keccak256 over the 5-field PoolKey -- the same value MarketId.plk's
+    /// market_id_from_pool_key computes, which VolMarketKey(V4) subsumes rather than duplicates.
+    function test__unit__v4PoolIdIsTheCanonicalUniV4PoolId() public {
+        (bool ok, bytes memory r) =
+            harness.staticcall(abi.encodeWithSignature("v4PoolId()"));
+        require(ok, "v4PoolId reverted");
+        assertEq(
+            abi.decode(r, (uint256)),
+            uint256(keccak256(abi.encode(C0, C1, FEE, TICK_SPACING, HOOKS))),
+            "must equal the canonical univ4 PoolId"
+        );
+    }
+
+    // The fixed key the harness builds for the V4 arm. Kept in both places deliberately: if they
+    // drift, v4PoolIdIsTheCanonicalUniV4PoolId fails, which is the intended alarm.
+    uint256 internal constant C0 = 0x1111;
+    uint256 internal constant C1 = 0x2222;
+    uint256 internal constant FEE = 3000;
+    uint256 internal constant TICK_SPACING = 60;
+    uint256 internal constant HOOKS = 0x3333;
+    uint8 internal constant VEGOID = 8;
+
+    function _expectedV4PoolId(uint8 vegoid, uint256 tickSpacing) internal pure returns (uint64) {
+        uint256 poolIdV4 = uint256(keccak256(abi.encode(C0, C1, FEE, TICK_SPACING, HOOKS)));
+        uint256 pattern = poolIdV4 & ((uint256(1) << 40) - 1);
+        return uint64(pattern | (uint256(vegoid) << 40) | (tickSpacing << 48));
+    }
+
     // ---- what must NOT compile -----------------------------------------------------------------
+
+    /// KEY-04: there is no PanopticFactoryAlgebra, so the Algebra arm has no Panoptic continuation
+    /// and must not be given a synthetic one. The dead end is a type-level fact.
+    function test__unit__algebraKeyIntoPanopticArmDoesNotCompile() public {
+        Vm.FfiResult memory r = _tryBuild("fixtures/plank-negative/VolMarketKeyAlgebraToPanoptic.plk");
+        assertTrue(r.exitCode != 0, "an Algebra key reached the Panoptic arm");
+        assertTrue(
+            _contains(r.stderr, "VolMarketKey: the Panoptic arm accepts only V4 or V3"),
+            "wrong failure: not the Panoptic-arm guard"
+        );
+    }
+
 
     /// VolMarketKey.plk guards V with is_venue, so a non-venue tag is OUR error, not a stray one
     /// from deeper in std. The stderr match is what makes this test mean something: without it a
