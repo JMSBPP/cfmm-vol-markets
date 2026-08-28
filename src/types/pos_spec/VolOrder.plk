@@ -9,7 +9,7 @@ import std::regions::calldata;
 import std::option::{Option, Some, None};
 import types::Extra::{Extra, extra_none_payload};
 
-// V2 STORAGE LAYOUT (vol-order-v2-target-vega-SPEC.md D2; notes/UNITS_AND_SCALES.md):
+// V2 STORAGE LAYOUT (vol-order-v2-target-vega-SPEC.md D2; DeltaQ_v* raw LIQUIDITY units):
 //   skew        bits   0.. 15  u16
 //   volStrike   bits  16..103  u88   (Algebra vol units, raw)
 //   tickSpacing bits 104..127  u24

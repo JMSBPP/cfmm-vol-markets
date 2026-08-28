@@ -8,7 +8,7 @@ import {Vm} from "forge-std/Vm.sol";
 // ===========================================================================================
 // V2-01/02 ACCEPTANCE: targetVega (DeltaQ_v*) as a first-class VolOrder field.
 // Spec: .planning/vol-order-v2-target-vega-SPEC.md (v2, two-step-reviewed).
-// Units: notes/UNITS_AND_SCALES.md v2 -- DeltaQ_v* is RAW LIQUIDITY units (dimension (ii)),
+// Units: vol-order-v2-target-vega-SPEC.md v2 -- DeltaQ_v* is RAW LIQUIDITY units (dimension (ii)),
 // packed u96 at STORAGE bits 152..247; the BATCH input word carries it at bits 128..223
 // (offsets differ because build_vol_order inserts TICK_SPACING at 104 in storage).
 //

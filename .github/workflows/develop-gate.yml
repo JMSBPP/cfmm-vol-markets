@@ -30,7 +30,7 @@ jobs:
           persist-credentials: false
       # The toolchain is resolved from the tracked pin, not from whatever `forge` this
       # PERSISTENT runner happens to have. Requirement CI-05; the reason, and the four measured
-      # findings that depend on b0a9dd9, are in notes/TOOLCHAIN_PINS.md. Placed BEFORE the
+      # findings that depend on b0a9dd9, are recorded in .github/foundry-version. Placed BEFORE the
       # submodule/plank/npm work on purpose: a wrong toolchain fails here in seconds rather than
       # after twenty minutes of setup. Body is byte-identical to push-build.yml's -- one pin,
       # one mechanism, two workflows.
@@ -169,8 +169,31 @@ jobs:
       - run: make plank-toolchain
       - run: make compile-plank
 
+  submodule-gates:
+    needs: [approve]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+      PR_HEAD_REPO_FULL_NAME: ${{ github.event.pull_request.head.repo.full_name }}
+      GITHUB_HEAD_REF: ${{ github.head_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref }}
+          persist-credentials: true
+      - run: git submodule sync --recursive
+      - name: Sync and verify root submodule gates
+        env:
+          GH_TOKEN: ${{ secrets.GH_STATUS_READ || github.token }}
+        run: bash .github/scripts/sync-submodule-gates.sh
+
   gate:                          # the SOLE required check. Do NOT add `name:` (would change the context string)
-    needs: [approve, forge, plank]
+    needs: [approve, forge, plank, submodule-gates]
     if: always()
     runs-on: ubuntu-latest       # hosted: only reads results, needs no toolchain
     timeout-minutes: 5
@@ -191,7 +214,7 @@ jobs:
             success) ;;
             *) echo "::error::approve was '${{ needs.approve.result }}' -- the environment review did not pass, so every gate job was skipped and NOTHING ran"; exit 1;;
           esac
-          for x in '${{ needs.forge.result }}' '${{ needs.plank.result }}'; do
+          for x in '${{ needs.forge.result }}' '${{ needs.plank.result }}' '${{ needs.submodule-gates.result }}'; do
             case "$x" in success|skipped) ;; *) echo "::error::a gate job result was '$x'"; exit 1;; esac
           done
           echo "all gate jobs green"

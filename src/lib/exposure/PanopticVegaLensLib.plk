@@ -1,11 +1,10 @@
 // PanopticVegaLensLib -- the READ-ONLY lens readouts of the auto-deleverage law and the
 // endogenous maturity (V2-04, vol-order-v2-target-vega-SPEC.md D5; the math block
-// "VOL ORDER COMPLETION -- ENDOGENOUS MATURITY" in notes/VOLATILITY_INSTRUMENTS.md;
+// "VOL ORDER COMPLETION -- ENDOGENOUS MATURITY" (vol-order-v2-target-vega-SPEC.md D5;
 // EndogenousMaturity.lean run 128b24ae; recalibration law t*_mult DECIDED by the author
 // 2026-07-30).
 //
-// UNITS (notes/UNITS_AND_SCALES.md): DeltaQ_v / DeltaQ_v* raw LIQUIDITY units (dimension
-// (ii)); Q_M collateral base units; p_riskX96 Q64.96 LINEAR (collateral per L unit);
+// UNITS: DeltaQ_v / DeltaQ_v* raw LIQUIDITY units (dimension (ii)); Q_M collateral base units; p_riskX96 Q64.96 LINEAR (collateral per L unit);
 // N_sigma is a liquidity RATE, L PER SECOND (confirmed by the Lean bookkeeping -- NOT a
 // bare liquidity); t* is SECONDS. sig2R/sig2K share the Algebra vol units so their ratio
 // is dimensionless.
