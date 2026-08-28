@@ -12,6 +12,12 @@ import types::protocol_integrations::VolMarketKey::*;
 const SEL_VENUE_WITNESS = 0xbe55e3a4;
 // cast sig "panopticAssetBit(uint256)" -> 0x62135fee
 const SEL_PANOPTIC_ASSET_BIT = 0x62135fee;
+// cast sig "v4Pattern(uint256)"         -> 0xdd25dc7e
+const SEL_V4_PATTERN = 0xdd25dc7e;
+// cast sig "v3Pattern(uint256)"         -> 0x6b0fdf66
+const SEL_V3_PATTERN = 0x6b0fdf66;
+// cast sig "composePoolId(uint256,uint256,uint256)" -> 0x636d3d6c
+const SEL_COMPOSE_POOL_ID = 0x636d3d6c;
 
 init { return_runtime(); }
 
@@ -68,6 +74,18 @@ run {
             pool: 0
         };
         return_1(vol_market_key_panoptic_asset_bit(V4, k));
+    }
+
+    // ---- KEY-02: venue-specific pattern derivation, and the poolId composition ----
+
+    if selector == SEL_V4_PATTERN { return_1(vol_market_key_v4_pattern(@evm_calldataload(4))); }
+
+    if selector == SEL_V3_PATTERN { return_1(vol_market_key_v3_pattern(@evm_calldataload(4))); }
+
+    if selector == SEL_COMPOSE_POOL_ID {
+        return_1(vol_market_key_compose_pool_id(
+            @evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68)
+        ));
     }
 
     @evm_stop();

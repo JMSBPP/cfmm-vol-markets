@@ -73,6 +73,74 @@ contract VolMarketKeyTest is PlankTestBase {
         assertFalse(ok, "asset_index == 2 must revert, not mask to 0");
     }
 
+    // ---- KEY-02: the pool PATTERN is 40 bits and VENUE-SPECIFIC ---------------------------------
+
+    /// SFPM V4: uint40(uint256(PoolId.unwrap(idV4))) -- the LOW 40 bits of the v4 PoolId.
+    function test__fuzz__v4PatternIsTheLowFortyBits(uint256 idV4) public {
+        (bool ok, bytes memory r) =
+            harness.staticcall(abi.encodeWithSignature("v4Pattern(uint256)", idV4));
+        require(ok, "v4Pattern reverted");
+        assertEq(abi.decode(r, (uint256)), idV4 & ((uint256(1) << 40) - 1), "V4 pattern = low 40");
+    }
+
+    /// SFPM V3: uint40(uint160(univ3pool) >> 120) -- the HIGH 40 bits of the 160-bit ADDRESS.
+    /// Not the low bits. This is the half of KEY-02 most likely to be written wrong by analogy
+    /// with V4, so it is asserted independently rather than derived from the V4 case.
+    function test__fuzz__v3PatternIsTheHighFortyBitsOfTheAddress(address pool) public {
+        uint256 a = uint256(uint160(pool));
+        (bool ok, bytes memory r) =
+            harness.staticcall(abi.encodeWithSignature("v3Pattern(uint256)", a));
+        require(ok, "v3Pattern reverted");
+        assertEq(abi.decode(r, (uint256)), (a >> 120) & ((uint256(1) << 40) - 1), "V3 = addr >> 120");
+    }
+
+    /// The two derivations must not be assumed identical. Fed the same word they disagree, which
+    /// is the property a shared implementation would silently break.
+    function test__unit__v3AndV4PatternsDifferForTheSameWord() public {
+        uint256 w = 0x1234567890abcdef1122334455667788aabbccdd;
+        (, bytes memory r4) = harness.staticcall(abi.encodeWithSignature("v4Pattern(uint256)", w));
+        (, bytes memory r3) = harness.staticcall(abi.encodeWithSignature("v3Pattern(uint256)", w));
+        assertTrue(
+            abi.decode(r4, (uint256)) != abi.decode(r3, (uint256)),
+            "the venue patterns must not be assumed identical"
+        );
+    }
+
+    /// poolId = [16b tickSpacing at 48][8b vegoid at 40][40b pattern at 0]  (PanopticMath.sol:28).
+    /// The in-contract prose in both SFPMs says "most significant 48 bits"; the CODE says 40, and
+    /// the code is what this mirrors.
+    function test__fuzz__composePoolIdLayout(uint40 pattern, uint8 vegoid, uint16 tickSpacing)
+        public
+    {
+        // vegoid is 1..255. CONSTRUCTED into range, not filtered with vm.assume -- the project's
+        // differential discipline is that corpora are built rather than rejected, so no run is
+        // discarded and the non-vacuity of the 256 runs is not silently eroded.
+        uint256 v = bound(uint256(vegoid), 1, 255);
+
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature(
+                "composePoolId(uint256,uint256,uint256)",
+                uint256(pattern),
+                v,
+                uint256(tickSpacing)
+            )
+        );
+        require(ok, "composePoolId reverted");
+        uint256 id = abi.decode(r, (uint256));
+        assertEq(id & ((uint256(1) << 40) - 1), pattern, "pattern at 0..39");
+        assertEq((id >> 40) & 0xff, v, "vegoid at 40..47");
+        assertEq((id >> 48) & 0xffff, tickSpacing, "tickSpacing at 48..63");
+    }
+
+    /// vegoid == 0 is rejected at composition, not just at the payload: the poolId itself would
+    /// otherwise carry a value the SFPM refuses (Errors.InvalidTokenIdParameter(0)).
+    function test__unit__composePoolIdRejectsZeroVegoid() public {
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature("composePoolId(uint256,uint256,uint256)", uint256(1), uint256(0), uint256(60))
+        );
+        assertFalse(ok, "vegoid == 0 must revert at composition");
+    }
+
     // ---- what must NOT compile -----------------------------------------------------------------
 
     /// VolMarketKey.plk guards V with is_venue, so a non-venue tag is OUR error, not a stray one
