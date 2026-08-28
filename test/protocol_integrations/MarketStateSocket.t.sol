@@ -19,7 +19,7 @@ contract MarketStateSocketTest is PlankTestBase, ReactiveTest {
     function test_startSocket_subscribesToPoolSwap() public {
         uint256 chainId = 8453;              // Base
         address poolManager = address(0xB00C);
-        bytes32 poolId = keccak256("pool");  // == MarketId.id
+        bytes32 poolId = keccak256("pool");  // == VolMarketKey(V4)'s v4 pool id
 
         (bool ok,) = market_state_socket.call(
             abi.encodeWithSignature("startSocket(uint256,address,bytes32)", chainId, poolManager, poolId)
