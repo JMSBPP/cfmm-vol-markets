@@ -27,8 +27,11 @@ interface IVolOrderToPanopticTokenIdHarness {
 /// @dev What these pin:
 ///      - absence is std Option/None, a VALUE -- `extra` is None after unpack, and reading through
 ///        it REVERTS rather than yielding zero;
-///      - Extra(T) is a tagged DESCRIPTOR, flags(u8)@248 | offset(u32)@216 | len(u16)@200, whose
-///        len must be the one its flags imply (76 bits under FLAG_PANOPTIC, 0 otherwise);
+///      - Extra(T) is a tagged DESCRIPTOR: flags in bits 248..255, offset in 216..247, len in
+///        200..215. (Bit positions in prose, never with a leading at-sign: solc parses that in
+///        NatSpec as a documentation tag and rejects the file with Error 6546 -- the same trap
+///        test/pos_spec/VolOrderDecoder.sol documents.) Its len must be the one its flags
+///        imply: 76 bits under FLAG_PANOPTIC, 0 otherwise;
 ///      - Extra carries NO tokenId: the builder still returns PanopticTokenId, and Phase 2 walks
 ///        the no-payload path only, so the id stays bit-identical to the pre-refactor map;
 ///      - pack/unpack never touch `extra`.
