@@ -1,0 +1,56 @@
+import std::constructor::return_runtime;
+import types::protocol_integrations::VolMarketKey::*;
+
+// Harness for VolMarketKey(V) (Phase 2.5, KEY-01/KEY-06), written RED-first to
+// docs/superpowers/specs/2026-08-28-volmarketkey-and-extra-payload-widening-design.md.
+//
+// VolMarketKey(V) is a comptime type constructor over a VENUE tag, mirroring Extra(T)'s region
+// phantom. The point of the type is that VolMarketKey(V4) and VolMarketKey(Algebra) are DISTINCT
+// types, so a cross-venue call site fails to COMPILE rather than reverting at runtime.
+
+// cast sig "venueWitness()"            -> 0xbe55e3a4
+const SEL_VENUE_WITNESS = 0xbe55e3a4;
+
+init { return_runtime(); }
+
+const return_1 = fn (a: u256) never {
+    let out = @malloc_uninit(32);
+    @mstore32(out, a);
+    @evm_return(out, 32);
+};
+
+// A distinct code per venue, dispatched at COMPTIME on the tag. This is the attested form of a
+// comptime branch (std/slice.plk: `if R == ctime { return CSlice(T, arity); }`) -- an `if` used for
+// control flow with a return, not as a value-producing expression.
+//
+// It also makes venueWitness NON-VACUOUS: a witness that returned a constant would assert only
+// "this compiled", which is the shape of the Phase 2 vacuous negative test. Here a mis-wired branch
+// changes the value.
+const venue_code = fn (comptime V: type, k: VolMarketKey(V)) u256 {
+    if V == V4 { return 1 +% (k.asset_index & 0); }
+    if V == V3 { return 2 +% (k.asset_index & 0); }
+    3 +% (k.asset_index & 0)
+};
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    // venueWitness() -> venue_code(V4) | venue_code(V3) << 2 | venue_code(Algebra) << 4
+    //                =  1 | 2 << 2 | 3 << 4  =  57
+    //
+    // All three venues are INSTANTIATED and REACHABLE here, which is what forces plank to
+    // type-check each branch (criterion 1). `& 0` on asset_index keeps the key value load-bearing
+    // in the expression so the instantiation cannot be discarded.
+    if selector == SEL_VENUE_WITNESS {
+        let k4 = @uninit(VolMarketKey(V4));
+        let k3 = @uninit(VolMarketKey(V3));
+        let ka = @uninit(VolMarketKey(Algebra));
+        return_1(
+            venue_code(V4, k4)
+            | @evm_shl(2, venue_code(V3, k3))
+            | @evm_shl(4, venue_code(Algebra, ka))
+        );
+    }
+
+    @evm_stop();
+}

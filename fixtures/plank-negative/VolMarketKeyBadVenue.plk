@@ -1,0 +1,24 @@
+// NEGATIVE fixture (Phase 2.5, KEY-01): VolMarketKey(V), like Extra(T) before it, must reject a V
+// that is not one of the three venue tags. VolMarketKey.plk guards it explicitly with is_venue, so
+// the failure carries OUR message rather than an incidental one from deeper in std -- which is what
+// test__unit__nonVenueTagDoesNotCompile asserts on. An exit-code-only assertion would also pass on
+// a typo in this file, which is why the test matches the text.
+//
+// Lives outside src/ and test/ so `make compile-plank` (which scans those two roots for entrypoints)
+// never builds it; test/protocol_integrations/VolMarketKey.t.sol builds it via vm.tryFfi.
+import std::constructor::return_runtime;
+import types::protocol_integrations::VolMarketKey::*;
+
+const bad = fn (k: VolMarketKey(u256)) u256 { k.currency0 };
+
+init { return_runtime(); }
+run {
+    // `bad` must be REACHABLE from run{} or plank never type-checks it and is_venue's guard never
+    // fires -- the defect the Phase 2 fixture had on gate 33181644493, and exactly the hazard
+    // Makefile:compile-plank documents ("plank does not type-check anything unreachable from
+    // run{}"). @uninit yields a value of the type without constructing one.
+    let k = @uninit(VolMarketKey(u256));
+    let out = @malloc_uninit(32);
+    @mstore32(out, bad(k));
+    @evm_return(out, 32);
+}
