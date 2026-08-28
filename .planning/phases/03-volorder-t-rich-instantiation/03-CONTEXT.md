@@ -108,11 +108,17 @@ Consequences for whoever plans this phase:
 
 ### Retiring the Phase-2 pin, and what replaces it
 
-- `test__unit__phase2MapStillHardcodesRatioOneAndNoAsset` is **replaced by a differently-named
-  successor**, not edited in place. A test whose name says `phase2MapStillHardcodes` cannot honestly
-  carry inverted assertions; a misleading name attached to correct assertions is worse than either
-  honest option.
-- The replacement asserts the NEW behaviour under a name that says what it now pins.
+- **CORRECTED during planning (2026-08-28).** This discussion assumed the pin goes RED when the phase
+  lands. IT DOES NOT. `test__unit__phase2MapStillHardcodesRatioOneAndNoAsset` calls
+  `tokenIdWithNoneExtra` — the NO-PAYLOAD path — and asserts `optionRatio == 1` and `asset == 0`.
+  Criteria 3 and 4 require that path to keep emitting exactly today's bits, so the assertions stay
+  true. Planning found this while measuring the signature-change blast radius: the two harnesses
+  behind the floor and the pin keep their ABIs and pass a literal `0` for the new `asset_bit`
+  parameter, so neither output moves.
+- **The pin is therefore RENAMED, not retired, and its assertions are KEPT.** What became false is
+  the NAME: `phase2MapStillHardcodes…` implies "not yet", when after this phase it is the permanent,
+  intended behaviour of the no-payload path. Renamed, it expresses criteria 3 and 4 as an executing
+  assertion instead of leaving them to the golden vectors alone.
 - **A SUCCESSOR GAP PIN IS PLANTED.** One named test asserting that the remaining Haskell divergences
   still exist, so Phase 8 must retire it deliberately — exactly as this phase retires Phase 2's. What
   it records: no `|tick| <= uniswapMaxTick` guard, no per-leg span guard (both Phase 8), and

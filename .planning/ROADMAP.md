@@ -526,16 +526,31 @@ no-payload path.
      dedicated test pinning that no double-add occurs. `panoptic_add_asset` is additive, so a
      surviving second write carries into `optionRatio`'s LSB — and the golden vectors cannot catch
      it, because they exercise Layer 1 only.
-  7. `test__unit__phase2MapStillHardcodesRatioOneAndNoAsset` is REPLACED by a differently-named
-     successor asserting the new behaviour — not edited in place. A test whose name says
-     `phase2MapStillHardcodes` cannot honestly carry inverted assertions.
+  7. `test__unit__phase2MapStillHardcodesRatioOneAndNoAsset` is RENAMED to say what it actually
+     pins, and its assertions are kept. **Corrected 2026-08-28 during planning:** an earlier draft of
+     this criterion claimed the pin "goes RED the moment criterion 2 is met". IT DOES NOT. It calls
+     `tokenIdWithNoneExtra` — the NO-PAYLOAD path — and asserts `optionRatio == 1` and `asset == 0`,
+     both of which criteria 3 and 4 REQUIRE to stay true. The pin still passes after this phase.
+     What becomes false is its NAME: `phase2MapStillHardcodes…` implies "not yet", when after Phase 3
+     that is the permanent, intended behaviour of the no-payload path. So it is repurposed, under a
+     name saying the no-payload path is UNCHANGED by Phase 3 — criteria 3 and 4's property expressed
+     as an executing assertion rather than left to the golden vectors alone. Nothing is deleted.
   8. A successor GAP PIN records what is still NOT Haskell-equivalent after this phase, so Phase 8
      must retire it deliberately in turn: no `|tick| <= uniswapMaxTick` guard, no per-leg span guard
      (both GUARD-01/02/03), and `asset_index == 1` being inexpressible in the oracle, which sets
      `asset = 1` unconditionally. An unrecorded known gap at a phase boundary is this project's
      recurring failure mode.
 
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves (strictly sequential — each wave's output is the next wave's input)
+
+Plans:
+- [ ] 03-01-PLAN.md — RED: the `tokenIdWithPanopticExtra` harness entrypoint and the differential
+      test file driving Panoptic's `TokenId` library. First push is RED on purpose (VORD-04/05)
+- [ ] 03-02-PLAN.md — GREEN: the `FLAG_PANOPTIC` branch, the asset write and `vol_order_to_mint`'s
+      four adds removed IN THE SAME COMMIT (VORD-08), the three no-behaviour-change call sites, the
+      pin renamed with assertions intact, and the Phase-8 gap pin (VORD-04/05/08)
+- [ ] 03-03-PLAN.md — close out: PR, `develop-gate` (not push-build), live protection re-measurement,
+      merge, per-criterion verification against `origin/develop`, branch retired with `-d`
 
 ### Phase 4: VolOrder(T) Wire Format
 **Directory**: `.planning/phases/FEATURES/feat-volorder-t-wire-format/`
