@@ -1,6 +1,6 @@
 # Phase 2 regression assessment — VolOrder → VolOrder(T)
 
-**Status:** APPROVED 2026-08-28 (plan 02-03 checkpoint) — FINAL evidence to be filled by 02-05
+**Status:** APPROVED 2026-08-28 (plan 02-03 checkpoint); **§4 DESIGN SUPERSEDED 2026-08-28 at the 02-04 re-apply chunk review — see §4a and §7** — FINAL evidence to be filled by 02-05
 **Tree assessed:** `703e7449ffd0bd7fcd37f8d9e5426a8864943b35` on `feat/volorder-t-minimal` (plank `00c0a1aa3cb40b63de81c6ca4f92bec392b423c3`, forge `1.5.1` / `b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2`). Source diff vs `origin/develop` is the 02-01 std moves only (9 files, +22/−43); no VolOrder-shaped file has changed.
 **Frame (ROADMAP Phase 2, verbatim):**
 > **Regression assessment comes first.** Before the refactor is written, enumerate every test and dependency coupled to the concrete `VolOrder` shape and classify each one: *survives untouched*, *needs a mechanical call-site update*, or *is tightly coupled to the old format and should be eliminated*. The elimination candidates are a brainstorm-and-decide step with the user, not a judgement call made mid-refactor — and the decisions are recorded with their rationale before any code moves. This assessment is what makes the "no edits" criterion below meaningful rather than aspirational: it establishes *which* files were expected to be untouched in the first place.
@@ -139,6 +139,59 @@ Note on the two UNVERIFIED rows: 16/18 and 1/3 of their tests DID pass on the bu
 
 Files that must show a 0-byte diff after 02-04 (the "no edits" set): every row in §2 classified survives untouched (and the out-of-scope row), and every row in §3.
 
+## 4a. DESIGN OF RECORD — supersedes §4 decisions 1, 3, 4 (maintainer, 02-04 chunk review, 2026-08-28)
+
+The `c9844d1` refactor was presented for re-apply as four chunks (approve/modify). Chunk A came back
+with a design correction, verbatim:
+
+> "There is None(T) already, regardless of the T different than None. The VolOrder extra contains
+> tokenId for the panoptic case, This is once oit understand there is a region the data on that
+> region has structure, and in this case the strucutre is an "address space" like first flag
+> indicating is panoptic and if panoptic it points to a region on such refgion where the poolId and
+> 4 option rastios nare in calldata to BUILD the tokenId and put it on the extra field"
+
+Chunks B, C and D: `modify` (they follow from A). **The refactor is NOT re-applied.** Four follow-up
+questions settled the shape; answers verbatim: `calldata (Recommended)`, `Pointer into calldata
+(Recommended)`, `The updated VolOrder(T) (Recommended)`, `Type + None path now; build path Phase 3
+(Recommended)`. On being asked whether `Extra(T)` already exists the maintainer replied *"Is tehre
+such Extra(T) ? I am aware there is Option and None ?"* — answered: no, std supplies only
+`Option`/`Some`/`None`; `Extra(T)` is ours, defined the way `Shock(R)` is.
+
+1. **No local `none` tag.** Absence is std's `Option` / `None(T)` — a runtime VALUE, not a type.
+   `VolOrder(T)` is ONE type per region; the minimal instantiation is `extra = None(Extra(T))`.
+   (Upstream `std/option.plk` at the pin: `Option = fn (comptime T: type) type { struct { inner: T,
+   is_some: bool } }`, `None = fn (comptime T: type) Option(T)`, `unwrap` reverts on `None`.)
+2. **`Extra(T)` is ours**, in `VolOrder.plk`, Shock-shaped:
+   `struct { data: bytes(T), flags: u256, token_id: Option(PanopticTokenId) }`.
+   The region's data has STRUCTURE — a tagged **address space**: `flags(u8) || [ptr(u256) if
+   FLAG_PANOPTIC]`, with `FLAG_PANOPTIC = 0x01` and reserved bits rejected on decode (Shock's rule:
+   length derived from flags, mismatch reverts).
+3. **Pointer, not copy.** Under `FLAG_PANOPTIC` the data holds an OFFSET into region `T` where
+   `(poolId, OptionRatio[4])` live; the builder dereferences it. Phase 3.
+4. **The tokenId LANDS in `extra`.**
+   `vol_order_to_panoptic_token_id = fn (comptime T: type, vo: VolOrder(T), pool_id: u256) VolOrder(T)`
+   returns `vo` with `extra = Some(Extra { …, token_id: Some(tid) })`. `PanopticTokenId` stops being
+   the return type; callers read it back out of `extra`.
+5. **Every existing caller is `VolOrder(calldata)`** with `extra: None(Extra(calldata))` in Phase 2 —
+   `unpack_vol_order`, `build_vol_order`, the four setters, `VolOrderValidationLib`,
+   `VolOrderManagerMod`, both harnesses. `pack_vol_order` ignores `extra`: region-agnostic, unchanged.
+6. **Scope split.** Phase 2 = the type, `Extra(T)` decode for `flags ∈ {0, FLAG_PANOPTIC}` (structure
+   only), the `None` path of the builder (geometry exactly as today, `pool_id` still a parameter,
+   tokenId written into `extra`), and RED→GREEN tests for all of it. Phase 3 = the `FLAG_PANOPTIC`
+   dereference — `pool_id` and the four ratios read through the pointer, and the `pool_id` parameter
+   retires. Phase 4 = the wire format of `data` beyond the flag byte.
+
+**Consequences for §2-3.** The four rows classified *mechanical* stay mechanical, but their edit is
+larger than §4's: every `VolOrder` struct literal gains `extra: None(Extra(calldata))`, and both
+`.plk` harnesses read the tokenId back out of `extra`. Their `.sol` consumers still see a frozen ABI
+(the 02-02 stamp is the check). Criterion 3 (bit-identity, floor untouched) is unchanged as a claim.
+The elimination-bucket prediction stands: **NONE**.
+
+**Order of work** (AGENTS.md, set the same day): the tests in `test/types/pos_spec/VolOrderTypeHarness.plk`,
+`test/types/pos_spec/VolOrderType.t.sol` and `fixtures/plank-negative/` are REWRITTEN to this design
+and go RED — proving they detect the type's absence — before the implementation is written, and every
+code chunk is approved in an `AskUserQuestion` approve/modify block before it is committed.
+
 ## 5. Elimination candidates
 NONE PREDICTED. Both files CONTEXT.md flagged as the likeliest candidates (`VolOrderDecoder.sol`, `VolOrderRefMock.sol`) are coupled to the packed WORD layout, which does not change; each row in §3 cites the file's own NatSpec for why.
 
@@ -149,6 +202,9 @@ NONE PREDICTED. Both files CONTEXT.md flagged as the likeliest candidates (`VolO
 4. Confirm the HARD STOP rule: any elimination candidate found during 02-04 halts the plan.
 
 ## 7. Decision log (maintainer, verbatim)
+- **2026-08-28 — 02-04 re-apply chunk review.** `c9844d1` presented as four chunks. Chunk A: the
+  design correction quoted in §4a. Chunks B/C/D: `modify`. The refactor is NOT re-applied; the branch
+  holds `3af40fb` (revert of `c9844d1`) plus the RED tests. Design of record is §4a.
 - **2026-08-28 — checkpoint 02-03.** Presented: §2-3 tables, §5 (NONE), §4 decisions 1-6 + the exact edit list, the 02-02 probe result (both RED), the four questions. Maintainer's resume signal, verbatim: **`approve`** (selected from approve / amend / halt; no annotation).
 - Question 1 (classification §2-3): approved. Question 2 (design 1-6, edit list): approved. Question 3 (`--skip` retirement): **MOOT (red)** — both probe results red, both entries stay on the ledger, #63 owns them. Question 4 (HARD STOP rule): confirmed — any elimination candidate found during 02-04 halts the plan.
 
