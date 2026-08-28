@@ -124,18 +124,40 @@ that breaks it is a defect, not a style change.
 The full diagram cannot survive 16px. Degradation is specified rather than left to
 downscaling.
 
-| Tier | Size range | Contents |
-|---|---|---|
-| **A — full mark** | ≥ 128px | Both planes framed, both curves, price tangent, both ratio glyphs, σ² arc with label |
-| **B — icon** | 24–127px | Planes as solid notched blocks; σ² arc with label. No curves, no ratio glyphs, no axis letters |
-| **C — micro** | 16px | Solid blocks + arc only. σ² label drops |
+| Tier | Size range | Master | Contents |
+|---|---|---|---|
+| **A — full mark** | ≥ 128px | `mark-full-*` | Both planes framed, both curves, price tangent, both ratio glyphs, σ² arc with label |
+| **B — icon** | 64–127px | `icon-*` | Planes as notched blocks; σ² arc **with label**. No curves, no ratio glyphs, no axis letters |
+| **C — mid** | 24–63px | `icon-mid-*` | Tier B **minus the σ² label**. Notch retained |
+| **D — micro** | 16–23px | `icon-micro-*` | Blocks + arc only. Notch and label both drop |
 
-Tier B abstracts each plane to a filled quadrant block because mass is the only thing that
-reads reliably at small sizes. The two-object structure survives as form even when nothing
-inside the frames can be drawn — this was the governing constraint on the reduction.
+Tier B abstracts each plane to a filled block because mass is the only thing that reads
+reliably at small sizes. The two-object structure survives as form even when nothing inside
+the frames can be drawn — this was the governing constraint on the reduction.
 
-At tier B the blocks may carry a notched corner hinting at the axes; below 32px the notch
-drops.
+The notch is an **L-shaped slot cut inside the block** (32u axis rule, 32u slot, 76u bulk),
+not a bite taken out of its corner. Cutting it inside leaves the 140u silhouette intact,
+which is what allows the notch to sit at each block's true origin corner exactly as in
+tier A, rather than being displaced to avoid the corner the arc springs from.
+
+### 3.1 Why four tiers and not three (amended 2026-08-28)
+
+The tier table originally ran A / B / C with tier B spanning 24–127px and carrying the σ²
+label throughout. **Rendered evidence contradicted it.** At 32px — inside tier B's own
+stated range — the label resolves to roughly three grey pixels, while the notch remains
+crisp (rule 2.00px, slot 2.00px, bulk 4.75px). The two elements do not fail at the same
+size, so one boundary cannot serve both.
+
+Splitting the old tier B at 64px lets each element be dropped at the size where it actually
+stops resolving, instead of dropping both at whichever fails first. The 24–63px band —
+where favicons and avatars live — therefore keeps the axis hint it can render and loses only
+the label it cannot.
+
+Every tier is the same mark minus elements. A tier is never rebalanced or redrawn to look
+better on its own; that would break the family resemblance the ladder exists to preserve.
+
+**The arc path data is byte-identical across tiers B, C and D.** This is a binding
+invariant, verified alongside §2.5's curve identity.
 
 ## 4. Lockups
 
@@ -203,10 +225,42 @@ not this table, are authoritative.
 
 - Master grid **512 × 512**, safe margin **32u** on all sides.
 - Stroke weights snapped to the grid.
-- **Minimum effective stroke 2px at tier-C rendered size.** A tier-C candidate whose
-  strokes fall below this is redrawn, not shipped.
 - Clear space around the mark: **one plane-block width** on all sides. Documented in
   `BRAND.md`.
+
+### 6.1 The 2px floor — what it binds (clarified 2026-08-28)
+
+**Every LOAD-BEARING STROKE must render at ≥ 2px at the minimum size of the tier it appears
+in.** Load-bearing means the mark's legibility depends on it: the morphism arc, and the
+frame and curve strokes of the full mark.
+
+This is per-tier, not global. Each tier sets its arc weight so it clears 2px at *its own*
+floor, which is why the weights differ and increase as the tiers shrink:
+
+| Tier | Floor | Arc weight | Rendered at floor | Margin |
+|---|---|---|---|---|
+| B | 64px | 44u | 5.50px | +175% |
+| C | 24px | 56u | 2.63px | +31% |
+| D | 16px | 80u | 2.50px | +25% |
+
+A weight that sits *exactly* on the floor is rejected as fragile — any later nudge puts it
+under. `+25%` is the working minimum margin.
+
+**The floor does NOT bind detail features whose absence would not stop the mark being read.**
+The notch's 32u axis rule renders 1.50px at tier C's 24px floor, below 2px, and this is
+accepted: the notch is a hint, not a stroke the mark depends on, and it was validated
+empirically — the alpha map at 24px shows genuinely empty pixels in the slot rather than a
+grey smear. It reads as a *light* L, which is the intended effect at that size.
+
+Stated because the distinction is otherwise invisible: read as binding every ink feature,
+this clause would have condemned a notch that demonstrably works.
+
+**Pixel-counting is a smoke test, not the gate.** A stroke at 45° straddles the pixel grid
+and is not solid-dominant until roughly 2.8px, so a correct diagonal stroke will report more
+anti-aliased pixels than solid ones. The geometric arithmetic above is what clears the floor;
+the pixel count only catches gross error. Counts are also not comparable across tiers — tier
+C carries the L-slot, whose 1.50px rule and slot contribute edge pixels that tier D has none
+of.
 
 ## 7. Deliverables
 
@@ -219,8 +273,9 @@ assets/logo/
 ├── generate.sh                 derives every raster + .ico + .pdf from svg/ masters
 ├── svg/
 │   ├── mark-full-{light,dark,currentcolor}.svg
-│   ├── icon-{light,dark,currentcolor}.svg
-│   ├── icon-micro-{light,dark}.svg
+│   ├── icon-{light,dark,currentcolor}.svg          tier B — ≥64px, notched + σ² label
+│   ├── icon-mid-{light,dark}.svg                   tier C — 24–63px, notched, no label
+│   ├── icon-micro-{light,dark}.svg                 tier D — 16–23px, plain blocks
 │   └── lockup-{horizontal,stacked}-{light,dark}.svg
 ├── png/
 │   ├── mark-full-{light,dark}-{512,1024,2048}.png
@@ -241,16 +296,25 @@ assets/logo/
 
 ### 7.1 Master → raster mapping (binding)
 
-Tiers in §3 describe rendered *display* size, but the icon family deliberately uses tier-B
-art at every pixel size so that an app icon is the same identity at 32px and at 512px. Only
-16px steps down to tier C.
+**Each raster is generated from the master for the tier whose range contains its RENDERED
+size.** An earlier version of this section said the opposite — that the icon family should
+use tier-B art at every pixel size, so that an app icon is "the same identity at 32px and at
+512px". That was wrong, and §3.1 records why: at 32px the tier-B label is unreadable, so
+using tier-B art there ships noise rather than identity. Identity is preserved by the
+degradation ladder itself — every tier is the same mark minus elements — not by rendering
+one master at sizes it was not drawn for.
 
 | Raster | Source master |
 |---|---|
-| `png/icon-*-16.png`, `favicon/favicon-16x16.png`, 16px entry of `favicon.ico` | `icon-micro-*` (tier C) |
-| all other icon-family rasters — `png/icon-*-{32,48,64,128,256,512}.png`, `favicon-32x32.png`, `apple-touch-icon.png`, `android-chrome-*`, the 32/48 entries of `favicon.ico` | `icon-*` (tier B) |
+| `png/icon-*-16.png`, `favicon/favicon-16x16.png`, 16px entry of `favicon.ico` | `icon-micro-*` (tier D, 16–23px) |
+| `png/icon-*-{32,48}.png`, `favicon-32x32.png`, the 32 and 48 entries of `favicon.ico` | `icon-mid-*` (tier C, 24–63px) |
+| `png/icon-*-{64,128,256,512}.png`, `apple-touch-icon.png` (180), `android-chrome-{192,512}` | `icon-*` (tier B, ≥64px) |
 | `png/mark-full-*`, `pdf/mark-full.pdf` | `mark-full-*` (tier A) |
 | `png/lockup-horizontal-*`, `social/og-card-1280x640.png` | `lockup-horizontal-*` |
+
+Note `apple-touch-icon.png` at 180px and `android-chrome-192x192.png` sit in tier B and
+therefore carry the σ² label; the 32 and 48 favicon entries sit in tier C and do not. That
+is intended: a home-screen icon is looked at, a favicon is glanced at.
 
 `generate.sh` encodes this mapping. A raster generated from the wrong tier master is a
 defect, not a cosmetic difference.

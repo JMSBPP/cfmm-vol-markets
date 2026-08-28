@@ -1,0 +1,13 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="icon-mid-dark">
+<g id="block-source">
+<path d="M32 340H64V448H172V480H32V340Z" fill="#E8EAED"/>
+<path d="M96 340H172V416H96V340Z" fill="#E8EAED"/>
+</g>
+<g id="block-target">
+<path d="M340 32H372V140H480V172H340V32Z" fill="#E8EAED"/>
+<path d="M404 32H480V108H404V32Z" fill="#E8EAED"/>
+</g>
+<path id="morphism-arc" d="M192 320C234.668 256.075 277.331 220.479 320 192" stroke="#1B9E5A" stroke-width="56" stroke-linecap="round"/>
+</g>
+</svg>
