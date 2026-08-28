@@ -325,7 +325,7 @@ checkpoint before the refactor, the refactor's gate run before the merge). **Eve
 EXECUTION GATE: superpowers INLINE executor in the maintainer's session only; `autonomous: false`.**
 
 Plans:
-- [ ] 02-01-PLAN.md — tracking issue + `feat/volorder-t-minimal` + draft PR; `lib/plank-monorepo` `30f3bdc` → `00c0a1a` (`main`; `feat/arrays` is 404) with the ~15 std moves and NOTHING else; gate GREEN on the unchanged suite = the VORD-02 attribution safeguard (VORD-02)
+- [x] 02-01-PLAN.md — tracking issue + `feat/volorder-t-minimal` + draft PR; `lib/plank-monorepo` `30f3bdc` → `00c0a1a` (`main`; `feat/arrays` is 404) with the ~15 std moves and NOTHING else; gate GREEN on the unchanged suite = the VORD-02 attribution safeguard (VORD-02)
 - [ ] 02-02-PLAN.md — `make abi-edge-stamp` + additive push-build step stamping the harness's sha256 + PUSH4 selector set (pre-refactor reference); the ONE-TIME `--skip` probe for `*VolRangeWidth*` / `*SpreadTickAssimetryHelper*`, measured and reverted; a new scoped issue (VORD-02/03)
 - [ ] 02-03-PLAN.md — `02-REGRESSION-ASSESSMENT.md`: every coupled `.plk`/`.sol` classified with the evidence bar, elimination bucket predicted empty (HARD STOP otherwise), the design recorded (local `none` tag, explicit `comptime T`, `extra: bytes(T)`, `vol_order_base`); blocking maintainer checkpoint (VORD-01/02/03; has a checkpoint)
 - [ ] 02-04-PLAN.md — the refactor: `VolOrder(T)` in 4 files only, `comptime T` on the tokenId path only, harness surface frozen; gate green with 02-01's counts, floor 10/10 untouched, differential still skips, stamp selector set identical (VORD-01/02/03)
@@ -576,7 +576,7 @@ fails the build, with no silent-skip path left.
 |-------|----------------|--------|-----------|
 | 1. RED Differential Scaffold | 6/6 | Complete | 2026-08-27 |
 | 1.1 CI Feedback Loop (INSERTED) | 6/6 | Complete | - |
-| 2. VolOrder(T) Minimal Instantiation | 0/TBD | Not started | - |
+| 2. VolOrder(T) Minimal Instantiation | 1/5 | In progress | 2026-08-28 |
 | 3. VolOrder(T) Rich Instantiation | 0/TBD | Not started | - |
 | 4. VolOrder(T) Wire Format | 0/TBD | Not started | - |
 | 5. RPC Design & Protocol Skeleton | 0/TBD | Not started | - |

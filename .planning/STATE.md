@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 6
-status: phase-complete
-stopped_at: "Completed 01-06-PLAN.md — PHASE 1 IS COMPLETE (6/6). PR #60 merged into `develop` as `b090b2e8cf026cf7a4ac4dad703ce772e36cf99e` (`Merge pull request #60 from JMSBPP/feat/red-diff-scaffold`, 2026-08-27T23:05:34Z), merge-commit style preserved. Criteria 4 and 5 verified against `origin/develop` with `git show`, not against the branch: all five doctrine/discipline strings present, ZERO executable `vm.assume` calls, `notes/DIFFERENTIAL_LAYOUT.md` at 10 `## ` sections, `SpecHelper.sol` carrying `SpecOracleNotWired` 3x, and `.planning/phases/FEATURES/feat-red-diff-scaffold` a mode-120000 symlink resolving to 6 PLAN files. `git diff 8dfbff7 b090b2e -- .github/` is 0 bytes and so is the regression floor. Issue #57 CLOSED with comment 5446282366 naming the merge SHA. Branch retired locally and on origin after `git log origin/develop..feat/red-diff-scaffold` came back empty; `-D` never used. THE FINDING: `develop` branch protection has NO `required_pull_request_reviews` block at all -- only the `gate` status check, `enforce_admins: false` -- so the merge went through with a PLAIN `gh pr merge --merge` and the authorized `--admin` bypass was NEVER exercised. Next: Phase 2 -- VolOrder(T) Minimal Instantiation, which OPENS with a brainstorm-and-decide regression assessment WITH the maintainer before any code moves."
-last_updated: "2026-08-27T23:20:00.000Z"
-last_activity: "2026-08-27 -- Phase 1 landed. The scaffold is on `develop`, and the two criteria that are statements ABOUT `develop` were checked against `develop` itself rather than against the branch that produced them. Three plan criteria could not be met as literally written and were verified at their intent instead of by deleting content to satisfy a regex: `grep -c vm.assume == 0` is unsatisfiable in a file whose doctrine forbids `vm.assume` by name (0 executable calls), `grep -c PanopticVegaLens == 1` misses the ledger's own documenting comment (0-byte .github/ diff is the stronger proof), and the worktree teardown targeted a worktree that no longer exists. The merge also falsified the premise it was authorized under -- there is no review requirement on `develop`, so no bypass was used."
+current_plan: 1
+status: executing
+stopped_at: "Completed 02-01-PLAN.md (Phase 2, 1/5). lib/plank-monorepo pinned 30f3bdc -> 00c0a1a (main; feat/arrays is HTTP 404) on feat/volorder-t-minimal, issue #61, DRAFT PR #62. develop-gate 33168567137 on 5ccefd6 GREEN with the suite UNCHANGED against the last green develop gate 33124709716: 75 suites / 273 passed / 0 failed / 3 skipped, floor 10/10, 3 identical SKIP lines, compile-plank 38/0/0 with an identical entry set, forge b0a9dd9. The compiler moved alone -- VORD-02 attribution safeguard holds. Two deviations, both plan-amended (a3aedb9) before being relied on: a zero-diff draft PR is refused by GitHub so GATE_PRE cannot exist (baseline = last green develop gate, source tree proved byte-identical); and a 4th migration cost the census missed -- upstream addr is now { as_uint: u160 }, three .raw reads went through cast_addr after the maintainer chose amend-the-plan-first. Next: 02-02 (ABI-edge stamp + the one-time --skip probe)."
+last_updated: "2026-08-28T12:05:00.000Z"
+last_activity: "2026-08-28 -- 02-01 done. The first red gate run of Phase 2 (33168041777) was caused by a std STRUCT-LAYOUT change (addr.raw gone), a shape the plan had not sanctioned; per plan the executor stopped, sized it (3 sites), and the maintainer chose to amend the plan before the fix. Cold plankc rebuild at a new pin measured at 52 s -- closes the timeout-minutes headroom item for the plank toolchain."
 progress:
   total_phases: 12
   completed_phases: 2
-  total_plans: 12
-  completed_plans: 12
-  percent: 100
+  total_plans: 17
+  completed_plans: 13
+  percent: 76
 ---
 
 # Project State
@@ -26,14 +26,14 @@ See: .planning/PROJECT.md (updated 2026-08-27)
 
 ## Current Position
 
-Phase: 1 of 12 (RED Differential Scaffold) — **COMPLETE**. Next: Phase 2 (VolOrder(T) Minimal Instantiation)
-Plan: 6 of 6 in current phase — all complete
-Current Plan: 6
-Total Plans in Phase: 6
-Status: **PHASE 1 IS COMPLETE — 6 of 6 plans, all five success criteria true of `develop`.** PR [#60](https://github.com/JMSBPP/cfmm-vol-markets/pull/60) merged into `develop` as **`b090b2e8cf026cf7a4ac4dad703ce772e36cf99e`** at `2026-08-27T23:05:34Z`, subject `Merge pull request #60 from JMSBPP/feat/red-diff-scaffold` — a merge commit, preserving the `#54/#55/#56` history style. Criteria 1-3 rest on gate run [`33123496782`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33123496782) (`8f01abf`), re-confirmed at the merged head `7a6b25f` by run [`33124709716`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33124709716); the `8f01abf..7a6b25f` delta is `.planning/`-only, so the harvested evidence still describes the merged SOURCE tree byte-for-byte. Criteria 4-5 were read off `origin/develop` with `git show`: all five doctrine/discipline strings present, `grep -c 'vm.assume('` → **0**, `notes/DIFFERENTIAL_LAYOUT.md` at **10** `## ` sections incl. the transport boundary, `SpecHelper.sol` carrying `SpecOracleNotWired` **3x**, and `.planning/phases/FEATURES/feat-red-diff-scaffold` a mode-**120000** symlink → `../01-red-differential-scaffold` resolving to **6** PLAN files. `git diff 8dfbff7 b090b2e -- .github/` → **0 bytes**; the regression floor likewise. Tracking issue **#57 CLOSED** (auto-closed by the merge; [comment `5446282366`](https://github.com/JMSBPP/cfmm-vol-markets/issues/57#issuecomment-5446282366) added to name the SHA). `feat/red-diff-scaffold` retired locally and on `origin` after `git log origin/develop..feat/red-diff-scaffold` came back **empty** — `git branch -d` succeeded first try, `-D` never used, and the branch tip `7a6b25f` survives as the merge's second parent.
-Last activity: 2026-08-27 — The merge falsified the premise it was authorized under. This plan was cleared to use `--admin` on the stated basis that `develop` requires one approving review; a live re-measurement immediately before merging returned **no `required_pull_request_reviews` key at all** — protection is `contexts: ["gate"]`, `strict: false`, `enforce_admins: false`, and `mergeStateStatus` was `CLEAN`. A plain `gh pr merge --merge` succeeded. **The bypass was authorized and NOT used.**
+Phase: 2 of 12 (VolOrder(T) Minimal Instantiation) — **IN PROGRESS**, branch `feat/volorder-t-minimal`, issue #61, draft PR #62
+Plan: 1 of 5 in current phase complete
+Current Plan: 1
+Total Plans in Phase: 5
+Status: **02-01 COMPLETE — plank pin bumped, gate green on the unchanged suite.** `lib/plank-monorepo` `30f3bdc` → `00c0a1a` (`main`; `feat/arrays` is HTTP 404), `.gitmodules` repointed, 15 planned std moves + 3 unplanned `addr.raw` → `cast_addr` reads. [`develop-gate` `33168567137`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33168567137) on `5ccefd6`: **75 suites, 273/0/3, floor 10/10, 3 identical SKIP lines, compile-plank 38/0/0 (entry set identical), forge `b0a9dd9`** — line-for-line equal to the last green `develop` gate `33124709716`. Evidence: `02-01-GATE-EVIDENCE.md`. Phase 1 state preserved: both differential tests still skip on `spec oracle not wired`. Next: **02-02** (ABI-edge stamp + one-time `--skip` probe).
+Last activity: 2026-08-28 — 02-01 landed after one red run whose cause (`addr` struct layout change upstream) the plan had not sanctioned; stopped, sized, maintainer chose to amend the plan first, then fixed. Prior entry: 2026-08-27 — The merge falsified the premise it was authorized under. This plan was cleared to use `--admin` on the stated basis that `develop` requires one approving review; a live re-measurement immediately before merging returned **no `required_pull_request_reviews` key at all** — protection is `contexts: ["gate"]`, `strict: false`, `enforce_admins: false`, and `mergeStateStatus` was `CLEAN`. A plain `gh pr merge --merge` succeeded. **The bypass was authorized and NOT used.**
 
-Progress: [██████████] 100%  (12 of 12 PLANNED plans: Phase 1 at 6/6, Phase 1.1 at 6/6)
+Progress: [████████░░] 76%  (13 of 17 PLANNED plans: Phase 1 at 6/6, Phase 1.1 at 6/6, Phase 2 at 1/5)
 
 **Read that 100% correctly: it is 100% of the plans that have been WRITTEN, not of the milestone.**
 `total_plans: 12` counts only Phases 1 and 1.1, the only two phases decomposed into plans so far.
@@ -194,10 +194,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-28 — Phase 2 context gathered (`02-CONTEXT.md`)
+Last session: 2026-08-28 — 02-01 complete (plank pin bump, gate green on unchanged suite)
 Previous stop: **Completed 01-06-PLAN.md. PHASE 1 IS COMPLETE (6/6) and merged.** `develop` is at
 `b090b2e`; the working tree is checked out on `develop` and fast-forwarded to it.
-Resume file: `.planning/phases/02-volorder-t-minimal-instantiation/02-CONTEXT.md` — next action is `/gsd:plan-phase 2`.
+Resume file: `.planning/phases/02-volorder-t-minimal-instantiation/02-02-PLAN.md` — next action is `/superpowers:executing-plans` on it, INLINE. Tree is on `feat/volorder-t-minimal` at `bca07e2`+; draft PR #62 is open so every push re-runs the gate.
 
 **Phase 2 EXECUTION GATE (maintainer, verbatim intent): plans are executed by the superpowers INLINE executor in the maintainer's session. gsd-executor and background agents are BARRED. Every Phase 2 PLAN.md carries this gate at its top.**
 
