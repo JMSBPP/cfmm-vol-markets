@@ -1,0 +1,11 @@
+// NEGATIVE fixture (Phase 2, VORD-01): VolOrder(T) with a T that is not a region tag MUST NOT
+// compile. Lives outside src/ and test/ so `make compile-plank` (which scans those two roots for
+// entrypoints) never builds it; test/types/pos_spec/VolOrderType.t.sol builds it via vm.tryFfi and
+// asserts a non-zero exit whose stderr carries the constructor's @compile_error message.
+import std::constructor::return_runtime;
+import pos_spec::VolOrder::*;
+
+const bad = fn (vo: VolOrder(u256)) u256 { vo.rangeWidth.width };
+
+init { return_runtime(); }
+run { @evm_stop(); }

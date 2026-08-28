@@ -1,0 +1,15 @@
+// NEGATIVE fixture (Phase 2, VORD-01): reading `.extra` on VolOrder(none) MUST be a compile
+// error -- the minimal instantiation has no such field. See VolOrderBadTag.plk for why this file
+// lives here and how it is driven.
+import std::constructor::return_runtime;
+import pos_spec::VolOrder::*;
+
+const reads_extra = fn (vo: VolOrder(none)) u256 { vo.extra.length };
+
+init { return_runtime(); }
+run {
+    let vo = unpack_vol_order(@evm_calldataload(4));
+    let out = @malloc_uninit(32);
+    @mstore32(out, reads_extra(vo));
+    @evm_return(out, 32);
+}

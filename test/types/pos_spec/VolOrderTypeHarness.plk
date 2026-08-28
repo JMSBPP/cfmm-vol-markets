@@ -1,0 +1,107 @@
+import std::constructor::return_runtime;
+import std::regions::*;
+import pos_spec::VolOrder::*;
+import lib::protocol_integrations::PanopticTokenIdSetterLib::vol_order_to_panoptic_token_id;
+
+// Harness for the VolOrder(T) TYPE itself (Phase 2, VORD-01). Written RED-first: it instantiates
+// every branch of the constructor -- none, memory, calldata -- so the plank job type-checks all
+// three (plank only checks a comptime branch that something instantiates; see Makefile
+// compile-plank note 2). The negative branches (@compile_error on a bad tag; `.extra` missing on
+// VolOrder(none)) live in fixtures/plank-negative/ and are driven from the .t.sol via vm.tryFfi.
+//
+// ABI: a `bytes` argument is (offset @ its slot, length @ 4+offset, data @ 4+offset+32).
+
+// cast sig "roundTripNone(uint256)"                    -> 0x5784c808
+const SEL_ROUND_TRIP_NONE = 0x5784c808;
+// cast sig "baseOfMemory(uint256,bytes)"               -> 0xcb14369f
+const SEL_BASE_OF_MEMORY = 0xcb14369f;
+// cast sig "baseOfCalldata(uint256,bytes)"             -> 0x84f9bf85
+const SEL_BASE_OF_CALLDATA = 0x84f9bf85;
+// cast sig "tokenIdOfNone(uint256,uint256)"            -> 0x82167d06
+const SEL_TOKEN_ID_OF_NONE = 0x82167d06;
+// cast sig "tokenIdOfMemory(uint256,uint256,bytes)"    -> 0xa6dfc52f
+const SEL_TOKEN_ID_OF_MEMORY = 0xa6dfc52f;
+// cast sig "tokenIdOfCalldata(uint256,uint256,bytes)"  -> 0xf833649e
+const SEL_TOKEN_ID_OF_CALLDATA = 0xf833649e;
+
+init { return_runtime(); }
+
+// The rich instantiations, built from a packed word plus a bytes argument at `bytes_slot`.
+const vol_order_in_memory = fn (packed: u256, bytes_slot: u256) VolOrder(memory) {
+    let b = unpack_vol_order(packed);
+    let off = @evm_calldataload(bytes_slot);
+    let len = @evm_calldataload(4 +% off);
+    let ptr = @malloc_uninit(len);
+    @evm_calldatacopy(ptr, 4 +% off +% 32, len);
+    VolOrder(memory) {
+        rangeWidth: b.rangeWidth, volStrike: b.volStrike, skew: b.skew, targetVega: b.targetVega,
+        extra: bytes(memory) { ptr: ptr, length: len }
+    }
+};
+
+const vol_order_in_calldata = fn (packed: u256, bytes_slot: u256) VolOrder(calldata) {
+    let b = unpack_vol_order(packed);
+    let off = @evm_calldataload(bytes_slot);
+    let len = @evm_calldataload(4 +% off);
+    VolOrder(calldata) {
+        rangeWidth: b.rangeWidth, volStrike: b.volStrike, skew: b.skew, targetVega: b.targetVega,
+        extra: bytes(calldata) { ptr: 4 +% off +% 32, length: len }
+    }
+};
+
+const return_3 = fn (a: u256, b: u256, c: u256) never {
+    let out = @malloc_uninit(96);
+    @mstore32(out, a); @mstore32(out +% 32, b); @mstore32(out +% 64, c);
+    @evm_return(out, 96);
+};
+
+const return_1 = fn (a: u256) never {
+    let out = @malloc_uninit(32);
+    @mstore32(out, a);
+    @evm_return(out, 32);
+};
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    // roundTripNone(packed) -> pack(unpack(packed)) on VolOrder(none): the minimal instantiation
+    // IS the old struct, and the codec is untouched by T.
+    if selector == SEL_ROUND_TRIP_NONE {
+        return_1(pack_vol_order(unpack_vol_order(@evm_calldataload(4))));
+    }
+
+    // baseOfMemory(packed, extra) -> (pack(vol_order_base(memory, vo)), extra.length, first word of
+    // extra READ THROUGH THE MEMORY VIEW). Proves: the memory branch compiles, `extra` is a live
+    // bytes(memory), and the projection drops exactly `extra`.
+    if selector == SEL_BASE_OF_MEMORY {
+        let vo = vol_order_in_memory(@evm_calldataload(4), 36);
+        let first = if vo.extra.length == 0 { 0 } else { @mload32(vo.extra.ptr) };
+        return_3(pack_vol_order(vol_order_base(memory, vo)), vo.extra.length, first);
+    }
+
+    // baseOfCalldata(packed, extra) -> same, with the view living in calldata.
+    if selector == SEL_BASE_OF_CALLDATA {
+        let vo = vol_order_in_calldata(@evm_calldataload(4), 36);
+        let first = if vo.extra.length == 0 { 0 } else { @evm_calldataload(vo.extra.ptr) };
+        return_3(pack_vol_order(vol_order_base(calldata, vo)), vo.extra.length, first);
+    }
+
+    // tokenIdOfNone(packed, poolId) -> the Phase 2 tokenId through the generic path, T = none.
+    if selector == SEL_TOKEN_ID_OF_NONE {
+        let vo = unpack_vol_order(@evm_calldataload(4));
+        return_1(vol_order_to_panoptic_token_id(none, vo, @evm_calldataload(36)).tokenId);
+    }
+
+    // tokenIdOfMemory / tokenIdOfCalldata(packed, poolId, extra) -> the same map with a rich T.
+    // Phase 2's claim: T does not leak into the tokenId. (Phase 3 makes it leak on purpose.)
+    if selector == SEL_TOKEN_ID_OF_MEMORY {
+        let vo = vol_order_in_memory(@evm_calldataload(4), 68);
+        return_1(vol_order_to_panoptic_token_id(memory, vo, @evm_calldataload(36)).tokenId);
+    }
+    if selector == SEL_TOKEN_ID_OF_CALLDATA {
+        let vo = vol_order_in_calldata(@evm_calldataload(4), 68);
+        return_1(vol_order_to_panoptic_token_id(calldata, vo, @evm_calldataload(36)).tokenId);
+    }
+
+    @evm_stop();
+}
