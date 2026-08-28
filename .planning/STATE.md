@@ -4,15 +4,15 @@ milestone: v1.0
 milestone_name: milestone
 current_plan: 4
 status: executing
-stopped_at: "Phase 2 REOPENED at 02-04. The c9844d1 refactor was REVERTED (3af40fb) after the maintainer rejected it at chunk review; the branch feat/volorder-t-minimal is at 2a29531 = revert + RED tests for the type (VolOrderTypeHarness.plk, VolOrderType.t.sol, fixtures/plank-negative/ x2) + a NatSpec fix. GATE_RED2 33176185381 is RED for the intended reason: compile-plank 38 ok / 1 failed (the new harness), forge 76 suites / 273 passed / 1 failed, VolOrderType.t.sol fails in setUp with unresolved identifier vol_order_base / none -- the tests DETECT the absence of the type, and every other suite is untouched (75 ok, floor still 10/10). Design of record is 02-REGRESSION-ASSESSMENT.md section 4a: Option/None (no none tag), Extra(T) as a tagged address space with a pointer into region T, tokenId landed in extra, all current callers VolOrder(calldata) with extra = None, Phase 2 = type + None path only. NEXT: rewrite the three test chunks to section 4a, get approve/modify per chunk, push RED, then write the implementation the same way."
-last_updated: "2026-08-28T16:10:00.000Z"
-last_activity: "2026-08-28 -- the maintainer asked two questions that changed the phase: was 02-04 done under auto with no code approval (yes -- the chunks were never shown before commit), and were tests written first for the type (no -- only regression evidence existed). Both are now standing rules in AGENTS.md and memory. The refactor was reverted, RED tests were written and approved chunk-by-chunk, and the RED run confirmed they detect the type absence. The design was then corrected away from a local none tag to std Option/None plus an Extra(T) address space."
+stopped_at: "Completed 02-04-PLAN.md (Phase 2, 4/5) -- re-executed to assessment section 4a after the first attempt (c9844d1) was rejected at chunk review and reverted (3af40fb). GREEN on develop-gate 33182346548: 76 suites / 287 passed / 0 failed / 3 skipped (290), compile-plank 39 ok / 0 failed. Deltas vs the 02-01 baseline are exactly the new work: +1 suite, +14 tests, +1 plank entrypoint. Floor VolOrderToPanopticTokenId.t.sol 10/10 with a 0-byte diff; differential still 2x SKIP + 2x PASS; ABI-edge selector set IDENTICAL to the 02-02 stamp (7 selectors), sha256 moved. WHAT LANDED: src/types/Extra.plk (NEW) -- Extra(T) is a tagged slice DESCRIPTOR (flags 248..255 | offset 216..247 | len 200..215) saying WHERE the operands are (poolId 48 bits + 4 x 7-bit ratios = 76 bits, packed), carrying NO tokenId, with an is_region guard; VolOrder(T) carries extra: Option(Extra(T)) with absence as the std VALUE None; the builder is generic over T but STILL returns PanopticTokenId; everything pre-Phase-2 concrete on VolOrder(calldata). NOT MERGED: 26 commits on feat/volorder-t-minimal behind DRAFT PR 62; origin/develop still at a623b97. Next: 02-05 -- fill the assessment evidence cells from run 33182346548, mark PR 62 ready, re-measure branch protection live, merge, retire the branch with -d, close issue 61, tick VORD-01..03."
+last_updated: "2026-08-28T18:05:00.000Z"
+last_activity: "2026-08-28 -- 02-04 done properly the second time, and the RED leg earned its keep: run 33181644493 had plank GREEN and forge 13/14 because the NEGATIVE test caught ITSELF being vacuous -- bad() was never called from run{}, and plank does not type-check unreachable code (the hazard Makefile:compile-plank documents). Under write-then-test that fixture would have sat green and meaningless. Also rewrote 02-04-GATE-EVIDENCE.md and 02-04-SUMMARY.md, whose first versions documented the reverted c9844d1 design and were false in every substantive claim against the tree."
 progress:
   total_phases: 12
   completed_phases: 2
   total_plans: 17
-  completed_plans: 15
-  percent: 88
+  completed_plans: 16
+  percent: 94
 ---
 
 # Project State
@@ -27,13 +27,13 @@ See: .planning/PROJECT.md (updated 2026-08-27)
 ## Current Position
 
 Phase: 2 of 12 (VolOrder(T) Minimal Instantiation) — **IN PROGRESS**, branch `feat/volorder-t-minimal`, issue #61, draft PR #62
-Plan: 3 of 5 complete; 02-04 REOPENED (refactor reverted, tests being rewritten)
+Plan: 4 of 5 in current phase complete
 Current Plan: 4
 Total Plans in Phase: 5
 Status: **02-04 COMPLETE — `VolOrder(T)` is in, green on the first push.** Refactor `c9844d1`, exactly the 4 mechanical files, one commit. [`develop-gate` `33171200236`](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/33171200236): **75 / 273 / 0 / 3** (= 02-01), `compile-plank 38/0/0` entry set identical; **regression floor 10/10 all PASS, 0-byte diff — VORD-02 bit-identity is evidence**; MintSizing 8/8 (VORD-03); differential 2× SKIP on `SKIP_REASON` + 2× PASS, 0-byte diff. ABI edge: **selector set IDENTICAL**, sha256 different (internals only, recorded). No assessment row mispredicted. Next: **02-05** — finalize assessment, PR, re-measure protection, merge, retire branch.
 Last activity: 2026-08-28 — 02-04: refactor green first push, floor 10/10 untouched, selector set identical. Earlier: 02-03: assessment approved verbatim (`approve`), elimination bucket empty. Earlier: 02-02: probe measured both masked suites RED (4 failures, seed 4880), reverted, #63 opened. Earlier: 02-01 landed after one red run whose cause (`addr` struct layout change upstream) the plan had not sanctioned; stopped, sized, maintainer chose to amend the plan first, then fixed. Prior entry: 2026-08-27 — The merge falsified the premise it was authorized under. This plan was cleared to use `--admin` on the stated basis that `develop` requires one approving review; a live re-measurement immediately before merging returned **no `required_pull_request_reviews` key at all** — protection is `contexts: ["gate"]`, `strict: false`, `enforce_admins: false`, and `mergeStateStatus` was `CLEAN`. A plain `gh pr merge --merge` succeeded. **The bypass was authorized and NOT used.**
 
-Progress: [████████░░] 88%  (15 of 17 PLANNED plans: Phase 1 at 6/6, Phase 1.1 at 6/6, Phase 2 at 3/5 — 02-04 reopened)
+Progress: [█████████░] 94%  (16 of 17 PLANNED plans: Phase 1 at 6/6, Phase 1.1 at 6/6, Phase 2 at 4/5)
 
 **Read that 100% correctly: it is 100% of the plans that have been WRITTEN, not of the milestone.**
 `total_plans: 12` counts only Phases 1 and 1.1, the only two phases decomposed into plans so far.
@@ -196,10 +196,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-28 — 02-04 complete (VolOrder(T) refactor green on first push)
+Last session: 2026-08-28 — 02-04 complete, re-executed to §4a (VolOrder(T) + Extra(T), RED→GREEN, gate 33182346548)
 Previous stop: **Completed 01-06-PLAN.md. PHASE 1 IS COMPLETE (6/6) and merged.** `develop` is at
 `b090b2e`; the working tree is checked out on `develop` and fast-forwarded to it.
-Resume file: `.planning/phases/02-volorder-t-minimal-instantiation/02-REGRESSION-ASSESSMENT.md` §4a — rewrite the tests to it, RED, chunk-approved — next action is `/superpowers:executing-plans` on it, INLINE. Inputs: `02-04-GATE-EVIDENCE.md` fills every `(02-05 fills)` cell of the assessment; `--skip` decision is MOOT (red); re-measure `develop` protection live before merging; `git branch -d` only. Tree is on `feat/volorder-t-minimal` at `bca07e2`+; draft PR #62 is open so every push re-runs the gate.
+Resume file: `.planning/phases/02-volorder-t-minimal-instantiation/02-05-PLAN.md` — the merge plan, run INLINE. **NOTHING of Phase 2 is on `develop` yet**: 26 commits sit on `feat/volorder-t-minimal` behind DRAFT PR #62; `origin/develop` is at `a623b97` and has no `src/types/Extra.plk`. Evidence for the assessment's `(02-05 fills)` cells: run `33182346548` (`02-04-GATE-EVIDENCE.md`). The `--skip` decision is MOOT (both probe suites red, #63). Re-measure `develop` protection live before merging; `git branch -d` only, never `-D`.
 
 **Phase 2 EXECUTION GATE (maintainer, verbatim intent): plans are executed by the superpowers INLINE executor in the maintainer's session. gsd-executor and background agents are BARRED. Every Phase 2 PLAN.md carries this gate at its top.**
 
