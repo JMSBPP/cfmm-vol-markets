@@ -145,8 +145,7 @@ jobs:
       # VERIFIED LOCALLY against PR #15: 252 passed, 0 failed with exactly this command.
       - run: >
           forge test --via-ir --offline --fuzz-seed 4880
-          --skip "*VolRangeWidth*" "*SpreadTickAssimetryHelper*"
-          "*PanopticVegaLens.t.sol*"
+          --skip "*PanopticVegaLens.t.sol*"
 
   plank:
     needs: [approve]

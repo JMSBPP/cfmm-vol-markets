@@ -210,5 +210,4 @@ jobs:
       - name: forge test
         run: >
           forge test --via-ir --offline --fuzz-seed 4880
-          --skip "*VolRangeWidth*" "*SpreadTickAssimetryHelper*"
-          "*PanopticVegaLens.t.sol*"
+          --skip "*PanopticVegaLens.t.sol*"
