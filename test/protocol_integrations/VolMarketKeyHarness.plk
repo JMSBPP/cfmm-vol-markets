@@ -1,13 +1,10 @@
 import std::constructor::return_runtime;
+import std::core::addr::addr_from_u256;
+import types::Pair::*;
+import types::protocol_integrations::Pool::*;
+import types::protocol_integrations::Registry::*;
 import types::protocol_integrations::VolMarketKey::*;
 import types::protocol_integrations::Venue::*;
-
-// Harness for VolMarketKey(V) (Phase 2.5, KEY-01/KEY-06), written RED-first to
-// docs/superpowers/specs/2026-08-28-volmarketkey-and-extra-payload-widening-design.md.
-//
-// VolMarketKey(V) is a comptime type constructor over a VENUE tag, mirroring Extra(T)'s region
-// phantom. The point of the type is that VolMarketKey(V4) and VolMarketKey(Algebra) are DISTINCT
-// types, so a cross-venue call site fails to COMPILE rather than reverting at runtime.
 
 // cast sig "venueWitness()"            -> 0xbe55e3a4
 const SEL_VENUE_WITNESS = 0xbe55e3a4;
@@ -29,9 +26,9 @@ const SEL_PANOPTIC_POOL_ID_V4 = 0xfbfe139f;
 const SEL_V4_POOL_ID = 0xa18615b6;
 // cast sig "v4PoolIdFor(uint256,uint256,uint256,uint256,uint256)" -> 0xbc01e5d0
 const SEL_V4_POOL_ID_FOR = 0xbc01e5d0;
+// cast sig "v4KeyViaPair()" -> 0x70299aab
+const SEL_V4_KEY_VIA_PAIR = 0x70299aab;
 
-// The fixed V4 key the Panoptic-arm arms build. Mirrored in VolMarketKey.t.sol; if the two drift,
-// test__unit__v4PoolIdIsTheCanonicalUniV4PoolId fails, which is the intended alarm.
 const K_C0 = 0x1111;
 const K_C1 = 0x2222;
 const K_FEE = 3000;
@@ -46,28 +43,44 @@ const return_1 = fn (a: u256) never {
     @evm_return(out, 32);
 };
 
-// A distinct code per venue, dispatched at COMPTIME on the tag. This is the attested form of a
-// comptime branch (std/slice.plk: `if R == ctime { return CSlice(T, arity); }`) -- an `if` used for
-// control flow with a return, not as a value-producing expression.
-//
-// It also makes venueWitness NON-VACUOUS: a witness that returned a constant would assert only
-// "this compiled", which is the shape of the Phase 2 vacuous negative test. Here a mis-wired branch
-// changes the value.
+const k_v4 = fn (
+    c0: u256, c1: u256, fee: u256, ts: u256, hooks: u256, asset_idx: u256
+) VolMarketKey(V4) {
+    vol_market_key(
+        V4,
+        pair(addr_from_u256(c0), addr_from_u256(c1), asset_idx),
+        registry_v4(addr_from_u256(hooks)),
+        pool_v4(fee, ts)
+    )
+};
+
+const k_v3 = fn (factory: u256, pool_addr: u256) VolMarketKey(V3) {
+    vol_market_key(
+        V3,
+        pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
+        registry_v3(addr_from_u256(factory)),
+        pool_v3(addr_from_u256(pool_addr), K_FEE, K_TICK_SPACING)
+    )
+};
+
+const k_algebra = fn (factory: u256, pool_addr: u256) VolMarketKey(Algebra) {
+    vol_market_key(
+        Algebra,
+        pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
+        registry_algebra(addr_from_u256(factory)),
+        pool_algebra(addr_from_u256(pool_addr), K_TICK_SPACING)
+    )
+};
+
 const venue_code = fn (comptime V: type, k: VolMarketKey(V)) u256 {
-    if V == V4 { return 1 +% (k.asset_index & 0); }
-    if V == V3 { return 2 +% (k.asset_index & 0); }
-    3 +% (k.asset_index & 0)
+    if V == V4 { return 1 +% (vol_market_key_asset_index(V, k) & 0); }
+    if V == V3 { return 2 +% (vol_market_key_asset_index(V, k) & 0); }
+    3 +% (vol_market_key_asset_index(V, k) & 0)
 };
 
 run {
     let selector = @evm_shr(224, @evm_calldataload(0));
 
-    // venueWitness() -> venue_code(V4) | venue_code(V3) << 2 | venue_code(Algebra) << 4
-    //                =  1 | 2 << 2 | 3 << 4  =  57
-    //
-    // All three venues are INSTANTIATED and REACHABLE here, which is what forces plank to
-    // type-check each branch (criterion 1). `& 0` on asset_index keeps the key value load-bearing
-    // in the expression so the instantiation cannot be discarded.
     if selector == SEL_VENUE_WITNESS {
         let k4 = @uninit(VolMarketKey(V4));
         let k3 = @uninit(VolMarketKey(V3));
@@ -79,23 +92,10 @@ run {
         );
     }
 
-    // panopticAssetBit(asset_index) -> the Panoptic asset bit a key with that asset_index derives.
-    // KEY-06 / F1. The mapping is a NOT, so the test asserts BOTH values: a copy would agree at
-    // asset_index == 1 and disagree only at 0.
     if selector == SEL_PANOPTIC_ASSET_BIT {
-        let k = VolMarketKey(V4) {
-            currency0: 0,
-            currency1: 0,
-            asset_index: @evm_calldataload(4),
-            fee: 0,
-            tick_spacing: 0,
-            registry: 0,
-            pool: 0
-        };
+        let k = k_v4(0, 1, 0, 0, 0, @evm_calldataload(4));
         return_1(vol_market_key_panoptic_asset_bit(V4, k));
     }
-
-    // ---- KEY-02: venue-specific pattern derivation, and the poolId composition ----
 
     if selector == SEL_V4_PATTERN { return_1(vol_market_key_v4_pattern(@evm_calldataload(4))); }
 
@@ -107,64 +107,44 @@ run {
         ));
     }
 
-    // ---- KEY-03: the pool address is VERIFIED against the venue registry ----
-
     if selector == SEL_VERIFY_POOL_V3 {
-        let k = VolMarketKey(V3) {
-            currency0: K_C0, currency1: K_C1, asset_index: 0, fee: K_FEE,
-            tick_spacing: K_TICK_SPACING,
-            registry: @evm_calldataload(4),
-            pool: @evm_calldataload(36)
-        };
+        let k = k_v3(@evm_calldataload(4), @evm_calldataload(36));
         vol_market_key_verify_pool(V3, k);
         return_1(1);
     }
 
     if selector == SEL_VERIFY_POOL_ALGEBRA {
-        let k = VolMarketKey(Algebra) {
-            currency0: K_C0, currency1: K_C1, asset_index: 0, fee: 0,
-            tick_spacing: K_TICK_SPACING,
-            registry: @evm_calldataload(4),
-            pool: @evm_calldataload(36)
-        };
+        let k = k_algebra(@evm_calldataload(4), @evm_calldataload(36));
         vol_market_key_verify_pool(Algebra, k);
         return_1(1);
     }
 
-    // ---- KEY-02: the poolId CANDIDATE, verified against the SFPM ----
-
     if selector == SEL_PANOPTIC_POOL_ID_V4 {
-        let k = VolMarketKey(V4) {
-            currency0: K_C0, currency1: K_C1, asset_index: 0, fee: K_FEE,
-            tick_spacing: K_TICK_SPACING, registry: K_HOOKS, pool: 0
-        };
+        let k = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, K_HOOKS, 0);
         return_1(vol_market_key_to_panoptic_pool_id(
             V4, k, @evm_calldataload(4), @evm_calldataload(36)
         ));
     }
 
     if selector == SEL_V4_POOL_ID {
-        let k = VolMarketKey(V4) {
-            currency0: K_C0, currency1: K_C1, asset_index: 0, fee: K_FEE,
-            tick_spacing: K_TICK_SPACING, registry: K_HOOKS, pool: 0
-        };
+        let k = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, K_HOOKS, 0);
         return_1(vol_market_key_v4_pool_id(k));
     }
 
-    // v4PoolIdFor(c0, c1, fee, tickSpacing, hooks) -- the id for an ARBITRARY key. Ported from
-    // MarketId.t.sol's round-trip test: the point is that every one of the five fields feeds the
-    // hash, so omitting one or swapping two in the keccak buffer is detectable. A single fixed-key
-    // test cannot see that.
     if selector == SEL_V4_POOL_ID_FOR {
-        let k = VolMarketKey(V4) {
-            currency0: @evm_calldataload(4),
-            currency1: @evm_calldataload(36),
-            asset_index: 0,
-            fee: @evm_calldataload(68),
-            tick_spacing: @evm_calldataload(100),
-            registry: @evm_calldataload(132),
-            pool: 0
-        };
+        let k = k_v4(
+            @evm_calldataload(4),
+            @evm_calldataload(36),
+            @evm_calldataload(68),
+            @evm_calldataload(100),
+            @evm_calldataload(132),
+            0
+        );
+        return_1(vol_market_key_v4_pool_id(k));
+    }
+
+    if selector == SEL_V4_KEY_VIA_PAIR {
+        let k = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, K_HOOKS, 0);
         return_1(vol_market_key_v4_pool_id(k));
     }
 

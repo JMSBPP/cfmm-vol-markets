@@ -9,7 +9,7 @@
 import std::constructor::return_runtime;
 import types::protocol_integrations::VolMarketKey::*;
 
-const bad = fn (k: VolMarketKey(u256)) u256 { k.currency0 };
+const bad = fn (_k: VolMarketKey(u256)) u256 { 0 };
 
 init { return_runtime(); }
 run {

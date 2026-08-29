@@ -267,6 +267,21 @@ contract VolMarketKeyTest is PlankTestBase {
         );
     }
 
+    /// vol_market_key + pair + registry_v4 + pool_v4 must agree with the literal struct path.
+    function test__unit__v4KeyBuiltViaPairMatchesLiteral() public {
+        (bool okLit, bytes memory rLit) =
+            harness.staticcall(abi.encodeWithSignature("v4PoolId()"));
+        (bool okPair, bytes memory rPair) =
+            harness.staticcall(abi.encodeWithSignature("v4KeyViaPair()"));
+        require(okLit, "v4PoolId reverted");
+        require(okPair, "v4KeyViaPair reverted");
+        assertEq(
+            abi.decode(rLit, (uint256)),
+            abi.decode(rPair, (uint256)),
+            "pair-built key must match literal path"
+        );
+    }
+
     // The fixed key the harness builds for the V4 arm. Kept in both places deliberately: if they
     // drift, v4PoolIdIsTheCanonicalUniV4PoolId fails, which is the intended alarm.
     uint256 internal constant C0 = 0x1111;
@@ -282,12 +297,19 @@ contract VolMarketKeyTest is PlankTestBase {
         return uint64(pattern | (uint256(vegoid) << 40) | (tickSpacing << 48));
     }
 
+    function _sortedCurrencies(uint256 a, uint256 b) internal pure returns (uint256 t0, uint256 t1) {
+        return a < b ? (a, b) : (b, a);
+    }
+
     /// Ported from MarketId.t.sol's round-trip test before that file is retired (KEY-05).
     ///
     /// The fixed-key test above pins ONE value. This pins the STRUCTURE: every one of the five
     /// PoolKey fields must feed the hash, so a field omitted from the keccak buffer, or two fields
     /// transposed, changes the id and is caught. MarketId.plk proved this by handing back the
     /// stored key; VolMarketKey IS the key, so the equivalent evidence is field sensitivity.
+    ///
+    /// pair() sorts token addresses before they enter the hash; expected keccak uses the same order.
+    /// Registry and Pair now use addr, so fuzz inputs must fit uint160 (addr_from_u256 reverts otherwise).
     function test__fuzz__everyPoolKeyFieldFeedsTheV4PoolId(
         uint256 c0,
         uint256 c1,
@@ -295,11 +317,18 @@ contract VolMarketKeyTest is PlankTestBase {
         uint24 tickSpacing,
         uint256 hooks
     ) public {
+        vm.assume(c0 <= type(uint160).max);
+        vm.assume(c1 <= type(uint160).max);
+        vm.assume(hooks <= type(uint160).max);
+        vm.assume(c0 != c1);
+        // XOR-1 perturbation of c0 must not make pair() see equal currencies.
+        vm.assume(c0 != (c1 ^ 1));
         uint256 got = _v4PoolIdFor(c0, c1, fee, tickSpacing, hooks);
+        (uint256 t0, uint256 t1) = _sortedCurrencies(c0, c1);
         assertEq(
             got,
-            uint256(keccak256(abi.encode(c0, c1, uint256(fee), uint256(tickSpacing), hooks))),
-            "the id must be keccak over exactly these five fields, in this order"
+            uint256(keccak256(abi.encode(t0, t1, uint256(fee), uint256(tickSpacing), hooks))),
+            "the id must be keccak over exactly these five fields, in sorted currency order"
         );
 
         // Perturbing any single field must change the id. XOR 1 rather than + 1: the fuzzer found
