@@ -1,0 +1,45 @@
+import std::core::addr::{addr, cast_addr, addr_from_u256};
+import types::protocol_integrations::Venue::*;
+
+const Pool = fn (comptime V: type) type {
+    if !is_venue(V) {
+        @compile_error("Pool: V must be V4, V3 or Algebra");
+    }
+    return struct V {
+        pool_addr: addr,
+        fee: u256,
+        tick_spacing: u256,
+    };
+};
+
+const pool_v4 = fn (fee: u256, tick_spacing: u256) Pool(V4) {
+    Pool(V4) {
+        pool_addr: addr_from_u256(0),
+        fee: fee,
+        tick_spacing: tick_spacing
+    }
+};
+
+const pool_v3 = fn (pool: addr, fee: u256, tick_spacing: u256) Pool(V3) {
+    Pool(V3) { pool_addr: pool, fee: fee, tick_spacing: tick_spacing }
+};
+
+const pool_algebra = fn (pool: addr, tick_spacing: u256) Pool(Algebra) {
+    Pool(Algebra) { pool_addr: pool, fee: 0, tick_spacing: tick_spacing }
+};
+
+const pool_fee = fn (comptime V: type, p: Pool(V)) u256 {
+    p.fee
+};
+
+const pool_tick_spacing = fn (comptime V: type, p: Pool(V)) u256 {
+    p.tick_spacing
+};
+
+const pool_word = fn (comptime V: type, p: Pool(V)) u256 {
+    if V == V4 {
+        0
+    } else {
+        cast_addr(p.pool_addr, u256)
+    }
+};
