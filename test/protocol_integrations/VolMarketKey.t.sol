@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "test/PlankTestBase.sol";
 import {RegistryVerifyV4} from "test/mocks/RegistryVerifyV4.sol";
+import {MinedRegistryV4Deployer} from "test/helpers/MinedRegistryV4Deployer.sol";
 import {PoolVerifyV3Pool} from "test/mocks/PoolVerifyV3Pool.sol";
 import {AlgebraIntegralDeployer} from "test/helpers/AlgebraIntegralDeployer.sol";
 import {IAlgebraFactory} from "@cryptoalgebra/integral-core/interfaces/IAlgebraFactory.sol";
@@ -349,7 +350,7 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
         (Currency c0, Currency c1) = deployMintAndApprove2Currencies();
         uint24 fee = 0x800000;
         int24 tickSpacing = 60;
-        address registry = address(new RegistryVerifyV4(address(manager)));
+        address registry = MinedRegistryV4Deployer.deploy(address(this), address(manager));
         initPool(c0, c1, IHooks(registry), fee, tickSpacing, SQRT_PRICE_1_1);
 
         address t0 = Currency.unwrap(c0);
@@ -391,7 +392,7 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
         (Currency c0, Currency c1) = deployMintAndApprove2Currencies();
         uint24 fee = 0x800000;
         int24 tickSpacing = 60;
-        address registry = address(new RegistryVerifyV4(address(manager)));
+        address registry = MinedRegistryV4Deployer.deploy(address(this), address(manager));
         initPool(c0, c1, IHooks(registry), fee, tickSpacing, SQRT_PRICE_1_1);
 
         address t0 = Currency.unwrap(c0);
@@ -410,7 +411,7 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
         require(ok, "goldenPathV4AtMatchesLiteral reverted");
         assertEq(
             abi.decode(r, (uint256)),
-            0x1f,
+            1,
             "vol_market_key_v4_at must match explicit Some(...) literal assembly"
         );
     }

@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "../../PlankTestBase.sol";
 import {PoolVerifyV3Pool} from "../../mocks/PoolVerifyV3Pool.sol";
+import {MinedRegistryV4Deployer} from "../../helpers/MinedRegistryV4Deployer.sol";
 import {RegistryVerifyV4} from "../../mocks/RegistryVerifyV4.sol";
 import {Deployers} from "v4-core-test/utils/Deployers.sol";
 import {IHooks} from "univ4-core/interfaces/IHooks.sol";
@@ -158,7 +159,7 @@ contract PoolTest is PlankTestBase, Deployers {
         // Dynamic fee: registry need not be CREATE2 hook-mined (see Hooks.isValidHookAddress).
         uint24 fee = 0x800000;
         int24 tickSpacing = 60;
-        address registry = address(new RegistryVerifyV4(address(manager)));
+        address registry = MinedRegistryV4Deployer.deploy(address(this), address(manager));
         initPool(c0, c1, IHooks(registry), fee, tickSpacing, SQRT_PRICE_1_1);
 
         address t0 = Currency.unwrap(c0);

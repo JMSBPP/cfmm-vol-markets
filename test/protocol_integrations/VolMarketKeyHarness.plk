@@ -122,14 +122,14 @@ const golden_path_completeness_bitmap = fn (registry: u256) u256 {
     let k_inc = golden_path_v4_build(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
     let k_at = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
 
-    1
-    | @evm_shl(1, (vol_market_key_pool_word(V4, k_inc) == vol_market_key_pool_word(V4, k_at)) & 1)
-    | @evm_shl(2, (vol_market_key_registry_word(V4, k_inc) == vol_market_key_registry_word(V4, k_at)) & 1)
-    | @evm_shl(3, (vol_market_key_fee(V4, k_inc) == vol_market_key_fee(V4, k_at)) & 1)
-    | @evm_shl(4, (vol_market_key_tick_spacing(V4, k_inc) == vol_market_key_tick_spacing(V4, k_at)) & 1)
-    | @evm_shl(5, (vol_market_key_currency0(V4, k_inc) == vol_market_key_currency0(V4, k_at)) & 1)
-    | @evm_shl(6, (vol_market_key_currency1(V4, k_inc) == vol_market_key_currency1(V4, k_at)) & 1)
-    | @evm_shl(7, (vol_market_key_asset_index(V4, k_inc) == vol_market_key_asset_index(V4, k_at)) & 1)
+    require(vol_market_key_pool_word(V4, k_inc) == vol_market_key_pool_word(V4, k_at));
+    require(vol_market_key_registry_word(V4, k_inc) == vol_market_key_registry_word(V4, k_at));
+    require(vol_market_key_fee(V4, k_inc) == vol_market_key_fee(V4, k_at));
+    require(vol_market_key_tick_spacing(V4, k_inc) == vol_market_key_tick_spacing(V4, k_at));
+    require(vol_market_key_currency0(V4, k_inc) == vol_market_key_currency0(V4, k_at));
+    require(vol_market_key_currency1(V4, k_inc) == vol_market_key_currency1(V4, k_at));
+    require(vol_market_key_asset_index(V4, k_inc) == vol_market_key_asset_index(V4, k_at));
+    0xff
 };
 
 const golden_path_v4_at_matches_literal = fn (
@@ -142,11 +142,11 @@ const golden_path_v4_at_matches_literal = fn (
         V4, Some(p), Some(reg), Some(pool_v4_at_keyed(p, reg, ts, fee_key))
     );
 
+    require(vol_market_key_pool_word(V4, k_at) == vol_market_key_pool_word(V4, k_lit));
+    require(vol_market_key_fee(V4, k_at) == vol_market_key_fee(V4, k_lit));
+    require(vol_market_key_tick_spacing(V4, k_at) == vol_market_key_tick_spacing(V4, k_lit));
+    require(vol_market_key_registry_word(V4, k_at) == vol_market_key_registry_word(V4, k_lit));
     1
-    | @evm_shl(1, (vol_market_key_pool_word(V4, k_at) == vol_market_key_pool_word(V4, k_lit)) & 1)
-    | @evm_shl(2, (vol_market_key_fee(V4, k_at) == vol_market_key_fee(V4, k_lit)) & 1)
-    | @evm_shl(3, (vol_market_key_tick_spacing(V4, k_at) == vol_market_key_tick_spacing(V4, k_lit)) & 1)
-    | @evm_shl(4, (vol_market_key_registry_word(V4, k_at) == vol_market_key_registry_word(V4, k_lit)) & 1)
 };
 
 const venue_code = fn (comptime V: type, k: VolMarketKey(V)) u256 {
