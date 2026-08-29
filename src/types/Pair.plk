@@ -1,0 +1,26 @@
+import std::core::addr::{addr, cast_addr};
+import std::error::require;
+
+const Pair = struct {
+    token0: addr,
+    token1: addr,
+    asset_index: u256
+};
+
+const pair = fn (a: addr, b: addr, asset_idx: u256) Pair {
+    require(asset_idx <= 1);
+    let au = cast_addr(a, u256);
+    let bu = cast_addr(b, u256);
+    require(au != bu);
+
+    let swap = au > bu;
+    let token0 = if swap { b } else { a };
+    let token1 = if swap { a } else { b };
+
+    let asset_addr = if asset_idx == 0 { a } else { b };
+    let asset_u = cast_addr(asset_addr, u256);
+    let t0_u = cast_addr(token0, u256);
+    let asset_index = if asset_u == t0_u { 0 } else { 1 };
+
+    Pair { token0: token0, token1: token1, asset_index: asset_index }
+};

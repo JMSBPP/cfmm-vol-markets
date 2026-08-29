@@ -5,17 +5,10 @@ import {PlankTestBase} from "../PlankTestBase.sol";
 
 contract PairTest is PlankTestBase {
     address internal harness;
-    string internal constant SKIP_RED = "RED: Pair.plk not implemented - harness deploy expected to fail";
     address internal constant ADDR_LO = address(0x0000000000000000000000000000000000000001);
     address internal constant ADDR_HI = address(0x0000000000000000000000000000000000000002);
 
     function setUp() public {
-        try this._deployHarness() {} catch {
-            vm.skip(true, SKIP_RED);
-        }
-    }
-
-    function _deployHarness() external {
         harness = deployPlank("test/types/PairHarness.plk");
     }
 
