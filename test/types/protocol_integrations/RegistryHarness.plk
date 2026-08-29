@@ -1,0 +1,41 @@
+import std::constructor::return_runtime;
+import std::core::addr::{addr_from_u256, cast_addr};
+import types::protocol_integrations::Registry::*;
+import types::protocol_integrations::Venue::*;
+
+// cast sig "venueWitness()" -> 0xbe55e3a4
+const SEL_VENUE_WITNESS = 0xbe55e3a4;
+// cast sig "registryAddr(address)" -> 0x4467c281
+const SEL_REGISTRY_ADDR = 0x4467c281;
+
+init { return_runtime(); }
+
+const venue_code = fn (comptime V: type, r: Registry(V)) u256 {
+    if V == V4 { return 1 +% (cast_addr(r.addr, u256) & 0); }
+    if V == V3 { return 2 +% (cast_addr(r.addr, u256) & 0); }
+    3 +% (cast_addr(r.addr, u256) & 0)
+};
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_VENUE_WITNESS {
+        let r4 = @uninit(Registry(V4));
+        let r3 = @uninit(Registry(V3));
+        let ra = @uninit(Registry(Algebra));
+        let out = @malloc_uninit(32);
+        @mstore32(out,
+            venue_code(V4, r4)
+            | @evm_shl(2, venue_code(V3, r3))
+            | @evm_shl(4, venue_code(Algebra, ra))
+        );
+        @evm_return(out, 32);
+    }
+    if selector == SEL_REGISTRY_ADDR {
+        let a = addr_from_u256(@evm_calldataload(4));
+        let r = registry_v4(a);
+        let out = @malloc_uninit(32);
+        @mstore32(out, registry_addr(V4, r));
+        @evm_return(out, 32);
+    }
+    @evm_stop();
+}
