@@ -43,8 +43,9 @@ const supports_interface = fn (target: u256, interface_id: u256) void {
 const registry_verify = fn (comptime V: type, r: Registry(V)) void {
     let target = cast_addr(r.addr, u256);
     if V == V4 {
-        if target == 0 { return; }
-        supports_interface(target, IFACE_IHOOKS);
+        if target != 0 {
+            supports_interface(target, IFACE_IHOOKS);
+        }
     } else if V == V3 {
         let cd = @malloc_uninit(4);
         @mstore4(cd, SEL_OWNER);
