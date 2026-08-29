@@ -128,7 +128,7 @@ run {
 
     if selector == SEL_V4_POOL_ID {
         let k = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, K_HOOKS, 0);
-        return_1(vol_market_key_v4_pool_id(k));
+        return_1(vol_market_key_pool_word(V4, k));
     }
 
     if selector == SEL_V4_POOL_ID_FOR {
@@ -140,12 +140,12 @@ run {
             @evm_calldataload(132),
             0
         );
-        return_1(vol_market_key_v4_pool_id(k));
+        return_1(vol_market_key_pool_word(V4, k));
     }
 
     if selector == SEL_V4_KEY_VIA_PAIR {
         let k = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, K_HOOKS, 0);
-        return_1(vol_market_key_v4_pool_id(k));
+        return_1(vol_market_key_pool_word(V4, k));
     }
 
     @evm_stop();

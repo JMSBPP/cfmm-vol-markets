@@ -104,20 +104,6 @@ const staticcall_word = fn (target: u256, args_ptr: u256, args_len: u256) u256 {
     @mload32(ret)
 };
 
-const vol_market_key_pool_key_hash = fn (comptime V: type, k: VolMarketKey(V)) u256 {
-    let buf = @malloc_uninit(160);
-    @mstore32(buf, vol_market_key_currency0(V, k));
-    @mstore32(buf +% 32, vol_market_key_currency1(V, k));
-    @mstore32(buf +% 64, vol_market_key_fee(V, k));
-    @mstore32(buf +% 96, vol_market_key_tick_spacing(V, k));
-    @mstore32(buf +% 128, vol_market_key_registry_word(V, k));
-    @evm_keccak256(buf, 160)
-};
-
-const vol_market_key_v4_pool_id = fn (k: VolMarketKey(V4)) u256 {
-    vol_market_key_pool_key_hash(V4, k)
-};
-
 const vol_market_key_verify_pool = fn (comptime V: type, k: VolMarketKey(V)) void {
     let resolved = if V == V3 {
         let p = @malloc_uninit(100);
@@ -129,7 +115,7 @@ const vol_market_key_verify_pool = fn (comptime V: type, k: VolMarketKey(V)) voi
     } else if V == Algebra {
         let plugin_factory = vol_market_key_registry_word(V, k);
         let factory_cd = @malloc_uninit(4);
-        @mstore4(factory_cd, SEL_FACTORY);
+        @mstore4(factory_cd, SEL_ALGEBRA_ENTRY_FACTORY);
         let factory_addr = staticcall_word(plugin_factory, factory_cd, 4);
         let p = @malloc_uninit(68);
         @mstore4(p, SEL_POOL_BY_PAIR);
@@ -145,10 +131,10 @@ const vol_market_key_verify_pool = fn (comptime V: type, k: VolMarketKey(V)) voi
 const vol_market_key_to_panoptic_pool_id =
     fn (comptime V: type, k: VolMarketKey(V), sfpm: u256, vegoid: u256) u256 {
     let pattern = if V == V4 {
-        vol_market_key_v4_pattern(vol_market_key_pool_key_hash(V, k))
+        vol_market_key_v4_pattern(pool_word(V4, k.pool))
     } else if V == V3 {
         vol_market_key_verify_pool(V, k);
-        vol_market_key_v3_pattern(vol_market_key_pool_word(V, k))
+        vol_market_key_v3_pattern(pool_word(V3, k.pool))
     } else {
         @compile_error("VolMarketKey: the Panoptic arm accepts only V4 or V3");
     };
@@ -157,11 +143,7 @@ const vol_market_key_to_panoptic_pool_id =
         pattern, vegoid, vol_market_key_tick_spacing(V, k)
     );
 
-    let id_word = if V == V4 {
-        vol_market_key_pool_key_hash(V, k)
-    } else {
-        vol_market_key_pool_word(V, k)
-    };
+    let id_word = pool_word(V, k.pool);
 
     let p = @malloc_uninit(132);
     @mstore4(p, SEL_SFPM_GET_POOL_ID);
