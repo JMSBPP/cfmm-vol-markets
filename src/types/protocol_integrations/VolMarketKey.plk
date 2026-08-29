@@ -94,7 +94,7 @@ const vol_market_key_compose_pool_id = fn (pattern: u256, vegoid: u256, tick_spa
 
 const SEL_GET_POOL = 0x1698ee82;
 const SEL_POOL_BY_PAIR = 0xd9a641e1;
-const SEL_FACTORY = 0xc45a0155;
+const SEL_ALGEBRA_ENTRY_FACTORY = 0xc45a0155;
 const SEL_SFPM_GET_POOL_ID = 0xb33eb6f3;
 
 const staticcall_word = fn (target: u256, args_ptr: u256, args_len: u256) u256 {
