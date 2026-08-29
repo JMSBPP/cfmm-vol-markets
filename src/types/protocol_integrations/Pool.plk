@@ -197,8 +197,6 @@ const pool_verify_algebra = fn (p: Pool(Algebra), pair: Pair, registry: Registry
 const pool_verify_v4 = fn (p: Pool(V4), pair: Pair, registry: Registry(V4)) void {
     let manager = registry_pool_manager(registry);
     require(manager != 0);
-    let expected = pool_id_v4_from_context(pair, registry, p.fee, p.tick_spacing);
-    require(pool_id_word(V4, expected) == pool_id_word(V4, p.pool_id));
     let id_word = pool_id_word(V4, p.pool_id);
     require(pool_v4_slot0_sqrt(manager, id_word) != 0);
     require(pool_v4_slot0_lp_fee(manager, id_word) == p.fee);

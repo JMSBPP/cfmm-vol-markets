@@ -150,9 +150,9 @@ const golden_path_v4_at_matches_literal = fn (
 };
 
 const venue_code = fn (comptime V: type, k: VolMarketKey(V)) u256 {
-    if V == V4 { return 1 +% (vol_market_key_is_complete(V, k) & 0); }
-    if V == V3 { return 2 +% (vol_market_key_is_complete(V, k) & 0); }
-    3 +% (vol_market_key_is_complete(V, k) & 0)
+    if V == V4 { return 1; }
+    if V == V3 { return 2; }
+    3
 };
 
 run {
