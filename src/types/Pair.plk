@@ -32,7 +32,7 @@ const pair = fn (a: addr, b: addr, asset_idx: u256) Pair {
 };
 
 const pair_verify_erc20 = fn (p: Pair) void {
-    let probe = addr_from_u256(@evm_address());
+    let probe = addr_from_u256(@evm_address_this());
 
     // --- token0: balanceOf + transfer fail + transferFrom fail (inline; not extracted) ---
     let t0 = cast_addr(p.token0, u256);
