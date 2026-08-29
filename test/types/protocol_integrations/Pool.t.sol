@@ -44,11 +44,9 @@ contract PoolTest is PlankTestBase, Deployers {
     uint256 internal constant C1 = 0x2222;
     uint256 internal constant FEE = 3000;
     uint256 internal constant TICK_SPACING = 60;
-    uint256 internal constant HOOKS = 0x3333;
 
     function test__unit__poolWordV4IsPoolIdHash() public {
-        address registry =
-            address(new RegistryVerifyV4(address(uint160(HOOKS)), address(0x1)));
+        address registry = address(new RegistryVerifyV4(address(0x1)));
         (bool ok, bytes memory r) = harness.staticcall(
             abi.encodeWithSignature(
                 "poolWordV4(uint256,uint256,uint256,uint256,uint256)",
@@ -62,7 +60,7 @@ contract PoolTest is PlankTestBase, Deployers {
         require(ok, "poolWordV4 reverted");
         assertEq(
             abi.decode(r, (uint256)),
-            uint256(keccak256(abi.encode(C0, C1, FEE, TICK_SPACING, HOOKS))),
+            uint256(keccak256(abi.encode(C0, C1, FEE, TICK_SPACING, registry))),
             "V4 pool_word must be canonical PoolId hash"
         );
     }
@@ -159,11 +157,11 @@ contract PoolTest is PlankTestBase, Deployers {
         (Currency c0, Currency c1) = deployMintAndApprove2Currencies();
         uint24 fee = 3000;
         int24 tickSpacing = 60;
-        initPool(c0, c1, IHooks(address(0)), fee, tickSpacing, SQRT_PRICE_1_1);
+        address registry = address(new RegistryVerifyV4(address(manager)));
+        initPool(c0, c1, IHooks(registry), fee, tickSpacing, SQRT_PRICE_1_1);
 
         address t0 = Currency.unwrap(c0);
         address t1 = Currency.unwrap(c1);
-        address registry = address(new RegistryVerifyV4(address(0), address(manager)));
 
         (bool okAt, bytes memory rAt) = harness.staticcall(
             abi.encodeWithSignature(
@@ -178,7 +176,7 @@ contract PoolTest is PlankTestBase, Deployers {
         require(okAt, "poolV4At reverted");
         assertEq(
             abi.decode(rAt, (uint256)),
-            uint256(keccak256(abi.encode(t0, t1, fee, tickSpacing, address(0)))),
+            uint256(keccak256(abi.encode(t0, t1, fee, tickSpacing, registry))),
             "poolV4At must return canonical PoolId"
         );
 

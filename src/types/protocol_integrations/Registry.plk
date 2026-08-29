@@ -3,7 +3,6 @@ import std::error::require;
 import types::protocol_integrations::Venue::*;
 
 const SEL_SUPPORTS_INTERFACE = 0x01ffc9a7;
-const SEL_HOOKS = 0xcd7033c4;
 const SEL_POOL_MANAGER = 0xdc4c90d3;
 const SEL_OWNER = 0x8da5cb5b;
 const SEL_FACTORY = 0xc45a0155;
@@ -42,10 +41,6 @@ const registry_staticcall_u256 = fn (target: u256, sel: u256) u256 {
     @mload32(ret)
 };
 
-const registry_hooks = fn (r: Registry(V4)) u256 {
-    @evm_and(registry_staticcall_u256(registry_addr(V4, r), SEL_HOOKS), REG_MASK_U160)
-};
-
 const registry_pool_manager = fn (r: Registry(V4)) u256 {
     @evm_and(registry_staticcall_u256(registry_addr(V4, r), SEL_POOL_MANAGER), REG_MASK_U160)
 };
@@ -63,11 +58,8 @@ const registry_verify = fn (comptime V: type, r: Registry(V)) void {
     let target = cast_addr(r.addr, u256);
     if V == V4 {
         if target != 0 {
+            supports_interface(target, IFACE_IHOOKS);
             require(registry_pool_manager(r) != 0);
-            let hooks = registry_hooks(r);
-            if hooks != 0 {
-                supports_interface(hooks, IFACE_IHOOKS);
-            }
         }
     } else if V == V3 {
         let cd = @malloc_uninit(4);

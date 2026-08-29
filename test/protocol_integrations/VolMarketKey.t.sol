@@ -55,7 +55,7 @@ contract VolMarketKeyTest is PlankTestBase {
 
     function setUp() public {
         harness = deployPlank("test/protocol_integrations/VolMarketKeyHarness.plk");
-        v4Registry = address(new RegistryVerifyV4(address(uint160(HOOKS)), address(0x1)));
+        v4Registry = address(new RegistryVerifyV4(address(0x1)));
     }
 
     // ---- what must compile ---------------------------------------------------------------------
@@ -263,7 +263,7 @@ contract VolMarketKeyTest is PlankTestBase {
         require(ok, "v4PoolId reverted");
         assertEq(
             abi.decode(r, (uint256)),
-            uint256(keccak256(abi.encode(C0, C1, FEE, TICK_SPACING, HOOKS))),
+            uint256(keccak256(abi.encode(C0, C1, FEE, TICK_SPACING, v4Registry))),
             "must equal the canonical univ4 PoolId"
         );
     }
@@ -289,11 +289,10 @@ contract VolMarketKeyTest is PlankTestBase {
     uint256 internal constant C1 = 0x2222;
     uint256 internal constant FEE = 3000;
     uint256 internal constant TICK_SPACING = 60;
-    uint256 internal constant HOOKS = 0x3333;
     uint8 internal constant VEGOID = 8;
 
-    function _expectedV4PoolId(uint8 vegoid, uint256 tickSpacing) internal pure returns (uint64) {
-        uint256 poolIdV4 = uint256(keccak256(abi.encode(C0, C1, FEE, TICK_SPACING, HOOKS)));
+    function _expectedV4PoolId(uint8 vegoid, uint256 tickSpacing) internal view returns (uint64) {
+        uint256 poolIdV4 = uint256(keccak256(abi.encode(C0, C1, FEE, TICK_SPACING, v4Registry)));
         uint256 pattern = poolIdV4 & ((uint256(1) << 40) - 1);
         return uint64(pattern | (uint256(vegoid) << 40) | (tickSpacing << 48));
     }
@@ -315,43 +314,44 @@ contract VolMarketKeyTest is PlankTestBase {
         uint256 c0,
         uint256 c1,
         uint24 fee,
-        uint24 tickSpacing,
-        uint256 hooks
+        uint24 tickSpacing
     ) public {
         vm.assume(c0 <= type(uint160).max);
         vm.assume(c1 <= type(uint160).max);
-        vm.assume(hooks <= type(uint160).max);
         vm.assume(c0 != c1);
         // XOR-1 perturbation of c0 must not make pair() see equal currencies.
         vm.assume(c0 != (c1 ^ 1));
-        uint256 got = _v4PoolIdFor(c0, c1, fee, tickSpacing, hooks);
+        address registry = address(new RegistryVerifyV4(address(0x1)));
+        uint256 got = _v4PoolIdFor(registry, c0, c1, fee, tickSpacing);
         (uint256 t0, uint256 t1) = _sortedCurrencies(c0, c1);
         assertEq(
             got,
-            uint256(keccak256(abi.encode(t0, t1, uint256(fee), uint256(tickSpacing), hooks))),
+            uint256(keccak256(abi.encode(t0, t1, uint256(fee), uint256(tickSpacing), registry))),
             "the id must be keccak over exactly these five fields, in sorted currency order"
         );
 
         // Perturbing any single field must change the id. XOR 1 rather than + 1: the fuzzer found
         // that `hooks + 1` panics with 0x11 when hooks == type(uint256).max (run 28 of
         // 33211646329). XOR flips the low bit, always changes the value, and cannot overflow.
-        assertTrue(got != _v4PoolIdFor(c0 ^ 1, c1, fee, tickSpacing, hooks), "currency0 not hashed");
-        assertTrue(got != _v4PoolIdFor(c0, c1 ^ 1, fee, tickSpacing, hooks), "currency1 not hashed");
+        assertTrue(got != _v4PoolIdFor(registry, c0 ^ 1, c1, fee, tickSpacing), "currency0 not hashed");
+        assertTrue(got != _v4PoolIdFor(registry, c0, c1 ^ 1, fee, tickSpacing), "currency1 not hashed");
         assertTrue(
-            got != _v4PoolIdFor(c0, c1, uint256(fee) ^ 1, tickSpacing, hooks), "fee not hashed"
+            got != _v4PoolIdFor(registry, c0, c1, uint256(fee) ^ 1, tickSpacing), "fee not hashed"
         );
         assertTrue(
-            got != _v4PoolIdFor(c0, c1, fee, uint256(tickSpacing) ^ 1, hooks),
+            got != _v4PoolIdFor(registry, c0, c1, fee, uint256(tickSpacing) ^ 1),
             "tickSpacing not hashed"
         );
-        assertTrue(got != _v4PoolIdFor(c0, c1, fee, tickSpacing, hooks ^ 1), "hooks not hashed");
+        address registry2 = address(new RegistryVerifyV4(address(0x2)));
+        assertTrue(
+            got != _v4PoolIdFor(registry2, c0, c1, fee, tickSpacing), "registry (hooks) not hashed"
+        );
     }
 
-    function _v4PoolIdFor(uint256 c0, uint256 c1, uint256 fee, uint256 ts, uint256 hooks)
+    function _v4PoolIdFor(address registry, uint256 c0, uint256 c1, uint256 fee, uint256 ts)
         internal
         returns (uint256)
     {
-        address registry = address(new RegistryVerifyV4(address(uint160(hooks)), address(0x1)));
         (bool ok, bytes memory r) = harness.staticcall(
             abi.encodeWithSignature(
                 "v4PoolIdFor(uint256,uint256,uint256,uint256,uint256)",

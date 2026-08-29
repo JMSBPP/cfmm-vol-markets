@@ -47,7 +47,7 @@ const pool_id_v4_from_context = fn (
         cast_addr(pair.token1, u256),
         fee,
         tick_spacing,
-        registry_hooks(registry)
+        registry_addr(V4, registry)
     )
 };
 

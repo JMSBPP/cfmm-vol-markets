@@ -33,7 +33,6 @@ const K_C0 = 0x1111;
 const K_C1 = 0x2222;
 const K_FEE = 3000;
 const K_TICK_SPACING = 60;
-const K_HOOKS = 0x3333;
 
 init { return_runtime(); }
 

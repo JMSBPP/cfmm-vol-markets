@@ -3,8 +3,8 @@ pragma solidity ^0.8.26;
 
 import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "../../PlankTestBase.sol";
-import {RegistryVerifyV4Hooks} from "../../mocks/RegistryVerifyV4Hooks.sol";
 import {RegistryVerifyV4} from "../../mocks/RegistryVerifyV4.sol";
+import {RegistryVerifyV4NoIHooks} from "../../mocks/RegistryVerifyV4NoIHooks.sol";
 import {RegistryVerifyV3Factory} from "../../mocks/RegistryVerifyV3Factory.sol";
 import {RegistryVerifyBadInterface} from "../../mocks/RegistryVerifyBadInterface.sol";
 import {AlgebraIntegralDeployer} from "../../helpers/AlgebraIntegralDeployer.sol";
@@ -57,21 +57,15 @@ contract RegistryTest is PlankTestBase {
     }
 
     function test__unit__registryVerify_v4_acceptsCompliantHooks() public {
-        address hooks = address(new RegistryVerifyV4Hooks());
-        _registryVerify(1, address(new RegistryVerifyV4(hooks, address(0xBEEF))));
-    }
-
-    function test__unit__registryVerify_v4_acceptsZeroHooks() public {
-        _registryVerify(1, address(new RegistryVerifyV4(address(0), address(0xBEEF))));
+        _registryVerify(1, address(new RegistryVerifyV4(address(0xBEEF))));
     }
 
     function test__unit__registryVerify_v4_rejectsZeroPoolManager() public {
-        address hooks = address(new RegistryVerifyV4Hooks());
         (bool ok,) = harness.staticcall(
             abi.encodeWithSignature(
                 "registryVerify(uint8,address)",
                 uint8(1),
-                address(new RegistryVerifyV4(hooks, address(0)))
+                address(new RegistryVerifyV4(address(0)))
             )
         );
         assertFalse(ok);
@@ -86,7 +80,7 @@ contract RegistryTest is PlankTestBase {
             abi.encodeWithSignature(
                 "registryVerify(uint8,address)",
                 uint8(1),
-                address(new RegistryVerifyV4(address(new RegistryVerifyBadInterface()), address(0xBEEF)))
+                address(new RegistryVerifyV4NoIHooks(address(0xBEEF)))
             )
         );
         assertFalse(ok);
