@@ -1,0 +1,25 @@
+import std::constructor::return_runtime;
+import std::core::addr::{addr_from_u256, cast_addr};
+import types::Pair::*;
+
+// cast sig "pair(address,address,uint256)" -> 0x34cd51d0
+const SEL_PAIR = 0x34cd51d0;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_PAIR {
+        let p = pair(
+            addr_from_u256(@evm_calldataload(4)),
+            addr_from_u256(@evm_calldataload(36)),
+            @evm_calldataload(68)
+        );
+        let out = @malloc_uninit(96);
+        @mstore32(out, cast_addr(p.token0, u256));
+        @mstore32(out +% 32, cast_addr(p.token1, u256));
+        @mstore32(out +% 64, p.asset_index);
+        @evm_return(out, 96);
+    }
+    @evm_stop();
+}
