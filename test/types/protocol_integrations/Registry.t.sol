@@ -6,16 +6,9 @@ import {PlankTestBase} from "../../PlankTestBase.sol";
 
 contract RegistryTest is PlankTestBase {
     address internal harness;
-    string internal constant SKIP_RED = "RED: Registry.plk not implemented - harness deploy expected to fail";
     address internal constant HOOKS_ADDR = address(0x00000000000000000000000000000000000000AB);
 
     function setUp() public {
-        try this._deployHarness() {} catch {
-            vm.skip(true, SKIP_RED);
-        }
-    }
-
-    function _deployHarness() external {
         harness = deployPlank("test/types/protocol_integrations/RegistryHarness.plk");
     }
 
@@ -29,7 +22,7 @@ contract RegistryTest is PlankTestBase {
         (bool ok, bytes memory r) =
             harness.staticcall(abi.encodeWithSignature("registryAddr(address)", HOOKS_ADDR));
         require(ok, "registryAddr reverted");
-        assertEq(abi.decode(r, (uint256)), uint256(HOOKS_ADDR), "registry_addr round-trip");
+        assertEq(abi.decode(r, (uint256)), uint256(uint160(HOOKS_ADDR)), "registry_addr round-trip");
     }
 
     function test__unit__nonVenueTagDoesNotCompile() public {
