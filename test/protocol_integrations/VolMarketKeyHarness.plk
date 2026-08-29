@@ -1,5 +1,6 @@
 import std::constructor::return_runtime;
 import types::protocol_integrations::VolMarketKey::*;
+import types::protocol_integrations::Venue::*;
 
 // Harness for VolMarketKey(V) (Phase 2.5, KEY-01/KEY-06), written RED-first to
 // docs/superpowers/specs/2026-08-28-volmarketkey-and-extra-payload-widening-design.md.

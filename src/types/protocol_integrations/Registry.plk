@@ -1,0 +1,25 @@
+import std::core::addr::{addr, cast_addr};
+import types::protocol_integrations::Venue::*;
+
+const Registry = fn (comptime V: type) type {
+    if !is_venue(V) {
+        @compile_error("Registry: V must be V4, V3 or Algebra");
+    }
+    return struct V { addr: addr };
+};
+
+const registry_v4 = fn (hooks: addr) Registry(V4) {
+    Registry(V4) { addr: hooks }
+};
+
+const registry_v3 = fn (factory: addr) Registry(V3) {
+    Registry(V3) { addr: factory }
+};
+
+const registry_algebra = fn (factory: addr) Registry(Algebra) {
+    Registry(Algebra) { addr: factory }
+};
+
+const registry_addr = fn (comptime V: type, r: Registry(V)) u256 {
+    cast_addr(r.addr, u256)
+};

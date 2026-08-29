@@ -13,6 +13,7 @@
 // Lives outside src/ and test/ so `make compile-plank` never builds it.
 import std::constructor::return_runtime;
 import types::protocol_integrations::VolMarketKey::*;
+import types::protocol_integrations::Venue::*;
 
 const bad = fn (k: VolMarketKey(Algebra)) u256 {
     vol_market_key_to_panoptic_pool_id(Algebra, k, 0, 1)

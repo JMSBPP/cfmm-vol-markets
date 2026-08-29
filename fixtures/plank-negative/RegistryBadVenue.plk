@@ -1,0 +1,13 @@
+// NEGATIVE fixture (phase 2a): Registry(V) must reject a V that is not one of the three venue tags.
+import std::constructor::return_runtime;
+import types::protocol_integrations::Registry::*;
+
+const bad = fn (r: Registry(u256)) u256 { registry_addr(u256, r) };
+
+init { return_runtime(); }
+run {
+    let r = @uninit(Registry(u256));
+    let out = @malloc_uninit(32);
+    @mstore32(out, bad(r));
+    @evm_return(out, 32);
+}

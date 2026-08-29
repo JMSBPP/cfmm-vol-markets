@@ -1,0 +1,7 @@
+const V4 = struct {};
+const V3 = struct {};
+const Algebra = struct {};
+
+const is_venue = fn (comptime V: type) bool {
+    V == V4 or V == V3 or V == Algebra
+};
