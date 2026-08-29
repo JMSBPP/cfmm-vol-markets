@@ -4,6 +4,13 @@ pragma solidity ^0.8.26;
 import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "../../PlankTestBase.sol";
 import {PoolVerifyV3Pool} from "../../mocks/PoolVerifyV3Pool.sol";
+import {Deployers} from "v4-core-test/utils/Deployers.sol";
+import {IHooks} from "univ4-core/interfaces/IHooks.sol";
+import {Currency} from "univ4-core/types/Currency.sol";
+import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
+import {AlgebraIntegralDeployer} from "../../helpers/AlgebraIntegralDeployer.sol";
+import {IAlgebraFactory} from "@cryptoalgebra/integral-core/interfaces/IAlgebraFactory.sol";
+import {IAlgebraPoolState} from "@cryptoalgebra/integral-core/interfaces/pool/IAlgebraPoolState.sol";
 
 /// Univ3 factory stand-in for pool_verify registry lookup.
 contract V3FactoryStub {
@@ -18,9 +25,10 @@ contract V3FactoryStub {
     }
 }
 
-contract PoolTest is PlankTestBase {
+contract PoolTest is PlankTestBase, Deployers {
     address internal harness;
     address internal constant POOL_ADDR = address(0x00000000000000000000000000000000000000AB);
+    bytes internal constant ZERO_BYTES = new bytes(0);
 
     function setUp() public {
         harness = deployPlank("test/types/protocol_integrations/PoolHarness.plk");
@@ -116,6 +124,77 @@ contract PoolTest is PlankTestBase {
         assertFalse(ok, "registry mismatch must revert");
     }
 
+    function test__unit__poolAlgebraAtReadsFeeAndTick() public {
+        (address entryPoint, address pool, address t0, address t1) = _algebraPoolFixture();
+        (bool okWord, bytes memory rWord) =
+            harness.staticcall(abi.encodeWithSignature("poolAlgebraAt(address)", pool));
+        require(okWord, "poolAlgebraAt reverted");
+        assertEq(abi.decode(rWord, (uint256)), uint256(uint160(pool)), "algebra pool_word is address");
+
+        (, , uint16 fee,, ,) = IAlgebraPoolState(pool).globalState();
+        int24 tickSpacing = IAlgebraPoolState(pool).tickSpacing();
+
+        (bool okFee, bytes memory rFee) =
+            harness.staticcall(abi.encodeWithSignature("poolFeeAlgebraAt(address)", pool));
+        require(okFee, "poolFeeAlgebraAt reverted");
+        assertEq(abi.decode(rFee, (uint256)), uint256(fee), "algebra fee from on-chain read");
+
+        (bool okTs, bytes memory rTs) =
+            harness.staticcall(abi.encodeWithSignature("poolTickSpacingAlgebraAt(address)", pool));
+        require(okTs, "poolTickSpacingAlgebraAt reverted");
+        assertEq(abi.decode(rTs, (uint256)), uint256(int256(tickSpacing)), "algebra tick_spacing");
+
+        (bool okVerify,) = harness.staticcall(
+            abi.encodeWithSignature(
+                "poolVerifyAlgebra(address,address,uint256,uint256)", entryPoint, pool, t0, t1
+            )
+        );
+        assertTrue(okVerify, "algebra pool must verify against entry point");
+    }
+
+    function test__unit__poolV4AtAndVerifyRoundTrip() public {
+        deployFreshManagerAndRouters();
+        (Currency c0, Currency c1) = deployMintAndApprove2Currencies();
+        uint24 fee = 3000;
+        int24 tickSpacing = 60;
+        initPool(c0, c1, IHooks(address(0)), fee, tickSpacing, SQRT_PRICE_1_1);
+
+        address t0 = Currency.unwrap(c0);
+        address t1 = Currency.unwrap(c1);
+
+        (bool okAt, bytes memory rAt) = harness.staticcall(
+            abi.encodeWithSignature(
+                "poolV4At(address,uint256,uint256,uint256,uint256,uint256)",
+                address(manager),
+                uint256(uint160(t0)),
+                uint256(uint160(t1)),
+                uint256(0),
+                uint256(tickSpacing),
+                uint256(fee)
+            )
+        );
+        require(okAt, "poolV4At reverted");
+        assertEq(
+            abi.decode(rAt, (uint256)),
+            uint256(keccak256(abi.encode(t0, t1, fee, tickSpacing, address(0)))),
+            "poolV4At must return canonical PoolId"
+        );
+
+        (bool okVerify,) = harness.staticcall(
+            abi.encodeWithSignature(
+                "poolVerifyV4(address,uint256,uint256,uint256,uint256,uint256,uint256)",
+                address(manager),
+                uint256(uint160(t0)),
+                uint256(uint160(t1)),
+                uint256(0),
+                uint256(fee),
+                uint256(uint24(tickSpacing)),
+                uint256(0)
+            )
+        );
+        assertTrue(okVerify, "V4 pool must verify against manager slot0");
+    }
+
     function test__unit__nonVenueTagDoesNotCompile() public {
         Vm.FfiResult memory res = _tryBuild("fixtures/plank-negative/PoolBadVenue.plk");
         assertTrue(res.exitCode != 0, "Pool(u256) compiled");
@@ -123,6 +202,25 @@ contract PoolTest is PlankTestBase {
             _contains(res.stderr, "Pool: V must be V4, V3 or Algebra"),
             "wrong failure: not Pool's guard"
         );
+    }
+
+    function _algebraPoolFixture()
+        internal
+        returns (address entryPoint, address pool, address t0, address t1)
+    {
+        MockERC20 tokenA = new MockERC20("TOKEN_A", "TOKEN_A", 18);
+        MockERC20 tokenB = new MockERC20("TOKEN_B", "TOKEN_B", 18);
+        if (address(tokenA) < address(tokenB)) {
+            t0 = address(tokenA);
+            t1 = address(tokenB);
+        } else {
+            t0 = address(tokenB);
+            t1 = address(tokenA);
+        }
+        AlgebraIntegralDeployer.Deployment memory d = AlgebraIntegralDeployer.deploy(vm);
+        entryPoint = d.entryPoint;
+        pool = IAlgebraFactory(d.factory).createPool(t0, t1, ZERO_BYTES);
+        assertNotEq(pool, address(0));
     }
 
     function _tryBuild(string memory path) internal returns (Vm.FfiResult memory) {
