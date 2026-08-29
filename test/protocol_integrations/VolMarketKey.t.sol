@@ -297,12 +297,18 @@ contract VolMarketKeyTest is PlankTestBase {
         return uint64(pattern | (uint256(vegoid) << 40) | (tickSpacing << 48));
     }
 
+    function _sortedCurrencies(uint256 a, uint256 b) internal pure returns (uint256 t0, uint256 t1) {
+        return a < b ? (a, b) : (b, a);
+    }
+
     /// Ported from MarketId.t.sol's round-trip test before that file is retired (KEY-05).
     ///
     /// The fixed-key test above pins ONE value. This pins the STRUCTURE: every one of the five
     /// PoolKey fields must feed the hash, so a field omitted from the keccak buffer, or two fields
     /// transposed, changes the id and is caught. MarketId.plk proved this by handing back the
     /// stored key; VolMarketKey IS the key, so the equivalent evidence is field sensitivity.
+    ///
+    /// pair() sorts token addresses before they enter the hash; expected keccak uses the same order.
     function test__fuzz__everyPoolKeyFieldFeedsTheV4PoolId(
         uint256 c0,
         uint256 c1,
@@ -310,11 +316,13 @@ contract VolMarketKeyTest is PlankTestBase {
         uint24 tickSpacing,
         uint256 hooks
     ) public {
+        vm.assume(c0 != c1);
         uint256 got = _v4PoolIdFor(c0, c1, fee, tickSpacing, hooks);
+        (uint256 t0, uint256 t1) = _sortedCurrencies(c0, c1);
         assertEq(
             got,
-            uint256(keccak256(abi.encode(c0, c1, uint256(fee), uint256(tickSpacing), hooks))),
-            "the id must be keccak over exactly these five fields, in this order"
+            uint256(keccak256(abi.encode(t0, t1, uint256(fee), uint256(tickSpacing), hooks))),
+            "the id must be keccak over exactly these five fields, in sorted currency order"
         );
 
         // Perturbing any single field must change the id. XOR 1 rather than + 1: the fuzzer found
