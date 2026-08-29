@@ -18,11 +18,29 @@ contract PoolTest is PlankTestBase {
         assertEq(abi.decode(r, (uint256)), 57, "venue codes wrong");
     }
 
-    function test__unit__poolWordV4IsZero() public {
-        (bool ok, bytes memory r) =
-            harness.staticcall(abi.encodeWithSignature("poolWordV4(uint256,uint256)", uint256(3000), uint256(60)));
+    uint256 internal constant C0 = 0x1111;
+    uint256 internal constant C1 = 0x2222;
+    uint256 internal constant FEE = 3000;
+    uint256 internal constant TICK_SPACING = 60;
+    uint256 internal constant HOOKS = 0x3333;
+
+    function test__unit__poolWordV4IsPoolIdHash() public {
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature(
+                "poolWordV4(uint256,uint256,uint256,uint256,uint256)",
+                C0,
+                C1,
+                FEE,
+                TICK_SPACING,
+                HOOKS
+            )
+        );
         require(ok, "poolWordV4 reverted");
-        assertEq(abi.decode(r, (uint256)), 0, "V4 pool_word must be 0");
+        assertEq(
+            abi.decode(r, (uint256)),
+            uint256(keccak256(abi.encode(C0, C1, FEE, TICK_SPACING, HOOKS))),
+            "V4 pool_word must be canonical PoolId hash"
+        );
     }
 
     function test__unit__poolWordV3IsPoolAddress() public {
@@ -33,12 +51,12 @@ contract PoolTest is PlankTestBase {
         assertEq(abi.decode(r, (uint256)), uint256(uint160(POOL_ADDR)), "V3 pool_word must be pool address");
     }
 
-    function test__unit__poolFeeAlgebraIsZero() public {
+    function test__unit__poolFeeAlgebraRoundTrip() public {
         (bool ok, bytes memory r) = harness.staticcall(
-            abi.encodeWithSignature("poolFeeAlgebra(address,uint256)", POOL_ADDR, uint256(60))
+            abi.encodeWithSignature("poolFeeAlgebra(address,uint256,uint256)", POOL_ADDR, uint256(0), uint256(60))
         );
         require(ok, "poolFeeAlgebra reverted");
-        assertEq(abi.decode(r, (uint256)), 0, "Algebra pool_fee must be 0");
+        assertEq(abi.decode(r, (uint256)), 0, "Algebra pool_fee round-trip");
     }
 
     function test__unit__poolTickSpacingRoundTrip() public {

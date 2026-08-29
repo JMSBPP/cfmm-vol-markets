@@ -50,7 +50,7 @@ const k_v4 = fn (
         V4,
         pair(addr_from_u256(c0), addr_from_u256(c1), asset_idx),
         registry_v4(addr_from_u256(hooks)),
-        pool_v4(fee, ts)
+        pool_v4(c0, c1, fee, ts, hooks)
     )
 };
 
@@ -113,7 +113,7 @@ run {
                 0
             ),
             registry_algebra(addr_from_u256(@evm_calldataload(4))),
-            pool_algebra(addr_from_u256(@evm_calldataload(36)), K_TICK_SPACING)
+            pool_algebra(addr_from_u256(@evm_calldataload(36)), 0, K_TICK_SPACING)
         );
         vol_market_key_verify_pool(Algebra, k);
         return_1(1);

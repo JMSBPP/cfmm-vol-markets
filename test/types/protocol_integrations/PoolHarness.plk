@@ -5,12 +5,12 @@ import types::protocol_integrations::Venue::*;
 
 // cast sig "venueWitness()" -> 0xbe55e3a4
 const SEL_VENUE_WITNESS = 0xbe55e3a4;
-// cast sig "poolWordV4(uint256,uint256)" -> 0xfee9c5f2
-const SEL_POOL_WORD_V4 = 0xfee9c5f2;
+// cast sig "poolWordV4(uint256,uint256,uint256,uint256,uint256)" -> 0xb8e3ff82
+const SEL_POOL_WORD_V4 = 0xb8e3ff82;
 // cast sig "poolWordV3(address,uint256,uint256)" -> 0xf7f97f95
 const SEL_POOL_WORD_V3 = 0xf7f97f95;
-// cast sig "poolFeeAlgebra(address,uint256)" -> 0x7c11ef3d
-const SEL_POOL_FEE_ALGEBRA = 0x7c11ef3d;
+// cast sig "poolFeeAlgebra(address,uint256,uint256)" -> 0xac73e74d
+const SEL_POOL_FEE_ALGEBRA = 0xac73e74d;
 // cast sig "poolTickSpacingV3(address,uint256,uint256)" -> 0x889c71d2
 const SEL_POOL_TICK_SPACING_V3 = 0x889c71d2;
 
@@ -43,7 +43,13 @@ run {
     }
 
     if selector == SEL_POOL_WORD_V4 {
-        let p = pool_v4(@evm_calldataload(4), @evm_calldataload(36));
+        let p = pool_v4(
+            @evm_calldataload(4),
+            @evm_calldataload(36),
+            @evm_calldataload(68),
+            @evm_calldataload(100),
+            @evm_calldataload(132)
+        );
         return_1(pool_word(V4, p));
     }
 
@@ -59,7 +65,8 @@ run {
     if selector == SEL_POOL_FEE_ALGEBRA {
         let p = pool_algebra(
             addr_from_u256(@evm_calldataload(4)),
-            @evm_calldataload(36)
+            @evm_calldataload(36),
+            @evm_calldataload(68)
         );
         return_1(pool_fee(Algebra, p));
     }

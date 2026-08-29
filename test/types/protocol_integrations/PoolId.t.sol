@@ -7,7 +7,6 @@ import {PlankTestBase} from "../../PlankTestBase.sol";
 /// RED-first: PoolId.plk does not exist until Task 2 GREEN.
 contract PoolIdTest is PlankTestBase {
     address internal harness;
-    string internal constant SKIP_RED = "RED: PoolId.plk not implemented - harness deploy expected to fail";
 
     uint256 internal constant C0 = 0x1111;
     uint256 internal constant C1 = 0x2222;
@@ -16,12 +15,6 @@ contract PoolIdTest is PlankTestBase {
     uint256 internal constant HOOKS = 0x3333;
 
     function setUp() public {
-        try this._deployHarness() {} catch {
-            vm.skip(true, SKIP_RED);
-        }
-    }
-
-    function _deployHarness() external {
         harness = deployPlank("test/types/protocol_integrations/PoolIdHarness.plk");
     }
 
