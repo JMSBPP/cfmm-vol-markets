@@ -12,6 +12,7 @@ import {IAlgebraPluginFactory} from "@cryptoalgebra/integral-core/interfaces/plu
 import {IAlgebraCustomPoolEntryPoint} from "@cryptoalgebra/integral-periphery/interfaces/IAlgebraCustomPoolEntryPoint.sol";
 
 contract RegistryTest is PlankTestBase {
+    bytes4 internal constant IFACE_IHOOKS_PIN = 0xf0222b24;
     address internal harness;
     address internal constant HOOKS_ADDR = address(0x00000000000000000000000000000000000000AB);
 
@@ -44,7 +45,7 @@ contract RegistryTest is PlankTestBase {
     /// @dev Pins interface ids Plank constants must match (CI reads node_modules + panoptic v4-core).
     function test__unit__interfaceIds_matchSolidity() public pure {
         assertEq(bytes4(0x01ffc9a7), bytes4(0x01ffc9a7));
-        assertTrue(type(IHooks).interfaceId != bytes4(0));
+        assertEq(type(IHooks).interfaceId, IFACE_IHOOKS_PIN);
         assertTrue(type(IAlgebraPluginFactory).interfaceId != bytes4(0));
         assertTrue(type(IAlgebraCustomPoolEntryPoint).interfaceId != bytes4(0));
     }
