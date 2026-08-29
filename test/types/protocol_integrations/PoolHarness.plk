@@ -1,6 +1,8 @@
 import std::constructor::return_runtime;
 import std::core::addr::{addr_from_u256, cast_addr};
+import types::Pair::*;
 import types::protocol_integrations::Pool::*;
+import types::protocol_integrations::Registry::*;
 import types::protocol_integrations::Venue::*;
 
 // cast sig "venueWitness()" -> 0xbe55e3a4
@@ -43,14 +45,14 @@ run {
     }
 
     if selector == SEL_POOL_WORD_V4 {
-        let p = pool_v4(
-            @evm_calldataload(4),
-            @evm_calldataload(36),
-            @evm_calldataload(68),
-            @evm_calldataload(100),
-            @evm_calldataload(132)
-        );
-        return_1(pool_word(V4, p));
+        let c0 = @evm_calldataload(4);
+        let c1 = @evm_calldataload(36);
+        let fee = @evm_calldataload(68);
+        let ts = @evm_calldataload(100);
+        let hooks = @evm_calldataload(132);
+        let pair_ = pair(addr_from_u256(c0), addr_from_u256(c1), 0);
+        let reg = registry_v4(addr_from_u256(hooks));
+        return_1(pool_word(V4, pool_v4(pair_, reg, fee, ts)));
     }
 
     if selector == SEL_POOL_WORD_V3 {

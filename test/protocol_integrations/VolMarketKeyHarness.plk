@@ -46,12 +46,9 @@ const return_1 = fn (a: u256) never {
 const k_v4 = fn (
     c0: u256, c1: u256, fee: u256, ts: u256, hooks: u256, asset_idx: u256
 ) VolMarketKey(V4) {
-    vol_market_key(
-        V4,
-        pair(addr_from_u256(c0), addr_from_u256(c1), asset_idx),
-        registry_v4(addr_from_u256(hooks)),
-        pool_v4(c0, c1, fee, ts, hooks)
-    )
+    let p = pair(addr_from_u256(c0), addr_from_u256(c1), asset_idx);
+    let reg = registry_v4(addr_from_u256(hooks));
+    vol_market_key(V4, p, reg, pool_v4(p, reg, fee, ts))
 };
 
 const k_v3 = fn (factory: u256, pool_addr: u256) VolMarketKey(V3) {

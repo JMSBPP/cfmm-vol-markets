@@ -26,6 +26,7 @@ const pool_id_word = fn (comptime V: type, id: PoolId(V)) u256 {
     id.word
 };
 
+// Low-level: c0 and c1 must already satisfy currency0 < currency1 (univ4 PoolKey invariant).
 const pool_id_v4_from_pool_key = fn (
     c0: u256, c1: u256, fee: u256, tick_spacing: u256, hooks: u256
 ) PoolId(V4) {

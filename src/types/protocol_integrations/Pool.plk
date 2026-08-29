@@ -1,4 +1,6 @@
 import std::core::addr::{addr, cast_addr};
+import types::Pair::*;
+import types::protocol_integrations::Registry::*;
 import types::protocol_integrations::Venue::*;
 import types::protocol_integrations::PoolId::*;
 
@@ -14,10 +16,10 @@ const Pool = fn (comptime V: type) type {
 };
 
 const pool_v4 = fn (
-    c0: u256, c1: u256, fee: u256, tick_spacing: u256, hooks: u256
+    pair: Pair, registry: Registry(V4), fee: u256, tick_spacing: u256
 ) Pool(V4) {
     Pool(V4) {
-        pool_id: pool_id_v4_from_pool_key(c0, c1, fee, tick_spacing, hooks),
+        pool_id: pool_id_v4_from_context(pair, registry, fee, tick_spacing),
         fee: fee,
         tick_spacing: tick_spacing
     }
