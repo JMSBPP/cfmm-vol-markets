@@ -63,3 +63,4 @@ dist-newstyle/
 
 # Local Claude Code settings (per-user, not repo config)
 .agents/settings.local.json
+.spec/
