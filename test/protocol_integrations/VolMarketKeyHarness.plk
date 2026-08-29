@@ -18,8 +18,8 @@ const SEL_V3_PATTERN = 0x6b0fdf66;
 const SEL_COMPOSE_POOL_ID = 0x636d3d6c;
 // cast sig "verifyPoolV3(address,address)"      -> 0x0c29d1a2
 const SEL_VERIFY_POOL_V3 = 0x0c29d1a2;
-// cast sig "verifyPoolAlgebra(address,address)" -> 0xe6d8bcb5
-const SEL_VERIFY_POOL_ALGEBRA = 0xe6d8bcb5;
+// cast sig "verifyPoolAlgebra(address,address,uint256,uint256)" -> 0xc8c9a64c
+const SEL_VERIFY_POOL_ALGEBRA = 0xc8c9a64c;
 // cast sig "panopticPoolIdV4(address,uint256)"  -> 0xfbfe139f
 const SEL_PANOPTIC_POOL_ID_V4 = 0xfbfe139f;
 // cast sig "v4PoolId()"                         -> 0xa18615b6
@@ -60,15 +60,6 @@ const k_v3 = fn (factory: u256, pool_addr: u256) VolMarketKey(V3) {
         pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
         registry_v3(addr_from_u256(factory)),
         pool_v3(addr_from_u256(pool_addr), K_FEE, K_TICK_SPACING)
-    )
-};
-
-const k_algebra = fn (factory: u256, pool_addr: u256) VolMarketKey(Algebra) {
-    vol_market_key(
-        Algebra,
-        pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
-        registry_algebra(addr_from_u256(factory)),
-        pool_algebra(addr_from_u256(pool_addr), K_TICK_SPACING)
     )
 };
 
@@ -114,7 +105,16 @@ run {
     }
 
     if selector == SEL_VERIFY_POOL_ALGEBRA {
-        let k = k_algebra(@evm_calldataload(4), @evm_calldataload(36));
+        let k = vol_market_key(
+            Algebra,
+            pair(
+                addr_from_u256(@evm_calldataload(68)),
+                addr_from_u256(@evm_calldataload(100)),
+                0
+            ),
+            registry_algebra(addr_from_u256(@evm_calldataload(4))),
+            pool_algebra(addr_from_u256(@evm_calldataload(36)), K_TICK_SPACING)
+        );
         vol_market_key_verify_pool(Algebra, k);
         return_1(1);
     }

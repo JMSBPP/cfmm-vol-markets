@@ -1,5 +1,12 @@
 import std::core::addr::{addr, cast_addr};
+import std::error::require;
 import types::protocol_integrations::Venue::*;
+
+const SEL_SUPPORTS_INTERFACE = 0x01ffc9a7;
+const SEL_OWNER = 0x8da5cb5b;
+const SEL_FACTORY = 0xc45a0155;
+// Must match `type(IHooks).interfaceId` — see Registry.t.sol pin test on CI.
+const IFACE_IHOOKS = 0xf0222b24;
 
 const Registry = fn (comptime V: type) type {
     if !is_venue(V) {
@@ -22,4 +29,37 @@ const registry_algebra = fn (factory: addr) Registry(Algebra) {
 
 const registry_addr = fn (comptime V: type, r: Registry(V)) u256 {
     cast_addr(r.addr, u256)
+};
+
+const supports_interface = fn (target: u256, interface_id: u256) void {
+    let cd = @malloc_uninit(36);
+    @mstore4(cd, SEL_SUPPORTS_INTERFACE);
+    @mstore32(cd +% 4, @evm_shl(224, interface_id));
+    let ret = @malloc_uninit(32);
+    require(@evm_staticcall(@evm_gas(), target, cd, 36, ret, 32));
+    require(@mload32(ret) != 0);
+};
+
+const registry_verify = fn (comptime V: type, r: Registry(V)) void {
+    let target = cast_addr(r.addr, u256);
+    if V == V4 {
+        if target != 0 {
+            supports_interface(target, IFACE_IHOOKS);
+        }
+    } else if V == V3 {
+        let cd = @malloc_uninit(4);
+        @mstore4(cd, SEL_OWNER);
+        let ret = @malloc_uninit(32);
+        require(@evm_staticcall(@evm_gas(), target, cd, 4, ret, 32));
+        require(@mload32(ret) != 0);
+    } else if V == Algebra {
+        // IAlgebraCustomPoolEntryPoint: factory() -> AlgebraFactory (no IERC165 on entry point).
+        let cd = @malloc_uninit(4);
+        @mstore4(cd, SEL_FACTORY);
+        let ret = @malloc_uninit(32);
+        require(@evm_staticcall(@evm_gas(), target, cd, 4, ret, 32));
+        require(@mload32(ret) != 0);
+    } else {
+        @compile_error("Registry: V must be V4, V3 or Algebra");
+    }
 };

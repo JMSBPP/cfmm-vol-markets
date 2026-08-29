@@ -3,6 +3,9 @@ pragma solidity ^0.8.26;
 
 import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "test/PlankTestBase.sol";
+import {AlgebraIntegralDeployer} from "test/helpers/AlgebraIntegralDeployer.sol";
+import {IAlgebraFactory} from "@cryptoalgebra/integral-core/interfaces/IAlgebraFactory.sol";
+import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 
 /// Minimal stand-in for BOTH SFPMs: they share the signature
 /// `getPoolId(bytes memory id, uint8 vegoid) external view returns (uint64)`
@@ -35,20 +38,6 @@ contract V3FactoryStub {
     }
 }
 
-/// Algebra Integral factory stand-in: `poolByPair(address,address)` -- no fee in the lookup, since
-/// Algebra pools are keyed on the pair alone.
-contract AlgebraFactoryStub {
-    address internal immutable POOL;
-
-    constructor(address pool_) {
-        POOL = pool_;
-    }
-
-    function poolByPair(address, address) external view returns (address) {
-        return POOL;
-    }
-}
-
 /// Phase 2.5 (KEY-01): VolMarketKey(V) is a comptime type constructor over a VENUE tag.
 ///
 /// The property under test is a TYPE-LEVEL one, so the evidence is split in two:
@@ -58,6 +47,8 @@ contract AlgebraFactoryStub {
 ///   - the NEGATIVE side is a fixture that must FAIL to compile, asserted on the error TEXT rather
 ///     than the exit code, because a fixture containing a typo also fails to compile.
 contract VolMarketKeyTest is PlankTestBase {
+    bytes internal constant ZERO_BYTES = new bytes(0);
+
     address harness;
 
     function setUp() public {
@@ -210,18 +201,25 @@ contract VolMarketKeyTest is PlankTestBase {
     }
 
     function test__unit__algebraPoolAddressVerifiedAgainstTheFactory() public {
-        address pool = address(0xCAFE);
-        address factory = address(new AlgebraFactoryStub(pool));
+        (address entryPoint, address pool, address t0, address t1) = _algebraPoolFixture();
         (bool ok,) = harness.staticcall(
-            abi.encodeWithSignature("verifyPoolAlgebra(address,address)", factory, pool)
+            abi.encodeWithSignature(
+                "verifyPoolAlgebra(address,address,uint256,uint256)", entryPoint, pool, t0, t1
+            )
         );
         assertTrue(ok, "algebra pool matching poolByPair must verify");
     }
 
     function test__unit__algebraPoolAddressMismatchReverts() public {
-        address factory = address(new AlgebraFactoryStub(address(0xCAFE)));
+        (address entryPoint,, address t0, address t1) = _algebraPoolFixture();
         (bool ok,) = harness.staticcall(
-            abi.encodeWithSignature("verifyPoolAlgebra(address,address)", factory, address(0xDEAD))
+            abi.encodeWithSignature(
+                "verifyPoolAlgebra(address,address,uint256,uint256)",
+                entryPoint,
+                address(0xDEAD),
+                t0,
+                t1
+            )
         );
         assertFalse(ok, "algebra mismatch must revert");
     }
@@ -388,6 +386,25 @@ contract VolMarketKeyTest is PlankTestBase {
     }
 
     // ---- helpers -----------------------------------------------------------------------------
+
+    function _algebraPoolFixture()
+        internal
+        returns (address entryPoint, address pool, address t0, address t1)
+    {
+        MockERC20 tokenA = new MockERC20("TOKEN_A", "TOKEN_A", 18);
+        MockERC20 tokenB = new MockERC20("TOKEN_B", "TOKEN_B", 18);
+        if (address(tokenA) < address(tokenB)) {
+            t0 = address(tokenA);
+            t1 = address(tokenB);
+        } else {
+            t0 = address(tokenB);
+            t1 = address(tokenA);
+        }
+        AlgebraIntegralDeployer.Deployment memory d = AlgebraIntegralDeployer.deploy(vm);
+        entryPoint = d.entryPoint;
+        pool = IAlgebraFactory(d.factory).createPool(t0, t1, ZERO_BYTES);
+        assertNotEq(pool, address(0));
+    }
 
     /// `plank build <path>` with the same module roots as PlankTestBase.plankOpts(), no deploy.
     /// Copied from test/types/pos_spec/VolOrderType.t.sol so the two negative harnesses stay in step.

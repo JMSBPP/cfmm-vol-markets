@@ -94,6 +94,7 @@ const vol_market_key_compose_pool_id = fn (pattern: u256, vegoid: u256, tick_spa
 
 const SEL_GET_POOL = 0x1698ee82;
 const SEL_POOL_BY_PAIR = 0xd9a641e1;
+const SEL_ALGEBRA_ENTRY_FACTORY = 0xc45a0155;
 const SEL_SFPM_GET_POOL_ID = 0xb33eb6f3;
 
 const staticcall_word = fn (target: u256, args_ptr: u256, args_len: u256) u256 {
@@ -126,11 +127,15 @@ const vol_market_key_verify_pool = fn (comptime V: type, k: VolMarketKey(V)) voi
         @mstore32(p +% 68, vol_market_key_fee(V, k));
         staticcall_word(vol_market_key_registry_word(V, k), p, 100)
     } else if V == Algebra {
+        let plugin_factory = vol_market_key_registry_word(V, k);
+        let factory_cd = @malloc_uninit(4);
+        @mstore4(factory_cd, SEL_FACTORY);
+        let factory_addr = staticcall_word(plugin_factory, factory_cd, 4);
         let p = @malloc_uninit(68);
         @mstore4(p, SEL_POOL_BY_PAIR);
         @mstore32(p +% 4, vol_market_key_currency0(V, k));
         @mstore32(p +% 36, vol_market_key_currency1(V, k));
-        staticcall_word(vol_market_key_registry_word(V, k), p, 68)
+        staticcall_word(factory_addr, p, 68)
     } else {
         @compile_error("VolMarketKey: only V3 and Algebra have a pool address to verify");
     };
