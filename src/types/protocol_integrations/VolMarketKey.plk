@@ -1,4 +1,5 @@
 import std::error::require;
+import types::protocol_integrations::Venue::*;
 
 // VolMarketKey(V): a market key TAGGED BY VENUE.
 //
@@ -30,14 +31,6 @@ import std::error::require;
 // Panoptic's bit is a NOT -- see vol_market_key_panoptic_asset_bit. Read from panoptic-v2-core
 // @ 5555b32; the citations are there so this can be re-checked rather than trusted.
 // ---------------------------------------------------------------------------------------------
-
-const V4 = struct {};
-const V3 = struct {};
-const Algebra = struct {};
-
-const is_venue = fn (comptime V: type) bool {
-    V == V4 or V == V3 or V == Algebra
-};
 
 const VolMarketKey = fn (comptime V: type) type {
     if !is_venue(V) {
