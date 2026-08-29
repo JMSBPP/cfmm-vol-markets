@@ -31,7 +31,6 @@ solmate/=lib/panoptic-v2-core/lib/v4-core/lib/solmate/
 univ3-core/=lib/panoptic-v2-core/lib/v3-core/contracts/
 univ3-periphery/=lib/panoptic-v2-core/lib/v3-periphery/contracts/
 univ4-core/=lib/panoptic-v2-core/lib/v4-core/src/
-# Override lib/cfmm-types/remappings.txt (v4-core/ without /src/) — panoptic imports use v4-core/*.
 v4-core/=lib/panoptic-v2-core/lib/v4-core/src/
 @uniswap/v4-core/=lib/panoptic-v2-core/lib/v4-core/
 plank-foundry-deployer/=lib/plank-foundry-deployer/src/
