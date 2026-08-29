@@ -142,8 +142,10 @@ const pool_algebra_at = fn (pool: addr) Pool(Algebra) {
 };
 
 const pool_v4_at_keyed = fn (
-    manager: u256, pair: Pair, registry: Registry(V4), tick_spacing: u256, fee_key: u256
+    pair: Pair, registry: Registry(V4), tick_spacing: u256, fee_key: u256
 ) Pool(V4) {
+    let manager = registry_pool_manager(registry);
+    require(manager != 0);
     let id = pool_id_v4_from_context(pair, registry, fee_key, tick_spacing);
     let id_word = pool_id_word(V4, id);
     require(pool_v4_slot0_sqrt(manager, id_word) != 0);
@@ -154,10 +156,8 @@ const pool_v4_at_keyed = fn (
     }
 };
 
-const pool_v4_at = fn (
-    manager: u256, pair: Pair, registry: Registry(V4), tick_spacing: u256
-) Pool(V4) {
-    pool_v4_at_keyed(manager, pair, registry, tick_spacing, POOL_V4_DYNAMIC_FEE_KEY)
+const pool_v4_at = fn (pair: Pair, registry: Registry(V4), tick_spacing: u256) Pool(V4) {
+    pool_v4_at_keyed(pair, registry, tick_spacing, POOL_V4_DYNAMIC_FEE_KEY)
 };
 
 const pool_verify_v3 = fn (p: Pool(V3), pair: Pair, registry: Registry(V3)) void {
@@ -194,9 +194,8 @@ const pool_verify_algebra = fn (p: Pool(Algebra), pair: Pair, registry: Registry
     require(@mload32(ret) == pool_u);
 };
 
-const pool_verify_v4 = fn (
-    p: Pool(V4), pair: Pair, registry: Registry(V4), manager: u256
-) void {
+const pool_verify_v4 = fn (p: Pool(V4), pair: Pair, registry: Registry(V4)) void {
+    let manager = registry_pool_manager(registry);
     require(manager != 0);
     let expected = pool_id_v4_from_context(pair, registry, p.fee, p.tick_spacing);
     require(pool_id_word(V4, expected) == pool_id_word(V4, p.pool_id));
@@ -205,15 +204,13 @@ const pool_verify_v4 = fn (
     require(pool_v4_slot0_lp_fee(manager, id_word) == p.fee);
 };
 
-const pool_verify = fn (
-    comptime V: type, p: Pool(V), pair: Pair, registry: Registry(V), manager: u256
-) void {
+const pool_verify = fn (comptime V: type, p: Pool(V), pair: Pair, registry: Registry(V)) void {
     if V == V3 {
         pool_verify_v3(p, pair, registry);
     } else if V == Algebra {
         pool_verify_algebra(p, pair, registry);
     } else if V == V4 {
-        pool_verify_v4(p, pair, registry, manager);
+        pool_verify_v4(p, pair, registry);
     } else {
         @compile_error("Pool: V must be V4, V3 or Algebra");
     }

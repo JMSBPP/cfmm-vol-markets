@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "../../PlankTestBase.sol";
 import {PoolVerifyV3Pool} from "../../mocks/PoolVerifyV3Pool.sol";
+import {RegistryVerifyV4} from "../../mocks/RegistryVerifyV4.sol";
 import {Deployers} from "v4-core-test/utils/Deployers.sol";
 import {IHooks} from "univ4-core/interfaces/IHooks.sol";
 import {Currency} from "univ4-core/types/Currency.sol";
@@ -46,6 +47,8 @@ contract PoolTest is PlankTestBase, Deployers {
     uint256 internal constant HOOKS = 0x3333;
 
     function test__unit__poolWordV4IsPoolIdHash() public {
+        address registry =
+            address(new RegistryVerifyV4(address(uint160(HOOKS)), address(0x1)));
         (bool ok, bytes memory r) = harness.staticcall(
             abi.encodeWithSignature(
                 "poolWordV4(uint256,uint256,uint256,uint256,uint256)",
@@ -53,7 +56,7 @@ contract PoolTest is PlankTestBase, Deployers {
                 C1,
                 FEE,
                 TICK_SPACING,
-                HOOKS
+                uint256(uint160(registry))
             )
         );
         require(ok, "poolWordV4 reverted");
@@ -160,14 +163,14 @@ contract PoolTest is PlankTestBase, Deployers {
 
         address t0 = Currency.unwrap(c0);
         address t1 = Currency.unwrap(c1);
+        address registry = address(new RegistryVerifyV4(address(0), address(manager)));
 
         (bool okAt, bytes memory rAt) = harness.staticcall(
             abi.encodeWithSignature(
-                "poolV4At(address,uint256,uint256,uint256,uint256,uint256)",
-                address(manager),
+                "poolV4At(uint256,uint256,uint256,uint256,uint256)",
+                uint256(uint160(registry)),
                 uint256(uint160(t0)),
                 uint256(uint160(t1)),
-                uint256(0),
                 uint256(int256(tickSpacing)),
                 uint256(fee)
             )
@@ -181,14 +184,12 @@ contract PoolTest is PlankTestBase, Deployers {
 
         (bool okVerify,) = harness.staticcall(
             abi.encodeWithSignature(
-                "poolVerifyV4(address,uint256,uint256,uint256,uint256,uint256,uint256)",
-                address(manager),
+                "poolVerifyV4(uint256,uint256,uint256,uint256,uint256)",
+                uint256(uint160(registry)),
                 uint256(uint160(t0)),
                 uint256(uint160(t1)),
-                uint256(0),
                 uint256(fee),
-                uint256(int256(tickSpacing)),
-                uint256(0)
+                uint256(int256(tickSpacing))
             )
         );
         assertTrue(okVerify, "V4 pool must verify against manager slot0");

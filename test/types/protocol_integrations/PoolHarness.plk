@@ -9,7 +9,6 @@ import types::protocol_integrations::Venue::*;
 const SEL_VENUE_WITNESS = 0xbe55e3a4;
 // cast sig "poolWordV4(uint256,uint256,uint256,uint256,uint256)" -> 0xb8e3ff82
 const SEL_POOL_WORD_V4 = 0xb8e3ff82;
-// cast sig "poolWordV3(address,uint256,uint256)" -> 0xf7f97f95
 const SEL_POOL_WORD_V3 = 0xf7f97f95;
 // cast sig "poolFeeAlgebra(address,uint256,uint256)" -> 0xac73e74d
 const SEL_POOL_FEE_ALGEBRA = 0xac73e74d;
@@ -31,10 +30,10 @@ const SEL_POOL_FEE_ALGEBRA_AT = 0x67ccb4cb;
 const SEL_POOL_TICK_SPACING_ALGEBRA_AT = 0xbb746ec0;
 // cast sig "poolVerifyAlgebra(address,address,uint256,uint256)" -> 0x469b9a27
 const SEL_POOL_VERIFY_ALGEBRA = 0x469b9a27;
-// cast sig "poolV4At(address,uint256,uint256,uint256,uint256,uint256)" -> 0xc2bfdb23
-const SEL_POOL_V4_AT = 0xc2bfdb23;
-// cast sig "poolVerifyV4(address,uint256,uint256,uint256,uint256,uint256,uint256)" -> 0x007a8d7b
-const SEL_POOL_VERIFY_V4 = 0x007a8d7b;
+// cast sig "poolV4At(uint256,uint256,uint256,uint256,uint256)" -> 0x958a97a1
+const SEL_POOL_V4_AT = 0x958a97a1;
+// cast sig "poolVerifyV4(uint256,uint256,uint256,uint256,uint256)" -> 0x2839eb08
+const SEL_POOL_VERIFY_V4 = 0x2839eb08;
 
 const K_C0 = 0x1111;
 const K_C1 = 0x2222;
@@ -72,9 +71,9 @@ run {
         let c1 = @evm_calldataload(36);
         let fee = @evm_calldataload(68);
         let ts = @evm_calldataload(100);
-        let hooks = @evm_calldataload(132);
+        let registry = @evm_calldataload(132);
         let pair_ = pair(addr_from_u256(c0), addr_from_u256(c1), 0);
-        let reg = registry_v4(addr_from_u256(hooks));
+        let reg = registry_v4(addr_from_u256(registry));
         return_1(pool_word(V4, pool_v4(pair_, reg, fee, ts)));
     }
 
@@ -126,7 +125,7 @@ run {
         let asset_idx = @evm_calldataload(68);
         let pair_ = pair(addr_from_u256(K_C0), addr_from_u256(K_C1), asset_idx);
         let p = pool_v3_at(pool_addr);
-        pool_verify(V3, p, pair_, registry_v3(factory), 0);
+        pool_verify(V3, p, pair_, registry_v3(factory));
         return_1(1);
     }
 
@@ -152,33 +151,31 @@ run {
         let c1 = @evm_calldataload(100);
         let pair_ = pair(addr_from_u256(c0), addr_from_u256(c1), 0);
         let p = pool_algebra_at(pool_addr);
-        pool_verify(Algebra, p, pair_, registry_algebra(entry), 0);
+        pool_verify(Algebra, p, pair_, registry_algebra(entry));
         return_1(1);
     }
 
     if selector == SEL_POOL_V4_AT {
-        let manager = @evm_calldataload(4);
+        let registry = @evm_calldataload(4);
         let c0 = @evm_calldataload(36);
         let c1 = @evm_calldataload(68);
-        let hooks = @evm_calldataload(100);
-        let ts = @evm_calldataload(132);
-        let fee_key = @evm_calldataload(164);
+        let ts = @evm_calldataload(100);
+        let fee_key = @evm_calldataload(132);
         let pair_ = pair(addr_from_u256(c0), addr_from_u256(c1), 0);
-        let reg = registry_v4(addr_from_u256(hooks));
-        return_1(pool_word(V4, pool_v4_at_keyed(manager, pair_, reg, ts, fee_key)));
+        let reg = registry_v4(addr_from_u256(registry));
+        return_1(pool_word(V4, pool_v4_at_keyed(pair_, reg, ts, fee_key)));
     }
 
     if selector == SEL_POOL_VERIFY_V4 {
-        let manager = @evm_calldataload(4);
+        let registry = @evm_calldataload(4);
         let c0 = @evm_calldataload(36);
         let c1 = @evm_calldataload(68);
-        let hooks = @evm_calldataload(100);
-        let fee_key = @evm_calldataload(132);
-        let ts = @evm_calldataload(164);
+        let fee_key = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
         let pair_ = pair(addr_from_u256(c0), addr_from_u256(c1), 0);
-        let reg = registry_v4(addr_from_u256(hooks));
-        let p = pool_v4_at_keyed(manager, pair_, reg, ts, fee_key);
-        pool_verify(V4, p, pair_, reg, manager);
+        let reg = registry_v4(addr_from_u256(registry));
+        let p = pool_v4_at_keyed(pair_, reg, ts, fee_key);
+        pool_verify(V4, p, pair_, reg);
         return_1(1);
     }
 

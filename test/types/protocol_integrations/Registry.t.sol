@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "../../PlankTestBase.sol";
 import {RegistryVerifyV4Hooks} from "../../mocks/RegistryVerifyV4Hooks.sol";
+import {RegistryVerifyV4} from "../../mocks/RegistryVerifyV4.sol";
 import {RegistryVerifyV3Factory} from "../../mocks/RegistryVerifyV3Factory.sol";
 import {RegistryVerifyBadInterface} from "../../mocks/RegistryVerifyBadInterface.sol";
 import {AlgebraIntegralDeployer} from "../../helpers/AlgebraIntegralDeployer.sol";
@@ -56,7 +57,24 @@ contract RegistryTest is PlankTestBase {
     }
 
     function test__unit__registryVerify_v4_acceptsCompliantHooks() public {
-        _registryVerify(1, address(new RegistryVerifyV4Hooks()));
+        address hooks = address(new RegistryVerifyV4Hooks());
+        _registryVerify(1, address(new RegistryVerifyV4(hooks, address(0xBEEF))));
+    }
+
+    function test__unit__registryVerify_v4_acceptsZeroHooks() public {
+        _registryVerify(1, address(new RegistryVerifyV4(address(0), address(0xBEEF))));
+    }
+
+    function test__unit__registryVerify_v4_rejectsZeroPoolManager() public {
+        address hooks = address(new RegistryVerifyV4Hooks());
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature(
+                "registryVerify(uint8,address)",
+                uint8(1),
+                address(new RegistryVerifyV4(hooks, address(0)))
+            )
+        );
+        assertFalse(ok);
     }
 
     function test__unit__registryVerify_v4_zeroAddressPasses() public {
@@ -65,7 +83,11 @@ contract RegistryTest is PlankTestBase {
 
     function test__unit__registryVerify_v4_rejectsBadInterface() public {
         (bool ok,) = harness.staticcall(
-            abi.encodeWithSignature("registryVerify(uint8,address)", uint8(1), address(new RegistryVerifyBadInterface()))
+            abi.encodeWithSignature(
+                "registryVerify(uint8,address)",
+                uint8(1),
+                address(new RegistryVerifyV4(address(new RegistryVerifyBadInterface()), address(0xBEEF)))
+            )
         );
         assertFalse(ok);
     }

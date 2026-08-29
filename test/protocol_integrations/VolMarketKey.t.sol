@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "test/PlankTestBase.sol";
+import {RegistryVerifyV4} from "test/mocks/RegistryVerifyV4.sol";
 import {AlgebraIntegralDeployer} from "test/helpers/AlgebraIntegralDeployer.sol";
 import {IAlgebraFactory} from "@cryptoalgebra/integral-core/interfaces/IAlgebraFactory.sol";
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
@@ -50,9 +51,11 @@ contract VolMarketKeyTest is PlankTestBase {
     bytes internal constant ZERO_BYTES = new bytes(0);
 
     address harness;
+    address v4Registry;
 
     function setUp() public {
         harness = deployPlank("test/protocol_integrations/VolMarketKeyHarness.plk");
+        v4Registry = address(new RegistryVerifyV4(address(uint160(HOOKS)), address(0x1)));
     }
 
     // ---- what must compile ---------------------------------------------------------------------
@@ -234,7 +237,7 @@ contract VolMarketKeyTest is PlankTestBase {
         uint64 expected = _expectedV4PoolId(VEGOID, TICK_SPACING);
         address sfpm = address(new SfpmStub(expected));
         (bool ok, bytes memory r) = harness.staticcall(
-            abi.encodeWithSignature("panopticPoolIdV4(address,uint256)", sfpm, uint256(VEGOID))
+            abi.encodeWithSignature("panopticPoolIdV4(uint256,address,uint256)", v4Registry, sfpm, uint256(VEGOID))
         );
         require(ok, "matching candidate reverted");
         assertEq(abi.decode(r, (uint256)), expected, "the verified candidate must be returned");
@@ -247,7 +250,7 @@ contract VolMarketKeyTest is PlankTestBase {
         uint64 incremented = _expectedV4PoolId(VEGOID, TICK_SPACING) + 1;
         address sfpm = address(new SfpmStub(incremented));
         (bool ok,) = harness.staticcall(
-            abi.encodeWithSignature("panopticPoolIdV4(address,uint256)", sfpm, uint256(VEGOID))
+            abi.encodeWithSignature("panopticPoolIdV4(uint256,address,uint256)", v4Registry, sfpm, uint256(VEGOID))
         );
         assertFalse(ok, "a collision-incremented poolId must revert at build time");
     }
@@ -256,7 +259,7 @@ contract VolMarketKeyTest is PlankTestBase {
     /// market_id_from_pool_key computes, which VolMarketKey(V4) subsumes rather than duplicates.
     function test__unit__v4PoolIdIsTheCanonicalUniV4PoolId() public {
         (bool ok, bytes memory r) =
-            harness.staticcall(abi.encodeWithSignature("v4PoolId()"));
+            harness.staticcall(abi.encodeWithSignature("v4PoolId(uint256)", v4Registry));
         require(ok, "v4PoolId reverted");
         assertEq(
             abi.decode(r, (uint256)),
@@ -268,9 +271,9 @@ contract VolMarketKeyTest is PlankTestBase {
     /// vol_market_key + pair + registry_v4 + pool_v4 must agree with the literal struct path.
     function test__unit__v4KeyBuiltViaPairMatchesLiteral() public {
         (bool okLit, bytes memory rLit) =
-            harness.staticcall(abi.encodeWithSignature("v4PoolId()"));
+            harness.staticcall(abi.encodeWithSignature("v4PoolId(uint256)", v4Registry));
         (bool okPair, bytes memory rPair) =
-            harness.staticcall(abi.encodeWithSignature("v4KeyViaPair()"));
+            harness.staticcall(abi.encodeWithSignature("v4KeyViaPair(uint256)", v4Registry));
         require(okLit, "v4PoolId reverted");
         require(okPair, "v4KeyViaPair reverted");
         assertEq(
@@ -348,9 +351,15 @@ contract VolMarketKeyTest is PlankTestBase {
         internal
         returns (uint256)
     {
+        address registry = address(new RegistryVerifyV4(address(uint160(hooks)), address(0x1)));
         (bool ok, bytes memory r) = harness.staticcall(
             abi.encodeWithSignature(
-                "v4PoolIdFor(uint256,uint256,uint256,uint256,uint256)", c0, c1, fee, ts, hooks
+                "v4PoolIdFor(uint256,uint256,uint256,uint256,uint256)",
+                registry,
+                c0,
+                c1,
+                fee,
+                ts
             )
         );
         require(ok, "v4PoolIdFor reverted");

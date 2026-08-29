@@ -1,4 +1,4 @@
-import std::core::addr::cast_addr;
+import std::core::addr::{addr, cast_addr};
 import std::error::require;
 import types::Pair::*;
 import types::protocol_integrations::Pool::*;
@@ -38,6 +38,24 @@ const vol_market_key = fn (
     pool: Pool(V)
 ) VolMarketKey(V) {
     VolMarketKey(V) { pair: p, registry: r, pool: pool }
+};
+
+const vol_market_key_v3_at = fn (
+    p: Pair, r: Registry(V3), pool_addr: addr
+) VolMarketKey(V3) {
+    vol_market_key(V3, p, r, pool_v3_at(pool_addr))
+};
+
+const vol_market_key_algebra_at = fn (
+    p: Pair, r: Registry(Algebra), pool_addr: addr
+) VolMarketKey(Algebra) {
+    vol_market_key(Algebra, p, r, pool_algebra_at(pool_addr))
+};
+
+const vol_market_key_v4_at = fn (
+    p: Pair, r: Registry(V4), tick_spacing: u256, fee_key: u256
+) VolMarketKey(V4) {
+    vol_market_key(V4, p, r, pool_v4_at_keyed(p, r, tick_spacing, fee_key))
 };
 
 const vol_market_key_currency0 = fn (comptime V: type, k: VolMarketKey(V)) u256 {
@@ -92,9 +110,6 @@ const vol_market_key_compose_pool_id = fn (pattern: u256, vegoid: u256, tick_spa
     | @evm_shl(POOL_ID_OFF_TICK_SPACING, tick_spacing & 0xffff)
 };
 
-const SEL_GET_POOL = 0x1698ee82;
-const SEL_POOL_BY_PAIR = 0xd9a641e1;
-const SEL_ALGEBRA_ENTRY_FACTORY = 0xc45a0155;
 const SEL_SFPM_GET_POOL_ID = 0xb33eb6f3;
 
 const staticcall_word = fn (target: u256, args_ptr: u256, args_len: u256) u256 {
@@ -105,27 +120,7 @@ const staticcall_word = fn (target: u256, args_ptr: u256, args_len: u256) u256 {
 };
 
 const vol_market_key_verify_pool = fn (comptime V: type, k: VolMarketKey(V)) void {
-    let resolved = if V == V3 {
-        let p = @malloc_uninit(100);
-        @mstore4(p, SEL_GET_POOL);
-        @mstore32(p +% 4, vol_market_key_currency0(V, k));
-        @mstore32(p +% 36, vol_market_key_currency1(V, k));
-        @mstore32(p +% 68, vol_market_key_fee(V, k));
-        staticcall_word(vol_market_key_registry_word(V, k), p, 100)
-    } else if V == Algebra {
-        let plugin_factory = vol_market_key_registry_word(V, k);
-        let factory_cd = @malloc_uninit(4);
-        @mstore4(factory_cd, SEL_ALGEBRA_ENTRY_FACTORY);
-        let factory_addr = staticcall_word(plugin_factory, factory_cd, 4);
-        let p = @malloc_uninit(68);
-        @mstore4(p, SEL_POOL_BY_PAIR);
-        @mstore32(p +% 4, vol_market_key_currency0(V, k));
-        @mstore32(p +% 36, vol_market_key_currency1(V, k));
-        staticcall_word(factory_addr, p, 68)
-    } else {
-        @compile_error("VolMarketKey: only V3 and Algebra have a pool address to verify");
-    };
-    require(resolved == vol_market_key_pool_word(V, k));
+    pool_verify(V, k.pool, k.pair, k.registry);
 };
 
 const vol_market_key_to_panoptic_pool_id =
