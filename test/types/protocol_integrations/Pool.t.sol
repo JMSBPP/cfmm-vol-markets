@@ -187,7 +187,7 @@ contract PoolTest is PlankTestBase, Deployers {
                 uint256(uint160(t1)),
                 uint256(0),
                 uint256(fee),
-                uint256(uint24(tickSpacing)),
+                uint256(int256(tickSpacing)),
                 uint256(0)
             )
         );
