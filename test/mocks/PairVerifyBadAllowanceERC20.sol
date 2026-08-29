@@ -10,8 +10,8 @@ contract PairVerifyBadAllowanceERC20 {
         return 0;
     }
 
-    function transfer(address, uint256 amount) external pure returns (bool) {
-        revert InsufficientBalance(msg.sender, 0, amount);
+    function transfer(address sender, uint256 amount) external view returns (bool) {
+        revert InsufficientBalance(sender, 0, amount);
     }
 
     function transferFrom(address, address, uint256) external pure returns (bool) {
