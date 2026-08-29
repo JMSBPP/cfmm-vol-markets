@@ -89,12 +89,6 @@ const k_v3 = fn (factory: u256, pool_addr: u256) VolMarketKey(V3) {
     )
 };
 
-const k_v4_via_builder = fn (
-    c0: u256, c1: u256, fee: u256, ts: u256, registry: u256, asset_idx: u256
-) VolMarketKey(V4) {
-    golden_path_v4_build(c0, c1, fee, ts, registry, asset_idx)
-};
-
 // Golden path: start with all None, fill pair -> registry -> pool in memory, finalize.
 const golden_path_v4_build = fn (
     c0: u256, c1: u256, fee: u256, ts: u256, registry: u256, asset_idx: u256
@@ -116,6 +110,12 @@ const golden_path_v4_build = fn (
     require(vol_market_key_is_complete(V4, k3));
 
     vol_market_key_finalize(V4, k3)
+};
+
+const k_v4_via_builder = fn (
+    c0: u256, c1: u256, fee: u256, ts: u256, registry: u256, asset_idx: u256
+) VolMarketKey(V4) {
+    golden_path_v4_build(c0, c1, fee, ts, registry, asset_idx)
 };
 
 const golden_path_completeness_bitmap = fn (registry: u256) u256 {
