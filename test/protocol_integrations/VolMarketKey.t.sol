@@ -309,6 +309,7 @@ contract VolMarketKeyTest is PlankTestBase {
     /// stored key; VolMarketKey IS the key, so the equivalent evidence is field sensitivity.
     ///
     /// pair() sorts token addresses before they enter the hash; expected keccak uses the same order.
+    /// Registry and Pair now use addr, so fuzz inputs must fit uint160 (addr_from_u256 reverts otherwise).
     function test__fuzz__everyPoolKeyFieldFeedsTheV4PoolId(
         uint256 c0,
         uint256 c1,
@@ -316,7 +317,12 @@ contract VolMarketKeyTest is PlankTestBase {
         uint24 tickSpacing,
         uint256 hooks
     ) public {
+        vm.assume(c0 <= type(uint160).max);
+        vm.assume(c1 <= type(uint160).max);
+        vm.assume(hooks <= type(uint160).max);
         vm.assume(c0 != c1);
+        // XOR-1 perturbation of c0 must not make pair() see equal currencies.
+        vm.assume(c0 != (c1 ^ 1));
         uint256 got = _v4PoolIdFor(c0, c1, fee, tickSpacing, hooks);
         (uint256 t0, uint256 t1) = _sortedCurrencies(c0, c1);
         assertEq(
