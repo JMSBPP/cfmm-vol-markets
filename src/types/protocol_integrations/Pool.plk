@@ -15,9 +15,9 @@ const POOL_SEL_ALGEBRA_ENTRY_FACTORY = 0xc45a0155;
 
 const POOL_V4_DYNAMIC_FEE_KEY = 0x800000;
 const POOLS_SLOT = 6;
-const MASK_U160 = 0xffffffffffffffffffffffffffffffffffffffff;
-const MASK_U24 = 0xffffff;
-const MASK_U16 = 0xffff;
+const POOL_MASK_U160 = 0xffffffffffffffffffffffffffffffffffffffff;
+const POOL_MASK_U24 = 0xffffff;
+const POOL_MASK_U16 = 0xffff;
 
 const Pool = fn (comptime V: type) type {
     if !is_venue(V) {
@@ -77,13 +77,13 @@ const staticcall_u256 = fn (target: u256, cd: u256, len: u256) u256 {
 const pool_read_fee_v3 = fn (pool: u256) u256 {
     let cd = @malloc_uninit(4);
     @mstore4(cd, SEL_FEE_V3);
-    @evm_and(staticcall_u256(pool, cd, 4), MASK_U24)
+    @evm_and(staticcall_u256(pool, cd, 4), POOL_MASK_U24)
 };
 
 const pool_read_tick_spacing_v3 = fn (pool: u256) u256 {
     let cd = @malloc_uninit(4);
     @mstore4(cd, SEL_TICK_SPACING);
-    @evm_signextend(2, @evm_and(staticcall_u256(pool, cd, 4), MASK_U24))
+    @evm_signextend(2, @evm_and(staticcall_u256(pool, cd, 4), POOL_MASK_U24))
 };
 
 const pool_read_fee_algebra = fn (pool: u256) u256 {
@@ -91,7 +91,7 @@ const pool_read_fee_algebra = fn (pool: u256) u256 {
     @mstore4(cd, SEL_GLOBAL_STATE);
     let ret = @malloc_uninit(192);
     require(@evm_staticcall(@evm_gas(), pool, cd, 4, ret, 192));
-    @evm_and(@mload32(ret +% 64), MASK_U16)
+    @evm_and(@mload32(ret +% 64), POOL_MASK_U16)
 };
 
 const pool_read_tick_spacing_algebra = fn (pool: u256) u256 {
@@ -116,11 +116,11 @@ const pool_v4_slot0_word = fn (manager: u256, pool_id: u256) u256 {
 };
 
 const pool_v4_slot0_sqrt = fn (manager: u256, pool_id: u256) u256 {
-    @evm_and(pool_v4_slot0_word(manager, pool_id), MASK_U160)
+    @evm_and(pool_v4_slot0_word(manager, pool_id), POOL_MASK_U160)
 };
 
 const pool_v4_slot0_lp_fee = fn (manager: u256, pool_id: u256) u256 {
-    @evm_and(@evm_shr(208, pool_v4_slot0_word(manager, pool_id)), MASK_U24)
+    @evm_and(@evm_shr(208, pool_v4_slot0_word(manager, pool_id)), POOL_MASK_U24)
 };
 
 const pool_v3_at = fn (pool: addr) Pool(V3) {
