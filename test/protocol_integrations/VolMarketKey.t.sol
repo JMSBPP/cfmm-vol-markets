@@ -347,7 +347,7 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
     function test__unit__keyV4AtAndVerifyRoundTrip() public {
         deployFreshManagerAndRouters();
         (Currency c0, Currency c1) = deployMintAndApprove2Currencies();
-        uint24 fee = 3000;
+        uint24 fee = 0x800000;
         int24 tickSpacing = 60;
         address registry = address(new RegistryVerifyV4(address(manager)));
         initPool(c0, c1, IHooks(registry), fee, tickSpacing, SQRT_PRICE_1_1);
@@ -389,7 +389,7 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
     function test__unit__goldenPathV4AtMatchesLiteral() public {
         deployFreshManagerAndRouters();
         (Currency c0, Currency c1) = deployMintAndApprove2Currencies();
-        uint24 fee = 3000;
+        uint24 fee = 0x800000;
         int24 tickSpacing = 60;
         address registry = address(new RegistryVerifyV4(address(manager)));
         initPool(c0, c1, IHooks(registry), fee, tickSpacing, SQRT_PRICE_1_1);

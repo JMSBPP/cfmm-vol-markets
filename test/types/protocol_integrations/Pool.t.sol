@@ -155,7 +155,8 @@ contract PoolTest is PlankTestBase, Deployers {
     function test__unit__poolV4AtAndVerifyRoundTrip() public {
         deployFreshManagerAndRouters();
         (Currency c0, Currency c1) = deployMintAndApprove2Currencies();
-        uint24 fee = 3000;
+        // Dynamic fee: registry need not be CREATE2 hook-mined (see Hooks.isValidHookAddress).
+        uint24 fee = 0x800000;
         int24 tickSpacing = 60;
         address registry = address(new RegistryVerifyV4(address(manager)));
         initPool(c0, c1, IHooks(registry), fee, tickSpacing, SQRT_PRICE_1_1);
