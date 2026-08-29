@@ -43,3 +43,7 @@
 [submodule "evm-spec-bridge"]
 	path = evm-spec-bridge
 	url = https://github.com/d2p-finance/evm-spec-bridge.git
+[submodule "lib/cfmm-types"]
+	path = lib/cfmm-types
+	url = https://github.com/JMSBPP/cfmm-types.git
+	branch = develop

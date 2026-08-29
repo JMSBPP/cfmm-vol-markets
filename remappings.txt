@@ -46,5 +46,6 @@ utils/=src/lib/
 reactive-test-lib/=lib/reactive-test-lib/src/
 reactive=lib/reactive-smart-contract-demos/src/
 test/=test/
+cfmm-types-test/=lib/cfmm-types/test/
 
 v4-core-test/=lib/panoptic-v2-core/lib/v4-core/test/
