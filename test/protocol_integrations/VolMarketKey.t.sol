@@ -5,6 +5,7 @@ import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "test/PlankTestBase.sol";
 import {AlgebraIntegralDeployer} from "test/helpers/AlgebraIntegralDeployer.sol";
 import {IAlgebraFactory} from "@cryptoalgebra/integral-core/interfaces/IAlgebraFactory.sol";
+import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 
 /// Minimal stand-in for BOTH SFPMs: they share the signature
 /// `getPoolId(bytes memory id, uint8 vegoid) external view returns (uint64)`
@@ -37,9 +38,6 @@ contract V3FactoryStub {
     }
 }
 
-/// VolMarketKey harness pins K_C0/K_C1 as addr_from_u256(0x1111/0x2222). Deploy minimal ERC20s there
-/// so a real Algebra factory can createPool and poolByPair resolves the same pair.
-
 /// Phase 2.5 (KEY-01): VolMarketKey(V) is a comptime type constructor over a VENUE tag.
 ///
 /// The property under test is a TYPE-LEVEL one, so the evidence is split in two:
@@ -49,8 +47,6 @@ contract V3FactoryStub {
 ///   - the NEGATIVE side is a fixture that must FAIL to compile, asserted on the error TEXT rather
 ///     than the exit code, because a fixture containing a typo also fails to compile.
 contract VolMarketKeyTest is PlankTestBase {
-    address internal constant K_TOKEN0 = address(uint160(0x1111));
-    address internal constant K_TOKEN1 = address(uint160(0x2222));
     bytes internal constant ZERO_BYTES = new bytes(0);
 
     address harness;
@@ -205,22 +201,25 @@ contract VolMarketKeyTest is PlankTestBase {
     }
 
     function test__unit__algebraPoolAddressVerifiedAgainstTheFactory() public {
-        _deployHarnessTokens();
-        AlgebraIntegralDeployer.Deployment memory d = AlgebraIntegralDeployer.deploy(vm);
-        address pool = IAlgebraFactory(d.factory).createPool(K_TOKEN0, K_TOKEN1, ZERO_BYTES);
-        assertNotEq(pool, address(0));
+        (address entryPoint, address pool, address t0, address t1) = _algebraPoolFixture();
         (bool ok,) = harness.staticcall(
-            abi.encodeWithSignature("verifyPoolAlgebra(address,address)", d.entryPoint, pool)
+            abi.encodeWithSignature(
+                "verifyPoolAlgebra(address,address,uint256,uint256)", entryPoint, pool, t0, t1
+            )
         );
         assertTrue(ok, "algebra pool matching poolByPair must verify");
     }
 
     function test__unit__algebraPoolAddressMismatchReverts() public {
-        _deployHarnessTokens();
-        AlgebraIntegralDeployer.Deployment memory d = AlgebraIntegralDeployer.deploy(vm);
-        IAlgebraFactory(d.factory).createPool(K_TOKEN0, K_TOKEN1, ZERO_BYTES);
+        (address entryPoint,, address t0, address t1) = _algebraPoolFixture();
         (bool ok,) = harness.staticcall(
-            abi.encodeWithSignature("verifyPoolAlgebra(address,address)", d.entryPoint, address(0xDEAD))
+            abi.encodeWithSignature(
+                "verifyPoolAlgebra(address,address,uint256,uint256)",
+                entryPoint,
+                address(0xDEAD),
+                t0,
+                t1
+            )
         );
         assertFalse(ok, "algebra mismatch must revert");
     }
@@ -388,21 +387,23 @@ contract VolMarketKeyTest is PlankTestBase {
 
     // ---- helpers -----------------------------------------------------------------------------
 
-    function _deployHarnessTokens() internal {
-        if (K_TOKEN0.code.length == 0) {
-            vm.deployCode(
-                "solmate/src/test/utils/mocks/MockERC20.sol:MockERC20",
-                abi.encode("C0", "C0", 18),
-                K_TOKEN0
-            );
+    function _algebraPoolFixture()
+        internal
+        returns (address entryPoint, address pool, address t0, address t1)
+    {
+        MockERC20 tokenA = new MockERC20("TOKEN_A", "TOKEN_A", 18);
+        MockERC20 tokenB = new MockERC20("TOKEN_B", "TOKEN_B", 18);
+        if (address(tokenA) < address(tokenB)) {
+            t0 = address(tokenA);
+            t1 = address(tokenB);
+        } else {
+            t0 = address(tokenB);
+            t1 = address(tokenA);
         }
-        if (K_TOKEN1.code.length == 0) {
-            vm.deployCode(
-                "solmate/src/test/utils/mocks/MockERC20.sol:MockERC20",
-                abi.encode("C1", "C1", 18),
-                K_TOKEN1
-            );
-        }
+        AlgebraIntegralDeployer.Deployment memory d = AlgebraIntegralDeployer.deploy(vm);
+        entryPoint = d.entryPoint;
+        pool = IAlgebraFactory(d.factory).createPool(t0, t1, ZERO_BYTES);
+        assertNotEq(pool, address(0));
     }
 
     /// `plank build <path>` with the same module roots as PlankTestBase.plankOpts(), no deploy.
