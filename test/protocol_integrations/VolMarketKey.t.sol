@@ -267,6 +267,21 @@ contract VolMarketKeyTest is PlankTestBase {
         );
     }
 
+    /// vol_market_key + pair + registry_v4 + pool_v4 must agree with the literal struct path.
+    function test__unit__v4KeyBuiltViaPairMatchesLiteral() public {
+        (bool okLit, bytes memory rLit) =
+            harness.staticcall(abi.encodeWithSignature("v4PoolId()"));
+        (bool okPair, bytes memory rPair) =
+            harness.staticcall(abi.encodeWithSignature("v4KeyViaPair()"));
+        require(okLit, "v4PoolId reverted");
+        require(okPair, "v4KeyViaPair reverted");
+        assertEq(
+            abi.decode(rLit, (uint256)),
+            abi.decode(rPair, (uint256)),
+            "pair-built key must match literal path"
+        );
+    }
+
     // The fixed key the harness builds for the V4 arm. Kept in both places deliberately: if they
     // drift, v4PoolIdIsTheCanonicalUniV4PoolId fails, which is the intended alarm.
     uint256 internal constant C0 = 0x1111;
