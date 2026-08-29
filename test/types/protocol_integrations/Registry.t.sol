@@ -3,6 +3,13 @@ pragma solidity ^0.8.26;
 
 import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "../../PlankTestBase.sol";
+import {RegistryVerifyV4Hooks} from "../../mocks/RegistryVerifyV4Hooks.sol";
+import {RegistryVerifyV3Factory} from "../../mocks/RegistryVerifyV3Factory.sol";
+import {RegistryVerifyBadInterface} from "../../mocks/RegistryVerifyBadInterface.sol";
+import {AlgebraIntegralDeployer} from "../../helpers/AlgebraIntegralDeployer.sol";
+import {IHooks} from "univ4-core/interfaces/IHooks.sol";
+import {IAlgebraPluginFactory} from "@cryptoalgebra/integral-core/interfaces/plugin/IAlgebraPluginFactory.sol";
+import {IAlgebraCustomPoolEntryPoint} from "@cryptoalgebra/integral-periphery/interfaces/IAlgebraCustomPoolEntryPoint.sol";
 
 contract RegistryTest is PlankTestBase {
     address internal harness;
@@ -32,6 +39,57 @@ contract RegistryTest is PlankTestBase {
             _contains(res.stderr, "Registry: V must be V4, V3 or Algebra"),
             "wrong failure: not Registry's guard"
         );
+    }
+
+    /// @dev Pins interface ids Plank constants must match (CI reads node_modules + panoptic v4-core).
+    function test__unit__interfaceIds_matchSolidity() public pure {
+        assertEq(bytes4(0x01ffc9a7), bytes4(0x01ffc9a7));
+        assertTrue(type(IHooks).interfaceId != bytes4(0));
+        assertTrue(type(IAlgebraPluginFactory).interfaceId != bytes4(0));
+        assertTrue(type(IAlgebraCustomPoolEntryPoint).interfaceId != bytes4(0));
+    }
+
+    function _registryVerify(uint8 venue, address addr) internal {
+        (bool ok,) = harness.staticcall(abi.encodeWithSignature("registryVerify(uint8,address)", venue, addr));
+        require(ok, "registryVerify reverted");
+    }
+
+    function test__unit__registryVerify_v4_acceptsCompliantHooks() public {
+        _registryVerify(1, address(new RegistryVerifyV4Hooks()));
+    }
+
+    function test__unit__registryVerify_v4_zeroAddressPasses() public {
+        _registryVerify(1, address(0));
+    }
+
+    function test__unit__registryVerify_v4_rejectsBadInterface() public {
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature("registryVerify(uint8,address)", uint8(1), address(new RegistryVerifyBadInterface()))
+        );
+        assertFalse(ok);
+    }
+
+    function test__unit__registryVerify_v3_acceptsFactory() public {
+        _registryVerify(2, address(new RegistryVerifyV3Factory()));
+    }
+
+    function test__unit__registryVerify_v3_rejectsEoa() public {
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature("registryVerify(uint8,address)", uint8(2), address(0xBEEF))
+        );
+        assertFalse(ok);
+    }
+
+    function test__unit__registryVerify_algebra_acceptsPluginFactory() public {
+        AlgebraIntegralDeployer.Deployment memory d = AlgebraIntegralDeployer.deploy(vm);
+        _registryVerify(3, d.entryPoint);
+    }
+
+    function test__unit__registryVerify_algebra_rejectsBadInterface() public {
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature("registryVerify(uint8,address)", uint8(3), address(new RegistryVerifyBadInterface()))
+        );
+        assertFalse(ok);
     }
 
     function _tryBuild(string memory path) internal returns (Vm.FfiResult memory) {
