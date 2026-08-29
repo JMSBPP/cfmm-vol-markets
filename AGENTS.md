@@ -74,3 +74,5 @@ instantiates, so an un-instantiated branch is text the compiler has never seen.
 
 - Foundry — https://book.getfoundry.sh
 - Plank / protocol spec — the `spec/` submodule (`d2p-finance/cfmm-vol-markets-spec`)
+
+## [.spec](./spec/README.md)
