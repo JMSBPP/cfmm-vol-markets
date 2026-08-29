@@ -55,10 +55,12 @@ contract V3FactoryStub {
 ///     than the exit code, because a fixture containing a typo also fails to compile.
 contract VolMarketKeyTest is PlankTestBase, Deployers {
     address harness;
+    address hookMiner;
     address v4Registry;
 
     function setUp() public {
         harness = deployPlank("test/protocol_integrations/VolMarketKeyHarness.plk");
+        hookMiner = deployCfmmTypesPlank("lib/cfmm-types/src/types/uniswap_v4/Hook.plk");
         v4Registry = address(new RegistryVerifyV4(address(0x1)));
     }
 
@@ -350,7 +352,7 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
         (Currency c0, Currency c1) = deployMintAndApprove2Currencies();
         uint24 fee = 0x800000;
         int24 tickSpacing = 60;
-        address registry = MinedRegistryV4Deployer.deploy(address(this), address(manager));
+        address registry = MinedRegistryV4Deployer.deploy(hookMiner, address(manager));
         initPool(c0, c1, IHooks(registry), fee, tickSpacing, SQRT_PRICE_1_1);
 
         address t0 = Currency.unwrap(c0);
@@ -392,7 +394,7 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
         (Currency c0, Currency c1) = deployMintAndApprove2Currencies();
         uint24 fee = 0x800000;
         int24 tickSpacing = 60;
-        address registry = MinedRegistryV4Deployer.deploy(address(this), address(manager));
+        address registry = MinedRegistryV4Deployer.deploy(hookMiner, address(manager));
         initPool(c0, c1, IHooks(registry), fee, tickSpacing, SQRT_PRICE_1_1);
 
         address t0 = Currency.unwrap(c0);

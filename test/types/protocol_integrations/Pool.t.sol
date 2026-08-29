@@ -29,10 +29,12 @@ contract V3FactoryStub {
 
 contract PoolTest is PlankTestBase, Deployers {
     address internal harness;
+    address internal hookMiner;
     address internal constant POOL_ADDR = address(0x00000000000000000000000000000000000000AB);
 
     function setUp() public {
         harness = deployPlank("test/types/protocol_integrations/PoolHarness.plk");
+        hookMiner = deployCfmmTypesPlank("lib/cfmm-types/src/types/uniswap_v4/Hook.plk");
     }
 
     function test__unit__allThreeVenuesInstantiate() public {
@@ -159,7 +161,7 @@ contract PoolTest is PlankTestBase, Deployers {
         // Dynamic fee: registry need not be CREATE2 hook-mined (see Hooks.isValidHookAddress).
         uint24 fee = 0x800000;
         int24 tickSpacing = 60;
-        address registry = MinedRegistryV4Deployer.deploy(address(this), address(manager));
+        address registry = MinedRegistryV4Deployer.deploy(hookMiner, address(manager));
         initPool(c0, c1, IHooks(registry), fee, tickSpacing, SQRT_PRICE_1_1);
 
         address t0 = Currency.unwrap(c0);
