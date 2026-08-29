@@ -77,8 +77,26 @@ contract PairTest is PlankTestBase {
         assertFalse(ok, "asset_idx > 1 must revert, not mask");
     }
 
+    function test__unit__compliantErc20Errors_matchOz() public {
+        PairVerifyCompliantERC20 t = new PairVerifyCompliantERC20();
+        (bool ok1, bytes memory d1) = address(t).call(
+            abi.encodeWithSelector(PairVerifyCompliantERC20.transfer.selector, address(this), uint256(1))
+        );
+        assertFalse(ok1);
+        assertEq(bytes4(d1), bytes4(0xe450d38c));
+
+        vm.prank(address(harness));
+        (bool ok2, bytes memory d2) = address(t).call(
+            abi.encodeWithSelector(
+                PairVerifyCompliantERC20.transferFrom.selector, address(harness), address(harness), uint256(1)
+            )
+        );
+        assertFalse(ok2);
+        assertEq(bytes4(d2), bytes4(0xfb8f41b2));
+    }
+
     function _pairVerifyErc20(address a, address b, uint256 assetIdx) internal {
-        (bool ok,) = harness.call(
+        (bool ok,) = harness.call{gas: 10_000_000}(
             abi.encodeWithSignature("pairVerifyErc20(address,address,uint256)", a, b, assetIdx)
         );
         require(ok, "pairVerifyErc20 reverted");
@@ -93,7 +111,7 @@ contract PairTest is PlankTestBase {
     function test__unit__pairVerifyErc20_rejectsBadTransfer() public {
         PairVerifyBadTransferERC20 t0 = new PairVerifyBadTransferERC20();
         PairVerifyCompliantERC20 t1 = new PairVerifyCompliantERC20();
-        (bool ok,) = harness.call(
+        (bool ok,) = harness.call{gas: 10_000_000}(
             abi.encodeWithSignature("pairVerifyErc20(address,address,uint256)", address(t0), address(t1), 0)
         );
         assertFalse(ok, "bad transfer token must fail verify");
@@ -102,7 +120,7 @@ contract PairTest is PlankTestBase {
     function test__unit__pairVerifyErc20_rejectsBadAllowance() public {
         PairVerifyCompliantERC20 t0 = new PairVerifyCompliantERC20();
         PairVerifyBadAllowanceERC20 t1 = new PairVerifyBadAllowanceERC20();
-        (bool ok,) = harness.call(
+        (bool ok,) = harness.call{gas: 10_000_000}(
             abi.encodeWithSignature("pairVerifyErc20(address,address,uint256)", address(t0), address(t1), 0)
         );
         assertFalse(ok, "wrong allowance revert must fail verify");
@@ -111,7 +129,7 @@ contract PairTest is PlankTestBase {
     function test__unit__pairVerifyErc20_rejectsEoa() public {
         address eoa = address(0xBEEF);
         PairVerifyCompliantERC20 t1 = new PairVerifyCompliantERC20();
-        (bool ok,) = harness.call(
+        (bool ok,) = harness.call{gas: 10_000_000}(
             abi.encodeWithSignature("pairVerifyErc20(address,address,uint256)", eoa, address(t1), 0)
         );
         assertFalse(ok, "EOA must fail balanceOf probe");
