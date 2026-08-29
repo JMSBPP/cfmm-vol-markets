@@ -164,11 +164,7 @@ jobs:
           git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
           git submodule update --init lib/cfmm-types
           git -C lib/cfmm-types config submodule.lib/v4-hooks-public.update none
-          git submodule update --init \
-            lib/cfmm-types/lib/v4-core \
-            lib/cfmm-types/lib/forge-std \
-            lib/cfmm-types/lib/plank-foundry-deployer \
-            lib/cfmm-types/lib/plank-monorepo
+          git submodule update --init --recursive lib/cfmm-types
           git submodule update --init --recursive -- lib/
 
       # A plank-monorepo pin bump changes the compiler AND std, but the runner's persistent
