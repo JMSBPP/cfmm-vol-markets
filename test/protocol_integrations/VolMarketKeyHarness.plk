@@ -185,21 +185,24 @@ run {
     }
 
     if selector == SEL_VERIFY_POOL_V3 {
-        let k = k_v3(@evm_calldataload(4), @evm_calldataload(36));
+        let k = vol_market_key_v3_at(
+            pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
+            registry_v3(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
+        );
         vol_market_key_verify_pool(V3, k);
         return_1(1);
     }
 
     if selector == SEL_VERIFY_POOL_ALGEBRA {
-        let k = vol_market_key(
-            Algebra,
-            Some(pair(
+        let k = vol_market_key_algebra_at(
+            pair(
                 addr_from_u256(@evm_calldataload(68)),
                 addr_from_u256(@evm_calldataload(100)),
                 0
-            )),
-            Some(registry_algebra(addr_from_u256(@evm_calldataload(4)))),
-            Some(pool_algebra(addr_from_u256(@evm_calldataload(36)), 0, K_TICK_SPACING))
+            ),
+            registry_algebra(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
         );
         vol_market_key_verify_pool(Algebra, k);
         return_1(1);

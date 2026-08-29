@@ -248,7 +248,7 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
     /// Never CREATE2-derived, so no POOL_INIT_CODE_HASH is pinned anywhere and the same code works
     /// across forks and chains where a patched pool contract would change the init hash.
     function test__unit__v3PoolAddressVerifiedAgainstTheFactory() public {
-        address pool = address(0xBEEF);
+        address pool = address(new PoolVerifyV3Pool(3000, 60));
         address factory = address(new V3FactoryStub(pool));
         (bool ok,) = harness.staticcall(
             abi.encodeWithSignature("verifyPoolV3(address,address)", factory, pool)
@@ -257,6 +257,7 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
     }
 
     function test__unit__v3PoolAddressMismatchReverts() public {
+        address pool = address(new PoolVerifyV3Pool(3000, 60));
         address factory = address(new V3FactoryStub(address(0xBEEF)));
         (bool ok,) = harness.staticcall(
             abi.encodeWithSignature("verifyPoolV3(address,address)", factory, address(0xDEAD))
