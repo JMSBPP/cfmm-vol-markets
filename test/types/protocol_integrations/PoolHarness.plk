@@ -1,0 +1,77 @@
+import std::constructor::return_runtime;
+import std::core::addr::{addr_from_u256, cast_addr};
+import types::protocol_integrations::Pool::*;
+import types::protocol_integrations::Venue::*;
+
+// cast sig "venueWitness()" -> 0xbe55e3a4
+const SEL_VENUE_WITNESS = 0xbe55e3a4;
+// cast sig "poolWordV4(uint256,uint256)" -> 0xfee9c5f2
+const SEL_POOL_WORD_V4 = 0xfee9c5f2;
+// cast sig "poolWordV3(address,uint256,uint256)" -> 0xf7f97f95
+const SEL_POOL_WORD_V3 = 0xf7f97f95;
+// cast sig "poolFeeAlgebra(address,uint256)" -> 0x7c11ef3d
+const SEL_POOL_FEE_ALGEBRA = 0x7c11ef3d;
+// cast sig "poolTickSpacingV3(address,uint256,uint256)" -> 0x889c71d2
+const SEL_POOL_TICK_SPACING_V3 = 0x889c71d2;
+
+init { return_runtime(); }
+
+const venue_code = fn (comptime V: type, p: Pool(V)) u256 {
+    if V == V4 { return 1 +% (pool_word(V, p) & 0); }
+    if V == V3 { return 2 +% (pool_word(V, p) & 0); }
+    3 +% (pool_word(V, p) & 0)
+};
+
+const return_1 = fn (a: u256) never {
+    let out = @malloc_uninit(32);
+    @mstore32(out, a);
+    @evm_return(out, 32);
+};
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    if selector == SEL_VENUE_WITNESS {
+        let p4 = @uninit(Pool(V4));
+        let p3 = @uninit(Pool(V3));
+        let pa = @uninit(Pool(Algebra));
+        return_1(
+            venue_code(V4, p4)
+            | @evm_shl(2, venue_code(V3, p3))
+            | @evm_shl(4, venue_code(Algebra, pa))
+        );
+    }
+
+    if selector == SEL_POOL_WORD_V4 {
+        let p = pool_v4(@evm_calldataload(4), @evm_calldataload(36));
+        return_1(pool_word(V4, p));
+    }
+
+    if selector == SEL_POOL_WORD_V3 {
+        let p = pool_v3(
+            addr_from_u256(@evm_calldataload(4)),
+            @evm_calldataload(36),
+            @evm_calldataload(68)
+        );
+        return_1(pool_word(V3, p));
+    }
+
+    if selector == SEL_POOL_FEE_ALGEBRA {
+        let p = pool_algebra(
+            addr_from_u256(@evm_calldataload(4)),
+            @evm_calldataload(36)
+        );
+        return_1(pool_fee(Algebra, p));
+    }
+
+    if selector == SEL_POOL_TICK_SPACING_V3 {
+        let p = pool_v3(
+            addr_from_u256(@evm_calldataload(4)),
+            @evm_calldataload(36),
+            @evm_calldataload(68)
+        );
+        return_1(pool_tick_spacing(V3, p));
+    }
+
+    @evm_stop();
+}

@@ -1,0 +1,13 @@
+// NEGATIVE fixture (phase 2b): Pool(V) must reject a V that is not one of the three venue tags.
+import std::constructor::return_runtime;
+import types::protocol_integrations::Pool::*;
+
+const bad = fn (p: Pool(u256)) u256 { pool_word(u256, p) };
+
+init { return_runtime(); }
+run {
+    let p = @uninit(Pool(u256));
+    let out = @malloc_uninit(32);
+    @mstore32(out, bad(p));
+    @evm_return(out, 32);
+}

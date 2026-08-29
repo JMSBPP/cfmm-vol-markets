@@ -1,0 +1,100 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
+
+import {Vm} from "forge-std/Vm.sol";
+import {PlankTestBase} from "../../PlankTestBase.sol";
+
+contract PoolTest is PlankTestBase {
+    address internal harness;
+    address internal constant POOL_ADDR = address(0x00000000000000000000000000000000000000AB);
+
+    function setUp() public {
+        harness = deployPlank("test/types/protocol_integrations/PoolHarness.plk");
+    }
+
+    function test__unit__allThreeVenuesInstantiate() public {
+        (bool ok, bytes memory r) = harness.staticcall(abi.encodeWithSignature("venueWitness()"));
+        require(ok, "venueWitness reverted");
+        assertEq(abi.decode(r, (uint256)), 57, "venue codes wrong");
+    }
+
+    function test__unit__poolWordV4IsZero() public {
+        (bool ok, bytes memory r) =
+            harness.staticcall(abi.encodeWithSignature("poolWordV4(uint256,uint256)", uint256(3000), uint256(60)));
+        require(ok, "poolWordV4 reverted");
+        assertEq(abi.decode(r, (uint256)), 0, "V4 pool_word must be 0");
+    }
+
+    function test__unit__poolWordV3IsPoolAddress() public {
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature("poolWordV3(address,uint256,uint256)", POOL_ADDR, uint256(3000), uint256(60))
+        );
+        require(ok, "poolWordV3 reverted");
+        assertEq(abi.decode(r, (uint256)), uint256(uint160(POOL_ADDR)), "V3 pool_word must be pool address");
+    }
+
+    function test__unit__poolFeeAlgebraIsZero() public {
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature("poolFeeAlgebra(address,uint256)", POOL_ADDR, uint256(60))
+        );
+        require(ok, "poolFeeAlgebra reverted");
+        assertEq(abi.decode(r, (uint256)), 0, "Algebra pool_fee must be 0");
+    }
+
+    function test__unit__poolTickSpacingRoundTrip() public {
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature("poolTickSpacingV3(address,uint256,uint256)", POOL_ADDR, uint256(3000), uint256(60))
+        );
+        require(ok, "poolTickSpacingV3 reverted");
+        assertEq(abi.decode(r, (uint256)), 60, "tick_spacing round-trip");
+    }
+
+    function test__unit__nonVenueTagDoesNotCompile() public {
+        Vm.FfiResult memory res = _tryBuild("fixtures/plank-negative/PoolBadVenue.plk");
+        assertTrue(res.exitCode != 0, "Pool(u256) compiled");
+        assertTrue(
+            _contains(res.stderr, "Pool: V must be V4, V3 or Algebra"),
+            "wrong failure: not Pool's guard"
+        );
+    }
+
+    function _tryBuild(string memory path) internal returns (Vm.FfiResult memory) {
+        string[] memory a = new string[](19);
+        a[0] = "plank";
+        a[1] = "build";
+        a[2] = path;
+        a[3] = "--backend";
+        a[4] = "sona";
+        a[5] = "--dep";
+        a[6] = "v3=lib/plankified-univ3/plank/lib";
+        a[7] = "--dep";
+        a[8] = "std=lib/plank-monorepo/std/";
+        a[9] = "--dep";
+        a[10] = "pos_spec=src/types/pos_spec";
+        a[11] = "--dep";
+        a[12] = "lib=src/lib";
+        a[13] = "--dep";
+        a[14] = "types=src/types";
+        a[15] = "--dep";
+        a[16] = "interfaces=src/interfaces";
+        a[17] = "--dep";
+        a[18] = "helpers=test/protocol_integrations/helpers";
+        return vm.tryFfi(a);
+    }
+
+    function _contains(bytes memory hay, string memory needle) internal pure returns (bool) {
+        bytes memory n = bytes(needle);
+        if (n.length == 0 || n.length > hay.length) return false;
+        for (uint256 i = 0; i + n.length <= hay.length; i++) {
+            bool m = true;
+            for (uint256 j = 0; j < n.length; j++) {
+                if (hay[i + j] != n[j]) {
+                    m = false;
+                    break;
+                }
+            }
+            if (m) return true;
+        }
+        return false;
+    }
+}
