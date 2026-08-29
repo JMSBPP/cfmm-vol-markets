@@ -162,6 +162,9 @@ jobs:
           # panoptic one level, block panoptic-helper, then init the rest recursively.
           git submodule update --init lib/panoptic-v2-core
           git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
+          git submodule update --init lib/cfmm-types
+          git -C lib/cfmm-types config submodule.lib/v4-hooks-public.update none
+          git submodule update --init --recursive lib/cfmm-types
           git submodule update --init --recursive -- lib/
 
       # A plank-monorepo pin bump changes the compiler AND std, but the runner's persistent

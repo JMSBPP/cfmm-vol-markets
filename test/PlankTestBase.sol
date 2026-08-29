@@ -36,8 +36,25 @@ abstract contract PlankTestBase is Test, PlankDeployer {
         opts.dependencies = deps;
     }
 
+    /// @dev cfmm-types Plank roots (`lib/cfmm-types`). Uses `types=lib/cfmm-types/src/types`
+    ///      so Hook/Create2 compile without colliding with vol-markets `src/types`.
+    ///      Keep in sync with Makefile:CFMM_TYPES_PLANK_DEP.
+    function cfmmTypesPlankOpts() internal pure returns (BuildOptions memory opts) {
+        opts.backend = "sona";
+
+        Dependency[] memory deps = new Dependency[](2);
+        deps[0] = Dependency("std", "lib/cfmm-types/lib/plank-monorepo/std/");
+        deps[1] = Dependency("types", "lib/cfmm-types/src/types");
+        opts.dependencies = deps;
+    }
+
     /// @notice Compile and deploy a `.plk` entrypoint with the standard module roots.
     function deployPlank(string memory path) internal returns (address) {
         return plankDeployFFI(path, plankOpts());
+    }
+
+    /// @notice Deploy a cfmm-types `.plk` entrypoint (Hook miner, etc.).
+    function deployCfmmTypesPlank(string memory path) internal returns (address) {
+        return plankDeployFFI(path, cfmmTypesPlankOpts());
     }
 }
