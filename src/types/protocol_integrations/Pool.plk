@@ -9,9 +9,9 @@ const SEL_FEE_V3 = 0xddca3f43;
 const SEL_TICK_SPACING = 0xd0c93a7c;
 const SEL_GLOBAL_STATE = 0xe76c01e4;
 const SEL_EXTSLOAD = 0x1e2eaeaf;
-const SEL_GET_POOL = 0x1698ee82;
-const SEL_POOL_BY_PAIR = 0xd9a641e1;
-const SEL_ALGEBRA_ENTRY_FACTORY = 0xc45a0155;
+const POOL_SEL_GET_POOL = 0x1698ee82;
+const POOL_SEL_POOL_BY_PAIR = 0xd9a641e1;
+const POOL_SEL_ALGEBRA_ENTRY_FACTORY = 0xc45a0155;
 
 const POOL_V4_DYNAMIC_FEE_KEY = 0x800000;
 const POOLS_SLOT = 6;
@@ -165,7 +165,7 @@ const pool_verify_v3 = fn (p: Pool(V3), pair: Pair, registry: Registry(V3)) void
     require(pool_read_fee_v3(pool_u) == p.fee);
     require(pool_read_tick_spacing_v3(pool_u) == p.tick_spacing);
     let cd = @malloc_uninit(100);
-    @mstore4(cd, SEL_GET_POOL);
+    @mstore4(cd, POOL_SEL_GET_POOL);
     @mstore32(cd +% 4, cast_addr(pair.token0, u256));
     @mstore32(cd +% 36, cast_addr(pair.token1, u256));
     @mstore32(cd +% 68, p.fee);
@@ -179,14 +179,14 @@ const pool_verify_algebra = fn (p: Pool(Algebra), pair: Pair, registry: Registry
     require(pool_read_fee_algebra(pool_u) == p.fee);
     require(pool_read_tick_spacing_algebra(pool_u) == p.tick_spacing);
     let factory_cd = @malloc_uninit(4);
-    @mstore4(factory_cd, SEL_ALGEBRA_ENTRY_FACTORY);
+    @mstore4(factory_cd, POOL_SEL_ALGEBRA_ENTRY_FACTORY);
     let factory_ret = @malloc_uninit(32);
     require(@evm_staticcall(
         @evm_gas(), registry_addr(Algebra, registry), factory_cd, 4, factory_ret, 32
     ));
     let factory = @mload32(factory_ret);
     let cd = @malloc_uninit(68);
-    @mstore4(cd, SEL_POOL_BY_PAIR);
+    @mstore4(cd, POOL_SEL_POOL_BY_PAIR);
     @mstore32(cd +% 4, cast_addr(pair.token0, u256));
     @mstore32(cd +% 36, cast_addr(pair.token1, u256));
     let ret = @malloc_uninit(32);

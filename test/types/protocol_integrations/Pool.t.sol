@@ -28,7 +28,6 @@ contract V3FactoryStub {
 contract PoolTest is PlankTestBase, Deployers {
     address internal harness;
     address internal constant POOL_ADDR = address(0x00000000000000000000000000000000000000AB);
-    bytes internal constant ZERO_BYTES = new bytes(0);
 
     function setUp() public {
         harness = deployPlank("test/types/protocol_integrations/PoolHarness.plk");
@@ -169,7 +168,7 @@ contract PoolTest is PlankTestBase, Deployers {
                 uint256(uint160(t0)),
                 uint256(uint160(t1)),
                 uint256(0),
-                uint256(tickSpacing),
+                uint256(int256(tickSpacing)),
                 uint256(fee)
             )
         );
