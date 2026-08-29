@@ -43,7 +43,7 @@ abstract contract PlankTestBase is Test, PlankDeployer {
         opts.backend = "sona";
 
         Dependency[] memory deps = new Dependency[](2);
-        deps[0] = Dependency("std", "lib/plank-monorepo/std/");
+        deps[0] = Dependency("std", "lib/cfmm-types/lib/plank-monorepo/std/");
         deps[1] = Dependency("types", "lib/cfmm-types/src/types");
         opts.dependencies = deps;
     }

@@ -262,7 +262,7 @@ PLANK_DEP := --dep v3=lib/plankified-univ3/plank/lib/ --dep std=lib/plank-monore
              --dep model_libraries=src/models/mev_tax_model_one/libraries/
 # cfmm-types entrypoints (Hook.plk): types root points at the submodule, not src/types.
 # Keep in sync with test/PlankTestBase.sol:cfmmTypesPlankOpts().
-CFMM_TYPES_PLANK_DEP := --dep std=lib/plank-monorepo/std/ --dep types=lib/cfmm-types/src/types
+CFMM_TYPES_PLANK_DEP := --dep std=lib/cfmm-types/lib/plank-monorepo/std/ --dep types=lib/cfmm-types/src/types
 # ^ `helpers`: test-only Plank helper libs (PriceUpdateLogWithSwap) that a src module's
 #   TEST-oriented entrypoint (PriceSetterHook.write_price) imports. Kept in sync with
 #   test/PlankTestBase.sol:plankOpts().
