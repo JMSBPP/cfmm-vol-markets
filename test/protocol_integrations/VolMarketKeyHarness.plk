@@ -1,6 +1,7 @@
 import std::constructor::return_runtime;
 import std::core::addr::addr_from_u256;
 import std::error::require;
+import std::option::{Some, None};
 import types::Pair::*;
 import types::protocol_integrations::Pool::*;
 import types::protocol_integrations::Registry::*;
@@ -54,15 +55,15 @@ const k_v4 = fn (
 ) VolMarketKey(V4) {
     let p = pair(addr_from_u256(c0), addr_from_u256(c1), asset_idx);
     let reg = registry_v4(addr_from_u256(registry));
-    vol_market_key(V4, p, reg, pool_v4(p, reg, fee, ts))
+    vol_market_key(V4, Some(p), Some(reg), Some(pool_v4(p, reg, fee, ts)))
 };
 
 const k_v3 = fn (factory: u256, pool_addr: u256) VolMarketKey(V3) {
     vol_market_key(
         V3,
-        pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
-        registry_v3(addr_from_u256(factory)),
-        pool_v3(addr_from_u256(pool_addr), K_FEE, K_TICK_SPACING)
+        Some(pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0)),
+        Some(registry_v3(addr_from_u256(factory))),
+        Some(pool_v3(addr_from_u256(pool_addr), K_FEE, K_TICK_SPACING))
     )
 };
 
@@ -72,15 +73,10 @@ const k_v4_via_builder = fn (
     let p = pair(addr_from_u256(c0), addr_from_u256(c1), asset_idx);
     let reg = registry_v4(addr_from_u256(registry));
     let pool = pool_v4(p, reg, fee, ts);
-    vol_market_key_with_pool(
-        V4,
-        vol_market_key_with_registry(
-            V4,
-            vol_market_key_with_pair(V4, vol_market_key_empty(V4), p),
-            reg
-        ),
-        pool
-    )
+    let k0 = vol_market_key(V4, None(Pair), None(Registry(V4)), None(Pool(V4)));
+    let k1 = vol_market_key(V4, Some(p), k0.registry, k0.pool);
+    let k2 = vol_market_key(V4, k1.pair, Some(reg), k1.pool);
+    vol_market_key(V4, k2.pair, k2.registry, Some(pool))
 };
 
 const venue_code = fn (comptime V: type, k: VolMarketKey(V)) u256 {
@@ -127,13 +123,13 @@ run {
     if selector == SEL_VERIFY_POOL_ALGEBRA {
         let k = vol_market_key(
             Algebra,
-            pair(
+            Some(pair(
                 addr_from_u256(@evm_calldataload(68)),
                 addr_from_u256(@evm_calldataload(100)),
                 0
-            ),
-            registry_algebra(addr_from_u256(@evm_calldataload(4))),
-            pool_algebra(addr_from_u256(@evm_calldataload(36)), 0, K_TICK_SPACING)
+            )),
+            Some(registry_algebra(addr_from_u256(@evm_calldataload(4)))),
+            Some(pool_algebra(addr_from_u256(@evm_calldataload(36)), 0, K_TICK_SPACING))
         );
         vol_market_key_verify_pool(Algebra, k);
         return_1(1);
@@ -173,7 +169,7 @@ run {
     }
 
     if selector == SEL_KEY_IS_COMPLETE {
-        let empty = vol_market_key_empty(V4);
+        let empty = vol_market_key(V4, None(Pair), None(Registry(V4)), None(Pool(V4)));
         require(!vol_market_key_is_complete(V4, empty));
         let full = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, @evm_calldataload(4), 0);
         require(vol_market_key_is_complete(V4, full));
@@ -188,7 +184,10 @@ run {
 
     if selector == SEL_PANOPTIC_ON_EMPTY {
         vol_market_key_to_panoptic_pool_id(
-            V4, vol_market_key_empty(V4), @evm_calldataload(36), @evm_calldataload(68)
+            V4,
+            vol_market_key(V4, None(Pair), None(Registry(V4)), None(Pool(V4))),
+            @evm_calldataload(36),
+            @evm_calldataload(68)
         );
         return_1(1);
     }

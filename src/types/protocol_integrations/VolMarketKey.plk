@@ -13,8 +13,8 @@ import types::protocol_integrations::Venue::*;
 // DISTINCT types even though the fields are identical, so an Algebra key can never be read as a V4
 // one -- a cross-venue call site is a COMPILE error, not a runtime revert.
 //
-// Fields are Option-wrapped so callers can assemble a key incrementally (like VolOrder's `extra`).
-// Proof fns require a complete key via vol_market_key_require_complete.
+// Fields are Option-wrapped; vol_market_key(V, …) is the sole value constructor.
+// Pass None for absent slots; proof fns require all three Some via vol_market_key_is_complete.
 //
 // ---------------------------------------------------------------------------------------------
 // ASSET vs NUMERAIRE -- read this before touching asset_index.
@@ -35,28 +35,13 @@ const VolMarketKey = fn (comptime V: type) type {
     };
 };
 
-const vol_market_key_empty = fn (comptime V: type) VolMarketKey(V) {
-    VolMarketKey(V) {
-        pair: None(Pair),
-        registry: None(Registry(V)),
-        pool: None(Pool(V))
-    }
-};
-
-const vol_market_key_with_pair = fn (comptime V: type, k: VolMarketKey(V), p: Pair) VolMarketKey(V) {
-    VolMarketKey(V) { pair: Some(p), registry: k.registry, pool: k.pool }
-};
-
-const vol_market_key_with_registry = fn (
-    comptime V: type, k: VolMarketKey(V), r: Registry(V)
+const vol_market_key = fn (
+    comptime V: type,
+    pair: Option(Pair),
+    registry: Option(Registry(V)),
+    pool: Option(Pool(V))
 ) VolMarketKey(V) {
-    VolMarketKey(V) { pair: k.pair, registry: Some(r), pool: k.pool }
-};
-
-const vol_market_key_with_pool = fn (
-    comptime V: type, k: VolMarketKey(V), pool: Pool(V)
-) VolMarketKey(V) {
-    VolMarketKey(V) { pair: k.pair, registry: k.registry, pool: Some(pool) }
+    VolMarketKey(V) { pair: pair, registry: registry, pool: pool }
 };
 
 const vol_market_key_is_complete = fn (comptime V: type, k: VolMarketKey(V)) bool {
@@ -74,35 +59,28 @@ const vol_market_key_finalize = fn (comptime V: type, k: VolMarketKey(V)) VolMar
     k
 };
 
-const vol_market_key = fn (
-    comptime V: type,
-    p: Pair,
-    r: Registry(V),
-    pool: Pool(V)
-) VolMarketKey(V) {
-    vol_market_key_with_pool(
-        V,
-        vol_market_key_with_registry(V, vol_market_key_with_pair(V, vol_market_key_empty(V), p), r),
-        pool
-    )
-};
-
 const vol_market_key_v3_at = fn (
     p: Pair, r: Registry(V3), pool_addr: addr
 ) VolMarketKey(V3) {
-    vol_market_key(V3, p, r, pool_v3_at(pool_addr))
+    vol_market_key(
+        V3, Some(p), Some(r), Some(pool_v3_at(pool_addr))
+    )
 };
 
 const vol_market_key_algebra_at = fn (
     p: Pair, r: Registry(Algebra), pool_addr: addr
 ) VolMarketKey(Algebra) {
-    vol_market_key(Algebra, p, r, pool_algebra_at(pool_addr))
+    vol_market_key(
+        Algebra, Some(p), Some(r), Some(pool_algebra_at(pool_addr))
+    )
 };
 
 const vol_market_key_v4_at = fn (
     p: Pair, r: Registry(V4), tick_spacing: u256, fee_key: u256
 ) VolMarketKey(V4) {
-    vol_market_key(V4, p, r, pool_v4_at_keyed(p, r, tick_spacing, fee_key))
+    vol_market_key(
+        V4, Some(p), Some(r), Some(pool_v4_at_keyed(p, r, tick_spacing, fee_key))
+    )
 };
 
 const vol_market_key_currency0 = fn (comptime V: type, k: VolMarketKey(V)) u256 {
