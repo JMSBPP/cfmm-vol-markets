@@ -1,5 +1,6 @@
-import std::core::addr::cast_addr;
+import std::core::addr::{addr, cast_addr};
 import std::error::require;
+import std::option::{Option, Some, None, is_some, unwrap};
 import types::Pair::*;
 import types::protocol_integrations::Pool::*;
 import types::protocol_integrations::Registry::*;
@@ -11,6 +12,9 @@ import types::protocol_integrations::Venue::*;
 // `Shock(R)` uses a region. `struct V { ... }` makes VolMarketKey(V4) and VolMarketKey(Algebra)
 // DISTINCT types even though the fields are identical, so an Algebra key can never be read as a V4
 // one -- a cross-venue call site is a COMPILE error, not a runtime revert.
+//
+// Fields are Option-wrapped; vol_market_key(V, …) is the sole value constructor.
+// Pass None for absent slots; proof fns require all three Some via vol_market_key_is_complete.
 //
 // ---------------------------------------------------------------------------------------------
 // ASSET vs NUMERAIRE -- read this before touching asset_index.
@@ -25,47 +29,93 @@ const VolMarketKey = fn (comptime V: type) type {
         @compile_error("VolMarketKey: V must be V4, V3 or Algebra");
     }
     return struct V {
-        pair: Pair,
-        registry: Registry(V),
-        pool: Pool(V),
+        pair: Option(Pair),
+        registry: Option(Registry(V)),
+        pool: Option(Pool(V)),
     };
 };
 
 const vol_market_key = fn (
     comptime V: type,
-    p: Pair,
-    r: Registry(V),
-    pool: Pool(V)
+    pair: Option(Pair),
+    registry: Option(Registry(V)),
+    pool: Option(Pool(V))
 ) VolMarketKey(V) {
-    VolMarketKey(V) { pair: p, registry: r, pool: pool }
+    VolMarketKey(V) { pair: pair, registry: registry, pool: pool }
+};
+
+const vol_market_key_is_complete = fn (comptime V: type, k: VolMarketKey(V)) bool {
+    is_some(Pair, k.pair)
+    & is_some(Registry(V), k.registry)
+    & is_some(Pool(V), k.pool)
+};
+
+const vol_market_key_require_complete = fn (comptime V: type, k: VolMarketKey(V)) void {
+    require(vol_market_key_is_complete(V, k));
+};
+
+const vol_market_key_finalize = fn (comptime V: type, k: VolMarketKey(V)) VolMarketKey(V) {
+    vol_market_key_require_complete(V, k);
+    k
+};
+
+const vol_market_key_v3_at = fn (
+    p: Pair, r: Registry(V3), pool_addr: addr
+) VolMarketKey(V3) {
+    vol_market_key(
+        V3, Some(p), Some(r), Some(pool_v3_at(pool_addr))
+    )
+};
+
+const vol_market_key_algebra_at = fn (
+    p: Pair, r: Registry(Algebra), pool_addr: addr
+) VolMarketKey(Algebra) {
+    vol_market_key(
+        Algebra, Some(p), Some(r), Some(pool_algebra_at(pool_addr))
+    )
+};
+
+const vol_market_key_v4_at = fn (
+    p: Pair, r: Registry(V4), tick_spacing: u256, fee_key: u256
+) VolMarketKey(V4) {
+    vol_market_key(
+        V4, Some(p), Some(r), Some(pool_v4_at_keyed(p, r, tick_spacing, fee_key))
+    )
 };
 
 const vol_market_key_currency0 = fn (comptime V: type, k: VolMarketKey(V)) u256 {
-    cast_addr(k.pair.token0, u256)
+    vol_market_key_require_complete(V, k);
+    cast_addr(unwrap(k.pair).token0, u256)
 };
 
 const vol_market_key_currency1 = fn (comptime V: type, k: VolMarketKey(V)) u256 {
-    cast_addr(k.pair.token1, u256)
+    vol_market_key_require_complete(V, k);
+    cast_addr(unwrap(k.pair).token1, u256)
 };
 
 const vol_market_key_asset_index = fn (comptime V: type, k: VolMarketKey(V)) u256 {
-    k.pair.asset_index
+    vol_market_key_require_complete(V, k);
+    unwrap(k.pair).asset_index
 };
 
 const vol_market_key_registry_word = fn (comptime V: type, k: VolMarketKey(V)) u256 {
-    registry_addr(V, k.registry)
+    vol_market_key_require_complete(V, k);
+    registry_addr(V, unwrap(k.registry))
 };
 
 const vol_market_key_fee = fn (comptime V: type, k: VolMarketKey(V)) u256 {
-    pool_fee(V, k.pool)
+    vol_market_key_require_complete(V, k);
+    pool_fee(V, unwrap(k.pool))
 };
 
 const vol_market_key_tick_spacing = fn (comptime V: type, k: VolMarketKey(V)) u256 {
-    pool_tick_spacing(V, k.pool)
+    vol_market_key_require_complete(V, k);
+    pool_tick_spacing(V, unwrap(k.pool))
 };
 
 const vol_market_key_pool_word = fn (comptime V: type, k: VolMarketKey(V)) u256 {
-    pool_word(V, k.pool)
+    vol_market_key_require_complete(V, k);
+    pool_word(V, unwrap(k.pool))
 };
 
 const vol_market_key_panoptic_asset_bit = fn (comptime V: type, k: VolMarketKey(V)) u256 {
@@ -92,9 +142,6 @@ const vol_market_key_compose_pool_id = fn (pattern: u256, vegoid: u256, tick_spa
     | @evm_shl(POOL_ID_OFF_TICK_SPACING, tick_spacing & 0xffff)
 };
 
-const SEL_GET_POOL = 0x1698ee82;
-const SEL_POOL_BY_PAIR = 0xd9a641e1;
-const SEL_ALGEBRA_ENTRY_FACTORY = 0xc45a0155;
 const SEL_SFPM_GET_POOL_ID = 0xb33eb6f3;
 
 const staticcall_word = fn (target: u256, args_ptr: u256, args_len: u256) u256 {
@@ -104,51 +151,20 @@ const staticcall_word = fn (target: u256, args_ptr: u256, args_len: u256) u256 {
     @mload32(ret)
 };
 
-const vol_market_key_pool_key_hash = fn (comptime V: type, k: VolMarketKey(V)) u256 {
-    let buf = @malloc_uninit(160);
-    @mstore32(buf, vol_market_key_currency0(V, k));
-    @mstore32(buf +% 32, vol_market_key_currency1(V, k));
-    @mstore32(buf +% 64, vol_market_key_fee(V, k));
-    @mstore32(buf +% 96, vol_market_key_tick_spacing(V, k));
-    @mstore32(buf +% 128, vol_market_key_registry_word(V, k));
-    @evm_keccak256(buf, 160)
-};
-
-const vol_market_key_v4_pool_id = fn (k: VolMarketKey(V4)) u256 {
-    vol_market_key_pool_key_hash(V4, k)
-};
-
 const vol_market_key_verify_pool = fn (comptime V: type, k: VolMarketKey(V)) void {
-    let resolved = if V == V3 {
-        let p = @malloc_uninit(100);
-        @mstore4(p, SEL_GET_POOL);
-        @mstore32(p +% 4, vol_market_key_currency0(V, k));
-        @mstore32(p +% 36, vol_market_key_currency1(V, k));
-        @mstore32(p +% 68, vol_market_key_fee(V, k));
-        staticcall_word(vol_market_key_registry_word(V, k), p, 100)
-    } else if V == Algebra {
-        let plugin_factory = vol_market_key_registry_word(V, k);
-        let factory_cd = @malloc_uninit(4);
-        @mstore4(factory_cd, SEL_FACTORY);
-        let factory_addr = staticcall_word(plugin_factory, factory_cd, 4);
-        let p = @malloc_uninit(68);
-        @mstore4(p, SEL_POOL_BY_PAIR);
-        @mstore32(p +% 4, vol_market_key_currency0(V, k));
-        @mstore32(p +% 36, vol_market_key_currency1(V, k));
-        staticcall_word(factory_addr, p, 68)
-    } else {
-        @compile_error("VolMarketKey: only V3 and Algebra have a pool address to verify");
-    };
-    require(resolved == vol_market_key_pool_word(V, k));
+    vol_market_key_require_complete(V, k);
+    pool_verify(V, unwrap(k.pool), unwrap(k.pair), unwrap(k.registry));
 };
 
 const vol_market_key_to_panoptic_pool_id =
     fn (comptime V: type, k: VolMarketKey(V), sfpm: u256, vegoid: u256) u256 {
+    vol_market_key_require_complete(V, k);
+    let pool = unwrap(k.pool);
     let pattern = if V == V4 {
-        vol_market_key_v4_pattern(vol_market_key_pool_key_hash(V, k))
+        vol_market_key_v4_pattern(pool_word(V4, pool))
     } else if V == V3 {
         vol_market_key_verify_pool(V, k);
-        vol_market_key_v3_pattern(vol_market_key_pool_word(V, k))
+        vol_market_key_v3_pattern(pool_word(V3, pool))
     } else {
         @compile_error("VolMarketKey: the Panoptic arm accepts only V4 or V3");
     };
@@ -157,11 +173,7 @@ const vol_market_key_to_panoptic_pool_id =
         pattern, vegoid, vol_market_key_tick_spacing(V, k)
     );
 
-    let id_word = if V == V4 {
-        vol_market_key_pool_key_hash(V, k)
-    } else {
-        vol_market_key_pool_word(V, k)
-    };
+    let id_word = pool_word(V, pool);
 
     let p = @malloc_uninit(132);
     @mstore4(p, SEL_SFPM_GET_POOL_ID);

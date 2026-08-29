@@ -3,8 +3,10 @@ import std::error::require;
 import types::protocol_integrations::Venue::*;
 
 const SEL_SUPPORTS_INTERFACE = 0x01ffc9a7;
+const SEL_POOL_MANAGER = 0xdc4c90d3;
 const SEL_OWNER = 0x8da5cb5b;
 const SEL_FACTORY = 0xc45a0155;
+const REG_MASK_U160 = 0xffffffffffffffffffffffffffffffffffffffff;
 // Must match `type(IHooks).interfaceId` — see Registry.t.sol pin test on CI.
 const IFACE_IHOOKS = 0xf0222b24;
 
@@ -15,8 +17,8 @@ const Registry = fn (comptime V: type) type {
     return struct V { addr: addr };
 };
 
-const registry_v4 = fn (hooks: addr) Registry(V4) {
-    Registry(V4) { addr: hooks }
+const registry_v4 = fn (registry_contract: addr) Registry(V4) {
+    Registry(V4) { addr: registry_contract }
 };
 
 const registry_v3 = fn (factory: addr) Registry(V3) {
@@ -29,6 +31,18 @@ const registry_algebra = fn (factory: addr) Registry(Algebra) {
 
 const registry_addr = fn (comptime V: type, r: Registry(V)) u256 {
     cast_addr(r.addr, u256)
+};
+
+const registry_staticcall_u256 = fn (target: u256, sel: u256) u256 {
+    let cd = @malloc_uninit(4);
+    @mstore4(cd, sel);
+    let ret = @malloc_uninit(32);
+    require(@evm_staticcall(@evm_gas(), target, cd, 4, ret, 32));
+    @mload32(ret)
+};
+
+const registry_pool_manager = fn (r: Registry(V4)) u256 {
+    @evm_and(registry_staticcall_u256(registry_addr(V4, r), SEL_POOL_MANAGER), REG_MASK_U160)
 };
 
 const supports_interface = fn (target: u256, interface_id: u256) void {
@@ -45,6 +59,7 @@ const registry_verify = fn (comptime V: type, r: Registry(V)) void {
     if V == V4 {
         if target != 0 {
             supports_interface(target, IFACE_IHOOKS);
+            require(registry_pool_manager(r) != 0);
         }
     } else if V == V3 {
         let cd = @malloc_uninit(4);

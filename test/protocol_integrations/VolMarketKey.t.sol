@@ -3,9 +3,16 @@ pragma solidity ^0.8.26;
 
 import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "test/PlankTestBase.sol";
+import {RegistryVerifyV4} from "test/mocks/RegistryVerifyV4.sol";
+import {MinedRegistryV4Deployer} from "test/helpers/MinedRegistryV4Deployer.sol";
+import {PoolVerifyV3Pool} from "test/mocks/PoolVerifyV3Pool.sol";
 import {AlgebraIntegralDeployer} from "test/helpers/AlgebraIntegralDeployer.sol";
 import {IAlgebraFactory} from "@cryptoalgebra/integral-core/interfaces/IAlgebraFactory.sol";
+import {IAlgebraPoolState} from "@cryptoalgebra/integral-core/interfaces/pool/IAlgebraPoolState.sol";
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
+import {Deployers} from "v4-core-test/utils/Deployers.sol";
+import {IHooks} from "univ4-core/interfaces/IHooks.sol";
+import {Currency} from "univ4-core/types/Currency.sol";
 
 /// Minimal stand-in for BOTH SFPMs: they share the signature
 /// `getPoolId(bytes memory id, uint8 vegoid) external view returns (uint64)`
@@ -46,13 +53,15 @@ contract V3FactoryStub {
 ///     Phase 2 negative test was caught being meaningless on gate 33181644493;
 ///   - the NEGATIVE side is a fixture that must FAIL to compile, asserted on the error TEXT rather
 ///     than the exit code, because a fixture containing a typo also fails to compile.
-contract VolMarketKeyTest is PlankTestBase {
-    bytes internal constant ZERO_BYTES = new bytes(0);
-
+contract VolMarketKeyTest is PlankTestBase, Deployers {
     address harness;
+    address hookMiner;
+    address v4Registry;
 
     function setUp() public {
         harness = deployPlank("test/protocol_integrations/VolMarketKeyHarness.plk");
+        hookMiner = deployCfmmTypesPlank("lib/cfmm-types/src/types/uniswap_v4/Hook.plk");
+        v4Registry = address(new RegistryVerifyV4(address(0x1)));
     }
 
     // ---- what must compile ---------------------------------------------------------------------
@@ -64,6 +73,61 @@ contract VolMarketKeyTest is PlankTestBase {
         (bool ok, bytes memory r) = harness.staticcall(abi.encodeWithSignature("venueWitness()"));
         require(ok, "venueWitness reverted");
         assertEq(abi.decode(r, (uint256)), 57, "venue codes wrong: a comptime branch is mis-wired");
+    }
+
+    function test__unit__builderEmptyIsIncompleteCompleteKeyPasses() public {
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature("keyIsComplete()", v4Registry)
+        );
+        assertTrue(ok, "empty must be incomplete and full key must be complete");
+    }
+
+    function test__unit__builderPathMatchesAtomicCtor() public {
+        (bool okLit, bytes memory rLit) =
+            harness.staticcall(abi.encodeWithSignature("v4PoolId(uint256)", v4Registry));
+        (bool okBld, bytes memory rBld) = harness.staticcall(
+            abi.encodeWithSignature("buildV4PoolWordViaBuilder(uint256)", v4Registry)
+        );
+        require(okLit, "v4PoolId reverted");
+        require(okBld, "buildV4PoolWordViaBuilder reverted");
+        assertEq(abi.decode(rLit, (uint256)), abi.decode(rBld, (uint256)), "builder must match atomic ctor");
+    }
+
+    /// Golden path: None -> Some(pair) -> Some(registry) -> Some(pool) in memory, then every
+    /// accessor agrees with the atomic vol_market_key(V4, Some, Some, Some) shortcut.
+    function test__unit__goldenPathFillsKeyInMemory() public {
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature("goldenPathCompletenessBitmap(uint256)", v4Registry)
+        );
+        require(ok, "goldenPathCompletenessBitmap reverted");
+        assertEq(
+            abi.decode(r, (uint256)),
+            0xff,
+            "incremental in-memory build must pass all completeness stages and accessors"
+        );
+    }
+
+    /// Golden path continuation: finalized key -> Panoptic poolId via SFPM agreement.
+    function test__unit__goldenPathEndToEndPanoptic() public {
+        uint64 expected = _expectedV4PoolId(VEGOID, TICK_SPACING);
+        address sfpm = address(new SfpmStub(expected));
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature(
+                "goldenPathPanoptic(uint256,address,uint256)", v4Registry, sfpm, uint256(VEGOID)
+            )
+        );
+        require(ok, "goldenPathPanoptic reverted");
+        assertEq(abi.decode(r, (uint256)), expected, "golden path must reach Panoptic derivation");
+    }
+
+    function test__unit__panopticOnIncompleteKeyReverts() public {
+        address sfpm = address(new SfpmStub(1));
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature(
+                "panopticPoolIdOnEmpty(uint256,address,uint256)", v4Registry, sfpm, uint256(8)
+            )
+        );
+        assertFalse(ok, "incomplete key must not reach Panoptic derivation");
     }
 
     // ---- KEY-06 / F1: the asset/numeraire inversion ---------------------------------------------
@@ -184,7 +248,7 @@ contract VolMarketKeyTest is PlankTestBase {
     /// Never CREATE2-derived, so no POOL_INIT_CODE_HASH is pinned anywhere and the same code works
     /// across forks and chains where a patched pool contract would change the init hash.
     function test__unit__v3PoolAddressVerifiedAgainstTheFactory() public {
-        address pool = address(0xBEEF);
+        address pool = address(new PoolVerifyV3Pool(3000, 60));
         address factory = address(new V3FactoryStub(pool));
         (bool ok,) = harness.staticcall(
             abi.encodeWithSignature("verifyPoolV3(address,address)", factory, pool)
@@ -193,6 +257,7 @@ contract VolMarketKeyTest is PlankTestBase {
     }
 
     function test__unit__v3PoolAddressMismatchReverts() public {
+        address pool = address(new PoolVerifyV3Pool(3000, 60));
         address factory = address(new V3FactoryStub(address(0xBEEF)));
         (bool ok,) = harness.staticcall(
             abi.encodeWithSignature("verifyPoolV3(address,address)", factory, address(0xDEAD))
@@ -224,6 +289,136 @@ contract VolMarketKeyTest is PlankTestBase {
         assertFalse(ok, "algebra mismatch must revert");
     }
 
+    // ---- KEY-03b: vol_market_key_*_at resolve + verify -----------------------------------------
+
+    function test__unit__keyV3AtReadsFeeAndTick() public {
+        address pool = address(new PoolVerifyV3Pool(3000, 60));
+        address factory = address(new V3FactoryStub(pool));
+
+        (bool okWord, bytes memory rWord) = harness.staticcall(
+            abi.encodeWithSignature("keyV3AtPoolWord(address,address)", factory, pool)
+        );
+        require(okWord, "keyV3AtPoolWord reverted");
+        assertEq(abi.decode(rWord, (uint256)), uint256(uint160(pool)), "pool_word is pool address");
+
+        (bool okFee, bytes memory rFee) =
+            harness.staticcall(abi.encodeWithSignature("keyV3AtFee(address,address)", factory, pool));
+        require(okFee, "keyV3AtFee reverted");
+        assertEq(abi.decode(rFee, (uint256)), 3000, "fee from on-chain read");
+
+        (bool okTs, bytes memory rTs) = harness.staticcall(
+            abi.encodeWithSignature("keyV3AtTickSpacing(address,address)", factory, pool)
+        );
+        require(okTs, "keyV3AtTickSpacing reverted");
+        assertEq(abi.decode(rTs, (uint256)), 60, "tick_spacing from on-chain read");
+    }
+
+    function test__unit__verifyPoolV3AtPassesWhenFactoryMatches() public {
+        address pool = address(new PoolVerifyV3Pool(3000, 60));
+        address factory = address(new V3FactoryStub(pool));
+        (bool ok,) =
+            harness.staticcall(abi.encodeWithSignature("verifyPoolV3At(address,address)", factory, pool));
+        assertTrue(ok, "vol_market_key_v3_at + verify_pool must pass when factory matches");
+    }
+
+    function test__unit__verifyPoolV3AtMismatchReverts() public {
+        address pool = address(new PoolVerifyV3Pool(3000, 60));
+        address factory = address(new V3FactoryStub(address(0xBEEF)));
+        (bool ok,) =
+            harness.staticcall(abi.encodeWithSignature("verifyPoolV3At(address,address)", factory, pool));
+        assertFalse(ok, "vol_market_key_v3_at verify must revert on registry mismatch");
+    }
+
+    function test__unit__keyAlgebraAtAndVerify() public {
+        (address entryPoint, address pool, address t0, address t1) = _algebraPoolFixture();
+
+        (bool okWord, bytes memory rWord) = harness.staticcall(
+            abi.encodeWithSignature(
+                "keyAlgebraAtPoolWord(address,address,uint256,uint256)", entryPoint, pool, t0, t1
+            )
+        );
+        require(okWord, "keyAlgebraAtPoolWord reverted");
+        assertEq(abi.decode(rWord, (uint256)), uint256(uint160(pool)), "algebra pool_word is address");
+
+        (bool okVerify,) = harness.staticcall(
+            abi.encodeWithSignature(
+                "verifyPoolAlgebraAt(address,address,uint256,uint256)", entryPoint, pool, t0, t1
+            )
+        );
+        assertTrue(okVerify, "vol_market_key_algebra_at + verify_pool must pass");
+    }
+
+    function test__unit__keyV4AtAndVerifyRoundTrip() public {
+        deployFreshManagerAndRouters();
+        (Currency c0, Currency c1) = deployMintAndApprove2Currencies();
+        uint24 fee = 0x800000;
+        int24 tickSpacing = 60;
+        address registry = MinedRegistryV4Deployer.deploy(hookMiner, address(manager));
+        initPool(c0, c1, IHooks(registry), fee, tickSpacing, SQRT_PRICE_1_1);
+
+        address t0 = Currency.unwrap(c0);
+        address t1 = Currency.unwrap(c1);
+
+        (bool okAt, bytes memory rAt) = harness.staticcall(
+            abi.encodeWithSignature(
+                "keyV4AtPoolWord(uint256,uint256,uint256,uint256,uint256)",
+                uint256(uint160(registry)),
+                uint256(uint160(t0)),
+                uint256(uint160(t1)),
+                uint256(int256(tickSpacing)),
+                uint256(fee)
+            )
+        );
+        require(okAt, "keyV4AtPoolWord reverted");
+        assertEq(
+            abi.decode(rAt, (uint256)),
+            uint256(keccak256(abi.encode(t0, t1, fee, tickSpacing, registry))),
+            "vol_market_key_v4_at must return canonical PoolId"
+        );
+
+        (bool okVerify,) = harness.staticcall(
+            abi.encodeWithSignature(
+                "verifyPoolV4At(uint256,uint256,uint256,uint256,uint256)",
+                uint256(uint160(registry)),
+                uint256(uint160(t0)),
+                uint256(uint160(t1)),
+                uint256(fee),
+                uint256(int256(tickSpacing))
+            )
+        );
+        assertTrue(okVerify, "vol_market_key_v4_at + verify_pool must pass against manager slot0");
+    }
+
+    /// vol_market_key_v4_at must agree with vol_market_key(V4, Some, Some, Some(pool_v4_at_keyed(...))).
+    function test__unit__goldenPathV4AtMatchesLiteral() public {
+        deployFreshManagerAndRouters();
+        (Currency c0, Currency c1) = deployMintAndApprove2Currencies();
+        uint24 fee = 0x800000;
+        int24 tickSpacing = 60;
+        address registry = MinedRegistryV4Deployer.deploy(hookMiner, address(manager));
+        initPool(c0, c1, IHooks(registry), fee, tickSpacing, SQRT_PRICE_1_1);
+
+        address t0 = Currency.unwrap(c0);
+        address t1 = Currency.unwrap(c1);
+
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature(
+                "goldenPathV4AtMatchesLiteral(uint256,uint256,uint256,uint256,uint256)",
+                uint256(uint160(registry)),
+                uint256(uint160(t0)),
+                uint256(uint160(t1)),
+                uint256(int256(tickSpacing)),
+                uint256(fee)
+            )
+        );
+        require(ok, "goldenPathV4AtMatchesLiteral reverted");
+        assertEq(
+            abi.decode(r, (uint256)),
+            1,
+            "vol_market_key_v4_at must match explicit Some(...) literal assembly"
+        );
+    }
+
     // ---- KEY-02: the poolId is a CANDIDATE, verified against the SFPM --------------------------
 
     /// The Panoptic poolId is STATEFUL: both SFPMs loop
@@ -234,7 +429,7 @@ contract VolMarketKeyTest is PlankTestBase {
         uint64 expected = _expectedV4PoolId(VEGOID, TICK_SPACING);
         address sfpm = address(new SfpmStub(expected));
         (bool ok, bytes memory r) = harness.staticcall(
-            abi.encodeWithSignature("panopticPoolIdV4(address,uint256)", sfpm, uint256(VEGOID))
+            abi.encodeWithSignature("panopticPoolIdV4(uint256,address,uint256)", v4Registry, sfpm, uint256(VEGOID))
         );
         require(ok, "matching candidate reverted");
         assertEq(abi.decode(r, (uint256)), expected, "the verified candidate must be returned");
@@ -247,7 +442,7 @@ contract VolMarketKeyTest is PlankTestBase {
         uint64 incremented = _expectedV4PoolId(VEGOID, TICK_SPACING) + 1;
         address sfpm = address(new SfpmStub(incremented));
         (bool ok,) = harness.staticcall(
-            abi.encodeWithSignature("panopticPoolIdV4(address,uint256)", sfpm, uint256(VEGOID))
+            abi.encodeWithSignature("panopticPoolIdV4(uint256,address,uint256)", v4Registry, sfpm, uint256(VEGOID))
         );
         assertFalse(ok, "a collision-incremented poolId must revert at build time");
     }
@@ -256,11 +451,11 @@ contract VolMarketKeyTest is PlankTestBase {
     /// market_id_from_pool_key computes, which VolMarketKey(V4) subsumes rather than duplicates.
     function test__unit__v4PoolIdIsTheCanonicalUniV4PoolId() public {
         (bool ok, bytes memory r) =
-            harness.staticcall(abi.encodeWithSignature("v4PoolId()"));
+            harness.staticcall(abi.encodeWithSignature("v4PoolId(uint256)", v4Registry));
         require(ok, "v4PoolId reverted");
         assertEq(
             abi.decode(r, (uint256)),
-            uint256(keccak256(abi.encode(C0, C1, FEE, TICK_SPACING, HOOKS))),
+            uint256(keccak256(abi.encode(C0, C1, FEE, TICK_SPACING, v4Registry))),
             "must equal the canonical univ4 PoolId"
         );
     }
@@ -268,9 +463,9 @@ contract VolMarketKeyTest is PlankTestBase {
     /// vol_market_key + pair + registry_v4 + pool_v4 must agree with the literal struct path.
     function test__unit__v4KeyBuiltViaPairMatchesLiteral() public {
         (bool okLit, bytes memory rLit) =
-            harness.staticcall(abi.encodeWithSignature("v4PoolId()"));
+            harness.staticcall(abi.encodeWithSignature("v4PoolId(uint256)", v4Registry));
         (bool okPair, bytes memory rPair) =
-            harness.staticcall(abi.encodeWithSignature("v4KeyViaPair()"));
+            harness.staticcall(abi.encodeWithSignature("v4KeyViaPair(uint256)", v4Registry));
         require(okLit, "v4PoolId reverted");
         require(okPair, "v4KeyViaPair reverted");
         assertEq(
@@ -286,11 +481,10 @@ contract VolMarketKeyTest is PlankTestBase {
     uint256 internal constant C1 = 0x2222;
     uint256 internal constant FEE = 3000;
     uint256 internal constant TICK_SPACING = 60;
-    uint256 internal constant HOOKS = 0x3333;
     uint8 internal constant VEGOID = 8;
 
-    function _expectedV4PoolId(uint8 vegoid, uint256 tickSpacing) internal pure returns (uint64) {
-        uint256 poolIdV4 = uint256(keccak256(abi.encode(C0, C1, FEE, TICK_SPACING, HOOKS)));
+    function _expectedV4PoolId(uint8 vegoid, uint256 tickSpacing) internal view returns (uint64) {
+        uint256 poolIdV4 = uint256(keccak256(abi.encode(C0, C1, FEE, TICK_SPACING, v4Registry)));
         uint256 pattern = poolIdV4 & ((uint256(1) << 40) - 1);
         return uint64(pattern | (uint256(vegoid) << 40) | (tickSpacing << 48));
     }
@@ -312,45 +506,52 @@ contract VolMarketKeyTest is PlankTestBase {
         uint256 c0,
         uint256 c1,
         uint24 fee,
-        uint24 tickSpacing,
-        uint256 hooks
+        uint24 tickSpacing
     ) public {
         vm.assume(c0 <= type(uint160).max);
         vm.assume(c1 <= type(uint160).max);
-        vm.assume(hooks <= type(uint160).max);
         vm.assume(c0 != c1);
         // XOR-1 perturbation of c0 must not make pair() see equal currencies.
         vm.assume(c0 != (c1 ^ 1));
-        uint256 got = _v4PoolIdFor(c0, c1, fee, tickSpacing, hooks);
+        address registry = address(new RegistryVerifyV4(address(0x1)));
+        uint256 got = _v4PoolIdFor(registry, c0, c1, fee, tickSpacing);
         (uint256 t0, uint256 t1) = _sortedCurrencies(c0, c1);
         assertEq(
             got,
-            uint256(keccak256(abi.encode(t0, t1, uint256(fee), uint256(tickSpacing), hooks))),
+            uint256(keccak256(abi.encode(t0, t1, uint256(fee), uint256(tickSpacing), registry))),
             "the id must be keccak over exactly these five fields, in sorted currency order"
         );
 
         // Perturbing any single field must change the id. XOR 1 rather than + 1: the fuzzer found
         // that `hooks + 1` panics with 0x11 when hooks == type(uint256).max (run 28 of
         // 33211646329). XOR flips the low bit, always changes the value, and cannot overflow.
-        assertTrue(got != _v4PoolIdFor(c0 ^ 1, c1, fee, tickSpacing, hooks), "currency0 not hashed");
-        assertTrue(got != _v4PoolIdFor(c0, c1 ^ 1, fee, tickSpacing, hooks), "currency1 not hashed");
+        assertTrue(got != _v4PoolIdFor(registry, c0 ^ 1, c1, fee, tickSpacing), "currency0 not hashed");
+        assertTrue(got != _v4PoolIdFor(registry, c0, c1 ^ 1, fee, tickSpacing), "currency1 not hashed");
         assertTrue(
-            got != _v4PoolIdFor(c0, c1, uint256(fee) ^ 1, tickSpacing, hooks), "fee not hashed"
+            got != _v4PoolIdFor(registry, c0, c1, uint256(fee) ^ 1, tickSpacing), "fee not hashed"
         );
         assertTrue(
-            got != _v4PoolIdFor(c0, c1, fee, uint256(tickSpacing) ^ 1, hooks),
+            got != _v4PoolIdFor(registry, c0, c1, fee, uint256(tickSpacing) ^ 1),
             "tickSpacing not hashed"
         );
-        assertTrue(got != _v4PoolIdFor(c0, c1, fee, tickSpacing, hooks ^ 1), "hooks not hashed");
+        address registry2 = address(new RegistryVerifyV4(address(0x2)));
+        assertTrue(
+            got != _v4PoolIdFor(registry2, c0, c1, fee, tickSpacing), "registry (hooks) not hashed"
+        );
     }
 
-    function _v4PoolIdFor(uint256 c0, uint256 c1, uint256 fee, uint256 ts, uint256 hooks)
+    function _v4PoolIdFor(address registry, uint256 c0, uint256 c1, uint256 fee, uint256 ts)
         internal
         returns (uint256)
     {
         (bool ok, bytes memory r) = harness.staticcall(
             abi.encodeWithSignature(
-                "v4PoolIdFor(uint256,uint256,uint256,uint256,uint256)", c0, c1, fee, ts, hooks
+                "v4PoolIdFor(uint256,uint256,uint256,uint256,uint256)",
+                registry,
+                c0,
+                c1,
+                fee,
+                ts
             )
         );
         require(ok, "v4PoolIdFor reverted");

@@ -1,0 +1,43 @@
+import std::constructor::return_runtime;
+import types::protocol_integrations::PoolId::*;
+import types::protocol_integrations::Venue::*;
+
+// cast sig "venueWitness()" -> 0xbe55e3a4
+const SEL_VENUE_WITNESS = 0xbe55e3a4;
+// cast sig "poolIdV4FromKey(uint256,uint256,uint256,uint256,uint256)" -> 0xef507a2c
+const SEL_POOL_ID_V4_FROM_KEY = 0xef507a2c;
+
+init { return_runtime(); }
+
+const return_1 = fn (a: u256) never {
+    let out = @malloc_uninit(32);
+    @mstore32(out, a);
+    @evm_return(out, 32);
+};
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    if selector == SEL_VENUE_WITNESS {
+        let i4 = @uninit(PoolId(V4));
+        let i3 = @uninit(PoolId(V3));
+        let ia = @uninit(PoolId(Algebra));
+        let _ = pool_id_word(V4, i4);
+        let _ = pool_id_word(V3, i3);
+        let _ = pool_id_word(Algebra, ia);
+        return_1(57);
+    }
+
+    if selector == SEL_POOL_ID_V4_FROM_KEY {
+        let id = pool_id_v4_from_pool_key(
+            @evm_calldataload(4),
+            @evm_calldataload(36),
+            @evm_calldataload(68),
+            @evm_calldataload(100),
+            @evm_calldataload(132)
+        );
+        return_1(pool_id_word(V4, id));
+    }
+
+    @evm_stop();
+}

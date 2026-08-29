@@ -1,0 +1,60 @@
+import std::core::addr::{addr, cast_addr};
+import types::protocol_integrations::Venue::*;
+import types::Pair::*;
+import types::protocol_integrations::Registry::*;
+
+const PoolId = fn (comptime V: type) type {
+    if !is_venue(V) {
+        @compile_error("PoolId: V must be V4, V3 or Algebra");
+    }
+    return struct V { word: u256 };
+};
+
+const pool_id_v4 = fn (id: u256) PoolId(V4) {
+    PoolId(V4) { word: id }
+};
+
+const pool_id_v3 = fn (pool: addr) PoolId(V3) {
+    PoolId(V3) { word: cast_addr(pool, u256) }
+};
+
+const pool_id_algebra = fn (pool: addr) PoolId(Algebra) {
+    PoolId(Algebra) { word: cast_addr(pool, u256) }
+};
+
+const pool_id_word = fn (comptime V: type, id: PoolId(V)) u256 {
+    id.word
+};
+
+// Low-level: c0 and c1 must already satisfy currency0 < currency1 (univ4 PoolKey invariant).
+const pool_id_v4_from_pool_key = fn (
+    c0: u256, c1: u256, fee: u256, tick_spacing: u256, hooks: u256
+) PoolId(V4) {
+    let buf = @malloc_uninit(160);
+    @mstore32(buf, c0);
+    @mstore32(buf +% 32, c1);
+    @mstore32(buf +% 64, fee);
+    @mstore32(buf +% 96, tick_spacing);
+    @mstore32(buf +% 128, hooks);
+    pool_id_v4(@evm_keccak256(buf, 160))
+};
+
+const pool_id_v4_from_context = fn (
+    pair: Pair, registry: Registry(V4), fee: u256, tick_spacing: u256
+) PoolId(V4) {
+    pool_id_v4_from_pool_key(
+        cast_addr(pair.token0, u256),
+        cast_addr(pair.token1, u256),
+        fee,
+        tick_spacing,
+        registry_addr(V4, registry)
+    )
+};
+
+const pool_id_v3_from_addr = fn (pool: addr) PoolId(V3) {
+    pool_id_v3(pool)
+};
+
+const pool_id_algebra_from_addr = fn (pool: addr) PoolId(Algebra) {
+    pool_id_algebra(pool)
+};

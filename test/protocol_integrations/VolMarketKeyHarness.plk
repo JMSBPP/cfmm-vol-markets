@@ -1,5 +1,7 @@
 import std::constructor::return_runtime;
 import std::core::addr::addr_from_u256;
+import std::error::require;
+import std::option::{Some, None};
 import types::Pair::*;
 import types::protocol_integrations::Pool::*;
 import types::protocol_integrations::Registry::*;
@@ -20,20 +22,47 @@ const SEL_COMPOSE_POOL_ID = 0x636d3d6c;
 const SEL_VERIFY_POOL_V3 = 0x0c29d1a2;
 // cast sig "verifyPoolAlgebra(address,address,uint256,uint256)" -> 0xc8c9a64c
 const SEL_VERIFY_POOL_ALGEBRA = 0xc8c9a64c;
-// cast sig "panopticPoolIdV4(address,uint256)"  -> 0xfbfe139f
-const SEL_PANOPTIC_POOL_ID_V4 = 0xfbfe139f;
-// cast sig "v4PoolId()"                         -> 0xa18615b6
-const SEL_V4_POOL_ID = 0xa18615b6;
+// cast sig "panopticPoolIdV4(uint256,address,uint256)" -> 0x3d85191f
+const SEL_PANOPTIC_POOL_ID_V4 = 0x3d85191f;
+// cast sig "v4PoolId(uint256)" -> 0xcef56961
+const SEL_V4_POOL_ID = 0xcef56961;
 // cast sig "v4PoolIdFor(uint256,uint256,uint256,uint256,uint256)" -> 0xbc01e5d0
 const SEL_V4_POOL_ID_FOR = 0xbc01e5d0;
-// cast sig "v4KeyViaPair()" -> 0x70299aab
-const SEL_V4_KEY_VIA_PAIR = 0x70299aab;
+// cast sig "v4KeyViaPair(uint256)" -> 0x3853a84e
+const SEL_V4_KEY_VIA_PAIR = 0x3853a84e;
+// cast sig "keyIsComplete()" -> 0x89bc45be
+const SEL_KEY_IS_COMPLETE = 0x89bc45be;
+// cast sig "buildV4PoolWordViaBuilder(uint256)" -> 0x207a7b69
+const SEL_BUILD_V4_VIA_BUILDER = 0x207a7b69;
+// cast sig "panopticPoolIdOnEmpty(uint256,address,uint256)" -> 0x74ba105d
+const SEL_PANOPTIC_ON_EMPTY = 0x74ba105d;
+// cast sig "keyV3AtPoolWord(address,address)" -> 0xab409e84
+const SEL_KEY_V3_AT_POOL_WORD = 0xab409e84;
+// cast sig "keyV3AtFee(address,address)" -> 0x4d9fd834
+const SEL_KEY_V3_AT_FEE = 0x4d9fd834;
+// cast sig "keyV3AtTickSpacing(address,address)" -> 0xd80a03ce
+const SEL_KEY_V3_AT_TICK_SPACING = 0xd80a03ce;
+// cast sig "verifyPoolV3At(address,address)" -> 0x90c4a534
+const SEL_VERIFY_POOL_V3_AT = 0x90c4a534;
+// cast sig "keyAlgebraAtPoolWord(address,address,uint256,uint256)" -> 0x2c61b59f
+const SEL_KEY_ALGEBRA_AT_POOL_WORD = 0x2c61b59f;
+// cast sig "verifyPoolAlgebraAt(address,address,uint256,uint256)" -> 0x28db41a4
+const SEL_VERIFY_POOL_ALGEBRA_AT = 0x28db41a4;
+// cast sig "keyV4AtPoolWord(uint256,uint256,uint256,uint256,uint256)" -> 0x52f060e6
+const SEL_KEY_V4_AT_POOL_WORD = 0x52f060e6;
+// cast sig "verifyPoolV4At(uint256,uint256,uint256,uint256,uint256)" -> 0xb5bcac81
+const SEL_VERIFY_POOL_V4_AT = 0xb5bcac81;
+// cast sig "goldenPathCompletenessBitmap(uint256)" -> 0x9b5a3ddf
+const SEL_GOLDEN_PATH_BITMAP = 0x9b5a3ddf;
+// cast sig "goldenPathPanoptic(uint256,address,uint256)" -> 0x55771c63
+const SEL_GOLDEN_PATH_PANOPTIC = 0x55771c63;
+// cast sig "goldenPathV4AtMatchesLiteral(uint256,uint256,uint256,uint256,uint256)" -> 0x97c7263b
+const SEL_GOLDEN_PATH_V4_AT = 0x97c7263b;
 
 const K_C0 = 0x1111;
 const K_C1 = 0x2222;
 const K_FEE = 3000;
 const K_TICK_SPACING = 60;
-const K_HOOKS = 0x3333;
 
 init { return_runtime(); }
 
@@ -44,29 +73,86 @@ const return_1 = fn (a: u256) never {
 };
 
 const k_v4 = fn (
-    c0: u256, c1: u256, fee: u256, ts: u256, hooks: u256, asset_idx: u256
+    c0: u256, c1: u256, fee: u256, ts: u256, registry: u256, asset_idx: u256
 ) VolMarketKey(V4) {
-    vol_market_key(
-        V4,
-        pair(addr_from_u256(c0), addr_from_u256(c1), asset_idx),
-        registry_v4(addr_from_u256(hooks)),
-        pool_v4(fee, ts)
-    )
+    let p = pair(addr_from_u256(c0), addr_from_u256(c1), asset_idx);
+    let reg = registry_v4(addr_from_u256(registry));
+    vol_market_key(V4, Some(p), Some(reg), Some(pool_v4(p, reg, fee, ts)))
 };
 
 const k_v3 = fn (factory: u256, pool_addr: u256) VolMarketKey(V3) {
     vol_market_key(
         V3,
-        pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
-        registry_v3(addr_from_u256(factory)),
-        pool_v3(addr_from_u256(pool_addr), K_FEE, K_TICK_SPACING)
+        Some(pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0)),
+        Some(registry_v3(addr_from_u256(factory))),
+        Some(pool_v3(addr_from_u256(pool_addr), K_FEE, K_TICK_SPACING))
     )
 };
 
+// Golden path: start with all None, fill pair -> registry -> pool in memory, finalize.
+const golden_path_v4_build = fn (
+    c0: u256, c1: u256, fee: u256, ts: u256, registry: u256, asset_idx: u256
+) VolMarketKey(V4) {
+    let p = pair(addr_from_u256(c0), addr_from_u256(c1), asset_idx);
+    let reg = registry_v4(addr_from_u256(registry));
+    let pool = pool_v4(p, reg, fee, ts);
+
+    let k0 = vol_market_key(V4, None(Pair), None(Registry(V4)), None(Pool(V4)));
+    require(!vol_market_key_is_complete(V4, k0));
+
+    let k1 = vol_market_key(V4, Some(p), k0.registry, k0.pool);
+    require(!vol_market_key_is_complete(V4, k1));
+
+    let k2 = vol_market_key(V4, k1.pair, Some(reg), k1.pool);
+    require(!vol_market_key_is_complete(V4, k2));
+
+    let k3 = vol_market_key(V4, k2.pair, k2.registry, Some(pool));
+    require(vol_market_key_is_complete(V4, k3));
+
+    vol_market_key_finalize(V4, k3)
+};
+
+const k_v4_via_builder = fn (
+    c0: u256, c1: u256, fee: u256, ts: u256, registry: u256, asset_idx: u256
+) VolMarketKey(V4) {
+    golden_path_v4_build(c0, c1, fee, ts, registry, asset_idx)
+};
+
+const golden_path_completeness_bitmap = fn (registry: u256) u256 {
+    let k_inc = golden_path_v4_build(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
+    let k_at = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
+
+    require(vol_market_key_pool_word(V4, k_inc) == vol_market_key_pool_word(V4, k_at));
+    require(vol_market_key_registry_word(V4, k_inc) == vol_market_key_registry_word(V4, k_at));
+    require(vol_market_key_fee(V4, k_inc) == vol_market_key_fee(V4, k_at));
+    require(vol_market_key_tick_spacing(V4, k_inc) == vol_market_key_tick_spacing(V4, k_at));
+    require(vol_market_key_currency0(V4, k_inc) == vol_market_key_currency0(V4, k_at));
+    require(vol_market_key_currency1(V4, k_inc) == vol_market_key_currency1(V4, k_at));
+    require(vol_market_key_asset_index(V4, k_inc) == vol_market_key_asset_index(V4, k_at));
+    0xff
+};
+
+const golden_path_v4_at_matches_literal = fn (
+    registry: u256, c0: u256, c1: u256, ts: u256, fee_key: u256
+) u256 {
+    let p = pair(addr_from_u256(c0), addr_from_u256(c1), 0);
+    let reg = registry_v4(addr_from_u256(registry));
+    let k_at = vol_market_key_v4_at(p, reg, ts, fee_key);
+    let k_lit = vol_market_key(
+        V4, Some(p), Some(reg), Some(pool_v4_at_keyed(p, reg, ts, fee_key))
+    );
+
+    require(vol_market_key_pool_word(V4, k_at) == vol_market_key_pool_word(V4, k_lit));
+    require(vol_market_key_fee(V4, k_at) == vol_market_key_fee(V4, k_lit));
+    require(vol_market_key_tick_spacing(V4, k_at) == vol_market_key_tick_spacing(V4, k_lit));
+    require(vol_market_key_registry_word(V4, k_at) == vol_market_key_registry_word(V4, k_lit));
+    1
+};
+
 const venue_code = fn (comptime V: type, k: VolMarketKey(V)) u256 {
-    if V == V4 { return 1 +% (vol_market_key_asset_index(V, k) & 0); }
-    if V == V3 { return 2 +% (vol_market_key_asset_index(V, k) & 0); }
-    3 +% (vol_market_key_asset_index(V, k) & 0)
+    if V == V4 { return 1; }
+    if V == V3 { return 2; }
+    3
 };
 
 run {
@@ -99,53 +185,202 @@ run {
     }
 
     if selector == SEL_VERIFY_POOL_V3 {
-        let k = k_v3(@evm_calldataload(4), @evm_calldataload(36));
+        let k = vol_market_key_v3_at(
+            pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
+            registry_v3(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
+        );
         vol_market_key_verify_pool(V3, k);
         return_1(1);
     }
 
     if selector == SEL_VERIFY_POOL_ALGEBRA {
-        let k = vol_market_key(
-            Algebra,
+        let k = vol_market_key_algebra_at(
             pair(
                 addr_from_u256(@evm_calldataload(68)),
                 addr_from_u256(@evm_calldataload(100)),
                 0
             ),
             registry_algebra(addr_from_u256(@evm_calldataload(4))),
-            pool_algebra(addr_from_u256(@evm_calldataload(36)), K_TICK_SPACING)
+            addr_from_u256(@evm_calldataload(36))
         );
         vol_market_key_verify_pool(Algebra, k);
         return_1(1);
     }
 
     if selector == SEL_PANOPTIC_POOL_ID_V4 {
-        let k = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, K_HOOKS, 0);
+        let registry = @evm_calldataload(4);
+        let k = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
         return_1(vol_market_key_to_panoptic_pool_id(
-            V4, k, @evm_calldataload(4), @evm_calldataload(36)
+            V4, k, @evm_calldataload(36), @evm_calldataload(68)
         ));
     }
 
     if selector == SEL_V4_POOL_ID {
-        let k = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, K_HOOKS, 0);
-        return_1(vol_market_key_v4_pool_id(k));
+        let registry = @evm_calldataload(4);
+        let k = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
+        return_1(vol_market_key_pool_word(V4, k));
     }
 
     if selector == SEL_V4_POOL_ID_FOR {
+        let registry = @evm_calldataload(4);
         let k = k_v4(
-            @evm_calldataload(4),
             @evm_calldataload(36),
             @evm_calldataload(68),
             @evm_calldataload(100),
             @evm_calldataload(132),
+            registry,
             0
         );
-        return_1(vol_market_key_v4_pool_id(k));
+        return_1(vol_market_key_pool_word(V4, k));
     }
 
     if selector == SEL_V4_KEY_VIA_PAIR {
-        let k = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, K_HOOKS, 0);
-        return_1(vol_market_key_v4_pool_id(k));
+        let registry = @evm_calldataload(4);
+        let k = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
+        return_1(vol_market_key_pool_word(V4, k));
+    }
+
+    if selector == SEL_KEY_IS_COMPLETE {
+        let empty = vol_market_key(V4, None(Pair), None(Registry(V4)), None(Pool(V4)));
+        require(!vol_market_key_is_complete(V4, empty));
+        let full = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, @evm_calldataload(4), 0);
+        require(vol_market_key_is_complete(V4, full));
+        return_1(1);
+    }
+
+    if selector == SEL_BUILD_V4_VIA_BUILDER {
+        let registry = @evm_calldataload(4);
+        let k = k_v4_via_builder(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
+        return_1(vol_market_key_pool_word(V4, k));
+    }
+
+    if selector == SEL_PANOPTIC_ON_EMPTY {
+        vol_market_key_to_panoptic_pool_id(
+            V4,
+            vol_market_key(V4, None(Pair), None(Registry(V4)), None(Pool(V4))),
+            @evm_calldataload(36),
+            @evm_calldataload(68)
+        );
+        return_1(1);
+    }
+
+    if selector == SEL_KEY_V3_AT_POOL_WORD {
+        let k = vol_market_key_v3_at(
+            pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
+            registry_v3(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
+        );
+        return_1(vol_market_key_pool_word(V3, k));
+    }
+
+    if selector == SEL_KEY_V3_AT_FEE {
+        let k = vol_market_key_v3_at(
+            pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
+            registry_v3(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
+        );
+        return_1(vol_market_key_fee(V3, k));
+    }
+
+    if selector == SEL_KEY_V3_AT_TICK_SPACING {
+        let k = vol_market_key_v3_at(
+            pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
+            registry_v3(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
+        );
+        return_1(vol_market_key_tick_spacing(V3, k));
+    }
+
+    if selector == SEL_VERIFY_POOL_V3_AT {
+        let k = vol_market_key_v3_at(
+            pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
+            registry_v3(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
+        );
+        vol_market_key_verify_pool(V3, k);
+        return_1(1);
+    }
+
+    if selector == SEL_KEY_ALGEBRA_AT_POOL_WORD {
+        let k = vol_market_key_algebra_at(
+            pair(
+                addr_from_u256(@evm_calldataload(68)),
+                addr_from_u256(@evm_calldataload(100)),
+                0
+            ),
+            registry_algebra(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
+        );
+        return_1(vol_market_key_pool_word(Algebra, k));
+    }
+
+    if selector == SEL_VERIFY_POOL_ALGEBRA_AT {
+        let k = vol_market_key_algebra_at(
+            pair(
+                addr_from_u256(@evm_calldataload(68)),
+                addr_from_u256(@evm_calldataload(100)),
+                0
+            ),
+            registry_algebra(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
+        );
+        vol_market_key_verify_pool(Algebra, k);
+        return_1(1);
+    }
+
+    if selector == SEL_KEY_V4_AT_POOL_WORD {
+        let registry = @evm_calldataload(4);
+        let c0 = @evm_calldataload(36);
+        let c1 = @evm_calldataload(68);
+        let ts = @evm_calldataload(100);
+        let fee_key = @evm_calldataload(132);
+        let k = vol_market_key_v4_at(
+            pair(addr_from_u256(c0), addr_from_u256(c1), 0),
+            registry_v4(addr_from_u256(registry)),
+            ts,
+            fee_key
+        );
+        return_1(vol_market_key_pool_word(V4, k));
+    }
+
+    if selector == SEL_VERIFY_POOL_V4_AT {
+        let registry = @evm_calldataload(4);
+        let c0 = @evm_calldataload(36);
+        let c1 = @evm_calldataload(68);
+        let fee_key = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let k = vol_market_key_v4_at(
+            pair(addr_from_u256(c0), addr_from_u256(c1), 0),
+            registry_v4(addr_from_u256(registry)),
+            ts,
+            fee_key
+        );
+        vol_market_key_verify_pool(V4, k);
+        return_1(1);
+    }
+
+    if selector == SEL_GOLDEN_PATH_BITMAP {
+        return_1(golden_path_completeness_bitmap(@evm_calldataload(4)));
+    }
+
+    if selector == SEL_GOLDEN_PATH_PANOPTIC {
+        let k = golden_path_v4_build(
+            K_C0, K_C1, K_FEE, K_TICK_SPACING, @evm_calldataload(4), 0
+        );
+        return_1(vol_market_key_to_panoptic_pool_id(
+            V4, k, @evm_calldataload(36), @evm_calldataload(68)
+        ));
+    }
+
+    if selector == SEL_GOLDEN_PATH_V4_AT {
+        return_1(golden_path_v4_at_matches_literal(
+            @evm_calldataload(4),
+            @evm_calldataload(36),
+            @evm_calldataload(68),
+            @evm_calldataload(100),
+            @evm_calldataload(132)
+        ));
     }
 
     @evm_stop();

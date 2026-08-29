@@ -14,9 +14,9 @@ const SEL_REGISTRY_VERIFY = 0x96703c9a;
 init { return_runtime(); }
 
 const venue_code = fn (comptime V: type, r: Registry(V)) u256 {
-    if V == V4 { return 1 +% (cast_addr(r.addr, u256) & 0); }
-    if V == V3 { return 2 +% (cast_addr(r.addr, u256) & 0); }
-    3 +% (cast_addr(r.addr, u256) & 0)
+    if V == V4 { return 1; }
+    if V == V3 { return 2; }
+    3
 };
 
 run {
