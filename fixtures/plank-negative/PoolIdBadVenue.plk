@@ -1,0 +1,13 @@
+// NEGATIVE fixture (pool-verify): PoolId(V) must reject a V that is not one of the three venue tags.
+import std::constructor::return_runtime;
+import types::protocol_integrations::PoolId::*;
+
+const bad = fn (id: PoolId(u256)) u256 { pool_id_word(u256, id) };
+
+init { return_runtime(); }
+run {
+    let id = @uninit(PoolId(u256));
+    let out = @malloc_uninit(32);
+    @mstore32(out, bad(id));
+    @evm_return(out, 32);
+}
