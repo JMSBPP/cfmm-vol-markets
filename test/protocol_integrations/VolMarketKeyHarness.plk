@@ -1,5 +1,6 @@
 import std::constructor::return_runtime;
 import std::core::addr::addr_from_u256;
+import std::error::require;
 import types::Pair::*;
 import types::protocol_integrations::Pool::*;
 import types::protocol_integrations::Registry::*;
@@ -28,6 +29,12 @@ const SEL_V4_POOL_ID = 0xcef56961;
 const SEL_V4_POOL_ID_FOR = 0xbc01e5d0;
 // cast sig "v4KeyViaPair(uint256)" -> 0x3853a84e
 const SEL_V4_KEY_VIA_PAIR = 0x3853a84e;
+// cast sig "keyIsComplete()" -> 0x89bc45be
+const SEL_KEY_IS_COMPLETE = 0x89bc45be;
+// cast sig "buildV4PoolWordViaBuilder(uint256)" -> 0x207a7b69
+const SEL_BUILD_V4_VIA_BUILDER = 0x207a7b69;
+// cast sig "panopticPoolIdOnEmpty(uint256,address,uint256)" -> 0x74ba105d
+const SEL_PANOPTIC_ON_EMPTY = 0x74ba105d;
 
 const K_C0 = 0x1111;
 const K_C1 = 0x2222;
@@ -59,10 +66,27 @@ const k_v3 = fn (factory: u256, pool_addr: u256) VolMarketKey(V3) {
     )
 };
 
+const k_v4_via_builder = fn (
+    c0: u256, c1: u256, fee: u256, ts: u256, registry: u256, asset_idx: u256
+) VolMarketKey(V4) {
+    let p = pair(addr_from_u256(c0), addr_from_u256(c1), asset_idx);
+    let reg = registry_v4(addr_from_u256(registry));
+    let pool = pool_v4(p, reg, fee, ts);
+    vol_market_key_with_pool(
+        V4,
+        vol_market_key_with_registry(
+            V4,
+            vol_market_key_with_pair(V4, vol_market_key_empty(V4), p),
+            reg
+        ),
+        pool
+    )
+};
+
 const venue_code = fn (comptime V: type, k: VolMarketKey(V)) u256 {
-    if V == V4 { return 1 +% (vol_market_key_asset_index(V, k) & 0); }
-    if V == V3 { return 2 +% (vol_market_key_asset_index(V, k) & 0); }
-    3 +% (vol_market_key_asset_index(V, k) & 0)
+    if V == V4 { return 1 +% (vol_market_key_is_complete(V, k) & 0); }
+    if V == V3 { return 2 +% (vol_market_key_is_complete(V, k) & 0); }
+    3 +% (vol_market_key_is_complete(V, k) & 0)
 };
 
 run {
@@ -146,6 +170,27 @@ run {
         let registry = @evm_calldataload(4);
         let k = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
         return_1(vol_market_key_pool_word(V4, k));
+    }
+
+    if selector == SEL_KEY_IS_COMPLETE {
+        let empty = vol_market_key_empty(V4);
+        require(!vol_market_key_is_complete(V4, empty));
+        let full = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, @evm_calldataload(4), 0);
+        require(vol_market_key_is_complete(V4, full));
+        return_1(1);
+    }
+
+    if selector == SEL_BUILD_V4_VIA_BUILDER {
+        let registry = @evm_calldataload(4);
+        let k = k_v4_via_builder(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
+        return_1(vol_market_key_pool_word(V4, k));
+    }
+
+    if selector == SEL_PANOPTIC_ON_EMPTY {
+        vol_market_key_to_panoptic_pool_id(
+            V4, vol_market_key_empty(V4), @evm_calldataload(36), @evm_calldataload(68)
+        );
+        return_1(1);
     }
 
     @evm_stop();

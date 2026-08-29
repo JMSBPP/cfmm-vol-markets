@@ -69,6 +69,34 @@ contract VolMarketKeyTest is PlankTestBase {
         assertEq(abi.decode(r, (uint256)), 57, "venue codes wrong: a comptime branch is mis-wired");
     }
 
+    function test__unit__builderEmptyIsIncompleteCompleteKeyPasses() public {
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature("keyIsComplete()", v4Registry)
+        );
+        assertTrue(ok, "empty must be incomplete and full key must be complete");
+    }
+
+    function test__unit__builderPathMatchesAtomicCtor() public {
+        (bool okLit, bytes memory rLit) =
+            harness.staticcall(abi.encodeWithSignature("v4PoolId(uint256)", v4Registry));
+        (bool okBld, bytes memory rBld) = harness.staticcall(
+            abi.encodeWithSignature("buildV4PoolWordViaBuilder(uint256)", v4Registry)
+        );
+        require(okLit, "v4PoolId reverted");
+        require(okBld, "buildV4PoolWordViaBuilder reverted");
+        assertEq(abi.decode(rLit, (uint256)), abi.decode(rBld, (uint256)), "builder must match atomic ctor");
+    }
+
+    function test__unit__panopticOnIncompleteKeyReverts() public {
+        address sfpm = address(new SfpmStub(1));
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature(
+                "panopticPoolIdOnEmpty(uint256,address,uint256)", v4Registry, sfpm, uint256(8)
+            )
+        );
+        assertFalse(ok, "incomplete key must not reach Panoptic derivation");
+    }
+
     // ---- KEY-06 / F1: the asset/numeraire inversion ---------------------------------------------
 
     /// Panoptic's `asset` bit names the CASH token that positionSize is denominated in
