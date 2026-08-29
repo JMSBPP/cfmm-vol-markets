@@ -41,9 +41,9 @@ const K_C1 = 0x2222;
 init { return_runtime(); }
 
 const venue_code = fn (comptime V: type, p: Pool(V)) u256 {
-    if V == V4 { return 1 +% (pool_word(V, p) & 0); }
-    if V == V3 { return 2 +% (pool_word(V, p) & 0); }
-    3 +% (pool_word(V, p) & 0)
+    if V == V4 { return 1; }
+    if V == V3 { return 2; }
+    3
 };
 
 const return_1 = fn (a: u256) never {
