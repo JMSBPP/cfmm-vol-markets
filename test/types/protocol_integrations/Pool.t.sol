@@ -3,6 +3,20 @@ pragma solidity ^0.8.26;
 
 import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "../../PlankTestBase.sol";
+import {PoolVerifyV3Pool} from "../../mocks/PoolVerifyV3Pool.sol";
+
+/// Univ3 factory stand-in for pool_verify registry lookup.
+contract V3FactoryStub {
+    address internal immutable POOL;
+
+    constructor(address pool_) {
+        POOL = pool_;
+    }
+
+    function getPool(address, address, uint24) external view returns (address) {
+        return POOL;
+    }
+}
 
 contract PoolTest is PlankTestBase {
     address internal harness;
@@ -65,6 +79,41 @@ contract PoolTest is PlankTestBase {
         );
         require(ok, "poolTickSpacingV3 reverted");
         assertEq(abi.decode(r, (uint256)), 60, "tick_spacing round-trip");
+    }
+
+    function test__unit__poolV3AtReadsFeeAndTick() public {
+        address pool = address(new PoolVerifyV3Pool(3000, 60));
+        (bool okWord, bytes memory rWord) =
+            harness.staticcall(abi.encodeWithSignature("poolV3At(address)", pool));
+        require(okWord, "poolV3At reverted");
+        assertEq(abi.decode(rWord, (uint256)), uint256(uint160(pool)), "pool_word is pool address");
+
+        (bool okFee, bytes memory rFee) =
+            harness.staticcall(abi.encodeWithSignature("poolFeeV3At(address)", pool));
+        require(okFee, "poolFeeV3At reverted");
+        assertEq(abi.decode(rFee, (uint256)), 3000, "fee from on-chain read");
+
+        (bool okTs, bytes memory rTs) =
+            harness.staticcall(abi.encodeWithSignature("poolTickSpacingV3At(address)", pool));
+        require(okTs, "poolTickSpacingV3At reverted");
+        assertEq(abi.decode(rTs, (uint256)), 60, "tick_spacing from on-chain read");
+    }
+
+    function test__unit__poolVerifyV3PassesWhenFactoryMatches() public {
+        address pool = address(new PoolVerifyV3Pool(3000, 60));
+        address factory = address(new V3FactoryStub(pool));
+        (bool ok,) =
+            harness.staticcall(abi.encodeWithSignature("poolVerifyV3(address,address,uint256)", factory, pool, 0));
+        assertTrue(ok, "matching factory pool must verify");
+    }
+
+    function test__unit__poolVerifyV3MismatchReverts() public {
+        address pool = address(new PoolVerifyV3Pool(3000, 60));
+        address factory = address(new V3FactoryStub(address(0xBEEF)));
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature("poolVerifyV3(address,address,uint256)", factory, pool, 0)
+        );
+        assertFalse(ok, "registry mismatch must revert");
     }
 
     function test__unit__nonVenueTagDoesNotCompile() public {

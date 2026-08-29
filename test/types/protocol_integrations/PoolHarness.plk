@@ -15,6 +15,17 @@ const SEL_POOL_WORD_V3 = 0xf7f97f95;
 const SEL_POOL_FEE_ALGEBRA = 0xac73e74d;
 // cast sig "poolTickSpacingV3(address,uint256,uint256)" -> 0x889c71d2
 const SEL_POOL_TICK_SPACING_V3 = 0x889c71d2;
+// cast sig "poolV3At(address)" -> 0x37ed19ec
+const SEL_POOL_V3_AT = 0x37ed19ec;
+// cast sig "poolFeeV3At(address)" -> 0xb95084f6
+const SEL_POOL_FEE_V3_AT = 0xb95084f6;
+// cast sig "poolTickSpacingV3At(address)" -> 0x1172f4ac
+const SEL_POOL_TICK_SPACING_V3_AT = 0x1172f4ac;
+// cast sig "poolVerifyV3(address,address,uint256)" -> 0xc2eccfbe
+const SEL_POOL_VERIFY_V3 = 0xc2eccfbe;
+
+const K_C0 = 0x1111;
+const K_C1 = 0x2222;
 
 init { return_runtime(); }
 
@@ -80,6 +91,31 @@ run {
             @evm_calldataload(68)
         );
         return_1(pool_tick_spacing(V3, p));
+    }
+
+    if selector == SEL_POOL_V3_AT {
+        let p = pool_v3_at(addr_from_u256(@evm_calldataload(4)));
+        return_1(pool_word(V3, p));
+    }
+
+    if selector == SEL_POOL_FEE_V3_AT {
+        let p = pool_v3_at(addr_from_u256(@evm_calldataload(4)));
+        return_1(pool_fee(V3, p));
+    }
+
+    if selector == SEL_POOL_TICK_SPACING_V3_AT {
+        let p = pool_v3_at(addr_from_u256(@evm_calldataload(4)));
+        return_1(pool_tick_spacing(V3, p));
+    }
+
+    if selector == SEL_POOL_VERIFY_V3 {
+        let factory = addr_from_u256(@evm_calldataload(4));
+        let pool_addr = addr_from_u256(@evm_calldataload(36));
+        let asset_idx = @evm_calldataload(68);
+        let pair_ = pair(addr_from_u256(K_C0), addr_from_u256(K_C1), asset_idx);
+        let p = pool_v3_at(pool_addr);
+        pool_verify(V3, p, pair_, registry_v3(factory), 0);
+        return_1(1);
     }
 
     @evm_stop();
