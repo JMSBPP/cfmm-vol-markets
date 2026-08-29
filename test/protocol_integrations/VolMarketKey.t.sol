@@ -4,9 +4,14 @@ pragma solidity ^0.8.26;
 import {Vm} from "forge-std/Vm.sol";
 import {PlankTestBase} from "test/PlankTestBase.sol";
 import {RegistryVerifyV4} from "test/mocks/RegistryVerifyV4.sol";
+import {PoolVerifyV3Pool} from "test/mocks/PoolVerifyV3Pool.sol";
 import {AlgebraIntegralDeployer} from "test/helpers/AlgebraIntegralDeployer.sol";
 import {IAlgebraFactory} from "@cryptoalgebra/integral-core/interfaces/IAlgebraFactory.sol";
+import {IAlgebraPoolState} from "@cryptoalgebra/integral-core/interfaces/pool/IAlgebraPoolState.sol";
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
+import {Deployers} from "v4-core-test/utils/Deployers.sol";
+import {IHooks} from "univ4-core/interfaces/IHooks.sol";
+import {Currency} from "univ4-core/types/Currency.sol";
 
 /// Minimal stand-in for BOTH SFPMs: they share the signature
 /// `getPoolId(bytes memory id, uint8 vegoid) external view returns (uint64)`
@@ -47,7 +52,7 @@ contract V3FactoryStub {
 ///     Phase 2 negative test was caught being meaningless on gate 33181644493;
 ///   - the NEGATIVE side is a fixture that must FAIL to compile, asserted on the error TEXT rather
 ///     than the exit code, because a fixture containing a typo also fails to compile.
-contract VolMarketKeyTest is PlankTestBase {
+contract VolMarketKeyTest is PlankTestBase, Deployers {
     bytes internal constant ZERO_BYTES = new bytes(0);
 
     address harness;
@@ -253,6 +258,106 @@ contract VolMarketKeyTest is PlankTestBase {
             )
         );
         assertFalse(ok, "algebra mismatch must revert");
+    }
+
+    // ---- KEY-03b: vol_market_key_*_at resolve + verify -----------------------------------------
+
+    function test__unit__keyV3AtReadsFeeAndTick() public {
+        address pool = address(new PoolVerifyV3Pool(3000, 60));
+        address factory = address(new V3FactoryStub(pool));
+
+        (bool okWord, bytes memory rWord) = harness.staticcall(
+            abi.encodeWithSignature("keyV3AtPoolWord(address,address)", factory, pool)
+        );
+        require(okWord, "keyV3AtPoolWord reverted");
+        assertEq(abi.decode(rWord, (uint256)), uint256(uint160(pool)), "pool_word is pool address");
+
+        (bool okFee, bytes memory rFee) =
+            harness.staticcall(abi.encodeWithSignature("keyV3AtFee(address,address)", factory, pool));
+        require(okFee, "keyV3AtFee reverted");
+        assertEq(abi.decode(rFee, (uint256)), 3000, "fee from on-chain read");
+
+        (bool okTs, bytes memory rTs) = harness.staticcall(
+            abi.encodeWithSignature("keyV3AtTickSpacing(address,address)", factory, pool)
+        );
+        require(okTs, "keyV3AtTickSpacing reverted");
+        assertEq(abi.decode(rTs, (uint256)), 60, "tick_spacing from on-chain read");
+    }
+
+    function test__unit__verifyPoolV3AtPassesWhenFactoryMatches() public {
+        address pool = address(new PoolVerifyV3Pool(3000, 60));
+        address factory = address(new V3FactoryStub(pool));
+        (bool ok,) =
+            harness.staticcall(abi.encodeWithSignature("verifyPoolV3At(address,address)", factory, pool));
+        assertTrue(ok, "vol_market_key_v3_at + verify_pool must pass when factory matches");
+    }
+
+    function test__unit__verifyPoolV3AtMismatchReverts() public {
+        address pool = address(new PoolVerifyV3Pool(3000, 60));
+        address factory = address(new V3FactoryStub(address(0xBEEF)));
+        (bool ok,) =
+            harness.staticcall(abi.encodeWithSignature("verifyPoolV3At(address,address)", factory, pool));
+        assertFalse(ok, "vol_market_key_v3_at verify must revert on registry mismatch");
+    }
+
+    function test__unit__keyAlgebraAtAndVerify() public {
+        (address entryPoint, address pool, address t0, address t1) = _algebraPoolFixture();
+
+        (bool okWord, bytes memory rWord) = harness.staticcall(
+            abi.encodeWithSignature(
+                "keyAlgebraAtPoolWord(address,address,uint256,uint256)", entryPoint, pool, t0, t1
+            )
+        );
+        require(okWord, "keyAlgebraAtPoolWord reverted");
+        assertEq(abi.decode(rWord, (uint256)), uint256(uint160(pool)), "algebra pool_word is address");
+
+        (bool okVerify,) = harness.staticcall(
+            abi.encodeWithSignature(
+                "verifyPoolAlgebraAt(address,address,uint256,uint256)", entryPoint, pool, t0, t1
+            )
+        );
+        assertTrue(okVerify, "vol_market_key_algebra_at + verify_pool must pass");
+    }
+
+    function test__unit__keyV4AtAndVerifyRoundTrip() public {
+        deployFreshManagerAndRouters();
+        (Currency c0, Currency c1) = deployMintAndApprove2Currencies();
+        uint24 fee = 3000;
+        int24 tickSpacing = 60;
+        address registry = address(new RegistryVerifyV4(address(manager)));
+        initPool(c0, c1, IHooks(registry), fee, tickSpacing, SQRT_PRICE_1_1);
+
+        address t0 = Currency.unwrap(c0);
+        address t1 = Currency.unwrap(c1);
+
+        (bool okAt, bytes memory rAt) = harness.staticcall(
+            abi.encodeWithSignature(
+                "keyV4AtPoolWord(uint256,uint256,uint256,uint256,uint256)",
+                uint256(uint160(registry)),
+                uint256(uint160(t0)),
+                uint256(uint160(t1)),
+                uint256(int256(tickSpacing)),
+                uint256(fee)
+            )
+        );
+        require(okAt, "keyV4AtPoolWord reverted");
+        assertEq(
+            abi.decode(rAt, (uint256)),
+            uint256(keccak256(abi.encode(t0, t1, fee, tickSpacing, registry))),
+            "vol_market_key_v4_at must return canonical PoolId"
+        );
+
+        (bool okVerify,) = harness.staticcall(
+            abi.encodeWithSignature(
+                "verifyPoolV4At(uint256,uint256,uint256,uint256,uint256)",
+                uint256(uint160(registry)),
+                uint256(uint160(t0)),
+                uint256(uint160(t1)),
+                uint256(fee),
+                uint256(int256(tickSpacing))
+            )
+        );
+        assertTrue(okVerify, "vol_market_key_v4_at + verify_pool must pass against manager slot0");
     }
 
     // ---- KEY-02: the poolId is a CANDIDATE, verified against the SFPM --------------------------

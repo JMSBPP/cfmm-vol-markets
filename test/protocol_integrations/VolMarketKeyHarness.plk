@@ -36,6 +36,22 @@ const SEL_KEY_IS_COMPLETE = 0x89bc45be;
 const SEL_BUILD_V4_VIA_BUILDER = 0x207a7b69;
 // cast sig "panopticPoolIdOnEmpty(uint256,address,uint256)" -> 0x74ba105d
 const SEL_PANOPTIC_ON_EMPTY = 0x74ba105d;
+// cast sig "keyV3AtPoolWord(address,address)" -> 0xab409e84
+const SEL_KEY_V3_AT_POOL_WORD = 0xab409e84;
+// cast sig "keyV3AtFee(address,address)" -> 0x4d9fd834
+const SEL_KEY_V3_AT_FEE = 0x4d9fd834;
+// cast sig "keyV3AtTickSpacing(address,address)" -> 0xd80a03ce
+const SEL_KEY_V3_AT_TICK_SPACING = 0xd80a03ce;
+// cast sig "verifyPoolV3At(address,address)" -> 0x90c4a534
+const SEL_VERIFY_POOL_V3_AT = 0x90c4a534;
+// cast sig "keyAlgebraAtPoolWord(address,address,uint256,uint256)" -> 0x2c61b59f
+const SEL_KEY_ALGEBRA_AT_POOL_WORD = 0x2c61b59f;
+// cast sig "verifyPoolAlgebraAt(address,address,uint256,uint256)" -> 0x28db41a4
+const SEL_VERIFY_POOL_ALGEBRA_AT = 0x28db41a4;
+// cast sig "keyV4AtPoolWord(uint256,uint256,uint256,uint256,uint256)" -> 0x52f060e6
+const SEL_KEY_V4_AT_POOL_WORD = 0x52f060e6;
+// cast sig "verifyPoolV4At(uint256,uint256,uint256,uint256,uint256)" -> 0xb5bcac81
+const SEL_VERIFY_POOL_V4_AT = 0xb5bcac81;
 
 const K_C0 = 0x1111;
 const K_C1 = 0x2222;
@@ -189,6 +205,101 @@ run {
             @evm_calldataload(36),
             @evm_calldataload(68)
         );
+        return_1(1);
+    }
+
+    if selector == SEL_KEY_V3_AT_POOL_WORD {
+        let k = vol_market_key_v3_at(
+            pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
+            registry_v3(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
+        );
+        return_1(vol_market_key_pool_word(V3, k));
+    }
+
+    if selector == SEL_KEY_V3_AT_FEE {
+        let k = vol_market_key_v3_at(
+            pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
+            registry_v3(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
+        );
+        return_1(vol_market_key_fee(V3, k));
+    }
+
+    if selector == SEL_KEY_V3_AT_TICK_SPACING {
+        let k = vol_market_key_v3_at(
+            pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
+            registry_v3(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
+        );
+        return_1(vol_market_key_tick_spacing(V3, k));
+    }
+
+    if selector == SEL_VERIFY_POOL_V3_AT {
+        let k = vol_market_key_v3_at(
+            pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
+            registry_v3(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
+        );
+        vol_market_key_verify_pool(V3, k);
+        return_1(1);
+    }
+
+    if selector == SEL_KEY_ALGEBRA_AT_POOL_WORD {
+        let k = vol_market_key_algebra_at(
+            pair(
+                addr_from_u256(@evm_calldataload(68)),
+                addr_from_u256(@evm_calldataload(100)),
+                0
+            ),
+            registry_algebra(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
+        );
+        return_1(vol_market_key_pool_word(Algebra, k));
+    }
+
+    if selector == SEL_VERIFY_POOL_ALGEBRA_AT {
+        let k = vol_market_key_algebra_at(
+            pair(
+                addr_from_u256(@evm_calldataload(68)),
+                addr_from_u256(@evm_calldataload(100)),
+                0
+            ),
+            registry_algebra(addr_from_u256(@evm_calldataload(4))),
+            addr_from_u256(@evm_calldataload(36))
+        );
+        vol_market_key_verify_pool(Algebra, k);
+        return_1(1);
+    }
+
+    if selector == SEL_KEY_V4_AT_POOL_WORD {
+        let registry = @evm_calldataload(4);
+        let c0 = @evm_calldataload(36);
+        let c1 = @evm_calldataload(68);
+        let ts = @evm_calldataload(100);
+        let fee_key = @evm_calldataload(132);
+        let k = vol_market_key_v4_at(
+            pair(addr_from_u256(c0), addr_from_u256(c1), 0),
+            registry_v4(addr_from_u256(registry)),
+            ts,
+            fee_key
+        );
+        return_1(vol_market_key_pool_word(V4, k));
+    }
+
+    if selector == SEL_VERIFY_POOL_V4_AT {
+        let registry = @evm_calldataload(4);
+        let c0 = @evm_calldataload(36);
+        let c1 = @evm_calldataload(68);
+        let fee_key = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let k = vol_market_key_v4_at(
+            pair(addr_from_u256(c0), addr_from_u256(c1), 0),
+            registry_v4(addr_from_u256(registry)),
+            ts,
+            fee_key
+        );
+        vol_market_key_verify_pool(V4, k);
         return_1(1);
     }
 
