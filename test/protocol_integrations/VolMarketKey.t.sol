@@ -92,6 +92,33 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
         assertEq(abi.decode(rLit, (uint256)), abi.decode(rBld, (uint256)), "builder must match atomic ctor");
     }
 
+    /// Golden path: None -> Some(pair) -> Some(registry) -> Some(pool) in memory, then every
+    /// accessor agrees with the atomic vol_market_key(V4, Some, Some, Some) shortcut.
+    function test__unit__goldenPathFillsKeyInMemory() public {
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature("goldenPathCompletenessBitmap(uint256)", v4Registry)
+        );
+        require(ok, "goldenPathCompletenessBitmap reverted");
+        assertEq(
+            abi.decode(r, (uint256)),
+            0xff,
+            "incremental in-memory build must pass all completeness stages and accessors"
+        );
+    }
+
+    /// Golden path continuation: finalized key -> Panoptic poolId via SFPM agreement.
+    function test__unit__goldenPathEndToEndPanoptic() public {
+        uint64 expected = _expectedV4PoolId(VEGOID, TICK_SPACING);
+        address sfpm = address(new SfpmStub(expected));
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature(
+                "goldenPathPanoptic(uint256,address,uint256)", v4Registry, sfpm, uint256(VEGOID)
+            )
+        );
+        require(ok, "goldenPathPanoptic reverted");
+        assertEq(abi.decode(r, (uint256)), expected, "golden path must reach Panoptic derivation");
+    }
+
     function test__unit__panopticOnIncompleteKeyReverts() public {
         address sfpm = address(new SfpmStub(1));
         (bool ok,) = harness.staticcall(
@@ -358,6 +385,36 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
             )
         );
         assertTrue(okVerify, "vol_market_key_v4_at + verify_pool must pass against manager slot0");
+    }
+
+    /// vol_market_key_v4_at must agree with vol_market_key(V4, Some, Some, Some(pool_v4_at_keyed(...))).
+    function test__unit__goldenPathV4AtMatchesLiteral() public {
+        deployFreshManagerAndRouters();
+        (Currency c0, Currency c1) = deployMintAndApprove2Currencies();
+        uint24 fee = 3000;
+        int24 tickSpacing = 60;
+        address registry = address(new RegistryVerifyV4(address(manager)));
+        initPool(c0, c1, IHooks(registry), fee, tickSpacing, SQRT_PRICE_1_1);
+
+        address t0 = Currency.unwrap(c0);
+        address t1 = Currency.unwrap(c1);
+
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature(
+                "goldenPathV4AtMatchesLiteral(uint256,uint256,uint256,uint256,uint256)",
+                uint256(uint160(registry)),
+                uint256(uint160(t0)),
+                uint256(uint160(t1)),
+                uint256(int256(tickSpacing)),
+                uint256(fee)
+            )
+        );
+        require(ok, "goldenPathV4AtMatchesLiteral reverted");
+        assertEq(
+            abi.decode(r, (uint256)),
+            0x1f,
+            "vol_market_key_v4_at must match explicit Some(...) literal assembly"
+        );
     }
 
     // ---- KEY-02: the poolId is a CANDIDATE, verified against the SFPM --------------------------

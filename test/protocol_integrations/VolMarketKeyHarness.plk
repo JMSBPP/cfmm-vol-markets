@@ -52,6 +52,12 @@ const SEL_VERIFY_POOL_ALGEBRA_AT = 0x28db41a4;
 const SEL_KEY_V4_AT_POOL_WORD = 0x52f060e6;
 // cast sig "verifyPoolV4At(uint256,uint256,uint256,uint256,uint256)" -> 0xb5bcac81
 const SEL_VERIFY_POOL_V4_AT = 0xb5bcac81;
+// cast sig "goldenPathCompletenessBitmap(uint256)" -> 0x9b5a3ddf
+const SEL_GOLDEN_PATH_BITMAP = 0x9b5a3ddf;
+// cast sig "goldenPathPanoptic(uint256,address,uint256)" -> 0x55771c63
+const SEL_GOLDEN_PATH_PANOPTIC = 0x55771c63;
+// cast sig "goldenPathV4AtMatchesLiteral(uint256,uint256,uint256,uint256,uint256)" -> 0x97c7263b
+const SEL_GOLDEN_PATH_V4_AT = 0x97c7263b;
 
 const K_C0 = 0x1111;
 const K_C1 = 0x2222;
@@ -86,13 +92,63 @@ const k_v3 = fn (factory: u256, pool_addr: u256) VolMarketKey(V3) {
 const k_v4_via_builder = fn (
     c0: u256, c1: u256, fee: u256, ts: u256, registry: u256, asset_idx: u256
 ) VolMarketKey(V4) {
+    golden_path_v4_build(c0, c1, fee, ts, registry, asset_idx)
+};
+
+// Golden path: start with all None, fill pair -> registry -> pool in memory, finalize.
+const golden_path_v4_build = fn (
+    c0: u256, c1: u256, fee: u256, ts: u256, registry: u256, asset_idx: u256
+) VolMarketKey(V4) {
     let p = pair(addr_from_u256(c0), addr_from_u256(c1), asset_idx);
     let reg = registry_v4(addr_from_u256(registry));
     let pool = pool_v4(p, reg, fee, ts);
+
     let k0 = vol_market_key(V4, None(Pair), None(Registry(V4)), None(Pool(V4)));
+    require(!vol_market_key_is_complete(V4, k0));
+
     let k1 = vol_market_key(V4, Some(p), k0.registry, k0.pool);
+    require(!vol_market_key_is_complete(V4, k1));
+
     let k2 = vol_market_key(V4, k1.pair, Some(reg), k1.pool);
-    vol_market_key(V4, k2.pair, k2.registry, Some(pool))
+    require(!vol_market_key_is_complete(V4, k2));
+
+    let k3 = vol_market_key(V4, k2.pair, k2.registry, Some(pool));
+    require(vol_market_key_is_complete(V4, k3));
+
+    vol_market_key_finalize(V4, k3)
+};
+
+const golden_path_completeness_bitmap = fn (registry: u256) u256 {
+    let k_inc = golden_path_v4_build(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
+    let k_at = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
+
+    let ok = 1;
+    ok = ok | @evm_shl(1, (vol_market_key_pool_word(V4, k_inc) == vol_market_key_pool_word(V4, k_at)) & 1);
+    ok = ok | @evm_shl(2, (vol_market_key_registry_word(V4, k_inc) == vol_market_key_registry_word(V4, k_at)) & 1);
+    ok = ok | @evm_shl(3, (vol_market_key_fee(V4, k_inc) == vol_market_key_fee(V4, k_at)) & 1);
+    ok = ok | @evm_shl(4, (vol_market_key_tick_spacing(V4, k_inc) == vol_market_key_tick_spacing(V4, k_at)) & 1);
+    ok = ok | @evm_shl(5, (vol_market_key_currency0(V4, k_inc) == vol_market_key_currency0(V4, k_at)) & 1);
+    ok = ok | @evm_shl(6, (vol_market_key_currency1(V4, k_inc) == vol_market_key_currency1(V4, k_at)) & 1);
+    ok = ok | @evm_shl(7, (vol_market_key_asset_index(V4, k_inc) == vol_market_key_asset_index(V4, k_at)) & 1);
+    ok
+};
+
+const golden_path_v4_at_matches_literal = fn (
+    registry: u256, c0: u256, c1: u256, ts: u256, fee_key: u256
+) u256 {
+    let p = pair(addr_from_u256(c0), addr_from_u256(c1), 0);
+    let reg = registry_v4(addr_from_u256(registry));
+    let k_at = vol_market_key_v4_at(p, reg, ts, fee_key);
+    let k_lit = vol_market_key(
+        V4, Some(p), Some(reg), Some(pool_v4_at_keyed(p, reg, ts, fee_key))
+    );
+
+    let ok = 1;
+    ok = ok | @evm_shl(1, (vol_market_key_pool_word(V4, k_at) == vol_market_key_pool_word(V4, k_lit)) & 1);
+    ok = ok | @evm_shl(2, (vol_market_key_fee(V4, k_at) == vol_market_key_fee(V4, k_lit)) & 1);
+    ok = ok | @evm_shl(3, (vol_market_key_tick_spacing(V4, k_at) == vol_market_key_tick_spacing(V4, k_lit)) & 1);
+    ok = ok | @evm_shl(4, (vol_market_key_registry_word(V4, k_at) == vol_market_key_registry_word(V4, k_lit)) & 1);
+    ok
 };
 
 const venue_code = fn (comptime V: type, k: VolMarketKey(V)) u256 {
@@ -301,6 +357,29 @@ run {
         );
         vol_market_key_verify_pool(V4, k);
         return_1(1);
+    }
+
+    if selector == SEL_GOLDEN_PATH_BITMAP {
+        return_1(golden_path_completeness_bitmap(@evm_calldataload(4)));
+    }
+
+    if selector == SEL_GOLDEN_PATH_PANOPTIC {
+        let k = golden_path_v4_build(
+            K_C0, K_C1, K_FEE, K_TICK_SPACING, @evm_calldataload(4), 0
+        );
+        return_1(vol_market_key_to_panoptic_pool_id(
+            V4, k, @evm_calldataload(36), @evm_calldataload(68)
+        ));
+    }
+
+    if selector == SEL_GOLDEN_PATH_V4_AT {
+        return_1(golden_path_v4_at_matches_literal(
+            @evm_calldataload(4),
+            @evm_calldataload(36),
+            @evm_calldataload(68),
+            @evm_calldataload(100),
+            @evm_calldataload(132)
+        ));
     }
 
     @evm_stop();
