@@ -53,8 +53,6 @@ contract V3FactoryStub {
 ///   - the NEGATIVE side is a fixture that must FAIL to compile, asserted on the error TEXT rather
 ///     than the exit code, because a fixture containing a typo also fails to compile.
 contract VolMarketKeyTest is PlankTestBase, Deployers {
-    bytes internal constant ZERO_BYTES = new bytes(0);
-
     address harness;
     address v4Registry;
 
