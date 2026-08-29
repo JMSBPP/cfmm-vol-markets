@@ -4,6 +4,8 @@ import types::Pair::*;
 
 // cast sig "pair(address,address,uint256)" -> 0x34cd51d0
 const SEL_PAIR = 0x34cd51d0;
+// cast sig "pairVerifyErc20(address,address,uint256)" -> 0xf8828beb
+const SEL_PAIR_VERIFY_ERC20 = 0xf8828beb;
 
 init { return_runtime(); }
 
@@ -21,5 +23,18 @@ run {
         @mstore32(out +% 64, p.asset_index);
         @evm_return(out, 96);
     }
+
+    if selector == SEL_PAIR_VERIFY_ERC20 {
+        let p = pair(
+            addr_from_u256(@evm_calldataload(4)),
+            addr_from_u256(@evm_calldataload(36)),
+            @evm_calldataload(68)
+        );
+        pair_verify_erc20(p);
+        let out = @malloc_uninit(32);
+        @mstore32(out, 1);
+        @evm_return(out, 32);
+    }
+
     @evm_stop();
 }

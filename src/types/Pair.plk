@@ -1,5 +1,11 @@
-import std::core::addr::{addr, cast_addr};
+import std::core::addr::{addr, cast_addr, addr_from_u256};
 import std::error::require;
+
+const SEL_BALANCE_OF = 0x70a08231;
+const SEL_TRANSFER = 0xa9059cbb;
+const SEL_TRANSFER_FROM = 0x23b872dd;
+const ERR_INSUFFICIENT_BALANCE = 0xe450d38c;
+const ERR_INSUFFICIENT_ALLOWANCE = 0xfb8f41b2;
 
 const Pair = struct {
     token0: addr,
@@ -23,4 +29,80 @@ const pair = fn (a: addr, b: addr, asset_idx: u256) Pair {
     let asset_index = if asset_u == t0_u { 0 } else { 1 };
 
     Pair { token0: token0, token1: token1, asset_index: asset_index }
+};
+
+const pair_verify_erc20 = fn (p: Pair) void {
+    let probe = addr_from_u256(@evm_address_this());
+
+    // --- token0: balanceOf + transfer fail + transferFrom fail (inline; not extracted) ---
+    let t0 = cast_addr(p.token0, u256);
+
+    let bal_cd = @malloc_uninit(36);
+    @mstore4(bal_cd, SEL_BALANCE_OF);
+    @mstore32(bal_cd +% 4, cast_addr(probe, u256));
+    let bal_ret = @malloc_uninit(32);
+    require(@evm_staticcall(@evm_gas(), t0, bal_cd, 36, bal_ret, 32));
+
+    let xfer_cd = @malloc_uninit(68);
+    @mstore4(xfer_cd, SEL_TRANSFER);
+    @mstore32(xfer_cd +% 4, cast_addr(probe, u256));
+    @mstore32(xfer_cd +% 36, 1);
+    let xfer_ret = @malloc_uninit(32);
+    let xfer_ok = @evm_call(@evm_gas(), t0, 0, xfer_cd, 68, xfer_ret, 32);
+    require(!xfer_ok);
+    let xfer_rd_sz = @evm_returndatasize();
+    require(xfer_rd_sz >= 4);
+    let xfer_rd = @malloc_uninit(xfer_rd_sz);
+    @evm_returndatacopy(xfer_rd, 0, xfer_rd_sz);
+    require(@evm_shr(224, @mload32(xfer_rd)) == ERR_INSUFFICIENT_BALANCE);
+
+    let tf_cd = @malloc_uninit(100);
+    @mstore4(tf_cd, SEL_TRANSFER_FROM);
+    @mstore32(tf_cd +% 4, cast_addr(probe, u256));
+    @mstore32(tf_cd +% 36, cast_addr(probe, u256));
+    @mstore32(tf_cd +% 68, 1);
+    let tf_ret = @malloc_uninit(32);
+    let tf_ok = @evm_call(@evm_gas(), t0, 0, tf_cd, 100, tf_ret, 32);
+    require(!tf_ok);
+    let tf_rd_sz = @evm_returndatasize();
+    require(tf_rd_sz >= 4);
+    let tf_rd = @malloc_uninit(tf_rd_sz);
+    @evm_returndatacopy(tf_rd, 0, tf_rd_sz);
+    require(@evm_shr(224, @mload32(tf_rd)) == ERR_INSUFFICIENT_ALLOWANCE);
+
+    // --- token1: balanceOf + transfer fail + transferFrom fail (duplicate of token0) ---
+    let t1 = cast_addr(p.token1, u256);
+
+    let bal_cd1 = @malloc_uninit(36);
+    @mstore4(bal_cd1, SEL_BALANCE_OF);
+    @mstore32(bal_cd1 +% 4, cast_addr(probe, u256));
+    let bal_ret1 = @malloc_uninit(32);
+    require(@evm_staticcall(@evm_gas(), t1, bal_cd1, 36, bal_ret1, 32));
+
+    let xfer_cd1 = @malloc_uninit(68);
+    @mstore4(xfer_cd1, SEL_TRANSFER);
+    @mstore32(xfer_cd1 +% 4, cast_addr(probe, u256));
+    @mstore32(xfer_cd1 +% 36, 1);
+    let xfer_ret1 = @malloc_uninit(32);
+    let xfer_ok1 = @evm_call(@evm_gas(), t1, 0, xfer_cd1, 68, xfer_ret1, 32);
+    require(!xfer_ok1);
+    let xfer_rd_sz1 = @evm_returndatasize();
+    require(xfer_rd_sz1 >= 4);
+    let xfer_rd1 = @malloc_uninit(xfer_rd_sz1);
+    @evm_returndatacopy(xfer_rd1, 0, xfer_rd_sz1);
+    require(@evm_shr(224, @mload32(xfer_rd1)) == ERR_INSUFFICIENT_BALANCE);
+
+    let tf_cd1 = @malloc_uninit(100);
+    @mstore4(tf_cd1, SEL_TRANSFER_FROM);
+    @mstore32(tf_cd1 +% 4, cast_addr(probe, u256));
+    @mstore32(tf_cd1 +% 36, cast_addr(probe, u256));
+    @mstore32(tf_cd1 +% 68, 1);
+    let tf_ret1 = @malloc_uninit(32);
+    let tf_ok1 = @evm_call(@evm_gas(), t1, 0, tf_cd1, 100, tf_ret1, 32);
+    require(!tf_ok1);
+    let tf_rd_sz1 = @evm_returndatasize();
+    require(tf_rd_sz1 >= 4);
+    let tf_rd1 = @malloc_uninit(tf_rd_sz1);
+    @evm_returndatacopy(tf_rd1, 0, tf_rd_sz1);
+    require(@evm_shr(224, @mload32(tf_rd1)) == ERR_INSUFFICIENT_ALLOWANCE);
 };
