@@ -5,15 +5,15 @@ import types::protocol_integrations::VolMarketKey::*;
 import types::protocol_integrations::Pool::*;
 import types::protocol_integrations::Venue::*;
 
-const MASK_U40 = 0xffffffffff;
 const MASK_U160 = 0xffffffffffffffffffffffffffffffffffffffff;
+const POOL_ID_MASK_U40 = 0xffffffffff;
 
 const panoptic_pool_pattern_v4 = fn (pool_id_v4: u256) u256 {
-    pool_id_v4 & MASK_U40
+    pool_id_v4 & POOL_ID_MASK_U40
 };
 
 const panoptic_pool_pattern_v3 = fn (pool_addr: u256) u256 {
-    @evm_shr(120, pool_addr & MASK_U160) & MASK_U40
+    @evm_shr(120, pool_addr & MASK_U160) & POOL_ID_MASK_U40
 };
 
 const vol_market_key_to_panoptic_pool_id = fn (

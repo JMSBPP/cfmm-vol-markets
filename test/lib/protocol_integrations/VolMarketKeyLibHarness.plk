@@ -157,5 +157,5 @@ run {
         return_1(1);
     }
 
-    @evm_revert(0, 0);
+    @evm_stop();
 }
