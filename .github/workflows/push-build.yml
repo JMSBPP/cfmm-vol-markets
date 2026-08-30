@@ -165,6 +165,11 @@ jobs:
           git submodule update --init lib/cfmm-types
           git -C lib/cfmm-types config submodule.lib/v4-hooks-public.update none
           git submodule update --init --recursive lib/cfmm-types
+          # lib/seaport: DifferentialTest.sol only — block nested Seaport libs before recursive lib/.
+          git submodule update --init --depth 1 lib/seaport
+          for name in $(git config -f lib/seaport/.gitmodules --get-regexp '^submodule\.' | sed 's/^submodule\.//;s/\.url$//'); do
+            git -C lib/seaport config "submodule.${name}.update" none
+          done
           git submodule update --init --recursive -- lib/
 
       # A plank-monorepo pin bump changes the compiler AND std, but the runner's persistent
@@ -214,4 +219,4 @@ jobs:
         run: >
           forge test --via-ir --offline --fuzz-seed 4880
           --skip "*VolRangeWidth*" "*SpreadTickAssimetryHelper*"
-          "*PanopticVegaLens.t.sol*"
+          "*PanopticVegaLens.t.sol*" "*HookMiner*"

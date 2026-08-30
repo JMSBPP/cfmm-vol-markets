@@ -51,3 +51,4 @@ test/=test/
 cfmm-types-test/=lib/cfmm-types/test/
 
 v4-core-test/=lib/panoptic-v2-core/lib/v4-core/test/
+@seaport/=lib/seaport/test/foundry/
