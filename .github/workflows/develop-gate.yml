@@ -126,6 +126,9 @@ jobs:
           git submodule update --init lib/cfmm-types
           git -C lib/cfmm-types config submodule.lib/v4-hooks-public.update none
           git submodule update --init --recursive lib/cfmm-types
+          # lib/seaport: DifferentialTest.sol only — no nested Seaport libs needed.
+          git submodule update --init --depth 1 lib/seaport
+          git -C lib/seaport config submodule.update none
           git submodule update --init --recursive -- lib/
       # A plank-monorepo pin bump changes the compiler AND std, but the runner's persistent
       # ~/.plank/bin/plank does NOT auto-track the pin. Rebuild it from the pinned submodule so
