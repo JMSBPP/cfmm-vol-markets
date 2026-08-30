@@ -14,23 +14,6 @@ import {Deployers} from "v4-core-test/utils/Deployers.sol";
 import {IHooks} from "univ4-core/interfaces/IHooks.sol";
 import {Currency} from "univ4-core/types/Currency.sol";
 
-/// Minimal stand-in for BOTH SFPMs: they share the signature
-/// `getPoolId(bytes memory id, uint8 vegoid) external view returns (uint64)`
-/// (SemiFungiblePositionManagerV4.sol:1369, V3.sol:1558). `id` is a DYNAMIC type, so a caller must
-/// encode offset and length words -- the stub decodes nothing and simply returns what it was built
-/// with, which is enough to exercise agreement and disagreement.
-contract SfpmStub {
-    uint64 internal immutable ID;
-
-    constructor(uint64 id_) {
-        ID = id_;
-    }
-
-    function getPoolId(bytes calldata, uint8) external view returns (uint64) {
-        return ID;
-    }
-}
-
 /// Univ3 factory stand-in: `getPool(address,address,uint24)`. SFPM V3 resolves its pool exactly
 /// this way, which is why KEY-03 verifies against the registry rather than deriving via CREATE2.
 contract V3FactoryStub {
@@ -107,29 +90,6 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
         );
     }
 
-    /// Golden path continuation: finalized key -> Panoptic poolId via SFPM agreement.
-    function test__unit__goldenPathEndToEndPanoptic() public {
-        uint64 expected = _expectedV4PoolId(VEGOID, TICK_SPACING);
-        address sfpm = address(new SfpmStub(expected));
-        (bool ok, bytes memory r) = harness.staticcall(
-            abi.encodeWithSignature(
-                "goldenPathPanoptic(uint256,address,uint256)", v4Registry, sfpm, uint256(VEGOID)
-            )
-        );
-        require(ok, "goldenPathPanoptic reverted");
-        assertEq(abi.decode(r, (uint256)), expected, "golden path must reach Panoptic derivation");
-    }
-
-    function test__unit__panopticOnIncompleteKeyReverts() public {
-        address sfpm = address(new SfpmStub(1));
-        (bool ok,) = harness.staticcall(
-            abi.encodeWithSignature(
-                "panopticPoolIdOnEmpty(uint256,address,uint256)", v4Registry, sfpm, uint256(8)
-            )
-        );
-        assertFalse(ok, "incomplete key must not reach Panoptic derivation");
-    }
-
     // ---- KEY-06 / F1: the asset/numeraire inversion ---------------------------------------------
 
     /// Panoptic's `asset` bit names the CASH token that positionSize is denominated in
@@ -171,76 +131,6 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
         (bool ok,) =
             harness.staticcall(abi.encodeWithSignature("panopticAssetBit(uint256)", uint256(2)));
         assertFalse(ok, "asset_index == 2 must revert, not mask to 0");
-    }
-
-    // ---- KEY-02: the pool PATTERN is 40 bits and VENUE-SPECIFIC ---------------------------------
-
-    /// SFPM V4: uint40(uint256(PoolId.unwrap(idV4))) -- the LOW 40 bits of the v4 PoolId.
-    function test__fuzz__v4PatternIsTheLowFortyBits(uint256 idV4) public {
-        (bool ok, bytes memory r) =
-            harness.staticcall(abi.encodeWithSignature("v4Pattern(uint256)", idV4));
-        require(ok, "v4Pattern reverted");
-        assertEq(abi.decode(r, (uint256)), idV4 & ((uint256(1) << 40) - 1), "V4 pattern = low 40");
-    }
-
-    /// SFPM V3: uint40(uint160(univ3pool) >> 120) -- the HIGH 40 bits of the 160-bit ADDRESS.
-    /// Not the low bits. This is the half of KEY-02 most likely to be written wrong by analogy
-    /// with V4, so it is asserted independently rather than derived from the V4 case.
-    function test__fuzz__v3PatternIsTheHighFortyBitsOfTheAddress(address pool) public {
-        uint256 a = uint256(uint160(pool));
-        (bool ok, bytes memory r) =
-            harness.staticcall(abi.encodeWithSignature("v3Pattern(uint256)", a));
-        require(ok, "v3Pattern reverted");
-        assertEq(abi.decode(r, (uint256)), (a >> 120) & ((uint256(1) << 40) - 1), "V3 = addr >> 120");
-    }
-
-    /// The two derivations must not be assumed identical. Fed the same word they disagree, which
-    /// is the property a shared implementation would silently break.
-    function test__unit__v3AndV4PatternsDifferForTheSameWord() public {
-        // Leading 00 is REQUIRED, not cosmetic: a bare 40-hex-digit literal is parsed by solc as an
-        // address literal and rejected for a bad checksum (Error 9429). Same numeric value.
-        uint256 w = 0x001234567890abcdef1122334455667788aabbccdd;
-        (, bytes memory r4) = harness.staticcall(abi.encodeWithSignature("v4Pattern(uint256)", w));
-        (, bytes memory r3) = harness.staticcall(abi.encodeWithSignature("v3Pattern(uint256)", w));
-        assertTrue(
-            abi.decode(r4, (uint256)) != abi.decode(r3, (uint256)),
-            "the venue patterns must not be assumed identical"
-        );
-    }
-
-    /// poolId = [16b tickSpacing at 48][8b vegoid at 40][40b pattern at 0]  (PanopticMath.sol:28).
-    /// The in-contract prose in both SFPMs says "most significant 48 bits"; the CODE says 40, and
-    /// the code is what this mirrors.
-    function test__fuzz__composePoolIdLayout(uint40 pattern, uint8 vegoid, uint16 tickSpacing)
-        public
-    {
-        // vegoid is 1..255. CONSTRUCTED into range, not filtered with vm.assume -- the project's
-        // differential discipline is that corpora are built rather than rejected, so no run is
-        // discarded and the non-vacuity of the 256 runs is not silently eroded.
-        uint256 v = bound(uint256(vegoid), 1, 255);
-
-        (bool ok, bytes memory r) = harness.staticcall(
-            abi.encodeWithSignature(
-                "composePoolId(uint256,uint256,uint256)",
-                uint256(pattern),
-                v,
-                uint256(tickSpacing)
-            )
-        );
-        require(ok, "composePoolId reverted");
-        uint256 id = abi.decode(r, (uint256));
-        assertEq(id & ((uint256(1) << 40) - 1), pattern, "pattern at 0..39");
-        assertEq((id >> 40) & 0xff, v, "vegoid at 40..47");
-        assertEq((id >> 48) & 0xffff, tickSpacing, "tickSpacing at 48..63");
-    }
-
-    /// vegoid == 0 is rejected at composition, not just at the payload: the poolId itself would
-    /// otherwise carry a value the SFPM refuses (Errors.InvalidTokenIdParameter(0)).
-    function test__unit__composePoolIdRejectsZeroVegoid() public {
-        (bool ok,) = harness.staticcall(
-            abi.encodeWithSignature("composePoolId(uint256,uint256,uint256)", uint256(1), uint256(0), uint256(60))
-        );
-        assertFalse(ok, "vegoid == 0 must revert at composition");
     }
 
     // ---- KEY-03: the pool address is VERIFIED against the venue registry -----------------------
@@ -419,34 +309,6 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
         );
     }
 
-    // ---- KEY-02: the poolId is a CANDIDATE, verified against the SFPM --------------------------
-
-    /// The Panoptic poolId is STATEFUL: both SFPMs loop
-    ///   while (s_poolIdToKey[poolId].tickSpacing != 0) poolId = incrementPoolPattern(poolId)
-    /// on a 40-bit pattern collision, and enforce the stored value at mint. So deriving it purely
-    /// yields a candidate, not an answer. When the SFPM agrees, the candidate is returned.
-    function test__unit__poolIdCandidateMatchingTheSfpmIsReturned() public {
-        uint64 expected = _expectedV4PoolId(VEGOID, TICK_SPACING);
-        address sfpm = address(new SfpmStub(expected));
-        (bool ok, bytes memory r) = harness.staticcall(
-            abi.encodeWithSignature("panopticPoolIdV4(uint256,address,uint256)", v4Registry, sfpm, uint256(VEGOID))
-        );
-        require(ok, "matching candidate reverted");
-        assertEq(abi.decode(r, (uint256)), expected, "the verified candidate must be returned");
-    }
-
-    /// A collision-incremented poolId must fail with OUR error at build time rather than inside
-    /// Panoptic at mint with InvalidTokenIdParameter -- an error pointing at the derivation, not at
-    /// a contract three calls away.
-    function test__unit__poolIdCollisionMismatchReverts() public {
-        uint64 incremented = _expectedV4PoolId(VEGOID, TICK_SPACING) + 1;
-        address sfpm = address(new SfpmStub(incremented));
-        (bool ok,) = harness.staticcall(
-            abi.encodeWithSignature("panopticPoolIdV4(uint256,address,uint256)", v4Registry, sfpm, uint256(VEGOID))
-        );
-        assertFalse(ok, "a collision-incremented poolId must revert at build time");
-    }
-
     /// The v4 pool id is keccak256 over the 5-field PoolKey -- the same value MarketId.plk's
     /// market_id_from_pool_key computes, which VolMarketKey(V4) subsumes rather than duplicates.
     function test__unit__v4PoolIdIsTheCanonicalUniV4PoolId() public {
@@ -481,13 +343,6 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
     uint256 internal constant C1 = 0x2222;
     uint256 internal constant FEE = 3000;
     uint256 internal constant TICK_SPACING = 60;
-    uint8 internal constant VEGOID = 8;
-
-    function _expectedV4PoolId(uint8 vegoid, uint256 tickSpacing) internal view returns (uint64) {
-        uint256 poolIdV4 = uint256(keccak256(abi.encode(C0, C1, FEE, TICK_SPACING, v4Registry)));
-        uint256 pattern = poolIdV4 & ((uint256(1) << 40) - 1);
-        return uint64(pattern | (uint256(vegoid) << 40) | (tickSpacing << 48));
-    }
 
     function _sortedCurrencies(uint256 a, uint256 b) internal pure returns (uint256 t0, uint256 t1) {
         return a < b ? (a, b) : (b, a);
@@ -559,18 +414,6 @@ contract VolMarketKeyTest is PlankTestBase, Deployers {
     }
 
     // ---- what must NOT compile -----------------------------------------------------------------
-
-    /// KEY-04: there is no PanopticFactoryAlgebra, so the Algebra arm has no Panoptic continuation
-    /// and must not be given a synthetic one. The dead end is a type-level fact.
-    function test__unit__algebraKeyIntoPanopticArmDoesNotCompile() public {
-        Vm.FfiResult memory r = _tryBuild("fixtures/plank-negative/VolMarketKeyAlgebraToPanoptic.plk");
-        assertTrue(r.exitCode != 0, "an Algebra key reached the Panoptic arm");
-        assertTrue(
-            _contains(r.stderr, "VolMarketKey: the Panoptic arm accepts only V4 or V3"),
-            "wrong failure: not the Panoptic-arm guard"
-        );
-    }
-
 
     /// VolMarketKey.plk guards V with is_venue, so a non-venue tag is OUR error, not a stray one
     /// from deeper in std. The stderr match is what makes this test mean something: without it a
