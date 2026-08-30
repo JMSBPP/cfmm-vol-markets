@@ -34,7 +34,6 @@ run {
 
     if selector == SEL_PACK_FROM_TICKS {
         let vt = vega_target_from_ticks(
-            VegaTarget,
             @evm_calldataload(4),
             @evm_calldataload(36),
             @evm_calldataload(68)
@@ -43,51 +42,51 @@ run {
     }
 
     if selector == SEL_PACK_EMPTY {
-        return_u256(vega_target_empty(VegaTarget).val);
+        return_u256(vega_target_empty().val);
     }
 
     if selector == SEL_TICK_LOWER {
         let self = vega_target_val(@evm_calldataload(4));
-        return_u256(tick_low(VegaTarget(0, 0, 0), self));
+        return_u256(tick_low(self));
     }
 
     if selector == SEL_TICK_UPPER {
         let self = vega_target_val(@evm_calldataload(4));
-        return_u256(tick_up(VegaTarget(0, 0, 0), self));
+        return_u256(tick_up(self));
     }
 
     if selector == SEL_VEGA_AMOUNT {
         let self = vega_target_val(@evm_calldataload(4));
-        return_u256(vega_amount(VegaTarget(0, 0, 0), self));
+        return_u256(vega_amount(self));
     }
 
     if selector == SEL_ADD_TICK_LOWER {
         let self = vega_target_val(@evm_calldataload(4));
-        let out = add_tick_lower(VegaTarget, 0, 0, 0, self, @evm_calldataload(36));
+        let out = add_tick_lower(self, @evm_calldataload(36));
         return_u256(out.val);
     }
 
     if selector == SEL_ADD_TICK_UPPER {
         let self = vega_target_val(@evm_calldataload(4));
-        let out = add_tick_upper(VegaTarget, 0, 0, 0, self, @evm_calldataload(36));
+        let out = add_tick_upper(self, @evm_calldataload(36));
         return_u256(out.val);
     }
 
     if selector == SEL_ADD_VEGA_AMOUNT {
         let self = vega_target_val(@evm_calldataload(4));
-        let out = add_vega_amount(VegaTarget, 0, 0, 0, self, @evm_calldataload(36));
+        let out = add_vega_amount(self, @evm_calldataload(36));
         return_u256(out.val);
     }
 
     if selector == SEL_UPDATE_TICK_LOWER {
         let self = vega_target_val(@evm_calldataload(4));
-        let out = update_tick_lower(VegaTarget, 0, 0, 0, self, @evm_calldataload(36));
+        let out = update_tick_lower(self, @evm_calldataload(36));
         return_u256(out.val);
     }
 
     if selector == SEL_UPDATE_TICK_UPPER {
         let self = vega_target_val(@evm_calldataload(4));
-        let out = update_tick_upper(VegaTarget, 0, 0, 0, self, @evm_calldataload(36));
+        let out = update_tick_upper(self, @evm_calldataload(36));
         return_u256(out.val);
     }
 

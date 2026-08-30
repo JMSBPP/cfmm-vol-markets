@@ -6,12 +6,9 @@ const MASK_U24 = 0xffffff;
 
 const CLEAR_TICK_LOWER_MASK = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
-
 const CLEAR_TICK_UPPER_MASK = 0xFFFFFF000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
-
 const CLEAR_VEGA_AMOUNT_MASK = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000000000000000000000000000;
-
 
 const VegaTarget = fn(tickLow: u256, tickUp: u256, vegaAmount: u256) type {
       return struct {
@@ -19,105 +16,52 @@ const VegaTarget = fn(tickLow: u256, tickUp: u256, vegaAmount: u256) type {
       };
 };
 
-const vega_target_empty = fn(
-      comptime VT: fn(tl: u256, tu: u256, va: u256) type
-) VT(0, 0, 0) {
-      VT(0, 0, 0) { val: 0 }
+const vega_target_empty = fn() VegaTarget(0, 0, 0) {
+      VegaTarget(0, 0, 0) { val: 0 }
 };
 
-const add_vega_amount = fn(
-      comptime VT: fn(tl: u256, tu: u256, va: u256) type,
-      comptime tl: u256,
-      comptime tu: u256,
-      comptime va: u256,
-      self: VT(tl, tu, va),
-      amount: u256
-) VT(tl, tu, va) {
-      VT(tl, tu, va) { val: @evm_add(self.val, amount & U128_MAX) }
+const add_vega_amount = fn(self: VegaTarget(0, 0, 0), amount: u256) VegaTarget(0, 0, 0) {
+      VegaTarget(0, 0, 0) { val: @evm_add(self.val, amount & U128_MAX) }
 };
 
-const add_tick_lower = fn(
-      comptime VT: fn(tl: u256, tu: u256, va: u256) type,
-      comptime tl: u256,
-      comptime tu: u256,
-      comptime va: u256,
-      self: VT(tl, tu, va),
-      tick_lower: u256
-) VT(tl, tu, va) {
-      VT(tl, tu, va) {
+const add_tick_lower = fn(self: VegaTarget(0, 0, 0), tick_lower: u256) VegaTarget(0, 0, 0) {
+      VegaTarget(0, 0, 0) {
             val: @evm_add(self.val, @evm_shl(232, tick_lower & MASK_U24))
       }
 };
 
-const add_tick_upper = fn(
-      comptime VT: fn(tl: u256, tu: u256, va: u256) type,
-      comptime tl: u256,
-      comptime tu: u256,
-      comptime va: u256,
-      self: VT(tl, tu, va),
-      tick_upper: u256
-) VT(tl, tu, va) {
-      VT(tl, tu, va) {
+const add_tick_upper = fn(self: VegaTarget(0, 0, 0), tick_upper: u256) VegaTarget(0, 0, 0) {
+      VegaTarget(0, 0, 0) {
             val: @evm_add(self.val, @evm_shl(208, tick_upper & MASK_U24))
       }
 };
 
-const update_tick_lower = fn(
-      comptime VT: fn(tl: u256, tu: u256, va: u256) type,
-      comptime tl: u256,
-      comptime tu: u256,
-      comptime va: u256,
-      self: VT(tl, tu, va),
-      tick_lower: u256
-) VT(tl, tu, va) {
+const update_tick_lower = fn(self: VegaTarget(0, 0, 0), tick_lower: u256) VegaTarget(0, 0, 0) {
       add_tick_lower(
-            VT,
-            tl,
-            tu,
-            va,
-            VT(tl, tu, va) { val: self.val & CLEAR_TICK_LOWER_MASK },
+            VegaTarget(0, 0, 0) { val: self.val & CLEAR_TICK_LOWER_MASK },
             tick_lower
       )
 };
 
-const update_tick_upper = fn(
-      comptime VT: fn(tl: u256, tu: u256, va: u256) type,
-      comptime tl: u256,
-      comptime tu: u256,
-      comptime va: u256,
-      self: VT(tl, tu, va),
-      tick_upper: u256
-) VT(tl, tu, va) {
+const update_tick_upper = fn(self: VegaTarget(0, 0, 0), tick_upper: u256) VegaTarget(0, 0, 0) {
       add_tick_upper(
-            VT,
-            tl,
-            tu,
-            va,
-            VT(tl, tu, va) { val: self.val & CLEAR_TICK_UPPER_MASK },
+            VegaTarget(0, 0, 0) { val: self.val & CLEAR_TICK_UPPER_MASK },
             tick_upper
       )
 };
 
-const update_vega_amount = fn(
-      comptime VT: fn(tl: u256, tu: u256, va: u256) type,
-      comptime tl: u256,
-      comptime tu: u256,
-      comptime va: u256,
-      self: VT(tl, tu, va),
-      amount: u256
-) VT(tl, tu, va) {
-      VT(tl, tu, va) {
+const update_vega_amount = fn(self: VegaTarget(0, 0, 0), amount: u256) VegaTarget(0, 0, 0) {
+      VegaTarget(0, 0, 0) {
             val: (self.val & CLEAR_VEGA_AMOUNT_MASK) | (amount & U128_MAX)
       }
 };
 
 const vega_target_from_ticks = fn(
-      comptime VT: fn(tl: u256, tu: u256, va: u256) type,
       tick_lower: u256,
       tick_upper: u256,
       amount: u256
-) VT(0, 0, 0) {
-      VT(0, 0, 0) {
+) VegaTarget(0, 0, 0) {
+      VegaTarget(0, 0, 0) {
             val: @evm_add(
                   @evm_add(@evm_shl(232, tick_lower & MASK_U24), @evm_shl(208, tick_upper & MASK_U24)),
                   amount & U128_MAX
@@ -125,21 +69,21 @@ const vega_target_from_ticks = fn(
       }
 };
 
-const tick_low = fn(comptime Vt: type, self: Vt) u256 {
+const tick_low = fn(self: VegaTarget(0, 0, 0)) u256 {
       @evm_signextend(2, @evm_shr(232, self.val) & MASK_U24)
 };
 
-const tick_up = fn(comptime Vt: type, self: Vt) u256 {
+const tick_up = fn(self: VegaTarget(0, 0, 0)) u256 {
       @evm_signextend(2, @evm_shr(208, self.val) & MASK_U24)
 };
 
-const vega_amount = fn(comptime Vt: type, self: Vt) u256 {
+const vega_amount = fn(self: VegaTarget(0, 0, 0)) u256 {
       self.val & U128_MAX
 };
 
 // VolOrder wire path: ticks live out-of-band; only u96 DeltaQ_v* is packed at bits 152..247.
 const vega_target_is_complete = fn(self: VegaTarget(0, 0, 0)) bool {
-      vega_amount(VegaTarget(0, 0, 0), self) > 0
+      vega_amount(self) > 0
 };
 
 const unpack_vega_target = fn(vega: u256) VegaTarget(0, 0, 0) {
@@ -147,15 +91,14 @@ const unpack_vega_target = fn(vega: u256) VegaTarget(0, 0, 0) {
 };
 
 const pack_vega_target = fn(self: VegaTarget(0, 0, 0)) u256 {
-      vega_amount(VegaTarget(0, 0, 0), self)
+      vega_amount(self)
 };
 
 const mid_tick = fn(
-      comptime Vt: type,
-      self: Vt,
+      self: VegaTarget(0, 0, 0),
       comptime V: type,
       k: VolMarketKey(V)
 ) u256 {
       let ts = vol_market_key_tick_spacing(V, k);
-      round_tick(@evm_sar(1, tick_low(Vt, self) +% tick_up(Vt, self)), ts)
+      round_tick(@evm_sar(1, tick_low(self) +% tick_up(self)), ts)
 };
