@@ -126,9 +126,11 @@ jobs:
           git submodule update --init lib/cfmm-types
           git -C lib/cfmm-types config submodule.lib/v4-hooks-public.update none
           git submodule update --init --recursive lib/cfmm-types
-          # lib/seaport: DifferentialTest.sol only — no nested Seaport libs needed.
+          # lib/seaport: DifferentialTest.sol only — block nested Seaport libs before recursive lib/.
           git submodule update --init --depth 1 lib/seaport
-          git -C lib/seaport config submodule.update none
+          for name in $(git config -f lib/seaport/.gitmodules --get-regexp '^submodule\.' | sed 's/^submodule\.//;s/\.url$//'); do
+            git -C lib/seaport config "submodule.${name}.update" none
+          done
           git submodule update --init --recursive -- lib/
       # A plank-monorepo pin bump changes the compiler AND std, but the runner's persistent
       # ~/.plank/bin/plank does NOT auto-track the pin. Rebuild it from the pinned submodule so
@@ -145,6 +147,8 @@ jobs:
       #   *VolRangeWidth* / *SpreadTickAssimetryHelper*   latent width-type fuzz bugs,
       #                              failure count is fuzz-SEED-dependent (2/3/6 measured)
       #   *PanopticVegaLens.t.sol*   drafted RED test; its harness is #10's L0 (not built)
+      #   *HookMiner*   cfmm-types Create2 miner; flaky on self-hosted runner (pass/fail
+      #                  same commit; measured 2026-08-30 on test/diff-base vs panoptic-pool-id)
       # (*VegaAccount* / *VegaIssuance* were on the ledger; un-broken by the
       #  VegaIssuanceLib sketch supersession in this PR — back on the surface.)
       # Seed pinned so the maintained surface is deterministic run-to-run.
@@ -152,7 +156,7 @@ jobs:
       - run: >
           forge test --via-ir --offline --fuzz-seed 4880
           --skip "*VolRangeWidth*" "*SpreadTickAssimetryHelper*"
-          "*PanopticVegaLens.t.sol*"
+          "*PanopticVegaLens.t.sol*" "*HookMiner*"
 
   plank:
     needs: [approve]
