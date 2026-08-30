@@ -1,28 +1,16 @@
-// NEGATIVE fixture (Phase 2.5, KEY-04): the Algebra arm is a TYPED DEAD END.
-//
-// Panoptic v2 ships SemiFungiblePositionManagerV3 and V4, and PanopticFactoryV3 and V4 -- but
-// there is no PanopticFactoryAlgebra. So an Algebra key resolves to a verified pool ADDRESS and
-// goes no further, and passing one to the Panoptic arm must be a COMPILE error rather than a
-// runtime revert: the dead end is a fact about the type, not a condition checked at run time.
-//
-// The guard message is matched by test__unit__algebraKeyIntoPanopticArmDoesNotCompile. An
-// exit-code-only assertion would also pass on a typo in this file, which is why the test matches
-// the text and why the guard carries a distinctive message rather than relying on a bare
-// structural type mismatch.
-//
-// Lives outside src/ and test/ so `make compile-plank` never builds it.
+// NEGATIVE fixture (KEY-04): Algebra has no Panoptic continuation — compile error on lib derive.
 import std::constructor::return_runtime;
+import lib::protocol_integrations::VolMarketKeyLib::*;
+import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
 import types::protocol_integrations::VolMarketKey::*;
 import types::protocol_integrations::Venue::*;
 
 const bad = fn (k: VolMarketKey(Algebra)) u256 {
-    vol_market_key_to_panoptic_pool_id(Algebra, k, 0, 1)
+    panoptic_pool_id_word(vol_market_key_to_panoptic_pool_id(Algebra, k, 1))
 };
 
 init { return_runtime(); }
 run {
-    // `bad` must be REACHABLE from run{} or plank never type-checks it and the guard never fires --
-    // the defect gate 33181644493 caught in the Phase 2 fixture.
     let k = @uninit(VolMarketKey(Algebra));
     let out = @malloc_uninit(32);
     @mstore32(out, bad(k));
