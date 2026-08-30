@@ -30,7 +30,32 @@ const K_C1 = 0x2222;
 const K_FEE = 3000;
 const K_TICK_SPACING = 60;
 
+// Legacy Panoptic SFPM: getPoolId(bytes,uint8). Test harness only — not production lib.
+const SEL_SFPM_GET_POOL_ID = 0xb33eb6f3;
+
 init { return_runtime(); }
+
+const harness_staticcall_word = fn (target: u256, args_ptr: u256, args_len: u256) u256 {
+    let ret = @malloc_uninit(32);
+    require(@evm_staticcall(@evm_gas(), target, args_ptr, args_len, ret, 32));
+    @mload32(ret)
+};
+
+const harness_verify_sfpm_legacy = fn (
+    id: PanopticPoolId,
+    sfpm: u256,
+    pool_identity: u256,
+    vegoid: u256,
+) void {
+    let candidate = panoptic_pool_id_word(id);
+    let p = @malloc_uninit(132);
+    @mstore4(p, SEL_SFPM_GET_POOL_ID);
+    @mstore32(p +% 4, 0x40);
+    @mstore32(p +% 36, vegoid);
+    @mstore32(p +% 68, 32);
+    @mstore32(p +% 100, pool_identity);
+    require(candidate == harness_staticcall_word(sfpm, p, 132));
+};
 
 const return_1 = fn (a: u256) never {
     let out = @malloc_uninit(32);
@@ -99,9 +124,9 @@ run {
         let sfpm = @evm_calldataload(36);
         let pool_identity = @evm_calldataload(68);
         let vegoid = @evm_calldataload(100);
-        panoptic_pool_id_verify_sfpm_legacy(
+        harness_verify_sfpm_legacy(
             PanopticPoolId { word: id_word },
-            addr_from_u256(sfpm),
+            sfpm,
             pool_identity,
             vegoid
         );
@@ -114,9 +139,9 @@ run {
         let vegoid = @evm_calldataload(68);
         let k = golden_path_v4_build(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
         let id = vol_market_key_to_panoptic_pool_id(V4, k, vegoid);
-        panoptic_pool_id_verify_sfpm_legacy(
+        harness_verify_sfpm_legacy(
             id,
-            addr_from_u256(sfpm),
+            sfpm,
             vol_market_key_pool_word(V4, k),
             vegoid
         );
