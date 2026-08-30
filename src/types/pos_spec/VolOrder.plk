@@ -37,7 +37,7 @@ const VolOrder = fn (comptime T: type) type {
         rangeWidth: VolRangeWidth,
         volStrike: TickVolatility,
         skew: SpreadTickAssimetry,
-        targetVega: VegaTarget,
+        targetVega: VegaTarget(0, 0, 0),
         extra: Option(Extra(T))
     };
 };
@@ -80,7 +80,7 @@ const vol_order_revert_incomplete = fn(volOrder:VolOrder(calldata)) void {requir
 // ACCEPTED order the mask is an identity -- pinned by the mask-identity fuzz in
 // VolOrderTargetVega.t.sol.
 const pack_vol_order = fn(self: VolOrder(calldata)) u256 {
-    @evm_shl(OFF_TARGET_VEGA, self.targetVega.vega & MASK_U96_VO)
+    @evm_shl(OFF_TARGET_VEGA, pack_vega_target(self.targetVega) & MASK_U96_VO)
     | @evm_shl(128, self.rangeWidth.width & 0xFFFFFF)
     | @evm_shl(104, self.rangeWidth.tickSpacing & 0xFFFFFF)
     | @evm_shl(16, self.volStrike.vol & 0xFFFFFFFFFFFFFFFFFFFFFF)
@@ -105,9 +105,7 @@ const unpack_vol_order = fn(_packed: u256) VolOrder(calldata) {
         skew: SpreadTickAssimetry {
             spread: skew
         },
-        targetVega: VegaTarget {
-            vega: targetVega
-        },
+        targetVega: unpack_vega_target(targetVega),
         extra: None(Extra(calldata))
     }
 };
@@ -145,7 +143,7 @@ const set_vol_order_range_width = fn(self: VolOrder(calldata),vol_range_width :V
       }
 };
 
-const set_vol_order_target_vega = fn(self: VolOrder(calldata), target_vega: VegaTarget) VolOrder(calldata) {
+const set_vol_order_target_vega = fn(self: VolOrder(calldata), target_vega: VegaTarget(0, 0, 0)) VolOrder(calldata) {
       VolOrder(calldata) {
       	       rangeWidth: self.rangeWidth,
 	       volStrike: self.volStrike,

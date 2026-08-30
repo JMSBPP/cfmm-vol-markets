@@ -1,6 +1,7 @@
 import types::protocol_integrations::PanopticTokenId::*;
 import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
 import types::pos_spec::VolOrder::{VolOrder, tick_bucket_from_vol_order, tick_bucket_from_vol_order_in};
+import pos_spec::VegaTarget::{pack_vega_target};
 import std::regions::calldata;
 import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
 import lib::ldf::LDFLib::{geometric_leg_weights, LegWeights};
@@ -137,7 +138,7 @@ const position_size_for_target_vega = fn (vo: VolOrder(calldata)) u256 {
         + mulDiv(Q96, Q96, leg_dsqrt(s.m_p, s.i_star))
         + mulDiv(Q96, Q96, leg_dsqrt(s.i_star, s.m_c))
         + mulDiv(Q96, Q96, leg_dsqrt(s.m_c, s.i_u));
-    let ps = mulDiv(vo.targetVega.vega, Q96, s_sum);
+    let ps = mulDiv(pack_vega_target(vo.targetVega), Q96, s_sum);
     // uint128 fit (SFPM positionSize width) + a degenerate-delivery refusal: ps == 0 means
     // the target is too small for this range to deliver ANY liquidity -- refuse rather than
     // mint an empty position that claims a vega.
@@ -186,7 +187,7 @@ const induced_leg_liquidities = fn (vo: VolOrder(calldata)) LegLiquidities {
 const average_density_chunks = fn (vo: VolOrder(calldata)) LegLiquidities {
     let s = vol_order_leg_split(vo);
     let w = geometric_leg_weights(s.i_l, s.i_u, s.ts, s.i_star, s.m_p, s.m_c);
-    let tv = vo.targetVega.vega;
+    let tv = pack_vega_target(vo.targetVega);
     let n0 = (s.m_p -% s.i_l) </ s.ts;
     let n1 = (s.i_star -% s.m_p) </ s.ts;
     let n2 = (s.m_c -% s.i_star) </ s.ts;

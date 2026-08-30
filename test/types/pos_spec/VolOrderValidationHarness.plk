@@ -32,6 +32,7 @@
 import std::constructor::return_runtime;
 import lib::pos_spec::VolOrderValidationLib::*;
 import pos_spec::VolOrder::*;
+import pos_spec::VegaTarget::{pack_vega_target};
 import v3::util::{return_u256};
 
 const SELECTOR_VALIDATE_ORDER        = 0xddd1c5fd;
@@ -66,7 +67,7 @@ run {
         @mstore32(out_ptr +% 32, order.rangeWidth.tickSpacing);
         @mstore32(out_ptr +% 64, order.volStrike.vol);
         @mstore32(out_ptr +% 96, order.skew.spread);
-        @mstore32(out_ptr +% 128, order.targetVega.vega);
+        @mstore32(out_ptr +% 128, pack_vega_target(order.targetVega));
         @evm_return(out_ptr, 160);
     }
     @evm_stop();
