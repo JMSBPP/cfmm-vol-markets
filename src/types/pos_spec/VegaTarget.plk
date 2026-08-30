@@ -1,6 +1,6 @@
-import types::Numerics::{U128_MAX};
+import types::Numerics::U128_MAX;
 import types::protocol_integrations::VolMarketKey::*;
-import types::pricing::TickUtils::{round_tick};
+import types::pricing::TickUtils::round_tick;
 
 const MASK_U24 = 0xffffff;
 
@@ -16,7 +16,7 @@ const CLEAR_VEGA_AMOUNT_MASK = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000
 const VegaTarget = fn(tickLow: u256, tickUp: u256, vegaAmount: u256) type {
       return struct {
             val: u256
-      }
+      };
 };
 
 const vega_target_empty = fn(
