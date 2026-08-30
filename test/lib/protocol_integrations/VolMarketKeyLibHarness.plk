@@ -1,0 +1,161 @@
+import std::constructor::return_runtime;
+import std::core::addr::addr_from_u256;
+import std::error::require;
+import std::option::{Some, None};
+import lib::protocol_integrations::VolMarketKeyLib::*;
+import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
+import types::Pair::*;
+import types::protocol_integrations::Pool::*;
+import types::protocol_integrations::Registry::*;
+import types::protocol_integrations::VolMarketKey::*;
+import types::protocol_integrations::Venue::*;
+
+// cast sig "v4Pattern(uint256)" -> 0xdd25dc7e
+const SEL_V4_PATTERN = 0xdd25dc7e;
+// cast sig "v3Pattern(uint256)" -> 0x6b0fdf66
+const SEL_V3_PATTERN = 0x6b0fdf66;
+// cast sig "composePoolId(uint256,uint256,uint256)" -> 0x636d3d6c
+const SEL_COMPOSE_POOL_ID = 0x636d3d6c;
+// cast sig "panopticPoolIdV4(uint256,uint256)" -> 0xe8e6cd4d
+const SEL_PANOPTIC_POOL_ID_V4 = 0xe8e6cd4d;
+// cast sig "verifySfpmLegacy(uint256,address,uint256,uint256)" -> 0xeba00b9e
+const SEL_VERIFY_SFPM_LEGACY = 0xeba00b9e;
+// cast sig "goldenPathPanoptic(uint256,address,uint256)" -> 0x55771c63
+const SEL_GOLDEN_PATH_PANOPTIC = 0x55771c63;
+// cast sig "panopticPoolIdOnEmpty(uint256,uint256)" -> 0xb10036fd
+const SEL_PANOPTIC_ON_EMPTY = 0xb10036fd;
+
+const K_C0 = 0x1111;
+const K_C1 = 0x2222;
+const K_FEE = 3000;
+const K_TICK_SPACING = 60;
+
+// Legacy Panoptic SFPM: getPoolId(bytes,uint8). Test harness only — not production lib.
+const SEL_SFPM_GET_POOL_ID = 0xb33eb6f3;
+
+init { return_runtime(); }
+
+const harness_staticcall_word = fn (target: u256, args_ptr: u256, args_len: u256) u256 {
+    let ret = @malloc_uninit(32);
+    require(@evm_staticcall(@evm_gas(), target, args_ptr, args_len, ret, 32));
+    @mload32(ret)
+};
+
+const harness_verify_sfpm_legacy = fn (
+    id: PanopticPoolId,
+    sfpm: u256,
+    pool_identity: u256,
+    vegoid: u256,
+) void {
+    let candidate = panoptic_pool_id_word(id);
+    let p = @malloc_uninit(132);
+    @mstore4(p, SEL_SFPM_GET_POOL_ID);
+    @mstore32(p +% 4, 0x40);
+    @mstore32(p +% 36, vegoid);
+    @mstore32(p +% 68, 32);
+    @mstore32(p +% 100, pool_identity);
+    require(candidate == harness_staticcall_word(sfpm, p, 132));
+};
+
+const return_1 = fn (a: u256) never {
+    let out = @malloc_uninit(32);
+    @mstore32(out, a);
+    @evm_return(out, 32);
+};
+
+const k_v4 = fn (
+    c0: u256, c1: u256, fee: u256, ts: u256, registry: u256, asset_idx: u256
+) VolMarketKey(V4) {
+    let p = pair(addr_from_u256(c0), addr_from_u256(c1), asset_idx);
+    let reg = registry_v4(addr_from_u256(registry));
+    vol_market_key(V4, Some(p), Some(reg), Some(pool_v4(p, reg, fee, ts)))
+};
+
+const golden_path_v4_build = fn (
+    c0: u256, c1: u256, fee: u256, ts: u256, registry: u256, asset_idx: u256
+) VolMarketKey(V4) {
+    let p = pair(addr_from_u256(c0), addr_from_u256(c1), asset_idx);
+    let reg = registry_v4(addr_from_u256(registry));
+    let pool = pool_v4(p, reg, fee, ts);
+
+    let k0 = vol_market_key(V4, None(Pair), None(Registry(V4)), None(Pool(V4)));
+    require(!vol_market_key_is_complete(V4, k0));
+
+    let k1 = vol_market_key(V4, Some(p), k0.registry, k0.pool);
+    require(!vol_market_key_is_complete(V4, k1));
+
+    let k2 = vol_market_key(V4, k1.pair, Some(reg), k1.pool);
+    require(!vol_market_key_is_complete(V4, k2));
+
+    let k3 = vol_market_key(V4, k2.pair, k2.registry, Some(pool));
+    require(vol_market_key_is_complete(V4, k3));
+
+    vol_market_key_finalize(V4, k3)
+};
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    if selector == SEL_V4_PATTERN {
+        return_1(panoptic_pool_pattern_v4(@evm_calldataload(4)));
+    }
+
+    if selector == SEL_V3_PATTERN {
+        return_1(panoptic_pool_pattern_v3(@evm_calldataload(4)));
+    }
+
+    if selector == SEL_COMPOSE_POOL_ID {
+        return_1(panoptic_pool_id_word(panoptic_pool_id_compose(
+            @evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68)
+        )));
+    }
+
+    if selector == SEL_PANOPTIC_POOL_ID_V4 {
+        let registry = @evm_calldataload(4);
+        let vegoid = @evm_calldataload(36);
+        let k = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
+        return_1(panoptic_pool_id_word(
+            vol_market_key_to_panoptic_pool_id(V4, k, vegoid)
+        ));
+    }
+
+    if selector == SEL_VERIFY_SFPM_LEGACY {
+        let id_word = @evm_calldataload(4);
+        let sfpm = @evm_calldataload(36);
+        let pool_identity = @evm_calldataload(68);
+        let vegoid = @evm_calldataload(100);
+        harness_verify_sfpm_legacy(
+            PanopticPoolId { word: id_word },
+            sfpm,
+            pool_identity,
+            vegoid
+        );
+        return_1(1);
+    }
+
+    if selector == SEL_GOLDEN_PATH_PANOPTIC {
+        let registry = @evm_calldataload(4);
+        let sfpm = @evm_calldataload(36);
+        let vegoid = @evm_calldataload(68);
+        let k = golden_path_v4_build(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
+        let id = vol_market_key_to_panoptic_pool_id(V4, k, vegoid);
+        harness_verify_sfpm_legacy(
+            id,
+            sfpm,
+            vol_market_key_pool_word(V4, k),
+            vegoid
+        );
+        return_1(panoptic_pool_id_word(id));
+    }
+
+    if selector == SEL_PANOPTIC_ON_EMPTY {
+        vol_market_key_to_panoptic_pool_id(
+            V4,
+            vol_market_key(V4, None(Pair), None(Registry(V4)), None(Pool(V4))),
+            @evm_calldataload(36)
+        );
+        return_1(1);
+    }
+
+    @evm_stop();
+}

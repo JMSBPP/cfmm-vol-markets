@@ -12,6 +12,7 @@
 import std::constructor::return_runtime;
 import types::pos_spec::VolOrder::{unpack_vol_order};
 import lib::protocol_integrations::PanopticTokenIdSetterLib::*;
+import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
 import v3::util::{revert_empty};
 
 const SELECTOR_VOL_ORDER_TO_MINT        = 0x86152e38;
@@ -24,7 +25,10 @@ run {
     let selector = @evm_shr(224, @evm_calldataload(0));
 
     if selector == SELECTOR_VOL_ORDER_TO_MINT {
-        let plan = vol_order_to_mint(unpack_vol_order(@evm_calldataload(4)), @evm_calldataload(36));
+        let plan = vol_order_to_mint(
+            unpack_vol_order(@evm_calldataload(4)),
+            PanopticPoolId { word: @evm_calldataload(36) },
+        );
         let out = @malloc_uninit(64);
         @mstore32(out, plan.token_id.tokenId);
         @mstore32(out +% 32, plan.position_size);

@@ -1,0 +1,22 @@
+import std::error::require;
+
+const MASK_U40 = 0xffffffffff;
+
+const PanopticPoolId = struct { word: u256 };
+
+const panoptic_pool_id_word = fn (id: PanopticPoolId) u256 {
+    id.word
+};
+
+const panoptic_pool_id_compose = fn (
+    pattern: u256,
+    vegoid: u256,
+    tick_spacing: u256,
+) PanopticPoolId {
+    require(vegoid != 0);
+    PanopticPoolId {
+        word: (pattern & MASK_U40)
+            | @evm_shl(40, vegoid & 0xff)
+            | @evm_shl(48, tick_spacing & 0xffff)
+    }
+};

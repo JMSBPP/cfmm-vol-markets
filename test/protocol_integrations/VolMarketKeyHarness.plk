@@ -12,18 +12,10 @@ import types::protocol_integrations::Venue::*;
 const SEL_VENUE_WITNESS = 0xbe55e3a4;
 // cast sig "panopticAssetBit(uint256)" -> 0x62135fee
 const SEL_PANOPTIC_ASSET_BIT = 0x62135fee;
-// cast sig "v4Pattern(uint256)"         -> 0xdd25dc7e
-const SEL_V4_PATTERN = 0xdd25dc7e;
-// cast sig "v3Pattern(uint256)"         -> 0x6b0fdf66
-const SEL_V3_PATTERN = 0x6b0fdf66;
-// cast sig "composePoolId(uint256,uint256,uint256)" -> 0x636d3d6c
-const SEL_COMPOSE_POOL_ID = 0x636d3d6c;
 // cast sig "verifyPoolV3(address,address)"      -> 0x0c29d1a2
 const SEL_VERIFY_POOL_V3 = 0x0c29d1a2;
 // cast sig "verifyPoolAlgebra(address,address,uint256,uint256)" -> 0xc8c9a64c
 const SEL_VERIFY_POOL_ALGEBRA = 0xc8c9a64c;
-// cast sig "panopticPoolIdV4(uint256,address,uint256)" -> 0x3d85191f
-const SEL_PANOPTIC_POOL_ID_V4 = 0x3d85191f;
 // cast sig "v4PoolId(uint256)" -> 0xcef56961
 const SEL_V4_POOL_ID = 0xcef56961;
 // cast sig "v4PoolIdFor(uint256,uint256,uint256,uint256,uint256)" -> 0xbc01e5d0
@@ -34,8 +26,6 @@ const SEL_V4_KEY_VIA_PAIR = 0x3853a84e;
 const SEL_KEY_IS_COMPLETE = 0x89bc45be;
 // cast sig "buildV4PoolWordViaBuilder(uint256)" -> 0x207a7b69
 const SEL_BUILD_V4_VIA_BUILDER = 0x207a7b69;
-// cast sig "panopticPoolIdOnEmpty(uint256,address,uint256)" -> 0x74ba105d
-const SEL_PANOPTIC_ON_EMPTY = 0x74ba105d;
 // cast sig "keyV3AtPoolWord(address,address)" -> 0xab409e84
 const SEL_KEY_V3_AT_POOL_WORD = 0xab409e84;
 // cast sig "keyV3AtFee(address,address)" -> 0x4d9fd834
@@ -54,8 +44,6 @@ const SEL_KEY_V4_AT_POOL_WORD = 0x52f060e6;
 const SEL_VERIFY_POOL_V4_AT = 0xb5bcac81;
 // cast sig "goldenPathCompletenessBitmap(uint256)" -> 0x9b5a3ddf
 const SEL_GOLDEN_PATH_BITMAP = 0x9b5a3ddf;
-// cast sig "goldenPathPanoptic(uint256,address,uint256)" -> 0x55771c63
-const SEL_GOLDEN_PATH_PANOPTIC = 0x55771c63;
 // cast sig "goldenPathV4AtMatchesLiteral(uint256,uint256,uint256,uint256,uint256)" -> 0x97c7263b
 const SEL_GOLDEN_PATH_V4_AT = 0x97c7263b;
 
@@ -174,16 +162,6 @@ run {
         return_1(vol_market_key_panoptic_asset_bit(V4, k));
     }
 
-    if selector == SEL_V4_PATTERN { return_1(vol_market_key_v4_pattern(@evm_calldataload(4))); }
-
-    if selector == SEL_V3_PATTERN { return_1(vol_market_key_v3_pattern(@evm_calldataload(4))); }
-
-    if selector == SEL_COMPOSE_POOL_ID {
-        return_1(vol_market_key_compose_pool_id(
-            @evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68)
-        ));
-    }
-
     if selector == SEL_VERIFY_POOL_V3 {
         let k = vol_market_key_v3_at(
             pair(addr_from_u256(K_C0), addr_from_u256(K_C1), 0),
@@ -206,14 +184,6 @@ run {
         );
         vol_market_key_verify_pool(Algebra, k);
         return_1(1);
-    }
-
-    if selector == SEL_PANOPTIC_POOL_ID_V4 {
-        let registry = @evm_calldataload(4);
-        let k = k_v4(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
-        return_1(vol_market_key_to_panoptic_pool_id(
-            V4, k, @evm_calldataload(36), @evm_calldataload(68)
-        ));
     }
 
     if selector == SEL_V4_POOL_ID {
@@ -253,16 +223,6 @@ run {
         let registry = @evm_calldataload(4);
         let k = k_v4_via_builder(K_C0, K_C1, K_FEE, K_TICK_SPACING, registry, 0);
         return_1(vol_market_key_pool_word(V4, k));
-    }
-
-    if selector == SEL_PANOPTIC_ON_EMPTY {
-        vol_market_key_to_panoptic_pool_id(
-            V4,
-            vol_market_key(V4, None(Pair), None(Registry(V4)), None(Pool(V4))),
-            @evm_calldataload(36),
-            @evm_calldataload(68)
-        );
-        return_1(1);
     }
 
     if selector == SEL_KEY_V3_AT_POOL_WORD {
@@ -362,15 +322,6 @@ run {
 
     if selector == SEL_GOLDEN_PATH_BITMAP {
         return_1(golden_path_completeness_bitmap(@evm_calldataload(4)));
-    }
-
-    if selector == SEL_GOLDEN_PATH_PANOPTIC {
-        let k = golden_path_v4_build(
-            K_C0, K_C1, K_FEE, K_TICK_SPACING, @evm_calldataload(4), 0
-        );
-        return_1(vol_market_key_to_panoptic_pool_id(
-            V4, k, @evm_calldataload(36), @evm_calldataload(68)
-        ));
     }
 
     if selector == SEL_GOLDEN_PATH_V4_AT {

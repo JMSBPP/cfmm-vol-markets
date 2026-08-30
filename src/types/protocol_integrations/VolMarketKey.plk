@@ -124,64 +124,7 @@ const vol_market_key_panoptic_asset_bit = fn (comptime V: type, k: VolMarketKey(
     1 -% ai
 };
 
-const MASK_U40 = 0xffffffffff;
-const MASK_U160 = 0xffffffffffffffffffffffffffffffffffffffff;
-const POOL_ID_OFF_VEGOID_KEY = 40;
-const POOL_ID_OFF_TICK_SPACING = 48;
-
-const vol_market_key_v4_pattern = fn (pool_id_v4: u256) u256 { pool_id_v4 & MASK_U40 };
-
-const vol_market_key_v3_pattern = fn (pool_addr: u256) u256 {
-    @evm_shr(120, pool_addr & MASK_U160) & MASK_U40
-};
-
-const vol_market_key_compose_pool_id = fn (pattern: u256, vegoid: u256, tick_spacing: u256) u256 {
-    require(vegoid != 0);
-    (pattern & MASK_U40)
-    | @evm_shl(POOL_ID_OFF_VEGOID_KEY, vegoid & 0xff)
-    | @evm_shl(POOL_ID_OFF_TICK_SPACING, tick_spacing & 0xffff)
-};
-
-const SEL_SFPM_GET_POOL_ID = 0xb33eb6f3;
-
-const staticcall_word = fn (target: u256, args_ptr: u256, args_len: u256) u256 {
-    let ret = @malloc_uninit(32);
-    let ok = @evm_staticcall(@evm_gas(), target, args_ptr, args_len, ret, 32);
-    require(ok);
-    @mload32(ret)
-};
-
 const vol_market_key_verify_pool = fn (comptime V: type, k: VolMarketKey(V)) void {
     vol_market_key_require_complete(V, k);
     pool_verify(V, unwrap(k.pool), unwrap(k.pair), unwrap(k.registry));
-};
-
-const vol_market_key_to_panoptic_pool_id =
-    fn (comptime V: type, k: VolMarketKey(V), sfpm: u256, vegoid: u256) u256 {
-    vol_market_key_require_complete(V, k);
-    let pool = unwrap(k.pool);
-    let pattern = if V == V4 {
-        vol_market_key_v4_pattern(pool_word(V4, pool))
-    } else if V == V3 {
-        vol_market_key_verify_pool(V, k);
-        vol_market_key_v3_pattern(pool_word(V3, pool))
-    } else {
-        @compile_error("VolMarketKey: the Panoptic arm accepts only V4 or V3");
-    };
-
-    let candidate = vol_market_key_compose_pool_id(
-        pattern, vegoid, vol_market_key_tick_spacing(V, k)
-    );
-
-    let id_word = pool_word(V, pool);
-
-    let p = @malloc_uninit(132);
-    @mstore4(p, SEL_SFPM_GET_POOL_ID);
-    @mstore32(p +% 4, 0x40);
-    @mstore32(p +% 36, vegoid);
-    @mstore32(p +% 68, 32);
-    @mstore32(p +% 100, id_word);
-    require(candidate == staticcall_word(sfpm, p, 132));
-
-    candidate
 };

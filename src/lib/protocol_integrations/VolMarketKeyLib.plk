@@ -1,0 +1,37 @@
+import std::error::require;
+import std::option::unwrap;
+import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
+import types::protocol_integrations::VolMarketKey::*;
+import types::protocol_integrations::Pool::*;
+import types::protocol_integrations::Venue::*;
+
+const MASK_U160 = 0xffffffffffffffffffffffffffffffffffffffff;
+const POOL_ID_MASK_U40 = 0xffffffffff;
+
+const panoptic_pool_pattern_v4 = fn (pool_id_v4: u256) u256 {
+    pool_id_v4 & POOL_ID_MASK_U40
+};
+
+const panoptic_pool_pattern_v3 = fn (pool_addr: u256) u256 {
+    @evm_shr(120, pool_addr & MASK_U160) & POOL_ID_MASK_U40
+};
+
+const vol_market_key_to_panoptic_pool_id = fn (
+    comptime V: type,
+    k: VolMarketKey(V),
+    vegoid: u256,
+) PanopticPoolId {
+    vol_market_key_require_complete(V, k);
+    let pool = unwrap(k.pool);
+    let pattern = if V == V4 {
+        panoptic_pool_pattern_v4(pool_word(V4, pool))
+    } else if V == V3 {
+        vol_market_key_verify_pool(V, k);
+        panoptic_pool_pattern_v3(pool_word(V3, pool))
+    } else {
+        @compile_error("VolMarketKeyLib: Panoptic arm accepts only V4 or V3");
+    };
+    panoptic_pool_id_compose(
+        pattern, vegoid, vol_market_key_tick_spacing(V, k)
+    )
+};

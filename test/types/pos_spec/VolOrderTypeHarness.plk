@@ -4,6 +4,7 @@ import std::option::{Option, Some, None, is_none, unwrap};
 import types::Extra::*;
 import pos_spec::VolOrder::*;
 import lib::protocol_integrations::PanopticTokenIdSetterLib::vol_order_to_panoptic_token_id;
+import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
 
 // Harness for the VolOrder(T) TYPE and the Extra(T) DESCRIPTOR (Phase 2, VORD-01), written to
 // 02-REGRESSION-ASSESSMENT.md §4a as corrected at the 02-04 chunk review. RED-first.
@@ -71,7 +72,13 @@ run {
     // over T but still returns a PanopticTokenId, and `pool_id` is still a parameter.
     if selector == SEL_TOKEN_ID_NONE_EXTRA {
         let vo = unpack_vol_order(@evm_calldataload(4));
-        return_1(vol_order_to_panoptic_token_id(calldata, vo, @evm_calldataload(36)).tokenId);
+        return_1(
+            vol_order_to_panoptic_token_id(
+                calldata,
+                vo,
+                PanopticPoolId { word: @evm_calldataload(36) },
+            ).tokenId,
+        );
     }
 
     // extraDecodeFields(word) -> (flags, offset, len). Reverts on a reserved flag bit or on a len

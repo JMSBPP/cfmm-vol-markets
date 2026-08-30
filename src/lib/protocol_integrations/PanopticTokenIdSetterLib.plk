@@ -1,4 +1,5 @@
 import types::protocol_integrations::PanopticTokenId::*;
+import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
 import types::pos_spec::VolOrder::{VolOrder, tick_bucket_from_vol_order, tick_bucket_from_vol_order_in};
 import std::regions::calldata;
 import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
@@ -27,7 +28,7 @@ import std::error::require;
 // Phase 3 adds the FLAG_PANOPTIC branch: dereference extra's offset for the four optionRatios --
 // as a Slice(T, u256, Some(4)) over them. `pool_id` STAYS an explicit parameter, matching the
 // Haskell oracle's signature (spec/src/Panoptic/NId.hs); it is not in the descriptor.
-const vol_order_to_panoptic_token_id = fn (comptime T: type, vo: VolOrder(T), pool_id: u256) PanopticTokenId {
+const vol_order_to_panoptic_token_id = fn (comptime T: type, vo: VolOrder(T), pool_id: PanopticPoolId) PanopticTokenId {
     let ts = vo.rangeWidth.tickSpacing;
     let i_star = round_tick(tick_volatility_tick(vo.volStrike), ts);
     let tb = tick_bucket_from_vol_order_in(T, vo);
@@ -83,7 +84,7 @@ const vol_order_to_panoptic_token_id = fn (comptime T: type, vo: VolOrder(T), po
     tid = panoptic_add_risk_partner(tid, 3, 3);
 
     // poolId: low 48 bits only (univ3 pattern + vegoid); tickSpacing written exactly once at [48..63]
-    tid = panoptic_add_pool_id(tid, pool_id & 0xffffffffffff);
+    tid = panoptic_add_pool_id(tid, panoptic_pool_id_word(pool_id) & 0xffffffffffff);
     tid = panoptic_add_tick_spacing(tid, ts);
 
     PanopticTokenId { tokenId: tid, num_legs: 4 }
@@ -147,7 +148,7 @@ const position_size_for_target_vega = fn (vo: VolOrder(calldata)) u256 {
 
 // vol_order_to_mint: the V2 codomain. Layer-1 tokenId + the PINNED asset = 1 on all legs +
 // the DeltaQ_v*-derived positionSize. iota <= 4 legs is structural (layer 1 always emits 4).
-const vol_order_to_mint = fn (vo: VolOrder(calldata), pool_id: u256) MintPlan {
+const vol_order_to_mint = fn (vo: VolOrder(calldata), pool_id: PanopticPoolId) MintPlan {
     let base = vol_order_to_panoptic_token_id(calldata, vo, pool_id);
     let mut tid = base.tokenId;
     // asset = 1 (token1 = the vega numeraire). panoptic_add_asset is additive-shl; the
