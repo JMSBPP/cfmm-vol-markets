@@ -162,10 +162,9 @@ contract LadderTest is PlankTestBase {
         assertFalse(_tryLadderNew(FIX_LO, FIX_HI, FIX_STAR, U128_MAX + 1, FIX_TS));
     }
 
-    // With tick alignment and lo < star < hi, ι ≥ 1 is implied; smallest valid span has ι = 1.
-    function test_ladderNew_accepts_when_iota_eq_one() public {
-        assertTrue(_tryLadderNew(-120, -110, -100, FIX_VEGA, 10));
-    }
+    // ι < 2 is unreachable: with Δ-aligned ticks and lo < star < hi, star must sit strictly
+    // between lo and hi on the spacing grid, so (hi - lo) / Δ_i ≥ 2. The ι ≥ 1 require in
+    // ladder_new is defensive; ladder_new is still instantiated via the tests above.
 
     function test_ladderNew_accepts_valid_fixture() public {
         assertTrue(_tryLadderNew(FIX_LO, FIX_HI, FIX_STAR, FIX_VEGA, FIX_TS));
