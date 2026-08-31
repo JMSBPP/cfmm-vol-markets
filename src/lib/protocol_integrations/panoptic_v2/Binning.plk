@@ -189,8 +189,10 @@ const bin_notionals_loop = fn(
     let mut acc: BinNotionalsAccumulator(kind, R, V) = acc0;
     let mut steps: u256 = 0;
     while acc.ladder.x < acc.ladder.iota {
-        if max_steps != 0 & steps >= max_steps {
-            return acc;
+        if max_steps > 0 {
+            if steps >= max_steps {
+                return acc;
+            }
         }
         let stepped = bin_notionals_step(kind, R, V, acc, legs);
         acc = unwrap(stepped);
