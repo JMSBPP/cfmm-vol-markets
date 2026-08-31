@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {Test} from "forge-std/Test.sol";
-import {PlankTestBase} from "../../PlankTestBase.sol";
+import {PlankTestBase} from "../../../PlankTestBase.sol";
 
 /// @title BinningTest
 /// @notice RED suite for Panoptic.Binning — legIntervals + binNotionals (spec Binning.hs).
