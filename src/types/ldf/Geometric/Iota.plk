@@ -1,0 +1,22 @@
+import std::option::Some;
+import std::regions::{is_region, memory};
+import std::slice::{Slice, at, set};
+
+const IOTA_MASK = 0xffffff;
+
+// Iota(R): client-written Bunni `length` — one ABI word in region R, low 24 bits.
+// NOT reinvented from std: `Slice(R, u256, Some(1))` is the backing view; mask on read.
+const Iota = fn(comptime R: type) type {
+    if !is_region(R) {
+        @compile_error("Iota: R must be a region (std::regions::memory or ::calldata)");
+    }
+    Slice(R, u256, Some(1))
+};
+
+const iota_length = fn(comptime R: type, chunk: Iota(R)) u256 {
+    at(chunk, 0) & IOTA_MASK
+};
+
+const iota_write = fn(chunk: Iota(memory), length: u256) void {
+    set(chunk, 0, length & IOTA_MASK)
+};

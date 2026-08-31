@@ -1,0 +1,52 @@
+import std::error::require;
+import lib::ldf::GeometricDistribution::geometric_liquidity_density_x96;
+import types::ldf::Geometric::Geometric::Geometric;
+import types::ldf::Geometric::Iota::*;
+import types::ldf::Geometric::Xi::xiX96;
+import types::LiquidityDensity::LiquidityDensity;
+import types::protocol_integrations::VolMarketKey::*;
+
+// Column(R): bounded column index for geometric LDF at client ι.
+// spec LiquidityGrid.ell: 0 ≤ x < ι; ι from Iota(R) client chunk.
+const Column = fn(comptime R: type) type {
+    struct Column(R) {
+        x: u256
+    }
+};
+
+const column_new = fn(
+    comptime R: type,
+    chunk: Iota(R),
+    x: u256
+) Column(R) {
+    require(x < iota_length(R, chunk));
+    Column(R) { x: x }
+};
+
+const column_value = fn(col: $C) u256 {
+    col.x
+};
+
+// spec ell xi iota x — normalized density ℓ(ξ*, ι; x) in Q96 at column x.
+const liquidity_density_column = fn(
+    comptime R: type,
+    comptime V: type,
+    market: VolMarketKey(V),
+    min_tick: u256,
+    col: Column(R),
+    chunk: Iota(R)
+) LiquidityDensity(Geometric(R), R) {
+    let ts = vol_market_key_tick_spacing(V, market);
+    let iota = iota_length(R, chunk);
+    let x = column_value(col);
+    let rounded_tick = min_tick +% (x *% ts);
+    LiquidityDensity(Geometric(R), R) {
+        density_x96: geometric_liquidity_density_x96(
+            rounded_tick,
+            ts,
+            min_tick,
+            iota,
+            xiX96(V, market)
+        )
+    }
+};

@@ -1,0 +1,279 @@
+import std::error::require;
+import std::option::{None, Option, Some, is_none, unwrap};
+import std::regions::memory;
+import std::slice::{Slice, len, set};
+import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
+import v3::math::full_math::mulDiv;
+import types::ldf::Geometric::Column::*;
+import types::ldf::Geometric::Iota::*;
+import types::LiquidityDensity::liquidity_density_x96;
+import types::Numerics::{Q96, U128_MAX};
+import types::pos_spec::VolOrder::{VolOrder, tick_bucket_from_vol_order_in};
+import types::pricing::TickUtils::round_tick;
+import types::protocol_integrations::Venue::is_venue;
+import types::protocol_integrations::VolMarketKey::*;
+import pos_spec::SpreadTickAssimetry::spread_tick_assimetry_is_complete;
+import pos_spec::TickVolatility::tick_volatility_is_complete;
+import pos_spec::VolRangeWidth::vol_range_width_is_complete;
+import pos_spec::VegaTarget::*;
+
+// Ladder(V, T): geometric liquidity ladder (spec Payoffs.LadderPosition).
+//
+// V = venue phantom (VolMarketKey tagging). T = geometry carrier — VolOrder(R) or VegaTarget —
+// says WHERE lo/hi/star/vega were sourced; not a second ladder kind.
+//
+// Δ_i and ξ* are NOT stored: derive from VolMarketKey(V) at use sites (CR-I2).
+// ι is NOT stored: (hi - lo) / Δ_i at use sites.
+const Ladder = fn(comptime V: type, comptime T: type) type {
+    if !is_venue(V) {
+        @compile_error("Ladder: V must be a venue (V4, V3 or Algebra)");
+    }
+    struct Ladder(V, T) {
+        lo: u256,   // i_L (signed i24 at use sites)
+        hi: u256,   // i_U
+        star: u256, // i*
+        vega: u256  // ΔQ_v* (raw liquidity units, u128 domain)
+    }
+};
+
+// RungIndex(V, T): proof that x is a column index 0 ≤ x < ι for a specific Ladder(V, T).
+// spec Payoffs.LadderPosition: x in ladderChunks list comp; LiquidityGrid.ell guard.
+const RungIndex = fn(comptime V: type, comptime T: type) type {
+    if !is_venue(V) {
+        @compile_error("RungIndex: V must be a venue (V4, V3 or Algebra)");
+    }
+    struct RungIndex(V, T) {
+        x: u256
+    }
+};
+
+const ladder_require_tick_aligned = fn(tick: u256, ts: u256) void {
+    require(round_tick(tick, ts) == tick);
+};
+
+const ladder_new = fn(
+    comptime V: type,
+    comptime T: type,
+    ts: u256,
+    lo: u256,
+    hi: u256,
+    star: u256,
+    vega: u256
+) Ladder(V, T) {
+    require(@evm_slt(lo, star));
+    require(@evm_slt(star, hi));
+    ladder_require_tick_aligned(lo, ts);
+    ladder_require_tick_aligned(hi, ts);
+    ladder_require_tick_aligned(star, ts);
+    require(vega > 0);
+    require(vega <= U128_MAX);
+    require((hi -% lo) </ ts >= 1);
+    Ladder(V, T) { lo: lo, hi: hi, star: star, vega: vega }
+};
+
+// Geometry from packed VegaTarget; i* = mid_tick (spec Payoffs.LadderPosition).
+const ladder_from_vega_target = fn(
+    comptime V: type,
+    market: VolMarketKey(V),
+    v: VegaTarget(0, 0, 0)
+) Ladder(V, VegaTarget(0, 0, 0)) {
+    vol_market_key_require_complete(V, market);
+    let ts = vol_market_key_tick_spacing(V, market);
+    ladder_new(
+        V,
+        VegaTarget(0, 0, 0),
+        ts,
+        tick_low(v),
+        tick_up(v),
+        mid_tick(v, V, market),
+        vega_amount(v)
+    )
+};
+
+// spec Panoptic.Binning.ladderFromVolOrder: bucket from VolOrder + i* from vol strike.
+const ladder_from_vol_order = fn(
+    comptime V: type,
+    comptime R: type,
+    market: VolMarketKey(V),
+    vo: VolOrder(R)
+) Ladder(V, VolOrder(R)) {
+    vol_market_key_require_complete(V, market);
+    require(
+        (vol_range_width_is_complete(vo.rangeWidth))
+            & (spread_tick_assimetry_is_complete(vo.skew))
+            & (tick_volatility_is_complete(vo.volStrike))
+            & (vega_target_is_complete(vo.targetVega))
+    );
+    let ts = vo.rangeWidth.tickSpacing;
+    require(ts == vol_market_key_tick_spacing(V, market));
+    let tb = tick_bucket_from_vol_order_in(R, vo);
+    ladder_new(
+        V,
+        VolOrder(R),
+        ts,
+        tb.low,
+        tb.up,
+        round_tick(tick_volatility_tick(vo.volStrike), ts),
+        vega_amount(vo.targetVega)
+    )
+};
+
+// spec Payoffs.LadderPosition.iota: column count ι = (i_U - i_L) / Δ_i.
+const ladder_iota = fn(
+    l: $L,
+    comptime V: type,
+    market: VolMarketKey(V)
+) u256 {
+    vol_market_key_require_complete(V, market);
+    let ts = vol_market_key_tick_spacing(V, market);
+    (l.hi -% l.lo) </ ts
+};
+
+const rung_index = fn(
+    l: $L,
+    comptime V: type,
+    comptime T: type,
+    market: VolMarketKey(V),
+    x: u256
+) RungIndex(V, T) {
+    require(x < ladder_iota(l, V, market));
+    RungIndex(V, T) { x: x }
+};
+
+const rung_index_value = fn(ri: $RI) u256 {
+    ri.x
+};
+
+// spec rungTick: i_x = i_L + x·Δ_i
+const ladder_rung_tick = fn(
+    l: $L,
+    ri: $RI,
+    comptime V: type,
+    market: VolMarketKey(V)
+) u256 {
+    let ts = vol_market_key_tick_spacing(V, market);
+    l.lo +% (rung_index_value(ri) *% ts)
+};
+
+// spec ladderChunks: L(i_x) = mulDiv(ΔQ_v*, ℓ(ξ*,ι;x), Q96)
+const ladder_rung_liquidity = fn(
+    l: $L,
+    ri: $RI,
+    comptime V: type,
+    comptime T: type,
+    comptime R: type,
+    market: VolMarketKey(V),
+    iota_chunk: Iota(R)
+) u256 {
+    require(iota_length(R, iota_chunk) == ladder_iota(l, V, market));
+    let col = column_new(R, iota_chunk, rung_index_value(ri));
+    let ld = liquidity_density_column(R, V, market, l.lo, col, iota_chunk);
+    let liq = mulDiv(l.vega, liquidity_density_x96(ld), Q96);
+    require(liq > 0);
+    require(liq <= U128_MAX);
+    liq
+};
+
+// spec Liquidity.LiquidityChunk.createChunk — Panoptic-packed rung band.
+const RungChunk = struct {
+    val: u256
+};
+
+const ladder_rung_chunk = fn(
+    l: $L,
+    ri: $RI,
+    comptime V: type,
+    comptime T: type,
+    comptime R: type,
+    market: VolMarketKey(V),
+    iota_chunk: Iota(R)
+) RungChunk {
+    let ts = vol_market_key_tick_spacing(V, market);
+    let tick_lo = ladder_rung_tick(l, ri, V, market);
+    let tick_hi = tick_lo +% ts;
+    let liq = ladder_rung_liquidity(l, ri, V, T, R, market, iota_chunk);
+    RungChunk {
+        val: @evm_add(
+            @evm_add(@evm_shl(232, tick_lo & 0xffffff), @evm_shl(208, tick_hi & 0xffffff)),
+            liq & U128_MAX
+        )
+    }
+};
+
+// Runtime materialization state for spec ladderChunks (comptime-ι fold path: issue #90).
+const LadderChunksAccumulator = fn(comptime V: type, comptime T: type, comptime R: type) type {
+    struct LadderChunksAccumulator(V, T, R) {
+        l: Ladder(V, T),
+        market: VolMarketKey(V),
+        iota_chunk: Iota(R),
+        out: Slice(memory, u256, None),
+        x: u256,
+        iota: u256
+    }
+};
+
+const ladder_chunks_accumulator_new = fn(
+    l: Ladder(V, T),
+    comptime V: type,
+    comptime T: type,
+    comptime R: type,
+    market: VolMarketKey(V),
+    iota_chunk: Iota(R),
+    out: Slice(memory, u256, None)
+) LadderChunksAccumulator(V, T, R) {
+    let iota = ladder_iota(l, V, market);
+    require(iota_length(R, iota_chunk) == iota);
+    require(len(out) == iota);
+    LadderChunksAccumulator(V, T, R) {
+        l: l,
+        market: market,
+        iota_chunk: iota_chunk,
+        out: out,
+        x: 0,
+        iota: iota
+    }
+};
+
+// One ladderChunks element, or None when all ι columns are written.
+const ladder_chunks_step = fn(
+    acc: LadderChunksAccumulator(V, T, R),
+    comptime V: type,
+    comptime T: type,
+    comptime R: type
+) Option(LadderChunksAccumulator(V, T, R)) {
+    if acc.x >= acc.iota {
+        return None(LadderChunksAccumulator(V, T, R));
+    }
+    let ri = rung_index(acc.l, V, T, acc.market, acc.x);
+    let ch = ladder_rung_chunk(acc.l, ri, V, T, R, acc.market, acc.iota_chunk);
+    set(acc.out, acc.x, ch.val);
+    Some(LadderChunksAccumulator(V, T, R) {
+        l: acc.l,
+        market: acc.market,
+        iota_chunk: acc.iota_chunk,
+        out: acc.out,
+        x: acc.x +% 1,
+        iota: acc.iota
+    })
+};
+
+// spec Payoffs.LadderPosition.ladderChunks — runtime ι; writes ι packed chunk words to client memory.
+// Caller allocates `out` with len(out) == ladder_iota(l, V, market). Comptime-ι fold path: issue #90.
+const ladder_materialize_chunks = fn(
+    l: Ladder(V, T),
+    comptime V: type,
+    comptime T: type,
+    comptime R: type,
+    market: VolMarketKey(V),
+    iota_chunk: Iota(R),
+    out: Slice(memory, u256, None)
+) void {
+    let mut acc = ladder_chunks_accumulator_new(l, V, T, R, market, iota_chunk, out);
+    while true {
+        let next = ladder_chunks_step(acc, V, T, R);
+        if is_none(LadderChunksAccumulator(V, T, R), next) {
+            break;
+        }
+        acc = unwrap(next);
+    }
+};
