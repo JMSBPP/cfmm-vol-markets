@@ -52,29 +52,9 @@ contract LiquidityDensityTest is PlankTestBase {
     uint256 internal constant ALPHA_BASE = 1e8;
 
     IPlankLiquidityDensityHarness internal harness;
-    address internal geoHarness;
 
     function setUp() public {
         harness = IPlankLiquidityDensityHarness(deployPlank("test/types/LiquidityDensityHarness.plk"));
-        geoHarness = deployPlank("test/lib/ldf/GeometricDistributionHarness.plk");
-    }
-
-    function _xiX96(int24 tickSpacing) internal pure returns (uint256) {
-        return uint256(TickMath.getSqrtPriceAtTick(-tickSpacing));
-    }
-
-    function _geoDensity(int24 roundedTick, int24 tickSpacing, int24 minTick, int24 length)
-        internal
-        view
-        returns (uint256)
-    {
-        (bool ok, bytes memory r) = geoHarness.staticcall(
-            abi.encodeWithSignature(
-                "geoDensity(int24,int24,int24,int24,uint256)", roundedTick, tickSpacing, minTick, length, _xiX96(tickSpacing)
-            )
-        );
-        require(ok, "geoDensity reverted");
-        return abi.decode(r, (uint256));
     }
 
     function _ldfParams(int24 tickSpacing, int24 minTick, int24 length) internal pure returns (bytes32) {
@@ -151,6 +131,8 @@ contract LiquidityDensityTest is PlankTestBase {
     }
 
     // --- mirrors GeometricDistributionTest.test_query_cumulativeAmounts / _test_query_cumulativeAmounts ---
+    // Riemann oracle (Option A): sum _densityAt(t) × amountDensity(t) — same semantic path as
+    // ldfDensity → liquidity_density_at; direct cum goes vega* → geometric_cumulative_*.
 
     function test_query_cumulativeAmounts(int24 currentTick, int24 tickSpacing, int24 minTick, int24 length) public {
         tickSpacing = int24(bound(tickSpacing, MIN_TICK_SPACING, MAX_TICK_SPACING));
@@ -209,7 +191,7 @@ contract LiquidityDensityTest is PlankTestBase {
     {
         int24 maxTick = TickMath.maxUsableTick(tickSpacing) - tickSpacing;
         for (int24 tick = roundedTick; tick <= maxTick; tick += tickSpacing) {
-            uint256 liquidityDensityX96 = _geoDensity(tick, tickSpacing, minTick, length);
+            uint256 liquidityDensityX96 = _densityAt(tick, tickSpacing, minTick, length);
             uint256 amount0DensityX96 = _amount0DensityX96(tick, tickSpacing);
             cumulativeAmount0DensityX96 += amount0DensityX96.fullMulDivUp(liquidityDensityX96, FixedPoint96.Q96);
         }
@@ -222,7 +204,7 @@ contract LiquidityDensityTest is PlankTestBase {
     {
         int24 minUsableTick = TickMath.minUsableTick(tickSpacing);
         for (int24 tick = minUsableTick; tick <= roundedTick; tick += tickSpacing) {
-            uint256 liquidityDensityX96 = _geoDensity(tick, tickSpacing, minTick, length);
+            uint256 liquidityDensityX96 = _densityAt(tick, tickSpacing, minTick, length);
             uint256 amount1DensityX96 = _amount1DensityX96(tick, tickSpacing);
             cumulativeAmount1DensityX96 += amount1DensityX96.fullMulDivUp(liquidityDensityX96, FixedPoint96.Q96);
         }
