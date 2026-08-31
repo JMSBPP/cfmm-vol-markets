@@ -31,7 +31,7 @@ import types::Extra::{Extra, extra_none_payload};
 //
 // Every function below that predates Phase 2 is CONCRETE on VolOrder(calldata): the create_order
 // path reads orders from calldata and the Panoptic operands live there. Only the tokenId builder
-// (PanopticTokenIdSetterLib) and the geometry projection below take a comptime T.
+// (panoptic/VolPositionId.plk) and the geometry projection below take a comptime T.
 const VolOrder = fn (comptime T: type) type {
     return struct {
         rangeWidth: VolRangeWidth,

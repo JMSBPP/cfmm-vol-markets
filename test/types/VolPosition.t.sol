@@ -50,18 +50,20 @@ contract VolPositionTest is PlankTestBase {
         uint256 width,
         uint256 skew,
         uint256 vega,
-        uint256 ts
+        uint256 ts,
+        uint64 poolId
     ) internal returns (VolPositionView memory vp) {
         (bool ok, bytes memory r) = harness.staticcall(
             abi.encodeWithSignature(
-                "volPositionFromLadder(uint256,uint256,uint256,uint256,uint256,uint256,uint256)",
+                "volPositionFromLadder(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)",
                 orMin,
                 bound,
                 strike,
                 width,
                 skew,
                 vega,
-                ts
+                ts,
+                uint256(poolId)
             )
         );
         require(ok, "volPositionFromLadder reverted");
@@ -109,7 +111,7 @@ contract VolPositionTest is PlankTestBase {
         uint256 nMax = _max4(n0, n1, n2, n3);
 
         VolPositionView memory vp = _volPositionFromLadder(
-            OR_MIN_DEFAULT, BOUND_PANOPTIC, SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, ts
+            OR_MIN_DEFAULT, BOUND_PANOPTIC, SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, ts, 0
         );
 
         assertEq(vp.w0, _roundBound(BOUND_PANOPTIC, n0, nMax), "w0");
@@ -125,14 +127,15 @@ contract VolPositionTest is PlankTestBase {
         uint256 ts = uint256(uint24(SYM_TS));
         (bool ok,) = harness.staticcall(
             abi.encodeWithSignature(
-                "volPositionFromLadder(uint256,uint256,uint256,uint256,uint256,uint256,uint256)",
+                "volPositionFromLadder(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)",
                 BOUND_PANOPTIC + 1,
                 BOUND_PANOPTIC,
                 SYM_STRIKE,
                 WIDE_WIDTH,
                 SYM_SKEW,
                 SYM_VEGA,
-                ts
+                ts,
+                uint256(0)
             )
         );
         assertFalse(ok, "orMin > bound must revert");

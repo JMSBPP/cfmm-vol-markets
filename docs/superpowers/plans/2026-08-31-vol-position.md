@@ -25,7 +25,8 @@
 |------|----------------|
 | `src/types/pos_spec/VolPosition.plk` | `VolPosition(V)` struct + accessors |
 | `src/lib/.../Binning.plk` | `vol_position_from_ladder` |
-| `src/lib/.../PanopticTokenIdSetterLib.plk` | `vol_position_panoptic_token_id`, `vol_position_to_mint_plan` |
+| `src/lib/.../panoptic/VolPositionId.plk` | token-id encode (`vol_position_panoptic_*`, `vol_order_to_panoptic_token_id*`) |
+| `src/lib/.../panoptic/VolPositionMint.plk` | `vol_position_to_mint_plan` (Task 3) |
 | `test/types/pos_spec/VolPositionHarness.plk` | FFI entrypoints |
 | `test/types/pos_spec/VolPosition.t.sol` | Foundry tests |
 
@@ -58,7 +59,7 @@
 
 **RED:** harness `volPositionToMintPlan` → `(tokenId, position_size)`; `position_size == base`; ratios on tokenId match book.
 
-**GREEN:** Thin adapter in `PanopticTokenIdSetterLib.plk`. Mark `vol_order_to_mint` deprecated for binning path in comment only.
+**GREEN:** Thin adapter in `panoptic/VolPositionMint.plk`. Mark legacy `vol_order_to_mint` deprecated for binning path in comment only.
 
 ---
 

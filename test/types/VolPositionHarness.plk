@@ -6,6 +6,7 @@ import lib::protocol_integrations::panoptic_v2::Binning::{
     vol_position_from_ladder
 };
 import pos_spec::LegBook::*;
+import pos_spec::ClearingHouse::Panoptic;
 import pos_spec::VolPosition::*;
 import pos_spec::SpreadTickAssimetry::*;
 import pos_spec::TickVolatility::*;
@@ -16,6 +17,7 @@ import types::Extra::Extra;
 import types::ldf::Geometric::Geometric::Geometric;
 import types::ldf::Geometric::Iota::*;
 import types::Ladder::{ladder_iota};
+import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
 import types::protocol_integrations::Pool::*;
 import types::protocol_integrations::Registry::*;
 import types::protocol_integrations::VolMarketKey::*;
@@ -24,10 +26,10 @@ import types::Pair::*;
 import std::core::addr::addr_from_u256;
 import std::slice::Slice;
 
-// cast sig "volPositionFromLadder(uint256,uint256,uint256,uint256,uint256,uint256,uint256)"
-//      -> 0xe07b16ce
+// cast sig "volPositionFromLadder(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)"
+//      -> 0xf7bb1c6f
 
-const SEL_VOL_POSITION = 0xe07b16ce;
+const SEL_VOL_POSITION = 0xf7bb1c6f;
 
 const FIX_C0 = 0x1111;
 const FIX_C1 = 0x2222;
@@ -76,6 +78,7 @@ run {
         let skew = @evm_calldataload(132);
         let target_vega = @evm_calldataload(164);
         let ts = @evm_calldataload(196);
+        let pool_id_word = @evm_calldataload(228);
         let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
         let market = fixture_market(ts);
         let l = ladder_from_vol_order(V4, memory, market, vo);
@@ -84,20 +87,23 @@ run {
         let out_ptr = @malloc_uninit(iota *% 32);
         let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
         let bound = leg_weight_bound(bound_val);
+        let pool_id = PanopticPoolId { word: pool_id_word };
         let vp = vol_position_from_ladder(
             Geometric(memory),
             memory,
             V4,
+            Panoptic,
             or_min,
             bound,
             market,
             vo,
             l,
             chunk,
-            out
+            out,
+            pool_id
         );
-        let book = vol_position_book(V4, memory, vp);
-        let ladder = vol_position_ladder(V4, memory, vp);
+        let book = vol_position_book(V4, memory, Panoptic, vp);
+        let ladder = vol_position_ladder(V4, memory, Panoptic, vp);
         let out_buf = @malloc_uninit(224);
         @mstore32(out_buf, leg_weight_value(book.w0));
         @mstore32(out_buf +% 32, leg_weight_value(book.w1));

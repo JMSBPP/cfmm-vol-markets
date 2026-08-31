@@ -1,0 +1,7 @@
+// Clearing-house phantom tags (CH) for VolPosition(V, R, CH).
+// When CH == Panoptic, VolPosition.id (Option(u256)) is semantically PanopticTokenId.word.
+const Panoptic = struct {};
+
+const is_clearing_house = fn (comptime CH: type) bool {
+    CH == Panoptic
+};

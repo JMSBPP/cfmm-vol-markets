@@ -18,30 +18,34 @@ The pre-binning mint path (`vol_order_to_mint`) sizes from `VegaTarget` via `pos
 
 ---
 
-## 1. Product type: `VolPosition(V)`
+## 1. Product type: `VolPosition(V, R, CH)`
+
+`CH` is a **clearing-house phantom tag** (`ClearingHouse.plk`; today `Panoptic` only). Same pattern as venue `V` and region `R`: one struct shape, compile-time tag selects which clearing semantics apply.
 
 ```plk
-VolPosition(V) {
+VolPosition(V, R, CH) {
+    id:     Option(u256),           // None = composed, not cleared; Some(word) = cleared id
     market: VolMarketKey(V),
-    order:  VolOrder(R),           // R = region tag on order (calldata | memory)
-    ladder: Ladder(V),             // T1 geometry — retained for payoff / reports / re-bin
-    book:   LegBook(BaseNotional)   // T2 binning — authoritative mint scale + weights
+    order:  VolOrder(R),
+    ladder: Ladder(V),
+    book:   LegBook(BaseNotional)
 }
 ```
+
+When `CH == Panoptic`, `Some(word)` is **semantically** `PanopticTokenId { tokenId: word }`. The word is computed **in the constructor** via `lib/protocol_integrations/panoptic/VolPositionId.plk` from `VolOrder` + `LegBook` + `PanopticPoolId` (all four legs, book weights as `optionRatio`).
 
 **Constructor (single public entry):**
 
 ```plk
 vol_position_from_ladder(
-    comptime kind, R, V,
-    market: VolMarketKey(V),
-    vo: VolOrder(R),
-    l: Ladder(V),
-    iota_chunk, out,
-    or_min: u256,
-    bound: LegWeightBound
-) -> VolPosition(V)
+    comptime kind, R, V, CH,
+    market, vo, l, iota_chunk, out,
+    or_min, bound,
+    pool_id: PanopticPoolId    // used when CH == Panoptic to derive id
+) -> VolPosition(V, R, CH)
 ```
+
+`vol_position_from_ladder` sets `id = None` for non-Panoptic CH tags (future); for `CH == Panoptic`, `id = Some(vol_position_panoptic_id_word(...))`.
 
 Internally: `book = bin_to_legs(or_min, bound, kind, R, V, l, market, vo, …)`.
 
@@ -56,7 +60,8 @@ Internally: `book = bin_to_legs(or_min, bound, kind, R, V, l, market, vo, …)`.
 
 | Projection | Definition |
 |------------|------------|
-| `vol_position_panoptic_token_id(vp, pool_id)` | `vol_order_to_panoptic_token_id` with ratios from `leg_weight_value(book.w*)`, not `1` |
+| `vol_position_panoptic_token_id(vp, pool_id)` | Read stored id (`vol_position_panoptic_token_id_from_stored`); set at construct |
+| `vol_position_panoptic_token_id(vo, book, pool_id)` | In `panoptic/VolPositionId.plk` — full leg encode + book ratios |
 | `vol_position_position_size(vp)` | `base_notional_value(leg_book_base(vp.book))` |
 | `vol_position_to_mint_plan(vp, pool_id)` | **Legacy adapter:** `{ token_id, position_size }` for SFPM callers |
 
@@ -109,9 +114,11 @@ Keep adapters until callers migrate; mark deprecated in module comments.
 
 | Module | Symbols |
 |--------|---------|
-| `src/types/pos_spec/VolPosition.plk` | `VolPosition(V)`, accessors |
+| `src/types/pos_spec/ClearingHouse.plk` | `Panoptic`, `is_clearing_house` |
+| `src/lib/protocol_integrations/panoptic/VolPositionId.plk` | `vol_order_to_panoptic_token_id*`, `vol_position_panoptic_token_id`, `vol_position_panoptic_id_word` |
+| `src/types/pos_spec/VolPosition.plk` | `VolPosition(V,R,CH)`, accessors, `vol_position_panoptic_token_id_from_stored` |
 | `src/lib/protocol_integrations/panoptic_v2/Binning.plk` | `vol_position_from_ladder` (or re-export) |
-| `src/lib/protocol_integrations/PanopticTokenIdSetterLib.plk` | `vol_position_panoptic_token_id`, `vol_position_to_mint_plan` |
+| `src/lib/protocol_integrations/panoptic/VolPositionMint.plk` | `vol_position_to_mint_plan` (Task 3); legacy `vol_order_to_mint` until binning path owns sizing |
 
 ---
 

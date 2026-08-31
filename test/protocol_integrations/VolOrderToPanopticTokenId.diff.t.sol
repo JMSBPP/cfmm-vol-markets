@@ -7,7 +7,7 @@ import {SpecOracle, SpecHelperProbe} from "./SpecHelper.sol";
 // ===========================================================================================
 // WHAT THIS FILE IS. It drives ONE input into two implementations of the SAME map --
 //   spec/src/Panoptic/NId.hs :: volOrderToTokenId          (the Haskell executable spec)
-//   src/lib/protocol_integrations/PanopticTokenIdSetterLib.plk
+//   src/lib/protocol_integrations/panoptic/VolPositionId.plk
 //       :: vol_order_to_panoptic_token_id                  (the on-chain implementation,
 //       reached through test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk)
 // -- and asserts the two tokenIds are equal at tolerance 0. That is the milestone's core
