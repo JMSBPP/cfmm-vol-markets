@@ -170,6 +170,18 @@ const RungChunk = struct {
     val: u256
 };
 
+const rung_chunk_tick_lo = fn(ch: RungChunk) u256 {
+    @evm_signextend(2, @evm_shr(232, ch.val) & 0xffffff)
+};
+
+const rung_chunk_tick_hi = fn(ch: RungChunk) u256 {
+    @evm_signextend(2, @evm_shr(208, ch.val) & 0xffffff)
+};
+
+const rung_chunk_liquidity = fn(ch: RungChunk) u256 {
+    ch.val & U128_MAX
+};
+
 const ladder_rung_chunk = fn(
     l: $L,
     ri: $RI,
