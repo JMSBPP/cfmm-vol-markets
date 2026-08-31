@@ -1,0 +1,112 @@
+import std::constructor::return_runtime;
+import std::core::addr::addr_from_u256;
+import std::option::{None, Some};
+import std::regions::memory;
+import std::slice::Slice;
+import types::ldf::CummAmt::{vegaAsset, vegaCollateral};
+import types::ldf::Geometric::Geometric::Geometric;
+import types::ldf::Geometric::Iota::*;
+import types::LiquidityDensity::liquidity_density_at;
+import types::LiquidityDensity::LiquidityDensity;
+import types::ldf::CummAmt::CummAmtAccumulator;
+import types::Pair::*;
+import types::protocol_integrations::Pool::*;
+import types::protocol_integrations::Registry::*;
+import types::protocol_integrations::VolMarketKey::*;
+import types::protocol_integrations::Venue::*;
+import pos_spec::VegaTarget::*;
+
+// Plank semantic LDF harness — production path (VolMarketKey + VegaTarget + CummAmt/LiquidityDensity).
+// Diff oracle: Bunni ILiquidityDensityFunction vs these entrypoints (Solidity adapter decodes ldfParams).
+
+// cast sig "ldfDensity(int256,int256,uint256,int256,uint256)" -> 0x9216d64a
+const SEL_DENSITY = 0x9216d64a;
+// cast sig "ldfCumulativeCollateral(int256,int256,uint256,int256,uint256,uint256)" -> 0xb7fd4dae
+const SEL_CUM0 = 0xb7fd4dae;
+// cast sig "ldfCumulativeAsset(int256,int256,uint256,int256,uint256,uint256)" -> 0x4d14aaeb
+const SEL_CUM1 = 0x4d14aaeb;
+
+const FIX_C0 = 0x1111;
+const FIX_C1 = 0x2222;
+const FIX_REG = 0x3333;
+const FIX_FEE = 3000;
+
+const fixture_market = fn(ts: u256) VolMarketKey(V4) {
+    let p = pair(addr_from_u256(FIX_C0), addr_from_u256(FIX_C1), 0);
+    let reg = registry_v4(addr_from_u256(FIX_REG));
+    vol_market_key(V4, Some(p), Some(reg), Some(pool_v4(p, reg, FIX_FEE, ts)))
+};
+
+const iota_alloc = fn(length: u256) Iota(memory) {
+    let ptr = @malloc_uninit(32);
+    let chunk = Slice(memory, u256, comptime { Some(1) }) { ptr: ptr };
+    iota_write(chunk, length);
+    chunk
+};
+
+const fixture_acc = fn(ts: u256, min_tick: u256) CummAmtAccumulator(Geometric(memory), memory, V4) {
+    CummAmtAccumulator(Geometric(memory), memory, V4) {
+        i_l: min_tick,
+        market: fixture_market(ts),
+        ldf: LiquidityDensity(Geometric(memory), memory) { density_x96: 0 },
+        notionals: 0
+    }
+};
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    // ldfDensity(tickLo@4, tickHi@36, vega@68, tickSpacing@100, iotaLength@132)
+    if selector == SEL_DENSITY {
+        let tick_lo = @evm_calldataload(4);
+        let tick_hi = @evm_calldataload(36);
+        let vega = @evm_calldataload(68);
+        let ts = @evm_calldataload(100);
+        let iota_len = @evm_calldataload(132);
+        let target = vega_target_from_ticks(tick_lo, tick_hi, vega);
+        let market = fixture_market(ts);
+        let iota = iota_alloc(iota_len);
+        let ld = liquidity_density_at(Geometric(memory), memory, V4, market, target, iota);
+        let out = @malloc_uninit(32);
+        @mstore32(out, ld.density_x96);
+        @evm_return(out, 32);
+    }
+
+    // ldfCumulativeCollateral(tickLo@4, tickHi@36, vega@68, tickSpacing@100, minTick@132, iotaLength@164)
+    if selector == SEL_CUM0 {
+        let tick_lo = @evm_calldataload(4);
+        let tick_hi = @evm_calldataload(36);
+        let vega = @evm_calldataload(68);
+        let ts = @evm_calldataload(100);
+        let min_tick = @evm_calldataload(132);
+        let iota_len = @evm_calldataload(164);
+        let acc = fixture_acc(ts, min_tick);
+        let target = vega_target_from_ticks(tick_lo, tick_hi, vega);
+        let iota = iota_alloc(iota_len);
+        let res = vegaCollateral(Geometric(memory), memory, V4, acc, target, min_tick, iota);
+        let out = @malloc_uninit(32);
+        @mstore32(out, res.notionals);
+        @evm_return(out, 32);
+    }
+
+    // ldfCumulativeAsset(tickLo@4, tickHi@36, vega@68, tickSpacing@100, minTick@132, iotaLength@164)
+    if selector == SEL_CUM1 {
+        let tick_lo = @evm_calldataload(4);
+        let tick_hi = @evm_calldataload(36);
+        let vega = @evm_calldataload(68);
+        let ts = @evm_calldataload(100);
+        let min_tick = @evm_calldataload(132);
+        let iota_len = @evm_calldataload(164);
+        let acc = fixture_acc(ts, min_tick);
+        let target = vega_target_from_ticks(tick_lo, tick_hi, vega);
+        let iota = iota_alloc(iota_len);
+        let res = vegaAsset(Geometric(memory), memory, V4, acc, target, min_tick, iota);
+        let out = @malloc_uninit(32);
+        @mstore32(out, res.notionals);
+        @evm_return(out, 32);
+    }
+
+    @evm_stop();
+}
