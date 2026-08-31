@@ -1,11 +1,11 @@
 import std::constructor::return_runtime;
 import std::core::addr::addr_from_u256;
-import std::option::Some;
+import std::option::{None, Some};
 import std::regions::memory;
 import std::slice::Slice;
 import types::Ladder::*;
 import types::ldf::Geometric::Iota::*;
-import types::protocol_integrations::Pair::*;
+import types::Pair::*;
 import types::protocol_integrations::Pool::*;
 import types::protocol_integrations::Registry::*;
 import types::protocol_integrations::VolMarketKey::*;
@@ -41,8 +41,9 @@ const fixture_ladder = fn(lo: u256, hi: u256, star: u256, vega: u256, ts: u256) 
 
 const iota_alloc = fn(length: u256) Iota(memory) {
     let ptr = @malloc_uninit(32);
-    @mstore32(ptr, length & IOTA_MASK);
-    Slice(memory, u256, Some(1)) { ptr: ptr }
+    let chunk = Slice(memory, u256, comptime { Some(1) }) { ptr: ptr };
+    iota_write(chunk, length);
+    chunk
 };
 
 init { return_runtime(); }
@@ -112,7 +113,7 @@ run {
         let chunk = iota_alloc(iota);
         let out_ptr = @malloc_uninit(iota *% 32);
         let out = Slice(memory, u256, None) { ptr: out_ptr, len: iota };
-        ladder_materialize_chunks(l, V4, VegaTarget(0, 0, 0), memory, market, chunk, out);
+        ladder_materialize_chunks(V4, VegaTarget(0, 0, 0), memory, l, market, chunk, out);
         @evm_return(out_ptr, iota *% 32);
     }
 

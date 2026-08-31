@@ -213,10 +213,10 @@ const LadderChunksAccumulator = fn(comptime V: type, comptime T: type, comptime 
 };
 
 const ladder_chunks_accumulator_new = fn(
-    l: Ladder(V, T),
     comptime V: type,
     comptime T: type,
     comptime R: type,
+    l: Ladder(V, T),
     market: VolMarketKey(V),
     iota_chunk: Iota(R),
     out: Slice(memory, u256, None)
@@ -236,10 +236,10 @@ const ladder_chunks_accumulator_new = fn(
 
 // One ladderChunks element, or None when all ι columns are written.
 const ladder_chunks_step = fn(
-    acc: LadderChunksAccumulator(V, T, R),
     comptime V: type,
     comptime T: type,
-    comptime R: type
+    comptime R: type,
+    acc: LadderChunksAccumulator(V, T, R)
 ) Option(LadderChunksAccumulator(V, T, R)) {
     if acc.x >= acc.iota {
         return None(LadderChunksAccumulator(V, T, R));
@@ -260,20 +260,22 @@ const ladder_chunks_step = fn(
 // spec Payoffs.LadderPosition.ladderChunks — runtime ι; writes ι packed chunk words to client memory.
 // Caller allocates `out` with len(out) == ladder_iota(l, V, market). Comptime-ι fold path: issue #90.
 const ladder_materialize_chunks = fn(
-    l: Ladder(V, T),
     comptime V: type,
     comptime T: type,
     comptime R: type,
+    l: Ladder(V, T),
     market: VolMarketKey(V),
     iota_chunk: Iota(R),
     out: Slice(memory, u256, None)
 ) void {
-    let mut acc = ladder_chunks_accumulator_new(l, V, T, R, market, iota_chunk, out);
-    while true {
-        let next = ladder_chunks_step(acc, V, T, R);
-        if is_none(LadderChunksAccumulator(V, T, R), next) {
-            break;
-        }
-        acc = unwrap(next);
+    let iota = ladder_iota(l, V, market);
+    require(iota_length(R, iota_chunk) == iota);
+    require(len(out) == iota);
+    let mut x = 0;
+    while x < iota {
+        let ri = rung_index(l, V, T, market, x);
+        let ch = ladder_rung_chunk(l, ri, V, T, R, market, iota_chunk);
+        set(out, x, ch.val);
+        x = x +% 1;
     }
 };
