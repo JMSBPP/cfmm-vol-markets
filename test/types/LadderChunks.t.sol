@@ -178,7 +178,7 @@ contract LadderChunksTest is PlankTestBase {
         int24 hi = lo + int24(int256(span)) * ts;
         uint256 starOff = bound(starOffR, 1, span - 1);
         int24 star = lo + int24(int256(starOff)) * ts;
-        uint256 vega = bound(vegaR, 1, type(uint128).max);
+        uint256 vega = bound(vegaR, Q96, type(uint128).max);
         uint256 iota = _ladderIota(lo, hi, ts);
         uint256 x = bound(xR, 0, iota - 1);
 
