@@ -20,7 +20,7 @@ contract LadderFromVolOrderTest is PlankTestBase {
     int24 constant FIX_STAR = 0;
 
     function setUp() public {
-        harness = deployPlank("test/lib/panoptic/BinningHarness.plk");
+        harness = deployPlank("test/lib/protocol_integrations/panoptic-v2/BinningHarness.plk");
     }
 
     function _u24ToInt24(uint256 v) internal pure returns (int24) {

@@ -1,0 +1,195 @@
+// Panoptic.Binning — 𝓑: ladder chunks → per-leg numeraire notionals (spec Panoptic.Binning.hs).
+import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
+import pos_spec::VolOrder::*;
+import std::option::{None, Option, Some, unwrap};
+import std::regions::memory;
+import std::slice::{Slice, set};
+import types::ldf::CummAmt::*;
+import types::ldf::Geometric::Geometric::Geometric;
+import types::ldf::Geometric::Iota::*;
+import types::Ladder::ladder_from_vol_order as ladder_from_vol_order_ladder;
+import types::Ladder::*;
+import types::pricing::TickUtils::{round_tick, vol_order_split_points};
+import types::protocol_integrations::VolMarketKey::*;
+
+const ladder_from_vol_order = fn(
+    comptime V: type,
+    comptime R: type,
+    market: VolMarketKey(V),
+    vo: VolOrder(R)
+) Ladder(V) {
+    ladder_from_vol_order_ladder(V, R, market, vo)
+};
+
+const LegInterval = struct {
+    lo: u256,
+    hi: u256
+};
+
+const LegIntervals = struct {
+    leg0: LegInterval,
+    leg1: LegInterval,
+    leg2: LegInterval,
+    leg3: LegInterval
+};
+
+const LegNumeraireNotionals = struct {
+    n0: u256,
+    n1: u256,
+    n2: u256,
+    n3: u256
+};
+
+const vol_order_leg_intervals = fn(comptime T: type, vo: VolOrder(T)) LegIntervals {
+    let ts: u256 = vo.rangeWidth.tickSpacing;
+    let tb = tick_bucket_from_vol_order_in(T, vo);
+    let star: u256 = round_tick(tick_volatility_tick(vo.volStrike), ts);
+    let sp = vol_order_split_points(tb.low, tb.up, star, ts);
+    LegIntervals {
+        leg0: LegInterval { lo: tb.low, hi: sp.m_p },
+        leg1: LegInterval { lo: sp.m_p, hi: star },
+        leg2: LegInterval { lo: star, hi: sp.m_c },
+        leg3: LegInterval { lo: sp.m_c, hi: tb.up }
+    }
+};
+
+const tick_in_half_open_interval = fn(tick: u256, lo: u256, hi: u256) bool {
+    !@evm_slt(tick, lo) & @evm_slt(tick, hi)
+};
+
+const bin_notionals_add_if_in_leg = fn(
+    tick_lo: u256,
+    n: u256,
+    leg: LegInterval,
+    current: u256
+) u256 {
+    if tick_in_half_open_interval(tick_lo, leg.lo, leg.hi) {
+        current +% n
+    } else {
+        current
+    }
+};
+
+const BinNotionalsAccumulator = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type
+) type {
+    return struct V {
+        ladder: LadderChunksAccumulator(V, R),
+        cumm: CummAmtAccumulator(kind, R, V),
+        n0: u256,
+        n1: u256,
+        n2: u256,
+        n3: u256
+    };
+};
+
+const bin_notionals_accumulator_new = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    l: Ladder(V),
+    market: VolMarketKey(V),
+    iota_chunk: Iota(R),
+    out: Slice(memory, u256, comptime { None(u256) })
+) BinNotionalsAccumulator(kind, R, V) {
+    let ladder: LadderChunksAccumulator(V, R) =
+        ladder_chunks_accumulator_new(V, R, l, market, iota_chunk, out);
+    let ldf = cumm_amt_ldf_at_ladder_x(R, V, ladder);
+    BinNotionalsAccumulator(kind, R, V) {
+        ladder: ladder,
+        cumm: cumm_amt_from_ladder_chunks(kind, R, V, ladder, ldf),
+        n0: 0,
+        n1: 0,
+        n2: 0,
+        n3: 0
+    }
+};
+
+const bin_notionals_step = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    acc: BinNotionalsAccumulator(kind, R, V),
+    legs: LegIntervals
+) Option(BinNotionalsAccumulator(kind, R, V)) {
+    if acc.ladder.x >= acc.ladder.iota {
+        return None(BinNotionalsAccumulator(kind, R, V));
+    }
+    let ri = rung_index(acc.ladder.l, V, acc.ladder.market, acc.ladder.x);
+    let ch = ladder_rung_chunk(acc.ladder.l, ri, V, R, acc.ladder.market, acc.ladder.iota_chunk);
+    set(acc.ladder.out, acc.ladder.x, ch.val);
+    let target = vega_target_from_rung_chunk(ch);
+    let ldf = cumm_amt_ldf_at_ladder_x(R, V, acc.ladder);
+    let cumm = cumm_amt_from_ladder_chunks(kind, R, V, acc.ladder, ldf);
+    let priced = chunk_numeraire(
+        kind,
+        R,
+        V,
+        cumm,
+        target,
+        acc.ladder.l.lo,
+        acc.ladder.iota_chunk
+    );
+    let tick_lo: u256 = rung_chunk_tick_lo(ch);
+    let n: u256 = priced.notionals;
+    let n0: u256 = bin_notionals_add_if_in_leg(tick_lo, n, legs.leg0, acc.n0);
+    let n1: u256 = bin_notionals_add_if_in_leg(tick_lo, n, legs.leg1, acc.n1);
+    let n2: u256 = bin_notionals_add_if_in_leg(tick_lo, n, legs.leg2, acc.n2);
+    let n3: u256 = bin_notionals_add_if_in_leg(tick_lo, n, legs.leg3, acc.n3);
+    let next_ladder = LadderChunksAccumulator(V, R) {
+        l: acc.ladder.l,
+        market: acc.ladder.market,
+        iota_chunk: acc.ladder.iota_chunk,
+        out: acc.ladder.out,
+        x: acc.ladder.x +% 1,
+        iota: acc.ladder.iota
+    };
+    let next_ldf = cumm_amt_ldf_at_ladder_x(R, V, next_ladder);
+    Some(BinNotionalsAccumulator(kind, R, V) {
+        ladder: next_ladder,
+        cumm: cumm_amt_from_ladder_chunks(kind, R, V, next_ladder, next_ldf),
+        n0: n0,
+        n1: n1,
+        n2: n2,
+        n3: n3
+    })
+};
+
+const bin_notionals_finish = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    acc: BinNotionalsAccumulator(kind, R, V)
+) LegNumeraireNotionals {
+    LegNumeraireNotionals {
+        n0: acc.n0,
+        n1: acc.n1,
+        n2: acc.n2,
+        n3: acc.n3
+    }
+};
+
+const bin_notionals = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    l: Ladder(V),
+    market: VolMarketKey(V),
+    vo: VolOrder(R),
+    iota_chunk: Iota(R),
+    out: Slice(memory, u256, comptime { None(u256) })
+) LegNumeraireNotionals {
+    if kind != Geometric(R) {
+        @compile_error("bin_notionals: unsupported kind");
+    }
+    let legs: LegIntervals = vol_order_leg_intervals(R, vo);
+    let mut acc: BinNotionalsAccumulator(kind, R, V) =
+        bin_notionals_accumulator_new(kind, R, V, l, market, iota_chunk, out);
+    while acc.ladder.x < acc.ladder.iota {
+        let stepped = bin_notionals_step(kind, R, V, acc, legs);
+        acc = unwrap(stepped);
+    }
+    bin_notionals_finish(kind, R, V, acc)
+};
