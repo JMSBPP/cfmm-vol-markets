@@ -356,7 +356,7 @@ contract LiquidityDensityDiffTest is PlankDiffTestBase {
     function _assertLiquidityDensityX96Eq(Context memory ctx) internal view {
         (uint256 b,,,,) = bunni.query(ctx.key, ctx.roundedTick, 0, 0, ctx.ldfParams, LDF_STATE);
         (uint256 p,,,,) = plank.query(ctx.key, ctx.roundedTick, 0, 0, ctx.ldfParams, LDF_STATE);
-        assertApproxEqAbs(b, p, MAX_ERROR_DENSITY, "liquidityDensityX96: Bunni vs Plank");
+        assertApproxEqRel(b, p, MAX_ERROR_DENSITY, "liquidityDensityX96: Bunni vs Plank");
     }
 
     function _assertCumulativeAmount0Eq(Context memory ctx) internal view {
@@ -366,7 +366,7 @@ contract LiquidityDensityDiffTest is PlankDiffTestBase {
         uint256 p = plank.cumulativeAmount0(
             ctx.key, ctx.roundedTick, ctx.totalLiquidity, 0, 0, ctx.ldfParams, LDF_STATE
         );
-        assertApproxEqAbs(b, p, MAX_ERROR_CUM0, "cumulativeAmount0: Bunni vs Plank");
+        assertApproxEqRel(b, p, MAX_ERROR_CUM0, "cumulativeAmount0: Bunni vs Plank");
     }
 
     function _assertCumulativeAmount1Eq(Context memory ctx) internal view {
@@ -376,6 +376,6 @@ contract LiquidityDensityDiffTest is PlankDiffTestBase {
         uint256 p = plank.cumulativeAmount1(
             ctx.key, ctx.roundedTick, ctx.totalLiquidity, 0, 0, ctx.ldfParams, LDF_STATE
         );
-        assertApproxEqAbs(b, p, MAX_ERROR_CUM1, "cumulativeAmount1: Bunni vs Plank");
+        assertApproxEqRel(b, p, MAX_ERROR_CUM1, "cumulativeAmount1: Bunni vs Plank");
     }
 }

@@ -121,21 +121,25 @@ contract LiquidityDensityTest is PlankTestBase {
         currentTick = int24(bound(currentTick, minUsableTick, maxUsableTick));
 
         int24 roundedTick = roundTickSingle(currentTick, tickSpacing);
+        int24 cum0Tick = roundedTick + tickSpacing;
+        int24 cum1Tick = roundedTick - tickSpacing;
+        vm.assume(cum0Tick >= minTick && cum0Tick <= minTick + length * tickSpacing);
+        vm.assume(cum1Tick >= minTick && cum1Tick <= minTick + length * tickSpacing);
 
         uint256 cumulativeAmount0DensityX96 =
-            _cum0At(roundedTick + tickSpacing, FixedPoint96.Q96, tickSpacing, minTick, length);
-        uint256 cumulativeAmount0 = _cum0At(roundedTick + tickSpacing, FixedPoint96.Q96, tickSpacing, minTick, length);
+            _cum0At(cum0Tick, FixedPoint96.Q96, tickSpacing, minTick, length);
+        uint256 cumulativeAmount0 = _cum0At(cum0Tick, FixedPoint96.Q96, tickSpacing, minTick, length);
         assertEq(cumulativeAmount0, cumulativeAmount0DensityX96, "cumulativeAmount0 incorrect");
 
         uint256 cumulativeAmount1DensityX96 =
-            _cum1At(roundedTick - tickSpacing, FixedPoint96.Q96, tickSpacing, minTick, length);
-        uint256 cumulativeAmount1 = _cum1At(roundedTick - tickSpacing, FixedPoint96.Q96, tickSpacing, minTick, length);
+            _cum1At(cum1Tick, FixedPoint96.Q96, tickSpacing, minTick, length);
+        uint256 cumulativeAmount1 = _cum1At(cum1Tick, FixedPoint96.Q96, tickSpacing, minTick, length);
         assertEq(cumulativeAmount1, cumulativeAmount1DensityX96, "cumulativeAmount1 incorrect");
 
         uint256 bruteForceAmount0X96 =
-            _bruteForceCumulativeAmount0Density(roundedTick + tickSpacing, tickSpacing, minTick, length);
+            _bruteForceCumulativeAmount0Density(cum0Tick, tickSpacing, minTick, length);
         uint256 bruteForceAmount1X96 =
-            _bruteForceCumulativeAmount1Density(roundedTick - tickSpacing, tickSpacing, minTick, length);
+            _bruteForceCumulativeAmount1Density(cum1Tick, tickSpacing, minTick, length);
 
         (, uint256 error0) = absDiff(cumulativeAmount0DensityX96, bruteForceAmount0X96);
         if (error0 > MIN_ABS_ERROR) {
