@@ -137,7 +137,7 @@ contract LadderChunksTest is PlankTestBase {
     function test_materializeChunks_matchesRungChunk() public {
         uint256 iota = _ladderIota(FIX_LO, FIX_HI, FIX_TS);
         bytes memory raw = _materializeChunks(FIX_LO, FIX_HI, FIX_STAR, FIX_VEGA, FIX_TS);
-        assertEq(raw.length, iota * 32, "materialize returns ι words");
+        assertEq(raw.length, iota * 32, "materialize returns iota words");
         for (uint256 x = 0; x < iota; x++) {
             uint256 word;
             assembly {
