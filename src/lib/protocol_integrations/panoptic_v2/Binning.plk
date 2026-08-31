@@ -1,6 +1,8 @@
-// Panoptic.Binning — 𝓑: ladder chunks → per-leg numeraire notionals (spec Panoptic.Binning.hs).
+// Panoptic.Binning — 𝓑: ladder chunks → per-leg numeraire notionals → LegBook (spec Panoptic.Binning.hs).
 import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
+import pos_spec::LegBook::*;
 import pos_spec::VolOrder::*;
+import std::error::require;
 import std::option::{None, Option, Some, unwrap};
 import std::regions::memory;
 import std::slice::{Slice, set};
@@ -18,6 +20,9 @@ import types::Ladder::{
 };
 import types::pricing::TickUtils::{round_tick, vol_order_split_points};
 import types::protocol_integrations::VolMarketKey::*;
+
+// Haskell orMinDefault — reject optionRatio below this (Panoptic validate reverts on 0).
+const OR_MIN_DEFAULT = 8;
 
 const ladder_from_vol_order = fn(
     comptime V: type,
@@ -199,4 +204,27 @@ const bin_notionals = fn(
         acc = unwrap(stepped);
     }
     bin_notionals_finish(kind, R, V, acc)
+};
+
+// Haskell binToLegs: binNotionals → round(b·n/n_max) + ⌊n_max/b⌋ as LegBook(BaseNotional);
+// reject if any weight < or_min. Spec TargetVega(positionSize) ≡ book.base.
+const bin_to_legs = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    or_min: u256,
+    bound: LegWeightBound,
+    l: Ladder(V),
+    market: VolMarketKey(V),
+    vo: VolOrder(R),
+    iota_chunk: Iota(R),
+    out: Slice(memory, u256, comptime { None(u256) })
+) LegBook(BaseNotional) {
+    let ns = bin_notionals(kind, R, V, l, market, vo, iota_chunk, out);
+    let book = leg_book_from_notionals(bound, ns.n0, ns.n1, ns.n2, ns.n3);
+    require(leg_weight_value(book.w0) >= or_min);
+    require(leg_weight_value(book.w1) >= or_min);
+    require(leg_weight_value(book.w2) >= or_min);
+    require(leg_weight_value(book.w3) >= or_min);
+    book
 };
