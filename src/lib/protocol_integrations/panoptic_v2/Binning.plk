@@ -3,7 +3,7 @@ import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
 import pos_spec::LegBook::*;
 import pos_spec::VolOrder::*;
 import std::error::require;
-import std::option::{None, Option, Some};
+import std::option::{None, Option, Some, unwrap};
 import std::regions::memory;
 import std::slice::{Slice, set};
 import types::ldf::CummAmt::*;
@@ -20,7 +20,6 @@ import types::Ladder::{
 };
 import types::pricing::TickUtils::{round_tick, vol_order_split_points};
 import types::protocol_integrations::VolMarketKey::*;
-import pos_spec::ClearingHouse::Panoptic;
 import pos_spec::ClearingHouse::*;
 import pos_spec::VolPosition::*;
 import lib::protocol_integrations::panoptic::VolPositionId::vol_position_panoptic_id_word;
