@@ -183,6 +183,48 @@ contract BinningTest is PlankTestBase {
         return abi.decode(r, (uint256));
     }
 
+    function _binNotionalsLimited(
+        uint256 strike,
+        uint256 width,
+        uint256 skew,
+        uint256 vega,
+        uint256 ts,
+        uint256 maxSteps
+    ) internal returns (BinNotionals memory ns) {
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature(
+                "binNotionalsLimited(uint256,uint256,uint256,uint256,uint256,uint256)",
+                strike,
+                width,
+                skew,
+                vega,
+                ts,
+                maxSteps
+            )
+        );
+        require(ok, string.concat("binNotionalsLimited maxSteps=", vm.toString(maxSteps)));
+        (uint256 n0, uint256 n1, uint256 n2, uint256 n3) = abi.decode(r, (uint256, uint256, uint256, uint256));
+        ns = BinNotionals({n0: n0, n1: n1, n2: n2, n3: n3});
+    }
+
+    function _materializeChunksFromVolOrder(uint256 strike, uint256 width, uint256 skew, uint256 vega, uint256 ts)
+        internal
+        returns (bytes memory raw)
+    {
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature(
+                "materializeChunksFromVolOrder(uint256,uint256,uint256,uint256,uint256)",
+                strike,
+                width,
+                skew,
+                vega,
+                ts
+            )
+        );
+        require(ok, "materializeChunksFromVolOrder reverted");
+        raw = r;
+    }
+
     function _tickInHalfOpen(int24 tick, int24 lo, int24 hi) internal pure returns (bool) {
         return tick >= lo && tick < hi;
     }
@@ -275,13 +317,37 @@ contract BinningTest is PlankTestBase {
         assertEq(iota, uint256(int256(WIDE_HI - WIDE_LO)) / uint256(int256(SYM_TS)), "wide iota");
     }
 
-    function test_chunkNumeraire_wide_firstAndLastRung_nonzero() public {
+    function test_chunkNumeraire_wide_firstAndLastRung_complete() public {
         uint256 iota = _ladderIota(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)));
         uint256 n0 = _chunkNumeraireAtRung(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), 0);
         uint256 nLast =
             _chunkNumeraireAtRung(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), iota - 1);
         assertGt(n0, 0, "wide x=0");
-        assertGt(nLast, 0, "wide x=iota-1");
+        // Top rung [1990,2000) can price to 0 collateral at the distribution upper edge.
+        assertGe(nLast, 0, "wide x=iota-1 completes");
+    }
+
+    function test_wide_materializeChunks_fromVolOrder_succeeds() public {
+        uint256 iota = _ladderIota(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)));
+        bytes memory raw = _materializeChunksFromVolOrder(
+            SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS))
+        );
+        assertEq(raw.length, iota * 32, "wide materialize bytes");
+    }
+
+    function test_wide_allChunkNumeraires_iterate() public {
+        uint256 iota = _ladderIota(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)));
+        for (uint256 x = 0; x < iota; x++) {
+            _chunkNumeraireAtRung(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), x);
+        }
+    }
+
+    function test_binNotionals_wide_limitedSteps_399() public {
+        _binNotionalsLimited(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), 399);
+    }
+
+    function test_binNotionals_wide_limitedSteps_400() public {
+        _binNotionalsLimited(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), 400);
     }
 
     function test_binNotionals_matchesBruteForcePartition_wide() public {

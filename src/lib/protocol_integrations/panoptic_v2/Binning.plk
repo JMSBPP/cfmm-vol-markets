@@ -178,6 +178,27 @@ const bin_notionals_finish = fn(
     }
 };
 
+const bin_notionals_loop = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    acc0: BinNotionalsAccumulator(kind, R, V),
+    legs: LegIntervals,
+    max_steps: u256
+) BinNotionalsAccumulator(kind, R, V) {
+    let mut acc: BinNotionalsAccumulator(kind, R, V) = acc0;
+    let mut steps: u256 = 0;
+    while acc.ladder.x < acc.ladder.iota {
+        if max_steps != 0 & steps >= max_steps {
+            return acc;
+        }
+        let stepped = bin_notionals_step(kind, R, V, acc, legs);
+        acc = unwrap(stepped);
+        steps = steps +% 1;
+    }
+    acc
+};
+
 const bin_notionals = fn(
     comptime kind: type,
     comptime R: type,
@@ -192,11 +213,30 @@ const bin_notionals = fn(
         @compile_error("bin_notionals: unsupported kind");
     }
     let legs: LegIntervals = vol_order_leg_intervals(R, vo);
-    let mut acc: BinNotionalsAccumulator(kind, R, V) =
+    let acc0: BinNotionalsAccumulator(kind, R, V) =
         bin_notionals_accumulator_new(kind, R, V, l, market, iota_chunk, out);
-    while acc.ladder.x < acc.ladder.iota {
-        let stepped = bin_notionals_step(kind, R, V, acc, legs);
-        acc = unwrap(stepped);
+    let acc = bin_notionals_loop(kind, R, V, acc0, legs, 0);
+    bin_notionals_finish(kind, R, V, acc)
+};
+
+// Diagnostic: run at most `max_steps` bin_notionals iterations (0 = full ladder).
+const bin_notionals_limited = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    l: Ladder(V),
+    market: VolMarketKey(V),
+    vo: VolOrder(R),
+    iota_chunk: Iota(R),
+    out: Slice(memory, u256, comptime { None(u256) }),
+    max_steps: u256
+) LegNumeraireNotionals {
+    if kind != Geometric(R) {
+        @compile_error("bin_notionals_limited: unsupported kind");
     }
+    let legs: LegIntervals = vol_order_leg_intervals(R, vo);
+    let acc0: BinNotionalsAccumulator(kind, R, V) =
+        bin_notionals_accumulator_new(kind, R, V, l, market, iota_chunk, out);
+    let acc = bin_notionals_loop(kind, R, V, acc0, legs, max_steps);
     bin_notionals_finish(kind, R, V, acc)
 };
