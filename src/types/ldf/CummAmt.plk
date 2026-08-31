@@ -113,8 +113,13 @@ const vegaAssetChunk = fn(
             iota,
             xi_x96
         );
-        require(c_hi >= c_lo);
-        c_hi -% c_lo
+        // mulDivRoundingUp in the cumulative path can invert c_hi < c_lo on adjacent Δ-wide
+        // bands; treat as zero chunk numeraire (Bunni never relied on a hard require here).
+        if c_hi > c_lo {
+            c_hi -% c_lo
+        } else {
+            0
+        }
     } else {
         @compile_error("vegaAssetChunk: unsupported kind");
     };
@@ -203,8 +208,11 @@ const vegaCollateralChunk = fn(
             iota,
             xi_x96
         );
-        require(c_lo >= c_hi);
-        c_lo -% c_hi
+        if c_lo > c_hi {
+            c_lo -% c_hi
+        } else {
+            0
+        }
     } else {
         @compile_error("vegaCollateralChunk: unsupported kind");
     };

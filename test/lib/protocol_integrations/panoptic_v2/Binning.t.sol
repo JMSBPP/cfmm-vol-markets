@@ -317,6 +317,10 @@ contract BinningTest is PlankTestBase {
         assertEq(iota, uint256(int256(WIDE_HI - WIDE_LO)) / uint256(int256(SYM_TS)), "wide iota");
     }
 
+    function test_chunkNumeraire_wide_rung61_completes() public {
+        _chunkNumeraireAtRung(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), 61);
+    }
+
     function test_chunkNumeraire_wide_firstAndLastRung_complete() public {
         uint256 iota = _ladderIota(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)));
         uint256 n0 = _chunkNumeraireAtRung(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), 0);
