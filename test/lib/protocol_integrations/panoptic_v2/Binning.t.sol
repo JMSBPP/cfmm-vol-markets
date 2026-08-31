@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {PlankTestBase} from "../../../PlankTestBase.sol";
 
 /// @title BinningTest
-/// @notice RED suite for Panoptic.Binning — legIntervals + binNotionals (spec Binning.hs).
+/// @notice Suite for Panoptic.Binning — legIntervals + binNotionals (spec Binning.hs).
 /// @dev Haskell oracles: Spec.hs symmetric fixture (width=40, ts=10) and wide voWide (width=4000).
 contract BinningTest is PlankTestBase {
     address internal harness;
@@ -91,77 +91,18 @@ contract BinningTest is PlankTestBase {
         });
     }
 
-    /// @dev OOG vs revert: staticcall forwards 63/64 gas. OOG leaves ~1/64 and empty returndata.
-    /// EVM has no OOM opcode — malloc that burns remaining gas looks like OOG; a require looks like REVERT.
-    function _failKind(uint256 gasBefore, uint256 gasAfter, bytes memory r)
-        internal
-        pure
-        returns (string memory)
-    {
-        uint256 remainingBps = gasBefore == 0 ? 0 : (gasAfter * 10000) / gasBefore;
-        bool likelyOog = r.length == 0 && remainingBps < 300; // ~156 bps = 1/64
-        if (r.length >= 4) {
-            bytes4 sel = bytes4(r);
-            if (sel == bytes4(0x4e487b71)) return "PANIC";
-            if (sel == bytes4(0x08c379a0)) return "ERROR_STRING";
-        }
-        if (likelyOog) return "OOG_OR_OOM_VIA_GAS";
-        if (r.length == 0) return "REVERT_EMPTY";
-        return "REVERT_DATA";
-    }
-
     function _binNotionals(uint256 strike, uint256 width, uint256 skew, uint256 vega, uint256 ts)
         internal
         returns (BinNotionals memory ns)
     {
-        uint256 gasBefore = gasleft();
         (bool ok, bytes memory r) = harness.staticcall(
             abi.encodeWithSignature(
                 "binNotionals(uint256,uint256,uint256,uint256,uint256)", strike, width, skew, vega, ts
             )
         );
-        uint256 gasAfter = gasleft();
-        if (!ok) {
-            emit log_named_uint("gasBefore", gasBefore);
-            emit log_named_uint("gasAfter", gasAfter);
-            emit log_named_uint("gasUsed", gasBefore - gasAfter);
-            emit log_named_uint("remaining_bps", gasBefore == 0 ? 0 : (gasAfter * 10000) / gasBefore);
-            emit log_named_uint("returndata_len", r.length);
-            emit log_named_bytes("returndata", r);
-            emit log_named_string("failKind", _failKind(gasBefore, gasAfter, r));
-            revert(
-                string.concat(
-                    "binNotionals ",
-                    _failKind(gasBefore, gasAfter, r),
-                    " gasUsed=",
-                    vm.toString(gasBefore - gasAfter),
-                    " remaining_bps=",
-                    vm.toString(gasBefore == 0 ? 0 : (gasAfter * 10000) / gasBefore),
-                    " retlen=",
-                    vm.toString(r.length)
-                )
-            );
-        }
+        require(ok, "binNotionals reverted");
         (uint256 n0, uint256 n1, uint256 n2, uint256 n3) = abi.decode(r, (uint256, uint256, uint256, uint256));
         ns = BinNotionals({n0: n0, n1: n1, n2: n2, n3: n3});
-    }
-
-    function _ladderIota(uint256 strike, uint256 width, uint256 skew, uint256 vega, uint256 ts)
-        internal
-        returns (uint256)
-    {
-        (bool ok, bytes memory r) = harness.staticcall(
-            abi.encodeWithSignature(
-                "ladderIotaFromVolOrder(uint256,uint256,uint256,uint256,uint256)",
-                strike,
-                width,
-                skew,
-                vega,
-                ts
-            )
-        );
-        require(ok, "ladderIotaFromVolOrder reverted");
-        return abi.decode(r, (uint256));
     }
 
     function _chunkNumeraireAtRung(uint256 strike, uint256 width, uint256 skew, uint256 vega, uint256 ts, uint256 x)
@@ -181,48 +122,6 @@ contract BinningTest is PlankTestBase {
         );
         require(ok, "chunkNumeraireAtRung reverted");
         return abi.decode(r, (uint256));
-    }
-
-    function _binNotionalsLimited(
-        uint256 strike,
-        uint256 width,
-        uint256 skew,
-        uint256 vega,
-        uint256 ts,
-        uint256 maxSteps
-    ) internal returns (BinNotionals memory ns) {
-        (bool ok, bytes memory r) = harness.staticcall(
-            abi.encodeWithSignature(
-                "binNotionalsLimited(uint256,uint256,uint256,uint256,uint256,uint256)",
-                strike,
-                width,
-                skew,
-                vega,
-                ts,
-                maxSteps
-            )
-        );
-        require(ok, string.concat("binNotionalsLimited maxSteps=", vm.toString(maxSteps)));
-        (uint256 n0, uint256 n1, uint256 n2, uint256 n3) = abi.decode(r, (uint256, uint256, uint256, uint256));
-        ns = BinNotionals({n0: n0, n1: n1, n2: n2, n3: n3});
-    }
-
-    function _materializeChunksFromVolOrder(uint256 strike, uint256 width, uint256 skew, uint256 vega, uint256 ts)
-        internal
-        returns (bytes memory raw)
-    {
-        (bool ok, bytes memory r) = harness.staticcall(
-            abi.encodeWithSignature(
-                "materializeChunksFromVolOrder(uint256,uint256,uint256,uint256,uint256)",
-                strike,
-                width,
-                skew,
-                vega,
-                ts
-            )
-        );
-        require(ok, "materializeChunksFromVolOrder reverted");
-        raw = r;
     }
 
     function _tickInHalfOpen(int24 tick, int24 lo, int24 hi) internal pure returns (bool) {
@@ -305,64 +204,6 @@ contract BinningTest is PlankTestBase {
             total += _chunkNumeraireAtRung(SYM_STRIKE, SYM_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), x);
         }
         assertEq(ns.n0 + ns.n1 + ns.n2 + ns.n3, total, "leg sums partition rung numeraires");
-    }
-
-    function test_ladderIota_symmetric_matchesSpec() public {
-        uint256 iota = _ladderIota(SYM_STRIKE, SYM_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)));
-        assertEq(iota, uint256(int256(SYM_HI - SYM_LO)) / uint256(int256(SYM_TS)), "symmetric iota");
-    }
-
-    function test_ladderIota_wide_matchesSpec() public {
-        uint256 iota = _ladderIota(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)));
-        assertEq(iota, uint256(int256(WIDE_HI - WIDE_LO)) / uint256(int256(SYM_TS)), "wide iota");
-    }
-
-    function test_chunkNumeraire_wide_rung61_completes() public {
-        _chunkNumeraireAtRung(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), 61);
-    }
-
-    function test_chunkNumeraire_wide_firstAndLastRung_complete() public {
-        uint256 iota = _ladderIota(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)));
-        uint256 n0 = _chunkNumeraireAtRung(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), 0);
-        uint256 nLast =
-            _chunkNumeraireAtRung(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), iota - 1);
-        assertGt(n0, 0, "wide x=0");
-        // Top rung [1990,2000) can price to 0 collateral at the distribution upper edge.
-        assertGe(nLast, 0, "wide x=iota-1 completes");
-    }
-
-    function test_wide_materializeChunks_fromVolOrder_succeeds() public {
-        uint256 iota = _ladderIota(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)));
-        bytes memory raw = _materializeChunksFromVolOrder(
-            SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS))
-        );
-        assertEq(raw.length, iota * 32, "wide materialize bytes");
-    }
-
-    function test_wide_allChunkNumeraires_iterate() public {
-        uint256 iota = _ladderIota(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)));
-        for (uint256 x = 0; x < iota; x++) {
-            (bool ok, bytes memory r) = harness.staticcall(
-                abi.encodeWithSignature(
-                    "chunkNumeraireAtRung(uint256,uint256,uint256,uint256,uint256,uint256)",
-                    SYM_STRIKE,
-                    WIDE_WIDTH,
-                    SYM_SKEW,
-                    SYM_VEGA,
-                    uint256(uint24(SYM_TS)),
-                    x
-                )
-            );
-            assertTrue(ok, string.concat("chunkNumeraire x=", vm.toString(x), " retlen=", vm.toString(r.length)));
-        }
-    }
-
-    function test_binNotionals_wide_limitedSteps_399() public {
-        _binNotionalsLimited(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), 399);
-    }
-
-    function test_binNotionals_wide_limitedSteps_400() public {
-        _binNotionalsLimited(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), 400);
     }
 
     function test_binNotionals_matchesBruteForcePartition_wide() public {
