@@ -1,0 +1,72 @@
+// LegBook — four LegWeights for a vol structure; quantize from numeraire notionals.
+//
+// LegWeight: dimensionless multiplier on {1..127} (Panoptic optionRatio synonym).
+// LegBook: walk/query by leg index; built via Haskell round(127·n_k/n_max):
+//   (127 * n + n_max / 2) / n_max
+//
+// Not a bitmap: each weight is a magnitude. Extra/tokenId packing is a separate bitfield layer.
+
+import std::error::require;
+
+const LEG_WEIGHT_MAX = 127;
+
+const LegWeight = struct {
+    val: u256
+};
+
+// RED stub: no range gate (GREEN adds require 1..127).
+const leg_weight = fn(w: u256) LegWeight {
+    LegWeight { val: w }
+};
+
+const leg_weight_value = fn(self: LegWeight) u256 {
+    self.val
+};
+
+const LegBook = struct {
+    w0: LegWeight,
+    w1: LegWeight,
+    w2: LegWeight,
+    w3: LegWeight
+};
+
+const max2 = fn(a: u256, b: u256) u256 {
+    if a > b { a } else { b }
+};
+
+const max4 = fn(a: u256, b: u256, c: u256, d: u256) u256 {
+    max2(max2(a, b), max2(c, d))
+};
+
+// RED stub: floor only (no + n_max/2). GREEN matches Haskell round.
+const leg_weight_from_notional = fn(n: u256, n_max: u256) LegWeight {
+    require(n_max > 0);
+    leg_weight((LEG_WEIGHT_MAX *% n) /% n_max)
+};
+
+const leg_book_from_notionals = fn(n0: u256, n1: u256, n2: u256, n3: u256) LegBook {
+    require(n0 > 0);
+    require(n1 > 0);
+    require(n2 > 0);
+    require(n3 > 0);
+    let n_max = max4(n0, n1, n2, n3);
+    LegBook {
+        w0: leg_weight_from_notional(n0, n_max),
+        w1: leg_weight_from_notional(n1, n_max),
+        w2: leg_weight_from_notional(n2, n_max),
+        w3: leg_weight_from_notional(n3, n_max)
+    }
+};
+
+const leg_book_at = fn(book: LegBook, leg: u256) LegWeight {
+    require(leg < 4);
+    if leg == 0 {
+        book.w0
+    } else if leg == 1 {
+        book.w1
+    } else if leg == 2 {
+        book.w2
+    } else {
+        book.w3
+    }
+};

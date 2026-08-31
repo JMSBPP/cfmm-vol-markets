@@ -1,0 +1,64 @@
+import std::constructor::return_runtime;
+import pos_spec::LegBook::*;
+
+// cast sig "tryLegWeight(uint256)" -> 0x4fe69a8f
+// cast sig "legBookWeightsFromNotionals(uint256,uint256,uint256,uint256)" -> 0x7ec991e1
+// cast sig "legBookAtFromNotionals(uint256,uint256,uint256,uint256,uint256)" -> 0x6961a2ca
+
+const SEL_TRY_LEG_WEIGHT = 0x4fe69a8f;
+const SEL_BOOK_WEIGHTS = 0x7ec991e1;
+const SEL_BOOK_AT = 0x6961a2ca;
+
+init { return_runtime(); }
+
+const return_1 = fn(a: u256) never {
+    let out = @malloc_uninit(32);
+    @mstore32(out, a);
+    @evm_return(out, 32);
+};
+
+const return_4 = fn(a: u256, b: u256, c: u256, d: u256) never {
+    let out = @malloc_uninit(128);
+    @mstore32(out, a);
+    @mstore32(out +% 32, b);
+    @mstore32(out +% 64, c);
+    @mstore32(out +% 96, d);
+    @evm_return(out, 128);
+};
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    if selector == SEL_TRY_LEG_WEIGHT {
+        let w = leg_weight(@evm_calldataload(4));
+        return_1(leg_weight_value(w));
+    }
+
+    if selector == SEL_BOOK_WEIGHTS {
+        let book = leg_book_from_notionals(
+            @evm_calldataload(4),
+            @evm_calldataload(36),
+            @evm_calldataload(68),
+            @evm_calldataload(100)
+        );
+        return_4(
+            leg_weight_value(book.w0),
+            leg_weight_value(book.w1),
+            leg_weight_value(book.w2),
+            leg_weight_value(book.w3)
+        );
+    }
+
+    if selector == SEL_BOOK_AT {
+        let book = leg_book_from_notionals(
+            @evm_calldataload(4),
+            @evm_calldataload(36),
+            @evm_calldataload(68),
+            @evm_calldataload(100)
+        );
+        let w = leg_book_at(book, @evm_calldataload(132));
+        return_1(leg_weight_value(w));
+    }
+
+    @evm_stop();
+}
