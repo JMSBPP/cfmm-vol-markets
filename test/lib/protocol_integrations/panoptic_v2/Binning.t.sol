@@ -266,18 +266,23 @@ contract BinningTest is PlankTestBase {
         assertEq(got.n3, oracle.n3, "n3");
     }
 
-    // binToLegs: weights + base match Haskell round(b·n/n_max) and ⌊n_max/b⌋ from binNotionals
-    function test_binToLegs_symmetric_matchesNotionalsQuantize() public {
+    // binToLegs: weights + base — Spec.hs #28.3 uses wide fixture (voWide), not symmetric
+    function test_binToLegs_wide_matchesNotionalsQuantize() public {
         uint256 ts = uint256(uint24(SYM_TS));
-        BinNotionals memory ns = _binNotionals(SYM_STRIKE, SYM_WIDTH, SYM_SKEW, SYM_VEGA, ts);
+        BinNotionals memory ns = _binNotionals(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, ts);
         uint256 nMax = _max4(ns.n0, ns.n1, ns.n2, ns.n3);
         BinToLegs memory book =
-            _binToLegs(OR_MIN_DEFAULT, BOUND_PANOPTIC, SYM_STRIKE, SYM_WIDTH, SYM_SKEW, SYM_VEGA, ts);
+            _binToLegs(OR_MIN_DEFAULT, BOUND_PANOPTIC, SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, ts);
         assertEq(book.w0, _roundBound(BOUND_PANOPTIC, ns.n0, nMax), "w0");
         assertEq(book.w1, _roundBound(BOUND_PANOPTIC, ns.n1, nMax), "w1");
         assertEq(book.w2, _roundBound(BOUND_PANOPTIC, ns.n2, nMax), "w2");
         assertEq(book.w3, _roundBound(BOUND_PANOPTIC, ns.n3, nMax), "w3");
         assertEq(book.base, nMax / BOUND_PANOPTIC, "base");
+        uint256 maxW = book.w0;
+        if (book.w1 > maxW) maxW = book.w1;
+        if (book.w2 > maxW) maxW = book.w2;
+        if (book.w3 > maxW) maxW = book.w3;
+        assertEq(maxW, 127, "max or = 127");
         assertGe(book.w0, OR_MIN_DEFAULT, "w0 >= orMin");
         assertGe(book.w1, OR_MIN_DEFAULT, "w1 >= orMin");
         assertGe(book.w2, OR_MIN_DEFAULT, "w2 >= orMin");
