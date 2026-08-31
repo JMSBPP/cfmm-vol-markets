@@ -1,0 +1,258 @@
+import std::constructor::return_runtime;
+import std::option::{None, Some};
+import std::regions::{calldata, memory};
+import lib::protocol_integrations::panoptic_v2::Binning::{
+    LegIntervals,
+    LegNumeraireNotionals,
+    bin_notionals,
+    bin_to_legs,
+    ladder_from_vol_order,
+    vol_order_leg_intervals
+};
+import pos_spec::LegBook::*;
+import types::ldf::CummAmt::*;
+import types::ldf::Geometric::Geometric::Geometric;
+import types::ldf::Geometric::Iota::*;
+import types::Ladder::{
+    Ladder,
+    LadderChunksAccumulator,
+    ladder_iota,
+    ladder_rung_chunk,
+    rung_index
+};
+import pos_spec::SpreadTickAssimetry::*;
+import pos_spec::TickVolatility::*;
+import pos_spec::VolOrder::*;
+import pos_spec::VolRangeWidth::*;
+import pos_spec::VegaTarget::*;
+import types::Extra::Extra;
+import types::protocol_integrations::Pool::*;
+import types::protocol_integrations::Registry::*;
+import types::protocol_integrations::VolMarketKey::*;
+import types::protocol_integrations::Venue::*;
+import types::Pair::*;
+import std::core::addr::addr_from_u256;
+import std::slice::Slice;
+
+// Binning harness — ladderFromVolOrder, legIntervals, binNotionals (spec Panoptic.Binning.hs).
+// cast sig "ladderGeometryFromVolOrder(uint256,uint256,uint256,uint256,uint256)" -> 0xb5d1b675
+// cast sig "ladderFromVolOrder(uint256,uint256,uint256,uint256,uint256)" -> 0x4fcfdf3e
+// cast sig "legIntervalsFromVolOrder(uint256,uint256,uint256,uint256,uint256)" -> 0xfe6feef8
+// cast sig "binNotionals(uint256,uint256,uint256,uint256,uint256)" -> 0x5a868c44
+// cast sig "chunkNumeraireAtRung(uint256,uint256,uint256,uint256,uint256,uint256)" -> 0xa7d9b83e
+// cast sig "binToLegs(uint256,uint256,uint256,uint256,uint256,uint256,uint256)" -> 0x23f37ed5
+
+const SEL_GEOMETRY = 0xb5d1b675;
+const SEL_LADDER = 0x4fcfdf3e;
+const SEL_LEG_INTERVALS = 0xfe6feef8;
+const SEL_BIN_NOTIONALS = 0x5a868c44;
+const SEL_CHUNK_NUM = 0xa7d9b83e;
+const SEL_BIN_TO_LEGS = 0x23f37ed5;
+
+const FIX_C0 = 0x1111;
+const FIX_C1 = 0x2222;
+const FIX_REG = 0x3333;
+const FIX_FEE = 3000;
+
+const fixture_market = fn(ts: u256) VolMarketKey(V4) {
+    let p = pair(addr_from_u256(FIX_C0), addr_from_u256(FIX_C1), 0);
+    let reg = registry_v4(addr_from_u256(FIX_REG));
+    vol_market_key(V4, Some(p), Some(reg), Some(pool_v4(p, reg, FIX_FEE, ts)))
+};
+
+const fixture_vol_order = fn(
+    strike: u256,
+    width: u256,
+    skew: u256,
+    target_vega: u256,
+    ts: u256
+) VolOrder(memory) {
+    VolOrder(memory) {
+        rangeWidth: VolRangeWidth { width: width, tickSpacing: ts },
+        volStrike: TickVolatility { vol: strike },
+        skew: SpreadTickAssimetry { spread: skew },
+        targetVega: unpack_vega_target(target_vega),
+        extra: None(Extra(memory))
+    }
+};
+
+const iota_alloc = fn(length: u256) Iota(memory) {
+    let ptr = @malloc_uninit(32);
+    let chunk = Slice(memory, u256, comptime { Some(1) }) { ptr: ptr };
+    iota_write(chunk, length);
+    chunk
+};
+
+const return_ladder_geometry = fn(lo: u256, hi: u256, star: u256, vega: u256) void {
+    let out = @malloc_uninit(128);
+    @mstore32(out, lo);
+    @mstore32(out +% 32, hi);
+    @mstore32(out +% 64, star);
+    @mstore32(out +% 96, vega);
+    @evm_return(out, 128);
+};
+
+const return_leg_intervals = fn(legs: LegIntervals) void {
+    let out = @malloc_uninit(256);
+    @mstore32(out, legs.leg0.lo);
+    @mstore32(out +% 32, legs.leg0.hi);
+    @mstore32(out +% 64, legs.leg1.lo);
+    @mstore32(out +% 96, legs.leg1.hi);
+    @mstore32(out +% 128, legs.leg2.lo);
+    @mstore32(out +% 160, legs.leg2.hi);
+    @mstore32(out +% 192, legs.leg3.lo);
+    @mstore32(out +% 224, legs.leg3.hi);
+    @evm_return(out, 256);
+};
+
+const return_bin_notionals = fn(ns: LegNumeraireNotionals) void {
+    let out = @malloc_uninit(128);
+    @mstore32(out, ns.n0);
+    @mstore32(out +% 32, ns.n1);
+    @mstore32(out +% 64, ns.n2);
+    @mstore32(out +% 96, ns.n3);
+    @evm_return(out, 128);
+};
+
+const return_bin_to_legs = fn(book: LegBook(BaseNotional)) void {
+    let out = @malloc_uninit(160);
+    @mstore32(out, leg_weight_value(book.w0));
+    @mstore32(out +% 32, leg_weight_value(book.w1));
+    @mstore32(out +% 64, leg_weight_value(book.w2));
+    @mstore32(out +% 96, leg_weight_value(book.w3));
+    @mstore32(out +% 128, base_notional_value(leg_book_base(book)));
+    @evm_return(out, 160);
+};
+
+const chunk_numeraire_at_rung = fn(
+    vo: VolOrder(memory),
+    market: VolMarketKey(V4),
+    l: Ladder(V4),
+    x: u256
+) u256 {
+    let iota = ladder_iota(l, V4, market);
+    let chunk = iota_alloc(iota);
+    let out_ptr = @malloc_uninit(iota *% 32);
+    let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
+    let acc_ladder = LadderChunksAccumulator(V4, memory) {
+        l: l,
+        market: market,
+        iota_chunk: chunk,
+        out: out,
+        x: x,
+        iota: iota
+    };
+    let ri = rung_index(l, V4, market, x);
+    let ch = ladder_rung_chunk(l, ri, V4, memory, market, chunk);
+    let target = vega_target_from_rung_chunk(ch);
+    let ldf = cumm_amt_ldf_at_ladder_x(memory, V4, acc_ladder);
+    let cumm = cumm_amt_from_ladder_chunks(Geometric(memory), memory, V4, acc_ladder, ldf);
+    let priced = chunk_numeraire(Geometric(memory), memory, V4, cumm, target, l.lo, chunk);
+    priced.notionals
+};
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    if selector == SEL_GEOMETRY {
+        let strike = @evm_calldataload(4);
+        let width = @evm_calldataload(36);
+        let skew = @evm_calldataload(68);
+        let target_vega = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
+        let g = vol_order_ladder_geometry(memory, vo);
+        return_ladder_geometry(g.lo, g.hi, g.star, g.vega);
+    }
+
+    if selector == SEL_LADDER {
+        let strike = @evm_calldataload(4);
+        let width = @evm_calldataload(36);
+        let skew = @evm_calldataload(68);
+        let target_vega = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
+        let market = fixture_market(ts);
+        let l = ladder_from_vol_order(V4, memory, market, vo);
+        return_ladder_geometry(l.lo, l.hi, l.star, l.vega);
+    }
+
+    if selector == SEL_LEG_INTERVALS {
+        let strike = @evm_calldataload(4);
+        let width = @evm_calldataload(36);
+        let skew = @evm_calldataload(68);
+        let target_vega = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
+        let legs = vol_order_leg_intervals(memory, vo);
+        return_leg_intervals(legs);
+    }
+
+    if selector == SEL_BIN_NOTIONALS {
+        let strike = @evm_calldataload(4);
+        let width = @evm_calldataload(36);
+        let skew = @evm_calldataload(68);
+        let target_vega = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
+        let market = fixture_market(ts);
+        let l = ladder_from_vol_order(V4, memory, market, vo);
+        let iota = ladder_iota(l, V4, market);
+        let chunk = iota_alloc(iota);
+        let out_ptr = @malloc_uninit(iota *% 32);
+        let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
+        let ns = bin_notionals(Geometric(memory), memory, V4, l, market, vo, chunk, out);
+        return_bin_notionals(ns);
+    }
+
+    if selector == SEL_CHUNK_NUM {
+        let strike = @evm_calldataload(4);
+        let width = @evm_calldataload(36);
+        let skew = @evm_calldataload(68);
+        let target_vega = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let x = @evm_calldataload(164);
+        let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
+        let market = fixture_market(ts);
+        let l = ladder_from_vol_order(V4, memory, market, vo);
+        let n = chunk_numeraire_at_rung(vo, market, l, x);
+        let out = @malloc_uninit(32);
+        @mstore32(out, n);
+        @evm_return(out, 32);
+    }
+
+    if selector == SEL_BIN_TO_LEGS {
+        let or_min = @evm_calldataload(4);
+        let bound_val = @evm_calldataload(36);
+        let strike = @evm_calldataload(68);
+        let width = @evm_calldataload(100);
+        let skew = @evm_calldataload(132);
+        let target_vega = @evm_calldataload(164);
+        let ts = @evm_calldataload(196);
+        let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
+        let market = fixture_market(ts);
+        let l = ladder_from_vol_order(V4, memory, market, vo);
+        let iota = ladder_iota(l, V4, market);
+        let chunk = iota_alloc(iota);
+        let out_ptr = @malloc_uninit(iota *% 32);
+        let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
+        let bound = leg_weight_bound(bound_val);
+        let book = bin_to_legs(
+            Geometric(memory),
+            memory,
+            V4,
+            or_min,
+            bound,
+            l,
+            market,
+            vo,
+            chunk,
+            out
+        );
+        return_bin_to_legs(book);
+    }
+
+    @evm_stop();
+}

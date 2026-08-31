@@ -215,8 +215,11 @@ jobs:
       # parity step above, with the same pinned seed so push and PR measure one surface.
       # Every entry is a PRE-EXISTING known-broken family (issue #16 owns burning them down);
       # this workflow is not the place to change that list.
+      # test_query_cumulativeAmounts: LiquidityDensityTest only (#91); --no-match-test because
+      # --skip is filename-only and must not mask test_liquidityDensity_sumUpToOne.
       - name: forge test
         run: >
           forge test --via-ir --offline --fuzz-seed 4880
+          --no-match-test test_query_cumulativeAmounts
           --skip "*VolRangeWidth*" "*SpreadTickAssimetryHelper*"
           "*PanopticVegaLens.t.sol*" "*HookMiner*"

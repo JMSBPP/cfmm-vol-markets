@@ -60,8 +60,8 @@ const MAX_TARGET_VEGA = 0xFFFFFFFFFFFFFFFFFFFFFFFF;
 // DIFFERENT vega than the caller ordered (the exact defect class the strike bound killed).
 // targetVega is also the BATCH input word's TOP field (bits 128..223), so this predicate is
 // what makes dirty calldata bits >= 224 a SKIP/REVERT instead of a malleability seam.
-const target_vega_fits_packed = fn(self: VegaTarget) bool {
-      let res = vega_target_is_complete(self) & (self.vega <= MAX_TARGET_VEGA);
+const target_vega_fits_packed = fn(self: VegaTarget(0, 0, 0)) bool {
+      let res = vega_target_is_complete(self) & (pack_vega_target(self) <= MAX_TARGET_VEGA);
       res
 };
 
@@ -74,7 +74,7 @@ const build_vol_order = fn(strike: u256, width: u256, skew: u256, target_vega: u
             rangeWidth: VolRangeWidth { width: width, tickSpacing: TICK_SPACING },
             volStrike: TickVolatility { vol: strike },
             skew: SpreadTickAssimetry { spread: skew },
-            targetVega: VegaTarget { vega: target_vega },
+            targetVega: unpack_vega_target(target_vega),
             extra: None(Extra(calldata))
       }
 };

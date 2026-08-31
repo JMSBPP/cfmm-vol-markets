@@ -1,0 +1,124 @@
+// LegBook(BaseNotional) — four LegWeights + stored Q_X base scale.
+//
+// LegWeightBound: open lattice ceiling b ∈ {1..127} (not a LegWeight, not bare API u256).
+// LegWeight: dimensionless multiplier in {1..b} for that bound (Panoptic optionRatio synonym).
+// BaseNotional: Q_X scale; exists as LegBook's type parameter / field — not a free binning product.
+//
+// From notionals: base = ⌊n_max / b⌋, w_k = round(b · n_k / n_max).
+// Not a bitmap: weights are magnitudes; Extra/tokenId packing is a separate bitfield layer.
+
+import std::error::require;
+import types::Numerics::U128_MAX;
+
+const LEG_WEIGHT_BOUND_MAX = 127;
+
+const LegWeightBound = struct {
+    val: u256
+};
+
+const leg_weight_bound = fn(b: u256) LegWeightBound {
+    require(b > 0);
+    require(b <= LEG_WEIGHT_BOUND_MAX);
+    LegWeightBound { val: b }
+};
+
+const leg_weight_bound_value = fn(self: LegWeightBound) u256 {
+    self.val
+};
+
+const LegWeight = struct {
+    val: u256
+};
+
+const leg_weight = fn(w: u256, bound: LegWeightBound) LegWeight {
+    require(w > 0);
+    require(w <= bound.val);
+    LegWeight { val: w }
+};
+
+const leg_weight_value = fn(self: LegWeight) u256 {
+    self.val
+};
+
+const BaseNotional = struct {
+    val: u256
+};
+
+const base_notional_value = fn(self: BaseNotional) u256 {
+    self.val
+};
+
+const LegBook = fn(comptime S: type) type {
+    if S != BaseNotional {
+        @compile_error("LegBook: S must be BaseNotional");
+    }
+    return struct {
+        w0: LegWeight,
+        w1: LegWeight,
+        w2: LegWeight,
+        w3: LegWeight,
+        base: S,
+        bound: LegWeightBound
+    };
+};
+
+const max2 = fn(a: u256, b: u256) u256 {
+    if a > b { a } else { b }
+};
+
+const max4 = fn(a: u256, b: u256, c: u256, d: u256) u256 {
+    max2(max2(a, b), max2(c, d))
+};
+
+// round(b · n / n_max) then gate under bound
+const leg_weight_from_notional = fn(n: u256, n_max: u256, bound: LegWeightBound) LegWeight {
+    require(n_max > 0);
+    let b = bound.val;
+    leg_weight(@evm_div(b *% n +% @evm_div(n_max, 2), n_max), bound)
+};
+
+const leg_book_from_notionals = fn(
+    bound: LegWeightBound,
+    n0: u256,
+    n1: u256,
+    n2: u256,
+    n3: u256
+) LegBook(BaseNotional) {
+    require(n0 > 0);
+    require(n1 > 0);
+    require(n2 > 0);
+    require(n3 > 0);
+    let n_max = max4(n0, n1, n2, n3);
+    let base_val = @evm_div(n_max, bound.val);
+    require(base_val > 0);
+    require(base_val <= U128_MAX);
+    LegBook(BaseNotional) {
+        w0: leg_weight_from_notional(n0, n_max, bound),
+        w1: leg_weight_from_notional(n1, n_max, bound),
+        w2: leg_weight_from_notional(n2, n_max, bound),
+        w3: leg_weight_from_notional(n3, n_max, bound),
+        base: BaseNotional { val: base_val },
+        bound: bound
+    }
+};
+
+const leg_book_at = fn(book: LegBook(BaseNotional), leg: u256) LegWeight {
+    require(leg < 4);
+    if leg == 0 {
+        book.w0
+    } else if leg == 1 {
+        book.w1
+    } else if leg == 2 {
+        book.w2
+    } else {
+        book.w3
+    }
+};
+
+const leg_book_base = fn(book: LegBook(BaseNotional)) BaseNotional {
+    book.base
+};
+
+const leg_book_bound = fn(book: LegBook(BaseNotional)) LegWeightBound {
+    book.bound
+};

@@ -1,0 +1,39 @@
+import lib::ldf::GeometricDistribution::geometric_liquidity_density_x96;
+import types::ldf::Geometric::Geometric::Geometric;
+import types::ldf::Geometric::Iota::*;
+import types::ldf::Geometric::Xi::xiX96;
+import types::protocol_integrations::VolMarketKey::*;
+import pos_spec::VegaTarget::*;
+
+const LiquidityDensity = fn(comptime kind: type, comptime R: type) type {
+    return struct {
+        density_x96: u256
+    };
+};
+
+const liquidity_density_at = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    market: VolMarketKey(V),
+    v: VegaTarget(0, 0, 0),
+    iota_chunk: Iota(R)
+) LiquidityDensity(kind, R) {
+    if kind == Geometric(R) {
+        let ts = vol_market_key_tick_spacing(V, market);
+        return LiquidityDensity(kind, R) {
+            density_x96: geometric_liquidity_density_x96(
+                mid_tick(v, V, market),
+                ts,
+                tick_low(v),
+                iota_length(R, iota_chunk),
+                xiX96(V, market)
+            )
+        };
+    }
+    @compile_error("liquidity_density_at: unsupported kind");
+};
+
+const liquidity_density_x96 = fn(ld: $LD) u256 {
+    ld.density_x96
+};

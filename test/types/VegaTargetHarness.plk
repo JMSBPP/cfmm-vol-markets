@@ -1,0 +1,94 @@
+import std::constructor::return_runtime;
+import v3::util::return_u256;
+import pos_spec::VegaTarget::*;
+
+// cast sig "packFromTicks(int256,int256,uint256)" -> 0x22a1c41a
+const SEL_PACK_FROM_TICKS = 0x22a1c41a;
+// cast sig "packEmpty()" -> 0xad0880e5
+const SEL_PACK_EMPTY = 0xad0880e5;
+// cast sig "tickLower(uint256)" -> 0x6aa5246c
+const SEL_TICK_LOWER = 0x6aa5246c;
+// cast sig "tickUpper(uint256)" -> 0xa098a902
+const SEL_TICK_UPPER = 0xa098a902;
+// cast sig "vegaAmount(uint256)" -> 0x790b4323
+const SEL_VEGA_AMOUNT = 0x790b4323;
+// cast sig "addTickLower(uint256,int256)" -> 0x79f90802
+const SEL_ADD_TICK_LOWER = 0x79f90802;
+// cast sig "addTickUpper(uint256,int256)" -> 0x6e507128
+const SEL_ADD_TICK_UPPER = 0x6e507128;
+// cast sig "addVegaAmount(uint256,uint256)" -> 0xb8107759
+const SEL_ADD_VEGA_AMOUNT = 0xb8107759;
+// cast sig "updateTickLower(uint256,int256)" -> 0xedf23232
+const SEL_UPDATE_TICK_LOWER = 0xedf23232;
+// cast sig "updateTickUpper(uint256,int256)" -> 0xc1aa96e6
+const SEL_UPDATE_TICK_UPPER = 0xc1aa96e6;
+
+const vega_target_val = fn(val: u256) VegaTarget(0, 0, 0) {
+      VegaTarget(0, 0, 0) { val: val }
+};
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    if selector == SEL_PACK_FROM_TICKS {
+        let vt = vega_target_from_ticks(
+            @evm_calldataload(4),
+            @evm_calldataload(36),
+            @evm_calldataload(68)
+        );
+        return_u256(vt.val);
+    }
+
+    if selector == SEL_PACK_EMPTY {
+        return_u256(vega_target_empty().val);
+    }
+
+    if selector == SEL_TICK_LOWER {
+        let self = vega_target_val(@evm_calldataload(4));
+        return_u256(tick_low(self));
+    }
+
+    if selector == SEL_TICK_UPPER {
+        let self = vega_target_val(@evm_calldataload(4));
+        return_u256(tick_up(self));
+    }
+
+    if selector == SEL_VEGA_AMOUNT {
+        let self = vega_target_val(@evm_calldataload(4));
+        return_u256(vega_amount(self));
+    }
+
+    if selector == SEL_ADD_TICK_LOWER {
+        let self = vega_target_val(@evm_calldataload(4));
+        let out = add_tick_lower(self, @evm_calldataload(36));
+        return_u256(out.val);
+    }
+
+    if selector == SEL_ADD_TICK_UPPER {
+        let self = vega_target_val(@evm_calldataload(4));
+        let out = add_tick_upper(self, @evm_calldataload(36));
+        return_u256(out.val);
+    }
+
+    if selector == SEL_ADD_VEGA_AMOUNT {
+        let self = vega_target_val(@evm_calldataload(4));
+        let out = add_vega_amount(self, @evm_calldataload(36));
+        return_u256(out.val);
+    }
+
+    if selector == SEL_UPDATE_TICK_LOWER {
+        let self = vega_target_val(@evm_calldataload(4));
+        let out = update_tick_lower(self, @evm_calldataload(36));
+        return_u256(out.val);
+    }
+
+    if selector == SEL_UPDATE_TICK_UPPER {
+        let self = vega_target_val(@evm_calldataload(4));
+        let out = update_tick_upper(self, @evm_calldataload(36));
+        return_u256(out.val);
+    }
+
+    @evm_stop();
+}

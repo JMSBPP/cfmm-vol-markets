@@ -1,0 +1,5 @@
+// Geometric(R): comptime kind tag for the geometric LDF family at client Iota(R).
+
+const Geometric = fn(comptime R: type) type {
+    return struct R {};
+};

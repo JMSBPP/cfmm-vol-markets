@@ -1,0 +1,9 @@
+// ξ* = getSqrtRatioAtTick(-Δ) = 1.0001^(-Δ/2) in Q96 (Numerics::Q96; spec LiquidityGrid.xiStar).
+
+import v3::math::tick_math::getSqrtRatioAtTick;
+import types::protocol_integrations::VolMarketKey::*;
+
+const xiX96 = fn(comptime V: type, market: VolMarketKey(V)) u256 {
+    let ts = vol_market_key_tick_spacing(V, market);
+    getSqrtRatioAtTick(0 -% ts)
+};

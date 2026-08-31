@@ -1,0 +1,232 @@
+import std::constructor::return_runtime;
+import std::core::addr::addr_from_u256;
+import std::option::{None, Some};
+import std::regions::memory;
+import std::slice::Slice;
+import types::Ladder::*;
+import types::ldf::Geometric::Iota::*;
+import types::Pair::*;
+import types::protocol_integrations::Pool::*;
+import types::protocol_integrations::Registry::*;
+import types::protocol_integrations::VolMarketKey::*;
+import types::protocol_integrations::Venue::*;
+import pos_spec::VegaTarget::*;
+import std::option::unwrap;
+
+// Harness for spec Payoffs.LadderPosition (ladderChunks / ι / rungTick / createChunk).
+// Oracle in Solidity: GeometricDistributionHarness.geoDensity + mulDiv(vega, ℓ, Q96).
+
+// cast sig "ladderIota(int256,int256,int256)" -> 0x9c8b96f9
+const SEL_IOTA = 0x9c8b96f9;
+// cast sig "rungLiquidity(int256,int256,int256,uint256,int256,uint256)" -> 0xdd6a205a
+const SEL_RUNG_LIQ = 0xdd6a205a;
+// cast sig "rungChunk(int256,int256,int256,uint256,int256,uint256)" -> 0x45bc3b57
+const SEL_RUNG_CHUNK = 0x45bc3b57;
+// cast sig "materializeChunks(int256,int256,int256,uint256,int256)" -> 0xca2c8dde
+const SEL_MATERIALIZE = 0xca2c8dde;
+// cast sig "ladderFromVegaTarget(int256,int256,uint256,int256)" -> 0xa0228757
+const SEL_FROM_VEGA = 0xa0228757;
+// cast sig "tryLadderNew(int256,int256,int256,uint256,int256)" -> 0x3ae9f21b
+const SEL_TRY_NEW = 0x3ae9f21b;
+// cast sig "rungTick(int256,int256,int256,uint256,int256,uint256)" -> 0xc43bf41d
+const SEL_RUNG_TICK = 0xc43bf41d;
+// cast sig "rungChunkUnpack(int256,int256,int256,uint256,int256,uint256)" -> 0x3a00d5d0
+const SEL_RUNG_UNPACK = 0x3a00d5d0;
+// cast sig "materializeViaAccumulator(int256,int256,int256,uint256,int256)" -> 0x9379045d
+const SEL_MATERIALIZE_ACC = 0x9379045d;
+// cast sig "rungLiquidityWrongIota(int256,int256,int256,uint256,int256,uint256)" -> 0x6463cc63
+const SEL_RUNG_LIQ_BAD_IOTA = 0x6463cc63;
+
+const FIX_C0 = 0x1111;
+const FIX_C1 = 0x2222;
+const FIX_REG = 0x3333;
+const FIX_FEE = 3000;
+
+const fixture_market = fn(ts: u256) VolMarketKey(V4) {
+    let p = pair(addr_from_u256(FIX_C0), addr_from_u256(FIX_C1), 0);
+    let reg = registry_v4(addr_from_u256(FIX_REG));
+    vol_market_key(V4, Some(p), Some(reg), Some(pool_v4(p, reg, FIX_FEE, ts)))
+};
+
+const fixture_ladder = fn(lo: u256, hi: u256, star: u256, vega: u256, ts: u256) Ladder(V4) {
+    ladder_new(V4, VegaTarget(0, 0, 0), ts, lo, hi, star, vega)
+};
+
+const iota_alloc = fn(length: u256) Iota(memory) {
+    let ptr = @malloc_uninit(32);
+    let chunk = Slice(memory, u256, comptime { Some(1) }) { ptr: ptr };
+    iota_write(chunk, length);
+    chunk
+};
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    if selector == SEL_IOTA {
+        let lo = @evm_calldataload(4);
+        let hi = @evm_calldataload(36);
+        let ts = @evm_calldataload(68);
+        let l = fixture_ladder(lo, hi, lo +% ts, 1, ts);
+        let market = fixture_market(ts);
+        let res = ladder_iota(l, V4, market);
+        let out = @malloc_uninit(32);
+        @mstore32(out, res);
+        @evm_return(out, 32);
+    }
+
+    if selector == SEL_RUNG_LIQ {
+        let lo = @evm_calldataload(4);
+        let hi = @evm_calldataload(36);
+        let star = @evm_calldataload(68);
+        let vega = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let x = @evm_calldataload(164);
+        let l = fixture_ladder(lo, hi, star, vega, ts);
+        let market = fixture_market(ts);
+        let chunk = iota_alloc(ladder_iota(l, V4, market));
+        let ri = rung_index(l, V4, market, x);
+        let res = ladder_rung_liquidity(l, ri, V4, memory, market, chunk);
+        let out = @malloc_uninit(32);
+        @mstore32(out, res);
+        @evm_return(out, 32);
+    }
+
+    if selector == SEL_RUNG_CHUNK {
+        let lo = @evm_calldataload(4);
+        let hi = @evm_calldataload(36);
+        let star = @evm_calldataload(68);
+        let vega = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let x = @evm_calldataload(164);
+        let l = fixture_ladder(lo, hi, star, vega, ts);
+        let market = fixture_market(ts);
+        let chunk = iota_alloc(ladder_iota(l, V4, market));
+        let ri = rung_index(l, V4, market, x);
+        let ch = ladder_rung_chunk(l, ri, V4, memory, market, chunk);
+        let out = @malloc_uninit(32);
+        @mstore32(out, ch.val);
+        @evm_return(out, 32);
+    }
+
+    if selector == SEL_MATERIALIZE {
+        let lo = @evm_calldataload(4);
+        let hi = @evm_calldataload(36);
+        let star = @evm_calldataload(68);
+        let vega = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let l = fixture_ladder(lo, hi, star, vega, ts);
+        let market = fixture_market(ts);
+        let iota = ladder_iota(l, V4, market);
+        let chunk = iota_alloc(iota);
+        let out_ptr = @malloc_uninit(iota *% 32);
+        let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
+        ladder_materialize_chunks(V4, memory, l, market, chunk, out);
+        @evm_return(out_ptr, iota *% 32);
+    }
+
+    if selector == SEL_FROM_VEGA {
+        let tick_lo = @evm_calldataload(4);
+        let tick_up = @evm_calldataload(36);
+        let vega = @evm_calldataload(68);
+        let ts = @evm_calldataload(100);
+        let v = vega_target_from_ticks(tick_lo, tick_up, vega);
+        let market = fixture_market(ts);
+        let l = ladder_from_vega_target(V4, market, v);
+        let out = @malloc_uninit(128);
+        @mstore32(out, l.lo);
+        @mstore32(out +% 32, l.hi);
+        @mstore32(out +% 64, l.star);
+        @mstore32(out +% 96, l.vega);
+        @evm_return(out, 128);
+    }
+
+    if selector == SEL_TRY_NEW {
+        let lo = @evm_calldataload(4);
+        let hi = @evm_calldataload(36);
+        let star = @evm_calldataload(68);
+        let vega = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let _ = ladder_new(V4, VegaTarget(0, 0, 0), ts, lo, hi, star, vega);
+        let out = @malloc_uninit(32);
+        @mstore32(out, 1);
+        @evm_return(out, 32);
+    }
+
+    if selector == SEL_RUNG_TICK {
+        let lo = @evm_calldataload(4);
+        let hi = @evm_calldataload(36);
+        let star = @evm_calldataload(68);
+        let vega = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let x = @evm_calldataload(164);
+        let l = fixture_ladder(lo, hi, star, vega, ts);
+        let market = fixture_market(ts);
+        let ri = rung_index(l, V4, market, x);
+        let res = ladder_rung_tick(l, ri, V4, market);
+        let out = @malloc_uninit(32);
+        @mstore32(out, res);
+        @evm_return(out, 32);
+    }
+
+    if selector == SEL_RUNG_UNPACK {
+        let lo = @evm_calldataload(4);
+        let hi = @evm_calldataload(36);
+        let star = @evm_calldataload(68);
+        let vega = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let x = @evm_calldataload(164);
+        let l = fixture_ladder(lo, hi, star, vega, ts);
+        let market = fixture_market(ts);
+        let chunk = iota_alloc(ladder_iota(l, V4, market));
+        let ri = rung_index(l, V4, market, x);
+        let ch = ladder_rung_chunk(l, ri, V4, memory, market, chunk);
+        let out = @malloc_uninit(96);
+        @mstore32(out, rung_chunk_tick_lo(ch));
+        @mstore32(out +% 32, rung_chunk_tick_hi(ch));
+        @mstore32(out +% 64, rung_chunk_liquidity(ch));
+        @evm_return(out, 96);
+    }
+
+    if selector == SEL_MATERIALIZE_ACC {
+        let lo = @evm_calldataload(4);
+        let hi = @evm_calldataload(36);
+        let star = @evm_calldataload(68);
+        let vega = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let l = fixture_ladder(lo, hi, star, vega, ts);
+        let market = fixture_market(ts);
+        let iota = ladder_iota(l, V4, market);
+        let chunk = iota_alloc(iota);
+        let out_ptr = @malloc_uninit(iota *% 32);
+        let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
+        let mut acc = ladder_chunks_accumulator_new(V4, memory, l, market, chunk, out);
+        while acc.x < acc.iota {
+            let stepped = ladder_chunks_step(V4, memory, acc);
+            acc = unwrap(stepped);
+        }
+        @evm_return(out_ptr, iota *% 32);
+    }
+
+    if selector == SEL_RUNG_LIQ_BAD_IOTA {
+        let lo = @evm_calldataload(4);
+        let hi = @evm_calldataload(36);
+        let star = @evm_calldataload(68);
+        let vega = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let x = @evm_calldataload(164);
+        let l = fixture_ladder(lo, hi, star, vega, ts);
+        let market = fixture_market(ts);
+        let iota = ladder_iota(l, V4, market);
+        let bad_len = iota -% 1;
+        let chunk = iota_alloc(bad_len);
+        let ri = rung_index(l, V4, market, x);
+        let res = ladder_rung_liquidity(l, ri, V4, memory, market, chunk);
+        let out = @malloc_uninit(32);
+        @mstore32(out, res);
+        @evm_return(out, 32);
+    }
+
+    @evm_stop();
+}

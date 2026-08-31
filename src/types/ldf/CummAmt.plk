@@ -1,0 +1,279 @@
+import std::error::require;
+import lib::ldf::GeometricDistribution::{
+    geometric_cumulative_collateral_on_liquidity,
+    geometric_cumulative_underlying_on_liquidity
+};
+import types::ldf::Geometric::Geometric::Geometric;
+import types::ldf::Geometric::Iota::*;
+import types::ldf::Geometric::Xi::xiX96;
+import types::Ladder::{
+    LadderChunksAccumulator,
+    RungChunk,
+    rung_chunk_liquidity,
+    rung_chunk_tick_hi,
+    rung_chunk_tick_lo
+};
+import types::ldf::Geometric::Column::liquidity_density_column;
+import types::ldf::Geometric::Column::column_new;
+import types::LiquidityDensity::LiquidityDensity;
+import types::protocol_integrations::Venue::is_venue;
+import types::protocol_integrations::VolMarketKey::*;
+import pos_spec::VegaTarget::*;
+
+const CummAmtAccumulator = fn(comptime kind: type, comptime R: type, comptime V: type) type {
+    if !is_venue(V) {
+        @compile_error("CummAmtAccumulator: V must be a venue");
+    }
+    return struct V {
+        i_l: u256,
+        market: VolMarketKey(V),
+        ldf: LiquidityDensity(kind, R),
+        notionals: u256
+    };
+};
+
+
+const CummAmt = fn(comptime kind: type, comptime R: type, comptime V: type) type {
+    return CummAmtAccumulator(kind, R, V);
+};
+
+const vegaAsset = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    acc: CummAmtAccumulator(kind, R, V),
+    target: VegaTarget(0, 0, 0),
+    min_tick: u256,
+    iota_chunk: Iota(R)
+) CummAmt(kind, R, V) {
+    vol_market_key_require_complete(V, acc.market);
+
+    let rounded_tick: u256 = mid_tick(target, V, acc.market);
+    let total_liquidity: u256 = vega_amount(target);
+    let tick_spacing: u256 = vol_market_key_tick_spacing(V, acc.market);
+    let iota: u256 = iota_length(R, iota_chunk);
+    let xi_x96: u256 = xiX96(V, acc.market);
+
+    let amount1: u256 = if kind == Geometric(R) {
+        geometric_cumulative_underlying_on_liquidity(
+            rounded_tick,
+            total_liquidity,
+            tick_spacing,
+            min_tick,
+            iota,
+            xi_x96
+        )
+    } else {
+        @compile_error("vegaAsset: unsupported kind");
+    };
+
+    CummAmt(kind, R, V) {
+        i_l: acc.i_l,
+        market: acc.market,
+        ldf: acc.ldf,
+        notionals: amount1
+    }
+};
+
+// vegaAssetChunk: underlying (token1 / Q_X) over the chunk band [tick_low, tick_up) — chunkAmount1 analogue.
+// Bunni: cumulativeAmount1(tick_hi) − cumulativeAmount1(tick_lo) with totalLiquidity = vega_amount(target).
+const vegaAssetChunk = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    acc: CummAmtAccumulator(kind, R, V),
+    target: VegaTarget(0, 0, 0),
+    min_tick: u256,
+    iota_chunk: Iota(R)
+) CummAmt(kind, R, V) {
+    vol_market_key_require_complete(V, acc.market);
+
+    let tick_lo: u256 = tick_low(target);
+    let tick_hi: u256 = tick_up(target);
+    let total_liquidity: u256 = vega_amount(target);
+    let tick_spacing: u256 = vol_market_key_tick_spacing(V, acc.market);
+    let iota: u256 = iota_length(R, iota_chunk);
+    let xi_x96: u256 = xiX96(V, acc.market);
+    require(@evm_slt(tick_lo, tick_hi));
+
+    let amount1: u256 = if kind == Geometric(R) {
+        let c_lo: u256 = geometric_cumulative_underlying_on_liquidity(
+            tick_lo,
+            total_liquidity,
+            tick_spacing,
+            min_tick,
+            iota,
+            xi_x96
+        );
+        let c_hi: u256 = geometric_cumulative_underlying_on_liquidity(
+            tick_hi,
+            total_liquidity,
+            tick_spacing,
+            min_tick,
+            iota,
+            xi_x96
+        );
+        // mulDivRoundingUp in the cumulative path can invert c_hi < c_lo on adjacent Δ-wide
+        // bands; treat as zero chunk numeraire (Bunni never relied on a hard require here).
+        if c_hi > c_lo {
+            c_hi -% c_lo
+        } else {
+            0
+        }
+    } else {
+        @compile_error("vegaAssetChunk: unsupported kind");
+    };
+
+    CummAmt(kind, R, V) {
+        i_l: acc.i_l,
+        market: acc.market,
+        ldf: acc.ldf,
+        notionals: amount1
+    }
+};
+
+const vegaCollateral = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    acc: CummAmtAccumulator(kind, R, V),
+    target: VegaTarget(0, 0, 0),
+    min_tick: u256,
+    iota_chunk: Iota(R)
+) CummAmt(kind, R, V) {
+    vol_market_key_require_complete(V, acc.market);
+
+    let rounded_tick: u256 = mid_tick(target, V, acc.market);
+    let total_liquidity: u256 = vega_amount(target);
+    let tick_spacing: u256 = vol_market_key_tick_spacing(V, acc.market);
+    let iota: u256 = iota_length(R, iota_chunk);
+    let xi_x96: u256 = xiX96(V, acc.market);
+
+    let amount0: u256 = if kind == Geometric(R) {
+        geometric_cumulative_collateral_on_liquidity(
+            rounded_tick,
+            total_liquidity,
+            tick_spacing,
+            min_tick,
+            iota,
+            xi_x96
+        )
+    } else {
+        @compile_error("vegaCollateral: unsupported kind");
+    };
+
+    CummAmt(kind, R, V) {
+        i_l: acc.i_l,
+        market: acc.market,
+        ldf: acc.ldf,
+        notionals: amount0
+    }
+};
+
+// vegaCollateralChunk: collateral (token0 / Q_M) over the chunk band [tick_low, tick_up) — chunkAmount0 analogue.
+// Bunni: cumulativeAmount0(tick_lo) − cumulativeAmount0(tick_hi) with totalLiquidity = vega_amount(target).
+const vegaCollateralChunk = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    acc: CummAmtAccumulator(kind, R, V),
+    target: VegaTarget(0, 0, 0),
+    min_tick: u256,
+    iota_chunk: Iota(R)
+) CummAmt(kind, R, V) {
+    vol_market_key_require_complete(V, acc.market);
+
+    let tick_lo: u256 = tick_low(target);
+    let tick_hi: u256 = tick_up(target);
+    let total_liquidity: u256 = vega_amount(target);
+    let tick_spacing: u256 = vol_market_key_tick_spacing(V, acc.market);
+    let iota: u256 = iota_length(R, iota_chunk);
+    let xi_x96: u256 = xiX96(V, acc.market);
+    require(@evm_slt(tick_lo, tick_hi));
+
+    let amount0: u256 = if kind == Geometric(R) {
+        let c_lo: u256 = geometric_cumulative_collateral_on_liquidity(
+            tick_lo,
+            total_liquidity,
+            tick_spacing,
+            min_tick,
+            iota,
+            xi_x96
+        );
+        let c_hi: u256 = geometric_cumulative_collateral_on_liquidity(
+            tick_hi,
+            total_liquidity,
+            tick_spacing,
+            min_tick,
+            iota,
+            xi_x96
+        );
+        if c_lo > c_hi {
+            c_lo -% c_hi
+        } else {
+            0
+        }
+    } else {
+        @compile_error("vegaCollateralChunk: unsupported kind");
+    };
+
+    CummAmt(kind, R, V) {
+        i_l: acc.i_l,
+        market: acc.market,
+        ldf: acc.ldf,
+        notionals: amount0
+    }
+};
+
+// RungChunk (LiquidityChunk form) → VegaTarget for vega*Chunk pricing.
+const vega_target_from_rung_chunk = fn(ch: RungChunk) VegaTarget(0, 0, 0) {
+    vega_target_from_ticks(
+        rung_chunk_tick_lo(ch),
+        rung_chunk_tick_hi(ch),
+        rung_chunk_liquidity(ch)
+    )
+};
+
+// LadderChunksAccumulator @ rung x → CummAmtAccumulator for this step.
+const cumm_amt_from_ladder_chunks = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    ladder: LadderChunksAccumulator(V, R),
+    ldf: LiquidityDensity(kind, R)
+) CummAmtAccumulator(kind, R, V) {
+    CummAmtAccumulator(kind, R, V) {
+        i_l: ladder.l.lo,
+        market: ladder.market,
+        ldf: ldf,
+        notionals: 0
+    }
+};
+
+// ℓ(ξ*,ι;x) at ladder.x — same column used by ladder_rung_liquidity.
+const cumm_amt_ldf_at_ladder_x = fn(
+    comptime R: type,
+    comptime V: type,
+    ladder: LadderChunksAccumulator(V, R)
+) LiquidityDensity(Geometric(R), R) {
+    let col = column_new(R, ladder.iota_chunk, ladder.x);
+    liquidity_density_column(R, V, ladder.market, ladder.l.lo, col, ladder.iota_chunk)
+};
+
+// chunkAmount_numeraire — VolMarketKey replaces Haskell's hardcoded chunkAmount1.
+const chunk_numeraire = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    acc: CummAmtAccumulator(kind, R, V),
+    target: VegaTarget(0, 0, 0),
+    min_tick: u256,
+    iota_chunk: Iota(R)
+) CummAmt(kind, R, V) {
+    let bit: u256 = vol_market_key_panoptic_asset_bit(V, acc.market);
+    if bit == 1 {
+        vegaAssetChunk(kind, R, V, acc, target, min_tick, iota_chunk)
+    } else {
+        vegaCollateralChunk(kind, R, V, acc, target, min_tick, iota_chunk)
+    }
+};

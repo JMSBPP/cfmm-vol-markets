@@ -1,4 +1,4 @@
-import types::pricing::TickUtils::TickBucket;
+import types::pricing::TickUtils::{TickBucket, round_tick};
 import lib::pos_spec::TickVolatilityLib::*;
 import pos_spec::VolRangeWidth::*;
 import pos_spec::SpreadTickAssimetry::*;
@@ -37,7 +37,7 @@ const VolOrder = fn (comptime T: type) type {
         rangeWidth: VolRangeWidth,
         volStrike: TickVolatility,
         skew: SpreadTickAssimetry,
-        targetVega: VegaTarget,
+        targetVega: VegaTarget(0, 0, 0),
         extra: Option(Extra(T))
     };
 };
@@ -80,7 +80,7 @@ const vol_order_revert_incomplete = fn(volOrder:VolOrder(calldata)) void {requir
 // ACCEPTED order the mask is an identity -- pinned by the mask-identity fuzz in
 // VolOrderTargetVega.t.sol.
 const pack_vol_order = fn(self: VolOrder(calldata)) u256 {
-    @evm_shl(OFF_TARGET_VEGA, self.targetVega.vega & MASK_U96_VO)
+    @evm_shl(OFF_TARGET_VEGA, pack_vega_target(self.targetVega) & MASK_U96_VO)
     | @evm_shl(128, self.rangeWidth.width & 0xFFFFFF)
     | @evm_shl(104, self.rangeWidth.tickSpacing & 0xFFFFFF)
     | @evm_shl(16, self.volStrike.vol & 0xFFFFFFFFFFFFFFFFFFFFFF)
@@ -105,9 +105,7 @@ const unpack_vol_order = fn(_packed: u256) VolOrder(calldata) {
         skew: SpreadTickAssimetry {
             spread: skew
         },
-        targetVega: VegaTarget {
-            vega: targetVega
-        },
+        targetVega: unpack_vega_target(targetVega),
         extra: None(Extra(calldata))
     }
 };
@@ -145,7 +143,7 @@ const set_vol_order_range_width = fn(self: VolOrder(calldata),vol_range_width :V
       }
 };
 
-const set_vol_order_target_vega = fn(self: VolOrder(calldata), target_vega: VegaTarget) VolOrder(calldata) {
+const set_vol_order_target_vega = fn(self: VolOrder(calldata), target_vega: VegaTarget(0, 0, 0)) VolOrder(calldata) {
       VolOrder(calldata) {
       	       rangeWidth: self.rangeWidth,
 	       volStrike: self.volStrike,
@@ -168,4 +166,25 @@ const tick_bucket_from_vol_order_in = fn(comptime T: type, volOrder: VolOrder(T)
 // The concrete wrapper its pre-Phase-2 callers keep using unchanged.
 const tick_bucket_from_vol_order = fn(volOrder:VolOrder(calldata)) TickBucket{
       tick_bucket_from_vol_order_in(calldata, volOrder)
+};
+
+// Pure ladder span fields from a VolOrder — no venue, no Ladder(V).
+// Mirrors Haskell ladderFromVolOrder's let-binding before ladderFromSpan.
+const LadderGeometry = struct {
+    lo: u256,
+    hi: u256,
+    star: u256,
+    vega: u256
+};
+
+const vol_order_ladder_geometry = fn(comptime T: type, vo: VolOrder(T)) LadderGeometry {
+    let ts = vo.rangeWidth.tickSpacing;
+    let tb = tick_bucket_from_vol_order_in(T, vo);
+    let star = round_tick(tick_volatility_tick(vo.volStrike), ts);
+    LadderGeometry {
+        lo: tb.low,
+        hi: tb.up,
+        star: star,
+        vega: vega_amount(vo.targetVega)
+    }
 };

@@ -1,0 +1,92 @@
+import std::constructor::return_runtime;
+import pos_spec::LegBook::*;
+
+// cast sig "tryLegWeightBound(uint256)" -> 0xcf949e41
+// cast sig "tryLegWeight(uint256,uint256)" -> 0x7a59fc23
+// cast sig "legBookFromNotionals(uint256,uint256,uint256,uint256,uint256)" -> 0x83dd801b
+// cast sig "legBookBaseFromNotionals(uint256,uint256,uint256,uint256,uint256)" -> 0xee4098f7
+// cast sig "legBookAtFromNotionals(uint256,uint256,uint256,uint256,uint256,uint256)" -> 0xf2e0db1c
+
+const SEL_TRY_BOUND = 0xcf949e41;
+const SEL_TRY_WEIGHT = 0x7a59fc23;
+const SEL_BOOK_FROM = 0x83dd801b;
+const SEL_BOOK_BASE = 0xee4098f7;
+const SEL_BOOK_AT = 0xf2e0db1c;
+
+init { return_runtime(); }
+
+const return_1 = fn(a: u256) never {
+    let out = @malloc_uninit(32);
+    @mstore32(out, a);
+    @evm_return(out, 32);
+};
+
+const return_5 = fn(a: u256, b: u256, c: u256, d: u256, e: u256) never {
+    let out = @malloc_uninit(160);
+    @mstore32(out, a);
+    @mstore32(out +% 32, b);
+    @mstore32(out +% 64, c);
+    @mstore32(out +% 96, d);
+    @mstore32(out +% 128, e);
+    @evm_return(out, 160);
+};
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    if selector == SEL_TRY_BOUND {
+        let b = leg_weight_bound(@evm_calldataload(4));
+        return_1(leg_weight_bound_value(b));
+    }
+
+    if selector == SEL_TRY_WEIGHT {
+        let bound = leg_weight_bound(@evm_calldataload(4));
+        let w = leg_weight(@evm_calldataload(36), bound);
+        return_1(leg_weight_value(w));
+    }
+
+    if selector == SEL_BOOK_FROM {
+        let bound = leg_weight_bound(@evm_calldataload(4));
+        let book = leg_book_from_notionals(
+            bound,
+            @evm_calldataload(36),
+            @evm_calldataload(68),
+            @evm_calldataload(100),
+            @evm_calldataload(132)
+        );
+        return_5(
+            leg_weight_value(book.w0),
+            leg_weight_value(book.w1),
+            leg_weight_value(book.w2),
+            leg_weight_value(book.w3),
+            base_notional_value(book.base)
+        );
+    }
+
+    if selector == SEL_BOOK_BASE {
+        let bound = leg_weight_bound(@evm_calldataload(4));
+        let book = leg_book_from_notionals(
+            bound,
+            @evm_calldataload(36),
+            @evm_calldataload(68),
+            @evm_calldataload(100),
+            @evm_calldataload(132)
+        );
+        return_1(base_notional_value(leg_book_base(book)));
+    }
+
+    if selector == SEL_BOOK_AT {
+        let bound = leg_weight_bound(@evm_calldataload(4));
+        let book = leg_book_from_notionals(
+            bound,
+            @evm_calldataload(36),
+            @evm_calldataload(68),
+            @evm_calldataload(100),
+            @evm_calldataload(132)
+        );
+        let w = leg_book_at(book, @evm_calldataload(164));
+        return_1(leg_weight_value(w));
+    }
+
+    @evm_stop();
+}

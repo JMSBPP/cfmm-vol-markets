@@ -37,6 +37,7 @@ import interfaces::pos_spec::VolOrderManagerInterface::*;
 import lib::pos_spec::VolOrderValidationLib::{build_vol_order, validate_order_strict, validate_order};
 import lib::events::VolEventsLib::{emit_vol_order_created};
 import pos_spec::VolOrder::{pack_vol_order};
+import pos_spec::VegaTarget::{pack_vega_target};
 import v3::storage::{array_slot};
 import v3::util::{return_u256, revert_empty};
 import std::error::require;
@@ -95,7 +96,7 @@ run {
         // transition; the strict path above makes this unreachable for an invalid tuple, so
         // log stream and registry agree by construction). EV-02 + V2-02.
         emit_vol_order_created(
-            id, order.volStrike.vol, order.rangeWidth.width, order.skew.spread, order.targetVega.vega
+            id, order.volStrike.vol, order.rangeWidth.width, order.skew.spread, pack_vega_target(order.targetVega)
         );
         @evm_stop();
 
@@ -258,7 +259,7 @@ run {
                 // positionally faithful to the return tuples. The fresh @malloc_uninit inside
                 // the emitter cannot alias `out` (bump allocator; see VolEventsLib header).
                 emit_vol_order_created(
-                    id, order.volStrike.vol, order.rangeWidth.width, order.skew.spread, order.targetVega.vega
+                    id, order.volStrike.vol, order.rangeWidth.width, order.skew.spread, pack_vega_target(order.targetVega)
                 );
                 // CANONICAL BOOL. Exactly 1, never a truthy nonzero: Solidity's abi.decode REJECTS
                 // a non-canonical bool while a lenient Haskell decoder may accept it, so a
