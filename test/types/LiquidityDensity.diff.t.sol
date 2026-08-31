@@ -260,9 +260,10 @@ contract PlankLDFOracle is ILiquidityDensityFunction {
 /// @dev Pattern from {VegaTargetDiffTest}: same `exec` twice with oracle swapped in `Context`,
 ///      then assertApproxEqAbs. α in ldfParams pinned to ξ* = getSqrtRatioAtTick(-Δ).
 contract LiquidityDensityDiffTest is PlankDiffTestBase {
-    uint256 internal constant MAX_ERROR_CUM0 = 1e9;
-    uint256 internal constant MAX_ERROR_CUM1 = 1e9;
-    uint256 internal constant MAX_ERROR_DENSITY = 1e7;
+    // Bunni uint32 α vs Plank ξ*(tickSpacing) — ~1e-7 rel; percentDelta is 1e18-scaled.
+    uint256 internal constant MAX_ERROR_CUM0 = 1e11;
+    uint256 internal constant MAX_ERROR_CUM1 = 1e11;
+    uint256 internal constant MAX_ERROR_DENSITY = 1e11;
     uint256 internal constant ALPHA_BASE = 1e8;
     bytes32 internal constant LDF_STATE = bytes32(0);
 

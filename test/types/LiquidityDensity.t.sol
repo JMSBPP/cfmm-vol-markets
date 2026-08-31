@@ -123,8 +123,9 @@ contract LiquidityDensityTest is PlankTestBase {
         int24 roundedTick = roundTickSingle(currentTick, tickSpacing);
         int24 cum0Tick = roundedTick + tickSpacing;
         int24 cum1Tick = roundedTick - tickSpacing;
-        vm.assume(cum0Tick >= minTick && cum0Tick <= minTick + length * tickSpacing);
-        vm.assume(cum1Tick >= minTick && cum1Tick <= minTick + length * tickSpacing);
+        int24 supportHi = minTick + length * tickSpacing;
+        if (cum0Tick < minTick || cum0Tick > supportHi) return;
+        if (cum1Tick < minTick || cum1Tick > supportHi) return;
 
         uint256 cumulativeAmount0DensityX96 =
             _cum0At(cum0Tick, FixedPoint96.Q96, tickSpacing, minTick, length);
