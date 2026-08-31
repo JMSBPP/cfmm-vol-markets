@@ -141,6 +141,9 @@ jobs:
       # this closure (ffcc3b6 + the CI-reproducibility note). Without this step the compile
       # dies on missing @cryptoalgebra sources before any test runs.
       - run: npm ci --ignore-scripts
+      # Match push-build: compile artifacts (e.g. SemiFungiblePositionManagerV4.json for
+      # DynamicFeeHookE2E) before forge test --offline.
+      - run: forge build --via-ir --offline
       # THE SKIP LEDGER (issue #16 owns burning it down; every entry is a PRE-EXISTING
       # known-broken family, excluded so the gate measures the maintained surface — the
       # same recorded-baseline discipline every local run uses):
