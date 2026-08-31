@@ -91,16 +91,46 @@ contract BinningTest is PlankTestBase {
         });
     }
 
+    /// @dev OOG vs revert: staticcall forwards 63/64 gas. OOG leaves ~1/64 and empty returndata.
+    /// EVM has no OOM opcode — malloc that burns remaining gas looks like OOG; a require looks like REVERT.
+    function _failKind(uint256 gasBefore, uint256 gasAfter, bytes memory r)
+        internal
+        pure
+        returns (string memory)
+    {
+        uint256 remainingBps = gasBefore == 0 ? 0 : (gasAfter * 10000) / gasBefore;
+        bool likelyOog = r.length == 0 && remainingBps < 300; // ~156 bps = 1/64
+        if (r.length >= 4) {
+            bytes4 sel = bytes4(r);
+            if (sel == bytes4(0x4e487b71)) return "PANIC";
+            if (sel == bytes4(0x08c379a0)) return "ERROR_STRING";
+        }
+        if (likelyOog) return "OOG_OR_OOM_VIA_GAS";
+        if (r.length == 0) return "REVERT_EMPTY";
+        return "REVERT_DATA";
+    }
+
     function _binNotionals(uint256 strike, uint256 width, uint256 skew, uint256 vega, uint256 ts)
         internal
         returns (BinNotionals memory ns)
     {
+        uint256 gasBefore = gasleft();
         (bool ok, bytes memory r) = harness.staticcall(
             abi.encodeWithSignature(
                 "binNotionals(uint256,uint256,uint256,uint256,uint256)", strike, width, skew, vega, ts
             )
         );
-        require(ok, "binNotionals reverted");
+        uint256 gasAfter = gasleft();
+        if (!ok) {
+            emit log_named_uint("gasBefore", gasBefore);
+            emit log_named_uint("gasAfter", gasAfter);
+            emit log_named_uint("gasUsed", gasBefore - gasAfter);
+            emit log_named_uint("remaining_bps", gasBefore == 0 ? 0 : (gasAfter * 10000) / gasBefore);
+            emit log_named_uint("returndata_len", r.length);
+            emit log_named_bytes("returndata", r);
+            emit log_named_string("failKind", _failKind(gasBefore, gasAfter, r));
+            revert("binNotionals reverted");
+        }
         (uint256 n0, uint256 n1, uint256 n2, uint256 n3) = abi.decode(r, (uint256, uint256, uint256, uint256));
         ns = BinNotionals({n0: n0, n1: n1, n2: n2, n3: n3});
     }
