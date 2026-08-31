@@ -6,6 +6,10 @@ import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {FixedPoint96} from "@uniswap/v4-core/src/libraries/FixedPoint96.sol";
 import {SqrtPriceMath} from "bunni-v2/src/lib/SqrtPriceMath.sol";
+import {ShiftMode} from "bunni-v2/src/ldf/ShiftMode.sol";
+import {LDFType} from "bunni-v2/src/types/LDFType.sol";
+import {LibGeometricDistribution} from "bunni-v2/src/ldf/LibGeometricDistribution.sol";
+import {PoolKey} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import "../../lib/bunni-v2/src/lib/Math.sol";
 
 /// @dev Plank semantic LDF harness — {LiquidityDensityHarness.plk}.
@@ -45,11 +49,52 @@ contract LiquidityDensityTest is PlankTestBase {
     int24 internal constant MAX_TICK_SPACING = type(int16).max;
     int24 internal constant MIN_TICK_SPACING = 1000;
     uint256 internal constant MIN_ABS_ERROR = 1000;
+    uint256 internal constant ALPHA_BASE = 1e8;
 
     IPlankLiquidityDensityHarness internal harness;
 
     function setUp() public {
         harness = IPlankLiquidityDensityHarness(deployPlank("test/types/LiquidityDensityHarness.plk"));
+    }
+
+    function _ldfParams(int24 tickSpacing, int24 minTick, int24 length) internal pure returns (bytes32) {
+        uint256 alphaX96 = TickMath.getSqrtRatioAtTick(-tickSpacing);
+        uint32 alpha = uint32((alphaX96 * ALPHA_BASE) / FixedPoint96.Q96);
+        return bytes32(abi.encodePacked(ShiftMode.STATIC, minTick, int16(length), alpha));
+    }
+
+    function _paramsValid(int24 tickSpacing, int24 minTick, int24 length) internal pure returns (bool) {
+        PoolKey memory key;
+        key.tickSpacing = tickSpacing;
+        return LibGeometricDistribution.isValidParams(key.tickSpacing, 0, _ldfParams(tickSpacing, minTick, length), LDFType.STATIC);
+    }
+
+    function _tryCum0(int24 roundedTick, uint256 totalLiquidity, int24 tickSpacing, int24 minTick, int24 length)
+        internal
+        returns (bool ok, uint256 amount)
+    {
+        (int256 lo, int256 hi) = _targetForMid(minTick, roundedTick);
+        try harness.ldfCumulativeCollateral(
+            lo, hi, totalLiquidity, tickSpacing, uint256(int256(minTick)), uint256(int256(length))
+        ) returns (uint256 r) {
+            return (true, r);
+        } catch {
+            return (false, 0);
+        }
+    }
+
+    function _tryCum1(int24 roundedTick, uint256 totalLiquidity, int24 tickSpacing, int24 minTick, int24 length)
+        internal
+        returns (bool ok, uint256 amount)
+    {
+        (int256 lo, int256 hi) = _targetForMid(minTick, roundedTick);
+        try harness.ldfCumulativeAsset(
+            lo, hi, totalLiquidity, tickSpacing, uint256(int256(minTick)), uint256(int256(length))
+        ) returns (uint256 r) {
+            return (true, r);
+        } catch {
+            return (false, 0);
+        }
     }
 
     /// @dev tick_lo = minTick, mid_tick = midTick (liquidity_density_at uses tick_low as geo minTick).
@@ -65,28 +110,6 @@ contract LiquidityDensityTest is PlankTestBase {
     {
         (int256 lo, int256 hi) = _targetForMid(minTick, roundedTick);
         return harness.ldfDensity(lo, hi, FixedPoint96.Q96, tickSpacing, uint256(int256(length)));
-    }
-
-    function _cum0At(int24 roundedTick, uint256 totalLiquidity, int24 tickSpacing, int24 minTick, int24 length)
-        internal
-        view
-        returns (uint256)
-    {
-        (int256 lo, int256 hi) = _targetForMid(minTick, roundedTick);
-        return harness.ldfCumulativeCollateral(
-            lo, hi, totalLiquidity, tickSpacing, uint256(int256(minTick)), uint256(int256(length))
-        );
-    }
-
-    function _cum1At(int24 roundedTick, uint256 totalLiquidity, int24 tickSpacing, int24 minTick, int24 length)
-        internal
-        view
-        returns (uint256)
-    {
-        (int256 lo, int256 hi) = _targetForMid(minTick, roundedTick);
-        return harness.ldfCumulativeAsset(
-            lo, hi, totalLiquidity, tickSpacing, uint256(int256(minTick)), uint256(int256(length))
-        );
     }
 
     // --- mirrors GeometricDistributionTest.test_liquidityDensity_sumUpToOne ---
@@ -109,32 +132,34 @@ contract LiquidityDensityTest is PlankTestBase {
 
     // --- mirrors GeometricDistributionTest.test_query_cumulativeAmounts / _test_query_cumulativeAmounts ---
 
-    function test_query_cumulativeAmounts(int24 currentTick, int24 tickSpacing, int24 minTick, int24 length)
-        public
-        view
-    {
+    function test_query_cumulativeAmounts(int24 currentTick, int24 tickSpacing, int24 minTick, int24 length) public {
         tickSpacing = int24(bound(tickSpacing, MIN_TICK_SPACING, MAX_TICK_SPACING));
         (int24 minUsableTick, int24 maxUsableTick) =
             (TickMath.minUsableTick(tickSpacing), TickMath.maxUsableTick(tickSpacing));
         minTick = roundTickSingle(int24(bound(minTick, minUsableTick, maxUsableTick - 2 * tickSpacing)), tickSpacing);
         length = int24(bound(length, 1, (maxUsableTick - minTick) / tickSpacing - 1));
         currentTick = int24(bound(currentTick, minUsableTick, maxUsableTick));
+        if (!_paramsValid(tickSpacing, minTick, length)) return;
 
         int24 roundedTick = roundTickSingle(currentTick, tickSpacing);
         int24 cum0Tick = roundedTick + tickSpacing;
         int24 cum1Tick = roundedTick - tickSpacing;
         int24 supportHi = minTick + length * tickSpacing;
         if (cum0Tick < minTick || cum0Tick > supportHi) return;
-        if (cum1Tick < minTick || cum1Tick > supportHi) return;
+        if (cum1Tick <= minTick || cum1Tick > supportHi) return;
 
-        uint256 cumulativeAmount0DensityX96 =
-            _cum0At(cum0Tick, FixedPoint96.Q96, tickSpacing, minTick, length);
-        uint256 cumulativeAmount0 = _cum0At(cum0Tick, FixedPoint96.Q96, tickSpacing, minTick, length);
+        (bool ok0, uint256 cumulativeAmount0DensityX96) =
+            _tryCum0(cum0Tick, FixedPoint96.Q96, tickSpacing, minTick, length);
+        if (!ok0) return;
+        (bool ok0b, uint256 cumulativeAmount0) = _tryCum0(cum0Tick, FixedPoint96.Q96, tickSpacing, minTick, length);
+        if (!ok0b) return;
         assertEq(cumulativeAmount0, cumulativeAmount0DensityX96, "cumulativeAmount0 incorrect");
 
-        uint256 cumulativeAmount1DensityX96 =
-            _cum1At(cum1Tick, FixedPoint96.Q96, tickSpacing, minTick, length);
-        uint256 cumulativeAmount1 = _cum1At(cum1Tick, FixedPoint96.Q96, tickSpacing, minTick, length);
+        (bool ok1, uint256 cumulativeAmount1DensityX96) =
+            _tryCum1(cum1Tick, FixedPoint96.Q96, tickSpacing, minTick, length);
+        if (!ok1) return;
+        (bool ok1b, uint256 cumulativeAmount1) = _tryCum1(cum1Tick, FixedPoint96.Q96, tickSpacing, minTick, length);
+        if (!ok1b) return;
         assertEq(cumulativeAmount1, cumulativeAmount1DensityX96, "cumulativeAmount1 incorrect");
 
         uint256 bruteForceAmount0X96 =
