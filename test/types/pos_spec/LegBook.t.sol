@@ -4,41 +4,56 @@ pragma solidity ^0.8.26;
 import {Test} from "forge-std/Test.sol";
 import {PlankTestBase} from "../../PlankTestBase.sol";
 
-/// @dev LegWeight {1..127} + LegBook quantize round(127·n_k/n_max) — Haskell binToLegs ors.
+/// @dev LegBook(BaseNotional): open LegWeightBound, weights, stored base = ⌊n_max/b⌋.
 contract LegBookTest is PlankTestBase {
     address internal harness;
+
+    uint256 constant BOUND_PANOPTIC = 127;
 
     function setUp() public {
         harness = deployPlank("test/types/pos_spec/LegBookHarness.plk");
     }
 
-    function _tryLegWeight(uint256 w) internal returns (uint256) {
+    function _tryBound(uint256 b) internal returns (uint256) {
         (bool ok, bytes memory r) =
-            harness.staticcall(abi.encodeWithSignature("tryLegWeight(uint256)", w));
+            harness.staticcall(abi.encodeWithSignature("tryLegWeightBound(uint256)", b));
+        require(ok, "tryLegWeightBound reverted");
+        return abi.decode(r, (uint256));
+    }
+
+    function _tryWeight(uint256 bound, uint256 w) internal returns (uint256) {
+        (bool ok, bytes memory r) =
+            harness.staticcall(abi.encodeWithSignature("tryLegWeight(uint256,uint256)", bound, w));
         require(ok, "tryLegWeight reverted");
         return abi.decode(r, (uint256));
     }
 
-    function _bookWeights(uint256 n0, uint256 n1, uint256 n2, uint256 n3)
+    function _bookFrom(uint256 bound, uint256 n0, uint256 n1, uint256 n2, uint256 n3)
         internal
-        returns (uint256 w0, uint256 w1, uint256 w2, uint256 w3)
+        returns (uint256 w0, uint256 w1, uint256 w2, uint256 w3, uint256 base)
     {
         (bool ok, bytes memory r) = harness.staticcall(
             abi.encodeWithSignature(
-                "legBookWeightsFromNotionals(uint256,uint256,uint256,uint256)", n0, n1, n2, n3
+                "legBookFromNotionals(uint256,uint256,uint256,uint256,uint256)",
+                bound,
+                n0,
+                n1,
+                n2,
+                n3
             )
         );
-        require(ok, "legBookWeightsFromNotionals reverted");
-        return abi.decode(r, (uint256, uint256, uint256, uint256));
+        require(ok, "legBookFromNotionals reverted");
+        return abi.decode(r, (uint256, uint256, uint256, uint256, uint256));
     }
 
-    function _bookAt(uint256 n0, uint256 n1, uint256 n2, uint256 n3, uint256 leg)
+    function _bookAt(uint256 bound, uint256 n0, uint256 n1, uint256 n2, uint256 n3, uint256 leg)
         internal
         returns (uint256)
     {
         (bool ok, bytes memory r) = harness.staticcall(
             abi.encodeWithSignature(
-                "legBookAtFromNotionals(uint256,uint256,uint256,uint256,uint256)",
+                "legBookAtFromNotionals(uint256,uint256,uint256,uint256,uint256,uint256)",
+                bound,
                 n0,
                 n1,
                 n2,
@@ -50,77 +65,130 @@ contract LegBookTest is PlankTestBase {
         return abi.decode(r, (uint256));
     }
 
-    function _round127(uint256 n, uint256 nMax) internal pure returns (uint256) {
-        return (127 * n + nMax / 2) / nMax;
+    function _roundBound(uint256 b, uint256 n, uint256 nMax) internal pure returns (uint256) {
+        return (b * n + nMax / 2) / nMax;
+    }
+
+    function test_legWeightBound_zeroReverts() public {
+        (bool ok,) = harness.staticcall(abi.encodeWithSignature("tryLegWeightBound(uint256)", 0));
+        assertFalse(ok);
+    }
+
+    function test_legWeightBound_128Reverts() public {
+        (bool ok,) = harness.staticcall(abi.encodeWithSignature("tryLegWeightBound(uint256)", 128));
+        assertFalse(ok);
+    }
+
+    function test_legWeightBound_panopticOk() public {
+        assertEq(_tryBound(BOUND_PANOPTIC), BOUND_PANOPTIC);
     }
 
     function test_legWeight_zeroReverts() public {
-        (bool ok,) = harness.staticcall(abi.encodeWithSignature("tryLegWeight(uint256)", 0));
-        assertFalse(ok, "w=0 must revert");
+        (bool ok,) =
+            harness.staticcall(abi.encodeWithSignature("tryLegWeight(uint256,uint256)", BOUND_PANOPTIC, 0));
+        assertFalse(ok);
     }
 
-    function test_legWeight_oneOk() public {
-        assertEq(_tryLegWeight(1), 1);
+    function test_legWeight_aboveBoundReverts() public {
+        (bool ok,) =
+            harness.staticcall(abi.encodeWithSignature("tryLegWeight(uint256,uint256)", 10, 11));
+        assertFalse(ok);
     }
 
-    function test_legWeight_maxOk() public {
-        assertEq(_tryLegWeight(127), 127);
+    function test_legWeight_atBoundOk() public {
+        assertEq(_tryWeight(BOUND_PANOPTIC, 127), 127);
+        assertEq(_tryWeight(10, 10), 10);
     }
 
-    function test_legWeight_128Reverts() public {
-        (bool ok,) = harness.staticcall(abi.encodeWithSignature("tryLegWeight(uint256)", 128));
-        assertFalse(ok, "w=128 must revert");
-    }
-
-    function test_legBook_equalNotionals_allMaxWeight() public {
-        (uint256 w0, uint256 w1, uint256 w2, uint256 w3) = _bookWeights(10, 10, 10, 10);
+    function test_legBook_equalNotionals_maxWeightAndBase() public {
+        // n_max=127 → base=1, all weights = bound
+        (uint256 w0, uint256 w1, uint256 w2, uint256 w3, uint256 base) =
+            _bookFrom(BOUND_PANOPTIC, 127, 127, 127, 127);
         assertEq(w0, 127);
         assertEq(w1, 127);
         assertEq(w2, 127);
         assertEq(w3, 127);
+        assertEq(base, 1);
     }
 
-    function test_legBook_fromNotionals_matchesHaskellRound() public {
-        uint256 n0 = 100;
-        uint256 n1 = 50;
-        uint256 n2 = 25;
-        uint256 n3 = 10;
-        uint256 nMax = 100;
-        (uint256 w0, uint256 w1, uint256 w2, uint256 w3) = _bookWeights(n0, n1, n2, n3);
-        assertEq(w0, _round127(n0, nMax), "w0");
-        assertEq(w1, _round127(n1, nMax), "w1");
-        assertEq(w2, _round127(n2, nMax), "w2");
-        assertEq(w3, _round127(n3, nMax), "w3");
+    function test_legBook_fromNotionals_matchesHaskellRoundAndBase() public {
+        // Scale (100,50,25,10) by 127 so base = ⌊12700/127⌋ = 100
+        uint256 n0 = 100 * 127;
+        uint256 n1 = 50 * 127;
+        uint256 n2 = 25 * 127;
+        uint256 n3 = 10 * 127;
+        uint256 nMax = n0;
+        (uint256 w0, uint256 w1, uint256 w2, uint256 w3, uint256 base) =
+            _bookFrom(BOUND_PANOPTIC, n0, n1, n2, n3);
+        assertEq(w0, _roundBound(BOUND_PANOPTIC, n0, nMax), "w0");
+        assertEq(w1, _roundBound(BOUND_PANOPTIC, n1, nMax), "w1");
+        assertEq(w2, _roundBound(BOUND_PANOPTIC, n2, nMax), "w2");
+        assertEq(w3, _roundBound(BOUND_PANOPTIC, n3, nMax), "w3");
+        assertEq(base, nMax / BOUND_PANOPTIC, "base");
     }
 
     function test_legBook_at_matchesWeights() public {
-        (uint256 w0, uint256 w1, uint256 w2, uint256 w3) = _bookWeights(100, 50, 25, 10);
-        assertEq(_bookAt(100, 50, 25, 10, 0), w0);
-        assertEq(_bookAt(100, 50, 25, 10, 1), w1);
-        assertEq(_bookAt(100, 50, 25, 10, 2), w2);
-        assertEq(_bookAt(100, 50, 25, 10, 3), w3);
+        uint256 n0 = 100 * 127;
+        uint256 n1 = 50 * 127;
+        uint256 n2 = 25 * 127;
+        uint256 n3 = 10 * 127;
+        (uint256 w0, uint256 w1, uint256 w2, uint256 w3,) = _bookFrom(BOUND_PANOPTIC, n0, n1, n2, n3);
+        assertEq(_bookAt(BOUND_PANOPTIC, n0, n1, n2, n3, 0), w0);
+        assertEq(_bookAt(BOUND_PANOPTIC, n0, n1, n2, n3, 1), w1);
+        assertEq(_bookAt(BOUND_PANOPTIC, n0, n1, n2, n3, 2), w2);
+        assertEq(_bookAt(BOUND_PANOPTIC, n0, n1, n2, n3, 3), w3);
     }
 
     function test_legBook_at_leg4Reverts() public {
         (bool ok,) = harness.staticcall(
             abi.encodeWithSignature(
-                "legBookAtFromNotionals(uint256,uint256,uint256,uint256,uint256)",
-                10,
-                10,
-                10,
-                10,
+                "legBookAtFromNotionals(uint256,uint256,uint256,uint256,uint256,uint256)",
+                BOUND_PANOPTIC,
+                127,
+                127,
+                127,
+                127,
                 4
             )
         );
-        assertFalse(ok, "leg>=4 must revert");
+        assertFalse(ok);
     }
 
     function test_legBook_zeroNotionalReverts() public {
         (bool ok,) = harness.staticcall(
             abi.encodeWithSignature(
-                "legBookWeightsFromNotionals(uint256,uint256,uint256,uint256)", 100, 0, 10, 10
+                "legBookFromNotionals(uint256,uint256,uint256,uint256,uint256)",
+                BOUND_PANOPTIC,
+                100,
+                0,
+                10,
+                10
             )
         );
-        assertFalse(ok, "n_k=0 must revert");
+        assertFalse(ok);
+    }
+
+    function test_legBook_baseZeroReverts() public {
+        // n_max < bound → ⌊n_max/b⌋ = 0
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature(
+                "legBookFromNotionals(uint256,uint256,uint256,uint256,uint256)",
+                BOUND_PANOPTIC,
+                10,
+                10,
+                10,
+                10
+            )
+        );
+        assertFalse(ok);
+    }
+
+    function test_legBook_openBoundFifty() public {
+        (uint256 w0, uint256 w1, uint256 w2, uint256 w3, uint256 base) = _bookFrom(50, 100, 100, 100, 100);
+        assertEq(w0, 50);
+        assertEq(w1, 50);
+        assertEq(w2, 50);
+        assertEq(w3, 50);
+        assertEq(base, 2);
     }
 }
