@@ -17,12 +17,12 @@ import pos_spec::VegaTarget::*;
 
 // cast sig "ladderIota(int256,int256,int256)" -> 0x9c8b96f9
 const SEL_IOTA = 0x9c8b96f9;
-// cast sig "rungLiquidity(int256,int256,int256,uint256,int256,uint256)" -> 0x24a4102e
-const SEL_RUNG_LIQ = 0x24a4102e;
-// cast sig "rungChunk(int256,int256,int256,uint256,int256,uint256)" -> 0x2697b3bd
-const SEL_RUNG_CHUNK = 0x2697b3bd;
-// cast sig "materializeChunks(int256,int256,int256,uint256,int256)" -> 0xc4b99869
-const SEL_MATERIALIZE = 0xc4b99869;
+// cast sig "rungLiquidity(int256,int256,int256,uint256,int256,uint256)" -> 0xdd6a205a
+const SEL_RUNG_LIQ = 0xdd6a205a;
+// cast sig "rungChunk(int256,int256,int256,uint256,int256,uint256)" -> 0x45bc3b57
+const SEL_RUNG_CHUNK = 0x45bc3b57;
+// cast sig "materializeChunks(int256,int256,int256,uint256,int256)" -> 0xca2c8dde
+const SEL_MATERIALIZE = 0xca2c8dde;
 
 const FIX_C0 = 0x1111;
 const FIX_C1 = 0x2222;
