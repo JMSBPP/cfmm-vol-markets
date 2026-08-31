@@ -25,6 +25,8 @@ done
 # names the same patterns unquoted, and a future comment must not be able to satisfy this
 # check. Consequence: no comment in either workflow may contain a "*...*" quoted glob.
 skips() { grep -v '^[[:space:]]*#' "$1" | grep -oE '"\*[^"]+\*"' | sort -u; }
+no_match_test() { grep -v '^[[:space:]]*#' "$1" | grep -oE 'no-match-test[[:space:]]+[A-Za-z0-9_]+' \
+                    | tr -s '[:space:]' ' ' | sort -u; }
 seed()  { grep -v '^[[:space:]]*#' "$1" | grep -oE 'fuzz-seed[[:space:]]+[0-9]+' \
             | tr -s '[:space:]' ' ' | sort -u; }
 
@@ -34,6 +36,13 @@ if ! diff -u <(skips "$GATE") <(skips "$PUSH") > /tmp/skip-ledger.diff 2>&1; the
   echo "ERROR: --skip ledger diverges between develop-gate.yml and push-build.yml" >&2
   echo "       (-) is develop-gate, (+) is push-build:" >&2
   sed 's/^/       /' /tmp/skip-ledger.diff >&2
+  rc=1
+fi
+
+if ! diff -u <(no_match_test "$GATE") <(no_match_test "$PUSH") > /tmp/no-match-test.diff 2>&1; then
+  echo "ERROR: --no-match-test diverges between develop-gate.yml and push-build.yml" >&2
+  echo "       (-) is develop-gate, (+) is push-build:" >&2
+  sed 's/^/       /' /tmp/no-match-test.diff >&2
   rc=1
 fi
 
@@ -58,7 +67,8 @@ if [ -z "$(seed "$GATE")" ] || [ -z "$(seed "$PUSH")" ]; then
   rc=1
 fi
 
+n_no_match="$(no_match_test "$GATE" | grep -c .)" || true
 if [ "$rc" -eq 0 ]; then
-  echo "skip-ledger parity OK: $n_gate patterns, seed $(seed "$GATE" | tr -d ' ' | sed 's/fuzz-seed//')"
+  echo "skip-ledger parity OK: $n_gate patterns, $n_no_match no-match-test, seed $(seed "$GATE" | tr -d ' ' | sed 's/fuzz-seed//')"
 fi
 exit "$rc"
