@@ -338,7 +338,18 @@ contract BinningTest is PlankTestBase {
     function test_wide_allChunkNumeraires_iterate() public {
         uint256 iota = _ladderIota(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)));
         for (uint256 x = 0; x < iota; x++) {
-            _chunkNumeraireAtRung(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), x);
+            (bool ok, bytes memory r) = harness.staticcall(
+                abi.encodeWithSignature(
+                    "chunkNumeraireAtRung(uint256,uint256,uint256,uint256,uint256,uint256)",
+                    SYM_STRIKE,
+                    WIDE_WIDTH,
+                    SYM_SKEW,
+                    SYM_VEGA,
+                    uint256(uint24(SYM_TS)),
+                    x
+                )
+            );
+            assertTrue(ok, string.concat("chunkNumeraire x=", vm.toString(x), " retlen=", vm.toString(r.length)));
         }
     }
 
