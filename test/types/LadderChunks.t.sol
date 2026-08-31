@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import {Test} from "forge-std/Test.sol";
 import {PlankTestBase} from "../PlankTestBase.sol";
 import {LiquidityChunk, LiquidityChunkLibrary} from "@types/LiquidityChunk.sol";
-import {TickMath} from "v3-core/contracts/libraries/TickMath.sol";
+import {TickMath} from "v3-core/libraries/TickMath.sol";
 
 /// @dev Spec oracle for Payoffs.LadderPosition.ladderChunks:
 ///   L(i_x) = mulDiv(ΔQ_v*, ℓ(ξ*, ι; x), Q96) with ℓ from geometric_liquidity_density_x96.
