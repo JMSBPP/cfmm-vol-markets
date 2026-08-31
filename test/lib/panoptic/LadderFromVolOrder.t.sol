@@ -5,11 +5,12 @@ import {Test} from "forge-std/Test.sol";
 import {PlankTestBase} from "../../PlankTestBase.sol";
 
 /// @dev Spec oracle: Panoptic.Binning.ladderFromVolOrder / fixtureSymmetricVolOrder
-///   width=40, ts=10, skew=32768, volStrike=Q96 → bucket [-20, 20], i* = 0.
+///   width=40, ts=10, skew=32768 → bucket [-20, 20], i* = 0.
+///   Plank vol strike: use 1 (center tick 0), not Haskell Q96 — volQ64X96 shifts vol<<64.
 contract LadderFromVolOrderTest is PlankTestBase {
     address internal harness;
 
-    uint256 constant Q96 = 1 << 96;
+    uint256 constant FIX_STRIKE = 1;
     uint256 constant FIX_WIDTH = 40;
     uint256 constant FIX_SKEW = 32768;
     uint256 constant FIX_VEGA = 1e18;
@@ -76,7 +77,7 @@ contract LadderFromVolOrderTest is PlankTestBase {
 
     function test_geometry_matches_symmetric_fixture() public {
         (int24 lo, int24 hi, int24 star, uint256 vega) =
-            _ladderGeometry(Q96, FIX_WIDTH, FIX_SKEW, FIX_VEGA, uint256(uint24(FIX_TS)));
+            _ladderGeometry(FIX_STRIKE, FIX_WIDTH, FIX_SKEW, FIX_VEGA, uint256(uint24(FIX_TS)));
         assertEq(lo, FIX_LO, "lo");
         assertEq(hi, FIX_HI, "hi");
         assertEq(star, FIX_STAR, "star");
@@ -85,7 +86,7 @@ contract LadderFromVolOrderTest is PlankTestBase {
 
     function test_ladderFromVolOrder_matches_geometry() public {
         (int24 lo, int24 hi, int24 star, uint256 vega) =
-            _ladderFromVolOrder(Q96, FIX_WIDTH, FIX_SKEW, FIX_VEGA, uint256(uint24(FIX_TS)));
+            _ladderFromVolOrder(FIX_STRIKE, FIX_WIDTH, FIX_SKEW, FIX_VEGA, uint256(uint24(FIX_TS)));
         assertEq(lo, FIX_LO, "lo");
         assertEq(hi, FIX_HI, "hi");
         assertEq(star, FIX_STAR, "star");
