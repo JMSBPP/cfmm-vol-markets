@@ -58,7 +58,7 @@ contract LiquidityDensityTest is PlankTestBase {
     }
 
     function _ldfParams(int24 tickSpacing, int24 minTick, int24 length) internal pure returns (bytes32) {
-        uint256 alphaX96 = TickMath.getSqrtRatioAtTick(-tickSpacing);
+        uint256 alphaX96 = uint256(TickMath.getSqrtPriceAtTick(-tickSpacing));
         uint32 alpha = uint32((alphaX96 * ALPHA_BASE) / FixedPoint96.Q96);
         return bytes32(abi.encodePacked(ShiftMode.STATIC, minTick, int16(length), alpha));
     }
