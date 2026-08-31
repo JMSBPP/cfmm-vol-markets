@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {PlankTestBase} from "../../../PlankTestBase.sol";
 
 /// @title BinningTest
-/// @notice Suite for Panoptic.Binning — legIntervals + binNotionals (spec Binning.hs).
+/// @notice Suite for Panoptic.Binning — legIntervals + binNotionals + binToLegs (spec Binning.hs).
 /// @dev Haskell oracles: Spec.hs symmetric fixture (width=40, ts=10) and wide voWide (width=4000).
 contract BinningTest is PlankTestBase {
     address internal harness;
@@ -18,6 +18,9 @@ contract BinningTest is PlankTestBase {
     int24 constant SYM_TS = 10;
     int24 constant SYM_LO = -20;
     int24 constant SYM_HI = 20;
+
+    uint256 constant BOUND_PANOPTIC = 127;
+    uint256 constant OR_MIN_DEFAULT = 8;
 
     // Wide fixture (Spec.hs TODO #28.3): width=4000, ts=10.
     uint256 constant WIDE_WIDTH = 4000;
@@ -40,6 +43,14 @@ contract BinningTest is PlankTestBase {
         uint256 n1;
         uint256 n2;
         uint256 n3;
+    }
+
+    struct BinToLegs {
+        uint256 w0;
+        uint256 w1;
+        uint256 w2;
+        uint256 w3;
+        uint256 base;
     }
 
     function setUp() public {
@@ -103,6 +114,43 @@ contract BinningTest is PlankTestBase {
         require(ok, "binNotionals reverted");
         (uint256 n0, uint256 n1, uint256 n2, uint256 n3) = abi.decode(r, (uint256, uint256, uint256, uint256));
         ns = BinNotionals({n0: n0, n1: n1, n2: n2, n3: n3});
+    }
+
+    function _binToLegs(
+        uint256 orMin,
+        uint256 bound,
+        uint256 strike,
+        uint256 width,
+        uint256 skew,
+        uint256 vega,
+        uint256 ts
+    ) internal returns (BinToLegs memory book) {
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature(
+                "binToLegs(uint256,uint256,uint256,uint256,uint256,uint256,uint256)",
+                orMin,
+                bound,
+                strike,
+                width,
+                skew,
+                vega,
+                ts
+            )
+        );
+        require(ok, "binToLegs reverted");
+        (uint256 w0, uint256 w1, uint256 w2, uint256 w3, uint256 base) =
+            abi.decode(r, (uint256, uint256, uint256, uint256, uint256));
+        book = BinToLegs({w0: w0, w1: w1, w2: w2, w3: w3, base: base});
+    }
+
+    function _roundBound(uint256 b, uint256 n, uint256 nMax) internal pure returns (uint256) {
+        return (b * n + nMax / 2) / nMax;
+    }
+
+    function _max4(uint256 a, uint256 b, uint256 c, uint256 d) internal pure returns (uint256) {
+        uint256 m = a > b ? a : b;
+        m = m > c ? m : c;
+        return m > d ? m : d;
     }
 
     function _chunkNumeraireAtRung(uint256 strike, uint256 width, uint256 skew, uint256 vega, uint256 ts, uint256 x)
@@ -216,5 +264,41 @@ contract BinningTest is PlankTestBase {
         assertEq(got.n1, oracle.n1, "n1");
         assertEq(got.n2, oracle.n2, "n2");
         assertEq(got.n3, oracle.n3, "n3");
+    }
+
+    // binToLegs: weights + base match Haskell round(b·n/n_max) and ⌊n_max/b⌋ from binNotionals
+    function test_binToLegs_symmetric_matchesNotionalsQuantize() public {
+        uint256 ts = uint256(uint24(SYM_TS));
+        BinNotionals memory ns = _binNotionals(SYM_STRIKE, SYM_WIDTH, SYM_SKEW, SYM_VEGA, ts);
+        uint256 nMax = _max4(ns.n0, ns.n1, ns.n2, ns.n3);
+        BinToLegs memory book =
+            _binToLegs(OR_MIN_DEFAULT, BOUND_PANOPTIC, SYM_STRIKE, SYM_WIDTH, SYM_SKEW, SYM_VEGA, ts);
+        assertEq(book.w0, _roundBound(BOUND_PANOPTIC, ns.n0, nMax), "w0");
+        assertEq(book.w1, _roundBound(BOUND_PANOPTIC, ns.n1, nMax), "w1");
+        assertEq(book.w2, _roundBound(BOUND_PANOPTIC, ns.n2, nMax), "w2");
+        assertEq(book.w3, _roundBound(BOUND_PANOPTIC, ns.n3, nMax), "w3");
+        assertEq(book.base, nMax / BOUND_PANOPTIC, "base");
+        assertGe(book.w0, OR_MIN_DEFAULT, "w0 >= orMin");
+        assertGe(book.w1, OR_MIN_DEFAULT, "w1 >= orMin");
+        assertGe(book.w2, OR_MIN_DEFAULT, "w2 >= orMin");
+        assertGe(book.w3, OR_MIN_DEFAULT, "w3 >= orMin");
+    }
+
+    // binToLegs: orMin above max weight reverts (Haskell any (< orMin))
+    function test_binToLegs_orMinAboveMaxWeight_reverts() public {
+        uint256 ts = uint256(uint24(SYM_TS));
+        (bool ok,) = harness.staticcall(
+            abi.encodeWithSignature(
+                "binToLegs(uint256,uint256,uint256,uint256,uint256,uint256,uint256)",
+                BOUND_PANOPTIC + 1,
+                BOUND_PANOPTIC,
+                SYM_STRIKE,
+                SYM_WIDTH,
+                SYM_SKEW,
+                SYM_VEGA,
+                ts
+            )
+        );
+        assertFalse(ok, "orMin > bound must revert");
     }
 }

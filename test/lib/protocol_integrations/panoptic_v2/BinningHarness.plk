@@ -5,9 +5,11 @@ import lib::protocol_integrations::panoptic_v2::Binning::{
     LegIntervals,
     LegNumeraireNotionals,
     bin_notionals,
+    bin_to_legs,
     ladder_from_vol_order,
     vol_order_leg_intervals
 };
+import pos_spec::LegBook::*;
 import types::ldf::CummAmt::*;
 import types::ldf::Geometric::Geometric::Geometric;
 import types::ldf::Geometric::Iota::*;
@@ -38,12 +40,14 @@ import std::slice::Slice;
 // cast sig "legIntervalsFromVolOrder(uint256,uint256,uint256,uint256,uint256)" -> 0xfe6feef8
 // cast sig "binNotionals(uint256,uint256,uint256,uint256,uint256)" -> 0x5a868c44
 // cast sig "chunkNumeraireAtRung(uint256,uint256,uint256,uint256,uint256,uint256)" -> 0xa7d9b83e
+// cast sig "binToLegs(uint256,uint256,uint256,uint256,uint256,uint256,uint256)" -> 0x23f37ed5
 
 const SEL_GEOMETRY = 0xb5d1b675;
 const SEL_LADDER = 0x4fcfdf3e;
 const SEL_LEG_INTERVALS = 0xfe6feef8;
 const SEL_BIN_NOTIONALS = 0x5a868c44;
 const SEL_CHUNK_NUM = 0xa7d9b83e;
+const SEL_BIN_TO_LEGS = 0x23f37ed5;
 
 const FIX_C0 = 0x1111;
 const FIX_C1 = 0x2222;
@@ -108,6 +112,16 @@ const return_bin_notionals = fn(ns: LegNumeraireNotionals) void {
     @mstore32(out +% 64, ns.n2);
     @mstore32(out +% 96, ns.n3);
     @evm_return(out, 128);
+};
+
+const return_bin_to_legs = fn(book: LegBook(BaseNotional)) void {
+    let out = @malloc_uninit(160);
+    @mstore32(out, leg_weight_value(book.w0));
+    @mstore32(out +% 32, leg_weight_value(book.w1));
+    @mstore32(out +% 64, leg_weight_value(book.w2));
+    @mstore32(out +% 96, leg_weight_value(book.w3));
+    @mstore32(out +% 128, base_notional_value(leg_book_base(book)));
+    @evm_return(out, 160);
 };
 
 const chunk_numeraire_at_rung = fn(
@@ -207,6 +221,37 @@ run {
         let out = @malloc_uninit(32);
         @mstore32(out, n);
         @evm_return(out, 32);
+    }
+
+    if selector == SEL_BIN_TO_LEGS {
+        let or_min = @evm_calldataload(4);
+        let bound_val = @evm_calldataload(36);
+        let strike = @evm_calldataload(68);
+        let width = @evm_calldataload(100);
+        let skew = @evm_calldataload(132);
+        let target_vega = @evm_calldataload(164);
+        let ts = @evm_calldataload(196);
+        let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
+        let market = fixture_market(ts);
+        let l = ladder_from_vol_order(V4, memory, market, vo);
+        let iota = ladder_iota(l, V4, market);
+        let chunk = iota_alloc(iota);
+        let out_ptr = @malloc_uninit(iota *% 32);
+        let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
+        let bound = leg_weight_bound(bound_val);
+        let book = bin_to_legs(
+            Geometric(memory),
+            memory,
+            V4,
+            or_min,
+            bound,
+            l,
+            market,
+            vo,
+            chunk,
+            out
+        );
+        return_bin_to_legs(book);
     }
 
     @evm_stop();
