@@ -2,10 +2,11 @@ import std::constructor::return_runtime;
 import std::option::{None, Some};
 import std::regions::memory;
 import lib::protocol_integrations::panoptic_v2::Binning::{
-    bin_to_legs,
-    ladder_from_vol_order
+    ladder_from_vol_order,
+    vol_position_from_ladder
 };
 import pos_spec::LegBook::*;
+import pos_spec::VolPosition::*;
 import pos_spec::SpreadTickAssimetry::*;
 import pos_spec::TickVolatility::*;
 import pos_spec::VolOrder::*;
@@ -23,7 +24,6 @@ import types::Pair::*;
 import std::core::addr::addr_from_u256;
 import std::slice::Slice;
 
-// RED harness — vol_position_from_ladder behaviour before VolPosition.plk lands.
 // cast sig "volPositionFromLadder(uint256,uint256,uint256,uint256,uint256,uint256,uint256)"
 //      -> 0xe07b16ce
 
@@ -84,26 +84,28 @@ run {
         let out_ptr = @malloc_uninit(iota *% 32);
         let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
         let bound = leg_weight_bound(bound_val);
-        let book = bin_to_legs(
+        let vp = vol_position_from_ladder(
             Geometric(memory),
             memory,
             V4,
             or_min,
             bound,
-            l,
             market,
             vo,
+            l,
             chunk,
             out
         );
+        let book = vol_position_book(V4, memory, vp);
+        let ladder = vol_position_ladder(V4, memory, vp);
         let out_buf = @malloc_uninit(224);
         @mstore32(out_buf, leg_weight_value(book.w0));
         @mstore32(out_buf +% 32, leg_weight_value(book.w1));
         @mstore32(out_buf +% 64, leg_weight_value(book.w2));
         @mstore32(out_buf +% 96, leg_weight_value(book.w3));
         @mstore32(out_buf +% 128, base_notional_value(leg_book_base(book)));
-        @mstore32(out_buf +% 160, l.lo);
-        @mstore32(out_buf +% 192, l.hi);
+        @mstore32(out_buf +% 160, ladder.lo);
+        @mstore32(out_buf +% 192, ladder.hi);
         @evm_return(out_buf, 224);
     }
 

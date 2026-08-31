@@ -1,0 +1,35 @@
+// VolPosition(V, R) — protocol positioned product: market × order × ladder × LegBook(BaseNotional).
+// Design: docs/superpowers/specs/2026-08-31-vol-position-design.md
+import pos_spec::LegBook::*;
+import pos_spec::VolOrder::*;
+import types::Ladder::Ladder;
+import types::protocol_integrations::VolMarketKey::*;
+
+const VolPosition = fn(comptime V: type, comptime R: type) type {
+    return struct {
+        market: VolMarketKey(V),
+        order: VolOrder(R),
+        ladder: Ladder(V),
+        book: LegBook(BaseNotional)
+    };
+};
+
+const vol_position_market = fn(comptime V: type, comptime R: type, vp: VolPosition(V, R)) VolMarketKey(V) {
+    vp.market
+};
+
+const vol_position_order = fn(comptime V: type, comptime R: type, vp: VolPosition(V, R)) VolOrder(R) {
+    vp.order
+};
+
+const vol_position_ladder = fn(comptime V: type, comptime R: type, vp: VolPosition(V, R)) Ladder(V) {
+    vp.ladder
+};
+
+const vol_position_book = fn(comptime V: type, comptime R: type, vp: VolPosition(V, R)) LegBook(BaseNotional) {
+    vp.book
+};
+
+const vol_position_position_size = fn(comptime V: type, comptime R: type, vp: VolPosition(V, R)) u256 {
+    base_notional_value(leg_book_base(vp.book))
+};

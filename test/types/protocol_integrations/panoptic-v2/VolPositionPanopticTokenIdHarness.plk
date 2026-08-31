@@ -2,13 +2,14 @@ import std::constructor::return_runtime;
 import std::option::{None, Some};
 import std::regions::memory;
 import lib::protocol_integrations::panoptic_v2::Binning::{
-    bin_to_legs,
-    ladder_from_vol_order
+    ladder_from_vol_order,
+    vol_position_from_ladder
 };
 import lib::protocol_integrations::PanopticTokenIdSetterLib::{
-    vol_order_to_panoptic_token_id
+    vol_position_panoptic_token_id
 };
 import pos_spec::LegBook::*;
+import pos_spec::VolPosition::*;
 import pos_spec::SpreadTickAssimetry::*;
 import pos_spec::TickVolatility::*;
 import pos_spec::VolOrder::*;
@@ -27,8 +28,6 @@ import types::Pair::*;
 import std::core::addr::addr_from_u256;
 import std::slice::Slice;
 
-// RED harness — vol_position_panoptic_token_id before SetterLib wiring lands.
-// Today calls layer-1 vol_order_to_panoptic_token_id (structural ratio = 1).
 // cast sig "volPositionPanopticTokenId(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)"
 //      -> 0x8297ed38
 
@@ -90,24 +89,20 @@ run {
         let out_ptr = @malloc_uninit(iota *% 32);
         let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
         let bound = leg_weight_bound(bound_val);
-        let book = bin_to_legs(
+        let vp = vol_position_from_ladder(
             Geometric(memory),
             memory,
             V4,
             or_min,
             bound,
-            l,
             market,
             vo,
+            l,
             chunk,
             out
         );
-        // TODO(Task 2 GREEN): vol_position_panoptic_token_id(vp, pool_id) with book ratios.
-        let tid = vol_order_to_panoptic_token_id(
-            memory,
-            vo,
-            PanopticPoolId { word: pool_id_word }
-        );
+        let book = vol_position_book(V4, memory, vp);
+        let tid = vol_position_panoptic_token_id(V4, memory, vp, PanopticPoolId { word: pool_id_word });
         let out_buf = @malloc_uninit(192);
         @mstore32(out_buf, tid.tokenId);
         @mstore32(out_buf +% 32, leg_weight_value(book.w0));

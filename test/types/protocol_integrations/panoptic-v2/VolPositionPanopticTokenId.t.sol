@@ -5,9 +5,8 @@ import {PlankTestBase} from "../../../PlankTestBase.sol";
 import {TokenId} from "@types/TokenId.sol";
 
 /// @title VolPositionPanopticTokenIdTest
-/// @notice Task 2 RED: `vol_position_panoptic_token_id` must write LegBook weights as optionRatio.
-/// @dev Harness still calls layer-1 `vol_order_to_panoptic_token_id` (ratio = 1) — wide fixture
-///      expects non-unity ratios from binning book. Requires full panoptic-v2-core on CI.
+/// @notice Task 2: `vol_position_panoptic_token_id` writes LegBook weights as optionRatio.
+/// @dev Harness calls `vol_position_from_ladder` + `vol_position_panoptic_token_id`.
 contract VolPositionPanopticTokenIdTest is PlankTestBase {
     address internal harness;
 

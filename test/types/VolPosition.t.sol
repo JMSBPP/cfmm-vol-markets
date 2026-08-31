@@ -5,7 +5,7 @@ import {PlankTestBase} from "../PlankTestBase.sol";
 
 /// @title VolPositionTest
 /// @notice Task 1 RED: `vol_position_from_ladder` product — book weights/base + ladder span on wide fixture.
-/// @dev Harness mirrors binning path until `VolPosition.plk` + `vol_position_from_ladder` land.
+/// @dev Harness calls `vol_position_from_ladder` (VolPosition.plk + Binning.plk).
 contract VolPositionTest is PlankTestBase {
     address internal harness;
 
