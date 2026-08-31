@@ -153,17 +153,10 @@ const bin_notionals_step = fn(
         x: acc.ladder.x +% 1,
         iota: acc.ladder.iota
     };
-    // ℓ(ξ*,ι;x) is only defined for x < ι (Column.plk). On the final rung next_ladder.x == ι;
-    // the carried cumm is unused because the while-loop exits — keep acc.cumm.
-    let next_cumm = if next_ladder.x < next_ladder.iota {
-        let next_ldf = cumm_amt_ldf_at_ladder_x(R, V, next_ladder);
-        cumm_amt_from_ladder_chunks(kind, R, V, next_ladder, next_ldf)
-    } else {
-        acc.cumm
-    };
+    // acc.cumm is unused on the next iteration — pricing rebuilds from acc.ladder each step.
     Some(BinNotionalsAccumulator(kind, R, V) {
         ladder: next_ladder,
-        cumm: next_cumm,
+        cumm: acc.cumm,
         n0: n0,
         n1: n1,
         n2: n2,

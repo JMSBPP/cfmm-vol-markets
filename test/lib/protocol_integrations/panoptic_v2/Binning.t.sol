@@ -146,6 +146,24 @@ contract BinningTest is PlankTestBase {
         ns = BinNotionals({n0: n0, n1: n1, n2: n2, n3: n3});
     }
 
+    function _ladderIota(uint256 strike, uint256 width, uint256 skew, uint256 vega, uint256 ts)
+        internal
+        returns (uint256)
+    {
+        (bool ok, bytes memory r) = harness.staticcall(
+            abi.encodeWithSignature(
+                "ladderIotaFromVolOrder(uint256,uint256,uint256,uint256,uint256)",
+                strike,
+                width,
+                skew,
+                vega,
+                ts
+            )
+        );
+        require(ok, "ladderIotaFromVolOrder reverted");
+        return abi.decode(r, (uint256));
+    }
+
     function _chunkNumeraireAtRung(uint256 strike, uint256 width, uint256 skew, uint256 vega, uint256 ts, uint256 x)
         internal
         returns (uint256)
@@ -245,6 +263,25 @@ contract BinningTest is PlankTestBase {
             total += _chunkNumeraireAtRung(SYM_STRIKE, SYM_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), x);
         }
         assertEq(ns.n0 + ns.n1 + ns.n2 + ns.n3, total, "leg sums partition rung numeraires");
+    }
+
+    function test_ladderIota_symmetric_matchesSpec() public {
+        uint256 iota = _ladderIota(SYM_STRIKE, SYM_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)));
+        assertEq(iota, uint256(int256(SYM_HI - SYM_LO)) / uint256(int256(SYM_TS)), "symmetric iota");
+    }
+
+    function test_ladderIota_wide_matchesSpec() public {
+        uint256 iota = _ladderIota(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)));
+        assertEq(iota, uint256(int256(WIDE_HI - WIDE_LO)) / uint256(int256(SYM_TS)), "wide iota");
+    }
+
+    function test_chunkNumeraire_wide_firstAndLastRung_nonzero() public {
+        uint256 iota = _ladderIota(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)));
+        uint256 n0 = _chunkNumeraireAtRung(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), 0);
+        uint256 nLast =
+            _chunkNumeraireAtRung(SYM_STRIKE, WIDE_WIDTH, SYM_SKEW, SYM_VEGA, uint256(uint24(SYM_TS)), iota - 1);
+        assertGt(n0, 0, "wide x=0");
+        assertGt(nLast, 0, "wide x=iota-1");
     }
 
     function test_binNotionals_matchesBruteForcePartition_wide() public {

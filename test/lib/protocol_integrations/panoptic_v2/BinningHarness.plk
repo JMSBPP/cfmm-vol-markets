@@ -38,12 +38,14 @@ import std::slice::Slice;
 // cast sig "legIntervalsFromVolOrder(uint256,uint256,uint256,uint256,uint256)" -> 0xfe6feef8
 // cast sig "binNotionals(uint256,uint256,uint256,uint256,uint256)" -> 0x5a868c44
 // cast sig "chunkNumeraireAtRung(uint256,uint256,uint256,uint256,uint256,uint256)" -> 0xa7d9b83e
+// cast sig "ladderIotaFromVolOrder(uint256,uint256,uint256,uint256,uint256)" -> 0x64975e00
 
 const SEL_GEOMETRY = 0xb5d1b675;
 const SEL_LADDER = 0x4fcfdf3e;
 const SEL_LEG_INTERVALS = 0xfe6feef8;
 const SEL_BIN_NOTIONALS = 0x5a868c44;
 const SEL_CHUNK_NUM = 0xa7d9b83e;
+const SEL_LADDER_IOTA = 0x64975e00;
 
 const FIX_C0 = 0x1111;
 const FIX_C1 = 0x2222;
@@ -191,6 +193,21 @@ run {
         let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
         let ns = bin_notionals(Geometric(memory), memory, V4, l, market, vo, chunk, out);
         return_bin_notionals(ns);
+    }
+
+    if selector == SEL_LADDER_IOTA {
+        let strike = @evm_calldataload(4);
+        let width = @evm_calldataload(36);
+        let skew = @evm_calldataload(68);
+        let target_vega = @evm_calldataload(100);
+        let ts = @evm_calldataload(132);
+        let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
+        let market = fixture_market(ts);
+        let l = ladder_from_vol_order(V4, memory, market, vo);
+        let iota = ladder_iota(l, V4, market);
+        let out = @malloc_uninit(32);
+        @mstore32(out, iota);
+        @evm_return(out, 32);
     }
 
     if selector == SEL_CHUNK_NUM {
