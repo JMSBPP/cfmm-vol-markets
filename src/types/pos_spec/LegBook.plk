@@ -14,8 +14,9 @@ const LegWeight = struct {
     val: u256
 };
 
-// RED stub: no range gate (GREEN adds require 1..127).
 const leg_weight = fn(w: u256) LegWeight {
+    require(w > 0);
+    require(w <= LEG_WEIGHT_MAX);
     LegWeight { val: w }
 };
 
@@ -38,10 +39,10 @@ const max4 = fn(a: u256, b: u256, c: u256, d: u256) u256 {
     max2(max2(a, b), max2(c, d))
 };
 
-// RED stub: floor only (no + n_max/2). GREEN matches Haskell round.
+// Haskell: (127 * n + nMax `div` 2) `div` nMax
 const leg_weight_from_notional = fn(n: u256, n_max: u256) LegWeight {
     require(n_max > 0);
-    leg_weight((LEG_WEIGHT_MAX *% n) /% n_max)
+    leg_weight(@evm_div(LEG_WEIGHT_MAX *% n +% @evm_div(n_max, 2), n_max))
 };
 
 const leg_book_from_notionals = fn(n0: u256, n1: u256, n2: u256, n3: u256) LegBook {
