@@ -11,7 +11,13 @@ import lib::protocol_integrations::panoptic_v2::Binning::{
 import types::ldf::CummAmt::*;
 import types::ldf::Geometric::Geometric::Geometric;
 import types::ldf::Geometric::Iota::*;
-import types::Ladder::*;
+import types::Ladder::{
+    Ladder,
+    LadderChunksAccumulator,
+    ladder_iota,
+    ladder_rung_chunk,
+    rung_index
+};
 import pos_spec::SpreadTickAssimetry::*;
 import pos_spec::TickVolatility::*;
 import pos_spec::VolOrder::*;
@@ -105,7 +111,7 @@ const return_bin_notionals = fn(ns: LegNumeraireNotionals) void {
 };
 
 const chunk_numeraire_at_rung = fn(
-    vo: VolOrder(calldata),
+    vo: VolOrder(memory),
     market: VolMarketKey(V4),
     l: Ladder(V4),
     x: u256
@@ -143,7 +149,7 @@ run {
         let target_vega = @evm_calldataload(100);
         let ts = @evm_calldataload(132);
         let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
-        let g = vol_order_ladder_geometry(calldata, vo);
+        let g = vol_order_ladder_geometry(memory, vo);
         return_ladder_geometry(g.lo, g.hi, g.star, g.vega);
     }
 
