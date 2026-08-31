@@ -35,7 +35,7 @@ const fixture_market = fn(ts: u256) VolMarketKey(V4) {
     vol_market_key(V4, Some(p), Some(reg), Some(pool_v4(p, reg, FIX_FEE, ts)))
 };
 
-const fixture_ladder = fn(lo: u256, hi: u256, star: u256, vega: u256, ts: u256) Ladder(V4, VegaTarget(0, 0, 0)) {
+const fixture_ladder = fn(lo: u256, hi: u256, star: u256, vega: u256, ts: u256) Ladder(V4) {
     ladder_new(V4, VegaTarget(0, 0, 0), ts, lo, hi, star, vega)
 };
 
@@ -51,7 +51,6 @@ init { return_runtime(); }
 run {
     let selector = @evm_shr(224, @evm_calldataload(0));
 
-    // ladderIota(lo@4, hi@36, ts@68) -> ι = (i_U - i_L) / Δ_i
     if selector == SEL_IOTA {
         let lo = @evm_calldataload(4);
         let hi = @evm_calldataload(36);
@@ -64,7 +63,6 @@ run {
         @evm_return(out, 32);
     }
 
-    // rungLiquidity(lo@4, hi@36, star@68, vega@100, ts@132, x@164) -> L(i_x)
     if selector == SEL_RUNG_LIQ {
         let lo = @evm_calldataload(4);
         let hi = @evm_calldataload(36);
@@ -75,14 +73,13 @@ run {
         let l = fixture_ladder(lo, hi, star, vega, ts);
         let market = fixture_market(ts);
         let chunk = iota_alloc(ladder_iota(l, V4, market));
-        let ri = rung_index(l, V4, VegaTarget(0, 0, 0), market, x);
-        let res = ladder_rung_liquidity(l, ri, V4, VegaTarget(0, 0, 0), memory, market, chunk);
+        let ri = rung_index(l, V4, market, x);
+        let res = ladder_rung_liquidity(l, ri, V4, memory, market, chunk);
         let out = @malloc_uninit(32);
         @mstore32(out, res);
         @evm_return(out, 32);
     }
 
-    // rungChunk(lo@4, hi@36, star@68, vega@100, ts@132, x@164) -> packed LiquidityChunk
     if selector == SEL_RUNG_CHUNK {
         let lo = @evm_calldataload(4);
         let hi = @evm_calldataload(36);
@@ -93,14 +90,13 @@ run {
         let l = fixture_ladder(lo, hi, star, vega, ts);
         let market = fixture_market(ts);
         let chunk = iota_alloc(ladder_iota(l, V4, market));
-        let ri = rung_index(l, V4, VegaTarget(0, 0, 0), market, x);
-        let ch = ladder_rung_chunk(l, ri, V4, VegaTarget(0, 0, 0), memory, market, chunk);
+        let ri = rung_index(l, V4, market, x);
+        let ch = ladder_rung_chunk(l, ri, V4, memory, market, chunk);
         let out = @malloc_uninit(32);
         @mstore32(out, ch.val);
         @evm_return(out, 32);
     }
 
-    // materializeChunks(lo@4, hi@36, star@68, vega@100, ts@132) -> ι packed chunk words
     if selector == SEL_MATERIALIZE {
         let lo = @evm_calldataload(4);
         let hi = @evm_calldataload(36);
@@ -112,8 +108,8 @@ run {
         let iota = ladder_iota(l, V4, market);
         let chunk = iota_alloc(iota);
         let out_ptr = @malloc_uninit(iota *% 32);
-        let out = Slice(memory, u256, None) { ptr: out_ptr, len: iota };
-        ladder_materialize_chunks(V4, VegaTarget(0, 0, 0), memory, l, market, chunk, out);
+        let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
+        ladder_materialize_chunks(V4, memory, l, market, chunk, out);
         @evm_return(out_ptr, iota *% 32);
     }
 

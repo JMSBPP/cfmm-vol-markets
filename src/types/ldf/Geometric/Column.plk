@@ -9,9 +9,9 @@ import types::protocol_integrations::VolMarketKey::*;
 // Column(R): bounded column index for geometric LDF at client ι.
 // spec LiquidityGrid.ell: 0 ≤ x < ι; ι from Iota(R) client chunk.
 const Column = fn(comptime R: type) type {
-    struct Column(R) {
+    return struct R {
         x: u256
-    }
+    };
 };
 
 const column_new = fn(

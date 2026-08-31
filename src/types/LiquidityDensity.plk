@@ -6,9 +6,9 @@ import types::protocol_integrations::VolMarketKey::*;
 import pos_spec::VegaTarget::*;
 
 const LiquidityDensity = fn(comptime kind: type, comptime R: type) type {
-    struct LiquidityDensity(kind, R) {
+    return struct {
         density_x96: u256
-    }
+    };
 };
 
 const liquidity_density_at = fn(
