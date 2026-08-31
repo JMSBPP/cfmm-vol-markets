@@ -129,7 +129,18 @@ contract BinningTest is PlankTestBase {
             emit log_named_uint("returndata_len", r.length);
             emit log_named_bytes("returndata", r);
             emit log_named_string("failKind", _failKind(gasBefore, gasAfter, r));
-            revert("binNotionals reverted");
+            revert(
+                string.concat(
+                    "binNotionals ",
+                    _failKind(gasBefore, gasAfter, r),
+                    " gasUsed=",
+                    vm.toString(gasBefore - gasAfter),
+                    " remaining_bps=",
+                    vm.toString(gasBefore == 0 ? 0 : (gasAfter * 10000) / gasBefore),
+                    " retlen=",
+                    vm.toString(r.length)
+                )
+            );
         }
         (uint256 n0, uint256 n1, uint256 n2, uint256 n3) = abi.decode(r, (uint256, uint256, uint256, uint256));
         ns = BinNotionals({n0: n0, n1: n1, n2: n2, n3: n3});
