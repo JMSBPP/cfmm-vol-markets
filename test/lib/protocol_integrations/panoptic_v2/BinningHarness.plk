@@ -17,7 +17,7 @@ import pos_spec::TickVolatility::*;
 import pos_spec::VolOrder::*;
 import pos_spec::VolRangeWidth::*;
 import pos_spec::VegaTarget::*;
-import types::Extra::{Extra};
+import types::Extra::Extra;
 import types::protocol_integrations::Pool::*;
 import types::protocol_integrations::Registry::*;
 import types::protocol_integrations::VolMarketKey::*;
@@ -56,13 +56,13 @@ const fixture_vol_order = fn(
     skew: u256,
     target_vega: u256,
     ts: u256
-) VolOrder(calldata) {
-    VolOrder(calldata) {
+) VolOrder(memory) {
+    VolOrder(memory) {
         rangeWidth: VolRangeWidth { width: width, tickSpacing: ts },
         volStrike: TickVolatility { vol: strike },
         skew: SpreadTickAssimetry { spread: skew },
         targetVega: unpack_vega_target(target_vega),
-        extra: None(Extra(calldata))
+        extra: None(Extra(memory))
     }
 };
 
@@ -114,7 +114,7 @@ const chunk_numeraire_at_rung = fn(
     let chunk = iota_alloc(iota);
     let out_ptr = @malloc_uninit(iota *% 32);
     let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
-    let acc_ladder = LadderChunksAccumulator(V4, calldata) {
+    let acc_ladder = LadderChunksAccumulator(V4, memory) {
         l: l,
         market: market,
         iota_chunk: chunk,
@@ -123,11 +123,11 @@ const chunk_numeraire_at_rung = fn(
         iota: iota
     };
     let ri = rung_index(l, V4, market, x);
-    let ch = ladder_rung_chunk(l, ri, V4, calldata, market, chunk);
+    let ch = ladder_rung_chunk(l, ri, V4, memory, market, chunk);
     let target = vega_target_from_rung_chunk(ch);
-    let ldf = cumm_amt_ldf_at_ladder_x(calldata, V4, acc_ladder);
-    let cumm = cumm_amt_from_ladder_chunks(Geometric(calldata), calldata, V4, acc_ladder, ldf);
-    let priced = chunk_numeraire(Geometric(calldata), calldata, V4, cumm, target, l.lo, chunk);
+    let ldf = cumm_amt_ldf_at_ladder_x(memory, V4, acc_ladder);
+    let cumm = cumm_amt_from_ladder_chunks(Geometric(memory), memory, V4, acc_ladder, ldf);
+    let priced = chunk_numeraire(Geometric(memory), memory, V4, cumm, target, l.lo, chunk);
     priced.notionals
 };
 
@@ -155,7 +155,7 @@ run {
         let ts = @evm_calldataload(132);
         let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
         let market = fixture_market(ts);
-        let l = ladder_from_vol_order(V4, calldata, market, vo);
+        let l = ladder_from_vol_order(V4, memory, market, vo);
         return_ladder_geometry(l.lo, l.hi, l.star, l.vega);
     }
 
@@ -166,7 +166,7 @@ run {
         let target_vega = @evm_calldataload(100);
         let ts = @evm_calldataload(132);
         let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
-        let legs = vol_order_leg_intervals(calldata, vo);
+        let legs = vol_order_leg_intervals(memory, vo);
         return_leg_intervals(legs);
     }
 
@@ -178,12 +178,12 @@ run {
         let ts = @evm_calldataload(132);
         let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
         let market = fixture_market(ts);
-        let l = ladder_from_vol_order(V4, calldata, market, vo);
+        let l = ladder_from_vol_order(V4, memory, market, vo);
         let iota = ladder_iota(l, V4, market);
         let chunk = iota_alloc(iota);
         let out_ptr = @malloc_uninit(iota *% 32);
         let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
-        let ns = bin_notionals(Geometric(calldata), calldata, V4, l, market, vo, chunk, out);
+        let ns = bin_notionals(Geometric(memory), memory, V4, l, market, vo, chunk, out);
         return_bin_notionals(ns);
     }
 
@@ -196,7 +196,7 @@ run {
         let x = @evm_calldataload(164);
         let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
         let market = fixture_market(ts);
-        let l = ladder_from_vol_order(V4, calldata, market, vo);
+        let l = ladder_from_vol_order(V4, memory, market, vo);
         let n = chunk_numeraire_at_rung(vo, market, l, x);
         let out = @malloc_uninit(32);
         @mstore32(out, n);

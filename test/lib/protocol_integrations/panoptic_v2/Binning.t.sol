@@ -43,7 +43,7 @@ contract BinningTest is PlankTestBase {
     }
 
     function setUp() public {
-        harness = deployPlank("test/lib/protocol_integrations/panoptic-v2/BinningHarness.plk");
+        harness = deployPlank("test/lib/protocol_integrations/panoptic_v2/BinningHarness.plk");
     }
 
     function _u256ToInt24(uint256 v) internal pure returns (int24) {
