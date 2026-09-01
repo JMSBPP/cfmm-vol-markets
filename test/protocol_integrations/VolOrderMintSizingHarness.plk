@@ -11,7 +11,7 @@
 
 import std::constructor::return_runtime;
 import types::pos_spec::VolOrder::{unpack_vol_order};
-import lib::protocol_integrations::panoptic::VolPositionMint::*;
+import lib::protocol_integrations::panoptic_v2::VolPositionMint::*;
 import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
 import v3::util::{revert_empty};
 

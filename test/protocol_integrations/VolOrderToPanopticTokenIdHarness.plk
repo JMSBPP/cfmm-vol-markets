@@ -3,7 +3,7 @@ import types::protocol_integrations::PanopticTokenId::*;
 import types::pos_spec::VolOrder::{unpack_vol_order, tick_bucket_from_vol_order};
 import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
 import types::pricing::TickUtils::round_tick;
-import lib::protocol_integrations::panoptic::VolPositionId::vol_order_to_panoptic_token_id;
+import lib::protocol_integrations::panoptic_v2::VolPositionId::vol_order_to_panoptic_token_id;
 import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
 import std::regions::calldata;
 

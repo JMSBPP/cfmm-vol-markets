@@ -1,5 +1,0 @@
-
-
-const Collateral = struct {
-     val: u256 
-};

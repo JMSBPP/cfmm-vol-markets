@@ -22,7 +22,7 @@ import types::pricing::TickUtils::{round_tick, vol_order_split_points};
 import types::protocol_integrations::VolMarketKey::*;
 import pos_spec::ClearingHouse::*;
 import pos_spec::VolPosition::*;
-import lib::protocol_integrations::panoptic::VolPositionId::vol_position_panoptic_id_word;
+import lib::protocol_integrations::panoptic_v2::VolPositionId::vol_position_panoptic_id_word;
 import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
 
 // Haskell orMinDefault — reject optionRatio below this (Panoptic validate reverts on 0).

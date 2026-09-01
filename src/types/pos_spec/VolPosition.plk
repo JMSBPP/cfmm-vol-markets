@@ -1,7 +1,7 @@
 // VolPosition(V, R, CH) — protocol positioned product: market × order × ladder × LegBook × cleared id.
 // Design: docs/superpowers/specs/2026-08-31-vol-position-design.md
 // CH = clearing-house phantom (ClearingHouse.plk). id: Option(u256) — at construct, when
-// CH == Panoptic, Some(word) from lib/protocol_integrations/panoptic/VolPositionId.plk.
+// CH == Panoptic, Some(word) from lib/protocol_integrations/panoptic_v2/VolPositionId.plk.
 import pos_spec::ClearingHouse::*;
 import pos_spec::LegBook::*;
 import pos_spec::VolOrder::*;

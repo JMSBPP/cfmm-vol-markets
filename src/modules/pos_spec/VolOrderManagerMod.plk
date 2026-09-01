@@ -27,7 +27,7 @@
 // test/pos_spec/VolOrderManagerBatch.t.sol :: VolOrderManagerReturnEncodingTest.
 //
 // MONOTONIC IDS, NO RING. array_slot applies NO mask. The 16-bit wraparound mask used by the
-// realized-volatility ring lives in a DIFFERENT file (src/types/StorageIndex.plk) and is
+// realized-volatility ring lives in RealizedVolatilityLib (INDEX_MODULO_MASK / next) and is
 // deliberately NOT imported here: it is load-bearing for a 2^16 ring and CORRUPTING for a
 // monotonic registry, where it would fold order 65536 back onto slot 0. Killed by
 // test__unit__idAt65536IsNotMaskedIntoSlotZero.

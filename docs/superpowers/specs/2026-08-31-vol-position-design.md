@@ -32,7 +32,7 @@ VolPosition(V, R, CH) {
 }
 ```
 
-When `CH == Panoptic`, `Some(word)` is **semantically** `PanopticTokenId { tokenId: word }`. The word is computed **in the constructor** via `lib/protocol_integrations/panoptic/VolPositionId.plk` from `VolOrder` + `LegBook` + `PanopticPoolId` (all four legs, book weights as `optionRatio`).
+When `CH == Panoptic`, `Some(word)` is **semantically** `PanopticTokenId { tokenId: word }`. The word is computed **in the constructor** via `lib/protocol_integrations/panoptic_v2/VolPositionId.plk` from `VolOrder` + `LegBook` + `PanopticPoolId` (all four legs, book weights as `optionRatio`).
 
 **Constructor (single public entry):**
 
@@ -61,7 +61,7 @@ Internally: `book = bin_to_legs(or_min, bound, kind, R, V, l, market, vo, …)`.
 | Projection | Definition |
 |------------|------------|
 | `vol_position_panoptic_token_id(vp, pool_id)` | Read stored id (`vol_position_panoptic_token_id_from_stored`); set at construct |
-| `vol_position_panoptic_token_id(vo, book, pool_id)` | In `panoptic/VolPositionId.plk` — full leg encode + book ratios |
+| `vol_position_panoptic_token_id(vo, book, pool_id)` | In `panoptic_v2/VolPositionId.plk` — full leg encode + book ratios |
 | `vol_position_position_size(vp)` | `base_notional_value(leg_book_base(vp.book))` |
 | `vol_position_to_mint_plan(vp, pool_id)` | **Legacy adapter:** `{ token_id, position_size }` for SFPM callers |
 
@@ -115,10 +115,10 @@ Keep adapters until callers migrate; mark deprecated in module comments.
 | Module | Symbols |
 |--------|---------|
 | `src/types/pos_spec/ClearingHouse.plk` | `Panoptic`, `is_clearing_house` |
-| `src/lib/protocol_integrations/panoptic/VolPositionId.plk` | `vol_order_to_panoptic_token_id*`, `vol_position_panoptic_token_id`, `vol_position_panoptic_id_word` |
+| `src/lib/protocol_integrations/panoptic_v2/VolPositionId.plk` | `vol_order_to_panoptic_token_id*`, `vol_position_panoptic_token_id`, `vol_position_panoptic_id_word` |
 | `src/types/pos_spec/VolPosition.plk` | `VolPosition(V,R,CH)`, accessors, `vol_position_panoptic_token_id_from_stored` |
 | `src/lib/protocol_integrations/panoptic_v2/Binning.plk` | `vol_position_from_ladder` (or re-export) |
-| `src/lib/protocol_integrations/panoptic/VolPositionMint.plk` | `vol_position_to_mint_plan` (Task 3); legacy `vol_order_to_mint` until binning path owns sizing |
+| `src/lib/protocol_integrations/panoptic_v2/VolPositionMint.plk` | `vol_position_to_mint_plan` (Task 3); legacy `vol_order_to_mint` until binning path owns sizing |
 
 ---
 

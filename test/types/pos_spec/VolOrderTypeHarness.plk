@@ -3,7 +3,7 @@ import std::regions::calldata;
 import std::option::{Option, Some, None, is_none, unwrap};
 import types::utils::Extra::*;
 import pos_spec::VolOrder::*;
-import lib::protocol_integrations::panoptic::VolPositionId::vol_order_to_panoptic_token_id;
+import lib::protocol_integrations::panoptic_v2::VolPositionId::vol_order_to_panoptic_token_id;
 import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
 
 // Harness for the VolOrder(T) TYPE and the Extra(T) DESCRIPTOR (Phase 2, VORD-01), written to
