@@ -16,6 +16,7 @@ on:
   push:
     branches-ignore:
       - develop
+      - main
     # `develop` is excluded because merges land there through the PR gate: a push build on
     # develop would be a second, unapproved build of code develop-gate has already judged.
     #
