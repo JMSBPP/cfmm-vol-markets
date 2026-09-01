@@ -1,13 +1,13 @@
 // VolOrder → MintPlan sizing (V2-03). Token id from VolPositionId; positionSize from target vega.
-import lib::ldf::LDFLib::{geometric_leg_weights, LegWeights};
-import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
+import lib::ldf::GeometricLib::{geometric_leg_weights, LegWeights};
+import pos_spec::TickVolatility::tick_volatility_tick;
 import lib::protocol_integrations::panoptic_v2::VolPositionId::vol_order_to_panoptic_token_id;
 import pos_spec::VegaTarget::pack_vega_target;
 import pos_spec::VolOrder::{VolOrder, tick_bucket_from_vol_order};
 import std::error::require;
 import std::regions::calldata;
 import types::Numerics::{Q96, U128_MAX};
-import types::pricing::TickUtils::{round_tick, vol_order_split_points};
+import pos_spec::TickUtils::{round_tick, vol_order_split_points};
 import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
 import types::protocol_integrations::PanopticTokenId::*;
 import v3::math::full_math::mulDiv;

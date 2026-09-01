@@ -1,4 +1,4 @@
-import lib::ldf::GeometricDistribution::geometric_liquidity_density_x96;
+import lib::ldf::GeometricLib::geometric_liquidity_density_x96;
 import types::ldf::Geometric::Geometric::Geometric;
 import types::ldf::Geometric::Iota::*;
 import types::ldf::Geometric::Xi::xiX96;

@@ -13,7 +13,7 @@
 // (via tick_bucket_from_vol_order, folding in skew), and Panoptic DEFINES the leg's strike and width
 // from that bucket's tick bounds.
 
-import types::pricing::TickUtils::TickBucket;
+import pos_spec::TickUtils::TickBucket;
 
 const PanopticTokenId = struct {
     tokenId: u256,

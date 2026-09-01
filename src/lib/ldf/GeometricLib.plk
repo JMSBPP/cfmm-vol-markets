@@ -2,6 +2,7 @@ import lib::math::FixedPointMath::rpow;
 import v3::math::full_math::{mulDiv, mulDivRoundingUp};
 import v3::math::tick_math::getSqrtRatioAtTick;
 import types::Numerics::{Q96};
+import std::error::require;
 
 // Geometric LDF liquidity density — the normalized geometric weight l(xi, iota; i) in Q96,
 // realized as a faithful port of Bunni's
@@ -145,4 +146,23 @@ const geometric_cumulative_underlying_on_liquidity = fn (
     }
 
     mulDivRoundingUp(density, total_liquidity, Q96)
+};
+
+const LegWeights = struct { w0: u256, w1: u256, w2: u256, w3: u256 };
+
+// geometric_leg_weights: normalized geometric masses (Q96) over the CR-I2 4-leg column tiling.
+const geometric_leg_weights = fn (i_l: u256, i_u: u256, tickSpacing: u256, i_star: u256, m_p: u256, m_c: u256) LegWeights {
+    let xi = getSqrtRatioAtTick(0 -% tickSpacing);
+    let iota = (i_u -% i_l) </ tickSpacing;
+    let c1 = (m_p -% i_l) </ tickSpacing;
+    let c2 = (i_star -% i_l) </ tickSpacing;
+    let c3 = (m_c -% i_l) </ tickSpacing;
+    require((c1 <= c2) and (c2 <= c3) and (c3 <= iota));
+
+    let den = Q96 -% rpow(xi, iota, Q96);
+    let cum1 = mulDiv(Q96 -% rpow(xi, c1, Q96), Q96, den);
+    let cum2 = mulDiv(Q96 -% rpow(xi, c2, Q96), Q96, den);
+    let cum3 = mulDiv(Q96 -% rpow(xi, c3, Q96), Q96, den);
+
+    LegWeights { w0: cum1, w1: cum2 -% cum1, w2: cum3 -% cum2, w3: Q96 -% cum3 }
 };

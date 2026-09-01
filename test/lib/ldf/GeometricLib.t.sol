@@ -14,8 +14,8 @@ contract GeoRef {
 
 // The Plank geometric liquidity density must match Bunni's LibGeometricDistribution exactly (same
 // formula, same rpow / 512-bit mulDiv). alpha (=xi) in Q96; minTick (=i_min); length (=iota).
-contract GeometricDistributionTest is PlankTestBase {
-    // FFI-deployed Plank harness (GeometricDistributionHarness.plk):
+contract GeometricLibTest is PlankTestBase {
+    // FFI-deployed Plank harness (GeometricLibHarness.plk):
     //   geoDensity(int24 roundedTick, int24 tickSpacing, int24 minTick, int24 length, uint256 alphaX96) -> uint256
     address internal harness;
     GeoRef internal ref;
@@ -23,7 +23,7 @@ contract GeometricDistributionTest is PlankTestBase {
     uint256 constant Q96 = 1 << 96;
 
     function setUp() public {
-        harness = deployPlank("test/lib/ldf/GeometricDistributionHarness.plk");
+        harness = deployPlank("test/lib/ldf/GeometricLibHarness.plk");
         ref = new GeoRef();
     }
 

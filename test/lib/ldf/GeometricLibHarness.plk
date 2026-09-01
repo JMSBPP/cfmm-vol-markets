@@ -1,6 +1,6 @@
 import std::constructor::return_runtime;
 import v3::util::return_u256;
-import lib::ldf::GeometricDistribution::*;
+import lib::ldf::GeometricLib::*;
 
 // cast sig "geoDensity(int24,int24,int24,int24,uint256)" -> 0xec3b36d7
 const SEL_GEO_DENSITY = 0xec3b36d7;

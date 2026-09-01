@@ -1,5 +1,5 @@
 import std::error::require;
-import lib::ldf::GeometricDistribution::{
+import lib::ldf::GeometricLib::{
     geometric_cumulative_collateral_on_liquidity,
     geometric_cumulative_underlying_on_liquidity
 };

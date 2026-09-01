@@ -1,4 +1,5 @@
 import types::Numerics::{WAD,Q64_96_RESOLUTION};
+import v3::math::tick_math::getTickAtSqrtRatio;
 
 const TickVolatility = struct {
       vol:u256
@@ -44,4 +45,13 @@ const return_volWAD = fn(self: TickVolatility) never {
       let out_ptr = @malloc_uninit(32);
       @mstore32(out_ptr, res.vol);
       @evm_return(out_ptr, 32);
+};
+
+// sqrtPriceX64x96 of the vol strike; used until #100 replaces vol-on-ticks geometry.
+const tick_volatility_sqrt_price_X64x96 = fn(self: TickVolatility) u256 {
+    volQ64X96(self).vol
+};
+
+const tick_volatility_tick = fn(self: TickVolatility) u256 {
+    getTickAtSqrtRatio(tick_volatility_sqrt_price_X64x96(self))
 };
