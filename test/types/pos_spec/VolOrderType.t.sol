@@ -284,7 +284,7 @@ contract VolOrderTypeTest is PlankTestBase {
 
     /// `plank build <path>` with the same module roots as PlankTestBase.plankOpts(), no deploy.
     function _tryBuild(string memory path) internal returns (Vm.FfiResult memory) {
-        string[] memory a = new string[](19);
+        string[] memory a = new string[](17);
         a[0] = "plank"; a[1] = "build"; a[2] = path; a[3] = "--backend"; a[4] = "sona";
         a[5] = "--dep"; a[6] = "v3=lib/plankified-univ3/plank/lib";
         a[7] = "--dep"; a[8] = "std=lib/plank-monorepo/std/";
@@ -292,7 +292,6 @@ contract VolOrderTypeTest is PlankTestBase {
         a[11] = "--dep"; a[12] = "lib=src/lib";
         a[13] = "--dep"; a[14] = "types=src/types";
         a[15] = "--dep"; a[16] = "interfaces=src/interfaces";
-        a[17] = "--dep"; a[18] = "helpers=test/protocol_integrations/reactive";
         return vm.tryFfi(a);
     }
 

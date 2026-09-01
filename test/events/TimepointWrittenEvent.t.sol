@@ -27,8 +27,6 @@ import {Vm} from "forge-std/Vm.sol";
 //   - missing seed emit on initializeTWAP        -> test__unit__initializeEmitsSeedAndWindow
 //   - masked-not-signextended tick/avgTick/cum   -> negative-tick seed expectEmit +
 //                                                   abi.decode validation in _decodeE3
-//   - dispatcher-level emit placement (skips the
-//     reactive on_price_update path)             -> test__unit__onPriceUpdateEmits
 //   - emit on the same-block early-out           -> test__unit__sameBlockSecondWriteEmitsNothing
 //   - emit-before-store / wrong-field emit       -> test__fuzz__writeLogMirrorsStoredTimepoint
 //   - missing/wrong default-window E6            -> test__unit__initializeEmitsSeedAndWindow
@@ -59,7 +57,6 @@ contract TimepointWrittenEventTest is PlankTestBase {
     bytes32 internal constant TOPIC0_WINDOW_CHANGED =
         0x046630eacacfeb3f36a64fd8cb291b41c3e78bcd57f8733e12b9afeb69968b47;
 
-    bytes4 internal constant SEL_ON_PRICE_UPDATE = 0x88a95317; // onPriceUpdate(address,bytes32,uint160,int24)
     uint32 internal constant DEFAULT_WINDOW = 86400;
 
     IRVolMod internal mod;
@@ -190,41 +187,5 @@ contract TimepointWrittenEventTest is PlankTestBase {
         vm.recordLogs();
         mod.writeTimepoint(1_000_600, 999); // same block: silently ignored, no event
         assertEq(vm.getRecordedLogs().length, 0, "same-block write emits nothing");
-    }
-
-    // The REACTIVE path: onPriceUpdate flows through write_timepoint's emit. Kills the
-    // dispatcher-placement mutant, which would emit on writeTimepoint but silently never on
-    // the production callback path (spec E3, review F-RC3).
-    function test__unit__onPriceUpdateEmits() public {
-        mod.initializeTWAP(1_000_000, 100);
-        vm.warp(1_000_600);
-        int24 tick = -4567;
-        // onPriceUpdate(rvmSender, poolId, sqrtPriceX96, tick); tick@100, sign-extended by ABI.
-        (bool ok,) = address(mod).call(
-            abi.encodeWithSelector(SEL_ON_PRICE_UPDATE, address(0xBEEF), bytes32(uint256(1)), uint160(1 << 96), tick)
-        );
-        assertTrue(ok, "onPriceUpdate call succeeds");
-
-        // The emitted timepoint mirrors the stored one, stamped with block.timestamp.
-        (uint32 sts, int24 stick,,,) = _storedAt(mod.lastIndex());
-        assertEq(sts, uint32(1_000_600), "reactive write stamped with block.timestamp");
-        assertEq(stick, tick, "reactive write stored the Swap tick");
-    }
-
-    // The reactive path ALSO emits the log (separate from the state assert above so a
-    // log-only failure is unambiguous).
-    function test__unit__onPriceUpdateEmitsE3Log() public {
-        mod.initializeTWAP(1_000_000, 100);
-        vm.warp(1_000_600);
-        vm.recordLogs();
-        (bool ok,) = address(mod).call(
-            abi.encodeWithSelector(SEL_ON_PRICE_UPDATE, address(0xBEEF), bytes32(uint256(1)), uint160(1 << 96), int24(-4567))
-        );
-        assertTrue(ok, "onPriceUpdate call succeeds");
-        Vm.Log[] memory e3 = _filterE3(vm.getRecordedLogs());
-        assertEq(e3.length, 1, "reactive path emits exactly one E3");
-        (uint32 lts, int24 ltick,,,) = _decodeE3(e3[0]);
-        assertEq(lts, uint32(1_000_600), "reactive E3 timestamp");
-        assertEq(ltick, int24(-4567), "reactive E3 tick (sign-extended)");
     }
 }

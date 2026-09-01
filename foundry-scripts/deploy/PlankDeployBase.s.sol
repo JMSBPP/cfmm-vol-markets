@@ -6,8 +6,7 @@ import {PlankDeployer, BuildOptions, Dependency} from "plank-foundry-deployer/Pl
 
 /// @notice Shared base for the module deployment scripts: the SAME module roots the test
 /// suite compiles with (PlankTestBase.plankOpts, restated -- scripts must not import test/),
-/// plus the anvil deployer convention the off-chain drivers (haskell rpc_api) already use
-/// (foundry-scripts/PriceSetterHook.s.sol precedent).
+/// plus the anvil deployer convention the off-chain drivers (haskell rpc_api) already use.
 ///
 /// USAGE (local rig): anvil &  then
 ///   forge script foundry-scripts/deploy/Deploy<Module>.s.sol --rpc-url local --broadcast --ffi --via-ir
@@ -19,14 +18,13 @@ abstract contract PlankDeployBase is Script, PlankDeployer {
 
     function plankOpts() internal pure returns (BuildOptions memory opts) {
         opts.backend = "sona";
-        Dependency[] memory deps = new Dependency[](7);
+        Dependency[] memory deps = new Dependency[](6);
         deps[0] = Dependency("v3", "lib/plankified-univ3/plank/lib");
         deps[1] = Dependency("std", "lib/plank-monorepo/std/");
         deps[2] = Dependency("pos_spec", "src/types/pos_spec");
         deps[3] = Dependency("lib", "src/lib");
         deps[4] = Dependency("types", "src/types");
         deps[5] = Dependency("interfaces", "src/interfaces");
-        deps[6] = Dependency("helpers", "test/protocol_integrations/reactive");
         opts.dependencies = deps;
     }
 

@@ -36,8 +36,6 @@ v4-core/=lib/panoptic-v2-core/lib/v4-core/src/
 plank-foundry-deployer/=lib/plank-foundry-deployer/src/
 scripts/=foundry-scripts/
 plankified-univ3/=lib/plankified-univ3/contracts/
-reactive-lib/=lib/shizo/lib/reactive-lib/
-shizo/=lib/shizo/src/
 unistrata/=lib/unistrata/src/
 v3-core/=lib/panoptic-v2-core/lib/v3-core/contracts/
 v3-periphery/=lib/panoptic-v2-core/lib/v3-periphery/contracts/
@@ -45,8 +43,6 @@ v4-periphery/=lib/unistrata/lib/uniswap-hooks/lib/v4-periphery/
 @cryptoalgebra/integral-periphery/=node_modules/@cryptoalgebra/integral-periphery/contracts/
 node_modules/@cryptoalgebra/integral-periphery/:@cryptoalgebra/integral-core/=node_modules/@cryptoalgebra/integral-core/
 utils/=src/lib/
-reactive-test-lib/=lib/reactive-test-lib/src/
-reactive=lib/reactive-smart-contract-demos/src/
 test/=test/
 cfmm-types-test/=lib/cfmm-types/test/
 
