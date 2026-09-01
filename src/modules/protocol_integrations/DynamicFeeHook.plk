@@ -1,10 +1,10 @@
 import std::constructor::return_runtime;
-import types::market_state_measurements::Timepoint::*;
-import types::premium::AlgebraFeeConfiguration::*;
-import lib::market_state_measurements::RealizedVolatilityLib::*;
-import lib::market_state_measurements::RealizedVolatilityStateLib::*;
-import lib::premium::AdaptiveFee::{get_fee, validate_fee_configuration};
-import lib::events::VolEventsLib::{emit_fee_applied, emit_fee_configuration_changed};
+import types::fee_volatility::Timepoint::*;
+import types::fee_volatility::AlgebraFeeConfiguration::*;
+import lib::fee_volatility::RealizedVolatilityLib::*;
+import lib::fee_volatility::RealizedVolatilityStateLib::*;
+import lib::fee_volatility::AdaptiveFee::{get_fee, validate_fee_configuration};
+import lib::fee_volatility::VolEventsLib::{emit_fee_applied, emit_fee_configuration_changed};
 import pos_spec::TickVolatility::*;
 import v3::util::{return_u256, revert_empty};
 import std::error::require;

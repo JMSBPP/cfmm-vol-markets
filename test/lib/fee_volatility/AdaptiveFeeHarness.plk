@@ -1,6 +1,6 @@
 import std::constructor::return_runtime;
-import lib::premium::AdaptiveFee::*;
-import types::premium::AlgebraFeeConfiguration::*;
+import lib::fee_volatility::AdaptiveFee::*;
+import types::fee_volatility::AlgebraFeeConfiguration::*;
 
 // Harness for the Algebra AdaptiveFee port (exp_x_g4 / sigmoid / get_fee). Differential-tested vs the
 // real @cryptoalgebra/dynamic-fee-plugin AdaptiveFee library.

@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
-import {PlankTestBase} from "../PlankTestBase.sol";
-import {MarketStatisticsAlgebraRef} from "../MarketStatisticsTest.t.sol";
+import {PlankTestBase} from "../../PlankTestBase.sol";
+import {MarketStatisticsAlgebraRef} from "../../MarketStatisticsTest.t.sol";
 import {VolatilityOraclePluginImplementation} from
     "@cryptoalgebra/volatility-oracle-plugin/VolatilityOraclePluginImplementation.sol";
 
@@ -32,7 +32,7 @@ contract GetAverageVolatilityDiffTest is PlankTestBase {
     uint32 constant WINDOW = 86400; // Algebra's 1 day
 
     function setUp() public {
-        plk = IPlankVolMod(deployPlank("src/modules/market_state_measurements/RealizedVolatilityMod.plk"));
+        plk = IPlankVolMod(deployPlank("src/modules/fee_volatility/RealizedVolatilityMod.plk"));
         alg = new MarketStatisticsAlgebraRef(new VolatilityOraclePluginImplementation());
     }
 

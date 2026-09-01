@@ -16,9 +16,9 @@
 // binders pass the PERMANENT 0 sentinel; the pool-keyed hook passes its bound poolId.
 
 import pos_spec::TickVolatility::*;
-import types::market_state_measurements::Timepoint::*;
-import lib::market_state_measurements::RealizedVolatilityLib::*;
-import lib::events::VolEventsLib::{emit_timepoint_written, emit_window_changed};
+import types::fee_volatility::Timepoint::*;
+import lib::fee_volatility::RealizedVolatilityLib::*;
+import lib::fee_volatility::VolEventsLib::{emit_timepoint_written, emit_window_changed};
 import v3::storage::{array_slot};
 import std::error::require;
 

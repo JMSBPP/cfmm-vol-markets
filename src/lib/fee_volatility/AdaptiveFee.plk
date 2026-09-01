@@ -3,7 +3,7 @@
 // alpha / (1 + e^((beta - x)/gamma)). All integer arithmetic; differential-tested byte-exact vs the
 // real AdaptiveFee. exp_x_g4 (exp Taylor series) -> sigmoid -> get_fee.
 
-import types::premium::AlgebraFeeConfiguration::*;
+import types::fee_volatility::AlgebraFeeConfiguration::*;
 import std::error::require;
 
 // 10^20 scale used by the e^k lookup table.

@@ -19,7 +19,7 @@ struct PlankTimepoint {
 /// @dev WHY A LIBRARY. This unpacker existed twice already (the full 7-field copy in
 ///      RealizedVolatilitySmoke.t.sol, a partial 3-field copy in RealizedVolatility.diff.t.sol) and
 ///      VDIFF-04 needed a third. Three copies of a bit layout is three chances to desynchronise from
-///      src/types/market_state_measurements/Timepoint.plk. There is now one.
+///      src/types/fee_volatility/Timepoint.plk. There is now one.
 ///
 /// @dev THE OFFSETS ARE MIRRORED, NOT SHARED. Plank's packing order is NOT Solidity's struct packing
 ///      order, so these constants restate Timepoint.plk:30-35 by hand. What must match Algebra is the

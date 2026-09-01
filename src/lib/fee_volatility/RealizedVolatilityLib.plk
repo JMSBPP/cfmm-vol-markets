@@ -1,5 +1,5 @@
 import pos_spec::TickVolatility::*;
-import types::market_state_measurements::Timepoint::*;
+import types::fee_volatility::Timepoint::*;
 import v3::storage::{array_slot};
 import v3::util::{revert_empty};
 

@@ -26,7 +26,7 @@ const SELECTOR_POOL_MANAGER = 0xdc4c90d3;
 const SELECTOR_POOL_ID = 0x3e0dc34e;
 
 // ---- EVENTS (all with the REAL bound poolId as topic1; source of truth:
-//      lib/events/VolEventsLib.plk; solc-asserted in test/protocol_integrations/) ----
+//      lib/fee_volatility/VolEventsLib.plk; solc-asserted in test/protocol_integrations/) ----
 // event:: FeeApplied(bytes32 indexed poolId, uint88 sigma, uint24 fee)
 //   per swap, INCLUDING same-block buffer no-ops (several FeeApplied may share one
 //   TimepointWritten). fee is pips WITHOUT the override flag; the subgraph join invariant is

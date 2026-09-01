@@ -4,7 +4,7 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
-import {PlankTestBase} from "../PlankTestBase.sol";
+import {PlankTestBase} from "../../PlankTestBase.sol";
 import {AlgebraFeeConfiguration} from "@cryptoalgebra/dynamic-fee-plugin/types/AlgebraFeeConfiguration.sol";
 import {
     AlgebraFeeConfigurationU144,
@@ -46,7 +46,7 @@ contract AlgebraFeeConfigTest is PlankTestBase {
     AFCRef internal ref;
 
     function setUp() public {
-        harness = deployPlank("test/premium/AlgebraFeeConfigHarness.plk");
+        harness = deployPlank("test/types/fee_volatility/AlgebraFeeConfigHarness.plk");
         ref = new AFCRef();
     }
 

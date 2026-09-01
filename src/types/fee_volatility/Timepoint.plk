@@ -1,6 +1,6 @@
 
 import pos_spec::TickVolatility::*;
-import lib::market_state_measurements::RealizedVolatilityLib::*;
+import lib::fee_volatility::RealizedVolatilityLib::*;
 
 const INIT_STORAGE_INDEX = 0;
 const INIT_TIME_WINDOW = 0;
