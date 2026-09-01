@@ -24,7 +24,7 @@ import pos_spec::VegaTarget::*;
 import std::error::require;
 import std::option::{None};
 import std::regions::calldata;
-import types::Extra::Extra;
+import types::utils::Extra::Extra;
 
 // v1 pins the tickSpacing field rather than taking it from the caller. This is NOT
 // cosmetic: vol_range_width_is_complete ANDs `tickSpacing > 0`, so a zeroed tickSpacing
