@@ -29,7 +29,7 @@ const SELECTOR_ORDER_COUNT = 0x2453ffa8;
 const SELECTOR_GET_ORDER_PACKED = 0xa9bcabc1;
 
 
-// ---- EVENTS (emitted by VolOrderManagerMod; source of truth: lib/fee_volatility/VolEventsLib.plk;
+// ---- EVENTS (emitted by VolOrderManagerMod; source of truth: lib/events/VolEventsLib.plk;
 //      topic0s cast-verified and solc-asserted in test/pos_spec/VolOrderTargetVega.t.sol) ----
 // event:: VolOrderCreated(uint256 indexed orderId, uint88 strike, uint24 width, uint16 skew, uint96 targetVega)
 //   data = 4 words (strike, width, skew, targetVega); targetVega = DeltaQ_v* in RAW LIQUIDITY
