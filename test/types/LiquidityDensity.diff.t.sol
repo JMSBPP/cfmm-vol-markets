@@ -9,11 +9,11 @@ import {ShiftMode} from "bunni-v2/src/ldf/ShiftMode.sol";
 import {LDFType} from "bunni-v2/src/types/LDFType.sol";
 import {LibGeometricDistribution} from "bunni-v2/src/ldf/LibGeometricDistribution.sol";
 import {ILiquidityDensityFunction} from "bunni-v2/src/interfaces/ILiquidityDensityFunction.sol";
-import {GeometricLibTest} from "bunni-v2/test/ldf/GeometricDistribution.t.sol";
+import {GeometricDistributionTest} from "bunni-v2/test/ldf/GeometricDistribution.t.sol";
 import {IPlankLiquidityDensityHarness} from "./LiquidityDensity.t.sol";
 
-/// @dev Bunni reference — {GeometricLibTest}; forwards {ILiquidityDensityFunction} for Guarded.
-contract BunniLDFOracle is GeometricLibTest, ILiquidityDensityFunction {
+/// @dev Bunni reference — {GeometricDistributionTest}; forwards {ILiquidityDensityFunction} for Guarded.
+contract BunniLDFOracle is GeometricDistributionTest, ILiquidityDensityFunction {
     function initHarness() public {
         _setUpLDF();
     }
