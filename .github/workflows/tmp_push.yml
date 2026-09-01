@@ -67,3 +67,46 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: plank
         run: just plank test/types/PairHarness.plk
+
+  foundry:
+    needs: plank
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 10
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: install foundry
+        run: |
+          set -euo pipefail
+          . ./.github/foundry-version
+          : "${FOUNDRY_VERSION:?}" "${FOUNDRY_COMMIT:?}" "${FOUNDRYUP_INSTALLER_COMMIT:?}"
+
+          PINS="$HOME/.foundry-pins"
+          export FOUNDRY_DIR="$PINS/$FOUNDRY_VERSION"
+          mkdir -p "$FOUNDRY_DIR"
+
+          if ! test -x "$FOUNDRY_DIR/bin/forge"; then
+            curl -fsSL --retry 3 \
+              "https://raw.githubusercontent.com/foundry-rs/foundryup/${FOUNDRYUP_INSTALLER_COMMIT}/foundryup-init.sh" \
+              -o "$RUNNER_TEMP/foundryup-init.sh"
+            set +e
+            out="$(bash "$RUNNER_TEMP/foundryup-init.sh" 2>&1)"; rc=$?
+            set -e
+            printf '%s\n' "$out"
+            if [ "$rc" -ne 0 ] && ! printf '%s' "$out" | grep -q 'could not detect shell'; then
+              echo "::error::foundryup-init.sh failed (exit $rc)"; exit 1
+            fi
+            "$FOUNDRY_DIR/bin/foundryup" --install "${FOUNDRY_VERSION#v}"
+            "$FOUNDRY_DIR/bin/forge" --version | grep -qF "$FOUNDRY_COMMIT" || {
+              echo "::error::forge commit does not match pin"
+              exit 1
+            }
+          fi
+          echo "$FOUNDRY_DIR/bin" >> "$GITHUB_PATH"
+
+      - name: forge version
+        run: forge --version
