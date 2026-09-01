@@ -41,12 +41,25 @@ change the default** — every other phase, including Phase 3, starts inline. Re
 session that hears about 2.5's worktree second-hand would otherwise read it as the rule having
 changed back.
 
+*Standing exception, vol-position track (set 2026-09-01):* `feat/vol-position` is a **persistent
+integration branch**, not a one-shot phase branch. It owns the dedicated worktree
+`../vol-markets-vol-position`. The branch **stays** after its PR merges to `develop` — do not
+delete it locally or on origin, and do not remove the worktree as teardown. Ongoing vol-position
+work continues on `feat/vol-position` in that worktree; merge slices to `develop` via PR as usual.
+The main checkout (`vol-markets`) returns to `develop` for everything else.
+
+*Canonical publish (set 2026-09-01):* fork `develop` syncs to `d2p-finance:main` via PR
+(`prod.yml` gate). Vol-position track: `JMSBPP:feat/vol-position` → `d2p-finance:vol-position`
+(`vol-position-gate.yml`). Never push directly to `d2p-finance/*`. See
+`docs/superpowers/specs/2026-09-01-canonical-vol-position-publish-design.md`.
+
 **Close the branch that did the merge.** A phase is not finished when its PR merges — it is
 finished when the branch is retired. Return the tree to `develop`, confirm the branch is fully
 merged, then delete it locally **and on origin**. Never `git branch -D`: if `-d` refuses,
 unmerged commits mean something did not reach `develop` — inspect and report. Under the inline
 rule this replaces `git worktree remove` as the teardown step, and a stale branch on a merged PR
-is a trap for the next phase.
+is a trap for the next phase. **Does not apply to `feat/vol-position`** — see the standing
+exception above.
 
 `d2p-finance/*` are the canonical/upstream repos; `JMSBPP/*` are the develop forks. **All
 changes land on the `JMSBPP` fork and reach `d2p-finance` ONLY via pull request
@@ -56,6 +69,14 @@ changes land on the `JMSBPP` fork and reach `d2p-finance` ONLY via pull request
 compiling or running the suite locally. Push the branch and read the GitHub Actions
 `develop-gate` result — the push is accepted only if `develop-gate` passes. Never report work
 as verified on the basis of a local build.
+
+**Do NOT run tests or builds locally.** Agents must not invoke `forge test`, `forge build`,
+`make compile-plank`, `make plank-toolchain`, or equivalent validation commands on the
+developer machine — not to verify a fix, not to reproduce a CI failure, not to "quickly check"
+before push. Local runs are unreliable here (submodules, node deps, Plank toolchain) and are
+explicitly out of scope. The workflow is: edit → push → monitor CI (`push-build` on the branch,
+`develop-gate` on merge). Diagnose failures only from GitHub Actions logs (`gh run view --log-failed`).
+Set 2026-08-31 after an agent ran `forge test` locally during LDF work.
 
 **Code chunks are approved before they are committed.** Present every source chunk (a file's
 diff, or one coherent hunk) to the maintainer in an `AskUserQuestion` block whose options are
