@@ -127,7 +127,7 @@ Keep adapters until callers migrate; mark deprecated in module comments.
 - `Extra` producer / `vol_order_to_panoptic_token_id` FLAG_PANOPTIC dereference  
 - `quantizationReport`  
 - Payoff replica wiring (but `ladder` is stored for it)  
-- Renaming branch `type/VolOrder` (name is historical; type is `VolPosition`)
+- Branch `type/VolPosition` (worktree `vol-markets-type-volposition`)
 
 ---
 

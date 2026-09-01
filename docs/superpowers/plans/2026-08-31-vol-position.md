@@ -12,7 +12,7 @@
 
 ## Global constraints
 
-- **Worktree:** `../vol-markets-type-volorder`, branch `type/VolOrder`.
+- **Worktree:** `../vol-markets-type-volposition`, branch `type/VolPosition`.
 - **Chunk approval before commit.**
 - **TDD RED first** for each behaviour slice.
 - **Scoped `git add`** — docs-only commits on this PR until implementation tasks start.
@@ -65,7 +65,7 @@
 
 ### Task 4 — CI + PR merge
 
-- Push `type/VolOrder` → read `push-build` + `develop-gate`.
+- Push `type/VolPosition` → read `push-build` + `develop-gate`.
 - Merge PR to `develop`.
 - Delete branch local + origin (`git branch -d`).
 
