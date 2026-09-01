@@ -62,7 +62,7 @@ contract TimepointWrittenEventTest is PlankTestBase {
     IRVolMod internal mod;
 
     function setUp() public {
-        mod = IRVolMod(deployPlank("src/modules/fee-volatility/RealizedVolatilityMod.plk"));
+        mod = IRVolMod(deployPlank("src/modules/fee_volatility/RealizedVolatilityMod.plk"));
     }
 
     function test__unit__topicZeroConstantsMatchSolc() public pure {

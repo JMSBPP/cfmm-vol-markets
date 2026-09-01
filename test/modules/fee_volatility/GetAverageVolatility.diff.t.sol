@@ -32,7 +32,7 @@ contract GetAverageVolatilityDiffTest is PlankTestBase {
     uint32 constant WINDOW = 86400; // Algebra's 1 day
 
     function setUp() public {
-        plk = IPlankVolMod(deployPlank("src/modules/fee-volatility/RealizedVolatilityMod.plk"));
+        plk = IPlankVolMod(deployPlank("src/modules/fee_volatility/RealizedVolatilityMod.plk"));
         alg = new MarketStatisticsAlgebraRef(new VolatilityOraclePluginImplementation());
     }
 
