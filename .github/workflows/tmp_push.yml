@@ -1,17 +1,19 @@
 name: tmp-push
 
 on:
-	push:
+ push:
 
 jobs:
-	build:
-		runs-on:[cfmm-build]
-		steps:
-			- name: submodules
-			  run:
-				git submodule update --init lib/forge-std
-				git submodule update --init lib/plank-monorepo
-				git submodule update --init lib/plankified-univ3
-		       - name: plank
-		       	 run just plank test/types/PairHarness.plk
+ build:
+  runs-on: [self-hosted, cfmm-build]
+   steps:
+    - uses: actions/checkout@v4
+    - name: submodules
+      run: |
+       git submodule update --init lib/forge-std
+       git submodule update --init lib/plank-monorepo
+       git submodule update --init lib/plankified-univ3
+    - name: plank
+      run:
+       just plank test/types/PairHarness.plk
    
