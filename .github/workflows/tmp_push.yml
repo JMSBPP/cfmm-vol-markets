@@ -38,7 +38,9 @@ jobs:
       - name: install just
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to "$HOME/.local/bin"
+          if ! test -x "$HOME/.local/bin/just"; then
+            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to "$HOME/.local/bin"
+          fi
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
   plank:
@@ -59,7 +61,9 @@ jobs:
       - name: install just
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to "$HOME/.local/bin"
+          if ! test -x "$HOME/.local/bin/just"; then
+            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to "$HOME/.local/bin"
+          fi
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: plank
         run: just plank test/types/PairHarness.plk
