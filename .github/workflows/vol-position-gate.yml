@@ -200,7 +200,9 @@ jobs:
         with:
           submodules: false
           fetch-depth: 0
-          ref: ${{ github.head_ref || github.ref }}
+          # head_ref is a branch name on the PR head repo; on fork PRs it is absent from
+          # github.repository. head.sha is always fetchable for pull_request events.
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: true
       - run: git submodule sync --recursive
       - name: Sync and verify root submodule gates
