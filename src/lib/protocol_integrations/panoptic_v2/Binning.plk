@@ -20,6 +20,10 @@ import types::Ladder::{
 };
 import types::pricing::TickUtils::{round_tick, vol_order_split_points};
 import types::protocol_integrations::VolMarketKey::*;
+import pos_spec::ClearingHouse::*;
+import pos_spec::VolPosition::*;
+import lib::protocol_integrations::panoptic_v2::VolPositionId::vol_position_panoptic_id_word;
+import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
 
 // Haskell orMinDefault — reject optionRatio below this (Panoptic validate reverts on 0).
 const OR_MIN_DEFAULT = 8;
@@ -227,4 +231,33 @@ const bin_to_legs = fn(
     require(leg_weight_value(book.w2) >= or_min);
     require(leg_weight_value(book.w3) >= or_min);
     book
+};
+
+const vol_position_from_ladder = fn(
+    comptime kind: type,
+    comptime R: type,
+    comptime V: type,
+    comptime CH: type,
+    or_min: u256,
+    bound: LegWeightBound,
+    market: VolMarketKey(V),
+    vo: VolOrder(R),
+    l: Ladder(V),
+    iota_chunk: Iota(R),
+    out: Slice(memory, u256, comptime { None(u256) }),
+    pool_id: PanopticPoolId
+) VolPosition(V, R, CH) {
+    let book = bin_to_legs(kind, R, V, or_min, bound, l, market, vo, iota_chunk, out);
+    let id = if CH == Panoptic {
+        Some(vol_position_panoptic_id_word(R, vo, book, pool_id))
+    } else {
+        None(u256)
+    };
+    VolPosition(V, R, CH) {
+        id: id,
+        market: market,
+        order: vo,
+        ladder: l,
+        book: book
+    }
 };

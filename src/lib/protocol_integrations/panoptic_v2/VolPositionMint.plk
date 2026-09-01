@@ -1,0 +1,88 @@
+// VolOrder → MintPlan sizing (V2-03). Token id from VolPositionId; positionSize from target vega.
+import lib::ldf::LDFLib::{geometric_leg_weights, LegWeights};
+import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
+import lib::protocol_integrations::panoptic_v2::VolPositionId::vol_order_to_panoptic_token_id;
+import pos_spec::VegaTarget::pack_vega_target;
+import pos_spec::VolOrder::{VolOrder, tick_bucket_from_vol_order};
+import std::error::require;
+import std::regions::calldata;
+import types::Numerics::{Q96, U128_MAX};
+import types::pricing::TickUtils::{round_tick, vol_order_split_points};
+import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
+import types::protocol_integrations::PanopticTokenId::*;
+import v3::math::full_math::mulDiv;
+import v3::math::tick_math::getSqrtRatioAtTick;
+
+const MintPlan = struct {
+      token_id: PanopticTokenId,
+      position_size: u256
+};
+
+const LegSplit = struct { i_l: u256, m_p: u256, i_star: u256, m_c: u256, i_u: u256, ts: u256 };
+
+const vol_order_leg_split = fn (vo: VolOrder(calldata)) LegSplit {
+    let ts = vo.rangeWidth.tickSpacing;
+    let i_star = round_tick(tick_volatility_tick(vo.volStrike), ts);
+    let tb = tick_bucket_from_vol_order(vo);
+    let sp = vol_order_split_points(tb.low, tb.up, i_star, ts);
+    LegSplit { i_l: tb.low, m_p: sp.m_p, i_star: i_star, m_c: sp.m_c, i_u: tb.up, ts: ts }
+};
+
+const leg_dsqrt = fn (lo: u256, hi: u256) u256 {
+    getSqrtRatioAtTick(hi) - getSqrtRatioAtTick(lo)
+};
+
+const position_size_for_target_vega = fn (vo: VolOrder(calldata)) u256 {
+    let s = vol_order_leg_split(vo);
+    let s_sum = mulDiv(Q96, Q96, leg_dsqrt(s.i_l, s.m_p))
+        + mulDiv(Q96, Q96, leg_dsqrt(s.m_p, s.i_star))
+        + mulDiv(Q96, Q96, leg_dsqrt(s.i_star, s.m_c))
+        + mulDiv(Q96, Q96, leg_dsqrt(s.m_c, s.i_u));
+    let ps = mulDiv(pack_vega_target(vo.targetVega), Q96, s_sum);
+    require(ps > 0);
+    require(ps <= U128_MAX);
+    ps
+};
+
+const vol_order_to_mint = fn (vo: VolOrder(calldata), pool_id: PanopticPoolId) MintPlan {
+    let base = vol_order_to_panoptic_token_id(calldata, vo, pool_id);
+    let mut tid = base.tokenId;
+    tid = panoptic_add_asset(tid, 1, 0);
+    tid = panoptic_add_asset(tid, 1, 1);
+    tid = panoptic_add_asset(tid, 1, 2);
+    tid = panoptic_add_asset(tid, 1, 3);
+
+    MintPlan {
+        token_id: PanopticTokenId { tokenId: tid, num_legs: 4 },
+        position_size: position_size_for_target_vega(vo)
+    }
+};
+
+const LegLiquidities = struct { l0: u256, l1: u256, l2: u256, l3: u256 };
+
+const induced_leg_liquidities = fn (vo: VolOrder(calldata)) LegLiquidities {
+    let s = vol_order_leg_split(vo);
+    let ps = position_size_for_target_vega(vo);
+    LegLiquidities {
+        l0: mulDiv(ps, Q96, leg_dsqrt(s.i_l, s.m_p)),
+        l1: mulDiv(ps, Q96, leg_dsqrt(s.m_p, s.i_star)),
+        l2: mulDiv(ps, Q96, leg_dsqrt(s.i_star, s.m_c)),
+        l3: mulDiv(ps, Q96, leg_dsqrt(s.m_c, s.i_u))
+    }
+};
+
+const average_density_chunks = fn (vo: VolOrder(calldata)) LegLiquidities {
+    let s = vol_order_leg_split(vo);
+    let w = geometric_leg_weights(s.i_l, s.i_u, s.ts, s.i_star, s.m_p, s.m_c);
+    let tv = pack_vega_target(vo.targetVega);
+    let n0 = (s.m_p -% s.i_l) </ s.ts;
+    let n1 = (s.i_star -% s.m_p) </ s.ts;
+    let n2 = (s.m_c -% s.i_star) </ s.ts;
+    let n3 = (s.i_u -% s.m_c) </ s.ts;
+    LegLiquidities {
+        l0: mulDiv(tv, w.w0, Q96) </ n0,
+        l1: mulDiv(tv, w.w1, Q96) </ n1,
+        l2: mulDiv(tv, w.w2, Q96) </ n2,
+        l3: mulDiv(tv, w.w3, Q96) </ n3
+    }
+};

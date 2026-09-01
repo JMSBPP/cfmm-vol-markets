@@ -1,0 +1,99 @@
+// Panoptic VolPosition.id derivation — VolOrder + LegBook + pool_id → PanopticTokenId.
+// Replaces PanopticTokenIdSetterLib for token-id encoding (Layer 1 + LegBook optionRatios).
+import pos_spec::LegBook::*;
+import pos_spec::VolOrder::{VolOrder, tick_bucket_from_vol_order, tick_bucket_from_vol_order_in};
+import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
+import std::error::require;
+import std::regions::calldata;
+import types::pricing::TickUtils::{round_tick, vol_order_split_points};
+import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
+import types::protocol_integrations::PanopticTokenId::*;
+
+// (VolOrder) → (PanopticTokenId) structural skeleton: 4 legs tiling [i_l, i_u], split at i*.
+// optionRatio per leg from caller (1,1,1,1) or LegBook weights via vol_position_panoptic_token_id.
+const vol_order_to_panoptic_token_id_with_ratios = fn (
+    comptime T: type,
+    vo: VolOrder(T),
+    pool_id: PanopticPoolId,
+    w0: u256,
+    w1: u256,
+    w2: u256,
+    w3: u256
+) PanopticTokenId {
+    let ts = vo.rangeWidth.tickSpacing;
+    let i_star = round_tick(tick_volatility_tick(vo.volStrike), ts);
+    let tb = tick_bucket_from_vol_order_in(T, vo);
+    let i_l = tb.low;
+    let i_u = tb.up;
+
+    require(!@evm_slt(i_star -% i_l, 2 *% ts));
+    require(!@evm_slt(i_u -% i_star, 2 *% ts));
+
+    let sp = vol_order_split_points(i_l, i_u, i_star, ts);
+    let m_p = sp.m_p;
+    let m_c = sp.m_c;
+
+    require(@evm_slt((m_p -% i_l) </ ts, 4096));
+    require(@evm_slt((i_star -% m_p) </ ts, 4096));
+    require(@evm_slt((m_c -% i_star) </ ts, 4096));
+    require(@evm_slt((i_u -% m_c) </ ts, 4096));
+
+    let mut tid = 0;
+    tid = panoptic_add_leg_from_bucket(tid, i_l, m_p, ts, 0);
+    tid = panoptic_add_leg_from_bucket(tid, m_p, i_star, ts, 1);
+    tid = panoptic_add_leg_from_bucket(tid, i_star, m_c, ts, 2);
+    tid = panoptic_add_leg_from_bucket(tid, m_c, i_u, ts, 3);
+
+    tid = panoptic_add_token_type(tid, 0, 0);
+    tid = panoptic_add_token_type(tid, 0, 1);
+    tid = panoptic_add_token_type(tid, 1, 2);
+    tid = panoptic_add_token_type(tid, 1, 3);
+
+    tid = panoptic_add_is_long(tid, 1, 0);
+    tid = panoptic_add_is_long(tid, 1, 1);
+    tid = panoptic_add_is_long(tid, 1, 2);
+    tid = panoptic_add_is_long(tid, 1, 3);
+    tid = panoptic_add_option_ratio(tid, w0, 0);
+    tid = panoptic_add_option_ratio(tid, w1, 1);
+    tid = panoptic_add_option_ratio(tid, w2, 2);
+    tid = panoptic_add_option_ratio(tid, w3, 3);
+
+    tid = panoptic_add_risk_partner(tid, 1, 1);
+    tid = panoptic_add_risk_partner(tid, 2, 2);
+    tid = panoptic_add_risk_partner(tid, 3, 3);
+
+    tid = panoptic_add_pool_id(tid, panoptic_pool_id_word(pool_id) & 0xffffffffffff);
+    tid = panoptic_add_tick_spacing(tid, ts);
+
+    PanopticTokenId { tokenId: tid, num_legs: 4 }
+};
+
+const vol_order_to_panoptic_token_id = fn (comptime T: type, vo: VolOrder(T), pool_id: PanopticPoolId) PanopticTokenId {
+    vol_order_to_panoptic_token_id_with_ratios(T, vo, pool_id, 1, 1, 1, 1)
+};
+
+const vol_position_panoptic_token_id = fn(
+    comptime R: type,
+    vo: VolOrder(R),
+    book: LegBook(BaseNotional),
+    pool_id: PanopticPoolId
+) PanopticTokenId {
+    vol_order_to_panoptic_token_id_with_ratios(
+        R,
+        vo,
+        pool_id,
+        leg_weight_value(book.w0),
+        leg_weight_value(book.w1),
+        leg_weight_value(book.w2),
+        leg_weight_value(book.w3)
+    )
+};
+
+const vol_position_panoptic_id_word = fn(
+    comptime R: type,
+    vo: VolOrder(R),
+    book: LegBook(BaseNotional),
+    pool_id: PanopticPoolId
+) u256 {
+    vol_position_panoptic_token_id(R, vo, book, pool_id).tokenId
+};

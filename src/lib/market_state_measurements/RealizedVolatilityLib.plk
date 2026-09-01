@@ -1,9 +1,42 @@
 import pos_spec::TickVolatility::*;
 import types::market_state_measurements::Timepoint::*;
-import types::StorageIndex::*;
-import types::TimeWindow::*;
 import v3::storage::{array_slot};
 import v3::util::{revert_empty};
+
+// Ring-buffer index into the timepoint buffer (2^16 slots, Algebra UINT16_MODULO).
+const INDEX_MODULO_MASK = 0xFFFF;
+
+const StorageIndex = struct {
+      current: u256
+};
+
+const initialize_storage_index = fn() StorageIndex {
+      StorageIndex { current: 0 }
+};
+
+const next = fn(self: StorageIndex) StorageIndex {
+      StorageIndex { current: (self.current +% 1) & INDEX_MODULO_MASK }
+};
+
+// Trailing observation window for realized-vol oracle averaging, in seconds (u32 in u256).
+const TimeWindow = struct {
+      window: u256
+};
+
+const WINDOW_MASK = 0xFFFFFFFF;
+const DEFAULT_TIME_WINDOW = 86400;
+
+const unpack_time_window = fn(packed: u256) TimeWindow {
+      TimeWindow { window: packed & WINDOW_MASK }
+};
+
+const pack_time_window = fn(self: TimeWindow) u256 {
+      self.window & WINDOW_MASK
+};
+
+const time_window_is_set = fn(self: TimeWindow) bool {
+      self.window > 0
+};
 
 const UINT16_MODULO = 65536;
 const TIMEPOINT_INDEX_MASK = 0xFFFF;

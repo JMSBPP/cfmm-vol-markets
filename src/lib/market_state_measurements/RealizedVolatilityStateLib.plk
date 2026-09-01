@@ -17,8 +17,6 @@
 
 import pos_spec::TickVolatility::*;
 import types::market_state_measurements::Timepoint::*;
-import types::StorageIndex::*;
-import types::TimeWindow::*;
 import lib::market_state_measurements::RealizedVolatilityLib::*;
 import lib::events::VolEventsLib::{emit_timepoint_written, emit_window_changed};
 import v3::storage::{array_slot};

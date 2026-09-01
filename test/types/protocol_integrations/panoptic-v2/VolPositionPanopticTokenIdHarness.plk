@@ -1,0 +1,118 @@
+import std::constructor::return_runtime;
+import std::option::{None, Some};
+import std::regions::memory;
+import lib::protocol_integrations::panoptic_v2::Binning::{
+    ladder_from_vol_order,
+    vol_position_from_ladder
+};
+import pos_spec::ClearingHouse::Panoptic;
+import pos_spec::LegBook::*;
+import pos_spec::VolPosition::*;
+import pos_spec::SpreadTickAssimetry::*;
+import pos_spec::TickVolatility::*;
+import pos_spec::VolOrder::*;
+import pos_spec::VolRangeWidth::*;
+import pos_spec::VegaTarget::*;
+import types::utils::Extra::Extra;
+import types::ldf::Geometric::Geometric::Geometric;
+import types::ldf::Geometric::Iota::*;
+import types::Ladder::{ladder_iota};
+import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
+import types::protocol_integrations::Pool::*;
+import types::protocol_integrations::Registry::*;
+import types::protocol_integrations::VolMarketKey::*;
+import types::protocol_integrations::Venue::*;
+import types::Pair::*;
+import std::core::addr::addr_from_u256;
+import std::slice::Slice;
+
+// cast sig "volPositionPanopticTokenId(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)"
+//      -> 0x8297ed38
+
+const SEL_VOL_POSITION_TID = 0x8297ed38;
+
+const FIX_C0 = 0x1111;
+const FIX_C1 = 0x2222;
+const FIX_REG = 0x3333;
+const FIX_FEE = 3000;
+
+const fixture_market = fn(ts: u256) VolMarketKey(V4) {
+    let p = pair(addr_from_u256(FIX_C0), addr_from_u256(FIX_C1), 0);
+    let reg = registry_v4(addr_from_u256(FIX_REG));
+    vol_market_key(V4, Some(p), Some(reg), Some(pool_v4(p, reg, FIX_FEE, ts)))
+};
+
+const fixture_vol_order = fn(
+    strike: u256,
+    width: u256,
+    skew: u256,
+    target_vega: u256,
+    ts: u256
+) VolOrder(memory) {
+    VolOrder(memory) {
+        rangeWidth: VolRangeWidth { width: width, tickSpacing: ts },
+        volStrike: TickVolatility { vol: strike },
+        skew: SpreadTickAssimetry { spread: skew },
+        targetVega: unpack_vega_target(target_vega),
+        extra: None(Extra(memory))
+    }
+};
+
+const iota_alloc = fn(length: u256) Iota(memory) {
+    let ptr = @malloc_uninit(32);
+    let chunk = Slice(memory, u256, comptime { Some(1) }) { ptr: ptr };
+    iota_write(chunk, length);
+    chunk
+};
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+
+    if selector == SEL_VOL_POSITION_TID {
+        let or_min = @evm_calldataload(4);
+        let bound_val = @evm_calldataload(36);
+        let strike = @evm_calldataload(68);
+        let width = @evm_calldataload(100);
+        let skew = @evm_calldataload(132);
+        let target_vega = @evm_calldataload(164);
+        let ts = @evm_calldataload(196);
+        let pool_id_word = @evm_calldataload(228);
+        let vo = fixture_vol_order(strike, width, skew, target_vega, ts);
+        let market = fixture_market(ts);
+        let l = ladder_from_vol_order(V4, memory, market, vo);
+        let iota = ladder_iota(l, V4, market);
+        let chunk = iota_alloc(iota);
+        let out_ptr = @malloc_uninit(iota *% 32);
+        let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
+        let bound = leg_weight_bound(bound_val);
+        let pool_id = PanopticPoolId { word: pool_id_word };
+        let vp = vol_position_from_ladder(
+            Geometric(memory),
+            memory,
+            V4,
+            Panoptic,
+            or_min,
+            bound,
+            market,
+            vo,
+            l,
+            chunk,
+            out,
+            pool_id
+        );
+        let book = vol_position_book(V4, memory, Panoptic, vp);
+        let tid = vol_position_panoptic_token_id_from_stored(V4, memory, vp);
+        let out_buf = @malloc_uninit(192);
+        @mstore32(out_buf, tid.tokenId);
+        @mstore32(out_buf +% 32, leg_weight_value(book.w0));
+        @mstore32(out_buf +% 64, leg_weight_value(book.w1));
+        @mstore32(out_buf +% 96, leg_weight_value(book.w2));
+        @mstore32(out_buf +% 128, leg_weight_value(book.w3));
+        @mstore32(out_buf +% 160, base_notional_value(leg_book_base(book)));
+        @evm_return(out_buf, 192);
+    }
+
+    @evm_stop();
+}

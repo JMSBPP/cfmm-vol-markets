@@ -1,0 +1,71 @@
+// VolPosition(V, R, CH) — protocol positioned product: market × order × ladder × LegBook × cleared id.
+// Design: docs/superpowers/specs/2026-08-31-vol-position-design.md
+// CH = clearing-house phantom (ClearingHouse.plk). id: Option(u256) — at construct, when
+// CH == Panoptic, Some(word) from lib/protocol_integrations/panoptic_v2/VolPositionId.plk.
+import pos_spec::ClearingHouse::*;
+import pos_spec::LegBook::*;
+import pos_spec::VolOrder::*;
+import std::error::require;
+import std::option::{None, Option, Some, unwrap};
+import types::Ladder::Ladder;
+import types::protocol_integrations::PanopticTokenId::*;
+import types::protocol_integrations::VolMarketKey::*;
+
+const VolPosition = fn(comptime V: type, comptime R: type, comptime CH: type) type {
+    if !is_clearing_house(CH) {
+        @compile_error("VolPosition: CH must be a clearing-house tag (ClearingHouse.plk)");
+    }
+    return struct {
+        id: Option(u256),
+        market: VolMarketKey(V),
+        order: VolOrder(R),
+        ladder: Ladder(V),
+        book: LegBook(BaseNotional)
+    };
+};
+
+const vol_position_id = fn(comptime V: type, comptime R: type, comptime CH: type, vp: VolPosition(V, R, CH)) Option(u256) {
+    vp.id
+};
+
+const vol_position_id_word = fn(comptime V: type, comptime R: type, comptime CH: type, vp: VolPosition(V, R, CH)) u256 {
+    unwrap(vp.id)
+};
+
+const vol_position_market = fn(comptime V: type, comptime R: type, comptime CH: type, vp: VolPosition(V, R, CH)) VolMarketKey(V) {
+    vp.market
+};
+
+const vol_position_order = fn(comptime V: type, comptime R: type, comptime CH: type, vp: VolPosition(V, R, CH)) VolOrder(R) {
+    vp.order
+};
+
+const vol_position_ladder = fn(comptime V: type, comptime R: type, comptime CH: type, vp: VolPosition(V, R, CH)) Ladder(V) {
+    vp.ladder
+};
+
+const vol_position_book = fn(comptime V: type, comptime R: type, comptime CH: type, vp: VolPosition(V, R, CH)) LegBook(BaseNotional) {
+    vp.book
+};
+
+const vol_position_position_size = fn(comptime V: type, comptime R: type, comptime CH: type, vp: VolPosition(V, R, CH)) u256 {
+    base_notional_value(leg_book_base(vp.book))
+};
+
+// CH == Panoptic: interpret stored id word as PanopticTokenId (requires Some).
+const vol_position_panoptic_token_id_from_stored = fn(
+    comptime V: type,
+    comptime R: type,
+    vp: VolPosition(V, R, Panoptic)
+) PanopticTokenId {
+    PanopticTokenId { tokenId: vol_position_id_word(V, R, Panoptic, vp), num_legs: 4 }
+};
+
+const vol_position_require_id_matches = fn(
+    comptime V: type,
+    comptime R: type,
+    vp: VolPosition(V, R, Panoptic),
+    expected: u256
+) void {
+    require(vol_position_id_word(V, R, Panoptic, vp) == expected);
+};
