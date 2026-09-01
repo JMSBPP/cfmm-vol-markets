@@ -1,3 +1,0 @@
-
-// next (poolId, tick, sqrtPrice, txlVolumeRate, txlDecayRate)
-const SELECTOR_NEXT= 0x04b5731a;

@@ -27,7 +27,7 @@ If the executable spec and the on-chain implementation can silently disagree, th
 - ✓ Plank `vol_order_to_panoptic_token_id(vo, pool_id)` Layer-1 map (4-leg, all-long, floor-strike encoder) — existing
 - ✓ Plank harness `VolOrderToPanopticTokenIdHarness.plk` exposing `tokenIdFromVolOrder`/`bucketFromVolOrder`/`centerTick` — existing
 - ✓ Structural/golden/fuzz suite `VolOrderToPanopticTokenId.t.sol` against a hand-ported `validate()` oracle — existing
-- ✓ Comptime type constructors are supported and proven in-repo (`Shock(R)` in `src/models/mev_tax_model_one/libraries/Shock.plk`) — existing
+- ✓ Comptime type constructors are supported in-repo (`VolOrder(T)` refactor target) — existing
 - ✓ `ffi = true` already enabled in `foundry.toml` — existing
 - ✓ `develop-gate` as sole required check on `develop` (approve → forge + plank on self-hosted runner) — existing
 

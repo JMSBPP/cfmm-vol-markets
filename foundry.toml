@@ -33,13 +33,7 @@ fs_permissions = [
     # vm.getCode only consults the current run's artifact registry, which sparse test
     # compilation starves of the e2e_legacy anchor's outputs.
     { access = "read", path = "./out/SemiFungiblePositionManagerV4.sol" },
-    # DeployAlgebraFactory.s.sol loads the Algebra factory/pool-deployer creation bytecode from
-    # these files instead of embedding ~68KB of hex inline (which SIGSEGVs solc --via-ir).
-    { access = "read", path = "./foundry-scripts/mev_tax_model_one/bytecode" },
     { access = "read", path = "./.bytecode/algebra" },
-    # The VolumePath test vm.exists/vm.readFile's its fixture here (dropped by the off-chain
-    # rpc_api bridge, #25); until then the test self-skips.
-    { access = "read", path = "./test/models/mev_tax_model_one/fixtures" },
     # The v4 VolumePath replay reads the same rig's identity files: loop-conformance.json (committed,
     # forkHeight + rig.poolId) and rig-manifest.json (gitignored, on-disk post-deploy-rig: the
     # PoolKey + contract addresses). Read-only — offchain writes remain the rpc_api workstream's.

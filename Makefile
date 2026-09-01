@@ -257,18 +257,13 @@ PLANK         ?= plank
 # `types::pos_spec::X`.
 PLANK_DEP := --dep v3=lib/plankified-univ3/plank/lib/ --dep std=lib/plank-monorepo/std/ --dep pos_spec=src/types/pos_spec \
              --dep lib=src/lib --dep types=src/types --dep interfaces=src/interfaces \
-             --dep helpers=test/protocol_integrations/helpers \
-             --dep model_interfaces=src/models/mev_tax_model_one/interfaces/ \
-             --dep model_libraries=src/models/mev_tax_model_one/libraries/
+             --dep helpers=test/protocol_integrations/helpers
 # cfmm-types entrypoints (Hook.plk): types root points at the submodule, not src/types.
 # Keep in sync with test/PlankTestBase.sol:cfmmTypesPlankOpts().
 CFMM_TYPES_PLANK_DEP := --dep std=lib/cfmm-types/lib/plank-monorepo/std/ --dep types=lib/cfmm-types/src/types
 # ^ `helpers`: test-only Plank helper libs (PriceUpdateLogWithSwap) that a src module's
 #   TEST-oriented entrypoint (PriceSetterHook.write_price) imports. Kept in sync with
 #   test/PlankTestBase.sol:plankOpts().
-# ^ `model_interfaces`/`model_libraries`: the mev_tax_model_one dep roots so compile-plank can
-#   build the model's own entrypoints (AlgebraIntegralShocksWriterMod, ShockHarness). Unused by
-#   non-model entrypoints (plank resolves only imported modules), so declaring them globally is safe.
 PLANK_BACKEND := sona
 PLANK_BUILD   := build/plank
 # plank-toolchain: build the plank_dev compiler from the PINNED plank-monorepo submodule and install
