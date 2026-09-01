@@ -82,7 +82,7 @@
 # 86 pass / 5 fail) and belongs to the TickVolatility track, NOT to src/types/pos_spec/. Re-run
 # before treating an extra failure as a regression.
 # See .planning/phases/17-interface-single-call-module/deferred-items.md (D1).
-test: check-algebra-ref-pin
+test:
 	forge test --via-ir --optimize
 
 # compile: every Plank entrypoint -> EVM bytecode. A PRECONDITION, never acceptance.
@@ -105,39 +105,6 @@ sol-test:
 
 test-pricing-kernel-diff:
 	forge clean && forge test --match-contract PricingKernelPlankdiffTest -vvvv --via-ir --optimize
-
-# The Solidity oracle references (Algebra + UniV3). This is the baseline the Plank
-# differential test diffs against, so it must be green before that work means anything.
-test-market-statistics:
-	forge test --match-contract MarketStatisticsTest --via-ir --optimize
-
-# The WHOLE realized-volatility differential suite -- all five contracts, which now live in the
-# single file test/modules/fee_volatility/RealizedVolatility.diff.t.sol:
-#
-#   RealizedVolatilityKernelProbeTest    the kernel pair on ONE point, vs a hand-derived anchor
-#   RealizedVolatilityKernelDiffTest     VDIFF-02: the 5-D kernel fuzz, full uint256, tolerance 0
-#   RealizedVolatilitySmokeTest          the module deploys, dispatches, and each past bug is
-#                                        falsifiable
-#   RealizedVolatilityDiffTest           Algebra vs UniV3 vs Plank on the TICK surface
-#   RealizedVolatilityTimepointDiffTest  VDIFF-04: Algebra vs Plank on the VARIANCE surface,
-#                                        asserted after EVERY write
-#
-# `make compile` passing proves NONE of this -- see the note on `test` above.
-test-realized-vol:
-	forge test --match-path 'test/modules/fee_volatility/RealizedVolatility.diff.t.sol' --via-ir --optimize
-
-# The Algebra reference the whole differential exercise is measured against lives in
-# node_modules -- untracked (.gitignore:2) and silently rewritten by `npm ci`. It was already
-# corrupted once by an editor auto-fill (tickCumulative -> tickC umulative). This pins the whole
-# 4-file import closure the harness links, NOT just VolatilityOracle.sol: pinning one file of a
-# closure is false assurance. Red here means the baseline moved -- every "bit-exact vs Algebra"
-# claim downstream is void until it is restored or deliberately re-pinned.
-check-algebra-ref-pin:
-	@bash scripts/check-algebra-ref-pin.sh
-
-# Everything that must be green for the oracle: the pinned baseline refs, then the whole vol
-# suite. The pin runs FIRST: verifying the baseline after diffing against it proves nothing.
-test-vol-prereqs: check-algebra-ref-pin test-market-statistics test-realized-vol
 
 # Phase 13 issuance library differential + fuzz battery (the single file
 # test/exposure/VegaIssuance.diff.t.sol -- probe + reverts + monotonicity from 13-01, plus the
@@ -239,7 +206,7 @@ test-vol-order-fixture:
 # .planning/phases/19-*/19-MUTATION-BATTERY.md as recorded OBSERVATIONS.
 test-vol-order-acceptance: test-vol-order-validation test-vol-order-manager test-vol-order-batch test-vol-order-return test-vol-order-diff test-vol-order-fixture
 
-.PHONY: check-algebra-ref-pin test-market-statistics test-realized-vol test-vol-prereqs test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation test-vol-order-manager test-vol-order-batch test-vol-order-return test-vol-order-diff test-vol-order-fixture test-vol-order-acceptance test-vol-order-tokenid-diff
+.PHONY: test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation test-vol-order-manager test-vol-order-batch test-vol-order-return test-vol-order-diff test-vol-order-fixture test-vol-order-acceptance test-vol-order-tokenid-diff
 
 
 #####################################################################

@@ -35,7 +35,7 @@
 import std::constructor::return_runtime;
 import interfaces::pos_spec::VolOrderManagerInterface::*;
 import lib::pos_spec::VolOrderValidationLib::{build_vol_order, validate_order_strict, validate_order};
-import lib::fee_volatility::VolEventsLib::{emit_vol_order_created};
+import lib::events::VolEventsLib::{emit_vol_order_created};
 import pos_spec::VolOrder::{pack_vol_order};
 import pos_spec::VegaTarget::{pack_vega_target};
 import v3::storage::{array_slot};

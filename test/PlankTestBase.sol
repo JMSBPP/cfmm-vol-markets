@@ -10,7 +10,7 @@ import {PlankDeployer, BuildOptions, Dependency} from "plank-foundry-deployer/Pl
 ///
 /// @dev Every `.t.sol` previously hand-rolled its own `Dependency[]`, and they had already
 ///      drifted apart: none of them declared the `interfaces` root, so any test deploying a
-///      module that imports `interfaces::` (e.g. RealizedVolatilityMod) failed with
+///      module that imports `interfaces::` (e.g. VolOrderManagerMod) failed with
 ///      "unknown module 'interfaces'". These roots MUST stay in lockstep with `PLANK_DEP`
 ///      in the Makefile -- that is the list `make compile-plank` builds with, and a test that
 ///      deploys with a different set is not testing what the gate compiled.
