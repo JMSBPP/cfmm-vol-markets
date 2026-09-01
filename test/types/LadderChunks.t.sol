@@ -24,7 +24,7 @@ contract LadderChunksTest is PlankTestBase {
 
     function setUp() public {
         ladderHarness = deployPlank("test/types/LadderHarness.plk");
-        geoHarness = deployPlank("test/lib/ldf/GeometricDistributionHarness.plk");
+        geoHarness = deployPlank("test/lib/ldf/GeometricLibHarness.plk");
     }
 
     function _ladderIota(int256 lo, int256 hi, int256 ts) internal returns (uint256) {

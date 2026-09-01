@@ -1,7 +1,7 @@
 import std::constructor::return_runtime;
-import lib::ldf::GeometricDistribution::geometric_cumulative_density_x96;
-import lib::ldf::LDFLib::geometric_leg_weights;
-import types::pricing::TickUtils::vol_order_split_points;
+import lib::ldf::GeometricLib::geometric_cumulative_density_x96;
+import lib::ldf::GeometricLib::geometric_leg_weights;
+import pos_spec::TickUtils::vol_order_split_points;
 import lib::math::FixedPointMath::rpow;
 import v3::math::tick_math::getSqrtRatioAtTick;
 

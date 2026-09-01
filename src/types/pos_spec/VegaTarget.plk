@@ -1,6 +1,6 @@
 import types::Numerics::U128_MAX;
 import types::protocol_integrations::VolMarketKey::*;
-import types::pricing::TickUtils::round_tick;
+import pos_spec::TickUtils::round_tick;
 
 const MASK_U24 = 0xffffff;
 

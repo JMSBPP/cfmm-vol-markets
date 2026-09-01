@@ -27,7 +27,7 @@ contract GeoCumRef {
 // The Plank geometric cumulativeAmount0 (Q_M^L from the notes) must match Bunni's
 // LibGeometricDistribution.cumulativeAmount0 exactly.
 contract GeometricCumulativeTest is PlankTestBase {
-    // FFI-deployed Plank harness (GeometricDistributionHarness.plk):
+    // FFI-deployed Plank harness (GeometricLibHarness.plk):
     //   geoCumAmount0(int24 roundedTick,uint256 totalLiquidity,int24 tickSpacing,int24 minTick,int24 length,uint256 alphaX96) -> uint256
     address internal harness;
     GeoCumRef internal ref;
@@ -35,7 +35,7 @@ contract GeometricCumulativeTest is PlankTestBase {
     uint256 constant Q96 = 1 << 96;
 
     function setUp() public {
-        harness = deployPlank("test/lib/ldf/GeometricDistributionHarness.plk");
+        harness = deployPlank("test/lib/ldf/GeometricLibHarness.plk");
         ref = new GeoCumRef();
     }
 

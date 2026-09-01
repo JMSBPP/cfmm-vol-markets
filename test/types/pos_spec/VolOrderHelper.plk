@@ -3,7 +3,7 @@ import std::constructor::return_runtime;
 import pos_spec::TickVolatility::*;
 import pos_spec::VolRangeWidth::*;
 import pos_spec::SpreadTickAssimetry::*;
-import types::pricing::TickUtils::*;
+import pos_spec::TickUtils::*;
 import v3::util::return_u256;
 
 // signature :: set_vol_order_vol_strike(uint256,uint88)

@@ -2,10 +2,10 @@
 // Replaces PanopticTokenIdSetterLib for token-id encoding (Layer 1 + LegBook optionRatios).
 import pos_spec::LegBook::*;
 import pos_spec::VolOrder::{VolOrder, tick_bucket_from_vol_order, tick_bucket_from_vol_order_in};
-import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
+import pos_spec::TickVolatility::tick_volatility_tick;
 import std::error::require;
 import std::regions::calldata;
-import types::pricing::TickUtils::{round_tick, vol_order_split_points};
+import pos_spec::TickUtils::{round_tick, vol_order_split_points};
 import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
 import types::protocol_integrations::PanopticTokenId::*;
 

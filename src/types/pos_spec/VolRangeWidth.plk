@@ -1,4 +1,4 @@
-import types::pricing::TickUtils::{compress,round_tick};
+import pos_spec::TickUtils::{compress,round_tick};
 import std::error::require;
 import std::math::{max,min};
 

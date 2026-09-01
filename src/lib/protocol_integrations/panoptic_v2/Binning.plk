@@ -1,5 +1,5 @@
 // Panoptic.Binning — 𝓑: ladder chunks → per-leg numeraire notionals → LegBook (spec Panoptic.Binning.hs).
-import lib::pos_spec::TickVolatilityLib::tick_volatility_tick;
+import pos_spec::TickVolatility::tick_volatility_tick;
 import pos_spec::LegBook::*;
 import pos_spec::VolOrder::*;
 import std::error::require;
@@ -18,7 +18,7 @@ import types::Ladder::{
     rung_chunk_tick_lo,
     rung_index
 };
-import types::pricing::TickUtils::{round_tick, vol_order_split_points};
+import pos_spec::TickUtils::{round_tick, vol_order_split_points};
 import types::protocol_integrations::VolMarketKey::*;
 import pos_spec::ClearingHouse::*;
 import pos_spec::VolPosition::*;

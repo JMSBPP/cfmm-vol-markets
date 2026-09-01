@@ -1,6 +1,6 @@
 import pos_spec::SpreadTickAssimetry::*;
 import std::constructor::return_runtime;
-import types::pricing::TickUtils::*;
+import pos_spec::TickUtils::*;
 import pos_spec::VolRangeWidth::*;
 
 

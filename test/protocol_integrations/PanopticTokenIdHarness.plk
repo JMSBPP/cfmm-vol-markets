@@ -1,6 +1,6 @@
 import std::constructor::return_runtime;
 import types::protocol_integrations::PanopticTokenId::*;
-import types::pricing::TickUtils::TickBucket;
+import pos_spec::TickUtils::TickBucket;
 
 // cast sig "packLeg(uint256,int24,uint256,uint256,uint256,uint256,uint256,int24,int24)" -> 0x3da5cbee
 const SEL_PACK   = 0x3da5cbee;

@@ -137,38 +137,6 @@ test-vega-e2e:
 test-vol-order-validation:
 	forge test --match-path 'test/types/pos_spec/VolOrderValidation.t.sol' --via-ir --optimize
 
-# test-vol-order-manager: the VolOrderManagerMod MODULE surface (VORD-01/03/04/05) -- create_order
-# dispatch, the two keccak-derived slots, the unmasked derived-slot store, monotonic ids, the
-# state-asserted invalid-tuple guard, both readers with the zero sentinel, and the selector +
-# slot-distance conformance checks. Distinct from test-vol-order-validation, which owns the PURE
-# lib surface (Phase 16). One file per surface.
-test-vol-order-manager:
-	forge test --match-path 'test/pos_spec/VolOrderManager.t.sol' --via-ir --optimize
-
-# test-vol-order-batch: the create_orders BATCH surface (MCAL-01/02/03/04/06) -- the three calldata
-# guards, MAX_BATCH, per-tuple validate-then-skip with contiguous ids, batch-of-1 equivalence and
-# the N=0 no-op. Distinct from test-vol-order-manager, which owns the SINGLE-CALL surface: this file
-# needs hand-rolled MALFORMED calldata over low-level .call, which a typed interface cannot express.
-test-vol-order-batch:
-	forge test --match-path 'test/pos_spec/VolOrderManagerBatch.t.sol' --via-ir --optimize
-
-# test-vol-order-return: the hand-rolled (bool,uint256)[] RETURN ENCODER (MCAL-05) -- head 0x40,
-# stride 0x40, total 64+64N, the N=0 64-byte edge, canonical bools, (false,0) failures and the
-# N=128 allocation probe, all compared BYTE FOR BYTE against solc's standard abi.encode. Distinct
-# from test-vol-order-batch, which owns the INPUT half (guards, MAX_BATCH, state effects).
-test-vol-order-return:
-	forge test --match-contract VolOrderManagerReturnEncodingTest --via-ir --optimize
-
-# test-vol-order-diff: the MVER-01 after-every-write SEQUENCE DIFFERENTIAL. Interleaved
-# (create_order | create_orders) sequences driven into the FFI-deployed module AND an independent
-# Solidity reference mock, asserting orderCount, every stored packed word via raw vm.load + the
-# single VolOrderDecoder, and raw return-byte equality against solc's STANDARD abi.encode -- at
-# tolerance 0, after EVERY write. Distinct from test-vol-order-batch and test-vol-order-return,
-# which test the two entrypoints in ISOLATION: the interleave is the one thing they structurally
-# could not cover, and it is where an id-allocation disagreement between the two paths surfaces.
-test-vol-order-diff:
-	forge test --match-path 'test/pos_spec/VolOrderManager.diff.t.sol' --via-ir --optimize
-
 # test-vol-order-tokenid-diff: the Haskell<->Plank volOrderToTokenId DIFFERENTIAL (RED-01..RED-06).
 # One input driven into BOTH spec/src/Panoptic/NId.hs::volOrderToTokenId and the Plank map
 # vol_order_to_panoptic_token_id (via VolOrderToPanopticTokenIdHarness.plk), asserted equal at
@@ -187,26 +155,7 @@ test-vol-order-diff:
 test-vol-order-tokenid-diff:
 	forge test --match-path 'test/protocol_integrations/VolOrderToPanopticTokenId.diff.t.sol' --via-ir --optimize
 
-# test-vol-order-fixture: the MVER-03 CONSUMER GOLDEN FIXTURE. The module's returndata compared
-# byte-for-byte against bytes produced by `cast abi-encode` (alloy) -- an encoder OUTSIDE this
-# repo and a different implementation from solc's -- plus the selector-completeness gate over
-# every `signature::` string in src/interfaces/pos_spec/VolOrderManagerInterface.plk.
-# SCOPE LIMIT, recorded so the exit record cannot conflate two claims: alloy confirms the bytes
-# are STANDARD ABI. It does NOT exercise the Haskell consumer's decoder. That gap is tracked as a
-# per-case placeholder inside the fixture file itself.
-test-vol-order-fixture:
-	forge test --match-path 'test/pos_spec/VolOrderManagerFixture.t.sol' --via-ir --optimize
-
-# test-vol-order-acceptance: THE PHASE 19 ACCEPTANCE BAR (MVER-01/03/04) in one invocation --
-# the whole pos_spec surface: validation lib, single-call module, batch input, return encoder,
-# sequence differential and consumer fixture. This is the dedicated target MVER-04 asks for.
-#
-# IT IS A SUBSET, NEVER A SUBSTITUTE FOR `make test`. Green here says nothing about the suites it
-# skips, and MVER-02's mutation evidence is not reproducible from any target -- it lives in
-# .planning/phases/19-*/19-MUTATION-BATTERY.md as recorded OBSERVATIONS.
-test-vol-order-acceptance: test-vol-order-validation test-vol-order-manager test-vol-order-batch test-vol-order-return test-vol-order-diff test-vol-order-fixture
-
-.PHONY: test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation test-vol-order-manager test-vol-order-batch test-vol-order-return test-vol-order-diff test-vol-order-fixture test-vol-order-acceptance test-vol-order-tokenid-diff
+.PHONY: test-vega-issuance test-vega-account test-vega-e2e test-vol-order-validation test-vol-order-tokenid-diff
 
 
 #####################################################################

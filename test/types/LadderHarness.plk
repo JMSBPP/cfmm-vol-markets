@@ -14,7 +14,7 @@ import pos_spec::VegaTarget::*;
 import std::option::unwrap;
 
 // Harness for spec Payoffs.LadderPosition (ladderChunks / ι / rungTick / createChunk).
-// Oracle in Solidity: GeometricDistributionHarness.geoDensity + mulDiv(vega, ℓ, Q96).
+// Oracle in Solidity: GeometricLibHarness.geoDensity + mulDiv(vega, ℓ, Q96).
 
 // cast sig "ladderIota(int256,int256,int256)" -> 0x9c8b96f9
 const SEL_IOTA = 0x9c8b96f9;

@@ -37,7 +37,7 @@ interface IPlankLiquidityDensityHarness {
 }
 
 /// @title LiquidityDensityTest
-/// @notice Plank unit suite — scenario parity with bunni-v2 {GeometricDistributionTest} in-scope tests.
+/// @notice Plank unit suite — scenario parity with bunni-v2 {GeometricLibTest} in-scope tests.
 /// @dev Harness lifts VolMarketKey/VegaTarget/ξ* adaptation; swaps/inverse-cum/boundary deferred.
 contract LiquidityDensityTest is PlankTestBase {
     using TickMath for int24;
@@ -112,7 +112,7 @@ contract LiquidityDensityTest is PlankTestBase {
         return harness.ldfDensity(lo, hi, FixedPoint96.Q96, tickSpacing, uint256(int256(length)));
     }
 
-    // --- mirrors GeometricDistributionTest.test_liquidityDensity_sumUpToOne ---
+    // --- mirrors GeometricLibTest.test_liquidityDensity_sumUpToOne ---
 
     function test_liquidityDensity_sumUpToOne(int24 tickSpacing, int24 minTick, int24 length) public view {
         tickSpacing = int24(bound(tickSpacing, MIN_TICK_SPACING, MAX_TICK_SPACING));
@@ -130,7 +130,7 @@ contract LiquidityDensityTest is PlankTestBase {
         );
     }
 
-    // --- mirrors GeometricDistributionTest.test_query_cumulativeAmounts / _test_query_cumulativeAmounts ---
+    // --- mirrors GeometricLibTest.test_query_cumulativeAmounts / _test_query_cumulativeAmounts ---
     // Riemann oracle (Option A): sum _densityAt(t) × amountDensity(t) — same semantic path as
     // ldfDensity → liquidity_density_at; direct cum goes vega* → geometric_cumulative_*.
 
