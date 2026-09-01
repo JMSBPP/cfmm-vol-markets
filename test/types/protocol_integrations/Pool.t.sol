@@ -245,7 +245,7 @@ contract PoolTest is PlankTestBase, Deployers {
         a[15] = "--dep";
         a[16] = "interfaces=src/interfaces";
         a[17] = "--dep";
-        a[18] = "helpers=test/protocol_integrations/helpers";
+        a[18] = "helpers=test/protocol_integrations/reactive";
         return vm.tryFfi(a);
     }
 

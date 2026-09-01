@@ -12,7 +12,7 @@ import {PoolKey} from "univ4-core/types/PoolKey.sol";
 import {Currency} from "univ4-core/types/Currency.sol";
 import {TickMath} from "univ4-core/libraries/TickMath.sol";
 import {HookMiner} from "utils/HookMiner.sol";
-import {PriceSetterHook} from "../src/modules/protocol_integrations/PriceSetterHook.sol";
+import {PriceSetterHook} from "../src/modules/protocol_integrations/reactive/PriceSetterHook.sol";
 
 /// @notice Stands up a local tick-experiment rig: a PoolManager, a PriceSetterHook mined to a
 /// flag-carrying address, and a pool bound to that hook. After `run()`, the printed

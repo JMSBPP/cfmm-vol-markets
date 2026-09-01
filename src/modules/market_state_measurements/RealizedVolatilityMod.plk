@@ -3,7 +3,7 @@ import types::market_state_measurements::Timepoint::*;
 import lib::market_state_measurements::RealizedVolatilityLib::*;
 import lib::market_state_measurements::RealizedVolatilityStateLib::*;
 import interfaces::market_state_measurements::RealizedVolatilityInterface::*;
-import lib::protocol_integrations::CallbackRealizedVolatilityLib::*;
+import lib::protocol_integrations::reactive::CallbackRealizedVolatilityLib::*;
 import pos_spec::TickVolatility::*;
 import v3::util::{return_u256, revert_empty};
 import v3::storage::{array_slot};

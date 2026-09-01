@@ -26,7 +26,7 @@ abstract contract PlankDeployBase is Script, PlankDeployer {
         deps[3] = Dependency("lib", "src/lib");
         deps[4] = Dependency("types", "src/types");
         deps[5] = Dependency("interfaces", "src/interfaces");
-        deps[6] = Dependency("helpers", "test/protocol_integrations/helpers");
+        deps[6] = Dependency("helpers", "test/protocol_integrations/reactive");
         opts.dependencies = deps;
     }
 
