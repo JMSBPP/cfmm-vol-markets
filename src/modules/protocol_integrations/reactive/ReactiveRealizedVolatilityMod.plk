@@ -1,7 +1,0 @@
-// SCAFFOLD STUB (reactive integration, todo 14.2) -- kept compilable so `make compile-plank`
-// measures the maintained surface. The reactive path currently lives in
-// RealizedVolatilityMod's SELECTOR_ON_PRICE_UPDATE branch; this module becomes real when the
-// reactive-network integration lands. An empty init{}/run{} fails the compiler's
-// "entry point must end with explicit terminator" check, hence the stops.
-init { @evm_stop(); }
-run { @evm_stop(); }

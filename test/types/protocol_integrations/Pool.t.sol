@@ -226,7 +226,7 @@ contract PoolTest is PlankTestBase, Deployers {
     }
 
     function _tryBuild(string memory path) internal returns (Vm.FfiResult memory) {
-        string[] memory a = new string[](19);
+        string[] memory a = new string[](17);
         a[0] = "plank";
         a[1] = "build";
         a[2] = path;
@@ -244,8 +244,6 @@ contract PoolTest is PlankTestBase, Deployers {
         a[14] = "types=src/types";
         a[15] = "--dep";
         a[16] = "interfaces=src/interfaces";
-        a[17] = "--dep";
-        a[18] = "helpers=test/protocol_integrations/reactive";
         return vm.tryFfi(a);
     }
 

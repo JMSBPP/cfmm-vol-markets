@@ -17,21 +17,18 @@ import {PlankDeployer, BuildOptions, Dependency} from "plank-foundry-deployer/Pl
 ///
 ///      Keep in sync with Makefile:PLANK_DEP.
 abstract contract PlankTestBase is Test, PlankDeployer {
-    /// @dev The six module roots. `pos_spec` is declared separately from `types` because many
+    /// @dev The module roots. `pos_spec` is declared separately from `types` because many
     ///      sources still import it bare (`pos_spec::X`) rather than via `types::pos_spec::X`.
     function plankOpts() internal pure returns (BuildOptions memory opts) {
         opts.backend = "sona";
 
-        Dependency[] memory deps = new Dependency[](7);
+        Dependency[] memory deps = new Dependency[](6);
         deps[0] = Dependency("v3", "lib/plankified-univ3/plank/lib");
         deps[1] = Dependency("std", "lib/plank-monorepo/std/");
         deps[2] = Dependency("pos_spec", "src/types/pos_spec");
         deps[3] = Dependency("lib", "src/lib");
         deps[4] = Dependency("types", "src/types");
         deps[5] = Dependency("interfaces", "src/interfaces");
-        // Test-only Plank helpers (e.g. PriceUpdateLogWithSwap): a src module's TEST-oriented
-        // entrypoint (PriceSetterHook.write_price) imports these to emit events without real swaps.
-        deps[6] = Dependency("helpers", "test/protocol_integrations/reactive");
 
         opts.dependencies = deps;
     }

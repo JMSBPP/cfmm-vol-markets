@@ -32,9 +32,6 @@
       "rev": "41e19975946ac60927f3db7087f6c0b67bf752bb"
     }
   },
-  "lib/reactive-test-lib": {
-    "rev": "2ff9b2a68ca9956306ec943c10d1c757c1dd1956"
-  },
   "lib/v3-core": {
     "branch": {
       "name": "0.8",

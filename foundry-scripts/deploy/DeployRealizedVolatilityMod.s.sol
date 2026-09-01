@@ -5,7 +5,7 @@ import {console} from "forge-std/console.sol";
 import {PlankDeployBase} from "./PlankDeployBase.s.sol";
 
 /// @notice Deploys RealizedVolatilityMod -- the Algebra-byte-exact vol oracle the stochastic
-/// price diffusion feeds (writeTimepoint directly, or the reactive onPriceUpdate path).
+/// price diffusion feeds (writeTimepoint directly).
 /// Optionally seeds the buffer when INIT_TS/INIT_TICK env vars are set.
 /// ABI + events: src/interfaces/market_state_measurements/RealizedVolatilityInterface.plk
 /// (E3 TimepointWritten + E6 WindowChanged topic0s included).
