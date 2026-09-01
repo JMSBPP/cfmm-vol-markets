@@ -4,10 +4,10 @@ pragma solidity ^0.8.0;
 import {console2} from "forge-std/console2.sol";
 import {VolatilityOraclePluginImplementation} from
     "@cryptoalgebra/volatility-oracle-plugin/VolatilityOraclePluginImplementation.sol";
-import {PlankTestBase} from "../PlankTestBase.sol";
-import {MarketStatisticsAlgebraRef, MarketStatisticsUniV3Ref} from "../MarketStatisticsTest.t.sol";
-import {AlgebraVolatilityKernelMock} from "../mocks/AlgebraVolatilityKernelMock.sol";
-import {TimepointDecoder, PlankTimepoint} from "./TimepointDecoder.sol";
+import {PlankTestBase} from "../../PlankTestBase.sol";
+import {MarketStatisticsAlgebraRef, MarketStatisticsUniV3Ref} from "../../MarketStatisticsTest.t.sol";
+import {AlgebraVolatilityKernelMock} from "../../mocks/AlgebraVolatilityKernelMock.sol";
+import {TimepointDecoder, PlankTimepoint} from "../../types/fee-volatility/TimepointDecoder.sol";
 
 // ===========================================================================================
 // THE realized-volatility differential suite. Everything that exercises

@@ -3,7 +3,7 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
-import {PlankTestBase} from "../PlankTestBase.sol";
+import {PlankTestBase} from "../../PlankTestBase.sol";
 import {AdaptiveFee} from "./refs/AdaptiveFee.sol"; // byte-identical vendored oracle (see the file header)
 import {AlgebraFeeConfiguration} from "@cryptoalgebra/dynamic-fee-plugin/types/AlgebraFeeConfiguration.sol";
 import {

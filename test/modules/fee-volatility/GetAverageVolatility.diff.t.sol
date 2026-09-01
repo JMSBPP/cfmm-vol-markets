@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
-import {PlankTestBase} from "../PlankTestBase.sol";
-import {MarketStatisticsAlgebraRef} from "../MarketStatisticsTest.t.sol";
+import {PlankTestBase} from "../../PlankTestBase.sol";
+import {MarketStatisticsAlgebraRef} from "../../MarketStatisticsTest.t.sol";
 import {VolatilityOraclePluginImplementation} from
     "@cryptoalgebra/volatility-oracle-plugin/VolatilityOraclePluginImplementation.sol";
 
