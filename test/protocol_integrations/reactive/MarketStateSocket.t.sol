@@ -12,8 +12,8 @@ contract MarketStateSocketTest is PlankTestBase, ReactiveTest {
 
     function setUp() public override {
         super.setUp();
-        market_state_socket = deployPlank("src/modules/protocol_integrations/MarketStateSocket.plk");
-        price_hook = deployPlank("src/modules/protocol_integrations/PriceSetterHook.plk");
+        market_state_socket = deployPlank("src/modules/protocol_integrations/reactive/MarketStateSocket.plk");
+        price_hook = deployPlank("src/modules/protocol_integrations/reactive/PriceSetterHook.plk");
     }
 
     function test_startSocket_subscribesToPoolSwap() public {

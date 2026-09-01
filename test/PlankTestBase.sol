@@ -31,7 +31,7 @@ abstract contract PlankTestBase is Test, PlankDeployer {
         deps[5] = Dependency("interfaces", "src/interfaces");
         // Test-only Plank helpers (e.g. PriceUpdateLogWithSwap): a src module's TEST-oriented
         // entrypoint (PriceSetterHook.write_price) imports these to emit events without real swaps.
-        deps[6] = Dependency("helpers", "test/protocol_integrations/helpers");
+        deps[6] = Dependency("helpers", "test/protocol_integrations/reactive");
 
         opts.dependencies = deps;
     }

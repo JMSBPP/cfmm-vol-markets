@@ -257,13 +257,13 @@ PLANK         ?= plank
 # `types::pos_spec::X`.
 PLANK_DEP := --dep v3=lib/plankified-univ3/plank/lib/ --dep std=lib/plank-monorepo/std/ --dep pos_spec=src/types/pos_spec \
              --dep lib=src/lib --dep types=src/types --dep interfaces=src/interfaces \
-             --dep helpers=test/protocol_integrations/helpers
+             --dep helpers=test/protocol_integrations/reactive
 # cfmm-types entrypoints (Hook.plk): types root points at the submodule, not src/types.
 # Keep in sync with test/PlankTestBase.sol:cfmmTypesPlankOpts().
 CFMM_TYPES_PLANK_DEP := --dep std=lib/cfmm-types/lib/plank-monorepo/std/ --dep types=lib/cfmm-types/src/types
 # ^ `helpers`: test-only Plank helper libs (PriceUpdateLogWithSwap) that a src module's
-#   TEST-oriented entrypoint (PriceSetterHook.write_price) imports. Kept in sync with
-#   test/PlankTestBase.sol:plankOpts().
+#   TEST-oriented entrypoint (PriceSetterHook.write_price) imports. Root is
+#   test/protocol_integrations/reactive/. Kept in sync with test/PlankTestBase.sol:plankOpts().
 PLANK_BACKEND := sona
 PLANK_BUILD   := build/plank
 # plank-toolchain: build the plank_dev compiler from the PINNED plank-monorepo submodule and install

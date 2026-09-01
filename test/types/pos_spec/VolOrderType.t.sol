@@ -292,7 +292,7 @@ contract VolOrderTypeTest is PlankTestBase {
         a[11] = "--dep"; a[12] = "lib=src/lib";
         a[13] = "--dep"; a[14] = "types=src/types";
         a[15] = "--dep"; a[16] = "interfaces=src/interfaces";
-        a[17] = "--dep"; a[18] = "helpers=test/protocol_integrations/helpers";
+        a[17] = "--dep"; a[18] = "helpers=test/protocol_integrations/reactive";
         return vm.tryFfi(a);
     }
 
