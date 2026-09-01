@@ -1,0 +1,236 @@
+name: vol-position-gate
+on:
+  pull_request:
+    branches: [vol-position]          # PR-only; merges go through PRs (no double-approval from a push trigger)
+concurrency:
+  group: vol-position-gate-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+
+jobs:
+  approve:                       # the ONLY environment reference -> exactly one approval, BEFORE untrusted code runs
+    runs-on: ubuntu-latest       # hosted: no toolchain, no untrusted code, frees the self-hosted executor
+    environment: vol-position-gate
+    timeout-minutes: 5
+    steps:
+      - run: echo "approved — heavy jobs may start"
+
+  forge:
+    needs: [approve]
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 25
+    env:
+      API_KEY: ${{ secrets.API_KEY }}
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+      # The toolchain is resolved from the tracked pin, not from whatever `forge` this
+      # PERSISTENT runner happens to have. Requirement CI-05; the reason, and the four measured
+      # findings that depend on b0a9dd9, are recorded in .github/foundry-version. Placed BEFORE the
+      # submodule/plank/npm work on purpose: a wrong toolchain fails here in seconds rather than
+      # after twenty minutes of setup. Body is byte-identical to push-build.yml's -- one pin,
+      # one mechanism, two workflows.
+      - name: Install the pinned Foundry toolchain
+        run: |
+          set -euo pipefail
+          . ./.github/foundry-version
+          : "${FOUNDRY_VERSION:?}" "${FOUNDRY_COMMIT:?}" "${FOUNDRYUP_INSTALLER_COMMIT:?}"
+
+          # NOT $HOME/.foundry. On this PERSISTENT runner that is the box's shared foundry
+          # dir -- the one a human's `foundryup` writes, and the one
+          # foundry-rs/foundry-toolchain@v1 installs into (src/index.ts:
+          # FOUNDRY_DIR = path.join(os.homedir(), ".foundry")). Installing there would have
+          # this unattended workflow rewrite the machine's default forge on every push,
+          # which is the drift the pin exists to stop. A per-pin directory cannot collide,
+          # and $GITHUB_PATH is PREPENDED, so the pinned binary wins for this job only.
+          PINS="$HOME/.foundry-pins"
+          export FOUNDRY_DIR="$PINS/$FOUNDRY_VERSION"
+          STAMP="$FOUNDRY_DIR/.installed-$FOUNDRY_COMMIT"
+          mkdir -p "$PINS"
+
+          # Two jobs can enter here at once on this runner (a push build and the gate).
+          # Serialize the install; the stamp makes the second entrant a no-op. The stamp is
+          # written only AFTER the commit assertion below, so a half-finished install is
+          # never mistaken for a good one.
+          exec 9>"$PINS/.lock"
+          flock 9
+
+          if [ ! -f "$STAMP" ]; then
+            mkdir -p "$FOUNDRY_DIR"
+            curl -fsSL --retry 3 \
+              "https://raw.githubusercontent.com/foundry-rs/foundryup/${FOUNDRYUP_INSTALLER_COMMIT}/foundryup-init.sh" \
+              -o "$RUNNER_TEMP/foundryup-init.sh"
+            # The installer exits non-zero when it cannot find a shell rc file to edit,
+            # which is the normal CI case; foundry-toolchain@v1 swallows exactly this
+            # string. Any OTHER failure is real and must not be swallowed.
+            set +e
+            out="$(bash "$RUNNER_TEMP/foundryup-init.sh" 2>&1)"; rc=$?
+            set -e
+            printf '%s\n' "$out"
+            if [ "$rc" -ne 0 ] && ! printf '%s' "$out" | grep -q 'could not detect shell'; then
+              echo "::error::foundryup-init.sh failed (exit $rc)"; exit 1
+            fi
+            # `--install`, not `--version`: foundry-toolchain@v1's action.yml documents its
+            # version input as "Passed to `foundryup --install <version>`", and strips the
+            # leading v. Older foundryup spelled this `--version`; if this line ever fails
+            # with an unknown-flag error, the installer pin moved.
+            "$FOUNDRY_DIR/bin/foundryup" --install "${FOUNDRY_VERSION#v}"
+            "$FOUNDRY_DIR/bin/forge" --version | grep -qF "$FOUNDRY_COMMIT" || {
+              echo "::error::foundryup installed a forge whose commit is not $FOUNDRY_COMMIT"
+              exit 1
+            }
+            touch "$STAMP"
+          fi
+          echo "$FOUNDRY_DIR/bin" >> "$GITHUB_PATH"
+
+      # CI-06: every gate run carries the resolved toolchain as evidence, in the log and in the
+      # run summary, and a mismatch is RED. `which -a` records the collision with the runner's
+      # pre-existing forge so "which binary ran" is never a guess. The assertion greps the whole
+      # output for the commit rather than parsing a named line, so a change to forge's --version
+      # format is not a false red.
+      - name: Stamp the resolved forge version
+        run: |
+          set -euo pipefail
+          . ./.github/foundry-version
+          which -a forge || true
+          forge --version | tee "$RUNNER_TEMP/forge-version.txt"
+          {
+            echo "### Foundry toolchain (pinned)"
+            echo ""
+            echo '```'
+            cat "$RUNNER_TEMP/forge-version.txt"
+            echo '```'
+            echo ""
+            echo "pin: \`$FOUNDRY_VERSION\` / \`$FOUNDRY_COMMIT\` (.github/foundry-version)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -qF "$FOUNDRY_COMMIT" "$RUNNER_TEMP/forge-version.txt" || {
+            echo "::error::resolved forge does not match the pin in .github/foundry-version"
+            exit 1
+          }
+
+      # forge needs lib/panoptic-v2-core's nested v4-core + solady (remappings @uniswap/v4-core/ and
+      # solady/ point into them). The ONLY pathological part is panoptic-helper (it contains
+      # panoptic-v2-core -> infinite recursion). Init panoptic one level, block panoptic-helper, then
+      # full recursive init; forge test --offline then finds everything present (no re-init hang).
+      - run: |
+          # Persistent self-hosted runner caches submodule URLs in .git/config; `update --init`
+          # reads that, NOT .gitmodules. Sync first so a repointed URL (e.g. plank-foundry-deployer
+          # JMSBPP->plankevm) is honored instead of 404-ing on the stale cached URL.
+          git submodule sync --recursive
+          git submodule update --init lib/panoptic-v2-core
+          git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
+          git submodule update --init lib/cfmm-types
+          git -C lib/cfmm-types config submodule.lib/v4-hooks-public.update none
+          git submodule update --init --recursive lib/cfmm-types
+          # lib/seaport: DifferentialTest.sol only — block nested Seaport libs before recursive lib/.
+          git submodule update --init --depth 1 lib/seaport
+          for name in $(git config -f lib/seaport/.gitmodules --get-regexp '^submodule\.' | sed 's/^submodule\.//;s/\.url$//'); do
+            git -C lib/seaport config "submodule.${name}.update" none
+          done
+          git submodule update --init --recursive -- lib/
+      # A plank-monorepo pin bump changes the compiler AND std, but the runner's persistent
+      # ~/.plank/bin/plank does NOT auto-track the pin. Rebuild it from the pinned submodule so
+      # compiler+std match; otherwise a bump fails every plank build (measured: 8 ok / 31 failed).
+      - run: make plank-toolchain
+      # node_modules became a HARD forge dependency with the premium port (@cryptoalgebra
+      # remappings in foundry.toml); package.json/package-lock.json are tracked for exactly
+      # this closure (ffcc3b6 + the CI-reproducibility note). Without this step the compile
+      # dies on missing @cryptoalgebra sources before any test runs.
+      - run: npm ci --ignore-scripts
+      # Match push-build: compile artifacts (e.g. SemiFungiblePositionManagerV4.json for
+      # DynamicFeeHookE2E) before forge test --offline.
+      - run: forge build --via-ir --offline
+      # THE SKIP LEDGER (issue #16 owns burning it down; every entry is a PRE-EXISTING
+      # known-broken family, excluded so the gate measures the maintained surface — the
+      # same recorded-baseline discipline every local run uses):
+      #   *VolRangeWidth* / *SpreadTickAssimetryHelper*   latent width-type fuzz bugs,
+      #                              failure count is fuzz-SEED-dependent (2/3/6 measured)
+      #   *PanopticVegaLens.t.sol*   drafted RED test; its harness is #10's L0 (not built)
+      #   *HookMiner*   cfmm-types Create2 miner; flaky on self-hosted runner (pass/fail
+      #                  same commit; measured 2026-08-30 on test/diff-base vs panoptic-pool-id)
+      #   test_query_cumulativeAmounts   LiquidityDensityTest only (#91): vegaAsset vs Riemann
+      #                  5/3 mismatch on type/ldf; --no-match-test because --skip is filename-only
+      # (*VegaAccount* / *VegaIssuance* were on the ledger; un-broken by the
+      #  VegaIssuanceLib sketch supersession in this PR — back on the surface.)
+      # Seed pinned so the maintained surface is deterministic run-to-run.
+      # VERIFIED LOCALLY against PR #15: 252 passed, 0 failed with exactly this command.
+      - run: >
+          forge test --via-ir --offline --fuzz-seed 4880
+          --no-match-test test_query_cumulativeAmounts
+          --skip "*VolRangeWidth*" "*SpreadTickAssimetryHelper*"
+          "*PanopticVegaLens.t.sol*" "*HookMiner*"
+
+  plank:
+    needs: [approve]
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 15
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+      # sync first: honor repointed submodule URLs on the reused runner (see forge job note)
+      - run: git submodule sync --recursive
+      - run: git submodule update --init lib/plankified-univ3
+      # compile-plank needs --dep std=lib/plank-monorepo/std/ AND a compiler matching the pin.
+      # Init plank-monorepo (the narrow plankified-univ3 init above does not) and rebuild the
+      # toolchain from it, so a plank-monorepo bump is honored (else 8 ok / 31 failed on a bump).
+      - run: git submodule update --init --recursive lib/plank-monorepo
+      - run: make plank-toolchain
+      - run: make compile-plank
+
+  submodule-gates:
+    needs: [approve]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+      PR_HEAD_REPO_FULL_NAME: ${{ github.event.pull_request.head.repo.full_name }}
+      GITHUB_HEAD_REF: ${{ github.head_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref }}
+          persist-credentials: true
+      - run: git submodule sync --recursive
+      - name: Sync and verify root submodule gates
+        env:
+          GH_TOKEN: ${{ secrets.GH_STATUS_READ || github.token }}
+        run: bash .github/scripts/sync-submodule-gates.sh
+
+  gate:                          # the SOLE required check. Do NOT add `name:` (would change the context string)
+    needs: [approve, forge, plank, submodule-gates]
+    if: always()
+    runs-on: ubuntu-latest       # hosted: only reads results, needs no toolchain
+    timeout-minutes: 5
+    steps:
+      - run: |
+          # `approve` is checked SEPARATELY and may not be 'skipped'. It was in `needs` but not in
+          # the loop below, and because this job is `if: always()` while the loop accepts
+          # 'skipped', a REJECTED environment review produced: approve=failure -> every heavy job
+          # 'skipped' (they all need approve) -> six accepted results -> "all gate jobs green",
+          # exit 0, with zero tests having run. The sole required check reported success for a run
+          # that executed nothing. Inherited from develop, which carries the identical loop.
+          #
+          # 'success' is the only acceptable value: approve carries no `if:`, so on a PR it always
+          # runs, and it has no `needs` that could skip it. That also makes this the COMPLETE fix
+          # -- the only other way a job below reaches 'skipped' is its own `if:` (none currently
+          # set), because approve is the single dependency every one of them declares.
+          case '${{ needs.approve.result }}' in
+            success) ;;
+            *) echo "::error::approve was '${{ needs.approve.result }}' -- the environment review did not pass, so every gate job was skipped and NOTHING ran"; exit 1;;
+          esac
+          for x in '${{ needs.forge.result }}' '${{ needs.plank.result }}' '${{ needs.submodule-gates.result }}'; do
+            case "$x" in success|skipped) ;; *) echo "::error::a gate job result was '$x'"; exit 1;; esac
+          done
+          echo "all gate jobs green"
