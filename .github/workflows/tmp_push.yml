@@ -1,19 +1,31 @@
 name: tmp-push
 
 on:
- push:
+  push:
 
 jobs:
- build:
-  runs-on: [self-hosted, cfmm-build]
-   steps:
-    - uses: actions/checkout@v4
-    - name: submodules
-      run: |
-       git submodule update --init lib/forge-std
-       git submodule update --init lib/plank-monorepo
-       git submodule update --init lib/plankified-univ3
-    - name: plank
-      run:
-       just plank test/types/PairHarness.plk
-   
+  build:
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 15
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init lib/plankified-univ3
+          git submodule update --init --recursive lib/plank-monorepo
+
+      - name: Plank toolchain
+        run: make plank-toolchain
+
+      - name: install just
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+
+      - name: plank
+        run: just plank test/types/PairHarness.plk
