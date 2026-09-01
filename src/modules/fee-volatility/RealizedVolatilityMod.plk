@@ -1,8 +1,8 @@
 import std::constructor::return_runtime;
-import types::market_state_measurements::Timepoint::*;
-import lib::market_state_measurements::RealizedVolatilityLib::*;
-import lib::market_state_measurements::RealizedVolatilityStateLib::*;
-import interfaces::market_state_measurements::RealizedVolatilityInterface::*;
+import types::fee-volatility::Timepoint::*;
+import lib::fee-volatility::RealizedVolatilityLib::*;
+import lib::fee-volatility::RealizedVolatilityStateLib::*;
+import interfaces::fee-volatility::RealizedVolatilityInterface::*;
 import pos_spec::TickVolatility::*;
 import v3::util::{return_u256, revert_empty};
 import v3::storage::{array_slot};
@@ -99,7 +99,7 @@ const get_average_volatility = fn(tick: u256, block_timestamp: u256) u256 {
 init{ return_runtime();}
 
 // ABI dispatch. Selectors are declared in
-// interfaces/market_state_measurements/RealizedVolatilityInterface.plk and match the ABI of
+// interfaces/fee-volatility/RealizedVolatilityInterface.plk and match the ABI of
 // MarketStatisticsAlgebraRef / MarketStatisticsUniV3Ref exactly, so one Solidity interface
 // drives all implementations.
 //

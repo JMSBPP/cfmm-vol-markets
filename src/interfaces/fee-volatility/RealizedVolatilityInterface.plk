@@ -57,7 +57,7 @@ const SELECTOR_READ_WINDOW = 0x0a9ae2f7;
 
 
 // ---- EVENTS (emitted by RealizedVolatilityMod via RealizedVolatilityStateLib; source of
-//      truth: lib/events/VolEventsLib.plk; solc-asserted in test/events/) ----
+//      truth: lib/fee-volatility/VolEventsLib.plk; solc-asserted in test/events/) ----
 // event:: TimepointWritten(bytes32 indexed poolId, uint32 timestamp, int24 tick,
 //                          uint88 volatilityCumulative, int24 averageTick, int56 tickCumulative)
 //   poolId = bytes32(0) PERMANENT module-global sentinel here (the pool-keyed hook is a

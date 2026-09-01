@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 import {PlankTestBase} from "../PlankTestBase.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {AlgebraFeeConfiguration} from "@cryptoalgebra/dynamic-fee-plugin/types/AlgebraFeeConfiguration.sol";
-import {DynamicFeePluginImplementation} from "../premium/refs/DynamicFeePluginImplementation.sol";
+import {DynamicFeePluginImplementation} from "../lib/fee-volatility/refs/DynamicFeePluginImplementation.sol";
 import {MarketStatisticsAlgebraRef} from "../MarketStatisticsTest.t.sol";
 import {VolatilityOraclePluginImplementation} from
     "@cryptoalgebra/volatility-oracle-plugin/VolatilityOraclePluginImplementation.sol";

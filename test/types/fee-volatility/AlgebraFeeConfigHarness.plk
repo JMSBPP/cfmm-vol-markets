@@ -1,5 +1,5 @@
 import std::constructor::return_runtime;
-import types::premium::AlgebraFeeConfiguration::*;
+import types::fee-volatility::AlgebraFeeConfiguration::*;
 
 // Harness for the Algebra dynamic-fee config (AlgebraFeeConfiguration + U144 packing), a faithful port
 // of @cryptoalgebra/dynamic-fee-plugin types/AlgebraFeeConfiguration(U144).sol. Differential-tested vs

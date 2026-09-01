@@ -7,7 +7,7 @@ import {PlankDeployBase} from "./PlankDeployBase.s.sol";
 /// @notice Deploys RealizedVolatilityMod -- the Algebra-byte-exact vol oracle the stochastic
 /// price diffusion feeds (writeTimepoint directly).
 /// Optionally seeds the buffer when INIT_TS/INIT_TICK env vars are set.
-/// ABI + events: src/interfaces/market_state_measurements/RealizedVolatilityInterface.plk
+/// ABI + events: src/interfaces/fee-volatility/RealizedVolatilityInterface.plk
 /// (E3 TimepointWritten + E6 WindowChanged topic0s included).
 contract DeployRealizedVolatilityMod is PlankDeployBase {
     function run() public returns (address mod) {
@@ -15,7 +15,7 @@ contract DeployRealizedVolatilityMod is PlankDeployBase {
         int256 initTick = vm.envOr("INIT_TICK", int256(0));
 
         vm.startBroadcast(deployerKey());
-        mod = plankDeployFFI("src/modules/market_state_measurements/RealizedVolatilityMod.plk", plankOpts());
+        mod = plankDeployFFI("src/modules/fee-volatility/RealizedVolatilityMod.plk", plankOpts());
         if (initTs != 0) {
             (bool ok,) = mod.call(
                 abi.encodeWithSignature("initializeTWAP(uint32,int24)", uint32(initTs), int24(initTick))

@@ -112,7 +112,7 @@ test-market-statistics:
 	forge test --match-contract MarketStatisticsTest --via-ir --optimize
 
 # The WHOLE realized-volatility differential suite -- all five contracts, which now live in the
-# single file test/market_state_measurements/RealizedVolatility.diff.t.sol:
+# single file test/modules/fee-volatility/RealizedVolatility.diff.t.sol:
 #
 #   RealizedVolatilityKernelProbeTest    the kernel pair on ONE point, vs a hand-derived anchor
 #   RealizedVolatilityKernelDiffTest     VDIFF-02: the 5-D kernel fuzz, full uint256, tolerance 0
@@ -124,7 +124,7 @@ test-market-statistics:
 #
 # `make compile` passing proves NONE of this -- see the note on `test` above.
 test-realized-vol:
-	forge test --match-path 'test/market_state_measurements/RealizedVolatility.diff.t.sol' --via-ir --optimize
+	forge test --match-path 'test/modules/fee-volatility/RealizedVolatility.diff.t.sol' --via-ir --optimize
 
 # The Algebra reference the whole differential exercise is measured against lives in
 # node_modules -- untracked (.gitignore:2) and silently rewritten by `npm ci`. It was already

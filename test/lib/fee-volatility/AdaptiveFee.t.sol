@@ -54,7 +54,7 @@ contract AdaptiveFeeTest is PlankTestBase {
     AFRef internal ref;
 
     function setUp() public {
-        harness = deployPlank("test/premium/AdaptiveFeeHarness.plk");
+        harness = deployPlank("test/lib/fee-volatility/AdaptiveFeeHarness.plk");
         ref = new AFRef();
     }
 

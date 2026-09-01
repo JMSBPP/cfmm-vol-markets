@@ -11,7 +11,7 @@ import {TimepointDecoder, PlankTimepoint} from "./TimepointDecoder.sol";
 
 // ===========================================================================================
 // THE realized-volatility differential suite. Everything that exercises
-// src/modules/market_state_measurements/RealizedVolatilityMod.plk -- and the variance kernel it
+// src/modules/fee-volatility/RealizedVolatilityMod.plk -- and the variance kernel it
 // is built on -- lives in THIS FILE. Five contracts, two deploy targets, one place to look.
 //
 // The two deploy targets are deliberately different things:
@@ -153,7 +153,7 @@ contract RealizedVolatilityKernelProbeTest is PlankTestBase {
 
     function setUp() public {
         mock = new AlgebraVolatilityKernelMock();
-        plk = IPlankVolKernel(deployPlank("test/market_state_measurements/RealizedVolatilityKernelHarness.plk"));
+        plk = IPlankVolKernel(deployPlank("test/lib/fee-volatility/RealizedVolatilityKernelHarness.plk"));
     }
 
     function test__unit__kernelProbeAlgebraEqualsPlankNonDegenerate() public {
@@ -257,7 +257,7 @@ contract RealizedVolatilityKernelDiffTest is PlankTestBase {
 
     function setUp() public {
         mock = new AlgebraVolatilityKernelMock();
-        plk = IPlankVolKernel(deployPlank("test/market_state_measurements/RealizedVolatilityKernelHarness.plk"));
+        plk = IPlankVolKernel(deployPlank("test/lib/fee-volatility/RealizedVolatilityKernelHarness.plk"));
     }
 
     /// @notice THE differential fuzz: both kernels, one tuple, full uint256, tolerance 0.
@@ -348,7 +348,7 @@ contract RealizedVolatilitySmokeTest is PlankTestBase {
     }
 
     function setUp() public {
-        oracle = IPlankOracle(deployPlank("src/modules/market_state_measurements/RealizedVolatilityMod.plk"));
+        oracle = IPlankOracle(deployPlank("src/modules/fee-volatility/RealizedVolatilityMod.plk"));
     }
 
     /// @notice Our WINDOW is storage where Algebra's is a compile-time constant. If init is ever
@@ -560,7 +560,7 @@ contract RealizedVolatilityDiffTest is PlankTestBase {
     function setUp() public {
         alg = new MarketStatisticsAlgebraRef(new VolatilityOraclePluginImplementation());
         uni = new MarketStatisticsUniV3Ref();
-        plk = IPlankOracle(deployPlank("src/modules/market_state_measurements/RealizedVolatilityMod.plk"));
+        plk = IPlankOracle(deployPlank("src/modules/fee-volatility/RealizedVolatilityMod.plk"));
     }
 
     // ---- The shared three-way driver -------------------------------------------------------
@@ -776,7 +776,7 @@ contract RealizedVolatilityTimepointDiffTest is PlankTestBase {
 
     function setUp() public {
         alg = new MarketStatisticsAlgebraRef(new VolatilityOraclePluginImplementation());
-        plk = IPlankOracle(deployPlank("src/modules/market_state_measurements/RealizedVolatilityMod.plk"));
+        plk = IPlankOracle(deployPlank("src/modules/fee-volatility/RealizedVolatilityMod.plk"));
     }
 
     // ---- The two-way driver ----------------------------------------------------------------

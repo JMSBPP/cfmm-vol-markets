@@ -46,7 +46,7 @@ contract AlgebraFeeConfigTest is PlankTestBase {
     AFCRef internal ref;
 
     function setUp() public {
-        harness = deployPlank("test/premium/AlgebraFeeConfigHarness.plk");
+        harness = deployPlank("test/types/fee-volatility/AlgebraFeeConfigHarness.plk");
         ref = new AFCRef();
     }
 
