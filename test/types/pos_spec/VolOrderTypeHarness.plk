@@ -1,7 +1,7 @@
 import std::constructor::return_runtime;
 import std::regions::calldata;
 import std::option::{Option, Some, None, is_none, unwrap};
-import types::Extra::*;
+import types::utils::Extra::*;
 import pos_spec::VolOrder::*;
 import lib::protocol_integrations::PanopticTokenIdSetterLib::vol_order_to_panoptic_token_id;
 import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;

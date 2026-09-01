@@ -7,7 +7,7 @@ import pos_spec::VegaTarget::*;
 import std::error::require;
 import std::regions::calldata;
 import std::option::{Option, Some, None};
-import types::Extra::{Extra, extra_none_payload};
+import types::utils::Extra::{Extra, extra_none_payload};
 
 // V2 STORAGE LAYOUT (vol-order-v2-target-vega-SPEC.md D2; DeltaQ_v* raw LIQUIDITY units):
 //   skew        bits   0.. 15  u16
@@ -25,7 +25,7 @@ import types::Extra::{Extra, extra_none_payload};
 // guaranteed to find its operands, and nothing else. There is ONE VolOrder type per region:
 // ABSENCE of an extra is the std VALUE `None`, not a separate tag type.
 //
-// `extra` is a DESCRIPTOR (types::Extra) -- flags | offset | len -- not the data and not the
+// `extra` is a DESCRIPTOR (types::utils::Extra) -- flags | offset | len -- not the data and not the
 // result. It never enters pack_vol_order / unpack_vol_order, which is what keeps this refactor's
 // regression surface at zero for every packed-word consumer.
 //

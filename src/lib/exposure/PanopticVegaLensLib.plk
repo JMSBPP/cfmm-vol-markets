@@ -14,8 +14,7 @@
 // checked product would revert-DoS the readout exactly when deleverage matters most.
 // p_risk > 0 is REQUIRED (admissible_iff_mul's hypothesis).
 //
-// This lib DEFINES the readouts; the ENFORCEMENT actor is VegaAccountMod/#13 scope, which
-// inherits the floor-maximality predicate pinned by test/exposure/VegaLensReadouts.t.sol.
+// This lib DEFINES the readouts; enforcement wiring is out of scope here.
 
 import types::Numerics::{Q96};
 import v3::math::full_math::mulDiv;
