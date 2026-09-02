@@ -146,3 +146,45 @@ jobs:
         run: >
           forge test test/types/Pair.t.sol -vvvv --offline
           --remappings 'solmate/=lib/solmate/'
+
+  registry-test:
+    needs: foundry
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 10
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: setup
+        run: |
+          set -euo pipefail
+          . ./.github/foundry-version
+          echo "$HOME/.foundry-pins/$FOUNDRY_VERSION/bin" >> "$GITHUB_PATH"
+          git submodule sync --recursive
+          git submodule update --init lib/forge-std
+          git submodule update --init lib/plank-foundry-deployer
+          git submodule update --init lib/plankified-univ3
+          git submodule update --init --recursive lib/plank-monorepo
+          git submodule update --init lib/panoptic-v2-core
+          git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
+          make plank-toolchain
+          npm ci --ignore-scripts
+          # MockCounterHook + BaseHook only: repo tree, no lib/ submodule init.
+          V4_HOOKS_PUBLIC_COMMIT=ffd7f8a8d1f5df5deb6f41c8d2ba99d118244ed6
+          V4_PERIPHERY_COMMIT=76c1891c481cebb4ff58f262473303f01a2d7393
+          if ! test -f lib/v4-hooks-public/test/mocks/MockCounterHook.sol \
+            || [ "$(git -C lib/v4-hooks-public rev-parse HEAD 2>/dev/null || echo)" != "$V4_HOOKS_PUBLIC_COMMIT" ]; then
+            rm -rf lib/v4-hooks-public
+            forge install Uniswap/v4-hooks-public@${V4_HOOKS_PUBLIC_COMMIT} --no-git
+          fi
+          if ! test -f lib/v4-periphery/src/base/ImmutableState.sol \
+            || [ "$(git -C lib/v4-periphery rev-parse HEAD 2>/dev/null || echo)" != "$V4_PERIPHERY_COMMIT" ]; then
+            rm -rf lib/v4-periphery
+            forge install Uniswap/v4-periphery@${V4_PERIPHERY_COMMIT} --no-git
+          fi
+
+      - name: registry-test
+        run: forge test test/types/protocol_integrations/Registry.t.sol -vvvv --offline

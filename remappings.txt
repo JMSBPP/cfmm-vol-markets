@@ -47,4 +47,6 @@ test/=test/
 cfmm-types-test/=lib/cfmm-types/test/
 
 v4-core-test/=lib/panoptic-v2-core/lib/v4-core/test/
+v4-hooks-public/=lib/v4-hooks-public/
+@uniswap/v4-periphery/=lib/v4-periphery/
 @seaport/=lib/seaport/test/foundry/
