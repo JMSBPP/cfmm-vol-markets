@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {PlankTestBase} from "../PlankTestBase.sol";
-import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
+import {PairVerifyCompliantERC20} from "../mocks/PairVerifyCompliantERC20.sol";
 
 interface IPairHarness {
   function pair(address a, address b, uint256 assetIdx)
@@ -12,8 +12,8 @@ interface IPairHarness {
 
 contract PairTest is PlankTestBase {
   IPairHarness internal pairHarness;
-  MockERC20 internal asset;
-  MockERC20 internal numeraire;
+  PairVerifyCompliantERC20 internal asset;
+  PairVerifyCompliantERC20 internal numeraire;
 
   function setUp() public {
     pairHarness = IPairHarness(deployPlank("test/types/PairHarness.plk"));
@@ -30,8 +30,8 @@ contract PairTest is PlankTestBase {
   }
 
   function test__unit__pairBuildSuccess_assetSlot0() public {
-    asset = new MockERC20("ASSET", "AST", 18);
-    numeraire = new MockERC20("NUM", "NUM", 18);
+    asset = new PairVerifyCompliantERC20();
+    numeraire = new PairVerifyCompliantERC20();
 
     address a = address(asset);
     address b = address(numeraire);
@@ -45,8 +45,8 @@ contract PairTest is PlankTestBase {
   }
 
   function test__unit__pairBuildSuccess_assetSlot1() public {
-    asset = new MockERC20("ASSET", "AST", 18);
-    numeraire = new MockERC20("NUM", "NUM", 18);
+    asset = new PairVerifyCompliantERC20();
+    numeraire = new PairVerifyCompliantERC20();
 
     address a = address(asset);
     address b = address(numeraire);
