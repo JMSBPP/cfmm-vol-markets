@@ -132,8 +132,16 @@ jobs:
           git submodule update --init lib/plank-foundry-deployer
           git submodule update --init lib/plankified-univ3
           git submodule update --init --recursive lib/plank-monorepo
-          npm ci --ignore-scripts
           make plank-toolchain
+          # panoptic-v2-core@5555b32 -> v4-core@e50237c4 -> solmate@4b47a190 (MockERC20 only)
+          SOLMATE_COMMIT=4b47a19038b798b4a33d9749d25e570443520647
+          if ! test -f lib/solmate/src/test/utils/mocks/MockERC20.sol \
+            || [ "$(git -C lib/solmate rev-parse HEAD 2>/dev/null || echo)" != "$SOLMATE_COMMIT" ]; then
+            rm -rf lib/solmate
+            forge install transmissions11/solmate@${SOLMATE_COMMIT} --no-commit
+          fi
 
       - name: pair-test
-        run: forge test --match-path test/types/Pair.t.sol -vvvv --offline
+        run: >
+          forge test test/types/Pair.t.sol -vvvv --offline
+          --remappings 'solmate/=lib/solmate/'
