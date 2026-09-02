@@ -6,11 +6,11 @@ import {PairVerifyCompliantERC20} from "../mocks/PairVerifyCompliantERC20.sol";
 
 
 contract PairTest is PlankTestBase {
-
+    address harness;
     function setUp() public {
         harness = deployPlank("test/types/PairHarness.plk");
     }
 
-    function test__placeholder() public {}
+    function test__placeholder() public{}
 
 }
