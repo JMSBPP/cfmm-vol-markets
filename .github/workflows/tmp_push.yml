@@ -110,3 +110,29 @@ jobs:
 
       - name: forge version
         run: forge --version
+
+  pair-test:
+    needs: foundry
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 10
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: setup
+        run: |
+          set -euo pipefail
+          . ./.github/foundry-version
+          echo "$HOME/.foundry-pins/$FOUNDRY_VERSION/bin" >> "$GITHUB_PATH"
+          git submodule sync --recursive
+          git submodule update --init lib/forge-std
+          git submodule update --init lib/plank-foundry-deployer
+          git submodule update --init lib/plankified-univ3
+          git submodule update --init --recursive lib/plank-monorepo
+          make plank-toolchain
+
+      - name: pair-test
+        run: forge test --match-path test/types/Pair.t.sol -vvvv --offline
