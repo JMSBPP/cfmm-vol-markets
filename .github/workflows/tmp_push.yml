@@ -132,6 +132,7 @@ jobs:
           git submodule update --init lib/plank-foundry-deployer
           git submodule update --init lib/plankified-univ3
           git submodule update --init --recursive lib/plank-monorepo
+          npm ci --ignore-scripts
           make plank-toolchain
 
       - name: pair-test
