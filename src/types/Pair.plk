@@ -27,9 +27,9 @@ const pair = fn (a: addr, b: addr, asset_idx: u256) Pair {
     let asset_u = cast_addr(asset_addr, u256);
     let t0_u = cast_addr(token0, u256);
     let asset_index = if asset_u == t0_u { 0 } else { 1 };
-    let _pair = Pair { token0: token0, token1: token1, asset_index: asset_index }
+    let _pair = Pair { token0: token0, token1: token1, asset_index: asset_index };
     pair_verify_erc20(_pair);
-    _pair;    
+    _pair
 };
 
 const pair_verify_erc20 = fn (p: Pair) void {
