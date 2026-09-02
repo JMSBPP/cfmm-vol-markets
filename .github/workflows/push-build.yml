@@ -204,6 +204,24 @@ jobs:
       - name: Node dependencies
         run: npm ci --ignore-scripts
 
+      # Registry.t.sol imports MockCounterHook from v4-hooks-public; cfmm-types blocks the
+      # nested submodule, so install the pinned closure via forge (same pins as tmp_push deps).
+      - name: Forge-installed v4 hook libs
+        run: |
+          set -euo pipefail
+          V4_HOOKS_PUBLIC_COMMIT=ffd7f8a8d1f5df5deb6f41c8d2ba99d118244ed6
+          V4_PERIPHERY_COMMIT=76c1891c481cebb4ff58f262473303f01a2d7393
+          if ! test -f lib/v4-hooks-public/test/mocks/MockCounterHook.sol \
+            || [ "$(git -C lib/v4-hooks-public rev-parse HEAD 2>/dev/null || echo)" != "$V4_HOOKS_PUBLIC_COMMIT" ]; then
+            rm -rf lib/v4-hooks-public
+            forge install Uniswap/v4-hooks-public@${V4_HOOKS_PUBLIC_COMMIT} --no-git
+          fi
+          if ! test -f lib/v4-periphery/src/base/ImmutableState.sol \
+            || [ "$(git -C lib/v4-periphery rev-parse HEAD 2>/dev/null || echo)" != "$V4_PERIPHERY_COMMIT" ]; then
+            rm -rf lib/v4-periphery
+            forge install Uniswap/v4-periphery@${V4_PERIPHERY_COMMIT} --no-git
+          fi
+
       # CI-07 asks for BOTH build and test, and they are not redundant here. `forge build` is
       # the compile-only signal this whole workflow exists to deliver: it separates "your
       # commit does not compile" from "your commit fails a test", and it says so in minutes
