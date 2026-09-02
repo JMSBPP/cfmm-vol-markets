@@ -127,14 +127,14 @@ jobs:
           set -euo pipefail
           . ./.github/foundry-version
           echo "$HOME/.foundry-pins/$FOUNDRY_VERSION/bin" >> "$GITHUB_PATH"
-          git submodule sync --recursive
+          git submodule sync lib/forge-std lib/plank-foundry-deployer lib/plankified-univ3 lib/plank-monorepo lib/panoptic-v2-core
           git submodule update --init lib/forge-std
           git submodule update --init lib/plank-foundry-deployer
           git submodule update --init lib/plankified-univ3
           git submodule update --init --recursive lib/plank-monorepo
           git submodule update --init lib/panoptic-v2-core
           git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
-          git submodule update --init --recursive lib/panoptic-v2-core/lib/v4-core
+          git -C lib/panoptic-v2-core submodule update --init lib/v4-core
           make plank-toolchain
           npm ci --ignore-scripts
           # panoptic-v2-core@5555b32 -> v4-core@e50237c4 -> solmate@4b47a190 (MockERC20 only)
@@ -179,14 +179,14 @@ jobs:
           set -euo pipefail
           . ./.github/foundry-version
           echo "$HOME/.foundry-pins/$FOUNDRY_VERSION/bin" >> "$GITHUB_PATH"
-          git submodule sync --recursive
+          git submodule sync lib/forge-std lib/plank-foundry-deployer lib/plankified-univ3 lib/plank-monorepo lib/panoptic-v2-core
           git submodule update --init lib/forge-std
           git submodule update --init lib/plank-foundry-deployer
           git submodule update --init lib/plankified-univ3
           git submodule update --init --recursive lib/plank-monorepo
           git submodule update --init lib/panoptic-v2-core
           git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
-          git submodule update --init --recursive lib/panoptic-v2-core/lib/v4-core
+          git -C lib/panoptic-v2-core submodule update --init lib/v4-core
           npm ci --ignore-scripts
           V4_HOOKS_PUBLIC_COMMIT=ffd7f8a8d1f5df5deb6f41c8d2ba99d118244ed6
           V4_PERIPHERY_COMMIT=76c1891c481cebb4ff58f262473303f01a2d7393
