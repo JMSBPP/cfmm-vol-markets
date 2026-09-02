@@ -131,14 +131,14 @@ jobs:
       - name: Submodules
         run: |
           set -euo pipefail
-          git submodule sync --recursive
+          git submodule sync lib/forge-std lib/plank-foundry-deployer lib/plankified-univ3 lib/plank-monorepo lib/panoptic-v2-core
           git submodule update --init lib/forge-std
           git submodule update --init lib/plank-foundry-deployer
           git submodule update --init lib/plankified-univ3
           git submodule update --init --recursive lib/plank-monorepo
           git submodule update --init lib/panoptic-v2-core
           git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
-          git submodule update --init --recursive lib/panoptic-v2-core/lib/v4-core
+          git -C lib/panoptic-v2-core submodule update --init lib/v4-core
 
       - name: Restore npm cache
         uses: actions/cache@v4
