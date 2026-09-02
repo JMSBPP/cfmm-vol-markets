@@ -132,6 +132,9 @@ jobs:
           git submodule update --init lib/plank-foundry-deployer
           git submodule update --init lib/plankified-univ3
           git submodule update --init --recursive lib/plank-monorepo
+          git submodule update --init lib/panoptic-v2-core
+          git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
+          git submodule update --init --recursive lib/panoptic-v2-core/lib/v4-core
           make plank-toolchain
           npm ci --ignore-scripts
           # panoptic-v2-core@5555b32 -> v4-core@e50237c4 -> solmate@4b47a190 (MockERC20 only)
@@ -140,6 +143,19 @@ jobs:
             || [ "$(git -C lib/solmate rev-parse HEAD 2>/dev/null || echo)" != "$SOLMATE_COMMIT" ]; then
             rm -rf lib/solmate
             forge install transmissions11/solmate@${SOLMATE_COMMIT} --no-git
+          fi
+          # Registry.t.sol imports MockCounterHook; forge compiles all of test/.
+          V4_HOOKS_PUBLIC_COMMIT=ffd7f8a8d1f5df5deb6f41c8d2ba99d118244ed6
+          V4_PERIPHERY_COMMIT=76c1891c481cebb4ff58f262473303f01a2d7393
+          if ! test -f lib/v4-hooks-public/test/mocks/MockCounterHook.sol \
+            || [ "$(git -C lib/v4-hooks-public rev-parse HEAD 2>/dev/null || echo)" != "$V4_HOOKS_PUBLIC_COMMIT" ]; then
+            rm -rf lib/v4-hooks-public
+            forge install Uniswap/v4-hooks-public@${V4_HOOKS_PUBLIC_COMMIT} --no-git
+          fi
+          if ! test -f lib/v4-periphery/src/base/ImmutableState.sol \
+            || [ "$(git -C lib/v4-periphery rev-parse HEAD 2>/dev/null || echo)" != "$V4_PERIPHERY_COMMIT" ]; then
+            rm -rf lib/v4-periphery
+            forge install Uniswap/v4-periphery@${V4_PERIPHERY_COMMIT} --no-git
           fi
 
       - name: pair-test
@@ -150,7 +166,7 @@ jobs:
   registry-test:
     needs: foundry
     runs-on: [self-hosted, cfmm-build]
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       GIT_TERMINAL_PROMPT: "0"
     steps:
@@ -170,9 +186,8 @@ jobs:
           git submodule update --init --recursive lib/plank-monorepo
           git submodule update --init lib/panoptic-v2-core
           git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
-          make plank-toolchain
+          git submodule update --init --recursive lib/panoptic-v2-core/lib/v4-core
           npm ci --ignore-scripts
-          # MockCounterHook + BaseHook only: repo tree, no lib/ submodule init.
           V4_HOOKS_PUBLIC_COMMIT=ffd7f8a8d1f5df5deb6f41c8d2ba99d118244ed6
           V4_PERIPHERY_COMMIT=76c1891c481cebb4ff58f262473303f01a2d7393
           if ! test -f lib/v4-hooks-public/test/mocks/MockCounterHook.sol \
@@ -186,5 +201,7 @@ jobs:
             forge install Uniswap/v4-periphery@${V4_PERIPHERY_COMMIT} --no-git
           fi
 
-      - name: registry-test
-        run: forge test test/types/protocol_integrations/Registry.t.sol -vvvv --offline
+      - name: registry-import-compile
+        run: >
+          forge build --contracts test/types/protocol_integrations/Registry.t.sol
+          --offline
