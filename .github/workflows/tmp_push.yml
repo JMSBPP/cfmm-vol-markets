@@ -111,8 +111,91 @@ jobs:
       - name: forge version
         run: forge --version
 
-  pair-test:
+  deps:
     needs: foundry
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 15
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Foundry on PATH
+        run: |
+          set -euo pipefail
+          . ./.github/foundry-version
+          echo "$HOME/.foundry-pins/$FOUNDRY_VERSION/bin" >> "$GITHUB_PATH"
+
+      - name: Submodules
+        run: |
+          set -euo pipefail
+          git submodule sync --recursive
+          git submodule update --init lib/forge-std
+          git submodule update --init lib/plank-foundry-deployer
+          git submodule update --init lib/plankified-univ3
+          git submodule update --init --recursive lib/plank-monorepo
+          git submodule update --init lib/panoptic-v2-core
+          git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
+          git submodule update --init --recursive lib/panoptic-v2-core/lib/v4-core
+
+      - name: Restore npm cache
+        uses: actions/cache@v4
+        id: npm-cache
+        with:
+          path: node_modules
+          key: tmp-push-npm-${{ hashFiles('package-lock.json') }}
+          restore-keys: tmp-push-npm-
+
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        id: cargo-cache
+        with:
+          path: lib/plank-monorepo/plankc/target
+          key: tmp-push-cargo-${{ hashFiles('lib/plank-monorepo/plankc/Cargo.lock') }}
+          restore-keys: tmp-push-cargo-
+
+      - name: Plank toolchain
+        run: make plank-toolchain
+
+      - name: npm ci
+        if: steps.npm-cache.outputs.cache-hit != 'true'
+        run: npm ci --ignore-scripts
+
+      - name: Forge-installed libs
+        run: |
+          set -euo pipefail
+          SOLMATE_COMMIT=4b47a19038b798b4a33d9749d25e570443520647
+          V4_HOOKS_PUBLIC_COMMIT=ffd7f8a8d1f5df5deb6f41c8d2ba99d118244ed6
+          V4_PERIPHERY_COMMIT=76c1891c481cebb4ff58f262473303f01a2d7393
+          if ! test -f lib/solmate/src/test/utils/mocks/MockERC20.sol \
+            || [ "$(git -C lib/solmate rev-parse HEAD 2>/dev/null || echo)" != "$SOLMATE_COMMIT" ]; then
+            rm -rf lib/solmate
+            forge install transmissions11/solmate@${SOLMATE_COMMIT} --no-git
+          fi
+          if ! test -f lib/v4-hooks-public/test/mocks/MockCounterHook.sol \
+            || [ "$(git -C lib/v4-hooks-public rev-parse HEAD 2>/dev/null || echo)" != "$V4_HOOKS_PUBLIC_COMMIT" ]; then
+            rm -rf lib/v4-hooks-public
+            forge install Uniswap/v4-hooks-public@${V4_HOOKS_PUBLIC_COMMIT} --no-git
+          fi
+          if ! test -f lib/v4-periphery/src/base/ImmutableState.sol \
+            || [ "$(git -C lib/v4-periphery rev-parse HEAD 2>/dev/null || echo)" != "$V4_PERIPHERY_COMMIT" ]; then
+            rm -rf lib/v4-periphery
+            forge install Uniswap/v4-periphery@${V4_PERIPHERY_COMMIT} --no-git
+          fi
+
+      - name: Upload dependency closure
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-closure
+          path: |
+            lib/
+            node_modules/
+          retention-days: 1
+
+  pair-test:
+    needs: deps
     runs-on: [self-hosted, cfmm-build]
     timeout-minutes: 10
     env:
@@ -122,41 +205,16 @@ jobs:
         with:
           submodules: false
 
-      - name: setup
+      - name: Download dependency closure
+        uses: actions/download-artifact@v4
+        with:
+          name: dependency-closure
+
+      - name: Foundry on PATH
         run: |
           set -euo pipefail
           . ./.github/foundry-version
           echo "$HOME/.foundry-pins/$FOUNDRY_VERSION/bin" >> "$GITHUB_PATH"
-          git submodule sync lib/forge-std lib/plank-foundry-deployer lib/plankified-univ3 lib/plank-monorepo lib/panoptic-v2-core
-          git submodule update --init lib/forge-std
-          git submodule update --init lib/plank-foundry-deployer
-          git submodule update --init lib/plankified-univ3
-          git submodule update --init --recursive lib/plank-monorepo
-          git submodule update --init lib/panoptic-v2-core
-          git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
-          git -C lib/panoptic-v2-core submodule update --init lib/v4-core
-          make plank-toolchain
-          npm ci --ignore-scripts
-          # panoptic-v2-core@5555b32 -> v4-core@e50237c4 -> solmate@4b47a190 (MockERC20 only)
-          SOLMATE_COMMIT=4b47a19038b798b4a33d9749d25e570443520647
-          if ! test -f lib/solmate/src/test/utils/mocks/MockERC20.sol \
-            || [ "$(git -C lib/solmate rev-parse HEAD 2>/dev/null || echo)" != "$SOLMATE_COMMIT" ]; then
-            rm -rf lib/solmate
-            forge install transmissions11/solmate@${SOLMATE_COMMIT} --no-git
-          fi
-          # Registry.t.sol imports MockCounterHook; forge compiles all of test/.
-          V4_HOOKS_PUBLIC_COMMIT=ffd7f8a8d1f5df5deb6f41c8d2ba99d118244ed6
-          V4_PERIPHERY_COMMIT=76c1891c481cebb4ff58f262473303f01a2d7393
-          if ! test -f lib/v4-hooks-public/test/mocks/MockCounterHook.sol \
-            || [ "$(git -C lib/v4-hooks-public rev-parse HEAD 2>/dev/null || echo)" != "$V4_HOOKS_PUBLIC_COMMIT" ]; then
-            rm -rf lib/v4-hooks-public
-            forge install Uniswap/v4-hooks-public@${V4_HOOKS_PUBLIC_COMMIT} --no-git
-          fi
-          if ! test -f lib/v4-periphery/src/base/ImmutableState.sol \
-            || [ "$(git -C lib/v4-periphery rev-parse HEAD 2>/dev/null || echo)" != "$V4_PERIPHERY_COMMIT" ]; then
-            rm -rf lib/v4-periphery
-            forge install Uniswap/v4-periphery@${V4_PERIPHERY_COMMIT} --no-git
-          fi
 
       - name: pair-test
         run: >
@@ -164,7 +222,7 @@ jobs:
           --remappings 'solmate/=lib/solmate/'
 
   registry-test:
-    needs: foundry
+    needs: deps
     runs-on: [self-hosted, cfmm-build]
     timeout-minutes: 20
     env:
@@ -174,32 +232,16 @@ jobs:
         with:
           submodules: false
 
-      - name: setup
+      - name: Download dependency closure
+        uses: actions/download-artifact@v4
+        with:
+          name: dependency-closure
+
+      - name: Foundry on PATH
         run: |
           set -euo pipefail
           . ./.github/foundry-version
           echo "$HOME/.foundry-pins/$FOUNDRY_VERSION/bin" >> "$GITHUB_PATH"
-          git submodule sync lib/forge-std lib/plank-foundry-deployer lib/plankified-univ3 lib/plank-monorepo lib/panoptic-v2-core
-          git submodule update --init lib/forge-std
-          git submodule update --init lib/plank-foundry-deployer
-          git submodule update --init lib/plankified-univ3
-          git submodule update --init --recursive lib/plank-monorepo
-          git submodule update --init lib/panoptic-v2-core
-          git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
-          git -C lib/panoptic-v2-core submodule update --init lib/v4-core
-          npm ci --ignore-scripts
-          V4_HOOKS_PUBLIC_COMMIT=ffd7f8a8d1f5df5deb6f41c8d2ba99d118244ed6
-          V4_PERIPHERY_COMMIT=76c1891c481cebb4ff58f262473303f01a2d7393
-          if ! test -f lib/v4-hooks-public/test/mocks/MockCounterHook.sol \
-            || [ "$(git -C lib/v4-hooks-public rev-parse HEAD 2>/dev/null || echo)" != "$V4_HOOKS_PUBLIC_COMMIT" ]; then
-            rm -rf lib/v4-hooks-public
-            forge install Uniswap/v4-hooks-public@${V4_HOOKS_PUBLIC_COMMIT} --no-git
-          fi
-          if ! test -f lib/v4-periphery/src/base/ImmutableState.sol \
-            || [ "$(git -C lib/v4-periphery rev-parse HEAD 2>/dev/null || echo)" != "$V4_PERIPHERY_COMMIT" ]; then
-            rm -rf lib/v4-periphery
-            forge install Uniswap/v4-periphery@${V4_PERIPHERY_COMMIT} --no-git
-          fi
 
       - name: registry-import-compile
         run: >
