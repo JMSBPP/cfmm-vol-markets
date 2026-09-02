@@ -133,6 +133,7 @@ jobs:
           git submodule update --init lib/plankified-univ3
           git submodule update --init --recursive lib/plank-monorepo
           make plank-toolchain
+          npm ci --ignore-scripts
           # panoptic-v2-core@5555b32 -> v4-core@e50237c4 -> solmate@4b47a190 (MockERC20 only)
           SOLMATE_COMMIT=4b47a19038b798b4a33d9749d25e570443520647
           if ! test -f lib/solmate/src/test/utils/mocks/MockERC20.sol \
