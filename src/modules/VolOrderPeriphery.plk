@@ -1,0 +1,169 @@
+import std::constructor::return_runtime;
+import std::core::addr::addr_from_u256;
+import std::option::{Some,None};
+import std::regions::{calldata,memory};
+import std::slice::Slice;
+
+import interfaces::IVolOrderPeriphery::*;
+import types::Pair::*;
+import types::Ladder::{
+    Ladder,
+    LadderChunksAccumulator,
+    ladder_chunks_accumulator_new,
+    ladder_iota,
+    ladder_rung_chunk,
+    rung_chunk_tick_lo,
+    rung_index
+
+};
+import types::protocol_integrations::Venue::*;
+import types::protocol_integrations::Pool::*;
+import types::protocol_integrations::Registry::*;
+import types::protocol_integrations::VolMarketKey::*;
+import types::protocol_integrations::PanopticTokenId::*;
+import types::protocol_integrations::panoptic_v2::PanopticPoolId::*;
+import pos_spec::VolOrder::{VolOrder, NullVolOrder};
+import pos_spec::VolRangeWidth::VolRangeWidth;
+import pos_spec::TickVolatility::TickVolatility;
+import pos_spec::SpreadTickAssimetry::SpreadTickAssimetry;
+import pos_spec::VegaTarget::unpack_vega_target;
+import pos_spec::LegBook::*;
+import pos_spec::ClearingHouse::Panoptic;
+import pos_spec::VolPosition::*;
+import types::ldf::Geometric::Geometric::Geometric;
+import types::ldf::Geometric::Iota::*;
+import lib::protocol_integrations::VolMarketKeyLib::*;
+import lib::protocol_integrations::panoptic_v2::Binning::*;
+
+init { return_runtime(); }
+
+
+// the client set_asset(address), this is saved on memory and is the key for set_collateral(address) as
+// (asset -> whiteListedCollateral), from that whitelisted collateral list the user sets a collateral
+// and thus finishes on setting a Pair (This is is still on the same Tx)
+
+
+// Next on the same Tx we have the Pair type live, the user is prompted to enter a clearing house, which in this case chooses Panoptic
+
+// At this point we are tied to instantiate a V4 Venue
+// search on the:
+// IHooks(hookRegistry).poolManager() --> EnumerableMap( key {ts, a0,a1, fee} -> IHooks[])
+                                            ////////////////////////////////////////////////////////
+					    //                      |				  //
+					    // 			 |				  //
+					    // 			 v				  //
+                                            //     PoolKey {a0,a1,fee,ts,IHooks}[]		  //
+					    // 							  //
+                                            // mapping(string feature -> bytes32 featKey) 	  //
+					    // mapping(bytes32 featKey -> IHooks)		  //
+					    ////////////////////////////////////////////////////////
+
+// User enters "feature" --------> PoolKey {a0,a1,fee ts, ([feature] -> featKey) -> IHooks)}
+
+// for all pools with those two tokens and output their
+// tickSpacing and feePips value that was put on the PoolKey
+// the PoolKey requires an IHooks value to be complete, the address presented to the user is fixed but the 
+
+    //////////////////////////////////////////////
+    // ts    fee			        //
+    //  -    -				        //
+    // | |  | |       other lens metrics        //
+    //  -	  _	   -----------------    //
+    // 		  |                 |	        //
+    // 		  |                 |	        //
+    // 		   -----------------	        //
+    //////////////////////////////////////////////
+		  
+
+
+
+// At this point we can add to the (In this case PanopticTokenId) the assetIdx field
+
+// VolMarkets.VolOrderPeriphery.PANOPTIC_TOKEN_ID.TSLOT
+const VOL_MARKET_KEY_TSLOT = 0x8bb2fa2ebf7505391db26e2cc233582857d9705b338a5a23a6d357b2d51b0c7a;
+const PANOPTIC_TOKEN_ID_TSLOT = VOL_MARKET_KEY_TSLOT +% 3;
+const CALLDATA_ASSET_IDX = 0x0000000000000000000000000000000000000000000000000000000000000001;
+const DEFAULT_TARGET_VEGA = 1000000000000000000;
+
+
+// this is temporary, It returns a more typed arry of it
+const PoolKeyMissingDatum = struct {
+      fee:u256,
+      ts:u256,
+      hookAddr: u256
+};
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == EXTTLOAD {
+        let val = @evm_tload(@evm_calldataload(4));
+        let out_ptr = @malloc_uninit(32);
+        @mstore32(out_ptr, val);
+        @evm_return(out_ptr, 32);
+    } else if selector == SET_PAIR {
+       let asset = addr_from_u256(@evm_calldataload(4));
+       let collateral = addr_from_u256(@evm_calldataload(36));
+       let _pair: Pair = pair(asset, collateral, CALLDATA_ASSET_IDX);
+       let mut tid = 0;
+       tid = panoptic_add_asset(tid,asset_index(_pair),0);	   
+       tid = panoptic_add_asset(tid,asset_index(_pair),1);
+       tid = panoptic_add_asset(tid,asset_index(_pair),2);
+       tid = panoptic_add_asset(tid,asset_index(_pair),3);
+
+        // note: These are hardcoded values to match a test (ETH/USDC fee=3000 ts=60 hooks=0)
+       let datum: PoolKeyMissingDatum = PoolKeyMissingDatum {
+           fee: 3000,
+           ts: 60,
+           hookAddr: 0
+       };
+       let registryV4: Registry(V4) = registry_v4(addr_from_u256(datum.hookAddr));
+       let marketPool: Pool(V4) = pool_v4(_pair, registryV4, datum.fee, datum.ts);
+       let volMarketKey: VolMarketKey(V4) = vol_market_key(
+           V4, Some(_pair), Some(registryV4), Some(marketPool)
+       );
+       // note: constant VEGOID placeholder; matches RiskEngine.VEGOID = 8
+       let panPoolId: PanopticPoolId = vol_market_key_to_panoptic_pool_id(V4, volMarketKey, 8);
+       // panoptic_add_pool_id already embeds tickSpacing (bits 48..63)
+       tid = panoptic_add_pool_id(tid, panoptic_pool_id_word(panPoolId));
+       @evm_tstore(PANOPTIC_TOKEN_ID_TSLOT, tid);
+       tstore_vol_market_key(VOL_MARKET_KEY_TSLOT,V4,volMarketKey);
+    } else if selector == SET_VOL_ORDER {
+       let volMarketKey: VolMarketKey(V4) = tload_vol_market_key(VOL_MARKET_KEY_TSLOT, V4);
+       let ts = vol_market_key_tick_spacing(V4, volMarketKey);
+       let volOrder: VolOrder(memory) = VolOrder(memory) {
+           rangeWidth: VolRangeWidth {
+               width: @evm_calldataload(68) & 0xffffff,
+               tickSpacing: ts
+           },
+           volStrike: TickVolatility { vol: @evm_calldataload(4) & 0xffffffffffffffffffffff },
+           skew: SpreadTickAssimetry { spread: @evm_calldataload(36) & 0xffff },
+           targetVega: unpack_vega_target(DEFAULT_TARGET_VEGA),
+           extra: NullVolOrder(memory).extra
+       };
+       let ladder:Ladder(V4) = ladder_from_vol_order(V4,memory, volMarketKey, volOrder);
+       let iota = ladder_iota(ladder, V4, volMarketKey);
+       let chunk = iota_alloc(iota);
+       let out_ptr = @malloc_uninit(iota *% 32);
+       let out = Slice(memory, u256, comptime { None(u256) }) { ptr: out_ptr, len: iota };
+       let poolId: PanopticPoolId = vol_market_key_to_panoptic_pool_id(V4, volMarketKey, 8);
+       let volPosition :VolPosition(V4,memory,Panoptic) = vol_position_from_ladder(
+       	   Geometric(memory),
+       	   memory,
+	   V4,
+	   Panoptic,
+	   8,
+	   legWeightBoundMax(),
+	   volMarketKey,
+	   volOrder,
+	   ladder,
+	   chunk,
+	   out,
+	   poolId
+       );
+       let ret_ptr = @malloc_uninit(32);
+       @mstore32(ret_ptr, vol_position_id_word(V4, memory, Panoptic, volPosition));
+       @evm_return(ret_ptr, 32);
+    }
+
+    @evm_stop();
+}
