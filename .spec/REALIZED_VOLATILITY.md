@@ -6,56 +6,34 @@
        \pi^{\sigma} = \bar L \times (\sigma(i(t))^2 - \sigma_K^2)
       \end{aligned}
 \]
-`
-``
-Define the type :
 
-\[
-\begin{aligned}
-	\mathrm{Window} = 24\times 60 \times 60
-\end{aligned}
-\]
+Given:
 
-and then:
+
 
 \[
 	\begin{aligned}
-		\mathrm{Vol} (\mathrm{Window}; t) \, &= (\mathrm{Window})^{-1} \times \sum_{t=t_{\text{now}} - \text{Window}}^{t_{\text{now}}} \Big [i(t_{\text{now}}) \, - \, i_{\mu} (t)\Big ]^2
-	\end{aligned}
-\]
-
-Define:
-
-\[
-	\begin{aligned}
-		\mathrm{TickState} \{ \\
-		 \quad i(t)\\
-		 
-		 \quad \textrm{update ()} \\
-		 \quad \textrm{get ()} \\
- 		\} 
+		\sigma_{W} (t) \equiv \mathrm{Vol} (\mathrm{Window}; t) \, &= (\mathrm{Window})^{-1} \times \sum_{t=t_{\text{now}} - \text{Window}}^{t_{\text{now}}} \Big [i(t_{\text{now}}) \, - \, i_{\mu} (t)\Big ]^2
 	\end{aligned}
 \]
 
 
+\[
+	\begin{aligned}
+		\sigma_{\text{factory}} : T \times \bar \sigma \to \text{TickPath} \equiv \{i\}_{j=0}^{N}
+	\end{aligned}
+\]
 
+\[
+	\begin{aligned}
+		\sigma (t_N) = \bar \sigma 
+	\end{aligned}
+\]
 
+# PRE-REQ
 
-TickState{
-	update() --->  TickVariance{
-	  |                   TickState.get()
-	  |	 				              ----------v 
-	  |              }                  update(   ,   )
-}     |                                          ----^ 
-       -------> TickAverage {                   |
-	                i_{u}                       |
- update (tickState.get())    |
-					get()   --------------------
-                 }
-
-
-- Now we want a realized-volatility factory. This is:
-
+## **Window**
+-------
 The convention is, lets stablish a fixed time frequency \(\bar dt\). and start \(t_0 \leftarrow \bar t\); This gives:
 
 \[
@@ -66,40 +44,25 @@ The convention is, lets stablish a fixed time frequency \(\bar dt\). and start \
 	\end{aligned}
 \]
 
+
+\[
+\begin{aligned}
+	\mathrm{Window} = 24\times 60 \times 60
+\end{aligned}
+\]
+
 \[
 	\begin{aligned}
 		\textrm{Window} = \sum_{i=0}^{\text{Window}/\bar dt} \bar t_i
 	\end{aligned}
 \]
 
-which give us a sequence of timestamps \(T = \{t_i\}_{i=0}^{N}\quad N =\frac{\text{Window}}{\bar dt}\);
 
-Define:
+## **WeinerGenerator**
 
-\[
-	\begin{aligned}
-		\sigma_{\text{factory}} : T \times \bar \sigma \to \text{TickPath} \equiv \{i\}_{j=0}^{N}
-	\end{aligned}
-\]
-
-
-Note that \(\sigma_{\text{factory}}\) is a *discrete time control macro*, formally:
-
-\[
-	\begin{aligned}
-		i(t_i) = A\cdot i(t_{i-1}) + B \cdot u \\
-		\sigma (t_i) = C \cdot i(t_{i}) + D \cdot u 
-	\end{aligned}
-\]
-
-with terminal condition: 
-
-\[
-	\begin{aligned}
-		\sigma (N) = \bar \sigma 
-	\end{aligned}
-\]
-
+ \(\Delta W (t_i) = \sqrt{\bar dt} \, \cdot\, \epsilon \, (t_i); \quad \epsilon (t_i) \sim \mathcal{N} \, (0,1)\)
+ 
+ 
 # MODEL
 
 Consider a net-flow numeriare diffusion as:
@@ -110,25 +73,38 @@ Consider a net-flow numeriare diffusion as:
 	\end{aligned}
 \]
 
-From where on a fixed tick-bucket \([i_l, i_u]\):
+------
+
+
+## **CEVLocalTickVolatility**
+
 
 \[
 	\begin{aligned}
-		\Delta p (t_{i}) \, = \, \Big (\frac{2 \, \mu_F}{L_{1/2}} \,\sqrt{p (t_i)} + \, \frac{\sigma_F^2}{(L_{1/2})^2}\Big) \, \bar dt \, + \, \sigma (p (t_i)) \, \Delta \, W (t_i)
+		\sigma (i (t_i)) \, & = \frac{\sigma_F}
+{L_{1/2}\ln(1.0001)\sqrt{p (i(t_i))}}\, 
 	\end{aligned}
 \]
-Where \(\Delta W (t_i) = \sqrt{\bar dt} \, \cdot\, \epsilon \, (t_i); \quad \epsilon (t_i) \sim \mathcal{N} \, (0,1)\)
 
+
+## **CEVLocalTickDrift**
+
+
+\[
+	\begin{aligned}
+		\mu (i (t_i))\, &= \, \frac{\mu_F}{L_{1/2}\sqrt{p \, (t_i)}}
+-\frac{\sigma_F^2}{2L_{1/2}^2p (i(t_i))}
+	\end{aligned}
+\]
+
+
+
+## **TickDynamics**
+
+\(\Delta i (t_i) \equiv i (t_i) - i (t_{i-1})\);
 
 By making \(\sigma (p) = \delta \, \sqrt{p} \) we have under CPMM, \(\delta = \frac{2\, \sigma_F}{ L_{1/2}}\)
 
-\[
-	\begin{aligned}
-		\Delta p (t_{i}) \, = \, \Big (\frac{2 \, \mu_F}{L_{1/2}} \,\sqrt{p (t_i)} + \, \frac{\sigma_F^2}{(L_{1/2})^2}\Big) \, \bar dt \, + \, \frac{2\, \sigma_F}{ L_{1/2}} \, \sqrt{p (t_i)} \, \Delta \, W (t_i)
-	\end{aligned}
-\]
-
-since \(i(p(t)) = \log_{1.0001} \sqrt{p(t)} \), then:
 
 \[
 	\begin{aligned}
@@ -148,33 +124,26 @@ i(t_i) \, \in \, [i_l, i_u]
 \]
 
 
-Since \(\Delta i (t_i) \equiv i (t_i) - i (t_{i-1})\);
+since \(i(p(t)) = \log_{1.0001} \sqrt{p(t)} \), then is equivalent to:
+
 
 \[
 	\begin{aligned}
-		\Delta i (t_i) \, &= \, (A -1 )\, i (t_{i-1}) \, + \, B \, u
+		\Delta p (t_{i}) \, = \, \Big (\frac{2 \, \mu_F}{L_{1/2}} \,\sqrt{p (t_i)} + \, \frac{\sigma_F^2}{(L_{1/2})^2}\Big) \, \bar dt \, + \, \frac{2\, \sigma_F}{ L_{1/2}} \, \sqrt{p (t_i)} \, \Delta \, W (t_i)
 	\end{aligned}
 \]
 
-We pinned also a functional form of volatility with respecto to tickState as not being linear:
+### Theorem:
+
+Under CEV, and CPMM \(\textrm{TickPath}\) that realized \(\bar \sigma\) has the endpoint:
 
 \[
 	\begin{aligned}
-		\sigma (i (t_i)) \, & = \frac{\sigma_F}
-{L_{1/2}\ln(1.0001)\sqrt{p (i(t_i))}}\, 
+		i(t_N) = \frac{\alpha \, -\, \ln \bar \sigma}{\ln (1.0001)}
 	\end{aligned}
 \]
 
-And assign:
-
-\[
-	\begin{aligned}
-		\mu (i (t_i))\, &= \, \frac{\mu_F}{L_{1/2}\sqrt{p \, (t_i)}}
--\frac{\sigma_F^2}{2L_{1/2}^2p (i(t_i))}
-	\end{aligned}
-\]
-
-We need to find a linear map:
+#### *Proof*
 
 \[
 	\begin{aligned}
@@ -200,28 +169,29 @@ $$
 $$
 
 
-Then if the state-space represenation is writtin in logs. We have:
+Then:
 
 \[
 	\begin{aligned}
-		C = -\beta=- \ln (1.0001)
-	\end{aligned}
-\]
-And:
-\[
-	\begin{aligned}
-		i(t_i) = A\cdot i(t_{i-1}) + B \cdot u \\
-		\ln \sigma (t_i) = C \cdot i(t_{i}) + D \cdot u 
+		i(t_N) = \frac{\alpha \, -\, \ln \bar \sigma}{\ln (1.0001)}
 	\end{aligned}
 \]
 
-with \(D = 0\) and \(\sigma (N) = \bar \sigma \iff \ln \sigma (N) = \ln \bar \sigma\), implies that we have found the enpoint of the path:
 
-\[
-	\begin{aligned}
-		i(N) = \frac{\alpha \, -\, \ln \bar \sigma}{\ln (1.0001)}
-	\end{aligned}
-\]
+
+
+
+
+
+
+
+
+
+
+
+
+-- OLD
+
 
 Since \(\Delta i (t_i) \equiv i (t_i) - i (t_{i-1})\);
 

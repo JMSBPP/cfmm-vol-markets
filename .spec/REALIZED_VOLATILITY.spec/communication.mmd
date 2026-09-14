@@ -1,0 +1,75 @@
+flowchart TD
+    WINDOW["Window"]
+
+    DT["$$\bar{dt}$$"]
+    T["$$t_i$$"]
+    
+    WIENER["WienerGenerator"]
+
+    DW(("$$\Delta W (t_i)$$"))
+
+    subgraph CEV["CEVTickVolatilityFactory"]
+        NFD["NetFlowNumeraireDiffusion"]
+        PARAMS(("$$\sigma_F,\;\mu_F$$"))
+        TICKDYN["TickDynamics"]
+        CONST["Constants"]
+        LHALF(("$$L_{1/2},\;\ln(1.0001)$$"))
+    end
+
+    TICK["Tick"]
+    SQRTP["$$\sqrt{p (t_i)}$$"]
+    DI(("$$\Delta i (t_j)$$"))
+
+    WINDOW --> DT --> WIENER
+    WINDOW --> T --> WIENER
+    WIENER --> DW --> NFD
+    DT --> NFD
+    NFD --> PARAMS --> TICKDYN
+    DW --> TICKDYN
+    T --> TICKDYN
+    DT --> TICKDYN
+    CONST --> LHALF --> TICKDYN
+    T --> TICK
+    TICK --> SQRTP --> TICKDYN
+    TICKDYN --> DI --> TICK
+
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% WN -->|$$\Delta W_t$$| DW1				       %%
+    %% WN -->|$$\Delta W_t$$| DW2				       %%
+    %% 								       %%
+    %% 								       %%
+    %% NFD["NetFlowNumeraireDiffusion"]				       %%
+    %% 								       %%
+    %% DT2(("$$d t$$"))						       %%
+    %% 								       %%
+    %% DW1 --> NFD						       %%
+    %% DT2 --> NFD						       %%
+    %% 								       %%
+    %% NFD -->|$$\frac{\bar{\iota}}{\bar{P}}$$| C		       %%
+    %% 								       %%
+    %% 								       %%
+    %% %% ============================================================ %%
+    %% %% CENTRALIZED / EVM REPRESENTATION			       %%
+    %% %% ============================================================ %%
+    %% 								       %%
+    %% C["TickControl"]						       %%
+    %% 								       %%
+    %% DW2 --> C						       %%
+    %% 								       %%
+    %% PARAM["$$\left(k_n,\;h_n,\;0.002\right)$$"]		       %%
+    %% 								       %%
+    %% PARAM --> C						       %%
+    %% 								       %%
+    %% 								       %%
+    %% I0["Constants"]						       %%
+    %% 								       %%
+    %% SQRT["$$L_{1/2} \, \ln (1.0001)^{-1}$$"]			       %%
+    %% 								       %%
+    %% I0 --> SQRT						       %%
+    %% SQRT --> C						       %%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+
