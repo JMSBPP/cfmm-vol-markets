@@ -1,9 +1,0 @@
-# Domain catalog for `just spec-compile` / push-build.
-# SPEC_DOMAIN (env or Actions vars.SPEC_DOMAIN) selects a key under [domains.*];
-# if unset, `default` is used. Unknown domain → fail closed.
-
-default = "REALIZED_VOLATILITY"
-
-[domains.REALIZED_VOLATILITY]
-path = ".spec/REALIZED_VOLATILITY.spec"
-compile = ".spec/REALIZED_VOLATILITY.spec/compile.toml"
