@@ -62,3 +62,6 @@ dist-newstyle/
 .agents/settings.local.json
 .spec/
 .offline/
+
+# Lean Lake deps/build under Aristotle artifacts — never commit (breaks checkout as gitlinks).
+.spec/**/.lake/
