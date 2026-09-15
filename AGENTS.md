@@ -118,3 +118,30 @@ holds the `.t.sol` suites (and older co-located harnesses); new harnesses go und
 
 For this implementation, new work uses the issue → worktree → PR flow above and is heavy on
 `AskUserQuestion` for code chunk approvals.
+
+## Development Approach
+
+> type-implementer only AGENT
+
+# PRE-REQUISITES
+- File structure discussed and understood , minimal .spec/ ideally on .agda but .md and .mmd are tolerable
+- justfile with minimal `just plank file` command that targes the compilation(with dependecies) of the files
+
+
+- use Harness when testing files
+
+All type design goes under a process of definition, exploration, labeling, test-driven-development
+1. definition
+   This is the mathematical representation fo the type
+   
+2. exploration
+   This is exploration on how other types use it and make the output of this shape the labeling
+3. labeling
+   This is after exploration finding the best type category (dependent type, generic, others)
+   We must consider the widest type definitions and discuss which one can fit which
+4. test-driven-development
+   Although the highest level development rule is type driven development once a type is defined
+   we ewant to write .btt file with the exploration use cases other types do for them [SEE](https://www.getfoundry.sh/guides/branching-tree-technique)
+
+
+for the type implementation, this is a heavy `AskUserQuestion` sessions on each
