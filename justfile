@@ -88,3 +88,70 @@ plank file:
         --dep cfmm_types=lib/cfmm-types/src/types/ \
         --dep lib=src/lib/ \
         --backend sona
+
+# --- Spec tools (Agda + Idris 2 via pinned Docker image) ---------------------
+# Image ref: `.github/spec-tools-image` (GHCR tag). Build only when Dockerfile.spec-tools changes.
+# Always Docker locally and in CI (no host-Agda escape). See AGENTS.md.
+
+spec-tools-image := `tr -d '[:space:]' < .github/spec-tools-image`
+
+# Pull GHCR pin; on miss, build from Dockerfile.spec-tools and tag as the pin.
+spec-tools-ensure:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    img="{{spec-tools-image}}"
+    if docker image inspect "$img" >/dev/null 2>&1; then
+        echo "spec-tools image present: $img"
+        exit 0
+    fi
+    if docker pull "$img"; then
+        echo "spec-tools image pulled: $img"
+        exit 0
+    fi
+    echo "spec-tools: pull failed; building Dockerfile.spec-tools as $img" >&2
+    docker build -f Dockerfile.spec-tools -t "$img" .
+
+# Type-check one Agda file (repo-root-relative path).
+agda file:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just spec-tools-ensure
+    img="{{spec-tools-image}}"
+    f="{{file}}"
+    if [[ ! -f "$f" ]]; then
+        echo "error: missing $f" >&2
+        exit 1
+    fi
+    dir="$(dirname "$f")"
+    base="$(basename "$f")"
+    docker run --rm \
+        -v "$PWD:/work" \
+        -w "/work/$dir" \
+        "$img" \
+        agda --safe "$base"
+
+# Type-check one Idris 2 file (repo-root-relative path).
+idris file:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just spec-tools-ensure
+    img="{{spec-tools-image}}"
+    f="{{file}}"
+    if [[ ! -f "$f" ]]; then
+        echo "error: missing $f" >&2
+        exit 1
+    fi
+    dir="$(dirname "$f")"
+    base="$(basename "$f")"
+    docker run --rm \
+        -v "$PWD:/work" \
+        -w "/work/$dir" \
+        "$img" \
+        idris2 --check "$base"
+
+# Compile the domain selected by SPEC_DOMAIN (or domains.toml default).
+# Reads `.spec/domains.toml` → that domain's compile.toml → just agda|idris|plank.
+spec-compile:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    python3 scripts/spec-compile.py

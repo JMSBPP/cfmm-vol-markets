@@ -100,7 +100,7 @@ Provides means to interact with:
 ///   initializeTWAP(uint32,int24)                → 0xed64c40a  (timestamp, tick)
 ///   writeTimepoint(uint32,int24)                → 0xb09b2297  (timestamp, tick) 
 ///   canGetTwap(uint32,uint32)                   → 0x4a513c98  (period, timestamp)
-///   getSingleTimepoint(uint32,uint32,int24)     → 0xf1a0ebe5  (secondsAgo, timestamp, tick)
+e///   getSingleTimepoint(uint32,uint32,int24)     → 0xf1a0ebe5  (secondsAgo, timestamp, tick)
 ///   getTimepoints(uint32[],uint32,int24)        → 0x36ab33e3  (secondsAgo[],timestamp,tick)
 ///   getAverageVolatilityLast(uint32,int24)      → 0x59dc9384  (timestamp, lastIndex, oldestIndex,tick)
 
