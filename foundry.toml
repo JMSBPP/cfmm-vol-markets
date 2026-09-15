@@ -42,8 +42,14 @@ fs_permissions = [
 
 remappings = [
 	   "@cryptoalgebra/volatility-oracle-plugin/=node_modules/@cryptoalgebra/volatility-oracle-plugin/contracts",
+	   # Longer `…/contracts/` prefixes win over the short forms so Algebra sources that import
+	   # `@cryptoalgebra/…/contracts/…` (VolatilityOracleConnector, abstract-plugin) resolve.
+	   "@cryptoalgebra/integral-core/contracts/=node_modules/@cryptoalgebra/integral-core/contracts/",
 	   "@cryptoalgebra/integral-core/=node_modules/@cryptoalgebra/integral-core/contracts",
+	   "@cryptoalgebra/integral-periphery/contracts/=node_modules/@cryptoalgebra/integral-periphery/contracts/",
 	   "@cryptoalgebra/integral-periphery/=node_modules/@cryptoalgebra/integral-periphery/contracts/",
+	   "@cryptoalgebra/abstract-plugin/contracts/=node_modules/@cryptoalgebra/abstract-plugin/contracts/",
+	   "@cryptoalgebra/abstract-plugin/=node_modules/@cryptoalgebra/abstract-plugin/contracts/",
 	   # AdaptiveFee's differential oracle is vendored (test/premium/refs/AdaptiveFee.sol) because the
 	   # published lib's unused integral-core contracts/-style import doesn't resolve in forge's
 	   # node_modules compile context. This remap serves the self-contained config-type imports.

@@ -1,0 +1,16 @@
+# Compilable entrypoints for the REALIZED_VOLATILITY SuD.
+# Agents must update this file for every .agda / .idr / .plk they submit (see AGENTS.md).
+# Paths are repo-root-relative. Empty files = [] is OK.
+
+[agda]
+files = [
+  ".spec/REALIZED_VOLATILITY.spec/types/WINDOW/TimeSpacing/TimeSpacing.agda",
+]
+
+[idris]
+files = [
+  ".spec/REALIZED_VOLATILITY.spec/types/WINDOW/TimeSpacing/TimeSpacing.idr",
+]
+
+[plank]
+files = []

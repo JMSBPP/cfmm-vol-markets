@@ -181,6 +181,17 @@ jobs:
       - name: Plank toolchain
         run: make plank-toolchain
 
+      # Domain-scoped Agda / Idris 2 / Plank from `.spec/<DOMAIN>.spec/compile.toml`.
+      # SPEC_DOMAIN overrides `.spec/domains.toml` default (Actions vars.SPEC_DOMAIN).
+      # Image: `.github/spec-tools-image` (GHCR); built from Dockerfile.spec-tools on miss.
+      - name: Spec tools image
+        run: just spec-tools-ensure
+
+      - name: Spec compile
+        env:
+          SPEC_DOMAIN: ${{ vars.SPEC_DOMAIN }}
+        run: just spec-compile
+
       # node_modules is a HARD forge dependency (the @cryptoalgebra remappings in
       # foundry.toml resolve into it); package.json/package-lock.json are tracked for exactly
       # this closure. Without this the compile dies on missing @cryptoalgebra sources before

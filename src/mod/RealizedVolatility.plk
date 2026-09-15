@@ -1,0 +1,44 @@
+import std::regions::{embed_as, memory, bytes};
+import std::core::addr::{addr, cast_addr, addr_from_u256, raw_create};
+import std::option::unwrap;
+import lib::VolOracleInitcode::*;
+import types::Volatility::IVolatilityOracleShell::*;
+
+const ZERO_VALUE = 0;
+
+const load_wrapper_addr = fn () addr {
+    let buf = @malloc_uninit(32);
+    @evm_codecopy(buf, @runtime_length(), 32);
+    addr_from_u256(@mload32(buf))
+};
+
+const load_oracle_shell = fn () IVolatilityOracleShell {
+    volatility_oracle_shell(load_wrapper_addr())
+};
+
+init {
+    let impl_code: bytes(memory) = embed_as(VOL_ORACLE_IMPL_INITCODE, memory);
+    let impl_addr: addr = unwrap(raw_create(ZERO_VALUE, impl_code));
+
+    let wrapper_base: bytes(memory) = embed_as(VOL_ORACLE_WRAPPER_INITCODE, memory);
+    let wrapper_len = wrapper_base.length +% 32;
+    let wrapper_buf = @malloc_uninit(wrapper_len);
+    @mcopy(wrapper_buf, wrapper_base.ptr, wrapper_base.length);
+    @mstore32(wrapper_buf +% wrapper_base.length, cast_addr(impl_addr, u256));
+    let wrapper_code = bytes(memory) {
+        ptr: wrapper_buf,
+        length: wrapper_len,
+    };
+    let wrapper_addr: addr = unwrap(raw_create(ZERO_VALUE, wrapper_code));
+
+    let final_runtime_len = @runtime_length() +% 32;
+    let runtime_buf = @malloc_uninit(final_runtime_len);
+    @evm_codecopy(runtime_buf, @runtime_start_offset(), @runtime_length());
+    @mstore32(runtime_buf +% @runtime_length(), cast_addr(wrapper_addr, u256));
+    @evm_return(runtime_buf, final_runtime_len);
+}
+
+run {
+    let _shell = load_oracle_shell();
+    @evm_stop();
+}
