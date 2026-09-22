@@ -65,3 +65,4 @@ dist-newstyle/
 
 # Lean Lake deps/build under Aristotle artifacts — never commit (breaks checkout as gitlinks).
 .spec/**/.lake/
+out-weiner/
