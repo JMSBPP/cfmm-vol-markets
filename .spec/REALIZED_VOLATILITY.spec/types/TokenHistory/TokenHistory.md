@@ -1,4 +1,4 @@
-# [TYPE:: HISTORY](MAIN_REF# MODEL)
+# [TYPE:: TOKEN_HISTORY](MAIN_REF# MODEL)
 
 [TimeIndex](../WINDOW/TimeSpacing.md) · [SigmaF](../SigmaF/SigmaF.md) · [Weiner](../WeinerGenerator/WeinerGenerator.md)
 
@@ -13,13 +13,13 @@ K
 &\le
 n(\bar{dt})
 \\[1em]
-\mathrm{History}(\bar{dt},\,0)
+\mathrm{TokenHistory}(\bar{dt},\,0)
 &=
 \varepsilon
 \\
-\mathrm{History}(\bar{dt},\,S\,k)
+\mathrm{TokenHistory}(\bar{dt},\,S\,k)
 &=
-\mathrm{Step}(\bar{dt})\times\mathrm{History}(\bar{dt},\,k)
+\mathrm{Step}(\bar{dt})\times\mathrm{TokenHistory}(\bar{dt},\,k)
 \\[1em]
 \mathrm{Step}(\bar{dt})
 &\leftarrow
@@ -44,7 +44,7 @@ i_j
 \mathrm{intro}
 &::
 \mathrm{weiner} \to \mathrm{SigmaF} \to t_{\mathrm{init}} \to K
-\to \lvert \mathrm{History} \rvert
+\to \lvert \mathrm{TokenHistory} \rvert
 \\
 \mathrm{intro}
 &=
@@ -75,4 +75,4 @@ K
 \end{aligned}
 \]
 
-ABI `intro` returns \(\lvert\mathrm{History}\rvert=K\). Cells are `step_K(j)`, not a fixed two-Step unpack. TokenAmount / Dir are equations on `ΔW_j`, not Step fields.
+ABI `intro` returns \(\lvert\mathrm{TokenHistory}\rvert=K\). Cells are `step_K(j)`, not a fixed two-Step unpack. TokenAmount / Dir are equations on `ΔW_j`, not Step fields.

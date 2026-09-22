@@ -11,7 +11,7 @@ import cfmm_types::TimeSpacing::{TimeSpacing, n};
 import types::SigmaF::SigmaF;
 import types::WeinerGenerator::{DeltaW, abs_signed, is_neg_signed};
 
-/// types.toml: History
+/// types.toml: TokenHistory
 const Step = fn (comptime dt: u256) type {
     let _ = TimeSpacing(dt);
     struct {
@@ -22,15 +22,15 @@ const Step = fn (comptime dt: u256) type {
     }
 };
 
-/// History(dt, 0) = ε; History(dt, S k) = Step(dt) × History(dt, k)
-const History = fn (comptime dt: u256, comptime k: u256) type {
+/// TokenHistory(dt, 0) = ε; TokenHistory(dt, S k) = Step(dt) × TokenHistory(dt, k)
+const TokenHistory = fn (comptime dt: u256, comptime k: u256) type {
     let _ = TimeSpacing(dt);
     if k == 0 {
         struct {}
     } else {
         struct {
             head: Step(dt),
-            tail: History(dt, k -% 1)
+            tail: TokenHistory(dt, k -% 1)
         }
     }
 };
@@ -78,26 +78,26 @@ const intro_from = fn (
     weiner: addr,
     sf: SigmaF(),
     t_init: u256
-) History(dt, k) {
+) TokenHistory(dt, k) {
     if k == 0 {
-        History(dt, 0) {}
+        TokenHistory(dt, 0) {}
     } else {
-        History(dt, k) {
+        TokenHistory(dt, k) {
             head: step_at(dt, weiner, sf, t_init, off),
             tail: intro_from(dt, k -% 1, off +% 1, weiner, sf, t_init)
         }
     }
 };
 
-const HistoryBuf = fn (comptime dt: u256, comptime k: u256) type {
-    Slice(memory, History(dt, k), Some(1))
+const TokenHistoryBuf = fn (comptime dt: u256, comptime k: u256) type {
+    Slice(memory, TokenHistory(dt, k), Some(1))
 };
 
-const intro = fn (comptime dt: u256, comptime k: u256, weiner: addr, sf: SigmaF(), t_init: u256) HistoryBuf(dt, k) {
+const intro = fn (comptime dt: u256, comptime k: u256, weiner: addr, sf: SigmaF(), t_init: u256) TokenHistoryBuf(dt, k) {
     let h = intro_from(dt, k, 0, weiner, sf, t_init);
-    let ptr = @malloc_uninit(comptime { sizeof(History(dt, k)) });
+    let ptr = @malloc_uninit(comptime { sizeof(TokenHistory(dt, k)) });
     unsafe_mem_write(ptr, h);
-    HistoryBuf(dt, k) { ptr: ptr }
+    TokenHistoryBuf(dt, k) { ptr: ptr }
 };
 
 /// Runtime prefix: Some iff 0 < K < n(dt). Buffer is Slice of Step, not the nest.

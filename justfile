@@ -119,9 +119,13 @@ ensure-anvil:
 test-sigmaf: ensure-anvil
     FOUNDRY_PROFILE=sigmaf forge test --match-path test/types/SigmaF.t.sol --via-ir --fork-url {{anvil-rpc}} -vvvv
 
-# History intro len=K + step_k fuzz K < n(dt). Offline (no Anvil).
-test-history:
-    FOUNDRY_PROFILE=rv-init forge test --match-path test/types/History.t.sol --via-ir --offline -vvvv
+# TokenHistory intro len=K + step_k fuzz K < n(dt). Offline (no Anvil).
+test-tokenhistory:
+    FOUNDRY_PROFILE=rv-init forge test --match-path test/types/TokenHistory.t.sol --via-ir --offline -vvvv
+
+# TokenHistoryFlow run_k: all j<K Xfers, fuzz K≤128. Offline.
+test-tokenhistoryflow:
+    FOUNDRY_PROFILE=rv-init forge test --match-path test/types/TokenHistoryFlow.t.sol --via-ir --offline -vvvv
 
 # RealizedVolatility init→one-bin write vs TimeIndex.lastIndex (cfmm-types pin).
 test-rv-init-index:

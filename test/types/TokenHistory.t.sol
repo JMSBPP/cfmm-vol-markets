@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import {PlankTestBase} from "test/PlankTestBase.sol";
 import {WeinerView} from "test/mocks/WeinerView.sol";
 
-interface IHistory {
+interface ITokenHistory {
     function intro(address weiner, uint256 sigmaF, uint256 tInit, uint256 k) external view returns (uint256 len);
 
     function step(address weiner, uint256 sigmaF, uint256 tInit, uint256 k, uint256 j)
@@ -13,10 +13,10 @@ interface IHistory {
         returns (bool ok, uint256 t, uint256 i, uint256 dw, uint256 dq);
 }
 
-/// @title HistoryTest
+/// @title TokenHistoryTest
 /// @notice intro returns len=K; cells via step(j). dt=2.
-contract HistoryTest is PlankTestBase {
-    IHistory internal harness;
+contract TokenHistoryTest is PlankTestBase {
+    ITokenHistory internal harness;
 
     uint256 internal constant DT = 2;
     uint256 internal constant WINDOW = 86400;
@@ -25,7 +25,7 @@ contract HistoryTest is PlankTestBase {
     uint256 internal constant SF = 1;
 
     function setUp() public {
-        harness = IHistory(deployPlank("test/harness/types/HistoryHarness.plk"));
+        harness = ITokenHistory(deployPlank("test/harness/types/TokenHistoryHarness.plk"));
     }
 
     /// n(dt=2) = Window/dt = 43200 timepoints.

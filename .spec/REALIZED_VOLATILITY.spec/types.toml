@@ -40,16 +40,16 @@ laws = [
 refined = true
 notes = "Outcome is a wrapper of std::option::Option(u256)"
 
-[History]
-module = "History"
+[TokenHistory]
+module = "TokenHistory"
 kind = "indexed"
-file = "types/History/History.md"
-carriers = ["Step", "History(dt,K)", "Slice(memory)"]
+file = "types/TokenHistory/TokenHistory.md"
+carriers = ["Step", "TokenHistory(dt,K)", "Slice(memory)"]
 operations = ["intro", "intro_len", "intro_k", "step_k"]
 laws = [
-  "History(dt,0) = ε",
-  "History(dt,S k) = Step(dt) × History(dt,k)",
-  "intro writes the nest into Slice(memory, History(dt,K), 1)",
+  "TokenHistory(dt,0) = ε",
+  "TokenHistory(dt,S k) = Step(dt) × TokenHistory(dt,k)",
+  "intro writes the nest into Slice(memory, TokenHistory(dt,K), 1)",
   "ABI intro returns len=K (0 if invalid); cells via step_k(j)",
   "intro_k: Some iff 0 < K < n(dt); buffer is Slice of Step",
   "step_k: Some(step_at(j)) iff 0 < K < n(dt) and j < K; no K-allocation",
@@ -62,3 +62,22 @@ laws = [
 ]
 refined = false
 notes = "Inductive nest + intro_k runtime prefix. Fuzz: 1 ≤ K < n(dt), gas-capped."
+
+[TokenHistoryFlow]
+module = "TokenHistoryFlow"
+kind = "indexed"
+file = "types/TokenHistoryFlow/TokenHistoryFlow.md"
+carriers = ["TokenHistory(dt,K)", "TokenFlow", "token", "from", "to"]
+operations = ["io", "run", "run_step_k", "run_k"]
+laws = [
+  "io(TokenHistory, token, from, to) → IO(TokenHistoryFlow(dt,K))",
+  "run = fold j<K of run(io(token_flow(Step_j)))",
+  "+ΔW: Xfer(from,to,amt); −ΔW: Xfer(to,from,amt)",
+  "amt = (σ_F · |ΔW_j|)/RAY",
+  "first Outcome.None stops the fold",
+  "K comptime → std::utils::fold; K runtime → while",
+  "run_k: while j<K run_step_k; None if K=0 or K≥n",
+  "Eff = [WeinerView=shock, Xfer=transferFrom]",
+]
+refined = false
+notes = "K=2 nest unrolled. Fuzz: intro len=K, one Xfer at j, K ∈ [1, n−1]."

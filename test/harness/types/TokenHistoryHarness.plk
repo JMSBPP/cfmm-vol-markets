@@ -1,6 +1,6 @@
 import std::constructor::return_runtime;
 import std::core::addr::addr_from_u256;
-import types::History::{intro_len, step_k};
+import types::TokenHistory::{intro_len, step_k};
 import types::SigmaF::SigmaF;
 
 // cast sig "intro(address,uint256,uint256,uint256)" -> 0x62167a48

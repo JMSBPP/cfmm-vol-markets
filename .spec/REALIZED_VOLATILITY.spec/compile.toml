@@ -18,6 +18,8 @@ files = [
   "test/harness/types/RealizedVolatilityInitIndexHarness.plk",
   "test/harness/types/SigmaFHarness.plk",
   "src/types/WeinerGenerator.plk",
-  "src/types/History.plk",
-  "test/harness/types/HistoryHarness.plk",
+  "src/types/TokenHistory.plk",
+  "test/harness/types/TokenHistoryHarness.plk",
+  "src/types/TokenHistoryFlow.plk",
+  "test/harness/types/TokenHistoryFlowHarness.plk",
 ]
