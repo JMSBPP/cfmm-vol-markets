@@ -1,5 +1,6 @@
-import std::core::ops::{checked_mul, neg_u256};
+import std::core::ops::checked_mul;
 import types::Numerics::RAY;
+import types::WeinerGenerator::{DeltaW, abs_signed};
 
 const SigmaF = fn () type {
     struct {
@@ -11,19 +12,7 @@ const intro = fn (x: u256) SigmaF() {
     SigmaF() { val: x }
 };
 
-const is_neg_signed = fn (x: u256) bool {
-    x > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-};
-
-const abs_signed = fn (x: u256) u256 {
-    if is_neg_signed(x) {
-        neg_u256(x)
-    } else {
-        x
-    }
-};
-
-/// TokenAmount = (σ_F · |ΔW|) / RAY.
-const token_amount = fn (sf: SigmaF(), dw: u256) u256 {
-    checked_mul(sf.val, abs_signed(dw)) </ RAY
+/// TokenAmount = (σ_F · |ΔW(dt)|) / RAY. dw is Weiner DeltaW, not a raw u256.
+const token_amount = fn (comptime dt: u256, sf: SigmaF(), dw: DeltaW(dt)) u256 {
+    checked_mul(sf.val, abs_signed(dw.val)) </ RAY
 };

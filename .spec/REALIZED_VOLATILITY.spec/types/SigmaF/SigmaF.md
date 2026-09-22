@@ -26,7 +26,7 @@
 \\
 \mathrm{TokenAmount}
 &=
-\frac{\sigma_F \cdot \lvert \Delta W \rvert}{\mathrm{RAY}}
+\frac{\sigma_F \cdot \lvert \Delta W(\bar{dt}) \rvert}{\mathrm{RAY}}
 \\
 \mathrm{Dir}
 &=

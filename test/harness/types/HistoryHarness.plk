@@ -1,0 +1,40 @@
+import std::constructor::return_runtime;
+import std::core::addr::addr_from_u256;
+import types::History::{intro_len, step_k};
+import types::SigmaF::SigmaF;
+
+// cast sig "intro(address,uint256,uint256,uint256)" -> 0x62167a48
+const SEL_INTRO = 0x62167a48;
+// cast sig "step(address,uint256,uint256,uint256,uint256)" -> 0x070958e7
+const SEL_STEP = 0x070958e7;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_INTRO {
+        let k = @evm_calldataload(100);
+        let out = @malloc_uninit(32);
+        @mstore32(out, intro_len(2, k));
+        @evm_return(out, 32);
+    }
+    if selector == SEL_STEP {
+        let weiner = addr_from_u256(@evm_calldataload(4));
+        let sf = SigmaF() { val: @evm_calldataload(36) };
+        let t_init = @evm_calldataload(68);
+        let k = @evm_calldataload(100);
+        let j = @evm_calldataload(132);
+        let o = step_k(2, weiner, sf, t_init, k, j);
+        let out = @malloc_uninit(160);
+        @mstore32(out, @bool_to_u256(o.is_some));
+        if o.is_some {
+            let s = o.inner;
+            @mstore32(out +% 32, s.t);
+            @mstore32(out +% 64, s.i);
+            @mstore32(out +% 96, s.dw.val);
+            @mstore32(out +% 128, s.dq);
+        }
+        @evm_return(out, 160);
+    }
+    @evm_stop();
+}

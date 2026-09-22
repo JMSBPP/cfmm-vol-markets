@@ -89,9 +89,39 @@ plank file:
         --dep lib=src/lib/ \
         --backend sona
 
-# SigmaF TokenAmount product + IO run (#128).
-test-sigmaf:
-    FOUNDRY_PROFILE=sigmaf forge test --match-path test/types/SigmaF.t.sol --via-ir --offline -vvvv
+# Anvil at [rpc_endpoints.local] if nothing is already listening.
+anvil-rpc := "http://127.0.0.1:8545"
+
+ensure-anvil:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rpc="{{anvil-rpc}}"
+    if cast chain-id --rpc-url "$rpc" >/dev/null 2>&1; then
+        echo "anvil already at $rpc"
+        exit 0
+    fi
+    if ! command -v anvil >/dev/null 2>&1; then
+        echo "error: anvil not found" >&2
+        exit 127
+    fi
+    echo "starting anvil at $rpc"
+    anvil --port 8545 >/tmp/anvil-sigmaf.log 2>&1 &
+    for _ in $(seq 1 50); do
+        if cast chain-id --rpc-url "$rpc" >/dev/null 2>&1; then
+            exit 0
+        fi
+        sleep 0.1
+    done
+    echo "error: anvil did not become ready (see /tmp/anvil-sigmaf.log)" >&2
+    exit 1
+
+# SigmaF TokenAmount product + IO run (#128). All txs on the Anvil backend.
+test-sigmaf: ensure-anvil
+    FOUNDRY_PROFILE=sigmaf forge test --match-path test/types/SigmaF.t.sol --via-ir --fork-url {{anvil-rpc}} -vvvv
+
+# History intro len=K + step_k fuzz K < n(dt). Offline (no Anvil).
+test-history:
+    FOUNDRY_PROFILE=rv-init forge test --match-path test/types/History.t.sol --via-ir --offline -vvvv
 
 # RealizedVolatility init→one-bin write vs TimeIndex.lastIndex (cfmm-types pin).
 test-rv-init-index:

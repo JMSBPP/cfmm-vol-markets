@@ -6,9 +6,9 @@ kind = "plain"
 file = "types/SigmaF/SigmaF.md"
 carriers = ["u256_RAY"]
 operations = ["intro", "token_amount"]
-laws = ["intro is total", "RAY = 10^27", "TokenAmount = (σ_F · |ΔW|)/RAY"]
+laws = ["intro is total", "RAY = 10^27", "token_amount(σ_F, ΔW(dt)) = (σ_F · |ΔW|)/RAY"]
 refined = true
-notes = "TokenAmount and Dir are equations on this note, not types. CEV block is notation."
+notes = "token_amount takes Weiner DeltaW(dt), not raw u256. CEV block is notation."
 
 [TokenFlow]
 module = "TokenFlow"
@@ -17,8 +17,8 @@ file = "types/TokenFlow/TokenFlow.md"
 carriers = ["TokenAmount", "Dir", "token", "from", "to"]
 operations = ["intro"]
 laws = [
-  "intro(σ_F, ΔW, token, from, to) = ((σ_F · |ΔW|)/RAY, sign(ΔW)) at those addrs",
-  "dt lives in ΔW",
+  "intro(σ_F, ΔW(dt), token, from, to) = ((σ_F · |ΔW|)/RAY, sign(ΔW)) at those addrs",
+  "dt is the DeltaW index (TimeSpacing)",
   "Eff = [ERC20View=balanceOf, Xfer=transferFrom]",
 ]
 refined = true
@@ -39,3 +39,26 @@ laws = [
 ]
 refined = true
 notes = "Outcome is a wrapper of std::option::Option(u256)"
+
+[History]
+module = "History"
+kind = "indexed"
+file = "types/History/History.md"
+carriers = ["Step", "History(dt,K)", "Slice(memory)"]
+operations = ["intro", "intro_len", "intro_k", "step_k"]
+laws = [
+  "History(dt,0) = ε",
+  "History(dt,S k) = Step(dt) × History(dt,k)",
+  "intro writes the nest into Slice(memory, History(dt,K), 1)",
+  "ABI intro returns len=K (0 if invalid); cells via step_k(j)",
+  "intro_k: Some iff 0 < K < n(dt); buffer is Slice of Step",
+  "step_k: Some(step_at(j)) iff 0 < K < n(dt) and j < K; no K-allocation",
+  "t_j = t_init + j·dt̄",
+  "i_j = lastIndex(dt, t_init, t_j)",
+  "ΔW_j = shock(dt, j)",
+  "ΔQ_M,j = σ_F · ΔW_j",
+  "K ≤ n(dt) (comptime index)",
+  "Eff = [WeinerView=staticcall shock]",
+]
+refined = false
+notes = "Inductive nest + intro_k runtime prefix. Fuzz: 1 ≤ K < n(dt), gas-capped."

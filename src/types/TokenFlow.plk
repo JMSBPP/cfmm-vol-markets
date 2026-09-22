@@ -1,5 +1,6 @@
 import std::core::addr::addr;
-import types::SigmaF::{SigmaF, is_neg_signed, token_amount};
+import types::SigmaF::{SigmaF, token_amount};
+import types::WeinerGenerator::{DeltaW, is_neg_signed};
 
 const TokenFlow = fn () type {
     struct {
@@ -11,18 +12,19 @@ const TokenFlow = fn () type {
     }
 };
 
-/// intro(σ_F, ΔW, token, from, to) = (TokenAmount, Dir) at those addresses.
-/// Dir 0 = +, 1 = −. dt lives in ΔW.
+/// intro(σ_F, ΔW(dt), token, from, to) = (TokenAmount, Dir) at those addresses.
+/// Dir 0 = +, 1 = −. dt is the DeltaW index.
 const token_flow = fn (
+    comptime dt: u256,
     sf: SigmaF(),
-    dw: u256,
+    dw: DeltaW(dt),
     token: addr,
     from: addr,
     to: addr
 ) TokenFlow() {
-    let dir = if is_neg_signed(dw) { 1 } else { 0 };
+    let dir = if is_neg_signed(dw.val) { 1 } else { 0 };
     TokenFlow() {
-        amount: token_amount(sf, dw),
+        amount: token_amount(dt, sf, dw),
         dir: dir,
         token: token,
         from: from,

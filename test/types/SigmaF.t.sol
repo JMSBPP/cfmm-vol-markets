@@ -17,6 +17,8 @@ contract SigmaFTest is PlankTestBase {
     ISigmaF internal harness;
 
     uint256 internal constant RAY = 1e27;
+    /// TimeSpacing / DeltaW index — TokenFlow is per this unit of time.
+    uint256 internal constant DT = 2;
     /// floor(√2 · RAY) — Weiner +1σ ΔW at dt = 2
     uint256 internal constant SQRT_DT_RAY_2 = 1414213562373095048801688724;
 
@@ -24,12 +26,14 @@ contract SigmaFTest is PlankTestBase {
         harness = ISigmaF(deployPlank("test/harness/types/SigmaFHarness.plk"));
     }
 
-    function test__beh__tokenAmount_oneRay_times_oneSigmaDt2_is_sqrt2Ray() public view {
+    function test__beh__tokenAmount_oneRay_times_oneSigmaDt2_is_sqrt2Ray() public {
+        vm.warp(block.timestamp + DT);
         uint256 got = harness.tokenAmount(RAY, SQRT_DT_RAY_2);
         assertEq(got, SQRT_DT_RAY_2);
     }
 
-    function test__beh__tokenAmount_negativeDeltaW_same_magnitude() public view {
+    function test__beh__tokenAmount_negativeDeltaW_same_magnitude() public {
+        vm.warp(block.timestamp + DT);
         uint256 dwNeg;
         unchecked {
             dwNeg = uint256(0) - SQRT_DT_RAY_2;
@@ -39,6 +43,7 @@ contract SigmaFTest is PlankTestBase {
     }
 
     function test__beh__run_positive_transfers_from_to() public {
+        vm.warp(block.timestamp + DT);
         FlowToken token = new FlowToken();
         address from = address(0xA11CE);
         address to = address(0xB0B);
@@ -53,6 +58,7 @@ contract SigmaFTest is PlankTestBase {
     }
 
     function test__beh__run_negative_transfers_to_from() public {
+        vm.warp(block.timestamp + DT);
         FlowToken token = new FlowToken();
         address from = address(0xA11CE);
         address to = address(0xB0B);
@@ -72,6 +78,7 @@ contract SigmaFTest is PlankTestBase {
 
     /// run(io(amt,+)) with allowance and no balance → Outcome.None (ABI false).
     function test__beh__run_insufficient_balance_is_revert() public {
+        vm.warp(block.timestamp + DT);
         FlowToken token = new FlowToken();
         address from = address(0xA11CE);
         address to = address(0xB0B);
