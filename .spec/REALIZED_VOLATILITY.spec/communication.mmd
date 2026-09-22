@@ -1,10 +1,19 @@
+%% pin: .spec/REALIZED_VOLATILITY.md
+%% blob: 44a6f306093537d16a3aaa8d419d218ec924dc1a
+%% section: ## **WeinerGenerator**
+%%
+%% WeinerGenerator (mission spelling; node label WienerGenerator):
+%%   $$\Delta W (t_i) = \sqrt{\bar dt} \, \cdot\, \epsilon \, (t_i); \quad \epsilon (t_i) \sim \mathcal{N} \, (0,1)$$
+%% EVM \(\epsilon\) source: Solidity Patterns — Randomness (block-hash PRNG + trusted sealed seed)
+%%   https://fravoll.github.io/solidity-patterns/randomness.html
+%%
 flowchart TD
     WINDOW["Window"]
 
     DT["$$\bar{dt}$$"]
     T["$$t_i$$"]
     
-    WIENER["WienerGenerator"]
+    WIENER["WeinerGenerator\n$$\Delta W(t_i)=\sqrt{\bar{dt}}\,\epsilon(t_i)$$\n$$\epsilon\sim\mathcal{N}(0,1)$$\n[blockhash⊕seed PRNG]"]
 
     DW(("$$\Delta W (t_i)$$"))
 
