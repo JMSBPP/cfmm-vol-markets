@@ -4,24 +4,35 @@
 
 Series command. Shared `(token, from, to)`. Each Step is one `TokenFlow`. No Approve / Mint.
 
+Public executor is \(\mathrm{run}_K\). \(\mathrm{run\_hist}\) (K=2 nest unroll) stays in the module; it is not a public law. \(\mathrm{std{::}utils{::}fold}\) does not capture a runtime History.
+
 \[
 \begin{aligned}
 \mathrm{TokenHistoryFlow}(\bar{dt},\,K)
 &\leftarrow
 \mathrm{TokenHistory}(\bar{dt},\,K)\times(\mathrm{token},\,\mathrm{from},\,\mathrm{to})
 \\[1em]
-\mathrm{io}
+\mathrm{run}_K
 &::
-\mathrm{TokenHistory}(\bar{dt},\,K)\to\mathrm{token}\to\mathrm{from}\to\mathrm{to}
-\to\mathrm{IO}\bigl(\mathrm{TokenHistoryFlow}(\bar{dt},\,K)\bigr)
-\\[1em]
-\mathrm{run}
-&::
-\mathrm{IO}\bigl(\mathrm{TokenHistoryFlow}(\bar{dt},\,K)\bigr)\to\mathrm{Outcome}
+\mathrm{weiner}\to\mathrm{SigmaF}\to t_{\mathrm{init}}\to K
+\to\mathrm{token}\to\mathrm{from}\to\mathrm{to}
+\to\mathrm{Outcome}
 \\
-\mathrm{run}
+\mathrm{run}_K
 &=
-\mathrm{fold}_{j<K}\ \mathrm{run}\bigl(\mathrm{io}(\mathrm{token\_flow}(\mathrm{Step}_j))\bigr)
+\mathrm{while}\ j<K\ \mathrm{run\_step}_K(j)
+\\
+\mathrm{None}
+&=
+K=0 \lor K \ge n(\bar{dt})
+\\
+\mathrm{run\_step}_K(j)
+&=
+\mathrm{run}\bigl(\mathrm{io}(\mathrm{token\_flow}(\mathrm{step}_K(j)))\bigr)
+\\
+\mathrm{None}
+&=
+\text{prefix invalid}\lor j\ge K\text{; first None stops later }j
 \\[1em]
 \Delta W_j \ge 0
 &\implies
@@ -34,18 +45,6 @@ Series command. Shared `(token, from, to)`. Each Step is one `TokenFlow`. No App
 \mathrm{amt}_j
 &=
 \frac{\sigma_F\cdot\lvert\Delta W_j\rvert}{\mathrm{RAY}}
-\\[1em]
-\mathrm{None}
-&=
-\text{first failing Xfer; later }j\text{ not run}
-\\[1em]
-K\text{ comptime}
-&\implies
-\mathrm{std{::}utils{::}fold}
-\\
-K\text{ runtime}
-&\implies
-\mathrm{run}_K=\mathrm{while}\ j<K\ \mathrm{run}(\mathrm{io}(\mathrm{Step}_j))
 \\[1em]
 \mathrm{Eff}
 &=
@@ -61,4 +60,4 @@ K\text{ runtime}
 \end{aligned}
 \]
 
-Reuse `TokenFlow`, `IO`, `run_io`, `Outcome`/`Option`, `step_k`. First define: `K=2`, `+ΔW` then `−ΔW`.
+Reuse `TokenFlow`, `IO`, `run_io`, `Outcome`/`Option`, `step_k`. Fuzz: \(1\le K\le 128\) (block gas); algebra \(K<n(\bar{dt})\) does not fit a block.

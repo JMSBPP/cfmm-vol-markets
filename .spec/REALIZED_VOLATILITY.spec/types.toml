@@ -69,16 +69,14 @@ module = "TokenHistoryFlow"
 kind = "indexed"
 file = "types/TokenHistoryFlow/TokenHistoryFlow.md"
 carriers = ["TokenHistory(dt,K)", "TokenFlow", "token", "from", "to"]
-operations = ["io", "run", "run_step_k", "run_k"]
+operations = ["io_hist", "run_hist", "run_step_k", "run_k"]
 laws = [
-  "io(TokenHistory, token, from, to) → IO(TokenHistoryFlow(dt,K))",
-  "run = fold j<K of run(io(token_flow(Step_j)))",
+  "run_k: while j<K run_step_k; None if K=0 or K≥n",
+  "run_step_k: step_k then run_io(token_flow); None if prefix invalid or j≥K",
   "+ΔW: Xfer(from,to,amt); −ΔW: Xfer(to,from,amt)",
   "amt = (σ_F · |ΔW_j|)/RAY",
-  "first Outcome.None stops the fold",
-  "K comptime → std::utils::fold; K runtime → while",
-  "run_k: while j<K run_step_k; None if K=0 or K≥n",
+  "first Outcome.None stops the while",
   "Eff = [WeinerView=shock, Xfer=transferFrom]",
 ]
-refined = false
-notes = "K=2 nest unrolled. Fuzz: intro len=K, one Xfer at j, K ∈ [1, n−1]."
+refined = true
+notes = "run_hist is K=2 nest unroll, not a public law. Fuzz: run_k K∈[1,128]."

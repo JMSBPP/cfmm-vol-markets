@@ -36,7 +36,7 @@ const io_hist = fn (
     }
 };
 
-/// K=2 only this define. std::utils::fold cannot capture runtime TokenHistory.
+/// K=2 nest unroll. Not a public law — public fold is run_k.
 const run_hist = fn (comptime dt: u256, comptime k: u256, m: IO(TokenHistoryFlow(dt, k))) Outcome() {
     let hf = m.inner;
     let o0 = run_io(io(token_flow(dt, hf.sf, hf.hist.head.dw, hf.token, hf.from, hf.to)));
