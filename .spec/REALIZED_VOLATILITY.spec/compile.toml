@@ -14,5 +14,6 @@ files = [
 
 [plank]
 files = [
+  "test/harness/types/WeinerGeneratorHarness.plk",
   "test/harness/types/RealizedVolatilityInitIndexHarness.plk",
 ]

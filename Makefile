@@ -172,7 +172,8 @@ PLANK         ?= plank
 # because 16 imports still reference it bare (`pos_spec::X`) rather than via
 # `types::pos_spec::X`.
 PLANK_DEP := --dep v3=lib/plankified-univ3/plank/lib/ --dep std=lib/plank-monorepo/std/ --dep pos_spec=src/types/pos_spec \
-             --dep lib=src/lib --dep types=src/types --dep interfaces=src/interfaces
+             --dep lib=src/lib --dep types=src/types --dep interfaces=src/interfaces \
+             --dep cfmm_types=lib/cfmm-types/src/types
 # cfmm-types entrypoints (Hook.plk): types root points at the submodule, not src/types.
 # Keep in sync with test/PlankTestBase.sol:cfmmTypesPlankOpts().
 CFMM_TYPES_PLANK_DEP := --dep std=lib/cfmm-types/lib/plank-monorepo/std/ --dep types=lib/cfmm-types/src/types

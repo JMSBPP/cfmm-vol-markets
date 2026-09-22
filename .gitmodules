@@ -40,7 +40,7 @@
 [submodule "lib/cfmm-types"]
 	path = lib/cfmm-types
 	url = https://github.com/JMSBPP/cfmm-types.git
-	branch = type/TimeSpacing-TimeWidth-TimeCoordinate
+	branch = develop
 [submodule "lib/seaport"]
 	path = lib/seaport
 	url = https://github.com/ProjectOpenSea/seaport

@@ -1,0 +1,95 @@
+import std::core::ops::{checked_mul, checked_add, checked_sub, neg_u256};
+import types::Numerics::PIPS;
+import cfmm_types::Window::*;
+import cfmm_types::TimeSpacing::*;
+
+/// ShockPips — Algebra-scale signed pips (10^6 ≈ 1σ); sign via neg_u256.
+const ShockPips = fn () type {
+    struct {
+        val: u256
+    }
+};
+
+/// DeltaW(dt) — Ray-scale Wiener increment for lattice spacing dt (TimeSpacing).
+const DeltaW = fn (comptime dt: u256) type {
+    let _ = TimeSpacing(dt);
+    struct {
+        val: u256
+    }
+};
+
+const MAX_ABS_EPS_PIPS = 6 *% PIPS;
+
+/// floor(√dt · RAY) for TimeSpacing domain — comptime table (not getSqrtRatioAtTick).
+const SQRT_DT_RAY_2 = 1414213562373095048801688724;
+const SQRT_DT_RAY_3 = 1732050807568877293527446341;
+const SQRT_DT_RAY_4 = 2000000000000000000000000000;
+const SQRT_DT_RAY_5 = 2236067977499789696409173668;
+const SQRT_DT_RAY_6 = 2449489742783178098197284074;
+const SQRT_DT_RAY_8 = 2828427124746190097603377448;
+const SQRT_DT_RAY_9 = 3000000000000000000000000000;
+const SQRT_DT_RAY_10 = 3162277660168379331998893544;
+
+const sqrt_dt_ray = fn (comptime dt: u256) u256 {
+    let _ = TimeSpacing(dt);
+    if dt == 2 {
+        SQRT_DT_RAY_2
+    } else if dt == 3 {
+        SQRT_DT_RAY_3
+    } else if dt == 4 {
+        SQRT_DT_RAY_4
+    } else if dt == 5 {
+        SQRT_DT_RAY_5
+    } else if dt == 6 {
+        SQRT_DT_RAY_6
+    } else if dt == 8 {
+        SQRT_DT_RAY_8
+    } else if dt == 9 {
+        SQRT_DT_RAY_9
+    } else {
+        SQRT_DT_RAY_10
+    }
+};
+
+/// Q20: sign from high bit; magnitude (h >> 1) % (6 * PIPS).
+const mapHashToShockPips = fn (h: u256) ShockPips() {
+    let mag = (h >> 1) % MAX_ABS_EPS_PIPS;
+    if (h >> 255) == 1 {
+        ShockPips() { val: neg_u256(mag) }
+    } else {
+        ShockPips() { val: mag }
+    }
+};
+
+const is_neg_signed = fn (x: u256) bool {
+    x > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+};
+
+const abs_signed = fn (x: u256) u256 {
+    if is_neg_signed(x) {
+        neg_u256(x)
+    } else {
+        x
+    }
+};
+
+/// ΔW = √dt̄ · ε ; Ray √ from comptime table; product toward zero; checked_*.
+const deltaW = fn (comptime dt: u256, eps: ShockPips()) DeltaW(dt) {
+    let _ = TimeSpacing(dt);
+    let mag = abs_signed(eps.val);
+    let sqrt_ray = sqrt_dt_ray(dt);
+    let prod = checked_mul(sqrt_ray, mag) </ PIPS;
+    if is_neg_signed(eps.val) {
+        DeltaW(dt) { val: neg_u256(prod) }
+    } else {
+        DeltaW(dt) { val: prod }
+    }
+};
+
+/// j ∈ [0, n(dt)); n = Window/dt from cfmm-types TimeSpacing.
+const assert_j_in_range = fn (comptime dt: u256, j: u256) void {
+    let nmax = n(dt);
+    if j >= nmax {
+        let _ = checked_sub(nmax, checked_add(j, 1));
+    }
+};
