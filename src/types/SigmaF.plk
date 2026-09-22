@@ -1,0 +1,18 @@
+import std::core::ops::checked_mul;
+import types::Numerics::RAY;
+import types::WeinerGenerator::{DeltaW, abs_signed};
+
+const SigmaF = fn () type {
+    struct {
+        val: u256
+    }
+};
+
+const intro = fn (x: u256) SigmaF() {
+    SigmaF() { val: x }
+};
+
+/// TokenAmount = (σ_F · |ΔW(dt)|) / RAY. dw is Weiner DeltaW, not a raw u256.
+const token_amount = fn (comptime dt: u256, sf: SigmaF(), dw: DeltaW(dt)) u256 {
+    checked_mul(sf.val, abs_signed(dw.val)) </ RAY
+};

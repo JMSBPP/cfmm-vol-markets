@@ -1,0 +1,30 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["c2b4f0109cf622c1.olean"],
+  "i": "10110f73ca0f703d.ilean",
+  "c": "4012a877caacd2fd.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/.lake/packages/Cli/.lake/build/lib/lean:/home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/.lake/packages/batteries/.lake/build/lib/lean:/home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/.lake/packages/Qq/.lake/build/lib/lean:/home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/.lake/packages/aesop/.lake/build/lib/lean:/home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/.lake/packages/proofwidgets/.lake/build/lib/lean:/home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/.lake/packages/importGraph/.lake/build/lib/lean:/home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/.lake/packages/LeanSearchClient/.lake/build/lib/lean:/home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/.lake/packages/plausible/.lake/build/lib/lean:/home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/.lake/packages/mathlib/.lake/build/lib/lean:/home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/.lake/build/lib/lean /home/jmsbpp/.elan/toolchains/leanprover--lean4---v4.28.0/bin/lean /home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/RequestProject/TickChangeOfVariable.lean -o /home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/.lake/build/lib/lean/RequestProject/TickChangeOfVariable.olean -i /home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/.lake/build/lib/lean/RequestProject/TickChangeOfVariable.ilean -c /home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/.lake/build/ir/RequestProject/TickChangeOfVariable.c --setup /home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/.lake/build/ir/RequestProject/TickChangeOfVariable.setup.json --json",
+   "level": "trace"}],
+ "inputs":
+ [["RequestProject.TickChangeOfVariable:deps",
+   [["deps",
+     [["RequestProject/RequestProject:extraDep",
+       [["@RequestProject:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["Mathlib transitive imports (legacy)", "8fd896a9b3011bd6"],
+        ["Mathlib:importAllArts", "8fc2a9ec06d95bdc"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.28.0, commit 7e01a1bf5c70fc6167d49c345d3bf80596e9a79b",
+   "a96bc04a2e5e9630"],
+  ["/home/jmsbpp/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.lean/725ab343-f4a2-4e07-9c48-2f88146bf985_aristotle/RequestProject/TickChangeOfVariable.lean",
+   "f019456bf02213a0"],
+  ["options", "00000000000006bb"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "f0052b20e7c685bd"}

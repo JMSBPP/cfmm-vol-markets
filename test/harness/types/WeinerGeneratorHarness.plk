@@ -1,0 +1,27 @@
+import std::constructor::return_runtime;
+import types::WeinerGenerator::*;
+
+// cast sig "deltaWDt2(uint256)" -> 0x0bd8a551
+const SEL_DELTA_W_DT2 = 0x0bd8a551;
+// cast sig "mapHash(uint256)" -> 0x3e1f0c74
+const SEL_MAP_HASH = 0x3e1f0c74;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_DELTA_W_DT2 {
+        let eps = ShockPips() { val: @evm_calldataload(4) };
+        let dw = deltaW(2, eps);
+        let out = @malloc_uninit(32);
+        @mstore32(out, dw.val);
+        @evm_return(out, 32);
+    }
+    if selector == SEL_MAP_HASH {
+        let sp = mapHashToShockPips(@evm_calldataload(4));
+        let out = @malloc_uninit(32);
+        @mstore32(out, sp.val);
+        @evm_return(out, 32);
+    }
+    @evm_stop();
+}

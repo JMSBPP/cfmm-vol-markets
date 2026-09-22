@@ -118,3 +118,59 @@ holds the `.t.sol` suites (and older co-located harnesses); new harnesses go und
 
 For this implementation, new work uses the issue → worktree → PR flow above and is heavy on
 `AskUserQuestion` for code chunk approvals.
+
+## `compile.toml` (ALL agents)
+
+**Every agent that submits work must update the domain `compile.toml` for the files that work is meant to compile.** CI on push compiles only what that domain’s manifest lists (`.idr`, `.agda`, `.plk`). Leaving a new or changed compilable file off `compile.toml` means it never gets CI coverage — that is a failed handoff, not an optional polish step.
+
+- Path: `.spec/<DOMAIN>.spec/compile.toml` (example: `.spec/REALIZED_VOLATILITY.spec/compile.toml`).
+- Shape: TOML tables `[agda]`, `[idris]`, `[plank]`, each with a `files = [...]` list of **repo-root-relative** paths.
+- Domain catalog: `.spec/domains.toml` — richer registry with `default` and per-domain `path` / `compile` fields. Example:
+
+  ```toml
+  default = "REALIZED_VOLATILITY"
+
+  [domains.REALIZED_VOLATILITY]
+  path = ".spec/REALIZED_VOLATILITY.spec"
+  compile = ".spec/REALIZED_VOLATILITY.spec/compile.toml"
+  ```
+
+  `SPEC_DOMAIN` (env / Actions `vars`) selects the domain; if unset, use `default`. Fail if `SPEC_DOMAIN` is not under `[domains.*]`.
+- CI entrypoint: `just spec-compile` reads that domain’s `compile` file only (not a union of all domains). Agda/Idris run via a **pinned GHCR image** built from an in-repo Dockerfile (e.g. `Dockerfile.spec-tools`); `just agda` / `just idris` wrap `docker run` against that pin. Rebuild/publish the image only when the Dockerfile changes. Plank stays on the existing host toolchain (`make plank-toolchain` / `just plank`).
+- Fail closed: unknown `SPEC_DOMAIN`, missing domain `compile` file, or a listed path that does not exist → non-zero exit. Empty `files = []` for a language is OK.
+- Local and CI: `just agda` / `just idris` **always** use the pinned GHCR image (no host-Agda escape hatch). Image tools: **Agda + Idris 2** (not Idris 1). Pin: `.github/spec-tools-image`; build context: `Dockerfile.spec-tools` (`just spec-tools-ensure`).
+- Workflow: **`push-build` only** runs `just spec-compile` (not `develop-gate`). Merge gate stays forge/plank as today; Agda/Idris feedback is on branch push.
+- Add every new/changed entrypoint your change expects to type-check.
+- Remove entries only when the corresponding file is deleted or deliberately retired from CI.
+- When introducing a new SuD domain, register it in `.spec/domains.toml` with `path` and `compile`.
+
+## Development Approach
+
+> type-implementer AGENT
+
+# PRE-REQUISITES
+- File structure discussed and understood , minimal .spec/ ideally on .agda but .md and .mmd are tolerable
+- justfile with minimal `just plank file` command that targes the compilation(with dependecies) of the files
+- `compile.toml` updated for every compilable artifact in the submitted work (see above)
+
+
+- use Harness when testing files
+
+All type design goes under a process of definition, exploration, labeling, test-driven-development
+1. definition
+   This is the mathematical representation fo the type
+   
+2. exploration
+   This is exploration on how other types use it and make the output of this shape the labeling
+3. labeling
+   This is after exploration finding the best type category (dependent type, generic, others)
+   We must consider the widest type definitions and discuss which one can fit which
+4. test-driven-development
+   Although the highest level development rule is type driven development once a type is defined
+   we ewant to write .btt file with the exploration use cases other types do for them [SEE](https://www.getfoundry.sh/guides/branching-tree-technique)
+
+> For [AGDA](https://agda.readthedocs.io/en/latest/language/index.html)
+> For [IDRIS](http://docs.idris-lang.org/en/latest/)
+- For both of them maximize the use of already impleentned librairws than own helpers, look on github 
+
+for the type implementation, this is a heavy `AskUserQuestion` sessions on each

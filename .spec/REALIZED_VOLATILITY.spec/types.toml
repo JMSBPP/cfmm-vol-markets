@@ -1,0 +1,82 @@
+# REALIZED_VOLATILITY type catalog (idris-tdd kinds).
+
+[SigmaF]
+module = "SigmaF"
+kind = "plain"
+file = "types/SigmaF/SigmaF.md"
+carriers = ["u256_RAY"]
+operations = ["intro", "token_amount"]
+laws = ["intro is total", "RAY = 10^27", "token_amount(σ_F, ΔW(dt)) = (σ_F · |ΔW|)/RAY"]
+refined = true
+notes = "token_amount takes Weiner DeltaW(dt), not raw u256. CEV block is notation."
+
+[TokenFlow]
+module = "TokenFlow"
+kind = "dependent"
+file = "types/TokenFlow/TokenFlow.md"
+carriers = ["TokenAmount", "Dir", "token", "from", "to"]
+operations = ["intro"]
+laws = [
+  "intro(σ_F, ΔW(dt), token, from, to) = ((σ_F · |ΔW|)/RAY, sign(ΔW)) at those addrs",
+  "dt is the DeltaW index (TimeSpacing)",
+  "Eff = [ERC20View=balanceOf, Xfer=transferFrom]",
+]
+refined = true
+notes = "Command T; run reads addresses off T"
+
+[IO]
+module = "IO"
+kind = "generic"
+file = "types/IO/IO.md"
+carriers = ["T", "Outcome"]
+operations = ["io", "run"]
+laws = [
+  "io only wraps",
+  "run(io(T)) reads token/from/to on T",
+  "run(io(amt,+)) = Xfer(from,to,amt)",
+  "run(io(amt,-)) = Xfer(to,from,amt)",
+  "Outcome wraps Option(u256): Some = success, None = revert",
+]
+refined = true
+notes = "Outcome is a wrapper of std::option::Option(u256)"
+
+[TokenHistory]
+module = "TokenHistory"
+kind = "indexed"
+file = "types/TokenHistory/TokenHistory.md"
+carriers = ["Step", "TokenHistory(dt,K)", "Slice(memory)"]
+operations = ["intro_from", "intro", "intro_k", "intro_len", "step_k"]
+laws = [
+  "TokenHistory(dt,0) = ε",
+  "TokenHistory(dt,S k) = Step(dt) × TokenHistory(dt,k)",
+  "nest K ∈ ℕ includes ε; intro_from(0)=ε, intro_from(S k)=step(off) ∷ intro_from(k)",
+  "intro writes the nest into Slice(memory, TokenHistory(dt,K), 1)",
+  "intro_k: Some iff 0 < K < n(dt); buffer is Slice of Step",
+  "intro_len = K iff 0 < K < n(dt), else 0",
+  "step_k: Some(step_at(j)) iff 0 < K < n(dt) and j < K",
+  "ABI intro returns intro_len; cells via step_k(j)",
+  "t_j = t_init + j·dt̄",
+  "i_j = lastIndex(dt, t_init, t_j)",
+  "ΔW_j = shock(dt, j)",
+  "ΔQ_M,j = σ_F · ΔW_j",
+  "Eff = [WeinerView=staticcall shock]",
+]
+refined = true
+notes = "Slice is allocation only. Fuzz: 1 ≤ K < n(dt)=43200 via step_k."
+
+[TokenHistoryFlow]
+module = "TokenHistoryFlow"
+kind = "indexed"
+file = "types/TokenHistoryFlow/TokenHistoryFlow.md"
+carriers = ["TokenHistory(dt,K)", "TokenFlow", "token", "from", "to"]
+operations = ["io_hist", "run_hist", "run_step_k", "run_k"]
+laws = [
+  "run_k: while j<K run_step_k; None if K=0 or K≥n",
+  "run_step_k: step_k then run_io(token_flow); None if prefix invalid or j≥K",
+  "+ΔW: Xfer(from,to,amt); −ΔW: Xfer(to,from,amt)",
+  "amt = (σ_F · |ΔW_j|)/RAY",
+  "first Outcome.None stops the while",
+  "Eff = [WeinerView=shock, Xfer=transferFrom]",
+]
+refined = true
+notes = "run_hist is K=2 nest unroll, not a public law. Fuzz: run_k K∈[1,128]."
