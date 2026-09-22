@@ -16,4 +16,5 @@ files = [
 files = [
   "test/harness/types/WeinerGeneratorHarness.plk",
   "test/harness/types/RealizedVolatilityInitIndexHarness.plk",
+  "test/harness/types/SigmaFHarness.plk",
 ]

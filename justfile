@@ -89,6 +89,10 @@ plank file:
         --dep lib=src/lib/ \
         --backend sona
 
+# SigmaF TokenAmount product + IO run (#128).
+test-sigmaf:
+    FOUNDRY_PROFILE=sigmaf forge test --match-path test/types/SigmaF.t.sol --via-ir --offline -vvvv
+
 # RealizedVolatility init→one-bin write vs TimeIndex.lastIndex (cfmm-types pin).
 test-rv-init-index:
     FOUNDRY_PROFILE=rv-init forge test --match-path test/types/RealizedVolatilityInitIndex.t.sol --via-ir --offline -vvvv

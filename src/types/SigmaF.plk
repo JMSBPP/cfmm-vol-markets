@@ -1,0 +1,29 @@
+import std::core::ops::{checked_mul, neg_u256};
+import types::Numerics::RAY;
+
+const SigmaF = fn () type {
+    struct {
+        val: u256
+    }
+};
+
+const intro = fn (x: u256) SigmaF() {
+    SigmaF() { val: x }
+};
+
+const is_neg_signed = fn (x: u256) bool {
+    x > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+};
+
+const abs_signed = fn (x: u256) u256 {
+    if is_neg_signed(x) {
+        neg_u256(x)
+    } else {
+        x
+    }
+};
+
+/// TokenAmount = (σ_F · |ΔW|) / RAY.
+const token_amount = fn (sf: SigmaF(), dw: u256) u256 {
+    checked_mul(sf.val, abs_signed(dw)) </ RAY
+};

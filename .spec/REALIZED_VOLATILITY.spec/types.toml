@@ -1,0 +1,41 @@
+# REALIZED_VOLATILITY type catalog (idris-tdd kinds).
+
+[SigmaF]
+module = "SigmaF"
+kind = "plain"
+file = "types/SigmaF/SigmaF.md"
+carriers = ["u256_RAY"]
+operations = ["intro", "token_amount"]
+laws = ["intro is total", "RAY = 10^27", "TokenAmount = (σ_F · |ΔW|)/RAY"]
+refined = true
+notes = "TokenAmount and Dir are equations on this note, not types. CEV block is notation."
+
+[TokenFlow]
+module = "TokenFlow"
+kind = "dependent"
+file = "types/TokenFlow/TokenFlow.md"
+carriers = ["TokenAmount", "Dir", "token", "from", "to"]
+operations = ["intro"]
+laws = [
+  "intro(σ_F, ΔW, token, from, to) = ((σ_F · |ΔW|)/RAY, sign(ΔW)) at those addrs",
+  "dt lives in ΔW",
+  "Eff = [ERC20View=balanceOf, Xfer=transferFrom]",
+]
+refined = true
+notes = "Command T; run reads addresses off T"
+
+[IO]
+module = "IO"
+kind = "generic"
+file = "types/IO/IO.md"
+carriers = ["T", "Outcome"]
+operations = ["io", "run"]
+laws = [
+  "io only wraps",
+  "run(io(T)) reads token/from/to on T",
+  "run(io(amt,+)) = Xfer(from,to,amt)",
+  "run(io(amt,-)) = Xfer(to,from,amt)",
+  "Outcome wraps Option(u256): Some = success, None = revert",
+]
+refined = true
+notes = "Outcome is a wrapper of std::option::Option(u256)"

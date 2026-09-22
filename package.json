@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@cryptoalgebra/dynamic-fee-plugin": "^2.2.0",
+    "@perfect-abstractions/compose": "^0.0.6",
     "forge-std": "github:foundry-rs/forge-std#v1.9.4"
   }
 }

@@ -54,7 +54,20 @@ remappings = [
 	   # published lib's unused integral-core contracts/-style import doesn't resolve in forge's
 	   # node_modules compile context. This remap serves the self-contained config-type imports.
 	   "@cryptoalgebra/dynamic-fee-plugin/=node_modules/@cryptoalgebra/dynamic-fee-plugin/contracts/",
-	   "@solady/=lib/bunni-v2/lib/solady/src/"
+	   "@solady/=lib/bunni-v2/lib/solady/src/",
+	   "@perfect-abstractions/compose/=node_modules/@perfect-abstractions/compose/"
+]
+
+# Isolated compile for SigmaF / TokenFlow IO (#128).
+[profile.sigmaf]
+sparse_mode = true
+skip = [
+    "test/protocol_integrations/**",
+    "test/types/protocol_integrations/**",
+    "test/types/pos_spec/**",
+    "test/lib/**",
+    "test/premium/**",
+    "test/tmp/**",
 ]
 
 # Isolated compile for TimeIndex ↔ oracle init/write (avoids the rest of test/).

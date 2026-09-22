@@ -1,0 +1,31 @@
+import std::core::addr::addr;
+import types::SigmaF::{SigmaF, is_neg_signed, token_amount};
+
+const TokenFlow = fn () type {
+    struct {
+        amount: u256,
+        dir: u256,
+        token: addr,
+        from: addr,
+        to: addr
+    }
+};
+
+/// intro(σ_F, ΔW, token, from, to) = (TokenAmount, Dir) at those addresses.
+/// Dir 0 = +, 1 = −. dt lives in ΔW.
+const token_flow = fn (
+    sf: SigmaF(),
+    dw: u256,
+    token: addr,
+    from: addr,
+    to: addr
+) TokenFlow() {
+    let dir = if is_neg_signed(dw) { 1 } else { 0 };
+    TokenFlow() {
+        amount: token_amount(sf, dw),
+        dir: dir,
+        token: token,
+        from: from,
+        to: to
+    }
+};
