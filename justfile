@@ -89,6 +89,10 @@ plank file:
         --dep lib=src/lib/ \
         --backend sona
 
+# RealizedVolatility init→one-bin write vs TimeIndex.lastIndex (cfmm-types pin).
+test-rv-init-index:
+    FOUNDRY_PROFILE=rv-init forge test --match-path test/types/RealizedVolatilityInitIndex.t.sol --via-ir --offline -vvvv
+
 # --- Spec tools (Agda + Idris 2 via pinned Docker image) ---------------------
 # Image ref: `.github/spec-tools-image` (GHCR tag). Build only when Dockerfile.spec-tools changes.
 # Always Docker locally and in CI (no host-Agda escape). See AGENTS.md.
