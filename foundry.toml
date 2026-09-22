@@ -41,11 +41,11 @@ fs_permissions = [
 ]
 
 remappings = [
-	   "@cryptoalgebra/volatility-oracle-plugin/=node_modules/@cryptoalgebra/volatility-oracle-plugin/contracts",
+	   "@cryptoalgebra/volatility-oracle-plugin/=node_modules/@cryptoalgebra/volatility-oracle-plugin/contracts/",
 	   # Longer `…/contracts/` prefixes win over the short forms so Algebra sources that import
 	   # `@cryptoalgebra/…/contracts/…` (VolatilityOracleConnector, abstract-plugin) resolve.
 	   "@cryptoalgebra/integral-core/contracts/=node_modules/@cryptoalgebra/integral-core/contracts/",
-	   "@cryptoalgebra/integral-core/=node_modules/@cryptoalgebra/integral-core/contracts",
+	   "@cryptoalgebra/integral-core/=node_modules/@cryptoalgebra/integral-core/contracts/",
 	   "@cryptoalgebra/integral-periphery/contracts/=node_modules/@cryptoalgebra/integral-periphery/contracts/",
 	   "@cryptoalgebra/integral-periphery/=node_modules/@cryptoalgebra/integral-periphery/contracts/",
 	   "@cryptoalgebra/abstract-plugin/contracts/=node_modules/@cryptoalgebra/abstract-plugin/contracts/",
@@ -57,6 +57,17 @@ remappings = [
 	   "@solady/=lib/bunni-v2/lib/solady/src/"
 ]
 
+# Isolated compile for TimeIndex ↔ oracle init/write (avoids the rest of test/).
+[profile.rv-init]
+sparse_mode = true
+skip = [
+    "test/protocol_integrations/**",
+    "test/types/protocol_integrations/**",
+    "test/types/pos_spec/**",
+    "test/lib/**",
+    "test/premium/**",
+    "test/tmp/**",
+]
 
 [fuzz]
 # 10 runs is not a test, it is a coin flip. The differential suite fuzzes over

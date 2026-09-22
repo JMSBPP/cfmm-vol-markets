@@ -16,6 +16,9 @@ const load_oracle_shell = fn () IVolatilityOracleShell {
     volatility_oracle_shell(load_wrapper_addr())
 };
 
+// cast sig "wrapper()" -> 0xac210cc7
+const SEL_WRAPPER = 0xac210cc7;
+
 init {
     let impl_code: bytes(memory) = embed_as(VOL_ORACLE_IMPL_INITCODE, memory);
     let impl_addr: addr = unwrap(raw_create(ZERO_VALUE, impl_code));
@@ -39,6 +42,12 @@ init {
 }
 
 run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_WRAPPER {
+        let out = @malloc_uninit(32);
+        @mstore32(out, cast_addr(load_wrapper_addr(), u256));
+        @evm_return(out, 32);
+    }
     let _shell = load_oracle_shell();
     @evm_stop();
 }

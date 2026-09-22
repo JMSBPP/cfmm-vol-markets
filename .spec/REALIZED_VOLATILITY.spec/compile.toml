@@ -13,4 +13,6 @@ files = [
 ]
 
 [plank]
-files = []
+files = [
+  "test/harness/types/RealizedVolatilityInitIndexHarness.plk",
+]
