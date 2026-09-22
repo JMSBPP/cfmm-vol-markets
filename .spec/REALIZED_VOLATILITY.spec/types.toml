@@ -45,23 +45,24 @@ module = "TokenHistory"
 kind = "indexed"
 file = "types/TokenHistory/TokenHistory.md"
 carriers = ["Step", "TokenHistory(dt,K)", "Slice(memory)"]
-operations = ["intro", "intro_len", "intro_k", "step_k"]
+operations = ["intro_from", "intro", "intro_k", "intro_len", "step_k"]
 laws = [
   "TokenHistory(dt,0) = ε",
   "TokenHistory(dt,S k) = Step(dt) × TokenHistory(dt,k)",
+  "nest K ∈ ℕ includes ε; intro_from(0)=ε, intro_from(S k)=step(off) ∷ intro_from(k)",
   "intro writes the nest into Slice(memory, TokenHistory(dt,K), 1)",
-  "ABI intro returns len=K (0 if invalid); cells via step_k(j)",
   "intro_k: Some iff 0 < K < n(dt); buffer is Slice of Step",
-  "step_k: Some(step_at(j)) iff 0 < K < n(dt) and j < K; no K-allocation",
+  "intro_len = K iff 0 < K < n(dt), else 0",
+  "step_k: Some(step_at(j)) iff 0 < K < n(dt) and j < K",
+  "ABI intro returns intro_len; cells via step_k(j)",
   "t_j = t_init + j·dt̄",
   "i_j = lastIndex(dt, t_init, t_j)",
   "ΔW_j = shock(dt, j)",
   "ΔQ_M,j = σ_F · ΔW_j",
-  "K ≤ n(dt) (comptime index)",
   "Eff = [WeinerView=staticcall shock]",
 ]
-refined = false
-notes = "Inductive nest + intro_k runtime prefix. Fuzz: 1 ≤ K < n(dt), gas-capped."
+refined = true
+notes = "Slice is allocation only. Fuzz: 1 ≤ K < n(dt)=43200 via step_k."
 
 [TokenHistoryFlow]
 module = "TokenHistoryFlow"
