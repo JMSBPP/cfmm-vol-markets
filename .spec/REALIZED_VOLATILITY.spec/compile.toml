@@ -22,4 +22,6 @@ files = [
   "test/harness/types/TokenHistoryHarness.plk",
   "src/types/TokenHistoryFlow.plk",
   "test/harness/types/TokenHistoryFlowHarness.plk",
+  "src/types/CEVLocalTickVolatility.plk",
+  "test/harness/types/CEVLocalTickVolatilityHarness.plk",
 ]

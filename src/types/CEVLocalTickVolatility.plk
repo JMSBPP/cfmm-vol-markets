@@ -1,0 +1,64 @@
+import std::core::ops::checked_mul;
+import std::core::uint::{cast_uint, try_cast_uint, u88};
+import types::Numerics::Q96;
+import types::SigmaF::SigmaF;
+import v3::math::full_math::mulDiv;
+import v3::math::tick_math::getTickAtSqrtRatio;
+
+/// types.toml: CEVLocalTickVolatility
+/// .btt: .spec/REALIZED_VOLATILITY.spec/types/CEVLocalTickVolatility/CEVLocalTickVolatility.btt
+/// LN_10001 = 2 · HALF_LN_TICK_BASE · 1e9  (WAD → RAY). Host: src/lib/ExpMath.sol
+const LN_10001 = 99995000333308000000000;
+
+// cast sig "ZeroLiquidity()" -> 0x10074548
+const SEL_ZERO_LIQUIDITY = 0x10074548;
+// cast sig "ZeroSqrtPrice()" -> 0x06edce39
+const SEL_ZERO_SQRT_PRICE = 0x06edce39;
+// cast sig "SigmaOverflowU88()" -> 0x00895adc
+const SEL_SIGMA_OVERFLOW = 0x00895adc;
+
+/// std::error::require / unwrap → empty revert. v3::util::revert_empty → empty; revert_with_u256 → 32 bytes.
+/// No std custom-error (4-byte selector) helper. Same pattern as v3::util (@mstore4 + @evm_revert).
+const revert_sel = fn (sel: u256) never {
+    let p = @malloc_uninit(4);
+    @mstore4(p, sel);
+    @evm_revert(p, 4);
+};
+
+const CEVLocalTickVolatility = struct {
+    tick: u256,
+    sig: u256
+};
+
+/// CEVHistory(dt, 0) = ε; CEVHistory(dt, S k) = cell × CEVHistory(dt, k)
+const CEVHistory = fn (comptime dt: u256, comptime k: u256) type {
+    if k == 0 {
+        struct {}
+    } else {
+        struct {
+            head: CEVLocalTickVolatility,
+            tail: CEVHistory(dt, k -% 1)
+        }
+    }
+};
+
+/// intro(σ_F, L, √p) → {tick=Tick(√p), σ=(ratio)²}. ratio = σ_F / (L · LN_10001 · √p)
+/// Behavior: CEVLocalTickVolatility.btt
+const intro = fn (sf: SigmaF(), L: u256, sqrt_p: u256) CEVLocalTickVolatility {
+    if L == 0 {
+        revert_sel(SEL_ZERO_LIQUIDITY);
+    }
+    if sqrt_p == 0 {
+        revert_sel(SEL_ZERO_SQRT_PRICE);
+    }
+    let den = checked_mul(checked_mul(L, LN_10001), sqrt_p);
+    let ratio = mulDiv(sf.val, Q96, den);
+    let sig = try_cast_uint(checked_mul(ratio, ratio), u88);
+    if !sig.is_some {
+        revert_sel(SEL_SIGMA_OVERFLOW);
+    }
+    CEVLocalTickVolatility {
+        tick: getTickAtSqrtRatio(sqrt_p),
+        sig: cast_uint(sig.inner, u256)
+    }
+};

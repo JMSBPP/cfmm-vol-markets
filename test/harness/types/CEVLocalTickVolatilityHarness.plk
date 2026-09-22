@@ -1,0 +1,23 @@
+import std::constructor::return_runtime;
+import types::CEVLocalTickVolatility::intro;
+import types::SigmaF::SigmaF;
+
+// cast sig "intro(uint256,uint256,uint256)" -> 0x8f7cec58
+const SEL_INTRO = 0x8f7cec58;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_INTRO {
+        let sf = SigmaF() { val: @evm_calldataload(4) };
+        let L = @evm_calldataload(36);
+        let sqrt_p = @evm_calldataload(68);
+        let cell = intro(sf, L, sqrt_p);
+        let out = @malloc_uninit(64);
+        @mstore32(out, cell.tick);
+        @mstore32(out +% 32, cell.sig);
+        @evm_return(out, 64);
+    }
+    @evm_stop();
+}

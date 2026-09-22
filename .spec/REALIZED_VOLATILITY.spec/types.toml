@@ -80,3 +80,23 @@ laws = [
 ]
 refined = true
 notes = "run_hist is K=2 nest unroll, not a public law. Fuzz: run_k K∈[1,128]."
+
+[CEVLocalTickVolatility]
+module = "CEVLocalTickVolatility"
+kind = "dependent"
+file = "types/CEVLocalTickVolatility/CEVLocalTickVolatility.md"
+carriers = ["Tick", "u88_tick2", "SigmaF", "u128_L", "Q64_96"]
+operations = ["intro"]
+laws = [
+  "σ = (σ_F / (L_{1/2} · LN_10001 · √p))² ∈ u88 tick²",
+  "tick = Tick(√p)",
+  "L_{1/2} : u128; √p : Q64_96; LN_10001 : RAY",
+  "intro(σ_F, L, √p) → {tick, σ}",
+  "revert ZeroLiquidity if L=0",
+  "revert ZeroSqrtPrice if √p=0",
+  "revert SigmaOverflowU88 if σ ∉ u88",
+  "CEVHistory(dt,0)=ε; CEVHistory(dt,S k)=cell × CEVHistory(dt,k)",
+  "Eff = [StateView=staticcall √p, LiquidityChunkMinter=mint] (holes)",
+]
+refined = false
+notes = "Define: intro filled. LN_10001 from ExpMath HALF_LN·2·1e9. mulDiv(sf, Q96, L·LN·√p). History(A) is a later TODO refactor."
