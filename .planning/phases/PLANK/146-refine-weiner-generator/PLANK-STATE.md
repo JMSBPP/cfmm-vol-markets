@@ -3,16 +3,16 @@ plank_state_version: 1
 phase: "PLANK/146"
 slice: "refine/WeinerGenerator-laws-drop-legacy-eps"
 plank_phase: "refine"
-status: "committed"
+status: "complete"
 issue: "https://github.com/JMSBPP/cfmm-vol-markets/issues/146"
 pr: "https://github.com/JMSBPP/cfmm-vol-markets/pull/142"
 approved_plan: "https://github.com/JMSBPP/cfmm-vol-markets/issues/136"
 behavior: "Pin cfmm-types#26; drop local √ table; import TimeSpacing.sqrt_dt; refined=true + laws/Eff."
 commit: "87bc176"
-ci: ""
+ci: "https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35934124903"
 blocked_reason: ""
 blocked_from: ""
-updated_at: "2026-09-23T23:30:30Z"
+updated_at: "2026-09-23T23:34:30Z"
 ---
 
 # Plank TDD State
@@ -29,4 +29,6 @@ updated_at: "2026-09-23T23:30:30Z"
 - `2026-09-23T23:17:00Z` — `pending → in_progress`; `/plank-refine` #146; scope AskQuestion open.
 - `2026-09-23T23:18:30Z` — `in_progress → blocked`; option 2 hard-wait on #26.
 - `2026-09-23T23:28:00Z` — `blocked → in_progress`; #26 closed; pin `lib/cfmm-types` → `5b4a5a4`.
-- `2026-09-23T23:30:00Z` — chunk approved; `in_progress → code_approved → committed`.
+- `2026-09-23T23:30:00Z` — chunk approved; `in_progress → code_approved → committed` (`87bc176`).
+- `2026-09-23T23:32:44Z` — `committed → ci_pending`; push-build [35934124903](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35934124903).
+- `2026-09-23T23:34:21Z` — `ci_pending → complete`; push-build success.
