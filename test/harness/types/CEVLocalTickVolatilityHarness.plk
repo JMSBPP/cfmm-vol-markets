@@ -1,26 +1,65 @@
 import std::constructor::return_runtime;
-import types::CEVLocalTickVolatility::{intro, intro_len, step_k};
+import std::core::addr::addr_from_u256;
+import std::core::uint::{cast_uint, try_cast_uint, u128};
+import std::option::unwrap;
+import cfmm_types::TickSpacing::TickSpacing;
+import types::CEVLocalTickVolatility::{intro, intro_len, step_k as cev_step_k};
+import types::LiquidityChunk::{LiquidityChunk, LiquidityTick, unpack_panoptic};
 import types::SigmaF::SigmaF;
+import types::StateView::{ObsStep, StateViewAnchor, step_k as state_step_k};
+import types::protocol_integrations::Pool::pool_algebra;
 
-// cast sig "intro(uint256,uint256,uint256)" -> 0x8f7cec58
-const SEL_INTRO = 0x8f7cec58;
 // cast sig "introLen(uint256)" -> 0x315d8529
 const SEL_INTRO_LEN = 0x315d8529;
-// cast sig "step(uint256,uint256,uint256,uint256,uint256)" -> 0x4572b9aa
-const SEL_STEP = 0x4572b9aa;
+// cast sig "introFromState(uint256,uint256,uint256,address,uint256,uint256,uint256,uint256,uint256)"
+const SEL_INTRO_FROM_STATE = 0x7b67b67d;
+// cast sig "introMalformed(uint256,uint256,uint256,uint256)"
+const SEL_INTRO_MALFORMED = 0x9978ae35;
+// cast sig "stepFromState(uint256,uint256,uint256,address,uint256,uint256,uint256,uint256,uint256)"
+const SEL_STEP_FROM_STATE = 0xf6169ecc;
+const BAR_DT = 2;
+
+/// Test-only malformed typed input. Production paths use checked unpack_panoptic.
+const malformed_chunk = fn (L: u256) LiquidityChunk {
+    let spacing = TickSpacing(60);
+    LiquidityChunk {
+        tick_spacing: spacing,
+        tick_lower: LiquidityTick {
+            tick_spacing: spacing,
+            val: 0 -% 60
+        },
+        tick_upper: LiquidityTick {
+            tick_spacing: spacing,
+            val: 60
+        },
+        liquidity: unwrap(try_cast_uint(L, u128))
+    }
+};
+
+const return_cell = fn (ok: bool, tick: u256, sig: u256) never {
+    let out = @malloc_uninit(96);
+    @mstore32(out, @bool_to_u256(ok));
+    @mstore32(out +% 32, tick);
+    @mstore32(out +% 64, sig);
+    @evm_return(out, 96);
+};
 
 init { return_runtime(); }
 
 run {
     let selector = @evm_shr(224, @evm_calldataload(0));
-    if selector == SEL_INTRO {
+    if selector == SEL_INTRO_MALFORMED {
         let sf = SigmaF() { val: @evm_calldataload(4) };
-        let L = @evm_calldataload(36);
-        let sqrt_p = @evm_calldataload(68);
-        let cell = intro(sf, L, sqrt_p);
+        let chunk = malformed_chunk(@evm_calldataload(36));
+        let obs = ObsStep(BAR_DT) {
+            t: 0,
+            tick: @evm_calldataload(68),
+            sqrt_p: @evm_calldataload(100)
+        };
+        let cell = intro(BAR_DT, sf, chunk, obs);
         let out = @malloc_uninit(64);
         @mstore32(out, cell.tick);
-        @mstore32(out +% 32, cell.sig);
+        @mstore32(out +% 32, cast_uint(cell.sig, u256));
         @evm_return(out, 64);
     }
     if selector == SEL_INTRO_LEN {
@@ -29,20 +68,35 @@ run {
         @mstore32(out, intro_len(2, k));
         @evm_return(out, 32);
     }
-    if selector == SEL_STEP {
+    if (selector == SEL_INTRO_FROM_STATE) | (selector == SEL_STEP_FROM_STATE) {
         let sf = SigmaF() { val: @evm_calldataload(4) };
-        let L = @evm_calldataload(36);
-        let sqrt_p = @evm_calldataload(68);
-        let k = @evm_calldataload(100);
-        let j = @evm_calldataload(132);
-        let o = step_k(2, sf, L, sqrt_p, k, j);
-        let out = @malloc_uninit(96);
-        @mstore32(out, @bool_to_u256(o.is_some));
-        if o.is_some {
-            @mstore32(out +% 32, o.inner.tick);
-            @mstore32(out +% 64, o.inner.sig);
+        let chunk = unpack_panoptic(
+            @evm_calldataload(36),
+            @evm_calldataload(68)
+        );
+        let anchor = StateViewAnchor {
+            pool: pool_algebra(
+                addr_from_u256(@evm_calldataload(100)),
+                @evm_calldataload(132),
+                @evm_calldataload(164)
+            ),
+            t_init: @evm_calldataload(196)
+        };
+        let k = @evm_calldataload(228);
+        let j = @evm_calldataload(260);
+        let state_o = state_step_k(BAR_DT, anchor, k, j);
+        if !state_o.is_some {
+            return_cell(false, 0, 0);
         }
-        @evm_return(out, 96);
+        if selector == SEL_INTRO_FROM_STATE {
+            let cell = intro(BAR_DT, sf, chunk, state_o.inner);
+            return_cell(true, cell.tick, cast_uint(cell.sig, u256));
+        }
+        let cev_o = cev_step_k(BAR_DT, sf, chunk, state_o.inner, k, j);
+        if !cev_o.is_some {
+            return_cell(false, 0, 0);
+        }
+        return_cell(true, cev_o.inner.tick, cast_uint(cev_o.inner.sig, u256));
     }
     @evm_stop();
 }

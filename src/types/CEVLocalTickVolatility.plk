@@ -2,14 +2,16 @@ import std::core::ops::checked_mul;
 import std::core::uint::{cast_uint, try_cast_uint, u88};
 import std::option::{None, Option, Some};
 import cfmm_types::TimeSpacing::n;
+import types::LiquidityChunk::LiquidityChunk;
 import types::Numerics::Q96;
 import types::SigmaF::SigmaF;
+import types::StateView::ObsStep;
 import v3::math::full_math::mulDiv;
-import v3::math::tick_math::getTickAtSqrtRatio;
 
 /// types.toml: CEVLocalTickVolatility
 /// .btt: .spec/REALIZED_VOLATILITY.spec/types/CEVLocalTickVolatility/CEVLocalTickVolatility.btt
 /// .btt: .spec/REALIZED_VOLATILITY.spec/types/CEVLocalTickVolatility/CEVHistory.btt
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/135
 /// LN_10001 = 2 · HALF_LN_TICK_BASE · 1e9  (WAD → RAY). Host: src/lib/ExpMath.sol
 const LN_10001 = 99995000333308000000000;
 
@@ -30,7 +32,7 @@ const revert_sel = fn (sel: u256) never {
 
 const CEVLocalTickVolatility = struct {
     tick: u256,
-    sig: u256
+    sig: u88
 };
 
 /// CEVHistory(dt, 0) = ε; CEVHistory(dt, S k) = cell × CEVHistory(dt, k)
@@ -45,24 +47,31 @@ const CEVHistory = fn (comptime dt: u256, comptime k: u256) type {
     }
 };
 
-/// intro(σ_F, L, √p) → {tick=Tick(√p), σ=(ratio)²}. ratio = σ_F / (L · LN_10001 · √p)
+/// intro(σ_F, chunk, obs) → {tick=obs.tick, σ=(ratio)²}.
+/// ratio = σ_F / (chunk.liquidity · LN_10001 · obs.sqrt_p).
 /// Behavior: CEVLocalTickVolatility.btt
-const intro = fn (sf: SigmaF(), L: u256, sqrt_p: u256) CEVLocalTickVolatility {
+const intro = fn (
+    comptime dt: u256,
+    sf: SigmaF(),
+    chunk: LiquidityChunk,
+    obs: ObsStep(dt)
+) CEVLocalTickVolatility {
+    let L = cast_uint(chunk.liquidity, u256);
     if L == 0 {
         revert_sel(SEL_ZERO_LIQUIDITY);
     }
-    if sqrt_p == 0 {
+    if obs.sqrt_p == 0 {
         revert_sel(SEL_ZERO_SQRT_PRICE);
     }
-    let den = checked_mul(checked_mul(L, LN_10001), sqrt_p);
-    let ratio = mulDiv(sf.val, Q96, den);
+    let scaled = mulDiv(sf.val, Q96, obs.sqrt_p);
+    let ratio = (scaled </ L) </ LN_10001;
     let sig = try_cast_uint(checked_mul(ratio, ratio), u88);
     if !sig.is_some {
         revert_sel(SEL_SIGMA_OVERFLOW);
     }
     CEVLocalTickVolatility {
-        tick: getTickAtSqrtRatio(sqrt_p),
-        sig: cast_uint(sig.inner, u256)
+        tick: obs.tick,
+        sig: sig.inner
     }
 };
 
@@ -81,8 +90,8 @@ const intro_len = fn (comptime dt: u256, k: u256) u256 {
 const step_k = fn (
     comptime dt: u256,
     sf: SigmaF(),
-    L: u256,
-    sqrt_p: u256,
+    chunk: LiquidityChunk,
+    obs: ObsStep(dt),
     k: u256,
     j: u256
 ) Option(CEVLocalTickVolatility) {
@@ -90,6 +99,6 @@ const step_k = fn (
     if (k == 0) | (k >= nmax) | (j >= k) {
         None(CEVLocalTickVolatility)
     } else {
-        Some(intro(sf, L, sqrt_p))
+        Some(intro(dt, sf, chunk, obs))
     }
 };
