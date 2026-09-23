@@ -3,9 +3,7 @@
 # Paths are repo-root-relative. Empty files = [] is OK.
 
 [agda]
-files = [
-  ".spec/REALIZED_VOLATILITY.spec/types/TimeSpacing/TimeSpacing.agda",
-]
+files = []
 
 [idris]
 files = [
