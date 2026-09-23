@@ -159,8 +159,9 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
   (`466cf33`; [push-build 35885807626](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885807626),
   [develop-gate 35885814010](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885814010)).
 - **Parent track:** #136 `type/CEVStateRunner` — open; vertical children #138–#141.
-- **Current Plank slice:** #138 `type/CEVStateRunner algebra + outcome law` — `in_progress`
-  (`/plank-type`; [PR #142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142)).
+- **Current Plank slice:** #138 `type/CEVStateRunner algebra + outcome law` — `ci_pending`
+  (`c589104`; [push-build 35894248659](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35894248659);
+  [PR #142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142)).
 - **Queued after #138:** #139 success define → #140 failure define → #141 refine.
 - **Ledgers:** `.planning/phases/PLANK/135-refine-cev-local-tick-volatility/PLANK-STATE.md`
   (complete); `.planning/phases/PLANK/138-type-cev-state-runner-algebra/PLANK-STATE.md`
