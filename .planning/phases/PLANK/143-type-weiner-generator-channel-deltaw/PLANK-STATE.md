@@ -3,16 +3,16 @@ plank_state_version: 1
 phase: "PLANK/143"
 slice: "type/WeinerGenerator-channel-DeltaW-ShockPips-magnitude"
 plank_phase: "type"
-status: "ci_pending"
+status: "complete"
 issue: "https://github.com/JMSBPP/cfmm-vol-markets/issues/143"
 pr: "https://github.com/JMSBPP/cfmm-vol-markets/pull/142"
 approved_plan: "https://github.com/JMSBPP/cfmm-vol-markets/issues/136"
 behavior: "Lock channel-built DeltaW(dt) via Shock(Pips); signatures/holes only."
 commit: "4e70c226880b23085f34e2ade85b1f65f66a89ce"
-ci: "https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35930941969"
+ci: "https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35930994617"
 blocked_reason: ""
 blocked_from: ""
-updated_at: "2026-09-23T22:55:00Z"
+updated_at: "2026-09-23T23:00:00Z"
 ---
 
 # Plank TDD State
@@ -62,4 +62,5 @@ plan, execute, review, or verify #145.
 - `2026-09-23T22:52:30Z` — first behavior run_weiner success accepted; type artifacts drafted (holes); awaiting chunk approve.
 - `2026-09-23T22:55:00Z` — chunk approved → `in_progress → committed`; push for CI.
 - `2026-09-23T22:55:30Z` — `committed → ci_pending`; [push-build 35930941969](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35930941969).
+- `2026-09-23T23:00:00Z` — `ci_pending → complete`; [push-build 35930994617](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35930994617) green (tip includes type `4e70c22`).
 

@@ -155,14 +155,13 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 
 ## Plank tracking (state-only)
 
-- **Last completed slice:** #150 `define/Shock(Pips) run_shock success` — `complete`
-  (impl `6b65bed`; tip `a50f408`; pin `lib/cfmm-types@27b284b` develop;
-  [push-build 35929329097](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35929329097),
-  [push-build 35929329097](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35929329097) (+ develop-gate on tip)).
+- **Last completed slice:** #143 `type/WeinerGenerator` channel DeltaW — `complete`
+  (impl `4e70c22`; [push-build 35930994617](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35930994617)).
+- **Previous:** #150 `define/Shock(Pips)` — `complete` (`6b65bed` / tip suite).
 - **Parent track:** #136 `type/CEVStateRunner` — open; PR [#142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142).
-- **Current Plank slice:** #143 `type/WeinerGenerator` — resume type (Shock define complete).
-- **Queued (approved-plan order):** #143 → #145 → #146 → #147 B2 → #140 → #141; fuzz #148.
-- **Ledgers:** `150-define-shock-pips` (complete); `149-type-shock` (complete); `143-…` (unblocked).
+- **Current Plank slice:** #145 `define/WeinerGenerator` — next (approved-plan order).
+- **Queued (approved-plan order):** #145 → #146 → #147 B2 → #140 → #141; fuzz #148.
+- **Ledgers:** `143-…` (complete); `150-define-shock-pips` (complete); `149-type-shock` (complete).
 - **GSD milestone state:** unchanged. This section is outside the Haskell
   differential-conformance milestone and does not modify its counters or current phase.
 
