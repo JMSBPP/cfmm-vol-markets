@@ -35,3 +35,5 @@ updated_at: "2026-09-23T22:08:00Z"
 - `2026-09-23T22:05:00Z` — `ci_pending → blocked`; [push-build 35926165928](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35926165928) failed on `lib/cfmm-types` TimeSpacing comptime_assert via WeinerGeneratorHarness.
 - `2026-09-23T22:08:00Z` — retarget `lib/cfmm-types` → `dec0fbe` (develop + TimeSpacing comptime fix; cfmm-types#34); `blocked → ci_pending`.
 - `2026-09-23T22:12:00Z` — retarget `lib/cfmm-types` → `304e979` (also restore TickBucket + Tick min/max for LegStep).
+- `2026-09-23T22:16:00Z` — retarget `lib/cfmm-types` → `27b284b` (`origin/develop`, includes Ray + #34).
+
