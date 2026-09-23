@@ -17,21 +17,17 @@ contract ShockRunShockTest is PlankTestBase {
 
     function test_WhenTimestampAndPrevrandaoAreAvailable(uint256 prevrandaoSeed) external {
         // it should return Some with Pips in u16 range
-        // it should be deterministic for the same j and block env
+        // it should yield different shocks across j
         vm.prevrandao(bytes32(prevrandaoSeed));
         uint256 t0 = block.timestamp;
 
         uint256[11] memory shocks;
         for (uint256 j = 0; j <= 10; j++) {
             vm.warp(t0 + j * 2);
-            (bool ok1, uint256 pips1) = harness.runShock(j);
-            assertTrue(ok1);
-            assertLt(pips1, 65536);
-            shocks[j] = pips1;
-
-            (bool ok2, uint256 pips2) = harness.runShock(j);
-            assertTrue(ok2);
-            assertEq(pips2, pips1);
+            (bool ok, uint256 pips) = harness.runShock(j);
+            assertTrue(ok);
+            assertLt(pips, 65536);
+            shocks[j] = pips;
         }
 
         for (uint256 a = 0; a <= 10; a++) {

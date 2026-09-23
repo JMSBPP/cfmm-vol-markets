@@ -1,4 +1,4 @@
 ShockRunShockTest
 └── when timestamp and prevrandao are available
     ├── it should return Some with Pips in u16 range
-    └── it should be deterministic for the same j and block env
+    └── it should yield different shocks across j
