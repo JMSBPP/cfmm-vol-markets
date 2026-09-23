@@ -32,7 +32,7 @@ Not pure: Eff reads global time and produces a random shock valued in `T`.
 \to
 \mathrm{IO}(\mathrm{ShockCmd})
 \\[1em]
-\mathrm{run}
+\mathrm{run}_{\mathrm{shock}}
 &::
 \mathrm{IO}(\mathrm{ShockCmd})
 \to
@@ -43,7 +43,7 @@ Not pure: Eff reads global time and produces a random shock valued in `T`.
 \mathrm{Shock}(T)
 \to T
 \\[1em]
-\mathrm{run}(\mathrm{io}(\mathrm{cmd}))
+\mathrm{run}_{\mathrm{shock}}(\mathrm{io}(\mathrm{cmd}))
 &=
 \mathrm{Some}(\mathrm{Shock}(T))
 \quad\text{iff Timestamp env + entropy succeed}
@@ -73,12 +73,12 @@ T=\mathrm{Pips}
 
 ### First behavior (define later)
 
-\(\mathrm{run}(\mathrm{io}(\ldots))\) **success** for `Shock(Pips)`: Timestamp present → `Some(Shock(Pips))`.
+\(\mathrm{run}_{\mathrm{shock}}(\mathrm{io}(\ldots))\) **success** for `Shock(Pips)`: Timestamp present → `Some(Shock(Pips))`.
 
 Holes (type phase — no bodies):
 
-- `io` / `run` / `val` (and optional `magnitude` alias)
-- Timestamp view selector used by `run`
+- `io` / `run_shock` / `val` (and optional `magnitude` alias)
+- Timestamp view selector used by `run_shock`
 
 ## Pin
 

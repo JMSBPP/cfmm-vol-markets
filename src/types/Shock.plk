@@ -26,8 +26,9 @@ const io = fn (cmd: ShockCmd) IO(ShockCmd) {
 };
 
 /// Timestamp env + entropy → Option(Shock(T)). None on env/entropy failure.
-const run = fn (comptime T: type, m: IO(ShockCmd)) Option(Shock(T)) {
-    @compile_error("Shock.run: define phase");
+/// Named run_shock — `run` is the Plank entrypoint keyword.
+const run_shock = fn (comptime T: type, m: IO(ShockCmd)) Option(Shock(T)) {
+    @compile_error("Shock.run_shock: define phase");
 };
 
 /// Project carrier payload.
