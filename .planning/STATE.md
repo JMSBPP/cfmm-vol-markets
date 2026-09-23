@@ -155,13 +155,13 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 
 ## Plank tracking (state-only)
 
-- **Last completed slice:** #143 `type/WeinerGenerator` channel DeltaW — `complete`
-  (impl `4e70c22`; [push-build 35930994617](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35930994617)).
-- **Previous:** #150 `define/Shock(Pips)` — `complete` (`6b65bed` / tip suite).
+- **Last completed slice:** #145 `define/WeinerGenerator` run_weiner — `complete`
+  (impl `e8bdb16`; [push-build 35932130470](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35932130470)).
+- **Previous:** #143 type/WeinerGenerator — `complete` (`4e70c22`); #150 Shock define — `complete`.
 - **Parent track:** #136 `type/CEVStateRunner` — open; PR [#142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142).
-- **Current Plank slice:** #145 `define/WeinerGenerator` — `committed` (pushing CI).
-- **Queued (approved-plan order):** #145 → #146 → #147 B2 → #140 → #141; fuzz #148.
-- **Ledgers:** `143-…` (complete); `150-define-shock-pips` (complete); `149-type-shock` (complete).
+- **Current Plank slice:** #146 `refine/WeinerGenerator` — next (approved-plan order).
+- **Queued (approved-plan order):** #146 → #147 B2 → #140 → #141; fuzz #148.
+- **Ledgers:** `145-…` (complete); `143-…` (complete); `150-…` (complete).
 - **GSD milestone state:** unchanged. This section is outside the Haskell
   differential-conformance milestone and does not modify its counters or current phase.
 
