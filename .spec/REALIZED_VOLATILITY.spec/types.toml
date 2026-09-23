@@ -190,4 +190,4 @@ laws = [
   "Eff = [Timestamp]",
 ]
 refined = false
-notes = "Type #149. Prereq of #143 WeinerGenerator. Define: run(io) success Shock(Pips). Replaces legacy ShockPips carrier."
+notes = "Type #149; define #150 run_shock success Shock(Pips) entropy B (PREVRANDAO‖timestamp‖j). Prereq of #143. Replaces legacy ShockPips carrier."

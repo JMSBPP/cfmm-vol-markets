@@ -1,0 +1,32 @@
+---
+plank_state_version: 1
+phase: "PLANK/150"
+slice: "define/Shock-Pips-run_shock-success"
+plank_phase: "define"
+status: "code_approved"
+issue: "https://github.com/JMSBPP/cfmm-vol-markets/issues/150"
+pr: "https://github.com/JMSBPP/cfmm-vol-markets/pull/142"
+approved_plan: "https://github.com/JMSBPP/cfmm-vol-markets/issues/136"
+behavior: "run_shock(io) success for Shock(Pips); Timestamp env → entropy → Some(Shock(Pips))."
+commit: ""
+ci: ""
+blocked_reason: ""
+blocked_from: ""
+updated_at: "2026-09-23T22:01:00Z"
+---
+
+# Plank TDD State
+
+## Identity
+
+- Parent plan: [#136](https://github.com/JMSBPP/cfmm-vol-markets/issues/136)
+- Child slice: [#150 define/Shock(Pips) run_shock success](https://github.com/JMSBPP/cfmm-vol-markets/issues/150)
+- Pull request: [#142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142)
+- Brady phase: `define`
+- Prerequisite: [#149](https://github.com/JMSBPP/cfmm-vol-markets/issues/149) complete
+- Unblocks: [#143](https://github.com/JMSBPP/cfmm-vol-markets/issues/143)
+
+## Transition log
+
+- `2026-09-23T21:57:00Z` — `pending → in_progress`; `/plank-define` for #150; entropy source AskQuestion open.
+- `2026-09-23T22:01:00Z` — entropy **B** locked (PREVRANDAO‖timestamp‖j → keccak → Pips); BTT+Bulloak+bodies drafted; awaiting chunk approve.

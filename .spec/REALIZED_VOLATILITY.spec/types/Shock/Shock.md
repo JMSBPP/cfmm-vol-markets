@@ -71,15 +71,49 @@ T=\mathrm{Pips}
 \end{aligned}
 \]
 
-### First behavior (define later)
+### \(\mathrm{io}
+::
+\mathrm{ShockCmd}
+\to
+\mathrm{IO}(\mathrm{ShockCmd})\)
 
-\(\mathrm{run}_{\mathrm{shock}}(\mathrm{io}(\ldots))\) **success** for `Shock(Pips)`: Timestamp present → `Some(Shock(Pips))`.
+\[
+\begin{aligned}
+\mathrm{io}(\mathrm{cmd}) &= \mathrm{IO}\{\mathrm{inner}\leftarrow\mathrm{cmd}\} \\
+\text{pure wrap; no Eff}
+\end{aligned}
+\]
 
-Holes (type phase — no bodies):
+### \(\mathrm{run}_{\mathrm{shock}}
+::
+\mathrm{IO}(\mathrm{ShockCmd})
+\to
+\mathrm{Option}(\mathrm{Shock}(\mathrm{Pips}))\)
 
-- `io` / `run_shock` / `val` (and optional `magnitude` alias)
-- Timestamp view selector used by `run_shock`
+\[
+\begin{aligned}
+h &= \mathrm{keccak256}(\mathrm{prevrandao}\,\|\,\mathrm{timestamp}\,\|\,j) \\
+\mathrm{mag} &= \lfloor h/2\rfloor \bmod 2^{16} \\
+\mathrm{run}_{\mathrm{shock}}(\mathrm{io}(\mathrm{ShockCmd}\{j\}))
+&=
+\mathrm{Some}(\mathrm{Shock}(\mathrm{Pips}\{\mathrm{val}\leftarrow\mathrm{mag}\})) \\
+\text{BTT:}&\ \mathtt{ShockRunShock.btt} \\
+\text{Entropy B:}&\ \mathtt{@evm\_difficulty}(=\mathrm{PREVRANDAO}),\ \mathtt{@evm\_timestamp}
+\end{aligned}
+\]
+
+### \(\mathrm{val}
+::
+\mathrm{Shock}(T)
+\to T\)
+
+\[
+\begin{aligned}
+\mathrm{val}(s) &= s.\mathrm{inner}
+\end{aligned}
+\]
 
 ## Pin
 
 `lib/cfmm-types` must include `Pips` (and `Ray` for later √·mag product). Import: `cfmm_types::Pips::*`.
+Pinned for this define: `lib/cfmm-types` @ `5378674` (`develop`, Pips present).
