@@ -203,7 +203,8 @@ laws = [
   "io wraps WeinerCmd{j}; run_weiner reads Timestamp + Shock.run_shock → Option(DeltaW(dt))",
   "Outcome law: Some = DeltaW(dt), None = Shock/Timestamp/entropy failure",
   "val(DeltaW(dt)) → u256 (Ray carrier later)",
-  "Eff = [Timestamp] (WeinerView); replaces legacy ShockPips / passed-eps deltaW",
+  "√dt = TimeSpacing.sqrt_dt(dt) → Ray (cfmm-types#26); product = rayVal(√)·mag/PIPS",
+  "Eff = [Timestamp] (WeinerView); no local SQRT_DT_RAY table; no passed-eps deltaW",
 ]
-refined = false
-notes = "Type #143 channel-built DeltaW via Shock(Pips). Define #145 success path. Refine #146."
+refined = true
+notes = "Refine #146: pin cfmm-types#26; drop host √ table; keep abs_signed for TokenFlow/SigmaF/TokenHistory."

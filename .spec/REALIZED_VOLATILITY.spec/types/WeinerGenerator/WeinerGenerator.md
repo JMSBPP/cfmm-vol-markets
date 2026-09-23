@@ -3,11 +3,12 @@
 [Shock](../Shock/Shock.md) · [Pips](https://github.com/JMSBPP/cfmm-types/blob/develop/.spec/types/Pips/Pips.md) · [Ray](https://github.com/JMSBPP/cfmm-types/blob/develop/.spec/types/Ray/Ray.md) · [TimeSpacing](https://github.com/JMSBPP/cfmm-types/blob/develop/.spec/types/TimeSpacing/TimeSpacing.md) · [IO](../IO/IO.md)
 
 Plank: `src/types/WeinerGenerator.plk`. types.toml: `WeinerGenerator`.
-PRD: [#143](https://github.com/JMSBPP/cfmm-vol-markets/issues/143) · parent [#136](https://github.com/JMSBPP/cfmm-vol-markets/issues/136).
-Prereq: [#149](https://github.com/JMSBPP/cfmm-vol-markets/issues/149) / [#150](https://github.com/JMSBPP/cfmm-vol-markets/issues/150) `Shock(Pips)`.
+PRD: [#146](https://github.com/JMSBPP/cfmm-vol-markets/issues/146) refine · [#145](https://github.com/JMSBPP/cfmm-vol-markets/issues/145) define · [#143](https://github.com/JMSBPP/cfmm-vol-markets/issues/143) type · parent [#136](https://github.com/JMSBPP/cfmm-vol-markets/issues/136).
+Prereq: [#149](https://github.com/JMSBPP/cfmm-vol-markets/issues/149) / [#150](https://github.com/JMSBPP/cfmm-vol-markets/issues/150) `Shock(Pips)`; [cfmm-types#26](https://github.com/JMSBPP/cfmm-types/issues/26) `TimeSpacing.sqrt_dt`.
 
 **Replace** legacy `ShockPips` / seal-reveal / passed-`eps` `deltaW`. Channel-built
 \(\Delta W(\bar{dt})\) via `Shock(Pips)` under Eff = `[Timestamp]` (WeinerView).
+Local `SQRT_DT_RAY_*` / `sqrt_dt_ray` **removed** — import `cfmm_types::TimeSpacing.sqrt_dt`.
 
 ## Std / host candidates
 
@@ -15,10 +16,13 @@ Prereq: [#149](https://github.com/JMSBPP/cfmm-vol-markets/issues/149) / [#150](h
 |-----------|-----|
 | Legacy `ShockPips` / seal-reveal | **Replace** |
 | `Shock(T)` + `run_shock` | **Reuse** — entropy channel (`T=Pips`) |
-| `cfmm_types::Pips` / `Ray` | **Reuse** — mag; √dt·mag → Ray-scale |
+| `cfmm_types::Pips` / `Ray` | **Reuse** — mag; product on Ray scale |
+| `TimeSpacing.sqrt_dt` | **Reuse** — √(dt)·RAY table (#26); not host-local |
 | `TimeSpacing` / `Window` | **Reuse** — `dt` domain + `n(dt)` |
 | `IO` / `Option` | **Reuse** — wrap + outcome |
 | New `Outcome`/`Result` | **Reject** |
+
+> KEEP THIS NOTATION
 
 \[
 \begin{aligned}
@@ -62,6 +66,11 @@ Prereq: [#149](https://github.com/JMSBPP/cfmm-vol-markets/issues/149) / [#150](h
 &=
 [\mathrm{Timestamp}]
 \quad(\mathrm{WeinerView})
+\\[1em]
+\sqrt{\bar{dt}}
+&=
+\mathrm{TimeSpacing.sqrt\_dt}(\bar{dt})
+\quad(\mathrm{Ray};\ \text{lib table, not host})
 \end{aligned}
 \]
 
@@ -104,12 +113,12 @@ s &= \mathrm{Shock.run\_shock}(\mathrm{Shock.io}(\mathrm{ShockCmd}\{j\})) \\
 \mathrm{mag} &= \mathrm{val}(s).\mathrm{val}
 \quad(\mathrm{Pips},\,\mathrm{u16})
 \\
-\sqrt{\bar{dt}} &= \mathrm{Ray.intro}(\lfloor\sqrt{2}\cdot\mathrm{RAY}\rfloor)
+\sqrt{\bar{dt}} &= \mathrm{TimeSpacing.sqrt\_dt}(2)
 \\
 \mathrm{run}_{\mathrm{weiner}}(\mathrm{io}(\mathrm{WeinerCmd}\{j\}))
 &=
 \mathrm{Some}\bigl(\mathrm{DeltaW}(2)\{\mathrm{val}\leftarrow
-\lfloor\sqrt{\bar{dt}}\cdot\mathrm{mag}/\mathrm{PIPS}\rfloor\}\bigr)
+\lfloor\mathrm{rayVal}(\sqrt{\bar{dt}})\cdot\mathrm{mag}/\mathrm{PIPS}\rfloor\}\bigr)
 \\
 \text{BTT:}&\ \mathtt{WeinerGeneratorRunWeiner.btt}
 \\
