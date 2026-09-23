@@ -90,4 +90,4 @@ T\to\mathrm{IO}(T)
 \end{aligned}
 \]
 
-Define: `intro` filled. Behavior tree: [CEVLocalTickVolatility.btt](CEVLocalTickVolatility.btt). \(\sigma\) via `try_cast_uint(_, u88)`. `LN_10001` from ExpMath `HALF_LN`·2·1e9.
+Define: `intro` filled — [CEVLocalTickVolatility.btt](CEVLocalTickVolatility.btt). Prefix: [CEVHistory.btt](CEVHistory.btt) — `intro_len` / `step_k` with \(0<K<n(\bar{dt})\). \(\sigma\) via `try_cast_uint(_, u88)`. `LN_10001` from ExpMath `HALF_LN`·2·1e9.

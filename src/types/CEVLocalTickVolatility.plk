@@ -1,5 +1,7 @@
 import std::core::ops::checked_mul;
 import std::core::uint::{cast_uint, try_cast_uint, u88};
+import std::option::{None, Option, Some};
+import cfmm_types::TimeSpacing::n;
 import types::Numerics::Q96;
 import types::SigmaF::SigmaF;
 import v3::math::full_math::mulDiv;
@@ -7,6 +9,7 @@ import v3::math::tick_math::getTickAtSqrtRatio;
 
 /// types.toml: CEVLocalTickVolatility
 /// .btt: .spec/REALIZED_VOLATILITY.spec/types/CEVLocalTickVolatility/CEVLocalTickVolatility.btt
+/// .btt: .spec/REALIZED_VOLATILITY.spec/types/CEVLocalTickVolatility/CEVHistory.btt
 /// LN_10001 = 2 · HALF_LN_TICK_BASE · 1e9  (WAD → RAY). Host: src/lib/ExpMath.sol
 const LN_10001 = 99995000333308000000000;
 
@@ -60,5 +63,33 @@ const intro = fn (sf: SigmaF(), L: u256, sqrt_p: u256) CEVLocalTickVolatility {
     CEVLocalTickVolatility {
         tick: getTickAtSqrtRatio(sqrt_p),
         sig: cast_uint(sig.inner, u256)
+    }
+};
+
+/// Public prefix length: K if 0 < K < n(dt), else 0. Cells via step_k.
+/// Behavior: CEVHistory.btt
+const intro_len = fn (comptime dt: u256, k: u256) u256 {
+    comptime let nmax = n(dt);
+    if (k == 0) | (k >= nmax) {
+        0
+    } else {
+        k
+    }
+};
+
+/// One cell of a valid prefix. Some(intro) iff 0 < K < n(dt) and j < K.
+const step_k = fn (
+    comptime dt: u256,
+    sf: SigmaF(),
+    L: u256,
+    sqrt_p: u256,
+    k: u256,
+    j: u256
+) Option(CEVLocalTickVolatility) {
+    comptime let nmax = n(dt);
+    if (k == 0) | (k >= nmax) | (j >= k) {
+        None(CEVLocalTickVolatility)
+    } else {
+        Some(intro(sf, L, sqrt_p))
     }
 };

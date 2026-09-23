@@ -86,7 +86,7 @@ module = "CEVLocalTickVolatility"
 kind = "dependent"
 file = "types/CEVLocalTickVolatility/CEVLocalTickVolatility.md"
 carriers = ["Tick", "u88_tick2", "SigmaF", "u128_L", "Q64_96"]
-operations = ["intro"]
+operations = ["intro", "intro_len", "step_k"]
 laws = [
   "σ = (σ_F / (L_{1/2} · LN_10001 · √p))² ∈ u88 tick²",
   "tick = Tick(√p)",
@@ -96,10 +96,12 @@ laws = [
   "revert ZeroSqrtPrice if √p=0",
   "revert SigmaOverflowU88 if σ ∉ u88",
   "CEVHistory(dt,0)=ε; CEVHistory(dt,S k)=cell × CEVHistory(dt,k)",
+  "intro_len = K iff 0 < K < n(dt), else 0",
+  "step_k: Some(intro(σ_F, L, √p_j)) iff 0 < K < n(dt) and j < K",
   "Eff = [StateView=staticcall √p, LiquidityChunkMinter=mint] (holes)",
 ]
 refined = false
-notes = "Define: intro filled. LN_10001 from ExpMath HALF_LN·2·1e9. mulDiv(sf, Q96, L·LN·√p). History(A) is a later TODO refactor."
+notes = "Define: intro + CEVHistory prefix (intro_len/step_k). History(A) is a later TODO refactor."
 
 [LiquidityChunk]
 module = "LiquidityChunk"
