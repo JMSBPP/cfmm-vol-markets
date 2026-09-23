@@ -1,0 +1,62 @@
+import std::constructor::return_runtime;
+import std::core::addr::addr_from_u256;
+import std::core::uint::{try_cast_uint, u128};
+import std::option::{is_some, unwrap};
+import cfmm_types::TickSpacing::TickSpacing;
+import types::CEVLocalTickVolatility::CEVLocalTickVolatility;
+import types::CEVStateRunner::{io, run_j};
+import types::LiquidityChunk::{LiquidityChunk, LiquidityTick};
+import types::SigmaF::SigmaF;
+import types::StateView::StateViewAnchor;
+import types::TokenFlow::TokenFlow;
+import types::protocol_integrations::Pool::pool_algebra;
+
+/// Type-phase stub harness for CEVStateRunner (#138).
+/// Forces comptime instantiation of io + run_j (hole returns None until #139).
+
+// cast sig "runJHole()" -> 0x6a1c8d5b
+const SEL_RUN_J_HOLE = 0x6a1c8d5b;
+const BAR_DT = 2;
+const K = 1;
+
+const stub_chunk = fn () LiquidityChunk {
+    let spacing = TickSpacing(60);
+    LiquidityChunk {
+        tick_spacing: spacing,
+        tick_lower: LiquidityTick {
+            tick_spacing: spacing,
+            val: 0 -% 60
+        },
+        tick_upper: LiquidityTick {
+            tick_spacing: spacing,
+            val: 60
+        },
+        liquidity: unwrap(try_cast_uint(1, u128))
+    }
+};
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_RUN_J_HOLE {
+        let sf = SigmaF() { val: 1 };
+        let chunk = stub_chunk();
+        let anchor = StateViewAnchor {
+            pool: pool_algebra(addr_from_u256(0), 0, 60),
+            t_init: 0
+        };
+        let flow = TokenFlow() {
+            amount: 0,
+            dir: 0,
+            token: addr_from_u256(0),
+            from: addr_from_u256(0),
+            to: addr_from_u256(0)
+        };
+        let m = io(BAR_DT, K, sf, chunk, anchor);
+        let o = run_j(BAR_DT, K, m, flow, 0);
+        let out = @malloc_uninit(32);
+        @mstore32(out, @bool_to_u256(is_some(CEVLocalTickVolatility, o)));
+        @evm_return(out, 32);
+    }
+};

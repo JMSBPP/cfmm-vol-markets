@@ -1,0 +1,58 @@
+import std::option::{None, Option};
+import cfmm_types::TimeSpacing::TimeSpacing;
+import types::CEVLocalTickVolatility::CEVLocalTickVolatility;
+import types::IO::IO;
+import types::LiquidityChunk::LiquidityChunk;
+import types::SigmaF::SigmaF;
+import types::StateView::StateViewAnchor;
+import types::TokenFlow::TokenFlow;
+
+/// types.toml: CEVStateRunner
+/// .spec: .spec/REALIZED_VOLATILITY.spec/types/CEVStateRunner/CEVStateRunner.md
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/138
+/// First define (run_j success): #139
+
+/// CEVStateRunner(dt, K) <- SigmaF × LiquidityChunk × StateViewAnchor
+const CEVStateRunner = fn (comptime dt: u256, comptime k: u256) type {
+    let _ = TimeSpacing(dt);
+    let _ = k;
+    struct {
+        sf: SigmaF(),
+        chunk: LiquidityChunk,
+        anchor: StateViewAnchor
+    }
+};
+
+/// Pure wrap. Execution is run_j only.
+const io = fn (
+    comptime dt: u256,
+    comptime k: u256,
+    sf: SigmaF(),
+    chunk: LiquidityChunk,
+    anchor: StateViewAnchor
+) IO(CEVStateRunner(dt, k)) {
+    IO(CEVStateRunner(dt, k)) {
+        inner: CEVStateRunner(dt, k) {
+            sf: sf,
+            chunk: chunk,
+            anchor: anchor
+        }
+    }
+};
+
+/// hole: run_j — #139 (success) / #140 (failure)
+/// run_j :: IO(CEVStateRunner(dt,K)) → TokenFlow → j → Option(CEVLocalTickVolatility)
+/// Law: run_swap → StateView.step_k → CEV.intro; law B collapses all failures to None.
+/// Type phase: signature stub only (always None). Bodies land in define.
+const run_j = fn (
+    comptime dt: u256,
+    comptime k: u256,
+    m: IO(CEVStateRunner(dt, k)),
+    flow: TokenFlow(),
+    j: u256
+) Option(CEVLocalTickVolatility) {
+    let _ = m;
+    let _ = flow;
+    let _ = j;
+    None(CEVLocalTickVolatility)
+};

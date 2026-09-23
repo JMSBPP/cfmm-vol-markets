@@ -159,3 +159,19 @@ laws = [
 ]
 refined = false
 notes = "Define: intro_anchor, prefix intro_len/step_k, io_realize/run_swap (StateViewRunSwap.btt). pool_tick_after/encode refine remain. PRD #134."
+
+[CEVStateRunner]
+module = "CEVStateRunner"
+kind = "indexed"
+file = "types/CEVStateRunner/CEVStateRunner.md"
+carriers = ["SigmaF", "LiquidityChunk", "StateViewAnchor", "TokenFlow", "RealizeCmd"]
+operations = ["io", "run_j"]
+laws = [
+  "CEVStateRunner(dt,K) <- SigmaF × LiquidityChunk × StateViewAnchor",
+  "io wraps only; run_j = run_swap → StateView.step_k → CEV.intro",
+  "run_j → Option(CEVLocalTickVolatility); law B collapses swap/obs/CEV failure to None",
+  "None if K=0 or K≥n(dt) or j≥K or swap None or step_k None or CEV would revert",
+  "Eff = [StateView]; chunk pre-validated; CEV pure",
+]
+refined = false
+notes = "Type #138; first define run_j success #139; failure #140; refine #141. Pattern from TokenHistoryFlow; not an extension of it."
