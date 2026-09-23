@@ -11,7 +11,8 @@ import types::protocol_integrations::Venue::{Algebra, V3, V4, is_venue};
 
 /// types.toml: LiquidityChunkMinter
 /// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/130
-/// Behavior: .spec/REALIZED_VOLATILITY.spec/types/LiquidityChunkMinter/LiquidityChunkMinterAlgebra.btt
+/// Behavior: LiquidityChunkMinterAlgebra.btt (mint_algebra),
+///   LiquidityChunkMinterIoMintAlgebra.btt (io_mint, Algebra)
 
 // cast sig "PoolSpacingMismatch()" -> 0x08c49d1a
 const SEL_POOL_SPACING_MISMATCH = 0x08c49d1a;
@@ -118,6 +119,7 @@ const mint_algebra = fn (
     if cast_addr(beneficiary, u256) == 0 {
         revert_sel(SEL_ZERO_BENEFICIARY);
     }
+    // This is a calldata region
     LiquidityChunkMint(Algebra) {
         adapter: adapter,
         pool: pool,
@@ -135,7 +137,10 @@ const mint_algebra = fn (
 /// Constructor errors:
 ///   PoolSpacingMismatch | ZeroAdapter | ZeroPayer | ZeroBeneficiary
 ///
-/// hole: io_mint(command) -> IO(LiquidityChunkMint(V))
+/// Wrap a validated Algebra mint command for execution. Does not call the EVM.
+const io_mint = fn (command: LiquidityChunkMint(Algebra)) IO(LiquidityChunkMint(Algebra)) {
+    IO(LiquidityChunkMint(Algebra)) { inner: command }
+};
 ///
 /// hole: run_mint(IO(LiquidityChunkMint(V)))
 ///   -> Option(MintReceipt(V))

@@ -26,4 +26,5 @@ files = [
   "test/harness/types/LiquidityChunkHarness.plk",
   "src/types/LiquidityChunkMinter.plk",
   "test/harness/types/LiquidityChunkMinterHarness.plk",
+  "test/helpers/NoOpCallback.plk",
 ]

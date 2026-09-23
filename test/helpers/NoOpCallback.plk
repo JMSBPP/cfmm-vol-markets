@@ -1,0 +1,18 @@
+import std::constructor::return_runtime;
+
+/// @dev Minimal IAlgebraMintCallback surface for LiquidityChunkMinter Algebra tests.
+/// `algebraMintCallback(uint256,uint256,bytes)` — no-op until run_mint define adds payment.
+// cast sig "algebraMintCallback(uint256,uint256,bytes)" -> 0x3dd657c5
+const SEL_ALGEBRA_MINT_CALLBACK = 0x3dd657c5;
+
+init {
+    return_runtime();
+}
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_ALGEBRA_MINT_CALLBACK {
+        @evm_stop();
+    }
+    @evm_stop();
+}
