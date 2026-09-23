@@ -175,3 +175,19 @@ laws = [
 ]
 refined = false
 notes = "Define #139: run_j success (CEVStateRunnerRunJ.btt). Failure #140; refine #141. Pattern from TokenHistoryFlow; not an extension of it."
+
+[Shock]
+module = "Shock"
+kind = "generic"
+file = "types/Shock/Shock.md"
+carriers = ["Shock(T)", "ShockCmd", "Pips"]
+operations = ["io", "run", "val"]
+laws = [
+  "Shock(T) <- { inner: T }; first T = Pips (cfmm_types)",
+  "io wraps ShockCmd; run reads Timestamp env + entropy → Option(Shock(T))",
+  "Outcome law: Some = Shock(T), None = Timestamp/entropy failure",
+  "val(Shock(T)) → T",
+  "Eff = [Timestamp]",
+]
+refined = false
+notes = "Type #149. Prereq of #143 WeinerGenerator. Define: run(io) success Shock(Pips). Replaces legacy ShockPips carrier."

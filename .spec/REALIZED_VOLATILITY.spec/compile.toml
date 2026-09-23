@@ -23,4 +23,5 @@ files = [
   "test/helpers/Algebra/AlgebraMintCallbackAdapter.plk",
   "test/harness/types/StateViewHarness.plk",
   "test/harness/types/CEVStateRunnerHarness.plk",
+  "src/types/Shock.plk",
 ]

@@ -1,0 +1,36 @@
+import std::option::Option;
+import types::IO::IO;
+
+/// types.toml: Shock
+/// .spec: .spec/REALIZED_VOLATILITY.spec/types/Shock/Shock.md
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/149
+/// Prereq of #143 WeinerGenerator. First T = Pips (cfmm_types::Pips) at define.
+/// Eff = [Timestamp]. Outcome law: run → Option(Shock(T)).
+
+/// Shock(T) — random shock valued in T (Weiner: T = Pips).
+const Shock = fn (comptime T: type) type {
+    struct {
+        inner: T
+    }
+};
+
+/// Command for io wrap; Timestamp env is read in run (Eff).
+const ShockCmd = struct {
+    /// Lattice index j into the sealed entropy stream (Weiner ceremony).
+    j: u256
+};
+
+/// Pure wrap. Execution is run only.
+const io = fn (cmd: ShockCmd) IO(ShockCmd) {
+    @compile_error("Shock.io: define phase");
+};
+
+/// Timestamp env + entropy → Option(Shock(T)). None on env/entropy failure.
+const run = fn (comptime T: type, m: IO(ShockCmd)) Option(Shock(T)) {
+    @compile_error("Shock.run: define phase");
+};
+
+/// Project carrier payload.
+const val = fn (comptime T: type, s: Shock(T)) T {
+    @compile_error("Shock.val: define phase");
+};

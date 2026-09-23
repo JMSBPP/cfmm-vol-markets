@@ -818,11 +818,14 @@ phase numbering, progress counters, current position, or GSD routing.
 | Approved child | Brady phase | Status | Evidence |
 |----------------|-------------|--------|----------|
 | [#135 refine/CEVLocalTickVolatility typed inputs](https://github.com/JMSBPP/cfmm-vol-markets/issues/135) | `refine` | Complete | [PR #137](https://github.com/JMSBPP/cfmm-vol-markets/pull/137), `466cf33`, [push-build 35885807626](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885807626), [develop-gate 35885814010](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885814010) |
-| [#136 type/CEVStateRunner](https://github.com/JMSBPP/cfmm-vol-markets/issues/136) | parent | Open; decomposed into #138–#141 | Parent [#129](https://github.com/JMSBPP/cfmm-vol-markets/issues/129); track PR on `type/CEVStateRunner` |
+| [#136 type/CEVStateRunner](https://github.com/JMSBPP/cfmm-vol-markets/issues/136) | parent | Open; review cascade #149→#143→… + #138–#141 | Parent [#129](https://github.com/JMSBPP/cfmm-vol-markets/issues/129); track PR on `type/CEVStateRunner` |
 | [#138 type/CEVStateRunner algebra + outcome law](https://github.com/JMSBPP/cfmm-vol-markets/issues/138) | `type` | Complete | `12e3d69`; [push-build 35903789028](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35903789028), [develop-gate 35903793339](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35903793339); [PR #142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142) |
 | [#139 define/CEVStateRunner success path (one index)](https://github.com/JMSBPP/cfmm-vol-markets/issues/139) | `define` | Complete | `1b8ac24`; [push-build 35905119499](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35905119499), [develop-gate 35905124168](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35905124168); [PR #142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142) |
-| [#140 define/CEVStateRunner failure outcomes](https://github.com/JMSBPP/cfmm-vol-markets/issues/140) | `define` | Pending | Next after #139 |
-| [#141 refine/CEVStateRunner laws + Eff boundary](https://github.com/JMSBPP/cfmm-vol-markets/issues/141) | `refine` | Pending | Blocked by #140 |
+| [#149 type/Shock(T) Timestamp → Shock(Pips)](https://github.com/JMSBPP/cfmm-vol-markets/issues/149) | `type` | CI pending | Prereq of #143; [PR #142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142) |
+| [#143 type/WeinerGenerator channel DeltaW](https://github.com/JMSBPP/cfmm-vol-markets/issues/143) | `type` | Blocked | Blocked by #149 |
+| [#147 define/CEVStateRunner B2 RunJ](https://github.com/JMSBPP/cfmm-vol-markets/issues/147) | `define` | Pending | Blocked by Weiner refine #146 |
+| [#140 define/CEVStateRunner failure outcomes](https://github.com/JMSBPP/cfmm-vol-markets/issues/140) | `define` | Pending | Blocked by #147 |
+| [#141 refine/CEVStateRunner B2 Eff + ABI](https://github.com/JMSBPP/cfmm-vol-markets/issues/141) | `refine` | Pending | Blocked by #147 + #140 |
 
 Phase ledgers:
 `.planning/phases/PLANK/135-refine-cev-local-tick-volatility/PLANK-STATE.md`,
