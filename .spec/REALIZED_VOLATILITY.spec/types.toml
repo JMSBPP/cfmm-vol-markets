@@ -118,7 +118,7 @@ laws = [
   "unpackPanoptic rejects nonzero reserved bits and every invalid constructor state",
 ]
 refined = false
-notes = "Type phase. Distinct from VegaTarget; #131 owns later refinement and mapping. First define behavior: intro."
+notes = "Define: intro, pack_panoptic, checked unpack_panoptic. Distinct from VegaTarget; #131 owns later refinement and mapping."
 
 [LiquidityChunkMinter]
 module = "LiquidityChunkMinter"
@@ -140,4 +140,4 @@ laws = [
   "Eff = [VenueMintCall, ERC20TransferFrom, AuthenticatedCallbackContext, V4UnlockSettlement]",
 ]
 refined = false
-notes = "Type phase. Adapters own exact-pay callbacks/settlement; callback context is caller- and command-bound. PRD #130."
+notes = "Define: Algebra command constructor. Execution remains a hole. Adapters own exact-pay callbacks/settlement; callback context is caller- and command-bound. PRD #130."

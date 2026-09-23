@@ -1,10 +1,14 @@
 import std::constructor::return_runtime;
 import std::core::uint::{cast_uint, try_cast_uint, u128};
 import std::option::unwrap;
-import types::LiquidityChunk::intro;
+import types::LiquidityChunk::{intro, pack_panoptic, unpack_panoptic};
 
 // cast sig "intro(uint256,int24,int24,uint128)" -> 0xc56e8d44
 const SEL_INTRO = 0xc56e8d44;
+// cast sig "pack(uint256,int24,int24,uint128)" -> 0xee652f96
+const SEL_PACK = 0xee652f96;
+// cast sig "unpack(uint256,uint256)" -> 0xbd34c391
+const SEL_UNPACK = 0xbd34c391;
 
 init { return_runtime(); }
 
@@ -16,6 +20,29 @@ run {
             @evm_calldataload(36),
             @evm_calldataload(68),
             unwrap(try_cast_uint(@evm_calldataload(100), u128))
+        );
+        let out = @malloc_uninit(128);
+        @mstore32(out, cast_uint(chunk.tick_spacing, u256));
+        @mstore32(out +% 32, chunk.tick_lower.val);
+        @mstore32(out +% 64, chunk.tick_upper.val);
+        @mstore32(out +% 96, cast_uint(chunk.liquidity, u256));
+        @evm_return(out, 128);
+    }
+    if selector == SEL_PACK {
+        let chunk = intro(
+            @evm_calldataload(4),
+            @evm_calldataload(36),
+            @evm_calldataload(68),
+            unwrap(try_cast_uint(@evm_calldataload(100), u128))
+        );
+        let out = @malloc_uninit(32);
+        @mstore32(out, pack_panoptic(chunk));
+        @evm_return(out, 32);
+    }
+    if selector == SEL_UNPACK {
+        let chunk = unpack_panoptic(
+            @evm_calldataload(4),
+            @evm_calldataload(36)
         );
         let out = @malloc_uninit(128);
         @mstore32(out, cast_uint(chunk.tick_spacing, u256));

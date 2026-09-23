@@ -1,11 +1,15 @@
 import cfmm_types::TickSpacing::TickSpacing;
-import std::core::uint::{cast_uint, u24, u128};
+import std::core::uint::{cast_uint, try_cast_uint, u24, u128};
+import std::option::unwrap;
 
 /// types.toml: LiquidityChunk
 /// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/130
 /// Behavior: .spec/REALIZED_VOLATILITY.spec/types/LiquidityChunk/LiquidityChunk.btt
 
 const MIN_TICK_MAGNITUDE = 887272;
+const MASK_U24 = 0xffffff;
+const MASK_U80 = 0xffffffffffffffffffff;
+const MASK_U128 = 0xffffffffffffffffffffffffffffffff;
 
 // cast sig "TickOutOfBounds()" -> 0xf87dc40c
 const SEL_TICK_OUT_OF_BOUNDS = 0xf87dc40c;
@@ -15,6 +19,8 @@ const SEL_TICK_NOT_ALIGNED = 0x55ab73f4;
 const SEL_TICKS_MISORDERED = 0xad329dca;
 // cast sig "ZeroLiquidity()" -> 0x10074548
 const SEL_ZERO_LIQUIDITY = 0x10074548;
+// cast sig "ReservedBitsNonzero()" -> 0x9e0bf65c
+const SEL_RESERVED_BITS_NONZERO = 0x9e0bf65c;
 
 const revert_sel = fn (sel: u256) never {
     let p = @malloc_uninit(4);
@@ -75,9 +81,26 @@ const intro = fn (
     }
 };
 ///
-/// hole: pack_panoptic(chunk) -> u256
-///   [lower:int24 | upper:int24 | reserved:80=0 | liquidity:uint128]
+/// Panoptic-compatible boundary:
+/// [lower:int24 | upper:int24 | reserved:80=0 | liquidity:uint128].
+/// Behavior: LiquidityChunkPack.btt
+const pack_panoptic = fn (chunk: LiquidityChunk) u256 {
+    @evm_shl(232, chunk.tick_lower.val & MASK_U24)
+    | @evm_shl(208, chunk.tick_upper.val & MASK_U24)
+    | cast_uint(chunk.liquidity, u256)
+};
 ///
-/// hole: unpack_panoptic(tick_spacing, packed)
-///   -> LiquidityChunk
-///   ReservedBitsNonzero plus all constructor errors
+/// Checked inverse of pack_panoptic. Constructor invariants are delegated to intro.
+/// Behavior: LiquidityChunkUnpack.btt
+const unpack_panoptic = fn (
+    raw_tick_spacing: u256,
+    packed: u256
+) LiquidityChunk {
+    if (@evm_shr(128, packed) & MASK_U80) != 0 {
+        revert_sel(SEL_RESERVED_BITS_NONZERO);
+    }
+    let tick_lower = @evm_signextend(2, @evm_shr(232, packed) & MASK_U24);
+    let tick_upper = @evm_signextend(2, @evm_shr(208, packed) & MASK_U24);
+    let liquidity = unwrap(try_cast_uint(packed & MASK_U128, u128));
+    intro(raw_tick_spacing, tick_lower, tick_upper, liquidity)
+};
