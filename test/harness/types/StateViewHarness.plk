@@ -1,0 +1,29 @@
+import std::constructor::return_runtime;
+import std::core::addr::addr_from_u256;
+import types::StateView::intro_anchor;
+import types::protocol_integrations::Pool::{pool_algebra, pool_word};
+import types::protocol_integrations::Venue::Algebra;
+
+// cast sig "introAnchor(address,uint256,uint256)" -> 0x09f923f8
+const SEL_INTRO_ANCHOR = 0x09f923f8;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_INTRO_ANCHOR {
+        let pool = pool_algebra(
+            addr_from_u256(@evm_calldataload(4)),
+            @evm_calldataload(36),
+            @evm_calldataload(68)
+        );
+        let anchor = intro_anchor(pool);
+        let out = @malloc_uninit(128);
+        @mstore32(out, pool_word(Algebra, anchor.pool));
+        @mstore32(out +% 32, anchor.pool.fee);
+        @mstore32(out +% 64, anchor.pool.tick_spacing);
+        @mstore32(out +% 96, anchor.t_init);
+        @evm_return(out, 128);
+    }
+    @evm_stop();
+}

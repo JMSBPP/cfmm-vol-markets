@@ -1,0 +1,101 @@
+import std::option::Option;
+import cfmm_types::TimeSpacing::TimeSpacing;
+import types::IO::{IO, Outcome};
+import types::TokenFlow::TokenFlow;
+import types::protocol_integrations::Pool::{Pool, pool_word};
+import types::protocol_integrations::Venue::Algebra;
+
+/// types.toml: StateView
+/// .spec: .spec/REALIZED_VOLATILITY.spec/types/StateView/StateView.md
+/// .btt: .spec/REALIZED_VOLATILITY.spec/types/StateView/StateViewIntroAnchor.btt
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/134
+
+// cast sig "ZeroPool()" -> 0xd0d6cb32
+const SEL_ZERO_POOL = 0xd0d6cb32;
+
+const revert_sel = fn (sel: u256) never {
+    let p = @malloc_uninit(4);
+    @mstore4(p, sel);
+    @evm_revert(p, 4);
+};
+
+/// ObsStep(dt) <- (t, tick, sqrt_p)  — spec: ObsStep(bar_dt)
+const ObsStep = fn (comptime dt: u256) type {
+    let _ = TimeSpacing(dt);
+    struct {
+        t: u256,
+        tick: u256,
+        sqrt_p: u256
+    }
+};
+
+/// StateView(dt, 0) = eps; StateView(dt, S k) = ObsStep(dt) x StateView(dt, k)
+const StateView = fn (comptime dt: u256, comptime k: u256) type {
+    let _ = TimeSpacing(dt);
+    if k == 0 {
+        struct {}
+    } else {
+        struct {
+            head: ObsStep(dt),
+            tail: StateView(dt, k -% 1)
+        }
+    }
+};
+
+/// Anchor: pool + time origin (no oracle in this slice).
+const StateViewAnchor = struct {
+    pool: Pool(Algebra),
+    t_init: u256
+};
+
+/// Realize bin j: pool swap driven by TokenFlow slot (Swap Eff; not run_io).
+const RealizeCmd = struct {
+    pool: Pool(Algebra),
+    flow: TokenFlow(),
+    bin_j: u256
+};
+
+const io_realize = fn (cmd: RealizeCmd) IO(RealizeCmd) {
+    IO(RealizeCmd) { inner: cmd }
+};
+
+/// hole: run_swap — Swap(pool, encode(flow)); Xfer subset of Swap; define phase
+const run_swap = fn (m: IO(RealizeCmd)) Outcome() {
+    @compile_error("StateView.run_swap: define phase");
+};
+
+/// Behavior: StateViewIntroAnchor.btt
+const intro_anchor = fn (pool: Pool(Algebra)) StateViewAnchor {
+    if pool_word(Algebra, pool) == 0 {
+        revert_sel(SEL_ZERO_POOL);
+    }
+    StateViewAnchor {
+        pool: pool,
+        t_init: @evm_timestamp()
+    }
+};
+
+/// hole: intro_len(dt, k) -> u256
+const intro_len = fn (comptime dt: u256, k: u256) u256 {
+    @compile_error("StateView.intro_len: define phase");
+};
+
+/// hole: step_k(dt, anchor, k, j) -> Option(ObsStep(dt))
+const step_k = fn (
+    comptime dt: u256,
+    anchor: StateViewAnchor,
+    k: u256,
+    j: u256
+) Option(ObsStep(dt)) {
+    @compile_error("StateView.step_k: define phase");
+};
+
+/// hole: pool_tick_after — i(t_j+) after run_swap; View_pool
+const pool_tick_after = fn (anchor: StateViewAnchor) u256 {
+    @compile_error("StateView.pool_tick_after: define phase");
+};
+
+/// hole: encode_flow_to_swap — RealizeCmd.flow -> swap calldata; refine
+const encode_flow_to_swap = fn (cmd: RealizeCmd) u256 {
+    @compile_error("StateView.encode_flow_to_swap: refine phase");
+};

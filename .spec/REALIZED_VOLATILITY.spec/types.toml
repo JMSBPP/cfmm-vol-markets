@@ -141,3 +141,20 @@ laws = [
 ]
 refined = false
 notes = "Define: Algebra command constructor. Execution remains a hole. Adapters own exact-pay callbacks/settlement; callback context is caller- and command-bound. PRD #130."
+
+[StateView]
+module = "StateView"
+kind = "indexed"
+file = "types/StateView/StateView.md"
+carriers = ["ObsStep(dt)", "StateView(dt,K)", "StateViewAnchor", "RealizeCmd", "IO(RealizeCmd)"]
+operations = ["intro_anchor", "intro_len", "step_k", "io_realize", "run_swap", "pool_tick_after", "encode_flow_to_swap"]
+laws = [
+  "StateView(dt,0)=ε; StateView(dt,S k)=ObsStep(dt)×StateView(dt,k)",
+  "t_j=t_init+j·dt; i_j=lastIndex(dt,t_init,t_j)",
+  "tick_j=i(t_j+) after run_swap(io(realize(flow_j,pool,j)))",
+  "cell_j=(t_j,tick_j,sqrt_p_j); step_K=Some(cell_j) iff 0<K<n(dt) and j<K",
+  "run_swap uses Swap only; Xfer⊂Swap; no run_io on realize path",
+  "Eff slice: ERC20View, Xfer, Swap (TokenFlow extension); no oracle Eff yet",
+]
+refined = false
+notes = "Define: intro_anchor (StateViewIntroAnchor.btt). Other ops remain holes. PRD #134."
