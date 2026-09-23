@@ -242,11 +242,14 @@ agda file:
     dir="$(dirname "$f")"
     base="$(basename "$f")"
     docker run --rm \
-        --user "$(id -u):$(id -g)" \
         -v "$PWD:/work" \
         -w "/work/$dir" \
         "$img" \
         agda --safe "$base"
+    # Image runs as root; reclaim build artifacts so self-hosted checkout can clean.
+    if [[ -d "$dir/build" ]]; then
+        sudo chown -R "$(id -u):$(id -g)" "$dir/build" || true
+    fi
 
 # Type-check one Idris 2 file (repo-root-relative path).
 idris file:
