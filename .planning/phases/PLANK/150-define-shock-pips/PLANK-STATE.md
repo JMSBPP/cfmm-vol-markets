@@ -9,7 +9,7 @@ pr: "https://github.com/JMSBPP/cfmm-vol-markets/pull/142"
 approved_plan: "https://github.com/JMSBPP/cfmm-vol-markets/issues/136"
 behavior: "run_shock(io) success for Shock(Pips); Timestamp env → entropy → Some(Shock(Pips))."
 commit: "6b65bed8bed9cd22dc4cffeb7fda01ae7c0c5477"
-ci: "https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35926165928"
+ci: "https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35926587369"
 blocked_reason: ""
 blocked_from: ""
 updated_at: "2026-09-23T22:08:00Z"
@@ -34,3 +34,4 @@ updated_at: "2026-09-23T22:08:00Z"
 - `2026-09-23T22:04:00Z` — `committed → ci_pending`; pushed `1f4ce1b`; [push-build 35926165928](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35926165928), [develop-gate 35926167593](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35926167593).
 - `2026-09-23T22:05:00Z` — `ci_pending → blocked`; [push-build 35926165928](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35926165928) failed on `lib/cfmm-types` TimeSpacing comptime_assert via WeinerGeneratorHarness.
 - `2026-09-23T22:08:00Z` — retarget `lib/cfmm-types` → `dec0fbe` (develop + TimeSpacing comptime fix; cfmm-types#34); `blocked → ci_pending`.
+- `2026-09-23T22:12:00Z` — retarget `lib/cfmm-types` → `304e979` (also restore TickBucket + Tick min/max for LegStep).

@@ -116,4 +116,4 @@ h &= \mathrm{keccak256}(\mathrm{prevrandao}\,\|\,\mathrm{timestamp}\,\|\,j) \\
 ## Pin
 
 `lib/cfmm-types` must include `Pips` (and `Ray` for later √·mag product). Import: `cfmm_types::Pips::*`.
-Pinned for this define: `lib/cfmm-types` @ `dec0fbe` (develop + TimeSpacing comptime fix; Pips present).
+Pinned for this define: `lib/cfmm-types` @ `304e979` (develop + TimeSpacing comptime + TickBucket/min-max restore; Pips present).
