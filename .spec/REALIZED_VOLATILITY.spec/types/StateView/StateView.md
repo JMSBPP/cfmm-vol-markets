@@ -2,7 +2,7 @@
 
 [TimeIndex](../WINDOW/TimeSpacing.md) · [WINDOW](../WINDOW/WINDOW.md) · [TokenFlow](../TokenFlow/TokenFlow.md) · [IO](../IO/IO.md)
 
-Plank: `src/types/StateView.plk`. BTT: [StateViewIntroAnchor.btt](StateViewIntroAnchor.btt), [StateViewHistory.btt](StateViewHistory.btt). PRD [#134](https://github.com/JMSBPP/cfmm-vol-markets/issues/134).
+Plank: `src/types/StateView.plk`. BTT: [StateViewIntroAnchor.btt](StateViewIntroAnchor.btt), [StateViewHistory.btt](StateViewHistory.btt), [StateViewRunSwap.btt](StateViewRunSwap.btt). PRD [#134](https://github.com/JMSBPP/cfmm-vol-markets/issues/134).
 
 Same bin clock as [TokenHistory](../TokenHistory/TokenHistory.md).
 \[
@@ -172,7 +172,48 @@ t_{\mathrm{init}} \leftarrow \mathrm{timestamp}
 \end{aligned}
 \]
 
-Define: [StateViewIntroAnchor.btt](StateViewIntroAnchor.btt). Prefix: [StateViewHistory.btt](StateViewHistory.btt).
+Define: [StateViewIntroAnchor.btt](StateViewIntroAnchor.btt). Prefix: [StateViewHistory.btt](StateViewHistory.btt). Swap Eff: [StateViewRunSwap.btt](StateViewRunSwap.btt).
+
+### \(\mathrm{io}_{\mathrm{realize}}
+::
+\mathrm{RealizeCmd} \to \mathrm{IO}(\mathrm{RealizeCmd})\)
+
+\[
+\begin{aligned}
+\mathrm{io}_{\mathrm{realize}}(c)
+&=
+\mathrm{IO}(c)
+\quad\text{(pure wrap; no Eff)}
+\end{aligned}
+\]
+
+### \(\mathrm{run}_{\mathrm{swap}}
+::
+\mathrm{IO}(\mathrm{RealizeCmd}) \to \mathrm{Outcome}\)
+
+\[
+\begin{aligned}
+\mathrm{pool\_word}(\mathrm{pool}) = 0
+&\Longrightarrow
+\mathrm{Outcome}.\mathrm{None}
+\\
+\mathrm{flow}.\mathrm{amount} = 0
+&\Longrightarrow
+\mathrm{Outcome}.\mathrm{None}
+\\
+\mathrm{run}_{\mathrm{swap}}(\mathrm{io}(c))
+&=
+\begin{cases}
+\mathrm{Outcome}.\mathrm{Some} & \mathrm{Swap}(\mathrm{pool},\,\mathrm{encode}(\mathrm{flow}))\ \text{succeeds} \\
+\mathrm{Outcome}.\mathrm{None} & \text{otherwise}
+\end{cases}
+\\
+\mathrm{encode}(\mathrm{flow})
+&\leftarrow
+\text{Algebra \texttt{swap(recipient, zeroToOne, amountRequired, limitSqrtPrice, data)}}
+\quad\text{(define: \texttt{dir}$\to$\texttt{zeroToOne/sign}; refine: token0/token1)}
+\end{aligned}
+\]
 
 ### \(\mathrm{intro\_len}
 ::

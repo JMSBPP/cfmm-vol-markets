@@ -1,21 +1,24 @@
-import std::core::ops::{checked_add, checked_mul};
+import std::core::ops::{checked_add, checked_mul, neg_u256};
 import std::error::require;
 import std::option::{None, Option, Some};
 import cfmm_types::TimeSpacing::{TimeSpacing, n};
-import types::IO::{IO, Outcome};
+import types::IO::{IO, Outcome, outcome_revert, outcome_success};
 import types::TokenFlow::TokenFlow;
 import types::protocol_integrations::Pool::{Pool, pool_word};
 import types::protocol_integrations::Venue::Algebra;
 
 /// types.toml: StateView
 /// .spec: .spec/REALIZED_VOLATILITY.spec/types/StateView/StateView.md
-/// .btt: StateViewIntroAnchor.btt, StateViewHistory.btt (prefix)
+/// .btt: StateViewIntroAnchor.btt, StateViewHistory.btt, StateViewRunSwap.btt
 /// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/134
 
 // cast sig "ZeroPool()" -> 0xd0d6cb32
 const SEL_ZERO_POOL = 0xd0d6cb32;
 const SEL_GLOBAL_STATE = 0xe76c01e4;
+const SEL_SWAP = 0x128acb08;
 const POOL_MASK_U160 = 0xffffffffffffffffffffffffffffffffffffffff;
+const MIN_SQRT_RATIO = 4295128739;
+const MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
 
 const revert_sel = fn (sel: u256) never {
     let p = @malloc_uninit(4);
@@ -59,13 +62,62 @@ const RealizeCmd = struct {
     bin_j: u256
 };
 
+/// Behavior: StateViewRunSwap.btt — pure wrap; execution is run_swap only.
 const io_realize = fn (cmd: RealizeCmd) IO(RealizeCmd) {
     IO(RealizeCmd) { inner: cmd }
 };
 
-/// hole: run_swap — Swap(pool, encode(flow)); Xfer subset of Swap; define phase
+/// Minimal define encoding: exact-input swap from TokenFlow (token0/token1 refine later).
+const swap_amount_required = fn (flow: TokenFlow()) u256 {
+    if flow.dir == 0 {
+        flow.amount
+    } else {
+        neg_u256(flow.amount)
+    }
+};
+
+const swap_zero_to_one = fn (flow: TokenFlow()) bool {
+    flow.dir == 0
+};
+
+const swap_limit_sqrt = fn (zero_to_one: bool) u256 {
+    if zero_to_one {
+        MIN_SQRT_RATIO +% 1
+    } else {
+        MAX_SQRT_RATIO -% 1
+    }
+};
+
+const call_algebra_swap = fn (pool_u: u256, recipient: u256, flow: TokenFlow()) bool {
+    let zero_to_one = swap_zero_to_one(flow);
+    let amount_req = swap_amount_required(flow);
+    let limit = swap_limit_sqrt(zero_to_one);
+    let cd = @malloc_uninit(196);
+    @mstore4(cd, SEL_SWAP);
+    @mstore32(cd +% 4, recipient);
+    @mstore32(cd +% 36, if zero_to_one { 1 } else { 0 });
+    @mstore32(cd +% 68, amount_req);
+    @mstore32(cd +% 100, limit);
+    @mstore32(cd +% 132, 160);
+    @mstore32(cd +% 164, 0);
+    let ret = @malloc_uninit(64);
+    @evm_call(@evm_gas(), pool_u, 0, cd, 196, ret, 64)
+};
+
+/// Behavior: StateViewRunSwap.btt — Swap(pool, encode(flow)); not run_io (Xfer ⊂ Swap).
 const run_swap = fn (m: IO(RealizeCmd)) Outcome() {
-    @compile_error("StateView.run_swap: define phase");
+    let cmd = m.inner;
+    let pool_u = pool_word(Algebra, cmd.pool);
+    if (pool_u == 0) | (cmd.flow.amount == 0) {
+        outcome_revert()
+    } else {
+        let ok = call_algebra_swap(pool_u, @evm_address(), cmd.flow);
+        if ok {
+            outcome_success()
+        } else {
+            outcome_revert()
+        }
+    }
 };
 
 /// Behavior: StateViewIntroAnchor.btt

@@ -1,6 +1,8 @@
 import std::constructor::return_runtime;
-import std::core::addr::addr_from_u256;
-import types::StateView::{intro_anchor, intro_len, step_k, StateViewAnchor};
+import std::core::addr::{addr, addr_from_u256, cast_addr};
+import std::option::is_some;
+import types::StateView::{intro_anchor, intro_len, io_realize, run_swap, step_k, RealizeCmd, StateViewAnchor};
+import types::TokenFlow::TokenFlow;
 import types::protocol_integrations::Pool::{pool_algebra, pool_word};
 import types::protocol_integrations::Venue::Algebra;
 
@@ -8,6 +10,7 @@ import types::protocol_integrations::Venue::Algebra;
 const SEL_INTRO_ANCHOR = 0x09f923f8;
 const SEL_INTRO_LEN = 0x315d8529;
 const SEL_STEP = 0xcd03b83c;
+const SEL_RUN_SWAP = 0xbf7776d0;
 const BAR_DT = 2;
 
 init { return_runtime(); }
@@ -55,6 +58,29 @@ run {
             @mstore32(out +% 96, o.inner.sqrt_p);
         }
         @evm_return(out, 128);
+    }
+    if selector == SEL_RUN_SWAP {
+        let pool = pool_algebra(
+            addr_from_u256(@evm_calldataload(4)),
+            @evm_calldataload(36),
+            @evm_calldataload(68)
+        );
+        let flow = TokenFlow() {
+            amount: @evm_calldataload(100),
+            dir: @evm_calldataload(132),
+            token: cast_addr(addr_from_u256(@evm_calldataload(164)), addr),
+            from: cast_addr(addr_from_u256(@evm_calldataload(196)), addr),
+            to: cast_addr(addr_from_u256(@evm_calldataload(228)), addr)
+        };
+        let cmd = RealizeCmd {
+            pool: pool,
+            flow: flow,
+            bin_j: @evm_calldataload(260)
+        };
+        let o = run_swap(io_realize(cmd));
+        let out = @malloc_uninit(32);
+        @mstore32(out, @bool_to_u256(is_some(u256, o.inner)));
+        @evm_return(out, 32);
     }
     @evm_stop();
 }
