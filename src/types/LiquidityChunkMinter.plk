@@ -1,17 +1,18 @@
-import std::core::addr::{addr, cast_addr};
+import std::core::addr::{addr, addr_from_u256, cast_addr};
 import std::core::uint::{cast_uint, u128};
-import std::option::Option;
+import std::option::{None, Option, Some};
 import std::regions::{bytes, memory};
 import types::IO::IO;
 import types::LiquidityChunk::LiquidityChunk;
 import types::Pair::Pair;
-import types::protocol_integrations::Pool::Pool;
+import types::protocol_integrations::Pool::{Pool, pool_word};
 import types::protocol_integrations::Registry::Registry;
 import types::protocol_integrations::Venue::{Algebra, V3, V4, is_venue};
 
 /// types.toml: LiquidityChunkMinter
 /// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/130
-/// Behavior: LiquidityChunkMinterAlgebra.btt (mint_algebra). io_mint: compile + run_mint BTT.
+/// Behavior: LiquidityChunkMinterAlgebra.btt (mint_algebra),
+///   LiquidityChunkMinterRunAlgebra.btt (run_mint)
 
 // cast sig "PoolSpacingMismatch()" -> 0x08c49d1a
 const SEL_POOL_SPACING_MISMATCH = 0x08c49d1a;
@@ -140,10 +141,46 @@ const mint_algebra = fn (
 const io_mint = fn (command: LiquidityChunkMint(Algebra)) IO(LiquidityChunkMint(Algebra)) {
     IO(LiquidityChunkMint(Algebra)) { inner: command }
 };
-///
-/// hole: run_mint(IO(LiquidityChunkMint(V)))
-///   -> Option(MintReceipt(V))
-///
+
+// cast sig "mint(address,address,int24,int24,uint128,bytes)" -> 0xaafe29c0
+const SEL_ALGEBRA_POOL_MINT = 0xaafe29c0;
+const MINT_CD_LEN = 292;
+const MINT_RET_LEN = 96;
+const MASK_U128 = 0xffffffffffffffffffffffffffffffff;
+
+/// Algebra pool mint from the adapter address (`command.adapter` must be `@evm_address_this()`).
+const run_mint = fn (m: IO(LiquidityChunkMint(Algebra))) Option(MintReceipt(Algebra)) {
+    let c = m.inner;
+    let self_addr = addr_from_u256(@evm_address_this());
+    if cast_addr(c.adapter, u256) != cast_addr(self_addr, u256) {
+        None(MintReceipt(Algebra))
+    } else {
+        let pool_addr = pool_word(Algebra, c.pool);
+        let cd = @malloc_uninit(MINT_CD_LEN);
+        @mstore4(cd, SEL_ALGEBRA_POOL_MINT);
+        @mstore32(cd +% 4, cast_addr(c.leftovers_recipient, u256));
+        @mstore32(cd +% 36, cast_addr(c.beneficiary, u256));
+        @mstore32(cd +% 68, @evm_signextend(2, c.chunk.tick_lower.val));
+        @mstore32(cd +% 100, @evm_signextend(2, c.chunk.tick_upper.val));
+        @mstore32(cd +% 132, cast_uint(c.chunk.liquidity, u256));
+        @mstore32(cd +% 164, 192);
+        @mstore32(cd +% 196, 64);
+        @mstore32(cd +% 228, cast_addr(c.payer, u256));
+        @mstore32(cd +% 260, pool_addr);
+        let ret = @malloc_uninit(MINT_RET_LEN);
+        let ok = @evm_call(@evm_gas(), pool_addr, 0, cd, MINT_CD_LEN, ret, MINT_RET_LEN);
+        if !ok {
+            None(MintReceipt(Algebra))
+        } else {
+            Some(MintReceipt(Algebra) {
+                amount0: @mload32(ret),
+                amount1: @mload32(ret +% 32),
+                liquidity_actual: cast_uint(@evm_and(@mload32(ret +% 64), MASK_U128), u128)
+            })
+        }
+    }
+};
+
 /// Eff = [
 ///   VenueMintCall,
 ///   ERC20TransferFrom,
