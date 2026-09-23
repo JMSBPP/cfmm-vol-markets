@@ -265,11 +265,14 @@ idris file:
     dir="$(dirname "$f")"
     base="$(basename "$f")"
     docker run --rm \
-        --user "$(id -u):$(id -g)" \
         -v "$PWD:/work" \
         -w "/work/$dir" \
         "$img" \
         idris2 --check "$base"
+    # Image runs as root; reclaim build artifacts so self-hosted checkout can clean.
+    if [[ -d "$dir/build" ]]; then
+        sudo chown -R "$(id -u):$(id -g)" "$dir/build" || true
+    fi
 
 # Compile the domain selected by SPEC_DOMAIN (or domains.toml default).
 # Reads `.spec/domains.toml` → that domain's compile.toml → just agda|idris|plank.
