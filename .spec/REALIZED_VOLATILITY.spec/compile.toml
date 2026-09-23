@@ -21,6 +21,5 @@ files = [
   "test/harness/types/LiquidityChunkHarness.plk",
   "test/harness/types/LiquidityChunkMinterHarness.plk",
   "test/helpers/Algebra/AlgebraMintCallbackAdapter.plk",
-  "src/types/StateView.plk",
   "test/harness/types/StateViewHarness.plk",
 ]
