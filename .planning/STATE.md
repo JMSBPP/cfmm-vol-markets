@@ -159,7 +159,7 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
   (impl `4e70c22`; [push-build 35930994617](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35930994617)).
 - **Previous:** #150 `define/Shock(Pips)` — `complete` (`6b65bed` / tip suite).
 - **Parent track:** #136 `type/CEVStateRunner` — open; PR [#142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142).
-- **Current Plank slice:** #145 `define/WeinerGenerator` — next (approved-plan order).
+- **Current Plank slice:** #145 `define/WeinerGenerator` — `committed` (pushing CI).
 - **Queued (approved-plan order):** #145 → #146 → #147 B2 → #140 → #141; fuzz #148.
 - **Ledgers:** `143-…` (complete); `150-define-shock-pips` (complete); `149-type-shock` (complete).
 - **GSD milestone state:** unchanged. This section is outside the Haskell

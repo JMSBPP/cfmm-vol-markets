@@ -79,12 +79,51 @@ Prereq: [#149](https://github.com/JMSBPP/cfmm-vol-markets/issues/149) / [#150](h
 \end{aligned}
 \]
 
-### First behavior (define later — #145)
+### \(\mathrm{io}
+::
+\mathrm{WeinerCmd}
+\to
+\mathrm{IO}(\mathrm{WeinerCmd})\)
 
-\(\mathrm{run}_{\mathrm{weiner}}(\mathrm{io}(\ldots))\) **success** for one valid \(\bar{dt}\) (e.g. \(2\)):
-`Some(DeltaW(dt))`.
+\[
+\begin{aligned}
+\mathrm{io}(\mathrm{cmd}) &= \mathrm{IO}\{\mathrm{inner}\leftarrow\mathrm{cmd}\} \\
+\text{pure wrap; no Eff}
+\end{aligned}
+\]
 
-Holes (type phase — no bodies):
+### \(\mathrm{run}_{\mathrm{weiner}}
+::
+\mathrm{IO}(\mathrm{WeinerCmd})
+\to
+\mathrm{Option}(\mathrm{DeltaW}(2))\)
 
-- `io` / `run_weiner` / `val`
-- Product \(\sqrt{\bar{dt}}\cdot\mathrm{mag}\) inside `run_weiner` (define)
+\[
+\begin{aligned}
+s &= \mathrm{Shock.run\_shock}(\mathrm{Shock.io}(\mathrm{ShockCmd}\{j\})) \\
+\mathrm{mag} &= \mathrm{val}(s).\mathrm{val}
+\quad(\mathrm{Pips},\,\mathrm{u16})
+\\
+\sqrt{\bar{dt}} &= \mathrm{Ray.intro}(\lfloor\sqrt{2}\cdot\mathrm{RAY}\rfloor)
+\\
+\mathrm{run}_{\mathrm{weiner}}(\mathrm{io}(\mathrm{WeinerCmd}\{j\}))
+&=
+\mathrm{Some}\bigl(\mathrm{DeltaW}(2)\{\mathrm{val}\leftarrow
+\lfloor\sqrt{\bar{dt}}\cdot\mathrm{mag}/\mathrm{PIPS}\rfloor\}\bigr)
+\\
+\text{BTT:}&\ \mathtt{WeinerGeneratorRunWeiner.btt}
+\\
+\text{laws:}&\ \text{Some; different }\Delta W\text{ across }j\text{ (not eq)}
+\end{aligned}
+\]
+
+### \(\mathrm{val}
+::
+\mathrm{DeltaW}(\bar{dt})
+\to \mathrm{u256}\)
+
+\[
+\begin{aligned}
+\mathrm{val}(dw) &= dw.\mathrm{val}
+\end{aligned}
+\]
