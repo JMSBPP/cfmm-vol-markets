@@ -1,9 +1,17 @@
-For the LiquidityChunkMinterAlgebra
+For the LiquidityChunkMinterAlgebra track
 
-> NOTE: This session is heacy on user approved code-chunks, where even for the test set up. Ask the user if a code chunk is to be approved
+> NOTE: Heavy user-approved code-chunks, including test setup.
 
-- The ERC20, is the minimal we have been using with Compose that only allows for transfer and balance check. This is for both tokens. The compiler issues are handled, setting the compiler to higher to 0.8.30 and getting the bytecode for the algebra contracts that require 0.8.20 using the .bytecode approach
+- Compose **FlowToken** (transfer + balanceOf) for both pool tokens; tests at **>=0.8.30**; Algebra core via **`.bytecode/algebra`** (`AlgebraIntegralDeployer` under `test/helpers/Algebra/`).
+- **`IntegralPoolBootstrap.bootstrap(vm)`** → `ReadyPool` (createPool + initialize). Use in **run_mint** integration tests, not to re-assert `mint_algebra` field copies.
+- **`test/helpers/NoOpCallback.plk`** — `IAlgebraMintCallback` stub until `run_mint` adds payment.
 
-- Inside test/helpers/ We place the no-op ALgebraCallback helper as a NoOpCallback.plk file that has the interface
+### `io_mint` vs `mint_algebra` tests
 
-- Shared Algebra test infra lives under `test/helpers/Algebra/` (`AlgebraIntegralDeployer`, `IntegralPoolBootstrap`). **Deployer** = bytecode only. **Integration bootstrap** = deployer + on-chain init → `ReadyPool`. Use `bootstrap(vm)` from client tests; do not duplicate `_algebraPoolFixture` without `initialize`.
+- **`mint_algebra`** — constructor gate only (`LiquidityChunkMinterAlgebra.t.sol` + BTT).
+- **`io_mint`** — pure `IO { inner: command }` wrap; **no Forge duplicate** (no second harness selector, no identity test). Covered by Plank compile on `LiquidityChunkMinter.plk` + **`run_mint(Algebra)`** BTT/integration (bootstrap, adapter, pool).
+
+### Module kinds under `test/helpers/Algebra/`
+
+- **Deployer** — bytecode only (`AlgebraIntegralDeployer`).
+- **Integration bootstrap** — deployer + on-chain init (`IntegralPoolBootstrap` → `ReadyPool`).

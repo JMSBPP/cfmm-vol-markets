@@ -11,8 +11,7 @@ import types::protocol_integrations::Venue::{Algebra, V3, V4, is_venue};
 
 /// types.toml: LiquidityChunkMinter
 /// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/130
-/// Behavior: LiquidityChunkMinterAlgebra.btt (mint_algebra),
-///   LiquidityChunkMinterIoMintAlgebra.btt (io_mint, Algebra)
+/// Behavior: LiquidityChunkMinterAlgebra.btt (mint_algebra). io_mint: compile + run_mint BTT.
 
 // cast sig "PoolSpacingMismatch()" -> 0x08c49d1a
 const SEL_POOL_SPACING_MISMATCH = 0x08c49d1a;

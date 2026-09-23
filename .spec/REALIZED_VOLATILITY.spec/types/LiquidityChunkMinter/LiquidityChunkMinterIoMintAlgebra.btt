@@ -1,3 +1,0 @@
-LiquidityChunkMinterIoMintAlgebraTest
-└── when a valid Algebra mint command is wrapped in io_mint
-    └── it should preserve the full command as IO inner
