@@ -46,6 +46,9 @@ plan, execute, review, or verify #140.
   successful on tip `3839a7e`.
 - [develop-gate 35905124168](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35905124168):
   successful on tip `3839a7e`.
+- Maintainer GitHub review (harness/RunJ follow-ups; does not reopen #139 complete by itself):
+  [PR review 5295627557](https://github.com/JMSBPP/cfmm-vol-markets/pull/142#pullrequestreview-5295627557)
+  — 5 inline threads; actionable ABI/`token_flow` wiring vs deferred fuzz/σ_F.
 
 ## Transition log
 
@@ -54,3 +57,4 @@ plan, execute, review, or verify #140.
 - `2026-09-23T18:49:00Z` — `code_approved → committed`; `1b8ac24`.
 - `2026-09-23T18:49:00Z` — `committed → ci_pending`; push-build run `35905068558` (superseded by tip).
 - `2026-09-23T18:54:00Z` — `ci_pending → complete`; tip push-build and develop-gate successful on `3839a7e`.
+- `2026-09-23T19:19:00Z` — `/plank-code-review`; markers already on GitHub; recorded review URL (bookkeeping only; status remains `complete`).
