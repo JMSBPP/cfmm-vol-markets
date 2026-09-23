@@ -3,16 +3,16 @@ plank_state_version: 1
 phase: "PLANK/150"
 slice: "define/Shock-Pips-run_shock-success"
 plank_phase: "define"
-status: "ci_pending"
+status: "complete"
 issue: "https://github.com/JMSBPP/cfmm-vol-markets/issues/150"
 pr: "https://github.com/JMSBPP/cfmm-vol-markets/pull/142"
 approved_plan: "https://github.com/JMSBPP/cfmm-vol-markets/issues/136"
 behavior: "run_shock(io) success for Shock(Pips); Timestamp env → entropy → Some(Shock(Pips))."
 commit: "6b65bed8bed9cd22dc4cffeb7fda01ae7c0c5477"
-ci: "https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35926587369"
+ci: "https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35927367755"
 blocked_reason: ""
 blocked_from: ""
-updated_at: "2026-09-23T22:08:00Z"
+updated_at: "2026-09-23T22:21:00Z"
 ---
 
 # Plank TDD State
@@ -36,4 +36,4 @@ updated_at: "2026-09-23T22:08:00Z"
 - `2026-09-23T22:08:00Z` — retarget `lib/cfmm-types` → `dec0fbe` (develop + TimeSpacing comptime fix; cfmm-types#34); `blocked → ci_pending`.
 - `2026-09-23T22:12:00Z` — retarget `lib/cfmm-types` → `304e979` (also restore TickBucket + Tick min/max for LegStep).
 - `2026-09-23T22:16:00Z` — retarget `lib/cfmm-types` → `27b284b` (`origin/develop`, includes Ray + #34).
-
+- `2026-09-23T22:21:00Z` — `ci_pending → complete`; [push-build 35927367755](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35927367755) + [develop-gate 35927373094](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35927373094) green on `357a7b5` / pin `27b284b`.
