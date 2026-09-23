@@ -242,6 +242,7 @@ agda file:
     dir="$(dirname "$f")"
     base="$(basename "$f")"
     docker run --rm \
+        --user "$(id -u):$(id -g)" \
         -v "$PWD:/work" \
         -w "/work/$dir" \
         "$img" \
@@ -261,6 +262,7 @@ idris file:
     dir="$(dirname "$f")"
     base="$(basename "$f")"
     docker run --rm \
+        --user "$(id -u):$(id -g)" \
         -v "$PWD:/work" \
         -w "/work/$dir" \
         "$img" \
