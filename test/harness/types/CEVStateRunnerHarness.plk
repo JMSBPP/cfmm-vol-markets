@@ -1,38 +1,60 @@
 import std::constructor::return_runtime;
 import std::core::addr::addr_from_u256;
-import std::core::uint::{try_cast_uint, u128};
-import std::option::{is_some, unwrap};
-import cfmm_types::TickSpacing::TickSpacing;
-import types::CEVLocalTickVolatility::CEVLocalTickVolatility;
+import std::core::uint::cast_uint;
 import types::CEVStateRunner::{io, run_j};
-import types::LiquidityChunk::{LiquidityChunk, LiquidityTick};
+import types::LiquidityChunk::unpack_panoptic;
 import types::SigmaF::SigmaF;
-import types::StateView::StateViewAnchor;
+import types::StateView::intro_anchor;
 import types::TokenFlow::TokenFlow;
 import types::protocol_integrations::Pool::pool_algebra;
 
-/// Type-phase compile stub for CEVStateRunner (#138).
-/// Instantiates io + run_j so Plank type-checks the comptime branch.
-/// Not a BTT/Bulloak suite — that is #139 define.
+/// Public harness for CEVStateRunnerRunJ.btt (#139).
+/// Swap callback settlement mirrors StateViewHarness.
+/// Comptime K=1 for the success-path define (one valid index).
 
-// cast sig "runJHole()" -> 0x6a1c8d5b
-const SEL_RUN_J_HOLE = 0x6a1c8d5b;
+// cast sig "runJ(uint256,uint256,uint256,address,uint256,uint256,uint256,uint256,uint256,address,address,address)" -> 0x...
+// sigmaF, chunkSpacing, packed, pool, fee, poolSpacing, j, amount, dir, token, from, to
+const SEL_RUN_J = 0x9fffd9ef;
+const SEL_ALGEBRA_SWAP_CALLBACK = 0x2c8958f6;
+const SEL_TRANSFER_FROM = 0x23b872dd;
+const SEL_TOKEN0 = 0x0dfe1681;
+const SEL_TOKEN1 = 0xd21220a7;
 const BAR_DT = 2;
 const K = 1;
 
-const stub_chunk = fn () LiquidityChunk {
-    let spacing = TickSpacing(60);
-    LiquidityChunk {
-        tick_spacing: spacing,
-        tick_lower: LiquidityTick {
-            tick_spacing: spacing,
-            val: 0 -% 60
-        },
-        tick_upper: LiquidityTick {
-            tick_spacing: spacing,
-            val: 60
-        },
-        liquidity: unwrap(try_cast_uint(1, u128))
+const xfer = fn (token: u256, from: u256, to: u256, amt: u256) bool {
+    if amt == 0 {
+        true
+    } else {
+        let cd = @malloc_uninit(100);
+        @mstore4(cd, SEL_TRANSFER_FROM);
+        @mstore32(cd +% 4, from);
+        @mstore32(cd +% 36, to);
+        @mstore32(cd +% 68, amt);
+        let ret = @malloc_uninit(32);
+        let ok = @evm_call(@evm_gas(), token, 0, cd, 100, ret, 32);
+        ok & (@mload32(ret) != 0)
+    }
+};
+
+const staticcall_addr = fn (target: u256, sel: u256) u256 {
+    let cd = @malloc_uninit(4);
+    @mstore4(cd, sel);
+    let ret = @malloc_uninit(32);
+    if !@evm_staticcall(@evm_gas(), target, cd, 4, ret, 32) {
+        0
+    } else {
+        @mload32(ret)
+    }
+};
+
+const pay_swap_delta = fn (delta: u256, token: u256, payer: u256, pool: u256) bool {
+    if @evm_shr(255, delta) != 0 {
+        true
+    } else if delta == 0 {
+        true
+    } else {
+        xfer(token, payer, pool, delta)
     }
 };
 
@@ -40,25 +62,51 @@ init { return_runtime(); }
 
 run {
     let selector = @evm_shr(224, @evm_calldataload(0));
-    if selector == SEL_RUN_J_HOLE {
-        let sf = SigmaF() { val: 1 };
-        let chunk = stub_chunk();
-        let anchor = StateViewAnchor {
-            pool: pool_algebra(addr_from_u256(0), 0, 60),
-            t_init: 0
-        };
+    if selector == SEL_ALGEBRA_SWAP_CALLBACK {
+        let amount0 = @evm_calldataload(4);
+        let amount1 = @evm_calldataload(36);
+        let data_off = @evm_calldataload(68);
+        let data_pos = 4 +% data_off;
+        let payer = @evm_calldataload(data_pos +% 32);
+        let pool = @evm_calldataload(data_pos +% 64);
+        if @evm_caller() != pool {
+            @evm_revert(@malloc_uninit(0), 0);
+        }
+        let token0 = staticcall_addr(pool, SEL_TOKEN0);
+        let token1 = staticcall_addr(pool, SEL_TOKEN1);
+        if !pay_swap_delta(amount0, token0, payer, pool)
+            | !pay_swap_delta(amount1, token1, payer, pool)
+        {
+            @evm_revert(@malloc_uninit(0), 0);
+        }
+        @evm_stop();
+    }
+    if selector == SEL_RUN_J {
+        let sf = SigmaF() { val: @evm_calldataload(4) };
+        let chunk = unpack_panoptic(@evm_calldataload(36), @evm_calldataload(68));
+        let pool = pool_algebra(
+            addr_from_u256(@evm_calldataload(100)),
+            @evm_calldataload(132),
+            @evm_calldataload(164)
+        );
+        let j = @evm_calldataload(196);
         let flow = TokenFlow() {
-            amount: 0,
-            dir: 0,
-            token: addr_from_u256(0),
-            from: addr_from_u256(0),
-            to: addr_from_u256(0)
+            amount: @evm_calldataload(228),
+            dir: @evm_calldataload(260),
+            token: addr_from_u256(@evm_calldataload(292)),
+            from: addr_from_u256(@evm_calldataload(324)),
+            to: addr_from_u256(@evm_calldataload(356))
         };
+        let anchor = intro_anchor(pool);
         let m = io(BAR_DT, K, sf, chunk, anchor);
-        let o = run_j(BAR_DT, K, m, flow, 0);
-        let out = @malloc_uninit(32);
-        @mstore32(out, @bool_to_u256(is_some(CEVLocalTickVolatility, o)));
-        @evm_return(out, 32);
+        let o = run_j(BAR_DT, K, m, flow, j);
+        let out = @malloc_uninit(96);
+        @mstore32(out, @bool_to_u256(o.is_some));
+        if o.is_some {
+            @mstore32(out +% 32, o.inner.tick);
+            @mstore32(out +% 64, cast_uint(o.inner.sig, u256));
+        }
+        @evm_return(out, 96);
     }
     @evm_stop();
 }

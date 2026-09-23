@@ -3,8 +3,8 @@
 [StateView](../StateView/StateView.md) · [CEVLocalTickVolatility](../CEVLocalTickVolatility/CEVLocalTickVolatility.md) · [TokenFlow](../TokenFlow/TokenFlow.md) · [IO](../IO/IO.md) · [LiquidityChunk](../LiquidityChunk/LiquidityChunk.md)
 
 Plank: `src/types/CEVStateRunner.plk`. types.toml: `CEVStateRunner`.
-PRD: [#138](https://github.com/JMSBPP/cfmm-vol-markets/issues/138) · parent [#136](https://github.com/JMSBPP/cfmm-vol-markets/issues/136).
-First define: `run_j` success — [#139](https://github.com/JMSBPP/cfmm-vol-markets/issues/139).
+BTT: [CEVStateRunnerRunJ.btt](CEVStateRunnerRunJ.btt) (`#139` success).
+PRD: [#139](https://github.com/JMSBPP/cfmm-vol-markets/issues/139) · type [#138](https://github.com/JMSBPP/cfmm-vol-markets/issues/138) · parent [#136](https://github.com/JMSBPP/cfmm-vol-markets/issues/136).
 
 Orchestration path. One valid index \(j\). Chunk is a **pre-validated** input (LiquidityChunkMinter Eff stays off this type). CEV stays pure.
 
@@ -85,3 +85,37 @@ Holes (type phase — no bodies):
 
 - \(\mathrm{run}_j\) — ordering + law B (`None` on any failure)
 - First define locks **success** `#139`; failure branches `#140`
+
+### \(\mathrm{run}_j
+::
+\mathrm{IO}(\mathrm{CEVStateRunner}(\bar{dt},\,K))
+\to
+\mathrm{TokenFlow}
+\to j
+\to
+\mathrm{Option}(\mathrm{CEVLocalTickVolatility})\)
+
+\[
+\begin{aligned}
+\mathrm{run}_j(m,\,\mathrm{flow},\,j)
+&=
+\mathrm{Some}(\mathrm{CEV}.\mathrm{intro}(\sigma_F,\,\mathrm{chunk},\,o_{\mathrm{obs}}))
+\\
+&\quad\text{after }\mathrm{run}_{\mathrm{swap}}(\mathrm{io}(\mathrm{realize}))=\mathrm{Some}
+\\
+&\quad\text{and }\mathrm{StateView}.\mathrm{step}_K=\mathrm{Some}(o_{\mathrm{obs}})
+\\
+\mathrm{None}
+&=
+K=0 \lor K\ge n(\bar{dt}) \lor j\ge K
+\\
+&\lor\ \mathrm{run}_{\mathrm{swap}}=\mathrm{None}
+\\
+&\lor\ \mathrm{step}_K=\mathrm{None}
+\\
+&\lor\ \mathrm{CEV}.\mathrm{intro}\ \text{would revert (law B; #140)}
+\end{aligned}
+\]
+
+Define: [CEVStateRunnerRunJ.btt](CEVStateRunnerRunJ.btt) — success leaf on Integral bootstrap (`#139`).
+Plank: `run_j`. Harness: `runJ(...)`.

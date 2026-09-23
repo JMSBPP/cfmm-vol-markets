@@ -1,0 +1,3 @@
+CEVStateRunnerRunJTest
+└── when valid index and swap obs and CEV succeed
+    └── it should return Some with observed tick and sigma

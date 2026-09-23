@@ -174,4 +174,4 @@ laws = [
   "Eff = [StateView]; chunk pre-validated; CEV pure",
 ]
 refined = false
-notes = "Type #138; first define run_j success #139; failure #140; refine #141. Pattern from TokenHistoryFlow; not an extension of it."
+notes = "Define #139: run_j success (CEVStateRunnerRunJ.btt). Failure #140; refine #141. Pattern from TokenHistoryFlow; not an extension of it."

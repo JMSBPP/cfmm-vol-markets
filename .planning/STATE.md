@@ -159,12 +159,11 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
   (`12e3d69`; [push-build 35903789028](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35903789028),
   [develop-gate 35903793339](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35903793339)).
 - **Parent track:** #136 `type/CEVStateRunner` — open; vertical children #138–#141.
-- **Next approved child by plan order:** #139 `define/CEVStateRunner success path (one index)`
-  (`pending`). Informational only; no GSD route or execution selected.
+- **Current Plank slice:** #139 `define/CEVStateRunner success path` — `in_progress`
+  (`/plank-define`; [PR #142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142)).
 - **Queued after #139:** #140 failure define → #141 refine.
-- **Ledgers:** `.planning/phases/PLANK/135-refine-cev-local-tick-volatility/PLANK-STATE.md`
-  (complete); `.planning/phases/PLANK/138-type-cev-state-runner-algebra/PLANK-STATE.md`
-  (complete).
+- **Ledgers:** `.planning/phases/PLANK/135-…` / `138-…` (complete);
+  `.planning/phases/PLANK/139-define-cev-state-runner-success/PLANK-STATE.md` (in progress).
 - **GSD milestone state:** unchanged. This appendix is outside the Haskell
   differential-conformance milestone and does not modify its counters or current phase.
 

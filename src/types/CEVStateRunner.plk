@@ -1,16 +1,22 @@
-import std::option::{None, Option};
-import cfmm_types::TimeSpacing::TimeSpacing;
-import types::CEVLocalTickVolatility::CEVLocalTickVolatility;
+import std::option::{None, Option, Some};
+import cfmm_types::TimeSpacing::{TimeSpacing, n};
+import types::CEVLocalTickVolatility::{CEVLocalTickVolatility, intro as cev_intro};
 import types::IO::IO;
 import types::LiquidityChunk::LiquidityChunk;
 import types::SigmaF::SigmaF;
-import types::StateView::StateViewAnchor;
+import types::StateView::{
+    RealizeCmd,
+    StateViewAnchor,
+    io_realize,
+    run_swap,
+    step_k as state_step_k
+};
 import types::TokenFlow::TokenFlow;
 
 /// types.toml: CEVStateRunner
 /// .spec: .spec/REALIZED_VOLATILITY.spec/types/CEVStateRunner/CEVStateRunner.md
-/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/138
-/// First define (run_j success): #139
+/// .btt: CEVStateRunnerRunJ.btt (#139 success); failure branches #140
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/139
 
 /// CEVStateRunner(dt, K) <- SigmaF × LiquidityChunk × StateViewAnchor
 const CEVStateRunner = fn (comptime dt: u256, comptime k: u256) type {
@@ -40,10 +46,8 @@ const io = fn (
     }
 };
 
-/// hole: run_j — #139 (success) / #140 (failure)
-/// run_j :: IO(CEVStateRunner(dt,K)) → TokenFlow → j → Option(CEVLocalTickVolatility)
-/// Law: run_swap → StateView.step_k → CEV.intro; law B collapses all failures to None.
-/// Type phase: signature stub only (always None). Bodies land in define.
+/// Behavior: CEVStateRunnerRunJ.btt — run_swap → StateView.step_k → CEV.intro.
+/// Law B: any stage failure → None (CEV revert path exercised in #140).
 const run_j = fn (
     comptime dt: u256,
     comptime k: u256,
@@ -51,8 +55,26 @@ const run_j = fn (
     flow: TokenFlow(),
     j: u256
 ) Option(CEVLocalTickVolatility) {
-    let _ = m;
-    let _ = flow;
-    let _ = j;
-    None(CEVLocalTickVolatility)
+    comptime let nmax = n(dt);
+    if (k == 0) | (k >= nmax) | (j >= k) {
+        None(CEVLocalTickVolatility)
+    } else {
+        let r = m.inner;
+        let cmd = RealizeCmd {
+            pool: r.anchor.pool,
+            flow: flow,
+            bin_j: j
+        };
+        let o_swap = run_swap(io_realize(cmd));
+        if !o_swap.inner.is_some {
+            None(CEVLocalTickVolatility)
+        } else {
+            let o_obs = state_step_k(dt, r.anchor, k, j);
+            if !o_obs.is_some {
+                None(CEVLocalTickVolatility)
+            } else {
+                Some(cev_intro(dt, r.sf, r.chunk, o_obs.inner))
+            }
+        }
+    }
 };
