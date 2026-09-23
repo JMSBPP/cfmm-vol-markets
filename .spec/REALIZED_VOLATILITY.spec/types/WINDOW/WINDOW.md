@@ -78,6 +78,8 @@ uint32 internal constant WINDOW = 1 days;
 	\end{aligned}
 \]
 
+
+
 # How is it used on REF ?
 
 TimePoint \((t) = \{ \sigma (t), i(t), i_{\mu} (t) \cdots\}\)

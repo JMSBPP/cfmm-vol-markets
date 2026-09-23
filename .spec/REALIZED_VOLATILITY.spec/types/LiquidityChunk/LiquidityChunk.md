@@ -66,8 +66,11 @@ Invalid construction reverts descriptively:
 - `ZeroLiquidity`
 - `ReservedBitsNonzero`
 
-Internal representation is typed fields, not the packed word. The first define behavior is `intro`; packing and checked unpacking are later vertical slices.
+Internal representation is typed fields, not the packed word. Define behaviors:
+
+- [`LiquidityChunk.btt`](./LiquidityChunk.btt) — `intro`
+- [`LiquidityChunkPack.btt`](./LiquidityChunkPack.btt) — `pack_panoptic`
+- [`LiquidityChunkUnpack.btt`](./LiquidityChunkUnpack.btt) — checked `unpack_panoptic`
 
 The public `intro` boundary accepts raw spacing and ticks, applies the shared
 `cfmm-types::TickSpacing` normalization, then constructs both dependent ticks.
-Behavior source: [`LiquidityChunk.btt`](./LiquidityChunk.btt).

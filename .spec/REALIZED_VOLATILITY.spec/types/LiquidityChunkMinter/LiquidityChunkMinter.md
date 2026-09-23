@@ -68,3 +68,8 @@ Constructor errors:
 Adapters own callback payment and settlement. The payer authorizes exact ERC-20 `transferFrom`. Callback context binds the exact pool/manager and active command hash; nested execution is rejected. The V4 adapter is the native position owner and records the beneficiary-bound `positionKey`.
 
 Mint is positive-only. Burn/remove, Permit2, native ETH, fee-on-transfer tokens, StateView, and VegaTarget conversion are outside this type slice.
+
+First define behavior: [`LiquidityChunkMinterAlgebra.btt`](./LiquidityChunkMinterAlgebra.btt).
+It constructs and validates the Algebra-indexed command only; pool execution,
+callback authentication, exact payer funding, and receipt construction remain
+later define/refine slices.

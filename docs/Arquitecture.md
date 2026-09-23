@@ -1,3 +1,1 @@
-
-
 [Domains](../domains.toml)
