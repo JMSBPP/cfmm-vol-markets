@@ -157,10 +157,14 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 
 - **Last completed slice:** #139 `define/CEVStateRunner success path` — `complete`
   (`1b8ac24`; [push-build 35905119499](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35905119499),
-  [develop-gate 35905124168](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35905124168)).
+  [develop-gate 35905124168](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35905124168);
+  [review 5295627557](https://github.com/JMSBPP/cfmm-vol-markets/pull/142#pullrequestreview-5295627557)
+  — harness/`token_flow` follow-ups open on PR, not a new child yet).
 - **Parent track:** #136 `type/CEVStateRunner` — open; vertical children #138–#141.
 - **Current Plank slice:** #140 `define/CEVStateRunner failure outcomes` — `pending`
   (next by parent-plan order; [PR #142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142)).
+  Review actionable items may land as a fix on #139/#142 before or interleaved with #140 —
+  maintainer chooses; ledger does not dispatch.
 - **Queued after #140:** #141 refine.
 - **Ledgers:** `.planning/phases/PLANK/135-…` / `138-…` / `139-…` (complete);
   `.planning/phases/PLANK/140-…` not started.
