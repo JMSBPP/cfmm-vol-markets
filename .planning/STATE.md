@@ -159,12 +159,12 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
   (`28cbd61`; [push-build 35924839162](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35924839162),
   [develop-gate 35924845382](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35924845382)).
 - **Parent track:** #136 `type/CEVStateRunner` — open; PR [#142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142).
-- **Current Plank slice:** #150 `define/Shock(Pips) run_shock success` — `ci_pending`
-  (impl `6b65bed`; tip `1f4ce1b`; [push-build 35926165928](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35926165928),
-  [develop-gate 35926167593](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35926167593)).
-- **Blocked:** #143 `type/WeinerGenerator` — waits on #150 CI green.
+- **Current Plank slice:** #150 `define/Shock(Pips) run_shock success` — `blocked`
+  (impl `6b65bed`; [push-build 35926165928](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35926165928) **failed**:
+  `cfmm-types` TimeSpacing comptime_assert on pin `5378674` via WeinerGeneratorHarness).
+- **Also blocked:** #143 `type/WeinerGenerator` — waits on #150.
 - **Queued (approved-plan order):** #150 → #143 → #145 → #146 → #147 B2 → #140 → #141; fuzz #148.
-- **Ledgers:** `150-define-shock-pips` (ci_pending); `149-type-shock` (complete); `143-…` (blocked on #150).
+- **Ledgers:** `150-define-shock-pips` (blocked); `149-type-shock` (complete); `143-…` (blocked on #150).
 - **GSD milestone state:** unchanged. This section is outside the Haskell
   differential-conformance milestone and does not modify its counters or current phase.
 

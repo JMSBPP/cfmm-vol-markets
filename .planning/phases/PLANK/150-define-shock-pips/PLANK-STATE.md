@@ -3,16 +3,16 @@ plank_state_version: 1
 phase: "PLANK/150"
 slice: "define/Shock-Pips-run_shock-success"
 plank_phase: "define"
-status: "ci_pending"
+status: "blocked"
 issue: "https://github.com/JMSBPP/cfmm-vol-markets/issues/150"
 pr: "https://github.com/JMSBPP/cfmm-vol-markets/pull/142"
 approved_plan: "https://github.com/JMSBPP/cfmm-vol-markets/issues/136"
 behavior: "run_shock(io) success for Shock(Pips); Timestamp env → entropy → Some(Shock(Pips))."
 commit: "6b65bed8bed9cd22dc4cffeb7fda01ae7c0c5477"
 ci: "https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35926165928"
-blocked_reason: ""
-blocked_from: ""
-updated_at: "2026-09-23T22:04:00Z"
+blocked_reason: "push-build 35926165928 failed: cfmm-types TimeSpacing.plk comptime_assert (pin 5378674) when compiling WeinerGeneratorHarness."
+blocked_from: "ci_pending"
+updated_at: "2026-09-23T22:05:00Z"
 ---
 
 # Plank TDD State
@@ -32,3 +32,5 @@ updated_at: "2026-09-23T22:04:00Z"
 - `2026-09-23T22:01:00Z` — entropy **B** locked (PREVRANDAO‖timestamp‖j → keccak → Pips); BTT+Bulloak+bodies drafted; awaiting chunk approve.
 - `2026-09-23T22:03:00Z` — `code_approved → committed` `6b65bed`; push for CI when ready.
 - `2026-09-23T22:04:00Z` — `committed → ci_pending`; pushed `1f4ce1b`; [push-build 35926165928](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35926165928), [develop-gate 35926167593](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35926167593).
+- `2026-09-23T22:05:00Z` — `ci_pending → blocked`; [push-build 35926165928](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35926165928) failed on `lib/cfmm-types` TimeSpacing comptime_assert via WeinerGeneratorHarness.
+
