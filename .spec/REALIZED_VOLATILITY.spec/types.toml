@@ -119,3 +119,25 @@ laws = [
 ]
 refined = false
 notes = "Type phase. Distinct from VegaTarget; #131 owns later refinement and mapping. First define behavior: intro."
+
+[LiquidityChunkMinter]
+module = "LiquidityChunkMinter"
+kind = "indexed"
+file = "types/LiquidityChunkMinter/LiquidityChunkMinter.md"
+carriers = ["LiquidityChunkMint(V)", "MintReceipt(V)", "Pool(V)", "IO(T)"]
+operations = ["mint_v3", "mint_algebra", "mint_v4", "io_mint", "run_mint"]
+laws = [
+  "V ∈ {V3, Algebra, V4} is selected at comptime",
+  "common command = adapter × Pool(V) × payer × beneficiary × LiquidityChunk",
+  "Pool(V).tickSpacing = LiquidityChunk.tickSpacing",
+  "Algebra context adds leftoversRecipient",
+  "V4 context adds Pair × Registry(V4) × salt × hookData",
+  "run_mint : IO(LiquidityChunkMint(V)) → Option(MintReceipt(V))",
+  "MintReceipt(V3) = amount0 × amount1",
+  "MintReceipt(Algebra) = amount0 × amount1 × liquidityActual",
+  "MintReceipt(V4) = callerDelta × feesAccrued × positionKey",
+  "mint is positive-only",
+  "Eff = [VenueMintCall, ERC20TransferFrom, AuthenticatedCallbackContext, V4UnlockSettlement]",
+]
+refined = false
+notes = "Type phase. Adapters own exact-pay callbacks/settlement; callback context is caller- and command-bound. PRD #130."

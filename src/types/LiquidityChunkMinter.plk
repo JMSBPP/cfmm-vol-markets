@@ -1,0 +1,105 @@
+import std::core::addr::addr;
+import std::core::uint::u128;
+import std::option::Option;
+import std::regions::{bytes, memory};
+import types::IO::IO;
+import types::LiquidityChunk::LiquidityChunk;
+import types::Pair::Pair;
+import types::protocol_integrations::Pool::Pool;
+import types::protocol_integrations::Registry::Registry;
+import types::protocol_integrations::Venue::{Algebra, V3, V4, is_venue};
+
+/// types.toml: LiquidityChunkMinter
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/130
+
+/// Venue-indexed mint command. Every branch carries only fields valid for V.
+const LiquidityChunkMint = fn (
+    comptime V: type
+) type {
+    if !is_venue(V) {
+        @compile_error("LiquidityChunkMint: V must be V3, V4 or Algebra");
+    }
+
+    if V == V3 {
+        struct V3 {
+            adapter: addr,
+            pool: Pool(V3),
+            payer: addr,
+            beneficiary: addr,
+            chunk: LiquidityChunk
+        }
+    } else if V == Algebra {
+        struct Algebra {
+            adapter: addr,
+            pool: Pool(Algebra),
+            payer: addr,
+            beneficiary: addr,
+            leftovers_recipient: addr,
+            chunk: LiquidityChunk
+        }
+    } else {
+        struct V4 {
+            adapter: addr,
+            pool: Pool(V4),
+            pair: Pair,
+            registry: Registry(V4),
+            payer: addr,
+            beneficiary: addr,
+            chunk: LiquidityChunk,
+            salt: u256,
+            hook_data: bytes(memory)
+        }
+    }
+};
+
+/// Native return semantics preserved by venue.
+const MintReceipt = fn (comptime V: type) type {
+    if !is_venue(V) {
+        @compile_error("MintReceipt: V must be V3, V4 or Algebra");
+    }
+
+    if V == V3 {
+        struct V3 {
+            amount0: u256,
+            amount1: u256
+        }
+    } else if V == Algebra {
+        struct Algebra {
+            amount0: u256,
+            amount1: u256,
+            liquidity_actual: u128
+        }
+    } else {
+        struct V4 {
+            caller_delta: u256,
+            fees_accrued: u256,
+            position_key: u256
+        }
+    }
+};
+
+/// hole: mint_v3(adapter, pool, payer, beneficiary, chunk)
+///   -> LiquidityChunkMint(V3)
+///
+/// hole: mint_algebra(
+///   adapter, pool, payer, beneficiary, leftovers_recipient, chunk
+/// ) -> LiquidityChunkMint(Algebra)
+///
+/// hole: mint_v4(
+///   adapter, pool, pair, registry, payer, beneficiary, chunk, salt, hook_data
+/// ) -> LiquidityChunkMint(V4)
+///
+/// Constructor errors:
+///   PoolSpacingMismatch | ZeroAdapter | ZeroPayer | ZeroBeneficiary
+///
+/// hole: io_mint(command) -> IO(LiquidityChunkMint(V))
+///
+/// hole: run_mint(IO(LiquidityChunkMint(V)))
+///   -> Option(MintReceipt(V))
+///
+/// Eff = [
+///   VenueMintCall,
+///   ERC20TransferFrom,
+///   AuthenticatedCallbackContext,
+///   V4UnlockSettlement
+/// ]
