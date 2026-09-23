@@ -212,7 +212,8 @@ test-rv-init-index:
 
 spec-tools-image := `tr -d '[:space:]' < .github/spec-tools-image`
 
-# Pull GHCR pin; on miss, build from Dockerfile.spec-tools and tag as the pin.
+# Pull GHCR pin only (fail closed). Rebuilds belong in `spec-tools-build` /
+# `.github/workflows/spec-tools-image.yml` so push-build never spends ~10m on docker build.
 spec-tools-ensure:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -225,7 +226,15 @@ spec-tools-ensure:
         echo "spec-tools image pulled: $img"
         exit 0
     fi
-    echo "spec-tools: pull failed; building Dockerfile.spec-tools as $img" >&2
+    echo "error: missing $img — pull failed; publish via just spec-tools-build + workflow spec-tools-image.yml" >&2
+    exit 1
+
+# Build and tag Dockerfile.spec-tools as the pin (local or image-publish workflow).
+spec-tools-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    img="{{spec-tools-image}}"
+    echo "spec-tools: building Dockerfile.spec-tools as $img" >&2
     docker build -f Dockerfile.spec-tools -t "$img" .
 
 # Type-check one Agda file (repo-root-relative path).

@@ -187,7 +187,7 @@ jobs:
 
       # Domain-scoped Agda / Idris 2 / Plank from `.spec/<DOMAIN>.spec/compile.toml`.
       # SPEC_DOMAIN overrides `.spec/domains.toml` default (Actions vars.SPEC_DOMAIN).
-      # Image: `.github/spec-tools-image` (GHCR); built from Dockerfile.spec-tools on miss.
+      # Image: `.github/spec-tools-image` (GHCR); pull-only — rebuild via spec-tools-image.yml.
       - name: Spec tools image
         run: just spec-tools-ensure
 
