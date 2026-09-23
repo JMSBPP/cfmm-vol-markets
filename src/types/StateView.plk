@@ -1,5 +1,7 @@
-import std::option::Option;
-import cfmm_types::TimeSpacing::TimeSpacing;
+import std::core::ops::{checked_add, checked_mul};
+import std::error::require;
+import std::option::{None, Option, Some};
+import cfmm_types::TimeSpacing::{TimeSpacing, n};
 import types::IO::{IO, Outcome};
 import types::TokenFlow::TokenFlow;
 import types::protocol_integrations::Pool::{Pool, pool_word};
@@ -7,11 +9,13 @@ import types::protocol_integrations::Venue::Algebra;
 
 /// types.toml: StateView
 /// .spec: .spec/REALIZED_VOLATILITY.spec/types/StateView/StateView.md
-/// .btt: .spec/REALIZED_VOLATILITY.spec/types/StateView/StateViewIntroAnchor.btt
+/// .btt: StateViewIntroAnchor.btt, StateViewHistory.btt (prefix)
 /// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/134
 
 // cast sig "ZeroPool()" -> 0xd0d6cb32
 const SEL_ZERO_POOL = 0xd0d6cb32;
+const SEL_GLOBAL_STATE = 0xe76c01e4;
+const POOL_MASK_U160 = 0xffffffffffffffffffffffffffffffffffffffff;
 
 const revert_sel = fn (sel: u256) never {
     let p = @malloc_uninit(4);
@@ -75,19 +79,50 @@ const intro_anchor = fn (pool: Pool(Algebra)) StateViewAnchor {
     }
 };
 
-/// hole: intro_len(dt, k) -> u256
-const intro_len = fn (comptime dt: u256, k: u256) u256 {
-    @compile_error("StateView.intro_len: define phase");
+const PoolObs = struct { tick: u256, sqrt_p: u256 };
+
+/// Pool View: Algebra globalState (prefix slice; post-realize refines via run_swap).
+const algebra_pool_obs = fn (pool_u: u256) PoolObs {
+    let cd = @malloc_uninit(4);
+    @mstore4(cd, SEL_GLOBAL_STATE);
+    let ret = @malloc_uninit(192);
+    require(@evm_staticcall(@evm_gas(), pool_u, cd, 4, ret, 192));
+    PoolObs {
+        sqrt_p: @evm_and(@mload32(ret), POOL_MASK_U160),
+        tick: @evm_signextend(3, @mload32(ret +% 32))
+    }
 };
 
-/// hole: step_k(dt, anchor, k, j) -> Option(ObsStep(dt))
+/// Behavior: StateViewHistory.btt — |StateView| for valid prefix K.
+const intro_len = fn (comptime dt: u256, k: u256) u256 {
+    comptime let nmax = n(dt);
+    if (k == 0) | (k >= nmax) {
+        0
+    } else {
+        k
+    }
+};
+
+/// Behavior: StateViewHistory.btt — guards + ObsStep(t_j, pool View); realize_j refines tick/sqrt.
 const step_k = fn (
     comptime dt: u256,
     anchor: StateViewAnchor,
     k: u256,
     j: u256
 ) Option(ObsStep(dt)) {
-    @compile_error("StateView.step_k: define phase");
+    comptime let nmax = n(dt);
+    if (k == 0) | (k >= nmax) | (j >= k) {
+        None(ObsStep(dt))
+    } else {
+        let pool_u = pool_word(Algebra, anchor.pool);
+        let view = algebra_pool_obs(pool_u);
+        let t_j = checked_add(anchor.t_init, checked_mul(j, dt));
+        Some(ObsStep(dt) {
+            t: t_j,
+            tick: view.tick,
+            sqrt_p: view.sqrt_p
+        })
+    }
 };
 
 /// hole: pool_tick_after — i(t_j+) after run_swap; View_pool

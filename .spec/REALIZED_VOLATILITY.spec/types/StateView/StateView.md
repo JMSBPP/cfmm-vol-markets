@@ -2,21 +2,9 @@
 
 [TimeIndex](../WINDOW/TimeSpacing.md) · [WINDOW](../WINDOW/WINDOW.md) · [TokenFlow](../TokenFlow/TokenFlow.md) · [IO](../IO/IO.md)
 
-Plank: `src/types/StateView.plk`. BTT: [StateViewIntroAnchor.btt](StateViewIntroAnchor.btt) (define). PRD [#134](https://github.com/JMSBPP/cfmm-vol-markets/issues/134).
+Plank: `src/types/StateView.plk`. BTT: [StateViewIntroAnchor.btt](StateViewIntroAnchor.btt), [StateViewHistory.btt](StateViewHistory.btt). PRD [#134](https://github.com/JMSBPP/cfmm-vol-markets/issues/134).
 
-**Std / host reuse (type phase):**
-
-| Candidate | Use in StateView | Decision |
-|-----------|------------------|----------|
-| `std::option::Option` | `step_K` → `Option(ObsStep)`; `Outcome.inner` | **Reuse** |
-| `types::IO::{IO, Outcome}` | `io_realize` / `run_swap` | **Reuse** (Swap arm only on `run_swap`, not `run_io`) |
-| `types::TokenFlow` | `flow_j` slot in `RealizeCmd` | **Reuse** |
-| `TokenHistory` nest | Same \(K\), \(\bar{dt}\) clock | **Reject carrier** — observed, no compute-only nest / Weiner |
-| Hand-rolled `Outcome` | — | **Reject** — `Outcome` already wraps `Option` |
-
-**Kind:** `indexed` — `StateView(\bar{dt}, K)`, `ObsStep(\bar{dt})`.
-
-**Observed** tick/time series indexed by \(K\). Same bin clock as [TokenHistory](../TokenHistory/TokenHistory.md).
+Same bin clock as [TokenHistory](../TokenHistory/TokenHistory.md).
 \[
 \begin{aligned}
 \mathrm{StateView}(\bar{dt},\,K)
@@ -153,9 +141,11 @@ i\bigl(t_j^{+}\bigr)
 \end{aligned}
 \]
 
-### intro
-
-Unlike [TokenHistory](../TokenHistory/TokenHistory.md) `intro` (Weiner nest into `Slice(memory)`), StateView **intro** only fixes the **observation anchor**: Integral **pool** + **time origin** \(t_{\mathrm{init}}\). No cells, no `realize_j`, no Eff on this op (define slice [#134](https://github.com/JMSBPP/cfmm-vol-markets/issues/134)).
+### \(\mathrm{intro}_{\mathrm{anchor}}
+::
+\mathrm{Pool}(\mathrm{Algebra})
+\to
+\mathrm{StateViewAnchor}\)
 
 \[
 \begin{aligned}
@@ -182,9 +172,59 @@ t_{\mathrm{init}} \leftarrow \mathrm{timestamp}
 \end{aligned}
 \]
 
-Plank: `intro_anchor`. BTT: [StateViewIntroAnchor.btt](StateViewIntroAnchor.btt). Harness: `introAnchor(address,uint256,uint256)` returns pool fields + `tInit`.
+Define: [StateViewIntroAnchor.btt](StateViewIntroAnchor.btt). Prefix: [StateViewHistory.btt](StateViewHistory.btt).
 
-**Later intro API (holes):** `intro_len(\bar{dt}, K)` and `step_K(\mathrm{anchor}, K, j)` reuse `anchor.t_{\mathrm{init}}` and `anchor.pool`; they do not re-call `intro_{\mathrm{anchor}}`. Materializing `cell_j` still requires `realize_j` (Swap Eff).
+### \(\mathrm{intro\_len}
+::
+\bar{dt} \to K \to \mathbb{N}\)
+
+\[
+\begin{aligned}
+\lvert\mathrm{StateView}(\bar{dt},\,K)\rvert
+&=
+\begin{cases}
+K & 0 < K < n(\bar{dt}) \\
+0 & K = 0 \lor K \ge n(\bar{dt})
+\end{cases}
+\\
+\mathrm{intro\_len}(\bar{dt},\,K)
+&=
+\lvert\mathrm{StateView}(\bar{dt},\,K)\rvert
+\end{aligned}
+\]
+
+### \(\mathrm{step}_K\) (prefix define)
+
+\[
+\begin{aligned}
+&\forall K.\ \forall j.\ \bigl(K=0 \lor K \ge n(\bar{dt}) \lor j \ge K\bigr)
+\\
+&\Longrightarrow
+\mathrm{step}_K(\mathrm{anchor},\,K,\,j)
+=
+\mathrm{None}
+\\
+&\forall K.\ \forall j.\ \bigl(0 < K < n(\bar{dt}) \land j < K\bigr)
+\\
+&\Longrightarrow
+\mathrm{step}_K(\mathrm{anchor},\,K,\,j)
+=
+\mathrm{Some}\bigl(
+t_j,\,
+\mathrm{tick}^{\mathrm{view}},\,
+\sqrt{p}^{\mathrm{view}}
+\bigr)
+\\
+t_j
+&=
+t_{\mathrm{init}} + j\cdot\bar{dt}
+\\
+\mathrm{tick}^{\mathrm{view}},\,\sqrt{p}^{\mathrm{view}}
+&\leftarrow
+\text{Algebra \texttt{globalState} at call time}
+\quad\text{(refine: post-\(\mathrm{realize}_j\) via \texttt{run\_swap})}
+\end{aligned}
+\]
 
 ### IO algebra (Plank names)
 

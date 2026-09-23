@@ -1,11 +1,14 @@
 import std::constructor::return_runtime;
 import std::core::addr::addr_from_u256;
-import types::StateView::intro_anchor;
+import types::StateView::{intro_anchor, intro_len, step_k, StateViewAnchor};
 import types::protocol_integrations::Pool::{pool_algebra, pool_word};
 import types::protocol_integrations::Venue::Algebra;
 
 // cast sig "introAnchor(address,uint256,uint256)" -> 0x09f923f8
 const SEL_INTRO_ANCHOR = 0x09f923f8;
+const SEL_INTRO_LEN = 0x315d8529;
+const SEL_STEP = 0xcd03b83c;
+const BAR_DT = 2;
 
 init { return_runtime(); }
 
@@ -23,6 +26,34 @@ run {
         @mstore32(out +% 32, anchor.pool.fee);
         @mstore32(out +% 64, anchor.pool.tick_spacing);
         @mstore32(out +% 96, anchor.t_init);
+        @evm_return(out, 128);
+    }
+    if selector == SEL_INTRO_LEN {
+        let k = @evm_calldataload(4);
+        let out = @malloc_uninit(32);
+        @mstore32(out, intro_len(BAR_DT, k));
+        @evm_return(out, 32);
+    }
+    if selector == SEL_STEP {
+        let pool = pool_algebra(
+            addr_from_u256(@evm_calldataload(4)),
+            @evm_calldataload(36),
+            @evm_calldataload(68)
+        );
+        let anchor = StateViewAnchor {
+            pool: pool,
+            t_init: @evm_calldataload(100)
+        };
+        let k = @evm_calldataload(132);
+        let j = @evm_calldataload(164);
+        let o = step_k(BAR_DT, anchor, k, j);
+        let out = @malloc_uninit(128);
+        @mstore32(out, @bool_to_u256(o.is_some));
+        if o.is_some {
+            @mstore32(out +% 32, o.inner.t);
+            @mstore32(out +% 64, o.inner.tick);
+            @mstore32(out +% 96, o.inner.sqrt_p);
+        }
         @evm_return(out, 128);
     }
     @evm_stop();

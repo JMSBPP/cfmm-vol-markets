@@ -157,4 +157,4 @@ laws = [
   "Eff slice: ERC20View, Xfer, Swap (TokenFlow extension); no oracle Eff yet",
 ]
 refined = false
-notes = "Define: intro_anchor (StateViewIntroAnchor.btt). Other ops remain holes. PRD #134."
+notes = "Define: intro_anchor (StateViewIntroAnchor.btt); prefix intro_len/step_k (StateViewHistory.btt). run_swap etc. remain holes. PRD #134."
