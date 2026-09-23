@@ -3,16 +3,16 @@ plank_state_version: 1
 phase: "PLANK/150"
 slice: "define/Shock-Pips-run_shock-success"
 plank_phase: "define"
-status: "ci_pending"
+status: "complete"
 issue: "https://github.com/JMSBPP/cfmm-vol-markets/issues/150"
 pr: "https://github.com/JMSBPP/cfmm-vol-markets/pull/142"
 approved_plan: "https://github.com/JMSBPP/cfmm-vol-markets/issues/136"
 behavior: "run_shock(io) success for Shock(Pips); Timestamp env → entropy → Some(Shock(Pips))."
 commit: "6b65bed8bed9cd22dc4cffeb7fda01ae7c0c5477"
-ci: "https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35929094505"
+ci: "https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35929329097"
 blocked_reason: ""
 blocked_from: ""
-updated_at: "2026-09-23T22:34:00Z"
+updated_at: "2026-09-23T22:39:00Z"
 ---
 
 # Plank TDD State
@@ -40,4 +40,5 @@ updated_at: "2026-09-23T22:34:00Z"
 - `2026-09-23T22:32:00Z` — maintainer review promoted: https://github.com/JMSBPP/cfmm-vol-markets/pull/142#pullrequestreview-5297553392 (ShockRunShock fuzz/warp/j-iteration); receiving-code-review in progress.
 - `2026-09-23T22:34:00Z` — review fixes approved → `complete → ci_pending`; ShockRunShock fuzz/warp/j-iteration.
 - `2026-09-23T22:36:00Z` — push-build 35929094505 green on assertEq variant; dropping same-j equality per review; push difference-only suite.
+- `2026-09-23T22:39:00Z` — `ci_pending → complete`; difference-only suite green [push-build 35929329097](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35929329097) on `a50f408`.
 

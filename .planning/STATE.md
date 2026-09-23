@@ -156,9 +156,9 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 ## Plank tracking (state-only)
 
 - **Last completed slice:** #150 `define/Shock(Pips) run_shock success` — `complete`
-  (impl `6b65bed`; tip `357a7b5`; pin `lib/cfmm-types@27b284b` develop;
-  [push-build 35927367755](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35927367755),
-  [develop-gate 35927373094](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35927373094)).
+  (impl `6b65bed`; tip `a50f408`; pin `lib/cfmm-types@27b284b` develop;
+  [push-build 35929329097](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35929329097),
+  [push-build 35929329097](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35929329097) (+ develop-gate on tip)).
 - **Parent track:** #136 `type/CEVStateRunner` — open; PR [#142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142).
 - **Current Plank slice:** #143 `type/WeinerGenerator` — resume type (Shock define complete).
 - **Queued (approved-plan order):** #143 → #145 → #146 → #147 B2 → #140 → #141; fuzz #148.
