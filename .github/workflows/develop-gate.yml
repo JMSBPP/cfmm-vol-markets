@@ -178,6 +178,7 @@ jobs:
         with:
           submodules: false
           persist-credentials: false
+          set-safe-directory: false
       # sync first: honor repointed submodule URLs on the reused runner (see forge job note)
       - run: git submodule sync --recursive
       - run: git submodule update --init lib/plankified-univ3
