@@ -819,7 +819,7 @@ phase numbering, progress counters, current position, or GSD routing.
 |----------------|-------------|--------|----------|
 | [#135 refine/CEVLocalTickVolatility typed inputs](https://github.com/JMSBPP/cfmm-vol-markets/issues/135) | `refine` | Complete | [PR #137](https://github.com/JMSBPP/cfmm-vol-markets/pull/137), `466cf33`, [push-build 35885807626](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885807626), [develop-gate 35885814010](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885814010) |
 | [#136 type/CEVStateRunner](https://github.com/JMSBPP/cfmm-vol-markets/issues/136) | parent | Open; decomposed into #138–#141 | Parent [#129](https://github.com/JMSBPP/cfmm-vol-markets/issues/129); track PR on `type/CEVStateRunner` |
-| [#138 type/CEVStateRunner algebra + outcome law](https://github.com/JMSBPP/cfmm-vol-markets/issues/138) | `type` | Blocked | push-build [35894248659](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35894248659) failed (stub harness); BTT → #139 |
+| [#138 type/CEVStateRunner algebra + outcome law](https://github.com/JMSBPP/cfmm-vol-markets/issues/138) | `type` | CI pending | harness fix `12e3d69`; [push-build 35903713241](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35903713241); [PR #142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142) |
 | [#139 define/CEVStateRunner success path (one index)](https://github.com/JMSBPP/cfmm-vol-markets/issues/139) | `define` | Pending | Blocked by #138 |
 | [#140 define/CEVStateRunner failure outcomes](https://github.com/JMSBPP/cfmm-vol-markets/issues/140) | `define` | Pending | Blocked by #139 |
 | [#141 refine/CEVStateRunner laws + Eff boundary](https://github.com/JMSBPP/cfmm-vol-markets/issues/141) | `refine` | Pending | Blocked by #140 |
