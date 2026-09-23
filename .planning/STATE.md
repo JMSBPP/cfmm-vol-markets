@@ -155,15 +155,15 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 
 ## Plank tracking (state-only)
 
-- **Last completed slice:** #138 `type/CEVStateRunner algebra + outcome law` — `complete`
-  (`12e3d69`; [push-build 35903789028](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35903789028),
-  [develop-gate 35903793339](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35903793339)).
+- **Last completed slice:** #139 `define/CEVStateRunner success path` — `complete`
+  (`1b8ac24`; [push-build 35905119499](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35905119499),
+  [develop-gate 35905124168](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35905124168)).
 - **Parent track:** #136 `type/CEVStateRunner` — open; vertical children #138–#141.
-- **Current Plank slice:** #139 `define/CEVStateRunner success path` — `in_progress`
-  (`/plank-define`; [PR #142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142)).
-- **Queued after #139:** #140 failure define → #141 refine.
-- **Ledgers:** `.planning/phases/PLANK/135-…` / `138-…` (complete);
-  `.planning/phases/PLANK/139-define-cev-state-runner-success/PLANK-STATE.md` (in progress).
+- **Current Plank slice:** #140 `define/CEVStateRunner failure outcomes` — `pending`
+  (next by parent-plan order; [PR #142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142)).
+- **Queued after #140:** #141 refine.
+- **Ledgers:** `.planning/phases/PLANK/135-…` / `138-…` / `139-…` (complete);
+  `.planning/phases/PLANK/140-…` not started.
 - **GSD milestone state:** unchanged. This appendix is outside the Haskell
   differential-conformance milestone and does not modify its counters or current phase.
 
