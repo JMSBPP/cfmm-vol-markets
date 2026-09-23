@@ -4,12 +4,12 @@
 
 [agda]
 files = [
-  ".spec/REALIZED_VOLATILITY.spec/types/WINDOW/TimeSpacing/TimeSpacing.agda",
+  ".spec/REALIZED_VOLATILITY.spec/types/TimeSpacing/TimeSpacing.agda",
 ]
 
 [idris]
 files = [
-  ".spec/REALIZED_VOLATILITY.spec/types/WINDOW/TimeSpacing/TimeSpacing.idr",
+  ".spec/REALIZED_VOLATILITY.spec/types/TimeSpacing/TimeSpacing.idr",
 ]
 
 [plank]
