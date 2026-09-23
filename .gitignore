@@ -61,3 +61,8 @@ dist-newstyle/
 # Local Claude Code settings (per-user, not repo config)
 .agents/settings.local.json
 .spec/
+.offline/
+
+# Lean Lake deps/build under Aristotle artifacts — never commit (breaks checkout as gitlinks).
+.spec/**/.lake/
+out-weiner/

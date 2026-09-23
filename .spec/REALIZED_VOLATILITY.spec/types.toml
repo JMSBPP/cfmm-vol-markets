@@ -1,0 +1,160 @@
+# REALIZED_VOLATILITY type catalog (idris-tdd kinds).
+
+[SigmaF]
+module = "SigmaF"
+kind = "plain"
+file = "types/SigmaF/SigmaF.md"
+carriers = ["u256_RAY"]
+operations = ["intro", "token_amount"]
+laws = ["intro is total", "RAY = 10^27", "token_amount(σ_F, ΔW(dt)) = (σ_F · |ΔW|)/RAY"]
+refined = true
+notes = "token_amount takes Weiner DeltaW(dt), not raw u256. CEV block is notation."
+
+[TokenFlow]
+module = "TokenFlow"
+kind = "dependent"
+file = "types/TokenFlow/TokenFlow.md"
+carriers = ["TokenAmount", "Dir", "token", "from", "to"]
+operations = ["intro"]
+laws = [
+  "intro(σ_F, ΔW(dt), token, from, to) = ((σ_F · |ΔW|)/RAY, sign(ΔW)) at those addrs",
+  "dt is the DeltaW index (TimeSpacing)",
+  "Eff = [ERC20View=balanceOf, Xfer=transferFrom]",
+]
+refined = true
+notes = "Command T; run reads addresses off T"
+
+[IO]
+module = "IO"
+kind = "generic"
+file = "types/IO/IO.md"
+carriers = ["T", "Outcome"]
+operations = ["io", "run"]
+laws = [
+  "io only wraps",
+  "run(io(T)) reads token/from/to on T",
+  "run(io(amt,+)) = Xfer(from,to,amt)",
+  "run(io(amt,-)) = Xfer(to,from,amt)",
+  "Outcome wraps Option(u256): Some = success, None = revert",
+]
+refined = true
+notes = "Outcome is a wrapper of std::option::Option(u256)"
+
+[TokenHistory]
+module = "TokenHistory"
+kind = "indexed"
+file = "types/TokenHistory/TokenHistory.md"
+carriers = ["Step", "TokenHistory(dt,K)", "Slice(memory)"]
+operations = ["intro_from", "intro", "intro_k", "intro_len", "step_k"]
+laws = [
+  "TokenHistory(dt,0) = ε",
+  "TokenHistory(dt,S k) = Step(dt) × TokenHistory(dt,k)",
+  "nest K ∈ ℕ includes ε; intro_from(0)=ε, intro_from(S k)=step(off) ∷ intro_from(k)",
+  "intro writes the nest into Slice(memory, TokenHistory(dt,K), 1)",
+  "intro_k: Some iff 0 < K < n(dt); buffer is Slice of Step",
+  "intro_len = K iff 0 < K < n(dt), else 0",
+  "step_k: Some(step_at(j)) iff 0 < K < n(dt) and j < K",
+  "ABI intro returns intro_len; cells via step_k(j)",
+  "t_j = t_init + j·dt̄",
+  "i_j = lastIndex(dt, t_init, t_j)",
+  "ΔW_j = shock(dt, j)",
+  "ΔQ_M,j = σ_F · ΔW_j",
+  "Eff = [WeinerView=staticcall shock]",
+]
+refined = true
+notes = "Slice is allocation only. Fuzz: 1 ≤ K < n(dt)=43200 via step_k."
+
+[TokenHistoryFlow]
+module = "TokenHistoryFlow"
+kind = "indexed"
+file = "types/TokenHistoryFlow/TokenHistoryFlow.md"
+carriers = ["TokenHistory(dt,K)", "TokenFlow", "token", "from", "to"]
+operations = ["io_hist", "run_hist", "run_step_k", "run_k"]
+laws = [
+  "run_k: while j<K run_step_k; None if K=0 or K≥n",
+  "run_step_k: step_k then run_io(token_flow); None if prefix invalid or j≥K",
+  "+ΔW: Xfer(from,to,amt); −ΔW: Xfer(to,from,amt)",
+  "amt = (σ_F · |ΔW_j|)/RAY",
+  "first Outcome.None stops the while",
+  "Eff = [WeinerView=shock, Xfer=transferFrom]",
+]
+refined = true
+notes = "run_hist is K=2 nest unroll, not a public law. Fuzz: run_k K∈[1,128]."
+
+[CEVLocalTickVolatility]
+module = "CEVLocalTickVolatility"
+kind = "dependent"
+file = "types/CEVLocalTickVolatility/CEVLocalTickVolatility.md"
+carriers = ["Tick", "u88_tick2", "SigmaF", "u128_L", "Q64_96"]
+operations = ["intro", "intro_len", "step_k"]
+laws = [
+  "σ = (σ_F / (L_{1/2} · LN_10001 · √p))² ∈ u88 tick²",
+  "tick = Tick(√p)",
+  "L_{1/2} : u128; √p : Q64_96; LN_10001 : RAY",
+  "intro(σ_F, L, √p) → {tick, σ}",
+  "revert ZeroLiquidity if L=0",
+  "revert ZeroSqrtPrice if √p=0",
+  "revert SigmaOverflowU88 if σ ∉ u88",
+  "CEVHistory(dt,0)=ε; CEVHistory(dt,S k)=cell × CEVHistory(dt,k)",
+  "intro_len = K iff 0 < K < n(dt), else 0",
+  "step_k: Some(intro(σ_F, L, √p_j)) iff 0 < K < n(dt) and j < K",
+  "Eff = [StateView=staticcall √p, LiquidityChunkMinter=mint] (holes)",
+]
+refined = false
+notes = "Define: intro + CEVHistory prefix (intro_len/step_k). History(A) is a later TODO refactor."
+
+[LiquidityChunk]
+module = "LiquidityChunk"
+kind = "dependent"
+file = "types/LiquidityChunk/LiquidityChunk.md"
+carriers = ["LiquidityTick", "LiquidityChunk", "TickSpacing", "u128"]
+operations = ["liquidity_tick", "intro", "pack_panoptic", "unpack_panoptic"]
+laws = [
+  "LiquidityTick = Σ s:TickSpacing. signed-int24 exactly aligned to s",
+  "LiquidityChunk = Σ s:TickSpacing. {tickLower: LiquidityTick(s), tickUpper: LiquidityTick(s), liquidity: u128}",
+  "tickLower < tickUpper",
+  "liquidity > 0",
+  "packPanoptic = lower:24 | upper:24 | zero:80 | liquidity:128",
+  "unpackPanoptic rejects nonzero reserved bits and every invalid constructor state",
+]
+refined = false
+notes = "Define: intro, pack_panoptic, checked unpack_panoptic. Distinct from VegaTarget; #131 owns later refinement and mapping."
+
+[LiquidityChunkMinter]
+module = "LiquidityChunkMinter"
+kind = "indexed"
+file = "types/LiquidityChunkMinter/LiquidityChunkMinter.md"
+carriers = ["LiquidityChunkMint(V)", "MintReceipt(V)", "Pool(V)", "IO(T)"]
+operations = ["mint_v3", "mint_algebra", "mint_v4", "io_mint", "run_mint"]
+laws = [
+  "V ∈ {V3, Algebra, V4} is selected at comptime",
+  "common command = adapter × Pool(V) × payer × beneficiary × LiquidityChunk",
+  "Pool(V).tickSpacing = LiquidityChunk.tickSpacing",
+  "Algebra context adds leftoversRecipient",
+  "V4 context adds Pair × Registry(V4) × salt × hookData",
+  "run_mint : IO(LiquidityChunkMint(V)) → Option(MintReceipt(V))",
+  "MintReceipt(V3) = amount0 × amount1",
+  "MintReceipt(Algebra) = amount0 × amount1 × liquidityActual",
+  "MintReceipt(V4) = callerDelta × feesAccrued × positionKey",
+  "mint is positive-only",
+  "Eff = [VenueMintCall, ERC20TransferFrom, AuthenticatedCallbackContext, V4UnlockSettlement]",
+]
+refined = false
+notes = "Define: Algebra command constructor. Execution remains a hole. Adapters own exact-pay callbacks/settlement; callback context is caller- and command-bound. PRD #130."
+
+[StateView]
+module = "StateView"
+kind = "indexed"
+file = "types/StateView/StateView.md"
+carriers = ["ObsStep(dt)", "StateView(dt,K)", "StateViewAnchor", "RealizeCmd", "IO(RealizeCmd)"]
+operations = ["intro_anchor", "intro_len", "step_k", "io_realize", "run_swap", "pool_tick_after", "encode_flow_to_swap"]
+laws = [
+  "StateView(dt,0)=ε; StateView(dt,S k)=ObsStep(dt)×StateView(dt,k)",
+  "t_j=t_init+j·dt; i_j=lastIndex(dt,t_init,t_j)",
+  "tick_j=i(t_j+) after run_swap(io(realize(flow_j,pool,j)))",
+  "cell_j=(t_j,tick_j,sqrt_p_j); step_K=Some(cell_j) iff 0<K<n(dt) and j<K",
+  "run_swap uses Swap only; Xfer⊂Swap; no run_io on realize path",
+  "Eff slice: ERC20View, Xfer, Swap (TokenFlow extension); no oracle Eff yet",
+]
+refined = false
+notes = "Define: intro_anchor, prefix intro_len/step_k, io_realize/run_swap (StateViewRunSwap.btt). pool_tick_after/encode refine remain. PRD #134."

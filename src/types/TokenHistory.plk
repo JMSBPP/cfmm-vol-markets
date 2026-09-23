@@ -1,0 +1,142 @@
+import std::core::addr::{addr, cast_addr};
+import std::core::ops::{checked_add, checked_mul, neg_u256};
+import std::error::require;
+import std::mem::unsafe_mem_write;
+import std::option::{None, Option, Some};
+import std::regions::memory;
+import std::slice::Slice;
+import std::type::sizeof;
+import cfmm_types::TimeIndex::lastIndex;
+import cfmm_types::TimeSpacing::{TimeSpacing, n};
+import types::SigmaF::SigmaF;
+import types::WeinerGenerator::{DeltaW, abs_signed, is_neg_signed};
+
+/// types.toml: TokenHistory
+const Step = fn (comptime dt: u256) type {
+    let _ = TimeSpacing(dt);
+    struct {
+        t: u256,
+        i: u256,
+        dw: DeltaW(dt),
+        dq: u256
+    }
+};
+
+/// TokenHistory(dt, 0) = ε; TokenHistory(dt, S k) = Step(dt) × TokenHistory(dt, k)
+const TokenHistory = fn (comptime dt: u256, comptime k: u256) type {
+    let _ = TimeSpacing(dt);
+    if k == 0 {
+        struct {}
+    } else {
+        struct {
+            head: Step(dt),
+            tail: TokenHistory(dt, k -% 1)
+        }
+    }
+};
+
+// cast sig "shock(uint256,uint256)" -> 0xd381977d
+const SEL_SHOCK = 0xd381977d;
+
+/// WeinerView: staticcall shock(dt, j).
+const view_shock = fn (weiner: addr, dt: u256, j: u256) u256 {
+    let cd = @malloc_uninit(68);
+    @mstore4(cd, SEL_SHOCK);
+    @mstore32(cd +% 4, dt);
+    @mstore32(cd +% 36, j);
+    let ret = @malloc_uninit(32);
+    require(@evm_staticcall(@evm_gas(), cast_addr(weiner, u256), cd, 68, ret, 32));
+    @mload32(ret)
+};
+
+/// ΔQ_M := σ_F · ΔW (signed).
+const dq_m = fn (comptime dt: u256, sf: SigmaF(), dw: DeltaW(dt)) u256 {
+    let mag = checked_mul(sf.val, abs_signed(dw.val));
+    if is_neg_signed(dw.val) {
+        neg_u256(mag)
+    } else {
+        mag
+    }
+};
+
+const step_at = fn (comptime dt: u256, weiner: addr, sf: SigmaF(), t_init: u256, j: u256) Step(dt) {
+    let t = checked_add(t_init, checked_mul(j, dt));
+    let dw = DeltaW(dt) { val: view_shock(weiner, dt, j) };
+    Step(dt) {
+        t: t,
+        i: lastIndex(dt, t_init, t),
+        dw: dw,
+        dq: dq_m(dt, sf, dw)
+    }
+};
+
+/// Define on the index: intro(K=0)=ε; intro(S k)=step(off) ∷ intro(k).
+const intro_from = fn (
+    comptime dt: u256,
+    comptime k: u256,
+    comptime off: u256,
+    weiner: addr,
+    sf: SigmaF(),
+    t_init: u256
+) TokenHistory(dt, k) {
+    if k == 0 {
+        TokenHistory(dt, 0) {}
+    } else {
+        TokenHistory(dt, k) {
+            head: step_at(dt, weiner, sf, t_init, off),
+            tail: intro_from(dt, k -% 1, off +% 1, weiner, sf, t_init)
+        }
+    }
+};
+
+const TokenHistoryBuf = fn (comptime dt: u256, comptime k: u256) type {
+    Slice(memory, TokenHistory(dt, k), Some(1))
+};
+
+const intro = fn (comptime dt: u256, comptime k: u256, weiner: addr, sf: SigmaF(), t_init: u256) TokenHistoryBuf(dt, k) {
+    let h = intro_from(dt, k, 0, weiner, sf, t_init);
+    let ptr = @malloc_uninit(comptime { sizeof(TokenHistory(dt, k)) });
+    unsafe_mem_write(ptr, h);
+    TokenHistoryBuf(dt, k) { ptr: ptr }
+};
+
+/// Runtime prefix: Some iff 0 < K < n(dt). Buffer is Slice of Step, not the nest.
+const Steps = fn (comptime dt: u256) type {
+    Slice(memory, Step(dt), None(u256))
+};
+
+const intro_k = fn (comptime dt: u256, weiner: addr, sf: SigmaF(), t_init: u256, k: u256) Option(Steps(dt)) {
+    comptime let nmax = n(dt);
+    if (k == 0) | (k >= nmax) {
+        None(Steps(dt))
+    } else {
+        let step_sz = comptime { sizeof(Step(dt)) };
+        let ptr = @malloc_uninit(step_sz *% k);
+        let mut j = 0;
+        while j < k {
+            unsafe_mem_write(ptr +% (j *% step_sz), step_at(dt, weiner, sf, t_init, j));
+            j = j +% 1;
+        }
+        Some(Steps(dt) { ptr: ptr, len: k })
+    }
+};
+
+/// Public intro length: K if 0 < K < n(dt), else 0. Cells via step_k.
+const intro_len = fn (comptime dt: u256, k: u256) u256 {
+    comptime let nmax = n(dt);
+    if (k == 0) | (k >= nmax) {
+        0
+    } else {
+        k
+    }
+};
+
+/// One Step of a valid prefix. Does not allocate K cells — so K can be any in (0, n).
+const step_k = fn (comptime dt: u256, weiner: addr, sf: SigmaF(), t_init: u256, k: u256, j: u256) Option(Step(dt)) {
+    comptime let nmax = n(dt);
+    if (k == 0) | (k >= nmax) | (j >= k) {
+        None(Step(dt))
+    } else {
+        Some(step_at(dt, weiner, sf, t_init, j))
+    }
+};

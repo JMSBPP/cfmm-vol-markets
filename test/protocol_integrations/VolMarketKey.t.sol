@@ -6,7 +6,7 @@ import {PlankTestBase} from "test/PlankTestBase.sol";
 import {RegistryVerifyV4} from "test/mocks/RegistryVerifyV4.sol";
 import {MinedRegistryV4Deployer} from "test/helpers/MinedRegistryV4Deployer.sol";
 import {PoolVerifyV3Pool} from "test/mocks/PoolVerifyV3Pool.sol";
-import {AlgebraIntegralDeployer} from "test/helpers/AlgebraIntegralDeployer.sol";
+import {AlgebraIntegralDeployer} from "test/helpers/Algebra/AlgebraIntegralDeployer.sol";
 import {IAlgebraFactory} from "@cryptoalgebra/integral-core/interfaces/IAlgebraFactory.sol";
 import {IAlgebraPoolState} from "@cryptoalgebra/integral-core/interfaces/pool/IAlgebraPoolState.sol";
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";

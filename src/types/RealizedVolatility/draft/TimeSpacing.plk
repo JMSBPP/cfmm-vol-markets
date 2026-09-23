@@ -1,0 +1,21 @@
+import std::constructor::return_runtime;
+import std::core::uint::{cast_uint,u32};
+import std::core::ops::{checked_sub};
+import std::error::require;
+import types::RealizedVolatility::draft::Timestamp::CurrentTimestamp;
+import types::Numerics::U32_MAX;
+
+ 
+const TimeSpacing = fn(T: type) u32 {
+      if T == u256 {
+      	 cast_uint(T, u32);
+      } else if T == CurrentTimestamp {
+      	// todo: @evm_timestamp mus be passed first to Timestamp type
+      	TimeSpacing(checked_sub(U32_MAX, @evm_timestamp()))      	
+      }     
+};
+
+
+init {return_runtime();}
+
+run {@evm_stop();}

@@ -1,0 +1,13 @@
+CEVHistoryTest
+├── when K is zero
+│   ├── it should return intro_len 0
+│   └── it should return step None
+├── when K is n or greater
+│   ├── it should return intro_len 0
+│   └── it should return step None
+├── when K is a valid prefix and j is not less than K
+│   ├── it should return intro_len K
+│   └── it should return step None
+└── when K is a valid prefix and j is less than K
+    ├── it should return intro_len K
+    └── it should return step Some intro

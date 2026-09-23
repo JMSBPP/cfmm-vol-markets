@@ -1,0 +1,48 @@
+import std::constructor::return_runtime;
+import types::CEVLocalTickVolatility::{intro, intro_len, step_k};
+import types::SigmaF::SigmaF;
+
+// cast sig "intro(uint256,uint256,uint256)" -> 0x8f7cec58
+const SEL_INTRO = 0x8f7cec58;
+// cast sig "introLen(uint256)" -> 0x315d8529
+const SEL_INTRO_LEN = 0x315d8529;
+// cast sig "step(uint256,uint256,uint256,uint256,uint256)" -> 0x4572b9aa
+const SEL_STEP = 0x4572b9aa;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_INTRO {
+        let sf = SigmaF() { val: @evm_calldataload(4) };
+        let L = @evm_calldataload(36);
+        let sqrt_p = @evm_calldataload(68);
+        let cell = intro(sf, L, sqrt_p);
+        let out = @malloc_uninit(64);
+        @mstore32(out, cell.tick);
+        @mstore32(out +% 32, cell.sig);
+        @evm_return(out, 64);
+    }
+    if selector == SEL_INTRO_LEN {
+        let k = @evm_calldataload(4);
+        let out = @malloc_uninit(32);
+        @mstore32(out, intro_len(2, k));
+        @evm_return(out, 32);
+    }
+    if selector == SEL_STEP {
+        let sf = SigmaF() { val: @evm_calldataload(4) };
+        let L = @evm_calldataload(36);
+        let sqrt_p = @evm_calldataload(68);
+        let k = @evm_calldataload(100);
+        let j = @evm_calldataload(132);
+        let o = step_k(2, sf, L, sqrt_p, k, j);
+        let out = @malloc_uninit(96);
+        @mstore32(out, @bool_to_u256(o.is_some));
+        if o.is_some {
+            @mstore32(out +% 32, o.inner.tick);
+            @mstore32(out +% 64, o.inner.sig);
+        }
+        @evm_return(out, 96);
+    }
+    @evm_stop();
+}

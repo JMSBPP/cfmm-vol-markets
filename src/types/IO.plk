@@ -1,0 +1,64 @@
+import std::core::addr::{addr, addr_from_u256, cast_addr};
+import std::option::{Option, Some, None};
+import types::TokenFlow::TokenFlow;
+
+const SEL_TRANSFER_FROM = 0x23b872dd;
+
+const IO = fn (comptime T: type) type {
+    struct {
+        inner: T
+    }
+};
+
+/// Outcome wraps std Option: Some = success, None = revert.
+const Outcome = fn () type {
+    struct {
+        inner: Option(u256)
+    }
+};
+
+const outcome_success = fn () Outcome() {
+    Outcome() { inner: Some(0) }
+};
+
+const outcome_revert = fn () Outcome() {
+    Outcome() { inner: None(u256) }
+};
+
+const io = fn (tf: TokenFlow()) IO(TokenFlow()) {
+    IO(TokenFlow()) { inner: tf }
+};
+
+const xfer = fn (token: addr, from: addr, to: addr, amt: u256) bool {
+    let cd = @malloc_uninit(100);
+    @mstore4(cd, SEL_TRANSFER_FROM);
+    @mstore32(cd +% 4, cast_addr(from, u256));
+    @mstore32(cd +% 36, cast_addr(to, u256));
+    @mstore32(cd +% 68, amt);
+    let ret = @malloc_uninit(32);
+    let ok = @evm_call(@evm_gas(), cast_addr(token, u256), 0, cd, 100, ret, 32);
+    if !ok {
+        false
+    } else {
+        @mload32(ret) != 0
+    }
+};
+
+/// run(io(T)) reads token/from/to on T.
+const run_io = fn (m: IO(TokenFlow())) Outcome() {
+    let tf = m.inner;
+    let passed = if tf.dir == 0 {
+        xfer(tf.token, tf.from, tf.to, tf.amount)
+    } else {
+        xfer(tf.token, tf.to, tf.from, tf.amount)
+    };
+    if passed {
+        outcome_success()
+    } else {
+        outcome_revert()
+    }
+};
+
+const addr_word = fn (w: u256) addr {
+    addr_from_u256(w)
+};

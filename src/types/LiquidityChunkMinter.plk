@@ -1,0 +1,190 @@
+import std::core::addr::{addr, addr_from_u256, cast_addr};
+import std::core::uint::{cast_uint, try_cast_uint, u128};
+import std::option::{None, Option, Some, unwrap};
+import std::regions::{bytes, calldata, is_region, memory};
+import types::IO::IO;
+import types::LiquidityChunk::LiquidityChunk;
+import types::Pair::Pair;
+import types::protocol_integrations::Pool::{Pool, pool_word};
+import types::protocol_integrations::Registry::Registry;
+import types::protocol_integrations::Venue::{Algebra, V3, V4, is_venue};
+
+/// types.toml: LiquidityChunkMinter
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/130
+/// Behavior: LiquidityChunkMinterAlgebra.btt (mint_algebra),
+///   LiquidityChunkMinterRunAlgebra.btt (run_mint)
+
+// cast sig "PoolSpacingMismatch()" -> 0x08c49d1a
+const SEL_POOL_SPACING_MISMATCH = 0x08c49d1a;
+// cast sig "ZeroAdapter()" -> 0x3e9e6a52
+const SEL_ZERO_ADAPTER = 0x3e9e6a52;
+// cast sig "ZeroPayer()" -> 0xa26bef69
+const SEL_ZERO_PAYER = 0xa26bef69;
+// cast sig "ZeroBeneficiary()" -> 0x776cceeb
+const SEL_ZERO_BENEFICIARY = 0x776cceeb;
+
+const revert_sel = fn (sel: u256) never {
+    let p = @malloc_uninit(4);
+    @mstore4(p, sel);
+    @evm_revert(p, 4);
+};
+
+/// Venue-indexed mint command. `R` is the storage region (Algebra execution uses `calldata`).
+const LiquidityChunkMint = fn (comptime V: type, comptime R: type) type {
+    if !is_venue(V) {
+        @compile_error("LiquidityChunkMint: V must be V3, V4 or Algebra");
+    }
+    if !is_region(R) {
+        @compile_error("LiquidityChunkMint: R must be a region (memory or calldata)");
+    }
+
+    if V == V3 {
+        struct R {
+            adapter: addr,
+            pool: Pool(V3),
+            payer: addr,
+            beneficiary: addr,
+            chunk: LiquidityChunk
+        }
+    } else if V == Algebra {
+        struct R {
+            adapter: addr,
+            pool: Pool(Algebra),
+            payer: addr,
+            beneficiary: addr,
+            leftovers_recipient: addr,
+            chunk: LiquidityChunk
+        }
+    } else {
+        struct R {
+            adapter: addr,
+            pool: Pool(V4),
+            pair: Pair,
+            registry: Registry(V4),
+            payer: addr,
+            beneficiary: addr,
+            chunk: LiquidityChunk,
+            salt: u256,
+            hook_data: bytes(memory)
+        }
+    }
+};
+
+/// Native return semantics preserved by venue.
+const MintReceipt = fn (comptime V: type) type {
+    if !is_venue(V) {
+        @compile_error("MintReceipt: V must be V3, V4 or Algebra");
+    }
+
+    if V == V3 {
+        struct V3 {
+            amount0: u256,
+            amount1: u256
+        }
+    } else if V == Algebra {
+        struct Algebra {
+            amount0: u256,
+            amount1: u256,
+            liquidity_actual: u128
+        }
+    } else {
+        struct V4 {
+            caller_delta: u256,
+            fees_accrued: u256,
+            position_key: u256
+        }
+    }
+};
+
+/// hole: mint_v3(adapter, pool, payer, beneficiary, chunk)
+///   -> LiquidityChunkMint(V3)
+///
+/// Algebra constructor. Execution/callback settlement remains a later define.
+const mint_algebra = fn (
+    adapter: addr,
+    pool: Pool(Algebra),
+    payer: addr,
+    beneficiary: addr,
+    leftovers_recipient: addr,
+    chunk: LiquidityChunk
+) LiquidityChunkMint(Algebra, calldata) {
+    if pool.tick_spacing != cast_uint(chunk.tick_spacing, u256) {
+        revert_sel(SEL_POOL_SPACING_MISMATCH);
+    }
+    if cast_addr(adapter, u256) == 0 {
+        revert_sel(SEL_ZERO_ADAPTER);
+    }
+    if cast_addr(payer, u256) == 0 {
+        revert_sel(SEL_ZERO_PAYER);
+    }
+    if cast_addr(beneficiary, u256) == 0 {
+        revert_sel(SEL_ZERO_BENEFICIARY);
+    }
+    // Calldata-region command: sole input to io_mint / run_mint (pool mint reads these fields).
+    LiquidityChunkMint(Algebra, calldata) {
+        adapter: adapter,
+        pool: pool,
+        payer: payer,
+        beneficiary: beneficiary,
+        leftovers_recipient: leftovers_recipient,
+        chunk: chunk
+    }
+};
+///
+/// hole: mint_v4(
+///   adapter, pool, pair, registry, payer, beneficiary, chunk, salt, hook_data
+/// ) -> LiquidityChunkMint(V4)
+///
+/// Constructor errors:
+///   PoolSpacingMismatch | ZeroAdapter | ZeroPayer | ZeroBeneficiary
+///
+/// Wrap a `mint_algebra` calldata command for execution. Does not call the EVM.
+const io_mint = fn (command: LiquidityChunkMint(Algebra, calldata)) IO(LiquidityChunkMint(Algebra, calldata)) {
+    IO(LiquidityChunkMint(Algebra, calldata)) { inner: command }
+};
+
+// cast sig "mint(address,address,int24,int24,uint128,bytes)" -> 0xaafe29c0
+const SEL_ALGEBRA_POOL_MINT = 0xaafe29c0;
+const MINT_CD_LEN = 292;
+const MINT_RET_LEN = 96;
+const MASK_U128 = 0xffffffffffffffffffffffffffffffff;
+
+/// Pool `mint` takes the `mint_algebra` command (`m.inner`); callback data carries payer + pool from it.
+const run_mint = fn (m: IO(LiquidityChunkMint(Algebra, calldata))) Option(MintReceipt(Algebra)) {
+    let c = m.inner;
+    let self_addr = addr_from_u256(@evm_address_this());
+    if cast_addr(c.adapter, u256) != cast_addr(self_addr, u256) {
+        None(MintReceipt(Algebra))
+    } else {
+        let pool_addr = pool_word(Algebra, c.pool);
+        let cd = @malloc_uninit(MINT_CD_LEN);
+        @mstore4(cd, SEL_ALGEBRA_POOL_MINT);
+        @mstore32(cd +% 4, cast_addr(c.leftovers_recipient, u256));
+        @mstore32(cd +% 36, cast_addr(c.beneficiary, u256));
+        @mstore32(cd +% 68, @evm_signextend(2, c.chunk.tick_lower.val));
+        @mstore32(cd +% 100, @evm_signextend(2, c.chunk.tick_upper.val));
+        @mstore32(cd +% 132, cast_uint(c.chunk.liquidity, u256));
+        @mstore32(cd +% 164, 192);
+        @mstore32(cd +% 196, 64);
+        @mstore32(cd +% 228, cast_addr(c.payer, u256));
+        @mstore32(cd +% 260, pool_addr);
+        let ret = @malloc_uninit(MINT_RET_LEN);
+        let ok = @evm_call(@evm_gas(), pool_addr, 0, cd, MINT_CD_LEN, ret, MINT_RET_LEN);
+        if !ok {
+            None(MintReceipt(Algebra))
+        } else {
+            Some(MintReceipt(Algebra) {
+                amount0: @mload32(ret),
+                amount1: @mload32(ret +% 32),
+                liquidity_actual: unwrap(try_cast_uint(@evm_and(@mload32(ret +% 64), MASK_U128), u128))
+            })
+        }
+    }
+};
+
+/// Eff = [
+///   VenueMintCall,
+///   ERC20TransferFrom,
+///   AuthenticatedCallbackContext,
+///   V4UnlockSettlement
+/// ]

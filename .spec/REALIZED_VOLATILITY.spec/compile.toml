@@ -1,0 +1,25 @@
+# Compilable entrypoints for the REALIZED_VOLATILITY SuD.
+# Agents must update this file for every .agda / .idr / .plk they submit (see AGENTS.md).
+# Paths are repo-root-relative. Empty files = [] is OK.
+
+[agda]
+files = []
+
+[idris]
+files = [
+  ".spec/REALIZED_VOLATILITY.spec/types/TimeSpacing/TimeSpacing.idr",
+]
+
+[plank]
+files = [
+  "test/harness/types/WeinerGeneratorHarness.plk",
+  "test/harness/types/RealizedVolatilityInitIndexHarness.plk",
+  "test/harness/types/SigmaFHarness.plk",
+  "test/harness/types/TokenHistoryHarness.plk",
+  "test/harness/types/TokenHistoryFlowHarness.plk",
+  "test/harness/types/CEVLocalTickVolatilityHarness.plk",
+  "test/harness/types/LiquidityChunkHarness.plk",
+  "test/harness/types/LiquidityChunkMinterHarness.plk",
+  "test/helpers/Algebra/AlgebraMintCallbackAdapter.plk",
+  "test/harness/types/StateViewHarness.plk",
+]

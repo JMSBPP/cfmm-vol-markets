@@ -1,0 +1,27 @@
+import types::RealizedVolatility::draft::TimeSpacing::*;
+import std::constructor::return_runtime;
+import std::option::{None,Option};
+import std::core::uint::{cast_uint,u32};
+import types::Numerics::U32_MAX;
+
+const CurrentTimestamp = struct {};
+const Timestamp= fn(comptime T: type) type {
+	struct {
+		ts: u32,
+		dt: Option(TimeSpacing(u256))
+	}
+};
+
+const current= fn() Timestamp(CurrentTimestamp) {
+	struct {
+		ts: cast_uint(@evm_timestamp(), u32),
+		dt: TimeSpacing(CurrentTimestamp)
+	}
+};
+const timestamp = fn(self: Timestamp) u32 {
+      self.ts
+};
+
+init {return_runtime();}
+
+run {@evm_stop();}

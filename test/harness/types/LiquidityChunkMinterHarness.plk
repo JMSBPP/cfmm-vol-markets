@@ -1,0 +1,48 @@
+import std::constructor::return_runtime;
+import std::core::addr::{addr_from_u256, cast_addr};
+import std::core::uint::cast_uint;
+import types::LiquidityChunk::{pack_panoptic, unpack_panoptic};
+import types::LiquidityChunkMinter::mint_algebra;
+import types::protocol_integrations::Pool::{pool_algebra, pool_word};
+import types::protocol_integrations::Venue::Algebra;
+
+// cast sig "mintAlgebra(address,address,uint256,uint256,address,address,address,uint256,uint256)"
+// -> 0x2648898b
+const SEL_MINT_ALGEBRA = 0x2648898b;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_MINT_ALGEBRA {
+        let chunk = unpack_panoptic(
+            @evm_calldataload(228),
+            @evm_calldataload(260)
+        );
+        let command = mint_algebra(
+            addr_from_u256(@evm_calldataload(4)),
+            pool_algebra(
+                addr_from_u256(@evm_calldataload(36)),
+                @evm_calldataload(68),
+                @evm_calldataload(100)
+            ),
+            addr_from_u256(@evm_calldataload(132)),
+            addr_from_u256(@evm_calldataload(164)),
+            addr_from_u256(@evm_calldataload(196)),
+            chunk
+        );
+
+        let out = @malloc_uninit(288);
+        @mstore32(out, cast_addr(command.adapter, u256));
+        @mstore32(out +% 32, pool_word(Algebra, command.pool));
+        @mstore32(out +% 64, command.pool.fee);
+        @mstore32(out +% 96, command.pool.tick_spacing);
+        @mstore32(out +% 128, cast_addr(command.payer, u256));
+        @mstore32(out +% 160, cast_addr(command.beneficiary, u256));
+        @mstore32(out +% 192, cast_addr(command.leftovers_recipient, u256));
+        @mstore32(out +% 224, cast_uint(command.chunk.tick_spacing, u256));
+        @mstore32(out +% 256, pack_panoptic(command.chunk));
+        @evm_return(out, 288);
+    }
+    @evm_stop();
+}

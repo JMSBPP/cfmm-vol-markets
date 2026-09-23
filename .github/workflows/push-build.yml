@@ -65,6 +65,10 @@ jobs:
         with:
           submodules: false
           persist-credentials: false
+          # Self-hosted: default safe-directory setup overrides HOME to _work/_temp/<uuid>
+          # and races with concurrent jobs wiping _temp; on failure cleanup walks up into
+          # $HOME (a git repo) and dies on stray gitlinks. Skip that path here.
+          set-safe-directory: false
 
       # Pure grep, no toolchain, FIRST: a ledger divergence costs seconds here instead of
       # being discovered after a full build, or worse, never.
@@ -180,6 +184,17 @@ jobs:
       # over FFI at test time.
       - name: Plank toolchain
         run: make plank-toolchain
+
+      # Domain-scoped Agda / Idris 2 / Plank from `.spec/<DOMAIN>.spec/compile.toml`.
+      # SPEC_DOMAIN overrides `.spec/domains.toml` default (Actions vars.SPEC_DOMAIN).
+      # Image: `.github/spec-tools-image` (GHCR); pull-only — rebuild via spec-tools-image.yml.
+      - name: Spec tools image
+        run: just spec-tools-ensure
+
+      - name: Spec compile
+        env:
+          SPEC_DOMAIN: ${{ vars.SPEC_DOMAIN }}
+        run: just spec-compile
 
       # node_modules is a HARD forge dependency (the @cryptoalgebra remappings in
       # foundry.toml resolve into it); package.json/package-lock.json are tracked for exactly
