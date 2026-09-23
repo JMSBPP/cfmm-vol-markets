@@ -28,6 +28,9 @@ jobs:
         with:
           submodules: false
           persist-credentials: false
+          # Self-hosted: skip checkout's HOME=_temp/<uuid> safe-directory dance (races
+          # concurrent jobs; cleanup can walk up into $HOME git and fail on stray gitlinks).
+          set-safe-directory: false
       # The toolchain is resolved from the tracked pin, not from whatever `forge` this
       # PERSISTENT runner happens to have. Requirement CI-05; the reason, and the four measured
       # findings that depend on b0a9dd9, are recorded in .github/foundry-version. Placed BEFORE the
