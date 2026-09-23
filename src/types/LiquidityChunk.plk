@@ -1,0 +1,83 @@
+import cfmm_types::TickSpacing::TickSpacing;
+import std::core::uint::{cast_uint, u24, u128};
+
+/// types.toml: LiquidityChunk
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/130
+/// Behavior: .spec/REALIZED_VOLATILITY.spec/types/LiquidityChunk/LiquidityChunk.btt
+
+const MIN_TICK_MAGNITUDE = 887272;
+
+// cast sig "TickOutOfBounds()" -> 0xf87dc40c
+const SEL_TICK_OUT_OF_BOUNDS = 0xf87dc40c;
+// cast sig "TickNotAligned()" -> 0x55ab73f4
+const SEL_TICK_NOT_ALIGNED = 0x55ab73f4;
+// cast sig "TicksMisordered()" -> 0xad329dca
+const SEL_TICKS_MISORDERED = 0xad329dca;
+// cast sig "ZeroLiquidity()" -> 0x10074548
+const SEL_ZERO_LIQUIDITY = 0x10074548;
+
+const revert_sel = fn (sel: u256) never {
+    let p = @malloc_uninit(4);
+    @mstore4(p, sel);
+    @evm_revert(p, 4);
+};
+
+/// Runtime dependent pair: this tick is proven to lie on tick_spacing.
+const LiquidityTick = struct {
+    tick_spacing: u24,
+    val: u256
+};
+
+/// A mintable concentrated-liquidity range.
+/// Internal fields are typed; Panoptic packing is an explicit boundary.
+const LiquidityChunk = struct {
+    tick_spacing: u24,
+    tick_lower: LiquidityTick,
+    tick_upper: LiquidityTick,
+    liquidity: u128
+};
+
+/// Smart constructor for one tick. TickSpacing preserves the shared cfmm-types
+/// normalization: 0 -> 1 and values greater than 200 -> 200.
+const liquidity_tick = fn (raw_tick_spacing: u256, raw_tick: u256) LiquidityTick {
+    let tick_spacing = TickSpacing(raw_tick_spacing);
+    if @evm_slt(raw_tick, 0 -% MIN_TICK_MAGNITUDE)
+        | @evm_slt(MIN_TICK_MAGNITUDE, raw_tick) {
+        revert_sel(SEL_TICK_OUT_OF_BOUNDS);
+    }
+    if @evm_smod(raw_tick, cast_uint(tick_spacing, u256)) != 0 {
+        revert_sel(SEL_TICK_NOT_ALIGNED);
+    }
+    LiquidityTick { tick_spacing: tick_spacing, val: raw_tick }
+};
+
+/// intro is the sole raw boundary for this define slice. It constructs both
+/// dependent ticks with one normalized spacing before ordering the range.
+const intro = fn (
+    raw_tick_spacing: u256,
+    raw_tick_lower: u256,
+    raw_tick_upper: u256,
+    liquidity: u128
+) LiquidityChunk {
+    let tick_lower = liquidity_tick(raw_tick_spacing, raw_tick_lower);
+    let tick_upper = liquidity_tick(raw_tick_spacing, raw_tick_upper);
+    if !@evm_slt(tick_lower.val, tick_upper.val) {
+        revert_sel(SEL_TICKS_MISORDERED);
+    }
+    if cast_uint(liquidity, u256) == 0 {
+        revert_sel(SEL_ZERO_LIQUIDITY);
+    }
+    LiquidityChunk {
+        tick_spacing: tick_lower.tick_spacing,
+        tick_lower: tick_lower,
+        tick_upper: tick_upper,
+        liquidity: liquidity
+    }
+};
+///
+/// hole: pack_panoptic(chunk) -> u256
+///   [lower:int24 | upper:int24 | reserved:80=0 | liquidity:uint128]
+///
+/// hole: unpack_panoptic(tick_spacing, packed)
+///   -> LiquidityChunk
+///   ReservedBitsNonzero plus all constructor errors

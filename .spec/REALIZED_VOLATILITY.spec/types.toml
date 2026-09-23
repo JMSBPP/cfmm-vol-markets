@@ -100,3 +100,20 @@ laws = [
 ]
 refined = false
 notes = "Define: intro filled. LN_10001 from ExpMath HALF_LN·2·1e9. mulDiv(sf, Q96, L·LN·√p). History(A) is a later TODO refactor."
+
+[LiquidityChunk]
+module = "LiquidityChunk"
+kind = "dependent"
+file = "types/LiquidityChunk/LiquidityChunk.md"
+carriers = ["LiquidityTick", "LiquidityChunk", "TickSpacing", "u128"]
+operations = ["liquidity_tick", "intro", "pack_panoptic", "unpack_panoptic"]
+laws = [
+  "LiquidityTick = Σ s:TickSpacing. signed-int24 exactly aligned to s",
+  "LiquidityChunk = Σ s:TickSpacing. {tickLower: LiquidityTick(s), tickUpper: LiquidityTick(s), liquidity: u128}",
+  "tickLower < tickUpper",
+  "liquidity > 0",
+  "packPanoptic = lower:24 | upper:24 | zero:80 | liquidity:128",
+  "unpackPanoptic rejects nonzero reserved bits and every invalid constructor state",
+]
+refined = false
+notes = "Type phase. Distinct from VegaTarget; #131 owns later refinement and mapping. First define behavior: intro."
