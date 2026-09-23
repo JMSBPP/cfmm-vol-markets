@@ -155,15 +155,14 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 
 ## Plank tracking (state-only)
 
-- **Current Plank slice:** #135 `refine/CEVLocalTickVolatility typed inputs` — `complete`.
-- **Accepted implementation:** `944df935a990d0a5ce1540f2e6a440396cd49d23`
-  plus ABI-cast correction `466cf3371698d913da4838c0f568349d37e2d820`.
-- **Host CI evidence:** [push-build 35885807626](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885807626)
-  and [develop-gate 35885814010](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885814010),
-  both successful on `466cf33`.
-- **Ledger:** `.planning/phases/PLANK/135-refine-cev-local-tick-volatility/PLANK-STATE.md`.
-- **Next approved child by parent-plan order:** #136 `type/CEVStateRunner`.
-  This is informational only; no GSD route or execution has been selected.
+- **Last completed slice:** #135 `refine/CEVLocalTickVolatility typed inputs` — `complete`
+  (`466cf33`; [push-build 35885807626](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885807626),
+  [develop-gate 35885814010](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885814010)).
+- **Parent track:** #136 `type/CEVStateRunner` — open; vertical children #138–#141.
+- **Next approved child by plan order:** #138 `type/CEVStateRunner algebra + outcome law`
+  (`pending`). Informational only; no GSD route or execution selected.
+- **Queued after #138:** #139 success define → #140 failure define → #141 refine.
+- **Ledger (complete):** `.planning/phases/PLANK/135-refine-cev-local-tick-volatility/PLANK-STATE.md`.
 - **GSD milestone state:** unchanged. This appendix is outside the Haskell
   differential-conformance milestone and does not modify its counters or current phase.
 
