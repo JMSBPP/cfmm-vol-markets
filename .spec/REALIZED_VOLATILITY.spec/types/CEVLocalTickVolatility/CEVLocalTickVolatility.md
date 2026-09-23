@@ -1,8 +1,10 @@
 # [TYPE:: CEV_LOCAL_TICK_VOLATILITY](MAIN_REF# MODEL)
 
-[SigmaF](../SigmaF/SigmaF.md) · [WINDOW](../WINDOW/TimeSpacing.md)
+[SigmaF](../SigmaF/SigmaF.md) · [LiquidityChunk](../LiquidityChunk/LiquidityChunk.md) · [StateView](../StateView/StateView.md) · [WINDOW](../WINDOW/TimeSpacing.md)
 
-Compute-only cell this slice. \(\sqrt{p}\) is an intro argument; refine adds `StateView`. `LiquidityChunkMinter` is a named Eff / prereq — no mint body here. Generic `History(A)` is a later TODO refactor, not this type.
+Plank: `src/types/CEVLocalTickVolatility.plk`. Behaviors:
+[CEVLocalTickVolatility.btt](CEVLocalTickVolatility.btt) and
+[CEVHistory.btt](CEVHistory.btt). Refinement: [#135](https://github.com/JMSBPP/cfmm-vol-markets/issues/135).
 
 \[
 \begin{aligned}
@@ -13,81 +15,185 @@ Compute-only cell this slice. \(\sqrt{p}\) is an intro argument; refine adds `St
 \mathrm{kind}
 &=
 \mathrm{dependent}
-\quad(\sigma_F,\,L_{1/2},\,\sqrt{p})
+\quad(\sigma_F,\,\mathrm{LiquidityChunk},\,\mathrm{ObsStep}(\bar{dt}))
 \\[1em]
 L_{1/2}
-&:
+&:=
+\mathrm{LiquidityChunk}.\mathrm{liquidity}
+:
 \mathrm{u128}
 \\
-\sqrt{p}
-&:
+\sqrt{p_j}
+&:=
+\mathrm{ObsStep}(\bar{dt}).\sqrt{p}
+:
 \mathrm{Q64.96}
+\\
+\mathrm{tick}_j
+&:=
+\mathrm{ObsStep}(\bar{dt}).\mathrm{tick}
 \\
 \mathrm{LN\_10001}
 &:
 \mathrm{RAY}
 \\[1em]
-\mathrm{ratio}
+\mathrm{ratio}_j
 &=
-\frac{\sigma_F}{L_{1/2}\,\mathrm{LN\_10001}\,\sqrt{p}}
+\left\lfloor
+\frac{\sigma_F}
+{L_{1/2}\,\mathrm{LN\_10001}\,\sqrt{p_j}}
+\right\rfloor
 \\
-\sigma
+\sigma_j
 &=
-(\mathrm{ratio})^{2}
+\mathrm{ratio}_j^2
 \in
 \mathrm{u88}_{\mathrm{tick}^{2}}
-\\
-\mathrm{tick}
+\end{aligned}
+\]
+
+The raw scales cancel before the unscaled tick result:
+
+\[
+\begin{aligned}
+\sigma_{F,\mathrm{raw}}
 &=
-\mathrm{Tick}(\sqrt{p})
-\\[1em]
-\mathrm{intro}
-&::
-\mathrm{SigmaF}\to L_{1/2}\to\sqrt{p}
-\to\mathrm{CEVLocalTickVolatility}
-\\[1em]
-L_{1/2}=0
-&\implies
+\sigma_F\cdot 10^{27}
+&
+\mathrm{LN\_10001}_{\mathrm{raw}}
+&=
+\ln(1.0001)\cdot 10^{27}
+\\
+\sqrt{p}_{\mathrm{raw}}
+&=
+\sqrt{p}\cdot 2^{96}
+&
+\mathrm{ratio}_j
+&=
+\left\lfloor
+\frac{\sigma_{F,\mathrm{raw}}\cdot 2^{96}}
+{\sqrt{p}_{\mathrm{raw}}}
+\right\rfloor
+\mathbin{/}L_{1/2}
+\mathbin{/}\mathrm{LN\_10001}_{\mathrm{raw}}
+\end{aligned}
+\]
+
+The factored evaluation avoids constructing
+\(L_{1/2}\cdot\mathrm{LN\_10001}\cdot\sqrt{p}\) in one `u256`.
+A log/exp rewrite is not used: it is algebraically equivalent and does not
+remove any dependence between liquidity and price.
+
+### \(\mathrm{intro}
+::
+\mathrm{SigmaF}
+\to
+\mathrm{LiquidityChunk}
+\to
+\mathrm{ObsStep}(\bar{dt})
+\to
+\mathrm{CEVLocalTickVolatility}\)
+
+\[
+\begin{aligned}
+\mathrm{intro}(\sigma_F,\,c,\,o)
+&=
+\bigl(
+\mathrm{tick}\leftarrow o.\mathrm{tick},\,
+\sigma\leftarrow
+\mathrm{u88}\bigl(\mathrm{ratio}(\sigma_F,c.\mathrm{liquidity},o.\sqrt p)^2\bigr)
+\bigr)
+\\
+c.\mathrm{liquidity}=0
+&\Longrightarrow
 \mathrm{revert}\ \mathtt{ZeroLiquidity}
 \\
-\sqrt{p}=0
-&\implies
+o.\sqrt p=0
+&\Longrightarrow
 \mathrm{revert}\ \mathtt{ZeroSqrtPrice}
 \\
-\sigma\notin\mathrm{u88}
-&\implies
+\mathrm{ratio}^2\notin\mathrm{u88}
+&\Longrightarrow
 \mathrm{revert}\ \mathtt{SigmaOverflowU88}
-\\[1em]
-\mathrm{CEVHistory}(\bar{dt},\,0)
+\end{aligned}
+\]
+
+The observed pool tick is authoritative. Algebra explicitly permits
+\(o.\mathrm{tick}\ne\mathrm{Tick}(o.\sqrt p)\) on an initialized tick boundary.
+
+### \(\mathrm{intro\_len}
+::
+\bar{dt}\to K\to\mathbb{N}\)
+
+\[
+\mathrm{intro\_len}(\bar{dt},K)
+=
+\begin{cases}
+K & 0<K<n(\bar{dt})\\
+0 & K=0\lor K\ge n(\bar{dt})
+\end{cases}
+\]
+
+### \(\mathrm{step}_K
+::
+\mathrm{SigmaF}
+\to
+\mathrm{LiquidityChunk}
+\to
+\mathrm{ObsStep}(\bar{dt})
+\to K\to j
+\to
+\mathrm{Option}(\mathrm{CEVLocalTickVolatility})\)
+
+\[
+\begin{aligned}
+0<K<n(\bar{dt})\land j<K
+&\Longrightarrow
+\mathrm{step}_K(\sigma_F,c,o_j,K,j)
+=
+\mathrm{Some}(\mathrm{intro}(\sigma_F,c,o_j))
+\\
+K=0\lor K\ge n(\bar{dt})\lor j\ge K
+&\Longrightarrow
+\mathrm{step}_K(\sigma_F,c,o_j,K,j)
+=
+\mathrm{None}
+\end{aligned}
+\]
+
+\[
+\begin{aligned}
+\mathrm{CEVHistory}(\bar{dt},0)
 &=
 \varepsilon
 \\
-\mathrm{CEVHistory}(\bar{dt},\,S\,k)
+\mathrm{CEVHistory}(\bar{dt},S\,k)
 &=
-\mathrm{CEVLocalTickVolatility}\times\mathrm{CEVHistory}(\bar{dt},\,k)
-\\[1em]
-\mathrm{io}
-&::
-T\to\mathrm{IO}(T)
-\\
-\mathrm{run}
-&::
-\mathrm{IO}(T)\to\cdot
-\\
-\mathrm{Eff}
+\mathrm{CEVLocalTickVolatility}
+\times
+\mathrm{CEVHistory}(\bar{dt},k)
+\end{aligned}
+\]
+
+## SIDE_EFFECTS
+
+\[
+\begin{aligned}
+\mathrm{Eff}^{\mathrm{CEV}}
 &=
 [\mathrm{StateView},\,\mathrm{LiquidityChunkMinter}]
 \\
 \mathrm{StateView}
-&=
-\mathrm{staticcall}\ \sqrt{p}
-\quad(\mathrm{hole};\ \mathrm{intro}\ \mathrm{takes}\ \sqrt{p}\ \mathrm{as}\ \mathrm{arg})
+&\Longrightarrow
+\mathrm{ObsStep}(\bar{dt})\ \text{is supplied before }\mathrm{intro}
 \\
 \mathrm{LiquidityChunkMinter}
-&=
-\mathrm{call}\ \mathrm{mint}
-\quad(\mathrm{prereq};\ \mathrm{no}\ \mathrm{body})
+&\Longrightarrow
+\mathrm{LiquidityChunk}\ \text{is supplied before }\mathrm{intro}
 \end{aligned}
 \]
 
-Define: `intro` filled — [CEVLocalTickVolatility.btt](CEVLocalTickVolatility.btt). Prefix: [CEVHistory.btt](CEVHistory.btt) — `intro_len` / `step_k` with \(0<K<n(\bar{dt})\). \(\sigma\) via `try_cast_uint(_, u88)`. `LN_10001` from ExpMath `HALF_LN`·2·1e9.
+These are discharged prerequisites. `intro` and `step_K` perform no EVM call.
+The effectful order
+`run_swap → StateView.step_k → CEV intro` belongs to
+[#136](https://github.com/JMSBPP/cfmm-vol-markets/issues/136).

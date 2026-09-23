@@ -85,23 +85,24 @@ notes = "run_hist is K=2 nest unroll, not a public law. Fuzz: run_k K∈[1,128].
 module = "CEVLocalTickVolatility"
 kind = "dependent"
 file = "types/CEVLocalTickVolatility/CEVLocalTickVolatility.md"
-carriers = ["Tick", "u88_tick2", "SigmaF", "u128_L", "Q64_96"]
+carriers = ["Tick", "u88_tick2", "SigmaF", "LiquidityChunk", "ObsStep(dt)"]
 operations = ["intro", "intro_len", "step_k"]
 laws = [
-  "σ = (σ_F / (L_{1/2} · LN_10001 · √p))² ∈ u88 tick²",
-  "tick = Tick(√p)",
-  "L_{1/2} : u128; √p : Q64_96; LN_10001 : RAY",
-  "intro(σ_F, L, √p) → {tick, σ}",
-  "revert ZeroLiquidity if L=0",
-  "revert ZeroSqrtPrice if √p=0",
+  "L_{1/2} = LiquidityChunk.liquidity : u128",
+  "√p_j = ObsStep(dt).sqrt_p : Q64_96; tick_j = ObsStep(dt).tick",
+  "ratio = floor(mulDiv(σ_F.raw,Q96,√p_j) / L_{1/2} / LN_10001)",
+  "σ = ratio² ∈ u88 tick²; tick = observed tick_j",
+  "intro(σ_F, LiquidityChunk, ObsStep(dt)) → {tick, σ}",
+  "revert ZeroLiquidity if LiquidityChunk.liquidity=0",
+  "revert ZeroSqrtPrice if ObsStep.sqrt_p=0",
   "revert SigmaOverflowU88 if σ ∉ u88",
   "CEVHistory(dt,0)=ε; CEVHistory(dt,S k)=cell × CEVHistory(dt,k)",
   "intro_len = K iff 0 < K < n(dt), else 0",
-  "step_k: Some(intro(σ_F, L, √p_j)) iff 0 < K < n(dt) and j < K",
-  "Eff = [StateView=staticcall √p, LiquidityChunkMinter=mint] (holes)",
+  "step_k: Some(intro(σ_F, shared chunk, obs_j)) iff 0 < K < n(dt) and j < K",
+  "Eff = [StateView, LiquidityChunkMinter], discharged before pure intro/step_k",
 ]
-refined = false
-notes = "Define: intro + CEVHistory prefix (intro_len/step_k). History(A) is a later TODO refactor."
+refined = true
+notes = "Refined by #135: typed LiquidityChunk + ObsStep inputs, observed tick authority, u88 storage, overflow-safe factorization. Effectful ordering is #136."
 
 [LiquidityChunk]
 module = "LiquidityChunk"

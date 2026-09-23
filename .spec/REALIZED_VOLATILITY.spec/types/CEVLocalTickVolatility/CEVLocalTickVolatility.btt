@@ -1,9 +1,9 @@
 CEVLocalTickVolatilityTest
-├── when L is zero
+├── when chunk liquidity is zero
 │   └── it should revert ZeroLiquidity
-├── when L is nonzero and sqrt_p is zero
+├── when chunk liquidity is nonzero and observation sqrt_p is zero
 │   └── it should revert ZeroSqrtPrice
-├── when L and sqrt_p are nonzero and sigma overflows u88
+├── when typed inputs are nonzero and sigma overflows u88
 │   └── it should revert SigmaOverflowU88
-└── when L and sqrt_p are nonzero and sigma fits u88
-    └── it should return tick Tick(sqrt_p) and sigma
+└── when typed inputs are valid and sigma fits u88
+    └── it should return the observed tick and sigma
