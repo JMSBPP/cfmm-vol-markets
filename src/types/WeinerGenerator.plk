@@ -74,6 +74,8 @@ const abs_signed = fn (x: u256) u256 {
 };
 
 /// ΔW = √dt̄ · ε ; Ray √ from comptime table; product toward zero; checked_*.
+/// Redesign pending (track PR review): channel-built DeltaW(dt); ShockPips.magnitude;
+/// sqrt_dt_ray on TimeSpacing; Pips constructor (sqrt_ray, mag) → Pips { val: u16 }.
 const deltaW = fn (comptime dt: u256, eps: ShockPips()) DeltaW(dt) {
     let _ = TimeSpacing(dt);
     let mag = abs_signed(eps.val);
