@@ -10,9 +10,9 @@ approved_plan: "https://github.com/JMSBPP/cfmm-vol-markets/issues/136"
 behavior: "Lock channel-built DeltaW(dt) via Shock(Pips); signatures/holes only."
 commit: ""
 ci: ""
-blocked_reason: "Blocked by #149 type/Shock(T)."
+blocked_reason: "Blocked by #150 define/Shock(Pips) run_shock success (CI pending)."
 blocked_from: "in_progress"
-updated_at: "2026-09-23T21:42:00Z"
+updated_at: "2026-09-23T22:04:00Z"
 ---
 
 # Plank TDD State
@@ -49,3 +49,4 @@ plan, execute, review, or verify #145.
 - `2026-09-23T21:40:00Z` — Failure: io+run → Outcome accepted.
 - `2026-09-23T21:42:00Z` — First behavior: run(io) success Shock(Pips) accepted.
 - `2026-09-23T21:42:00Z` — `in_progress → blocked`; prereq [#149](https://github.com/JMSBPP/cfmm-vol-markets/issues/149) type/Shock(T).
+- `2026-09-23T22:04:00Z` — Blocker refreshed: #149 complete; now waits on [#150](https://github.com/JMSBPP/cfmm-vol-markets/issues/150) CI.
