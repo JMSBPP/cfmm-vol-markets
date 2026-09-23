@@ -1,3 +1,4 @@
+import std::core::addr::cast_addr;
 import std::core::ops::{checked_add, checked_mul, neg_u256};
 import std::error::require;
 import std::option::{None, Option, Some};
@@ -88,20 +89,23 @@ const swap_limit_sqrt = fn (zero_to_one: bool) u256 {
     }
 };
 
-const call_algebra_swap = fn (pool_u: u256, recipient: u256, flow: TokenFlow()) bool {
+/// Swap calldata: empty dynamic `bytes` tail is `(payer, pool)` for `algebraSwapCallback`.
+const call_algebra_swap = fn (pool_u: u256, recipient: u256, payer: u256, flow: TokenFlow()) bool {
     let zero_to_one = swap_zero_to_one(flow);
     let amount_req = swap_amount_required(flow);
     let limit = swap_limit_sqrt(zero_to_one);
-    let cd = @malloc_uninit(196);
+    let cd = @malloc_uninit(260);
     @mstore4(cd, SEL_SWAP);
     @mstore32(cd +% 4, recipient);
     @mstore32(cd +% 36, if zero_to_one { 1 } else { 0 });
     @mstore32(cd +% 68, amount_req);
     @mstore32(cd +% 100, limit);
     @mstore32(cd +% 132, 160);
-    @mstore32(cd +% 164, 0);
+    @mstore32(cd +% 164, 64);
+    @mstore32(cd +% 196, payer);
+    @mstore32(cd +% 228, pool_u);
     let ret = @malloc_uninit(64);
-    @evm_call(@evm_gas(), pool_u, 0, cd, 196, ret, 64)
+    @evm_call(@evm_gas(), pool_u, 0, cd, 260, ret, 64)
 };
 
 /// Behavior: StateViewRunSwap.btt — Swap(pool, encode(flow)); not run_io (Xfer ⊂ Swap).
@@ -111,7 +115,8 @@ const run_swap = fn (m: IO(RealizeCmd)) Outcome() {
     if (pool_u == 0) | (cmd.flow.amount == 0) {
         outcome_revert()
     } else {
-        let ok = call_algebra_swap(pool_u, @evm_address(), cmd.flow);
+        let payer = cast_addr(cmd.flow.from, u256);
+        let ok = call_algebra_swap(pool_u, @evm_address_this(), payer, cmd.flow);
         if ok {
             outcome_success()
         } else {

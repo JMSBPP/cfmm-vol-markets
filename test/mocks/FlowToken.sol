@@ -11,6 +11,10 @@ pragma solidity >=0.8.30;
 import "@perfect-abstractions/compose/token/ERC20/Transfer/ERC20TransferMod.sol" as TransferMod;
 
 contract FlowToken {
+    function transfer(address _to, uint256 _value) external returns (bool) {
+        return TransferMod.transfer(_to, _value);
+    }
+
     function transferFrom(address _from, address _to, uint256 _value) external returns (bool) {
         return TransferMod.transferFrom(_from, _to, _value);
     }
