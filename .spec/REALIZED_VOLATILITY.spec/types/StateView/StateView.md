@@ -80,7 +80,12 @@ t_{\mathrm{init}} \to K \to j
 \end{aligned}
 \]
 
-### `step_K` semantics
+> KEEP THIS NOTATION
+### \(\mathrm{step}_K
+::
+t_{\mathrm{init}} \to K \to j
+\to \mathrm{Option}\bigl(\mathrm{ObsStep}(\bar{dt})\bigr)
+\)
 
 \[
 \begin{aligned}
@@ -125,7 +130,7 @@ i\bigl(t_j^{+}\bigr)
 \end{aligned}
 \]
 
-### SIDE_EFFECTS
+## SIDE_EFFECTS
 \[
 \begin{aligned}
 \mathrm{Eff}^{\mathrm{StateView}}
@@ -147,6 +152,39 @@ i\bigl(t_j^{+}\bigr)
 \mathrm{Swap}(\mathrm{pool},\,\mathrm{encode}(\mathrm{flow}_j))
 \end{aligned}
 \]
+
+### intro
+
+Unlike [TokenHistory](../TokenHistory/TokenHistory.md) `intro` (Weiner nest into `Slice(memory)`), StateView **intro** only fixes the **observation anchor**: Integral **pool** + **time origin** \(t_{\mathrm{init}}\). No cells, no `realize_j`, no Eff on this op (define slice [#134](https://github.com/JMSBPP/cfmm-vol-markets/issues/134)).
+
+\[
+\begin{aligned}
+\mathrm{intro}_{\mathrm{anchor}}
+&::
+\mathrm{Pool}(\mathrm{Algebra})
+\to
+\mathrm{StateViewAnchor}
+\\
+\mathrm{StateViewAnchor}
+&\leftarrow
+(\mathrm{pool},\,t_{\mathrm{init}})
+\\
+\mathrm{intro}_{\mathrm{anchor}}(\mathrm{pool})
+&=
+\bigl(
+\mathrm{pool},\;
+t_{\mathrm{init}} \leftarrow \mathrm{timestamp}
+\bigr)
+\\
+\mathrm{pool\_word}(\mathrm{pool}) = 0
+&\Longrightarrow
+\mathrm{revert}\ \mathtt{ZeroPool}
+\end{aligned}
+\]
+
+Plank: `intro_anchor`. BTT: [StateViewIntroAnchor.btt](StateViewIntroAnchor.btt). Harness: `introAnchor(address,uint256,uint256)` returns pool fields + `tInit`.
+
+**Later intro API (holes):** `intro_len(\bar{dt}, K)` and `step_K(\mathrm{anchor}, K, j)` reuse `anchor.t_{\mathrm{init}}` and `anchor.pool`; they do not re-call `intro_{\mathrm{anchor}}`. Materializing `cell_j` still requires `realize_j` (Swap Eff).
 
 ### IO algebra (Plank names)
 
