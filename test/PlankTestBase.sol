@@ -42,7 +42,7 @@ abstract contract PlankTestBase is Test, PlankDeployer {
 
         Dependency[] memory deps = new Dependency[](2);
         deps[0] = Dependency("std", "lib/cfmm-types/lib/plank-monorepo/std/");
-        deps[1] = Dependency("types", "lib/cfmm-types/src/types");
+        deps[1] = Dependency("cfmm_types", "lib/cfmm-types/src/types");
         opts.dependencies = deps;
     }
 

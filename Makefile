@@ -176,7 +176,7 @@ PLANK_DEP := --dep v3=lib/plankified-univ3/plank/lib/ --dep std=lib/plank-monore
              --dep cfmm_types=lib/cfmm-types/src/types
 # cfmm-types entrypoints (Hook.plk): types root points at the submodule, not src/types.
 # Keep in sync with test/PlankTestBase.sol:cfmmTypesPlankOpts().
-CFMM_TYPES_PLANK_DEP := --dep std=lib/cfmm-types/lib/plank-monorepo/std/ --dep types=lib/cfmm-types/src/types
+CFMM_TYPES_PLANK_DEP := --dep std=lib/cfmm-types/lib/plank-monorepo/std/ --dep cfmm_types=lib/cfmm-types/src/types
 PLANK_BACKEND := sona
 PLANK_BUILD   := build/plank
 # plank-toolchain: build the plank_dev compiler from the PINNED plank-monorepo submodule and install
@@ -213,7 +213,7 @@ plank-toolchain:
 # A module dispatching a subset of its declared selectors COMPILES, so it never met the entry
 # condition. The v4.0 gate was always the CALLED batch dispatch, proven in
 # test/pos_spec/VolOrderManagerBatch.t.sol -- not an entry in this list.
-PLANK_SKIP    :=
+PLANK_SKIP    := src/types/RealizedVolatility/draft/TimeWidth.plk
 
 # compile-plank: compile every Plank entrypoint to EVM bytecode, writing
 # build/plank/<name>.hex on success and <name>.hex.err on failure. Fails
