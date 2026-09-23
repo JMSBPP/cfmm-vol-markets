@@ -6,6 +6,12 @@ For the LiquidityChunkMinterAlgebra track
 - **`IntegralPoolBootstrap.bootstrap(vm)`** → `ReadyPool` (createPool + initialize). Use in **run_mint** integration tests, not to re-assert `mint_algebra` field copies.
 - **`test/helpers/Algebra/AlgebraMintCallbackAdapter.plk`** — `IAlgebraMintCallback` + `runMint` (payer `transferFrom`, `run_mint` on pool).
 
+### Command shape (`mint_algebra` → `io_mint` → `run_mint`)
+
+- **`mint_algebra`** returns **`LiquidityChunkMint(Algebra, calldata)`** (see comment in `LiquidityChunkMinter.plk`). That struct is the only mint command value.
+- **`io_mint(command)`** wraps that calldata command; **`run_mint`** reads **`m.inner`** for pool `mint` (ticks, liquidity, payer, beneficiary, leftovers) and encodes payer + pool in callback `data`.
+- Adapter **`runMint`**: call **`mint_algebra` once** → pass the result to **`run_mint(io_mint(command))`**; do not re-derive command fields for execution.
+
 ### `io_mint` vs `mint_algebra` tests
 
 - **`mint_algebra`** — constructor gate only (`LiquidityChunkMinterAlgebra.t.sol` + BTT).

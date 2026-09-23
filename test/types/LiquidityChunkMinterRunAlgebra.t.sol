@@ -21,7 +21,8 @@ interface IAlgebraMintCallbackAdapter {
 /// @dev Bulloak names from LiquidityChunkMinterRunAlgebra.btt.
 contract LiquidityChunkMinterRunAlgebraTest is PlankTestBase {
     IAlgebraMintCallbackAdapter internal adapter;
-    IntegralPoolBootstrap.ReadyPool internal ready;
+    /// @dev Not named `ready` — avoids shadowing the library return binding in inlined `bootstrap`.
+    IntegralPoolBootstrap.ReadyPool internal algebraReady;
 
     address internal constant PAYER = address(0xCAFE);
     address internal constant BENEFICIARY = address(0xBEEF);
@@ -32,25 +33,28 @@ contract LiquidityChunkMinterRunAlgebraTest is PlankTestBase {
 
     function setUp() public {
         adapter = IAlgebraMintCallbackAdapter(deployPlank("test/helpers/Algebra/AlgebraMintCallbackAdapter.plk"));
-        ready = IntegralPoolBootstrap.bootstrap(vm);
-        _seedFlowToken(ready.token0);
-        _seedFlowToken(ready.token1);
+        IntegralPoolBootstrap.ReadyPool memory boot = IntegralPoolBootstrap.bootstrap(vm);
+        algebraReady = boot;
+        assertNotEq(algebraReady.pool, address(0), "bootstrap pool");
+        _seedFlowToken(algebraReady.token0);
+        _seedFlowToken(algebraReady.token1);
     }
 
     function test_WhenRunMintExecutesOnABootstrappedAlgebraPoolWithFundedPayer() external {
-        int24 spacing = int24(uint24(ready.tickSpacing));
-        int24 lower = spacing * -2;
-        int24 upper = spacing * 2;
-        uint256 packed = _pack(lower, upper, 1_000_000);
+        uint256 spacing = algebraReady.tickSpacing == 0 ? 1 : algebraReady.tickSpacing;
+        int24 s = int24(uint24(spacing));
+        int24 lower = s * -2;
+        int24 upper = s * 2;
+        uint256 packed = _pack(lower, upper, 1_000_000_000_000);
 
         (bool ok, uint256 amount0, uint256 amount1, uint256 liquidityActual) = adapter.runMint(
-            ready.pool,
-            ready.fee,
-            ready.tickSpacing,
+            algebraReady.pool,
+            algebraReady.fee,
+            spacing,
             PAYER,
             BENEFICIARY,
             LEFTOVERS,
-            ready.tickSpacing,
+            spacing,
             packed
         );
 

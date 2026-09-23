@@ -115,21 +115,96 @@ ensure-anvil:
     echo "error: anvil did not become ready (see /tmp/anvil-sigmaf.log)" >&2
     exit 1
 
+# Run one Foundry test file at full verbosity (-vvvv). Profile / fork / offline follow the path.
+# Usage: just test test/types/LiquidityChunkMinterAlgebra.t.sol
+#        just test LiquidityChunkMinterRunAlgebra.t.sol   # unique basename under test/
+test file:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Stale FOUNDRY_REMAPPINGS breaks merge with foundry.toml (comma-glued remaps).
+    unset FOUNDRY_REMAPPINGS
+
+    f="{{file}}"
+    f="${f#./}"
+    if [[ "$f" != test/* ]]; then
+        if [[ -f "test/$f" ]]; then
+            f="test/$f"
+        fi
+    fi
+    if [[ ! -f "$f" && "$(basename "$f")" == *.t.sol ]]; then
+        base="$(basename "$f")"
+        mapfile -t hits < <(find test -name "$base" -type f 2>/dev/null | sort)
+        if [[ ${#hits[@]} -eq 1 ]]; then
+            f="${hits[0]}"
+        elif [[ ${#hits[@]} -gt 1 ]]; then
+            echo "error: ambiguous test basename $base (matches:" >&2
+            printf '  %s\n' "${hits[@]}" >&2
+            echo "pass a repo-root path, e.g. just test test/types/$base" >&2
+            exit 1
+        fi
+    fi
+    if [[ ! -f "$f" ]]; then
+        echo "error: missing test file: $f" >&2
+        echo "usage: just test test/types/Foo.t.sol" >&2
+        exit 1
+    fi
+
+    if [[ ! -f node_modules/@cryptoalgebra/integral-core/contracts/interfaces/IAlgebraFactory.sol ]]; then
+        just npm-ci
+    fi
+
+    # Foundry 1.5 drops these short prefixes from the compile remapping set; tests import
+    # `@cryptoalgebra/integral-core/interfaces/…` (not …/contracts/interfaces/…).
+    algebra_remaps=(
+        --remappings '@cryptoalgebra/integral-core/=node_modules/@cryptoalgebra/integral-core/contracts/'
+        --remappings '@cryptoalgebra/integral-periphery/=node_modules/@cryptoalgebra/integral-periphery/contracts/'
+        --remappings '@cryptoalgebra/abstract-plugin/=node_modules/@cryptoalgebra/abstract-plugin/contracts/'
+    )
+
+    profile=""
+    extra=()
+
+    case "$f" in
+        test/types/SigmaF.t.sol)
+            profile=sigmaf
+            just ensure-anvil
+            extra+=(--fork-url "{{anvil-rpc}}")
+            ;;
+        test/types/TokenHistory.t.sol | test/types/TokenHistoryFlow.t.sol | test/types/RealizedVolatilityInitIndex.t.sol)
+            profile=rv-init
+            extra+=(--offline)
+            ;;
+        test/weiner_gen/*)
+            profile=weiner
+            extra+=(--offline)
+            ;;
+        *)
+            extra+=(--offline)
+            ;;
+    esac
+
+    cmd=(forge test --match-path "$f" --via-ir -vvvv "${algebra_remaps[@]}" "${extra[@]}")
+    if [[ -n "$profile" ]]; then
+        FOUNDRY_PROFILE="$profile" "${cmd[@]}"
+    else
+        "${cmd[@]}"
+    fi
+
 # SigmaF TokenAmount product + IO run (#128). All txs on the Anvil backend.
-test-sigmaf: ensure-anvil
-    FOUNDRY_PROFILE=sigmaf forge test --match-path test/types/SigmaF.t.sol --via-ir --fork-url {{anvil-rpc}} -vvvv
+test-sigmaf:
+    just test test/types/SigmaF.t.sol
 
 # TokenHistory intro len=K + step_k fuzz K < n(dt). Offline (no Anvil).
 test-tokenhistory:
-    FOUNDRY_PROFILE=rv-init forge test --match-path test/types/TokenHistory.t.sol --via-ir --offline -vvvv
+    just test test/types/TokenHistory.t.sol
 
 # TokenHistoryFlow run_k: all j<K Xfers, fuzz K≤128. Offline.
 test-tokenhistoryflow:
-    FOUNDRY_PROFILE=rv-init forge test --match-path test/types/TokenHistoryFlow.t.sol --via-ir --offline -vvvv
+    just test test/types/TokenHistoryFlow.t.sol
 
 # RealizedVolatility init→one-bin write vs TimeIndex.lastIndex (cfmm-types pin).
 test-rv-init-index:
-    FOUNDRY_PROFILE=rv-init forge test --match-path test/types/RealizedVolatilityInitIndex.t.sol --via-ir --offline -vvvv
+    just test test/types/RealizedVolatilityInitIndex.t.sol
 
 # --- Spec tools (Agda + Idris 2 via pinned Docker image) ---------------------
 # Image ref: `.github/spec-tools-image` (GHCR tag). Build only when Dockerfile.spec-tools changes.

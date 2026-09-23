@@ -1,7 +1,7 @@
 import std::core::addr::{addr, addr_from_u256, cast_addr};
-import std::core::uint::{cast_uint, u128};
-import std::option::{None, Option, Some};
-import std::regions::{bytes, memory};
+import std::core::uint::{cast_uint, try_cast_uint, u128};
+import std::option::{None, Option, Some, unwrap};
+import std::regions::{bytes, calldata, is_region, memory};
 import types::IO::IO;
 import types::LiquidityChunk::LiquidityChunk;
 import types::Pair::Pair;
@@ -29,16 +29,17 @@ const revert_sel = fn (sel: u256) never {
     @evm_revert(p, 4);
 };
 
-/// Venue-indexed mint command. Every branch carries only fields valid for V.
-const LiquidityChunkMint = fn (
-    comptime V: type
-) type {
+/// Venue-indexed mint command. `R` is the storage region (Algebra execution uses `calldata`).
+const LiquidityChunkMint = fn (comptime V: type, comptime R: type) type {
     if !is_venue(V) {
         @compile_error("LiquidityChunkMint: V must be V3, V4 or Algebra");
     }
+    if !is_region(R) {
+        @compile_error("LiquidityChunkMint: R must be a region (memory or calldata)");
+    }
 
     if V == V3 {
-        struct V3 {
+        struct R {
             adapter: addr,
             pool: Pool(V3),
             payer: addr,
@@ -46,7 +47,7 @@ const LiquidityChunkMint = fn (
             chunk: LiquidityChunk
         }
     } else if V == Algebra {
-        struct Algebra {
+        struct R {
             adapter: addr,
             pool: Pool(Algebra),
             payer: addr,
@@ -55,7 +56,7 @@ const LiquidityChunkMint = fn (
             chunk: LiquidityChunk
         }
     } else {
-        struct V4 {
+        struct R {
             adapter: addr,
             pool: Pool(V4),
             pair: Pair,
@@ -106,7 +107,7 @@ const mint_algebra = fn (
     beneficiary: addr,
     leftovers_recipient: addr,
     chunk: LiquidityChunk
-) LiquidityChunkMint(Algebra) {
+) LiquidityChunkMint(Algebra, calldata) {
     if pool.tick_spacing != cast_uint(chunk.tick_spacing, u256) {
         revert_sel(SEL_POOL_SPACING_MISMATCH);
     }
@@ -119,8 +120,8 @@ const mint_algebra = fn (
     if cast_addr(beneficiary, u256) == 0 {
         revert_sel(SEL_ZERO_BENEFICIARY);
     }
-    // This is a calldata region
-    LiquidityChunkMint(Algebra) {
+    // Calldata-region command: sole input to io_mint / run_mint (pool mint reads these fields).
+    LiquidityChunkMint(Algebra, calldata) {
         adapter: adapter,
         pool: pool,
         payer: payer,
@@ -137,9 +138,9 @@ const mint_algebra = fn (
 /// Constructor errors:
 ///   PoolSpacingMismatch | ZeroAdapter | ZeroPayer | ZeroBeneficiary
 ///
-/// Wrap a validated Algebra mint command for execution. Does not call the EVM.
-const io_mint = fn (command: LiquidityChunkMint(Algebra)) IO(LiquidityChunkMint(Algebra)) {
-    IO(LiquidityChunkMint(Algebra)) { inner: command }
+/// Wrap a `mint_algebra` calldata command for execution. Does not call the EVM.
+const io_mint = fn (command: LiquidityChunkMint(Algebra, calldata)) IO(LiquidityChunkMint(Algebra, calldata)) {
+    IO(LiquidityChunkMint(Algebra, calldata)) { inner: command }
 };
 
 // cast sig "mint(address,address,int24,int24,uint128,bytes)" -> 0xaafe29c0
@@ -148,8 +149,8 @@ const MINT_CD_LEN = 292;
 const MINT_RET_LEN = 96;
 const MASK_U128 = 0xffffffffffffffffffffffffffffffff;
 
-/// Algebra pool mint from the adapter address (`command.adapter` must be `@evm_address_this()`).
-const run_mint = fn (m: IO(LiquidityChunkMint(Algebra))) Option(MintReceipt(Algebra)) {
+/// Pool `mint` takes the `mint_algebra` command (`m.inner`); callback data carries payer + pool from it.
+const run_mint = fn (m: IO(LiquidityChunkMint(Algebra, calldata))) Option(MintReceipt(Algebra)) {
     let c = m.inner;
     let self_addr = addr_from_u256(@evm_address_this());
     if cast_addr(c.adapter, u256) != cast_addr(self_addr, u256) {
@@ -175,7 +176,7 @@ const run_mint = fn (m: IO(LiquidityChunkMint(Algebra))) Option(MintReceipt(Alge
             Some(MintReceipt(Algebra) {
                 amount0: @mload32(ret),
                 amount1: @mload32(ret +% 32),
-                liquidity_actual: cast_uint(@evm_and(@mload32(ret +% 64), MASK_U128), u128)
+                liquidity_actual: unwrap(try_cast_uint(@evm_and(@mload32(ret +% 64), MASK_U128), u128))
             })
         }
     }

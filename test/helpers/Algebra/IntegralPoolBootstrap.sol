@@ -30,11 +30,11 @@ library IntegralPoolBootstrap {
     /// @dev 1:1 token ratio at tick 0 (`sqrtPriceX96 = 2^96`).
     uint160 internal constant DEFAULT_INITIAL_PRICE = 79228162514264337593543950336;
 
-    function bootstrap(Vm vm) internal returns (ReadyPool memory ready) {
-        bootstrap(vm, DEFAULT_INITIAL_PRICE);
+    function bootstrap(Vm vm) public returns (ReadyPool memory ready) {
+        return bootstrapWithPrice(vm, DEFAULT_INITIAL_PRICE);
     }
 
-    function bootstrap(Vm vm, uint160 initialPrice) internal returns (ReadyPool memory ready) {
+    function bootstrapWithPrice(Vm vm, uint160 initialPrice) public returns (ReadyPool memory ready) {
         FlowToken tokenA = new FlowToken();
         FlowToken tokenB = new FlowToken();
         address t0;

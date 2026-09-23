@@ -2,7 +2,7 @@ import std::constructor::return_runtime;
 import std::core::addr::{addr_from_u256, cast_addr};
 import std::core::uint::{cast_uint, u128};
 import std::option::{is_some, Option};
-import types::LiquidityChunk::{unpack_panoptic};
+import types::LiquidityChunk::unpack_panoptic;
 import types::LiquidityChunkMinter::{io_mint, mint_algebra, run_mint, MintReceipt};
 import types::protocol_integrations::Venue::Algebra;
 import types::protocol_integrations::Pool::pool_algebra;
@@ -81,7 +81,7 @@ run {
         );
         let receipt = run_mint(io_mint(command));
         let out = @malloc_uninit(128);
-        if is_some(Option(MintReceipt(Algebra)), receipt) {
+        if is_some(MintReceipt(Algebra), receipt) {
             @mstore32(out, 1);
             @mstore32(out +% 32, receipt.inner.amount0);
             @mstore32(out +% 64, receipt.inner.amount1);
