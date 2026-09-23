@@ -11,8 +11,9 @@ import types::StateView::StateViewAnchor;
 import types::TokenFlow::TokenFlow;
 import types::protocol_integrations::Pool::pool_algebra;
 
-/// Type-phase stub harness for CEVStateRunner (#138).
-/// Forces comptime instantiation of io + run_j (hole returns None until #139).
+/// Type-phase compile stub for CEVStateRunner (#138).
+/// Instantiates io + run_j so Plank type-checks the comptime branch.
+/// Not a BTT/Bulloak suite — that is #139 define.
 
 // cast sig "runJHole()" -> 0x6a1c8d5b
 const SEL_RUN_J_HOLE = 0x6a1c8d5b;
@@ -59,4 +60,5 @@ run {
         @mstore32(out, @bool_to_u256(is_some(CEVLocalTickVolatility, o)));
         @evm_return(out, 32);
     }
-};
+    @evm_stop();
+}
