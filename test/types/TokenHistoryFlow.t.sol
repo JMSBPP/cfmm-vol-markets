@@ -26,7 +26,7 @@ contract TokenHistoryFlowTest is PlankTestBase {
     }
 
     /// forge-config: default.fuzz.runs = 256
-    /// forge-config: rv-init.fuzz.runs = 256
+    /// forge-config: rv_init.fuzz.runs = 256
     function test__fuzz__run_all_k(uint256 kRaw, uint256 seed) public {
         uint256 k = bound(kRaw, 1, RUN_ALL_K_MAX);
         WeinerView weiner = new WeinerView();

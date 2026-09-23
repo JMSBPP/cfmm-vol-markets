@@ -30,7 +30,7 @@ contract TokenHistoryTest is PlankTestBase {
 
     /// n(dt=2) = Window/dt = 43200 timepoints.
     /// forge-config: default.fuzz.runs = 43200
-    /// forge-config: rv-init.fuzz.runs = 43200
+    /// forge-config: rv_init.fuzz.runs = 43200
     /// forge-config: sigmaf.fuzz.runs = 43200
     function test__fuzz__intro_k_lt_n(uint256 k, uint256 j, uint256 dw) public {
         k = bound(k, 1, N - 1);
