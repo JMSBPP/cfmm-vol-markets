@@ -56,7 +56,12 @@ contract CEVLocalTickVolatilityTest is PlankTestBase {
     function test_WhenTypedInputsAreNonzeroAndSigmaOverflowsU88() external {
         // it should revert SigmaOverflowU88
         vm.expectRevert(ICEVLocalTickVolatility.SigmaOverflowU88.selector);
-        harness.introMalformed(RAY, 1, TickMath.MIN_TICK, uint256(TickMath.MIN_SQRT_RATIO));
+        harness.introMalformed(
+            RAY,
+            1,
+            uint256(int256(TickMath.MIN_TICK)),
+            uint256(TickMath.MIN_SQRT_RATIO)
+        );
     }
 
     function test_WhenTypedInputsAreValidAndSigmaFitsU88() external {
