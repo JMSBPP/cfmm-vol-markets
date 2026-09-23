@@ -1,14 +1,15 @@
-import std::core::ops::{checked_mul, checked_add, checked_sub, neg_u256};
-import types::Numerics::PIPS;
+import std::option::Option;
+import std::core::ops::{checked_add, checked_sub, neg_u256};
+import types::IO::IO;
 import cfmm_types::Window::*;
 import cfmm_types::TimeSpacing::*;
 
-/// ShockPips — Algebra-scale signed pips (10^6 ≈ 1σ); sign via neg_u256.
-const ShockPips = fn () type {
-    struct {
-        val: u256
-    }
-};
+/// types.toml: WeinerGenerator
+/// .spec: .spec/REALIZED_VOLATILITY.spec/types/WeinerGenerator/WeinerGenerator.md
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/143
+/// Channel-built DeltaW(dt) via Shock(Pips). Eff = [Timestamp] (WeinerView).
+/// Outcome: run_weiner → Option(DeltaW(dt)). Type phase — holes only.
+/// Legacy ShockPips / mapHash / passed-eps deltaW removed.
 
 /// DeltaW(dt) — Ray-scale Wiener increment for lattice spacing dt (TimeSpacing).
 const DeltaW = fn (comptime dt: u256) type {
@@ -18,49 +19,29 @@ const DeltaW = fn (comptime dt: u256) type {
     }
 };
 
-const MAX_ABS_EPS_PIPS = 6 *% PIPS;
-
-/// floor(√dt · RAY) for TimeSpacing domain — comptime table (not getSqrtRatioAtTick).
-const SQRT_DT_RAY_2 = 1414213562373095048801688724;
-const SQRT_DT_RAY_3 = 1732050807568877293527446341;
-const SQRT_DT_RAY_4 = 2000000000000000000000000000;
-const SQRT_DT_RAY_5 = 2236067977499789696409173668;
-const SQRT_DT_RAY_6 = 2449489742783178098197284074;
-const SQRT_DT_RAY_8 = 2828427124746190097603377448;
-const SQRT_DT_RAY_9 = 3000000000000000000000000000;
-const SQRT_DT_RAY_10 = 3162277660168379331998893544;
-
-const sqrt_dt_ray = fn (comptime dt: u256) u256 {
-    let _ = TimeSpacing(dt);
-    if dt == 2 {
-        SQRT_DT_RAY_2
-    } else if dt == 3 {
-        SQRT_DT_RAY_3
-    } else if dt == 4 {
-        SQRT_DT_RAY_4
-    } else if dt == 5 {
-        SQRT_DT_RAY_5
-    } else if dt == 6 {
-        SQRT_DT_RAY_6
-    } else if dt == 8 {
-        SQRT_DT_RAY_8
-    } else if dt == 9 {
-        SQRT_DT_RAY_9
-    } else {
-        SQRT_DT_RAY_10
-    }
+/// Command for io wrap; Timestamp env + Shock entropy read in run_weiner (Eff).
+const WeinerCmd = struct {
+    /// Lattice index j (ShockCmd.j / Window lattice).
+    j: u256
 };
 
-/// Q20: sign from high bit; magnitude (h >> 1) % (6 * PIPS).
-const mapHashToShockPips = fn (h: u256) ShockPips() {
-    let mag = (h >> 1) % MAX_ABS_EPS_PIPS;
-    if (h >> 255) == 1 {
-        ShockPips() { val: neg_u256(mag) }
-    } else {
-        ShockPips() { val: mag }
-    }
+/// Pure wrap. Execution is run_weiner only.
+const io = fn (cmd: WeinerCmd) IO(WeinerCmd) {
+    @compile_error("WeinerGenerator.io: define phase");
 };
 
+/// Timestamp + Shock.run_shock → √dt · mag → Option(DeltaW(dt)).
+/// Named run_weiner — `run` is the Plank entrypoint keyword.
+const run_weiner = fn (comptime dt: u256, m: IO(WeinerCmd)) Option(DeltaW(dt)) {
+    @compile_error("WeinerGenerator.run_weiner: define phase");
+};
+
+/// Project DeltaW payload (Ray-scale u256 until Ray carrier is threaded).
+const val = fn (comptime dt: u256, dw: DeltaW(dt)) u256 {
+    @compile_error("WeinerGenerator.val: define phase");
+};
+
+/// Sign helpers — still used by TokenFlow / SigmaF / TokenHistory.
 const is_neg_signed = fn (x: u256) bool {
     x > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 };
@@ -70,21 +51,6 @@ const abs_signed = fn (x: u256) u256 {
         neg_u256(x)
     } else {
         x
-    }
-};
-
-/// ΔW = √dt̄ · ε ; Ray √ from comptime table; product toward zero; checked_*.
-/// Redesign pending (track PR review): channel-built DeltaW(dt); ShockPips.magnitude;
-/// sqrt_dt_ray on TimeSpacing; Pips constructor (sqrt_ray, mag) → Pips { val: u16 }.
-const deltaW = fn (comptime dt: u256, eps: ShockPips()) DeltaW(dt) {
-    let _ = TimeSpacing(dt);
-    let mag = abs_signed(eps.val);
-    let sqrt_ray = sqrt_dt_ray(dt);
-    let prod = checked_mul(sqrt_ray, mag) </ PIPS;
-    if is_neg_signed(eps.val) {
-        DeltaW(dt) { val: neg_u256(prod) }
-    } else {
-        DeltaW(dt) { val: prod }
     }
 };
 
