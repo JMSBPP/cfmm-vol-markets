@@ -44,3 +44,7 @@
 [submodule "lib/seaport"]
 	path = lib/seaport
 	url = https://github.com/ProjectOpenSea/seaport
+[submodule "data"]
+	path = data
+	url = https://github.com/JMSBPP/vol_markets_data.git
+	branch = main
