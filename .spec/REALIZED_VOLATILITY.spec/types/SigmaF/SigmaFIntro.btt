@@ -1,9 +1,6 @@
 SigmaFIntroTest
-├── when given edge Ray words
-│   └── it should round-trip rayVal through intro
-├── when given admissible sigma_F min
-│   └── it should round-trip 1e21
-├── when given admissible sigma_F max
-│   └── it should round-trip 1e24
-└── when given fuzzed admissible sigma_F
-    └── it should round-trip bound sigma_F
+└── when given Ray scale words including admissible sigma_F
+    ├── it should round-trip rayVal through intro
+    ├── it should round-trip admissible sigma_F min 1e21
+    ├── it should round-trip admissible sigma_F max 1e24
+    └── it should round-trip fuzzed admissible sigma_F

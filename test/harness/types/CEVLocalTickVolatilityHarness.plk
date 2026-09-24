@@ -5,7 +5,7 @@ import std::option::unwrap;
 import cfmm_types::TickSpacing::TickSpacing;
 import types::CEVLocalTickVolatility::{intro, intro_len, step_k as cev_step_k};
 import types::LiquidityChunk::{LiquidityChunk, LiquidityTick, unpack_panoptic};
-import types::SigmaF::SigmaF;
+import types::SigmaF::intro_from_u256;
 import types::StateView::{ObsStep, StateViewAnchor, step_k as state_step_k};
 import types::protocol_integrations::Pool::pool_algebra;
 
@@ -49,7 +49,7 @@ init { return_runtime(); }
 run {
     let selector = @evm_shr(224, @evm_calldataload(0));
     if selector == SEL_INTRO_MALFORMED {
-        let sf = SigmaF() { val: @evm_calldataload(4) };
+        let sf = intro_from_u256(@evm_calldataload(4));
         let chunk = malformed_chunk(@evm_calldataload(36));
         let obs = ObsStep(BAR_DT) {
             t: 0,
@@ -69,7 +69,7 @@ run {
         @evm_return(out, 32);
     }
     if (selector == SEL_INTRO_FROM_STATE) | (selector == SEL_STEP_FROM_STATE) {
-        let sf = SigmaF() { val: @evm_calldataload(4) };
+        let sf = intro_from_u256(@evm_calldataload(4));
         let chunk = unpack_panoptic(
             @evm_calldataload(36),
             @evm_calldataload(68)

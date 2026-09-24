@@ -4,6 +4,7 @@ import std::option::{None, Option, Some, is_some};
 import cfmm_types::TimeSpacing::n;
 import types::LiquidityChunk::LiquidityChunk;
 import types::Numerics::Q96;
+import cfmm_types::Ray::{Ray, rayVal};
 import types::SigmaF::SigmaF;
 import types::StateView::ObsStep;
 import v3::math::full_math::mulDiv;
@@ -52,7 +53,7 @@ const CEVHistory = fn (comptime dt: u256, comptime k: u256) type {
 /// Behavior: CEVLocalTickVolatility.btt
 const intro = fn (
     comptime dt: u256,
-    sf: SigmaF(),
+    sf: SigmaF(Ray),
     chunk: LiquidityChunk,
     obs: ObsStep(dt)
 ) CEVLocalTickVolatility {
@@ -74,7 +75,7 @@ const intro = fn (
 /// Law-B map for orchestrators (#140): same arithmetic as intro, Option instead of revert.
 const try_intro = fn (
     comptime dt: u256,
-    sf: SigmaF(),
+    sf: SigmaF(Ray),
     chunk: LiquidityChunk,
     obs: ObsStep(dt)
 ) Option(CEVLocalTickVolatility) {
@@ -82,7 +83,7 @@ const try_intro = fn (
     if (L == 0) | (obs.sqrt_p == 0) {
         None(CEVLocalTickVolatility)
     } else {
-        let scaled = mulDiv(sf.val, Q96, obs.sqrt_p);
+        let scaled = mulDiv(rayVal(sf.r), Q96, obs.sqrt_p);
         let ratio = (scaled </ L) </ LN_10001;
         let sig = try_cast_uint(checked_mul(ratio, ratio), u88);
         if !sig.is_some {
@@ -110,7 +111,7 @@ const intro_len = fn (comptime dt: u256, k: u256) u256 {
 /// One cell of a valid prefix. Some(intro) iff 0 < K < n(dt) and j < K.
 const step_k = fn (
     comptime dt: u256,
-    sf: SigmaF(),
+    sf: SigmaF(Ray),
     chunk: LiquidityChunk,
     obs: ObsStep(dt),
     k: u256,

@@ -4,6 +4,7 @@ import cfmm_types::TimeSpacing::{TimeSpacing, n};
 import types::CEVLocalTickVolatility::{CEVLocalTickVolatility, try_intro as cev_try_intro};
 import types::IO::IO;
 import types::LiquidityChunk::LiquidityChunk;
+import cfmm_types::Ray::Ray;
 import types::SigmaF::SigmaF;
 import types::StateView::{
     RealizeCmd,
@@ -28,7 +29,7 @@ const CEVStateRunner = fn (comptime dt: u256, comptime k: u256) type {
     let _ = TimeSpacing(dt);
     let _ = k;
     struct {
-        sf: SigmaF(),
+        sf: SigmaF(Ray),
         chunk: LiquidityChunk,
         anchor: StateViewAnchor
     }
@@ -38,7 +39,7 @@ const CEVStateRunner = fn (comptime dt: u256, comptime k: u256) type {
 const io = fn (
     comptime dt: u256,
     comptime k: u256,
-    sf: SigmaF(),
+    sf: SigmaF(Ray),
     chunk: LiquidityChunk,
     anchor: StateViewAnchor
 ) IO(CEVStateRunner(dt, k)) {

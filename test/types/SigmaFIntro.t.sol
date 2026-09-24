@@ -10,6 +10,7 @@ interface ISigmaFIntro {
 
 /// @dev Bulloak-generated names from SigmaFIntro.btt. Assertions filled.
 /// Admissible σ_F^{RAY} band matches CEVStateRunnerRunJ (#147): [1e-6, 1e-3] · RAY.
+/// Review: single when-leaf with multiple it-comments (#142).
 contract SigmaFIntroTest is PlankTestBase {
     ISigmaFIntro internal harness;
 
@@ -24,27 +25,22 @@ contract SigmaFIntroTest is PlankTestBase {
         harness = ISigmaFIntro(deployPlank("test/harness/types/SigmaFHarness.plk"));
     }
 
-    function test_WhenGivenEdgeRayWords() external {
+    function test_WhenGivenRayScaleWordsIncludingAdmissibleSigma_F(uint256 sigmaFRaw) external {
         // it should round-trip rayVal through intro
         assertEq(harness.intro(0), 0);
         assertEq(harness.intro(RAY_UNIT), RAY_UNIT);
         assertEq(harness.intro(42), 42);
-    }
-    function test_WhenGivenAdmissibleSigma_FMin() external {
-        // it should round-trip 1e21
+
+        // it should round-trip admissible sigma_F min 1e21
         assertEq(harness.intro(SIGMA_F_HUMAN_MIN), SIGMA_F_HUMAN_MIN);
-    }
 
-    function test_WhenGivenAdmissibleSigma_FMax() external {
-        // it should round-trip 1e24
+        // it should round-trip admissible sigma_F max 1e24
         assertEq(harness.intro(SIGMA_F_HUMAN_MAX), SIGMA_F_HUMAN_MAX);
-    }
 
-    function test_WhenGivenFuzzedAdmissibleSigma_F(uint256 sigmaFRaw) external {
-        // it should round-trip bound sigma_F
+        // it should round-trip fuzzed admissible sigma_F
         uint256 sigmaF = bound(sigmaFRaw, SIGMA_F_HUMAN_MIN, SIGMA_F_HUMAN_MAX);
-        console2.log("\(\sigma_F\\):", sigmaF / (RAY / 1e6));
-        console2.log("\(\sigma_F^{RAY}\\):", sigmaF);
+        console2.log("\\(\\sigma_F\\):", sigmaF / (RAY / 1e6));
+        console2.log("\\(\\sigma_F^{RAY}\\):", sigmaF);
         assertEq(harness.intro(sigmaF), sigmaF);
     }
 }

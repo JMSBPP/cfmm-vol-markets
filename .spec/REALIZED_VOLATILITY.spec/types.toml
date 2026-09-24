@@ -31,7 +31,7 @@ laws = [
   "checked mul/div → revert; Eff = []",
 ]
 refined = false
-notes = "Type #151. TokenFlow consumer #152. stock/magnitude/direction holes until define."
+notes = "Type #151. stock/magnitude/direction filled for CI bridge; TokenFlow #152 still owns full refine. holes cleared for stock path."
 
 [TokenFlow]
 module = "TokenFlow"

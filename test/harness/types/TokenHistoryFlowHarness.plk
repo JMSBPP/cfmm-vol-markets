@@ -3,7 +3,7 @@ import std::option::is_some;
 import types::TokenHistory::{intro_from, intro_len};
 import types::TokenHistoryFlow::{io_hist, run_hist, run_k, run_step_k};
 import types::IO::addr_word;
-import types::SigmaF::SigmaF;
+import types::SigmaF::intro_from_u256;
 
 // cast sig "run(address,uint256,uint256,address,address,address)" -> 0xb47a8959
 const SEL_RUN = 0xb47a8959;
@@ -20,7 +20,7 @@ run {
     let selector = @evm_shr(224, @evm_calldataload(0));
     if selector == SEL_RUN {
         let weiner = addr_word(@evm_calldataload(4));
-        let sf = SigmaF() { val: @evm_calldataload(36) };
+        let sf = intro_from_u256(@evm_calldataload(36));
         let t_init = @evm_calldataload(68);
         let token = addr_word(@evm_calldataload(100));
         let from = addr_word(@evm_calldataload(132));
@@ -39,7 +39,7 @@ run {
     }
     if selector == SEL_RUN_STEP {
         let weiner = addr_word(@evm_calldataload(4));
-        let sf = SigmaF() { val: @evm_calldataload(36) };
+        let sf = intro_from_u256(@evm_calldataload(36));
         let t_init = @evm_calldataload(68);
         let k = @evm_calldataload(100);
         let j = @evm_calldataload(132);
@@ -53,7 +53,7 @@ run {
     }
     if selector == SEL_RUN_ALL {
         let weiner = addr_word(@evm_calldataload(4));
-        let sf = SigmaF() { val: @evm_calldataload(36) };
+        let sf = intro_from_u256(@evm_calldataload(36));
         let t_init = @evm_calldataload(68);
         let k = @evm_calldataload(100);
         let token = addr_word(@evm_calldataload(132));
