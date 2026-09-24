@@ -1,0 +1,44 @@
+import types::SigmaF::SigmaF;
+import types::WeinerGenerator::DeltaW;
+import cfmm_types::Ray::Ray;
+
+/// types.toml: TokenAmountNetFlowStochasticBase
+/// .spec: .spec/REALIZED_VOLATILITY.spec/types/TokenAmountNetFlowStochasticBase/TokenAmountNetFlowStochasticBase.md
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/151
+/// TokenFlow consumer: https://github.com/JMSBPP/cfmm-vol-markets/issues/152
+/// C = SigmaF(N) only; N = Ray only. Weiner ≡ DeltaW. Eff = [].
+
+const TokenAmountNetFlowStochasticBase = fn (
+    comptime C: type,
+    comptime N: type,
+    comptime dt: u256
+) type {
+    struct {
+        sigma: C,
+        dw: DeltaW(dt)
+    }
+};
+
+const TokenAmountStock = fn (comptime T: type) type {
+    struct {
+        val: u256
+    }
+};
+
+const intro_base = fn (
+    comptime dt: u256,
+    sigma: SigmaF(Ray),
+    dw: DeltaW(dt)
+) TokenAmountNetFlowStochasticBase(SigmaF(Ray), Ray, dt) {
+    TokenAmountNetFlowStochasticBase(SigmaF(Ray), Ray, dt) {
+        sigma: sigma,
+        dw: dw
+    }
+};
+
+/// stock(b) = (σ · ΔW) / unit(N); unit(Ray) = rayVal(rayMulId()); checked → revert.
+/// hole: stock body — define phase (#151)
+/// signature: stock :: (comptime dt, Base) → TokenAmountStock(Base)
+
+/// hole: magnitude :: TokenAmountStock(T) → u256 — define phase
+/// hole: direction :: TokenAmountStock(T) → Dir — define phase

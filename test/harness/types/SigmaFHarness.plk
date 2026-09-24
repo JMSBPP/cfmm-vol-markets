@@ -1,36 +1,20 @@
 import std::constructor::return_runtime;
-import types::SigmaF::*;
-import types::TokenFlow::token_flow;
-import types::WeinerGenerator::DeltaW;
-import std::option::is_some;
-import types::IO::{io, run_io, addr_word};
+import cfmm_types::Ray::{intro as ray_intro, rayVal};
+import types::SigmaF::intro;
 
-// cast sig "tokenAmount(uint256,uint256)" -> 0xe7b83730
-const SEL_TOKEN_AMOUNT = 0xe7b83730;
-// cast sig "run(uint256,uint256,address,address,address)" -> 0x73a24d60
-const SEL_RUN = 0x73a24d60;
+/// types.toml: SigmaF · BTT: .spec/REALIZED_VOLATILITY.spec/types/SigmaF/SigmaFIntro.btt
+/// intro(uint256) — Ray word in; rayVal(SigmaF.r) out. #151 define/intro
+const SEL_INTRO = 0xd2a9aa11;
 
 init { return_runtime(); }
 
 run {
     let selector = @evm_shr(224, @evm_calldataload(0));
-    if selector == SEL_TOKEN_AMOUNT {
-        let sf = intro(@evm_calldataload(4));
-        let dw = DeltaW(2) { val: @evm_calldataload(36) };
-        let amt = token_amount(2, sf, dw);
+    if selector == SEL_INTRO {
+        let r = ray_intro(@evm_calldataload(4));
+        let sf = intro(r);
         let out = @malloc_uninit(32);
-        @mstore32(out, amt);
-        @evm_return(out, 32);
-    }
-    if selector == SEL_RUN {
-        let sf = intro(@evm_calldataload(4));
-        let dw = DeltaW(2) { val: @evm_calldataload(36) };
-        let token = addr_word(@evm_calldataload(68));
-        let from = addr_word(@evm_calldataload(100));
-        let to = addr_word(@evm_calldataload(132));
-        let o = run_io(io(token_flow(2, sf, dw, token, from, to)));
-        let out = @malloc_uninit(32);
-        @mstore32(out, @bool_to_u256(is_some(u256, o.inner)));
+        @mstore32(out, rayVal(sf.r));
         @evm_return(out, 32);
     }
     @evm_stop();

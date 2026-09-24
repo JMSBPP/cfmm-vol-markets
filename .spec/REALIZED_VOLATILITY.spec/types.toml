@@ -2,19 +2,36 @@
 
 [SigmaF]
 module = "SigmaF"
-kind = "plain"
+kind = "generic"
 file = "types/SigmaF/SigmaF.md"
-carriers = ["u256_RAY"]
-operations = ["intro", "token_amount"]
+carriers = ["Ray"]
+operations = ["intro", "intro_from_u256"]
 laws = [
-  "intro is total",
-  "RAY := RAY_UNIT = 10^27 (cfmm_types::Ray)",
-  "token_amount(σ_F, ΔW(dt)) = (σ_F · |ΔW|)/RAY",
-  "ΔQ_M = σ_F ΔW (Ray fixed-point; no new harness scale)",
+  "SigmaF(N); only N=Ray this slice",
+  "intro :: Ray → SigmaF(Ray); carrier { r: Ray }",
+  "intro_from_u256 = intro ∘ Ray.intro",
   "Eff = []",
+  "no token_amount (owned by TokenAmountStock)",
 ]
 refined = false
-notes = "Type #151: pin scale to cfmm_types::Ray; drop Numerics::RAY authority. token_amount body is a hole until define. DeltaW(dt) input unchanged. CEV block is notation."
+notes = "Type #151: phantom N; Ray only. Product moved to TokenAmountNetFlowStochasticBase. CEV block notation."
+
+[TokenAmountNetFlowStochasticBase]
+module = "TokenAmountNetFlowStochasticBase"
+kind = "dependent"
+file = "types/TokenAmountNetFlowStochasticBase/TokenAmountNetFlowStochasticBase.md"
+carriers = ["SigmaF(N)", "DeltaW(dt)", "TokenAmountStock(T)"]
+operations = ["intro_base", "stock", "magnitude", "direction"]
+laws = [
+  "C = SigmaF(N) only; N=Ray only this slice",
+  "Weiner(dt) ≡ DeltaW(dt)",
+  "intro_base packs (σ, ΔW)",
+  "stock(b) = (σ · ΔW) / unit(N); unit(Ray)=rayVal(rayMulId())",
+  "TokenAmountStock = signed u256; magnitude/direction in define",
+  "checked mul/div → revert; Eff = []",
+]
+refined = false
+notes = "Type #151. TokenFlow consumer #152. stock/magnitude/direction holes until define."
 
 [TokenFlow]
 module = "TokenFlow"
