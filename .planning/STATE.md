@@ -155,13 +155,13 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 
 ## Plank tracking (state-only)
 
-- **Last completed slice:** #146 `refine/WeinerGenerator` — `complete`
-  (impl `87bc176`; [push-build 35934124903](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35934124903); [develop-gate 35934130674](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35934130674)).
-- **Previous:** #145 define/WeinerGenerator — `complete` (`e8bdb16`); #143 type — `complete`.
+- **Last completed slice:** #147 `define/CEVStateRunner B2 RunJ` — `complete`
+  (impl `6933741`; [push-build 35940479607](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35940479607)).
+- **Previous:** #146 refine/WeinerGenerator — `complete` (`87bc176`).
 - **Parent track:** #136 `type/CEVStateRunner` — open; PR [#142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142).
-- **Current Plank slice:** #147 `define/CEVStateRunner B2 RunJ` — **in_progress** (grill locked; chunk pending approve).
-- **Queued (approved-plan order):** #147 → #140 → #141; sibling #151 TokenFlow/Ray (parallel).
-- **Ledgers:** `147-…` (in_progress); `146-…` (complete); `145-…` (complete).
+- **Current Plank slice:** #140 `define/CEVStateRunner failure outcomes` — **in_progress** (grill locked; law B).
+- **Queued (approved-plan order):** #140 → #141; sibling #151 TokenFlow/Ray (parallel).
+- **Ledgers:** `140-…` (in_progress); `147-…` (complete); `146-…` (complete).
 - **GSD milestone state:** unchanged. This section is outside the Haskell
   differential-conformance milestone and does not modify its counters or current phase.
 

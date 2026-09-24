@@ -6,9 +6,15 @@ kind = "plain"
 file = "types/SigmaF/SigmaF.md"
 carriers = ["u256_RAY"]
 operations = ["intro", "token_amount"]
-laws = ["intro is total", "RAY = 10^27", "token_amount(σ_F, ΔW(dt)) = (σ_F · |ΔW|)/RAY"]
-refined = true
-notes = "token_amount takes Weiner DeltaW(dt), not raw u256. CEV block is notation."
+laws = [
+  "intro is total",
+  "RAY := RAY_UNIT = 10^27 (cfmm_types::Ray)",
+  "token_amount(σ_F, ΔW(dt)) = (σ_F · |ΔW|)/RAY",
+  "ΔQ_M = σ_F ΔW (Ray fixed-point; no new harness scale)",
+  "Eff = []",
+]
+refined = false
+notes = "Type #151: pin scale to cfmm_types::Ray; drop Numerics::RAY authority. token_amount body is a hole until define. DeltaW(dt) input unchanged. CEV block is notation."
 
 [TokenFlow]
 module = "TokenFlow"
@@ -86,13 +92,14 @@ module = "CEVLocalTickVolatility"
 kind = "dependent"
 file = "types/CEVLocalTickVolatility/CEVLocalTickVolatility.md"
 carriers = ["Tick", "u88_tick2", "SigmaF", "LiquidityChunk", "ObsStep(dt)"]
-operations = ["intro", "intro_len", "step_k"]
+operations = ["intro", "try_intro", "intro_len", "step_k"]
 laws = [
   "L_{1/2} = LiquidityChunk.liquidity : u128",
   "√p_j = ObsStep(dt).sqrt_p : Q64_96; tick_j = ObsStep(dt).tick",
   "ratio = floor(mulDiv(σ_F.raw,Q96,√p_j) / L_{1/2} / LN_10001)",
   "σ = ratio² ∈ u88 tick²; tick = observed tick_j",
-  "intro(σ_F, LiquidityChunk, ObsStep(dt)) → {tick, σ}",
+  "intro(σ_F, LiquidityChunk, ObsStep(dt)) → {tick, σ} or revert",
+  "try_intro → Option; None on L=0 / √p=0 / σ∉u88 (law-B map for #140; same arithmetic)",
   "revert ZeroLiquidity if LiquidityChunk.liquidity=0",
   "revert ZeroSqrtPrice if ObsStep.sqrt_p=0",
   "revert SigmaOverflowU88 if σ ∉ u88",
@@ -168,15 +175,16 @@ carriers = ["SigmaF", "LiquidityChunk", "StateViewAnchor", "WeinerCmd", "DeltaW(
 operations = ["io", "run_j"]
 laws = [
   "CEVStateRunner(dt,K) <- SigmaF × LiquidityChunk × StateViewAnchor",
-  "io wraps only; run_j = run_weiner → token_flow(to=pool) → run_swap → step_k → CEV.intro",
+  "io wraps only; run_j = run_weiner → token_flow(to=pool) → run_swap → step_k → CEV.try_intro",
   "run_j(m, token, from, j) → Option(CEVLocalTickVolatility); no TokenFlow/amount/dir ABI",
   "law B collapses Weiner/swap/obs/CEV failure to None",
-  "None if K=0 or K≥n(dt) or j≥K or any stage None",
-  "Eff = [StateView, Timestamp]; WeinerView deferred; μ_F=0; chunk pre-validated; CEV pure",
-  "Admissible σ_F ∈ [1e-6, 1e-3]; σ_F^RAY = σ_F · RAY (SQD-backed)",
+  "None if K=0 or K≥n(dt) or j≥K or any stage None or CEV.try_intro None",
+  "Eff = [StateView, Timestamp]; WeinerView deferred; μ_F=0; chunk pre-validated",
+  "Admissible σ_F ∈ [1e-6, 1e-3] on success leaf; fail leaf may use out-of-band σ_F",
+  "Deferred inducible: Weiner None (Shock always Some); distinct step_k None (same guards as run_j)",
 ]
 refined = false
-notes = "Define #147 B2: K=11, j=0..=10 warp+fuzz. Failure #140; refine #141 (Timestamp Eff). Sibling TokenFlow Ray #151."
+notes = "Define #147 B2 success + #140 failure leaves. Refine #141. Sibling TokenFlow Ray #151."
 
 [Shock]
 module = "Shock"

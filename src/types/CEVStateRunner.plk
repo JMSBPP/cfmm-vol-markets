@@ -1,7 +1,7 @@
 import std::core::addr::{addr, addr_from_u256};
 import std::option::{None, Option, Some, is_some};
 import cfmm_types::TimeSpacing::{TimeSpacing, n};
-import types::CEVLocalTickVolatility::{CEVLocalTickVolatility, intro as cev_intro};
+import types::CEVLocalTickVolatility::{CEVLocalTickVolatility, try_intro as cev_try_intro};
 import types::IO::IO;
 import types::LiquidityChunk::LiquidityChunk;
 import types::SigmaF::SigmaF;
@@ -50,8 +50,8 @@ const io = fn (
     }
 };
 
-/// Behavior: CEVStateRunnerRunJ.btt — run_weiner → token_flow → run_swap → step_k → CEV.intro.
-/// Eff = [StateView, Timestamp]. Law B: any stage failure → None (incl. Weiner None).
+/// Behavior: CEVStateRunnerRunJ.btt — run_weiner → token_flow → run_swap → step_k → CEV.try_intro.
+/// Eff = [StateView, Timestamp]. Law B: any stage failure → None (incl. Weiner None / try_intro None).
 const run_j = fn (
     comptime dt: u256,
     comptime k: u256,
@@ -91,7 +91,7 @@ const run_j = fn (
                 if !o_obs.is_some {
                     None(CEVLocalTickVolatility)
                 } else {
-                    Some(cev_intro(dt, r.sf, r.chunk, o_obs.inner))
+                    cev_try_intro(dt, r.sf, r.chunk, o_obs.inner)
                 }
             }
         }

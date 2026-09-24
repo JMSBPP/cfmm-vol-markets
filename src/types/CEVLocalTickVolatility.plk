@@ -1,6 +1,6 @@
 import std::core::ops::checked_mul;
 import std::core::uint::{cast_uint, try_cast_uint, u88};
-import std::option::{None, Option, Some};
+import std::option::{None, Option, Some, is_some};
 import cfmm_types::TimeSpacing::n;
 import types::LiquidityChunk::LiquidityChunk;
 import types::Numerics::Q96;
@@ -56,22 +56,43 @@ const intro = fn (
     chunk: LiquidityChunk,
     obs: ObsStep(dt)
 ) CEVLocalTickVolatility {
-    let L = cast_uint(chunk.liquidity, u256);
-    if L == 0 {
-        revert_sel(SEL_ZERO_LIQUIDITY);
-    }
-    if obs.sqrt_p == 0 {
-        revert_sel(SEL_ZERO_SQRT_PRICE);
-    }
-    let scaled = mulDiv(sf.val, Q96, obs.sqrt_p);
-    let ratio = (scaled </ L) </ LN_10001;
-    let sig = try_cast_uint(checked_mul(ratio, ratio), u88);
-    if !sig.is_some {
+    let o = try_intro(dt, sf, chunk, obs);
+    if !is_some(CEVLocalTickVolatility, o) {
+        // Discriminate: L=0 / √p=0 / overflow — same selectors as before.
+        let L = cast_uint(chunk.liquidity, u256);
+        if L == 0 {
+            revert_sel(SEL_ZERO_LIQUIDITY);
+        }
+        if obs.sqrt_p == 0 {
+            revert_sel(SEL_ZERO_SQRT_PRICE);
+        }
         revert_sel(SEL_SIGMA_OVERFLOW);
     }
-    CEVLocalTickVolatility {
-        tick: obs.tick,
-        sig: sig.inner
+    o.inner
+};
+
+/// Law-B map for orchestrators (#140): same arithmetic as intro, Option instead of revert.
+const try_intro = fn (
+    comptime dt: u256,
+    sf: SigmaF(),
+    chunk: LiquidityChunk,
+    obs: ObsStep(dt)
+) Option(CEVLocalTickVolatility) {
+    let L = cast_uint(chunk.liquidity, u256);
+    if (L == 0) | (obs.sqrt_p == 0) {
+        None(CEVLocalTickVolatility)
+    } else {
+        let scaled = mulDiv(sf.val, Q96, obs.sqrt_p);
+        let ratio = (scaled </ L) </ LN_10001;
+        let sig = try_cast_uint(checked_mul(ratio, ratio), u88);
+        if !sig.is_some {
+            None(CEVLocalTickVolatility)
+        } else {
+            Some(CEVLocalTickVolatility {
+                tick: obs.tick,
+                sig: sig.inner
+            })
+        }
     }
 };
 

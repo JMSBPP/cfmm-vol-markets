@@ -47,8 +47,8 @@ Chunk is a **pre-validated** input. \(\mu_F=0\) this slice.
 &\mathrm{let}\ \mathrm{flow}=\mathrm{token\_flow}(\sigma_F,\Delta W,\mathrm{token},\mathrm{from},\mathrm{to}=\mathrm{pool}) \\
 &\mathrm{let}\ o_{\mathrm{swap}}=\mathrm{run}_{\mathrm{swap}}(\mathrm{io}(\mathrm{realize}(\mathrm{flow},\,\mathrm{pool},\,j))) \\
 &\mathrm{let}\ o_{\mathrm{obs}}=\mathrm{StateView}.\mathrm{step}_K(t_{\mathrm{init}},\,K,\,j) \\
-&\mathrm{let}\ c=\mathrm{CEV}.\mathrm{intro}(\sigma_F,\,\mathrm{chunk},\,o_{\mathrm{obs}}) \\
-&\mathrm{Some}(c)\ \text{iff all stages succeed}
+&\mathrm{let}\ c=\mathrm{CEV}.\mathrm{try\_intro}(\sigma_F,\,\mathrm{chunk},\,o_{\mathrm{obs}}) \\
+&\mathrm{Some}(c)\ \text{iff all stages succeed (try\_intro Some)}
 \end{aligned}
 \\[1em]
 \mathrm{None}
@@ -61,7 +61,7 @@ K=0 \lor K\ge n(\bar{dt}) \lor j\ge K
 \\
 &\lor\ o_{\mathrm{obs}}=\mathrm{None}
 \\
-&\lor\ \mathrm{CEV\ intro\ would\ revert}
+&\lor\ \mathrm{CEV}.\mathrm{try\_intro}=\mathrm{None}
 \\[1em]
 &\text{(law B: collapse — stages not distinguishable in the return type)}
 \\[1em]
@@ -73,7 +73,7 @@ K=0 \lor K\ge n(\bar{dt}) \lor j\ge K
 \sigma_F
 &\in
 [10^{-6},\,10^{-3}]
-\quad(\sigma_F^{\mathrm{RAY}}=\sigma_F\cdot\mathrm{RAY})
+\quad(\sigma_F^{\mathrm{RAY}}=\sigma_F\cdot\mathrm{RAY};\ \text{success leaf})
 \end{aligned}
 \]
 
@@ -113,7 +113,7 @@ K=0 \lor K\ge n(\bar{dt}) \lor j\ge K
 \begin{aligned}
 \mathrm{run}_j(m,\,\mathrm{token},\,\mathrm{from},\,j)
 &=
-\mathrm{Some}(\mathrm{CEV}.\mathrm{intro}(\sigma_F,\,\mathrm{chunk},\,o_{\mathrm{obs}}))
+\mathrm{CEV}.\mathrm{try\_intro}(\sigma_F,\,\mathrm{chunk},\,o_{\mathrm{obs}})
 \\
 &\quad\text{after }\mathrm{run}_{\mathrm{weiner}}=\mathrm{Some}
 \\
@@ -131,12 +131,18 @@ K=0 \lor K\ge n(\bar{dt}) \lor j\ge K
 \\
 &\lor\ \mathrm{step}_K=\mathrm{None}
 \\
-&\lor\ \mathrm{CEV}.\mathrm{intro}\ \text{would revert (law B; #140)}
+&\lor\ \mathrm{CEV}.\mathrm{try\_intro}=\mathrm{None}
+\\
+&\quad(\mathrm{CEV}.\mathrm{intro}\ \text{still reverts; Plank has no same-frame catch — try\_intro is the law-B map})
 \\
 \text{BTT:}&\ \mathtt{CEVStateRunnerRunJ.btt}
 \\
 \text{laws:}&\ \text{Some across }j\in[0,10];\ \text{cells differ};\ \text{fuzz }\sigma_F+\mathrm{prevrandao}
+\\
+&\quad\text{fail leaves: }j\ge K;\ \mathrm{pool}=0;\ \text{CEV try\_intro None (out-of-band }\sigma_F\text{)}
+\\
+&\quad\text{deferred: Weiner None; distinct step\_k None}
 \end{aligned}
 \]
 
-Define: [CEVStateRunnerRunJ.btt](CEVStateRunnerRunJ.btt) — B2 success (`#147`). Failure branches `#140`.
+Define: [CEVStateRunnerRunJ.btt](CEVStateRunnerRunJ.btt) — B2 success (`#147`) + failure leaves (`#140`).

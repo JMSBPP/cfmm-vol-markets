@@ -38,11 +38,13 @@ contract CEVStateRunnerRunJTest is PlankTestBase {
 
     address internal constant PAYER = address(0xA11CE);
     address internal constant LEFTOVERS = address(0xD00D);
-    /// Mint full-range + one max TokenAmount (≲1e23); each j reverts to post-mint snapshot.
-    uint256 internal constant SEED = 1e30;
+    /// Mint full-range + out-of-band CEV fail amounts (σ_F·|ΔW|/RAY up to ~1e31).
+    uint256 internal constant SEED = 1e40;
     uint256 internal constant RAY = 1e27;
-    /// One max swap depth in near-full range (~L·85 ≳ 1e23); channel ΔW typically moves ticks.
+    /// One max admissible swap depth in near-full range; channel ΔW typically moves ticks.
     uint256 internal constant CHUNK_L = 1e21;
+    /// Extra mint for CEV-overflow leaf (shared σ_F drives huge TokenAmount).
+    uint256 internal constant CHUNK_L_CEV_FAIL_POOL = 5e30;
     uint256 internal constant DT = 2;
     int24 internal constant MIN_TICK = -887272;
     int24 internal constant MAX_TICK = 887272;
@@ -102,6 +104,68 @@ contract CEVStateRunnerRunJTest is PlankTestBase {
 
         (uint160 sqrtP,,,,,) = IAlgebraPoolState(algebraReady.pool).globalState();
         assertTrue(sqrtP > 0, "pool live");
+    }
+
+    function test_WhenJIsAtLeastK() external {
+        // it should return None
+        uint256 packed = _solvencyPacked();
+        (bool ok,,) = harness.runJ(
+            SIGMA_F_HUMAN_MIN,
+            packed,
+            algebraReady.pool,
+            11, // K=11 ⇒ j≥K
+            algebraReady.token0,
+            PAYER
+        );
+        assertFalse(ok, "run_j None on j≥K");
+    }
+
+    function test_WhenPoolAddressIsZero() external {
+        // it should return None
+        uint256 packed = _solvencyPacked();
+        (bool ok,,) = harness.runJ(
+            SIGMA_F_HUMAN_MIN,
+            packed,
+            address(0),
+            0,
+            algebraReady.token0,
+            PAYER
+        );
+        assertFalse(ok, "run_j None on pool=0");
+    }
+
+    function test_WhenSwapSucceedsAndCEVTry_introFails() external {
+        // it should return None
+        // Deepen pool so out-of-band σ_F still swaps; CEV packed L=1 ⇒ try_intro None.
+        uint256 spacing = algebraReady.tickSpacing == 0 ? 1 : algebraReady.tickSpacing;
+        int24 s = int24(uint24(spacing));
+        int24 lower = (MIN_TICK / s) * s;
+        int24 upper = (MAX_TICK / s) * s;
+        uint256 packedPool = _pack(lower, upper, uint128(CHUNK_L_CEV_FAIL_POOL));
+        (bool mintOk,,,) = mintAdapter.runMint(
+            algebraReady.pool,
+            algebraReady.fee,
+            spacing,
+            PAYER,
+            PAYER,
+            LEFTOVERS,
+            spacing,
+            packedPool
+        );
+        assertTrue(mintOk, "deepen mint for CEV fail");
+
+        uint256 packedCev = _pack(lower, upper, 1);
+        uint256 sigmaOverflow = 1e37;
+        vm.prevrandao(bytes32(uint256(1)));
+        (bool ok,,) = harness.runJ(
+            sigmaOverflow,
+            packedCev,
+            algebraReady.pool,
+            0,
+            algebraReady.token0,
+            PAYER
+        );
+        assertFalse(ok, "run_j None on CEV try_intro");
     }
 
     function _mintBootstrapLiquidity() internal {
