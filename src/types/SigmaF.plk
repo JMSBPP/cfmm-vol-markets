@@ -1,6 +1,10 @@
-import std::core::ops::checked_mul;
-import types::Numerics::RAY;
+import cfmm_types::Ray::RAY_UNIT;
 import types::WeinerGenerator::{DeltaW, abs_signed};
+
+/// types.toml: SigmaF
+/// .spec: .spec/REALIZED_VOLATILITY.spec/types/SigmaF/SigmaF.md
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/151
+/// Scale authority: cfmm_types::Ray::RAY_UNIT (not types::Numerics::RAY). Eff = [].
 
 const SigmaF = fn () type {
     struct {
@@ -12,7 +16,6 @@ const intro = fn (x: u256) SigmaF() {
     SigmaF() { val: x }
 };
 
-/// TokenAmount = (σ_F · |ΔW(dt)|) / RAY. dw is Weiner DeltaW, not a raw u256.
-const token_amount = fn (comptime dt: u256, sf: SigmaF(), dw: DeltaW(dt)) u256 {
-    checked_mul(sf.val, abs_signed(dw.val)) </ RAY
-};
+/// TokenAmount = (σ_F · |ΔW(dt)|) / RAY_UNIT.
+/// hole: token_amount body — define phase (#151)
+/// signature: token_amount :: (comptime dt, SigmaF, DeltaW(dt)) → u256

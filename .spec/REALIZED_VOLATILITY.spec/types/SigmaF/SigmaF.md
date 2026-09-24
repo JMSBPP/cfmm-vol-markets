@@ -1,5 +1,7 @@
 # [TYPE:: SIGMA_F](MAIN_REF# MODEL)
 
+`-- types.toml: SigmaF` · [#151](https://github.com/JMSBPP/cfmm-vol-markets/issues/151) (Ray pin)
+
 \[
 \begin{aligned}
 \mathrm{SigmaF}
@@ -9,8 +11,11 @@
 \mathrm{u256}_{\mathrm{RAY}}
 \\
 \mathrm{RAY}
-&=
+&:=
+\mathrm{RAY\_UNIT}
+=
 10^{27}
+\quad(\mathtt{cfmm\_types::Ray})
 \\[1em]
 \mathrm{intro}
 &::
@@ -24,6 +29,10 @@
 &:=
 \sigma_F \cdot \Delta W
 \\
+\mathrm{token\_amount}
+&::
+\mathrm{SigmaF} \to \Delta W(\bar{dt}) \to \mathrm{u256}
+\\
 \mathrm{TokenAmount}
 &=
 \frac{\sigma_F \cdot \lvert \Delta W(\bar{dt}) \rvert}{\mathrm{RAY}}
@@ -31,9 +40,24 @@
 \mathrm{Dir}
 &=
 \mathrm{sign}(\Delta W)
+\\
+\mathrm{Eff}^{\mathrm{SigmaF}}
+&=
+[\,]
 \\[1em]
+&\text{hole: }\mathtt{token\_amount}\text{ body — define phase}
 \end{aligned}
 \]
+
+## Std / host reuse
+
+| Candidate | Fit |
+|-----------|-----|
+| `cfmm_types::Ray` (`RAY_UNIT`) | **Reuse** — product scale authority |
+| `types::Numerics::RAY` | **Reject** as scale authority |
+| `WeinerGenerator::DeltaW(dt)` | **Reuse** — `token_amount` input |
+| `std::option::Option` | N/A this type (pure) |
+| New host `Ray` / `Outcome` | **Reject** |
 
 CEV / $\sigma(i)$ / $\pi^{\sigma}$ below are notation for later slices, not operations of `SigmaF`.
 
