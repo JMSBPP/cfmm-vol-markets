@@ -3,7 +3,7 @@ plank_state_version: 1
 phase: "PLANK/140"
 slice: "define/CEVStateRunner-failure-law-B"
 plank_phase: "define"
-status: "committed"
+status: "complete"
 issue: "https://github.com/JMSBPP/cfmm-vol-markets/issues/140"
 pr: "https://github.com/JMSBPP/cfmm-vol-markets/pull/142"
 approved_plan: "https://github.com/JMSBPP/cfmm-vol-markets/issues/136"

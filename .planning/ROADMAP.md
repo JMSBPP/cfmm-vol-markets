@@ -826,7 +826,7 @@ phase numbering, progress counters, current position, or GSD routing.
 | [#145 define/WeinerGenerator channel DeltaW](https://github.com/JMSBPP/cfmm-vol-markets/issues/145) | `define` | Complete | `e8bdb16`; [push-build 35932130470](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35932130470) |
 | [#146 refine/WeinerGenerator](https://github.com/JMSBPP/cfmm-vol-markets/issues/146) | `refine` | Complete | `87bc176`; [push-build 35934124903](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35934124903), [develop-gate 35934130674](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35934130674) |
 | [#147 define/CEVStateRunner B2 RunJ](https://github.com/JMSBPP/cfmm-vol-markets/issues/147) | `define` | Complete | `6933741`; [push-build 35940479607](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35940479607); closed |
-| [#140 define/CEVStateRunner failure outcomes](https://github.com/JMSBPP/cfmm-vol-markets/issues/140) | `define` | In progress | Law B; grill locked; unblocked by #147 |
+| [#140 define/CEVStateRunner failure outcomes](https://github.com/JMSBPP/cfmm-vol-markets/issues/140) | `define` | Complete | `714f33d`; [push-build 35995485040](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35995485040); closed |
 | [#141 refine/CEVStateRunner B2 Eff [StateView, Timestamp]](https://github.com/JMSBPP/cfmm-vol-markets/issues/141) | `refine` | Pending | Blocked by #140 |
 
 Phase ledgers:
