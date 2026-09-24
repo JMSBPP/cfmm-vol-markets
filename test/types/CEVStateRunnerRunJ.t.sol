@@ -38,10 +38,14 @@ contract CEVStateRunnerRunJTest is PlankTestBase {
 
     address internal constant PAYER = address(0xA11CE);
     address internal constant LEFTOVERS = address(0xD00D);
-    uint256 internal constant SEED = 1e24;
+    /// Payer balance: mint full-range depth + ≤11 one-way swaps at σ_F·|ΔW|/RAY (≲1e23 each).
+    uint256 internal constant SEED = 1e30;
     uint256 internal constant RAY = 1e27;
-    uint256 internal constant CHUNK_L = 1_000_000_000_000;
+    /// Depth for admissible σ_F × channel |ΔW| (L=1e12 ±2·spacing cannot absorb ~1e15–1e23).
+    uint256 internal constant CHUNK_L = 1e24;
     uint256 internal constant DT = 2;
+    int24 internal constant MIN_TICK = -887272;
+    int24 internal constant MAX_TICK = 887272;
     /// Admissible σ_F as fraction of L (SQD-backed): [1e-6, 1e-3].
     uint256 internal constant SIGMA_F_HUMAN_MIN = 1e21; // 1e-6 * RAY
     uint256 internal constant SIGMA_F_HUMAN_MAX = 1e24; // 1e-3 * RAY
@@ -67,11 +71,14 @@ contract CEVStateRunnerRunJTest is PlankTestBase {
         console2.log("\\(\\sigma_F\\):", sigmaF / (RAY / 1e6)); // ppm of unit fraction for readability
         console2.log("\\(\\sigma_F^{RAY}\\):", sigmaF);
 
-        uint256 spacing = algebraReady.tickSpacing == 0 ? 1 : algebraReady.tickSpacing;
-        int24 s = int24(uint24(spacing));
-        uint256 packed = _pack(s * -2, s * 2, uint128(CHUNK_L));
+        uint256 packed = _solvencyPacked();
 
         uint256 t0 = block.timestamp;
+        // Shock mag ∈ [0,65535]; mag=0 → amount=0 → run_swap None (law B). Success leaf excludes it.
+        for (uint256 j = 0; j <= 10; j++) {
+            vm.assume(_shockMag(prevrandaoSeed, t0 + j * DT, j) > 0);
+        }
+
         uint256[11] memory ticks;
         uint256[11] memory sigs;
 
@@ -103,8 +110,7 @@ contract CEVStateRunnerRunJTest is PlankTestBase {
 
     function _mintBootstrapLiquidity() internal {
         uint256 spacing = algebraReady.tickSpacing == 0 ? 1 : algebraReady.tickSpacing;
-        int24 s = int24(uint24(spacing));
-        uint256 packed = _pack(s * -2, s * 2, uint128(CHUNK_L));
+        uint256 packed = _solvencyPacked();
 
         (bool mintOk,,,) = mintAdapter.runMint(
             algebraReady.pool,
@@ -117,6 +123,20 @@ contract CEVStateRunnerRunJTest is PlankTestBase {
             packed
         );
         assertTrue(mintOk, "bootstrap mint");
+    }
+
+    /// Spacing-aligned near-full range + CHUNK_L so Integral absorbs channel TokenAmount.
+    function _solvencyPacked() internal view returns (uint256) {
+        uint256 spacing = algebraReady.tickSpacing == 0 ? 1 : algebraReady.tickSpacing;
+        int24 s = int24(uint24(spacing));
+        int24 lower = (MIN_TICK / s) * s;
+        int24 upper = (MAX_TICK / s) * s;
+        return _pack(lower, upper, uint128(CHUNK_L));
+    }
+
+    /// Mirrors Shock.entropy_to_pips: keccak256(prevrandao ‖ timestamp ‖ j) → (h>>1)&0xffff.
+    function _shockMag(uint256 prevrandao, uint256 ts, uint256 j) internal pure returns (uint256) {
+        return (uint256(keccak256(abi.encode(prevrandao, ts, j))) >> 1) & 0xffff;
     }
 
     function _seedPoolTokens() internal {
