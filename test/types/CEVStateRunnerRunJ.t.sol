@@ -113,11 +113,11 @@ contract CEVStateRunnerRunJTest is PlankTestBase {
             SIGMA_F_HUMAN_MIN,
             packed,
             algebraReady.pool,
-            11, // K=11 ⇒ j≥K
+            11, // K=11 => j >= K
             algebraReady.token0,
             PAYER
         );
-        assertFalse(ok, "run_j None on j≥K");
+        assertFalse(ok, "run_j None on j >= K");
     }
 
     function test_WhenPoolAddressIsZero() external {
@@ -136,7 +136,7 @@ contract CEVStateRunnerRunJTest is PlankTestBase {
 
     function test_WhenSwapSucceedsAndCEVTry_introFails() external {
         // it should return None
-        // Deepen pool so out-of-band σ_F still swaps; CEV packed L=1 ⇒ try_intro None.
+        // Deepen pool so out-of-band sigma_F still swaps; CEV packed L=1 => try_intro None.
         uint256 spacing = algebraReady.tickSpacing == 0 ? 1 : algebraReady.tickSpacing;
         int24 s = int24(uint24(spacing));
         int24 lower = (MIN_TICK / s) * s;
