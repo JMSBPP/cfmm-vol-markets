@@ -84,7 +84,14 @@ run {
     if selector == SEL_RUN_J {
         let sf = SigmaF() { val: @evm_calldataload(4) };
         let packed = @evm_calldataload(36);
-        let pool_addr = addr_from_u256(@evm_calldataload(68));
+        let pool_raw = @evm_calldataload(68);
+        // Law B: zero pool → None (do not intro_anchor / ZeroPool revert).
+        if pool_raw == 0 {
+            let out = @malloc_uninit(96);
+            @mstore32(out, 0);
+            @evm_return(out, 96);
+        }
+        let pool_addr = addr_from_u256(pool_raw);
         let pool = pool_algebra_at(pool_addr);
         let j = @evm_calldataload(100);
         let token = addr_from_u256(@evm_calldataload(132));
