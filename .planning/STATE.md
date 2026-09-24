@@ -159,9 +159,9 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
   (impl `714f33d`; [push-build 35995485040](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35995485040)).
 - **Previous:** #147 B2 RunJ — `complete` (`6933741`).
 - **Parent track:** #136 `type/CEVStateRunner` — open; PR [#142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142).
-- **Current Plank slice:** #141 `refine/CEVStateRunner` — **in_progress** (Eff `[StateView, Timestamp]`; `refined=true`).
+- **Current Plank slice:** #141 `refine/CEVStateRunner` — **ci_pending** (`b191302`; tip `7df5090`; [push-build 35996504328](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35996504328)).
 - **Queued (approved-plan order):** sibling #151 TokenFlow/Ray (parallel); parent #136 closeout after #141.
-- **Ledgers:** `141-…` (in_progress); `140-…` (complete); `147-…` (complete).
+- **Ledgers:** `141-…` (ci_pending); `140-…` (complete); `147-…` (complete).
 - **GSD milestone state:** unchanged. This section is outside the Haskell
   differential-conformance milestone and does not modify its counters or current phase.
 
