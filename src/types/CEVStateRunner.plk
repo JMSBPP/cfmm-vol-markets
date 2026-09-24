@@ -1,5 +1,5 @@
 import std::core::addr::{addr, addr_from_u256};
-import std::option::{None, Option, Some, is_some};
+import std::option::{None, Option, is_some};
 import cfmm_types::TimeSpacing::{TimeSpacing, n};
 import types::CEVLocalTickVolatility::{CEVLocalTickVolatility, try_intro as cev_try_intro};
 import types::IO::IO;
@@ -17,10 +17,11 @@ import types::WeinerGenerator::{WeinerCmd, DeltaW, io as weiner_io, run_weiner};
 import types::protocol_integrations::Pool::pool_word;
 import types::protocol_integrations::Venue::Algebra;
 
-/// types.toml: CEVStateRunner
+/// types.toml: CEVStateRunner (refined=#141)
 /// .spec: .spec/REALIZED_VOLATILITY.spec/types/CEVStateRunner/CEVStateRunner.md
-/// .btt: CEVStateRunnerRunJ.btt (#147 B2)
-/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/147
+/// .btt: CEVStateRunnerRunJ.btt (#147 success + #140 failure)
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/141
+/// Eff = [StateView, Timestamp]. Law B: run_j → Option (stages collapsed).
 
 /// CEVStateRunner(dt, K) <- SigmaF × LiquidityChunk × StateViewAnchor
 const CEVStateRunner = fn (comptime dt: u256, comptime k: u256) type {

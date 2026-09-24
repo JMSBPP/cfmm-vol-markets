@@ -2,12 +2,12 @@
 
 [StateView](../StateView/StateView.md) · [CEVLocalTickVolatility](../CEVLocalTickVolatility/CEVLocalTickVolatility.md) · [TokenFlow](../TokenFlow/TokenFlow.md) · [WeinerGenerator](../WeinerGenerator/WeinerGenerator.md) · [IO](../IO/IO.md) · [LiquidityChunk](../LiquidityChunk/LiquidityChunk.md)
 
-Plank: `src/types/CEVStateRunner.plk`. types.toml: `CEVStateRunner`.
-BTT: [CEVStateRunnerRunJ.btt](CEVStateRunnerRunJ.btt) (`#147` B2).
-PRD: [#147](https://github.com/JMSBPP/cfmm-vol-markets/issues/147) · type [#138](https://github.com/JMSBPP/cfmm-vol-markets/issues/138) · parent [#136](https://github.com/JMSBPP/cfmm-vol-markets/issues/136).
+Plank: `src/types/CEVStateRunner.plk`. types.toml: `CEVStateRunner` (`refined = true`).
+BTT: [CEVStateRunnerRunJ.btt](CEVStateRunnerRunJ.btt) (`#147` success + `#140` failure).
+PRD: [#141](https://github.com/JMSBPP/cfmm-vol-markets/issues/141) · define [#147](https://github.com/JMSBPP/cfmm-vol-markets/issues/147) / [#140](https://github.com/JMSBPP/cfmm-vol-markets/issues/140) · type [#138](https://github.com/JMSBPP/cfmm-vol-markets/issues/138) · parent [#136](https://github.com/JMSBPP/cfmm-vol-markets/issues/136).
 
-Orchestration path. Channel-built \(\Delta W\) → `token_flow` → Algebra Swap → `step_K` → pure CEV.
-Chunk is a **pre-validated** input. \(\mu_F=0\) this slice.
+Orchestration path. Channel-built \(\Delta W\) → `token_flow` → Algebra Swap → `step_K` → `CEV.try_intro`.
+Chunk is a **pre-validated** input. \(\mu_F=0\) (deferred). WeinerView deferred (Timestamp is the live atom).
 
 ## Std / host candidates
 
@@ -16,7 +16,7 @@ Chunk is a **pre-validated** input. \(\mu_F=0\) this slice.
 | `TokenHistoryFlow` | Reject as carrier; reuse fold/`run_step` *pattern* only |
 | `StateView` | Compose (`run_swap`, `step_k`); not the runner |
 | `WeinerGenerator` | Compose (`run_weiner`); Timestamp Eff |
-| `CEVLocalTickVolatility` | Compose pure `intro`; not the runner |
+| `CEVLocalTickVolatility` | Compose pure `try_intro`; not the runner |
 | Host `IO` / `Outcome` | Reuse wrap; swap stage uses `Outcome` internally |
 | `std::option::Option` | **Reuse** as public `run_j` result (law B) |
 | Hand-rolled `Result` / 3-tag | Reject under law B |
@@ -47,8 +47,7 @@ Chunk is a **pre-validated** input. \(\mu_F=0\) this slice.
 &\mathrm{let}\ \mathrm{flow}=\mathrm{token\_flow}(\sigma_F,\Delta W,\mathrm{token},\mathrm{from},\mathrm{to}=\mathrm{pool}) \\
 &\mathrm{let}\ o_{\mathrm{swap}}=\mathrm{run}_{\mathrm{swap}}(\mathrm{io}(\mathrm{realize}(\mathrm{flow},\,\mathrm{pool},\,j))) \\
 &\mathrm{let}\ o_{\mathrm{obs}}=\mathrm{StateView}.\mathrm{step}_K(t_{\mathrm{init}},\,K,\,j) \\
-&\mathrm{let}\ c=\mathrm{CEV}.\mathrm{try\_intro}(\sigma_F,\,\mathrm{chunk},\,o_{\mathrm{obs}}) \\
-&\mathrm{Some}(c)\ \text{iff all stages succeed (try\_intro Some)}
+&\mathrm{CEV}.\mathrm{try\_intro}(\sigma_F,\,\mathrm{chunk},\,o_{\mathrm{obs}})
 \end{aligned}
 \\[1em]
 \mathrm{None}
@@ -88,13 +87,16 @@ K=0 \lor K\ge n(\bar{dt}) \lor j\ge K
 \mathrm{LiquidityChunk}
 &\text{ is supplied already validated; minter not on this Eff row}
 \\
-\mathrm{CEV}.\mathrm{intro}
-&\text{ is pure (no EVM)}
+\mathrm{CEV}.\mathrm{try\_intro}
+&\text{ is pure (no EVM); }\mathrm{intro}\ \text{still reverts for the CEV suite}
 \\
 \mu_F
 &=
 0
 \quad(\text{deferred})
+\\
+\mathrm{WeinerView}
+&\text{ deferred — Timestamp via Shock/Weiner is the live atom}
 \end{aligned}
 \]
 
@@ -133,16 +135,14 @@ K=0 \lor K\ge n(\bar{dt}) \lor j\ge K
 \\
 &\lor\ \mathrm{CEV}.\mathrm{try\_intro}=\mathrm{None}
 \\
-&\quad(\mathrm{CEV}.\mathrm{intro}\ \text{still reverts; Plank has no same-frame catch — try\_intro is the law-B map})
-\\
 \text{BTT:}&\ \mathtt{CEVStateRunnerRunJ.btt}
 \\
 \text{laws:}&\ \text{Some across }j\in[0,10];\ \text{cells differ};\ \text{fuzz }\sigma_F+\mathrm{prevrandao}
 \\
 &\quad\text{fail leaves: }j\ge K;\ \mathrm{pool}=0;\ \text{CEV try\_intro None (out-of-band }\sigma_F\text{)}
 \\
-&\quad\text{deferred: Weiner None; distinct step\_k None}
+&\quad\text{deferred inducible: Weiner None; distinct step\_k None}
 \end{aligned}
 \]
 
-Define: [CEVStateRunnerRunJ.btt](CEVStateRunnerRunJ.btt) — B2 success (`#147`) + failure leaves (`#140`).
+Refine `#141`: `refined = true`; Eff and law B match harness evidence. No new behavior.
