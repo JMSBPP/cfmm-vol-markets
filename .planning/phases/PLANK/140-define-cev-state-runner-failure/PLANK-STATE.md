@@ -8,11 +8,11 @@ issue: "https://github.com/JMSBPP/cfmm-vol-markets/issues/140"
 pr: "https://github.com/JMSBPP/cfmm-vol-markets/pull/142"
 approved_plan: "https://github.com/JMSBPP/cfmm-vol-markets/issues/136"
 behavior: "run_j failure leaves under law B: guards/swap/CEV→None; try_intro map; extend CEVStateRunnerRunJ.btt."
-commit: "ad5e94c"
-ci: ""
+commit: "714f33d"
+ci: "https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35995485040"
 blocked_reason: ""
 blocked_from: ""
-updated_at: "2026-09-24T01:12:00Z"
+updated_at: "2026-09-24T12:03:00Z"
 ---
 
 # Plank TDD State
@@ -27,3 +27,4 @@ updated_at: "2026-09-24T01:12:00Z"
 ## Transition log
 
 - `2026-09-24T01:12:00Z` — `pending → in_progress`; grill complete; `/plank-define` started.
+- `2026-09-24T12:03:00Z` — reconcile: stamp accepted impl `714f33d` + [push-build 35995485040](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35995485040) (ROADMAP); post-close RunJ polish `fb19193` does not reopen this slice.
