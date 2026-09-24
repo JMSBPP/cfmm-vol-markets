@@ -5,22 +5,22 @@ import types::CEVStateRunner::{io, run_j};
 import types::LiquidityChunk::unpack_panoptic;
 import types::SigmaF::SigmaF;
 import types::StateView::intro_anchor;
-import types::TokenFlow::TokenFlow;
-import types::protocol_integrations::Pool::pool_algebra;
+import types::protocol_integrations::Pool::{pool_algebra_at, pool_tick_spacing};
+import types::protocol_integrations::Venue::Algebra;
 
-/// Public harness for CEVStateRunnerRunJ.btt (#139).
+/// Public harness for CEVStateRunnerRunJ.btt (#147 B2).
 /// Swap callback settlement mirrors StateViewHarness.
-/// Comptime K=1 for the success-path define (one valid index).
+/// Comptime K=11 admits j ∈ [0,10]. Eff Timestamp via run_weiner inside run_j.
 
-// cast sig "runJ(uint256,uint256,uint256,address,uint256,uint256,uint256,uint256,uint256,address,address,address)" -> 0x...
-// sigmaF, chunkSpacing, packed, pool, fee, poolSpacing, j, amount, dir, token, from, to
-const SEL_RUN_J = 0x9fffd9ef;
+// cast sig "runJ(uint256,uint256,address,uint256,address,address)" -> 0xc65ff6bc
+// sigmaF, packed, pool, j, token, from
+const SEL_RUN_J = 0xc65ff6bc;
 const SEL_ALGEBRA_SWAP_CALLBACK = 0x2c8958f6;
 const SEL_TRANSFER_FROM = 0x23b872dd;
 const SEL_TOKEN0 = 0x0dfe1681;
 const SEL_TOKEN1 = 0xd21220a7;
 const BAR_DT = 2;
-const K = 1;
+const K = 11;
 
 const xfer = fn (token: u256, from: u256, to: u256, amt: u256) bool {
     if amt == 0 {
@@ -83,23 +83,17 @@ run {
     }
     if selector == SEL_RUN_J {
         let sf = SigmaF() { val: @evm_calldataload(4) };
-        let chunk = unpack_panoptic(@evm_calldataload(36), @evm_calldataload(68));
-        let pool = pool_algebra(
-            addr_from_u256(@evm_calldataload(100)),
-            @evm_calldataload(132),
-            @evm_calldataload(164)
-        );
-        let j = @evm_calldataload(196);
-        let flow = TokenFlow() {
-            amount: @evm_calldataload(228),
-            dir: @evm_calldataload(260),
-            token: addr_from_u256(@evm_calldataload(292)),
-            from: addr_from_u256(@evm_calldataload(324)),
-            to: addr_from_u256(@evm_calldataload(356))
-        };
+        let packed = @evm_calldataload(36);
+        let pool_addr = addr_from_u256(@evm_calldataload(68));
+        let pool = pool_algebra_at(pool_addr);
+        let j = @evm_calldataload(100);
+        let token = addr_from_u256(@evm_calldataload(132));
+        let from = addr_from_u256(@evm_calldataload(164));
+        let spacing = pool_tick_spacing(Algebra, pool);
+        let chunk = unpack_panoptic(spacing, packed);
         let anchor = intro_anchor(pool);
         let m = io(BAR_DT, K, sf, chunk, anchor);
-        let o = run_j(BAR_DT, K, m, flow, j);
+        let o = run_j(BAR_DT, K, m, token, from, j);
         let out = @malloc_uninit(96);
         @mstore32(out, @bool_to_u256(o.is_some));
         if o.is_some {

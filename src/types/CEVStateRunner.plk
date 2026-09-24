@@ -1,4 +1,5 @@
-import std::option::{None, Option, Some};
+import std::core::addr::{addr, addr_from_u256};
+import std::option::{None, Option, Some, is_some};
 import cfmm_types::TimeSpacing::{TimeSpacing, n};
 import types::CEVLocalTickVolatility::{CEVLocalTickVolatility, intro as cev_intro};
 import types::IO::IO;
@@ -11,12 +12,15 @@ import types::StateView::{
     run_swap,
     step_k as state_step_k
 };
-import types::TokenFlow::TokenFlow;
+import types::TokenFlow::token_flow;
+import types::WeinerGenerator::{WeinerCmd, DeltaW, io as weiner_io, run_weiner};
+import types::protocol_integrations::Pool::pool_word;
+import types::protocol_integrations::Venue::Algebra;
 
 /// types.toml: CEVStateRunner
 /// .spec: .spec/REALIZED_VOLATILITY.spec/types/CEVStateRunner/CEVStateRunner.md
-/// .btt: CEVStateRunnerRunJ.btt (#139 success); failure branches #140
-/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/139
+/// .btt: CEVStateRunnerRunJ.btt (#147 B2)
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/147
 
 /// CEVStateRunner(dt, K) <- SigmaF × LiquidityChunk × StateViewAnchor
 const CEVStateRunner = fn (comptime dt: u256, comptime k: u256) type {
@@ -46,13 +50,14 @@ const io = fn (
     }
 };
 
-/// Behavior: CEVStateRunnerRunJ.btt — run_swap → StateView.step_k → CEV.intro.
-/// Law B: any stage failure → None (CEV revert path exercised in #140).
+/// Behavior: CEVStateRunnerRunJ.btt — run_weiner → token_flow → run_swap → step_k → CEV.intro.
+/// Eff = [StateView, Timestamp]. Law B: any stage failure → None (incl. Weiner None).
 const run_j = fn (
     comptime dt: u256,
     comptime k: u256,
     m: IO(CEVStateRunner(dt, k)),
-    flow: TokenFlow(),
+    token: addr,
+    from: addr,
     j: u256
 ) Option(CEVLocalTickVolatility) {
     comptime let nmax = n(dt);
@@ -60,20 +65,34 @@ const run_j = fn (
         None(CEVLocalTickVolatility)
     } else {
         let r = m.inner;
-        let cmd = RealizeCmd {
-            pool: r.anchor.pool,
-            flow: flow,
-            bin_j: j
-        };
-        let o_swap = run_swap(io_realize(cmd));
-        if !o_swap.inner.is_some {
+        let o_dw = run_weiner(dt, weiner_io(WeinerCmd { j: j }));
+        if !is_some(DeltaW(dt), o_dw) {
             None(CEVLocalTickVolatility)
         } else {
-            let o_obs = state_step_k(dt, r.anchor, k, j);
-            if !o_obs.is_some {
+            let pool_u = pool_word(Algebra, r.anchor.pool);
+            let flow = token_flow(
+                dt,
+                r.sf,
+                o_dw.inner,
+                token,
+                from,
+                addr_from_u256(pool_u)
+            );
+            let cmd = RealizeCmd {
+                pool: r.anchor.pool,
+                flow: flow,
+                bin_j: j
+            };
+            let o_swap = run_swap(io_realize(cmd));
+            if !o_swap.inner.is_some {
                 None(CEVLocalTickVolatility)
             } else {
-                Some(cev_intro(dt, r.sf, r.chunk, o_obs.inner))
+                let o_obs = state_step_k(dt, r.anchor, k, j);
+                if !o_obs.is_some {
+                    None(CEVLocalTickVolatility)
+                } else {
+                    Some(cev_intro(dt, r.sf, r.chunk, o_obs.inner))
+                }
             }
         }
     }

@@ -164,17 +164,19 @@ notes = "Define: intro_anchor, prefix intro_len/step_k, io_realize/run_swap (Sta
 module = "CEVStateRunner"
 kind = "indexed"
 file = "types/CEVStateRunner/CEVStateRunner.md"
-carriers = ["SigmaF", "LiquidityChunk", "StateViewAnchor", "TokenFlow", "RealizeCmd"]
+carriers = ["SigmaF", "LiquidityChunk", "StateViewAnchor", "WeinerCmd", "DeltaW(dt)"]
 operations = ["io", "run_j"]
 laws = [
   "CEVStateRunner(dt,K) <- SigmaF × LiquidityChunk × StateViewAnchor",
-  "io wraps only; run_j = run_swap → StateView.step_k → CEV.intro",
-  "run_j → Option(CEVLocalTickVolatility); law B collapses swap/obs/CEV failure to None",
-  "None if K=0 or K≥n(dt) or j≥K or swap None or step_k None or CEV would revert",
-  "Eff = [StateView]; chunk pre-validated; CEV pure",
+  "io wraps only; run_j = run_weiner → token_flow(to=pool) → run_swap → step_k → CEV.intro",
+  "run_j(m, token, from, j) → Option(CEVLocalTickVolatility); no TokenFlow/amount/dir ABI",
+  "law B collapses Weiner/swap/obs/CEV failure to None",
+  "None if K=0 or K≥n(dt) or j≥K or any stage None",
+  "Eff = [StateView, Timestamp]; WeinerView deferred; μ_F=0; chunk pre-validated; CEV pure",
+  "Admissible σ_F ∈ [1e-6, 1e-3]; σ_F^RAY = σ_F · RAY (SQD-backed)",
 ]
 refined = false
-notes = "Define #139: run_j success (CEVStateRunnerRunJ.btt). Failure #140; refine #141. Pattern from TokenHistoryFlow; not an extension of it."
+notes = "Define #147 B2: K=11, j=0..=10 warp+fuzz. Failure #140; refine #141 (Timestamp Eff). Sibling TokenFlow Ray #151."
 
 [Shock]
 module = "Shock"

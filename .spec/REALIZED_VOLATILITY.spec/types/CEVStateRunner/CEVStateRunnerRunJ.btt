@@ -1,3 +1,4 @@
 CEVStateRunnerRunJTest
-└── when valid index and swap obs and CEV succeed
-    └── it should return Some with observed tick and sigma
+└── when timestamp and prevrandao are available and sigmaF is admissible
+    ├── it should return Some with observed tick and sigma for each j in 0 through 10
+    └── it should yield different cells across j

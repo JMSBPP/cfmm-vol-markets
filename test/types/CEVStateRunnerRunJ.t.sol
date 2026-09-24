@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.30;
+pragma solidity 0.8.26;
 
+import {console2} from "forge-std/console2.sol";
 import {PlankTestBase} from "test/PlankTestBase.sol";
 import {IntegralPoolBootstrap} from "test/helpers/Algebra/IntegralPoolBootstrap.sol";
 import {IAlgebraPoolState} from "@cryptoalgebra/integral-core/interfaces/pool/IAlgebraPoolState.sol";
@@ -8,17 +9,11 @@ import {IAlgebraPoolState} from "@cryptoalgebra/integral-core/interfaces/pool/IA
 interface ICEVStateRunnerRunJ {
     function runJ(
         uint256 sigmaF,
-        uint256 chunkTickSpacing,
         uint256 packedChunk,
         address pool,
-        uint256 fee,
-        uint256 poolTickSpacing,
         uint256 j,
-        uint256 amount,
-        uint256 dir,
         address token,
-        address from,
-        address to
+        address from
     ) external returns (bool ok, uint256 tick, uint256 sig);
 }
 
@@ -35,19 +30,21 @@ interface IAlgebraMintCallbackAdapter {
     ) external returns (bool ok, uint256 amount0, uint256 amount1, uint256 liquidityActual);
 }
 
-/// @dev Bulloak-generated names from CEVStateRunnerRunJ.btt. Assertions filled.
+/// @dev Bulloak-generated names from CEVStateRunnerRunJ.btt (#147 B2). Assertions filled.
 contract CEVStateRunnerRunJTest is PlankTestBase {
     ICEVStateRunnerRunJ internal harness;
     IAlgebraMintCallbackAdapter internal mintAdapter;
     IntegralPoolBootstrap.ReadyPool internal algebraReady;
 
     address internal constant PAYER = address(0xA11CE);
-    address internal constant TO = address(0xB0B);
     address internal constant LEFTOVERS = address(0xD00D);
     uint256 internal constant SEED = 1e24;
-    uint256 internal constant SWAP_IN = 10_000;
     uint256 internal constant RAY = 1e27;
     uint256 internal constant CHUNK_L = 1_000_000_000_000;
+    uint256 internal constant DT = 2;
+    /// Admissible σ_F as fraction of L (SQD-backed): [1e-6, 1e-3].
+    uint256 internal constant SIGMA_F_HUMAN_MIN = 1e21; // 1e-6 * RAY
+    uint256 internal constant SIGMA_F_HUMAN_MAX = 1e24; // 1e-3 * RAY
 
     bytes32 internal constant ERC20_POS = keccak256("erc20");
 
@@ -59,32 +56,49 @@ contract CEVStateRunnerRunJTest is PlankTestBase {
         _mintBootstrapLiquidity();
     }
 
-    function test_WhenValidIndexAndSwapObsAndCEVSucceed() external {
-        // it should return Some with observed tick and sigma
+    function test_WhenTimestampAndPrevrandaoAreAvailableAndSigmaFIsAdmissible(
+        uint256 prevrandaoSeed,
+        uint256 sigmaFRaw
+    ) external {
+        // it should return Some with observed tick and sigma for each j in 0 through 10
+        // it should yield different cells across j
+        vm.prevrandao(bytes32(prevrandaoSeed));
+        uint256 sigmaF = bound(sigmaFRaw, SIGMA_F_HUMAN_MIN, SIGMA_F_HUMAN_MAX);
+        console2.log("\\(\\sigma_F\\):", sigmaF / (RAY / 1e6)); // ppm of unit fraction for readability
+        console2.log("\\(\\sigma_F^{RAY}\\):", sigmaF);
+
         uint256 spacing = algebraReady.tickSpacing == 0 ? 1 : algebraReady.tickSpacing;
         int24 s = int24(uint24(spacing));
         uint256 packed = _pack(s * -2, s * 2, uint128(CHUNK_L));
 
-        (bool ok, uint256 tick, uint256 sig) = harness.runJ(
-            RAY,
-            spacing,
-            packed,
-            algebraReady.pool,
-            algebraReady.fee,
-            spacing,
-            0,
-            SWAP_IN,
-            0,
-            algebraReady.token0,
-            PAYER,
-            TO
-        );
+        uint256 t0 = block.timestamp;
+        uint256[11] memory ticks;
+        uint256[11] memory sigs;
 
-        (uint160 sqrtP, int24 observedTick,,,,) = IAlgebraPoolState(algebraReady.pool).globalState();
-        assertTrue(ok, "run_j Some");
-        assertEq(tick, uint256(int256(observedTick)), "observed tick");
-        assertTrue(sig > 0 || sqrtP > 0, "sigma or pool live");
-        assertTrue(sig < (1 << 88), "sigma in u88");
+        for (uint256 j = 0; j <= 10; j++) {
+            vm.warp(t0 + j * DT);
+            (bool ok, uint256 tick, uint256 sig) = harness.runJ(
+                sigmaF,
+                packed,
+                algebraReady.pool,
+                j,
+                algebraReady.token0,
+                PAYER
+            );
+            assertTrue(ok, "run_j Some");
+            assertTrue(sig < (1 << 88), "sigma in u88");
+            ticks[j] = tick;
+            sigs[j] = sig;
+        }
+
+        for (uint256 a = 0; a <= 10; a++) {
+            for (uint256 b = a + 1; b <= 10; b++) {
+                assertTrue(ticks[a] != ticks[b] || sigs[a] != sigs[b], "cells collide across j");
+            }
+        }
+
+        (uint160 sqrtP,,,,,) = IAlgebraPoolState(algebraReady.pool).globalState();
+        assertTrue(sqrtP > 0, "pool live");
     }
 
     function _mintBootstrapLiquidity() internal {
