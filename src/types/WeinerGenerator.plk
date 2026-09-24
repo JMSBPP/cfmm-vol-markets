@@ -1,16 +1,20 @@
-import std::core::ops::{checked_mul, checked_add, checked_sub, neg_u256};
-import types::Numerics::PIPS;
-import cfmm_types::Window::*;
+import std::option::{Option, Some, None, is_some};
+import std::core::ops::{checked_mul, checked_div_down, neg_u256};
+import std::core::uint::cast_uint;
+import types::IO::IO;
+import types::Shock::{Shock, ShockCmd, io as shock_io, run_shock, val as shock_val};
+import cfmm_types::Pips::{Pips, PIPS};
+import cfmm_types::Ray::rayVal;
 import cfmm_types::TimeSpacing::*;
 
-/// ShockPips — Algebra-scale signed pips (10^6 ≈ 1σ); sign via neg_u256.
-const ShockPips = fn () type {
-    struct {
-        val: u256
-    }
-};
+/// types.toml: WeinerGenerator
+/// .spec: .spec/REALIZED_VOLATILITY.spec/types/WeinerGenerator/WeinerGenerator.md
+/// .btt: .spec/REALIZED_VOLATILITY.spec/types/WeinerGenerator/WeinerGeneratorRunWeiner.btt
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/146
+/// Channel-built DeltaW(dt) via Shock(Pips). Eff = [Timestamp] (WeinerView).
+/// ΔW = TimeSpacing.sqrt_dt(dt) · mag / PIPS (Ray scale); mag from Shock(Pips).
 
-/// DeltaW(dt) — Ray-scale Wiener increment for lattice spacing dt (TimeSpacing).
+/// DeltaW(dt) — Ray-scale Wiener increment (u256 word; Ray carrier later).
 const DeltaW = fn (comptime dt: u256) type {
     let _ = TimeSpacing(dt);
     struct {
@@ -18,49 +22,39 @@ const DeltaW = fn (comptime dt: u256) type {
     }
 };
 
-const MAX_ABS_EPS_PIPS = 6 *% PIPS;
+/// Command for io wrap; Timestamp env + Shock entropy read in run_weiner (Eff).
+const WeinerCmd = struct {
+    /// Lattice index j (ShockCmd.j / Window lattice).
+    j: u256
+};
 
-/// floor(√dt · RAY) for TimeSpacing domain — comptime table (not getSqrtRatioAtTick).
-const SQRT_DT_RAY_2 = 1414213562373095048801688724;
-const SQRT_DT_RAY_3 = 1732050807568877293527446341;
-const SQRT_DT_RAY_4 = 2000000000000000000000000000;
-const SQRT_DT_RAY_5 = 2236067977499789696409173668;
-const SQRT_DT_RAY_6 = 2449489742783178098197284074;
-const SQRT_DT_RAY_8 = 2828427124746190097603377448;
-const SQRT_DT_RAY_9 = 3000000000000000000000000000;
-const SQRT_DT_RAY_10 = 3162277660168379331998893544;
+/// Pure wrap. Execution is run_weiner only.
+const io = fn (cmd: WeinerCmd) IO(WeinerCmd) {
+    IO(WeinerCmd) { inner: cmd }
+};
 
-const sqrt_dt_ray = fn (comptime dt: u256) u256 {
-    let _ = TimeSpacing(dt);
-    if dt == 2 {
-        SQRT_DT_RAY_2
-    } else if dt == 3 {
-        SQRT_DT_RAY_3
-    } else if dt == 4 {
-        SQRT_DT_RAY_4
-    } else if dt == 5 {
-        SQRT_DT_RAY_5
-    } else if dt == 6 {
-        SQRT_DT_RAY_6
-    } else if dt == 8 {
-        SQRT_DT_RAY_8
-    } else if dt == 9 {
-        SQRT_DT_RAY_9
+/// √dt̄ (TimeSpacing.sqrt_dt → Ray) · mag_pips / PIPS → Ray-scale word.
+const product_ray = fn (comptime dt: u256, mag_pips: u256) u256 {
+    checked_div_down(checked_mul(rayVal(sqrt_dt(dt)), mag_pips), PIPS)
+};
+
+/// Timestamp + Shock.run_shock → √dt · mag → Option(DeltaW(dt)).
+const run_weiner = fn (comptime dt: u256, m: IO(WeinerCmd)) Option(DeltaW(dt)) {
+    let so = run_shock(Pips, shock_io(ShockCmd { j: m.inner.j }));
+    if !is_some(Shock(Pips), so) {
+        None(DeltaW(dt))
     } else {
-        SQRT_DT_RAY_10
+        let mag = cast_uint(shock_val(Pips, so.inner).val, u256);
+        Some(DeltaW(dt) { val: product_ray(dt, mag) })
     }
 };
 
-/// Q20: sign from high bit; magnitude (h >> 1) % (6 * PIPS).
-const mapHashToShockPips = fn (h: u256) ShockPips() {
-    let mag = (h >> 1) % MAX_ABS_EPS_PIPS;
-    if (h >> 255) == 1 {
-        ShockPips() { val: neg_u256(mag) }
-    } else {
-        ShockPips() { val: mag }
-    }
+/// Project DeltaW payload (Ray-scale u256).
+const val = fn (comptime dt: u256, dw: DeltaW(dt)) u256 {
+    dw.val
 };
 
+/// Sign helpers — still used by TokenFlow / SigmaF / TokenHistory.
 const is_neg_signed = fn (x: u256) bool {
     x > 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 };
@@ -70,26 +64,5 @@ const abs_signed = fn (x: u256) u256 {
         neg_u256(x)
     } else {
         x
-    }
-};
-
-/// ΔW = √dt̄ · ε ; Ray √ from comptime table; product toward zero; checked_*.
-const deltaW = fn (comptime dt: u256, eps: ShockPips()) DeltaW(dt) {
-    let _ = TimeSpacing(dt);
-    let mag = abs_signed(eps.val);
-    let sqrt_ray = sqrt_dt_ray(dt);
-    let prod = checked_mul(sqrt_ray, mag) </ PIPS;
-    if is_neg_signed(eps.val) {
-        DeltaW(dt) { val: neg_u256(prod) }
-    } else {
-        DeltaW(dt) { val: prod }
-    }
-};
-
-/// j ∈ [0, n(dt)); n = Window/dt from cfmm-types TimeSpacing.
-const assert_j_in_range = fn (comptime dt: u256, j: u256) void {
-    let nmax = n(dt);
-    if j >= nmax {
-        let _ = checked_sub(nmax, checked_add(j, 1));
     }
 };

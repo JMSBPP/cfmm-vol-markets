@@ -2,13 +2,36 @@
 
 [SigmaF]
 module = "SigmaF"
-kind = "plain"
+kind = "generic"
 file = "types/SigmaF/SigmaF.md"
-carriers = ["u256_RAY"]
-operations = ["intro", "token_amount"]
-laws = ["intro is total", "RAY = 10^27", "token_amount(σ_F, ΔW(dt)) = (σ_F · |ΔW|)/RAY"]
-refined = true
-notes = "token_amount takes Weiner DeltaW(dt), not raw u256. CEV block is notation."
+carriers = ["Ray"]
+operations = ["intro", "intro_from_u256"]
+laws = [
+  "SigmaF(N); only N=Ray this slice",
+  "intro :: Ray → SigmaF(Ray); carrier { r: Ray }",
+  "intro_from_u256 = intro ∘ Ray.intro",
+  "Eff = []",
+  "no token_amount (owned by TokenAmountStock)",
+]
+refined = false
+notes = "Type #151: phantom N; Ray only. Product moved to TokenAmountNetFlowStochasticBase. CEV block notation."
+
+[TokenAmountNetFlowStochasticBase]
+module = "TokenAmountNetFlowStochasticBase"
+kind = "dependent"
+file = "types/TokenAmountNetFlowStochasticBase/TokenAmountNetFlowStochasticBase.md"
+carriers = ["SigmaF(N)", "DeltaW(dt)", "TokenAmountStock(T)"]
+operations = ["intro_base", "stock", "magnitude", "direction"]
+laws = [
+  "C = SigmaF(N) only; N=Ray only this slice",
+  "Weiner(dt) ≡ DeltaW(dt)",
+  "intro_base packs (σ, ΔW)",
+  "stock(b) = (σ · ΔW) / unit(N); unit(Ray)=rayVal(rayMulId())",
+  "TokenAmountStock = signed u256; magnitude/direction in define",
+  "checked mul/div → revert; Eff = []",
+]
+refined = false
+notes = "Type #151. stock/magnitude/direction filled for CI bridge; TokenFlow #152 still owns full refine. holes cleared for stock path."
 
 [TokenFlow]
 module = "TokenFlow"
@@ -86,13 +109,14 @@ module = "CEVLocalTickVolatility"
 kind = "dependent"
 file = "types/CEVLocalTickVolatility/CEVLocalTickVolatility.md"
 carriers = ["Tick", "u88_tick2", "SigmaF", "LiquidityChunk", "ObsStep(dt)"]
-operations = ["intro", "intro_len", "step_k"]
+operations = ["intro", "try_intro", "intro_len", "step_k"]
 laws = [
   "L_{1/2} = LiquidityChunk.liquidity : u128",
   "√p_j = ObsStep(dt).sqrt_p : Q64_96; tick_j = ObsStep(dt).tick",
   "ratio = floor(mulDiv(σ_F.raw,Q96,√p_j) / L_{1/2} / LN_10001)",
   "σ = ratio² ∈ u88 tick²; tick = observed tick_j",
-  "intro(σ_F, LiquidityChunk, ObsStep(dt)) → {tick, σ}",
+  "intro(σ_F, LiquidityChunk, ObsStep(dt)) → {tick, σ} or revert",
+  "try_intro → Option; None on L=0 / √p=0 / σ∉u88 (law-B map for #140; same arithmetic)",
   "revert ZeroLiquidity if LiquidityChunk.liquidity=0",
   "revert ZeroSqrtPrice if ObsStep.sqrt_p=0",
   "revert SigmaOverflowU88 if σ ∉ u88",
@@ -159,3 +183,53 @@ laws = [
 ]
 refined = false
 notes = "Define: intro_anchor, prefix intro_len/step_k, io_realize/run_swap (StateViewRunSwap.btt). pool_tick_after/encode refine remain. PRD #134."
+
+[CEVStateRunner]
+module = "CEVStateRunner"
+kind = "indexed"
+file = "types/CEVStateRunner/CEVStateRunner.md"
+carriers = ["SigmaF", "LiquidityChunk", "StateViewAnchor", "WeinerCmd", "DeltaW(dt)"]
+operations = ["io", "run_j"]
+laws = [
+  "CEVStateRunner(dt,K) <- SigmaF × LiquidityChunk × StateViewAnchor",
+  "io wraps only; run_j = run_weiner → token_flow(to=pool) → run_swap → step_k → CEV.try_intro",
+  "run_j(m, token, from, j) → Option(CEVLocalTickVolatility); law B; no TokenFlow/amount/dir ABI",
+  "None if K=0 or K≥n(dt) or j≥K or Weiner/swap/obs/try_intro None",
+  "Eff = [StateView, Timestamp]; WeinerView deferred; μ_F=0; chunk pre-validated",
+  "Success leaf: admissible σ_F ∈ [1e-6, 1e-3]; fail leaf may use out-of-band σ_F",
+]
+refined = true
+notes = "Refine #141 after #147/#140. Sibling TokenFlow Ray #151. Deferred: Weiner None inducible; distinct step_k None."
+
+[Shock]
+module = "Shock"
+kind = "generic"
+file = "types/Shock/Shock.md"
+carriers = ["Shock(T)", "ShockCmd", "Pips"]
+operations = ["io", "run_shock", "val"]
+laws = [
+  "Shock(T) <- { inner: T }; first T = Pips (cfmm_types)",
+  "io wraps ShockCmd; run_shock reads Timestamp env + entropy → Option(Shock(T))",
+  "Outcome law: Some = Shock(T), None = Timestamp/entropy failure",
+  "val(Shock(T)) → T",
+  "Eff = [Timestamp]",
+]
+refined = false
+notes = "Type #149; define #150 run_shock success Shock(Pips) entropy B (PREVRANDAO‖timestamp‖j). Prereq of #143. Replaces legacy ShockPips carrier."
+
+[WeinerGenerator]
+module = "WeinerGenerator"
+kind = "indexed"
+file = "types/WeinerGenerator/WeinerGenerator.md"
+carriers = ["DeltaW(dt)", "WeinerCmd", "Shock(Pips)"]
+operations = ["io", "run_weiner", "val"]
+laws = [
+  "DeltaW(dt) <- { val: u256 } Ray-scale; dt in TimeSpacing",
+  "io wraps WeinerCmd{j}; run_weiner reads Timestamp + Shock.run_shock → Option(DeltaW(dt))",
+  "Outcome law: Some = DeltaW(dt), None = Shock/Timestamp/entropy failure",
+  "val(DeltaW(dt)) → u256 (Ray carrier later)",
+  "√dt = TimeSpacing.sqrt_dt(dt) → Ray (cfmm-types#26); product = rayVal(√)·mag/PIPS",
+  "Eff = [Timestamp] (WeinerView); no local SQRT_DT_RAY table; no passed-eps deltaW",
+]
+refined = true
+notes = "Refine #146: pin cfmm-types#26; drop host √ table; keep abs_signed for TokenFlow/SigmaF/TokenHistory."

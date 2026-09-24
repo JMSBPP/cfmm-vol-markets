@@ -1,18 +1,22 @@
-import std::core::ops::checked_mul;
-import types::Numerics::RAY;
-import types::WeinerGenerator::{DeltaW, abs_signed};
+import cfmm_types::Ray::{Ray, intro as ray_intro};
 
-const SigmaF = fn () type {
+/// types.toml: SigmaF
+/// .spec: .spec/REALIZED_VOLATILITY.spec/types/SigmaF/SigmaF.md
+/// .btt: .spec/REALIZED_VOLATILITY.spec/types/SigmaF/SigmaFIntro.btt
+///       .spec/REALIZED_VOLATILITY.spec/types/SigmaF/SigmaFIntroFromU256.btt
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/151
+/// Phantom N; only SigmaF(Ray) this slice. Eff = []. No token_amount.
+
+const SigmaF = fn (comptime N: type) type {
     struct {
-        val: u256
+        r: N
     }
 };
 
-const intro = fn (x: u256) SigmaF() {
-    SigmaF() { val: x }
+const intro = fn (r: Ray) SigmaF(Ray) {
+    SigmaF(Ray) { r: r }
 };
 
-/// TokenAmount = (σ_F · |ΔW(dt)|) / RAY. dw is Weiner DeltaW, not a raw u256.
-const token_amount = fn (comptime dt: u256, sf: SigmaF(), dw: DeltaW(dt)) u256 {
-    checked_mul(sf.val, abs_signed(dw.val)) </ RAY
+const intro_from_u256 = fn (x: u256) SigmaF(Ray) {
+    intro(ray_intro(x))
 };

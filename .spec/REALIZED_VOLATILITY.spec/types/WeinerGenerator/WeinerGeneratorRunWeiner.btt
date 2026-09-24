@@ -1,0 +1,4 @@
+WeinerGeneratorRunWeinerTest
+└── when timestamp and prevrandao are available
+    ├── it should return Some with Ray-scale DeltaW
+    └── it should yield different DeltaW across j

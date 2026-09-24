@@ -1,8 +1,17 @@
 {
+  "evm-spec-bridge": {
+    "rev": "b4c7f179277610af0a0ac7db2b8fa7dfed343464"
+  },
   "lib/bunni-v2": {
     "tag": {
       "name": "v1.2.1",
       "rev": "000f79a38bdd3fb2b314dc8c108b2a3d1ca1d440"
+    }
+  },
+  "lib/cfmm-types": {
+    "branch": {
+      "name": "develop",
+      "rev": "5b4a5a4e31a190fcf6af54fbadc9c2b0e07e4684"
     }
   },
   "lib/forge-std": {
@@ -32,10 +41,22 @@
       "rev": "41e19975946ac60927f3db7087f6c0b67bf752bb"
     }
   },
+  "lib/seaport": {
+    "rev": "e9c5a9f17cb5ee658ccc9cb1a8eeab02c1f5a4cd"
+  },
   "lib/v3-core": {
     "branch": {
       "name": "0.8",
       "rev": "6562c52e8f75f0c10f9deaf44861847585fc8129"
     }
+  },
+  "offchain": {
+    "rev": "b1104974f001d6e67e41cf09388e79df647bf466"
+  },
+  "refs": {
+    "rev": "3a35f7c986f55c4172d198ac83fd9c95e35422e2"
+  },
+  "spec": {
+    "rev": "f2736e058cfde1a03708f34772bfc2bb47c55cf6"
   }
 }

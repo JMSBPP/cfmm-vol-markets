@@ -818,10 +818,21 @@ phase numbering, progress counters, current position, or GSD routing.
 | Approved child | Brady phase | Status | Evidence |
 |----------------|-------------|--------|----------|
 | [#135 refine/CEVLocalTickVolatility typed inputs](https://github.com/JMSBPP/cfmm-vol-markets/issues/135) | `refine` | Complete | [PR #137](https://github.com/JMSBPP/cfmm-vol-markets/pull/137), `466cf33`, [push-build 35885807626](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885807626), [develop-gate 35885814010](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885814010) |
-| [#136 type/CEVStateRunner](https://github.com/JMSBPP/cfmm-vol-markets/issues/136) | `type` | Pending; next approved child after #135 | Ordered by parent [#129](https://github.com/JMSBPP/cfmm-vol-markets/issues/129); no dispatch implied |
+| [#136 type/CEVStateRunner](https://github.com/JMSBPP/cfmm-vol-markets/issues/136) | parent | Open; review cascade #149→#143→… + #138–#141 | Parent [#129](https://github.com/JMSBPP/cfmm-vol-markets/issues/129); track PR on `type/CEVStateRunner` |
+| [#138 type/CEVStateRunner algebra + outcome law](https://github.com/JMSBPP/cfmm-vol-markets/issues/138) | `type` | Complete | `12e3d69`; [push-build 35903789028](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35903789028), [develop-gate 35903793339](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35903793339); [PR #142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142) |
+| [#139 define/CEVStateRunner success path (one index)](https://github.com/JMSBPP/cfmm-vol-markets/issues/139) | `define` | Complete | `1b8ac24`; [push-build 35905119499](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35905119499), [develop-gate 35905124168](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35905124168); [PR #142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142) |
+| [#149 type/Shock(T) Timestamp → Shock(Pips)](https://github.com/JMSBPP/cfmm-vol-markets/issues/149) | `type` | Complete | `28cbd61`; [push-build 35924839162](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35924839162), [develop-gate 35924845382](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35924845382); [PR #142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142) |
+| [#143 type/WeinerGenerator channel DeltaW](https://github.com/JMSBPP/cfmm-vol-markets/issues/143) | `type` | Complete | `4e70c22`; cascade after #149/#150 |
+| [#145 define/WeinerGenerator channel DeltaW](https://github.com/JMSBPP/cfmm-vol-markets/issues/145) | `define` | Complete | `e8bdb16`; [push-build 35932130470](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35932130470) |
+| [#146 refine/WeinerGenerator](https://github.com/JMSBPP/cfmm-vol-markets/issues/146) | `refine` | Complete | `87bc176`; [push-build 35934124903](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35934124903), [develop-gate 35934130674](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35934130674) |
+| [#147 define/CEVStateRunner B2 RunJ](https://github.com/JMSBPP/cfmm-vol-markets/issues/147) | `define` | Complete | `6933741`; [push-build 35940479607](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35940479607); closed |
+| [#140 define/CEVStateRunner failure outcomes](https://github.com/JMSBPP/cfmm-vol-markets/issues/140) | `define` | Complete | `714f33d`; [push-build 35995485040](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35995485040); closed |
+| [#141 refine/CEVStateRunner B2 Eff [StateView, Timestamp]](https://github.com/JMSBPP/cfmm-vol-markets/issues/141) | `refine` | CI pending | `b191302`; tip `7df5090`; [push-build 35996504328](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35996504328), [develop-gate 35996510977](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35996510977) |
 
-Phase ledger:
-`.planning/phases/PLANK/135-refine-cev-local-tick-volatility/PLANK-STATE.md`.
+Phase ledgers:
+`.planning/phases/PLANK/135-refine-cev-local-tick-volatility/PLANK-STATE.md`,
+`.planning/phases/PLANK/138-type-cev-state-runner-algebra/PLANK-STATE.md`,
+`.planning/phases/PLANK/139-define-cev-state-runner-success/PLANK-STATE.md`.
 
 ---
 *Roadmap created: 2026-08-27*

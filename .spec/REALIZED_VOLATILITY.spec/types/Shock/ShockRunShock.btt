@@ -1,0 +1,4 @@
+ShockRunShockTest
+└── when timestamp and prevrandao are available
+    ├── it should return Some with Pips in u16 range
+    └── it should yield different shocks across j
