@@ -1,0 +1,9 @@
+StateViewRunSwapTest
+├── when pool address is zero
+│   └── it should return run_swap None
+├── when flow amount is zero
+│   └── it should return run_swap None
+├── when swap call fails
+│   └── it should return run_swap None
+└── when swap call succeeds
+    └── it should return run_swap Some

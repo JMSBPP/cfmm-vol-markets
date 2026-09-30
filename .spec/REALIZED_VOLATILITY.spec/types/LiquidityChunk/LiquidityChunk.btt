@@ -1,0 +1,21 @@
+LiquidityChunkIntroTest
+├── when tick spacing is zero
+│   └── it should normalize spacing to one
+├── when tick spacing is greater than two hundred
+│   └── it should normalize spacing to two hundred
+├── when the lower tick is below the minimum tick
+│   └── it should revert with TickOutOfBounds
+├── when the upper tick is above the maximum tick
+│   └── it should revert with TickOutOfBounds
+├── when the lower tick is not aligned
+│   └── it should revert with TickNotAligned
+├── when the upper tick is not aligned
+│   └── it should revert with TickNotAligned
+├── when the lower tick equals the upper tick
+│   └── it should revert with TicksMisordered
+├── when the lower tick is greater than the upper tick
+│   └── it should revert with TicksMisordered
+├── when liquidity is zero
+│   └── it should revert with ZeroLiquidity
+└── when both ticks are in bounds and aligned and liquidity is positive
+    └── it should return the typed liquidity chunk

@@ -2,7 +2,11 @@
 # SPEC_DOMAIN (env or Actions vars.SPEC_DOMAIN) selects a key under [domains.*];
 # if unset, `default` is used. Unknown domain → fail closed.
 
-default = "StrikeMultiplier"
+default = "REALIZED_VOLATILITY"
+
+[domains.REALIZED_VOLATILITY]
+path = ".spec/REALIZED_VOLATILITY.spec"
+compile = ".spec/REALIZED_VOLATILITY.spec/compile.toml"
 
 [domains.StrikeMultiplier]
 path = ".spec/StrikeMultiplier.spec"

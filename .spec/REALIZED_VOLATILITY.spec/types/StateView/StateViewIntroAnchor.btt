@@ -1,0 +1,6 @@
+StateViewIntroAnchorTest
+├── when pool address is zero
+│   └── it should revert ZeroPool
+└── when pool is nonzero
+    ├── it should set t_init to block timestamp
+    └── it should return the same pool fee and tick spacing
