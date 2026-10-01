@@ -1,3 +1,6 @@
+
+import [\(\mathrm{Q64.96}\)](@Q64.96/Q64.96.md)
+
 For \(\sqrt{P_L}, \sqrt{P_U} \in \mathrm{Q64.96}\):
 
 \[
