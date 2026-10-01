@@ -7,3 +7,7 @@ default = "REALIZED_VOLATILITY"
 [domains.REALIZED_VOLATILITY]
 path = ".spec/REALIZED_VOLATILITY.spec"
 compile = ".spec/REALIZED_VOLATILITY.spec/compile.toml"
+
+[domains.StrikeMultiplier]
+path = ".spec/StrikeMultiplier.spec"
+compile = ".spec/StrikeMultiplier.spec/compile.toml"
