@@ -44,3 +44,6 @@
 [submodule "lib/seaport"]
 	path = lib/seaport
 	url = https://github.com/ProjectOpenSea/seaport
+[submodule "lib/Algebra"]
+	path = lib/Algebra
+	url = https://github.com/cryptoalgebra/Algebra
