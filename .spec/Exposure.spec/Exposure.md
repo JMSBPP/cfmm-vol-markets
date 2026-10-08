@@ -1,3 +1,5 @@
+> consumer [#155](https://github.com/JMSBPP/cfmm-vol-markets/issues/155)
+
 import [\(\mathrm{Pair}\,(X,Y)\)](@spec/Pair.spec/Pair.md)
 
 import [\(\mathcal{L}\)](@spec/LiquidityChunk.spec/LiquidityChunk.md)
