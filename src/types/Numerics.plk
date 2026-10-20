@@ -1,7 +1,13 @@
 //import std::type:sizeof;
 
+
+const U32_MAX = 0x00000000000000000000000000000000000000000000000000000000ffffffff;
 const WAD = 1000000000000000000;
 const WAD_DECIMALS = 100000000;
+/// Maker-style Ray; ΔQ_M / σ_F·ΔW scale (Weiner #127, SigmaF #128).
+const RAY = 1000000000000000000000000000; // 10**27
+/// Algebra FEE_DENOMINATOR — ShockPips unit (1e6 ≈ 1σ).
+const PIPS = 1000000; // 10**6
 const Q64_96_RESOLUTION = 96;
 
 const Q96 = 0x1000000000000000000000000;             // 2^96 (Q64.96 one)

@@ -30,23 +30,28 @@ notes/            binding spec docs (DATA_CONTRACT.md, UNITS_AND_SCALES.md)
 
 ## Contributing / workflow
 
-**Phases start INLINE, in the current tree.** Do not create a git worktree per phase, feature
-or fix — work in the checkout you are already in. (An earlier rule here required a dedicated
-worktree per unit of work; it was retired after Phase 1.1.) Tracking issues on `develop` are a
-separate matter and still apply.
+**New work GitHub flow (set 2026-09-06).** When adding something new (type, feature, or fix
+track), do **not** start inline on `develop`. Follow this sequence:
+
+1. Create a tracking issue titled for the work (e.g. `type/Foo`). Empty body is fine.
+2. Create a branch and worktree of that name from latest `origin/develop`:
+   `git worktree add -b <name> .worktrees/<name-with-slashes-as-hyphens> origin/develop`.
+3. Open a PR into `develop` whose body cites the issue number (`#N`).
+
+Do the implementation in that worktree until the PR merges. The main checkout stays on
+`develop` for everything else.
 
 *Standing exception, Phase 2.5 only (set 2026-08-28):* the maintainer reinstated a worktree for
-`feat/volmarketkey`, which runs in `../vol-markets-volmarketkey`. It is **phase-scoped and does not
-change the default** — every other phase, including Phase 3, starts inline. Recorded here because a
-session that hears about 2.5's worktree second-hand would otherwise read it as the rule having
-changed back.
+`feat/volmarketkey`, which runs in `../vol-markets-volmarketkey`. It is **phase-scoped** —
+recorded here because a session that hears about 2.5's worktree second-hand would otherwise
+misread placement (sibling dir vs `.worktrees/`).
 
 *Standing exception, vol-position track (set 2026-09-01):* `feat/vol-position` is a **persistent
 integration branch**, not a one-shot phase branch. It owns the dedicated worktree
-`../vol-markets-vol-position`. The branch **stays** after its PR merges to `develop` — do not
-delete it locally or on origin, and do not remove the worktree as teardown. Ongoing vol-position
-work continues on `feat/vol-position` in that worktree; merge slices to `develop` via PR as usual.
-The main checkout (`vol-markets`) returns to `develop` for everything else.
+`../vol-markets-vol-position` (also linked under `.worktrees/feat-vol-position`). The branch
+**stays** after its PR merges to `develop` — do not delete it locally or on origin, and do not
+remove the worktree as teardown. Ongoing vol-position work continues on `feat/vol-position` in
+that worktree; merge slices to `develop` via PR as usual.
 
 *Canonical publish (set 2026-09-01):* fork `develop` syncs to `d2p-finance:main` via PR
 (`prod.yml` gate). Vol-position track: `JMSBPP:feat/vol-position` → `d2p-finance:vol-position`
@@ -54,12 +59,11 @@ The main checkout (`vol-markets`) returns to `develop` for everything else.
 `docs/superpowers/specs/2026-09-01-canonical-vol-position-publish-design.md`.
 
 **Close the branch that did the merge.** A phase is not finished when its PR merges — it is
-finished when the branch is retired. Return the tree to `develop`, confirm the branch is fully
-merged, then delete it locally **and on origin**. Never `git branch -D`: if `-d` refuses,
-unmerged commits mean something did not reach `develop` — inspect and report. Under the inline
-rule this replaces `git worktree remove` as the teardown step, and a stale branch on a merged PR
-is a trap for the next phase. **Does not apply to `feat/vol-position`** — see the standing
-exception above.
+finished when the branch is retired. Remove the worktree (`git worktree remove …`), confirm the
+branch is fully merged, then delete it locally **and on origin**. Never `git branch -D`: if
+`-d` refuses, unmerged commits mean something did not reach `develop` — inspect and report. A
+stale branch on a merged PR is a trap for the next phase. **Does not apply to
+`feat/vol-position`** — see the standing exception above.
 
 `d2p-finance/*` are the canonical/upstream repos; `JMSBPP/*` are the develop forks. **All
 changes land on the `JMSBPP` fork and reach `d2p-finance` ONLY via pull request
@@ -91,6 +95,20 @@ implementation is written, and the first push is red on purpose. Phase criteria 
 "compiles AND exercises every branch" — Plank only type-checks a comptime branch that something
 instantiates, so an un-instantiated branch is text the compiler has never seen.
 
+**Type development workflow (set 2026-09-06).** A new Plank type `Foo` is introduced with this
+file layout (reference: `LegStep`):
+
+1. `src/types/Foo.plk` — type module under the `types` Plank root.
+2. `test/harness/types/FooHarness.plk` — Plank harness entrypoint (deployed via `deployPlank`).
+3. `test/types/Foo.t.sol` — Foundry suite that imports `PlankTestBase` from
+   `test/PlankTestBase.sol`, inherits it, and declares a Solidity harness ABI interface
+   (e.g. `IFoo`, or a domain name such as `ILeg` for `LegStep`).
+
+Existing rules still apply: tests first / RED before the type API is implemented; chunk
+approve → commit → push → CI. Do not put new type harnesses under `test/types/` — that tree
+holds the `.t.sol` suites (and older co-located harnesses); new harnesses go under
+`test/harness/types/`.
+
 ## Docs
 
 - Foundry — https://book.getfoundry.sh
@@ -98,4 +116,61 @@ instantiates, so an un-instantiated branch is text the compiler has never seen.
 
 ## [.spec](./spec/README.md)
 
-For this implementations, execution is inline and heaby on 'AskQuestions' for code chunk approvals
+For this implementation, new work uses the issue → worktree → PR flow above and is heavy on
+`AskUserQuestion` for code chunk approvals.
+
+## `compile.toml` (ALL agents)
+
+**Every agent that submits work must update the domain `compile.toml` for the files that work is meant to compile.** CI on push compiles only what that domain’s manifest lists (`.idr`, `.agda`, `.plk`). Leaving a new or changed compilable file off `compile.toml` means it never gets CI coverage — that is a failed handoff, not an optional polish step.
+
+- Path: `.spec/<DOMAIN>.spec/compile.toml` (example: `.spec/REALIZED_VOLATILITY.spec/compile.toml`).
+- Shape: TOML tables `[agda]`, `[idris]`, `[plank]`, each with a `files = [...]` list of **repo-root-relative** paths.
+- Domain catalog: `.spec/domains.toml` — richer registry with `default` and per-domain `path` / `compile` fields. Example:
+
+  ```toml
+  default = "REALIZED_VOLATILITY"
+
+  [domains.REALIZED_VOLATILITY]
+  path = ".spec/REALIZED_VOLATILITY.spec"
+  compile = ".spec/REALIZED_VOLATILITY.spec/compile.toml"
+  ```
+
+  `SPEC_DOMAIN` (env / Actions `vars`) selects the domain; if unset, use `default`. Fail if `SPEC_DOMAIN` is not under `[domains.*]`.
+- CI entrypoint: `just spec-compile` reads that domain’s `compile` file only (not a union of all domains). Agda/Idris run via a **pinned GHCR image** built from an in-repo Dockerfile (e.g. `Dockerfile.spec-tools`); `just agda` / `just idris` wrap `docker run` against that pin. Rebuild/publish the image only when the Dockerfile changes. Plank stays on the existing host toolchain (`make plank-toolchain` / `just plank`).
+- Fail closed: unknown `SPEC_DOMAIN`, missing domain `compile` file, or a listed path that does not exist → non-zero exit. Empty `files = []` for a language is OK.
+- Local and CI: `just agda` / `just idris` **always** use the pinned GHCR image (no host-Agda escape hatch). Image tools: **Agda + Idris 2** (not Idris 1). Pin: `.github/spec-tools-image`; build context: `Dockerfile.spec-tools` (`just spec-tools-ensure`).
+- Workflow: **`push-build` only** runs `just spec-compile` (not `develop-gate`). Merge gate stays forge/plank as today; Agda/Idris feedback is on branch push.
+- Add every new/changed entrypoint your change expects to type-check.
+- Remove entries only when the corresponding file is deleted or deliberately retired from CI.
+- When introducing a new SuD domain, register it in `.spec/domains.toml` with `path` and `compile`.
+
+## Development Approach
+
+> type-implementer AGENT
+
+# PRE-REQUISITES
+- File structure discussed and understood , minimal .spec/ ideally on .agda but .md and .mmd are tolerable
+- justfile with minimal `just plank file` command that targes the compilation(with dependecies) of the files
+- `compile.toml` updated for every compilable artifact in the submitted work (see above)
+
+
+- use Harness when testing files
+
+All type design goes under a process of definition, exploration, labeling, test-driven-development
+1. definition
+   This is the mathematical representation fo the type
+   
+2. exploration
+   This is exploration on how other types use it and make the output of this shape the labeling
+3. labeling
+   This is after exploration finding the best type category (dependent type, generic, others)
+   We must consider the widest type definitions and discuss which one can fit which
+4. test-driven-development
+   Although the highest level development rule is type driven development once a type is defined
+   we ewant to write .btt file with the exploration use cases other types do for them [SEE](https://www.getfoundry.sh/guides/branching-tree-technique)
+
+> For [AGDA](https://agda.readthedocs.io/en/latest/language/index.html)
+> For [IDRIS](http://docs.idris-lang.org/en/latest/)
+- For both of them maximize the use of already impleentned librairws than own helpers, look on github 
+
+for the type implementation, this is a heavy `AskUserQuestion` sessions on each

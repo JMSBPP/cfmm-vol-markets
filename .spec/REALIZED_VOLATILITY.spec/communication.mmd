@@ -1,0 +1,84 @@
+%% pin: .spec/REALIZED_VOLATILITY.md
+%% blob: 44a6f306093537d16a3aaa8d419d218ec924dc1a
+%% section: ## **WeinerGenerator**
+%%
+%% WeinerGenerator (mission spelling; node label WienerGenerator):
+%%   $$\Delta W (t_i) = \sqrt{\bar dt} \, \cdot\, \epsilon \, (t_i); \quad \epsilon (t_i) \sim \mathcal{N} \, (0,1)$$
+%% EVM \(\epsilon\) source: Solidity Patterns — Randomness (block-hash PRNG + trusted sealed seed)
+%%   https://fravoll.github.io/solidity-patterns/randomness.html
+%%
+flowchart TD
+    WINDOW["Window"]
+
+    DT["$$\bar{dt}$$"]
+    T["$$t_i$$"]
+    
+    WIENER["WeinerGenerator\n$$\Delta W(t_i)=\sqrt{\bar{dt}}\,\epsilon(t_i)$$\n$$\epsilon\sim\mathcal{N}(0,1)$$\n[blockhash⊕seed PRNG]"]
+
+    DW(("$$\Delta W (t_i)$$"))
+
+    subgraph CEV["CEVTickVolatilityFactory"]
+        NFD["NetFlowNumeraireDiffusion"]
+        PARAMS(("$$\sigma_F,\;\mu_F$$"))
+        TICKDYN["TickDynamics"]
+        CONST["Constants"]
+        LHALF(("$$L_{1/2},\;\ln(1.0001)$$"))
+    end
+
+    TICK["Tick"]
+    SQRTP["$$\sqrt{p (t_i)}$$"]
+    DI(("$$\Delta i (t_j)$$"))
+
+    WINDOW --> DT --> WIENER
+    WINDOW --> T --> WIENER
+    WIENER --> DW --> NFD
+    DT --> NFD
+    NFD --> PARAMS --> TICKDYN
+    DW --> TICKDYN
+    T --> TICKDYN
+    DT --> TICKDYN
+    CONST --> LHALF --> TICKDYN
+    T --> TICK
+    TICK --> SQRTP --> TICKDYN
+    TICKDYN --> DI --> TICK
+
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% WN -->|$$\Delta W_t$$| DW1				       %%
+    %% WN -->|$$\Delta W_t$$| DW2				       %%
+    %% 								       %%
+    %% 								       %%
+    %% NFD["NetFlowNumeraireDiffusion"]				       %%
+    %% 								       %%
+    %% DT2(("$$d t$$"))						       %%
+    %% 								       %%
+    %% DW1 --> NFD						       %%
+    %% DT2 --> NFD						       %%
+    %% 								       %%
+    %% NFD -->|$$\frac{\bar{\iota}}{\bar{P}}$$| C		       %%
+    %% 								       %%
+    %% 								       %%
+    %% %% ============================================================ %%
+    %% %% CENTRALIZED / EVM REPRESENTATION			       %%
+    %% %% ============================================================ %%
+    %% 								       %%
+    %% C["TickControl"]						       %%
+    %% 								       %%
+    %% DW2 --> C						       %%
+    %% 								       %%
+    %% PARAM["$$\left(k_n,\;h_n,\;0.002\right)$$"]		       %%
+    %% 								       %%
+    %% PARAM --> C						       %%
+    %% 								       %%
+    %% 								       %%
+    %% I0["Constants"]						       %%
+    %% 								       %%
+    %% SQRT["$$L_{1/2} \, \ln (1.0001)^{-1}$$"]			       %%
+    %% 								       %%
+    %% I0 --> SQRT						       %%
+    %% SQRT --> C						       %%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+

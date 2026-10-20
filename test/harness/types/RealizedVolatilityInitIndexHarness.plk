@@ -1,0 +1,60 @@
+import std::constructor::return_runtime;
+import std::core::addr::addr_from_u256;
+import types::Volatility::IVolatilityOracleShell::*;
+import cfmm_types::TimeIndex::*;
+import cfmm_types::Tick::*;
+
+// Instantiates the lattice so TimeSpacing / TimeIndex constructors run (dt̄ = 2).
+const DT = TimeIndex(2);
+const TICK_SPACING = 1;
+
+// Harness Solidity ABI (distinct names from Algebra shell selectors).
+// cast sig "initializeTwap(address)" -> 0x28893aea
+const SEL_HARNESS_INITIALIZE_TWAP = 0x28893aea;
+// cast sig "writeTimepoint(address)" -> 0x9e1f8970
+const SEL_HARNESS_WRITE_TIMEPOINT = 0x9e1f8970;
+// cast sig "timepointIndex(address)" -> 0x6ed398f3
+const SEL_HARNESS_TIMEPOINT_INDEX = 0x6ed398f3;
+// cast sig "lastIndex(uint256,uint256)" -> 0xf8583b7a
+const SEL_LAST_INDEX = 0xf8583b7a;
+
+const shell_from_wrapper = fn (wrapper_word: u256) IVolatilityOracleShell {
+    volatility_oracle_shell(addr_from_u256(wrapper_word))
+};
+
+const tick0 = fn () u256 {
+    Tick(0, TICK_SPACING)
+};
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_HARNESS_INITIALIZE_TWAP {
+        let s = shell_from_wrapper(@evm_calldataload(4));
+        let t = @evm_timestamp();
+        shell_initialize_twap(s, t, tick0());
+        let out = @malloc_uninit(32);
+        @mstore32(out, t);
+        @evm_return(out, 32);
+    }
+    if selector == SEL_HARNESS_WRITE_TIMEPOINT {
+        let s = shell_from_wrapper(@evm_calldataload(4));
+        shell_write_timepoint(s, @evm_timestamp(), tick0());
+        @evm_return(@malloc_uninit(0), 0);
+    }
+    if selector == SEL_HARNESS_TIMEPOINT_INDEX {
+        let s = shell_from_wrapper(@evm_calldataload(4));
+        let out = @malloc_uninit(32);
+        @mstore32(out, shell_timepoint_index(s));
+        @evm_return(out, 32);
+    }
+    if selector == SEL_LAST_INDEX {
+        let t_init = @evm_calldataload(4);
+        let t = @evm_calldataload(36);
+        let out = @malloc_uninit(32);
+        @mstore32(out, lastIndex(DT, t_init, t));
+        @evm_return(out, 32);
+    }
+    @evm_stop();
+}

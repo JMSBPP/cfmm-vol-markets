@@ -1,0 +1,98 @@
+import std::constructor::return_runtime;
+import std::core::addr::{addr_from_u256, cast_addr};
+import std::core::uint::{cast_uint, u128};
+import std::option::{is_some, Option};
+import types::LiquidityChunk::unpack_panoptic;
+import types::LiquidityChunkMinter::{io_mint, mint_algebra, run_mint, MintReceipt};
+import types::protocol_integrations::Venue::Algebra;
+import types::protocol_integrations::Pool::pool_algebra;
+
+const SEL_ALGEBRA_MINT_CALLBACK = 0x3dd657c5;
+const SEL_TRANSFER_FROM = 0x23b872dd;
+const SEL_TOKEN0 = 0x0dfe1681;
+const SEL_TOKEN1 = 0xd21220a7;
+// cast sig "runMint(address,uint256,uint256,address,address,address,uint256,uint256)" -> 0x367de49f
+const SEL_RUN_MINT = 0x367de49f;
+
+const xfer = fn (token: u256, from: u256, to: u256, amt: u256) bool {
+    if amt == 0 {
+        true
+    } else {
+        let cd = @malloc_uninit(100);
+        @mstore4(cd, SEL_TRANSFER_FROM);
+        @mstore32(cd +% 4, from);
+        @mstore32(cd +% 36, to);
+        @mstore32(cd +% 68, amt);
+        let ret = @malloc_uninit(32);
+        let ok = @evm_call(@evm_gas(), token, 0, cd, 100, ret, 32);
+        ok & (@mload32(ret) != 0)
+    }
+};
+
+const staticcall_addr = fn (target: u256, sel: u256) u256 {
+    let cd = @malloc_uninit(4);
+    @mstore4(cd, sel);
+    let ret = @malloc_uninit(32);
+    if !@evm_staticcall(@evm_gas(), target, cd, 4, ret, 32) {
+        0
+    } else {
+        @mload32(ret)
+    }
+};
+
+init {
+    return_runtime();
+}
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_ALGEBRA_MINT_CALLBACK {
+        let amount0 = @evm_calldataload(4);
+        let amount1 = @evm_calldataload(36);
+        let data_off = @evm_calldataload(68);
+        let data_pos = 4 + data_off;
+        let payer = @evm_calldataload(data_pos + 32);
+        let pool = @evm_calldataload(data_pos + 64);
+        if @evm_caller() != pool {
+            @evm_revert(@malloc_uninit(0), 0);
+        }
+        let token0 = staticcall_addr(pool, SEL_TOKEN0);
+        let token1 = staticcall_addr(pool, SEL_TOKEN1);
+        if !xfer(token0, payer, pool, amount0) | !xfer(token1, payer, pool, amount1) {
+            @evm_revert(@malloc_uninit(0), 0);
+        }
+        @evm_stop();
+    } else if selector == SEL_RUN_MINT {
+        let chunk = unpack_panoptic(
+            @evm_calldataload(196),
+            @evm_calldataload(228)
+        );
+        let command = mint_algebra(
+            addr_from_u256(@evm_address_this()),
+            pool_algebra(
+                addr_from_u256(@evm_calldataload(4)),
+                @evm_calldataload(36),
+                @evm_calldataload(68)
+            ),
+            addr_from_u256(@evm_calldataload(100)),
+            addr_from_u256(@evm_calldataload(132)),
+            addr_from_u256(@evm_calldataload(164)),
+            chunk
+        );
+        let receipt = run_mint(io_mint(command));
+        let out = @malloc_uninit(128);
+        if is_some(MintReceipt(Algebra), receipt) {
+            @mstore32(out, 1);
+            @mstore32(out +% 32, receipt.inner.amount0);
+            @mstore32(out +% 64, receipt.inner.amount1);
+            @mstore32(out +% 96, cast_uint(receipt.inner.liquidity_actual, u256));
+        } else {
+            @mstore32(out, 0);
+            @mstore32(out +% 32, 0);
+            @mstore32(out +% 64, 0);
+            @mstore32(out +% 96, 0);
+        }
+        @evm_return(out, 128);
+    }
+    @evm_stop();
+}

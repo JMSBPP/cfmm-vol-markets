@@ -7,7 +7,7 @@ import {RegistryVerifyV4} from "../../mocks/RegistryVerifyV4.sol";
 import {RegistryVerifyV4NoIHooks} from "../../mocks/RegistryVerifyV4NoIHooks.sol";
 import {RegistryVerifyV3Factory} from "../../mocks/RegistryVerifyV3Factory.sol";
 import {RegistryVerifyBadInterface} from "../../mocks/RegistryVerifyBadInterface.sol";
-import {AlgebraIntegralDeployer} from "../../helpers/AlgebraIntegralDeployer.sol";
+import {AlgebraIntegralDeployer} from "../../helpers/Algebra/AlgebraIntegralDeployer.sol";
 import {IHooks} from "univ4-core/interfaces/IHooks.sol";
 import {IAlgebraPluginFactory} from "@cryptoalgebra/integral-core/interfaces/plugin/IAlgebraPluginFactory.sol";
 import {IAlgebraCustomPoolEntryPoint} from "@cryptoalgebra/integral-periphery/interfaces/IAlgebraCustomPoolEntryPoint.sol";

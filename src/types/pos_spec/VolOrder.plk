@@ -8,29 +8,6 @@ import std::regions::calldata;
 import std::option::{Option, Some, None};
 import types::utils::Extra::{Extra, extra_none_payload};
 
-// V2 STORAGE LAYOUT (vol-order-v2-target-vega-SPEC.md D2; DeltaQ_v* raw LIQUIDITY units):
-//   skew        bits   0.. 15  u16
-//   volStrike   bits  16..103  u88   (Algebra vol units, raw)
-//   tickSpacing bits 104..127  u24
-//   width       bits 128..151  u24
-//   targetVega  bits 152..247  u96   (DeltaQ_v*, raw LIQUIDITY units -- dimension (ii))
-// 248 bits total; the 0-sentinel survives: a valid order has strike > 0 (bits 16..103) and
-// skew > 0 (bits 0..15), so a validly packed word is NEVER zero regardless of targetVega.
-// PHASE 2 (VORD-01). Design of record: .planning/phases/02-volorder-t-minimal-instantiation/
-// 02-REGRESSION-ASSESSMENT.md §4a, as corrected at the 02-04 chunk review.
-//
-// VolOrder(T) is a comptime TYPE CONSTRUCTOR over a REGION T -- a phantom type parameter used as a
-// region index (Haskell: the `s` in `ST s` / `runST`). T says WHERE the tokenId builder is
-// guaranteed to find its operands, and nothing else. There is ONE VolOrder type per region:
-// ABSENCE of an extra is the std VALUE `None`, not a separate tag type.
-//
-// `extra` is a DESCRIPTOR (types::utils::Extra) -- flags | offset | len -- not the data and not the
-// result. It never enters pack_vol_order / unpack_vol_order, which is what keeps this refactor's
-// regression surface at zero for every packed-word consumer.
-//
-// Every function below that predates Phase 2 is CONCRETE on VolOrder(calldata): the create_order
-// path reads orders from calldata and the Panoptic operands live there. Only the tokenId builder
-// (panoptic_v2/VolPositionId.plk) and the geometry projection below take a comptime T.
 const VolOrder = fn (comptime T: type) type {
     return struct {
         rangeWidth: VolRangeWidth,

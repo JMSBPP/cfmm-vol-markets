@@ -4,6 +4,7 @@ set dotenv-load
 # the repo-root `.env` (gitignored) so forge / later shells can `source .env`.
 export ANVIL_RPC_URL := "http://127.0.0.1:8545"
 
+
 # Pinned Algebra Solidity sources live under node_modules (see package.json).
 npm-ci:
     npm ci --ignore-scripts
@@ -216,7 +217,7 @@ test-rv-init-index:
 # Image ref: `.github/spec-tools-image` (GHCR tag). Build only when Dockerfile.spec-tools changes.
 # Always Docker locally and in CI (no host-Agda escape). See AGENTS.md.
 
-spec-tools-image := `test -f .github/spec-tools-image && tr -d '[:space:]' < .github/spec-tools-image || true`
+spec-tools-image := `tr -d '[:space:]' < .github/spec-tools-image`
 
 # Pull GHCR pin only (fail closed). Rebuilds belong in `spec-tools-build` /
 # `.github/workflows/spec-tools-image.yml` so push-build never spends ~10m on docker build.
@@ -301,7 +302,7 @@ spec-compile:
 # lib/plank-monorepo submodule pin), compile {{file}} with that compiler+std,
 # write creation bytecode to .bytecode/app/App.bytecode, deploy it on
 # local anvil via cast rpc, export APP_ADDRESS, log the tx hash.
-# Usage: just RunApp src/Tick.plk
+# Usage: just RunApp src/Main.plk
 plank-target-dir := "plank-target"
 plank-monorepo-url := "https://github.com/plankevm/plank-monorepo.git"
 app-bytecode-dir := ".bytecode/app"
@@ -499,5 +500,4 @@ run-app:
     #!/usr/bin/env bash
     set -euo pipefail
     exec bash scripts/RunApp.sh . "{{app-bytecode-dir}}"
-
 

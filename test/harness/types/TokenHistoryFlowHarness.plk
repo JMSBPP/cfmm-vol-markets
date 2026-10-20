@@ -1,0 +1,68 @@
+import std::constructor::return_runtime;
+import std::option::is_some;
+import types::TokenHistory::{intro_from, intro_len};
+import types::TokenHistoryFlow::{io_hist, run_hist, run_k, run_step_k};
+import types::IO::addr_word;
+import types::SigmaF::SigmaF;
+
+// cast sig "run(address,uint256,uint256,address,address,address)" -> 0xb47a8959
+const SEL_RUN = 0xb47a8959;
+// cast sig "intro(address,uint256,uint256,uint256)" -> 0x62167a48
+const SEL_INTRO = 0x62167a48;
+// cast sig "runStep(address,uint256,uint256,uint256,uint256,address,address,address)" -> 0x1b2eff3d
+const SEL_RUN_STEP = 0x1b2eff3d;
+// cast sig "runAll(address,uint256,uint256,uint256,address,address,address)" -> 0xf2a9ee6b
+const SEL_RUN_ALL = 0xf2a9ee6b;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_RUN {
+        let weiner = addr_word(@evm_calldataload(4));
+        let sf = SigmaF() { val: @evm_calldataload(36) };
+        let t_init = @evm_calldataload(68);
+        let token = addr_word(@evm_calldataload(100));
+        let from = addr_word(@evm_calldataload(132));
+        let to = addr_word(@evm_calldataload(164));
+        let hist = intro_from(2, 2, 0, weiner, sf, t_init);
+        let o = run_hist(2, 2, io_hist(2, 2, hist, sf, token, from, to));
+        let out = @malloc_uninit(32);
+        @mstore32(out, @bool_to_u256(is_some(u256, o.inner)));
+        @evm_return(out, 32);
+    }
+    if selector == SEL_INTRO {
+        let k = @evm_calldataload(100);
+        let out = @malloc_uninit(32);
+        @mstore32(out, intro_len(2, k));
+        @evm_return(out, 32);
+    }
+    if selector == SEL_RUN_STEP {
+        let weiner = addr_word(@evm_calldataload(4));
+        let sf = SigmaF() { val: @evm_calldataload(36) };
+        let t_init = @evm_calldataload(68);
+        let k = @evm_calldataload(100);
+        let j = @evm_calldataload(132);
+        let token = addr_word(@evm_calldataload(164));
+        let from = addr_word(@evm_calldataload(196));
+        let to = addr_word(@evm_calldataload(228));
+        let o = run_step_k(2, weiner, sf, t_init, k, j, token, from, to);
+        let out = @malloc_uninit(32);
+        @mstore32(out, @bool_to_u256(is_some(u256, o.inner)));
+        @evm_return(out, 32);
+    }
+    if selector == SEL_RUN_ALL {
+        let weiner = addr_word(@evm_calldataload(4));
+        let sf = SigmaF() { val: @evm_calldataload(36) };
+        let t_init = @evm_calldataload(68);
+        let k = @evm_calldataload(100);
+        let token = addr_word(@evm_calldataload(132));
+        let from = addr_word(@evm_calldataload(164));
+        let to = addr_word(@evm_calldataload(196));
+        let o = run_k(2, weiner, sf, t_init, k, token, from, to);
+        let out = @malloc_uninit(32);
+        @mstore32(out, @bool_to_u256(is_some(u256, o.inner)));
+        @evm_return(out, 32);
+    }
+    @evm_stop();
+}

@@ -1,0 +1,95 @@
+import std::core::addr::addr;
+import types::TokenHistory::{TokenHistory, step_k};
+import cfmm_types::TimeSpacing::n;
+import types::IO::{IO, Outcome, io, outcome_revert, outcome_success, run_io};
+import types::SigmaF::SigmaF;
+import types::TokenFlow::token_flow;
+
+/// types.toml: TokenHistoryFlow
+const TokenHistoryFlow = fn (comptime dt: u256, comptime k: u256) type {
+    struct {
+        hist: TokenHistory(dt, k),
+        sf: SigmaF(),
+        token: addr,
+        from: addr,
+        to: addr
+    }
+};
+
+const io_hist = fn (
+    comptime dt: u256,
+    comptime k: u256,
+    hist: TokenHistory(dt, k),
+    sf: SigmaF(),
+    token: addr,
+    from: addr,
+    to: addr
+) IO(TokenHistoryFlow(dt, k)) {
+    IO(TokenHistoryFlow(dt, k)) {
+        inner: TokenHistoryFlow(dt, k) {
+            hist: hist,
+            sf: sf,
+            token: token,
+            from: from,
+            to: to
+        }
+    }
+};
+
+/// K=2 nest unroll. Not a public law — public fold is run_k.
+const run_hist = fn (comptime dt: u256, comptime k: u256, m: IO(TokenHistoryFlow(dt, k))) Outcome() {
+    let hf = m.inner;
+    let o0 = run_io(io(token_flow(dt, hf.sf, hf.hist.head.dw, hf.token, hf.from, hf.to)));
+    if !o0.inner.is_some {
+        o0
+    } else {
+        run_io(io(token_flow(dt, hf.sf, hf.hist.tail.head.dw, hf.token, hf.from, hf.to)))
+    }
+};
+
+/// One Xfer at j of a valid prefix. No K-cell nest.
+const run_step_k = fn (
+    comptime dt: u256,
+    weiner: addr,
+    sf: SigmaF(),
+    t_init: u256,
+    k: u256,
+    j: u256,
+    token: addr,
+    from: addr,
+    to: addr
+) Outcome() {
+    let s = step_k(dt, weiner, sf, t_init, k, j);
+    if !s.is_some {
+        outcome_revert()
+    } else {
+        run_io(io(token_flow(dt, sf, s.inner.dw, token, from, to)))
+    }
+};
+
+/// All j < K Xfers. Runtime while. None if K=0 or K≥n; first None stops further Xfer.
+const run_k = fn (
+    comptime dt: u256,
+    weiner: addr,
+    sf: SigmaF(),
+    t_init: u256,
+    k: u256,
+    token: addr,
+    from: addr,
+    to: addr
+) Outcome() {
+    comptime let nmax = n(dt);
+    if (k == 0) | (k >= nmax) {
+        outcome_revert()
+    } else {
+        let mut acc = outcome_success();
+        let mut j = 0;
+        while j < k {
+            if acc.inner.is_some {
+                acc = run_step_k(dt, weiner, sf, t_init, k, j, token, from, to);
+            }
+            j = j +% 1;
+        }
+        acc
+    }
+};

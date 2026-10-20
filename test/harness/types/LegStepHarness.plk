@@ -1,0 +1,22 @@
+import std::constructor::return_runtime;
+import std::core::uint::cast_uint;
+import types::TickBucket::TickBucket;
+import types::TickSpacing::TickSpacing;
+import types::LegStep::LegStep;
+
+// cast sig "legStep(uint24)" -> 0x56cee873
+const SEL_LEG_STEP = 0x56cee873;
+
+init { return_runtime(); }
+
+run {
+	let selector = @evm_shr(224, @evm_calldataload(0));
+	if selector == SEL_LEG_STEP {
+		let ts = TickSpacing(@evm_calldataload(4));
+		let step = LegStep(TickBucket(ts), ts);
+		let out = @malloc_uninit(32);
+		@mstore32(out, cast_uint(step, u256));
+		@evm_return(out, 32);
+	}
+	@evm_stop();
+}

@@ -1,0 +1,6 @@
+LiquidityChunkPackTest
+└── when a valid typed chunk is packed
+    ├── it should place the lower tick in bits 255 through 232
+    ├── it should place the upper tick in bits 231 through 208
+    ├── it should leave bits 207 through 128 zero
+    └── it should place liquidity in bits 127 through zero

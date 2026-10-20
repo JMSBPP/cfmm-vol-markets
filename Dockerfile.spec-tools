@@ -1,0 +1,33 @@
+# Spec-tools image: Idris 2 for `just idris` / `just spec-compile` ([idris] in compile.toml).
+# Rebuild and republish only when this file changes.
+# Local / CI tag is read from `.github/spec-tools-image`.
+
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      gcc \
+      libc6-dev \
+      git \
+      make \
+      chezscheme \
+      libgmp-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Idris 2 (Chez backend) — pin the release tarball.
+ARG IDRIS2_VERSION=0.7.0
+WORKDIR /tmp
+RUN curl -fsSL "https://github.com/idris-lang/Idris2/archive/refs/tags/v${IDRIS2_VERSION}.tar.gz" \
+      | tar -xz \
+    && cd "Idris2-${IDRIS2_VERSION}" \
+    && make bootstrap SCHEME=chezscheme \
+    && make install \
+    && cd / \
+    && rm -rf "/tmp/Idris2-${IDRIS2_VERSION}"
+
+ENV PATH="/root/.idris2/bin:${PATH}"
+
+WORKDIR /work

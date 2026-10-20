@@ -1,0 +1,145 @@
+import std::constructor::return_runtime;
+import std::core::addr::addr_from_u256;
+import std::option::is_some;
+import types::StateView::{intro_anchor, intro_len, io_realize, run_swap, step_k, RealizeCmd, StateViewAnchor};
+import types::TokenFlow::TokenFlow;
+import types::protocol_integrations::Pool::{pool_algebra, pool_word};
+import types::protocol_integrations::Venue::Algebra;
+
+// cast sig "introAnchor(address,uint256,uint256)" -> 0x09f923f8
+const SEL_INTRO_ANCHOR = 0x09f923f8;
+const SEL_INTRO_LEN = 0x315d8529;
+const SEL_STEP = 0xcd03b83c;
+const SEL_RUN_SWAP = 0xbf7776d0;
+const SEL_ALGEBRA_SWAP_CALLBACK = 0x2c8958f6;
+const SEL_TRANSFER_FROM = 0x23b872dd;
+const SEL_TOKEN0 = 0x0dfe1681;
+const SEL_TOKEN1 = 0xd21220a7;
+const BAR_DT = 2;
+
+const xfer = fn (token: u256, from: u256, to: u256, amt: u256) bool {
+    if amt == 0 {
+        true
+    } else {
+        let cd = @malloc_uninit(100);
+        @mstore4(cd, SEL_TRANSFER_FROM);
+        @mstore32(cd +% 4, from);
+        @mstore32(cd +% 36, to);
+        @mstore32(cd +% 68, amt);
+        let ret = @malloc_uninit(32);
+        let ok = @evm_call(@evm_gas(), token, 0, cd, 100, ret, 32);
+        ok & (@mload32(ret) != 0)
+    }
+};
+
+const staticcall_addr = fn (target: u256, sel: u256) u256 {
+    let cd = @malloc_uninit(4);
+    @mstore4(cd, sel);
+    let ret = @malloc_uninit(32);
+    if !@evm_staticcall(@evm_gas(), target, cd, 4, ret, 32) {
+        0
+    } else {
+        @mload32(ret)
+    }
+};
+
+const pay_swap_delta = fn (delta: u256, token: u256, payer: u256, pool: u256) bool {
+    if @evm_shr(255, delta) != 0 {
+        true
+    } else if delta == 0 {
+        true
+    } else {
+        xfer(token, payer, pool, delta)
+    }
+};
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_ALGEBRA_SWAP_CALLBACK {
+        let amount0 = @evm_calldataload(4);
+        let amount1 = @evm_calldataload(36);
+        let data_off = @evm_calldataload(68);
+        let data_pos = 4 +% data_off;
+        let payer = @evm_calldataload(data_pos +% 32);
+        let pool = @evm_calldataload(data_pos +% 64);
+        if @evm_caller() != pool {
+            @evm_revert(@malloc_uninit(0), 0);
+        }
+        let token0 = staticcall_addr(pool, SEL_TOKEN0);
+        let token1 = staticcall_addr(pool, SEL_TOKEN1);
+        if !pay_swap_delta(amount0, token0, payer, pool)
+            | !pay_swap_delta(amount1, token1, payer, pool)
+        {
+            @evm_revert(@malloc_uninit(0), 0);
+        }
+        @evm_stop();
+    }
+    if selector == SEL_INTRO_ANCHOR {
+        let pool = pool_algebra(
+            addr_from_u256(@evm_calldataload(4)),
+            @evm_calldataload(36),
+            @evm_calldataload(68)
+        );
+        let anchor = intro_anchor(pool);
+        let out = @malloc_uninit(128);
+        @mstore32(out, pool_word(Algebra, anchor.pool));
+        @mstore32(out +% 32, anchor.pool.fee);
+        @mstore32(out +% 64, anchor.pool.tick_spacing);
+        @mstore32(out +% 96, anchor.t_init);
+        @evm_return(out, 128);
+    }
+    if selector == SEL_INTRO_LEN {
+        let k = @evm_calldataload(4);
+        let out = @malloc_uninit(32);
+        @mstore32(out, intro_len(BAR_DT, k));
+        @evm_return(out, 32);
+    }
+    if selector == SEL_STEP {
+        let pool = pool_algebra(
+            addr_from_u256(@evm_calldataload(4)),
+            @evm_calldataload(36),
+            @evm_calldataload(68)
+        );
+        let anchor = StateViewAnchor {
+            pool: pool,
+            t_init: @evm_calldataload(100)
+        };
+        let k = @evm_calldataload(132);
+        let j = @evm_calldataload(164);
+        let o = step_k(BAR_DT, anchor, k, j);
+        let out = @malloc_uninit(128);
+        @mstore32(out, @bool_to_u256(o.is_some));
+        if o.is_some {
+            @mstore32(out +% 32, o.inner.t);
+            @mstore32(out +% 64, o.inner.tick);
+            @mstore32(out +% 96, o.inner.sqrt_p);
+        }
+        @evm_return(out, 128);
+    }
+    if selector == SEL_RUN_SWAP {
+        let pool = pool_algebra(
+            addr_from_u256(@evm_calldataload(4)),
+            @evm_calldataload(36),
+            @evm_calldataload(68)
+        );
+        let flow = TokenFlow() {
+            amount: @evm_calldataload(100),
+            dir: @evm_calldataload(132),
+            token: addr_from_u256(@evm_calldataload(164)),
+            from: addr_from_u256(@evm_calldataload(196)),
+            to: addr_from_u256(@evm_calldataload(228))
+        };
+        let cmd = RealizeCmd {
+            pool: pool,
+            flow: flow,
+            bin_j: @evm_calldataload(260)
+        };
+        let o = run_swap(io_realize(cmd));
+        let out = @malloc_uninit(32);
+        @mstore32(out, @bool_to_u256(is_some(u256, o.inner)));
+        @evm_return(out, 32);
+    }
+    @evm_stop();
+}

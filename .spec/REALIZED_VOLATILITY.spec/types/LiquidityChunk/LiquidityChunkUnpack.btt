@@ -1,0 +1,14 @@
+LiquidityChunkUnpackTest
+├── when reserved bits are nonzero
+│   └── it should revert with ReservedBitsNonzero
+├── when an unpacked tick is outside protocol bounds
+│   └── it should revert with TickOutOfBounds
+├── when an unpacked tick is not aligned
+│   └── it should revert with TickNotAligned
+├── when unpacked ticks are misordered
+│   └── it should revert with TicksMisordered
+├── when unpacked liquidity is zero
+│   └── it should revert with ZeroLiquidity
+└── when the packed chunk is valid
+    ├── it should sign extend both ticks
+    └── it should return the typed liquidity chunk

@@ -10,7 +10,7 @@ import {Deployers} from "v4-core-test/utils/Deployers.sol";
 import {IHooks} from "univ4-core/interfaces/IHooks.sol";
 import {Currency} from "univ4-core/types/Currency.sol";
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
-import {AlgebraIntegralDeployer} from "../../helpers/AlgebraIntegralDeployer.sol";
+import {AlgebraIntegralDeployer} from "../../helpers/Algebra/AlgebraIntegralDeployer.sol";
 import {IAlgebraFactory} from "@cryptoalgebra/integral-core/interfaces/IAlgebraFactory.sol";
 import {IAlgebraPoolState} from "@cryptoalgebra/integral-core/interfaces/pool/IAlgebraPoolState.sol";
 

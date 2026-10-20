@@ -1,0 +1,308 @@
+import std::core::addr::{addr, cast_addr};
+import std::error::require;
+
+/// Plank shell for `VolatilityOracleWrapper` (inherits Connector → `IVolatilityOracle`,
+/// plus Implementation passthrough ABI with explicit `time` / `tick`).
+///
+/// ### IVolatilityOracle (view / Connector surface — pool-state variants; avoid)
+///   timepoints(uint256)                         → 0x74eceae6
+///   timepointIndex()                            → 0x0786feb6
+///   initialize()                                → 0x8129fc1c
+///   lastTimepointTimestamp()                    → 0xf5985d35
+///   isInitialized()                             → 0x392e53cd
+///   getSingleTimepoint(uint32)                  → 0x88f2e862
+///   getTimepoints(uint32[])                     → 0x9d3a5241
+///   prepayTimepointsStorageSlots(uint16,uint16) → 0xda705235
+///
+/// ### Implementation passthrough (DELEGATECALL host; caller supplies time/tick)
+///   initializeTWAP(uint32,int24)                → 0xed64c40a
+///   writeTimepoint(uint32,int24)                → 0xb09b2297
+///   getTwapTick(uint32,int24,uint32)            → 0x1a72d0df  (period, tick, time)
+///   canGetTwap(uint32,uint32)                   → 0x4a513c98
+///   prepayTimepointsSlots(uint16,uint16)        → 0x3d18c25f
+///
+/// ### Connector extensions (same logic as IVolatilityOracle, explicit time/tick)
+///   getSingleTimepoint(uint32,uint32,int24)     → 0xf1a0ebe5  (secondsAgo, time, tick)
+///   getTimepoints(uint32[],uint32,int24)        → 0x36ab33e3
+///   getAverageVolatilityLast(uint32,int24)      → 0x59dc9384
+///
+/// Note: getTwapTick / canGetTwap on the wrapper are non-view (`_delegateCall`) → CALL.
+
+const SEL_TIMEPOINTS = 0x74eceae6;
+const SEL_TIMEPOINT_INDEX = 0x0786feb6;
+const SEL_INITIALIZE = 0x8129fc1c;
+const SEL_LAST_TIMEPOINT_TIMESTAMP = 0xf5985d35;
+const SEL_IS_INITIALIZED = 0x392e53cd;
+const SEL_GET_SINGLE_TIMEPOINT = 0x88f2e862;
+const SEL_GET_TIMEPOINTS = 0x9d3a5241;
+const SEL_PREPAY_TIMEPOINTS_STORAGE_SLOTS = 0xda705235;
+
+const SEL_INITIALIZE_TWAP = 0xed64c40a;
+const SEL_WRITE_TIMEPOINT = 0xb09b2297;
+const SEL_GET_TWAP_TICK = 0x1a72d0df;
+const SEL_CAN_GET_TWAP = 0x4a513c98;
+const SEL_PREPAY_TIMEPOINTS_SLOTS = 0x3d18c25f;
+
+const SEL_GET_SINGLE_TIMEPOINT_AT = 0xf1a0ebe5;
+const SEL_GET_TIMEPOINTS_AT = 0x36ab33e3;
+const SEL_GET_AVERAGE_VOLATILITY_LAST = 0x59dc9384;
+
+const MASK_U32 = 0xffffffff;
+const MASK_U16 = 0xffff;
+const MASK_U88 = 0xffffffffffffffffffffff;
+
+const IVolatilityOracleShell = struct {
+    addr: addr,
+};
+
+const TimepointView = struct {
+    initialized: bool,
+    block_timestamp: u256,
+    tick_cumulative: u256,
+    volatility_cumulative: u256,
+    tick: u256,
+    average_tick: u256,
+    window_start_index: u256,
+};
+
+const SingleTimepointView = struct {
+    tick_cumulative: u256,
+    volatility_cumulative: u256,
+};
+
+const volatility_oracle_shell = fn (wrapper: addr) IVolatilityOracleShell {
+    IVolatilityOracleShell { addr: wrapper }
+};
+
+const shell_addr = fn (s: IVolatilityOracleShell) u256 {
+    cast_addr(s.addr, u256)
+};
+
+// ── IVolatilityOracle ─────────────────────────────────────────────────────────
+
+const shell_timepoints = fn (s: IVolatilityOracleShell, index: u256) TimepointView {
+    let target = shell_addr(s);
+    let cd = @malloc_uninit(36);
+    @mstore4(cd, SEL_TIMEPOINTS);
+    @mstore32(cd +% 4, index);
+    let ret = @malloc_uninit(224);
+    require(@evm_staticcall(@evm_gas(), target, cd, 36, ret, 224));
+    TimepointView {
+        initialized: @mload32(ret) != 0,
+        block_timestamp: @mload32(ret +% 32) & MASK_U32,
+        tick_cumulative: @mload32(ret +% 64),
+        volatility_cumulative: @mload32(ret +% 96) & MASK_U88,
+        tick: @mload32(ret +% 128),
+        average_tick: @mload32(ret +% 160),
+        window_start_index: @mload32(ret +% 192) & MASK_U16,
+    }
+};
+
+const shell_timepoint_index = fn (s: IVolatilityOracleShell) u256 {
+    let target = shell_addr(s);
+    let cd = @malloc_uninit(4);
+    @mstore4(cd, SEL_TIMEPOINT_INDEX);
+    let ret = @malloc_uninit(32);
+    require(@evm_staticcall(@evm_gas(), target, cd, 4, ret, 32));
+    @mload32(ret) & MASK_U16
+};
+
+/// Connector `initialize()` — uses `_getPoolState()` (stubbed zeros → reverts).
+/// Prefer `shell_initialize_twap` for the Plank path.
+const shell_initialize = fn (s: IVolatilityOracleShell) void {
+    let target = shell_addr(s);
+    let cd = @malloc_uninit(4);
+    @mstore4(cd, SEL_INITIALIZE);
+    require(@evm_call(@evm_gas(), target, 0, cd, 4, @malloc_uninit(0), 0));
+};
+
+const shell_last_timepoint_timestamp = fn (s: IVolatilityOracleShell) u256 {
+    let target = shell_addr(s);
+    let cd = @malloc_uninit(4);
+    @mstore4(cd, SEL_LAST_TIMEPOINT_TIMESTAMP);
+    let ret = @malloc_uninit(32);
+    require(@evm_staticcall(@evm_gas(), target, cd, 4, ret, 32));
+    @mload32(ret) & MASK_U32
+};
+
+const shell_is_initialized = fn (s: IVolatilityOracleShell) bool {
+    let target = shell_addr(s);
+    let cd = @malloc_uninit(4);
+    @mstore4(cd, SEL_IS_INITIALIZED);
+    let ret = @malloc_uninit(32);
+    require(@evm_staticcall(@evm_gas(), target, cd, 4, ret, 32));
+    @mload32(ret) != 0
+};
+
+/// Uses `_getPoolState` — prefer `shell_get_single_timepoint_at`.
+const shell_get_single_timepoint = fn (s: IVolatilityOracleShell, seconds_ago: u256) SingleTimepointView {
+    let target = shell_addr(s);
+    let cd = @malloc_uninit(36);
+    @mstore4(cd, SEL_GET_SINGLE_TIMEPOINT);
+    @mstore32(cd +% 4, seconds_ago & MASK_U32);
+    let ret = @malloc_uninit(64);
+    require(@evm_staticcall(@evm_gas(), target, cd, 36, ret, 64));
+    SingleTimepointView {
+        tick_cumulative: @mload32(ret),
+        volatility_cumulative: @mload32(ret +% 32) & MASK_U88,
+    }
+};
+
+const RawReturndata = struct {
+    ptr: u256,
+    length: u256,
+};
+
+/// Uses `_getPoolState` — prefer `shell_get_timepoints_at_raw`.
+/// Encode `seconds_agos[0..n)` (each a u256 word holding a uint32) and call `getTimepoints`.
+/// Returns raw ABI returndata (`(int56[], uint88[])`); caller decodes.
+const shell_get_timepoints_raw = fn (s: IVolatilityOracleShell, seconds_agos_ptr: u256, n: u256) RawReturndata {
+    let target = shell_addr(s);
+    let body_len = 32 +% 32 +% (32 *% n);
+    let cd_len = 4 +% body_len;
+    let cd = @malloc_uninit(cd_len);
+    @mstore4(cd, SEL_GET_TIMEPOINTS);
+    @mstore32(cd +% 4, 32);
+    @mstore32(cd +% 36, n);
+    let mut i = 0;
+    while i < n {
+        @mstore32(cd +% 68 +% (32 *% i), @mload32(seconds_agos_ptr +% (32 *% i)) & MASK_U32);
+        i = i +% 1;
+    }
+    require(@evm_staticcall(@evm_gas(), target, cd, cd_len, @malloc_uninit(0), 0));
+    let rd_sz = @evm_returndatasize();
+    let rd = @malloc_uninit(rd_sz);
+    @evm_returndatacopy(rd, 0, rd_sz);
+    RawReturndata { ptr: rd, length: rd_sz }
+};
+
+const shell_prepay_timepoints_storage_slots = fn (s: IVolatilityOracleShell, start_index: u256, amount: u256) void {
+    let target = shell_addr(s);
+    let cd = @malloc_uninit(68);
+    @mstore4(cd, SEL_PREPAY_TIMEPOINTS_STORAGE_SLOTS);
+    @mstore32(cd +% 4, start_index & MASK_U16);
+    @mstore32(cd +% 36, amount & MASK_U16);
+    require(@evm_call(@evm_gas(), target, 0, cd, 68, @malloc_uninit(0), 0));
+};
+
+// ── Implementation passthrough ABI ────────────────────────────────────────────
+
+/// `tick` must already be ABI sign-extended into a 32-byte word (int24).
+const shell_initialize_twap = fn (s: IVolatilityOracleShell, time: u256, tick: u256) void {
+    let target = shell_addr(s);
+    let cd = @malloc_uninit(68);
+    @mstore4(cd, SEL_INITIALIZE_TWAP);
+    @mstore32(cd +% 4, time & MASK_U32);
+    @mstore32(cd +% 36, tick);
+    require(@evm_call(@evm_gas(), target, 0, cd, 68, @malloc_uninit(0), 0));
+};
+
+const shell_write_timepoint = fn (s: IVolatilityOracleShell, time: u256, tick: u256) void {
+    let target = shell_addr(s);
+    let cd = @malloc_uninit(68);
+    @mstore4(cd, SEL_WRITE_TIMEPOINT);
+    @mstore32(cd +% 4, time & MASK_U32);
+    @mstore32(cd +% 36, tick);
+    require(@evm_call(@evm_gas(), target, 0, cd, 68, @malloc_uninit(0), 0));
+};
+
+const shell_get_twap_tick = fn (s: IVolatilityOracleShell, period: u256, tick: u256, time: u256) u256 {
+    let target = shell_addr(s);
+    let cd = @malloc_uninit(100);
+    @mstore4(cd, SEL_GET_TWAP_TICK);
+    @mstore32(cd +% 4, period & MASK_U32);
+    @mstore32(cd +% 36, tick);
+    @mstore32(cd +% 68, time & MASK_U32);
+    let ret = @malloc_uninit(32);
+    require(@evm_call(@evm_gas(), target, 0, cd, 100, ret, 32));
+    @mload32(ret)
+};
+
+const shell_can_get_twap = fn (s: IVolatilityOracleShell, period: u256, time: u256) bool {
+    let target = shell_addr(s);
+    let cd = @malloc_uninit(68);
+    @mstore4(cd, SEL_CAN_GET_TWAP);
+    @mstore32(cd +% 4, period & MASK_U32);
+    @mstore32(cd +% 36, time & MASK_U32);
+    let ret = @malloc_uninit(32);
+    require(@evm_call(@evm_gas(), target, 0, cd, 68, ret, 32));
+    @mload32(ret) != 0
+};
+
+const shell_prepay_timepoints_slots = fn (s: IVolatilityOracleShell, start_index: u256, amount: u256) void {
+    let target = shell_addr(s);
+    let cd = @malloc_uninit(68);
+    @mstore4(cd, SEL_PREPAY_TIMEPOINTS_SLOTS);
+    @mstore32(cd +% 4, start_index & MASK_U16);
+    @mstore32(cd +% 36, amount & MASK_U16);
+    require(@evm_call(@evm_gas(), target, 0, cd, 68, @malloc_uninit(0), 0));
+};
+
+// ── Connector extensions (explicit time / tick; no `_getPoolState`) ───────────
+
+/// `tick` must already be ABI sign-extended into a 32-byte word (int24).
+const shell_get_single_timepoint_at = fn (
+    s: IVolatilityOracleShell,
+    seconds_ago: u256,
+    time: u256,
+    tick: u256,
+) SingleTimepointView {
+    let target = shell_addr(s);
+    let cd = @malloc_uninit(100);
+    @mstore4(cd, SEL_GET_SINGLE_TIMEPOINT_AT);
+    @mstore32(cd +% 4, seconds_ago & MASK_U32);
+    @mstore32(cd +% 36, time & MASK_U32);
+    @mstore32(cd +% 68, tick);
+    let ret = @malloc_uninit(64);
+    require(@evm_staticcall(@evm_gas(), target, cd, 100, ret, 64));
+    SingleTimepointView {
+        tick_cumulative: @mload32(ret),
+        volatility_cumulative: @mload32(ret +% 32) & MASK_U88,
+    }
+};
+
+/// Like `shell_get_timepoints_raw` but passes `time` / `tick` (no pool state).
+/// ABI: `getTimepoints(uint32[],uint32,int24)` — head = offset(96), time, tick, then array.
+const shell_get_timepoints_at_raw = fn (
+    s: IVolatilityOracleShell,
+    seconds_agos_ptr: u256,
+    n: u256,
+    time: u256,
+    tick: u256,
+) RawReturndata {
+    let target = shell_addr(s);
+    let body_len = 96 +% 32 +% (32 *% n);
+    let cd_len = 4 +% body_len;
+    let cd = @malloc_uninit(cd_len);
+    @mstore4(cd, SEL_GET_TIMEPOINTS_AT);
+    @mstore32(cd +% 4, 96);
+    @mstore32(cd +% 36, time & MASK_U32);
+    @mstore32(cd +% 68, tick);
+    @mstore32(cd +% 100, n);
+    let mut i = 0;
+    while i < n {
+        @mstore32(cd +% 132 +% (32 *% i), @mload32(seconds_agos_ptr +% (32 *% i)) & MASK_U32);
+        i = i +% 1;
+    }
+    require(@evm_staticcall(@evm_gas(), target, cd, cd_len, @malloc_uninit(0), 0));
+    let rd_sz = @evm_returndatasize();
+    let rd = @malloc_uninit(rd_sz);
+    @evm_returndatacopy(rd, 0, rd_sz);
+    RawReturndata { ptr: rd, length: rd_sz }
+};
+
+/// `tick` must already be ABI sign-extended into a 32-byte word (int24).
+const shell_get_average_volatility_last = fn (
+    s: IVolatilityOracleShell,
+    time: u256,
+    tick: u256,
+) u256 {
+    let target = shell_addr(s);
+    let cd = @malloc_uninit(68);
+    @mstore4(cd, SEL_GET_AVERAGE_VOLATILITY_LAST);
+    @mstore32(cd +% 4, time & MASK_U32);
+    @mstore32(cd +% 36, tick);
+    let ret = @malloc_uninit(32);
+    require(@evm_staticcall(@evm_gas(), target, cd, 68, ret, 32));
+    @mload32(ret) & MASK_U88
+};

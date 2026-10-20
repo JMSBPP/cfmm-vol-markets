@@ -153,6 +153,20 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 - **STILL OPEN — RPC-02 responsibility split** → **Phase 5**. A strong prior has been sent to `evm_spec_rpc` and accepted by them: guard evaluation is the spec's without exception; protocol well-formedness is the bridge's while domain validation IS guard evaluation; codec generated from one schema; error classification the bridge's, carrying the rejecting guard. Not yet ratified by the user.
 - Oracle packaging: new cabal exe vs a mode on `cfmm-scratchpad-exe` → **Phase 6**
 
+## Plank tracking (state-only)
+
+- **Current Plank slice:** #135 `refine/CEVLocalTickVolatility typed inputs` — `complete`.
+- **Accepted implementation:** `944df935a990d0a5ce1540f2e6a440396cd49d23`
+  plus ABI-cast correction `466cf3371698d913da4838c0f568349d37e2d820`.
+- **Host CI evidence:** [push-build 35885807626](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885807626)
+  and [develop-gate 35885814010](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885814010),
+  both successful on `466cf33`.
+- **Ledger:** `.planning/phases/PLANK/135-refine-cev-local-tick-volatility/PLANK-STATE.md`.
+- **Next approved child by parent-plan order:** #136 `type/CEVStateRunner`.
+  This is informational only; no GSD route or execution has been selected.
+- **GSD milestone state:** unchanged. This appendix is outside the Haskell
+  differential-conformance milestone and does not modify its counters or current phase.
+
 ### Pending Todos
 
 None yet.

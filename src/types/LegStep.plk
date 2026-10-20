@@ -1,0 +1,21 @@
+import types::TickBucket::TickBucketShape;
+import std::core::uint::{cast_uint, try_cast_uint, u24};
+import std::error::require;
+import std::option::unwrap;
+
+// LegStep(bucket, ts) = (bucket.max - bucket.min) / ts as u24.
+// 0 ≤ m ≤ step checks are deferred.
+const LegStep = fn (bucket: $B, ts: $S) u24 {
+	comptime {
+		if B != TickBucketShape(u24) {
+			@compile_error("LegStep: pass TickBucket(...)");
+		}
+		if S != u24 {
+			@compile_error("LegStep: pass TickSpacing(...) (u24)");
+		}
+	}
+	let d = cast_uint(ts, u256);
+	let span = bucket.max -% bucket.min;
+	require(@evm_mod(span, d) == 0);
+	unwrap(try_cast_uint(span </ d, u24))
+};

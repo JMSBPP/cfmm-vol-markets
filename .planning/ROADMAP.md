@@ -809,5 +809,19 @@ fails the build, with no silent-skip path left.
 
 No orphaned requirements. No requirement mapped to more than one phase.
 
+## Plank tracking (state-only)
+
+This appendix tracks approved Plank child slices that do not belong to the
+Haskell differential-conformance milestone above. It does not alter milestone
+phase numbering, progress counters, current position, or GSD routing.
+
+| Approved child | Brady phase | Status | Evidence |
+|----------------|-------------|--------|----------|
+| [#135 refine/CEVLocalTickVolatility typed inputs](https://github.com/JMSBPP/cfmm-vol-markets/issues/135) | `refine` | Complete | [PR #137](https://github.com/JMSBPP/cfmm-vol-markets/pull/137), `466cf33`, [push-build 35885807626](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885807626), [develop-gate 35885814010](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885814010) |
+| [#136 type/CEVStateRunner](https://github.com/JMSBPP/cfmm-vol-markets/issues/136) | `type` | Pending; next approved child after #135 | Ordered by parent [#129](https://github.com/JMSBPP/cfmm-vol-markets/issues/129); no dispatch implied |
+
+Phase ledger:
+`.planning/phases/PLANK/135-refine-cev-local-tick-volatility/PLANK-STATE.md`.
+
 ---
 *Roadmap created: 2026-08-27*

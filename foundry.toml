@@ -41,16 +41,48 @@ fs_permissions = [
 ]
 
 remappings = [
-	   "@cryptoalgebra/volatility-oracle-plugin/=node_modules/@cryptoalgebra/volatility-oracle-plugin/contracts",
-	   "@cryptoalgebra/integral-core/=node_modules/@cryptoalgebra/integral-core/contracts",
+	   "@cryptoalgebra/volatility-oracle-plugin/=node_modules/@cryptoalgebra/volatility-oracle-plugin/contracts/",
+	   # Short forms for repo imports (`…/interfaces/…`). Longer `…/contracts/` forms are
+	   # context-scoped under node_modules so forge does not drop the short keys when both
+	   # share a destination (measured: forge config kept only the long prefix).
+	   "@cryptoalgebra/integral-core/=node_modules/@cryptoalgebra/integral-core/contracts/",
 	   "@cryptoalgebra/integral-periphery/=node_modules/@cryptoalgebra/integral-periphery/contracts/",
+	   "@cryptoalgebra/abstract-plugin/=node_modules/@cryptoalgebra/abstract-plugin/contracts/",
+	   "node_modules/@cryptoalgebra/:@cryptoalgebra/integral-core/contracts/=node_modules/@cryptoalgebra/integral-core/contracts/",
+	   "node_modules/@cryptoalgebra/:@cryptoalgebra/integral-periphery/contracts/=node_modules/@cryptoalgebra/integral-periphery/contracts/",
+	   "node_modules/@cryptoalgebra/:@cryptoalgebra/abstract-plugin/contracts/=node_modules/@cryptoalgebra/abstract-plugin/contracts/",
 	   # AdaptiveFee's differential oracle is vendored (test/premium/refs/AdaptiveFee.sol) because the
 	   # published lib's unused integral-core contracts/-style import doesn't resolve in forge's
 	   # node_modules compile context. This remap serves the self-contained config-type imports.
 	   "@cryptoalgebra/dynamic-fee-plugin/=node_modules/@cryptoalgebra/dynamic-fee-plugin/contracts/",
-	   "@solady/=lib/bunni-v2/lib/solady/src/"
+	   "@solady/=lib/bunni-v2/lib/solady/src/",
+	   "@perfect-abstractions/compose/=node_modules/@perfect-abstractions/compose/"
 ]
 
+# Isolated compile for SigmaF / TokenFlow IO (#128). Backend is Anvil (just test-sigmaf).
+[profile.sigmaf]
+eth_rpc_url = "http://127.0.0.1:8545"
+sparse_mode = true
+skip = [
+    "test/protocol_integrations/**",
+    "test/types/protocol_integrations/**",
+    "test/types/pos_spec/**",
+    "test/lib/**",
+    "test/premium/**",
+    "test/tmp/**",
+]
+
+# Isolated compile for TimeIndex ↔ oracle init/write (avoids the rest of test/).
+[profile.rv-init]
+sparse_mode = true
+skip = [
+    "test/protocol_integrations/**",
+    "test/types/protocol_integrations/**",
+    "test/types/pos_spec/**",
+    "test/lib/**",
+    "test/premium/**",
+    "test/tmp/**",
+]
 
 [fuzz]
 # 10 runs is not a test, it is a coin flip. The differential suite fuzzes over
@@ -63,3 +95,13 @@ runs = 256
 mainnet = "https://eth-mainnet.g.alchemy.com/v2/${API_KEY}"
 local = "http://127.0.0.1:8545"
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+# Isolated compile for WeinerGenerator box (avoids full monorepo node_modules).
+[profile.weiner]
+src = "src"
+test = "test/weiner_gen"
+out = "out-weiner"
+libs = ["lib"]
+ffi = false
+via_ir = true
+optimizer = true

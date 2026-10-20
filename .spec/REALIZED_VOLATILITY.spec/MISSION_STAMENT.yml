@@ -1,0 +1,12 @@
+Name: TickVolatilityFactory
+Purpose: Implement  \(\sigma_{\text{factory}} : T \times \bar \sigma \to \text{TickPath} \equiv \{i\}_{j=0}^{N}\) as a *discrete time control macro*
+
+[MAIN_REF](~/apps/vol-markets/.worktrees/type-tickVolatility/.spec/REALIZED_VOLATILITY.md)
+
+Responsabilities:
+ - type/define/refine/ discrete [`TimeFrequency`](MAIN_REF## **Window**)
+ - type/define/refine/  [`WeinerGenerator`](MAIN_REF## **WeinerGenerator**)
+ - type/define/refine/ [flow model constants \(\mu_F, \sigma_F\)](MAIN_REF# MODEL)
+ - type/define/refine/ [`CEVLocalTickVolatility`](MAIN_REF## **CEVLocalTickVolatility**)
+ - type/define/refine/ [`CEVLocalTickDrift`](MAIN_REF## **CEVLocalTickDrift**)
+ - type/define/refine/ [`TickDynamics`](MAIN_REF## **TickDynamics**)
