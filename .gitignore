@@ -61,3 +61,10 @@ dist-newstyle/
 # Local Claude Code settings (per-user, not repo config)
 .agents/settings.local.json
 .spec/
+
+# Latest plank-monorepo clone used by `just tick-path-all` (not the pin).
+/plank-target/
+
+# Local clones for tick-path-all (not the submodule pins).
+/lib/solady/
+/lib/multicaller/
