@@ -17,7 +17,7 @@ if [[ -z "${_TICK_PATH_JUST_WRAPPED:-}" ]]; then
         command just "$@"
         local st=$?
         case "${1-}" in
-            tick-path-all|deploy-multicaller|write-deploy-env)
+            RunApp|deploy-multicaller|run-app)
                 _tick_path_reload
                 ;;
         esac

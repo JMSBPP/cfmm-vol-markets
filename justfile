@@ -299,21 +299,22 @@ spec-compile:
 
 # Clone/update latest plank-monorepo into ./plank-target (does not move the
 # lib/plank-monorepo submodule pin), compile {{file}} with that compiler+std,
-# write creation bytecode to .bytecode/tickPath/TickPath.bytecode, deploy it on
-# local anvil via cast rpc, export TICK_ADDRESS, log the tx hash.
-# Usage: just tick-path-all src/Tick.plk
+# write creation bytecode to .bytecode/app/App.bytecode, deploy it on
+# local anvil via cast rpc, export APP_ADDRESS, log the tx hash.
+# Usage: just RunApp src/Tick.plk
 plank-target-dir := "plank-target"
 plank-monorepo-url := "https://github.com/plankevm/plank-monorepo.git"
-tick-bytecode-dir := ".bytecode/tickPath"
-tick-bytecode := ".bytecode/tickPath/TickPath.bytecode"
+app-bytecode-dir := ".bytecode/app"
+app-bytecode := ".bytecode/app/App.bytecode"
 
-tick-path-all file:
+
+
+RunApp file:
     #!/usr/bin/env bash
     set -euo pipefail
     src="{{file}}"
     if [[ ! -f "$src" ]]; then
         echo "error: missing $src" >&2
-        echo "usage: just tick-path-all src/Tick.plk" >&2
         exit 1
     fi
 
@@ -338,8 +339,8 @@ tick-path-all file:
     fi
     echo "plank $($plank_bin --version 2>/dev/null || true) @ $plank_bin"
 
-    out_dir="{{tick-bytecode-dir}}"
-    out="{{tick-bytecode}}"
+    out_dir="{{app-bytecode-dir}}"
+    out="{{app-bytecode}}"
     mkdir -p "$out_dir"
     echo "compiling $src -> $out"
     "$plank_bin" build "$src" --dep std="$dep/std/" > "$out"
@@ -383,14 +384,14 @@ tick-path-all file:
         exit 1
     fi
 
-    export TICK_ADDRESS="$addr"
-    export TICK_TX_HASH="$tx"
+    export APP_ADDRESS="$addr"
+    export APP_TX_HASH="$tx"
     export ANVIL_RPC_URL="{{ANVIL_RPC_URL}}"
-    printf '%s\n' "$addr" > "$out_dir/TICK_ADDRESS"
+    printf '%s\n' "$addr" > "$out_dir/APP_ADDRESS"
     printf '%s\n' "$tx" > "$out_dir/TX_HASH"
-    just write-deploy-env
-    echo "TICK_ADDRESS=$TICK_ADDRESS"
-    echo "export TICK_ADDRESS=$TICK_ADDRESS"
+    just run-app
+    echo "APP_ADDRESS=$APP_ADDRESS"
+    echo "export APP_ADDRESS=$APP_ADDRESS"
     echo "export ANVIL_RPC_URL=$ANVIL_RPC_URL"
     just deploy-multicaller
     echo "source .env"
@@ -419,7 +420,7 @@ deploy-multicaller:
         exit 1
     fi
 
-    out_dir="{{tick-bytecode-dir}}"
+    out_dir="{{app-bytecode-dir}}"
     out="$out_dir/Multicaller.bytecode"
     mkdir -p "$out_dir"
     tmp="$(mktemp -d)"
@@ -481,22 +482,22 @@ deploy-multicaller:
     export ANVIL_RPC_URL="{{ANVIL_RPC_URL}}"
     printf '%s\n' "$addr" > "$out_dir/MULTICALLER_ADDRESS"
     printf '%s\n' "$tx" > "$out_dir/MULTICALLER_TX_HASH"
-    if [[ -z "${TICK_ADDRESS:-}" && -f "$out_dir/TICK_ADDRESS" ]]; then
-        export TICK_ADDRESS="$(tr -d '[:space:]' < "$out_dir/TICK_ADDRESS")"
+    if [[ -z "${APP_ADDRESS:-}" && -f "$out_dir/APP_ADDRESS" ]]; then
+        export APP_ADDRESS="$(tr -d '[:space:]' < "$out_dir/APP_ADDRESS")"
     fi
-    if [[ -z "${TICK_TX_HASH:-}" && -f "$out_dir/TX_HASH" ]]; then
-        export TICK_TX_HASH="$(tr -d '[:space:]' < "$out_dir/TX_HASH")"
+    if [[ -z "${APP_TX_HASH:-}" && -f "$out_dir/TX_HASH" ]]; then
+        export APP_TX_HASH="$(tr -d '[:space:]' < "$out_dir/TX_HASH")"
     fi
-    just write-deploy-env
+    just run-app
     echo "MULTICALLER_ADDRESS=$MULTICALLER_ADDRESS"
     echo "export MULTICALLER_ADDRESS=$MULTICALLER_ADDRESS"
     echo "export ANVIL_RPC_URL=$ANVIL_RPC_URL"
 
 # Upsert deploy exports into repo `.env`, user-global `~/.config/tick-path/env`
 # (sourced from ~/.bashrc.local like foundry on PATH), and systemd user env.
-write-deploy-env:
+run-app:
     #!/usr/bin/env bash
     set -euo pipefail
-    exec bash scripts/TickPathAll.sh . "{{tick-bytecode-dir}}"
+    exec bash scripts/RunApp.sh . "{{app-bytecode-dir}}"
 
 
