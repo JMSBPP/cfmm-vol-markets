@@ -66,3 +66,10 @@ dist-newstyle/
 # Lean Lake deps/build under Aristotle artifacts — never commit (breaks checkout as gitlinks).
 .spec/**/.lake/
 out-weiner/
+
+# Latest plank-monorepo clone used by `just RunApp` (not the pin).
+/plank-target/
+
+# Local clones for just RunApp (not the submodule pins).
+/lib/solady/
+/lib/multicaller/

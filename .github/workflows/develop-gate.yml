@@ -179,15 +179,9 @@ jobs:
           submodules: false
           persist-credentials: false
           set-safe-directory: false
-      # sync first: honor repointed submodule URLs on the reused runner (see forge job note)
-      - run: git submodule sync --recursive
-      - run: git submodule update --init lib/plankified-univ3
-      # compile-plank needs --dep std=lib/plank-monorepo/std/ AND a compiler matching the pin.
-      # Init plank-monorepo (the narrow plankified-univ3 init above does not) and rebuild the
-      # toolchain from it, so a plank-monorepo bump is honored (else 8 ok / 31 failed on a bump).
-      - run: git submodule update --init --recursive lib/plank-monorepo
-      - run: make plank-toolchain
-      - run: make compile-plank
+      # Latest plank compiler via ./plank-target (not the lib/plank-monorepo pin).
+      # Same recipe and compiler as local `just RunApp src/Main.plk`.
+      - run: just RunApp src/Main.plk
 
   submodule-gates:
     needs: [approve]
