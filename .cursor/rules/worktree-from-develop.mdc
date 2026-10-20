@@ -1,0 +1,20 @@
+---
+description: New git worktrees must start at the fetched origin/develop tip, not current HEAD
+alwaysApply: true
+---
+
+# Worktrees start at latest origin/develop
+
+Cursor worktrees default to **current HEAD**. Local `develop` is often dozens of commits behind `origin/develop`. Do not create a worktree from HEAD.
+
+`.cursor/worktrees.json` hard-resets Cursor-created worktrees to fetched `origin/develop`. Agents creating worktrees by hand must do the same:
+
+```bash
+git fetch origin develop
+git worktree add -b <name> .worktrees/<name-with-slashes-as-hyphens> origin/develop
+```
+
+```bash
+# BAD — branches from whatever this checkout is
+git worktree add -b <name> .worktrees/<name>
+```

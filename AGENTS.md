@@ -34,8 +34,8 @@ notes/            binding spec docs (DATA_CONTRACT.md, UNITS_AND_SCALES.md)
 track), do **not** start inline on `develop`. Follow this sequence:
 
 1. Create a tracking issue titled for the work (e.g. `type/Foo`). Empty body is fine.
-2. Create a branch and worktree of that name from latest `origin/develop`:
-   `git worktree add -b <name> .worktrees/<name-with-slashes-as-hyphens> origin/develop`.
+2. Create a branch and worktree of that name from **fetched** `origin/develop` (never current HEAD; local `develop` is often stale). `.cursor/worktrees.json` hard-resets Cursor-created worktrees to that tip.
+   `git fetch origin develop && git worktree add -b <name> .worktrees/<name-with-slashes-as-hyphens> origin/develop`.
 3. Open a PR into `develop` whose body cites the issue number (`#N`).
 
 Do the implementation in that worktree until the PR merges. The main checkout stays on
