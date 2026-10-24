@@ -1,0 +1,59 @@
+import std::option::{Option, Some};
+import std::core::uint::cast_uint;
+import types::IO::IO;
+import cfmm_types::Pips::{Pips, intro, PIPS};
+
+/// types.toml: Shock
+/// .spec: .spec/REALIZED_VOLATILITY.spec/types/Shock/Shock.md
+/// .btt: .spec/REALIZED_VOLATILITY.spec/types/Shock/ShockRunShock.btt
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/150
+/// Prereq of #143 WeinerGenerator. First T = Pips (cfmm_types::Pips).
+/// Eff = [Timestamp]. Outcome law: run_shock → Option(Shock(T)).
+/// Entropy B: keccak256(prevrandao || timestamp || j) → Pips mag (u16).
+
+/// Shock(T) — random shock valued in T (Weiner: T = Pips).
+const Shock = fn (comptime T: type) type {
+    struct {
+        inner: T
+    }
+};
+
+/// Command for io wrap; Timestamp + PREVRANDAO env are read in run_shock (Eff).
+const ShockCmd = struct {
+    /// Lattice index j mixed into the block entropy (Weiner ceremony).
+    j: u256
+};
+
+/// Pure wrap. Execution is run_shock only.
+const io = fn (cmd: ShockCmd) IO(ShockCmd) {
+    IO(ShockCmd) { inner: cmd }
+};
+
+/// keccak256(@evm_difficulty(=PREVRANDAO) || @evm_timestamp || j) → low 16 bits as pip mag.
+const entropy_to_pips = fn (j: u256) Pips {
+    let buf = @malloc_uninit(96);
+    @mstore32(buf, @evm_difficulty());
+    @mstore32(buf +% 32, @evm_timestamp());
+    @mstore32(buf +% 64, j);
+    let h = @evm_keccak256(buf, 96);
+    let mag = @evm_and(@evm_shr(1, h), 0xffff);
+    intro(PIPS, mag)
+};
+
+/// Timestamp + PREVRANDAO env + entropy → Option(Shock(T)).
+/// This define: always Some for T = Pips (env opcodes always succeed).
+/// Named run_shock — `run` is the Plank entrypoint keyword.
+const run_shock = fn (comptime T: type, m: IO(ShockCmd)) Option(Shock(T)) {
+    let p = entropy_to_pips(m.inner.j);
+    Some(Shock(T) { inner: p })
+};
+
+/// Project carrier payload.
+const val = fn (comptime T: type, s: Shock(T)) T {
+    s.inner
+};
+
+/// Expose Pips.val as u256 for harness ABI (u16 → u256).
+const pips_word = fn (p: Pips) u256 {
+    cast_uint(p.val, u256)
+};

@@ -2,6 +2,7 @@ import std::core::addr::addr;
 import types::TokenHistory::{TokenHistory, step_k};
 import cfmm_types::TimeSpacing::n;
 import types::IO::{IO, Outcome, io, outcome_revert, outcome_success, run_io};
+import cfmm_types::Ray::Ray;
 import types::SigmaF::SigmaF;
 import types::TokenFlow::token_flow;
 
@@ -9,7 +10,7 @@ import types::TokenFlow::token_flow;
 const TokenHistoryFlow = fn (comptime dt: u256, comptime k: u256) type {
     struct {
         hist: TokenHistory(dt, k),
-        sf: SigmaF(),
+        sf: SigmaF(Ray),
         token: addr,
         from: addr,
         to: addr
@@ -20,7 +21,7 @@ const io_hist = fn (
     comptime dt: u256,
     comptime k: u256,
     hist: TokenHistory(dt, k),
-    sf: SigmaF(),
+    sf: SigmaF(Ray),
     token: addr,
     from: addr,
     to: addr
@@ -51,7 +52,7 @@ const run_hist = fn (comptime dt: u256, comptime k: u256, m: IO(TokenHistoryFlow
 const run_step_k = fn (
     comptime dt: u256,
     weiner: addr,
-    sf: SigmaF(),
+    sf: SigmaF(Ray),
     t_init: u256,
     k: u256,
     j: u256,
@@ -71,7 +72,7 @@ const run_step_k = fn (
 const run_k = fn (
     comptime dt: u256,
     weiner: addr,
-    sf: SigmaF(),
+    sf: SigmaF(Ray),
     t_init: u256,
     k: u256,
     token: addr,

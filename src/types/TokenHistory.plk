@@ -8,6 +8,7 @@ import std::slice::Slice;
 import std::type::sizeof;
 import cfmm_types::TimeIndex::lastIndex;
 import cfmm_types::TimeSpacing::{TimeSpacing, n};
+import cfmm_types::Ray::{Ray, rayVal};
 import types::SigmaF::SigmaF;
 import types::WeinerGenerator::{DeltaW, abs_signed, is_neg_signed};
 
@@ -50,8 +51,8 @@ const view_shock = fn (weiner: addr, dt: u256, j: u256) u256 {
 };
 
 /// ΔQ_M := σ_F · ΔW (signed).
-const dq_m = fn (comptime dt: u256, sf: SigmaF(), dw: DeltaW(dt)) u256 {
-    let mag = checked_mul(sf.val, abs_signed(dw.val));
+const dq_m = fn (comptime dt: u256, sf: SigmaF(Ray), dw: DeltaW(dt)) u256 {
+    let mag = checked_mul(rayVal(sf.r), abs_signed(dw.val));
     if is_neg_signed(dw.val) {
         neg_u256(mag)
     } else {
@@ -59,7 +60,7 @@ const dq_m = fn (comptime dt: u256, sf: SigmaF(), dw: DeltaW(dt)) u256 {
     }
 };
 
-const step_at = fn (comptime dt: u256, weiner: addr, sf: SigmaF(), t_init: u256, j: u256) Step(dt) {
+const step_at = fn (comptime dt: u256, weiner: addr, sf: SigmaF(Ray), t_init: u256, j: u256) Step(dt) {
     let t = checked_add(t_init, checked_mul(j, dt));
     let dw = DeltaW(dt) { val: view_shock(weiner, dt, j) };
     Step(dt) {
@@ -76,7 +77,7 @@ const intro_from = fn (
     comptime k: u256,
     comptime off: u256,
     weiner: addr,
-    sf: SigmaF(),
+    sf: SigmaF(Ray),
     t_init: u256
 ) TokenHistory(dt, k) {
     if k == 0 {
@@ -93,7 +94,7 @@ const TokenHistoryBuf = fn (comptime dt: u256, comptime k: u256) type {
     Slice(memory, TokenHistory(dt, k), Some(1))
 };
 
-const intro = fn (comptime dt: u256, comptime k: u256, weiner: addr, sf: SigmaF(), t_init: u256) TokenHistoryBuf(dt, k) {
+const intro = fn (comptime dt: u256, comptime k: u256, weiner: addr, sf: SigmaF(Ray), t_init: u256) TokenHistoryBuf(dt, k) {
     let h = intro_from(dt, k, 0, weiner, sf, t_init);
     let ptr = @malloc_uninit(comptime { sizeof(TokenHistory(dt, k)) });
     unsafe_mem_write(ptr, h);
@@ -105,7 +106,7 @@ const Steps = fn (comptime dt: u256) type {
     Slice(memory, Step(dt), None(u256))
 };
 
-const intro_k = fn (comptime dt: u256, weiner: addr, sf: SigmaF(), t_init: u256, k: u256) Option(Steps(dt)) {
+const intro_k = fn (comptime dt: u256, weiner: addr, sf: SigmaF(Ray), t_init: u256, k: u256) Option(Steps(dt)) {
     comptime let nmax = n(dt);
     if (k == 0) | (k >= nmax) {
         None(Steps(dt))
@@ -132,7 +133,7 @@ const intro_len = fn (comptime dt: u256, k: u256) u256 {
 };
 
 /// One Step of a valid prefix. Does not allocate K cells — so K can be any in (0, n).
-const step_k = fn (comptime dt: u256, weiner: addr, sf: SigmaF(), t_init: u256, k: u256, j: u256) Option(Step(dt)) {
+const step_k = fn (comptime dt: u256, weiner: addr, sf: SigmaF(Ray), t_init: u256, k: u256, j: u256) Option(Step(dt)) {
     comptime let nmax = n(dt);
     if (k == 0) | (k >= nmax) | (j >= k) {
         None(Step(dt))

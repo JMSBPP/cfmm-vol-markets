@@ -1,0 +1,27 @@
+import std::constructor::return_runtime;
+import std::option::is_some;
+import types::Shock::{Shock, ShockCmd, io, run_shock, val, pips_word};
+import cfmm_types::Pips::Pips;
+
+/// Public harness for ShockRunShock.btt (#150).
+/// cast sig "runShock(uint256)" -> 0x843742bb
+const SEL_RUN_SHOCK = 0x843742bb;
+
+init { return_runtime(); }
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == SEL_RUN_SHOCK {
+        let j = @evm_calldataload(4);
+        let o = run_shock(Pips, io(ShockCmd { j: j }));
+        let out = @malloc_uninit(64);
+        @mstore32(out, @bool_to_u256(is_some(Shock(Pips), o)));
+        if o.is_some {
+            @mstore32(out +% 32, pips_word(val(Pips, o.inner)));
+        } else {
+            @mstore32(out +% 32, 0);
+        }
+        @evm_return(out, 64);
+    }
+    @evm_stop();
+}

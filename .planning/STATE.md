@@ -155,16 +155,14 @@ Full log in PROJECT.md Key Decisions table. Affecting current work:
 
 ## Plank tracking (state-only)
 
-- **Current Plank slice:** #135 `refine/CEVLocalTickVolatility typed inputs` — `complete`.
-- **Accepted implementation:** `944df935a990d0a5ce1540f2e6a440396cd49d23`
-  plus ABI-cast correction `466cf3371698d913da4838c0f568349d37e2d820`.
-- **Host CI evidence:** [push-build 35885807626](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885807626)
-  and [develop-gate 35885814010](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35885814010),
-  both successful on `466cf33`.
-- **Ledger:** `.planning/phases/PLANK/135-refine-cev-local-tick-volatility/PLANK-STATE.md`.
-- **Next approved child by parent-plan order:** #136 `type/CEVStateRunner`.
-  This is informational only; no GSD route or execution has been selected.
-- **GSD milestone state:** unchanged. This appendix is outside the Haskell
+- **Last completed slice:** #140 `define/CEVStateRunner failure outcomes` — `complete`
+  (impl `714f33d`; [push-build 35995485040](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35995485040)).
+- **Previous:** #147 B2 RunJ — `complete` (`6933741`).
+- **Parent track:** #136 `type/CEVStateRunner` — open; PR [#142](https://github.com/JMSBPP/cfmm-vol-markets/pull/142).
+- **Current Plank slice:** #141 `refine/CEVStateRunner` — **ci_pending** (`b191302`; tip `7df5090`; [push-build 35996504328](https://github.com/JMSBPP/cfmm-vol-markets/actions/runs/35996504328)).
+- **Queued (approved-plan order):** sibling #151 TokenFlow/Ray (parallel); parent #136 closeout after #141.
+- **Ledgers:** `141-…` (ci_pending); `140-…` (complete); `147-…` (complete).
+- **GSD milestone state:** unchanged. This section is outside the Haskell
   differential-conformance milestone and does not modify its counters or current phase.
 
 ### Pending Todos

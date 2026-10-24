@@ -1,0 +1,101 @@
+import std::core::addr::{addr, addr_from_u256};
+import std::option::{None, Option, is_some};
+import cfmm_types::TimeSpacing::{TimeSpacing, n};
+import types::CEVLocalTickVolatility::{CEVLocalTickVolatility, try_intro as cev_try_intro};
+import types::IO::IO;
+import types::LiquidityChunk::LiquidityChunk;
+import cfmm_types::Ray::Ray;
+import types::SigmaF::SigmaF;
+import types::StateView::{
+    RealizeCmd,
+    StateViewAnchor,
+    io_realize,
+    run_swap,
+    step_k as state_step_k
+};
+import types::TokenFlow::token_flow;
+import types::WeinerGenerator::{WeinerCmd, DeltaW, io as weiner_io, run_weiner};
+import types::protocol_integrations::Pool::pool_word;
+import types::protocol_integrations::Venue::Algebra;
+
+/// types.toml: CEVStateRunner (refined=#141)
+/// .spec: .spec/REALIZED_VOLATILITY.spec/types/CEVStateRunner/CEVStateRunner.md
+/// .btt: CEVStateRunnerRunJ.btt (#147 success + #140 failure)
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/141
+/// Eff = [StateView, Timestamp]. Law B: run_j → Option (stages collapsed).
+
+/// CEVStateRunner(dt, K) <- SigmaF × LiquidityChunk × StateViewAnchor
+const CEVStateRunner = fn (comptime dt: u256, comptime k: u256) type {
+    let _ = TimeSpacing(dt);
+    let _ = k;
+    struct {
+        sf: SigmaF(Ray),
+        chunk: LiquidityChunk,
+        anchor: StateViewAnchor
+    }
+};
+
+/// Pure wrap. Execution is run_j only.
+const io = fn (
+    comptime dt: u256,
+    comptime k: u256,
+    sf: SigmaF(Ray),
+    chunk: LiquidityChunk,
+    anchor: StateViewAnchor
+) IO(CEVStateRunner(dt, k)) {
+    IO(CEVStateRunner(dt, k)) {
+        inner: CEVStateRunner(dt, k) {
+            sf: sf,
+            chunk: chunk,
+            anchor: anchor
+        }
+    }
+};
+
+/// Behavior: CEVStateRunnerRunJ.btt — run_weiner → token_flow → run_swap → step_k → CEV.try_intro.
+/// Eff = [StateView, Timestamp]. Law B: any stage failure → None (incl. Weiner None / try_intro None).
+const run_j = fn (
+    comptime dt: u256,
+    comptime k: u256,
+    m: IO(CEVStateRunner(dt, k)),
+    token: addr,
+    from: addr,
+    j: u256
+) Option(CEVLocalTickVolatility) {
+    comptime let nmax = n(dt);
+    if (k == 0) | (k >= nmax) | (j >= k) {
+        None(CEVLocalTickVolatility)
+    } else {
+        let r = m.inner;
+        let o_dw = run_weiner(dt, weiner_io(WeinerCmd { j: j }));
+        if !is_some(DeltaW(dt), o_dw) {
+            None(CEVLocalTickVolatility)
+        } else {
+            let pool_u = pool_word(Algebra, r.anchor.pool);
+            let flow = token_flow(
+                dt,
+                r.sf,
+                o_dw.inner,
+                token,
+                from,
+                addr_from_u256(pool_u)
+            );
+            let cmd = RealizeCmd {
+                pool: r.anchor.pool,
+                flow: flow,
+                bin_j: j
+            };
+            let o_swap = run_swap(io_realize(cmd));
+            if !o_swap.inner.is_some {
+                None(CEVLocalTickVolatility)
+            } else {
+                let o_obs = state_step_k(dt, r.anchor, k, j);
+                if !o_obs.is_some {
+                    None(CEVLocalTickVolatility)
+                } else {
+                    cev_try_intro(dt, r.sf, r.chunk, o_obs.inner)
+                }
+            }
+        }
+    }
+};

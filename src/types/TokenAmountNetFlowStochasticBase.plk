@@ -1,0 +1,78 @@
+import std::core::ops::{checked_mul, checked_div_down, neg_u256};
+import cfmm_types::Ray::{Ray, rayVal, rayMulId};
+import types::SigmaF::SigmaF;
+import types::WeinerGenerator::{DeltaW, is_neg_signed, abs_signed};
+
+/// types.toml: TokenAmountNetFlowStochasticBase
+/// .spec: .spec/REALIZED_VOLATILITY.spec/types/TokenAmountNetFlowStochasticBase/TokenAmountNetFlowStochasticBase.md
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/151
+/// TokenFlow consumer: https://github.com/JMSBPP/cfmm-vol-markets/issues/152
+/// C = SigmaF(N) only; N = Ray only. Weiner ≡ DeltaW. Eff = [].
+
+const TokenAmountNetFlowStochasticBase = fn (
+    comptime C: type,
+    comptime N: type,
+    comptime dt: u256
+) type {
+    struct {
+        sigma: C,
+        dw: DeltaW(dt)
+    }
+};
+
+const TokenAmountStock = fn (comptime T: type) type {
+    struct {
+        val: u256
+    }
+};
+
+const intro_base = fn (
+    comptime dt: u256,
+    sigma: SigmaF(Ray),
+    dw: DeltaW(dt)
+) TokenAmountNetFlowStochasticBase(SigmaF(Ray), Ray, dt) {
+    TokenAmountNetFlowStochasticBase(SigmaF(Ray), Ray, dt) {
+        sigma: sigma,
+        dw: dw
+    }
+};
+
+/// stock(b) = (σ · ΔW) / unit(Ray); unit = rayVal(rayMulId()); checked → revert.
+/// Signed via |σ|·|ΔW|/unit then restore sign(ΔW) (two's-complement word).
+const stock = fn (
+    comptime dt: u256,
+    b: TokenAmountNetFlowStochasticBase(SigmaF(Ray), Ray, dt)
+) TokenAmountStock(TokenAmountNetFlowStochasticBase(SigmaF(Ray), Ray, dt)) {
+    let unit = rayVal(rayMulId());
+    let mag = checked_div_down(
+        checked_mul(rayVal(b.sigma.r), abs_signed(b.dw.val)),
+        unit
+    );
+    let word = if is_neg_signed(b.dw.val) {
+        neg_u256(mag)
+    } else {
+        mag
+    };
+    TokenAmountStock(TokenAmountNetFlowStochasticBase(SigmaF(Ray), Ray, dt)) {
+        val: word
+    }
+};
+
+const magnitude = fn (
+    comptime T: type,
+    s: TokenAmountStock(T)
+) u256 {
+    abs_signed(s.val)
+};
+
+/// Dir 0 = +, 1 = − (TokenFlow convention).
+const direction = fn (
+    comptime T: type,
+    s: TokenAmountStock(T)
+) u256 {
+    if is_neg_signed(s.val) {
+        1
+    } else {
+        0
+    }
+};

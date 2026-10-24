@@ -22,4 +22,6 @@ files = [
   "test/harness/types/LiquidityChunkMinterHarness.plk",
   "test/helpers/Algebra/AlgebraMintCallbackAdapter.plk",
   "test/harness/types/StateViewHarness.plk",
+  "test/harness/types/CEVStateRunnerHarness.plk",
+  "test/harness/types/ShockHarness.plk",
 ]

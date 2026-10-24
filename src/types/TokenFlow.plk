@@ -1,6 +1,14 @@
 import std::core::addr::addr;
-import types::SigmaF::{SigmaF, token_amount};
-import types::WeinerGenerator::{DeltaW, is_neg_signed};
+import cfmm_types::Ray::Ray;
+import types::SigmaF::SigmaF;
+import types::WeinerGenerator::DeltaW;
+import types::TokenAmountNetFlowStochasticBase::{
+    intro_base,
+    stock,
+    magnitude,
+    direction,
+    TokenAmountNetFlowStochasticBase
+};
 
 const TokenFlow = fn () type {
     struct {
@@ -12,20 +20,21 @@ const TokenFlow = fn () type {
     }
 };
 
-/// intro(σ_F, ΔW(dt), token, from, to) = (TokenAmount, Dir) at those addresses.
-/// Dir 0 = +, 1 = −. dt is the DeltaW index.
+/// intro(σ_F, ΔW(dt), token, from, to) = (magnitude(stock), direction(stock)) at those addresses.
+/// Bridge until #152 full refine: amount/dir from TokenAmountStock.
 const token_flow = fn (
     comptime dt: u256,
-    sf: SigmaF(),
+    sf: SigmaF(Ray),
     dw: DeltaW(dt),
     token: addr,
     from: addr,
     to: addr
 ) TokenFlow() {
-    let dir = if is_neg_signed(dw.val) { 1 } else { 0 };
+    let base = intro_base(dt, sf, dw);
+    let s = stock(dt, base);
     TokenFlow() {
-        amount: token_amount(dt, sf, dw),
-        dir: dir,
+        amount: magnitude(TokenAmountNetFlowStochasticBase(SigmaF(Ray), Ray, dt), s),
+        dir: direction(TokenAmountNetFlowStochasticBase(SigmaF(Ray), Ray, dt), s),
         token: token,
         from: from,
         to: to

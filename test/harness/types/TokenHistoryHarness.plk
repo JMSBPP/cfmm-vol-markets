@@ -1,7 +1,7 @@
 import std::constructor::return_runtime;
 import std::core::addr::addr_from_u256;
 import types::TokenHistory::{intro_len, step_k};
-import types::SigmaF::SigmaF;
+import types::SigmaF::intro_from_u256;
 
 // cast sig "intro(address,uint256,uint256,uint256)" -> 0x62167a48
 const SEL_INTRO = 0x62167a48;
@@ -20,7 +20,7 @@ run {
     }
     if selector == SEL_STEP {
         let weiner = addr_from_u256(@evm_calldataload(4));
-        let sf = SigmaF() { val: @evm_calldataload(36) };
+        let sf = intro_from_u256(@evm_calldataload(36));
         let t_init = @evm_calldataload(68);
         let k = @evm_calldataload(100);
         let j = @evm_calldataload(132);

@@ -1,0 +1,3 @@
+SigmaFIntroFromU256Test
+└── when given a u256 x
+    └── it should equal intro of Ray.intro(x)
