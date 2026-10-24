@@ -1,0 +1,23 @@
+import std::constructor::return_runtime;
+import std::core::uint::{try_cast_uint, u24};
+import std::option::unwrap;
+import types::TickRung::tick_rung;
+import lib::types::TickRungTickBucketLib::tick_bucket;
+
+// cast sig "tickBucketFromRung(int256,uint256,uint24)" -> 0xb2f8beec
+const SEL_TICK_BUCKET_FROM_RUNG = 0xb2f8beec;
+
+init { return_runtime(); }
+
+run {
+	let selector = @evm_shr(224, @evm_calldataload(0));
+	if selector == SEL_TICK_BUCKET_FROM_RUNG {
+		let step = unwrap(try_cast_uint(@evm_calldataload(68), u24));
+		let b = tick_bucket(tick_rung(@evm_calldataload(4), @evm_calldataload(36), step));
+		let out = @malloc_uninit(64);
+		@mstore32(out, b.min);
+		@mstore32(out +% 32, b.max);
+		@evm_return(out, 64);
+	}
+	@evm_stop();
+}

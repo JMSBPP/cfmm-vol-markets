@@ -1,0 +1,16 @@
+import types::TickRung::{TickRung, Sealed};
+import types::TickBucket::TickBucketShape;
+import std::core::uint::u24;
+
+// TickRung(Sealed) → TickBucketShape: [i, at).
+const tick_bucket = fn (rung: $R) TickBucketShape(u24) {
+	comptime {
+		if R != TickRung(Sealed) {
+			@compile_error("tick_bucket: pass tick_rung(...)");
+		}
+	}
+	TickBucketShape(u24) {
+		min: rung.i,
+		max: rung.at,
+	}
+};

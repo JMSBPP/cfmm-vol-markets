@@ -1,0 +1,41 @@
+import types::Tick::Tick;
+import types::TickSpacing::TickSpacing;
+import std::core::uint::{cast_uint, u24};
+
+// Witness for sealed TickRung — only tick_rung may inhabit TickRung(Sealed).
+const Sealed = struct {};
+
+const TickRung = fn (comptime B: type) type {
+	comptime {
+		if B != Sealed {
+			@compile_error("TickRung: sealed");
+		}
+	}
+	struct {
+		i: u256,
+		at: u256,
+	}
+};
+
+// TickRung(i, Δ, m) := Tick(i, Δ_raw) + LegStep · TickSpacing(Δ_raw).
+const tick_rung = fn (tickVal: u256, rawTickSpacing: u256, step: $S) TickRung(Sealed) {
+	comptime {
+		if S != u24 {
+			@compile_error("tick_rung: pass LegStep(...) (u24)");
+		}
+	}
+	let i = Tick(tickVal, rawTickSpacing);
+	let d = cast_uint(TickSpacing(rawTickSpacing), u256);
+	TickRung(Sealed) {
+		i: i,
+		at: i +% cast_uint(step, u256) *% d,
+	}
+};
+
+const tick_rung_i = fn (r: TickRung(Sealed)) u256 {
+	r.i
+};
+
+const tick_rung_at = fn (r: TickRung(Sealed)) u256 {
+	r.at
+};
