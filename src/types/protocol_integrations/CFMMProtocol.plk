@@ -1,0 +1,11 @@
+// CFMM protocol brands — mirror of on-chain CFMMProtocol enum (registry bytecode SoT).
+// Distinct from Venue (V3/V4/Algebra), which is AMM-family math/ABI.
+
+const UniswapV3 = struct {};
+const UniswapV4 = struct {};
+const Camelot = struct {};
+const QuickSwap = struct {};
+
+const is_cfmm_protocol = fn (comptime P: type) bool {
+	P == UniswapV3 or P == UniswapV4 or P == Camelot or P == QuickSwap
+};

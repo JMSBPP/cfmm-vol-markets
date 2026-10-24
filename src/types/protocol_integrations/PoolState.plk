@@ -1,0 +1,9 @@
+// Hydration phantoms for protocol-registry Pool handles.
+// getPool resolves PoolUninitialized only; hydrate → PoolInitialized is later.
+
+const PoolUninitialized = struct {};
+const PoolInitialized = struct {};
+
+const is_pool_state = fn (comptime S: type) bool {
+	S == PoolUninitialized or S == PoolInitialized
+};
