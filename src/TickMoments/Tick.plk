@@ -1,0 +1,63 @@
+use custom_utils::moreRegions::{storage,transient_storage};
+use TickMoments::TickSpacing::*;
+use std::regions::calldata;
+use std::membytes::membytes;
+use std::option::unwrap;
+use std::core::uint::{try_cast_uint,u24};
+
+
+// cast keccak vol-markets.Tick
+const TICK_SLOT = 0x62b50c96ec7c8db111173d139b431c4ef72820d773cfe40f8537db4c663ab7e6;
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+// const Tick = struct {								     //
+//       ts: TickSpacing,								     //
+//       tickVal: u24									     //
+// };											     //
+// 											     //
+// const nil_tick = fn() Tick {								     //
+//       Tick {ts: nil_tick_spacing(), tickVal: try_cast_uint(u24,comptime {0})}     	     //
+// };											     //
+// 											     //
+// const tickVal  = fn(T: type) u24 {							     //
+//       if T == Tick {									     //
+//       	 @get_field(T, 2)							     //
+//       }										     //
+// };											     //
+// 											     //
+// // NOTE: This assumes the calldata offset is always the first one			     //
+// const fetch_tick = fn(R: type) Tick {						     //
+//       let mut tick: Tick = nil_tick();						     //
+// 											     //
+//       if R == calldata {								     //
+//       	 tick = Tick {								     //
+// 	      ts: fetch_tick_spacing(storage),						     //
+// 	      tickVal: unwrap(try_cast_uint(u24,comptime {@evm_calldataload(4)}))	     //
+// 	  }										     //
+//       }										     //
+// 											     //
+//       if R == transient_storage {							     //
+//       	 tick = Tick {								     //
+// 	      ts: fetch_tick_spacing(storage),						     //
+// 	      tickVal: unwrap(try_cast_uint(u24,@evm_tload(TICK_SLOT)))			     //
+// 	 }										     //
+//       }										     //
+//       tick										     //
+// };											     //
+// 											     //
+// const return_tick = fn(tick: Tick) never {						     //
+//        let buff: membytes = @malloc_uninit(24);					     //
+//        @mstore24(buff, tickVal(tick));    						     //
+// };											     //
+// 											     //
+// 											     //
+// const store_tick = fn(origin: type, dst: type) void {				     //
+//       if origin == calldata {							     //
+//       	 let tickRaw: u256 = @evm_calldataload(4);				     //
+//       	 if dst == transient_storage {						     //
+// 	    @evm_tstore(TICK_SLOT,tickRaw);						     //
+// 	 }										     //
+//       }										     //
+// };											     //
+///////////////////////////////////////////////////////////////////////////////////////////////
+

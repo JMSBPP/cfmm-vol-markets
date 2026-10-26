@@ -1,0 +1,76 @@
+use custom_utils::moreRegions::storage;
+
+use std::core::uint::_type_of;
+use std::membytes::{membytes,membytes_from_ptr,membytes_read_u256};
+use std::option::unwrap;
+use std::regions::calldata;
+use std::core::ops::greater_equals;
+use std::error::require;
+
+const Window = struct {
+      len: u256,
+      idx: u256,
+      state: type
+};
+
+const 
+const nill_window = fn() Window {
+      Window {len: 0, idx: 0, state: WindowNotInitialized}            
+};
+
+// cast keccak vol-markets.TickMoments.Window
+const WINDOW_SLOT = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839be424c;
+
+const window_state_slot = fn(ws: u256) u256 {
+      let mut wsl: u256 = 0;
+      revert(not(WINDOW_SLOT == ws));
+      wsl = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839be424e;
+      wsl
+};
+
+const WindowNotInitialized = struct{};
+const WindowInitialized = struct {};
+
+
+const window_state = fn( T: type) type {
+      if T == memory {
+      	 if @mload32(window_state_slot(WINDOW_SLOT)) == 2 {WindowNotInitialized;}
+	 if @mload32(window_state_slot(WINDOW_SLOT)) == 3 {WindowInitialized;}
+      }
+};
+
+const store_window = fn (from: type, to_region:type) void {
+      let mut len: u256 = 0;
+      let mut idx: u256 = 0;
+      if from_region == calldata {
+      	 len = @evm_calldataload(4);
+      }
+
+      require(greater_equals(len,1));
+
+      if to_region == storage {
+      	 @evm_sstore(WINDOW_SLOT, len);
+      }
+
+};
+
+const set_window = fn (from: type, to: type) void {
+      let state_update : void = unsafe_mem_write(window_state_slot(WINDOW_SLOT),2);
+      let window :Window = fetch_window(from);
+      store_window(to);
+      	  
+};
+
+const fetch_window = fn(from: type) Window {
+      let mut w: Window = nill_window();
+      if from == calldata {
+      	 w = mkWindow( Window {
+	 	len: @evm_calldataload(4),
+		idx: @evm_calldataload(36),
+		state: window_state(memory)		
+	 } );      	 
+      }
+      w
+};
+
+
