@@ -166,13 +166,8 @@ jobs:
           git submodule update --init --recursive lib/cfmm-types
           git submodule update --init --recursive -- lib/
 
-      # A plank-monorepo pin bump changes the compiler AND std, but the runner's persistent
-      # ~/.plank/bin/plank does NOT auto-track the pin. Rebuild it from the pinned submodule
-      # so compiler and std match; otherwise a bump fails every plank build (measured:
-      # 8 ok / 31 failed). forge needs this too -- the test path shells out to `plank build`
-      # over FFI at test time.
       - name: Plank toolchain
-        run: make plank-toolchain
+        run: just plank-toolchain
 
       # Domain-scoped Agda / Idris 2 / Plank from `.spec/<DOMAIN>.spec/compile.toml`.
       # SPEC_DOMAIN overrides `.spec/domains.toml` default (Actions vars.SPEC_DOMAIN).

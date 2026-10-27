@@ -22,7 +22,7 @@ model/**/*.gdx
 model/225*/
 model/build/
 
-# Plank compiled bytecode (make compile-plank)
+# Plank compiled bytecode (`just plank`)
 /build/plank/
 
 # Node / embedded reference apps
@@ -67,7 +67,7 @@ dist-newstyle/
 .spec/**/.lake/
 out-weiner/
 
-# Latest plank-monorepo clone used by `just RunApp` (not the pin).
+# Latest plank-monorepo clone used by `just plank` / `just RunApp` (not the pin).
 /plank-target/
 
 # Local clones for just RunApp (not the submodule pins).

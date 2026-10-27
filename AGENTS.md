@@ -17,11 +17,12 @@ notes/            binding spec docs (DATA_CONTRACT.md, UNITS_AND_SCALES.md)
 
 ## Working in this project
 
-- **Build/test:** `make plank-toolchain` (build the Plank compiler from the pinned
-  `lib/plank-monorepo`), `make compile-plank` (compile Plank entrypoints), and
+- **Build/test:** `just plank-toolchain` (latest plank-monorepo main in `./plank-target`),
+  `just plank src/Main.plk` (compile Plank entrypoints), and
   `forge test --via-ir --offline` (Foundry suite). `npm ci --ignore-scripts` is required —
   it installs the `@cryptoalgebra/*` Solidity sources that `remappings.txt` maps into
-  `node_modules/` (a hard forge dependency, not a Hardhat/JS runtime).
+  `node_modules/` (a hard forge dependency, not a Hardhat/JS runtime). The Makefile is gone;
+  `justfile` is the Plank toolchain.
 - **The `notes/` docs are binding spec** (`DATA_CONTRACT.md`, `UNITS_AND_SCALES.md`) and are
   cited from `src/*.plk` comments — treat their notation as authoritative.
 - **`develop-gate`** (`.github/workflows/develop-gate.yml`) is the sole required check on
@@ -75,7 +76,7 @@ compiling or running the suite locally. Push the branch and read the GitHub Acti
 as verified on the basis of a local build.
 
 **Do NOT run tests or builds locally.** Agents must not invoke `forge test`, `forge build`,
-`make compile-plank`, `make plank-toolchain`, or equivalent validation commands on the
+`just plank`, `just plank-toolchain`, or equivalent validation commands on the
 developer machine — not to verify a fix, not to reproduce a CI failure, not to "quickly check"
 before push. Local runs are unreliable here (submodules, node deps, Plank toolchain) and are
 explicitly out of scope. The workflow is: edit → push → monitor CI (`push-build` on the branch,
@@ -136,7 +137,7 @@ For this implementation, new work uses the issue → worktree → PR flow above 
   ```
 
   `SPEC_DOMAIN` (env / Actions `vars`) selects the domain; if unset, use `default`. Fail if `SPEC_DOMAIN` is not under `[domains.*]`.
-- CI entrypoint: `just spec-compile` reads that domain’s `compile` file only (not a union of all domains). Agda/Idris run via a **pinned GHCR image** built from an in-repo Dockerfile (e.g. `Dockerfile.spec-tools`); `just agda` / `just idris` wrap `docker run` against that pin. Rebuild/publish the image only when the Dockerfile changes. Plank stays on the existing host toolchain (`make plank-toolchain` / `just plank`).
+- CI entrypoint: `just spec-compile` reads that domain’s `compile` file only (not a union of all domains). Agda/Idris run via a **pinned GHCR image** built from an in-repo Dockerfile (e.g. `Dockerfile.spec-tools`); `just agda` / `just idris` wrap `docker run` against that pin. Rebuild/publish the image only when the Dockerfile changes. Plank stays on `just plank-toolchain` / `just plank`.
 - Fail closed: unknown `SPEC_DOMAIN`, missing domain `compile` file, or a listed path that does not exist → non-zero exit. Empty `files = []` for a language is OK.
 - Local and CI: `just agda` / `just idris` **always** use the pinned GHCR image (no host-Agda escape hatch). Image tools: **Agda + Idris 2** (not Idris 1). Pin: `.github/spec-tools-image`; build context: `Dockerfile.spec-tools` (`just spec-tools-ensure`).
 - Workflow: **`push-build` only** runs `just spec-compile` (not `develop-gate`). Merge gate stays forge/plank as today; Agda/Idris feedback is on branch push.

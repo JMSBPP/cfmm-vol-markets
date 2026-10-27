@@ -70,33 +70,55 @@ bytecode-runtime:
 help:
 	cat .offline/plank.helper
 
-# Pinned compiler + the same module roots as Makefile:PLANK_DEP.
-# `just spec-compile` calls this. Tick-path latest-main lives in `just RunApp`.
+# Latest plank-monorepo main in ./plank-target (not the lib/plank-monorepo pin).
+plank-target-dir := "plank-target"
+plank-monorepo-url := "https://github.com/plankevm/plank-monorepo.git"
+app-bytecode-dir := ".bytecode/app"
+app-bytecode := ".bytecode/app/App.bytecode"
+
+plank-toolchain:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dep="{{plank-target-dir}}"
+    url="{{plank-monorepo-url}}"
+    if [[ ! -d "$dep/.git" ]]; then
+        echo "cloning $url -> $dep (latest main)"
+        git clone --branch main "$url" "$dep"
+    else
+        echo "updating $dep to origin/main"
+        git -C "$dep" fetch origin
+        git -C "$dep" checkout --detach origin/main 2>/dev/null || git -C "$dep" checkout main
+        git -C "$dep" pull --ff-only origin main 2>/dev/null || git -C "$dep" reset --hard origin/main
+    fi
+    echo "building plankc --release in $dep"
+    (cd "$dep/plankc" && cargo build --release)
+    plank_bin="$dep/plankc/target/release/plank"
+    if [[ ! -x "$plank_bin" ]]; then
+        echo "error: missing $plank_bin" >&2
+        exit 127
+    fi
+    mkdir -p "$HOME/.plank/bin"
+    ln -sfn "$(cd "$dep/plankc/target/release" && pwd)/plank" "$HOME/.plank/bin/plank"
+    echo "plank $($plank_bin --version 2>/dev/null || true) @ $plank_bin"
+
 plank file:
     #!/usr/bin/env bash
     set -euo pipefail
-    if [[ -n "${PLANK:-}" && -x "${PLANK}" ]]; then
-        plank_bin="$PLANK"
-    elif [[ -x "$HOME/.plank/bin/plank" ]]; then
-        plank_bin="$HOME/.plank/bin/plank"
-    elif [[ -x lib/plank-monorepo/plankc/target/release/plank ]]; then
-        plank_bin="lib/plank-monorepo/plankc/target/release/plank"
-    elif command -v plank >/dev/null 2>&1; then
-        plank_bin="$(command -v plank)"
-    else
-        echo "error: plank not found (missing/broken \$HOME/.plank/bin/plank)" >&2
-        echo "run: make plank-toolchain" >&2
-        exit 127
+    src="{{file}}"
+    if [[ ! -f "$src" ]]; then
+        echo "error: missing $src" >&2
+        exit 1
     fi
-    "$plank_bin" build {{file}} \
-        --dep std=lib/plank-monorepo/std/ \
-        --dep pos_spec=src/types/pos_spec \
-        --dep lib=src/lib \
-        --dep types=src/types \
-        --dep interfaces=src/interfaces \
-        --dep cfmm_types=lib/cfmm-types/src/types \
-        --dep TickMoments=src/TickMoments \
-        --backend sona
+    just plank-toolchain
+    plank_bin="{{plank-target-dir}}/plankc/target/release/plank"
+    out_dir="{{app-bytecode-dir}}"
+    out="{{app-bytecode}}"
+    mkdir -p "$out_dir"
+    echo "compiling $src -> $out"
+    "$plank_bin" build "$src" \
+        --dep std="{{plank-target-dir}}/std/" \
+        --dep TickMoments="src/TickMoments/" --dep custom_utils="src/utils" \
+        > "$out"
 
 # Anvil at [rpc_endpoints.local] if nothing is already listening.
 anvil-rpc := ANVIL_RPC_URL
@@ -288,18 +310,8 @@ spec-compile:
     python3 scripts/spec-compile.py
 
 
-# Clone/update latest plank-monorepo into ./plank-target (does not move the
-# lib/plank-monorepo submodule pin), compile {{file}} with that compiler+std,
-# write creation bytecode to .bytecode/app/App.bytecode, deploy it on
-# local anvil via cast rpc, export APP_ADDRESS, log the tx hash.
-# Usage: just RunApp src/Main.plk
-plank-target-dir := "plank-target"
-plank-monorepo-url := "https://github.com/plankevm/plank-monorepo.git"
-app-bytecode-dir := ".bytecode/app"
-app-bytecode := ".bytecode/app/App.bytecode"
-
-
-
+# Compile {{file}} with latest plank-target, write .bytecode/app/App.bytecode,
+# deploy on local anvil. Usage: just RunApp src/Main.plk
 RunApp file:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -309,32 +321,9 @@ RunApp file:
         exit 1
     fi
 
-    dep="{{plank-target-dir}}"
-    url="{{plank-monorepo-url}}"
-    if [[ ! -d "$dep/.git" ]]; then
-        echo "cloning $url -> $dep (latest main)"
-        git clone --branch main "$url" "$dep"
-    else
-        echo "updating $dep to origin/main"
-        git -C "$dep" fetch origin
-        git -C "$dep" checkout --detach origin/main 2>/dev/null || git -C "$dep" checkout main
-        git -C "$dep" pull --ff-only origin main 2>/dev/null || git -C "$dep" reset --hard origin/main
-    fi
-
-    plank_bin="$dep/plankc/target/release/plank"
-    echo "building plankc --release in $dep"
-    (cd "$dep/plankc" && cargo build --release)
-    if [[ ! -x "$plank_bin" ]]; then
-        echo "error: missing $plank_bin" >&2
-        exit 127
-    fi
-    echo "plank $($plank_bin --version 2>/dev/null || true) @ $plank_bin"
-
+    just plank "$src"
     out_dir="{{app-bytecode-dir}}"
     out="{{app-bytecode}}"
-    mkdir -p "$out_dir"
-    echo "compiling $src -> $out"
-    "$plank_bin" build "$src" --dep std="$dep/std/" > "$out"
     hex="$(tr -d '[:space:]' < "$out")"
     if [[ -z "$hex" ]]; then
         echo "error: empty bytecode at $out" >&2

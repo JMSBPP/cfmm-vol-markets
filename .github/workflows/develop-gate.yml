@@ -126,10 +126,7 @@ jobs:
           git -C lib/cfmm-types config submodule.lib/v4-hooks-public.update none
           git submodule update --init --recursive lib/cfmm-types
           git submodule update --init --recursive -- lib/
-      # A plank-monorepo pin bump changes the compiler AND std, but the runner's persistent
-      # ~/.plank/bin/plank does NOT auto-track the pin. Rebuild it from the pinned submodule so
-      # compiler+std match; otherwise a bump fails every plank build (measured: 8 ok / 31 failed).
-      - run: make plank-toolchain
+      - run: just plank-toolchain
       # node_modules supplies @perfect-abstractions/compose (foundry.toml remap).
       - run: npm ci --ignore-scripts
       - run: forge build --via-ir --offline
@@ -152,8 +149,7 @@ jobs:
           persist-credentials: false
           set-safe-directory: false
       # Latest plank compiler via ./plank-target (not the lib/plank-monorepo pin).
-      # Same recipe and compiler as local `just RunApp src/Main.plk`.
-      - run: just RunApp src/Main.plk
+      - run: just plank src/Main.plk
 
   submodule-gates:
     needs: [approve]
