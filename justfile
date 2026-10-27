@@ -74,27 +74,42 @@ help:
 plank file:
     #!/usr/bin/env bash
     set -euo pipefail
-    # Prefer explicit PLANK, then install path, then pinned release build, then PATH.
-    if [[ -n "${PLANK:-}" && -x "${PLANK}" ]]; then
-        plank_bin="$PLANK"
-    elif [[ -x "$HOME/.plank/bin/plank" ]]; then
-        plank_bin="$HOME/.plank/bin/plank"
-    elif [[ -x lib/plank-monorepo/plankc/target/release/plank ]]; then
-        plank_bin="lib/plank-monorepo/plankc/target/release/plank"
-    elif command -v plank >/dev/null 2>&1; then
-        plank_bin="$(command -v plank)"
+
+    src="{{file}}"
+    if [[ ! -f "$src" ]]; then
+        echo "error: missing $src" >&2
+        exit 1
+    fi
+
+    dep="{{plank-target-dir}}"
+    url="{{plank-monorepo-url}}"
+    if [[ ! -d "$dep/.git" ]]; then
+        echo "cloning $url -> $dep (latest main)"
+        git clone --branch main "$url" "$dep"
     else
-        echo "error: plank not found (missing/broken \$HOME/.plank/bin/plank)" >&2
-        echo "run: make plank-toolchain" >&2
+        echo "updating $dep to origin/main"
+        git -C "$dep" fetch origin
+        git -C "$dep" checkout --detach origin/main 2>/dev/null || git -C "$dep" checkout main
+        git -C "$dep" pull --ff-only origin main 2>/dev/null || git -C "$dep" reset --hard origin/main
+    fi
+
+    plank_bin="$dep/plankc/target/release/plank"
+    echo "building plankc --release in $dep"
+    (cd "$dep/plankc" && cargo build --release)
+    if [[ ! -x "$plank_bin" ]]; then
+        echo "error: missing $plank_bin" >&2
         exit 127
     fi
-    "$plank_bin" build {{file}} \
-        --dep v3=lib/plankified-univ3/plank/lib \
-        --dep std=lib/plank-monorepo/std/ \
-        --dep types=src/types/ \
-        --dep cfmm_types=lib/cfmm-types/src/types/ \
-        --dep lib=src/lib/ \
-        --backend sona
+    echo "plank $($plank_bin --version 2>/dev/null || true) @ $plank_bin"
+
+    out_dir="{{app-bytecode-dir}}"
+    out="{{app-bytecode}}"
+    mkdir -p "$out_dir"
+    echo "compiling $src -> $out"
+    "$plank_bin" build "$src" \
+        --dep std="$dep/std/" \
+        --dep TickMoments="src/TickMoments/" --dep custom_utils="src/utils"
+      > "$out"
 
 # Anvil at [rpc_endpoints.local] if nothing is already listening.
 anvil-rpc := ANVIL_RPC_URL

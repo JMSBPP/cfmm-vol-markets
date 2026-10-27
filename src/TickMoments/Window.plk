@@ -3,74 +3,99 @@ use custom_utils::moreRegions::storage;
 use std::core::uint::_type_of;
 use std::membytes::{membytes,membytes_from_ptr,membytes_read_u256};
 use std::option::unwrap;
-use std::regions::calldata;
+use std::regions::{calldata,memory};
+use std::mem::unsafe_mem_write;
+use std::slice::*;
 use std::core::ops::greater_equals;
-use std::error::require;
+use std::error::{comptime_assert, require};
+use std::option::Some;
 
-const Window = struct {
-      len: u256,
-      idx: u256,
-      state: type
+
+const WindowNotInitialized = struct{};
+const WindowInitialized = struct {};
+
+const state_to_word = fn (state: type) u256 {
+      let mut st_ui256: u256 = 0;
+      if state == WindowNotInitialized   { st_ui256 = 2; }
+      else if state == WindowInitialized { st_ui256 =3; }
+      st_ui256          
 };
 
-const 
-const nill_window = fn() Window {
-      Window {len: 0, idx: 0, state: WindowNotInitialized}            
+const WindowCalldata = tuple{ u256, u256, u256};
+const WindowFromCalldataToMemory = Slice(memory, u256, Some(3));
+const Window = fn (comptime S: type) type {
+      if (S != WindowNotInitialized) & (S != WindowInitialized) {
+      	 @compile_error("Window: state must be WindowNotInitialized or WindowInitialized");
+      }
+      struct (S) {
+      	    len: u256,
+	    idx: u256
+      }
+};
+
+
+const window_len = fn (self: $W) u256 {
+      self.len
+};
+
+const window_idx = fn(self: $W) u256 {
+      self.idx
+};
+
+
+const window_state = fn (window: $W) u256 {
+      state_to_word(comptime { @type_index(W) })
+};
+
+const nill_window = fn() Window(WindowNotInitialized) {
+      Window(WindowNotInitialized) { len: 1, idx: 0 }
 };
 
 // cast keccak vol-markets.TickMoments.Window
 const WINDOW_SLOT = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839be424c;
 
+
+const window_len_slot  = fn(ws: u256) u256 {
+      let mut wll: u256 = 0;
+      require(WINDOW_SLOT == ws);
+      wll = WINDOW_SLOT;
+      wll
+};
+
+const window_idx_slot  = fn(ws: u256) u256 {
+      let mut wll: u256 = 0;
+      require(WINDOW_SLOT == ws);
+      wll = @evm_add(WINDOW_SLOT,1);
+      wll
+};
+
 const window_state_slot = fn(ws: u256) u256 {
       let mut wsl: u256 = 0;
-      revert(not(WINDOW_SLOT == ws));
-      wsl = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839be424e;
+      require(WINDOW_SLOT == ws);
+      wsl = @evm_add(WINDOW_SLOT,2);
       wsl
 };
 
-const WindowNotInitialized = struct{};
-const WindowInitialized = struct {};
-
-
-const window_state = fn( T: type) type {
-      if T == memory {
-      	 if @mload32(window_state_slot(WINDOW_SLOT)) == 2 {WindowNotInitialized;}
-	 if @mload32(window_state_slot(WINDOW_SLOT)) == 3 {WindowInitialized;}
-      }
-};
-
-const store_window = fn (from: type, to_region:type) void {
-      let mut len: u256 = 0;
-      let mut idx: u256 = 0;
-      if from_region == calldata {
-      	 len = @evm_calldataload(4);
-      }
-
-      require(greater_equals(len,1));
-
-      if to_region == storage {
-      	 @evm_sstore(WINDOW_SLOT, len);
+const store_window = fn (window: $W,to:type) void {
+      if to == storage {
+      	 @evm_sstore(window_len_slot(WINDOW_SLOT), window_len(window));
+	 @evm_sstore(window_idx_slot(WINDOW_SLOT), window_idx(window));
+	 @evm_sstore(window_state_slot(WINDOW_SLOT), window_state(window))
       }
 
 };
 
-const set_window = fn (from: type, to: type) void {
-      let state_update : void = unsafe_mem_write(window_state_slot(WINDOW_SLOT),2);
-      let window :Window = fetch_window(from);
-      store_window(to);
-      	  
+const set_window = fn (from: WindowFromCalldataToMemory, to: type) void {
+      let window :Window(WindowNotInitialized) = build_window(from);
+      let stored_window: void = store_window(window,to);
+      stored_window
 };
 
-const fetch_window = fn(from: type) Window {
-      let mut w: Window = nill_window();
-      if from == calldata {
-      	 w = mkWindow( Window {
-	 	len: @evm_calldataload(4),
-		idx: @evm_calldataload(36),
-		state: window_state(memory)		
-	 } );      	 
-      }
-      w
+const build_window = fn(from: WindowFromCalldataToMemory) Window(WindowNotInitialized) {
+      let len: u256 = unwrap(get(from, 0));
+      let idx: u256 = unwrap(get(from, 1));
+      require((len > 0) & (idx <= len));
+      Window(WindowNotInitialized) { len: len, idx: idx }
 };
 
 

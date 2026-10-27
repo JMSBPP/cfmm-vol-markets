@@ -10,7 +10,7 @@ use std::option::unwrap;
 const TICK_AVERAGE_SLOT = 0x639a68f1e2d4af32ba8134bbdb9c46e158a306a8d58cd3f92a9c3e7e5c05a6b3;
 
 const TickAverage = struct {
-      window: Window,
+      window: Window(WindowNotInitialized),
       curr: u256
 };
 

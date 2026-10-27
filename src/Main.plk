@@ -1,13 +1,14 @@
 
 /// Tick demo: setTick/readTick against EIP-1153 transient storage; emits SetTick.
 use std::prelude::*;
+use std::slice::new;
 use custom_utils::moreRegions::{storage,transient_storage};
 use TickMoments::Window::*;
 //////////////////////////////////////
 // use TickMoments::TickAverage::*; //
 
 
-use TickMoments::Tick::{TICK_SLOT};	   
+use TickMoments::Tick::TICK_SLOT;	   
 
 const SET_TICK_SELECTOR = 0xfb972e51;
 const READ_TICK_SELECTOR = 0x23f6079d;
@@ -43,8 +44,13 @@ const read_tick = fn () never {
 run {
     let selector = @evm_calldataload(0) >> 224;
     if selector == SET_WINDOW_SELECTOR {
-       let window: Window = fetch_window(calldata);
-       store_window(calldata,storage);
+       let windowCalldata: WindowCalldata = (
+           @evm_calldataload(4),
+           @evm_calldataload(36),
+           state_to_word(WindowNotInitialized)
+       );
+       let windowMemory: WindowFromCalldataToMemory = new(memory, windowCalldata);
+       set_window(windowMemory,storage);
        @evm_stop();
     }
     @evm_stop();
