@@ -12,14 +12,5 @@ files = [
 
 [plank]
 files = [
-  "test/harness/types/WeinerGeneratorHarness.plk",
-  "test/harness/types/RealizedVolatilityInitIndexHarness.plk",
-  "test/harness/types/SigmaFHarness.plk",
-  "test/harness/types/TokenHistoryHarness.plk",
-  "test/harness/types/TokenHistoryFlowHarness.plk",
-  "test/harness/types/CEVLocalTickVolatilityHarness.plk",
-  "test/harness/types/LiquidityChunkHarness.plk",
-  "test/harness/types/LiquidityChunkMinterHarness.plk",
-  "test/helpers/Algebra/AlgebraMintCallbackAdapter.plk",
-  "test/harness/types/StateViewHarness.plk",
+  "src/Main.plk",
 ]

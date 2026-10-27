@@ -5,7 +5,6 @@ set dotenv-load
 export ANVIL_RPC_URL := "http://127.0.0.1:8545"
 
 
-# Pinned Algebra Solidity sources live under node_modules (see package.json).
 npm-ci:
     npm ci --ignore-scripts
 
@@ -71,30 +70,55 @@ bytecode-runtime:
 help:
 	cat .offline/plank.helper
 
+# Latest plank-monorepo main in ./plank-target (not the lib/plank-monorepo pin).
+plank-target-dir := "plank-target"
+plank-monorepo-url := "https://github.com/plankevm/plank-monorepo.git"
+app-bytecode-dir := ".bytecode/app"
+app-bytecode := ".bytecode/app/App.bytecode"
+
+plank-toolchain:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dep="{{plank-target-dir}}"
+    url="{{plank-monorepo-url}}"
+    if [[ ! -d "$dep/.git" ]]; then
+        echo "cloning $url -> $dep (latest main)"
+        git clone --branch main "$url" "$dep"
+    else
+        echo "updating $dep to origin/main"
+        git -C "$dep" fetch origin
+        git -C "$dep" checkout --detach origin/main 2>/dev/null || git -C "$dep" checkout main
+        git -C "$dep" pull --ff-only origin main 2>/dev/null || git -C "$dep" reset --hard origin/main
+    fi
+    echo "building plankc --release in $dep"
+    (cd "$dep/plankc" && cargo build --release)
+    plank_bin="$dep/plankc/target/release/plank"
+    if [[ ! -x "$plank_bin" ]]; then
+        echo "error: missing $plank_bin" >&2
+        exit 127
+    fi
+    mkdir -p "$HOME/.plank/bin"
+    ln -sfn "$(cd "$dep/plankc/target/release" && pwd)/plank" "$HOME/.plank/bin/plank"
+    echo "plank $($plank_bin --version 2>/dev/null || true) @ $plank_bin"
+
 plank file:
     #!/usr/bin/env bash
     set -euo pipefail
-    # Prefer explicit PLANK, then install path, then pinned release build, then PATH.
-    if [[ -n "${PLANK:-}" && -x "${PLANK}" ]]; then
-        plank_bin="$PLANK"
-    elif [[ -x "$HOME/.plank/bin/plank" ]]; then
-        plank_bin="$HOME/.plank/bin/plank"
-    elif [[ -x lib/plank-monorepo/plankc/target/release/plank ]]; then
-        plank_bin="lib/plank-monorepo/plankc/target/release/plank"
-    elif command -v plank >/dev/null 2>&1; then
-        plank_bin="$(command -v plank)"
-    else
-        echo "error: plank not found (missing/broken \$HOME/.plank/bin/plank)" >&2
-        echo "run: make plank-toolchain" >&2
-        exit 127
+    src="{{file}}"
+    if [[ ! -f "$src" ]]; then
+        echo "error: missing $src" >&2
+        exit 1
     fi
-    "$plank_bin" build {{file}} \
-        --dep v3=lib/plankified-univ3/plank/lib \
-        --dep std=lib/plank-monorepo/std/ \
-        --dep types=src/types/ \
-        --dep cfmm_types=lib/cfmm-types/src/types/ \
-        --dep lib=src/lib/ \
-        --backend sona
+    just plank-toolchain
+    plank_bin="{{plank-target-dir}}/plankc/target/release/plank"
+    out_dir="{{app-bytecode-dir}}"
+    out="{{app-bytecode}}"
+    mkdir -p "$out_dir"
+    echo "compiling $src -> $out"
+    "$plank_bin" build "$src" \
+        --dep std="{{plank-target-dir}}/std/" \
+        --dep TickMoments="src/TickMoments/" --dep custom_utils="src/utils" \
+        > "$out"
 
 # Anvil at [rpc_endpoints.local] if nothing is already listening.
 anvil-rpc := ANVIL_RPC_URL
@@ -156,18 +180,6 @@ test file:
         exit 1
     fi
 
-    if [[ ! -f node_modules/@cryptoalgebra/integral-core/contracts/interfaces/IAlgebraFactory.sol ]]; then
-        just npm-ci
-    fi
-
-    # Foundry 1.5 drops these short prefixes from the compile remapping set; tests import
-    # `@cryptoalgebra/integral-core/interfaces/…` (not …/contracts/interfaces/…).
-    algebra_remaps=(
-        --remappings '@cryptoalgebra/integral-core/=node_modules/@cryptoalgebra/integral-core/contracts/'
-        --remappings '@cryptoalgebra/integral-periphery/=node_modules/@cryptoalgebra/integral-periphery/contracts/'
-        --remappings '@cryptoalgebra/abstract-plugin/=node_modules/@cryptoalgebra/abstract-plugin/contracts/'
-    )
-
     profile=""
     extra=()
 
@@ -190,7 +202,7 @@ test file:
             ;;
     esac
 
-    cmd=(forge test --match-path "$f" --via-ir -vvvv "${algebra_remaps[@]}" "${extra[@]}")
+    cmd=(forge test --match-path "$f" --via-ir -vvvv "${extra[@]}")
     if [[ -n "$profile" ]]; then
         FOUNDRY_PROFILE="$profile" "${cmd[@]}"
     else
@@ -298,18 +310,8 @@ spec-compile:
     python3 scripts/spec-compile.py
 
 
-# Clone/update latest plank-monorepo into ./plank-target (does not move the
-# lib/plank-monorepo submodule pin), compile {{file}} with that compiler+std,
-# write creation bytecode to .bytecode/app/App.bytecode, deploy it on
-# local anvil via cast rpc, export APP_ADDRESS, log the tx hash.
-# Usage: just RunApp src/Main.plk
-plank-target-dir := "plank-target"
-plank-monorepo-url := "https://github.com/plankevm/plank-monorepo.git"
-app-bytecode-dir := ".bytecode/app"
-app-bytecode := ".bytecode/app/App.bytecode"
-
-
-
+# Compile {{file}} with latest plank-target, write .bytecode/app/App.bytecode,
+# deploy on local anvil. Usage: just RunApp src/Main.plk
 RunApp file:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -319,32 +321,9 @@ RunApp file:
         exit 1
     fi
 
-    dep="{{plank-target-dir}}"
-    url="{{plank-monorepo-url}}"
-    if [[ ! -d "$dep/.git" ]]; then
-        echo "cloning $url -> $dep (latest main)"
-        git clone --branch main "$url" "$dep"
-    else
-        echo "updating $dep to origin/main"
-        git -C "$dep" fetch origin
-        git -C "$dep" checkout --detach origin/main 2>/dev/null || git -C "$dep" checkout main
-        git -C "$dep" pull --ff-only origin main 2>/dev/null || git -C "$dep" reset --hard origin/main
-    fi
-
-    plank_bin="$dep/plankc/target/release/plank"
-    echo "building plankc --release in $dep"
-    (cd "$dep/plankc" && cargo build --release)
-    if [[ ! -x "$plank_bin" ]]; then
-        echo "error: missing $plank_bin" >&2
-        exit 127
-    fi
-    echo "plank $($plank_bin --version 2>/dev/null || true) @ $plank_bin"
-
+    just plank "$src"
     out_dir="{{app-bytecode-dir}}"
     out="{{app-bytecode}}"
-    mkdir -p "$out_dir"
-    echo "compiling $src -> $out"
-    "$plank_bin" build "$src" --dep std="$dep/std/" > "$out"
     hex="$(tr -d '[:space:]' < "$out")"
     if [[ -z "$hex" ]]; then
         echo "error: empty bytecode at $out" >&2
@@ -397,17 +376,16 @@ RunApp file:
     just deploy-multicaller
     echo "source .env"
 
-# Clone Vectorized/solady into lib/solady (no `forge install`: that inits every
-# empty lib/ submodule). Solady has no deployable Multicaller — the contract is
-# Vectorized/multicaller, cloned to lib/multicaller. Isolated forge inspect,
-# then cast rpc deploy on local anvil. Writes export MULTICALLER_ADDRESS=.
+# Solady is lib/solady (submodule). Multicaller is Vectorized/multicaller,
+# still a local clone at lib/multicaller. Isolated forge inspect, then cast rpc
+# deploy on local anvil. Writes export MULTICALLER_ADDRESS=.
 solady-url := "https://github.com/vectorized/solady.git"
 multicaller-url := "https://github.com/vectorized/multicaller.git"
 
 deploy-multicaller:
     #!/usr/bin/env bash
     set -euo pipefail
-    if [[ ! -d lib/solady/.git ]]; then
+    if [[ ! -d lib/solady/src ]]; then
         echo "cloning {{solady-url}} -> lib/solady"
         git clone --depth 1 "{{solady-url}}" lib/solady
     fi

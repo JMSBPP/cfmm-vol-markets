@@ -15,7 +15,6 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "@cryptoalgebra/volatility-oracle-plugin": "^2.2.0",
     "adm-zip": "^0.4.16",
     "ansi-colors": "^4.1.3",
     "ansi-regex": "^5.0.1",
@@ -40,7 +39,6 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@cryptoalgebra/dynamic-fee-plugin": "^2.2.0",
     "@perfect-abstractions/compose": "^0.0.6",
     "forge-std": "github:foundry-rs/forge-std#v1.9.4"
   }

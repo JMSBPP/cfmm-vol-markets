@@ -11,32 +11,22 @@ import {PlankDeployer, BuildOptions, Dependency} from "plank-foundry-deployer/Pl
 /// @dev Every `.t.sol` previously hand-rolled its own `Dependency[]`, and they had already
 ///      drifted apart: none of them declared the `interfaces` root, so any test deploying a
 ///      module that imports `interfaces::` (e.g. VolOrderManagerMod) failed with
-///      "unknown module 'interfaces'". These roots MUST stay in lockstep with `PLANK_DEP`
-///      in the Makefile -- that is the list `make compile-plank` builds with, and a test that
-///      deploys with a different set is not testing what the gate compiled.
-///
-///      Keep in sync with Makefile:PLANK_DEP.
+///      "unknown module 'interfaces'". These roots MUST stay in lockstep with `just plank`.
 abstract contract PlankTestBase is Test, PlankDeployer {
-    /// @dev The module roots. `pos_spec` is declared separately from `types` because many
-    ///      sources still import it bare (`pos_spec::X`) rather than via `types::pos_spec::X`.
+    /// @dev Same roots as `just plank` (latest plank-target std + TickMoments).
     function plankOpts() internal pure returns (BuildOptions memory opts) {
         opts.backend = "sona";
 
-        Dependency[] memory deps = new Dependency[](7);
-        deps[0] = Dependency("v3", "lib/plankified-univ3/plank/lib");
-        deps[1] = Dependency("std", "lib/plank-monorepo/std/");
-        deps[2] = Dependency("pos_spec", "src/types/pos_spec");
-        deps[3] = Dependency("lib", "src/lib");
-        deps[4] = Dependency("types", "src/types");
-        deps[5] = Dependency("interfaces", "src/interfaces");
-        deps[6] = Dependency("cfmm_types", "lib/cfmm-types/src/types");
+        Dependency[] memory deps = new Dependency[](3);
+        deps[0] = Dependency("std", "plank-target/std/");
+        deps[1] = Dependency("TickMoments", "src/TickMoments/");
+        deps[2] = Dependency("custom_utils", "src/utils");
 
         opts.dependencies = deps;
     }
 
     /// @dev cfmm-types Plank roots (`lib/cfmm-types`). Uses `types=lib/cfmm-types/src/types`
     ///      so Hook/Create2 compile without colliding with vol-markets `src/types`.
-    ///      Keep in sync with Makefile:CFMM_TYPES_PLANK_DEP.
     function cfmmTypesPlankOpts() internal pure returns (BuildOptions memory opts) {
         opts.backend = "sona";
 

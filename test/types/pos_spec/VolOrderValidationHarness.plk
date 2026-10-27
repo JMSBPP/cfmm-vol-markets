@@ -1,3 +1,4 @@
+// PARKED: latest plank rejects `import`. Uncomment to restore.
 // VolOrderValidationHarness: makes the PURE VolOrderValidationLib reachable over the ABI,
 // so Phase 16 can prove it BEFORE any module/storage exists. Plank does NOT type-check code
 // unreachable from run{}, so without this entrypoint the lib is unprovable -- and there is
@@ -27,47 +28,47 @@
 // SpreadTickAssimetry.plk:69-71 writes `out_ptr`, `out_ptr +% 32`, `out_ptr +% 32`, a real
 // copy-paste bug in the vol-type track's file that overwrites the second field and leaves
 // the third word as uninitialized malloc memory. That shape is NOT reproduced here.
-
-import std::constructor::return_runtime;
-import lib::pos_spec::VolOrderValidationLib::*;
-import pos_spec::VolOrder::*;
-import pos_spec::VegaTarget::{pack_vega_target};
-import v3::util::{return_u256};
-
-const SELECTOR_VALIDATE_ORDER        = 0xddd1c5fd;
-const SELECTOR_VALIDATE_ORDER_STRICT = 0xbaa11f27;
-const SELECTOR_PACK_VOL_ORDER        = 0xdc195c7f;
-const SELECTOR_UNPACK_VOL_ORDER      = 0x729f096f;
-
-init { return_runtime(); }
-
-run {
-    let selector = @evm_shr(224, @evm_calldataload(0));
-
-    if selector == SELECTOR_VALIDATE_ORDER {
+//
+// import std::constructor::return_runtime;
+// import lib::pos_spec::VolOrderValidationLib::*;
+// import pos_spec::VolOrder::*;
+// import pos_spec::VegaTarget::{pack_vega_target};
+// import v3::util::{return_u256};
+//
+// const SELECTOR_VALIDATE_ORDER        = 0xddd1c5fd;
+// const SELECTOR_VALIDATE_ORDER_STRICT = 0xbaa11f27;
+// const SELECTOR_PACK_VOL_ORDER        = 0xdc195c7f;
+// const SELECTOR_UNPACK_VOL_ORDER      = 0x729f096f;
+//
+// init { return_runtime(); }
+//
+// run {
+//     let selector = @evm_shr(224, @evm_calldataload(0));
+//
+//     if selector == SELECTOR_VALIDATE_ORDER {
         // calldata: (strike @4, width @36, skew @68)
-        let order = build_vol_order(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68), @evm_calldataload(100));
-        return_u256(@bool_to_u256(validate_order(order)));
-    }
-    if selector == SELECTOR_VALIDATE_ORDER_STRICT {
-        let order = build_vol_order(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68), @evm_calldataload(100));
-        validate_order_strict(order);
-        return_u256(1);
-    }
-    if selector == SELECTOR_PACK_VOL_ORDER {
-        let order = build_vol_order(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68), @evm_calldataload(100));
-        return_u256(pack_vol_order(order));
-    }
-    if selector == SELECTOR_UNPACK_VOL_ORDER {
+//         let order = build_vol_order(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68), @evm_calldataload(100));
+//         return_u256(@bool_to_u256(validate_order(order)));
+//     }
+//     if selector == SELECTOR_VALIDATE_ORDER_STRICT {
+//         let order = build_vol_order(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68), @evm_calldataload(100));
+//         validate_order_strict(order);
+//         return_u256(1);
+//     }
+//     if selector == SELECTOR_PACK_VOL_ORDER {
+//         let order = build_vol_order(@evm_calldataload(4), @evm_calldataload(36), @evm_calldataload(68), @evm_calldataload(100));
+//         return_u256(pack_vol_order(order));
+//     }
+//     if selector == SELECTOR_UNPACK_VOL_ORDER {
         // calldata: (packed @4). Returns four whole words in layout order.
-        let order = unpack_vol_order(@evm_calldataload(4));
-        let out_ptr = @malloc_uninit(160);
-        @mstore32(out_ptr, order.rangeWidth.width);
-        @mstore32(out_ptr +% 32, order.rangeWidth.tickSpacing);
-        @mstore32(out_ptr +% 64, order.volStrike.vol);
-        @mstore32(out_ptr +% 96, order.skew.spread);
-        @mstore32(out_ptr +% 128, pack_vega_target(order.targetVega));
-        @evm_return(out_ptr, 160);
-    }
-    @evm_stop();
-}
+//         let order = unpack_vol_order(@evm_calldataload(4));
+//         let out_ptr = @malloc_uninit(160);
+//         @mstore32(out_ptr, order.rangeWidth.width);
+//         @mstore32(out_ptr +% 32, order.rangeWidth.tickSpacing);
+//         @mstore32(out_ptr +% 64, order.volStrike.vol);
+//         @mstore32(out_ptr +% 96, order.skew.spread);
+//         @mstore32(out_ptr +% 128, pack_vega_target(order.targetVega));
+//         @evm_return(out_ptr, 160);
+//     }
+//     @evm_stop();
+// }

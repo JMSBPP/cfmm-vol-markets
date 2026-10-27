@@ -1,0 +1,31 @@
+use TickMoments::Window::*;
+use TickMoments::Tick::*;
+use std::core::uint::{u24,try_cast_uint,unsafe_from_u256, cast_uint};
+use std::cbytes::*;
+use std::membytes::*;
+use std::option::unwrap;
+
+
+// cast keccak vol-markets.TickMoments.tickAverage
+const TICK_AVERAGE_SLOT = 0x639a68f1e2d4af32ba8134bbdb9c46e158a306a8d58cd3f92a9c3e7e5c05a6b3;
+
+const TickAverage = struct {
+      window: Window(WindowNotInitialized),
+      curr: u256
+};
+
+const nill_tick_average = fn() TickAverage {
+      TickAverage { window : nill_window(), curr: 0}
+};
+
+const updatedAverage = fn(R: type, tick:Tick, T: type) TickAverage {
+      nill_tick_average()
+};
+
+const store_tick_average = fn (origin: type, dst: type,avg: TickAverage) void {
+      
+};
+
+const fetch_tick_average = fn(origin: type) TickAverage {
+      nill_tick_average()
+};

@@ -1,0 +1,31 @@
+use custom_utils::moreRegions::storage;
+use std::option::unwrap;
+use std::core::uint::{try_cast_uint,u24};
+
+
+const TickSpacing = u24;
+
+// cast keccak vol-markets.TickSpacing
+const TICK_SPACING_SLOT = 0xf21ff12c997bb9e034b4c86d66ba5b6ceb2a3b177ea03c1656edb0264e54224b;
+
+const nil_tick_spacing = fn() TickSpacing {
+           unwrap(try_cast_uint(u24,comptime { 0 }))
+};
+
+///////////////////////////////////////////
+// const tick_spacing_slot = fn() u256 { //
+//       				 //
+// }					 //
+///////////////////////////////////////////
+
+const fetch_tick_spacing= fn(R: type) TickSpacing {
+      if R == storage {
+      	 unwrap(try_cast_uint(u24,comptime {@evm_sload(TICK_SPACING_SLOT)}))      	       	 
+      }
+};
+
+
+
+
+
+

@@ -55,8 +55,8 @@ The build is **Foundry + the Plank toolchain** (there is no Hardhat step).
 ```bash
 git submodule update --init --recursive -- lib/   # protocol deps
 npm ci --ignore-scripts                            # @cryptoalgebra Solidity sources (forge dep)
-make plank-toolchain                               # build/install the Plank compiler from the pinned submodule
-make compile-plank                                 # compile every Plank entrypoint to EVM bytecode
+just plank-toolchain                               # latest plank-monorepo main → ./plank-target
+just plank src/Main.plk                            # compile the Plank entrypoint to EVM bytecode
 forge test --via-ir --offline                      # run the Foundry suite
 ```
 
