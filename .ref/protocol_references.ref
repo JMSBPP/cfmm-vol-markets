@@ -1,0 +1,42 @@
+# Protocol references
+#
+# These GitHub repositories are NOT compile or test dependencies.
+# `forge build` / `forge test` only use Solady and Perfect Abstractions Compose
+# (plus Foundry/Plank toolchain: forge-std, plank-monorepo, plank-foundry-deployer).
+#
+# Pins are the last foundry.lock / .gitmodules revisions this repo compiled against.
+
+## Panoptic v2
+https://github.com/panoptic-labs/panoptic-v2-core
+rev: 5555b320663385f0ab0c8fa511c74d4f0e34cb80
+
+## Bunni v2
+https://github.com/Bunniapp/bunni-v2
+tag: v1.2.1
+rev: 000f79a38bdd3fb2b314dc8c108b2a3d1ca1d440
+
+## Seaport
+https://github.com/ProjectOpenSea/seaport
+rev: e9c5a9f17cb5ee658ccc9cb1a8eeab02c1f5a4cd
+
+## Centrifuge protocol
+https://github.com/centrifuge/protocol
+tag: v3.2.0
+rev: 41e19975946ac60927f3db7087f6c0b67bf752bb
+
+## Uniswap v3 core
+https://github.com/uniswap/v3-core
+branch: 0.8
+rev: 6562c52e8f75f0c10f9deaf44861847585fc8129
+
+## Plankified Uniswap v3
+https://github.com/plankevm/plankified-univ3
+rev: 9a89319ccb01cc61e8a698c089133e7084605150
+
+## Algebra Integral (npm, was remapped into node_modules)
+https://github.com/cryptoalgebra/Algebra
+- @cryptoalgebra/volatility-oracle-plugin
+- @cryptoalgebra/integral-core
+- @cryptoalgebra/integral-periphery
+- @cryptoalgebra/abstract-plugin
+- @cryptoalgebra/dynamic-fee-plugin

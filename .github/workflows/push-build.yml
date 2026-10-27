@@ -161,20 +161,9 @@ jobs:
           # Sync FIRST. This runner is persistent and caches submodule URLs in .git/config,
           # NOT .gitmodules, so a repointed URL 404s on the stale cached one without this.
           git submodule sync --recursive
-          # forge needs lib/panoptic-v2-core's nested v4-core + solady (the @uniswap/v4-core
-          # and solady remappings point into them). The pathological part is panoptic-helper:
-          # it contains panoptic-v2-core, so a plain recursive init never terminates. Init
-          # panoptic one level, block panoptic-helper, then init the rest recursively.
-          git submodule update --init lib/panoptic-v2-core
-          git -C lib/panoptic-v2-core config submodule.lib/panoptic-helper.update none
           git submodule update --init lib/cfmm-types
           git -C lib/cfmm-types config submodule.lib/v4-hooks-public.update none
           git submodule update --init --recursive lib/cfmm-types
-          # lib/seaport: DifferentialTest.sol only — block nested Seaport libs before recursive lib/.
-          git submodule update --init --depth 1 lib/seaport
-          for name in $(git config -f lib/seaport/.gitmodules --get-regexp '^submodule\.' | sed 's/^submodule\.//;s/\.url$//'); do
-            git -C lib/seaport config "submodule.${name}.update" none
-          done
           git submodule update --init --recursive -- lib/
 
       # A plank-monorepo pin bump changes the compiler AND std, but the runner's persistent
@@ -196,26 +185,7 @@ jobs:
           SPEC_DOMAIN: ${{ vars.SPEC_DOMAIN }}
         run: just spec-compile
 
-      # node_modules is a HARD forge dependency (the @cryptoalgebra remappings in
-      # foundry.toml resolve into it); package.json/package-lock.json are tracked for exactly
-      # this closure. Without this the compile dies on missing @cryptoalgebra sources before
-      # any test runs.
-      # Phase 2 (VORD-02): stamp the harness ABI edge on every push so the VolOrder(T) refactor
-      # can be checked for a frozen external surface WITHOUT a local build -- the executor diffs
-      # the pre- and post-refactor lines read off two runs. Purely additive; develop-gate is not
-      # touched (its diff against develop stays empty for the whole phase). The lines are also
-      # copied into the run summary so they are readable without opening the log.
-      - name: Harness ABI edge stamp
-        run: |
-          set -euo pipefail
-          make abi-edge-stamp | tee "$RUNNER_TEMP/abi-edge.txt"
-          {
-            echo "### Harness ABI edge (test/protocol_integrations/VolOrderToPanopticTokenIdHarness.plk)"
-            echo ""
-            echo '```'
-            grep -E '^abi-edge ' "$RUNNER_TEMP/abi-edge.txt"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+      # node_modules supplies @perfect-abstractions/compose (foundry.toml remap).
       - name: Node dependencies
         run: npm ci --ignore-scripts
 
@@ -227,15 +197,7 @@ jobs:
       - name: forge build
         run: forge build --via-ir --offline
 
-      # The skip ledger, byte-identical to develop-gate's and enforced identical by the
-      # parity step above, with the same pinned seed so push and PR measure one surface.
-      # Every entry is a PRE-EXISTING known-broken family (issue #16 owns burning them down);
-      # this workflow is not the place to change that list.
-      # test_query_cumulativeAmounts: LiquidityDensityTest only (#91); --no-match-test because
-      # --skip is filename-only and must not mask test_liquidityDensity_sumUpToOne.
       - name: forge test
         run: >
           forge test --via-ir --offline --fuzz-seed 4880
-          --no-match-test test_query_cumulativeAmounts
-          --skip "*VolRangeWidth*" "*SpreadTickAssimetryHelper*"
-          "*PanopticVegaLens.t.sol*" "*HookMiner*"
+          --skip "*HookMiner*"

@@ -71,6 +71,5 @@ out-weiner/
 /plank-target/
 
 # Local clones for just RunApp (not the submodule pins).
-/lib/solady/
 /lib/multicaller/
 node_modules/

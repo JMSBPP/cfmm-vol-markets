@@ -171,7 +171,7 @@ PLANK         ?= plank
 # import fails with "unknown module". `pos_spec` stays declared separately
 # because 16 imports still reference it bare (`pos_spec::X`) rather than via
 # `types::pos_spec::X`.
-PLANK_DEP := --dep v3=lib/plankified-univ3/plank/lib/ --dep std=lib/plank-monorepo/std/ --dep pos_spec=src/types/pos_spec \
+PLANK_DEP := --dep std=lib/plank-monorepo/std/ --dep pos_spec=src/types/pos_spec \
              --dep lib=src/lib --dep types=src/types --dep interfaces=src/interfaces \
              --dep cfmm_types=lib/cfmm-types/src/types
 # cfmm-types entrypoints (Hook.plk): types root points at the submodule, not src/types.
@@ -245,6 +245,10 @@ compile-plank:
 	for f in $$(grep -rlE '^[[:space:]]*init[[:space:]]*\{' --include='*.plk' src test | sort); do \
 		case " $(PLANK_SKIP) " in \
 			*" $$f "*) printf '   SKIP %s  (WIP)\n' "$$f"; skip=$$((skip+1)); continue;; \
+		esac; \
+		case "$$f" in \
+			src/types/protocol_integrations/*|src/lib/protocol_integrations/*|src/types/pos_spec/*|src/types/ldf/*|src/lib/ldf/*|src/lib/math/FixedPointMath.plk|src/types/Ladder.plk|src/types/CEVLocalTickVolatility.plk|test/protocol_integrations/*|test/types/protocol_integrations/*|test/types/pos_spec/*|test/lib/protocol_integrations/*|test/lib/ldf/*|test/lib/panoptic/*|test/helpers/Algebra/*|test/types/VegaTargetHarness.plk) \
+				printf '   SKIP %s  (protocol ref)\n' "$$f"; skip=$$((skip+1)); continue;; \
 		esac; \
 		out="$(PLANK_BUILD)/$$(echo "$$f" | tr / _ | sed 's/\.plk$$//').hex"; \
 		printf '>> compiling %s\n' "$$f"; \

@@ -5,7 +5,6 @@ set dotenv-load
 export ANVIL_RPC_URL := "http://127.0.0.1:8545"
 
 
-# Pinned Algebra Solidity sources live under node_modules (see package.json).
 npm-ci:
     npm ci --ignore-scripts
 
@@ -171,18 +170,6 @@ test file:
         exit 1
     fi
 
-    if [[ ! -f node_modules/@cryptoalgebra/integral-core/contracts/interfaces/IAlgebraFactory.sol ]]; then
-        just npm-ci
-    fi
-
-    # Foundry 1.5 drops these short prefixes from the compile remapping set; tests import
-    # `@cryptoalgebra/integral-core/interfaces/…` (not …/contracts/interfaces/…).
-    algebra_remaps=(
-        --remappings '@cryptoalgebra/integral-core/=node_modules/@cryptoalgebra/integral-core/contracts/'
-        --remappings '@cryptoalgebra/integral-periphery/=node_modules/@cryptoalgebra/integral-periphery/contracts/'
-        --remappings '@cryptoalgebra/abstract-plugin/=node_modules/@cryptoalgebra/abstract-plugin/contracts/'
-    )
-
     profile=""
     extra=()
 
@@ -205,7 +192,7 @@ test file:
             ;;
     esac
 
-    cmd=(forge test --match-path "$f" --via-ir -vvvv "${algebra_remaps[@]}" "${extra[@]}")
+    cmd=(forge test --match-path "$f" --via-ir -vvvv "${extra[@]}")
     if [[ -n "$profile" ]]; then
         FOUNDRY_PROFILE="$profile" "${cmd[@]}"
     else
@@ -412,17 +399,16 @@ RunApp file:
     just deploy-multicaller
     echo "source .env"
 
-# Clone Vectorized/solady into lib/solady (no `forge install`: that inits every
-# empty lib/ submodule). Solady has no deployable Multicaller — the contract is
-# Vectorized/multicaller, cloned to lib/multicaller. Isolated forge inspect,
-# then cast rpc deploy on local anvil. Writes export MULTICALLER_ADDRESS=.
+# Solady is lib/solady (submodule). Multicaller is Vectorized/multicaller,
+# still a local clone at lib/multicaller. Isolated forge inspect, then cast rpc
+# deploy on local anvil. Writes export MULTICALLER_ADDRESS=.
 solady-url := "https://github.com/vectorized/solady.git"
 multicaller-url := "https://github.com/vectorized/multicaller.git"
 
 deploy-multicaller:
     #!/usr/bin/env bash
     set -euo pipefail
-    if [[ ! -d lib/solady/.git ]]; then
+    if [[ ! -d lib/solady/src ]]; then
         echo "cloning {{solady-url}} -> lib/solady"
         git clone --depth 1 "{{solady-url}}" lib/solady
     fi
