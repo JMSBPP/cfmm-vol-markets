@@ -3,6 +3,13 @@ pragma solidity 0.8.26;
 import {PlankTestBase} from "plank/PlankTestBase.sol";
 
 
+
+enum WindowState {
+	NotSet_1,
+	NotSet_2,
+	WindowNotInitialized,
+	WindowInitialized
+}
 bytes32 constant WINDOW_SLOT = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839be424c;
 
 interface IWindow {
@@ -10,12 +17,6 @@ interface IWindow {
 }
 
 contract WindowTest is PlankTestBase {
-    enum WindowState {
-	NotSet_1,
-	NotSet_2,
-	WindowNotInitialized,
-	WindowInitialized
-    }
 	
     address main;
     WindowState windowState;

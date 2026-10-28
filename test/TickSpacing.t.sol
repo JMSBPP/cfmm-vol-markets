@@ -10,6 +10,7 @@ uint24 constant MIN_TICK_SPACING = 1;
 uint24 constant MAX_TICK_SPACING = 500;
 
 interface ITickSpacing {
+    error TickSpacingNotOnStorage();
     function set_tick_spacing(uint24) external;
 }
 
