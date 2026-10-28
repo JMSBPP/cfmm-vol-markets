@@ -2,6 +2,53 @@
 import [\(W\)](../Window.spec)
 
 
+# TYPE
+
+
+
+Nota that a pre-requisite of this is having clear tick semantics. And clear tick semantics depn on tick spaing
+
+
+int24 internal constant MAX_TICK_SPACING = 500;
+int24 internal constant MIN_TICK_SPACING = 1;
+
+
+Let's work the tickSpacing semantics
+
+
+
+
+## OLD v PENDING
+- The current implementation has the flaw of log2 not receiving negative inputs but tikc domain is defined over some negative integers too
+- The proposed solution is use for the log calculation a always positive tick measure from where no important information is lost
+- Consider this 2 tick observation case \(i_1 = -1500, i_2 = 1500\). Clearly
+	\(i_{\mu} = 0\) but using  \(i_{\mu}^{\texttt{log}} = \frac{ \log_2 (\mid i_1 \mid ) + \log_2 ( \mid i_2 \mid )}{2} \neq 0\); assuminig the proces is taking raw abs values for ticks
+	Then for our case we want \(g (i_1, i_2) > 0; \quad \log_2 (g (i_1, i_2)) = 0\). For this case the condition is 
+	\(g(i_1 , i_2) = 1\). But in particular we want
+	
+	\[
+		\begin{aligned}
+			i_{\mu}^{\texttt{log}} \Big ( g(i_1 , i_2) \Big ) \, &=  \, i_{\mu}
+		\end{aligned}
+	\]
+	
+   - But what is the problem with accumalating the raw arithmetic average ?
+      res: sub-optimal precission loss
+     
+	 If you were to have \(i_1 = 1 , i_2 = 2\) then \(i_{\mu} = 1.5\) since we have to transform back to tick we use the floor to transform giving us \(\hat{i_{\mu}} = \lfloor i_{\mu} \rfloor = 1\) then:
+	 
+	 \[
+		\begin{aligned}
+			e_{\mu}\,  &:= \, \mid \hat{i_{\mu}} - i_{\mu} \mid \\ 
+			&= \, \frac{1}{2}
+		\end{aligned}
+	 \]
+	 
+	 When can this be problematic ? since we always round to ticks we always have precision loss function that are not on tick dimensions, or in other words  \(e_{\mu} \in (0,1)\)
+ This is we are not concerned unless \(e_{\mu} \in [1,N]; \, N < \infty\)  can this be a case ?
+
+
+
 Let's see how Panoptic, Uniswap V3 and Algebra handle this
 # [REFS](./REFS.md)
 
@@ -14,13 +61,6 @@ Let's see how Panoptic, Uniswap V3 and Algebra handle this
 		\texttt{TickAverage} :: W \,\times \,\{i_j\}_{j=1}^{n<W} \, \mapsto \texttt{Tick}
 	\end{aligned}
 \]
-
-//  set_tick does after it sets it is write the value on a stack data structure and keep count of the numbers that have entered the stack, while the number of items that have entered the stack is less than the window the following happens, the last item entered the stack pops and then it gets added the incoming value and then divided by the window size, then the resulting number is stored back to the stack. Then if a client queries it pops the item on the stack.
-
-
-// Now. Once the number of items reaches the window size it writes the value to a storage data strucuture that now has keys to fetch the values. From now we can assume the keys are the current timestamp once it writes it it sets the currentValsLen back to one
-
-// Let's formalize this:
 
 // set_tick ( \(i_{n+1}\))
 //   W <- \(\texttt{windowSize} \, (\texttt{TickAverage})\) 
