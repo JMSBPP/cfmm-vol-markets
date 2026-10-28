@@ -12,12 +12,9 @@ use TickMoments::Tick::TICK_SLOT;
 
 const SET_TICK_SELECTOR = 0xfb972e51;
 const READ_TICK_SELECTOR = 0x23f6079d;
-const SET_WINDOW_SELECTOR = 0x63eade47;
 const READ_TICK_AVERAGE_SELECTOR = 0x2b8bf580;
 
 const SET_TICK_TOPIC = 0x2833a7bdc4e30391adeb052e4232401f54ff1a34cd8db2c61c32b3199b3907c2;
-
-
 
 init {
     return_runtime();
@@ -39,21 +36,18 @@ const read_tick = fn () never {
     @evm_return(buf, 32);
 };
 
-
-
 run {
-    let selector = @evm_calldataload(0) >> 224;
+    let selector = @evm_shr(224, @evm_calldataload(0));
     if selector == SET_WINDOW_SELECTOR {
        let windowCalldata: WindowCalldata = (
            @evm_calldataload(4),
-           @evm_calldataload(36),
            state_to_word(WindowNotInitialized)
        );
        let windowMemory: WindowFromCalldataToMemory = new(memory, windowCalldata);
        set_window(windowMemory,storage);
-       @evm_stop();
+    } else {
+      @evm_revert(@malloc_uninit(0), 0);
     }
-    @evm_stop();
 }    
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
     // if selector == SET_TICK_SELECTOR {								  //
