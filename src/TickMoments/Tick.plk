@@ -1,63 +1,82 @@
 use custom_utils::moreRegions::{storage,transient_storage};
+use custom_utils::math::{smin,smax};
 use TickMoments::TickSpacing::*;
-use std::regions::calldata;
+use std::regions::{calldata,memory};
 use std::membytes::membytes;
-use std::option::unwrap;
+use std::slice::{Slice,get};
+use std::option::{unwrap,Some};
 use std::core::uint::{try_cast_uint,u24};
-
+use std::core::ops::neg_u256;
 
 // cast keccak vol-markets.Tick
 const TICK_SLOT = 0x62b50c96ec7c8db111173d139b431c4ef72820d773cfe40f8537db4c663ab7e6;
+// cast sig "set_tick(int24)"
+const SET_TICK_SELECTOR = 0x9924d8ec;
 
-///////////////////////////////////////////////////////////////////////////////////////////////
-// const Tick = struct {								     //
-//       ts: TickSpacing,								     //
-//       tickVal: u24									     //
-// };											     //
-// 											     //
-// const nil_tick = fn() Tick {								     //
-//       Tick {ts: nil_tick_spacing(), tickVal: try_cast_uint(u24,comptime {0})}     	     //
-// };											     //
-// 											     //
-// const tickVal  = fn(T: type) u24 {							     //
-//       if T == Tick {									     //
-//       	 @get_field(T, 2)							     //
-//       }										     //
-// };											     //
-// 											     //
-// // NOTE: This assumes the calldata offset is always the first one			     //
-// const fetch_tick = fn(R: type) Tick {						     //
-//       let mut tick: Tick = nil_tick();						     //
-// 											     //
-//       if R == calldata {								     //
-//       	 tick = Tick {								     //
-// 	      ts: fetch_tick_spacing(storage),						     //
-// 	      tickVal: unwrap(try_cast_uint(u24,comptime {@evm_calldataload(4)}))	     //
-// 	  }										     //
-//       }										     //
-// 											     //
-//       if R == transient_storage {							     //
-//       	 tick = Tick {								     //
-// 	      ts: fetch_tick_spacing(storage),						     //
-// 	      tickVal: unwrap(try_cast_uint(u24,@evm_tload(TICK_SLOT)))			     //
-// 	 }										     //
-//       }										     //
-//       tick										     //
-// };											     //
-// 											     //
-// const return_tick = fn(tick: Tick) never {						     //
-//        let buff: membytes = @malloc_uninit(24);					     //
-//        @mstore24(buff, tickVal(tick));    						     //
-// };											     //
-// 											     //
-// 											     //
-// const store_tick = fn(origin: type, dst: type) void {				     //
-//       if origin == calldata {							     //
-//       	 let tickRaw: u256 = @evm_calldataload(4);				     //
-//       	 if dst == transient_storage {						     //
-// 	    @evm_tstore(TICK_SLOT,tickRaw);						     //
-// 	 }										     //
-//       }										     //
-// };											     //
-///////////////////////////////////////////////////////////////////////////////////////////////
+const MIN_TICK = -887272;
+const MAX_TICK = 887272;
 
+
+const TickCalldata = tuple {u256,u256};
+const TickFromCalldataToMemory =  Slice(memory,u256, Some(2));
+
+const Tick = struct {
+      val: u256,
+      ts: TickSpacing
+};
+
+const tickVal = fn(self: Tick) u256 {
+      self.val
+};
+
+ 
+const maxTick = fn( tickSpacing: $ts) Tick {
+      Tick{ val: @evm_sdiv(MAX_TICK, tickSpacingWord(tickSpacing)) *% tickSpacingWord(tickSpacing), ts: tickSpacing }
+};
+
+const minTick = fn( tickSpacing: $ts) Tick {
+      Tick{ val: @evm_sdiv(MIN_TICK, tickSpacingWord(tickSpacing)) *% tickSpacingWord(tickSpacing), ts: tickSpacing }
+};
+
+const set_tick = fn (from: TickFromCalldataToMemory ,to: type) never {
+      let tick: Tick = build_tick(from);
+      let stored_tick: never = store_tick(tick,to);
+      stored_tick
+
+};
+
+const build_tick = fn(from: TickFromCalldataToMemory) Tick {
+      let mut tickBuilt: u256 = unwrap(get(from,0));
+      let tickSpacing: TickSpacing = tickSpacingVal(unwrap(get(from,1)));
+      if @evm_slt(tickBuilt,0) {
+      	 tickBuilt = neg_u256(tickBuilt);
+	 if @evm_mod(tickBuilt, tickSpacingWord(tickSpacing)) != 0 {
+	    tickBuilt = tickBuilt + (tickSpacingWord(tickSpacing) - @evm_mod(tickBuilt, tickSpacingWord(tickSpacing)));
+	 }
+	 tickBuilt = neg_u256(tickBuilt);
+	} else {
+	  if @evm_mod(tickBuilt, tickSpacingWord(tickSpacing)) != 0 {
+	     tickBuilt = tickBuilt - @evm_mod(tickBuilt,tickSpacingWord(tickSpacing));
+	  }
+	}
+      let compressedTickWord: u256 = @evm_sdiv(tickBuilt,tickSpacingWord(tickSpacing));
+      tickBuilt = @evm_mul(compressedTickWord,tickSpacingWord(tickSpacing));
+      tickBuilt = smax(
+			tickVal(minTick(tickSpacing)),
+			smin(
+				tickVal(maxTick(tickSpacing)),
+				tickBuilt
+			  )
+			);
+      Tick {val: tickBuilt , ts: tickSpacing }
+};
+
+
+
+const store_tick = fn (tick:$T,to: type) never {
+      if to == storage {
+      	 @evm_sstore(TICK_SLOT, tickVal(tick));
+      }
+      let ptr = @malloc_uninit(0);
+      @evm_return(ptr, 0);
+};

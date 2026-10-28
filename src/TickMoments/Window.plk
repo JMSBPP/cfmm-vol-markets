@@ -2,13 +2,12 @@ use custom_utils::moreRegions::storage;
 
 use std::core::uint::_type_of;
 use std::membytes::{membytes,membytes_from_ptr,membytes_read_u256};
-use std::option::unwrap;
+use std::option::{unwrap,Some};
 use std::regions::{calldata,memory};
 use std::mem::unsafe_mem_write;
 use std::slice::*;
 use std::core::ops::greater_equals;
 use std::error::{comptime_assert, require};
-use std::option::Some;
 
 // cast keccak vol-markets.TickMoments.Window
 const WINDOW_SLOT = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839be424c;
@@ -71,7 +70,7 @@ const window_len_slot  = fn(ws: u256) u256 {
 };
 
 const window_idx_slot  = fn(ws: u256) u256 {
-      let mut wll: u256 = 0;
+       let mut wll: u256 = 0;
       require(WINDOW_SLOT == ws);
       wll = @evm_add(WINDOW_SLOT,1);
       wll

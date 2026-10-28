@@ -2,39 +2,21 @@
 /// Tick demo: setTick/readTick against EIP-1153 transient storage; emits SetTick.
 use std::prelude::*;
 use std::slice::new;
+use std::core::uint::{try_cast_uint,u24};
 use custom_utils::moreRegions::{storage,transient_storage};
 use TickMoments::Window::*;
-//////////////////////////////////////
-// use TickMoments::TickAverage::*; //
+use TickMoments::TickAverage::*;
+use TickMoments::Tick::*;	   
+use TickMoments::TickSpacing::*;
 
 
-use TickMoments::Tick::TICK_SLOT;	   
-
-const SET_TICK_SELECTOR = 0xfb972e51;
 const READ_TICK_SELECTOR = 0x23f6079d;
-const READ_TICK_AVERAGE_SELECTOR = 0x2b8bf580;
-
 const SET_TICK_TOPIC = 0x2833a7bdc4e30391adeb052e4232401f54ff1a34cd8db2c61c32b3199b3907c2;
 
 init {
     return_runtime();
 }
 
-const set_tick = fn (value: u256) void { @evm_tstore(TICK_SLOT, value); log_tick(value); };
-
-const log_tick = fn(value: u256) void {
-      let buf = @malloc_uninit(32);
-      @mstore32(buf, value);
-      @evm_log1(buf,32, SET_TICK_TOPIC);
-};
-
-
-const read_tick = fn () never {
-    let value = @evm_tload(TICK_SLOT);
-    let buf = @malloc_uninit(32);
-    @mstore32(buf, value);
-    @evm_return(buf, 32);
-};
 
 run {
     let selector = @evm_shr(224, @evm_calldataload(0));
@@ -45,6 +27,28 @@ run {
        );
        let windowMemory: WindowFromCalldataToMemory = new(memory, windowCalldata);
        set_window(windowMemory,storage);
+    } else if selector == SET_TICK_SELECTOR {
+      	
+	tickSpacingRevertEVMDueTo(storage);	     
+	
+        
+	let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingOn(storage)); //
+	
+	
+	let tickMemory: TickFromCalldataToMemory = new(memory,tickCalldata);	       //
+	
+	// todo: We need support for transient storage
+	set_tick(tickMemory, storage);	  //
+	
+	/////////////////////////////////////////////////////////////////////////////
+	// let updatedTickAvg : TickAverage = update_average(tickCalldata);	   //
+	/////////////////////////////////////////////////////////////////////////////
+	let ptr = @malloc_uninit(0);
+	@evm_return(ptr, 0);
+    } else if selector == SET_TICK_SPACING_SELECTOR {
+      	 let tickSpacingCalldata: TickSpacingCalldata = (tickSpacingVal(@evm_calldataload(4)),);
+	 let tickSpacingMemory: TickSpacingFromCalldataToMemory = new(memory, tickSpacingCalldata);
+	 set_tick_spacing(tickSpacingMemory,storage);
     } else {
       @evm_revert(@malloc_uninit(0), 0);
     }
