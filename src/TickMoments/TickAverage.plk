@@ -1,17 +1,29 @@
+use custom_utils::moreRegions::storage;
 use TickMoments::Window::*;
 use TickMoments::Tick::*;
 use std::core::uint::{u24,try_cast_uint,unsafe_from_u256, cast_uint};
-use std::cbytes::*;
-use std::membytes::*;
-use std::option::unwrap;
-
+use std::option::{unwrap,Some};
+use std::slice::{Slice,new,get};
+use std::regions::memory;
 
 // cast keccak vol-markets.TickMoments.tickAverage
 const TICK_AVERAGE_SLOT = 0x639a68f1e2d4af32ba8134bbdb9c46e158a306a8d58cd3f92a9c3e7e5c05a6b3;
-const READ_TICK_AVERAGE_SELECTOR = 0x2b8bf580;
 
-const TickAverage = struct {};
 
-const update_average = fn (tickValue:$T) TickAverage {
-      TickAverage {}
+// TODO: From now we assume TAS = WS; This is to be verified
+const TickAverage = fn(tickAverageState : type ) type {
+      struct {
+      	     window: Window(tickAverageState),
+	     prevTickAcc: u256
+      }
+};
+
+const update_average = fn (tickValue:$T) TickAverage(WindowInitialized) {
+      TickAverage(WindowInitialized) { window: Window(WindowInitialized) {len : 1, idx : 0}, prevTickAcc: 0}
+};
+
+const store_tickAverage = fn (tickAverage:$TA, to: type) void {
+      if to == storage {
+      	 @evm_sstore(TICK_AVERAGE_SLOT, tickAverage.prevTickAcc);
+      }
 };

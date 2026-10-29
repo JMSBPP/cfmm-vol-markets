@@ -3,7 +3,7 @@ use custom_utils::math::{smin,smax};
 use TickMoments::TickSpacing::*;
 use std::regions::{calldata,memory};
 use std::membytes::membytes;
-use std::slice::{Slice,get};
+use std::slice::{Slice,get,new};
 use std::option::{unwrap,Some};
 use std::core::uint::{try_cast_uint,u24};
 use std::core::ops::neg_u256;
@@ -13,6 +13,12 @@ const TICK_SLOT = 0x62b50c96ec7c8db111173d139b431c4ef72820d773cfe40f8537db4c663a
 // cast sig "set_tick(int24)"
 const SET_TICK_SELECTOR = 0x9924d8ec;
 
+// cast sig "read_tick()"
+const READ_TICK_SELECTOR = 0xd1c3c66a;
+
+const TICK_CALLDATA_IDX = 0;
+const TICK_SPACING_TICK_CALLDATA_IDX = 1;
+
 const MIN_TICK = -887272;
 const MAX_TICK = 887272;
 
@@ -20,10 +26,19 @@ const MAX_TICK = 887272;
 const TickCalldata = tuple {u256,u256};
 const TickFromCalldataToMemory =  Slice(memory,u256, Some(2));
 
+// TODO: 0 is a valid tick value, but is the default value loaded from storage even if no one cas set_tick and has set a tickSpacing value, we might need to parametrize Tick by state as done with window
 const Tick = struct {
       val: u256,
       ts: TickSpacing
 };
+
+// TODO: This is tied to the above and (until the above gets resolved) an unsafe return
+const tickReturnEVM = fn() never {
+      let retBuff: u256 = @malloc_uninit(32);
+      @mstore32(retBuff,@evm_sload(TICK_SLOT));
+      @evm_return(retBuff,32);
+};
+
 
 const tickVal = fn(self: Tick) u256 {
       self.val
@@ -38,16 +53,10 @@ const minTick = fn( tickSpacing: $ts) Tick {
       Tick{ val: @evm_sdiv(MIN_TICK, tickSpacingWord(tickSpacing)) *% tickSpacingWord(tickSpacing), ts: tickSpacing }
 };
 
-const set_tick = fn (from: TickFromCalldataToMemory ,to: type) never {
-      let tick: Tick = build_tick(from);
-      let stored_tick: never = store_tick(tick,to);
-      stored_tick
-
-};
-
-const build_tick = fn(from: TickFromCalldataToMemory) Tick {
-      let mut tickBuilt: u256 = unwrap(get(from,0));
-      let tickSpacing: TickSpacing = tickSpacingVal(unwrap(get(from,1)));
+const build_tick = fn(from: TickCalldata) Tick {
+      let tickMemory: TickFromCalldataToMemory = new(memory,from        );
+      let mut tickBuilt: u256 = unwrap(get(tickMemory,TICK_CALLDATA_IDX));
+      let tickSpacing: TickSpacing = tickSpacingVal(unwrap(get(tickMemory,TICK_SPACING_TICK_CALLDATA_IDX)));
       if @evm_slt(tickBuilt,0) {
       	 tickBuilt = neg_u256(tickBuilt);
 	 if @evm_mod(tickBuilt, tickSpacingWord(tickSpacing)) != 0 {
@@ -73,10 +82,8 @@ const build_tick = fn(from: TickFromCalldataToMemory) Tick {
 
 
 
-const store_tick = fn (tick:$T,to: type) never {
+const store_tick = fn (tick:$T,to: type) void {
       if to == storage {
       	 @evm_sstore(TICK_SLOT, tickVal(tick));
       }
-      let ptr = @malloc_uninit(0);
-      @evm_return(ptr, 0);
 };

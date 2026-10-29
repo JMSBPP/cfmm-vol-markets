@@ -17,7 +17,11 @@ const TICK_SPACING_SLOT = 0xf21ff12c997bb9e034b4c86d66ba5b6ceb2a3b177ea03c1656ed
 // cast sig "set_tick_spacing(uint24)"
 const SET_TICK_SPACING_SELECTOR = 0xc23a505b;
 
+// cast sig "read_tick_spacing()"
+const READ_TICK_SPACING_SELECTOR  = 0xe1f71536;
 
+
+const TICK_SPACING_CALLDATA_IDX = 0;
 const TickSpacingCalldata = tuple { TickSpacing };
 
 const TickSpacingFromCalldataToMemory = Slice(memory, u24, Some(1));
@@ -26,8 +30,15 @@ const tickSpacingWord = fn(tickSpacing:$TS) u256 {
       unwrap(try_cast_uint(tickSpacing,u256))
 };
 
+
+const NotATickSpacing = struct{};
+
 const tickSpacingVal = fn(word: $W) TickSpacing {
      unwrap(try_cast_uint(word,TickSpacing))
+};
+
+const isTickSpacing = fn(val: $T) bool {
+      ((less_equals(tickSpacingWord(val),MAX_TICK_SPACING)) & (greater_equals(tickSpacingWord(val),MIN_TICK_SPACING)))
 };
 
 const isTickSpacingOn = fn(on:type) bool {
@@ -35,56 +46,69 @@ const isTickSpacingOn = fn(on:type) bool {
 
       if on == storage {
       	 let tickSpacingWordOnStorage: u256 = tickSpacingWord(@evm_sload(TICK_SPACING_SLOT));
-      	 tickSpacingOnRes = ((less_equals(tickSpacingWordOnStorage,MAX_TICK_SPACING)) & (greater_equals(tickSpacingWordOnStorage,MIN_TICK_SPACING)));    	       	 
+      	 tickSpacingOnRes = isTickSpacing(tickSpacingWordOnStorage);    	       	 
       }
       tickSpacingOnRes
 };
 
 const tickSpacingOn = fn(on: type) u256 {
-      tickSpacingWord(@evm_sload(TICK_SPACING_SLOT))      
+      if on == storage {
+      	 tickSpacingWord(@evm_sload(TICK_SPACING_SLOT))
+      }
 };
 
-const tickSpacingRevertEVMDueTo = fn (on: type) void {
+const tickSpacingReturnEVM = fn () never {
+      tickSpacingRevertEVMDueTo(storage);	     
+
+      let retBuffer: u256 = @malloc_uninit(32);
+      @mstore32(retBuffer,tickSpacingWord(@evm_sload(TICK_SPACING_SLOT)));
+      @evm_return(retBuffer,32);
+};
+
+const tickSpacingRevertEVMDueTo = fn (reason: type) void {
       // todo: This needs refinement
       let revertBuffer : u256 = @malloc_uninit(4);
-      if !(isTickSpacingOn(on)) {
-      	 if on == storage {
+      if !(isTickSpacingOn(reason)) {
+      	 if reason == storage {
 	  // cast sig "TickSpacingNotOnStorage()"
 	    @mstore4(revertBuffer,0xc1551962);
 	 }
       @evm_revert(revertBuffer,4);	 
       }
-};
 
-const set_tick_spacing = fn(from: TickSpacingFromCalldataToMemory, to: type) never {
-      let tickSpacing: TickSpacing = build_tickSpacing(from);
-      let stored_tickSpacing: never = store_tick_spacing(tickSpacing,to);
-      stored_tickSpacing
-};
- 
-const build_tickSpacing = fn(from: TickSpacingFromCalldataToMemory) TickSpacing {
-      let mut tickSpacingBuilt: TickSpacing = tickSpacingVal(unwrap(get(from,0)));
-      if greater_equals(tickSpacingWord(tickSpacingBuilt),MAX_TICK_SPACING) {
-      	 tickSpacingBuilt = tickSpacingVal(MAX_TICK_SPACING);
-	 /////////////////////////////////////////////////////////////////////////////////////////
-	 // @compile_log("tickSpacingCalldata out of bounds:: set to MAX_TICK_SPACING");        //
-	 /////////////////////////////////////////////////////////////////////////////////////////
-      } else if less_equals(tickSpacingWord(tickSpacingBuilt),MIN_TICK_SPACING) {
-      	 tickSpacingBuilt = tickSpacingVal(MIN_TICK_SPACING);
-	 /////////////////////////////////////////////////////////////////////////////////////////
-	 // @compile_log("tickSpacingCalldata out of bounds:: set to MIN_TICK_SPACING");        //
-	 /////////////////////////////////////////////////////////////////////////////////////////
+      if reason == NotATickSpacing {
+      	 // cast sig "NotATickSpacing()"
+      	 @mstore4(revertBuffer, 0x187cd5b3);
+      	 @evm_revert(revertBuffer,4);
       }
-      tickSpacingBuilt       
 };
 
 
-const store_tick_spacing = fn (tickSpacing: $TS,to:type) never {
+const notYetTickSpacing = fn() TickSpacing {
+      tickSpacingVal(0)
+};
+
+const build_tickSpacing = fn(from: $O) TickSpacing {
+      let mut tickSpacingBuilt: TickSpacing = notYetTickSpacing();
+      if O == TickSpacingCalldata {
+            let tickSpacingMemory: TickSpacingFromCalldataToMemory = new(memory, from);
+      	    tickSpacingBuilt = tickSpacingVal(
+      	    	unwrap(get(tickSpacingMemory,TICK_SPACING_CALLDATA_IDX))
+             );
+       }
+       if greater_equals(tickSpacingWord(tickSpacingBuilt),MAX_TICK_SPACING) {
+      	     tickSpacingBuilt = tickSpacingVal(MAX_TICK_SPACING);
+       } else if less_equals(tickSpacingWord(tickSpacingBuilt),MIN_TICK_SPACING) {
+      	       tickSpacingBuilt = tickSpacingVal(MIN_TICK_SPACING);
+       }
+       tickSpacingBuilt
+};       
+
+
+const store_tickSpacing = fn (tickSpacing: $TS,to:type) void {
       if to == storage {
       	 @evm_sstore(TICK_SPACING_SLOT, tickSpacingWord(tickSpacing));
       }
-      let ptr = @malloc_uninit(0);
-      @evm_return(ptr, 0);
 };
 
 

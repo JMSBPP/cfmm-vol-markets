@@ -12,6 +12,7 @@ uint24 constant MAX_TICK_SPACING = 500;
 interface ITickSpacing {
     error TickSpacingNotOnStorage();
     function set_tick_spacing(uint24) external;
+    function read_tick_spacing() external returns(uint24);
 }
 
 
@@ -40,7 +41,7 @@ contract TickSpacingTest is PlankTestBase {
     }
 
     function test_WhenTheTickSpacingCalldataIsGreaterThanMAX_TICK_SPACING(uint24 tickSpacing) external whenSet_tick_spacingIsCalled {
-        uint24 tickSpacingCalldata = uint24(bound(uint256(tickSpacing),uint256(MAX_TICK_SPACING),uint256(type(uint24).max)));
+        uint24 tickSpacingCalldata = uint24(bound(uint256(tickSpacing),uint256(MAX_TICK_SPACING + 1),uint256(type(uint24).max)));
 	
         // It should set the tickSpacingVal to MAX_TICK_SPACING.
 	 ITickSpacing(main).set_tick_spacing(tickSpacingCalldata);
@@ -59,7 +60,12 @@ contract TickSpacingTest is PlankTestBase {
 	// TODO: Below is unimplemented/untested
 
 	// It should log "tickSpacingCalldata out of bounds:: set to MIN_TICK_SPACING".
-	
+    }
+
+    function test_ReadTickSpacingLoadsTickSpacingFromStorage(uint24 tickSpacing) external {
+	ITickSpacing(main).set_tick_spacing(tickSpacing);
+	uint24 tickSpacingStoredVal = SafeCastLib.toUint24(uint256(vm.load(main,TICK_SPACING_SLOT)));
+	assertEq(tickSpacingStoredVal, ITickSpacing(main).read_tick_spacing());
     }
 }
 

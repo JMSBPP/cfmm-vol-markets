@@ -10,7 +10,7 @@ use TickMoments::Tick::*;
 use TickMoments::TickSpacing::*;
 
 
-const READ_TICK_SELECTOR = 0x23f6079d;
+
 const SET_TICK_TOPIC = 0x2833a7bdc4e30391adeb052e4232401f54ff1a34cd8db2c61c32b3199b3907c2;
 
 init {
@@ -20,35 +20,31 @@ init {
 
 run {
     let selector = @evm_shr(224, @evm_calldataload(0));
-    if selector == SET_WINDOW_SELECTOR {
+    if selector == READ_TICK_SELECTOR {
+       tickReturnEVM();
+    } else if selector == READ_TICK_SPACING_SELECTOR {
+        tickSpacingReturnEVM();  
+    } else if selector == SET_WINDOW_SELECTOR {
        let windowCalldata: WindowCalldata = (
            @evm_calldataload(4),
            state_to_word(WindowNotInitialized)
        );
-       let windowMemory: WindowFromCalldataToMemory = new(memory, windowCalldata);
-       set_window(windowMemory,storage);
+       let window: Window(WindowNotInitialized) = build_window(windowCalldata);
+       store_window(window,storage);
+       @evm_return(@malloc_uninit(0), 0);
     } else if selector == SET_TICK_SELECTOR {
-      	
 	tickSpacingRevertEVMDueTo(storage);	     
-	
-        
-	let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingOn(storage)); //
-	
-	
-	let tickMemory: TickFromCalldataToMemory = new(memory,tickCalldata);	       //
-	
-	// todo: We need support for transient storage
-	set_tick(tickMemory, storage);	  //
-	
-	/////////////////////////////////////////////////////////////////////////////
-	// let updatedTickAvg : TickAverage = update_average(tickCalldata);	   //
-	/////////////////////////////////////////////////////////////////////////////
-	let ptr = @malloc_uninit(0);
-	@evm_return(ptr, 0);
+	let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingOn(storage));
+	let tick :Tick = build_tick(tickCalldata);
+	let updatedTickAvg : TickAverage(WindowInitialized) = update_average(tick);
+	store_tick(tick,storage);
+	store_tickAverage(updatedTickAvg,storage);
+	@evm_return(@malloc_uninit(0), 0);
     } else if selector == SET_TICK_SPACING_SELECTOR {
       	 let tickSpacingCalldata: TickSpacingCalldata = (tickSpacingVal(@evm_calldataload(4)),);
-	 let tickSpacingMemory: TickSpacingFromCalldataToMemory = new(memory, tickSpacingCalldata);
-	 set_tick_spacing(tickSpacingMemory,storage);
+	 let tickSpacing: TickSpacing = build_tickSpacing(tickSpacingCalldata);
+	 store_tickSpacing(tickSpacing,storage);
+	 @evm_return(@malloc_uninit(0), 0);
     } else {
       @evm_revert(@malloc_uninit(0), 0);
     }

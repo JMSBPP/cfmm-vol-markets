@@ -6,7 +6,7 @@ import {ITickSpacing, MAX_TICK_SPACING, MIN_TICK_SPACING} from "./TickSpacing.t.
 
 interface ITick {
     function set_tick(int24) external;
-    
+    function read_tick() external returns(int24);
 }
 
 // cast keccak vol-markets.Tick
@@ -22,7 +22,6 @@ function roundTick(int24 currentTick, int24 tickSpacing) pure returns (int256 ro
     if (tick < 0 && tick % ts != 0) compressed--; // round towards negative infinity
     roundedTick = compressed * ts;
 }
-
 
 function usableMin(int24 tickSpacing) pure returns (int24) {
     return (MIN_TICK / tickSpacing) * tickSpacing;
@@ -63,19 +62,27 @@ contract TickTest is PlankTestBase {
     }
 
     function test_WhenTickSpacingOnStorageIsSet(uint24 tickSpacingOnStorage, int24 tick) external whenSet_tickIsCalled {
-        uint24 tickSpacingCalldata = uint24(bound(uint256(tickSpacingOnStorage),uint256(MIN_TICK_SPACING),uint256(MAX_TICK_SPACING)));
+        uint24 tickSpacingCalldata = tickSpacingOnStorage;
 	ITickSpacing(main).set_tick_spacing(tickSpacingCalldata);
-
+	
        
         // It should set tickVal to normTickVal.
 	int24 tickCalldata = tick;
 	ITick(main).set_tick(tickCalldata);	
 	int24 tickStoredVal = SafeCastLib.toInt24(int256(uint256(vm.load(main,TICK_SLOT))));
 	
-	assertEq(tickStoredVal, normTickVal(tickCalldata,tickSpacingCalldata));
+	assertEq(tickStoredVal, normTickVal(tickCalldata,ITickSpacing(main).read_tick_spacing()));
         
     }
 
-    
+    function test__ReadTickLoadsTickFromStorage(uint24 tickSpacing, int24 tick) external {
+	uint24 tickSpacingCalldata = tickSpacing;
+	int24 tickCalldata = tick;
+	ITickSpacing(main).set_tick_spacing(tickSpacingCalldata);
+	ITick(main).set_tick(tickCalldata);
+
+	int24 tickStoredVal = SafeCastLib.toInt24(int256(uint256(vm.load(main,TICK_SLOT))));
+	assertEq(ITick(main).read_tick(),tickStoredVal);
+    }
 }
 

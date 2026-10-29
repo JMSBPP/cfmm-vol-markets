@@ -14,6 +14,12 @@ const WINDOW_SLOT = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839
 // cast sig "set_window(uint256)"
 const SET_WINDOW_SELECTOR = 0xdd7afeac;
 
+
+
+const INVALID_WINDOW_LEN = 0;
+const WINDOW_LEN_CALLDATA_IDX = 0;
+const WINDOW_NOT_INITIALIZED_INDEX_VAL = 0;
+
 const WindowNotInitialized = struct{};
 const WindowInitialized = struct {};
 
@@ -83,28 +89,31 @@ const window_state_slot = fn(ws: u256) u256 {
       wsl
 };
 
-const store_window = fn (window: $W,to:type) never {
+const store_window = fn (window: $W,to:type) void {
       if to == storage {
       	 @evm_sstore(window_len_slot(WINDOW_SLOT), window_len(window));
 	 @evm_sstore(window_idx_slot(WINDOW_SLOT), window_idx(window));
 	 @evm_sstore(window_state_slot(WINDOW_SLOT), window_state(window))
       }
-      let ptr = @malloc_uninit(0);
-      @evm_return(ptr, 0);
 };
 
-const set_window = fn (from: WindowFromCalldataToMemory, to: type) never {
-      let window :Window(WindowNotInitialized) = build_window(from);
-      let stored_window: never= store_window(window,to);
-      stored_window
+const InvalidWindowRuntimeConstructor = struct{};
+
+const windowRevertEVMDueTo = fn(reason: type) void {
+      let revertBuffer : u256 = @malloc_uninit(4);
+      if reason == InvalidWindowRuntimeConstructor {
+      	 // cast sig "InvalidWindowRuntimeConstructor()"
+      	 @mstore4(revertBuffer, 0x1d44e4ed);
+      	 @evm_revert(revertBuffer,4);
+      }
 };
 
-const build_window = fn(from: WindowFromCalldataToMemory) Window(WindowNotInitialized) {
-      let len: u256 = unwrap(get(from, 0));
-      let idx: u256 = 0;
-      // let idx: u256 = unwrap(get(from, 1));
-      require((len > 0) & (idx <= len));
-      Window(WindowNotInitialized) { len: len, idx: idx }
+
+const build_window = fn(from: WindowCalldata) Window(WindowNotInitialized) {
+      let windowMemory: WindowFromCalldataToMemory = new(memory, from);
+      let len: u256 = unwrap(get(windowMemory, WINDOW_LEN_CALLDATA_IDX));
+      if @evm_iszero(len) { windowRevertEVMDueTo(InvalidWindowRuntimeConstructor);}
+      Window(WindowNotInitialized) { len: len, idx: WINDOW_NOT_INITIALIZED_INDEX_VAL }
 };
 
 

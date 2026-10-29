@@ -13,6 +13,7 @@ enum WindowState {
 bytes32 constant WINDOW_SLOT = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839be424c;
 
 interface IWindow {
+    error InvalidWindowRuntimeConstructor();
     function set_window(uint256) external;
 }
 
@@ -34,7 +35,7 @@ contract WindowTest is PlankTestBase {
 
     function test_RevertWhen_WindowLenConstructorArgIsZero() external whenSetWindowIsCalled {
 	uint256 zeroLen = 0;
-	vm.expectRevert();
+	vm.expectRevert(IWindow.InvalidWindowRuntimeConstructor.selector);
 	IWindow(main).set_window(zeroLen);
         // It should revert.
         //     Because windowLen is the greater than zero.
