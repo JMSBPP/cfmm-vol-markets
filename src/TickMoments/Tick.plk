@@ -32,6 +32,7 @@ const Tick = struct {
       ts: TickSpacing
 };
 
+
 // TODO: This is tied to the above and (until the above gets resolved) an unsafe return
 const tickReturnEVM = fn() never {
       let retBuff: u256 = @malloc_uninit(32);
@@ -40,11 +41,19 @@ const tickReturnEVM = fn() never {
 };
 
 
+// ===========================INPUT:Tick =================================
 const tickVal = fn(self: Tick) u256 {
       self.val
 };
 
- 
+const store_tick = fn (tick:$T,to: type) void {
+      if to == storage {
+      	 @evm_sstore(TICK_SLOT, tickVal(tick));
+      }
+};
+
+
+// ============================ OUTPUT: Tick =================================
 const maxTick = fn( tickSpacing: $ts) Tick {
       Tick{ val: @evm_sdiv(MAX_TICK, tickSpacingWord(tickSpacing)) *% tickSpacingWord(tickSpacing), ts: tickSpacing }
 };
@@ -53,8 +62,14 @@ const minTick = fn( tickSpacing: $ts) Tick {
       Tick{ val: @evm_sdiv(MIN_TICK, tickSpacingWord(tickSpacing)) *% tickSpacingWord(tickSpacing), ts: tickSpacing }
 };
 
+// NOTE: This definitions is somewhat arbitrary and can be changed
+const toUpdateTick = fn() Tick {
+      maxTick(DefaultTickSpacing())
+};
+
+// TODO: This possibly needs more input types, like Window
 const build_tick = fn(from: TickCalldata) Tick {
-      let tickMemory: TickFromCalldataToMemory = new(memory,from        );
+      let tickMemory: TickFromCalldataToMemory = new(memory,from);
       let mut tickBuilt: u256 = unwrap(get(tickMemory,TICK_CALLDATA_IDX));
       let tickSpacing: TickSpacing = tickSpacingVal(unwrap(get(tickMemory,TICK_SPACING_TICK_CALLDATA_IDX)));
       if @evm_slt(tickBuilt,0) {
@@ -80,10 +95,3 @@ const build_tick = fn(from: TickCalldata) Tick {
       Tick {val: tickBuilt , ts: tickSpacing }
 };
 
-
-
-const store_tick = fn (tick:$T,to: type) void {
-      if to == storage {
-      	 @evm_sstore(TICK_SLOT, tickVal(tick));
-      }
-};

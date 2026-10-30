@@ -22,6 +22,8 @@ run {
     let selector = @evm_shr(224, @evm_calldataload(0));
     if selector == READ_TICK_SELECTOR {
        tickReturnEVM();
+    } else if selector == READ_TICK_AVERAGE_SELECTOR {
+      tickAverageReturnEVM();     
     } else if selector == READ_TICK_SPACING_SELECTOR {
         tickSpacingReturnEVM();  
     } else if selector == SET_WINDOW_SELECTOR {
@@ -30,13 +32,13 @@ run {
            state_to_word(WindowNotInitialized)
        );
        let window: Window(WindowNotInitialized) = build_window(windowCalldata);
-       store_window(window,storage);
+       store_window(window,WindowNotInitialized,storage);
        @evm_return(@malloc_uninit(0), 0);
     } else if selector == SET_TICK_SELECTOR {
 	tickSpacingRevertEVMDueTo(storage);	     
 	let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingOn(storage));
 	let tick :Tick = build_tick(tickCalldata);
-	let updatedTickAvg : TickAverage(WindowInitialized) = update_average(tick);
+	let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
 	store_tick(tick,storage);
 	store_tickAverage(updatedTickAvg,storage);
 	@evm_return(@malloc_uninit(0), 0);

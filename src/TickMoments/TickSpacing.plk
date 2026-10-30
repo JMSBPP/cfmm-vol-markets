@@ -8,9 +8,10 @@ use std::core::uint::{try_cast_uint,u24};
 use std::core::ops::{greater_equals,less_equals};
 
 const TickSpacing = u24;
+const NOT_TICK_SPACING = 0;
 const MAX_TICK_SPACING = 500;
 const MIN_TICK_SPACING = 1;
-
+const DEFAULT_TICK_SPACING = 200;
 
 // cast keccak vol-markets.TickSpacing
 const TICK_SPACING_SLOT = 0xf21ff12c997bb9e034b4c86d66ba5b6ceb2a3b177ea03c1656edb0264e54224b;
@@ -26,16 +27,19 @@ const TickSpacingCalldata = tuple { TickSpacing };
 
 const TickSpacingFromCalldataToMemory = Slice(memory, u24, Some(1));
 
+// =========================INPUT: TickSpacing ===============================
 const tickSpacingWord = fn(tickSpacing:$TS) u256 {
       unwrap(try_cast_uint(tickSpacing,u256))
 };
 
+const store_tickSpacing = fn (tickSpacing: $TS,to:type) void {
+      if to == storage {
+      	 @evm_sstore(TICK_SPACING_SLOT, tickSpacingWord(tickSpacing));
+      }
+};
+
 
 const NotATickSpacing = struct{};
-
-const tickSpacingVal = fn(word: $W) TickSpacing {
-     unwrap(try_cast_uint(word,TickSpacing))
-};
 
 const isTickSpacing = fn(val: $T) bool {
       ((less_equals(tickSpacingWord(val),MAX_TICK_SPACING)) & (greater_equals(tickSpacingWord(val),MIN_TICK_SPACING)))
@@ -84,8 +88,25 @@ const tickSpacingRevertEVMDueTo = fn (reason: type) void {
 };
 
 
+// ============================OUTPUT:: TickSpacing =======================================
+const tickSpacingVal = fn(word: $W) TickSpacing {
+     unwrap(try_cast_uint(word,TickSpacing))
+};
+
 const notYetTickSpacing = fn() TickSpacing {
-      tickSpacingVal(0)
+      tickSpacingVal(NOT_TICK_SPACING)
+};
+
+const MinTickSpacing = fn() TickSpacing {
+      tickSpacingVal(MIN_TICK_SPACING)
+};
+
+const MaxTickSpacing = fn () TickSpacing {
+      tickSpacingVal(MAX_TICK_SPACING)
+};
+
+const DefaultTickSpacing = fn () TickSpacing {
+      tickSpacing(DEFAULT_TICK_SPACING)
 };
 
 const build_tickSpacing = fn(from: $O) TickSpacing {
@@ -103,14 +124,6 @@ const build_tickSpacing = fn(from: $O) TickSpacing {
        }
        tickSpacingBuilt
 };       
-
-
-const store_tickSpacing = fn (tickSpacing: $TS,to:type) void {
-      if to == storage {
-      	 @evm_sstore(TICK_SPACING_SLOT, tickSpacingWord(tickSpacing));
-      }
-};
-
 
 
 
