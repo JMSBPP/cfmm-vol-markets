@@ -69,9 +69,7 @@ contract TickTest is PlankTestBase {
         // It should set tickVal to normTickVal.
 	int24 tickCalldata = tick;
 	ITick(main).set_tick(tickCalldata);	
-	int24 tickStoredVal = SafeCastLib.toInt24(int256(uint256(vm.load(main,TICK_SLOT))));
-	
-	assertEq(tickStoredVal, normTickVal(tickCalldata,ITickSpacing(main).read_tick_spacing()));
+	int24 tickStoredVal = SafeCastLib.toInt24(int256(uint256(vm.load(main,TICK_SLOT))));	assertEq(tickStoredVal, normTickVal(tickCalldata,ITickSpacing(main).read_tick_spacing()));
         
     }
 
