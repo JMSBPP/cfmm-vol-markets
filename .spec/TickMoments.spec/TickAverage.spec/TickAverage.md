@@ -2,6 +2,91 @@
 import [\(W\)](../Window.spec)
 
 
+# TYPE
+
+
+	\[
+	\begin{aligned}
+		\Big (\forall_{N} \mid N \leq W \, \wedge \, N \neq 1 \, :  \frac{\sum_{j=1}^{N} \, i_j}{W} > 1\Big )  \implies \texttt{ArithmeticMeanIsEVMImplementable}
+	\end{aligned}
+\]
+
+> This is under the approach of definitning evm implementable as being able to store the full word
+which requires beign greater than one, with decimals greater than one at the cost of some precision loss
+
+
+\[
+	\begin{aligned}
+		i_{\text{max}} = 887272 \\
+		i_{\text{min}}= - i_{\text{max}}
+	\end{aligned}
+\]
+
+\[
+	\begin{aligned}
+		W_{\text{day}} \, &:= \, 24 \cdot 60 \cdot 60
+	\end{aligned}
+\]
+\[
+	\begin{aligned}
+		\Big (i_j \leftarrow i_{\text{max}}, W \leftarrow W_{\text{day}}\Big) \implies \Big (\forall_{N} \mid N \leq W \, \wedge \, N \neq 1 \, : \,\sum_{j=1}^{N} \, i_j >  i_{\text{max}}\, \wedge \, \frac{\sum_{j=1}^{N} \, i_j}{W} > 1\Big )  
+	\end{aligned}
+\]
+
+
+Under the above definition of arithmetic mean evm implementable clearly having a window size greater for some running \(N\) violates the implementable definition
+\[
+	\begin{aligned}
+	    \texttt{not} \Big (\texttt{ArithmeticMeanIsEVMImplementable}\Big) \implies \, W > \sum_{j=1}^{N} \, i_j
+	\end{aligned}
+\]
+
+The above is highly likely when:
+- \(W\) is allowed to be *small enough*
+- \(i_j < W\) and there is low variance around \(i_j\) on the generator of the tick sequence
+
+> The above explanation is to be more ellaborated
+
+\[
+	\begin{aligned}
+		i_{\mu} \, (W) & = \frac{1}{W} \, \sum_{j=1}^{W} \, i_j
+	\end{aligned}
+\]
+
+\( -887272\leq  i_{\mu} \, (W)\leq 887272. \)
+
+
+# ARITHMETIC_MEAN EVM
+
+Note that if we store:
+
+\[
+	\begin{aligned}
+		\texttt{sstore} (\sum_{j=1}^W i_j) \iff \texttt{sstore} (W \cdot i_{\mu} \, (W))
+	\end{aligned}
+\]
+
+
+More generally:
+\[ 
+	\begin{aligned}
+		f_{\texttt{ts}}: \texttt{Tick} \,(\texttt{ts}) \leadsto \texttt{Tick} \,(\texttt{ts})\\
+		
+		M_f(i_1,\ldots,i_W) = f^{-1}\left( \frac{1}{W}\sum_{j=1}^{W} f(i_j) \right)
+	\end{aligned}
+\]
+
+such that:
+- Signed domain: \\(f\\) must accept negative, zero, and positive ticks.
+- Monotonicity: preserve the ordering of ticks.
+- Bounded computation: all intermediate values must have known bounds.
+- Determinism: fixed-point evaluation must have defined rounding and error limits.
+- Tick-spacing compatibility: the final result must be quantized to the appropriate spacing \\(\Delta_i\\).
+
+
+
+
+## OLD v PENDING
 Let's see how Panoptic, Uniswap V3 and Algebra handle this
 # [REFS](./REFS.md)
 
@@ -14,13 +99,6 @@ Let's see how Panoptic, Uniswap V3 and Algebra handle this
 		\texttt{TickAverage} :: W \,\times \,\{i_j\}_{j=1}^{n<W} \, \mapsto \texttt{Tick}
 	\end{aligned}
 \]
-
-//  set_tick does after it sets it is write the value on a stack data structure and keep count of the numbers that have entered the stack, while the number of items that have entered the stack is less than the window the following happens, the last item entered the stack pops and then it gets added the incoming value and then divided by the window size, then the resulting number is stored back to the stack. Then if a client queries it pops the item on the stack.
-
-
-// Now. Once the number of items reaches the window size it writes the value to a storage data strucuture that now has keys to fetch the values. From now we can assume the keys are the current timestamp once it writes it it sets the currentValsLen back to one
-
-// Let's formalize this:
 
 // set_tick ( \(i_{n+1}\))
 //   W <- \(\texttt{windowSize} \, (\texttt{TickAverage})\) 

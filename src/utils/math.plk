@@ -1,0 +1,34 @@
+
+const max = fn(x1 :u256,  x2: u256) u256 {
+      if x1 < x2 {
+      	 x2
+      } else {
+      	x1
+      }
+};
+
+const min = fn(x1 :u256,  x2: u256) u256 {
+      if x1 < x2 {
+      	 x1
+      } else {
+      	x2
+      }
+};
+
+const smax = fn(x1: u256, x2: u256) u256 {
+      if @evm_slt(x1, x2) {
+      	 x2
+      } else {
+      	x1
+      }
+};
+
+const smin = fn(x1: u256, x2: u256) u256 {
+      if @evm_slt(x1, x2) {
+      	 x1
+      } else {
+      	x2
+      }
+};
+
+

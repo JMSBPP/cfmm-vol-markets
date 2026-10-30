@@ -1,63 +1,113 @@
 use custom_utils::moreRegions::{storage,transient_storage};
+use custom_utils::math::{smin,smax};
 use TickMoments::TickSpacing::*;
-use std::regions::calldata;
+use TickMoments::TickAverage::{TickAcc,tickAccWord};
+use TickMoments::Window::*;
+use std::regions::{calldata,memory};
 use std::membytes::membytes;
-use std::option::unwrap;
+use std::slice::{Slice,get,new};
+use std::option::{unwrap,Some};
 use std::core::uint::{try_cast_uint,u24};
-
+use std::core::ops::neg_u256;
 
 // cast keccak vol-markets.Tick
 const TICK_SLOT = 0x62b50c96ec7c8db111173d139b431c4ef72820d773cfe40f8537db4c663ab7e6;
+// cast sig "set_tick(int24)"
+const SET_TICK_SELECTOR = 0x9924d8ec;
 
-///////////////////////////////////////////////////////////////////////////////////////////////
-// const Tick = struct {								     //
-//       ts: TickSpacing,								     //
-//       tickVal: u24									     //
-// };											     //
-// 											     //
-// const nil_tick = fn() Tick {								     //
-//       Tick {ts: nil_tick_spacing(), tickVal: try_cast_uint(u24,comptime {0})}     	     //
-// };											     //
-// 											     //
-// const tickVal  = fn(T: type) u24 {							     //
-//       if T == Tick {									     //
-//       	 @get_field(T, 2)							     //
-//       }										     //
-// };											     //
-// 											     //
-// // NOTE: This assumes the calldata offset is always the first one			     //
-// const fetch_tick = fn(R: type) Tick {						     //
-//       let mut tick: Tick = nil_tick();						     //
-// 											     //
-//       if R == calldata {								     //
-//       	 tick = Tick {								     //
-// 	      ts: fetch_tick_spacing(storage),						     //
-// 	      tickVal: unwrap(try_cast_uint(u24,comptime {@evm_calldataload(4)}))	     //
-// 	  }										     //
-//       }										     //
-// 											     //
-//       if R == transient_storage {							     //
-//       	 tick = Tick {								     //
-// 	      ts: fetch_tick_spacing(storage),						     //
-// 	      tickVal: unwrap(try_cast_uint(u24,@evm_tload(TICK_SLOT)))			     //
-// 	 }										     //
-//       }										     //
-//       tick										     //
-// };											     //
-// 											     //
-// const return_tick = fn(tick: Tick) never {						     //
-//        let buff: membytes = @malloc_uninit(24);					     //
-//        @mstore24(buff, tickVal(tick));    						     //
-// };											     //
-// 											     //
-// 											     //
-// const store_tick = fn(origin: type, dst: type) void {				     //
-//       if origin == calldata {							     //
-//       	 let tickRaw: u256 = @evm_calldataload(4);				     //
-//       	 if dst == transient_storage {						     //
-// 	    @evm_tstore(TICK_SLOT,tickRaw);						     //
-// 	 }										     //
-//       }										     //
-// };											     //
-///////////////////////////////////////////////////////////////////////////////////////////////
+// cast sig "read_tick()"
+const READ_TICK_SELECTOR = 0xd1c3c66a;
 
+const TICK_CALLDATA_IDX = 0;
+const TICK_SPACING_TICK_CALLDATA_IDX = 1;
+
+const MIN_TICK = -887272;
+const MAX_TICK = 887272;
+
+
+const TickCalldata = tuple {u256,u256};
+const TickFromCalldataToMemory =  Slice(memory,u256, Some(2));
+
+// TODO: 0 is a valid tick value, but is the default value loaded from storage even if no one cas set_tik and has set a tickSpacing value, we might need to parametrize Tick by state as done with window
+const Tick = struct {
+      val: u256,
+      ts: TickSpacing
+};
+
+
+// TODO: This is tied to the above and (until the above gets resolved) an unsafe return
+const tickReturnEVM = fn() never {
+      let retBuff: u256 = @malloc_uninit(32);
+      @mstore32(retBuff,@evm_sload(TICK_SLOT));
+      @evm_return(retBuff,32);
+};
+
+
+// ===========================INPUT:Tick =================================
+const tickWord = fn (self: Tick) u256 {
+      tickVal(self)
+};
+
+const tickVal = fn(self: Tick) u256 {
+      self.val
+};
+
+const store_tick = fn (tick:$T,to: type) void {
+      if to == storage {
+      	 @evm_sstore(TICK_SLOT, tickVal(tick));
+      }
+};
+
+
+// ============================ OUTPUT: Tick =================================
+const maxTick = fn( tickSpacing: $ts) Tick {
+      Tick{ val: @evm_sdiv(MAX_TICK, tickSpacingWord(tickSpacing)) *% tickSpacingWord(tickSpacing), ts: tickSpacing }
+};
+
+const minTick = fn( tickSpacing: $ts) Tick {
+      Tick{ val: @evm_sdiv(MIN_TICK, tickSpacingWord(tickSpacing)) *% tickSpacingWord(tickSpacing), ts: tickSpacing }
+};
+
+// NOTE: This definitions is somewhat arbitrary and can be changed
+const toUpdateTick = fn() Tick {
+      maxTick(DefaultTickSpacing())
+};
+
+// TODO: This possibly needs more input types, like Window
+const build_tick = fn(from: TickCalldata) Tick {
+      let tickMemory: TickFromCalldataToMemory = new(memory,from);
+      let mut tickBuilt: u256 = unwrap(get(tickMemory,TICK_CALLDATA_IDX));
+      let tickSpacing: TickSpacing = tickSpacingVal(unwrap(get(tickMemory,TICK_SPACING_TICK_CALLDATA_IDX)));
+      if @evm_slt(tickBuilt,0) {
+      	 tickBuilt = neg_u256(tickBuilt);
+	 if @evm_mod(tickBuilt, tickSpacingWord(tickSpacing)) != 0 {
+	    tickBuilt = tickBuilt + (tickSpacingWord(tickSpacing) - @evm_mod(tickBuilt, tickSpacingWord(tickSpacing)));
+	 }
+	 tickBuilt = neg_u256(tickBuilt);
+	} else {
+	  if @evm_mod(tickBuilt, tickSpacingWord(tickSpacing)) != 0 {
+	     tickBuilt = tickBuilt - @evm_mod(tickBuilt,tickSpacingWord(tickSpacing));
+	  }
+	}
+      let compressedTickWord: u256 = @evm_sdiv(tickBuilt,tickSpacingWord(tickSpacing));
+      tickBuilt = @evm_mul(compressedTickWord,tickSpacingWord(tickSpacing));
+      tickBuilt = smax(
+			tickVal(minTick(tickSpacing)),
+			smin(
+				tickVal(maxTick(tickSpacing)),
+				tickBuilt
+			  )
+			);
+      Tick {val: tickBuilt , ts: tickSpacing }
+};
+
+
+
+
+const MeanTick = fn(from: type ,tickAcc :TickAcc, window : Window(WindowInitialized)) Tick {
+      let mut meanTick: Tick = toUpdateTick();
+      if from == storage {
+      	 meanTick = build_tick((@evm_sdiv(tickAccWord(tickAcc),window_idx(window)),tickSpacingOn(from)));
+      }
+      meanTick
+};

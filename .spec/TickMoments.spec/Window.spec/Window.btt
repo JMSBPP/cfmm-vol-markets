@@ -1,28 +1,8 @@
-
-W = l | i | state
-when a window is set it's state is not_initialized
-
-
-
-Window::hashPair
-├── It should never revert.
-├── When first arg is smaller than second arg
-│   └── It should match the result of `keccak256(abi.encodePacked(a,b))`.
-└── When first arg is bigger than second arg
-    └── It should match the result of `keccak256(abi.encodePacked(b,a))`.
-
-
-Utils::min
-├── It should never revert.
-├── When first arg is smaller than second arg
-│   └── It should match the value of `a`.
-└── When first arg is bigger than second arg
-    └── It should match the value of `b`.
-
-
-Utils::max
-├── It should never revert.
-├── When first arg is smaller than second arg
-│   └── It should match the value of `b`.
-└── When first arg is bigger than second arg
-    └── It should match the value of `a`.
+WindowTest
+└── When setWindow is called
+    └── When windowLen constructor arg is zero
+        └── It should revert.
+            └── Because windowLen is the greater than zero.
+    └── When windowLen constructor arg is greater than zero
+    	└── It should write at windowNameSpace slot windowLen constructor arg
+	└── It should write at windoStorage slot reserved name space plus two the word 2 

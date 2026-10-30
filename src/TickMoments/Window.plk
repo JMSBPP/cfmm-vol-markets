@@ -2,27 +2,35 @@ use custom_utils::moreRegions::storage;
 
 use std::core::uint::_type_of;
 use std::membytes::{membytes,membytes_from_ptr,membytes_read_u256};
-use std::option::unwrap;
+use std::option::{unwrap,Some};
 use std::regions::{calldata,memory};
 use std::mem::unsafe_mem_write;
 use std::slice::*;
 use std::core::ops::greater_equals;
 use std::error::{comptime_assert, require};
-use std::option::Some;
 
+// cast keccak vol-markets.TickMoments.Window
+const WINDOW_SLOT = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839be424c;
+// cast sig "set_window(uint256)"
+const SET_WINDOW_SELECTOR = 0xdd7afeac;
+
+
+
+const INVALID_WINDOW_LEN = 0;
+const WINDOW_LEN_CALLDATA_IDX = 0;
+const WINDOW_NOT_INITIALIZED_INDEX_VAL = 0;
+const STEP_IDX = 1;
+const WINDOW_LEN_ONE = 1;
+const WINDOW_NOT_INITIALIZED_LEN_VAL = 1;
+const WINDOW_UNINITIALIZED = 2;
+const WINDOW_INITIALIZED = 3;
 
 const WindowNotInitialized = struct{};
 const WindowInitialized = struct {};
 
-const state_to_word = fn (state: type) u256 {
-      let mut st_ui256: u256 = 0;
-      if state == WindowNotInitialized   { st_ui256 = 2; }
-      else if state == WindowInitialized { st_ui256 =3; }
-      st_ui256          
-};
+const WindowCalldata = tuple{ u256, u256};
+const WindowFromCalldataToMemory = Slice(memory, u256, Some(2));
 
-const WindowCalldata = tuple{ u256, u256, u256};
-const WindowFromCalldataToMemory = Slice(memory, u256, Some(3));
 const Window = fn (comptime S: type) type {
       if (S != WindowNotInitialized) & (S != WindowInitialized) {
       	 @compile_error("Window: state must be WindowNotInitialized or WindowInitialized");
@@ -34,6 +42,13 @@ const Window = fn (comptime S: type) type {
 };
 
 
+const state_to_word = fn (state: type) u256 {
+      let mut st_ui256: u256 = 0;
+      if state == WindowNotInitialized   { st_ui256 = WINDOW_UNINITIALIZED; }
+      else if state == WindowInitialized { st_ui256 = WINDOW_INITIALIZED; }
+      st_ui256          
+};
+
 const window_len = fn (self: $W) u256 {
       self.len
 };
@@ -42,60 +57,125 @@ const window_idx = fn(self: $W) u256 {
       self.idx
 };
 
-
-const window_state = fn (window: $W) u256 {
-      state_to_word(comptime { @type_index(W) })
+const window_state = fn (on : type) u256 {
+      let mut windowStateQueried: u256 = WINDOW_UNINITIALIZED;      
+      if on == storage {
+      	 windowStateQueried = @evm_sload(window_state_slot(WINDOW_SLOT));
+      }
+      windowStateQueried
 };
+
+const isWindowInitialized = fn (window: $W) bool {
+      (@evm_gt(window_idx(window),WINDOW_NOT_INITIALIZED_INDEX_VAL) & @evm_gt(window_len(window)),WINDOW_NOT_INITIALIZED_LEN_VAL)
+};
+
+const isNotWindowInitialized = fn(window: $W) bool {
+      !isWindowInitialized (window)
+};
+
 
 const nill_window = fn() Window(WindowNotInitialized) {
-      Window(WindowNotInitialized) { len: 1, idx: 0 }
+      Window(WindowNotInitialized) { len: WINDOW_NOT_INITIALIZED_LEN_VAL, idx: WINDOW_NOT_INITIALIZED_INDEX_VAL }
 };
 
-// cast keccak vol-markets.TickMoments.Window
-const WINDOW_SLOT = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839be424c;
-
-
 const window_len_slot  = fn(ws: u256) u256 {
-      let mut wll: u256 = 0;
       require(WINDOW_SLOT == ws);
-      wll = WINDOW_SLOT;
-      wll
+      WINDOW_SLOT
 };
 
 const window_idx_slot  = fn(ws: u256) u256 {
-      let mut wll: u256 = 0;
       require(WINDOW_SLOT == ws);
-      wll = @evm_add(WINDOW_SLOT,1);
-      wll
+      @evm_add(WINDOW_SLOT,1)
 };
 
 const window_state_slot = fn(ws: u256) u256 {
-      let mut wsl: u256 = 0;
       require(WINDOW_SLOT == ws);
-      wsl = @evm_add(WINDOW_SLOT,2);
-      wsl
+      @evm_add(WINDOW_SLOT,2)
 };
 
-const store_window = fn (window: $W,to:type) void {
+const store_window = fn (window: $W, windowState: type ,to:type) void {
       if to == storage {
       	 @evm_sstore(window_len_slot(WINDOW_SLOT), window_len(window));
 	 @evm_sstore(window_idx_slot(WINDOW_SLOT), window_idx(window));
-	 @evm_sstore(window_state_slot(WINDOW_SLOT), window_state(window))
+	 @evm_sstore(window_state_slot(WINDOW_SLOT), state_to_word(windowState));
       }
-
 };
 
-const set_window = fn (from: WindowFromCalldataToMemory, to: type) void {
-      let window :Window(WindowNotInitialized) = build_window(from);
-      let stored_window: void = store_window(window,to);
-      stored_window
+const InvalidWindowRuntimeConstructor = struct{};
+
+const windowRevertEVMDueTo = fn(window: $W) void {
+      let revertBuffer : u256 = @malloc_uninit(4);
+      if @evm_or(@evm_iszero(window_len(window)),@evm_gt(window_idx(window),window_len(window))) {
+      	 // cast sig "InvalidWindowRuntimeConstructor()"
+      	 @mstore4(revertBuffer, 0x1d44e4ed);
+      	 @evm_revert(revertBuffer,4);
+      }
 };
 
-const build_window = fn(from: WindowFromCalldataToMemory) Window(WindowNotInitialized) {
-      let len: u256 = unwrap(get(from, 0));
-      let idx: u256 = unwrap(get(from, 1));
-      require((len > 0) & (idx <= len));
-      Window(WindowNotInitialized) { len: len, idx: idx }
+const proposedWindow = fn(len :u256, idx: u256) Window(WindowNotInitialized) {
+      Window(WindowNotInitialized) {len: len, idx: idx}
+};
+
+const window_on = fn (on: type) Window(WindowInitialized){
+      let mut window: Window(WindowInitialized) = prospectWindow();
+      if on == storage {
+      	 window = Window(WindowInitialized) {len: @evm_sload(window_len_slot(WINDOW_SLOT)), idx: @evm_sload(window_idx_slot(WINDOW_SLOT))};
+      }
+      window
+};
+
+const build_window = fn(from: $O) Window(WindowNotInitialized) {
+      let mut windowLenBuilt: u256 = WINDOW_NOT_INITIALIZED_LEN_VAL;
+      let mut windowIdxBuilt: u256 = WINDOW_NOT_INITIALIZED_INDEX_VAL;
+      
+      if O == WindowCalldata {
+      	 let windowMemory: WindowFromCalldataToMemory = new(memory, from);
+      	 windowLenBuilt = unwrap(get(windowMemory, WINDOW_LEN_CALLDATA_IDX));
+     }
+
+     windowRevertEVMDueTo(proposedWindow(windowLenBuilt,windowIdxBuilt));
+     Window(WindowNotInitialized) { len: windowLenBuilt, idx: windowIdxBuilt } 
+};
+
+const prospectWindow = fn() Window(WindowInitialized) {
+      Window(WindowInitialized) {len: WINDOW_LEN_ONE, idx: WINDOW_NOT_INITIALIZED_LEN_VAL}
+};
+
+const update_window = fn(on: type) Window(WindowInitialized) {
+      let mut windowUpdated: Window(WindowInitialized) = prospectWindow();
+      if on == storage {
+      	 @evm_sstore(window_state_slot(WINDOW_SLOT),WINDOW_INITIALIZED);
+      	 let mut currentWindow : Window(WindowInitialized) = window_on(on);
+      	 if @evm_lt(window_idx(currentWindow),window_len(currentWindow)) {
+	     let idx : u256 = @evm_add(window_idx(currentWindow), STEP_IDX);
+	     @evm_sstore(window_idx_slot(WINDOW_SLOT),idx);
+	     windowUpdated = Window(WindowInitialized) {len: window_len(currentWindow), idx: idx};
+	     if @evm_eq(idx, window_len(currentWindow)) {
+	     	 restart_window(on);
+	     }
+	 }
+
+	 if @evm_eq(window_idx(currentWindow),window_len(currentWindow)) {
+	    windowUpdated = Window(WindowInitialized) {len: window_len(currentWindow), idx: window_idx(currentWindow)};
+	    restart_window(on);
+	 }
+      };
+      windowUpdated
 };
 
 
+// windowIdx is starticg from 0 and
+const restart_window = fn (on: type) Window(WindowNotInitialized) {
+      if on == storage {
+      	 @evm_sstore(window_idx_slot(WINDOW_SLOT),window_idx(nill_window()));
+      	 store_window(nill_window(),WindowNotInitialized,on);
+      }
+      nill_window()
+};
+
+const initialize_window = fn(on: type) Window(WindowInitialized) {
+      if on == storage {
+      	 @evm_sstore(window_state_slot(WINDOW_SLOT), WINDOW_INITIALIZED);
+	 update_window(on)
+      }    
+};

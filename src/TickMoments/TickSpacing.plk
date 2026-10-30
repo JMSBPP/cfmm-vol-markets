@@ -1,30 +1,129 @@
 use custom_utils::moreRegions::storage;
-use std::option::unwrap;
+use std::option::{unwrap,Some};
+use std::regions::{calldata,memory};
+use std::mem::unsafe_mem_write;
+use std::membytes::membytes;
+use std::slice::*;
 use std::core::uint::{try_cast_uint,u24};
-
+use std::core::ops::{greater_equals,less_equals};
 
 const TickSpacing = u24;
+const NOT_TICK_SPACING = 0;
+const MAX_TICK_SPACING = 500;
+const MIN_TICK_SPACING = 1;
+const DEFAULT_TICK_SPACING = 200;
 
 // cast keccak vol-markets.TickSpacing
 const TICK_SPACING_SLOT = 0xf21ff12c997bb9e034b4c86d66ba5b6ceb2a3b177ea03c1656edb0264e54224b;
+// cast sig "set_tick_spacing(uint24)"
+const SET_TICK_SPACING_SELECTOR = 0xc23a505b;
 
-const nil_tick_spacing = fn() TickSpacing {
-           unwrap(try_cast_uint(u24,comptime { 0 }))
+// cast sig "read_tick_spacing()"
+const READ_TICK_SPACING_SELECTOR  = 0xe1f71536;
+
+
+const TICK_SPACING_CALLDATA_IDX = 0;
+const TickSpacingCalldata = tuple { TickSpacing };
+
+const TickSpacingFromCalldataToMemory = Slice(memory, u24, Some(1));
+
+// =========================INPUT: TickSpacing ===============================
+const tickSpacingWord = fn(tickSpacing:$TS) u256 {
+      unwrap(try_cast_uint(tickSpacing,u256))
 };
 
-///////////////////////////////////////////
-// const tick_spacing_slot = fn() u256 { //
-//       				 //
-// }					 //
-///////////////////////////////////////////
-
-const fetch_tick_spacing= fn(R: type) TickSpacing {
-      if R == storage {
-      	 unwrap(try_cast_uint(u24,comptime {@evm_sload(TICK_SPACING_SLOT)}))      	       	 
+const store_tickSpacing = fn (tickSpacing: $TS,to:type) void {
+      if to == storage {
+      	 @evm_sstore(TICK_SPACING_SLOT, tickSpacingWord(tickSpacing));
       }
 };
 
 
+const NotATickSpacing = struct{};
+
+const isTickSpacing = fn(val: $T) bool {
+      ((less_equals(tickSpacingWord(val),MAX_TICK_SPACING)) & (greater_equals(tickSpacingWord(val),MIN_TICK_SPACING)))
+};
+
+const isTickSpacingOn = fn(on:type) bool {
+      let mut tickSpacingOnRes: bool = false;
+
+      if on == storage {
+      	 let tickSpacingWordOnStorage: u256 = tickSpacingWord(@evm_sload(TICK_SPACING_SLOT));
+      	 tickSpacingOnRes = isTickSpacing(tickSpacingWordOnStorage);    	       	 
+      }
+      tickSpacingOnRes
+};
+
+const tickSpacingOn = fn(on: type) u256 {
+      if on == storage {
+      	 tickSpacingWord(@evm_sload(TICK_SPACING_SLOT))
+      }
+};
+
+const tickSpacingReturnEVM = fn () never {
+      tickSpacingRevertEVMDueTo(storage);	     
+
+      let retBuffer: u256 = @malloc_uninit(32);
+      @mstore32(retBuffer,tickSpacingWord(@evm_sload(TICK_SPACING_SLOT)));
+      @evm_return(retBuffer,32);
+};
+
+const tickSpacingRevertEVMDueTo = fn (reason: type) void {
+      // todo: This needs refinement
+      let revertBuffer : u256 = @malloc_uninit(4);
+      if !(isTickSpacingOn(reason)) {
+      	 if reason == storage {
+	  // cast sig "TickSpacingNotOnStorage()"
+	    @mstore4(revertBuffer,0xc1551962);
+	 }
+      @evm_revert(revertBuffer,4);	 
+      }
+
+      if reason == NotATickSpacing {
+      	 // cast sig "NotATickSpacing()"
+      	 @mstore4(revertBuffer, 0x187cd5b3);
+      	 @evm_revert(revertBuffer,4);
+      }
+};
+
+
+// ============================OUTPUT:: TickSpacing =======================================
+const tickSpacingVal = fn(word: $W) TickSpacing {
+     unwrap(try_cast_uint(word,TickSpacing))
+};
+
+const notYetTickSpacing = fn() TickSpacing {
+      tickSpacingVal(NOT_TICK_SPACING)
+};
+
+const MinTickSpacing = fn() TickSpacing {
+      tickSpacingVal(MIN_TICK_SPACING)
+};
+
+const MaxTickSpacing = fn () TickSpacing {
+      tickSpacingVal(MAX_TICK_SPACING)
+};
+
+const DefaultTickSpacing = fn () TickSpacing {
+      tickSpacingVal(DEFAULT_TICK_SPACING)
+};
+
+const build_tickSpacing = fn(from: $O) TickSpacing {
+      let mut tickSpacingBuilt: TickSpacing = notYetTickSpacing();
+      if O == TickSpacingCalldata {
+            let tickSpacingMemory: TickSpacingFromCalldataToMemory = new(memory, from);
+      	    tickSpacingBuilt = tickSpacingVal(
+      	    	unwrap(get(tickSpacingMemory,TICK_SPACING_CALLDATA_IDX))
+             );
+       }
+       if greater_equals(tickSpacingWord(tickSpacingBuilt),MAX_TICK_SPACING) {
+      	     tickSpacingBuilt = tickSpacingVal(MAX_TICK_SPACING);
+       } else if less_equals(tickSpacingWord(tickSpacingBuilt),MIN_TICK_SPACING) {
+      	       tickSpacingBuilt = tickSpacingVal(MIN_TICK_SPACING);
+       }
+       tickSpacingBuilt
+};       
 
 
 
