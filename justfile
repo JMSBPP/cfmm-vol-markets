@@ -115,7 +115,7 @@ plank file:
     out="{{app-bytecode}}"
     mkdir -p "$out_dir"
     echo "compiling $src -> $out"
-    "$plank_bin" build "$src" \
+    "$plank_bin" build "$src" --backend sona \
         --dep std="{{plank-target-dir}}/std/" \
         --dep TickMoments="src/TickMoments/" --dep custom_utils="src/utils" \
         > "$out"
@@ -479,3 +479,5 @@ run-app:
     set -euo pipefail
     exec bash scripts/RunApp.sh . "{{app-bytecode-dir}}"
 
+test-current:
+	forge clean && forge test --match-contract TickRealizedVolatility

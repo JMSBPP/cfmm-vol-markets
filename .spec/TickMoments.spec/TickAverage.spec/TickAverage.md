@@ -5,50 +5,88 @@ import [\(W\)](../Window.spec)
 # TYPE
 
 
+	\[
+	\begin{aligned}
+		\Big (\forall_{N} \mid N \leq W \, \wedge \, N \neq 1 \, :  \frac{\sum_{j=1}^{N} \, i_j}{W} > 1\Big )  \implies \texttt{ArithmeticMeanIsEVMImplementable}
+	\end{aligned}
+\]
 
-Nota that a pre-requisite of this is having clear tick semantics. And clear tick semantics depn on tick spaing
+> This is under the approach of definitning evm implementable as being able to store the full word
+which requires beign greater than one, with decimals greater than one at the cost of some precision loss
 
 
-int24 internal constant MAX_TICK_SPACING = 500;
-int24 internal constant MIN_TICK_SPACING = 1;
+\[
+	\begin{aligned}
+		i_{\text{max}} = 887272 \\
+		i_{\text{min}}= - i_{\text{max}}
+	\end{aligned}
+\]
+
+\[
+	\begin{aligned}
+		W_{\text{day}} \, &:= \, 24 \cdot 60 \cdot 60
+	\end{aligned}
+\]
+\[
+	\begin{aligned}
+		\Big (i_j \leftarrow i_{\text{max}}, W \leftarrow W_{\text{day}}\Big) \implies \Big (\forall_{N} \mid N \leq W \, \wedge \, N \neq 1 \, : \,\sum_{j=1}^{N} \, i_j >  i_{\text{max}}\, \wedge \, \frac{\sum_{j=1}^{N} \, i_j}{W} > 1\Big )  
+	\end{aligned}
+\]
 
 
-Let's work the tickSpacing semantics
+Under the above definition of arithmetic mean evm implementable clearly having a window size greater for some running \(N\) violates the implementable definition
+\[
+	\begin{aligned}
+	    \texttt{not} \Big (\texttt{ArithmeticMeanIsEVMImplementable}\Big) \implies \, W > \sum_{j=1}^{N} \, i_j
+	\end{aligned}
+\]
+
+The above is highly likely when:
+- \(W\) is allowed to be *small enough*
+- \(i_j < W\) and there is low variance around \(i_j\) on the generator of the tick sequence
+
+> The above explanation is to be more ellaborated
+
+\[
+	\begin{aligned}
+		i_{\mu} \, (W) & = \frac{1}{W} \, \sum_{j=1}^{W} \, i_j
+	\end{aligned}
+\]
+
+\( -887272\leq  i_{\mu} \, (W)\leq 887272. \)
+
+
+# ARITHMETIC_MEAN EVM
+
+Note that if we store:
+
+\[
+	\begin{aligned}
+		\texttt{sstore} (\sum_{j=1}^W i_j) \iff \texttt{sstore} (W \cdot i_{\mu} \, (W))
+	\end{aligned}
+\]
+
+
+More generally:
+\[ 
+	\begin{aligned}
+		f_{\texttt{ts}}: \texttt{Tick} \,(\texttt{ts}) \leadsto \texttt{Tick} \,(\texttt{ts})\\
+		
+		M_f(i_1,\ldots,i_W) = f^{-1}\left( \frac{1}{W}\sum_{j=1}^{W} f(i_j) \right)
+	\end{aligned}
+\]
+
+such that:
+- Signed domain: \\(f\\) must accept negative, zero, and positive ticks.
+- Monotonicity: preserve the ordering of ticks.
+- Bounded computation: all intermediate values must have known bounds.
+- Determinism: fixed-point evaluation must have defined rounding and error limits.
+- Tick-spacing compatibility: the final result must be quantized to the appropriate spacing \\(\Delta_i\\).
 
 
 
 
 ## OLD v PENDING
-- The current implementation has the flaw of log2 not receiving negative inputs but tikc domain is defined over some negative integers too
-- The proposed solution is use for the log calculation a always positive tick measure from where no important information is lost
-- Consider this 2 tick observation case \(i_1 = -1500, i_2 = 1500\). Clearly
-	\(i_{\mu} = 0\) but using  \(i_{\mu}^{\texttt{log}} = \frac{ \log_2 (\mid i_1 \mid ) + \log_2 ( \mid i_2 \mid )}{2} \neq 0\); assuminig the proces is taking raw abs values for ticks
-	Then for our case we want \(g (i_1, i_2) > 0; \quad \log_2 (g (i_1, i_2)) = 0\). For this case the condition is 
-	\(g(i_1 , i_2) = 1\). But in particular we want
-	
-	\[
-		\begin{aligned}
-			i_{\mu}^{\texttt{log}} \Big ( g(i_1 , i_2) \Big ) \, &=  \, i_{\mu}
-		\end{aligned}
-	\]
-	
-   - But what is the problem with accumalating the raw arithmetic average ?
-      res: sub-optimal precission loss
-     
-	 If you were to have \(i_1 = 1 , i_2 = 2\) then \(i_{\mu} = 1.5\) since we have to transform back to tick we use the floor to transform giving us \(\hat{i_{\mu}} = \lfloor i_{\mu} \rfloor = 1\) then:
-	 
-	 \[
-		\begin{aligned}
-			e_{\mu}\,  &:= \, \mid \hat{i_{\mu}} - i_{\mu} \mid \\ 
-			&= \, \frac{1}{2}
-		\end{aligned}
-	 \]
-	 
-	 When can this be problematic ? since we always round to ticks we always have precision loss function that are not on tick dimensions, or in other words  \(e_{\mu} \in (0,1)\)
- This is we are not concerned unless \(e_{\mu} \in [1,N]; \, N < \infty\)  can this be a case ?
-
-
-
 Let's see how Panoptic, Uniswap V3 and Algebra handle this
 # [REFS](./REFS.md)
 
