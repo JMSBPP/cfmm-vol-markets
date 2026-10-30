@@ -71,7 +71,7 @@ contract TickAverageTest is PlankTestBase{
 							  uint256 maxIdx
     ) external whenTickAverageUpdatesFromTickCalldata {
         // ==============================PRE-CONDITIONS ================================
-	// TODO: 86400 is somewhat arbitrary is a day WINDOW, to be refined
+	// TODO: 200 is somewhat arbitrary and does not lead OOG
 	uint256 windowLenCalldata = bound(windowLen, 1, 200);
 	ITickSpacing(main).set_tick_spacing(tickSpacing);
 	uint24 tickSpacingCalldata =  ITickSpacing(main).read_tick_spacing();
