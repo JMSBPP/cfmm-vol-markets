@@ -8,13 +8,43 @@ use std::regions::memory;
 
 // cast keccak vol-markets.TickMoments.tickAverage
 const TICK_AVERAGE_SLOT = 0x639a68f1e2d4af32ba8134bbdb9c46e158a306a8d58cd3f92a9c3e7e5c05a6b3;
-const TICK_AVERAGE_PREV_TICK_ACC_NOT_INITIALIZED = 0;
 // cast sig "read_tick_average()"
 const READ_TICK_AVERAGE_SELECTOR = 0x0e97de16;
 
 
 // note: TickAcc is int56 which aims to encode \(\underbrace{W}_{\texttt{16 bits/window}} \underbrace{i_{\mu}}_{\texttt{19 bits/Tick}}\)
 const TickAcc = u256;
+const NO_TICK_ACC = 0;
+//================================OUTPUT: TickAcc ================================
+const notYetTickAcc = fn() TickAcc {
+      NO_TICK_ACC
+};
+
+
+const tickTickAcc = fn (tick: $TickVal) TickAcc {
+      @evm_sdiv(tickVal(tick),1)
+};
+
+const tickAccOn = fn (on: type) TickAcc {
+      let mut tickAcc: TickAcc = notYetTickAcc();
+      if on == storage {
+      	 tickAcc = @evm_sload(@evm_add(TICK_AVERAGE_SLOT,1));
+      }
+      tickAcc
+};
+
+const tickAccWord = fn (tickAcc: $Tacc) u256 {
+      tickAcc
+};
+
+const tickAvgPrevTickAcc = fn(tickAvg: $TickAverage) TickAcc {
+      tickAvg.prevTickAcc
+};
+
+const AccTick = fn(prev:TickAcc, toAcc : TickAcc) TickAcc {
+      @evm_add(tickAccWord(prev),tickAccWord(toAcc))
+};
+
 // TODO: From now we assume TAS = WS; This is to be verified
 const TickAverage = fn(tickAverageState : type ) type {
       struct {
@@ -24,6 +54,16 @@ const TickAverage = fn(tickAverageState : type ) type {
       }
 };
 
+const tickAvgTick = fn(tickAvg:$TickAverage) Tick {
+      tickAvg.tickAvg     
+};
+
+const store_tickAverage = fn (tickAverage:$TA, to: type) void {
+      if to == storage {
+      	 @evm_sstore(@evm_add(TICK_AVERAGE_SLOT,1), tickAvgPrevTickAcc(tickAverage));
+	 @evm_sstore(TICK_AVERAGE_SLOT, tickWord(tickAvgTick(tickAverage)));
+      }
+};
 
 const tickAverageReturnEVM = fn() never {
       let retBuff: u256 = @malloc_uninit(32);
@@ -32,76 +72,40 @@ const tickAverageReturnEVM = fn() never {
 };
 
 
-const set_tickAverage_window = fn(on: type) TickAverage(WindowInitialized) {
-      TickAverage (WindowInitialized) {window: update_window(on), prevTickAcc: TICK_AVERAGE_PREV_TICK_ACC_NOT_INITIALIZED }
-};
-
 
 const tickAverageWindow = fn(self: TickAverage(WindowInitialized)) Window(WindowInitialized) {
       self.window
 };
 
-const prospectInitializedTickAverage = fn() TickAverage(WindowInitialized) {
-      TickAverage(WindowInitialized) {window: fullWindow(), prevTickAcc: TICK_AVERAGE_PREV_TICK_ACC_NOT_INITIALIZED }
+
+//================================ OUTPUT: TickAverage ================================
+const prospectTickAverage = fn() TickAverage(WindowInitialized) {
+      TickAverage(WindowInitialized) {window: prospectWindow(), prevTickAcc: notYetTickAcc(), tickAvg: toUpdateTick() }
 };
-
-const initialize_tick_average = fn (on : type) TickAverage(WindowInitialized) {
-      let mut tickAverageInitialized : TickAverage(WindowInitialized) = prospectInitializedTickAverage();
-      if on == storage {
-      	 tickAverageInitialized = set_tickAverage_window(on);
-      };
-
-      tickAverageInitialized
-
-};
-
-
-const toTickAcc =  fn (val:$V) TickAcc {
-      if V == Tick {
-      	 @evm_sdiv(tickVal(val),1)
-      }
-};
-
-
-      let mut prevTickAcc : u256 = TICK_AVERAGE_PREV_TICK_ACC_NOT_INITIALIZED;     
-
-      if U == Tick {
-      	 let tick: Tick = inputVal;
-      	 prevTickAcc = toTickAcc(tick);      	 
-      }
-
-      if U == TickAcc {
-      	 prevTickAcc = inputVal
-      }
-      
-      TickAverage (WindowInitialized) {window: tickAverageWindow(tickAverage), prevTickAcc:prevTickAcc}
 
 
 const update_average = fn (on: type ,tickValue:$T) TickAverage(WindowInitialized) {
-      let mut tickAverageOnUpdate : TickAverage(WindowInitialized) = prospectInitializedTickAverage();
-      let mut prevTickAcc : u256 = TICK_AVERAGE_PREV_TICK_ACC_NOT_INITIALIZED;
+      let mut tickAverageUpdated : TickAverage(WindowInitialized) = prospectTickAverage();
+      let mut prevTickAcc : TickAcc = notYetTickAcc();
       let mut tickAvg: Tick = toUpdateTick();      
       if on == storage {
-      	 if window_state(on) == WINDOW_UNINITIALIZED {
-	    tickAverageOnUpdate : TickAverage(WindowInitialized) = initialize_tick_average(on);
-	    prevTickAcc = toTickAcc(tickValue);
+      	 let mut tickAvgWindowUpdated: Window(WindowInitialized) = prospectWindow();
+
+	 let state: u256 = window_state(on);
+	 if @evm_eq(state, WINDOW_UNINITIALIZED) {
+	    prevTickAcc = tickTickAcc(tickValue);
 	    tickAvg = tickValue;
-	    tickAverageOnUpdate = TickAverage (WindowInitialized)
-	    {window: tickAverageWindow(tickAverage), prevTickAcc:prevTickAcc, tickAvg: tickAvg}
+	    tickAvgWindowUpdated = update_window(on);
+	 }
+	 if @evm_eq(state, WINDOW_INITIALIZED) {
+	    prevTickAcc = AccTick(tickAccOn(on),tickTickAcc(tickValue));
+	    tickAvgWindowUpdated = update_window(on);
+	    tickAvg = MeanTick(on,prevTickAcc, tickAvgWindowUpdated);
 	 }
 
-	 if window_state(on) == WINDOW_INITIALIZED {
-	    let updatedTickAcc : TickAcc = AccTick(toTickAcc(storage),toTickAcc(tickValue));
-	    // UPDATE TICK AVG operating ithn the window
-	    tickAvg = MeanTick(updatedTickAcc, build_window(on));
-	 }
-	 tickAverageOnUpdate = TickAverage (WindowInitialized) {window: tickAverageWindow(tickAverage), prevTickAcc:prevTickAcc, tickAvg: tickAvg}
+	 tickAverageUpdated = TickAverage (WindowInitialized)
+	    {window: tickAvgWindowUpdated, prevTickAcc:prevTickAcc, tickAvg: tickAvg};
+	 
       }
       tickAverageUpdated
-};
-
-const store_tickAverage = fn (tickAverage:$TA, to: type) void {
-      if to == storage {
-      	 @evm_sstore(@evm_add(TICK_AVERAGE_SLOT,1), tickAverage.prevTickAcc);
-      }
 };

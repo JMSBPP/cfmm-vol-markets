@@ -1,6 +1,8 @@
 use custom_utils::moreRegions::{storage,transient_storage};
 use custom_utils::math::{smin,smax};
 use TickMoments::TickSpacing::*;
+use TickMoments::TickAverage::{TickAcc,tickAccWord};
+use TickMoments::Window::*;
 use std::regions::{calldata,memory};
 use std::membytes::membytes;
 use std::slice::{Slice,get,new};
@@ -26,7 +28,7 @@ const MAX_TICK = 887272;
 const TickCalldata = tuple {u256,u256};
 const TickFromCalldataToMemory =  Slice(memory,u256, Some(2));
 
-// TODO: 0 is a valid tick value, but is the default value loaded from storage even if no one cas set_tick and has set a tickSpacing value, we might need to parametrize Tick by state as done with window
+// TODO: 0 is a valid tick value, but is the default value loaded from storage even if no one cas set_tik and has set a tickSpacing value, we might need to parametrize Tick by state as done with window
 const Tick = struct {
       val: u256,
       ts: TickSpacing
@@ -42,6 +44,10 @@ const tickReturnEVM = fn() never {
 
 
 // ===========================INPUT:Tick =================================
+const tickWord = fn (self: Tick) u256 {
+      tickVal(self)
+};
+
 const tickVal = fn(self: Tick) u256 {
       self.val
 };
@@ -95,3 +101,13 @@ const build_tick = fn(from: TickCalldata) Tick {
       Tick {val: tickBuilt , ts: tickSpacing }
 };
 
+
+
+
+const MeanTick = fn(from: type ,tickAcc :TickAcc, window : Window(WindowInitialized)) Tick {
+      let mut meanTick: Tick = toUpdateTick();
+      if from == storage {
+      	 meanTick = build_tick((@evm_sdiv(tickAccWord(tickAcc),window_idx(window)),tickSpacingOn(from)));
+      }
+      meanTick
+};

@@ -116,6 +116,13 @@ const proposedWindow = fn(len :u256, idx: u256) Window(WindowNotInitialized) {
       Window(WindowNotInitialized) {len: len, idx: idx}
 };
 
+const window_on = fn (on: type) Window(WindowInitialized){
+      let mut window: Window(WindowInitialized) = prospectWindow();
+      if on == storage {
+      	 window = Window(WindowInitialized) {len: @evm_sload(window_len_slot(WINDOW_SLOT)), idx: @evm_sload(window_idx_slot(WINDOW_SLOT))};
+      }
+      window
+};
 
 const build_window = fn(from: $O) Window(WindowNotInitialized) {
       let mut windowLenBuilt: u256 = WINDOW_NOT_INITIALIZED_LEN_VAL;
@@ -126,39 +133,38 @@ const build_window = fn(from: $O) Window(WindowNotInitialized) {
       	 windowLenBuilt = unwrap(get(windowMemory, WINDOW_LEN_CALLDATA_IDX));
      }
 
-     if O == storage {
-     	windowLenBuilt = @evm_sload(window_len_slot(WINDOW_SLOT));
-     	windowIdxBuilt = @evm_sload(window_idx_slot(WINDOW_SLOT));
-     }
-
      windowRevertEVMDueTo(proposedWindow(windowLenBuilt,windowIdxBuilt));
      Window(WindowNotInitialized) { len: windowLenBuilt, idx: windowIdxBuilt } 
-
 };
 
-const fullWindow = fn() Window(WindowInitialized) {
+const prospectWindow = fn() Window(WindowInitialized) {
       Window(WindowInitialized) {len: WINDOW_LEN_ONE, idx: WINDOW_NOT_INITIALIZED_LEN_VAL}
 };
 
 const update_window = fn(on: type) Window(WindowInitialized) {
-      let mut windowUpdated: Window(WindowInitialized) = fullWindow();
+      let mut windowUpdated: Window(WindowInitialized) = prospectWindow();
       if on == storage {
       	 @evm_sstore(window_state_slot(WINDOW_SLOT),WINDOW_INITIALIZED);
-      	 let mut currentWindow : Window(WindowNotInitialized) = build_window(on);
+      	 let mut currentWindow : Window(WindowInitialized) = window_on(on);
       	 if @evm_lt(window_idx(currentWindow),window_len(currentWindow)) {
 	     let idx : u256 = @evm_add(window_idx(currentWindow), STEP_IDX);
 	     @evm_sstore(window_idx_slot(WINDOW_SLOT),idx);
 	     windowUpdated = Window(WindowInitialized) {len: window_len(currentWindow), idx: idx};
+	     if @evm_eq(idx, window_len(currentWindow)) {
+	     	 restart_window(on);
+	     }
 	 }
 
 	 if @evm_eq(window_idx(currentWindow),window_len(currentWindow)) {
 	    windowUpdated = Window(WindowInitialized) {len: window_len(currentWindow), idx: window_idx(currentWindow)};
-	    currentWindow = restart_window(on);
+	    restart_window(on);
 	 }
       };
       windowUpdated
 };
 
+
+// windowIdx is starticg from 0 and
 const restart_window = fn (on: type) Window(WindowNotInitialized) {
       if on == storage {
       	 @evm_sstore(window_idx_slot(WINDOW_SLOT),window_idx(nill_window()));

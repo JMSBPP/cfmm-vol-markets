@@ -106,7 +106,7 @@ const MaxTickSpacing = fn () TickSpacing {
 };
 
 const DefaultTickSpacing = fn () TickSpacing {
-      tickSpacing(DEFAULT_TICK_SPACING)
+      tickSpacingVal(DEFAULT_TICK_SPACING)
 };
 
 const build_tickSpacing = fn(from: $O) TickSpacing {
