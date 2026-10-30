@@ -8,7 +8,7 @@ use TickMoments::Window::*;
 use TickMoments::TickAverage::*;
 use TickMoments::Tick::*;	   
 use TickMoments::TickSpacing::*;
-
+use TickMoments::TickRealizedVolatility::*;
 
 
 const SET_TICK_TOPIC = 0x2833a7bdc4e30391adeb052e4232401f54ff1a34cd8db2c61c32b3199b3907c2;
@@ -23,7 +23,9 @@ run {
     if selector == READ_TICK_SELECTOR {
        tickReturnEVM();
     } else if selector == READ_TICK_AVERAGE_SELECTOR {
-      tickAverageReturnEVM();     
+      tickAverageReturnEVM();
+    } else if selector == READ_TICK_REALIZED_VOLATILITY_SELECTOR {
+      tickRealizedVolatilityReturnEVM();      
     } else if selector == READ_TICK_SPACING_SELECTOR {
         tickSpacingReturnEVM();  
     } else if selector == SET_WINDOW_SELECTOR {
@@ -39,8 +41,10 @@ run {
 	let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingOn(storage));
 	let tick :Tick = build_tick(tickCalldata);
 	let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
+	let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);			    
 	store_tick(tick,storage);
 	store_tickAverage(updatedTickAvg,storage);
+	store_tickRealizedVolatility(updatedTickRealizedVol,storage);
 	@evm_return(@malloc_uninit(0), 0);
     } else if selector == SET_TICK_SPACING_SELECTOR {
       	 let tickSpacingCalldata: TickSpacingCalldata = (tickSpacingVal(@evm_calldataload(4)),);
@@ -51,22 +55,3 @@ run {
       @evm_revert(@malloc_uninit(0), 0);
     }
 }    
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // if selector == SET_TICK_SELECTOR {								  //
-    //     let tick: Tick = fetch_tick(calldata);							  //
-    // 	let avg: TickAverage = updated_average(transient_storage, tick, window_state(storage));		  //
-    // 	store_tick(calldata,transient_storage);								  //
-    // 	store_tick_average(memory,transient_storage,avg);						  //
-    //     @evm_stop();											  //
-    // }												  //
-    // 													  //
-    // if selector == READ_TICK_SELECTOR {								  //
-    //     fetch_tick(transient_storage);								  //
-    // }												  //
-    // 													  //
-    // if selector == READ_TICK_AVERAGE_SELECTOR {							  //
-    //   	fetch_tick_average(transient_storage);   						  //
-    //     @evm_revert(@malloc_uninit(0), 0);								  //
-    // }												  //
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////
-// }

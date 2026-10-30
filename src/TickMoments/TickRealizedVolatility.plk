@@ -1,0 +1,79 @@
+use std::core::uint::{u88,try_cast_uint};
+use std::option::unwrap;
+use TickMoments::TickAverage::{TickAverage, prospectTickAverage};
+use TickMoments::Window::WindowInitialized;
+use custom_utils::moreRegions::storage;
+
+// cast keccak vol-markets.TickMoments.tickRealizedVolatility
+
+const TICK_REALIZED_VOLATILITY_SLOT = 0xf69e753063c9a37dc7169cc2d90bb6795545b8db9f6c22f3d499d73437f5553a;
+
+// cast sig "read_tick_realizedVolatility()"
+const READ_TICK_REALIZED_VOLATILITY_SELECTOR = 0x8ace0c4f;
+
+const NOT_TICK_2_ACC = 0;
+const NOT_TICK_VOL_WORD = 0;
+
+const TickRealizedVolVal = u88;
+const Tick2Acc = u256;
+
+
+// TODO: From now we assume TAS = WS; This is to be verified
+const TickRealizedVol = fn(tickAverageState : type ) type {
+      struct {
+      	     refTickAvg: TickAverage(tickAverageState),
+	     prevTick2Acc: Tick2Acc,
+	     tickVol: TickRealizedVolVal
+      }
+};
+
+const store_tickRealizedVolatility = fn (tickRealizedVol :$TRV, to: type) void {
+      if to == storage {
+      	 @evm_sstore(@evm_add(TICK_REALIZED_VOLATILITY_SLOT,1), tickRealizedVolPrevTick2Acc(tickRealizedVol));
+	 @evm_sstore(TICK_REALIZED_VOLATILITY_SLOT, tickRealizedVolWord(tickRealizedVolRealizedVol(tickRealizedVol)));
+      }
+};
+
+
+const tickRealizedVolatilityReturnEVM= fn () never {
+      let retBuff: u256 = @malloc_uninit(32);
+      @mstore32(retBuff,@evm_sload(TICK_REALIZED_VOLATILITY_SLOT));
+      @evm_return(retBuff,32);
+};
+
+
+const tickRealizedVolPrevTick2Acc = fn(tickRealizedVol:$TRV) Tick2Acc {
+      tickRealizedVol.prevTick2Acc          
+};
+
+const notYetTick2Acc = fn() Tick2Acc {
+      NOT_TICK_2_ACC            
+};
+
+
+const tickRealizedVolRealizedVol = fn(tickRealizedVol:$TRV) TickRealizedVolVal {
+      tickRealizedVol.tickVol      
+};
+
+const noTickVol = fn() TickRealizedVolVal {
+      unwrap(try_cast_uint(NOT_TICK_VOL_WORD,TickRealizedVolVal))            
+};
+
+const tickRealizedVolWord = fn (tickRealizedVolVal :TickRealizedVolVal) u256 {
+     unwrap(try_cast_uint(tickRealizedVolVal,u256))
+};
+
+const prospectTickRealizedVolatility = fn() TickRealizedVol(WindowInitialized) {
+      TickRealizedVol(WindowInitialized) {refTickAvg: prospectTickAverage(), prevTick2Acc: notYetTick2Acc(), tickVol: noTickVol() }
+};
+
+const update_realized_volatility = fn (on:type, tickValue:$T) TickRealizedVol(WindowInitialized) {
+      prospectTickRealizedVolatility()            
+};
+
+
+
+
+
+
+
