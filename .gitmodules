@@ -12,9 +12,6 @@
 [submodule "offchain"]
 	path = offchain
 	url = https://github.com/d2p-finance/gams-evm-transport.git
-[submodule "spec"]
-	path = spec
-	url = https://github.com/d2p-finance/cfmm-vol-markets-spec.git
 [submodule "refs"]
 	path = refs
 	url = https://github.com/d2p-finance/cfmm-refs.git
