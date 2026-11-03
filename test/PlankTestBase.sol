@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
 import {PlankDeployer, BuildOptions, Dependency} from "plank-foundry-deployer/PlankDeployer.sol";
+import {PushableStringsLib} from "plank-foundry-deployer/mini-vm.sol";
 
 /// @title PlankTestBase
 /// @notice Single source of truth for the Plank module roots used when deploying `.plk`
@@ -39,6 +40,12 @@ abstract contract PlankTestBase is Test, PlankDeployer {
     /// @notice Compile and deploy a `.plk` entrypoint with the standard module roots.
     function deployPlank(string memory path) internal returns (address) {
         return plankDeployFFI(path, plankOpts());
+    }
+    
+    function deployPlank(string memory path, bytes memory extraArgs) internal returns(address){
+	BuildOptions memory opts =  plankOpts();
+	opts.extraArgs = PushableStringsLib.push(opts.extraArgs,string(extraArgs));
+	return plankDeployFFI(path,opts);
     }
 
     /// @notice Deploy a cfmm-types `.plk` entrypoint (Hook miner, etc.).

@@ -29,3 +29,9 @@
 [submodule "lib/solady"]
 	path = lib/solady
 	url = https://github.com/Vectorized/solady
+[submodule "lib/v4-core"]
+	path = lib/v4-core
+	url = https://github.com/uniswap/v4-core
+[submodule "lib/panoptic-v2-core"]
+	path = lib/panoptic-v2-core
+	url = https://github.com/panoptic-labs/panoptic-v2-core
