@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {Test} from "forge-std/Test.sol";
-import {PlankDeployer, BuildOptions, Dependency} from "plank-foundry-deployer/PlankDeployer.sol";
+import {BaseTest} from "../plank-target/plankc/plank-diff-tests/test/BaseTest.sol";
+import {BuildOptions, Dependency} from "plank-foundry-deployer/PlankDeployer.sol";
 import {PushableStringsLib} from "plank-foundry-deployer/mini-vm.sol";
 
 /// @title PlankTestBase
@@ -13,7 +13,10 @@ import {PushableStringsLib} from "plank-foundry-deployer/mini-vm.sol";
 ///      drifted apart: none of them declared the `interfaces` root, so any test deploying a
 ///      module that imports `interfaces::` (e.g. VolOrderManagerMod) failed with
 ///      "unknown module 'interfaces'". These roots MUST stay in lockstep with `just plank`.
-abstract contract PlankTestBase is Test, PlankDeployer {
+///
+/// @dev Inherits plank-diff-tests `BaseTest` (`deployCodeTo`, `plank`) so etched Plank
+///      contracts get runtime bytecode (initcode → call → etch return data), not raw initcode.
+abstract contract PlankTestBase is BaseTest {
     /// @dev Same roots as `just plank` (latest plank-target std + TickMoments).
     function plankOpts() internal pure returns (BuildOptions memory opts) {
         opts.backend = "sona";
@@ -37,15 +40,43 @@ abstract contract PlankTestBase is Test, PlankDeployer {
         opts.dependencies = deps;
     }
 
+    function baseBuildOptions() internal pure override returns (BuildOptions memory) {
+        return plankOpts();
+    }
+
+    function plankBuild(string memory sourcePath, BuildOptions memory options)
+        internal
+        override
+        returns (bytes memory)
+    {
+        return plankBuildFFI(sourcePath, options);
+    }
+
+    function plank(string memory sourcePath) internal override returns (bytes memory) {
+        return plankBuildFFI(sourcePath, plankOpts());
+    }
+
+    function plank(string memory sourcePath, string memory evmVersionOverride)
+        internal
+        override
+        returns (bytes memory)
+    {
+        BuildOptions memory options = plankOpts();
+        if (bytes(evmVersionOverride).length != 0) {
+            options = options.withEvmVersion(evmVersionOverride);
+        }
+        return plankBuildFFI(sourcePath, options);
+    }
+
     /// @notice Compile and deploy a `.plk` entrypoint with the standard module roots.
     function deployPlank(string memory path) internal returns (address) {
         return plankDeployFFI(path, plankOpts());
     }
-    
-    function deployPlank(string memory path, bytes memory extraArgs) internal returns(address){
-	BuildOptions memory opts =  plankOpts();
-	opts.extraArgs = PushableStringsLib.push(opts.extraArgs,string(extraArgs));
-	return plankDeployFFI(path,opts);
+
+    function deployPlank(string memory path, bytes memory extraArgs) internal returns (address) {
+        BuildOptions memory opts = plankOpts();
+        opts.extraArgs = PushableStringsLib.push(opts.extraArgs, string(extraArgs));
+        return plankDeployFFI(path, opts);
     }
 
     /// @notice Deploy a cfmm-types `.plk` entrypoint (Hook miner, etc.).

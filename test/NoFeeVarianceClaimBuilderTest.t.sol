@@ -4,8 +4,6 @@ pragma solidity 0.8.26;
 import {PlankTestBase} from "plank/PlankTestBase.sol";
 import {console2} from "forge-std/console2.sol";
 import {Deployers} from "v4-core-test/utils/Deployers.sol";
-import {CreateLegHarness} from "../src/CreateLegHarness.sol";
-import {LeftRightSigned, LeftRightUnsigned} from "panoptic-v2-core/contracts/types/LeftRight.sol";
 import {SemiFungiblePositionManagerV4} from "panoptic-v2-core/contracts/SemiFungiblePositionManagerV4.sol";
 import {ISemiFungiblePositionManager}
 from "panoptic-v2-core/contracts/interfaces/ISemiFungiblePositionManager.sol";
@@ -16,9 +14,10 @@ import {IWindow} from "./Window.t.sol";
 import {MIN_TICK,MAX_TICK,ITick,normTickVal} from "./Tick.t.sol";
 import {PoolKey} from "v4-core/types/PoolKey.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
+import {HookDeployer} from "@helpers/UniswapV4/HookDeployer.sol";
+import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
 
 uint256 constant VEGOID = 8;
-
 
 interface ITickRealizedVolatility {
     function readRealizedVolatility() external returns(uint88);
@@ -46,17 +45,41 @@ interface INoFeeVarianceClaimBuilder {
     function ongoingPayoff(uint88,uint256) external returns(uint128);
 }
 
-contract NoFeeVarianceClaimBuilderTest is PlankTestBase, Deployers {
+contract NoFeeVarianceClaimBuilderTest is PlankTestBase, Deployers, HookDeployer {
     address noFeeVarianceClaimBuilder =  makeAddr("cfmm.vol-markets.noFeeVarianceClaimBuilder");
-    address optionsClearingHouse = makeAddr("options-clearing-house");
+    address optionsClearingHouse = makeAddr("cfmm.vol-markets.options-clearing-house");
+    address underlying = makeAddr("cfmm.vol-markets.underlying");
+    address numeraire =  makeAddr("cfmm.vol-markets.numeraire");
+
+    address noFeeVarianceClaimController;
+    // REF for when deploying hooks
+        /*     (success, addr,) = deployHook( */
+        /*     bytes.concat(initcode, abi.encode(uni, controller)), */
+        /*     CREATE2_FACTORY, */
+        /*     hasAngstromHookFlags */
+        /* ); */
+    
     address usr = makeAddr("user");
     
     function setUp() public {
         deployFreshManager();
-	vm.etch(optionsClearingHouse,
-		abi.encodePacked(vm.getCode("panoptic-v2-core/contracts/SemiFungiblePositionManagerV4.sol"),manager, uint256(2100000000000000000000), uint256(2100000000000000000000), uint256(10000)));
-	vm.etch(noFeeVarianceClaimBuilder, plankBuildFFI("src/Main.plk", plankOpts()));
-	
+	// getCode is creation initcode; immutables need a real CREATE then etch runtime.
+	SemiFungiblePositionManagerV4 sfpm = new SemiFungiblePositionManagerV4(
+	    manager,
+	    2100000000000000000000,
+	    2100000000000000000000,
+	    10000
+	);
+	vm.etch(optionsClearingHouse, address(sfpm).code);
+	deployCodeTo(noFeeVarianceClaimBuilder, plank("src/Main.plk"));
+	deployCodeTo(underlying, plank("src/LiquidityKernel/Transfer.plk"));
+	deployCodeTo(numeraire, plank("src/LiquidityKernel/Transfer.plk"));
+	(bool succ, address _tmp,) = deployHook(
+					       plank("src/LiquidityKernel/Controller.plk"),
+					       CREATE2_FACTORY,
+					       NoFeeVarianceClaimBuilderPermissions
+	);
+	if (succ) { noFeeVarianceClaimController = _tmp;}
     }
 
     function test_PanopticPremiaMatchesNoFeeVolatilityClaimPayoffForAllTickStepsOnWindow(
