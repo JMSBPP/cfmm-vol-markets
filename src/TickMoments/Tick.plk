@@ -102,12 +102,16 @@ const build_tick = fn(from: TickCalldata) Tick {
 };
 
 
-
+const tickOn = fn(on : type) Tick {
+      if on == storage {
+      	 Tick{ val: @evm_sload(TICK_SLOT), ts: tickSpacingOn(storage)}
+      }
+};
 
 const MeanTick = fn(from: type ,tickAcc :TickAcc, window : Window(WindowInitialized)) Tick {
       let mut meanTick: Tick = toUpdateTick();
       if from == storage {
-      	 meanTick = build_tick((@evm_sdiv(tickAccWord(tickAcc),window_idx(window)),tickSpacingOn(from)));
+      	 meanTick = build_tick((@evm_sdiv(tickAccWord(tickAcc),window_idx(window)),tickSpacingWord(tickSpacingOn(from))));
       }
       meanTick
 };

@@ -1,0 +1,12 @@
+use std::constructor::return_runtime;
+
+
+init{
+	return_runtime();
+}
+
+run {
+    @evm_stop();
+}
+
+

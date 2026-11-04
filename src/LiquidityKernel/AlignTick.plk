@@ -1,0 +1,77 @@
+use std::constructor::return_runtime;
+use TickMoments::Tick::{TickCalldata,Tick, tickWord};	   
+// cast keccak vol-markets.Uniswap.IO
+const IO_SLOT = 0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f51b;
+
+// cast keccak VolMarkets.Aligner
+const ALIGNER_SLOT = 0x9e3cd23d05abbd9a7a5ca9ecf08e0a1150bd5e3e48e3ab65660d6eef78375e3d;
+
+const AlignCalldata = tuple{u256, u256};
+
+const emptyAlignCalldata = fn () AlignCalldata {
+      (0,0)
+};
+
+const partialAlignTickCalldata = fn (tick: Tick) AlignCalldata {
+      let mut partAlignCalldata: AlignCalldata = emptyAlignCalldata();
+      partAlignCalldata = @set_field(partAlignCalldata, 0, tickWord(tick));
+      partAlignCalldata
+};
+
+const completeAlignTickCalldata = fn (alignCalldata: AlignCalldata, tick :Tick) AlignCalldata {
+      let mut completedAlignTickCalldata: AlignCalldata = alignCalldata;
+      completedAlignTickCalldata = @set_field(completedAlignTickCalldata, 1, tickWord(tick));
+      completedAlignTickCalldata
+};
+
+const requestTickAlignment = fn (alignCalldata: AlignCalldata) void {
+      // todo: it must check is completed
+      // 4 +(32*2)
+      let callBuff :u256 = @malloc_uninit(68);
+      // cast sig "align(int24,int24)"
+      @mstore4(callBuff, 0xf2e85b41);
+      @mstore32(callBuff +% 4, @get_field(alignCalldata, 0));
+      @mstore32(callBuff +% 36, @get_field(alignCalldata, 1));
+      if !@evm_call(@evm_gas(), @evm_sload(ALIGNER_SLOT), 0, callBuff, 68,0,0) {
+      	 // cast sig "FailedToAlignTicks()"
+      	 @mstore4(callBuff, 0x3a7cd028);
+	 @evm_revert(callBuff, 4);
+      }
+};
+
+init {
+     return_runtime();
+}
+
+run {
+    
+    let selector = @evm_shr(224,@evm_calldataload(0));
+    // cast sig "setIO(address)"
+    if selector == 0x5340463b {
+       let io: u256 = @evm_calldataload(4);
+       let buff: u256 = @malloc_uninit(32);
+       @evm_sstore(IO_SLOT, io);
+       @evm_return(buff,32);
+       
+    }
+    // cast sig "IO()"
+    else if selector == 0xb61883fd {
+    	 let retBuff : u256 = @malloc_uninit(32);
+	 @mstore32(retBuff, @evm_sload(IO_SLOT));
+	 @evm_return(retBuff, 32);
+    }
+    // cast sig "align(int24,int24)"
+    else if selector == 0xf2e85b41 {
+	 let caller: u256 = @evm_caller();
+	 if !(caller == @evm_sload(IO_SLOT)) {
+	    if !(caller == @evm_address_this()) {
+	       let revBuff: u256 = @malloc_uninit(4);
+	       // error InvalidCaller();
+	       @mstore4(revBuff, 0x48f5c3ed);
+	       @evm_revert(revBuff, 4);
+	    }
+	 }
+	 @evm_return(@malloc_uninit(0), 0);
+    }
+    @evm_stop();
+}

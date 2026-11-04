@@ -55,12 +55,6 @@ const isTickSpacingOn = fn(on:type) bool {
       tickSpacingOnRes
 };
 
-const tickSpacingOn = fn(on: type) u256 {
-      if on == storage {
-      	 tickSpacingWord(@evm_sload(TICK_SPACING_SLOT))
-      }
-};
-
 const tickSpacingReturnEVM = fn () never {
       tickSpacingRevertEVMDueTo(storage);	     
 
@@ -93,6 +87,11 @@ const tickSpacingVal = fn(word: $W) TickSpacing {
      unwrap(try_cast_uint(word,TickSpacing))
 };
 
+const tickSpacingOn = fn(on: type) TickSpacing {
+      if on == storage {
+      	 tickSpacingVal(@evm_sload(TICK_SPACING_SLOT))
+      }
+};
 const notYetTickSpacing = fn() TickSpacing {
       tickSpacingVal(NOT_TICK_SPACING)
 };

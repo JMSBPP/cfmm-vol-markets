@@ -1,0 +1,24 @@
+use std::constructor::return_runtime;
+
+// cast keccak vol-markets.Draft.PendingDebt
+const PENDING_DEBT_SLOT = 0xdfd64ab9b1d5bfce1a22b08fa073b82f9327821252e825200ab0fc0fa383a7e0;
+const BALANCE_OF_SELECTOR = 0x70a08231;
+
+init {
+     return_runtime();
+}
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    // cast sig "notifyDebt(uint256)"
+    if selector == 0x08696b8e { @evm_tstore(PENDING_DEBT_SLOT, @evm_calldataload(4));}
+    else if selector == BALANCE_OF_SELECTOR {
+    	 let debt :u256 = @evm_tload(PENDING_DEBT_SLOT);
+	 let balRetBuff: u256 = @malloc_uninit(32);
+	 @mstore32(balRetBuff, debt);
+	 @evm_return(balRetBuff,32);
+    }
+    let voidBuffer: u256 = @malloc_uninit(32);
+    @mstore32(voidBuffer , @bool_to_u256(true));
+    @evm_return(voidBuffer,32);
+}
