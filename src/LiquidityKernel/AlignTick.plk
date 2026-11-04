@@ -1,10 +1,16 @@
 use std::constructor::return_runtime;
+use LiquidityKernel::Transition::*;
+
 use TickMoments::Tick::{TickCalldata,Tick, tickWord};	   
+// cast keccak vol-markets.Uniswap.PoolManager
+const POOL_MANAGER_SLOT = 0x88a114aa1e554c058ec89d3e36fbd9461439057395b0516c7441f43f1154c823;
+
 // cast keccak vol-markets.Uniswap.IO
 const IO_SLOT = 0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f51b;
-
 // cast keccak VolMarkets.Aligner
 const ALIGNER_SLOT = 0x9e3cd23d05abbd9a7a5ca9ecf08e0a1150bd5e3e48e3ab65660d6eef78375e3d;
+
+
 
 const AlignCalldata = tuple{u256, u256};
 
@@ -46,8 +52,30 @@ init {
 run {
     
     let selector = @evm_shr(224,@evm_calldataload(0));
+    // cast sig "unlockCallback(bytes)"
+    if selector == 0x91dd7346 {
+       // ((32*5) + (32*3) + 4) [260] + (32*2)
+       let swapBuff: u256 = @malloc_uninit(324);
+       // cast sig "swap((address,address,uint24,int24,address),(bool,int256,uint160),bytes)"
+       @mstore4(swapBuff, 0xf3cd914c);
+       let alignCalldata : AlignCalldata = (@evm_calldataload(68),@evm_calldataload(100));
+       let transitionParams :TransitionParams = configureTransition(alignCalldata);
+       if !@evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), 0, swapBuff, 260,swapBuff+%228,32) {
+       	  // todo: bubble with the reason
+	  // cast sig "FailedSwap()"
+       	  @mstore4(swapBuff, 0x38f18871);
+	  @evm_revert(swapBuff,4);
+       }
+       
+       @evm_return(swapBuff+%228,32);
+    }
+    // cast sig "setPoolManager(address)"
+    else if selector == 0x7aef6715 {
+    	 @evm_sstore(POOL_MANAGER_SLOT, @evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32),32);
+    }
     // cast sig "setIO(address)"
-    if selector == 0x5340463b {
+    else if selector == 0x5340463b {
        let io: u256 = @evm_calldataload(4);
        let buff: u256 = @malloc_uninit(32);
        @evm_sstore(IO_SLOT, io);
@@ -63,15 +91,31 @@ run {
     // cast sig "align(int24,int24)"
     else if selector == 0xf2e85b41 {
 	 let caller: u256 = @evm_caller();
+	 // this is to account for writing 
+	 let alignBuff: u256 = @malloc_uninit(196);
 	 if !(caller == @evm_sload(IO_SLOT)) {
 	    if !(caller == @evm_address_this()) {
-	       let revBuff: u256 = @malloc_uninit(4);
 	       // error InvalidCaller();
-	       @mstore4(revBuff, 0x48f5c3ed);
-	       @evm_revert(revBuff, 4);
+	       @mstore4(alignBuff, 0x48f5c3ed);
+	       @evm_revert(alignBuff, 4);
 	    }
 	 }
-	 @evm_return(@malloc_uninit(0), 0);
+	 // cast sig "unlock(bytes)"
+         @mstore4(alignBuff, 0x48c89491);
+	 @mstore32(alignBuff +%4, 0x20);
+	 @mstore32(alignBuff +%36, 64);
+	 @mstore32(alignBuff +%68, @evm_calldataload(4));
+	 @mstore32(alignBuff +%100, @evm_calldataload(36));
+
+	 if !@evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), 0, alignBuff, 132 ,alignBuff +%132,32) {
+	    // cast sig "FailedToUnlockPoolManager()"
+	    @mstore4(alignBuff,0xadefee02);
+	    @evm_revert(alignBuff,4);
+	 }
+	 
+	 @mstore32(alignBuff +%132,0x20);
+	 @evm_return(alignBuff +%132,32);
     }
-    @evm_stop();
+    @evm_return(@malloc_zeroed(32),32);
 }
+

@@ -5,14 +5,16 @@ import {PlankTestBase} from "@test/PlankTestBase.sol";
 import {ITick, MIN_TICK, MAX_TICK, normTickVal} from "@test/Tick.t.sol";
 import {ITickSpacing} from "@test/TickSpacing.t.sol";
 import {IWindow} from "@test/Window.t.sol";
-
-
+import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
+import {IUnlockCallback} from "v4-core/interfaces/callback/IUnlockCallback.sol";
+import {Deployers} from "v4-core-test/utils/Deployers.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
 interface IEnv {
     function setIO(address) external;
     function IO() external returns(address);
     function setTickAligner(address) external;
+    function setPoolManager(address) external;
 }
 
 interface ITickAligner {
@@ -20,17 +22,18 @@ interface ITickAligner {
     error InvalidCaller();
     function align(int24,int24) external;
 }
-contract AlignTickTest is PlankTestBase {
+contract AlignTickTest is PlankTestBase, Deployers {
 
     address main = makeAddr("cfmm-vol-markets.main");
     address alignTickHarness = makeAddr("cfmm-vol-markets.alignTick");
     address poolManager = makeAddr("cfmm-vol-markets.poolManager");
 
     function setUp() public {
+	deployFreshManager();
 	deployCodeTo(main, plank("src/Main.plk"));
 	deployCodeTo(alignTickHarness, plank("src/LiquidityKernel/AlignTick.plk"));
-	vm.etch(poolManager,"v4-core/PoolManager.sol");
-	
+	// Real PoolManager runtime (path string etch is not executable unlock→callback).
+	vm.etch(poolManager, address(manager).code);
     }
     
     modifier whenAlignIsCalledInAlignTick() {
@@ -64,7 +67,7 @@ contract AlignTickTest is PlankTestBase {
 	
 	IEnv(alignTickHarness).setIO(main);
 	IEnv(main).setTickAligner(alignTickHarness);
-
+	IEnv(alignTickHarness).setPoolManager(poolManager);
 	ITickSpacing(main).set_tick_spacing(tickSpacing);
 	IWindow(main).set_window(windowLenCalldata);
 
@@ -73,16 +76,21 @@ contract AlignTickTest is PlankTestBase {
 	do {
 	    int256 tickSeed = vm.randomInt();
 	    int24 tickOnRun = SafeCastLib.toInt24(bound(int256(tickSeed),int256(MIN_TICK),int256(MAX_TICK)));
+	    // It should revert if one of the passed ticks on calldata is not the read_tick on Main.
 	    int24 prevTick =  ITick(main).read_tick();
 	    int24 newTick = normTickVal(tickOnRun, ITickSpacing(main).read_tick_spacing());
 	    vm.expectCall(alignTickHarness,abi.encodeCall(ITickAligner.align,(prevTick,newTick)));
+	    vm.expectCall(poolManager, abi.encodeCall(IPoolManager.unlock, (abi.encode(prevTick,newTick))));
+
+	    vm.expectCall(alignTickHarness, abi.encodeCall(IUnlockCallback.unlockCallback,(abi.encode(prevTick,newTick))));
+	    // It should call unlock on poolManager passing the pair of ticks as unlockCalldata
+	    
 	    ITick(main).set_tick(tickOnRun);
 	    
 	 
-	   // It should revert if one of the passed ticks on calldata is not the read_tick on Main.
+	   
 	    windowIdx++;
 	// NOTE: When ticks have not been initialized read_tick is zero 
-        // TODO: It should call unlock on poolManager passing the pair of ticks as unlockCalldata.
 	    
          } while (windowIdx < maxIdxPick);
     }
