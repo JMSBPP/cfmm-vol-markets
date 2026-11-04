@@ -21,11 +21,11 @@ abstract contract PlankTestBase is BaseTest {
     function plankOpts() internal pure returns (BuildOptions memory opts) {
         opts.backend = "sona";
 
-        Dependency[] memory deps = new Dependency[](3);
+        Dependency[] memory deps = new Dependency[](4);
         deps[0] = Dependency("std", "plank-target/std/");
         deps[1] = Dependency("TickMoments", "src/TickMoments/");
         deps[2] = Dependency("custom_utils", "src/utils");
-
+	deps[3] = Dependency("Asset", "src/Asset");
         opts.dependencies = deps;
     }
 

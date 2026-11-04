@@ -19,14 +19,26 @@ import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
 
 uint256 constant VEGOID = 8;
 
+interface IFeeSetter {
+    function set_fee(uint24) external;
+}
+
+interface IControllerSetter {
+    function setController(address) external;
+}
+
+
 interface ITickRealizedVolatility {
     function readRealizedVolatility() external returns(uint88);
 }
 
 interface ITickMoments is ITickAverage, ITickRealizedVolatility{}
 
-interface IMarketLens {
 
+interface IMarketBuilder {
+    function setPair(address,address,bool) external;
+}
+interface IMarketLens {
     function getMarketKey() external returns(bytes memory);
 }
 
@@ -80,6 +92,29 @@ contract NoFeeVarianceClaimBuilderTest is PlankTestBase, Deployers, HookDeployer
 					       NoFeeVarianceClaimBuilderPermissions
 	);
 	if (succ) { noFeeVarianceClaimController = _tmp;}
+
+	IMarketBuilder(noFeeVarianceClaimBuilder).setPair(underlying,numeraire,true);
+    }
+
+    function test__PanopticWhenSetTickOnMainItUpdatesCfmmTickToTickCalldata (
+									     	        uint256 windowLen,
+							  uint24 tickSpacing,
+							  uint256 maxIdx
+    ) external {
+	uint256 windowLenCalldata = bound(windowLen, 1, 200);
+	ITickSpacing(noFeeVarianceClaimBuilder).set_tick_spacing(tickSpacing);
+	IFeeSetter(noFeeVarianceClaimBuilder).set_fee(uint24(0));
+	IControllerSetter(noFeeVarianceClaimBuilder).setController(noFeeVarianceClaimController);
+        IWindow(noFeeVarianceClaimBuilder).set_window(windowLenCalldata);
+	uint256 maxIdxPick = bound(maxIdx,1,windowLenCalldata);
+	uint256 windowIdx = 0;
+	bytes memory underlyingMarket = IMarketLens(noFeeVarianceClaimBuilder).getMarketKey();
+	do {
+	    int256 tickSeed = vm.randomInt();
+	    int24 tickOnRun = SafeCastLib.toInt24(bound(int256(tickSeed),int256(MIN_TICK),int256(MAX_TICK)));
+	    ITick(noFeeVarianceClaimBuilder).set_tick(tickOnRun);
+	    assertEq(ITick(noFeeVarianceClaimBuilder).read_tick(),ISemiFungiblePositionManager(optionsClearingHouse).getCurrentTick(underlyingMarket));
+       } while (windowIdx < maxIdxPick); 
     }
 
     function test_PanopticPremiaMatchesNoFeeVolatilityClaimPayoffForAllTickStepsOnWindow(
@@ -90,16 +125,17 @@ contract NoFeeVarianceClaimBuilderTest is PlankTestBase, Deployers, HookDeployer
     ) external {
 	uint256 windowLenCalldata = bound(windowLen, 1, 200);
 	ITickSpacing(noFeeVarianceClaimBuilder).set_tick_spacing(tickSpacing);
+	IFeeSetter(noFeeVarianceClaimBuilder).set_fee(uint24(0));
+	IControllerSetter(noFeeVarianceClaimBuilder).setController(noFeeVarianceClaimController);
         IWindow(noFeeVarianceClaimBuilder).set_window(windowLenCalldata);
 	uint256 maxIdxPick = bound(maxIdx,1,windowLenCalldata);
 	uint256 windowIdx = 0;
 	bytes memory underlyingMarket = IMarketLens(noFeeVarianceClaimBuilder).getMarketKey();
 	do {
-	    vm.startPrank(usr);
 	    int256 tickSeed = vm.randomInt();
 	    int24 tickOnRun = SafeCastLib.toInt24(bound(int256(tickSeed),int256(MIN_TICK),int256(MAX_TICK)));
 	    ITick(noFeeVarianceClaimBuilder).set_tick(tickOnRun);
-	  
+	    vm.startPrank(usr);
 	    (,uint128 usrPremiumOnNumeraire) = ISemiFungiblePositionManager(optionsClearingHouse).getAccountPremium(
 	        underlyingMarket,
 	        usr,
