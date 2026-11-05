@@ -3,12 +3,14 @@ use custom_utils::math::{smin,smax};
 use TickMoments::TickSpacing::*;
 use TickMoments::TickAverage::{TickAcc,tickAccWord};
 use TickMoments::Window::*;
+
+use LiquidityKernel::AlignTick::AlignCalldata;
 use std::regions::{calldata,memory};
 use std::membytes::membytes;
 use std::slice::{Slice,get,new};
 use std::option::{unwrap,Some};
 use std::core::uint::{try_cast_uint,u24};
-use std::core::ops::neg_u256;
+use std::core::ops::{neg_u256, less_equals};
 
 // cast keccak vol-markets.Tick
 const TICK_SLOT = 0x62b50c96ec7c8db111173d139b431c4ef72820d773cfe40f8537db4c663ab7e6;
@@ -58,6 +60,57 @@ const store_tick = fn (tick:$T,to: type) void {
       }
 };
 
+const TickPrecedence = bool;
+// TODO: tmp
+const notTickPrecedence = fn () TickPrecedence {
+      false
+};
+
+const precedesTick = fn (ref : Tick,target : Tick) TickPrecedence {
+      // TODO: From now this is the comparison, future version must be a native equivalent comparison
+      less_equals(sqrtPriceWord(sqrtPriceFromTick(ref)),sqrtPriceWord(sqrtPriceFromTick(target)))
+};
+// TODO: This type needs refinement as it can be missread; This ends up being mapped to amountSpecified
+// on SwapParams
+const TickDistance = u256;
+ 
+const nullTickDistance = fn () TickDistance {
+      0
+};
+
+const WAD = 0x0000000000000000000000000000000000000000000000000de0b6b3a7640000;
+const arbitraryDistance = fn () TickDistance {
+      WAD      
+};
+
+
+use std::core::uint::u160;
+const Q64_96 = u160;
+const SqrtPrice = Q64_96;
+
+const sqrtPriceWord = fn (sqrtPriceVal :SqrtPrice) u256 {
+      unwrap(try_cast_uint(sqrtPriceVal, u256))
+};
+
+const sqrtPriceFromWord = fn (word: u256) SqrtPrice {
+      unwrap(try_cast_uint(word, SqrtPrice))
+};
+
+const sqrtPriceFromTick = fn(tick: Tick) SqrtPrice {
+      unwrap(try_cast_uint(getSqrtRatioAtTick(tickWord(tick)),SqrtPrice))
+};
+
+const nullSqrtPrice = fn () SqrtPrice{
+      sqrtPriceFromWord(0)
+};
+
+const EqSqrtPrice = fn (p1:SqrtPrice,p2:SqrtPrice) bool {
+      sqrtPriceWord(p1) == sqrtPriceWord(p2)
+};
+
+const NeqSqrtPrice = fn(p1: SqrtPrice,p2:SqrtPrice) bool {
+      !EqSqrtPrice(p1, p2)
+};
 
 // ============================ OUTPUT: Tick =================================
 const maxTick = fn( tickSpacing: $ts) Tick {
@@ -101,11 +154,34 @@ const build_tick = fn(from: TickCalldata) Tick {
       Tick {val: tickBuilt , ts: tickSpacing }
 };
 
-
 const tickOn = fn(on : type) Tick {
+      let mut resTick : Tick = toUpdateTick();
       if on == storage {
-      	 Tick{ val: @evm_sload(TICK_SLOT), ts: tickSpacingOn(storage)}
+	 resTick = @set_field(resTick,"val", @evm_sload(TICK_SLOT));
+	 resTick = @set_field(resTick, "ts", tickSpacingVal(@evm_sload(TICK_SPACING_SLOT)));
       }
+      resTick
+};
+
+const targetTick = fn (alignCalldata: AlignCalldata) Tick {
+      let resTick: Tick = @set_field(toUpdateTick(), "val",@get_field(alignCalldata,1));
+      resTick
+};
+
+const tickOnExternal = fn (src:u256 ,on: type) Tick {
+      let mut resTick : Tick = toUpdateTick();
+      if on == storage {
+      	  let tickBuff: u256 = @malloc_uninit(36);
+      	  @mstore4(tickBuff, READ_TICK_SELECTOR);
+      	  if !@evm_call(@evm_gas(), src, NO_VALUE, tickBuff,4,tickBuff+%4,32) {
+      	     	// cast sig "FailedToFetchTickFromAddress()"
+      	 	@mstore4(tickBuff, 0x87bd940a);
+          }
+      	 @evm_returndatacopy(tickBuff+%4,0,32);
+      	 resTick = @set_field(resTick,"val",@mload32(tickBuff+%4));
+	 resTick = @set_field(resTick, "ts" , tickSpacingOnExternal(src,on));
+      }
+      resTick
 };
 
 const MeanTick = fn(from: type ,tickAcc :TickAcc, window : Window(WindowInitialized)) Tick {
@@ -114,4 +190,51 @@ const MeanTick = fn(from: type ,tickAcc :TickAcc, window : Window(WindowInitiali
       	 meanTick = build_tick((@evm_sdiv(tickAccWord(tickAcc),window_idx(window)),tickSpacingWord(tickSpacingOn(from))));
       }
       meanTick
+};
+
+
+// note: vendored from plankified-v3
+const getSqrtRatioAtTick = fn (tick: u256) u256 {
+    let absTick = if @evm_slt(tick, 0) { -tick } else { tick };
+    if absTick > 887272 {
+       // note: revert with custom reason
+        let p = @malloc_uninit(100);
+    	@mstore4(p, 0x08c379a0);
+    	@mstore32(p +% 4, 0x20);
+    	@mstore32(p +% 36, 1);
+    	@mstore32(p +% 68, 0x5200000000000000000000000000000000000000000000000000000000000000);
+    	@evm_revert(p, 100);
+    }
+
+    let mut ratio = if absTick & 1 > 0 { 0xfffcb933bd6fad37aa2d162d1a594001 } else { 0x100000000000000000000000000000000 };
+
+    if absTick & 0x2   > 0 { ratio = @evm_shr(128, ratio *% 0xfff97272373d413259a46990580e213a); }
+    if absTick & 0x4   > 0 { ratio = @evm_shr(128, ratio *% 0xfff2e50f5f656932ef12357cf3c7fdcc); }
+    if absTick & 0x8   > 0 { ratio = @evm_shr(128, ratio *% 0xffe5caca7e10e4e61c3624eaa0941cd0); }
+    if absTick & 0x10  > 0 { ratio = @evm_shr(128, ratio *% 0xffcb9843d60f6159c9db58835c926644); }
+    if absTick & 0x20  > 0 { ratio = @evm_shr(128, ratio *% 0xff973b41fa98c081472e6896dfb254c0); }
+    if absTick & 0x40  > 0 { ratio = @evm_shr(128, ratio *% 0xff2ea16466c96a3843ec78b326b52861); }
+    if absTick & 0x80  > 0 { ratio = @evm_shr(128, ratio *% 0xfe5dee046a99a2a811c461f1969c3053); }
+    if absTick & 0x100 > 0 { ratio = @evm_shr(128, ratio *% 0xfcbe86c7900a88aedcffc83b479aa3a4); }
+    if absTick & 0x200 > 0 { ratio = @evm_shr(128, ratio *% 0xf987a7253ac413176f2b074cf7815e54); }
+    if absTick & 0x400 > 0 { ratio = @evm_shr(128, ratio *% 0xf3392b0822b70005940c7a398e4b70f3); }
+    if absTick & 0x800 > 0 { ratio = @evm_shr(128, ratio *% 0xe7159475a2c29b7443b29c7fa6e889d9); }
+    if absTick & 0x1000 > 0 { ratio = @evm_shr(128, ratio *% 0xd097f3bdfd2022b8845ad8f792aa5825); }
+    if absTick & 0x2000 > 0 { ratio = @evm_shr(128, ratio *% 0xa9f746462d870fdf8a65dc1f90e061e5); }
+    if absTick & 0x4000 > 0 { ratio = @evm_shr(128, ratio *% 0x70d869a156d2a1b890bb3df62baf32f7); }
+    if absTick & 0x8000 > 0 { ratio = @evm_shr(128, ratio *% 0x31be135f97d08fd981231505542fcfa6); }
+    if absTick & 0x10000 > 0 { ratio = @evm_shr(128, ratio *% 0x9aa508b5b7a84e1c677de54f3e99bc9); }
+    if absTick & 0x20000 > 0 { ratio = @evm_shr(128, ratio *% 0x5d6af8dedb81196699c329225ee604); }
+    if absTick & 0x40000 > 0 { ratio = @evm_shr(128, ratio *% 0x2216e584f5fa1ea926041bedfe98); }
+    if absTick & 0x80000 > 0 { ratio = @evm_shr(128, ratio *% 0x48a170391f7dc42444e8fa2); }
+
+    if @evm_sgt(tick, 0) {
+        ratio = @evm_not(0) </ ratio;
+    }
+
+    // this divides by 1<<32 rounding up to go from a Q128.128 to a Q128.96.
+    // we then downcast because we know the result always fits within 160 bits due to our tick input constraint
+    // we round up in the division so getTickAtSqrtRatio of the output price is always consistent
+    let result = @evm_shr(32, ratio) + if @evm_mod(ratio, 1 << 32) == 0 { 0 } else { 1 };
+    result & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 };

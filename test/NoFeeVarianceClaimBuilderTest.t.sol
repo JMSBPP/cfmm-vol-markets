@@ -38,6 +38,7 @@ interface ITickMoments is ITickAverage, ITickRealizedVolatility{}
 interface IMarketBuilder {
     function setPair(address,address,bool) external;
 }
+
 interface IMarketLens {
     function getMarketKey() external returns(bytes memory);
 }
@@ -131,6 +132,11 @@ contract NoFeeVarianceClaimBuilderTest is PlankTestBase, Deployers, HookDeployer
 	uint256 maxIdxPick = bound(maxIdx,1,windowLenCalldata);
 	uint256 windowIdx = 0;
 	bytes memory underlyingMarket = IMarketLens(noFeeVarianceClaimBuilder).getMarketKey();
+	// DEBUG
+
+	console2.log("Numeraire Address", numeraire);
+	console2.log("Underlying address", underlying);
+	
 	do {
 	    int256 tickSeed = vm.randomInt();
 	    int24 tickOnRun = SafeCastLib.toInt24(bound(int256(tickSeed),int256(MIN_TICK),int256(MAX_TICK)));

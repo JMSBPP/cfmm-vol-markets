@@ -6,6 +6,7 @@ use std::membytes::membytes;
 use std::slice::*;
 use std::core::uint::{try_cast_uint,u24};
 use std::core::ops::{greater_equals,less_equals};
+pub use custom_utils::Value::NO_VALUE;
 
 const TickSpacing = u24;
 const NOT_TICK_SPACING = 0;
@@ -125,5 +126,20 @@ const build_tickSpacing = fn(from: $O) TickSpacing {
 };       
 
 
+const tickSpacingOnExternal = fn (src: u256, on: type) TickSpacing {
+      let mut resTickSpacing: TickSpacing = notYetTickSpacing();
+      if on == storage {
+      	 let tickSpacingBuff: u256 = @malloc_uninit(36);
+	 @mstore4(tickSpacingBuff,READ_TICK_SPACING_SELECTOR);
+	 if !@evm_call(@evm_gas(), src, NO_VALUE, tickSpacingBuff,4,tickSpacingBuff+%4,32) {
+	    // cast sig "FailedToFetchTickSpacingFromAddress()"
+	    @mstore4(tickSpacingBuff, 0x7424e8af);
+	 }
+	 @evm_returndatacopy(tickSpacingBuff+%4,0,32);
+
+	 resTickSpacing = tickSpacingVal(@mload32(tickSpacingBuff+%4));
+      }
+      resTickSpacing
+};
 
 

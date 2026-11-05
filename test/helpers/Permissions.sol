@@ -5,6 +5,8 @@ import {Hooks, IHooks} from "v4-core/libraries/Hooks.sol";
 
 using Hooks for IHooks;
 
+/// Exact flag mask: AFTER_ADD_LIQUIDITY only. Loose `hasPermission` alone can mine
+/// returns-delta bits without their action flags → PoolManager HookAddressNotValid.
 function NoFeeVarianceClaimBuilderPermissions(address addr) pure returns (bool) {
-    return IHooks(addr).hasPermission(Hooks.AFTER_ADD_LIQUIDITY_FLAG);
+    return uint160(addr) & Hooks.ALL_HOOK_MASK == Hooks.AFTER_ADD_LIQUIDITY_FLAG;
 }

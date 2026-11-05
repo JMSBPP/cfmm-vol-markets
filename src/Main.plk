@@ -16,8 +16,6 @@ use Asset::Asset::{AssetCalldata, storeAsset, AssetMemory, loadAssetMemory};
 
 use LiquidityKernel::AlignTick::*;
 
-// TODO: This is to be put on it's own module
-
 // cast keccak VolMarkets.Controller
 const CONTROLLER_SLOT = 0x504cec47c00ecd92195dd23334a7de6ebb4a41496b4d3e248edc0727a2ce20b0;
 
@@ -25,6 +23,31 @@ const CONTROLLER_SLOT = 0x504cec47c00ecd92195dd23334a7de6ebb4a41496b4d3e248edc07
 const FEE_SLOT = 0xdbb1cc11be04a69fc56e7bbccbd8e9075d3eeb52d1db97a6e9e2f0726a30b6ba;
 
 const SET_TICK_TOPIC = 0x2833a7bdc4e30391adeb052e4232401f54ff1a34cd8db2c61c32b3199b3907c2;
+
+// PoolManager.pools mapping index (StateLibrary.POOLS_SLOT)
+const POOLS_SLOT = 6;
+const SQRT_PRICE_MASK = 0xffffffffffffffffffffffffffffffffffffffff;
+// cast sig "extsload(bytes32)"
+const EXTSLOAD_SELECTOR = 0x1e2eaeaf;
+
+/// slot0.sqrtPriceX96 via PoolManager.extsload — same predicate as V4 checkPoolInitialized.
+const slot0SqrtPriceOnPoolManager = fn () SqrtPrice {
+      let assetMemory: AssetMemory = loadAssetMemory(storage);
+      // poolId = keccak256(abi.encode(PoolKey)); stateSlot = keccak256(poolId ‖ POOLS_SLOT)
+      let packed: u256 = @malloc_uninit(64);
+      @mstore32(packed, @evm_keccak256(assetMemory.ptr, 160));
+      @mstore32(packed +% 32, POOLS_SLOT);
+      let cd: u256 = @malloc_uninit(36);
+      @mstore4(cd, EXTSLOAD_SELECTOR);
+      @mstore32(cd +% 4, @evm_keccak256(packed, 64));
+      let retBuff: u256 = @malloc_uninit(32);
+      if !@evm_staticcall(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), cd, 36, retBuff, 32) {
+      	 // cast sig "FailedOnReadSlot0()"
+      	 @mstore4(cd, 0x295cbff3);
+	 @evm_revert(cd, 4);
+      }
+      sqrtPriceFromWord(@evm_and(@mload32(retBuff), SQRT_PRICE_MASK))
+};
 
 init {
     return_runtime();
@@ -68,9 +91,32 @@ run {
 
 
     else if selector == SET_TICK_SELECTOR {
+    	 let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingWord(tickSpacingOn(storage)));
+	 let tick :Tick = build_tick(tickCalldata);
+
+    	 // Uninitialized pool ≡ slot0.sqrtPriceX96 == 0 (V4 checkPoolInitialized). Bootstrap local tick like former init().
+    	 if EqSqrtPrice(slot0SqrtPriceOnPoolManager(), nullSqrtPrice()) {
+	    let assetMemory: AssetMemory = loadAssetMemory(storage);
+	    // sel(4) + PoolKey(160) + sqrtPriceX96(32) = 196
+	    let mem: u256 = @malloc_uninit(196);
+	    // cast sig "initialize((address,address,uint24,int24,address),uint160)"
+	    @mstore4(mem, 0x6276cbbe);
+	    @mcopy(mem +% 4, assetMemory.ptr, 160);
+	    @mstore32(mem +% 164, sqrtPriceWord(sqrtPriceFromTick(tick)));
+	    let retBuff: u256 = @malloc_uninit(32);
+	    if !@evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), NO_VALUE, mem, 196, retBuff, 32) {
+	      	 // cast sig "UnableToInitializeMarket()"
+	      	 @mstore4(mem, 0x793dad28);
+		 @evm_revert(mem, 4);
+	    }
+	    if @mload32(retBuff) != tickWord(tick) {
+	      	 // cast sig "TickMismatchOnInitialize()"
+	      	 @mstore4(mem, 0xa89ef96f);
+		 @evm_revert(mem, 4);
+	    }
+	    store_tick(tick, storage);
+	 };
 	tickSpacingRevertEVMDueTo(storage);	     
-	let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingWord(tickSpacingOn(storage)));
-	let tick :Tick = build_tick(tickCalldata);
 	
 	let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
 	let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
@@ -98,8 +144,8 @@ run {
     else if selector == 0x92eefe9b {
     	 @evm_sstore(CONTROLLER_SLOT, @evm_calldataload(4));
 	 let retBuff: u256 = @malloc_zeroed(32);
+	 // todo: This is to be handled by a different process, but from now once set it also initialized the pool with a default initial price
 	 @evm_return(retBuff,32);
-
     }
     // cast sig "setTickAligner(address)"
 
@@ -107,6 +153,12 @@ run {
     	 @evm_sstore(ALIGNER_SLOT, @evm_calldataload(4));    	 
     	 let retBuff: u256 = @malloc_zeroed(32);
 	 @evm_return(retBuff,32);
+    }
+
+    // cast sig "setPoolManager(address)"
+    else if selector == 0x7aef6715 {
+    	 @evm_sstore(POOL_MANAGER_SLOT, @evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32), 32);
     }
     
     // cast sig "set_fee(uint24)"
@@ -124,6 +176,7 @@ run {
 	 @mstore32(ret, 0x20);
 	 @mstore32(ret +% 32, payloadLen);
 	 @mcopy(ret +% 64, assetMemory.ptr, payloadLen);
+	 @evm_log0(ret +% 32,32);
     	 @evm_return(ret, 64 + payloadLen);
     }
     else {

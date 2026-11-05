@@ -1,8 +1,1 @@
-use LiquidityKernel::AlignTick::AlignCalldata;
-
-
-const TransitionParams = struct {};
-
-const configureTransition = fn (alignCalldata :AlignCalldata) TransitionParams {
-      TransitionParams {}
-};
+use std::option::Some;

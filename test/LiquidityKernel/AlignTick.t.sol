@@ -8,13 +8,31 @@ import {IWindow} from "@test/Window.t.sol";
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {IUnlockCallback} from "v4-core/interfaces/callback/IUnlockCallback.sol";
 import {Deployers} from "v4-core-test/utils/Deployers.sol";
+import {HookDeployer} from "@helpers/UniswapV4/HookDeployer.sol";
+import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
+
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
+
+interface IControllerSetter {
+    function setController(address) external;
+}
+
+
+interface IMarketBuilder {
+    function setPair(address,address,bool) external;
+}
+
+interface IMarketLens {
+    function getMarketKey() external returns(bytes memory);
+}
 
 interface IEnv {
     function setIO(address) external;
     function IO() external returns(address);
+
     function setTickAligner(address) external;
     function setPoolManager(address) external;
+    
 }
 
 interface ITickAligner {
@@ -22,18 +40,30 @@ interface ITickAligner {
     error InvalidCaller();
     function align(int24,int24) external;
 }
-contract AlignTickTest is PlankTestBase, Deployers {
+contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 
     address main = makeAddr("cfmm-vol-markets.main");
     address alignTickHarness = makeAddr("cfmm-vol-markets.alignTick");
-    address poolManager = makeAddr("cfmm-vol-markets.poolManager");
+    address poolManager;
+    address underlying = makeAddr("cfmm.vol-markets.underlying");
+    address numeraire =  makeAddr("cfmm.vol-markets.numeraire");
+    address controller;
+
 
     function setUp() public {
 	deployFreshManager();
+	// Use the real PoolManager; etching its code onto another address trips noDelegateCall.
+	poolManager = address(manager);
 	deployCodeTo(main, plank("src/Main.plk"));
 	deployCodeTo(alignTickHarness, plank("src/LiquidityKernel/AlignTick.plk"));
-	// Real PoolManager runtime (path string etch is not executable unlock→callback).
-	vm.etch(poolManager, address(manager).code);
+	deployCodeTo(underlying, plank("src/LiquidityKernel/Transfer.plk"));
+	deployCodeTo(numeraire, plank("src/LiquidityKernel/Transfer.plk"));
+	(bool succ, address _tmp,) = deployHook(
+					       plank("src/LiquidityKernel/Controller.plk"),
+					       CREATE2_FACTORY,
+					       NoFeeVarianceClaimBuilderPermissions
+	);
+	if (succ) { controller = _tmp;}
     }
     
     modifier whenAlignIsCalledInAlignTick() {
@@ -67,7 +97,10 @@ contract AlignTickTest is PlankTestBase, Deployers {
 	
 	IEnv(alignTickHarness).setIO(main);
 	IEnv(main).setTickAligner(alignTickHarness);
+	IMarketBuilder(main).setPair(underlying,numeraire,true);
+	IControllerSetter(main).setController(controller);
 	IEnv(alignTickHarness).setPoolManager(poolManager);
+	IEnv(main).setPoolManager(poolManager);
 	ITickSpacing(main).set_tick_spacing(tickSpacing);
 	IWindow(main).set_window(windowLenCalldata);
 
@@ -76,15 +109,20 @@ contract AlignTickTest is PlankTestBase, Deployers {
 	do {
 	    int256 tickSeed = vm.randomInt();
 	    int24 tickOnRun = SafeCastLib.toInt24(bound(int256(tickSeed),int256(MIN_TICK),int256(MAX_TICK)));
-	    // It should revert if one of the passed ticks on calldata is not the read_tick on Main.
+
+	    // First set_tick initializes the V4 pool when slot0.sqrtPriceX96 == 0 (no separate init()).
 	    int24 prevTick =  ITick(main).read_tick();
 	    int24 newTick = normTickVal(tickOnRun, ITickSpacing(main).read_tick_spacing());
+	    // On cold start, set_tick bootstraps local tick to newTick before align → expect (newTick, newTick).
+	    if (windowIdx == 0) {
+		prevTick = newTick;
+	    }
 	    vm.expectCall(alignTickHarness,abi.encodeCall(ITickAligner.align,(prevTick,newTick)));
 	    vm.expectCall(poolManager, abi.encodeCall(IPoolManager.unlock, (abi.encode(prevTick,newTick))));
-
-	    vm.expectCall(alignTickHarness, abi.encodeCall(IUnlockCallback.unlockCallback,(abi.encode(prevTick,newTick))));
 	    // It should call unlock on poolManager passing the pair of ticks as unlockCalldata
-	    
+	    vm.expectCall(alignTickHarness, abi.encodeCall(IUnlockCallback.unlockCallback,(abi.encode(prevTick,newTick))));
+	    // It should call swap on poolManager passing the pair of ticks as unlockCalldata
+	    // vm.expectCall
 	    ITick(main).set_tick(tickOnRun);
 	    
 	 

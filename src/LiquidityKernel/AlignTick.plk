@@ -1,7 +1,10 @@
 use std::constructor::return_runtime;
-use LiquidityKernel::Transition::*;
+use std::membytes::*;
+use custom_utils::moreRegions::storage;
 
-use TickMoments::Tick::{TickCalldata,Tick, tickWord};	   
+use TickMoments::Tick::*;
+use TickMoments::TickSpacing::*;
+
 // cast keccak vol-markets.Uniswap.PoolManager
 const POOL_MANAGER_SLOT = 0x88a114aa1e554c058ec89d3e36fbd9461439057395b0516c7441f43f1154c823;
 
@@ -11,7 +14,7 @@ const IO_SLOT = 0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f5
 const ALIGNER_SLOT = 0x9e3cd23d05abbd9a7a5ca9ecf08e0a1150bd5e3e48e3ab65660d6eef78375e3d;
 
 
-
+// -------------------------> ALIGN TICK <------------------------------------------
 const AlignCalldata = tuple{u256, u256};
 
 const emptyAlignCalldata = fn () AlignCalldata {
@@ -38,12 +41,81 @@ const requestTickAlignment = fn (alignCalldata: AlignCalldata) void {
       @mstore4(callBuff, 0xf2e85b41);
       @mstore32(callBuff +% 4, @get_field(alignCalldata, 0));
       @mstore32(callBuff +% 36, @get_field(alignCalldata, 1));
-      if !@evm_call(@evm_gas(), @evm_sload(ALIGNER_SLOT), 0, callBuff, 68,0,0) {
+      if !@evm_call(@evm_gas(), @evm_sload(ALIGNER_SLOT), NO_VALUE, callBuff, 68,0,0) {
       	 // cast sig "FailedToAlignTicks()"
       	 @mstore4(callBuff, 0x3a7cd028);
 	 @evm_revert(callBuff, 4);
       }
 };
+
+
+const currentTick = fn (alignCalldata :$AlignCalldata) Tick {
+      let mut resTick: Tick = @set_field(toUpdateTick(), "val", @get_field(alignCalldata,0));
+      resTick = @set_field(resTick, "ts", tickSpacingOnExternal(@evm_sload(IO_SLOT),storage));
+      resTick
+};
+
+// ------------------> TRANSITION <------------------------------
+
+
+const TransitionParams = struct {dir: TickPrecedence, dist: TickDistance, target: SqrtPrice };
+
+const unconfiguredTransitionParams  = fn () TransitionParams {
+      TransitionParams {dir: notTickPrecedence(),  dist: nullTickDistance(), target: nullSqrtPrice()}
+};
+
+const setTransitionDirection = fn (self: $TransitionParams,currTick: Tick, targetTick: Tick) TransitionParams {
+      @set_field(self, "dir", precedesTick(currTick, targetTick))
+};
+
+const setTransitionDistance = fn(self : $TransitionParams, direction : TickPrecedence) TransitionParams {
+      @set_field(self, "dist", arbitraryDistance())
+};
+
+const setTransitionTarget = fn(self: $TransitionParams , tickToTransition: Tick) TransitionParams {
+      @set_field(self, "target", sqrtPriceFromTick(tickToTransition))
+      
+};
+
+const transitionDirection = fn (self: $TP) TickPrecedence {
+      @get_field(self, "dir")
+};
+
+
+const TransitionParamsMemory = membytes;
+const TransitionParamsCfg = tuple{TransitionParams, TransitionParamsMemory};
+const notYetTransitionParamsCfg = fn () TransitionParamsCfg {
+      // 4 (sel) + 224 (getMarketKey ABI ret) + 96 (TransitionParams)
+     (unconfiguredTransitionParams(), membytes_new(4+%224+%96))
+};
+
+// Buffer layout after configure:
+//   ptr+0:   getMarketKey selector (scratch)
+//   ptr+4:   ABI offset/len from getMarketKey ret (scratch)
+//   ptr+68:  PoolKey (160)  [ends 228]
+//   ptr+228: TransitionParams (96)
+const configureTransition = fn (alignCalldata :AlignCalldata) TransitionParamsCfg {
+      let mut resTransitionParamsCfg : TransitionParamsCfg = notYetTransitionParamsCfg();
+      // TODO: Separate side effects
+      let transitionParamsMemCfg :membytes = @get_field(resTransitionParamsCfg,1);
+      // cast sig "getMarketKey()"
+      @mstore4(transitionParamsMemCfg.ptr, 0xe6b12e1e);
+      // 224 = 32(offset) + 32(len) + 160(poolKeySize); CALL already places PoolKey at ptr+68
+      if !@evm_call(@evm_gas(), @evm_sload(IO_SLOT), NO_VALUE,transitionParamsMemCfg.ptr,4,transitionParamsMemCfg.ptr+%4, 224) {
+      	 // cast sig "FailedToFetchMarketKey()"
+	 @mstore4(transitionParamsMemCfg.ptr,0x9a92d774);
+	 @evm_revert(transitionParamsMemCfg.ptr,4);	 
+      }
+      let tickToTransition: Tick = targetTick(alignCalldata);
+      resTransitionParamsCfg = @set_field(resTransitionParamsCfg, 0, setTransitionTarget(@get_field(resTransitionParamsCfg,0), tickToTransition));
+      resTransitionParamsCfg = @set_field(resTransitionParamsCfg,0,setTransitionDirection(@get_field(resTransitionParamsCfg,0),currentTick(alignCalldata),tickToTransition));
+      // // todo: this needs refinement, setTransitionDistance needs way more context
+      resTransitionParamsCfg = @set_field(resTransitionParamsCfg,0,setTransitionDistance(@get_field(resTransitionParamsCfg,0),transitionDirection(@get_field(resTransitionParamsCfg,0))));
+      // offset 228 = 68 + 160; write params only (not the whole cfg tuple)
+      membytes_write(transitionParamsMemCfg, 228, @get_field(resTransitionParamsCfg, 0));
+      resTransitionParamsCfg
+};
+
 
 init {
      return_runtime();
@@ -54,20 +126,40 @@ run {
     let selector = @evm_shr(224,@evm_calldataload(0));
     // cast sig "unlockCallback(bytes)"
     if selector == 0x91dd7346 {
-       // ((32*5) + (32*3) + 4) [260] + (32*2)
-       let swapBuff: u256 = @malloc_uninit(324);
+       // swapBuff layout (reuse for call + bytes return):
+       //   [0,4)     swap selector
+       //   [4,164)   PoolKey (160)
+       //   [164,260) SwapParams / TransitionParams (96)
+       //   [260,292) bytes offset (= 0x120 = 288, relative to args start)
+       //   [292,324) bytes length (= 0)  → total swap calldata = 324
+       //   [324,356) BalanceDelta ret (32)  [scratch overlapping return payload]
+       // Return bytes at [324,420): offset(0x20) | len(32) | BalanceDelta
+       // Need 324 + 64 = 388 if header sits before delta; pack as:
+       //   [324,356) offset 0x20 | [356,388) len 32 | [388,420) delta
+       // Compact reuse: write ABI header then delta into [324,420)
+       let swapBuff: u256 = @malloc_uninit(420);
        // cast sig "swap((address,address,uint24,int24,address),(bool,int256,uint160),bytes)"
        @mstore4(swapBuff, 0xf3cd914c);
        let alignCalldata : AlignCalldata = (@evm_calldataload(68),@evm_calldataload(100));
-       let transitionParams :TransitionParams = configureTransition(alignCalldata);
-       if !@evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), 0, swapBuff, 260,swapBuff+%228,32) {
-       	  // todo: bubble with the reason
+       let transitionParamsCfg : TransitionParamsCfg = configureTransition(alignCalldata);
+       let transitionParamsMem: TransitionParamsMemory = @get_field(transitionParamsCfg,1);
+       // PoolKey (160) @68 + TransitionParams (96) @228 = 256 → swapBuff+4
+       @mcopy(swapBuff+%4, transitionParamsMem.ptr+%68, 256);
+       // empty hookData tail
+       @mstore32(swapBuff +% 260, 0x120); 
+       @mstore32(swapBuff +% 292, 0);  
+       // ret BalanceDelta into payload slot of the eventual bytes return (swapBuff+388)
+       if !@evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), NO_VALUE, swapBuff, 324, swapBuff+%388, 32) {
+	  // todo: bubble with the reason
 	  // cast sig "FailedSwap()"
-       	  @mstore4(swapBuff, 0x38f18871);
+	  @mstore4(swapBuff, 0x38f18871);
 	  @evm_revert(swapBuff,4);
        }
+       // unlockCallback returns (bytes): reuse swapBuff[324..)
+       @mstore32(swapBuff +% 324, 0x20);
+       @mstore32(swapBuff +% 356, 32);
+       @evm_return(swapBuff +% 324, 96);
        
-       @evm_return(swapBuff+%228,32);
     }
     // cast sig "setPoolManager(address)"
     else if selector == 0x7aef6715 {
@@ -100,6 +192,7 @@ run {
 	       @evm_revert(alignBuff, 4);
 	    }
 	 }
+	 // check first if the pool is initialized this is equvalent to checking a price equlos to 0
 	 // cast sig "unlock(bytes)"
          @mstore4(alignBuff, 0x48c89491);
 	 @mstore32(alignBuff +%4, 0x20);
