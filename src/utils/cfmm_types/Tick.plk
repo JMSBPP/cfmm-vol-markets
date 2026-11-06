@@ -11,7 +11,7 @@ use custom_utils::cfmm_types::SqrtPrice::{sqrtPriceWord, sqrtPriceFromTick};
 use TickMoments::TickAverage::{TickAcc,tickAccWord};
 use TickMoments::Window::{Window, WindowInitialized, window_idx};
 
-use LiquidityKernel::AlignTick::AlignCalldata;
+use LiquidityKernel::AlignCalldata::AlignCalldata;
 use std::regions::memory;
 use std::slice::{Slice,get,new};
 use std::option::{unwrap,Some};
@@ -50,7 +50,7 @@ const tickReturnEVM = fn() never {
 };
 
 
-// ===========================INPUT:Tick =================================
+// =========================== INPUT: Tick =================================
 const tickWord = fn (self: Tick) u256 {
       tickVal(self)
 };
@@ -141,6 +141,13 @@ const tickOn = fn(on : type) Tick {
 
 const targetTick = fn (alignCalldata: AlignCalldata) Tick {
       let resTick: Tick = @set_field(toUpdateTick(), "val",@get_field(alignCalldata,1));
+      resTick
+};
+
+/// `io` is Main (stored under Main's IO_SLOT on the AlignTick contract).
+const currentTick = fn (alignCalldata: $AlignCalldata, io: u256) Tick {
+      let mut resTick: Tick = @set_field(toUpdateTick(), "val", @get_field(alignCalldata, 0));
+      resTick = @set_field(resTick, "ts", tickSpacingOnExternal(io, storage));
       resTick
 };
 

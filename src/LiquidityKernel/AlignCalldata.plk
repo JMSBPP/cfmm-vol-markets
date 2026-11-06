@@ -1,0 +1,22 @@
+use custom_utils::cfmm_types::Tick::{Tick, tickWord};
+
+const AlignCalldata = tuple{u256, u256};
+
+// =========================== INPUT: AlignCalldata =================================
+
+// ============================ OUTPUT: AlignCalldata =================================
+const emptyAlignCalldata = fn () AlignCalldata {
+      (0,0)
+};
+
+const partialAlignTickCalldata = fn (tick: Tick) AlignCalldata {
+      let mut partAlignCalldata: AlignCalldata = emptyAlignCalldata();
+      partAlignCalldata = @set_field(partAlignCalldata, 0, tickWord(tick));
+      partAlignCalldata
+};
+
+const completeAlignTickCalldata = fn (alignCalldata: AlignCalldata, tick :Tick) AlignCalldata {
+      let mut completedAlignTickCalldata: AlignCalldata = alignCalldata;
+      completedAlignTickCalldata = @set_field(completedAlignTickCalldata, 1, tickWord(tick));
+      completedAlignTickCalldata
+};

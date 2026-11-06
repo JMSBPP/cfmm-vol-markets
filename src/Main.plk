@@ -31,16 +31,19 @@ use TickMoments::TickRealizedVolatility::{
     update_realized_volatility
 };
 use Asset::Asset::{AssetCalldata, storeAsset, AssetMemory, loadAssetMemory};
-use LiquidityKernel::AlignTick::{
-    ALIGNER_SLOT, AlignCalldata, completeAlignTickCalldata,
-    partialAlignTickCalldata, requestTickAlignment
+use LiquidityKernel::AlignCalldata::{
+    AlignCalldata, completeAlignTickCalldata, partialAlignTickCalldata
 };
+use LiquidityKernel::AlignTick::{ALIGNER_SLOT, requestTickAlignment};
 
 // cast keccak VolMarkets.Controller
 const CONTROLLER_SLOT = 0x504cec47c00ecd92195dd23334a7de6ebb4a41496b4d3e248edc0727a2ce20b0;
 
 // cast keccak VolMarkets.Fee
 const FEE_SLOT = 0xdbb1cc11be04a69fc56e7bbccbd8e9075d3eeb52d1db97a6e9e2f0726a30b6ba;
+
+// cast keccak vol-markets.Uniswap.IO — AlignTick stores Main at this slot via setIO
+const IO_SLOT = 0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f51b;
 
 const SET_TICK_TOPIC = 0x2833a7bdc4e30391adeb052e4232401f54ff1a34cd8db2c61c32b3199b3907c2;
 

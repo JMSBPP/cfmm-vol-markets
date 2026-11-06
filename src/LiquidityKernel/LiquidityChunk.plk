@@ -1,6 +1,8 @@
 use custom_utils::cfmm_types::Tick::{maxTick, minTick, tickWord};
+use custom_utils::cfmm_types::TickSpacing::DefaultTickSpacing;
 use std::option::Some;
 use std::slice::{Slice,new};
+use std::regions::memory;
 
 // struct ModifyLiquidityParams {
 //     // the lower and upper tick of the position
@@ -28,15 +30,16 @@ const LiquidityChunk  = struct {
       liquidity: u256
 };
 
+const LiquidityCalldata = Slice(memory, ModifyLiquidityParams, Some(128));
+
+// =========================== INPUT: LiquidityChunk =================================
+
+// ============================ OUTPUT: LiquidityChunk =================================
 const DefaultLiquidity = fn() u256 {
       DEFAULT_LIQUIDITY_VALUE      
 };
-
-const LiquidityCalldata = Slice(memory, ModifyLiquidityParams, Some(128));
 
 const DefaultLiquidityCalldata = fn () LiquidityCalldata {
       let defaultLiq: ModifyLiquidityParams = (tickWord(minTick(DefaultTickSpacing())), tickWord(maxTick(DefaultTickSpacing())), DefaultLiquidity(), ZERO_SALT);
       new(memory, defaultLiq)
 };
-
-

@@ -1,1 +1,62 @@
-use std::option::Some;
+use std::membytes::{membytes, membytes_new, membytes_write};
+use custom_utils::eth::NO_VALUE;
+use custom_utils::cfmm_types::Tick::{
+    Tick, TickDistance, TickPrecedence, arbitraryDistance, currentTick,
+    notTickPrecedence, nullTickDistance, precedesTick, targetTick
+};
+use custom_utils::cfmm_types::SqrtPrice::{SqrtPrice, nullSqrtPrice, sqrtPriceFromTick};
+use LiquidityKernel::AlignCalldata::AlignCalldata;
+
+const TransitionParams = struct {dir: TickPrecedence, dist: TickDistance, target: SqrtPrice };
+const TransitionParamsMemory = membytes;
+const TransitionParamsCfg = tuple{TransitionParams, TransitionParamsMemory};
+
+// =========================== INPUT: TransitionParams =================================
+const setTransitionDirection = fn (self: $TransitionParams, currTick: Tick, tgtTick: Tick) TransitionParams {
+      @set_field(self, "dir", precedesTick(currTick, tgtTick))
+};
+
+const setTransitionDistance = fn (self: $TransitionParams, direction: TickPrecedence) TransitionParams {
+      @set_field(self, "dist", arbitraryDistance())
+};
+
+const setTransitionTarget = fn (self: $TransitionParams, tickToTransition: Tick) TransitionParams {
+      @set_field(self, "target", sqrtPriceFromTick(tickToTransition))
+};
+
+const transitionDirection = fn (self: $TP) TickPrecedence {
+      @get_field(self, "dir")
+};
+
+/// `io` is the Main address stored at Main's IO_SLOT on this AlignTick contract.
+const configureTransition = fn (alignCalldata: AlignCalldata, io: u256) TransitionParamsCfg {
+      let mut resTransitionParamsCfg: TransitionParamsCfg = notYetTransitionParamsCfg();
+      // TODO: Separate side effects
+      let transitionParamsMemCfg: membytes = @get_field(resTransitionParamsCfg, 1);
+      // cast sig "getMarketKey()"
+      @mstore4(transitionParamsMemCfg.ptr, 0xe6b12e1e);
+      // 224 = 32(offset) + 32(len) + 160(poolKeySize); CALL already places PoolKey at ptr+68
+      if !@evm_call(@evm_gas(), io, NO_VALUE, transitionParamsMemCfg.ptr, 4, transitionParamsMemCfg.ptr +% 4, 224) {
+      	 // cast sig "FailedToFetchMarketKey()"
+	 @mstore4(transitionParamsMemCfg.ptr, 0x9a92d774);
+	 @evm_revert(transitionParamsMemCfg.ptr, 4);
+      }
+      let tickToTransition: Tick = targetTick(alignCalldata);
+      resTransitionParamsCfg = @set_field(resTransitionParamsCfg, 0, setTransitionTarget(@get_field(resTransitionParamsCfg, 0), tickToTransition));
+      resTransitionParamsCfg = @set_field(resTransitionParamsCfg, 0, setTransitionDirection(@get_field(resTransitionParamsCfg, 0), currentTick(alignCalldata, io), tickToTransition));
+      // // todo: this needs refinement, setTransitionDistance needs way more context
+      resTransitionParamsCfg = @set_field(resTransitionParamsCfg, 0, setTransitionDistance(@get_field(resTransitionParamsCfg, 0), transitionDirection(@get_field(resTransitionParamsCfg, 0))));
+      // offset 228 = 68 + 160; write params only (not the whole cfg tuple)
+      membytes_write(transitionParamsMemCfg, 228, @get_field(resTransitionParamsCfg, 0));
+      resTransitionParamsCfg
+};
+
+// ============================ OUTPUT: TransitionParams =================================
+const unconfiguredTransitionParams = fn () TransitionParams {
+      TransitionParams {dir: notTickPrecedence(), dist: nullTickDistance(), target: nullSqrtPrice()}
+};
+
+const notYetTransitionParamsCfg = fn () TransitionParamsCfg {
+      // 4 (sel) + 224 (getMarketKey ABI ret) + 96 (TransitionParams)
+      (unconfiguredTransitionParams(), membytes_new(4 +% 224 +% 96))
+};

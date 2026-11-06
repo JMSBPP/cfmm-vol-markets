@@ -22,6 +22,20 @@ const AssetPair = tuple{u256, u256};
 
 const AssetMemory = Slice(memory, u256, Some(5));
 
+const AssetCalldata = tuple {u256, u256, bool};
+
+// =========================== INPUT: Asset =================================
+const storeAsset = fn(ac :$AC, on: type) void {
+      if AC == AssetCalldata {
+      	 let tmp0 :u256 = @get_field(ac, 0);
+	 let tmp1: u256 = @get_field(ac, 1);
+	 let assetIdx: bool = @get_field(ac, 2);
+	 if assetIdx { @evm_sstore(ASSET_SLOT,tmp0); @evm_sstore(NUMERAIRE_SLOT,tmp1);}
+	 else if !assetIdx {@evm_sstore(NUMERAIRE_SLOT, tmp0); @evm_sstore(ASSET_SLOT,tmp1);}
+      }
+};
+
+// ============================ OUTPUT: Asset =================================
 const SortedAssetPair = fn(from: type) AssetPair {
       let mut resPair: AssetPair = (0,0);
       if from == storage {
@@ -38,20 +52,7 @@ const SortedAssetPair = fn(from: type) AssetPair {
       }
       	 resPair
 };
-const AssetCalldata = tuple {u256, u256, bool};
-
 
 const loadAssetMemory = fn(from: type) AssetMemory {
       new(memory, (@get_field(SortedAssetPair(from),0),@get_field(SortedAssetPair(from),1),@evm_sload(FEE_SLOT),tickSpacingWord(tickSpacingOn(storage)),@evm_sload(CONTROLLER_SLOT)))
 };
-
-const storeAsset = fn(ac :$AC, on: type) void {
-      if AC == AssetCalldata {
-      	 let tmp0 :u256 = @get_field(ac, 0);
-	 let tmp1: u256 = @get_field(ac, 1);
-	 let assetIdx: bool = @get_field(ac, 2);
-	 if assetIdx { @evm_sstore(ASSET_SLOT,tmp0); @evm_sstore(NUMERAIRE_SLOT,tmp1);}
-	 else if !assetIdx {@evm_sstore(NUMERAIRE_SLOT, tmp0); @evm_sstore(ASSET_SLOT,tmp1);}
-      }
-};
-

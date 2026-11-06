@@ -1,40 +1,16 @@
 use std::constructor::return_runtime;
-use std::membytes::{membytes, membytes_new, membytes_write};
 use custom_utils::moreRegions::storage;
-use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
-use custom_utils::cfmm_types::Tick::{
-    Tick, TickDistance, TickPrecedence, arbitraryDistance, notTickPrecedence,
-    nullTickDistance, precedesTick, targetTick, tickWord, toUpdateTick
-};
 use custom_utils::eth::NO_VALUE;
-use custom_utils::cfmm_types::TickSpacing::tickSpacingOnExternal;
-use custom_utils::cfmm_types::SqrtPrice::{SqrtPrice, nullSqrtPrice, sqrtPriceFromTick};
+use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
+use LiquidityKernel::AlignCalldata::AlignCalldata;
+use LiquidityKernel::Transition::{
+    TransitionParamsCfg, TransitionParamsMemory, configureTransition
+};
 
-// cast keccak vol-markets.Uniswap.IO
-const IO_SLOT = 0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f51b;
-// cast keccak VolMarkets.Aligner
+// cast keccak VolMarkets.Aligner — Main stores the AlignTick address at this slot
 const ALIGNER_SLOT = 0x9e3cd23d05abbd9a7a5ca9ecf08e0a1150bd5e3e48e3ab65660d6eef78375e3d;
 
-
-// -------------------------> ALIGN TICK <------------------------------------------
-const AlignCalldata = tuple{u256, u256};
-
-const emptyAlignCalldata = fn () AlignCalldata {
-      (0,0)
-};
-
-const partialAlignTickCalldata = fn (tick: Tick) AlignCalldata {
-      let mut partAlignCalldata: AlignCalldata = emptyAlignCalldata();
-      partAlignCalldata = @set_field(partAlignCalldata, 0, tickWord(tick));
-      partAlignCalldata
-};
-
-const completeAlignTickCalldata = fn (alignCalldata: AlignCalldata, tick :Tick) AlignCalldata {
-      let mut completedAlignTickCalldata: AlignCalldata = alignCalldata;
-      completedAlignTickCalldata = @set_field(completedAlignTickCalldata, 1, tickWord(tick));
-      completedAlignTickCalldata
-};
-
+/// Called from Main: sload Main's ALIGNER_SLOT and call align on that address.
 const requestTickAlignment = fn (alignCalldata: AlignCalldata) void {
       // todo: it must check is completed
       // 4 +(32*2)
@@ -49,75 +25,6 @@ const requestTickAlignment = fn (alignCalldata: AlignCalldata) void {
 	 @evm_revert(callBuff, 4);
       }
 };
-
-
-const currentTick = fn (alignCalldata :$AlignCalldata) Tick {
-      let mut resTick: Tick = @set_field(toUpdateTick(), "val", @get_field(alignCalldata,0));
-      resTick = @set_field(resTick, "ts", tickSpacingOnExternal(@evm_sload(IO_SLOT),storage));
-      resTick
-};
-
-// ------------------> TRANSITION <------------------------------
-
-
-const TransitionParams = struct {dir: TickPrecedence, dist: TickDistance, target: SqrtPrice };
-
-const unconfiguredTransitionParams  = fn () TransitionParams {
-      TransitionParams {dir: notTickPrecedence(),  dist: nullTickDistance(), target: nullSqrtPrice()}
-};
-
-const setTransitionDirection = fn (self: $TransitionParams,currTick: Tick, targetTick: Tick) TransitionParams {
-      @set_field(self, "dir", precedesTick(currTick, targetTick))
-};
-
-const setTransitionDistance = fn(self : $TransitionParams, direction : TickPrecedence) TransitionParams {
-      @set_field(self, "dist", arbitraryDistance())
-};
-
-const setTransitionTarget = fn(self: $TransitionParams , tickToTransition: Tick) TransitionParams {
-      @set_field(self, "target", sqrtPriceFromTick(tickToTransition))
-      
-};
-
-const transitionDirection = fn (self: $TP) TickPrecedence {
-      @get_field(self, "dir")
-};
-
-
-const TransitionParamsMemory = membytes;
-const TransitionParamsCfg = tuple{TransitionParams, TransitionParamsMemory};
-const notYetTransitionParamsCfg = fn () TransitionParamsCfg {
-      // 4 (sel) + 224 (getMarketKey ABI ret) + 96 (TransitionParams)
-     (unconfiguredTransitionParams(), membytes_new(4+%224+%96))
-};
-
-// Buffer layout after configure:
-//   ptr+0:   getMarketKey selector (scratch)
-//   ptr+4:   ABI offset/len from getMarketKey ret (scratch)
-//   ptr+68:  PoolKey (160)  [ends 228]
-//   ptr+228: TransitionParams (96)
-const configureTransition = fn (alignCalldata :AlignCalldata) TransitionParamsCfg {
-      let mut resTransitionParamsCfg : TransitionParamsCfg = notYetTransitionParamsCfg();
-      // TODO: Separate side effects
-      let transitionParamsMemCfg :membytes = @get_field(resTransitionParamsCfg,1);
-      // cast sig "getMarketKey()"
-      @mstore4(transitionParamsMemCfg.ptr, 0xe6b12e1e);
-      // 224 = 32(offset) + 32(len) + 160(poolKeySize); CALL already places PoolKey at ptr+68
-      if !@evm_call(@evm_gas(), @evm_sload(IO_SLOT), NO_VALUE,transitionParamsMemCfg.ptr,4,transitionParamsMemCfg.ptr+%4, 224) {
-      	 // cast sig "FailedToFetchMarketKey()"
-	 @mstore4(transitionParamsMemCfg.ptr,0x9a92d774);
-	 @evm_revert(transitionParamsMemCfg.ptr,4);	 
-      }
-      let tickToTransition: Tick = targetTick(alignCalldata);
-      resTransitionParamsCfg = @set_field(resTransitionParamsCfg, 0, setTransitionTarget(@get_field(resTransitionParamsCfg,0), tickToTransition));
-      resTransitionParamsCfg = @set_field(resTransitionParamsCfg,0,setTransitionDirection(@get_field(resTransitionParamsCfg,0),currentTick(alignCalldata),tickToTransition));
-      // // todo: this needs refinement, setTransitionDistance needs way more context
-      resTransitionParamsCfg = @set_field(resTransitionParamsCfg,0,setTransitionDistance(@get_field(resTransitionParamsCfg,0),transitionDirection(@get_field(resTransitionParamsCfg,0))));
-      // offset 228 = 68 + 160; write params only (not the whole cfg tuple)
-      membytes_write(transitionParamsMemCfg, 228, @get_field(resTransitionParamsCfg, 0));
-      resTransitionParamsCfg
-};
-
 
 init {
      return_runtime();
@@ -143,7 +50,9 @@ run {
        // cast sig "swap((address,address,uint24,int24,address),(bool,int256,uint160),bytes)"
        @mstore4(swapBuff, 0xf3cd914c);
        let alignCalldata : AlignCalldata = (@evm_calldataload(68),@evm_calldataload(100));
-       let transitionParamsCfg : TransitionParamsCfg = configureTransition(alignCalldata);
+       // IO_SLOT is declared on Main; AlignTick stores Main's address there at setIO.
+       let io: u256 = @evm_sload(0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f51b);
+       let transitionParamsCfg : TransitionParamsCfg = configureTransition(alignCalldata, io);
        let transitionParamsMem: TransitionParamsMemory = @get_field(transitionParamsCfg,1);
        // PoolKey (160) @68 + TransitionParams (96) @228 = 256 → swapBuff+4
        @mcopy(swapBuff+%4, transitionParamsMem.ptr+%68, 256);
@@ -172,14 +81,16 @@ run {
     else if selector == 0x5340463b {
        let io: u256 = @evm_calldataload(4);
        let buff: u256 = @malloc_uninit(32);
-       @evm_sstore(IO_SLOT, io);
+       // Main::IO_SLOT
+       @evm_sstore(0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f51b, io);
        @evm_return(buff,32);
        
     }
     // cast sig "IO()"
     else if selector == 0xb61883fd {
     	 let retBuff : u256 = @malloc_uninit(32);
-	 @mstore32(retBuff, @evm_sload(IO_SLOT));
+	 // Main::IO_SLOT
+	 @mstore32(retBuff, @evm_sload(0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f51b));
 	 @evm_return(retBuff, 32);
     }
     // cast sig "align(int24,int24)"
@@ -187,7 +98,9 @@ run {
 	 let caller: u256 = @evm_caller();
 	 // this is to account for writing 
 	 let alignBuff: u256 = @malloc_uninit(196);
-	 if !(caller == @evm_sload(IO_SLOT)) {
+	 // Main::IO_SLOT
+	 let io: u256 = @evm_sload(0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f51b);
+	 if !(caller == io) {
 	    if !(caller == @evm_address_this()) {
 	       // error InvalidCaller();
 	       @mstore4(alignBuff, 0x48f5c3ed);
@@ -214,4 +127,3 @@ run {
     }
     @evm_return(@malloc_zeroed(32),32);
 }
-

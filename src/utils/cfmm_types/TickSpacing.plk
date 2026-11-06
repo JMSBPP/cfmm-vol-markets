@@ -28,7 +28,7 @@ const TickSpacingCalldata = tuple { TickSpacing };
 
 const TickSpacingFromCalldataToMemory = Slice(memory, u24, Some(1));
 
-// =========================INPUT: TickSpacing ===============================
+// =========================== INPUT: TickSpacing =================================
 const tickSpacingWord = fn(tickSpacing:$TS) u256 {
       unwrap(try_cast_uint(tickSpacing,u256))
 };
@@ -84,6 +84,7 @@ const tickSpacingRevertEVMDueTo = fn (reason: type) void {
 
 
 // ============================ OUTPUT: TickSpacing =================================
+
 const tickSpacingVal = fn(word: $W) TickSpacing {
      unwrap(try_cast_uint(word,TickSpacing))
 };
