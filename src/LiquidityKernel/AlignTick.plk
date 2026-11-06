@@ -6,6 +6,7 @@ use LiquidityKernel::AlignCalldata::AlignCalldata;
 use LiquidityKernel::Transition::{
     TransitionParamsCfg, TransitionParamsMemory, configureTransition
 };
+use app::Main::IO_SLOT;
 
 // cast keccak VolMarkets.Aligner — Main stores the AlignTick address at this slot
 const ALIGNER_SLOT = 0x9e3cd23d05abbd9a7a5ca9ecf08e0a1150bd5e3e48e3ab65660d6eef78375e3d;
@@ -35,23 +36,18 @@ run {
     let selector = @evm_shr(224,@evm_calldataload(0));
     // cast sig "unlockCallback(bytes)"
     if selector == 0x91dd7346 {
-       // swapBuff layout (reuse for call + bytes return):
        //   [0,4)     swap selector
        //   [4,164)   PoolKey (160)
        //   [164,260) SwapParams / TransitionParams (96)
        //   [260,292) bytes offset (= 0x120 = 288, relative to args start)
-       //   [292,324) bytes length (= 0)  → total swap calldata = 324
-       //   [324,356) BalanceDelta ret (32)  [scratch overlapping return payload]
-       // Return bytes at [324,420): offset(0x20) | len(32) | BalanceDelta
-       // Need 324 + 64 = 388 if header sits before delta; pack as:
-       //   [324,356) offset 0x20 | [356,388) len 32 | [388,420) delta
-       // Compact reuse: write ABI header then delta into [324,420)
+       //   [292,324) bytes length (= 0)
+       //   [324,356) BalanceDelta ret (32)
+       //   [324,420): offset(0x20) | len(32) | BalanceDelta
        let swapBuff: u256 = @malloc_uninit(420);
        // cast sig "swap((address,address,uint24,int24,address),(bool,int256,uint160),bytes)"
        @mstore4(swapBuff, 0xf3cd914c);
        let alignCalldata : AlignCalldata = (@evm_calldataload(68),@evm_calldataload(100));
-       // IO_SLOT is declared on Main; AlignTick stores Main's address there at setIO.
-       let io: u256 = @evm_sload(0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f51b);
+       let io: u256 = @evm_sload(IO_SLOT);
        let transitionParamsCfg : TransitionParamsCfg = configureTransition(alignCalldata, io);
        let transitionParamsMem: TransitionParamsMemory = @get_field(transitionParamsCfg,1);
        // PoolKey (160) @68 + TransitionParams (96) @228 = 256 → swapBuff+4
@@ -81,16 +77,14 @@ run {
     else if selector == 0x5340463b {
        let io: u256 = @evm_calldataload(4);
        let buff: u256 = @malloc_uninit(32);
-       // Main::IO_SLOT
-       @evm_sstore(0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f51b, io);
+       @evm_sstore(IO_SLOT, io);
        @evm_return(buff,32);
        
     }
     // cast sig "IO()"
     else if selector == 0xb61883fd {
     	 let retBuff : u256 = @malloc_uninit(32);
-	 // Main::IO_SLOT
-	 @mstore32(retBuff, @evm_sload(0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f51b));
+	 @mstore32(retBuff, @evm_sload(IO_SLOT));
 	 @evm_return(retBuff, 32);
     }
     // cast sig "align(int24,int24)"
@@ -98,8 +92,7 @@ run {
 	 let caller: u256 = @evm_caller();
 	 // this is to account for writing 
 	 let alignBuff: u256 = @malloc_uninit(196);
-	 // Main::IO_SLOT
-	 let io: u256 = @evm_sload(0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f51b);
+	 let io: u256 = @evm_sload(IO_SLOT);
 	 if !(caller == io) {
 	    if !(caller == @evm_address_this()) {
 	       // error InvalidCaller();
