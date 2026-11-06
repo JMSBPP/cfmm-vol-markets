@@ -215,53 +215,16 @@ modifyLiquidity(State storage self, ModifyLiquidityParams memory params) -> retu
 
 } feeDelta(feesOwed0,feesOwed1) 
 
-## \(i_{j+1}\)
-The question is how do we make the CFMM reach an arbitrary target tick \(i_{j+1}\) from current tick \(i_j\)
-The process is first identify our tools:
-
-- swap interface on poolManager
-- controller before and afterSwap
-## IPoolManager.swap
-### Conventions
-- since the poolKey is already given we ommit it to simplify the signature
-- hookData is partially considered to be unused
-
-
-
-struct SwapParams {
-    bool zeroForOne;
-    int256 amountSpecified; \(X\)
-    uint160 sqrtPriceLimitX96; \(\sqrt{p}_{\texttt{limit}}\)
-}
-
-Do first: 
-(\(\sqrt{p} (i_{j+1})\))-> SwapParams
-- \(\sqrt{p}_{\texttt{limit}} \leftarrow \sqrt{p} (i_{j+1}) \)
-> **justification:** If we find that we can solve in one step the inner Pool.swap algo stops at `while (!(amountSpecifiedRemaining == 0 || result.sqrtPriceX96 == params.sqrtPriceLimitX96))`
-
-Let's now find our \(\texttt{zeroForOne}\). Note that a revert condition on Pool.swap is:
-
-```
-zeroForOne ^ (params.sqrtPriceLimitX96 >= slot0Start.sqrtPriceX96())
-``
-
-Then:
+## \(i_j \to i_{j+1}\)[GREEN.AlignTickTest](@/test/LiquidityKernel/AlignTickTest.t.sol)
 \[
 	\begin{aligned}
-		( \sqrt{p}_j, \sqrt{p}_{j+1} ) \to \texttt{zeroForOne} \leftarrow \sqrt{p}_j < \sqrt{p}_{j+1}
+		\texttt{TickTransitionCfg} \implies \texttt{TickTransition} \\
+		\Big (X = 0 \implies \neg \, \texttt{TickTransition} \Big )\, \wedge \, \Big (\sqrt{p} (i_{j+1}) \geq \sqrt{p} (i_j) \implies \neg \texttt{TickTransition}\Big )\\
+		\implies \\
+		\texttt{TickTransitionCfg} := \Big ( \sqrt{p} (i_{j+1}) < \sqrt{p} (i_j)\,,\, (X \mid X  \neq 0),\,  \sqrt{p} (i_{j+1})\Big)
 	\end{aligned}
 \]
-
-We have already covered fully 2 out of three on swapParams, the next is \(X\)
-
-We have:
-\[
-	\begin{aligned}
-		\texttt{zeroForOne} \implies X > 0
-	\end{aligned}
-\]
-
-\(X_{\phi} (X) \geq F (\sqrt{p}_j, \sqrt{p}_{j+1} , L)\)
+-- child -- [RED.NoFeeVarianceClaimBuilderTest.test__PanopticWhenSetTickOnMainItUpdatesCfmmTickToTickCalldata](@/test/LiquidityKernel/NoFeeVarianceClaimBuilderTest.t.sol)
 
 
 > How can we reduce the state for our benefit and considering our application ?

@@ -1,8 +1,11 @@
 use std::membytes::{membytes, membytes_new, membytes_write};
 use custom_utils::eth::NO_VALUE;
-use custom_utils::cfmm_types::Tick::{
-    Tick, TickDistance, TickPrecedence, arbitraryDistance, currentTick,
-    notTickPrecedence, nullTickDistance, precedesTick, targetTick
+use custom_utils::cfmm_types::Tick::{Tick, currentTick, targetTick};
+use custom_utils::cfmm_types::TickPrecedence::{
+    TickPrecedence, notTickPrecedence, precedesTick
+};
+use custom_utils::cfmm_types::TickDistance::{
+    TickDistance, arbitraryDistance, nullTickDistance
 };
 use custom_utils::cfmm_types::SqrtPrice::{SqrtPrice, nullSqrtPrice, sqrtPriceFromTick};
 use LiquidityKernel::AlignCalldata::AlignCalldata;

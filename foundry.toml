@@ -27,6 +27,7 @@ remappings = [
 	   "@test/=test/",
 	   "@helpers/=test/helpers/",
 	   "v4-core/=lib/v4-core/src/",
+	   "v4-periphery/=lib/v4-periphery/src/",
 	   "v4-core-test/=lib/v4-core/test/",
 	   "panoptic-v2-core/=lib/panoptic-v2-core"
 ]
@@ -61,7 +62,7 @@ skip = [
 # 10 runs is not a test, it is a coin flip. The differential suite fuzzes over
 # (init_timestamp x N_writes x tick x outlier x dt) -- a 5-dimensional space -- so a low run
 # count is green by luck, not by coverage. Raised for the diff work.
-runs = 256
+runs = 1000
 
 [rpc_endpoints]
 mainnet = "https://eth-mainnet.g.alchemy.com/v2/${API_KEY}"

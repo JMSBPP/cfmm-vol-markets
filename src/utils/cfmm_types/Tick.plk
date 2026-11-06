@@ -1,12 +1,15 @@
 use custom_utils::moreRegions::storage;
 use custom_utils::math::{smin,smax};
-use custom_utils::numerics::WAD::WAD;
 use custom_utils::eth::NO_VALUE;
 use custom_utils::cfmm_types::TickSpacing::{
     DefaultTickSpacing, TICK_SPACING_SLOT, TickSpacing,
     tickSpacingOn, tickSpacingOnExternal, tickSpacingVal, tickSpacingWord
 };
-use custom_utils::cfmm_types::SqrtPrice::{sqrtPriceWord, sqrtPriceFromTick};
+use custom_utils::protocol_integrations::UniswapV4Consumer::{
+    EXTSLOAD_SELECTOR, POOL_MANAGER_SLOT, POOLS_SLOT
+};
+use Asset::Asset::{AssetMemory, loadAssetMemoryOnExt};
+use app::Main::IO_SLOT;
 
 use TickMoments::TickAverage::{TickAcc,tickAccWord};
 use TickMoments::Window::{Window, WindowInitialized, window_idx};
@@ -59,34 +62,19 @@ const tickVal = fn(self: Tick) u256 {
       self.val
 };
 
+const EqTick = fn (t1: Tick, t2: Tick) bool {
+      tickWord(t1) == tickWord(t2)
+};
+
+const NeqTick = fn (t1: Tick, t2: Tick) bool {
+      !EqTick(t1, t2)
+};
+
 const store_tick = fn (tick:$T,to: type) void {
       if to == storage {
       	 @evm_sstore(TICK_SLOT, tickVal(tick));
       }
 };
-
-const TickPrecedence = bool;
-// TODO: tmp
-const notTickPrecedence = fn () TickPrecedence {
-      false
-};
-
-const precedesTick = fn (ref : Tick,target : Tick) TickPrecedence {
-      // TODO: From now this is the comparison, future version must be a native equivalent comparison
-      sqrtPriceWord(sqrtPriceFromTick(target)) < sqrtPriceWord(sqrtPriceFromTick(ref))
-};
-// TODO: This type needs refinement as it can be missread; This ends up being mapped to amountSpecified
-// on SwapParams
-const TickDistance = u256;
- 
-const nullTickDistance = fn () TickDistance {
-      0
-};
-
-const arbitraryDistance = fn () TickDistance {
-      WAD      
-};
-
 
 // ============================ OUTPUT: Tick =================================
 const maxTick = fn( tickSpacing: $ts) Tick {
@@ -173,4 +161,26 @@ const MeanTick = fn(from: type ,tickAcc :TickAcc, window : Window(WindowInitiali
       	 meanTick = build_tick((@evm_sdiv(tickAccWord(tickAcc),window_idx(window)),tickSpacingWord(tickSpacingOn(from))));
       }
       meanTick
+};
+
+
+const slot0TickOnPoolManager = fn () Tick {
+      let src: u256 = @evm_sload(IO_SLOT);
+      let assetMemory: AssetMemory = loadAssetMemoryOnExt(src, storage);
+      let packed: u256 = @malloc_uninit(64);
+      @mstore32(packed, @evm_keccak256(assetMemory.ptr, 160));
+      @mstore32(packed +% 32, POOLS_SLOT);
+      let cd: u256 = @malloc_uninit(36);
+      @mstore4(cd, EXTSLOAD_SELECTOR);
+      @mstore32(cd +% 4, @evm_keccak256(packed, 64));
+      let retBuff: u256 = @malloc_uninit(32);
+      if !@evm_staticcall(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), cd, 36, retBuff, 32) {
+      	 // cast sig "FailedOnReadSlot0()"
+      	 @mstore4(cd, 0x295cbff3);
+	 @evm_revert(cd, 4);
+      }
+      let mut resTick: Tick = toUpdateTick();
+      resTick = @set_field(resTick, "val", @evm_signextend(2, @evm_shr(160, @mload32(retBuff))));
+      resTick = @set_field(resTick, "ts", tickSpacingOnExternal(src, storage));
+      resTick
 };

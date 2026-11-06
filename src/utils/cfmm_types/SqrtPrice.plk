@@ -4,7 +4,8 @@ use custom_utils::protocol_integrations::UniswapV4Consumer::{
     EXTSLOAD_SELECTOR, POOL_MANAGER_SLOT, POOLS_SLOT
 };
 use custom_utils::cfmm_types::Tick::{Tick, tickWord};
-use Asset::Asset::{AssetMemory, loadAssetMemory};
+use Asset::Asset::{AssetMemory, loadAssetMemory, loadAssetMemoryOnExt};
+use app::Main::IO_SLOT;
 use std::option::unwrap;
 use std::core::uint::try_cast_uint;
 
@@ -34,7 +35,7 @@ const nullSqrtPrice = fn () SqrtPrice {
       sqrtPriceFromWord(0)
 };
 
-// note: vendored from plankified-v3 — tick → SqrtPrice (Q64.96)
+// note: vendored from plankified-v3
 const sqrtPriceFromTick = fn (tick: Tick) SqrtPrice {
     let tickVal = tickWord(tick);
     let absTick = if @evm_slt(tickVal, 0) { -tickVal } else { tickVal };
@@ -82,8 +83,7 @@ const sqrtPriceFromTick = fn (tick: Tick) SqrtPrice {
 };
 
 /// slot0.sqrtPriceX96 via PoolManager.extsload — same predicate as V4 checkPoolInitialized.
-const slot0SqrtPriceOnPoolManager = fn () SqrtPrice {
-      let assetMemory: AssetMemory = loadAssetMemory(storage);
+const slot0SqrtPriceFromAssetMemory = fn (assetMemory: AssetMemory) SqrtPrice {
       // poolId = keccak256(abi.encode(PoolKey)); stateSlot = keccak256(poolId ‖ POOLS_SLOT)
       let packed: u256 = @malloc_uninit(64);
       @mstore32(packed, @evm_keccak256(assetMemory.ptr, 160));
@@ -98,4 +98,14 @@ const slot0SqrtPriceOnPoolManager = fn () SqrtPrice {
 	 @evm_revert(cd, 4);
       }
       sqrtPriceFromWord(@evm_and(@mload32(retBuff), SQRT_PRICE_MASK))
+};
+
+
+const slot0SqrtPriceOnLocalAsset = fn () SqrtPrice {
+      slot0SqrtPriceFromAssetMemory(loadAssetMemory(storage))
+};
+
+
+const slot0SqrtPriceOnPoolManager = fn () SqrtPrice {
+      slot0SqrtPriceFromAssetMemory(loadAssetMemoryOnExt(@evm_sload(IO_SLOT), storage))
 };

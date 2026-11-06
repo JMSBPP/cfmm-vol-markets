@@ -6,6 +6,9 @@ use custom_utils::eth::NO_VALUE;
 use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
 
 use custom_utils::cfmm_types::Tick::targetTick;
+use custom_utils::cfmm_types::SqrtPrice::{
+    NeqSqrtPrice, slot0SqrtPriceOnPoolManager, sqrtPriceFromTick
+};
 
 use LiquidityKernel::AlignCalldata::{
     AlignCalldata, completeAlignTickCalldata
@@ -21,7 +24,7 @@ use app::Main::IO_SLOT;
 // cast keccak VolMarkets.Aligner — Main stores the AlignTick address at this slot
 const ALIGNER_SLOT = 0x9e3cd23d05abbd9a7a5ca9ecf08e0a1150bd5e3e48e3ab65660d6eef78375e3d;
 
-/// Called from Main: sload Main's ALIGNER_SLOT and call align on that address.
+
 const requestTickAlignment = fn (alignCalldata: AlignCalldata) void {
       // todo: it must check is completed
       // 4 +(32*2)
@@ -72,6 +75,12 @@ run {
 	  @mstore4(swapBuff, 0x38f18871);
 	  @evm_revert(swapBuff,4);
        }
+       // Compare prices (not ticks): V4 zeroForOne can leave slot0.tick == target-1 at P(target)
+       if NeqSqrtPrice(slot0SqrtPriceOnPoolManager(), sqrtPriceFromTick(targetTick(alignCalldata))) {
+       	  // cast sig "NotAlignedTick()"
+       	  @mstore4(swapBuff,0x5c8b8b4c);
+	  @evm_revert(swapBuff,4);
+       }      
        // unlockCallback returns (bytes): reuse swapBuff[324..)
        @mstore32(swapBuff +% 324, 0x20);
        @mstore32(swapBuff +% 356, 32);
@@ -100,7 +109,6 @@ run {
     // cast sig "align(int24,int24)"
     else if selector == 0xf2e85b41 {
 	 let caller: u256 = @evm_caller();
-	 // this is to account for writing 
 	 let alignBuff: u256 = @malloc_uninit(196);
 	 let io: u256 = @evm_sload(IO_SLOT);
 	 if !(caller == io) {

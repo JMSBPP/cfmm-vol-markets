@@ -1,8 +1,12 @@
 use custom_utils::moreRegions::{storage,transient_storage};
 use custom_utils::cfmm_types::TickSpacing::{tickSpacingOn, tickSpacingWord};
+use custom_utils::eth::NO_VALUE;
 use std::slice::{set,Slice, new};
 use std::option::Some;
 use std::regions::memory;
+
+// cast sig "getMarketKey()"
+const GET_MARKET_KEY_SELECTOR = 0xe6b12e1e;
 
 
 const CONTROLLER_SLOT = 0x504cec47c00ecd92195dd23334a7de6ebb4a41496b4d3e248edc0727a2ce20b0;
@@ -55,4 +59,28 @@ const SortedAssetPair = fn(from: type) AssetPair {
 
 const loadAssetMemory = fn(from: type) AssetMemory {
       new(memory, (@get_field(SortedAssetPair(from),0),@get_field(SortedAssetPair(from),1),@evm_sload(FEE_SLOT),tickSpacingWord(tickSpacingOn(storage)),@evm_sload(CONTROLLER_SLOT)))
+};
+
+/// Same PoolKey layout as `loadAssetMemory`, fetched from `src` via `getMarketKey()`
+/// when `on == storage` (mirrors `tickOnExternal` / `tickSpacingOnExternal`).
+const loadAssetMemoryOnExt = fn (src: u256, on: type) AssetMemory {
+      let mut assetMemory: AssetMemory = new(memory, (0, 0, 0, 0, 0));
+      if on == storage {
+      	 // ABI ret: offset(32) + len(32) + PoolKey(160) = 224
+      	 let buff: u256 = @malloc_uninit(4 +% 224);
+      	 @mstore4(buff, GET_MARKET_KEY_SELECTOR);
+      	 if !@evm_call(@evm_gas(), src, NO_VALUE, buff, 4, buff +% 4, 224) {
+      	      // cast sig "FailedToFetchAssetMemoryFromAddress()"
+      	      @mstore4(buff, 0x903b6546);
+	      @evm_revert(buff, 4);
+      	 }
+      	 assetMemory = new(memory, (
+	      @mload32(buff +% 68),
+	      @mload32(buff +% 100),
+	      @mload32(buff +% 132),
+	      @mload32(buff +% 164),
+	      @mload32(buff +% 196)
+	 ));
+      }
+      assetMemory
 };

@@ -147,7 +147,6 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	    int256 tickSeed = vm.randomInt();
 	    int24 tickOnRun = SafeCastLib.toInt24(bound(int256(tickSeed),int256(MIN_TICK),int256(MAX_TICK)));
 
-	    // First set_tick initializes the V4 pool when slot0.sqrtPriceX96 == 0 (no separate init()).
 	    int24 prevTick =  ITick(main).read_tick();
 	    int24 newTick = normTickVal(tickOnRun, ITickSpacing(main).read_tick_spacing());
 	    // On cold start, prevTick == newTick and cold start is the same as pool initialization.
@@ -157,13 +156,13 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 		int24 initTick = prevTick;
 		// It should call poolManager initialize
 		vm.expectCall(poolManager, abi.encodeCall(IPoolManager.initialize,(marketKey,TickMath.getSqrtPriceAtTick(initTick))));
-	    } else {
+	    } else if (prevTick != newTick) {
+		// Main skips align when normalized ticks are equal (AlignCalldataMalformed otherwise)
 		vm.expectCall(alignTickHarness,abi.encodeCall(ITickAligner.align,(prevTick,newTick)));
 		vm.expectCall(poolManager, abi.encodeCall(IPoolManager.unlock, (abi.encode(prevTick,newTick))));
 	    // It should call unlock on poolManager passing the pair of ticks as unlockCalldata
 		vm.expectCall(alignTickHarness, abi.encodeCall(IUnlockCallback.unlockCallback,(abi.encode(prevTick,newTick))));
-	    // It should call swap on poolManager passing the pair of ticks as unlockCalldata
-	    // now we need to build the expected "SwapParams" (bool, int256 ,uint160)
+	    // It should call swap on poolManager passing not revertible swap "SwapParams" (bool, int256 ,uint160)
 	    IPoolManager.SwapParams memory expectedSwapParams;
 	    expectedSwapParams.sqrtPriceLimitX96 = TickMath.getSqrtPriceAtTick(newTick);
 	    (uint160 currentSqrtPriceX96,,,) = IStateView(poolManagerLens).getSlot0(PoolIdLibrary.toId(marketKeyPeriphery));
@@ -174,9 +173,17 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	    vm.expectCall(poolManager, abi.encodeCall(IPoolManager.swap, (marketKey,expectedSwapParams,Constants.ZERO_BYTES)));
 	    }
 	    ITick(main).set_tick(tickOnRun);
+
+	    // Invariant: read_tick equals the canonical tick of slot0.sqrtPrice
+	    (uint160 slot0SqrtPriceX96,, ,) =
+		IStateView(poolManagerLens).getSlot0(PoolIdLibrary.toId(marketKeyPeriphery));
+	    assertEq(
+		ITick(main).read_tick(),
+		TickMath.getTickAtSqrtPrice(slot0SqrtPriceX96),
+		"read_tick must equal getTickAtSqrtPrice(slot0.sqrtPrice)"
+	    );
 	    
 	    windowIdx++;
-	// NOTE: When ticks have not been initialized read_tick is zero 
 	    
          } while (windowIdx < maxIdxPick);
     }

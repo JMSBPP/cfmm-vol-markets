@@ -4,7 +4,7 @@ use custom_utils::moreRegions::storage;
 use custom_utils::eth::NO_VALUE;
 use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
 use custom_utils::cfmm_types::Tick::{
-    READ_TICK_SELECTOR, SET_TICK_SELECTOR, Tick, TickCalldata,
+    NeqTick, READ_TICK_SELECTOR, SET_TICK_SELECTOR, Tick, TickCalldata,
     build_tick, store_tick, tickOn, tickReturnEVM, tickWord
 };
 use custom_utils::cfmm_types::TickSpacing::{
@@ -15,7 +15,7 @@ use custom_utils::cfmm_types::TickSpacing::{
 };
 use custom_utils::cfmm_types::SqrtPrice::{
     NeqSqrtPrice,SqrtPrice,
-    EqSqrtPrice, nullSqrtPrice, slot0SqrtPriceOnPoolManager,
+    EqSqrtPrice, nullSqrtPrice, slot0SqrtPriceOnLocalAsset,
     sqrtPriceFromTick, sqrtPriceWord
 };
 use TickMoments::Window::{
@@ -84,7 +84,7 @@ run {
     else if selector == SET_TICK_SELECTOR {
     	 let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingWord(tickSpacingOn(storage)));
 	 let tick :Tick = build_tick(tickCalldata);
-	 let currentSlot0SqrtPriceOnPoolManager: SqrtPrice =  slot0SqrtPriceOnPoolManager();
+	 let currentSlot0SqrtPriceOnPoolManager: SqrtPrice =  slot0SqrtPriceOnLocalAsset();
     	 if EqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
 	    let assetMemory: AssetMemory = loadAssetMemory(storage);
 	    // sel(4) + PoolKey(160) + sqrtPriceX96(32) = 196
@@ -112,11 +112,13 @@ run {
 	   	let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
 		let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
 		// here it stores the tick before the update	
-		let mut alignTickCalldata : AlignCalldata = partialAlignTickCalldata(tickOn(storage));
+		let prevTick: Tick = tickOn(storage);
 		store_tick(tick,storage);
-		alignTickCalldata = completeAlignTickCalldata(alignTickCalldata, tick);
-
-		requestTickAlignment(alignTickCalldata);
+		// completeAlignTickCalldata rejects equal ticks; skip unlock when norm collapses
+		if NeqTick(prevTick, tick) {
+		   let alignTickCalldata: AlignCalldata = completeAlignTickCalldata(partialAlignTickCalldata(prevTick), tick);
+		   requestTickAlignment(alignTickCalldata);
+		}
 			
 		store_tickAverage(updatedTickAvg,storage);
 		store_tickRealizedVolatility(updatedTickRealizedVol,storage);
@@ -175,5 +177,3 @@ run {
     }
 }    
 
-
-// align_tick MUST receive different ticks at the type level
