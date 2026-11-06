@@ -35,14 +35,8 @@ use LiquidityKernel::AlignCalldata::{
     AlignCalldata, completeAlignTickCalldata, partialAlignTickCalldata
 };
 use LiquidityKernel::AlignTick::{ALIGNER_SLOT, requestTickAlignment};
-
-// cast keccak VolMarkets.Controller
-const CONTROLLER_SLOT = 0x504cec47c00ecd92195dd23334a7de6ebb4a41496b4d3e248edc0727a2ce20b0;
-
-// cast keccak VolMarkets.Fee
-const FEE_SLOT = 0xdbb1cc11be04a69fc56e7bbccbd8e9075d3eeb52d1db97a6e9e2f0726a30b6ba;
-
-const SET_TICK_TOPIC = 0x2833a7bdc4e30391adeb052e4232401f54ff1a34cd8db2c61c32b3199b3907c2;
+use LiquidityKernel::Controller::CONTROLLER_SLOT;
+use LiquidityKernel::Premium::PREMIUM_SLOT;
 
 
 init {
@@ -140,7 +134,6 @@ run {
     else if selector == 0x92eefe9b {
     	 @evm_sstore(CONTROLLER_SLOT, @evm_calldataload(4));
 	 let retBuff: u256 = @malloc_zeroed(32);
-	 // todo: This is to be handled by a different process, but from now once set it also initialized the pool with a default initial price
 	 @evm_return(retBuff,32);
     }
     // cast sig "setTickAligner(address)"
@@ -159,7 +152,7 @@ run {
     
     // cast sig "set_fee(uint24)"
     else if selector == 0x84e99813 {
-    	 @evm_sstore(FEE_SLOT,@evm_calldataload(4));
+    	 @evm_sstore(PREMIUM_SLOT,@evm_calldataload(4));
 	 let retBuff: u256 = @malloc_zeroed(32);
 	 @evm_return(retBuff,32);
 

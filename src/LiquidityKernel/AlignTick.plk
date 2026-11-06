@@ -100,7 +100,6 @@ run {
 	       @evm_revert(alignBuff, 4);
 	    }
 	 }
-	 // check first if the pool is initialized this is equvalent to checking a price equlos to 0
 	 
 	 // cast sig "unlock(bytes)"
          @mstore4(alignBuff, 0x48c89491);
