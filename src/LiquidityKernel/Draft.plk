@@ -5,6 +5,7 @@ use std::core::ops::neg_u256;
 use custom_utils::cfmm_types::TickSpacing::{DefaultTickSpacing,TickSpacing,tickSpacingWord};
 use custom_utils::cfmm_types::Tick::{maxTick, minTick, tickWord};
 use custom_utils::protocol_integrations::UniswapV4Consumer::{POOL_MANAGER_SLOT, POOLS_SLOT};
+use custom_utils::eth::NO_VALUE;
 
 // cast keccak vol-markets.Uniswap.currency0
 const CURRENCY0_SLOT = 0xd1f705af7fc2f3c38fea34d11a4a1ab775e19094503c09c319d3904089703838;
@@ -21,7 +22,6 @@ const INITIALIZE_SELECTOR = 0x439fab91;
 // cast sig "createLeg()"
 // const CREATE_LEG_SELECTOR = 0x7d435e2c;
 
-const NO_VALUE = 0;
 // cast sig "sync(address)"
 const SYNC_SELECTOR = 0xa5841194;
 // cast sig "settle()"

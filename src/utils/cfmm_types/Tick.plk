@@ -1,8 +1,9 @@
 use custom_utils::moreRegions::storage;
 use custom_utils::math::{smin,smax};
 use custom_utils::numerics::WAD::WAD;
+use custom_utils::eth::NO_VALUE;
 use custom_utils::cfmm_types::TickSpacing::{
-    DefaultTickSpacing, NO_VALUE, TICK_SPACING_SLOT, TickSpacing,
+    DefaultTickSpacing, TICK_SPACING_SLOT, TickSpacing,
     tickSpacingOn, tickSpacingOnExternal, tickSpacingVal, tickSpacingWord
 };
 use custom_utils::cfmm_types::SqrtPrice::{sqrtPriceWord, sqrtPriceFromTick};

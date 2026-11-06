@@ -6,7 +6,8 @@ use custom_utils::cfmm_types::Tick::{
     Tick, TickDistance, TickPrecedence, arbitraryDistance, notTickPrecedence,
     nullTickDistance, precedesTick, targetTick, tickWord, toUpdateTick
 };
-use custom_utils::cfmm_types::TickSpacing::{NO_VALUE, tickSpacingOnExternal};
+use custom_utils::eth::NO_VALUE;
+use custom_utils::cfmm_types::TickSpacing::tickSpacingOnExternal;
 use custom_utils::cfmm_types::SqrtPrice::{SqrtPrice, nullSqrtPrice, sqrtPriceFromTick};
 
 // cast keccak vol-markets.Uniswap.IO

@@ -6,7 +6,7 @@ use std::membytes::membytes;
 use std::slice::{Slice, get, new};
 use std::core::uint::{try_cast_uint,u24};
 use std::core::ops::{greater_equals,less_equals};
-pub use custom_utils::Value::NO_VALUE;
+use custom_utils::eth::NO_VALUE;
 
 const TickSpacing = u24;
 const NOT_TICK_SPACING = 0;

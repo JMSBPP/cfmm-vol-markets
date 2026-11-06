@@ -1,13 +1,14 @@
 use std::constructor::return_runtime;
 use std::slice::{new,len};
 use custom_utils::moreRegions::storage;
+use custom_utils::eth::NO_VALUE;
 use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
 use custom_utils::cfmm_types::Tick::{
     READ_TICK_SELECTOR, SET_TICK_SELECTOR, Tick, TickCalldata,
     build_tick, store_tick, tickOn, tickReturnEVM, tickWord
 };
 use custom_utils::cfmm_types::TickSpacing::{
-    NO_VALUE, READ_TICK_SPACING_SELECTOR, SET_TICK_SPACING_SELECTOR,
+    READ_TICK_SPACING_SELECTOR, SET_TICK_SPACING_SELECTOR,
     TickSpacing, TickSpacingCalldata, build_tickSpacing, store_tickSpacing,
     tickSpacingOn, tickSpacingReturnEVM, tickSpacingRevertEVMDueTo,
     tickSpacingVal, tickSpacingWord
