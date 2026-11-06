@@ -190,6 +190,7 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
     function test_WhenTheCallerIsAddressThis() external whenAlignIsCalledInAlignTick {
         // It should take as one of the passed ticks on calldata is an error from target tick.
         // It should call unlock on poolManager passing the pair of ticks as unlockCalldata and the error
+	vm.skip(true);
     }
 
     modifier whenUnlockCallbackIsCalledInAlignTick() {
@@ -202,18 +203,21 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
         // It should call swap in poolManager with empty hookData, marketKey and builtSwapParams
         // It should call clearUnlock in AlignTick
         // It should fetch the current tick stored in the poolManager
+	vm.skip(true);
     }
 
     function test_WhenTheCurrentTickFetchedFromPoolManagerStorageDoesNotEqualTheTickOnCalldataThatEqualedTheRead_tickFromMain(
     ) external whenUnlockCallbackIsCalledInAlignTick {
         // It should track the error
         // It should call align in AlignTick with the second tick calldata argument as the error tracked
+	vm.skip(true);
     }
 
     function test_WhenClearUnlockIsCalledInAlignTick() external {
         // It should call notifyDebt on both address from marketKey
         // It should call sync in PoolManager
         // It should call settle in PoolManager
+	vm.skip(true);
     }
 }
 
