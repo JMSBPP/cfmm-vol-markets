@@ -15,7 +15,8 @@ fs_permissions = [
     { access = "read", path = "./src/interfaces/pos_spec" },
     { access = "read", path = "./.bytecode/algebra" },
     { access = "read", path = "./offchain/rig" },
-    { access = "read", path = "./.bytecode/uniswap-v4" }
+    { access = "read", path = "./.bytecode/uniswap-v4" },
+    { access = "read", path = "./.bytecode/panoptic" }
 
 ]
 
