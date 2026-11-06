@@ -1,11 +1,21 @@
 use std::constructor::return_runtime;
 use custom_utils::moreRegions::storage;
+
 use custom_utils::eth::NO_VALUE;
+
 use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
-use LiquidityKernel::AlignCalldata::AlignCalldata;
+
+use custom_utils::cfmm_types::Tick::targetTick;
+
+use LiquidityKernel::AlignCalldata::{
+    AlignCalldata, completeAlignTickCalldata
+};
+
 use LiquidityKernel::Transition::{
     TransitionParamsCfg, TransitionParamsMemory, configureTransition
 };
+
+
 use app::Main::IO_SLOT;
 
 // cast keccak VolMarkets.Aligner — Main stores the AlignTick address at this slot
@@ -100,13 +110,15 @@ run {
 	       @evm_revert(alignBuff, 4);
 	    }
 	 }
+	 let mut alignCalldata: AlignCalldata = (@evm_calldataload(4),@evm_calldataload(36));
+	 alignCalldata = completeAlignTickCalldata(alignCalldata,targetTick(alignCalldata));
 	 
 	 // cast sig "unlock(bytes)"
          @mstore4(alignBuff, 0x48c89491);
 	 @mstore32(alignBuff +%4, 0x20);
 	 @mstore32(alignBuff +%36, 64);
-	 @mstore32(alignBuff +%68, @evm_calldataload(4));
-	 @mstore32(alignBuff +%100, @evm_calldataload(36));
+	 @mstore32(alignBuff +%68, @get_field(alignCalldata,0));
+	 @mstore32(alignBuff +%100, @get_field(alignCalldata,1));
 
 	 if !@evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), 0, alignBuff, 132 ,alignBuff +%132,32) {
 	    // cast sig "FailedToUnlockPoolManager()"

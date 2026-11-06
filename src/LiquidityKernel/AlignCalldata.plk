@@ -1,4 +1,5 @@
 use custom_utils::cfmm_types::Tick::{Tick, tickWord};
+use std::membytes::{membytes_new, membytes, membytes_write};
 
 const AlignCalldata = tuple{u256, u256};
 
@@ -18,5 +19,13 @@ const partialAlignTickCalldata = fn (tick: Tick) AlignCalldata {
 const completeAlignTickCalldata = fn (alignCalldata: AlignCalldata, tick :Tick) AlignCalldata {
       let mut completedAlignTickCalldata: AlignCalldata = alignCalldata;
       completedAlignTickCalldata = @set_field(completedAlignTickCalldata, 1, tickWord(tick));
+      // todo: This needs to be a runtime assertion can be refined perhaps to only allow < OR >
+      if @get_field(completedAlignTickCalldata, 0) == @get_field(completedAlignTickCalldata,1) {
+      	 // todo: We aim to support custom bubble reason
+      	 // cast sig "AlignCalldataMalformed()"
+	 let wrongAlignCalldataRuntimeBuff: u256 = @malloc_uninit(4);
+	 @mstore4(wrongAlignCalldataRuntimeBuff,0x0c350903);
+	 @evm_revert(wrongAlignCalldataRuntimeBuff,4);
+      }
       completedAlignTickCalldata
 };

@@ -2,16 +2,37 @@
 pragma solidity 0.8.26;
 
 import {PlankTestBase} from "@test/PlankTestBase.sol";
+import {console2} from "forge-std/console2.sol";
 import {ITick, MIN_TICK, MAX_TICK, normTickVal} from "@test/Tick.t.sol";
 import {ITickSpacing} from "@test/TickSpacing.t.sol";
 import {IWindow} from "@test/Window.t.sol";
+
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
+import {PoolKey} from "v4-core/types/PoolKey.sol";
+
+import {TickMath} from "v4-core/libraries/TickMath.sol";
+
+import {IStateView} from "v4-periphery/interfaces/IStateView.sol";
+import {PoolKey as PoolKeyPeriphery} from "v4-periphery/lens/ReservesLens.sol";
+import {PoolIdLibrary} from "v4-periphery/lens/ReservesLens.sol";
+
+import {IPoolManager as IPoolManagerPeriphery, PoolId} from "v4-periphery/interfaces/IStateView.sol";
+
+import {StateView} from "v4-periphery/lens/StateView.sol";
 import {IUnlockCallback} from "v4-core/interfaces/callback/IUnlockCallback.sol";
 import {Deployers} from "v4-core-test/utils/Deployers.sol";
+import {Constants} from "v4-core-test/utils/Constants.sol";
 import {HookDeployer} from "@helpers/UniswapV4/HookDeployer.sol";
+
+
+
 import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
 
+
+
+
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
+
 
 interface IControllerSetter {
     function setController(address) external;
@@ -26,6 +47,8 @@ interface IMarketLens {
     function getMarketKey() external returns(bytes memory);
 }
 
+
+
 interface IEnv {
     function setIO(address) external;
     function IO() external returns(address);
@@ -38,6 +61,7 @@ interface IEnv {
 interface ITickAligner {
     // TODO: Support bubble ERC-7751
     error InvalidCaller();
+    error AlignCalldataMalformed();
     function align(int24,int24) external;
 }
 contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
@@ -45,6 +69,7 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
     address main = makeAddr("cfmm-vol-markets.main");
     address alignTickHarness = makeAddr("cfmm-vol-markets.alignTick");
     address poolManager;
+    address poolManagerLens;
     address underlying = makeAddr("cfmm.vol-markets.underlying");
     address numeraire =  makeAddr("cfmm.vol-markets.numeraire");
     address controller;
@@ -54,6 +79,7 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	deployFreshManager();
 	// Use the real PoolManager; etching its code onto another address trips noDelegateCall.
 	poolManager = address(manager);
+	poolManagerLens = address(new StateView(IPoolManagerPeriphery(address(manager))));
 	deployCodeTo(main, plank("src/Main.plk"));
 	deployCodeTo(alignTickHarness, plank("src/LiquidityKernel/AlignTick.plk"));
 	deployCodeTo(underlying, plank("src/LiquidityKernel/Transfer.plk"));
@@ -83,8 +109,16 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	ITickAligner(alignTickHarness).align(tick1,tick2);
 
 	vm.prank(IEnv(alignTickHarness).IO());
+	// It should revert it tick1 equals tick2
+	if (tick1 == tick2) {
+	    vm.expectRevert(ITickAligner.AlignCalldataMalformed.selector);
+	} 
 	ITickAligner(alignTickHarness).align(tick1,tick2);
+ 
 	vm.prank(alignTickHarness);
+	if (tick1 == tick2) {
+	    vm.expectRevert(ITickAligner.AlignCalldataMalformed.selector);
+	}
         ITickAligner(alignTickHarness).align(tick1,tick2);
 
 	// =======================================================
@@ -105,6 +139,9 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	IWindow(main).set_window(windowLenCalldata);
 
 	uint256 maxIdxPick = bound(maxIdx,1,windowLenCalldata);
+	PoolKey memory marketKey = abi.decode(IMarketLens(main).getMarketKey(), (PoolKey));
+	PoolKeyPeriphery memory marketKeyPeriphery = abi.decode(IMarketLens(main).getMarketKey(), (PoolKeyPeriphery));
+	
 	uint256 windowIdx = 0;
 	do {
 	    int256 tickSeed = vm.randomInt();
@@ -113,20 +150,31 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	    // First set_tick initializes the V4 pool when slot0.sqrtPriceX96 == 0 (no separate init()).
 	    int24 prevTick =  ITick(main).read_tick();
 	    int24 newTick = normTickVal(tickOnRun, ITickSpacing(main).read_tick_spacing());
-	    // On cold start, set_tick bootstraps local tick to newTick before align → expect (newTick, newTick).
+	    // On cold start, prevTick == newTick and cold start is the same as pool initialization.
+	    // since at the type level we do not accept equal ticks on alignCalldata, then at initialization align is not called
 	    if (windowIdx == 0) {
 		prevTick = newTick;
-	    }
-	    vm.expectCall(alignTickHarness,abi.encodeCall(ITickAligner.align,(prevTick,newTick)));
-	    vm.expectCall(poolManager, abi.encodeCall(IPoolManager.unlock, (abi.encode(prevTick,newTick))));
+		int24 initTick = prevTick;
+		// It should call poolManager initialize
+		vm.expectCall(poolManager, abi.encodeCall(IPoolManager.initialize,(marketKey,TickMath.getSqrtPriceAtTick(initTick))));
+	    } else {
+		vm.expectCall(alignTickHarness,abi.encodeCall(ITickAligner.align,(prevTick,newTick)));
+		vm.expectCall(poolManager, abi.encodeCall(IPoolManager.unlock, (abi.encode(prevTick,newTick))));
 	    // It should call unlock on poolManager passing the pair of ticks as unlockCalldata
-	    vm.expectCall(alignTickHarness, abi.encodeCall(IUnlockCallback.unlockCallback,(abi.encode(prevTick,newTick))));
+		vm.expectCall(alignTickHarness, abi.encodeCall(IUnlockCallback.unlockCallback,(abi.encode(prevTick,newTick))));
 	    // It should call swap on poolManager passing the pair of ticks as unlockCalldata
-	    // vm.expectCall
+	    // now we need to build the expected "SwapParams" (bool, int256 ,uint160)
+	    IPoolManager.SwapParams memory expectedSwapParams;
+	    expectedSwapParams.sqrtPriceLimitX96 = TickMath.getSqrtPriceAtTick(newTick);
+	    (uint160 currentSqrtPriceX96,,,) = IStateView(poolManagerLens).getSlot0(PoolIdLibrary.toId(marketKeyPeriphery));
+	    expectedSwapParams.zeroForOne = (expectedSwapParams.sqrtPriceLimitX96 < currentSqrtPriceX96);
+	    // todo: This is tmp
+	    expectedSwapParams.amountSpecified = int256(1e18);
+	    console2.log("Expected Zero for one:",  expectedSwapParams.zeroForOne);
+	    vm.expectCall(poolManager, abi.encodeCall(IPoolManager.swap, (marketKey,expectedSwapParams,Constants.ZERO_BYTES)));
+	    }
 	    ITick(main).set_tick(tickOnRun);
 	    
-	 
-	   
 	    windowIdx++;
 	// NOTE: When ticks have not been initialized read_tick is zero 
 	    

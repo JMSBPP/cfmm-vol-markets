@@ -73,7 +73,7 @@ const notTickPrecedence = fn () TickPrecedence {
 
 const precedesTick = fn (ref : Tick,target : Tick) TickPrecedence {
       // TODO: From now this is the comparison, future version must be a native equivalent comparison
-      less_equals(sqrtPriceWord(sqrtPriceFromTick(ref)), sqrtPriceWord(sqrtPriceFromTick(target)))
+      sqrtPriceWord(sqrtPriceFromTick(target)) < sqrtPriceWord(sqrtPriceFromTick(ref))
 };
 // TODO: This type needs refinement as it can be missread; This ends up being mapped to amountSpecified
 // on SwapParams

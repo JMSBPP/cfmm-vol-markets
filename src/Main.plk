@@ -14,6 +14,7 @@ use custom_utils::cfmm_types::TickSpacing::{
     tickSpacingVal, tickSpacingWord
 };
 use custom_utils::cfmm_types::SqrtPrice::{
+    NeqSqrtPrice,SqrtPrice,
     EqSqrtPrice, nullSqrtPrice, slot0SqrtPriceOnPoolManager,
     sqrtPriceFromTick, sqrtPriceWord
 };
@@ -83,9 +84,8 @@ run {
     else if selector == SET_TICK_SELECTOR {
     	 let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingWord(tickSpacingOn(storage)));
 	 let tick :Tick = build_tick(tickCalldata);
-
-    	 // Uninitialized pool ≡ slot0.sqrtPriceX96 == 0 (V4 checkPoolInitialized). Bootstrap local tick like former init().
-    	 if EqSqrtPrice(slot0SqrtPriceOnPoolManager(), nullSqrtPrice()) {
+	 let currentSlot0SqrtPriceOnPoolManager: SqrtPrice =  slot0SqrtPriceOnPoolManager();
+    	 if EqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
 	    let assetMemory: AssetMemory = loadAssetMemory(storage);
 	    // sel(4) + PoolKey(160) + sqrtPriceX96(32) = 196
 	    let mem: u256 = @malloc_uninit(196);
@@ -105,22 +105,24 @@ run {
 		 @evm_revert(mem, 4);
 	    }
 	    store_tick(tick, storage);
-	 };
-	tickSpacingRevertEVMDueTo(storage);	     
-	
-	let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
-	let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
-	
-	let mut alignTickCalldata : AlignCalldata = partialAlignTickCalldata(tickOn(storage));
-	store_tick(tick,storage);
-	alignTickCalldata = completeAlignTickCalldata(alignTickCalldata, tick);
+	    
+	 }
 
-	requestTickAlignment(alignTickCalldata);
+	 else if NeqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
+	   	let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
+		let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
+		// here it stores the tick before the update	
+		let mut alignTickCalldata : AlignCalldata = partialAlignTickCalldata(tickOn(storage));
+		store_tick(tick,storage);
+		alignTickCalldata = completeAlignTickCalldata(alignTickCalldata, tick);
+
+		requestTickAlignment(alignTickCalldata);
 			
-	store_tickAverage(updatedTickAvg,storage);
-	store_tickRealizedVolatility(updatedTickRealizedVol,storage);
-
-	
+		store_tickAverage(updatedTickAvg,storage);
+		store_tickRealizedVolatility(updatedTickRealizedVol,storage);
+	 }
+	 
+	tickSpacingRevertEVMDueTo(storage);	     
 	@evm_return(@malloc_uninit(0), 0);
     }
 
@@ -172,3 +174,6 @@ run {
       @evm_revert(@malloc_uninit(0), 0);
     }
 }    
+
+
+// align_tick MUST receive different ticks at the type level
