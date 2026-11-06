@@ -5,7 +5,7 @@ use std::membytes::{membytes,membytes_from_ptr,membytes_read_u256};
 use std::option::{unwrap,Some};
 use std::regions::{calldata,memory};
 use std::mem::unsafe_mem_write;
-use std::slice::*;
+use std::slice::{Slice, get, new};
 use std::core::ops::greater_equals;
 use std::error::{comptime_assert, require};
 
@@ -41,7 +41,7 @@ const Window = fn (comptime S: type) type {
       }
 };
 
-
+// =========================== INPUT: Window =================================
 const state_to_word = fn (state: type) u256 {
       let mut st_ui256: u256 = 0;
       if state == WindowNotInitialized   { st_ui256 = WINDOW_UNINITIALIZED; }
@@ -71,11 +71,6 @@ const isWindowInitialized = fn (window: $W) bool {
 
 const isNotWindowInitialized = fn(window: $W) bool {
       !isWindowInitialized (window)
-};
-
-
-const nill_window = fn() Window(WindowNotInitialized) {
-      Window(WindowNotInitialized) { len: WINDOW_NOT_INITIALIZED_LEN_VAL, idx: WINDOW_NOT_INITIALIZED_INDEX_VAL }
 };
 
 const window_len_slot  = fn(ws: u256) u256 {
@@ -110,6 +105,11 @@ const windowRevertEVMDueTo = fn(window: $W) void {
       	 @mstore4(revertBuffer, 0x1d44e4ed);
       	 @evm_revert(revertBuffer,4);
       }
+};
+
+// ============================ OUTPUT: Window =================================
+const nill_window = fn() Window(WindowNotInitialized) {
+      Window(WindowNotInitialized) { len: WINDOW_NOT_INITIALIZED_LEN_VAL, idx: WINDOW_NOT_INITIALIZED_INDEX_VAL }
 };
 
 const proposedWindow = fn(len :u256, idx: u256) Window(WindowNotInitialized) {

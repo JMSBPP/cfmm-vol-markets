@@ -1,0 +1,186 @@
+use custom_utils::moreRegions::storage;
+use custom_utils::math::{smin,smax};
+use custom_utils::eth::NO_VALUE;
+use custom_utils::cfmm_types::TickSpacing::{
+    DefaultTickSpacing, TICK_SPACING_SLOT, TickSpacing,
+    tickSpacingOn, tickSpacingOnExternal, tickSpacingVal, tickSpacingWord
+};
+use custom_utils::protocol_integrations::UniswapV4Consumer::{
+    EXTSLOAD_SELECTOR, POOL_MANAGER_SLOT, POOLS_SLOT
+};
+use Asset::Asset::{AssetMemory, loadAssetMemoryOnExt};
+use app::Main::IO_SLOT;
+
+use TickMoments::TickAverage::{TickAcc,tickAccWord};
+use TickMoments::Window::{Window, WindowInitialized, window_idx};
+
+use LiquidityKernel::AlignCalldata::AlignCalldata;
+use std::regions::memory;
+use std::slice::{Slice,get,new};
+use std::option::{unwrap,Some};
+use std::core::ops::{neg_u256, less_equals};
+
+// cast keccak vol-markets.Tick
+const TICK_SLOT = 0x62b50c96ec7c8db111173d139b431c4ef72820d773cfe40f8537db4c663ab7e6;
+// cast sig "set_tick(int24)"
+const SET_TICK_SELECTOR = 0x9924d8ec;
+
+// cast sig "read_tick()"
+const READ_TICK_SELECTOR = 0xd1c3c66a;
+
+const TICK_CALLDATA_IDX = 0;
+const TICK_SPACING_TICK_CALLDATA_IDX = 1;
+
+const MIN_TICK = -887272;
+const MAX_TICK = 887272;
+
+
+const TickCalldata = tuple {u256,u256};
+const TickFromCalldataToMemory =  Slice(memory,u256, Some(2));
+
+// TODO: 0 is a valid tick value, but is the default value loaded from storage even if no one cas set_tik and has set a tickSpacing value, we might need to parametrize Tick by state as done with window
+const Tick = struct {
+      val: u256,
+      ts: TickSpacing
+};
+
+
+// TODO: This is tied to the above and (until the above gets resolved) an unsafe return
+const tickReturnEVM = fn() never {
+      let retBuff: u256 = @malloc_uninit(32);
+      @mstore32(retBuff,@evm_sload(TICK_SLOT));
+      @evm_return(retBuff,32);
+};
+
+
+// =========================== INPUT: Tick =================================
+const tickWord = fn (self: Tick) u256 {
+      tickVal(self)
+};
+
+const tickVal = fn(self: Tick) u256 {
+      self.val
+};
+
+const EqTick = fn (t1: Tick, t2: Tick) bool {
+      tickWord(t1) == tickWord(t2)
+};
+
+const NeqTick = fn (t1: Tick, t2: Tick) bool {
+      !EqTick(t1, t2)
+};
+
+const store_tick = fn (tick:$T,to: type) void {
+      if to == storage {
+      	 @evm_sstore(TICK_SLOT, tickVal(tick));
+      }
+};
+
+// ============================ OUTPUT: Tick =================================
+const maxTick = fn( tickSpacing: $ts) Tick {
+      Tick{ val: @evm_sdiv(MAX_TICK, tickSpacingWord(tickSpacing)) *% tickSpacingWord(tickSpacing), ts: tickSpacing }
+};
+
+const minTick = fn( tickSpacing: $ts) Tick {
+      Tick{ val: @evm_sdiv(MIN_TICK, tickSpacingWord(tickSpacing)) *% tickSpacingWord(tickSpacing), ts: tickSpacing }
+};
+
+// NOTE: This definitions is somewhat arbitrary and can be changed
+const toUpdateTick = fn() Tick {
+      maxTick(DefaultTickSpacing())
+};
+
+// TODO: This possibly needs more input types, like Window
+const build_tick = fn(from: TickCalldata) Tick {
+      let tickMemory: TickFromCalldataToMemory = new(memory,from);
+      let mut tickBuilt: u256 = unwrap(get(tickMemory,TICK_CALLDATA_IDX));
+      let tickSpacing: TickSpacing = tickSpacingVal(unwrap(get(tickMemory,TICK_SPACING_TICK_CALLDATA_IDX)));
+      if @evm_slt(tickBuilt,0) {
+      	 tickBuilt = neg_u256(tickBuilt);
+	 if @evm_mod(tickBuilt, tickSpacingWord(tickSpacing)) != 0 {
+	    tickBuilt = tickBuilt + (tickSpacingWord(tickSpacing) - @evm_mod(tickBuilt, tickSpacingWord(tickSpacing)));
+	 }
+	 tickBuilt = neg_u256(tickBuilt);
+	} else {
+	  if @evm_mod(tickBuilt, tickSpacingWord(tickSpacing)) != 0 {
+	     tickBuilt = tickBuilt - @evm_mod(tickBuilt,tickSpacingWord(tickSpacing));
+	  }
+	}
+      let compressedTickWord: u256 = @evm_sdiv(tickBuilt,tickSpacingWord(tickSpacing));
+      tickBuilt = @evm_mul(compressedTickWord,tickSpacingWord(tickSpacing));
+      tickBuilt = smax(
+			tickVal(minTick(tickSpacing)),
+			smin(
+				tickVal(maxTick(tickSpacing)),
+				tickBuilt
+			  )
+			);
+      Tick {val: tickBuilt , ts: tickSpacing }
+};
+
+const tickOn = fn(on : type) Tick {
+      let mut resTick : Tick = toUpdateTick();
+      if on == storage {
+	 resTick = @set_field(resTick,"val", @evm_sload(TICK_SLOT));
+	 resTick = @set_field(resTick, "ts", tickSpacingVal(@evm_sload(TICK_SPACING_SLOT)));
+      }
+      resTick
+};
+
+const targetTick = fn (alignCalldata: AlignCalldata) Tick {
+      let resTick: Tick = @set_field(toUpdateTick(), "val",@get_field(alignCalldata,1));
+      resTick
+};
+
+/// `io` is Main (stored under Main's IO_SLOT on the AlignTick contract).
+const currentTick = fn (alignCalldata: $AlignCalldata, io: u256) Tick {
+      let mut resTick: Tick = @set_field(toUpdateTick(), "val", @get_field(alignCalldata, 0));
+      resTick = @set_field(resTick, "ts", tickSpacingOnExternal(io, storage));
+      resTick
+};
+
+const tickOnExternal = fn (src:u256 ,on: type) Tick {
+      let mut resTick : Tick = toUpdateTick();
+      if on == storage {
+      	  let tickBuff: u256 = @malloc_uninit(36);
+      	  @mstore4(tickBuff, READ_TICK_SELECTOR);
+      	  if !@evm_call(@evm_gas(), src, NO_VALUE, tickBuff,4,tickBuff+%4,32) {
+      	     	// cast sig "FailedToFetchTickFromAddress()"
+      	 	@mstore4(tickBuff, 0x87bd940a);
+          }
+      	 @evm_returndatacopy(tickBuff+%4,0,32);
+      	 resTick = @set_field(resTick,"val",@mload32(tickBuff+%4));
+	 resTick = @set_field(resTick, "ts" , tickSpacingOnExternal(src,on));
+      }
+      resTick
+};
+
+const MeanTick = fn(from: type ,tickAcc :TickAcc, window : Window(WindowInitialized)) Tick {
+      let mut meanTick: Tick = toUpdateTick();
+      if from == storage {
+      	 meanTick = build_tick((@evm_sdiv(tickAccWord(tickAcc),window_idx(window)),tickSpacingWord(tickSpacingOn(from))));
+      }
+      meanTick
+};
+
+
+const slot0TickOnPoolManager = fn () Tick {
+      let src: u256 = @evm_sload(IO_SLOT);
+      let assetMemory: AssetMemory = loadAssetMemoryOnExt(src, storage);
+      let packed: u256 = @malloc_uninit(64);
+      @mstore32(packed, @evm_keccak256(assetMemory.ptr, 160));
+      @mstore32(packed +% 32, POOLS_SLOT);
+      let cd: u256 = @malloc_uninit(36);
+      @mstore4(cd, EXTSLOAD_SELECTOR);
+      @mstore32(cd +% 4, @evm_keccak256(packed, 64));
+      let retBuff: u256 = @malloc_uninit(32);
+      if !@evm_staticcall(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), cd, 36, retBuff, 32) {
+      	 // cast sig "FailedOnReadSlot0()"
+      	 @mstore4(cd, 0x295cbff3);
+	 @evm_revert(cd, 4);
+      }
+      let mut resTick: Tick = toUpdateTick();
+      resTick = @set_field(resTick, "val", @evm_signextend(2, @evm_shr(160, @mload32(retBuff))));
+      resTick = @set_field(resTick, "ts", tickSpacingOnExternal(src, storage));
+      resTick
+};

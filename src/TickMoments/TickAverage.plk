@@ -1,6 +1,9 @@
 use custom_utils::moreRegions::storage;
-use TickMoments::Window::*;
-use TickMoments::Tick::*;
+use custom_utils::cfmm_types::Tick::{MeanTick, Tick, tickVal, tickWord, toUpdateTick};
+use TickMoments::Window::{
+    WINDOW_INITIALIZED, WINDOW_UNINITIALIZED, Window, WindowInitialized,
+    prospectWindow, update_window, window_state
+};
 use std::core::uint::{u24,try_cast_uint,unsafe_from_u256, cast_uint};
 use std::option::{unwrap,Some};
 use std::slice::{Slice,new,get};
@@ -15,12 +18,8 @@ const READ_TICK_AVERAGE_SELECTOR = 0x0e97de16;
 // note: TickAcc is int56 which aims to encode \(\underbrace{W}_{\texttt{16 bits/window}} \underbrace{i_{\mu}}_{\texttt{19 bits/Tick}}\)
 const TickAcc = u256;
 const NO_TICK_ACC = 0;
-//================================OUTPUT: TickAcc ================================
-const notYetTickAcc = fn() TickAcc {
-      NO_TICK_ACC
-};
 
-
+// =========================== INPUT: TickAcc =================================
 const tickTickAcc = fn (tick: $TickVal) TickAcc {
       @evm_sdiv(tickVal(tick),1)
 };
@@ -37,12 +36,13 @@ const tickAccWord = fn (tickAcc: $Tacc) u256 {
       tickAcc
 };
 
-const tickAvgPrevTickAcc = fn(tickAvg: $TickAverage) TickAcc {
-      tickAvg.prevTickAcc
-};
-
 const AccTick = fn(prev:TickAcc, toAcc : TickAcc) TickAcc {
       @evm_add(tickAccWord(prev),tickAccWord(toAcc))
+};
+
+// ============================ OUTPUT: TickAcc =================================
+const notYetTickAcc = fn() TickAcc {
+      NO_TICK_ACC
 };
 
 // TODO: From now we assume TAS = WS; This is to be verified
@@ -52,6 +52,11 @@ const TickAverage = fn(tickAverageState : type ) type {
 	     prevTickAcc: TickAcc,
 	     tickAvg: Tick
       }
+};
+
+// =========================== INPUT: TickAverage =================================
+const tickAvgPrevTickAcc = fn(tickAvg: $TickAverage) TickAcc {
+      tickAvg.prevTickAcc
 };
 
 const tickAvgTick = fn(tickAvg:$TickAverage) Tick {
@@ -71,14 +76,11 @@ const tickAverageReturnEVM = fn() never {
       @evm_return(retBuff,32);
 };
 
-
-
 const tickAverageWindow = fn(self: TickAverage(WindowInitialized)) Window(WindowInitialized) {
       self.window
 };
 
-
-//================================ OUTPUT: TickAverage ================================
+// ============================ OUTPUT: TickAverage =================================
 const prospectTickAverage = fn() TickAverage(WindowInitialized) {
       TickAverage(WindowInitialized) {window: prospectWindow(), prevTickAcc: notYetTickAcc(), tickAvg: toUpdateTick() }
 };

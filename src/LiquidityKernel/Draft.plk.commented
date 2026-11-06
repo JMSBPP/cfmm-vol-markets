@@ -1,0 +1,287 @@
+use std::constructor::return_runtime;
+use std::abi::{abi_encode, abi_encoded_size};
+use std::membytes::membytes;
+use std::core::ops::neg_u256;
+use custom_utils::cfmm_types::TickSpacing::{DefaultTickSpacing,TickSpacing,tickSpacingWord};
+use custom_utils::cfmm_types::Tick::{maxTick, minTick, tickWord};
+use custom_utils::protocol_integrations::UniswapV4Consumer::{POOL_MANAGER_SLOT, POOLS_SLOT};
+use custom_utils::eth::NO_VALUE;
+
+// cast keccak vol-markets.Uniswap.currency0
+const CURRENCY0_SLOT = 0xd1f705af7fc2f3c38fea34d11a4a1ab775e19094503c09c319d3904089703838;
+// cast keccak vol-markets.Uniswap.currency1
+const CURRENCY1_SLOT = 0xf3575f1c705d45b2f3b539c133fae674c9b4099ff84226f063e065721ad41c41;
+// cast keccak vol-markets.Uniswap.poolId
+const POOL_ID_SLOT = 0x627ea57aeecc21625da99e81574da8d552a4c2e896a20da128460035a27c555e;
+
+// cast sig "setPoolManager(address)"
+const SET_POOL_MANAGER_SELECTOR = 0x7aef6715;
+// cast sig "initialize(bytes)"
+const INITIALIZE_SELECTOR = 0x439fab91;
+
+// cast sig "createLeg()"
+// const CREATE_LEG_SELECTOR = 0x7d435e2c;
+
+// cast sig "sync(address)"
+const SYNC_SELECTOR = 0xa5841194;
+// cast sig "settle()"
+const SETTLE_SELECTOR = 0x11da60b4;
+// cast sig "notifyDebt(uint256)"
+const NOTIFY_DEBT_SELECTOR = 0x08696b8e;
+
+const DEFAULT_FEE_PIPS = 500;
+const HOOKLESS = 0;
+const DEFAULT_INITIAL_PRICE = 79228162514264337593543950336;
+
+
+const LIQUIDITY_OFFSET = 3;
+
+// 100e18
+const DEFAULT_LIQUIDITY_VALUE = 0x0000000000000000000000000000000000000000000000056bc75e2d63100000;
+
+const LEG_IDX_ONE = 1;
+const VEGOID = 2;
+const LONG = 1;
+const TOKEN_TYPE = 0;
+const NOT_INIT_TOKEN_ID = 0;
+
+init {
+     return_runtime();
+}
+
+   // function _getPoolStateSlot(PoolId poolId) internal pure returns (bytes32) {
+   //      return keccak256(abi.encodePacked(PoolId.unwrap(poolId), POOLS_SLOT));
+   //  }
+
+        // bytes32 stateSlot = _getPoolStateSlot(poolId);
+
+        // // Pool.State: `uint128 liquidity`
+        // bytes32 slot = bytes32(uint256(stateSlot) + LIQUIDITY_OFFSET);
+
+        // liquidity = uint128(uint256(manager.extsload(slot)));
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    // cast sig "getLiquidity()"
+    if selector == 0x0910a510 {
+       let buff: u256 = @malloc_uninit(136);
+       @mstore32(buff, @evm_sload(POOL_ID_SLOT));
+       @mstore32(buff +% 32, POOLS_SLOT);
+       // cast sig "extsload(bytes32)"
+       @mstore4(buff +% 64,0x1e2eaeaf);
+       @mstore32(buff +% 68, @evm_add(@evm_keccak256(buff,64),LIQUIDITY_OFFSET));
+       if !@evm_call(@evm_gas(),@evm_sload(POOL_MANAGER_SLOT), NO_VALUE,buff +% 64,36, buff +% 100,32) {
+       	  // cast sig "FailedOnReadLiquidity()"      	  
+       	  @mstore4(buff +% 132,0xee5f2981);
+	  @evm_revert(buff +% 132,4);
+       }
+
+       @evm_return(buff +%100,32);
+    }
+    // cast sig "createLeg(bytes)"
+    else if selector == 0xbaeefbc6 {
+      //  [sel(4)]  [off]    [len]    [bytecode]
+      //    0-4     4-36     36-68      68 - len
+      let bytecodeSize: u256 = @evm_calldataload(36);
+      let createPanopticBuff: u256 = @malloc_uninit(bytecodeSize);
+      @evm_calldatacopy(createPanopticBuff, 68, bytecodeSize);
+      let panopticEntryPoint: u256 = @evm_create(0, createPanopticBuff, bytecodeSize);
+      if panopticEntryPoint == 0 {
+      	 let errBuff: u256 = @malloc_uninit(4);
+      	 // cast sig "FailedToCreatePanoptic()"
+      	 @mstore4(errBuff, 0x67c9e495);
+      	 @evm_revert(errBuff, 4);
+      }
+      // We need to initalize the pool on panoptic
+      // initializeAMMPool(PoolKey,uint8): 4 + 6*32 = 196
+      let panopticInitBuff: u256 = @malloc_uninit(232);
+      // cast sig "initializeAMMPool((address,address,uint24,int24,address),uint8)"
+      @mstore4(panopticInitBuff,0x8ded7bcb);
+      @mstore32(panopticInitBuff +% 4, @evm_sload(CURRENCY0_SLOT));
+      @mstore32(panopticInitBuff +% 36, @evm_sload(CURRENCY1_SLOT));
+      @mstore32(panopticInitBuff +% 68, DEFAULT_FEE_PIPS);
+      @mstore32(panopticInitBuff +% 100, tickSpacingWord(DefaultTickSpacing()));
+      @mstore32(panopticInitBuff +% 132, HOOKLESS);
+      @mstore32(panopticInitBuff +% 164, VEGOID);
+      if !@evm_call(@evm_gas(), panopticEntryPoint, NO_VALUE, panopticInitBuff,196,panopticInitBuff +% 196,32) {
+      	 // cast sig "FailedToInitPanoptic()"
+      	 @mstore4(panopticInitBuff +% 228, 0x136005c0);
+      	 @evm_revert(panopticInitBuff +% 228, 4);
+      }
+// @evm_shl(64 +% (leg *% 48) +% 8, v & 0x1)
+      let panopticPoolId: u256 = @mload32(panopticInitBuff +% 196);
+      @evm_log0(panopticInitBuff +% 196,32);
+      let mut panopticTokenId: u256 = NOT_INIT_TOKEN_ID;
+      // Plank: `+=` on mut locals is unsupported — plain assign for progressive TokenId build
+      panopticTokenId = panopticTokenId +% panopticPoolId;
+      panopticTokenId = panopticTokenId +% @evm_shl(64 +% (LEG_IDX_ONE *% 48) +% 8, LONG & 0x1);
+      // 4 + (32*5) + 32 +(32*3) + (32*2) = 356
+      let createLegBuff: u256 = @malloc_uninit(356);
+      // cast sig "createLeg(address,(address,address,uint24,int24,address),uint256,uint256)"
+      @mstore4(createLegBuff, 0x63105301);
+      @mstore32(createLegBuff +% 4,@evm_address_this());
+// @mcopy(@evm_add(out_ptr, 32), encoded.ptr, encoded.length);      
+      @mcopy(createLegBuff +% 36,panopticInitBuff +% 4,160);
+      @mstore32(createLegBuff +% 196,panopticTokenId);
+      let mut liquidityChunk: u256 = @evm_shl(232, tickWord(minTick(DefaultTickSpacing())) & 0xffffff) | @evm_shl(208, tickWord(maxTick(DefaultTickSpacing())) & 0xffffff) | DEFAULT_LIQUIDITY_VALUE; 
+      @mstore32(createLegBuff +% 228, liquidityChunk);
+
+      if !@evm_call(@evm_gas(), panopticEntryPoint, NO_VALUE, createLegBuff,292,createLegBuff +% 260,64) {
+      	 // cast sig "FailedToCreateLeg()"
+      	 @mstore4(createLegBuff +% 4, 0xd26e35af);
+      	 @evm_revert(createLegBuff +% 4, 4);     
+      }
+
+      @evm_return(createLegBuff +% 260,64);
+    }
+    // cast sig "unlockCallback(bytes)"
+    else if selector == 0x91dd7346 {   // 4        32       
+       // unlockCallback(bytes):   [sel][offset=0x20][len][payload…] — payload at 68
+       let payloadLen: u256 = @evm_calldataload(36);
+       let callSize: u256 = 4 +% payloadLen; // len + 4  
+       let modLiqBuff: u256 = @malloc_uninit(callSize);
+// cast sig "modifyLiquidity((address,address,uint24,int24,address),(int24,int24,int256,bytes32),bytes)" 
+       @mstore4(modLiqBuff, 0x5a6bcfda);
+       @evm_calldatacopy(modLiqBuff +% 4, 68, payloadLen);
+
+       let succModLiq: bool = @evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), NO_VALUE, modLiqBuff, callSize, 0, 64);
+
+
+       if succModLiq {
+	 let modLiqRet: u256 = @malloc_zeroed(64);
+	 @evm_returndatacopy(modLiqRet,0,64);
+	 let amount0: u256 = @evm_sar(128, @mload32(modLiqRet));
+	 let amount1: u256 = @evm_signextend(15, @mload32(modLiqRet));
+	 let pm: u256 = @evm_sload(POOL_MANAGER_SLOT);
+
+	 let syncBuff: u256 = @malloc_uninit(36);
+	 let notiDebtBuff: u256 = @malloc_uninit(36);
+	 let settleMemBuff: u256 = @malloc_uninit(4);
+	 @mstore4(notiDebtBuff, NOTIFY_DEBT_SELECTOR);
+	 @mstore4(settleMemBuff, SETTLE_SELECTOR);
+	 @mstore4(syncBuff, SYNC_SELECTOR);
+
+
+	 @mstore32(syncBuff +% 4, @evm_sload(CURRENCY0_SLOT));
+	 if !@evm_call(@evm_gas(), pm, NO_VALUE, syncBuff, 36, 0, 0) {@evm_revert(0, 0);}
+	 
+	 @mstore32(notiDebtBuff +% 4, neg_u256(amount0));
+	 if !@evm_call(@evm_gas(), @evm_sload(CURRENCY0_SLOT), NO_VALUE, notiDebtBuff, 36, 0, 0) {
+	    let notiDebtErrBuff: u256 = @malloc_uninit(4);
+	    // cast sig "FailedNotiDebt()"
+	    @mstore4(notiDebtErrBuff, 0xccb10ec8);
+	    @evm_revert(notiDebtErrBuff, 4);
+	 }
+	 if !@evm_call(@evm_gas(), pm, NO_VALUE, settleMemBuff, 4, 0, 0) {@evm_revert(0, 0);}
+
+	 @mstore32(syncBuff +% 4, @evm_sload(CURRENCY1_SLOT));
+	 if !@evm_call(@evm_gas(), pm, NO_VALUE, syncBuff, 36, 0, 0) {@evm_revert(0, 0);}
+	 @mstore32(notiDebtBuff +% 4, neg_u256(amount1));
+
+	 if !@evm_call(@evm_gas(), @evm_sload(CURRENCY1_SLOT), NO_VALUE, notiDebtBuff, 36, 0, 0) {
+	    let notiDebtErrBuff: u256 = @malloc_uninit(4);
+	    @mstore4(notiDebtErrBuff, 0xccb10ec8);
+	    @evm_revert(notiDebtErrBuff, 4);
+	 }
+	 if !@evm_call(@evm_gas(), pm, NO_VALUE, settleMemBuff, 4, 0, 0) {@evm_revert(0, 0);}
+
+	 // unlockCallback returns (bytes): offset + length 0
+	 let ret: u256 = @malloc_zeroed(64);
+	 @mstore32(ret, 0x20);
+	 @evm_return(ret, 64);
+	 
+     } else if !succModLiq {
+	 let errBuff: u256 = @malloc_uninit(4);
+	 // cast sig "UnableToAddLiquidity()"
+	 @mstore4(errBuff, 0x76e3388d);
+	 @evm_revert(errBuff, 4);
+    }
+
+    }
+
+    else if selector == SET_POOL_MANAGER_SELECTOR {
+        @evm_sstore(POOL_MANAGER_SLOT,@evm_calldataload(4));
+	// +4    32	32    68    
+	//    [offset][len][payload]
+	let buf: u256 = @malloc_zeroed(32);
+	@evm_return(buf, 32);
+    }
+
+    else if selector == INITIALIZE_SELECTOR {
+      // initialize(bytes): payload is Transfer *creation* initcode
+      let payloadSize: u256 = @evm_calldataload(36);
+      let createBuff: u256 = @malloc_uninit(payloadSize);
+      @evm_calldatacopy(createBuff, 68, payloadSize);
+      let a: u256 = @evm_create(0, createBuff, payloadSize);
+      let b: u256 = @evm_create(0, createBuff, payloadSize);
+      // PoolKey requires currency0 < currency1
+      let currency0: u256 = if @evm_gt(a, b) { b } else { a };
+      let currency1: u256 = if @evm_gt(a, b) { a } else { b };
+      @evm_sstore(CURRENCY0_SLOT, currency0);
+      @evm_sstore(CURRENCY1_SLOT, currency1);
+
+      let mut mem: u256 = @malloc_uninit(196);
+      // cast sig "initialize((address,address,uint24,int24,address),uint160)"
+      @mstore4(mem, 0x6276cbbe);
+      @mstore32(mem +% 4, currency0);
+      @mstore32(mem +% 36, currency1);
+      @mstore32(mem +% 68, DEFAULT_FEE_PIPS);
+      @mstore32(mem +% 100, tickSpacingWord(DefaultTickSpacing()));
+      @mstore32(mem +% 132, HOOKLESS);
+      @mstore32(mem +% 164, DEFAULT_INITIAL_PRICE);
+      @evm_sstore(POOL_ID_SLOT, @evm_keccak256(mem +% 4,160));
+      let mut retBuff : u256 = @malloc_uninit(32);
+      let mut succ: bool = @evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), NO_VALUE, mem ,196,0,32);
+      if !succ {
+      	 let errBuff: u256 = @malloc_uninit(4);
+	 // cast sig "UnableToInitializeMarket()"
+	 @mstore4(errBuff, 0x793dad28);
+	 @evm_revert(errBuff, 4);
+      }
+       @evm_return(retBuff, 32);
+      }
+      
+      else {
+      // unlock(bytes) = sel + offset + len + modifyLiquidity args (352, empty hookData)
+      // 4 + 32 + 32 + 352 = 420
+      let mem: u256  = @malloc_uninit(420);
+      let currency0: u256 = @evm_sload(CURRENCY0_SLOT);
+      let currency1: u256 = @evm_sload(CURRENCY1_SLOT);
+
+      // cast sig "unlock(bytes)"
+      @mstore4(mem, 0x48c89491);
+      @mstore32(mem +% 4, 0x20);
+      @mstore32(mem +% 36, 352);
+      //  ===== POOL KEY (payload @ 68) ============
+      @mstore32(mem +% 68, currency0);
+      @mstore32(mem +% 100, currency1);
+      @mstore32(mem +% 132, DEFAULT_FEE_PIPS);
+      @mstore32(mem +% 164, tickSpacingWord(DefaultTickSpacing()));
+      @mstore32(mem +% 196, HOOKLESS);
+      // ======== MODIFY LIQUIDITY PARAMS ==============
+      let tickLo: u256 = tickWord(minTick(DefaultTickSpacing()));
+      let tickHi: u256 = tickWord(maxTick(DefaultTickSpacing()));
+      @mstore32(mem +% 228, tickLo);
+      @mstore32(mem +% 260, tickHi);
+      @mstore32(mem +% 292, DEFAULT_LIQUIDITY_VALUE);
+      let effHashBuff: u256 = @malloc_uninit(96);
+      @mstore32(effHashBuff, @evm_sload(POOL_ID_SLOT));
+      @mstore20(effHashBuff +% 32, @evm_address_this());
+      @mstore32(effHashBuff +% 52, TOKEN_TYPE);
+      @mstore3(effHashBuff +% 84, tickLo & 0xffffff);
+      @mstore3(effHashBuff +% 87, tickHi & 0xffffff);
+      let positionKey: u256 = @evm_keccak256(effHashBuff, 0x5a);
+      @mstore32(mem +% 324, positionKey);
+      @mstore32(mem +% 356, 0x140);
+      @mstore32(mem +% 388, 0);
+
+      let retBuff: u256  = @malloc_uninit(64);
+      let succ: bool = @evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), NO_VALUE, mem, 420, 0, 64);
+
+      @evm_return(retBuff, 64);
+      }
+
+      let endBuff: u256 = @malloc_zeroed(32);
+      @evm_return(endBuff,32);     
+
+}

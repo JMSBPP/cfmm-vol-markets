@@ -1,0 +1,3 @@
+// cast keccak VolMarkets.Premium
+
+const PREMIUM_SLOT = 0x5227bdf2b69276bebc000ad015baadaef05c055e109fba7791009027dc73bcea;

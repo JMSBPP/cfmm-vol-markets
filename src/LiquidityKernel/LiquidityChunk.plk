@@ -1,0 +1,45 @@
+use custom_utils::cfmm_types::Tick::{maxTick, minTick, tickWord};
+use custom_utils::cfmm_types::TickSpacing::DefaultTickSpacing;
+use std::option::Some;
+use std::slice::{Slice,new};
+use std::regions::memory;
+
+// struct ModifyLiquidityParams {
+//     // the lower and upper tick of the position
+//     int24 tickLower;
+//     int24 tickUpper;
+//     // how to modify the liquidity
+//     int256 liquidityDelta;
+//     // a value to set if you want unique liquidity positions at the same range
+//     bytes32 salt;
+// }
+
+    // /// @inheritdoc IPoolManager
+    // function modifyLiquidity(PoolKey memory key, ModifyLiquidityParams memory params, bytes calldata hookData)
+    //     external
+
+// 100e18
+const DEFAULT_LIQUIDITY_VALUE = 0x0000000000000000000000000000000000000000000000056bc75e2d63100000;
+const ZERO_SALT = 0;
+
+const ModifyLiquidityParams = tuple{u256,u256,u256,u256};
+
+const LiquidityChunk  = struct {
+      tickLow: u256
+      tickUp: u256,
+      liquidity: u256
+};
+
+const LiquidityCalldata = Slice(memory, ModifyLiquidityParams, Some(128));
+
+// =========================== INPUT: LiquidityChunk =================================
+
+// ============================ OUTPUT: LiquidityChunk =================================
+const DefaultLiquidity = fn() u256 {
+      DEFAULT_LIQUIDITY_VALUE      
+};
+
+const DefaultLiquidityCalldata = fn () LiquidityCalldata {
+      let defaultLiq: ModifyLiquidityParams = (tickWord(minTick(DefaultTickSpacing())), tickWord(maxTick(DefaultTickSpacing())), DefaultLiquidity(), ZERO_SALT);
+      new(memory, defaultLiq)
+};

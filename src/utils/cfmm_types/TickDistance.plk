@@ -1,0 +1,16 @@
+use custom_utils::numerics::WAD::WAD;
+
+// TODO: This type needs refinement as it can be missread; This ends up being mapped to amountSpecified
+// on SwapParams
+const TickDistance = u256;
+
+// =========================== INPUT: TickDistance =================================
+
+// ============================ OUTPUT: TickDistance =================================
+const nullTickDistance = fn () TickDistance {
+      0
+};
+
+const arbitraryDistance = fn () TickDistance {
+      WAD
+};

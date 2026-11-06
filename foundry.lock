@@ -1,9 +1,27 @@
 {
+  "data": {
+    "branch": {
+      "name": "main",
+      "rev": "94e75b1892b31a4d2ce6ea43ca0ed4ca35951799"
+    }
+  },
+  "evm-spec-bridge": {
+    "rev": "b4c7f179277610af0a0ac7db2b8fa7dfed343464"
+  },
+  "lib/cfmm-types": {
+    "branch": {
+      "name": "develop",
+      "rev": "c1012560d55207a700726a7d06afcc03641a7901"
+    }
+  },
   "lib/forge-std": {
     "tag": {
       "name": "v1.16.1",
       "rev": "620536fa5277db4e3fd46772d5cbc1ea0696fb43"
     }
+  },
+  "lib/panoptic-v2-core": {
+    "rev": "a5d704710945455dbd2541fcac0a85e8d89bc547"
   },
   "lib/plank-foundry-deployer": {
     "rev": "24fe42f1021f956838504fcad40a90f45e8ee218"
@@ -16,5 +34,17 @@
   },
   "lib/solady": {
     "rev": "258f67cc71e39cff307b726939ade17e9d8bcf5c"
+  },
+  "lib/v4-core": {
+    "tag": {
+      "name": "v4.0.0",
+      "rev": "e50237c43811bd9b526eff40f26772152a42daba"
+    }
+  },
+  "offchain": {
+    "rev": "b1104974f001d6e67e41cf09388e79df647bf466"
+  },
+  "refs": {
+    "rev": "3a35f7c986f55c4172d198ac83fd9c95e35422e2"
   }
 }

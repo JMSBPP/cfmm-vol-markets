@@ -27,6 +27,7 @@ const TickRealizedVol = fn(tickAverageState : type ) type {
       }
 };
 
+// =========================== INPUT: TickRealizedVol =================================
 const store_tickRealizedVolatility = fn (tickRealizedVol :$TRV, to: type) void {
       if to == storage {
       	 @evm_sstore(@evm_add(TICK_REALIZED_VOLATILITY_SLOT,1), tickRealizedVolPrevTick2Acc(tickRealizedVol));
@@ -46,21 +47,21 @@ const tickRealizedVolPrevTick2Acc = fn(tickRealizedVol:$TRV) Tick2Acc {
       tickRealizedVol.prevTick2Acc          
 };
 
-const notYetTick2Acc = fn() Tick2Acc {
-      NOT_TICK_2_ACC            
-};
-
-
 const tickRealizedVolRealizedVol = fn(tickRealizedVol:$TRV) TickRealizedVolVal {
       tickRealizedVol.tickVol      
 };
 
-const noTickVol = fn() TickRealizedVolVal {
-      unwrap(try_cast_uint(NOT_TICK_VOL_WORD,TickRealizedVolVal))            
-};
-
 const tickRealizedVolWord = fn (tickRealizedVolVal :TickRealizedVolVal) u256 {
      unwrap(try_cast_uint(tickRealizedVolVal,u256))
+};
+
+// ============================ OUTPUT: TickRealizedVol =================================
+const notYetTick2Acc = fn() Tick2Acc {
+      NOT_TICK_2_ACC            
+};
+
+const noTickVol = fn() TickRealizedVolVal {
+      unwrap(try_cast_uint(NOT_TICK_VOL_WORD,TickRealizedVolVal))            
 };
 
 const prospectTickRealizedVolatility = fn() TickRealizedVol(WindowInitialized) {
@@ -70,10 +71,3 @@ const prospectTickRealizedVolatility = fn() TickRealizedVol(WindowInitialized) {
 const update_realized_volatility = fn (on:type, tickValue:$T) TickRealizedVol(WindowInitialized) {
       prospectTickRealizedVolatility()            
 };
-
-
-
-
-
-
-

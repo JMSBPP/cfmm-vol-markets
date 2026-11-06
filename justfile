@@ -117,7 +117,7 @@ plank file:
     echo "compiling $src -> $out"
     "$plank_bin" build "$src" --backend sona \
         --dep std="{{plank-target-dir}}/std/" \
-        --dep TickMoments="src/TickMoments/" --dep custom_utils="src/utils" \
+        --dep TickMoments="src/TickMoments" --dep custom_utils="src/utils" --dep Asset="src/Asset" --dep LiquidityKernel="src/LiquidityKernel" --dep app="src/app" \
         > "$out"
 
 # Anvil at [rpc_endpoints.local] if nothing is already listening.
@@ -480,4 +480,4 @@ run-app:
     exec bash scripts/RunApp.sh . "{{app-bytecode-dir}}"
 
 test-current:
-	forge clean && forge test --match-contract TickRealizedVolatility
+	forge clean && forge test --match-test test_WhenTheCallerIsMain -vvvv
