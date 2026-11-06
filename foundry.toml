@@ -26,6 +26,10 @@ remappings = [
 	   "forge-std/=lib/forge-std/src/",
 	   "@test/=test/",
 	   "@helpers/=test/helpers/",
+	   # lib/v4-core pinned to e50237c — nested IPoolManager.SwapParams (pre-PoolOperation).
+	   # If a consumer needs the PoolOperation-era interface (bea7f6d), dual-mount it
+	   # under a second remapping (e.g. v4-core-poolop/=lib/v4-core-bea7/src/) and
+	   # import that alias only where required.
 	   "v4-core/=lib/v4-core/src/",
 	   "v4-periphery/=lib/v4-periphery/src/",
 	   "v4-core-test/=lib/v4-core/test/",
