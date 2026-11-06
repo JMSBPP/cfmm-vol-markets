@@ -1,4 +1,4 @@
-use TickMoments::Tick::{maxTick, minTick, tickWord};
+use custom_utils::cfmm_types::Tick::{maxTick, minTick, tickWord};
 use std::option::Some;
 use std::slice::{Slice,new};
 

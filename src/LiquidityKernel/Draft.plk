@@ -2,11 +2,10 @@ use std::constructor::return_runtime;
 use std::abi::{abi_encode, abi_encoded_size};
 use std::membytes::membytes;
 use std::core::ops::neg_u256;
-use TickMoments::TickSpacing::{DefaultTickSpacing,TickSpacing,tickSpacingWord};
-use TickMoments::Tick::{maxTick, minTick, tickWord};
+use custom_utils::cfmm_types::TickSpacing::{DefaultTickSpacing,TickSpacing,tickSpacingWord};
+use custom_utils::cfmm_types::Tick::{maxTick, minTick, tickWord};
+use custom_utils::protocol_integrations::UniswapV4Consumer::{POOL_MANAGER_SLOT, POOLS_SLOT};
 
-// cast keccak vol-markets.Uniswap.PoolManager
-const POOL_MANAGER_SLOT = 0x88a114aa1e554c058ec89d3e36fbd9461439057395b0516c7441f43f1154c823;
 // cast keccak vol-markets.Uniswap.currency0
 const CURRENCY0_SLOT = 0xd1f705af7fc2f3c38fea34d11a4a1ab775e19094503c09c319d3904089703838;
 // cast keccak vol-markets.Uniswap.currency1
@@ -35,7 +34,6 @@ const HOOKLESS = 0;
 const DEFAULT_INITIAL_PRICE = 79228162514264337593543950336;
 
 
-const POOLS_SLOT  = 6;
 const LIQUIDITY_OFFSET = 3;
 
 // 100e18

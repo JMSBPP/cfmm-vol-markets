@@ -3,7 +3,7 @@ use std::option::{unwrap,Some};
 use std::regions::{calldata,memory};
 use std::mem::unsafe_mem_write;
 use std::membytes::membytes;
-use std::slice::*;
+use std::slice::{Slice, get, new};
 use std::core::uint::{try_cast_uint,u24};
 use std::core::ops::{greater_equals,less_equals};
 pub use custom_utils::Value::NO_VALUE;
@@ -83,7 +83,7 @@ const tickSpacingRevertEVMDueTo = fn (reason: type) void {
 };
 
 
-// ============================OUTPUT:: TickSpacing =======================================
+// ============================ OUTPUT: TickSpacing =================================
 const tickSpacingVal = fn(word: $W) TickSpacing {
      unwrap(try_cast_uint(word,TickSpacing))
 };

@@ -1,12 +1,13 @@
 use std::constructor::return_runtime;
-use std::membytes::*;
+use std::membytes::{membytes, membytes_new, membytes_write};
 use custom_utils::moreRegions::storage;
-
-use TickMoments::Tick::*;
-use TickMoments::TickSpacing::*;
-
-// cast keccak vol-markets.Uniswap.PoolManager
-const POOL_MANAGER_SLOT = 0x88a114aa1e554c058ec89d3e36fbd9461439057395b0516c7441f43f1154c823;
+use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
+use custom_utils::cfmm_types::Tick::{
+    Tick, TickDistance, TickPrecedence, arbitraryDistance, notTickPrecedence,
+    nullTickDistance, precedesTick, targetTick, tickWord, toUpdateTick
+};
+use custom_utils::cfmm_types::TickSpacing::{NO_VALUE, tickSpacingOnExternal};
+use custom_utils::cfmm_types::SqrtPrice::{SqrtPrice, nullSqrtPrice, sqrtPriceFromTick};
 
 // cast keccak vol-markets.Uniswap.IO
 const IO_SLOT = 0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f51b;
@@ -193,6 +194,7 @@ run {
 	    }
 	 }
 	 // check first if the pool is initialized this is equvalent to checking a price equlos to 0
+	 
 	 // cast sig "unlock(bytes)"
          @mstore4(alignBuff, 0x48c89491);
 	 @mstore32(alignBuff +%4, 0x20);

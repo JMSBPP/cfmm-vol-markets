@@ -1,0 +1,3 @@
+use std::core::uint::u160;
+
+const Q64_96 = u160;

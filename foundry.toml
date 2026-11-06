@@ -15,12 +15,20 @@ fs_permissions = [
     { access = "read", path = "./src/interfaces/pos_spec" },
     { access = "read", path = "./.bytecode/algebra" },
     { access = "read", path = "./offchain/rig" },
+    { access = "read", path = "./.bytecode/uniswap-v4" }
+
 ]
 
 remappings = [
 	   "@solady/=lib/solady/src/",
 	   "solady/=lib/solady/src/",
-	   "@perfect-abstractions/compose/=node_modules/@perfect-abstractions/compose/"
+	   "@perfect-abstractions/compose/=node_modules/@perfect-abstractions/compose/",
+	   "forge-std/=lib/forge-std/src/",
+	   "@test/=test/",
+	   "@helpers/=test/helpers/",
+	   "v4-core/=lib/v4-core/src/",
+	   "v4-core-test/=lib/v4-core/test/",
+	   "panoptic-v2-core/=lib/panoptic-v2-core"
 ]
 
 
@@ -68,3 +76,8 @@ libs = ["lib"]
 ffi = false
 via_ir = true
 optimizer = true
+
+[profile.draft]
+src = "src"
+test = "test/Draft.t.sol"
+solc_version= "0.8.26"

@@ -1,6 +1,9 @@
 use custom_utils::moreRegions::storage;
-use TickMoments::Window::*;
-use TickMoments::Tick::*;
+use custom_utils::cfmm_types::Tick::{MeanTick, Tick, tickVal, tickWord, toUpdateTick};
+use TickMoments::Window::{
+    WINDOW_INITIALIZED, WINDOW_UNINITIALIZED, Window, WindowInitialized,
+    prospectWindow, update_window, window_state
+};
 use std::core::uint::{u24,try_cast_uint,unsafe_from_u256, cast_uint};
 use std::option::{unwrap,Some};
 use std::slice::{Slice,new,get};

@@ -1,5 +1,5 @@
 use custom_utils::moreRegions::{storage,transient_storage};
-use TickMoments::TickSpacing::{tickSpacingOn, tickSpacingWord};
+use custom_utils::cfmm_types::TickSpacing::{tickSpacingOn, tickSpacingWord};
 use std::slice::{set,Slice, new};
 use std::option::Some;
 use std::regions::memory;
