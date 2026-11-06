@@ -80,12 +80,12 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	// Use the real PoolManager; etching its code onto another address trips noDelegateCall.
 	poolManager = address(manager);
 	poolManagerLens = address(new StateView(IPoolManagerPeriphery(address(manager))));
-	deployCodeTo(main, plank("src/Main.plk"));
-	deployCodeTo(alignTickHarness, plank("src/LiquidityKernel/AlignTick.plk"));
-	deployCodeTo(underlying, plank("src/LiquidityKernel/Transfer.plk"));
-	deployCodeTo(numeraire, plank("src/LiquidityKernel/Transfer.plk"));
+	deployCodeTo(main, compilePlank("src/Main.plk"));
+	deployCodeTo(alignTickHarness, compilePlank("src/LiquidityKernel/AlignTick.plk"));
+	deployCodeTo(underlying, compilePlank("src/LiquidityKernel/Transfer.plk"));
+	deployCodeTo(numeraire, compilePlank("src/LiquidityKernel/Transfer.plk"));
 	(bool succ, address _tmp,) = deployHook(
-					       plank("src/LiquidityKernel/Controller.plk"),
+					       compilePlank("src/LiquidityKernel/Controller.plk"),
 					       CREATE2_FACTORY,
 					       NoFeeVarianceClaimBuilderPermissions
 	);

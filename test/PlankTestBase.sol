@@ -14,8 +14,9 @@ import {PushableStringsLib} from "plank-foundry-deployer/mini-vm.sol";
 ///      module that imports `interfaces::` (e.g. VolOrderManagerMod) failed with
 ///      "unknown module 'interfaces'". These roots MUST stay in lockstep with `just plank`.
 ///
-/// @dev Inherits plank-diff-tests `BaseTest` (`deployCodeTo`, `plank`) so etched Plank
-///      contracts get runtime bytecode (initcode → call → etch return data), not raw initcode.
+/// @dev Inherits plank-diff-tests `BaseTest` for `deployCodeTo` (etch initcode → call → etch
+///      runtime). Do not `override` BaseTest.`plank` / `baseBuildOptions` — those are no longer
+///      virtual on plank main; use `compilePlank` / `plankOpts` instead.
 abstract contract PlankTestBase is BaseTest {
     /// @dev Same roots as `just plank` (latest plank-target std + TickMoments).
     function plankOpts() internal pure returns (BuildOptions memory opts) {
@@ -25,10 +26,10 @@ abstract contract PlankTestBase is BaseTest {
         deps[0] = Dependency("std", "plank-target/std/");
         deps[1] = Dependency("TickMoments", "src/TickMoments/");
         deps[2] = Dependency("custom_utils", "src/utils");
-	deps[3] = Dependency("Asset", "src/Asset");
-	deps[4] = Dependency("LiquidityKernel", "src/LiquidityKernel/");
-	deps[5] = Dependency("app", "src/app");
-	
+        deps[3] = Dependency("Asset", "src/Asset");
+        deps[4] = Dependency("LiquidityKernel", "src/LiquidityKernel/");
+        deps[5] = Dependency("app", "src/app");
+
         opts.dependencies = deps;
     }
 
@@ -43,25 +44,13 @@ abstract contract PlankTestBase is BaseTest {
         opts.dependencies = deps;
     }
 
-    function baseBuildOptions() internal pure override returns (BuildOptions memory) {
-        return plankOpts();
-    }
-
-    function plankBuild(string memory sourcePath, BuildOptions memory options)
-        internal
-        override
-        returns (bytes memory)
-    {
-        return plankBuildFFI(sourcePath, options);
-    }
-
-    function plank(string memory sourcePath) internal override returns (bytes memory) {
+    /// @notice Compile a `.plk` entrypoint with vol-markets module roots (not BaseTest.plank).
+    function compilePlank(string memory sourcePath) internal returns (bytes memory) {
         return plankBuildFFI(sourcePath, plankOpts());
     }
 
-    function plank(string memory sourcePath, string memory evmVersionOverride)
+    function compilePlank(string memory sourcePath, string memory evmVersionOverride)
         internal
-        override
         returns (bytes memory)
     {
         BuildOptions memory options = plankOpts();
