@@ -84,6 +84,15 @@ run {
     else if selector == SET_TICK_SELECTOR {
     	 let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingWord(tickSpacingOn(storage)));
 	 let tick :Tick = build_tick(tickCalldata);
+	 let poolManager: u256 = @evm_sload(POOL_MANAGER_SLOT);
+	 // No PoolManager wired: storage-only tick/moments (unit tests, pre-market Main).
+	 if poolManager == 0 {
+	   	let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
+		let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
+		store_tick(tick,storage);
+		store_tickAverage(updatedTickAvg,storage);
+		store_tickRealizedVolatility(updatedTickRealizedVol,storage);
+	 } else {
 	 let currentSlot0SqrtPriceOnPoolManager: SqrtPrice =  slot0SqrtPriceOnLocalAsset();
     	 if EqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
 	    let assetMemory: AssetMemory = loadAssetMemory(storage);
@@ -94,7 +103,7 @@ run {
 	    @mcopy(mem +% 4, assetMemory.ptr, 160);
 	    @mstore32(mem +% 164, sqrtPriceWord(sqrtPriceFromTick(tick)));
 	    let retBuff: u256 = @malloc_uninit(32);
-	    if !@evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), NO_VALUE, mem, 196, retBuff, 32) {
+	    if !@evm_call(@evm_gas(), poolManager, NO_VALUE, mem, 196, retBuff, 32) {
 	      	 // cast sig "UnableToInitializeMarket()"
 	      	 @mstore4(mem, 0x793dad28);
 		 @evm_revert(mem, 4);
@@ -122,6 +131,7 @@ run {
 			
 		store_tickAverage(updatedTickAvg,storage);
 		store_tickRealizedVolatility(updatedTickRealizedVol,storage);
+	 }
 	 }
 	 
 	tickSpacingRevertEVMDueTo(storage);	     
