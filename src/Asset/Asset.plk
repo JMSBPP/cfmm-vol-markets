@@ -1,0 +1,86 @@
+use custom_utils::moreRegions::{storage,transient_storage};
+use custom_utils::cfmm_types::TickSpacing::{tickSpacingOn, tickSpacingWord};
+use custom_utils::eth::NO_VALUE;
+use std::slice::{set,Slice, new};
+use std::option::Some;
+use std::regions::memory;
+
+// cast sig "getMarketKey()"
+const GET_MARKET_KEY_SELECTOR = 0xe6b12e1e;
+
+
+const CONTROLLER_SLOT = 0x504cec47c00ecd92195dd23334a7de6ebb4a41496b4d3e248edc0727a2ce20b0;
+// cast keccak VolMarkets.Fee
+const FEE_SLOT = 0xdbb1cc11be04a69fc56e7bbccbd8e9075d3eeb52d1db97a6e9e2f0726a30b6ba;
+
+// (uint256(_asset % 2) << (64 + legIndex * 48)
+
+
+
+// cast keccak cfmm-vol-markets.Numeaire
+const NUMERAIRE_SLOT = 0x8b2aacedf2416f648c46a4af90c7a77fa692fc219cc6fbedc15a941b4b6c6c25;
+// cast keccak cfmm-vol-markets.Asset
+const ASSET_SLOT = 0xe6a5b3be46af081cd1e21a60d0408d8c675dd2d686b46d479bb5a4890877b5d6;
+
+const AssetPair = tuple{u256, u256};
+
+const AssetMemory = Slice(memory, u256, Some(5));
+
+const AssetCalldata = tuple {u256, u256, bool};
+
+// =========================== INPUT: Asset =================================
+const storeAsset = fn(ac :$AC, on: type) void {
+      if AC == AssetCalldata {
+      	 let tmp0 :u256 = @get_field(ac, 0);
+	 let tmp1: u256 = @get_field(ac, 1);
+	 let assetIdx: bool = @get_field(ac, 2);
+	 if assetIdx { @evm_sstore(ASSET_SLOT,tmp0); @evm_sstore(NUMERAIRE_SLOT,tmp1);}
+	 else if !assetIdx {@evm_sstore(NUMERAIRE_SLOT, tmp0); @evm_sstore(ASSET_SLOT,tmp1);}
+      }
+};
+
+// ============================ OUTPUT: Asset =================================
+const SortedAssetPair = fn(from: type) AssetPair {
+      let mut resPair: AssetPair = (0,0);
+      if from == storage {
+      	 let tmp0: u256 = @evm_sload(ASSET_SLOT);
+      	 let tmp1: u256 = @evm_sload(NUMERAIRE_SLOT);
+	 // currency0 < currency1 (V4 PoolKey)
+	 if tmp0 < tmp1 {
+	    resPair = @set_field(resPair, 0, tmp0);
+	    resPair = @set_field(resPair, 1, tmp1);
+	 } else {
+	    resPair = @set_field(resPair, 0, tmp1);
+	    resPair = @set_field(resPair, 1, tmp0);
+	 }
+      }
+      	 resPair
+};
+
+const loadAssetMemory = fn(from: type) AssetMemory {
+      new(memory, (@get_field(SortedAssetPair(from),0),@get_field(SortedAssetPair(from),1),@evm_sload(FEE_SLOT),tickSpacingWord(tickSpacingOn(storage)),@evm_sload(CONTROLLER_SLOT)))
+};
+
+/// Same PoolKey layout as `loadAssetMemory`, fetched from `src` via `getMarketKey()`
+/// when `on == storage` (mirrors `tickOnExternal` / `tickSpacingOnExternal`).
+const loadAssetMemoryOnExt = fn (src: u256, on: type) AssetMemory {
+      let mut assetMemory: AssetMemory = new(memory, (0, 0, 0, 0, 0));
+      if on == storage {
+      	 // ABI ret: offset(32) + len(32) + PoolKey(160) = 224
+      	 let buff: u256 = @malloc_uninit(4 +% 224);
+      	 @mstore4(buff, GET_MARKET_KEY_SELECTOR);
+      	 if !@evm_call(@evm_gas(), src, NO_VALUE, buff, 4, buff +% 4, 224) {
+      	      // cast sig "FailedToFetchAssetMemoryFromAddress()"
+      	      @mstore4(buff, 0x903b6546);
+	      @evm_revert(buff, 4);
+      	 }
+      	 assetMemory = new(memory, (
+	      @mload32(buff +% 68),
+	      @mload32(buff +% 100),
+	      @mload32(buff +% 132),
+	      @mload32(buff +% 164),
+	      @mload32(buff +% 196)
+	 ));
+      }
+      assetMemory
+};

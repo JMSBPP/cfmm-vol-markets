@@ -3,9 +3,10 @@ use std::option::{unwrap,Some};
 use std::regions::{calldata,memory};
 use std::mem::unsafe_mem_write;
 use std::membytes::membytes;
-use std::slice::*;
+use std::slice::{Slice, get, new};
 use std::core::uint::{try_cast_uint,u24};
 use std::core::ops::{greater_equals,less_equals};
+use custom_utils::eth::NO_VALUE;
 
 const TickSpacing = u24;
 const NOT_TICK_SPACING = 0;
@@ -27,7 +28,7 @@ const TickSpacingCalldata = tuple { TickSpacing };
 
 const TickSpacingFromCalldataToMemory = Slice(memory, u24, Some(1));
 
-// =========================INPUT: TickSpacing ===============================
+// =========================== INPUT: TickSpacing =================================
 const tickSpacingWord = fn(tickSpacing:$TS) u256 {
       unwrap(try_cast_uint(tickSpacing,u256))
 };
@@ -53,12 +54,6 @@ const isTickSpacingOn = fn(on:type) bool {
       	 tickSpacingOnRes = isTickSpacing(tickSpacingWordOnStorage);    	       	 
       }
       tickSpacingOnRes
-};
-
-const tickSpacingOn = fn(on: type) u256 {
-      if on == storage {
-      	 tickSpacingWord(@evm_sload(TICK_SPACING_SLOT))
-      }
 };
 
 const tickSpacingReturnEVM = fn () never {
@@ -88,11 +83,17 @@ const tickSpacingRevertEVMDueTo = fn (reason: type) void {
 };
 
 
-// ============================OUTPUT:: TickSpacing =======================================
+// ============================ OUTPUT: TickSpacing =================================
+
 const tickSpacingVal = fn(word: $W) TickSpacing {
      unwrap(try_cast_uint(word,TickSpacing))
 };
 
+const tickSpacingOn = fn(on: type) TickSpacing {
+      if on == storage {
+      	 tickSpacingVal(@evm_sload(TICK_SPACING_SLOT))
+      }
+};
 const notYetTickSpacing = fn() TickSpacing {
       tickSpacingVal(NOT_TICK_SPACING)
 };
@@ -126,5 +127,20 @@ const build_tickSpacing = fn(from: $O) TickSpacing {
 };       
 
 
+const tickSpacingOnExternal = fn (src: u256, on: type) TickSpacing {
+      let mut resTickSpacing: TickSpacing = notYetTickSpacing();
+      if on == storage {
+      	 let tickSpacingBuff: u256 = @malloc_uninit(36);
+	 @mstore4(tickSpacingBuff,READ_TICK_SPACING_SELECTOR);
+	 if !@evm_call(@evm_gas(), src, NO_VALUE, tickSpacingBuff,4,tickSpacingBuff+%4,32) {
+	    // cast sig "FailedToFetchTickSpacingFromAddress()"
+	    @mstore4(tickSpacingBuff, 0x7424e8af);
+	 }
+	 @evm_returndatacopy(tickSpacingBuff+%4,0,32);
+
+	 resTickSpacing = tickSpacingVal(@mload32(tickSpacingBuff+%4));
+      }
+      resTickSpacing
+};
 
 

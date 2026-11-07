@@ -1,0 +1,111 @@
+use custom_utils::moreRegions::storage;
+use custom_utils::numerics::Q64x96::Q64_96;
+use custom_utils::protocol_integrations::UniswapV4Consumer::{
+    EXTSLOAD_SELECTOR, POOL_MANAGER_SLOT, POOLS_SLOT
+};
+use custom_utils::cfmm_types::Tick::{Tick, tickWord};
+use Asset::Asset::{AssetMemory, loadAssetMemory, loadAssetMemoryOnExt};
+use app::Main::IO_SLOT;
+use std::option::unwrap;
+use std::core::uint::try_cast_uint;
+
+const SQRT_PRICE_MASK = 0xffffffffffffffffffffffffffffffffffffffff;
+
+const SqrtPrice = Q64_96;
+
+// =========================== INPUT: SqrtPrice =================================
+const sqrtPriceWord = fn (sqrtPriceVal: SqrtPrice) u256 {
+      unwrap(try_cast_uint(sqrtPriceVal, u256))
+};
+
+const EqSqrtPrice = fn (p1: SqrtPrice, p2: SqrtPrice) bool {
+      sqrtPriceWord(p1) == sqrtPriceWord(p2)
+};
+
+const NeqSqrtPrice = fn (p1: SqrtPrice, p2: SqrtPrice) bool {
+      !EqSqrtPrice(p1, p2)
+};
+
+// ============================ OUTPUT: SqrtPrice =================================
+const sqrtPriceFromWord = fn (word: u256) SqrtPrice {
+      unwrap(try_cast_uint(word, SqrtPrice))
+};
+
+const nullSqrtPrice = fn () SqrtPrice {
+      sqrtPriceFromWord(0)
+};
+
+// note: vendored from plankified-v3
+const sqrtPriceFromTick = fn (tick: Tick) SqrtPrice {
+    let tickVal = tickWord(tick);
+    let absTick = if @evm_slt(tickVal, 0) { -tickVal } else { tickVal };
+    if absTick > 887272 {
+       // note: revert with custom reason
+        let p = @malloc_uninit(100);
+    	@mstore4(p, 0x08c379a0);
+    	@mstore32(p +% 4, 0x20);
+    	@mstore32(p +% 36, 1);
+    	@mstore32(p +% 68, 0x5200000000000000000000000000000000000000000000000000000000000000);
+    	@evm_revert(p, 100);
+    }
+
+    let mut ratio = if absTick & 1 > 0 { 0xfffcb933bd6fad37aa2d162d1a594001 } else { 0x100000000000000000000000000000000 };
+
+    if absTick & 0x2   > 0 { ratio = @evm_shr(128, ratio *% 0xfff97272373d413259a46990580e213a); }
+    if absTick & 0x4   > 0 { ratio = @evm_shr(128, ratio *% 0xfff2e50f5f656932ef12357cf3c7fdcc); }
+    if absTick & 0x8   > 0 { ratio = @evm_shr(128, ratio *% 0xffe5caca7e10e4e61c3624eaa0941cd0); }
+    if absTick & 0x10  > 0 { ratio = @evm_shr(128, ratio *% 0xffcb9843d60f6159c9db58835c926644); }
+    if absTick & 0x20  > 0 { ratio = @evm_shr(128, ratio *% 0xff973b41fa98c081472e6896dfb254c0); }
+    if absTick & 0x40  > 0 { ratio = @evm_shr(128, ratio *% 0xff2ea16466c96a3843ec78b326b52861); }
+    if absTick & 0x80  > 0 { ratio = @evm_shr(128, ratio *% 0xfe5dee046a99a2a811c461f1969c3053); }
+    if absTick & 0x100 > 0 { ratio = @evm_shr(128, ratio *% 0xfcbe86c7900a88aedcffc83b479aa3a4); }
+    if absTick & 0x200 > 0 { ratio = @evm_shr(128, ratio *% 0xf987a7253ac413176f2b074cf7815e54); }
+    if absTick & 0x400 > 0 { ratio = @evm_shr(128, ratio *% 0xf3392b0822b70005940c7a398e4b70f3); }
+    if absTick & 0x800 > 0 { ratio = @evm_shr(128, ratio *% 0xe7159475a2c29b7443b29c7fa6e889d9); }
+    if absTick & 0x1000 > 0 { ratio = @evm_shr(128, ratio *% 0xd097f3bdfd2022b8845ad8f792aa5825); }
+    if absTick & 0x2000 > 0 { ratio = @evm_shr(128, ratio *% 0xa9f746462d870fdf8a65dc1f90e061e5); }
+    if absTick & 0x4000 > 0 { ratio = @evm_shr(128, ratio *% 0x70d869a156d2a1b890bb3df62baf32f7); }
+    if absTick & 0x8000 > 0 { ratio = @evm_shr(128, ratio *% 0x31be135f97d08fd981231505542fcfa6); }
+    if absTick & 0x10000 > 0 { ratio = @evm_shr(128, ratio *% 0x9aa508b5b7a84e1c677de54f3e99bc9); }
+    if absTick & 0x20000 > 0 { ratio = @evm_shr(128, ratio *% 0x5d6af8dedb81196699c329225ee604); }
+    if absTick & 0x40000 > 0 { ratio = @evm_shr(128, ratio *% 0x2216e584f5fa1ea926041bedfe98); }
+    if absTick & 0x80000 > 0 { ratio = @evm_shr(128, ratio *% 0x48a170391f7dc42444e8fa2); }
+
+    if @evm_sgt(tickVal, 0) {
+        ratio = @evm_not(0) </ ratio;
+    }
+
+    // this divides by 1<<32 rounding up to go from a Q128.128 to a Q128.96.
+    // we then downcast because we know the result always fits within 160 bits due to our tick input constraint
+    // we round up in the division so getTickAtSqrtRatio of the output price is always consistent
+    let result = @evm_shr(32, ratio) + if @evm_mod(ratio, 1 << 32) == 0 { 0 } else { 1 };
+    unwrap(try_cast_uint(result & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, SqrtPrice))
+};
+
+/// slot0.sqrtPriceX96 via PoolManager.extsload — same predicate as V4 checkPoolInitialized.
+const slot0SqrtPriceFromAssetMemory = fn (assetMemory: AssetMemory) SqrtPrice {
+      // poolId = keccak256(abi.encode(PoolKey)); stateSlot = keccak256(poolId ‖ POOLS_SLOT)
+      let packed: u256 = @malloc_uninit(64);
+      @mstore32(packed, @evm_keccak256(assetMemory.ptr, 160));
+      @mstore32(packed +% 32, POOLS_SLOT);
+      let cd: u256 = @malloc_uninit(36);
+      @mstore4(cd, EXTSLOAD_SELECTOR);
+      @mstore32(cd +% 4, @evm_keccak256(packed, 64));
+      let retBuff: u256 = @malloc_uninit(32);
+      if !@evm_staticcall(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), cd, 36, retBuff, 32) {
+      	 // cast sig "FailedOnReadSlot0()"
+      	 @mstore4(cd, 0x295cbff3);
+	 @evm_revert(cd, 4);
+      }
+      sqrtPriceFromWord(@evm_and(@mload32(retBuff), SQRT_PRICE_MASK))
+};
+
+
+const slot0SqrtPriceOnLocalAsset = fn () SqrtPrice {
+      slot0SqrtPriceFromAssetMemory(loadAssetMemory(storage))
+};
+
+
+const slot0SqrtPriceOnPoolManager = fn () SqrtPrice {
+      slot0SqrtPriceFromAssetMemory(loadAssetMemoryOnExt(@evm_sload(IO_SLOT), storage))
+};

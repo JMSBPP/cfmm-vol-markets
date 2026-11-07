@@ -1,0 +1,3 @@
+// Draft.plk disabled — body in Draft.plk.commented
+use std::constructor::return_runtime;
+init { return_runtime(); }

@@ -15,12 +15,25 @@ fs_permissions = [
     { access = "read", path = "./src/interfaces/pos_spec" },
     { access = "read", path = "./.bytecode/algebra" },
     { access = "read", path = "./offchain/rig" },
+    { access = "read", path = "./.bytecode/uniswap-v4" }
+
 ]
 
 remappings = [
 	   "@solady/=lib/solady/src/",
 	   "solady/=lib/solady/src/",
-	   "@perfect-abstractions/compose/=node_modules/@perfect-abstractions/compose/"
+	   "@perfect-abstractions/compose/=node_modules/@perfect-abstractions/compose/",
+	   "forge-std/=lib/forge-std/src/",
+	   "@test/=test/",
+	   "@helpers/=test/helpers/",
+	   # lib/v4-core pinned to e50237c — nested IPoolManager.SwapParams (pre-PoolOperation).
+	   # If a consumer needs the PoolOperation-era interface (bea7f6d), dual-mount it
+	   # under a second remapping (e.g. v4-core-poolop/=lib/v4-core-bea7/src/) and
+	   # import that alias only where required.
+	   "v4-core/=lib/v4-core/src/",
+	   "v4-periphery/=lib/v4-periphery/src/",
+	   "v4-core-test/=lib/v4-core/test/",
+	   "panoptic-v2-core/=lib/panoptic-v2-core"
 ]
 
 
@@ -53,7 +66,7 @@ skip = [
 # 10 runs is not a test, it is a coin flip. The differential suite fuzzes over
 # (init_timestamp x N_writes x tick x outlier x dt) -- a 5-dimensional space -- so a low run
 # count is green by luck, not by coverage. Raised for the diff work.
-runs = 256
+runs = 1000
 
 [rpc_endpoints]
 mainnet = "https://eth-mainnet.g.alchemy.com/v2/${API_KEY}"
@@ -68,3 +81,8 @@ libs = ["lib"]
 ffi = false
 via_ir = true
 optimizer = true
+
+[profile.draft]
+src = "src"
+test = "test/Draft.t.sol"
+solc_version= "0.8.26"

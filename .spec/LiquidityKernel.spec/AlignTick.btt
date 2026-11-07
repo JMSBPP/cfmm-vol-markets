@@ -1,0 +1,22 @@
+AlignTickTest
+├── When align is called in AlignTick
+│   ├── It should revert if the caller is not Main or address this
+│   ├── When the caller is Main
+│   │   ├── It should revert if one of the passed ticks on calldata is not the read_tick on Main.
+│   │   └── It should call unlock on poolManager passing the pair of ticks as unlockCalldata.
+│   └── When the caller is address this
+│       ├── It should take as one of the passed ticks on calldata is an error from target tick.
+│       └── It should call unlock on poolManager passing the pair of ticks as unlockCalldata and the error
+├── When unlockCallback is called in AlignTick
+│   ├── It should call the getMarketKey in Main
+│   ├── It should build SwapParams
+│   ├── It should call swap in poolManager with empty hookData, marketKey and builtSwapParams
+│   ├── It should call clearUnlock in AlignTick
+│   ├── It should fetch the current tick stored in the poolManager
+│   └── When the current tick fetched from poolManager storage does not equal the tick on calldata that equaled the read_tick from Main
+│       ├── It should track the error
+│       └── It should call align in AlignTick with the second tick calldata argument as the error tracked
+└── When clearUnlock is called in AlignTick
+    ├── It should call notifyDebt on both address from marketKey
+    ├── It should call sync in PoolManager
+    └── It should call settle in PoolManager
