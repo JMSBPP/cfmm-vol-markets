@@ -20,13 +20,6 @@ const liquidityWord = fn (liquidity:Liquidity) u256 {
 };
 
 // ============================ OUTPUT: Liquidity =================================
-// loadLiquidityMemPtr layout (136):
-//   [0:32]    poolId = keccak(PoolKey)
-//   [32:64]   POOLS_SLOT
-//   [64:68]   extsload selector
-//   [68:100]  stateSlot + LIQUIDITY_OFFSET
-//   [100:132] return word
-//   [132:136] FailedOnReadLiquidity selector
 const slot0LiquidityOnPoolManager = fn () Liquidity {
       let src: u256 = @evm_sload(IO_SLOT);
       let assetMemory: AssetMemory = loadAssetMemoryOnExt(src, storage);

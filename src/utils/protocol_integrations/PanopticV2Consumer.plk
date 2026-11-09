@@ -8,19 +8,14 @@ const SET_POSITION_MANAGER_SELECTOR = 0x5760f2e3;
 
 const VEGOID_DEFAULT = 2;
 
-// First POOL_MANAGER_V4 immutable patch site in pinned SemiFungiblePositionManagerV4
-// runtime (solc immutableReferences; matches scripts/export-sfpm-bytecode.sh artifact).
 const SFPM_POOL_MANAGER_IMMUTABLE_OFFSET = 2013;
 
-/// Read SFPM constructor-bound `POOL_MANAGER_V4` from runtime bytecode.
 const poolManagerOnPositionManager = fn (positionManager: u256) u256 {
       let word: u256 = @malloc_uninit(32);
       @evm_extcodecopy(positionManager, word, SFPM_POOL_MANAGER_IMMUTABLE_OFFSET, 32);
       @mload32(word)
 };
 
-/// Store SFPM address after `setPoolManager`. Reverts if PoolManager is unwired or
-/// SFPM's constructor PoolManager does not match `POOL_MANAGER_SLOT`.
 const storePositionManager = fn (positionManager: u256) void {
       let expected: u256 = @evm_sload(POOL_MANAGER_SLOT);
       let rev: u256 = @malloc_uninit(4);

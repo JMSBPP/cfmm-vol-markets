@@ -85,10 +85,10 @@ contract NoFeeVarianceClaimBuilderTest is PlankTestBase, Deployers, HookDeployer
 	);
 	vm.etch(optionsClearingHouse, address(sfpm).code);
 	deployCodeTo(noFeeVarianceClaimBuilder, plank("src/Main.plk"));
-	deployCodeTo(underlying, plank("src/LiquidityKernel/Transfer.plk"));
-	deployCodeTo(numeraire, plank("src/LiquidityKernel/Transfer.plk"));
+	deployCodeTo(underlying, plank("src/utils/Token/Transfer.plk"));
+	deployCodeTo(numeraire, plank("src/utils/Token/Transfer.plk"));
 	(bool succ, address _tmp,) = deployHook(
-					       plank("src/LiquidityKernel/Controller.plk"),
+					       plank("src/Controllers/Controller.plk"),
 					       CREATE2_FACTORY,
 					       NoFeeVarianceClaimBuilderPermissions
 	);

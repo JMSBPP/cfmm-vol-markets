@@ -70,9 +70,9 @@ contract TickTest is PlankTestBase, Deployers {
 	    vm, manager, 2100000000000000000000, 2100000000000000000000, 10000
 	);
 	main = deployPlank("src/Main.plk");
-	deployCodeTo(alignTickHarness, compilePlank("src/LiquidityKernel/AlignTick.plk"));
-	deployCodeTo(underlying, compilePlank("src/LiquidityKernel/Transfer.plk"));
-	deployCodeTo(numeraire, compilePlank("src/LiquidityKernel/Transfer.plk"));
+	deployCodeTo(alignTickHarness, compilePlank("src/ProtocolSync/AlignTick.plk"));
+	deployCodeTo(underlying, compilePlank("src/utils/Token/Transfer.plk"));
+	deployCodeTo(numeraire, compilePlank("src/utils/Token/Transfer.plk"));
 	IEnv(alignTickHarness).setIO(main);
 	IEnv(main).setTickAligner(alignTickHarness);
 	IEnv(alignTickHarness).setPoolManager(poolManager);

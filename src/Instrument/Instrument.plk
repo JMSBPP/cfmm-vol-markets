@@ -1,0 +1,67 @@
+use custom_utils::moreRegions::storage;
+
+
+
+// cast keccak vol-markets.Instrument
+const INSTRUMENT_SLOT = 0x5fe379eadf961f93313dfc3c6b408e3ac1daa5bcbd88a644f0a30eb30a02f9f4;
+
+const initIdx = fn () u256 {
+      0
+};
+
+
+const Instrument = u256;
+const notYetInstrument = fn () Instrument {0};
+
+// ===================== INPUT: Instrument ==================================
+
+const store_instrument = fn(instrument :Instrument, on: type) void {
+      if on == storage {
+      	 @evm_sstore(INSTRUMENT_SLOT, instrument);
+      }
+};
+
+const EqInstrument = fn ( i1 : Instrument, i2: Instrument) bool {i1 == i2};
+
+const NeqInstrument = fn ( i1 : Instrument, i2: Instrument) bool { !(EqInstrument(i1,i2))};
+
+//  ========================= STATE : Instrument ============================
+const MarketAssigned = fn (self: Instrument) bool {
+      let res: bool  = NeqInstrument(self,notYetInstrument());
+      res
+};
+
+// ===================== OUTPUT : Instrument ===============================
+
+const instrumentOn = fn (on: type) Instrument {
+      let mut resInstrument: Instrument = notYetInstrument();
+      if on == storage {
+      	 resInstrument = @evm_sload(INSTRUMENT_SLOT); 
+      }
+      resInstrument
+};
+
+const assignMarketToInstrument = fn (on: type, marketIdWord :u256) Instrument {
+      let mut instrument: Instrument = notYetInstrument();
+      instrument = instrument+%marketIdWord;
+      instrument
+};
+
+const InitializeInstrumentInitializer = u256;
+// from now what is known is that is greater than 0
+
+const ArbitraryValidInstrumentInitializer = fn () InitializeInstrumentInitializer {
+      1
+};
+
+const initializeInstrument = fn (self: Instrument , v: InitializeInstrumentInitializer) Instrument {
+      let mut initializedInstrumentOn: Instrument = notYetInstrument();
+      if MarketAssigned(self) {
+      	 initializedInstrumentOn = self+% @evm_shl(@evm_mod(v,128),@evm_add(@evm_add(@evm_mul(initIdx(),48),1)),64);	     
+      }
+      initializedInstrumentOn
+      
+};
+
+
+
