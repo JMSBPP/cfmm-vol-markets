@@ -4,7 +4,8 @@ use custom_utils::moreRegions::storage;
 use custom_utils::eth::NO_VALUE;
 use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
 use custom_utils::protocol_integrations::PanopticV2Consumer::{
-    SET_POSITION_MANAGER_SELECTOR, storePositionManager
+    POSITION_MANAGER_SLOT, SET_POSITION_MANAGER_SELECTOR, VEGOID_DEFAULT,
+    storePositionManager
 };
 use custom_utils::cfmm_types::Tick::{
     NeqTick, READ_TICK_SELECTOR, SET_TICK_SELECTOR, Tick, TickCalldata,
@@ -92,28 +93,37 @@ run {
     	 let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingWord(tickSpacingOn(storage)));
 	 let tick :Tick = build_tick(tickCalldata);
 	 let poolManager: u256 = @evm_sload(POOL_MANAGER_SLOT);
+	 let positionManager: u256 = @evm_sload(POSITION_MANAGER_SLOT);
 	 let currentSlot0SqrtPriceOnPoolManager: SqrtPrice =  slot0SqrtPriceOnLocalAsset();
     	 if EqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
 	    let assetMemory: AssetMemory = loadAssetMemory(storage);
-	    let mem: u256 = @malloc_uninit(196);
-	    
-	    // cast sig "initialize((address,address,uint24,int24,address),uint160)"
-	    @mstore4(mem, 0x6276cbbe);
-	    @mcopy(mem +% 4, assetMemory.ptr, 160);
-	    @mstore32(mem +% 164, sqrtPriceWord(sqrtPriceFromTick(tick)));
+	    // layout: sel+PoolKey+arg (196) | ret (32) → 228
+	    let mut initMemPtr: u256 = @malloc_uninit(228);
 
-	    let retBuff: u256 = @malloc_uninit(32);
-	    
-	    if !@evm_call(@evm_gas(), poolManager, NO_VALUE, mem, 196, retBuff, 32) {
+	    // cast sig "initialize((address,address,uint24,int24,address),uint160)"
+	    @mstore4(initMemPtr, 0x6276cbbe);
+	    @mcopy(initMemPtr +% 4, assetMemory.ptr, 160);
+	    @mstore32(initMemPtr +% 164, sqrtPriceWord(sqrtPriceFromTick(tick)));
+
+	    if !@evm_call(@evm_gas(), poolManager, NO_VALUE, initMemPtr, 196, initMemPtr +% 196, 32) {
 	      	 // cast sig "UnableToInitializeMarket()"
-	      	 @mstore4(mem, 0x793dad28);
-		 @evm_revert(mem, 4);
+	      	 @mstore4(initMemPtr, 0x793dad28);
+		 @evm_revert(initMemPtr, 4);
 	    }
-	    
-	    if @mload32(retBuff) != tickWord(tick) {
+
+	    if @mload32(initMemPtr +% 196) != tickWord(tick) {
 	      	 // cast sig "TickMismatchOnInitialize()"
-	      	 @mstore4(mem, 0xa89ef96f);
-		 @evm_revert(mem, 4);
+	      	 @mstore4(initMemPtr, 0xa89ef96f);
+		 @evm_revert(initMemPtr, 4);
+	    }
+
+	    // cast sig "initializeAMMPool((address,address,uint24,int24,address),uint8)"
+	    @mstore4(initMemPtr, 0x8ded7bcb);
+	    @mstore32(initMemPtr +% 164, VEGOID_DEFAULT);
+	    if !@evm_call(@evm_gas(), positionManager, NO_VALUE, initMemPtr, 196, initMemPtr +% 196, 32) {
+	      	 // cast sig "UnableToInitializePositionManager()"
+	      	 @mstore4(initMemPtr, 0x218225e8);
+		 @evm_revert(initMemPtr, 4);
 	    }
 
 	    let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
