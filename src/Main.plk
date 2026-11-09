@@ -3,6 +3,10 @@ use std::slice::{new,len};
 use custom_utils::moreRegions::storage;
 use custom_utils::eth::NO_VALUE;
 use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
+use custom_utils::protocol_integrations::PanopticV2Consumer::{
+    POSITION_MANAGER_SLOT, SET_POSITION_MANAGER_SELECTOR, VEGOID_DEFAULT,
+    storePositionManager
+};
 use custom_utils::cfmm_types::Tick::{
     NeqTick, READ_TICK_SELECTOR, SET_TICK_SELECTOR, Tick, TickCalldata,
     build_tick, store_tick, tickOn, tickReturnEVM, tickWord
@@ -37,8 +41,9 @@ use LiquidityKernel::AlignCalldata::{
 };
 use LiquidityKernel::AlignTick::{ALIGNER_SLOT, requestTickAlignment};
 use LiquidityKernel::Controller::CONTROLLER_SLOT;
-use LiquidityKernel::Premium::PREMIUM_SLOT;
-
+use Premium::Premium::{
+    PREMIUM_SLOT, SET_PREMIUM_RATE_SELECTOR
+};
 
 init {
     return_runtime();
@@ -82,48 +87,60 @@ run {
 
 
     else if selector == SET_TICK_SELECTOR {
+	 // Spacing must be set before initialize/align — otherwise PoolKey.tickSpacing=0
+	 // fails as UnableToInitializeMarket and TickSpacingNotOnStorage is unreachable.
+	 tickSpacingRevertEVMDueTo(storage);
     	 let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingWord(tickSpacingOn(storage)));
 	 let tick :Tick = build_tick(tickCalldata);
 	 let poolManager: u256 = @evm_sload(POOL_MANAGER_SLOT);
-	 // No PoolManager wired: storage-only tick/moments (unit tests, pre-market Main).
-	 if poolManager == 0 {
-	   	let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
-		let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
-		store_tick(tick,storage);
-		store_tickAverage(updatedTickAvg,storage);
-		store_tickRealizedVolatility(updatedTickRealizedVol,storage);
-	 } else {
+	 let positionManager: u256 = @evm_sload(POSITION_MANAGER_SLOT);
 	 let currentSlot0SqrtPriceOnPoolManager: SqrtPrice =  slot0SqrtPriceOnLocalAsset();
     	 if EqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
 	    let assetMemory: AssetMemory = loadAssetMemory(storage);
-	    // sel(4) + PoolKey(160) + sqrtPriceX96(32) = 196
-	    let mem: u256 = @malloc_uninit(196);
+	    // layout: sel+PoolKey+arg (196) | ret (32) → 228
+	    let mut initMemPtr: u256 = @malloc_uninit(228);
+
 	    // cast sig "initialize((address,address,uint24,int24,address),uint160)"
-	    @mstore4(mem, 0x6276cbbe);
-	    @mcopy(mem +% 4, assetMemory.ptr, 160);
-	    @mstore32(mem +% 164, sqrtPriceWord(sqrtPriceFromTick(tick)));
-	    let retBuff: u256 = @malloc_uninit(32);
-	    if !@evm_call(@evm_gas(), poolManager, NO_VALUE, mem, 196, retBuff, 32) {
+	    @mstore4(initMemPtr, 0x6276cbbe);
+	    @mcopy(initMemPtr +% 4, assetMemory.ptr, 160);
+	    @mstore32(initMemPtr +% 164, sqrtPriceWord(sqrtPriceFromTick(tick)));
+
+	    if !@evm_call(@evm_gas(), poolManager, NO_VALUE, initMemPtr, 196, initMemPtr +% 196, 32) {
 	      	 // cast sig "UnableToInitializeMarket()"
-	      	 @mstore4(mem, 0x793dad28);
-		 @evm_revert(mem, 4);
+	      	 @mstore4(initMemPtr, 0x793dad28);
+		 @evm_revert(initMemPtr, 4);
 	    }
-	    if @mload32(retBuff) != tickWord(tick) {
+
+	    if @mload32(initMemPtr +% 196) != tickWord(tick) {
 	      	 // cast sig "TickMismatchOnInitialize()"
-	      	 @mstore4(mem, 0xa89ef96f);
-		 @evm_revert(mem, 4);
+	      	 @mstore4(initMemPtr, 0xa89ef96f);
+		 @evm_revert(initMemPtr, 4);
 	    }
+
+	    // cast sig "initializeAMMPool((address,address,uint24,int24,address),uint8)"
+	    @mstore4(initMemPtr, 0x8ded7bcb);
+	    @mstore32(initMemPtr +% 164, VEGOID_DEFAULT);
+	    if !@evm_call(@evm_gas(), positionManager, NO_VALUE, initMemPtr, 196, initMemPtr +% 196, 32) {
+	      	 // cast sig "UnableToInitializePositionManager()"
+	      	 @mstore4(initMemPtr, 0x218225e8);
+		 @evm_revert(initMemPtr, 4);
+	    }
+
+	    let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
+	    let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
 	    store_tick(tick, storage);
+	    store_tickAverage(updatedTickAvg,storage);
+	    store_tickRealizedVolatility(updatedTickRealizedVol,storage);
 	    
 	 }
 
 	 else if NeqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
-	   	let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
-		let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
-		// here it stores the tick before the update	
-		let prevTick: Tick = tickOn(storage);
-		store_tick(tick,storage);
-		// completeAlignTickCalldata rejects equal ticks; skip unlock when norm collapses
+	   let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
+	   let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
+	  // here it stores the tick before the update	
+	   let prevTick: Tick = tickOn(storage);
+	   store_tick(tick,storage);
+	   // completeAlignTickCalldata rejects equal ticks; skip unlock when norm collapses
 		if NeqTick(prevTick, tick) {
 		   let alignTickCalldata: AlignCalldata = completeAlignTickCalldata(partialAlignTickCalldata(prevTick), tick);
 		   requestTickAlignment(alignTickCalldata);
@@ -132,12 +149,13 @@ run {
 		store_tickAverage(updatedTickAvg,storage);
 		store_tickRealizedVolatility(updatedTickRealizedVol,storage);
 	 }
-	 }
-	 
-	tickSpacingRevertEVMDueTo(storage);	     
 	@evm_return(@malloc_uninit(0), 0);
     }
 
+    else if selector == SET_PREMIUM_RATE_SELECTOR {
+    	 @evm_sstore(PREMIUM_SLOT, @evm_calldataload(4));
+	 @evm_return(@malloc_uninit(0), 0);
+    }
     else if selector == SET_TICK_SPACING_SELECTOR {
       	 let tickSpacingCalldata: TickSpacingCalldata = (tickSpacingVal(@evm_calldataload(4)),);
 	 let tickSpacing: TickSpacing = build_tickSpacing(tickSpacingCalldata);
@@ -161,6 +179,12 @@ run {
     // cast sig "setPoolManager(address)"
     else if selector == 0x7aef6715 {
     	 @evm_sstore(POOL_MANAGER_SLOT, @evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32), 32);
+    }
+
+    // cast sig "setPositionManager(address)" — must follow setPoolManager
+    else if selector == SET_POSITION_MANAGER_SELECTOR {
+    	 storePositionManager(@evm_calldataload(4));
 	 @evm_return(@malloc_zeroed(32), 32);
     }
     

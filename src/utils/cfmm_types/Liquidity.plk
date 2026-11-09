@@ -1,0 +1,59 @@
+use app::Main::IO_SLOT;
+use custom_utils::moreRegions::storage;
+use custom_utils::protocol_integrations::UniswapV4Consumer::{
+    EXTSLOAD_SELECTOR, POOL_MANAGER_SLOT, POOLS_SLOT
+};
+
+
+use Asset::Asset::{AssetMemory, loadAssetMemoryOnExt};
+use std::core::uint::{
+    u128, try_cast_uint
+};
+use std::option::unwrap;
+
+
+const Liquidity = u128;
+const LIQUIDITY_OFFSET = 3;
+// =========================== INPUT: Liquidity =================================
+const liquidityWord = fn (liquidity:Liquidity) u256 {
+      unwrap(try_cast_uint(liquidity,u256))      
+};
+
+// ============================ OUTPUT: Liquidity =================================
+// loadLiquidityMemPtr layout (136):
+//   [0:32]    poolId = keccak(PoolKey)
+//   [32:64]   POOLS_SLOT
+//   [64:68]   extsload selector
+//   [68:100]  stateSlot + LIQUIDITY_OFFSET
+//   [100:132] return word
+//   [132:136] FailedOnReadLiquidity selector
+const slot0LiquidityOnPoolManager = fn () Liquidity {
+      let src: u256 = @evm_sload(IO_SLOT);
+      let assetMemory: AssetMemory = loadAssetMemoryOnExt(src, storage);
+      let loadLiquidityMemPtr: u256 = @malloc_uninit(136);
+      @mstore32(loadLiquidityMemPtr, @evm_keccak256(assetMemory.ptr, 160));
+      @mstore32(loadLiquidityMemPtr +% 32, POOLS_SLOT);
+      @mstore4(loadLiquidityMemPtr +% 64, EXTSLOAD_SELECTOR);
+      @mstore32(
+          loadLiquidityMemPtr +% 68,
+          @evm_add(@evm_keccak256(loadLiquidityMemPtr, 64), LIQUIDITY_OFFSET)
+      );
+      if !@evm_staticcall(
+          @evm_gas(),
+          @evm_sload(POOL_MANAGER_SLOT),
+          loadLiquidityMemPtr +% 64,
+          36,
+          loadLiquidityMemPtr +% 100,
+          32
+      ) {
+          // cast sig "FailedOnReadLiquidity()"
+          @mstore4(loadLiquidityMemPtr +% 132, 0xee5f2981);
+          @evm_revert(loadLiquidityMemPtr +% 132, 4);
+      }
+
+      liquidityFromWord(@mload32(loadLiquidityMemPtr +% 100));
+};
+
+const liquidityFromWord = fn (word: u256) Liquidity {
+      unwrap(try_cast_uint(word, u128))      
+};
