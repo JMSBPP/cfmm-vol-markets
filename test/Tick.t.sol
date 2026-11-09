@@ -2,11 +2,22 @@
 pragma solidity 0.8.26;
 import {PlankTestBase} from "plank/PlankTestBase.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
+import {Deployers} from "v4-core-test/utils/Deployers.sol";
 import {ITickSpacing, MAX_TICK_SPACING, MIN_TICK_SPACING} from "./TickSpacing.t.sol";
 
 interface ITick {
     function set_tick(int24) external;
     function read_tick() external returns(int24);
+}
+
+interface IEnv {
+    function setIO(address) external;
+    function setTickAligner(address) external;
+    function setPoolManager(address) external;
+}
+
+interface IMarketBuilder {
+    function setPair(address, address, bool) external;
 }
 
 // cast keccak vol-markets.Tick
@@ -41,12 +52,26 @@ function normTickVal(int24 tick, uint24 tickSpacing) pure returns (int24) {
     return int24(rounded);
 }
 
-contract TickTest is PlankTestBase {
+contract TickTest is PlankTestBase, Deployers {
 
     address main;
+    address poolManager;
+    address alignTickHarness = makeAddr("cfmm-vol-markets.alignTick");
+    address underlying = makeAddr("cfmm.vol-markets.underlying");
+    address numeraire = makeAddr("cfmm.vol-markets.numeraire");
     
     function setUp() public {
+	deployFreshManager();
+	poolManager = address(manager);
 	main = deployPlank("src/Main.plk");
+	deployCodeTo(alignTickHarness, compilePlank("src/LiquidityKernel/AlignTick.plk"));
+	deployCodeTo(underlying, compilePlank("src/LiquidityKernel/Transfer.plk"));
+	deployCodeTo(numeraire, compilePlank("src/LiquidityKernel/Transfer.plk"));
+	IEnv(alignTickHarness).setIO(main);
+	IEnv(main).setTickAligner(alignTickHarness);
+	IEnv(alignTickHarness).setPoolManager(poolManager);
+	IEnv(main).setPoolManager(poolManager);
+	IMarketBuilder(main).setPair(underlying, numeraire, true);
 	vm.makePersistent(main);
     }
 
@@ -62,25 +87,42 @@ contract TickTest is PlankTestBase {
     }
 
     function test_WhenTickSpacingOnStorageIsSet(uint24 tickSpacingOnStorage, int24 tick) external whenSet_tickIsCalled {
-        uint24 tickSpacingCalldata = tickSpacingOnStorage;
+        // Spacing + tick must be V4-init-safe: usableMax can equal MAX_TICK, whose
+        // sqrt price is rejected by Pool.initialize (sqrtPrice >= MAX_SQRT_PRICE).
+        uint24 tickSpacingCalldata = uint24(
+            bound(uint256(tickSpacingOnStorage), uint256(MIN_TICK_SPACING), uint256(MAX_TICK_SPACING))
+        );
 	ITickSpacing(main).set_tick_spacing(tickSpacingCalldata);
-	
-       
+	uint24 ts = ITickSpacing(main).read_tick_spacing();
+	int24 lo = usableMin(SafeCastLib.toInt24(uint256(ts)));
+	int24 hi = usableMax(SafeCastLib.toInt24(uint256(ts)));
+	if (hi == MAX_TICK) {
+	    hi = hi - SafeCastLib.toInt24(uint256(ts));
+	}
+	int24 tickCalldata = int24(bound(int256(tick), int256(lo), int256(hi)));
+
         // It should set tickVal to normTickVal.
-	int24 tickCalldata = tick;
 	ITick(main).set_tick(tickCalldata);	
-	int24 tickStoredVal = SafeCastLib.toInt24(int256(uint256(vm.load(main,TICK_SLOT))));	assertEq(tickStoredVal, normTickVal(tickCalldata,ITickSpacing(main).read_tick_spacing()));
+	int24 tickStoredVal = SafeCastLib.toInt24(int256(uint256(vm.load(main,TICK_SLOT))));
+	assertEq(tickStoredVal, normTickVal(tickCalldata, ts));
         
     }
 
     function test__ReadTickLoadsTickFromStorage(uint24 tickSpacing, int24 tick) external {
-	uint24 tickSpacingCalldata = tickSpacing;
-	int24 tickCalldata = tick;
+	uint24 tickSpacingCalldata = uint24(
+            bound(uint256(tickSpacing), uint256(MIN_TICK_SPACING), uint256(MAX_TICK_SPACING))
+        );
 	ITickSpacing(main).set_tick_spacing(tickSpacingCalldata);
+	uint24 ts = ITickSpacing(main).read_tick_spacing();
+	int24 lo = usableMin(SafeCastLib.toInt24(uint256(ts)));
+	int24 hi = usableMax(SafeCastLib.toInt24(uint256(ts)));
+	if (hi == MAX_TICK) {
+	    hi = hi - SafeCastLib.toInt24(uint256(ts));
+	}
+	int24 tickCalldata = int24(bound(int256(tick), int256(lo), int256(hi)));
 	ITick(main).set_tick(tickCalldata);
 
 	int24 tickStoredVal = SafeCastLib.toInt24(int256(uint256(vm.load(main,TICK_SLOT))));
 	assertEq(ITick(main).read_tick(),tickStoredVal);
     }
 }
-

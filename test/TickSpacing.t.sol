@@ -2,6 +2,7 @@
 pragma solidity 0.8.26;
 import {PlankTestBase} from "plank/PlankTestBase.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
+import {Deployers} from "v4-core-test/utils/Deployers.sol";
 
 
 bytes32 constant TICK_SPACING_SLOT = 0xf21ff12c997bb9e034b4c86d66ba5b6ceb2a3b177ea03c1656edb0264e54224b;
@@ -15,12 +16,20 @@ interface ITickSpacing {
     function read_tick_spacing() external returns(uint24);
 }
 
+interface IEnv {
+    function setPoolManager(address) external;
+}
 
-contract TickSpacingTest is PlankTestBase {
+
+contract TickSpacingTest is PlankTestBase, Deployers {
     address main;
+    address poolManager;
     
     function setUp() public {
+	deployFreshManager();
+	poolManager = address(manager);
 	main = deployPlank("src/Main.plk");
+	IEnv(main).setPoolManager(poolManager);
 	vm.makePersistent(main);
     }
 
