@@ -3,6 +3,9 @@ use std::slice::{new,len};
 use custom_utils::moreRegions::storage;
 use custom_utils::eth::NO_VALUE;
 use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
+use custom_utils::protocol_integrations::PanopticV2Consumer::{
+    SET_POSITION_MANAGER_SELECTOR, storePositionManager
+};
 use custom_utils::cfmm_types::Tick::{
     NeqTick, READ_TICK_SELECTOR, SET_TICK_SELECTOR, Tick, TickCalldata,
     build_tick, store_tick, tickOn, tickReturnEVM, tickWord
@@ -166,6 +169,12 @@ run {
     // cast sig "setPoolManager(address)"
     else if selector == 0x7aef6715 {
     	 @evm_sstore(POOL_MANAGER_SLOT, @evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32), 32);
+    }
+
+    // cast sig "setPositionManager(address)" — must follow setPoolManager
+    else if selector == SET_POSITION_MANAGER_SELECTOR {
+    	 storePositionManager(@evm_calldataload(4));
 	 @evm_return(@malloc_zeroed(32), 32);
     }
     

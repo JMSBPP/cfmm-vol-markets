@@ -23,6 +23,7 @@ import {IUnlockCallback} from "v4-core/interfaces/callback/IUnlockCallback.sol";
 import {Deployers} from "v4-core-test/utils/Deployers.sol";
 import {Constants} from "v4-core-test/utils/Constants.sol";
 import {HookDeployer} from "@helpers/UniswapV4/HookDeployer.sol";
+import {SfpmBytecodeDeployer} from "@helpers/UniswapV4/SfpmBytecodeDeployer.sol";
 
 
 
@@ -55,6 +56,7 @@ interface IEnv {
 
     function setTickAligner(address) external;
     function setPoolManager(address) external;
+    function setPositionManager(address) external;
     
 }
 
@@ -69,6 +71,7 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
     address main = makeAddr("cfmm-vol-markets.main");
     address alignTickHarness = makeAddr("cfmm-vol-markets.alignTick");
     address poolManager;
+    address positionManager;
     address poolManagerLens;
     address underlying = makeAddr("cfmm.vol-markets.underlying");
     address numeraire =  makeAddr("cfmm.vol-markets.numeraire");
@@ -79,6 +82,9 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	deployFreshManager();
 	// Use the real PoolManager; etching its code onto another address trips noDelegateCall.
 	poolManager = address(manager);
+	positionManager = SfpmBytecodeDeployer.deploy(
+	    vm, manager, 2100000000000000000000, 2100000000000000000000, 10000
+	);
 	poolManagerLens = address(new StateView(IPoolManagerPeriphery(address(manager))));
 	deployCodeTo(main, compilePlank("src/Main.plk"));
 	deployCodeTo(alignTickHarness, compilePlank("src/LiquidityKernel/AlignTick.plk"));
@@ -135,6 +141,8 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	IControllerSetter(main).setController(controller);
 	IEnv(alignTickHarness).setPoolManager(poolManager);
 	IEnv(main).setPoolManager(poolManager);
+	IEnv(alignTickHarness).setPositionManager(positionManager);
+	IEnv(main).setPositionManager(positionManager);
 	ITickSpacing(main).set_tick_spacing(tickSpacing);
 	IWindow(main).set_window(windowLenCalldata);
 

@@ -3,6 +3,7 @@ pragma solidity 0.8.26;
 import {PlankTestBase} from "plank/PlankTestBase.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 import {Deployers} from "v4-core-test/utils/Deployers.sol";
+import {SfpmBytecodeDeployer} from "@helpers/UniswapV4/SfpmBytecodeDeployer.sol";
 import {ITickSpacing, MAX_TICK_SPACING, MIN_TICK_SPACING} from "./TickSpacing.t.sol";
 
 interface ITick {
@@ -14,6 +15,7 @@ interface IEnv {
     function setIO(address) external;
     function setTickAligner(address) external;
     function setPoolManager(address) external;
+    function setPositionManager(address) external;
 }
 
 interface IMarketBuilder {
@@ -56,6 +58,7 @@ contract TickTest is PlankTestBase, Deployers {
 
     address main;
     address poolManager;
+    address positionManager;
     address alignTickHarness = makeAddr("cfmm-vol-markets.alignTick");
     address underlying = makeAddr("cfmm.vol-markets.underlying");
     address numeraire = makeAddr("cfmm.vol-markets.numeraire");
@@ -63,6 +66,9 @@ contract TickTest is PlankTestBase, Deployers {
     function setUp() public {
 	deployFreshManager();
 	poolManager = address(manager);
+	positionManager = SfpmBytecodeDeployer.deploy(
+	    vm, manager, 2100000000000000000000, 2100000000000000000000, 10000
+	);
 	main = deployPlank("src/Main.plk");
 	deployCodeTo(alignTickHarness, compilePlank("src/LiquidityKernel/AlignTick.plk"));
 	deployCodeTo(underlying, compilePlank("src/LiquidityKernel/Transfer.plk"));
@@ -71,6 +77,8 @@ contract TickTest is PlankTestBase, Deployers {
 	IEnv(main).setTickAligner(alignTickHarness);
 	IEnv(alignTickHarness).setPoolManager(poolManager);
 	IEnv(main).setPoolManager(poolManager);
+	IEnv(alignTickHarness).setPositionManager(positionManager);
+	IEnv(main).setPositionManager(positionManager);
 	IMarketBuilder(main).setPair(underlying, numeraire, true);
 	vm.makePersistent(main);
     }

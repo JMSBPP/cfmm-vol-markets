@@ -20,11 +20,12 @@ import {PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {StateLibrary} from "v4-core/libraries/StateLibrary.sol";
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {TickMath} from "v4-core/libraries/TickMath.sol";
+import {SwapMath} from "v4-core/libraries/SwapMath.sol";
 
 uint256 constant VEGOID = 8;
 
-interface IFeeSetter {
-    function set_fee(uint24) external;
+interface IPremiumSetter {
+    function setPremiumRate(uint24) external;
 }
 
 interface IControllerSetter {
@@ -64,6 +65,7 @@ interface IEnv {
     function setIO(address) external;
     function setTickAligner(address) external;
     function setPoolManager(address) external;
+    function setPositionManager(address) external;
 }
 
 contract NoFeeVarianceClaimBuilderTest is PlankTestBase, Deployers, HookDeployer {
@@ -108,17 +110,23 @@ contract NoFeeVarianceClaimBuilderTest is PlankTestBase, Deployers, HookDeployer
         IEnv(noFeeVarianceClaimBuilder).setTickAligner(alignTickHarness);
         IEnv(alignTickHarness).setPoolManager(poolManager);
         IEnv(noFeeVarianceClaimBuilder).setPoolManager(poolManager);
+        // SFPM etched at optionsClearingHouse; constructor PoolManager must match.
+        IEnv(alignTickHarness).setPositionManager(optionsClearingHouse);
+        IEnv(noFeeVarianceClaimBuilder).setPositionManager(optionsClearingHouse);
         IMarketBuilder(noFeeVarianceClaimBuilder).setPair(underlying, numeraire, true);
     }
 
     function test__PanopticWhenSetTickOnMainItUpdatesCfmmTickToTickCalldata(
         uint256 windowLen,
         uint24 tickSpacing,
-        uint256 maxIdx
+        uint256 maxIdx,
+	uint24 arbitraryPremiumRate
     ) external {
         uint256 windowLenCalldata = bound(windowLen, 1, 5);
         ITickSpacing(noFeeVarianceClaimBuilder).set_tick_spacing(tickSpacing);
-        IFeeSetter(noFeeVarianceClaimBuilder).set_fee(uint24(0));
+	uint24 arbitraryAdmissiblePremiumRate = uint24(bound(arbitraryPremiumRate, 0,
+							     SwapMath.MAX_SWAP_FEE - 1));
+        IPremiumSetter(noFeeVarianceClaimBuilder).setPremiumRate(arbitraryAdmissiblePremiumRate);
         IControllerSetter(noFeeVarianceClaimBuilder).setController(noFeeVarianceClaimController);
         IWindow(noFeeVarianceClaimBuilder).set_window(windowLenCalldata);
         uint256 maxIdxPick = bound(maxIdx, 1, windowLenCalldata);
@@ -156,7 +164,7 @@ contract NoFeeVarianceClaimBuilderTest is PlankTestBase, Deployers, HookDeployer
         vm.skip(true);
         uint256 windowLenCalldata = bound(windowLen, 1, 200);
         ITickSpacing(noFeeVarianceClaimBuilder).set_tick_spacing(tickSpacing);
-        IFeeSetter(noFeeVarianceClaimBuilder).set_fee(uint24(0));
+        // IFeeSetter(noFeeVarianceClaimBuilder).set_fee(uint24(0));
         IControllerSetter(noFeeVarianceClaimBuilder).setController(noFeeVarianceClaimController);
         IWindow(noFeeVarianceClaimBuilder).set_window(windowLenCalldata);
         uint256 maxIdxPick = bound(maxIdx, 1, windowLenCalldata);
