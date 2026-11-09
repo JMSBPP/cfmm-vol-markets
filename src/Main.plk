@@ -40,7 +40,7 @@ use LiquidityKernel::AlignCalldata::{
 };
 use LiquidityKernel::AlignTick::{ALIGNER_SLOT, requestTickAlignment};
 use LiquidityKernel::Controller::CONTROLLER_SLOT;
-use LiquidityKernel::Premium::{
+use Premium::Premium::{
     PREMIUM_SLOT, SET_PREMIUM_RATE_SELECTOR
 };
 
