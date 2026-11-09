@@ -27,6 +27,9 @@ use app::Main::IO_SLOT;
 // cast keccak VolMarkets.Aligner — Main stores the AlignTick address at this slot
 const ALIGNER_SLOT = 0x9e3cd23d05abbd9a7a5ca9ecf08e0a1150bd5e3e48e3ab65660d6eef78375e3d;
 
+// cast sig "setTickAligner(address)"
+const SET_TICK_ALIGNER_SELECTOR = 0x1e5c861f;
+
 
 const requestTickAlignment = fn (alignCalldata: AlignCalldata) void {
       // todo: it must check is completed

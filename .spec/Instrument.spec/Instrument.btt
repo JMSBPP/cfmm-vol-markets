@@ -1,0 +1,11 @@
+InstrumentTest
+├── When set_tick is called
+│   └── When window_idx is zero
+│       ├── It should emit MarketAssigned
+│       ├── It should evaluate MarketAssigned to true
+│       └── It should set instrument equal to tokenId with the added poolId
+└── When startReplication is called
+    ├── It should revert if MarketNotAssigned
+    ├── It should assign arbitraryInstrumentInitializer to instrument
+    ├── It should make instrument validate revert for a different reason than ParametersNotValid 1
+    └── It should control and know which revert is next when calling mintTokenizedPosition

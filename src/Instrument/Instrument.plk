@@ -5,6 +5,13 @@ use custom_utils::moreRegions::storage;
 // cast keccak vol-markets.Instrument
 const INSTRUMENT_SLOT = 0x5fe379eadf961f93313dfc3c6b408e3ac1daa5bcbd88a644f0a30eb30a02f9f4;
 
+
+// cast sig "startReplication()"
+const START_REPLICATION_SELECTOR = 0x7a8c874b;
+
+// cast sig "instrument()"
+const READ_INSTRUMENT_SELECTOR = 0x5767d534;
+
 const initIdx = fn () u256 {
       0
 };
@@ -27,8 +34,22 @@ const NeqInstrument = fn ( i1 : Instrument, i2: Instrument) bool { !(EqInstrumen
 
 //  ========================= STATE : Instrument ============================
 const MarketAssigned = fn (self: Instrument) bool {
-      let res: bool  = NeqInstrument(self,notYetInstrument());
-      res
+      NeqInstrument(self,notYetInstrument())
+};
+
+
+const LogMarketAssigned = struct {};
+
+const instrumentUnderlyingMarketId = fn (self: Instrument) u256 {
+      self & 0xffffffffffffffff
+};
+
+const log_instrument = fn (self: Instrument, evt: type) void {
+      if evt == LogMarketAssigned {
+      	 let logMemPtr: u256 = @malloc_uninit(32);
+      	 @mstore32(logMemPtr, instrumentUnderlyingMarketId(self));
+      	 @evm_log1(logMemPtr, 32, @keccak256_cbytes("MarketAssigned(uint64)"));
+      }
 };
 
 // ===================== OUTPUT : Instrument ===============================
@@ -39,6 +60,21 @@ const instrumentOn = fn (on: type) Instrument {
       	 resInstrument = @evm_sload(INSTRUMENT_SLOT); 
       }
       resInstrument
+};
+
+const instrumentReturnEVM = fn () never {
+      let ret: u256 = @malloc_uninit(32);
+      @mstore32(ret, instrumentOn(storage));
+      @evm_return(ret, 32);
+};
+
+const instrumentRevertEVM = fn () void {
+      if !MarketAssigned(instrumentOn(storage)) {
+      	 // cast sig "MarketNotAssigned()"
+      	 let buff: u256 = @malloc_uninit(4);
+      	 @mstore4(buff, 0xd10485d2);
+      	 @evm_revert(buff, 4);
+      }
 };
 
 const assignMarketToInstrument = fn (on: type, marketIdWord :u256) Instrument {
@@ -62,6 +98,3 @@ const initializeInstrument = fn (self: Instrument , v: InitializeInstrumentIniti
       initializedInstrumentOn
       
 };
-
-
-

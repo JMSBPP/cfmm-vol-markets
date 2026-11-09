@@ -12,6 +12,8 @@ use Premium::Premium::PREMIUM_SLOT;
 // cast sig "getMarketKey()"
 const GET_MARKET_KEY_SELECTOR = 0xe6b12e1e;
 
+// cast sig "setPair(address,address,bool)"
+const SET_PAIR_SELECTOR = 0xa782d794;
 
 const CONTROLLER_SLOT = 0x504cec47c00ecd92195dd23334a7de6ebb4a41496b4d3e248edc0727a2ce20b0;
 

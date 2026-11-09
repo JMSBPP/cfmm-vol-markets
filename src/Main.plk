@@ -2,7 +2,9 @@ use std::constructor::return_runtime;
 use std::slice::{new,len};
 use custom_utils::moreRegions::storage;
 use custom_utils::eth::NO_VALUE;
-use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
+use custom_utils::protocol_integrations::UniswapV4Consumer::{
+    POOL_MANAGER_SLOT, SET_POOL_MANAGER_SELECTOR
+};
 use custom_utils::protocol_integrations::PanopticV2Consumer::{
     POSITION_MANAGER_SLOT, SET_POSITION_MANAGER_SELECTOR, VEGOID_DEFAULT,
     storePositionManager
@@ -35,21 +37,28 @@ use TickMoments::TickRealizedVolatility::{
     store_tickRealizedVolatility, tickRealizedVolatilityReturnEVM,
     update_realized_volatility
 };
-use Asset::Asset::{AssetCalldata, storeAsset, AssetMemory, loadAssetMemory};
+use Asset::Asset::{
+    AssetCalldata, storeAsset, AssetMemory, loadAssetMemory,
+    SET_PAIR_SELECTOR, GET_MARKET_KEY_SELECTOR
+};
 use ProtocolSync::AlignCalldata::{
     AlignCalldata, completeAlignTickCalldata, partialAlignTickCalldata
 };
-use ProtocolSync::AlignTick::{ALIGNER_SLOT, requestTickAlignment};
-use Controllers::Controller::CONTROLLER_SLOT;
-
+use ProtocolSync::AlignTick::{
+    ALIGNER_SLOT, SET_TICK_ALIGNER_SELECTOR, requestTickAlignment
+};
+use Controllers::Controller::{CONTROLLER_SLOT, SET_CONTROLLER_SELECTOR};
 
 use Premium::Premium::{
     PREMIUM_SLOT, SET_PREMIUM_RATE_SELECTOR
 };
 
 
-use Instrument::Instrument:: {
-    Instrument, assignMarketToInstrument, store_instrument
+use Instrument::Instrument::{
+    Instrument, assignMarketToInstrument, store_instrument,
+    LogMarketAssigned, log_instrument,
+    READ_INSTRUMENT_SELECTOR, START_REPLICATION_SELECTOR,
+    instrumentReturnEVM, instrumentRevertEVM
 };
 
 init {
@@ -58,40 +67,11 @@ init {
 
 run {
     let selector = @evm_shr(224, @evm_calldataload(0));
+
+    // ===================== TICK ===============================
     if selector == READ_TICK_SELECTOR {
        tickReturnEVM();
     }
-
-    else if selector == READ_TICK_AVERAGE_SELECTOR {
-      tickAverageReturnEVM();
-    }
-    // cast sig "setPair(address,address,bool)"
-    else if selector == 0xa782d794 {
-    	 let asstIdx: u256 = @evm_calldataload(68);
-	 // TODO: The above can upadte tokenId
-    	 let assetCalldata: AssetCalldata = (@evm_calldataload(4),@evm_calldataload(36), if asstIdx == 0 {false} else {true});
-	 storeAsset(assetCalldata,storage);
-	 let retBuff: u256 = @malloc_zeroed(32);
-	 @evm_return(retBuff,32);
-    }
-    else if selector == READ_TICK_REALIZED_VOLATILITY_SELECTOR {
-      tickRealizedVolatilityReturnEVM();      
-    }
-
-    else if selector == READ_TICK_SPACING_SELECTOR {
-        tickSpacingReturnEVM();  
-    }
-
-    else if selector == SET_WINDOW_SELECTOR {
-       let windowCalldata: WindowCalldata = (
-           @evm_calldataload(4),
-           state_to_word(WindowNotInitialized)
-       );
-       let window: Window(WindowNotInitialized) = build_window(windowCalldata);
-       store_window(window,WindowNotInitialized,storage);
-       @evm_return(@malloc_uninit(0), 0);
-    }
-
 
     else if selector == SET_TICK_SELECTOR {
 	 // Spacing must be set before initialize/align — otherwise PoolKey.tickSpacing=0
@@ -139,6 +119,7 @@ run {
 	    let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
 
 	    store_instrument(instrument, storage);
+	    log_instrument(instrument, LogMarketAssigned);
 	    store_tick(tick, storage);
 	    store_tickAverage(updatedTickAvg,storage);
 	    store_tickRealizedVolatility(updatedTickRealizedVol,storage);
@@ -163,51 +144,49 @@ run {
 	@evm_return(@malloc_uninit(0), 0);
     }
 
-    else if selector == SET_PREMIUM_RATE_SELECTOR {
-    	 @evm_sstore(PREMIUM_SLOT, @evm_calldataload(4));
-	 @evm_return(@malloc_uninit(0), 0);
+    // ===================== TICK_AVERAGE ===============================
+    else if selector == READ_TICK_AVERAGE_SELECTOR {
+      tickAverageReturnEVM();
     }
+
+    // ===================== TICK_REALIZED_VOLATILITY ===============================
+    else if selector == READ_TICK_REALIZED_VOLATILITY_SELECTOR {
+      tickRealizedVolatilityReturnEVM();      
+    }
+
+    // ===================== TICK_SPACING ===============================
+    else if selector == READ_TICK_SPACING_SELECTOR {
+        tickSpacingReturnEVM();  
+    }
+
     else if selector == SET_TICK_SPACING_SELECTOR {
       	 let tickSpacingCalldata: TickSpacingCalldata = (tickSpacingVal(@evm_calldataload(4)),);
 	 let tickSpacing: TickSpacing = build_tickSpacing(tickSpacingCalldata);
 	 store_tickSpacing(tickSpacing,storage);
 	 @evm_return(@malloc_uninit(0), 0);
     }
-    // cast sig "setController(address)"
-    else if selector == 0x92eefe9b {
-    	 @evm_sstore(CONTROLLER_SLOT, @evm_calldataload(4));
+
+    // ===================== WINDOW ===============================
+    else if selector == SET_WINDOW_SELECTOR {
+       let windowCalldata: WindowCalldata = (
+           @evm_calldataload(4),
+           state_to_word(WindowNotInitialized)
+       );
+       let window: Window(WindowNotInitialized) = build_window(windowCalldata);
+       store_window(window,WindowNotInitialized,storage);
+       @evm_return(@malloc_uninit(0), 0);
+    }
+
+    // ===================== ASSET / PAIR ===============================
+    else if selector == SET_PAIR_SELECTOR {
+    	 let asstIdx: u256 = @evm_calldataload(68);
+    	 let assetCalldata: AssetCalldata = (@evm_calldataload(4),@evm_calldataload(36), if asstIdx == 0 {false} else {true});
+	 storeAsset(assetCalldata,storage);
 	 let retBuff: u256 = @malloc_zeroed(32);
 	 @evm_return(retBuff,32);
     }
-    // cast sig "setTickAligner(address)"
 
-    else if selector == 0x1e5c861f {
-    	 @evm_sstore(ALIGNER_SLOT, @evm_calldataload(4));    	 
-    	 let retBuff: u256 = @malloc_zeroed(32);
-	 @evm_return(retBuff,32);
-    }
-
-    // cast sig "setPoolManager(address)"
-    else if selector == 0x7aef6715 {
-    	 @evm_sstore(POOL_MANAGER_SLOT, @evm_calldataload(4));
-	 @evm_return(@malloc_zeroed(32), 32);
-    }
-
-    // cast sig "setPositionManager(address)" — must follow setPoolManager
-    else if selector == SET_POSITION_MANAGER_SELECTOR {
-    	 storePositionManager(@evm_calldataload(4));
-	 @evm_return(@malloc_zeroed(32), 32);
-    }
-    
-    // cast sig "set_fee(uint24)"
-    else if selector == 0x84e99813 {
-    	 @evm_sstore(PREMIUM_SLOT,@evm_calldataload(4));
-	 let retBuff: u256 = @malloc_zeroed(32);
-	 @evm_return(retBuff,32);
-
-    }
-    // cast sig "getMarketKey()"
-    else if selector == 0xe6b12e1e {
+    else if selector == GET_MARKET_KEY_SELECTOR {
     	 let assetMemory: AssetMemory = loadAssetMemory(storage);
 	 let payloadLen: u256 = len(assetMemory) * 32;
 	 let ret: u256 = @malloc_uninit(64 + payloadLen);
@@ -217,8 +196,52 @@ run {
 	 @evm_log0(ret +% 32,32);
     	 @evm_return(ret, 64 + payloadLen);
     }
+
+    // ===================== PREMIUM ===============================
+    else if selector == SET_PREMIUM_RATE_SELECTOR {
+    	 @evm_sstore(PREMIUM_SLOT, @evm_calldataload(4));
+	 @evm_return(@malloc_uninit(0), 0);
+    }
+
+    // ===================== CONTROLLER ===============================
+    else if selector == SET_CONTROLLER_SELECTOR {
+    	 @evm_sstore(CONTROLLER_SLOT, @evm_calldataload(4));
+	 let retBuff: u256 = @malloc_zeroed(32);
+	 @evm_return(retBuff,32);
+    }
+
+    // ===================== ALIGN_TICK ===============================
+    else if selector == SET_TICK_ALIGNER_SELECTOR {
+    	 @evm_sstore(ALIGNER_SLOT, @evm_calldataload(4));    	 
+    	 let retBuff: u256 = @malloc_zeroed(32);
+	 @evm_return(retBuff,32);
+    }
+
+    // ===================== UNISWAP_V4 ===============================
+    else if selector == SET_POOL_MANAGER_SELECTOR {
+    	 @evm_sstore(POOL_MANAGER_SLOT, @evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32), 32);
+    }
+
+    // ===================== PANOPTIC_V2 ===============================
+    else if selector == SET_POSITION_MANAGER_SELECTOR {
+    	 storePositionManager(@evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32), 32);
+    }
+
+    // ===================== INSTRUMENT ===============================
+    else if selector == READ_INSTRUMENT_SELECTOR {
+    	 instrumentReturnEVM();
+    }
+
+    // ===================== START_REPLICATION ===============================
+    else if selector == START_REPLICATION_SELECTOR {
+    	 instrumentRevertEVM();
+	 @evm_return(@malloc_uninit(0), 0);
+    }
+
+    
     else {
       @evm_revert(@malloc_uninit(0), 0);
     }
 }    
-

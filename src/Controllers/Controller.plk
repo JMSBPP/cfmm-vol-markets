@@ -4,6 +4,9 @@ use std::constructor::return_runtime;
 // cast keccak VolMarkets.Controller
 const CONTROLLER_SLOT = 0x504cec47c00ecd92195dd23334a7de6ebb4a41496b4d3e248edc0727a2ce20b0;
 
+// cast sig "setController(address)"
+const SET_CONTROLLER_SELECTOR = 0x92eefe9b;
+
 init{
 	return_runtime();
 }
