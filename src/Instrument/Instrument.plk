@@ -1,0 +1,18 @@
+use custom_utils::moreRegions::storage;
+
+
+
+// cast keccak vol-markets.Instrument
+const INSTRUMENT_SLOT = 0x5fe379eadf961f93313dfc3c6b408e3ac1daa5bcbd88a644f0a30eb30a02f9f4;
+
+const Instrument = u256;
+
+const uninitInstrument = fn () Instrument {
+      0
+};
+
+
+const assignMarketToInstrument = fn (on: type, marketIdWord :u256) Instrument {
+      let mut instrument: Instrument = uninitInstrument();
+      instrument
+};

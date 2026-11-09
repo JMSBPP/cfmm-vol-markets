@@ -41,8 +41,15 @@ use LiquidityKernel::AlignCalldata::{
 };
 use LiquidityKernel::AlignTick::{ALIGNER_SLOT, requestTickAlignment};
 use LiquidityKernel::Controller::CONTROLLER_SLOT;
+
+
 use Premium::Premium::{
     PREMIUM_SLOT, SET_PREMIUM_RATE_SELECTOR
+};
+
+
+use Instrument::Instrument:: {
+    Instrument, assignMarketToInstrument
 };
 
 init {
@@ -125,6 +132,8 @@ run {
 	      	 @mstore4(initMemPtr, 0x218225e8);
 		 @evm_revert(initMemPtr, 4);
 	    }
+	    let instrument: Instrument= assignMarketToInstrument(storage, @mload32(initMemPtr +% 196));
+
 
 	    let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
 	    let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
