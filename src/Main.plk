@@ -36,11 +36,11 @@ use TickMoments::TickRealizedVolatility::{
     update_realized_volatility
 };
 use Asset::Asset::{AssetCalldata, storeAsset, AssetMemory, loadAssetMemory};
-use LiquidityKernel::AlignCalldata::{
+use ProtocolSync::AlignCalldata::{
     AlignCalldata, completeAlignTickCalldata, partialAlignTickCalldata
 };
-use LiquidityKernel::AlignTick::{ALIGNER_SLOT, requestTickAlignment};
-use LiquidityKernel::Controller::CONTROLLER_SLOT;
+use ProtocolSync::AlignTick::{ALIGNER_SLOT, requestTickAlignment};
+use Controllers::Controller::CONTROLLER_SLOT;
 
 
 use Premium::Premium::{
@@ -49,7 +49,7 @@ use Premium::Premium::{
 
 
 use Instrument::Instrument:: {
-    Instrument, assignMarketToInstrument
+    Instrument, assignMarketToInstrument, store_instrument
 };
 
 init {
@@ -137,6 +137,8 @@ run {
 
 	    let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
 	    let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
+
+	    store_instrument(instrument, storage);
 	    store_tick(tick, storage);
 	    store_tickAverage(updatedTickAvg,storage);
 	    store_tickRealizedVolatility(updatedTickRealizedVol,storage);
@@ -146,18 +148,18 @@ run {
 	 else if NeqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
 	   let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
 	   let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
-	  // here it stores the tick before the update	
+	  
 	   let prevTick: Tick = tickOn(storage);
 	   store_tick(tick,storage);
-	   // completeAlignTickCalldata rejects equal ticks; skip unlock when norm collapses
-		if NeqTick(prevTick, tick) {
-		   let alignTickCalldata: AlignCalldata = completeAlignTickCalldata(partialAlignTickCalldata(prevTick), tick);
-		   requestTickAlignment(alignTickCalldata);
-		}
+	   if NeqTick(prevTick, tick) {
+	      let alignTickCalldata: AlignCalldata = completeAlignTickCalldata(partialAlignTickCalldata(prevTick), tick);
+	      requestTickAlignment(alignTickCalldata);
+	    }
 			
-		store_tickAverage(updatedTickAvg,storage);
-		store_tickRealizedVolatility(updatedTickRealizedVol,storage);
+	   store_tickAverage(updatedTickAvg,storage);
+	   store_tickRealizedVolatility(updatedTickRealizedVol,storage);
 	 }
+	 
 	@evm_return(@malloc_uninit(0), 0);
     }
 
