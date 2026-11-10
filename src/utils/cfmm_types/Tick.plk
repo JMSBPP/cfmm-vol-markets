@@ -80,7 +80,7 @@ const store_tick = fn (tick:$T,to: type) void {
       }
 };
 
-TODO: revert on mismatched spacing.
+// TODO: revert on mismatched spacing.
 const DiffTick = fn (t1: Tick, t2: Tick) Tick {
       Tick { val: @evm_sub(tickWord(t1), tickWord(t2)), ts: tickTickSpacing(t1) }
 };

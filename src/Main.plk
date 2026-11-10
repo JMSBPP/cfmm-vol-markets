@@ -4,7 +4,8 @@ use std::regions::memory;
 use custom_utils::moreRegions::storage;
 use custom_utils::eth::NO_VALUE;
 use custom_utils::protocol_integrations::UniswapV4Consumer::{
-    POOL_MANAGER_SLOT, SET_POOL_MANAGER_SELECTOR
+    POOL_MANAGER_SLOT, SET_POOL_MANAGER_SELECTOR,
+    storePoolManager, loadPoolManager
 };
 use custom_utils::protocol_integrations::PanopticV2Consumer::{
     POSITION_MANAGER_SLOT, SET_POSITION_MANAGER_SELECTOR, VEGOID_DEFAULT,
@@ -224,7 +225,18 @@ run {
 
     // ===================== CONTROLLER ===============================
     else if selector == SET_CONTROLLER_SELECTOR {
-    	 @evm_sstore(CONTROLLER_SLOT, @evm_calldataload(4));
+    	 let controllerRaw : u256 = @evm_calldataload(4);
+    	 @evm_sstore(CONTROLLER_SLOT, controllerRaw);
+	 let setControllerMemBuffPtr: u256 = @malloc_uninit(36);
+	 @mstore4(setControllerMemBuffPtr,SET_POOL_MANAGER_SELECTOR);
+		
+	 @mstore32(setControllerMemBuffPtr+%4,loadPoolManager());
+	 if !@evm_call(@evm_gas(), controllerRaw ,NO_VALUE,setControllerMemBuffPtr,36,0,0) {
+	    // cast sig "FailedToStorePoolManagerOnController()" 
+	    @mstore4(setControllerMemBuffPtr, 0x16cac8cb);
+	    @evm_revert(setControllerMemBuffPtr,4);
+	 }
+
 	 let retBuff: u256 = @malloc_zeroed(32);
 	 @evm_return(retBuff,32);
     }

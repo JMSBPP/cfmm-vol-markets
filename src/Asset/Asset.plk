@@ -27,11 +27,16 @@ const NUMERAIRE_SLOT = 0x8b2aacedf2416f648c46a4af90c7a77fa692fc219cc6fbedc15a941
 const ASSET_SLOT = 0xe6a5b3be46af081cd1e21a60d0408d8c675dd2d686b46d479bb5a4890877b5d6;
 
 // TODO: Separate each type, AssetPair, AssetMemory and AssetCalldata
-const AssetPair = tuple{u256, u256};
+const Asset = u256;
+const AssetPair = tuple{Asset, Asset};
 
-const AssetMemory = Slice(memory, u256, Some(5));
+const AssetMemory = Slice(memory, Asset, Some(5));
+const AssetPairIdx = bool;
+const AssetCalldata = tuple {Asset, Asset, AssetPairIdx};
 
-const AssetCalldata = tuple {u256, u256, bool};
+const AssetOnAssetPairFromIdx = fn (self : AssetPair, idx: AssetPairIdx) Asset {
+      @get_field(self, @bool_to_u256(idx))    
+}; 
 
 // =========================== INPUT: Asset =================================
 const storeAsset = fn(ac :$AC, on: type) void {

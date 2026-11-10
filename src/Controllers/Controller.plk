@@ -1,4 +1,12 @@
 use std::constructor::return_runtime;
+use std::core::ops::neg_u256;
+use custom_utils::protocol_integrations::UniswapV4Consumer::{
+    storePoolManager, loadPoolManager, SET_POOL_MANAGER_SELECTOR,
+    SYNC_SELECTOR, SETTLE_FOR_SELECTOR    
+};
+
+use custom_utils::eth::NO_VALUE;
+use custom_utils::Token::Transfer::NOTIFY_DEBT_SELECTOR;
 
 
 // cast keccak VolMarkets.Controller
@@ -10,17 +18,86 @@ const SET_CONTROLLER_SELECTOR = 0x92eefe9b;
 // cast sig "afterAddLiquidity(address,(address,address,uint24,int24,address),(int24,int24,int256,bytes32),int256,int256,bytes)"
 const AFTER_ADD_LIQUIDITY_SELECTOR = 0x9f063efc;
 
+
 init{
 	return_runtime();
 }
 
 run {
     let selector: u256 = @evm_shr(224, @evm_calldataload(0));
+    let rawPoolManager: u256 = loadPoolManager(); 
     if selector == AFTER_ADD_LIQUIDITY_SELECTOR {
-       let ret: u256 = @malloc_zeroed(64);
-       @mstore4(ret, AFTER_ADD_LIQUIDITY_SELECTOR);
-       @evm_return(ret, 64);
+       let rawAggDebt : u256 = @evm_calldataload(324);
+       // 4 + (32*2) return
+       let afterAddLiquidityMemBuffPtr: u256 = @malloc_uninit(64);
+       // what is the offset of the currency 0 argument ?
+       // 4 (selector) + 32 (sender) + 160 (poolKey) + (32*4) (modifyLiquidityParams) = 324
+       let rawCurrency0: u256 = @evm_calldataload(36);
+       let rawCurrency1: u256 = @evm_calldataload(68);
+
+       @mstore4(afterAddLiquidityMemBuffPtr, SYNC_SELECTOR);
+       @mstore32(afterAddLiquidityMemBuffPtr+%4,rawCurrency0);
+
+       if !@evm_call(@evm_gas(), rawPoolManager, NO_VALUE, afterAddLiquidityMemBuffPtr, 36, 0, 0) {
+       	  // cast sig "FailedOnSyncCurrency0OnController()"
+	  @mstore4(afterAddLiquidityMemBuffPtr,0x72c7e874);
+	  @evm_revert(afterAddLiquidityMemBuffPtr, 4);
+       }
+
+       let debtOnCurrency0: u256 = @evm_sar(128, rawAggDebt);
+       let debtOnCurrency1:u256 = @evm_signextend(15, rawAggDebt);
+       
+       @mstore4(afterAddLiquidityMemBuffPtr, NOTIFY_DEBT_SELECTOR);
+       @mstore32(afterAddLiquidityMemBuffPtr+%4,neg_u256(debtOnCurrency0));              
+       if !@evm_call(@evm_gas(), rawCurrency0, NO_VALUE, afterAddLiquidityMemBuffPtr,36,0,0) {
+       	  // cast sig "FailedOnNotifyDebtCurrency0Controller()"
+	  @mstore4(afterAddLiquidityMemBuffPtr,0x6b5ba5e4);
+	  @evm_revert(afterAddLiquidityMemBuffPtr, 4);
+       }
+
+       
+       // settleFor the hook: PM books hookDelta to address(hooks) after this returns
+       @mstore4(afterAddLiquidityMemBuffPtr,SETTLE_FOR_SELECTOR);
+       @mstore32(afterAddLiquidityMemBuffPtr+%4,@evm_address_this());       
+       if !@evm_call(@evm_gas(), rawPoolManager, NO_VALUE, afterAddLiquidityMemBuffPtr, 36, 0, 0) {
+       	  // cast sig "FailedOnSettleController()"
+       	  @mstore4(afterAddLiquidityMemBuffPtr,0xff4f7dc1);
+	  @evm_revert(afterAddLiquidityMemBuffPtr,4);
+       }
+
+       @mstore4(afterAddLiquidityMemBuffPtr, SYNC_SELECTOR);
+       @mstore32(afterAddLiquidityMemBuffPtr+%4, rawCurrency1);
+       if !@evm_call(@evm_gas(), rawPoolManager, NO_VALUE, afterAddLiquidityMemBuffPtr, 36, 0, 0) {
+       	  // cast sig "FailedOnSyncCurrency1OnController()"
+	  @mstore4(afterAddLiquidityMemBuffPtr, 0x7dfbcaa9);
+	  @evm_revert(afterAddLiquidityMemBuffPtr, 4);
+       }
+       @mstore4(afterAddLiquidityMemBuffPtr, NOTIFY_DEBT_SELECTOR);
+       @mstore32(afterAddLiquidityMemBuffPtr+%4, neg_u256(debtOnCurrency1));
+       if !@evm_call(@evm_gas(), rawCurrency1, NO_VALUE, afterAddLiquidityMemBuffPtr, 36, 0, 0) {
+       	  // cast sig "FailedOnNotifyDebtCurrency1Controller()"
+	  @mstore4(afterAddLiquidityMemBuffPtr, 0x7281362a);
+	  @evm_revert(afterAddLiquidityMemBuffPtr, 4);
+       }
+       @mstore4(afterAddLiquidityMemBuffPtr, SETTLE_FOR_SELECTOR);
+       @mstore32(afterAddLiquidityMemBuffPtr+%4, @evm_address_this());
+       if !@evm_call(@evm_gas(), rawPoolManager, NO_VALUE, afterAddLiquidityMemBuffPtr, 36, 0, 0) {
+       	  // cast sig "FailedOnSettleCurrency1Controller()"
+	  @mstore4(afterAddLiquidityMemBuffPtr, 0x5618c845);
+	  @evm_revert(afterAddLiquidityMemBuffPtr, 4);
+       }
+
+       @mstore4(afterAddLiquidityMemBuffPtr, AFTER_ADD_LIQUIDITY_SELECTOR);       
+       @mstore32(afterAddLiquidityMemBuffPtr+%32, @evm_calldataload(324));
+       @evm_return(afterAddLiquidityMemBuffPtr, 64);
     }
 
-    @evm_return(@malloc_zeroed(32),32);
+    else if selector == SET_POOL_MANAGER_SELECTOR {
+    	 storePoolManager(@evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32),32);
+    }
+    
+    else {
+    	 @evm_return(@malloc_zeroed(32),32);
+    }
 }

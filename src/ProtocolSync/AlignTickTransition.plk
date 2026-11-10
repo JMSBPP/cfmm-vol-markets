@@ -5,10 +5,16 @@ use custom_utils::cfmm_types::TickPrecedence::{
     TickPrecedence, notTickPrecedence, precedesTick
 };
 use custom_utils::cfmm_types::TickDistance::{
-    TickDistance, arbitraryDistance, nullTickDistance
+    TickDistance, ExposureAndDirectionAwareTickDistance, nullTickDistance
 };
+
+use custom_utils::moreRegions::storage;
+
+
 use custom_utils::cfmm_types::SqrtPrice::{SqrtPrice, nullSqrtPrice, sqrtPriceFromTick};
 use ProtocolSync::AlignCalldata::AlignCalldata;
+
+use Exposure::Exposure::ArbitraryExposure;
 
 const AlignTickTransition = struct {dir: TickPrecedence, dist: TickDistance, target: SqrtPrice };
 const AlignTickTransitionMemory = membytes;
@@ -19,8 +25,8 @@ const setAlignTickTransitionDirection = fn (self: $AlignTickTransition, currTick
       @set_field(self, "dir", precedesTick(currTick, tgtTick))
 };
 
-const setAlignTickTransitionDistance = fn (self: $AlignTickTransition, direction: TickPrecedence) AlignTickTransition {
-      @set_field(self, "dist", arbitraryDistance())
+const setAlignTickTransitionDistance = fn (self: $AlignTickTransition, direction: TickPrecedence, alignCalldata: AlignCalldata ) AlignTickTransition {
+      @set_field(self, "dist", ExposureAndDirectionAwareTickDistance(alignCalldata,direction,ArbitraryExposure(storage)))
 };
 
 const setAlignTickTransitionTarget = fn (self: $AlignTickTransition, tickToAlign: Tick) AlignTickTransition {
@@ -48,7 +54,7 @@ const configureAlignTickTransition = fn (alignCalldata: AlignCalldata, io: u256)
       resAlignTickTransitionCfg = @set_field(resAlignTickTransitionCfg, 0, setAlignTickTransitionTarget(@get_field(resAlignTickTransitionCfg, 0), tickToAlign));
       resAlignTickTransitionCfg = @set_field(resAlignTickTransitionCfg, 0, setAlignTickTransitionDirection(@get_field(resAlignTickTransitionCfg, 0), currentTick(alignCalldata, io), tickToAlign));
       // // todo: this needs refinement, setAlignTickTransitionDistance needs way more context
-      resAlignTickTransitionCfg = @set_field(resAlignTickTransitionCfg, 0, setAlignTickTransitionDistance(@get_field(resAlignTickTransitionCfg, 0), alignTickTransitionDirection(@get_field(resAlignTickTransitionCfg, 0))));
+      resAlignTickTransitionCfg = @set_field(resAlignTickTransitionCfg, 0, setAlignTickTransitionDistance(@get_field(resAlignTickTransitionCfg, 0), alignTickTransitionDirection(@get_field(resAlignTickTransitionCfg, 0)),alignCalldata));
       // offset 228 = 68 + 160; write params only (not the whole cfg tuple)
       membytes_write(alignTickTransitionMemCfg, 228, @get_field(resAlignTickTransitionCfg, 0));
       resAlignTickTransitionCfg
@@ -63,3 +69,5 @@ const notYetAlignTickTransitionCfg = fn () AlignTickTransitionCfg {
       // 4 (sel) + 224 (getMarketKey ABI ret) + 96 (AlignTickTransition)
       (unconfiguredAlignTickTransition(), membytes_new(4 +% 224 +% 96))
 };
+
+

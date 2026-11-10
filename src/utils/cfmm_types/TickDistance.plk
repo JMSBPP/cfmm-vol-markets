@@ -1,4 +1,7 @@
 use custom_utils::numerics::WAD::WAD;
+use Exposure::Exposure::Exposure;
+use custom_utils::cfmm_types::TickPrecedence::TickPrecedence;
+use ProtocolSync::AlignCalldata::AlignCalldata;
 
 // TODO: This type needs refinement as it can be missread; This ends up being mapped to amountSpecified
 // on SwapParams
@@ -13,4 +16,9 @@ const nullTickDistance = fn () TickDistance {
 
 const arbitraryDistance = fn () TickDistance {
       WAD
+};
+
+
+const ExposureAndDirectionAwareTickDistance =  fn (alignCalldata :AlignCalldata,direction: TickPrecedence,exposure :Exposure) TickDistance {
+      arbitraryDistance()
 };

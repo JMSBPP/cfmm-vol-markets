@@ -22,6 +22,10 @@ use Exposure::ExposureMemory::{
     ExposureMemory, nullExposureMemory
 };
 
+use Asset::Asset::{
+    Asset, AssetPair, AssetPairIdx, AssetOnAssetPairFromIdx
+};
+
 
  // TODO: This type goes on cfmm_types
 
@@ -116,6 +120,10 @@ const ArbitraryExposure = fn (on: type) Exposure {
       resExposure
 };
 
+
+const AssetExposure = fn (self: Exposure, assetPair:AssetPair, idx :AssetPairIdx ) Exposure {
+      ArbitraryExposure(storage)     
+};
 
 const ExposureFromExposureMemory = fn (exposureMemory :ExposureMemory) Exposure {
       let mut exposureFromExposureMemoryRes: Exposure =  notYetExposure();

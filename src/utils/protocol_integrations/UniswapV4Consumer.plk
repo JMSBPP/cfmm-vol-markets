@@ -11,3 +11,19 @@ const SET_POOL_MANAGER_SELECTOR = 0x7aef6715;
 const POOLS_SLOT = 6;
 // cast sig "extsload(bytes32)"
 const EXTSLOAD_SELECTOR = 0x1e2eaeaf;
+
+
+// cast sig "sync(address)"
+const SYNC_SELECTOR = 0xa5841194;
+// cast sig "settle()"
+const SETTLE_SELECTOR = 0x11da60b4;
+// cast sig "settleFor(address)"
+const SETTLE_FOR_SELECTOR = 0x3dd45adb;
+
+const storePoolManager = fn (poolManager: u256) void {
+      @evm_sstore(POOL_MANAGER_SLOT,poolManager);
+};
+
+const loadPoolManager = fn () u256 {
+      @evm_sload(POOL_MANAGER_SLOT)
+};
