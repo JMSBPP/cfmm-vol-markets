@@ -7,12 +7,20 @@ const CONTROLLER_SLOT = 0x504cec47c00ecd92195dd23334a7de6ebb4a41496b4d3e248edc07
 // cast sig "setController(address)"
 const SET_CONTROLLER_SELECTOR = 0x92eefe9b;
 
+// cast sig "afterAddLiquidity(address,(address,address,uint24,int24,address),(int24,int24,int256,bytes32),int256,int256,bytes)"
+const AFTER_ADD_LIQUIDITY_SELECTOR = 0x9f063efc;
+
 init{
 	return_runtime();
 }
 
 run {
-    @evm_stop();
+    let selector: u256 = @evm_shr(224, @evm_calldataload(0));
+    if selector == AFTER_ADD_LIQUIDITY_SELECTOR {
+       let ret: u256 = @malloc_zeroed(64);
+       @mstore4(ret, AFTER_ADD_LIQUIDITY_SELECTOR);
+       @evm_return(ret, 64);
+    }
+
+    @evm_return(@malloc_zeroed(32),32);
 }
-
-

@@ -9,10 +9,13 @@ import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
 import {SfpmBytecodeDeployer} from "@helpers/UniswapV4/SfpmBytecodeDeployer.sol";
+import {ISemiFungiblePositionManager}
+from "panoptic-v2-core/contracts/interfaces/ISemiFungiblePositionManager.sol";
 import {PoolKey} from "v4-core/types/PoolKey.sol";
 import {PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {SwapMath} from "v4-core/libraries/SwapMath.sol";
 import {TickMath} from "v4-core/libraries/TickMath.sol";
+import {console2} from "forge-std/console2.sol";
 
 import {ITick, usableMin, usableMax} from "./Tick.t.sol";
 import {ITickSpacing} from "./TickSpacing.t.sol";
@@ -28,6 +31,9 @@ import {
 uint24 constant LOCKED_TICK_SPACING = 60;
 uint256 constant LOCKED_WINDOW_LEN = 5;
 uint160 constant DEFAULT_INIT_PRICE = Constants.SQRT_PRICE_1_1;
+uint8 constant DEFAULT_VEGOID = 2;
+uint256 constant CALL = 0;
+uint256 constant SHORT = 0;
 
 interface IInstrumentEngine {
     function startReplication() external;
@@ -103,6 +109,25 @@ contract PremiumTest is PlankTestBase, Deployers, HookDeployer {
             int24 nextTick =
                 SafeCastLib.toInt24(bound(int256(tickSeed), int256(lo), int256(hi)));
             ITick(premiumImpl).set_tick(nextTick);
+
+            (uint128 premium0, uint128 premium1) = ISemiFungiblePositionManager(optionsClearingHouse)
+                .getAccountPremium(
+                    underlyingMarket,
+                    premiumImpl,
+                    CALL,
+                    lo,
+                    hi,
+                    nextTick,
+                    SHORT,
+                    DEFAULT_VEGOID
+                );
+            console2.log("windowIdx", windowIdx);
+            console2.log("nextTick", int256(nextTick));
+            console2.log("lo", int256(lo));
+            console2.log("hi", int256(hi));
+            console2.log("getAccountPremium SHORT CALL premium0", uint256(premium0));
+            console2.log("getAccountPremium SHORT CALL premium1", uint256(premium1));
+
             windowIdx++;
         } while (windowIdx < LOCKED_WINDOW_LEN);
 

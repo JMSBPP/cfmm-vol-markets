@@ -63,7 +63,8 @@ use Instrument::Instrument::{
 };
 
 use Instrument::InstrumentMemory :: {
-    InstrumentMemory, loadInstrumentMemory, initializeInstrumentMemory
+    InstrumentMemory, loadInstrumentMemory, initializeInstrumentMemory,
+    ExposureMemoryEffectOnInstrumentMemory
 };
 
 use Instrument::InstrumentCustodian::SAVE_INSTRUMENT_SELECTOR;
@@ -261,8 +262,11 @@ run {
 	 @mstore32(replicationMemBuffPtr+%4, 160);
 
 	 let mut instrumentMemory: InstrumentMemory = initializeInstrumentMemory(loadInstrumentMemory(storage));
-	 @mcopy(replicationMemBuffPtr+%36,instrumentMemory.ptr,32);
+	 
 	 let exposure: ExposureMemory = exposureMemory(ArbitraryExposure(memory));
+	 instrumentMemory = ExposureMemoryEffectOnInstrumentMemory(instrumentMemory, exposure);
+	 
+	 @mcopy(replicationMemBuffPtr+%36,instrumentMemory.ptr,32);
 	 @mcopy(replicationMemBuffPtr+%68,exposure.ptr,96);
 	 @mstore32(replicationMemBuffPtr+%164, 160);
 	 @mcopy(replicationMemBuffPtr+%196,assetMemory.ptr,@mload32(replicationMemBuffPtr+%164));

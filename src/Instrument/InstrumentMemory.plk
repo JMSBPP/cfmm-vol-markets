@@ -5,8 +5,16 @@ use custom_utils::moreRegions::storage;
 
 use Instrument::Instrument::{
     instrumentWord, instrumentOn,instrumentFromInstrumentMemory, Instrument,
-    ArbitraryValidInstrumentInitializer, initializeInstrument
+    ArbitraryValidInstrumentInitializer, initializeInstrument,
+    SomeLegZeroInstrumentWidth    
 };
+
+
+use Exposure::Exposure::{
+    tickRangeWidth, ExposureFromExposureMemory, exposureRange
+};
+
+use Exposure::ExposureMemory::ExposureMemory;
 
 const InstrumentMemory = Slice(memory, u256, Some(1));
 
@@ -23,3 +31,8 @@ const initializeInstrumentMemory = fn (instrumentMemory: InstrumentMemory) Instr
       instrumentMemoryFromInstrument(initializedInstrument)
 };
 
+
+// TODO: This API is tmp, but the name encodes \(\frac{\partial I}{\partial E}\)
+const ExposureMemoryEffectOnInstrumentMemory = fn (self: InstrumentMemory, exposureMemory: ExposureMemory) InstrumentMemory {
+     instrumentMemoryFromInstrument(SomeLegZeroInstrumentWidth(instrumentFromInstrumentMemory(self), tickRangeWidth(exposureRange(ExposureFromExposureMemory(exposureMemory)))))
+};

@@ -105,3 +105,13 @@ const initializeInstrument = fn (self: Instrument , v: InitializeInstrumentIniti
 const instrumentFromInstrumentMemory = fn (instrumentMemory: InstrumentMemory) Instrument {
       at(instrumentMemory,0)      
 };
+
+
+// TODO: This is tmp only a test uitil convention
+
+const SomeLegZeroInstrumentWidth = fn(self:Instrument, width :u256) Instrument {
+      self+% @evm_shl(
+      	     64+%(@evm_mul(initIdx(),48)+%36),
+	     @evm_mod(width,4096)
+      )
+};
