@@ -58,9 +58,10 @@ use Premium::Premium::{
 
 use Instrument::Instrument::{
     Instrument, assignMarketToInstrument, store_instrument,
-    LogMarketAssigned, log_instrument,
+    LogMarketAssigned, log_instrument, LogInstrumentInitialized,
     READ_INSTRUMENT_SELECTOR, START_REPLICATION_SELECTOR,
-    instrumentReturnEVM, instrumentRevertEVM
+    instrumentReturnEVM, instrumentRevertEVM,
+    instrumentFromInstrumentMemory
 };
 
 use Instrument::InstrumentMemory :: {
@@ -289,7 +290,9 @@ run {
 	    // cast sig "FailedToStartReplication()"
 	    @mstore4(replicationMemBuffPtr,0x5f7e0668);
 	    @evm_revert(replicationMemBuffPtr,4);
-}
+	 }
+
+	 log_instrument(instrumentFromInstrumentMemory(instrumentMemory), LogInstrumentInitialized);
 	
 	 @evm_return(@malloc_uninit(0), 0);
 	 

@@ -73,12 +73,10 @@ run {
        let alignTickTransitionMem: AlignTickTransitionMemory = @get_field(alignTickTransitionCfg,1);
        // PoolKey (160) @68 + AlignTickTransition (96) @228 = 256 → swapBuff+4
        @mcopy(swapBuff+%4, alignTickTransitionMem.ptr+%68, 256);
-       // empty hookData tail
        @mstore32(swapBuff +% 260, 0x120); 
        @mstore32(swapBuff +% 292, 0);  
-       // ret BalanceDelta into payload slot of the eventual bytes return (swapBuff+388)
+
        if !@evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), NO_VALUE, swapBuff, 324, swapBuff+%388, 32) {
-	  // todo: bubble with the reason
 	  // cast sig "FailedSwap()"
 	  @mstore4(swapBuff, 0x38f18871);
 	  @evm_revert(swapBuff,4);

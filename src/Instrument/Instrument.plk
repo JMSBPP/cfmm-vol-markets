@@ -39,16 +39,24 @@ const MarketAssigned = fn (self: Instrument) bool {
 
 
 const LogMarketAssigned = struct {};
+const LogInstrumentInitialized = struct {};
 
 const instrumentUnderlyingMarketId = fn (self: Instrument) u256 {
       self & 0xffffffffffffffff
 };
 
 const log_instrument = fn (self: Instrument, evt: type) void {
+      let logMemPtr: u256 = @malloc_uninit(32);
       if evt == LogMarketAssigned {
-      	 let logMemPtr: u256 = @malloc_uninit(32);
       	 @mstore32(logMemPtr, instrumentUnderlyingMarketId(self));
       	 @evm_log1(logMemPtr, 32, @keccak256_cbytes("MarketAssigned(uint64)"));
+      }
+
+      else if evt == LogInstrumentInitialized {
+      	   @mstore32(logMemPtr,ArbitraryValidInstrumentInitializer());
+	   @evm_log1(logMemPtr, 32, @keccak256_cbytes("InitializeInstrument(uint24)"));
+      	   // what initializes the instrument is the option ratio, so this is what get's logged
+      	   // along with the token id
       }
 };
 
@@ -87,6 +95,7 @@ const assignMarketToInstrument = fn (on: type, marketIdWord :u256) Instrument {
 const InitializeInstrumentInitializer = u256;
 // from now what is known is that is greater than 0
 
+// TODO: This maps to the option ratio
 const ArbitraryValidInstrumentInitializer = fn () InitializeInstrumentInitializer {
       1
 };

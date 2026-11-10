@@ -115,8 +115,6 @@ run {
        let unspecified: u256 = if specifiedTokenIs0 { debtOnCurrency1 } else { debtOnCurrency0 };
 
        if @evm_slt(unspecified, 0) {
-       	  // Transfer.plk balanceOf is the last notifyDebt; clear so sync baselines
-	  // at 0 and settleFor pays the full abs(unspecified), not a delta vs mint.
 	  @mstore4(afterSwapMemBuffPtr, NOTIFY_DEBT_SELECTOR);
 	  @mstore32(afterSwapMemBuffPtr+%4, 0);
 	  if !@evm_call(@evm_gas(), unspecifiedCurrency, NO_VALUE, afterSwapMemBuffPtr, 36, 0, 0) {
