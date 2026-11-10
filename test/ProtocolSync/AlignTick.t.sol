@@ -11,6 +11,7 @@ import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {PoolKey} from "v4-core/types/PoolKey.sol";
 
 import {TickMath} from "v4-core/libraries/TickMath.sol";
+import {SqrtPriceMath} from "v4-core/libraries/SqrtPriceMath.sol";
 
 import {IStateView} from "v4-periphery/interfaces/IStateView.sol";
 import {PoolKey as PoolKeyPeriphery} from "v4-periphery/lens/ReservesLens.sol";
@@ -172,8 +173,19 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	    expectedSwapParams.sqrtPriceLimitX96 = TickMath.getSqrtPriceAtTick(newTick);
 	    (uint160 currentSqrtPriceX96,,,) = IStateView(poolManagerLens).getSlot0(PoolIdLibrary.toId(marketKeyPeriphery));
 	    expectedSwapParams.zeroForOne = (expectedSwapParams.sqrtPriceLimitX96 < currentSqrtPriceX96);
-	    // todo: This is tmp
-	    expectedSwapParams.amountSpecified = int256(1e18);
+	    // Matches ExposureAndDirectionAwareTickDistance: L = DEFAULT_EXPOSURE_SIZE (100e18).
+	    uint128 exposureLiquidity = uint128(uint256(100e18));
+	    expectedSwapParams.amountSpecified = expectedSwapParams.zeroForOne
+		? int256(
+		    SqrtPriceMath.getAmount1Delta(
+			currentSqrtPriceX96, expectedSwapParams.sqrtPriceLimitX96, exposureLiquidity, true
+		    )
+		)
+		: int256(
+		    SqrtPriceMath.getAmount0Delta(
+			currentSqrtPriceX96, expectedSwapParams.sqrtPriceLimitX96, exposureLiquidity, true
+		    )
+		);
 	    console2.log("Expected Zero for one:",  expectedSwapParams.zeroForOne);
 	    vm.expectCall(poolManager, abi.encodeCall(IPoolManager.swap, (marketKey,expectedSwapParams,Constants.ZERO_BYTES)));
 	    }

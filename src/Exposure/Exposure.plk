@@ -122,6 +122,7 @@ const ArbitraryExposure = fn (on: type) Exposure {
 
 
 const AssetExposure = fn (self: Exposure, assetPair:AssetPair, idx :AssetPairIdx ) Exposure {
+      // TODO this is equivalent to LiquidityAmounts
       ArbitraryExposure(storage)     
 };
 
