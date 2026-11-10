@@ -3,7 +3,9 @@ use custom_utils::moreRegions::storage;
 
 use custom_utils::eth::NO_VALUE;
 
-use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
+use custom_utils::protocol_integrations::UniswapV4Consumer::{
+    POOL_MANAGER_SLOT, TAKE_SELECTOR
+};
 use custom_utils::protocol_integrations::PanopticV2Consumer::{
     SET_POSITION_MANAGER_SELECTOR, storePositionManager
 };
@@ -80,6 +82,36 @@ run {
 	  // cast sig "FailedSwap()"
 	  @mstore4(swapBuff, 0x38f18871);
 	  @evm_revert(swapBuff,4);
+       }
+       // afterSwap RETURNS_DELTA clears unspecified on the caller; take any
+       // remaining specified credit so unlock does not CurrencyNotSettled.
+       let swapDelta: u256 = @mload32(swapBuff +% 388);
+       let amount0: u256 = @evm_sar(128, swapDelta);
+       let amount1: u256 = @evm_signextend(15, swapDelta);
+       let currency0: u256 = @mload32(swapBuff +% 4);
+       let currency1: u256 = @mload32(swapBuff +% 36);
+       let poolManager: u256 = @evm_sload(POOL_MANAGER_SLOT);
+       if @evm_slt(0, amount0) {
+       	  @mstore4(swapBuff, TAKE_SELECTOR);
+	  @mstore32(swapBuff +% 4, currency0);
+	  @mstore32(swapBuff +% 36, @evm_address_this());
+	  @mstore32(swapBuff +% 68, amount0);
+	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 100, 0, 0) {
+	     // cast sig "FailedOnTakeCurrency0AlignTick()"
+	     @mstore4(swapBuff, 0x077b765f);
+	     @evm_revert(swapBuff, 4);
+	  }
+       }
+       if @evm_slt(0, amount1) {
+       	  @mstore4(swapBuff, TAKE_SELECTOR);
+	  @mstore32(swapBuff +% 4, currency1);
+	  @mstore32(swapBuff +% 36, @evm_address_this());
+	  @mstore32(swapBuff +% 68, amount1);
+	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 100, 0, 0) {
+	     // cast sig "FailedOnTakeCurrency1AlignTick()"
+	     @mstore4(swapBuff, 0xc0b63e9e);
+	     @evm_revert(swapBuff, 4);
+	  }
        }
        // Compare prices (not ticks): V4 zeroForOne can leave slot0.tick == target-1 at P(target)
        if NeqSqrtPrice(slot0SqrtPriceOnPoolManager(), sqrtPriceFromTick(targetTick(alignCalldata))) {

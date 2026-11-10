@@ -19,6 +19,8 @@ const SYNC_SELECTOR = 0xa5841194;
 const SETTLE_SELECTOR = 0x11da60b4;
 // cast sig "settleFor(address)"
 const SETTLE_FOR_SELECTOR = 0x3dd45adb;
+// cast sig "take(address,address,uint256)"
+const TAKE_SELECTOR = 0x0b0d9c09;
 
 const storePoolManager = fn (poolManager: u256) void {
       @evm_sstore(POOL_MANAGER_SLOT,poolManager);
