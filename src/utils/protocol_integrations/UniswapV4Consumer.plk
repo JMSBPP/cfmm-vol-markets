@@ -5,6 +5,27 @@
 // cast keccak vol-markets.Uniswap.PoolManager
 const POOL_MANAGER_SLOT = 0x88a114aa1e554c058ec89d3e36fbd9461439057395b0516c7441f43f1154c823;
 
+// cast sig "setPoolManager(address)"
+const SET_POOL_MANAGER_SELECTOR = 0x7aef6715;
+
 const POOLS_SLOT = 6;
 // cast sig "extsload(bytes32)"
 const EXTSLOAD_SELECTOR = 0x1e2eaeaf;
+
+
+// cast sig "sync(address)"
+const SYNC_SELECTOR = 0xa5841194;
+// cast sig "settle()"
+const SETTLE_SELECTOR = 0x11da60b4;
+// cast sig "settleFor(address)"
+const SETTLE_FOR_SELECTOR = 0x3dd45adb;
+// cast sig "take(address,address,uint256)"
+const TAKE_SELECTOR = 0x0b0d9c09;
+
+const storePoolManager = fn (poolManager: u256) void {
+      @evm_sstore(POOL_MANAGER_SLOT,poolManager);
+};
+
+const loadPoolManager = fn () u256 {
+      @evm_sload(POOL_MANAGER_SLOT)
+};

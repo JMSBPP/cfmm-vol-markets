@@ -1,0 +1,38 @@
+use std::regions::memory;
+use std::slice::{Slice,new};
+use std::option::Some;
+use custom_utils::moreRegions::storage;
+
+use Instrument::Instrument::{
+    instrumentWord, instrumentOn,instrumentFromInstrumentMemory, Instrument,
+    ArbitraryValidInstrumentInitializer, initializeInstrument,
+    SomeLegZeroInstrumentWidth    
+};
+
+
+use Exposure::Exposure::{
+    tickRangeWidth, ExposureFromExposureMemory, exposureRange
+};
+
+use Exposure::ExposureMemory::ExposureMemory;
+
+const InstrumentMemory = Slice(memory, u256, Some(1));
+
+const loadInstrumentMemory = fn (from : type) InstrumentMemory {
+      new(memory, (instrumentWord(instrumentOn(from)),))      
+};
+
+const instrumentMemoryFromInstrument = fn (instrument: Instrument) InstrumentMemory {
+      new(memory, (instrumentWord(instrument),))
+};
+
+const initializeInstrumentMemory = fn (instrumentMemory: InstrumentMemory) InstrumentMemory {
+      let mut initializedInstrument: Instrument = instrumentFromInstrumentMemory(instrumentMemory);           initializedInstrument = initializeInstrument( initializedInstrument, ArbitraryValidInstrumentInitializer());
+      instrumentMemoryFromInstrument(initializedInstrument)
+};
+
+
+// TODO: This API is tmp, but the name encodes \(\frac{\partial I}{\partial E}\)
+const ExposureMemoryEffectOnInstrumentMemory = fn (self: InstrumentMemory, exposureMemory: ExposureMemory) InstrumentMemory {
+     instrumentMemoryFromInstrument(SomeLegZeroInstrumentWidth(instrumentFromInstrumentMemory(self), tickRangeWidth(exposureRange(ExposureFromExposureMemory(exposureMemory)))))
+};

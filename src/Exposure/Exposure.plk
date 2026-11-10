@@ -1,0 +1,138 @@
+use std::core::uint::{
+    u128, try_cast_uint, cast_uint
+};
+use std::regions::memory;
+use std::slice::{Slice,new, at};
+
+use std::option::{
+    unwrap, Some
+};
+use custom_utils::cfmm_types::Tick::{
+    Tick, maxTick, minTick, toUpdateTick, tickWord,
+    NormAbsTick
+};
+
+use custom_utils::cfmm_types::TickSpacing::{
+    TickSpacing, tickSpacingOn
+};
+
+use custom_utils::moreRegions::storage;
+
+use Exposure::ExposureMemory::{
+    ExposureMemory, nullExposureMemory
+};
+
+use Asset::Asset::{
+    Asset, AssetPair, AssetPairIdx, AssetOnAssetPairFromIdx
+};
+
+
+ // TODO: This type goes on cfmm_types
+
+const Range = fn (comptime T :type) type {
+      if T == Tick {
+      	 struct {
+	 	low  : Tick,
+		high : Tick
+	 }      	 
+      }
+      else {
+      	   @compile_error("Type not supported on range");
+      }
+};
+
+// TODO: From now it builds ts from storage but this needs to be refined
+const tickRangeFromTickWords = fn (tickLowWord :u256, tickHighWord :u256) Range(Tick) {
+      let tickSpacingOnStorage: TickSpacing = tickSpacingOn(storage);
+       Range (Tick) {
+       	     low:  Tick { val: tickLowWord , ts: tickSpacingOnStorage },
+	     high: Tick { val: tickHighWord, ts:  tickSpacingOnStorage}
+       }     
+};
+
+const tickLow = fn(self:Range(Tick)) Tick {
+      self.low
+};
+
+const tickHigh = fn(self:Range(Tick)) Tick {
+      self.high
+};
+
+
+// TODO: This goes along Range on cfmm_utils
+const tickRangeWidth= fn (self:Range(Tick)) u256 {
+      tickWord(NormAbsTick(tickHigh(self), tickLow(self)))
+};
+
+const notYetTickRange = fn() Range(Tick) {
+      Range(Tick) {low: toUpdateTick(), high: toUpdateTick()}    
+};
+
+const FullTickRange = fn(ts:TickSpacing) Range(Tick) { Range(Tick) {low: minTick(ts) , high: maxTick(ts)}
+};
+// 100e18
+const DEFAULT_EXPOSURE_SIZE = 0x0000000000000000000000000000000000000000000000056bc75e2d63100000;
+const ExposureSize = u128;
+
+const exposureSizeWord = fn (exposureSizeVal: ExposureSize) u256 { cast_uint(exposureSizeVal,u256) };
+
+const exposureSizeFromWord = fn (word: u256) ExposureSize { unwrap(try_cast_uint(word, u128)) };
+
+const ArbitraryExposureSize = fn() ExposureSize { exposureSizeFromWord(DEFAULT_EXPOSURE_SIZE) };
+const nullExposureSize = fn () ExposureSize {exposureSizeFromWord(0)};
+
+const Exposure = struct {
+      size: ExposureSize,
+      range: Range(Tick),
+      mem: ExposureMemory
+};
+
+
+const exposureSizeVal = fn (self: Exposure) ExposureSize {
+      self.size
+};
+
+const exposureRange = fn(self: Exposure) Range(Tick) {
+      self.range
+};
+
+const exposureMemory = fn(self: Exposure) ExposureMemory {
+      self.mem      
+};
+
+const notYetExposure = fn () Exposure {
+      Exposure {size: nullExposureSize(), range: notYetTickRange(), mem: nullExposureMemory()}
+};
+
+const ArbitraryExposure = fn (on: type) Exposure {
+      let mut resExposure: Exposure = notYetExposure();
+      if on == storage {
+      	 resExposure = @set_field(resExposure, "size", ArbitraryExposureSize());
+	 resExposure = @set_field(resExposure, "range", FullTickRange(tickSpacingOn(storage)));
+      }
+      else if on == memory {
+      	   let storedExposure = ArbitraryExposure(storage);
+      	   resExposure = @set_field(storedExposure, "mem", new(memory, (
+	   	       exposureSizeWord(exposureSizeVal(storedExposure)),
+		       tickWord(tickLow(exposureRange(storedExposure))),
+		       tickWord(tickHigh(exposureRange(storedExposure))))));
+      }
+      resExposure
+};
+
+
+const AssetExposure = fn (self: Exposure, assetPair:AssetPair, idx :AssetPairIdx ) Exposure {
+      // TODO this is equivalent to LiquidityAmounts
+      ArbitraryExposure(storage)     
+};
+
+const ExposureFromExposureMemory = fn (exposureMemory :ExposureMemory) Exposure {
+      let mut exposureFromExposureMemoryRes: Exposure =  notYetExposure();
+      exposureFromExposureMemoryRes = @set_field(exposureFromExposureMemoryRes, "size", exposureSizeFromWord(at(exposureMemory,0)));
+      exposureFromExposureMemoryRes = @set_field(exposureFromExposureMemoryRes,"range",tickRangeFromTickWords(at(exposureMemory,1),at(exposureMemory,2)));
+      
+      exposureFromExposureMemoryRes = @set_field(exposureFromExposureMemoryRes, "mem", exposureMemory);
+      exposureFromExposureMemoryRes      
+};
+
+

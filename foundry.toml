@@ -15,7 +15,8 @@ fs_permissions = [
     { access = "read", path = "./src/interfaces/pos_spec" },
     { access = "read", path = "./.bytecode/algebra" },
     { access = "read", path = "./offchain/rig" },
-    { access = "read", path = "./.bytecode/uniswap-v4" }
+    { access = "read", path = "./.bytecode/uniswap-v4" },
+    { access = "read", path = "./.bytecode/panoptic" }
 
 ]
 
@@ -33,7 +34,16 @@ remappings = [
 	   "v4-core/=lib/v4-core/src/",
 	   "v4-periphery/=lib/v4-periphery/src/",
 	   "v4-core-test/=lib/v4-core/test/",
-	   "panoptic-v2-core/=lib/panoptic-v2-core"
+	   # Prefer root pin over empty panoptic nested checkout
+	   # (`@uniswap/=lib/panoptic-v2-core/lib/` auto-remap).
+	   "@uniswap/v4-core/=lib/v4-core/",
+	   "solmate/=lib/v4-core/lib/solmate/",
+	   "panoptic-v2-core/=lib/panoptic-v2-core",
+	   # TokenId.sol / Errors (Instrument tests). Avoid bare @types/@libraries.
+	   "panoptic-types/=lib/panoptic-v2-core/contracts/types/",
+	   "panoptic-libraries/=lib/panoptic-v2-core/contracts/libraries/",
+	   "@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/",
+	   "univ3-core/=lib/panoptic-v2-core/lib/v3-core/contracts/"
 ]
 
 

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.26;
 import {PlankTestBase} from "plank/PlankTestBase.sol";
-import {console2} from "forge-std/console2.sol";
+import {Deployers} from "v4-core-test/utils/Deployers.sol";
+import {SfpmBytecodeDeployer} from "@helpers/UniswapV4/SfpmBytecodeDeployer.sol";
 import {WindowState,WINDOW_SLOT} from "./Window.t.sol";
-import {ITickSpacing} from "./TickSpacing.t.sol";
+import {ITickSpacing, MIN_TICK_SPACING, MAX_TICK_SPACING} from "./TickSpacing.t.sol";
 import {IWindow} from "./Window.t.sol";
-import {MIN_TICK,MAX_TICK,ITick,normTickVal} from "./Tick.t.sol";
+import {ITick, normTickVal, usableMin, usableMax} from "./Tick.t.sol";
 
-import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
 bytes32 constant TICK_AVERAGE_SLOT = 0x639a68f1e2d4af32ba8134bbdb9c46e158a306a8d58cd3f92a9c3e7e5c05a6b3;
@@ -18,14 +18,45 @@ interface ITickAverage {
     function read_tick_average() external returns(int24);
 }
 
-contract TickAverageTest is PlankTestBase{
+interface IEnv {
+    function setIO(address) external;
+    function setTickAligner(address) external;
+    function setPoolManager(address) external;
+    function setPositionManager(address) external;
+}
+
+interface IMarketBuilder {
+    function setPair(address, address, bool) external;
+}
+
+contract TickAverageTest is PlankTestBase, Deployers {
     
     address main;
+    address poolManager;
+    address positionManager;
+    address alignTickHarness = makeAddr("cfmm-vol-markets.alignTick");
+    address underlying = makeAddr("cfmm.vol-markets.underlying");
+    address numeraire = makeAddr("cfmm.vol-markets.numeraire");
     
     WindowState tickAverageWindowState;
 
     function setUp() public {
+	deployFreshManager();
+	poolManager = address(manager);
+	positionManager = SfpmBytecodeDeployer.deploy(
+	    vm, manager, 2100000000000000000000, 2100000000000000000000, 10000
+	);
 	main = deployPlank("src/Main.plk");
+	deployCodeTo(alignTickHarness, compilePlank("src/ProtocolSync/AlignTick.plk"));
+	deployCodeTo(underlying, compilePlank("src/utils/Token/Transfer.plk"));
+	deployCodeTo(numeraire, compilePlank("src/utils/Token/Transfer.plk"));
+	IEnv(alignTickHarness).setIO(main);
+	IEnv(main).setTickAligner(alignTickHarness);
+	IEnv(alignTickHarness).setPoolManager(poolManager);
+	IEnv(main).setPoolManager(poolManager);
+	IEnv(alignTickHarness).setPositionManager(positionManager);
+	IEnv(main).setPositionManager(positionManager);
+	IMarketBuilder(main).setPair(underlying, numeraire, true);
 	vm.makePersistent(main);
     }
 
@@ -36,13 +67,19 @@ contract TickAverageTest is PlankTestBase{
     function test_WhenTickAverageWindowStateIsNotInitialized(uint256 windowLen,uint24 tickSpacing,int24 tick) external whenTickAverageUpdatesFromTickCalldata {
 
 	// =================================PRE-CONDITIONS============================================
-	uint24 tickSpacingCalldata = tickSpacing;
-	// TODO: 200 is arbitrary, to be refined
+	// Align-safe bounds via usableMin/Max (mirrors Tick.plk minTick/maxTick).
+	uint24 tickSpacingCalldata = uint24(
+	    bound(uint256(tickSpacing), uint256(MIN_TICK_SPACING), uint256(MAX_TICK_SPACING))
+	);
+	// Cap matches AlignTick/NoFee: large tick-range aligns are multi-million gas each.
 	// 2 is so the windowLen does not equal the indx. This case is handled on the test below
-	uint256 windowLenCalldata = bound(windowLen, 2, 200);
+	uint256 windowLenCalldata = bound(windowLen, 2, 5);
 	ITickSpacing(main).set_tick_spacing(tickSpacingCalldata);
 	IWindow(main).set_window(windowLenCalldata);
-	int24 tickCalldata = tick;
+	uint24 ts = ITickSpacing(main).read_tick_spacing();
+	int24 lo = usableMin(SafeCastLib.toInt24(uint256(ts)));
+	int24 hi = usableMax(SafeCastLib.toInt24(uint256(ts)));
+	int24 tickCalldata = int24(bound(int256(tick), int256(lo), int256(hi)));
 
 	//================================TEST ==================================================
 	ITick(main).set_tick(tickCalldata);
@@ -71,17 +108,23 @@ contract TickAverageTest is PlankTestBase{
 							  uint256 maxIdx
     ) external whenTickAverageUpdatesFromTickCalldata {
         // ==============================PRE-CONDITIONS ================================
-	// TODO: 200 is somewhat arbitrary and does not lead OOG
-	uint256 windowLenCalldata = bound(windowLen, 1, 200);
-	ITickSpacing(main).set_tick_spacing(tickSpacing);
-	uint24 tickSpacingCalldata =  ITickSpacing(main).read_tick_spacing();
+	// Cap matches AlignTick/NoFee: large tick-range aligns are multi-million gas each;
+	// windowLen up to 200 OOGs mid-loop and surfaces as FailedToAlignTicks.
+	uint256 windowLenCalldata = bound(windowLen, 1, 5);
+	uint24 tickSpacingCalldata = uint24(
+	    bound(uint256(tickSpacing), uint256(MIN_TICK_SPACING), uint256(MAX_TICK_SPACING))
+	);
+	ITickSpacing(main).set_tick_spacing(tickSpacingCalldata);
+	tickSpacingCalldata = ITickSpacing(main).read_tick_spacing();
+	int24 lo = usableMin(SafeCastLib.toInt24(uint256(tickSpacingCalldata)));
+	int24 hi = usableMax(SafeCastLib.toInt24(uint256(tickSpacingCalldata)));
 	IWindow(main).set_window(windowLenCalldata);
 	uint256 maxIdxPick = bound(maxIdx,1,windowLenCalldata);
 	uint256 windowIdx = 0;
 	int56 expectedPrevTickAccum;
 	do {
 	    int256 tickSeed = vm.randomInt();
-	    int24 tickOnRun = SafeCastLib.toInt24(bound(int256(tickSeed),int256(MIN_TICK),int256(MAX_TICK)));
+	    int24 tickOnRun = int24(bound(int256(tickSeed), int256(lo), int256(hi)));
 	    ITick(main).set_tick(tickOnRun);
 	    
 	    expectedPrevTickAccum+= int56(int256(ITick(main).read_tick()));
@@ -116,4 +159,3 @@ contract TickAverageTest is PlankTestBase{
     }
 
 }
-

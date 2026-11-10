@@ -1,8 +1,16 @@
 use std::constructor::return_runtime;
 use std::slice::{new,len};
+use std::regions::memory;
 use custom_utils::moreRegions::storage;
 use custom_utils::eth::NO_VALUE;
-use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
+use custom_utils::protocol_integrations::UniswapV4Consumer::{
+    POOL_MANAGER_SLOT, SET_POOL_MANAGER_SELECTOR,
+    storePoolManager, loadPoolManager
+};
+use custom_utils::protocol_integrations::PanopticV2Consumer::{
+    POSITION_MANAGER_SLOT, SET_POSITION_MANAGER_SELECTOR, VEGOID_DEFAULT,
+    storePositionManager , positionManagerOn
+};
 use custom_utils::cfmm_types::Tick::{
     NeqTick, READ_TICK_SELECTOR, SET_TICK_SELECTOR, Tick, TickCalldata,
     build_tick, store_tick, tickOn, tickReturnEVM, tickWord
@@ -31,14 +39,43 @@ use TickMoments::TickRealizedVolatility::{
     store_tickRealizedVolatility, tickRealizedVolatilityReturnEVM,
     update_realized_volatility
 };
-use Asset::Asset::{AssetCalldata, storeAsset, AssetMemory, loadAssetMemory};
-use LiquidityKernel::AlignCalldata::{
+use Asset::Asset::{
+    AssetCalldata, storeAsset, AssetMemory, loadAssetMemory,
+    SET_PAIR_SELECTOR, GET_MARKET_KEY_SELECTOR, SELECT_ASSET_SELECTOR
+};
+use ProtocolSync::AlignCalldata::{
     AlignCalldata, completeAlignTickCalldata, partialAlignTickCalldata
 };
-use LiquidityKernel::AlignTick::{ALIGNER_SLOT, requestTickAlignment};
-use LiquidityKernel::Controller::CONTROLLER_SLOT;
-use LiquidityKernel::Premium::PREMIUM_SLOT;
+use ProtocolSync::AlignTick::{
+    ALIGNER_SLOT, SET_TICK_ALIGNER_SELECTOR, requestTickAlignment
+};
+use Controllers::Controller::{CONTROLLER_SLOT, SET_CONTROLLER_SELECTOR};
 
+use Premium::Premium::{
+    PREMIUM_SLOT, SET_PREMIUM_RATE_SELECTOR
+};
+
+
+use Instrument::Instrument::{
+    Instrument, assignMarketToInstrument, store_instrument,
+    LogMarketAssigned, log_instrument, LogInstrumentInitialized,
+    READ_INSTRUMENT_SELECTOR, START_REPLICATION_SELECTOR,
+    instrumentReturnEVM, instrumentRevertEVM,
+    instrumentFromInstrumentMemory
+};
+
+use Instrument::InstrumentMemory :: {
+    InstrumentMemory, loadInstrumentMemory, initializeInstrumentMemory,
+    ExposureMemoryEffectOnInstrumentMemory
+};
+
+use Instrument::InstrumentCustodian::SAVE_INSTRUMENT_SELECTOR;
+
+use Exposure :: ExposureMemory :: {
+    ExposureMemory ,exposureMemory
+};
+
+use Exposure :: Exposure::ArbitraryExposure;
 
 init {
     return_runtime();
@@ -46,30 +83,106 @@ init {
 
 run {
     let selector = @evm_shr(224, @evm_calldataload(0));
+
+    // ===================== TICK ===============================
     if selector == READ_TICK_SELECTOR {
        tickReturnEVM();
     }
 
+    else if selector == SET_TICK_SELECTOR {
+	 // Spacing must be set before initialize/align — otherwise PoolKey.tickSpacing=0
+	 // fails as UnableToInitializeMarket and TickSpacingNotOnStorage is unreachable.
+	 tickSpacingRevertEVMDueTo(storage);
+    	 let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingWord(tickSpacingOn(storage)));
+	 let tick :Tick = build_tick(tickCalldata);
+	 let poolManager: u256 = @evm_sload(POOL_MANAGER_SLOT);
+	 let positionManager: u256 = @evm_sload(POSITION_MANAGER_SLOT);
+	 let currentSlot0SqrtPriceOnPoolManager: SqrtPrice =  slot0SqrtPriceOnLocalAsset();
+    	 if EqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
+	    let assetMemory: AssetMemory = loadAssetMemory(storage);
+	    // layout: sel+PoolKey+arg (196) | ret (32) → 228
+	    let mut initMemPtr: u256 = @malloc_uninit(228);
+
+	    // cast sig "initialize((address,address,uint24,int24,address),uint160)"
+	    @mstore4(initMemPtr, 0x6276cbbe);
+	    @mcopy(initMemPtr +% 4, assetMemory.ptr, 160);
+	    @mstore32(initMemPtr +% 164, sqrtPriceWord(sqrtPriceFromTick(tick)));
+
+	    if !@evm_call(@evm_gas(), poolManager, NO_VALUE, initMemPtr, 196, initMemPtr +% 196, 32) {
+	      	 // cast sig "UnableToInitializeMarket()"
+	      	 @mstore4(initMemPtr, 0x793dad28);
+		 @evm_revert(initMemPtr, 4);
+	    }
+
+	    if @mload32(initMemPtr +% 196) != tickWord(tick) {
+	      	 // cast sig "TickMismatchOnInitialize()"
+	      	 @mstore4(initMemPtr, 0xa89ef96f);
+		 @evm_revert(initMemPtr, 4);
+	    }
+
+	    // cast sig "initializeAMMPool((address,address,uint24,int24,address),uint8)"
+	    @mstore4(initMemPtr, 0x8ded7bcb);
+	    @mstore32(initMemPtr +% 164, VEGOID_DEFAULT);
+	    if !@evm_call(@evm_gas(), positionManager, NO_VALUE, initMemPtr, 196, initMemPtr +% 196, 32) {
+	      	 // cast sig "UnableToInitializePositionManager()"
+	      	 @mstore4(initMemPtr, 0x218225e8);
+		 @evm_revert(initMemPtr, 4);
+	    }
+	    let instrument: Instrument= assignMarketToInstrument(storage, @mload32(initMemPtr +% 196));
+
+
+	    let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
+	    let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
+
+	    store_instrument(instrument, storage);
+	    log_instrument(instrument, LogMarketAssigned);
+	    store_tick(tick, storage);
+	    store_tickAverage(updatedTickAvg,storage);
+	    store_tickRealizedVolatility(updatedTickRealizedVol,storage);
+	    
+	 }
+
+	 else if NeqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
+	   let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
+	   let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
+	  
+	   let prevTick: Tick = tickOn(storage);
+	   store_tick(tick,storage);
+	   if NeqTick(prevTick, tick) {
+	      let alignTickCalldata: AlignCalldata = completeAlignTickCalldata(partialAlignTickCalldata(prevTick), tick);
+	      requestTickAlignment(alignTickCalldata);
+	    }
+			
+	   store_tickAverage(updatedTickAvg,storage);
+	   store_tickRealizedVolatility(updatedTickRealizedVol,storage);
+	 }
+	 
+	@evm_return(@malloc_uninit(0), 0);
+    }
+
+    // ===================== TICK_AVERAGE ===============================
     else if selector == READ_TICK_AVERAGE_SELECTOR {
       tickAverageReturnEVM();
     }
-    // cast sig "setPair(address,address,bool)"
-    else if selector == 0xa782d794 {
-    	 let asstIdx: u256 = @evm_calldataload(68);
-	 // TODO: The above can upadte tokenId
-    	 let assetCalldata: AssetCalldata = (@evm_calldataload(4),@evm_calldataload(36), if asstIdx == 0 {false} else {true});
-	 storeAsset(assetCalldata,storage);
-	 let retBuff: u256 = @malloc_zeroed(32);
-	 @evm_return(retBuff,32);
-    }
+
+    // ===================== TICK_REALIZED_VOLATILITY ===============================
     else if selector == READ_TICK_REALIZED_VOLATILITY_SELECTOR {
       tickRealizedVolatilityReturnEVM();      
     }
 
+    // ===================== TICK_SPACING ===============================
     else if selector == READ_TICK_SPACING_SELECTOR {
         tickSpacingReturnEVM();  
     }
 
+    else if selector == SET_TICK_SPACING_SELECTOR {
+      	 let tickSpacingCalldata: TickSpacingCalldata = (tickSpacingVal(@evm_calldataload(4)),);
+	 let tickSpacing: TickSpacing = build_tickSpacing(tickSpacingCalldata);
+	 store_tickSpacing(tickSpacing,storage);
+	 @evm_return(@malloc_uninit(0), 0);
+    }
+
+    // ===================== WINDOW ===============================
     else if selector == SET_WINDOW_SELECTOR {
        let windowCalldata: WindowCalldata = (
            @evm_calldataload(4),
@@ -80,110 +193,118 @@ run {
        @evm_return(@malloc_uninit(0), 0);
     }
 
-
-    else if selector == SET_TICK_SELECTOR {
-    	 let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingWord(tickSpacingOn(storage)));
-	 let tick :Tick = build_tick(tickCalldata);
-	 let poolManager: u256 = @evm_sload(POOL_MANAGER_SLOT);
-	 // No PoolManager wired: storage-only tick/moments (unit tests, pre-market Main).
-	 if poolManager == 0 {
-	   	let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
-		let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
-		store_tick(tick,storage);
-		store_tickAverage(updatedTickAvg,storage);
-		store_tickRealizedVolatility(updatedTickRealizedVol,storage);
-	 } else {
-	 let currentSlot0SqrtPriceOnPoolManager: SqrtPrice =  slot0SqrtPriceOnLocalAsset();
-    	 if EqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
-	    let assetMemory: AssetMemory = loadAssetMemory(storage);
-	    // sel(4) + PoolKey(160) + sqrtPriceX96(32) = 196
-	    let mem: u256 = @malloc_uninit(196);
-	    // cast sig "initialize((address,address,uint24,int24,address),uint160)"
-	    @mstore4(mem, 0x6276cbbe);
-	    @mcopy(mem +% 4, assetMemory.ptr, 160);
-	    @mstore32(mem +% 164, sqrtPriceWord(sqrtPriceFromTick(tick)));
-	    let retBuff: u256 = @malloc_uninit(32);
-	    if !@evm_call(@evm_gas(), poolManager, NO_VALUE, mem, 196, retBuff, 32) {
-	      	 // cast sig "UnableToInitializeMarket()"
-	      	 @mstore4(mem, 0x793dad28);
-		 @evm_revert(mem, 4);
-	    }
-	    if @mload32(retBuff) != tickWord(tick) {
-	      	 // cast sig "TickMismatchOnInitialize()"
-	      	 @mstore4(mem, 0xa89ef96f);
-		 @evm_revert(mem, 4);
-	    }
-	    store_tick(tick, storage);
-	    
-	 }
-
-	 else if NeqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
-	   	let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
-		let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
-		// here it stores the tick before the update	
-		let prevTick: Tick = tickOn(storage);
-		store_tick(tick,storage);
-		// completeAlignTickCalldata rejects equal ticks; skip unlock when norm collapses
-		if NeqTick(prevTick, tick) {
-		   let alignTickCalldata: AlignCalldata = completeAlignTickCalldata(partialAlignTickCalldata(prevTick), tick);
-		   requestTickAlignment(alignTickCalldata);
-		}
-			
-		store_tickAverage(updatedTickAvg,storage);
-		store_tickRealizedVolatility(updatedTickRealizedVol,storage);
-	 }
-	 }
-	 
-	tickSpacingRevertEVMDueTo(storage);	     
-	@evm_return(@malloc_uninit(0), 0);
-    }
-
-    else if selector == SET_TICK_SPACING_SELECTOR {
-      	 let tickSpacingCalldata: TickSpacingCalldata = (tickSpacingVal(@evm_calldataload(4)),);
-	 let tickSpacing: TickSpacing = build_tickSpacing(tickSpacingCalldata);
-	 store_tickSpacing(tickSpacing,storage);
-	 @evm_return(@malloc_uninit(0), 0);
-    }
-    // cast sig "setController(address)"
-    else if selector == 0x92eefe9b {
-    	 @evm_sstore(CONTROLLER_SLOT, @evm_calldataload(4));
+    // ===================== ASSET / PAIR ===============================
+    else if selector == SET_PAIR_SELECTOR {
+    	 let asstIdx: u256 = @evm_calldataload(68);
+    	 let assetCalldata: AssetCalldata = (@evm_calldataload(4),@evm_calldataload(36), if asstIdx == 0 {false} else {true});
+	 storeAsset(assetCalldata,storage);
 	 let retBuff: u256 = @malloc_zeroed(32);
 	 @evm_return(retBuff,32);
     }
-    // cast sig "setTickAligner(address)"
 
-    else if selector == 0x1e5c861f {
-    	 @evm_sstore(ALIGNER_SLOT, @evm_calldataload(4));    	 
-    	 let retBuff: u256 = @malloc_zeroed(32);
-	 @evm_return(retBuff,32);
-    }
-
-    // cast sig "setPoolManager(address)"
-    else if selector == 0x7aef6715 {
-    	 @evm_sstore(POOL_MANAGER_SLOT, @evm_calldataload(4));
-	 @evm_return(@malloc_zeroed(32), 32);
-    }
-    
-    // cast sig "set_fee(uint24)"
-    else if selector == 0x84e99813 {
-    	 @evm_sstore(PREMIUM_SLOT,@evm_calldataload(4));
-	 let retBuff: u256 = @malloc_zeroed(32);
-	 @evm_return(retBuff,32);
-
-    }
-    // cast sig "getMarketKey()"
-    else if selector == 0xe6b12e1e {
+    else if selector == GET_MARKET_KEY_SELECTOR {
     	 let assetMemory: AssetMemory = loadAssetMemory(storage);
 	 let payloadLen: u256 = len(assetMemory) * 32;
 	 let ret: u256 = @malloc_uninit(64 + payloadLen);
 	 @mstore32(ret, 0x20);
 	 @mstore32(ret +% 32, payloadLen);
 	 @mcopy(ret +% 64, assetMemory.ptr, payloadLen);
-	 @evm_log0(ret +% 32,32);
     	 @evm_return(ret, 64 + payloadLen);
     }
+
+    else if selector == SELECT_ASSET_SELECTOR {
+    // TODO: This integrates with instrument to set the asset there
+    // one can pass an address or a relative position on the market key
+    	 @evm_return(@malloc_uninit(0), 0);    	 
+    }
+
+    // ===================== PREMIUM ===============================
+    else if selector == SET_PREMIUM_RATE_SELECTOR {
+    	 @evm_sstore(PREMIUM_SLOT, @evm_calldataload(4));
+	 @evm_return(@malloc_uninit(0), 0);
+    }
+
+    // ===================== CONTROLLER ===============================
+    else if selector == SET_CONTROLLER_SELECTOR {
+    	 let controllerRaw : u256 = @evm_calldataload(4);
+    	 @evm_sstore(CONTROLLER_SLOT, controllerRaw);
+	 let setControllerMemBuffPtr: u256 = @malloc_uninit(36);
+	 @mstore4(setControllerMemBuffPtr,SET_POOL_MANAGER_SELECTOR);
+		
+	 @mstore32(setControllerMemBuffPtr+%4,loadPoolManager());
+	 if !@evm_call(@evm_gas(), controllerRaw ,NO_VALUE,setControllerMemBuffPtr,36,0,0) {
+	    // cast sig "FailedToStorePoolManagerOnController()" 
+	    @mstore4(setControllerMemBuffPtr, 0x16cac8cb);
+	    @evm_revert(setControllerMemBuffPtr,4);
+	 }
+
+	 let retBuff: u256 = @malloc_zeroed(32);
+	 @evm_return(retBuff,32);
+    }
+
+    // ===================== ALIGN_TICK ===============================
+    else if selector == SET_TICK_ALIGNER_SELECTOR {
+    	 @evm_sstore(ALIGNER_SLOT, @evm_calldataload(4));    	 
+    	 let retBuff: u256 = @malloc_zeroed(32);
+	 @evm_return(retBuff,32);
+    }
+
+    // ===================== UNISWAP_V4 ===============================
+    else if selector == SET_POOL_MANAGER_SELECTOR {
+    	 @evm_sstore(POOL_MANAGER_SLOT, @evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32), 32);
+    }
+
+    // ===================== PANOPTIC_V2 ===============================
+    else if selector == SET_POSITION_MANAGER_SELECTOR {
+    	 storePositionManager(@evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32), 32);
+    }
+
+    // ===================== INSTRUMENT ===============================
+    else if selector == READ_INSTRUMENT_SELECTOR {
+    	 instrumentReturnEVM();
+    }
+
+    // ===================== START_REPLICATION ===============================
+    else if selector == START_REPLICATION_SELECTOR {
+    	 instrumentRevertEVM();
+	 let replicationMemBuffPtr: u256 = @malloc_uninit(548);
+	 
+	 let assetMemory: AssetMemory = loadAssetMemory(storage);
+	 @mstore32(replicationMemBuffPtr+%4, 160);
+
+	 let mut instrumentMemory: InstrumentMemory = initializeInstrumentMemory(loadInstrumentMemory(storage));
+	 
+	 let exposure: ExposureMemory = exposureMemory(ArbitraryExposure(memory));
+	 instrumentMemory = ExposureMemoryEffectOnInstrumentMemory(instrumentMemory, exposure);
+	 
+	 @mcopy(replicationMemBuffPtr+%36,instrumentMemory.ptr,32);
+	 @mcopy(replicationMemBuffPtr+%68,exposure.ptr,96);
+	 @mstore32(replicationMemBuffPtr+%164, 160);
+	 @mcopy(replicationMemBuffPtr+%196,assetMemory.ptr,@mload32(replicationMemBuffPtr+%164));
+	 // cast sig "mintTokenizedPosition(bytes,uint256,uint128,int24,int24)"
+	 @mstore4(replicationMemBuffPtr, 0x41a058ef);
+
+	 if !@evm_call(@evm_gas(),positionManagerOn(storage),NO_VALUE,replicationMemBuffPtr,356, replicationMemBuffPtr+%356,192) {
+	    // cast sig "FailedToStartReplication()"
+	    @mstore4(replicationMemBuffPtr,0x5f7e0668);
+	    @evm_revert(replicationMemBuffPtr,4);
+	 }
+
+	 log_instrument(instrumentFromInstrumentMemory(instrumentMemory), LogInstrumentInitialized);
+	
+	 @evm_return(@malloc_uninit(0), 0);
+	 
+    }
+
+    else if selector == SAVE_INSTRUMENT_SELECTOR {
+    	 let ret: u256 = @malloc_zeroed(32);
+	 @mstore4(ret, SAVE_INSTRUMENT_SELECTOR);
+	 @evm_return(ret, 32);
+    }
+    
     else {
       @evm_revert(@malloc_uninit(0), 0);
     }
 }    
-

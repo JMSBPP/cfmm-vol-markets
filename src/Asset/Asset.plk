@@ -1,20 +1,24 @@
 use custom_utils::moreRegions::{storage,transient_storage};
 use custom_utils::cfmm_types::TickSpacing::{tickSpacingOn, tickSpacingWord};
 use custom_utils::eth::NO_VALUE;
+
 use std::slice::{set,Slice, new};
 use std::option::Some;
 use std::regions::memory;
 
+use Controllers::Controller::CONTROLLER_SLOT;
+
+use Premium::Premium::PREMIUM_SLOT;
+
 // cast sig "getMarketKey()"
 const GET_MARKET_KEY_SELECTOR = 0xe6b12e1e;
 
+// cast sig "setPair(address,address,bool)"
+const SET_PAIR_SELECTOR = 0xa782d794;
 
-const CONTROLLER_SLOT = 0x504cec47c00ecd92195dd23334a7de6ebb4a41496b4d3e248edc0727a2ce20b0;
-// cast keccak VolMarkets.Fee
-const FEE_SLOT = 0xdbb1cc11be04a69fc56e7bbccbd8e9075d3eeb52d1db97a6e9e2f0726a30b6ba;
 
-// (uint256(_asset % 2) << (64 + legIndex * 48)
-
+// cast sig "selectAsset(bytes)"
+const SELECT_ASSET_SELECTOR = 0xf1830ca9;
 
 
 // cast keccak cfmm-vol-markets.Numeaire
@@ -22,11 +26,17 @@ const NUMERAIRE_SLOT = 0x8b2aacedf2416f648c46a4af90c7a77fa692fc219cc6fbedc15a941
 // cast keccak cfmm-vol-markets.Asset
 const ASSET_SLOT = 0xe6a5b3be46af081cd1e21a60d0408d8c675dd2d686b46d479bb5a4890877b5d6;
 
-const AssetPair = tuple{u256, u256};
+// TODO: Separate each type, AssetPair, AssetMemory and AssetCalldata
+const Asset = u256;
+const AssetPair = tuple{Asset, Asset};
 
-const AssetMemory = Slice(memory, u256, Some(5));
+const AssetMemory = Slice(memory, Asset, Some(5));
+const AssetPairIdx = bool;
+const AssetCalldata = tuple {Asset, Asset, AssetPairIdx};
 
-const AssetCalldata = tuple {u256, u256, bool};
+const AssetOnAssetPairFromIdx = fn (self : AssetPair, idx: AssetPairIdx) Asset {
+      @get_field(self, @bool_to_u256(idx))    
+}; 
 
 // =========================== INPUT: Asset =================================
 const storeAsset = fn(ac :$AC, on: type) void {
@@ -58,7 +68,7 @@ const SortedAssetPair = fn(from: type) AssetPair {
 };
 
 const loadAssetMemory = fn(from: type) AssetMemory {
-      new(memory, (@get_field(SortedAssetPair(from),0),@get_field(SortedAssetPair(from),1),@evm_sload(FEE_SLOT),tickSpacingWord(tickSpacingOn(storage)),@evm_sload(CONTROLLER_SLOT)))
+      new(memory, (@get_field(SortedAssetPair(from),0),@get_field(SortedAssetPair(from),1),@evm_sload(PREMIUM_SLOT),tickSpacingWord(tickSpacingOn(storage)),@evm_sload(CONTROLLER_SLOT)))
 };
 
 /// Same PoolKey layout as `loadAssetMemory`, fetched from `src` via `getMarketKey()`

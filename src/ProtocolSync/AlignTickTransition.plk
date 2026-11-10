@@ -1,0 +1,73 @@
+use std::membytes::{membytes, membytes_new, membytes_write};
+use custom_utils::eth::NO_VALUE;
+use custom_utils::cfmm_types::Tick::{Tick, currentTick, targetTick};
+use custom_utils::cfmm_types::TickPrecedence::{
+    TickPrecedence, notTickPrecedence, precedesTick
+};
+use custom_utils::cfmm_types::TickDistance::{
+    TickDistance, ExposureAndDirectionAwareTickDistance, nullTickDistance
+};
+
+use custom_utils::moreRegions::storage;
+
+
+use custom_utils::cfmm_types::SqrtPrice::{SqrtPrice, nullSqrtPrice, sqrtPriceFromTick};
+use ProtocolSync::AlignCalldata::AlignCalldata;
+
+use Exposure::Exposure::ArbitraryExposure;
+
+const AlignTickTransition = struct {dir: TickPrecedence, dist: TickDistance, target: SqrtPrice };
+const AlignTickTransitionMemory = membytes;
+const AlignTickTransitionCfg = tuple{AlignTickTransition, AlignTickTransitionMemory};
+
+// =========================== INPUT: AlignTickTransition =================================
+const setAlignTickTransitionDirection = fn (self: $AlignTickTransition, currTick: Tick, tgtTick: Tick) AlignTickTransition {
+      @set_field(self, "dir", precedesTick(currTick, tgtTick))
+};
+
+const setAlignTickTransitionDistance = fn (self: $AlignTickTransition, direction: TickPrecedence, alignCalldata: AlignCalldata ) AlignTickTransition {
+      @set_field(self, "dist", ExposureAndDirectionAwareTickDistance(alignCalldata,direction,ArbitraryExposure(storage)))
+};
+
+const setAlignTickTransitionTarget = fn (self: $AlignTickTransition, tickToAlign: Tick) AlignTickTransition {
+      @set_field(self, "target", sqrtPriceFromTick(tickToAlign))
+};
+
+const alignTickTransitionDirection = fn (self: $TP) TickPrecedence {
+      @get_field(self, "dir")
+};
+
+/// `io` is the Main address stored at Main's IO_SLOT on this AlignTick contract.
+const configureAlignTickTransition = fn (alignCalldata: AlignCalldata, io: u256) AlignTickTransitionCfg {
+      let mut resAlignTickTransitionCfg: AlignTickTransitionCfg = notYetAlignTickTransitionCfg();
+      // TODO: Separate side effects
+      let alignTickTransitionMemCfg: membytes = @get_field(resAlignTickTransitionCfg, 1);
+      // cast sig "getMarketKey()"
+      @mstore4(alignTickTransitionMemCfg.ptr, 0xe6b12e1e);
+      // 224 = 32(offset) + 32(len) + 160(poolKeySize); CALL already places PoolKey at ptr+68
+      if !@evm_call(@evm_gas(), io, NO_VALUE, alignTickTransitionMemCfg.ptr, 4, alignTickTransitionMemCfg.ptr +% 4, 224) {
+      	 // cast sig "FailedToFetchMarketKey()"
+	 @mstore4(alignTickTransitionMemCfg.ptr, 0x9a92d774);
+	 @evm_revert(alignTickTransitionMemCfg.ptr, 4);
+      }
+      let tickToAlign: Tick = targetTick(alignCalldata);
+      resAlignTickTransitionCfg = @set_field(resAlignTickTransitionCfg, 0, setAlignTickTransitionTarget(@get_field(resAlignTickTransitionCfg, 0), tickToAlign));
+      resAlignTickTransitionCfg = @set_field(resAlignTickTransitionCfg, 0, setAlignTickTransitionDirection(@get_field(resAlignTickTransitionCfg, 0), currentTick(alignCalldata, io), tickToAlign));
+      // // todo: this needs refinement, setAlignTickTransitionDistance needs way more context
+      resAlignTickTransitionCfg = @set_field(resAlignTickTransitionCfg, 0, setAlignTickTransitionDistance(@get_field(resAlignTickTransitionCfg, 0), alignTickTransitionDirection(@get_field(resAlignTickTransitionCfg, 0)),alignCalldata));
+      // offset 228 = 68 + 160; write params only (not the whole cfg tuple)
+      membytes_write(alignTickTransitionMemCfg, 228, @get_field(resAlignTickTransitionCfg, 0));
+      resAlignTickTransitionCfg
+};
+
+// ============================ OUTPUT: AlignTickTransition =================================
+const unconfiguredAlignTickTransition = fn () AlignTickTransition {
+      AlignTickTransition {dir: notTickPrecedence(), dist: nullTickDistance(), target: nullSqrtPrice()}
+};
+
+const notYetAlignTickTransitionCfg = fn () AlignTickTransitionCfg {
+      // 4 (sel) + 224 (getMarketKey ABI ret) + 96 (AlignTickTransition)
+      (unconfiguredAlignTickTransition(), membytes_new(4 +% 224 +% 96))
+};
+
+

@@ -14,7 +14,7 @@ use app::Main::IO_SLOT;
 use TickMoments::TickAverage::{TickAcc,tickAccWord};
 use TickMoments::Window::{Window, WindowInitialized, window_idx};
 
-use LiquidityKernel::AlignCalldata::AlignCalldata;
+use ProtocolSync::AlignCalldata::AlignCalldata;
 use std::regions::memory;
 use std::slice::{Slice,get,new};
 use std::option::{unwrap,Some};
@@ -58,6 +58,10 @@ const tickWord = fn (self: Tick) u256 {
       tickVal(self)
 };
 
+const tickTickSpacing = fn (self: Tick) TickSpacing {
+      self.ts
+};
+
 const tickVal = fn(self: Tick) u256 {
       self.val
 };
@@ -76,13 +80,61 @@ const store_tick = fn (tick:$T,to: type) void {
       }
 };
 
+// TODO: revert on mismatched spacing.
+const DiffTick = fn (t1: Tick, t2: Tick) Tick {
+      Tick { val: @evm_sub(tickWord(t1), tickWord(t2)), ts: tickTickSpacing(t1) }
+};
+
+const AbsTick = fn (t: Tick) Tick {
+      let mut val: u256 = tickWord(t);
+      if @evm_slt(val, 0) {
+      	 val = neg_u256(val);
+      }
+      Tick { val: val, ts: tickTickSpacing(t) }
+};
+
+const AbsDiffTick = fn (t1: Tick, t2: Tick) Tick {
+      AbsTick(DiffTick(t1, t2))
+};
+
+
+const NormDiffTick = fn (t1: Tick, t2: Tick) Tick {
+      let d: Tick = DiffTick(t1, t2);
+      Tick {
+	    val: @evm_sdiv(tickWord(d), tickSpacingWord(tickTickSpacing(d))),
+	    ts: tickTickSpacing(d)
+      }
+};
+
+
+const NormAbsTick = fn (t1: Tick, t2: Tick) Tick {
+      let a: Tick = AbsTick(DiffTick(t1, t2));
+      Tick {
+	    val: @evm_sdiv(tickWord(a), tickSpacingWord(tickTickSpacing(a))),
+	    ts: tickTickSpacing(a)
+      }
+};
+
+
 // ============================ OUTPUT: Tick =================================
+// Spacing-aligned extremes, inset by one tickSpacing when they equal MIN/MAX_TICK so
+// set_tick → Align/swap never targets exact MIN/MAX_SQRT_PRICE (V4 rejects those limits).
 const maxTick = fn( tickSpacing: $ts) Tick {
-      Tick{ val: @evm_sdiv(MAX_TICK, tickSpacingWord(tickSpacing)) *% tickSpacingWord(tickSpacing), ts: tickSpacing }
+      let tsWord: u256 = tickSpacingWord(tickSpacing);
+      let mut val: u256 = @evm_sdiv(MAX_TICK, tsWord) *% tsWord;
+      if val == MAX_TICK {
+      	 val = val -% tsWord;
+      }
+      Tick{ val: val, ts: tickSpacing }
 };
 
 const minTick = fn( tickSpacing: $ts) Tick {
-      Tick{ val: @evm_sdiv(MIN_TICK, tickSpacingWord(tickSpacing)) *% tickSpacingWord(tickSpacing), ts: tickSpacing }
+      let tsWord: u256 = tickSpacingWord(tickSpacing);
+      let mut val: u256 = @evm_sdiv(MIN_TICK, tsWord) *% tsWord;
+      if val == MIN_TICK {
+      	 val = val +% tsWord;
+      }
+      Tick{ val: val, ts: tickSpacing }
 };
 
 // NOTE: This definitions is somewhat arbitrary and can be changed

@@ -1,5 +1,0 @@
-DraftPoolKeyTest
-└── When uniswapV4PoolManager is deployed
-    ├── When the uniswapEntryPoint receives uniswapV4PoolManager on its constructor 
-    │   ├── It should store it on the POOL_MANAGER_SLOT.
- 

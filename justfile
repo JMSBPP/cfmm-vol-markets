@@ -117,7 +117,7 @@ plank file:
     echo "compiling $src -> $out"
     "$plank_bin" build "$src" --backend sona \
         --dep std="{{plank-target-dir}}/std/" \
-        --dep TickMoments="src/TickMoments/" --dep custom_utils="src/utils" \
+        --dep TickMoments="src/TickMoments" --dep custom_utils="src/utils" --dep Asset="src/Asset" --dep ProtocolSync="src/ProtocolSync" --dep Controllers="src/Controllers" --dep Exposure="src/Exposure" --dep Premium="src/Premium" --dep Instrument="src/Instrument" --dep app="src/app" \
         > "$out"
 
 # Anvil at [rpc_endpoints.local] if nothing is already listening.

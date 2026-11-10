@@ -11,6 +11,7 @@ import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {PoolKey} from "v4-core/types/PoolKey.sol";
 
 import {TickMath} from "v4-core/libraries/TickMath.sol";
+import {SqrtPriceMath} from "v4-core/libraries/SqrtPriceMath.sol";
 
 import {IStateView} from "v4-periphery/interfaces/IStateView.sol";
 import {PoolKey as PoolKeyPeriphery} from "v4-periphery/lens/ReservesLens.sol";
@@ -23,9 +24,7 @@ import {IUnlockCallback} from "v4-core/interfaces/callback/IUnlockCallback.sol";
 import {Deployers} from "v4-core-test/utils/Deployers.sol";
 import {Constants} from "v4-core-test/utils/Constants.sol";
 import {HookDeployer} from "@helpers/UniswapV4/HookDeployer.sol";
-
-
-
+import {SfpmBytecodeDeployer} from "@helpers/UniswapV4/SfpmBytecodeDeployer.sol";
 import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
 
 
@@ -55,6 +54,7 @@ interface IEnv {
 
     function setTickAligner(address) external;
     function setPoolManager(address) external;
+    function setPositionManager(address) external;
     
 }
 
@@ -69,6 +69,7 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
     address main = makeAddr("cfmm-vol-markets.main");
     address alignTickHarness = makeAddr("cfmm-vol-markets.alignTick");
     address poolManager;
+    address positionManager;
     address poolManagerLens;
     address underlying = makeAddr("cfmm.vol-markets.underlying");
     address numeraire =  makeAddr("cfmm.vol-markets.numeraire");
@@ -79,13 +80,16 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	deployFreshManager();
 	// Use the real PoolManager; etching its code onto another address trips noDelegateCall.
 	poolManager = address(manager);
+	positionManager = SfpmBytecodeDeployer.deploy(
+	    vm, manager, 2100000000000000000000, 2100000000000000000000, 10000
+	);
 	poolManagerLens = address(new StateView(IPoolManagerPeriphery(address(manager))));
 	deployCodeTo(main, compilePlank("src/Main.plk"));
-	deployCodeTo(alignTickHarness, compilePlank("src/LiquidityKernel/AlignTick.plk"));
-	deployCodeTo(underlying, compilePlank("src/LiquidityKernel/Transfer.plk"));
-	deployCodeTo(numeraire, compilePlank("src/LiquidityKernel/Transfer.plk"));
+	deployCodeTo(alignTickHarness, compilePlank("src/ProtocolSync/AlignTick.plk"));
+	deployCodeTo(underlying, compilePlank("src/utils/Token/Transfer.plk"));
+	deployCodeTo(numeraire, compilePlank("src/utils/Token/Transfer.plk"));
 	(bool succ, address _tmp,) = deployHook(
-					       compilePlank("src/LiquidityKernel/Controller.plk"),
+					       compilePlank("src/Controllers/Controller.plk"),
 					       CREATE2_FACTORY,
 					       NoFeeVarianceClaimBuilderPermissions
 	);
@@ -135,6 +139,8 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	IControllerSetter(main).setController(controller);
 	IEnv(alignTickHarness).setPoolManager(poolManager);
 	IEnv(main).setPoolManager(poolManager);
+	IEnv(alignTickHarness).setPositionManager(positionManager);
+	IEnv(main).setPositionManager(positionManager);
 	ITickSpacing(main).set_tick_spacing(tickSpacing);
 	IWindow(main).set_window(windowLenCalldata);
 
@@ -167,8 +173,19 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	    expectedSwapParams.sqrtPriceLimitX96 = TickMath.getSqrtPriceAtTick(newTick);
 	    (uint160 currentSqrtPriceX96,,,) = IStateView(poolManagerLens).getSlot0(PoolIdLibrary.toId(marketKeyPeriphery));
 	    expectedSwapParams.zeroForOne = (expectedSwapParams.sqrtPriceLimitX96 < currentSqrtPriceX96);
-	    // todo: This is tmp
-	    expectedSwapParams.amountSpecified = int256(1e18);
+	    // Matches ExposureAndDirectionAwareTickDistance: L = DEFAULT_EXPOSURE_SIZE (100e18).
+	    uint128 exposureLiquidity = uint128(uint256(100e18));
+	    expectedSwapParams.amountSpecified = expectedSwapParams.zeroForOne
+		? int256(
+		    SqrtPriceMath.getAmount1Delta(
+			currentSqrtPriceX96, expectedSwapParams.sqrtPriceLimitX96, exposureLiquidity, true
+		    )
+		)
+		: int256(
+		    SqrtPriceMath.getAmount0Delta(
+			currentSqrtPriceX96, expectedSwapParams.sqrtPriceLimitX96, exposureLiquidity, true
+		    )
+		);
 	    console2.log("Expected Zero for one:",  expectedSwapParams.zeroForOne);
 	    vm.expectCall(poolManager, abi.encodeCall(IPoolManager.swap, (marketKey,expectedSwapParams,Constants.ZERO_BYTES)));
 	    }
