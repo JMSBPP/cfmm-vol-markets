@@ -9,7 +9,7 @@ use std::option::{
 };
 use custom_utils::cfmm_types::Tick::{
     Tick, maxTick, minTick, toUpdateTick, tickWord,
-    AbsDiffTick
+    NormAbsTick
 };
 
 use custom_utils::cfmm_types::TickSpacing::{
@@ -57,7 +57,7 @@ const tickHigh = fn(self:Range(Tick)) Tick {
 
 // TODO: This goes along Range on cfmm_utils
 const tickRangeWidth= fn (self:Range(Tick)) u256 {
-      tickWord(AbsDiffTick(tickHigh(self), tickLow(self)))      
+      tickWord(NormAbsTick(tickHigh(self), tickLow(self)))
 };
 
 const notYetTickRange = fn() Range(Tick) {

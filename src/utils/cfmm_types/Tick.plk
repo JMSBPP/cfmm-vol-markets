@@ -80,10 +80,39 @@ const store_tick = fn (tick:$T,to: type) void {
       }
 };
 
+TODO: revert on mismatched spacing.
+const DiffTick = fn (t1: Tick, t2: Tick) Tick {
+      Tick { val: @evm_sub(tickWord(t1), tickWord(t2)), ts: tickTickSpacing(t1) }
+};
+
+const AbsTick = fn (t: Tick) Tick {
+      let mut val: u256 = tickWord(t);
+      if @evm_slt(val, 0) {
+      	 val = neg_u256(val);
+      }
+      Tick { val: val, ts: tickTickSpacing(t) }
+};
+
 const AbsDiffTick = fn (t1: Tick, t2: Tick) Tick {
-      // TODO: This does not guarantee positivines
-      Tick { val: @evm_sub(tickWord(t1), tickWord(t2)) ,ts: tickTickSpacing(t1) }
-      // TODO: They revert under different tick spacing    
+      AbsTick(DiffTick(t1, t2))
+};
+
+
+const NormDiffTick = fn (t1: Tick, t2: Tick) Tick {
+      let d: Tick = DiffTick(t1, t2);
+      Tick {
+	    val: @evm_sdiv(tickWord(d), tickSpacingWord(tickTickSpacing(d))),
+	    ts: tickTickSpacing(d)
+      }
+};
+
+
+const NormAbsTick = fn (t1: Tick, t2: Tick) Tick {
+      let a: Tick = AbsTick(DiffTick(t1, t2));
+      Tick {
+	    val: @evm_sdiv(tickWord(a), tickSpacingWord(tickTickSpacing(a))),
+	    ts: tickTickSpacing(a)
+      }
 };
 
 

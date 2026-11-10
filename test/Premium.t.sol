@@ -17,7 +17,7 @@ import {SwapMath} from "v4-core/libraries/SwapMath.sol";
 import {TickMath} from "v4-core/libraries/TickMath.sol";
 import {console2} from "forge-std/console2.sol";
 
-import {ITick, usableMin, usableMax} from "./Tick.t.sol";
+import {ITick} from "./Tick.t.sol";
 import {ITickSpacing} from "./TickSpacing.t.sol";
 import {IWindow} from "./Window.t.sol";
 import {
@@ -100,8 +100,11 @@ contract PremiumTest is PlankTestBase, Deployers, HookDeployer {
 
         IInstrumentEngine(premiumImpl).startReplication();
 
-        int24 lo = usableMin(SafeCastLib.toInt24(uint256(LOCKED_TICK_SPACING)));
-        int24 hi = usableMax(SafeCastLib.toInt24(uint256(LOCKED_TICK_SPACING)));
+        // Strike unset (=0). Width = NormAbsTick(usableMax, usableMin) % 4096
+        //   = ((887220 - (-887220)) / 60) % 4096 = 29574 % 4096 = 902.
+        // asTicks(0, 902, 60) → [-(902*60)/2, +ceil(902*60/2)] = [-27060, 27060].
+        int24 lo = -27060;
+        int24 hi = 27060;
 
         uint256 windowIdx = 0;
         do {

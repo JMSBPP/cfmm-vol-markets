@@ -480,4 +480,4 @@ run-app:
     exec bash scripts/RunApp.sh . "{{app-bytecode-dir}}"
 
 test-current:
-	forge clean && forge test --match-contract Instrument -vvvv
+	forge clean && forge test --match-test test__WhenStartReplication -vvvv
