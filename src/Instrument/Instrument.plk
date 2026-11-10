@@ -1,6 +1,6 @@
 use custom_utils::moreRegions::storage;
-
-
+use Instrument::InstrumentMemory::InstrumentMemory;
+use std::slice::at;
 
 // cast keccak vol-markets.Instrument
 const INSTRUMENT_SLOT = 0x5fe379eadf961f93313dfc3c6b408e3ac1daa5bcbd88a644f0a30eb30a02f9f4;
@@ -53,6 +53,7 @@ const log_instrument = fn (self: Instrument, evt: type) void {
 };
 
 // ===================== OUTPUT : Instrument ===============================
+const instrumentWord = fn (ins: Instrument) u256 {ins}; 
 
 const instrumentOn = fn (on: type) Instrument {
       let mut resInstrument: Instrument = notYetInstrument();
@@ -93,8 +94,14 @@ const ArbitraryValidInstrumentInitializer = fn () InitializeInstrumentInitialize
 const initializeInstrument = fn (self: Instrument , v: InitializeInstrumentInitializer) Instrument {
       let mut initializedInstrumentOn: Instrument = notYetInstrument();
       if MarketAssigned(self) {
-      	 initializedInstrumentOn = self+% @evm_shl(@evm_mod(v,128),@evm_add(@evm_add(@evm_mul(initIdx(),48),1)),64);	     
+      	 initializedInstrumentOn = self +% @evm_shl(
+	      64 +% (@evm_mul(initIdx(), 48) +% 1),
+	      @evm_mod(v, 128)
+	 );
       }
       initializedInstrumentOn
-      
+};
+
+const instrumentFromInstrumentMemory = fn (instrumentMemory: InstrumentMemory) Instrument {
+      at(instrumentMemory,0)      
 };

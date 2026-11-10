@@ -1,0 +1,112 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.26;
+
+import {PlankTestBase} from "plank/PlankTestBase.sol";
+import {Deployers} from "v4-core-test/utils/Deployers.sol";
+import {Constants} from "v4-core-test/utils/Constants.sol";
+import {HookDeployer} from "@helpers/UniswapV4/HookDeployer.sol";
+import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
+import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
+
+import {SfpmBytecodeDeployer} from "@helpers/UniswapV4/SfpmBytecodeDeployer.sol";
+import {PoolKey} from "v4-core/types/PoolKey.sol";
+import {PoolIdLibrary} from "v4-core/types/PoolId.sol";
+import {SwapMath} from "v4-core/libraries/SwapMath.sol";
+import {TickMath} from "v4-core/libraries/TickMath.sol";
+
+import {ITick, usableMin, usableMax} from "./Tick.t.sol";
+import {ITickSpacing} from "./TickSpacing.t.sol";
+import {IWindow} from "./Window.t.sol";
+import {
+    IEnv,
+    IMarketBuilder,
+    IMarketLens,
+    IControllerSetter,
+    IPremiumSetter
+} from "./NoFeeVarianceClaimBuilderTest.t.sol";
+
+uint24 constant LOCKED_TICK_SPACING = 60;
+uint256 constant LOCKED_WINDOW_LEN = 5;
+uint160 constant DEFAULT_INIT_PRICE = Constants.SQRT_PRICE_1_1;
+
+interface IInstrumentEngine {
+    function startReplication() external;
+}
+
+contract PremiumTest is PlankTestBase, Deployers, HookDeployer {
+    using PoolIdLibrary for PoolKey;
+
+    address premiumImpl = makeAddr("cfmm.vol-markets.premiumImpl");
+    address optionsClearingHouse = makeAddr("cfmm.vol-markets.options-clearing-house");
+    address underlying = makeAddr("cfmm.vol-markets.underlying");
+    address numeraire = makeAddr("cfmm.vol-markets.numeraire");
+    address alignTickHarness = makeAddr("cfmm-vol-markets.alignTick");
+
+    address noFeeVarianceClaimController;
+    address poolManager;
+
+    PoolKey marketKey;
+
+    function setUp() public {
+        deployFreshManager();
+        poolManager = address(manager);
+
+        address sfpm = SfpmBytecodeDeployer.deploy(
+            vm, manager, 2100000000000000000000, 2100000000000000000000, 10000
+        );
+        vm.etch(optionsClearingHouse, sfpm.code);
+
+        deployCodeTo(premiumImpl, compilePlank("src/Main.plk"));
+        deployCodeTo(alignTickHarness, compilePlank("src/ProtocolSync/AlignTick.plk"));
+        deployCodeTo(underlying, compilePlank("src/utils/Token/Transfer.plk"));
+        deployCodeTo(numeraire, compilePlank("src/utils/Token/Transfer.plk"));
+        (bool succ, address _tmp,) = deployHook(
+            compilePlank("src/Controllers/Controller.plk"),
+            CREATE2_FACTORY,
+            NoFeeVarianceClaimBuilderPermissions
+        );
+        if (succ) {
+            noFeeVarianceClaimController = _tmp;
+        }
+
+        IEnv(alignTickHarness).setIO(premiumImpl);
+        IEnv(premiumImpl).setTickAligner(alignTickHarness);
+        IEnv(alignTickHarness).setPoolManager(poolManager);
+        IEnv(premiumImpl).setPoolManager(poolManager);
+        IEnv(alignTickHarness).setPositionManager(optionsClearingHouse);
+        IEnv(premiumImpl).setPositionManager(optionsClearingHouse);
+        IMarketBuilder(premiumImpl).setPair(underlying, numeraire, true);
+        IControllerSetter(premiumImpl).setController(noFeeVarianceClaimController);
+
+        ITickSpacing(premiumImpl).set_tick_spacing(LOCKED_TICK_SPACING);
+        IWindow(premiumImpl).set_window(LOCKED_WINDOW_LEN);
+    }
+
+    function test__WhenStartReplication(uint24 premiumRate) external {
+        uint24 someFixedPremiumRate = uint24(bound(premiumRate, 0, SwapMath.MAX_SWAP_FEE - 1));
+        IPremiumSetter(premiumImpl).setPremiumRate(someFixedPremiumRate);
+
+        int24 initTick = TickMath.getTickAtSqrtPrice(DEFAULT_INIT_PRICE);
+        ITick(premiumImpl).set_tick(initTick);
+
+        bytes memory underlyingMarket = IMarketLens(premiumImpl).getMarketKey();
+        marketKey = abi.decode(underlyingMarket, (PoolKey));
+
+        IInstrumentEngine(premiumImpl).startReplication();
+
+        int24 lo = usableMin(SafeCastLib.toInt24(uint256(LOCKED_TICK_SPACING)));
+        int24 hi = usableMax(SafeCastLib.toInt24(uint256(LOCKED_TICK_SPACING)));
+
+        uint256 windowIdx = 0;
+        do {
+            int256 tickSeed = vm.randomInt();
+            int24 nextTick =
+                SafeCastLib.toInt24(bound(int256(tickSeed), int256(lo), int256(hi)));
+            ITick(premiumImpl).set_tick(nextTick);
+            windowIdx++;
+        } while (windowIdx < LOCKED_WINDOW_LEN);
+
+        assertEq(marketKey.tickSpacing, SafeCastLib.toInt24(uint256(LOCKED_TICK_SPACING)));
+        assertEq(marketKey.fee, someFixedPremiumRate);
+    }
+}

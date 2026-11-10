@@ -36,12 +36,22 @@ function roundTick(int24 currentTick, int24 tickSpacing) pure returns (int256 ro
     roundedTick = compressed * ts;
 }
 
+/// @dev Mirrors Tick.plk minTick: spacing-aligned MIN_TICK, inset +tickSpacing when equal.
 function usableMin(int24 tickSpacing) pure returns (int24) {
-    return (MIN_TICK / tickSpacing) * tickSpacing;
+    int24 lo = (MIN_TICK / tickSpacing) * tickSpacing;
+    if (lo == MIN_TICK) {
+        lo = lo + tickSpacing;
+    }
+    return lo;
 }
 
+/// @dev Mirrors Tick.plk maxTick: spacing-aligned MAX_TICK, inset -tickSpacing when equal.
 function usableMax(int24 tickSpacing) pure returns (int24) {
-    return (MAX_TICK / tickSpacing) * tickSpacing;
+    int24 hi = (MAX_TICK / tickSpacing) * tickSpacing;
+    if (hi == MAX_TICK) {
+        hi = hi - tickSpacing;
+    }
+    return hi;
 }
 
 function normTickVal(int24 tick, uint24 tickSpacing) pure returns (int24) {
@@ -95,8 +105,7 @@ contract TickTest is PlankTestBase, Deployers {
     }
 
     function test_WhenTickSpacingOnStorageIsSet(uint24 tickSpacingOnStorage, int24 tick) external whenSet_tickIsCalled {
-        // Spacing + tick must be V4-init-safe: usableMax can equal MAX_TICK, whose
-        // sqrt price is rejected by Pool.initialize (sqrtPrice >= MAX_SQRT_PRICE).
+        // Align-safe extremes live in Tick.plk minTick/maxTick (mirrored by usableMin/Max).
         uint24 tickSpacingCalldata = uint24(
             bound(uint256(tickSpacingOnStorage), uint256(MIN_TICK_SPACING), uint256(MAX_TICK_SPACING))
         );
@@ -104,9 +113,6 @@ contract TickTest is PlankTestBase, Deployers {
 	uint24 ts = ITickSpacing(main).read_tick_spacing();
 	int24 lo = usableMin(SafeCastLib.toInt24(uint256(ts)));
 	int24 hi = usableMax(SafeCastLib.toInt24(uint256(ts)));
-	if (hi == MAX_TICK) {
-	    hi = hi - SafeCastLib.toInt24(uint256(ts));
-	}
 	int24 tickCalldata = int24(bound(int256(tick), int256(lo), int256(hi)));
 
         // It should set tickVal to normTickVal.
@@ -124,9 +130,6 @@ contract TickTest is PlankTestBase, Deployers {
 	uint24 ts = ITickSpacing(main).read_tick_spacing();
 	int24 lo = usableMin(SafeCastLib.toInt24(uint256(ts)));
 	int24 hi = usableMax(SafeCastLib.toInt24(uint256(ts)));
-	if (hi == MAX_TICK) {
-	    hi = hi - SafeCastLib.toInt24(uint256(ts));
-	}
 	int24 tickCalldata = int24(bound(int256(tick), int256(lo), int256(hi)));
 	ITick(main).set_tick(tickCalldata);
 

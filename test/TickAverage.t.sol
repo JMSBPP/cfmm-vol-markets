@@ -6,7 +6,7 @@ import {SfpmBytecodeDeployer} from "@helpers/UniswapV4/SfpmBytecodeDeployer.sol"
 import {WindowState,WINDOW_SLOT} from "./Window.t.sol";
 import {ITickSpacing, MIN_TICK_SPACING, MAX_TICK_SPACING} from "./TickSpacing.t.sol";
 import {IWindow} from "./Window.t.sol";
-import {MIN_TICK, MAX_TICK, ITick, normTickVal, usableMin, usableMax} from "./Tick.t.sol";
+import {ITick, normTickVal, usableMin, usableMax} from "./Tick.t.sol";
 
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
@@ -67,7 +67,7 @@ contract TickAverageTest is PlankTestBase, Deployers {
     function test_WhenTickAverageWindowStateIsNotInitialized(uint256 windowLen,uint24 tickSpacing,int24 tick) external whenTickAverageUpdatesFromTickCalldata {
 
 	// =================================PRE-CONDITIONS============================================
-	// Same V4-init-safe bounds as Tick.t.sol (exclude exact MAX_TICK sqrt).
+	// Align-safe bounds via usableMin/Max (mirrors Tick.plk minTick/maxTick).
 	uint24 tickSpacingCalldata = uint24(
 	    bound(uint256(tickSpacing), uint256(MIN_TICK_SPACING), uint256(MAX_TICK_SPACING))
 	);
@@ -79,9 +79,6 @@ contract TickAverageTest is PlankTestBase, Deployers {
 	uint24 ts = ITickSpacing(main).read_tick_spacing();
 	int24 lo = usableMin(SafeCastLib.toInt24(uint256(ts)));
 	int24 hi = usableMax(SafeCastLib.toInt24(uint256(ts)));
-	if (hi == MAX_TICK) {
-	    hi = hi - SafeCastLib.toInt24(uint256(ts));
-	}
 	int24 tickCalldata = int24(bound(int256(tick), int256(lo), int256(hi)));
 
 	//================================TEST ==================================================
@@ -121,14 +118,6 @@ contract TickAverageTest is PlankTestBase, Deployers {
 	tickSpacingCalldata = ITickSpacing(main).read_tick_spacing();
 	int24 lo = usableMin(SafeCastLib.toInt24(uint256(tickSpacingCalldata)));
 	int24 hi = usableMax(SafeCastLib.toInt24(uint256(tickSpacingCalldata)));
-	// Align swap limits reject exact MIN/MAX_SQRT_PRICE; inset when usable extremes hit them.
-	int24 ts = SafeCastLib.toInt24(uint256(tickSpacingCalldata));
-	if (hi == MAX_TICK) {
-	    hi = hi - ts;
-	}
-	if (lo == MIN_TICK) {
-	    lo = lo + ts;
-	}
 	IWindow(main).set_window(windowLenCalldata);
 	uint256 maxIdxPick = bound(maxIdx,1,windowLenCalldata);
 	uint256 windowIdx = 0;

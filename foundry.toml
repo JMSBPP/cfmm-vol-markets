@@ -39,9 +39,9 @@ remappings = [
 	   "@uniswap/v4-core/=lib/v4-core/",
 	   "solmate/=lib/v4-core/lib/solmate/",
 	   "panoptic-v2-core/=lib/panoptic-v2-core",
-	   # TokenId.sol / PanopticMath (Instrument tests).
-	   "@types/=lib/panoptic-v2-core/contracts/types/",
-	   "@libraries/=lib/panoptic-v2-core/contracts/libraries/",
+	   # TokenId.sol / Errors (Instrument tests). Avoid bare @types/@libraries.
+	   "panoptic-types/=lib/panoptic-v2-core/contracts/types/",
+	   "panoptic-libraries/=lib/panoptic-v2-core/contracts/libraries/",
 	   "@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/",
 	   "univ3-core/=lib/panoptic-v2-core/lib/v3-core/contracts/"
 ]

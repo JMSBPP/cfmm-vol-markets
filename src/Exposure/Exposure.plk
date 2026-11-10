@@ -1,0 +1,149 @@
+use std::core::uint::{
+    u128, try_cast_uint, cast_uint
+};
+use std::regions::memory;
+use std::slice::{Slice,new};
+
+use std::option::{
+    unwrap, Some
+};
+use custom_utils::cfmm_types::Tick::{
+    Tick, maxTick, minTick, toUpdateTick, tickWord
+};
+
+use custom_utils::cfmm_types::TickSpacing::{
+    TickSpacing, tickSpacingOn
+};
+
+use custom_utils::moreRegions::storage;
+
+use Exposure::ExposureMemory::{
+    ExposureMemory, nullExposureMemory
+};
+// TODO: This type goes on cfmm_types
+
+const Range = fn (comptime T :type) type {
+      if T == Tick {
+      	 struct {
+	 	low  : Tick,
+		high : Tick
+	 }      	 
+      }
+      else {
+      	   @compile_error("Type not supported on range");
+      }
+};
+
+
+const tickLow = fn(self:Range(Tick)) Tick {
+      self.low
+};
+
+const tickHigh = fn(self:Range(Tick)) Tick {
+      self.high
+};
+
+const notYetTickRange = fn() Range(Tick) {
+      Range(Tick) {low: toUpdateTick(), high: toUpdateTick()}    
+};
+
+const FullTickRange = fn(ts:TickSpacing) Range(Tick) { Range(Tick) {low: minTick(ts) , high: maxTick(ts)}
+};
+// 100e18
+const DEFAULT_EXPOSURE_SIZE = 0x0000000000000000000000000000000000000000000000056bc75e2d63100000;
+const ExposureSize = u128;
+
+const exposureSizeWord = fn (exposureSizeVal: ExposureSize) u256 { cast_uint(exposureSizeVal,u256) };
+
+const exposureSizeFromWord = fn (word: u256) ExposureSize { unwrap(try_cast_uint(word, u128)) };
+
+const ArbitraryExposureSize = fn() ExposureSize { exposureSizeFromWord(DEFAULT_EXPOSURE_SIZE) };
+const nullExposureSize = fn () ExposureSize {exposureSizeFromWord(0)};
+
+const Exposure = struct {
+      size: ExposureSize,
+      range: Range(Tick),
+      mem: ExposureMemory
+};
+
+
+const exposureSizeVal = fn (self: Exposure) ExposureSize {
+      self.size
+};
+
+const exposureRange = fn(self: Exposure) Range(Tick) {
+      self.range
+};
+
+const exposureMemory = fn(self: Exposure) ExposureMemory {
+      self.mem      
+};
+
+const notYetExposure = fn () Exposure {
+      Exposure {size: nullExposureSize(), range: notYetTickRange(), mem: nullExposureMemory()}
+};
+
+const ArbitraryExposure = fn (on: type) Exposure {
+      let mut resExposure: Exposure = notYetExposure();
+      if on == storage {
+      	 resExposure = @set_field(resExposure, "size", ArbitraryExposureSize());
+	 resExposure = @set_field(resExposure, "range", FullTickRange(tickSpacingOn(storage)));
+      }
+      else if on == memory {
+      	   let storedExposure = ArbitraryExposure(storage);
+      	   resExposure = @set_field(storedExposure, "mem", new(memory, (
+	   	       exposureSizeWord(exposureSizeVal(storedExposure)),
+		       tickWord(tickLow(exposureRange(storedExposure))),
+		       tickWord(tickHigh(exposureRange(storedExposure))))));
+      }
+      resExposure
+};
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// use custom_utils::cfmm_types::Tick::{maxTick, minTick, tickWord};												    //
+// use custom_utils::cfmm_types::TickSpacing::DefaultTickSpacing;												    //
+// use std::option::Some;																	    //
+// use std::slice::{Slice,new};																	    //
+// use std::regions::memory;																	    //
+// 																				    //
+// // struct ModifyLiquidityParams {																    //
+// //     // the lower and upper tick of the position														    //
+// //     int24 tickLower;																	    //
+// //     int24 tickUpper;																	    //
+// //     // how to modify the liquidity															    //
+// //     int256 liquidityDelta;																    //
+// //     // a value to set if you want unique liquidity positions at the same range										    //
+// //     bytes32 salt;																		    //
+// // }																				    //
+// 																				    //
+//     // /// @inheritdoc IPoolManager																    //
+//     // function modifyLiquidity(PoolKey memory key, ModifyLiquidityParams memory params, bytes calldata hookData)						    //
+//     //     external																		    //
+// 																				    //
+// // 100e18																			    //
+// const DEFAULT_LIQUIDITY_VALUE = 0x0000000000000000000000000000000000000000000000056bc75e2d63100000;								    //
+// const ZERO_SALT = 0;																		    //
+// 																				    //
+// const ModifyLiquidityParams = tuple{u256,u256,u256,u256};													    //
+// 																				    //
+// const LiquidityChunk  = struct {																    //
+//       tickLow: u256																		    //
+//       tickUp: u256,																		    //
+//       liquidity: u256																	    //
+// };																				    //
+// 																				    //
+// const LiquidityCalldata = Slice(memory, ModifyLiquidityParams, Some(128));											    //
+// 																				    //
+// // =========================== INPUT: LiquidityChunk =================================									    //
+// 																				    //
+// // ============================ OUTPUT: LiquidityChunk =================================									    //
+// const DefaultLiquidity = fn() u256 {																    //
+//       DEFAULT_LIQUIDITY_VALUE      																    //
+// };																				    //
+// 																				    //
+// const DefaultLiquidityCalldata = fn () LiquidityCalldata {													    //
+//       let defaultLiq: ModifyLiquidityParams = (tickWord(minTick(DefaultTickSpacing())), tickWord(maxTick(DefaultTickSpacing())), DefaultLiquidity(), ZERO_SALT); //
+//       new(memory, defaultLiq)																    //
+// };																				    //
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

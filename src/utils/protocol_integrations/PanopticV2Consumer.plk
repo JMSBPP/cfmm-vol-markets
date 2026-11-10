@@ -1,5 +1,5 @@
 use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
-
+use custom_utils::moreRegions::storage;
 // cast keccak vol-markets.Panoptic.SemiFungiblePositionManager
 const POSITION_MANAGER_SLOT = 0x5d183a17afb73127be7710fe47c9fb9e2c293dd8bf1313365406b092a2c42880;
 
@@ -9,6 +9,7 @@ const SET_POSITION_MANAGER_SELECTOR = 0x5760f2e3;
 const VEGOID_DEFAULT = 2;
 
 const SFPM_POOL_MANAGER_IMMUTABLE_OFFSET = 2013;
+
 
 const poolManagerOnPositionManager = fn (positionManager: u256) u256 {
       let word: u256 = @malloc_uninit(32);
@@ -30,4 +31,16 @@ const storePositionManager = fn (positionManager: u256) void {
 	 @evm_revert(rev, 4);
       }
       @evm_sstore(POSITION_MANAGER_SLOT, positionManager);
+};
+
+const PositionManagerDial = u256;
+
+const noPositionManagerDial = fn() PositionManagerDial { 0 };
+
+const positionManagerOn = fn (on: type) PositionManagerDial {
+     let mut resPositionManagerOn: PositionManagerDial = noPositionManagerDial(); 
+     if on == storage {
+     	 resPositionManagerOn = @evm_sload(POSITION_MANAGER_SLOT);
+     }
+     resPositionManagerOn
 };

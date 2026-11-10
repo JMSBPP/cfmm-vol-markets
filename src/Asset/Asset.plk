@@ -6,6 +6,7 @@ use std::slice::{set,Slice, new};
 use std::option::Some;
 use std::regions::memory;
 
+use Controllers::Controller::CONTROLLER_SLOT;
 
 use Premium::Premium::PREMIUM_SLOT;
 
@@ -15,10 +16,9 @@ const GET_MARKET_KEY_SELECTOR = 0xe6b12e1e;
 // cast sig "setPair(address,address,bool)"
 const SET_PAIR_SELECTOR = 0xa782d794;
 
-const CONTROLLER_SLOT = 0x504cec47c00ecd92195dd23334a7de6ebb4a41496b4d3e248edc0727a2ce20b0;
 
-// (uint256(_asset % 2) << (64 + legIndex * 48)
-
+// cast sig "selectAsset(bytes)"
+const SELECT_ASSET_SELECTOR = 0xf1830ca9;
 
 
 // cast keccak cfmm-vol-markets.Numeaire
@@ -26,6 +26,7 @@ const NUMERAIRE_SLOT = 0x8b2aacedf2416f648c46a4af90c7a77fa692fc219cc6fbedc15a941
 // cast keccak cfmm-vol-markets.Asset
 const ASSET_SLOT = 0xe6a5b3be46af081cd1e21a60d0408d8c675dd2d686b46d479bb5a4890877b5d6;
 
+// TODO: Separate each type, AssetPair, AssetMemory and AssetCalldata
 const AssetPair = tuple{u256, u256};
 
 const AssetMemory = Slice(memory, u256, Some(5));

@@ -15,7 +15,9 @@ import {PoolId, PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {StateLibrary} from "v4-core/libraries/StateLibrary.sol";
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {SwapMath} from "v4-core/libraries/SwapMath.sol";
-import {TokenId, TokenIdLibrary} from "@types/TokenId.sol";
+import {TokenId, TokenIdLibrary} from "panoptic-types/TokenId.sol";
+import {Errors} from "panoptic-libraries/Errors.sol";
+
 import {MIN_TICK, MAX_TICK, ITick} from "./Tick.t.sol";
 import {ITickSpacing} from "./TickSpacing.t.sol";
 import {IWindow} from "./Window.t.sol";
@@ -29,7 +31,8 @@ import {
 
 uint8 constant DEFAULT_VEGOID = 2;
 
-/// @dev SFPM V4 `_getPoolId` fingerprint (inline; pool not registered until set_tick).
+event TokenizedPositionMinted(address indexed caller,TokenId indexed tokenId,uint128 positionSize);
+
 function panopticPoolId(PoolId idV4, int24 tickSpacing, uint256 vegoid) pure returns (uint64) {
     unchecked {
         return uint40(uint256(PoolId.unwrap(idV4))) + (uint64(uint8(vegoid)) << 40)
@@ -44,6 +47,7 @@ interface IInstrument {
 }
 
 interface IInstrumentEngine {
+    error FailedToStartReplication();
     function startReplication () external;
 }
 
@@ -57,10 +61,10 @@ contract InstrumentTest is PlankTestBase, Deployers, HookDeployer {
     address numeraire = makeAddr("cfmm.vol-markets.numeraire");
     address alignTickHarness = makeAddr("cfmm-vol-markets.alignTick");
 
+    address usr = makeAddr("cfmm-vol-markets-user");
     address noFeeVarianceClaimController;
     address poolManager;
 
-    address usr = makeAddr("user");
 
     function setUp() public {
         deployFreshManager();
@@ -153,9 +157,15 @@ contract InstrumentTest is PlankTestBase, Deployers, HookDeployer {
 	//============================================================
         // It should revert if MarketNotAssigned
 	vm.expectRevert(IInstrument.MarketNotAssigned.selector);
+	
 	IInstrumentEngine(instrumentImpl).startReplication();
-        // It should assign arbitraryInstrumentInitializer to instrument
-        // It should make instrument validate revert for a different reason than ParametersNotValid 1
-        // It should control and know which revert is next when calling mintTokenizedPosition
+	// It should assign arbitraryInstrumentInitializer to instrument
+	
+	int24 initTickCalldata =
+            SafeCastLib.toInt24(bound(int256(initTick), int256(MIN_TICK), int256(MAX_TICK)));
+	ITick(instrumentImpl).set_tick(initTickCalldata);
+	
+	//   vm.expectRevert(abi.encodeWithSelector(Errors.InvalidTokenIdParameter.selector, N), optionsClearingHouse);
+	IInstrumentEngine(instrumentImpl).startReplication();
     }
 }
