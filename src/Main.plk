@@ -13,7 +13,7 @@ use custom_utils::protocol_integrations::PanopticV2Consumer::{
 };
 use custom_utils::cfmm_types::Tick::{
     NeqTick, READ_TICK_SELECTOR, SET_TICK_SELECTOR, Tick, TickCalldata,
-    build_tick, store_tick, tickOn, tickReturnEVM, tickWord
+    build_tick, store_tick,store_prev_tick,TickOn, tickReturnEVM, tickWord
 };
 use custom_utils::cfmm_types::TickSpacing::{
     READ_TICK_SPACING_SELECTOR, SET_TICK_SPACING_SELECTOR,
@@ -28,16 +28,17 @@ use custom_utils::cfmm_types::SqrtPrice::{
 };
 use TickMoments::Window::{
     SET_WINDOW_SELECTOR, Window, WindowCalldata, WindowInitialized,
-    WindowNotInitialized, build_window, state_to_word, store_window
+    WindowNotInitialized, build_window, state_to_word, store_window,
+    window_idx
 };
 use TickMoments::TickAverage::{
     READ_TICK_AVERAGE_SELECTOR, TickAverage, store_tickAverage,
-    tickAverageReturnEVM, update_average
+    tickAverageReturnEVM, tickAverageWindow, update_average
 };
 use TickMoments::TickRealizedVolatility::{
-    READ_TICK_REALIZED_VOLATILITY_SELECTOR, TickRealizedVol,
-    store_tickRealizedVolatility, tickRealizedVolatilityReturnEVM,
-    update_realized_volatility
+    READ_TICK_REALIZED_VOLATILITY_SELECTOR, RealizedVolatility,
+    StoreTickRealizedVolatilityOn, TickRealizedVolatilityReturnEVM,
+    UpdatedTickRealizedVolatilityOn
 };
 use Asset::Asset::{
     AssetCalldata, storeAsset, AssetMemory, loadAssetMemory,
@@ -94,6 +95,8 @@ run {
 	 // fails as UnableToInitializeMarket and TickSpacingNotOnStorage is unreachable.
 	 tickSpacingRevertEVMDueTo(storage);
     	 let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingWord(tickSpacingOn(storage)));
+
+	 
 	 let tick :Tick = build_tick(tickCalldata);
 	 let poolManager: u256 = @evm_sload(POOL_MANAGER_SLOT);
 	 let positionManager: u256 = @evm_sload(POSITION_MANAGER_SLOT);
@@ -113,13 +116,12 @@ run {
 	      	 @mstore4(initMemPtr, 0x793dad28);
 		 @evm_revert(initMemPtr, 4);
 	    }
-
+	    // TODO: This can be better typed
 	    if @mload32(initMemPtr +% 196) != tickWord(tick) {
 	      	 // cast sig "TickMismatchOnInitialize()"
 	      	 @mstore4(initMemPtr, 0xa89ef96f);
 		 @evm_revert(initMemPtr, 4);
 	    }
-
 	    // cast sig "initializeAMMPool((address,address,uint24,int24,address),uint8)"
 	    @mstore4(initMemPtr, 0x8ded7bcb);
 	    @mstore32(initMemPtr +% 164, VEGOID_DEFAULT);
@@ -132,21 +134,25 @@ run {
 
 
 	    let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
-	    let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
 
 	    store_instrument(instrument, storage);
 	    log_instrument(instrument, LogMarketAssigned);
+	    store_prev_tick(tick, storage);
 	    store_tick(tick, storage);
 	    store_tickAverage(updatedTickAvg,storage);
-	    store_tickRealizedVolatility(updatedTickRealizedVol,storage);
+	    let updatedTickRealizedVol: RealizedVolatility(Tick) = UpdatedTickRealizedVolatilityOn(
+	    	storage,
+		window_idx(tickAverageWindow(updatedTickAvg))
+	    );
+	    StoreTickRealizedVolatilityOn(updatedTickRealizedVol,storage);
 	    
 	 }
 
 	 else if NeqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
 	   let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
-	   let updatedTickRealizedVol: TickRealizedVol(WindowInitialized) = update_realized_volatility(storage, tick);
 	  
-	   let prevTick: Tick = tickOn(storage);
+	   let prevTick: Tick = TickOn(storage);
+	   store_prev_tick(prevTick, storage);
 	   store_tick(tick,storage);
 	   if NeqTick(prevTick, tick) {
 	      let alignTickCalldata: AlignCalldata = completeAlignTickCalldata(partialAlignTickCalldata(prevTick), tick);
@@ -154,7 +160,11 @@ run {
 	    }
 			
 	   store_tickAverage(updatedTickAvg,storage);
-	   store_tickRealizedVolatility(updatedTickRealizedVol,storage);
+	   let updatedTickRealizedVol: RealizedVolatility(Tick) = UpdatedTickRealizedVolatilityOn(
+	   	storage,
+		window_idx(tickAverageWindow(updatedTickAvg))
+	   );
+	   StoreTickRealizedVolatilityOn(updatedTickRealizedVol,storage);
 	 }
 	 
 	@evm_return(@malloc_uninit(0), 0);
@@ -167,7 +177,7 @@ run {
 
     // ===================== TICK_REALIZED_VOLATILITY ===============================
     else if selector == READ_TICK_REALIZED_VOLATILITY_SELECTOR {
-      tickRealizedVolatilityReturnEVM();      
+      TickRealizedVolatilityReturnEVM();      
     }
 
     // ===================== TICK_SPACING ===============================

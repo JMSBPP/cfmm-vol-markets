@@ -480,4 +480,4 @@ run-app:
     exec bash scripts/RunApp.sh . "{{app-bytecode-dir}}"
 
 test-current:
-	forge clean && forge test --match-contract TickRealizedVolatility
+	forge clean && forge test --match-contract TickRealizedVolatility -vvvv
