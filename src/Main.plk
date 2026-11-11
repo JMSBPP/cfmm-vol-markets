@@ -1,6 +1,9 @@
 use std::constructor::return_runtime;
 use std::slice::{new,len};
-use std::regions::memory;
+use std::regions::{
+    memory, calldata
+};
+
 use custom_utils::moreRegions::storage;
 use custom_utils::eth::NO_VALUE;
 use custom_utils::protocol_integrations::UniswapV4Consumer::{
@@ -52,8 +55,9 @@ use ProtocolSync::AlignTick::{
 };
 use Controllers::Controller::{CONTROLLER_SLOT, SET_CONTROLLER_SELECTOR};
 
-use Premium::Premium::{
-    PREMIUM_SLOT, SET_PREMIUM_RATE_SELECTOR
+use Premium::PremiumRate::{
+    SET_PREMIUM_RATE_SELECTOR,
+    StoredPremiumRateOn, NoReturnPremiumRate
 };
 
 
@@ -230,8 +234,7 @@ run {
 
     // ===================== PREMIUM ===============================
     else if selector == SET_PREMIUM_RATE_SELECTOR {
-    	 @evm_sstore(PREMIUM_SLOT, @evm_calldataload(4));
-	 @evm_return(@malloc_uninit(0), 0);
+    	 NoReturnPremiumRate(StoredPremiumRateOn(storage,calldata));
     }
 
     // ===================== CONTROLLER ===============================

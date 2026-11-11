@@ -8,7 +8,7 @@ use std::regions::memory;
 
 use Controllers::Controller::CONTROLLER_SLOT;
 
-use Premium::Premium::PREMIUM_SLOT;
+use Premium::PremiumRate::PREMIUM_RATE_SLOT;
 
 // cast sig "getMarketKey()"
 const GET_MARKET_KEY_SELECTOR = 0xe6b12e1e;
@@ -68,7 +68,7 @@ const SortedAssetPair = fn(from: type) AssetPair {
 };
 
 const loadAssetMemory = fn(from: type) AssetMemory {
-      new(memory, (@get_field(SortedAssetPair(from),0),@get_field(SortedAssetPair(from),1),@evm_sload(PREMIUM_SLOT),tickSpacingWord(tickSpacingOn(storage)),@evm_sload(CONTROLLER_SLOT)))
+      new(memory, (@get_field(SortedAssetPair(from),0),@get_field(SortedAssetPair(from),1),@evm_sload(PREMIUM_RATE_SLOT),tickSpacingWord(tickSpacingOn(storage)),@evm_sload(CONTROLLER_SLOT)))
 };
 
 /// Same PoolKey layout as `loadAssetMemory`, fetched from `src` via `getMarketKey()`

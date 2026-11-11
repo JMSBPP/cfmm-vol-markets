@@ -1,0 +1,42 @@
+use std::core::uint::{
+    u16, try_cast_uint
+};
+use std::option::unwrap;
+use std::regions::calldata;
+use custom_utils::moreRegions::storage;
+
+// cast keccak VolMarkets.PremiumRate
+
+const PREMIUM_RATE_SLOT = 0x8282207cddb7dec248797bd40ba3d2a32ae0064c024d6111c59444eb63520853;
+
+// cast sig "setPremiumRate(uint24)"
+const SET_PREMIUM_RATE_SELECTOR = 0x39556ec8;
+
+const PremiumRate = u16;
+
+
+const PremiumRateWord = fn (premiumRate :PremiumRate) u256 {
+    unwrap(try_cast_uint(premiumRate, u256))
+};
+
+const NullPremiumRate = fn () PremiumRate {
+    unwrap(try_cast_uint(0, u16))
+};
+const PremiumRateFromWord = fn(premiumRateWord :u256) PremiumRate {
+    unwrap(try_cast_uint(premiumRateWord, u16))
+};
+
+const StoredPremiumRateOn = fn (on: type, from: type) PremiumRate {
+      let mut toStorePremiumRate : PremiumRate = NullPremiumRate ();
+      if on == storage {
+      	 if from == calldata {
+	    toStorePremiumRate = PremiumRateFromWord(@evm_calldataload(4));	    	 
+	    @evm_sstore(PREMIUM_RATE_SLOT, PremiumRateWord(toStorePremiumRate));
+	 }
+      }
+      toStorePremiumRate
+};
+
+const NoReturnPremiumRate = fn (self: PremiumRate) never {
+      @evm_return(@malloc_uninit(0), 0);
+};
