@@ -1,7 +1,7 @@
 use std::core::uint::{
     u16, try_cast_uint
 };
-use std::option::unwrap;
+use std::option::{unwrap, is_some};
 use std::regions::calldata;
 use custom_utils::moreRegions::storage;
 
@@ -14,6 +14,11 @@ const SET_PREMIUM_RATE_SELECTOR = 0x39556ec8;
 
 const PremiumRate = u16;
 
+// Algebra Constants.MAX_DEFAULT_FEE
+const MAX_FEE_RATE = 50000;
+
+const OverFlowPremiumRate = struct {};
+const UpdatePremiumRate = struct {};
 
 const PremiumRateWord = fn (premiumRate :PremiumRate) u256 {
     unwrap(try_cast_uint(premiumRate, u256))
@@ -22,8 +27,42 @@ const PremiumRateWord = fn (premiumRate :PremiumRate) u256 {
 const NullPremiumRate = fn () PremiumRate {
     unwrap(try_cast_uint(0, u16))
 };
+
+const MinPremiumRate = fn () PremiumRate {
+    unwrap(try_cast_uint(0, u16))
+};
+
+const MaxPremiumRate = fn () PremiumRate {
+      unwrap(try_cast_uint(MAX_FEE_RATE, u16))
+};
+
+const LogPremiumRate = fn (val: PremiumRate, log: type) void {
+      let logMemPtr: u256 = @malloc_uninit(32);
+      if log == OverFlowPremiumRate {
+      	 @mstore32(logMemPtr, PremiumRateWord(val));
+      	 @evm_log1(logMemPtr, 32, @keccak256_cbytes("OverFlowPremiumRate(uint16)"));
+      	 LogPremiumRate(MaxPremiumRate(), UpdatePremiumRate);
+      }
+      else if log == UpdatePremiumRate {
+      	 @mstore32(logMemPtr, PremiumRateWord(val));
+      	 @evm_log1(logMemPtr, 32, @keccak256_cbytes("UpdatePremiumRate(uint16)"));
+      }
+};
+
 const PremiumRateFromWord = fn(premiumRateWord :u256) PremiumRate {
-    unwrap(try_cast_uint(premiumRateWord, u16))
+    let maxRate = MaxPremiumRate();
+    if premiumRateWord > PremiumRateWord(maxRate) {
+      	 let castOpt = try_cast_uint(premiumRateWord, u16);
+      	 let mut overflowVal = unwrap(try_cast_uint(0xffff, u16));
+      	 if is_some(u16, castOpt) {
+      	     overflowVal = unwrap(castOpt);
+      	 }
+      	 LogPremiumRate(overflowVal, OverFlowPremiumRate);
+      	 maxRate
+    }
+    else {
+      	 unwrap(try_cast_uint(premiumRateWord, u16))
+    }
 };
 
 const StoredPremiumRateOn = fn (on: type, from: type) PremiumRate {
@@ -40,3 +79,4 @@ const StoredPremiumRateOn = fn (on: type, from: type) PremiumRate {
 const NoReturnPremiumRate = fn (self: PremiumRate) never {
       @evm_return(@malloc_uninit(0), 0);
 };
+
