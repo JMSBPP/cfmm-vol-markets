@@ -1,73 +1,126 @@
 use std::core::uint::{u88,try_cast_uint};
 use std::option::unwrap;
 use TickMoments::TickAverage::{TickAverage, prospectTickAverage};
-use TickMoments::Window::WindowInitialized;
+use std::constructor::return_runtime;
+
+use custom_utils::cfmm_types::Tick::{
+    AbsDiffTick, AccTick, AvgTickOn, Tick, TickOn, PrevTickOn, tickWord
+};
 use custom_utils::moreRegions::storage;
+
+init {return_runtime();}
+run {@evm_stop();}
 
 // cast keccak vol-markets.TickMoments.tickRealizedVolatility
 
 const TICK_REALIZED_VOLATILITY_SLOT = 0xf69e753063c9a37dc7169cc2d90bb6795545b8db9f6c22f3d499d73437f5553a;
-
+// cast keccak vol-markets.TickMoments.AccTickTickAverage2AccSlot
+const ACC_TICK_TICK_AVERAGE_2_ACC_SLOT = 0xb467e02caadbeaf1f2aed36f0d90663f25b5af2b7dcb29ed3d55b74e6c0010e1;
 // cast sig "read_tick_realizedVolatility()"
 const READ_TICK_REALIZED_VOLATILITY_SELECTOR = 0x8ace0c4f;
 
-const NOT_TICK_2_ACC = 0;
-const NOT_TICK_VOL_WORD = 0;
+const TickRealizedVolatilityValue = u88;
+const CalculatedTickRealizedVolatilityValue = fn ( self : RealizedVolatility(Tick) ,windowIdx: u256) TickRealizedVolatilityValue {
+      if @evm_eq(windowIdx, 0) { ZeroTickRealizedVolatilityValue() }
+      else {
+      	   TickRealizedVolatilityValueFromWord(
+	   	@evm_div(
+		     TickRealizedVolTick2TickAvgAcc(self),
+		     windowIdx
+		)
+	   )
+      }
+};
 
-const TickRealizedVolVal = u88;
-const Tick2Acc = u256;
+const ZeroTickRealizedVolatilityValue = fn () u88 {unwrap(try_cast_uint(0,u88))};
+const TickRealizedVolatilityValueFromWord = fn (w: u256) TickRealizedVolatilityValue {
+      unwrap(try_cast_uint(w,u88))
+};
 
+const Tick2TickAvgAcc = u256;
 
-// TODO: From now we assume TAS = WS; This is to be verified
-const TickRealizedVol = fn(tickAverageState : type ) type {
-      struct {
-      	     refTickAvg: TickAverage(tickAverageState),
-	     prevTick2Acc: Tick2Acc,
-	     tickVol: TickRealizedVolVal
+const EqTick2TickAvgAcc = fn (t2tAcc1:Tick2TickAvgAcc,t2tAcc2:Tick2TickAvgAcc) bool { t2tAcc2 == t2tAcc1};
+const NeqTick2TickAvgAcc = fn (t2tAcc1:Tick2TickAvgAcc,t2tAcc2:Tick2TickAvgAcc) bool {!EqTick2TickAvgAcc(t2tAcc1,t2tAcc2)};
+
+const LastTick2TickAvgAcc = fn(on: type) Tick2TickAvgAcc {
+      let mut last: Tick2TickAvgAcc = UninitLastTick2TickAvgAcc();
+      if on == storage {
+      	 last = @evm_sload(@evm_add(TICK_REALIZED_VOLATILITY_SLOT, 1));
+      }
+      last
+};
+const UninitLastTick2TickAvgAcc = fn () Tick2TickAvgAcc {0};
+const StepTick2TickAvgAcc = fn (t1: Tick, t2: Tick) Tick2TickAvgAcc { @evm_exp(tickWord(AbsDiffTick(t1,t2)), 2)};
+
+const AccTick2TickAvgAcc = fn (t2t1:Tick2TickAvgAcc,t2t2:Tick2TickAvgAcc) Tick2TickAvgAcc {@evm_add(t2t2,t2t1)};
+
+const RealizedVolatility = fn(comptime T: type) type {
+      if T == Tick {
+      	 struct {
+	 	val: TickRealizedVolatilityValue,
+ 	 	acc: Tick2TickAvgAcc
+	 }
+      }
+      else {
+      	   @compile_error("T not supported for RealizedVolatility");
       }
 };
 
 // =========================== INPUT: TickRealizedVol =================================
-const store_tickRealizedVolatility = fn (tickRealizedVol :$TRV, to: type) void {
-      if to == storage {
-      	 @evm_sstore(@evm_add(TICK_REALIZED_VOLATILITY_SLOT,1), tickRealizedVolPrevTick2Acc(tickRealizedVol));
-	 @evm_sstore(TICK_REALIZED_VOLATILITY_SLOT, tickRealizedVolWord(tickRealizedVolRealizedVol(tickRealizedVol)));
-      }
-};
 
 
-const tickRealizedVolatilityReturnEVM= fn () never {
+const TickRealizedVolatilityReturnEVM= fn () never {
       let retBuff: u256 = @malloc_uninit(32);
       @mstore32(retBuff,@evm_sload(TICK_REALIZED_VOLATILITY_SLOT));
       @evm_return(retBuff,32);
 };
 
-
-const tickRealizedVolPrevTick2Acc = fn(tickRealizedVol:$TRV) Tick2Acc {
-      tickRealizedVol.prevTick2Acc          
+const StoreTickRealizedVolatilityOn = fn (self:RealizedVolatility(Tick), on: type) void {
+      if on == storage {
+      	  @evm_sstore(TICK_REALIZED_VOLATILITY_SLOT, TickRealizedVolatilityValueWord(TickRealizedVolTickRealizedVolatilityValue(self)));
+      	  @evm_sstore(@evm_add(TICK_REALIZED_VOLATILITY_SLOT, 1), TickRealizedVolTick2TickAvgAcc(self));
+      }
 };
 
-const tickRealizedVolRealizedVol = fn(tickRealizedVol:$TRV) TickRealizedVolVal {
-      tickRealizedVol.tickVol      
+const TickRealizedVolTick2TickAvgAcc = fn(tickRealizedVol:RealizedVolatility(Tick)) Tick2TickAvgAcc {
+      @get_field(tickRealizedVol, "acc")          
 };
 
-const tickRealizedVolWord = fn (tickRealizedVolVal :TickRealizedVolVal) u256 {
-     unwrap(try_cast_uint(tickRealizedVolVal,u256))
+const TickRealizedVolTickRealizedVolatilityValue = fn(tickRealizedVol:RealizedVolatility(Tick)) TickRealizedVolatilityValue {
+      @get_field(tickRealizedVol, "val")      
+};
+
+
+const TickRealizedVolatilityValueWord = fn ( tickRealizedVolatilityValue: TickRealizedVolatilityValue) u256 {
+      unwrap(try_cast_uint(tickRealizedVolatilityValue,u256)) 
 };
 
 // ============================ OUTPUT: TickRealizedVol =================================
-const notYetTick2Acc = fn() Tick2Acc {
-      NOT_TICK_2_ACC            
+
+const NullTickRealizedVolatility = fn () RealizedVolatility(Tick) {
+      RealizedVolatility(Tick) {val: ZeroTickRealizedVolatilityValue (), acc: UninitLastTick2TickAvgAcc ()}      
 };
 
-const noTickVol = fn() TickRealizedVolVal {
-      unwrap(try_cast_uint(NOT_TICK_VOL_WORD,TickRealizedVolVal))            
+const UpdatedTickRealizedVolatilityOn = fn (on: type, windowIdx: u256) RealizedVolatility(Tick) {
+      let mut resUpdatedTickRealizedVolatilityOn: RealizedVolatility(Tick) = NullTickRealizedVolatility();
+      if on == storage {
+      	 let stepTick2TickAvgAcc: Tick2TickAvgAcc = StepTick2TickAvgAcc(AvgTickOn(storage), TickOn(storage));
+	 let lastTick2TickAvgAcc: Tick2TickAvgAcc = LastTick2TickAvgAcc(storage);
+	 if EqTick2TickAvgAcc( UninitLastTick2TickAvgAcc(), lastTick2TickAvgAcc) {
+	    resUpdatedTickRealizedVolatilityOn = @set_field(resUpdatedTickRealizedVolatilityOn, "acc",stepTick2TickAvgAcc);
+	 }
+
+	 else if NeqTick2TickAvgAcc(UninitLastTick2TickAvgAcc(), lastTick2TickAvgAcc) {
+	      resUpdatedTickRealizedVolatilityOn = @set_field(resUpdatedTickRealizedVolatilityOn, "acc",AccTick2TickAvgAcc(lastTick2TickAvgAcc, stepTick2TickAvgAcc));
+	 }
+	 resUpdatedTickRealizedVolatilityOn = @set_field(
+	 	resUpdatedTickRealizedVolatilityOn,
+		"val",
+		CalculatedTickRealizedVolatilityValue(resUpdatedTickRealizedVolatilityOn, windowIdx)
+	 );
+	 
+      }
+
+      resUpdatedTickRealizedVolatilityOn
 };
 
-const prospectTickRealizedVolatility = fn() TickRealizedVol(WindowInitialized) {
-      TickRealizedVol(WindowInitialized) {refTickAvg: prospectTickAverage(), prevTick2Acc: notYetTick2Acc(), tickVol: noTickVol() }
-};
-
-const update_realized_volatility = fn (on:type, tickValue:$T) TickRealizedVol(WindowInitialized) {
-      prospectTickRealizedVolatility()            
-};

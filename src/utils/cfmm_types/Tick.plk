@@ -11,7 +11,10 @@ use custom_utils::protocol_integrations::UniswapV4Consumer::{
 use Asset::Asset::{AssetMemory, loadAssetMemoryOnExt};
 use app::Main::IO_SLOT;
 
-use TickMoments::TickAverage::{TickAcc,tickAccWord};
+use TickMoments::TickAverage::{
+    TickAcc,tickAccWord, TICK_AVERAGE_SLOT
+};
+
 use TickMoments::Window::{Window, WindowInitialized, window_idx};
 
 use ProtocolSync::AlignCalldata::AlignCalldata;
@@ -22,6 +25,8 @@ use std::core::ops::{neg_u256, less_equals};
 
 // cast keccak vol-markets.Tick
 const TICK_SLOT = 0x62b50c96ec7c8db111173d139b431c4ef72820d773cfe40f8537db4c663ab7e6;
+// cast keccak vol-markets.PrevTick
+const PREV_TICK_SLOT = 0xe4503d2e909d2dfb525837c1a9767fdd67a81baa73edb6cc7ab5f5ce2728416a;
 // cast sig "set_tick(int24)"
 const SET_TICK_SELECTOR = 0x9924d8ec;
 
@@ -74,10 +79,22 @@ const NeqTick = fn (t1: Tick, t2: Tick) bool {
       !EqTick(t1, t2)
 };
 
+// TODO: What is the maximum amount of bits it can occupy ?
+
+const AccTick = fn (t1: Tick, t2: Tick) u256 {
+      @evm_add(tickWord(t1), tickWord(t2))
+};
+
 const store_tick = fn (tick:$T,to: type) void {
       if to == storage {
       	 @evm_sstore(TICK_SLOT, tickVal(tick));
       }
+};
+
+const store_prev_tick = fn (tick: Tick, to: type) void {
+     if to == storage {
+      	 @evm_sstore(PREV_TICK_SLOT, tickVal(tick));
+      } 
 };
 
 // TODO: revert on mismatched spacing.
@@ -170,7 +187,7 @@ const build_tick = fn(from: TickCalldata) Tick {
       Tick {val: tickBuilt , ts: tickSpacing }
 };
 
-const tickOn = fn(on : type) Tick {
+const TickOn = fn(on : type) Tick {
       let mut resTick : Tick = toUpdateTick();
       if on == storage {
 	 resTick = @set_field(resTick,"val", @evm_sload(TICK_SLOT));
@@ -207,12 +224,33 @@ const tickOnExternal = fn (src:u256 ,on: type) Tick {
       resTick
 };
 
+
+
 const MeanTick = fn(from: type ,tickAcc :TickAcc, window : Window(WindowInitialized)) Tick {
       let mut meanTick: Tick = toUpdateTick();
       if from == storage {
       	 meanTick = build_tick((@evm_sdiv(tickAccWord(tickAcc),window_idx(window)),tickSpacingWord(tickSpacingOn(from))));
       }
       meanTick
+};
+
+
+const AvgTickOn = fn (on: type) Tick {
+      let mut avgTick: Tick = toUpdateTick();
+      if on == storage {
+      	 avgTick = @set_field(avgTick, "val", @evm_sload(TICK_AVERAGE_SLOT));
+      	 avgTick = @set_field(avgTick, "ts", tickSpacingOn(storage));
+      }
+      avgTick
+};
+
+const PrevTickOn = fn (on: type) Tick {
+      let mut prevTick: Tick = toUpdateTick();
+      if on == storage {
+      	 prevTick = @set_field(prevTick, "val", @evm_sload(PREV_TICK_SLOT));
+      	 prevTick = @set_field(prevTick, "ts", tickSpacingOn(storage));
+      }
+      prevTick
 };
 
 

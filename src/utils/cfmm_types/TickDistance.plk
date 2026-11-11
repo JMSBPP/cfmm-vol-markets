@@ -1,7 +1,7 @@
 use custom_utils::numerics::WAD::WAD;
 use Exposure::Exposure::{Exposure, exposureSizeVal, exposureSizeWord};
 use custom_utils::cfmm_types::TickPrecedence::TickPrecedence;
-use custom_utils::cfmm_types::Tick::{Tick};
+use custom_utils::cfmm_types::Tick::Tick;
 use custom_utils::cfmm_types::TickSpacing::DefaultTickSpacing;
 use custom_utils::cfmm_types::SqrtPrice::{sqrtPriceFromTick, sqrtPriceWord};
 use ProtocolSync::AlignCalldata::AlignCalldata;
