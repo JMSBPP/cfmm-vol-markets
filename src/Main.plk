@@ -61,12 +61,16 @@ use Controllers::Controller::{CONTROLLER_SLOT, SET_CONTROLLER_SELECTOR};
 use Premium::PremiumRate::{
     SET_PREMIUM_RATE_SELECTOR, READ_PREMIUM_RATE_SELECTOR,
     StoredPremiumRateOn, NoReturnPremiumRate,
-    ReturnPremiumRate, PremiumRateOnProtocol
+    ReturnPremiumRate, PremiumRateOn
 };
 
 use Premium::Premium::{
-    ASSET_PREMIUM_SELECTOR, ReturnPremium, AssetPremium
+    ASSET_PREMIUM_SELECTOR, ReturnPremium, AssetPremiumOnProtocolWithInstrument,
+    ASSET_PREMIUM_ON_PROTOCOL_WITH_INSTRUMENT_SELECTOR,
+    AssetPremiumFromUtilizationAndPremiumRate
 };
+
+use Utilization::Utilization::UtilizationOn;
 
 
 use Instrument::Instrument::{
@@ -246,11 +250,15 @@ run {
     }
 
     else if selector == READ_PREMIUM_RATE_SELECTOR {
-    	 ReturnPremiumRate(PremiumRateOnProtocol(uniswap, MarketKeyMemoryFrom(storage)));
+    	 ReturnPremiumRate(StoredPremiumRateOn(storage, storage));
+    }
+
+    else if selector == ASSET_PREMIUM_ON_PROTOCOL_WITH_INSTRUMENT_SELECTOR {
+    	 ReturnPremium(AssetPremiumOnProtocolWithInstrument(panoptic, @evm_calldataload(4), InstrumentOn(storage)));
     }
 
     else if selector == ASSET_PREMIUM_SELECTOR {
-    	 ReturnPremium(AssetPremium(panoptic, @evm_calldataload(4), InstrumentOn(storage)));
+    	 ReturnPremium(AssetPremiumFromUtilizationAndPremiumRate(@evm_calldataload(4),UtilizationOn(storage), PremiumRateOn(storage)));
     }
 
     // ===================== CONTROLLER ===============================

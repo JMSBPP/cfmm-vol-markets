@@ -1,0 +1,21 @@
+use custom_utils::cfmm_types::TickDistance::TickDistance;
+use custom_utils::more_regions::storage;
+
+const Utilization = u256;
+const NotUtilized = fn () Utilization {0};
+
+const UtilizationFromTickDistance = fn (tickDistance: TickDistance) Utilization {
+      NotUtilized()
+};
+
+const UtilizationOn = fn (on: type) Utilization {
+      if on == storage {
+      	 NotUtilized()
+      }
+      else {
+      	 NotUtilized()
+      }
+};
+
+
+

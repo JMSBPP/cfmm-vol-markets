@@ -24,6 +24,8 @@ use Instrument::Instrument::{
     Instrument, InstrumentOrientationMemory,
     InstrumentDirectionMemory, TickRangeFromInstrument
 };
+use Premium::PremiumRate::PremiumRate;
+use Utilization::Utilization::Utilization;
 
 use custom_utils::protocol_integrations::PanopticV2Consumer::{
     panoptic, consumer, VEGOID_DEFAULT
@@ -38,6 +40,8 @@ const Premium = u128;
 
 // cast sig "assetPremium(address)"
 const ASSET_PREMIUM_SELECTOR = 0xaa852236;
+// cast sig "assetPremiumTrackedOnOptionClearingHouseWithInstrument(address)"
+const ASSET_PREMIUM_ON_PROTOCOL_WITH_INSTRUMENT_SELECTOR = 0x6fcfbfe7;
 
 const PremiumWord = fn (premium: Premium) u256 {
       unwrap(try_cast_uint(premium, u256))
@@ -49,6 +53,10 @@ const ReturnPremium = fn (self: Premium) never {
       @evm_return(ret, 32);
 };
 
+
+
+
+
 const NullPremium = fn () Premium {
       unwrap(try_cast_uint(0, u128))
 };
@@ -57,13 +65,13 @@ const PremiumFromWord = fn (premiumWord: u256) Premium {
       unwrap(try_cast_uint(premiumWord, u128))
 };
 
-const AssetPremium = fn (protocol: type, asset: Asset, instrument: Instrument) Premium {
+const AssetPremiumOnProtocolWithInstrument = fn (protocol: type, asset: Asset, instrument: Instrument) Premium {
       // TODO: This is tmp we are looking for a better API
       let mut assetPremium: Premium = NullPremium();
       if protocol == panoptic {
       	 let assetMarket: MarketMemory = MarketKeyMemoryFrom(storage);
 	 let legRange = TickRangeFromInstrument(instrument);
-	 // ABI: head(8*32) + bytes(len+160) = 448; + sel(4) = 452 calldata; +64 ret = 516
+	 
 	 let mut assetPremiumMem: membytes = membytes_new(516);
 	 // cast sig "getAccountPremium(bytes,address,uint256,int24,int24,int24,uint256,uint256)"
 	 @mstore4(assetPremiumMem.ptr, 0x77880f15);
@@ -93,4 +101,9 @@ const AssetPremium = fn (protocol: type, asset: Asset, instrument: Instrument) P
 
       assetPremium
       
+};
+
+
+const AssetPremiumFromUtilizationAndPremiumRate = fn (asset: Asset, utilization : Utilization, premiumRate :PremiumRate ) Premium {
+      NullPremium ()
 };

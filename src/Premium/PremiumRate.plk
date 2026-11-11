@@ -18,7 +18,7 @@ const PREMIUM_RATE_SLOT = 0x8282207cddb7dec248797bd40ba3d2a32ae0064c024d6111c594
 const SET_PREMIUM_RATE_SELECTOR = 0x39556ec8;
 
 // cast sig "readPremiumRate()"
-// readPremiumRate is to be placed on Main and do ReturnPremiumRate (PremiumRateOnProtocol (uniswap, MarketKeyMemoryFrom (storage)))
+// readPremiumRate is to be placed on Main and do ReturnPremiumRate (StoredPremiumRateOn (storage, storage))
 const READ_PREMIUM_RATE_SELECTOR = 0xdce69e18;
 
 const PremiumRate = u24;
@@ -145,6 +145,10 @@ const StoredPremiumRateOn = fn (on: type, from: type) PremiumRate {
 	 }
       }
       toStorePremiumRate
+};
+
+const PremiumRateOn = fn (on: type) PremiumRate {
+      StoredPremiumRateOn(on, on)
 };
 
 

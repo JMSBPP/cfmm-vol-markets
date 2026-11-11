@@ -18,6 +18,10 @@ import {SwapMath} from "v4-core/libraries/SwapMath.sol";
 import {TickMath} from "v4-core/libraries/TickMath.sol";
 import {console2} from "forge-std/console2.sol";
 
+import {IStateView} from "v4-periphery/interfaces/IStateView.sol";
+import {IPoolManager as IPoolManagerPeriphery} from "v4-periphery/interfaces/IStateView.sol";
+import {StateView} from "v4-periphery/lens/StateView.sol";
+
 import {ITick} from "./Tick.t.sol";
 import {ITickSpacing} from "./TickSpacing.t.sol";
 import {IWindow} from "./Window.t.sol";
@@ -36,14 +40,15 @@ uint256 constant CALL = 0;
 uint256 constant SHORT = 0;
 
 interface IPremiumReader {
-    function assetPremium(address) external returns (uint128);
+    function assetPremiumTrackedOnOptionClearingHouseWithInstrument(address) external returns (uint128);
+    function assetPremium(address) external returns(uint128);
 }
 
 interface IPremiumRateSetter {
     function setPremiumRate(uint24) external;
 }
 
-interface IPremiumRateReader {
+interface IPremiumRate {
     function readPremiumRate() external returns (uint24);
 }
 
@@ -62,12 +67,14 @@ contract PremiumTest is PlankTestBase, Deployers, HookDeployer {
 
     address noFeeVarianceClaimController;
     address poolManager;
+    address uniswapV4StateView;
 
     PoolKey marketKey;
 
     function setUp() public {
         deployFreshManager();
         poolManager = address(manager);
+        uniswapV4StateView = address(new StateView(IPoolManagerPeriphery(address(manager))));
 
         address sfpm = SfpmBytecodeDeployer.deploy(
             vm, manager, 2100000000000000000000, 2100000000000000000000, 10000
@@ -136,14 +143,22 @@ contract PremiumTest is PlankTestBase, Deployers, HookDeployer {
                     SHORT,
                     DEFAULT_VEGOID
                 );
-	    assertEq(IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency0)),optionClearingHouseReturnedPremium0);
-	    assertEq(IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency1)),optionClearingHouseReturnedPremium1);
+            (,,, uint24 lpFee) = IStateView(uniswapV4StateView).getSlot0(marketKey.toId());
+            assertEq(IPremiumRate(premiumImpl).readPremiumRate(), lpFee);
+
+	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency0)),optionClearingHouseReturnedPremium0);
+	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency1)),optionClearingHouseReturnedPremium1);
+
+	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency0)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency0)));
 	    
-    
+	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency1)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency1)));
+	    
             windowIdx++;
         } while (windowIdx < LOCKED_WINDOW_LEN);
 
         assertEq(marketKey.tickSpacing, SafeCastLib.toInt24(uint256(LOCKED_TICK_SPACING)));
         assertEq(marketKey.fee, someFixedPremiumRate);
+        (,,, uint24 finalLpFee) = IStateView(uniswapV4StateView).getSlot0(marketKey.toId());
+        assertEq(IPremiumRate(premiumImpl).readPremiumRate(), finalLpFee);
     }
 }
