@@ -56,8 +56,9 @@ use ProtocolSync::AlignTick::{
 use Controllers::Controller::{CONTROLLER_SLOT, SET_CONTROLLER_SELECTOR};
 
 use Premium::PremiumRate::{
-    SET_PREMIUM_RATE_SELECTOR,
-    StoredPremiumRateOn, NoReturnPremiumRate
+    SET_PREMIUM_RATE_SELECTOR, READ_PREMIUM_RATE_SELECTOR,
+    StoredPremiumRateOn, NoReturnPremiumRate,
+    ReturnPremiumRate, PremiumRateOnProtocol, uniswap
 };
 
 
@@ -235,6 +236,10 @@ run {
     // ===================== PREMIUM ===============================
     else if selector == SET_PREMIUM_RATE_SELECTOR {
     	 NoReturnPremiumRate(StoredPremiumRateOn(storage,calldata));
+    }
+
+    else if selector == READ_PREMIUM_RATE_SELECTOR {
+    	 ReturnPremiumRate(PremiumRateOnProtocol(uniswap, loadAssetMemory(storage)));
     }
 
     // ===================== CONTROLLER ===============================

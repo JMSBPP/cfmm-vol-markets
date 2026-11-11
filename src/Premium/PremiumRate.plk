@@ -4,6 +4,13 @@ use std::core::uint::{
 use std::option::{unwrap, is_some};
 use std::regions::calldata;
 use custom_utils::moreRegions::storage;
+use custom_utils::protocol_integrations::UniswapV4Consumer::{
+    EXTSLOAD_SELECTOR, POOLS_SLOT, POOL_MANAGER_SLOT
+};
+use Asset::Asset::AssetMemory;
+
+// uniswap is a struct { ref : POOL_MANAGER} type
+const uniswap = struct { ref: u256 };
 
 // cast keccak VolMarkets.PremiumRate
 
@@ -12,10 +19,18 @@ const PREMIUM_RATE_SLOT = 0x8282207cddb7dec248797bd40ba3d2a32ae0064c024d6111c594
 // cast sig "setPremiumRate(uint24)"
 const SET_PREMIUM_RATE_SELECTOR = 0x39556ec8;
 
+// cast sig "readPremiumRate()"
+// readPremiumRate is to be placed on Main and do ReturnPremiumRate (PremiumRateOnProtocol (uniswap, loadAssetMemory (storage)))
+const READ_PREMIUM_RATE_SELECTOR = 0xdce69e18;
+
 const PremiumRate = u16;
 
 // Algebra Constants.MAX_DEFAULT_FEE
 const MAX_FEE_RATE = 50000;
+
+// Uniswap v4 Slot0: lpFee at bit 208
+const LP_FEE_OFFSET = 208;
+const LP_FEE_MASK = 0xffffff;
 
 const OverFlowPremiumRate = struct {};
 const UpdatePremiumRate = struct {};
@@ -72,6 +87,10 @@ const StoredPremiumRateOn = fn (on: type, from: type) PremiumRate {
 	    toStorePremiumRate = PremiumRateFromWord(@evm_calldataload(4));	    	 
 	    @evm_sstore(PREMIUM_RATE_SLOT, PremiumRateWord(toStorePremiumRate));
 	 }
+
+	 else if from == storage {
+	      toStorePremiumRate = PremiumRateFromWord(@evm_sload(PREMIUM_RATE_SLOT));
+	 }
       }
       toStorePremiumRate
 };
@@ -80,3 +99,31 @@ const NoReturnPremiumRate = fn (self: PremiumRate) never {
       @evm_return(@malloc_uninit(0), 0);
 };
 
+const ReturnPremiumRate = fn (self: PremiumRate) never {
+      let ret: u256 = @malloc_uninit(32);
+      @mstore32(ret, PremiumRateWord(self));
+      @evm_return(ret, 32);
+};
+
+// protocol is type; branch if protocol == uniswap
+const PremiumRateOnProtocol = fn (protocol: type, assetMemory: AssetMemory) PremiumRate {
+      if protocol == uniswap {
+      	 let packed: u256 = @malloc_uninit(64);
+      	 @mstore32(packed, @evm_keccak256(assetMemory.ptr, 160));
+      	 @mstore32(packed +% 32, POOLS_SLOT);
+      	 let cd: u256 = @malloc_uninit(36);
+      	 @mstore4(cd, EXTSLOAD_SELECTOR);
+      	 @mstore32(cd +% 4, @evm_keccak256(packed, 64));
+      	 let retBuff: u256 = @malloc_uninit(32);
+      	 if !@evm_staticcall(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), cd, 36, retBuff, 32) {
+      	      // cast sig "FailedOnReadSlot0()"
+      	      @mstore4(cd, 0x295cbff3);
+      	      @evm_revert(cd, 4);
+      	 }
+      	 let lpFee = @evm_and(@evm_shr(LP_FEE_OFFSET, @mload32(retBuff)), LP_FEE_MASK);
+      	 PremiumRateFromWord(lpFee)
+      }
+      else {
+      	 @compile_error("PremiumRateOnProtocol: only uniswap");
+      }
+};
