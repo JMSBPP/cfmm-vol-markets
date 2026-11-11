@@ -1,0 +1,3 @@
+LiquidityChunkMinterRunAlgebraTest
+└── when run_mint executes on a bootstrapped Algebra pool with funded payer
+    └── it should return Some with positive liquidity_actual

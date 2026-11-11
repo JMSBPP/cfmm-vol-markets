@@ -1,0 +1,14 @@
+TickAverageTest
+└── When tickAverage updates from tickCalldata
+    ├── When tickAverage window state is not initialized
+    │   ├── It should set the tick average window state to windowInitialized.
+    │   ├── It should set the tick average window index to one.
+    │   └── It should set the prevTickLog2Acc to log2 of tickCalldata.
+    ├── When tickAverage window state is initialized
+    │   ├── It should set as the prevTickLog2Acc the sum of the current prevTickLogAcc with the log2 of the tickCalldata.
+    │   ├── It should set the tick average window index to tick average window index plus one
+    │   └── It should store the division of prevTickLog2Acc and tick average window index on tickAverage storage slot
+    └── When tick average window index is equal to tick average window len
+        ├── It should have tick average window state windowInitialized
+        ├── It should store the division of prevTickLog2Acc and tick average window len on tickAverage storage slot
+        └── It should set the tick average window state to windowUninitialized

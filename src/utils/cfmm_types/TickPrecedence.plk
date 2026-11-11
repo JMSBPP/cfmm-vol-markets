@@ -1,0 +1,17 @@
+use custom_utils::cfmm_types::Tick::Tick;
+use custom_utils::cfmm_types::SqrtPrice::{sqrtPriceWord, sqrtPriceFromTick};
+
+const TickPrecedence = bool;
+
+// =========================== INPUT: TickPrecedence =================================
+
+// ============================ OUTPUT: TickPrecedence =================================
+// TODO: tmp
+const notTickPrecedence = fn () TickPrecedence {
+      false
+};
+
+const precedesTick = fn (ref: Tick, target: Tick) TickPrecedence {
+      // TODO: From now this is the comparison, future version must be a native equivalent comparison
+      sqrtPriceWord(sqrtPriceFromTick(target)) < sqrtPriceWord(sqrtPriceFromTick(ref))
+};

@@ -18,13 +18,12 @@ abstract contract PlankDeployBase is Script, PlankDeployer {
 
     function plankOpts() internal pure returns (BuildOptions memory opts) {
         opts.backend = "sona";
-        Dependency[] memory deps = new Dependency[](6);
-        deps[0] = Dependency("v3", "lib/plankified-univ3/plank/lib");
-        deps[1] = Dependency("std", "lib/plank-monorepo/std/");
-        deps[2] = Dependency("pos_spec", "src/types/pos_spec");
-        deps[3] = Dependency("lib", "src/lib");
-        deps[4] = Dependency("types", "src/types");
-        deps[5] = Dependency("interfaces", "src/interfaces");
+        Dependency[] memory deps = new Dependency[](5);
+        deps[0] = Dependency("std", "lib/plank-monorepo/std/");
+        deps[1] = Dependency("pos_spec", "src/types/pos_spec");
+        deps[2] = Dependency("lib", "src/lib");
+        deps[3] = Dependency("types", "src/types");
+        deps[4] = Dependency("interfaces", "src/interfaces");
         opts.dependencies = deps;
     }
 

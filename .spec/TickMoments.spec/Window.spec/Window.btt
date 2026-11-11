@@ -1,0 +1,8 @@
+WindowTest
+└── When setWindow is called
+    └── When windowLen constructor arg is zero
+        └── It should revert.
+            └── Because windowLen is the greater than zero.
+    └── When windowLen constructor arg is greater than zero
+    	└── It should write at windowNameSpace slot windowLen constructor arg
+	└── It should write at windoStorage slot reserved name space plus two the word 2 

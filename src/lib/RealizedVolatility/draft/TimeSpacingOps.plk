@@ -1,0 +1,16 @@
+import types::RealizedVolatility::draft::Timestamp::CurrentTimestamp;
+import types::RealizedVolatility::draft::TimeSpacing::TimeSpacing;
+import std::core::uint::cast_uint;
+import std::core::ops::checked_div_down;
+
+
+import std::constructor::return_runtime;
+
+const div = fn(N:type, D: type) TimeSpacing(u256){
+      TimeSpacing(checked_div_down(cast_uint(TimeSpacing(N),u256),cast_uint(TimeSpacing(D),u256)));
+};
+
+
+init {return_runtime();}
+
+run {@evm_stop();}

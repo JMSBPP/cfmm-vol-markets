@@ -1,0 +1,3 @@
+use custom_utils::protocol_integrations::ERC1155Holder::ON_ERC1155_RECEIVED_SELECTOR;
+
+const SAVE_INSTRUMENT_SELECTOR = ON_ERC1155_RECEIVED_SELECTOR;

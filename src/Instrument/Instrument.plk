@@ -1,0 +1,126 @@
+use custom_utils::moreRegions::storage;
+use Instrument::InstrumentMemory::InstrumentMemory;
+use std::slice::at;
+
+// cast keccak vol-markets.Instrument
+const INSTRUMENT_SLOT = 0x5fe379eadf961f93313dfc3c6b408e3ac1daa5bcbd88a644f0a30eb30a02f9f4;
+
+
+// cast sig "startReplication()"
+const START_REPLICATION_SELECTOR = 0x7a8c874b;
+
+// cast sig "instrument()"
+const READ_INSTRUMENT_SELECTOR = 0x5767d534;
+
+const initIdx = fn () u256 {
+      0
+};
+
+
+const Instrument = u256;
+const notYetInstrument = fn () Instrument {0};
+
+// ===================== INPUT: Instrument ==================================
+
+const store_instrument = fn(instrument :Instrument, on: type) void {
+      if on == storage {
+      	 @evm_sstore(INSTRUMENT_SLOT, instrument);
+      }
+};
+
+const EqInstrument = fn ( i1 : Instrument, i2: Instrument) bool {i1 == i2};
+
+const NeqInstrument = fn ( i1 : Instrument, i2: Instrument) bool { !(EqInstrument(i1,i2))};
+
+//  ========================= STATE : Instrument ============================
+const MarketAssigned = fn (self: Instrument) bool {
+      NeqInstrument(self,notYetInstrument())
+};
+
+
+const LogMarketAssigned = struct {};
+const LogInstrumentInitialized = struct {};
+
+const instrumentUnderlyingMarketId = fn (self: Instrument) u256 {
+      self & 0xffffffffffffffff
+};
+
+const log_instrument = fn (self: Instrument, evt: type) void {
+      let logMemPtr: u256 = @malloc_uninit(32);
+      if evt == LogMarketAssigned {
+      	 @mstore32(logMemPtr, instrumentUnderlyingMarketId(self));
+      	 @evm_log1(logMemPtr, 32, @keccak256_cbytes("MarketAssigned(uint64)"));
+      }
+
+      else if evt == LogInstrumentInitialized {
+      	   @mstore32(logMemPtr,ArbitraryValidInstrumentInitializer());
+	   @evm_log1(logMemPtr, 32, @keccak256_cbytes("InitializeInstrument(uint24)"));
+      	   // what initializes the instrument is the option ratio, so this is what get's logged
+      	   // along with the token id
+      }
+};
+
+// ===================== OUTPUT : Instrument ===============================
+const instrumentWord = fn (ins: Instrument) u256 {ins}; 
+
+const instrumentOn = fn (on: type) Instrument {
+      let mut resInstrument: Instrument = notYetInstrument();
+      if on == storage {
+      	 resInstrument = @evm_sload(INSTRUMENT_SLOT); 
+      }
+      resInstrument
+};
+
+const instrumentReturnEVM = fn () never {
+      let ret: u256 = @malloc_uninit(32);
+      @mstore32(ret, instrumentOn(storage));
+      @evm_return(ret, 32);
+};
+
+const instrumentRevertEVM = fn () void {
+      if !MarketAssigned(instrumentOn(storage)) {
+      	 // cast sig "MarketNotAssigned()"
+      	 let buff: u256 = @malloc_uninit(4);
+      	 @mstore4(buff, 0xd10485d2);
+      	 @evm_revert(buff, 4);
+      }
+};
+
+const assignMarketToInstrument = fn (on: type, marketIdWord :u256) Instrument {
+      let mut instrument: Instrument = notYetInstrument();
+      instrument = instrument+%marketIdWord;
+      instrument
+};
+
+const InitializeInstrumentInitializer = u256;
+// from now what is known is that is greater than 0
+
+// TODO: This maps to the option ratio
+const ArbitraryValidInstrumentInitializer = fn () InitializeInstrumentInitializer {
+      1
+};
+
+const initializeInstrument = fn (self: Instrument , v: InitializeInstrumentInitializer) Instrument {
+      let mut initializedInstrumentOn: Instrument = notYetInstrument();
+      if MarketAssigned(self) {
+      	 initializedInstrumentOn = self +% @evm_shl(
+	      64 +% (@evm_mul(initIdx(), 48) +% 1),
+	      @evm_mod(v, 128)
+	 );
+      }
+      initializedInstrumentOn
+};
+
+const instrumentFromInstrumentMemory = fn (instrumentMemory: InstrumentMemory) Instrument {
+      at(instrumentMemory,0)      
+};
+
+
+// TODO: This is tmp only a test uitil convention
+
+const SomeLegZeroInstrumentWidth = fn(self:Instrument, width :u256) Instrument {
+      self+% @evm_shl(
+      	     64+%(@evm_mul(initIdx(),48)+%36),
+	     @evm_mod(width,4096)
+      )
+};

@@ -1,0 +1,7 @@
+{
+  "setup-worktree-unix": "setup-worktree-unix.sh",
+  "setup-worktree": [
+    "git fetch origin develop",
+    "git reset --hard origin/develop"
+  ]
+}

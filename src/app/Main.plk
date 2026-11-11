@@ -1,0 +1,7 @@
+// Shared Main-facing constants (entrypoint remains src/Main.plk).
+
+// =========================== INPUT: Main =================================
+
+// ============================ OUTPUT: Main =================================
+// cast keccak vol-markets.Uniswap.IO — AlignTick stores Main at this slot via setIO
+const IO_SLOT = 0xd71dc26a505ec8577288d27986ddf3d828306960c355506fac2a2f078a06f51b;

@@ -1,0 +1,171 @@
+use std::constructor::return_runtime;
+use std::core::ops::neg_u256;
+use custom_utils::protocol_integrations::UniswapV4Consumer::{
+    storePoolManager, loadPoolManager, SET_POOL_MANAGER_SELECTOR,
+    SYNC_SELECTOR, SETTLE_FOR_SELECTOR, TAKE_SELECTOR
+};
+
+use custom_utils::eth::NO_VALUE;
+use custom_utils::Token::Transfer::NOTIFY_DEBT_SELECTOR;
+
+
+// cast keccak VolMarkets.Controller
+const CONTROLLER_SLOT = 0x504cec47c00ecd92195dd23334a7de6ebb4a41496b4d3e248edc0727a2ce20b0;
+
+// cast sig "setController(address)"
+const SET_CONTROLLER_SELECTOR = 0x92eefe9b;
+
+// cast sig "afterAddLiquidity(address,(address,address,uint24,int24,address),(int24,int24,int256,bytes32),int256,int256,bytes)"
+const AFTER_ADD_LIQUIDITY_SELECTOR = 0x9f063efc;
+
+// cast sig "afterSwap(address,(address,address,uint24,int24,address),(bool,int256,uint160),int256,bytes)"
+const AFTER_SWAP_SELECTOR = 0xb47b2fb1;
+
+
+init{
+	return_runtime();
+}
+
+run {
+    let selector: u256 = @evm_shr(224, @evm_calldataload(0));
+    let rawPoolManager: u256 = loadPoolManager(); 
+    if selector == AFTER_ADD_LIQUIDITY_SELECTOR {
+       let rawAggDebt : u256 = @evm_calldataload(324);
+       // 4 + (32*2) return
+       let afterAddLiquidityMemBuffPtr: u256 = @malloc_uninit(64);
+       // what is the offset of the currency 0 argument ?
+       // 4 (selector) + 32 (sender) + 160 (poolKey) + (32*4) (modifyLiquidityParams) = 324
+       let rawCurrency0: u256 = @evm_calldataload(36);
+       let rawCurrency1: u256 = @evm_calldataload(68);
+
+       @mstore4(afterAddLiquidityMemBuffPtr, SYNC_SELECTOR);
+       @mstore32(afterAddLiquidityMemBuffPtr+%4,rawCurrency0);
+
+       if !@evm_call(@evm_gas(), rawPoolManager, NO_VALUE, afterAddLiquidityMemBuffPtr, 36, 0, 0) {
+       	  // cast sig "FailedOnSyncCurrency0OnController()"
+	  @mstore4(afterAddLiquidityMemBuffPtr,0x72c7e874);
+	  @evm_revert(afterAddLiquidityMemBuffPtr, 4);
+       }
+
+       let debtOnCurrency0: u256 = @evm_sar(128, rawAggDebt);
+       let debtOnCurrency1:u256 = @evm_signextend(15, rawAggDebt);
+       
+       @mstore4(afterAddLiquidityMemBuffPtr, NOTIFY_DEBT_SELECTOR);
+       @mstore32(afterAddLiquidityMemBuffPtr+%4,neg_u256(debtOnCurrency0));              
+       if !@evm_call(@evm_gas(), rawCurrency0, NO_VALUE, afterAddLiquidityMemBuffPtr,36,0,0) {
+       	  // cast sig "FailedOnNotifyDebtCurrency0Controller()"
+	  @mstore4(afterAddLiquidityMemBuffPtr,0x6b5ba5e4);
+	  @evm_revert(afterAddLiquidityMemBuffPtr, 4);
+       }
+
+       
+       // settleFor the hook: PM books hookDelta to address(hooks) after this returns
+       @mstore4(afterAddLiquidityMemBuffPtr,SETTLE_FOR_SELECTOR);
+       @mstore32(afterAddLiquidityMemBuffPtr+%4,@evm_address_this());       
+       if !@evm_call(@evm_gas(), rawPoolManager, NO_VALUE, afterAddLiquidityMemBuffPtr, 36, 0, 0) {
+       	  // cast sig "FailedOnSettleController()"
+       	  @mstore4(afterAddLiquidityMemBuffPtr,0xff4f7dc1);
+	  @evm_revert(afterAddLiquidityMemBuffPtr,4);
+       }
+
+       @mstore4(afterAddLiquidityMemBuffPtr, SYNC_SELECTOR);
+       @mstore32(afterAddLiquidityMemBuffPtr+%4, rawCurrency1);
+       if !@evm_call(@evm_gas(), rawPoolManager, NO_VALUE, afterAddLiquidityMemBuffPtr, 36, 0, 0) {
+       	  // cast sig "FailedOnSyncCurrency1OnController()"
+	  @mstore4(afterAddLiquidityMemBuffPtr, 0x7dfbcaa9);
+	  @evm_revert(afterAddLiquidityMemBuffPtr, 4);
+       }
+       @mstore4(afterAddLiquidityMemBuffPtr, NOTIFY_DEBT_SELECTOR);
+       @mstore32(afterAddLiquidityMemBuffPtr+%4, neg_u256(debtOnCurrency1));
+       if !@evm_call(@evm_gas(), rawCurrency1, NO_VALUE, afterAddLiquidityMemBuffPtr, 36, 0, 0) {
+       	  // cast sig "FailedOnNotifyDebtCurrency1Controller()"
+	  @mstore4(afterAddLiquidityMemBuffPtr, 0x7281362a);
+	  @evm_revert(afterAddLiquidityMemBuffPtr, 4);
+       }
+       @mstore4(afterAddLiquidityMemBuffPtr, SETTLE_FOR_SELECTOR);
+       @mstore32(afterAddLiquidityMemBuffPtr+%4, @evm_address_this());
+       if !@evm_call(@evm_gas(), rawPoolManager, NO_VALUE, afterAddLiquidityMemBuffPtr, 36, 0, 0) {
+       	  // cast sig "FailedOnSettleCurrency1Controller()"
+	  @mstore4(afterAddLiquidityMemBuffPtr, 0x5618c845);
+	  @evm_revert(afterAddLiquidityMemBuffPtr, 4);
+       }
+
+       @mstore4(afterAddLiquidityMemBuffPtr, AFTER_ADD_LIQUIDITY_SELECTOR);       
+       @mstore32(afterAddLiquidityMemBuffPtr+%32, @evm_calldataload(324));
+       @evm_return(afterAddLiquidityMemBuffPtr, 64);
+    }
+
+    // afterSwap RETURNS_DELTA only books the unspecified int128. Settle/take that
+    // leg only (specified credit stays on the swap caller — AlignTick takes it).
+    // Layout: 4 + 32(sender) + 160(poolKey) + 96(SwapParams) → delta @292
+    else if selector == AFTER_SWAP_SELECTOR {
+       let rawAggDebt: u256 = @evm_calldataload(292);
+       // take needs 4+32+32+32; reuse for sync/settle paths too
+       let afterSwapMemBuffPtr: u256 = @malloc_uninit(100);
+       let rawCurrency0: u256 = @evm_calldataload(36);
+       let rawCurrency1: u256 = @evm_calldataload(68);
+       let debtOnCurrency0: u256 = @evm_sar(128, rawAggDebt);
+       let debtOnCurrency1: u256 = @evm_signextend(15, rawAggDebt);
+
+       // specifiedTokenIs0 <=> (amountSpecified < 0) == zeroForOne
+       let zeroForOne: u256 = @evm_calldataload(196);
+       let amountSpecified: u256 = @evm_calldataload(228);
+       let specifiedTokenIs0: bool = @evm_slt(amountSpecified, 0) == (zeroForOne != 0);
+       let unspecifiedCurrency: u256 = if specifiedTokenIs0 { rawCurrency1 } else { rawCurrency0 };
+       let unspecified: u256 = if specifiedTokenIs0 { debtOnCurrency1 } else { debtOnCurrency0 };
+
+       if @evm_slt(unspecified, 0) {
+	  @mstore4(afterSwapMemBuffPtr, NOTIFY_DEBT_SELECTOR);
+	  @mstore32(afterSwapMemBuffPtr+%4, 0);
+	  if !@evm_call(@evm_gas(), unspecifiedCurrency, NO_VALUE, afterSwapMemBuffPtr, 36, 0, 0) {
+	     // cast sig "FailedOnNotifyDebtUnspecifiedAfterSwap()"
+	     @mstore4(afterSwapMemBuffPtr, 0x404db8a1);
+	     @evm_revert(afterSwapMemBuffPtr, 4);
+	  }
+       	  @mstore4(afterSwapMemBuffPtr, SYNC_SELECTOR);
+	  @mstore32(afterSwapMemBuffPtr+%4, unspecifiedCurrency);
+	  if !@evm_call(@evm_gas(), rawPoolManager, NO_VALUE, afterSwapMemBuffPtr, 36, 0, 0) {
+	     // cast sig "FailedOnSyncUnspecifiedAfterSwap()"
+	     @mstore4(afterSwapMemBuffPtr, 0x564b9979);
+	     @evm_revert(afterSwapMemBuffPtr, 4);
+	  }
+	  @mstore4(afterSwapMemBuffPtr, NOTIFY_DEBT_SELECTOR);
+	  @mstore32(afterSwapMemBuffPtr+%4, neg_u256(unspecified));
+	  if !@evm_call(@evm_gas(), unspecifiedCurrency, NO_VALUE, afterSwapMemBuffPtr, 36, 0, 0) {
+	     // cast sig "FailedOnNotifyDebtUnspecifiedAfterSwap()"
+	     @mstore4(afterSwapMemBuffPtr, 0x404db8a1);
+	     @evm_revert(afterSwapMemBuffPtr, 4);
+	  }
+	  @mstore4(afterSwapMemBuffPtr, SETTLE_FOR_SELECTOR);
+	  @mstore32(afterSwapMemBuffPtr+%4, @evm_address_this());
+	  if !@evm_call(@evm_gas(), rawPoolManager, NO_VALUE, afterSwapMemBuffPtr, 36, 0, 0) {
+	     // cast sig "FailedOnSettleUnspecifiedAfterSwap()"
+	     @mstore4(afterSwapMemBuffPtr, 0x607449d7);
+	     @evm_revert(afterSwapMemBuffPtr, 4);
+	  }
+       } else if @evm_slt(0, unspecified) {
+       	  @mstore4(afterSwapMemBuffPtr, TAKE_SELECTOR);
+	  @mstore32(afterSwapMemBuffPtr+%4, unspecifiedCurrency);
+	  @mstore32(afterSwapMemBuffPtr+%36, @evm_address_this());
+	  @mstore32(afterSwapMemBuffPtr+%68, unspecified);
+	  if !@evm_call(@evm_gas(), rawPoolManager, NO_VALUE, afterSwapMemBuffPtr, 100, 0, 0) {
+	     // cast sig "FailedOnTakeAfterSwap()"
+	     @mstore4(afterSwapMemBuffPtr, 0xfc310373);
+	     @evm_revert(afterSwapMemBuffPtr, 4);
+	  }
+       }
+
+       @mstore4(afterSwapMemBuffPtr, AFTER_SWAP_SELECTOR);
+       @mstore32(afterSwapMemBuffPtr+%32, unspecified);
+       @evm_return(afterSwapMemBuffPtr, 64);
+    }
+
+    else if selector == SET_POOL_MANAGER_SELECTOR {
+    	 storePoolManager(@evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32),32);
+    }
+    
+    else {
+    	 @evm_return(@malloc_zeroed(32),32);
+    }
+}

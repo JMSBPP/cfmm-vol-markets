@@ -1,8 +1,17 @@
 {
-  "lib/bunni-v2": {
-    "tag": {
-      "name": "v1.2.1",
-      "rev": "000f79a38bdd3fb2b314dc8c108b2a3d1ca1d440"
+  "data": {
+    "branch": {
+      "name": "main",
+      "rev": "94e75b1892b31a4d2ce6ea43ca0ed4ca35951799"
+    }
+  },
+  "evm-spec-bridge": {
+    "rev": "b4c7f179277610af0a0ac7db2b8fa7dfed343464"
+  },
+  "lib/cfmm-types": {
+    "branch": {
+      "name": "develop",
+      "rev": "c1012560d55207a700726a7d06afcc03641a7901"
     }
   },
   "lib/forge-std": {
@@ -12,7 +21,7 @@
     }
   },
   "lib/panoptic-v2-core": {
-    "rev": "5555b320663385f0ab0c8fa511c74d4f0e34cb80"
+    "rev": "a5d704710945455dbd2541fcac0a85e8d89bc547"
   },
   "lib/plank-foundry-deployer": {
     "rev": "24fe42f1021f956838504fcad40a90f45e8ee218"
@@ -23,19 +32,19 @@
       "rev": "c6f969fae95a23805d9a3fc55ea46a513d4463c9"
     }
   },
-  "lib/plankified-univ3": {
-    "rev": "9a89319ccb01cc61e8a698c089133e7084605150"
+  "lib/solady": {
+    "rev": "258f67cc71e39cff307b726939ade17e9d8bcf5c"
   },
-  "lib/protocol": {
+  "lib/v4-core": {
     "tag": {
-      "name": "v3.2.0",
-      "rev": "41e19975946ac60927f3db7087f6c0b67bf752bb"
+      "name": "v4.0.0",
+      "rev": "e50237c43811bd9b526eff40f26772152a42daba"
     }
   },
-  "lib/v3-core": {
-    "branch": {
-      "name": "0.8",
-      "rev": "6562c52e8f75f0c10f9deaf44861847585fc8129"
-    }
+  "offchain": {
+    "rev": "b1104974f001d6e67e41cf09388e79df647bf466"
+  },
+  "refs": {
+    "rev": "3a35f7c986f55c4172d198ac83fd9c95e35422e2"
   }
 }

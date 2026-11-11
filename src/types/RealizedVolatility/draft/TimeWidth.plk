@@ -1,0 +1,23 @@
+import std::core::uint::u24;
+import std::constructor::return_runtime;
+import lib::RealizedVolatility::draft::TimeSpacingOps::div;
+
+
+const Min = struct {};
+
+const MaxTimeWidth = fn(T: type) type {
+      TimeSpacing(T) {}
+};
+
+const TimeWidth = fn(F:type, A: type) u24 {
+      if T == Min {
+      	 TimeWidth()    	       	 
+      } else if T == Max(A) {
+          cast_uint(div(CurrentTimestamp,A),u24)	
+      }
+
+};
+
+init {return_runtime();}
+
+run {@evm_stop();}

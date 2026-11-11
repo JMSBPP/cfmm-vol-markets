@@ -1,0 +1,4 @@
+TickRealizedVolatilityTest
+└── When setTick is called with tickCalldata
+    ├── When tickAverageState is initialized
+    │   └── It should set the prevTick2Acc to the tickCalldata squared delta with TickAvg.

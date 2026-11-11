@@ -1,0 +1,167 @@
+use custom_utils::numerics::WAD::WAD;
+use Exposure::Exposure::{Exposure, exposureSizeVal, exposureSizeWord};
+use custom_utils::cfmm_types::TickPrecedence::TickPrecedence;
+use custom_utils::cfmm_types::Tick::Tick;
+use custom_utils::cfmm_types::TickSpacing::DefaultTickSpacing;
+use custom_utils::cfmm_types::SqrtPrice::{sqrtPriceFromTick, sqrtPriceWord};
+use ProtocolSync::AlignCalldata::AlignCalldata;
+
+// TODO: This type needs refinement as it can be missread; This ends up being mapped to amountSpecified
+// on SwapParams
+const TickDistance = u256;
+
+// =========================== INPUT: TickDistance =================================
+
+// ============================ OUTPUT: TickDistance =================================
+const nullTickDistance = fn () TickDistance {
+      0
+};
+
+const arbitraryDistance = fn () TickDistance {
+      WAD
+};
+
+// A: exactOut amount for current→target under exposure.size as L.
+// direction (precedesTick) true ⇒ price down ⇒ zeroForOne ⇒ amount1 out;
+// false ⇒ price up ⇒ amount0 out.
+const ExposureAndDirectionAwareTickDistance = fn (
+    alignCalldata: AlignCalldata,
+    direction: TickPrecedence,
+    exposure: Exposure
+) TickDistance {
+      let ts = DefaultTickSpacing();
+      let cur: Tick = Tick { val: @get_field(alignCalldata, 0), ts: ts };
+      let tgt: Tick = Tick { val: @get_field(alignCalldata, 1), ts: ts };
+      let sqrtA: u256 = sqrtPriceWord(sqrtPriceFromTick(cur));
+      let sqrtB: u256 = sqrtPriceWord(sqrtPriceFromTick(tgt));
+      let liquidity: u256 = exposureSizeWord(exposureSizeVal(exposure));
+      if direction {
+      	 getAmount1DeltaUnsigned(sqrtA, sqrtB, liquidity, true)
+      } else {
+      	 getAmount0DeltaUnsigned(sqrtA, sqrtB, liquidity, true)
+      }
+};
+
+// ---------------------------------------------------------------------------
+// Vendored from plankified-univ3 plank/lib/math/sqrt_price_math.plk (+ full_math /
+// unsafe_math / fixed_point_96 helpers needed by getAmount0/1Delta).
+// ---------------------------------------------------------------------------
+
+const RESOLUTION = 96;
+const Q96 = 1 << 96;
+
+const revert_empty = fn () never {
+      @evm_revert(@malloc_uninit(0), 0);
+};
+
+/// @notice Returns ceil(x / y)
+const divRoundingUp = fn (x: u256, y: u256) u256 {
+      x </ y + if @evm_mod(x, y) > 0 { 1 } else { 0 }
+};
+
+/// @title Contains 512-bit math functions
+const mulDiv = fn (a: u256, b: u256, denominator: u256) u256 {
+      let mut prod0 = a *% b;
+      let mm = @evm_mulmod(a, b, @evm_not(0));
+      let mut prod1 = mm -% prod0 -% if mm < prod0 { 1 } else { 0 };
+
+      if prod1 == 0 {
+      	 if denominator == 0 {
+	    revert_empty();
+	 }
+	 return prod0 </ denominator;
+      }
+
+      if denominator <= prod1 {
+      	 revert_empty();
+      }
+
+      let remainder = @evm_mulmod(a, b, denominator);
+
+      prod1 = prod1 -% if remainder > prod0 { 1 } else { 0 };
+      prod0 = prod0 -% remainder;
+
+      let mut twos = denominator & (~denominator + 1);
+      let mut denom = denominator </ twos;
+
+      prod0 = prod0 </ twos;
+
+      twos = (0 -% twos) </ twos +% 1;
+      prod0 = prod0 | (prod1 *% twos);
+
+      let mut inv = (3 *% denom) ^ 2;
+      inv = inv *% (2 -% (denom *% inv));
+      inv = inv *% (2 -% (denom *% inv));
+      inv = inv *% (2 -% (denom *% inv));
+      inv = inv *% (2 -% (denom *% inv));
+      inv = inv *% (2 -% (denom *% inv));
+      inv = inv *% (2 -% (denom *% inv));
+
+      return prod0 *% inv;
+};
+
+const mulDivRoundingUp = fn (a: u256, b: u256, denominator: u256) u256 {
+      let result = mulDiv(a, b, denominator);
+      if @evm_mulmod(a, b, denominator) > 0 {
+      	 if result == @evm_not(0) {
+	    revert_empty();
+	 }
+	 return result + 1;
+      }
+      return result;
+};
+
+/// @notice Gets the amount0 delta between two prices
+const getAmount0DeltaUnsigned = fn (sqrtRatioAX96: u256, sqrtRatioBX96: u256, liquidity: u256, roundUp: bool) u256 {
+      let mut a = sqrtRatioAX96;
+      let mut b = sqrtRatioBX96;
+      if a > b {
+      	 let tmp = a;
+	 a = b;
+	 b = tmp;
+      }
+      let numerator1 = liquidity << RESOLUTION;
+      let numerator2 = b - a;
+      if a == 0 {
+      	 revert_empty();
+      }
+      if roundUp {
+      	 divRoundingUp(mulDivRoundingUp(numerator1, numerator2, b), a)
+      } else {
+      	 mulDiv(numerator1, numerator2, b) </ a
+      }
+};
+
+/// @notice Gets the amount1 delta between two prices
+const getAmount1DeltaUnsigned = fn (sqrtRatioAX96: u256, sqrtRatioBX96: u256, liquidity: u256, roundUp: bool) u256 {
+      let mut a = sqrtRatioAX96;
+      let mut b = sqrtRatioBX96;
+      if a > b {
+      	 let tmp = a;
+	 a = b;
+	 b = tmp;
+      }
+      if roundUp {
+      	 mulDivRoundingUp(liquidity, b - a, Q96)
+      } else {
+      	 mulDiv(liquidity, b - a, Q96)
+      }
+};
+
+/// @notice Helper that gets signed token0 delta
+const getAmount0Delta = fn (sqrtRatioAX96: u256, sqrtRatioBX96: u256, liquidity: u256) u256 {
+      if @evm_slt(liquidity, 0) {
+      	 -getAmount0DeltaUnsigned(sqrtRatioAX96, sqrtRatioBX96, -liquidity, false)
+      } else {
+      	 getAmount0DeltaUnsigned(sqrtRatioAX96, sqrtRatioBX96, liquidity, true)
+      }
+};
+
+/// @notice Helper that gets signed token1 delta
+const getAmount1Delta = fn (sqrtRatioAX96: u256, sqrtRatioBX96: u256, liquidity: u256) u256 {
+      if @evm_slt(liquidity, 0) {
+      	 -getAmount1DeltaUnsigned(sqrtRatioAX96, sqrtRatioBX96, -liquidity, false)
+      } else {
+      	 getAmount1DeltaUnsigned(sqrtRatioAX96, sqrtRatioBX96, liquidity, true)
+      }
+};

@@ -1,0 +1,13 @@
+LiquidityChunkMinterAlgebraTest
+├── when pool spacing differs from chunk spacing
+│   └── it should revert with PoolSpacingMismatch
+├── when adapter is zero
+│   └── it should revert with ZeroAdapter
+├── when payer is zero
+│   └── it should revert with ZeroPayer
+├── when beneficiary is zero
+│   └── it should revert with ZeroBeneficiary
+└── when the Algebra mint command is valid
+    ├── it should preserve the common command fields
+    ├── it should preserve the leftovers recipient
+    └── it should preserve the typed liquidity chunk

@@ -1,0 +1,58 @@
+name: spec-tools-image
+
+# Publish the pinned GHCR image used by `just idris` / `just spec-compile`.
+# Decoupled from push-build so ordinary pushes never rebuild (~10m) on miss.
+# Docs: https://docs.github.com/en/actions/using-workflows
+#        https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry
+
+on:
+  push:
+    branches:
+      - develop
+      - 'type/**'
+      - 'feat/**'
+      - 'fix/**'
+    paths:
+      - Dockerfile.spec-tools
+      - .github/spec-tools-image
+      - .github/workflows/spec-tools-image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: spec-tools-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: [self-hosted, cfmm-build]
+    timeout-minutes: 45
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          set-safe-directory: false
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push pin
+        run: |
+          set -euo pipefail
+          img="$(tr -d '[:space:]' < .github/spec-tools-image)"
+          just spec-tools-build
+          docker push "$img"
+          {
+            echo "### Spec tools image"
+            echo ""
+            echo "Pushed \`$img\`"
+          } >> "$GITHUB_STEP_SUMMARY"

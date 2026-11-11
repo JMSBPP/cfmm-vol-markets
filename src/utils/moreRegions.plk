@@ -1,0 +1,7 @@
+pub use std::regions::{memory,calldata};
+
+const storage = struct {};
+const transient_storage = struct{};
+
+
+

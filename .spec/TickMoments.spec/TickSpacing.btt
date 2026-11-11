@@ -1,0 +1,10 @@
+TickSpacingTest
+└── When set_tick_spacing is called
+    ├── When the tickSpacingCalldata is between MIN_TICK_SPACING and MAX_TICK_SPACING
+    │   ├── It should set tickSpacingVal to tickSpacingCalldata.
+    ├── When the tickSpacingCalldata is greater than MAX_TICK_SPACING
+    │   ├── It should set the tickSpacingVal to MAX_TICK_SPACING.
+    │   ├── It should log "tickSpacingCalldata out of bounds:: set to MAX_TICK_SPACING".
+    └── When the tickSpacingCalldata is zero
+        ├── It should set the tickSpacingVal to MIN_TICK_SPACING.
+        ├── It should log "tickSpacingCalldata out of bounds:: set to MIN_TICK_SPACING".

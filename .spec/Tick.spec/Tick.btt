@@ -1,0 +1,6 @@
+TickTest
+└── When set_tick is called
+    ├── When tickSpacingOn storage is not set
+    │   ├── It should revert.
+    ├── When tickSpacingOn storage is set
+    │   ├── It should set tickVal to normTickVal.

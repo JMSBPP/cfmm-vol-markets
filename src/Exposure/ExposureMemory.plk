@@ -1,0 +1,12 @@
+use std::regions::memory;
+use std::slice::{Slice,new};
+pub use Exposure::Exposure::exposureMemory;
+use Exposure::Exposure::Exposure;
+use std::option::Some;
+use custom_utils::moreRegions::storage;
+
+const ExposureMemory = Slice(memory, u256, Some(3));
+
+const nullExposureMemory = fn() ExposureMemory {
+      new(memory, (0,0,0))
+};

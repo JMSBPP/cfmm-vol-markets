@@ -1,0 +1,193 @@
+import std::core::addr::cast_addr;
+import std::core::ops::{checked_add, checked_mul, neg_u256};
+import std::error::require;
+import std::option::{None, Option, Some};
+import cfmm_types::TimeSpacing::{TimeSpacing, n};
+import types::IO::{IO, Outcome, outcome_revert, outcome_success};
+import types::TokenFlow::TokenFlow;
+import types::protocol_integrations::Pool::{Pool, pool_word};
+import types::protocol_integrations::Venue::Algebra;
+
+/// types.toml: StateView
+/// .spec: .spec/REALIZED_VOLATILITY.spec/types/StateView/StateView.md
+/// .btt: StateViewIntroAnchor.btt, StateViewHistory.btt, StateViewRunSwap.btt
+/// PRD: https://github.com/JMSBPP/cfmm-vol-markets/issues/134
+
+// cast sig "ZeroPool()" -> 0xd0d6cb32
+const SEL_ZERO_POOL = 0xd0d6cb32;
+const SEL_GLOBAL_STATE = 0xe76c01e4;
+const SEL_SWAP = 0x128acb08;
+const POOL_MASK_U160 = 0xffffffffffffffffffffffffffffffffffffffff;
+const MIN_SQRT_RATIO = 4295128739;
+const MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
+
+const revert_sel = fn (sel: u256) never {
+    let p = @malloc_uninit(4);
+    @mstore4(p, sel);
+    @evm_revert(p, 4);
+};
+
+/// ObsStep(dt) <- (t, tick, sqrt_p)  — spec: ObsStep(bar_dt)
+const ObsStep = fn (comptime dt: u256) type {
+    let _ = TimeSpacing(dt);
+    struct {
+        t: u256,
+        tick: u256,
+        sqrt_p: u256
+    }
+};
+
+/// StateView(dt, 0) = eps; StateView(dt, S k) = ObsStep(dt) x StateView(dt, k)
+const StateView = fn (comptime dt: u256, comptime k: u256) type {
+    let _ = TimeSpacing(dt);
+    if k == 0 {
+        struct {}
+    } else {
+        struct {
+            head: ObsStep(dt),
+            tail: StateView(dt, k -% 1)
+        }
+    }
+};
+
+/// Anchor: pool + time origin (no oracle in this slice).
+const StateViewAnchor = struct {
+    pool: Pool(Algebra),
+    t_init: u256
+};
+
+/// Realize bin j: pool swap driven by TokenFlow slot (Swap Eff; not run_io).
+const RealizeCmd = struct {
+    pool: Pool(Algebra),
+    flow: TokenFlow(),
+    bin_j: u256
+};
+
+/// Behavior: StateViewRunSwap.btt — pure wrap; execution is run_swap only.
+const io_realize = fn (cmd: RealizeCmd) IO(RealizeCmd) {
+    IO(RealizeCmd) { inner: cmd }
+};
+
+/// Minimal define encoding: exact-input swap from TokenFlow (token0/token1 refine later).
+const swap_amount_required = fn (flow: TokenFlow()) u256 {
+    if flow.dir == 0 {
+        flow.amount
+    } else {
+        neg_u256(flow.amount)
+    }
+};
+
+const swap_zero_to_one = fn (flow: TokenFlow()) bool {
+    flow.dir == 0
+};
+
+const swap_limit_sqrt = fn (zero_to_one: bool) u256 {
+    if zero_to_one {
+        MIN_SQRT_RATIO +% 1
+    } else {
+        MAX_SQRT_RATIO -% 1
+    }
+};
+
+/// Swap calldata: empty dynamic `bytes` tail is `(payer, pool)` for `algebraSwapCallback`.
+const call_algebra_swap = fn (pool_u: u256, recipient: u256, payer: u256, flow: TokenFlow()) bool {
+    let zero_to_one = swap_zero_to_one(flow);
+    let amount_req = swap_amount_required(flow);
+    let limit = swap_limit_sqrt(zero_to_one);
+    let cd = @malloc_uninit(260);
+    @mstore4(cd, SEL_SWAP);
+    @mstore32(cd +% 4, recipient);
+    @mstore32(cd +% 36, if zero_to_one { 1 } else { 0 });
+    @mstore32(cd +% 68, amount_req);
+    @mstore32(cd +% 100, limit);
+    @mstore32(cd +% 132, 160);
+    @mstore32(cd +% 164, 64);
+    @mstore32(cd +% 196, payer);
+    @mstore32(cd +% 228, pool_u);
+    let ret = @malloc_uninit(64);
+    @evm_call(@evm_gas(), pool_u, 0, cd, 260, ret, 64)
+};
+
+/// Behavior: StateViewRunSwap.btt — Swap(pool, encode(flow)); not run_io (Xfer ⊂ Swap).
+const run_swap = fn (m: IO(RealizeCmd)) Outcome() {
+    let cmd = m.inner;
+    let pool_u = pool_word(Algebra, cmd.pool);
+    if (pool_u == 0) | (cmd.flow.amount == 0) {
+        outcome_revert()
+    } else {
+        let payer = cast_addr(cmd.flow.from, u256);
+        let ok = call_algebra_swap(pool_u, @evm_address_this(), payer, cmd.flow);
+        if ok {
+            outcome_success()
+        } else {
+            outcome_revert()
+        }
+    }
+};
+
+/// Behavior: StateViewIntroAnchor.btt
+const intro_anchor = fn (pool: Pool(Algebra)) StateViewAnchor {
+    if pool_word(Algebra, pool) == 0 {
+        revert_sel(SEL_ZERO_POOL);
+    }
+    StateViewAnchor {
+        pool: pool,
+        t_init: @evm_timestamp()
+    }
+};
+
+const PoolObs = struct { tick: u256, sqrt_p: u256 };
+
+/// Pool View: Algebra globalState (prefix slice; post-realize refines via run_swap).
+const algebra_pool_obs = fn (pool_u: u256) PoolObs {
+    let cd = @malloc_uninit(4);
+    @mstore4(cd, SEL_GLOBAL_STATE);
+    let ret = @malloc_uninit(192);
+    require(@evm_staticcall(@evm_gas(), pool_u, cd, 4, ret, 192));
+    PoolObs {
+        sqrt_p: @evm_and(@mload32(ret), POOL_MASK_U160),
+        tick: @evm_signextend(3, @mload32(ret +% 32))
+    }
+};
+
+/// Behavior: StateViewHistory.btt — |StateView| for valid prefix K.
+const intro_len = fn (comptime dt: u256, k: u256) u256 {
+    comptime let nmax = n(dt);
+    if (k == 0) | (k >= nmax) {
+        0
+    } else {
+        k
+    }
+};
+
+/// Behavior: StateViewHistory.btt — guards + ObsStep(t_j, pool View); realize_j refines tick/sqrt.
+const step_k = fn (
+    comptime dt: u256,
+    anchor: StateViewAnchor,
+    k: u256,
+    j: u256
+) Option(ObsStep(dt)) {
+    comptime let nmax = n(dt);
+    if (k == 0) | (k >= nmax) | (j >= k) {
+        None(ObsStep(dt))
+    } else {
+        let pool_u = pool_word(Algebra, anchor.pool);
+        let view = algebra_pool_obs(pool_u);
+        let t_j = checked_add(anchor.t_init, checked_mul(j, dt));
+        Some(ObsStep(dt) {
+            t: t_j,
+            tick: view.tick,
+            sqrt_p: view.sqrt_p
+        })
+    }
+};
+
+/// hole: pool_tick_after — i(t_j+) after run_swap; View_pool
+const pool_tick_after = fn (anchor: StateViewAnchor) u256 {
+    @compile_error("StateView.pool_tick_after: define phase");
+};
+
+/// hole: encode_flow_to_swap — RealizeCmd.flow -> swap calldata; refine
+const encode_flow_to_swap = fn (cmd: RealizeCmd) u256 {
+    @compile_error("StateView.encode_flow_to_swap: refine phase");
+};
