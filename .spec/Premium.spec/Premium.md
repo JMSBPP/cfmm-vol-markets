@@ -18,6 +18,18 @@ import [\(\pi^{\mathrm{RAN}}\)](@spec/RangeAccrual.spec/RangeAccrual.md)
 
 ## Premium \(\pi_{\phi}^{\sigma}\)
 
+(uint128 premium0, uint128 premium1) = ISemiFungiblePositionManager(optionsClearingHouse)
+                .getAccountPremium(
+                    underlyingMarket,
+                    premiumImpl,
+                    CALL,
+                    lo,
+                    hi,
+                    nextTick,
+                    SHORT,
+                    DEFAULT_VEGOID
+                );
+
 
 ###  PremiumRate \(\phi\)
 

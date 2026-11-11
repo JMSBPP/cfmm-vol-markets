@@ -24,8 +24,7 @@ import {
     IEnv,
     IMarketBuilder,
     IMarketLens,
-    IControllerSetter,
-    IPremiumSetter
+    IControllerSetter
 } from "./NoFeeVarianceClaimBuilderTest.t.sol";
 
 uint24 constant LOCKED_TICK_SPACING = 60;
@@ -34,6 +33,14 @@ uint160 constant DEFAULT_INIT_PRICE = Constants.SQRT_PRICE_1_1;
 uint8 constant DEFAULT_VEGOID = 2;
 uint256 constant CALL = 0;
 uint256 constant SHORT = 0;
+
+interface IPremiumRateSetter {
+    function setPremiumRate(uint24) external;
+}
+
+interface IPremiumRateReader {
+    function readPremiumRate() external returns (uint24);
+}
 
 interface IInstrumentEngine {
     function startReplication() external;
@@ -90,7 +97,7 @@ contract PremiumTest is PlankTestBase, Deployers, HookDeployer {
 
     function test__WhenStartReplication(uint24 premiumRate) external {
         uint24 someFixedPremiumRate = uint24(bound(premiumRate, 0, SwapMath.MAX_SWAP_FEE - 1));
-        IPremiumSetter(premiumImpl).setPremiumRate(someFixedPremiumRate);
+        IPremiumRateSetter(premiumImpl).setPremiumRate(someFixedPremiumRate);
 
         int24 initTick = TickMath.getTickAtSqrtPrice(DEFAULT_INIT_PRICE);
         ITick(premiumImpl).set_tick(initTick);

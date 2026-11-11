@@ -1,5 +1,5 @@
 use std::core::uint::{
-    u16, try_cast_uint
+    u24, try_cast_uint
 };
 use std::core::ops::{greater_equals, less_equals};
 use std::option::{unwrap, is_some};
@@ -24,10 +24,10 @@ const SET_PREMIUM_RATE_SELECTOR = 0x39556ec8;
 // readPremiumRate is to be placed on Main and do ReturnPremiumRate (PremiumRateOnProtocol (uniswap, loadAssetMemory (storage)))
 const READ_PREMIUM_RATE_SELECTOR = 0xdce69e18;
 
-const PremiumRate = u16;
+const PremiumRate = u24;
 
-// Algebra Constants.MAX_DEFAULT_FEE
-const MAX_FEE_RATE = 50000;
+// SwapMath.MAX_SWAP_FEE
+const MAX_FEE_RATE = 1000000;
 
 // Uniswap v4 Slot0: lpFee at bit 208
 const LP_FEE_OFFSET = 208;
@@ -70,12 +70,12 @@ const LogPremiumRate = fn (val: PremiumRate, log: type) void {
       let logMemPtr: u256 = @malloc_uninit(32);
       if log == OverFlowPremiumRate {
       	 @mstore32(logMemPtr, PremiumRateWord(val));
-      	 @evm_log1(logMemPtr, 32, @keccak256_cbytes("OverFlowPremiumRate(uint16)"));
+      	 @evm_log1(logMemPtr, 32, @keccak256_cbytes("OverFlowPremiumRate(uint24)"));
       	 LogPremiumRate(MaxPremiumRate(), UpdatePremiumRate);
       }
       else if log == UpdatePremiumRate {
       	 @mstore32(logMemPtr, PremiumRateWord(val));
-      	 @evm_log1(logMemPtr, 32, @keccak256_cbytes("UpdatePremiumRate(uint16)"));
+      	 @evm_log1(logMemPtr, 32, @keccak256_cbytes("UpdatePremiumRate(uint24)"));
       }
 };
 
@@ -94,25 +94,25 @@ const ReturnPremiumRate = fn (self: PremiumRate) never {
 // ============================ OUTPUT: PremiumRate =================================
 
 const NullPremiumRate = fn () PremiumRate {
-    unwrap(try_cast_uint(0, u16))
+    unwrap(try_cast_uint(0, u24))
 };
 
 const MinPremiumRate = fn () PremiumRate {
-    unwrap(try_cast_uint(0, u16))
+    unwrap(try_cast_uint(0, u24))
 };
 
 const MaxPremiumRate = fn () PremiumRate {
-      unwrap(try_cast_uint(MAX_FEE_RATE, u16))
+      unwrap(try_cast_uint(MAX_FEE_RATE, u24))
 };
 
 const InvalidPremiumRate = fn () PremiumRate {
-        unwrap(try_cast_uint(0xffff, PremiumRate))          
+        unwrap(try_cast_uint(0xffffff, PremiumRate))          
 };
 
 const PremiumRateFromWord = fn(premiumRateWord :u256) PremiumRate {
     let maxRate = MaxPremiumRate();
-    let castOpt = try_cast_uint(premiumRateWord, u16);
-    if is_some(u16, castOpt) {
+    let castOpt = try_cast_uint(premiumRateWord, u24);
+    if is_some(u24, castOpt) {
       	 let rate = unwrap(castOpt);
       	 if GreaterThanPremiumRate(rate, maxRate) {
       	     LogPremiumRate(rate, OverFlowPremiumRate);
