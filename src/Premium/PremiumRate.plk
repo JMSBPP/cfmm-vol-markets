@@ -4,14 +4,11 @@ use std::core::uint::{
 use std::core::ops::{greater_equals, less_equals};
 use std::option::{unwrap, is_some};
 use std::regions::calldata;
-use custom_utils::moreRegions::storage;
+use custom_utils::more_regions::storage;
 use custom_utils::protocol_integrations::UniswapV4Consumer::{
-    EXTSLOAD_SELECTOR, POOLS_SLOT, POOL_MANAGER_SLOT
+    EXTSLOAD_SELECTOR, POOLS_SLOT, LP_FEE_OFFSET, uniswap, consumer
 };
-use Asset::Asset::AssetMemory;
-
-// uniswap is a struct { ref : POOL_MANAGER} type
-const uniswap = struct { ref: u256 };
+use custom_utils::cfmm_types::Market::MarketMemory;
 
 // cast keccak VolMarkets.PremiumRate
 
@@ -21,17 +18,13 @@ const PREMIUM_RATE_SLOT = 0x8282207cddb7dec248797bd40ba3d2a32ae0064c024d6111c594
 const SET_PREMIUM_RATE_SELECTOR = 0x39556ec8;
 
 // cast sig "readPremiumRate()"
-// readPremiumRate is to be placed on Main and do ReturnPremiumRate (PremiumRateOnProtocol (uniswap, loadAssetMemory (storage)))
+// readPremiumRate is to be placed on Main and do ReturnPremiumRate (PremiumRateOnProtocol (uniswap, MarketKeyMemoryFrom (storage)))
 const READ_PREMIUM_RATE_SELECTOR = 0xdce69e18;
 
 const PremiumRate = u24;
 
 // SwapMath.MAX_SWAP_FEE
 const MAX_FEE_RATE = 1000000;
-
-// Uniswap v4 Slot0: lpFee at bit 208
-const LP_FEE_OFFSET = 208;
-const LP_FEE_MASK = 0xffffff;
 
 const OverFlowPremiumRate = struct {};
 const UpdatePremiumRate = struct {};
@@ -109,6 +102,16 @@ const InvalidPremiumRate = fn () PremiumRate {
         unwrap(try_cast_uint(0xffffff, PremiumRate))          
 };
 
+const PremiumRateMask = fn () PremiumRate {
+      unwrap(try_cast_uint(0xffffff, PremiumRate))
+};
+
+const MaskedPremiumRate = fn (word: u256, offset: u256) PremiumRate {
+      PremiumRateFromWord(
+      	  @evm_and(@evm_shr(offset, word), PremiumRateWord(PremiumRateMask()))
+      )
+};
+
 const PremiumRateFromWord = fn(premiumRateWord :u256) PremiumRate {
     let maxRate = MaxPremiumRate();
     let castOpt = try_cast_uint(premiumRateWord, u24);
@@ -145,22 +148,21 @@ const StoredPremiumRateOn = fn (on: type, from: type) PremiumRate {
 };
 
 
-const PremiumRateOnProtocol = fn (protocol: type, assetMemory: AssetMemory) PremiumRate {
+const PremiumRateOnProtocol = fn (protocol: type, marketMemory: MarketMemory) PremiumRate {
       if protocol == uniswap {
       	 let packed: u256 = @malloc_uninit(64);
-      	 @mstore32(packed, @evm_keccak256(assetMemory.ptr, 160));
+      	 @mstore32(packed, @evm_keccak256(marketMemory.ptr, 160));
       	 @mstore32(packed +% 32, POOLS_SLOT);
       	 let cd: u256 = @malloc_uninit(36);
       	 @mstore4(cd, EXTSLOAD_SELECTOR);
       	 @mstore32(cd +% 4, @evm_keccak256(packed, 64));
       	 let retBuff: u256 = @malloc_uninit(32);
-      	 if !@evm_staticcall(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), cd, 36, retBuff, 32) {
+      	 if !@evm_staticcall(@evm_gas(), consumer(uniswap, storage), cd, 36, retBuff, 32) {
       	      // cast sig "FailedOnReadSlot0()"
       	      @mstore4(cd, 0x295cbff3);
       	      @evm_revert(cd, 4);
       	 }
-      	 let lpFee = @evm_and(@evm_shr(LP_FEE_OFFSET, @mload32(retBuff)), LP_FEE_MASK);
-      	 PremiumRateFromWord(lpFee)
+      	 MaskedPremiumRate(@mload32(retBuff), LP_FEE_OFFSET)
       }
       else {
       	 @compile_error("PremiumRateOnProtocol: only uniswap");

@@ -1,6 +1,23 @@
-use custom_utils::moreRegions::storage;
+use custom_utils::more_regions::storage;
+use custom_utils::cfmm_types::Tick::Tick;
+use custom_utils::cfmm_types::TickSpacing::{
+    tickSpacingOn, tickSpacingWord
+};
+use Exposure::Exposure::{
+    Range, tickRangeFromTickWords
+};
 use Instrument::InstrumentMemory::InstrumentMemory;
 use std::slice::at;
+
+use std::membytes:: {
+    membytes, membytes_write
+};
+
+use std::constructor::return_runtime;
+
+init {return_runtime();}
+run {@evm_stop();}
+
 
 // cast keccak vol-markets.Instrument
 const INSTRUMENT_SLOT = 0x5fe379eadf961f93313dfc3c6b408e3ac1daa5bcbd88a644f0a30eb30a02f9f4;
@@ -12,9 +29,7 @@ const START_REPLICATION_SELECTOR = 0x7a8c874b;
 // cast sig "instrument()"
 const READ_INSTRUMENT_SELECTOR = 0x5767d534;
 
-const initIdx = fn () u256 {
-      0
-};
+const initIdx = fn () u256 { 0 };
 
 
 const Instrument = u256;
@@ -60,10 +75,13 @@ const log_instrument = fn (self: Instrument, evt: type) void {
       }
 };
 
+
+
 // ===================== OUTPUT : Instrument ===============================
 const instrumentWord = fn (ins: Instrument) u256 {ins}; 
 
-const instrumentOn = fn (on: type) Instrument {
+// TODO: In caps 
+const InstrumentOn = fn (on: type) Instrument {
       let mut resInstrument: Instrument = notYetInstrument();
       if on == storage {
       	 resInstrument = @evm_sload(INSTRUMENT_SLOT); 
@@ -73,12 +91,12 @@ const instrumentOn = fn (on: type) Instrument {
 
 const instrumentReturnEVM = fn () never {
       let ret: u256 = @malloc_uninit(32);
-      @mstore32(ret, instrumentOn(storage));
+      @mstore32(ret, InstrumentOn(storage));
       @evm_return(ret, 32);
 };
 
 const instrumentRevertEVM = fn () void {
-      if !MarketAssigned(instrumentOn(storage)) {
+      if !MarketAssigned(InstrumentOn(storage)) {
       	 // cast sig "MarketNotAssigned()"
       	 let buff: u256 = @malloc_uninit(4);
       	 @mstore4(buff, 0xd10485d2);
@@ -115,6 +133,34 @@ const instrumentFromInstrumentMemory = fn (instrumentMemory: InstrumentMemory) I
       at(instrumentMemory,0)      
 };
 
+// TODO: From now these two types only have a single argument, but when more legs are allowed
+// they need to have more
+const InstrumentOrientationValue = u256;
+
+const InstrumentOrientation = fn (self: Instrument) InstrumentOrientationValue {
+      // this is the equivalent (from now) to tokenType on leg index 0
+      @evm_shr(
+	     self,
+	     @evm_mod(@evm_add(64,@evm_add(@evm_mul(initIdx(),48),9)),2)
+      )
+};
+const InstrumentOrientationMemory = fn (self: Instrument, on: membytes, where: u256) membytes {
+      membytes_write(on, where, InstrumentOrientation(self));
+      on
+};
+const InstrumentDirectionValue = u256;
+const InstrumentDirection = fn (self: Instrument) InstrumentDirectionValue {
+      // this is the equivalent (from now) to isLong on leg index 0
+      @evm_shr(
+	     self,
+	     @evm_mod(@evm_add(64,@evm_add(@evm_mul(initIdx(),48),8)),2)
+      )
+};
+
+const InstrumentDirectionMemory = fn (self: Instrument, on: membytes, where: u256) membytes {
+      membytes_write(on, where, InstrumentDirection(self));
+      on
+};
 
 // TODO: This is tmp only a test uitil convention
 
@@ -124,3 +170,23 @@ const SomeLegZeroInstrumentWidth = fn(self:Instrument, width :u256) Instrument {
 	     @evm_mod(width,4096)
       )
 };
+
+const InstrumentWidth = fn (self: Instrument) u256 {
+      @evm_shr(64 +% (@evm_mul(initIdx(), 48) +% 36), self) & 0xfff
+};
+
+const InstrumentStrike = fn (self: Instrument) u256 {
+      @evm_signextend(2, @evm_shr(64 +% (@evm_mul(initIdx(), 48) +% 12), self) & 0xffffff)
+};
+
+/// Panoptic getTicks: lo = strike - floor(w*ts/2), hi = strike + ceil(w*ts/2)
+const TickRangeFromInstrument = fn (self: Instrument) Range(Tick) {
+      let ts: u256 = tickSpacingWord(tickSpacingOn(storage));
+      let span: u256 = InstrumentWidth(self) *% ts;
+      let rangeDown: u256 = span </ 2;
+      let rangeUp: u256 = span +/ 2;
+      let strike: u256 = InstrumentStrike(self);
+      tickRangeFromTickWords(strike -% rangeDown, strike +% rangeUp)
+};
+
+

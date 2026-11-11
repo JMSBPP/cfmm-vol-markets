@@ -30,6 +30,10 @@ import [\(\pi^{\mathrm{RAN}}\)](@spec/RangeAccrual.spec/RangeAccrual.md)
                     DEFAULT_VEGOID
                 );
 
+protocol ---> DEFAULT_VEGOID
+exposure ----> (lo, hi)
+instrument --> orientation (CALL = UP, SHORT = DOWN)
+         ----> direction (LONG, SHORT )
 
 ###  PremiumRate \(\phi\)
 

@@ -1,0 +1,96 @@
+use std::core::uint::{
+    u128, try_cast_uint
+};
+use std::option::unwrap;
+use std::membytes::{
+    membytes_new, membytes, membytes_write, membytes_read_u256
+};
+
+use custom_utils::eth::NO_VALUE;
+use custom_utils::more_regions::storage;
+use custom_utils::cfmm_types::Asset::{
+    Asset, AssetPair, EqAsset, FirstAsset, SecondAsset
+};
+use custom_utils::cfmm_types::Market::{
+    MarketMemory,
+    MarketKeyMemoryFrom,
+    AssetPairFromMarketKeyMemory
+};
+
+use Exposure::Exposure::{
+    tickLow, tickHigh
+};
+use Instrument::Instrument::{
+    Instrument, InstrumentOrientationMemory,
+    InstrumentDirectionMemory, TickRangeFromInstrument
+};
+
+use custom_utils::protocol_integrations::PanopticV2Consumer::{
+    panoptic, consumer, VEGOID_DEFAULT
+};
+
+use custom_utils::cfmm_types::Tick::{
+    TickMemory, TickOn
+};
+
+
+const Premium = u128;
+
+// cast sig "assetPremium(address)"
+const ASSET_PREMIUM_SELECTOR = 0xaa852236;
+
+const PremiumWord = fn (premium: Premium) u256 {
+      unwrap(try_cast_uint(premium, u256))
+};
+
+const ReturnPremium = fn (self: Premium) never {
+      let ret: u256 = @malloc_uninit(32);
+      @mstore32(ret, PremiumWord(self));
+      @evm_return(ret, 32);
+};
+
+const NullPremium = fn () Premium {
+      unwrap(try_cast_uint(0, u128))
+};
+
+const PremiumFromWord = fn (premiumWord: u256) Premium {
+      unwrap(try_cast_uint(premiumWord, u128))
+};
+
+const AssetPremium = fn (protocol: type, asset: Asset, instrument: Instrument) Premium {
+      // TODO: This is tmp we are looking for a better API
+      let mut assetPremium: Premium = NullPremium();
+      if protocol == panoptic {
+      	 let assetMarket: MarketMemory = MarketKeyMemoryFrom(storage);
+	 let legRange = TickRangeFromInstrument(instrument);
+	 // ABI: head(8*32) + bytes(len+160) = 448; + sel(4) = 452 calldata; +64 ret = 516
+	 let mut assetPremiumMem: membytes = membytes_new(516);
+	 // cast sig "getAccountPremium(bytes,address,uint256,int24,int24,int24,uint256,uint256)"
+	 @mstore4(assetPremiumMem.ptr, 0x77880f15);
+	 membytes_write(assetPremiumMem, 4, 256);
+	 membytes_write(assetPremiumMem, 36, @evm_address_this());
+	 assetPremiumMem = InstrumentOrientationMemory(instrument, assetPremiumMem, 68);
+	 assetPremiumMem = TickMemory(tickLow(legRange), assetPremiumMem, 100);
+	 assetPremiumMem = TickMemory(tickHigh(legRange), assetPremiumMem, 132);
+	 assetPremiumMem = TickMemory(TickOn(storage), assetPremiumMem, 164);
+	 assetPremiumMem = InstrumentDirectionMemory(instrument, assetPremiumMem, 196);
+	 membytes_write(assetPremiumMem, 228, VEGOID_DEFAULT);
+	 membytes_write(assetPremiumMem, 260, 160);
+	 @mcopy(assetPremiumMem.ptr +% 292, assetMarket.ptr, 160);
+	 if !@evm_call(@evm_gas(), consumer(panoptic, storage), NO_VALUE, assetPremiumMem.ptr, 452, assetPremiumMem.ptr +% 452, 64) {
+	    // cast sig "FailedAssetPremium()"
+	    @mstore4(assetPremiumMem.ptr, 0x47f037ed);
+	    @evm_revert(assetPremiumMem.ptr, 4);
+	 }
+	 let assetPair: AssetPair = AssetPairFromMarketKeyMemory(assetMarket);
+	 if EqAsset(asset, FirstAsset(assetPair)) {
+	   assetPremium = PremiumFromWord(unwrap(membytes_read_u256(assetPremiumMem, 452)));
+	 }
+	 else if EqAsset(asset, SecondAsset(assetPair)) {
+	      assetPremium = PremiumFromWord(unwrap(membytes_read_u256(assetPremiumMem, 484)));
+	 }
+      }
+
+      assetPremium
+      
+};

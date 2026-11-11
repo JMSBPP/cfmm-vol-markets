@@ -4,15 +4,15 @@ use std::regions::{
     memory, calldata
 };
 
-use custom_utils::moreRegions::storage;
+use custom_utils::more_regions::storage;
 use custom_utils::eth::NO_VALUE;
 use custom_utils::protocol_integrations::UniswapV4Consumer::{
     POOL_MANAGER_SLOT, SET_POOL_MANAGER_SELECTOR,
-    storePoolManager, loadPoolManager
+    storePoolManager, loadPoolManager, uniswap
 };
 use custom_utils::protocol_integrations::PanopticV2Consumer::{
     POSITION_MANAGER_SLOT, SET_POSITION_MANAGER_SELECTOR, VEGOID_DEFAULT,
-    storePositionManager , positionManagerOn
+    storePositionManager , positionManagerOn, panoptic
 };
 use custom_utils::cfmm_types::Tick::{
     NeqTick, READ_TICK_SELECTOR, SET_TICK_SELECTOR, Tick, TickCalldata,
@@ -43,9 +43,12 @@ use TickMoments::TickRealizedVolatility::{
     StoreTickRealizedVolatilityOn, TickRealizedVolatilityReturnEVM,
     UpdatedTickRealizedVolatilityOn
 };
-use Asset::Asset::{
-    AssetCalldata, storeAsset, AssetMemory, loadAssetMemory,
-    SET_PAIR_SELECTOR, GET_MARKET_KEY_SELECTOR, SELECT_ASSET_SELECTOR
+use custom_utils::cfmm_types::Asset::{
+    AssetCalldata, storeAsset,
+    SET_PAIR_SELECTOR, SELECT_ASSET_SELECTOR
+};
+use custom_utils::cfmm_types::Market::{
+    MarketMemory, MarketKeyMemoryFrom, GET_MARKET_KEY_SELECTOR
 };
 use ProtocolSync::AlignCalldata::{
     AlignCalldata, completeAlignTickCalldata, partialAlignTickCalldata
@@ -58,7 +61,11 @@ use Controllers::Controller::{CONTROLLER_SLOT, SET_CONTROLLER_SELECTOR};
 use Premium::PremiumRate::{
     SET_PREMIUM_RATE_SELECTOR, READ_PREMIUM_RATE_SELECTOR,
     StoredPremiumRateOn, NoReturnPremiumRate,
-    ReturnPremiumRate, PremiumRateOnProtocol, uniswap
+    ReturnPremiumRate, PremiumRateOnProtocol
+};
+
+use Premium::Premium::{
+    ASSET_PREMIUM_SELECTOR, ReturnPremium, AssetPremium
 };
 
 
@@ -67,7 +74,7 @@ use Instrument::Instrument::{
     LogMarketAssigned, log_instrument, LogInstrumentInitialized,
     READ_INSTRUMENT_SELECTOR, START_REPLICATION_SELECTOR,
     instrumentReturnEVM, instrumentRevertEVM,
-    instrumentFromInstrumentMemory
+    instrumentFromInstrumentMemory, InstrumentOn
 };
 
 use Instrument::InstrumentMemory :: {
@@ -107,13 +114,13 @@ run {
 	 let positionManager: u256 = @evm_sload(POSITION_MANAGER_SLOT);
 	 let currentSlot0SqrtPriceOnPoolManager: SqrtPrice =  slot0SqrtPriceOnLocalAsset();
     	 if EqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
-	    let assetMemory: AssetMemory = loadAssetMemory(storage);
+	    let marketMemory: MarketMemory = MarketKeyMemoryFrom(storage);
 	    // layout: sel+PoolKey+arg (196) | ret (32) → 228
 	    let mut initMemPtr: u256 = @malloc_uninit(228);
 
 	    // cast sig "initialize((address,address,uint24,int24,address),uint160)"
 	    @mstore4(initMemPtr, 0x6276cbbe);
-	    @mcopy(initMemPtr +% 4, assetMemory.ptr, 160);
+	    @mcopy(initMemPtr +% 4, marketMemory.ptr, 160);
 	    @mstore32(initMemPtr +% 164, sqrtPriceWord(sqrtPriceFromTick(tick)));
 
 	    if !@evm_call(@evm_gas(), poolManager, NO_VALUE, initMemPtr, 196, initMemPtr +% 196, 32) {
@@ -218,12 +225,12 @@ run {
     }
 
     else if selector == GET_MARKET_KEY_SELECTOR {
-    	 let assetMemory: AssetMemory = loadAssetMemory(storage);
-	 let payloadLen: u256 = len(assetMemory) * 32;
+    	 let marketMemory: MarketMemory = MarketKeyMemoryFrom(storage);
+	 let payloadLen: u256 = len(marketMemory) * 32;
 	 let ret: u256 = @malloc_uninit(64 + payloadLen);
 	 @mstore32(ret, 0x20);
 	 @mstore32(ret +% 32, payloadLen);
-	 @mcopy(ret +% 64, assetMemory.ptr, payloadLen);
+	 @mcopy(ret +% 64, marketMemory.ptr, payloadLen);
     	 @evm_return(ret, 64 + payloadLen);
     }
 
@@ -239,7 +246,11 @@ run {
     }
 
     else if selector == READ_PREMIUM_RATE_SELECTOR {
-    	 ReturnPremiumRate(PremiumRateOnProtocol(uniswap, loadAssetMemory(storage)));
+    	 ReturnPremiumRate(PremiumRateOnProtocol(uniswap, MarketKeyMemoryFrom(storage)));
+    }
+
+    else if selector == ASSET_PREMIUM_SELECTOR {
+    	 ReturnPremium(AssetPremium(panoptic, @evm_calldataload(4), InstrumentOn(storage)));
     }
 
     // ===================== CONTROLLER ===============================
@@ -289,18 +300,19 @@ run {
     	 instrumentRevertEVM();
 	 let replicationMemBuffPtr: u256 = @malloc_uninit(548);
 	 
-	 let assetMemory: AssetMemory = loadAssetMemory(storage);
+	 let marketMemory: MarketMemory = MarketKeyMemoryFrom(storage);
 	 @mstore32(replicationMemBuffPtr+%4, 160);
 
 	 let mut instrumentMemory: InstrumentMemory = initializeInstrumentMemory(loadInstrumentMemory(storage));
 	 
 	 let exposure: ExposureMemory = exposureMemory(ArbitraryExposure(memory));
 	 instrumentMemory = ExposureMemoryEffectOnInstrumentMemory(instrumentMemory, exposure);
+	 store_instrument(instrumentFromInstrumentMemory(instrumentMemory), storage);
 	 
 	 @mcopy(replicationMemBuffPtr+%36,instrumentMemory.ptr,32);
 	 @mcopy(replicationMemBuffPtr+%68,exposure.ptr,96);
 	 @mstore32(replicationMemBuffPtr+%164, 160);
-	 @mcopy(replicationMemBuffPtr+%196,assetMemory.ptr,@mload32(replicationMemBuffPtr+%164));
+	 @mcopy(replicationMemBuffPtr+%196,marketMemory.ptr,@mload32(replicationMemBuffPtr+%164));
 	 // cast sig "mintTokenizedPosition(bytes,uint256,uint128,int24,int24)"
 	 @mstore4(replicationMemBuffPtr, 0x41a058ef);
 

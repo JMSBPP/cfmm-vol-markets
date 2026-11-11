@@ -1,7 +1,30 @@
 use custom_utils::protocol_integrations::UniswapV4Consumer::POOL_MANAGER_SLOT;
-use custom_utils::moreRegions::storage;
+use custom_utils::more_regions::storage;
+
 // cast keccak vol-markets.Panoptic.SemiFungiblePositionManager
 const POSITION_MANAGER_SLOT = 0x5d183a17afb73127be7710fe47c9fb9e2c293dd8bf1313365406b092a2c42880;
+
+// =========================== INPUT: PanopticV2Consumer =================================
+
+const panoptic = struct { consumer: u256};
+
+const consumer = fn (protocol: type, on: type) u256 {
+      if protocol == panoptic {
+      	 if on == storage {
+      	      let p = panoptic { consumer: @evm_sload(POSITION_MANAGER_SLOT) };
+      	      @get_field(p, "consumer")
+      	 }
+      	 else {
+      	      @compile_error("consumer: only storage");
+      	 }
+      }
+      else {
+      	 @compile_error("consumer: only panoptic");
+      }
+};
+
+
+// ============================ OUTPUT: PanopticV2Consumer =================================
 
 // cast sig "setPositionManager(address)"
 const SET_POSITION_MANAGER_SELECTOR = 0x5760f2e3;

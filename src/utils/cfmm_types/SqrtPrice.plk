@@ -1,10 +1,12 @@
-use custom_utils::moreRegions::storage;
+use custom_utils::more_regions::storage;
 use custom_utils::numerics::Q64x96::Q64_96;
 use custom_utils::protocol_integrations::UniswapV4Consumer::{
     EXTSLOAD_SELECTOR, POOL_MANAGER_SLOT, POOLS_SLOT
 };
 use custom_utils::cfmm_types::Tick::{Tick, tickWord};
-use Asset::Asset::{AssetMemory, loadAssetMemory, loadAssetMemoryOnExt};
+use custom_utils::cfmm_types::Market::{
+    MarketMemory, MarketKeyMemoryFrom, MarketKeyMemoryOnExt
+};
 use app::Main::IO_SLOT;
 use std::option::unwrap;
 use std::core::uint::try_cast_uint;
@@ -83,10 +85,10 @@ const sqrtPriceFromTick = fn (tick: Tick) SqrtPrice {
 };
 
 /// slot0.sqrtPriceX96 via PoolManager.extsload — same predicate as V4 checkPoolInitialized.
-const slot0SqrtPriceFromAssetMemory = fn (assetMemory: AssetMemory) SqrtPrice {
+const slot0SqrtPriceFromMarketMemory = fn (marketMemory: MarketMemory) SqrtPrice {
       // poolId = keccak256(abi.encode(PoolKey)); stateSlot = keccak256(poolId ‖ POOLS_SLOT)
       let packed: u256 = @malloc_uninit(64);
-      @mstore32(packed, @evm_keccak256(assetMemory.ptr, 160));
+      @mstore32(packed, @evm_keccak256(marketMemory.ptr, 160));
       @mstore32(packed +% 32, POOLS_SLOT);
       let cd: u256 = @malloc_uninit(36);
       @mstore4(cd, EXTSLOAD_SELECTOR);
@@ -102,10 +104,10 @@ const slot0SqrtPriceFromAssetMemory = fn (assetMemory: AssetMemory) SqrtPrice {
 
 
 const slot0SqrtPriceOnLocalAsset = fn () SqrtPrice {
-      slot0SqrtPriceFromAssetMemory(loadAssetMemory(storage))
+      slot0SqrtPriceFromMarketMemory(MarketKeyMemoryFrom(storage))
 };
 
 
 const slot0SqrtPriceOnPoolManager = fn () SqrtPrice {
-      slot0SqrtPriceFromAssetMemory(loadAssetMemoryOnExt(@evm_sload(IO_SLOT), storage))
+      slot0SqrtPriceFromMarketMemory(MarketKeyMemoryOnExt(@evm_sload(IO_SLOT), storage))
 };

@@ -8,7 +8,7 @@ use custom_utils::cfmm_types::TickDistance::{
     TickDistance, ExposureAndDirectionAwareTickDistance, nullTickDistance
 };
 
-use custom_utils::moreRegions::storage;
+use custom_utils::more_regions::storage;
 
 
 use custom_utils::cfmm_types::SqrtPrice::{SqrtPrice, nullSqrtPrice, sqrtPriceFromTick};

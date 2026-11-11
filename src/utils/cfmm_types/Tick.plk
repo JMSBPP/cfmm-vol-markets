@@ -1,4 +1,4 @@
-use custom_utils::moreRegions::storage;
+use custom_utils::more_regions::storage;
 use custom_utils::math::{smin,smax};
 use custom_utils::eth::NO_VALUE;
 use custom_utils::cfmm_types::TickSpacing::{
@@ -8,7 +8,9 @@ use custom_utils::cfmm_types::TickSpacing::{
 use custom_utils::protocol_integrations::UniswapV4Consumer::{
     EXTSLOAD_SELECTOR, POOL_MANAGER_SLOT, POOLS_SLOT
 };
-use Asset::Asset::{AssetMemory, loadAssetMemoryOnExt};
+use custom_utils::cfmm_types::Market::{
+    MarketMemory, MarketKeyMemoryOnExt
+};
 use app::Main::IO_SLOT;
 
 use TickMoments::TickAverage::{
@@ -22,6 +24,11 @@ use std::regions::memory;
 use std::slice::{Slice,get,new};
 use std::option::{unwrap,Some};
 use std::core::ops::{neg_u256, less_equals};
+
+use std::membytes::{
+    membytes, membytes_write
+};
+
 
 // cast keccak vol-markets.Tick
 const TICK_SLOT = 0x62b50c96ec7c8db111173d139b431c4ef72820d773cfe40f8537db4c663ab7e6;
@@ -69,6 +76,11 @@ const tickTickSpacing = fn (self: Tick) TickSpacing {
 
 const tickVal = fn(self: Tick) u256 {
       self.val
+};
+
+const TickMemory = fn (self: Tick, on: membytes, where: u256) membytes {
+      membytes_write(on, where, tickWord(self));
+      on
 };
 
 const EqTick = fn (t1: Tick, t2: Tick) bool {
@@ -256,9 +268,9 @@ const PrevTickOn = fn (on: type) Tick {
 
 const slot0TickOnPoolManager = fn () Tick {
       let src: u256 = @evm_sload(IO_SLOT);
-      let assetMemory: AssetMemory = loadAssetMemoryOnExt(src, storage);
+      let marketMemory: MarketMemory = MarketKeyMemoryOnExt(src, storage);
       let packed: u256 = @malloc_uninit(64);
-      @mstore32(packed, @evm_keccak256(assetMemory.ptr, 160));
+      @mstore32(packed, @evm_keccak256(marketMemory.ptr, 160));
       @mstore32(packed +% 32, POOLS_SLOT);
       let cd: u256 = @malloc_uninit(36);
       @mstore4(cd, EXTSLOAD_SELECTOR);

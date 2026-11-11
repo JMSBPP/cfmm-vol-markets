@@ -1,11 +1,13 @@
 use app::Main::IO_SLOT;
-use custom_utils::moreRegions::storage;
+use custom_utils::more_regions::storage;
 use custom_utils::protocol_integrations::UniswapV4Consumer::{
     EXTSLOAD_SELECTOR, POOL_MANAGER_SLOT, POOLS_SLOT
 };
 
 
-use Asset::Asset::{AssetMemory, loadAssetMemoryOnExt};
+use custom_utils::cfmm_types::Market::{
+    MarketMemory, MarketKeyMemoryOnExt
+};
 use std::core::uint::{
     u128, try_cast_uint
 };
@@ -22,9 +24,9 @@ const liquidityWord = fn (liquidity:Liquidity) u256 {
 // ============================ OUTPUT: Liquidity =================================
 const slot0LiquidityOnPoolManager = fn () Liquidity {
       let src: u256 = @evm_sload(IO_SLOT);
-      let assetMemory: AssetMemory = loadAssetMemoryOnExt(src, storage);
+      let marketMemory: MarketMemory = MarketKeyMemoryOnExt(src, storage);
       let loadLiquidityMemPtr: u256 = @malloc_uninit(136);
-      @mstore32(loadLiquidityMemPtr, @evm_keccak256(assetMemory.ptr, 160));
+      @mstore32(loadLiquidityMemPtr, @evm_keccak256(marketMemory.ptr, 160));
       @mstore32(loadLiquidityMemPtr +% 32, POOLS_SLOT);
       @mstore4(loadLiquidityMemPtr +% 64, EXTSLOAD_SELECTOR);
       @mstore32(
