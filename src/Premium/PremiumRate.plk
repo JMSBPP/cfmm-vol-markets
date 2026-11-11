@@ -42,22 +42,6 @@ const PremiumRateWord = fn (premiumRate :PremiumRate) u256 {
     unwrap(try_cast_uint(premiumRate, u256))
 };
 
-const NullPremiumRate = fn () PremiumRate {
-    unwrap(try_cast_uint(0, u16))
-};
-
-const MinPremiumRate = fn () PremiumRate {
-    unwrap(try_cast_uint(0, u16))
-};
-
-const MaxPremiumRate = fn () PremiumRate {
-      unwrap(try_cast_uint(MAX_FEE_RATE, u16))
-};
-
-const InvalidPremiumRate = fn () PremiumRate {
-        unwrap(try_cast_uint(0xffff, PremiumRate))          
-};
-
 const EqPremiumRate = fn (a: PremiumRate, b: PremiumRate) bool {
       PremiumRateWord(a) == PremiumRateWord(b)
 };
@@ -95,26 +79,35 @@ const LogPremiumRate = fn (val: PremiumRate, log: type) void {
       }
 };
 
-const StoredPremiumRateOn = fn (on: type, from: type) PremiumRate {
-      let mut toStorePremiumRate : PremiumRate = NullPremiumRate ();
-      if on == storage {
-      	 if from == calldata {
-	    toStorePremiumRate = PremiumRateFromWord(@evm_calldataload(4));	    	 
-	    @evm_sstore(PREMIUM_RATE_SLOT, PremiumRateWord(toStorePremiumRate));
-	 }
-
-	 else if from == storage {
-	      toStorePremiumRate = PremiumRateFromWord(@evm_sload(PREMIUM_RATE_SLOT));
-	 }
-      }
-      toStorePremiumRate
-};
 
 const NoReturnPremiumRate = fn (self: PremiumRate) never {
       @evm_return(@malloc_uninit(0), 0);
 };
 
+const ReturnPremiumRate = fn (self: PremiumRate) never {
+      let ret: u256 = @malloc_uninit(32);
+      @mstore32(ret, PremiumRateWord(self));
+      @evm_return(ret, 32);
+};
+
+
 // ============================ OUTPUT: PremiumRate =================================
+
+const NullPremiumRate = fn () PremiumRate {
+    unwrap(try_cast_uint(0, u16))
+};
+
+const MinPremiumRate = fn () PremiumRate {
+    unwrap(try_cast_uint(0, u16))
+};
+
+const MaxPremiumRate = fn () PremiumRate {
+      unwrap(try_cast_uint(MAX_FEE_RATE, u16))
+};
+
+const InvalidPremiumRate = fn () PremiumRate {
+        unwrap(try_cast_uint(0xffff, PremiumRate))          
+};
 
 const PremiumRateFromWord = fn(premiumRateWord :u256) PremiumRate {
     let maxRate = MaxPremiumRate();
@@ -135,13 +128,23 @@ const PremiumRateFromWord = fn(premiumRateWord :u256) PremiumRate {
     }
 };
 
-const ReturnPremiumRate = fn (self: PremiumRate) never {
-      let ret: u256 = @malloc_uninit(32);
-      @mstore32(ret, PremiumRateWord(self));
-      @evm_return(ret, 32);
+
+const StoredPremiumRateOn = fn (on: type, from: type) PremiumRate {
+      let mut toStorePremiumRate : PremiumRate = NullPremiumRate ();
+      if on == storage {
+      	 if from == calldata {
+	    toStorePremiumRate = PremiumRateFromWord(@evm_calldataload(4));	    	 
+	    @evm_sstore(PREMIUM_RATE_SLOT, PremiumRateWord(toStorePremiumRate));
+	 }
+
+	 else if from == storage {
+	      toStorePremiumRate = PremiumRateFromWord(@evm_sload(PREMIUM_RATE_SLOT));
+	 }
+      }
+      toStorePremiumRate
 };
 
-// protocol is type; branch if protocol == uniswap
+
 const PremiumRateOnProtocol = fn (protocol: type, assetMemory: AssetMemory) PremiumRate {
       if protocol == uniswap {
       	 let packed: u256 = @malloc_uninit(64);
