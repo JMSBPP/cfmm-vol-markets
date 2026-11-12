@@ -1,0 +1,52 @@
+[
+    "Representations": [
+	"StateSpace": {
+	    "responsability": "Defines state transitions and outputs",
+	    "State": {},
+	    "Input": {},
+	    "Output": {},
+	    "A": {},
+	    "B": {},
+	    "C": {},
+	    "D": {}
+	},
+	"TransferFunctions": {
+
+	}
+    ],
+    "Controller": {
+	"responsability": "Computes control actions"
+    },
+    "Regulator": {
+	"responsability": "Computes control actions"
+    },
+    "Actuator": {
+	"responsability": "Applies control inputs"
+    },
+    "Reference": {
+	"responsability": "Maintains desired operating conditions"
+    },
+    
+    "Error": {
+	"responsability": "Difference between {Reference} and {Output}",
+    },
+
+    "Sensor": {
+	"responsability": "Measure {Output}",
+    },
+
+    "Observer": {
+	"responsability": "Reconstructs internal system state",
+    },
+    
+    "Disturbance": {
+	"responsability": "External influence",
+    },
+
+    "Estimator": {
+	"responsability": "Estimates unobserved states"
+    }
+
+    
+
+]
