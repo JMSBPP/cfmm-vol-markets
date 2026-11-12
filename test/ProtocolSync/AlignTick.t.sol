@@ -74,7 +74,7 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
     address underlying = makeAddr("cfmm.vol-markets.underlying");
     address numeraire =  makeAddr("cfmm.vol-markets.numeraire");
     address controller;
-
+    
 
     function setUp() public {
 	deployFreshManager();
@@ -94,18 +94,29 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 					       NoFeeVarianceClaimBuilderPermissions
 	);
 	if (succ) { controller = _tmp;}
-    }
-    
-    modifier whenAlignIsCalledInAlignTick() {
-        _;
+
     }
 
-    function test_WhenAlignIsCalledInAlignTick(int24 tick1,int24 tick2) external whenAlignIsCalledInAlignTick {
-
-	// =================== PRE-REQUIREMENTS =======================
+    modifier TickAlignmentContext () {
 	IEnv(alignTickHarness).setIO(main);
 	IEnv(main).setTickAligner(alignTickHarness);
+	_;
+    }
+    modifier FullContext () {
+	IEnv(alignTickHarness).setIO(main);
+	IEnv(main).setTickAligner(alignTickHarness);
+	IMarketBuilder(main).setPair(underlying,numeraire,true);
+	IControllerSetter(main).setController(controller);
+	IEnv(alignTickHarness).setPoolManager(poolManager);
+	IEnv(main).setPoolManager(poolManager);
+	IEnv(alignTickHarness).setPositionManager(positionManager);
+	IEnv(main).setPositionManager(positionManager);
+	_;
+    }
 
+    function test_WhenAlignIsCalledInAlignTick(int24 tick1,int24 tick2) external TickAlignmentContext  {
+
+	// =================== PRE-REQUIREMENTS =======================
 	// =========================TEST==============================
         // It should revert if the caller is not Main or address this
 	vm.prank(makeAddr("arbitrary-caller"));
@@ -128,19 +139,10 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	// =======================================================
     }
 
-    function test_WhenTheCallerIsMain(uint256 windowLen,uint24 tickSpacing,uint256 maxIdx) external whenAlignIsCalledInAlignTick {
+    function test_WhenTheCallerIsMain(uint256 windowLen,uint24 tickSpacing,uint256 maxIdx) external FullContext {
 	// ============PRE-CONDITIONS==================================
 	// TODO: 200 is somewhat arbitrary and does not lead OOG
 	uint256 windowLenCalldata = bound(windowLen, 1, 5);
-	
-	IEnv(alignTickHarness).setIO(main);
-	IEnv(main).setTickAligner(alignTickHarness);
-	IMarketBuilder(main).setPair(underlying,numeraire,true);
-	IControllerSetter(main).setController(controller);
-	IEnv(alignTickHarness).setPoolManager(poolManager);
-	IEnv(main).setPoolManager(poolManager);
-	IEnv(alignTickHarness).setPositionManager(positionManager);
-	IEnv(main).setPositionManager(positionManager);
 	ITickSpacing(main).set_tick_spacing(tickSpacing);
 	IWindow(main).set_window(windowLenCalldata);
 
@@ -204,17 +206,14 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	    
          } while (windowIdx < maxIdxPick);
     }
-    function test_WhenTheCallerIsAddressThis() external whenAlignIsCalledInAlignTick {
+    function test_WhenTheCallerIsAddressThis() external {
         // It should take as one of the passed ticks on calldata is an error from target tick.
         // It should call unlock on poolManager passing the pair of ticks as unlockCalldata and the error
 	vm.skip(true);
     }
 
-    modifier whenUnlockCallbackIsCalledInAlignTick() {
-        _;
-    }
 
-    function test_WhenUnlockCallbackIsCalledInAlignTick() external whenUnlockCallbackIsCalledInAlignTick {
+    function test_WhenUnlockCallbackIsCalledInAlignTick() external {
         // It should call the getMarketKey in Main
         // It should build SwapParams
         // It should call swap in poolManager with empty hookData, marketKey and builtSwapParams
@@ -223,8 +222,7 @@ contract AlignTickTest is PlankTestBase, Deployers, HookDeployer {
 	vm.skip(true);
     }
 
-    function test_WhenTheCurrentTickFetchedFromPoolManagerStorageDoesNotEqualTheTickOnCalldataThatEqualedTheRead_tickFromMain(
-    ) external whenUnlockCallbackIsCalledInAlignTick {
+    function test_WhenTheCurrentTickFetchedFromPoolManagerStorageDoesNotEqualTheTickOnCalldataThatEqualedTheRead_tickFromMain() external {
         // It should track the error
         // It should call align in AlignTick with the second tick calldata argument as the error tracked
 	vm.skip(true);
