@@ -16,7 +16,7 @@ use custom_utils::protocol_integrations::PanopticV2Consumer::{
 };
 use custom_utils::cfmm_types::Tick::{
     NeqTick, READ_TICK_SELECTOR, SET_TICK_SELECTOR, Tick, TickCalldata,
-    build_tick, store_tick,store_prev_tick,TickOn, tickReturnEVM, tickWord
+    build_tick, store_tick,store_prev_tick,TickOn, tickReturnEVM, TickWord
 };
 use custom_utils::cfmm_types::TickSpacing::{
     READ_TICK_SPACING_SELECTOR, SET_TICK_SPACING_SELECTOR,
@@ -50,9 +50,18 @@ use custom_utils::cfmm_types::Asset::{
 use custom_utils::cfmm_types::Market::{
     MarketMemory, MarketKeyMemoryFrom, GET_MARKET_KEY_SELECTOR
 };
+
+use sys::sys::{
+    SYS_SLOT, SET_SYS_SELECTOR
+};
+use sys::observer::UPDATE_TICK_SELECTOR;
+
+// TODO: To be replaced by sys
 use ProtocolSync::AlignCalldata::{
     AlignCalldata, completeAlignTickCalldata, partialAlignTickCalldata
 };
+
+// TODO: To be replaced by sys
 use ProtocolSync::AlignTick::{
     ALIGNER_SLOT, SET_TICK_ALIGNER_SELECTOR, requestTickAlignment
 };
@@ -121,7 +130,7 @@ run {
 	    let marketMemory: MarketMemory = MarketKeyMemoryFrom(storage);
 	    // layout: sel+PoolKey+arg (196) | ret (32) → 228
 	    let mut initMemPtr: u256 = @malloc_uninit(228);
-
+	    // TODO: This should be handled by main/IO
 	    // cast sig "initialize((address,address,uint24,int24,address),uint160)"
 	    @mstore4(initMemPtr, 0x6276cbbe);
 	    @mcopy(initMemPtr +% 4, marketMemory.ptr, 160);
@@ -133,7 +142,7 @@ run {
 		 @evm_revert(initMemPtr, 4);
 	    }
 	    // TODO: This can be better typed
-	    if @mload32(initMemPtr +% 196) != tickWord(tick) {
+	    if @mload32(initMemPtr +% 196) != TickWord(tick) {
 	      	 // cast sig "TickMismatchOnInitialize()"
 	      	 @mstore4(initMemPtr, 0xa89ef96f);
 		 @evm_revert(initMemPtr, 4);
@@ -172,7 +181,19 @@ run {
 	   store_tick(tick,storage);
 	   if NeqTick(prevTick, tick) {
 	      let alignTickCalldata: AlignCalldata = completeAlignTickCalldata(partialAlignTickCalldata(prevTick), tick);
-	      requestTickAlignment(alignTickCalldata);
+	      if @evm_extcodesize(@evm_sload(SYS_SLOT)) > 0 {
+	      	 let buff: u256 = @malloc_uninit(68);
+	      	 @mstore4(buff, UPDATE_TICK_SELECTOR);
+	      	 @mstore32(buff +% 4, TickWord(prevTick));
+	      	 @mstore32(buff +% 36, TickWord(tick));
+	      	 if !@evm_call(@evm_gas(), @evm_sload(SYS_SLOT), NO_VALUE, buff, 68, 0, 0) {
+	      	    // cast sig "FailedToUpdateTickOnSys()"
+	      	    @mstore4(buff, 0xcd684a7a);
+	      	    @evm_revert(buff, 4);
+	      	 }
+	      } else if @evm_extcodesize(@evm_sload(ALIGNER_SLOT)) > 0 {
+	      	 requestTickAlignment(alignTickCalldata);
+	      }
 	    }
 			
 	   store_tickAverage(updatedTickAvg,storage);
@@ -278,7 +299,13 @@ run {
 	 let retBuff: u256 = @malloc_zeroed(32);
 	 @evm_return(retBuff,32);
     }
+    // TODO: This will eventually replace ALIGN_TICK
+    else if selector == SET_SYS_SELECTOR {
+    	 @evm_sstore(SYS_SLOT, @evm_calldataload(4));    	 
+    	 let retBuff: u256 = @malloc_zeroed(32);
+	 @evm_return(retBuff,32);
 
+    }
     // ===================== ALIGN_TICK ===============================
     else if selector == SET_TICK_ALIGNER_SELECTOR {
     	 @evm_sstore(ALIGNER_SLOT, @evm_calldataload(4));    	 
