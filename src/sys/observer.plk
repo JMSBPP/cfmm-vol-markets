@@ -1,7 +1,7 @@
 use std::regions::calldata;
 use std::constructor::return_runtime;
 use custom_utils::cfmm_types::Tick::{
-    Tick, toUpdateTick, TickFrom, TickWord
+    Tick, toUpdateTick, TickFrom, TickWord, READ_TICK_SELECTOR
 };
 use Utilization::Utilization::Utilization;
 use ProtocolSync::AlignCalldata::AlignCalldata;
@@ -46,15 +46,6 @@ const TickUpdate = fn (selector: u256, protocol: type) bool {
       tickUpdate
 };
 
-
-init {
-    return_runtime();
-}
-
-run {
-    @evm_stop();
-
-}
 
 // TODO: Once swap is performend on TickUpdate, observer is the Uniswap Hook, BUT his selector
 // is NOT AFTER_SWAP_SELECTOR but we import AFTER_SWAP_SELECTOR from the UniswapV4Consumer and make our own alias ON_TICK_UPDDATE = AFTER_SWAP_SELECTOR, the Observer takes the selector and that makes him set the T on ObservedState(Tick)
@@ -196,3 +187,24 @@ const UpdatedObservedTickOnProtocol = fn (origin: type, dst: type, tickShock: Ti
 const UpdatedObservedTick = fn (origin: type, dst: type, alignCalldata: AlignCalldata) Tick {
       UpdatedObservedTickOnProtocol(origin, dst, TickShockFromAlignCalldata(alignCalldata))
 };
+
+init {
+    return_runtime();
+}
+
+run {
+    let selector = @evm_shr(224, @evm_calldataload(0));
+    if selector == READ_TICK_SELECTOR {
+      	 let retBuff: u256 = @malloc_uninit(32);
+	 @mstore32(retBuff, @evm_sload(OBSERVED_TICK_SLOT));
+	 @evm_return(retBuff, 32);
+    }
+    else if selector == UPDATE_TICK_SELECTOR {
+      	 let shock: TickShock = TickShockOn(calldata);
+	 UpdatedTick(ObservedStateFromTickShock(shock));
+	 @evm_return(@malloc_uninit(0), 0);
+    }
+    else {
+      	 @evm_return(@malloc_uninit(0), 0);
+    }
+}

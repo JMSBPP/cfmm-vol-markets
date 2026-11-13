@@ -1,0 +1,66 @@
+use std::constructor::return_runtime;
+use sys::observer::{
+    STATE_OBSERVER_SLOT, SET_STATE_OBSERVER_SELECTOR,
+    UPDATE_TICK_SELECTOR
+};
+use custom_utils::eth::NO_VALUE;
+use custom_utils::protocol_integrations::UniswapV4Consumer::{
+    POOL_MANAGER_SLOT, SET_POOL_MANAGER_SELECTOR, storePoolManager
+};
+use app::Main::IO_SLOT;
+use custom_utils::cfmm_types::Tick::READ_TICK_SELECTOR;
+use std::regions::calldata;
+
+// cast keccak cfmm-vol-markets.sys
+const SYS_SLOT = 0x25cd2f7050d3b4d459754f688c5a5b2d8717a842a98f324f962eaf9f1355cd04;
+// cast sel "setSys(address)"
+const SET_SYS_SELECTOR  = 0x38396dae;
+
+const sys = struct {};
+
+init { return_runtime();}
+
+run {
+   let selector = @evm_shr(224, @evm_calldataload(0));
+   // cast sig "setIO(address)"
+   if selector == 0x5340463b {
+      	 @evm_sstore(IO_SLOT, @evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32), 32);
+   }
+   else if selector == SET_POOL_MANAGER_SELECTOR {
+      	 storePoolManager(@evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32), 32);
+   }
+   else if selector == SET_STATE_OBSERVER_SELECTOR {
+      	 @evm_sstore(STATE_OBSERVER_SLOT, @evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32), 32);
+   }
+   else if selector == READ_TICK_SELECTOR {
+      	 let buff: u256 = @malloc_uninit(4);
+	 @mstore4(buff, READ_TICK_SELECTOR);
+	 let retBuff: u256 = @malloc_uninit(32);
+	 if !@evm_staticcall(@evm_gas(), @evm_sload(STATE_OBSERVER_SLOT), buff, 4, retBuff, 32) {
+	    // cast sig "FailedToReadObservedTick()"
+	    @mstore4(buff, 0x01bc4c4d);
+	    @evm_revert(buff, 4);
+	 }
+	 @evm_return(retBuff, 32);
+   }
+   else if selector == UPDATE_TICK_SELECTOR {
+      	 let observer: u256 = @evm_sload(STATE_OBSERVER_SLOT);
+	 let buff: u256 = @malloc_uninit(68);
+	 @mstore4(buff, UPDATE_TICK_SELECTOR);
+	 @mstore32(buff +% 4, @evm_calldataload(4));
+	 @mstore32(buff +% 36, @evm_calldataload(36));
+	 if !@evm_call(@evm_gas(), observer, NO_VALUE, buff, 68, 0, 0) {
+	    // cast sig "FailedToUpdateObservedTick()"
+	    @mstore4(buff, 0xaa5fa137);
+	    @evm_revert(buff, 4);
+	 }
+	 // unlock/swap: Task 4–5
+	 @evm_return(@malloc_uninit(0), 0);
+   }
+   else {
+      	 @evm_return(@malloc_uninit(0), 0);
+   }
+}

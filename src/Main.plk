@@ -112,6 +112,17 @@ run {
 
     // ===================== TICK ===============================
     if selector == READ_TICK_SELECTOR {
+       if @evm_extcodesize(@evm_sload(SYS_SLOT)) > 0 {
+       	  let buff: u256 = @malloc_uninit(4);
+	  @mstore4(buff, READ_TICK_SELECTOR);
+	  let retBuff: u256 = @malloc_uninit(32);
+	  if !@evm_staticcall(@evm_gas(), @evm_sload(SYS_SLOT), buff, 4, retBuff, 32) {
+	     // cast sig "FailedToReadTickOnSys()"
+	     @mstore4(buff, 0xf1b159ca);
+	     @evm_revert(buff, 4);
+	  }
+	  @evm_return(retBuff, 32);
+       }
        tickReturnEVM();
     }
 
@@ -164,6 +175,17 @@ run {
 	    log_instrument(instrument, LogMarketAssigned);
 	    store_prev_tick(tick, storage);
 	    store_tick(tick, storage);
+	    if @evm_extcodesize(@evm_sload(SYS_SLOT)) > 0 {
+	      	 let buff: u256 = @malloc_uninit(68);
+	      	 @mstore4(buff, UPDATE_TICK_SELECTOR);
+	      	 @mstore32(buff +% 4, TickWord(tick));
+	      	 @mstore32(buff +% 36, TickWord(tick));
+	      	 if !@evm_call(@evm_gas(), @evm_sload(SYS_SLOT), NO_VALUE, buff, 68, 0, 0) {
+	      	    // cast sig "FailedToUpdateTickOnSys()"
+	      	    @mstore4(buff, 0xcd684a7a);
+	      	    @evm_revert(buff, 4);
+	      	 }
+	    }
 	    store_tickAverage(updatedTickAvg,storage);
 	    let updatedTickRealizedVol: RealizedVolatility(Tick) = UpdatedTickRealizedVolatilityOn(
 	    	storage,
@@ -175,10 +197,22 @@ run {
 
 	 else if NeqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
 	   let updatedTickAvg : TickAverage(WindowInitialized) = update_average(storage,tick);
-	  
-	   let prevTick: Tick = TickOn(storage);
-	   store_prev_tick(prevTick, storage);
-	   store_tick(tick,storage);
+	   let mut prevTick: Tick = TickOn(storage);
+	   if @evm_extcodesize(@evm_sload(SYS_SLOT)) > 0 {
+	      	 let buff: u256 = @malloc_uninit(4);
+	      	 @mstore4(buff, READ_TICK_SELECTOR);
+	      	 let retBuff: u256 = @malloc_uninit(32);
+	      	 if !@evm_staticcall(@evm_gas(), @evm_sload(SYS_SLOT), buff, 4, retBuff, 32) {
+	      	    // cast sig "FailedToReadTickOnSys()"
+	      	    @mstore4(buff, 0xf1b159ca);
+	      	    @evm_revert(buff, 4);
+	      	 }
+	      	 prevTick = @set_field(prevTick, "val", @mload32(retBuff));
+	      	 prevTick = @set_field(prevTick, "ts", tickSpacingOn(storage));
+	   } else {
+	      	 store_prev_tick(prevTick, storage);
+	      	 store_tick(tick,storage);
+	   }
 	   if NeqTick(prevTick, tick) {
 	      let alignTickCalldata: AlignCalldata = completeAlignTickCalldata(partialAlignTickCalldata(prevTick), tick);
 	      if @evm_extcodesize(@evm_sload(SYS_SLOT)) > 0 {
