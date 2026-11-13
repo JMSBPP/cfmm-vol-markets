@@ -1,0 +1,198 @@
+use std::regions::calldata;
+use std::constructor::return_runtime;
+use custom_utils::cfmm_types::Tick::{
+    Tick, toUpdateTick, TickFrom, TickWord
+};
+use Utilization::Utilization::Utilization;
+use ProtocolSync::AlignCalldata::AlignCalldata;
+use custom_utils::cfmm_types::Market::MarketKeyMemoryOnExt;
+use custom_utils::cfmm_types::TickDirection::{
+    TickDirection, precedesTick
+};
+use custom_utils::cfmm_types::TickDistance::{
+    TickDistance, ExposureAndDirectionAwareTickDistance
+};
+use Exposure::Exposure::ArbitraryExposure;
+
+use custom_utils::more_regions::storage;
+use std::membytes::{
+    membytes_new, membytes, membytes_write
+};
+use custom_utils::protocol_integrations::UniswapV4Consumer::{
+    uniswap, consumer, UNLOCK_CALLBACK_SELECTOR,
+    UNISWAP_V4_SWAP_SELECTOR,UNLOCK_SELECTOR
+};
+// cast keccak cfmm-vol-markets.stateObserver
+const STATE_OBSERVER_SLOT = 0x0f482e7bdc26bef81b9cec5110006f4afcd2a8b9268081af498177f525dfbf26;
+// cast sig "setStateObserver(address)"
+const SET_STATE_OBSERVER_SELECTOR  = 0x689eb85e;
+
+
+///////////////////////////////////////////
+// // cast sig "updateTick(int24,int24)" //
+///////////////////////////////////////////
+
+const UPDATE_TICK_SELECTOR = 0x697c7250;
+
+const TickUpdate = fn (selector: u256, protocol: type) bool {
+      let mut tickUpdate: bool = false;
+      if protocol == uniswap {
+      	 // TODO: This is to be imported from UniswapV4Consumer
+	 if selector == UNLOCK_CALLBACK_SELECTOR {
+	    UpdatedObservedTickOnProtocol(observer,uniswap,TickShockOn(calldata));
+	    tickUpdate = true;
+	 }
+      }
+      tickUpdate
+};
+
+
+init {
+    return_runtime();
+}
+
+run {
+    @evm_stop();
+
+}
+
+// TODO: Once swap is performend on TickUpdate, observer is the Uniswap Hook, BUT his selector
+// is NOT AFTER_SWAP_SELECTOR but we import AFTER_SWAP_SELECTOR from the UniswapV4Consumer and make our own alias ON_TICK_UPDDATE = AFTER_SWAP_SELECTOR, the Observer takes the selector and that makes him set the T on ObservedState(Tick)
+const ObservedState = fn (comptime T: type) type {
+      if T == Tick {
+      	 struct {
+	 	value: Tick
+	 }
+      } else if T == Utilization {
+      	 struct {
+	 	value: Utilization
+	 }
+      } else {
+      	 @compile_error("ObservedState: T must be Tick or Utilization");
+      }
+};
+
+const Observer = fn (selector: u256, origin: type) ObservedState(Tick) {
+      ObservedState(Tick) { value: toUpdateTick() }
+};
+
+// TODO: This is tmp while getting rid of AlignCalldata
+
+const TickShockFromAlignCalldata = fn (alignCalldata: AlignCalldata) TickShock {
+      TickShock {
+	    before: @set_field(toUpdateTick(), "val", @get_field(alignCalldata, 0)),
+	    after: @set_field(toUpdateTick(), "val", @get_field(alignCalldata, 1))
+      }
+};
+
+
+const TickShock = struct {
+      before: Tick,
+      after: Tick
+};
+
+const NoTickShock = fn () TickShock {
+      TickShock { before: toUpdateTick(), after: toUpdateTick() }
+};
+
+const TickDirectionFromTickShock = fn (tickShock: TickShock) TickDirection {
+      precedesTick(BeforeTick(tickShock), AfterTick(tickShock))
+};
+
+const BeforeTick =  fn (self: TickShock) Tick {
+      @get_field(self, "before")
+};
+
+const AfterTick =  fn (self: TickShock) Tick {
+      @get_field(self, "after")
+};
+
+// cast keccak VolMarkets.ObservedState.Tick
+const OBSERVED_TICK_SLOT = 0x9fcc6a9f429f75f0dca0ca393a5029e723c3a607de3b391acd7aa689433f440b;
+
+const ObservedTickValue = fn (self: ObservedState(Tick)) Tick {
+      @get_field(self, "value")
+};
+
+const ObservedStateFromTickShock = fn (shock: TickShock) ObservedState(Tick) {
+      ObservedState(Tick) { value: AfterTick(shock) }
+};
+
+const UpdatedTick = fn (self: ObservedState(Tick)) Tick {
+      let tick: Tick = ObservedTickValue(self);
+      @evm_sstore(OBSERVED_TICK_SLOT, TickWord(tick));
+      tick
+};
+
+const ObservedTickOn = fn (on: type) Tick {
+      let mut tick: Tick = toUpdateTick();
+      if on == storage {
+      	 tick = @set_field(tick, "val", @evm_sload(OBSERVED_TICK_SLOT));
+      }
+      tick
+};
+
+const TickShockOn = fn (region: type) TickShock {
+      let mut resShock = NoTickShock();
+      if region == calldata {
+      	 resShock = TickShock {before: TickFrom(calldata,4,storage), after: TickFrom(calldata,36,storage) };
+      }
+      resShock
+};
+
+const observer = struct {};
+
+const UpdatedObservedTickOnProtocol = fn (origin: type, dst: type, tickShock: TickShock) Tick {
+      let mut updatedObservedTickOnProtocol: Tick = toUpdateTick();
+      if origin == uniswap {
+      	 if dst == observer {
+      	    let updateTickOnUniswapMemBuffPtr: u256 = @malloc_uninit(196);
+            @mstore4(updateTickOnUniswapMemBuffPtr, UNLOCK_SELECTOR);
+	    @mstore32(updateTickOnUniswapMemBuffPtr +%4, 0x20);
+	    @mstore32(updateTickOnUniswapMemBuffPtr +%36, 64);
+	    @mstore32(updateTickOnUniswapMemBuffPtr +%68, TickWord(BeforeTick(tickShock)));
+	    @mstore32(updateTickOnUniswapMemBuffPtr +%100, TickWord(AfterTick(tickShock)));
+	    // TODO: sys NEEDS a local reference to the poolManager too then
+	    if !@evm_call(@evm_gas(), consumer(uniswap, storage), 0, updateTickOnUniswapMemBuffPtr, 132 ,updateTickOnUniswapMemBuffPtr +%132,32) {
+	       // cast sig "FailedToUnlockPoolManager()"
+	       @mstore4(updateTickOnUniswapMemBuffPtr,0xadefee02);
+	       @evm_revert(updateTickOnUniswapMemBuffPtr,4);
+	       }
+	       @mstore32(updateTickOnUniswapMemBuffPtr +%132,0x20);
+	       @evm_return(updateTickOnUniswapMemBuffPtr +%132,32);
+      	}
+      }
+      if origin == observer {
+      	 if dst == uniswap {
+	       // checkpoint: At this point we have unlocked the pool manager and have the shock ticks
+	       // in calldata
+	       // here we are ready to realize on uniswap the tick movement
+	       
+	       let swapMemBuff: membytes = membytes_new(420);
+       	       @mstore4(swapMemBuff.ptr, UNISWAP_V4_SWAP_SELECTOR);
+	       // NOTE: the caller is the poolManager and address this is sys, then we require that sys
+       	       // hold the the MarketKey
+	       membytes_write(swapMemBuff,4,MarketKeyMemoryOnExt(@evm_address_this(), storage));
+	       // TODO: Now we need to build the equivalent to SwapParams which are TickDirection, TickDistance  and the Target tick happens to be NextTick on shock
+	       let tickShock: TickShock  = TickShockOn(calldata);
+	       let tickDirection: TickDirection = TickDirectionFromTickShock(tickShock);
+	       membytes_write(swapMemBuff, 164, tickDirection);
+
+	       // What is currently determininig magnitude on AlignTick ?
+	       let tickDistance: TickDistance = ExposureAndDirectionAwareTickDistance(
+		    (TickWord(BeforeTick(tickShock)), TickWord(AfterTick(tickShock))),
+		    tickDirection,
+		    ArbitraryExposure(storage)
+	       );
+	       membytes_write(swapMemBuff, 196, tickDistance);
+	       @mstore32(swapMemBuff.ptr +% 260, 0x120); 
+               @mstore32(swapMemBuff.ptr +% 292, 0);
+	       updatedObservedTickOnProtocol = AfterTick(tickShock);
+	 }
+      }
+      updatedObservedTickOnProtocol
+};
+
+const UpdatedObservedTick = fn (origin: type, dst: type, alignCalldata: AlignCalldata) Tick {
+      UpdatedObservedTickOnProtocol(origin, dst, TickShockFromAlignCalldata(alignCalldata))
+};
