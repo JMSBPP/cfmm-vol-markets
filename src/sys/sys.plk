@@ -1,12 +1,15 @@
 use std::constructor::return_runtime;
+use std::core::ops::neg_u256;
 use sys::observer::{
     STATE_OBSERVER_SLOT, SET_STATE_OBSERVER_SELECTOR,
     UPDATE_TICK_SELECTOR
 };
 use custom_utils::eth::NO_VALUE;
+use custom_utils::Token::Transfer::NOTIFY_DEBT_SELECTOR;
 use custom_utils::protocol_integrations::UniswapV4Consumer::{
     POOL_MANAGER_SLOT, SET_POOL_MANAGER_SELECTOR, storePoolManager,
-    UNLOCK_SELECTOR, UNLOCK_CALLBACK_SELECTOR, TAKE_SELECTOR
+    UNLOCK_SELECTOR, UNLOCK_CALLBACK_SELECTOR, TAKE_SELECTOR,
+    SYNC_SELECTOR, SETTLE_FOR_SELECTOR
 };
 use app::Main::IO_SLOT;
 use custom_utils::cfmm_types::Tick::{READ_TICK_SELECTOR, targetTick};
@@ -146,6 +149,68 @@ run {
 	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 100, 0, 0) {
 	     // cast sig "FailedOnTakeCurrency1AlignTick()"
 	     @mstore4(swapBuff, 0xc0b63e9e);
+	     @evm_revert(swapBuff, 4);
+	  }
+       }
+       // Fold Controllers afterSwap unspecified settle onto the unlock caller (hooks=0
+       // or sys-path). AlignTick-only keeps Controller afterSwap until migrated.
+       if @evm_slt(amount0, 0) {
+	  @mstore4(swapBuff, NOTIFY_DEBT_SELECTOR);
+	  @mstore32(swapBuff +% 4, 0);
+	  if !@evm_call(@evm_gas(), currency0, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnNotifyDebtCurrency0Sys()"
+	     @mstore4(swapBuff, 0x20669aa1);
+	     @evm_revert(swapBuff, 4);
+	  }
+	  @mstore4(swapBuff, SYNC_SELECTOR);
+	  @mstore32(swapBuff +% 4, currency0);
+	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnSyncCurrency0Sys()"
+	     @mstore4(swapBuff, 0x6142849e);
+	     @evm_revert(swapBuff, 4);
+	  }
+	  @mstore4(swapBuff, NOTIFY_DEBT_SELECTOR);
+	  @mstore32(swapBuff +% 4, neg_u256(amount0));
+	  if !@evm_call(@evm_gas(), currency0, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnNotifyDebtCurrency0Sys()"
+	     @mstore4(swapBuff, 0x20669aa1);
+	     @evm_revert(swapBuff, 4);
+	  }
+	  @mstore4(swapBuff, SETTLE_FOR_SELECTOR);
+	  @mstore32(swapBuff +% 4, @evm_address_this());
+	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnSettleCurrency0Sys()"
+	     @mstore4(swapBuff, 0x3e6cde4b);
+	     @evm_revert(swapBuff, 4);
+	  }
+       }
+       if @evm_slt(amount1, 0) {
+	  @mstore4(swapBuff, NOTIFY_DEBT_SELECTOR);
+	  @mstore32(swapBuff +% 4, 0);
+	  if !@evm_call(@evm_gas(), currency1, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnNotifyDebtCurrency1Sys()"
+	     @mstore4(swapBuff, 0xf78ff847);
+	     @evm_revert(swapBuff, 4);
+	  }
+	  @mstore4(swapBuff, SYNC_SELECTOR);
+	  @mstore32(swapBuff +% 4, currency1);
+	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnSyncCurrency1Sys()"
+	     @mstore4(swapBuff, 0xd73d5b7c);
+	     @evm_revert(swapBuff, 4);
+	  }
+	  @mstore4(swapBuff, NOTIFY_DEBT_SELECTOR);
+	  @mstore32(swapBuff +% 4, neg_u256(amount1));
+	  if !@evm_call(@evm_gas(), currency1, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnNotifyDebtCurrency1Sys()"
+	     @mstore4(swapBuff, 0xf78ff847);
+	     @evm_revert(swapBuff, 4);
+	  }
+	  @mstore4(swapBuff, SETTLE_FOR_SELECTOR);
+	  @mstore32(swapBuff +% 4, @evm_address_this());
+	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnSettleCurrency1Sys()"
+	     @mstore4(swapBuff, 0x2fc8b589);
 	     @evm_revert(swapBuff, 4);
 	  }
        }
