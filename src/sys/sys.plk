@@ -6,10 +6,17 @@ use sys::observer::{
 use custom_utils::eth::NO_VALUE;
 use custom_utils::protocol_integrations::UniswapV4Consumer::{
     POOL_MANAGER_SLOT, SET_POOL_MANAGER_SELECTOR, storePoolManager,
-    UNLOCK_SELECTOR, UNLOCK_CALLBACK_SELECTOR
+    UNLOCK_SELECTOR, UNLOCK_CALLBACK_SELECTOR, TAKE_SELECTOR
 };
 use app::Main::IO_SLOT;
-use custom_utils::cfmm_types::Tick::READ_TICK_SELECTOR;
+use custom_utils::cfmm_types::Tick::{READ_TICK_SELECTOR, targetTick};
+use custom_utils::cfmm_types::SqrtPrice::{
+    NeqSqrtPrice, slot0SqrtPriceOnPoolManager, sqrtPriceFromTick
+};
+use ProtocolSync::AlignCalldata::AlignCalldata;
+use ProtocolSync::AlignTickTransition::{
+    AlignTickTransitionCfg, AlignTickTransitionMemory, configureAlignTickTransition
+};
 use std::regions::calldata;
 
 // cast keccak cfmm-vol-markets.sys
@@ -59,35 +66,99 @@ run {
 	    }
 	 }
       	 let observer: u256 = @evm_sload(STATE_OBSERVER_SLOT);
+	 let prevWord: u256 = @evm_calldataload(4);
+	 let newWord: u256 = @evm_calldataload(36);
 	 @mstore4(buff, UPDATE_TICK_SELECTOR);
-	 @mstore32(buff +% 4, @evm_calldataload(4));
-	 @mstore32(buff +% 36, @evm_calldataload(36));
+	 @mstore32(buff +% 4, prevWord);
+	 @mstore32(buff +% 36, newWord);
 	 if !@evm_call(@evm_gas(), observer, NO_VALUE, buff, 68, 0, 0) {
 	    // cast sig "FailedToUpdateObservedTick()"
 	    @mstore4(buff, 0xaa5fa137);
 	    @evm_revert(buff, 4);
 	 }
-	 // cast sig "unlock(bytes)" — AlignTick packing: offset 0x20, len 64, two int24 words
-	 @mstore4(buff, UNLOCK_SELECTOR);
-	 @mstore32(buff +% 4, 0x20);
-	 @mstore32(buff +% 36, 64);
-	 @mstore32(buff +% 68, @evm_calldataload(4));
-	 @mstore32(buff +% 100, @evm_calldataload(36));
-	 if !@evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), NO_VALUE, buff, 132, buff +% 132, 32) {
-	    // cast sig "FailedToUnlockPoolManager()"
-	    @mstore4(buff, 0xadefee02);
-	    @evm_revert(buff, 4);
+	 // init seed is updateTick(t,t); AlignTick only unlocks when ticks differ
+	 if prevWord != newWord {
+	    // cast sig "unlock(bytes)" — AlignTick packing: offset 0x20, len 64, two int24 words
+	    @mstore4(buff, UNLOCK_SELECTOR);
+	    @mstore32(buff +% 4, 0x20);
+	    @mstore32(buff +% 36, 64);
+	    @mstore32(buff +% 68, prevWord);
+	    @mstore32(buff +% 100, newWord);
+	    if !@evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), NO_VALUE, buff, 132, buff +% 132, 32) {
+	       // cast sig "FailedToUnlockPoolManager()"
+	       @mstore4(buff, 0xadefee02);
+	       @evm_revert(buff, 4);
+	    }
+	    @mstore32(buff +% 132, 0x20);
+	    @evm_return(buff +% 132, 32);
 	 }
-	 @mstore32(buff +% 132, 0x20);
-	 @evm_return(buff +% 132, 32);
+	 @evm_return(@malloc_uninit(0), 0);
    }
    else if selector == UNLOCK_CALLBACK_SELECTOR {
-      	 // swap + TAKE: Task 5 — empty unlock succeeds with no deltas
-	 let ret: u256 = @malloc_uninit(96);
-	 @mstore32(ret, 0x20);
-	 @mstore32(ret +% 32, 32);
-	 @mstore32(ret +% 64, 0);
-	 @evm_return(ret, 96);
+      	 //   [0,4)     swap selector
+       //   [4,164)   PoolKey (160)
+       //   [164,260) SwapParams / AlignTickTransition (96)
+       //   [260,292) bytes offset (= 0x120 = 288, relative to args start)
+       //   [292,324) bytes length (= 0)
+       //   [324,356) BalanceDelta ret (32)
+       //   [324,420): offset(0x20) | len(32) | BalanceDelta
+       let swapBuff: u256 = @malloc_uninit(420);
+       // cast sig "swap((address,address,uint24,int24,address),(bool,int256,uint160),bytes)"
+       @mstore4(swapBuff, 0xf3cd914c);
+       let alignCalldata: AlignCalldata = (@evm_calldataload(68), @evm_calldataload(100));
+       let io: u256 = @evm_sload(IO_SLOT);
+       let alignTickTransitionCfg: AlignTickTransitionCfg = configureAlignTickTransition(alignCalldata, io);
+       let alignTickTransitionMem: AlignTickTransitionMemory = @get_field(alignTickTransitionCfg, 1);
+       // PoolKey (160) @68 + AlignTickTransition (96) @228 = 256 → swapBuff+4
+       @mcopy(swapBuff +% 4, alignTickTransitionMem.ptr +% 68, 256);
+       @mstore32(swapBuff +% 260, 0x120);
+       @mstore32(swapBuff +% 292, 0);
+
+       if !@evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), NO_VALUE, swapBuff, 324, swapBuff +% 388, 32) {
+	  // cast sig "FailedSwap()"
+	  @mstore4(swapBuff, 0x38f18871);
+	  @evm_revert(swapBuff, 4);
+       }
+       // afterSwap RETURNS_DELTA clears unspecified on the caller; take any
+       // remaining specified credit so unlock does not CurrencyNotSettled.
+       let swapDelta: u256 = @mload32(swapBuff +% 388);
+       let amount0: u256 = @evm_sar(128, swapDelta);
+       let amount1: u256 = @evm_signextend(15, swapDelta);
+       let currency0: u256 = @mload32(swapBuff +% 4);
+       let currency1: u256 = @mload32(swapBuff +% 36);
+       let poolManager: u256 = @evm_sload(POOL_MANAGER_SLOT);
+       if @evm_slt(0, amount0) {
+       	  @mstore4(swapBuff, TAKE_SELECTOR);
+	  @mstore32(swapBuff +% 4, currency0);
+	  @mstore32(swapBuff +% 36, @evm_address_this());
+	  @mstore32(swapBuff +% 68, amount0);
+	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 100, 0, 0) {
+	     // cast sig "FailedOnTakeCurrency0AlignTick()"
+	     @mstore4(swapBuff, 0x077b765f);
+	     @evm_revert(swapBuff, 4);
+	  }
+       }
+       if @evm_slt(0, amount1) {
+       	  @mstore4(swapBuff, TAKE_SELECTOR);
+	  @mstore32(swapBuff +% 4, currency1);
+	  @mstore32(swapBuff +% 36, @evm_address_this());
+	  @mstore32(swapBuff +% 68, amount1);
+	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 100, 0, 0) {
+	     // cast sig "FailedOnTakeCurrency1AlignTick()"
+	     @mstore4(swapBuff, 0xc0b63e9e);
+	     @evm_revert(swapBuff, 4);
+	  }
+       }
+       // Compare prices (not ticks): V4 zeroForOne can leave slot0.tick == target-1 at P(target)
+       if NeqSqrtPrice(slot0SqrtPriceOnPoolManager(), sqrtPriceFromTick(targetTick(alignCalldata))) {
+       	  // cast sig "NotAlignedTick()"
+       	  @mstore4(swapBuff, 0x5c8b8b4c);
+	  @evm_revert(swapBuff, 4);
+       }
+       // unlockCallback returns (bytes): reuse swapBuff[324..)
+       @mstore32(swapBuff +% 324, 0x20);
+       @mstore32(swapBuff +% 356, 32);
+       @evm_return(swapBuff +% 324, 96);
    }
    else {
       	 @evm_return(@malloc_uninit(0), 0);
