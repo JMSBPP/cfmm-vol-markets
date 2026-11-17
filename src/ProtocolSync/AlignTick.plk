@@ -26,7 +26,7 @@ use ProtocolSync::AlignTickTransition::{
 
 use app::Main::IO_SLOT;
 
-// cast keccak VolMarkets.Aligner — Main stores the AlignTick address at this slot
+// cast keccak VolMarkets.Aligner
 const ALIGNER_SLOT = 0x9e3cd23d05abbd9a7a5ca9ecf08e0a1150bd5e3e48e3ab65660d6eef78375e3d;
 
 // cast sig "setTickAligner(address)"

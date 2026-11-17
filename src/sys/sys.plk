@@ -100,7 +100,7 @@ run {
    else if selector == UNLOCK_CALLBACK_SELECTOR {
       	 //   [0,4)     swap selector
        //   [4,164)   PoolKey (160)
-       //   [164,260) SwapParams / AlignTickTransition (96)
+        //   [164,260) SwapParams / AlignTickTransition (96)
        //   [260,292) bytes offset (= 0x120 = 288, relative to args start)
        //   [292,324) bytes length (= 0)
        //   [324,356) BalanceDelta ret (32)

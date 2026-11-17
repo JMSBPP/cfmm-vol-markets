@@ -127,8 +127,6 @@ run {
     }
 
     else if selector == SET_TICK_SELECTOR {
-	 // Spacing must be set before initialize/align — otherwise PoolKey.tickSpacing=0
-	 // fails as UnableToInitializeMarket and TickSpacingNotOnStorage is unreachable.
 	 tickSpacingRevertEVMDueTo(storage);
     	 let tickCalldata: TickCalldata = (@evm_calldataload(4),tickSpacingWord(tickSpacingOn(storage)));
 
@@ -139,9 +137,7 @@ run {
 	 let currentSlot0SqrtPriceOnPoolManager: SqrtPrice =  slot0SqrtPriceOnLocalAsset();
     	 if EqSqrtPrice(currentSlot0SqrtPriceOnPoolManager, nullSqrtPrice()) {
 	    let marketMemory: MarketMemory = MarketKeyMemoryFrom(storage);
-	    // layout: sel+PoolKey+arg (196) | ret (32) → 228
 	    let mut initMemPtr: u256 = @malloc_uninit(228);
-	    // TODO: This should be handled by main/IO
 	    // cast sig "initialize((address,address,uint24,int24,address),uint160)"
 	    @mstore4(initMemPtr, 0x6276cbbe);
 	    @mcopy(initMemPtr +% 4, marketMemory.ptr, 160);

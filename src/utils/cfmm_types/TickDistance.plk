@@ -1,6 +1,6 @@
 use custom_utils::numerics::WAD::WAD;
 use Exposure::Exposure::{Exposure, exposureSizeVal, exposureSizeWord};
-use custom_utils::cfmm_types::TickPrecedence::TickPrecedence;
+use custom_utils::cfmm_types::TickDirection::TickDirection;
 use custom_utils::cfmm_types::Tick::Tick;
 use custom_utils::cfmm_types::TickSpacing::DefaultTickSpacing;
 use custom_utils::cfmm_types::SqrtPrice::{sqrtPriceFromTick, sqrtPriceWord};
@@ -26,7 +26,7 @@ const arbitraryDistance = fn () TickDistance {
 // false ⇒ price up ⇒ amount0 out.
 const ExposureAndDirectionAwareTickDistance = fn (
     alignCalldata: AlignCalldata,
-    direction: TickPrecedence,
+    direction: TickDirection,
     exposure: Exposure
 ) TickDistance {
       let ts = DefaultTickSpacing();
@@ -54,6 +54,8 @@ const revert_empty = fn () never {
       @evm_revert(@malloc_uninit(0), 0);
 };
 
+
+/// TODO: Migrate this inside math.plk on utils/
 /// @notice Returns ceil(x / y)
 const divRoundingUp = fn (x: u256, y: u256) u256 {
       x </ y + if @evm_mod(x, y) > 0 { 1 } else { 0 }

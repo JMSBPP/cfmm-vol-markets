@@ -49,6 +49,14 @@ const SETTLE_FOR_SELECTOR = 0x3dd45adb;
 // cast sig "take(address,address,uint256)"
 const TAKE_SELECTOR = 0x0b0d9c09;
 
+// cast sig "unlockCallback(bytes)"
+wconst UNLOCK_CALLBACK_SELECTOR = 0x91dd7346;
+
+// cast sig "unlock(bytes)"
+const UNLOCK_SELECTOR = 0x48c89491;
+
+// cast sig "swap((address,address,uint24,int24,address),(bool,int256,uint160),bytes)"
+const UNISWAP_V4_SWAP_SELECTOR = 0xf3cd914c;
 const storePoolManager = fn (poolManager: u256) void {
       @evm_sstore(POOL_MANAGER_SLOT,poolManager);
 };

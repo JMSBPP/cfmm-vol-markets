@@ -4,7 +4,7 @@ use TickMoments::TickAverage::{TickAverage, prospectTickAverage};
 use std::constructor::return_runtime;
 
 use custom_utils::cfmm_types::Tick::{
-    AbsDiffTick, AccTick, AvgTickOn, Tick, TickOn, PrevTickOn, tickWord
+    AbsDiffTick, AccTick, AvgTickOn, Tick, TickOn, PrevTickOn, TickWord
 };
 use custom_utils::more_regions::storage;
 
@@ -50,7 +50,7 @@ const LastTick2TickAvgAcc = fn(on: type) Tick2TickAvgAcc {
       last
 };
 const UninitLastTick2TickAvgAcc = fn () Tick2TickAvgAcc {0};
-const StepTick2TickAvgAcc = fn (t1: Tick, t2: Tick) Tick2TickAvgAcc { @evm_exp(tickWord(AbsDiffTick(t1,t2)), 2)};
+const StepTick2TickAvgAcc = fn (t1: Tick, t2: Tick) Tick2TickAvgAcc { @evm_exp(TickWord(AbsDiffTick(t1,t2)), 2)};
 
 const AccTick2TickAvgAcc = fn (t2t1:Tick2TickAvgAcc,t2t2:Tick2TickAvgAcc) Tick2TickAvgAcc {@evm_add(t2t2,t2t1)};
 
