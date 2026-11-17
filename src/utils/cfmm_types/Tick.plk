@@ -20,7 +20,7 @@ use TickMoments::TickAverage::{
 use TickMoments::Window::{Window, WindowInitialized, window_idx};
 
 use ProtocolSync::AlignCalldata::AlignCalldata;
-use std::regions::memory;
+use std::regions::{memory, calldata};
 use std::slice::{Slice,get,new};
 use std::option::{unwrap,Some};
 use std::core::ops::{neg_u256, less_equals};
@@ -51,6 +51,7 @@ const TickCalldata = tuple {u256,u256};
 const TickFromCalldataToMemory =  Slice(memory,u256, Some(2));
 
 // TODO: 0 is a valid tick value, but is the default value loaded from storage even if no one cas set_tik and has set a tickSpacing value, we might need to parametrize Tick by state as done with window
+
 const Tick = struct {
       val: u256,
       ts: TickSpacing
@@ -66,9 +67,14 @@ const tickReturnEVM = fn() never {
 
 
 // =========================== INPUT: Tick =================================
-const tickWord = fn (self: Tick) u256 {
+
+// todo: This is to be updated everywhere where is with lower caps
+
+const TickWord = fn (self: Tick) u256 {
       tickVal(self)
 };
+// Compat for modules still importing tickWord
+const tickWord = TickWord;
 
 const tickTickSpacing = fn (self: Tick) TickSpacing {
       self.ts
@@ -79,12 +85,12 @@ const tickVal = fn(self: Tick) u256 {
 };
 
 const TickMemory = fn (self: Tick, on: membytes, where: u256) membytes {
-      membytes_write(on, where, tickWord(self));
+      membytes_write(on, where, TickWord(self));
       on
 };
 
 const EqTick = fn (t1: Tick, t2: Tick) bool {
-      tickWord(t1) == tickWord(t2)
+      TickWord(t1) == TickWord(t2)
 };
 
 const NeqTick = fn (t1: Tick, t2: Tick) bool {
@@ -94,7 +100,7 @@ const NeqTick = fn (t1: Tick, t2: Tick) bool {
 // TODO: What is the maximum amount of bits it can occupy ?
 
 const AccTick = fn (t1: Tick, t2: Tick) u256 {
-      @evm_add(tickWord(t1), tickWord(t2))
+      @evm_add(TickWord(t1), TickWord(t2))
 };
 
 const store_tick = fn (tick:$T,to: type) void {
@@ -111,11 +117,11 @@ const store_prev_tick = fn (tick: Tick, to: type) void {
 
 // TODO: revert on mismatched spacing.
 const DiffTick = fn (t1: Tick, t2: Tick) Tick {
-      Tick { val: @evm_sub(tickWord(t1), tickWord(t2)), ts: tickTickSpacing(t1) }
+      Tick { val: @evm_sub(TickWord(t1), TickWord(t2)), ts: tickTickSpacing(t1) }
 };
 
 const AbsTick = fn (t: Tick) Tick {
-      let mut val: u256 = tickWord(t);
+      let mut val: u256 = TickWord(t);
       if @evm_slt(val, 0) {
       	 val = neg_u256(val);
       }
@@ -130,7 +136,7 @@ const AbsDiffTick = fn (t1: Tick, t2: Tick) Tick {
 const NormDiffTick = fn (t1: Tick, t2: Tick) Tick {
       let d: Tick = DiffTick(t1, t2);
       Tick {
-	    val: @evm_sdiv(tickWord(d), tickSpacingWord(tickTickSpacing(d))),
+	    val: @evm_sdiv(TickWord(d), tickSpacingWord(tickTickSpacing(d))),
 	    ts: tickTickSpacing(d)
       }
 };
@@ -139,7 +145,7 @@ const NormDiffTick = fn (t1: Tick, t2: Tick) Tick {
 const NormAbsTick = fn (t1: Tick, t2: Tick) Tick {
       let a: Tick = AbsTick(DiffTick(t1, t2));
       Tick {
-	    val: @evm_sdiv(tickWord(a), tickSpacingWord(tickTickSpacing(a))),
+	    val: @evm_sdiv(TickWord(a), tickSpacingWord(tickTickSpacing(a))),
 	    ts: tickTickSpacing(a)
       }
 };
@@ -148,7 +154,7 @@ const NormAbsTick = fn (t1: Tick, t2: Tick) Tick {
 // ============================ OUTPUT: Tick =================================
 // Spacing-aligned extremes, inset by one tickSpacing when they equal MIN/MAX_TICK so
 // set_tick → Align/swap never targets exact MIN/MAX_SQRT_PRICE (V4 rejects those limits).
-const maxTick = fn( tickSpacing: $ts) Tick {
+const MaxTickPerTickSpacing = fn( tickSpacing: $ts) Tick {
       let tsWord: u256 = tickSpacingWord(tickSpacing);
       let mut val: u256 = @evm_sdiv(MAX_TICK, tsWord) *% tsWord;
       if val == MAX_TICK {
@@ -156,8 +162,10 @@ const maxTick = fn( tickSpacing: $ts) Tick {
       }
       Tick{ val: val, ts: tickSpacing }
 };
+// Compat for modules still importing maxTick
+const maxTick = MaxTickPerTickSpacing;
 
-const minTick = fn( tickSpacing: $ts) Tick {
+const MinTickPerTickSpacing = fn( tickSpacing: $ts) Tick {
       let tsWord: u256 = tickSpacingWord(tickSpacing);
       let mut val: u256 = @evm_sdiv(MIN_TICK, tsWord) *% tsWord;
       if val == MIN_TICK {
@@ -165,10 +173,12 @@ const minTick = fn( tickSpacing: $ts) Tick {
       }
       Tick{ val: val, ts: tickSpacing }
 };
+// Compat for modules still importing minTick
+const minTick = MinTickPerTickSpacing;
 
 // NOTE: This definitions is somewhat arbitrary and can be changed
 const toUpdateTick = fn() Tick {
-      maxTick(DefaultTickSpacing())
+      MaxTickPerTickSpacing(DefaultTickSpacing())
 };
 
 // TODO: This possibly needs more input types, like Window
@@ -190,9 +200,9 @@ const build_tick = fn(from: TickCalldata) Tick {
       let compressedTickWord: u256 = @evm_sdiv(tickBuilt,tickSpacingWord(tickSpacing));
       tickBuilt = @evm_mul(compressedTickWord,tickSpacingWord(tickSpacing));
       tickBuilt = smax(
-			tickVal(minTick(tickSpacing)),
+			tickVal(MinTickPerTickSpacing(tickSpacing)),
 			smin(
-				tickVal(maxTick(tickSpacing)),
+				tickVal(MaxTickPerTickSpacing(tickSpacing)),
 				tickBuilt
 			  )
 			);
@@ -220,7 +230,7 @@ const currentTick = fn (alignCalldata: $AlignCalldata, io: u256) Tick {
       resTick
 };
 
-const tickOnExternal = fn (src:u256 ,on: type) Tick {
+const TickOnExternal = fn (src:u256 ,on: type) Tick {
       let mut resTick : Tick = toUpdateTick();
       if on == storage {
       	  let tickBuff: u256 = @malloc_uninit(36);
@@ -235,6 +245,8 @@ const tickOnExternal = fn (src:u256 ,on: type) Tick {
       }
       resTick
 };
+// Compat for modules still importing tickOnExternal
+const tickOnExternal = TickOnExternal;
 
 
 
@@ -265,8 +277,21 @@ const PrevTickOn = fn (on: type) Tick {
       prevTick
 };
 
+// TODO: This API is tmp
+const TickFrom = fn (from: type, offset: u256, ts_on: type) Tick {
+      let mut resTick: Tick = toUpdateTick();
+      if from == calldata {
+      	 resTick = Tick {val: @evm_calldataload(offset), ts: tickSpacingOn(ts_on) };
+      }
+      resTick
+};
 
-const slot0TickOnPoolManager = fn () Tick {
+// TODO: Include TickOnPoolManagerFromSqrtPriceOnPoolManager
+const TickOnPoolManagerFromSqrtPriceOnPoolManager = fn () Tick {
+
+};
+// TODO: change to TickOnPoolManager
+const TickOnPoolManager = fn () Tick {
       let src: u256 = @evm_sload(IO_SLOT);
       let marketMemory: MarketMemory = MarketKeyMemoryOnExt(src, storage);
       let packed: u256 = @malloc_uninit(64);

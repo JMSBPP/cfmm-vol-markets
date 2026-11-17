@@ -43,8 +43,7 @@ const MarketKeyMemoryFrom = fn (from: type) MarketMemory {
       market
 };
 
-/// Same PoolKey layout as `MarketKeyMemoryFrom`, fetched from `src` via `getMarketKey()`
-/// when `on == storage` (mirrors `tickOnExternal` / `tickSpacingOnExternal`).
+
 const MarketKeyMemoryOnExt = fn (src: u256, on: type) MarketMemory {
       let mut market: MarketMemory = new(memory, (0, 0, 0, 0, 0));
       if on == storage {

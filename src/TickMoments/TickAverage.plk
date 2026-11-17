@@ -1,5 +1,5 @@
 use custom_utils::more_regions::storage;
-use custom_utils::cfmm_types::Tick::{MeanTick, Tick, tickVal, tickWord, toUpdateTick};
+use custom_utils::cfmm_types::Tick::{MeanTick, Tick, tickVal, TickWord, toUpdateTick};
 use TickMoments::Window::{
     WINDOW_INITIALIZED, WINDOW_UNINITIALIZED, Window, WindowInitialized,
     prospectWindow, update_window, window_state
@@ -66,7 +66,7 @@ const tickAvgTick = fn(tickAvg:$TickAverage) Tick {
 const store_tickAverage = fn (tickAverage:$TA, to: type) void {
       if to == storage {
       	 @evm_sstore(@evm_add(TICK_AVERAGE_SLOT,1), tickAvgPrevTickAcc(tickAverage));
-	 @evm_sstore(TICK_AVERAGE_SLOT, tickWord(tickAvgTick(tickAverage)));
+	 @evm_sstore(TICK_AVERAGE_SLOT, TickWord(tickAvgTick(tickAverage)));
       }
 };
 

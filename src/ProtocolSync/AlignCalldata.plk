@@ -1,4 +1,4 @@
-use custom_utils::cfmm_types::Tick::{Tick, tickWord};
+use custom_utils::cfmm_types::Tick::{Tick, TickWord};
 use std::membytes::{membytes_new, membytes, membytes_write};
 
 const AlignCalldata = tuple{u256, u256};
@@ -12,13 +12,13 @@ const emptyAlignCalldata = fn () AlignCalldata {
 
 const partialAlignTickCalldata = fn (tick: Tick) AlignCalldata {
       let mut partAlignCalldata: AlignCalldata = emptyAlignCalldata();
-      partAlignCalldata = @set_field(partAlignCalldata, 0, tickWord(tick));
+      partAlignCalldata = @set_field(partAlignCalldata, 0, TickWord(tick));
       partAlignCalldata
 };
 
 const completeAlignTickCalldata = fn (alignCalldata: AlignCalldata, tick :Tick) AlignCalldata {
       let mut completedAlignTickCalldata: AlignCalldata = alignCalldata;
-      completedAlignTickCalldata = @set_field(completedAlignTickCalldata, 1, tickWord(tick));
+      completedAlignTickCalldata = @set_field(completedAlignTickCalldata, 1, TickWord(tick));
       // todo: This needs to be a runtime assertion can be refined perhaps to only allow < OR >
       if @get_field(completedAlignTickCalldata, 0) == @get_field(completedAlignTickCalldata,1) {
       	 // todo: We aim to support custom bubble reason

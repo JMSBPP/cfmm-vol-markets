@@ -3,7 +3,7 @@ use custom_utils::numerics::Q64x96::Q64_96;
 use custom_utils::protocol_integrations::UniswapV4Consumer::{
     EXTSLOAD_SELECTOR, POOL_MANAGER_SLOT, POOLS_SLOT
 };
-use custom_utils::cfmm_types::Tick::{Tick, tickWord};
+use custom_utils::cfmm_types::Tick::{Tick, TickWord};
 use custom_utils::cfmm_types::Market::{
     MarketMemory, MarketKeyMemoryFrom, MarketKeyMemoryOnExt
 };
@@ -39,7 +39,7 @@ const nullSqrtPrice = fn () SqrtPrice {
 
 // note: vendored from plankified-v3
 const sqrtPriceFromTick = fn (tick: Tick) SqrtPrice {
-    let tickVal = tickWord(tick);
+    let tickVal = TickWord(tick);
     let absTick = if @evm_slt(tickVal, 0) { -tickVal } else { tickVal };
     if absTick > 887272 {
        // note: revert with custom reason

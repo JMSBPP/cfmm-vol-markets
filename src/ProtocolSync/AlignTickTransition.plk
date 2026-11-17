@@ -1,8 +1,8 @@
 use std::membytes::{membytes, membytes_new, membytes_write};
 use custom_utils::eth::NO_VALUE;
 use custom_utils::cfmm_types::Tick::{Tick, currentTick, targetTick};
-use custom_utils::cfmm_types::TickPrecedence::{
-    TickPrecedence, notTickPrecedence, precedesTick
+use custom_utils::cfmm_types::TickDirection::{
+    TickDirection, notTickDirection, precedesTick
 };
 use custom_utils::cfmm_types::TickDistance::{
     TickDistance, ExposureAndDirectionAwareTickDistance, nullTickDistance
@@ -16,7 +16,7 @@ use ProtocolSync::AlignCalldata::AlignCalldata;
 
 use Exposure::Exposure::ArbitraryExposure;
 
-const AlignTickTransition = struct {dir: TickPrecedence, dist: TickDistance, target: SqrtPrice };
+const AlignTickTransition = struct {dir: TickDirection, dist: TickDistance, target: SqrtPrice };
 const AlignTickTransitionMemory = membytes;
 const AlignTickTransitionCfg = tuple{AlignTickTransition, AlignTickTransitionMemory};
 
@@ -25,7 +25,7 @@ const setAlignTickTransitionDirection = fn (self: $AlignTickTransition, currTick
       @set_field(self, "dir", precedesTick(currTick, tgtTick))
 };
 
-const setAlignTickTransitionDistance = fn (self: $AlignTickTransition, direction: TickPrecedence, alignCalldata: AlignCalldata ) AlignTickTransition {
+const setAlignTickTransitionDistance = fn (self: $AlignTickTransition, direction: TickDirection, alignCalldata: AlignCalldata ) AlignTickTransition {
       @set_field(self, "dist", ExposureAndDirectionAwareTickDistance(alignCalldata,direction,ArbitraryExposure(storage)))
 };
 
@@ -33,7 +33,7 @@ const setAlignTickTransitionTarget = fn (self: $AlignTickTransition, tickToAlign
       @set_field(self, "target", sqrtPriceFromTick(tickToAlign))
 };
 
-const alignTickTransitionDirection = fn (self: $TP) TickPrecedence {
+const alignTickTransitionDirection = fn (self: $TP) TickDirection {
       @get_field(self, "dir")
 };
 
@@ -62,7 +62,7 @@ const configureAlignTickTransition = fn (alignCalldata: AlignCalldata, io: u256)
 
 // ============================ OUTPUT: AlignTickTransition =================================
 const unconfiguredAlignTickTransition = fn () AlignTickTransition {
-      AlignTickTransition {dir: notTickPrecedence(), dist: nullTickDistance(), target: nullSqrtPrice()}
+      AlignTickTransition {dir: notTickDirection(), dist: nullTickDistance(), target: nullSqrtPrice()}
 };
 
 const notYetAlignTickTransitionCfg = fn () AlignTickTransitionCfg {

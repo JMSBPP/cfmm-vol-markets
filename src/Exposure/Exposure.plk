@@ -8,7 +8,7 @@ use std::option::{
     unwrap, Some
 };
 use custom_utils::cfmm_types::Tick::{
-    Tick, maxTick, minTick, toUpdateTick, tickWord,
+    Tick, MaxTickPerTickSpacing, MinTickPerTickSpacing, toUpdateTick, TickWord,
     NormAbsTick
 };
 
@@ -61,14 +61,14 @@ const tickHigh = fn(self:Range(Tick)) Tick {
 
 // TODO: This goes along Range on cfmm_utils
 const tickRangeWidth= fn (self:Range(Tick)) u256 {
-      tickWord(NormAbsTick(tickHigh(self), tickLow(self)))
+      TickWord(NormAbsTick(tickHigh(self), tickLow(self)))
 };
 
 const notYetTickRange = fn() Range(Tick) {
       Range(Tick) {low: toUpdateTick(), high: toUpdateTick()}    
 };
 
-const FullTickRange = fn(ts:TickSpacing) Range(Tick) { Range(Tick) {low: minTick(ts) , high: maxTick(ts)}
+const FullTickRange = fn(ts:TickSpacing) Range(Tick) { Range(Tick) {low: MinTickPerTickSpacing(ts) , high: MaxTickPerTickSpacing(ts)}
 };
 // 100e18
 const DEFAULT_EXPOSURE_SIZE = 0x0000000000000000000000000000000000000000000000056bc75e2d63100000;
@@ -114,8 +114,8 @@ const ArbitraryExposure = fn (on: type) Exposure {
       	   let storedExposure = ArbitraryExposure(storage);
       	   resExposure = @set_field(storedExposure, "mem", new(memory, (
 	   	       exposureSizeWord(exposureSizeVal(storedExposure)),
-		       tickWord(tickLow(exposureRange(storedExposure))),
-		       tickWord(tickHigh(exposureRange(storedExposure))))));
+		       TickWord(tickLow(exposureRange(storedExposure))),
+		       TickWord(tickHigh(exposureRange(storedExposure))))));
       }
       resExposure
 };

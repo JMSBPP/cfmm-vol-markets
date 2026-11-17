@@ -1,16 +1,23 @@
 use custom_utils::cfmm_types::TickDistance::TickDistance;
 use custom_utils::more_regions::storage;
 
+// cast keccak VolMarkets.Utilization
+const UTILIZATION_SLOT = 0xdaa705725c2db7b807882e3904ec3835c1d1761711ea65dae9c5a8db23d37810;
+
 const Utilization = u256;
 const NotUtilized = fn () Utilization {0};
 
+
+// this tickDistance input is passed in practice by AlignTick on each configuration
+
+// probably utilization is tracked on the controller
 const UtilizationFromTickDistance = fn (tickDistance: TickDistance) Utilization {
       NotUtilized()
 };
 
 const UtilizationOn = fn (on: type) Utilization {
       if on == storage {
-      	 NotUtilized()
+      	 @evm_sload(UTILIZATION_SLOT)
       }
       else {
       	 NotUtilized()

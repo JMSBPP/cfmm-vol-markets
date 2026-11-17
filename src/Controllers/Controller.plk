@@ -38,13 +38,11 @@ init{
 
 run {
     let selector: u256 = @evm_shr(224, @evm_calldataload(0));
-    let rawPoolManager: u256 = loadPoolManager(); 
+    let rawPoolManager: u256 = loadPoolManager();
+    // TODO: Rename for ON_INSTRUMENT_UPDATE_SELECTOR
     if selector == AFTER_ADD_LIQUIDITY_SELECTOR {
        let rawAggDebt : u256 = @evm_calldataload(324);
-       // 4 + (32*2) return
        let afterAddLiquidityMemBuffPtr: u256 = @malloc_uninit(64);
-       // what is the offset of the currency 0 argument ?
-       // 4 (selector) + 32 (sender) + 160 (poolKey) + (32*4) (modifyLiquidityParams) = 324
        let rawCurrency0: u256 = @evm_calldataload(36);
        let rawCurrency1: u256 = @evm_calldataload(68);
 
@@ -108,12 +106,14 @@ run {
     // afterSwap RETURNS_DELTA only books the unspecified int128. Settle/take that
     // leg only (specified credit stays on the swap caller — AlignTick takes it).
     // Layout: 4 + 32(sender) + 160(poolKey) + 96(SwapParams) → delta @292
+    // TODO: Rename for ON_TICK_ALIGNMENT_SELECTOR	      
     else if selector == AFTER_SWAP_SELECTOR {
        let rawAggDebt: u256 = @evm_calldataload(292);
        // take needs 4+32+32+32; reuse for sync/settle paths too
        let afterSwapMemBuffPtr: u256 = @malloc_uninit(100);
        let rawCurrency0: u256 = @evm_calldataload(36);
        let rawCurrency1: u256 = @evm_calldataload(68);
+       // TODO: Is it actually debt the best name ?
        let debtOnCurrency0: u256 = @evm_sar(128, rawAggDebt);
        let debtOnCurrency1: u256 = @evm_signextend(15, rawAggDebt);
 
