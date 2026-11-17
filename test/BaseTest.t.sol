@@ -30,6 +30,8 @@ import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
 
 import {ITick, MIN_TICK, MAX_TICK, normTickVal} from "@test/Tick.t.sol";
 import {ITickSpacing} from "@test/TickSpacing.t.sol";
+import {IWindow} from "./Window.t.sol";
+
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
 
@@ -53,6 +55,9 @@ interface IEnv {
     function IO() external returns(address);
     function setPoolManager(address) external;
     function setPositionManager(address) external;
+
+    // todo: this is tmp
+    function setTickAligner(address) external;
 }
 
 struct FuzzInputsCommon { uint256 windowIdx;uint256 windowLen;uint24 tickSpacing; uint24 premiumRate;}
