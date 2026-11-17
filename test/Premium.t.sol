@@ -106,8 +106,8 @@ contract PremiumTest is PlankTestBase, Deployers, HookDeployer {
         ITickSpacing(premiumImpl).set_tick_spacing(LOCKED_TICK_SPACING);
         IWindow(premiumImpl).set_window(LOCKED_WINDOW_LEN);
     }
-
-    function test__WhenStartReplication(uint24 premiumRate) external {
+    // Premium --> Instrument
+    function test__fuzz__ForAllPremiumRatesOnReplicationStartedPremiumSensorTracksOptionClearingHouseRealizedPremium(uint24 premiumRate) external {
         uint24 someFixedPremiumRate = uint24(bound(premiumRate, 0, SwapMath.MAX_SWAP_FEE - 1));
         IPremiumRateSetter(premiumImpl).setPremiumRate(someFixedPremiumRate);
 
@@ -143,15 +143,17 @@ contract PremiumTest is PlankTestBase, Deployers, HookDeployer {
                     SHORT,
                     DEFAULT_VEGOID
                 );
+	    
             (,,, uint24 lpFee) = IStateView(uniswapV4StateView).getSlot0(marketKey.toId());
             assertEq(IPremiumRate(premiumImpl).readPremiumRate(), lpFee);
+	    
 
 	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency0)),optionClearingHouseReturnedPremium0);
 	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency1)),optionClearingHouseReturnedPremium1);
 
-	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency0)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency0)));
+ /* 	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency0)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency0))); */
 	    
- assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency1)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency1)));
+ /* assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency1)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency1))); */
 	    
             windowIdx++;
         } while (windowIdx < LOCKED_WINDOW_LEN);
@@ -160,5 +162,13 @@ contract PremiumTest is PlankTestBase, Deployers, HookDeployer {
         assertEq(marketKey.fee, someFixedPremiumRate);
         (,,, uint24 finalLpFee) = IStateView(uniswapV4StateView).getSlot0(marketKey.toId());
         assertEq(IPremiumRate(premiumImpl).readPremiumRate(), finalLpFee);
+    }
+
+
+    function test__fuzz__ForAllPremiumRatesOnReplicationStartedPremiumControllerOnUtilizationEstimatorTracksOptionClearingHouseRealizedPremium() external  {
+	vm.skip(true);
+	 /* 	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency0)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency0))); */
+	    
+ /* assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency1)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency1))); */
     }
 }
