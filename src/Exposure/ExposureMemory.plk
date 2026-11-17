@@ -3,7 +3,7 @@ use std::slice::{Slice,new};
 pub use Exposure::Exposure::exposureMemory;
 use Exposure::Exposure::Exposure;
 use std::option::Some;
-use custom_utils::moreRegions::storage;
+use custom_utils::more_regions::storage;
 
 const ExposureMemory = Slice(memory, u256, Some(3));
 

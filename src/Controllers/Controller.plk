@@ -7,10 +7,20 @@ use custom_utils::protocol_integrations::UniswapV4Consumer::{
 
 use custom_utils::eth::NO_VALUE;
 use custom_utils::Token::Transfer::NOTIFY_DEBT_SELECTOR;
+use custom_utils::more_regions::storage;
 
-
+const Controller = u256;
+const Uncontrolled = fn () Controller {0};
 // cast keccak VolMarkets.Controller
 const CONTROLLER_SLOT = 0x504cec47c00ecd92195dd23334a7de6ebb4a41496b4d3e248edc0727a2ce20b0;
+
+const StoredControllerOn = fn (on: type) Controller {
+      let mut storedController: Controller = Uncontrolled();
+      if on == storage {
+      	 storedController = @evm_sload(CONTROLLER_SLOT);      
+      }
+      storedController
+};
 
 // cast sig "setController(address)"
 const SET_CONTROLLER_SELECTOR = 0x92eefe9b;

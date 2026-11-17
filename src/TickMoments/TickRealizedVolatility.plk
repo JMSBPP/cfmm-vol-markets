@@ -6,7 +6,7 @@ use std::constructor::return_runtime;
 use custom_utils::cfmm_types::Tick::{
     AbsDiffTick, AccTick, AvgTickOn, Tick, TickOn, PrevTickOn, tickWord
 };
-use custom_utils::moreRegions::storage;
+use custom_utils::more_regions::storage;
 
 init {return_runtime();}
 run {@evm_stop();}

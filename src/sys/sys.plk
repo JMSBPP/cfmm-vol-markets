@@ -1,0 +1,231 @@
+use std::constructor::return_runtime;
+use std::core::ops::neg_u256;
+use sys::observer::{
+    STATE_OBSERVER_SLOT, SET_STATE_OBSERVER_SELECTOR,
+    UPDATE_TICK_SELECTOR
+};
+use custom_utils::eth::NO_VALUE;
+use custom_utils::Token::Transfer::NOTIFY_DEBT_SELECTOR;
+use custom_utils::protocol_integrations::UniswapV4Consumer::{
+    POOL_MANAGER_SLOT, SET_POOL_MANAGER_SELECTOR, storePoolManager,
+    UNLOCK_SELECTOR, UNLOCK_CALLBACK_SELECTOR, TAKE_SELECTOR,
+    SYNC_SELECTOR, SETTLE_FOR_SELECTOR
+};
+use app::Main::IO_SLOT;
+use custom_utils::cfmm_types::Tick::{READ_TICK_SELECTOR, targetTick};
+use custom_utils::cfmm_types::SqrtPrice::{
+    NeqSqrtPrice, slot0SqrtPriceOnPoolManager, sqrtPriceFromTick
+};
+use ProtocolSync::AlignCalldata::AlignCalldata;
+use ProtocolSync::AlignTickTransition::{
+    AlignTickTransitionCfg, AlignTickTransitionMemory, configureAlignTickTransition
+};
+use std::regions::calldata;
+
+// cast keccak cfmm-vol-markets.sys
+const SYS_SLOT = 0x25cd2f7050d3b4d459754f688c5a5b2d8717a842a98f324f962eaf9f1355cd04;
+// cast sel "setSys(address)"
+const SET_SYS_SELECTOR  = 0x38396dae;
+
+const sys = struct {};
+
+init { return_runtime();}
+
+run {
+   let selector = @evm_shr(224, @evm_calldataload(0));
+   // cast sig "setIO(address)"
+   if selector == 0x5340463b {
+      	 @evm_sstore(IO_SLOT, @evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32), 32);
+   }
+   else if selector == SET_POOL_MANAGER_SELECTOR {
+      	 storePoolManager(@evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32), 32);
+   }
+   else if selector == SET_STATE_OBSERVER_SELECTOR {
+      	 @evm_sstore(STATE_OBSERVER_SLOT, @evm_calldataload(4));
+	 @evm_return(@malloc_zeroed(32), 32);
+   }
+   else if selector == READ_TICK_SELECTOR {
+      	 let buff: u256 = @malloc_uninit(4);
+	 @mstore4(buff, READ_TICK_SELECTOR);
+	 let retBuff: u256 = @malloc_uninit(32);
+	 if !@evm_staticcall(@evm_gas(), @evm_sload(STATE_OBSERVER_SLOT), buff, 4, retBuff, 32) {
+	    // cast sig "FailedToReadObservedTick()"
+	    @mstore4(buff, 0x01bc4c4d);
+	    @evm_revert(buff, 4);
+	 }
+	 @evm_return(retBuff, 32);
+   }
+   else if selector == UPDATE_TICK_SELECTOR {
+      	 let caller: u256 = @evm_caller();
+	 let io: u256 = @evm_sload(IO_SLOT);
+	 let buff: u256 = @malloc_uninit(196);
+	 if !(caller == io) {
+	    if !(caller == @evm_address_this()) {
+	       // cast sig "InvalidCaller()"
+	       @mstore4(buff, 0x48f5c3ed);
+	       @evm_revert(buff, 4);
+	    }
+	 }
+      	 let observer: u256 = @evm_sload(STATE_OBSERVER_SLOT);
+	 let prevWord: u256 = @evm_calldataload(4);
+	 let newWord: u256 = @evm_calldataload(36);
+	 @mstore4(buff, UPDATE_TICK_SELECTOR);
+	 @mstore32(buff +% 4, prevWord);
+	 @mstore32(buff +% 36, newWord);
+	 if !@evm_call(@evm_gas(), observer, NO_VALUE, buff, 68, 0, 0) {
+	    // cast sig "FailedToUpdateObservedTick()"
+	    @mstore4(buff, 0xaa5fa137);
+	    @evm_revert(buff, 4);
+	 }
+	 // init seed is updateTick(t,t); AlignTick only unlocks when ticks differ
+	 if prevWord != newWord {
+	    // cast sig "unlock(bytes)" — AlignTick packing: offset 0x20, len 64, two int24 words
+	    @mstore4(buff, UNLOCK_SELECTOR);
+	    @mstore32(buff +% 4, 0x20);
+	    @mstore32(buff +% 36, 64);
+	    @mstore32(buff +% 68, prevWord);
+	    @mstore32(buff +% 100, newWord);
+	    if !@evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), NO_VALUE, buff, 132, buff +% 132, 32) {
+	       // cast sig "FailedToUnlockPoolManager()"
+	       @mstore4(buff, 0xadefee02);
+	       @evm_revert(buff, 4);
+	    }
+	    @mstore32(buff +% 132, 0x20);
+	    @evm_return(buff +% 132, 32);
+	 }
+	 @evm_return(@malloc_uninit(0), 0);
+   }
+   else if selector == UNLOCK_CALLBACK_SELECTOR {
+      	 //   [0,4)     swap selector
+       //   [4,164)   PoolKey (160)
+       //   [164,260) SwapParams / AlignTickTransition (96)
+       //   [260,292) bytes offset (= 0x120 = 288, relative to args start)
+       //   [292,324) bytes length (= 0)
+       //   [324,356) BalanceDelta ret (32)
+       //   [324,420): offset(0x20) | len(32) | BalanceDelta
+       let swapBuff: u256 = @malloc_uninit(420);
+       // cast sig "swap((address,address,uint24,int24,address),(bool,int256,uint160),bytes)"
+       @mstore4(swapBuff, 0xf3cd914c);
+       let alignCalldata: AlignCalldata = (@evm_calldataload(68), @evm_calldataload(100));
+       let io: u256 = @evm_sload(IO_SLOT);
+       let alignTickTransitionCfg: AlignTickTransitionCfg = configureAlignTickTransition(alignCalldata, io);
+       let alignTickTransitionMem: AlignTickTransitionMemory = @get_field(alignTickTransitionCfg, 1);
+       // PoolKey (160) @68 + AlignTickTransition (96) @228 = 256 → swapBuff+4
+       @mcopy(swapBuff +% 4, alignTickTransitionMem.ptr +% 68, 256);
+       @mstore32(swapBuff +% 260, 0x120);
+       @mstore32(swapBuff +% 292, 0);
+
+       if !@evm_call(@evm_gas(), @evm_sload(POOL_MANAGER_SLOT), NO_VALUE, swapBuff, 324, swapBuff +% 388, 32) {
+	  // cast sig "FailedSwap()"
+	  @mstore4(swapBuff, 0x38f18871);
+	  @evm_revert(swapBuff, 4);
+       }
+       // afterSwap RETURNS_DELTA clears unspecified on the caller; take any
+       // remaining specified credit so unlock does not CurrencyNotSettled.
+       let swapDelta: u256 = @mload32(swapBuff +% 388);
+       let amount0: u256 = @evm_sar(128, swapDelta);
+       let amount1: u256 = @evm_signextend(15, swapDelta);
+       let currency0: u256 = @mload32(swapBuff +% 4);
+       let currency1: u256 = @mload32(swapBuff +% 36);
+       let poolManager: u256 = @evm_sload(POOL_MANAGER_SLOT);
+       if @evm_slt(0, amount0) {
+       	  @mstore4(swapBuff, TAKE_SELECTOR);
+	  @mstore32(swapBuff +% 4, currency0);
+	  @mstore32(swapBuff +% 36, @evm_address_this());
+	  @mstore32(swapBuff +% 68, amount0);
+	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 100, 0, 0) {
+	     // cast sig "FailedOnTakeCurrency0AlignTick()"
+	     @mstore4(swapBuff, 0x077b765f);
+	     @evm_revert(swapBuff, 4);
+	  }
+       }
+       if @evm_slt(0, amount1) {
+       	  @mstore4(swapBuff, TAKE_SELECTOR);
+	  @mstore32(swapBuff +% 4, currency1);
+	  @mstore32(swapBuff +% 36, @evm_address_this());
+	  @mstore32(swapBuff +% 68, amount1);
+	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 100, 0, 0) {
+	     // cast sig "FailedOnTakeCurrency1AlignTick()"
+	     @mstore4(swapBuff, 0xc0b63e9e);
+	     @evm_revert(swapBuff, 4);
+	  }
+       }
+       // Fold Controllers afterSwap unspecified settle onto the unlock caller (hooks=0
+       // or sys-path). AlignTick-only keeps Controller afterSwap until migrated.
+       if @evm_slt(amount0, 0) {
+	  @mstore4(swapBuff, NOTIFY_DEBT_SELECTOR);
+	  @mstore32(swapBuff +% 4, 0);
+	  if !@evm_call(@evm_gas(), currency0, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnNotifyDebtCurrency0Sys()"
+	     @mstore4(swapBuff, 0x20669aa1);
+	     @evm_revert(swapBuff, 4);
+	  }
+	  @mstore4(swapBuff, SYNC_SELECTOR);
+	  @mstore32(swapBuff +% 4, currency0);
+	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnSyncCurrency0Sys()"
+	     @mstore4(swapBuff, 0x6142849e);
+	     @evm_revert(swapBuff, 4);
+	  }
+	  @mstore4(swapBuff, NOTIFY_DEBT_SELECTOR);
+	  @mstore32(swapBuff +% 4, neg_u256(amount0));
+	  if !@evm_call(@evm_gas(), currency0, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnNotifyDebtCurrency0Sys()"
+	     @mstore4(swapBuff, 0x20669aa1);
+	     @evm_revert(swapBuff, 4);
+	  }
+	  @mstore4(swapBuff, SETTLE_FOR_SELECTOR);
+	  @mstore32(swapBuff +% 4, @evm_address_this());
+	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnSettleCurrency0Sys()"
+	     @mstore4(swapBuff, 0x3e6cde4b);
+	     @evm_revert(swapBuff, 4);
+	  }
+       }
+       if @evm_slt(amount1, 0) {
+	  @mstore4(swapBuff, NOTIFY_DEBT_SELECTOR);
+	  @mstore32(swapBuff +% 4, 0);
+	  if !@evm_call(@evm_gas(), currency1, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnNotifyDebtCurrency1Sys()"
+	     @mstore4(swapBuff, 0xf78ff847);
+	     @evm_revert(swapBuff, 4);
+	  }
+	  @mstore4(swapBuff, SYNC_SELECTOR);
+	  @mstore32(swapBuff +% 4, currency1);
+	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnSyncCurrency1Sys()"
+	     @mstore4(swapBuff, 0xd73d5b7c);
+	     @evm_revert(swapBuff, 4);
+	  }
+	  @mstore4(swapBuff, NOTIFY_DEBT_SELECTOR);
+	  @mstore32(swapBuff +% 4, neg_u256(amount1));
+	  if !@evm_call(@evm_gas(), currency1, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnNotifyDebtCurrency1Sys()"
+	     @mstore4(swapBuff, 0xf78ff847);
+	     @evm_revert(swapBuff, 4);
+	  }
+	  @mstore4(swapBuff, SETTLE_FOR_SELECTOR);
+	  @mstore32(swapBuff +% 4, @evm_address_this());
+	  if !@evm_call(@evm_gas(), poolManager, NO_VALUE, swapBuff, 36, 0, 0) {
+	     // cast sig "FailedOnSettleCurrency1Sys()"
+	     @mstore4(swapBuff, 0x2fc8b589);
+	     @evm_revert(swapBuff, 4);
+	  }
+       }
+       // Compare prices (not ticks): V4 zeroForOne can leave slot0.tick == target-1 at P(target)
+       if NeqSqrtPrice(slot0SqrtPriceOnPoolManager(), sqrtPriceFromTick(targetTick(alignCalldata))) {
+       	  // cast sig "NotAlignedTick()"
+       	  @mstore4(swapBuff, 0x5c8b8b4c);
+	  @evm_revert(swapBuff, 4);
+       }
+       // unlockCallback returns (bytes): reuse swapBuff[324..)
+       @mstore32(swapBuff +% 324, 0x20);
+       @mstore32(swapBuff +% 356, 32);
+       @evm_return(swapBuff +% 324, 96);
+   }
+   else {
+      	 @evm_return(@malloc_uninit(0), 0);
+   }
+}

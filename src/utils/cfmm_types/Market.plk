@@ -1,0 +1,72 @@
+use std::slice:: {
+    Slice, new, set, at
+};
+
+use std::regions::memory;
+use std::option::Some;
+use custom_utils::cfmm_types::Asset::{
+    Asset, AssetPair, SortedAssetPair
+};
+use custom_utils::cfmm_types::TickSpacing::{
+    tickSpacingOn, tickSpacingWord
+};
+use custom_utils::eth::NO_VALUE;
+use custom_utils::more_regions::storage;
+use custom_utils::protocol_integrations::UniswapV4Consumer::{
+    LP_FEE_POOL_KEY_IDX, TICK_SPACING_POOL_KEY_IDX, HOOK_POOL_KEY_IDX
+};
+
+use Controllers::Controller::CONTROLLER_SLOT;
+
+// cast keccak VolMarkets.PremiumRate — duplicated from PremiumRate to avoid Market↔Premium cycle
+const PREMIUM_RATE_SLOT = 0x8282207cddb7dec248797bd40ba3d2a32ae0064c024d6111c59444eb63520853;
+
+// cast sig "getMarketKey()"
+const GET_MARKET_KEY_SELECTOR = 0xe6b12e1e;
+
+const MarketMemory = Slice(memory, u256, Some(5));
+
+const MarketMemoryIdx = u256;
+const FilledMarketMemory = fn (self: MarketMemory, with: u256, on: MarketMemoryIdx) MarketMemory {
+      set(self, on, with); self
+};
+
+const tbd = fn () u256 {0};
+
+const MarketKeyMemoryFrom = fn (from: type) MarketMemory {
+      let firstAsset: Asset = @get_field(SortedAssetPair(from), 0);
+      let secondAsset: Asset = @get_field(SortedAssetPair(from), 1);
+      let mut market: MarketMemory = new(memory, (firstAsset, secondAsset, tbd(), tbd(), tbd()));
+      market = FilledMarketMemory(market, @evm_sload(PREMIUM_RATE_SLOT), LP_FEE_POOL_KEY_IDX);
+      market = FilledMarketMemory(market, tickSpacingWord(tickSpacingOn(storage)), TICK_SPACING_POOL_KEY_IDX);
+      market = FilledMarketMemory(market, @evm_sload(CONTROLLER_SLOT), HOOK_POOL_KEY_IDX);
+      market
+};
+
+/// Same PoolKey layout as `MarketKeyMemoryFrom`, fetched from `src` via `getMarketKey()`
+/// when `on == storage` (mirrors `tickOnExternal` / `tickSpacingOnExternal`).
+const MarketKeyMemoryOnExt = fn (src: u256, on: type) MarketMemory {
+      let mut market: MarketMemory = new(memory, (0, 0, 0, 0, 0));
+      if on == storage {
+      	 // ABI ret: offset(32) + len(32) + PoolKey(160) = 224
+      	 let buff: u256 = @malloc_uninit(4 +% 224);
+      	 @mstore4(buff, GET_MARKET_KEY_SELECTOR);
+      	 if !@evm_call(@evm_gas(), src, NO_VALUE, buff, 4, buff +% 4, 224) {
+      	      // cast sig "FailedToFetchAssetMemoryFromAddress()"
+      	      @mstore4(buff, 0x903b6546);
+	      @evm_revert(buff, 4);
+      	 }
+      	 market = new(memory, (
+	      @mload32(buff +% 68),
+	      @mload32(buff +% 100),
+	      @mload32(buff +% 132),
+	      @mload32(buff +% 164),
+	      @mload32(buff +% 196)
+	 ));
+      }
+      market
+};
+
+const AssetPairFromMarketKeyMemory = fn (self: MarketMemory) AssetPair {
+      (at(self, 0), at(self, 1))
+};

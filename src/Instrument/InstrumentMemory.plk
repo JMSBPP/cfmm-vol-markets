@@ -1,10 +1,10 @@
 use std::regions::memory;
 use std::slice::{Slice,new};
 use std::option::Some;
-use custom_utils::moreRegions::storage;
+use custom_utils::more_regions::storage;
 
 use Instrument::Instrument::{
-    instrumentWord, instrumentOn,instrumentFromInstrumentMemory, Instrument,
+    instrumentWord, InstrumentOn,instrumentFromInstrumentMemory, Instrument,
     ArbitraryValidInstrumentInitializer, initializeInstrument,
     SomeLegZeroInstrumentWidth    
 };
@@ -19,7 +19,7 @@ use Exposure::ExposureMemory::ExposureMemory;
 const InstrumentMemory = Slice(memory, u256, Some(1));
 
 const loadInstrumentMemory = fn (from : type) InstrumentMemory {
-      new(memory, (instrumentWord(instrumentOn(from)),))      
+      new(memory, (instrumentWord(InstrumentOn(from)),))      
 };
 
 const instrumentMemoryFromInstrument = fn (instrument: Instrument) InstrumentMemory {

@@ -13,7 +13,22 @@ lib/              submodule dependencies (forge-std, panoptic-v2-core, plank-mon
 spec/ offchain/ refs/   canonical-repo submodules (see README "Repository split")
 notes/            binding spec docs (DATA_CONTRACT.md, UNITS_AND_SCALES.md)
 .planning/        GSD planning tree
+.spec/<Type>.spec/<Type>.md   type algebra
 ```
+
+## Spec type notes
+
+A type spec is `.spec/<Type>.spec/<Type>.md`. It is not nested under another type.
+
+The file starts with an import for every type spec it uses:
+
+```
+import [\(\mathcal{L}\)](@spec/LiquidityChunk.spec/LiquidityChunk.md)
+```
+
+The rest is raw display math (`# TYPE`, `# DEFINE`, `# REFINE`), in the style of `ImpliedVol.md`. No prose.
+
+If an imported spec is missing or not at `.spec/<Type>.spec/<Type>.md` on that type's worktree, open an issue. Do not invent the missing note on this branch.
 
 ## Working in this project
 

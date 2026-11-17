@@ -16,13 +16,13 @@ use custom_utils::cfmm_types::TickSpacing::{
     TickSpacing, tickSpacingOn
 };
 
-use custom_utils::moreRegions::storage;
+use custom_utils::more_regions::storage;
 
 use Exposure::ExposureMemory::{
     ExposureMemory, nullExposureMemory
 };
 
-use Asset::Asset::{
+use custom_utils::cfmm_types::Asset::{
     Asset, AssetPair, AssetPairIdx, AssetOnAssetPairFromIdx
 };
 

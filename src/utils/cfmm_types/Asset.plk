@@ -1,0 +1,56 @@
+use custom_utils::more_regions::storage;
+
+// cast sig "setPair(address,address,bool)"
+const SET_PAIR_SELECTOR = 0xa782d794;
+
+// cast sig "selectAsset(bytes)"
+const SELECT_ASSET_SELECTOR = 0xf1830ca9;
+
+// cast keccak cfmm-vol-markets.Numeaire
+const NUMERAIRE_SLOT = 0x8b2aacedf2416f648c46a4af90c7a77fa692fc219cc6fbedc15a941b4b6c6c25;
+// cast keccak cfmm-vol-markets.Asset
+const ASSET_SLOT = 0xe6a5b3be46af081cd1e21a60d0408d8c675dd2d686b46d479bb5a4890877b5d6;
+
+const Asset = u256;
+const AssetPair = tuple{Asset, Asset};
+
+const EqAsset = fn (a: Asset, b: Asset) bool { a == b };
+
+const FirstAsset = fn (assetPair: AssetPair) Asset { @get_field(assetPair, 0) };
+const SecondAsset = fn (assetPair: AssetPair) Asset { @get_field(assetPair, 1) };
+
+const AssetPairIdx = bool;
+const AssetCalldata = tuple {Asset, Asset, AssetPairIdx};
+
+const AssetOnAssetPairFromIdx = fn (self: AssetPair, idx: AssetPairIdx) Asset {
+      @get_field(self, @bool_to_u256(idx))
+};
+
+// =========================== INPUT: Asset =================================
+const storeAsset = fn (ac: $AC, on: type) void {
+      if AC == AssetCalldata {
+      	 let tmp0: u256 = @get_field(ac, 0);
+	 let tmp1: u256 = @get_field(ac, 1);
+	 let assetIdx: bool = @get_field(ac, 2);
+	 if assetIdx { @evm_sstore(ASSET_SLOT, tmp0); @evm_sstore(NUMERAIRE_SLOT, tmp1); }
+	 else if !assetIdx { @evm_sstore(NUMERAIRE_SLOT, tmp0); @evm_sstore(ASSET_SLOT, tmp1); }
+      }
+};
+
+// ============================ OUTPUT: Asset =================================
+const SortedAssetPair = fn (from: type) AssetPair {
+      let mut resPair: AssetPair = (0, 0);
+      if from == storage {
+      	 let tmp0: u256 = @evm_sload(ASSET_SLOT);
+      	 let tmp1: u256 = @evm_sload(NUMERAIRE_SLOT);
+	 // currency0 < currency1 (V4 PoolKey)
+	 if tmp0 < tmp1 {
+	    resPair = @set_field(resPair, 0, tmp0);
+	    resPair = @set_field(resPair, 1, tmp1);
+	 } else {
+	    resPair = @set_field(resPair, 0, tmp1);
+	    resPair = @set_field(resPair, 1, tmp0);
+	 }
+      }
+      resPair
+};

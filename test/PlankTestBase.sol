@@ -26,12 +26,12 @@ abstract contract PlankTestBase is BaseTest {
         deps[0] = Dependency("std", "plank-target/std/");
         deps[1] = Dependency("TickMoments", "src/TickMoments/");
         deps[2] = Dependency("custom_utils", "src/utils");
-        deps[3] = Dependency("Asset", "src/Asset");
-        deps[4] = Dependency("ProtocolSync", "src/ProtocolSync/");
-        deps[5] = Dependency("Controllers", "src/Controllers/");
-        deps[6] = Dependency("Exposure", "src/Exposure/");
-        deps[7] = Dependency("Premium", "src/Premium");
-        deps[8] = Dependency("Instrument", "src/Instrument");
+        deps[3] = Dependency("ProtocolSync", "src/ProtocolSync/");
+        deps[4] = Dependency("Controllers", "src/Controllers/");
+        deps[5] = Dependency("Exposure", "src/Exposure/");
+        deps[6] = Dependency("Premium", "src/Premium");
+        deps[7] = Dependency("Instrument", "src/Instrument");
+        deps[8] = Dependency("Utilization", "src/Utilization");
         deps[9] = Dependency("app", "src/app");
 
         opts.dependencies = deps;
