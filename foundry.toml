@@ -43,7 +43,8 @@ remappings = [
 	   "panoptic-types/=lib/panoptic-v2-core/contracts/types/",
 	   "panoptic-libraries/=lib/panoptic-v2-core/contracts/libraries/",
 	   "@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/",
-	   "univ3-core/=lib/panoptic-v2-core/lib/v3-core/contracts/"
+	   "univ3-core/=lib/panoptic-v2-core/lib/v3-core/contracts/",
+	   "reactive-test-lib/=lib/reactive-test-lib/src/"
 ]
 
 
