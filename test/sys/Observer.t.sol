@@ -27,62 +27,7 @@ interface IStateObserver{
 }
 
 
-contract DiffTestStateObserverAlignTick  is BaseTest, DifferentialTest {
-    function setUp () public override virtual {
-	super.setUp();
-    }
-    
-    function expectedPoolManagerFirstCalls__InsideDoTickDisturbance(Context memory ctx) external {
-    	    if (ctx.args.windowIdx == 0) {
-		ctx.shock.prevTick = ctx.shock.newTick;
-		int24 initTick = ctx.shock.prevTick;
-		// It should call poolManager initialize
-		vm.expectCall(ctx.poolManager, abi.encodeCall(IPoolManager.initialize,(ctx.marketKey,TickMath.getSqrtPriceAtTick(initTick))));
-	    } else if (ctx.shock.prevTick != ctx.shock.newTick) {
-		vm.expectCall(ctx.poolManager, abi.encodeCall(IPoolManager.unlock, (abi.encode(ctx.shock.prevTick,ctx.shock.newTick))));
-	    }
-    }
-
-    function expectedPoolManagerSecondCalls__InsideDoTickDisturbance (Context memory ctx) external {
-	    if (ctx.args.windowIdx == 0 || ctx.shock.prevTick == ctx.shock.newTick) {
-		return;
-	    }
-	    IPoolManager.SwapParams memory expectedSwapParams;
-	    expectedSwapParams.sqrtPriceLimitX96 = TickMath.getSqrtPriceAtTick(ctx.shock.newTick);
-	    (uint160 currentSqrtPriceX96,,,) = IStateView(ctx.poolManagerLens).getSlot0(PoolIdLibrary.toId(ctx.marketKeyPeriphery));
-	    
-	    expectedSwapParams.zeroForOne = (expectedSwapParams.sqrtPriceLimitX96 < currentSqrtPriceX96);
-	    
-	    uint128 exposureLiquidity = uint128(uint256(100e18));
-	    expectedSwapParams.amountSpecified = expectedSwapParams.zeroForOne
-		? int256(
-		    SqrtPriceMath.getAmount1Delta(
-			currentSqrtPriceX96, expectedSwapParams.sqrtPriceLimitX96, exposureLiquidity, true
-		    )
-		)
-		: int256(
-		    SqrtPriceMath.getAmount0Delta(
-			currentSqrtPriceX96, expectedSwapParams.sqrtPriceLimitX96, exposureLiquidity, true
-		    )
-		);
-	    
-	    vm.expectCall(ctx.poolManager, abi.encodeCall(IPoolManager.swap, (ctx.marketKey,expectedSwapParams,Constants.ZERO_BYTES)));
-	    }
-
-    function assert__InsideDoTickDisturbance(Context memory ctx) external {
-	    (uint160 slot0SqrtPriceX96,, ,) =
-		IStateView(ctx.poolManagerLens).getSlot0(PoolIdLibrary.toId(ctx.marketKeyPeriphery));
-	    assertEq(
-		ITick(ctx.io).read_tick(),
-		TickMath.getTickAtSqrtPrice(slot0SqrtPriceX96),
-		"read_tick must equal getTickAtSqrtPrice(slot0.sqrtPrice)"
-	    );
-
-    }
-
-}
-
-contract ObserverTest is DiffTestStateObserverAlignTick {
+contract ObserverTest is BaseTest, DifferentialTest {
 
     address stateObserver = makeAddr("cfmm-vol-markets.stateObserver");
     address sys = makeAddr("cfmm-vol-markets.sys");
@@ -153,5 +98,56 @@ contract ObserverTest is DiffTestStateObserverAlignTick {
 	    );
 	    ctx.args.windowIdx++;
          } while (ctx.args.windowIdx < ctx.args.windowLen);
+    }
+
+    
+    // ================================== TESTS ================================================
+
+    function expectedPoolManagerFirstCalls__InsideDoTickDisturbance(Context memory ctx) external {
+    	    if (ctx.args.windowIdx == 0) {
+		ctx.shock.prevTick = ctx.shock.newTick;
+		int24 initTick = ctx.shock.prevTick;
+		// It should call poolManager initialize
+		vm.expectCall(ctx.poolManager, abi.encodeCall(IPoolManager.initialize,(ctx.marketKey,TickMath.getSqrtPriceAtTick(initTick))));
+	    } else if (ctx.shock.prevTick != ctx.shock.newTick) {
+		vm.expectCall(ctx.poolManager, abi.encodeCall(IPoolManager.unlock, (abi.encode(ctx.shock.prevTick,ctx.shock.newTick))));
+	    }
+    }
+
+    function expectedPoolManagerSecondCalls__InsideDoTickDisturbance (Context memory ctx) external {
+	    if (ctx.args.windowIdx == 0 || ctx.shock.prevTick == ctx.shock.newTick) {
+		return;
+	    }
+	    IPoolManager.SwapParams memory expectedSwapParams;
+	    expectedSwapParams.sqrtPriceLimitX96 = TickMath.getSqrtPriceAtTick(ctx.shock.newTick);
+	    (uint160 currentSqrtPriceX96,,,) = IStateView(ctx.poolManagerLens).getSlot0(PoolIdLibrary.toId(ctx.marketKeyPeriphery));
+	    
+	    expectedSwapParams.zeroForOne = (expectedSwapParams.sqrtPriceLimitX96 < currentSqrtPriceX96);
+	    
+	    uint128 exposureLiquidity = uint128(uint256(100e18));
+	    expectedSwapParams.amountSpecified = expectedSwapParams.zeroForOne
+		? int256(
+		    SqrtPriceMath.getAmount1Delta(
+			currentSqrtPriceX96, expectedSwapParams.sqrtPriceLimitX96, exposureLiquidity, true
+		    )
+		)
+		: int256(
+		    SqrtPriceMath.getAmount0Delta(
+			currentSqrtPriceX96, expectedSwapParams.sqrtPriceLimitX96, exposureLiquidity, true
+		    )
+		);
+	    
+	    vm.expectCall(ctx.poolManager, abi.encodeCall(IPoolManager.swap, (ctx.marketKey,expectedSwapParams,Constants.ZERO_BYTES)));
+	    }
+
+    function assert__InsideDoTickDisturbance(Context memory ctx) external {
+	    (uint160 slot0SqrtPriceX96,, ,) =
+		IStateView(ctx.poolManagerLens).getSlot0(PoolIdLibrary.toId(ctx.marketKeyPeriphery));
+	    assertEq(
+		ITick(ctx.io).read_tick(),
+		TickMath.getTickAtSqrtPrice(slot0SqrtPriceX96),
+		"read_tick must equal getTickAtSqrtPrice(slot0.sqrtPrice)"
+	    );
+
     }
 }

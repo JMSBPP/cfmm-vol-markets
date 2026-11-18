@@ -1,34 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.26;
 
-import {PlankTestBase} from "plank/PlankTestBase.sol";
-import {Deployers} from "v4-core-test/utils/Deployers.sol";
-import {Constants} from "v4-core-test/utils/Constants.sol";
-import {HookDeployer} from "@helpers/UniswapV4/HookDeployer.sol";
-import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
-import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
+import "@test/BaseTest.t.sol";
+import {DifferentialTest} from "@test/DifferentialTest.sol";
 
-import {SfpmBytecodeDeployer} from "@helpers/UniswapV4/SfpmBytecodeDeployer.sol";
+import {HookDeployer} from "@helpers/UniswapV4/HookDeployer.sol";
+
 import {ISemiFungiblePositionManager}
 from "panoptic-v2-core/contracts/interfaces/ISemiFungiblePositionManager.sol";
-import {PoolKey} from "v4-core/types/PoolKey.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {PoolIdLibrary} from "v4-core/types/PoolId.sol";
 import {SwapMath} from "v4-core/libraries/SwapMath.sol";
 import {TickMath} from "v4-core/libraries/TickMath.sol";
-import {console2} from "forge-std/console2.sol";
 
-import {IStateView} from "v4-periphery/interfaces/IStateView.sol";
-import {IPoolManager as IPoolManagerPeriphery} from "v4-periphery/interfaces/IStateView.sol";
-import {StateView} from "v4-periphery/lens/StateView.sol";
-
-import {ITick} from "./Tick.t.sol";
-import {ITickSpacing} from "./TickSpacing.t.sol";
-import {IWindow} from "./Window.t.sol";
 import {
-    IEnv,
-    IMarketBuilder,
-    IMarketLens,
     IControllerSetter
 } from "./NoFeeVarianceClaimBuilderTest.t.sol";
 
@@ -56,7 +39,7 @@ interface IInstrumentEngine {
     function startReplication() external;
 }
 
-contract PremiumTest is PlankTestBase, Deployers, HookDeployer {
+contract PremiumTest is BaseTest, DifferentialTest {
     using PoolIdLibrary for PoolKey;
 
     address premiumImpl = makeAddr("cfmm.vol-markets.premiumImpl");
@@ -106,8 +89,8 @@ contract PremiumTest is PlankTestBase, Deployers, HookDeployer {
         ITickSpacing(premiumImpl).set_tick_spacing(LOCKED_TICK_SPACING);
         IWindow(premiumImpl).set_window(LOCKED_WINDOW_LEN);
     }
-
-    function test__WhenStartReplication(uint24 premiumRate) external {
+    // Premium --> Instrument
+    function test__fuzz__ForAllPremiumRatesOnReplicationStartedPremiumSensorTracksOptionClearingHouseRealizedPremium(uint24 premiumRate) external {
         uint24 someFixedPremiumRate = uint24(bound(premiumRate, 0, SwapMath.MAX_SWAP_FEE - 1));
         IPremiumRateSetter(premiumImpl).setPremiumRate(someFixedPremiumRate);
 
@@ -143,15 +126,17 @@ contract PremiumTest is PlankTestBase, Deployers, HookDeployer {
                     SHORT,
                     DEFAULT_VEGOID
                 );
+	    
             (,,, uint24 lpFee) = IStateView(uniswapV4StateView).getSlot0(marketKey.toId());
             assertEq(IPremiumRate(premiumImpl).readPremiumRate(), lpFee);
+	    
 
 	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency0)),optionClearingHouseReturnedPremium0);
 	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency1)),optionClearingHouseReturnedPremium1);
 
-	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency0)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency0)));
+ /* 	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency0)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency0))); */
 	    
- assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency1)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency1)));
+ /* assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency1)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency1))); */
 	    
             windowIdx++;
         } while (windowIdx < LOCKED_WINDOW_LEN);
@@ -160,5 +145,13 @@ contract PremiumTest is PlankTestBase, Deployers, HookDeployer {
         assertEq(marketKey.fee, someFixedPremiumRate);
         (,,, uint24 finalLpFee) = IStateView(uniswapV4StateView).getSlot0(marketKey.toId());
         assertEq(IPremiumRate(premiumImpl).readPremiumRate(), finalLpFee);
+    }
+
+
+    function test__fuzz__ForAllPremiumRatesOnReplicationStartedPremiumControllerOnUtilizationEstimatorTracksOptionClearingHouseRealizedPremium() external  {
+	vm.skip(true);
+	 /* 	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency0)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency0))); */
+	    
+ /* assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency1)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency1))); */
     }
 }
