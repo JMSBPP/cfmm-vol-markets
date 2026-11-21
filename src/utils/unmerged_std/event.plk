@@ -1,10 +1,21 @@
-import std::core::uint::{is_uint, bit_size, cast_uint};
-import std::core::addr::{addr, cast_addr};
-import std::fixedbytes::bytes32;
-import std::string::string;
-import std::types::type_of;
-import std::regions::{bytes, memory, keccak256, is_bytes, copy_if_not_already_memory};
-import std::abi_helpers::{is_abi_dynamic, abi_head_size};
+use std::prelude::*;
+use std::fixedbytes::bytes32;
+use std::string::string;
+use std::core::uint::{
+    is_uint, _type_of, cast_uint, bit_size
+};
+use std::abi_helpers::{is_abi_dynamic, abi_head_size};
+
+// tmp utils
+const is_bytes = fn (comptime T: type) bool {
+    if !@is_struct(T) {
+        return T == cbytes;
+    }
+    let region = @type_index(T);
+    _type_of(region) == type and is_region(region) and bytes(region) == T
+};
+
+// actual
 
 const anonymous = struct {};
 
@@ -26,7 +37,7 @@ const is_indexed_marker = fn (comptime M: type) bool {
 };
 
 const marker_count = fn (comptime T: type) u256 {
-    let I = type_of(@type_index(T));
+    let I = _type_of(@type_index(T));
     if I == void {
         return 0;
     }
@@ -48,7 +59,7 @@ const marker_count = fn (comptime T: type) u256 {
 
 const marker_at = fn (comptime T: type, comptime k: u256) type {
     let index = @type_index(T);
-    if type_of(index) == type {
+    if _type_of(index) == type {
         return index;
     }
     @get_field(index, k)
@@ -74,7 +85,7 @@ const is_field_indexed = fn (comptime T: type, comptime field: u256) bool {
         if is_indexed_marker(M) {
             let names = @type_index(M);
             comptime let mut n = 0;
-            inline while n < @field_count(type_of(names)) {
+            inline while n < @field_count(_type_of(names)) {
                 if @field_index(T, @get_field(names, n)) == field {
                     return true;
                 }
@@ -352,7 +363,7 @@ const assert_event_type = fn (comptime T: type) void {
         if is_indexed_marker(M) {
             let names = @type_index(M);
             comptime let mut n = 0;
-            inline while n < @field_count(type_of(names)) {
+            inline while n < @field_count(_type_of(names)) {
                 if @field_index(T, @get_field(names, n)) >= @field_count(T) {
                     @compile_error("event: indexed() names a field the event does not declare");
                 }

@@ -2,17 +2,88 @@ use custom_utils::more_regions::storage;
 
 use std::core::uint::_type_of;
 use std::membytes::{membytes,membytes_from_ptr,membytes_read_u256};
-use std::option::{unwrap,Some};
+use std::option::{unwrap,Some, Option};
 use std::regions::{calldata,memory};
 use std::mem::unsafe_mem_write;
 use std::slice::{Slice, get, new};
 use std::core::ops::greater_equals;
 use std::error::{comptime_assert, require};
 
+const WindowLen = u256;
+const WindowIdx = u256;
+
+
+const ZeroWindowIdx = fn () WindowIdx {0};
+const ZeroWindowLen = fn() WindowLen {0};
+const NullWindow = fn() WindowV2 {WindowV2 {len:ZeroWindowLen(), idx: ZeroWindowIdx() }};
+
+const WindowV2 = struct {
+      len: WindowLen,
+      idx: WindowIdx,
+      // NOTE: It needs a reference to the bytecode so it can restart safely if there is a execFrame associted with it
+      execFrame: Option(u256)
+};
+
 // cast keccak vol-markets.TickMoments.Window
 const WINDOW_SLOT = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839be424c;
 // cast sig "set_window(uint256)"
 const SET_WINDOW_SELECTOR = 0xdd7afeac;
+
+// cast sig "getWindowLen()"
+
+const GET_WINDOW_LEN = 0x37331179;
+
+// cast sig "getWindowDelta()"
+const GET_WINDOW_DELTA = 0x66e78467;
+
+
+const WindowFromRegion = fn(region: type) WindowV2 {
+      let mut resWindowFromRegion: WindowV2 = NullWindow();
+
+      if region == storage {
+      	 let storageWindowWord = @evm_sload(WINDOW_SLOT);
+      	 resWindowFromRegion = @set_field(resWindowFromRegion, "len", @evm_shr(128, storageWindowWord));
+	 resWindowFromRegion = @set_field(resWindowFromRegion, "idx", @evm_and(storageWindowWord, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
+      }
+      resWindowFromRegion
+};
+
+const WindowIdxFromRegion = fn(region : type) WindowIdx {
+      let mut resWindowIndexFromRegion: WindowIdx = ZeroWindowIdx();
+      if region == storage {
+      	 resWindowIndexFromRegion = @get_field(WindowFromRegion(storage),"idx");
+      }
+      resWindowIndexFromRegion
+};
+
+
+const WindowLenFromRegion = fn(region: type) WindowLen {
+      let mut resWindowLenFromRegion: WindowLen = ZeroWindowLen();
+      if region == storage {
+      	 resWindowLenFromRegion = @get_field(WindowFromRegion(storage),"len");
+      }
+      resWindowLenFromRegion
+};
+
+const WindowDelta = fn (W:WindowV2) u256 { @evm_sub(W.len,W.idx)};
+
+const InvalidWindowLen = struct{};
+
+
+const RevertWindow = fn (reason: type) never {
+      let mut errorBuffPtr: u256 = @malloc_uninit(4);
+      if reason == InvalidWindowLen {
+      	 // cast sig "InvalidWindowLen()"
+      	 @mstore4(errorBuffPtr, 0x46c0ef4a);
+      	 @evm_revert(errorBuffPtr,4);
+      }
+};
+
+const InitializeWindowOnRegion = fn (Wl: WindowLen, region: type) never{
+      if Wl ==0 { RevertWindow(InvalidWindowLen); }
+      let storageWindowWord = @evm_shl(128, Wl);
+      @evm_sstore(WINDOW_SLOT, storageWindowWord);
+};
 
 
 
@@ -98,7 +169,7 @@ const store_window = fn (window: $W, windowState: type ,to:type) void {
 
 const InvalidWindowRuntimeConstructor = struct{};
 
-const windowRevertEVMDueTo = fn(window: $W) void {
+ const windowRevertEVMDueTo = fn(window: $W) void {
       let revertBuffer : u256 = @malloc_uninit(4);
       if @evm_or(@evm_iszero(window_len(window)),@evm_gt(window_idx(window),window_len(window))) {
       	 // cast sig "InvalidWindowRuntimeConstructor()"
