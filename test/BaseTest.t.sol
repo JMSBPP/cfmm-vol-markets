@@ -111,20 +111,13 @@ contract BaseTest is PlankTestBase, Deployers, HookDeployer {
 	function initContextIntegrations () public returns(Context memory ctx) {
 	    deployCodeTo(main, compilePlank("src/Main.plk"));
 	    globalContext.io = main;
-	    console2.log("io on global context:", globalContext.io);
-	    console2.log("io size on global context:", globalContext.io.code.length);
 	    deployFreshManager();
 
 	    globalContext.poolManager = address(manager);
-	    console2.log("poolManager on global context:", globalContext.poolManager);
 	    globalContext.positionManager = SfpmBytecodeDeployer.deploy(
 	    vm, manager, 2100000000000000000000, 2100000000000000000000, 10000);
-	    console2.log("positionManager on global context:", globalContext.positionManager);
 	    globalContext.poolManagerLens = address(new StateView(IPoolManagerPeriphery(address(manager))));
-	    console2.log("poolManagerLens on global context:", globalContext.poolManagerLens);
 	    ctx = globalContext;
-	    console2.log("io on init context return:", ctx.io);
-	    console2.log("io size on init context return:", ctx.io.code.length);
 
 	}
 
@@ -142,8 +135,6 @@ contract BaseTest is PlankTestBase, Deployers, HookDeployer {
 	error FailedToDeployUniswapV4Hook();
 	function setUp() public virtual {
 	    Context memory globalContextInitialized = initContextIntegrations();
-	    console2.log("io on globalContextInitialized on setUp:", globalContextInitialized.io);
-	    console2.logBytes(abi.encode(globalContextInitialized));
 	}
 
 	function deployUniswapV4Hook(string memory path) internal returns(address hookDeployed) {
