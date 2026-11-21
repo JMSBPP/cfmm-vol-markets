@@ -44,3 +44,6 @@
 [submodule "lib/reactive-test-lib"]
 	path = lib/reactive-test-lib
 	url = https://github.com/Reactive-Network/reactive-test-lib
+[submodule "lib/reactive-lib-omni"]
+	path = lib/reactive-lib-omni
+	url = https://github.com/Reactive-Network/reactive-lib-omni
