@@ -16,7 +16,8 @@ fs_permissions = [
     { access = "read", path = "./.bytecode/algebra" },
     { access = "read", path = "./offchain/rig" },
     { access = "read", path = "./.bytecode/uniswap-v4" },
-    { access = "read", path = "./.bytecode/panoptic" }
+    { access = "read", path = "./.bytecode/panoptic" },
+    { access = "read", path = "./.bytecode/reactive"}
 
 ]
 
@@ -44,7 +45,8 @@ remappings = [
 	   "panoptic-libraries/=lib/panoptic-v2-core/contracts/libraries/",
 	   "@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/",
 	   "univ3-core/=lib/panoptic-v2-core/lib/v3-core/contracts/",
-	   "reactive-test-lib/=lib/reactive-test-lib/src/"
+	   "reactive-test-lib/=lib/reactive-test-lib/src/",
+	   "reactive-lib-omni/=lib/reactive-lib-omni/src/"
 ]
 
 
