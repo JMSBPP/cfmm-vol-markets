@@ -2,8 +2,6 @@
 pragma solidity 0.8.26;
 import {PlankTestBase} from "plank/PlankTestBase.sol";
 
-
-
 enum WindowState {
 	NotSet_1,
 	NotSet_2,

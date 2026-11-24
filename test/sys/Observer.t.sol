@@ -34,6 +34,7 @@ contract ObserverTest is BaseTest, DifferentialTest {
     
     function setUp() public override {
 	super.setUp();
+	
 	deployCodeTo(stateObserver, compilePlank("src/sys/observer.plk"));
 	deployCodeTo(sys, compilePlank("src/sys/sys.plk"));
 	deployCodeTo(underlying, compilePlank("src/utils/Token/Transfer.plk"));
@@ -54,21 +55,17 @@ contract ObserverTest is BaseTest, DifferentialTest {
 	// ============PRE-CONDITIONS==================================
 	Context memory ctx = globalContext;
 	
-	PoolKey memory marketKey = abi.decode(IMarketLens(main).getMarketKey(), (PoolKey));
-	PoolKeyPeriphery memory marketKeyPeriphery = abi.decode(IMarketLens(main).getMarketKey(), (PoolKeyPeriphery));
-	
 	uint256 windowLenCalldata = bound(args.windowLen, 1, 5);
+	
 	ITickSpacing(ctx.io).set_tick_spacing(args.tickSpacing);
 	IWindow(ctx.io).set_window(windowLenCalldata);
 
 	args.windowLen = windowLenCalldata;
 	args.windowIdx = 0;
 	args.tickSpacing = ITickSpacing(ctx.io).read_tick_spacing();
-	ctx.args =  args;
-	ctx.marketKeyPeriphery = marketKeyPeriphery;
-	ctx.marketKeyPeriphery.tickSpacing = int24(ITickSpacing(ctx.io).read_tick_spacing());
-	ctx.marketKey = marketKey;
-	ctx.marketKey.tickSpacing = int24(ITickSpacing(ctx.io).read_tick_spacing());
+	ctx.args = args;
+        ctx.marketKeyPeriphery.tickSpacing = int24(ITickSpacing(ctx.io).read_tick_spacing());
+        ctx.marketKey.tickSpacing = int24(ITickSpacing(ctx.io).read_tick_spacing());
 	ISysSetter(ctx.io).setSys(ctx.target);
 	IStateObserverSetter(ctx.target).setStateObserver(stateObserver);
 	IEnv(ctx.target).setIO(ctx.io);

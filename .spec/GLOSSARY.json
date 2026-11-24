@@ -36,7 +36,7 @@
     },
 
     "Observer": {
-	"responsability": "Reconstructs internal system state",
+	"responsability": "Reconstructs {State}",
     },
     
     "Disturbance": {
@@ -45,8 +45,10 @@
 
     "Estimator": {
 	"responsability": "Estimates unobserved states"
-    }
+    },
 
-    
+    "Simulator" : {
+	"responsability": "Evaluates system behavior over time"
+    }
 
 ]
