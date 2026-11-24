@@ -32,6 +32,15 @@
       "rev": "c6f969fae95a23805d9a3fc55ea46a513d4463c9"
     }
   },
+  "lib/reactive-lib-omni": {
+    "tag": {
+      "name": "v0.1.0",
+      "rev": "3ade0dcf1d27e67e5783ef807e73a1b9e0c0cce8"
+    }
+  },
+  "lib/reactive-test-lib": {
+    "rev": "2ff9b2a68ca9956306ec943c10d1c757c1dd1956"
+  },
   "lib/solady": {
     "rev": "258f67cc71e39cff307b726939ade17e9d8bcf5c"
   },
@@ -41,10 +50,16 @@
       "rev": "e50237c43811bd9b526eff40f26772152a42daba"
     }
   },
+  "lib/v4-periphery": {
+    "rev": "c6e4754dab11bd38c6f08ac51c3c868569e93d64"
+  },
   "offchain": {
     "rev": "b1104974f001d6e67e41cf09388e79df647bf466"
   },
   "refs": {
     "rev": "3a35f7c986f55c4172d198ac83fd9c95e35422e2"
+  },
+  "spec": {
+    "rev": "f2736e058cfde1a03708f34772bfc2bb47c55cf6"
   }
 }

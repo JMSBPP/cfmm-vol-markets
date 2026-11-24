@@ -1,0 +1,2 @@
+const Gas = u256;
+const evmGas = fn() Gas { @evm_gas()};

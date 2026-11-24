@@ -1,0 +1,9 @@
+
+
+const UnitPrice = u256;
+
+
+const PriceMultiplier = u256;
+
+const NullPriceMultiplier = fn () PriceMultiplier {0};
+// const Price = fn (base : UnitPrice, Option(Adjustment)) type

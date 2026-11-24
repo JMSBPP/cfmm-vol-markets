@@ -1,0 +1,85 @@
+use std::constructor::return_runtime;
+
+use std::membytes::{
+    membytes_new, membytes, membytes_write, membytes_read_u256
+};
+
+use custom_utils::protocol_integrations::ReactiveConsumer::SYSTEM;
+use custom_utils::math::max;
+
+
+use std::option::unwrap;
+
+use custom_utils::gas::{
+    Gas, evmGas
+};
+
+use custom_utils::economics::price::{
+    UnitPrice, NullPriceMultiplier, PriceMultiplier
+};
+
+use custom_utils::economics::quantity::{
+    Overhead, NoOverhead
+};
+
+use custom_utils::economics::cost::{
+    Cost
+};
+
+const ReactiveGasLimit = fn() Gas { 900000};
+
+const ReactiveGasOverhead = fn () Overhead {
+      let mut resReactiveGasOverhead: Overhead = NoOverhead();
+      let reactiveGasOverheadMemBuff: membytes = membytes_new(36);
+      // cast sig "_extraGas()"
+      @mstore4(reactiveGasOverheadMemBuff.ptr, 0xe5563728);
+      if !@evm_staticcall(@evm_gas(),SYSTEM,reactiveGasOverheadMemBuff.ptr,4,reactiveGasOverheadMemBuff.ptr+%4,32) {
+       // cast sig "FailedToQueryReactivePricingMultiplier()"
+       @mstore4(reactiveGasOverheadMemBuff.ptr, 0x9df15aef);
+       @evm_revert(reactiveGasOverheadMemBuff.ptr, 4);   
+    }
+    resReactiveGasOverhead = unwrap(membytes_read_u256(reactiveGasOverheadMemBuff,4));
+    resReactiveGasOverhead
+};
+
+
+
+// \(c_{\texttt{reactive}} = p_{\text{base}} \cdot K_{\texttt{pricing}} \cdot ( g + K_{\texttt{extra}})\)
+// TODO: This is to be better typed with the economics utils
+const ReactiveCost = fn (g:Gas) Cost {
+      let base: UnitPrice = max(@evm_basefee(), @evm_gasprice());
+      let effectiveReactivePrice : u256 = @evm_mul(base,ReactivePricingMultiplier());
+      let effectiveGasConsumption : u256 = @evm_add(g, ReactiveGasOverhead());
+      let effectiveReactiveCost: u256 = @evm_mul(effectiveReactivePrice, effectiveGasConsumption);
+      effectiveReactiveCost
+};
+
+
+const ReactivePricingMultiplier = fn () PriceMultiplier {
+    let mut resReactivePricingMultilplier: PriceMultiplier = NullPriceMultiplier();
+    let reactivePricingMultiplierMemBuff: membytes = membytes_new(36);
+    // cast sig "_gasPriceCoeffPer1000()"
+    @mstore4(reactivePricingMultiplierMemBuff.ptr, 0x2c16b16f);
+    if !@evm_staticcall(@evm_gas(), SYSTEM,reactivePricingMultiplierMemBuff.ptr,4,reactivePricingMultiplierMemBuff.ptr+%4,32) {
+       // cast sig "FailedToQueryReactivePricingMultiplier()"
+       @mstore4(reactivePricingMultiplierMemBuff.ptr, 0x9df15aef);
+       @evm_revert(reactivePricingMultiplierMemBuff.ptr, 4);   
+    }
+    resReactivePricingMultilplier = unwrap(membytes_read_u256(reactivePricingMultiplierMemBuff,4));
+    resReactivePricingMultilplier
+};
+
+const MaxReactiveCost = fn () Cost { ReactiveCost(ReactiveGasLimit())};
+
+
+
+
+init {
+     return_runtime();
+}
+
+run {
+	let retReactiveCostMemBuff: membytes = membytes_new(32);
+	membytes_write(retReactiveCostMemBuff,0,ReactiveCost(@evm_calldataload(0)));
+	@evm_return(retReactiveCostMemBuff.ptr,32);
+}

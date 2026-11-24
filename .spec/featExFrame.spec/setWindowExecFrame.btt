@@ -1,0 +1,12 @@
+WindowExecFrameTest
+└── When setWindow is called with WindowLenCalldata
+    ├── It should calculate WindowGasBudgetUpperBound
+    ├── It should log if WindowLenCalldata exceeds WindowGasBudgetUpperBound
+    ├── When WindowLenCalldata exceeds WindowGasBudgetUpperBound
+    │   └── It should set windowLen to WindowGasBudgetUpperBound in storage
+    ├── When WindowLenCalldata does not exceed WindowGasBudgetUpperBound
+    │   └── It should set windowLen to WindowLenCalldata in storage
+    ├── It should set windowIdx to zero in storage
+    ├── It should set windowDelta to WindowCalldata in storage
+    ├── It should set ExFrame state on Window to listening
+    └── It should subscribe to MarketKeyMarketId on the ReactiveNetwork

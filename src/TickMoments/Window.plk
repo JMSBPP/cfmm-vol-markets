@@ -19,9 +19,15 @@ const NullWindow = fn() WindowV2 {WindowV2 {len:ZeroWindowLen(), idx: ZeroWindow
 
 const WindowV2 = struct {
       len: WindowLen,
-      idx: WindowIdx,
-      // NOTE: It needs a reference to the bytecode so it can restart safely if there is a execFrame associted with it
-      execFrame: Option(u256)
+      idx: WindowIdx
+};
+
+const WindowLenOnWindow = fn (self: WindowV2)  WindowLen {
+      @get_field(self, "len")    
+};
+
+const WindowIdxOnWindow = fn (self: WindowV2) WindowIdx {
+      @get_field(self, "idx")
 };
 
 // cast keccak vol-markets.TickMoments.Window
@@ -36,17 +42,35 @@ const GET_WINDOW_LEN = 0x37331179;
 // cast sig "getWindowDelta()"
 const GET_WINDOW_DELTA = 0x66e78467;
 
+const LOW_128_MASK = 0xffffffffffffffffffffffffffffffff;
 
 const WindowFromRegion = fn(region: type) WindowV2 {
-      let mut resWindowFromRegion: WindowV2 = NullWindow();
+    let mut window: WindowV2 = NullWindow();
 
-      if region == storage {
-      	 let storageWindowWord = @evm_sload(WINDOW_SLOT);
-      	 resWindowFromRegion = @set_field(resWindowFromRegion, "len", @evm_shr(128, storageWindowWord));
-	 resWindowFromRegion = @set_field(resWindowFromRegion, "idx", @evm_and(storageWindowWord, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
-      }
-      resWindowFromRegion
+    if region == storage {
+        let word = @evm_sload(WINDOW_SLOT);
+        window = @set_field(window, "len", @evm_shr(128, word));
+        window = @set_field(window, "idx", @evm_and(word, LOW_128_MASK));
+    }
+
+    window
 };
+
+const WindowWord = fn(W: WindowV2) u256 {
+    @evm_or(
+        @evm_shl(128, WindowLenOnWindow(W)),
+        @evm_and(WindowIdxOnWindow(W), LOW_128_MASK)
+    )
+};
+
+
+const storeWindowOn = fn (W: WindowV2 ,region: type) void {
+      if region == storage {
+      	 @evm_sstore(WINDOW_SLOT, WindowWord(W));      	 
+      }
+};
+
+
 
 const WindowIdxFromRegion = fn(region : type) WindowIdx {
       let mut resWindowIndexFromRegion: WindowIdx = ZeroWindowIdx();
@@ -55,6 +79,7 @@ const WindowIdxFromRegion = fn(region : type) WindowIdx {
       }
       resWindowIndexFromRegion
 };
+
 
 
 const WindowLenFromRegion = fn(region: type) WindowLen {
@@ -79,11 +104,30 @@ const RevertWindow = fn (reason: type) never {
       }
 };
 
-const InitializeWindowOnRegion = fn (Wl: WindowLen, region: type) never{
+const InitializeWindowOnRegion = fn (Wl: WindowLen, region: type) void {
       if Wl ==0 { RevertWindow(InvalidWindowLen); }
       let storageWindowWord = @evm_shl(128, Wl);
       @evm_sstore(WINDOW_SLOT, storageWindowWord);
 };
+
+const nextIdx = fn  (W: WindowV2) WindowIdx {
+      let mut resNextIdx: WindowIdx = ZeroWindowIdx();
+      if WindowDelta(W) != 0 {
+      	 resNextIdx = @evm_add(WindowIdxOnWindow(W),1);      	 
+      }
+      resNextIdx
+};
+
+
+	
+const UpdateWindowOnRegion = fn (region: type) void {
+      if region == storage {
+      	 let mut storedWindow: WindowV2 = WindowFromRegion(storage);
+      	 storedWindow =  @set_field(storedWindow, "idx", nextIdx(storedWindow));
+	 storeWindowOn(storedWindow, storage);
+      }
+};
+
 
 
 

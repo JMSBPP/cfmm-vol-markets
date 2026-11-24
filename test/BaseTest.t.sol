@@ -28,7 +28,7 @@ import {PoolIdLibrary} from "v4-periphery/lens/ReservesLens.sol";
 
 import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
 
-import {ITick, MIN_TICK, MAX_TICK, normTickVal} from "@test/Tick.t.sol";
+import {ITick, MIN_TICK, MAX_TICK, normTickVal, usableMin, usableMax} from "@test/Tick.t.sol";
 import {ITickSpacing} from "@test/TickSpacing.t.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
@@ -122,15 +122,16 @@ contract BaseTest is PlankTestBase, Deployers, HookDeployer {
 	}
 
 	modifier FullContext (Context memory ctx) {
-	    IEnv(ctx.target).setIO(ctx.io);
 	    IMarketBuilder(ctx.io).setPair(underlying,numeraire,true);
-	    IEnv(ctx.target).setPoolManager(ctx.poolManager);
 	    IEnv(ctx.io).setPoolManager(ctx.poolManager);
-	    IEnv(ctx.target).setPositionManager(ctx.positionManager);
 	    IEnv(ctx.io).setPositionManager(ctx.positionManager);
+	    PoolKey memory marketKey = abi.decode(IMarketLens(ctx.io).getMarketKey(), (PoolKey));
+	    PoolKeyPeriphery memory marketKeyPeriphery = abi.decode(IMarketLens(ctx.io).getMarketKey(), (PoolKeyPeriphery));
+	    globalContext.marketKey = marketKey;
+            globalContext.marketKeyPeriphery = marketKeyPeriphery;
+
 	    _;
 	}
-
 
 	error FailedToDeployUniswapV4Hook();
 	function setUp() public virtual {

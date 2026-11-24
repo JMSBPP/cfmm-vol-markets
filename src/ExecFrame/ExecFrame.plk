@@ -9,36 +9,43 @@ use std::slice::{
     new, Slice
 };
 
+use custom_utils::economics::cost::{
+    Cost, Free, NeqCost
+};
+
 use custom_utils::protocol_integrations::UniswapV4Consumer::SWAP_TOPIC;
 use custom_utils::cfmm_types::Market::{
     MarketMemoryLen, MARKET_ID_SLOT, MarketMemory,MarketKeyMemoryOnExt
 };
 
 use custom_utils::more_regions::storage;
+use custom_utils::math::max;
+
+
+use custom_utils::protocol_integrations::ReactiveConsumer::*;
+use custom_utils::protocol_integrations::ReactiveCost::LiveReactiveCost;
 
 use std::option::{
     Some, unwrap
 };
 
+use std::core::ops::less_equals;
 
 use TickMoments::Window::{
-    WindowLen
+    WindowLen, InitializeWindowOnRegion, UpdateWindowOnRegion, WindowDelta,
+    WindowFromRegion
 };
 
 
 
-const LASNA_CHAIN_ID = 5318007;
-const REACTIVE_CHAIN_ID = 1597;
-const SYSTEM = 0x8888888888888888888888888888888888888888;
-const REACTIVE_IGNORE = 0xa65f96fc951c35ead38878e0f0b7a3c744a6f5ccc1476b313353ce31712313ad;
-
-
-// cast sig "subscribe(uint256,address,uint256,uint256,uint256,uint256)"
-const SUBSCRIBE_SELECTOR = 0x5a6aced0 ;
 
 // cast keccak "ExecFrameListening(bool)"
 const EXEC_FRAME_LISTENING_TOPIC = 0x1227acb524d7aa07ee69e714b62f3445b5d1e61777f2bc0531a6be223b740843;
 
+// cast sig "listening()"
+const LISTENING_SELECTOR = 0xea0caa68;
+// cast sig "remainingStateUpdatesToListen()"
+const REMAINING_STATE_UPDATES_TO_LISTEN_SELECTOR = 0xc82056f6;
 
 // cast keccak "ExecFrameWindowLen(u256)"
 const ExecFrameWindowLen = struct {
@@ -46,8 +53,9 @@ const ExecFrameWindowLen = struct {
 };
 
 const InitExecFrameWindowLen = fn (origin :membytes) ExecFrameWindowLen {
-      ExecFrameWindowLen {windowLen: unwrap(membytes_read_u256(origin,0))}      
+      ExecFrameWindowLen {windowLen: unwrap(membytes_read_u256(origin,160))}      
 };
+
 
 
 const EXEC_FRAME_WINDOW_LEN_TOPIC = 0x402f45325e729fbbea60c3ca601598c3b107c7f7df3ee6c4d10a2b86ff06f789;
@@ -107,23 +115,26 @@ use custom_utils::unmerged_std::event::emit;
 
 const tmp = struct {blob: membytes};
 
+use std::fixedbytes::{
+    bytes32, bytes32_from_u256
+};
+
+
+const LogBytes32 = struct {value: bytes32 };
+
+
+use custom_utils::protocol_integrations::ReactiveCost::{
+    ReactiveCostSocket, initialize_socket
+};
+
 init {
-     // It needs to reserve space to write the windowLen and market id and listening (65)
-     let execFrameRuntimeRetMemBuff: membytes = membytes_new(@runtime_length()+%65);
 
-     // Let's log the size of the code on this runtime
-     // The runtime length
-     // and the init_end_offset
-     emit(SelfDebugRuntime());
-
-      // There is only one instruction  on runtime. Thus it's size is 1
-     
-     // It receives at the end of the runtime code windowLen ,originChainId, poolManager, io -> 128
-     
-     let mut execFrameReadMemBuff: membytes = membytes_new(128);
-     ///           buffer where copying(here), offset in code region (here), lenght of the data to copy(here) 
+    // TODO: Missing subscription on initialize event of the poolManager
+     let execFrameRuntimeRetMemBuff: membytes = membytes_new(@runtime_length());
+     // It receives at the end of the runtime code
+     // originChainId, poolManager, SWAP_TOPIC, marketId, swapCaller/sys, windowLen -> 192
+     let mut execFrameReadMemBuff: membytes = membytes_new(192);
      @evm_codecopy(execFrameReadMemBuff.ptr,@init_end_offset(),execFrameReadMemBuff.length);
-     execFrameReadMemBuff = MemBytesfromPackedToCallable(execFrameReadMemBuff,64,64);
 
      let execFrameWorkingMemBuff: membytes = membytes_new(196);
           
@@ -134,40 +145,73 @@ init {
      }
      
      else {
-     	  // It copies the windowLen on the execFrameRuntimeRetMemBuff from execFrameReadMemBuff
-	  //  to be revised @mcopy(execFrameReadMemBuff.ptr,execFrameRuntimeRetMemBuff.ptr+%@runtime_length(),32);
-	  
-	  // emit (tmp {blob: execFrameRuntimeRetMemBuff} );
+     	  // note: This autosettles debt based on blacklist events
+     	  ReactiveCostSocket(initialize_socket);
 	  // It logs the len of the window that initialized it
 	  emit(InitExecFrameWindowLen(execFrameReadMemBuff));
 	  // It subscribes to the Swap event
 	  let subscribeMemBuff: membytes = membytes_from_ptr(execFrameWorkingMemBuff.ptr,execFrameWorkingMemBuff.length);
 	  @mstore4(subscribeMemBuff.ptr,SUBSCRIBE_SELECTOR);
-	  @mcopy(subscribeMemBuff.ptr+%4,execFrameReadMemBuff.ptr+%32,64);
-	  membytes_write(subscribeMemBuff,68,SWAP_TOPIC);
-	  membytes_write(subscribeMemBuff,100,(REACTIVE_IGNORE,REACTIVE_IGNORE,REACTIVE_IGNORE));
-	  if !@evm_call(@evm_gas(), SYSTEM, @evm_selfbalance(), subscribeMemBuff.ptr,subscribeMemBuff.length,subscribeMemBuff.ptr+%subscribeMemBuff.length,0) {
+	  @mcopy(subscribeMemBuff.ptr+%4,execFrameReadMemBuff.ptr,160);
+	  membytes_write(subscribeMemBuff,164,REACTIVE_IGNORE);
+	  if !@evm_call(@evm_gas(), SYSTEM, 0, subscribeMemBuff.ptr,subscribeMemBuff.length,subscribeMemBuff.ptr+%subscribeMemBuff.length,0) {
 	     	// cast sig "ExecFrameFailedToSubscribe()"
 	   	@mstore4(subscribeMemBuff.ptr,0xa2cb2a3e);
 	  }
-	  let marketMemory :MarketMemory = MarketKeyMemoryOnExt(unwrap(membytes_read_u256(execFrameReadMemBuff,96)), storage);
 	  
+	  let windowLen :WindowLen = unwrap(membytes_read_u256(execFrameReadMemBuff,160));
+	  InitializeWindowOnRegion(windowLen, storage);
+
     }	  
-    // 	  // it requests the market Key from the reference io passed at deploy time	  
-    // 	  // let marketMemory :MarketMemory = MarketKeyMemoryOnExt(unwrap(membytes_read_u256(execFrameReadMemBuff,96)), storage);
-    // 	  // let marketId: u256 = @evm_keccak256(marketMemory.ptr,MarketMemoryLen(marketMemory));
-    // 	  // It stores on execFrameRuntimeRetMemBuff the marketId
-    // 	  // membytes_write(execFrameRuntimeRetMemBuff,@init_end_offset()+%32,marketId);
-	  
-    // 	  // It sets it's state to listening
-    // 	  // @mstore1(execFrameRuntimeRetMemBuff.ptr+%@init_end_offset()+%64,listen());
-    // }
     
     @evm_codecopy(execFrameRuntimeRetMemBuff.ptr, @runtime_start_offset(), @runtime_length());
     @evm_return(execFrameRuntimeRetMemBuff.ptr, execFrameRuntimeRetMemBuff.length);
 }
 
+const EventId = u256;
+
+const listening = fn() bool { WindowDelta(WindowFromRegion(storage)) != 0 };
+
+const ReturnListening = fn () never {
+      let returnListeningMemBuff: membytes = membytes_new(32);
+      membytes_write(returnListeningMemBuff,0,@bool_to_u256(listening()));
+      @evm_return(returnListeningMemBuff.ptr, returnListeningMemBuff.length);
+};
 
 run {
-    @evm_stop();
+    let settleDisbursementMemBuff: membytes = membytes_new(4);
+    let liveCost: Cost = LiveReactiveCost();
+    if less_equals(liveCost, @evm_selfbalance()) {
+           if !@evm_call(@evm_gas(), SYSTEM, LiveReactiveCost(), settleDisbursementMemBuff.ptr,0,settleDisbursementMemBuff.ptr,0) {
+	     // cast sig "FailedSubscriptionDisbursement()"
+	     @mstore4(settleDisbursementMemBuff.ptr,0x3e80703e);
+	     @evm_revert(settleDisbursementMemBuff.ptr,4);   }
+    	  if NeqCost(LiveReactiveCost(),Free()){
+	     // cast sig "InsufficientDisbursement()"
+	     @mstore4(settleDisbursementMemBuff.ptr,0xb9a26969);
+	     @evm_revert(settleDisbursementMemBuff.ptr,4);   }
+    }
+
+    let selector = @evm_shr(224,@evm_calldataload(0));
+    
+    if selector == LISTENING_SELECTOR { ReturnListening(); }
+    else if selector == REMAINING_STATE_UPDATES_TO_LISTEN_SELECTOR {
+    	 let remainingStateUpdatesMemBuff: membytes = membytes_new(32);
+    	 let remainingStateUpdatesCount: u256 = WindowDelta(WindowFromRegion(storage));
+	 membytes_write(remainingStateUpdatesMemBuff,0,remainingStateUpdatesCount);
+	 @evm_return(remainingStateUpdatesMemBuff.ptr,remainingStateUpdatesMemBuff.length);
+    }
+    
+    else if selector == REACT_SELECTOR {
+       let subscribedEventId : EventId = @evm_calldataload(100);
+       // if subscribedEventId == BLACKLIST_CONTRACT_TOPIC0 {}
+
+	if subscribedEventId == SWAP_TOPIC {
+	   UpdateWindowOnRegion(storage);
+	}
+	
+       emit(LogBytes32 {value: bytes32_from_u256(@evm_calldataload(68))} );
+    }
+    
+    @evm_return(@malloc_zeroed(32),32);
 }

@@ -1,0 +1,5 @@
+
+
+
+const Overhead = u256;
+const NoOverhead = fn () Overhead {0};

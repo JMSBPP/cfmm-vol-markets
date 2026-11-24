@@ -68,7 +68,7 @@ bytecode-runtime:
     echo "wrote $out/VolatilityOraclePluginImplementation.bytecode ($(wc -c < "$out/VolatilityOraclePluginImplementation.bytecode") bytes)"
 
 help:
-	cat .offline/plank.helper
+	cat plank-target/plank-tree-sitter/queries/highlights.scm
 
 # Latest plank-monorepo main in ./plank-target (not the lib/plank-monorepo pin).
 plank-target-dir := "plank-target"
@@ -117,7 +117,7 @@ plank file:
     echo "compiling $src -> $out"
     "$plank_bin" build "$src" --backend sona \
         --dep std="{{plank-target-dir}}/std/" \
-        --dep TickMoments="src/TickMoments" --dep custom_utils="src/utils" --dep ProtocolSync="src/ProtocolSync" --dep Controllers="src/Controllers" --dep Exposure="src/Exposure" --dep Premium="src/Premium" --dep Instrument="src/Instrument" --dep Utilization="src/Utilization" --dep app="src/app" \
+        --dep TickMoments="src/TickMoments" --dep custom_utils="src/utils" --dep ProtocolSync="src/ProtocolSync" --dep Controllers="src/Controllers" --dep Exposure="src/Exposure" --dep Premium="src/Premium" --dep Instrument="src/Instrument" --dep Utilization="src/Utilization" --dep app="src/app" --dep sys="src/sys" \
         > "$out"
 
 # Anvil at [rpc_endpoints.local] if nothing is already listening.
@@ -480,5 +480,41 @@ run-app:
     exec bash scripts/RunApp.sh . "{{app-bytecode-dir}}"
 
 test-current:
-	forge clean && forge test --match-contract Premium -vvvv
+	forge clean && forge test --match-test test__fuzz__WhenStateUpdateDuringWindowLength -vvvv
 
+
+get-funds:
+	forge clean && forge script ./foundry-scripts/protocol_interactions/Reactive/FundsGetter.s.sol:FundsGetterScript -s driftAll --broadcast --legacy  --skip-simulation --non-interactive --private-key $TESTNET_PRIVATE_KEY --rpc-url sepolia -vvvv
+	
+deploy-base:
+	forge clean && forge script ./foundry-scripts/deploy/deploy.s.sol:VolMarketsDeploy -s deployBase --broadcast --skip-simulation --non-interactive --private-key $TESTNET_PRIVATE_KEY --code-size-limit 50000 --rpc-url https://sepolia.gateway.tenderly.co -vvvv
+
+set-market:
+	forge clean && forge script ./foundry-scripts/deploy/deploy.s.sol:VolMarketsDeploy -s deployAndSetMarket --broadcast --legacy  --skip-simulation --non-interactive --private-key $TESTNET_PRIVATE_KEY --code-size-limit 50000 --rpc-url sepolia -vvvv
+
+
+deploy-exec-frame:
+	forge clean && forge script ./foundry-scripts/protocol_interactions/Reactive/deploy.s.sol:ExecFrameDeployer -s deployExecFrame --broadcast --legacy  --skip-simulation --non-interactive --private-key $TESTNET_PRIVATE_KEY --rpc-url lasna -vvvv
+
+disturb-state:
+	forge clean && forge script ./foundry-scripts/actions/state.s.sol:VolMarketsState -s disturb --broadcast --legacy  --skip-simulation --non-interactive --private-key $TESTNET_PRIVATE_KEY --code-size-limit 50000 --rpc-url sepolia -vvvv
+
+
+query-debt:
+	cast call $SYSTEM_CONTRACT_ADDRESS "debt(address)" 0x56f0FEA0404B225f9f51CcFbecEEB6BA40b7039a --rpc-url lasna
+
+
+disturb-state-multi:
+	forge clean && forge script ./foundry-scripts/actions/state.s.sol:VolMarketsState -s disturbMultiRandom --broadcast --legacy  --skip-simulation --non-interactive --private-key $TESTNET_PRIVATE_KEY --code-size-limit 50000 --rpc-url sepolia -vvvv
+
+
+listening:
+	cast call 0x3593291E6EbE6b8012aE61E9d9e834AEe3750ec1 "listening()" --rpc-url lasna
+	
+remaining-events:
+	cast call 0x3593291E6EbE6b8012aE61E9d9e834AEe3750ec1 "remainingStateUpdatesToListen()" --rpc-url lasna
+
+
+
+diagram file:
+	mmdc -i {{file}} -o {{file}}.png

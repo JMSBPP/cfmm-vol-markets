@@ -1,0 +1,11 @@
+
+const Cost = u256;
+const Free = fn() Cost {0};
+
+const EqCost = fn (c1: Cost, c2: Cost ) bool {
+      c1 == c1
+};
+
+const NeqCost = fn (c1: Cost, c2: Cost ) bool {
+      !EqCost(c1,c2)
+};
