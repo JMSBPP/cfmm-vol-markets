@@ -42,29 +42,13 @@ interface IInstrumentEngine {
 contract PremiumTest is BaseTest, DifferentialTest {
     using PoolIdLibrary for PoolKey;
 
-    address premiumImpl = makeAddr("cfmm.vol-markets.premiumImpl");
-    address optionsClearingHouse = makeAddr("cfmm.vol-markets.options-clearing-house");
-    address underlying = makeAddr("cfmm.vol-markets.underlying");
-    address numeraire = makeAddr("cfmm.vol-markets.numeraire");
+    // todo: This is to be replaced by sys
     address alignTickHarness = makeAddr("cfmm-vol-markets.alignTick");
-
+    // todo: This is to be replaced by premiumController
     address noFeeVarianceClaimController;
-    address poolManager;
-    address uniswapV4StateView;
-
-    PoolKey marketKey;
-
-    function setUp() public {
-        deployFreshManager();
-        poolManager = address(manager);
-        uniswapV4StateView = address(new StateView(IPoolManagerPeriphery(address(manager))));
-
-        address sfpm = SfpmBytecodeDeployer.deploy(
-            vm, manager, 2100000000000000000000, 2100000000000000000000, 10000
-        );
-        vm.etch(optionsClearingHouse, sfpm.code);
-
-        deployCodeTo(premiumImpl, compilePlank("src/Main.plk"));
+ 
+    function setUp() public override {
+	super.setUp();
         deployCodeTo(alignTickHarness, compilePlank("src/ProtocolSync/AlignTick.plk"));
         deployCodeTo(underlying, compilePlank("src/utils/Token/Transfer.plk"));
         deployCodeTo(numeraire, compilePlank("src/utils/Token/Transfer.plk"));
@@ -76,82 +60,147 @@ contract PremiumTest is BaseTest, DifferentialTest {
         if (succ) {
             noFeeVarianceClaimController = _tmp;
         }
+	globalContext.target = alignTickHarness;
 
-        IEnv(alignTickHarness).setIO(premiumImpl);
-        IEnv(premiumImpl).setTickAligner(alignTickHarness);
-        IEnv(alignTickHarness).setPoolManager(poolManager);
-        IEnv(premiumImpl).setPoolManager(poolManager);
-        IEnv(alignTickHarness).setPositionManager(optionsClearingHouse);
-        IEnv(premiumImpl).setPositionManager(optionsClearingHouse);
-        IMarketBuilder(premiumImpl).setPair(underlying, numeraire, true);
-        IControllerSetter(premiumImpl).setController(noFeeVarianceClaimController);
-
-        ITickSpacing(premiumImpl).set_tick_spacing(LOCKED_TICK_SPACING);
-        IWindow(premiumImpl).set_window(LOCKED_WINDOW_LEN);
     }
-    // Premium --> Instrument
-    function test__fuzz__ForAllPremiumRatesOnReplicationStartedPremiumSensorTracksOptionClearingHouseRealizedPremium(uint24 premiumRate) external {
-        uint24 someFixedPremiumRate = uint24(bound(premiumRate, 0, SwapMath.MAX_SWAP_FEE - 1));
-        IPremiumRateSetter(premiumImpl).setPremiumRate(someFixedPremiumRate);
 
-        int24 initTick = TickMath.getTickAtSqrtPrice(DEFAULT_INIT_PRICE);
-        ITick(premiumImpl).set_tick(initTick);
+    modifier AlignTickContext(Context memory ctx) {
+	IEnv(ctx.io).setTickAligner(alignTickHarness);
+	IControllerSetter(ctx.io).setController(noFeeVarianceClaimController);
+	_;
+    }
 
-        bytes memory underlyingMarket = IMarketLens(premiumImpl).getMarketKey();
-        marketKey = abi.decode(underlyingMarket, (PoolKey));
+    modifier FixedTickSpacing(Context memory ctx){
+	ITickSpacing(ctx.io).set_tick_spacing(LOCKED_TICK_SPACING);
+	ctx.args.tickSpacing = LOCKED_TICK_SPACING;
+	_;
+    }
 
-        IInstrumentEngine(premiumImpl).startReplication();
+    modifier FixedWindowLen(Context memory ctx) {
+	IWindow(ctx.io).set_window(LOCKED_WINDOW_LEN);
+	ctx.args.windowLen = LOCKED_WINDOW_LEN;
+	_;
+    }
 
-        // Strike unset (=0). Width = NormAbsTick(usableMax, usableMin) % 4096
-        //   = ((887220 - (-887220)) / 60) % 4096 = 29574 % 4096 = 902.
-        // asTicks(0, 902, 60) → [-(902*60)/2, +ceil(902*60/2)] = [-27060, 27060].
-        int24 lo = -27060;
-        int24 hi = 27060;
 
-        uint256 windowIdx = 0;
-        do {
-            int256 tickSeed = vm.randomInt();
-            int24 nextTick =
-                SafeCastLib.toInt24(bound(int256(tickSeed), int256(lo), int256(hi)));
-            ITick(premiumImpl).set_tick(nextTick);
-
-            (uint128 optionClearingHouseReturnedPremium0, uint128 optionClearingHouseReturnedPremium1) = ISemiFungiblePositionManager(optionsClearingHouse)
+    function ForAllPremiumRatesOnReplicationStartedPremiumSensorTracksOptionClearingHouseRealizedPremium(Context memory ctx) external {
+	  (uint128 optionClearingHouseReturnedPremium0, uint128 optionClearingHouseReturnedPremium1) = ISemiFungiblePositionManager(ctx.positionManager)
                 .getAccountPremium(
-                    underlyingMarket,
-                    premiumImpl,
+				   abi.encode(ctx.marketKey),
+                    ctx.io,
                     CALL,
-                    lo,
-                    hi,
-                    nextTick,
+                    ctx.args.lowerBound,
+                    ctx.args.upperBound,
+                    ctx.shock.newTick,
                     SHORT,
                     DEFAULT_VEGOID
                 );
-	    
-            (,,, uint24 lpFee) = IStateView(uniswapV4StateView).getSlot0(marketKey.toId());
-            assertEq(IPremiumRate(premiumImpl).readPremiumRate(), lpFee);
+
+
+	  (,,, uint24 lpFee) = IStateView(ctx.poolManagerLens).getSlot0(ctx.marketKey.toId());
+            assertEq(IPremiumRate(ctx.io).readPremiumRate(), lpFee);
 	    
 
-	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency0)),optionClearingHouseReturnedPremium0);
-	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency1)),optionClearingHouseReturnedPremium1);
+	    assertEq(IPremiumReader(ctx.io).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(ctx.marketKey.currency0)),optionClearingHouseReturnedPremium0);
+	    assertEq(IPremiumReader(ctx.io).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(ctx.marketKey.currency1)),optionClearingHouseReturnedPremium1);
+   }
 
- /* 	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency0)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency0))); */
-	    
- /* assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency1)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency1))); */
-	    
-            windowIdx++;
-        } while (windowIdx < LOCKED_WINDOW_LEN);
+    
+    // Premium --> Instrument
+    function test__fuzz__ForAllPremiumRatesOnReplicationStartedPremiumSensorTracksOptionClearingHouseRealizedPremium(FuzzInputsCommon memory args)
+	external
 
-        assertEq(marketKey.tickSpacing, SafeCastLib.toInt24(uint256(LOCKED_TICK_SPACING)));
-        assertEq(marketKey.fee, someFixedPremiumRate);
-        (,,, uint24 finalLpFee) = IStateView(uniswapV4StateView).getSlot0(marketKey.toId());
-        assertEq(IPremiumRate(premiumImpl).readPremiumRate(), finalLpFee);
+	FullContext(globalContext)
+	AlignTickContext(globalContext)
+	FixedTickSpacing(globalContext)
+	FixedWindowLen(globalContext)
+    {
+	Context memory ctx = globalContext;
+	args.premiumRate = uint24(bound(args.premiumRate, 0, SwapMath.MAX_SWAP_FEE - 1));
+	IPremiumRateSetter(ctx.io).setPremiumRate(args.premiumRate);
+	args.premiumRate = IPremiumRate(ctx.io).readPremiumRate();
+	args.tickSpacing = ITickSpacing(ctx.io).read_tick_spacing();
+	ctx.marketKey.tickSpacing = int24(args.tickSpacing);
+	ctx.marketKey.hooks =  IHooks(noFeeVarianceClaimController);
+	ctx.marketKey.fee = args.premiumRate;
+	ctx.marketKeyPeriphery.tickSpacing = int24(args.tickSpacing);
+	ctx.marketKeyPeriphery.fee = args.premiumRate;
+	ctx.marketKeyPeriphery.hooks = IHooksPeriphery(noFeeVarianceClaimController);
+	
+	int24 initTick = TickMath.getTickAtSqrtPrice(DEFAULT_INIT_PRICE);
+        ITick(ctx.io).set_tick(initTick);
+	
+        IInstrumentEngine(ctx.io).startReplication();
+	args.windowLen = LOCKED_WINDOW_LEN;
+	args.windowIdx = 0;
+	args.lowerBound = int24(-27060);
+	args.upperBound = int24(27060);
+	ctx.args = args;
+        // Strike unset (=0). Width = NormAbsTick(usableMax, usableMin) % 4096
+        //   = ((887220 - (-887220)) / 60) % 4096 = 29574 % 4096 = 902.
+        // asTicks(0, 902, 60) → [-(902*60)/2, +ceil(902*60/2)] = [-27060, 27060].
+        do {
+	    ctx = shock(ctx);
+            ITick(ctx.io).set_tick(ctx.shock.newTick);
+	    test(
+		 this.ForAllPremiumRatesOnReplicationStartedPremiumSensorTracksOptionClearingHouseRealizedPremium,
+		 ctx
+	    );
+	    ctx.args.windowIdx++;
+         } while (ctx.args.windowIdx < ctx.args.windowLen);
+
     }
 
-
-    function test__fuzz__ForAllPremiumRatesOnReplicationStartedPremiumControllerOnUtilizationEstimatorTracksOptionClearingHouseRealizedPremium() external  {
-	vm.skip(true);
-	 /* 	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency0)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency0))); */
+    function ForAllPremiumRatesOnReplicationStartedPremiumControllerOnUtilizationEstimatorTracksOptionClearingHouseRealizedPremium(Context memory ctx) external {
+	console2.log("Asset0PremiumOnInstrument: ",IPremiumReader(ctx.io).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(ctx.marketKey.currency0)));
+	console2.log("Asset1PremiumOnInstrument:", IPremiumReader(ctx.io).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(ctx.marketKey.currency1)));
+	console2.log("Asset0PremiumFromUtilization:", IPremiumReader(ctx.io).assetPremium(Currency.unwrap(ctx.marketKey.currency0)));
+        console2.log("Asset1PremiumFromUtilization:", IPremiumReader(ctx.io).assetPremium(Currency.unwrap(ctx.marketKey.currency1)));
+ /* 	    assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency0)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency0))); */
 	    
- /* assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency1)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency1))); */
+ /* assertEq(IPremiumReader(premiumImpl).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(marketKey.currency1)),IPremiumReader(premiumImpl).assetPremium(Currency.unwrap(marketKey.currency1))); */   
+    }
+    
+    function test__fuzz__ForAllPremiumRatesOnReplicationStartedPremiumControllerOnUtilizationEstimatorTracksOptionClearingHouseRealizedPremium(FuzzInputsCommon memory args)
+	external
+        FullContext(globalContext)
+	AlignTickContext(globalContext)
+	FixedTickSpacing(globalContext)
+	FixedWindowLen(globalContext)
+    {
+	Context memory ctx = globalContext;
+	args.premiumRate = uint24(bound(args.premiumRate, 0, SwapMath.MAX_SWAP_FEE - 1));
+	IPremiumRateSetter(ctx.io).setPremiumRate(args.premiumRate);
+	args.premiumRate = IPremiumRate(ctx.io).readPremiumRate();
+	args.tickSpacing = ITickSpacing(ctx.io).read_tick_spacing();
+	ctx.marketKey.tickSpacing = int24(args.tickSpacing);
+	ctx.marketKey.hooks =  IHooks(noFeeVarianceClaimController);
+	ctx.marketKey.fee = args.premiumRate;
+	ctx.marketKeyPeriphery.tickSpacing = int24(args.tickSpacing);
+	ctx.marketKeyPeriphery.fee = args.premiumRate;
+	ctx.marketKeyPeriphery.hooks = IHooksPeriphery(noFeeVarianceClaimController);
+	
+	int24 initTick = TickMath.getTickAtSqrtPrice(DEFAULT_INIT_PRICE);
+        ITick(ctx.io).set_tick(initTick);
+	
+        IInstrumentEngine(ctx.io).startReplication();
+	args.windowLen = LOCKED_WINDOW_LEN;
+	args.windowIdx = 0;
+	args.lowerBound = int24(-27060);
+	args.upperBound = int24(27060);
+	ctx.args = args;
+        // Strike unset (=0). Width = NormAbsTick(usableMax, usableMin) % 4096
+        //   = ((887220 - (-887220)) / 60) % 4096 = 29574 % 4096 = 902.
+        // asTicks(0, 902, 60) → [-(902*60)/2, +ceil(902*60/2)] = [-27060, 27060].
+        do {
+	    ctx = shock(ctx);
+            ITick(ctx.io).set_tick(ctx.shock.newTick);
+	    test(
+		 this.ForAllPremiumRatesOnReplicationStartedPremiumControllerOnUtilizationEstimatorTracksOptionClearingHouseRealizedPremium,
+		 ctx
+	    );
+	    ctx.args.windowIdx++;
+         } while (ctx.args.windowIdx < ctx.args.windowLen);
+
     }
 }
