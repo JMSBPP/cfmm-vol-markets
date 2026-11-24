@@ -28,7 +28,7 @@ import {PoolIdLibrary} from "v4-periphery/lens/ReservesLens.sol";
 
 import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
 
-import {ITick, MIN_TICK, MAX_TICK, normTickVal} from "@test/Tick.t.sol";
+import {ITick, MIN_TICK, MAX_TICK, normTickVal, usableMin, usableMax} from "@test/Tick.t.sol";
 import {ITickSpacing} from "@test/TickSpacing.t.sol";
 import {IWindow} from "./Window.t.sol";
 
@@ -116,39 +116,31 @@ contract BaseTest is PlankTestBase, Deployers, HookDeployer {
 	function initContextIntegrations () public returns(Context memory ctx) {
 	    deployCodeTo(main, compilePlank("src/Main.plk"));
 	    globalContext.io = main;
-	    console2.log("io on global context:", globalContext.io);
-	    console2.log("io size on global context:", globalContext.io.code.length);
 	    deployFreshManager();
 
 	    globalContext.poolManager = address(manager);
-	    console2.log("poolManager on global context:", globalContext.poolManager);
 	    globalContext.positionManager = SfpmBytecodeDeployer.deploy(
 	    vm, manager, 2100000000000000000000, 2100000000000000000000, 10000);
-	    console2.log("positionManager on global context:", globalContext.positionManager);
 	    globalContext.poolManagerLens = address(new StateView(IPoolManagerPeriphery(address(manager))));
-	    console2.log("poolManagerLens on global context:", globalContext.poolManagerLens);
 	    ctx = globalContext;
-	    console2.log("io on init context return:", ctx.io);
-	    console2.log("io size on init context return:", ctx.io.code.length);
 
 	}
 
 	modifier FullContext (Context memory ctx) {
-	    IEnv(ctx.target).setIO(ctx.io);
 	    IMarketBuilder(ctx.io).setPair(underlying,numeraire,true);
-	    IEnv(ctx.target).setPoolManager(ctx.poolManager);
 	    IEnv(ctx.io).setPoolManager(ctx.poolManager);
-	    IEnv(ctx.target).setPositionManager(ctx.positionManager);
 	    IEnv(ctx.io).setPositionManager(ctx.positionManager);
+	    PoolKey memory marketKey = abi.decode(IMarketLens(ctx.io).getMarketKey(), (PoolKey));
+	    PoolKeyPeriphery memory marketKeyPeriphery = abi.decode(IMarketLens(ctx.io).getMarketKey(), (PoolKeyPeriphery));
+	    globalContext.marketKey = marketKey;
+            globalContext.marketKeyPeriphery = marketKeyPeriphery;
+
 	    _;
 	}
-
 
 	error FailedToDeployUniswapV4Hook();
 	function setUp() public virtual {
 	    Context memory globalContextInitialized = initContextIntegrations();
-	    console2.log("io on globalContextInitialized on setUp:", globalContextInitialized.io);
-	    console2.logBytes(abi.encode(globalContextInitialized));
 	}
 
 	function deployUniswapV4Hook(string memory path) internal returns(address hookDeployed) {

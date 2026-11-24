@@ -50,13 +50,17 @@ const SETTLE_FOR_SELECTOR = 0x3dd45adb;
 const TAKE_SELECTOR = 0x0b0d9c09;
 
 // cast sig "unlockCallback(bytes)"
-wconst UNLOCK_CALLBACK_SELECTOR = 0x91dd7346;
+const UNLOCK_CALLBACK_SELECTOR = 0x91dd7346;
 
 // cast sig "unlock(bytes)"
 const UNLOCK_SELECTOR = 0x48c89491;
 
 // cast sig "swap((address,address,uint24,int24,address),(bool,int256,uint160),bytes)"
 const UNISWAP_V4_SWAP_SELECTOR = 0xf3cd914c;
+
+// cast keccak "Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)"
+const SWAP_TOPIC = 0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f;
+
 const storePoolManager = fn (poolManager: u256) void {
       @evm_sstore(POOL_MANAGER_SLOT,poolManager);
 };
@@ -64,3 +68,4 @@ const storePoolManager = fn (poolManager: u256) void {
 const loadPoolManager = fn () u256 {
       @evm_sload(POOL_MANAGER_SLOT)
 };
+
