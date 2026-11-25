@@ -2,25 +2,26 @@
 pragma solidity 0.8.26;
 
 import {PlankTestBase} from "plank/PlankTestBase.sol";
-import {ITickSpacing, MAX_TICK_SPACING} from "./TickSpacing.t.sol";
-import {IWindow} from "./Window.t.sol";
-import {MIN_TICK,MAX_TICK,ITick,normTickVal} from "./Tick.t.sol";
+import {ITickSpacing, MAX_TICK_SPACING} from "@test/TickSpacing.t.sol";
+import {IWindow} from "@test/Window.t.sol";
+import {MIN_TICK,MAX_TICK,ITick,normTickVal} from "@test/Tick.t.sol";
 
 import {Deployers} from "v4-core-test/utils/Deployers.sol";
 import {HookDeployer} from "@helpers/UniswapV4/HookDeployer.sol";
 import {console2} from "forge-std/console2.sol";
 
-import {ITickAverage} from "./TickAverage.t.sol";
+import {ITickAverage} from "@test/TickAverage.t.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
 import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
+
 import {
     IEnv,
     IMarketBuilder,
     IMarketLens,
     IControllerSetter,
     IPremiumSetter
-} from "./NoFeeVarianceClaimBuilderTest.t.sol";
+} from "@test/NoFeeVarianceClaimBuilderTest.t.sol";
 
 
 // cast keccak vol-markets.TickMoments.tickRealizedVariance
