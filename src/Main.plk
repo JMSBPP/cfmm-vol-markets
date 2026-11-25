@@ -38,11 +38,13 @@ use TickMoments::TickAverage::{
     READ_TICK_AVERAGE_SELECTOR, TickAverage, store_tickAverage,
     tickAverageReturnEVM, tickAverageWindow, update_average
 };
-use TickMoments::TickRealizedVolatility::{
-    READ_TICK_REALIZED_VOLATILITY_SELECTOR, RealizedVolatility,
-    StoreTickRealizedVolatilityOn, TickRealizedVolatilityReturnEVM,
-    UpdatedTickRealizedVolatilityOn
+
+use Variance::RealizedVariance::{
+    READ_TICK_REALIZED_VARIANCE_SELECTOR, RealizedVariance,
+    StoreTickRealizedVarianceOn, ReturnRealizedVariance,
+    UpdatedRealizedVariance
 };
+
 use custom_utils::cfmm_types::Asset::{
     AssetCalldata, storeAsset,
     SET_PAIR_SELECTOR, SELECT_ASSET_SELECTOR
@@ -242,8 +244,8 @@ run {
       tickAverageReturnEVM();
     }
 
-    // ===================== TICK_REALIZED_VOLATILITY ===============================
-    else if selector == READ_TICK_REALIZED_VOLATILITY_SELECTOR {
+    // ===================== TICK_REALIZED_VARIANCE ===============================
+    else if selector == READ_TICK_REALIZED_VARIANCE_SELECTOR {
       TickRealizedVolatilityReturnEVM();      
     }
 

@@ -68,6 +68,7 @@ interface ISysSetter{
 interface IStateObserverSetter {
     function setStateObserver(address) external;
 }
+
 struct FuzzInputsCommon { uint256 windowIdx;uint256 windowLen;uint24 tickSpacing; uint24 premiumRate;}
 
 function emptyArgs () pure returns(FuzzInputsCommon memory args) {args.windowIdx = 0;args.windowLen = 0; args.tickSpacing = uint24(0); args.premiumRate = uint24(0);}
@@ -170,7 +171,6 @@ contract BaseTest is PlankTestBase, Deployers, HookDeployer {
 	    int24 prevTick =  ITick(ctx.io).read_tick();
 	    resCtx.shock = TickDisturbance(prevTick,newTick);
     }
-
-
+       
 }
 
