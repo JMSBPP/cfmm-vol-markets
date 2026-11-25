@@ -14,13 +14,6 @@ import {IUnlockCallback} from "v4-core/interfaces/callback/IUnlockCallback.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 import {DifferentialTest} from "@test/DifferentialTest.sol";
 
-interface ISysSetter{
-    function setSys(address) external;
-}
-
-interface IStateObserverSetter {
-    function setStateObserver(address) external;
-}
 
 interface IStateObserver{
   function updateTick(int24,int24) external;

@@ -13,7 +13,7 @@ import {TickMath} from "v4-core/libraries/TickMath.sol";
 
 import {
     IControllerSetter
-} from "./NoFeeVarianceClaimBuilderTest.t.sol";
+} from "./../NoFeeVarianceClaimBuilderTest.t.sol";
 
 uint24 constant LOCKED_TICK_SPACING = 60;
 uint256 constant LOCKED_WINDOW_LEN = 5;
@@ -43,13 +43,16 @@ contract PremiumTest is BaseTest, DifferentialTest {
     using PoolIdLibrary for PoolKey;
 
     // todo: This is to be replaced by sys
-    address alignTickHarness = makeAddr("cfmm-vol-markets.alignTick");
+    address stateObserver = makeAddr("cfmm-vol-markets.stateObserver");
+    address sys = makeAddr("cfmm-vol-markets.sys");
+
     // todo: This is to be replaced by premiumController
     address noFeeVarianceClaimController;
  
     function setUp() public override {
 	super.setUp();
-        deployCodeTo(alignTickHarness, compilePlank("src/ProtocolSync/AlignTick.plk"));
+        deployCodeTo(stateObserver, compilePlank("src/sys/observer.plk"));
+	deployCodeTo(sys, compilePlank("src/sys/sys.plk"));
         deployCodeTo(underlying, compilePlank("src/utils/Token/Transfer.plk"));
         deployCodeTo(numeraire, compilePlank("src/utils/Token/Transfer.plk"));
         (bool succ, address _tmp,) = deployHook(
@@ -60,16 +63,17 @@ contract PremiumTest is BaseTest, DifferentialTest {
         if (succ) {
             noFeeVarianceClaimController = _tmp;
         }
-	globalContext.target = alignTickHarness;
-
+        globalContext.target = sys;
     }
 
-    modifier AlignTickContext(Context memory ctx) {
-	IEnv(ctx.io).setTickAligner(alignTickHarness);
-	IControllerSetter(ctx.io).setController(noFeeVarianceClaimController);
+    modifier SysContext(Context memory ctx) {
+	ISysSetter(ctx.io).setSys(ctx.target);
+	IStateObserverSetter(ctx.target).setStateObserver(stateObserver);
+	IEnv(ctx.target).setIO(ctx.io);
+	IEnv(ctx.target).setPoolManager(ctx.poolManager);
+	IEnv(ctx.target).setPositionManager(ctx.positionManager);
 	_;
     }
-
     modifier FixedTickSpacing(Context memory ctx){
 	ITickSpacing(ctx.io).set_tick_spacing(LOCKED_TICK_SPACING);
 	ctx.args.tickSpacing = LOCKED_TICK_SPACING;
@@ -82,15 +86,26 @@ contract PremiumTest is BaseTest, DifferentialTest {
 	_;
     }
 
+    struct Instrument {
+	uint128 exposure;
+	int24 lowerBound;
+	int24 upperBound;
+    }
+	
+    function FullRangeInstrument () internal pure returns (Instrument memory instrument)
 
+    {
+	instrument = Instrument(0,int24(-27060),int24(27060));
+    }
+    
     function ForAllPremiumRatesOnReplicationStartedPremiumSensorTracksOptionClearingHouseRealizedPremium(Context memory ctx) external {
 	  (uint128 optionClearingHouseReturnedPremium0, uint128 optionClearingHouseReturnedPremium1) = ISemiFungiblePositionManager(ctx.positionManager)
                 .getAccountPremium(
 				   abi.encode(ctx.marketKey),
                     ctx.io,
                     CALL,
-                    ctx.args.lowerBound,
-                    ctx.args.upperBound,
+				   FullRangeInstrument().lowerBound,
+				   FullRangeInstrument().upperBound,
                     ctx.shock.newTick,
                     SHORT,
                     DEFAULT_VEGOID
@@ -110,8 +125,8 @@ contract PremiumTest is BaseTest, DifferentialTest {
     function test__fuzz__ForAllPremiumRatesOnReplicationStartedPremiumSensorTracksOptionClearingHouseRealizedPremium(FuzzInputsCommon memory args)
 	external
 
+	SysContext(globalContext)
 	FullContext(globalContext)
-	AlignTickContext(globalContext)
 	FixedTickSpacing(globalContext)
 	FixedWindowLen(globalContext)
     {
@@ -133,8 +148,6 @@ contract PremiumTest is BaseTest, DifferentialTest {
         IInstrumentEngine(ctx.io).startReplication();
 	args.windowLen = LOCKED_WINDOW_LEN;
 	args.windowIdx = 0;
-	args.lowerBound = int24(-27060);
-	args.upperBound = int24(27060);
 	ctx.args = args;
         // Strike unset (=0). Width = NormAbsTick(usableMax, usableMin) % 4096
         //   = ((887220 - (-887220)) / 60) % 4096 = 29574 % 4096 = 902.
@@ -164,7 +177,7 @@ contract PremiumTest is BaseTest, DifferentialTest {
     function test__fuzz__ForAllPremiumRatesOnReplicationStartedPremiumControllerOnUtilizationEstimatorTracksOptionClearingHouseRealizedPremium(FuzzInputsCommon memory args)
 	external
         FullContext(globalContext)
-	AlignTickContext(globalContext)
+	SysContext(globalContext)
 	FixedTickSpacing(globalContext)
 	FixedWindowLen(globalContext)
     {
@@ -186,8 +199,6 @@ contract PremiumTest is BaseTest, DifferentialTest {
         IInstrumentEngine(ctx.io).startReplication();
 	args.windowLen = LOCKED_WINDOW_LEN;
 	args.windowIdx = 0;
-	args.lowerBound = int24(-27060);
-	args.upperBound = int24(27060);
 	ctx.args = args;
         // Strike unset (=0). Width = NormAbsTick(usableMax, usableMin) % 4096
         //   = ((887220 - (-887220)) / 60) % 4096 = 29574 % 4096 = 902.
