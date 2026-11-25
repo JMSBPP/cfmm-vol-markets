@@ -49,7 +49,7 @@ remappings = [
 	   "univ3-core/=lib/panoptic-v2-core/lib/v3-core/contracts/",
 	   "reactive-test-lib/=lib/reactive-test-lib/src/",
 	   "reactive-lib-omni/=lib/reactive-lib-omni/src/",
-	   "volatility-oracle-plugin/=node_modules/@cryptoalgebra/volatility-oracle-plugin/contracts/"
+	   "volatility-oracle-plugin/=src/solidity/vendored/volatility-oracle-plugin/"
 ]
 
 

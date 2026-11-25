@@ -15,7 +15,7 @@ import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
 import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
 
-import {VolatilityOracle} from "volatility-oracle-plugin/libraries/VolatilityOracle.sol";
+import {VolatilityOracleTest} from "volatility-oracle-plugin/AlgebraVolatilityOracleTest.sol";
 
 import {
     IControllerSetter,
@@ -54,7 +54,7 @@ contract TickRealizedVarianceTest is BaseTest {
         }
     }
     
-    function ObserverTracksAlgebraIntegralVolatilityPluginForRealizedVariance(Context memory ctx) external FullContext(ctx) MarketSet(ctx) {
+    function ObserverTracksAlgebraIntegralVolatilityPluginForRealizedVariance(Context memory ctx) external FullContext(ctx)  {
 		uint256 windowIdx = 0;
 		int80 expectedPrevTick2Accum;
 		do {
@@ -67,41 +67,41 @@ contract TickRealizedVarianceTest is BaseTest {
     }
     
     function test__fuzz__ObserverTracksAlgebraIntegralVolatilityPluginForRealizedVariance (FuzzInputsCommon memory args) external {
-	Context memory ctx = globalContext();
+	Context memory ctx = globalContext;
 	ctx = setMarket(args);
-	
 	test(
 	     this.ObserverTracksAlgebraIntegralVolatilityPluginForRealizedVariance,
 	     ctx
 	);
-	// ==============================PRE-CONDITIONS ================================
-	uint256 windowIdx = 0;
-	int80 expectedPrevTick2Accum;
-	do {
-	    int256 tickSeed = vm.randomInt();
-	    int24 tickOnRun = SafeCastLib.toInt24(bound(int256(tickSeed),int256(MIN_TICK),int256(MAX_TICK)));
-	    ITick(realizedVarianceImpl).set_tick(tickOnRun);
-	    int24 stepTickAvg =  ITickAverage(realizedVarianceImpl).read_tick_average();
-	    console2.log("stepTickAvg:", stepTickAvg);
-	    int24 stepTick = ITick(realizedVarianceImpl).read_tick();
-	    console2.log("runningTick:", stepTick);
-	    // It should set the prevTick2Acc to the tickCalldata squared delta with TickAvg.
-	    expectedPrevTick2Accum += int80(tick2Delta(stepTickAvg,stepTick));
-	    int80 storedPrevTick2Accum = SafeCastLib.toInt80(int256(uint256(vm.load(realizedVarianceImpl, bytes32(uint256(TICK_REALIZED_VARIANCE_SLOT) + 1)))));
-	    assertEq(storedPrevTick2Accum,expectedPrevTick2Accum);
-
-	    windowIdx++;
-
-	    uint88 storedStepTickRealizedVariance = ITickRealizedVariance(realizedVarianceImpl).read_tick_realizedVariance();
-	    if (windowIdx == windowLenCalldata) {
-		// It should set the tickRealizedVol to prevTick2Acc over windowIdx
-		uint88 expectedWindowTickRealizedVariance = SafeCastLib.toUint88(uint256(int256(expectedPrevTick2Accum)/int256(windowLenCalldata)));
-		assertEq(storedStepTickRealizedVariance,expectedWindowTickRealizedVariance);
-	    } else {
-		uint88 expectedStepTickRealizedVariance = SafeCastLib.toUint88(uint256(int256(expectedPrevTick2Accum)/int256(windowIdx)));
-		assertEq(storedStepTickRealizedVariance,expectedStepTickRealizedVariance);
-	    }
-	} while (windowIdx < maxIdxPick);
     }
+    /* 	// ==============================PRE-CONDITIONS ================================ */
+    /* 	uint256 windowIdx = 0; */
+    /* 	int80 expectedPrevTick2Accum; */
+    /* 	do { */
+    /* 	    int256 tickSeed = vm.randomInt(); */
+    /* 	    int24 tickOnRun = SafeCastLib.toInt24(bound(int256(tickSeed),int256(MIN_TICK),int256(MAX_TICK))); */
+    /* 	    ITick(realizedVarianceImpl).set_tick(tickOnRun); */
+    /* 	    int24 stepTickAvg =  ITickAverage(realizedVarianceImpl).read_tick_average(); */
+    /* 	    console2.log("stepTickAvg:", stepTickAvg); */
+    /* 	    int24 stepTick = ITick(realizedVarianceImpl).read_tick(); */
+    /* 	    console2.log("runningTick:", stepTick); */
+    /* 	    // It should set the prevTick2Acc to the tickCalldata squared delta with TickAvg. */
+    /* 	    expectedPrevTick2Accum += int80(tick2Delta(stepTickAvg,stepTick)); */
+    /* 	    int80 storedPrevTick2Accum = SafeCastLib.toInt80(int256(uint256(vm.load(realizedVarianceImpl, bytes32(uint256(TICK_REALIZED_VARIANCE_SLOT) + 1))))); */
+    /* 	    assertEq(storedPrevTick2Accum,expectedPrevTick2Accum); */
+
+    /* 	    windowIdx++; */
+
+    /* 	    uint88 storedStepTickRealizedVariance = ITickRealizedVariance(realizedVarianceImpl).read_tick_realizedVariance(); */
+    /* 	    if (windowIdx == windowLenCalldata) { */
+    /* 		// It should set the tickRealizedVol to prevTick2Acc over windowIdx */
+    /* 		uint88 expectedWindowTickRealizedVariance = SafeCastLib.toUint88(uint256(int256(expectedPrevTick2Accum)/int256(windowLenCalldata))); */
+    /* 		assertEq(storedStepTickRealizedVariance,expectedWindowTickRealizedVariance); */
+    /* 	    } else { */
+    /* 		uint88 expectedStepTickRealizedVariance = SafeCastLib.toUint88(uint256(int256(expectedPrevTick2Accum)/int256(windowIdx))); */
+    /* 		assertEq(storedStepTickRealizedVariance,expectedStepTickRealizedVariance); */
+    /* 	    } */
+    /* 	} while (windowIdx < maxIdxPick); */
+    /* } */
 }
 
