@@ -23,21 +23,21 @@ import {
 } from "./NoFeeVarianceClaimBuilderTest.t.sol";
 
 
-// cast keccak vol-markets.TickMoments.tickRealizedVolatility
+// cast keccak vol-markets.TickMoments.tickRealizedVariance
 bytes32 constant TICK_REALIZED_VOLATILITY_SLOT = 0xf69e753063c9a37dc7169cc2d90bb6795545b8db9f6c22f3d499d73437f5553a;
 
 function tick2Delta (int24 tickAvg, int24 tickRef) pure returns(int48) {
     return int48(int48(tickRef - tickAvg)*int48(tickRef - tickAvg));
 }
 
-interface ITickRealizedVolatility {
-    function read_tick_realizedVolatility() external returns(uint88);
+interface ITickRealizedVariance {
+    function read_tick_realizedVariance() external returns(uint88);
 }
 
 
-contract TickRealizedVolatilityTest is PlankTestBase, Deployers, HookDeployer {
+contract TickRealizedVarianceTest is PlankTestBase, Deployers, HookDeployer {
 
-    address realizedVolatilityImpl = makeAddr("cfmm.vol-markets.realizedVolatilityImpl");
+    address realizedVarianceImpl = makeAddr("cfmm.vol-markets.realizedVarianceImpl");
 
     address underlying = makeAddr("cfmm.vol-markets.underlying");
     address numeraire = makeAddr("cfmm.vol-markets.numeraire");
@@ -49,7 +49,7 @@ contract TickRealizedVolatilityTest is PlankTestBase, Deployers, HookDeployer {
     function setUp() public {
 	deployFreshManager();
 	poolManager = address(manager);
-        deployCodeTo(realizedVolatilityImpl, compilePlank("src/Main.plk"));
+        deployCodeTo(realizedVarianceImpl, compilePlank("src/Main.plk"));
 	deployCodeTo(underlying, compilePlank("src/utils/Token/Transfer.plk"));
         deployCodeTo(numeraire, compilePlank("src/utils/Token/Transfer.plk"));
 	deployCodeTo(alignTickHarness, compilePlank("src/ProtocolSync/AlignTick.plk"));
@@ -62,13 +62,13 @@ contract TickRealizedVolatilityTest is PlankTestBase, Deployers, HookDeployer {
             controller = _tmp;
         }
 
-	IEnv(alignTickHarness).setIO(realizedVolatilityImpl);
-        IEnv(realizedVolatilityImpl).setTickAligner(alignTickHarness);
+	IEnv(alignTickHarness).setIO(realizedVarianceImpl);
+        IEnv(realizedVarianceImpl).setTickAligner(alignTickHarness);
         IEnv(alignTickHarness).setPoolManager(poolManager);
-        IEnv(realizedVolatilityImpl).setPoolManager(poolManager);
+        IEnv(realizedVarianceImpl).setPoolManager(poolManager);
 
-	IMarketBuilder(realizedVolatilityImpl).setPair(underlying, numeraire, true);
-	IControllerSetter(realizedVolatilityImpl).setController(controller);
+	IMarketBuilder(realizedVarianceImpl).setPair(underlying, numeraire, true);
+	IControllerSetter(realizedVarianceImpl).setController(controller);
     }
 
     modifier whenSetTickIsCalledWithTickCalldata() {
@@ -87,35 +87,35 @@ contract TickRealizedVolatilityTest is PlankTestBase, Deployers, HookDeployer {
 	uint256 windowLenCalldata = bound(windowLen, 1, 200);
 	// AlignTick swap sizing OOGs on unit spacing across large tick jumps.
 	uint24 tickSpacingCalldata = uint24(bound(tickSpacing, 60, MAX_TICK_SPACING));
-	ITickSpacing(realizedVolatilityImpl).set_tick_spacing(tickSpacingCalldata);
-	tickSpacingCalldata = ITickSpacing(realizedVolatilityImpl).read_tick_spacing();
-	IWindow(realizedVolatilityImpl).set_window(windowLenCalldata);
+	ITickSpacing(realizedVarianceImpl).set_tick_spacing(tickSpacingCalldata);
+	tickSpacingCalldata = ITickSpacing(realizedVarianceImpl).read_tick_spacing();
+	IWindow(realizedVarianceImpl).set_window(windowLenCalldata);
 	uint256 maxIdxPick = bound(maxIdx,1,windowLenCalldata);
 	uint256 windowIdx = 0;
 	int80 expectedPrevTick2Accum;
 	do {
 	    int256 tickSeed = vm.randomInt();
 	    int24 tickOnRun = SafeCastLib.toInt24(bound(int256(tickSeed),int256(MIN_TICK),int256(MAX_TICK)));
-	    ITick(realizedVolatilityImpl).set_tick(tickOnRun);
-	    int24 stepTickAvg =  ITickAverage(realizedVolatilityImpl).read_tick_average();
+	    ITick(realizedVarianceImpl).set_tick(tickOnRun);
+	    int24 stepTickAvg =  ITickAverage(realizedVarianceImpl).read_tick_average();
 	    console2.log("stepTickAvg:", stepTickAvg);
-	    int24 stepTick = ITick(realizedVolatilityImpl).read_tick();
+	    int24 stepTick = ITick(realizedVarianceImpl).read_tick();
 	    console2.log("runningTick:", stepTick);
 	    // It should set the prevTick2Acc to the tickCalldata squared delta with TickAvg.
 	    expectedPrevTick2Accum += int80(tick2Delta(stepTickAvg,stepTick));
-	    int80 storedPrevTick2Accum = SafeCastLib.toInt80(int256(uint256(vm.load(realizedVolatilityImpl, bytes32(uint256(TICK_REALIZED_VOLATILITY_SLOT) + 1)))));
+	    int80 storedPrevTick2Accum = SafeCastLib.toInt80(int256(uint256(vm.load(realizedVarianceImpl, bytes32(uint256(TICK_REALIZED_VOLATILITY_SLOT) + 1)))));
 	    assertEq(storedPrevTick2Accum,expectedPrevTick2Accum);
 
 	    windowIdx++;
 
-	    uint88 storedStepTickRealizedVolatility = ITickRealizedVolatility(realizedVolatilityImpl).read_tick_realizedVolatility();
+	    uint88 storedStepTickRealizedVariance = ITickRealizedVariance(realizedVarianceImpl).read_tick_realizedVariance();
 	    if (windowIdx == windowLenCalldata) {
 		// It should set the tickRealizedVol to prevTick2Acc over windowIdx
-		uint88 expectedWindowTickRealizedVolatility = SafeCastLib.toUint88(uint256(int256(expectedPrevTick2Accum)/int256(windowLenCalldata)));
-		assertEq(storedStepTickRealizedVolatility,expectedWindowTickRealizedVolatility);
+		uint88 expectedWindowTickRealizedVariance = SafeCastLib.toUint88(uint256(int256(expectedPrevTick2Accum)/int256(windowLenCalldata)));
+		assertEq(storedStepTickRealizedVariance,expectedWindowTickRealizedVariance);
 	    } else {
-		uint88 expectedStepTickRealizedVolatility = SafeCastLib.toUint88(uint256(int256(expectedPrevTick2Accum)/int256(windowIdx)));
-		assertEq(storedStepTickRealizedVolatility,expectedStepTickRealizedVolatility);
+		uint88 expectedStepTickRealizedVariance = SafeCastLib.toUint88(uint256(int256(expectedPrevTick2Accum)/int256(windowIdx)));
+		assertEq(storedStepTickRealizedVariance,expectedStepTickRealizedVariance);
 	    }
 	} while (windowIdx < maxIdxPick);
     }
