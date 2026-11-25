@@ -6,7 +6,8 @@ export ANVIL_RPC_URL := "http://127.0.0.1:8545"
 
 start:
 	npm ci --ignore-scripts
-	git submodules udpate
+	git submodule sync --recursive -- lib/
+	git submodule update --init --recursive --checkout --force
 	forge install
 
 npm-ci:

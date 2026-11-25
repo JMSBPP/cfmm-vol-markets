@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.26;
+pragma solidity >=0.8.0;
 
 import "@test/BaseTest.t.sol";
 import {ITickSpacing, MAX_TICK_SPACING} from "@test/TickSpacing.t.sol";
@@ -15,7 +15,8 @@ import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
 import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
 
-import {VolatilityOracle} from "volatility-oracle/libraries/VolatilityOracle.sol";
+import {VolatilityOracle} from "volatility-oracle-plugin/libraries/VolatilityOracle.sol";
+
 import {
     IControllerSetter,
     IPremiumSetter
@@ -51,18 +52,17 @@ contract TickRealizedVarianceTest is BaseTest {
 	if (succ) {
             controller = _tmp;
         }
-
-	
     }
     
-    function ObserverTracksAlgebraIntegralVolatilityPluginForRealizedVariance(Context memory ctx) external FullContext(ctx), MarketSet(ctx) {
+    function ObserverTracksAlgebraIntegralVolatilityPluginForRealizedVariance(Context memory ctx) external FullContext(ctx) MarketSet(ctx) {
 		uint256 windowIdx = 0;
 		int80 expectedPrevTick2Accum;
 		do {
 		    ctx = shock(ctx);
 		    ITick(ctx.io).set_tick(ctx.shock.newTick);
+		    windowIdx++;
 		    
-		} while (whileIdx <= ctx.args.windowLen);
+		} while (windowIdx <= ctx.args.windowLen);
 
     }
     
