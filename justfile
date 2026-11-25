@@ -117,7 +117,17 @@ plank file:
     echo "compiling $src -> $out"
     "$plank_bin" build "$src" --backend sona \
         --dep std="{{plank-target-dir}}/std/" \
-        --dep TickMoments="src/TickMoments" --dep custom_utils="src/utils" --dep ProtocolSync="src/ProtocolSync" --dep Controllers="src/Controllers" --dep Exposure="src/Exposure" --dep Premium="src/Premium" --dep Instrument="src/Instrument" --dep Utilization="src/Utilization" --dep app="src/app" --dep sys="src/sys" \
+        --dep TickMoments="src/TickMoments" \
+        --dep custom_utils="src/utils" \
+        --dep ProtocolSync="src/ProtocolSync" \
+        --dep Controllers="src/Controllers" \
+        --dep Exposure="src/Exposure" \
+        --dep Premium="src/Premium" \
+        --dep Instrument="src/Instrument" \
+        --dep app="src/app" \
+        --dep sys="src/sys" \
+        --dep Variance="src/Variance" \
+        --dep Utilization="src/Utilization"
         > "$out"
 
 # Anvil at [rpc_endpoints.local] if nothing is already listening.
@@ -480,7 +490,7 @@ run-app:
     exec bash scripts/RunApp.sh . "{{app-bytecode-dir}}"
 
 test-current:
-	forge clean && forge test --match-test test__fuzz__WhenStateUpdateDuringWindowLength -vvvv
+	forge clean && forge test --match-contract TickRealizedVariance -vvvv
 
 
 get-funds:
@@ -513,7 +523,6 @@ listening:
 	
 remaining-events:
 	cast call 0x3593291E6EbE6b8012aE61E9d9e834AEe3750ec1 "remainingStateUpdatesToListen()" --rpc-url lasna
-
 
 
 diagram file:
