@@ -87,10 +87,6 @@ Let's fix a window W but its constructor can allow for multiple ways to define t
 
 From that Tx we can build a test using test-driven-development, and then we start the engineering of plank until that tests lands green
 
-
-
-
-
 # TODO
 
 1. **A1 locked** — closed form \(G(\iota)\,\sigma_{\texttt{RV}}^{2}\) (see lock file). Remaining:
@@ -101,4 +97,17 @@ From that Tx we can build a test using test-driven-development, and then we star
 3. Derive and find \(\sigma_{\texttt{IV}} = 2 \, \phi \sqrt{\frac{V}{L_{1/2}}}\)
 
 4. Make a big justfile command that compiles all gams files and this goes on CI too ?
+
+
+
+TODAY ...
+
+
+1. Refactor TickRealizedVariance test to have the Differential test structure
+2. Import the Algebra oracle and integrate it on the test
+3. Integrate TickRealizedVariance on the Observer
+4. GREEN TickRealizedVarianceTest
+5. Create entry point for Input volatility
+6. Refactor exposure to acccoung for vegaNotional
+7. Draft test for optionClearingHouse/Panoptic__Premium == targetVariancePremium
 
