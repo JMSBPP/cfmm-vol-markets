@@ -27,6 +27,8 @@ const STATE_OBSERVER_SLOT = 0x0f482e7bdc26bef81b9cec5110006f4afcd2a8b9268081af49
 // cast sig "setStateObserver(address)"
 const SET_STATE_OBSERVER_SELECTOR  = 0x689eb85e;
 
+// cast sig "stateObserver()"
+const STATE_OBSERVER_SELECTOR = 0x7802a03c;
 
 ///////////////////////////////////////////
 // // cast sig "updateTick(int24,int24)" //

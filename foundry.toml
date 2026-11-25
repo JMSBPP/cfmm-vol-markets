@@ -52,6 +52,29 @@ remappings = [
 	   "volatility-oracle-plugin/=src/solidity/vendored/volatility-oracle-plugin/"
 ]
 
+[profile.liveTest]
+src="src"
+test = "foundry-scripts"
+script = "foundry-scripts"
+libs = ["lib", "node_modules"]
+ffi = true
+via_ir = true
+optimizer = true
+# Protocol forks are links in .ref/protocol_references.ref, not compile deps.
+# Solidity that used those remaps keeps the original source as comments
+# (`// PROTOCOL REF:`) plus an empty stub so forge still compiles the file.
+fs_permissions = [
+    { access = "read", path = "./test/pos_spec/fixtures" },
+    { access = "read", path = "./src/interfaces/pos_spec" },
+    { access = "read", path = "./.bytecode/algebra" },
+    { access = "read", path = "./offchain/rig" },
+    { access = "read", path = "./.bytecode/uniswap-v4" },
+    { access = "read", path = "./.bytecode/panoptic" },
+    { access = "read", path = "./.bytecode/reactive"},
+    { access = "read-write", path = "./foundry-scripts/out/deploy" },
+    { access = "read-write", path = "./foundry-scripts/out/protocol_interactions/Reactive" }
+]
+
 
 # Isolated compile for SigmaF / TokenFlow IO (#128). Backend is Anvil (just test-sigmaf).
 [profile.sigmaf]

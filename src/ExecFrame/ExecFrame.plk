@@ -20,10 +20,13 @@ use custom_utils::cfmm_types::Market::{
 
 use custom_utils::more_regions::storage;
 use custom_utils::math::max;
-
+use custom_utils::eth::NO_VALUE;
 
 use custom_utils::protocol_integrations::ReactiveConsumer::*;
 use custom_utils::protocol_integrations::ReactiveCost::LiveReactiveCost;
+use custom_utils::chain::{
+    storeForeignChainId, foreignChainIdOn, ChainId
+};
 
 use std::option::{
     Some, unwrap
@@ -33,11 +36,14 @@ use std::core::ops::less_equals;
 
 use TickMoments::Window::{
     WindowLen, InitializeWindowOnRegion, UpdateWindowOnRegion, WindowDelta,
-    WindowFromRegion
+    WindowFromRegion, WINDOW_TIMESTAMP_PACK_SELECTOR, WindowTimestampOn,
+    WindowTimestamp
 };
 
 
-
+use sys::sys::{
+    sysOn, storeSysOn
+};
 
 // cast keccak "ExecFrameListening(bool)"
 const EXEC_FRAME_LISTENING_TOPIC = 0x1227acb524d7aa07ee69e714b62f3445b5d1e61777f2bc0531a6be223b740843;
@@ -132,7 +138,13 @@ init {
     // TODO: Missing subscription on initialize event of the poolManager
      let execFrameRuntimeRetMemBuff: membytes = membytes_new(@runtime_length());
      // It receives at the end of the runtime code
+     // TODO: From now we assume the originChainId == callbackChainId but we need another 32 bytes space
+     // for allowing deployers to append a different callbackChainId
      // originChainId, poolManager, SWAP_TOPIC, marketId, swapCaller/sys, windowLen -> 192
+     // TODO: The swapCaller/sys is SYS always so we need to guard using ERC165, or general introspection
+     // But the reason it needs to be sys is because sys has a reference to the observer which is needed ehre since callbacks are sent to the observer
+
+
      let mut execFrameReadMemBuff: membytes = membytes_new(192);
      @evm_codecopy(execFrameReadMemBuff.ptr,@init_end_offset(),execFrameReadMemBuff.length);
 
@@ -149,6 +161,12 @@ init {
      	  ReactiveCostSocket(initialize_socket);
 	  // It logs the len of the window that initialized it
 	  emit(InitExecFrameWindowLen(execFrameReadMemBuff));
+	  // It stores callbackChainId on storage
+	  let callbackChainId: ChainId = unwrap(membytes_read_u256(execFrameReadMemBuff,0));
+	  storeForeignChainId(storage, callbackChainId);
+	  // It stores sys on storage
+	  let sysRef: u256 = unwrap(membytes_read_u256(execFrameReadMemBuff, 160));
+	  storeSysOn(storage, sysRef);
 	  // It subscribes to the Swap event
 	  let subscribeMemBuff: membytes = membytes_from_ptr(execFrameWorkingMemBuff.ptr,execFrameWorkingMemBuff.length);
 	  @mstore4(subscribeMemBuff.ptr,SUBSCRIBE_SELECTOR);
@@ -203,11 +221,37 @@ run {
     }
     
     else if selector == REACT_SELECTOR {
-       let subscribedEventId : EventId = @evm_calldataload(100);
-       // if subscribedEventId == BLACKLIST_CONTRACT_TOPIC0 {}
+        let subscribedEventId : EventId = @evm_calldataload(100);
+        // if subscribedEventId == BLACKLIST_CONTRACT_TOPIC0 {}
 
 	if subscribedEventId == SWAP_TOPIC {
+	   let lastWindowTimestamp: WindowTimestamp = WindowTimestampOn(storage)
 	   UpdateWindowOnRegion(storage);
+	   // NOTE: Besides updating the window locally, it needs to send the window data to the the observer
+	   let currentWindowTimestamp: WindowTimestamp = WindowTimestampOn(storage);
+	   let observerWindowPackPayload: membytes = membytes_new(132);
+	   @mstore4(observerWindowPackPayload.ptr, WINDOW_TIMESTAMP_PACK_SELECTOR);
+ 	   membytes_write(observerWindowPackPayload, 4, lastWindowTimestamp);
+	   membytes_write(observerWindowPackPayload, 68, @evm_sub(currentWindowTimestamp, lastWindowTimestamp));
+	   membytes_write(observerWindowPackPayload, 100,currentWindowTimestamp);
+	   // NOTE: The sys is the callback
+	   // base = ptr(32) + selector(4) => base + observerWindowPackPayload.len ,
+	   let sysCallbackMemBuff :membytes = membytes_new(164+%observerWindowPackPayload.length);
+	   @mstore4(sysCallbackMemBuff.ptr, REQUEST_CALLBACK_V_1_0_SELECTOR);
+	   membytes_write(sysCallbackMemBuff, 4, 0x60);
+	   membytes_write(sysCallbackMemBuff, 36,observerWindowPackPayload.length);
+	   membytes_write(sysCallbackMemBuff, 68, foreignChainIdOn(storage));
+	   membytes_write(sysCallbackMemBuff, 100, sysOn(storage));
+	   membytes_write(sysCallbackMemBuff, 132 , CALLBACK_GAS_LIMIT);
+	   @mcopy(sysCallbackMemBuff.ptr+%164,observerWindowPackPayload.ptr,observerWindowPackPayload.length);
+	   if !@evm_call(@evm_gas(), SYSTEM, NO_VALUE, sysCallbackMemBuff.ptr, sysCallbackMemBuff.length,0,0)
+	   {
+		// cast sig "FailedOnCallback()"
+		@mstore4(sysCallbackMemBuff.ptr, 0xe306f6a2);
+		@evm_revert(sysCallbackMemBuff.ptr,4);
+	   }
+
+
 	}
 	
        emit(LogBytes32 {value: bytes32_from_u256(@evm_calldataload(68))} );

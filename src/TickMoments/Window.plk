@@ -32,15 +32,23 @@ const WindowIdxOnWindow = fn (self: WindowV2) WindowIdx {
 
 // cast keccak vol-markets.TickMoments.Window
 const WINDOW_SLOT = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839be424c;
+
+// cast keccak vol-markets.TickMoments.WindowTimestamp
+const WINDOW_TIMESTAMP_SLOT = 0xb4d317bfd410d4a4cde8aaa3843ccbd044b4ba77459c5159832cb582ecdbc5b7;
+
 // cast sig "set_window(uint256)"
 const SET_WINDOW_SELECTOR = 0xdd7afeac;
 
+
+// cast sig "windowTimestampPack(uint256,uint256,uint256)"
+const WINDOW_TIMESTAMP_PACK_SELECTOR = 0x5b619996;
+
 // cast sig "getWindowLen()"
 
-const GET_WINDOW_LEN = 0x37331179;
+const GET_WINDOW_LEN_SELECTOR = 0x37331179;
 
 // cast sig "getWindowDelta()"
-const GET_WINDOW_DELTA = 0x66e78467;
+const GET_WINDOW_DELTA_SELECTOR = 0x66e78467;
 
 const LOW_128_MASK = 0xffffffffffffffffffffffffffffffff;
 
@@ -64,9 +72,22 @@ const WindowWord = fn(W: WindowV2) u256 {
 };
 
 
+const WindowTimestamp = u256;
+
+const NoWindowTimestamp = fn () WindowTimestamp {0};
+
+const WindowTimestampOn = fn (region: type) WindowTimestamp {
+      let mut resWindowTimestamp : WindowTimestamp = NoWindowTimestamp();
+      if region == storage {
+      	 resWindowTimestamp = @evm_sload(WINDOW_TIMESTAMP_SLOT);
+      }
+      resWindowTimestamp
+};
+
 const storeWindowOn = fn (W: WindowV2 ,region: type) void {
       if region == storage {
-      	 @evm_sstore(WINDOW_SLOT, WindowWord(W));      	 
+      	 @evm_sstore(WINDOW_SLOT, WindowWord(W));
+      	 @evm_sstore(WINDOW_TIMESTAMP_SLOT, @evm_timestamp());
       }
 };
 
@@ -108,6 +129,7 @@ const InitializeWindowOnRegion = fn (Wl: WindowLen, region: type) void {
       if Wl ==0 { RevertWindow(InvalidWindowLen); }
       let storageWindowWord = @evm_shl(128, Wl);
       @evm_sstore(WINDOW_SLOT, storageWindowWord);
+      @evm_sstore(WINDOW_TIMESTAMP_SLOT, @evm_timestamp());
 };
 
 const nextIdx = fn  (W: WindowV2) WindowIdx {

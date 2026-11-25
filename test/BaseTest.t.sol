@@ -121,7 +121,7 @@ function endWindowCycleIfDone(Context memory ctx) pure {
 
 contract BaseTest is PlankTestBase, Deployers, HookDeployer {
         address main = makeAddr("cfmm-vol-markets.main");
-	address sys = makeAddr("cfmm-vol-markets.sys");
+	address system = makeAddr("cfmm-vol-markets.sys");
 	address stateObserver = makeAddr("cfmm-vol-markets.stateObserver");
 	address poolManager;
 	address positionManager;
@@ -133,9 +133,9 @@ contract BaseTest is PlankTestBase, Deployers, HookDeployer {
 	ControlContext controlContext;
 
 	function initControlContext () public returns(ControlContext memory _controlCtx) {
-	    deployCodeTo(sys, compilePlank("src/sys/sys.plk"));
+	    deployCodeTo(system, compilePlank("src/sys/sys.plk"));
 	    deployCodeTo(stateObserver, compilePlank("src/sys/observer.plk"));
-	    _controlCtx = ControlContext(sys, stateObserver);
+	    _controlCtx = ControlContext(system, stateObserver);
 	    ISysSetter(globalContext.io).setSys(_controlCtx.sys);
 	    IStateObserverSetter(_controlCtx.sys).setStateObserver(_controlCtx.observer);
 	    IEnv(_controlCtx.sys).setIO(globalContext.io);

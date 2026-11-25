@@ -1,10 +1,14 @@
 use std::constructor::return_runtime;
 use std::core::ops::neg_u256;
+use std::membytes::{
+    membytes, membytes_new, membytes_write
+};
 use sys::observer::{
     STATE_OBSERVER_SLOT, SET_STATE_OBSERVER_SELECTOR,
-    UPDATE_TICK_SELECTOR
+    UPDATE_TICK_SELECTOR, STATE_OBSERVER_SELECTOR
 };
 use custom_utils::eth::NO_VALUE;
+use custom_utils::more_regions::storage;
 use custom_utils::Token::Transfer::NOTIFY_DEBT_SELECTOR;
 use custom_utils::protocol_integrations::UniswapV4Consumer::{
     POOL_MANAGER_SLOT, SET_POOL_MANAGER_SELECTOR, storePoolManager,
@@ -27,7 +31,24 @@ const SYS_SLOT = 0x25cd2f7050d3b4d459754f688c5a5b2d8717a842a98f324f962eaf9f1355c
 // cast sel "setSys(address)"
 const SET_SYS_SELECTOR  = 0x38396dae;
 
+const storeSysOn = fn (region : type, sysRef: u256) void {
+     if region == storage {
+     	@evm_sstore(SYS_SLOT, sysRef);
+     }
+};
+
+const noSys = fn() u256 {0};
+const sysOn = fn (region: type) u256 {
+      let mut resSys: u256 = noSys();
+      if region == storage {
+      	 resSys = @evm_sload(SYS_SLOT);
+      }
+      resSys
+};
+
+
 const sys = struct {};
+
 
 init { return_runtime();}
 
@@ -41,6 +62,12 @@ run {
    else if selector == SET_POOL_MANAGER_SELECTOR {
       	 storePoolManager(@evm_calldataload(4));
 	 @evm_return(@malloc_zeroed(32), 32);
+   }
+
+   else if selector == STATE_OBSERVER_SELECTOR {
+   	let retStateObserverMemBuff: membytes = membytes_new(32);
+	membytes_write(retStateObserverMemBuff,0,@evm_sload(STATE_OBSERVER_SLOT));
+	@evm_return(retStateObserverMemBuff.ptr,retStateObserverMemBuff.length);
    }
    else if selector == SET_STATE_OBSERVER_SELECTOR {
       	 @evm_sstore(STATE_OBSERVER_SLOT, @evm_calldataload(4));

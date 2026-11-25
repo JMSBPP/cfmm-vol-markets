@@ -2,7 +2,6 @@
 pragma solidity >=0.8.26;
 
 import  "@test/BaseTest.t.sol";
-import {DifferentialTest} from "@test/DifferentialTest.sol";
 import {IWindow, WINDOW_SLOT} from "@test/Window.t.sol";
 import {ReactiveTest} from "reactive-test-lib/base/ReactiveTest.sol";
 import {ReactiveSimulator} from "reactive-test-lib/simulator/ReactiveSimulator.sol";
@@ -54,11 +53,6 @@ interface IExecFrame {
 }
 
 
-struct ControlContext {
-    address sys;
-    address observer;
-}
-
 uint256 constant ANVIL_CHAIN_ID = 31337;
 // cast keccak "Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)"
 uint256 constant SWAP_TOPIC = 0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f;
@@ -93,7 +87,7 @@ contract SocketCfgHelper is PlankTestBase {
 
 }
 
-contract ExecFrameTest is DifferentialTest ,ReactiveTest, SocketCfgHelper {
+contract ExecFrameTest is BaseTest ,ReactiveTest, SocketCfgHelper {
 
     address execFrame = makeAddr("ExecFrame");
     address payable constant SYSTEM = payable(0x8888888888888888888888888888888888888888);
@@ -108,8 +102,6 @@ contract ExecFrameTest is DifferentialTest ,ReactiveTest, SocketCfgHelper {
 
     address targetPlaceholder;
 
-    address stateObserver = makeAddr("cfmm-vol-markets.stateObserver");
-    address system = makeAddr("cfmm-vol-markets.sys");
 
     uint24 constant DEFAULT_TICK_SPACING = uint24(60);
     uint256 constant MIN_WINDOW_LEN = 1;
@@ -120,10 +112,6 @@ contract ExecFrameTest is DifferentialTest ,ReactiveTest, SocketCfgHelper {
 	ReactiveTest.setUp();
 	deployCodeTo(underlying, compilePlank("src/utils/Token/Transfer.plk"));
 	deployCodeTo(numeraire, compilePlank("src/utils/Token/Transfer.plk"));
-	deployCodeTo(system, compilePlank("src/sys/sys.plk"));
-        deployCodeTo(stateObserver, compilePlank("src/sys/observer.plk"));
-	controlCtx.sys = system;
-	controlCtx.observer = stateObserver;
     }
 
     function WhenExecFrameSocketIsDeployed(Context memory ctx) external FullContext(ctx){

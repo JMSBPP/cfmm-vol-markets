@@ -1,0 +1,24 @@
+
+use custom_utils::more_regions::storage;
+
+// cast keccak cfmm_types.foreignChainId
+const FOREIGN_CHAIN_ID_BASE_SLOT = 0xd3dd022752a804842501aebe79d73a952ddee21bb4040e7073417bfad31ac5a3;
+
+const ChainId = u256;
+const storeForeignChainId = fn (region : type, chainId :ChainId) void {
+      if region == storage {
+      	 @evm_sstore(FOREIGN_CHAIN_ID_BASE_SLOT, chainId);
+      }
+};
+
+
+const NullForeignChainId = fn () ChainId {0}; 
+const foreignChainIdOn = fn (region: type) ChainId {
+      let mut resForeignChainId: ChainId = NullForeignChainId();
+      if region == storage {
+      	 resForeignChainId = @evm_sload(FOREIGN_CHAIN_ID_BASE_SLOT);
+      }
+
+      resForeignChainId
+      
+};
