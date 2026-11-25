@@ -1,30 +1,30 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+/* // SPDX-License-Identifier: MIT */
+/* pragma solidity ^0.8.26; */
 
-import {PlankTestBase} from "../PlankTestBase.sol";
-// PROTOCOL REF: import {DifferentialTest} from "@seaport/utils/DifferentialTest.sol";
+/* import {PlankTestBase} from "../PlankTestBase.sol"; */
+/* // PROTOCOL REF: import {DifferentialTest} from "@seaport/utils/DifferentialTest.sol"; */
 
-/// @title PlankDiffTestBase
-/// @notice Plank deploy roots (PlankTestBase) plus Seaport's stateless differential runner
-///         (DifferentialTest). Per-suite `.diff.t.sol` files define FuzzArgs + Context and
-///         inherit this instead of re-vendoring DifferentialTest.
+/* /// @title PlankDiffTestBase */
+/* /// @notice Plank deploy roots (PlankTestBase) plus Seaport's stateless differential runner */
+/* ///         (DifferentialTest). Per-suite `.diff.t.sol` files define FuzzArgs + Context and */
+/* ///         inherit this instead of re-vendoring DifferentialTest. */
 
-// Protocol-dependent body parked. See .ref/protocol_references.ref.
-// Restore remaps + uncomment to compile against those GitHub pins.
-// abstract contract PlankDiffTestBase is PlankTestBase, DifferentialTest {
-//     uint256 internal diffComparisons;
-//
-//     function _requireComparisonRan() internal view {
-//         assertGt(diffComparisons, 0, "non-vacuity: zero comparisons");
-//     }
-//
-//     function _runDiff(function(bytes memory) external fn, bytes memory ctx) internal {
-//         try fn(ctx) {} catch (bytes memory reason) {
-//             assertPass(reason);
-//         }
-//     }
-// }
+/* // Protocol-dependent body parked. See .ref/protocol_references.ref. */
+/* // Restore remaps + uncomment to compile against those GitHub pins. */
+/* // abstract contract PlankDiffTestBase is PlankTestBase, DifferentialTest { */
+/* //     uint256 internal diffComparisons; */
+/* // */
+/* //     function _requireComparisonRan() internal view { */
+/* //         assertGt(diffComparisons, 0, "non-vacuity: zero comparisons"); */
+/* //     } */
+/* // */
+/* //     function _runDiff(function(bytes memory) external fn, bytes memory ctx) internal { */
+/* //         try fn(ctx) {} catch (bytes memory reason) { */
+/* //             assertPass(reason); */
+/* //         } */
+/* //     } */
+/* // } */
 
-abstract contract PlankDiffTestBase is PlankTestBase {
-    bytes32 internal constant PASSING_HASH = bytes32(uint256(1));
-}
+/* abstract contract PlankDiffTestBase is PlankTestBase { */
+/*     bytes32 internal constant PASSING_HASH = bytes32(uint256(1)); */
+/* } */

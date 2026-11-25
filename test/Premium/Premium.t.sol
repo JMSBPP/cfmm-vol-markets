@@ -2,7 +2,6 @@
 pragma solidity 0.8.26;
 
 import "@test/BaseTest.t.sol";
-import {DifferentialTest} from "@test/DifferentialTest.sol";
 
 import {HookDeployer} from "@helpers/UniswapV4/HookDeployer.sol";
 
@@ -39,7 +38,7 @@ interface IInstrumentEngine {
     function startReplication() external;
 }
 
-contract PremiumTest is BaseTest, DifferentialTest {
+contract PremiumTest is BaseTest {
     using PoolIdLibrary for PoolKey;
 
     // todo: This is to be replaced by sys

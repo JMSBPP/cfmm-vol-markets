@@ -92,15 +92,19 @@ struct Context {
     address positionManager;
     address target;
     bool doneIterating;
-    ControlContext controlCtx;
+    ControlContext controlContext;
     FuzzInputsCommon args;
     TickDisturbance shock;
     PoolKey marketKey;
     PoolKeyPeriphery marketKeyPeriphery;
 }
-    
+
+function emptyControlContext () pure returns (ControlContext memory controlCtx){
+    controlCtx = ControlContext(address(0x00), address(0x00));
+}
+
 function empty () pure returns (Context memory ctx) {
-    ctx = Context(address(0x00),address(0x00),address(0x00),address(0x00),address(0x00),false,emptyArgs(),emptyTickDisturbance(),emptyMarketKey(),emptyMarketKeyPeriphery ());
+    ctx = Context(address(0x00),address(0x00),address(0x00),address(0x00),address(0x00),false,emptyControlContext(),emptyArgs(),emptyTickDisturbance(),emptyMarketKey(),emptyMarketKeyPeriphery ());
 }
 
 

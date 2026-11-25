@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 
 import {ITick, MIN_TICK, MAX_TICK, normTickVal} from "@test/Tick.t.sol";
 import {ITickSpacing} from "@test/TickSpacing.t.sol";
+import {ITickAverage} from "@test/TickAverage.t.sol";
 import {IWindow} from "@test/Window.t.sol";
 
 import {TickMath} from "v4-core/libraries/TickMath.sol";
@@ -12,28 +13,29 @@ import {SqrtPriceMath} from "v4-core/libraries/SqrtPriceMath.sol";
 
 import {IUnlockCallback} from "v4-core/interfaces/callback/IUnlockCallback.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
-import {DifferentialTest} from "@test/DifferentialTest.sol";
 
 
-interface IStateObserver{
+interface IStateObserver is ITick, ITickAverage { 
+    enum WindowDeltaType{
+	EventCount,
+	Seconds
+    }
   function updateTick(int24,int24) external;
+  function windowDelta(WindowDeltaType) external returns(uint32);
+  function readTickRealizedVariance() external returns(uint88);
+
 }
 
 
-contract ObserverTest is BaseTest, DifferentialTest {
+contract ObserverTest is BaseTest {
 
-    address stateObserver = makeAddr("cfmm-vol-markets.stateObserver");
-    address sys = makeAddr("cfmm-vol-markets.sys");
     
     function setUp() public override {
 	super.setUp();
 	
-	deployCodeTo(stateObserver, compilePlank("src/sys/observer.plk"));
-	deployCodeTo(sys, compilePlank("src/sys/sys.plk"));
 	deployCodeTo(underlying, compilePlank("src/utils/Token/Transfer.plk"));
 	deployCodeTo(numeraire, compilePlank("src/utils/Token/Transfer.plk"));
-	globalContext.target = sys;
-	console2.log("Addr deployed:", globalContext.target);
+	
     }
     // TODO: Partial deadcode since it was making test below fail even when final assertion passed. This is to be revised since checks on those calls is desired
     function expectedStateObserverFirstCalls__InsideDoTickDisturbance(Context memory ctx) external {

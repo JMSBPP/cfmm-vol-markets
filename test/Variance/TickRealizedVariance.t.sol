@@ -7,6 +7,7 @@ import {IStateObserver} from "@test/sys/Observer.t.sol";
 import {IWindow} from "@test/Window.t.sol";
 import {MIN_TICK,MAX_TICK,ITick,normTickVal} from "@test/Tick.t.sol";
 
+import {TickMath} from "v4-core/libraries/TickMath.sol";
 import {Deployers} from "v4-core-test/utils/Deployers.sol";
 import {HookDeployer} from "@helpers/UniswapV4/HookDeployer.sol";
 import {console2} from "forge-std/console2.sol";
@@ -23,7 +24,9 @@ import {
     IPremiumSetter
 } from "@test/NoFeeVarianceClaimBuilderTest.t.sol";
 
-
+interface ITickRealizedVariance {
+    function readTickRealizedVariance() external returns(uint88);
+}
 
 uint160 constant DEFAULT_INIT_PRICE = Constants.SQRT_PRICE_1_1;
 
@@ -32,10 +35,6 @@ bytes32 constant TICK_REALIZED_VARIANCE_SLOT = 0x4d7dc81a011157c981c6066adcb913e
 
 function tick2Delta (int24 tickAvg, int24 tickRef) pure returns(int48) {
     return int48(int48(tickRef - tickAvg)*int48(tickRef - tickAvg));
-}
-
-interface ITickRealizedVariance {
-    function read_tick_realizedVariance() external returns(uint88);
 }
 
 
@@ -65,8 +64,8 @@ contract TickRealizedVarianceTest is BaseTest {
 		do {
 		    ctx = shock(ctx);
 		    ITick(ctx.io).set_tick(ctx.shock.newTick);
-		    VolatilityOracleTest(algebraIntegralVarianceRef).update(UpdateParams(IStateObserver(ctx.controlCtx.stateObserver).windowDelta(IStateObserver.WindowDeltaType.Seconds),ctx.shock.newTick));
-		    assertEq(IStateObserver(ctx.controlCtx.stateObserver).readTickRealizedVariance(),VolatilityOracle(algebraIntegralVarianceRef).getAverageVolatility());
+		    VolatilityOracleTest(algebraIntegralVarianceRef).update(VolatilityOracleTest.UpdateParams(IStateObserver(ctx.controlContext.observer).windowDelta(IStateObserver.WindowDeltaType.Seconds),ctx.shock.newTick));
+		    assertEq(IStateObserver(ctx.controlContext.observer).readTickRealizedVariance(),VolatilityOracleTest(algebraIntegralVarianceRef).getAverageVolatility());
 		    windowIdx++;
 		    
 		} while (windowIdx <= ctx.args.windowLen);
@@ -76,9 +75,9 @@ contract TickRealizedVarianceTest is BaseTest {
 	Context memory ctx = globalContext;
 	ctx = setMarket(args);
 	VolatilityOracleTest(algebraIntegralVarianceRef).initialize(
-								    InitializeParams(
-										     vm.getBlockTimestamp(),
-								    TickMath.getTickAtSqrtPrice(DEFAULT_INIT_PRICE);));
+								    VolatilityOracleTest.InitializeParams(
+										     IStateObserver(ctx.controlContext.observer).windowDelta(IStateObserver.WindowDeltaType.Seconds),
+								    TickMath.getTickAtSqrtPrice(DEFAULT_INIT_PRICE)));
 	test(
 	     this.ObserverTracksAlgebraIntegralVolatilityPluginForRealizedVariance,
 	     ctx
