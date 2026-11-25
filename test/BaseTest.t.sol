@@ -80,6 +80,11 @@ function emptyTickDisturbance () pure returns(TickDisturbance memory resTickDist
     resTickDisturbance = TickDisturbance(int24(0),int24(0));
 }
 
+struct ControlContext {
+    address sys;
+    address observer;
+}
+
 struct Context {
     address io;
     address poolManager;
@@ -87,6 +92,7 @@ struct Context {
     address positionManager;
     address target;
     bool doneIterating;
+    ControlContext controlCtx;
     FuzzInputsCommon args;
     TickDisturbance shock;
     PoolKey marketKey;
@@ -111,14 +117,30 @@ function endWindowCycleIfDone(Context memory ctx) pure {
 
 contract BaseTest is PlankTestBase, Deployers, HookDeployer {
         address main = makeAddr("cfmm-vol-markets.main");
+	address sys = makeAddr("cfmm-vol-markets.sys");
+	address stateObserver = makeAddr("cfmm-vol-markets.stateObserver");
 	address poolManager;
 	address positionManager;
 	address poolManagerLens;
 	address underlying = makeAddr("cfmm.vol-markets.underlying");
 	address numeraire =  makeAddr("cfmm.vol-markets.numeraire");
+	
 	Context globalContext;
+	ControlContext controlContext;
 
+	function initControlContext () public returns(ControlContext memory _controlCtx) {
+	    deployCodeTo(sys, compilePlank("src/sys/sys.plk"));
+	    deployCodeTo(stateObserver, compilePlank("src/sys/observer.plk"));
+	    _controlCtx = ControlContext(sys, stateObserver);
+	    ISysSetter(globalContext.io).setSys(_controlCtx.sys);
+	    IStateObserverSetter(_controlCtx.sys).setStateObserver(_controlCtx.observer);
+	    IEnv(_controlCtx.sys).setIO(globalContext.io);
+	    IEnv(_controlCtx.sys).setPoolManager(globalContext.poolManager);
+	    IEnv(_controlCtx.sys).setPositionManager(globalContext.positionManager);
+	}
+	
 	modifier TickAlignmentContext (Context memory ctx) {
+	    
 	    IEnv(ctx.target).setIO(ctx.io);
 	    _;
 	}
@@ -144,7 +166,7 @@ contract BaseTest is PlankTestBase, Deployers, HookDeployer {
 	    PoolKeyPeriphery memory marketKeyPeriphery = abi.decode(IMarketLens(ctx.io).getMarketKey(), (PoolKeyPeriphery));
 	    globalContext.marketKey = marketKey;
             globalContext.marketKeyPeriphery = marketKeyPeriphery;
-
+	    globalContext.controlContext = initControlContext();
 	    _;
 	}
 
@@ -158,7 +180,7 @@ contract BaseTest is PlankTestBase, Deployers, HookDeployer {
 
 	error FailedToDeployUniswapV4Hook();
 	function setUp() public virtual {
-	    Context memory globalContextInitialized = initContextIntegrations();
+	   initContextIntegrations();
 	}
 
 	function deployUniswapV4Hook(string memory path) internal returns(address hookDeployed) {

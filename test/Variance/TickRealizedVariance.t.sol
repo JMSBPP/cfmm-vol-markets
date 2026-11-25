@@ -3,6 +3,7 @@ pragma solidity >=0.8.0;
 
 import "@test/BaseTest.t.sol";
 import {ITickSpacing, MAX_TICK_SPACING} from "@test/TickSpacing.t.sol";
+import {IStateObserver} from "@test/sys/Observer.t.sol";
 import {IWindow} from "@test/Window.t.sol";
 import {MIN_TICK,MAX_TICK,ITick,normTickVal} from "@test/Tick.t.sol";
 
@@ -23,6 +24,9 @@ import {
 } from "@test/NoFeeVarianceClaimBuilderTest.t.sol";
 
 
+
+uint160 constant DEFAULT_INIT_PRICE = Constants.SQRT_PRICE_1_1;
+
 // cast keccak vol-markets.TickMoments.tickRealizedVariance
 bytes32 constant TICK_REALIZED_VARIANCE_SLOT = 0x4d7dc81a011157c981c6066adcb913eb647dbd449622e803670aaa8e71abc7f1;
 
@@ -38,7 +42,7 @@ interface ITickRealizedVariance {
 contract TickRealizedVarianceTest is BaseTest {
 
     address controller;
-    
+    address algebraIntegralVarianceRef;
     function setUp() public override {
 	super.setUp();
     	deployCodeTo(underlying, compilePlank("src/utils/Token/Transfer.plk"));
@@ -52,6 +56,7 @@ contract TickRealizedVarianceTest is BaseTest {
 	if (succ) {
             controller = _tmp;
         }
+	algebraIntegralVarianceRef = address(new VolatilityOracleTest());
     }
     
     function ObserverTracksAlgebraIntegralVolatilityPluginForRealizedVariance(Context memory ctx) external FullContext(ctx)  {
@@ -60,15 +65,20 @@ contract TickRealizedVarianceTest is BaseTest {
 		do {
 		    ctx = shock(ctx);
 		    ITick(ctx.io).set_tick(ctx.shock.newTick);
+		    VolatilityOracleTest(algebraIntegralVarianceRef).update(UpdateParams(IStateObserver(ctx.controlCtx.stateObserver).windowDelta(IStateObserver.WindowDeltaType.Seconds),ctx.shock.newTick));
+		    assertEq(IStateObserver(ctx.controlCtx.stateObserver).readTickRealizedVariance(),VolatilityOracle(algebraIntegralVarianceRef).getAverageVolatility());
 		    windowIdx++;
 		    
 		} while (windowIdx <= ctx.args.windowLen);
-
     }
     
     function test__fuzz__ObserverTracksAlgebraIntegralVolatilityPluginForRealizedVariance (FuzzInputsCommon memory args) external {
 	Context memory ctx = globalContext;
 	ctx = setMarket(args);
+	VolatilityOracleTest(algebraIntegralVarianceRef).initialize(
+								    InitializeParams(
+										     vm.getBlockTimestamp(),
+								    TickMath.getTickAtSqrtPrice(DEFAULT_INIT_PRICE);));
 	test(
 	     this.ObserverTracksAlgebraIntegralVolatilityPluginForRealizedVariance,
 	     ctx
