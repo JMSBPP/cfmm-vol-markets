@@ -15,6 +15,7 @@ import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
 import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
 
+import {VolatilityOracle} from "volatility-oracle/libraries/VolatilityOracle.sol";
 import {
     IControllerSetter,
     IPremiumSetter

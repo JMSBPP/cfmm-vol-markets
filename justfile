@@ -4,6 +4,10 @@ set dotenv-load
 # the repo-root `.env` (gitignored) so forge / later shells can `source .env`.
 export ANVIL_RPC_URL := "http://127.0.0.1:8545"
 
+start:
+	npm ci --ignore-scripts
+	git submodules udpate
+	forge install
 
 npm-ci:
     npm ci --ignore-scripts
