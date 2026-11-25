@@ -29,7 +29,8 @@ import {PoolIdLibrary} from "v4-periphery/lens/ReservesLens.sol";
 import {NoFeeVarianceClaimBuilderPermissions} from "@helpers/Permissions.sol";
 
 import {ITick, MIN_TICK, MAX_TICK, normTickVal, usableMin, usableMax} from "@test/Tick.t.sol";
-import {ITickSpacing} from "@test/TickSpacing.t.sol";
+import {ITickSpacing, MAX_TICK_SPACING} from "@test/TickSpacing.t.sol";
+
 import {IWindow} from "./Window.t.sol";
 
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
@@ -145,6 +146,14 @@ contract BaseTest is PlankTestBase, Deployers, HookDeployer {
             globalContext.marketKeyPeriphery = marketKeyPeriphery;
 
 	    _;
+	}
+
+        function setMarket (FuzzInputsCommon memory args) internal returns (Context memory ctx){
+	            ctx.args.windowLen = bound(args.windowLen, 1, 5);
+		    IWindow(ctx.io).set_window(ctx.args.windowLen);
+		    ctx.args.tickSpacing = uint24(bound(args.tickSpacing, 60, MAX_TICK_SPACING));
+		    ITickSpacing(ctx.io).set_tick_spacing(ctx.args.tickSpacing);
+		    IWindow(ctx.io).set_window(ctx.args.windowLen);
 	}
 
 	error FailedToDeployUniswapV4Hook();
