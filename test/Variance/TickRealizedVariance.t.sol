@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 import "@test/BaseTest.t.sol";
 import {ITickSpacing, MAX_TICK_SPACING} from "@test/TickSpacing.t.sol";
 import {IStateObserver} from "@test/sys/Observer.t.sol";
+
 import {IWindow} from "@test/Window.t.sol";
 import {MIN_TICK,MAX_TICK,ITick,normTickVal} from "@test/Tick.t.sol";
 
@@ -26,6 +27,15 @@ import {
 
 interface ITickRealizedVariance {
     function readTickRealizedVariance() external returns(uint88);
+}
+
+interface ISys {
+    enum WindowDeltaType{
+	EVENT_COUNT,
+	Seconds
+    }
+	
+    function windowDelta(WindowDeltaType) external returns (uint32);
 }
 
 uint160 constant DEFAULT_INIT_PRICE = Constants.SQRT_PRICE_1_1;
@@ -57,14 +67,14 @@ contract TickRealizedVarianceTest is BaseTest {
         }
 	algebraIntegralVarianceRef = address(new VolatilityOracleTest());
     }
-    
+    // This needs reactive support, this is The sys needs the socket and sys receives the window delta
     function ObserverTracksAlgebraIntegralVolatilityPluginForRealizedVariance(Context memory ctx) external FullContext(ctx)  {
 		uint256 windowIdx = 0;
 		int80 expectedPrevTick2Accum;
 		do {
 		    ctx = shock(ctx);
 		    ITick(ctx.io).set_tick(ctx.shock.newTick);
-		    VolatilityOracleTest(algebraIntegralVarianceRef).update(VolatilityOracleTest.UpdateParams(IStateObserver(ctx.controlContext.observer).windowDelta(IStateObserver.WindowDeltaType.Seconds),ctx.shock.newTick));
+		    VolatilityOracleTest(algebraIntegralVarianceRef).update(VolatilityOracleTest.UpdateParams(ISys(ctx.controlContext.sys).windowDelta(ISys.WindowDeltaType.Seconds),ctx.shock.newTick));
 		    assertEq(IStateObserver(ctx.controlContext.observer).readTickRealizedVariance(),VolatilityOracleTest(algebraIntegralVarianceRef).getAverageVolatility());
 		    windowIdx++;
 		    

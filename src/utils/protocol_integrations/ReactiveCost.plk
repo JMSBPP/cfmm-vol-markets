@@ -30,8 +30,10 @@ use custom_utils::economics::quantity::{
 };
 
 use custom_utils::economics::cost::{
-    Cost
+    Cost, Free, NeqCost
 };
+
+use std::core::ops::less_equals;
 
 // 11124600000000000
 // 419893838200000000000
@@ -121,6 +123,24 @@ const ReactiveCostSocket = fn (action: type) void {
 	     emit(ReactiveCostLog{ initialized: true, owed: LiveReactiveCost()});
 	}				  				  
      }				  
+};
+
+const reactive = struct {};
+const callback = struct {};
+
+const ServiceDisbursement = fn (comptime service: type) void {
+          let settleDisbursementMemBuff: membytes = membytes_new(4);
+    let liveCost: Cost = LiveReactiveCost();
+    if less_equals(liveCost, @evm_selfbalance()) {
+           if !@evm_call(@evm_gas(), SYSTEM, LiveReactiveCost(), settleDisbursementMemBuff.ptr,0,settleDisbursementMemBuff.ptr,0) {
+	     // cast sig "FailedSubscriptionDisbursement()"
+	     @mstore4(settleDisbursementMemBuff.ptr,0x3e80703e);
+	     @evm_revert(settleDisbursementMemBuff.ptr,4);   }
+    	  if NeqCost(LiveReactiveCost(),Free()){
+	     // cast sig "InsufficientDisbursement()"
+	     @mstore4(settleDisbursementMemBuff.ptr,0xb9a26969);
+	     @evm_revert(settleDisbursementMemBuff.ptr,4);   }
+    }
 };
 
 

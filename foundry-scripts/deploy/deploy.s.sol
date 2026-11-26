@@ -21,7 +21,7 @@ import {IWindow} from "@test/Window.t.sol";
 
 import {console2} from "forge-std/console2.sol";
 import {CommonBase} from "forge-std/Base.sol";
-import {ControlContext} from "@test/ExecFrame/ExecFrame.t.sol";
+import {ControlContext} from "@test/protocol_integrations/Reactive/ExecFrame.t.sol";
 
 interface ISysSetter{
     function setSys(address) external;

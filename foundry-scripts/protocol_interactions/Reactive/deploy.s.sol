@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Script} from "forge-std/Script.sol";
 import {LiveContext} from "@script/deploy/deploy.s.sol";
-import {SocketCfgHelper} from  "@test/ExecFrame/ExecFrame.t.sol";
+import {SocketCfgHelper} from  "@test/protocol_integrations/Reactive/ExecFrame.t.sol";
 
 struct SocketContext {
     address execFrame;

@@ -69,6 +69,7 @@ const ReactivePricingMultiplier = fn () PriceMultiplier {
     resReactivePricingMultilplier
 };
 
+
 const MaxReactiveCost = fn () Cost { ReactiveCost(ReactiveGasLimit())};
 
 

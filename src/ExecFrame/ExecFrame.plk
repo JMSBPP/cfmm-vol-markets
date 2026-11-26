@@ -130,7 +130,7 @@ const LogBytes32 = struct {value: bytes32 };
 
 
 use custom_utils::protocol_integrations::ReactiveCost::{
-    ReactiveCostSocket, initialize_socket
+    ReactiveCostSocket, initialize_socket, reactive, ServiceDisbursement
 };
 
 init {
@@ -197,19 +197,8 @@ const ReturnListening = fn () never {
 };
 
 run {
-    let settleDisbursementMemBuff: membytes = membytes_new(4);
-    let liveCost: Cost = LiveReactiveCost();
-    if less_equals(liveCost, @evm_selfbalance()) {
-           if !@evm_call(@evm_gas(), SYSTEM, LiveReactiveCost(), settleDisbursementMemBuff.ptr,0,settleDisbursementMemBuff.ptr,0) {
-	     // cast sig "FailedSubscriptionDisbursement()"
-	     @mstore4(settleDisbursementMemBuff.ptr,0x3e80703e);
-	     @evm_revert(settleDisbursementMemBuff.ptr,4);   }
-    	  if NeqCost(LiveReactiveCost(),Free()){
-	     // cast sig "InsufficientDisbursement()"
-	     @mstore4(settleDisbursementMemBuff.ptr,0xb9a26969);
-	     @evm_revert(settleDisbursementMemBuff.ptr,4);   }
-    }
 
+    ServiceDisbursement(reactive);
     let selector = @evm_shr(224,@evm_calldataload(0));
     
     if selector == LISTENING_SELECTOR { ReturnListening(); }
@@ -225,7 +214,7 @@ run {
         // if subscribedEventId == BLACKLIST_CONTRACT_TOPIC0 {}
 
 	if subscribedEventId == SWAP_TOPIC {
-	   let lastWindowTimestamp: WindowTimestamp = WindowTimestampOn(storage)
+	   let lastWindowTimestamp: WindowTimestamp = WindowTimestampOn(storage);
 	   UpdateWindowOnRegion(storage);
 	   // NOTE: Besides updating the window locally, it needs to send the window data to the the observer
 	   let currentWindowTimestamp: WindowTimestamp = WindowTimestampOn(storage);
@@ -250,7 +239,6 @@ run {
 		@mstore4(sysCallbackMemBuff.ptr, 0xe306f6a2);
 		@evm_revert(sysCallbackMemBuff.ptr,4);
 	   }
-
 
 	}
 	

@@ -7,7 +7,7 @@ import {Test} from "forge-std/Test.sol";
 import {LiveContext} from "@script/deploy/deploy.s.sol";
 import {ITick, usableMax, usableMin, ITickSpacing} from "@test/Tick.t.sol";
 import {IStateObserver} from "@test/sys/Observer.t.sol";
-import {IExecFrame} from "@test/ExecFrame/ExecFrame.t.sol";
+import {IExecFrame} from "@test/protocol_integrations/Reactive/ExecFrame.t.sol";
 import {SocketContext} from "@script/protocol_interactions/Reactive/deploy.s.sol";
 
 uint256 constant SEPOLIA_CHAIN_ID = 11155111;

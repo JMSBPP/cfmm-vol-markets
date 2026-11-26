@@ -41,17 +41,12 @@ interface IInstrumentEngine {
 contract PremiumTest is BaseTest {
     using PoolIdLibrary for PoolKey;
 
-    // todo: This is to be replaced by sys
-    address stateObserver = makeAddr("cfmm-vol-markets.stateObserver");
-    address sys = makeAddr("cfmm-vol-markets.sys");
 
     // todo: This is to be replaced by premiumController
     address noFeeVarianceClaimController;
  
     function setUp() public override {
 	super.setUp();
-        deployCodeTo(stateObserver, compilePlank("src/sys/observer.plk"));
-	deployCodeTo(sys, compilePlank("src/sys/sys.plk"));
         deployCodeTo(underlying, compilePlank("src/utils/Token/Transfer.plk"));
         deployCodeTo(numeraire, compilePlank("src/utils/Token/Transfer.plk"));
         (bool succ, address _tmp,) = deployHook(
@@ -64,17 +59,8 @@ contract PremiumTest is BaseTest {
 	    IControllerSetter(globalContext.io).setController(noFeeVarianceClaimController);
 	    IEnv(noFeeVarianceClaimController).setPoolManager(globalContext.poolManager);
         }
-        globalContext.target = sys;
     }
 
-    modifier SysContext(Context memory ctx) {
-	ISysSetter(ctx.io).setSys(ctx.target);
-	IStateObserverSetter(ctx.target).setStateObserver(stateObserver);
-	IEnv(ctx.target).setIO(ctx.io);
-	IEnv(ctx.target).setPoolManager(ctx.poolManager);
-	IEnv(ctx.target).setPositionManager(ctx.positionManager);
-	_;
-    }
     
     modifier FixedTickSpacing(Context memory ctx){
 	ITickSpacing(ctx.io).set_tick_spacing(LOCKED_TICK_SPACING);
@@ -100,7 +86,7 @@ contract PremiumTest is BaseTest {
 	instrument = Instrument(0,int24(-27060),int24(27060));
     }
     
-    function ForAllPremiumRatesOnReplicationStartedPremiumSensorTracksOptionClearingHouseRealizedPremium(Context memory ctx) external {
+    function ForAllPremiumRatesOnReplicationStartedPremiumSensorTracksOptionClearingHouseRealizedPremium(Context memory ctx) external FullContext(ctx) FixedTickSpacing(ctx) FixedWindowLen(ctx) {
 	uint256 windowIdx = 0;
 	do {
 	    ctx = shock(ctx);
@@ -137,11 +123,6 @@ contract PremiumTest is BaseTest {
     // Premium --> Instrument
     function test__fuzz__ForAllPremiumRatesOnReplicationStartedPremiumSensorTracksOptionClearingHouseRealizedPremium(FuzzInputsCommon memory args)
 	external
-
-	SysContext(globalContext)
-	FullContext(globalContext)
-	FixedTickSpacing(globalContext)
-	FixedWindowLen(globalContext)
     {
 	Context memory ctx = globalContext;
 	args.premiumRate = uint24(bound(args.premiumRate, 0, SwapMath.MAX_SWAP_FEE - 1));
@@ -166,7 +147,7 @@ contract PremiumTest is BaseTest {
         );
     }
 
-    function ForAllPremiumRatesOnReplicationStartedPremiumControllerOnUtilizationEstimatorTracksOptionClearingHouseRealizedPremium(Context memory ctx) external {
+    function ForAllPremiumRatesOnReplicationStartedPremiumControllerOnUtilizationEstimatorTracksOptionClearingHouseRealizedPremium(Context memory ctx) external FullContext(ctx) FixedTickSpacing(ctx) FixedWindowLen(ctx) {
 	console2.log("Asset0PremiumOnInstrument: ",IPremiumReader(ctx.io).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(ctx.marketKey.currency0)));
 	console2.log("Asset1PremiumOnInstrument:", IPremiumReader(ctx.io).assetPremiumTrackedOnOptionClearingHouseWithInstrument(Currency.unwrap(ctx.marketKey.currency1)));
 	console2.log("Asset0PremiumFromUtilization:", IPremiumReader(ctx.io).assetPremium(Currency.unwrap(ctx.marketKey.currency0)));
@@ -178,10 +159,6 @@ contract PremiumTest is BaseTest {
     
     function test__fuzz__ForAllPremiumRatesOnReplicationStartedPremiumControllerOnUtilizationEstimatorTracksOptionClearingHouseRealizedPremium(FuzzInputsCommon memory args)
 	external
-        FullContext(globalContext)
-	SysContext(globalContext)
-	FixedTickSpacing(globalContext)
-	FixedWindowLen(globalContext)
     {
 	vm.skip(true);
 	Context memory ctx = globalContext;

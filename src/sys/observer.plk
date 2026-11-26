@@ -128,7 +128,7 @@ const ObservedTickOn = fn (on: type) Tick {
 const TickShockOn = fn (region: type) TickShock {
       let mut resShock = NoTickShock();
       if region == calldata {
-      	 resShock = TickShock {before: TickFrom(calldata,4,storage), after: TickFrom(calldata,36,storage) };
+         resShock = TickShock {before: TickFrom(calldata,4,storage), after: TickFrom(calldata,36,storage) };
       }
       resShock
 };

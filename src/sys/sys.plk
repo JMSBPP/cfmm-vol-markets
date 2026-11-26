@@ -24,7 +24,17 @@ use ProtocolSync::AlignCalldata::AlignCalldata;
 use ProtocolSync::AlignTickTransition::{
     AlignTickTransitionCfg, AlignTickTransitionMemory, configureAlignTickTransition
 };
+use TickMoments::Window::{
+    WINDOW_TIMESTAMP_PACK_SELECTOR, WindowDeltaTimeLogFrom, WINDOW_DELTA_SELECTOR,
+    storeWindowDelta, WindowDeltaFrom, SECONDS_FLAG
+};
+
 use std::regions::calldata;
+use custom_utils::protocol_integrations::ReactiveCost::{
+    ServiceDisbursement, callback
+};
+
+use custom_utils::unmerged_std::event::emit;
 
 // cast keccak cfmm-vol-markets.sys
 const SYS_SLOT = 0x25cd2f7050d3b4d459754f688c5a5b2d8717a842a98f324f962eaf9f1355cd04;
@@ -50,12 +60,38 @@ const sysOn = fn (region: type) u256 {
 const sys = struct {};
 
 
-init { return_runtime();}
+init {
+     let sysRuntimeRetMemBuff: membytes = membytes_new(@runtime_length());
+     let mut sysInitInputReadMemBuff: membytes = membytes_new(64);
+     @evm_codecopy(sysInitInputReadMemBuff.ptr,@init_end_offset(),sysInitInputReadMemBuff.length);
+     let sysRuntimeRetMemBuff: membytes = membytes_new(@runtime_length()+%sysInitInputReadMemBuff.length);
+     @evm_codecopy(sysRuntimeRetMemBuff.ptr, @runtime_start_offset(), @runtime_length());
+     @mcopy(sysRuntimeRetMemBuff.ptr+%@runtime_length(),sysInitInputReadMemBuff.ptr,sysInitInputReadMemBuff.length);
+     @evm_return(sysRuntimeRetMemBuff.ptr,sysRuntimeRetMemBuff.length);
+}
+
 
 run {
+   ServiceDisbursement(callback);     
    let selector = @evm_shr(224, @evm_calldataload(0));
+   if selector == WINDOW_TIMESTAMP_PACK_SELECTOR {
+      emit(WindowDeltaTimeLogFrom(calldata));
+      storeWindowDelta(storage, @evm_calldataload(36));
+      @evm_return(@malloc_uninit(32),32);
+   }
+
+   else if selector == WINDOW_DELTA_SELECTOR {
+   	let mut windowDeltaToReturn: u256 = 0;
+	let windowDeltaMemBuff: membytes = membytes_new(32);
+   	if @evm_calldataload(4) == SECONDS_FLAG {
+	   windowDeltaToReturn = WindowDeltaFrom(storage);
+	}
+	membytes_write(windowDeltaMemBuff,0,windowDeltaToReturn);
+	@evm_return(windowDeltaMemBuff.ptr,windowDeltaMemBuff.length);
+   }
+   
    // cast sig "setIO(address)"
-   if selector == 0x5340463b {
+   else if selector == 0x5340463b {
       	 @evm_sstore(IO_SLOT, @evm_calldataload(4));
 	 @evm_return(@malloc_zeroed(32), 32);
    }

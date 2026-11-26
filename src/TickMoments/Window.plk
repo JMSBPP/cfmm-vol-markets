@@ -36,9 +36,10 @@ const WINDOW_SLOT = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839
 // cast keccak vol-markets.TickMoments.WindowTimestamp
 const WINDOW_TIMESTAMP_SLOT = 0xb4d317bfd410d4a4cde8aaa3843ccbd044b4ba77459c5159832cb582ecdbc5b7;
 
+// cast keccak vol-markets.TickMoments.WindowTimestampDelta
+const WINDOW_TIMESTAMP_DELTA_SLOT = 0x347efc401acde3e22e7fa67cbd28a71bd5596105f135e6b9cd8fa1cbc8dcc46d;
 // cast sig "set_window(uint256)"
 const SET_WINDOW_SELECTOR = 0xdd7afeac;
-
 
 // cast sig "windowTimestampPack(uint256,uint256,uint256)"
 const WINDOW_TIMESTAMP_PACK_SELECTOR = 0x5b619996;
@@ -47,8 +48,20 @@ const WINDOW_TIMESTAMP_PACK_SELECTOR = 0x5b619996;
 
 const GET_WINDOW_LEN_SELECTOR = 0x37331179;
 
-// cast sig "getWindowDelta()"
-const GET_WINDOW_DELTA_SELECTOR = 0x66e78467;
+// cast sig "windowDelta(uint8)"
+const WINDOW_DELTA_SELECTOR = 0xba4c7805;
+
+const storeWindowDelta = fn (region: type, windowDeltaVal: u256) void {
+      @evm_sstore(WINDOW_TIMESTAMP_DELTA_SLOT, windowDeltaVal);
+};
+
+const SECONDS_FLAG = 1;
+const EVENT_COUNT = 0;
+
+const WindowDeltaFrom = fn (region: type) u256 {
+      @evm_sload(WINDOW_TIMESTAMP_DELTA_SLOT)
+};
+
 
 const LOW_128_MASK = 0xffffffffffffffffffffffffffffffff;
 
@@ -82,6 +95,22 @@ const WindowTimestampOn = fn (region: type) WindowTimestamp {
       	 resWindowTimestamp = @evm_sload(WINDOW_TIMESTAMP_SLOT);
       }
       resWindowTimestamp
+};
+
+const WindowDeltaTimeLog = struct {
+      lastTimestamp :WindowTimestamp,
+      timeDiff :u256,
+      currentTimestamp :WindowTimestamp
+};
+
+const WindowDeltaTimeLogFrom = fn (region: type ) WindowDeltaTimeLog {
+      if region == calldata {
+      	 WindowDeltaTimeLog {
+	 	lastTimestamp: @evm_calldataload(4),
+		timeDiff: @evm_calldataload(36),
+		currentTimestamp: @evm_calldataload(68)
+	 }
+      }
 };
 
 const storeWindowOn = fn (W: WindowV2 ,region: type) void {

@@ -42,7 +42,7 @@ use TickMoments::TickAverage::{
 use Variance::RealizedVariance::{
     READ_TICK_REALIZED_VARIANCE_SELECTOR, RealizedVariance,
     StoreTickRealizedVarianceOn, ReturnRealizedVariance,
-    UpdatedRealizedVariance
+    UpdatedTickRealizedVarianceOn
 };
 
 use custom_utils::cfmm_types::Asset::{
@@ -185,11 +185,12 @@ run {
 	      	 }
 	    }
 	    store_tickAverage(updatedTickAvg,storage);
-	    let updatedTickRealizedVol: RealizedVolatility(Tick) = UpdatedTickRealizedVolatilityOn(
+	    let updatedTickRealizedVol: RealizedVariance(Tick) = UpdatedTickRealizedVarianceOn(
 	    	storage,
 		window_idx(tickAverageWindow(updatedTickAvg))
 	    );
-	    StoreTickRealizedVolatilityOn(updatedTickRealizedVol,storage);
+	    
+	    StoreTickRealizedVarianceOn(updatedTickRealizedVol,storage);
 	    
 	 }
 
@@ -229,11 +230,11 @@ run {
 	    }
 			
 	   store_tickAverage(updatedTickAvg,storage);
-	   let updatedTickRealizedVol: RealizedVolatility(Tick) = UpdatedTickRealizedVolatilityOn(
+	   let updatedTickRealizedVol: RealizedVariance(Tick) = UpdatedTickRealizedVarianceOn(
 	   	storage,
 		window_idx(tickAverageWindow(updatedTickAvg))
 	   );
-	   StoreTickRealizedVolatilityOn(updatedTickRealizedVol,storage);
+	   StoreTickRealizedVarianceOn(updatedTickRealizedVol,storage);
 	 }
 	 
 	@evm_return(@malloc_uninit(0), 0);
@@ -246,7 +247,7 @@ run {
 
     // ===================== TICK_REALIZED_VARIANCE ===============================
     else if selector == READ_TICK_REALIZED_VARIANCE_SELECTOR {
-      TickRealizedVolatilityReturnEVM();      
+     ReturnRealizedVariance(Tick);      
     }
 
     // ===================== TICK_SPACING ===============================

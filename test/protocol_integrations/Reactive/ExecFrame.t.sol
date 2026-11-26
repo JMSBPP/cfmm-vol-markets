@@ -227,11 +227,5 @@ contract ExecFrameTest is BaseTest ,ReactiveTest, SocketCfgHelper {
         // It should set windowLen to WindowGasBudgetUpperBound in storage
     }
 
-    function test_WhenWindowLenCalldataDoesNotExceedWindowGasBudgetUpperBound()
-        external
-    {
-        // It should set windowLen to WindowLenCalldata in storage
-	vm.skip(true);
-    }
 }
 

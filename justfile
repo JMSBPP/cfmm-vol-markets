@@ -495,7 +495,7 @@ run-app:
     exec bash scripts/RunApp.sh . "{{app-bytecode-dir}}"
 
 test-current:
-	forge clean && forge test --match-contract TickRealizedVariance -vvvv
+	forge clean && forge test --match-test  test__fuzz__WhenExecFrameSocketIsDeployed -vvvv
 
 
 get-funds:
