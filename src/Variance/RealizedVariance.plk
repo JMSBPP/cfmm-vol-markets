@@ -1,0 +1,138 @@
+use std::core::uint::{u88,try_cast_uint};
+use std::option::unwrap;
+use TickMoments::TickAverage::{TickAverage, prospectTickAverage};
+use std::constructor::return_runtime;
+
+use custom_utils::cfmm_types::Tick::{
+    AbsDiffTick, AccTick, AvgTickOn, Tick, TickOn, PrevTickOn, TickWord
+};
+use custom_utils::more_regions::storage;
+
+init {return_runtime();}
+run {@evm_stop();}
+
+// cast keccak vol-markets.TickMoments.tickRealizedVariance
+const TICK_REALIZED_VARIANCE_SLOT = 0x4d7dc81a011157c981c6066adcb913eb647dbd449622e803670aaa8e71abc7f1;
+// cast keccak vol-markets.TickMoments.AccTickTickAverage2AccSlot
+const ACC_TICK_TICK_AVERAGE_2_ACC_SLOT = 0xb467e02caadbeaf1f2aed36f0d90663f25b5af2b7dcb29ed3d55b74e6c0010e1;
+// cast sig "read_tick_realizedVariance()"
+const READ_TICK_REALIZED_VARIANCE_SELECTOR = 0x885d665b;
+
+
+const RealizedVariance = fn(comptime over: type) type {
+      if over == Tick {
+      	 struct {
+	 	val: TickRealizedVarianceValue,
+ 	 	acc: Tick2TickAvgAcc
+	 }
+      }
+      else {
+      	   @compile_error("over/src not supported for RealizedVariance");
+      }
+};
+
+const TickRealizedVarianceValue = u88;
+
+
+const CalculatedTickRealizedVarianceValue = fn ( self : RealizedVariance(Tick) ,windowIdx: u256) TickRealizedVarianceValue {
+      if @evm_eq(windowIdx, 0) { ZeroTickRealizedVarianceValue() }
+      else {
+      	   TickRealizedVarianceValueFromWord(
+	   	@evm_div(
+		     TickRealizedVolTick2TickAvgAcc(self),
+		     windowIdx
+		)
+	   )
+      }
+};
+
+const ZeroTickRealizedVarianceValue = fn () u88 {unwrap(try_cast_uint(0,u88))};
+const TickRealizedVarianceValueFromWord = fn (w: u256) TickRealizedVarianceValue {
+      unwrap(try_cast_uint(w,u88))
+};
+
+const Tick2TickAvgAcc = u256;
+
+const EqTick2TickAvgAcc = fn (t2tAcc1:Tick2TickAvgAcc,t2tAcc2:Tick2TickAvgAcc) bool { t2tAcc2 == t2tAcc1};
+const NeqTick2TickAvgAcc = fn (t2tAcc1:Tick2TickAvgAcc,t2tAcc2:Tick2TickAvgAcc) bool {!EqTick2TickAvgAcc(t2tAcc1,t2tAcc2)};
+
+const LastTick2TickAvgAcc = fn(on: type) Tick2TickAvgAcc {
+      let mut last: Tick2TickAvgAcc = UninitLastTick2TickAvgAcc();
+      if on == storage {
+      	 last = @evm_sload(@evm_add(TICK_REALIZED_VARIANCE_SLOT, 1));
+      }
+      last
+};
+
+const UninitLastTick2TickAvgAcc = fn () Tick2TickAvgAcc {0};
+const StepTick2TickAvgAcc = fn (t1: Tick, t2: Tick) Tick2TickAvgAcc { @evm_exp(TickWord(AbsDiffTick(t1,t2)), 2)};
+
+const AccTick2TickAvgAcc = fn (t2t1:Tick2TickAvgAcc,t2t2:Tick2TickAvgAcc) Tick2TickAvgAcc {@evm_add(t2t2,t2t1)};
+
+
+// =========================== INPUT: TickRealizedVol =================================
+
+
+const ReturnRealizedVariance = fn (comptime over: type) never {
+      if over == Tick {
+      	 let retBuff: u256 = @malloc_uninit(32);
+     	  @mstore32(retBuff,@evm_sload(TICK_REALIZED_VARIANCE_SLOT));
+      	  @evm_return(retBuff,32);
+     }
+
+     else {
+     	 @evm_return(@malloc_zeroed(32),32);
+     }     
+};
+
+const StoreTickRealizedVarianceOn = fn (self:RealizedVariance(Tick), on: type) void {
+      if on == storage {
+      	  @evm_sstore(TICK_REALIZED_VARIANCE_SLOT, TickRealizedVarianceValueWord(TickRealizedVolTickRealizedVarianceValue(self)));
+      	  @evm_sstore(@evm_add(TICK_REALIZED_VARIANCE_SLOT, 1), TickRealizedVolTick2TickAvgAcc(self));
+      }
+};
+
+const TickRealizedVolTick2TickAvgAcc = fn(tickRealizedVol:RealizedVariance(Tick)) Tick2TickAvgAcc {
+      @get_field(tickRealizedVol, "acc")          
+};
+
+const TickRealizedVolTickRealizedVarianceValue = fn(tickRealizedVol:RealizedVariance(Tick)) TickRealizedVarianceValue {
+      @get_field(tickRealizedVol, "val")      
+};
+
+
+const TickRealizedVarianceValueWord = fn ( tickRealizedVarianceValue: TickRealizedVarianceValue) u256 {
+      unwrap(try_cast_uint(tickRealizedVarianceValue,u256)) 
+};
+
+// ============================ OUTPUT: TickRealizedVol =================================
+
+const NullTickRealizedVariance = fn () RealizedVariance(Tick) {
+      RealizedVariance(Tick) {val: ZeroTickRealizedVarianceValue (), acc: UninitLastTick2TickAvgAcc ()}      
+};
+
+const UpdatedTickRealizedVarianceOn = fn (on: type, windowIdx: u256) RealizedVariance(Tick) {
+      let mut resUpdatedTickRealizedVarianceOn: RealizedVariance(Tick) = NullTickRealizedVariance();
+      if on == storage {
+      	 let stepTick2TickAvgAcc: Tick2TickAvgAcc = StepTick2TickAvgAcc(AvgTickOn(storage), TickOn(storage));
+	 let lastTick2TickAvgAcc: Tick2TickAvgAcc = LastTick2TickAvgAcc(storage);
+	 if EqTick2TickAvgAcc( UninitLastTick2TickAvgAcc(), lastTick2TickAvgAcc) {
+	    resUpdatedTickRealizedVarianceOn = @set_field(resUpdatedTickRealizedVarianceOn, "acc",stepTick2TickAvgAcc);
+	 }
+
+	 else if NeqTick2TickAvgAcc(UninitLastTick2TickAvgAcc(), lastTick2TickAvgAcc) {
+	      resUpdatedTickRealizedVarianceOn = @set_field(resUpdatedTickRealizedVarianceOn, "acc",AccTick2TickAvgAcc(lastTick2TickAvgAcc, stepTick2TickAvgAcc));
+	 }
+	 resUpdatedTickRealizedVarianceOn = @set_field(
+	 	resUpdatedTickRealizedVarianceOn,
+		"val",
+		CalculatedTickRealizedVarianceValue(resUpdatedTickRealizedVarianceOn, windowIdx)
+	 );
+	 
+      }
+
+      resUpdatedTickRealizedVarianceOn
+};
+
+
+
