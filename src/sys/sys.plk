@@ -15,6 +15,9 @@ use custom_utils::protocol_integrations::UniswapV4Consumer::{
     UNLOCK_SELECTOR, UNLOCK_CALLBACK_SELECTOR, TAKE_SELECTOR,
     SYNC_SELECTOR, SETTLE_FOR_SELECTOR
 };
+
+use custom_utils::protocol_integrations::ReactiveConsumer::*;
+
 use app::Main::IO_SLOT;
 use custom_utils::cfmm_types::Tick::{READ_TICK_SELECTOR, targetTick};
 use custom_utils::cfmm_types::SqrtPrice::{
@@ -25,11 +28,13 @@ use ProtocolSync::AlignTickTransition::{
     AlignTickTransitionCfg, AlignTickTransitionMemory, configureAlignTickTransition
 };
 use TickMoments::Window::{
-    WINDOW_TIMESTAMP_PACK_SELECTOR, WindowDeltaTimeLogFrom, WINDOW_DELTA_SELECTOR,
+    WINDOW_TIMESTAMP_PACK_SELECTOR, WindowDeltaTimeDataFrom, WINDOW_DELTA_SELECTOR,
     storeWindowDelta, WindowDeltaFrom, SECONDS_FLAG
 };
 
-use std::regions::calldata;
+use std::regions::{
+    calldata, code
+};
 use custom_utils::protocol_integrations::ReactiveCost::{
     ServiceDisbursement, callback
 };
@@ -72,10 +77,10 @@ init {
 
 
 run {
-   ServiceDisbursement(callback);     
    let selector = @evm_shr(224, @evm_calldataload(0));
    if selector == WINDOW_TIMESTAMP_PACK_SELECTOR {
-      emit(WindowDeltaTimeLogFrom(calldata));
+      ServiceDisbursement(callback, ServiceOn(code,32));
+      emit(WindowDeltaTimeDataFrom(calldata));
       storeWindowDelta(storage, @evm_calldataload(36));
       @evm_return(@malloc_uninit(32),32);
    }

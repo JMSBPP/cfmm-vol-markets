@@ -1,3 +1,22 @@
+
+use std::membytes::{
+    membytes, membytes_read_u256, membytes_new, membytes_write
+};
+
+use std::option::{
+    Option, unwrap
+};
+use std::regions::memory;
+use std::abi::abi_encode;
+
+use std::slice::{
+    Slice, new, slice_arity
+};
+
+use custom_utils::chain::{
+    ChainId, NullChainId
+};
+
 const LASNA_CHAIN_ID = 5318007;
 const REACTIVE_CHAIN_ID = 1597;
 const SYSTEM = 0x8888888888888888888888888888888888888888;
@@ -15,3 +34,47 @@ const REQUEST_CALLBACK_SELECTOR = 0x734aae8c;
 const BLACKLIST_CONTRACT_TOPIC0 = 0x930136576d6bd679046e0c2e6212ce4cacec0401db71e9a27f906d2bab5e08f3;
 
 const CALLBACK_GAS_LIMIT = 1000000;
+
+const ServiceOn = fn(region: type, offset: u256) u256 {
+      let serviceOnMemBuff: membytes = membytes_new(32);
+      @evm_codecopy(serviceOnMemBuff.ptr,@evm_codesize()-%offset,32);
+      unwrap(membytes_read_u256(serviceOnMemBuff,serviceOnMemBuff.ptr))
+};
+
+
+// This type allows to place the addrss 0 forr the calldata on the callback function since this is a requirement
+
+const CallbackCalldata = fn (selector :u256,data: $D) membytes {
+     let mut callbackCalldataMemBuff: membytes = membytes_new(4);
+     @mstore4(callbackCalldataMemBuff.ptr, selector);
+     if @is_struct(D) {
+     	callbackCalldataMemBuff = membytes_new((@field_count(D)*32)+%callbackCalldataMemBuff.length);
+     }
+     membytes_write(callbackCalldataMemBuff,36,data);
+     callbackCalldataMemBuff
+};
+
+
+const CallbackDst = struct {
+      callbackChainId :ChainId,
+      toCall: u256
+};
+
+const UnsetCallbackDst = fn() CallbackDst { CallbackDst {callbackChainId: NullChainId(), toCall: 0}};
+
+
+const RequestCallbackV_1_0Data = struct {
+      callbackDst :CallbackDst,
+      gasLimit :u256,
+      callbackData :membytes
+};
+
+
+const RequestCallbackV_1_0Calldata = fn ( dst: $Dst, callbackData: membytes) membytes {
+      
+      abi_encode( RequestCallbackV_1_0Data {
+						callbackDst : dst,
+                                                gasLimit :CALLBACK_GAS_LIMIT,
+      						callbackData : callbackData
+						})
+};

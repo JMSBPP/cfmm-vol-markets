@@ -141,6 +141,7 @@ contract BaseTest is PlankTestBase, Deployers, HookDeployer {
 	    IEnv(_controlCtx.sys).setIO(globalContext.io);
 	    IEnv(_controlCtx.sys).setPoolManager(globalContext.poolManager);
 	    IEnv(_controlCtx.sys).setPositionManager(globalContext.positionManager);
+	    
 	}
 	
 	modifier TickAlignmentContext (Context memory ctx) {
@@ -170,21 +171,37 @@ contract BaseTest is PlankTestBase, Deployers, HookDeployer {
 	    PoolKeyPeriphery memory marketKeyPeriphery = abi.decode(IMarketLens(ctx.io).getMarketKey(), (PoolKeyPeriphery));
 	    globalContext.marketKey = marketKey;
             globalContext.marketKeyPeriphery = marketKeyPeriphery;
-	    globalContext.controlContext = initControlContext();
 	    _;
 	}
 
         function setMarket (FuzzInputsCommon memory args) internal returns (Context memory ctx){
+	            ctx = globalContext;
 	            ctx.args.windowLen = bound(args.windowLen, 1, 5);
 		    IWindow(ctx.io).set_window(ctx.args.windowLen);
 		    ctx.args.tickSpacing = uint24(bound(args.tickSpacing, 60, MAX_TICK_SPACING));
 		    ITickSpacing(ctx.io).set_tick_spacing(ctx.args.tickSpacing);
 		    IWindow(ctx.io).set_window(ctx.args.windowLen);
+		    ctx.marketKey.tickSpacing = int24(ITickSpacing(ctx.io).read_tick_spacing());
 	}
 
 	error FailedToDeployUniswapV4Hook();
 	function setUp() public virtual {
 	   initContextIntegrations();
+	    globalContext.controlContext = initControlContext();
+
+	   
+	}
+
+        modifier SaveContext(Context memory ctx) {
+	    address[] memory contextToPersist = new address[](7);
+	    contextToPersist[0] = ctx.io;
+	    contextToPersist[1] = ctx.poolManager;
+	    contextToPersist[2] = ctx.positionManager;
+	    // todo: We can eventually need to persist the token addresses on the marketKey
+	    contextToPersist[3] = ctx.controlContext.sys;
+	    contextToPersist[4] = ctx.controlContext.observer;
+	    vm.makePersistent(contextToPersist);
+	    _;
 	}
 
 	function deployUniswapV4Hook(string memory path) internal returns(address hookDeployed) {

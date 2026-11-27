@@ -6,9 +6,10 @@ use std::regions::{
     code, memory
 };
 use std::slice::{
-    new, Slice
+    new, Slice, len
 };
 
+use std::abi::abi_decode;
 use custom_utils::economics::cost::{
     Cost, Free, NeqCost
 };
@@ -29,7 +30,7 @@ use custom_utils::chain::{
 };
 
 use std::option::{
-    Some, unwrap
+    Some, unwrap, Option
 };
 
 use std::core::ops::less_equals;
@@ -37,7 +38,9 @@ use std::core::ops::less_equals;
 use TickMoments::Window::{
     WindowLen, InitializeWindowOnRegion, UpdateWindowOnRegion, WindowDelta,
     WindowFromRegion, WINDOW_TIMESTAMP_PACK_SELECTOR, WindowTimestampOn,
-    WindowTimestamp
+    WindowTimestamp, WindowDeltaTimeDataFromLastTimestampOnRegion,
+    WindowDeltaTimeData, WindowDeltaTimeMemory, WindowDeltaTimeMemoryFromData,
+    WindowDeltaTimeTupleFromData
 };
 
 
@@ -88,6 +91,8 @@ const SelfDebugRuntime= fn() DebugRuntime {
       }
 };
 
+
+
 const ExpectedInitData = struct {
       windowLen: WindowLen,
       originChainId : u256,
@@ -133,56 +138,54 @@ use custom_utils::protocol_integrations::ReactiveCost::{
     ReactiveCostSocket, initialize_socket, reactive, ServiceDisbursement
 };
 
+
+const SocketCfgInitData = tuple {u256,u256,u256, u256, u256,u256, u256, u256};
+
+const SocketCfgInit = struct {
+     originChainId: u256,
+     poolManager: u256,
+     swapTopic: u256,
+     marketId: u256,
+     sys: u256,
+     windowLen: u256,
+     service: u256,
+     callbackChainId: u256
+};
+
+const socketCfgInitMemLen = fn () u256 {
+      @field_count(SocketCfgInit)*32
+};
+
+const socketCfgDataFromStruct = fn ( S :SocketCfgInit) SocketCfgInitData {
+      (@get_field(S, "originChainId"), @get_field(S, "poolManager"), @get_field(S, "swapTopic"), @get_field(S, "marketId"), @get_field(S, "sys"), @get_field(S, "windowLen"), @get_field(S, "service"), @get_field(S, "callbackChainId"))     
+};
+
 init {
-
-    // TODO: Missing subscription on initialize event of the poolManager
-     let execFrameRuntimeRetMemBuff: membytes = membytes_new(@runtime_length());
-     // It receives at the end of the runtime code
-     // TODO: From now we assume the originChainId == callbackChainId but we need another 32 bytes space
-     // for allowing deployers to append a different callbackChainId
-     // originChainId, poolManager, SWAP_TOPIC, marketId, swapCaller/sys, windowLen -> 192
-     // TODO: The swapCaller/sys is SYS always so we need to guard using ERC165, or general introspection
-     // But the reason it needs to be sys is because sys has a reference to the observer which is needed ehre since callbacks are sent to the observer
-
-
-     let mut execFrameReadMemBuff: membytes = membytes_new(192);
+     let mut execFrameReadMemBuff: membytes = membytes_new(socketCfgInitMemLen());
      @evm_codecopy(execFrameReadMemBuff.ptr,@init_end_offset(),execFrameReadMemBuff.length);
+     let socketCfgInit: SocketCfgInit = abi_decode(SocketCfgInit, execFrameReadMemBuff);
 
-     let execFrameWorkingMemBuff: membytes = membytes_new(196);
-          
-     if @evm_add(@bool_to_u256(@evm_chainid() == LASNA_CHAIN_ID),@bool_to_u256(@evm_chainid() == REACTIVE_CHAIN_ID)) ==  0 {
-	   // cast sig "ExecFrameInvalidEnv()"
-	   @mstore4(execFrameWorkingMemBuff.ptr,0x50b371ea);
-	   @evm_revert(execFrameWorkingMemBuff.ptr,4);
-     }
+     let socketCfgInitDataMemBuff : Slice(memory, u256, Option(u256) { inner: @field_count(SocketCfgInit), is_some: true }) = new(memory, socketCfgDataFromStruct(socketCfgInit));
      
-     else {
-     	  // note: This autosettles debt based on blacklist events
-     	  ReactiveCostSocket(initialize_socket);
-	  // It logs the len of the window that initialized it
-	  emit(InitExecFrameWindowLen(execFrameReadMemBuff));
-	  // It stores callbackChainId on storage
-	  let callbackChainId: ChainId = unwrap(membytes_read_u256(execFrameReadMemBuff,0));
-	  storeForeignChainId(storage, callbackChainId);
-	  // It stores sys on storage
-	  let sysRef: u256 = unwrap(membytes_read_u256(execFrameReadMemBuff, 160));
-	  storeSysOn(storage, sysRef);
+     let serviceRef: u256 = socketCfgInit.service;
+     ReactiveCostSocket(initialize_socket, serviceRef);
+     emit(InitExecFrameWindowLen(execFrameReadMemBuff));
+     let sysRef: u256 = socketCfgInit.sys;
 	  // It subscribes to the Swap event
-	  let subscribeMemBuff: membytes = membytes_from_ptr(execFrameWorkingMemBuff.ptr,execFrameWorkingMemBuff.length);
-	  @mstore4(subscribeMemBuff.ptr,SUBSCRIBE_SELECTOR);
-	  @mcopy(subscribeMemBuff.ptr+%4,execFrameReadMemBuff.ptr,160);
-	  membytes_write(subscribeMemBuff,164,REACTIVE_IGNORE);
-	  if !@evm_call(@evm_gas(), SYSTEM, 0, subscribeMemBuff.ptr,subscribeMemBuff.length,subscribeMemBuff.ptr+%subscribeMemBuff.length,0) {
+      let subscribeMemBuff: membytes = membytes_new(196);
+      @mstore4(subscribeMemBuff.ptr,SUBSCRIBE_SELECTOR);
+      @mcopy(subscribeMemBuff.ptr+%4,execFrameReadMemBuff.ptr,160);
+      membytes_write(subscribeMemBuff,164,REACTIVE_IGNORE);
+      if !@evm_call(@evm_gas(), serviceRef, 0, subscribeMemBuff.ptr,subscribeMemBuff.length,subscribeMemBuff.ptr+%subscribeMemBuff.length,0) {
 	     	// cast sig "ExecFrameFailedToSubscribe()"
 	   	@mstore4(subscribeMemBuff.ptr,0xa2cb2a3e);
-	  }
-	  
-	  let windowLen :WindowLen = unwrap(membytes_read_u256(execFrameReadMemBuff,160));
-	  InitializeWindowOnRegion(windowLen, storage);
+     }
+      let windowLen :WindowLen = socketCfgInit.windowLen;
+      InitializeWindowOnRegion(windowLen, storage);
 
-    }	  
-    
+    let execFrameRuntimeRetMemBuff: membytes = membytes_new(@runtime_length()+%socketCfgInitMemLen());
     @evm_codecopy(execFrameRuntimeRetMemBuff.ptr, @runtime_start_offset(), @runtime_length());
+    membytes_write(execFrameRuntimeRetMemBuff,@runtime_length(),socketCfgInit);
     @evm_return(execFrameRuntimeRetMemBuff.ptr, execFrameRuntimeRetMemBuff.length);
 }
 
@@ -196,9 +199,33 @@ const ReturnListening = fn () never {
       @evm_return(returnListeningMemBuff.ptr, returnListeningMemBuff.length);
 };
 
+const execFrameCallbackDst = fn () CallbackDst {
+      let mut resExFrameCallbackDst: CallbackDst = UnsetCallbackDst();
+      resExFrameCallbackDst = @set_field(resExFrameCallbackDst, "callbackChainId", execFrameCallbackChainId());
+      resExFrameCallbackDst= @set_field(resExFrameCallbackDst, "toCall", execFrameCallbackToCall());
+      resExFrameCallbackDst
+};
+
+const execFrameCallbackChainId = fn() ChainId {
+      let execFrameCallbackChainIdMemBuff: membytes = membytes_new(32);
+      @evm_codecopy(execFrameCallbackChainIdMemBuff.ptr,@evm_sub(@evm_codesize(),32),32);
+      unwrap(membytes_read_u256(execFrameCallbackChainIdMemBuff,0))
+};
+const execFrameCallbackToCall = fn() u256 {
+      let execFrameCallbackToCallIdMemBuff: membytes = membytes_new(32);
+      @evm_codecopy(execFrameCallbackToCallIdMemBuff.ptr,@evm_sub(@evm_codesize(),@field_count(SocketCfgInit)-%@field_index(SocketCfgInit, "sys")),32);
+      unwrap(membytes_read_u256(execFrameCallbackToCallIdMemBuff,0))
+};
+
+const execFrameService = fn() u256 {
+     let execFrameServiceMemBuff: membytes = membytes_new(32);
+     @evm_codecopy(execFrameServiceMemBuff.ptr,@evm_sub(@evm_codesize(),@field_count(SocketCfgInit)-%@field_index(SocketCfgInit, "service")),32);
+     unwrap(membytes_read_u256(execFrameServiceMemBuff,0))
+};
+
 run {
 
-    ServiceDisbursement(reactive);
+    ServiceDisbursement(reactive, ServiceOn(code,32));
     let selector = @evm_shr(224,@evm_calldataload(0));
     
     if selector == LISTENING_SELECTOR { ReturnListening(); }
@@ -216,33 +243,19 @@ run {
 	if subscribedEventId == SWAP_TOPIC {
 	   let lastWindowTimestamp: WindowTimestamp = WindowTimestampOn(storage);
 	   UpdateWindowOnRegion(storage);
-	   // NOTE: Besides updating the window locally, it needs to send the window data to the the observer
-	   let currentWindowTimestamp: WindowTimestamp = WindowTimestampOn(storage);
-	   let observerWindowPackPayload: membytes = membytes_new(132);
-	   @mstore4(observerWindowPackPayload.ptr, WINDOW_TIMESTAMP_PACK_SELECTOR);
- 	   membytes_write(observerWindowPackPayload, 4, lastWindowTimestamp);
-	   membytes_write(observerWindowPackPayload, 68, @evm_sub(currentWindowTimestamp, lastWindowTimestamp));
-	   membytes_write(observerWindowPackPayload, 100,currentWindowTimestamp);
-	   // NOTE: The sys is the callback
-	   // base = ptr(32) + selector(4) => base + observerWindowPackPayload.len ,
-	   let sysCallbackMemBuff :membytes = membytes_new(164+%observerWindowPackPayload.length);
-	   @mstore4(sysCallbackMemBuff.ptr, REQUEST_CALLBACK_V_1_0_SELECTOR);
-	   membytes_write(sysCallbackMemBuff, 4, 0x60);
-	   membytes_write(sysCallbackMemBuff, 36,observerWindowPackPayload.length);
-	   membytes_write(sysCallbackMemBuff, 68, foreignChainIdOn(storage));
-	   membytes_write(sysCallbackMemBuff, 100, sysOn(storage));
-	   membytes_write(sysCallbackMemBuff, 132 , CALLBACK_GAS_LIMIT);
-	   @mcopy(sysCallbackMemBuff.ptr+%164,observerWindowPackPayload.ptr,observerWindowPackPayload.length);
-	   if !@evm_call(@evm_gas(), SYSTEM, NO_VALUE, sysCallbackMemBuff.ptr, sysCallbackMemBuff.length,0,0)
+	   let windowDeltaTimeData : WindowDeltaTimeData = WindowDeltaTimeDataFromLastTimestampOnRegion(storage, lastWindowTimestamp);
+	   let callbackCalldata: membytes = CallbackCalldata(WINDOW_TIMESTAMP_PACK_SELECTOR,windowDeltaTimeData);
+	   let requestCallbackV_1_0CalldataMemBuff :membytes = RequestCallbackV_1_0Calldata(execFrameCallbackDst(), callbackCalldata);
+
+	   if !@evm_call(@evm_gas(), execFrameService(), NO_VALUE, requestCallbackV_1_0CalldataMemBuff.ptr, requestCallbackV_1_0CalldataMemBuff.length,0,0)
 	   {
 		// cast sig "FailedOnCallback()"
-		@mstore4(sysCallbackMemBuff.ptr, 0xe306f6a2);
-		@evm_revert(sysCallbackMemBuff.ptr,4);
+		@mstore4(requestCallbackV_1_0CalldataMemBuff.ptr, 0xe306f6a2);
+		@evm_revert(requestCallbackV_1_0CalldataMemBuff.ptr,4);
 	   }
 
 	}
 	
-       emit(LogBytes32 {value: bytes32_from_u256(@evm_calldataload(68))} );
     }
     
     @evm_return(@malloc_zeroed(32),32);

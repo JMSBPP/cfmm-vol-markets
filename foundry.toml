@@ -7,9 +7,9 @@ libs = ["lib", "node_modules"]
 ffi = true
 via_ir = true
 optimizer = true
-# Protocol forks are links in .ref/protocol_references.ref, not compile deps.
-# Solidity that used those remaps keeps the original source as comments
-# (`// PROTOCOL REF:`) plus an empty stub so forge still compiles the file.
+
+ignored_error_codes = [9302, 3420, 5667, 2424, 2018]
+
 fs_permissions = [
     { access = "read", path = "./test/pos_spec/fixtures" },
     { access = "read", path = "./src/interfaces/pos_spec" },
@@ -30,19 +30,12 @@ remappings = [
 	   "@test/=test/",
 	   "@script/=foundry-scripts/",
 	   "@helpers/=test/helpers/",
-	   # lib/v4-core pinned to e50237c — nested IPoolManager.SwapParams (pre-PoolOperation).
-	   # If a consumer needs the PoolOperation-era interface (bea7f6d), dual-mount it
-	   # under a second remapping (e.g. v4-core-poolop/=lib/v4-core-bea7/src/) and
-	   # import that alias only where required.
 	   "v4-core/=lib/v4-core/src/",
 	   "v4-periphery/=lib/v4-periphery/src/",
 	   "v4-core-test/=lib/v4-core/test/",
-	   # Prefer root pin over empty panoptic nested checkout
-	   # (`@uniswap/=lib/panoptic-v2-core/lib/` auto-remap).
 	   "@uniswap/v4-core/=lib/v4-core/",
 	   "solmate/=lib/v4-core/lib/solmate/",
 	   "panoptic-v2-core/=lib/panoptic-v2-core",
-	   # TokenId.sol / Errors (Instrument tests). Avoid bare @types/@libraries.
 	   "panoptic-types/=lib/panoptic-v2-core/contracts/types/",
 	   "panoptic-libraries/=lib/panoptic-v2-core/contracts/libraries/",
 	   "@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/",

@@ -30,6 +30,8 @@ const WindowIdxOnWindow = fn (self: WindowV2) WindowIdx {
       @get_field(self, "idx")
 };
 
+
+
 // cast keccak vol-markets.TickMoments.Window
 const WINDOW_SLOT = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839be424c;
 
@@ -97,19 +99,44 @@ const WindowTimestampOn = fn (region: type) WindowTimestamp {
       resWindowTimestamp
 };
 
-const WindowDeltaTimeLog = struct {
+const WindowTimestampDelta = u256;
+
+const WindowDeltaTimeData = struct {
       lastTimestamp :WindowTimestamp,
-      timeDiff :u256,
+      timeDiff :WindowTimestampDelta,
       currentTimestamp :WindowTimestamp
 };
 
-const WindowDeltaTimeLogFrom = fn (region: type ) WindowDeltaTimeLog {
+const WindowDeltaTimeDataFrom = fn (region: type ) WindowDeltaTimeData {
       if region == calldata {
-      	 WindowDeltaTimeLog {
+      	 WindowDeltaTimeData {
 	 	lastTimestamp: @evm_calldataload(4),
 		timeDiff: @evm_calldataload(36),
 		currentTimestamp: @evm_calldataload(68)
 	 }
+      }
+};
+
+const WindowDeltaTimeTuple = tuple{WindowTimestamp, WindowTimestampDelta, WindowTimestamp};
+
+const WindowDeltaTimeTupleFromData = fn( W :WindowDeltaTimeData) WindowDeltaTimeTuple {
+      (@get_field(W, "lastTimestamp"), @get_field(W, "timeDiff"), @get_field(W, "currentTimestamp"))
+};
+
+const WindowDeltaTimeMemory = Slice(memory, u256, Option(u256) {inner: 3, is_some: true});
+
+
+const WindowDeltaTimeMemoryFromData = fn (W: WindowDeltaTimeData ) WindowDeltaTimeMemory {
+	new(memory, WindowDeltaTimeTupleFromData(W))
+};
+
+const WindowDeltaTimeDataFromLastTimestampOnRegion = fn (comptime region: type, LW: WindowTimestamp) WindowDeltaTimeData {
+      let currentWindowTimestamp :WindowTimestamp  = WindowTimestampOn(region);
+      
+      WindowDeltaTimeData {
+      			  lastTimestamp: LW,
+			  timeDiff: @evm_sub(LW, currentWindowTimestamp),
+			  currentTimestamp: currentWindowTimestamp
       }
 };
 

@@ -1,3 +1,5 @@
+- Include reactive callback on sys
+- Verify callback calldata is correct
 1. Refactor TickRealizedVariance test to have the Differential test structure
 2. Import the Algebra oracle and integrate it on the test
 3. Integrate TickRealizedVariance on the Observer

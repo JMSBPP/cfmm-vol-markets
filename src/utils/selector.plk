@@ -1,0 +1,1 @@
+const WithSelector = fn (L:u256) { L+%4};

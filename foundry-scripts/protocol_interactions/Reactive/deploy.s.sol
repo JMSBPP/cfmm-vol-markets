@@ -26,7 +26,7 @@ contract ExecFrameDeployer is Script, SocketCfgHelper, LiveContext {
     function deployExecFrame () public {
 	  marketKeySet = true;
 	  vm.startBroadcast(vm.envUint("TESTNET_PRIVATE_KEY"));
-	  address execFrame = deployCode(socketCode(chainIdParametrizedSocketCfgFromAllCtx(globalContext(), controlContext(), SEPOLIA_CHAIN_ID)));
+	  address execFrame = deployCode(socketCode(chainIdParametrizedSocketCfgFromAllCtx(globalContext(), SEPOLIA_CHAIN_ID)));
 	  string memory socket_json = vm.serializeAddress("socket-context", "exec-frame", execFrame);
 	  execFrame.call{value: EXPECTED_TEN_CALL_COST}("");
 	  
