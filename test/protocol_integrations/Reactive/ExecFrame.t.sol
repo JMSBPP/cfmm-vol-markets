@@ -174,11 +174,8 @@ contract ExecFrameTest is BaseTest ,ReactiveTest, SocketCfgHelper {
 	// It should subscribe to MarketKeyMarketId on the ReactiveNetwork
 	
 	vm.expectCall(address(sys), abi.encodeCall(ISubscriptionService.subscribe, (DEFAULT_ORIGIN_CHAIN_ID,ctx.poolManager,SWAP_TOPIC,uint256(PoolId.unwrap(PoolIdLibrary.toId(ctx.marketKey))), uint256(uint160(ctx.controlContext.sys)), REACTIVE_IGNORE)));
-
-	bytes memory initArgs = abi.encode(DEFAULT_ORIGIN_CHAIN_ID, ctx.poolManager, SWAP_TOPIC, PoolId.unwrap(PoolIdLibrary.toId(ctx.marketKey)),  system ,ctx.args.windowLen, address(sys), DEFAULT_CALLBACK_CHAIN_ID);
-	console2.logBytes(initArgs);
 	
-	deployCodeTo(execFrame, bytes.concat(compilePlank("src/ExecFrame/ExecFrame.plk"),initArgs));
+	deployCodeTo(execFrame, socketCode(serviceContractParametrizedSocketCfgFromCtx(ctx, address(sys))));
 		     
 	// It should store the service address on its bytecode
 	assertEq(uint256(uint160(address(sys))),lastWordOnRuntimeBytecode(execFrame));
@@ -210,11 +207,9 @@ contract ExecFrameTest is BaseTest ,ReactiveTest, SocketCfgHelper {
 
     
     function WhenStateUpdateDuringWindowLength(Context memory ctx) external FullContext(ctx) ReactiveContextSync(ctx, defaultReactiveContext(ctx), this.AnvilAndReactive){
-	bytes memory initArgs = abi.encode(DEFAULT_ORIGIN_CHAIN_ID, ctx.poolManager, SWAP_TOPIC, PoolId.unwrap(PoolIdLibrary.toId(ctx.marketKey)),  system ,ctx.args.windowLen, address(sys), DEFAULT_CALLBACK_CHAIN_ID);
+	deployCodeTo(execFrame, socketCode(serviceContractParametrizedSocketCfgFromCtx(ctx, address(sys))));
 	
-	deployCodeTo(execFrame, bytes.concat(compilePlank("src/ExecFrame/ExecFrame.plk"),initArgs));
 	uint256 windowIdx = 0;
-	
 	do {
 	    ctx = shock(ctx);
 	    vm.assume(ctx.shock.newTick != ITick(ctx.io).read_tick());
