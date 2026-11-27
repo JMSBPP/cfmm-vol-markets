@@ -104,11 +104,15 @@ contract SocketCfgHelper is PlankTestBase {
 }
 
 
-function lastWordOnRuntimeBytecode (address src) returns(uint256) {
-    assembly {
-	let freePtr := mload(0x40)
-	extcodecopy(src,freePtr, sub(extcodesize(src),32), 32)
-	return(freePtr,32)    
+function lastWordOnRuntimeBytecode(address src)
+     returns (uint256 word)
+{
+    uint256 size = src.code.length;
+    require(size >= 32, "Runtime code shorter than one word");
+
+    assembly ("memory-safe") {
+        extcodecopy(src, 0x00, sub(size, 32), 32)
+        word := mload(0x00)
     }
 }
 
@@ -165,20 +169,22 @@ contract ExecFrameTest is BaseTest ,ReactiveTest, SocketCfgHelper {
     function WhenExecFrameSocketIsDeployed(Context memory ctx) external FullContext(ctx) SaveContext(ctx){
 	
 	vm.expectCall(address(sys),abi.encodeCall(ISubscriptionService.subscribe, (vm.getChainId(),address(sys),BLACKLIST_CONTRACT_TOPIC0,uint256(uint160(execFrame)),REACTIVE_IGNORE,REACTIVE_IGNORE)));
+	vm.expectCall(address(sys), abi.encodeCall(ISubscriptionService.subscribe, (DEFAULT_ORIGIN_CHAIN_ID,ctx.poolManager,SWAP_TOPIC,uint256(PoolId.unwrap(PoolIdLibrary.toId(ctx.marketKey))), uint256(uint160(ctx.controlContext.sys)), REACTIVE_IGNORE)));
 	
         vm.expectCall(address(sys) ,abi.encodeCall(IPayable.debt, (execFrame)));
 	vm.expectEmit(false,false,false,true,execFrame);
-	emit IReactiveCost.ReactiveCostLog(true,IPayable(payable(sys)).debt(execFrame));
+	emit IReactiveCost.ReactiveCostLog(true,0);
 	vm.expectEmit(true, false, false, false, execFrame);
         emit IExecFrame.ExecFrameWindowLen(ctx.args.windowLen);
 	// It should subscribe to MarketKeyMarketId on the ReactiveNetwork
-	
-	vm.expectCall(address(sys), abi.encodeCall(ISubscriptionService.subscribe, (DEFAULT_ORIGIN_CHAIN_ID,ctx.poolManager,SWAP_TOPIC,uint256(PoolId.unwrap(PoolIdLibrary.toId(ctx.marketKey))), uint256(uint160(ctx.controlContext.sys)), REACTIVE_IGNORE)));
-	
+		
 	deployCodeTo(execFrame, socketCode(serviceContractParametrizedSocketCfgFromCtx(ctx, address(sys))));
 		     
 	// It should store the service address on its bytecode
-	assertEq(uint256(uint160(address(sys))),lastWordOnRuntimeBytecode(execFrame));
+	assertEq(DEFAULT_CALLBACK_CHAIN_ID,expectedCallbackChainIdOnExecFrameBytecode(execFrame));
+	assertEq(uint256(uint160(address(sys))), expectedServiceOnExecFrameBytecode(execFrame));
+	assertEq(ctx.args.windowLen, expectedWindowLenOnExecFrameBytecoode(execFrame));
+	
 	// It stores the chainId on storage
 	assertEq(DEFAULT_ORIGIN_CHAIN_ID, uint256(vm.load(execFrame, FOREIGN_CHAIN_ID_BASE_SLOT)));
 	// It should store  windowCalldata on WINDOW_SLOT
