@@ -36,11 +36,12 @@ use std::option::{
 use std::core::ops::less_equals;
 
 use TickMoments::Window::{
-    WindowLen, InitializeWindowOnRegion, UpdateWindowOnRegion, WindowDelta,
-    WindowFromRegion, WINDOW_TIMESTAMP_PACK_SELECTOR, WindowTimestampOn,
+    WindowLen, InitializedWindowOnRegions, UpdatedWindowOnRegions, WindowDelta,
+    WINDOW_TIMESTAMP_PACK_SELECTOR, WindowTimestampOn,
     WindowTimestamp, WindowDeltaTimeDataFromLastTimestampOnRegion,
     WindowDeltaTimeData, WindowDeltaTimeMemory, WindowDeltaTimeMemoryFromData,
-    WindowDeltaTimeTupleFromData
+    WindowDeltaTimeTupleFromData, WindowIdx, WindowIdxFromRegion, WindowFromRegions,
+    WindowNotFinished
 };
 
 
@@ -55,6 +56,8 @@ const EXEC_FRAME_LISTENING_TOPIC = 0x1227acb524d7aa07ee69e714b62f3445b5d1e61777f
 const LISTENING_SELECTOR = 0xea0caa68;
 // cast sig "remainingStateUpdatesToListen()"
 const REMAINING_STATE_UPDATES_TO_LISTEN_SELECTOR = 0xc82056f6;
+// cast sig "stateUpdatesListenedCount()"
+const STATE_UPDATES_LISTENED_COUNT_SELECTOR = 0x8da76b25;
 
 // cast keccak "ExecFrameWindowLen(u256)"
 const ExecFrameWindowLen = struct {
@@ -181,7 +184,7 @@ init {
 	   	@mstore4(subscribeMemBuff.ptr,0xa2cb2a3e);
      }
       let windowLen :WindowLen = socketCfgInit.windowLen;
-      InitializeWindowOnRegion(windowLen, storage);
+      InitializedWindowOnRegions(ExecFrameWindowLenRegion,ExecFrameWindowIdxRegion);
 
     let execFrameRuntimeRetMemBuff: membytes = membytes_new(@runtime_length()+%socketCfgInitMemLen());
     @evm_codecopy(execFrameRuntimeRetMemBuff.ptr, @runtime_start_offset(), @runtime_length());
@@ -191,7 +194,7 @@ init {
 
 const EventId = u256;
 
-const listening = fn() bool { WindowDelta(WindowFromRegion(storage)) != 0 };
+const listening = fn() bool { WindowNotFinished(WindowFromRegions(ExecFrameWindowLenRegion,ExecFrameWindowIdxRegion))};
 
 const ReturnListening = fn () never {
       let returnListeningMemBuff: membytes = membytes_new(32);
@@ -219,21 +222,31 @@ const execFrameCallbackToCall = fn() u256 {
 
 const execFrameService = fn() u256 {
      let execFrameServiceMemBuff: membytes = membytes_new(32);
-     @evm_codecopy(execFrameServiceMemBuff.ptr,@evm_sub(@evm_codesize(),@field_count(SocketCfgInit)-%@field_index(SocketCfgInit, "service")),32);
+     @evm_codecopy(execFrameServiceMemBuff.ptr,@evm_sub(@evm_codesize(),@field_count(SocketCfgInit)*32-%@field_index(SocketCfgInit, "service")*32),32);
      unwrap(membytes_read_u256(execFrameServiceMemBuff,0))
 };
+// todo: Fiz this to be be parametrized not hardocded
+const ExecFrameWindowLenRegion =  (code,96);
+const ExecFrameWindowIdxRegion = storage;
 
 run {
-
-    ServiceDisbursement(reactive, ServiceOn(code,32));
+    // ServiceDisbursement(reactive, ServiceOn(code,32));
     let selector = @evm_shr(224,@evm_calldataload(0));
     
     if selector == LISTENING_SELECTOR { ReturnListening(); }
+    
     else if selector == REMAINING_STATE_UPDATES_TO_LISTEN_SELECTOR {
     	 let remainingStateUpdatesMemBuff: membytes = membytes_new(32);
-    	 let remainingStateUpdatesCount: u256 = WindowDelta(WindowFromRegion(storage));
+    	 let remainingStateUpdatesCount: u256 = WindowDelta(WindowFromRegions(ExecFrameWindowLenRegion,ExecFrameWindowIdxRegion));
 	 membytes_write(remainingStateUpdatesMemBuff,0,remainingStateUpdatesCount);
 	 @evm_return(remainingStateUpdatesMemBuff.ptr,remainingStateUpdatesMemBuff.length);
+    }
+
+    else if selector == STATE_UPDATES_LISTENED_COUNT_SELECTOR {
+    	 let stateUpdateListenedCountMemBuff: membytes = membytes_new(32);
+	 let stateUpdateListenedCount: WindowIdx = WindowIdxFromRegion(ExecFrameWindowIdxRegion);
+	 membytes_write(stateUpdateListenedCountMemBuff,0,stateUpdateListenedCount);
+	 @evm_return(stateUpdateListenedCountMemBuff.ptr,stateUpdateListenedCountMemBuff.length);
     }
     
     else if selector == REACT_SELECTOR {
@@ -242,7 +255,7 @@ run {
 
 	if subscribedEventId == SWAP_TOPIC {
 	   let lastWindowTimestamp: WindowTimestamp = WindowTimestampOn(storage);
-	   UpdateWindowOnRegion(storage);
+	   UpdatedWindowOnRegions(ExecFrameWindowLenRegion,ExecFrameWindowIdxRegion);
 	   let windowDeltaTimeData : WindowDeltaTimeData = WindowDeltaTimeDataFromLastTimestampOnRegion(storage, lastWindowTimestamp);
 	   let callbackCalldata: membytes = CallbackCalldata(WINDOW_TIMESTAMP_PACK_SELECTOR,windowDeltaTimeData);
 	   let requestCallbackV_1_0CalldataMemBuff :membytes = RequestCallbackV_1_0Calldata(execFrameCallbackDst(), callbackCalldata);

@@ -52,12 +52,14 @@ interface IExecFrame {
     error ExecFrameInvalidEnv();
     function listening() external returns(bool);
     function remainingStateUpdatesToListen() external returns(uint256);
+    function stateUpdatesListenedCount() external returns(uint256);
 }
 
 
 uint256 constant ANVIL_CHAIN_ID = 31337;
 uint256 constant DEFAULT_ORIGIN_CHAIN_ID = ANVIL_CHAIN_ID;
 uint256 constant DEFAULT_CALLBACK_CHAIN_ID = DEFAULT_ORIGIN_CHAIN_ID;
+uint256 constant NO_EVENTS_LISTENED = 0;
 
 // cast keccak "Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)"
 uint256 constant SWAP_TOPIC = 0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f;
@@ -104,17 +106,95 @@ contract SocketCfgHelper is PlankTestBase {
 }
 
 
-function lastWordOnRuntimeBytecode(address src)
+function expectedCallbackChainIdOnExecFrameBytecode(address src)
      returns (uint256 word)
 {
     uint256 size = src.code.length;
-    require(size >= 32, "Runtime code shorter than one word");
 
     assembly ("memory-safe") {
         extcodecopy(src, 0x00, sub(size, 32), 32)
         word := mload(0x00)
     }
 }
+
+function expectedServiceOnExecFrameBytecode(address src)
+     returns (uint256 word)
+{
+    uint256 size = src.code.length;
+
+    assembly ("memory-safe") {
+        extcodecopy(src, 0x00, sub(size, 64), 32)
+        word := mload(0x00)
+    }
+}
+
+function expectedWindowLenOnExecFrameBytecode(address src)
+     returns (uint256 word)
+{
+    uint256 size = src.code.length;
+
+    assembly ("memory-safe") {
+        extcodecopy(src, 0x00, sub(size, 96), 32)
+        word := mload(0x00)
+    }
+}
+
+function expectedSysOnExecFrameBytecode(address src)
+     returns (uint256 word)
+{
+    uint256 size = src.code.length;
+
+    assembly ("memory-safe") {
+        extcodecopy(src, 0x00, sub(size, 128), 32)
+        word := mload(0x00)
+    }
+}
+
+
+function expectedMarketIdWordOnExecFrameBytecode(address src)
+     returns (uint256 word)
+{
+    uint256 size = src.code.length;
+
+    assembly ("memory-safe") {
+        extcodecopy(src, 0x00, sub(size, 160), 32)
+        word := mload(0x00)
+    }
+}
+
+function expectedSwapTopicOnExecFrameBytecode(address src)
+     returns (uint256 word)
+{
+    uint256 size = src.code.length;
+
+    assembly ("memory-safe") {
+        extcodecopy(src, 0x00, sub(size, 192), 32)
+        word := mload(0x00)
+    }
+}
+
+function expectedPoolManagerOnExecFrameBytecode(address src)
+     returns (uint256 word)
+{
+    uint256 size = src.code.length;
+
+    assembly ("memory-safe") {
+        extcodecopy(src, 0x00, sub(size, 224), 32)
+        word := mload(0x00)
+    }
+}
+
+function expectedOriginChainIdOnExecFrameBytecode(address src)
+     returns (uint256 word)
+{
+    uint256 size = src.code.length;
+
+    assembly ("memory-safe") {
+        extcodecopy(src, 0x00, sub(size, 256), 32)
+        word := mload(0x00)
+    }
+}
+
 
 contract ExecFrameTest is BaseTest ,ReactiveTest, SocketCfgHelper {
 
@@ -169,7 +249,8 @@ contract ExecFrameTest is BaseTest ,ReactiveTest, SocketCfgHelper {
     function WhenExecFrameSocketIsDeployed(Context memory ctx) external FullContext(ctx) SaveContext(ctx){
 	
 	vm.expectCall(address(sys),abi.encodeCall(ISubscriptionService.subscribe, (vm.getChainId(),address(sys),BLACKLIST_CONTRACT_TOPIC0,uint256(uint160(execFrame)),REACTIVE_IGNORE,REACTIVE_IGNORE)));
-	vm.expectCall(address(sys), abi.encodeCall(ISubscriptionService.subscribe, (DEFAULT_ORIGIN_CHAIN_ID,ctx.poolManager,SWAP_TOPIC,uint256(PoolId.unwrap(PoolIdLibrary.toId(ctx.marketKey))), uint256(uint160(ctx.controlContext.sys)), REACTIVE_IGNORE)));
+	uint256 marketIdWord = uint256(PoolId.unwrap(PoolIdLibrary.toId(ctx.marketKey)));
+	vm.expectCall(address(sys), abi.encodeCall(ISubscriptionService.subscribe, (DEFAULT_ORIGIN_CHAIN_ID,ctx.poolManager,SWAP_TOPIC, marketIdWord, uint256(uint160(ctx.controlContext.sys)), REACTIVE_IGNORE)));
 	
         vm.expectCall(address(sys) ,abi.encodeCall(IPayable.debt, (execFrame)));
 	vm.expectEmit(false,false,false,true,execFrame);
@@ -183,17 +264,18 @@ contract ExecFrameTest is BaseTest ,ReactiveTest, SocketCfgHelper {
 	// It should store the service address on its bytecode
 	assertEq(DEFAULT_CALLBACK_CHAIN_ID,expectedCallbackChainIdOnExecFrameBytecode(execFrame));
 	assertEq(uint256(uint160(address(sys))), expectedServiceOnExecFrameBytecode(execFrame));
-	assertEq(ctx.args.windowLen, expectedWindowLenOnExecFrameBytecoode(execFrame));
-	
-	// It stores the chainId on storage
-	assertEq(DEFAULT_ORIGIN_CHAIN_ID, uint256(vm.load(execFrame, FOREIGN_CHAIN_ID_BASE_SLOT)));
-	// It should store  windowCalldata on WINDOW_SLOT
-	assertEq(ctx.args.windowLen,leftWord(uint256(vm.load(execFrame,WINDOW_SLOT))));
-	assertEq(ZERO_WINDOW_IDX, rightWord(uint256(vm.load(execFrame,WINDOW_SLOT))));
+	assertEq(ctx.args.windowLen, expectedWindowLenOnExecFrameBytecode(execFrame));
+	assertEq(uint256(uint160(ctx.controlContext.sys)), expectedSysOnExecFrameBytecode(execFrame));
+	assertEq(marketIdWord, expectedMarketIdWordOnExecFrameBytecode(execFrame));
+	assertEq(SWAP_TOPIC, expectedSwapTopicOnExecFrameBytecode(execFrame));
+	assertEq(uint256(uint160(ctx.poolManager)), expectedPoolManagerOnExecFrameBytecode(execFrame));
+	assertEq(DEFAULT_ORIGIN_CHAIN_ID, expectedOriginChainIdOnExecFrameBytecode(execFrame));
 
-	// It should set remainingStateUpdatesToListena to windowCalldata
- 
+
+	console2.logBytes(execFrame.code);
+	// It should set remainingStateUpdatesToListena to windowLen
 	assertEq(IExecFrame(execFrame).remainingStateUpdatesToListen(), ctx.args.windowLen);
+	assertEq(IExecFrame(execFrame).stateUpdatesListenedCount(), NO_EVENTS_LISTENED);
 	// It should have its state as listening
 	assertTrue(IExecFrame(execFrame).listening());
 	// TO BE EVALUATED

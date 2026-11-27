@@ -8,7 +8,7 @@ ffi = true
 via_ir = true
 optimizer = true
 
-ignored_error_codes = [9302, 3420, 5667, 2424, 2018]
+ignored_error_codes = [9302, 3420, 5667, 2424, 2018, 2394]
 
 fs_permissions = [
     { access = "read", path = "./test/pos_spec/fixtures" },

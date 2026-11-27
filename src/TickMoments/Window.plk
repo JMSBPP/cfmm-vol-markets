@@ -1,9 +1,9 @@
 use custom_utils::more_regions::storage;
 
 use std::core::uint::_type_of;
-use std::membytes::{membytes,membytes_from_ptr,membytes_read_u256};
+use std::membytes::{membytes,membytes_from_ptr,membytes_read_u256 ,membytes_new};
 use std::option::{unwrap,Some, Option};
-use std::regions::{calldata,memory};
+use std::regions::{calldata,memory, code};
 use std::mem::unsafe_mem_write;
 use std::slice::{Slice, get, new};
 use std::core::ops::greater_equals;
@@ -35,11 +35,15 @@ const WindowIdxOnWindow = fn (self: WindowV2) WindowIdx {
 // cast keccak vol-markets.TickMoments.Window
 const WINDOW_SLOT = 0x11a586e09432f3d1b89c99706d3b8f3173c77004ae593e7e676b5ed839be424c;
 
+// cast keccak vol-markets.TickMoments.WindowIdx
+const WINDOW_IDX_SLOT = 0x62e59816d3fa59f018766f653c6e52080b2faaad0607aab8443bce3bd30b9beb;
 // cast keccak vol-markets.TickMoments.WindowTimestamp
 const WINDOW_TIMESTAMP_SLOT = 0xb4d317bfd410d4a4cde8aaa3843ccbd044b4ba77459c5159832cb582ecdbc5b7;
 
 // cast keccak vol-markets.TickMoments.WindowTimestampDelta
 const WINDOW_TIMESTAMP_DELTA_SLOT = 0x347efc401acde3e22e7fa67cbd28a71bd5596105f135e6b9cd8fa1cbc8dcc46d;
+
+
 // cast sig "set_window(uint256)"
 const SET_WINDOW_SELECTOR = 0xdd7afeac;
 
@@ -99,6 +103,13 @@ const WindowTimestampOn = fn (region: type) WindowTimestamp {
       resWindowTimestamp
 };
 
+const EqWindowTimestamp = fn(wt1: WindowTimestamp, wt2: WindowTimestamp) bool {wt1 == wt2};
+const NeqWindowTimestamp = fn(wt1: WindowTimestamp, wt2: WindowTimestamp) bool {!EqWindowTimestamp(wt1,wt2)};
+
+const UninitializedWindowOn = fn (region: type) bool {
+     EqWindowTimestamp(WindowTimestampOn(region), NoWindowTimestamp())
+};
+
 const WindowTimestampDelta = u256;
 
 const WindowDeltaTimeData = struct {
@@ -116,6 +127,28 @@ const WindowDeltaTimeDataFrom = fn (region: type ) WindowDeltaTimeData {
 	 }
       }
 };
+
+
+
+const WindowFromRegions = fn(windowLenRegion: $WLR, windowIdxRegion: $WIR) WindowV2 {
+      let mut resWindow: WindowV2 = NullWindow();
+      if @is_tuple(WLR) {
+      	 if @get_field(windowLenRegion, 0) == code {
+	    let windowLenCodeMemBuff: membytes = membytes_new(32);	    				
+	    @evm_codecopy(windowLenCodeMemBuff.ptr, @evm_sub(@evm_codesize(), @get_field(windowLenRegion,1)),32);
+	    resWindow = @set_field(resWindow, "len", unwrap(membytes_read_u256(windowLenCodeMemBuff,0)));	    
+	    }
+      }
+
+      if WIR == storage {
+      	 let windowIdx : WindowIdx= WindowIdxFromRegion(storage);
+      	 resWindow = @set_field(resWindow, "idx",windowIdx);      	 
+      }
+      
+      ValidateWindow(resWindow);
+      resWindow
+};
+
 
 const WindowDeltaTimeTuple = tuple{WindowTimestamp, WindowTimestampDelta, WindowTimestamp};
 
@@ -152,7 +185,7 @@ const storeWindowOn = fn (W: WindowV2 ,region: type) void {
 const WindowIdxFromRegion = fn(region : type) WindowIdx {
       let mut resWindowIndexFromRegion: WindowIdx = ZeroWindowIdx();
       if region == storage {
-      	 resWindowIndexFromRegion = @get_field(WindowFromRegion(storage),"idx");
+      	 resWindowIndexFromRegion = @evm_sload(WINDOW_IDX_SLOT);
       }
       resWindowIndexFromRegion
 };
@@ -165,26 +198,41 @@ const WindowLenFromRegion = fn(region: type) WindowLen {
       	 resWindowLenFromRegion = @get_field(WindowFromRegion(storage),"len");
       }
       resWindowLenFromRegion
-};
 
+};
+const NoWindowDelta = fn () u256 {0};
 const WindowDelta = fn (W:WindowV2) u256 { @evm_sub(W.len,W.idx)};
 
 const InvalidWindowLen = struct{};
 
 
-const RevertWindow = fn (reason: type) never {
+const ValidateWindow = fn (reason: $R) void {
       let mut errorBuffPtr: u256 = @malloc_uninit(4);
-      if reason == InvalidWindowLen {
+      if R == InvalidWindowLen {
       	 // cast sig "InvalidWindowLen()"
       	 @mstore4(errorBuffPtr, 0x46c0ef4a);
       	 @evm_revert(errorBuffPtr,4);
       }
+      if R == WindowV2 {
+      	 if @get_field(reason, "idx") > @get_field(reason, "len") {
+	    // cast sig "InvalidWindowIdx()"
+	    @mstore4(errorBuffPtr, 0x0fabbff5);
+	    @evm_revert(errorBuffPtr,4);
+	 }    	 
+      }
+
+      if R == storage {
+      	 if UninitializedWindowOn(storage) {
+	    // cast sig "UninitializedWindow()"
+	    @mstore4(errorBuffPtr, 0x7d04e8e0);
+	    @evm_revert(errorBuffPtr,4);
+	 }
+      }
 };
 
-const InitializeWindowOnRegion = fn (Wl: WindowLen, region: type) void {
-      if Wl ==0 { RevertWindow(InvalidWindowLen); }
-      let storageWindowWord = @evm_shl(128, Wl);
-      @evm_sstore(WINDOW_SLOT, storageWindowWord);
+
+
+const InitializeWindowIdxOnRegion = fn (region: type) void {
       @evm_sstore(WINDOW_TIMESTAMP_SLOT, @evm_timestamp());
 };
 
@@ -196,7 +244,36 @@ const nextIdx = fn  (W: WindowV2) WindowIdx {
       resNextIdx
 };
 
+const UpdateWindowTimestampOn = fn (region: type) void {
+      	@evm_sstore(WINDOW_TIMESTAMP_SLOT, @evm_timestamp());
+};
 
+const WindowFinished = fn(self: WindowV2) bool {
+      WindowDelta(self) == NoWindowDelta()
+};
+
+const WindowNotFinished = fn (self: WindowV2) bool {!WindowFinished(self)};
+
+
+// todo: This is somehow buggy because window-len region cannot be assigned if the region is "code" until it gets returned on their runtime.
+const InitializedWindowOnRegions = fn (windowLenRegion: $WLR, windowIdxRegion: $WIR) WindowV2 {
+      let mut initializedWindow: WindowV2 = NullWindow();
+      if WIR == storage {
+      	 UpdateWindowTimestampOn(WIR);
+	 initializedWindow = @set_field(initializedWindow, "idx", ZeroWindowIdx());
+     }
+     initializedWindow
+};
+
+const UpdatedWindowOnRegions = fn (windowLenRegion: $WLR, windowIdxRegion: $WIR) WindowV2 {
+      let mut updatedWindow: WindowV2 = WindowFromRegions(windowLenRegion, windowIdxRegion);
+      if WIR == storage {
+      	 ValidateWindow(storage);
+	 updatedWindow =  @set_field(updatedWindow, "idx", nextIdx(updatedWindow));
+      }
+      ValidateWindow(updatedWindow);
+      updatedWindow
+};
 	
 const UpdateWindowOnRegion = fn (region: type) void {
       if region == storage {
